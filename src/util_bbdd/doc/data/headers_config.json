@@ -1,0 +1,453 @@
+{
+  "headers": {
+    "COLUMNAS": {
+      "base": [
+        "Campo",
+        "Tipo",
+        "Nulo"
+      ],
+      "mariadb": [
+        "Clave",
+        "Por defecto",
+        "Extra",
+        "Comentario"
+      ],
+      "oracle": [
+        "Por defecto",
+        "Longitud",
+        "Precisión",
+        "Escala",
+        "Comentario"
+      ],
+      "postgresql": [
+        "Por defecto",
+        "Longitud",
+        "Precisión",
+        "Escala",
+        "Comentario"
+      ],
+      "hsqldb": [
+        "Por defecto",
+        "Longitud",
+        "Precisión",
+        "Escala",
+        "Comentario"
+      ],
+      "sqlite": [
+        "Por defecto",
+        "Longitud",
+        "Precisión",
+        "Comentario"
+      ],
+      "sqlserver": [
+        "Es Identity",
+        "Por defecto",
+        "Longitud",
+        "Precisión",
+        "Escala",
+        "Comentario"
+      ]
+    },
+    "FK": {
+      "base": [
+        "Nombre Restricción"
+      ],
+      "mariadb": [
+        "Tabla",
+        "Columna",
+        "Tabla Ref.",
+        "Columna Ref."
+      ],
+      "oracle": [
+        "Columna",
+        "Tabla Referenciada",
+        "Columna Referenciada"
+      ],
+      "postgresql": [
+        "Columna",
+        "Tabla Referenciada",
+        "Columna Referenciada"
+      ],
+      "hsqldb": [
+        "Columna",
+        "Tabla Referenciada",
+        "Columna Referenciada"
+      ],
+      "sqlite": [
+        "Columna",
+        "Tabla Referenciada",
+        "Columna Referenciada"
+      ],
+      "sqlserver": [
+        "Tabla",
+        "Columna",
+        "Tabla Ref.",
+        "Columna Ref."
+      ]
+    },
+    "UNIQUE": {
+      "base": [
+        "Nombre Restricción"
+      ],
+      "mariadb": [
+        "Campo"
+      ],
+      "oracle": [
+        "Campo"
+      ],
+      "postgresql": [
+        "Campo"
+      ],
+      "hsqldb": [
+        "Campo"
+      ],
+      "sqlite": [
+        "Campo"
+      ],
+      "sqlserver": [
+        "Campo"
+      ]
+    },
+    "INDICES": {
+      "base": [
+        "Nombre Índice",
+        "Columna",
+        "Único"
+      ],
+      "mariadb": [
+        "Tipo de Índice"
+      ],
+      "oracle": [
+        "Tipo de Índice"
+      ],
+      "postgresql": [
+        "Tipo de Índice"
+      ],
+      "hsqldb": [
+        "Tipo de Índice"
+      ],
+      "sqlite": [
+        "Tipo de Índice"
+      ],
+      "sqlserver": [
+        "Tipo de Índice"
+      ]
+    },
+    "PARAMETROS_RUTINA": {
+      "base": [
+        "Modo",
+        "Parámetro",
+        "Tipo",
+        "Valor por defecto",
+        "Posición"
+      ],
+      "mariadb": [],
+      "oracle": [],
+      "postgresql": [],
+      "hsqldb": [],
+      "sqlite": [],
+      "sqlserver": []
+    },
+    "RUTINAS": {
+      "base": [
+        "Nombre",
+        "Tipo",
+        "Comentario",
+        "DDL",
+        "Parámetros"
+      ],
+      "mariadb": [],
+      "oracle": [],
+      "postgresql": [],
+      "hsqldb": [],
+      "sqlite": [],
+      "sqlserver": []
+    },
+    "FLAT": {
+      "base": [
+        "Tabla",
+        "Comentario Tabla",
+        "Campo",
+        "Tipo",
+        "Nulo"
+      ],
+      "mariadb": [
+        "Clave",
+        "Por defecto",
+        "Extra",
+        "Comentario Columna"
+      ],
+      "oracle": [
+        "Por defecto",
+        "Longitud",
+        "Precisión",
+        "Escala",
+        "Es PK",
+        "Es FK",
+        "Índices",
+        "Comentario Columna"
+      ],
+      "postgresql": [
+        "Por defecto",
+        "Longitud",
+        "Precisión",
+        "Escala",
+        "Es PK",
+        "Es FK",
+        "Índices",
+        "Comentario Columna"
+      ],
+      "hsqldb": [
+        "Por defecto",
+        "Longitud",
+        "Precisión",
+        "Escala",
+        "Es PK",
+        "Es FK",
+        "Índices",
+        "Comentario Columna"
+      ],
+      "sqlite": [
+        "Por defecto",
+        "Longitud",
+        "Precisión",
+        "Comentario Columna"
+      ],
+      "sqlserver": [
+        "Es Identity",
+        "Por defecto",
+        "Longitud",
+        "Precisión",
+        "Escala",
+        "Comentario Columna"
+      ]
+    }
+  },
+  "labels": {
+    "COLUMNAS": {
+      "mariadb": {
+        "Clave": "Clave",
+        "Por defecto": "Por defecto",
+        "Extra": "Extra"
+      },
+      "oracle": {
+        "Por defecto": "Por defecto",
+        "Longitud": "Longitud",
+        "Precisión": "Precisión",
+        "Escala": "Escala"
+      },
+      "postgresql": {
+        "Por defecto": "Por defecto",
+        "Longitud": "Longitud",
+        "Precisión": "Precisión",
+        "Escala": "Escala"
+      },
+      "hsqldb": {
+        "Por defecto": "Por defecto",
+        "Longitud": "Longitud",
+        "Precisión": "Precisión",
+        "Escala": "Escala"
+      },
+      "sqlite": {
+        "Por defecto": "Por defecto",
+        "Longitud": "Longitud",
+        "Precisión": "Precisión"
+      },
+      "sqlserver": {
+        "Clave": "Clave",
+        "Por defecto": "Por defecto",
+        "Extra": "Extra"
+      }
+    },
+    "FK": {
+      "mariadb": {
+        "Nombre Restricción": "Nombre Restricción",
+        "Tabla": "Tabla",
+        "Columna": "Columna",
+        "Tabla Ref.": "Tabla Ref.",
+        "Columna Ref.": "Columna Ref."
+      },
+      "oracle": {
+        "Nombre Restricción": "Nombre de la Restricción",
+        "Columna": "Columna",
+        "Tabla Referenciada": "Tabla Referenciada",
+        "Columna Referenciada": "Columna Referenciada"
+      },
+      "postgresql": {
+        "Nombre Restricción": "Nombre de la Restricción",
+        "Columna": "Columna",
+        "Tabla Referenciada": "Tabla Referenciada",
+        "Columna Referenciada": "Columna Referenciada"
+      },
+      "hsqldb": {
+        "Nombre Restricción": "Nombre de la Restricción",
+        "Columna": "Columna",
+        "Tabla Referenciada": "Tabla Referenciada",
+        "Columna Referenciada": "Columna Referenciada"
+      },
+      "sqlite": {
+        "Nombre Restricción": "Nombre de la Restricción",
+        "Columna": "Columna",
+        "Tabla Referenciada": "Tabla Referenciada",
+        "Columna Referenciada": "Columna Referenciada"
+      },
+      "sqlserver": {
+        "Nombre Restricción": "Nombre Restricción",
+        "Tabla": "Tabla",
+        "Columna": "Columna",
+        "Tabla Ref.": "Tabla Ref.",
+        "Columna Ref.": "Columna Ref."
+      }
+    },
+    "UNIQUE": {
+      "mariadb": {
+        "Nombre Restricción": "Nombre Restricción",
+        "Campo": "Campo"
+      },
+      "oracle": {
+        "Nombre Restricción": "Nombre de la Restricción",
+        "Campo": "Campo"
+      },
+      "postgresql": {
+        "Nombre Restricción": "Nombre de la Restricción",
+        "Campo": "Campo"
+      },
+      "hsqldb": {
+        "Nombre Restricción": "Nombre de la Restricción",
+        "Campo": "Campo"
+      },
+      "sqlite": {
+        "Nombre Restricción": "Nombre de la Restricción",
+        "Campo": "Campo"
+      },
+      "sqlserver": {
+        "Nombre Restricción": "Nombre Restricción",
+        "Campo": "Campo"
+      }
+    },
+    "INDICES": {
+      "mariadb": {
+        "Nombre Índice": "Nombre Índice",
+        "Columna": "Columna",
+        "Único": "Único",
+        "Tipo": "Tipo"
+      },
+      "oracle": {
+        "Nombre Índice": "Nombre del Índice",
+        "Columna": "Columna",
+        "Único": "Único",
+        "Tipo de Índice": "Tipo de Índice"
+      },
+      "postgresql": {
+        "Nombre Índice": "Nombre del Índice",
+        "Columna": "Columna",
+        "Único": "Único",
+        "Tipo de Índice": "Tipo de Índice"
+      },
+      "hsqldb": {
+        "Nombre Índice": "Nombre del Índice",
+        "Columna": "Columna",
+        "Único": "Único",
+        "Tipo de Índice": "Tipo de Índice"
+      },
+      "sqlite": {
+        "Nombre Índice": "Nombre del Índice",
+        "Columna": "Columna",
+        "Único": "Único",
+        "Tipo de Índice": "Tipo de Índice"
+      },
+      "sqlserver": {
+        "Nombre Índice": "Nombre Índice",
+        "Columna": "Columna",
+        "Único": "Único",
+        "Tipo": "Tipo"
+      }
+    },
+    "FLAT": {
+      "mariadb": {
+        "Tabla": "Tabla",
+        "Comentario Tabla": "Comentario Tabla",
+        "Campo": "Campo",
+        "Tipo": "Tipo",
+        "Nulo": "Nulo",
+        "Clave": "Clave",
+        "Por defecto": "Por defecto",
+        "Extra": "Extra",
+        "Comentario Columna": "Comentario Columna"
+      },
+      "oracle": {
+        "Tabla": "Tabla",
+        "Comentario Tabla": "Comentario Tabla",
+        "Campo": "Campo",
+        "Tipo": "Tipo",
+        "Nulo": "Nulo",
+        "Por defecto": "Por defecto",
+        "Longitud": "Longitud",
+        "Precisión": "Precisión",
+        "Escala": "Escala",
+        "Comentario Columna": "Comentario Columna",
+        "Es PK": "Es PK",
+        "Es FK": "Es FK",
+        "Índices": "Índices"
+      },
+      "postgresql": {
+        "Tabla": "Tabla",
+        "Comentario Tabla": "Comentario Tabla",
+        "Campo": "Campo",
+        "Tipo": "Tipo",
+        "Nulo": "Nulo",
+        "Por defecto": "Por defecto",
+        "Longitud": "Longitud",
+        "Precisión": "Precisión",
+        "Escala": "Escala",
+        "Comentario Columna": "Comentario Columna",
+        "Es PK": "Es PK",
+        "Es FK": "Es FK",
+        "Índices": "Índices"
+      },
+      "hsqldb": {
+        "Tabla": "Tabla",
+        "Comentario Tabla": "Comentario Tabla",
+        "Campo": "Campo",
+        "Tipo": "Tipo",
+        "Nulo": "Nulo",
+        "Por defecto": "Por defecto",
+        "Longitud": "Longitud",
+        "Precisión": "Precisión",
+        "Escala": "Escala",
+        "Comentario Columna": "Comentario Columna",
+        "Es PK": "Es PK",
+        "Es FK": "Es FK",
+        "Índices": "Índices"
+      },
+      "sqlite": {
+        "Tabla": "Tabla",
+        "Comentario Tabla": "Comentario Tabla",
+        "Campo": "Campo",
+        "Tipo": "Tipo",
+        "Nulo": "Nulo",
+        "Por defecto": "Por defecto",
+        "Longitud": "Longitud",
+        "Precisión": "Precisión",
+        "Comentario Columna": "Comentario Columna",
+        "Es PK": "Es PK",
+        "Es FK": "Es FK",
+        "Índices": "Índices"
+      },
+      "sqlserver": {
+        "Tabla": "Tabla",
+        "Comentario Tabla": "Comentario Tabla",
+        "Campo": "Campo",
+        "Tipo": "Tipo",
+        "Nulo": "Nulo",
+        "Clave": "Clave",
+        "Por defecto": "Por defecto",
+        "Extra": "Extra",
+        "Comentario Columna": "Comentario Columna",
+        "Es PK": "Es PK",
+        "Es FK": "Es FK",
+        "Índices": "Índices"
+      }
+    }
+  }
+}

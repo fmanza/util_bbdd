@@ -1,0 +1,807 @@
+{
+  "database_types": {
+    "mariadb": {
+      "name": "MariaDB",
+      "description": "Sistema de gestión de bases de datos relacional, fork de MySQL conocido por su rendimiento y compatibilidad",
+      "version_range": "5.5.0+",
+      "default_port": 3306,
+      "drivers": [
+        "mariadb",
+        "mysql"
+      ],
+      "url_docs": "https://mariadb.com/kb/",
+      "supported_features": [
+        "Procedimientos almacenados",
+        "Triggers",
+        "Vistas",
+        "Transacciones ACID",
+        "Replicación",
+        "Particionamiento de tablas"
+      ],
+      "connection_params": {
+        "required": [
+          "host",
+          "user",
+          "password",
+          "database"
+        ],
+        "optional": [
+          {
+            "name": "port",
+            "type": "integer",
+            "default": 3306,
+            "description": "Puerto de conexión del servidor MariaDB"
+          },
+          {
+            "name": "unix_socket",
+            "type": "string",
+            "description": "Ruta al socket Unix (para conexiones locales)"
+          },
+          {
+            "name": "charset",
+            "type": "string",
+            "default": "utf8mb4",
+            "description": "Conjunto de caracteres para la conexión"
+          },
+          {
+            "name": "autocommit",
+            "type": "boolean",
+            "default": false,
+            "description": "Activar autocommit automático"
+          },
+          {
+            "name": "connect_timeout",
+            "type": "integer",
+            "default": 10,
+            "description": "Tiempo de espera para la conexión en segundos"
+          },
+          {
+            "name": "read_timeout",
+            "type": "integer",
+            "default": 30,
+            "description": "Tiempo de espera para operaciones de lectura"
+          },
+          {
+            "name": "write_timeout",
+            "type": "integer",
+            "default": 60,
+            "description": "Tiempo de espera para operaciones de escritura"
+          },
+          {
+            "name": "pool_size",
+            "type": "integer",
+            "default": 5,
+            "description": "Número de conexiones en el pool de conexiones"
+          }
+        ]
+      },
+      "driver_info": {
+        "pip_package": "mariadb",
+        "import_name": "mariadb",
+        "install_command": "pip install mariadb",
+        "system_requirements": [
+          "libmariadb3 (Ubuntu/Debian)",
+          "mariadb-connector-c (CentOS/RHEL)",
+          "MariaDB Connector/C (Windows)"
+        ]
+      }
+    },
+    "oracle": {
+      "name": "Oracle Database",
+      "description": "Sistema de gestión de bases de datos empresarial, conocido por su robustez y características avanzadas",
+      "version_range": "11g R2+",
+      "default_port": 1521,
+      "drivers": [
+        "cx_Oracle",
+        "oracledb"
+      ],
+      "url_docs": "https://docs.oracle.com/",
+      "supported_features": [
+        "PL/SQL",
+        "Procedimientos almacenados",
+        "Packages",
+        "Triggers",
+        "Vistas materializadas",
+        "Particionamiento avanzado",
+        "RAC (Real Application Clusters)",
+        "Data Guard",
+        "Flashback Technology"
+      ],
+      "connection_params": {
+        "required": [
+          "user",
+          "password"
+        ],
+        "optional": [
+          {
+            "name": "dsn",
+            "type": "string",
+            "description": "Data Source Name para conexión (formato: host:port/service_name)"
+          },
+          {
+            "name": "host",
+            "type": "string",
+            "description": "Nombre del host o dirección IP del servidor Oracle"
+          },
+          {
+            "name": "port",
+            "type": "integer",
+            "default": 1521,
+            "description": "Puerto de conexión del listener Oracle"
+          },
+          {
+            "name": "service_name",
+            "type": "string",
+            "description": "Nombre del servicio de la base de datos"
+          },
+          {
+            "name": "sid",
+            "type": "string",
+            "description": "System Identifier de la base de datos"
+          },
+          {
+            "name": "protocol",
+            "type": "string",
+            "default": "TCP",
+            "description": "Protocolo de conexión"
+          },
+          {
+            "name": "encoding",
+            "type": "string",
+            "default": "UTF-8",
+            "description": "Codificación de caracteres para la conexión"
+          },
+          {
+            "name": "oracle_client_path",
+            "type": "string",
+            "description": "Ruta al cliente Oracle (Instant Client)"
+          },
+          {
+            "name": "pool_size",
+            "type": "integer",
+            "default": 5,
+            "description": "Número de conexiones en el pool"
+          },
+          {
+            "name": "max_lifetime",
+            "type": "integer",
+            "default": 3600,
+            "description": "Tiempo máximo de vida de una sesión en segundos"
+          }
+        ]
+      },
+      "driver_info": {
+        "pip_package": "oracledb",
+        "import_name": "oracledb",
+        "install_command": "pip install oracledb",
+        "system_requirements": [
+          "Oracle Instant Client",
+          "Oracle Client Libraries",
+          "LD_LIBRARY_PATH configurado (Linux/Unix)"
+        ],
+        "client_path_support": true
+      }
+    },
+    "postgresql": {
+      "name": "PostgreSQL",
+      "description": "Sistema de bases de datos objeto-relacional de código abierto, conocido por su robustez y cumplimiento de estándares",
+      "version_range": "9.6+",
+      "default_port": 5432,
+      "drivers": [
+        "psycopg2",
+        "psycopg"
+      ],
+      "url_docs": "https://www.postgresql.org/docs/",
+      "supported_features": [
+        "PL/pgSQL",
+        "Procedimientos almacenados",
+        "Funciones",
+        "Triggers",
+        "Vistas",
+        "Tipos de datos personalizados",
+        "Herencia de tablas",
+        "Extensiones",
+        "JSON/JSONB",
+        "Full-text search",
+        "Replicación",
+        "Particionamiento"
+      ],
+      "connection_params": {
+        "required": [
+          "host",
+          "user",
+          "password",
+          "database"
+        ],
+        "optional": [
+          {
+            "name": "schema",
+            "type": "string",
+            "default": "public",
+            "description": "Esquema a usar en consultas de metadatos (tablas, vistas, rutinas)."
+          },
+          {
+            "name": "port",
+            "type": "integer",
+            "default": 5432,
+            "description": "Puerto de conexión del servidor PostgreSQL"
+          },
+          {
+            "name": "dbname",
+            "type": "string",
+            "description": "Alias para el nombre de la base de datos"
+          },
+          {
+            "name": "sslmode",
+            "type": "string",
+            "default": "prefer",
+            "options": [
+              "disable",
+              "allow",
+              "prefer",
+              "require",
+              "verify-ca",
+              "verify-full"
+            ],
+            "description": "Modo de conexión SSL"
+          },
+          {
+            "name": "connect_timeout",
+            "type": "integer",
+            "default": 10,
+            "description": "Tiempo de espera para la conexión en segundos"
+          },
+          {
+            "name": "application_name",
+            "type": "string",
+            "description": "Nombre de la aplicación para identificación en el servidor"
+          },
+          {
+            "name": "fallback_application_name",
+            "type": "string",
+            "description": "Nombre alternativo de la aplicación"
+          },
+          {
+            "name": "keepalives",
+            "type": "boolean",
+            "default": true,
+            "description": "Activar keepalives TCP"
+          },
+          {
+            "name": "tcp_keepalives_idle",
+            "type": "integer",
+            "description": "Tiempo de inactividad antes de enviar keepalives"
+          },
+          {
+            "name": "tcp_keepalives_interval",
+            "type": "integer",
+            "description": "Intervalo entre keepalives"
+          },
+          {
+            "name": "tcp_keepalives_count",
+            "type": "integer",
+            "description": "Número de keepalives antes de desconectar"
+          },
+          {
+            "name": "pool_size",
+            "type": "integer",
+            "default": 5,
+            "description": "Número mínimo de conexiones en el pool"
+          },
+          {
+            "name": "pool_timeout",
+            "type": "integer",
+            "default": 30,
+            "description": "Timeout para obtener conexión del pool en segundos"
+          },
+          {
+            "name": "max_idle",
+            "type": "integer",
+            "default": 300,
+            "description": "Tiempo máximo de inactividad de conexión en segundos"
+          }
+        ]
+      },
+      "driver_info": {
+        "pip_package": "psycopg2-binary",
+        "import_name": "psycopg2",
+        "install_command": "pip install psycopg2-binary",
+        "system_requirements": [
+          "libpq-dev (Ubuntu/Debian)",
+          "postgresql-devel (CentOS/RHEL)"
+        ]
+      }
+    },
+    "hsqldb": {
+      "name": "HSQLDB (HyperSQL Database)",
+      "description": "Sistema de bases de datos relacional escrito en Java, ideal para aplicaciones y pruebas",
+      "version_range": "2.0+",
+      "default_port": 9001,
+      "drivers": [
+        "jaydebeapi"
+      ],
+      "url_docs": "http://hsqldb.org/doc/",
+      "supported_features": [
+        "Procedimientos almacenados",
+        "Triggers",
+        "Vistas",
+        "Transacciones ACID",
+        "Modo en memoria",
+        "Modo servidor",
+        "Modo embebido",
+        "SQL estándar",
+        "Tipos de datos avanzados"
+      ],
+      "connection_params": {
+        "required": [
+          "user",
+          "jdbc_url",
+          "jdbc_jar"
+        ],
+        "optional": [
+          {
+            "name": "password",
+            "type": "string",
+            "description": "Contraseña del usuario"
+          },
+          {
+            "name": "schema",
+            "type": "string",
+            "default": "PUBLIC",
+            "description": "Esquema a usar en consultas de metadatos (default en HSQLDB: PUBLIC)"
+          },
+          {
+            "name": "jdbc_driver",
+            "type": "string",
+            "default": "org.hsqldb.jdbcDriver",
+            "description": "Clase del driver JDBC"
+          },
+          {
+            "name": "jdbc_url",
+            "type": "string",
+            "description": "URL de conexión JDBC (ej: jdbc:hsqldb:hsql://localhost:9001/testdb)"
+          },
+          {
+            "name": "jdbc_jar",
+            "type": "string",
+            "description": "Ruta al archivo JAR del driver HSQLDB"
+          },
+          {
+            "name": "connection_properties",
+            "type": "object",
+            "description": "Propiedades adicionales de conexión"
+          }
+        ]
+      },
+      "driver_info": {
+        "pip_package": "JayDeBeApi",
+        "import_name": "jaydebeapi",
+        "install_command": "pip install JayDeBeApi",
+        "system_requirements": [
+          "Java Runtime Environment (JRE) 8+",
+          "HSQLDB JAR file",
+          "JDBC driver configuration"
+        ]
+      }
+    },
+    "sqlserver": {
+      "name": "Microsoft SQL Server",
+      "description": "Sistema de gestión de bases de datos empresarial de Microsoft, conocido por su integración con el ecosistema .NET y características avanzadas",
+      "version_range": "2012+",
+      "default_port": 1433,
+      "drivers": [
+        "pymssql",
+        "pyodbc"
+      ],
+      "url_docs": "https://learn.microsoft.com/en-us/sql/",
+      "supported_features": [
+        "T-SQL",
+        "Procedimientos almacenados",
+        "Triggers",
+        "Vistas",
+        "Índices columnares",
+        "XML y JSON",
+        "Transacciones ACID",
+        "Replicación",
+        "Particionamiento",
+        "Always On",
+        "Full-text search",
+        "Analysis Services"
+      ],
+      "connection_params": {
+        "required": [
+          "host",
+          "user",
+          "password",
+          "database"
+        ],
+        "optional": [
+          {
+            "name": "schema",
+            "type": "string",
+            "default": "dbo",
+            "description": "Esquema a usar en consultas de metadatos (tablas, vistas, rutinas)."
+          },
+          {
+            "name": "port",
+            "type": "integer",
+            "default": 1433,
+            "description": "Puerto de conexión del servidor SQL Server"
+          },
+          {
+            "name": "timeout",
+            "type": "integer",
+            "default": 30,
+            "description": "Tiempo de espera para la conexión en segundos"
+          },
+          {
+            "name": "login_timeout",
+            "type": "integer",
+            "default": 20,
+            "description": "Tiempo de espera para login en segundos"
+          },
+          {
+            "name": "charset",
+            "type": "string",
+            "default": "UTF-8",
+            "description": "Conjunto de caracteres para la conexión"
+          },
+          {
+            "name": "as_dict",
+            "type": "boolean",
+            "default": false,
+            "description": "Retornar resultados como diccionarios"
+          },
+          {
+            "name": "encryption",
+            "type": "string",
+            "options": [
+              "mandatory",
+              "optional",
+              "off"
+            ],
+            "default": "optional",
+            "description": "Modo de encriptación de conexión"
+          },
+          {
+            "name": "trust_cert",
+            "type": "boolean",
+            "default": false,
+            "description": "Confiar en certificados autofirmados"
+          },
+          {
+            "name": "use_mars",
+            "type": "boolean",
+            "default": true,
+            "description": "Usar Multiple Active Result Sets"
+          },
+          {
+            "name": "sql_server_driver",
+            "type": "string",
+            "options": [
+              "pymssql",
+              "pyodbc"
+            ],
+            "default": "pymssql",
+            "description": "Driver a usar para conexión a SQL Server (pymssql o pyodbc)"
+          },
+          {
+            "name": "driver_name",
+            "type": "string",
+            "description": "Nombre del driver ODBC a usar (solo para pyodbc, ej: ODBC Driver 17 for SQL Server)"
+          },
+          {
+            "name": "pool_size",
+            "type": "integer",
+            "default": 5,
+            "description": "Número mínimo de conexiones en el pool"
+          },
+          {
+            "name": "max_overflow",
+            "type": "integer",
+            "default": 10,
+            "description": "Número máximo de conexiones adicionales permitidas por encima de pool_size"
+          },
+          {
+            "name": "pool_timeout",
+            "type": "integer",
+            "default": 30,
+            "description": "Timeout para obtener conexión del pool en segundos"
+          }
+        ]
+      },
+      "driver_info": [
+        {
+          "name": "pymssql",
+          "pip_package": "pymssql",
+          "import_name": "pymssql",
+          "install_command": "pip install pymssql",
+          "system_requirements": [
+            "FreeTDS (Ubuntu/Debian): libsybdb5, freetds-dev",
+            "FreeTDS (CentOS/RHEL): freetds-devel",
+            "Visual C++ Redistributable (Windows)"
+          ],
+          "pros": [
+            "Más ligero (single .py module)",
+            "Compatible con Linux/macOS/Windows",
+            "Menor consumo de memoria"
+          ],
+          "cons": [
+            "Requiere FreeTDS en Linux/macOS",
+            "Rendimiento inferior a pyodbc en Windows",
+            "Menos características avanzadas"
+          ],
+          "recommended_for": "Entornos multiplataforma, desarrollolocal"
+        },
+        {
+          "name": "pyodbc",
+          "pip_package": "pyodbc",
+          "import_name": "pyodbc",
+          "install_command": "pip install pyodbc",
+          "system_requirements": [
+            "Windows: ODBC Driver for SQL Server (instalado por defecto)",
+            "Linux: ODBC Driver for SQL Server + unixODBC",
+            "macOS: ODBC Driver for SQL Server + unixODBC"
+          ],
+          "pros": [
+            "Mejor rendimiento",
+            "Más características avanzadas",
+            "Soporte para autenticación integrada de Windows",
+            "Mejor compatibilidad con características SQL Server modernas"
+          ],
+          "cons": [
+            "Require ODBC drivers separados",
+            "Más complejo de configurar",
+            "Mayor consumo de memoria"
+          ],
+          "recommended_for": "Producción, mejor rendimiento, autenticación Windows"
+        }
+      ]
+    },
+    "sqlite": {
+      "name": "SQLite",
+      "description": "Sistema de bases de datos relacional embebido y sin servidor, ideal para aplicaciones pequeñas, móviles y pruebas. Almacena datos en un archivo local.",
+      "version_range": "3.0+",
+      "default_port": null,
+      "drivers": [
+        "sqlite3"
+      ],
+      "url_docs": "https://www.sqlite.org/docs.html",
+      "supported_features": [
+        "SQL estándar",
+        "Transacciones ACID",
+        "Triggers",
+        "Vistas",
+        "Procedimientos almacenados (limitado)",
+        "Constraints",
+        "Foreign keys",
+        "Índices",
+        "Uniones",
+        "Subconsultas",
+        "Modo en memoria (:memory:)",
+        "Bloqueo optimista"
+      ],
+      "connection_params": {
+        "required": [
+          "database"
+        ],
+        "optional": [
+          {
+            "name": "timeout",
+            "type": "float",
+            "default": 5,
+            "description": "Timeout en segundos para operaciones de base de datos"
+          },
+          {
+            "name": "check_same_thread",
+            "type": "boolean",
+            "default": false,
+            "description": "Verificar si conexión es del mismo thread (False para pool)"
+          },
+          {
+            "name": "isolation_level",
+            "type": "string",
+            "options": [
+              "DEFERRED",
+              "IMMEDIATE",
+              "EXCLUSIVE",
+              ""
+            ],
+            "default": "",
+            "description": "Nivel de aislamiento de transacciones"
+          },
+          {
+            "name": "cached_statements",
+            "type": "integer",
+            "default": 100,
+            "description": "Número de sentencias cacheadas"
+          },
+          {
+            "name": "pool_size",
+            "type": "integer",
+            "default": 1,
+            "description": "Tamaño del pool (SQLite siempre usa 1 conexión, parámetro ignorado)"
+          }
+        ]
+      },
+      "driver_info": {
+        "pip_package": "sqlite3",
+        "import_name": "sqlite3",
+        "builtin": true,
+        "install_command": "Incluido en Python por defecto",
+        "system_requirements": []
+      }
+    }
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "last_updated": "2024-01-28",
+    "author": "Database Manager Team",
+    "description": "Configuración y metadatos para tipos de bases de datos soportadas",
+    "supported_db_types": [
+      "mariadb",
+      "oracle",
+      "postgresql",
+      "hsqldb",
+      "sqlserver",
+      "sqlite"
+    ],
+    "validation_rules": {
+      "db_type": {
+        "required": true,
+        "type": "string",
+        "enum": [
+          "mariadb",
+          "oracle",
+          "postgresql",
+          "hsqldb",
+          "sqlserver",
+          "sqlite"
+        ],
+        "description": "Tipo de base de datos soportado"
+      },
+      "connection_params": {
+        "required": true,
+        "type": "object",
+        "min_properties": 1,
+        "description": "Parámetros de conexión según el tipo de base de datos"
+      }
+    }
+  },
+  "examples": {
+    "mariadb": {
+      "basic": {
+        "host": "localhost",
+        "port": 3306,
+        "user": "root",
+        "password": "password",
+        "database": "testdb"
+      },
+      "advanced": {
+        "host": "db.example.com",
+        "port": 3306,
+        "user": "app_user",
+        "password": "secure_password",
+        "database": "production_db",
+        "charset": "utf8mb4",
+        "autocommit": true,
+        "connect_timeout": 15
+      }
+    },
+    "oracle": {
+      "basic_dsn": {
+        "user": "hr",
+        "password": "password",
+        "dsn": "localhost:1521/ORCLPDB1"
+      },
+      "basic_host": {
+        "user": "hr",
+        "password": "password",
+        "host": "localhost",
+        "port": 1521,
+        "service_name": "ORCLPDB1"
+      },
+      "advanced": {
+        "user": "app_user",
+        "password": "secure_password",
+        "host": "db.example.com",
+        "port": 1521,
+        "service_name": "PROD_SERVICE",
+        "encoding": "UTF-8"
+      }
+    },
+    "postgresql": {
+      "basic": {
+        "host": "localhost",
+        "port": 5432,
+        "user": "postgres",
+        "password": "password",
+        "database": "testdb"
+      },
+      "advanced": {
+        "host": "db.example.com",
+        "port": 5432,
+        "user": "app_user",
+        "password": "secure_password",
+        "database": "production_db",
+        "sslmode": "require",
+        "application_name": "Database Manager",
+        "connect_timeout": 20
+      }
+    },
+    "hsqldb": {
+      "basic": {
+        "user": "sa",
+        "password": "",
+        "jdbc_url": "jdbc:hsqldb:hsql://localhost:9001/testdb",
+        "jdbc_jar": "/path/to/hsqldb.jar"
+      },
+      "advanced": {
+        "user": "app_user",
+        "password": "secure_password",
+        "jdbc_driver": "org.hsqldb.jdbcDriver",
+        "jdbc_url": "jdbc:hsqldb:hsql://localhost:9001/production_db",
+        "jdbc_jar": "/opt/hsqldb/lib/hsqldb.jar"
+      }
+    },
+    "sqlserver": {
+      "basic": {
+        "host": "localhost",
+        "port": 1433,
+        "user": "sa",
+        "password": "Password123!",
+        "database": "testdb"
+      },
+      "advanced": {
+        "host": "sqlserver.example.com",
+        "port": 1433,
+        "user": "app_user",
+        "password": "secure_password",
+        "database": "production_db",
+        "timeout": 30,
+        "charset": "UTF-8",
+        "encryption": "mandatory",
+        "trust_cert": false
+      }
+    },
+    "sqlite": {
+      "basic_file": {
+        "database": "./data/app.db"
+      },
+      "basic_memory": {
+        "database": ":memory:"
+      },
+      "advanced_file": {
+        "database": "/var/lib/app/production.db",
+        "timeout": 10,
+        "check_same_thread": false,
+        "isolation_level": "DEFERRED"
+      },
+      "advanced_memory": {
+        "database": ":memory:",
+        "timeout": 5,
+        "check_same_thread": false,
+        "cached_statements": 200
+      }
+    }
+  },
+  "error_messages": {
+    "unsupported_db_type": "Tipo de base de datos '{db_type}' no soportado. Tipos soportados: {supported_types}",
+    "missing_required_params": "Faltan parámetros requeridos para {db_type}: {missing_params}",
+    "invalid_param_type": "Tipo de parámetro inválido para '{param}': se esperaba {expected_type}, se recibió {actual_type}",
+    "driver_not_available": "Driver no disponible para {db_type}. Instale: {install_command}",
+    "connection_failed": "Error al conectar a {db_type}: {error_details}",
+    "validation_failed": "Validación fallida para {db_type}: {validation_errors}"
+  },
+  "compatibility": {
+    "mysql": "mariadb",
+    "notes": {
+      "mysql_compatibility": "Los parámetros de conexión de MySQL son compatibles con MariaDB",
+      "oracle_versions": "Soporta Oracle 11g R2 y superior",
+      "postgresql_versions": "Soporta PostgreSQL 9.6 y superior",
+      "hsqldb_requirements": "Requiere Java Runtime Environment y driver JDBC",
+      "sqlserver_versions": "Soporta SQL Server 2012 y superior",
+      "sqlserver_freetds": "En Linux/Mac requiere FreeTDS para pymssql. Alternativa recomendada: pyodbc"
+    }
+  }
+}
