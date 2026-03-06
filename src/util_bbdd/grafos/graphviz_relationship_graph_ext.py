@@ -2,10 +2,12 @@
 Implementación extendida de generación de grafos usando Graphviz con detalles de columnas
 Muestra columnas, tipos de datos, cardinalidad y colores diferenciales
 """
+
 import logging
+
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 try:
     import graphviz
@@ -57,12 +59,12 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         self.orthogonal_ranksep: float = orthogonal_ranksep
 
         # Cache para columnas de tablas (evitar múltiples consultas)
-        self._columns_cache: Dict[str, List[Tuple[str, str]]] = {}
+        self._columns_cache: dict[str, list[tuple[str, str]]] = {}
 
         # Usar cachés centralizadas desde DatabaseManager para relaciones
         # No necesitamos cachés locales para PKs, UKs ni cardinalidades
 
-    def _get_table_columns_with_types(self, table_name: str) -> List[Tuple[str, str]]:
+    def _get_table_columns_with_types(self, table_name: str) -> list[tuple[str, str]]:
         """
         Obtiene las columnas de una tabla con sus tipos de datos (cacheado)
 
@@ -95,7 +97,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             self.logger.warning(f"Error obteniendo columnas de {table_name}: {e}")
             return []
 
-    def _get_primary_keys(self, table_name: str) -> List[str]:
+    def _get_primary_keys(self, table_name: str) -> list[str]:
         """
         Obtiene las claves primarias de una tabla (cacheado centralizado)
 
@@ -107,10 +109,12 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         """
         # Construir clave de tabla con contexto
         context = self.db_manager.get_query_context_database()
-        table_key: Tuple[str, str] = (context, table_name)
+        table_key: tuple[str, str] = (context, table_name)
 
         # Verificar caché centralizada primero
-        cached_result: List[str] | None = self.db_manager.relationship_cache.get_primary_keys_list(table_key)
+        cached_result: list[str] | None = self.db_manager.relationship_cache.get_primary_keys_list(
+            table_key
+        )
         if cached_result is not None:
             self.logger.debug(f"♻️  PKs cacheadas: {table_name} = {len(cached_result)} columnas")
             return cached_result
@@ -133,7 +137,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             self.logger.warning(f"Error obteniendo claves primarias de {table_name}: {e}")
             return []
 
-    def _get_unique_columns(self, table_name: str) -> List[str]:
+    def _get_unique_columns(self, table_name: str) -> list[str]:
         """
         Obtiene las columnas con restricciones UNIQUE (cacheado centralizado)
 
@@ -145,10 +149,12 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         """
         # Construir clave de tabla con contexto
         context = self.db_manager.get_query_context_database()
-        table_key: Tuple[str, str] = (context, table_name)
+        table_key: tuple[str, str] = (context, table_name)
 
         # Verificar caché centralizada primero
-        cached_result: List[str] | None = self.db_manager.relationship_cache.get_unique_constraints_list(table_key)
+        cached_result: list[str] | None = (
+            self.db_manager.relationship_cache.get_unique_constraints_list(table_key)
+        )
         if cached_result is not None:
             self.logger.debug(f"♻️  UCs cacheadas: {table_name} = {len(cached_result)} columnas")
             return cached_result
@@ -182,19 +188,17 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             True si es clave primaria
         """
         # Verificar caché centralizada primero
-        cached_result = self.db_manager.relationship_cache.get_is_primary_key(table_name, column_name)
+        cached_result = self.db_manager.relationship_cache.get_is_primary_key(
+            table_name, column_name
+        )
         if cached_result is not None:
-            self.logger.debug(
-                f"♻️  PK cacheado: {table_name}.{column_name} = {cached_result}"
-            )
+            self.logger.debug(f"♻️  PK cacheado: {table_name}.{column_name} = {cached_result}")
             return cached_result
 
-        pks: List[str] = self._get_primary_keys(table_name)
+        pks: list[str] = self._get_primary_keys(table_name)
         result: bool = column_name.lower() in pks
         self.db_manager.relationship_cache.set_is_primary_key(table_name, column_name, result)
-        self.logger.debug(
-            f"💾 PK calculado: {table_name}.{column_name} = {result}"
-        )
+        self.logger.debug(f"💾 PK calculado: {table_name}.{column_name} = {result}")
         return result
 
     def _is_unique_column(self, table_name: str, column_name: str) -> bool:
@@ -208,19 +212,17 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             True si tiene restricción única
         """
         # Verificar caché centralizada primero
-        cached_result = self.db_manager.relationship_cache.get_is_unique_column(table_name, column_name)
+        cached_result = self.db_manager.relationship_cache.get_is_unique_column(
+            table_name, column_name
+        )
         if cached_result is not None:
-            self.logger.debug(
-                f"♻️  UK cacheado: {table_name}.{column_name} = {cached_result}"
-            )
+            self.logger.debug(f"♻️  UK cacheado: {table_name}.{column_name} = {cached_result}")
             return cached_result
 
-        ucs: List[str] = self._get_unique_columns(table_name)
+        ucs: list[str] = self._get_unique_columns(table_name)
         result: bool = column_name.lower() in ucs
         self.db_manager.relationship_cache.set_is_unique_column(table_name, column_name, result)
-        self.logger.debug(
-            f"💾 UK calculado: {table_name}.{column_name} = {result}"
-        )
+        self.logger.debug(f"💾 UK calculado: {table_name}.{column_name} = {result}")
         return result
 
     def _determine_cardinality(
@@ -302,7 +304,9 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             self.logger.warning(f"⚠️ Error determinando cardinalidad: {e}, usando 1:N por defecto")
             return "1:N"
 
-    def _build_table_html_label(self, table_name: str, is_main: bool = False, is_raster: bool = False) -> str:
+    def _build_table_html_label(
+        self, table_name: str, is_main: bool = False, is_raster: bool = False
+    ) -> str:
         """
         Construye una etiqueta HTML para un nodo de tabla con columnas y tipos
 
@@ -313,7 +317,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         Returns:
             String con HTML para Graphviz
         """
-        columns: List[Tuple[str, str]] = self._get_table_columns_with_types(table_name)
+        columns: list[tuple[str, str]] = self._get_table_columns_with_types(table_name)
 
         # Color de fondo
         bg_color: str = self.MAIN_TABLE_COLOR if is_main else self.RELATED_TABLE_COLOR
@@ -347,8 +351,8 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         output_dir: Path,
         format: str = "png",
         max_subnodes: int = 10,
-        show_columns: bool | None = None
-    ) -> List[Path]:
+        show_columns: bool | None = None,
+    ) -> list[Path]:
         """
         Genera grafos Graphviz extendidos dividiendo en múltiples imágenes si es necesario
 
@@ -370,8 +374,8 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             f"Iniciando generación paginada extendida de Graphviz para {table_name} "
             f"(max {max_subnodes} nodos por página)"
         )
-        relations: List[TableRelation] = self.analyze_table_relations(table_name)
-        split_relations: List[List[TableRelation]] = self._split_relations_for_visualization(
+        relations: list[TableRelation] = self.analyze_table_relations(table_name)
+        split_relations: list[list[TableRelation]] = self._split_relations_for_visualization(
             relations, max_subnodes
         )
         self.logger.debug(f"Tabla {table_name} dividida en {len(split_relations)} página(s)")
@@ -379,7 +383,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         output_dir = Path(output_dir).resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        generated_files: List[Path] = []
+        generated_files: list[Path] = []
 
         for page_num, page_relations in enumerate(split_relations, 1):
             # Crear nombre de archivo descriptivo
@@ -403,7 +407,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         table_name: str,
         output_file: Path,
         format: str,
-        relations: List[TableRelation],
+        relations: list[TableRelation],
         show_columns: bool = True,
     ) -> Path:
         """
@@ -440,14 +444,21 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 show_columns=show_columns,
                 is_raster_format=is_raster_format,
             )
-            self._add_edges_to_graph(dot=dot, relations=relations, edge_label_font_size=edge_label_font_size)
+            self._add_edges_to_graph(
+                dot=dot, relations=relations, edge_label_font_size=edge_label_font_size
+            )
 
-            return self._render_graph(dot=dot, output_file=output_file, format=format, table_name=table_name)
+            return self._render_graph(
+                dot=dot, output_file=output_file, format=format, table_name=table_name
+            )
         except Exception as e:
-            self.logger.error(f"Error al generar gráfico Graphviz extendido para tabla {table_name}: {str(e)}", exc_info=True)
+            self.logger.error(
+                f"Error al generar gráfico Graphviz extendido para tabla {table_name}: {str(e)}",
+                exc_info=True,
+            )
             raise
 
-    def _collect_tables_in_page(self, table_name: str, relations: List[TableRelation]) -> set[str]:
+    def _collect_tables_in_page(self, table_name: str, relations: list[TableRelation]) -> set[str]:
         """
         Construye el conjunto de tablas que participan en una página del grafo.
 
@@ -464,7 +475,9 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             tables_in_page.add(relation.target_table)
         return tables_in_page
 
-    def _create_configured_graph(self, table_name: str, format: str, show_columns: bool) -> Tuple[Any, bool, str]:
+    def _create_configured_graph(
+        self, table_name: str, format: str, show_columns: bool
+    ) -> tuple[Any, bool, str]:
         """
         Crea y configura la instancia de Graphviz con layout y tipografías base.
 
@@ -540,7 +553,9 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         for table in tables_in_page:
             is_main: bool = table == table_name
             if show_columns:
-                html_label: str = self._build_table_html_label(table, is_main, is_raster=is_raster_format)
+                html_label: str = self._build_table_html_label(
+                    table, is_main, is_raster=is_raster_format
+                )
                 dot.node(table, html_label)
                 continue
 
@@ -554,7 +569,9 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 penwidth="2" if is_main else "1",
             )
 
-    def _add_edges_to_graph(self, dot: Any, relations: List[TableRelation], edge_label_font_size: str) -> None:
+    def _add_edges_to_graph(
+        self, dot: Any, relations: list[TableRelation], edge_label_font_size: str
+    ) -> None:
         """
         Agrega aristas con cardinalidad y etiqueta de columnas.
 
@@ -570,7 +587,9 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 source_table=relation.source_table,
                 target_table=relation.target_table,
             )
-            relation_label: str = f"{relation.source_column} → {relation.target_column} [{cardinality}]"
+            relation_label: str = (
+                f"{relation.source_column} → {relation.target_column} [{cardinality}]"
+            )
 
             dot.edge(
                 relation.source_table,
@@ -613,7 +632,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         skip_tables_without_relations: bool = True,
         max_subnodes: int = 10,
         show_columns: bool | None = None,
-    ) -> Dict[str, Dict[str, Any]]:
+    ) -> dict[str, dict[str, Any]]:
         """
         Genera grafos Graphviz extendidos para todas las tablas de la base de datos
 
@@ -640,11 +659,15 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         all_tables = self.db_manager.get_tables()
         table_names = [table[0] for table in all_tables]
 
-        self.logger.info(f"Iniciando generación de grafos Graphviz extendidos para {len(table_names)} tablas")
+        self.logger.info(
+            f"Iniciando generación de grafos Graphviz extendidos para {len(table_names)} tablas"
+        )
         self.logger.info(f"Directorio de salida: {output_dir}")
-        self.logger.info(f"Formato: {format}, max_subnodes: {max_subnodes}, mostrar columnas: {show_columns}")
+        self.logger.info(
+            f"Formato: {format}, max_subnodes: {max_subnodes}, mostrar columnas: {show_columns}"
+        )
 
-        results: Dict[str, Dict[str, Any]] = {}
+        results: dict[str, dict[str, Any]] = {}
 
         # Filtrar tablas sin relaciones si es necesario
         tables_to_process = table_names
@@ -660,15 +683,19 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 except Exception:
                     pass
 
-            self.logger.info(f"Tablas a procesar tras filtrado: {len(tables_to_process)}/{len(table_names)}")
+            self.logger.info(
+                f"Tablas a procesar tras filtrado: {len(tables_to_process)}/{len(table_names)}"
+            )
 
         # Generar grafos para cada tabla
         for idx, table_name in enumerate(tables_to_process, 1):
             try:
-                self.logger.info(f"[{idx}/{len(tables_to_process)}] Generando gráfico extendido para tabla: {table_name}")
+                self.logger.info(
+                    f"[{idx}/{len(tables_to_process)}] Generando gráfico extendido para tabla: {table_name}"
+                )
 
                 # Generar gráfico paginado extendido
-                generated_files: List[Path] = self.generate_graphviz_graph_paginated_ext(
+                generated_files: list[Path] = self.generate_graphviz_graph_paginated_ext(
                     table_name=table_name,
                     output_dir=output_dir,
                     format=format,
@@ -682,11 +709,15 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                     "count": len(generated_files),
                 }
 
-                self.logger.debug(f"Gráfico extendido completado para {table_name}: {len(generated_files)} archivo(s)")
+                self.logger.debug(
+                    f"Gráfico extendido completado para {table_name}: {len(generated_files)} archivo(s)"
+                )
 
             except Exception as e:
                 error_msg = str(e)
-                self.logger.error(f"Error generando gráfico extendido para tabla {table_name}: {error_msg}")
+                self.logger.error(
+                    f"Error generando gráfico extendido para tabla {table_name}: {error_msg}"
+                )
                 results[table_name] = {"status": "error", "error": error_msg, "files": []}
 
         # Resumen final
@@ -715,12 +746,12 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
 
         Returns:
             Path del archivo generado
-        """        # Usar show_columns de la instancia si no se proporciona
+        """  # Usar show_columns de la instancia si no se proporciona
         if show_columns is None:
             show_columns = self.show_columns
         self.logger.info(f"Generando gráfico extendido simple para tabla: {table_name}")
 
-        relations: List[TableRelation] = self.analyze_table_relations(table_name)
+        relations: list[TableRelation] = self.analyze_table_relations(table_name)
 
         return self._generate_graphviz_graph_internal_ext(
             table_name=table_name,

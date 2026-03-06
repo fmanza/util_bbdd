@@ -1,12 +1,14 @@
 """Conexión raw al driver Oracle."""
 
 import logging
+
 from typing import Any
 
 from oracledb.connection import Connection
 
-from ..connection_params_manager import ConnectionParamsManager
 from util_bbdd.database_exceptions import DatabaseConnectionError
+
+from ..connection_params_manager import ConnectionParamsManager
 
 
 class OracleConnection:
@@ -45,7 +47,9 @@ class OracleConnection:
                 driver_info = db_validator.get_db_type_driver_info("oracle")
                 if driver_info.get("client_path_support"):
                     if hasattr(oracledb, "init_oracle_client"):
-                        OracleConnection.logger.debug(f"🔧 Inicializando cliente Oracle desde {oracle_client_path}")
+                        OracleConnection.logger.debug(
+                            f"🔧 Inicializando cliente Oracle desde {oracle_client_path}"
+                        )
                         oracledb.init_oracle_client(oracle_client_path)
 
             # Construir parámetros efectivos para oracledb.connect
@@ -84,5 +88,6 @@ class OracleConnection:
             raise DatabaseConnectionError("Módulo oracledb no disponible", "oracle", str(e)) from e
         except Exception as e:
             OracleConnection.logger.error(f"❌ Error conectando a Oracle: {e}")
-            raise DatabaseConnectionError(f"Error conectando a Oracle: {str(e)}", "oracle", str(e)) from e
-
+            raise DatabaseConnectionError(
+                f"Error conectando a Oracle: {str(e)}", "oracle", str(e)
+            ) from e

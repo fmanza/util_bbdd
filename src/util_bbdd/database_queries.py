@@ -11,8 +11,10 @@ Soporta MariaDB, Oracle, PostgreSQL, HSQLDB, SQL Server y SQLite
 import json
 import logging
 import re
+
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 from .database_type_validator import DatabaseTypeValidator
 
@@ -37,28 +39,48 @@ class DatabaseQueries:
     """
 
     # Error message constants
-    ERROR_OBTENER_TABLAS_REQUIRES_DATABASE = "La consulta 'obtener_tablas' requiere el parámetro 'database'"
-    ERROR_COLUMNAS_TABLA_REQUIRES_DATABASE = "La consulta 'columnas_tabla' requiere el parámetro 'database'"
-    ERROR_COLUMNAS_TABLA_REQUIRES_TABLA = "La consulta 'columnas_tabla' requiere el parámetro 'tabla'"
+    ERROR_OBTENER_TABLAS_REQUIRES_DATABASE = (
+        "La consulta 'obtener_tablas' requiere el parámetro 'database'"
+    )
+    ERROR_COLUMNAS_TABLA_REQUIRES_DATABASE = (
+        "La consulta 'columnas_tabla' requiere el parámetro 'database'"
+    )
+    ERROR_COLUMNAS_TABLA_REQUIRES_TABLA = (
+        "La consulta 'columnas_tabla' requiere el parámetro 'tabla'"
+    )
     ERROR_CREATE_TABLE_REQUIRES_TABLA = "La consulta 'create_table' requiere el parámetro 'tabla'"
-    ERROR_OBTENER_RUTINAS_REQUIRES_DATABASE = "La consulta 'obtener_rutinas' requiere el parámetro 'database'"
-    ERROR_PARAMETROS_RUTINA_REQUIRES_DATABASE = "La consulta 'parametros_rutina' requiere el parámetro 'database'"
-    ERROR_PARAMETROS_RUTINA_REQUIRES_RUTINA = "La consulta 'parametros_rutina' requiere el parámetro 'rutina'"
-    ERROR_PARAMETROS_RUTINA_REQUIRES_TIPO = "La consulta 'parametros_rutina' requiere el parámetro 'tipo_rutina'"
-    ERROR_CREATE_RUTINA_REQUIRES_RUTINA = "La consulta 'create_rutina' requiere el parámetro 'rutina'"
-    ERROR_CREATE_RUTINA_REQUIRES_TIPO = "La consulta 'create_rutina' requiere el parámetro 'tipo_rutina'"
+    ERROR_OBTENER_RUTINAS_REQUIRES_DATABASE = (
+        "La consulta 'obtener_rutinas' requiere el parámetro 'database'"
+    )
+    ERROR_PARAMETROS_RUTINA_REQUIRES_DATABASE = (
+        "La consulta 'parametros_rutina' requiere el parámetro 'database'"
+    )
+    ERROR_PARAMETROS_RUTINA_REQUIRES_RUTINA = (
+        "La consulta 'parametros_rutina' requiere el parámetro 'rutina'"
+    )
+    ERROR_PARAMETROS_RUTINA_REQUIRES_TIPO = (
+        "La consulta 'parametros_rutina' requiere el parámetro 'tipo_rutina'"
+    )
+    ERROR_CREATE_RUTINA_REQUIRES_RUTINA = (
+        "La consulta 'create_rutina' requiere el parámetro 'rutina'"
+    )
+    ERROR_CREATE_RUTINA_REQUIRES_TIPO = (
+        "La consulta 'create_rutina' requiere el parámetro 'tipo_rutina'"
+    )
     ERROR_TABLE_NAME_EMPTY = "El nombre de la tabla no puede estar vacío"
     ERROR_TABLA_PARAMETER_REQUIRED = "El parámetro 'tabla' es requerido"
 
     # Constant for repeated error message
-    ERROR_TABLE_NAME_INVALID_HSQLDB = "El nombre de la tabla solo puede contener letras, números, guiones y guiones bajos"
+    ERROR_TABLE_NAME_INVALID_HSQLDB = (
+        "El nombre de la tabla solo puede contener letras, números, guiones y guiones bajos"
+    )
     ERROR_DATABASE_NAME_EMPTY = "El nombre de la base de datos no puede estar vacío"
 
     def __init__(
         self,
         db_type: str,
-        queries_file: Optional[Path] = None,
-        config_file: Optional[Path] = None,
+        queries_file: Path | None = None,
+        config_file: Path | None = None,
     ):
         """
         Inicializa la clase unificada de consultas
@@ -75,16 +97,25 @@ class DatabaseQueries:
         self.logger: logging.Logger = logging.getLogger(__name__)
 
         # Validar que el tipo de base de datos esté soportado
-        supported_types: List[str] = ["mariadb", "oracle", "postgresql", "hsqldb", "sqlserver", "sqlite"]
+        supported_types: list[str] = [
+            "mariadb",
+            "oracle",
+            "postgresql",
+            "hsqldb",
+            "sqlserver",
+            "sqlite",
+        ]
         if db_type.lower() not in supported_types:
-            raise ValueError(f"Tipo de base de datos no soportado. Use: {', '.join(supported_types)}")
+            raise ValueError(
+                f"Tipo de base de datos no soportado. Use: {', '.join(supported_types)}"
+            )
 
         self.db_type: str = db_type.lower()
         self.logger.debug(f"✅ Inicializando DatabaseQueries para {self.db_type}")
 
         # Cargar consultas SQL
         default_queries_path: Path = Path(__file__).parent / "data" / "sql_queries.json"
-        self.queries: Dict[Any, Any] = self._load_queries(queries_file or default_queries_path)
+        self.queries: dict[Any, Any] = self._load_queries(queries_file or default_queries_path)
         self.logger.debug(f"✅ {len(self.queries.get(self.db_type, {}))} consultas cargadas")
 
         # Inicializar validador de tipos de BD para obtener metadatos
@@ -92,10 +123,10 @@ class DatabaseQueries:
         # Nota: No redundar validate_db_type() aquí, ya validado en línea 68
 
         # Cargar metadatos adicionales del tipo de BD
-        self.db_metadata: Dict[str, Any] = self.db_validator.get_db_type_info(db_type)
-        self.config_examples: Dict[str, Any] = self.db_validator.get_db_type_examples(db_type)
+        self.db_metadata: dict[str, Any] = self.db_validator.get_db_type_info(db_type)
+        self.config_examples: dict[str, Any] = self.db_validator.get_db_type_examples(db_type)
 
-    def _load_queries(self, queries_file: Path) -> Dict:
+    def _load_queries(self, queries_file: Path) -> dict:
         """
         Carga las consultas SQL desde el fichero JSON
 
@@ -110,7 +141,7 @@ class DatabaseQueries:
             ValueError: Si hay un error al leer el JSON
         """
         try:
-            with open(queries_file, "r", encoding="utf-8") as f:
+            with open(queries_file, encoding="utf-8") as f:
                 queries = json.load(f)
             self.logger.debug(f"✅ Consultas cargadas desde {queries_file}")
             return queries
@@ -154,9 +185,9 @@ class DatabaseQueries:
         """Obtiene la consulta para listar vistas"""
         return self.get_query("obtener_vistas", database=database)
 
-    def get_ddl_query(self, table: str, schema: Optional[str] = None) -> str:
+    def get_ddl_query(self, table: str, schema: str | None = None) -> str:
         """Obtiene la consulta para obtener el DDL de una tabla"""
-        context_kwargs: Dict[str, str] = self._build_context_kwargs(schema)
+        context_kwargs: dict[str, str] = self._build_context_kwargs(schema)
         return self.get_query("create_table", tabla=table, **context_kwargs)
 
     def get_columns_query(self, database: str, table: str) -> str:
@@ -167,38 +198,53 @@ class DatabaseQueries:
         """Obtiene la consulta para listar routines (procedures/funciones)."""
         return self.get_query("obtener_rutinas", database=database)
 
-    def get_routine_parameters_query(self, database: str, routine_name: str, routine_type: str) -> str:
+    def get_routine_parameters_query(
+        self, database: str, routine_name: str, routine_type: str
+    ) -> str:
         """Obtiene la consulta para listar parámetros de una rutina."""
-        return self.get_query("parametros_rutina", database=database, rutina=routine_name, tipo_rutina=routine_type.upper())
+        return self.get_query(
+            "parametros_rutina",
+            database=database,
+            rutina=routine_name,
+            tipo_rutina=routine_type.upper(),
+        )
 
-    def get_routine_ddl_query(self, routine_name: str, routine_type: str, schema: Optional[str] = None) -> str:
+    def get_routine_ddl_query(
+        self, routine_name: str, routine_type: str, schema: str | None = None
+    ) -> str:
         """Obtiene la consulta para recuperar el DDL de una rutina."""
         if self.db_type == "mariadb":
-            return self.get_query("create_rutina", rutina=routine_name, tipo_rutina=routine_type.upper())
+            return self.get_query(
+                "create_rutina", rutina=routine_name, tipo_rutina=routine_type.upper()
+            )
 
-        return self.get_query("create_rutina", rutina=routine_name, tipo_rutina=routine_type.upper(), esquema=schema)
+        return self.get_query(
+            "create_rutina", rutina=routine_name, tipo_rutina=routine_type.upper(), esquema=schema
+        )
 
-    def get_indices_query(self, table: str, schema: Optional[str] = None) -> str:
+    def get_indices_query(self, table: str, schema: str | None = None) -> str:
         """Obtiene la consulta para listar índices de una tabla"""
-        context_kwargs: Dict[str, str] = self._build_context_kwargs(schema)
+        context_kwargs: dict[str, str] = self._build_context_kwargs(schema)
         return self.get_query("indices", tabla=table, **context_kwargs)
 
-    def get_primary_keys_query(self, table: str, schema: Optional[str] = None) -> str:
+    def get_primary_keys_query(self, table: str, schema: str | None = None) -> str:
         """Obtiene la consulta para listar claves primarias de una tabla"""
-        context_kwargs: Dict[str, str] = self._build_context_kwargs(schema)
+        context_kwargs: dict[str, str] = self._build_context_kwargs(schema)
         return self.get_query("claves_primarias", tabla=table, **context_kwargs)
 
-    def get_foreign_keys_query(self, table: str, schema: Optional[str] = None) -> str:
+    def get_foreign_keys_query(self, table: str, schema: str | None = None) -> str:
         """Obtiene la consulta para listar claves foráneas de una tabla"""
-        context_kwargs: Dict[str, str] = self._build_context_kwargs(schema)
+        context_kwargs: dict[str, str] = self._build_context_kwargs(schema)
         return self.get_query("claves_foraneas", tabla=table, **context_kwargs)
 
-    def get_unique_constraints_query(self, table: str, schema: Optional[str] = None) -> str:
+    def get_unique_constraints_query(self, table: str, schema: str | None = None) -> str:
         """Obtiene la consulta para listar restricciones únicas de una tabla"""
-        context_kwargs: Dict[str, str] = self._build_context_kwargs(schema)
+        context_kwargs: dict[str, str] = self._build_context_kwargs(schema)
         return self.get_query("claves_unicas", tabla=table, **context_kwargs)
 
-    def get_storage_inventory_queries(self, database: Optional[str] = None, tablespace: Optional[str] = None) -> Dict[str, str]:
+    def get_storage_inventory_queries(
+        self, database: str | None = None, tablespace: str | None = None
+    ) -> dict[str, str]:
         """Obtiene consultas de inventario de ficheros/tablespaces según motor.
 
         Returns:
@@ -232,12 +278,12 @@ class DatabaseQueries:
         # HSQLDB no expone vista SQL estándar para tamaños de fichero físico.
         return {}
 
-    def _build_context_kwargs(self, context: Optional[str]) -> Dict[str, str]:
+    def _build_context_kwargs(self, context: str | None) -> dict[str, str]:
         """Construye kwargs de contexto para plantillas SQL."""
         if not context or self.db_type == "mariadb":
             return {}
 
-        kwargs: Dict[str, str] = {}
+        kwargs: dict[str, str] = {}
         if self.db_type in {"oracle", "sqlserver"}:
             kwargs["esquema"] = context
         if self.db_type in {"postgresql", "hsqldb", "sqlserver"}:
@@ -246,11 +292,11 @@ class DatabaseQueries:
 
     # ==================== MÉTODOS DE INFORMACIÓN DE CONSULTAS ====================
 
-    def get_all_queries(self) -> Dict[str, str]:
+    def get_all_queries(self) -> dict[str, str]:
         """Obtiene todas las consultas disponibles para el tipo de base de datos"""
         return self.queries.get(self.db_type, {})
 
-    def get_available_query_names(self) -> List[str]:
+    def get_available_query_names(self) -> list[str]:
         """Obtiene los nombres de las consultas disponibles"""
         return list(self.queries.get(self.db_type, {}).keys())
 
@@ -266,15 +312,21 @@ class DatabaseQueries:
             True si los parámetros son suficientes, False en caso contrario
         """
         try:
-            analysis: Dict[str, Any] = self.analyze_query_parameters(query_name, kwargs)
-            return bool(analysis.get("supported")) and not analysis.get("missing_required") and not analysis.get("provided_empty")
+            analysis: dict[str, Any] = self.analyze_query_parameters(query_name, kwargs)
+            return (
+                bool(analysis.get("supported"))
+                and not analysis.get("missing_required")
+                and not analysis.get("provided_empty")
+            )
         except (ValueError, KeyError):
             return False
         except Exception as e:
             self.logger.error(f"❌ Error validando parámetros para consulta '{query_name}': {e}")
             return False
 
-    def analyze_query_parameters(self, query_name: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def analyze_query_parameters(
+        self, query_name: str, params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Analiza parámetros de una query para distinguir soporte/faltantes/vacíos.
 
         Returns:
@@ -284,8 +336,8 @@ class DatabaseQueries:
             - missing_required (list[str]): requeridos ausentes en `params`.
             - provided_empty (list[str]): presentes pero con valor vacío (None o str vacío).
         """
-        provided_params: Dict[str, Any] = dict(params or {})
-        engine_queries: Dict[str, str] = self.queries.get(self.db_type, {})
+        provided_params: dict[str, Any] = dict(params or {})
+        engine_queries: dict[str, str] = self.queries.get(self.db_type, {})
 
         if query_name not in engine_queries:
             return {
@@ -298,7 +350,9 @@ class DatabaseQueries:
         query_template: str = engine_queries[query_name]
         required_parameters: list[str] = sorted(set(re.findall(PARAMETER_PATTERN, query_template)))
 
-        missing_required: list[str] = [param for param in required_parameters if param not in provided_params]
+        missing_required: list[str] = [
+            param for param in required_parameters if param not in provided_params
+        ]
 
         def _is_empty(value: Any) -> bool:
             if value is None:
@@ -320,14 +374,14 @@ class DatabaseQueries:
             "provided_empty": provided_empty,
         }
 
-    def get_query_info(self) -> Dict[str, Any]:
+    def get_query_info(self) -> dict[str, Any]:
         """
         Obtiene información sobre las consultas disponibles
 
         Returns:
             Diccionario con información de las consultas
         """
-        queries: Dict[str, str] = self.get_all_queries()
+        queries: dict[str, str] = self.get_all_queries()
         info = {
             "db_type": self.db_type,
             "total_queries": len(queries),
@@ -347,7 +401,7 @@ class DatabaseQueries:
 
     # ==================== MÉTODOS AVANZADOS DE VALIDACIÓN ====================
 
-    def validate_query_for_db_type(self, query_name: str, **kwargs) -> Tuple[bool, List[str]]:
+    def validate_query_for_db_type(self, query_name: str, **kwargs) -> tuple[bool, list[str]]:
         """
         Valida una consulta específica para el tipo de base de datos actual
 
@@ -379,10 +433,10 @@ class DatabaseQueries:
 
         return len(errors) == 0, errors
 
-    def _validate_sqlserver_query(self, query_name: str, **kwargs) -> List[str]:
+    def _validate_sqlserver_query(self, query_name: str, **kwargs) -> list[str]:
         """Valida específicamente consultas SQL Server"""
         errors = []
-        table_queries: List[str] = [
+        table_queries: list[str] = [
             "columnas_tabla",
             "create_table",
             "indices",
@@ -396,7 +450,7 @@ class DatabaseQueries:
             errors.extend(self._validate_sqlserver_database_parameter(**kwargs))
         return errors
 
-    def _validate_sqlserver_table_parameter(self, **kwargs) -> List[str]:
+    def _validate_sqlserver_table_parameter(self, **kwargs) -> list[str]:
         """Valida el parámetro tabla para consultas SQL Server"""
         errors = []
         if "tabla" not in kwargs:
@@ -409,10 +463,12 @@ class DatabaseQueries:
         if len(table_name) > 128:
             errors.append("SQL Server no permite nombres de tabla con más de 128 caracteres")
         if not re.match(r"^[\w\-]+$", table_name):
-            errors.append("El nombre de la tabla solo puede contener letras, números, guiones y guiones bajos")
+            errors.append(
+                "El nombre de la tabla solo puede contener letras, números, guiones y guiones bajos"
+            )
         return errors
 
-    def _validate_sqlserver_database_parameter(self, **kwargs) -> List[str]:
+    def _validate_sqlserver_database_parameter(self, **kwargs) -> list[str]:
         """Valida el parámetro database para consultas SQL Server"""
         errors = []
         if "database" not in kwargs:
@@ -422,10 +478,12 @@ class DatabaseQueries:
         if not isinstance(database, str) or not database.strip():
             errors.append(self.ERROR_DATABASE_NAME_EMPTY)
         if len(database) > 128:
-            errors.append("SQL Server no permite nombres de base de datos con más de 128 caracteres")
+            errors.append(
+                "SQL Server no permite nombres de base de datos con más de 128 caracteres"
+            )
         return errors
 
-    def _validate_postgresql_query(self, query_name: str, **kwargs) -> List[str]:
+    def _validate_postgresql_query(self, query_name: str, **kwargs) -> list[str]:
         """Valida específicamente consultas PostgreSQL"""
         errors = []
         if query_name == "obtener_tablas":
@@ -436,7 +494,7 @@ class DatabaseQueries:
             errors.extend(self._validate_postgresql_create_table(**kwargs))
         return errors
 
-    def _validate_postgresql_obtener_tablas(self, **kwargs) -> List[str]:
+    def _validate_postgresql_obtener_tablas(self, **kwargs) -> list[str]:
         """Valida parámetros para obtener_tablas en PostgreSQL"""
         errors = []
         if "database" not in kwargs:
@@ -445,12 +503,12 @@ class DatabaseQueries:
             database = kwargs["database"]
             if not isinstance(database, str) or not database.strip():
                 errors.append("El nombre del schema/database no puede estar vacío")
-            reserved_schemas: List[str] = ["information_schema", "pg_catalog", "pg_toast"]
+            reserved_schemas: list[str] = ["information_schema", "pg_catalog", "pg_toast"]
             if database.lower() in reserved_schemas:
                 errors.append(f"'{database}' es un schema reservado de PostgreSQL")
         return errors
 
-    def _validate_postgresql_columnas_tabla(self, **kwargs) -> List[str]:
+    def _validate_postgresql_columnas_tabla(self, **kwargs) -> list[str]:
         """Valida parámetros para columnas_tabla en PostgreSQL"""
         errors = []
         if "database" not in kwargs:
@@ -465,7 +523,7 @@ class DatabaseQueries:
                 errors.append(self.ERROR_TABLE_NAME_INVALID_HSQLDB)
         return errors
 
-    def _validate_postgresql_create_table(self, **kwargs) -> List[str]:
+    def _validate_postgresql_create_table(self, **kwargs) -> list[str]:
         """Valida parámetros para create_table en PostgreSQL"""
         errors = []
         if "tabla" not in kwargs:
@@ -480,17 +538,24 @@ class DatabaseQueries:
                 errors.append("Los nombres que empiezan con 'pg_' están reservados en PostgreSQL")
         return errors
 
-    def _validate_oracle_query(self, query_name: str, **kwargs) -> List[str]:
+    def _validate_oracle_query(self, query_name: str, **kwargs) -> list[str]:
         """Valida específicamente consultas Oracle"""
         errors = []
-        table_queries: List[str] = ["columnas_tabla", "create_table", "indices", "claves_primarias", "claves_foraneas", "claves_unicas"]
+        table_queries: list[str] = [
+            "columnas_tabla",
+            "create_table",
+            "indices",
+            "claves_primarias",
+            "claves_foraneas",
+            "claves_unicas",
+        ]
         if query_name in table_queries:
             errors.extend(self._validate_oracle_table_parameter(**kwargs))
         elif query_name == "obtener_tablas":
             errors.extend(self._validate_oracle_database_parameter(**kwargs))
         return errors
 
-    def _validate_oracle_table_parameter(self, **kwargs) -> List[str]:
+    def _validate_oracle_table_parameter(self, **kwargs) -> list[str]:
         """Valida el parámetro tabla para consultas Oracle"""
         errors = []
         if "tabla" not in kwargs:
@@ -503,10 +568,12 @@ class DatabaseQueries:
         if len(table_name) > 30:
             errors.append("Oracle no permite nombres de tabla con más de 30 caracteres")
         if not table_name.replace("_", "").replace("$", "#").isalnum():
-            errors.append("El nombre de la tabla solo puede contener letras, números, guiones bajos y $")
+            errors.append(
+                "El nombre de la tabla solo puede contener letras, números, guiones bajos y $"
+            )
         return errors
 
-    def _validate_oracle_database_parameter(self, **kwargs) -> List[str]:
+    def _validate_oracle_database_parameter(self, **kwargs) -> list[str]:
         """Valida el parámetro database para consultas Oracle"""
         errors = []
         if "database" not in kwargs:
@@ -517,17 +584,24 @@ class DatabaseQueries:
             errors.append("El nombre del esquema/database no puede estar vacío")
         return errors
 
-    def _validate_mariadb_query(self, query_name: str, **kwargs) -> List[str]:
+    def _validate_mariadb_query(self, query_name: str, **kwargs) -> list[str]:
         """Valida específicamente consultas MariaDB"""
         errors = []
-        table_queries: List[str] = ["columnas_tabla", "create_table", "indices", "claves_primarias", "claves_foraneas", "claves_unicas"]
+        table_queries: list[str] = [
+            "columnas_tabla",
+            "create_table",
+            "indices",
+            "claves_primarias",
+            "claves_foraneas",
+            "claves_unicas",
+        ]
         if query_name in table_queries:
             errors.extend(self._validate_mariadb_table_parameter(**kwargs))
         elif query_name == "obtener_tablas":
             errors.extend(self._validate_mariadb_database_parameter(**kwargs))
         return errors
 
-    def _validate_mariadb_table_parameter(self, **kwargs) -> List[str]:
+    def _validate_mariadb_table_parameter(self, **kwargs) -> list[str]:
         """Valida el parámetro tabla para consultas MariaDB"""
         errors = []
         if "tabla" not in kwargs:
@@ -540,10 +614,12 @@ class DatabaseQueries:
         if len(table_name) > 64:
             errors.append("MariaDB no permite nombres de tabla con más de 64 caracteres")
         if not table_name.replace("_", "").replace("$", "").isalnum():
-            errors.append("El nombre de la tabla solo puede contener letras, números, guiones bajos y $")
+            errors.append(
+                "El nombre de la tabla solo puede contener letras, números, guiones bajos y $"
+            )
         return errors
 
-    def _validate_mariadb_database_parameter(self, **kwargs) -> List[str]:
+    def _validate_mariadb_database_parameter(self, **kwargs) -> list[str]:
         """Valida el parámetro database para consultas MariaDB"""
         errors = []
         if "database" not in kwargs:
@@ -554,17 +630,24 @@ class DatabaseQueries:
             errors.append(self.ERROR_DATABASE_NAME_EMPTY)
         return errors
 
-    def _validate_hsqldb_query(self, query_name: str, **kwargs) -> List[str]:
+    def _validate_hsqldb_query(self, query_name: str, **kwargs) -> list[str]:
         """Valida específicamente consultas HSQLDB"""
         errors = []
-        table_queries: List[str] = ["columnas_tabla", "create_table", "indices", "claves_primarias", "claves_foraneas", "claves_unicas"]
+        table_queries: list[str] = [
+            "columnas_tabla",
+            "create_table",
+            "indices",
+            "claves_primarias",
+            "claves_foraneas",
+            "claves_unicas",
+        ]
         if query_name in table_queries:
             errors.extend(self._validate_hsqldb_table_parameter(**kwargs))
         elif query_name == "obtener_tablas":
             errors.extend(self._validate_hsqldb_database_parameter(**kwargs))
         return errors
 
-    def _validate_hsqldb_table_parameter(self, **kwargs) -> List[str]:
+    def _validate_hsqldb_table_parameter(self, **kwargs) -> list[str]:
         """Valida el parámetro tabla para consultas HSQLDB"""
         errors = []
         if "tabla" not in kwargs:
@@ -578,7 +661,7 @@ class DatabaseQueries:
             errors.append(self.ERROR_TABLE_NAME_INVALID_HSQLDB)
         return errors
 
-    def _validate_hsqldb_database_parameter(self, **kwargs) -> List[str]:
+    def _validate_hsqldb_database_parameter(self, **kwargs) -> list[str]:
         """Valida el parámetro database para consultas HSQLDB"""
         errors = []
         if "database" not in kwargs:
@@ -591,19 +674,19 @@ class DatabaseQueries:
 
     # ==================== MÉTODOS AVANZADOS DE METADATOS ====================
 
-    def get_database_metadata(self) -> Dict[str, Any]:
+    def get_database_metadata(self) -> dict[str, Any]:
         """Obtiene metadatos completos del tipo de base de datos"""
         return self.db_metadata
 
-    def get_supported_features(self) -> List[str]:
+    def get_supported_features(self) -> list[str]:
         """Obtiene las características soportadas por el tipo de base de datos"""
         return self.db_metadata.get("supported_features", [])
 
-    def get_driver_requirements(self) -> Dict[str, Any]:
+    def get_driver_requirements(self) -> dict[str, Any]:
         """Obtiene los requisitos del driver para el tipo de base de datos"""
         return self.db_metadata.get("driver_info", {})
 
-    def get_connection_examples(self) -> Dict[str, Dict[str, Any]]:
+    def get_connection_examples(self) -> dict[str, dict[str, Any]]:
         """Obtiene ejemplos de conexión para el tipo de base de datos"""
         return self.config_examples
 
@@ -611,7 +694,7 @@ class DatabaseQueries:
         """Obtiene el puerto por defecto para el tipo de base de datos"""
         return self.db_metadata.get("default_port", 0)
 
-    def get_installation_commands(self) -> Dict[str, Any]:
+    def get_installation_commands(self) -> dict[str, Any]:
         """Obtiene los comandos de instalación para el tipo de base de datos"""
         driver_info = self.get_driver_requirements()
         return {
@@ -619,7 +702,7 @@ class DatabaseQueries:
             "system_requirements": driver_info.get("system_requirements", []),
         }
 
-    def get_query_dependencies(self, query_name: str) -> Dict[str, List[str]]:
+    def get_query_dependencies(self, query_name: str) -> dict[str, list[str]]:
         """Obtiene las dependencias de una consulta (tablas, vistas, etc.)"""
         query_template = self.queries[self.db_type].get(query_name, "")
         dependencies = {"tables": [], "views": [], "schemata": [], "columns": []}
@@ -636,7 +719,7 @@ class DatabaseQueries:
 
         return dependencies
 
-    def get_query_documentation(self, query_name: str) -> Dict[str, Any]:
+    def get_query_documentation(self, query_name: str) -> dict[str, Any]:
         """Obtiene documentación completa de una consulta"""
         query_template = self.queries[self.db_type].get(query_name, "")
         parameters = self._get_required_parameters(query_name)
@@ -671,14 +754,14 @@ class DatabaseQueries:
         }
         return descriptions.get(query_name, "Consulta SQL personalizada")
 
-    def _get_required_parameters(self, query_name: str) -> List[str]:
+    def _get_required_parameters(self, query_name: str) -> list[str]:
         """Obtiene la lista de parámetros requeridos para una consulta"""
         query_template = self.queries[self.db_type].get(query_name, "")
         return list(set(re.findall(PARAMETER_PATTERN, query_template)))
 
-    def _get_query_examples(self, query_name: str) -> List[Dict[str, Any]]:
+    def _get_query_examples(self, query_name: str) -> list[dict[str, Any]]:
         """Obtiene ejemplos de uso para una consulta"""
-        examples_factory: Dict[str, Callable[[], List[Dict[str, Any]]]] = {
+        examples_factory: dict[str, Callable[[], list[dict[str, Any]]]] = {
             "obtener_tablas": self._examples_obtener_tablas,
             "obtener_rutinas": self._examples_obtener_rutinas,
             "parametros_rutina": self._examples_parametros_rutina,
@@ -691,24 +774,38 @@ class DatabaseQueries:
         }
         return examples_factory.get(query_name, lambda: [])()
 
-    def _examples_obtener_tablas(self) -> List[Dict[str, Any]]:
+    def _examples_obtener_tablas(self) -> list[dict[str, Any]]:
         """Ejemplos para consulta obtener_tablas"""
-        return [{"description": "Obtener todas las tablas del schema public", "parameters": {"database": "public"}}]
+        return [
+            {
+                "description": "Obtener todas las tablas del schema public",
+                "parameters": {"database": "public"},
+            }
+        ]
 
-    def _examples_obtener_rutinas(self) -> List[Dict[str, Any]]:
+    def _examples_obtener_rutinas(self) -> list[dict[str, Any]]:
         """Ejemplos para consulta obtener_rutinas"""
-        return [{"description": "Obtener procedures y funciones del schema public", "parameters": {"database": "public"}}]
+        return [
+            {
+                "description": "Obtener procedures y funciones del schema public",
+                "parameters": {"database": "public"},
+            }
+        ]
 
-    def _examples_parametros_rutina(self) -> List[Dict[str, Any]]:
+    def _examples_parametros_rutina(self) -> list[dict[str, Any]]:
         """Ejemplos para consulta parametros_rutina"""
         return [
             {
                 "description": "Obtener parámetros de la rutina calcular_totales",
-                "parameters": {"database": "public", "rutina": "calcular_totales", "tipo_rutina": "FUNCTION"},
+                "parameters": {
+                    "database": "public",
+                    "rutina": "calcular_totales",
+                    "tipo_rutina": "FUNCTION",
+                },
             }
         ]
 
-    def _examples_create_rutina(self) -> List[Dict[str, Any]]:
+    def _examples_create_rutina(self) -> list[dict[str, Any]]:
         """Ejemplos para consulta create_rutina"""
         return [
             {
@@ -717,40 +814,70 @@ class DatabaseQueries:
             }
         ]
 
-    def _examples_columnas_tabla(self) -> List[Dict[str, Any]]:
+    def _examples_columnas_tabla(self) -> list[dict[str, Any]]:
         """Ejemplos para consulta columnas_tabla"""
-        return [{"description": "Obtener columnas de la tabla usuarios", "parameters": {"database": "public", "tabla": "usuarios"}}]
+        return [
+            {
+                "description": "Obtener columnas de la tabla usuarios",
+                "parameters": {"database": "public", "tabla": "usuarios"},
+            }
+        ]
 
-    def _examples_create_table(self) -> List[Dict[str, Any]]:
+    def _examples_create_table(self) -> list[dict[str, Any]]:
         """Ejemplos para consulta create_table"""
-        return [{"description": "Generar DDL de la tabla productos", "parameters": {"tabla": "productos"}}]
+        return [
+            {
+                "description": "Generar DDL de la tabla productos",
+                "parameters": {"tabla": "productos"},
+            }
+        ]
 
-    def _examples_ficheros_fisicos(self) -> List[Dict[str, Any]]:
+    def _examples_ficheros_fisicos(self) -> list[dict[str, Any]]:
         """Ejemplos para consulta ficheros_fisicos según motor"""
-        examples_by_db: Dict[str, Dict[str, Any]] = {
-            "oracle": {"description": "Inventario de ficheros para un tablespace Oracle", "parameters": {"tablespace": "USERS"}},
-            "postgresql": {"description": "Tamaño y ruta de un tablespace PostgreSQL", "parameters": {"tablespace": "pg_default"}},
-            "mariadb": {"description": "Tamaño por tabla en MariaDB", "parameters": {"database": "mi_bd"}},
-            "sqlite": {"description": "Listado de ficheros de bases adjuntas en SQLite", "parameters": {}},
+        examples_by_db: dict[str, dict[str, Any]] = {
+            "oracle": {
+                "description": "Inventario de ficheros para un tablespace Oracle",
+                "parameters": {"tablespace": "USERS"},
+            },
+            "postgresql": {
+                "description": "Tamaño y ruta de un tablespace PostgreSQL",
+                "parameters": {"tablespace": "pg_default"},
+            },
+            "mariadb": {
+                "description": "Tamaño por tabla en MariaDB",
+                "parameters": {"database": "mi_bd"},
+            },
+            "sqlite": {
+                "description": "Listado de ficheros de bases adjuntas en SQLite",
+                "parameters": {},
+            },
         }
-        example: Dict[str, Any] = examples_by_db.get(
+        example: dict[str, Any] = examples_by_db.get(
             self.db_type,
             {"description": "Inventario de ficheros físicos SQL Server", "parameters": {}},
         )
         return [example]
 
-    def _examples_ficheros_fisicos_adicional(self) -> List[Dict[str, Any]]:
+    def _examples_ficheros_fisicos_adicional(self) -> list[dict[str, Any]]:
         """Ejemplos para consulta ficheros_fisicos_adicional según motor"""
-        examples_by_db: Dict[str, Dict[str, Any]] = {
-            "mariadb": {"description": "Tablespaces InnoDB para una base en MariaDB", "parameters": {"database": "mi_bd"}},
+        examples_by_db: dict[str, dict[str, Any]] = {
+            "mariadb": {
+                "description": "Tablespaces InnoDB para una base en MariaDB",
+                "parameters": {"database": "mi_bd"},
+            },
             "sqlite": {"description": "Resumen de tamaño del fichero SQLite", "parameters": {}},
         }
-        example: Dict[str, Any] | None = examples_by_db.get(self.db_type)
+        example: dict[str, Any] | None = examples_by_db.get(self.db_type)
         return [example] if example else []
 
-    def _examples_temp_tablespaces(self) -> List[Dict[str, Any]]:
+    def _examples_temp_tablespaces(self) -> list[dict[str, Any]]:
         """Ejemplos para consulta temp_tablespaces"""
-        return [{"description": "Ver configuración de tablespaces temporales PostgreSQL", "parameters": {}}]
+        return [
+            {
+                "description": "Ver configuración de tablespaces temporales PostgreSQL",
+                "parameters": {},
+            }
+        ]
 
     def export_documentation(self, output_file: Path) -> None:
         """Exporta documentación completa de todas las consultas a un archivo"""
@@ -769,7 +896,7 @@ class DatabaseQueries:
             self.logger.info(f"✅ Documentación exportada a {output_file}")
         except Exception as e:
             self.logger.error(f"❌ Error al exportar documentación: {e}")
-            raise IOError(f"Error al exportar documentación: {e}") from e
+            raise OSError(f"Error al exportar documentación: {e}") from e
 
 
 class DatabaseQueryExecutor:
@@ -798,7 +925,9 @@ class DatabaseQueryExecutor:
         self.queries: DatabaseQueries = queries
         self.logger: logging.Logger = logging.getLogger(__name__)
         self._connection_provider: Callable[[], Any] | None = connection_provider
-        self._connection_releaser: Callable[[Any], None] = connection_releaser or (lambda _conn: None)
+        self._connection_releaser: Callable[[Any], None] = connection_releaser or (
+            lambda _conn: None
+        )
 
     def _acquire_execution_resources(self) -> tuple[Any, Any, bool]:
         """Obtiene conexión/cursor para ejecutar una operación.
@@ -814,7 +943,9 @@ class DatabaseQueryExecutor:
         cursor: Any = connection.cursor()
         return connection, cursor, True
 
-    def _release_execution_resources(self, connection: Any, cursor: Any, managed_resources: bool) -> None:
+    def _release_execution_resources(
+        self, connection: Any, cursor: Any, managed_resources: bool
+    ) -> None:
         """Libera recursos adquiridos para una operación."""
         if not managed_resources:
             return
@@ -839,7 +970,7 @@ class DatabaseQueryExecutor:
         if value is None:
             return None
 
-        if hasattr(value, "read") and callable(getattr(value, "read")):
+        if hasattr(value, "read") and callable(value.read):
             try:
                 return value.read()
             except Exception:
@@ -848,7 +979,9 @@ class DatabaseQueryExecutor:
         if isinstance(value, tuple):
             container_id: int = id(value)
             if container_id in visited:
-                self.logger.debug("⚠️ Ciclo detectado materializando tuple; se devuelve valor original")
+                self.logger.debug(
+                    "⚠️ Ciclo detectado materializando tuple; se devuelve valor original"
+                )
                 return value
             visited.add(container_id)
             return tuple(self._materialize_value(item, visited) for item in value)
@@ -856,7 +989,9 @@ class DatabaseQueryExecutor:
         if isinstance(value, list):
             container_id = id(value)
             if container_id in visited:
-                self.logger.debug("⚠️ Ciclo detectado materializando list; se devuelve valor original")
+                self.logger.debug(
+                    "⚠️ Ciclo detectado materializando list; se devuelve valor original"
+                )
                 return value
             visited.add(container_id)
             return [self._materialize_value(item, visited) for item in value]
@@ -864,7 +999,9 @@ class DatabaseQueryExecutor:
         if isinstance(value, dict):
             container_id = id(value)
             if container_id in visited:
-                self.logger.debug("⚠️ Ciclo detectado materializando dict; se devuelve valor original")
+                self.logger.debug(
+                    "⚠️ Ciclo detectado materializando dict; se devuelve valor original"
+                )
                 return value
             visited.add(container_id)
             return {key: self._materialize_value(item, visited) for key, item in value.items()}
@@ -877,10 +1014,10 @@ class DatabaseQueryExecutor:
 
     def _validate_and_check_query_existence(self, query_name: str) -> None:
         """Valida la existencia de la consulta en el tipo de base de datos actual.
-        
+
         Args:
             query_name: Nombre de la consulta a validar
-            
+
         Raises:
             ValueError: Si la consulta no existe para el tipo de BD actual
         """
@@ -890,20 +1027,26 @@ class DatabaseQueryExecutor:
             self.logger.error(f"❌ {error_msg}")
             raise ValueError(error_msg)
 
-    def _validate_query_parameters_and_build_error(self, query_name: str, kwargs: Dict[str, Any]) -> None:
+    def _validate_query_parameters_and_build_error(
+        self, query_name: str, kwargs: dict[str, Any]
+    ) -> None:
         """Valida parámetros de consulta y genera errores descriptivos.
-        
+
         Args:
             query_name: Nombre de la consulta a validar
             kwargs: Parámetros de la consulta
-            
+
         Raises:
             ValueError: Si los parámetros son inválidos
         """
-        analysis: Dict[str, Any] = self.queries.analyze_query_parameters(query_name, kwargs)
-        if (not analysis.get("supported")) or analysis.get("missing_required") or analysis.get("provided_empty"):
-            missing_params: List[str] = list(analysis.get("missing_required", []))
-            empty_params: List[str] = list(analysis.get("provided_empty", []))
+        analysis: dict[str, Any] = self.queries.analyze_query_parameters(query_name, kwargs)
+        if (
+            (not analysis.get("supported"))
+            or analysis.get("missing_required")
+            or analysis.get("provided_empty")
+        ):
+            missing_params: list[str] = list(analysis.get("missing_required", []))
+            empty_params: list[str] = list(analysis.get("provided_empty", []))
             parts: list[str] = []
             if missing_params:
                 parts.append(f"faltantes={missing_params}")
@@ -1000,7 +1143,9 @@ class DatabaseQueryExecutor:
     def _execute_mariadb_additional_storage_query(self, database: str) -> list:
         """Ejecuta consulta adaptativa de ficheros físicos adicionales para MariaDB."""
         if not database:
-            raise ValueError("La consulta 'ficheros_fisicos_adicional' requiere el parámetro 'database'")
+            raise ValueError(
+                "La consulta 'ficheros_fisicos_adicional' requiere el parámetro 'database'"
+            )
 
         tablespaces_table: str = "INNODB_SYS_TABLESPACES"
         if not self._mariadb_information_schema_has_table(tablespaces_table):
@@ -1022,7 +1167,9 @@ class DatabaseQueryExecutor:
             and self._mariadb_information_schema_has_column(tablespaces_table, "SPACE")
         ):
             file_name_expr = "d.PATH"
-            join_clause = " LEFT JOIN information_schema.INNODB_SYS_DATAFILES d ON d.SPACE = t.SPACE "
+            join_clause = (
+                " LEFT JOIN information_schema.INNODB_SYS_DATAFILES d ON d.SPACE = t.SPACE "
+            )
 
         file_size_expr: str = (
             "t.FILE_SIZE/1024/1024"
@@ -1050,9 +1197,9 @@ class DatabaseQueryExecutor:
         result: Any = self.execute_custom_query(query, fetch_one=False)
         return list(result or [])
 
-    def _get_missing_parameters(self, query_name: str, **kwargs) -> List[str]:
+    def _get_missing_parameters(self, query_name: str, **kwargs) -> list[str]:
         """Obtiene los parámetros faltantes para una consulta"""
-        analysis: Dict[str, Any] = self.queries.analyze_query_parameters(query_name, kwargs)
+        analysis: dict[str, Any] = self.queries.analyze_query_parameters(query_name, kwargs)
         return list(analysis.get("missing_required", []))
 
     # ==================== MÉTODOS DE CONVENIENCIA ====================
@@ -1094,7 +1241,7 @@ class DatabaseQueryExecutor:
         return ""
 
     def _is_lob(self, value: Any) -> bool:
-        return hasattr(value, "read") and callable(getattr(value, "read"))
+        return hasattr(value, "read") and callable(value.read)
 
     def _read_lob(self, value: Any) -> str:
         try:
@@ -1110,7 +1257,7 @@ class DatabaseQueryExecutor:
         return str(element)
 
     def _extract_preferred_ddl(self, ddl: Any) -> str:
-        preferred_positions: List[int] = [2, 1, 0]
+        preferred_positions: list[int] = [2, 1, 0]
         for pos in preferred_positions:
             if len(ddl) <= pos:
                 continue
@@ -1151,7 +1298,9 @@ class DatabaseQueryExecutor:
     def _contains_create(self, text: str) -> bool:
         return "CREATE " in text.upper()
 
-    def _add_metadata_context_params(self, params: Dict[str, str], context: Optional[str]) -> Dict[str, str]:
+    def _add_metadata_context_params(
+        self, params: dict[str, str], context: str | None
+    ) -> dict[str, str]:
         """Agrega parámetros de contexto (`database`/`esquema`) según motor."""
         if not context or self.queries.db_type == "mariadb":
             return params
@@ -1166,9 +1315,9 @@ class DatabaseQueryExecutor:
 
         return params
 
-    def get_ddl(self, table: str, schema: Optional[str] = None) -> str:
+    def get_ddl(self, table: str, schema: str | None = None) -> str:
         """Obtiene el DDL de una tabla"""
-        params: Dict[str, str] = {"tabla": table}
+        params: dict[str, str] = {"tabla": table}
         params = self._add_metadata_context_params(params, schema)
         try:
             ddl_raw: Any = self.execute_query("create_table", fetch_one=True, **params)
@@ -1185,12 +1334,12 @@ class DatabaseQueryExecutor:
                 return fallback_ddl
             raise
 
-    def get_view_ddl(self, view: str, schema: Optional[str] = None) -> str:
+    def get_view_ddl(self, view: str, schema: str | None = None) -> str:
         """Obtiene el DDL de una vista."""
-        params: Dict[str, str] = {"tabla": view}
+        params: dict[str, str] = {"tabla": view}
         params = self._add_metadata_context_params(params, schema)
 
-        available_queries: Dict[str, str] = self.queries.queries.get(self.queries.db_type, {})
+        available_queries: dict[str, str] = self.queries.queries.get(self.queries.db_type, {})
         query_name: str = "create_view" if "create_view" in available_queries else "create_table"
         try:
             ddl_raw: Any = self.execute_query(query_name, fetch_one=True, **params)
@@ -1202,7 +1351,9 @@ class DatabaseQueryExecutor:
                 "⚠️ Error de decodificación detectado en create_view (MariaDB). "
                 "Se aplica fallback HEX desde INFORMATION_SCHEMA.VIEWS."
             )
-            fallback_ddl: str = self._get_mariadb_view_ddl_with_hex_fallback(view=view, schema=schema)
+            fallback_ddl: str = self._get_mariadb_view_ddl_with_hex_fallback(
+                view=view, schema=schema
+            )
             if fallback_ddl:
                 return fallback_ddl
             raise
@@ -1225,7 +1376,7 @@ class DatabaseQueryExecutor:
 
         return False
 
-    def _get_mariadb_table_ddl_fallback(self, table: str, schema: Optional[str]) -> str:
+    def _get_mariadb_table_ddl_fallback(self, table: str, schema: str | None) -> str:
         """Construye un DDL básico de tabla MariaDB a partir de metadatos."""
         database_name: str = self._resolve_mariadb_database_name(schema)
         if not database_name:
@@ -1244,7 +1395,7 @@ class DatabaseQueryExecutor:
         body: str = ",\n  ".join(all_lines)
         return f"CREATE TABLE `{table}` (\n  {body}\n);"
 
-    def _resolve_mariadb_database_name(self, schema: Optional[str]) -> str:
+    def _resolve_mariadb_database_name(self, schema: str | None) -> str:
         """Resuelve el nombre de la base de datos, consultando DATABASE() si es necesario."""
         database_name: str = str(schema or "").strip()
         if database_name:
@@ -1272,7 +1423,7 @@ class DatabaseQueryExecutor:
         """Construye una línea de definición de columna."""
         name: str = str(col[0] if len(col) > 0 else "").strip()
         col_type: str = str(col[1] if len(col) > 1 else "").strip()
-        
+
         if not name or not col_type:
             return None
 
@@ -1287,7 +1438,7 @@ class DatabaseQueryExecutor:
             line += f" DEFAULT {self._format_mariadb_default_literal(default_value)}"
         if extra:
             line += f" {extra}"
-        
+
         return line
 
     def _build_mariadb_primary_key_definitions(self, table: str, database_name: str) -> list[str]:
@@ -1332,7 +1483,7 @@ class DatabaseQueryExecutor:
         escaped: str = text.replace("\\", "\\\\").replace("'", "\\'")
         return f"'{escaped}'"
 
-    def _get_mariadb_view_ddl_with_hex_fallback(self, view: str, schema: Optional[str]) -> str:
+    def _get_mariadb_view_ddl_with_hex_fallback(self, view: str, schema: str | None) -> str:
         """Obtiene DDL de vista MariaDB decodificando VIEW_DEFINITION vía HEX."""
         escaped_view: str = self._escape_sql_literal(view)
         escaped_schema: str = self._escape_sql_literal(str(schema or "").strip())
@@ -1364,19 +1515,23 @@ class DatabaseQueryExecutor:
     def get_routine_parameters(self, database: str, routine_name: str, routine_type: str) -> list:
         """Obtiene los parámetros de una rutina."""
         if self.queries.db_type == "mariadb":
-            return self._get_mariadb_routine_parameters(database=database, routine_name=routine_name, routine_type=routine_type)
+            return self._get_mariadb_routine_parameters(
+                database=database, routine_name=routine_name, routine_type=routine_type
+            )
 
         if self.queries.db_type == "oracle":
             return self._get_oracle_routine_parameters(database=database, routine_name=routine_name)
 
-        params: Dict[str, str] = {
+        params: dict[str, str] = {
             "database": database,
             "rutina": routine_name,
             "tipo_rutina": routine_type.upper(),
         }
         return self.execute_query("parametros_rutina", fetch_one=False, **params)
 
-    def _get_mariadb_routine_parameters(self, database: str, routine_name: str, routine_type: str) -> list:
+    def _get_mariadb_routine_parameters(
+        self, database: str, routine_name: str, routine_type: str
+    ) -> list:
         """Obtiene parámetros de rutina para MariaDB con estrategia adaptativa por columnas disponibles."""
         include_parameter_default: bool = self._mariadb_parameters_has_column("PARAMETER_DEFAULT")
 
@@ -1476,12 +1631,14 @@ class DatabaseQueryExecutor:
         """Escapa comillas simples para interpolación segura en literales SQL."""
         return str(value).replace("'", "''")
 
-    def get_routine_ddl(self, routine_name: str, routine_type: str, schema: Optional[str] = None) -> str:
+    def get_routine_ddl(
+        self, routine_name: str, routine_type: str, schema: str | None = None
+    ) -> str:
         """Obtiene el DDL de una rutina (procedure/función)."""
         if self.queries.db_type == "oracle" and "." in str(routine_name):
             return self._get_oracle_packaged_routine_ddl(routine_name=routine_name, schema=schema)
 
-        params: Dict[str, str] = {
+        params: dict[str, str] = {
             "rutina": routine_name,
             "tipo_rutina": routine_type.upper(),
         }
@@ -1528,11 +1685,13 @@ class DatabaseQueryExecutor:
         self,
         routine_name: str,
         routine_type: str,
-        schema: Optional[str],
+        schema: str | None,
     ) -> str:
         """Obtiene DDL de rutina en MariaDB con consulta HEX para evitar errores de decode."""
         escaped_routine_name: str = self._escape_sql_literal(routine_name)
-        escaped_routine_type: str = self._escape_sql_literal(str(routine_type or "").upper().strip() or "PROCEDURE")
+        escaped_routine_type: str = self._escape_sql_literal(
+            str(routine_type or "").upper().strip() or "PROCEDURE"
+        )
         escaped_schema: str = self._escape_sql_literal(str(schema or "").strip())
 
         schema_filter: str = (
@@ -1564,7 +1723,9 @@ class DatabaseQueryExecutor:
         signature: str = f"CREATE {normalized_type} `{routine_name}`"
         return f"{signature}\n{ddl_body}"
 
-    def _parse_oracle_routine_identifier(self, routine_name: str) -> tuple[str | None, str, str | None]:
+    def _parse_oracle_routine_identifier(
+        self, routine_name: str
+    ) -> tuple[str | None, str, str | None]:
         """Parsea identificador de rutina Oracle en formato PACKAGE.RUTINA#OVERLOAD."""
         raw_value: str = str(routine_name or "").strip()
         overload: str | None = None
@@ -1597,7 +1758,9 @@ class DatabaseQueryExecutor:
         else:
             package_filter = "AND a.package_name IS NULL "
 
-        overload_filter: str = f"AND NVL(a.overload, '0') = NVL('{escaped_overload}', '0') " if overload else ""
+        overload_filter: str = (
+            f"AND NVL(a.overload, '0') = NVL('{escaped_overload}', '0') " if overload else ""
+        )
 
         query: str = (
             "SELECT "
@@ -1618,7 +1781,7 @@ class DatabaseQueryExecutor:
         result: Any = self.execute_custom_query(query, fetch_one=False)
         return result or []
 
-    def _get_oracle_packaged_routine_ddl(self, routine_name: str, schema: Optional[str]) -> str:
+    def _get_oracle_packaged_routine_ddl(self, routine_name: str, schema: str | None) -> str:
         """Obtiene DDL Oracle para rutinas empaquetadas devolviendo DDL del package y body."""
         package_name, _, _ = self._parse_oracle_routine_identifier(routine_name)
         if not package_name:
@@ -1662,7 +1825,9 @@ class DatabaseQueryExecutor:
     def get_columns(self, database: str, table: str) -> list:
         """Obtiene las columnas de una tabla"""
         try:
-            return self.execute_query("columnas_tabla", fetch_one=False, database=database, tabla=table)
+            return self.execute_query(
+                "columnas_tabla", fetch_one=False, database=database, tabla=table
+            )
         except DatabaseQueryError as error:
             if not self._should_retry_mariadb_columns_with_hex(error):
                 raise
@@ -1752,31 +1917,33 @@ class DatabaseQueryExecutor:
 
         return raw.decode("latin1", errors="replace")
 
-    def get_indices(self, table: str, schema: Optional[str] = None) -> list:
+    def get_indices(self, table: str, schema: str | None = None) -> list:
         """Obtiene los índices de una tabla"""
-        params: Dict[str, str] = {"tabla": table}
+        params: dict[str, str] = {"tabla": table}
         params = self._add_metadata_context_params(params, schema)
         return self.execute_query("indices", fetch_one=False, **params)
 
-    def get_primary_keys(self, table: str, schema: Optional[str] = None) -> list:
+    def get_primary_keys(self, table: str, schema: str | None = None) -> list:
         """Obtiene las claves primarias de una tabla"""
-        params: Dict[str, str] = {"tabla": table}
+        params: dict[str, str] = {"tabla": table}
         params = self._add_metadata_context_params(params, schema)
         return self.execute_query("claves_primarias", fetch_one=False, **params)
 
-    def get_foreign_keys(self, table: str, schema: Optional[str] = None) -> list:
+    def get_foreign_keys(self, table: str, schema: str | None = None) -> list:
         """Obtiene las claves foráneas de una tabla"""
-        params: Dict[str, str] = {"tabla": table}
+        params: dict[str, str] = {"tabla": table}
         params = self._add_metadata_context_params(params, schema)
         return self.execute_query("claves_foraneas", fetch_one=False, **params)
 
-    def get_unique_constraints(self, table: str, schema: Optional[str] = None) -> list:
+    def get_unique_constraints(self, table: str, schema: str | None = None) -> list:
         """Obtiene las restricciones únicas de una tabla"""
-        params: Dict[str, str] = {"tabla": table}
+        params: dict[str, str] = {"tabla": table}
         params = self._add_metadata_context_params(params, schema)
         return self.execute_query("claves_unicas", fetch_one=False, **params)
 
-    def get_storage_inventory(self, database: Optional[str] = None, tablespace: Optional[str] = None) -> Dict[str, Any]:
+    def get_storage_inventory(
+        self, database: str | None = None, tablespace: str | None = None
+    ) -> dict[str, Any]:
         """Obtiene inventario de ficheros/tablespaces por motor.
 
         Returns:
@@ -1784,7 +1951,7 @@ class DatabaseQueryExecutor:
             - `primary`: resultado principal (list)
             - `secondary`: resultado secundario opcional (list)
         """
-        results: Dict[str, Any] = {"primary": [], "secondary": []}
+        results: dict[str, Any] = {"primary": [], "secondary": []}
 
         if self.queries.db_type == "sqlserver":
             results["primary"] = self.execute_query("ficheros_fisicos", fetch_one=False)
@@ -1793,20 +1960,28 @@ class DatabaseQueryExecutor:
         if self.queries.db_type == "oracle":
             if not tablespace:
                 raise ValueError("Para Oracle debe proporcionar 'tablespace'")
-            results["primary"] = self.execute_query("ficheros_fisicos", fetch_one=False, tablespace=tablespace)
+            results["primary"] = self.execute_query(
+                "ficheros_fisicos", fetch_one=False, tablespace=tablespace
+            )
             return results
 
         if self.queries.db_type == "mariadb":
             if not database:
                 raise ValueError("Para MariaDB debe proporcionar 'database'")
-            results["primary"] = self.execute_query("ficheros_fisicos", fetch_one=False, database=database)
-            results["secondary"] = self.execute_query("ficheros_fisicos_adicional", fetch_one=False, database=database)
+            results["primary"] = self.execute_query(
+                "ficheros_fisicos", fetch_one=False, database=database
+            )
+            results["secondary"] = self.execute_query(
+                "ficheros_fisicos_adicional", fetch_one=False, database=database
+            )
             return results
 
         if self.queries.db_type == "postgresql":
             if not tablespace:
                 raise ValueError("Para PostgreSQL debe proporcionar 'tablespace'")
-            results["primary"] = self.execute_query("ficheros_fisicos", fetch_one=False, tablespace=tablespace)
+            results["primary"] = self.execute_query(
+                "ficheros_fisicos", fetch_one=False, tablespace=tablespace
+            )
             results["secondary"] = self.execute_query("temp_tablespaces", fetch_one=False)
             return results
 
@@ -1823,7 +1998,9 @@ class DatabaseQueryExecutor:
         # HSQLDB: no hay consulta SQL estándar para tamaño de ficheros físicos.
         return results
 
-    def execute_custom_query(self, sql: str, fetch_one: bool = False, params: Optional[tuple] = None) -> Any:
+    def execute_custom_query(
+        self, sql: str, fetch_one: bool = False, params: tuple | None = None
+    ) -> Any:
         """
         Ejecuta una consulta SQL personalizada
 
@@ -1856,7 +2033,7 @@ class DatabaseQueryExecutor:
         finally:
             self._release_execution_resources(connection, cursor, managed_resources)
 
-    def execute_batch(self, queries: List[Tuple[str, bool, Optional[tuple]]]) -> List[Any]:
+    def execute_batch(self, queries: list[tuple[str, bool, tuple | None]]) -> list[Any]:
         """
         Ejecuta múltiples consultas en batch
 
@@ -1885,7 +2062,7 @@ class DatabaseQueryExecutor:
         finally:
             self._release_execution_resources(connection, cursor, managed_resources)
 
-    def get_query_explanation(self, query_name: str, **kwargs) -> Dict[str, Any]:
+    def get_query_explanation(self, query_name: str, **kwargs) -> dict[str, Any]:
         """
         Obtiene información explicativa sobre una consulta
 
@@ -1907,7 +2084,9 @@ class DatabaseQueryExecutor:
 
 
 # Funciones de conveniencia para mantener retrocompatibilidad
-def create_advanced_queries(db_type: str, queries_file: Optional[Path] = None, config_file: Optional[Path] = None) -> DatabaseQueries:
+def create_advanced_queries(
+    db_type: str, queries_file: Path | None = None, config_file: Path | None = None
+) -> DatabaseQueries:
     """
     Función de conveniencia para crear una instancia de DatabaseQueries
     (antes: AdvancedDatabaseQueries)

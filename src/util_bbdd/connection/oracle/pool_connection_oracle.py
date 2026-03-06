@@ -1,11 +1,13 @@
 """Pool de conexiones para Oracle (oracledb)."""
 
 import logging
-from typing import Any, Optional
+
+from typing import Any
 
 import oracledb
 
 from ..connection_params_manager import ConnectionParamsManager
+
 
 class PoolConnection:
     """Pool de conexiones nativo para Oracle (oracledb).
@@ -46,7 +48,7 @@ class PoolConnection:
             ```
         """
         self.logger: logging.Logger = logging.getLogger(__name__)
-        self.pool: Optional[oracledb.ConnectionPool] = None
+        self.pool: oracledb.ConnectionPool | None = None
         self._closed: bool = False
         pool_config = ConnectionParamsManager.get_pool_config("oracle", conn_params)
         self.pool_size: int = pool_config.pool_size

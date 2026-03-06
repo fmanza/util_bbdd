@@ -1,10 +1,12 @@
 """
 Implementación de generación de grafos usando Graphviz
 """
+
 import logging
+
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 try:
     import graphviz
@@ -32,7 +34,7 @@ class GraphvizRelationshipGraph(DatabaseRelationshipGraphBase):
 
     def generate_graphviz_graph_paginated(
         self, table_name: str, output_dir: Path, format: str = "png", max_subnodes: int = 10
-    ) -> List[Path]:
+    ) -> list[Path]:
         """
         Genera grafos Graphviz dividiendo en múltiples imágenes si es necesario
 
@@ -48,14 +50,16 @@ class GraphvizRelationshipGraph(DatabaseRelationshipGraphBase):
         self.logger.info(
             f"Iniciando generación paginada de Graphviz para {table_name} (max {max_subnodes} nodos por página)"
         )
-        relations: List[TableRelation] = self.analyze_table_relations(table_name)
-        split_relations: List[List[TableRelation]] = self._split_relations_for_visualization(relations, max_subnodes)
+        relations: list[TableRelation] = self.analyze_table_relations(table_name)
+        split_relations: list[list[TableRelation]] = self._split_relations_for_visualization(
+            relations, max_subnodes
+        )
         self.logger.debug(f"Tabla {table_name} dividida en {len(split_relations)} página(s)")
 
         output_dir = Path(output_dir).resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        generated_files: List[Path] = []
+        generated_files: list[Path] = []
 
         for page_num, page_relations in enumerate(split_relations, 1):
             # Crear nombre de archivo descriptivo con graphviz y nombre de tabla
@@ -69,13 +73,15 @@ class GraphvizRelationshipGraph(DatabaseRelationshipGraphBase):
             output_path: Path = output_dir / file_name
 
             # Generar gráfico para esta página
-            generated_file: Path = self._generate_graphviz_graph_internal(table_name, output_path, format, page_relations)
+            generated_file: Path = self._generate_graphviz_graph_internal(
+                table_name, output_path, format, page_relations
+            )
             generated_files.append(generated_file)
 
         return generated_files
 
     def _generate_graphviz_graph_internal(
-        self, table_name: str, output_file: Path, format: str, relations: List[TableRelation]
+        self, table_name: str, output_file: Path, format: str, relations: list[TableRelation]
     ) -> Path:
         """
         Genera un gráfico Graphviz interno con relaciones específicas
@@ -102,9 +108,13 @@ class GraphvizRelationshipGraph(DatabaseRelationshipGraphBase):
                 tables_in_page.add(relation.source_table)
                 tables_in_page.add(relation.target_table)
 
-            dot = graphviz.Digraph(comment=f"Relaciones de {table_name}", format=format, engine="circo")
+            dot = graphviz.Digraph(
+                comment=f"Relaciones de {table_name}", format=format, engine="circo"
+            )
             dot.attr(size="20,20", overlap="false")
-            dot.attr("node", shape="box", style="rounded,filled", fillcolor="lightblue", fontname="Arial")
+            dot.attr(
+                "node", shape="box", style="rounded,filled", fillcolor="lightblue", fontname="Arial"
+            )
             dot.attr("edge", fontname="Arial", fontsize="10")
 
             for table in tables_in_page:
@@ -127,7 +137,10 @@ class GraphvizRelationshipGraph(DatabaseRelationshipGraphBase):
             else:
                 raise FileNotFoundError(f"Archivo no encontrado: {expected_file}")
         except Exception as e:
-            self.logger.error(f"Error al generar gráfico Graphviz para tabla {table_name}: {str(e)}", exc_info=True)
+            self.logger.error(
+                f"Error al generar gráfico Graphviz para tabla {table_name}: {str(e)}",
+                exc_info=True,
+            )
             raise
 
     def generate_all_tables_graphs(
@@ -136,7 +149,7 @@ class GraphvizRelationshipGraph(DatabaseRelationshipGraphBase):
         format: str = "png",
         skip_tables_without_relations: bool = True,
         max_subnodes: int = 10,
-    ) -> Dict[str, Dict[str, Any]]:
+    ) -> dict[str, dict[str, Any]]:
         """
         Genera grafos Graphviz para todas las tablas de la base de datos
 
@@ -162,7 +175,7 @@ class GraphvizRelationshipGraph(DatabaseRelationshipGraphBase):
         self.logger.info(f"Directorio de salida: {output_dir}")
         self.logger.info(f"Formato: {format}, max_subnodes: {max_subnodes}")
 
-        results: Dict[str, Dict[str, Any]] = {}
+        results: dict[str, dict[str, Any]] = {}
 
         # Filtrar tablas sin relaciones si es necesario
         tables_to_process = table_names
@@ -178,16 +191,23 @@ class GraphvizRelationshipGraph(DatabaseRelationshipGraphBase):
                 except Exception:
                     pass
 
-            self.logger.info(f"Tablas a procesar tras filtrado: {len(tables_to_process)}/{len(table_names)}")
+            self.logger.info(
+                f"Tablas a procesar tras filtrado: {len(tables_to_process)}/{len(table_names)}"
+            )
 
         # Generar grafos para cada tabla
         for idx, table_name in enumerate(tables_to_process, 1):
             try:
-                self.logger.info(f"[{idx}/{len(tables_to_process)}] Generando gráfico para tabla: {table_name}")
+                self.logger.info(
+                    f"[{idx}/{len(tables_to_process)}] Generando gráfico para tabla: {table_name}"
+                )
 
                 # Generar gráfico paginado directamente en output_dir
-                generated_files: List[Path] = self.generate_graphviz_graph_paginated(
-                    table_name=table_name, output_dir=output_dir, format=format, max_subnodes=max_subnodes
+                generated_files: list[Path] = self.generate_graphviz_graph_paginated(
+                    table_name=table_name,
+                    output_dir=output_dir,
+                    format=format,
+                    max_subnodes=max_subnodes,
                 )
 
                 results[table_name] = {
@@ -196,7 +216,9 @@ class GraphvizRelationshipGraph(DatabaseRelationshipGraphBase):
                     "count": len(generated_files),
                 }
 
-                self.logger.debug(f"Gráfico completado para {table_name}: {len(generated_files)} archivo(s)")
+                self.logger.debug(
+                    f"Gráfico completado para {table_name}: {len(generated_files)} archivo(s)"
+                )
 
             except Exception as e:
                 error_msg = str(e)
@@ -205,6 +227,8 @@ class GraphvizRelationshipGraph(DatabaseRelationshipGraphBase):
 
         # Resumen final
         successful: int = sum(1 for r in results.values() if r["status"] == "success")
-        self.logger.info(f"Generación completada: {successful}/{len(tables_to_process)} tablas procesadas exitosamente")
+        self.logger.info(
+            f"Generación completada: {successful}/{len(tables_to_process)} tablas procesadas exitosamente"
+        )
 
         return results

@@ -1,7 +1,8 @@
 """Pool de conexiones para PostgreSQL (psycopg 3)."""
 
 import logging
-from typing import TYPE_CHECKING, Optional
+
+from typing import TYPE_CHECKING
 
 from ..connection_params_manager import ConnectionParamsManager
 
@@ -14,6 +15,7 @@ except ImportError:
 
 if TYPE_CHECKING:
     from psycopg_pool import ConnectionPool as PsycopgConnectionPool
+
 
 class PoolConnection:
     """Pool de conexiones nativo para PostgreSQL (psycopg 3).
@@ -58,10 +60,12 @@ class PoolConnection:
             ```
         """
         if not HAS_PSYCOPG_POOL:
-            raise ImportError("Módulo 'psycopg' no está instalado. Instale con: pip install 'psycopg[pool]' o pip install psycopg")
+            raise ImportError(
+                "Módulo 'psycopg' no está instalado. Instale con: pip install 'psycopg[pool]' o pip install psycopg"
+            )
 
         self.logger: logging.Logger = logging.getLogger(__name__)
-        self.pool: Optional[PsycopgConnectionPool] = None
+        self.pool: PsycopgConnectionPool | None = None
         self._closed: bool = False
         pool_config = ConnectionParamsManager.get_pool_config("postgresql", conn_params)
         self.pool_size: int = pool_config.pool_size
@@ -87,11 +91,17 @@ class PoolConnection:
         """
         try:
             # Construir conninfo string para psycopg
-            user: str | None = str(self.conn_params.get("user")) if self.conn_params.get("user") else None
-            password: str | None = str(self.conn_params.get("password")) if self.conn_params.get("password") else None
+            user: str | None = (
+                str(self.conn_params.get("user")) if self.conn_params.get("user") else None
+            )
+            password: str | None = (
+                str(self.conn_params.get("password")) if self.conn_params.get("password") else None
+            )
             host: str = str(self.conn_params.get("host", "localhost"))
             port: str | int = self.conn_params.get("port", 5432)
-            database: str | None = str(self.conn_params.get("database")) if self.conn_params.get("database") else None
+            database: str | None = (
+                str(self.conn_params.get("database")) if self.conn_params.get("database") else None
+            )
 
             conninfo: str = f"postgresql://{user}:{password}@{host}:{port}/{database}"
 

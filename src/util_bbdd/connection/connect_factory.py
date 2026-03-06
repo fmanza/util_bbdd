@@ -1,6 +1,7 @@
 """Factory para crear conexiones según driver nativo."""
 
 import logging
+
 from typing import Any
 
 from ..connection.hsqldb.connection_hsqldb import HSQLDBConnection
@@ -80,9 +81,12 @@ class ConnectFactory:
             else:
                 from util_bbdd.database_exceptions import DatabaseConnectionError
 
-                raise DatabaseConnectionError(f"Tipo de base de datos no soportado: {db_type}", db_type)
+                raise DatabaseConnectionError(
+                    f"Tipo de base de datos no soportado: {db_type}", db_type
+                )
 
         except Exception as e:
-            ConnectFactory.logger.error(f"❌ Error al crear conexión para BD tipo '{db_type}': {str(e)}")
+            ConnectFactory.logger.error(
+                f"❌ Error al crear conexión para BD tipo '{db_type}': {str(e)}"
+            )
             raise
-

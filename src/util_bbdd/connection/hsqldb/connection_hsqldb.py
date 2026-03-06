@@ -1,6 +1,7 @@
 """Conexión raw al driver HSQLDB."""
 
 import logging
+
 from typing import Any
 
 from util_bbdd.connection.connection_params_manager import ConnectionParamsManager
@@ -58,8 +59,11 @@ class HSQLDBConnection:
             raise
         except ImportError as e:
             HSQLDBConnection.logger.error("❌ Error: módulo jaydebeapi no disponible")
-            raise DatabaseConnectionError("Módulo jaydebeapi no disponible", "hsqldb", str(e)) from e
+            raise DatabaseConnectionError(
+                "Módulo jaydebeapi no disponible", "hsqldb", str(e)
+            ) from e
         except Exception as e:
             HSQLDBConnection.logger.error(f"❌ Error conectando a HSQLDB: {e}")
-            raise DatabaseConnectionError(f"Error conectando a HSQLDB: {str(e)}", "hsqldb", str(e)) from e
-
+            raise DatabaseConnectionError(
+                f"Error conectando a HSQLDB: {str(e)}", "hsqldb", str(e)
+            ) from e

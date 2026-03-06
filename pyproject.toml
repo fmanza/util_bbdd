@@ -28,7 +28,7 @@ classifiers = [
 
 dependencies = [
     "sqlalchemy>=2.0",
-    "pandas>=2.3",
+    "pandas>=3.0",
     "openpyxl>=3.1",
     "python-docx>=1.2",
     "oracledb>=3.4",
@@ -64,7 +64,7 @@ find = {where = ["src"]}
 util_bbdd = ["py.typed"]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py310"
 extend-select = [
     "E",
@@ -77,8 +77,31 @@ extend-select = [
 ]
 ignore = ["E501"]
 
-[tool.ruff.isort]
+#[tool.ruff.isort]
+#known-first-party = ["util_bbdd"]
+#combine-as-imports = true
+
+[tool.ruff.lint.isort]
+# Fuerza a que todos los imports de una misma sección estén juntos
+combine-as-imports = true
+
+# Define qué nombres de carpetas debe tratar como "locales"
+# (Cámbialo por el nombre de tu carpeta de código principal)
 known-first-party = ["util_bbdd"]
+
+# Si prefieres una línea por cada import 'from'
+force-single-line = false
+
+# Añade líneas en blanco automáticas entre secciones
+lines-between-types = 1
+
+[tool.ruff.format]
+# Ajustes de formato tipo 'Black'
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

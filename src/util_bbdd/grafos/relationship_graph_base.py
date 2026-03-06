@@ -2,10 +2,12 @@
 Clase base para generación de grafos de relaciones entre tablas
 Contiene métodos y atributos compartidos entre implementaciones
 """
+
 import logging
+
 from dataclasses import dataclass
 from logging import Logger
-from typing import Any, Dict, List, Set
+from typing import Any
 
 from ..database_manager import DatabaseManager
 
@@ -27,11 +29,11 @@ class DatabaseRelationshipGraphBase:
 
     def __init__(self, db_manager: DatabaseManager):
         self.db_manager: DatabaseManager = db_manager
-        self.relations: List[TableRelation] = []
-        self.tables: Set[str] = set()
+        self.relations: list[TableRelation] = []
+        self.tables: set[str] = set()
         self.logger: Logger = logging.getLogger(__name__)
 
-    def analyze_table_relations(self, table_name: str) -> List[TableRelation]:
+    def analyze_table_relations(self, table_name: str) -> list[TableRelation]:
         """
         Analiza las relaciones de primer nivel de una tabla específica
 
@@ -50,7 +52,9 @@ class DatabaseRelationshipGraphBase:
 
         # Obtener claves foráneas que salen de la tabla (hijos)
         foreign_keys = self.db_manager.get_foreign_keys(table_name)
-        self.logger.debug(f"Encontradas {len(foreign_keys)} claves foráneas salientes en {table_name}")
+        self.logger.debug(
+            f"Encontradas {len(foreign_keys)} claves foráneas salientes en {table_name}"
+        )
         for fk in foreign_keys:
             if self.db_manager.db_type == "mariadb":
                 # MariaDB: CONSTRAINT_NAME, TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
@@ -75,8 +79,10 @@ class DatabaseRelationshipGraphBase:
             relations.append(relation)
 
         # Obtener claves foráneas que apuntan a la tabla (padres)
-        parent_relations: List[TableRelation] = self._find_parent_relations(table_name)
-        self.logger.debug(f"Encontradas {len(parent_relations)} relaciones entrantes en {table_name}")
+        parent_relations: list[TableRelation] = self._find_parent_relations(table_name)
+        self.logger.debug(
+            f"Encontradas {len(parent_relations)} relaciones entrantes en {table_name}"
+        )
         relations.extend(parent_relations)
 
         # Almacenar tablas involucradas
@@ -91,7 +97,7 @@ class DatabaseRelationshipGraphBase:
         )
         return relations
 
-    def _find_parent_relations(self, table_name: str) -> List[TableRelation]:
+    def _find_parent_relations(self, table_name: str) -> list[TableRelation]:
         """
         Encuentra relaciones donde la tabla dada es el target (tabla padre)
         Esto requiere consultar todas las tablas para encontrar FKs que apunten a nuestra tabla
@@ -145,8 +151,8 @@ class DatabaseRelationshipGraphBase:
             return fk_data[2]  # REFERENCED_TABLE
 
     def _split_relations_for_visualization(
-        self, relations: List[TableRelation], max_subnodes: int = 10
-    ) -> List[List[TableRelation]]:
+        self, relations: list[TableRelation], max_subnodes: int = 10
+    ) -> list[list[TableRelation]]:
         """
         Divide las relaciones en múltiples grupos para visualización pagada
 
@@ -164,7 +170,9 @@ class DatabaseRelationshipGraphBase:
             Lista de listas de relaciones, una por cada imagen
         """
         total_relations: int = len(relations)
-        self.logger.debug(f"Dividiendo {total_relations} relaciones para visualización (máx {max_subnodes} por página)")
+        self.logger.debug(
+            f"Dividiendo {total_relations} relaciones para visualización (máx {max_subnodes} por página)"
+        )
 
         # Calcular número de imágenes necesarias
         import math
@@ -177,10 +185,12 @@ class DatabaseRelationshipGraphBase:
 
         # Calcular tamaño de cada imagen
         size_per_image: int = math.ceil(total_relations / num_images)
-        self.logger.debug(f"Se crearán {num_images} imágenes con {size_per_image} relaciones por imagen")
+        self.logger.debug(
+            f"Se crearán {num_images} imágenes con {size_per_image} relaciones por imagen"
+        )
 
         # Dividir relaciones
-        split_relations: List[List[TableRelation]] = []
+        split_relations: list[list[TableRelation]] = []
         for i in range(num_images):
             start_idx: int = i * size_per_image
             end_idx: int = min(start_idx + size_per_image, total_relations)
@@ -188,7 +198,7 @@ class DatabaseRelationshipGraphBase:
 
         return split_relations
 
-    def generate_relationship_report(self, table_name: str) -> Dict[str, Any]:
+    def generate_relationship_report(self, table_name: str) -> dict[str, Any]:
         """
         Genera un reporte detallado de las relaciones de una tabla
 
@@ -199,17 +209,21 @@ class DatabaseRelationshipGraphBase:
             Diccionario con información detallada de relaciones
         """
         self.logger.info(f"Generando reporte de relaciones para tabla: {table_name}")
-        relations: List[TableRelation] = self.analyze_table_relations(table_name)
+        relations: list[TableRelation] = self.analyze_table_relations(table_name)
 
         # Separar relaciones por tipo
-        outgoing_relations: List[TableRelation] = [r for r in relations if r.source_table == table_name]
-        incoming_relations: List[TableRelation] = [r for r in relations if r.target_table == table_name]
+        outgoing_relations: list[TableRelation] = [
+            r for r in relations if r.source_table == table_name
+        ]
+        incoming_relations: list[TableRelation] = [
+            r for r in relations if r.target_table == table_name
+        ]
 
         self.logger.debug(
             f"Relaciones salientes: {len(outgoing_relations)}, Relaciones entrantes: {len(incoming_relations)}"
         )
 
-        report: Dict[str, Any] = {
+        report: dict[str, Any] = {
             "table_name": table_name,
             "total_relations": len(relations),
             "outgoing_relations": {
@@ -240,5 +254,7 @@ class DatabaseRelationshipGraphBase:
             "database_type": self.db_manager.db_type,
         }
 
-        self.logger.info(f"Reporte completado para {table_name}: {len(relations)} relaciones totales")
+        self.logger.info(
+            f"Reporte completado para {table_name}: {len(relations)} relaciones totales"
+        )
         return report

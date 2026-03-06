@@ -81,23 +81,41 @@ class PrintConfigManager:
         if not isinstance(tablas_cfg, dict):
             tablas_cfg = {}
         tablas: dict[str, bool] = {
-            "imprimir_tablas": bool(tablas_cfg.get("imprimir_tablas", PrintConfigManager.DEFAULT_TABLES["imprimir_tablas"])),
+            "imprimir_tablas": bool(
+                tablas_cfg.get(
+                    "imprimir_tablas", PrintConfigManager.DEFAULT_TABLES["imprimir_tablas"]
+                )
+            ),
             "ddl": bool(tablas_cfg.get("ddl", PrintConfigManager.DEFAULT_TABLES["ddl"])),
-            "columnas": bool(tablas_cfg.get("columnas", PrintConfigManager.DEFAULT_TABLES["columnas"])),
+            "columnas": bool(
+                tablas_cfg.get("columnas", PrintConfigManager.DEFAULT_TABLES["columnas"])
+            ),
             "pk": bool(tablas_cfg.get("pk", PrintConfigManager.DEFAULT_TABLES["pk"])),
             "fk": bool(tablas_cfg.get("fk", PrintConfigManager.DEFAULT_TABLES["fk"])),
             "unicas": bool(tablas_cfg.get("unicas", PrintConfigManager.DEFAULT_TABLES["unicas"])),
-            "indices": bool(tablas_cfg.get("indices", PrintConfigManager.DEFAULT_TABLES["indices"])),
-            "charset_collation": bool(tablas_cfg.get("charset_collation", PrintConfigManager.DEFAULT_TABLES["charset_collation"])),
+            "indices": bool(
+                tablas_cfg.get("indices", PrintConfigManager.DEFAULT_TABLES["indices"])
+            ),
+            "charset_collation": bool(
+                tablas_cfg.get(
+                    "charset_collation", PrintConfigManager.DEFAULT_TABLES["charset_collation"]
+                )
+            ),
         }
 
         vistas_cfg: Any = imprimir.get("vistas", {})
         if not isinstance(vistas_cfg, dict):
             vistas_cfg = {}
         vistas: dict[str, bool] = {
-            "imprimir_vistas": bool(vistas_cfg.get("imprimir_vistas", PrintConfigManager.DEFAULT_VIEWS["imprimir_vistas"])),
+            "imprimir_vistas": bool(
+                vistas_cfg.get(
+                    "imprimir_vistas", PrintConfigManager.DEFAULT_VIEWS["imprimir_vistas"]
+                )
+            ),
             "ddl": bool(vistas_cfg.get("ddl", PrintConfigManager.DEFAULT_VIEWS["ddl"])),
-            "columnas": bool(vistas_cfg.get("columnas", PrintConfigManager.DEFAULT_VIEWS["columnas"])),
+            "columnas": bool(
+                vistas_cfg.get("columnas", PrintConfigManager.DEFAULT_VIEWS["columnas"])
+            ),
         }
 
         rutinas_cfg: Any = imprimir.get("rutinas", {})
@@ -105,10 +123,15 @@ class PrintConfigManager:
             rutinas_cfg = {}
         rutinas: dict[str, bool] = {
             "imprimir_procedures": bool(
-                rutinas_cfg.get("imprimir_procedures", PrintConfigManager.DEFAULT_ROUTINES["imprimir_procedures"])
+                rutinas_cfg.get(
+                    "imprimir_procedures",
+                    PrintConfigManager.DEFAULT_ROUTINES["imprimir_procedures"],
+                )
             ),
             "imprimir_function": bool(
-                rutinas_cfg.get("imprimir_function", PrintConfigManager.DEFAULT_ROUTINES["imprimir_function"])
+                rutinas_cfg.get(
+                    "imprimir_function", PrintConfigManager.DEFAULT_ROUTINES["imprimir_function"]
+                )
             ),
         }
 
@@ -129,11 +152,21 @@ class PrintConfigManager:
             info_database_cfg = {}
         info_database: dict[str, bool] = {
             "imprimir_info_database": bool(
-                info_database_cfg.get("imprimir_info_database", PrintConfigManager.DEFAULT_INFO_DATABASE["imprimir_info_database"])
+                info_database_cfg.get(
+                    "imprimir_info_database",
+                    PrintConfigManager.DEFAULT_INFO_DATABASE["imprimir_info_database"],
+                )
             ),
-            "version": bool(info_database_cfg.get("version", PrintConfigManager.DEFAULT_INFO_DATABASE["version"])),
+            "version": bool(
+                info_database_cfg.get(
+                    "version", PrintConfigManager.DEFAULT_INFO_DATABASE["version"]
+                )
+            ),
             "charset_collation": bool(
-                info_database_cfg.get("charset_collation", PrintConfigManager.DEFAULT_INFO_DATABASE["charset_collation"])
+                info_database_cfg.get(
+                    "charset_collation",
+                    PrintConfigManager.DEFAULT_INFO_DATABASE["charset_collation"],
+                )
             ),
         }
 
@@ -142,7 +175,10 @@ class PrintConfigManager:
             columnas_charset_cfg = {}
         columnas_charset: dict[str, bool] = {
             "charset_collation": bool(
-                columnas_charset_cfg.get("charset_collation", PrintConfigManager.DEFAULT_COLUMNS_CHARSET["charset_collation"])
+                columnas_charset_cfg.get(
+                    "charset_collation",
+                    PrintConfigManager.DEFAULT_COLUMNS_CHARSET["charset_collation"],
+                )
             ),
         }
 
@@ -152,7 +188,9 @@ class PrintConfigManager:
             graph.update(graph_cfg)
 
         graph["enabled"] = bool(graph.get("enabled", PrintConfigManager.DEFAULT_GRAPH["enabled"]))
-        graph["images_paginated"] = bool(graph.get("images_paginated", PrintConfigManager.DEFAULT_GRAPH["images_paginated"]))
+        graph["images_paginated"] = bool(
+            graph.get("images_paginated", PrintConfigManager.DEFAULT_GRAPH["images_paginated"])
+        )
         graph["max_subnodes"] = PrintConfigManager._to_positive_int(
             graph.get("max_subnodes", PrintConfigManager.DEFAULT_GRAPH["max_subnodes"]),
             fallback=int(PrintConfigManager.DEFAULT_GRAPH["max_subnodes"]),
@@ -165,10 +203,18 @@ class PrintConfigManager:
             "almacenamiento": almacenamiento,
             "info_database": info_database,
             "columnas_charset": columnas_charset,
-            "plantilla_word": PrintConfigManager._normalize_path_value(imprimir.get("plantilla_word")),
-            "plantilla_html": PrintConfigManager._normalize_path_value(imprimir.get("plantilla_html")),
-            "tablas_por_documento": PrintConfigManager._to_positive_int(imprimir.get("tablas_por_documento", 50), fallback=50),
-            "table_style": PrintConfigManager._normalize_non_empty_str(imprimir.get("table_style"), fallback="Table Grid"),
+            "plantilla_word": PrintConfigManager._normalize_path_value(
+                imprimir.get("plantilla_word")
+            ),
+            "plantilla_html": PrintConfigManager._normalize_path_value(
+                imprimir.get("plantilla_html")
+            ),
+            "tablas_por_documento": PrintConfigManager._to_positive_int(
+                imprimir.get("tablas_por_documento", 50), fallback=50
+            ),
+            "table_style": PrintConfigManager._normalize_non_empty_str(
+                imprimir.get("table_style"), fallback="Table Grid"
+            ),
             "html_items_por_pagina": PrintConfigManager._to_positive_int(
                 imprimir.get("html_items_por_pagina", 15),
                 fallback=15,
@@ -180,7 +226,14 @@ class PrintConfigManager:
     def get_table_section_flags(config: dict[str, Any]) -> list[bool]:
         """Devuelve banderas de tabla en orden [ddl, columnas, pk, fk, unicas, indices]."""
         tablas: dict[str, Any] = config.get("tablas", {})
-        return [bool(tablas.get("ddl", False)), bool(tablas.get("columnas", False)), bool(tablas.get("pk", False)), bool(tablas.get("fk", False)), bool(tablas.get("unicas", False)), bool(tablas.get("indices", False))]
+        return [
+            bool(tablas.get("ddl", False)),
+            bool(tablas.get("columnas", False)),
+            bool(tablas.get("pk", False)),
+            bool(tablas.get("fk", False)),
+            bool(tablas.get("unicas", False)),
+            bool(tablas.get("indices", False)),
+        ]
 
     @staticmethod
     def get_view_section_flags(config: dict[str, Any]) -> list[bool]:
@@ -202,9 +255,15 @@ class PrintConfigManager:
             "include_views": bool(config.get("vistas", {}).get("imprimir_vistas", False)),
             "include_procedures": bool(config.get("rutinas", {}).get("imprimir_procedures", False)),
             "include_functions": bool(config.get("rutinas", {}).get("imprimir_function", False)),
-            "include_storage": bool(config.get("almacenamiento", {}).get("imprimir_almacenamiento", False)),
-            "include_database_info": bool(config.get("info_database", {}).get("imprimir_info_database", False)),
-            "include_columns_charset": bool(config.get("columnas_charset", {}).get("charset_collation", False)),
+            "include_storage": bool(
+                config.get("almacenamiento", {}).get("imprimir_almacenamiento", False)
+            ),
+            "include_database_info": bool(
+                config.get("info_database", {}).get("imprimir_info_database", False)
+            ),
+            "include_columns_charset": bool(
+                config.get("columnas_charset", {}).get("charset_collation", False)
+            ),
             "table_section_flags": PrintConfigManager.get_table_section_flags(config),
             "view_section_flags": PrintConfigManager.get_view_section_flags(config),
             "database_info_flags": PrintConfigManager.get_database_info_flags(config),
@@ -222,9 +281,15 @@ class PrintConfigManager:
             "include_views": bool(config.get("vistas", {}).get("imprimir_vistas", False)),
             "include_procedures": bool(config.get("rutinas", {}).get("imprimir_procedures", False)),
             "include_functions": bool(config.get("rutinas", {}).get("imprimir_function", False)),
-            "include_storage": bool(config.get("almacenamiento", {}).get("imprimir_almacenamiento", False)),
-            "include_database_info": bool(config.get("info_database", {}).get("imprimir_info_database", False)),
-            "include_columns_charset": bool(config.get("columnas_charset", {}).get("charset_collation", False)),
+            "include_storage": bool(
+                config.get("almacenamiento", {}).get("imprimir_almacenamiento", False)
+            ),
+            "include_database_info": bool(
+                config.get("info_database", {}).get("imprimir_info_database", False)
+            ),
+            "include_columns_charset": bool(
+                config.get("columnas_charset", {}).get("charset_collation", False)
+            ),
             "table_section_flags": PrintConfigManager.get_table_section_flags(config),
             "view_section_flags": PrintConfigManager.get_view_section_flags(config),
             "database_info_flags": PrintConfigManager.get_database_info_flags(config),
@@ -252,7 +317,9 @@ class PrintConfigManager:
             "output_dir": Path(graph_cfg.get("output_dir", output_dir / "graphs")),
             "first_level_only": bool(graph_cfg.get("first_level_only", True)),
             "images_paginated": bool(graph_cfg.get("images_paginated", True)),
-            "max_subnodes": PrintConfigManager._to_positive_int(graph_cfg.get("max_subnodes", 10), fallback=10),
+            "max_subnodes": PrintConfigManager._to_positive_int(
+                graph_cfg.get("max_subnodes", 10), fallback=10
+            ),
         }
 
         return {
@@ -260,9 +327,15 @@ class PrintConfigManager:
             "include_views": bool(config.get("vistas", {}).get("imprimir_vistas", False)),
             "include_procedures": bool(config.get("rutinas", {}).get("imprimir_procedures", False)),
             "include_functions": bool(config.get("rutinas", {}).get("imprimir_function", False)),
-            "include_storage": bool(config.get("almacenamiento", {}).get("imprimir_almacenamiento", False)),
-            "include_database_info": bool(config.get("info_database", {}).get("imprimir_info_database", False)),
-            "include_columns_charset": bool(config.get("columnas_charset", {}).get("charset_collation", False)),
+            "include_storage": bool(
+                config.get("almacenamiento", {}).get("imprimir_almacenamiento", False)
+            ),
+            "include_database_info": bool(
+                config.get("info_database", {}).get("imprimir_info_database", False)
+            ),
+            "include_columns_charset": bool(
+                config.get("columnas_charset", {}).get("charset_collation", False)
+            ),
             "table_section_flags": table_section_flags,
             "view_section_flags": view_section_flags,
             "database_info_flags": database_info_flags,

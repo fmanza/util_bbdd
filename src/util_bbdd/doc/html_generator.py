@@ -7,12 +7,14 @@ import inspect
 import logging
 import shutil
 import xml.etree.ElementTree as ET
+
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, LiteralString, Tuple
+from typing import Any, LiteralString
 
 from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 
+from ..grafos.graphviz_relationship_graph_ext import GraphvizRelationshipGraphExt
 from .print_config_manager import PrintConfigManager
 
 
@@ -25,31 +27,41 @@ class HtmlGenerator:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.database: str = database
         self.headers: dict = headers
-        self.default_template_file: Path = Path(__file__).parent / "data" / "html_documentation_template.j2"
-        self.default_index_template_file: Path = Path(__file__).parent / "data" / "html_index_template.j2"
-        self.template_file: Path = template_file if template_file is not None else self.default_template_file
+        self.default_template_file: Path = (
+            Path(__file__).parent / "data" / "html_documentation_template.j2"
+        )
+        self.default_index_template_file: Path = (
+            Path(__file__).parent / "data" / "html_index_template.j2"
+        )
+        self.template_file: Path = (
+            template_file if template_file is not None else self.default_template_file
+        )
 
     def generate_document(
         self,
-        tables: List[tuple],
-        views: List[tuple],
-        routines: List[tuple],
+        tables: list[tuple],
+        views: list[tuple],
+        routines: list[tuple],
         data_provider: Any,
         output_dir: Path,
-        print_config: Dict[str, Any] | None = None,
+        print_config: dict[str, Any] | None = None,
     ) -> None:
         """Genera la documentación HTML completa.
 
         Args:
-            tables: Lista de tablas.
-            views: Lista de vistas.
-            routines: Lista de rutinas.
+            tables: lista de tablas.
+            views: lista de vistas.
+            routines: lista de rutinas.
             output_dir: Carpeta de salida del sitio HTML.
             print_config: Configuración unificada de secciones y gráficos.
         """
-        self.logger.info(f"🟢 Iniciando generación de documentación HTML para base de datos: {self.database}")
+        self.logger.info(
+            f"🟢 Iniciando generación de documentación HTML para base de datos: {self.database}"
+        )
 
-        resolved: Dict[str, Any] = self._resolve_print_config(print_config, data_provider, output_dir)
+        resolved: dict[str, Any] = self._resolve_print_config(
+            print_config, data_provider, output_dir
+        )
         include_database_info: bool = resolved.get("include_database_info", False)
 
         self.logger.debug(
@@ -70,13 +82,13 @@ class HtmlGenerator:
 
         self._prepare_output_directories(output_dir, resolved)
 
-        storage_report: Dict[str, Any] = (
+        storage_report: dict[str, Any] = (
             self._get_storage_report(data_provider=data_provider)
             if resolved["include_storage"]
             else {"sections": [], "total_rows": 0}
         )
 
-        database_info_entries: List[Dict[str, str]] = (
+        database_info_entries: list[dict[str, str]] = (
             self._process_database_info(
                 data_provider=data_provider,
                 database_info_flags=resolved.get("database_info_flags", [False, False]),
@@ -91,7 +103,9 @@ class HtmlGenerator:
         detail_template, index_template = self._setup_templates(resolved["template_path"])
 
         # Actualizar detail_template si es necesario
-        self.logger.debug(f"⚙️  Después de primera llamada a _process_database_info: entries={len(database_info_entries)}, tiene template={detail_template is not None}")
+        self.logger.debug(
+            f"⚙️  Después de primera llamada a _process_database_info: entries={len(database_info_entries)}, tiene template={detail_template is not None}"
+        )
 
         if not database_info_entries:
             self.logger.info("📡 Segunda llamada a _process_database_info con template completo...")
@@ -106,7 +120,9 @@ class HtmlGenerator:
                 if resolved.get("include_database_info", False)
                 else []
             )
-            self.logger.debug(f"📡 Después de segunda llamada: entries={len(database_info_entries)}")
+            self.logger.debug(
+                f"📡 Después de segunda llamada: entries={len(database_info_entries)}"
+            )
 
         table_slug_map, view_slug_map, selected_routines, routine_slug_map, svg_navigation_links = (
             self._build_slug_maps_and_filters(tables, views, routines, resolved)
@@ -115,31 +131,56 @@ class HtmlGenerator:
         graph_generator: Any = None
         if resolved["include_diagrams"]:
             self.logger.debug("🟢 Inicializando generador de grafos para diagramas HTML")
-            graph_generator = self._build_graph_generator(data_provider, resolved["diagram_options"])
+            graph_generator = self._build_graph_generator(
+                data_provider, resolved["diagram_options"]
+            )
 
-        tables_index: List[Dict[str, str]] = self._process_tables(
-            tables, detail_template, table_slug_map, resolved, data_provider, output_dir, svg_navigation_links, generated_at, graph_generator
+        tables_index: list[dict[str, str]] = self._process_tables(
+            tables,
+            detail_template,
+            table_slug_map,
+            resolved,
+            data_provider,
+            output_dir,
+            svg_navigation_links,
+            generated_at,
+            graph_generator,
         )
 
-        views_index: List[Dict[str, str]] = self._process_views(
+        views_index: list[dict[str, str]] = self._process_views(
             views, detail_template, view_slug_map, resolved, data_provider, output_dir, generated_at
         )
 
-        routines_index: List[Dict[str, str]] = self._process_routines(
-            selected_routines, detail_template, routine_slug_map, data_provider, output_dir, generated_at
+        routines_index: list[dict[str, str]] = self._process_routines(
+            selected_routines,
+            detail_template,
+            routine_slug_map,
+            data_provider,
+            output_dir,
+            generated_at,
         )
 
-        storage_entries: List[Dict[str, str]] = self._process_storage(
+        storage_entries: list[dict[str, str]] = self._process_storage(
             storage_report, detail_template, output_dir, generated_at
         )
 
         self._render_index_page(
-            index_template, generated_at, tables_index, views_index, routines_index, storage_entries, resolved, output_dir, database_info_entries
+            index_template,
+            generated_at,
+            tables_index,
+            views_index,
+            routines_index,
+            storage_entries,
+            resolved,
+            output_dir,
+            database_info_entries,
         )
 
-    def _resolve_print_config(self, print_config: Dict[str, Any] | None, data_provider: Any, output_dir: Path) -> Dict[str, Any]:
+    def _resolve_print_config(
+        self, print_config: dict[str, Any] | None, data_provider: Any, output_dir: Path
+    ) -> dict[str, Any]:
         """Resuelve la configuración de impresión normalizada."""
-        normalized_config: Dict[str, Any] = PrintConfigManager.normalize(
+        normalized_config: dict[str, Any] = PrintConfigManager.normalize(
             print_config or data_provider.imprimir_config
         )
         return PrintConfigManager.resolve_for_html(
@@ -148,7 +189,7 @@ class HtmlGenerator:
             default_template_file=self.default_template_file,
         )
 
-    def _prepare_output_directories(self, output_dir: Path, resolved: Dict[str, Any]) -> None:
+    def _prepare_output_directories(self, output_dir: Path, resolved: dict[str, Any]) -> None:
         """Prepara los directorios de salida necesarios."""
         output_dir.mkdir(parents=True, exist_ok=True)
         self._copy_offline_assets(output_dir)
@@ -160,14 +201,19 @@ class HtmlGenerator:
         if resolved["include_procedures"] or resolved["include_functions"]:
             (output_dir / "routines").mkdir(parents=True, exist_ok=True)
 
-    def _setup_templates(self, template_path: Path) -> Tuple[Template, Template]:
+    def _setup_templates(self, template_path: Path) -> tuple[Template, Template]:
         """Configura el entorno de plantillas y devuelve las plantillas necesarias."""
-        search_paths: List[str] = [str(template_path.parent), str(self.default_index_template_file.parent)]
-        unique_search_paths: List[str] = list(dict.fromkeys(search_paths))
+        search_paths: list[str] = [
+            str(template_path.parent),
+            str(self.default_index_template_file.parent),
+        ]
+        unique_search_paths: list[str] = list(dict.fromkeys(search_paths))
 
         env = Environment(
             loader=FileSystemLoader(unique_search_paths),
-            autoescape=select_autoescape(enabled_extensions=("html", "xml"), default_for_string=True),
+            autoescape=select_autoescape(
+                enabled_extensions=("html", "xml"), default_for_string=True
+            ),
             trim_blocks=True,
             lstrip_blocks=True,
         )
@@ -176,28 +222,52 @@ class HtmlGenerator:
         return detail_template, index_template
 
     def _build_slug_maps_and_filters(
-        self, tables: List[tuple], views: List[tuple], routines: List[tuple], resolved: Dict[str, Any]
-    ) -> Tuple[Dict[str, str], Dict[str, str], List[tuple], Dict[str, str], Dict[str, str]]:
+        self,
+        tables: list[tuple],
+        views: list[tuple],
+        routines: list[tuple],
+        resolved: dict[str, Any],
+    ) -> tuple[dict[str, str], dict[str, str], list[tuple], dict[str, str], dict[str, str]]:
         """Construye mapas de slugs y filtra rutinas."""
-        table_slug_map: Dict[str, str] = self._build_slug_map([row[0] for row in tables]) if resolved["include_tables"] else {}
-        view_slug_map: Dict[str, str] = self._build_slug_map([row[0] for row in views]) if resolved["include_views"] else {}
-        selected_routines: List[tuple] = self._filter_routines_by_flags(
+        table_slug_map: dict[str, str] = (
+            self._build_slug_map([row[0] for row in tables]) if resolved["include_tables"] else {}
+        )
+        view_slug_map: dict[str, str] = (
+            self._build_slug_map([row[0] for row in views]) if resolved["include_views"] else {}
+        )
+        selected_routines: list[tuple] = self._filter_routines_by_flags(
             routines=routines,
             include_procedures=resolved["include_procedures"],
             include_functions=resolved["include_functions"],
         )
-        routine_slug_map: Dict[str, str] = self._build_slug_map([self._build_routine_key(routine) for routine in selected_routines])
-        svg_navigation_links: Dict[str, str] = {
+        routine_slug_map: dict[str, str] = self._build_slug_map(
+            [self._build_routine_key(routine) for routine in selected_routines]
+        )
+        svg_navigation_links: dict[str, str] = {
             table_name: f"../tables/{slug}.html" for table_name, slug in table_slug_map.items()
         }
-        return table_slug_map, view_slug_map, selected_routines, routine_slug_map, svg_navigation_links
+        return (
+            table_slug_map,
+            view_slug_map,
+            selected_routines,
+            routine_slug_map,
+            svg_navigation_links,
+        )
 
     def _process_tables(
-        self, tables: List[tuple], detail_template: Template, table_slug_map: Dict[str, str], resolved: Dict[str, Any],
-        data_provider: Any, output_dir: Path, svg_navigation_links: Dict[str, str], generated_at: str, graph_generator: Any | None = None
-    ) -> List[Dict[str, str]]:
+        self,
+        tables: list[tuple],
+        detail_template: Template,
+        table_slug_map: dict[str, str],
+        resolved: dict[str, Any],
+        data_provider: Any,
+        output_dir: Path,
+        svg_navigation_links: dict[str, str],
+        generated_at: str,
+        graph_generator: Any | None = None,
+    ) -> list[dict[str, str]]:
         """Procesa todas las tablas y genera sus páginas HTML."""
-        tables_index: List[Dict[str, str]] = []
+        tables_index: list[dict[str, str]] = []
         if not resolved["include_tables"]:
             return tables_index
 
@@ -211,12 +281,14 @@ class HtmlGenerator:
                 # MariaDB: row[2]=charset, row[3]=collation
                 charset = row[2]
                 collation = row[3]
-                charset_collation = f"{charset} {collation}".strip() if charset or collation else None
+                charset_collation = (
+                    f"{charset} {collation}".strip() if charset or collation else None
+                )
             else:
                 # Otros motores: row[2]=charset_collation (opcional)
                 charset_collation = row[2] if len(row) > 2 else None
 
-            table_payload: Dict[str, Any] = self._build_table_payload(
+            table_payload: dict[str, Any] = self._build_table_payload(
                 table_name=tabla,
                 comentario=comentario,
                 charset_collation=charset_collation,
@@ -242,20 +314,32 @@ class HtmlGenerator:
                 storage_report=None,
             )
 
-            tables_index.append({"name": tabla, "comment": comentario or "", "path": str(table_rel_path).replace("\\", "/")})
+            tables_index.append(
+                {
+                    "name": tabla,
+                    "comment": comentario or "",
+                    "path": str(table_rel_path).replace("\\", "/"),
+                }
+            )
         return tables_index
 
     def _process_views(
-        self, views: List[tuple], detail_template: Template, view_slug_map: Dict[str, str], resolved: Dict[str, Any],
-        data_provider: Any, output_dir: Path, generated_at: str
-    ) -> List[Dict[str, str]]:
+        self,
+        views: list[tuple],
+        detail_template: Template,
+        view_slug_map: dict[str, str],
+        resolved: dict[str, Any],
+        data_provider: Any,
+        output_dir: Path,
+        generated_at: str,
+    ) -> list[dict[str, str]]:
         """Procesa todas las vistas y genera sus páginas HTML."""
-        views_index: List[Dict[str, str]] = []
+        views_index: list[dict[str, str]] = []
         if not resolved["include_views"]:
             return views_index
 
         for vista, comentario in views:
-            view_payload: Dict[str, Any] = self._build_view_payload(
+            view_payload: dict[str, Any] = self._build_view_payload(
                 view_name=vista,
                 comentario=comentario,
                 data_provider=data_provider,
@@ -275,20 +359,31 @@ class HtmlGenerator:
                 storage_report=None,
             )
 
-            views_index.append({"name": vista, "comment": comentario or "", "path": str(view_rel_path).replace("\\", "/")})
+            views_index.append(
+                {
+                    "name": vista,
+                    "comment": comentario or "",
+                    "path": str(view_rel_path).replace("\\", "/"),
+                }
+            )
         return views_index
 
     def _process_routines(
-        self, routines: List[tuple], detail_template: Template, routine_slug_map: Dict[str, str],
-        data_provider: Any, output_dir: Path, generated_at: str
-    ) -> List[Dict[str, str]]:
+        self,
+        routines: list[tuple],
+        detail_template: Template,
+        routine_slug_map: dict[str, str],
+        data_provider: Any,
+        output_dir: Path,
+        generated_at: str,
+    ) -> list[dict[str, str]]:
         """Procesa todas las rutinas y genera sus páginas HTML."""
-        routines_index: List[Dict[str, str]] = []
+        routines_index: list[dict[str, str]] = []
 
         for routine in routines:
             routine_name, routine_type, routine_comment = self._normalize_routine_entry(routine)
             routine_key: str = self._build_routine_key(routine)
-            routine_payload: Dict[str, Any] = self._build_routine_payload(
+            routine_payload: dict[str, Any] = self._build_routine_payload(
                 routine_name=routine_name,
                 routine_type=routine_type,
                 comentario=routine_comment,
@@ -307,19 +402,25 @@ class HtmlGenerator:
                 storage_report=None,
             )
 
-            routines_index.append({
-                "name": routine_name,
-                "comment": routine_comment or "",
-                "path": str(routine_rel_path).replace("\\", "/"),
-                "routine_type": routine_type,
-            })
+            routines_index.append(
+                {
+                    "name": routine_name,
+                    "comment": routine_comment or "",
+                    "path": str(routine_rel_path).replace("\\", "/"),
+                    "routine_type": routine_type,
+                }
+            )
         return routines_index
 
     def _process_storage(
-        self, storage_report: Dict[str, Any], detail_template: Template, output_dir: Path, generated_at: str
-    ) -> List[Dict[str, str]]:
+        self,
+        storage_report: dict[str, Any],
+        detail_template: Template,
+        output_dir: Path,
+        generated_at: str,
+    ) -> list[dict[str, str]]:
         """Procesa secciones de almacenamiento y genera sus páginas HTML."""
-        storage_entries: List[Dict[str, str]] = []
+        storage_entries: list[dict[str, str]] = []
         if not storage_report.get("sections"):
             return storage_entries
 
@@ -328,14 +429,16 @@ class HtmlGenerator:
         storage_used_slugs: set[str] = set()
 
         for section in storage_report.get("sections", []):
-            section_slug: str = self._build_unique_slug(str(section.get("query", "storage")), storage_used_slugs)
+            section_slug: str = self._build_unique_slug(
+                str(section.get("query", "storage")), storage_used_slugs
+            )
             storage_rel_path: Path = Path("storage") / f"{section_slug}.html"
             storage_output_file: Path = output_dir / storage_rel_path
-            storage_payload: Dict[str, Any] = {
+            storage_payload: dict[str, Any] = {
                 "name": str(section.get("title", self.DEFAULT_STORAGE_TITLE)),
                 "ddl": str(section.get("sql", "") or ""),
             }
-            single_section_report: Dict[str, Any] = {
+            single_section_report: dict[str, Any] = {
                 "total_rows": len(section.get("rows", [])),
                 "sections": [section],
             }
@@ -347,27 +450,38 @@ class HtmlGenerator:
                 generated_at=generated_at,
                 storage_report=single_section_report,
             )
-            storage_entries.append({
-                "name": str(section.get("title", self.DEFAULT_STORAGE_TITLE)),
-                "comment": str(section.get("message", "")),
-                "path": str(storage_rel_path).replace("\\", "/"),
-            })
+            storage_entries.append(
+                {
+                    "name": str(section.get("title", self.DEFAULT_STORAGE_TITLE)),
+                    "comment": str(section.get("message", "")),
+                    "path": str(storage_rel_path).replace("\\", "/"),
+                }
+            )
         return storage_entries
 
     def _process_database_info(
-        self, data_provider: Any, database_info_flags: List[bool], output_dir: Path, generated_at: str, detail_template: Template | None
-    ) -> List[Dict[str, str]]:
+        self,
+        data_provider: Any,
+        database_info_flags: list[bool],
+        output_dir: Path,
+        generated_at: str,
+        detail_template: Template | None,
+    ) -> list[dict[str, str]]:
         """Procesa información de la base de datos (versión, charset, collation) y genera página HTML."""
-        database_info_entries: List[Dict[str, str]] = []
+        database_info_entries: list[dict[str, str]] = []
 
-        self.logger.debug(f"🔍 _process_database_info() llamado con flags={database_info_flags}, template={'sí' if detail_template else 'no'}")
+        self.logger.debug(
+            f"🔍 _process_database_info() llamado con flags={database_info_flags}, template={'sí' if detail_template else 'no'}"
+        )
 
         if not any(database_info_flags):
             self.logger.debug("⏭️  Sin flags activados, retornando vacío")
             return database_info_entries
 
         if detail_template is None:
-            self.logger.debug("⏭️  Sin template de detalle (primera llamada), retornando vacío para llamada posterior")
+            self.logger.debug(
+                "⏭️  Sin template de detalle (primera llamada), retornando vacío para llamada posterior"
+            )
             return database_info_entries
 
         try:
@@ -375,12 +489,19 @@ class HtmlGenerator:
             info_dir: Path = output_dir / "info"
             info_dir.mkdir(parents=True, exist_ok=True)
 
-            properties_list: List[List[str]] = self._collect_database_properties(data_provider, database_info_flags)
+            properties_list: list[list[str]] = self._collect_database_properties(
+                data_provider, database_info_flags
+            )
             self.logger.debug(f"📊 Propiedades recolectadas: {len(properties_list)} items")
 
             if properties_list:
                 database_info_entries = self._render_database_info_page(
-                    data_provider, database_info_flags, output_dir, generated_at, detail_template, properties_list
+                    data_provider,
+                    database_info_flags,
+                    output_dir,
+                    generated_at,
+                    detail_template,
+                    properties_list,
                 )
             else:
                 self.logger.warning("⚠️  No se recolectaron propiedades de BD")
@@ -390,9 +511,11 @@ class HtmlGenerator:
 
         return database_info_entries
 
-    def _collect_database_properties(self, data_provider: Any, database_info_flags: List[bool]) -> List[List[str]]:
+    def _collect_database_properties(
+        self, data_provider: Any, database_info_flags: list[bool]
+    ) -> list[list[str]]:
         """Recolecta propiedades de versión y charset/collation de la BD."""
-        properties_list: List[List[str]] = []
+        properties_list: list[list[str]] = []
 
         if database_info_flags[0]:
             self._collect_version_property(data_provider, properties_list)
@@ -402,7 +525,9 @@ class HtmlGenerator:
 
         return properties_list
 
-    def _collect_version_property(self, data_provider: Any, properties_list: List[List[str]]) -> None:
+    def _collect_version_property(
+        self, data_provider: Any, properties_list: list[list[str]]
+    ) -> None:
         """Obtiene y agrega la propiedad de versión."""
         self.logger.debug("🔍 Obteniendo versión de BD...")
         try:
@@ -414,7 +539,9 @@ class HtmlGenerator:
         except Exception as version_error:
             self.logger.warning(f"⚠️ Error al obtener versión: {version_error}")
 
-    def _collect_charset_properties(self, data_provider: Any, properties_list: List[List[str]]) -> None:
+    def _collect_charset_properties(
+        self, data_provider: Any, properties_list: list[list[str]]
+    ) -> None:
         """Obtiene y agrega propiedades de charset/collation."""
         self.logger.debug("🔍 Obteniendo charset/collation de BD...")
         try:
@@ -430,9 +557,14 @@ class HtmlGenerator:
             self.logger.warning(f"⚠️ Error al obtener charset/collation: {charset_error}")
 
     def _render_database_info_page(
-        self, data_provider: Any, database_info_flags: List[bool], output_dir: Path, generated_at: str,
-        detail_template: Template, properties_list: List[List[str]]
-    ) -> List[Dict[str, str]]:
+        self,
+        data_provider: Any,
+        database_info_flags: list[bool],
+        output_dir: Path,
+        generated_at: str,
+        detail_template: Template,
+        properties_list: list[list[str]],
+    ) -> list[dict[str, str]]:
         """Renderiza la página de información de BD."""
         info_rel_path: Path = Path("info") / "database-info.html"
         info_output_file: Path = output_dir / info_rel_path
@@ -440,20 +572,20 @@ class HtmlGenerator:
         combined_sql: str = self._collect_database_queries(data_provider, database_info_flags)
         self.logger.debug(f"📋 SQL combinado: {len(combined_sql)} caracteres")
 
-        database_info_payload: Dict[str, Any] = {
+        database_info_payload: dict[str, Any] = {
             "name": "Información de la Base de Datos",
-            "ddl": combined_sql
+            "ddl": combined_sql,
         }
 
-        database_info_section: Dict[str, Any] = {
+        database_info_section: dict[str, Any] = {
             "title": "Propiedades de Base de Datos",
             "rows": properties_list,
-            "sql": combined_sql
+            "sql": combined_sql,
         }
 
-        database_info_report: Dict[str, Any] = {
+        database_info_report: dict[str, Any] = {
             "total_rows": len(properties_list),
-            "sections": [database_info_section]
+            "sections": [database_info_section],
         }
 
         self.logger.debug(f"📄 Renderizando página de detalle: {info_output_file}")
@@ -467,25 +599,32 @@ class HtmlGenerator:
         )
 
         self.logger.info(f"✅ Información de BD generada: {info_output_file}")
-        return [{
-            "name": "Información de la Base de Datos",
-            "comment": f"{len(properties_list)} propiedades",
-            "path": str(info_rel_path).replace("\\", "/"),
-        }]
+        return [
+            {
+                "name": "Información de la Base de Datos",
+                "comment": f"{len(properties_list)} propiedades",
+                "path": str(info_rel_path).replace("\\", "/"),
+            }
+        ]
 
-    def _collect_database_queries(self, data_provider: Any, database_info_flags: List[bool]) -> str:
+    def _collect_database_queries(self, data_provider: Any, database_info_flags: list[bool]) -> str:
         """Recolecta las queries SQL ejecutadas para obtener información de BD."""
-        sql_queries: List[str] = []
+        sql_queries: list[str] = []
 
         try:
             if database_info_flags[0]:
-                version_sql: str = str(data_provider.db_manager.db_queries.get_query("database_version") or "")
+                version_sql: str = str(
+                    data_provider.db_manager.db_queries.get_query("database_version") or ""
+                )
                 if version_sql.strip():
                     sql_queries.append(version_sql)
                     self.logger.debug("✅ Query de versión agregada")
 
             if database_info_flags[1]:
-                charset_sql: str = str(data_provider.db_manager.db_queries.get_query("database_charset_collation") or "")
+                charset_sql: str = str(
+                    data_provider.db_manager.db_queries.get_query("database_charset_collation")
+                    or ""
+                )
                 if charset_sql.strip():
                     sql_queries.append(charset_sql)
                     self.logger.debug("✅ Query de charset agregada")
@@ -495,20 +634,48 @@ class HtmlGenerator:
         return "\n\n".join(sql_queries) if sql_queries else ""
 
     def _render_index_page(
-        self, index_template: Template, generated_at: str, tables_index: List[Dict[str, str]], views_index: List[Dict[str, str]],
-        routines_index: List[Dict[str, str]], storage_entries: List[Dict[str, str]], resolved: Dict[str, Any], output_dir: Path, database_info_entries: List[Dict[str, str]] | None = None
+        self,
+        index_template: Template,
+        generated_at: str,
+        tables_index: list[dict[str, str]],
+        views_index: list[dict[str, str]],
+        routines_index: list[dict[str, str]],
+        storage_entries: list[dict[str, str]],
+        resolved: dict[str, Any],
+        output_dir: Path,
+        database_info_entries: list[dict[str, str]] | None = None,
     ) -> None:
         """Renderiza y escribe la página de índice."""
         if database_info_entries is None:
             database_info_entries = []
         tables_index.sort(key=lambda item: str(item.get("name", "")).lower())
         views_index.sort(key=lambda item: str(item.get("name", "")).lower())
-        routines_index.sort(key=lambda item: (str(item.get("routine_type", "")).lower(), str(item.get("name", "")).lower()))
+        routines_index.sort(
+            key=lambda item: (
+                str(item.get("routine_type", "")).lower(),
+                str(item.get("name", "")).lower(),
+            )
+        )
 
-        procedures_index: List[Dict[str, str]] = [item for item in routines_index if str(item.get("routine_type", "")).upper() == "PROCEDURE"]
-        functions_index: List[Dict[str, str]] = [item for item in routines_index if str(item.get("routine_type", "")).upper() == "FUNCTION"]
+        procedures_index: list[dict[str, str]] = [
+            item
+            for item in routines_index
+            if str(item.get("routine_type", "")).upper() == "PROCEDURE"
+        ]
+        functions_index: list[dict[str, str]] = [
+            item
+            for item in routines_index
+            if str(item.get("routine_type", "")).upper() == "FUNCTION"
+        ]
 
-        default_content_path: str = self._get_default_content_path(tables_index, views_index, procedures_index, functions_index, routines_index, storage_entries)
+        default_content_path: str = self._get_default_content_path(
+            tables_index,
+            views_index,
+            procedures_index,
+            functions_index,
+            routines_index,
+            storage_entries,
+        )
 
         rendered_index: str = index_template.render(
             database=self.database,
@@ -529,11 +696,23 @@ class HtmlGenerator:
         self.logger.info(f"✅ Índice HTML generado: {index_file}")
 
     def _get_default_content_path(
-        self, tables_index: List[Dict[str, str]], views_index: List[Dict[str, str]], procedures_index: List[Dict[str, str]],
-        functions_index: List[Dict[str, str]], routines_index: List[Dict[str, str]], storage_entries: List[Dict[str, str]]
+        self,
+        tables_index: list[dict[str, str]],
+        views_index: list[dict[str, str]],
+        procedures_index: list[dict[str, str]],
+        functions_index: list[dict[str, str]],
+        routines_index: list[dict[str, str]],
+        storage_entries: list[dict[str, str]],
     ) -> str:
         """Determina la ruta de contenido por defecto para el índice."""
-        candidates = [tables_index, views_index, procedures_index, functions_index, routines_index, storage_entries]
+        candidates = [
+            tables_index,
+            views_index,
+            procedures_index,
+            functions_index,
+            routines_index,
+            storage_entries,
+        ]
         for candidate_list in candidates:
             if candidate_list:
                 return candidate_list[0]["path"]
@@ -554,10 +733,10 @@ class HtmlGenerator:
         used_slugs.add(candidate)
         return candidate
 
-    def _build_slug_map(self, names: List[str]) -> Dict[str, str]:
+    def _build_slug_map(self, names: list[str]) -> dict[str, str]:
         """Genera un mapa nombre->slug único preservando orden de entrada."""
         used_slugs: set[str] = set()
-        slug_map: Dict[str, str] = {}
+        slug_map: dict[str, str] = {}
         for name in names:
             slug_map[name] = self._build_unique_slug(name, used_slugs)
         return slug_map
@@ -565,8 +744,12 @@ class HtmlGenerator:
     def _normalize_routine_entry(self, routine: tuple) -> tuple[str, str, str]:
         """Normaliza una fila de rutina a (nombre, tipo, comentario)."""
         routine_name: str = str(routine[0]) if len(routine) > 0 and routine[0] is not None else ""
-        routine_type: str = str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
-        routine_comment: str = str(routine[2]) if len(routine) > 2 and routine[2] is not None else ""
+        routine_type: str = (
+            str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
+        )
+        routine_comment: str = (
+            str(routine[2]) if len(routine) > 2 and routine[2] is not None else ""
+        )
         return routine_name, routine_type.upper(), routine_comment
 
     def _build_routine_key(self, routine: tuple) -> str:
@@ -579,9 +762,9 @@ class HtmlGenerator:
         template: Any,
         output_file: Path,
         entity_kind: str,
-        entity: Dict[str, Any],
+        entity: dict[str, Any],
         generated_at: str,
-        storage_report: Dict[str, Any] | None,
+        storage_report: dict[str, Any] | None,
     ) -> None:
         """Renderiza una página de detalle (tabla o vista)."""
         rendered = template.render(
@@ -595,10 +778,10 @@ class HtmlGenerator:
         output_file.parent.mkdir(parents=True, exist_ok=True)
         output_file.write_text(rendered, encoding="utf-8")
 
-    def _get_storage_report(self, data_provider: Any) -> Dict[str, Any]:
+    def _get_storage_report(self, data_provider: Any) -> dict[str, Any]:
         """Obtiene reporte de almacenamiento para incluirlo en páginas HTML."""
         try:
-            report: Dict[str, Any] = data_provider.get_storage_inventory_report()
+            report: dict[str, Any] = data_provider.get_storage_inventory_report()
         except Exception as error:
             report = {
                 "sections": [
@@ -613,19 +796,18 @@ class HtmlGenerator:
                 "total_rows": 0,
             }
 
-        sections: List[Dict[str, Any]] = list(report.get("sections", []))
+        sections: list[dict[str, Any]] = list(report.get("sections", []))
         for section in sections:
-            rows: List[List[Any]] = list(section.get("rows", []))
-            headers: List[str] = [str(h) for h in section.get("headers", [])]
-            numeric_columns: List[int] = [int(idx) for idx in section.get("numeric_columns", [])]
+            rows: list[list[Any]] = list(section.get("rows", []))
+            headers: list[str] = [str(h) for h in section.get("headers", [])]
+            numeric_columns: list[int] = [int(idx) for idx in section.get("numeric_columns", [])]
             if not headers and rows:
                 max_cols: int = max(len(row) for row in rows)
                 headers = [f"Columna {idx}" for idx in range(1, max_cols + 1)]
             section["headers"] = headers
             section["numeric_columns"] = numeric_columns
             section["rows"] = [
-                [str(value) if value is not None else "" for value in row]
-                for row in rows
+                [str(value) if value is not None else "" for value in row] for row in rows
             ]
         report["sections"] = sections
         return report
@@ -644,10 +826,8 @@ class HtmlGenerator:
             if source_file.is_file():
                 shutil.copy2(source_file, target_assets_dir / source_file.name)
 
-    def _build_graph_generator(self, data_provider: Any, options: Dict[str, Any]) -> Any:
+    def _build_graph_generator(self, data_provider: Any, options: dict[str, Any]) -> Any:
         """Crea GraphvizRelationshipGraphExt para generar SVG al vuelo."""
-        from ..grafos.graphviz_relationship_graph_ext import GraphvizRelationshipGraphExt
-
         db_manager = data_provider.db_manager
         return GraphvizRelationshipGraphExt(
             db_manager=db_manager,
@@ -659,17 +839,17 @@ class HtmlGenerator:
         table_name: str,
         comentario: str,
         data_provider: Any,
-        section_flags: List[bool],
+        section_flags: list[bool],
         include_diagrams: bool,
         graph_generator: Any,
-        diagram_options: Dict[str, Any],
+        diagram_options: dict[str, Any],
         output_dir: Path,
-        svg_navigation_links: Dict[str, str],
+        svg_navigation_links: dict[str, str],
         charset_collation: str | None = None,
         include_columns_charset: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Construye el payload HTML de una tabla."""
-        payload: Dict[str, Any] = self._initialize_table_payload(
+        payload: dict[str, Any] = self._initialize_table_payload(
             table_name, comentario, charset_collation, section_flags, include_columns_charset
         )
 
@@ -693,9 +873,9 @@ class HtmlGenerator:
         table_name: str,
         comentario: str,
         charset_collation: str | None,
-        section_flags: List[bool],
+        section_flags: list[bool],
         include_columns_charset: bool,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Inicializa la estructura base del payload de tabla."""
         return {
             "name": table_name,
@@ -719,23 +899,25 @@ class HtmlGenerator:
 
     def _populate_table_payload_sections(
         self,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         data_provider: Any,
         table_name: str,
-        section_flags: List[bool],
+        section_flags: list[bool],
         include_columns_charset: bool,
     ) -> None:
         """Rellena las secciones del payload según los flags activados."""
         self._populate_ddl_section(payload, data_provider, table_name, section_flags)
-        self._populate_columns_section(payload, data_provider, table_name, section_flags, include_columns_charset)
+        self._populate_columns_section(
+            payload, data_provider, table_name, section_flags, include_columns_charset
+        )
         self._populate_constraints_and_indices(payload, data_provider, table_name, section_flags)
 
     def _populate_ddl_section(
         self,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         data_provider: Any,
         table_name: str,
-        section_flags: List[bool],
+        section_flags: list[bool],
     ) -> None:
         """Rellena la sección DDL del payload."""
         if section_flags[0]:
@@ -747,10 +929,10 @@ class HtmlGenerator:
 
     def _populate_columns_section(
         self,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         data_provider: Any,
         table_name: str,
-        section_flags: List[bool],
+        section_flags: list[bool],
         include_columns_charset: bool,
     ) -> None:
         """Rellena la sección de columnas del payload."""
@@ -759,14 +941,18 @@ class HtmlGenerator:
 
         try:
             columnas = data_provider.get_columns(table_name)
-            payload["columnas"]["rows"] = self._process_columns_data(columnas, data_provider.db_type)
-            self._populate_columns_charset(payload, data_provider, table_name, include_columns_charset)
+            payload["columnas"]["rows"] = self._process_columns_data(
+                columnas, data_provider.db_type
+            )
+            self._populate_columns_charset(
+                payload, data_provider, table_name, include_columns_charset
+            )
         except Exception:
             payload["columnas"]["rows"] = []
 
     def _populate_columns_charset(
         self,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         data_provider: Any,
         table_name: str,
         include_columns_charset: bool,
@@ -777,17 +963,21 @@ class HtmlGenerator:
 
         try:
             charset_info = data_provider.get_columns_charset_collation(table_name)
-            payload["columns_charset"]["rows"] = [[row[0], row[1] or "", row[2] or ""] for row in charset_info]
+            payload["columns_charset"]["rows"] = [
+                [row[0], row[1] or "", row[2] or ""] for row in charset_info
+            ]
         except Exception as e:
-            self.logger.debug(f"⚠️  No se pudo obtener charset/collation de columnas para {table_name}: {e}")
+            self.logger.debug(
+                f"⚠️  No se pudo obtener charset/collation de columnas para {table_name}: {e}"
+            )
             payload["columns_charset"]["rows"] = []
 
     def _populate_constraints_and_indices(
         self,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         data_provider: Any,
         table_name: str,
-        section_flags: List[bool],
+        section_flags: list[bool],
     ) -> None:
         """Rellena las secciones de restricciones e índices del payload."""
         if section_flags[2]:
@@ -803,9 +993,16 @@ class HtmlGenerator:
             indices = data_provider.get_indices(table_name)
             payload["indices"] = self._process_indices_data(indices, data_provider.db_type)
 
-    def _build_view_payload(self, view_name: str, comentario: str, data_provider: Any, section_flags: List[bool], include_columns_charset: bool = False) -> Dict[str, Any]:
+    def _build_view_payload(
+        self,
+        view_name: str,
+        comentario: str,
+        data_provider: Any,
+        section_flags: list[bool],
+        include_columns_charset: bool = False,
+    ) -> dict[str, Any]:
         """Construye el payload HTML de una vista."""
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "name": view_name,
             "comment": comentario or "",
             "ddl": None,
@@ -816,16 +1013,18 @@ class HtmlGenerator:
         }
 
         self._populate_view_ddl_section(payload, data_provider, view_name, section_flags)
-        self._populate_view_columns_section(payload, data_provider, view_name, section_flags, include_columns_charset)
+        self._populate_view_columns_section(
+            payload, data_provider, view_name, section_flags, include_columns_charset
+        )
 
         return payload
 
     def _populate_view_ddl_section(
         self,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         data_provider: Any,
         view_name: str,
-        section_flags: List[bool],
+        section_flags: list[bool],
     ) -> None:
         """Rellena la sección DDL del payload de vista."""
         if section_flags[0]:
@@ -837,10 +1036,10 @@ class HtmlGenerator:
 
     def _populate_view_columns_section(
         self,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         data_provider: Any,
         view_name: str,
-        section_flags: List[bool],
+        section_flags: list[bool],
         include_columns_charset: bool,
     ) -> None:
         """Rellena la sección de columnas del payload de vista."""
@@ -849,14 +1048,18 @@ class HtmlGenerator:
 
         try:
             columnas = data_provider.get_columns(view_name)
-            payload["columnas"]["rows"] = self._process_columns_data(columnas, data_provider.db_type)
-            self._populate_view_columns_charset(payload, data_provider, view_name, include_columns_charset)
+            payload["columnas"]["rows"] = self._process_columns_data(
+                columnas, data_provider.db_type
+            )
+            self._populate_view_columns_charset(
+                payload, data_provider, view_name, include_columns_charset
+            )
         except Exception:
             payload["columnas"]["rows"] = []
 
     def _populate_view_columns_charset(
         self,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         data_provider: Any,
         view_name: str,
         include_columns_charset: bool,
@@ -867,9 +1070,13 @@ class HtmlGenerator:
 
         try:
             charset_info = data_provider.get_columns_charset_collation(view_name)
-            payload["columns_charset"]["rows"] = [[row[0], row[1] or "", row[2] or ""] for row in charset_info]
+            payload["columns_charset"]["rows"] = [
+                [row[0], row[1] or "", row[2] or ""] for row in charset_info
+            ]
         except Exception as e:
-            self.logger.debug(f"⚠️  No se pudo obtener charset/collation de columnas para {view_name}: {e}")
+            self.logger.debug(
+                f"⚠️  No se pudo obtener charset/collation de columnas para {view_name}: {e}"
+            )
             payload["columns_charset"]["rows"] = []
 
     def _build_routine_payload(
@@ -878,9 +1085,9 @@ class HtmlGenerator:
         routine_type: str,
         comentario: str,
         data_provider: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Construye el payload HTML de una rutina (procedure/función)."""
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "name": routine_name,
             "routine_type": routine_type,
             "comment": comentario or "",
@@ -904,15 +1111,15 @@ class HtmlGenerator:
 
     def _filter_routines_by_flags(
         self,
-        routines: List[tuple],
+        routines: list[tuple],
         include_procedures: bool,
         include_functions: bool,
-    ) -> List[tuple]:
+    ) -> list[tuple]:
         """Filtra rutinas según configuración de impresión."""
         if include_procedures and include_functions:
             return routines
 
-        filtered: List[tuple] = []
+        filtered: list[tuple] = []
         for routine in routines:
             _, routine_type, _ = self._normalize_routine_entry(routine)
             if routine_type == "PROCEDURE" and include_procedures:
@@ -924,11 +1131,11 @@ class HtmlGenerator:
                     filtered.append(routine)
         return filtered
 
-    def _process_routine_parameters_data(self, parametros: List) -> List:
+    def _process_routine_parameters_data(self, parametros: list) -> list:
         """Normaliza datos de parámetros de rutina para HTML."""
-        rows: List[List[str]] = []
+        rows: list[list[str]] = []
         for row in parametros:
-            values: List[str] = []
+            values: list[str] = []
             for idx in range(5):
                 value = row[idx] if len(row) > idx else ""
                 values.append(str(value) if value is not None else "")
@@ -939,10 +1146,10 @@ class HtmlGenerator:
         self,
         table_name: str,
         graph_generator: Any,
-        diagram_options: Dict[str, Any],
+        diagram_options: dict[str, Any],
         output_dir: Path,
-        navigation_links: Dict[str, str],
-    ) -> List[str]:
+        navigation_links: dict[str, str],
+    ) -> list[str]:
         """Genera SVG(s) de relaciones para una tabla y devuelve rutas relativas para HTML."""
         fmt = "svg"
         graph_output_dir: Path = Path(diagram_options.get("output_dir", output_dir / "graphs"))
@@ -951,8 +1158,10 @@ class HtmlGenerator:
         images_paginated: bool = bool(diagram_options.get("images_paginated", False))
 
         try:
-            generated_paths: List[Path]
-            if images_paginated and hasattr(graph_generator, "generate_graphviz_graph_paginated_ext"):
+            generated_paths: list[Path]
+            if images_paginated and hasattr(
+                graph_generator, "generate_graphviz_graph_paginated_ext"
+            ):
                 generated_paths = [
                     Path(path)
                     for path in graph_generator.generate_graphviz_graph_paginated_ext(
@@ -966,7 +1175,7 @@ class HtmlGenerator:
             else:
                 output_file: Path = graph_output_dir / f"{table_name}.{fmt}"
                 method = graph_generator.generate_single_table_graph_ext
-                kwargs: Dict[str, Any] = {
+                kwargs: dict[str, Any] = {
                     "table_name": table_name,
                     "output_file": output_file,
                     "format": fmt,
@@ -977,16 +1186,19 @@ class HtmlGenerator:
                     kwargs["first_level_only"] = bool(diagram_options.get("first_level_only", True))
                 generated_paths = [Path(method(**kwargs))]
 
-            valid_paths: List[Path] = [path for path in generated_paths if path.exists()]
+            valid_paths: list[Path] = [path for path in generated_paths if path.exists()]
             for svg_path in valid_paths:
                 self._inject_links_into_svg(svg_path=svg_path, navigation_links=navigation_links)
 
-            return [html.escape(str(path.relative_to(output_dir)).replace("\\", "/")) for path in valid_paths]
+            return [
+                html.escape(str(path.relative_to(output_dir)).replace("\\", "/"))
+                for path in valid_paths
+            ]
         except Exception as error:
             self.logger.warning(f"⚠️ No se pudo generar SVG para tabla {table_name}: {error}")
             return []
 
-    def _inject_links_into_svg(self, svg_path: Path, navigation_links: Dict[str, str]) -> None:
+    def _inject_links_into_svg(self, svg_path: Path, navigation_links: dict[str, str]) -> None:
         """Inserta enlaces clicables en nodos SVG apuntando a páginas HTML de detalle."""
         svg_ns = "http://www.w3.org/2000/svg"
         xlink_ns = "http://www.w3.org/1999/xlink"
@@ -1017,7 +1229,7 @@ class HtmlGenerator:
                 anchor.set(f"{{{xlink_ns}}}href", target_href)
                 anchor.set("target", "_blank")
 
-                children: List[ET.Element[str]] = list(node_group)
+                children: list[ET.Element[str]] = list(node_group)
                 for child in children:
                     node_group.remove(child)
                     anchor.append(child)
@@ -1026,7 +1238,9 @@ class HtmlGenerator:
 
             tree.write(str(svg_path), encoding="utf-8", xml_declaration=True)
         except Exception as error:
-            self.logger.warning(f"⚠️ No se pudieron inyectar enlaces en SVG {svg_path.name}: {error}")
+            self.logger.warning(
+                f"⚠️ No se pudieron inyectar enlaces en SVG {svg_path.name}: {error}"
+            )
 
     def _decode_html_entities(self, value: str, max_rounds: int = 3) -> str:
         """Decodifica entidades HTML (incluyendo casos doblemente escapados)."""
@@ -1038,15 +1252,21 @@ class HtmlGenerator:
             decoded = unescaped
         return decoded
 
-    def _process_indices_data(self, indices: List, db_type: str) -> List:
+    def _process_indices_data(self, indices: list, db_type: str) -> list:
         """Procesa los datos de índices según el tipo de base de datos."""
         if db_type == "mariadb":
             return [[idx[0], idx[1], "No" if idx[2] else "Sí", idx[3]] for idx in indices]
 
         if db_type == "oracle":
-            return [[idx[0], idx[3], "Sí" if self._is_unique(idx, db_type) else "No", idx[2]] for idx in indices]
+            return [
+                [idx[0], idx[3], "Sí" if self._is_unique(idx, db_type) else "No", idx[2]]
+                for idx in indices
+            ]
 
-        return [[idx[0], idx[1], "Sí" if self._is_unique(idx, db_type) else "No", idx[3]] for idx in indices]
+        return [
+            [idx[0], idx[1], "Sí" if self._is_unique(idx, db_type) else "No", idx[3]]
+            for idx in indices
+        ]
 
     def _is_unique(self, index_data: tuple, db_type: str) -> bool:
         """Determina si un índice es único según el tipo de BD."""
@@ -1071,20 +1291,74 @@ class HtmlGenerator:
 
         return value if value is not None else ""
 
-    def _format_column_row(self, col: Any, specs: List[Tuple[int, bool]]) -> List[Any]:
+    def _format_column_row(self, col: Any, specs: list[tuple[int, bool]]) -> list[Any]:
         """Formatea una fila de metadatos de columna según especificación."""
         return [self._get_value(col, idx, as_str=as_str) for idx, as_str in specs]
 
-    def _process_columns_data(self, columnas: List, db_type: str) -> List:
+    def _process_columns_data(self, columnas: list, db_type: str) -> list:
         """Procesa datos de columnas para reordenarlos según el tipo de BD."""
-        specs_by_db: Dict[str, List[Tuple[int, bool]]] = {
-            "mariadb": [(0, False), (1, False), (2, False), (3, False), (4, False), (5, False), (6, False)],
-            "oracle": [(0, False), (1, False), (2, False), (3, True), (4, True), (5, True), (6, True), (7, True)],
-            "postgresql": [(0, False), (1, False), (2, False), (3, True), (4, True), (5, True), (6, True), (7, True)],
-            "hsqldb": [(0, False), (1, False), (2, False), (3, True), (4, True), (5, True), (6, True), (7, True)],
-            "sqlserver": [(0, False), (1, False), (2, False), (3, True), (4, True), (5, True), (6, True), (7, True), (8, True)],
+        specs_by_db: dict[str, list[tuple[int, bool]]] = {
+            "mariadb": [
+                (0, False),
+                (1, False),
+                (2, False),
+                (3, False),
+                (4, False),
+                (5, False),
+                (6, False),
+            ],
+            "oracle": [
+                (0, False),
+                (1, False),
+                (2, False),
+                (3, True),
+                (4, True),
+                (5, True),
+                (6, True),
+                (7, True),
+            ],
+            "postgresql": [
+                (0, False),
+                (1, False),
+                (2, False),
+                (3, True),
+                (4, True),
+                (5, True),
+                (6, True),
+                (7, True),
+            ],
+            "hsqldb": [
+                (0, False),
+                (1, False),
+                (2, False),
+                (3, True),
+                (4, True),
+                (5, True),
+                (6, True),
+                (7, True),
+            ],
+            "sqlserver": [
+                (0, False),
+                (1, False),
+                (2, False),
+                (3, True),
+                (4, True),
+                (5, True),
+                (6, True),
+                (7, True),
+                (8, True),
+            ],
         }
-        default_specs: List[Tuple[int, bool]] = [(0, False), (1, False), (2, False), (3, True), (4, True), (5, True), (6, True), (7, True)]
-        specs: List[Tuple[int, bool]] = specs_by_db.get(db_type, default_specs)
+        default_specs: list[tuple[int, bool]] = [
+            (0, False),
+            (1, False),
+            (2, False),
+            (3, True),
+            (4, True),
+            (5, True),
+            (6, True),
+            (7, True),
+        ]
+        specs: list[tuple[int, bool]] = specs_by_db.get(db_type, default_specs)
 
         return [self._format_column_row(col, specs) for col in columnas]

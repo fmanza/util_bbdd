@@ -1,7 +1,8 @@
 """Pool de conexiones para SQLite (simple pool wrapper)."""
 
 import logging
-from typing import Any, Literal, Optional, cast
+
+from typing import Any, Literal, cast
 
 from ..connection_params_manager import ConnectionParamsManager
 
@@ -44,7 +45,7 @@ class PoolConnection:
             ```
         """
         self.logger: logging.Logger = logging.getLogger(__name__)
-        self.connection: Optional[Any] = None
+        self.connection: Any | None = None
         self._closed: bool = False
 
         # pool_size se ignora para SQLite (siempre 1 conexión)

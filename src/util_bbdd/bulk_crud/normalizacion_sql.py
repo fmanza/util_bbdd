@@ -17,10 +17,13 @@ Fecha: Febrero 2026
 """
 
 import json
-from typing import Any, Dict, Hashable, Iterator, List
+
+from collections.abc import Hashable, Iterator
+from typing import Any
 
 import numpy as np
 import pandas as pd
+
 from sqlalchemy import JSON, Boolean, DateTime, Float, Integer, LargeBinary, String, Text
 
 
@@ -128,7 +131,7 @@ def pandas_dtype_to_sqlalchemy(series: pd.Series) -> Any:
     return String(255)
 
 
-def iter_normalize_records(records: List[Dict[Hashable, Any]]) -> Iterator[Dict[str, Any]]:
+def iter_normalize_records(records: list[dict[Hashable, Any]]) -> Iterator[dict[str, Any]]:
     """
     Procesa una secuencia de registros y los normaliza para SQL, devolviendo un iterador.
 
@@ -149,7 +152,7 @@ def iter_normalize_records(records: List[Dict[Hashable, Any]]) -> Iterator[Dict[
     return ({str(k): normalize_sql_literal(v) for k, v in row.items()} for row in records)
 
 
-def normalize_records_for_sql(records: List[Dict[Hashable, Any]]) -> List[Dict[str, Any]]:
+def normalize_records_for_sql(records: list[dict[Hashable, Any]]) -> list[dict[str, Any]]:
     """
     Normaliza una lista de registros para SQL, devolviendo una nueva lista materializada.
 

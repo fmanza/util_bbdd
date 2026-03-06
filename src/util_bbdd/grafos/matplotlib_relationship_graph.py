@@ -1,11 +1,13 @@
 """
 Implementación de generación de grafos usando Matplotlib y NetworkX
 """
+
 import logging
 import math
+
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from matplotlib.axes import Axes
 
@@ -13,6 +15,7 @@ try:
     import matplotlib.patches as mpatches
     import matplotlib.pyplot as plt
     import networkx as nx
+
     from matplotlib.lines import Line2D
 
     MATPLOTLIB_AVAILABLE = True
@@ -27,7 +30,9 @@ except ImportError:
 from ..database_manager import DatabaseManager
 from .relationship_graph_base import DatabaseRelationshipGraphBase, TableRelation
 
-MATPLOTLIB_NETWORKX_ERROR = "Matplotlib/NetworkX no disponible. Instale: pip install matplotlib networkx"
+MATPLOTLIB_NETWORKX_ERROR = (
+    "Matplotlib/NetworkX no disponible. Instale: pip install matplotlib networkx"
+)
 
 
 class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
@@ -40,7 +45,7 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
         if not MATPLOTLIB_AVAILABLE or plt is None or nx is None:
             raise ImportError(MATPLOTLIB_NETWORKX_ERROR)
 
-    def _create_radial_layout(self, graph: Any, central_node: str) -> Dict[str, tuple]:
+    def _create_radial_layout(self, graph: Any, central_node: str) -> dict[str, tuple]:
         """
         Crea un layout radial donde el nodo central está en el centro
         y los demás nodos se distribuyen alrededor en círculo
@@ -54,7 +59,7 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
         """
         self.logger.debug(f"Creando layout radial para {central_node}")
 
-        pos: Dict[str, tuple] = {}
+        pos: dict[str, tuple] = {}
         nodes = list(graph.nodes())
 
         # El nodo principal en el centro
@@ -93,7 +98,7 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
 
     def generate_matplotlib_graph_paginated(
         self, table_name: str, output_dir: Path, format: str = "png", max_subnodes: int = 10
-    ) -> List[Path]:
+    ) -> list[Path]:
         """
         Genera grafos Matplotlib dividiendo en múltiples imágenes si es necesario
 
@@ -109,14 +114,16 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
         self.logger.info(
             f"Iniciando generación paginada de Matplotlib para {table_name} (max {max_subnodes} nodos por página)"
         )
-        relations: List[TableRelation] = self.analyze_table_relations(table_name)
-        split_relations: List[List[TableRelation]] = self._split_relations_for_visualization(relations, max_subnodes)
+        relations: list[TableRelation] = self.analyze_table_relations(table_name)
+        split_relations: list[list[TableRelation]] = self._split_relations_for_visualization(
+            relations, max_subnodes
+        )
         self.logger.debug(f"Tabla {table_name} dividida en {len(split_relations)} página(s)")
 
         output_dir = Path(output_dir).resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        generated_files: List[Path] = []
+        generated_files: list[Path] = []
 
         for page_num, page_relations in enumerate(split_relations, 1):
             # Crear nombre de archivo descriptivo con matplotlib y nombre de tabla
@@ -130,13 +137,15 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
             output_path: Path = output_dir / file_name
 
             # Generar gráfico para esta página
-            generated_file: Path = self._generate_matplotlib_graph_internal(table_name, output_path, format, page_relations)
+            generated_file: Path = self._generate_matplotlib_graph_internal(
+                table_name, output_path, format, page_relations
+            )
             generated_files.append(generated_file)
 
         return generated_files
 
     def _generate_matplotlib_graph_internal(
-        self, table_name: str, output_file: Path, format: str, relations: List[TableRelation]
+        self, table_name: str, output_file: Path, format: str, relations: list[TableRelation]
     ) -> Path:
         """
         Genera un gráfico Matplotlib interno con relaciones específicas
@@ -226,7 +235,9 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
             nx.draw_networkx_labels(G, pos, font_size=10, font_family="Arial", font_weight="bold")
 
             edge_labels = nx.get_edge_attributes(G, "label")
-            nx.draw_networkx_edge_labels(G, pos, edge_labels, font_size=8, font_family="Arial", alpha=0.7)
+            nx.draw_networkx_edge_labels(
+                G, pos, edge_labels, font_size=8, font_family="Arial", alpha=0.7
+            )
 
             plt.title(
                 f"Relaciones de Primer Nivel - Tabla: {table_name}",
@@ -252,7 +263,10 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
             else:
                 raise FileNotFoundError(f"Archivo no encontrado: {output_path}")
         except Exception as e:
-            self.logger.error(f"Error al generar gráfico Matplotlib para tabla {table_name}: {str(e)}", exc_info=True)
+            self.logger.error(
+                f"Error al generar gráfico Matplotlib para tabla {table_name}: {str(e)}",
+                exc_info=True,
+            )
             plt.close()
             raise
 
@@ -262,7 +276,7 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
         format: str = "png",
         skip_tables_without_relations: bool = True,
         max_subnodes: int = 10,
-    ) -> Dict[str, Dict[str, Any]]:
+    ) -> dict[str, dict[str, Any]]:
         """
         Genera grafos Matplotlib para todas las tablas de la base de datos
 
@@ -284,11 +298,13 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
         all_tables = self.db_manager.get_tables()
         table_names = [table[0] for table in all_tables]
 
-        self.logger.info(f"Iniciando generación de grafos Matplotlib para {len(table_names)} tablas")
+        self.logger.info(
+            f"Iniciando generación de grafos Matplotlib para {len(table_names)} tablas"
+        )
         self.logger.info(f"Directorio de salida: {output_dir}")
         self.logger.info(f"Formato: {format}, max_subnodes: {max_subnodes}")
 
-        results: Dict[str, Dict[str, Any]] = {}
+        results: dict[str, dict[str, Any]] = {}
 
         # Filtrar tablas sin relaciones si es necesario
         tables_to_process = table_names
@@ -304,16 +320,23 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
                 except Exception:
                     pass
 
-            self.logger.info(f"Tablas a procesar tras filtrado: {len(tables_to_process)}/{len(table_names)}")
+            self.logger.info(
+                f"Tablas a procesar tras filtrado: {len(tables_to_process)}/{len(table_names)}"
+            )
 
         # Generar grafos para cada tabla
         for idx, table_name in enumerate(tables_to_process, 1):
             try:
-                self.logger.info(f"[{idx}/{len(tables_to_process)}] Generando gráfico para tabla: {table_name}")
+                self.logger.info(
+                    f"[{idx}/{len(tables_to_process)}] Generando gráfico para tabla: {table_name}"
+                )
 
                 # Generar gráfico paginado directamente en output_dir
-                generated_files: List[Path] = self.generate_matplotlib_graph_paginated(
-                    table_name=table_name, output_dir=output_dir, format=format, max_subnodes=max_subnodes
+                generated_files: list[Path] = self.generate_matplotlib_graph_paginated(
+                    table_name=table_name,
+                    output_dir=output_dir,
+                    format=format,
+                    max_subnodes=max_subnodes,
                 )
 
                 results[table_name] = {
@@ -322,7 +345,9 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
                     "count": len(generated_files),
                 }
 
-                self.logger.debug(f"Gráfico completado para {table_name}: {len(generated_files)} archivo(s)")
+                self.logger.debug(
+                    f"Gráfico completado para {table_name}: {len(generated_files)} archivo(s)"
+                )
 
             except Exception as e:
                 error_msg = str(e)
@@ -331,6 +356,8 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
 
         # Resumen final
         successful = sum(1 for r in results.values() if r["status"] == "success")
-        self.logger.info(f"Generación completada: {successful}/{len(tables_to_process)} tablas procesadas exitosamente")
+        self.logger.info(
+            f"Generación completada: {successful}/{len(tables_to_process)} tablas procesadas exitosamente"
+        )
 
         return results

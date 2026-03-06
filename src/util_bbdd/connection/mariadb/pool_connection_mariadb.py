@@ -1,7 +1,7 @@
 """Pool de conexiones para MariaDB (mariadb.ConnectionPool)."""
 
 import logging
-from typing import Optional
+
 from uuid import uuid4
 
 from mariadb import Connection, ConnectionPool
@@ -48,7 +48,7 @@ class PoolConnection:
             ```
         """
         self.logger: logging.Logger = logging.getLogger(__name__)
-        self.pool: Optional[ConnectionPool] = None
+        self.pool: ConnectionPool | None = None
         self._closed: bool = False
 
         self.__create_pool(conn_params)

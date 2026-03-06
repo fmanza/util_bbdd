@@ -7,6 +7,7 @@ Los parámetros del pool deben incluirse en conn_params:
 """
 
 import logging
+
 from typing import Any
 
 from ..connection.mariadb.pool_connection_mariadb import (
@@ -102,7 +103,9 @@ class PoolFactory:
                 return pool
 
             else:
-                raise ValueError(f"Pool no soportado para {db_type}. Use: mariadb, sqlserver, oracle, postgresql, sqlite")
+                raise ValueError(
+                    f"Pool no soportado para {db_type}. Use: mariadb, sqlserver, oracle, postgresql, sqlite"
+                )
 
         except Exception as e:
             PoolFactory.logger.error(f"❌ Error creando pool para {db_type}: {e}")

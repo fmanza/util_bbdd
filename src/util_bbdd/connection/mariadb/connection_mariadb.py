@@ -1,16 +1,19 @@
 """Conexión raw al driver MariaDB."""
 
 import logging
+
 from typing import Any
 
-from ..connection_params_manager import ConnectionParamsManager
 from util_bbdd.database_exceptions import DatabaseConnectionError
+
+from ..connection_params_manager import ConnectionParamsManager
 
 
 class MariaDBConnection:
     """Maneja la conexión raw a MariaDB."""
 
     logger: logging.Logger = logging.getLogger(__name__)
+
     @staticmethod
     def connect(conn_params: dict[str, Any]) -> Any:
         """
@@ -44,5 +47,6 @@ class MariaDBConnection:
             raise DatabaseConnectionError("Módulo mariadb no disponible", "mariadb", str(e)) from e
         except Exception as e:
             MariaDBConnection.logger.error(f"❌ Error conectando a MariaDB: {e}")
-            raise DatabaseConnectionError(f"Error conectando a MariaDB: {str(e)}", "mariadb", str(e)) from e
-
+            raise DatabaseConnectionError(
+                f"Error conectando a MariaDB: {str(e)}", "mariadb", str(e)
+            ) from e

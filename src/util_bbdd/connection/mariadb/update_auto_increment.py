@@ -1,9 +1,11 @@
 import logging
 import sys
 import traceback
-from typing import TYPE_CHECKING, Any, List
+
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
+
 from sqlalchemy.exc import DBAPIError, OperationalError
 
 from util_bbdd.factory import SQLAlchemyEngineFactory
@@ -24,10 +26,8 @@ class UpdateAutoIncrement:
         logger.info(f"ℹ️ Update Auto Increment: {conf['database']}")
 
         # Crear engine de SQLAlchemy
-        self.engine: "Engine" = SQLAlchemyEngineFactory.create_engine(
-            db_type=conf.get("db_type", "mariadb"),
-            conn_params=conf,
-            database=conf["database"]
+        self.engine: Engine = SQLAlchemyEngineFactory.create_engine(
+            db_type=conf.get("db_type", "mariadb"), conn_params=conf, database=conf["database"]
         )
 
         # Consulta SQL para obtener la tabla y columna PRIMARY KEY
@@ -56,16 +56,16 @@ class UpdateAutoIncrement:
             logger.error(traceback.format_exc())
             sys.exit(1)
 
-    def salida_sql(self) -> List[str]:
+    def salida_sql(self) -> list[str]:
         """
         Genera sentencias SQL para actualizar el valor de AUTO_INCREMENT en las tablas de la BBDD.
 
         Returns:
-            List[str]: Lista de sentencias SQL para actualizar el valor de AUTO_INCREMENT en las tablas de la BBDD.
+            list[str]: Lista de sentencias SQL para actualizar el valor de AUTO_INCREMENT en las tablas de la BBDD.
         """
-        sql_salida: List[str] = []
+        sql_salida: list[str] = []
         # Recorrer el DataFrame y crear sentencias INSERT
-        for index, row in self.df_information_schema.iterrows():
+        for _, row in self.df_information_schema.iterrows():
             # Consulta SQL para obtener el valor máximo de la columna PRIMARY KEY
             sql: str = f"SELECT MAX({row['COLUMN_NAME']}) AS ID_MAX FROM {row['TABLE_NAME']}"
             df_max: pd.DataFrame = pd.read_sql(sql, self.engine)
@@ -85,4 +85,3 @@ class UpdateAutoIncrement:
             sql_salida.append(sql_update)
 
         return sql_salida
-

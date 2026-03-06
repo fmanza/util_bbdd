@@ -1,6 +1,7 @@
 """Helpers para construir conn_params de DatabaseManager por motor."""
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 
 def build_conn_params(db_type: str, **kwargs: Any) -> dict[str, Any]:

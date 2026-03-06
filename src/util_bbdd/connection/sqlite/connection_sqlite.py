@@ -1,11 +1,13 @@
 """Conexión raw al driver SQLite."""
 
 import logging
+
 from sqlite3 import Connection
 from typing import Any, Literal, cast
 
-from ..connection_params_manager import ConnectionParamsManager
 from util_bbdd.database_exceptions import DatabaseConnectionError
+
+from ..connection_params_manager import ConnectionParamsManager
 
 
 class SQLiteConnection:
@@ -83,5 +85,6 @@ class SQLiteConnection:
             raise DatabaseConnectionError("Módulo sqlite3 no disponible", "sqlite", str(e)) from e
         except Exception as e:
             SQLiteConnection.logger.error(f"❌ Error conectando a SQLite: {e}")
-            raise DatabaseConnectionError(f"Error conectando a SQLite: {str(e)}", "sqlite", str(e)) from e
-
+            raise DatabaseConnectionError(
+                f"Error conectando a SQLite: {str(e)}", "sqlite", str(e)
+            ) from e
