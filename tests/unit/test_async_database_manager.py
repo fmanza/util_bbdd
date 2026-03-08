@@ -335,3 +335,64 @@ class TestAsyncDatabaseManagerIntegration:
             assert result1 == [(1, "first")]
             assert result2 == [(2, "second")]
             assert mock_executor.execute_custom_query.call_count == 2
+
+
+class TestAsyncDatabaseManagerConvenienceMethods:
+    """Paridad de métodos de conveniencia async."""
+
+    @pytest.mark.asyncio
+    async def test_get_tables_uses_context_database(self):
+        mock_executor = AsyncMock()
+        mock_executor.execute_query = AsyncMock(return_value=[("users",)])
+
+        manager = AsyncDatabaseManager(
+            db_type="postgresql",
+            conn_params={"schema": "public"},
+            use_pool=False,
+        )
+        manager.query_executor = mock_executor
+        manager._initialized = True
+
+        result = await manager.get_tables()
+
+        assert result == [("users",)]
+        mock_executor.execute_query.assert_called_once_with(
+            query_name="obtener_tablas",
+            db_type="postgresql",
+            params={"database": "public"},
+            fetch_one=False,
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_database_version_returns_first_column(self):
+        mock_executor = AsyncMock()
+        mock_executor.execute_query = AsyncMock(return_value=("15.0",))
+
+        manager = AsyncDatabaseManager(
+            db_type="sqlserver",
+            conn_params={"database": "master"},
+            use_pool=False,
+        )
+        manager.query_executor = mock_executor
+        manager._initialized = True
+
+        result = await manager.get_database_version()
+
+        assert result == "15.0"
+
+    @pytest.mark.asyncio
+    async def test_get_available_queries_reads_registry(self):
+        mock_executor = MagicMock()
+        mock_executor.registry.get_available_queries.return_value = ["obtener_tablas", "columnas_tabla"]
+
+        manager = AsyncDatabaseManager(
+            db_type="mariadb",
+            conn_params={"database": "db"},
+            use_pool=False,
+        )
+        manager.query_executor = mock_executor
+        manager._initialized = True
+
+        result = await manager.get_available_queries()
+
+        assert result == ["obtener_tablas", "columnas_tabla"]
