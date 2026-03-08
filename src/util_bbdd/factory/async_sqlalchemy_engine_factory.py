@@ -377,6 +377,3 @@ class AsyncSQLAlchemyEngineFactory:
             return f"sqlite+aiosqlite:///{normalized_path}"
         return f"sqlite+aiosqlite:///{normalized_path}"
 
-
-class SQLAlchemyEngineFactory(AsyncSQLAlchemyEngineFactory):
-    """Alias para mantener import estable durante la migracion async."""

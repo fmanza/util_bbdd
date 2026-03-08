@@ -59,7 +59,7 @@ def test_connect_factory_hsqldb_async_is_explicitly_not_supported() -> None:
             assert False, "Se esperaba NotImplementedError para hsqldb async"
         except NotImplementedError as err:
             assert "hsqldb" in str(err).lower()
-            assert "no dispone de implementación async" in str(err).lower()
+            assert "no soportada" in str(err).lower()
 
     asyncio.run(_run())
 
@@ -71,6 +71,6 @@ def test_pool_factory_hsqldb_async_is_explicitly_not_supported() -> None:
             assert False, "Se esperaba NotImplementedError para hsqldb async"
         except NotImplementedError as err:
             assert "hsqldb" in str(err).lower()
-            assert "no dispone de implementación async" in str(err).lower()
+            assert "no soportado" in str(err).lower()
 
     asyncio.run(_run())

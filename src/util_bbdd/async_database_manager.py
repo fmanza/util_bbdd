@@ -137,7 +137,7 @@ class AsyncDatabaseManager:
             query_name=query_name,
             db_type=self.db_type,
             params=params,
-            fetch_options={"fetch_one": fetch_one},
+            fetch_one=fetch_one,
         )
 
     async def aclose(self) -> None:

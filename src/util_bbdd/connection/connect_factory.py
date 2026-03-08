@@ -6,6 +6,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+from ..core.capabilities import is_async_supported
 from ..connection.hsqldb.connection_hsqldb import HSQLDBConnection
 from ..connection.mariadb.connection_mariadb import MariaDBConnection
 from ..connection.oracle.connection_oracle import OracleConnection
@@ -64,10 +65,9 @@ class ConnectFactory:
             ConnectFactory.register_async_connection("sqlserver", AsyncSQLServerConnection.connect)
             builder = ConnectFactory._async_connection_builders.get(normalized_type)
 
-        if builder is None and normalized_type == "hsqldb":
-            raise NotImplementedError(
-                "Conexión async no soportada para 'hsqldb'. HSQLDB no dispone de implementación async en util_bbdd."
-            )
+        async_supported = is_async_supported(normalized_type)
+        if builder is None and async_supported is False:
+            raise NotImplementedError(f"Conexión async no soportada para '{normalized_type}'.")
 
         if builder is None:
             raise NotImplementedError(

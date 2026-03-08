@@ -302,28 +302,12 @@ class DatabaseQueries:
         Returns:
             Tupla con (es_valido, lista_errores)
         """
-        errors = []
-
-        # Validar que la consulta exista y parámetros sean válidos (usando QueryResolver)
+        # Validación única: QueryResolver ya aplica validador por motor.
         try:
-            self.resolver.resolve(query_name, self.db_type, kwargs)
+            resolved = self.resolver.resolve(query_name, self.db_type, kwargs)
+            return True, list(resolved.warnings)
         except Exception as e:
-            errors.append(f"Parámetros inválidos o faltantes para la consulta '{query_name}': {str(e)}")
-            return False, errors
-
-        # Validaciones específicas por tipo de BD
-        if self.db_type == "postgresql":
-            errors.extend(self._validate_postgresql_query(query_name, **kwargs))
-        elif self.db_type == "oracle":
-            errors.extend(self._validate_oracle_query(query_name, **kwargs))
-        elif self.db_type == "mariadb":
-            errors.extend(self._validate_mariadb_query(query_name, **kwargs))
-        elif self.db_type == "hsqldb":
-            errors.extend(self._validate_hsqldb_query(query_name, **kwargs))
-        elif self.db_type == "sqlserver":
-            errors.extend(self._validate_sqlserver_query(query_name, **kwargs))
-
-        return len(errors) == 0, errors
+            return False, [f"Parámetros inválidos o faltantes para la consulta '{query_name}': {str(e)}"]
 
     def _validate_sqlserver_query(self, query_name: str, **kwargs) -> list[str]:
         """Valida específicamente consultas SQL Server"""

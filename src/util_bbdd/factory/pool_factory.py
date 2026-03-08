@@ -28,6 +28,7 @@ from ..connection.sqlite.pool_connection_sqlite import (
 from ..connection.sqlserver.pool_connection_sqlserver import (
     PoolConnection as SQLServerPool,
 )
+from ..core.capabilities import is_async_supported
 
 
 class PoolFactory:
@@ -86,10 +87,9 @@ class PoolFactory:
             PoolFactory.register_async_pool("sqlserver", AsyncSQLServerPool.create)
             builder = PoolFactory._async_pool_builders.get(normalized_type)
 
-        if builder is None and normalized_type == "hsqldb":
-            raise NotImplementedError(
-                "Pool async no soportado para 'hsqldb'. HSQLDB no dispone de implementación async en util_bbdd."
-            )
+        async_supported = is_async_supported(normalized_type)
+        if builder is None and async_supported is False:
+            raise NotImplementedError(f"Pool async no soportado para '{normalized_type}'.")
 
         if builder is None:
             raise NotImplementedError(
