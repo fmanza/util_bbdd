@@ -1,13 +1,27 @@
 # util_bbdd
 
-Librería Python especializada en **operaciones de base de datos** para MySQL/MariaDB, Oracle y PostgreSQL.
+Librería Python especializada en **operaciones de base de datos** para MariaDB, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB (sync).
 
 Incluye:
 - ✅ **CRUD en lote** desde DataFrames (insert/update/delete masivo)
 - ✅ **Auditoría automática** en CSV con timestamps
 - ✅ **Gestión de conexiones** con pool singleton
+- ✅ **Gestión async** de conexiones/pools (por motor compatible)
 - ✅ **Documentación de BD** generada en Word/Excel
 - ✅ **Validación de tipos** por dialecto SQL
+
+## Soporte Async por Motor
+
+| Motor      | Conexión Async | Pool Async | Driver principal |
+|------------|----------------|------------|------------------|
+| PostgreSQL | ✅             | ✅         | `asyncpg`        |
+| SQLite     | ✅             | ✅         | `aiosqlite`      |
+| MariaDB    | ✅             | ✅         | `aiomysql`       |
+| Oracle     | ✅             | ✅         | `oracledb`       |
+| SQL Server | ✅             | ✅         | `aioodbc`        |
+| HSQLDB     | ❌             | ❌         | N/A              |
+
+Nota: `hsqldb` no dispone de implementación async en `util_bbdd`. Las factorías async lanzan error explícito para ese motor.
 
 ## Instalación
 
@@ -77,6 +91,139 @@ pool = PoolFactory.create(
 engine = pool.get_engine()
 print(f"✅ Conexión establecida: {pool}")
 ```
+
+## API Unificada: DatabaseManager (v0.2.0+)
+
+### Uso Síncrono
+
+```python
+from util_bbdd.database_manager import DatabaseManager
+
+# Inicializar gestor de BD
+dm = DatabaseManager(
+    db_type='mariadb',
+    conn_params={
+        'host': 'localhost',
+        'user': 'root',
+        'password': 'secret',
+        'database': 'mydb'
+    }
+)
+
+# Introspection: Listar tablas
+tables = dm.get_tables(database='mydb')
+print(f"📊 Tablas: {tables}")
+
+# Introspection: Columnas de tabla
+columns = dm.get_columns(database='mydb', table='users')
+print(f"📋 Columnas: {columns}")
+
+# Ejecutar query con nombre
+result = dm.execute_query('obtener_tablas', database='mydb')
+print(f"🔍 Resultado: {result}")
+
+# Ejecutar SQL custom
+result = dm.execute_custom_query('SELECT * FROM users LIMIT 10')
+print(f"✅ Consulta ejecutada: {len(result)} filas")
+
+# Cierra conexión
+dm.disconnect()
+```
+
+### Uso Asíncrono (v0.2.0+)
+
+```python
+import asyncio
+from util_bbdd.async_database_manager import AsyncDatabaseManager
+
+async def main():
+    # Inicializar gestor async
+    adm = AsyncDatabaseManager(
+        db_type='postgresql',
+        conn_params={
+            'host': 'localhost',
+            'user': 'postgres',
+            'password': 'secret',
+            'database': 'mydb'
+        }
+    )
+
+    # Inicialización lazy
+    await adm.ainit()
+
+    # Misma API que sync, pero con await
+    tables = await adm.get_tables(database='mydb')
+    print(f"📊 Tablas: {tables}")
+
+    columns = await adm.get_columns(database='mydb', table='users')
+    print(f"📋 Columnas: {columns}")
+
+    # Ejecutar query con nombre (nuevo en v0.2.0)
+    result = await adm.execute_query('obtener_tablas', database='mydb')
+    print(f"🔍 Resultado: {result}")
+
+    await adm.disconnect()
+
+# Ejecutar
+asyncio.run(main())
+```
+
+### Excepciones Unificadas (v0.2.0+)
+
+| Excepción | Cuándo | Uso |
+|-----------|--------|-----|
+| `QueryNotFoundError` | Query no existe | `.handle_missing_query()` |
+| `QueryValidationError` | Parámetros inválidos | `.validate_params()` |
+| `QueryParameterError` | Parámetro específico inválido | `.check_param()` |
+| `QueryTimeoutError` | Timeout en ejecución | `.retry_with_timeout()` |
+| `DatabaseConnectionError` | Fallo de conexión | `.reconnect()` |
+| `DatabasePoolError` | Pool exhausto/timeout | `.wait_for_pool()` |
+| `DatabaseOperationError` | Error en operación SQL | `.handle_sql_error()` |
+
+**Migración desde v0.1.x:**
+```python
+# v0.1.x (deprecated)
+try:
+    query = dq.get_query('nonexistent')
+except KeyError:
+    print("Query not found")
+
+# v0.2.0+ (nuevo)
+from util_bbdd.database_exceptions import QueryNotFoundError
+
+try:
+    query = dq.get_query('nonexistent')
+except QueryNotFoundError as e:
+    print(f"Query not found: {e}")
+```
+
+### Motores Soportados
+
+| Motor      | Sync | Async | Validadores Avanzados | Versión +0.2 |
+|------------|------|-------|----------------------|-------------|
+| MariaDB    | ✅   | ✅    | ✅ Charset, Database | ✅         |
+| Oracle     | ✅   | ✅    | ✅ Schema (max 30ch) | ✅         |
+| PostgreSQL | ✅   | ✅    | ✅ Schema, Database  | ✅         |
+| HSQLDB     | ✅   | ❌    | ✅ Table Names       | ✅         |
+| SQL Server | ✅   | ✅    | ✅ Schema, Database  | ✅         |
+| SQLite     | ✅   | ✅    | ✅ Minimal Params    | ✅         |
+
+## Changes in v0.2.0
+
+### ⚠️ Breaking Changes
+- `DatabaseQueryError` → Use `QueryNotFoundError` (deprecated alias provided)
+- `DatabaseQueries._load_queries()` → Now internal (delegated to QueryRegistry)
+- Exception hierarchy unified under `DatabaseError` base class
+
+### ✅ New Features
+- `DatabaseManager.execute_query(query_name, **params)` - Execute by query name
+- `AsyncDatabaseManager` - Full parity with sync version
+  - `get_tables()`, `get_views()`, `get_columns()`, `get_routines()`
+  - `execute_query()` support
+- Advanced validators per database motor
+- Query Registry + Resolver architecture
+- Improved error messages with `raise ... from err` pattern
+- Comprehensive logging at DEBUG level
 
 ## Tests
 

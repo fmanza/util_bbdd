@@ -278,3 +278,168 @@ def pytest_collection_modifyitems(config, items):
         # Asignar marker 'unit' por defecto
         if not any(marker.name in ["service", "integration"] for marker in item.iter_markers()):
             item.add_marker(pytest.mark.unit)
+
+
+# =====================================================================
+# FIXTURES PARA QUERY REGISTRY Y RESOLVER (PR 0+)
+# =====================================================================
+
+
+@pytest.fixture
+def temp_queries_file(tmp_path):
+    """Crea un archivo temporal de queries para testing (PR 0+).
+
+    Proporciona queries normalizadas para múltiples motores para tests
+    de QueryRegistry, QueryResolver y Executores.
+
+    Returns:
+        Path al archivo JSON temporal con estructura de queries
+
+    Ejemplo:
+        def test_registry(temp_queries_file):
+            registry = QueryRegistry(temp_queries_file)
+            assert "mariadb" in registry.get_all_db_types()
+    """
+
+    queries = {
+        "mariadb": {
+            "obtener_tablas": (
+                "SELECT table_name, table_comment "
+                "FROM information_schema.tables "
+                "WHERE table_schema = '{database}' "
+                "ORDER BY table_name"
+            ),
+            "columnas_tabla": (
+                "SELECT column_name, column_type, is_nullable "
+                "FROM information_schema.columns "
+                "WHERE table_schema = '{database}' AND table_name = '{tabla}' "
+                "ORDER BY ordinal_position"
+            ),
+            "indices": (
+                "SELECT INDEX_NAME, COLUMN_NAME, NON_UNIQUE "
+                "FROM INFORMATION_SCHEMA.STATISTICS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{tabla}'"
+            ),
+            "obtener_vistas": (
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = '{database}' AND table_type = 'VIEW'"
+            ),
+        },
+        "oracle": {
+            "obtener_tablas": (
+                "SELECT t.table_name, c.comments AS table_comment "
+                "FROM all_tables t LEFT JOIN all_tab_comments c "
+                "ON t.owner = c.owner AND t.table_name = c.table_name "
+                "WHERE t.owner = '{esquema}' "
+                "ORDER BY t.table_name"
+            ),
+            "columnas_tabla": (
+                "SELECT c.column_name, c.data_type, c.nullable "
+                "FROM all_tab_columns c "
+                "WHERE c.owner = '{esquema}' AND c.table_name = '{tabla}' "
+                "ORDER BY c.column_id"
+            ),
+        },
+        "postgresql": {
+            "obtener_tablas": (
+                "SELECT c.relname AS table_name, obj_description(c.oid) AS table_comment "
+                "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+                "WHERE n.nspname = '{database}' AND c.relkind = 'r' "
+                "ORDER BY c.relname"
+            ),
+        },
+    }
+
+    file_path = tmp_path / "test_queries.json"
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(queries, f)
+
+    return file_path
+
+
+@pytest.fixture
+def temp_database_types_file(tmp_path):
+    """Crea un archivo temporal de tipos de BD para testing (PR 0+).
+
+    Proporciona definiciones de tipos de bases de datos para tests
+    de validadores y DatabaseTypeValidator.
+
+    Returns:
+        Path al archivo JSON temporal con database_types
+
+    Ejemplo:
+        def test_validators(temp_database_types_file):
+            validator = DatabaseTypeValidator(temp_database_types_file)
+            info = validator.get_db_type_info("mariadb")
+    """
+
+    db_types = {
+        "database_types": {
+            "mariadb": {
+                "name": "MariaDB",
+                "description": "MariaDB database system",
+                "version_range": "5.5.0+",
+                "default_port": 3306,
+                "drivers": ["mariadb", "mysql"],
+                "supported_features": ["Transacciones ACID", "Triggers", "Procedimientos"],
+                "connection_params": {
+                    "required": ["host", "user", "password", "database"],
+                    "optional": ["port", "charset"],
+                },
+            },
+            "oracle": {
+                "name": "Oracle Database",
+                "description": "Oracle database system",
+                "version_range": "11g R2+",
+                "default_port": 1521,
+                "drivers": ["cx_Oracle", "oracledb"],
+                "supported_features": ["PL/SQL", "Transacciones ACID"],
+                "connection_params": {
+                    "required": ["host", "user", "password", "service_name"],
+                    "optional": ["port", "schema"],
+                },
+            },
+            "postgresql": {
+                "name": "PostgreSQL",
+                "description": "PostgreSQL database system",
+                "version_range": "10.0+",
+                "default_port": 5432,
+                "drivers": ["psycopg2", "psycopg"],
+                "supported_features": ["Transacciones ACID", "JSON support"],
+                "connection_params": {
+                    "required": ["host", "user", "password", "database"],
+                    "optional": ["port"],
+                },
+            },
+        }
+    }
+
+    file_path = tmp_path / "test_database_types.json"
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(db_types, f)
+
+    return file_path
+
+
+@pytest.fixture
+def mock_async_connection():
+    """Mock de una conexión async a base de datos (PR 0+).
+
+    Returns:
+        AsyncMock configurado como una conexión BD async
+
+    Ejemplo:
+        async def test_async_executor(mock_async_connection):
+            executor = AsyncQueryExecutor(async_provider, ...)
+            # usar mock_async_connection
+    """
+    from unittest.mock import AsyncMock
+
+    conn = AsyncMock()
+    cursor = AsyncMock()
+    cursor.fetchall = AsyncMock(return_value=[])
+    cursor.fetchone = AsyncMock(return_value=None)
+    cursor.execute = AsyncMock()
+    conn.cursor = AsyncMock(return_value=cursor)
+    conn.close = AsyncMock()
+    return conn

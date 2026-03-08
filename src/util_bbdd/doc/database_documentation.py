@@ -211,9 +211,7 @@ class DatabaseDocumentation:
             if not normalized_format:
                 continue
             if normalized_format not in supported_formats:
-                raise ValueError(
-                    f"Formato no soportado: {raw_format}. Use 'word', 'excel' o 'html'"
-                )
+                raise ValueError(f"Formato no soportado: {raw_format}. Use 'word', 'excel' o 'html'")
             if normalized_format in seen:
                 continue
             seen.add(normalized_format)
@@ -237,9 +235,7 @@ class DatabaseDocumentation:
     def _create_document_word(self) -> None:
         """Crea el documento Word usando el generador modular."""
         context_database: str = self._get_generator_database_context()
-        word_generator = WordGenerator(
-            database=context_database, headers=self.headers, table_style=self.table_style
-        )
+        word_generator = WordGenerator(database=context_database, headers=self.headers, table_style=self.table_style)
 
         output_dir: Path = self._get_format_output_dir("word")
         output_file: Path = (output_dir / self._get_output_base_filename()).with_suffix(".docx")
@@ -255,9 +251,7 @@ class DatabaseDocumentation:
     def _create_document_excel(self) -> None:
         """Crea el documento Excel usando el generador modular."""
         context_database: str = self._get_generator_database_context()
-        excel_generator = ExcelGenerator(
-            database=context_database, headers=self.headers, table_style=self.table_style
-        )
+        excel_generator = ExcelGenerator(database=context_database, headers=self.headers, table_style=self.table_style)
 
         output_dir: Path = self._get_format_output_dir("excel")
         output_file: Path = (output_dir / self._get_output_base_filename()).with_suffix(".xlsx")
@@ -288,18 +282,14 @@ class DatabaseDocumentation:
 
     def _get_execution_root_name(self) -> str:
         """Obtiene nombre de carpeta raíz por ejecución (igual al nombre histórico de carpeta HTML)."""
-        candidate: str = (
-            self.fichero_salida.stem if self.fichero_salida.suffix else str(self.fichero_salida)
-        )
+        candidate: str = self.fichero_salida.stem if self.fichero_salida.suffix else str(self.fichero_salida)
         safe_name: str = Path(candidate).name.strip()
         return safe_name or "documentacion"
 
     def _get_output_base_filename(self) -> str:
         """Obtiene nombre base de archivo para salidas Word/Excel."""
         base_name: str = (
-            Path(self.fichero_salida).stem
-            if self.fichero_salida.suffix
-            else Path(str(self.fichero_salida)).name
+            Path(self.fichero_salida).stem if self.fichero_salida.suffix else Path(str(self.fichero_salida)).name
         )
         normalized: str = str(base_name or "").strip()
         return normalized or "documentacion"
@@ -441,18 +431,14 @@ class DatabaseDocumentation:
             self.logger.error(f"❌ Error al obtener charset/collation de BD: {e}")
             return None
 
-    def get_columns_charset_collation(
-        self, tabla: str
-    ) -> list[tuple[str, str | None, str | None]] | None:
+    def get_columns_charset_collation(self, tabla: str) -> list[tuple[str, str | None, str | None]] | None:
         """Obtiene charset y collation de las columnas de una tabla (para compatibilidad con generadores)."""
         try:
             result = self.db_manager.get_columns_charset_collation(tabla)
             self.logger.debug(f"📋 Charset/Collation de columnas de {tabla} obtenido")
             return result
         except Exception as e:
-            self.logger.warning(
-                f"⚠️  Error al obtener charset/collation de columnas de {tabla}: {e}"
-            )
+            self.logger.warning(f"⚠️  Error al obtener charset/collation de columnas de {tabla}: {e}")
             return None
 
     def _resolve_storage_tablespace(self) -> str:
@@ -740,9 +726,7 @@ class DatabaseDocumentation:
     def _is_placeholder_storage_query(self, query_name: str, query_params: dict[str, Any]) -> bool:
         """Indica si la query de almacenamiento es un placeholder de no soporte."""
         try:
-            sql_text: str = str(
-                self.db_manager.db_queries.get_query(query_name, **query_params) or ""
-            )
+            sql_text: str = str(self.db_manager.db_queries.get_query(query_name, **query_params) or "")
         except Exception:
             return False
         normalized_sql: str = " ".join(sql_text.strip().lower().split())
@@ -765,14 +749,10 @@ class DatabaseDocumentation:
 
         sections: list[dict[str, Any]] = []
         for query_name, query_title in query_specs:
-            section: dict[str, Any] = self.__process_storage_query(
-                query_name, query_title, database_name, query_params
-            )
+            section: dict[str, Any] = self.__process_storage_query(query_name, query_title, database_name, query_params)
             sections.append(section)
 
-        total_rows: int = sum(
-            len(section.get("rows", [])) for section in sections if section.get("status") == "ok"
-        )
+        total_rows: int = sum(len(section.get("rows", [])) for section in sections if section.get("status") == "ok")
         return {
             "db_type": self.db_type,
             "database": self.database,
@@ -800,9 +780,7 @@ class DatabaseDocumentation:
 
         return self.__process_standard_storage_query(query_name, query_title, query_params)
 
-    def __process_oracle_storage_query(
-        self, query_name: str, query_title: str, database_name: str
-    ) -> dict[str, Any]:
+    def __process_oracle_storage_query(self, query_name: str, query_title: str, database_name: str) -> dict[str, Any]:
         """Procesa consulta de almacenamiento específica para Oracle.
 
         Args:
@@ -868,9 +846,7 @@ class DatabaseDocumentation:
             }
             try:
                 sql_text: str = db_queries.get_query(query_name, **local_params)
-                result_rows: Any = self.db_manager.execute_query(
-                    query_name, fetch_one=False, **local_params
-                )
+                result_rows: Any = self.db_manager.execute_query(query_name, fetch_one=False, **local_params)
                 rows: list[list[Any]] = self._normalize_storage_rows(result_rows)
                 collected_rows.extend(rows)
                 collected_sql.append(sql_text)
@@ -965,29 +941,28 @@ class DatabaseDocumentation:
             Sección de resultado.
         """
         db_queries = self.db_manager.db_queries
-        analysis: dict[str, Any] = db_queries.analyze_query_parameters(query_name, query_params)
 
-        if not bool(analysis.get("supported")):
-            return self.__build_section_not_supported(query_name, query_title)
-
-        missing_required: list[str] = list(analysis.get("missing_required") or [])
-        provided_empty: list[str] = list(analysis.get("provided_empty") or [])
-        missing_params: list[str] = sorted(set(missing_required + provided_empty))
-        if missing_params:
+        # Validar parámetros usando QueryResolver
+        try:
+            db_queries.resolver.resolve(query_name, db_queries.db_type, query_params)
+        except ValueError as e:
+            # Si falla la validación, retornar sección de parámetros faltantes
+            error_msg: str = str(e)
             return self.__build_section_missing_params(
                 query_name,
                 query_title,
-                f"Parámetros requeridos no informados: {', '.join(missing_params)}",
+                f"Parámetros inválidos: {error_msg}",
             )
+        except Exception:
+            # Si no es ValueError, puede ser que la consulta no existe
+            return self.__build_section_not_supported(query_name, query_title)
 
         if self._is_placeholder_storage_query(query_name=query_name, query_params=query_params):
             return self.__build_section_not_supported(query_name, query_title)
 
         try:
             sql_text: str = db_queries.get_query(query_name, **query_params)
-            result_rows: Any = self.db_manager.execute_query(
-                query_name, fetch_one=False, **query_params
-            )
+            result_rows: Any = self.db_manager.execute_query(query_name, fetch_one=False, **query_params)
             rows: list[list[Any]] = self._normalize_storage_rows(result_rows)
             headers: list[str] = self._build_storage_headers(query_name=query_name, rows=rows)
             rows = self._format_storage_rows(headers=headers, rows=rows)
@@ -1025,9 +1000,7 @@ class DatabaseDocumentation:
             "numeric_columns": [],
         }
 
-    def __build_section_missing_params(
-        self, query_name: str, query_title: str, message: str
-    ) -> dict[str, Any]:
+    def __build_section_missing_params(self, query_name: str, query_title: str, message: str) -> dict[str, Any]:
         """Construye sección de resultado para parámetros faltantes.
 
         Args:
@@ -1049,9 +1022,7 @@ class DatabaseDocumentation:
             "numeric_columns": [],
         }
 
-    def __build_section_error(
-        self, query_name: str, query_title: str, error_msg: str
-    ) -> dict[str, Any]:
+    def __build_section_error(self, query_name: str, query_title: str, error_msg: str) -> dict[str, Any]:
         """Construye sección de resultado para errores.
 
         Args:
@@ -1076,6 +1047,4 @@ class DatabaseDocumentation:
     _SIZE_HEADER_HINTS: tuple[str, ...] = ("mb", "tamano", "tamaño", "size")
     _AUTO_OUTPUT_BATCH_WINDOW_SECONDS: int = 90
     _LAST_AUTO_OUTPUT_BY_KEY: dict[tuple[str, str], tuple[float, str]] = {}
-    _ORACLE_USER_TABLESPACES_QUERY: str = (
-        "SELECT default_tablespace, temporary_tablespace FROM user_users"
-    )
+    _ORACLE_USER_TABLESPACES_QUERY: str = "SELECT default_tablespace, temporary_tablespace FROM user_users"

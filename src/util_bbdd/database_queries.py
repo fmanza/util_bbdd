@@ -1,9 +1,9 @@
 """
-Módulo unificado para manejo de consultas de base de datos
-Integra funcionalidad de:
-- database_queries.py (base)
-- database_queries_simplified.py (simplificado)
-- advanced_database_queries.py (avanzado)
+Módulo unificado para manejo de consultas de base de datos - Version refactorizada PR 5
+Delegación de responsabilidades:
+- QueryRegistry: Carga de queries desde SQL
+- QueryResolver: Validación y resolución de queries
+- DatabaseTypeValidator: Validación especializada por motor
 
 Soporta MariaDB, Oracle, PostgreSQL, HSQLDB, SQL Server y SQLite
 """
@@ -17,15 +17,11 @@ from pathlib import Path
 from typing import Any
 
 from .database_type_validator import DatabaseTypeValidator
+from .query_registry import QueryRegistry
+from .query_resolver import QueryResolver
 
 # Patrón regex para encontrar parámetros en plantillas de consultas
 PARAMETER_PATTERN = r"\{(\w+)\}"
-
-
-class DatabaseQueryError(Exception):
-    """Excepción personalizada para errores en consultas de base de datos"""
-
-    pass
 
 
 class DatabaseQueries:
@@ -39,34 +35,16 @@ class DatabaseQueries:
     """
 
     # Error message constants
-    ERROR_OBTENER_TABLAS_REQUIRES_DATABASE = (
-        "La consulta 'obtener_tablas' requiere el parámetro 'database'"
-    )
-    ERROR_COLUMNAS_TABLA_REQUIRES_DATABASE = (
-        "La consulta 'columnas_tabla' requiere el parámetro 'database'"
-    )
-    ERROR_COLUMNAS_TABLA_REQUIRES_TABLA = (
-        "La consulta 'columnas_tabla' requiere el parámetro 'tabla'"
-    )
+    ERROR_OBTENER_TABLAS_REQUIRES_DATABASE = "La consulta 'obtener_tablas' requiere el parámetro 'database'"
+    ERROR_COLUMNAS_TABLA_REQUIRES_DATABASE = "La consulta 'columnas_tabla' requiere el parámetro 'database'"
+    ERROR_COLUMNAS_TABLA_REQUIRES_TABLA = "La consulta 'columnas_tabla' requiere el parámetro 'tabla'"
     ERROR_CREATE_TABLE_REQUIRES_TABLA = "La consulta 'create_table' requiere el parámetro 'tabla'"
-    ERROR_OBTENER_RUTINAS_REQUIRES_DATABASE = (
-        "La consulta 'obtener_rutinas' requiere el parámetro 'database'"
-    )
-    ERROR_PARAMETROS_RUTINA_REQUIRES_DATABASE = (
-        "La consulta 'parametros_rutina' requiere el parámetro 'database'"
-    )
-    ERROR_PARAMETROS_RUTINA_REQUIRES_RUTINA = (
-        "La consulta 'parametros_rutina' requiere el parámetro 'rutina'"
-    )
-    ERROR_PARAMETROS_RUTINA_REQUIRES_TIPO = (
-        "La consulta 'parametros_rutina' requiere el parámetro 'tipo_rutina'"
-    )
-    ERROR_CREATE_RUTINA_REQUIRES_RUTINA = (
-        "La consulta 'create_rutina' requiere el parámetro 'rutina'"
-    )
-    ERROR_CREATE_RUTINA_REQUIRES_TIPO = (
-        "La consulta 'create_rutina' requiere el parámetro 'tipo_rutina'"
-    )
+    ERROR_OBTENER_RUTINAS_REQUIRES_DATABASE = "La consulta 'obtener_rutinas' requiere el parámetro 'database'"
+    ERROR_PARAMETROS_RUTINA_REQUIRES_DATABASE = "La consulta 'parametros_rutina' requiere el parámetro 'database'"
+    ERROR_PARAMETROS_RUTINA_REQUIRES_RUTINA = "La consulta 'parametros_rutina' requiere el parámetro 'rutina'"
+    ERROR_PARAMETROS_RUTINA_REQUIRES_TIPO = "La consulta 'parametros_rutina' requiere el parámetro 'tipo_rutina'"
+    ERROR_CREATE_RUTINA_REQUIRES_RUTINA = "La consulta 'create_rutina' requiere el parámetro 'rutina'"
+    ERROR_CREATE_RUTINA_REQUIRES_TIPO = "La consulta 'create_rutina' requiere el parámetro 'tipo_rutina'"
     ERROR_TABLE_NAME_EMPTY = "El nombre de la tabla no puede estar vacío"
     ERROR_TABLA_PARAMETER_REQUIRED = "El parámetro 'tabla' es requerido"
 
@@ -106,16 +84,22 @@ class DatabaseQueries:
             "sqlite",
         ]
         if db_type.lower() not in supported_types:
-            raise ValueError(
-                f"Tipo de base de datos no soportado. Use: {', '.join(supported_types)}"
-            )
+            raise ValueError(f"Tipo de base de datos no soportado. Use: {', '.join(supported_types)}")
 
         self.db_type: str = db_type.lower()
         self.logger.debug(f"✅ Inicializando DatabaseQueries para {self.db_type}")
 
-        # Cargar consultas SQL
-        default_queries_path: Path = Path(__file__).parent / "data" / "sql_queries.json"
-        self.queries: dict[Any, Any] = self._load_queries(queries_file or default_queries_path)
+        # PR 5: Delegar carga de queries a QueryRegistry
+        self.registry: QueryRegistry = QueryRegistry(queries_file)
+        self.logger.debug("✅ QueryRegistry inicializado")
+
+        # PR 5: Delegar resolución de queries a QueryResolver
+        self.resolver: QueryResolver = QueryResolver(self.registry)
+        self.logger.debug("✅ QueryResolver inicializado")
+
+        # Mantener queries accesible para backward compatibility
+        # (algunos métodos aún los utilizan)
+        self.queries: dict[Any, Any] = self.registry.queries
         self.logger.debug(f"✅ {len(self.queries.get(self.db_type, {}))} consultas cargadas")
 
         # Inicializar validador de tipos de BD para obtener metadatos
@@ -126,31 +110,8 @@ class DatabaseQueries:
         self.db_metadata: dict[str, Any] = self.db_validator.get_db_type_info(db_type)
         self.config_examples: dict[str, Any] = self.db_validator.get_db_type_examples(db_type)
 
-    def _load_queries(self, queries_file: Path) -> dict:
-        """
-        Carga las consultas SQL desde el fichero JSON
-
-        Args:
-            queries_file: Ruta al archivo JSON con las consultas
-
-        Returns:
-            Diccionario con las consultas SQL
-
-        Raises:
-            FileNotFoundError: Si no se encuentra el archivo de consultas
-            ValueError: Si hay un error al leer el JSON
-        """
-        try:
-            with open(queries_file, encoding="utf-8") as f:
-                queries = json.load(f)
-            self.logger.debug(f"✅ Consultas cargadas desde {queries_file}")
-            return queries
-        except FileNotFoundError as e:
-            self.logger.error(f"❌ Fichero de consultas no encontrado: {queries_file}")
-            raise FileNotFoundError(f"Fichero de consultas no encontrado: {queries_file}") from e
-        except json.JSONDecodeError as e:
-            self.logger.error(f"❌ Error al leer fichero JSON: {e}")
-            raise ValueError(f"Error al leer fichero JSON: {e}") from e
+    # PR 5: _load_queries now delegated to QueryRegistry
+    # This method is kept for backward compatibility but should not be called directly
 
     # ==================== MÉTODOS DE CONSULTA BÁSICOS ====================
 
@@ -158,22 +119,33 @@ class DatabaseQueries:
         """
         Obtiene una consulta SQL formateada con los parámetros proporcionados
 
+        PR 5: Now delegates to QueryResolver for validation and parameter interpolation
+        Para backward compatibility: si no hay kwargs, devuelve el template directo
+
         Args:
             query_name: Nombre de la consulta a obtener
             **kwargs: Parámetros para formatear la consulta
 
         Returns:
-            Consulta SQL formateada
+            Consulta SQL formateada o template si no hay parámetros
 
         Raises:
-            KeyError: Si no existe la consulta especificada
+            QueryNotFoundError: Si no existe la consulta especificada
+            QueryValidationError: Si los parámetros no son válidos
         """
         try:
-            query = self.queries[self.db_type][query_name]
-            return query.format(**kwargs) if kwargs else query
-        except KeyError as e:
-            self.logger.error(f"❌ Consulta no encontrada: {query_name} para tipo {self.db_type}")
-            raise KeyError(f"Consulta no encontrada: {query_name} para tipo {self.db_type}") from e
+            # PR 5: For backward compatibility, allow getting template without params
+            if not kwargs:
+                # Get template directly from registry without validation
+                qdef = self.registry.get_query_definition(self.db_type, query_name)
+                return qdef.sql_template
+
+            # PR 5: With params, delegate to resolver for validation and interpolation
+            resolved = self.resolver.resolve(query_name, self.db_type, kwargs)
+            return resolved.final_sql
+        except Exception as e:
+            self.logger.error(f"❌ Error obteniendo query '{query_name}': {e}")
+            raise
 
     # ==================== MÉTODOS DE CONVENIENCIA ====================
 
@@ -198,9 +170,7 @@ class DatabaseQueries:
         """Obtiene la consulta para listar routines (procedures/funciones)."""
         return self.get_query("obtener_rutinas", database=database)
 
-    def get_routine_parameters_query(
-        self, database: str, routine_name: str, routine_type: str
-    ) -> str:
+    def get_routine_parameters_query(self, database: str, routine_name: str, routine_type: str) -> str:
         """Obtiene la consulta para listar parámetros de una rutina."""
         return self.get_query(
             "parametros_rutina",
@@ -209,18 +179,12 @@ class DatabaseQueries:
             tipo_rutina=routine_type.upper(),
         )
 
-    def get_routine_ddl_query(
-        self, routine_name: str, routine_type: str, schema: str | None = None
-    ) -> str:
+    def get_routine_ddl_query(self, routine_name: str, routine_type: str, schema: str | None = None) -> str:
         """Obtiene la consulta para recuperar el DDL de una rutina."""
         if self.db_type == "mariadb":
-            return self.get_query(
-                "create_rutina", rutina=routine_name, tipo_rutina=routine_type.upper()
-            )
+            return self.get_query("create_rutina", rutina=routine_name, tipo_rutina=routine_type.upper())
 
-        return self.get_query(
-            "create_rutina", rutina=routine_name, tipo_rutina=routine_type.upper(), esquema=schema
-        )
+        return self.get_query("create_rutina", rutina=routine_name, tipo_rutina=routine_type.upper(), esquema=schema)
 
     def get_indices_query(self, table: str, schema: str | None = None) -> str:
         """Obtiene la consulta para listar índices de una tabla"""
@@ -300,80 +264,6 @@ class DatabaseQueries:
         """Obtiene los nombres de las consultas disponibles"""
         return list(self.queries.get(self.db_type, {}).keys())
 
-    def validate_query_parameters(self, query_name: str, **kwargs) -> bool:
-        """
-        Valida si los parámetros proporcionados son suficientes para formatear una consulta
-
-        Args:
-            query_name: Nombre de la consulta a validar
-            **kwargs: Parámetros a validar
-
-        Returns:
-            True si los parámetros son suficientes, False en caso contrario
-        """
-        try:
-            analysis: dict[str, Any] = self.analyze_query_parameters(query_name, kwargs)
-            return (
-                bool(analysis.get("supported"))
-                and not analysis.get("missing_required")
-                and not analysis.get("provided_empty")
-            )
-        except (ValueError, KeyError):
-            return False
-        except Exception as e:
-            self.logger.error(f"❌ Error validando parámetros para consulta '{query_name}': {e}")
-            return False
-
-    def analyze_query_parameters(
-        self, query_name: str, params: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
-        """Analiza parámetros de una query para distinguir soporte/faltantes/vacíos.
-
-        Returns:
-            Diccionario con:
-            - supported (bool): si la consulta existe para el motor actual.
-            - required_parameters (list[str]): placeholders requeridos por plantilla.
-            - missing_required (list[str]): requeridos ausentes en `params`.
-            - provided_empty (list[str]): presentes pero con valor vacío (None o str vacío).
-        """
-        provided_params: dict[str, Any] = dict(params or {})
-        engine_queries: dict[str, str] = self.queries.get(self.db_type, {})
-
-        if query_name not in engine_queries:
-            return {
-                "supported": False,
-                "required_parameters": [],
-                "missing_required": [],
-                "provided_empty": [],
-            }
-
-        query_template: str = engine_queries[query_name]
-        required_parameters: list[str] = sorted(set(re.findall(PARAMETER_PATTERN, query_template)))
-
-        missing_required: list[str] = [
-            param for param in required_parameters if param not in provided_params
-        ]
-
-        def _is_empty(value: Any) -> bool:
-            if value is None:
-                return True
-            if isinstance(value, str):
-                return value.strip() == ""
-            return False
-
-        provided_empty: list[str] = [
-            param
-            for param in required_parameters
-            if param in provided_params and _is_empty(provided_params[param])
-        ]
-
-        return {
-            "supported": True,
-            "required_parameters": required_parameters,
-            "missing_required": missing_required,
-            "provided_empty": provided_empty,
-        }
-
     def get_query_info(self) -> dict[str, Any]:
         """
         Obtiene información sobre las consultas disponibles
@@ -414,9 +304,11 @@ class DatabaseQueries:
         """
         errors = []
 
-        # Validar que la consulta exista
-        if not self.validate_query_parameters(query_name, **kwargs):
-            errors.append(f"Parámetros inválidos o faltantes para la consulta '{query_name}'")
+        # Validar que la consulta exista y parámetros sean válidos (usando QueryResolver)
+        try:
+            self.resolver.resolve(query_name, self.db_type, kwargs)
+        except Exception as e:
+            errors.append(f"Parámetros inválidos o faltantes para la consulta '{query_name}': {str(e)}")
             return False, errors
 
         # Validaciones específicas por tipo de BD
@@ -463,9 +355,7 @@ class DatabaseQueries:
         if len(table_name) > 128:
             errors.append("SQL Server no permite nombres de tabla con más de 128 caracteres")
         if not re.match(r"^[\w\-]+$", table_name):
-            errors.append(
-                "El nombre de la tabla solo puede contener letras, números, guiones y guiones bajos"
-            )
+            errors.append("El nombre de la tabla solo puede contener letras, números, guiones y guiones bajos")
         return errors
 
     def _validate_sqlserver_database_parameter(self, **kwargs) -> list[str]:
@@ -478,9 +368,7 @@ class DatabaseQueries:
         if not isinstance(database, str) or not database.strip():
             errors.append(self.ERROR_DATABASE_NAME_EMPTY)
         if len(database) > 128:
-            errors.append(
-                "SQL Server no permite nombres de base de datos con más de 128 caracteres"
-            )
+            errors.append("SQL Server no permite nombres de base de datos con más de 128 caracteres")
         return errors
 
     def _validate_postgresql_query(self, query_name: str, **kwargs) -> list[str]:
@@ -568,9 +456,7 @@ class DatabaseQueries:
         if len(table_name) > 30:
             errors.append("Oracle no permite nombres de tabla con más de 30 caracteres")
         if not table_name.replace("_", "").replace("$", "#").isalnum():
-            errors.append(
-                "El nombre de la tabla solo puede contener letras, números, guiones bajos y $"
-            )
+            errors.append("El nombre de la tabla solo puede contener letras, números, guiones bajos y $")
         return errors
 
     def _validate_oracle_database_parameter(self, **kwargs) -> list[str]:
@@ -614,9 +500,7 @@ class DatabaseQueries:
         if len(table_name) > 64:
             errors.append("MariaDB no permite nombres de tabla con más de 64 caracteres")
         if not table_name.replace("_", "").replace("$", "").isalnum():
-            errors.append(
-                "El nombre de la tabla solo puede contener letras, números, guiones bajos y $"
-            )
+            errors.append("El nombre de la tabla solo puede contener letras, números, guiones bajos y $")
         return errors
 
     def _validate_mariadb_database_parameter(self, **kwargs) -> list[str]:
@@ -925,9 +809,7 @@ class DatabaseQueryExecutor:
         self.queries: DatabaseQueries = queries
         self.logger: logging.Logger = logging.getLogger(__name__)
         self._connection_provider: Callable[[], Any] | None = connection_provider
-        self._connection_releaser: Callable[[Any], None] = connection_releaser or (
-            lambda _conn: None
-        )
+        self._connection_releaser: Callable[[Any], None] = connection_releaser or (lambda _conn: None)
 
     def _acquire_execution_resources(self) -> tuple[Any, Any, bool]:
         """Obtiene conexión/cursor para ejecutar una operación.
@@ -943,9 +825,7 @@ class DatabaseQueryExecutor:
         cursor: Any = connection.cursor()
         return connection, cursor, True
 
-    def _release_execution_resources(
-        self, connection: Any, cursor: Any, managed_resources: bool
-    ) -> None:
+    def _release_execution_resources(self, connection: Any, cursor: Any, managed_resources: bool) -> None:
         """Libera recursos adquiridos para una operación."""
         if not managed_resources:
             return
@@ -979,9 +859,7 @@ class DatabaseQueryExecutor:
         if isinstance(value, tuple):
             container_id: int = id(value)
             if container_id in visited:
-                self.logger.debug(
-                    "⚠️ Ciclo detectado materializando tuple; se devuelve valor original"
-                )
+                self.logger.debug("⚠️ Ciclo detectado materializando tuple; se devuelve valor original")
                 return value
             visited.add(container_id)
             return tuple(self._materialize_value(item, visited) for item in value)
@@ -989,9 +867,7 @@ class DatabaseQueryExecutor:
         if isinstance(value, list):
             container_id = id(value)
             if container_id in visited:
-                self.logger.debug(
-                    "⚠️ Ciclo detectado materializando list; se devuelve valor original"
-                )
+                self.logger.debug("⚠️ Ciclo detectado materializando list; se devuelve valor original")
                 return value
             visited.add(container_id)
             return [self._materialize_value(item, visited) for item in value]
@@ -999,9 +875,7 @@ class DatabaseQueryExecutor:
         if isinstance(value, dict):
             container_id = id(value)
             if container_id in visited:
-                self.logger.debug(
-                    "⚠️ Ciclo detectado materializando dict; se devuelve valor original"
-                )
+                self.logger.debug("⚠️ Ciclo detectado materializando dict; se devuelve valor original")
                 return value
             visited.add(container_id)
             return {key: self._materialize_value(item, visited) for key, item in value.items()}
@@ -1027,9 +901,7 @@ class DatabaseQueryExecutor:
             self.logger.error(f"❌ {error_msg}")
             raise ValueError(error_msg)
 
-    def _validate_query_parameters_and_build_error(
-        self, query_name: str, kwargs: dict[str, Any]
-    ) -> None:
+    def _validate_query_parameters_and_build_error(self, query_name: str, kwargs: dict[str, Any]) -> None:
         """Valida parámetros de consulta y genera errores descriptivos.
 
         Args:
@@ -1039,23 +911,12 @@ class DatabaseQueryExecutor:
         Raises:
             ValueError: Si los parámetros son inválidos
         """
-        analysis: dict[str, Any] = self.queries.analyze_query_parameters(query_name, kwargs)
-        if (
-            (not analysis.get("supported"))
-            or analysis.get("missing_required")
-            or analysis.get("provided_empty")
-        ):
-            missing_params: list[str] = list(analysis.get("missing_required", []))
-            empty_params: list[str] = list(analysis.get("provided_empty", []))
-            parts: list[str] = []
-            if missing_params:
-                parts.append(f"faltantes={missing_params}")
-            if empty_params:
-                parts.append(f"vacíos={empty_params}")
-            details: str = ", ".join(parts) if parts else "parámetros inválidos"
-            error_msg: str = f"Parámetros inválidos para la consulta '{query_name}': {details}"
+        try:
+            self.queries.resolver.resolve(query_name, self.queries.db_type, kwargs)
+        except Exception as e:
+            error_msg: str = f"Parámetros inválidos para la consulta '{query_name}': {str(e)}"
             self.logger.error(f"❌ {error_msg}")
-            raise ValueError(error_msg)
+            raise ValueError(error_msg) from e
 
     def execute_query(self, query_name: str, fetch_one: bool = False, **kwargs) -> Any:
         """
@@ -1071,7 +932,7 @@ class DatabaseQueryExecutor:
 
         Raises:
             ValueError: Si los parámetros son inválidos
-            DatabaseQueryError: Si hay un error en la ejecución
+            DatabaseOperationError: Si hay un error en la ejecución
         """
         connection: Any = None
         cursor: Any = None
@@ -1092,19 +953,54 @@ class DatabaseQueryExecutor:
 
             query: str = self.queries.get_query(query_name, **kwargs)
             self.logger.debug(f"📝 Ejecutando consulta: {query_name}")
-            cursor.execute(query)
+
+            # NUEVO: Extraer parámetros con nombre de la query para cursor.execute()
+            # Detectar parámetros con formato :param_name en la query
+            import re
+
+            named_params_pattern = r":(\w+)"
+            named_param_names = set(re.findall(named_params_pattern, query))
+
+            # Si hay parámetros nombrados, filtrar kwargs para solo pasar los que están en la query
+            execute_params = {}
+            if named_param_names:
+                execute_params = {k: v for k, v in kwargs.items() if k in named_param_names}
+                self.logger.debug(f"📝 Parámetros de ejecución: {execute_params}")
+                if execute_params:
+                    cursor.execute(query, execute_params)
+                else:
+                    cursor.execute(query)
+            else:
+                cursor.execute(query)
+
             result = cursor.fetchone() if fetch_one else cursor.fetchall()
             result = self._materialize_result(result)
             self.logger.debug(f"✅ Consulta '{query_name}' ejecutada exitosamente")
             return result
-        except DatabaseQueryError:
-            raise
         except (ValueError, KeyError):
             raise
         except Exception as e:
+            if (
+                query_name == "columnas_tabla"
+                and self.queries.db_type == "mariadb"
+                and self._should_retry_mariadb_columns_with_hex(e)
+            ):
+                self.logger.warning(
+                    "⚠️ Error de decodificación detectado en execute_query(columnas_tabla). "
+                    "Se aplica fallback HEX para MariaDB."
+                )
+                database_name: str = str(kwargs.get("database", "") or "").strip()
+                table_name: str = str(kwargs.get("tabla", "") or "").strip()
+                return self._get_mariadb_columns_with_hex_fallback(
+                    database=database_name,
+                    table=table_name,
+                )
+
             error_msg = f"Error al ejecutar consulta '{query_name}': {e}"
             self.logger.error(f"❌ {error_msg}")
-            raise DatabaseQueryError(error_msg) from e
+            from .database_exceptions import DatabaseOperationError
+
+            raise DatabaseOperationError(error_msg, operation="SELECT", db_type=self.queries.db_type) from e
         finally:
             self._release_execution_resources(connection, cursor, managed_resources)
 
@@ -1143,15 +1039,12 @@ class DatabaseQueryExecutor:
     def _execute_mariadb_additional_storage_query(self, database: str) -> list:
         """Ejecuta consulta adaptativa de ficheros físicos adicionales para MariaDB."""
         if not database:
-            raise ValueError(
-                "La consulta 'ficheros_fisicos_adicional' requiere el parámetro 'database'"
-            )
+            raise ValueError("La consulta 'ficheros_fisicos_adicional' requiere el parámetro 'database'")
 
         tablespaces_table: str = "INNODB_SYS_TABLESPACES"
         if not self._mariadb_information_schema_has_table(tablespaces_table):
             self.logger.warning(
-                "⚠️ INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES no disponible en MariaDB. "
-                "Se omite inventario adicional."
+                "⚠️ INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES no disponible en MariaDB. Se omite inventario adicional."
             )
             return []
 
@@ -1167,9 +1060,7 @@ class DatabaseQueryExecutor:
             and self._mariadb_information_schema_has_column(tablespaces_table, "SPACE")
         ):
             file_name_expr = "d.PATH"
-            join_clause = (
-                " LEFT JOIN information_schema.INNODB_SYS_DATAFILES d ON d.SPACE = t.SPACE "
-            )
+            join_clause = " LEFT JOIN information_schema.INNODB_SYS_DATAFILES d ON d.SPACE = t.SPACE "
 
         file_size_expr: str = (
             "t.FILE_SIZE/1024/1024"
@@ -1196,11 +1087,6 @@ class DatabaseQueryExecutor:
         self.logger.debug("📝 Ejecutando consulta adaptativa: ficheros_fisicos_adicional")
         result: Any = self.execute_custom_query(query, fetch_one=False)
         return list(result or [])
-
-    def _get_missing_parameters(self, query_name: str, **kwargs) -> list[str]:
-        """Obtiene los parámetros faltantes para una consulta"""
-        analysis: dict[str, Any] = self.queries.analyze_query_parameters(query_name, kwargs)
-        return list(analysis.get("missing_required", []))
 
     # ==================== MÉTODOS DE CONVENIENCIA ====================
 
@@ -1298,9 +1184,7 @@ class DatabaseQueryExecutor:
     def _contains_create(self, text: str) -> bool:
         return "CREATE " in text.upper()
 
-    def _add_metadata_context_params(
-        self, params: dict[str, str], context: str | None
-    ) -> dict[str, str]:
+    def _add_metadata_context_params(self, params: dict[str, str], context: str | None) -> dict[str, str]:
         """Agrega parámetros de contexto (`database`/`esquema`) según motor."""
         if not context or self.queries.db_type == "mariadb":
             return params
@@ -1322,7 +1206,7 @@ class DatabaseQueryExecutor:
         try:
             ddl_raw: Any = self.execute_query("create_table", fetch_one=True, **params)
             return self._normalize_ddl_result(ddl_raw)
-        except DatabaseQueryError as error:
+        except Exception as error:
             if not self._should_retry_mariadb_ddl_with_hex(error):
                 raise
             self.logger.warning(
@@ -1344,16 +1228,14 @@ class DatabaseQueryExecutor:
         try:
             ddl_raw: Any = self.execute_query(query_name, fetch_one=True, **params)
             return self._normalize_ddl_result(ddl_raw)
-        except DatabaseQueryError as error:
+        except Exception as error:
             if not self._should_retry_mariadb_ddl_with_hex(error):
                 raise
             self.logger.warning(
                 "⚠️ Error de decodificación detectado en create_view (MariaDB). "
                 "Se aplica fallback HEX desde INFORMATION_SCHEMA.VIEWS."
             )
-            fallback_ddl: str = self._get_mariadb_view_ddl_with_hex_fallback(
-                view=view, schema=schema
-            )
+            fallback_ddl: str = self._get_mariadb_view_ddl_with_hex_fallback(view=view, schema=schema)
             if fallback_ddl:
                 return fallback_ddl
             raise
@@ -1529,9 +1411,7 @@ class DatabaseQueryExecutor:
         }
         return self.execute_query("parametros_rutina", fetch_one=False, **params)
 
-    def _get_mariadb_routine_parameters(
-        self, database: str, routine_name: str, routine_type: str
-    ) -> list:
+    def _get_mariadb_routine_parameters(self, database: str, routine_name: str, routine_type: str) -> list:
         """Obtiene parámetros de rutina para MariaDB con estrategia adaptativa por columnas disponibles."""
         include_parameter_default: bool = self._mariadb_parameters_has_column("PARAMETER_DEFAULT")
 
@@ -1600,8 +1480,7 @@ class DatabaseQueryExecutor:
             return self.execute_custom_query(query, fetch_one=False)
         except Exception as error:
             self.logger.warning(
-                "⚠️ Error consultando parámetros de rutina MariaDB "
-                f"por {name_field} para {routine_name}: {error}"
+                f"⚠️ Error consultando parámetros de rutina MariaDB por {name_field} para {routine_name}: {error}"
             )
             return []
 
@@ -1631,9 +1510,7 @@ class DatabaseQueryExecutor:
         """Escapa comillas simples para interpolación segura en literales SQL."""
         return str(value).replace("'", "''")
 
-    def get_routine_ddl(
-        self, routine_name: str, routine_type: str, schema: str | None = None
-    ) -> str:
+    def get_routine_ddl(self, routine_name: str, routine_type: str, schema: str | None = None) -> str:
         """Obtiene el DDL de una rutina (procedure/función)."""
         if self.queries.db_type == "oracle" and "." in str(routine_name):
             return self._get_oracle_packaged_routine_ddl(routine_name=routine_name, schema=schema)
@@ -1647,7 +1524,7 @@ class DatabaseQueryExecutor:
         try:
             ddl_raw: Any = self.execute_query("create_rutina", fetch_one=True, **params)
             return self._normalize_ddl_result(ddl_raw)
-        except DatabaseQueryError as error:
+        except Exception as error:
             if not self._should_retry_mariadb_routine_ddl_with_hex(error):
                 raise
             self.logger.warning(
@@ -1689,9 +1566,7 @@ class DatabaseQueryExecutor:
     ) -> str:
         """Obtiene DDL de rutina en MariaDB con consulta HEX para evitar errores de decode."""
         escaped_routine_name: str = self._escape_sql_literal(routine_name)
-        escaped_routine_type: str = self._escape_sql_literal(
-            str(routine_type or "").upper().strip() or "PROCEDURE"
-        )
+        escaped_routine_type: str = self._escape_sql_literal(str(routine_type or "").upper().strip() or "PROCEDURE")
         escaped_schema: str = self._escape_sql_literal(str(schema or "").strip())
 
         schema_filter: str = (
@@ -1723,9 +1598,7 @@ class DatabaseQueryExecutor:
         signature: str = f"CREATE {normalized_type} `{routine_name}`"
         return f"{signature}\n{ddl_body}"
 
-    def _parse_oracle_routine_identifier(
-        self, routine_name: str
-    ) -> tuple[str | None, str, str | None]:
+    def _parse_oracle_routine_identifier(self, routine_name: str) -> tuple[str | None, str, str | None]:
         """Parsea identificador de rutina Oracle en formato PACKAGE.RUTINA#OVERLOAD."""
         raw_value: str = str(routine_name or "").strip()
         overload: str | None = None
@@ -1758,9 +1631,7 @@ class DatabaseQueryExecutor:
         else:
             package_filter = "AND a.package_name IS NULL "
 
-        overload_filter: str = (
-            f"AND NVL(a.overload, '0') = NVL('{escaped_overload}', '0') " if overload else ""
-        )
+        overload_filter: str = f"AND NVL(a.overload, '0') = NVL('{escaped_overload}', '0') " if overload else ""
 
         query: str = (
             "SELECT "
@@ -1799,14 +1670,8 @@ class DatabaseQueryExecutor:
         ddl_parts: list[str] = []
 
         queries: list[str] = [
-            (
-                "SELECT DBMS_METADATA.GET_DDL('PACKAGE', "
-                f"'{escaped_package}', '{escaped_schema}') AS ddl FROM DUAL"
-            ),
-            (
-                "SELECT DBMS_METADATA.GET_DDL('PACKAGE_BODY', "
-                f"'{escaped_package}', '{escaped_schema}') AS ddl FROM DUAL"
-            ),
+            (f"SELECT DBMS_METADATA.GET_DDL('PACKAGE', '{escaped_package}', '{escaped_schema}') AS ddl FROM DUAL"),
+            (f"SELECT DBMS_METADATA.GET_DDL('PACKAGE_BODY', '{escaped_package}', '{escaped_schema}') AS ddl FROM DUAL"),
         ]
 
         for query in queries:
@@ -1825,10 +1690,8 @@ class DatabaseQueryExecutor:
     def get_columns(self, database: str, table: str) -> list:
         """Obtiene las columnas de una tabla"""
         try:
-            return self.execute_query(
-                "columnas_tabla", fetch_one=False, database=database, tabla=table
-            )
-        except DatabaseQueryError as error:
+            return self.execute_query("columnas_tabla", fetch_one=False, database=database, tabla=table)
+        except Exception as error:
             if not self._should_retry_mariadb_columns_with_hex(error):
                 raise
             self.logger.warning(
@@ -1941,9 +1804,7 @@ class DatabaseQueryExecutor:
         params = self._add_metadata_context_params(params, schema)
         return self.execute_query("claves_unicas", fetch_one=False, **params)
 
-    def get_storage_inventory(
-        self, database: str | None = None, tablespace: str | None = None
-    ) -> dict[str, Any]:
+    def get_storage_inventory(self, database: str | None = None, tablespace: str | None = None) -> dict[str, Any]:
         """Obtiene inventario de ficheros/tablespaces por motor.
 
         Returns:
@@ -1960,28 +1821,20 @@ class DatabaseQueryExecutor:
         if self.queries.db_type == "oracle":
             if not tablespace:
                 raise ValueError("Para Oracle debe proporcionar 'tablespace'")
-            results["primary"] = self.execute_query(
-                "ficheros_fisicos", fetch_one=False, tablespace=tablespace
-            )
+            results["primary"] = self.execute_query("ficheros_fisicos", fetch_one=False, tablespace=tablespace)
             return results
 
         if self.queries.db_type == "mariadb":
             if not database:
                 raise ValueError("Para MariaDB debe proporcionar 'database'")
-            results["primary"] = self.execute_query(
-                "ficheros_fisicos", fetch_one=False, database=database
-            )
-            results["secondary"] = self.execute_query(
-                "ficheros_fisicos_adicional", fetch_one=False, database=database
-            )
+            results["primary"] = self.execute_query("ficheros_fisicos", fetch_one=False, database=database)
+            results["secondary"] = self.execute_query("ficheros_fisicos_adicional", fetch_one=False, database=database)
             return results
 
         if self.queries.db_type == "postgresql":
             if not tablespace:
                 raise ValueError("Para PostgreSQL debe proporcionar 'tablespace'")
-            results["primary"] = self.execute_query(
-                "ficheros_fisicos", fetch_one=False, tablespace=tablespace
-            )
+            results["primary"] = self.execute_query("ficheros_fisicos", fetch_one=False, tablespace=tablespace)
             results["secondary"] = self.execute_query("temp_tablespaces", fetch_one=False)
             return results
 
@@ -1998,9 +1851,7 @@ class DatabaseQueryExecutor:
         # HSQLDB: no hay consulta SQL estándar para tamaño de ficheros físicos.
         return results
 
-    def execute_custom_query(
-        self, sql: str, fetch_one: bool = False, params: tuple | None = None
-    ) -> Any:
+    def execute_custom_query(self, sql: str, fetch_one: bool = False, params: tuple | None = None) -> Any:
         """
         Ejecuta una consulta SQL personalizada
 
@@ -2024,12 +1875,12 @@ class DatabaseQueryExecutor:
             result = self._materialize_result(result)
             self.logger.debug("✅ Consulta SQL personalizada ejecutada exitosamente")
             return result
-        except DatabaseQueryError:
-            raise
         except Exception as e:
             error_msg = f"Error al ejecutar consulta personalizada: {e}"
             self.logger.error(f"❌ {error_msg}")
-            raise DatabaseQueryError(error_msg) from e
+            from .database_exceptions import DatabaseOperationError
+
+            raise DatabaseOperationError(error_msg, operation="CUSTOM", db_type=self.queries.db_type) from e
         finally:
             self._release_execution_resources(connection, cursor, managed_resources)
 
@@ -2058,7 +1909,9 @@ class DatabaseQueryExecutor:
         except Exception as e:
             error_msg = f"Error ejecutando batch de consultas: {e}"
             self.logger.error(f"❌ {error_msg}")
-            raise DatabaseQueryError(error_msg) from e
+            from .database_exceptions import DatabaseOperationError
+
+            raise DatabaseOperationError(error_msg, operation="BATCH", db_type=self.queries.db_type) from e
         finally:
             self._release_execution_resources(connection, cursor, managed_resources)
 
@@ -2074,21 +1927,18 @@ class DatabaseQueryExecutor:
             Diccionario con información de la consulta
         """
         query: str = self.queries.get_query(query_name, **kwargs)
+
+        # Validar parámetros usando QueryResolver
+        is_valid = True
+        try:
+            self.queries.resolver.resolve(query_name, self.queries.db_type, kwargs)
+        except Exception:
+            is_valid = False
+
         return {
             "query_name": query_name,
             "formatted_query": query,
             "db_type": self.queries.db_type,
             "parameters": kwargs,
-            "is_valid": self.queries.validate_query_parameters(query_name, **kwargs),
+            "is_valid": is_valid,
         }
-
-
-# Funciones de conveniencia para mantener retrocompatibilidad
-def create_advanced_queries(
-    db_type: str, queries_file: Path | None = None, config_file: Path | None = None
-) -> DatabaseQueries:
-    """
-    Función de conveniencia para crear una instancia de DatabaseQueries
-    (antes: AdvancedDatabaseQueries)
-    """
-    return DatabaseQueries(db_type, queries_file, config_file)

@@ -1,7 +1,9 @@
 """Factory para crear conexiones según driver nativo."""
 
+import inspect
 import logging
 
+from collections.abc import Callable
 from typing import Any
 
 from ..connection.hsqldb.connection_hsqldb import HSQLDBConnection
@@ -16,6 +18,66 @@ class ConnectFactory:
     """Factory para crear conexiones según driver nativo."""
 
     logger: logging.Logger = logging.getLogger(__name__)
+    _async_connection_builders: dict[str, Callable[..., Any]] = {}
+
+    @staticmethod
+    def register_async_connection(db_type: str, builder: Callable[..., Any]) -> None:
+        """Registra constructor async para un motor."""
+        ConnectFactory._async_connection_builders[db_type.lower().strip()] = builder
+
+    @staticmethod
+    async def create_async_connection(
+        db_type: str,
+        conn_params: dict[str, Any],
+        **kwargs: Any,
+    ) -> Any:
+        """Crea conexión async con constructor registrado por motor."""
+        normalized_type: str = db_type.lower().strip()
+        builder: Callable[..., Any] | None = ConnectFactory._async_connection_builders.get(normalized_type)
+        if builder is None and normalized_type == "postgresql":
+            from ..connection.postgresql.async_connection_postgresql import AsyncPostgreSQLConnection
+
+            ConnectFactory.register_async_connection("postgresql", AsyncPostgreSQLConnection.connect)
+            builder = ConnectFactory._async_connection_builders.get(normalized_type)
+
+        if builder is None and normalized_type == "sqlite":
+            from ..connection.sqlite.async_connection_sqlite import AsyncSQLiteConnection
+
+            ConnectFactory.register_async_connection("sqlite", AsyncSQLiteConnection.connect)
+            builder = ConnectFactory._async_connection_builders.get(normalized_type)
+
+        if builder is None and normalized_type == "mariadb":
+            from ..connection.mariadb.async_connection_mariadb import AsyncMariaDBConnection
+
+            ConnectFactory.register_async_connection("mariadb", AsyncMariaDBConnection.connect)
+            builder = ConnectFactory._async_connection_builders.get(normalized_type)
+
+        if builder is None and normalized_type == "oracle":
+            from ..connection.oracle.async_connection_oracle import AsyncOracleConnection
+
+            ConnectFactory.register_async_connection("oracle", AsyncOracleConnection.connect)
+            builder = ConnectFactory._async_connection_builders.get(normalized_type)
+
+        if builder is None and normalized_type == "sqlserver":
+            from ..connection.sqlserver.async_connection_sqlserver import AsyncSQLServerConnection
+
+            ConnectFactory.register_async_connection("sqlserver", AsyncSQLServerConnection.connect)
+            builder = ConnectFactory._async_connection_builders.get(normalized_type)
+
+        if builder is None and normalized_type == "hsqldb":
+            raise NotImplementedError(
+                "Conexión async no soportada para 'hsqldb'. HSQLDB no dispone de implementación async en util_bbdd."
+            )
+
+        if builder is None:
+            raise NotImplementedError(
+                f"Conexión async no soportada para '{db_type}'. Registre builder con register_async_connection()."
+            )
+
+        result: Any = builder(conn_params, **kwargs)
+        if inspect.isawaitable(result):
+            return await result
+        return result
 
     @staticmethod
     def create_connection(
@@ -81,12 +143,8 @@ class ConnectFactory:
             else:
                 from util_bbdd.database_exceptions import DatabaseConnectionError
 
-                raise DatabaseConnectionError(
-                    f"Tipo de base de datos no soportado: {db_type}", db_type
-                )
+                raise DatabaseConnectionError(f"Tipo de base de datos no soportado: {db_type}", db_type)
 
         except Exception as e:
-            ConnectFactory.logger.error(
-                f"❌ Error al crear conexión para BD tipo '{db_type}': {str(e)}"
-            )
+            ConnectFactory.logger.error(f"❌ Error al crear conexión para BD tipo '{db_type}': {str(e)}")
             raise

@@ -154,3 +154,53 @@ class DatabaseConfigurationError(DatabaseError):
     """Excepción para errores de configuración de base de datos"""
 
     pass
+
+
+# ============================================================================
+# Query-related exceptions (NEW in v0.2.0)
+# ============================================================================
+
+
+class QueryError(DatabaseError):
+    """Base para errores de resolución y ejecución de queries"""
+
+    pass
+
+
+class QueryNotFoundError(QueryError):
+    """Query no existe en registry"""
+
+    pass
+
+
+class QueryValidationError(QueryError):
+    """Validación de parámetros de query falló"""
+
+    pass
+
+
+class QueryParameterError(QueryError):
+    """Parámetro específico de query es inválido"""
+
+    pass
+
+
+class QueryTimeoutError(QueryError):
+    """Ejecución de query excedió timeout"""
+
+    pass
+
+
+class DatabaseTypeNotSupportedError(DatabaseError):
+    """Tipo de BD no soportado o no reconocido"""
+
+    pass
+
+
+# ============================================================================
+# Backward compatibility aliases (DEPRECATED)
+# ============================================================================
+
+# Alias deprecated: DatabaseQueryError -> QueryNotFoundError
+# Mantiene compatibilidad con código legado
+DatabaseQueryError = QueryNotFoundError

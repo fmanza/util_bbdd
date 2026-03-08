@@ -6,8 +6,10 @@ Los parámetros del pool deben incluirse en conn_params:
 - pool_timeout: Timeout de conexión en segundos (default: 30)
 """
 
+import inspect
 import logging
 
+from collections.abc import Callable
 from typing import Any
 
 from ..connection.mariadb.pool_connection_mariadb import (
@@ -38,6 +40,66 @@ class PoolFactory:
     """
 
     logger: logging.Logger = logging.getLogger(__name__)
+    _async_pool_builders: dict[str, Callable[..., Any]] = {}
+
+    @staticmethod
+    def register_async_pool(db_type: str, builder: Callable[..., Any]) -> None:
+        """Registra constructor async de pool para un motor."""
+        PoolFactory._async_pool_builders[db_type.lower().strip()] = builder
+
+    @staticmethod
+    async def create_async_pool(
+        db_type: str,
+        conn_params: dict[str, Any],
+        **kwargs: Any,
+    ) -> Any:
+        """Crea pool async con constructor registrado por motor."""
+        normalized_type: str = db_type.lower().strip()
+        builder: Callable[..., Any] | None = PoolFactory._async_pool_builders.get(normalized_type)
+        if builder is None and normalized_type == "postgresql":
+            from ..connection.postgresql.async_pool_connection_postgresql import AsyncPostgreSQLPool
+
+            PoolFactory.register_async_pool("postgresql", AsyncPostgreSQLPool.create)
+            builder = PoolFactory._async_pool_builders.get(normalized_type)
+
+        if builder is None and normalized_type == "sqlite":
+            from ..connection.sqlite.async_pool_connection_sqlite import AsyncSQLitePool
+
+            PoolFactory.register_async_pool("sqlite", AsyncSQLitePool.create)
+            builder = PoolFactory._async_pool_builders.get(normalized_type)
+
+        if builder is None and normalized_type == "mariadb":
+            from ..connection.mariadb.async_pool_connection_mariadb import AsyncMariaDBPool
+
+            PoolFactory.register_async_pool("mariadb", AsyncMariaDBPool.create)
+            builder = PoolFactory._async_pool_builders.get(normalized_type)
+
+        if builder is None and normalized_type == "oracle":
+            from ..connection.oracle.async_pool_connection_oracle import AsyncOraclePool
+
+            PoolFactory.register_async_pool("oracle", AsyncOraclePool.create)
+            builder = PoolFactory._async_pool_builders.get(normalized_type)
+
+        if builder is None and normalized_type == "sqlserver":
+            from ..connection.sqlserver.async_pool_connection_sqlserver import AsyncSQLServerPool
+
+            PoolFactory.register_async_pool("sqlserver", AsyncSQLServerPool.create)
+            builder = PoolFactory._async_pool_builders.get(normalized_type)
+
+        if builder is None and normalized_type == "hsqldb":
+            raise NotImplementedError(
+                "Pool async no soportado para 'hsqldb'. HSQLDB no dispone de implementación async en util_bbdd."
+            )
+
+        if builder is None:
+            raise NotImplementedError(
+                f"Pool async no soportado para '{db_type}'. Registre builder con register_async_pool()."
+            )
+
+        result: Any = builder(conn_params, **kwargs)
+        if inspect.isawaitable(result):
+            return await result
+        return result
 
     @staticmethod
     def create_pool(

@@ -49,21 +49,13 @@ class SQLAlchemyEngineFactory:
 
             # Construir connection string según tipo de BD
             if db_type == "mariadb":
-                conn_str: str = SQLAlchemyEngineFactory._build_mariadb_connection_string(
-                    conn_params, database
-                )
+                conn_str: str = SQLAlchemyEngineFactory._build_mariadb_connection_string(conn_params, database)
             elif db_type == "oracle":
-                conn_str = SQLAlchemyEngineFactory._build_oracle_connection_string(
-                    conn_params, database
-                )
+                conn_str = SQLAlchemyEngineFactory._build_oracle_connection_string(conn_params, database)
             elif db_type == "postgresql":
-                conn_str = SQLAlchemyEngineFactory._build_postgresql_connection_string(
-                    conn_params, database
-                )
+                conn_str = SQLAlchemyEngineFactory._build_postgresql_connection_string(conn_params, database)
             elif db_type == "hsqldb":
-                conn_str = SQLAlchemyEngineFactory._build_hsqldb_connection_string(
-                    conn_params, database
-                )
+                conn_str = SQLAlchemyEngineFactory._build_hsqldb_connection_string(conn_params, database)
             elif db_type == "sqlserver":
                 conn_str = SQLAlchemyEngineFactory._build_sqlserver_connection_string(
                     conn_params, database, sql_server_driver
@@ -71,13 +63,9 @@ class SQLAlchemyEngineFactory:
             elif db_type == "sqlite":
                 conn_str = SQLAlchemyEngineFactory._build_sqlite_connection_string(conn_params)
             else:
-                raise DatabaseConnectionError(
-                    f"Tipo de BD no soportado para SQLAlchemy: {db_type}", db_type
-                )
+                raise DatabaseConnectionError(f"Tipo de BD no soportado para SQLAlchemy: {db_type}", db_type)
 
-            SQLAlchemyEngineFactory.logger.debug(
-                f"📝 Connection string construido: {conn_str[:50]}..."
-            )
+            SQLAlchemyEngineFactory.logger.debug(f"📝 Connection string construido: {conn_str[:50]}...")
 
             # Crear engine con pool_pre_ping para validar conexiones
             engine: Engine = create_engine(conn_str, pool_pre_ping=True, echo=False)
@@ -86,9 +74,7 @@ class SQLAlchemyEngineFactory:
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
 
-            SQLAlchemyEngineFactory.logger.info(
-                f"✅ Engine de SQLAlchemy creado exitosamente para {db_type}"
-            )
+            SQLAlchemyEngineFactory.logger.info(f"✅ Engine de SQLAlchemy creado exitosamente para {db_type}")
             return engine
 
         except ImportError as e:
@@ -102,9 +88,7 @@ class SQLAlchemyEngineFactory:
             raise
         except Exception as e:
             SQLAlchemyEngineFactory.logger.error(f"❌ Error creando Engine de SQLAlchemy: {e}")
-            raise DatabaseConnectionError(
-                f"Error creando Engine de SQLAlchemy: {str(e)}", db_type, str(e)
-            ) from e
+            raise DatabaseConnectionError(f"Error creando Engine de SQLAlchemy: {str(e)}", db_type, str(e)) from e
 
     @staticmethod
     def _build_mariadb_connection_string(conn_params: dict[str, Any], database: str) -> str:
