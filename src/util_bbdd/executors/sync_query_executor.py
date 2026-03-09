@@ -41,11 +41,26 @@ class SyncQueryExecutor:
             registry: QueryRegistry (si None, crea una nueva)
             resolver: QueryResolver (si None, crea una nueva)
         """
-        self.logger = logging.getLogger(__name__)
+        self.logger: logging.Logger = logging.getLogger(__name__)
         self.connection_provider = connection_provider
         self.connection_releaser = connection_releaser
-        self.registry = registry or QueryRegistry()
-        self.resolver = resolver or QueryResolver(self.registry)
+        self.registry: QueryRegistry = registry or QueryRegistry()
+        self.resolver: QueryResolver = resolver or QueryResolver(self.registry)
+
+    @staticmethod
+    def _build_deadline(timeout: float | None) -> float | None:
+        """Construye un deadline absoluto usando reloj monotónico."""
+        if timeout is None:
+            return None
+        return time.monotonic() + timeout
+
+    @staticmethod
+    def _raise_if_timed_out(deadline: float | None, message: str) -> None:
+        """Lanza QueryTimeoutError si el deadline fue alcanzado."""
+        if deadline is None:
+            return
+        if time.monotonic() >= deadline:
+            raise QueryTimeoutError(message)
 
     def execute_query(
         self,
@@ -62,7 +77,7 @@ class SyncQueryExecutor:
             db_type: Tipo de base de datos (mariadb, oracle, etc.)
             params: Parámetros para la query
             fetch_one: Si True, retorna un registro; si False, todos
-            timeout: Timeout en segundos (no implementado en sync, para future-proofing)
+            timeout: Timeout máximo en segundos para la operación
 
         Returns:
             Resultado de la query (tuple o list de tuples, según fetch_one)
@@ -75,21 +90,35 @@ class SyncQueryExecutor:
         """
         conn = None
         start_time = time.time()
+        timeout_msg = f"Query execution exceeded timeout: {query_name}"
+        deadline = self._build_deadline(timeout)
 
         try:
+            self._raise_if_timed_out(deadline, timeout_msg)
+
             # Resolver la query (obtiene QueryDefinition, valida, interpola SQL)
             resolved = self.resolver.resolve(query_name, db_type, params)
+            self._raise_if_timed_out(deadline, timeout_msg)
 
             conn = self.connection_provider()
+            self._raise_if_timed_out(deadline, timeout_msg)
 
             # Ejecutar el SQL resuelto
             cursor = conn.cursor()
             cursor.execute(resolved.final_sql, params or {})
+            self._raise_if_timed_out(deadline, timeout_msg)
 
             result = cursor.fetchone() if fetch_one else cursor.fetchall()
+            self._raise_if_timed_out(deadline, timeout_msg)
 
-            elapsed_ms = (time.time() - start_time) * 1000
-            result_rows = 1 if fetch_one else (len(result) if result else 0)
+            elapsed_ms: float = (time.time() - start_time) * 1000
+            if fetch_one:
+                result_rows = 1
+            else:
+                if result:
+                    result_rows: int = len(result)
+                else:
+                    result_rows = 0
 
             self.logger.debug(
                 f"✅ Query executed: query_name={query_name}, db_type={db_type}, "
@@ -102,7 +131,7 @@ class SyncQueryExecutor:
             msg = f"Query execution exceeded timeout: {query_name}"
             raise QueryTimeoutError(msg) from e
 
-        except (QueryNotFoundError, QueryValidationError):
+        except (QueryNotFoundError, QueryValidationError, QueryTimeoutError):
             # Re-raise estos errores conocidos sin envolver
             raise
 
@@ -129,7 +158,7 @@ class SyncQueryExecutor:
             sql: SQL a ejecutar
             params: Parámetros para el SQL
             fetch_one: Si True, retorna un registro; si False, todos
-            timeout: Timeout en segundos (no implementado en sync, para future-proofing)
+            timeout: Timeout máximo en segundos para la operación
 
         Returns:
             Resultado de la query (tuple o list de tuples, según fetch_one)
@@ -140,17 +169,29 @@ class SyncQueryExecutor:
         """
         conn = None
         start_time = time.time()
+        timeout_msg = "Custom query execution exceeded timeout"
+        deadline = self._build_deadline(timeout)
 
         try:
+            self._raise_if_timed_out(deadline, timeout_msg)
             conn = self.connection_provider()
+            self._raise_if_timed_out(deadline, timeout_msg)
 
             cursor = conn.cursor()
             cursor.execute(sql, params or {})
+            self._raise_if_timed_out(deadline, timeout_msg)
 
             result = cursor.fetchone() if fetch_one else cursor.fetchall()
+            self._raise_if_timed_out(deadline, timeout_msg)
 
-            elapsed_ms = (time.time() - start_time) * 1000
-            result_rows = 1 if fetch_one else (len(result) if result else 0)
+            elapsed_ms: float = (time.time() - start_time) * 1000
+            if fetch_one:
+                result_rows = 1
+            else:
+                if result:
+                    result_rows: int = len(result)
+                else:
+                    result_rows = 0
 
             self.logger.debug(f"✅ Custom query executed: elapsed_ms={elapsed_ms:.2f}, result_rows={result_rows}")
 
@@ -159,6 +200,9 @@ class SyncQueryExecutor:
         except TimeoutError as e:
             msg = "Custom query execution exceeded timeout"
             raise QueryTimeoutError(msg) from e
+
+        except QueryTimeoutError:
+            raise
 
         except Exception as e:
             msg = f"Error executing custom query: {str(e)}"

@@ -9,6 +9,7 @@ import pytest
 
 from util_bbdd.database_exceptions import (
     QueryNotFoundError,
+    QueryTimeoutError,
     QueryValidationError,
 )
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
@@ -180,6 +181,60 @@ class TestSyncExecutorFetchOptions:
 
         assert result == [("table1",), ("table2",), ("table3",)]
         mock_cursor.fetchall.assert_called_once()
+
+
+class TestSyncExecutorTimeout:
+    """Pruebas de timeout en sync"""
+
+    def test_timeout_during_execute_query(self, temp_queries_file):
+        """Lanza QueryTimeoutError cuando execute_query excede timeout."""
+        import time
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+
+        def slow_execute(sql, params):
+            time.sleep(0.05)
+
+        mock_cursor.execute.side_effect = slow_execute
+        mock_cursor.fetchall.return_value = []
+        mock_conn.cursor.return_value = mock_cursor
+
+        provider = MagicMock(return_value=mock_conn)
+        releaser = MagicMock()
+
+        registry = QueryRegistry(temp_queries_file)
+        executor = SyncQueryExecutor(provider, releaser, registry)
+
+        with pytest.raises(QueryTimeoutError):
+            executor.execute_query("obtener_tablas", "mariadb", {"database": "test_db"}, timeout=0.01)
+
+        releaser.assert_called_once_with(mock_conn)
+
+    def test_timeout_during_execute_custom_query(self, temp_queries_file):
+        """Lanza QueryTimeoutError cuando execute_custom_query excede timeout."""
+        import time
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+
+        def slow_execute(sql, params):
+            time.sleep(0.05)
+
+        mock_cursor.execute.side_effect = slow_execute
+        mock_cursor.fetchall.return_value = []
+        mock_conn.cursor.return_value = mock_cursor
+
+        provider = MagicMock(return_value=mock_conn)
+        releaser = MagicMock()
+
+        registry = QueryRegistry(temp_queries_file)
+        executor = SyncQueryExecutor(provider, releaser, registry)
+
+        with pytest.raises(QueryTimeoutError):
+            executor.execute_custom_query("SELECT 1", timeout=0.01)
+
+        releaser.assert_called_once_with(mock_conn)
 
 
 class TestSyncExecutorMetadata:

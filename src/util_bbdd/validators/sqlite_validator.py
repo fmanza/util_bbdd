@@ -21,7 +21,7 @@ class SQLiteValidator(DatabaseTypeValidator):
     db_type = "sqlite"
 
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger: logging.Logger = logging.getLogger(__name__)
 
     def validate_parameters(self, query_def: QueryDefinition, params: dict[str, Any]) -> tuple[bool, list[str]]:
         """Valida parámetros para SQLite.

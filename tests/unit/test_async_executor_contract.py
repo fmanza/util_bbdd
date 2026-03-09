@@ -218,9 +218,10 @@ class TestAsyncExecutorTimeout:
 
         registry = QueryRegistry(temp_queries_file)
         executor = AsyncQueryExecutor(mock_provider, mock_releaser, registry)
+        executor.query_timeout = 0.1
 
         with pytest.raises(QueryTimeoutError):
-            await executor.execute_custom_query("SELECT 1", timeout=0.1)
+            await executor.execute_custom_query("SELECT 1")
 
 
 class TestAsyncExecutorMetadata:

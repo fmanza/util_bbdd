@@ -22,6 +22,8 @@ async def _maybe_await(value: Any) -> Any:
 class AsyncDatabaseManager:
     """Manager async-first para conexiones directas o con pool."""
 
+    _ERROR_EXECUTOR_NOT_INITIALIZED = "AsyncDatabaseQueryExecutor no inicializado"
+
     def __init__(
         self,
         db_type: str,
@@ -99,7 +101,7 @@ class AsyncDatabaseManager:
             await self.ainit()
 
         if self.query_executor is None:
-            raise RuntimeError("AsyncDatabaseQueryExecutor no inicializado")
+            raise RuntimeError(self._ERROR_EXECUTOR_NOT_INITIALIZED)
 
         return await self.query_executor.execute_custom_query(
             sql=sql,
@@ -132,7 +134,7 @@ class AsyncDatabaseManager:
             await self.ainit()
 
         if self.query_executor is None:
-            raise RuntimeError("AsyncDatabaseQueryExecutor no inicializado")
+            raise RuntimeError(self._ERROR_EXECUTOR_NOT_INITIALIZED)
 
         return await self.query_executor.execute_query(
             query_name=query_name,
@@ -178,40 +180,40 @@ class AsyncDatabaseManager:
             params["database"] = context
         return params
 
-    async def get_query_context_database(self) -> str:
+    def get_query_context_database(self) -> str:
         """Devuelve contexto efectivo schema/database para metadata."""
         return self._get_query_context_database()
 
     async def get_tables(self) -> list[Any]:
-        context_database = self._get_query_context_database()
+        context_database: str = self._get_query_context_database()
         return await self.execute_query("obtener_tablas", fetch_one=False, database=context_database)
 
     async def get_views(self) -> list[Any]:
-        context_database = self._get_query_context_database()
+        context_database: str = self._get_query_context_database()
         return await self.execute_query("obtener_vistas", fetch_one=False, database=context_database)
 
     async def get_routines(self) -> list[Any]:
-        context_database = self._get_query_context_database()
+        context_database: str = self._get_query_context_database()
         return await self.execute_query("obtener_rutinas", fetch_one=False, database=context_database)
 
     async def get_ddl(self, tabla: str) -> str:
-        context_database = self._get_query_context_database()
+        context_database: str = self._get_query_context_database()
         params: dict[str, str] = self._add_metadata_context_params({"tabla": tabla}, context_database)
         row = await self.execute_query("create_table", fetch_one=True, **params)
         return str(row[0]) if row else ""
 
     async def get_view_ddl(self, vista: str) -> str:
-        context_database = self._get_query_context_database()
+        context_database: str = self._get_query_context_database()
         params: dict[str, str] = self._add_metadata_context_params({"vista": vista}, context_database)
         row = await self.execute_query("create_view", fetch_one=True, **params)
         return str(row[0]) if row else ""
 
     async def get_columns(self, tabla: str) -> list[Any]:
-        context_database = self._get_query_context_database()
+        context_database: str = self._get_query_context_database()
         return await self.execute_query("columnas_tabla", fetch_one=False, database=context_database, tabla=tabla)
 
     async def get_routine_parameters(self, rutina: str, tipo_rutina: str) -> list[Any]:
-        context_database = self._get_query_context_database()
+        context_database: str = self._get_query_context_database()
         return await self.execute_query(
             "parametros_rutina",
             fetch_one=False,
@@ -221,7 +223,7 @@ class AsyncDatabaseManager:
         )
 
     async def get_routine_ddl(self, rutina: str, tipo_rutina: str) -> str:
-        context_database = self._get_query_context_database()
+        context_database: str = self._get_query_context_database()
         params: dict[str, str] = {
             "rutina": rutina,
             "tipo_rutina": tipo_rutina.upper(),
@@ -231,27 +233,27 @@ class AsyncDatabaseManager:
         return str(row[0]) if row else ""
 
     async def get_indices(self, tabla: str) -> list[Any]:
-        context_database = self._get_query_context_database()
+        context_database: str = self._get_query_context_database()
         params: dict[str, str] = self._add_metadata_context_params({"tabla": tabla}, context_database)
         return await self.execute_query("indices", fetch_one=False, **params)
 
     async def get_primary_keys(self, tabla: str) -> list[Any]:
-        context_database = self._get_query_context_database()
+        context_database: str = self._get_query_context_database()
         params: dict[str, str] = self._add_metadata_context_params({"tabla": tabla}, context_database)
         return await self.execute_query("claves_primarias", fetch_one=False, **params)
 
     async def get_foreign_keys(self, tabla: str) -> list[Any]:
-        context_database = self._get_query_context_database()
+        context_database: str = self._get_query_context_database()
         params: dict[str, str] = self._add_metadata_context_params({"tabla": tabla}, context_database)
         return await self.execute_query("claves_foraneas", fetch_one=False, **params)
 
     async def get_unique_constraints(self, tabla: str) -> list[Any]:
-        context_database = self._get_query_context_database()
+        context_database: str = self._get_query_context_database()
         params: dict[str, str] = self._add_metadata_context_params({"tabla": tabla}, context_database)
         return await self.execute_query("claves_unicas", fetch_one=False, **params)
 
     async def get_storage_inventory(self, tablespace: str | None = None) -> dict[str, Any]:
-        context_database = self._get_query_context_database()
+        context_database: str = self._get_query_context_database()
         results: dict[str, Any] = {"primary": [], "secondary": []}
         if self.db_type == "sqlserver":
             results["primary"] = await self.execute_query("ficheros_fisicos", fetch_one=False)
@@ -264,7 +266,9 @@ class AsyncDatabaseManager:
         if self.db_type == "mariadb":
             if not context_database:
                 raise ValueError("Para MariaDB debe proporcionar 'database'")
-            results["primary"] = await self.execute_query("ficheros_fisicos", fetch_one=False, database=context_database)
+            results["primary"] = await self.execute_query(
+                "ficheros_fisicos", fetch_one=False, database=context_database
+            )
             results["secondary"] = await self.execute_query(
                 "ficheros_fisicos_adicional",
                 fetch_one=False,
@@ -295,5 +299,5 @@ class AsyncDatabaseManager:
         if not self._initialized:
             await self.ainit()
         if self.query_executor is None:
-            raise RuntimeError("AsyncDatabaseQueryExecutor no inicializado")
+            raise RuntimeError(self._ERROR_EXECUTOR_NOT_INITIALIZED)
         return self.query_executor.registry.get_available_queries(self.db_type)

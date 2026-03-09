@@ -22,7 +22,7 @@ class HSQLDBValidator(DatabaseTypeValidator):
     db_type = "hsqldb"
 
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger: logging.Logger = logging.getLogger(__name__)
 
     def validate_parameters(self, query_def: QueryDefinition, params: dict[str, Any]) -> tuple[bool, list[str]]:
         """Valida parámetros para HSQLDB.
@@ -43,7 +43,7 @@ class HSQLDBValidator(DatabaseTypeValidator):
         # Verificar parámetros requeridos
         for required_param in query_def.required_params:
             if required_param not in params:
-                msg = f"Missing required parameter '{required_param}' for query '{query_def.name}'"
+                msg: str = f"Missing required parameter '{required_param}' for query '{query_def.name}'"
                 self.logger.debug(f"❌ Validation failed: {msg}")
                 return False, [msg]
 

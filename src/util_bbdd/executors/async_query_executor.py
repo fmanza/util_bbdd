@@ -4,6 +4,7 @@ import asyncio
 import logging
 import time
 
+from contextlib import asynccontextmanager
 from typing import Any
 
 from ..database_exceptions import (
@@ -24,7 +25,7 @@ class AsyncQueryExecutor:
     - Valida parámetros usando validadores específicos por motor
     - Ejecuta SQL contra conexión SQLAlchemy async
     - Maneja lifecycle de conexiones (acquire/release)
-    - Aplica timeouts
+    - Aplica timeouts configurables por instancia
     """
 
     def __init__(
@@ -42,11 +43,25 @@ class AsyncQueryExecutor:
             registry: QueryRegistry (si None, crea una nueva)
             resolver: QueryResolver (si None, crea una nueva)
         """
-        self.logger = logging.getLogger(__name__)
+        self.logger: logging.Logger = logging.getLogger(__name__)
         self.connection_provider = connection_provider
         self.connection_releaser = connection_releaser
-        self.registry = registry or QueryRegistry()
-        self.resolver = resolver or QueryResolver(self.registry)
+        self.registry: QueryRegistry = registry or QueryRegistry()
+        self.resolver: QueryResolver = resolver or QueryResolver(self.registry)
+        self.query_timeout: float | None = None
+
+    @asynccontextmanager
+    async def _timeout_context(self, timeout_message: str):
+        """Context manager para aplicar timeout homogéneo en operaciones async."""
+        if self.query_timeout is None:
+            yield
+            return
+
+        try:
+            async with asyncio.timeout(self.query_timeout):
+                yield
+        except TimeoutError as e:
+            raise QueryTimeoutError(timeout_message) from e
 
     async def execute_query(
         self,
@@ -54,7 +69,6 @@ class AsyncQueryExecutor:
         db_type: str,
         params: dict[str, Any] | None = None,
         fetch_one: bool = False,
-        timeout: float | None = None,
     ) -> Any:
         """Ejecuta una query por nombre de forma asincrónica.
 
@@ -63,7 +77,6 @@ class AsyncQueryExecutor:
             db_type: Tipo de base de datos (mariadb, oracle, etc.)
             params: Parámetros para la query
             fetch_one: Si True, retorna un registro; si False, todos
-            timeout: Timeout en segundos
 
         Returns:
             Resultado de la query (tuple o list de tuples, según fetch_one)
@@ -79,22 +92,29 @@ class AsyncQueryExecutor:
         start_time = time.time()
 
         try:
-            # Resolver la query (obtiene QueryDefinition, valida, interpola SQL)
-            resolved = self.resolver.resolve(query_name, db_type, params)
+            async with self._timeout_context(f"Query execution exceeded timeout: {query_name}"):
+                # Resolver la query (obtiene QueryDefinition, valida, interpola SQL)
+                resolved = self.resolver.resolve(query_name, db_type, params)
 
-            conn = await self.connection_provider()
+                conn = await self.connection_provider()
 
-            # Ejecutar el SQL resuelto
-            cursor = await conn.cursor() if hasattr(conn, "cursor") else conn
-            await cursor.execute(resolved.final_sql, params or {})
+                # Ejecutar el SQL resuelto
+                cursor = await conn.cursor() if hasattr(conn, "cursor") else conn
+                await cursor.execute(resolved.final_sql, params or {})
 
+                if fetch_one:
+                    result = await cursor.fetchone()
+                else:
+                    result = await cursor.fetchall()
+
+            elapsed_ms: float = (time.time() - start_time) * 1000
             if fetch_one:
-                result = await cursor.fetchone()
+                result_rows = 1
             else:
-                result = await cursor.fetchall()
-
-            elapsed_ms = (time.time() - start_time) * 1000
-            result_rows = 1 if fetch_one else (len(result) if result else 0)
+                if result:
+                    result_rows: int = len(result)
+                else:
+                    result_rows = 0
 
             self.logger.debug(
                 f"✅ Query executed: query_name={query_name}, db_type={db_type}, "
@@ -103,11 +123,7 @@ class AsyncQueryExecutor:
 
             return result
 
-        except asyncio.TimeoutError as e:
-            msg = f"Query execution exceeded timeout: {query_name}"
-            raise QueryTimeoutError(msg) from e
-
-        except (QueryNotFoundError, QueryValidationError):
+        except (QueryNotFoundError, QueryValidationError, QueryTimeoutError):
             # Re-raise estos errores conocidos sin envolver
             raise
 
@@ -126,7 +142,6 @@ class AsyncQueryExecutor:
         sql: str,
         params: dict[str, Any] | None = None,
         fetch_one: bool = False,
-        timeout: float | None = None,
     ) -> Any:
         """Ejecuta SQL custom directamente de forma asincrónica.
 
@@ -134,7 +149,6 @@ class AsyncQueryExecutor:
             sql: SQL a ejecutar
             params: Parámetros para el SQL
             fetch_one: Si True, retorna un registro; si False, todos
-            timeout: Timeout en segundos
 
         Returns:
             Resultado de la query (tuple o list de tuples, según fetch_one)
@@ -147,33 +161,31 @@ class AsyncQueryExecutor:
         start_time = time.time()
 
         try:
-            conn = await self.connection_provider()
+            async with self._timeout_context("Custom query execution exceeded timeout"):
+                conn = await self.connection_provider()
 
-            # Función de ejecución asincrónica
-            async def do_execute():
                 cursor = await conn.cursor() if hasattr(conn, "cursor") else conn
                 await cursor.execute(sql, params or {})
                 if fetch_one:
-                    return await cursor.fetchone()
+                    result = await cursor.fetchone()
                 else:
-                    return await cursor.fetchall()
+                    result = await cursor.fetchall()
 
-            # Aplicar timeout si se especifica
-            if timeout is not None:
-                result = await asyncio.wait_for(do_execute(), timeout=timeout)
+            elapsed_ms: float = (time.time() - start_time) * 1000
+            if fetch_one:
+                result_rows = 1
             else:
-                result = await do_execute()
-
-            elapsed_ms = (time.time() - start_time) * 1000
-            result_rows = 1 if fetch_one else (len(result) if result else 0)
+                if result:
+                    result_rows: int = len(result)
+                else:
+                    result_rows = 0
 
             self.logger.debug(f"✅ Custom query executed: elapsed_ms={elapsed_ms:.2f}, result_rows={result_rows}")
 
             return result
 
-        except asyncio.TimeoutError as e:
-            msg = "Custom query execution exceeded timeout"
-            raise QueryTimeoutError(msg) from e
+        except QueryTimeoutError:
+            raise
 
         except Exception as e:
             msg = f"Error executing custom query: {str(e)}"

@@ -6,13 +6,13 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from ..core.capabilities import is_async_supported
 from ..connection.hsqldb.connection_hsqldb import HSQLDBConnection
 from ..connection.mariadb.connection_mariadb import MariaDBConnection
 from ..connection.oracle.connection_oracle import OracleConnection
 from ..connection.postgresql.connection_postgresql import PostgreSQLConnection
 from ..connection.sqlite.connection_sqlite import SQLiteConnection
 from ..connection.sqlserver.connection_sqlserver import SQLServerConnection
+from ..core.capabilities import is_async_supported
 
 
 class ConnectFactory:
