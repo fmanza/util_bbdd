@@ -14,5 +14,5 @@ class ConnectionPoolProtocol(Protocol):
     def close_connection(self, connection: Any) -> None:
         """Devuelve/cierra una conexión según implementación."""
 
-    def close(self) -> None:
-        """Cierra el pool y libera recursos."""
+    def close(self, timeout_seconds: float | None, force: bool) -> None:
+        """Cierra el pool con política explícita de timeout/forzado."""

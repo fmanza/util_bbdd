@@ -111,23 +111,25 @@ dm = DatabaseManager(
 )
 
 # Introspection: Listar tablas
-tables = dm.get_tables(database='mydb')
+tables = dm.get_tables()
 print(f"📊 Tablas: {tables}")
 
 # Introspection: Columnas de tabla
-columns = dm.get_columns(database='mydb', table='users')
+columns = dm.get_columns('users')
 print(f"📋 Columnas: {columns}")
 
-# Ejecutar query con nombre
-result = dm.execute_query('obtener_tablas', database='mydb')
-print(f"🔍 Resultado: {result}")
+# Ejecutar query registrada (many / one)
+result = dm.execute_query_many('obtener_tablas', database='mydb')
+first_row = dm.execute_query_one('database_version')
+print(f"🔍 Resultado: {result} | Primera fila: {first_row}")
 
-# Ejecutar SQL custom
-result = dm.execute_custom_query('SELECT * FROM users LIMIT 10')
+# Ejecutar SQL custom (many / one)
+result = dm.execute_custom_many('SELECT * FROM users LIMIT 10')
+ping = dm.execute_custom_one('SELECT 1')
 print(f"✅ Consulta ejecutada: {len(result)} filas")
 
 # Cierra conexión
-dm.disconnect()
+dm.close()
 ```
 
 ### Uso Asíncrono (v0.2.0+)
@@ -149,20 +151,21 @@ async def main():
     )
 
     # Inicialización lazy
-    await adm.ainit()
+    await adm.init()
 
     # Misma API que sync, pero con await
-    tables = await adm.get_tables(database='mydb')
+    tables = await adm.get_tables()
     print(f"📊 Tablas: {tables}")
 
-    columns = await adm.get_columns(database='mydb', table='users')
+    columns = await adm.get_columns('users')
     print(f"📋 Columnas: {columns}")
 
-    # Ejecutar query con nombre (nuevo en v0.2.0)
-    result = await adm.execute_query('obtener_tablas', database='mydb')
-    print(f"🔍 Resultado: {result}")
+    # Ejecutar query registrada (many / one)
+    result = await adm.execute_query_many('obtener_tablas', database='mydb')
+    first_row = await adm.execute_query_one('database_version')
+    print(f"🔍 Resultado: {result} | Primera fila: {first_row}")
 
-    await adm.disconnect()
+    await adm.close()
 
 # Ejecutar
 asyncio.run(main())
@@ -211,15 +214,21 @@ except QueryNotFoundError as e:
 ## Changes in v0.2.0
 
 ### ⚠️ Breaking Changes
-- `DatabaseQueryError` → Use `QueryNotFoundError` (deprecated alias provided)
+- `DatabaseQueryError` alias removed
 - `DatabaseQueries._load_queries()` → Now internal (delegated to QueryRegistry)
 - Exception hierarchy unified under `DatabaseError` base class
+- Public execution API now split and strict:
+  - Removed: `execute_query(..., fetch_one=...)`
+  - Removed: `execute_custom_query(..., fetch_one=...)`
+  - Use: `execute_query_many/execute_query_one`
+  - Use: `execute_custom_many/execute_custom_one`
 
 ### ✅ New Features
-- `DatabaseManager.execute_query(query_name, **params)` - Execute by query name
+- `DatabaseManager.execute_query_many(query_name, **params)` - Execute by query name (many)
+- `DatabaseManager.execute_query_one(query_name, **params)` - Execute by query name (one)
 - `AsyncDatabaseManager` - Full parity with sync version
   - `get_tables()`, `get_views()`, `get_columns()`, `get_routines()`
-  - `execute_query()` support
+  - `execute_query_many() / execute_query_one()` support
 - Advanced validators per database motor
 - Query Registry + Resolver architecture
 - Improved error messages with `raise ... from err` pattern

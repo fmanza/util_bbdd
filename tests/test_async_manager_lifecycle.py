@@ -41,7 +41,7 @@ class FakePool:
     async def release(self, connection) -> None:
         self.released += 1
 
-    async def aclose(self) -> None:
+    async def close(self, mode: str) -> None:
         self.closed = True
 
 
@@ -58,9 +58,9 @@ def test_async_manager_direct_lifecycle() -> None:
 
     async def _run() -> None:
         manager = AsyncDatabaseManager(db_type=db_type, conn_params={}, use_pool=False)
-        rows = await manager.execute_custom_query("SELECT 1")
+        rows = await manager.execute_custom_many("SELECT 1")
         assert rows == [("many",)]
-        await manager.aclose()
+        await manager.close()
         assert created["conn"].closed is True
 
     asyncio.run(_run())
@@ -79,10 +79,10 @@ def test_async_manager_pool_lifecycle() -> None:
 
     async def _run() -> None:
         manager = AsyncDatabaseManager(db_type=db_type, conn_params={}, use_pool=True)
-        row = await manager.execute_custom_query("SELECT 1", fetch_one=True)
+        row = await manager.execute_custom_one("SELECT 1")
         assert row == ("one",)
         assert created["pool"].released == 1
-        await manager.aclose()
+        await manager.close()
         assert created["pool"].closed is True
 
     asyncio.run(_run())

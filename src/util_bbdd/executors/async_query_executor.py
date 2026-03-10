@@ -1,12 +1,14 @@
-"""Ejecutor de queries async"""
+"""Ejecutor de queries async."""
 
 import asyncio
 import logging
 import time
 
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
+from ..async_utils import maybe_await
 from ..database_exceptions import (
     DatabaseOperationError,
     QueryNotFoundError,
@@ -15,183 +17,207 @@ from ..database_exceptions import (
 )
 from ..query_registry import QueryRegistry
 from ..query_resolver import QueryResolver
+from ..result_normalizer import ResultNormalizer
+from ..result_types import RowOrNone, Rows
 
 
 class AsyncQueryExecutor:
-    """Ejecuta queries SQL de forma asincrónica.
-
-    Responsabilidades:
-    - Resuelve queries por nombre usando QueryResolver
-    - Valida parámetros usando validadores específicos por motor
-    - Ejecuta SQL contra conexión SQLAlchemy async
-    - Maneja lifecycle de conexiones (acquire/release)
-    - Aplica timeouts configurables por instancia
-    """
+    """Ejecuta queries SQL de forma asincrónica."""
 
     def __init__(
         self,
-        connection_provider,
-        connection_releaser,
+        connection_provider: Callable[[], Awaitable[Any]],
+        connection_releaser: Callable[[Any], Awaitable[None]],
         registry: QueryRegistry | None = None,
         resolver: QueryResolver | None = None,
     ) -> None:
-        """Inicializa AsyncQueryExecutor.
-
-        Args:
-            connection_provider: Coroutine que obtiene conexión para cada operación
-            connection_releaser: Coroutine que libera conexión al finalizar
-            registry: QueryRegistry (si None, crea una nueva)
-            resolver: QueryResolver (si None, crea una nueva)
-        """
         self.logger: logging.Logger = logging.getLogger(__name__)
-        self.connection_provider = connection_provider
-        self.connection_releaser = connection_releaser
+        self.connection_provider: Callable[[], Awaitable[Any]] = connection_provider
+        self.connection_releaser: Callable[[Any], Awaitable[None]] = connection_releaser
         self.registry: QueryRegistry = registry or QueryRegistry()
         self.resolver: QueryResolver = resolver or QueryResolver(self.registry)
-        self.query_timeout: float | None = None
+        self.result_normalizer = ResultNormalizer()
 
     @asynccontextmanager
-    async def _timeout_context(self, timeout_message: str):
-        """Context manager para aplicar timeout homogéneo en operaciones async."""
-        if self.query_timeout is None:
+    async def _timeout_context(self, timeout_message: str, deadline_seconds: float | None) -> AsyncIterator[None]:
+        if deadline_seconds is None:
             yield
             return
-
         try:
-            async with asyncio.timeout(self.query_timeout):
+            async with asyncio.timeout(deadline_seconds):
                 yield
-        except TimeoutError as e:
-            raise QueryTimeoutError(timeout_message) from e
+        except TimeoutError as err:
+            raise QueryTimeoutError(timeout_message) from err
 
-    async def execute_query(
+    async def _execute_resolved(
         self,
         query_name: str,
         db_type: str,
-        params: dict[str, Any] | None = None,
-        fetch_one: bool = False,
-    ) -> Any:
-        """Ejecuta una query por nombre de forma asincrónica.
-
-        Args:
-            query_name: Nombre de la query registrada
-            db_type: Tipo de base de datos (mariadb, oracle, etc.)
-            params: Parámetros para la query
-            fetch_one: Si True, retorna un registro; si False, todos
-
-        Returns:
-            Resultado de la query (tuple o list de tuples, según fetch_one)
-
-        Raises:
-            QueryNotFoundError: Si query no existe
-            QueryValidationError: Si parámetros no cumplen validación
-            QueryTimeoutError: Si se excede timeout
-            DatabaseOperationError: Si hay error en ejecución BD
-        """
-        params = params or {}
+        params: dict[str, Any],
+        deadline_seconds: float | None,
+        expect_one: bool,
+    ) -> RowOrNone | Rows:
         conn = None
-        start_time = time.time()
+        cursor = None
+        owns_cursor = False
+        start_time: float = time.time()
 
         try:
-            async with self._timeout_context(f"Query execution exceeded timeout: {query_name}"):
-                # Resolver la query (obtiene QueryDefinition, valida, interpola SQL)
+            async with self._timeout_context(
+                f"Query execution exceeded timeout: {query_name}",
+                deadline_seconds=deadline_seconds,
+            ):
                 resolved = self.resolver.resolve(query_name, db_type, params)
+                final_sql: str = resolved.final_sql
+                if db_type == "mariadb":
+                    final_sql = final_sql.replace("%", "%%")
+                self.logger.debug(f"SQL final: {final_sql}")
 
                 conn = await self.connection_provider()
-
-                # Ejecutar el SQL resuelto
-                cursor = await conn.cursor() if hasattr(conn, "cursor") else conn
-                await cursor.execute(resolved.final_sql, params or {})
-
-                if fetch_one:
-                    result = await cursor.fetchone()
+                if hasattr(conn, "cursor"):
+                    cursor = await maybe_await(conn.cursor())
+                    owns_cursor = cursor is not conn
                 else:
-                    result = await cursor.fetchall()
+                    cursor = conn
+
+                await maybe_await(cursor.execute(final_sql, params))
+                if expect_one:
+                    result = self.result_normalizer.normalize_one(await maybe_await(cursor.fetchone()))
+                    result_rows = 1 if result is not None else 0
+                else:
+                    result = self.result_normalizer.normalize_many(await maybe_await(cursor.fetchall()))
+                    result_rows = len(result)
 
             elapsed_ms: float = (time.time() - start_time) * 1000
-            if fetch_one:
-                result_rows = 1
-            else:
-                if result:
-                    result_rows: int = len(result)
-                else:
-                    result_rows = 0
-
             self.logger.debug(
                 f"✅ Query executed: query_name={query_name}, db_type={db_type}, "
                 f"elapsed_ms={elapsed_ms:.2f}, result_rows={result_rows}"
             )
-
             return result
 
         except (QueryNotFoundError, QueryValidationError, QueryTimeoutError):
-            # Re-raise estos errores conocidos sin envolver
             raise
-
-        except Exception as e:
-            # Wrap unexpected errors
-            msg = f"Error executing query {query_name}: {str(e)}"
+        except Exception as err:
+            msg = f"Error executing query {query_name}: {str(err)}"
             self.logger.error(msg, exc_info=True)
-            raise DatabaseOperationError(msg, "SELECT", db_type=db_type) from e
-
+            raise DatabaseOperationError(msg, "SELECT", db_type=db_type) from err
         finally:
+            if owns_cursor and cursor and hasattr(cursor, "close"):
+                try:
+                    await maybe_await(cursor.close())
+                except Exception:
+                    self.logger.debug("No se pudo cerrar cursor async", exc_info=True)
             if conn:
                 await self.connection_releaser(conn)
 
-    async def execute_custom_query(
+    async def _execute_custom(
         self,
         sql: str,
-        params: dict[str, Any] | None = None,
-        fetch_one: bool = False,
-    ) -> Any:
-        """Ejecuta SQL custom directamente de forma asincrónica.
-
-        Args:
-            sql: SQL a ejecutar
-            params: Parámetros para el SQL
-            fetch_one: Si True, retorna un registro; si False, todos
-
-        Returns:
-            Resultado de la query (tuple o list de tuples, según fetch_one)
-
-        Raises:
-            QueryTimeoutError: Si se excede timeout
-            DatabaseOperationError: Si hay error en ejecución BD
-        """
+        params: dict[str, Any] | None,
+        deadline_seconds: float | None,
+        expect_one: bool,
+    ) -> RowOrNone | Rows:
         conn = None
-        start_time = time.time()
+        cursor = None
+        owns_cursor = False
+        start_time: float = time.time()
 
         try:
-            async with self._timeout_context("Custom query execution exceeded timeout"):
+            async with self._timeout_context(
+                "Custom query execution exceeded timeout",
+                deadline_seconds=deadline_seconds,
+            ):
                 conn = await self.connection_provider()
-
-                cursor = await conn.cursor() if hasattr(conn, "cursor") else conn
-                await cursor.execute(sql, params or {})
-                if fetch_one:
-                    result = await cursor.fetchone()
+                if hasattr(conn, "cursor"):
+                    cursor = await maybe_await(conn.cursor())
+                    owns_cursor = cursor is not conn
                 else:
-                    result = await cursor.fetchall()
+                    cursor = conn
+
+                execute_params: dict[str, Any] = params or {}
+                await maybe_await(cursor.execute(sql, execute_params))
+                if expect_one:
+                    result = self.result_normalizer.normalize_one(await maybe_await(cursor.fetchone()))
+                    result_rows = 1 if result is not None else 0
+                else:
+                    result = self.result_normalizer.normalize_many(await maybe_await(cursor.fetchall()))
+                    result_rows = len(result)
 
             elapsed_ms: float = (time.time() - start_time) * 1000
-            if fetch_one:
-                result_rows = 1
-            else:
-                if result:
-                    result_rows: int = len(result)
-                else:
-                    result_rows = 0
-
             self.logger.debug(f"✅ Custom query executed: elapsed_ms={elapsed_ms:.2f}, result_rows={result_rows}")
-
             return result
 
         except QueryTimeoutError:
             raise
-
-        except Exception as e:
-            msg = f"Error executing custom query: {str(e)}"
+        except Exception as err:
+            msg = f"Error executing custom query: {str(err)}"
             self.logger.error(msg, exc_info=True)
-            raise DatabaseOperationError(msg, "CUSTOM", db_type="unknown") from e
-
+            raise DatabaseOperationError(msg, "CUSTOM", db_type="unknown") from err
         finally:
+            if owns_cursor and cursor and hasattr(cursor, "close"):
+                try:
+                    await maybe_await(cursor.close())
+                except Exception:
+                    self.logger.debug("No se pudo cerrar cursor async", exc_info=True)
             if conn:
                 await self.connection_releaser(conn)
+
+    async def execute_query_many(
+        self,
+        query_name: str,
+        db_type: str,
+        params: dict[str, Any] | None = None,
+        deadline_seconds: float | None = None,
+    ) -> Rows:
+        result = await self._execute_resolved(
+            query_name=query_name,
+            db_type=db_type,
+            params=params or {},
+            deadline_seconds=deadline_seconds,
+            expect_one=False,
+        )
+        return self.result_normalizer.normalize_many(result)
+
+    async def execute_query_one(
+        self,
+        query_name: str,
+        db_type: str,
+        params: dict[str, Any] | None = None,
+        deadline_seconds: float | None = None,
+    ) -> RowOrNone:
+        result = await self._execute_resolved(
+            query_name=query_name,
+            db_type=db_type,
+            params=params or {},
+            deadline_seconds=deadline_seconds,
+            expect_one=True,
+        )
+        return self.result_normalizer.normalize_one(result)
+
+    async def execute_custom_many(
+        self,
+        sql: str,
+        params: dict[str, Any] | None = None,
+        deadline_seconds: float | None = None,
+    ) -> Rows:
+        result = await self._execute_custom(
+            sql=sql,
+            params=params,
+            deadline_seconds=deadline_seconds,
+            expect_one=False,
+        )
+        return self.result_normalizer.normalize_many(result)
+
+    async def execute_custom_one(
+        self,
+        sql: str,
+        params: dict[str, Any] | None = None,
+        deadline_seconds: float | None = None,
+    ) -> RowOrNone:
+        result = await self._execute_custom(
+            sql=sql,
+            params=params,
+            deadline_seconds=deadline_seconds,
+            expect_one=True,
+        )
+        return self.result_normalizer.normalize_one(result)

@@ -40,6 +40,19 @@ class _FakeOraclePool:
         self.closed = True
 
 
+class _HangingOraclePool(_FakeOraclePool):
+    def __init__(self) -> None:
+        super().__init__()
+        self.force_close_used = False
+
+    async def close(self, force: bool = False):
+        if force:
+            self.force_close_used = True
+            self.closed = True
+            return
+        await asyncio.Event().wait()
+
+
 class _FakeOracleDBModule:
     POOL_GETMODE_WAIT = 1
 
@@ -61,6 +74,30 @@ class _FakeOracleDBModule:
 
 def _install_fake_oracledb(monkeypatch):
     fake_mod = _FakeOracleDBModule()
+    monkeypatch.setitem(sys.modules, "oracledb", fake_mod)
+    return fake_mod
+
+
+def _install_fake_oracledb_with_pool(monkeypatch, fake_pool):
+    class _CustomFakeOracleDBModule:
+        POOL_GETMODE_WAIT = 1
+
+        def __init__(self) -> None:
+            self.pool = fake_pool
+            self.conn = _FakeOracleConn()
+
+        def makedsn(self, host: str, port: int, service_name=None, sid=None):
+            if service_name:
+                return f"{host}:{port}/{service_name}"
+            return f"{host}:{port}/{sid}"
+
+        async def connect_async(self, **kwargs):
+            return self.conn
+
+        async def create_pool_async(self, **kwargs):
+            return self.pool
+
+    fake_mod = _CustomFakeOracleDBModule()
     monkeypatch.setitem(sys.modules, "oracledb", fake_mod)
     return fake_mod
 
@@ -103,7 +140,7 @@ def test_async_oracle_pool(monkeypatch):
         one = await conn.fetchone()
         assert one == ("ora-one",)
         await pool.release(conn)
-        await pool.aclose()
+        await pool.close()
         assert fake_mod.pool.release_count == 1
         assert fake_mod.pool.closed is True
 
@@ -126,10 +163,33 @@ def test_async_database_manager_oracle_pool(monkeypatch):
             },
             use_pool=True,
         ) as manager:
-            row = await manager.execute_custom_query("SELECT 1", fetch_one=True)
+            row = await manager.execute_custom_one("SELECT 1")
             assert row == ("ora-one",)
 
         assert fake_mod.pool.release_count == 1
         assert fake_mod.pool.closed is True
 
     asyncio.run(_run())
+
+
+def test_async_oracle_pool_forced_close_on_timeout(monkeypatch):
+    hanging_pool = _HangingOraclePool()
+    _install_fake_oracledb_with_pool(monkeypatch, hanging_pool)
+
+    async def _run() -> None:
+        pool = await AsyncOraclePool.create(
+            {
+                "user": "scott",
+                "password": "tiger",
+                "host": "localhost",
+                "port": 1521,
+                "service_name": "XE",
+                "close_timeout": 0.01,
+            }
+        )
+        await pool.close()
+        assert hanging_pool.force_close_used is True
+        assert hanging_pool.closed is True
+
+    asyncio.run(_run())
+

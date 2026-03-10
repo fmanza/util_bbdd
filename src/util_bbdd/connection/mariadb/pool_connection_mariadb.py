@@ -6,7 +6,9 @@ from uuid import uuid4
 
 from mariadb import Connection, ConnectionPool
 
+from ...database_exceptions import DatabasePoolError, DatabasePoolTimeoutError
 from ..connection_params_manager import ConnectionParamsManager
+from ..sync_close_utils import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_sync_close_operation
 
 
 class PoolConnection:
@@ -50,16 +52,16 @@ class PoolConnection:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.pool: ConnectionPool | None = None
         self._closed: bool = False
+        self._close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
 
         self.__create_pool(conn_params)
 
     def __del__(self) -> None:
         """Limpia recursos al destruir el objeto."""
-        if self.pool is not None:
-            try:
-                self.pool.close()
-            except Exception:
-                pass  # Ignorar si ya fue cerrado
+        try:
+            self.close(timeout_seconds=self._close_timeout_seconds, force=True)
+        except Exception:
+            pass  # No propagar excepciones desde destructor
 
     def __create_pool(self, conn_params: dict[str, str | int]) -> None:
         """Crea pool nativo de MariaDB.
@@ -128,16 +130,42 @@ class PoolConnection:
         if connection:
             connection.close()
 
-    def close(self) -> None:
-        """Cierra todas las conexiones del pool."""
+    def close(self, timeout_seconds: float | None, force: bool) -> None:
+        """Cierra todas las conexiones del pool con timeout/forzado explícitos."""
         if self._closed:
             return
         self._closed = True
-        if self.pool:
-            try:
-                self.pool.close()
-                self.logger.info("✅ Pool MariaDB cerrado")
-            except Exception as e:
-                self.logger.warning(f"⚠️  Error cerrando pool MariaDB: {e}")
-            finally:
-                self.pool = None
+        if self.pool is None:
+            return
+
+        effective_timeout = self._close_timeout_seconds if timeout_seconds is None else timeout_seconds
+        pool_ref = self.pool
+        try:
+            run_sync_close_operation(
+                action=lambda: pool_ref.close(),
+                timeout_seconds=effective_timeout,
+                action_name="cierre pool MariaDB",
+                db_type="mariadb",
+            )
+            self.logger.info("✅ Pool MariaDB cerrado")
+        except DatabasePoolTimeoutError as err:
+            if force is False:
+                raise
+            terminate = getattr(pool_ref, "terminate", None)
+            if not callable(terminate):
+                raise DatabasePoolError(
+                    message="Pool MariaDB no soporta cierre forzado",
+                    db_type="mariadb",
+                ) from err
+            def _terminate_pool() -> None:
+                _ = terminate()
+
+            run_sync_close_operation(
+                action=_terminate_pool,
+                timeout_seconds=FORCE_CLOSE_TIMEOUT_SECONDS,
+                action_name="terminación forzada pool MariaDB",
+                db_type="mariadb",
+            )
+            self.logger.info("✅ Pool MariaDB cerrado (forzado)")
+        finally:
+            self.pool = None

@@ -205,7 +205,7 @@ async def async_manager_with_schema(
     )
 
     # Inicializar el manager (se crea query_executor vacío)
-    await manager.ainit()
+    await manager.init()
 
     # Registrar queries manualmente en el executor
     registry = QueryRegistry(Path(sql_queries_json_path))
@@ -218,7 +218,7 @@ async def async_manager_with_schema(
 
     # Cleanup
     try:
-        await manager.aclose()
+        await manager.close()
     except Exception:
         pass
     finally:
@@ -312,3 +312,4 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "e2e: Tests E2E/Integración con bases de datos reales (sin mocks)")
     config.addinivalue_line("markers", "sqlite: Tests específicos de SQLite")
     config.addinivalue_line("markers", "postgresql: Tests específicos de PostgreSQL (requiere servidor)")
+

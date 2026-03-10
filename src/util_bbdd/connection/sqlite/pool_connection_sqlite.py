@@ -4,7 +4,9 @@ import logging
 
 from typing import Any, Literal, cast
 
+from ...database_exceptions import DatabasePoolError, DatabasePoolTimeoutError
 from ..connection_params_manager import ConnectionParamsManager
+from ..sync_close_utils import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_sync_close_operation
 
 
 class PoolConnection:
@@ -47,6 +49,7 @@ class PoolConnection:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.connection: Any | None = None
         self._closed: bool = False
+        self._close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
 
         # pool_size se ignora para SQLite (siempre 1 conexión)
         self.pool_size: int = 1
@@ -55,11 +58,10 @@ class PoolConnection:
 
     def __del__(self) -> None:
         """Limpia recursos al destruir el objeto."""
-        if self.connection is not None:
-            try:
-                self.connection.close()
-            except Exception:
-                pass  # Ignorar si ya fue cerrado
+        try:
+            self.close(timeout_seconds=self._close_timeout_seconds, force=True)
+        except Exception:
+            pass  # No propagar excepciones desde destructor
 
     def __create_pool(self, conn_params: dict[str, str]) -> None:
         """Crea conexión principal para SQLite (pool simple).
@@ -130,16 +132,39 @@ class PoolConnection:
         # SQLite pool simple: no cerramos, reutilizamos
         pass
 
-    def close(self) -> None:
-        """Cierra la conexión principal y limpia recursos."""
+    def close(self, timeout_seconds: float | None, force: bool) -> None:
+        """Cierra la conexión principal con timeout/forzado explícitos."""
         if self._closed:
             return
         self._closed = True
-        if self.connection:
-            try:
-                self.connection.close()
-                self.logger.info("✅ Pool SQLite cerrado")
-            except Exception as e:
-                self.logger.warning(f"⚠️  Error cerrando pool SQLite: {e}")
-            finally:
-                self.connection = None
+        if self.connection is None:
+            return
+
+        effective_timeout = self._close_timeout_seconds if timeout_seconds is None else timeout_seconds
+        connection_ref = self.connection
+        try:
+            run_sync_close_operation(
+                action=lambda: connection_ref.close(),
+                timeout_seconds=effective_timeout,
+                action_name="cierre pool SQLite",
+                db_type="sqlite",
+            )
+            self.logger.info("✅ Pool SQLite cerrado")
+        except DatabasePoolTimeoutError:
+            if force is False:
+                raise
+            run_sync_close_operation(
+                action=lambda: connection_ref.close(),
+                timeout_seconds=FORCE_CLOSE_TIMEOUT_SECONDS,
+                action_name="reintento forzado pool SQLite",
+                db_type="sqlite",
+            )
+            self.logger.info("✅ Pool SQLite cerrado (forzado)")
+        except Exception as err:
+            raise DatabasePoolError(
+                message="Error cerrando pool SQLite",
+                db_type="sqlite",
+                details=str(err),
+            ) from err
+        finally:
+            self.connection = None

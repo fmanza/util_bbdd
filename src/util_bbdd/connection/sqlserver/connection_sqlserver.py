@@ -1,12 +1,14 @@
 """Conexión raw al driver SQL Server."""
 
 import logging
+
 from typing import Any
 
 from pyodbc import Connection
 
-from ..connection_params_manager import ConnectionParamsManager
 from util_bbdd.database_exceptions import DatabaseConnectionError
+
+from ..connection_params_manager import ConnectionParamsManager
 
 
 class SQLServerConnection:
@@ -134,4 +136,3 @@ class SQLServerConnection:
         except Exception as e:
             SQLServerConnection.logger.error(f"❌ Error conectando a SQL Server (pyodbc): {e}")
             raise DatabaseConnectionError(f"Error conectando a SQL Server: {str(e)}", "sqlserver", str(e)) from e
-

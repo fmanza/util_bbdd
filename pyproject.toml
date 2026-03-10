@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "util_bbdd"
-version = "0.3.0"
+version = "0.4.0"
 description = "Librería de operaciones de base de datos: CRUD en lote, auditoría, conexiones pooled y documentación."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
     {name = "Francisco", email = "developer@example.com"}
@@ -68,6 +68,12 @@ util_bbdd = ["py.typed"]
 [tool.ruff]
 line-length = 120
 target-version = "py310"
+
+#[tool.ruff.isort]
+#known-first-party = ["util_bbdd"]
+#combine-as-imports = true
+
+[tool.ruff.lint]
 extend-select = [
     "E",
     "W",
@@ -78,10 +84,6 @@ extend-select = [
     "UP",
 ]
 ignore = ["E501"]
-
-#[tool.ruff.isort]
-#known-first-party = ["util_bbdd"]
-#combine-as-imports = true
 
 [tool.ruff.lint.isort]
 # Fuerza a que todos los imports de una misma sección estén juntos
@@ -113,7 +115,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 check_untyped_defs = true

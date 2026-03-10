@@ -144,9 +144,7 @@ class AuditTransaction:
         if self.manager.cache_enabled:
             self.manager.invalidar_cache()
 
-    def _registrar_transaccion_fallida(
-        self, duracion: timedelta, exc_type: Any, exc_val: Any
-    ) -> None:
+    def _registrar_transaccion_fallida(self, duracion: timedelta, exc_type: Any, exc_val: Any) -> None:
         """Registra una transacción fallida."""
         tiempo_segundos: float = duracion.total_seconds()
         total_ops: int = len(self.operaciones)
@@ -187,9 +185,7 @@ class AuditTransaction:
             AuditValidationError: Si la transacción no está activa.
         """
         if self.inicio is None or self.fin is not None:
-            raise AuditValidationError(
-                "❌ No se puede agregar operaciones a una transacción cerrada."
-            )
+            raise AuditValidationError("❌ No se puede agregar operaciones a una transacción cerrada.")
 
         op_dict: dict[str, Any] = {
             "tabla": tabla,
@@ -325,16 +321,12 @@ class AuditManager:
         # Validar parámetros
         self._validar_parametros_operacion(tabla, motor, operacion, rowcount, elapsed)
 
-        self._auditar_lote_csv(
-            self.audit_csv_path, tabla, motor, operacion, rowcount, elapsed, genero_sql
-        )
+        self._auditar_lote_csv(self.audit_csv_path, tabla, motor, operacion, rowcount, elapsed, genero_sql)
 
         # Invalidar caché al registrar operación (Phase 2)
         self.invalidar_cache()
 
-        self.logger.info(
-            f"🟢 {operacion} - filas {rowcount} - {elapsed:.3f}s registrado en auditoría"
-        )
+        self.logger.info(f"🟢 {operacion} - filas {rowcount} - {elapsed:.3f}s registrado en auditoría")
 
     def _validar_parametros_operacion(
         self, tabla: str, motor: str, operacion: str, rowcount: int, elapsed: float
@@ -347,19 +339,13 @@ class AuditManager:
             raise AuditValidationError("❌ 'motor' no puede estar vacío")
 
         if operacion not in ("INSERT", "UPDATE", "DELETE"):
-            raise AuditValidationError(
-                f"❌ Operación inválida: '{operacion}'. Debe ser INSERT, UPDATE o DELETE"
-            )
+            raise AuditValidationError(f"❌ Operación inválida: '{operacion}'. Debe ser INSERT, UPDATE o DELETE")
 
         if not isinstance(rowcount, int) or rowcount < 0:
-            raise AuditValidationError(
-                f"❌ 'rowcount' debe ser un entero >= 0, se recibió {rowcount}"
-            )
+            raise AuditValidationError(f"❌ 'rowcount' debe ser un entero >= 0, se recibió {rowcount}")
 
         if not isinstance(elapsed, (int, float)) or elapsed < 0:
-            raise AuditValidationError(
-                f"❌ 'elapsed' debe ser un número >= 0, se recibió {elapsed}"
-            )
+            raise AuditValidationError(f"❌ 'elapsed' debe ser un número >= 0, se recibió {elapsed}")
 
     def _auditar_lote_csv(
         self,
@@ -421,12 +407,7 @@ class AuditManager:
             AuditDataError: Si hay error al leer los datos.
         """
         # Verificar si tenemos caché válido
-        if (
-            usar_cache
-            and self.cache_enabled
-            and self._es_cache_valido()
-            and self._cache_df is not None
-        ):
+        if usar_cache and self.cache_enabled and self._es_cache_valido() and self._cache_df is not None:
             self.logger.debug("📦 Usando caché para lectura de auditoría")
             return self._cache_df.copy()
 
@@ -437,9 +418,7 @@ class AuditManager:
             raise AuditFileError(f"❌ Archivo de auditoría no encontrado: {self.audit_csv_path}")
 
         try:
-            df: pd.DataFrame = pd.read_csv(
-                str(self.audit_csv_path), delimiter="\t", parse_dates=["timestamp"]
-            )
+            df: pd.DataFrame = pd.read_csv(str(self.audit_csv_path), delimiter="\t", parse_dates=["timestamp"])
             # Convertir comas a puntos en columna de tiempo (compatibilidad con Excel)
             if "tiempo_seg" in df.columns:
                 df["tiempo_seg"] = df["tiempo_seg"].astype(str).str.replace(",", ".").astype(float)
@@ -472,9 +451,7 @@ class AuditManager:
         """Invalida el caché (alias de limpiar_cache para compatibilidad)."""
         self.limpiar_cache()
 
-    def exportar_resumen_excel(
-        self, agrupar_por: Literal["tabla", "fecha", "tabla_fecha"] = "tabla"
-    ) -> Path:
+    def exportar_resumen_excel(self, agrupar_por: Literal["tabla", "fecha", "tabla_fecha"] = "tabla") -> Path:
         """
         Exporta un resumen de auditoría a Excel con hojas separadas por operación.
 
@@ -497,9 +474,7 @@ class AuditManager:
         # Validar columnas requeridas
         columnas_faltantes: set[str] = set(self.columnas_auditoria) - set(df.columns)
         if columnas_faltantes:
-            raise AuditDataError(
-                f"❌ El CSV no contiene las columnas requeridas: {', '.join(columnas_faltantes)}"
-            )
+            raise AuditDataError(f"❌ El CSV no contiene las columnas requeridas: {', '.join(columnas_faltantes)}")
 
         # Normalizar datos
         df["tiempo_seg"] = df["tiempo_seg"].astype(str).str.replace(",", ".").astype(float)
@@ -608,9 +583,7 @@ class AuditManager:
             DataFrame con operaciones lentas ordenadas por tiempo descendente.
         """
         df = self.leer_auditoria()
-        operaciones_lentas = df[df["tiempo_seg"] > umbral_segundos].sort_values(
-            "tiempo_seg", ascending=False
-        )
+        operaciones_lentas = df[df["tiempo_seg"] > umbral_segundos].sort_values("tiempo_seg", ascending=False)
         self.logger.info(f"🔍 {len(operaciones_lentas)} operaciones tardaron > {umbral_segundos}s")
         return operaciones_lentas
 
@@ -630,9 +603,7 @@ class AuditManager:
             AuditValidationError: Si la operación es inválida.
         """
         if operacion not in ("INSERT", "UPDATE", "DELETE"):
-            raise AuditValidationError(
-                f"❌ Operación inválida: '{operacion}'. Debe ser INSERT, UPDATE o DELETE"
-            )
+            raise AuditValidationError(f"❌ Operación inválida: '{operacion}'. Debe ser INSERT, UPDATE o DELETE")
         df = self.leer_auditoria()
         return df[df["operacion"] == operacion]
 
@@ -681,9 +652,7 @@ class AuditManager:
             AuditValidationError: Si el rango es inválido.
         """
         if inicio > fin:
-            raise AuditValidationError(
-                f"❌ Rango inválido: inicio ({inicio}) debe ser anterior a fin ({fin})"
-            )
+            raise AuditValidationError(f"❌ Rango inválido: inicio ({inicio}) debe ser anterior a fin ({fin})")
         df = self.leer_auditoria()
         df["timestamp"] = pd.to_datetime(df["timestamp"])
         return df[(df["timestamp"] >= inicio) & (df["timestamp"] <= fin)].sort_values("timestamp")
@@ -752,9 +721,7 @@ class AuditManager:
             f"❌ 'agrupar_por' debe ser 'tabla', 'fecha' o 'tabla_fecha', se recibió '{agrupar_por}'."
         )
 
-    def _agrupar_y_generar_resumen(
-        self, df_op: pd.DataFrame, group_cols: list[str]
-    ) -> pd.DataFrame:
+    def _agrupar_y_generar_resumen(self, df_op: pd.DataFrame, group_cols: list[str]) -> pd.DataFrame:
         """
         Agrupa datos de auditoría y genera resumen con estadísticas.
 
@@ -809,8 +776,7 @@ class AuditManager:
             resumen: dict[str, Any] = {
                 "fecha_generacion": datetime.now().isoformat(),
                 "estadisticas": {
-                    k: (v.isoformat() if isinstance(v, (datetime, pd.Timestamp)) else v)
-                    for k, v in stats.items()
+                    k: (v.isoformat() if isinstance(v, (datetime, pd.Timestamp)) else v) for k, v in stats.items()
                 },
                 "operaciones_por_tipo": operaciones,
                 "operaciones_por_tabla": tablas,

@@ -24,6 +24,17 @@ class HSQLDBValidator(DatabaseTypeValidator):
     def __init__(self):
         self.logger: logging.Logger = logging.getLogger(__name__)
 
+    @staticmethod
+    def _validate_table_name(value: Any) -> tuple[bool, list[str]]:
+        if not isinstance(value, str) or len(value.strip()) == 0:
+            return False, ["Table name cannot be empty"]
+
+        if not re.match(r"^[A-Za-z0-9_\-]+$", value):
+            msg = f"HSQLDB: Table name contains invalid characters: '{value}'. Allowed: alphanumeric, dash, underscore"
+            return False, [msg]
+
+        return True, []
+
     def validate_parameters(self, query_def: QueryDefinition, params: dict[str, Any]) -> tuple[bool, list[str]]:
         """Valida parámetros para HSQLDB.
 
@@ -53,21 +64,12 @@ class HSQLDBValidator(DatabaseTypeValidator):
                 msg = f"Parameter '{required_param}' cannot be empty or None"
                 return False, [msg]
 
-        # Validar nombre de tabla si está presente (HSQLDB es muy restrictivo)
-        if "table" in params:
-            table_name = params["table"]
-            if not isinstance(table_name, str) or len(table_name.strip()) == 0:
-                return False, ["Table name cannot be empty"]
-
-            # HSQLDB: solo alfanumérico, guión, guión bajo
-            # La validación de HSQLDB es bastante permisiva en realidad,
-            # pero históricamente podría tener restricciones
-            if not re.match(r"^[A-Za-z0-9_\-]+$", table_name):
-                msg = (
-                    f"HSQLDB: Table name contains invalid characters: '{table_name}'. "
-                    f"Allowed: alphanumeric, dash, underscore"
-                )
-                return False, [msg]
+        # Plantillas usan "tabla", pero se mantiene alias legacy "table".
+        table_name = params.get("tabla", params.get("table"))
+        if table_name is not None:
+            is_valid_table, table_errors = self._validate_table_name(table_name)
+            if not is_valid_table:
+                return False, table_errors
 
         self.logger.debug(f"✅ HSQLDB validation passed (warnings={len(warnings)})")
         return True, warnings

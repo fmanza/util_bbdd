@@ -48,8 +48,8 @@ class PostgreSQLValidator(DatabaseTypeValidator):
                 msg = f"Parameter '{required_param}' cannot be empty or None"
                 return False, [msg]
 
-        # Validar database/schema si está presente
-        for param_name in ["database", "schema"]:
+        # Validar contexto de esquema. Algunas plantillas usan "esquema".
+        for param_name in ["database", "schema", "esquema"]:
             if param_name in params:
                 db_name = params[param_name]
                 if not isinstance(db_name, str) or len(db_name.strip()) == 0:

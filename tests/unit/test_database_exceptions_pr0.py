@@ -7,7 +7,6 @@ en database_exceptions.py.
 
 from util_bbdd.database_exceptions import (
     DatabaseError,
-    DatabaseQueryError,
     DatabaseTypeNotSupportedError,
     QueryError,
     QueryNotFoundError,
@@ -155,31 +154,14 @@ class TestDatabaseTypeNotSupportedError:
         assert msg in str(exc)
 
 
-class TestBackwardCompatibility:
-    """Tests para compatibilidad hacia atrás"""
+class TestLegacyAliasRemoval:
+    """Tests para validar eliminación definitiva de aliases legacy."""
 
-    def test_database_query_error_alias_exists(self):
-        """Test: DatabaseQueryError existe como alias"""
-        assert DatabaseQueryError is not None
+    def test_database_query_error_alias_removed(self):
+        """DatabaseQueryError ya no debe existir."""
+        import util_bbdd.database_exceptions as db_exc
 
-    def test_database_query_error_is_query_not_found_error(self):
-        """Test: DatabaseQueryError es alias de QueryNotFoundError"""
-        assert DatabaseQueryError is QueryNotFoundError
-
-    def test_database_query_error_can_be_caught_as_query_not_found(self):
-        """Test: puede capturarse como QueryNotFoundError"""
-        exc = DatabaseQueryError("Query not found")
-        assert isinstance(exc, QueryNotFoundError)
-
-    def test_database_query_error_can_be_caught_as_query_error(self):
-        """Test: puede capturarse como QueryError"""
-        exc = DatabaseQueryError("Query not found")
-        assert isinstance(exc, QueryError)
-
-    def test_database_query_error_can_be_caught_as_database_error(self):
-        """Test: puede capturarse como DatabaseError"""
-        exc = DatabaseQueryError("Query not found")
-        assert isinstance(exc, DatabaseError)
+        assert not hasattr(db_exc, "DatabaseQueryError")
 
 
 class TestExceptionInstantiation:

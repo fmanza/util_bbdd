@@ -18,4 +18,3 @@ def test_hsqldb_async_is_not_supported() -> None:
 
 def test_unknown_engine_returns_none() -> None:
     assert is_async_supported("unknown_db") is None
-

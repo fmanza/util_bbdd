@@ -53,7 +53,7 @@ class TestSyncAsyncContract:
         registry = QueryRegistry(temp_queries_file)
         executor = SyncQueryExecutor(provider, releaser, registry)
 
-        result = executor.execute_query("obtener_tablas", "mariadb", {"database": "mydatabase"})
+        executor.execute_query_many("obtener_tablas", "mariadb", {"database": "mydatabase"})
 
         # Verificar que el SQL contiene el parámetro interpolado
         call_args = mock_cursor.execute.call_args
@@ -74,7 +74,7 @@ class TestSyncAsyncContract:
         registry = QueryRegistry(temp_queries_file)
         executor = AsyncQueryExecutor(provider, releaser, registry)
 
-        result = await executor.execute_query("obtener_tablas", "mariadb", {"database": "mydatabase"})
+        await executor.execute_query_many("obtener_tablas", "mariadb", {"database": "mydatabase"})
 
         # Verificar que el SQL contiene el parámetro interpolado
         call_args = mock_cursor.execute.call_args
@@ -94,7 +94,7 @@ class TestSyncAsyncContract:
         registry = QueryRegistry(temp_queries_file)
         executor = SyncQueryExecutor(provider, releaser, registry)
 
-        result = executor.execute_query("obtener_tablas", "mariadb", {"database": "test"})
+        result = executor.execute_query_many("obtener_tablas", "mariadb", {"database": "test"})
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -113,13 +113,13 @@ class TestSyncAsyncContract:
         registry = QueryRegistry(temp_queries_file)
         executor = AsyncQueryExecutor(provider, releaser, registry)
 
-        result = await executor.execute_query("obtener_tablas", "mariadb", {"database": "test"})
+        result = await executor.execute_query_many("obtener_tablas", "mariadb", {"database": "test"})
 
         assert isinstance(result, list)
         assert len(result) == 2
 
-    def test_sync_fetch_one_behavior(self, temp_queries_file):
-        """Sync executor con fetch_one=True retorna tuple"""
+    def test_sync_one_behavior(self, temp_queries_file):
+        """Sync executor con execute_query_one retorna tuple"""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_cursor.fetchone.return_value = ("table1",)
@@ -131,13 +131,13 @@ class TestSyncAsyncContract:
         registry = QueryRegistry(temp_queries_file)
         executor = SyncQueryExecutor(provider, releaser, registry)
 
-        result = executor.execute_query("obtener_tablas", "mariadb", {"database": "test"}, fetch_one=True)
+        result = executor.execute_query_one("obtener_tablas", "mariadb", {"database": "test"})
 
         assert isinstance(result, tuple)
 
     @pytest.mark.asyncio
-    async def test_async_fetch_one_behavior(self, temp_queries_file):
-        """Async executor con fetch_one=True retorna tuple (igual que sync)"""
+    async def test_async_one_behavior(self, temp_queries_file):
+        """Async executor con execute_query_one retorna tuple (igual que sync)"""
         mock_conn = AsyncMock()
         mock_cursor = AsyncMock()
         mock_cursor.fetchone.return_value = ("table1",)
@@ -149,6 +149,6 @@ class TestSyncAsyncContract:
         registry = QueryRegistry(temp_queries_file)
         executor = AsyncQueryExecutor(provider, releaser, registry)
 
-        result = await executor.execute_query("obtener_tablas", "mariadb", {"database": "test"}, fetch_one=True)
+        result = await executor.execute_query_one("obtener_tablas", "mariadb", {"database": "test"})
 
         assert isinstance(result, tuple)

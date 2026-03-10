@@ -478,9 +478,8 @@ class DatabaseDocumentation:
     def _get_oracle_default_tablespace(self) -> str:
         """Intenta obtener tablespace del usuario Oracle conectado."""
         try:
-            user_tablespaces: Any = self.db_manager.execute_custom_query(
+            user_tablespaces: Any = self.db_manager.execute_custom_one(
                 self._ORACLE_USER_TABLESPACES_QUERY,
-                fetch_one=True,
             )
             return self._extract_tablespace_from_row(user_tablespaces)
         except Exception:
@@ -529,9 +528,8 @@ class DatabaseDocumentation:
             data_candidates.append(conn_tablespace)
 
         try:
-            user_tablespaces: Any = self.db_manager.execute_custom_query(
+            user_tablespaces: Any = self.db_manager.execute_custom_one(
                 self._ORACLE_USER_TABLESPACES_QUERY,
-                fetch_one=True,
             )
             normalized_user_rows: list[list[Any]] = self._normalize_storage_rows(user_tablespaces)
             if normalized_user_rows and len(normalized_user_rows[0]) > 0:
@@ -548,9 +546,8 @@ class DatabaseDocumentation:
         temp_candidates: list[str] = []
 
         try:
-            user_tablespaces: Any = self.db_manager.execute_custom_query(
+            user_tablespaces: Any = self.db_manager.execute_custom_one(
                 self._ORACLE_USER_TABLESPACES_QUERY,
-                fetch_one=True,
             )
             normalized_user_rows: list[list[Any]] = self._normalize_storage_rows(user_tablespaces)
             if normalized_user_rows and len(normalized_user_rows[0]) > 1:
@@ -726,7 +723,7 @@ class DatabaseDocumentation:
     def _is_placeholder_storage_query(self, query_name: str, query_params: dict[str, Any]) -> bool:
         """Indica si la query de almacenamiento es un placeholder de no soporte."""
         try:
-            sql_text: str = str(self.db_manager.db_queries.get_query(query_name, **query_params) or "")
+            sql_text: str = str(self.db_manager.resolve_query(query_name, **query_params).final_sql or "")
         except Exception:
             return False
         normalized_sql: str = " ".join(sql_text.strip().lower().split())
@@ -837,7 +834,6 @@ class DatabaseDocumentation:
         collected_rows: list[list[Any]] = []
         collected_sql: list[str] = []
         collected_errors: list[str] = []
-        db_queries = self.db_manager.db_queries
 
         for tablespace_name in oracle_tablespaces:
             local_params: dict[str, Any] = {
@@ -845,8 +841,8 @@ class DatabaseDocumentation:
                 "tablespace": tablespace_name,
             }
             try:
-                sql_text: str = db_queries.get_query(query_name, **local_params)
-                result_rows: Any = self.db_manager.execute_query(query_name, fetch_one=False, **local_params)
+                sql_text: str = str(self.db_manager.resolve_query(query_name, **local_params).final_sql or "")
+                result_rows: Any = self.db_manager.execute_query_many(query_name, **local_params)
                 rows: list[list[Any]] = self._normalize_storage_rows(result_rows)
                 collected_rows.extend(rows)
                 collected_sql.append(sql_text)
@@ -940,12 +936,9 @@ class DatabaseDocumentation:
         Returns:
             Sección de resultado.
         """
-        db_queries = self.db_manager.db_queries
-
-        # Validar parámetros usando QueryResolver
         try:
-            db_queries.resolver.resolve(query_name, db_queries.db_type, query_params)
-        except ValueError as e:
+            resolved = self.db_manager.resolve_query(query_name, **query_params)
+        except Exception as e:
             # Si falla la validación, retornar sección de parámetros faltantes
             error_msg: str = str(e)
             return self.__build_section_missing_params(
@@ -953,16 +946,13 @@ class DatabaseDocumentation:
                 query_title,
                 f"Parámetros inválidos: {error_msg}",
             )
-        except Exception:
-            # Si no es ValueError, puede ser que la consulta no existe
-            return self.__build_section_not_supported(query_name, query_title)
 
         if self._is_placeholder_storage_query(query_name=query_name, query_params=query_params):
             return self.__build_section_not_supported(query_name, query_title)
 
         try:
-            sql_text: str = db_queries.get_query(query_name, **query_params)
-            result_rows: Any = self.db_manager.execute_query(query_name, fetch_one=False, **query_params)
+            sql_text: str = str(resolved.final_sql or "")
+            result_rows: Any = self.db_manager.execute_query_many(query_name, **query_params)
             rows: list[list[Any]] = self._normalize_storage_rows(result_rows)
             headers: list[str] = self._build_storage_headers(query_name=query_name, rows=rows)
             rows = self._format_storage_rows(headers=headers, rows=rows)

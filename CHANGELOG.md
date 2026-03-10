@@ -7,6 +7,31 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed
+- **Breaking Change**: Removed legacy execution APIs based on `fetch_one`
+  - `DatabaseManager.execute_query(...)`
+  - `DatabaseManager.execute_custom_query(...)`
+  - `AsyncDatabaseManager.execute_query(...)`
+  - `AsyncDatabaseManager.execute_custom_query(...)`
+- **Breaking Change**: Removed executor legacy entry points
+  - `SyncQueryExecutor.execute_query(...)`
+  - `SyncQueryExecutor.execute_custom_query(...)`
+  - `AsyncQueryExecutor.execute_query(...)`
+  - `AsyncQueryExecutor.execute_custom_query(...)`
+- **Breaking Change**: `DatabaseManager.db_queries` is no longer exposed as public API.
+- Removed legacy executor class from `database_queries.py`; module remains catalog/resolution only.
+
+### Added
+- Public execution contract unified and explicit in sync/async:
+  - `execute_query_many(...)`
+  - `execute_query_one(...)`
+  - `execute_custom_many(...)`
+  - `execute_custom_one(...)`
+
+### Changed
+- Documentation generators now consume public manager APIs instead of direct catalog access.
+- README examples updated to the final split many/one API.
+
 ## [0.3.0] - 2026-03-08
 
 ### Removed

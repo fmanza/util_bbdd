@@ -4,7 +4,9 @@ import logging
 
 from typing import TYPE_CHECKING
 
+from ...database_exceptions import DatabasePoolError, DatabasePoolTimeoutError
 from ..connection_params_manager import ConnectionParamsManager
+from ..sync_close_utils import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_sync_close_operation
 
 try:
     from psycopg_pool import ConnectionPool as PsycopgConnectionPool
@@ -67,6 +69,7 @@ class PoolConnection:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.pool: PsycopgConnectionPool | None = None
         self._closed: bool = False
+        self._close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
         pool_config = ConnectionParamsManager.get_pool_config("postgresql", conn_params)
         self.pool_size: int = pool_config.pool_size
         self.pool_timeout: int = pool_config.pool_timeout
@@ -77,11 +80,10 @@ class PoolConnection:
 
     def __del__(self) -> None:
         """Limpia recursos al destruir el objeto."""
-        if self.pool:
-            try:
-                self.pool.close()
-            except Exception:
-                pass  # Ignorar si ya fue cerrado
+        try:
+            self.close(timeout_seconds=self._close_timeout_seconds, force=True)
+        except Exception:
+            pass  # No propagar excepciones desde destructor
 
     def __create_pool(self) -> None:
         """Crea pool nativo de psycopg 3.
@@ -91,17 +93,11 @@ class PoolConnection:
         """
         try:
             # Construir conninfo string para psycopg
-            user: str | None = (
-                str(self.conn_params.get("user")) if self.conn_params.get("user") else None
-            )
-            password: str | None = (
-                str(self.conn_params.get("password")) if self.conn_params.get("password") else None
-            )
+            user: str | None = str(self.conn_params.get("user")) if self.conn_params.get("user") else None
+            password: str | None = str(self.conn_params.get("password")) if self.conn_params.get("password") else None
             host: str = str(self.conn_params.get("host", "localhost"))
             port: str | int = self.conn_params.get("port", 5432)
-            database: str | None = (
-                str(self.conn_params.get("database")) if self.conn_params.get("database") else None
-            )
+            database: str | None = str(self.conn_params.get("database")) if self.conn_params.get("database") else None
 
             conninfo: str = f"postgresql://{user}:{password}@{host}:{port}/{database}"
 
@@ -150,16 +146,63 @@ class PoolConnection:
         if self.pool:
             self.pool.putconn(connection)
 
-    def close(self) -> None:
-        """Cierra todas las conexiones del pool."""
+    def close(self, timeout_seconds: float | None, force: bool) -> None:
+        """Cierra todas las conexiones del pool con timeout/forzado explícitos."""
         if self._closed:
             return
         self._closed = True
-        if self.pool:
+        if self.pool is None:
+            return
+
+        effective_timeout = self._close_timeout_seconds if timeout_seconds is None else timeout_seconds
+        pool_ref = self.pool
+
+        def _close_with_optional_timeout(close_timeout: float | None) -> None:
+            close_method = pool_ref.close
+            if close_timeout is None:
+                close_method()
+                return
             try:
-                self.pool.close()
-                self.logger.info("✅ Pool PostgreSQL (psycopg3) cerrado")
-            except Exception as e:
-                self.logger.warning(f"⚠️  Error cerrando pool PostgreSQL: {e}")
-            finally:
-                self.pool = None
+                close_method(timeout=close_timeout)
+            except TypeError:
+                close_method()
+
+        try:
+            run_sync_close_operation(
+                action=lambda: _close_with_optional_timeout(effective_timeout),
+                timeout_seconds=effective_timeout,
+                action_name="cierre pool PostgreSQL",
+                db_type="postgresql",
+            )
+            self.logger.info("✅ Pool PostgreSQL (psycopg3) cerrado")
+        except DatabasePoolTimeoutError:
+            if force is False:
+                raise
+
+            terminate = getattr(pool_ref, "terminate", None)
+            if callable(terminate):
+                def _terminate_pool() -> None:
+                    _ = terminate()
+
+                run_sync_close_operation(
+                    action=_terminate_pool,
+                    timeout_seconds=FORCE_CLOSE_TIMEOUT_SECONDS,
+                    action_name="terminación forzada pool PostgreSQL",
+                    db_type="postgresql",
+                )
+            else:
+                run_sync_close_operation(
+                    action=lambda: _close_with_optional_timeout(0.0),
+                    timeout_seconds=FORCE_CLOSE_TIMEOUT_SECONDS,
+                    action_name="reintento forzado pool PostgreSQL",
+                    db_type="postgresql",
+                )
+            self.logger.info("✅ Pool PostgreSQL (psycopg3) cerrado (forzado)")
+        except Exception as err:
+            raise DatabasePoolError(
+                message="Error cerrando pool PostgreSQL",
+                db_type="postgresql",
+                details=str(err),
+            ) from err
+        finally:
+            self.pool = None

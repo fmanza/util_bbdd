@@ -3,6 +3,7 @@ SQL Server Query Validator
 """
 
 import logging
+import re
 
 from typing import Any
 
@@ -23,6 +24,17 @@ class SQLServerValidator(DatabaseTypeValidator):
     def __init__(self):
         self.logger: logging.Logger = logging.getLogger(__name__)
 
+    @staticmethod
+    def _validate_schema_name(value: Any) -> tuple[bool, list[str]]:
+        if not isinstance(value, str) or len(value.strip()) == 0:
+            return False, ["Schema cannot be empty"]
+
+        # Soporte básico para identificadores sin brackets.
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_#$@]*$", value):
+            return False, [f"Schema contains invalid characters: '{value}'"]
+
+        return True, []
+
     def validate_parameters(self, query_def: QueryDefinition, params: dict[str, Any]) -> tuple[bool, list[str]]:
         """Valida parámetros para SQL Server.
 
@@ -38,7 +50,7 @@ class SQLServerValidator(DatabaseTypeValidator):
         # Verificar parámetros requeridos
         for required_param in query_def.required_params:
             if required_param not in params:
-                msg = f"Missing required parameter '{required_param}' for query '{query_def.name}'"
+                msg: str = f"Missing required parameter '{required_param}' for query '{query_def.name}'"
                 self.logger.debug(f"❌ Validation failed: {msg}")
                 return False, [msg]
 
@@ -48,11 +60,12 @@ class SQLServerValidator(DatabaseTypeValidator):
                 msg = f"Parameter '{required_param}' cannot be empty or None"
                 return False, [msg]
 
-        # SQL Server: esquema default es 'dbo' pero puede ser otro
-        if "esquema" in params:
-            schema = params["esquema"]
-            if not isinstance(schema, str) or len(schema.strip()) == 0:
-                return False, ["Schema cannot be empty"]
+        # SQL Server templates pueden usar "esquema" o "schema".
+        schema_value = params.get("esquema", params.get("schema"))
+        if schema_value is not None:
+            is_valid_schema, schema_errors = self._validate_schema_name(schema_value)
+            if not is_valid_schema:
+                return False, schema_errors
 
         self.logger.debug(f"✅ SQL Server validation passed (warnings={len(warnings)})")
         return True, warnings

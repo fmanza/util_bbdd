@@ -85,6 +85,4 @@ class SQLiteConnection:
             raise DatabaseConnectionError("Módulo sqlite3 no disponible", "sqlite", str(e)) from e
         except Exception as e:
             SQLiteConnection.logger.error(f"❌ Error conectando a SQLite: {e}")
-            raise DatabaseConnectionError(
-                f"Error conectando a SQLite: {str(e)}", "sqlite", str(e)
-            ) from e
+            raise DatabaseConnectionError(f"Error conectando a SQLite: {str(e)}", "sqlite", str(e)) from e

@@ -27,15 +27,9 @@ class HtmlGenerator:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.database: str = database
         self.headers: dict = headers
-        self.default_template_file: Path = (
-            Path(__file__).parent / "data" / "html_documentation_template.j2"
-        )
-        self.default_index_template_file: Path = (
-            Path(__file__).parent / "data" / "html_index_template.j2"
-        )
-        self.template_file: Path = (
-            template_file if template_file is not None else self.default_template_file
-        )
+        self.default_template_file: Path = Path(__file__).parent / "data" / "html_documentation_template.j2"
+        self.default_index_template_file: Path = Path(__file__).parent / "data" / "html_index_template.j2"
+        self.template_file: Path = template_file if template_file is not None else self.default_template_file
 
     def generate_document(
         self,
@@ -55,13 +49,9 @@ class HtmlGenerator:
             output_dir: Carpeta de salida del sitio HTML.
             print_config: Configuración unificada de secciones y gráficos.
         """
-        self.logger.info(
-            f"🟢 Iniciando generación de documentación HTML para base de datos: {self.database}"
-        )
+        self.logger.info(f"🟢 Iniciando generación de documentación HTML para base de datos: {self.database}")
 
-        resolved: dict[str, Any] = self._resolve_print_config(
-            print_config, data_provider, output_dir
-        )
+        resolved: dict[str, Any] = self._resolve_print_config(print_config, data_provider, output_dir)
         include_database_info: bool = resolved.get("include_database_info", False)
 
         self.logger.debug(
@@ -120,9 +110,7 @@ class HtmlGenerator:
                 if resolved.get("include_database_info", False)
                 else []
             )
-            self.logger.debug(
-                f"📡 Después de segunda llamada: entries={len(database_info_entries)}"
-            )
+            self.logger.debug(f"📡 Después de segunda llamada: entries={len(database_info_entries)}")
 
         table_slug_map, view_slug_map, selected_routines, routine_slug_map, svg_navigation_links = (
             self._build_slug_maps_and_filters(tables, views, routines, resolved)
@@ -131,9 +119,7 @@ class HtmlGenerator:
         graph_generator: Any = None
         if resolved["include_diagrams"]:
             self.logger.debug("🟢 Inicializando generador de grafos para diagramas HTML")
-            graph_generator = self._build_graph_generator(
-                data_provider, resolved["diagram_options"]
-            )
+            graph_generator = self._build_graph_generator(data_provider, resolved["diagram_options"])
 
         tables_index: list[dict[str, str]] = self._process_tables(
             tables,
@@ -180,9 +166,7 @@ class HtmlGenerator:
         self, print_config: dict[str, Any] | None, data_provider: Any, output_dir: Path
     ) -> dict[str, Any]:
         """Resuelve la configuración de impresión normalizada."""
-        normalized_config: dict[str, Any] = PrintConfigManager.normalize(
-            print_config or data_provider.imprimir_config
-        )
+        normalized_config: dict[str, Any] = PrintConfigManager.normalize(print_config or data_provider.imprimir_config)
         return PrintConfigManager.resolve_for_html(
             config=normalized_config,
             output_dir=output_dir,
@@ -211,9 +195,7 @@ class HtmlGenerator:
 
         env = Environment(
             loader=FileSystemLoader(unique_search_paths),
-            autoescape=select_autoescape(
-                enabled_extensions=("html", "xml"), default_for_string=True
-            ),
+            autoescape=select_autoescape(enabled_extensions=("html", "xml"), default_for_string=True),
             trim_blocks=True,
             lstrip_blocks=True,
         )
@@ -281,9 +263,7 @@ class HtmlGenerator:
                 # MariaDB: row[2]=charset, row[3]=collation
                 charset = row[2]
                 collation = row[3]
-                charset_collation = (
-                    f"{charset} {collation}".strip() if charset or collation else None
-                )
+                charset_collation = f"{charset} {collation}".strip() if charset or collation else None
             else:
                 # Otros motores: row[2]=charset_collation (opcional)
                 charset_collation = row[2] if len(row) > 2 else None
@@ -429,9 +409,7 @@ class HtmlGenerator:
         storage_used_slugs: set[str] = set()
 
         for section in storage_report.get("sections", []):
-            section_slug: str = self._build_unique_slug(
-                str(section.get("query", "storage")), storage_used_slugs
-            )
+            section_slug: str = self._build_unique_slug(str(section.get("query", "storage")), storage_used_slugs)
             storage_rel_path: Path = Path("storage") / f"{section_slug}.html"
             storage_output_file: Path = output_dir / storage_rel_path
             storage_payload: dict[str, Any] = {
@@ -479,9 +457,7 @@ class HtmlGenerator:
             return database_info_entries
 
         if detail_template is None:
-            self.logger.debug(
-                "⏭️  Sin template de detalle (primera llamada), retornando vacío para llamada posterior"
-            )
+            self.logger.debug("⏭️  Sin template de detalle (primera llamada), retornando vacío para llamada posterior")
             return database_info_entries
 
         try:
@@ -489,9 +465,7 @@ class HtmlGenerator:
             info_dir: Path = output_dir / "info"
             info_dir.mkdir(parents=True, exist_ok=True)
 
-            properties_list: list[list[str]] = self._collect_database_properties(
-                data_provider, database_info_flags
-            )
+            properties_list: list[list[str]] = self._collect_database_properties(data_provider, database_info_flags)
             self.logger.debug(f"📊 Propiedades recolectadas: {len(properties_list)} items")
 
             if properties_list:
@@ -511,9 +485,7 @@ class HtmlGenerator:
 
         return database_info_entries
 
-    def _collect_database_properties(
-        self, data_provider: Any, database_info_flags: list[bool]
-    ) -> list[list[str]]:
+    def _collect_database_properties(self, data_provider: Any, database_info_flags: list[bool]) -> list[list[str]]:
         """Recolecta propiedades de versión y charset/collation de la BD."""
         properties_list: list[list[str]] = []
 
@@ -525,9 +497,7 @@ class HtmlGenerator:
 
         return properties_list
 
-    def _collect_version_property(
-        self, data_provider: Any, properties_list: list[list[str]]
-    ) -> None:
+    def _collect_version_property(self, data_provider: Any, properties_list: list[list[str]]) -> None:
         """Obtiene y agrega la propiedad de versión."""
         self.logger.debug("🔍 Obteniendo versión de BD...")
         try:
@@ -539,9 +509,7 @@ class HtmlGenerator:
         except Exception as version_error:
             self.logger.warning(f"⚠️ Error al obtener versión: {version_error}")
 
-    def _collect_charset_properties(
-        self, data_provider: Any, properties_list: list[list[str]]
-    ) -> None:
+    def _collect_charset_properties(self, data_provider: Any, properties_list: list[list[str]]) -> None:
         """Obtiene y agrega propiedades de charset/collation."""
         self.logger.debug("🔍 Obteniendo charset/collation de BD...")
         try:
@@ -612,19 +580,17 @@ class HtmlGenerator:
         sql_queries: list[str] = []
 
         try:
+            query_info: dict[str, Any] = data_provider.db_manager.get_query_info()
+            queries_map: dict[str, Any] = query_info.get("queries", {})
+
             if database_info_flags[0]:
-                version_sql: str = str(
-                    data_provider.db_manager.db_queries.get_query("database_version") or ""
-                )
+                version_sql: str = str(queries_map.get("database_version", {}).get("template", "") or "")
                 if version_sql.strip():
                     sql_queries.append(version_sql)
                     self.logger.debug("✅ Query de versión agregada")
 
             if database_info_flags[1]:
-                charset_sql: str = str(
-                    data_provider.db_manager.db_queries.get_query("database_charset_collation")
-                    or ""
-                )
+                charset_sql: str = str(queries_map.get("database_charset_collation", {}).get("template", "") or "")
                 if charset_sql.strip():
                     sql_queries.append(charset_sql)
                     self.logger.debug("✅ Query de charset agregada")
@@ -658,14 +624,10 @@ class HtmlGenerator:
         )
 
         procedures_index: list[dict[str, str]] = [
-            item
-            for item in routines_index
-            if str(item.get("routine_type", "")).upper() == "PROCEDURE"
+            item for item in routines_index if str(item.get("routine_type", "")).upper() == "PROCEDURE"
         ]
         functions_index: list[dict[str, str]] = [
-            item
-            for item in routines_index
-            if str(item.get("routine_type", "")).upper() == "FUNCTION"
+            item for item in routines_index if str(item.get("routine_type", "")).upper() == "FUNCTION"
         ]
 
         default_content_path: str = self._get_default_content_path(
@@ -744,12 +706,8 @@ class HtmlGenerator:
     def _normalize_routine_entry(self, routine: tuple) -> tuple[str, str, str]:
         """Normaliza una fila de rutina a (nombre, tipo, comentario)."""
         routine_name: str = str(routine[0]) if len(routine) > 0 and routine[0] is not None else ""
-        routine_type: str = (
-            str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
-        )
-        routine_comment: str = (
-            str(routine[2]) if len(routine) > 2 and routine[2] is not None else ""
-        )
+        routine_type: str = str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
+        routine_comment: str = str(routine[2]) if len(routine) > 2 and routine[2] is not None else ""
         return routine_name, routine_type.upper(), routine_comment
 
     def _build_routine_key(self, routine: tuple) -> str:
@@ -806,9 +764,7 @@ class HtmlGenerator:
                 headers = [f"Columna {idx}" for idx in range(1, max_cols + 1)]
             section["headers"] = headers
             section["numeric_columns"] = numeric_columns
-            section["rows"] = [
-                [str(value) if value is not None else "" for value in row] for row in rows
-            ]
+            section["rows"] = [[str(value) if value is not None else "" for value in row] for row in rows]
         report["sections"] = sections
         return report
 
@@ -907,9 +863,7 @@ class HtmlGenerator:
     ) -> None:
         """Rellena las secciones del payload según los flags activados."""
         self._populate_ddl_section(payload, data_provider, table_name, section_flags)
-        self._populate_columns_section(
-            payload, data_provider, table_name, section_flags, include_columns_charset
-        )
+        self._populate_columns_section(payload, data_provider, table_name, section_flags, include_columns_charset)
         self._populate_constraints_and_indices(payload, data_provider, table_name, section_flags)
 
     def _populate_ddl_section(
@@ -941,12 +895,8 @@ class HtmlGenerator:
 
         try:
             columnas = data_provider.get_columns(table_name)
-            payload["columnas"]["rows"] = self._process_columns_data(
-                columnas, data_provider.db_type
-            )
-            self._populate_columns_charset(
-                payload, data_provider, table_name, include_columns_charset
-            )
+            payload["columnas"]["rows"] = self._process_columns_data(columnas, data_provider.db_type)
+            self._populate_columns_charset(payload, data_provider, table_name, include_columns_charset)
         except Exception:
             payload["columnas"]["rows"] = []
 
@@ -963,13 +913,9 @@ class HtmlGenerator:
 
         try:
             charset_info = data_provider.get_columns_charset_collation(table_name)
-            payload["columns_charset"]["rows"] = [
-                [row[0], row[1] or "", row[2] or ""] for row in charset_info
-            ]
+            payload["columns_charset"]["rows"] = [[row[0], row[1] or "", row[2] or ""] for row in charset_info]
         except Exception as e:
-            self.logger.debug(
-                f"⚠️  No se pudo obtener charset/collation de columnas para {table_name}: {e}"
-            )
+            self.logger.debug(f"⚠️  No se pudo obtener charset/collation de columnas para {table_name}: {e}")
             payload["columns_charset"]["rows"] = []
 
     def _populate_constraints_and_indices(
@@ -1013,9 +959,7 @@ class HtmlGenerator:
         }
 
         self._populate_view_ddl_section(payload, data_provider, view_name, section_flags)
-        self._populate_view_columns_section(
-            payload, data_provider, view_name, section_flags, include_columns_charset
-        )
+        self._populate_view_columns_section(payload, data_provider, view_name, section_flags, include_columns_charset)
 
         return payload
 
@@ -1048,12 +992,8 @@ class HtmlGenerator:
 
         try:
             columnas = data_provider.get_columns(view_name)
-            payload["columnas"]["rows"] = self._process_columns_data(
-                columnas, data_provider.db_type
-            )
-            self._populate_view_columns_charset(
-                payload, data_provider, view_name, include_columns_charset
-            )
+            payload["columnas"]["rows"] = self._process_columns_data(columnas, data_provider.db_type)
+            self._populate_view_columns_charset(payload, data_provider, view_name, include_columns_charset)
         except Exception:
             payload["columnas"]["rows"] = []
 
@@ -1070,13 +1010,9 @@ class HtmlGenerator:
 
         try:
             charset_info = data_provider.get_columns_charset_collation(view_name)
-            payload["columns_charset"]["rows"] = [
-                [row[0], row[1] or "", row[2] or ""] for row in charset_info
-            ]
+            payload["columns_charset"]["rows"] = [[row[0], row[1] or "", row[2] or ""] for row in charset_info]
         except Exception as e:
-            self.logger.debug(
-                f"⚠️  No se pudo obtener charset/collation de columnas para {view_name}: {e}"
-            )
+            self.logger.debug(f"⚠️  No se pudo obtener charset/collation de columnas para {view_name}: {e}")
             payload["columns_charset"]["rows"] = []
 
     def _build_routine_payload(
@@ -1159,9 +1095,7 @@ class HtmlGenerator:
 
         try:
             generated_paths: list[Path]
-            if images_paginated and hasattr(
-                graph_generator, "generate_graphviz_graph_paginated_ext"
-            ):
+            if images_paginated and hasattr(graph_generator, "generate_graphviz_graph_paginated_ext"):
                 generated_paths = [
                     Path(path)
                     for path in graph_generator.generate_graphviz_graph_paginated_ext(
@@ -1190,10 +1124,7 @@ class HtmlGenerator:
             for svg_path in valid_paths:
                 self._inject_links_into_svg(svg_path=svg_path, navigation_links=navigation_links)
 
-            return [
-                html.escape(str(path.relative_to(output_dir)).replace("\\", "/"))
-                for path in valid_paths
-            ]
+            return [html.escape(str(path.relative_to(output_dir)).replace("\\", "/")) for path in valid_paths]
         except Exception as error:
             self.logger.warning(f"⚠️ No se pudo generar SVG para tabla {table_name}: {error}")
             return []
@@ -1238,9 +1169,7 @@ class HtmlGenerator:
 
             tree.write(str(svg_path), encoding="utf-8", xml_declaration=True)
         except Exception as error:
-            self.logger.warning(
-                f"⚠️ No se pudieron inyectar enlaces en SVG {svg_path.name}: {error}"
-            )
+            self.logger.warning(f"⚠️ No se pudieron inyectar enlaces en SVG {svg_path.name}: {error}")
 
     def _decode_html_entities(self, value: str, max_rounds: int = 3) -> str:
         """Decodifica entidades HTML (incluyendo casos doblemente escapados)."""
@@ -1258,15 +1187,9 @@ class HtmlGenerator:
             return [[idx[0], idx[1], "No" if idx[2] else "Sí", idx[3]] for idx in indices]
 
         if db_type == "oracle":
-            return [
-                [idx[0], idx[3], "Sí" if self._is_unique(idx, db_type) else "No", idx[2]]
-                for idx in indices
-            ]
+            return [[idx[0], idx[3], "Sí" if self._is_unique(idx, db_type) else "No", idx[2]] for idx in indices]
 
-        return [
-            [idx[0], idx[1], "Sí" if self._is_unique(idx, db_type) else "No", idx[3]]
-            for idx in indices
-        ]
+        return [[idx[0], idx[1], "Sí" if self._is_unique(idx, db_type) else "No", idx[3]] for idx in indices]
 
     def _is_unique(self, index_data: tuple, db_type: str) -> bool:
         """Determina si un índice es único según el tipo de BD."""

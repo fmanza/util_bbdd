@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from util_bbdd.database_exceptions import (
+    DatabaseOperationError,
     QueryNotFoundError,
     QueryTimeoutError,
     QueryValidationError,
@@ -73,12 +74,12 @@ class TestSyncExecutorBasics:
         registry = QueryRegistry(temp_queries_file)
         executor = SyncQueryExecutor(provider, releaser, registry)
 
-        result = executor.execute_query("obtener_tablas", "mariadb", {"database": "test_db"})
+        result = executor.execute_query_many("obtener_tablas", "mariadb", {"database": "test_db"})
 
         assert result == [("table1",), ("table2",)]
         releaser.assert_called_once_with(mock_conn)
 
-    def test_execute_custom_query(self, temp_queries_file):
+    def test_execute_custom_one(self, temp_queries_file):
         """Test ejecución de SQL custom"""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
@@ -91,7 +92,7 @@ class TestSyncExecutorBasics:
         registry = QueryRegistry(temp_queries_file)
         executor = SyncQueryExecutor(provider, releaser, registry)
 
-        result = executor.execute_custom_query("SELECT 1", fetch_one=True)
+        result = executor.execute_custom_one("SELECT 1")
 
         assert result == ("value",)
         releaser.assert_called_once_with(mock_conn)
@@ -111,8 +112,8 @@ class TestSyncExecutorErrorHandling:
         registry = QueryRegistry(temp_queries_file)
         executor = SyncQueryExecutor(provider, releaser, registry)
 
-        with pytest.raises(Exception):
-            executor.execute_custom_query("SELECT 1")
+        with pytest.raises(DatabaseOperationError):
+            executor.execute_custom_many("SELECT 1")
 
         releaser.assert_called_once_with(mock_conn)
 
@@ -125,7 +126,7 @@ class TestSyncExecutorErrorHandling:
         executor = SyncQueryExecutor(provider, releaser, registry)
 
         with pytest.raises(QueryNotFoundError):
-            executor.execute_query("query_inexistente", "mariadb", {})
+            executor.execute_query_many("query_inexistente", "mariadb", {})
 
     def test_missing_required_param_error(self, temp_queries_file):
         """Test error cuando falta parámetro requerido"""
@@ -140,14 +141,14 @@ class TestSyncExecutorErrorHandling:
         executor = SyncQueryExecutor(provider, releaser, registry)
 
         with pytest.raises(QueryValidationError):
-            executor.execute_query("obtener_tablas", "mariadb", {})
+            executor.execute_query_many("obtener_tablas", "mariadb", {})
 
 
 class TestSyncExecutorFetchOptions:
-    """Pruebas de opciones de fetch (one vs all)"""
+    """Pruebas de contrato explícito one vs many."""
 
-    def test_fetch_one(self, temp_queries_file):
-        """Test fetch_one=True retorna un registro"""
+    def test_execute_query_one(self, temp_queries_file):
+        """Test execute_query_one retorna un registro"""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_cursor.fetchone.return_value = ("table1",)
@@ -159,13 +160,13 @@ class TestSyncExecutorFetchOptions:
         registry = QueryRegistry(temp_queries_file)
         executor = SyncQueryExecutor(provider, releaser, registry)
 
-        result = executor.execute_query("obtener_tablas", "mariadb", {"database": "test_db"}, fetch_one=True)
+        result = executor.execute_query_one("obtener_tablas", "mariadb", {"database": "test_db"})
 
         assert result == ("table1",)
         mock_cursor.fetchone.assert_called_once()
 
-    def test_fetch_all_default(self, temp_queries_file):
-        """Test fetch_one=False retorna todos los registros"""
+    def test_execute_query_many(self, temp_queries_file):
+        """Test execute_query_many retorna todos los registros"""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_cursor.fetchall.return_value = [("table1",), ("table2",), ("table3",)]
@@ -177,7 +178,7 @@ class TestSyncExecutorFetchOptions:
         registry = QueryRegistry(temp_queries_file)
         executor = SyncQueryExecutor(provider, releaser, registry)
 
-        result = executor.execute_query("obtener_tablas", "mariadb", {"database": "test_db"}, fetch_one=False)
+        result = executor.execute_query_many("obtener_tablas", "mariadb", {"database": "test_db"})
 
         assert result == [("table1",), ("table2",), ("table3",)]
         mock_cursor.fetchall.assert_called_once()
@@ -186,8 +187,8 @@ class TestSyncExecutorFetchOptions:
 class TestSyncExecutorTimeout:
     """Pruebas de timeout en sync"""
 
-    def test_timeout_during_execute_query(self, temp_queries_file):
-        """Lanza QueryTimeoutError cuando execute_query excede timeout."""
+    def test_timeout_during_execute_query_many(self, temp_queries_file):
+        """Lanza QueryTimeoutError cuando execute_query_many excede timeout."""
         import time
 
         mock_conn = MagicMock()
@@ -207,12 +208,12 @@ class TestSyncExecutorTimeout:
         executor = SyncQueryExecutor(provider, releaser, registry)
 
         with pytest.raises(QueryTimeoutError):
-            executor.execute_query("obtener_tablas", "mariadb", {"database": "test_db"}, timeout=0.01)
+            executor.execute_query_many("obtener_tablas", "mariadb", {"database": "test_db"}, timeout=0.01)
 
         releaser.assert_called_once_with(mock_conn)
 
-    def test_timeout_during_execute_custom_query(self, temp_queries_file):
-        """Lanza QueryTimeoutError cuando execute_custom_query excede timeout."""
+    def test_timeout_during_execute_custom_many(self, temp_queries_file):
+        """Lanza QueryTimeoutError cuando execute_custom_many excede timeout."""
         import time
 
         mock_conn = MagicMock()
@@ -232,7 +233,7 @@ class TestSyncExecutorTimeout:
         executor = SyncQueryExecutor(provider, releaser, registry)
 
         with pytest.raises(QueryTimeoutError):
-            executor.execute_custom_query("SELECT 1", timeout=0.01)
+            executor.execute_custom_many("SELECT 1", timeout=0.01)
 
         releaser.assert_called_once_with(mock_conn)
 
@@ -257,7 +258,7 @@ class TestSyncExecutorMetadata:
         registry = QueryRegistry(temp_queries_file)
         executor = SyncQueryExecutor(provider, releaser, registry)
 
-        executor.execute_query("obtener_tablas", "mariadb", {"database": "test_db"})
+        executor.execute_query_many("obtener_tablas", "mariadb", {"database": "test_db"})
 
         # Verificar que hay logs de debug
         assert any("Query executed" in record.message for record in caplog.records)
@@ -279,6 +280,6 @@ class TestSyncExecutorMetadata:
         registry = QueryRegistry(temp_queries_file)
         executor = SyncQueryExecutor(provider, releaser, registry)
 
-        executor.execute_custom_query("SELECT 1")
+        executor.execute_custom_many("SELECT 1")
 
         assert any("custom query" in record.message.lower() for record in caplog.records)

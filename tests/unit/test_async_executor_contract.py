@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from util_bbdd.database_exceptions import (
+    DatabaseOperationError,
     QueryNotFoundError,
     QueryTimeoutError,
     QueryValidationError,
@@ -76,13 +77,13 @@ class TestAsyncExecutorBasics:
         registry = QueryRegistry(temp_queries_file)
         executor = AsyncQueryExecutor(provider, releaser, registry)
 
-        result = await executor.execute_query("obtener_tablas", "mariadb", {"database": "test_db"})
+        result = await executor.execute_query_many("obtener_tablas", "mariadb", {"database": "test_db"})
 
         assert result == [("table1",), ("table2",)]
         releaser.assert_called_once_with(mock_conn)
 
     @pytest.mark.asyncio
-    async def test_execute_custom_query(self, temp_queries_file):
+    async def test_execute_custom_one(self, temp_queries_file):
         """Test ejecución de SQL custom async"""
         mock_conn = AsyncMock()
         mock_cursor = AsyncMock()
@@ -95,7 +96,7 @@ class TestAsyncExecutorBasics:
         registry = QueryRegistry(temp_queries_file)
         executor = AsyncQueryExecutor(provider, releaser, registry)
 
-        result = await executor.execute_custom_query("SELECT 1", fetch_one=True)
+        result = await executor.execute_custom_one("SELECT 1")
 
         assert result == ("value",)
         releaser.assert_called_once_with(mock_conn)
@@ -116,8 +117,8 @@ class TestAsyncExecutorErrorHandling:
         registry = QueryRegistry(temp_queries_file)
         executor = AsyncQueryExecutor(provider, releaser, registry)
 
-        with pytest.raises(Exception):
-            await executor.execute_custom_query("SELECT 1")
+        with pytest.raises(DatabaseOperationError):
+            await executor.execute_custom_many("SELECT 1")
 
         releaser.assert_called_once_with(mock_conn)
 
@@ -131,7 +132,7 @@ class TestAsyncExecutorErrorHandling:
         executor = AsyncQueryExecutor(provider, releaser, registry)
 
         with pytest.raises(QueryNotFoundError):
-            await executor.execute_query("query_inexistente", "mariadb", {})
+            await executor.execute_query_many("query_inexistente", "mariadb", {})
 
     @pytest.mark.asyncio
     async def test_missing_required_param_error(self, temp_queries_file):
@@ -147,15 +148,15 @@ class TestAsyncExecutorErrorHandling:
         executor = AsyncQueryExecutor(provider, releaser, registry)
 
         with pytest.raises(QueryValidationError):
-            await executor.execute_query("obtener_tablas", "mariadb", {})
+            await executor.execute_query_many("obtener_tablas", "mariadb", {})
 
 
 class TestAsyncExecutorFetchOptions:
-    """Pruebas de opciones de fetch (one vs all)"""
+    """Pruebas de contrato explícito one vs many."""
 
     @pytest.mark.asyncio
-    async def test_fetch_one(self, temp_queries_file):
-        """Test fetch_one=True retorna un registro"""
+    async def test_execute_query_one(self, temp_queries_file):
+        """Test execute_query_one retorna un registro"""
         mock_conn = AsyncMock()
         mock_cursor = AsyncMock()
         mock_cursor.fetchone.return_value = ("table1",)
@@ -167,14 +168,14 @@ class TestAsyncExecutorFetchOptions:
         registry = QueryRegistry(temp_queries_file)
         executor = AsyncQueryExecutor(provider, releaser, registry)
 
-        result = await executor.execute_query("obtener_tablas", "mariadb", {"database": "test_db"}, fetch_one=True)
+        result = await executor.execute_query_one("obtener_tablas", "mariadb", {"database": "test_db"})
 
         assert result == ("table1",)
         mock_cursor.fetchone.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_fetch_all_default(self, temp_queries_file):
-        """Test fetch_one=False retorna todos los registros"""
+    async def test_execute_query_many(self, temp_queries_file):
+        """Test execute_query_many retorna todos los registros"""
         mock_conn = AsyncMock()
         mock_cursor = AsyncMock()
         mock_cursor.fetchall.return_value = [("table1",), ("table2",), ("table3",)]
@@ -186,7 +187,7 @@ class TestAsyncExecutorFetchOptions:
         registry = QueryRegistry(temp_queries_file)
         executor = AsyncQueryExecutor(provider, releaser, registry)
 
-        result = await executor.execute_query("obtener_tablas", "mariadb", {"database": "test_db"}, fetch_one=False)
+        result = await executor.execute_query_many("obtener_tablas", "mariadb", {"database": "test_db"})
 
         assert result == [("table1",), ("table2",), ("table3",)]
         mock_cursor.fetchall.assert_called_once()
@@ -218,10 +219,9 @@ class TestAsyncExecutorTimeout:
 
         registry = QueryRegistry(temp_queries_file)
         executor = AsyncQueryExecutor(mock_provider, mock_releaser, registry)
-        executor.query_timeout = 0.1
 
         with pytest.raises(QueryTimeoutError):
-            await executor.execute_custom_query("SELECT 1")
+            await executor.execute_custom_many("SELECT 1", deadline_seconds=0.1)
 
 
 class TestAsyncExecutorMetadata:
@@ -245,7 +245,7 @@ class TestAsyncExecutorMetadata:
         registry = QueryRegistry(temp_queries_file)
         executor = AsyncQueryExecutor(provider, releaser, registry)
 
-        await executor.execute_query("obtener_tablas", "mariadb", {"database": "test_db"})
+        await executor.execute_query_many("obtener_tablas", "mariadb", {"database": "test_db"})
 
         # Verificar que hay logs de debug
         assert any("Query executed" in record.message for record in caplog.records)
@@ -268,6 +268,6 @@ class TestAsyncExecutorMetadata:
         registry = QueryRegistry(temp_queries_file)
         executor = AsyncQueryExecutor(provider, releaser, registry)
 
-        await executor.execute_custom_query("SELECT 1")
+        await executor.execute_custom_many("SELECT 1")
 
         assert any("custom query" in record.message.lower() for record in caplog.records)

@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from util_bbdd.database_exceptions import QueryNotFoundError
 from util_bbdd.database_queries import DatabaseQueries
 
 
@@ -203,8 +204,7 @@ class TestDatabaseQueriesConsistency:
     def test_get_query_raises_for_nonexistent_query(self):
         """get_query raises appropriate exception for nonexistent query"""
         dq = DatabaseQueries(db_type="mariadb")
-        # Should raise KeyError or custom exception
-        with pytest.raises(Exception):
+        with pytest.raises(QueryNotFoundError):
             dq.get_query("nonexistent_query_name_xyz")
 
     def test_get_query_includes_placeholders(self):

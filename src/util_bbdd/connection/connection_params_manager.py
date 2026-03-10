@@ -85,9 +85,7 @@ class ConnectionParamsManager:
     ) -> dict[str, Any]:
         """Filtra parámetros aptos para crear conexión raw por motor."""
         normalized_type: str = db_type.lower().strip()
-        config = ConnectionParamsManager.get_connection_config(
-            normalized_type, conn_params, driver=driver
-        )
+        config = ConnectionParamsManager.get_connection_config(normalized_type, conn_params, driver=driver)
         if normalized_type == "sqlserver":
             sanitized = config.to_driver_kwargs(driver=driver)
         else:
@@ -137,9 +135,7 @@ class ConnectionParamsManager:
             return SQLServerConnectionConfig.from_params(conn_params, driver=driver)
         if normalized_type == "sqlite":
             return SQLiteConnectionConfig.from_params(conn_params)
-        raise ValueError(
-            f"Tipo de base de datos no soportado para configuración de conexión: {db_type}"
-        )
+        raise ValueError(f"Tipo de base de datos no soportado para configuración de conexión: {db_type}")
 
     @staticmethod
     def get_pool_config(
@@ -157,9 +153,7 @@ class ConnectionParamsManager:
             return SQLServerPoolConfig.from_params(conn_params)
         if normalized_type == "sqlite":
             return SQLitePoolConfig.from_params(conn_params)
-        raise ValueError(
-            f"Tipo de base de datos no soportado para configuración de pool: {db_type}"
-        )
+        raise ValueError(f"Tipo de base de datos no soportado para configuración de pool: {db_type}")
 
     @staticmethod
     def _log_ignored(

@@ -1,12 +1,15 @@
 """Pool de conexiones para SQL Server (pymssql/pyodbc)."""
 
 import logging
+
 from queue import Empty, LifoQueue
 from threading import Lock
 from typing import Any
 
+from ...database_exceptions import DatabasePoolError, DatabasePoolTimeoutError
 from ..connection_params_manager import ConnectionParamsManager
 from ..sqlserver.connection_sqlserver import SQLServerConnection
+from ..sync_close_utils import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_sync_close_operation
 
 
 class PoolConnection:
@@ -51,16 +54,18 @@ class PoolConnection:
         self._available: LifoQueue[Any] = LifoQueue(maxsize=self.pool_size)
         self._lock: Lock = Lock()
         self._total_connections: int = 0
+        self._leased_connections: dict[int, Any] = {}
         self._closed: bool = False
+        self._close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
 
         self.__create_pool()
 
     def __del__(self) -> None:
         """Limpia recursos al destruir el objeto."""
         try:
-            self.close()
+            self.close(timeout_seconds=self._close_timeout_seconds, force=True)
         except Exception:
-            pass
+            pass  # No propagar excepciones desde destructor
 
     def _create_connection(self) -> Any:
         """Crea una conexión raw SQL Server usando el driver configurado."""
@@ -85,7 +90,7 @@ class PoolConnection:
             )
         except Exception as e:
             self.logger.error(f"❌ Error creando pool SQL Server: {e}")
-            self.close()
+            self.close(timeout_seconds=self._close_timeout_seconds, force=True)
             raise
 
     def get_connection(self) -> Any:
@@ -102,7 +107,10 @@ class PoolConnection:
             raise RuntimeError("Pool SQL Server cerrado")
 
         try:
-            return self._available.get_nowait()
+            connection = self._available.get_nowait()
+            with self._lock:
+                self._leased_connections[id(connection)] = connection
+            return connection
         except Empty:
             pass
 
@@ -115,11 +123,15 @@ class PoolConnection:
             if self._total_connections < max_connections:
                 connection = self._create_connection()
                 self._total_connections += 1
+                self._leased_connections[id(connection)] = connection
                 return connection
 
         # Esperar devolución de conexión cuando ya alcanzó límite total
         try:
-            return self._available.get(timeout=self.pool_timeout)
+            connection = self._available.get(timeout=self.pool_timeout)
+            with self._lock:
+                self._leased_connections[id(connection)] = connection
+            return connection
         except Empty as e:
             raise TimeoutError(
                 f"Timeout obteniendo conexión SQL Server tras {self.pool_timeout}s "
@@ -134,6 +146,9 @@ class PoolConnection:
         """
         if not connection:
             return
+
+        with self._lock:
+            self._leased_connections.pop(id(connection), None)
 
         if self._closed:
             try:
@@ -153,30 +168,80 @@ class PoolConnection:
                     if self._total_connections > 0:
                         self._total_connections -= 1
 
-    def close(self) -> None:
-        """Cierra todas las conexiones del pool."""
+    def _collect_available_connections(self) -> list[Any]:
+        available_connections: list[Any] = []
+        while True:
+            try:
+                available_connections.append(self._available.get_nowait())
+            except Empty:
+                return available_connections
+
+    def _collect_and_reset_leased_connections(self) -> list[Any]:
+        with self._lock:
+            leased_connections = list(self._leased_connections.values())
+            self._leased_connections.clear()
+            self._total_connections = 0
+        return leased_connections
+
+    def _close_with_timeout(self, connection: Any, timeout_seconds: float | None, action_name: str) -> None:
+        run_sync_close_operation(
+            action=lambda conn=connection: conn.close(),
+            timeout_seconds=timeout_seconds,
+            action_name=action_name,
+            db_type="sqlserver",
+        )
+
+    def _handle_close_timeout(self, connection: Any, force: bool, err: DatabasePoolTimeoutError) -> str | None:
+        if force is False:
+            return str(err)
+        try:
+            self._close_with_timeout(
+                connection=connection,
+                timeout_seconds=FORCE_CLOSE_TIMEOUT_SECONDS,
+                action_name="reintento forzado conexión pool SQL Server",
+            )
+            return None
+        except Exception as force_err:
+            return str(force_err)
+
+    def _close_single_connection(self, connection: Any, timeout_seconds: float | None, force: bool) -> str | None:
+        try:
+            self._close_with_timeout(
+                connection=connection,
+                timeout_seconds=timeout_seconds,
+                action_name="cierre conexión pool SQL Server",
+            )
+            return None
+        except DatabasePoolTimeoutError as err:
+            return self._handle_close_timeout(connection=connection, force=force, err=err)
+        except Exception as err:
+            return str(err)
+
+    def close(self, timeout_seconds: float | None, force: bool) -> None:
+        """Cierra todas las conexiones (disponibles y prestadas) con timeout/forzado explícitos."""
         if self._closed:
             return
 
         self._closed = True
+        effective_timeout = self._close_timeout_seconds if timeout_seconds is None else timeout_seconds
         errors: list[str] = []
 
-        while True:
-            try:
-                connection = self._available.get_nowait()
-            except Empty:
-                break
+        all_connections = self._collect_available_connections() + self._collect_and_reset_leased_connections()
 
-            try:
-                connection.close()
-            except Exception as e:
-                errors.append(str(e))
-
-        with self._lock:
-            self._total_connections = 0
+        for connection in all_connections:
+            error = self._close_single_connection(
+                connection=connection,
+                timeout_seconds=effective_timeout,
+                force=force,
+            )
+            if error is not None:
+                errors.append(error)
 
         if errors:
-            self.logger.warning(f"⚠️  Errores cerrando pool SQL Server: {errors}")
-        else:
-            self.logger.info("✅ Pool SQL Server cerrado")
+            raise DatabasePoolError(
+                message="Errores cerrando pool SQL Server",
+                db_type="sqlserver",
+                details=" | ".join(errors),
+            )
 
+        self.logger.info("✅ Pool SQL Server cerrado")

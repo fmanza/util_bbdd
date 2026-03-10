@@ -16,4 +16,3 @@ def is_async_supported(db_type: str) -> bool | None:
     Devuelve `None` para motores desconocidos.
     """
     return DB_ASYNC_CAPABILITIES.get(db_type.lower().strip())
-

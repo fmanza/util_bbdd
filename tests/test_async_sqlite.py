@@ -28,6 +28,11 @@ class _FakeSQLiteConn:
         self.closed = True
 
 
+class _HangingSQLiteConn(_FakeSQLiteConn):
+    async def close(self):
+        await asyncio.Event().wait()
+
+
 class _FakeAioSQLiteModule:
     def __init__(self) -> None:
         self.conn = _FakeSQLiteConn()
@@ -40,6 +45,15 @@ def _install_fake_aiosqlite(monkeypatch) -> _FakeSQLiteConn:
     fake_mod = _FakeAioSQLiteModule()
     monkeypatch.setitem(sys.modules, "aiosqlite", fake_mod)
     return fake_mod.conn
+
+
+def _install_fake_aiosqlite_with_conn(monkeypatch, conn):
+    class _CustomFakeAioSQLiteModule:
+        async def connect(self, *args, **kwargs):
+            return conn
+
+    monkeypatch.setitem(sys.modules, "aiosqlite", _CustomFakeAioSQLiteModule())
+    return conn
 
 
 def test_async_sqlite_connection(monkeypatch):
@@ -63,7 +77,7 @@ def test_async_sqlite_pool(monkeypatch):
         one = await conn.fetchone()
         assert one == ("sqlite-one",)
         await pool.release(conn)
-        await pool.aclose()
+        await pool.close()
         assert fake_conn.closed is True
 
     asyncio.run(_run())
@@ -78,9 +92,21 @@ def test_async_database_manager_sqlite_pool(monkeypatch):
             conn_params={"database": ":memory:"},
             use_pool=True,
         ) as manager:
-            row = await manager.execute_custom_query("SELECT 1", fetch_one=True)
+            row = await manager.execute_custom_one("SELECT 1")
             assert row == ("sqlite-one",)
 
         assert fake_conn.closed is True
 
     asyncio.run(_run())
+
+
+def test_async_sqlite_pool_close_timeout_does_not_block(monkeypatch):
+    hanging_conn = _HangingSQLiteConn()
+    _install_fake_aiosqlite_with_conn(monkeypatch, hanging_conn)
+
+    async def _run() -> None:
+        pool = await AsyncSQLitePool.create({"database": ":memory:", "close_timeout": 0.01})
+        await pool.close()
+
+    asyncio.run(_run())
+

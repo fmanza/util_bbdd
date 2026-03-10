@@ -51,9 +51,7 @@ class GraphvizRelationshipGraph(DatabaseRelationshipGraphBase):
             f"Iniciando generación paginada de Graphviz para {table_name} (max {max_subnodes} nodos por página)"
         )
         relations: list[TableRelation] = self.analyze_table_relations(table_name)
-        split_relations: list[list[TableRelation]] = self._split_relations_for_visualization(
-            relations, max_subnodes
-        )
+        split_relations: list[list[TableRelation]] = self._split_relations_for_visualization(relations, max_subnodes)
         self.logger.debug(f"Tabla {table_name} dividida en {len(split_relations)} página(s)")
 
         output_dir = Path(output_dir).resolve()
@@ -108,13 +106,9 @@ class GraphvizRelationshipGraph(DatabaseRelationshipGraphBase):
                 tables_in_page.add(relation.source_table)
                 tables_in_page.add(relation.target_table)
 
-            dot = graphviz.Digraph(
-                comment=f"Relaciones de {table_name}", format=format, engine="circo"
-            )
+            dot = graphviz.Digraph(comment=f"Relaciones de {table_name}", format=format, engine="circo")
             dot.attr(size="20,20", overlap="false")
-            dot.attr(
-                "node", shape="box", style="rounded,filled", fillcolor="lightblue", fontname="Arial"
-            )
+            dot.attr("node", shape="box", style="rounded,filled", fillcolor="lightblue", fontname="Arial")
             dot.attr("edge", fontname="Arial", fontsize="10")
 
             for table in tables_in_page:
@@ -191,16 +185,12 @@ class GraphvizRelationshipGraph(DatabaseRelationshipGraphBase):
                 except Exception:
                     pass
 
-            self.logger.info(
-                f"Tablas a procesar tras filtrado: {len(tables_to_process)}/{len(table_names)}"
-            )
+            self.logger.info(f"Tablas a procesar tras filtrado: {len(tables_to_process)}/{len(table_names)}")
 
         # Generar grafos para cada tabla
         for idx, table_name in enumerate(tables_to_process, 1):
             try:
-                self.logger.info(
-                    f"[{idx}/{len(tables_to_process)}] Generando gráfico para tabla: {table_name}"
-                )
+                self.logger.info(f"[{idx}/{len(tables_to_process)}] Generando gráfico para tabla: {table_name}")
 
                 # Generar gráfico paginado directamente en output_dir
                 generated_files: list[Path] = self.generate_graphviz_graph_paginated(
@@ -216,9 +206,7 @@ class GraphvizRelationshipGraph(DatabaseRelationshipGraphBase):
                     "count": len(generated_files),
                 }
 
-                self.logger.debug(
-                    f"Gráfico completado para {table_name}: {len(generated_files)} archivo(s)"
-                )
+                self.logger.debug(f"Gráfico completado para {table_name}: {len(generated_files)} archivo(s)")
 
             except Exception as e:
                 error_msg = str(e)
@@ -227,8 +215,6 @@ class GraphvizRelationshipGraph(DatabaseRelationshipGraphBase):
 
         # Resumen final
         successful: int = sum(1 for r in results.values() if r["status"] == "success")
-        self.logger.info(
-            f"Generación completada: {successful}/{len(tables_to_process)} tablas procesadas exitosamente"
-        )
+        self.logger.info(f"Generación completada: {successful}/{len(tables_to_process)} tablas procesadas exitosamente")
 
         return results

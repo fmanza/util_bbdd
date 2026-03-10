@@ -21,7 +21,7 @@ class TestAsyncDatabaseManagerE2E:
         """Test Async: Conectar a BD real y obtener tablas."""
         # Act
         try:
-            tables = await async_manager_with_schema.execute_query("obtener_tablas")
+            tables = await async_manager_with_schema.execute_query_many("obtener_tablas")
         except Exception:
             # Manejar si la query devuelve error - usar fallback
             tables = [("users",), ("orders",)]
@@ -34,7 +34,7 @@ class TestAsyncDatabaseManagerE2E:
     async def test_e2e_async_get_columns(self, async_manager_with_schema: AsyncDatabaseManager):
         """Test Async: Obtener información de columnas."""
         # Act
-        columns = await async_manager_with_schema.execute_query("columnas_tabla", tabla="users")
+        columns = await async_manager_with_schema.execute_query_many("columnas_tabla", tabla="users")
 
         # Assert
         assert len(columns) > 0
@@ -46,40 +46,38 @@ class TestAsyncDatabaseManagerE2E:
     async def test_e2e_async_simple_select(self, async_manager_with_schema: AsyncDatabaseManager):
         """Test Async: SELECT simple sin parámetros."""
         # Act
-        result = await async_manager_with_schema.execute_query("get_all_users")
+        result = await async_manager_with_schema.execute_query_many("get_all_users")
 
         # Assert
         assert result is not None
-        rows = result if isinstance(result, list) else list(result)
-        assert len(rows) == 3
+        assert len(result) == 3
 
     @pytest.mark.asyncio
     async def test_e2e_async_select_with_params(self, async_manager_with_schema: AsyncDatabaseManager):
         """Test Async: SELECT con parámetros."""
         # Act
-        result = await async_manager_with_schema.execute_query("get_user_by_id", user_id=1)
+        result = await async_manager_with_schema.execute_query_many("get_user_by_id", user_id=1)
 
         # Assert
-        rows = result if isinstance(result, list) else list(result)
-        assert len(rows) == 1
-        assert rows[0][1] == "Alice Johnson"
+        assert len(result) == 1
+        assert result[0][1] == "Alice Johnson"
 
     @pytest.mark.asyncio
     async def test_e2e_async_insert(self, async_manager_with_schema: AsyncDatabaseManager):
         """Test Async: INSERT real en BD."""
         try:
             # Count antes
-            count_result = await async_manager_with_schema.execute_query("get_user_count")
-            count_before = list(count_result)[0][0]
+            count_result = await async_manager_with_schema.execute_query_many("get_user_count")
+            count_before = count_result[0][0]
 
             # Act: Insertar
-            await async_manager_with_schema.execute_query(
+            await async_manager_with_schema.execute_query_many(
                 "insert_user", nombre="Frank Ocean", email="frank@example.com", edad=29
             )
 
             # Assert: Count después
-            count_result = await async_manager_with_schema.execute_query("get_user_count")
-            count_after = list(count_result)[0][0]
+            count_result = await async_manager_with_schema.execute_query_many("get_user_count")
+            count_after = count_result[0][0]
             assert count_after == count_before + 1
         except Exception as e:
             pytest.skip(f"Insert test skipped: {e}")
@@ -89,14 +87,13 @@ class TestAsyncDatabaseManagerE2E:
         """Test Async: UPDATE real en BD."""
         try:
             # Act: Actualizar
-            await async_manager_with_schema.execute_query(
+            await async_manager_with_schema.execute_query_many(
                 "update_user", user_id=1, email="alice_async@example.com", edad=32
             )
 
             # Assert: Verificar
-            result = await async_manager_with_schema.execute_query("get_user_by_id", user_id=1)
-            rows = list(result)
-            assert rows[0][2] == "alice_async@example.com"
+            result = await async_manager_with_schema.execute_query_many("get_user_by_id", user_id=1)
+            assert result[0][2] == "alice_async@example.com"
         except Exception as e:
             pytest.skip(f"Update test skipped: {e}")
 
@@ -105,15 +102,15 @@ class TestAsyncDatabaseManagerE2E:
         """Test Async: DELETE real en BD."""
         try:
             # Count antes
-            count_result = await async_manager_with_schema.execute_query("get_user_count")
-            count_before = list(count_result)[0][0]
+            count_result = await async_manager_with_schema.execute_query_many("get_user_count")
+            count_before = count_result[0][0]
 
             # Act: Eliminar
-            await async_manager_with_schema.execute_query("delete_user", user_id=3)
+            await async_manager_with_schema.execute_query_many("delete_user", user_id=3)
 
             # Assert: Count después
-            count_result = await async_manager_with_schema.execute_query("get_user_count")
-            count_after = list(count_result)[0][0]
+            count_result = await async_manager_with_schema.execute_query_many("get_user_count")
+            count_after = count_result[0][0]
             assert count_after == count_before - 1
         except Exception as e:
             pytest.skip(f"Delete test skipped: {e}")
@@ -123,8 +120,8 @@ class TestAsyncDatabaseManagerE2E:
         """Test Async: Ejecución concurrente de múltiples queries."""
         # Act: Ejecutar 3 queries concurrentemente
         results = await asyncio.gather(
-            async_manager_with_schema.execute_query("get_all_users"),
-            async_manager_with_schema.execute_query("get_user_count"),
+            async_manager_with_schema.execute_query_many("get_all_users"),
+            async_manager_with_schema.execute_query_many("get_user_count"),
             return_exceptions=True,
         )
 
@@ -141,4 +138,4 @@ class TestAsyncDatabaseManagerE2E:
         """Test Async: Error cuando query no existe."""
         # Act & Assert
         with pytest.raises((QueryNotFoundError, DatabaseOperationError)):
-            await async_manager_with_schema.execute_query("nonexistent_query_async")
+            await async_manager_with_schema.execute_query_many("nonexistent_query_async")

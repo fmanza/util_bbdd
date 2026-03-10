@@ -22,7 +22,7 @@ class MariaDBValidator(DatabaseTypeValidator):
     db_type = "mariadb"
 
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger: logging.Logger = logging.getLogger(__name__)
 
     def validate_parameters(self, query_def: QueryDefinition, params: dict[str, Any]) -> tuple[bool, list[str]]:
         """Valida parámetros para MariaDB.
@@ -56,9 +56,9 @@ class MariaDBValidator(DatabaseTypeValidator):
 
         # Validar parámetros específicos de MariaDB
         if "charset" in params:
-            valid_charsets = ["utf8", "utf8mb4", "utf16", "latin1", "ascii"]
+            valid_charsets: list[str] = ["utf8", "utf8mb4", "utf16", "latin1", "ascii"]
             if params["charset"] not in valid_charsets:
-                msg = f"Unusual charset: {params['charset']} (expected one of {valid_charsets})"
+                msg: str = f"Unusual charset: {params['charset']} (expected one of {valid_charsets})"
                 warnings.append(msg)
                 self.logger.debug(f"⚠️ {msg}")
 

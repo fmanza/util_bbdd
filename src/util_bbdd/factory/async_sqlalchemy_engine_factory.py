@@ -376,4 +376,3 @@ class AsyncSQLAlchemyEngineFactory:
         if os.path.isabs(db_path):
             return f"sqlite+aiosqlite:///{normalized_path}"
         return f"sqlite+aiosqlite:///{normalized_path}"
-

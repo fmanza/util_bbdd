@@ -66,7 +66,7 @@ class TestGetTypeValidatorFactory:
         """Factory es case-insensitive para 'MARIADB'"""
         validator1 = get_type_validator("mariadb")
         validator2 = get_type_validator("MARIADB")
-        assert type(validator1) == type(validator2)
+        assert validator1.__class__ is validator2.__class__
         assert validator1.db_type == validator2.db_type
 
     def test_case_insensitive_oracle(self):
@@ -91,20 +91,18 @@ class TestGetTypeValidatorFactory:
 
     def test_error_message_lists_supported(self):
         """Mensaje de error lista tipos soportados"""
-        try:
+        with pytest.raises(ValueError) as exc_info:
             get_type_validator("unknown")
-            assert False, "Should have raised ValueError"
-        except ValueError as e:
-            error_msg = str(e)
-            # Should mention some supported types
-            assert "mariadb" in error_msg.lower() or "Supported types" in error_msg
+        error_msg = str(exc_info.value)
+        # Should mention some supported types
+        assert "mariadb" in error_msg.lower() or "Supported types" in error_msg
 
     def test_each_call_returns_new_instance(self):
         """Cada llamada retorna una nueva instancia"""
         validator1 = get_type_validator("mariadb")
         validator2 = get_type_validator("mariadb")
         assert validator1 is not validator2
-        assert type(validator1) == type(validator2)
+        assert validator1.__class__ is validator2.__class__
 
     def test_validator_has_validate_parameters_method(self):
         """Cada validador tiene el método validate_parameters"""

@@ -52,9 +52,7 @@ class DatabaseRelationshipGraphBase:
 
         # Obtener claves foráneas que salen de la tabla (hijos)
         foreign_keys = self.db_manager.get_foreign_keys(table_name)
-        self.logger.debug(
-            f"Encontradas {len(foreign_keys)} claves foráneas salientes en {table_name}"
-        )
+        self.logger.debug(f"Encontradas {len(foreign_keys)} claves foráneas salientes en {table_name}")
         for fk in foreign_keys:
             if self.db_manager.db_type == "mariadb":
                 # MariaDB: CONSTRAINT_NAME, TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
@@ -80,9 +78,7 @@ class DatabaseRelationshipGraphBase:
 
         # Obtener claves foráneas que apuntan a la tabla (padres)
         parent_relations: list[TableRelation] = self._find_parent_relations(table_name)
-        self.logger.debug(
-            f"Encontradas {len(parent_relations)} relaciones entrantes en {table_name}"
-        )
+        self.logger.debug(f"Encontradas {len(parent_relations)} relaciones entrantes en {table_name}")
         relations.extend(parent_relations)
 
         # Almacenar tablas involucradas
@@ -170,9 +166,7 @@ class DatabaseRelationshipGraphBase:
             Lista de listas de relaciones, una por cada imagen
         """
         total_relations: int = len(relations)
-        self.logger.debug(
-            f"Dividiendo {total_relations} relaciones para visualización (máx {max_subnodes} por página)"
-        )
+        self.logger.debug(f"Dividiendo {total_relations} relaciones para visualización (máx {max_subnodes} por página)")
 
         # Calcular número de imágenes necesarias
         import math
@@ -185,9 +179,7 @@ class DatabaseRelationshipGraphBase:
 
         # Calcular tamaño de cada imagen
         size_per_image: int = math.ceil(total_relations / num_images)
-        self.logger.debug(
-            f"Se crearán {num_images} imágenes con {size_per_image} relaciones por imagen"
-        )
+        self.logger.debug(f"Se crearán {num_images} imágenes con {size_per_image} relaciones por imagen")
 
         # Dividir relaciones
         split_relations: list[list[TableRelation]] = []
@@ -212,12 +204,8 @@ class DatabaseRelationshipGraphBase:
         relations: list[TableRelation] = self.analyze_table_relations(table_name)
 
         # Separar relaciones por tipo
-        outgoing_relations: list[TableRelation] = [
-            r for r in relations if r.source_table == table_name
-        ]
-        incoming_relations: list[TableRelation] = [
-            r for r in relations if r.target_table == table_name
-        ]
+        outgoing_relations: list[TableRelation] = [r for r in relations if r.source_table == table_name]
+        incoming_relations: list[TableRelation] = [r for r in relations if r.target_table == table_name]
 
         self.logger.debug(
             f"Relaciones salientes: {len(outgoing_relations)}, Relaciones entrantes: {len(incoming_relations)}"
@@ -254,7 +242,5 @@ class DatabaseRelationshipGraphBase:
             "database_type": self.db_manager.db_type,
         }
 
-        self.logger.info(
-            f"Reporte completado para {table_name}: {len(relations)} relaciones totales"
-        )
+        self.logger.info(f"Reporte completado para {table_name}: {len(relations)} relaciones totales")
         return report

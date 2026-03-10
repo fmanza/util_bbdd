@@ -47,6 +47,4 @@ class MariaDBConnection:
             raise DatabaseConnectionError("Módulo mariadb no disponible", "mariadb", str(e)) from e
         except Exception as e:
             MariaDBConnection.logger.error(f"❌ Error conectando a MariaDB: {e}")
-            raise DatabaseConnectionError(
-                f"Error conectando a MariaDB: {str(e)}", "mariadb", str(e)
-            ) from e
+            raise DatabaseConnectionError(f"Error conectando a MariaDB: {str(e)}", "mariadb", str(e)) from e

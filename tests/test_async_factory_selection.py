@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from util_bbdd.connection.connect_factory import ConnectFactory
 from util_bbdd.factory.pool_factory import PoolFactory
 
@@ -54,23 +56,21 @@ def test_pool_factory_selects_registered_async_builder() -> None:
 
 def test_connect_factory_hsqldb_async_is_explicitly_not_supported() -> None:
     async def _run() -> None:
-        try:
+        with pytest.raises(NotImplementedError) as exc_info:
             await ConnectFactory.create_async_connection("hsqldb", {})
-            assert False, "Se esperaba NotImplementedError para hsqldb async"
-        except NotImplementedError as err:
-            assert "hsqldb" in str(err).lower()
-            assert "no soportada" in str(err).lower()
+        err_msg = str(exc_info.value).lower()
+        assert "hsqldb" in err_msg
+        assert "no soportada" in err_msg
 
     asyncio.run(_run())
 
 
 def test_pool_factory_hsqldb_async_is_explicitly_not_supported() -> None:
     async def _run() -> None:
-        try:
+        with pytest.raises(NotImplementedError) as exc_info:
             await PoolFactory.create_async_pool("hsqldb", {})
-            assert False, "Se esperaba NotImplementedError para hsqldb async"
-        except NotImplementedError as err:
-            assert "hsqldb" in str(err).lower()
-            assert "no soportado" in str(err).lower()
+        err_msg = str(exc_info.value).lower()
+        assert "hsqldb" in err_msg
+        assert "no soportado" in err_msg
 
     asyncio.run(_run())

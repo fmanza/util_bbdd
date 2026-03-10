@@ -30,9 +30,7 @@ except ImportError:
 from ..database_manager import DatabaseManager
 from .relationship_graph_base import DatabaseRelationshipGraphBase, TableRelation
 
-MATPLOTLIB_NETWORKX_ERROR = (
-    "Matplotlib/NetworkX no disponible. Instale: pip install matplotlib networkx"
-)
+MATPLOTLIB_NETWORKX_ERROR = "Matplotlib/NetworkX no disponible. Instale: pip install matplotlib networkx"
 
 
 class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
@@ -115,9 +113,7 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
             f"Iniciando generación paginada de Matplotlib para {table_name} (max {max_subnodes} nodos por página)"
         )
         relations: list[TableRelation] = self.analyze_table_relations(table_name)
-        split_relations: list[list[TableRelation]] = self._split_relations_for_visualization(
-            relations, max_subnodes
-        )
+        split_relations: list[list[TableRelation]] = self._split_relations_for_visualization(relations, max_subnodes)
         self.logger.debug(f"Tabla {table_name} dividida en {len(split_relations)} página(s)")
 
         output_dir = Path(output_dir).resolve()
@@ -235,9 +231,7 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
             nx.draw_networkx_labels(G, pos, font_size=10, font_family="Arial", font_weight="bold")
 
             edge_labels = nx.get_edge_attributes(G, "label")
-            nx.draw_networkx_edge_labels(
-                G, pos, edge_labels, font_size=8, font_family="Arial", alpha=0.7
-            )
+            nx.draw_networkx_edge_labels(G, pos, edge_labels, font_size=8, font_family="Arial", alpha=0.7)
 
             plt.title(
                 f"Relaciones de Primer Nivel - Tabla: {table_name}",
@@ -298,9 +292,7 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
         all_tables = self.db_manager.get_tables()
         table_names = [table[0] for table in all_tables]
 
-        self.logger.info(
-            f"Iniciando generación de grafos Matplotlib para {len(table_names)} tablas"
-        )
+        self.logger.info(f"Iniciando generación de grafos Matplotlib para {len(table_names)} tablas")
         self.logger.info(f"Directorio de salida: {output_dir}")
         self.logger.info(f"Formato: {format}, max_subnodes: {max_subnodes}")
 
@@ -320,16 +312,12 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
                 except Exception:
                     pass
 
-            self.logger.info(
-                f"Tablas a procesar tras filtrado: {len(tables_to_process)}/{len(table_names)}"
-            )
+            self.logger.info(f"Tablas a procesar tras filtrado: {len(tables_to_process)}/{len(table_names)}")
 
         # Generar grafos para cada tabla
         for idx, table_name in enumerate(tables_to_process, 1):
             try:
-                self.logger.info(
-                    f"[{idx}/{len(tables_to_process)}] Generando gráfico para tabla: {table_name}"
-                )
+                self.logger.info(f"[{idx}/{len(tables_to_process)}] Generando gráfico para tabla: {table_name}")
 
                 # Generar gráfico paginado directamente en output_dir
                 generated_files: list[Path] = self.generate_matplotlib_graph_paginated(
@@ -345,9 +333,7 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
                     "count": len(generated_files),
                 }
 
-                self.logger.debug(
-                    f"Gráfico completado para {table_name}: {len(generated_files)} archivo(s)"
-                )
+                self.logger.debug(f"Gráfico completado para {table_name}: {len(generated_files)} archivo(s)")
 
             except Exception as e:
                 error_msg = str(e)
@@ -356,8 +342,6 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
 
         # Resumen final
         successful = sum(1 for r in results.values() if r["status"] == "success")
-        self.logger.info(
-            f"Generación completada: {successful}/{len(tables_to_process)} tablas procesadas exitosamente"
-        )
+        self.logger.info(f"Generación completada: {successful}/{len(tables_to_process)} tablas procesadas exitosamente")
 
         return results

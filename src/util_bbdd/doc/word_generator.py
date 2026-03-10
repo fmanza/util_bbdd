@@ -111,9 +111,7 @@ class WordGenerator:
             output_file: Ruta de salida del .docx.
             print_config: Configuración unificada de secciones y gráficos.
         """
-        self.logger.info(
-            f"🟢 Iniciando generación de documentación Word para base de datos: {self.database}"
-        )
+        self.logger.info(f"🟢 Iniciando generación de documentación Word para base de datos: {self.database}")
         try:
             normalized_config: dict[str, Any] = PrintConfigManager.normalize(
                 print_config or data_provider.imprimir_config
@@ -147,9 +145,7 @@ class WordGenerator:
                 )
 
             tables_for_chunks: list[tuple] = tables if include_tables else []
-            table_chunks: list[list[tuple]] = self._chunk_tables(
-                tables_for_chunks, tables_per_document
-            )
+            table_chunks: list[list[tuple]] = self._chunk_tables(tables_for_chunks, tables_per_document)
             if not table_chunks:
                 table_chunks = [[]]
 
@@ -272,14 +268,10 @@ class WordGenerator:
             document.save(str(target_file))
             self.logger.info(f"✅ Documento Word generado: {target_file}")
         except Exception as chunk_error:
-            self.logger.exception(
-                f"❌ Error generando documento Word {idx}/{total_chunks}: {chunk_error}"
-            )
+            self.logger.exception(f"❌ Error generando documento Word {idx}/{total_chunks}: {chunk_error}")
             raise
 
-    def _configure_document_orientation(
-        self, document: Document, template_path: Path | None
-    ) -> None:
+    def _configure_document_orientation(self, document: Document, template_path: Path | None) -> None:
         """Configura la orientación del documento según la plantilla."""
         if template_path is None:
             self._configure_landscape(document=document, apply_to_all_sections=True)
@@ -419,9 +411,7 @@ class WordGenerator:
         chunk_size = tables_per_document if tables_per_document > 0 else 50
         return [tables[i : i + chunk_size] for i in range(0, len(tables), chunk_size)]
 
-    def _build_output_file_for_chunk(
-        self, output_file: Path, chunk_index: int, total_chunks: int
-    ) -> Path:
+    def _build_output_file_for_chunk(self, output_file: Path, chunk_index: int, total_chunks: int) -> Path:
         """Construye nombre de salida para cada documento segmentado."""
         if total_chunks <= 1:
             return output_file
@@ -459,9 +449,7 @@ class WordGenerator:
             (0, lambda: self._add_ddl_section(document, tabla, data_provider)),
             (
                 1,
-                lambda: self._add_columns_section(
-                    document, tabla, data_provider, include_columns_charset
-                ),
+                lambda: self._add_columns_section(document, tabla, data_provider, include_columns_charset),
             ),
             (2, lambda: self._add_primary_keys_section(document, tabla, data_provider)),
             (3, lambda: self._add_foreign_keys_section(document, tabla, data_provider)),
@@ -509,9 +497,7 @@ class WordGenerator:
 
         try:
             generated_paths: list[Path]
-            if images_paginated and hasattr(
-                graph_generator, "generate_graphviz_graph_paginated_ext"
-            ):
+            if images_paginated and hasattr(graph_generator, "generate_graphviz_graph_paginated_ext"):
                 paginated_method = graph_generator.generate_graphviz_graph_paginated_ext
                 kwargs_paginated: dict[str, Any] = {
                     "table_name": tabla,
@@ -560,9 +546,7 @@ class WordGenerator:
 
         section: Section = document.sections[-1]
         page_width: int = int(section.page_width) if section.page_width is not None else int(Emu(0))
-        page_height: int = (
-            int(section.page_height) if section.page_height is not None else int(Emu(0))
-        )
+        page_height: int = int(section.page_height) if section.page_height is not None else int(Emu(0))
         left_margin: int = int(section.left_margin) if section.left_margin is not None else 0
         right_margin: int = int(section.right_margin) if section.right_margin is not None else 0
         top_margin: int = int(section.top_margin) if section.top_margin is not None else 0
@@ -608,30 +592,20 @@ class WordGenerator:
         if paragraph is None:
             return 0
 
-        run_font_size = next(
-            (run.font.size for run in paragraph.runs if run.font.size is not None), None
-        )
+        run_font_size = next((run.font.size for run in paragraph.runs if run.font.size is not None), None)
         style_font_size = paragraph.style.font.size if paragraph.style is not None else None
         font_size = run_font_size or style_font_size or Pt(16)
 
         paragraph_format = paragraph.paragraph_format
-        space_before_pt = (
-            paragraph_format.space_before.pt if paragraph_format.space_before is not None else 0.0
-        )
-        space_after_pt = (
-            paragraph_format.space_after.pt if paragraph_format.space_after is not None else 0.0
-        )
+        space_before_pt = paragraph_format.space_before.pt if paragraph_format.space_before is not None else 0.0
+        space_after_pt = paragraph_format.space_after.pt if paragraph_format.space_after is not None else 0.0
 
-        reserved_points: float = (
-            (font_size.pt * 1.8) + float(space_before_pt) + float(space_after_pt) + 8.0
-        )
+        reserved_points: float = (font_size.pt * 1.8) + float(space_before_pt) + float(space_after_pt) + 8.0
         return int(Pt(reserved_points))
 
     def _configure_landscape(self, document: Document, apply_to_all_sections: bool = False) -> None:
         """Configura la página en orientación apaisada sin invertir secciones ya horizontales."""
-        sections: list[Section] = (
-            list(document.sections) if apply_to_all_sections else [document.sections[-1]]
-        )
+        sections: list[Section] = list(document.sections) if apply_to_all_sections else [document.sections[-1]]
 
         for section in sections:
             if section.orientation == WD_ORIENT.LANDSCAPE:
@@ -672,12 +646,8 @@ class WordGenerator:
     def _normalize_routine_entry(self, routine: tuple) -> tuple[str, str, str]:
         """Normaliza una fila de rutina al formato (nombre, tipo, comentario)."""
         routine_name: str = str(routine[0]) if len(routine) > 0 and routine[0] is not None else ""
-        routine_type: str = (
-            str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
-        )
-        routine_comment: str = (
-            str(routine[2]) if len(routine) > 2 and routine[2] is not None else ""
-        )
+        routine_type: str = str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
+        routine_comment: str = str(routine[2]) if len(routine) > 2 and routine[2] is not None else ""
         return routine_name, routine_type.upper(), routine_comment
 
     def _split_routines_by_type(self, routines: list[tuple]) -> tuple[list[tuple], list[tuple]]:
@@ -742,9 +712,7 @@ class WordGenerator:
         """Agrega rutinas de un tipo específico (Procedures o Funciones)."""
         document.add_heading(routine_type, level=1)
         for routine in routines:
-            routine_name, routine_type_normalized, routine_comment = self._normalize_routine_entry(
-                routine
-            )
+            routine_name, routine_type_normalized, routine_comment = self._normalize_routine_entry(routine)
             self._add_routine_section(
                 document=document,
                 routine_name=routine_name,
@@ -826,14 +794,10 @@ class WordGenerator:
             return
 
         if not parameters:
-            self._add_empty_section(
-                document, self.SECTION_PARAMETROS, "No se encontraron parámetros."
-            )
+            self._add_empty_section(document, self.SECTION_PARAMETROS, "No se encontraron parámetros.")
             return
 
-        headers = self.headers.get(
-            "PARAMETROS_RUTINA", ["Modo", "Parámetro", "Tipo", "Valor por defecto", "Posición"]
-        )
+        headers = self.headers.get("PARAMETROS_RUTINA", ["Modo", "Parámetro", "Tipo", "Valor por defecto", "Posición"])
         rows = self._process_routine_parameters(parameters)
         self._add_table(document, self.SECTION_PARAMETROS, headers, rows)
 
@@ -848,9 +812,7 @@ class WordGenerator:
             rows.append(values)
         return rows
 
-    def _add_ddl_section(
-        self, document: Document, tabla: str, data_provider: Any, is_view: bool = False
-    ) -> None:
+    def _add_ddl_section(self, document: Document, tabla: str, data_provider: Any, is_view: bool = False) -> None:
         """Agrega la sección DDL"""
         ddl: str = data_provider.get_view_ddl(tabla) if is_view else data_provider.get_ddl(tabla)
         text_ddl: str = ddl if ddl is not None else ""
@@ -896,9 +858,7 @@ class WordGenerator:
                 if charset_info:
                     charset_headers = ["Columna", "Charset", "Collation"]
                     charset_rows = [[row[0], row[1] or "", row[2] or ""] for row in charset_info]
-                    self._add_table(
-                        document, self.SECTION_CHARSET_COLLATION, charset_headers, charset_rows
-                    )
+                    self._add_table(document, self.SECTION_CHARSET_COLLATION, charset_headers, charset_rows)
                 else:
                     self._add_empty_section(
                         document,
@@ -906,9 +866,7 @@ class WordGenerator:
                         "No hay información de charset/collation disponible.",
                     )
             except Exception as e:
-                self.logger.debug(
-                    f"⚠️  No se pudo obtener charset/collation de columnas para {tabla}: {e}"
-                )
+                self.logger.debug(f"⚠️  No se pudo obtener charset/collation de columnas para {tabla}: {e}")
                 self._add_empty_section(
                     document,
                     self.SECTION_CHARSET_COLLATION,
@@ -921,9 +879,7 @@ class WordGenerator:
         if claves:
             self._add_table(document, "Claves Primarias", ["Campo"], claves)
         else:
-            self._add_empty_section(
-                document, "Claves Primarias", "No se encontraron claves primarias."
-            )
+            self._add_empty_section(document, "Claves Primarias", "No se encontraron claves primarias.")
 
     def _add_foreign_keys_section(self, document: Document, tabla: str, data_provider: Any) -> None:
         """Agrega la sección de claves foráneas"""
@@ -931,21 +887,15 @@ class WordGenerator:
         if claves:
             self._add_table(document, "Relaciones (Claves Foráneas)", self.headers["FK"], claves)
         else:
-            self._add_empty_section(
-                document, "Relaciones (Claves Foráneas)", "No se encontraron claves foráneas."
-            )
+            self._add_empty_section(document, "Relaciones (Claves Foráneas)", "No se encontraron claves foráneas.")
 
-    def _add_unique_constraints_section(
-        self, document: Document, tabla: str, data_provider: Any
-    ) -> None:
+    def _add_unique_constraints_section(self, document: Document, tabla: str, data_provider: Any) -> None:
         """Agrega la sección de restricciones únicas"""
         claves = data_provider.get_unique_constraints(tabla)
         if claves:
             self._add_table(document, "Restricciones Únicas", self.headers["UNIQUE"], claves)
         else:
-            self._add_empty_section(
-                document, "Restricciones Únicas", "No se encontraron claves únicas."
-            )
+            self._add_empty_section(document, "Restricciones Únicas", "No se encontraron claves únicas.")
 
     def _add_indices_section(self, document: Document, tabla: str, data_provider: Any) -> None:
         """Agrega la sección de índices"""
@@ -975,18 +925,12 @@ class WordGenerator:
             data_provider: Proveedor de metadatos (DatabaseManager)
             database_info_flags: [version_flag, charset_collation_flag]
         """
-        self.logger.info(
-            f"📚 Agregando sección de información de BD con flags: {database_info_flags}"
-        )
+        self.logger.info(f"📚 Agregando sección de información de BD con flags: {database_info_flags}")
         document.add_page_break()
         document.add_heading("Información de la Base de Datos", level=1)
 
-        include_version: bool = (
-            bool(database_info_flags[0]) if len(database_info_flags) > 0 else False
-        )
-        include_charset: bool = (
-            bool(database_info_flags[1]) if len(database_info_flags) > 1 else False
-        )
+        include_version: bool = bool(database_info_flags[0]) if len(database_info_flags) > 0 else False
+        include_charset: bool = bool(database_info_flags[1]) if len(database_info_flags) > 1 else False
 
         try:
             info_data: list[list[str]] = self.__build_database_info_data(
@@ -1065,9 +1009,7 @@ class WordGenerator:
             self.logger.warning(f"⚠️ Error obteniendo charset/collation: {e}")
             info_data.append(["Charset/Collation", f"Error: {str(e)}"])
 
-    def __render_database_info_to_document(
-        self, document: Document, info_data: list[list[str]]
-    ) -> None:
+    def __render_database_info_to_document(self, document: Document, info_data: list[list[str]]) -> None:
         """Renderiza información de BD al documento.
 
         Args:
@@ -1133,9 +1075,7 @@ class WordGenerator:
                 headers = [f"Columna {idx}" for idx in range(1, max_cols + 1)]
 
             if rows:
-                numeric_columns: list[int] = [
-                    int(idx) for idx in section.get("numeric_columns", [])
-                ]
+                numeric_columns: list[int] = [int(idx) for idx in section.get("numeric_columns", [])]
                 self._add_table(
                     document=document,
                     title=title,
@@ -1198,22 +1138,16 @@ class WordGenerator:
             normalize_style_name(style_name): style_name for style_name in available_styles
         }
 
-        resolved_preferred_style: str = normalized_available.get(
-            normalize_style_name(preferred_style), preferred_style
-        )
+        resolved_preferred_style: str = normalized_available.get(normalize_style_name(preferred_style), preferred_style)
         try:
             table.style = resolved_preferred_style
             return
         except KeyError:
             pass
 
-        self.logger.warning(
-            f"⚠️ Estilo de tabla '{preferred_style}' no disponible en el documento. Aplicando fallback."
-        )
+        self.logger.warning(f"⚠️ Estilo de tabla '{preferred_style}' no disponible en el documento. Aplicando fallback.")
         for fallback_style in fallback_styles:
-            resolved_style: str = normalized_available.get(
-                normalize_style_name(fallback_style), fallback_style
-            )
+            resolved_style: str = normalized_available.get(normalize_style_name(fallback_style), fallback_style)
             try:
                 table.style = resolved_style
                 self.logger.info(f"🟢 Usando estilo de tabla de respaldo: {resolved_style}")
@@ -1221,9 +1155,7 @@ class WordGenerator:
             except KeyError:
                 continue
 
-        self.logger.warning(
-            "⚠️ No se encontró un estilo de tabla de respaldo. Se usa el estilo por defecto de Word."
-        )
+        self.logger.warning("⚠️ No se encontró un estilo de tabla de respaldo. Se usa el estilo por defecto de Word.")
 
     def _repeat_header(self, row: _Row) -> None:
         """Configura la repetición de cabecera en tablas Word"""
@@ -1241,16 +1173,10 @@ class WordGenerator:
 
         if db_type == "oracle":
             # Oracle: [index_name, uniqueness, index_type, column_name, column_position]
-            return [
-                [idx[0], idx[3], "Sí" if self._is_unique(idx, db_type) else "No", idx[2]]
-                for idx in indices
-            ]
+            return [[idx[0], idx[3], "Sí" if self._is_unique(idx, db_type) else "No", idx[2]] for idx in indices]
 
         # PostgreSQL/HSQLDB/SQL Server: [index_name, column_name, uniqueness, index_type]
-        return [
-            [idx[0], idx[1], "Sí" if self._is_unique(idx, db_type) else "No", idx[3]]
-            for idx in indices
-        ]
+        return [[idx[0], idx[1], "Sí" if self._is_unique(idx, db_type) else "No", idx[3]] for idx in indices]
 
     def _is_unique(self, index_data: tuple, db_type: str) -> bool:
         """Determina si un índice es único según el tipo de BD"""

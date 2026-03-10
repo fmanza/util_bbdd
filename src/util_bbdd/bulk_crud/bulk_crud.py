@@ -65,9 +65,7 @@ from .normalizacion_sql import normalize_records_for_sql
 class bulk_crud:
     """Realiza operaciones CRUD en lote sobre bases de datos usando SQLAlchemy."""
 
-    def __init__(
-        self, engine: Engine | None, chunk_size: int = 5000, audit_csv_path: Path | None = None
-    ):
+    def __init__(self, engine: Engine | None, chunk_size: int = 5000, audit_csv_path: Path | None = None):
         """
         Constructor de la clase bulk_crud.
 
@@ -135,9 +133,7 @@ class bulk_crud:
             if not db_name:
                 raise ValueError("No se pudo extraer nombre de BD de engine.url")
         except Exception as e:
-            raise ValueError(
-                f"No se pudo extraer nombre de BD de engine.url: {self.engine.url}"
-            ) from e
+            raise ValueError(f"No se pudo extraer nombre de BD de engine.url: {self.engine.url}") from e
 
         # Generar timestamp YYYYMMDD_HHMMSS
         timestamp: str = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -151,9 +147,7 @@ class bulk_crud:
         self.logger.debug(f"🟢 Nombre SQL generado: {nombre_archivo}")
         return Path(nombre_archivo)
 
-    def __validar_y_generar_path_sql(
-        self, path_sql: Path | None, tabla_destino: str, operacion: str
-    ) -> Path:
+    def __validar_y_generar_path_sql(self, path_sql: Path | None, tabla_destino: str, operacion: str) -> Path:
         """
         Valida path_sql y genera el nombre dinámico combinado con la ruta proporcionada.
 
@@ -173,9 +167,7 @@ class bulk_crud:
 
         # Validar que sea una instancia de Path
         if not isinstance(path_sql, Path):
-            raise ValueError(
-                f"❌ path_sql debe ser una instancia de Path, se recibió {type(path_sql).__name__}"
-            )
+            raise ValueError(f"❌ path_sql debe ser una instancia de Path, se recibió {type(path_sql).__name__}")
 
         # Generar nombre dinámico
         nombre_dinamico: Path = self.__generar_nombre_sql_dinamico(tabla_destino, operacion)
@@ -285,25 +277,15 @@ class bulk_crud:
         self.__actualizar_df(df)
         tabla: Table = self.reflect_table(tabla_destino)
         tabla_cols: set[str] = {col.name for col in tabla.columns}
-        pk_cols: list[str] = [
-            col.name for col in tabla.primary_key.columns if col.name in df.columns
-        ]
+        pk_cols: list[str] = [col.name for col in tabla.primary_key.columns if col.name in df.columns]
 
         if not pk_cols:
-            self.logger.error(
-                f"❌ La tabla '{tabla_destino}' no tiene claves primarias presentes en el DataFrame."
-            )
-            raise ValueError(
-                f"❌ La tabla '{tabla_destino}' no tiene claves primarias presentes en el DataFrame."
-            )
+            self.logger.error(f"❌ La tabla '{tabla_destino}' no tiene claves primarias presentes en el DataFrame.")
+            raise ValueError(f"❌ La tabla '{tabla_destino}' no tiene claves primarias presentes en el DataFrame.")
 
-        update_cols: list[str] = [
-            col for col in df.columns if col in tabla_cols and col not in pk_cols
-        ]
+        update_cols: list[str] = [col for col in df.columns if col in tabla_cols and col not in pk_cols]
         if not update_cols:
-            self.logger.error(
-                f"❌ No hay columnas actualizables válidas. Tabla destino: {tabla_destino}"
-            )
+            self.logger.error(f"❌ No hay columnas actualizables válidas. Tabla destino: {tabla_destino}")
             raise ValueError("❌ No hay columnas actualizables válidas.")
 
         pk_param_map: dict[str, str] = {col: f"pk_{col}" for col in pk_cols}
@@ -320,19 +302,13 @@ class bulk_crud:
             start: float = perf_counter()
 
             if generar_sql:
-                sql_lines: list = self.__generar_sql_update(
-                    tabla, records_sql, update_cols, pk_param_map, pk_cols
-                )
+                sql_lines: list = self.__generar_sql_update(tabla, records_sql, update_cols, pk_param_map, pk_cols)
                 self.__guardar_fichero_sql(sql_lines, path_sql)
             else:
                 where_clause: ColumnElement[bool] = and_(
                     *(tabla.c[col] == bindparam(pk_param_map[col]) for col in pk_cols)
                 )
-                stmt: Update = (
-                    update(tabla)
-                    .where(where_clause)
-                    .values({col: bindparam(col) for col in update_cols})
-                )
+                stmt: Update = update(tabla).where(where_clause).values({col: bindparam(col) for col in update_cols})
                 self.__ejecutar_batch_stmt(records_sql, stmt, numero_registros)
 
             elapsed: float = perf_counter() - start
@@ -412,9 +388,7 @@ class bulk_crud:
             # Actualizar DataFrame para que las columnas sean mayúsculas
             df.columns = df.columns.str.upper()
 
-    def __ejecutar_batch_stmt(
-        self, records: list[dict[Hashable, Any]], stmt, numero_registros: int
-    ):
+    def __ejecutar_batch_stmt(self, records: list[dict[Hashable, Any]], stmt, numero_registros: int):
         """Ejecuta un statement de SQLAlchemy por lotes.
 
         Args:
@@ -475,9 +449,7 @@ class bulk_crud:
                 else:
                     self.__execute_generic_delete_batch(conn, tabla, batch_df, pk_cols)
 
-    def __execute_sql_based_delete_batch(
-        self, conn, tabla_destino: str, batch_df: pd.DataFrame, pk_cols: list[str]
-    ):
+    def __execute_sql_based_delete_batch(self, conn, tabla_destino: str, batch_df: pd.DataFrame, pk_cols: list[str]):
         """Ejecuta un DELETE en bloque usando la sintaxis WHERE (pk1, pk2) IN ((..), (..)).
 
         Genera la consulta con placeholders y aplana los valores antes de ejecutar con
@@ -503,9 +475,7 @@ class bulk_crud:
         flat_values: list[Any] = [val for tup in values for val in tup]
         conn.exec_driver_sql(sql, tuple(flat_values))
 
-    def __execute_generic_delete_batch(
-        self, conn, tabla: Table, batch_df: pd.DataFrame, pk_cols: list[str]
-    ):
+    def __execute_generic_delete_batch(self, conn, tabla: Table, batch_df: pd.DataFrame, pk_cols: list[str]):
         """Ejecuta borrado por lotes usando sentencias parametrizadas de SQLAlchemy.
 
         Convierte el DataFrame del batch a una lista de dicts y ejecuta un DELETE
@@ -514,9 +484,7 @@ class bulk_crud:
         if batch_df.empty:
             return
 
-        stmt: Delete = delete(tabla).where(
-            and_(*(tabla.c[col] == bindparam(col) for col in pk_cols))
-        )
+        stmt: Delete = delete(tabla).where(and_(*(tabla.c[col] == bindparam(col) for col in pk_cols)))
         records: list[dict[Hashable, Any]] = batch_df.to_dict(orient="records")
         conn.execute(stmt, records)  # type: ignore
 
@@ -595,9 +563,7 @@ class bulk_crud:
             Valor máximo como entero, controlando si es None o negativo
         """
         # Obtener columna de la tabla
-        col: Column[Any] | None = next(
-            (c for c in tabla.columns if c.name.lower() == nombre_col.lower()), None
-        )
+        col: Column[Any] | None = next((c for c in tabla.columns if c.name.lower() == nombre_col.lower()), None)
         if col is None:
             # Lanzar excepción si no se encuentra la columna
             raise ValueError(f"Columna '{nombre_col}' no encontrada en la tabla '{tabla.name}'")
@@ -642,14 +608,10 @@ class bulk_crud:
         sql_lines: list[str] = []
         for record in records:
             valores_update: dict[str, Any] = {col: record[col] for col in update_cols}
-            condiciones_pk: dict[str, Any] = {
-                pk_param_map[col]: record[pk_param_map[col]] for col in pk_cols
-            }
+            condiciones_pk: dict[str, Any] = {pk_param_map[col]: record[pk_param_map[col]] for col in pk_cols}
             stmt: Update = (
                 update(tabla)
-                .where(
-                    and_(*(tabla.c[col] == condiciones_pk[pk_param_map[col]] for col in pk_cols))
-                )
+                .where(and_(*(tabla.c[col] == condiciones_pk[pk_param_map[col]] for col in pk_cols)))
                 .values(valores_update)
             )
             sql: str = self.__compilar_stmt_con_binarios(stmt)
@@ -673,9 +635,7 @@ class bulk_crud:
         """
         try:
             # Intentar compilación normal con literal_binds
-            compiled = stmt.compile(
-                dialect=self.engine.dialect, compile_kwargs={"literal_binds": True}
-            )
+            compiled = stmt.compile(dialect=self.engine.dialect, compile_kwargs={"literal_binds": True})
             return f"{compiled};"
         except Exception as e:
             # Si falla por binarios, recompilar sin literal_binds y procesar parámetros

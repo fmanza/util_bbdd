@@ -31,7 +31,7 @@ class DummyAsyncPool:
     async def release(self, connection) -> None:
         return None
 
-    async def aclose(self) -> None:
+    async def close(self, mode: str) -> None:
         return None
 
 

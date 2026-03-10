@@ -20,9 +20,7 @@ from .print_config_manager import PrintConfigManager
 class ExcelGenerator:
     """Clase para generar documentación en formato Excel"""
 
-    def __init__(
-        self, database: str, headers: dict, table_style: str = "Medium Shading 2 Accent 1"
-    ):
+    def __init__(self, database: str, headers: dict, table_style: str = "Medium Shading 2 Accent 1"):
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.database: str = database
         self.headers: dict = headers
@@ -49,9 +47,7 @@ class ExcelGenerator:
         if normalized_style.startswith(valid_prefixes):
             return normalized_style
 
-        self.logger.warning(
-            f"⚠️  Estilo de tabla Excel '{table_style}' no reconocido. Se usará '{fallback_style}'."
-        )
+        self.logger.warning(f"⚠️  Estilo de tabla Excel '{table_style}' no reconocido. Se usará '{fallback_style}'.")
         return fallback_style
 
     def generate_document(
@@ -64,9 +60,7 @@ class ExcelGenerator:
         print_config: dict[str, Any] | None = None,
     ) -> None:
         """Genera el documento Excel completo con tablas y vistas."""
-        self.logger.info(
-            f"🟢 Iniciando generación de documentación Excel para base de datos: {self.database}"
-        )
+        self.logger.info(f"🟢 Iniciando generación de documentación Excel para base de datos: {self.database}")
         self._validate_required_headers()
         try:
             routines = routines or []
@@ -84,12 +78,8 @@ class ExcelGenerator:
             fila = self._create_main_header(ws1, fila)
 
             data_flat = []
-            fila = self._build_overview_sections(
-                ws1, fila, tables, views, routines, data_provider, data_flat, config
-            )
-            self._create_supplementary_sheets(
-                wb, data_flat, tables, routines, data_provider, config
-            )
+            fila = self._build_overview_sections(ws1, fila, tables, views, routines, data_provider, data_flat, config)
+            self._create_supplementary_sheets(wb, data_flat, tables, routines, data_provider, config)
 
             wb.save(str(output_file))
             self.logger.info(f"✅ Documento Excel generado: {output_file}")
@@ -97,13 +87,9 @@ class ExcelGenerator:
             self.logger.exception(f"❌ Error generando documentación Excel: {error}")
             raise
 
-    def _resolve_print_config(
-        self, print_config: dict[str, Any] | None, data_provider: Any
-    ) -> dict[str, Any]:
+    def _resolve_print_config(self, print_config: dict[str, Any] | None, data_provider: Any) -> dict[str, Any]:
         """Resuelve la configuración de impresión normalizada."""
-        normalized_config: dict[str, Any] = PrintConfigManager.normalize(
-            print_config or data_provider.imprimir_config
-        )
+        normalized_config: dict[str, Any] = PrintConfigManager.normalize(print_config or data_provider.imprimir_config)
         resolved: dict[str, Any] = PrintConfigManager.resolve_for_excel(normalized_config)
         include_database_info: bool = resolved.get("include_database_info", False)
         self.logger.debug(
@@ -211,9 +197,7 @@ class ExcelGenerator:
     def _validate_required_headers(self) -> None:
         """Valida que existan los headers obligatorios para generar Excel."""
         required_headers: list[str] = ["FLAT", "RUTINAS"]
-        missing_headers: list[str] = [
-            header for header in required_headers if header not in self.headers
-        ]
+        missing_headers: list[str] = [header for header in required_headers if header not in self.headers]
 
         if missing_headers:
             missing_text: str = ", ".join(missing_headers)
@@ -235,9 +219,7 @@ class ExcelGenerator:
         self.logger.info(f"📄 Procesando {len(tables)} tabla(s) para Excel")
         ws[f"A{fila}"] = "TABLAS"
         ws[f"A{fila}"].font = Font(size=12, bold=True, color="FFFFFF")
-        ws[f"A{fila}"].fill = PatternFill(
-            start_color="366092", end_color="366092", fill_type="solid"
-        )
+        ws[f"A{fila}"].fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
         fila += 1
 
         for row in tables:
@@ -250,9 +232,7 @@ class ExcelGenerator:
                 # MariaDB: row[2]=charset, row[3]=collation
                 charset = row[2]
                 collation = row[3]
-                charset_collation = (
-                    f"{charset} {collation}".strip() if charset or collation else None
-                )
+                charset_collation = f"{charset} {collation}".strip() if charset or collation else None
             else:
                 # Otros motores: row[2]=charset_collation (opcional)
                 charset_collation = row[2] if len(row) > 2 else None
@@ -285,9 +265,7 @@ class ExcelGenerator:
         self.logger.info(f"📄 Procesando {len(views)} vista(s) para Excel")
         ws[f"A{fila}"] = "VISTAS"
         ws[f"A{fila}"].font = Font(size=12, bold=True, color="FFFFFF")
-        ws[f"A{fila}"].fill = PatternFill(
-            start_color="4472C4", end_color="4472C4", fill_type="solid"
-        )
+        ws[f"A{fila}"].fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
         fila += 1
 
         for vista, comentario in views:
@@ -309,21 +287,13 @@ class ExcelGenerator:
         self.logger.info(f"📄 Procesando {len(routines)} rutina(s) para Excel")
         ws[f"A{fila}"] = "RUTINAS"
         ws[f"A{fila}"].font = Font(size=12, bold=True, color="FFFFFF")
-        ws[f"A{fila}"].fill = PatternFill(
-            start_color="5B9BD5", end_color="5B9BD5", fill_type="solid"
-        )
+        ws[f"A{fila}"].fill = PatternFill(start_color="5B9BD5", end_color="5B9BD5", fill_type="solid")
         fila += 1
 
         procedures, functions = self._split_routines_by_type(routines)
-        fila = self._process_routines_section(
-            ws, fila, procedures, "PROCEDURES", "2F75B5", data_provider
-        )
-        fila = self._process_routines_section(
-            ws, fila, functions, "FUNCIONES", "4F81BD", data_provider
-        )
-        fila = self._process_unclassified_routines(
-            ws, fila, routines, procedures, functions, data_provider
-        )
+        fila = self._process_routines_section(ws, fila, procedures, "PROCEDURES", "2F75B5", data_provider)
+        fila = self._process_routines_section(ws, fila, functions, "FUNCIONES", "4F81BD", data_provider)
+        fila = self._process_unclassified_routines(ws, fila, routines, procedures, functions, data_provider)
 
         return fila
 
@@ -364,12 +334,8 @@ class ExcelGenerator:
 
         for routine in routines:
             if routine not in classified_set:
-                routine_name: str = (
-                    str(routine[0]) if len(routine) > 0 and routine[0] is not None else ""
-                )
-                routine_type: str = (
-                    str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
-                )
+                routine_name: str = str(routine[0]) if len(routine) > 0 and routine[0] is not None else ""
+                routine_type: str = str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
                 fila = self._process_routine(
                     ws,
                     fila,
@@ -385,9 +351,7 @@ class ExcelGenerator:
         functions: list[tuple] = []
 
         for routine in routines:
-            routine_type: str = (
-                str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
-            )
+            routine_type: str = str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
             normalized_type: str = routine_type.upper()
             if normalized_type == "PROCEDURE":
                 procedures.append(routine)
@@ -406,9 +370,7 @@ class ExcelGenerator:
     ) -> None:
         """Crea hojas separadas para procedures y functions."""
         procedures, functions = self._split_routines_by_type(routines)
-        unclassified = self._get_unclassified_routines(
-            routines=routines, procedures=procedures, functions=functions
-        )
+        unclassified = self._get_unclassified_routines(routines=routines, procedures=procedures, functions=functions)
 
         if include_procedures:
             self._create_single_routine_sheet(
@@ -465,12 +427,8 @@ class ExcelGenerator:
     def _build_routine_sheet_row(self, routine: tuple, data_provider: Any) -> list[str]:
         """Construye una fila tabular para la hoja de rutinas."""
         routine_name: str = str(routine[0]) if len(routine) > 0 and routine[0] is not None else ""
-        routine_type: str = (
-            str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
-        )
-        routine_comment: str = (
-            str(routine[2]) if len(routine) > 2 and routine[2] is not None else ""
-        )
+        routine_type: str = str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
+        routine_comment: str = str(routine[2]) if len(routine) > 2 and routine[2] is not None else ""
 
         routine_ddl: str = ""
         try:
@@ -487,9 +445,7 @@ class ExcelGenerator:
 
         return [routine_name, routine_type.title(), routine_comment, routine_ddl, parameters_text]
 
-    def _get_routine_parameters_text(
-        self, routine_name: str, routine_type: str, data_provider: Any
-    ) -> str:
+    def _get_routine_parameters_text(self, routine_name: str, routine_type: str, data_provider: Any) -> str:
         """Obtiene los parámetros de la rutina en formato texto para la hoja tabular."""
         try:
             parameters = data_provider.get_routine_parameters(routine_name, routine_type)
@@ -578,12 +534,8 @@ class ExcelGenerator:
     ) -> int:
         """Procesa la información de una rutina (procedure/función)."""
         routine_name: str = str(routine[0]) if len(routine) > 0 and routine[0] is not None else ""
-        routine_type: str = (
-            str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
-        )
-        routine_comment: str = (
-            str(routine[2]) if len(routine) > 2 and routine[2] is not None else ""
-        )
+        routine_type: str = str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
+        routine_comment: str = str(routine[2]) if len(routine) > 2 and routine[2] is not None else ""
 
         ws[f"A{fila}"] = f"{routine_type.title()}: {routine_name}"
         ws[f"A{fila}"].font = Font(size=12, bold=True)
@@ -629,9 +581,7 @@ class ExcelGenerator:
         ws[f"A{fila}"].font = Font(bold=True)
         fila += 1
 
-        headers = self.headers.get(
-            "PARAMETROS_RUTINA", ["Modo", "Parámetro", "Tipo", "Valor por defecto", "Posición"]
-        )
+        headers = self.headers.get("PARAMETROS_RUTINA", ["Modo", "Parámetro", "Tipo", "Valor por defecto", "Posición"])
         header_row: int = fila
         ws.append(headers)
 
@@ -733,9 +683,7 @@ class ExcelGenerator:
             return routines
         filtered: list[tuple] = []
         for routine in routines:
-            routine_type: str = (
-                str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
-            )
+            routine_type: str = str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
             normalized_type: str = routine_type.upper()
             if normalized_type == "PROCEDURE" and include_procedures:
                 filtered.append(routine)
@@ -746,9 +694,7 @@ class ExcelGenerator:
                     filtered.append(routine)
         return filtered
 
-    def _add_ddl_section(
-        self, ws: Worksheet, fila: int, tabla: str, data_provider: Any, is_view: bool = False
-    ) -> int:
+    def _add_ddl_section(self, ws: Worksheet, fila: int, tabla: str, data_provider: Any, is_view: bool = False) -> int:
         """Agrega la sección DDL a la hoja Excel."""
         ws[f"A{fila}"] = "DDL"
         ws[f"A{fila}"].font = Font(bold=True)
@@ -925,22 +871,16 @@ class ExcelGenerator:
         )
         return current_row
 
-    def _add_storage_details(
-        self, ws: Worksheet, sections: list[dict[str, Any]], current_row: int
-    ) -> None:
+    def _add_storage_details(self, ws: Worksheet, sections: list[dict[str, Any]], current_row: int) -> None:
         """Agrega los detalles de almacenamiento a la hoja."""
         for section in sections:
             current_row = self._process_storage_section(ws, section, current_row)
 
-    def _process_storage_section(
-        self, ws: Worksheet, section: dict[str, Any], current_row: int
-    ) -> int:
+    def _process_storage_section(self, ws: Worksheet, section: dict[str, Any], current_row: int) -> int:
         """Procesa una sección individual de almacenamiento."""
         title: str = str(section.get("title", "Consulta"))
         status: str = str(section.get("status", ""))
-        ws.cell(row=current_row, column=1, value=f"{title} ({status})").font = Font(
-            size=12, bold=True
-        )
+        ws.cell(row=current_row, column=1, value=f"{title} ({status})").font = Font(size=12, bold=True)
         current_row += 1
 
         headers: list[str] = self._get_storage_headers(section)
@@ -1087,16 +1027,10 @@ class ExcelGenerator:
             self.logger.exception(f"❌ Error creando hoja de información de BD: {error}")
             ws["A4"] = f"Error al obtener información: {error}"
 
-    def _gather_database_info(
-        self, data_provider: Any, database_info_flags: list[bool]
-    ) -> list[list[str]]:
+    def _gather_database_info(self, data_provider: Any, database_info_flags: list[bool]) -> list[list[str]]:
         """Recopila la información de la base de datos según los flags configurados."""
-        include_version: bool = (
-            bool(database_info_flags[0]) if len(database_info_flags) > 0 else False
-        )
-        include_charset: bool = (
-            bool(database_info_flags[1]) if len(database_info_flags) > 1 else False
-        )
+        include_version: bool = bool(database_info_flags[0]) if len(database_info_flags) > 0 else False
+        include_charset: bool = bool(database_info_flags[1]) if len(database_info_flags) > 1 else False
 
         info_data: list[list[str]] = []
 
@@ -1172,9 +1106,7 @@ class ExcelGenerator:
         datos = []
         columnas = data_provider.get_columns(tabla)
         for col in columnas:
-            row = self._build_enriched_row(
-                tabla, comentario, col, pks, fks, idx_map, data_provider.db_type
-            )
+            row = self._build_enriched_row(tabla, comentario, col, pks, fks, idx_map, data_provider.db_type)
             datos.append(row)
 
         return datos
@@ -1197,14 +1129,10 @@ class ExcelGenerator:
         # Necesitamos separarlo y agregar los atributos enriquecidos en el medio
         if db_type in ["oracle", "postgresql", "hsqldb"]:
             # base_data es: [Campo, Tipo, Nulo, Por defecto, Longitud, Precisión, Escala, Comentario]
-            base_without_comment = base_data[
-                :-1
-            ]  # [Campo, Tipo, Nulo, Por defecto, Longitud, Precisión, Escala]
+            base_without_comment = base_data[:-1]  # [Campo, Tipo, Nulo, Por defecto, Longitud, Precisión, Escala]
             column_comment = base_data[-1]  # Comentario
             enriched_data = (
-                base_without_comment
-                + self._get_enriched_attributes(col_name, pks, fks, idx_map)
-                + [column_comment]
+                base_without_comment + self._get_enriched_attributes(col_name, pks, fks, idx_map) + [column_comment]
             )
         else:
             # Para MariaDB y SQL Server, el comentario ya está en su lugar correcto
@@ -1290,9 +1218,7 @@ class ExcelGenerator:
                 idx_map.setdefault(col, []).append(idx[0])
         return idx_map
 
-    def _create_columns_charset_collation_sheet(
-        self, wb: Workbook, tables: list[tuple], data_provider: Any
-    ) -> None:
+    def _create_columns_charset_collation_sheet(self, wb: Workbook, tables: list[tuple], data_provider: Any) -> None:
         """Crea hoja consolidada Charset/Collation de todas las columnas."""
         self.logger.info("Creando hoja consolidada de Charset & Collation")
         ws = wb.create_sheet("Charset & Collation")
@@ -1314,14 +1240,10 @@ class ExcelGenerator:
                         ws.cell(row=current_row, column=1, value=str(tabla))
                         ws.cell(row=current_row, column=2, value=str(col_name))
                         ws.cell(row=current_row, column=3, value=str(charset) if charset else "")
-                        ws.cell(
-                            row=current_row, column=4, value=str(collation) if collation else ""
-                        )
+                        ws.cell(row=current_row, column=4, value=str(collation) if collation else "")
                         current_row += 1
                 except Exception as e:
-                    self.logger.warning(
-                        f"Error obteniendo charset/collation para tabla {tabla}: {e}"
-                    )
+                    self.logger.warning(f"Error obteniendo charset/collation para tabla {tabla}: {e}")
             if current_row > start_row + 1:
                 self._apply_table_style_to_range(
                     ws=ws,

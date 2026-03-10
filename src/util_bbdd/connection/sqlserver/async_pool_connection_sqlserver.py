@@ -9,6 +9,14 @@ from typing import Any
 
 from util_bbdd.database_exceptions import DatabaseConnectionError
 
+from ...async_utils import maybe_await
+from ..async_close_utils import (
+    FORCE_CLOSE_TIMEOUT_SECONDS,
+    AsyncCloseMode,
+    normalize_close_mode,
+    parse_close_timeout,
+    run_close_operation,
+)
 from ..connection_params_manager import ConnectionParamsManager
 from .async_connection_sqlserver import AsyncSQLServerConnection
 
@@ -18,8 +26,10 @@ class AsyncSQLServerPool:
 
     logger: logging.Logger = logging.getLogger(__name__)
 
-    def __init__(self, pool: Any):
+    def __init__(self, pool: Any, close_timeout_seconds: float | None):
         self._pool: Any = pool
+        self._close_timeout_seconds: float | None = close_timeout_seconds
+        self._closed: bool = False
 
     @classmethod
     async def create(cls, conn_params: dict[str, Any]) -> AsyncSQLServerPool:
@@ -29,6 +39,7 @@ class AsyncSQLServerPool:
 
             pool_config = ConnectionParamsManager.get_pool_config("sqlserver", conn_params)
             sanitized_pool_params: dict[str, Any] = pool_config.to_driver_kwargs()
+            close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
 
             dsn: str = AsyncSQLServerConnection._build_dsn(sanitized_pool_params)
             pool_size: int = int(sanitized_pool_params.get("pool_size", 5))
@@ -43,7 +54,7 @@ class AsyncSQLServerPool:
                 timeout=pool_timeout,
             )
             cls.logger.info("✅ Pool SQL Server async creado")
-            return cls(pool)
+            return cls(pool, close_timeout_seconds=close_timeout_seconds)
         except ImportError as err:
             cls.logger.error("❌ Error: módulo aioodbc no disponible")
             raise DatabaseConnectionError("Módulo aioodbc no disponible", "sqlserver", str(err)) from err
@@ -65,7 +76,45 @@ class AsyncSQLServerPool:
         if inspect.isawaitable(result):
             await result
 
-    async def aclose(self) -> None:
-        """Cierra pool async."""
-        self._pool.close()
-        await self._pool.wait_closed()
+    async def close(self, mode: AsyncCloseMode | str = "immediate") -> None:
+        """Cierra pool async en modo inmediato o graceful."""
+        if self._closed:
+            return
+        self._closed = True
+        close_mode: AsyncCloseMode = normalize_close_mode(mode)
+
+        async def _force_close() -> None:
+            terminate = getattr(self._pool, "terminate", None)
+            if callable(terminate):
+                terminate()
+            else:
+                self.logger.warning("⚠️ Pool SQL Server async no expone terminate(); reintentando close()")
+                self._pool.close()
+
+            wait_closed = getattr(self._pool, "wait_closed", None)
+            if callable(wait_closed):
+                await run_close_operation(
+                    maybe_await(wait_closed()),
+                    FORCE_CLOSE_TIMEOUT_SECONDS,
+                    self.logger,
+                    "espera tras cierre inmediato pool SQL Server async",
+                )
+
+        if close_mode == "immediate":
+            await _force_close()
+            return
+
+        async def _graceful_close() -> None:
+            self._pool.close()
+            await maybe_await(self._pool.wait_closed())
+
+        closed = await run_close_operation(
+            _graceful_close(),
+            self._close_timeout_seconds,
+            self.logger,
+            "cierre pool SQL Server async",
+        )
+        if closed:
+            return
+
+        await _force_close()

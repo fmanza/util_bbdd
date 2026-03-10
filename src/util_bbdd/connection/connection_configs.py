@@ -79,15 +79,9 @@ class MariaDBConnectionConfig:
             port=_to_int(params.get("port", 3306), "port", db_type, min_value=1),
             unix_socket=_opt_str(params, "unix_socket"),
             autocommit=_to_bool(params.get("autocommit", False), "autocommit", db_type),
-            connect_timeout=_to_int(
-                params.get("connect_timeout", 10), "connect_timeout", db_type, min_value=0
-            ),
-            read_timeout=_to_int(
-                params.get("read_timeout", 30), "read_timeout", db_type, min_value=0
-            ),
-            write_timeout=_to_int(
-                params.get("write_timeout", 60), "write_timeout", db_type, min_value=0
-            ),
+            connect_timeout=_to_int(params.get("connect_timeout", 10), "connect_timeout", db_type, min_value=0),
+            read_timeout=_to_int(params.get("read_timeout", 30), "read_timeout", db_type, min_value=0),
+            write_timeout=_to_int(params.get("write_timeout", 60), "write_timeout", db_type, min_value=0),
             charset=_opt_str(params, "charset"),
         )
 
@@ -170,16 +164,12 @@ class PostgreSQLConnectionConfig:
             port=_to_int(params.get("port", 5432), "port", db_type, min_value=1),
             dbname=_opt_str(params, "dbname"),
             sslmode=sslmode,
-            connect_timeout=_to_int(
-                params.get("connect_timeout", 10), "connect_timeout", db_type, min_value=0
-            ),
+            connect_timeout=_to_int(params.get("connect_timeout", 10), "connect_timeout", db_type, min_value=0),
             application_name=_opt_str(params, "application_name"),
             fallback_application_name=_opt_str(params, "fallback_application_name"),
             keepalives=_to_bool(params.get("keepalives", True), "keepalives", db_type),
             tcp_keepalives_idle=(
-                _to_int(
-                    params.get("tcp_keepalives_idle"), "tcp_keepalives_idle", db_type, min_value=0
-                )
+                _to_int(params.get("tcp_keepalives_idle"), "tcp_keepalives_idle", db_type, min_value=0)
                 if params.get("tcp_keepalives_idle") is not None
                 else None
             ),
@@ -194,9 +184,7 @@ class PostgreSQLConnectionConfig:
                 else None
             ),
             tcp_keepalives_count=(
-                _to_int(
-                    params.get("tcp_keepalives_count"), "tcp_keepalives_count", db_type, min_value=0
-                )
+                _to_int(params.get("tcp_keepalives_count"), "tcp_keepalives_count", db_type, min_value=0)
                 if params.get("tcp_keepalives_count") is not None
                 else None
             ),
@@ -248,9 +236,7 @@ class PostgreSQLPoolConfig:
         return cls(
             connection=PostgreSQLConnectionConfig.from_params(params),
             pool_size=_to_int(params.get("pool_size", 5), "pool_size", db_type, min_value=1),
-            pool_timeout=_to_int(
-                params.get("pool_timeout", 30), "pool_timeout", db_type, min_value=0
-            ),
+            pool_timeout=_to_int(params.get("pool_timeout", 30), "pool_timeout", db_type, min_value=0),
             max_idle=_to_int(params.get("max_idle", 300), "max_idle", db_type, min_value=0),
         )
 
@@ -286,9 +272,7 @@ class OracleConnectionConfig:
         sid: str | None = _opt_str(params, "sid")
         database: str | None = _opt_str(params, "database")
         if not (dsn or service_name or sid or database):
-            raise ValueError(
-                "Para oracle debe informar 'dsn' o 'service_name' o 'sid' o 'database'"
-            )
+            raise ValueError("Para oracle debe informar 'dsn' o 'service_name' o 'sid' o 'database'")
         return cls(
             user=_require_str(params, "user", db_type),
             password=_require_str(params, "password", db_type),
@@ -333,9 +317,7 @@ class OraclePoolConfig:
         return cls(
             connection=OracleConnectionConfig.from_params(params),
             pool_size=_to_int(params.get("pool_size", 5), "pool_size", db_type, min_value=1),
-            max_lifetime=_to_int(
-                params.get("max_lifetime", 3600), "max_lifetime", db_type, min_value=1
-            ),
+            max_lifetime=_to_int(params.get("max_lifetime", 3600), "max_lifetime", db_type, min_value=1),
         )
 
     def to_driver_kwargs(self) -> dict[str, Any]:
@@ -362,9 +344,7 @@ class SQLServerConnectionConfig:
     driver_name: str = "ODBC Driver 17 for SQL Server"
 
     @classmethod
-    def from_params(
-        cls, params: dict[str, Any], driver: str | None = None
-    ) -> SQLServerConnectionConfig:
+    def from_params(cls, params: dict[str, Any], driver: str | None = None) -> SQLServerConnectionConfig:
         db_type: str = "sqlserver"
         selected_driver: str = str(driver or params.get("sql_server_driver", "pymssql")).lower()
         if selected_driver not in {"pymssql", "pyodbc"}:
@@ -379,9 +359,7 @@ class SQLServerConnectionConfig:
             database=_require_str(params, "database", db_type),
             port=_to_int(params.get("port", 1433), "port", db_type, min_value=1),
             timeout=_to_int(params.get("timeout", 30), "timeout", db_type, min_value=0),
-            login_timeout=_to_int(
-                params.get("login_timeout", 20), "login_timeout", db_type, min_value=0
-            ),
+            login_timeout=_to_int(params.get("login_timeout", 20), "login_timeout", db_type, min_value=0),
             charset=str(params.get("charset", "UTF-8")),
             as_dict=_to_bool(params.get("as_dict", False), "as_dict", db_type),
             encryption=encryption,
@@ -426,18 +404,12 @@ class SQLServerPoolConfig:
         return cls(
             connection=SQLServerConnectionConfig.from_params(params, driver=driver),
             pool_size=_to_int(params.get("pool_size", 5), "pool_size", db_type, min_value=1),
-            max_overflow=_to_int(
-                params.get("max_overflow", 10), "max_overflow", db_type, min_value=0
-            ),
-            pool_timeout=_to_int(
-                params.get("pool_timeout", 30), "pool_timeout", db_type, min_value=0
-            ),
+            max_overflow=_to_int(params.get("max_overflow", 10), "max_overflow", db_type, min_value=0),
+            pool_timeout=_to_int(params.get("pool_timeout", 30), "pool_timeout", db_type, min_value=0),
         )
 
     def to_driver_kwargs(self) -> dict[str, Any]:
-        payload: dict[str, Any] = self.connection.to_driver_kwargs(
-            driver=self.connection.sql_server_driver
-        )
+        payload: dict[str, Any] = self.connection.to_driver_kwargs(driver=self.connection.sql_server_driver)
         payload.update(
             {
                 "pool_size": self.pool_size,
@@ -461,19 +433,13 @@ class SQLiteConnectionConfig:
         db_type: str = "sqlite"
         isolation_level: str = str(params.get("isolation_level", "") or "").upper()
         if isolation_level not in {"", "DEFERRED", "IMMEDIATE", "EXCLUSIVE"}:
-            raise ValueError(
-                f"Parametro invalido para {db_type}: isolation_level={isolation_level}"
-            )
+            raise ValueError(f"Parametro invalido para {db_type}: isolation_level={isolation_level}")
         return cls(
             database=_require_str(params, "database", db_type),
             timeout=_to_float(params.get("timeout", 5), "timeout", db_type, min_value=0),
-            check_same_thread=_to_bool(
-                params.get("check_same_thread", False), "check_same_thread", db_type
-            ),
+            check_same_thread=_to_bool(params.get("check_same_thread", False), "check_same_thread", db_type),
             isolation_level=isolation_level,
-            cached_statements=_to_int(
-                params.get("cached_statements", 100), "cached_statements", db_type, min_value=0
-            ),
+            cached_statements=_to_int(params.get("cached_statements", 100), "cached_statements", db_type, min_value=0),
         )
 
     def to_driver_kwargs(self) -> dict[str, Any]:
@@ -517,15 +483,11 @@ class HSQLDBConnectionConfig:
         raw_connection_properties: Any = params.get("connection_properties")
         if raw_connection_properties is not None:
             if not isinstance(raw_connection_properties, dict):
-                raise ValueError(
-                    f"Parametro invalido para {db_type}: connection_properties debe ser dict"
-                )
+                raise ValueError(f"Parametro invalido para {db_type}: connection_properties debe ser dict")
             normalized_properties: dict[str, Any] = {}
             for key, value in raw_connection_properties.items():
                 if not isinstance(key, str):
-                    raise ValueError(
-                        f"Parametro invalido para {db_type}: connection_properties debe usar claves str"
-                    )
+                    raise ValueError(f"Parametro invalido para {db_type}: connection_properties debe usar claves str")
                 normalized_properties[key] = value
             connection_properties = normalized_properties
         return cls(

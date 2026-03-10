@@ -90,9 +90,7 @@ class DatabaseMetadataCache:
         """Obtiene charset/collation de columnas del caché de BD."""
         return self._columns_charset_collation_cache.get(table_key)
 
-    def set_columns_charset_collation(
-        self, table_key: tuple[str, str], charset_collation: list
-    ) -> None:
+    def set_columns_charset_collation(self, table_key: tuple[str, str], charset_collation: list) -> None:
         """Guarda charset/collation de columnas en caché de BD."""
         self._columns_charset_collation_cache[table_key] = list(charset_collation)
 
@@ -208,9 +206,7 @@ class RelationshipMetadataCache:
         """Guarda UCs en caché de BD centralizada."""
         self.db_cache.set_unique_constraints(table_key, ucs)
 
-    def get_cardinality(
-        self, source_col: str, target_col: str, source_table: str, target_table: str
-    ) -> str | None:
+    def get_cardinality(self, source_col: str, target_col: str, source_table: str, target_table: str) -> str | None:
         """Obtiene cardinalidad del caché de análisis."""
         key: tuple[str, str, str, str] = (source_col, target_col, source_table, target_table)
         return self._cardinality_cache.get(key)

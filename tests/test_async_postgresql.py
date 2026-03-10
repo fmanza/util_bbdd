@@ -44,9 +44,37 @@ class _FakePool:
         self.closed = True
 
 
+class _HangingClosePool(_FakePool):
+    def __init__(self):
+        super().__init__()
+        self.terminated = False
+
+    async def close(self):
+        await asyncio.Event().wait()
+
+    def terminate(self):
+        self.terminated = True
+        self.closed = True
+
+
 def _install_fake_asyncpg(monkeypatch):
     fake_pool = _FakePool()
 
+    async def fake_connect(**kwargs):
+        return _FakeConn()
+
+    async def fake_create_pool(**kwargs):
+        return fake_pool
+
+    fake_module = types.SimpleNamespace(
+        connect=fake_connect,
+        create_pool=fake_create_pool,
+    )
+    monkeypatch.setitem(__import__("sys").modules, "asyncpg", fake_module)
+    return fake_pool
+
+
+def _install_fake_asyncpg_with_pool(monkeypatch, fake_pool):
     async def fake_connect(**kwargs):
         return _FakeConn()
 
@@ -99,7 +127,7 @@ def test_async_postgresql_pool(monkeypatch):
         one = await conn.fetchone()
         assert one == ("pg-one",)
         await pool.release(conn)
-        await pool.aclose()
+        await pool.close()
         assert fake_pool.release_count == 1
         assert fake_pool.closed is True
 
@@ -123,10 +151,33 @@ def test_async_database_manager_postgresql_pool(monkeypatch):
             },
             use_pool=True,
         ) as manager:
-            row = await manager.execute_custom_query("SELECT 1", fetch_one=True)
+            row = await manager.execute_custom_one("SELECT 1")
             assert row == ("pg-one",)
 
         assert fake_pool.release_count == 1
         assert fake_pool.closed is True
 
     asyncio.run(_run())
+
+
+def test_async_postgresql_pool_forced_close_on_timeout(monkeypatch):
+    hanging_pool = _HangingClosePool()
+    _install_fake_asyncpg_with_pool(monkeypatch, hanging_pool)
+
+    async def _run() -> None:
+        pool = await AsyncPostgreSQLPool.create(
+            {
+                "host": "localhost",
+                "port": 5432,
+                "user": "postgres",
+                "password": "pwd",
+                "database": "db",
+                "close_timeout": 0.01,
+            }
+        )
+        await pool.close()
+        assert hanging_pool.terminated is True
+        assert hanging_pool.closed is True
+
+    asyncio.run(_run())
+

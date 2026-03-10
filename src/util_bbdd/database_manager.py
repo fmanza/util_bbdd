@@ -750,7 +750,6 @@ class DatabaseManager:
         error_message: str,
         table_name: str | None = None,
     ) -> Any:
-        self._get_sync_query_executor()
         return self._run_manager_operation(
             action=action,
             error_message=error_message,
@@ -766,8 +765,13 @@ class DatabaseManager:
         error_message: str,
         table_name: str | None = None,
     ) -> Rows:
+        executor = self._get_sync_query_executor()
         result = self._run_metadata_operation(
-            action=lambda: self.execute_query_many(query_name, **params),
+            action=lambda: executor.execute_query_many(
+                query_name=query_name,
+                db_type=self.db_type,
+                params=params,
+            ),
             error_message=error_message,
             table_name=table_name,
         )
@@ -781,8 +785,13 @@ class DatabaseManager:
         error_message: str,
         table_name: str | None = None,
     ) -> RowOrNone:
+        executor = self._get_sync_query_executor()
         result = self._run_metadata_operation(
-            action=lambda: self.execute_query_one(query_name, **params),
+            action=lambda: executor.execute_query_one(
+                query_name=query_name,
+                db_type=self.db_type,
+                params=params,
+            ),
             error_message=error_message,
             table_name=table_name,
         )

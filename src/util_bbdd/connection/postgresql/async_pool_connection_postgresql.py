@@ -8,6 +8,14 @@ from typing import Any
 
 from util_bbdd.database_exceptions import DatabaseConnectionError
 
+from ...async_utils import maybe_await
+from ..async_close_utils import (
+    FORCE_CLOSE_TIMEOUT_SECONDS,
+    AsyncCloseMode,
+    normalize_close_mode,
+    parse_close_timeout,
+    run_close_operation,
+)
 from ..connection_params_manager import ConnectionParamsManager
 
 
@@ -16,8 +24,10 @@ class AsyncPostgreSQLPool:
 
     logger: logging.Logger = logging.getLogger(__name__)
 
-    def __init__(self, pool: Any):
+    def __init__(self, pool: Any, close_timeout_seconds: float | None):
         self._pool: Any = pool
+        self._close_timeout_seconds: float | None = close_timeout_seconds
+        self._closed: bool = False
 
     @staticmethod
     def _split_pool_kwargs(conn_params: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -60,13 +70,14 @@ class AsyncPostgreSQLPool:
             pool_config = ConnectionParamsManager.get_pool_config("postgresql", conn_params)
             sanitized_pool_params: dict[str, Any] = pool_config.to_driver_kwargs()
             conn_kwargs, pool_kwargs = cls._split_pool_kwargs(sanitized_pool_params)
+            close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
 
             cls.logger.debug(
                 f"🔗 Creando pool PostgreSQL async (min={pool_kwargs['min_size']}, max={pool_kwargs['max_size']})"
             )
             pool: Any = await asyncpg.create_pool(**conn_kwargs, **pool_kwargs)
             cls.logger.info("✅ Pool PostgreSQL async creado")
-            return cls(pool)
+            return cls(pool, close_timeout_seconds=close_timeout_seconds)
         except ImportError as err:
             cls.logger.error("❌ Error: módulo asyncpg no disponible")
             raise DatabaseConnectionError("Módulo asyncpg no disponible", "postgresql", str(err)) from err
@@ -86,6 +97,42 @@ class AsyncPostgreSQLPool:
         """Devuelve conexión al pool."""
         await self._pool.release(connection)
 
-    async def aclose(self) -> None:
-        """Cierra el pool."""
-        await self._pool.close()
+    async def close(self, mode: AsyncCloseMode | str = "immediate") -> None:
+        """Cierra el pool en modo inmediato o graceful."""
+        if self._closed:
+            return
+        self._closed = True
+        close_mode: AsyncCloseMode = normalize_close_mode(mode)
+
+        async def _force_close() -> None:
+            terminate = getattr(self._pool, "terminate", None)
+            if callable(terminate):
+                await run_close_operation(
+                    maybe_await(terminate()),
+                    FORCE_CLOSE_TIMEOUT_SECONDS,
+                    self.logger,
+                    "terminación inmediata pool PostgreSQL async",
+                )
+                return
+
+            await run_close_operation(
+                maybe_await(self._pool.close()),
+                FORCE_CLOSE_TIMEOUT_SECONDS,
+                self.logger,
+                "cierre inmediato pool PostgreSQL async sin terminate()",
+            )
+
+        if close_mode == "immediate":
+            await _force_close()
+            return
+
+        closed = await run_close_operation(
+            maybe_await(self._pool.close()),
+            self._close_timeout_seconds,
+            self.logger,
+            "cierre pool PostgreSQL async",
+        )
+        if closed:
+            return
+
+        await _force_close()

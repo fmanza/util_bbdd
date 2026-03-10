@@ -6,7 +6,9 @@ from typing import Any
 
 import oracledb
 
+from ...database_exceptions import DatabasePoolError, DatabasePoolTimeoutError
 from ..connection_params_manager import ConnectionParamsManager
+from ..sync_close_utils import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_sync_close_operation
 
 
 class PoolConnection:
@@ -50,6 +52,7 @@ class PoolConnection:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.pool: oracledb.ConnectionPool | None = None
         self._closed: bool = False
+        self._close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
         pool_config = ConnectionParamsManager.get_pool_config("oracle", conn_params)
         self.pool_size: int = pool_config.pool_size
         self.max_lifetime: int = pool_config.max_lifetime
@@ -58,11 +61,10 @@ class PoolConnection:
 
     def __del__(self) -> None:
         """Limpia recursos al destruir el objeto."""
-        if self.pool:
-            try:
-                self.pool.close()
-            except Exception:
-                pass  # Ignorar si ya fue cerrado
+        try:
+            self.close(timeout_seconds=self._close_timeout_seconds, force=True)
+        except Exception:
+            pass  # No propagar excepciones desde destructor
 
     def __create_pool(self) -> None:
         """Crea pool nativo de oracledb.
@@ -151,16 +153,46 @@ class PoolConnection:
         if self.pool:
             self.pool.release(connection)
 
-    def close(self) -> None:
-        """Cierra todas las conexiones del pool."""
+    def close(self, timeout_seconds: float | None, force: bool) -> None:
+        """Cierra todas las conexiones del pool con timeout/forzado explícitos."""
         if self._closed:
             return
         self._closed = True
-        if self.pool:
-            try:
-                self.pool.close()
-                self.logger.info("✅ Pool Oracle cerrado")
-            except Exception as e:
-                self.logger.warning(f"⚠️  Error cerrando pool Oracle: {e}")
-            finally:
-                self.pool = None
+        if self.pool is None:
+            return
+
+        effective_timeout = self._close_timeout_seconds if timeout_seconds is None else timeout_seconds
+        pool_ref = self.pool
+        try:
+            run_sync_close_operation(
+                action=lambda: pool_ref.close(),
+                timeout_seconds=effective_timeout,
+                action_name="cierre pool Oracle",
+                db_type="oracle",
+            )
+            self.logger.info("✅ Pool Oracle cerrado")
+        except DatabasePoolTimeoutError:
+            if force is False:
+                raise
+
+            def _force_close() -> None:
+                try:
+                    pool_ref.close(force=True)
+                except TypeError:
+                    pool_ref.close()
+
+            run_sync_close_operation(
+                action=_force_close,
+                timeout_seconds=FORCE_CLOSE_TIMEOUT_SECONDS,
+                action_name="cierre forzado pool Oracle",
+                db_type="oracle",
+            )
+            self.logger.info("✅ Pool Oracle cerrado (forzado)")
+        except Exception as err:
+            raise DatabasePoolError(
+                message="Error cerrando pool Oracle",
+                db_type="oracle",
+                details=str(err),
+            ) from err
+        finally:
+            self.pool = None

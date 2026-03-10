@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
+from .async_close_utils import AsyncCloseMode
+
 
 @runtime_checkable
 class AsyncConnectionProtocol(Protocol):
@@ -32,5 +34,5 @@ class AsyncPoolProtocol(Protocol):
     async def release(self, connection: Any) -> None:
         """Devuelve una conexion al pool."""
 
-    async def aclose(self) -> None:
-        """Cierra el pool y libera recursos."""
+    async def close(self, mode: AsyncCloseMode) -> None:
+        """Cierra el pool en modo inmediato o graceful."""

@@ -198,9 +198,13 @@ class DatabaseTypeNotSupportedError(DatabaseError):
 
 
 # ============================================================================
-# Backward compatibility aliases (DEPRECATED)
+# Domain naming aliases (normalized contract)
 # ============================================================================
 
-# Alias deprecated: DatabaseQueryError -> QueryNotFoundError
-# Mantiene compatibilidad con código legado
-DatabaseQueryError = QueryNotFoundError
+# Alias semánticos para nomenclatura de dominio utilizada en documentación/ADRs.
+UtilBbddError = DatabaseError
+QueryExecutionError = DatabaseOperationError
+InvalidQueryError = QueryValidationError
+QueryExecutionTimeoutError = QueryTimeoutError
+
+

@@ -8,6 +8,14 @@ from typing import Any
 
 from util_bbdd.database_exceptions import DatabaseConnectionError
 
+from ...async_utils import maybe_await
+from ..async_close_utils import (
+    FORCE_CLOSE_TIMEOUT_SECONDS,
+    AsyncCloseMode,
+    normalize_close_mode,
+    parse_close_timeout,
+    run_close_operation,
+)
 from ..connection_params_manager import ConnectionParamsManager
 
 
@@ -16,8 +24,10 @@ class AsyncOraclePool:
 
     logger: logging.Logger = logging.getLogger(__name__)
 
-    def __init__(self, pool: Any):
+    def __init__(self, pool: Any, close_timeout_seconds: float | None):
         self._pool: Any = pool
+        self._close_timeout_seconds: float | None = close_timeout_seconds
+        self._closed: bool = False
 
     @staticmethod
     def _build_pool_params(oracledb_module: Any, conn_params: dict[str, Any]) -> dict[str, Any]:
@@ -64,6 +74,7 @@ class AsyncOraclePool:
             pool_config = ConnectionParamsManager.get_pool_config("oracle", conn_params)
             sanitized_pool_params: dict[str, Any] = pool_config.to_driver_kwargs()
             create_params: dict[str, Any] = cls._build_pool_params(oracledb, sanitized_pool_params)
+            close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
 
             create_pool_async = getattr(oracledb, "create_pool_async", None)
             if create_pool_async is None:
@@ -75,7 +86,7 @@ class AsyncOraclePool:
             cls.logger.debug("🔗 Creando pool Oracle async")
             pool: Any = await create_pool_async(**create_params)
             cls.logger.info("✅ Pool Oracle async creado")
-            return cls(pool)
+            return cls(pool, close_timeout_seconds=close_timeout_seconds)
         except ImportError as err:
             cls.logger.error("❌ Error: módulo oracledb no disponible")
             raise DatabaseConnectionError("Módulo oracledb no disponible", "oracle", str(err)) from err
@@ -95,6 +106,41 @@ class AsyncOraclePool:
         """Devuelve conexión al pool."""
         await self._pool.release(connection)
 
-    async def aclose(self) -> None:
-        """Cierra pool async."""
-        await self._pool.close()
+    async def close(self, mode: AsyncCloseMode | str = "immediate") -> None:
+        """Cierra pool async en modo inmediato o graceful."""
+        if self._closed:
+            return
+        self._closed = True
+        close_mode: AsyncCloseMode = normalize_close_mode(mode)
+
+        async def _force_close() -> None:
+            try:
+                await maybe_await(self._pool.close(force=True))
+            except TypeError:
+                self.logger.warning("⚠️ Pool Oracle async no soporta force=True; reintentando close()")
+                await maybe_await(self._pool.close())
+
+        if close_mode == "immediate":
+            await run_close_operation(
+                _force_close(),
+                FORCE_CLOSE_TIMEOUT_SECONDS,
+                self.logger,
+                "cierre inmediato pool Oracle async",
+            )
+            return
+
+        closed = await run_close_operation(
+            maybe_await(self._pool.close()),
+            self._close_timeout_seconds,
+            self.logger,
+            "cierre pool Oracle async",
+        )
+        if closed:
+            return
+
+        await run_close_operation(
+            _force_close(),
+            FORCE_CLOSE_TIMEOUT_SECONDS,
+            self.logger,
+            "cierre forzado pool Oracle async",
+        )
