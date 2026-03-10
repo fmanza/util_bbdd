@@ -1,13 +1,13 @@
 """
 Módulo para manejo de operaciones de base de datos
-Soporta MariaDB, Oracle, PostgreSQL, HSQLDB y SQL Server
+Soporta MariaDB, Oracle, PostgreSQL, SQLite, HSQLDB y SQL Server
 """
 
 import logging
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from sqlalchemy.engine.base import Engine
 
@@ -17,14 +17,16 @@ if TYPE_CHECKING:
 from .connection.connect_factory import ConnectFactory
 from .connection.connection_params_manager import ConnectionParamsManager
 from .connection.pool_protocol import ConnectionPoolProtocol
+from .connection.sync_close_utils import parse_close_timeout, run_sync_close_operation
 from .database_exceptions import (
     DatabaseConfigurationError,
     DatabaseConnectionError,
     DatabaseDriverError,
     DatabaseOperationError,
     DatabaseValidationError,
+    QueryError,
 )
-from .database_queries import DatabaseQueries, DatabaseQueryExecutor
+from .database_queries import DatabaseQueries
 from .database_type_validator import (
     DatabaseTypeValidator,
     get_database_validator,
@@ -33,9 +35,13 @@ from .database_type_validator import (
     validate_db_type,
 )
 from .driver_validator import DriverValidator
+from .executors.sync_query_executor import SyncQueryExecutor
 from .factory.pool_factory import PoolFactory
 from .factory.sqlalchemy_engine_factory import SQLAlchemyEngineFactory
 from .metadata_cache import DatabaseMetadataCache, RelationshipMetadataCache
+from .metadata_contracts import Rows
+from .metadata_normalization import NormalizedColumnRow, NormalizedTableRow, normalize_column_rows, normalize_table_rows
+from .result_types import RowOrNone
 
 
 class DatabaseManager:
@@ -43,28 +49,29 @@ class DatabaseManager:
     Clase para manejar conexiones y operaciones de base de datos.
 
     Soporta logging y manejo de excepciones propias.
-    Bases de datos soportadas: MariaDB, Oracle, PostgreSQL, HSQLDB, SQL Server
+    Bases de datos soportadas: MariaDB, Oracle, PostgreSQL, SQLite, HSQLDB, SQL Server
     """
 
-    _QUERY_EXECUTOR_NOT_INITIALIZED = "Ejecutor de consultas no inicializado. Verifique la conexión a la base de datos."
+    _SYNC_QUERY_EXECUTOR_NOT_INITIALIZED = (
+        "Ejecutor sync de consultas no inicializado. Verifique la conexión a la base de datos."
+    )
 
     def _build_query_executor(
         self,
         connection_provider: Callable[[], Any],
         connection_releaser: Callable[[Any], None],
     ) -> None:
-        """Inicializa un DatabaseQueryExecutor stateless con provider/releaser.
+        """Inicializa ejecutores stateless con provider/releaser.
 
         Args:
             connection_provider: Función que obtiene una conexión para cada operación.
             connection_releaser: Función que libera/devolver la conexión al finalizar.
         """
-        self.query_executor = DatabaseQueryExecutor(
-            connection=None,
-            cursor=None,
-            queries=self.db_queries,
+        self.sync_query_executor = SyncQueryExecutor(
             connection_provider=connection_provider,
             connection_releaser=connection_releaser,
+            registry=self._query_catalog.registry,
+            resolver=self._query_catalog.resolver,
         )
         self.logger.debug("✅ Query executor stateless inicializado")
 
@@ -79,7 +86,7 @@ class DatabaseManager:
         Inicializa el gestor de base de datos con soporte de pool de conexiones
 
         Args:
-            db_type: Tipo de base de datos ('mariadb', 'oracle', 'postgresql', 'hsqldb', 'sqlserver')
+            db_type: Tipo de base de datos ('mariadb', 'oracle', 'postgresql', 'sqlite', 'hsqldb', 'sqlserver')
             conn_params: Parámetros de conexión (debe incluir 'database'; Oracle acepta 'oracle_client_path')
             queries_file: Ruta al archivo JSON con consultas (opcional)
             use_pool: Habilita pool de conexiones (default True)
@@ -96,7 +103,7 @@ class DatabaseManager:
         # Inicializar la conexión como None
         self._connection: Any = None
         self.cursor: Any = None
-        self.query_executor: DatabaseQueryExecutor | None = None
+        self.sync_query_executor: SyncQueryExecutor | None = None
 
         # Inicializar cachés centralizados (composición jerárquica)
         self.db_cache: DatabaseMetadataCache = DatabaseMetadataCache()
@@ -109,6 +116,7 @@ class DatabaseManager:
         # Pool de conexiones
         self.use_pool: bool = use_pool
         self.pool_connection: ConnectionPoolProtocol | None = None
+        self._default_close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
 
         try:
             # Validar y normalizar tipo de base de datos
@@ -137,7 +145,7 @@ class DatabaseManager:
 
             # Inicializar gestor de consultas
             queries_path: Path | None = queries_file if queries_file else None
-            self.db_queries = DatabaseQueries(self.db_type, queries_path)
+            self._query_catalog = DatabaseQueries(self.db_type, queries_path)
             self.logger.debug("✅ Gestor de consultas inicializado")
 
             # Determinar si usar pool
@@ -358,19 +366,15 @@ class DatabaseManager:
         if connection is None:
             return
 
-        try:
-            if self.pool_connection:
-                self.pool_connection.close_connection(connection)
-                self.logger.debug("📦 Conexión devuelta al pool")
-            else:
-                connection.close()
-                self.logger.debug("🔌 Conexión cerrada")
-        except RuntimeError as e:
-            self.logger.warning(f"⚠️ Pool no disponible al devolver conexión: {e}")
-        except Exception as e:
-            self.logger.warning(f"⚠️ Error cerrando conexión: {e}")
+        if self.pool_connection:
+            self.pool_connection.close_connection(connection)
+            self.logger.debug("📦 Conexión devuelta al pool")
+            return
 
-    def close(self) -> None:
+        connection.close()
+        self.logger.debug("🔌 Conexión cerrada")
+
+    def close(self, timeout_seconds: float | None, force: bool) -> None:
         """
         Cierra la conexión a la base de datos y libera recursos del pool
 
@@ -378,35 +382,55 @@ class DatabaseManager:
             - ✅ Si la operación es exitosa
             - ❌ Si hay errores
         """
-        try:
-            if self.pool_connection:
-                try:
-                    self.pool_connection.close()
-                    self.logger.info("🔗 Pool liberado y cerrado")
-                except Exception as e:
-                    self.logger.warning(f"⚠️  Error cerrando pool: {e}")
-                finally:
-                    self.pool_connection = None
+        effective_timeout = self._default_close_timeout_seconds if timeout_seconds is None else timeout_seconds
+        close_errors: list[Exception] = []
 
-            if self.cursor:
-                try:
-                    self.cursor.close()
-                    self.logger.debug(f"✅ Cursor cerrado para {self.db_type}")
-                except Exception as e:
-                    self.logger.warning(f"⚠️ Error cerrando cursor: {e}")
+        pool = self.pool_connection
+        self.pool_connection = None
+        if pool is not None:
+            try:
+                pool.close(timeout_seconds=effective_timeout, force=force)
+                self.logger.info("🔗 Pool liberado y cerrado")
+            except Exception as err:
+                close_errors.append(err)
 
-            if self._connection:
-                try:
-                    self._connection.close()
-                    self.logger.info(f"✅ Conexión cerrada para {self.db_type}")
-                except Exception as e:
-                    self.logger.warning(f"⚠️ Error cerrando conexión: {e}")
-                finally:
-                    self._connection = None
+        cursor = self.cursor
+        self.cursor = None
+        if cursor is not None:
+            try:
+                run_sync_close_operation(
+                    action=lambda: cursor.close(),
+                    timeout_seconds=effective_timeout,
+                    action_name=f"cierre cursor {self.db_type}",
+                    db_type=self.db_type,
+                )
+                self.logger.debug(f"✅ Cursor cerrado para {self.db_type}")
+            except Exception as err:
+                close_errors.append(err)
 
-            self.logger.info("✅ DatabaseManager cerrado")
-        except Exception as e:
-            self.logger.error(f"❌ Error inesperado cerrando conexión: {e}")
+        connection = self._connection
+        self._connection = None
+        if connection is not None:
+            try:
+                run_sync_close_operation(
+                    action=lambda: connection.close(),
+                    timeout_seconds=effective_timeout,
+                    action_name=f"cierre conexión {self.db_type}",
+                    db_type=self.db_type,
+                )
+                self.logger.info(f"✅ Conexión cerrada para {self.db_type}")
+            except Exception as err:
+                close_errors.append(err)
+
+        if close_errors:
+            error_details = " | ".join(str(err) for err in close_errors)
+            raise DatabaseOperationError(
+                message=f"Errores cerrando recursos de base de datos: {error_details}",
+                operation="CLOSE",
+                db_type=self.db_type,
+            ) from close_errors[0]
+
+        self.logger.info("✅ DatabaseManager cerrado")
 
     def _clear_all_caches(self) -> None:
         """Limpia completamente todas las cachés de metadatos."""
@@ -439,26 +463,36 @@ class DatabaseManager:
                 self.db_cache._routine_ddl_cache.pop(key, None)
         self.logger.info(f"🧹 Caché invalidada para rutina {routine} ({context})")
 
+    @staticmethod
+    def _clear_tuple_cache_by_context(cache: dict[tuple[Any, ...], Any], context: str) -> None:
+        keys_to_remove: list[tuple[Any, ...]] = [key for key in cache if key and str(key[0]) == context]
+        for key in keys_to_remove:
+            cache.pop(key, None)
+
     def _clear_context_cache(self, context: str) -> None:
         """Limpia caché para un contexto/schema específico."""
-        self.db_cache._tables_cache.pop(context, None)
-        self.db_cache._views_cache.pop(context, None)
-        self.db_cache._routines_cache.pop(context, None)
+        context_caches: tuple[dict[str, Any], ...] = (
+            self.db_cache._tables_cache,
+            self.db_cache._views_cache,
+            self.db_cache._routines_cache,
+        )
+        for cache in context_caches:
+            cache.pop(context, None)
 
-        def _clear_tuple_cache_by_context(cache: dict[tuple, Any], target_context: str) -> None:
-            keys_to_remove: list[tuple] = [key for key in cache if key and str(key[0]) == target_context]
-            for key in keys_to_remove:
-                cache.pop(key, None)
+        tuple_caches: tuple[dict[tuple[Any, ...], Any], ...] = (
+            self.db_cache._primary_keys_cache,
+            self.db_cache._indices_cache,
+            self.db_cache._foreign_keys_cache,
+            self.db_cache._unique_constraints_cache,
+            self.db_cache._columns_cache,
+            self.db_cache._ddl_cache,
+            self.db_cache._view_ddl_cache,
+            self.db_cache._routine_parameters_cache,
+            self.db_cache._routine_ddl_cache,
+        )
+        for cache in tuple_caches:
+            self._clear_tuple_cache_by_context(cache, context)
 
-        _clear_tuple_cache_by_context(self.db_cache._primary_keys_cache, context)
-        _clear_tuple_cache_by_context(self.db_cache._indices_cache, context)
-        _clear_tuple_cache_by_context(self.db_cache._foreign_keys_cache, context)
-        _clear_tuple_cache_by_context(self.db_cache._unique_constraints_cache, context)
-        _clear_tuple_cache_by_context(self.db_cache._columns_cache, context)
-        _clear_tuple_cache_by_context(self.db_cache._ddl_cache, context)
-        _clear_tuple_cache_by_context(self.db_cache._view_ddl_cache, context)
-        _clear_tuple_cache_by_context(self.db_cache._routine_parameters_cache, context)
-        _clear_tuple_cache_by_context(self.db_cache._routine_ddl_cache, context)
         self.logger.info(f"🧹 Caché invalidada para contexto: {context}")
 
     def clear_cache(
@@ -508,15 +542,82 @@ class DatabaseManager:
     # ==================== MÉTODOS DE CONSULTA (DELEGADOS) ====================
 
     def _verify_executor_initialized(self) -> None:
-        """
-        Verifica que el ejecutor de consultas esté inicializado
+        """Verifica que el ejecutor sync de consultas esté inicializado."""
+        self._verify_sync_executor_initialized()
 
-        Raises:
-            DatabaseOperationError: Si el ejecutor no está inicializado
-        """
-        if not self.query_executor:
-            self.logger.error("❌ Ejecutor de consultas no inicializado")
-            raise DatabaseOperationError(self._QUERY_EXECUTOR_NOT_INITIALIZED, db_type=self.db_type)
+    def _verify_sync_executor_initialized(self) -> None:
+        """Verifica que el ejecutor sync de consultas esté inicializado."""
+        if not self.sync_query_executor:
+            self.logger.error("❌ Ejecutor sync de consultas no inicializado")
+            raise DatabaseOperationError(self._SYNC_QUERY_EXECUTOR_NOT_INITIALIZED, db_type=self.db_type)
+
+    def _get_sync_query_executor(self) -> SyncQueryExecutor:
+        """Obtiene el ejecutor sync garantizando inicialización."""
+        self._verify_sync_executor_initialized()
+        assert self.sync_query_executor is not None
+        return self.sync_query_executor
+
+    def _run_manager_operation(
+        self,
+        action: Callable[[], Any],
+        *,
+        error_message: str,
+        operation: str,
+        table_name: str | None = None,
+    ) -> Any:
+        """Ejecuta operación del manager con passthrough de errores de dominio."""
+        try:
+            return action()
+        except (DatabaseOperationError, QueryError):
+            raise
+        except Exception as err:
+            self.logger.error(f"❌ {error_message}: {err}")
+            raise DatabaseOperationError(error_message, operation, table_name, self.db_type) from err
+
+    def _execute_registered_query(
+        self,
+        *,
+        query_name: str,
+        params: dict[str, Any],
+        timeout: float | None,
+        expect_one: bool,
+    ) -> RowOrNone | Rows:
+        executor = self._get_sync_query_executor()
+        mode = "one" if expect_one else "many"
+        self.logger.debug(f"📄 Ejecutando consulta ({mode}): {query_name}")
+        execute = executor.execute_query_one if expect_one else executor.execute_query_many
+        result = self._run_manager_operation(
+            action=lambda: execute(
+                query_name=query_name,
+                db_type=self.db_type,
+                params=params,
+                timeout=timeout,
+            ),
+            error_message=f"Error ejecutando consulta: {query_name}",
+            operation="SELECT",
+        )
+        self.logger.info(f"✅ Consulta {query_name} ejecutada exitosamente")
+        return cast(RowOrNone | Rows, result)
+
+    def _execute_custom_sql(
+        self,
+        *,
+        sql: str,
+        params: dict[str, Any] | None,
+        timeout: float | None,
+        expect_one: bool,
+    ) -> RowOrNone | Rows:
+        executor = self._get_sync_query_executor()
+        mode = "one" if expect_one else "many"
+        self.logger.debug(f"📝 Ejecutando consulta SQL personalizada ({mode})")
+        execute = executor.execute_custom_one if expect_one else executor.execute_custom_many
+        result = self._run_manager_operation(
+            action=lambda: execute(sql=sql, params=params, timeout=timeout),
+            error_message="Error ejecutando consulta SQL",
+            operation="EXECUTE",
+        )
+        self.logger.info("✅ Consulta SQL personalizada ejecutada exitosamente")
+        return cast(RowOrNone | Rows, result)
 
     def _get_query_context_database(self) -> str:
         """Obtiene el contexto de esquema/base para consultas de metadatos.
@@ -550,6 +651,76 @@ class DatabaseManager:
         """Obtiene etiqueta descriptiva del contexto de consultas de metadatos."""
         return "owner/schema" if self.db_type == "oracle" else "database"
 
+    def _add_metadata_context_params(self, params: dict[str, Any], context: str | None) -> dict[str, Any]:
+        """Añade parámetros de contexto metadata según motor."""
+        if not context or self.db_type == "mariadb":
+            return params
+        if self.db_type in {"oracle", "sqlserver"}:
+            params["esquema"] = context
+        if self.db_type in {"postgresql", "hsqldb", "sqlserver"}:
+            params["database"] = context
+        return params
+
+    def _is_lob(self, value: Any) -> bool:
+        return hasattr(value, "read") and callable(value.read)
+
+    def _read_lob(self, value: Any) -> str:
+        try:
+            return str(value.read())
+        except Exception:
+            return str(value)
+
+    def _contains_create(self, text: str) -> bool:
+        return "CREATE " in text.upper()
+
+    def _extract_preferred_ddl_candidate(self, value: Any) -> str:
+        if value is None:
+            return ""
+        if self._is_lob(value):
+            value = self._read_lob(value)
+        if isinstance(value, (tuple, list)):
+            nested_text = self._normalize_ddl_result(value)
+            if self._contains_create(nested_text):
+                return nested_text
+            if nested_text.strip():
+                return nested_text
+            return ""
+        text = str(value)
+        if self._contains_create(text):
+            return text
+        return ""
+
+    def _extract_any_text(self, value: Any) -> str:
+        if value is None:
+            return ""
+        if self._is_lob(value):
+            return self._read_lob(value)
+        if isinstance(value, (tuple, list)):
+            return self._normalize_ddl_result(value)
+        text = str(value)
+        return text if text.strip() else ""
+
+    def _normalize_ddl_result(self, ddl: Any) -> str:
+        if ddl is None:
+            return ""
+        if isinstance(ddl, str):
+            return ddl
+        if self._is_lob(ddl):
+            return self._read_lob(ddl)
+        if not isinstance(ddl, (tuple, list)):
+            return str(ddl)
+        for pos in (2, 1, 0):
+            if len(ddl) <= pos:
+                continue
+            candidate = self._extract_preferred_ddl_candidate(ddl[pos])
+            if candidate:
+                return candidate
+        for value in ddl:
+            text = self._extract_any_text(value)
+            if text:
+                return text
+        return ""
+
     def get_query_context_database(self) -> str:
         """Expone el contexto de metadatos (schema/database) para consumidores externos.
 
@@ -557,6 +728,104 @@ class DatabaseManager:
             Contexto efectivo usado por las consultas de metadatos.
         """
         return self._get_query_context_database()
+
+    @staticmethod
+    def _cache_context_key(context_database: str) -> str:
+        return str(context_database or "")
+
+    def _cache_table_key(self, context_database: str, table_name: str) -> tuple[str, str]:
+        return (self._cache_context_key(context_database), str(table_name or ""))
+
+    def _cache_routine_key(self, context_database: str, routine_name: str, routine_type: str) -> tuple[str, str, str]:
+        return (
+            self._cache_context_key(context_database),
+            str(routine_name or ""),
+            str(routine_type or "").upper(),
+        )
+
+    def _run_metadata_operation(
+        self,
+        action: Callable[[], Any],
+        *,
+        error_message: str,
+        table_name: str | None = None,
+    ) -> Any:
+        self._get_sync_query_executor()
+        return self._run_manager_operation(
+            action=action,
+            error_message=error_message,
+            operation="SELECT",
+            table_name=table_name,
+        )
+
+    def _execute_metadata_many(
+        self,
+        query_name: str,
+        *,
+        params: dict[str, Any],
+        error_message: str,
+        table_name: str | None = None,
+    ) -> Rows:
+        result = self._run_metadata_operation(
+            action=lambda: self.execute_query_many(query_name, **params),
+            error_message=error_message,
+            table_name=table_name,
+        )
+        return cast(Rows, result)
+
+    def _execute_metadata_one(
+        self,
+        query_name: str,
+        *,
+        params: dict[str, Any],
+        error_message: str,
+        table_name: str | None = None,
+    ) -> RowOrNone:
+        result = self._run_metadata_operation(
+            action=lambda: self.execute_query_one(query_name, **params),
+            error_message=error_message,
+            table_name=table_name,
+        )
+        return cast(RowOrNone, result)
+
+    def _get_cached_rows(
+        self,
+        *,
+        cache_lookup: Callable[[], list | None],
+        cache_store: Callable[[list], None],
+        fetch_rows: Callable[[], Rows],
+        cache_hit_message: str,
+        success_message: str,
+        fetch_debug_message: str | None = None,
+    ) -> list:
+        cached_rows = cache_lookup()
+        if cached_rows is not None:
+            self.logger.debug(cache_hit_message)
+            return list(cached_rows)
+        if fetch_debug_message:
+            self.logger.debug(fetch_debug_message)
+        rows = list(fetch_rows())
+        cache_store(rows)
+        self.logger.info(success_message.format(count=len(rows)))
+        return rows
+
+    def _get_cached_text(
+        self,
+        *,
+        cache_lookup: Callable[[], str | None],
+        cache_store: Callable[[str], None],
+        fetch_text: Callable[[], str],
+        cache_hit_message: str,
+        success_message: str,
+    ) -> str:
+        cached_text = cache_lookup()
+        if cached_text is not None:
+            self.logger.debug(cache_hit_message)
+            return cached_text
+        text = fetch_text()
+        cache_store(text)
+        self.logger.info(success_message)
+        return text
 
     def get_tables(self) -> list:
         """
@@ -568,29 +837,22 @@ class DatabaseManager:
         Raises:
             DatabaseOperationError: Si hay error en la operación
         """
-        try:
-            self._verify_executor_initialized()
-            context_database: str = self._get_query_context_database()
-            cache_key: str = str(context_database or "")
+        context_database: str = self._get_query_context_database()
+        cache_key = self._cache_context_key(context_database)
+        context_label = self._get_query_context_label()
 
-            cached_tables = self.db_cache._tables_cache.get(cache_key)
-            if cached_tables is not None:
-                self.logger.debug(f"♻️  Usando tablas en caché para contexto: {context_database}")
-                return list(cached_tables)
-
-            context_label: str = self._get_query_context_label()
-            self.logger.debug(f"🔍 Obteniendo lista de tablas para {context_label}: {context_database}")
-            assert self.query_executor is not None
-            executor: DatabaseQueryExecutor = self.query_executor
-            tables = executor.get_tables(context_database)
-            self.db_cache._tables_cache[cache_key] = list(tables)
-            self.logger.info(f"✅ {len(tables)} tablas obtenidas")
-            return tables
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error obteniendo tablas: {e}")
-            raise DatabaseOperationError(f"Error obteniendo tablas: {str(e)}", "SELECT", db_type=self.db_type) from e
+        return self._get_cached_rows(
+            cache_lookup=lambda: self.db_cache._tables_cache.get(cache_key),
+            cache_store=lambda rows: self.db_cache._tables_cache.__setitem__(cache_key, list(rows)),
+            fetch_rows=lambda: self._execute_metadata_many(
+                "obtener_tablas",
+                params={"database": context_database},
+                error_message="Error obteniendo tablas",
+            ),
+            cache_hit_message=f"♻️  Usando tablas en caché para contexto: {context_database}",
+            success_message=f"✅ {{count}} tablas obtenidas para {context_label}: {context_database}",
+            fetch_debug_message=f"🔍 Obteniendo lista de tablas para {context_label}: {context_database}",
+        )
 
     def get_views(self) -> list:
         """
@@ -602,29 +864,22 @@ class DatabaseManager:
         Raises:
             DatabaseOperationError: Si hay error en la operación
         """
-        try:
-            self._verify_executor_initialized()
-            context_database: str = self._get_query_context_database()
-            cache_key: str = str(context_database or "")
+        context_database: str = self._get_query_context_database()
+        cache_key = self._cache_context_key(context_database)
+        context_label = self._get_query_context_label()
 
-            cached_views = self.db_cache._views_cache.get(cache_key)
-            if cached_views is not None:
-                self.logger.debug(f"♻️  Usando vistas en caché para contexto: {context_database}")
-                return list(cached_views)
-
-            context_label: str = self._get_query_context_label()
-            self.logger.debug(f"🔍 Obteniendo lista de vistas para {context_label}: {context_database}")
-            assert self.query_executor is not None
-            executor: DatabaseQueryExecutor = self.query_executor
-            views = executor.get_views(context_database)
-            self.db_cache._views_cache[cache_key] = list(views)
-            self.logger.info(f"✅ {len(views)} vistas obtenidas")
-            return views
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error obteniendo vistas: {e}")
-            raise DatabaseOperationError(f"Error obteniendo vistas: {str(e)}", "SELECT", db_type=self.db_type) from e
+        return self._get_cached_rows(
+            cache_lookup=lambda: self.db_cache._views_cache.get(cache_key),
+            cache_store=lambda rows: self.db_cache._views_cache.__setitem__(cache_key, list(rows)),
+            fetch_rows=lambda: self._execute_metadata_many(
+                "obtener_vistas",
+                params={"database": context_database},
+                error_message="Error obteniendo vistas",
+            ),
+            cache_hit_message=f"♻️  Usando vistas en caché para contexto: {context_database}",
+            success_message=f"✅ {{count}} vistas obtenidas para {context_label}: {context_database}",
+            fetch_debug_message=f"🔍 Obteniendo lista de vistas para {context_label}: {context_database}",
+        )
 
     def get_routines(self) -> list:
         """
@@ -636,29 +891,22 @@ class DatabaseManager:
         Raises:
             DatabaseOperationError: Si hay error en la operación
         """
-        try:
-            self._verify_executor_initialized()
-            context_database: str = self._get_query_context_database()
-            cache_key: str = str(context_database or "")
+        context_database: str = self._get_query_context_database()
+        cache_key = self._cache_context_key(context_database)
+        context_label = self._get_query_context_label()
 
-            cached_routines = self.db_cache._routines_cache.get(cache_key)
-            if cached_routines is not None:
-                self.logger.debug(f"♻️  Usando rutinas en caché para contexto: {context_database}")
-                return list(cached_routines)
-
-            context_label: str = self._get_query_context_label()
-            self.logger.debug(f"🔍 Obteniendo lista de rutinas para {context_label}: {context_database}")
-            assert self.query_executor is not None
-            executor: DatabaseQueryExecutor = self.query_executor
-            routines = executor.get_routines(context_database)
-            self.db_cache._routines_cache[cache_key] = list(routines)
-            self.logger.info(f"✅ {len(routines)} rutinas obtenidas")
-            return routines
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error obteniendo rutinas: {e}")
-            raise DatabaseOperationError(f"Error obteniendo rutinas: {str(e)}", "SELECT", db_type=self.db_type) from e
+        return self._get_cached_rows(
+            cache_lookup=lambda: self.db_cache._routines_cache.get(cache_key),
+            cache_store=lambda rows: self.db_cache._routines_cache.__setitem__(cache_key, list(rows)),
+            fetch_rows=lambda: self._execute_metadata_many(
+                "obtener_rutinas",
+                params={"database": context_database},
+                error_message="Error obteniendo rutinas",
+            ),
+            cache_hit_message=f"♻️  Usando rutinas en caché para contexto: {context_database}",
+            success_message=f"✅ {{count}} rutinas obtenidas para {context_label}: {context_database}",
+            fetch_debug_message=f"🔍 Obteniendo lista de rutinas para {context_label}: {context_database}",
+        )
 
     def get_ddl(self, tabla: str) -> str:
         """
@@ -673,29 +921,28 @@ class DatabaseManager:
         Raises:
             DatabaseOperationError: Si hay error en la operación
         """
-        try:
-            self._verify_executor_initialized()
-            context_database: str = self._get_query_context_database()
-            cache_key: tuple[str, str] = (str(context_database or ""), str(tabla or ""))
+        context_database: str = self._get_query_context_database()
+        context_label = self._get_query_context_label()
+        cache_key = self._cache_table_key(context_database, tabla)
 
-            cached_ddl = self.db_cache._ddl_cache.get(cache_key)
-            if cached_ddl is not None:
-                self.logger.debug(f"♻️  Usando DDL en caché para tabla {tabla}")
-                return cached_ddl
-
-            context_label: str = self._get_query_context_label()
+        def _fetch_ddl() -> str:
             self.logger.debug(f"🔍 Obteniendo DDL para tabla {tabla} ({context_label}: {context_database})")
-            assert self.query_executor is not None
-            executor: DatabaseQueryExecutor = self.query_executor
-            ddl: str = executor.get_ddl(tabla, context_database)
-            self.db_cache._ddl_cache[cache_key] = ddl
-            self.logger.info(f"✅ DDL obtenido para tabla {tabla}")
-            return ddl
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error obteniendo DDL para {tabla}: {e}")
-            raise DatabaseOperationError(f"Error obteniendo DDL: {str(e)}", "SELECT", tabla, self.db_type) from e
+            params: dict[str, Any] = self._add_metadata_context_params({"tabla": tabla}, context_database)
+            ddl_raw = self._execute_metadata_one(
+                "create_table",
+                params=params,
+                error_message="Error obteniendo DDL",
+                table_name=tabla,
+            )
+            return self._normalize_ddl_result(ddl_raw)
+
+        return self._get_cached_text(
+            cache_lookup=lambda: self.db_cache._ddl_cache.get(cache_key),
+            cache_store=lambda ddl: self.db_cache._ddl_cache.__setitem__(cache_key, ddl),
+            fetch_text=_fetch_ddl,
+            cache_hit_message=f"♻️  Usando DDL en caché para tabla {tabla}",
+            success_message=f"✅ DDL obtenido para tabla {tabla}",
+        )
 
     def get_view_ddl(self, vista: str) -> str:
         """Obtiene el DDL de una vista.
@@ -709,31 +956,28 @@ class DatabaseManager:
         Raises:
             DatabaseOperationError: Si hay error en la operación
         """
-        try:
-            self._verify_executor_initialized()
-            context_database: str = self._get_query_context_database()
-            cache_key: tuple[str, str] = (str(context_database or ""), str(vista or ""))
+        context_database: str = self._get_query_context_database()
+        context_label = self._get_query_context_label()
+        cache_key = self._cache_table_key(context_database, vista)
 
-            cached_ddl = self.db_cache._view_ddl_cache.get(cache_key)
-            if cached_ddl is not None:
-                self.logger.debug(f"♻️  Usando DDL de vista en caché para {vista}")
-                return cached_ddl
-
-            context_label: str = self._get_query_context_label()
+        def _fetch_ddl() -> str:
             self.logger.debug(f"🔍 Obteniendo DDL para vista {vista} ({context_label}: {context_database})")
-            assert self.query_executor is not None
-            executor: DatabaseQueryExecutor = self.query_executor
-            ddl: str = executor.get_view_ddl(vista, context_database)
-            self.db_cache._view_ddl_cache[cache_key] = ddl
-            self.logger.info(f"✅ DDL obtenido para vista {vista}")
-            return ddl
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error obteniendo DDL para vista {vista}: {e}")
-            raise DatabaseOperationError(
-                f"Error obteniendo DDL de vista: {str(e)}", "SELECT", vista, self.db_type
-            ) from e
+            params: dict[str, Any] = self._add_metadata_context_params({"tabla": vista}, context_database)
+            ddl_raw = self._execute_metadata_one(
+                "create_view",
+                params=params,
+                error_message="Error obteniendo DDL de vista",
+                table_name=vista,
+            )
+            return self._normalize_ddl_result(ddl_raw)
+
+        return self._get_cached_text(
+            cache_lookup=lambda: self.db_cache._view_ddl_cache.get(cache_key),
+            cache_store=lambda ddl: self.db_cache._view_ddl_cache.__setitem__(cache_key, ddl),
+            fetch_text=_fetch_ddl,
+            cache_hit_message=f"♻️  Usando DDL de vista en caché para {vista}",
+            success_message=f"✅ DDL obtenido para vista {vista}",
+        )
 
     def get_columns(self, tabla: str) -> list:
         """
@@ -748,29 +992,23 @@ class DatabaseManager:
         Raises:
             DatabaseOperationError: Si hay error en la operación
         """
-        try:
-            self._verify_executor_initialized()
-            context_database: str = self._get_query_context_database()
-            cache_key: tuple[str, str] = (str(context_database or ""), str(tabla or ""))
+        context_database: str = self._get_query_context_database()
+        context_label = self._get_query_context_label()
+        cache_key = self._cache_table_key(context_database, tabla)
 
-            cached_columns = self.db_cache._columns_cache.get(cache_key)
-            if cached_columns is not None:
-                self.logger.debug(f"♻️  Usando columnas en caché para tabla {tabla}")
-                return list(cached_columns)
-
-            context_label: str = self._get_query_context_label()
-            self.logger.debug(f"🔍 Obteniendo columnas de {tabla} ({context_label}: {context_database})")
-            assert self.query_executor is not None
-            executor: DatabaseQueryExecutor = self.query_executor
-            columns = executor.get_columns(context_database, tabla)
-            self.db_cache._columns_cache[cache_key] = list(columns)
-            self.logger.info(f"✅ {len(columns)} columnas obtenidas de {tabla}")
-            return columns
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error obteniendo columnas de {tabla}: {e}")
-            raise DatabaseOperationError(f"Error obteniendo columnas: {str(e)}", "SELECT", tabla, self.db_type) from e
+        return self._get_cached_rows(
+            cache_lookup=lambda: self.db_cache.get_columns(cache_key),
+            cache_store=lambda rows: self.db_cache.set_columns(cache_key, rows),
+            fetch_rows=lambda: self._execute_metadata_many(
+                "columnas_tabla",
+                params={"database": context_database, "tabla": tabla},
+                error_message="Error obteniendo columnas",
+                table_name=tabla,
+            ),
+            cache_hit_message=f"♻️  Usando columnas en caché para tabla {tabla}",
+            success_message=f"✅ {{count}} columnas obtenidas de {tabla} ({context_label}: {context_database})",
+            fetch_debug_message=f"🔍 Obteniendo columnas de {tabla} ({context_label}: {context_database})",
+        )
 
     def get_routine_parameters(self, rutina: str, tipo_rutina: str) -> list:
         """
@@ -786,37 +1024,26 @@ class DatabaseManager:
         Raises:
             DatabaseOperationError: Si hay error en la operación
         """
-        try:
-            self._verify_executor_initialized()
-            context_database: str = self._get_query_context_database()
-            cache_key: tuple[str, str, str] = (
-                str(context_database or ""),
-                str(rutina or ""),
-                str(tipo_rutina or "").upper(),
-            )
+        context_database: str = self._get_query_context_database()
+        context_label = self._get_query_context_label()
+        routine_type = str(tipo_rutina or "").upper()
+        cache_key = self._cache_routine_key(context_database, rutina, routine_type)
 
-            cached_params = self.db_cache._routine_parameters_cache.get(cache_key)
-            if cached_params is not None:
-                self.logger.debug(f"♻️  Usando parámetros de rutina en caché para {tipo_rutina} {rutina}")
-                return list(cached_params)
-
-            context_label: str = self._get_query_context_label()
-            self.logger.debug(
-                f"🔍 Obteniendo parámetros de rutina {tipo_rutina} {rutina} ({context_label}: {context_database})"
-            )
-            assert self.query_executor is not None
-            executor: DatabaseQueryExecutor = self.query_executor
-            parameters = executor.get_routine_parameters(context_database, rutina, tipo_rutina)
-            self.db_cache._routine_parameters_cache[cache_key] = list(parameters)
-            self.logger.info(f"✅ {len(parameters)} parámetros obtenidos de rutina {rutina}")
-            return parameters
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error obteniendo parámetros de rutina {rutina}: {e}")
-            raise DatabaseOperationError(
-                f"Error obteniendo parámetros de rutina: {str(e)}", "SELECT", rutina, self.db_type
-            ) from e
+        return self._get_cached_rows(
+            cache_lookup=lambda: self.db_cache._routine_parameters_cache.get(cache_key),
+            cache_store=lambda rows: self.db_cache._routine_parameters_cache.__setitem__(cache_key, list(rows)),
+            fetch_rows=lambda: self._execute_metadata_many(
+                "parametros_rutina",
+                params={"database": context_database, "rutina": rutina, "tipo_rutina": routine_type},
+                error_message="Error obteniendo parámetros de rutina",
+                table_name=rutina,
+            ),
+            cache_hit_message=f"♻️  Usando parámetros de rutina en caché para {routine_type} {rutina}",
+            success_message=f"✅ {{count}} parámetros obtenidos de rutina {rutina} ({context_label}: {context_database})",
+            fetch_debug_message=(
+                f"🔍 Obteniendo parámetros de rutina {routine_type} {rutina} ({context_label}: {context_database})"
+            ),
+        )
 
     def get_routine_ddl(self, rutina: str, tipo_rutina: str) -> str:
         """
@@ -832,37 +1059,34 @@ class DatabaseManager:
         Raises:
             DatabaseOperationError: Si hay error en la operación
         """
-        try:
-            self._verify_executor_initialized()
-            context_database: str = self._get_query_context_database()
-            cache_key: tuple[str, str, str] = (
-                str(context_database or ""),
-                str(rutina or ""),
-                str(tipo_rutina or "").upper(),
-            )
+        context_database: str = self._get_query_context_database()
+        context_label = self._get_query_context_label()
+        routine_type = str(tipo_rutina or "").upper()
+        cache_key = self._cache_routine_key(context_database, rutina, routine_type)
 
-            cached_ddl = self.db_cache._routine_ddl_cache.get(cache_key)
-            if cached_ddl is not None:
-                self.logger.debug(f"♻️  Usando DDL de rutina en caché para {tipo_rutina} {rutina}")
-                return cached_ddl
-
-            context_label: str = self._get_query_context_label()
+        def _fetch_routine_ddl() -> str:
             self.logger.debug(
-                f"🔍 Obteniendo DDL para rutina {tipo_rutina} {rutina} ({context_label}: {context_database})"
+                f"🔍 Obteniendo DDL para rutina {routine_type} {rutina} ({context_label}: {context_database})"
             )
-            assert self.query_executor is not None
-            executor: DatabaseQueryExecutor = self.query_executor
-            ddl: str = executor.get_routine_ddl(rutina, tipo_rutina, context_database)
-            self.db_cache._routine_ddl_cache[cache_key] = ddl
-            self.logger.info(f"✅ DDL obtenido para rutina {rutina}")
-            return ddl
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error obteniendo DDL de rutina {rutina}: {e}")
-            raise DatabaseOperationError(
-                f"Error obteniendo DDL de rutina: {str(e)}", "SELECT", rutina, self.db_type
-            ) from e
+            params: dict[str, Any] = self._add_metadata_context_params(
+                {"rutina": rutina, "tipo_rutina": routine_type},
+                context_database,
+            )
+            ddl_raw = self._execute_metadata_one(
+                "create_rutina",
+                params=params,
+                error_message="Error obteniendo DDL de rutina",
+                table_name=rutina,
+            )
+            return self._normalize_ddl_result(ddl_raw)
+
+        return self._get_cached_text(
+            cache_lookup=lambda: self.db_cache._routine_ddl_cache.get(cache_key),
+            cache_store=lambda ddl: self.db_cache._routine_ddl_cache.__setitem__(cache_key, ddl),
+            fetch_text=_fetch_routine_ddl,
+            cache_hit_message=f"♻️  Usando DDL de rutina en caché para {routine_type} {rutina}",
+            success_message=f"✅ DDL obtenido para rutina {rutina}",
+        )
 
     def get_indices(self, tabla: str) -> list:
         """
@@ -877,29 +1101,23 @@ class DatabaseManager:
         Raises:
             DatabaseOperationError: Si hay error en la operación
         """
-        try:
-            self._verify_executor_initialized()
-            context_database: str = self._get_query_context_database()
-            cache_key: tuple[str, str] = (str(context_database or ""), str(tabla or ""))
+        context_database: str = self._get_query_context_database()
+        context_label = self._get_query_context_label()
+        cache_key = self._cache_table_key(context_database, tabla)
 
-            cached_indices = self.db_cache._indices_cache.get(cache_key)
-            if cached_indices is not None:
-                self.logger.debug(f"♻️  Usando índices en caché para {tabla}")
-                return list(cached_indices)
-
-            context_label: str = self._get_query_context_label()
-            self.logger.debug(f"🔍 Obteniendo índices de {tabla} ({context_label}: {context_database})")
-            assert self.query_executor is not None
-            executor: DatabaseQueryExecutor = self.query_executor
-            indices = executor.get_indices(tabla, context_database)
-            self.db_cache._indices_cache[cache_key] = list(indices)
-            self.logger.info(f"✅ {len(indices)} índices obtenidos de {tabla}")
-            return indices
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error obteniendo índices de {tabla}: {e}")
-            raise DatabaseOperationError(f"Error obteniendo índices: {str(e)}", "SELECT", tabla, self.db_type) from e
+        return self._get_cached_rows(
+            cache_lookup=lambda: self.db_cache.get_indices(cache_key),
+            cache_store=lambda rows: self.db_cache.set_indices(cache_key, rows),
+            fetch_rows=lambda: self._execute_metadata_many(
+                "indices",
+                params=self._add_metadata_context_params({"tabla": tabla}, context_database),
+                error_message="Error obteniendo índices",
+                table_name=tabla,
+            ),
+            cache_hit_message=f"♻️  Usando índices en caché para {tabla}",
+            success_message=f"✅ {{count}} índices obtenidos de {tabla} ({context_label}: {context_database})",
+            fetch_debug_message=f"🔍 Obteniendo índices de {tabla} ({context_label}: {context_database})",
+        )
 
     def get_primary_keys(self, tabla: str) -> list:
         """
@@ -914,31 +1132,23 @@ class DatabaseManager:
         Raises:
             DatabaseOperationError: Si hay error en la operación
         """
-        try:
-            self._verify_executor_initialized()
-            context_database: str = self._get_query_context_database()
-            cache_key: tuple[str, str] = (str(context_database or ""), str(tabla or ""))
+        context_database: str = self._get_query_context_database()
+        context_label = self._get_query_context_label()
+        cache_key = self._cache_table_key(context_database, tabla)
 
-            cached_pks = self.db_cache.get_primary_keys(cache_key)
-            if cached_pks is not None:
-                self.logger.debug(f"♻️  Usando claves primarias en caché para {tabla}")
-                return list(cached_pks)
-
-            context_label: str = self._get_query_context_label()
-            self.logger.debug(f"🔍 Obteniendo claves primarias de {tabla} ({context_label}: {context_database})")
-            assert self.query_executor is not None
-            executor = self.query_executor
-            pks = executor.get_primary_keys(tabla, context_database)
-            self.db_cache.set_primary_keys(cache_key, pks)
-            self.logger.info(f"✅ {len(pks)} claves primarias obtenidas de {tabla}")
-            return pks
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error obteniendo claves primarias de {tabla}: {e}")
-            raise DatabaseOperationError(
-                f"Error obteniendo claves primarias: {str(e)}", "SELECT", tabla, self.db_type
-            ) from e
+        return self._get_cached_rows(
+            cache_lookup=lambda: self.db_cache.get_primary_keys(cache_key),
+            cache_store=lambda rows: self.db_cache.set_primary_keys(cache_key, rows),
+            fetch_rows=lambda: self._execute_metadata_many(
+                "claves_primarias",
+                params=self._add_metadata_context_params({"tabla": tabla}, context_database),
+                error_message="Error obteniendo claves primarias",
+                table_name=tabla,
+            ),
+            cache_hit_message=f"♻️  Usando claves primarias en caché para {tabla}",
+            success_message=f"✅ {{count}} claves primarias obtenidas de {tabla} ({context_label}: {context_database})",
+            fetch_debug_message=f"🔍 Obteniendo claves primarias de {tabla} ({context_label}: {context_database})",
+        )
 
     def get_foreign_keys(self, tabla: str) -> list:
         """
@@ -953,31 +1163,23 @@ class DatabaseManager:
         Raises:
             DatabaseOperationError: Si hay error en la operación
         """
-        try:
-            self._verify_executor_initialized()
-            context_database: str = self._get_query_context_database()
-            cache_key: tuple[str, str] = (str(context_database or ""), str(tabla or ""))
+        context_database: str = self._get_query_context_database()
+        context_label = self._get_query_context_label()
+        cache_key = self._cache_table_key(context_database, tabla)
 
-            cached_fks = self.db_cache.get_foreign_keys(cache_key)
-            if cached_fks is not None:
-                self.logger.debug(f"♻️  Usando claves foráneas en caché para {tabla}")
-                return list(cached_fks)
-
-            context_label: str = self._get_query_context_label()
-            self.logger.debug(f"🔍 Obteniendo claves foráneas de {tabla} ({context_label}: {context_database})")
-            assert self.query_executor is not None
-            executor: DatabaseQueryExecutor = self.query_executor
-            fks = executor.get_foreign_keys(tabla, context_database)
-            self.db_cache.set_foreign_keys(cache_key, fks)
-            self.logger.info(f"✅ {len(fks)} claves foráneas obtenidas de {tabla}")
-            return fks
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error obteniendo claves foráneas de {tabla}: {e}")
-            raise DatabaseOperationError(
-                f"Error obteniendo claves foráneas: {str(e)}", "SELECT", tabla, self.db_type
-            ) from e
+        return self._get_cached_rows(
+            cache_lookup=lambda: self.db_cache.get_foreign_keys(cache_key),
+            cache_store=lambda rows: self.db_cache.set_foreign_keys(cache_key, rows),
+            fetch_rows=lambda: self._execute_metadata_many(
+                "claves_foraneas",
+                params=self._add_metadata_context_params({"tabla": tabla}, context_database),
+                error_message="Error obteniendo claves foráneas",
+                table_name=tabla,
+            ),
+            cache_hit_message=f"♻️  Usando claves foráneas en caché para {tabla}",
+            success_message=f"✅ {{count}} claves foráneas obtenidas de {tabla} ({context_label}: {context_database})",
+            fetch_debug_message=f"🔍 Obteniendo claves foráneas de {tabla} ({context_label}: {context_database})",
+        )
 
     def get_unique_constraints(self, tabla: str) -> list:
         """
@@ -992,31 +1194,33 @@ class DatabaseManager:
         Raises:
             DatabaseOperationError: Si hay error en la operación
         """
-        try:
-            self._verify_executor_initialized()
-            context_database: str = self._get_query_context_database()
-            cache_key: tuple[str, str] = (str(context_database or ""), str(tabla or ""))
+        context_database: str = self._get_query_context_database()
+        context_label = self._get_query_context_label()
+        cache_key = self._cache_table_key(context_database, tabla)
 
-            cached_ucs = self.db_cache.get_unique_constraints(cache_key)
-            if cached_ucs is not None:
-                self.logger.debug(f"♻️  Usando restricciones únicas en caché para {tabla}")
-                return list(cached_ucs)
+        return self._get_cached_rows(
+            cache_lookup=lambda: self.db_cache.get_unique_constraints(cache_key),
+            cache_store=lambda rows: self.db_cache.set_unique_constraints(cache_key, rows),
+            fetch_rows=lambda: self._execute_metadata_many(
+                "claves_unicas",
+                params=self._add_metadata_context_params({"tabla": tabla}, context_database),
+                error_message="Error obteniendo restricciones únicas",
+                table_name=tabla,
+            ),
+            cache_hit_message=f"♻️  Usando restricciones únicas en caché para {tabla}",
+            success_message=f"✅ {{count}} restricciones únicas obtenidas de {tabla} ({context_label}: {context_database})",
+            fetch_debug_message=f"🔍 Obteniendo restricciones únicas de {tabla} ({context_label}: {context_database})",
+        )
 
-            context_label: str = self._get_query_context_label()
-            self.logger.debug(f"🔍 Obteniendo restricciones únicas de {tabla} ({context_label}: {context_database})")
-            assert self.query_executor is not None
-            executor: DatabaseQueryExecutor = self.query_executor
-            ucs = executor.get_unique_constraints(tabla, context_database)
-            self.db_cache.set_unique_constraints(cache_key, ucs)
-            self.logger.info(f"✅ {len(ucs)} restricciones únicas obtenidas de {tabla}")
-            return ucs
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error obteniendo restricciones únicas de {tabla}: {e}")
-            raise DatabaseOperationError(
-                f"Error obteniendo restricciones únicas: {str(e)}", "SELECT", tabla, self.db_type
-            ) from e
+    def get_tables_normalized(self) -> list[NormalizedTableRow]:
+        """Obtiene tablas en formato normalizado homogéneo."""
+        rows: Rows = self.get_tables()
+        return normalize_table_rows(rows)
+
+    def get_columns_normalized(self, tabla: str) -> list[NormalizedColumnRow]:
+        """Obtiene columnas en formato normalizado homogéneo."""
+        rows: Rows = self.get_columns(tabla)
+        return normalize_column_rows(rows)
 
     def get_database_version(self) -> str:
         """
@@ -1028,22 +1232,16 @@ class DatabaseManager:
         Raises:
             DatabaseOperationError: Si hay error en la operación
         """
-        try:
-            self._verify_executor_initialized()
-            self.logger.debug(f"🔍 Obteniendo versión de la BD ({self.db_type})")
-            assert self.query_executor is not None
-            executor: DatabaseQueryExecutor = self.query_executor
-            result = executor.execute_query("database_version", fetch_one=True)
-            version = str(result[0]) if result else "Unknown"
-            self.logger.info(f"✅ Versión obtenida: {version}")
-            return version
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error obteniendo versión de la BD: {e}")
-            raise DatabaseOperationError(
-                f"Error obteniendo versión: {str(e)}", "SELECT", "database_version", self.db_type
-            ) from e
+        self.logger.debug(f"🔍 Obteniendo versión de la BD ({self.db_type})")
+        result = self._execute_metadata_one(
+            "database_version",
+            params={},
+            error_message="Error obteniendo versión",
+            table_name="database_version",
+        )
+        version = str(result[0]) if result else "Unknown"
+        self.logger.info(f"✅ Versión obtenida: {version}")
+        return version
 
     def __parse_mariadb_column_charset_collation_row(
         self, row: tuple[Any, ...], column_name: str
@@ -1147,27 +1345,17 @@ class DatabaseManager:
         Raises:
             DatabaseOperationError: Si hay error en la operación
         """
-        try:
-            self._verify_executor_initialized()
-            context_database: str = self._get_query_context_database()
-            self.logger.debug(f"🔍 Obteniendo charset/collation de la BD ({self.db_type})")
-            assert self.query_executor is not None
-            executor: DatabaseQueryExecutor = self.query_executor
-            result = executor.execute_query("database_charset_collation", database=context_database, fetch_one=True)
-
-            info: dict[str, Any] = self._parse_charset_collation_result(result)
-            self.logger.info(f"✅ Charset/Collation obtenido: {info}")
-            return info
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error obteniendo charset/collation: {e}")
-            raise DatabaseOperationError(
-                f"Error obteniendo charset/collation: {str(e)}",
-                "SELECT",
-                "database_charset_collation",
-                self.db_type,
-            ) from e
+        context_database: str = self._get_query_context_database()
+        self.logger.debug(f"🔍 Obteniendo charset/collation de la BD ({self.db_type})")
+        result = self._execute_metadata_one(
+            "database_charset_collation",
+            params={"database": context_database},
+            error_message="Error obteniendo charset/collation",
+            table_name="database_charset_collation",
+        )
+        info: dict[str, Any] = self._parse_charset_collation_result(result)
+        self.logger.info(f"✅ Charset/Collation obtenido: {info}")
+        return info
 
     def get_columns_charset_collation(self, tabla: str) -> list[tuple[str, str | None, str | None]]:
         """
@@ -1183,40 +1371,77 @@ class DatabaseManager:
         Raises:
             DatabaseOperationError: Si hay error en la operación
         """
+        context_database: str = self._get_query_context_database()
+        context_label = self._get_query_context_label()
+        cache_key = self._cache_table_key(context_database, tabla)
+
+        return cast(
+            list[tuple[str, str | None, str | None]],
+            self._get_cached_rows(
+                cache_lookup=lambda: self.db_cache.get_columns_charset_collation(cache_key),
+                cache_store=lambda rows: self.db_cache.set_columns_charset_collation(cache_key, rows),
+                fetch_rows=lambda: cast(
+                    Rows,
+                    [
+                        self.__parse_column_charset_collation_row(row)
+                        for row in self._execute_metadata_many(
+                            "columns_charset_collation",
+                            params={"tabla": tabla, "database": context_database},
+                            error_message="Error obteniendo charset/collation de columnas",
+                            table_name=tabla,
+                        )
+                    ],
+                ),
+                cache_hit_message=f"♻️  Usando charset/collation en caché para tabla {tabla}",
+                success_message=(
+                    f"✅ Charset/Collation de {{count}} columnas obtenido ({context_label}: {context_database})"
+                ),
+                fetch_debug_message=(
+                    f"🔍 Obteniendo charset/collation de columnas de {tabla} ({context_label}: {context_database})"
+                ),
+            ),
+        )
+
+    def _storage_inventory_sqlserver(self, _context_database: str, _tablespace: str | None) -> dict[str, Any]:
+        return {
+            "primary": self.execute_query_many("ficheros_fisicos"),
+            "secondary": [],
+        }
+
+    def _storage_inventory_oracle(self, _context_database: str, tablespace: str | None) -> dict[str, Any]:
+        if not tablespace:
+            raise ValueError("Para Oracle debe proporcionar 'tablespace'")
+        return {
+            "primary": self.execute_query_many("ficheros_fisicos", tablespace=tablespace),
+            "secondary": [],
+        }
+
+    def _storage_inventory_mariadb(self, context_database: str, _tablespace: str | None) -> dict[str, Any]:
+        if not context_database:
+            raise ValueError("Para MariaDB debe proporcionar 'database'")
+        return {
+            "primary": self.execute_query_many("ficheros_fisicos", database=context_database),
+            "secondary": self.execute_query_many("ficheros_fisicos_adicional", database=context_database),
+        }
+
+    def _storage_inventory_postgresql(self, _context_database: str, tablespace: str | None) -> dict[str, Any]:
+        if not tablespace:
+            raise ValueError("Para PostgreSQL debe proporcionar 'tablespace'")
+        return {
+            "primary": self.execute_query_many("ficheros_fisicos", tablespace=tablespace),
+            "secondary": self.execute_query_many("temp_tablespaces"),
+        }
+
+    def _storage_inventory_sqlite(self, _context_database: str, _tablespace: str | None) -> dict[str, Any]:
+        result: dict[str, Any] = {
+            "primary": self.execute_query_many("ficheros_fisicos"),
+            "secondary": self.execute_query_many("ficheros_fisicos_adicional"),
+        }
         try:
-            self._verify_executor_initialized()
-            context_database: str = self._get_query_context_database()
-            cache_key: tuple[str, str] = (str(context_database or ""), str(tabla or ""))
-
-            cached_charset_collation = self.db_cache.get_columns_charset_collation(cache_key)
-            if cached_charset_collation is not None:
-                self.logger.debug(f"♻️  Usando charset/collation en caché para tabla {tabla}")
-                return list(cached_charset_collation)
-
-            context_label: str = self._get_query_context_label()
-            self.logger.debug(
-                f"🔍 Obteniendo charset/collation de columnas de {tabla} ({context_label}: {context_database})"
-            )
-            assert self.query_executor is not None
-            executor: DatabaseQueryExecutor = self.query_executor
-            results = executor.execute_query("columns_charset_collation", tabla=tabla, database=context_database)
-
-            info_list: list[tuple[str, str | None, str | None]] = (
-                [self.__parse_column_charset_collation_row(row) for row in results] if results else []
-            )
-            self.db_cache.set_columns_charset_collation(cache_key, info_list)
-            self.logger.info(f"✅ Charset/Collation de {len(info_list)} columnas obtenido")
-            return info_list
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error obteniendo charset/collation de columnas: {e}")
-            raise DatabaseOperationError(
-                f"Error obteniendo charset/collation de columnas: {str(e)}",
-                "SELECT",
-                tabla,
-                self.db_type,
-            ) from e
+            result["temp_tablespaces"] = self.execute_query_many("temp_tablespaces")
+        except Exception:
+            result["temp_tablespaces"] = []
+        return result
 
     def get_storage_inventory(self, tablespace: str | None = None) -> dict[str, Any]:
         """Obtiene inventario de tamaño de ficheros/tablespaces según el motor.
@@ -1227,84 +1452,78 @@ class DatabaseManager:
         Returns:
             Diccionario con claves `primary` y `secondary`.
         """
-        try:
-            self._verify_executor_initialized()
-            assert self.query_executor is not None
-            executor: DatabaseQueryExecutor = self.query_executor
-
-            database_name: str = str(self.database or "")
-            return executor.get_storage_inventory(database=database_name, tablespace=tablespace)
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error obteniendo inventario de almacenamiento: {e}")
-            raise DatabaseOperationError(
-                f"Error obteniendo inventario de almacenamiento: {str(e)}",
-                "SELECT",
-                db_type=self.db_type,
-            ) from e
+        context_database = self._get_query_context_database()
+        handlers: dict[str, Callable[[str, str | None], dict[str, Any]]] = {
+            "sqlserver": self._storage_inventory_sqlserver,
+            "oracle": self._storage_inventory_oracle,
+            "mariadb": self._storage_inventory_mariadb,
+            "postgresql": self._storage_inventory_postgresql,
+            "sqlite": self._storage_inventory_sqlite,
+        }
+        handler = handlers.get(self.db_type)
+        if handler is None:
+            return {"primary": [], "secondary": []}
+        result = self._run_metadata_operation(
+            action=lambda: handler(context_database, tablespace),
+            error_message="Error obteniendo inventario de almacenamiento",
+        )
+        return cast(dict[str, Any], result)
 
     # ==================== MÉTODOS ADICIONALES ====================
 
-    def execute_query(self, query_name: str, fetch_one: bool = False, **kwargs) -> Any:
-        """
-        Ejecuta una consulta con los parámetros proporcionados
+    def execute_query_many(self, query_name: str, timeout: float | None = None, **kwargs) -> Rows:
+        """Ejecuta una consulta registrada y retorna múltiples filas."""
+        result = self._execute_registered_query(
+            query_name=query_name,
+            params=kwargs,
+            timeout=timeout,
+            expect_one=False,
+        )
+        return cast(Rows, result)
 
-        Args:
-            query_name: Nombre de la consulta a ejecutar
-            fetch_one: Si es True, devuelve solo un resultado
-            **kwargs: Parámetros para formatear la consulta
+    def execute_query_one(self, query_name: str, timeout: float | None = None, **kwargs) -> RowOrNone:
+        """Ejecuta una consulta registrada y retorna una única fila o None."""
+        result = self._execute_registered_query(
+            query_name=query_name,
+            params=kwargs,
+            timeout=timeout,
+            expect_one=True,
+        )
+        return cast(RowOrNone, result)
 
-        Returns:
-            Resultado de la consulta
+    def execute_custom_many(
+        self,
+        sql: str,
+        params: dict[str, Any] | None = None,
+        timeout: float | None = None,
+    ) -> Rows:
+        """Ejecuta una consulta SQL personalizada y retorna múltiples filas."""
+        result = self._execute_custom_sql(
+            sql=sql,
+            params=params,
+            timeout=timeout,
+            expect_one=False,
+        )
+        return cast(Rows, result)
 
-        Raises:
-            DatabaseOperationError: Si hay error en la operación
-        """
-        try:
-            self._verify_executor_initialized()
-            self.logger.debug(f"📄 Ejecutando consulta: {query_name}")
-            assert self.query_executor is not None
-            executor: DatabaseQueryExecutor = self.query_executor
-            result = executor.execute_query(query_name, fetch_one, **kwargs)
-            self.logger.info(f"✅ Consulta {query_name} ejecutada exitosamente")
-            return result
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error ejecutando consulta {query_name}: {e}")
-            raise DatabaseOperationError(f"Error ejecutando consulta: {str(e)}", "SELECT", db_type=self.db_type) from e
+    def execute_custom_one(
+        self,
+        sql: str,
+        params: dict[str, Any] | None = None,
+        timeout: float | None = None,
+    ) -> RowOrNone:
+        """Ejecuta una consulta SQL personalizada y retorna una única fila o None."""
+        result = self._execute_custom_sql(
+            sql=sql,
+            params=params,
+            timeout=timeout,
+            expect_one=True,
+        )
+        return cast(RowOrNone, result)
 
-    def execute_custom_query(self, sql: str, fetch_one: bool = False, params=None) -> Any:
-        """
-        Ejecuta una consulta SQL personalizada
-
-        Args:
-            sql: Consulta SQL a ejecutar
-            fetch_one: Si es True, devuelve solo un resultado
-            params: Parámetros para la consulta (opcional)
-
-        Returns:
-            Resultado de la consulta
-
-        Raises:
-            DatabaseOperationError: Si hay error en la operación
-        """
-        try:
-            self._verify_executor_initialized()
-            self.logger.debug("📝 Ejecutando consulta SQL personalizada")
-            assert self.query_executor is not None
-            executor: DatabaseQueryExecutor = self.query_executor
-            result = executor.execute_custom_query(sql, fetch_one, params)
-            self.logger.info("✅ Consulta SQL personalizada ejecutada exitosamente")
-            return result
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            self.logger.error(f"❌ Error ejecutando consulta SQL: {e}")
-            raise DatabaseOperationError(
-                f"Error ejecutando consulta SQL: {str(e)}", "EXECUTE", db_type=self.db_type
-            ) from e
+    def resolve_query(self, query_name: str, **params) -> Any:
+        """Resuelve una query registrada y devuelve SQL final + metadatos."""
+        return self._query_catalog.resolver.resolve(query_name, self.db_type, params)
 
     def get_query_info(self) -> dict[str, Any]:
         """
@@ -1313,7 +1532,7 @@ class DatabaseManager:
         Returns:
             Diccionario con información de las consultas
         """
-        return self.db_queries.get_query_info()
+        return self._query_catalog.get_query_info()
 
     def get_available_queries(self) -> list[str]:
         """
@@ -1322,7 +1541,7 @@ class DatabaseManager:
         Returns:
             Lista de nombres de consultas disponibles
         """
-        return self.db_queries.get_available_query_names()
+        return self._query_catalog.get_available_query_names()
 
     # ==================== MÉTODOS DE INFORMACIÓN DE TIPO BD ====================
 
@@ -1472,14 +1691,14 @@ class DatabaseManager:
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """Context manager exit - cierra la conexión"""
-        self.close()
+        self.close(timeout_seconds=self._default_close_timeout_seconds, force=False)
 
     def __del__(self):
         """Destructor - cierra la conexión"""
         try:
-            self.close()
+            self.close(timeout_seconds=self._default_close_timeout_seconds, force=True)
         except Exception:
-            pass  # Ignorar errores en destructor
+            pass  # No propagar excepciones desde destructor
 
     # ==================== MÉTODOS ESTÁTICOS PARA VALIDACIÓN ====================
 
