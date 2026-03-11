@@ -14,7 +14,7 @@ from typing import Any, LiteralString
 
 from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 
-from ..grafos.graphviz_relationship_graph_ext import GraphvizRelationshipGraphExt
+from ..analysis.graphviz_ext import GraphvizRelationshipGraphExt
 from .print_config_manager import PrintConfigManager
 
 

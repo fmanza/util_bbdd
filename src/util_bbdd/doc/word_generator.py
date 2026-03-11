@@ -22,7 +22,7 @@ from docx.table import Table, _Row
 from docx.text.paragraph import Paragraph
 from docx.text.run import Run
 
-from ..grafos.graphviz_relationship_graph_ext import GraphvizRelationshipGraphExt
+from ..analysis.graphviz_ext import GraphvizRelationshipGraphExt
 from .print_config_manager import PrintConfigManager
 
 
