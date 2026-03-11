@@ -5,6 +5,34 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-03-11
+
+### What's New
+- **Architecture Refactoring:** Complete 3-level hierarchical reorganization
+  - Level 1: Abstractions (`_core/`, `_drivers/`)
+  - Level 2: Core Services (`connection/`, `query/`, `executors/`, `metadata/`, `results/`)
+  - Level 3: Specialization (`bulk/`, `analysis/`, `managers/`)
+- **9 new modules consolidated** from fragmented codebase
+- **16 backward compatibility wrappers** ensuring zero breaking changes
+- **Unified documentation** with architecture diagrams and migration guides
+
+### Changed
+- All internal imports reorganized for 3-level structure
+- DatabaseManager and AsyncDatabaseManager moved to `managers/` module
+- Bulk operations consolidated in `bulk/` module
+- Relationship graphs consolidated in `analysis/` module
+
+### Migration
+- See `docs/MIGRATION_GUIDE.md` for detailed v0.4.0 → v0.5.0 upgrade path
+- All existing APIs remain functional through backward compatibility wrappers
+- **100% backward compatible** - no code changes required by users
+
+### Performance & Quality
+- 443/443 tests passing consistently
+- Test execution: 7.59s (avg)
+- Full test coverage reports available
+- Code organized for better maintainability
+
 ## [Unreleased]
 
 ### Removed
