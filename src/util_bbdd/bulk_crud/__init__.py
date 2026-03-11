@@ -1,12 +1,9 @@
 """
-bbdd bulk_crud package
+bbdd bulk_crud package - Wrapper para compatibilidad hacia atrás.
 
-Proporciona operaciones CRUD en lote con auditoría.
+Importa desde el nuevo módulo consolidado en util_bbdd.bulk
 """
 
-from .audit_manager import AuditManager
-from .bulk_crud import bulk_crud
-
-BulkCrudManager = bulk_crud
+from ..bulk import AuditManager, BulkCrudManager, bulk_crud
 
 __all__: list[str] = ["bulk_crud", "AuditManager", "BulkCrudManager"]

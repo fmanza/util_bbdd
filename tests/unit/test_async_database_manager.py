@@ -316,7 +316,7 @@ class TestAsyncDatabaseManagerIntegration:
             return mock_pool
 
         with patch(
-            "util_bbdd.async_database_manager.AsyncQueryExecutor",
+            "util_bbdd.managers.async_mgr.AsyncQueryExecutor",
             return_value=mock_executor,
         ):
             async with AsyncDatabaseManager(
@@ -511,7 +511,9 @@ class TestAsyncDatabaseManagerConvenienceMethods:
     @pytest.mark.asyncio
     async def test_get_columns_charset_collation_parses_postgresql(self):
         mock_executor = AsyncMock()
-        mock_executor.execute_query_many = AsyncMock(return_value=[("id", "integer", "en_US"), ("name", "text", "es_ES")])
+        mock_executor.execute_query_many = AsyncMock(
+            return_value=[("id", "integer", "en_US"), ("name", "text", "es_ES")]
+        )
 
         manager = AsyncDatabaseManager(
             db_type="postgresql",
@@ -904,7 +906,7 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         )
 
         with patch(
-            "util_bbdd.async_database_manager.AsyncSQLAlchemyEngineFactory.create_engine",
+            "util_bbdd.managers.async_mgr.AsyncSQLAlchemyEngineFactory.create_engine",
             new=AsyncMock(return_value=fake_engine),
         ) as mock_create_engine:
             result = await manager.get_sqlalchemy_engine()
@@ -921,4 +923,3 @@ class TestAsyncDatabaseManagerConvenienceMethods:
             pool_recycle=900,
             sql_server_driver="aioodbc",
         )
-

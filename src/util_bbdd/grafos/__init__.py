@@ -1,13 +1,16 @@
 """
-Módulo de generación de grafos de relaciones entre tablas de base de datos
+Módulo grafos - Wrapper para compatibilidad hacia atrás.
 
-Exporta las implementaciones especializadas y la clase generadora principal.
+Importa desde el nuevo módulo consolidado en util_bbdd.analysis
 """
 
-from .graphviz_relationship_graph import GraphvizRelationshipGraph
-from .graphviz_relationship_graph_ext import GraphvizRelationshipGraphExt
-from .matplotlib_relationship_graph import MatplotlibRelationshipGraph
-from .relationship_graph_base import DatabaseRelationshipGraphBase, TableRelation
+from ..analysis import (
+    DatabaseRelationshipGraphBase,
+    GraphvizRelationshipGraph,
+    GraphvizRelationshipGraphExt,
+    MatplotlibRelationshipGraph,
+    TableRelation,
+)
 
 __all__: list[str] = [
     "GraphvizRelationshipGraph",

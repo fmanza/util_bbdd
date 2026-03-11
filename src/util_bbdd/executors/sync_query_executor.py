@@ -11,8 +11,8 @@ from ..database_exceptions import (
     QueryTimeoutError,
     QueryValidationError,
 )
-from ..query_registry import QueryRegistry
-from ..query_resolver import QueryResolver
+from ..query.registry import QueryRegistry
+from ..query.resolver import QueryResolver
 from ..result_normalizer import ResultNormalizer
 from ..result_types import RowOrNone, Rows
 

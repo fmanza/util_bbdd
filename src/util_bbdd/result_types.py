@@ -1,17 +1,15 @@
-"""Tipos de retorno compartidos para ejecución de consultas."""
+"""
+⚠️ DEPRECATED: Use `from util_bbdd.results import ...` instead
 
-from __future__ import annotations
+This module is kept for backward compatibility only.
+All types have been moved to util_bbdd.results module.
+"""
 
-from typing import Any, TypeAlias
+from .results.types import (
+    QueryResult,
+    Row,
+    RowOrNone,
+    Rows,
+)
 
-Row: TypeAlias = tuple[Any, ...]
-"""Fila única devuelta por un cursor DB-API."""
-
-Rows: TypeAlias = list[Row]
-"""Colección materializada de filas."""
-
-RowOrNone: TypeAlias = Row | None
-"""Resultado para operaciones que pueden devolver 0 o 1 fila."""
-
-QueryResult: TypeAlias = RowOrNone | Rows
-"""Unión de resultado singular/múltiple usada solo en capas internas."""
+__all__ = ["Row", "Rows", "RowOrNone", "QueryResult"]

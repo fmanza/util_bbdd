@@ -1,0 +1,282 @@
+"""
+Módulo de normalización de datos para operaciones SQL.
+
+Proporciona funciones para convertir tipos de datos de pandas/numpy a tipos
+nativos de Python que son compatibles con drivers de bases de datos.
+
+Este módulo maneja:
+- Tipos escalares de numpy (np.int64, np.float64, etc.)
+- Tipos de pandas (pd.Timestamp, pd.NA, etc.)
+- Datos binarios (bytes, bytearray)
+- JSON (dict, list)
+- Strings (str, unicode, bytes decodificables)
+- Valores nulos (None, pd.NA, np.nan, pd.NaT)
+
+Versión: 3.0.0
+Fecha: Febrero 2026
+"""
+
+import json
+
+from collections.abc import Hashable, Iterator
+from typing import Any
+
+import numpy as np
+import pandas as pd
+
+from sqlalchemy import JSON, Boolean, DateTime, Float, Integer, LargeBinary, String, Text
+
+
+def _detect_type_from_sample(sample: Any) -> Any:
+    """Detecta el tipo SQLAlchemy basado en una muestra de dato."""
+    if isinstance(sample, (dict, list)):
+        return JSON
+    if isinstance(sample, (bytes, bytearray)):
+        return LargeBinary
+    return String(255)
+
+
+def _get_string_type(series: pd.Series) -> Any:
+    """Obtiene el tipo String apropiado según longitud máxima."""
+    max_len: int = series.astype(str).str.len().max()
+    if pd.isna(max_len):
+        return String(255)
+    return String(int(max_len) + 1) if max_len < 4000 else Text
+
+
+def _detect_object_dtype(series: pd.Series) -> Any:
+    """Detecta el tipo SQLAlchemy para dtype object."""
+    for sample in series:
+        try:
+            if pd.isna(sample):
+                continue
+        except (TypeError, ValueError):
+            pass
+        return _detect_type_from_sample(sample)
+    return String(255)
+
+
+def _detect_binary_or_string_dtype(series: pd.Series) -> Any:
+    """Detecta tipo SQLAlchemy para tipos binarios o strings."""
+    if len(series) == 0:
+        return String(255)
+    non_null = series.dropna()
+    if non_null.empty:
+        return String(255)
+    primer = non_null.iloc[0]
+    if isinstance(primer, bytes):
+        return LargeBinary
+    if isinstance(primer, str):
+        return _get_string_type(series)
+    return String(255)
+
+
+def _is_bytes_dtype(dtype: Any) -> bool:
+    """Compatibilidad: detecta bytes dtype con o sin is_bytes_dtype."""
+    is_bytes = getattr(pd.api.types, "is_bytes_dtype", None)
+    if callable(is_bytes):
+        return bool(is_bytes(dtype))
+    return getattr(dtype, "kind", None) in ["S", "V"]
+
+
+def pandas_dtype_to_sqlalchemy(series: pd.Series) -> Any:
+    """
+    Convierte un tipo de datos de pandas a un tipo SQLAlchemy.
+
+    Args:
+        series: Serie de pandas para mapear su tipo
+
+    Returns:
+        Tipo SQLAlchemy correspondiente (Integer, String, JSON, etc.)
+
+    Ejemplos:
+        >>> import pandas as pd
+        >>> s_int = pd.Series([1, 2, 3])
+        >>> pandas_dtype_to_sqlalchemy(s_int)
+        <class 'sqlalchemy.sql.sqltypes.Integer'>
+
+        >>> s_str = pd.Series(['a', 'b', 'c'])
+        >>> pandas_dtype_to_sqlalchemy(s_str)
+        <class 'sqlalchemy.sql.sqltypes.String'>
+    """
+    dtype = series.dtype
+
+    # Tipos numéricos y booleanos
+    if pd.api.types.is_integer_dtype(dtype):
+        return Integer
+    if pd.api.types.is_float_dtype(dtype):
+        return Float
+    if pd.api.types.is_bool_dtype(dtype):
+        return Boolean
+    if pd.api.types.is_datetime64_any_dtype(dtype):
+        return DateTime
+
+    if pd.api.types.is_timedelta64_dtype(dtype):
+        return String(255)
+
+    # Tipos objeto y string específicos
+    if pd.api.types.is_object_dtype(dtype):
+        return _detect_object_dtype(series)
+
+    if _is_bytes_dtype(dtype):
+        return LargeBinary
+
+    if pd.api.types.is_string_dtype(dtype):
+        return _get_string_type(series)
+
+    # Tipos binarios y unicode (numpy)
+    if series.dtype.kind in ["S", "V", "O", "U"]:
+        return _detect_binary_or_string_dtype(series)
+
+    return String(255)
+
+
+def iter_normalize_records(records: list[dict[Hashable, Any]]) -> Iterator[dict[str, Any]]:
+    """
+    Procesa una secuencia de registros y los normaliza para SQL, devolviendo un iterador.
+
+    Esta es una versión eficiente en memoria que procesa los registros uno a uno,
+    ideal para conjuntos de datos muy grandes.
+
+    Args:
+        records: Lista de diccionarios con datos a normalizar
+
+    Yields:
+        Diccionarios con claves y valores normalizados para SQL
+
+    Ejemplo:
+        >>> records = [{'id': 1, 'name': 'Alice'}, {'id': 2, 'name': 'Bob'}]
+        >>> list(iter_normalize_records(records))
+        [{'id': 1, 'name': 'Alice'}, {'id': 2, 'name': 'Bob'}]
+    """
+    return ({str(k): normalize_sql_literal(v) for k, v in row.items()} for row in records)
+
+
+def normalize_records_for_sql(records: list[dict[Hashable, Any]]) -> list[dict[str, Any]]:
+    """
+    Normaliza una lista de registros para SQL, devolviendo una nueva lista materializada.
+
+    Esta función consume más memoria que `iter_normalize_records` pero es compatible
+    con operaciones que requieren una lista completa (ej. acceso por índice, múltiples pasadas).
+
+    Args:
+        records: Lista de diccionarios con datos a normalizar
+
+    Returns:
+        Nueva lista con registros normalizados
+
+    Ejemplo:
+        >>> records = [{'id': np.int64(1), 'name': 'Alice'}]
+        >>> normalized = normalize_records_for_sql(records)
+        >>> normalized[0]['id']
+        1
+    """
+    return list(iter_normalize_records(records))
+
+
+def _decode_bytes_to_string(value: bytes | bytearray | memoryview) -> str | bytes:
+    """Intenta decodificar bytes a string UTF-8, retorna bytes si falla."""
+    try:
+        # Convertir memoryview a bytes
+        if isinstance(value, memoryview):
+            value = bytes(value)
+        # Convertir bytearray a bytes
+        if isinstance(value, bytearray):
+            value = bytes(value)
+
+        # Ahora value es bytes, puede decodificarse
+        if isinstance(value, bytes):
+            return value.decode("utf-8")
+        return value
+    except (UnicodeDecodeError, AttributeError, TypeError):
+        # Si la decodificación falla, retornar como bytes
+        if isinstance(value, memoryview):
+            return bytes(value)
+        if isinstance(value, bytearray):
+            return bytes(value)
+        return value
+
+
+def _convert_numpy_scalar(value: np.generic) -> Any:
+    """Convierte tipos escalares de numpy a tipos nativos Python."""
+    if isinstance(value, np.bool_):
+        return bool(value)
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.floating):
+        return float(value)
+    return value.item()
+
+
+def normalize_sql_literal(value: Any) -> Any:
+    """
+    Normaliza un valor para su inserción segura en una consulta SQL.
+
+    Convierte tipos de datos de pandas/numpy a tipos nativos de Python
+    que son compatibles con los drivers de BBDD (a través de SQLAlchemy).
+
+    Args:
+        value: Valor a normalizar de cualquier tipo
+
+    Returns:
+        Valor normalizado compatible con SQL
+
+    Maneja:
+        - Tipos de Numpy escalares (np.int64, np.float64, np.bool_, etc.)
+        - Tipos de Pandas (pd.Timestamp, pd.NA, pd.Categorical)
+        - Strings (str, bytes decodificables, Unicode)
+        - Binarios (bytes, bytearray, np.ndarray)
+        - JSON (dict, list)
+        - Nulos (None, pd.NA, np.nan, pd.NaT)
+
+    Ejemplo:
+        >>> import numpy as np
+        >>> normalize_sql_literal(np.int64(42))
+        42
+
+        >>> normalize_sql_literal(pd.Timestamp('2026-02-06'))
+        datetime.datetime(2026, 2, 6, 0, 0)
+
+        >>> normalize_sql_literal({'key': 'value'})
+        '{"key": "value"}'
+
+        >>> normalize_sql_literal(None)
+        None
+    """
+    # Tipos no escalares: list, dict, array
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, ensure_ascii=False, default=str)
+
+    if isinstance(value, np.ndarray):
+        return value.tobytes()
+
+    # Strings y bytes (manejo especial)
+    if isinstance(value, (bytes, bytearray)):
+        return _decode_bytes_to_string(value)
+
+    if isinstance(value, str):
+        return value.strip() if value else value
+
+    # Tipos de Pandas
+    if isinstance(value, pd.Categorical):
+        return str(value) if pd.notna(value) else None
+
+    if isinstance(value, pd.Timestamp):
+        return value.to_pydatetime()
+
+    if isinstance(value, pd.Timedelta):
+        return value.to_pytimedelta()
+
+    # Manejo de nulos
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+
+    # Tipos de Numpy escalares
+    if isinstance(value, np.generic):
+        return _convert_numpy_scalar(value)
+
+    # Retorna el valor si no necesita conversión
+    return value
