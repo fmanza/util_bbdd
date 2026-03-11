@@ -14,7 +14,7 @@ from threading import Lock
 import pytest
 
 from util_bbdd.database_exceptions import DatabaseOperationError, DatabasePoolTimeoutError
-from util_bbdd.database_manager import DatabaseManager
+from util_bbdd.managers import DatabaseManager
 
 
 def _import_mariadb_pool_module(monkeypatch: pytest.MonkeyPatch):

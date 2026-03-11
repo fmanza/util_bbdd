@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from util_bbdd.database_manager import DatabaseManager
+from util_bbdd.managers import DatabaseManager
 
 
 class TestDatabaseManagerNormalizedMethods:

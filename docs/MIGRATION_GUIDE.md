@@ -112,7 +112,7 @@ normalized = normalize_records_for_sql(records)
 
 #### v0.4.0 (aún funciona)
 ```python
-from util_bbdd.grafos import DatabaseRelationshipGraphBase, GraphvizRelationshipGraph
+from util_bbdd.analysis import DatabaseRelationshipGraphBase, GraphvizRelationshipGraph
 
 graph = GraphvizRelationshipGraph(db_manager)
 graph_data = graph.generate_graphviz_graph_paginated(...)

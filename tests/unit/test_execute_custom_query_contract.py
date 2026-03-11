@@ -6,10 +6,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from util_bbdd.async_database_manager import AsyncDatabaseManager
-from util_bbdd.database_manager import DatabaseManager
 from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
+from util_bbdd.managers import AsyncDatabaseManager, DatabaseManager
 
 
 def test_sync_executor_custom_many_and_one_delegate_to_execute_custom_internal() -> None:

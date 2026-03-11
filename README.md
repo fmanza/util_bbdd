@@ -121,7 +121,7 @@ pip install -e ".[dev]"
 ### Inserción masiva desde DataFrame
 
 ```python
-from util_bbdd.bulk_crud import bulk_crud_audit
+from util_bbdd.bulk import bulk_crud
 import pandas as pd
 from sqlalchemy import create_engine
 
@@ -213,7 +213,7 @@ dm.close()
 
 ```python
 import asyncio
-from util_bbdd.async_database_manager import AsyncDatabaseManager
+from util_bbdd.managers import AsyncDatabaseManager
 
 async def main():
     # Inicializar gestor async
@@ -347,7 +347,7 @@ from util_bbdd import DatabaseManager
 
 ```python
 # v0.4.0 (still works)
-from util_bbdd.bulk_crud import bulk_crud, AuditManager
+from util_bbdd.bulk import bulk_crud, AuditManager
 
 # v0.5.0 (recommended)
 from util_bbdd.bulk import bulk_crud, AuditManager, normalize_records_for_sql
@@ -361,7 +361,7 @@ from util_bbdd.bulk import bulk_crud, AuditManager, normalize_records_for_sql
 
 ```python
 # v0.4.0 (still works)
-from util_bbdd.grafos import GraphvizRelationshipGraph
+from util_bbdd.analysis import GraphvizRelationshipGraph
 
 # v0.5.0 (recommended - more options available)
 from util_bbdd.analysis import (

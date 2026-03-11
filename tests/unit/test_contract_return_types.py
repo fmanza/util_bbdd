@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import get_args, get_origin, get_type_hints
 
-from util_bbdd.async_database_manager import AsyncDatabaseManager
 from util_bbdd.database_exceptions import (
     DatabaseError,
     DatabaseOperationError,
@@ -15,9 +14,9 @@ from util_bbdd.database_exceptions import (
     QueryValidationError,
     UtilBbddError,
 )
-from util_bbdd.database_manager import DatabaseManager
 from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
+from util_bbdd.managers import AsyncDatabaseManager, DatabaseManager
 from util_bbdd.metadata_contracts import AsyncMetadataProvider, SyncMetadataProvider
 from util_bbdd.result_types import QueryResult, Row, RowOrNone, Rows
 

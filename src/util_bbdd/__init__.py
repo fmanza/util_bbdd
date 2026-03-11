@@ -4,11 +4,11 @@ Módulo bbdd para operaciones de base de datos.
 Soporta: MariaDB, Oracle, PostgreSQL, HSQLDB y SQL Server
 """
 
-from .async_database_manager import AsyncDatabaseManager
 from .async_utils import maybe_await
 from .connection.conn_params_builder import build_conn_params
-from .database_manager import DatabaseManager
 from .factory import ConnectFactory, PoolFactory
+from .managers.async_mgr import AsyncDatabaseManager
+from .managers.sync import DatabaseManager
 from .metadata_cache import DatabaseMetadataCache, RelationshipMetadataCache
 from .metadata_contracts import AsyncMetadataProvider, SyncMetadataProvider
 

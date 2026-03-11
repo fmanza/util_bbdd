@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from util_bbdd.database_exceptions import DatabaseOperationError
-from util_bbdd.database_manager import DatabaseManager
+from util_bbdd.managers import DatabaseManager
 from util_bbdd.metadata_cache import DatabaseMetadataCache
 
 
@@ -21,7 +21,9 @@ def _build_wrapped_decode_error() -> DatabaseOperationError:
             ) from decode_err
         except SystemError as driver_err:
             try:
-                raise DatabaseOperationError("Error executing query create_table", "SELECT", db_type="mariadb") from driver_err
+                raise DatabaseOperationError(
+                    "Error executing query create_table", "SELECT", db_type="mariadb"
+                ) from driver_err
             except DatabaseOperationError as operation_err:
                 return operation_err
 
