@@ -10,7 +10,7 @@ from .async_query_executor import AsyncQueryExecutor
 from .base import QueryExecutorBase
 from .sync_query_executor import SyncQueryExecutor
 
-__all__ = [
+__all__: list[str] = [
     "QueryExecutorBase",
     "SyncQueryExecutor",
     "AsyncQueryExecutor",

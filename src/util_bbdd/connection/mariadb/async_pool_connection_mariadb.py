@@ -125,11 +125,11 @@ class AsyncMariaDBPool:
 
             wait_closed = getattr(self._pool, "wait_closed", None)
             if callable(wait_closed):
-                await run_close_operation(
+                await run_close_operation_async(
                     maybe_await(wait_closed()),
                     FORCE_CLOSE_TIMEOUT_SECONDS,
-                    self.logger,
                     "espera tras cierre inmediato pool MariaDB async",
+                    "mariadb",
                 )
 
         if close_mode == "immediate":
@@ -140,11 +140,11 @@ class AsyncMariaDBPool:
             self._pool.close()
             await maybe_await(self._pool.wait_closed())
 
-        closed = await run_close_operation(
+        closed = await run_close_operation_async(
             _graceful_close(),
             self._close_timeout_seconds,
-            self.logger,
             "cierre pool MariaDB async",
+            "mariadb",
         )
         if closed:
             return

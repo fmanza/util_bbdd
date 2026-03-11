@@ -9,8 +9,7 @@ from .connection.builder import build_conn_params
 from .factory import ConnectionFactory, PoolFactory
 from .managers.async_mgr import AsyncDatabaseManager
 from .managers.sync import DatabaseManager
-from .metadata_cache import DatabaseMetadataCache, RelationshipMetadataCache
-from .metadata_contracts import AsyncMetadataProvider, SyncMetadataProvider
+from .metadata import AsyncMetadataProvider, DatabaseMetadataCache, RelationshipMetadataCache, SyncMetadataProvider
 
 __all__: list[str] = [
     "DatabaseManager",

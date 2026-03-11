@@ -10,6 +10,6 @@ Nota: El prefijo _ indica que es interno, aunque disponible para acceso especial
 
 from .validator import DatabaseTypeValidator
 
-__all__ = [
+__all__: list[str] = [
     "DatabaseTypeValidator",
 ]

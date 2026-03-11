@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from ..result_types import Row, Rows
+from ..results import Row, Rows
 
-__all__ = ["Row", "Rows", "SyncMetadataProvider", "AsyncMetadataProvider"]
+__all__: list[str] = ["Row", "Rows", "SyncMetadataProvider", "AsyncMetadataProvider"]
 
 
 @runtime_checkable

@@ -16,7 +16,7 @@ from typing import Any
 from .._core import PoolConnectionError, PoolTimeoutError
 from .protocols import AsyncCloseMode
 
-__all__ = [
+__all__: list[str] = [
     "AsyncCloseMode",
     "DEFAULT_CLOSE_TIMEOUT_SECONDS",
     "FORCE_CLOSE_TIMEOUT_SECONDS",
@@ -67,7 +67,7 @@ def normalize_close_mode(mode: str) -> AsyncCloseMode:
     Raises:
         ValueError: Si el modo no es válido
     """
-    normalized = str(mode).strip().lower()
+    normalized: str = str(mode).strip().lower()
     if normalized == "immediate":
         return "immediate"
     if normalized == "graceful":

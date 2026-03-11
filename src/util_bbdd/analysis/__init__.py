@@ -15,7 +15,7 @@ from .graphviz import GraphvizRelationshipGraph
 from .graphviz_ext import GraphvizRelationshipGraphExt
 from .matplotlib_graph import MatplotlibRelationshipGraph
 
-__all__ = [
+__all__: list[str] = [
     # Clase base y tipos
     "DatabaseRelationshipGraphBase",
     "TableRelation",

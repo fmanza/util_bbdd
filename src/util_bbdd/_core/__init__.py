@@ -114,7 +114,6 @@ __all__ = [
     "DatabaseValidator",
     "MetadataFetcher",
     # Constantes y enums
-    "DatabaseType",
     "OperationType",
     "RouterineType",
     "DEFAULT_POOL_SIZE",

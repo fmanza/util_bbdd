@@ -18,10 +18,9 @@ from .._core import (
 )
 from ..query.registry import QueryRegistry
 from ..query.resolver import QueryResolver
-from ..result_normalizer import ResultNormalizer
-from ..result_types import RowOrNone, Rows
+from ..results import ResultNormalizer, RowOrNone, Rows
 
-__all__ = ["QueryExecutorBase"]
+__all__: list[str] = ["QueryExecutorBase"]
 
 
 class QueryExecutorBase(ABC):

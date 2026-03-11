@@ -14,7 +14,7 @@ from .sync import DatabaseManager
 # Aliases para compatibilidad
 SyncDatabaseManager = DatabaseManager
 
-__all__ = [
+__all__: list[str] = [
     # Managers
     "DatabaseManager",
     "SyncDatabaseManager",

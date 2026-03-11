@@ -27,12 +27,12 @@ class DatabaseException(Exception):
             db_type: Tipo de base de datos (mariadb, oracle, etc.)
             details: Detalles adicionales del error
         """
-        self.message = message
-        self.operation = operation or "UNKNOWN"
-        self.db_type = db_type or "UNKNOWN"
-        self.details = details
+        self.message: str = message
+        self.operation: str = operation or "UNKNOWN"
+        self.db_type: str = db_type or "UNKNOWN"
+        self.details: str | None = details
 
-        formatted_msg = f"{message}"
+        formatted_msg: str = f"{message}"
         if operation:
             formatted_msg += f" (Operación: {operation})"
         if db_type:

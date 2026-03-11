@@ -4,8 +4,9 @@ import logging
 
 from typing import Any
 
-from util_bbdd.connection.connection_params_manager import ConnectionParamsManager
 from util_bbdd.database_exceptions import DatabaseConnectionError, DatabaseValidationError
+
+from ..params import ConnectionParamsManager
 
 
 class HSQLDBConnection:

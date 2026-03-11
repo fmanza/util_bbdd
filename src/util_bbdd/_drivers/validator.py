@@ -84,7 +84,7 @@ class DatabaseTypeValidator:
             InvalidDatabaseType: Si el tipo no está soportado
         """
         if not self.is_db_type_supported(db_type):
-            supported = ", ".join(self.get_supported_db_types())
+            supported: str = ", ".join(self.get_supported_db_types())
             raise InvalidDatabaseType(
                 message=f"Tipo de base de datos '{db_type}' no soportado",
                 db_type=db_type,
@@ -116,7 +116,7 @@ class DatabaseTypeValidator:
         Returns:
             Nombre descriptivo (ej: 'MariaDB', 'PostgreSQL')
         """
-        info = self.get_db_type_info(db_type)
+        info: dict[str, Any] = self.get_db_type_info(db_type)
         return info.get("name", db_type.title())
 
     def get_db_type_description(self, db_type: str) -> str:
@@ -128,7 +128,7 @@ class DatabaseTypeValidator:
         Returns:
             Descripción del tipo de BD
         """
-        info = self.get_db_type_info(db_type)
+        info: dict[str, Any] = self.get_db_type_info(db_type)
         return info.get("description", "Sin descripción disponible")
 
     def get_db_type_features(self, db_type: str) -> list[str]:
@@ -140,7 +140,7 @@ class DatabaseTypeValidator:
         Returns:
             Lista de características soportadas (ej: ['async', 'transactions', ...])
         """
-        info = self.get_db_type_info(db_type)
+        info: dict[str, Any] = self.get_db_type_info(db_type)
         return info.get("supported_features", [])
 
     def get_db_type_default_port(self, db_type: str) -> int:
@@ -152,7 +152,7 @@ class DatabaseTypeValidator:
         Returns:
             Puerto por defecto (ej: 3306 para MariaDB)
         """
-        info = self.get_db_type_info(db_type)
+        info: dict[str, Any] = self.get_db_type_info(db_type)
         return info.get("default_port", 0)
 
     def get_db_type_driver_info(self, db_type: str) -> dict[str, Any]:
@@ -164,7 +164,7 @@ class DatabaseTypeValidator:
         Returns:
             Diccionario con información del driver
         """
-        info = self.get_db_type_info(db_type)
+        info: dict[str, Any] = self.get_db_type_info(db_type)
         return info.get("driver_info", {})
 
     def get_db_type_connection_params(self, db_type: str) -> dict[str, Any]:
@@ -176,7 +176,7 @@ class DatabaseTypeValidator:
         Returns:
             Diccionario con configuración de parámetros (required, optional, etc)
         """
-        info = self.get_db_type_info(db_type)
+        info: dict[str, Any] = self.get_db_type_info(db_type)
         return info.get("connection_params", {})
 
     def get_required_params(self, db_type: str) -> list[str]:
@@ -188,7 +188,7 @@ class DatabaseTypeValidator:
         Returns:
             Lista de nombres de parámetros requeridos
         """
-        params_config = self.get_db_type_connection_params(db_type)
+        params_config: dict[str, Any] = self.get_db_type_connection_params(db_type)
         return params_config.get("required", [])
 
     def get_optional_params(self, db_type: str) -> list[dict[str, Any]]:
@@ -200,7 +200,7 @@ class DatabaseTypeValidator:
         Returns:
             Lista de parámetros opcionales con su configuración
         """
-        params_config = self.get_db_type_connection_params(db_type)
+        params_config: dict[str, Any] = self.get_db_type_connection_params(db_type)
         return params_config.get("optional", [])
 
     def validate_connection_params(self, db_type: str, conn_params: dict[str, Any]) -> bool:
@@ -223,20 +223,20 @@ class DatabaseTypeValidator:
         self.validate_db_type(db_type)
 
         # Obtener parámetros válidos (requeridos + opcionales)
-        required_params = self.get_required_params(db_type)
-        optional_params_list = self.get_optional_params(db_type)
-        optional_param_names = [str(p.get("name")) for p in optional_params_list if p.get("name")]
+        required_params: list[str] = self.get_required_params(db_type)
+        optional_params_list: list[dict[str, Any]] = self.get_optional_params(db_type)
+        optional_param_names: list[str] = [str(p.get("name")) for p in optional_params_list if p.get("name")]
 
-        valid_params = required_params + optional_param_names
+        valid_params: list[str] = required_params + optional_param_names
 
         # Verificar parámetros faltantes
-        missing_params = [p for p in required_params if p not in conn_params]
+        missing_params: list[str] = [p for p in required_params if p not in conn_params]
         if missing_params:
             raise ValueError(f"Faltan parámetros requeridos para {db_type}: {', '.join(missing_params)}")
 
         # Verificar parámetros sobrantes (no válidos)
-        provided_params = list(conn_params.keys())
-        extra_params = [p for p in provided_params if p not in valid_params]
+        provided_params: list[str] = list(conn_params.keys())
+        extra_params: list[str] = [p for p in provided_params if p not in valid_params]
         if extra_params:
             raise ValueError(
                 f"Parámetros no válidos para {db_type}: {', '.join(extra_params)}. "
@@ -255,7 +255,7 @@ class DatabaseTypeValidator:
         Returns:
             Información del parámetro o None si no existe
         """
-        optional_params = self.get_optional_params(db_type)
+        optional_params: list[dict[str, Any]] = self.get_optional_params(db_type)
         for param in optional_params:
             if param.get("name") == param_name:
                 return param

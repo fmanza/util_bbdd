@@ -7,9 +7,9 @@ from threading import Lock
 from typing import Any
 
 from ...database_exceptions import DatabasePoolError, DatabasePoolTimeoutError
+from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
 from ..params import ConnectionParamsManager
 from ..sqlserver.connection_sqlserver import SQLServerConnection
-from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
 
 
 class PoolConnection:
@@ -217,19 +217,19 @@ class PoolConnection:
         except Exception as err:
             return str(err)
 
-    def close(self, timeout_seconds: float | None, force: bool) -> None:
+    def close(self, timeout_seconds: float | None = None, force: bool = False) -> None:
         """Cierra todas las conexiones (disponibles y prestadas) con timeout/forzado explícitos."""
         if self._closed:
             return
 
         self._closed = True
-        effective_timeout = self._close_timeout_seconds if timeout_seconds is None else timeout_seconds
+        effective_timeout: float | None = self._close_timeout_seconds if timeout_seconds is None else timeout_seconds
         errors: list[str] = []
 
         all_connections = self._collect_available_connections() + self._collect_and_reset_leased_connections()
 
         for connection in all_connections:
-            error = self._close_single_connection(
+            error: str | None = self._close_single_connection(
                 connection=connection,
                 timeout_seconds=effective_timeout,
                 force=force,

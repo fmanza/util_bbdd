@@ -10,7 +10,7 @@ Las queries se definen en `data/sql_queries.json` por tipo de BD.
 from .registry import QueryRegistry
 from .resolver import QueryResolver
 
-__all__ = [
+__all__: list[str] = [
     "QueryRegistry",
     "QueryResolver",
 ]

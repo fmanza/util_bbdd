@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from logging import Logger
 from typing import Any
 
-from ..database_manager import DatabaseManager
+from ..managers import DatabaseManager
 
 
 @dataclass

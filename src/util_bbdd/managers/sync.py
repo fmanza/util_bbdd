@@ -14,7 +14,7 @@ from sqlalchemy.engine.base import Engine
 if TYPE_CHECKING:
     from sqlalchemy.engine.base import Engine
 
-from ..connection.close import parse_close_timeout
+from ..connection.close import parse_close_timeout, run_close_operation_sync
 from ..connection.factory import ConnectionFactory
 from ..connection.params import ConnectionParamsManager
 from ..connection.protocols import ConnectionPoolProtocol
@@ -38,15 +38,16 @@ from ..driver_validator import DriverValidator
 from ..executors.sync_query_executor import SyncQueryExecutor
 from ..factory.pool_factory import PoolFactory
 from ..factory.sqlalchemy_engine_factory import SQLAlchemyEngineFactory
-from ..metadata_cache import DatabaseMetadataCache, RelationshipMetadataCache
-from ..metadata_contracts import Rows
-from ..metadata_normalization import (
+from ..metadata import (
+    DatabaseMetadataCache,
     NormalizedColumnRow,
     NormalizedTableRow,
+    RelationshipMetadataCache,
+    Rows,
     normalize_column_rows,
     normalize_table_rows,
 )
-from ..result_types import RowOrNone
+from ..results import RowOrNone
 
 
 class DatabaseManager:
@@ -820,11 +821,12 @@ class DatabaseManager:
 
     def _fetch_mariadb_view_from_information_schema(self, database: str, view_name: str) -> str:
         """Obtiene DDL de vista MariaDB desde INFORMATION_SCHEMA cuando SHOW CREATE VIEW falla."""
-        escaped_view = self._escape_sql_literal(view_name)
+        escaped_view: str = self._escape_sql_literal(view_name)
+        schema_condition: str = f"'{self._escape_sql_literal(database)}'" if database else "DATABASE()"
         sql: str = f"""
             SELECT VIEW_DEFINITION
             FROM information_schema.views
-            WHERE TABLE_SCHEMA = DATABASE()
+            WHERE TABLE_SCHEMA = {schema_condition}
             AND TABLE_NAME = '{escaped_view}'
             LIMIT 1
         """
@@ -845,10 +847,11 @@ class DatabaseManager:
         """Obtiene DDL de rutina MariaDB desde INFORMATION_SCHEMA cuando SHOW CREATE falla."""
         escaped_routine: str = self._escape_sql_literal(routine_name)
         escaped_type: str = self._escape_sql_literal(routine_type.upper())
+        schema_condition: str = f"'{self._escape_sql_literal(database)}'" if database else "DATABASE()"
         sql: str = f"""
             SELECT ROUTINE_DEFINITION
             FROM information_schema.routines
-            WHERE TABLE_SCHEMA = DATABASE()
+            WHERE TABLE_SCHEMA = {schema_condition}
             AND ROUTINE_NAME = '{escaped_routine}'
             AND ROUTINE_TYPE = '{escaped_type}'
             LIMIT 1

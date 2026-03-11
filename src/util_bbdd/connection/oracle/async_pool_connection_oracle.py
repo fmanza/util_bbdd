@@ -121,26 +121,26 @@ class AsyncOraclePool:
                 await maybe_await(self._pool.close())
 
         if close_mode == "immediate":
-            await run_close_operation(
+            await run_close_operation_async(
                 _force_close(),
                 FORCE_CLOSE_TIMEOUT_SECONDS,
-                self.logger,
                 "cierre inmediato pool Oracle async",
+                "oracle",
             )
             return
 
-        closed = await run_close_operation(
+        closed: bool = await run_close_operation_async(
             maybe_await(self._pool.close()),
             self._close_timeout_seconds,
-            self.logger,
             "cierre pool Oracle async",
+            "oracle",
         )
         if closed:
             return
 
-        await run_close_operation(
+        await run_close_operation_async(
             _force_close(),
             FORCE_CLOSE_TIMEOUT_SECONDS,
-            self.logger,
             "cierre forzado pool Oracle async",
+            "oracle",
         )

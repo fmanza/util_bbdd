@@ -40,7 +40,7 @@ ConnectionProvider: TypeAlias = type[None]  # Actual: Callable[[], Any]
 ConnectionReleaser: TypeAlias = type[None]  # Actual: Callable[[Any], None]
 """Función que libera/devuelve una conexión."""
 
-__all__ = [
+__all__: list[str] = [
     "RowOrNone",
     "Rows",
     "SchemaContext",

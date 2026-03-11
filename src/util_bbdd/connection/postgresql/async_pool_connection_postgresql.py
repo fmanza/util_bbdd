@@ -107,30 +107,30 @@ class AsyncPostgreSQLPool:
         async def _force_close() -> None:
             terminate = getattr(self._pool, "terminate", None)
             if callable(terminate):
-                await run_close_operation(
+                await run_close_operation_async(
                     maybe_await(terminate()),
                     FORCE_CLOSE_TIMEOUT_SECONDS,
-                    self.logger,
                     "terminación inmediata pool PostgreSQL async",
+                    "postgresql",
                 )
                 return
 
-            await run_close_operation(
+            await run_close_operation_async(
                 maybe_await(self._pool.close()),
                 FORCE_CLOSE_TIMEOUT_SECONDS,
-                self.logger,
                 "cierre inmediato pool PostgreSQL async sin terminate()",
+                "postgresql",
             )
 
         if close_mode == "immediate":
             await _force_close()
             return
 
-        closed = await run_close_operation(
+        closed: bool = await run_close_operation_async(
             maybe_await(self._pool.close()),
             self._close_timeout_seconds,
-            self.logger,
             "cierre pool PostgreSQL async",
+            "postgresql",
         )
         if closed:
             return

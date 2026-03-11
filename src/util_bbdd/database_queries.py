@@ -17,8 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from .database_type_validator import DatabaseTypeValidator
-from .query_registry import QueryRegistry
-from .query_resolver import QueryResolver
+from .query import QueryRegistry, QueryResolver
 
 # Patrón regex para encontrar parámetros en plantillas de consultas
 PARAMETER_PATTERN = r"\{(\w+)\}"

@@ -35,7 +35,7 @@ from .normalizer import (
     normalize_table_rows,
 )
 
-__all__ = [
+__all__: list[str] = [
     # Cache
     "DatabaseMetadataCache",
     "RelationshipMetadataCache",

@@ -15,7 +15,7 @@ from .postgresql_validator import PostgreSQLValidator
 from .sqlite_validator import SQLiteValidator
 from .sqlserver_validator import SQLServerValidator
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 # Mapping de tipos de BD a sus validadores
 _VALIDATOR_REGISTRY = {
@@ -48,10 +48,10 @@ def get_type_validator(db_type: str) -> DatabaseTypeValidator:
         >>> isinstance(validator, DatabaseTypeValidator)
         True
     """
-    db_type_lower = db_type.lower()
+    db_type_lower: str = db_type.lower()
 
     if db_type_lower not in _VALIDATOR_REGISTRY:
-        supported = ", ".join(sorted(_VALIDATOR_REGISTRY.keys()))
+        supported: str = ", ".join(sorted(_VALIDATOR_REGISTRY.keys()))
         raise ValueError(f"Unsupported database type '{db_type}'. Supported types: {supported}")
 
     validator_class = _VALIDATOR_REGISTRY[db_type_lower]

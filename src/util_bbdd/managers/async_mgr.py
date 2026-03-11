@@ -16,16 +16,16 @@ from ..database_type_validator import get_database_validator, get_db_type_info, 
 from ..executors.async_query_executor import AsyncQueryExecutor
 from ..factory.async_sqlalchemy_engine_factory import AsyncSQLAlchemyEngineFactory
 from ..factory.pool_factory import PoolFactory
-from ..metadata_cache import DatabaseMetadataCache, RelationshipMetadataCache
-from ..metadata_contracts import Rows
-from ..metadata_normalization import (
+from ..metadata import (
+    DatabaseMetadataCache,
     NormalizedColumnRow,
     NormalizedTableRow,
+    RelationshipMetadataCache,
+    Rows,
     normalize_column_rows,
     normalize_table_rows,
 )
-from ..result_normalizer import ResultNormalizer
-from ..result_types import RowOrNone
+from ..results import ResultNormalizer, RowOrNone
 
 
 class AsyncDatabaseManager:

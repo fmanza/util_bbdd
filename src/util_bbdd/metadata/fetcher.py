@@ -20,6 +20,8 @@ class MetadataFetcher:
     organizas para cada motor de BD.
     """
 
+    __IMPLEMENTAR_SUBCLASE_ESPECIFICA_MOTOR = "Implementar en subclase específica por motor"
+
     def __init__(
         self,
         executor: Any,  # AsyncQueryExecutor | SyncQueryExecutor
@@ -49,7 +51,7 @@ class MetadataFetcher:
         """
         # Esta es una interfaz que será implementada por subclases
         # Por ahora, lanza NotImplementedError para ser clara
-        raise NotImplementedError("Implementar en subclase específica por motor")
+        raise NotImplementedError(self.__IMPLEMENTAR_SUBCLASE_ESPECIFICA_MOTOR)
 
     def get_views(self, db_type: str, schema: str | None = None) -> Rows:
         """Obtiene lista de vistas.
@@ -61,7 +63,7 @@ class MetadataFetcher:
         Returns:
             Filas con información de vistas
         """
-        raise NotImplementedError("Implementar en subclase específica por motor")
+        raise NotImplementedError(self.__IMPLEMENTAR_SUBCLASE_ESPECIFICA_MOTOR)
 
     def get_routines(self, db_type: str, schema: str | None = None) -> Rows:
         """Obtiene lista de rutinas (funciones, procedimientos).
@@ -73,7 +75,7 @@ class MetadataFetcher:
         Returns:
             Filas con información de rutinas
         """
-        raise NotImplementedError("Implementar en subclase específica por motor")
+        raise NotImplementedError(self.__IMPLEMENTAR_SUBCLASE_ESPECIFICA_MOTOR)
 
     def get_columns(self, db_type: str, table_name: str) -> Rows:
         """Obtiene columnas de tabla.
@@ -85,7 +87,7 @@ class MetadataFetcher:
         Returns:
             Filas con información de columnas
         """
-        raise NotImplementedError("Implementar en subclase específica por motor")
+        raise NotImplementedError(self.__IMPLEMENTAR_SUBCLASE_ESPECIFICA_MOTOR)
 
     def get_primary_keys(self, db_type: str, table_name: str) -> Rows:
         """Obtiene claves primarias de tabla.
@@ -97,7 +99,7 @@ class MetadataFetcher:
         Returns:
             Filas con información de PKs
         """
-        raise NotImplementedError("Implementar en subclase específica por motor")
+        raise NotImplementedError(self.__IMPLEMENTAR_SUBCLASE_ESPECIFICA_MOTOR)
 
     def get_indices(self, db_type: str, table_name: str) -> Rows:
         """Obtiene índices de tabla.
@@ -109,7 +111,7 @@ class MetadataFetcher:
         Returns:
             Filas con información de índices
         """
-        raise NotImplementedError("Implementar en subclase específica por motor")
+        raise NotImplementedError(self.__IMPLEMENTAR_SUBCLASE_ESPECIFICA_MOTOR)
 
     def get_foreign_keys(self, db_type: str, table_name: str) -> Rows:
         """Obtiene claves foráneas de tabla.
@@ -121,7 +123,7 @@ class MetadataFetcher:
         Returns:
             Filas con información de FKs
         """
-        raise NotImplementedError("Implementar en subclase específica por motor")
+        raise NotImplementedError(self.__IMPLEMENTAR_SUBCLASE_ESPECIFICA_MOTOR)
 
     def get_unique_constraints(self, db_type: str, table_name: str) -> Rows:
         """Obtiene constraints únicos de tabla.

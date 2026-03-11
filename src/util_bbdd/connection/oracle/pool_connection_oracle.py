@@ -7,8 +7,8 @@ from typing import Any
 import oracledb
 
 from ...database_exceptions import DatabasePoolError, DatabasePoolTimeoutError
-from ..params import ConnectionParamsManager
 from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
+from ..params import ConnectionParamsManager
 
 
 class PoolConnection:
@@ -153,7 +153,7 @@ class PoolConnection:
         if self.pool:
             self.pool.release(connection)
 
-    def close(self, timeout_seconds: float | None, force: bool) -> None:
+    def close(self, timeout_seconds: float | None = None, force: bool = False) -> None:
         """Cierra todas las conexiones del pool con timeout/forzado explícitos."""
         if self._closed:
             return
@@ -161,8 +161,8 @@ class PoolConnection:
         if self.pool is None:
             return
 
-        effective_timeout = self._close_timeout_seconds if timeout_seconds is None else timeout_seconds
-        pool_ref = self.pool
+        effective_timeout: float | None = self._close_timeout_seconds if timeout_seconds is None else timeout_seconds
+        pool_ref: oracledb.ConnectionPool = self.pool
         try:
             run_close_operation_sync(
                 action=lambda: pool_ref.close(),

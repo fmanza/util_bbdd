@@ -27,7 +27,7 @@ except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
 
-from ..database_manager import DatabaseManager
+from ..managers import DatabaseManager
 from .base import DatabaseRelationshipGraphBase, TableRelation
 
 MATPLOTLIB_NETWORKX_ERROR = "Matplotlib/NetworkX no disponible. Instale: pip install matplotlib networkx"
@@ -304,7 +304,7 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
             tables_to_process = []
             for table in table_names:
                 try:
-                    relations = self.analyze_table_relations(table)
+                    relations: list[TableRelation] = self.analyze_table_relations(table)
                     if relations:
                         tables_to_process.append(table)
                     else:
@@ -341,7 +341,7 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
                 results[table_name] = {"status": "error", "error": error_msg, "files": []}
 
         # Resumen final
-        successful = sum(1 for r in results.values() if r["status"] == "success")
+        successful: int = sum(1 for r in results.values() if r["status"] == "success")
         self.logger.info(f"Generación completada: {successful}/{len(tables_to_process)} tablas procesadas exitosamente")
 
         return results

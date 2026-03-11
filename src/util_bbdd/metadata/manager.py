@@ -47,13 +47,15 @@ class MetadataManager:
             relationship_cache: Cache de relaciones (crea default si None)
             db_type: Tipo de BD (mariadb, postgresql, oracle, etc.)
         """
-        self.logger = logging.getLogger(__name__)
+        self.logger: logging.Logger = logging.getLogger(__name__)
         self.metadata_provider = metadata_provider
-        self.db_type = db_type.lower()
+        self.db_type: str = db_type.lower()
 
         # Cache
-        self.db_cache = db_cache or DatabaseMetadataCache()
-        self.relationship_cache = relationship_cache or RelationshipMetadataCache(self.db_cache)
+        self.db_cache: DatabaseMetadataCache = db_cache or DatabaseMetadataCache()
+        self.relationship_cache: RelationshipMetadataCache = relationship_cache or RelationshipMetadataCache(
+            self.db_cache
+        )
 
         # Constructores
         self.builder = DDLBuilder(db_type=db_type)
@@ -229,7 +231,7 @@ class MetadataManager:
         Returns:
             Lista de columnas normalizadas
         """
-        columns = self.get_columns(table_name)
+        columns: Rows = self.get_columns(table_name)
         return normalize_column_rows(columns)
 
     # ========================================================================
@@ -254,16 +256,16 @@ class MetadataManager:
                 return cached_ddl
 
         # Construir desde metadatos
-        columns = self.get_columns(table_name)
-        pks_rows = self.get_primary_keys(table_name)
+        columns: Rows = self.get_columns(table_name)
+        pks_rows: Rows = self.get_primary_keys(table_name)
 
         # Extraer nombres de PK
-        pk_names = []
+        pk_names: list[str] = []
         if pks_rows:
             pk_names = [row[0] for row in pks_rows if row]
 
         # Construir DDL
-        ddl = self.builder.build_create_table_from_columns(
+        ddl: str = self.builder.build_create_table_from_columns(
             table_name,
             columns,
             primary_keys=pk_names or None,

@@ -61,10 +61,10 @@ class AsyncSQLitePool:
             effective_timeout = (
                 FORCE_CLOSE_TIMEOUT_SECONDS if close_mode == "immediate" else self._close_timeout_seconds
             )
-            await run_close_operation(
+            await run_close_operation_async(
                 self._connection.close(),
                 effective_timeout,
-                self.logger,
                 "cierre pool SQLite async",
+                "sqlite",
             )
             self._connection = None

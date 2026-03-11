@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 # Importar módulos modulares
-from ..database_manager import DatabaseManager
+from ..managers import DatabaseManager
 from .excel_generator import ExcelGenerator
 from .html_generator import HtmlGenerator
 from .print_config_manager import PrintConfigManager

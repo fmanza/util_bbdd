@@ -5,8 +5,8 @@ import logging
 from typing import Any, Literal, cast
 
 from ...database_exceptions import DatabasePoolError, DatabasePoolTimeoutError
-from ..params import ConnectionParamsManager
 from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
+from ..params import ConnectionParamsManager
 
 
 class PoolConnection:
@@ -132,7 +132,7 @@ class PoolConnection:
         # SQLite pool simple: no cerramos, reutilizamos
         pass
 
-    def close(self, timeout_seconds: float | None, force: bool) -> None:
+    def close(self, timeout_seconds: float | None = None, force: bool = False) -> None:
         """Cierra la conexión principal con timeout/forzado explícitos."""
         if self._closed:
             return
@@ -140,8 +140,8 @@ class PoolConnection:
         if self.connection is None:
             return
 
-        effective_timeout = self._close_timeout_seconds if timeout_seconds is None else timeout_seconds
-        connection_ref = self.connection
+        effective_timeout: float | None = self._close_timeout_seconds if timeout_seconds is None else timeout_seconds
+        connection_ref: Any = self.connection
         try:
             run_close_operation_sync(
                 action=lambda: connection_ref.close(),

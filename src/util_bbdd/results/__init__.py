@@ -15,7 +15,7 @@ from .types import (
     Rows,
 )
 
-__all__ = [
+__all__: list[str] = [
     # Types
     "Row",
     "Rows",

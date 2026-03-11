@@ -7,8 +7,8 @@ from uuid import uuid4
 from mariadb import Connection, ConnectionPool
 
 from ...database_exceptions import DatabasePoolError, DatabasePoolTimeoutError
-from ..params import ConnectionParamsManager
 from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
+from ..params import ConnectionParamsManager
 
 
 class PoolConnection:
@@ -130,7 +130,7 @@ class PoolConnection:
         if connection:
             connection.close()
 
-    def close(self, timeout_seconds: float | None, force: bool) -> None:
+    def close(self, timeout_seconds: float | None = None, force: bool = False) -> None:
         """Cierra todas las conexiones del pool con timeout/forzado explícitos."""
         if self._closed:
             return
@@ -138,8 +138,8 @@ class PoolConnection:
         if self.pool is None:
             return
 
-        effective_timeout = self._close_timeout_seconds if timeout_seconds is None else timeout_seconds
-        pool_ref = self.pool
+        effective_timeout: float | None = self._close_timeout_seconds if timeout_seconds is None else timeout_seconds
+        pool_ref: ConnectionPool = self.pool
         try:
             run_close_operation_sync(
                 action=lambda: pool_ref.close(),
@@ -157,6 +157,7 @@ class PoolConnection:
                     message="Pool MariaDB no soporta cierre forzado",
                     db_type="mariadb",
                 ) from err
+
             def _terminate_pool() -> None:
                 _ = terminate()
 

@@ -5,8 +5,8 @@ import logging
 from typing import TYPE_CHECKING
 
 from ...database_exceptions import DatabasePoolError, DatabasePoolTimeoutError
-from ..params import ConnectionParamsManager
 from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
+from ..params import ConnectionParamsManager
 
 try:
     from psycopg_pool import ConnectionPool as PsycopgConnectionPool
@@ -146,7 +146,7 @@ class PoolConnection:
         if self.pool:
             self.pool.putconn(connection)
 
-    def close(self, timeout_seconds: float | None, force: bool) -> None:
+    def close(self, timeout_seconds: float | None = None, force: bool = False) -> None:
         """Cierra todas las conexiones del pool con timeout/forzado explícitos."""
         if self._closed:
             return
@@ -154,7 +154,7 @@ class PoolConnection:
         if self.pool is None:
             return
 
-        effective_timeout = self._close_timeout_seconds if timeout_seconds is None else timeout_seconds
+        effective_timeout: float | None = self._close_timeout_seconds if timeout_seconds is None else timeout_seconds
         pool_ref = self.pool
 
         def _close_with_optional_timeout(close_timeout: float | None) -> None:
@@ -181,6 +181,7 @@ class PoolConnection:
 
             terminate = getattr(pool_ref, "terminate", None)
             if callable(terminate):
+
                 def _terminate_pool() -> None:
                     _ = terminate()
 

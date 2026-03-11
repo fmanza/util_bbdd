@@ -17,8 +17,7 @@ from ..database_exceptions import (
 )
 from ..query.registry import QueryRegistry
 from ..query.resolver import QueryResolver
-from ..result_normalizer import ResultNormalizer
-from ..result_types import RowOrNone, Rows
+from ..results import ResultNormalizer, RowOrNone, Rows
 
 
 class AsyncQueryExecutor:

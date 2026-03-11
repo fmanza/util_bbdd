@@ -16,7 +16,7 @@ except ImportError:
     graphviz = None
     GRAPHVIZ_AVAILABLE = False
 
-from ..database_manager import DatabaseManager
+from ..managers import DatabaseManager
 from .base import DatabaseRelationshipGraphBase, TableRelation
 
 GRAPHVIZ_MISSING_MSG: str = "Graphviz no disponible. Instale: pip install graphviz"
