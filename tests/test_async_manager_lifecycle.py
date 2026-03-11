@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 
 from util_bbdd import AsyncDatabaseManager
-from util_bbdd.connection.connect_factory import ConnectFactory
 from util_bbdd.factory.pool_factory import PoolFactory
 
 
@@ -54,7 +53,7 @@ def test_async_manager_direct_lifecycle() -> None:
         created["conn"] = conn
         return conn
 
-    ConnectFactory.register_async_connection(db_type, builder)
+    ConnectionFactory.register_async_connection(db_type, builder)
 
     async def _run() -> None:
         manager = AsyncDatabaseManager(db_type=db_type, conn_params={}, use_pool=False)

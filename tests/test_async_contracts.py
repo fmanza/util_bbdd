@@ -6,8 +6,7 @@ import asyncio
 
 import pytest
 
-from util_bbdd.connection.async_protocols import AsyncConnectionProtocol, AsyncPoolProtocol
-from util_bbdd.connection.connect_factory import ConnectFactory
+from util_bbdd.connection.protocols import AsyncConnectionProtocol, AsyncPoolProtocol
 
 
 class DummyAsyncConnection:
@@ -45,6 +44,6 @@ def test_async_factory_without_registration_raises() -> None:
 
     async def _run() -> None:
         with pytest.raises(NotImplementedError):
-            await ConnectFactory.create_async_connection(unique_db_type, {})
+            await ConnectionFactory.create_async_connection(unique_db_type, {})
 
     asyncio.run(_run())

@@ -6,7 +6,6 @@ import asyncio
 
 import pytest
 
-from util_bbdd.connection.connect_factory import ConnectFactory
 from util_bbdd.factory.pool_factory import PoolFactory
 
 
@@ -26,10 +25,10 @@ def test_connect_factory_selects_registered_async_builder() -> None:
     async def builder(conn_params, **kwargs):
         return FakeConnection({"conn_params": conn_params, "kwargs": kwargs})
 
-    ConnectFactory.register_async_connection(db_type, builder)
+    ConnectionFactory.register_async_connection(db_type, builder)
 
     async def _run() -> None:
-        conn = await ConnectFactory.create_async_connection(db_type, {"k": "v"}, foo="bar")
+        conn = await ConnectionFactory.create_async_connection(db_type, {"k": "v"}, foo="bar")
         assert isinstance(conn, FakeConnection)
         assert conn.payload["conn_params"] == {"k": "v"}
         assert conn.payload["kwargs"]["foo"] == "bar"
@@ -57,7 +56,7 @@ def test_pool_factory_selects_registered_async_builder() -> None:
 def test_connect_factory_hsqldb_async_is_explicitly_not_supported() -> None:
     async def _run() -> None:
         with pytest.raises(NotImplementedError) as exc_info:
-            await ConnectFactory.create_async_connection("hsqldb", {})
+            await ConnectionFactory.create_async_connection("hsqldb", {})
         err_msg = str(exc_info.value).lower()
         assert "hsqldb" in err_msg
         assert "no soportada" in err_msg

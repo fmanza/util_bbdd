@@ -6,8 +6,8 @@ import logging
 
 from typing import Any
 
-from ..connection.conn_params_builder import build_conn_params
-from ..connection.connection_configs import (
+from ..connection.builder import build_conn_params
+from ..connection.config import (
     HSQLDBConnectionConfig,
     MariaDBConnectionConfig,
     MariaDBPoolConfig,

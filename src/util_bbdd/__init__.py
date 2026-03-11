@@ -5,8 +5,8 @@ Soporta: MariaDB, Oracle, PostgreSQL, HSQLDB y SQL Server
 """
 
 from .async_utils import maybe_await
-from .connection.conn_params_builder import build_conn_params
-from .factory import ConnectFactory, PoolFactory
+from .connection.builder import build_conn_params
+from .factory import ConnectionFactory, PoolFactory
 from .managers.async_mgr import AsyncDatabaseManager
 from .managers.sync import DatabaseManager
 from .metadata_cache import DatabaseMetadataCache, RelationshipMetadataCache
@@ -19,7 +19,7 @@ __all__: list[str] = [
     "AsyncMetadataProvider",
     "maybe_await",
     "build_conn_params",
-    "ConnectFactory",
+    "ConnectionFactory",
     "PoolFactory",
     "DatabaseMetadataCache",
     "RelationshipMetadataCache",

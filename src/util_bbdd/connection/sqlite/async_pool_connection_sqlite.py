@@ -7,12 +7,12 @@ import logging
 
 from typing import Any
 
-from ..async_close_utils import (
+from ..close import (
     FORCE_CLOSE_TIMEOUT_SECONDS,
     AsyncCloseMode,
     normalize_close_mode,
     parse_close_timeout,
-    run_close_operation,
+    run_close_operation_async,
 )
 from .async_connection_sqlite import AsyncSQLiteConnection
 

@@ -9,8 +9,8 @@ from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 from ..async_utils import maybe_await
-from ..connection.async_close_utils import AsyncCloseMode, normalize_close_mode
-from ..connection.connect_factory import ConnectFactory
+from ..connection.close import AsyncCloseMode, normalize_close_mode
+from ..connection.factory import ConnectionFactory
 from ..database_exceptions import DatabaseOperationError, QueryError
 from ..database_type_validator import get_database_validator, get_db_type_info, get_supported_db_types
 from ..executors.async_query_executor import AsyncQueryExecutor
@@ -48,7 +48,7 @@ class AsyncDatabaseManager:
         self.database: str = str(conn_params.get("database", "") or "").strip()
         self.use_pool: bool = use_pool
         self._connection_factory: Callable[..., Awaitable[Any]] = (
-            connection_factory or ConnectFactory.create_async_connection
+            connection_factory or ConnectionFactory.create_async_connection
         )
         self._pool_factory: Callable[..., Awaitable[Any]] = pool_factory or PoolFactory.create_async_pool
 

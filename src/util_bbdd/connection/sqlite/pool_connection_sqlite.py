@@ -5,8 +5,8 @@ import logging
 from typing import Any, Literal, cast
 
 from ...database_exceptions import DatabasePoolError, DatabasePoolTimeoutError
-from ..connection_params_manager import ConnectionParamsManager
-from ..sync_close_utils import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_sync_close_operation
+from ..params import ConnectionParamsManager
+from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
 
 
 class PoolConnection:
@@ -143,7 +143,7 @@ class PoolConnection:
         effective_timeout = self._close_timeout_seconds if timeout_seconds is None else timeout_seconds
         connection_ref = self.connection
         try:
-            run_sync_close_operation(
+            run_close_operation_sync(
                 action=lambda: connection_ref.close(),
                 timeout_seconds=effective_timeout,
                 action_name="cierre pool SQLite",
@@ -153,7 +153,7 @@ class PoolConnection:
         except DatabasePoolTimeoutError:
             if force is False:
                 raise
-            run_sync_close_operation(
+            run_close_operation_sync(
                 action=lambda: connection_ref.close(),
                 timeout_seconds=FORCE_CLOSE_TIMEOUT_SECONDS,
                 action_name="reintento forzado pool SQLite",

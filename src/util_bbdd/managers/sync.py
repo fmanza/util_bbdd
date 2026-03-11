@@ -14,10 +14,10 @@ from sqlalchemy.engine.base import Engine
 if TYPE_CHECKING:
     from sqlalchemy.engine.base import Engine
 
-from ..connection.connect_factory import ConnectFactory
-from ..connection.connection_params_manager import ConnectionParamsManager
-from ..connection.pool_protocol import ConnectionPoolProtocol
-from ..connection.sync_close_utils import parse_close_timeout, run_sync_close_operation
+from ..connection.close import parse_close_timeout
+from ..connection.factory import ConnectionFactory
+from ..connection.params import ConnectionParamsManager
+from ..connection.protocols import ConnectionPoolProtocol
 from ..database_exceptions import (
     DatabaseConfigurationError,
     DatabaseConnectionError,
@@ -277,7 +277,7 @@ class DatabaseManager:
             valid_params = self._filter_connection_params(self.db_type)
 
             # Crear conexión usando la factory
-            self._connection = ConnectFactory.create_connection(
+            self._connection = ConnectionFactory.create_connection(
                 self.db_type,
                 valid_params,
                 db_validator=self.db_validator,
@@ -403,7 +403,7 @@ class DatabaseManager:
         self.cursor = None
         if cursor is not None:
             try:
-                run_sync_close_operation(
+                run_close_operation_sync(
                     action=lambda: cursor.close(),
                     timeout_seconds=effective_timeout,
                     action_name=f"cierre cursor {self.db_type}",
@@ -417,7 +417,7 @@ class DatabaseManager:
         self._connection = None
         if connection is not None:
             try:
-                run_sync_close_operation(
+                run_close_operation_sync(
                     action=lambda: connection.close(),
                     timeout_seconds=effective_timeout,
                     action_name=f"cierre conexión {self.db_type}",

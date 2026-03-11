@@ -193,10 +193,10 @@ class TestFactoryBasic:
     """Tests básicos para factory."""
 
     def test_connect_factory_creation(self):
-        """Test: crear ConnectFactory."""
-        from util_bbdd import ConnectFactory
+        """Test: crear ConnectionFactory."""
+        from util_bbdd import ConnectionFactory
 
-        factory = ConnectFactory()
+        factory = ConnectionFactory()
         assert factory is not None
 
     def test_sqlalchemy_engine_factory_creation(self):

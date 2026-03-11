@@ -18,10 +18,10 @@ from ..connection.mariadb.pool_connection_mariadb import (
 from ..connection.oracle.pool_connection_oracle import (
     PoolConnection as OraclePool,
 )
-from ..connection.pool_protocol import ConnectionPoolProtocol
 from ..connection.postgresql.pool_connection_postgresql import (
     PoolConnection as PostgreSQLPool,
 )
+from ..connection.protocols import ConnectionPoolProtocol
 from ..connection.sqlite.pool_connection_sqlite import (
     PoolConnection as SQLitePool,
 )

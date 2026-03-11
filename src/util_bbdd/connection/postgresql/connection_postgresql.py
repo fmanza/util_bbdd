@@ -8,7 +8,7 @@ from psycopg import Connection
 
 from util_bbdd.database_exceptions import DatabaseConnectionError
 
-from ..connection_params_manager import ConnectionParamsManager
+from ..params import ConnectionParamsManager
 
 
 class PostgreSQLConnection:

@@ -40,16 +40,8 @@ from .config import (
     SQLServerConnectionConfig,
     SQLServerPoolConfig,
 )
-
-# ============================================================================
-# Compatibilidad hacia atrás (archivos antiguos - deprecated)
-# ============================================================================
-from .conn_params_builder import build_conn_params as build_conn_params_legacy
-from .connect_factory import ConnectFactory
-from .connection_params_manager import ConnectionParamsManager as ConnectionParamsManagerLegacy
 from .factory import ConnectionFactory
 from .params import ConnectionParamsManager
-from .pool_protocol import ConnectionPoolProtocol as ConnectionPoolProtocolLegacy
 from .protocols import (
     AsyncCloseMode,
     AsyncConnectionProtocol,
@@ -57,8 +49,14 @@ from .protocols import (
     ConnectionPoolProtocol,
 )
 
+# ============================================================================
+# Compatibilidad hacia atrás (archivos antiguos - deprecated)
+# ============================================================================
+# Los archivos wrapper fueron eliminados en PR #16 Phase 3
+# Usar los archivos reales listados arriba
+
 __all__ = [
-    # Consolidados (recomendado)
+    # Consolidados - Core
     "ConnectionFactory",
     "ConnectionParamsManager",
     "build_conn_params",
@@ -72,7 +70,7 @@ __all__ = [
     "run_close_operation_async",
     "DEFAULT_CLOSE_TIMEOUT_SECONDS",
     "FORCE_CLOSE_TIMEOUT_SECONDS",
-    # Configs (consolidados)
+    # Configs
     "MariaDBConnectionConfig",
     "MariaDBPoolConfig",
     "OracleConnectionConfig",
@@ -84,9 +82,4 @@ __all__ = [
     "SQLServerConnectionConfig",
     "SQLServerPoolConfig",
     "HSQLDBConnectionConfig",
-    # Compatibilidad hacia atrás (deprecated)
-    "ConnectFactory",
-    "ConnectionParamsManagerLegacy",
-    "build_conn_params_legacy",
-    "ConnectionPoolProtocolLegacy",
 ]

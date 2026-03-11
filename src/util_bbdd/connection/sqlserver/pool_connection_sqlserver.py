@@ -7,9 +7,9 @@ from threading import Lock
 from typing import Any
 
 from ...database_exceptions import DatabasePoolError, DatabasePoolTimeoutError
-from ..connection_params_manager import ConnectionParamsManager
+from ..params import ConnectionParamsManager
 from ..sqlserver.connection_sqlserver import SQLServerConnection
-from ..sync_close_utils import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_sync_close_operation
+from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
 
 
 class PoolConnection:
@@ -184,7 +184,7 @@ class PoolConnection:
         return leased_connections
 
     def _close_with_timeout(self, connection: Any, timeout_seconds: float | None, action_name: str) -> None:
-        run_sync_close_operation(
+        run_close_operation_sync(
             action=lambda conn=connection: conn.close(),
             timeout_seconds=timeout_seconds,
             action_name=action_name,

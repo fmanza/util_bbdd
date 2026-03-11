@@ -5,8 +5,8 @@ import logging
 from typing import TYPE_CHECKING
 
 from ...database_exceptions import DatabasePoolError, DatabasePoolTimeoutError
-from ..connection_params_manager import ConnectionParamsManager
-from ..sync_close_utils import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_sync_close_operation
+from ..params import ConnectionParamsManager
+from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
 
 try:
     from psycopg_pool import ConnectionPool as PsycopgConnectionPool
@@ -168,7 +168,7 @@ class PoolConnection:
                 close_method()
 
         try:
-            run_sync_close_operation(
+            run_close_operation_sync(
                 action=lambda: _close_with_optional_timeout(effective_timeout),
                 timeout_seconds=effective_timeout,
                 action_name="cierre pool PostgreSQL",
@@ -184,14 +184,14 @@ class PoolConnection:
                 def _terminate_pool() -> None:
                     _ = terminate()
 
-                run_sync_close_operation(
+                run_close_operation_sync(
                     action=_terminate_pool,
                     timeout_seconds=FORCE_CLOSE_TIMEOUT_SECONDS,
                     action_name="terminación forzada pool PostgreSQL",
                     db_type="postgresql",
                 )
             else:
-                run_sync_close_operation(
+                run_close_operation_sync(
                     action=lambda: _close_with_optional_timeout(0.0),
                     timeout_seconds=FORCE_CLOSE_TIMEOUT_SECONDS,
                     action_name="reintento forzado pool PostgreSQL",

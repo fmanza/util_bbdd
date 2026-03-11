@@ -10,14 +10,14 @@ from typing import Any
 from util_bbdd.database_exceptions import DatabaseConnectionError
 
 from ...async_utils import maybe_await
-from ..async_close_utils import (
+from ..close import (
     FORCE_CLOSE_TIMEOUT_SECONDS,
     AsyncCloseMode,
     normalize_close_mode,
     parse_close_timeout,
-    run_close_operation,
+    run_close_operation_async,
 )
-from ..connection_params_manager import ConnectionParamsManager
+from ..params import ConnectionParamsManager
 
 
 class AsyncMariaDBPool:
