@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from util_bbdd import AsyncDatabaseManager
+from util_bbdd.connection.factory import ConnectionFactory
 from util_bbdd.factory.pool_factory import PoolFactory
 
 

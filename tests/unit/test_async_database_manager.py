@@ -6,7 +6,7 @@ import pytest
 
 from util_bbdd.database_exceptions import DatabaseOperationError, QueryNotFoundError
 from util_bbdd.managers import AsyncDatabaseManager
-from util_bbdd.metadata_cache import DatabaseMetadataCache, RelationshipMetadataCache
+from util_bbdd.metadata import DatabaseMetadataCache, RelationshipMetadataCache
 
 
 class TestAsyncDatabaseManagerInit:

@@ -6,6 +6,7 @@ import asyncio
 
 import pytest
 
+from util_bbdd.connection.factory import ConnectionFactory
 from util_bbdd.connection.protocols import AsyncConnectionProtocol, AsyncPoolProtocol
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from util_bbdd.result_normalizer import ResultNormalizer
+from util_bbdd.results import ResultNormalizer
 
 
 class TestResultNormalizer:

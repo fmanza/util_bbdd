@@ -1,7 +1,6 @@
 """Tests para AsyncQueryExecutor (contrato)"""
 
 import asyncio
-import tempfile
 
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -15,10 +14,10 @@ from util_bbdd.database_exceptions import (
     QueryValidationError,
 )
 from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
-from util_bbdd.query_registry import QueryRegistry
+from util_bbdd.query import QueryRegistry
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def queries_data():
     """Crea datos de queries para testing"""
     return {
@@ -32,19 +31,14 @@ def queries_data():
     }
 
 
-@pytest.fixture
-def temp_queries_file(queries_data):
+@pytest.fixture(scope="module")
+def temp_queries_file(queries_data, tmp_path_factory: pytest.TempPathFactory):
     """Crea un archivo temporal con queries de test"""
     import json
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        json.dump(queries_data, f)
-        temp_path = f.name
-
-    yield Path(temp_path)
-
-    # Cleanup
-    Path(temp_path).unlink()
+    temp_path = tmp_path_factory.mktemp("async_executor_contract") / "async_executor_queries.json"
+    temp_path.write_text(json.dumps(queries_data), encoding="utf-8")
+    return temp_path
 
 
 class TestAsyncExecutorBasics:
@@ -199,17 +193,17 @@ class TestAsyncExecutorTimeout:
     @pytest.mark.asyncio
     async def test_timeout_during_execution(self, temp_queries_file):
         """Test que se lanza QueryTimeoutError cuando se excede timeout"""
+        blocker = asyncio.Event()
 
-        # Create a mock that sleeps to trigger the timeout
+        # Create a mock that blocks until cancellation by timeout
         async def mock_provider():
             conn = AsyncMock()
             cursor = AsyncMock()
 
-            # Make execute() sleep to trigger timeout
-            async def slow_execute(sql, params):
-                await asyncio.sleep(5)
+            async def blocking_execute(*_args, **_kwargs):
+                await blocker.wait()
 
-            cursor.execute = slow_execute
+            cursor.execute = blocking_execute
             cursor.fetchall = AsyncMock(return_value=[])
             conn.cursor = AsyncMock(return_value=cursor)
             return conn

@@ -9,8 +9,7 @@ import pytest
 from util_bbdd.database_exceptions import DatabaseOperationError, QueryParameterError
 from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
-from util_bbdd.query_registry import QueryRegistry
-from util_bbdd.query_resolver import QueryResolver
+from util_bbdd.query import QueryRegistry, QueryResolver
 
 
 def test_sync_executor_wraps_custom_errors_with_cause() -> None:

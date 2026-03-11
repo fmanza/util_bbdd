@@ -11,7 +11,7 @@ import pytest
 
 from util_bbdd.database_exceptions import QueryNotFoundError
 from util_bbdd.models import QueryDefinition
-from util_bbdd.query_registry import QueryRegistry
+from util_bbdd.query import QueryRegistry
 
 
 class TestQueryRegistryLoad:

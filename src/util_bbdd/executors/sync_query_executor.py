@@ -1,6 +1,7 @@
 """Ejecutor de queries sync."""
 
 import logging
+import re
 import time
 
 from typing import Any, cast
@@ -47,6 +48,18 @@ class SyncQueryExecutor:
             raise QueryTimeoutError(message)
 
     @staticmethod
+    def _sql_uses_bind_params(sql: str, params: dict[str, Any]) -> bool:
+        if not params:
+            return False
+        if re.search(r"%\([A-Za-z_][A-Za-z0-9_]*\)s", sql):
+            return True
+        if "%s" in sql:
+            return True
+        if "?" in sql:
+            return True
+        return re.search(r"(?<!:):[A-Za-z_][A-Za-z0-9_]*", sql) is not None
+
+    @staticmethod
     def _decode_binary_value(value: Any) -> Any:
         """Decodifica valores binarios de MariaDB con fallback multi-codec."""
         if isinstance(value, tuple):
@@ -82,6 +95,28 @@ class SyncQueryExecutor:
 
         # Si todos fallan, retorna como HEX para preservar información
         return f"0x{raw.hex().upper()}"
+
+    @staticmethod
+    def _is_lob_value(value: Any) -> bool:
+        try:
+            read = value.read
+        except AttributeError:
+            return False
+        return callable(read)
+
+    def _materialize_lob_value(self, value: Any) -> Any:
+        """Materializa LOB/CLOB/BLOB mientras la conexión sigue abierta."""
+        if isinstance(value, tuple):
+            return tuple(self._materialize_lob_value(item) for item in value)
+        if isinstance(value, list):
+            return [self._materialize_lob_value(item) for item in value]
+        if self._is_lob_value(value):
+            try:
+                return value.read()
+            except Exception:
+                self.logger.debug("No se pudo materializar LOB en sync", exc_info=True)
+                return ""
+        return value
 
     @staticmethod
     def _is_mariadb_connection(conn: Any) -> bool:
@@ -125,7 +160,12 @@ class SyncQueryExecutor:
         try:
             self._raise_if_timed_out(deadline, timeout_msg)
             binary_cursor = conn.cursor(binary=True)
-            binary_cursor.execute(sql, params or {})
+
+            if params:
+                binary_cursor.execute(sql, params)
+            else:
+                binary_cursor.execute(sql)
+
             self._raise_if_timed_out(deadline, timeout_msg)
 
             if expect_one:
@@ -157,8 +197,12 @@ class SyncQueryExecutor:
     ) -> RowOrNone | Rows:
         try:
             if expect_one:
-                return self.result_normalizer.normalize_one(cursor.fetchone())
-            return self.result_normalizer.normalize_many(cursor.fetchall())
+                raw_one = cursor.fetchone()
+                materialized_one = self._materialize_lob_value(raw_one)
+                return self.result_normalizer.normalize_one(materialized_one)
+            raw_many = cursor.fetchall()
+            materialized_many = self._materialize_lob_value(raw_many)
+            return self.result_normalizer.normalize_many(materialized_many)
         except Exception as err:
             if db_type != "mariadb" and not self._is_mariadb_connection(conn):
                 raise
@@ -197,7 +241,10 @@ class SyncQueryExecutor:
             self._raise_if_timed_out(deadline, timeout_msg)
 
             cursor = conn.cursor()
-            cursor.execute(resolved.final_sql, params or {})
+            if self._sql_uses_bind_params(resolved.final_sql, params):
+                cursor.execute(resolved.final_sql, params)
+            else:
+                cursor.execute(resolved.final_sql)
             self._raise_if_timed_out(deadline, timeout_msg)
 
             result = self._fetch_with_decode_fallback(
@@ -251,7 +298,7 @@ class SyncQueryExecutor:
         cursor = None
         start_time: float = time.time()
         timeout_msg = "Custom query execution exceeded timeout"
-        deadline = self._build_deadline(timeout)
+        deadline: float | None = self._build_deadline(timeout)
 
         try:
             self._raise_if_timed_out(deadline, timeout_msg)
@@ -259,7 +306,10 @@ class SyncQueryExecutor:
             self._raise_if_timed_out(deadline, timeout_msg)
 
             cursor = conn.cursor()
-            cursor.execute(sql, params or {})
+            if params:
+                cursor.execute(sql, params)
+            else:
+                cursor.execute(sql)
             self._raise_if_timed_out(deadline, timeout_msg)
 
             db_type_hint: str = "mariadb" if self._is_mariadb_connection(conn) else "unknown"

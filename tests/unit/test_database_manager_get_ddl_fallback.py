@@ -8,7 +8,7 @@ import pytest
 
 from util_bbdd.database_exceptions import DatabaseOperationError
 from util_bbdd.managers import DatabaseManager
-from util_bbdd.metadata_cache import DatabaseMetadataCache
+from util_bbdd.metadata import DatabaseMetadataCache
 
 
 def _build_wrapped_decode_error() -> DatabaseOperationError:

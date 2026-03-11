@@ -1,7 +1,5 @@
 """Tests para SyncQueryExecutor (contrato)"""
 
-import tempfile
-
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -14,10 +12,10 @@ from util_bbdd.database_exceptions import (
     QueryValidationError,
 )
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
-from util_bbdd.query_registry import QueryRegistry
+from util_bbdd.query import QueryRegistry
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def queries_data():
     """Crea datos de queries para testing"""
     return {
@@ -31,19 +29,14 @@ def queries_data():
     }
 
 
-@pytest.fixture
-def temp_queries_file(queries_data):
+@pytest.fixture(scope="module")
+def temp_queries_file(queries_data, tmp_path_factory: pytest.TempPathFactory):
     """Crea un archivo temporal con queries de test"""
     import json
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        json.dump(queries_data, f)
-        temp_path = f.name
-
-    yield Path(temp_path)
-
-    # Cleanup
-    Path(temp_path).unlink()
+    temp_path = tmp_path_factory.mktemp("sync_executor_contract") / "sync_executor_queries.json"
+    temp_path.write_text(json.dumps(queries_data), encoding="utf-8")
+    return temp_path
 
 
 class TestSyncExecutorBasics:
@@ -260,17 +253,20 @@ class TestSyncExecutorFetchOptions:
 class TestSyncExecutorTimeout:
     """Pruebas de timeout en sync"""
 
-    def test_timeout_during_execute_query_many(self, temp_queries_file):
+    def test_timeout_during_execute_query_many(self, temp_queries_file, monkeypatch: pytest.MonkeyPatch):
         """Lanza QueryTimeoutError cuando execute_query_many excede timeout."""
-        import time
-
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
 
-        def slow_execute(sql, params):
-            time.sleep(0.05)
+        def execute_noop(*_args, **_kwargs):
+            return None
 
-        mock_cursor.execute.side_effect = slow_execute
+        ticks = iter([100.0, 100.0, 100.0, 100.02])
+        monkeypatch.setattr(
+            "util_bbdd.executors.sync_query_executor.time.monotonic",
+            lambda: next(ticks, 100.02),
+        )
+        mock_cursor.execute.side_effect = execute_noop
         mock_cursor.fetchall.return_value = []
         mock_conn.cursor.return_value = mock_cursor
 
@@ -285,17 +281,20 @@ class TestSyncExecutorTimeout:
 
         releaser.assert_called_once_with(mock_conn)
 
-    def test_timeout_during_execute_custom_many(self, temp_queries_file):
+    def test_timeout_during_execute_custom_many(self, temp_queries_file, monkeypatch: pytest.MonkeyPatch):
         """Lanza QueryTimeoutError cuando execute_custom_many excede timeout."""
-        import time
-
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
 
-        def slow_execute(sql, params):
-            time.sleep(0.05)
+        def execute_noop(*_args, **_kwargs):
+            return None
 
-        mock_cursor.execute.side_effect = slow_execute
+        ticks = iter([200.0, 200.0, 200.02])
+        monkeypatch.setattr(
+            "util_bbdd.executors.sync_query_executor.time.monotonic",
+            lambda: next(ticks, 200.02),
+        )
+        mock_cursor.execute.side_effect = execute_noop
         mock_cursor.fetchall.return_value = []
         mock_conn.cursor.return_value = mock_cursor
 

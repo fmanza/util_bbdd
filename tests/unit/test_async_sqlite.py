@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import sys
 
+import pytest
+
 from util_bbdd import AsyncDatabaseManager
 from util_bbdd.connection.sqlite.async_connection_sqlite import AsyncSQLiteConnection
 from util_bbdd.connection.sqlite.async_pool_connection_sqlite import AsyncSQLitePool
@@ -100,6 +102,7 @@ def test_async_database_manager_sqlite_pool(monkeypatch):
     asyncio.run(_run())
 
 
+@pytest.mark.slow
 def test_async_sqlite_pool_close_timeout_does_not_block(monkeypatch):
     hanging_conn = _HangingSQLiteConn()
     _install_fake_aiosqlite_with_conn(monkeypatch, hanging_conn)

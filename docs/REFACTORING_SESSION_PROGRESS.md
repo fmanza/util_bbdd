@@ -319,3 +319,46 @@ managers/
 *Documento generado: 2026-03-11*
 *Autor: Automated Refactoring Session*
 *Estado: READY FOR REVIEW* ✅
+
+---
+
+## 🔧 Update 2026-03-12: Fase 3 Tests (Performance + Determinismo)
+
+### Cambios ejecutados
+- Eliminado `time.sleep()` real en tests de timeout, reemplazado por enfoque determinista (`monkeypatch` + `Event`).
+- `tests/integration/conftest.py` simplificado con `tmp_path` y sin pausas artificiales en teardown.
+- Fixtures estáticas optimizadas a `scope="module"` en suites de contrato de ejecutores:
+  - `tests/unit/test_sync_executor_contract.py`
+  - `tests/unit/test_async_executor_contract.py`
+  - `tests/unit/test_timeout_behavior.py`
+- Corrección de regresión en executors sync/async:
+  - SQL resuelto usa binds solo cuando el SQL final conserva placeholders (`:name`, `%s`, `%(name)s`, `?`).
+  - Se mantiene contrato existente de no pasar binds cuando la query ya quedó interpolada.
+- Correcciones de tests async por import faltante de `ConnectionFactory`.
+- Unificación de contrato de errores de cierre en `connection/close.py` para lanzar `DatabasePoolTimeoutError` / `DatabasePoolError`.
+
+### Validación
+- `pytest -q -m "unit and not slow"`: **431 passed, 20 deselected** en **1.35s**
+- `pytest -q -m "not slow"`: **450 passed, 1 deselected** en **2.91s**
+- `pytest -q`: **451 passed** en **3.92s**
+
+### Resultado
+- FASE 3 ejecutada con criterios de rendimiento y determinismo cumplidos.
+- Suite completa en verde con comportamiento consistente.
+
+---
+
+## ✅ Update 2026-03-12: Fase 4 (Limpieza + Endurecimiento)
+
+### Cierre de fase
+- `--strict-markers` validado en ejecución real.
+- Verificación de markers de alcance sobre la colección completa (`451 tests collected` con `unit|integration|contract|e2e`).
+- Limpieza consolidada de tests obsoletos en raíz tras migración a `tests/unit`.
+- Documento de conclusión creado: `docs/REFACTORING_PHASE4_CONCLUSION.md`.
+
+### Validación final
+- `pytest --strict-markers -q`: **451 passed**
+- `pytest -q -m unit`: **432 passed, 19 deselected**
+- `pytest -q -m integration`: **19 passed, 432 deselected**
+- `pytest --durations=20 -q`: **451 passed in 5.56s**
+- `pytest -q`: **451 passed**

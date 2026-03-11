@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from util_bbdd.models import QueryDefinition
-from util_bbdd.query_registry import QueryRegistry
+from util_bbdd.query import QueryRegistry
 from util_bbdd.validators import get_type_validator
 
 

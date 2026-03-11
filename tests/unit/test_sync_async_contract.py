@@ -9,7 +9,7 @@ import pytest
 
 from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
-from util_bbdd.query_registry import QueryRegistry
+from util_bbdd.query import QueryRegistry
 
 
 @pytest.fixture

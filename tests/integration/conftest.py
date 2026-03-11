@@ -5,9 +5,6 @@ Proporciona engines, conexiones y datos para tests de crud, validación y flujos
 
 import gc
 import json
-import os
-import tempfile
-import time
 
 from collections.abc import Generator
 from pathlib import Path
@@ -92,16 +89,9 @@ SEED_DATA = [
 
 
 @pytest.fixture(scope="function")
-def sqlite_db_path() -> Generator[str, None, None]:
+def sqlite_db_path(tmp_path: Path) -> str:
     """Proporciona una BD SQLite temporal para cada test."""
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = os.path.join(tmpdir, "test_e2e.db")
-        yield db_path
-
-        # Cleanup mejorado: Dar tiempo para que se liberen conexiones
-        gc.collect()  # Forzar garbage collection
-        time.sleep(0.1)  # Pequeña pausa para liberar handles
+    return str(tmp_path / "test_e2e.db")
 
 
 @pytest.fixture(scope="function")
@@ -165,10 +155,9 @@ def sqlite_engine_with_schema(sqlite_engine: Engine) -> Generator[Engine, None, 
 @pytest.fixture(scope="function")
 def sql_queries_json_path(sqlite_db_path: str) -> Generator[str, None, None]:
     """Proporciona la ruta a sql_queries.json temporal."""
-    json_dir = os.path.dirname(sqlite_db_path)
-    json_path = os.path.join(json_dir, "sql_queries.json")
+    json_path = str(Path(sqlite_db_path).with_name("sql_queries.json"))
 
-    with open(json_path, "w") as f:
+    with open(json_path, "w", encoding="utf-8") as f:
         json.dump(SQL_QUERIES_JSON, f)
 
     yield json_path
@@ -195,8 +184,7 @@ async def async_manager_with_schema(
     sqlite_engine_with_schema: Engine, sqlite_db_path: str, sql_queries_json_path: str
 ) -> AsyncDatabaseManager:
     """Proporciona un AsyncDatabaseManager configurado con schema."""
-    from util_bbdd.query_registry import QueryRegistry
-    from util_bbdd.query_resolver import QueryResolver
+    from util_bbdd.query import QueryRegistry, QueryResolver
 
     manager = AsyncDatabaseManager(
         db_type="sqlite",
@@ -223,7 +211,6 @@ async def async_manager_with_schema(
         pass
     finally:
         gc.collect()
-        time.sleep(0.1)
 
 
 # =====================================================================

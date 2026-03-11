@@ -9,7 +9,7 @@ import pytest
 
 from util_bbdd.database_exceptions import QueryParameterError, QueryValidationError
 from util_bbdd.models import QueryDefinition, ResolvedQuery
-from util_bbdd.query_resolver import QueryResolver
+from util_bbdd.query import QueryResolver
 
 
 @pytest.fixture

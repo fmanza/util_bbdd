@@ -17,8 +17,8 @@ from util_bbdd.database_exceptions import (
 from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
 from util_bbdd.managers import AsyncDatabaseManager, DatabaseManager
-from util_bbdd.metadata_contracts import AsyncMetadataProvider, SyncMetadataProvider
-from util_bbdd.result_types import QueryResult, Row, RowOrNone, Rows
+from util_bbdd.metadata import AsyncMetadataProvider, SyncMetadataProvider
+from util_bbdd.results import QueryResult, Row, RowOrNone, Rows
 
 
 def test_result_type_aliases_shape() -> None:

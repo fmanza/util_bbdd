@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from util_bbdd.managers import AsyncDatabaseManager
-from util_bbdd.metadata_cache import DatabaseMetadataCache, RelationshipMetadataCache
+from util_bbdd.metadata import DatabaseMetadataCache, RelationshipMetadataCache
 
 
 class TestAsyncDatabaseManagerCache:

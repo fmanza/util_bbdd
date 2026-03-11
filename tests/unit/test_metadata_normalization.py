@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from util_bbdd.async_utils import maybe_await
-from util_bbdd.metadata_normalization import normalize_column_rows, normalize_table_rows
+from util_bbdd.metadata import normalize_column_rows, normalize_table_rows
 
 
 def test_normalize_table_rows_extracts_name_and_raw() -> None:
