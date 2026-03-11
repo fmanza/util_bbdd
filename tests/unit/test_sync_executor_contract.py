@@ -183,6 +183,79 @@ class TestSyncExecutorFetchOptions:
         assert result == [("table1",), ("table2",), ("table3",)]
         mock_cursor.fetchall.assert_called_once()
 
+    def test_execute_query_one_mariadb_decode_fallback_uses_binary_cursor(self, temp_queries_file):
+        """Si fetchone falla por decode en MariaDB, reintenta en cursor binario."""
+        text_cursor = MagicMock()
+        binary_cursor = MagicMock()
+        text_cursor.fetchone.side_effect = UnicodeDecodeError(
+            "utf-8",
+            b"\xd3",
+            0,
+            1,
+            "invalid continuation byte",
+        )
+        binary_cursor.fetchone.return_value = (b"CREATE TABLE t (\xd3)",)
+
+        mock_conn = MagicMock()
+
+        def _cursor_factory(*args, **kwargs):
+            if kwargs.get("binary") is True:
+                return binary_cursor
+            return text_cursor
+
+        mock_conn.cursor.side_effect = _cursor_factory
+
+        provider = MagicMock(return_value=mock_conn)
+        releaser = MagicMock()
+
+        registry = QueryRegistry(temp_queries_file)
+        executor = SyncQueryExecutor(provider, releaser, registry)
+
+        result = executor.execute_query_one("obtener_tablas", "mariadb", {"database": "test_db"})
+
+        assert result == ("CREATE TABLE t (Ó)",)
+        assert mock_conn.cursor.call_count == 2
+        binary_cursor.close.assert_called_once()
+        releaser.assert_called_once_with(mock_conn)
+
+    def test_execute_query_one_mariadb_wrapped_decode_error_uses_binary_cursor(self, temp_queries_file):
+        """Reintenta también cuando fetchone lanza SystemError con causa UnicodeDecodeError."""
+        text_cursor = MagicMock()
+        binary_cursor = MagicMock()
+
+        def _broken_fetchone():
+            try:
+                raise UnicodeDecodeError("utf-8", b"\xd3", 0, 1, "invalid continuation byte")
+            except UnicodeDecodeError as decode_err:
+                raise SystemError(
+                    "<method 'fetchone' of 'mariadb.cursor' objects> returned a result with an exception set"
+                ) from decode_err
+
+        text_cursor.fetchone.side_effect = _broken_fetchone
+        binary_cursor.fetchone.return_value = (b"CREATE TABLE t (\xd3)",)
+
+        mock_conn = MagicMock()
+
+        def _cursor_factory(*args, **kwargs):
+            if kwargs.get("binary") is True:
+                return binary_cursor
+            return text_cursor
+
+        mock_conn.cursor.side_effect = _cursor_factory
+
+        provider = MagicMock(return_value=mock_conn)
+        releaser = MagicMock()
+
+        registry = QueryRegistry(temp_queries_file)
+        executor = SyncQueryExecutor(provider, releaser, registry)
+
+        result = executor.execute_query_one("obtener_tablas", "mariadb", {"database": "test_db"})
+
+        assert result == ("CREATE TABLE t (Ó)",)
+        assert mock_conn.cursor.call_count == 2
+        binary_cursor.close.assert_called_once()
+        releaser.assert_called_once_with(mock_conn)
+
 
 class TestSyncExecutorTimeout:
     """Pruebas de timeout en sync"""

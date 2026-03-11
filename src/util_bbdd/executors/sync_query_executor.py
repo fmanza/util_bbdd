@@ -3,7 +3,7 @@
 import logging
 import time
 
-from typing import Any
+from typing import Any, cast
 
 from ..database_exceptions import (
     DatabaseOperationError,
@@ -47,6 +47,134 @@ class SyncQueryExecutor:
         if time.monotonic() >= deadline:
             raise QueryTimeoutError(message)
 
+    @staticmethod
+    def _decode_binary_value(value: Any) -> Any:
+        """Decodifica valores binarios de MariaDB con fallback multi-codec."""
+        if isinstance(value, tuple):
+            return tuple(SyncQueryExecutor._decode_binary_value(item) for item in value)
+        if isinstance(value, list):
+            return [SyncQueryExecutor._decode_binary_value(item) for item in value]
+        if isinstance(value, (bytes, bytearray, memoryview)):
+            return SyncQueryExecutor._safe_decode_bytes(bytes(value))
+        return value
+
+    @staticmethod
+    def _safe_decode_bytes(raw: bytes) -> str | bytes:
+        """Decodifica bytes con estrategia multi-codec fallback.
+
+        Intenta decodificar en orden de probabilidad:
+        1. utf-8 (más probable para Latin)
+        2. cp1252 (Windows encoding)
+        3. iso-8859-1 / latin-1 (universal)
+        4. utf-16 (para datos internacionales específicos)
+        5. HEX encoding (último recurso)
+        """
+        if not raw:
+            return ""
+
+        # Intenta decodificadores en orden de probabilidad
+        decoders = ["utf-8", "cp1252", "iso-8859-1", "latin-1", "utf-16"]
+
+        for codec in decoders:
+            try:
+                return raw.decode(codec)
+            except (UnicodeDecodeError, LookupError):
+                continue
+
+        # Si todos fallan, retorna como HEX para preservar información
+        return f"0x{raw.hex().upper()}"
+
+    @staticmethod
+    def _is_mariadb_connection(conn: Any) -> bool:
+        module_name: str = str(type(conn).__module__).lower()
+        return "mariadb" in module_name
+
+    @staticmethod
+    def _iter_exception_chain(err: BaseException) -> list[BaseException]:
+        """Obtiene la cadena de errores enlazados sin bucles."""
+        chain: list[BaseException] = []
+        seen: set[int] = set()
+        current: BaseException | None = err
+        while current is not None and id(current) not in seen:
+            seen.add(id(current))
+            chain.append(current)
+            next_error = current.__cause__ if current.__cause__ is not None else current.__context__
+            current = next_error
+        return chain
+
+    @staticmethod
+    def _is_decode_error(err: BaseException) -> bool:
+        for item in SyncQueryExecutor._iter_exception_chain(err):
+            if isinstance(item, UnicodeDecodeError):
+                return True
+            message = str(item).lower()
+            if "codec can't decode" in message:
+                return True
+        return False
+
+    def _retry_fetch_with_binary_cursor(
+        self,
+        *,
+        conn: Any,
+        sql: str,
+        params: dict[str, Any],
+        expect_one: bool,
+        deadline: float | None,
+        timeout_msg: str,
+    ) -> RowOrNone | Rows:
+        binary_cursor = None
+        try:
+            self._raise_if_timed_out(deadline, timeout_msg)
+            binary_cursor = conn.cursor(binary=True)
+            binary_cursor.execute(sql, params or {})
+            self._raise_if_timed_out(deadline, timeout_msg)
+
+            if expect_one:
+                fetched = binary_cursor.fetchone()
+                decoded = self._decode_binary_value(fetched)
+                return self.result_normalizer.normalize_one(decoded)
+
+            fetched = binary_cursor.fetchall()
+            decoded = self._decode_binary_value(fetched)
+            return self.result_normalizer.normalize_many(decoded)
+        finally:
+            if binary_cursor and hasattr(binary_cursor, "close"):
+                try:
+                    binary_cursor.close()
+                except Exception:
+                    self.logger.debug("No se pudo cerrar cursor binario sync", exc_info=True)
+
+    def _fetch_with_decode_fallback(
+        self,
+        *,
+        cursor: Any,
+        conn: Any,
+        sql: str,
+        params: dict[str, Any],
+        expect_one: bool,
+        db_type: str,
+        deadline: float | None,
+        timeout_msg: str,
+    ) -> RowOrNone | Rows:
+        try:
+            if expect_one:
+                return self.result_normalizer.normalize_one(cursor.fetchone())
+            return self.result_normalizer.normalize_many(cursor.fetchall())
+        except Exception as err:
+            if db_type != "mariadb" and not self._is_mariadb_connection(conn):
+                raise
+            if not self._is_decode_error(err):
+                raise
+            self.logger.warning("Error de decodificación en fetch para MariaDB. Reintentando con cursor binario.")
+            return self._retry_fetch_with_binary_cursor(
+                conn=conn,
+                sql=sql,
+                params=params,
+                expect_one=expect_one,
+                deadline=deadline,
+                timeout_msg=timeout_msg,
+            )
+
     def _execute_resolved(
         self,
         query_name: str,
@@ -73,12 +201,20 @@ class SyncQueryExecutor:
             cursor.execute(resolved.final_sql, params or {})
             self._raise_if_timed_out(deadline, timeout_msg)
 
+            result = self._fetch_with_decode_fallback(
+                cursor=cursor,
+                conn=conn,
+                sql=resolved.final_sql,
+                params=params,
+                expect_one=expect_one,
+                db_type=db_type,
+                deadline=deadline,
+                timeout_msg=timeout_msg,
+            )
             if expect_one:
-                result = self.result_normalizer.normalize_one(cursor.fetchone())
                 result_rows = 1 if result is not None else 0
             else:
-                result = self.result_normalizer.normalize_many(cursor.fetchall())
-                result_rows = len(result)
+                result_rows = len(cast(Rows, result))
             self._raise_if_timed_out(deadline, timeout_msg)
 
             elapsed_ms: float = (time.time() - start_time) * 1000
@@ -127,12 +263,21 @@ class SyncQueryExecutor:
             cursor.execute(sql, params or {})
             self._raise_if_timed_out(deadline, timeout_msg)
 
+            db_type_hint: str = "mariadb" if self._is_mariadb_connection(conn) else "unknown"
+            result = self._fetch_with_decode_fallback(
+                cursor=cursor,
+                conn=conn,
+                sql=sql,
+                params=params or {},
+                expect_one=expect_one,
+                db_type=db_type_hint,
+                deadline=deadline,
+                timeout_msg=timeout_msg,
+            )
             if expect_one:
-                result = self.result_normalizer.normalize_one(cursor.fetchone())
                 result_rows = 1 if result is not None else 0
             else:
-                result = self.result_normalizer.normalize_many(cursor.fetchall())
-                result_rows = len(result)
+                result_rows = len(cast(Rows, result))
             self._raise_if_timed_out(deadline, timeout_msg)
 
             elapsed_ms: float = (time.time() - start_time) * 1000

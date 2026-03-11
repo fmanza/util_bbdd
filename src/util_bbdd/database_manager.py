@@ -721,6 +721,275 @@ class DatabaseManager:
                 return text
         return ""
 
+    @staticmethod
+    def _iter_exception_chain(err: BaseException) -> list[BaseException]:
+        chain: list[BaseException] = []
+        seen: set[int] = set()
+        current: BaseException | None = err
+        while current is not None and id(current) not in seen:
+            seen.add(id(current))
+            chain.append(current)
+            current = current.__cause__ if current.__cause__ is not None else current.__context__
+        return chain
+
+    def _is_mariadb_show_create_decode_error(self, err: BaseException) -> bool:
+        return self._is_mariadb_decode_error(err)
+
+    def _is_mariadb_decode_error(self, err: BaseException) -> bool:
+        if self.db_type != "mariadb":
+            return False
+        for item in self._iter_exception_chain(err):
+            if isinstance(item, UnicodeDecodeError):
+                return True
+            text = str(item).lower()
+            if "mariadb.cursor" in text and "exception set" in text:
+                return True
+            if "codec can't decode" in text:
+                return True
+        return False
+
+    @staticmethod
+    def _escape_sql_literal(value: str) -> str:
+        return str(value).replace("'", "''")
+
+    @staticmethod
+    def _decode_mariadb_hex_text(value: Any) -> str:
+        if value is None:
+            return ""
+        raw_hex: str = str(value).strip()
+        if not raw_hex:
+            return ""
+        try:
+            raw_bytes = bytes.fromhex(raw_hex)
+        except ValueError:
+            return str(value)
+        try:
+            return raw_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            return raw_bytes.decode("latin-1")
+
+    def _fetch_mariadb_columns_safe(self, context_database: str, tabla: str) -> Rows:
+        escaped_database = self._escape_sql_literal(context_database)
+        escaped_table = self._escape_sql_literal(tabla)
+        sql = (
+            "SELECT HEX(COLUMN_NAME) AS column_name_hex, "
+            "HEX(COLUMN_TYPE) AS column_type_hex, "
+            "IS_NULLABLE, "
+            "COLUMN_KEY, "
+            "CASE WHEN COLUMN_DEFAULT IS NULL THEN 1 ELSE 0 END AS default_is_null, "
+            "HEX(CAST(COLUMN_DEFAULT AS BINARY)) AS column_default_hex, "
+            "HEX(COALESCE(EXTRA, '')) AS extra_hex, "
+            "HEX(COALESCE(COLUMN_COMMENT, '')) AS column_comment_hex "
+            "FROM information_schema.columns "
+            f"WHERE table_schema = '{escaped_database}' AND table_name = '{escaped_table}' "
+            "ORDER BY ordinal_position"
+        )
+        safe_rows: Rows = self.execute_custom_many(sql)
+        decoded_rows: Rows = []
+        for row in safe_rows:
+            if not isinstance(row, (tuple, list)) or len(row) < 8:
+                continue
+
+            default_is_null = str(row[4]).strip() in {"1", "True", "true"}
+            column_default: str | None = None
+            if not default_is_null:
+                column_default = self._decode_mariadb_hex_text(row[5])
+
+            decoded_rows.append(
+                (
+                    self._decode_mariadb_hex_text(row[0]),
+                    self._decode_mariadb_hex_text(row[1]),
+                    str(row[2]),
+                    str(row[3]),
+                    column_default,
+                    self._decode_mariadb_hex_text(row[6]),
+                    self._decode_mariadb_hex_text(row[7]),
+                )
+            )
+        return decoded_rows
+
+    @staticmethod
+    def _quote_identifier_mariadb(identifier: str) -> str:
+        safe_identifier = str(identifier).replace("`", "``")
+        return f"`{safe_identifier}`"
+
+    def _fetch_mariadb_view_from_information_schema(self, database: str, view_name: str) -> str:
+        """Obtiene DDL de vista MariaDB desde INFORMATION_SCHEMA cuando SHOW CREATE VIEW falla."""
+        escaped_view = self._escape_sql_literal(view_name)
+        sql: str = f"""
+            SELECT VIEW_DEFINITION
+            FROM information_schema.views
+            WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = '{escaped_view}'
+            LIMIT 1
+        """
+        try:
+            result = self.execute_custom_one(sql)
+            if result and len(result) > 0 and result[0]:
+                view_def = str(result[0]).strip()
+                if view_def:
+                    return f"CREATE OR REPLACE VIEW `{view_name}` AS\n{view_def}"
+            return f"-- View {view_name} definition unavailable (fallback)\n"
+        except Exception as e:
+            self.logger.warning("Fallback para vista %s también falló: %s", view_name, e)
+            return f"-- View {view_name} definition unavailable\n"
+
+    def _fetch_mariadb_routine_from_information_schema(
+        self, database: str, routine_name: str, routine_type: str
+    ) -> str:
+        """Obtiene DDL de rutina MariaDB desde INFORMATION_SCHEMA cuando SHOW CREATE falla."""
+        escaped_routine: str = self._escape_sql_literal(routine_name)
+        escaped_type: str = self._escape_sql_literal(routine_type.upper())
+        sql: str = f"""
+            SELECT ROUTINE_DEFINITION
+            FROM information_schema.routines
+            WHERE TABLE_SCHEMA = DATABASE()
+            AND ROUTINE_NAME = '{escaped_routine}'
+            AND ROUTINE_TYPE = '{escaped_type}'
+            LIMIT 1
+        """
+        try:
+            result = self.execute_custom_one(sql)
+            if result and len(result) > 0 and result[0]:
+                routine_def = str(result[0]).strip()
+                if routine_def:
+                    return f"CREATE {routine_type} `{routine_name}`\n{routine_def}"
+            return f"-- {routine_type} {routine_name} definition unavailable (fallback)\n"
+        except Exception as e:
+            self.logger.warning("Fallback para rutina %s también falló: %s", routine_name, e)
+            return f"-- {routine_type} {routine_name} definition unavailable\n"
+
+    @staticmethod
+    def _format_mariadb_default(default_value: Any) -> str:
+        raw = str(default_value)
+        upper_raw = raw.upper()
+        if upper_raw == "NULL":
+            return "NULL"
+        if upper_raw in {"CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP()"}:
+            return raw
+        if upper_raw.endswith("()"):
+            return raw
+        try:
+            float(raw)
+            return raw
+        except ValueError:
+            escaped = raw.replace("\\", "\\\\").replace("'", "''")
+            return f"'{escaped}'"
+
+    def _build_mariadb_ddl_from_metadata(self, tabla: str) -> str:
+        """Construye DDL de MariaDB desde metadata de columnas.
+
+        Args:
+            tabla: Nombre de la tabla
+
+        Returns:
+            String DDL CREATE TABLE (vacío si no hay columnas)
+        """
+        rows: list[Any] = list(self.get_columns(tabla))
+        if not rows:
+            return ""
+
+        column_defs: list[str] = [self._build_column_definition(row) for row in rows if self._is_valid_column_row(row)]
+
+        if not column_defs:
+            return ""
+
+        pk_constraint: str = self._build_primary_key_constraint(tabla)
+        if pk_constraint:
+            column_defs.append(pk_constraint)
+
+        table_identifier: str = self._quote_identifier_mariadb(tabla)
+        return "CREATE TABLE " + table_identifier + " (\n" + ",\n".join(column_defs) + "\n)"
+
+    def _is_valid_column_row(self, row: Any) -> bool:
+        """Valida que una fila sea una tupla/lista válida.
+
+        Args:
+            row: Fila a validar
+
+        Returns:
+            True si la fila es válida
+        """
+        return isinstance(row, (tuple, list)) and bool(row)
+
+    def _build_column_definition(self, row: Any) -> str:
+        """Construye la definición de columna MariaDB.
+
+        Args:
+            row: Tupla/lista con datos de columna [name, type, nullable, ..., default, extra]
+
+        Returns:
+            String con definición completa de columna
+        """
+        column_name: str = self._extract_column_name(row)
+        column_type: str = self._extract_column_type(row)
+        nullable: str = self._extract_nullable_clause(row)
+        default_clause: str = self._extract_default_clause(row)
+        extra: str = self._extract_extra_clause(row)
+
+        parts: list[str] = [
+            self._quote_identifier_mariadb(column_name),
+            column_type,
+            nullable,
+        ]
+
+        if default_clause:
+            parts.append(default_clause)
+        if extra:
+            parts.append(extra)
+
+        return "  " + " ".join(parts)
+
+    def _extract_column_name(self, row: Any) -> str:
+        """Extrae nombre de columna desde fila."""
+        return str(row[0]) if row else ""
+
+    def _extract_column_type(self, row: Any) -> str:
+        """Extrae tipo de dato desde fila."""
+        return str(row[1]) if len(row) > 1 else "TEXT"
+
+    def _extract_nullable_clause(self, row: Any) -> str:
+        """Extrae cláusula NULL/NOT NULL."""
+        nullable_flag: str = str(row[2]).upper() if len(row) > 2 else "YES"
+        return "NOT NULL" if nullable_flag == "NO" else "NULL"
+
+    def _extract_default_clause(self, row: Any) -> str:
+        """Extrae cláusula DEFAULT."""
+        if len(row) <= 4 or row[4] is None:
+            return ""
+
+        default_value = self._format_mariadb_default(row[4])
+        return f"DEFAULT {default_value}"
+
+    def _extract_extra_clause(self, row: Any) -> str:
+        """Extrae cláusula EXTRA (AUTO_INCREMENT, etc)."""
+        if len(row) <= 5 or not row[5]:
+            return ""
+
+        extra: str = str(row[5]).strip()
+        return extra if extra else ""
+
+    def _build_primary_key_constraint(self, tabla: str) -> str:
+        """Construye cláusula PRIMARY KEY si existen claves primarias.
+
+        Args:
+            tabla: Nombre de la tabla
+
+        Returns:
+            String con PRIMARY KEY constraint o vacío
+        """
+        pk_rows: list[Any] = list(self.get_primary_keys(tabla))
+        pk_columns: list[str] = [
+            self._quote_identifier_mariadb(str(row[0]))
+            for row in pk_rows
+            if isinstance(row, (tuple, list)) and len(row) > 0
+        ]
+
+        if not pk_columns:
+            return ""
+
+        return f"  PRIMARY KEY ({', '.join(pk_columns)})"
+
     def get_query_context_database(self) -> str:
         """Expone el contexto de metadatos (schema/database) para consumidores externos.
 
@@ -937,12 +1206,21 @@ class DatabaseManager:
         def _fetch_ddl() -> str:
             self.logger.debug(f"🔍 Obteniendo DDL para tabla {tabla} ({context_label}: {context_database})")
             params: dict[str, Any] = self._add_metadata_context_params({"tabla": tabla}, context_database)
-            ddl_raw = self._execute_metadata_one(
-                "create_table",
-                params=params,
-                error_message="Error obteniendo DDL",
-                table_name=tabla,
-            )
+            try:
+                ddl_raw = self._execute_metadata_one(
+                    "create_table",
+                    params=params,
+                    error_message="Error obteniendo DDL",
+                    table_name=tabla,
+                )
+            except DatabaseOperationError as err:
+                if not self._is_mariadb_show_create_decode_error(err):
+                    raise
+                self.logger.warning(
+                    "Fallback DDL MariaDB por error de decodificación en SHOW CREATE TABLE para %s",
+                    tabla,
+                )
+                return self._build_mariadb_ddl_from_metadata(tabla)
             return self._normalize_ddl_result(ddl_raw)
 
         return self._get_cached_text(
@@ -972,13 +1250,22 @@ class DatabaseManager:
         def _fetch_ddl() -> str:
             self.logger.debug(f"🔍 Obteniendo DDL para vista {vista} ({context_label}: {context_database})")
             params: dict[str, Any] = self._add_metadata_context_params({"tabla": vista}, context_database)
-            ddl_raw = self._execute_metadata_one(
-                "create_view",
-                params=params,
-                error_message="Error obteniendo DDL de vista",
-                table_name=vista,
-            )
-            return self._normalize_ddl_result(ddl_raw)
+            try:
+                ddl_raw = self._execute_metadata_one(
+                    "create_view",
+                    params=params,
+                    error_message="Error obteniendo DDL de vista",
+                    table_name=vista,
+                )
+                return self._normalize_ddl_result(ddl_raw)
+            except DatabaseOperationError:
+                if self.db_type != "mariadb":
+                    raise
+                self.logger.warning(
+                    "Fallback DDL vista MariaDB por error en SHOW CREATE VIEW para %s. Obteniendo de INFORMATION_SCHEMA",
+                    vista,
+                )
+                return self._fetch_mariadb_view_from_information_schema(context_database, vista)
 
         return self._get_cached_text(
             cache_lookup=lambda: self.db_cache._view_ddl_cache.get(cache_key),
@@ -1005,15 +1292,27 @@ class DatabaseManager:
         context_label = self._get_query_context_label()
         cache_key = self._cache_table_key(context_database, tabla)
 
+        def _fetch_columns() -> Rows:
+            try:
+                return self._execute_metadata_many(
+                    "columnas_tabla",
+                    params={"database": context_database, "tabla": tabla},
+                    error_message="Error obteniendo columnas",
+                    table_name=tabla,
+                )
+            except DatabaseOperationError as err:
+                if not self._is_mariadb_decode_error(err):
+                    raise
+                self.logger.warning(
+                    "Fallback columnas MariaDB por error de decodificación en metadata para %s",
+                    tabla,
+                )
+                return self._fetch_mariadb_columns_safe(context_database, tabla)
+
         return self._get_cached_rows(
             cache_lookup=lambda: self.db_cache.get_columns(cache_key),
             cache_store=lambda rows: self.db_cache.set_columns(cache_key, rows),
-            fetch_rows=lambda: self._execute_metadata_many(
-                "columnas_tabla",
-                params={"database": context_database, "tabla": tabla},
-                error_message="Error obteniendo columnas",
-                table_name=tabla,
-            ),
+            fetch_rows=_fetch_columns,
             cache_hit_message=f"♻️  Usando columnas en caché para tabla {tabla}",
             success_message=f"✅ {{count}} columnas obtenidas de {tabla} ({context_label}: {context_database})",
             fetch_debug_message=f"🔍 Obteniendo columnas de {tabla} ({context_label}: {context_database})",
@@ -1081,13 +1380,23 @@ class DatabaseManager:
                 {"rutina": rutina, "tipo_rutina": routine_type},
                 context_database,
             )
-            ddl_raw = self._execute_metadata_one(
-                "create_rutina",
-                params=params,
-                error_message="Error obteniendo DDL de rutina",
-                table_name=rutina,
-            )
-            return self._normalize_ddl_result(ddl_raw)
+            try:
+                ddl_raw = self._execute_metadata_one(
+                    "create_rutina",
+                    params=params,
+                    error_message="Error obteniendo DDL de rutina",
+                    table_name=rutina,
+                )
+                return self._normalize_ddl_result(ddl_raw)
+            except DatabaseOperationError:
+                if self.db_type != "mariadb":
+                    raise
+                self.logger.warning(
+                    "Fallback DDL rutina MariaDB por error en SHOW CREATE para %s %s. Obteniendo de INFORMATION_SCHEMA",
+                    routine_type,
+                    rutina,
+                )
+                return self._fetch_mariadb_routine_from_information_schema(context_database, rutina, routine_type)
 
         return self._get_cached_text(
             cache_lookup=lambda: self.db_cache._routine_ddl_cache.get(cache_key),
