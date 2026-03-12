@@ -109,6 +109,14 @@ class PoolConnection:
                 max_idle=self.max_idle,
             )
 
+            # Esperar a que el pool esté listo para entregar conexiones reales.
+            wait_method = getattr(self.pool, "wait", None)
+            if callable(wait_method):
+                try:
+                    wait_method(timeout=self.pool_timeout)
+                except TypeError:
+                    wait_method()
+
             self.logger.info(f"✅ Pool PostgreSQL (psycopg3) creado: {self.pool_size} conexiones")
         except Exception as e:
             self.logger.error(f"❌ Error creando pool PostgreSQL: {e}")

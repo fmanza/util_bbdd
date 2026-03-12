@@ -53,7 +53,7 @@
     "temp_tablespaces": "SHOW temp_tablespaces",
     "database_version": "SELECT version() AS version",
     "database_charset_collation": "SELECT encoding::text AS encoding, datcollate, datctype FROM pg_database WHERE datname = current_database()",
-    "columns_charset_collation": "SELECT a.attname AS column_name, NULL AS charset, coll.collname AS collation FROM pg_attribute a LEFT JOIN pg_collation coll ON a.attcollation = coll.oid WHERE a.attrelid = '{tabla}'::regclass AND a.attnum > 0 AND a.attcollation != 0 ORDER BY a.attnum"
+    "columns_charset_collation": "SELECT a.attname AS column_name, NULL AS charset, coll.collname AS collation FROM pg_attribute a LEFT JOIN pg_collation coll ON a.attcollation = coll.oid WHERE a.attrelid = to_regclass(quote_ident('{database}') || '.' || quote_ident('{tabla}')) AND a.attnum > 0 AND a.attcollation != 0 ORDER BY a.attnum"
   },
   "hsqldb": {
     "obtener_tablas": "SELECT TABLE_NAME, REMARKS AS table_comment FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '{database}' AND TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME",

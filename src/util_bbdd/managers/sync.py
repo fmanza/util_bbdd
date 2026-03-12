@@ -243,12 +243,12 @@ class DatabaseManager:
         """
         try:
             self.pool_connection = PoolFactory.create_pool(self.db_type, self.conn_params)
-            self.logger.info(f"🔗 Pool habilitado para {self.db_type} (size: {self.conn_params.get('pool_size', 5)})")
 
             # Verificar que el pool puede entregar conexiones
             test_conn = self.pool_connection.get_connection()
             self.pool_connection.close_connection(test_conn)
             self.logger.debug(f"✅ Conexión de prueba obtenida/devuelta al pool para {self.db_type}")
+            self.logger.info(f"🔗 Pool habilitado para {self.db_type} (size: {self.conn_params.get('pool_size', 5)})")
 
             # Inicializar ejecutor stateless (cada operación obtiene/libera conexión)
             self._build_query_executor(

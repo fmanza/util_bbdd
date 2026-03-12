@@ -100,3 +100,10 @@ def test_sqlserver_validator_accepts_schema_alias() -> None:
 
     assert is_valid is True
     assert warnings == []
+
+
+def test_postgresql_columns_charset_collation_requires_database_and_tabla() -> None:
+    registry = QueryRegistry()
+    query_def = registry.get_query_definition("postgresql", "columns_charset_collation")
+
+    assert {"database", "tabla"}.issubset(set(query_def.required_params))
