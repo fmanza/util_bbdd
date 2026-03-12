@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from util_bbdd.database_exceptions import DatabaseOperationError, QueryNotFoundError
 from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
 from util_bbdd.managers import AsyncDatabaseManager, DatabaseManager
@@ -63,6 +64,37 @@ def test_database_manager_execute_query_many_and_one_use_sync_executor() -> None
     )
 
 
+def test_database_manager_execute_query_many_propagates_query_error_and_timeout() -> None:
+    manager = DatabaseManager.__new__(DatabaseManager)
+    manager.logger = MagicMock()
+    manager.db_type = "sqlite"
+    manager.sync_query_executor = MagicMock()
+    manager.sync_query_executor.execute_query_many.side_effect = QueryNotFoundError("query missing")
+
+    with pytest.raises(QueryNotFoundError):
+        DatabaseManager.execute_query_many(manager, "q_tables", timeout=1.5, table="users")
+
+    manager.sync_query_executor.execute_query_many.assert_called_once_with(
+        query_name="q_tables",
+        db_type="sqlite",
+        params={"table": "users"},
+        timeout=1.5,
+    )
+
+
+def test_database_manager_execute_query_many_wraps_unexpected_errors_with_cause() -> None:
+    manager = DatabaseManager.__new__(DatabaseManager)
+    manager.logger = MagicMock()
+    manager.db_type = "sqlite"
+    manager.sync_query_executor = MagicMock()
+    manager.sync_query_executor.execute_query_many.side_effect = RuntimeError("driver broke")
+
+    with pytest.raises(DatabaseOperationError) as exc_info:
+        DatabaseManager.execute_query_many(manager, "q_tables", table="users")
+
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
+
+
 @pytest.mark.asyncio
 async def test_async_database_manager_execute_query_many_and_one() -> None:
     manager = AsyncDatabaseManager(db_type="mariadb", conn_params={"database": "db"}, use_pool=False)
@@ -86,6 +118,36 @@ async def test_async_database_manager_execute_query_many_and_one() -> None:
         db_type="mariadb",
         params={"database": "db"},
     )
+
+
+@pytest.mark.asyncio
+async def test_async_database_manager_execute_query_many_propagates_query_error() -> None:
+    manager = AsyncDatabaseManager(db_type="mariadb", conn_params={"database": "db"}, use_pool=False)
+    manager._initialized = True
+    manager.query_executor = AsyncMock()
+    manager.query_executor.execute_query_many = AsyncMock(side_effect=QueryNotFoundError("query missing"))
+
+    with pytest.raises(QueryNotFoundError):
+        await manager.execute_query_many("q_tables", database="db")
+
+    manager.query_executor.execute_query_many.assert_awaited_once_with(
+        query_name="q_tables",
+        db_type="mariadb",
+        params={"database": "db"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_database_manager_execute_query_many_wraps_unexpected_errors_with_cause() -> None:
+    manager = AsyncDatabaseManager(db_type="mariadb", conn_params={"database": "db"}, use_pool=False)
+    manager._initialized = True
+    manager.query_executor = AsyncMock()
+    manager.query_executor.execute_query_many = AsyncMock(side_effect=RuntimeError("async driver broke"))
+
+    with pytest.raises(DatabaseOperationError) as exc_info:
+        await manager.execute_query_many("q_tables", database="db")
+
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
 
 
 def test_legacy_execute_query_api_removed() -> None:

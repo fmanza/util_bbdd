@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from util_bbdd.database_exceptions import DatabaseOperationError, QueryNotFoundError
 from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
 from util_bbdd.managers import AsyncDatabaseManager, DatabaseManager
@@ -61,6 +62,36 @@ def test_database_manager_execute_custom_many_and_one_use_sync_executor() -> Non
     )
 
 
+def test_database_manager_execute_custom_many_propagates_query_error_and_timeout() -> None:
+    manager = DatabaseManager.__new__(DatabaseManager)
+    manager.logger = MagicMock()
+    manager.db_type = "sqlite"
+    manager.sync_query_executor = MagicMock()
+    manager.sync_query_executor.execute_custom_many.side_effect = QueryNotFoundError("custom missing")
+
+    with pytest.raises(QueryNotFoundError):
+        DatabaseManager.execute_custom_many(manager, "SELECT * FROM users", timeout=2.0)
+
+    manager.sync_query_executor.execute_custom_many.assert_called_once_with(
+        sql="SELECT * FROM users",
+        params=None,
+        timeout=2.0,
+    )
+
+
+def test_database_manager_execute_custom_many_wraps_unexpected_errors_with_cause() -> None:
+    manager = DatabaseManager.__new__(DatabaseManager)
+    manager.logger = MagicMock()
+    manager.db_type = "sqlite"
+    manager.sync_query_executor = MagicMock()
+    manager.sync_query_executor.execute_custom_many.side_effect = RuntimeError("custom driver broke")
+
+    with pytest.raises(DatabaseOperationError) as exc_info:
+        DatabaseManager.execute_custom_many(manager, "SELECT * FROM users")
+
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
+
+
 @pytest.mark.asyncio
 async def test_async_database_manager_execute_custom_many_and_one() -> None:
     manager = AsyncDatabaseManager(db_type="mariadb", conn_params={"database": "db"}, use_pool=False)
@@ -82,6 +113,35 @@ async def test_async_database_manager_execute_custom_many_and_one() -> None:
         sql="SELECT * FROM users",
         params=None,
     )
+
+
+@pytest.mark.asyncio
+async def test_async_database_manager_execute_custom_many_propagates_query_error() -> None:
+    manager = AsyncDatabaseManager(db_type="mariadb", conn_params={"database": "db"}, use_pool=False)
+    manager._initialized = True
+    manager.query_executor = AsyncMock()
+    manager.query_executor.execute_custom_many = AsyncMock(side_effect=QueryNotFoundError("custom missing"))
+
+    with pytest.raises(QueryNotFoundError):
+        await manager.execute_custom_many("SELECT * FROM users")
+
+    manager.query_executor.execute_custom_many.assert_awaited_once_with(
+        sql="SELECT * FROM users",
+        params=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_database_manager_execute_custom_many_wraps_unexpected_errors_with_cause() -> None:
+    manager = AsyncDatabaseManager(db_type="mariadb", conn_params={"database": "db"}, use_pool=False)
+    manager._initialized = True
+    manager.query_executor = AsyncMock()
+    manager.query_executor.execute_custom_many = AsyncMock(side_effect=RuntimeError("async custom driver broke"))
+
+    with pytest.raises(DatabaseOperationError) as exc_info:
+        await manager.execute_custom_many("SELECT * FROM users")
+
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
 
 
 def test_legacy_execute_custom_query_api_removed() -> None:
