@@ -5,6 +5,24 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.5.3] - 2026-03-12
+
+### Added
+- Expanded unit coverage for:
+  - Bulk CRUD helper behavior
+  - Documentation generators (HTML/Excel/Word helper paths)
+  - Relationship graph base analysis
+  - Metadata cache units and cache invalidation flows
+
+### Changed
+- Hardened contract tests for sync/async manager-executor paths:
+  - Better validation of query/custom error propagation
+  - Explicit verification of wrapping unexpected errors with chained causes
+- Reworked documentation legacy-API checks to AST-based assertions to reduce false positives from raw string matching.
+
+### Fixed
+- Added edge-case cleanup tests to ensure cursor-close failures do not break query result delivery and connection release paths.
+
 ## [0.5.2] - 2026-03-11
 
 ### 🎯 Major Cleanup Release
@@ -279,5 +297,7 @@ See [08_ESTADO_COMPLETO_PR8.md](08_ESTADO_COMPLETO_PR8.md) for detailed migratio
 ### Note
 - HSQLDB: No soporte async (decisión explícita, ver v0.2.0 para más detalles)
 
+[0.5.3]: https://github.com/tu_org/util_bbdd/releases/tag/v0.5.3
+[0.5.2]: https://github.com/tu_org/util_bbdd/releases/tag/v0.5.2
 [0.2.0]: https://github.com/tu_org/util_bbdd/releases/tag/v0.2.0
 [0.1.0]: https://github.com/tu_org/util_bbdd/releases/tag/v0.1.0
