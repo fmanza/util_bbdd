@@ -32,7 +32,7 @@
 -	No quiero fix, quiero soluciones definitivas
 -	Se estricto en la aplicación de los cambios
 -	Limpiar dependencias no usadas y no mantener compatibilidad hacia atrás
--	Una vez finalizado crearemos la version = "0.5.5" y se documentará y actualizara
+-	Una vez finalizado crearemos la version = "v0.5.6" y se documentará y actualizara
         - En el CHANGELOG.md los cambios realizados
         - En el README.md se actualizará todo como sifuera una versión nueva, incluyendo ejemplos de uso y cambios en la configuración, respetando la configuración / apartados actuales en la medida de lo posible, añadiendo ejemplos de uso de las funcionalidades
         - docs\ARCHITECTURE.md se actualizará con la nueva arquitectura y diseño, incluyendo diagramas si es necesario (actualizar todo el proyecto a la nueva arquitectura y diseño, no solo la parte de análisis)
@@ -44,7 +44,7 @@
 -	Incluir plan de acción PR con las decisiones tomadas
 -	Incluir plan de refactorización si es necesario
 -	Añade lo que consideres necesario
--   La Carpeta de trabajo es docs/0.5.6/, aqui dejaremos el documento markdown con toda la información, una vez finalizado se moverá a la carpeta raíz de docs y se actualizará el README.md y ARCHITECTURE.md con la nueva versión 0.5.6
+-   La Carpeta de trabajo es docs/v0.5.6/, aqui dejaremos el documento markdown con toda la información, una vez finalizado se moverá a la carpeta raíz de docs y se actualizará el README.md y ARCHITECTURE.md con la nueva versión v0.5.6
 
 # Añado ejemplo de configuración para impresión
 ``` toml
