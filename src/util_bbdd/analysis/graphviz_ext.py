@@ -86,7 +86,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             for col in columns:
                 if isinstance(col, (tuple, list)):
                     col_name = str(col[0])
-                    col_type = str(col[1]) if len(col) > 1 else "VARCHAR"
+                    col_type: str = str(col[1]) if len(col) > 1 else "VARCHAR"
                     result.append((col_name, col_type))
                 else:
                     result.append((str(col), "VARCHAR"))

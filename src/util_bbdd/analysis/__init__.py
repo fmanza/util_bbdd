@@ -11,7 +11,6 @@ Consolidación de:
 """
 
 from .base import DatabaseRelationshipGraphBase, TableRelation
-from .graphviz import GraphvizRelationshipGraph
 from .graphviz_ext import GraphvizRelationshipGraphExt
 from .matplotlib_graph import MatplotlibRelationshipGraph
 
@@ -20,7 +19,6 @@ __all__: list[str] = [
     "DatabaseRelationshipGraphBase",
     "TableRelation",
     # Implementaciones
-    "GraphvizRelationshipGraph",
     "GraphvizRelationshipGraphExt",
     "MatplotlibRelationshipGraph",
 ]
