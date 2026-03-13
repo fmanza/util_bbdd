@@ -14,7 +14,7 @@ Compatible con DatabaseManager para integración simplificada.
 
 import logging
 
-from collections.abc import Hashable
+from collections.abc import Callable, Hashable
 from datetime import date, datetime, time
 from pathlib import Path
 from time import perf_counter
@@ -43,6 +43,9 @@ from sqlalchemy import (
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from .audit import AuditManager
+from .normalize import normalize_records_for_sql
+
 # Importar HSQLDB dinámicamente si está disponible
 try:
     from sqlalchemy.dialects import hsqldb  # type: ignore
@@ -55,11 +58,20 @@ try:
 except ImportError:
     sqlite = None
 
+try:
+    from util.medir_tiempo import medir_tiempo as _medir_tiempo
+except ImportError:
 
-from util.medir_tiempo import medir_tiempo
+    def _medir_tiempo(proceso: str = "") -> Callable[[Any], Any]:
+        _ = proceso
 
-from .audit import AuditManager
-from .normalize import normalize_records_for_sql
+        def _decorator(function: Any) -> Any:
+            return function
+
+        return _decorator
+
+
+medir_tiempo: Any = _medir_tiempo
 
 
 class bulk_crud:

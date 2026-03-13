@@ -10,9 +10,15 @@ Consolidación de:
 - matplotlib_graph.py - Implementación con Matplotlib y NetworkX
 """
 
-from .base import DatabaseRelationshipGraphBase, TableRelation
-from .graphviz_ext import GraphvizRelationshipGraphExt
-from .matplotlib_graph import MatplotlibRelationshipGraph
+from __future__ import annotations
+
+from importlib import import_module
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .base import DatabaseRelationshipGraphBase, TableRelation
+    from .graphviz_ext import GraphvizRelationshipGraphExt
+    from .matplotlib_graph import MatplotlibRelationshipGraph
 
 __all__: list[str] = [
     # Clase base y tipos
@@ -22,3 +28,20 @@ __all__: list[str] = [
     "GraphvizRelationshipGraphExt",
     "MatplotlibRelationshipGraph",
 ]
+
+_SYMBOL_TO_MODULE: dict[str, str] = {
+    "DatabaseRelationshipGraphBase": "base",
+    "TableRelation": "base",
+    "GraphvizRelationshipGraphExt": "graphviz_ext",
+    "MatplotlibRelationshipGraph": "matplotlib_graph",
+}
+
+
+def __getattr__(name: str) -> Any:
+    module_name: str | None = _SYMBOL_TO_MODULE.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module = import_module(f".{module_name}", __name__)
+    value = getattr(module, name)
+    globals()[name] = value
+    return value
