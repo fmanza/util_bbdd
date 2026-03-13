@@ -12,22 +12,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from ..connection.mariadb.pool_connection_mariadb import (
-    PoolConnection as MariaDBPool,
-)
-from ..connection.oracle.pool_connection_oracle import (
-    PoolConnection as OraclePool,
-)
-from ..connection.postgresql.pool_connection_postgresql import (
-    PoolConnection as PostgreSQLPool,
-)
 from ..connection.protocols import ConnectionPoolProtocol
-from ..connection.sqlite.pool_connection_sqlite import (
-    PoolConnection as SQLitePool,
-)
-from ..connection.sqlserver.pool_connection_sqlserver import (
-    PoolConnection as SQLServerPool,
-)
 from ..core.capabilities import is_async_supported
 
 
@@ -140,26 +125,46 @@ class PoolFactory:
         """
         try:
             if db_type == "mariadb":
+                from ..connection.mariadb.pool_connection_mariadb import (
+                    PoolConnection as MariaDBPool,
+                )
+
                 pool = MariaDBPool(conn_params)
                 PoolFactory.logger.info("🔗 MariaDB pool creado (nativo)")
                 return pool
 
             elif db_type == "sqlserver":
+                from ..connection.sqlserver.pool_connection_sqlserver import (
+                    PoolConnection as SQLServerPool,
+                )
+
                 pool = SQLServerPool(conn_params)
                 PoolFactory.logger.info("🔗 SQL Server pool creado")
                 return pool
 
             elif db_type == "oracle":
+                from ..connection.oracle.pool_connection_oracle import (
+                    PoolConnection as OraclePool,
+                )
+
                 pool = OraclePool(conn_params)
                 PoolFactory.logger.info("🔗 Oracle pool creado (nativo)")
                 return pool
 
             elif db_type == "postgresql":
+                from ..connection.postgresql.pool_connection_postgresql import (
+                    PoolConnection as PostgreSQLPool,
+                )
+
                 pool = PostgreSQLPool(conn_params)
                 PoolFactory.logger.info("🔗 PostgreSQL pool creado (psycopg3)")
                 return pool
 
             elif db_type == "sqlite":
+                from ..connection.sqlite.pool_connection_sqlite import (
+                    PoolConnection as SQLitePool,
+                )
+
                 pool = SQLitePool(conn_params)
                 PoolFactory.logger.info("🔗 SQLite pool creado (simple wrapper)")
                 return pool

@@ -4,8 +4,6 @@ import logging
 
 from typing import Any
 
-from pyodbc import Connection
-
 from util_bbdd.database_exceptions import DatabaseConnectionError
 
 from ..params import ConnectionParamsManager
@@ -127,7 +125,7 @@ class SQLServerConnection:
             timeout = conn_params.get("login_timeout", 20)
 
             SQLServerConnection.logger.debug(f"🔗 Conectando a SQL Server (pyodbc) a {host}:{port}/{database}")
-            conn: Connection = pyodbc.connect(conn_str, timeout=timeout)
+            conn: Any = pyodbc.connect(conn_str, timeout=timeout)
             SQLServerConnection.logger.info("✅ Conexión SQL Server (pyodbc) establecida")
             return conn
         except ImportError as e:

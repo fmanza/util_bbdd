@@ -4,8 +4,6 @@ import logging
 
 from typing import Any
 
-from psycopg import Connection
-
 from util_bbdd.database_exceptions import DatabaseConnectionError
 
 from ..params import ConnectionParamsManager
@@ -41,7 +39,7 @@ class PostgreSQLConnection:
             PostgreSQLConnection.logger.debug(
                 f"🔗 Conectando a PostgreSQL (psycopg3) con parámetros: {list(sanitized_conn_params.keys())}"
             )
-            conn: Connection[tuple[Any, ...]] = psycopg.connect(**sanitized_conn_params)
+            conn = psycopg.connect(**sanitized_conn_params)
             PostgreSQLConnection.logger.info("✅ Conexión PostgreSQL (psycopg3) establecida")
             return conn
         except ImportError as e:

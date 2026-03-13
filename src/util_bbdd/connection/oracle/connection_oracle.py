@@ -4,8 +4,6 @@ import logging
 
 from typing import Any
 
-from oracledb.connection import Connection
-
 from util_bbdd.database_exceptions import DatabaseConnectionError
 
 from ..params import ConnectionParamsManager
@@ -78,7 +76,7 @@ class OracleConnection:
             connect_params["dsn"] = dsn_value
 
             OracleConnection.logger.debug("🔗 Conectando a Oracle con DSN resuelto")
-            conn: Connection = oracledb.connect(**connect_params)
+            conn: Any = oracledb.connect(**connect_params)
             OracleConnection.logger.info("✅ Conexión Oracle establecida")
             return conn
         except ImportError as e:

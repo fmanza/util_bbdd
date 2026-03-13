@@ -2,9 +2,16 @@
 
 import logging
 
+from typing import Any
 from uuid import uuid4
 
-from mariadb import Connection, ConnectionPool
+try:
+    import mariadb
+
+    HAS_MARIADB = True
+except ImportError:
+    mariadb = None
+    HAS_MARIADB = False
 
 from ...database_exceptions import DatabasePoolError, DatabasePoolTimeoutError
 from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
@@ -49,8 +56,11 @@ class PoolConnection:
             pool = PoolConnection(conn_params)
             ```
         """
+        if not HAS_MARIADB:
+            raise ImportError("Módulo 'mariadb' no está instalado. Instale con: pip install mariadb")
+
         self.logger: logging.Logger = logging.getLogger(__name__)
-        self.pool: ConnectionPool | None = None
+        self.pool: Any | None = None
         self._closed: bool = False
         self._close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
 
@@ -74,6 +84,9 @@ class PoolConnection:
             ValueError: Si faltan parámetros requeridos.
             Exception: Si la creación del pool falla.
         """
+        if mariadb is None:
+            raise ImportError("Módulo 'mariadb' no está instalado. Instale con: pip install mariadb")
+
         try:
             ConnectionParamsManager.get_pool_config("mariadb", conn_params)
             sanitized_conn_params: dict[str, str | int] = ConnectionParamsManager.sanitize_for_pool(
@@ -87,7 +100,7 @@ class PoolConnection:
                 sanitized_conn_params["pool_name"] = pool_name
 
             # Crear pool con parámetros
-            self.pool = ConnectionPool(
+            self.pool = mariadb.ConnectionPool(
                 **sanitized_conn_params,
             )
 
@@ -98,7 +111,7 @@ class PoolConnection:
             self.logger.error(f"❌ Error creando pool MariaDB: {e}")
             raise
 
-    def get_connection(self) -> Connection:
+    def get_connection(self) -> Any:
         """Obtiene conexión del pool.
 
         Returns:
@@ -113,7 +126,7 @@ class PoolConnection:
             raise RuntimeError("Pool MariaDB no inicializado")
         return self.pool.get_connection()
 
-    def close_connection(self, connection: Connection) -> None:
+    def close_connection(self, connection: Any) -> None:
         """Devuelve conexión al pool.
 
         Args:
@@ -139,7 +152,7 @@ class PoolConnection:
             return
 
         effective_timeout: float | None = self._close_timeout_seconds if timeout_seconds is None else timeout_seconds
-        pool_ref: ConnectionPool = self.pool
+        pool_ref: Any = self.pool
         try:
             run_close_operation_sync(
                 action=lambda: pool_ref.close(),
