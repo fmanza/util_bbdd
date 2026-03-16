@@ -12,7 +12,6 @@ import pytest
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.pool import StaticPool
 
-
 SQLITE_SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

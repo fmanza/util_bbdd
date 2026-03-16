@@ -6,7 +6,7 @@ Proporciona engines, conexiones y datos para tests de crud, validación y flujos
 import gc
 import json
 
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
 from typing import Any
 
@@ -141,7 +141,8 @@ def sqlite_engine_with_schema(sqlite_engine: Engine) -> Generator[Engine, None, 
         # Libertar la conexión de la instancia si existe
         if hasattr(sqlite_engine, "raw_connection"):
             try:
-                sqlite_engine.raw_connection.close()
+                raw_connection = sqlite_engine.raw_connection()
+                raw_connection.close()
             except Exception:
                 pass
 
@@ -165,7 +166,7 @@ def sql_queries_json_path(sqlite_db_path: str) -> Generator[str, None, None]:
 
 @pytest.fixture(scope="function")
 def sqlite_connection_config(sqlite_db_path: str, sql_queries_json_path: str) -> dict[str, Any]:
-    """Configuración para DatabaseManager con SQLite real."""
+    """Configuración para SyncDatabaseManager con SQLite real."""
     return {
         "db_type": "sqlite",
         "conn_params": {"database": sqlite_db_path},
@@ -182,7 +183,7 @@ def sqlite_connection_config(sqlite_db_path: str, sql_queries_json_path: str) ->
 @pytest_asyncio.fixture
 async def async_manager_with_schema(
     sqlite_engine_with_schema: Engine, sqlite_db_path: str, sql_queries_json_path: str
-) -> AsyncDatabaseManager:
+) -> AsyncGenerator[AsyncDatabaseManager, None]:
     """Proporciona un AsyncDatabaseManager configurado con schema."""
     from util_bbdd.query import QueryRegistry, QueryResolver
 
@@ -194,6 +195,7 @@ async def async_manager_with_schema(
 
     # Inicializar el manager (se crea query_executor vacío)
     await manager.init()
+    assert manager.query_executor is not None
 
     # Registrar queries manualmente en el executor
     registry = QueryRegistry(Path(sql_queries_json_path))
@@ -274,7 +276,7 @@ def postgresql_engine_with_schema(postgresql_engine: Engine) -> Generator[Engine
 
 @pytest.fixture(scope="function")
 def postgresql_connection_config(sql_queries_json_path: str) -> dict[str, Any]:
-    """Configuración para DatabaseManager con PostgreSQL real."""
+    """Configuración para SyncDatabaseManager con PostgreSQL real."""
     return {
         "db_type": "postgresql",
         "conn_params": {

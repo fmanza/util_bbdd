@@ -94,15 +94,15 @@ util_bbdd/
 │    │   └── __init__.py
 │    │
 │    └── managers/                       # 🆕 Database managers (2,200+ líneas)
-│        ├── sync.py                     # DatabaseManager (1,000+ líneas)
-│        │   └── Classes: DatabaseManager (conexiones síncronas)
+│        ├── sync_mgr.py                 # SyncDatabaseManager (1,000+ líneas)
+│        │   └── Classes: SyncDatabaseManager (conexiones síncronas)
 │        ├── async_mgr.py                # AsyncDatabaseManager (700+ líneas)
 │        │   └── Classes: AsyncDatabaseManager (conexiones async)
 │        └── __init__.py
 │
 └─── LEVEL 0: COMPATIBILIDAD & WRAPPERS (Backward Compatibility)
      │
-     ├── database_manager.py             # → managers.sync.DatabaseManager
+     ├── database_manager.py             # wrapper legacy retirado
      ├── async_database_manager.py       # → managers.async_mgr.AsyncDatabaseManager
      ├── managers.py                     # Convenience wrapper
      │
@@ -131,7 +131,7 @@ util_bbdd/
 ```
 User Code
     ↓
-DatabaseManager / AsyncDatabaseManager (managers/)
+SyncDatabaseManager / AsyncDatabaseManager (managers/)
     ↓
     ├─→ connection/ (obtener conexión)
     ├─→ query/ (resolver + ejecutar)
@@ -323,15 +323,15 @@ External: SQLAlchemy, pandas, graphviz, matplotlib
 
 ```python
 # Directa (nuevo path - recomendado)
-from util_bbdd.managers import DatabaseManager, AsyncDatabaseManager
+from util_bbdd.managers import SyncDatabaseManager, AsyncDatabaseManager
 from util_bbdd.bulk import bulk_crud, AuditManager
 from util_bbdd.analysis import GraphvizRelationshipGraph
 
 # Raíz (convenience)
-from util_bbdd import DatabaseManager, AsyncDatabaseManager
+from util_bbdd import SyncDatabaseManager, AsyncDatabaseManager
 
-# Legacy (compatibilidad - aún funciona)
-from util_bbdd.database_manager import DatabaseManager
+# Sin alias legacy sync
+# Usa siempre util_bbdd.managers o util_bbdd
 from util_bbdd.async_database_manager import AsyncDatabaseManager
 from util_bbdd.bulk_crud import bulk_crud
 from util_bbdd.grafos import GraphvizRelationshipGraph
@@ -380,7 +380,7 @@ from util_bbdd.grafos import GraphvizRelationshipGraph
 ## 📈 Versionado
 
 ```
-v0.4.0 → v0.5.0 (actual)
+v0.4.0 → v0.5.0 (estado inicial del rediseño)
   ├─ Nueva estructura (3-level hierarchy)
   ├─ Level 3 modules (bulk, analysis, managers) NEW
   ├─ 100% backward compatible

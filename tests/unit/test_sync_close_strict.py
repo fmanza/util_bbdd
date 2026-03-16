@@ -10,11 +10,13 @@ import types
 
 from queue import LifoQueue
 from threading import Lock
+from typing import Any, cast
 
 import pytest
 
+from util_bbdd.connection.protocols import ConnectionPoolProtocol
 from util_bbdd.database_exceptions import DatabaseOperationError, DatabasePoolTimeoutError
-from util_bbdd.managers import DatabaseManager
+from util_bbdd.managers import SyncDatabaseManager
 
 
 def _import_mariadb_pool_module(monkeypatch: pytest.MonkeyPatch):
@@ -70,7 +72,13 @@ class _PoolForManager:
     def __init__(self) -> None:
         self.called_with: tuple[float | None, bool] | None = None
 
-    def close(self, timeout_seconds: float | None, force: bool) -> None:
+    def get_connection(self) -> Any:
+        raise NotImplementedError
+
+    def close_connection(self, connection: Any) -> None:
+        _ = connection
+
+    def close(self, timeout_seconds: float | None = None, force: bool = False) -> None:
         self.called_with = (timeout_seconds, force)
         raise RuntimeError("pool close failed")
 
@@ -100,7 +108,7 @@ def test_mariadb_pool_force_close_on_timeout(monkeypatch: pytest.MonkeyPatch) ->
     pool._closed = False
     pool._close_timeout_seconds = 0.01
     fake_pool = _BlockingCloseWithTerminate()
-    pool.pool = fake_pool
+    setattr(pool, "pool", fake_pool)
 
     pool.close(timeout_seconds=None, force=True)
 
@@ -116,7 +124,7 @@ def test_postgresql_pool_force_close_on_timeout() -> None:
     pool._closed = False
     pool._close_timeout_seconds = 0.01
     fake_pool = _BlockingCloseWithTerminate()
-    pool.pool = fake_pool
+    setattr(pool, "pool", fake_pool)
 
     pool.close(timeout_seconds=None, force=True)
 
@@ -133,7 +141,7 @@ def test_oracle_pool_force_close_on_timeout(monkeypatch: pytest.MonkeyPatch) -> 
     pool._closed = False
     pool._close_timeout_seconds = 0.01
     fake_pool = _BlockingOracleClose()
-    pool.pool = fake_pool
+    setattr(pool, "pool", fake_pool)
 
     pool.close(timeout_seconds=None, force=True)
 
@@ -183,11 +191,11 @@ def test_sqlserver_pool_close_also_closes_leased_connections() -> None:
 
 def test_database_manager_close_propagates_errors_and_attempts_all_resources() -> None:
     fake_pool = _PoolForManager()
-    manager = object.__new__(DatabaseManager)
+    manager = object.__new__(SyncDatabaseManager)
     manager.logger = logging.getLogger(__name__)
     manager.db_type = "sqlite"
     manager._default_close_timeout_seconds = 0.1
-    manager.pool_connection = fake_pool
+    manager.pool_connection = cast(ConnectionPoolProtocol, fake_pool)
     manager.cursor = _CursorForManager()
     manager._connection = _ConnForManager()
 

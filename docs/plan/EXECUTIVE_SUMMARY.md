@@ -70,7 +70,7 @@ Status: ✅ VALIDADO (443/443 tests)
 ```
 PR #10: bulk/ → crud (999L), audit (866L), normalize (264L)
 PR #11: analysis/ → base, graphviz, graphviz_ext, matplotlib_graph
-PR #12-13: managers/ → sync.py (1000+L), async_mgr.py (700+L)
+PR #12-13: managers/ → sync_mgr.py (1000+L), async_mgr.py (700+L)
 PR #14: Full Architecture Validation + Coverage Report
 Status: ✅ VALIDADO (443/443 tests, 11.05s con coverage)
 ```
@@ -130,7 +130,7 @@ Status: ✅ VALIDADO (443/443 tests, 11.05s con coverage)
 ✅ Level 3: ESPECIALIZACIÓN
    ├─ bulk/                (crud, audit, normalize)
    ├─ analysis/            (base, graphviz, graphviz_ext, matplotlib_graph)
-   └─ managers/            (sync.py, async_mgr.py)
+   └─ managers/            (sync_mgr.py, async_mgr.py)
 
 ✅ Level 0: COMPATIBILIDAD (Wrappers)
    ├─ bulk_crud/           → imports de bulk/

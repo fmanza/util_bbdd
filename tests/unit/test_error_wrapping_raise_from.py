@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -52,8 +53,11 @@ async def test_async_executor_wraps_custom_errors_with_cause() -> None:
 
 
 def test_query_resolver_wraps_unexpected_errors_with_cause() -> None:
-    class BrokenRegistry:
-        def get_query_definition(self, _db_type: str, _query_name: str):
+    class BrokenRegistry(QueryRegistry):
+        def __init__(self) -> None:
+            self.logger = MagicMock()
+
+        def get_query_definition(self, _db_type: str, _query_name: str) -> Any:
             raise RuntimeError("broken registry")
 
     resolver = QueryResolver(registry=BrokenRegistry())

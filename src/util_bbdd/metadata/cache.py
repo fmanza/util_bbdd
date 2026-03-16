@@ -27,6 +27,8 @@ class DatabaseMetadataCache:
         self._tables_cache: dict[str, list] = {}
         self._views_cache: dict[str, list] = {}
         self._routines_cache: dict[str, list] = {}
+        self._routine_metadata_context_cache: dict[str, list] = {}
+        self._routine_parameters_context_cache: dict[str, list] = {}
 
         # Cachés de metadatos de tabla (context, tabla) -> datos
         self._primary_keys_cache: dict[tuple[str, str], list] = {}
@@ -99,6 +101,8 @@ class DatabaseMetadataCache:
         self._tables_cache.clear()
         self._views_cache.clear()
         self._routines_cache.clear()
+        self._routine_metadata_context_cache.clear()
+        self._routine_parameters_context_cache.clear()
         self._primary_keys_cache.clear()
         self._indices_cache.clear()
         self._foreign_keys_cache.clear()
@@ -130,6 +134,8 @@ class DatabaseMetadataCache:
             "tables": len(self._tables_cache),
             "views": len(self._views_cache),
             "routines": len(self._routines_cache),
+            "routine_metadata_context": len(self._routine_metadata_context_cache),
+            "routine_parameters_context": len(self._routine_parameters_context_cache),
             "primary_keys": len(self._primary_keys_cache),
             "indices": len(self._indices_cache),
             "foreign_keys": len(self._foreign_keys_cache),
@@ -144,6 +150,8 @@ class DatabaseMetadataCache:
                 len(self._tables_cache)
                 + len(self._views_cache)
                 + len(self._routines_cache)
+                + len(self._routine_metadata_context_cache)
+                + len(self._routine_parameters_context_cache)
                 + len(self._primary_keys_cache)
                 + len(self._indices_cache)
                 + len(self._foreign_keys_cache)

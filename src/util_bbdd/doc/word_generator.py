@@ -922,7 +922,7 @@ class WordGenerator:
 
         Args:
             document: Documento Word
-            data_provider: Proveedor de metadatos (DatabaseManager)
+            data_provider: Proveedor de metadatos (SyncDatabaseManager)
             database_info_flags: [version_flag, charset_collation_flag]
         """
         self.logger.info(f"📚 Agregando sección de información de BD con flags: {database_info_flags}")

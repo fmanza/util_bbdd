@@ -181,7 +181,9 @@ class DatabaseQueries:
     def get_routine_ddl_query(self, routine_name: str, routine_type: str, schema: str | None = None) -> str:
         """Obtiene la consulta para recuperar el DDL de una rutina."""
         if self.db_type == "mariadb":
-            return self.get_query("create_rutina", rutina=routine_name, tipo_rutina=routine_type.upper())
+            if not schema:
+                raise ValueError("Para MariaDB debe informar 'schema'/'database' para cargar metadata batched de rutinas")
+            return self.get_query("rutinas_mariadb_detalle", database=schema)
 
         return self.get_query("create_rutina", rutina=routine_name, tipo_rutina=routine_type.upper(), esquema=schema)
 
@@ -225,6 +227,7 @@ class DatabaseQueries:
             return {
                 "primary": self.get_query("ficheros_fisicos", database=database),
                 "secondary": self.get_query("ficheros_fisicos_adicional", database=database),
+                "temp_tablespaces": self.get_query("temp_tablespaces"),
             }
         if self.db_type == "postgresql":
             if not tablespace:
@@ -618,6 +621,7 @@ class DatabaseQueries:
             "ficheros_fisicos": "Obtiene inventario de ficheros físicos y tamaños",
             "ficheros_fisicos_adicional": "Obtiene inventario adicional de ficheros/tablespaces según motor",
             "temp_tablespaces": "Obtiene configuración de tablespaces temporales",
+            "temp_storage_variables": "Obtiene variables de configuración del almacenamiento temporal",
         }
         return descriptions.get(query_name, "Consulta SQL personalizada")
 
@@ -638,6 +642,7 @@ class DatabaseQueries:
             "ficheros_fisicos": self._examples_ficheros_fisicos,
             "ficheros_fisicos_adicional": self._examples_ficheros_fisicos_adicional,
             "temp_tablespaces": self._examples_temp_tablespaces,
+            "temp_storage_variables": self._examples_temp_storage_variables,
         }
         return examples_factory.get(query_name, lambda: [])()
 
@@ -739,9 +744,29 @@ class DatabaseQueries:
 
     def _examples_temp_tablespaces(self) -> list[dict[str, Any]]:
         """Ejemplos para consulta temp_tablespaces"""
+        examples_by_db: dict[str, dict[str, Any]] = {
+            "mariadb": {
+                "description": "Inventario de ficheros temporales desde information_schema.FILES en MariaDB",
+                "parameters": {},
+            },
+            "postgresql": {
+                "description": "Ver configuración de tablespaces temporales PostgreSQL",
+                "parameters": {},
+            },
+        }
+        example: dict[str, Any] = examples_by_db.get(
+            self.db_type,
+            {"description": "Consultar tablespaces temporales del motor", "parameters": {}},
+        )
+        return [example]
+
+    def _examples_temp_storage_variables(self) -> list[dict[str, Any]]:
+        """Ejemplos para consulta temp_storage_variables."""
+        if self.db_type != "mariadb":
+            return []
         return [
             {
-                "description": "Ver configuración de tablespaces temporales PostgreSQL",
+                "description": "Leer innodb_temp_data_file_path para documentar el almacenamiento temporal InnoDB",
                 "parameters": {},
             }
         ]

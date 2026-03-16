@@ -1,20 +1,40 @@
-# Crear un prompt para ampliar y mejorar la funcionalidad en la creación de gráficos en formato tabla de base de datos:
-## Ficheros involucrados
--	src\util_bbdd\analysis\base.py
--	src\util_bbdd\analysis\graphviz_ext.py
+# Crear un prompt para mejorar los resultados de las consultas en base de datos he incorporarlo en la versión v0.5.6, incluyendo la visualización del motor de almacenamiento, charset y collation. Además, se debe revisar la compatibilidad con la generación de documentación y aplicar principios SOLID, legibilidad, Clean Code, tests y seguridad. Se documentará el proceso en un archivo markdown y se actualizará el README.md, ARCHITECTURE.md y CHANGELOG.md con los cambios realizados.:
+
+## Ficheros y carpetas involucradas
+-	Serán buscados en le proyecto todos los ficheros y carpetas que se vean afectados por los cambios, incluyendo pero no limitándose a:
+    - src\util_bbdd\data\sql_queries.json
+    - src\util_bbdd\managers\async_mgr.py
+    - src\util_bbdd\managers\sync_mgr.py
+    - src\util_bbdd\doc\* (toda la carpeta de documentación para revisar compatibilidad y actualizar plantillas)
+    - README.md
+    - docs\ARCHITECTURE.md
+    - CHANGELOG.md
+
 ## Necesito:
--	Permitir sacar relaciones de n niveles, ahora solo se permite generar del primer nivel
--	Mostrar en la parte inferior un nuevo apartado que indica el número de relaciones que tiene de entrada y de salida.
--	Mejorar la visualización de la cardinalidad de la línea y flecha que indica el sentido de la cardinalidad, esta debe tener su cardinalidad en la unión de los nodos, si la cardinalidad es de 1 a n, según el sentido los puntos que unen lo nodos se tienen que representar la cardinalidad el 1 en un nodo y n en el otro nodo.
--	Parametrizar la información que se visualiza cuando se permite visualizar las columnas:
-    - Parametrizar la visualización del tipo de dato, se muestra o no.
-    - Crear las opciones de:
-        - *Compacto*: mediante parametrización se indica el número máximo de columnas a mostrar, mínimo siempre 1
-        - *Relaciones*: Mostrar solo las columnas involucradas en las relaciones
-        - *Todas*: muestra todas las columnas
-    - Añadir apartado de puntos suspensivos si existen más columnas que puedan representarse.
-- Mejorar la visualización indicando con un símbolo de llave las columnas que están relación, la clave principal en un color más llamativo que el resto.
-- Optimizar su estructura y ejecución
+-	Mejorar los resultados de las consultas en base de datos
+-   Para todos los motores queremos mostrar:
+    - El número de tablas, vistas, rutinas y elementos de almacenamiento que tiene la base de datos.
+    - Se crearán consultas específicas u obtner lovalores de las consultas actuales para ello se validara la mejor estrategia, SI ampliar src\util_bbdd\data\sql_queries.json con las nuevas consultas necesarias para obtener esta información de manera eficiente, o obtnerla delos resultados btenido en las demas consultas, analizar si esta información es necesario quye esté cacheada.
+    - En la visualización de las tablas, vistas, rutinas y elementos de almacenamiento, se debe mejorar la legibilidad y organización de la información, por ejemplo utilizando tablas con estilos claros, colores o iconos para diferenciar los diferentes tipos de objetos (tablas, vistas, rutinas, elementos de almacenamiento). Además, se debe revisar la compatibilidad de los nuevos campos con la generación de documentación en formato Word, y se deben actualizar las plantillas de Word si es necesario para mostrar los nuevos campos de manera clara y legible.
+    - Esta información se mostra al estilo de encabezados o secciones claramente diferenciadas para cada tipo de objeto, por ejemplo, una sección para tablas, otra para vistas, otra para rutinas y otra para elementos de almacenamiento, y dentro de cada sección se mostrarán los objetos correspondientes con su información detallada.
+
+- Para las tablas de base de datos:
+    - Motor de almacenamiento de cada tabla si dispone de ello, si no no se informará, se mostrará en los tres formatos (Word, Excel y HTML). Ver si se puede ampliar la actual consulta o se necesitan nuevas consultas para obtener esta información de manera eficiente.
+    - Mejorar la visualización del charset y collation de cada tabla si se dispone de ello, si no se muestra "N/A" o similar, actualmente se hace, pero su visualización debe mejorar o bien separado por un guión o bien en filas separadas,  una vez se decida la mejor forma de mostrarlo, se debe aplicar a los tres formatos (Word, Excel y HTML).
+
+- En la salida HTML:
+    - Los ficheros físicos deben permitir la exportación a Excel y CSV, por lo que se debe revisar la compatibilidad de los nuevos campos con la exportación a Excel y CSV, y se deben actualizar las plantillas de Excel y CSV si es necesario para mostrar los nuevos campos de manera clara y legible
+
+    - En la visualización de las tablas, vistas, rutinas, se tiene que incluir un botón que permita visualizar el total de la información, todas las tabla (con sus columas), todas las vistas o todas las rutinas en una pagina nueva que se abrirán como pestaña en el propio nevegador, para que el usuario pueda acceder a toda la información de manera fácil y rápida sin tener que navegar por diferentes páginas o secciones del documento permitir la exportación a Excel y CSV de la información detallada de cada tabla, vista o rutina, que permita busqueda y ordenación, por lo que se debe revisar la compatibilidad de los nuevos campos con la exportación a Excel y CSV, y se deben actualizar las plantillas de Excel y CSV si es necesario para mostrar los nuevos campos de manera clara y legible. En excel ya se muestra en la hoja Columnas la información de las tablas con sus columnas, lo mismo para el resto.
+
+-   Para MariaDB:
+    - Revisar las consultas que obtienen la información de Ficheros físicos adicionales y Temp tablespaces:
+        - Muestra el siguiete mensaje de error: "Error al obtener la información de los ficheros físicos adicionales: (1054, "Unknown column 'FILE_NAME' in 'field list'")", por lo que se debe revisar la consulta para obtener la información de los ficheros físicos adicionales y Temp tablespaces en MariaDB, ya que parece que la columna FILE_NAME no existe en la versión de MariaDB que se está utilizando, por lo que se debe revisar la consulta y adaptarla a la versión de MariaDB que se está utilizando para obtener la información de los ficheros físicos adicionales y Temp tablespaces de manera correcta
+        - Muestra el siguiente mensaje de error: Parámetros inválidos: Query 'temp_tablespaces' not found for db_type 'mariadb'
+        - Si no se dispone de esta información en MariaDB, se debe mostrar un mensaje claro indicando que no se dispone de esta información para MariaDB, en lugar de mostrar un mensaje de error genérico, y se debe revisar la compatibilidad de este cambio con la generación de documentación en formato Word y Esxcel, y se deben actualizar las plantillas de Word si es necesario para mostrar este mensaje de manera clara y legible
+
+-   Revisar la compatibilidad con la generación de documentación que se encuentra en src\util_bbdd\doc, ya que se deben mostrar los nuevos campos en la documentación generada, tanto en el formato de Word como en el formato HTML, y se deben actualizar las plantillas de Word y HTML si es necesario para mostrar los nuevos campos de manera clara y legible
+
 ## Requisitos:
 -	Incluir cachés siempre que se pueda, teniendo en cuenta que ya tenemos centralizado en src\util_bbdd\metadata\cache.py el uso de cachés
 -	Mantener funcionalidad de poder dividir  en varias imágenes las relaciones

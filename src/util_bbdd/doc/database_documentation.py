@@ -14,7 +14,8 @@ from pathlib import Path
 from typing import Any
 
 # Importar módulos modulares
-from ..managers import DatabaseManager
+from ..database_exceptions import QueryNotFoundError
+from ..managers import SyncDatabaseManager
 from .excel_generator import ExcelGenerator
 from .html_generator import HtmlGenerator
 from .print_config_manager import PrintConfigManager
@@ -25,7 +26,7 @@ class DatabaseDocumentation:
     """Clase unificada para generar documentación de bases de datos usando arquitectura modular.
 
     Args:
-        db_manager: Instancia de DatabaseManager ya configurada
+        db_manager: Instancia de SyncDatabaseManager ya configurada
         directorio_salida: Directorio de salida para los archivos
         fichero_salida: Path del archivo de salida (sin extensión). Si es None, se genera automáticamente
         imprimir: Diccionario de configuración para secciones y gráficos.
@@ -41,27 +42,27 @@ class DatabaseDocumentation:
 
     # Constantes para strings reutilizados
     _ARCHIVO_FISICO: str = "Archivo fisico"
-    _TAMANO_MB: str = "Tamano (MB)"
+    _TAMANO_MB: str = "Tamaño (MB)"
     _TIPO_FICHERO: str = "Tipo de fichero"
 
     def __init__(
         self,
-        db_manager: DatabaseManager,
+        db_manager: SyncDatabaseManager,
         directorio_salida: Path = Path(""),
         fichero_salida: Path | None = None,
         imprimir: dict[str, Any] | None = None,
         formatos: list[str] | None = None,
         headers_file: Path = Path(__file__).parent / "data/headers_config.json",
     ) -> None:
-        # Validar que db_manager sea una instancia de DatabaseManager
-        if not isinstance(db_manager, DatabaseManager):
-            raise TypeError("db_manager debe ser una instancia de DatabaseManager")
+        # Validar que db_manager sea una instancia sync.
+        if not isinstance(db_manager, SyncDatabaseManager):
+            raise TypeError("db_manager debe ser una instancia de SyncDatabaseManager")
 
         # Configurar logger
         self.logger: logging.Logger = logging.getLogger(__name__)
 
         # Configuración básica
-        self.db_manager: DatabaseManager = db_manager
+        self.db_manager: SyncDatabaseManager = db_manager
         self.imprimir_config: dict[str, Any] = PrintConfigManager.normalize(imprimir)
         self.formatos: list[str] = self._normalize_output_formats(formatos)
         self.directorio_salida: Path = directorio_salida
@@ -586,6 +587,92 @@ class DatabaseDocumentation:
                 normalized.append([row])
         return normalized
 
+    @staticmethod
+    def _parse_mariadb_size_to_mb(size_value: str) -> float | None:
+        """Convierte tamaños MariaDB tipo 12M/5G a MB."""
+        normalized: str = str(size_value or "").strip().upper()
+        if not normalized:
+            return None
+
+        match = re.fullmatch(r"(\d+(?:\.\d+)?)([KMGT])?B?", normalized)
+        if not match:
+            return None
+
+        magnitude: float = float(match.group(1))
+        unit: str = str(match.group(2) or "M")
+        factor_by_unit: dict[str, float] = {
+            "K": 1 / 1024,
+            "M": 1,
+            "G": 1024,
+            "T": 1024 * 1024,
+        }
+        return round(magnitude * factor_by_unit.get(unit, 1), 2)
+
+    @classmethod
+    def _parse_mariadb_temp_data_file_path_rows(cls, variable_name: str, raw_value: str) -> list[list[Any]]:
+        """Parsea innodb_temp_data_file_path a filas tabulares."""
+        value: str = str(raw_value or "").strip()
+        if not value:
+            return []
+
+        parsed_rows: list[list[Any]] = []
+        for chunk in [part.strip() for part in value.split(";") if part.strip()]:
+            tokens: list[str] = [token.strip() for token in chunk.split(":") if token.strip()]
+            if not tokens:
+                continue
+
+            file_name: str = tokens[0]
+            initial_mb: float | str = ""
+            autoextend: str = "No"
+            max_mb: float | str = ""
+            idx: int = 1
+
+            if idx < len(tokens):
+                parsed_initial: float | None = cls._parse_mariadb_size_to_mb(tokens[idx])
+                if parsed_initial is not None:
+                    initial_mb = parsed_initial
+                    idx += 1
+
+            while idx < len(tokens):
+                current_token: str = tokens[idx].lower()
+                if current_token == "autoextend":
+                    autoextend = "Si"
+                elif current_token == "max" and idx + 1 < len(tokens):
+                    parsed_max: float | None = cls._parse_mariadb_size_to_mb(tokens[idx + 1])
+                    if parsed_max is not None:
+                        max_mb = parsed_max
+                    idx += 1
+                idx += 1
+
+            parsed_rows.append([variable_name, file_name, initial_mb, autoextend, max_mb, value])
+
+        return parsed_rows
+
+    def _build_storage_query_specs(self) -> list[tuple[str, str]]:
+        """Construye secciones de almacenamiento según el motor."""
+        query_specs: list[tuple[str, str]] = [
+            ("ficheros_fisicos", "Ficheros físicos"),
+            ("ficheros_fisicos_adicional", "Ficheros físicos adicionales"),
+            ("temp_tablespaces", "Temp tablespaces"),
+        ]
+        if self.db_type == "mariadb":
+            query_specs.append(("temp_storage_variables", "Configuración temporales InnoDB"))
+        return query_specs
+
+    @staticmethod
+    def _flatten_exception_messages(error: Exception) -> str:
+        """Concatena mensajes de la cadena de excepciones."""
+        messages: list[str] = []
+        current: BaseException | None = error
+        seen: set[int] = set()
+        while current is not None and id(current) not in seen:
+            seen.add(id(current))
+            current_message: str = str(current).strip()
+            if current_message:
+                messages.append(current_message)
+            current = current.__cause__ or current.__context__
+        return " | ".join(messages)
+
     def _get_storage_headers_by_query(self, query_name: str) -> list[str]:
         """Devuelve cabeceras legibles por motor y consulta de almacenamiento."""
         headers_map: dict[str, dict[str, list[str]]] = {
@@ -604,7 +691,21 @@ class DatabaseDocumentation:
                     "Tamano fichero (MB)",
                     "Tamano asignado (MB)",
                 ],
-                "temp_tablespaces": ["Temp tablespace"],
+                "temp_tablespaces": [
+                    "Tablespace",
+                    "Archivo",
+                    "Extent (MB)",
+                    "Inicial (MB)",
+                    "Maximo (MB)",
+                ],
+                "temp_storage_variables": [
+                    "Variable",
+                    "Archivo",
+                    "Inicial (MB)",
+                    "Autoextend",
+                    "Maximo (MB)",
+                    "Valor bruto",
+                ],
             },
             "oracle": {
                 "ficheros_fisicos": [
@@ -627,7 +728,7 @@ class DatabaseDocumentation:
                 ],
             },
             "postgresql": {
-                "ficheros_fisicos": ["Tablespace", "Ruta filesystem", "Tamano total"],
+                "ficheros_fisicos": ["Tablespace", "Ruta filesystem", "Tamaño total"],
                 "temp_tablespaces": ["Temp tablespaces"],
             },
             "sqlserver": {
@@ -735,11 +836,7 @@ class DatabaseDocumentation:
         Returns:
             Diccionario con resumen y detalle por consulta de almacenamiento.
         """
-        query_specs: list[tuple[str, str]] = [
-            ("ficheros_fisicos", "Ficheros físicos"),
-            ("ficheros_fisicos_adicional", "Ficheros físicos adicionales"),
-            ("temp_tablespaces", "Temp tablespaces"),
-        ]
+        query_specs: list[tuple[str, str]] = self._build_storage_query_specs()
         database_name: str = str(self.database or "").strip()
         tablespace: str = self._resolve_storage_tablespace()
         query_params: dict[str, Any] = {"database": database_name, "tablespace": tablespace}
@@ -774,8 +871,55 @@ class DatabaseDocumentation:
         """
         if self.db_type == "oracle" and query_name in {"ficheros_fisicos", "temp_tablespaces"}:
             return self.__process_oracle_storage_query(query_name, query_title, database_name)
+        if self.db_type == "mariadb" and query_name == "temp_storage_variables":
+            return self.__process_mariadb_temp_storage_variables_query(query_name, query_title, query_params)
 
         return self.__process_standard_storage_query(query_name, query_title, query_params)
+
+    def __process_mariadb_temp_storage_variables_query(
+        self, query_name: str, query_title: str, query_params: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Procesa configuración temporal MariaDB basada en SHOW VARIABLES."""
+        try:
+            resolved = self.db_manager.resolve_query(query_name, **query_params)
+        except QueryNotFoundError:
+            return self.__build_section_not_supported(query_name, query_title)
+        except Exception as error:
+            return self.__build_section_missing_params(
+                query_name,
+                query_title,
+                f"Parámetros inválidos: {error}",
+            )
+
+        try:
+            sql_text: str = str(resolved.final_sql or "")
+            result_rows: Any = self.db_manager.execute_query_many(query_name, **query_params)
+            normalized_rows: list[list[Any]] = self._normalize_storage_rows(result_rows)
+            parsed_rows: list[list[Any]] = []
+            for row in normalized_rows:
+                variable_name: str = str(row[0]) if len(row) > 0 else "innodb_temp_data_file_path"
+                raw_value: str = str(row[1]) if len(row) > 1 else ""
+                parsed_rows.extend(self._parse_mariadb_temp_data_file_path_rows(variable_name, raw_value))
+
+            headers: list[str] = self._build_storage_headers(query_name=query_name, rows=parsed_rows)
+            parsed_rows = self._format_storage_rows(headers=headers, rows=parsed_rows)
+            message: str = (
+                "OK. La variable describe tamano inicial, autoextend y maximo del temporal InnoDB."
+                if parsed_rows
+                else "La variable innodb_temp_data_file_path no devolvio datos utilizables."
+            )
+            return {
+                "query": query_name,
+                "title": query_title,
+                "status": "ok",
+                "message": message,
+                "sql": sql_text,
+                "headers": headers,
+                "rows": parsed_rows,
+                "numeric_columns": self._get_numeric_storage_indices(headers),
+            }
+        except Exception as error:
+            return self.__build_section_error(query_name, query_title, self._flatten_exception_messages(error))
 
     def __process_oracle_storage_query(self, query_name: str, query_title: str, database_name: str) -> dict[str, Any]:
         """Procesa consulta de almacenamiento específica para Oracle.
@@ -938,6 +1082,8 @@ class DatabaseDocumentation:
         """
         try:
             resolved = self.db_manager.resolve_query(query_name, **query_params)
+        except QueryNotFoundError:
+            return self.__build_section_not_supported(query_name, query_title)
         except Exception as e:
             # Si falla la validación, retornar sección de parámetros faltantes
             error_msg: str = str(e)
@@ -967,7 +1113,54 @@ class DatabaseDocumentation:
                 "numeric_columns": self._get_numeric_storage_indices(headers),
             }
         except Exception as error:
-            return self.__build_section_error(query_name, query_title, str(error))
+            error_msg: str = self._flatten_exception_messages(error)
+            if self.db_type == "mariadb" and query_name == "temp_tablespaces":
+                return self.__build_mariadb_temp_tablespaces_error_section(query_name, query_title, error_msg)
+            return self.__build_section_error(query_name, query_title, error_msg)
+
+    def __build_mariadb_temp_tablespaces_error_section(
+        self, query_name: str, query_title: str, error_msg: str
+    ) -> dict[str, Any]:
+        """Construye mensaje explícito para incidencias de information_schema.FILES."""
+        normalized_error: str = str(error_msg or "").strip()
+        lowered_error: str = normalized_error.lower()
+
+        if (
+            "information_schema.files" in lowered_error
+            and any(token in lowered_error for token in ("access denied", "permission", "denied", "1142", "1227"))
+        ):
+            return {
+                "query": query_name,
+                "title": query_title,
+                "status": "error",
+                "message": (
+                    "Sin acceso a information_schema.FILES. No se puede inventariar el almacenamiento temporal "
+                    "detallado con el usuario actual."
+                ),
+                "sql": "",
+                "headers": [],
+                "rows": [],
+                "numeric_columns": [],
+            }
+
+        if "information_schema.files" in lowered_error and any(
+            token in lowered_error for token in ("doesn't exist", "does not exist", "unknown table", "unknown column")
+        ):
+            return {
+                "query": query_name,
+                "title": query_title,
+                "status": "not_supported",
+                "message": (
+                    "MariaDB no expone information_schema.FILES en este entorno. No se dispone de inventario "
+                    "detallado de ficheros temporales."
+                ),
+                "sql": "",
+                "headers": [],
+                "rows": [],
+                "numeric_columns": [],
+            }
+
+        return self.__build_section_error(query_name, query_title, normalized_error)
 
     def __build_section_not_supported(self, query_name: str, query_title: str) -> dict[str, Any]:
         """Construye sección de resultado para consultas no soportadas.

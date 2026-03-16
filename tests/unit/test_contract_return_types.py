@@ -16,7 +16,7 @@ from util_bbdd.database_exceptions import (
 )
 from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
-from util_bbdd.managers import AsyncDatabaseManager, DatabaseManager
+from util_bbdd.managers import AsyncDatabaseManager, SyncDatabaseManager
 from util_bbdd.metadata import AsyncMetadataProvider, SyncMetadataProvider
 from util_bbdd.results import QueryResult, Row, RowOrNone, Rows
 
@@ -47,8 +47,8 @@ def test_executors_use_query_result_annotation() -> None:
 
 
 def test_managers_use_split_contract_annotations() -> None:
-    sync_many_hints = get_type_hints(DatabaseManager.execute_query_many)
-    sync_one_hints = get_type_hints(DatabaseManager.execute_query_one)
+    sync_many_hints = get_type_hints(SyncDatabaseManager.execute_query_many)
+    sync_one_hints = get_type_hints(SyncDatabaseManager.execute_query_one)
     async_many_hints = get_type_hints(AsyncDatabaseManager.execute_query_many)
     async_one_hints = get_type_hints(AsyncDatabaseManager.execute_query_one)
 

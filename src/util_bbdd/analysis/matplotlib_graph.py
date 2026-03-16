@@ -27,7 +27,7 @@ except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
 
-from ..managers import DatabaseManager
+from ..managers import SyncDatabaseManager
 from .base import DatabaseRelationshipGraphBase, TableRelation
 
 MATPLOTLIB_NETWORKX_ERROR = "Matplotlib/NetworkX no disponible. Instale: pip install matplotlib networkx"
@@ -36,7 +36,7 @@ MATPLOTLIB_NETWORKX_ERROR = "Matplotlib/NetworkX no disponible. Instale: pip ins
 class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
     """Generador de grafos usando Matplotlib con layout radial"""
 
-    def __init__(self, db_manager: DatabaseManager):
+    def __init__(self, db_manager: SyncDatabaseManager):
         super().__init__(db_manager)
         self.logger: Logger = logging.getLogger(__name__)
 

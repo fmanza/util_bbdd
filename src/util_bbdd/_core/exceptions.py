@@ -194,7 +194,7 @@ class DatabaseOperationError(DatabaseException):
 
 
 class DatabaseConfigurationError(DatabaseException):
-    """Error en configuración de DatabaseManager."""
+    """Error en configuración de SyncDatabaseManager."""
 
     pass
 

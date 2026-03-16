@@ -215,3 +215,25 @@ class TestDatabaseQueriesConsistency:
         # MariaDB queries should have {database}
         # At minimum, should contain placeholder syntax
         assert "{" in query and "}" in query
+
+    def test_postgresql_storage_query_includes_filesystem_fallback_for_builtin_tablespaces(self):
+        """PostgreSQL storage query should resolve path for pg_default/pg_global too."""
+        dq = DatabaseQueries(db_type="postgresql")
+        query = dq.get_query("ficheros_fisicos", tablespace="pg_default")
+
+        assert "current_setting('data_directory')" in query
+        assert "pg_tablespace_location" in query
+        assert "pg_tablespace_size" in query
+
+    def test_mariadb_storage_queries_include_temp_tablespaces_and_temp_variables(self):
+        """MariaDB expone inventario temporal y variable InnoDB para documentacion."""
+        dq = DatabaseQueries(db_type="mariadb")
+
+        storage_queries = dq.get_storage_inventory_queries(database="test_db")
+        temp_tablespaces_sql = dq.get_query("temp_tablespaces")
+        temp_variables_sql = dq.get_query("temp_storage_variables")
+
+        assert "temp_tablespaces" in storage_queries
+        assert "information_schema.FILES" in storage_queries["temp_tablespaces"]
+        assert "FILE_TYPE = 'TEMPORARY'" in temp_tablespaces_sql
+        assert "innodb_temp_data_file_path" in temp_variables_sql

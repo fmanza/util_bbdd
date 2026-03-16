@@ -77,7 +77,13 @@ class PrintConfigManager:
         if not isinstance(imprimir, dict):
             raise TypeError("imprimir/print_config debe ser de tipo dict")
 
-        tablas_cfg: Any = imprimir.get("tablas", {})
+        # Acepta la estructura documentada con bloque contenedor `imprimir`.
+        normalized_input: dict[str, Any] = imprimir
+        nested_imprimir: Any = imprimir.get("imprimir")
+        if isinstance(nested_imprimir, dict):
+            normalized_input = nested_imprimir
+
+        tablas_cfg: Any = normalized_input.get("tablas", {})
         if not isinstance(tablas_cfg, dict):
             tablas_cfg = {}
         tablas: dict[str, bool] = {
@@ -95,7 +101,7 @@ class PrintConfigManager:
             ),
         }
 
-        vistas_cfg: Any = imprimir.get("vistas", {})
+        vistas_cfg: Any = normalized_input.get("vistas", {})
         if not isinstance(vistas_cfg, dict):
             vistas_cfg = {}
         vistas: dict[str, bool] = {
@@ -106,7 +112,7 @@ class PrintConfigManager:
             "columnas": bool(vistas_cfg.get("columnas", PrintConfigManager.DEFAULT_VIEWS["columnas"])),
         }
 
-        rutinas_cfg: Any = imprimir.get("rutinas", {})
+        rutinas_cfg: Any = normalized_input.get("rutinas", {})
         if not isinstance(rutinas_cfg, dict):
             rutinas_cfg = {}
         rutinas: dict[str, bool] = {
@@ -121,7 +127,7 @@ class PrintConfigManager:
             ),
         }
 
-        almacenamiento_cfg: Any = imprimir.get("almacenamiento", {})
+        almacenamiento_cfg: Any = normalized_input.get("almacenamiento", {})
         if not isinstance(almacenamiento_cfg, dict):
             almacenamiento_cfg = {}
         almacenamiento: dict[str, bool] = {
@@ -133,7 +139,7 @@ class PrintConfigManager:
             ),
         }
 
-        info_database_cfg: Any = imprimir.get("info_database", {})
+        info_database_cfg: Any = normalized_input.get("info_database", {})
         if not isinstance(info_database_cfg, dict):
             info_database_cfg = {}
         info_database: dict[str, bool] = {
@@ -152,7 +158,7 @@ class PrintConfigManager:
             ),
         }
 
-        columnas_charset_cfg: Any = imprimir.get("columnas_charset", {})
+        columnas_charset_cfg: Any = normalized_input.get("columnas_charset", {})
         if not isinstance(columnas_charset_cfg, dict):
             columnas_charset_cfg = {}
         columnas_charset: dict[str, bool] = {
@@ -164,7 +170,7 @@ class PrintConfigManager:
             ),
         }
 
-        graph_cfg: Any = imprimir.get("grafo", imprimir.get("graph", {}))
+        graph_cfg: Any = normalized_input.get("grafo", normalized_input.get("graph", {}))
         graph: dict[str, Any] = dict(PrintConfigManager.DEFAULT_GRAPH)
         if isinstance(graph_cfg, dict):
             graph.update(graph_cfg)
@@ -185,16 +191,16 @@ class PrintConfigManager:
             "almacenamiento": almacenamiento,
             "info_database": info_database,
             "columnas_charset": columnas_charset,
-            "plantilla_word": PrintConfigManager._normalize_path_value(imprimir.get("plantilla_word")),
-            "plantilla_html": PrintConfigManager._normalize_path_value(imprimir.get("plantilla_html")),
+            "plantilla_word": PrintConfigManager._normalize_path_value(normalized_input.get("plantilla_word")),
+            "plantilla_html": PrintConfigManager._normalize_path_value(normalized_input.get("plantilla_html")),
             "tablas_por_documento": PrintConfigManager._to_positive_int(
-                imprimir.get("tablas_por_documento", 50), fallback=50
+                normalized_input.get("tablas_por_documento", 50), fallback=50
             ),
             "table_style": PrintConfigManager._normalize_non_empty_str(
-                imprimir.get("table_style"), fallback="Table Grid"
+                normalized_input.get("table_style"), fallback="Table Grid"
             ),
             "html_items_por_pagina": PrintConfigManager._to_positive_int(
-                imprimir.get("html_items_por_pagina", 15),
+                normalized_input.get("html_items_por_pagina", 15),
                 fallback=15,
             ),
             "grafo": graph,

@@ -88,7 +88,7 @@ analysis/            # Análisis de relaciones (1,200+ líneas)
   └── matplotlib_graph.py # Matplotlib visualization (278 líneas)
 
 managers/            # APIs de alto nivel (2,200+ líneas)
-  ├── sync.py        # DatabaseManager (1,000+ líneas)
+  ├── sync_mgr.py    # SyncDatabaseManager (1,000+ líneas)
   └── async_mgr.py   # AsyncDatabaseManager (700+ líneas)
 ```
 
@@ -96,7 +96,7 @@ managers/            # APIs de alto nivel (2,200+ líneas)
 - ✅ Cada módulo < 500 líneas
 - ✅ Responsabilidad única por archivo
 - ✅ Fácil agregar nuevos motores (solo agregar archivo en `connection/motors/`)
-- ✅ 100% backward compatible - Wrappers mantienen rutas antiguas funcionando
+- ✅ Compatibilidad mantenida en wrappers legacy seleccionados; el manager sync usa `SyncDatabaseManager`
 
 ---
 
@@ -169,15 +169,15 @@ engine = pool.get_engine()
 print(f"✅ Conexión establecida: {pool}")
 ```
 
-## API Unificada: DatabaseManager (v0.2.0+)
+## API Unificada: SyncDatabaseManager (v0.2.0+)
 
 ### Uso Síncrono
 
 ```python
-from util_bbdd.database_manager import DatabaseManager
+from util_bbdd import SyncDatabaseManager
 
 # Inicializar gestor de BD
-dm = DatabaseManager(
+dm = SyncDatabaseManager(
     db_type='mariadb',
     conn_params={
         'host': 'localhost',
@@ -301,8 +301,8 @@ except QueryNotFoundError as e:
   - Use: `execute_custom_many/execute_custom_one`
 
 ### ✅ New Features
-- `DatabaseManager.execute_query_many(query_name, **params)` - Execute by query name (many)
-- `DatabaseManager.execute_query_one(query_name, **params)` - Execute by query name (one)
+- `SyncDatabaseManager.execute_query_many(query_name, **params)` - Execute by query name (many)
+- `SyncDatabaseManager.execute_query_one(query_name, **params)` - Execute by query name (one)
 - `AsyncDatabaseManager` - Full parity with sync version
   - `get_tables()`, `get_views()`, `get_columns()`, `get_routines()`
   - `execute_query_many() / execute_query_one()` support
@@ -321,23 +321,20 @@ except QueryNotFoundError as e:
 - ✅ **Reorganización arquitectónica** (Level 1, 2, 3)
 - ✅ **3 nuevos módulos especializados**: `bulk/`, `analysis/`, `managers/`
 - ✅ **~8,500 líneas** refactorizadas y consolidadas
-- ✅ **100% backward compatible** - Todo código v0.4.0 sigue funcionando
+- ✅ Compatibilidad mantenida en wrappers legacy seleccionados
 
 ### 🆕 New Modules (v0.5.0+)
 
 #### `managers/` - Consolidated DB Managers
-- `managers.sync.DatabaseManager` (1,000+ lines)
+- `managers.sync_mgr.SyncDatabaseManager` (1,000+ lines)
 - `managers.async_mgr.AsyncDatabaseManager` (700+ lines)
 - **Same API as before**, better code organization
 
 ```python
-# v0.4.0 (still works)
-from util_bbdd.database_manager import DatabaseManager
-
-# v0.5.0 (recommended)
-from util_bbdd.managers import DatabaseManager
+# v0.5.6+ (recommended)
+from util_bbdd.managers import SyncDatabaseManager
 # Or even simpler:
-from util_bbdd import DatabaseManager
+from util_bbdd import SyncDatabaseManager
 ```
 
 #### `bulk/` - Bulk Operations Module
@@ -376,12 +373,12 @@ from util_bbdd.analysis import (
 
 | Component | v0.4.0 Import | v0.5.0 Import (Recommended) |
 |-----------|---------------|------------------------------|
-| DatabaseManager | `util_bbdd.database_manager` | `util_bbdd.managers` |
+| SyncDatabaseManager | `util_bbdd.managers.sync_mgr` | `util_bbdd.managers` / `util_bbdd` |
 | AsyncDatabaseManager | `util_bbdd.async_database_manager` | `util_bbdd.managers` |
 | Bulk Operations | `util_bbdd.bulk_crud` | `util_bbdd.bulk` |
 | Analysis Graphs | `util_bbdd.grafos` | `util_bbdd.analysis` |
 
-**Note:** v0.4.0 paths still work (backwards compatible). Use v0.5.0 paths for new code.
+**Note:** los paths legacy de `bulk` y `analysis` siguen disponibles, pero para el manager sync debes usar `SyncDatabaseManager`.
 
 ### 📖 Documentation (v0.5.0+)
 

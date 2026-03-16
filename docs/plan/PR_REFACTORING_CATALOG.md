@@ -231,14 +231,14 @@
 **Líneas:** 2,200+
 
 **Qué se hizo:**
-1. Copiar `database_manager.py` → `managers/sync.py` (1,000+ líneas)
+1. Copiar `database_manager.py` → `managers/sync_mgr.py` (1,000+ líneas)
    - Classes: DatabaseManager
 
 2. Copiar `async_database_manager.py` → `managers/async_mgr.py` (700+ líneas)
    - Classes: AsyncDatabaseManager
 
 3. Actualizar imports relativos
-   - `managers/sync.py`: 15 imports actualizados (from . → from ..)
+   - `managers/sync_mgr.py`: 15 imports actualizados (from . → from ..)
    - `managers/async_mgr.py`: 13 imports actualizados (from . → from ..)
 
 4. Crear `managers/__init__.py` con exports consolidados

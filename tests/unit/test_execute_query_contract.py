@@ -9,7 +9,7 @@ import pytest
 from util_bbdd.database_exceptions import DatabaseOperationError, QueryNotFoundError
 from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
-from util_bbdd.managers import AsyncDatabaseManager, DatabaseManager
+from util_bbdd.managers import AsyncDatabaseManager, SyncDatabaseManager
 
 
 def test_sync_executor_many_and_one_delegate_to_execute_resolved() -> None:
@@ -38,15 +38,15 @@ async def test_async_executor_many_and_one_delegate_to_execute_resolved() -> Non
 
 
 def test_database_manager_execute_query_many_and_one_use_sync_executor() -> None:
-    manager = DatabaseManager.__new__(DatabaseManager)
+    manager = SyncDatabaseManager.__new__(SyncDatabaseManager)
     manager.logger = MagicMock()
     manager.db_type = "sqlite"
     manager.sync_query_executor = MagicMock()
     manager.sync_query_executor.execute_query_many.return_value = [("a",)]
     manager.sync_query_executor.execute_query_one.return_value = ("a",)
 
-    many_result = DatabaseManager.execute_query_many(manager, "q_tables", table="users")
-    one_result = DatabaseManager.execute_query_one(manager, "q_table", table="users")
+    many_result = SyncDatabaseManager.execute_query_many(manager, "q_tables", table="users")
+    one_result = SyncDatabaseManager.execute_query_one(manager, "q_table", table="users")
 
     assert many_result == [("a",)]
     assert one_result == ("a",)
@@ -65,14 +65,14 @@ def test_database_manager_execute_query_many_and_one_use_sync_executor() -> None
 
 
 def test_database_manager_execute_query_many_propagates_query_error_and_timeout() -> None:
-    manager = DatabaseManager.__new__(DatabaseManager)
+    manager = SyncDatabaseManager.__new__(SyncDatabaseManager)
     manager.logger = MagicMock()
     manager.db_type = "sqlite"
     manager.sync_query_executor = MagicMock()
     manager.sync_query_executor.execute_query_many.side_effect = QueryNotFoundError("query missing")
 
     with pytest.raises(QueryNotFoundError):
-        DatabaseManager.execute_query_many(manager, "q_tables", timeout=1.5, table="users")
+        SyncDatabaseManager.execute_query_many(manager, "q_tables", timeout=1.5, table="users")
 
     manager.sync_query_executor.execute_query_many.assert_called_once_with(
         query_name="q_tables",
@@ -83,14 +83,14 @@ def test_database_manager_execute_query_many_propagates_query_error_and_timeout(
 
 
 def test_database_manager_execute_query_many_wraps_unexpected_errors_with_cause() -> None:
-    manager = DatabaseManager.__new__(DatabaseManager)
+    manager = SyncDatabaseManager.__new__(SyncDatabaseManager)
     manager.logger = MagicMock()
     manager.db_type = "sqlite"
     manager.sync_query_executor = MagicMock()
     manager.sync_query_executor.execute_query_many.side_effect = RuntimeError("driver broke")
 
     with pytest.raises(DatabaseOperationError) as exc_info:
-        DatabaseManager.execute_query_many(manager, "q_tables", table="users")
+        SyncDatabaseManager.execute_query_many(manager, "q_tables", table="users")
 
     assert isinstance(exc_info.value.__cause__, RuntimeError)
 
@@ -151,5 +151,5 @@ async def test_async_database_manager_execute_query_many_wraps_unexpected_errors
 
 
 def test_legacy_execute_query_api_removed() -> None:
-    assert not hasattr(DatabaseManager, "execute_query")
+    assert not hasattr(SyncDatabaseManager, "execute_query")
     assert not hasattr(AsyncDatabaseManager, "execute_query")

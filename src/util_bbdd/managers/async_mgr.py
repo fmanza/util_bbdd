@@ -25,6 +25,13 @@ from ..metadata import (
     normalize_column_rows,
     normalize_table_rows,
 )
+from ..metadata.mariadb import (
+    MariaDBAsyncAdapter,
+    build_public_mariadb_routine_parameter_rows,
+    escape_mariadb_sql_literal,
+    parse_mariadb_column_charset_collation_row,
+    parse_mariadb_db_charset,
+)
 from ..results import ResultNormalizer, RowOrNone
 
 
@@ -33,6 +40,211 @@ class AsyncDatabaseManager:
 
     _PARAMETER_PATTERN = r"\{(\w+)\}"
     _ERROR_EXECUTOR_NOT_INITIALIZED = "AsyncQueryExecutor no inicializado"
+
+    @staticmethod
+    def _escape_sql_literal(value: str) -> str:
+        return escape_mariadb_sql_literal(value)
+
+    def _get_mariadb_adapter(self) -> MariaDBAsyncAdapter:
+        adapter = getattr(self, "_mariadb_adapter", None)
+        if adapter is None:
+            adapter = MariaDBAsyncAdapter(self)
+            self._mariadb_adapter = adapter
+        return cast(MariaDBAsyncAdapter, adapter)
+
+    async def _fetch_mariadb_routines_from_show_status(self, database: str) -> Rows:
+        return await self._get_mariadb_adapter().fetch_routines_from_show_status(database)
+
+    async def _get_mariadb_routines_detail_rows(self, context_database: str) -> list[dict[str, Any]]:
+        return await self._get_mariadb_adapter().get_routines_detail_rows(context_database)
+
+    async def _get_mariadb_routine_parameters_detail_rows(self, context_database: str) -> list[dict[str, Any]]:
+        return await self._get_mariadb_adapter().get_routine_parameters_detail_rows(context_database)
+
+    async def _fetch_mariadb_columns_safe(self, context_database: str, tabla: str) -> Rows:
+        return await self._get_mariadb_adapter().fetch_columns_safe(context_database, tabla)
+
+    async def _fetch_mariadb_view_from_information_schema(self, database: str, view_name: str) -> str:
+        return await self._get_mariadb_adapter().fetch_view_from_information_schema(database, view_name)
+
+    async def _fetch_mariadb_routine_from_information_schema(
+        self, database: str, routine_name: str, routine_type: str
+    ) -> str:
+        return await self._get_mariadb_adapter().fetch_routine_from_information_schema(
+            database, routine_name, routine_type
+        )
+
+    async def _fetch_mariadb_routine_parameters_detailed(
+        self,
+        *,
+        database: str,
+        routine_name: str,
+        routine_type: str,
+    ) -> list[dict[str, Any]]:
+        return await self._get_mariadb_adapter().fetch_routine_parameters_detailed(
+            database=database,
+            routine_name=routine_name,
+            routine_type=routine_type,
+        )
+
+    async def _fetch_mariadb_routine_parameters_public_rows(
+        self, *, context_database: str, rutina: str, routine_type: str
+    ) -> Rows:
+        return build_public_mariadb_routine_parameter_rows(
+            await self._fetch_mariadb_routine_parameters_detailed(
+                database=context_database,
+                routine_name=rutina,
+                routine_type=routine_type,
+            )
+        )
+
+    async def _build_mariadb_ddl_from_metadata(self, tabla: str) -> str:
+        return await self._get_mariadb_adapter().build_table_ddl_from_metadata(tabla)
+
+    async def _fetch_mariadb_routines(self, context_database: str) -> Rows:
+        try:
+            routine_rows = await self._get_mariadb_routines_detail_rows(context_database)
+            if routine_rows:
+                return cast(
+                    Rows,
+                    sorted(
+                        [
+                            (
+                                str(row.get("routine_name") or ""),
+                                str(row.get("routine_type") or ""),
+                                str(row.get("routine_comment") or ""),
+                            )
+                            for row in routine_rows
+                            if str(row.get("routine_name") or "").strip()
+                        ],
+                        key=lambda row: (str(row[1]), str(row[0])),
+                    ),
+                )
+            self.logger.warning(
+                "Fallback listado rutinas MariaDB vacío para %s. Reintentando con SHOW ... STATUS",
+                context_database,
+            )
+        except DatabaseOperationError:
+            self.logger.warning(
+                "Fallback listado rutinas MariaDB por error para %s. Reintentando con SHOW ... STATUS",
+                context_database,
+            )
+        return await self._fetch_mariadb_routines_from_show_status(context_database)
+
+    def _get_routines_fetcher(self, context_database: str) -> Callable[[], Awaitable[Rows]]:
+        if self.db_type == "mariadb":
+            return lambda: self._fetch_mariadb_routines(context_database)
+        return lambda: self._execute_metadata_many(
+            "obtener_rutinas",
+            params={"database": context_database},
+            error_message="Error obteniendo rutinas",
+        )
+
+    def _get_table_ddl_fetcher(self, context_database: str, tabla: str) -> Callable[[], Awaitable[str]]:
+        if self.db_type == "mariadb":
+            return lambda: self._build_mariadb_ddl_from_metadata(tabla)
+
+        async def _fetch() -> str:
+            ddl_raw = await self._execute_metadata_one(
+                "create_table",
+                params=self._add_metadata_context_params({"tabla": tabla}, context_database),
+                error_message="Error obteniendo DDL",
+                table_name=tabla,
+            )
+            return self._normalize_ddl_result(ddl_raw)
+
+        return _fetch
+
+    def _get_view_ddl_fetcher(self, context_database: str, vista: str) -> Callable[[], Awaitable[str]]:
+        if self.db_type == "mariadb":
+            return lambda: self._fetch_mariadb_view_from_information_schema(context_database, vista)
+
+        async def _fetch() -> str:
+            ddl_raw = await self._execute_metadata_one(
+                "create_view",
+                params=self._add_metadata_context_params({"tabla": vista}, context_database),
+                error_message="Error obteniendo DDL de vista",
+                table_name=vista,
+            )
+            return self._normalize_ddl_result(ddl_raw)
+
+        return _fetch
+
+    def _get_columns_fetcher(self, context_database: str, tabla: str) -> Callable[[], Awaitable[Rows]]:
+        if self.db_type == "mariadb":
+            return lambda: self._fetch_mariadb_columns_safe(context_database, tabla)
+        return lambda: self._execute_metadata_many(
+            "columnas_tabla",
+            params={"database": context_database, "tabla": tabla},
+            error_message="Error obteniendo columnas",
+            table_name=tabla,
+        )
+
+    def _get_routine_parameters_fetcher(
+        self,
+        context_database: str,
+        rutina: str,
+        routine_type: str,
+    ) -> Callable[[], Awaitable[Rows]]:
+        if self.db_type == "mariadb":
+            return lambda: self._fetch_mariadb_routine_parameters_public_rows(
+                context_database=context_database,
+                rutina=rutina,
+                routine_type=routine_type,
+            )
+        return lambda: self._execute_metadata_many(
+            "parametros_rutina",
+            params={
+                "database": context_database,
+                "rutina": rutina,
+                "tipo_rutina": routine_type,
+            },
+            error_message="Error obteniendo parámetros de rutina",
+            table_name=rutina,
+        )
+
+    def _get_routine_ddl_fetcher(
+        self,
+        context_database: str,
+        rutina: str,
+        routine_type: str,
+    ) -> Callable[[], Awaitable[str]]:
+        if self.db_type == "mariadb":
+            return lambda: self._fetch_mariadb_routine_from_information_schema(
+                context_database, rutina, routine_type
+            )
+
+        async def _fetch() -> str:
+            params: dict[str, Any] = {
+                "rutina": rutina,
+                "tipo_rutina": routine_type,
+            }
+            params = self._add_metadata_context_params(params, context_database)
+            ddl_raw = await self._execute_metadata_one(
+                "create_rutina",
+                params=params,
+                error_message="Error obteniendo DDL de rutina",
+                table_name=rutina,
+            )
+            return self._normalize_ddl_result(ddl_raw)
+
+        return _fetch
+
+    def _get_storage_inventory_handler(
+        self,
+    ) -> Callable[[str, str | None], Awaitable[dict[str, Any]]] | None:
+        handlers: dict[str, Callable[[str, str | None], Awaitable[dict[str, Any]]]] = {
+            "sqlserver": self._storage_inventory_sqlserver,
+            "oracle": self._storage_inventory_oracle,
+            "mariadb": self._storage_inventory_mariadb,
+            "postgresql": self._storage_inventory_postgresql,
+            "sqlite": self._storage_inventory_sqlite,
+        }
+        return handlers.get(self.db_type)
+
+    async def _log_and_call_async(self, message: str, action: Callable[[], Awaitable[Any]]) -> Any:
+        self.logger.debug(message)
+        return await action()
 
     def __init__(
         self,
@@ -312,6 +524,8 @@ class AsyncDatabaseManager:
 
     def _clear_routine_cache(self, context: str, routine: str, routine_type: str | None = None) -> None:
         """Limpia caché para una rutina específica."""
+        self.db_cache._routine_metadata_context_cache.pop(context, None)
+        self.db_cache._routine_parameters_context_cache.pop(context, None)
         if routine_type:
             routine_key: tuple[str, str, str] = (context, routine, routine_type.upper())
             self.db_cache._routine_parameters_cache.pop(routine_key, None)
@@ -341,6 +555,8 @@ class AsyncDatabaseManager:
             self.db_cache._tables_cache,
             self.db_cache._views_cache,
             self.db_cache._routines_cache,
+            self.db_cache._routine_metadata_context_cache,
+            self.db_cache._routine_parameters_context_cache,
         )
         for cache in context_caches:
             cache.pop(context, None)
@@ -485,13 +701,6 @@ class AsyncDatabaseManager:
             self.logger.info(success_message)
         return text
 
-    def __parse_mariadb_column_charset_collation_row(
-        self, row: tuple[Any, ...], column_name: str
-    ) -> tuple[str, str | None, str | None]:
-        charset: str | None = str(row[1]) if len(row) > 1 else None
-        collation: str | None = str(row[2]) if len(row) > 2 else None
-        return (column_name, charset, collation)
-
     def __parse_collation_only_row(self, row: tuple[Any, ...], column_name: str) -> tuple[str, str | None, str | None]:
         collation: str | None = str(row[2]) if len(row) > 2 else None
         return (column_name, None, collation)
@@ -500,15 +709,6 @@ class AsyncDatabaseManager:
         self, _row: tuple[Any, ...], column_name: str
     ) -> tuple[str, str | None, str | None]:
         return (column_name, None, None)
-
-    def __parse_db_charset_mariadb(self, result: tuple[Any, ...]) -> dict[str, Any]:
-        if not result:
-            return {}
-        charset: str = str(result[0])
-        if len(result) > 1:
-            collation: str | None = str(result[1])
-            return {"charset": charset, "collation": collation}
-        return {"charset": charset}
 
     def __parse_db_charset_oracle(self, result: tuple[Any, ...]) -> dict[str, Any]:
         if not result:
@@ -536,7 +736,7 @@ class AsyncDatabaseManager:
             return {}
 
         parser_map: dict[str, Callable[[tuple[Any, ...]], dict[str, Any]]] = {
-            "mariadb": self.__parse_db_charset_mariadb,
+            "mariadb": parse_mariadb_db_charset,
             "oracle": self.__parse_db_charset_oracle,
             "postgresql": self.__parse_db_charset_postgresql,
             "sqlserver": lambda r: self.__parse_db_charset_single_field(r, "collation"),
@@ -617,7 +817,7 @@ class AsyncDatabaseManager:
     def __parse_column_charset_collation_row(self, row: tuple[Any, ...]) -> tuple[str, str | None, str | None]:
         column_name: str = str(row[0]) if len(row) > 0 else ""
         parser_map: dict[str, Callable[[tuple[Any, ...], str], tuple[str, str | None, str | None]]] = {
-            "mariadb": self.__parse_mariadb_column_charset_collation_row,
+            "mariadb": parse_mariadb_column_charset_collation_row,
             "oracle": self.__parse_empty_charset_collation_row,
             "postgresql": self.__parse_collation_only_row,
             "sqlserver": self.__parse_collation_only_row,
@@ -665,16 +865,13 @@ class AsyncDatabaseManager:
 
     async def get_routines(self) -> Rows:
         context_database: str = self._get_query_context_database()
-        cache_key = self._cache_context_key(context_database)
-        context_label = self._get_query_context_label()
+        cache_key: str = self._cache_context_key(context_database)
+        context_label: str = self._get_query_context_label()
+
         rows = await self._get_cached_rows_async(
             cache_lookup=lambda: self.db_cache._routines_cache.get(cache_key),
             cache_store=lambda items: self.db_cache._routines_cache.__setitem__(cache_key, list(items)),
-            fetch_rows=lambda: self._execute_metadata_many(
-                "obtener_rutinas",
-                params={"database": context_database},
-                error_message="Error obteniendo rutinas",
-            ),
+            fetch_rows=self._get_routines_fetcher(context_database),
             cache_hit_message=f"♻️  Usando rutinas en caché para contexto: {context_database}",
             success_message=f"✅ {{count}} rutinas obtenidas para {context_label}: {context_database}",
             fetch_debug_message=f"🔍 Obteniendo lista de rutinas para {context_label}: {context_database}",
@@ -685,22 +882,15 @@ class AsyncDatabaseManager:
         context_database: str = self._get_query_context_database()
         context_label = self._get_query_context_label()
         cache_key = self._cache_table_key(context_database, tabla)
-
-        async def _fetch_ddl() -> str:
-            self.logger.debug(f"🔍 Obteniendo DDL para tabla {tabla} ({context_label}: {context_database})")
-            params: dict[str, Any] = self._add_metadata_context_params({"tabla": tabla}, context_database)
-            ddl_raw = await self._execute_metadata_one(
-                "create_table",
-                params=params,
-                error_message="Error obteniendo DDL",
-                table_name=tabla,
-            )
-            return self._normalize_ddl_result(ddl_raw)
+        fetch_ddl = self._get_table_ddl_fetcher(context_database, tabla)
 
         return await self._get_cached_text_async(
             cache_lookup=lambda: self.db_cache._ddl_cache.get(cache_key),
             cache_store=lambda ddl: self.db_cache._ddl_cache.__setitem__(cache_key, ddl),
-            fetch_text=_fetch_ddl,
+            fetch_text=lambda: self._log_and_call_async(
+                f"🔍 Obteniendo DDL para tabla {tabla} ({context_label}: {context_database})",
+                fetch_ddl,
+            ),
             cache_hit_message=f"♻️  Usando DDL en caché para tabla {tabla}",
             success_message=f"✅ DDL obtenido para tabla {tabla}",
         )
@@ -709,22 +899,15 @@ class AsyncDatabaseManager:
         context_database: str = self._get_query_context_database()
         context_label = self._get_query_context_label()
         cache_key = self._cache_table_key(context_database, vista)
-
-        async def _fetch_ddl() -> str:
-            self.logger.debug(f"🔍 Obteniendo DDL para vista {vista} ({context_label}: {context_database})")
-            params: dict[str, Any] = self._add_metadata_context_params({"tabla": vista}, context_database)
-            ddl_raw = await self._execute_metadata_one(
-                "create_view",
-                params=params,
-                error_message="Error obteniendo DDL de vista",
-                table_name=vista,
-            )
-            return self._normalize_ddl_result(ddl_raw)
+        fetch_ddl = self._get_view_ddl_fetcher(context_database, vista)
 
         return await self._get_cached_text_async(
             cache_lookup=lambda: self.db_cache._view_ddl_cache.get(cache_key),
             cache_store=lambda ddl: self.db_cache._view_ddl_cache.__setitem__(cache_key, ddl),
-            fetch_text=_fetch_ddl,
+            fetch_text=lambda: self._log_and_call_async(
+                f"🔍 Obteniendo DDL para vista {vista} ({context_label}: {context_database})",
+                fetch_ddl,
+            ),
             cache_hit_message=f"♻️  Usando DDL de vista en caché para {vista}",
             success_message=f"✅ DDL obtenido para vista {vista}",
         )
@@ -736,12 +919,7 @@ class AsyncDatabaseManager:
         rows = await self._get_cached_rows_async(
             cache_lookup=lambda: self.db_cache.get_columns(cache_key),
             cache_store=lambda items: self.db_cache.set_columns(cache_key, items),
-            fetch_rows=lambda: self._execute_metadata_many(
-                "columnas_tabla",
-                params={"database": context_database, "tabla": tabla},
-                error_message="Error obteniendo columnas",
-                table_name=tabla,
-            ),
+            fetch_rows=self._get_columns_fetcher(context_database, tabla),
             cache_hit_message=f"♻️  Usando columnas en caché para tabla {tabla}",
             success_message=f"✅ {{count}} columnas obtenidas de {tabla} ({context_label}: {context_database})",
             fetch_debug_message=f"🔍 Obteniendo columnas de {tabla} ({context_label}: {context_database})",
@@ -756,16 +934,7 @@ class AsyncDatabaseManager:
         rows = await self._get_cached_rows_async(
             cache_lookup=lambda: self.db_cache._routine_parameters_cache.get(cache_key),
             cache_store=lambda items: self.db_cache._routine_parameters_cache.__setitem__(cache_key, list(items)),
-            fetch_rows=lambda: self._execute_metadata_many(
-                "parametros_rutina",
-                params={
-                    "database": context_database,
-                    "rutina": rutina,
-                    "tipo_rutina": routine_type,
-                },
-                error_message="Error obteniendo parámetros de rutina",
-                table_name=rutina,
-            ),
+            fetch_rows=self._get_routine_parameters_fetcher(context_database, rutina, routine_type),
             cache_hit_message=f"♻️  Usando parámetros de rutina en caché para {routine_type} {rutina}",
             success_message=f"✅ {{count}} parámetros obtenidos de rutina {rutina} ({context_label}: {context_database})",
             fetch_debug_message=(
@@ -779,28 +948,15 @@ class AsyncDatabaseManager:
         context_label = self._get_query_context_label()
         routine_type = str(tipo_rutina or "").upper()
         cache_key = self._cache_routine_key(context_database, rutina, routine_type)
-
-        async def _fetch_ddl() -> str:
-            self.logger.debug(
-                f"🔍 Obteniendo DDL para rutina {routine_type} {rutina} ({context_label}: {context_database})"
-            )
-            params: dict[str, Any] = {
-                "rutina": rutina,
-                "tipo_rutina": routine_type,
-            }
-            params = self._add_metadata_context_params(params, context_database)
-            ddl_raw = await self._execute_metadata_one(
-                "create_rutina",
-                params=params,
-                error_message="Error obteniendo DDL de rutina",
-                table_name=rutina,
-            )
-            return self._normalize_ddl_result(ddl_raw)
+        fetch_ddl = self._get_routine_ddl_fetcher(context_database, rutina, routine_type)
 
         return await self._get_cached_text_async(
             cache_lookup=lambda: self.db_cache._routine_ddl_cache.get(cache_key),
             cache_store=lambda ddl: self.db_cache._routine_ddl_cache.__setitem__(cache_key, ddl),
-            fetch_text=_fetch_ddl,
+            fetch_text=lambda: self._log_and_call_async(
+                f"🔍 Obteniendo DDL para rutina {routine_type} {rutina} ({context_label}: {context_database})",
+                fetch_ddl,
+            ),
             cache_hit_message=f"♻️  Usando DDL de rutina en caché para {routine_type} {rutina}",
             success_message=f"✅ DDL obtenido para rutina {rutina}",
         )
@@ -906,12 +1062,7 @@ class AsyncDatabaseManager:
         }
 
     async def _storage_inventory_mariadb(self, context_database: str, _tablespace: str | None) -> dict[str, Any]:
-        if not context_database:
-            raise ValueError("Para MariaDB debe proporcionar 'database'")
-        return {
-            "primary": await self.execute_query_many("ficheros_fisicos", database=context_database),
-            "secondary": await self.execute_query_many("ficheros_fisicos_adicional", database=context_database),
-        }
+        return await self._get_mariadb_adapter().storage_inventory(context_database)
 
     async def _storage_inventory_postgresql(self, _context_database: str, tablespace: str | None) -> dict[str, Any]:
         if not tablespace:
@@ -934,14 +1085,7 @@ class AsyncDatabaseManager:
 
     async def get_storage_inventory(self, tablespace: str | None = None) -> dict[str, Any]:
         context_database: str = self._get_query_context_database()
-        handlers: dict[str, Callable[[str, str | None], Awaitable[dict[str, Any]]]] = {
-            "sqlserver": self._storage_inventory_sqlserver,
-            "oracle": self._storage_inventory_oracle,
-            "mariadb": self._storage_inventory_mariadb,
-            "postgresql": self._storage_inventory_postgresql,
-            "sqlite": self._storage_inventory_sqlite,
-        }
-        handler = handlers.get(self.db_type)
+        handler = self._get_storage_inventory_handler()
         if handler is None:
             return {"primary": [], "secondary": []}
         result = await handler(context_database, tablespace)

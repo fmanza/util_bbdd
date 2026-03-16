@@ -8,6 +8,7 @@ pytest.importorskip("docx")
 pytest.importorskip("jinja2")
 pytest.importorskip("openpyxl")
 
+from util_bbdd.doc.database_documentation import DatabaseDocumentation
 from util_bbdd.doc.excel_generator import ExcelGenerator
 from util_bbdd.doc.html_generator import HtmlGenerator
 from util_bbdd.doc.word_generator import WordGenerator
@@ -91,3 +92,40 @@ def test_word_generator_chunking_output_file_and_routine_split() -> None:
     assert normalized == ("", "FUNCTION", "")
     assert procedures == [("p_sync", "procedure", "")]
     assert functions == [("f_total", "FUNCTION", "")]
+
+
+def test_database_documentation_parses_mariadb_temp_data_file_path() -> None:
+    rows = DatabaseDocumentation._parse_mariadb_temp_data_file_path_rows(
+        "innodb_temp_data_file_path",
+        "ibtmp1:12M:autoextend:max:5G",
+    )
+
+    assert rows == [
+        [
+            "innodb_temp_data_file_path",
+            "ibtmp1",
+            12.0,
+            "Si",
+            5120.0,
+            "ibtmp1:12M:autoextend:max:5G",
+        ]
+    ]
+
+
+def test_database_documentation_parse_mariadb_size_to_mb_accepts_units() -> None:
+    assert DatabaseDocumentation._parse_mariadb_size_to_mb("64K") == 0.06
+    assert DatabaseDocumentation._parse_mariadb_size_to_mb("12M") == 12.0
+    assert DatabaseDocumentation._parse_mariadb_size_to_mb("2G") == 2048.0
+
+
+def test_database_documentation_formats_mariadb_files_access_error() -> None:
+    doc = DatabaseDocumentation.__new__(DatabaseDocumentation)
+
+    section = doc._DatabaseDocumentation__build_mariadb_temp_tablespaces_error_section(
+        "temp_tablespaces",
+        "Temp tablespaces",
+        "Access denied to information_schema.FILES for user",
+    )
+
+    assert section["status"] == "error"
+    assert "Sin acceso a information_schema.FILES" in section["message"]

@@ -9,7 +9,7 @@ compatible con SQLAlchemy para múltiples tipos de bases de datos:
 - SQLite (identifiers minúsculos)
 - SQL Server (identifiers mayúsculos, pymssql + pyodbc)
 - HSQLDB (identifiers mayúsculos)
-Compatible con DatabaseManager para integración simplificada.
+Compatible con SyncDatabaseManager para integración simplificada.
 """
 
 import logging

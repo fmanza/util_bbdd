@@ -1,11 +1,11 @@
 """
 Tests funcionales para util_bbdd - usando API real con mocks.
-Cobertura: build_conn_params, DatabaseManager, factories
+Cobertura: build_conn_params, SyncDatabaseManager, factories
 """
 
 import pytest
 
-from util_bbdd import DatabaseManager
+from util_bbdd import SyncDatabaseManager
 from util_bbdd.connection import ConnectionParamsManager, build_conn_params
 
 
@@ -166,24 +166,24 @@ class TestConnectionParamsManager:
 
 
 class TestDatabaseManagerBasic:
-    """Tests básicos para DatabaseManager."""
+    """Tests básicos para SyncDatabaseManager."""
 
     def test_database_manager_creation(self):
-        """Test: crear DatabaseManager con parámetros válidos."""
+        """Test: crear SyncDatabaseManager con parámetros válidos."""
         conn_params = build_conn_params(
             db_type="sqlite",
             database=":memory:",
         )
-        db = DatabaseManager(db_type="sqlite", conn_params=conn_params)
+        db = SyncDatabaseManager(db_type="sqlite", conn_params=conn_params)
         assert db is not None
 
     def test_database_manager_has_attributes(self):
-        """Test: DatabaseManager tiene atributos esperados."""
+        """Test: SyncDatabaseManager tiene atributos esperados."""
         conn_params = build_conn_params(
             db_type="sqlite",
             database=":memory:",
         )
-        db = DatabaseManager(db_type="sqlite", conn_params=conn_params)
+        db = SyncDatabaseManager(db_type="sqlite", conn_params=conn_params)
         assert hasattr(db, "db_type")
         assert hasattr(db, "conn_params")
         assert db.db_type == "sqlite"
@@ -266,11 +266,8 @@ class TestDatabaseTypeValidator:
         from util_bbdd.database_type_validator import DatabaseTypeValidator
 
         validator = DatabaseTypeValidator()
-
-        # Verificar que validador existe y puede procesarlos
-        if hasattr(validator, "is_valid"):
-            # Si tiene método is_valid, usarlo
-            validator.is_valid(db_type)
+        normalized_db_type = "mariadb" if db_type == "mysql" else db_type
+        validator.validate_db_type(normalized_db_type)
 
         # Test pasa si no hay excepción
         assert True

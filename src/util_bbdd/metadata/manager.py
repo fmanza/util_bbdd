@@ -34,7 +34,7 @@ class MetadataManager:
 
     def __init__(
         self,
-        metadata_provider: Any,  # DatabaseManager u otro provider
+        metadata_provider: Any,  # SyncDatabaseManager u otro provider
         db_cache: DatabaseMetadataCache | None = None,
         relationship_cache: RelationshipMetadataCache | None = None,
         db_type: str = "mariadb",
@@ -42,7 +42,7 @@ class MetadataManager:
         """Inicializa gestor de metadatos.
 
         Args:
-            metadata_provider: Proveedor de metadatos (ej: DatabaseManager)
+            metadata_provider: Proveedor de metadatos (ej: SyncDatabaseManager)
             db_cache: Cache de metadatos (crea default si None)
             relationship_cache: Cache de relaciones (crea default si None)
             db_type: Tipo de BD (mariadb, postgresql, oracle, etc.)

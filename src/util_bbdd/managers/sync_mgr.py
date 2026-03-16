@@ -1,6 +1,6 @@
 """
-Módulo para manejo de operaciones de base de datos
-Soporta MariaDB, Oracle, PostgreSQL, SQLite, HSQLDB y SQL Server
+Módulo para manejo de operaciones de base de datos.
+Soporta MariaDB, Oracle, PostgreSQL, SQLite, HSQLDB y SQL Server.
 """
 
 import logging
@@ -47,10 +47,17 @@ from ..metadata import (
     normalize_column_rows,
     normalize_table_rows,
 )
+from ..metadata.mariadb import (
+    MariaDBSyncAdapter,
+    build_public_mariadb_routine_parameter_rows,
+    escape_mariadb_sql_literal,
+    parse_mariadb_column_charset_collation_row,
+    parse_mariadb_db_charset,
+)
 from ..results import RowOrNone
 
 
-class DatabaseManager:
+class SyncDatabaseManager:
     """
     Clase para manejar conexiones y operaciones de base de datos.
 
@@ -104,7 +111,7 @@ class DatabaseManager:
         """
         # Inicializar logger
         self.logger: logging.Logger = logging.getLogger(__name__)
-        self.logger.info(f"🔧 Inicializando DatabaseManager para {db_type.upper()}")
+        self.logger.info(f"🔧 Inicializando SyncDatabaseManager para {db_type.upper()}")
 
         # Inicializar la conexión como None
         self._connection: Any = None
@@ -178,9 +185,9 @@ class DatabaseManager:
             self.logger.error(f"❌ Error de validación: {e}")
             raise DatabaseValidationError(str(e), self.db_type) from e
         except Exception as e:
-            self.logger.error(f"❌ Error inesperado inicializando DatabaseManager: {e}")
+            self.logger.error(f"❌ Error inesperado inicializando SyncDatabaseManager: {e}")
             raise DatabaseConfigurationError(
-                f"Error al inicializar DatabaseManager: {str(e)}", self.db_type, str(e)
+                f"Error al inicializar SyncDatabaseManager: {str(e)}", self.db_type, str(e)
             ) from e
 
     @property
@@ -189,7 +196,7 @@ class DatabaseManager:
         Propiedad para acceso lazy loading al validador de tipos de BD.
 
         Inicializa la instancia de DatabaseTypeValidator solo cuando es necesario,
-        mejorando el rendimiento de inicialización de DatabaseManager.
+        mejorando el rendimiento de inicialización de SyncDatabaseManager.
 
         Returns:
             Instancia de DatabaseTypeValidator
@@ -436,7 +443,7 @@ class DatabaseManager:
                 db_type=self.db_type,
             ) from close_errors[0]
 
-        self.logger.info("✅ DatabaseManager cerrado")
+        self.logger.info("✅ SyncDatabaseManager cerrado")
 
     def _clear_all_caches(self) -> None:
         """Limpia completamente todas las cachés de metadatos."""
@@ -452,6 +459,8 @@ class DatabaseManager:
 
     def _clear_routine_cache(self, context: str, routine: str, routine_type: str | None = None) -> None:
         """Limpia caché para una rutina específica."""
+        self.db_cache._routine_metadata_context_cache.pop(context, None)
+        self.db_cache._routine_parameters_context_cache.pop(context, None)
         if routine_type:
             routine_key: tuple[str, str, str] = (context, routine, routine_type.upper())
             self.db_cache._routine_parameters_cache.pop(routine_key, None)
@@ -481,6 +490,8 @@ class DatabaseManager:
             self.db_cache._tables_cache,
             self.db_cache._views_cache,
             self.db_cache._routines_cache,
+            self.db_cache._routine_metadata_context_cache,
+            self.db_cache._routine_parameters_context_cache,
         )
         for cache in context_caches:
             cache.pop(context, None)
@@ -562,6 +573,10 @@ class DatabaseManager:
         self._verify_sync_executor_initialized()
         assert self.sync_query_executor is not None
         return self.sync_query_executor
+
+    def _get_query_executor(self) -> SyncQueryExecutor:
+        """Alias de paridad con AsyncDatabaseManager."""
+        return self._get_sync_query_executor()
 
     def _run_manager_operation(
         self,
@@ -756,247 +771,195 @@ class DatabaseManager:
 
     @staticmethod
     def _escape_sql_literal(value: str) -> str:
-        return str(value).replace("'", "''")
+        return escape_mariadb_sql_literal(value)
 
-    @staticmethod
-    def _decode_mariadb_hex_text(value: Any) -> str:
-        if value is None:
-            return ""
-        raw_hex: str = str(value).strip()
-        if not raw_hex:
-            return ""
-        try:
-            raw_bytes = bytes.fromhex(raw_hex)
-        except ValueError:
-            return str(value)
-        try:
-            return raw_bytes.decode("utf-8")
-        except UnicodeDecodeError:
-            return raw_bytes.decode("latin-1")
+    def _get_mariadb_adapter(self) -> MariaDBSyncAdapter:
+        adapter = getattr(self, "_mariadb_adapter", None)
+        if adapter is None:
+            adapter = MariaDBSyncAdapter(self)
+            self._mariadb_adapter = adapter
+        return cast(MariaDBSyncAdapter, adapter)
+
+    def _fetch_mariadb_routines_from_show_status(self, database: str) -> Rows:
+        return self._get_mariadb_adapter().fetch_routines_from_show_status(database)
+
+    def _get_mariadb_routines_detail_rows(self, context_database: str) -> list[dict[str, Any]]:
+        return self._get_mariadb_adapter().get_routines_detail_rows(context_database)
+
+    def _get_mariadb_routine_parameters_detail_rows(self, context_database: str) -> list[dict[str, Any]]:
+        return self._get_mariadb_adapter().get_routine_parameters_detail_rows(context_database)
 
     def _fetch_mariadb_columns_safe(self, context_database: str, tabla: str) -> Rows:
-        escaped_database = self._escape_sql_literal(context_database)
-        escaped_table = self._escape_sql_literal(tabla)
-        sql = (
-            "SELECT HEX(COLUMN_NAME) AS column_name_hex, "
-            "HEX(COLUMN_TYPE) AS column_type_hex, "
-            "IS_NULLABLE, "
-            "COLUMN_KEY, "
-            "CASE WHEN COLUMN_DEFAULT IS NULL THEN 1 ELSE 0 END AS default_is_null, "
-            "HEX(CAST(COLUMN_DEFAULT AS BINARY)) AS column_default_hex, "
-            "HEX(COALESCE(EXTRA, '')) AS extra_hex, "
-            "HEX(COALESCE(COLUMN_COMMENT, '')) AS column_comment_hex "
-            "FROM information_schema.columns "
-            f"WHERE table_schema = '{escaped_database}' AND table_name = '{escaped_table}' "
-            "ORDER BY ordinal_position"
-        )
-        safe_rows: Rows = self.execute_custom_many(sql)
-        decoded_rows: Rows = []
-        for row in safe_rows:
-            if not isinstance(row, (tuple, list)) or len(row) < 8:
-                continue
-
-            default_is_null = str(row[4]).strip() in {"1", "True", "true"}
-            column_default: str | None = None
-            if not default_is_null:
-                column_default = self._decode_mariadb_hex_text(row[5])
-
-            decoded_rows.append(
-                (
-                    self._decode_mariadb_hex_text(row[0]),
-                    self._decode_mariadb_hex_text(row[1]),
-                    str(row[2]),
-                    str(row[3]),
-                    column_default,
-                    self._decode_mariadb_hex_text(row[6]),
-                    self._decode_mariadb_hex_text(row[7]),
-                )
-            )
-        return decoded_rows
-
-    @staticmethod
-    def _quote_identifier_mariadb(identifier: str) -> str:
-        safe_identifier = str(identifier).replace("`", "``")
-        return f"`{safe_identifier}`"
+        return self._get_mariadb_adapter().fetch_columns_safe(context_database, tabla)
 
     def _fetch_mariadb_view_from_information_schema(self, database: str, view_name: str) -> str:
-        """Obtiene DDL de vista MariaDB desde INFORMATION_SCHEMA cuando SHOW CREATE VIEW falla."""
-        escaped_view: str = self._escape_sql_literal(view_name)
-        schema_condition: str = f"'{self._escape_sql_literal(database)}'" if database else "DATABASE()"
-        sql: str = f"""
-            SELECT VIEW_DEFINITION
-            FROM information_schema.views
-            WHERE TABLE_SCHEMA = {schema_condition}
-            AND TABLE_NAME = '{escaped_view}'
-            LIMIT 1
-        """
-        try:
-            result = self.execute_custom_one(sql)
-            if result and len(result) > 0 and result[0]:
-                view_def = str(result[0]).strip()
-                if view_def:
-                    return f"CREATE OR REPLACE VIEW `{view_name}` AS\n{view_def}"
-            return f"-- View {view_name} definition unavailable (fallback)\n"
-        except Exception as e:
-            self.logger.warning("Fallback para vista %s también falló: %s", view_name, e)
-            return f"-- View {view_name} definition unavailable\n"
+        return self._get_mariadb_adapter().fetch_view_from_information_schema(database, view_name)
 
     def _fetch_mariadb_routine_from_information_schema(
         self, database: str, routine_name: str, routine_type: str
     ) -> str:
-        """Obtiene DDL de rutina MariaDB desde INFORMATION_SCHEMA cuando SHOW CREATE falla."""
-        escaped_routine: str = self._escape_sql_literal(routine_name)
-        escaped_type: str = self._escape_sql_literal(routine_type.upper())
-        schema_condition: str = f"'{self._escape_sql_literal(database)}'" if database else "DATABASE()"
-        sql: str = f"""
-            SELECT ROUTINE_DEFINITION
-            FROM information_schema.routines
-            WHERE TABLE_SCHEMA = {schema_condition}
-            AND ROUTINE_NAME = '{escaped_routine}'
-            AND ROUTINE_TYPE = '{escaped_type}'
-            LIMIT 1
-        """
-        try:
-            result = self.execute_custom_one(sql)
-            if result and len(result) > 0 and result[0]:
-                routine_def = str(result[0]).strip()
-                if routine_def:
-                    return f"CREATE {routine_type} `{routine_name}`\n{routine_def}"
-            return f"-- {routine_type} {routine_name} definition unavailable (fallback)\n"
-        except Exception as e:
-            self.logger.warning("Fallback para rutina %s también falló: %s", routine_name, e)
-            return f"-- {routine_type} {routine_name} definition unavailable\n"
+        return self._get_mariadb_adapter().fetch_routine_from_information_schema(
+            database, routine_name, routine_type
+        )
 
-    @staticmethod
-    def _format_mariadb_default(default_value: Any) -> str:
-        raw = str(default_value)
-        upper_raw = raw.upper()
-        if upper_raw == "NULL":
-            return "NULL"
-        if upper_raw in {"CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP()"}:
-            return raw
-        if upper_raw.endswith("()"):
-            return raw
-        try:
-            float(raw)
-            return raw
-        except ValueError:
-            escaped = raw.replace("\\", "\\\\").replace("'", "''")
-            return f"'{escaped}'"
+    def _fetch_mariadb_routine_parameters_detailed(
+        self,
+        *,
+        database: str,
+        routine_name: str,
+        routine_type: str,
+    ) -> list[dict[str, Any]]:
+        return self._get_mariadb_adapter().fetch_routine_parameters_detailed(
+            database=database,
+            routine_name=routine_name,
+            routine_type=routine_type,
+        )
+
+    def _fetch_mariadb_routine_parameters_public_rows(
+        self,
+        *,
+        context_database: str,
+        rutina: str,
+        routine_type: str,
+    ) -> Rows:
+        return build_public_mariadb_routine_parameter_rows(
+            self._fetch_mariadb_routine_parameters_detailed(
+                database=context_database,
+                routine_name=rutina,
+                routine_type=routine_type,
+            )
+        )
 
     def _build_mariadb_ddl_from_metadata(self, tabla: str) -> str:
-        """Construye DDL de MariaDB desde metadata de columnas.
+        return self._get_mariadb_adapter().build_table_ddl_from_metadata(tabla)
 
-        Args:
-            tabla: Nombre de la tabla
+    def _fetch_mariadb_routines(self, context_database: str) -> Rows:
+        try:
+            routine_rows = self._get_mariadb_routines_detail_rows(context_database)
+            if routine_rows:
+                return cast(
+                    Rows,
+                    sorted(
+                        [
+                            (
+                                str(row.get("routine_name") or ""),
+                                str(row.get("routine_type") or ""),
+                                str(row.get("routine_comment") or ""),
+                            )
+                            for row in routine_rows
+                            if str(row.get("routine_name") or "").strip()
+                        ],
+                        key=lambda row: (str(row[1]), str(row[0])),
+                    ),
+                )
+            self.logger.warning(
+                "Fallback listado rutinas MariaDB vacío para %s. Reintentando con SHOW ... STATUS",
+                context_database,
+            )
+        except DatabaseOperationError:
+            self.logger.warning(
+                "Fallback listado rutinas MariaDB por error para %s. Reintentando con SHOW ... STATUS",
+                context_database,
+            )
+        return self._fetch_mariadb_routines_from_show_status(context_database)
 
-        Returns:
-            String DDL CREATE TABLE (vacío si no hay columnas)
-        """
-        rows: list[Any] = list(self.get_columns(tabla))
-        if not rows:
-            return ""
+    def _get_routines_fetcher(self, context_database: str) -> Callable[[], Rows]:
+        if self.db_type == "mariadb":
+            return lambda: self._fetch_mariadb_routines(context_database)
+        return lambda: self._execute_metadata_many(
+            "obtener_rutinas",
+            params={"database": context_database},
+            error_message="Error obteniendo rutinas",
+        )
 
-        column_defs: list[str] = [self._build_column_definition(row) for row in rows if self._is_valid_column_row(row)]
+    def _get_table_ddl_fetcher(self, context_database: str, tabla: str) -> Callable[[], str]:
+        if self.db_type == "mariadb":
+            return lambda: self._build_mariadb_ddl_from_metadata(tabla)
+        return lambda: self._normalize_ddl_result(
+            self._execute_metadata_one(
+                "create_table",
+                params=self._add_metadata_context_params({"tabla": tabla}, context_database),
+                error_message="Error obteniendo DDL",
+                table_name=tabla,
+            )
+        )
 
-        if not column_defs:
-            return ""
+    def _get_view_ddl_fetcher(self, context_database: str, vista: str) -> Callable[[], str]:
+        if self.db_type == "mariadb":
+            return lambda: self._fetch_mariadb_view_from_information_schema(context_database, vista)
+        return lambda: self._normalize_ddl_result(
+            self._execute_metadata_one(
+                "create_view",
+                params=self._add_metadata_context_params({"tabla": vista}, context_database),
+                error_message="Error obteniendo DDL de vista",
+                table_name=vista,
+            )
+        )
 
-        pk_constraint: str = self._build_primary_key_constraint(tabla)
-        if pk_constraint:
-            column_defs.append(pk_constraint)
+    def _get_columns_fetcher(self, context_database: str, tabla: str) -> Callable[[], Rows]:
+        if self.db_type == "mariadb":
+            return lambda: self._fetch_mariadb_columns_safe(context_database, tabla)
+        return lambda: self._execute_metadata_many(
+            "columnas_tabla",
+            params={"database": context_database, "tabla": tabla},
+            error_message="Error obteniendo columnas",
+            table_name=tabla,
+        )
 
-        table_identifier: str = self._quote_identifier_mariadb(tabla)
-        return "CREATE TABLE " + table_identifier + " (\n" + ",\n".join(column_defs) + "\n)"
+    def _get_routine_parameters_fetcher(
+        self,
+        context_database: str,
+        rutina: str,
+        routine_type: str,
+    ) -> Callable[[], Rows]:
+        if self.db_type == "mariadb":
+            return lambda: self._fetch_mariadb_routine_parameters_public_rows(
+                context_database=context_database,
+                rutina=rutina,
+                routine_type=routine_type,
+            )
+        return lambda: self._execute_metadata_many(
+            "parametros_rutina",
+            params={"database": context_database, "rutina": rutina, "tipo_rutina": routine_type},
+            error_message="Error obteniendo parámetros de rutina",
+            table_name=rutina,
+        )
 
-    def _is_valid_column_row(self, row: Any) -> bool:
-        """Valida que una fila sea una tupla/lista válida.
+    def _get_routine_ddl_fetcher(
+        self,
+        context_database: str,
+        rutina: str,
+        routine_type: str,
+    ) -> Callable[[], str]:
+        if self.db_type == "mariadb":
+            return lambda: self._fetch_mariadb_routine_from_information_schema(
+                context_database, rutina, routine_type
+            )
+        return lambda: self._normalize_ddl_result(
+            self._execute_metadata_one(
+                "create_rutina",
+                params=self._add_metadata_context_params(
+                    {"rutina": rutina, "tipo_rutina": routine_type},
+                    context_database,
+                ),
+                error_message="Error obteniendo DDL de rutina",
+                table_name=rutina,
+            )
+        )
 
-        Args:
-            row: Fila a validar
+    def _get_storage_inventory_handler(self) -> Callable[[str, str | None], dict[str, Any]] | None:
+        handlers: dict[str, Callable[[str, str | None], dict[str, Any]]] = {
+            "sqlserver": self._storage_inventory_sqlserver,
+            "oracle": self._storage_inventory_oracle,
+            "mariadb": self._storage_inventory_mariadb,
+            "postgresql": self._storage_inventory_postgresql,
+            "sqlite": self._storage_inventory_sqlite,
+        }
+        return handlers.get(self.db_type)
 
-        Returns:
-            True si la fila es válida
-        """
-        return isinstance(row, (tuple, list)) and bool(row)
-
-    def _build_column_definition(self, row: Any) -> str:
-        """Construye la definición de columna MariaDB.
-
-        Args:
-            row: Tupla/lista con datos de columna [name, type, nullable, ..., default, extra]
-
-        Returns:
-            String con definición completa de columna
-        """
-        column_name: str = self._extract_column_name(row)
-        column_type: str = self._extract_column_type(row)
-        nullable: str = self._extract_nullable_clause(row)
-        default_clause: str = self._extract_default_clause(row)
-        extra: str = self._extract_extra_clause(row)
-
-        parts: list[str] = [
-            self._quote_identifier_mariadb(column_name),
-            column_type,
-            nullable,
-        ]
-
-        if default_clause:
-            parts.append(default_clause)
-        if extra:
-            parts.append(extra)
-
-        return "  " + " ".join(parts)
-
-    def _extract_column_name(self, row: Any) -> str:
-        """Extrae nombre de columna desde fila."""
-        return str(row[0]) if row else ""
-
-    def _extract_column_type(self, row: Any) -> str:
-        """Extrae tipo de dato desde fila."""
-        return str(row[1]) if len(row) > 1 else "TEXT"
-
-    def _extract_nullable_clause(self, row: Any) -> str:
-        """Extrae cláusula NULL/NOT NULL."""
-        nullable_flag: str = str(row[2]).upper() if len(row) > 2 else "YES"
-        return "NOT NULL" if nullable_flag == "NO" else "NULL"
-
-    def _extract_default_clause(self, row: Any) -> str:
-        """Extrae cláusula DEFAULT."""
-        if len(row) <= 4 or row[4] is None:
-            return ""
-
-        default_value = self._format_mariadb_default(row[4])
-        return f"DEFAULT {default_value}"
-
-    def _extract_extra_clause(self, row: Any) -> str:
-        """Extrae cláusula EXTRA (AUTO_INCREMENT, etc)."""
-        if len(row) <= 5 or not row[5]:
-            return ""
-
-        extra: str = str(row[5]).strip()
-        return extra if extra else ""
-
-    def _build_primary_key_constraint(self, tabla: str) -> str:
-        """Construye cláusula PRIMARY KEY si existen claves primarias.
-
-        Args:
-            tabla: Nombre de la tabla
-
-        Returns:
-            String con PRIMARY KEY constraint o vacío
-        """
-        pk_rows: list[Any] = list(self.get_primary_keys(tabla))
-        pk_columns: list[str] = [
-            self._quote_identifier_mariadb(str(row[0]))
-            for row in pk_rows
-            if isinstance(row, (tuple, list)) and len(row) > 0
-        ]
-
-        if not pk_columns:
-            return ""
-
-        return f"  PRIMARY KEY ({', '.join(pk_columns)})"
+    def _log_and_call(self, message: str, action: Callable[[], Any]) -> Any:
+        self.logger.debug(message)
+        return action()
 
     def get_query_context_database(self) -> str:
         """Expone el contexto de metadatos (schema/database) para consumidores externos.
@@ -1042,7 +1005,7 @@ class DatabaseManager:
         error_message: str,
         table_name: str | None = None,
     ) -> Rows:
-        executor = self._get_sync_query_executor()
+        executor: SyncQueryExecutor = self._get_sync_query_executor()
         result = self._run_metadata_operation(
             action=lambda: executor.execute_query_many(
                 query_name=query_name,
@@ -1062,7 +1025,7 @@ class DatabaseManager:
         error_message: str,
         table_name: str | None = None,
     ) -> RowOrNone:
-        executor = self._get_sync_query_executor()
+        executor: SyncQueryExecutor = self._get_sync_query_executor()
         result = self._run_metadata_operation(
             action=lambda: executor.execute_query_one(
                 query_name=query_name,
@@ -1077,13 +1040,13 @@ class DatabaseManager:
     def _get_cached_rows(
         self,
         *,
-        cache_lookup: Callable[[], list | None],
-        cache_store: Callable[[list], None],
-        fetch_rows: Callable[[], Rows],
+        cache_lookup: Callable[[], list[Any] | None],
+        cache_store: Callable[[list[Any]], None],
+        fetch_rows: Callable[[], list[Any]],
         cache_hit_message: str,
         success_message: str,
         fetch_debug_message: str | None = None,
-    ) -> list:
+    ) -> list[Any]:
         cached_rows = cache_lookup()
         if cached_rows is not None:
             self.logger.debug(cache_hit_message)
@@ -1095,6 +1058,26 @@ class DatabaseManager:
         self.logger.info(success_message.format(count=len(rows)))
         return rows
 
+    def _get_cached_rows_sync(
+        self,
+        *,
+        cache_lookup: Callable[[], list[Any] | None],
+        cache_store: Callable[[list[Any]], None],
+        fetch_rows: Callable[[], list[Any]],
+        cache_hit_message: str,
+        success_message: str,
+        fetch_debug_message: str | None = None,
+    ) -> list[Any]:
+        """Alias de paridad con AsyncDatabaseManager."""
+        return self._get_cached_rows(
+            cache_lookup=cache_lookup,
+            cache_store=cache_store,
+            fetch_rows=fetch_rows,
+            cache_hit_message=cache_hit_message,
+            success_message=success_message,
+            fetch_debug_message=fetch_debug_message,
+        )
+
     def _get_cached_text(
         self,
         *,
@@ -1104,14 +1087,32 @@ class DatabaseManager:
         cache_hit_message: str,
         success_message: str,
     ) -> str:
-        cached_text = cache_lookup()
+        cached_text: str | None = cache_lookup()
         if cached_text is not None:
             self.logger.debug(cache_hit_message)
             return cached_text
-        text = fetch_text()
+        text: str = fetch_text()
         cache_store(text)
         self.logger.info(success_message)
         return text
+
+    def _get_cached_text_sync(
+        self,
+        *,
+        cache_lookup: Callable[[], str | None],
+        cache_store: Callable[[str], None],
+        fetch_text: Callable[[], str],
+        cache_hit_message: str,
+        success_message: str,
+    ) -> str:
+        """Alias de paridad con AsyncDatabaseManager."""
+        return self._get_cached_text(
+            cache_lookup=cache_lookup,
+            cache_store=cache_store,
+            fetch_text=fetch_text,
+            cache_hit_message=cache_hit_message,
+            success_message=success_message,
+        )
 
     def get_tables(self) -> list:
         """
@@ -1124,8 +1125,8 @@ class DatabaseManager:
             DatabaseOperationError: Si hay error en la operación
         """
         context_database: str = self._get_query_context_database()
-        cache_key = self._cache_context_key(context_database)
-        context_label = self._get_query_context_label()
+        cache_key: str = self._cache_context_key(context_database)
+        context_label: str = self._get_query_context_label()
 
         return self._get_cached_rows(
             cache_lookup=lambda: self.db_cache._tables_cache.get(cache_key),
@@ -1151,8 +1152,8 @@ class DatabaseManager:
             DatabaseOperationError: Si hay error en la operación
         """
         context_database: str = self._get_query_context_database()
-        cache_key = self._cache_context_key(context_database)
-        context_label = self._get_query_context_label()
+        cache_key: str = self._cache_context_key(context_database)
+        context_label: str = self._get_query_context_label()
 
         return self._get_cached_rows(
             cache_lookup=lambda: self.db_cache._views_cache.get(cache_key),
@@ -1178,17 +1179,13 @@ class DatabaseManager:
             DatabaseOperationError: Si hay error en la operación
         """
         context_database: str = self._get_query_context_database()
-        cache_key = self._cache_context_key(context_database)
-        context_label = self._get_query_context_label()
+        cache_key: str = self._cache_context_key(context_database)
+        context_label: str = self._get_query_context_label()
 
         return self._get_cached_rows(
             cache_lookup=lambda: self.db_cache._routines_cache.get(cache_key),
             cache_store=lambda rows: self.db_cache._routines_cache.__setitem__(cache_key, list(rows)),
-            fetch_rows=lambda: self._execute_metadata_many(
-                "obtener_rutinas",
-                params={"database": context_database},
-                error_message="Error obteniendo rutinas",
-            ),
+            fetch_rows=self._get_routines_fetcher(context_database),
             cache_hit_message=f"♻️  Usando rutinas en caché para contexto: {context_database}",
             success_message=f"✅ {{count}} rutinas obtenidas para {context_label}: {context_database}",
             fetch_debug_message=f"🔍 Obteniendo lista de rutinas para {context_label}: {context_database}",
@@ -1208,33 +1205,17 @@ class DatabaseManager:
             DatabaseOperationError: Si hay error en la operación
         """
         context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        cache_key = self._cache_table_key(context_database, tabla)
-
-        def _fetch_ddl() -> str:
-            self.logger.debug(f"🔍 Obteniendo DDL para tabla {tabla} ({context_label}: {context_database})")
-            params: dict[str, Any] = self._add_metadata_context_params({"tabla": tabla}, context_database)
-            try:
-                ddl_raw = self._execute_metadata_one(
-                    "create_table",
-                    params=params,
-                    error_message="Error obteniendo DDL",
-                    table_name=tabla,
-                )
-            except DatabaseOperationError as err:
-                if not self._is_mariadb_show_create_decode_error(err):
-                    raise
-                self.logger.warning(
-                    "Fallback DDL MariaDB por error de decodificación en SHOW CREATE TABLE para %s",
-                    tabla,
-                )
-                return self._build_mariadb_ddl_from_metadata(tabla)
-            return self._normalize_ddl_result(ddl_raw)
+        context_label: str = self._get_query_context_label()
+        cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
+        fetch_ddl = self._get_table_ddl_fetcher(context_database, tabla)
 
         return self._get_cached_text(
             cache_lookup=lambda: self.db_cache._ddl_cache.get(cache_key),
             cache_store=lambda ddl: self.db_cache._ddl_cache.__setitem__(cache_key, ddl),
-            fetch_text=_fetch_ddl,
+            fetch_text=lambda: self._log_and_call(
+                f"🔍 Obteniendo DDL para tabla {tabla} ({context_label}: {context_database})",
+                fetch_ddl,
+            ),
             cache_hit_message=f"♻️  Usando DDL en caché para tabla {tabla}",
             success_message=f"✅ DDL obtenido para tabla {tabla}",
         )
@@ -1252,33 +1233,17 @@ class DatabaseManager:
             DatabaseOperationError: Si hay error en la operación
         """
         context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        cache_key = self._cache_table_key(context_database, vista)
-
-        def _fetch_ddl() -> str:
-            self.logger.debug(f"🔍 Obteniendo DDL para vista {vista} ({context_label}: {context_database})")
-            params: dict[str, Any] = self._add_metadata_context_params({"tabla": vista}, context_database)
-            try:
-                ddl_raw = self._execute_metadata_one(
-                    "create_view",
-                    params=params,
-                    error_message="Error obteniendo DDL de vista",
-                    table_name=vista,
-                )
-                return self._normalize_ddl_result(ddl_raw)
-            except DatabaseOperationError:
-                if self.db_type != "mariadb":
-                    raise
-                self.logger.warning(
-                    "Fallback DDL vista MariaDB por error en SHOW CREATE VIEW para %s. Obteniendo de INFORMATION_SCHEMA",
-                    vista,
-                )
-                return self._fetch_mariadb_view_from_information_schema(context_database, vista)
+        context_label: str = self._get_query_context_label()
+        cache_key: tuple[str, str] = self._cache_table_key(context_database, vista)
+        fetch_ddl = self._get_view_ddl_fetcher(context_database, vista)
 
         return self._get_cached_text(
             cache_lookup=lambda: self.db_cache._view_ddl_cache.get(cache_key),
             cache_store=lambda ddl: self.db_cache._view_ddl_cache.__setitem__(cache_key, ddl),
-            fetch_text=_fetch_ddl,
+            fetch_text=lambda: self._log_and_call(
+                f"🔍 Obteniendo DDL para vista {vista} ({context_label}: {context_database})",
+                fetch_ddl,
+            ),
             cache_hit_message=f"♻️  Usando DDL de vista en caché para {vista}",
             success_message=f"✅ DDL obtenido para vista {vista}",
         )
@@ -1297,30 +1262,13 @@ class DatabaseManager:
             DatabaseOperationError: Si hay error en la operación
         """
         context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        cache_key = self._cache_table_key(context_database, tabla)
-
-        def _fetch_columns() -> Rows:
-            try:
-                return self._execute_metadata_many(
-                    "columnas_tabla",
-                    params={"database": context_database, "tabla": tabla},
-                    error_message="Error obteniendo columnas",
-                    table_name=tabla,
-                )
-            except DatabaseOperationError as err:
-                if not self._is_mariadb_decode_error(err):
-                    raise
-                self.logger.warning(
-                    "Fallback columnas MariaDB por error de decodificación en metadata para %s",
-                    tabla,
-                )
-                return self._fetch_mariadb_columns_safe(context_database, tabla)
+        context_label: str = self._get_query_context_label()
+        cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
 
         return self._get_cached_rows(
             cache_lookup=lambda: self.db_cache.get_columns(cache_key),
             cache_store=lambda rows: self.db_cache.set_columns(cache_key, rows),
-            fetch_rows=_fetch_columns,
+            fetch_rows=self._get_columns_fetcher(context_database, tabla),
             cache_hit_message=f"♻️  Usando columnas en caché para tabla {tabla}",
             success_message=f"✅ {{count}} columnas obtenidas de {tabla} ({context_label}: {context_database})",
             fetch_debug_message=f"🔍 Obteniendo columnas de {tabla} ({context_label}: {context_database})",
@@ -1341,19 +1289,14 @@ class DatabaseManager:
             DatabaseOperationError: Si hay error en la operación
         """
         context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        routine_type = str(tipo_rutina or "").upper()
-        cache_key = self._cache_routine_key(context_database, rutina, routine_type)
+        context_label: str = self._get_query_context_label()
+        routine_type: str = str(tipo_rutina or "").upper()
+        cache_key: tuple[str, str, str] = self._cache_routine_key(context_database, rutina, routine_type)
 
         return self._get_cached_rows(
             cache_lookup=lambda: self.db_cache._routine_parameters_cache.get(cache_key),
             cache_store=lambda rows: self.db_cache._routine_parameters_cache.__setitem__(cache_key, list(rows)),
-            fetch_rows=lambda: self._execute_metadata_many(
-                "parametros_rutina",
-                params={"database": context_database, "rutina": rutina, "tipo_rutina": routine_type},
-                error_message="Error obteniendo parámetros de rutina",
-                table_name=rutina,
-            ),
+            fetch_rows=self._get_routine_parameters_fetcher(context_database, rutina, routine_type),
             cache_hit_message=f"♻️  Usando parámetros de rutina en caché para {routine_type} {rutina}",
             success_message=f"✅ {{count}} parámetros obtenidos de rutina {rutina} ({context_label}: {context_database})",
             fetch_debug_message=(
@@ -1376,40 +1319,18 @@ class DatabaseManager:
             DatabaseOperationError: Si hay error en la operación
         """
         context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        routine_type = str(tipo_rutina or "").upper()
-        cache_key = self._cache_routine_key(context_database, rutina, routine_type)
-
-        def _fetch_routine_ddl() -> str:
-            self.logger.debug(
-                f"🔍 Obteniendo DDL para rutina {routine_type} {rutina} ({context_label}: {context_database})"
-            )
-            params: dict[str, Any] = self._add_metadata_context_params(
-                {"rutina": rutina, "tipo_rutina": routine_type},
-                context_database,
-            )
-            try:
-                ddl_raw = self._execute_metadata_one(
-                    "create_rutina",
-                    params=params,
-                    error_message="Error obteniendo DDL de rutina",
-                    table_name=rutina,
-                )
-                return self._normalize_ddl_result(ddl_raw)
-            except DatabaseOperationError:
-                if self.db_type != "mariadb":
-                    raise
-                self.logger.warning(
-                    "Fallback DDL rutina MariaDB por error en SHOW CREATE para %s %s. Obteniendo de INFORMATION_SCHEMA",
-                    routine_type,
-                    rutina,
-                )
-                return self._fetch_mariadb_routine_from_information_schema(context_database, rutina, routine_type)
+        context_label: str = self._get_query_context_label()
+        routine_type: str = str(tipo_rutina or "").upper()
+        cache_key: tuple[str, str, str] = self._cache_routine_key(context_database, rutina, routine_type)
+        fetch_routine_ddl = self._get_routine_ddl_fetcher(context_database, rutina, routine_type)
 
         return self._get_cached_text(
             cache_lookup=lambda: self.db_cache._routine_ddl_cache.get(cache_key),
             cache_store=lambda ddl: self.db_cache._routine_ddl_cache.__setitem__(cache_key, ddl),
-            fetch_text=_fetch_routine_ddl,
+            fetch_text=lambda: self._log_and_call(
+                f"🔍 Obteniendo DDL para rutina {routine_type} {rutina} ({context_label}: {context_database})",
+                fetch_routine_ddl,
+            ),
             cache_hit_message=f"♻️  Usando DDL de rutina en caché para {routine_type} {rutina}",
             success_message=f"✅ DDL obtenido para rutina {rutina}",
         )
@@ -1428,8 +1349,8 @@ class DatabaseManager:
             DatabaseOperationError: Si hay error en la operación
         """
         context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        cache_key = self._cache_table_key(context_database, tabla)
+        context_label: str = self._get_query_context_label()
+        cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
 
         return self._get_cached_rows(
             cache_lookup=lambda: self.db_cache.get_indices(cache_key),
@@ -1459,8 +1380,8 @@ class DatabaseManager:
             DatabaseOperationError: Si hay error en la operación
         """
         context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        cache_key = self._cache_table_key(context_database, tabla)
+        context_label: str = self._get_query_context_label()
+        cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
 
         return self._get_cached_rows(
             cache_lookup=lambda: self.db_cache.get_primary_keys(cache_key),
@@ -1490,8 +1411,8 @@ class DatabaseManager:
             DatabaseOperationError: Si hay error en la operación
         """
         context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        cache_key = self._cache_table_key(context_database, tabla)
+        context_label: str = self._get_query_context_label()
+        cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
 
         return self._get_cached_rows(
             cache_lookup=lambda: self.db_cache.get_foreign_keys(cache_key),
@@ -1521,8 +1442,8 @@ class DatabaseManager:
             DatabaseOperationError: Si hay error en la operación
         """
         context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        cache_key = self._cache_table_key(context_database, tabla)
+        context_label: str = self._get_query_context_label()
+        cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
 
         return self._get_cached_rows(
             cache_lookup=lambda: self.db_cache.get_unique_constraints(cache_key),
@@ -1565,17 +1486,9 @@ class DatabaseManager:
             error_message="Error obteniendo versión",
             table_name="database_version",
         )
-        version = str(result[0]) if result else "Unknown"
+        version: str = str(result[0]) if result else "Unknown"
         self.logger.info(f"✅ Versión obtenida: {version}")
         return version
-
-    def __parse_mariadb_column_charset_collation_row(
-        self, row: tuple[Any, ...], column_name: str
-    ) -> tuple[str, str | None, str | None]:
-        """Parsea fila de charset/collation para MariaDB."""
-        charset: str | None = str(row[1]) if len(row) > 1 else None
-        collation: str | None = str(row[2]) if len(row) > 2 else None
-        return (column_name, charset, collation)
 
     def __parse_collation_only_row(self, row: tuple[Any, ...], column_name: str) -> tuple[str, str | None, str | None]:
         """Parsea fila con solo collation (PostgreSQL, SQL Server, HSQLDB)."""
@@ -1587,16 +1500,6 @@ class DatabaseManager:
     ) -> tuple[str, str | None, str | None]:
         """Parsea fila sin información de charset/collation (Oracle, SQLite)."""
         return (column_name, None, None)
-
-    def __parse_db_charset_mariadb(self, result: tuple[Any, ...]) -> dict[str, Any]:
-        """Parsea database charset/collation para MariaDB."""
-        if not result or len(result) == 0:
-            return {}
-        charset: str = str(result[0])
-        if len(result) > 1:
-            collation: str | None = str(result[1])
-            return {"charset": charset, "collation": collation}
-        return {"charset": charset}
 
     def __parse_db_charset_oracle(self, result: tuple[Any, ...]) -> dict[str, Any]:
         """Parsea database charset/collation para Oracle."""
@@ -1626,7 +1529,7 @@ class DatabaseManager:
             return {}
 
         parser_map: dict[str, Callable[[tuple[Any, ...]], dict[str, Any]]] = {
-            "mariadb": self.__parse_db_charset_mariadb,
+            "mariadb": parse_mariadb_db_charset,
             "oracle": self.__parse_db_charset_oracle,
             "postgresql": self.__parse_db_charset_postgresql,
             "sqlserver": lambda r: self.__parse_db_charset_single_field(r, "collation"),
@@ -1650,7 +1553,7 @@ class DatabaseManager:
 
         # Mapeo de tipos de BD a funciones de parsing
         parser_map: dict[str, Callable[[tuple[Any, ...], str], tuple[str, str | None, str | None]]] = {
-            "mariadb": self.__parse_mariadb_column_charset_collation_row,
+            "mariadb": parse_mariadb_column_charset_collation_row,
             "oracle": self.__parse_empty_charset_collation_row,
             "postgresql": self.__parse_collation_only_row,
             "sqlserver": self.__parse_collation_only_row,
@@ -1743,12 +1646,7 @@ class DatabaseManager:
         }
 
     def _storage_inventory_mariadb(self, context_database: str, _tablespace: str | None) -> dict[str, Any]:
-        if not context_database:
-            raise ValueError("Para MariaDB debe proporcionar 'database'")
-        return {
-            "primary": self.execute_query_many("ficheros_fisicos", database=context_database),
-            "secondary": self.execute_query_many("ficheros_fisicos_adicional", database=context_database),
-        }
+        return self._get_mariadb_adapter().storage_inventory(context_database)
 
     def _storage_inventory_postgresql(self, _context_database: str, tablespace: str | None) -> dict[str, Any]:
         if not tablespace:
@@ -1779,14 +1677,7 @@ class DatabaseManager:
             Diccionario con claves `primary` y `secondary`.
         """
         context_database = self._get_query_context_database()
-        handlers: dict[str, Callable[[str, str | None], dict[str, Any]]] = {
-            "sqlserver": self._storage_inventory_sqlserver,
-            "oracle": self._storage_inventory_oracle,
-            "mariadb": self._storage_inventory_mariadb,
-            "postgresql": self._storage_inventory_postgresql,
-            "sqlite": self._storage_inventory_sqlite,
-        }
-        handler = handlers.get(self.db_type)
+        handler = self._get_storage_inventory_handler()
         if handler is None:
             return {"primary": [], "secondary": []}
         result = self._run_metadata_operation(
@@ -1984,7 +1875,7 @@ class DatabaseManager:
         """
         Obtiene un Engine de SQLAlchemy basado en la configuración actual.
 
-        Este método es útil para usar DatabaseManager con librerías que requieren
+        Este método es útil para usar SyncDatabaseManager con librerías que requieren
         una Engine de SQLAlchemy, como bulk_crud.
 
         Returns:
@@ -1995,7 +1886,7 @@ class DatabaseManager:
             DatabaseConnectionError: Si hay error creando la Engine.
 
         Ejemplo:
-            db_mgr = DatabaseManager("oracle", {"user": "hr", "password": "pass", "service_name": "ORCL"})
+            db_mgr = SyncDatabaseManager("oracle", {"user": "hr", "password": "pass", "service_name": "ORCL"})
             engine = db_mgr.get_sqlalchemy_engine()
 
             # Usar con bulk_crud
@@ -2011,7 +1902,7 @@ class DatabaseManager:
 
     # ==================== CONTEXT MANAGER ====================
 
-    def __enter__(self) -> "DatabaseManager":
+    def __enter__(self) -> "SyncDatabaseManager":
         """Context manager entry"""
         return self
 

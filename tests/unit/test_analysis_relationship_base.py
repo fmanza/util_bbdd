@@ -1,6 +1,9 @@
 """Unit tests for relationship graph base behavior."""
 
+from typing import cast
+
 from util_bbdd.analysis.base import DatabaseRelationshipGraphBase, TableRelation
+from util_bbdd.managers import SyncDatabaseManager
 
 
 class _FakeDbManager:
@@ -26,7 +29,7 @@ def test_analyze_table_relations_includes_outgoing_and_incoming_non_mariadb() ->
             "companies": [],
         },
     )
-    graph = DatabaseRelationshipGraphBase(manager)
+    graph = DatabaseRelationshipGraphBase(cast(SyncDatabaseManager, manager))
 
     relations = graph.analyze_table_relations("users")
 
@@ -48,7 +51,7 @@ def test_analyze_table_relations_mariadb_uses_expected_fk_indexes() -> None:
             "order_items": [("fk_items_orders", "order_items", "order_id", "orders", "id")],
         },
     )
-    graph = DatabaseRelationshipGraphBase(manager)
+    graph = DatabaseRelationshipGraphBase(cast(SyncDatabaseManager, manager))
 
     relations = graph.analyze_table_relations("orders")
 
@@ -61,15 +64,15 @@ def test_analyze_table_relations_mariadb_uses_expected_fk_indexes() -> None:
 
 
 def test_extract_target_table_depends_on_database_type() -> None:
-    pg_graph = DatabaseRelationshipGraphBase(_FakeDbManager("postgresql", [], {}))
-    mariadb_graph = DatabaseRelationshipGraphBase(_FakeDbManager("mariadb", [], {}))
+    pg_graph = DatabaseRelationshipGraphBase(cast(SyncDatabaseManager, _FakeDbManager("postgresql", [], {})))
+    mariadb_graph = DatabaseRelationshipGraphBase(cast(SyncDatabaseManager, _FakeDbManager("mariadb", [], {})))
 
     assert pg_graph._extract_target_table(("fk_any", "col", "users", "id")) == "users"
     assert mariadb_graph._extract_target_table(("fk_any", "orders", "user_id", "users", "id")) == "users"
 
 
 def test_split_relations_for_visualization_keeps_order_and_balances_chunks() -> None:
-    graph = DatabaseRelationshipGraphBase(_FakeDbManager("postgresql", [], {}))
+    graph = DatabaseRelationshipGraphBase(cast(SyncDatabaseManager, _FakeDbManager("postgresql", [], {})))
     relations = [
         TableRelation("t0", f"t{idx}", f"fk_{idx}", "id", "id")
         for idx in range(11)
@@ -92,7 +95,7 @@ def test_generate_relationship_report_returns_expected_counts_and_metadata() -> 
             "companies": [],
         },
     )
-    graph = DatabaseRelationshipGraphBase(manager)
+    graph = DatabaseRelationshipGraphBase(cast(SyncDatabaseManager, manager))
 
     report = graph.generate_relationship_report("users")
 

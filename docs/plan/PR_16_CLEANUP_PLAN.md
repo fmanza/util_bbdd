@@ -21,7 +21,7 @@
 ### Archivos Reales (CON código):
 - `bulk/crud.py`, `bulk/audit.py`, `bulk/normalize.py` - Lógica real
 - `analysis/base.py`, `analysis/graphviz.py`, etc. - Lógica real
-- `managers/sync.py`, `managers/async_mgr.py` - Lógica real
+- `managers/sync_mgr.py`, `managers/async_mgr.py` - Lógica real
 - `connection/factory.py`, `connection/config.py`, etc. - Lógica real
 
 ---
@@ -46,7 +46,7 @@ from .._core.exceptions import DatabaseOperationError
 ...
 ```
 
-### Paso 2.2: `managers/sync.py`
+### Paso 2.2: `managers/sync_mgr.py`
 Mismo patrón de imports a actualizar
 
 ### Paso 2.3: Otros archivos en módulos nuevos

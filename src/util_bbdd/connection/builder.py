@@ -1,4 +1,4 @@
-"""Helpers para construir conn_params de DatabaseManager por motor."""
+"""Helpers para construir conn_params de SyncDatabaseManager por motor."""
 
 from collections.abc import Callable
 from typing import Any
@@ -12,7 +12,7 @@ def build_conn_params(db_type: str, **kwargs: Any) -> dict[str, Any]:
         **kwargs: Parámetros de conexión y opciones específicas del motor.
 
     Returns:
-        Diccionario conn_params listo para DatabaseManager.
+        Diccionario conn_params listo para SyncDatabaseManager.
 
     Raises:
         ValueError: Si el tipo de base no es soportado o faltan parámetros requeridos.

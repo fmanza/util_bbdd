@@ -121,7 +121,7 @@ util_bbdd/
 │   └── __init__.py
 │
 ├── managers/                       # ⭐ NUEVO - DB managers
-│   ├── sync.py                     # DatabaseManager (1,000+ lines)
+│   ├── sync_mgr.py                 # SyncDatabaseManager (1,000+ lines)
 │   ├── async_mgr.py                # AsyncDatabaseManager (700+ lines)
 │   └── __init__.py
 │
@@ -130,7 +130,7 @@ util_bbdd/
 ├── validators/                     # Validator implementations
 │
 └── Wrappers de compatibilidad:
-    ├── database_manager.py         → managers.sync
+    ├── database_manager.py         → managers.sync_mgr
     ├── async_database_manager.py   → managers.async_mgr
     ├── bulk_crud.py                → bulk module
     ├── bulk_crud/                  → bulk module (dir)
@@ -187,9 +187,9 @@ util_bbdd/
 - [x] **443/443 tests passing** ✅
 
 ### PR #12-13 - Managers Module ✅
-- [x] Copiar `database_manager.py` → `managers/sync.py`
+- [x] Copiar `database_manager.py` → `managers/sync_mgr.py`
 - [x] Copiar `async_database_manager.py` → `managers/async_mgr.py`
-- [x] Actualizar 15 imports en `sync.py` (from . → from ..)
+- [x] Actualizar 15 imports en `sync_mgr.py` (from . → from ..)
 - [x] Actualizar 13 imports en `async_mgr.py` (from . → from ..)
 - [x] Crear `managers/__init__.py` con exports consolidados
 - [x] Crear wrapper `database_manager.py` (raíz)
@@ -214,13 +214,13 @@ util_bbdd/
 **Nivel 1: Root Wrapper (convenience)**
 ```python
 # database_manager.py (raíz)
-from .managers.sync import DatabaseManager
+from .managers.sync_mgr import SyncDatabaseManager
 ```
 
 **Nivel 2: Module Wrapper (intermediate)**
 ```python
 # managers.py (raíz)
-from .managers import DatabaseManager, AsyncDatabaseManager
+from .managers import SyncDatabaseManager, AsyncDatabaseManager
 ```
 
 **Nivel 3: Legacy Wrappers (legacy support)**
@@ -231,11 +231,10 @@ from ..bulk.audit import AuditManager
 
 **Resultado:** Soporta todos estos imports:
 ```python
-# Todos funcionan:
-from util_bbdd import DatabaseManager
-from util_bbdd.database_manager import DatabaseManager
-from util_bbdd.managers import DatabaseManager
-from util_bbdd.managers.sync import DatabaseManager
+# Soportados actualmente:
+from util_bbdd import SyncDatabaseManager
+from util_bbdd.managers import SyncDatabaseManager
+from util_bbdd.managers.sync_mgr import SyncDatabaseManager
 from util_bbdd.bulk import bulk_crud  # Legacy
 from util_bbdd.bulk_crud import bulk_crud  # También legacy
 ```

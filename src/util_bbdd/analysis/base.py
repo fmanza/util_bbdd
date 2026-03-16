@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from logging import Logger
 from typing import Any
 
-from ..managers import DatabaseManager
+from ..managers import SyncDatabaseManager
 
 
 @dataclass
@@ -27,8 +27,8 @@ class TableRelation:
 class DatabaseRelationshipGraphBase:
     """Clase base para generar grafos de relaciones de bases de datos"""
 
-    def __init__(self, db_manager: DatabaseManager):
-        self.db_manager: DatabaseManager = db_manager
+    def __init__(self, db_manager: SyncDatabaseManager):
+        self.db_manager: SyncDatabaseManager = db_manager
         self.relations: list[TableRelation] = []
         self.tables: set[str] = set()
         self.logger: Logger = logging.getLogger(__name__)

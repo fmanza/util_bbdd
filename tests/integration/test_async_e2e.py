@@ -128,8 +128,8 @@ class TestAsyncDatabaseManagerE2E:
         # Assert: Todas completaron
         assert len(results) == 2
         # Primer resultado es lista de usuarios
-        users = results[0] if not isinstance(results[0], Exception) else []
-        if not isinstance(users, Exception):
+        users = results[0] if not isinstance(results[0], BaseException) else []
+        if not isinstance(users, BaseException):
             users = users if isinstance(users, list) else list(users)
             assert len(users) == 3
 

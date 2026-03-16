@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tempfile
 
+from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -15,7 +16,7 @@ from util_bbdd.query import QueryRegistry
 
 
 @pytest.fixture
-def temp_queries_file() -> Path:
+def temp_queries_file() -> Generator[Path, None, None]:
     import json
 
     queries_data = {

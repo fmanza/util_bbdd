@@ -51,13 +51,13 @@ class SyncQueryExecutor:
     def _sql_uses_bind_params(sql: str, params: dict[str, Any]) -> bool:
         if not params:
             return False
-        if re.search(r"%\([A-Za-z_][A-Za-z0-9_]*\)s", sql):
+        if re.search(r"%\([A-Za-z_]\w*\)s", sql):
             return True
         if "%s" in sql:
             return True
         if "?" in sql:
             return True
-        return re.search(r"(?<!:):[A-Za-z_][A-Za-z0-9_]*", sql) is not None
+        return re.search(r"(?<!:):[A-Za-z_]\w*", sql) is not None
 
     @staticmethod
     def _decode_binary_value(value: Any) -> Any:
@@ -72,20 +72,20 @@ class SyncQueryExecutor:
 
     @staticmethod
     def _safe_decode_bytes(raw: bytes) -> str | bytes:
-        """Decodifica bytes con estrategia multi-codec fallback.
+        """Decodifica bytes binarios de MariaDB sin forzar conversiones ambiguas.
 
-        Intenta decodificar en orden de probabilidad:
-        1. utf-8 (más probable para Latin)
-        2. cp1252 (Windows encoding)
-        3. iso-8859-1 / latin-1 (universal)
-        4. utf-16 (para datos internacionales específicos)
-        5. HEX encoding (último recurso)
+        Estrategia:
+        1. `utf-8` para datos correctamente codificados.
+        2. `cp1252` para el caso legacy más habitual en MariaDB/Windows.
+        3. `HEX` como preservación literal cuando no se puede inferir un texto fiable.
+
+        No se usa `latin-1`/`iso-8859-1` porque decodifican cualquier secuencia de bytes
+        y convierten errores de encoding en texto potencialmente corrupto.
         """
         if not raw:
             return ""
 
-        # Intenta decodificadores en orden de probabilidad
-        decoders = ["utf-8", "cp1252", "iso-8859-1", "latin-1", "utf-16"]
+        decoders: list[str] = ["utf-8", "cp1252"]
 
         for codec in decoders:
             try:
@@ -93,7 +93,6 @@ class SyncQueryExecutor:
             except (UnicodeDecodeError, LookupError):
                 continue
 
-        # Si todos fallan, retorna como HEX para preservar información
         return f"0x{raw.hex().upper()}"
 
     @staticmethod
@@ -208,7 +207,9 @@ class SyncQueryExecutor:
                 raise
             if not self._is_decode_error(err):
                 raise
-            self.logger.warning("Error de decodificación en fetch para MariaDB. Reintentando con cursor binario.")
+            self.logger.warning(
+                "Error de decodificación en fetch para MariaDB. Activando ruta de seguridad con cursor binario."
+            )
             return self._retry_fetch_with_binary_cursor(
                 conn=conn,
                 sql=sql,
@@ -217,6 +218,34 @@ class SyncQueryExecutor:
                 deadline=deadline,
                 timeout_msg=timeout_msg,
             )
+
+    @staticmethod
+    def _resolve_execute_params(sql: str, params: dict[str, Any]) -> dict[str, Any] | None:
+        if SyncQueryExecutor._sql_uses_bind_params(sql, params):
+            return params
+        return None
+
+    @staticmethod
+    def _execute_sql_with_optional_params(cursor: Any, sql: str, params: dict[str, Any] | None) -> None:
+        if params:
+            cursor.execute(sql, params)
+            return
+        cursor.execute(sql)
+
+    @staticmethod
+    def _calculate_result_rows(result: RowOrNone | Rows, expect_one: bool) -> int:
+        if expect_one:
+            return 1 if result is not None else 0
+        return len(cast(Rows, result))
+
+    def _cleanup_cursor_and_connection(self, cursor: Any, conn: Any) -> None:
+        if cursor and hasattr(cursor, "close"):
+            try:
+                cursor.close()
+            except Exception:
+                self.logger.debug("No se pudo cerrar cursor sync", exc_info=True)
+        if conn:
+            self.connection_releaser(conn)
 
     def _execute_resolved(
         self,
@@ -241,10 +270,8 @@ class SyncQueryExecutor:
             self._raise_if_timed_out(deadline, timeout_msg)
 
             cursor = conn.cursor()
-            if self._sql_uses_bind_params(resolved.final_sql, params):
-                cursor.execute(resolved.final_sql, params)
-            else:
-                cursor.execute(resolved.final_sql)
+            execute_params = self._resolve_execute_params(resolved.final_sql, params)
+            self._execute_sql_with_optional_params(cursor, resolved.final_sql, execute_params)
             self._raise_if_timed_out(deadline, timeout_msg)
 
             result = self._fetch_with_decode_fallback(
@@ -257,10 +284,7 @@ class SyncQueryExecutor:
                 deadline=deadline,
                 timeout_msg=timeout_msg,
             )
-            if expect_one:
-                result_rows = 1 if result is not None else 0
-            else:
-                result_rows = len(cast(Rows, result))
+            result_rows = self._calculate_result_rows(result, expect_one)
             self._raise_if_timed_out(deadline, timeout_msg)
 
             elapsed_ms: float = (time.time() - start_time) * 1000
@@ -279,13 +303,7 @@ class SyncQueryExecutor:
             self.logger.error(msg, exc_info=True)
             raise DatabaseOperationError(msg, "SELECT", db_type=db_type) from err
         finally:
-            if cursor and hasattr(cursor, "close"):
-                try:
-                    cursor.close()
-                except Exception:
-                    self.logger.debug("No se pudo cerrar cursor sync", exc_info=True)
-            if conn:
-                self.connection_releaser(conn)
+            self._cleanup_cursor_and_connection(cursor, conn)
 
     def _execute_custom(
         self,
@@ -306,10 +324,7 @@ class SyncQueryExecutor:
             self._raise_if_timed_out(deadline, timeout_msg)
 
             cursor = conn.cursor()
-            if params:
-                cursor.execute(sql, params)
-            else:
-                cursor.execute(sql)
+            self._execute_sql_with_optional_params(cursor, sql, params)
             self._raise_if_timed_out(deadline, timeout_msg)
 
             db_type_hint: str = "mariadb" if self._is_mariadb_connection(conn) else "unknown"
@@ -323,10 +338,7 @@ class SyncQueryExecutor:
                 deadline=deadline,
                 timeout_msg=timeout_msg,
             )
-            if expect_one:
-                result_rows = 1 if result is not None else 0
-            else:
-                result_rows = len(cast(Rows, result))
+            result_rows: int = self._calculate_result_rows(result, expect_one)
             self._raise_if_timed_out(deadline, timeout_msg)
 
             elapsed_ms: float = (time.time() - start_time) * 1000
@@ -342,13 +354,7 @@ class SyncQueryExecutor:
             self.logger.error(msg, exc_info=True)
             raise DatabaseOperationError(msg, "CUSTOM", db_type="unknown") from err
         finally:
-            if cursor and hasattr(cursor, "close"):
-                try:
-                    cursor.close()
-                except Exception:
-                    self.logger.debug("No se pudo cerrar cursor sync", exc_info=True)
-            if conn:
-                self.connection_releaser(conn)
+            self._cleanup_cursor_and_connection(cursor, conn)
 
     def execute_query_many(
         self,

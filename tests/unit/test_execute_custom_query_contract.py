@@ -9,7 +9,7 @@ import pytest
 from util_bbdd.database_exceptions import DatabaseOperationError, QueryNotFoundError
 from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
-from util_bbdd.managers import AsyncDatabaseManager, DatabaseManager
+from util_bbdd.managers import AsyncDatabaseManager, SyncDatabaseManager
 
 
 def test_sync_executor_custom_many_and_one_delegate_to_execute_custom_internal() -> None:
@@ -38,15 +38,15 @@ async def test_async_executor_custom_many_and_one_delegate_to_execute_custom_int
 
 
 def test_database_manager_execute_custom_many_and_one_use_sync_executor() -> None:
-    manager = DatabaseManager.__new__(DatabaseManager)
+    manager = SyncDatabaseManager.__new__(SyncDatabaseManager)
     manager.logger = MagicMock()
     manager.db_type = "sqlite"
     manager.sync_query_executor = MagicMock()
     manager.sync_query_executor.execute_custom_many.return_value = [("a",)]
     manager.sync_query_executor.execute_custom_one.return_value = ("a",)
 
-    many_result = DatabaseManager.execute_custom_many(manager, "SELECT * FROM users")
-    one_result = DatabaseManager.execute_custom_one(manager, "SELECT * FROM users")
+    many_result = SyncDatabaseManager.execute_custom_many(manager, "SELECT * FROM users")
+    one_result = SyncDatabaseManager.execute_custom_one(manager, "SELECT * FROM users")
 
     assert many_result == [("a",)]
     assert one_result == ("a",)
@@ -63,14 +63,14 @@ def test_database_manager_execute_custom_many_and_one_use_sync_executor() -> Non
 
 
 def test_database_manager_execute_custom_many_propagates_query_error_and_timeout() -> None:
-    manager = DatabaseManager.__new__(DatabaseManager)
+    manager = SyncDatabaseManager.__new__(SyncDatabaseManager)
     manager.logger = MagicMock()
     manager.db_type = "sqlite"
     manager.sync_query_executor = MagicMock()
     manager.sync_query_executor.execute_custom_many.side_effect = QueryNotFoundError("custom missing")
 
     with pytest.raises(QueryNotFoundError):
-        DatabaseManager.execute_custom_many(manager, "SELECT * FROM users", timeout=2.0)
+        SyncDatabaseManager.execute_custom_many(manager, "SELECT * FROM users", timeout=2.0)
 
     manager.sync_query_executor.execute_custom_many.assert_called_once_with(
         sql="SELECT * FROM users",
@@ -80,14 +80,14 @@ def test_database_manager_execute_custom_many_propagates_query_error_and_timeout
 
 
 def test_database_manager_execute_custom_many_wraps_unexpected_errors_with_cause() -> None:
-    manager = DatabaseManager.__new__(DatabaseManager)
+    manager = SyncDatabaseManager.__new__(SyncDatabaseManager)
     manager.logger = MagicMock()
     manager.db_type = "sqlite"
     manager.sync_query_executor = MagicMock()
     manager.sync_query_executor.execute_custom_many.side_effect = RuntimeError("custom driver broke")
 
     with pytest.raises(DatabaseOperationError) as exc_info:
-        DatabaseManager.execute_custom_many(manager, "SELECT * FROM users")
+        SyncDatabaseManager.execute_custom_many(manager, "SELECT * FROM users")
 
     assert isinstance(exc_info.value.__cause__, RuntimeError)
 
@@ -145,5 +145,5 @@ async def test_async_database_manager_execute_custom_many_wraps_unexpected_error
 
 
 def test_legacy_execute_custom_query_api_removed() -> None:
-    assert not hasattr(DatabaseManager, "execute_custom_query")
+    assert not hasattr(SyncDatabaseManager, "execute_custom_query")
     assert not hasattr(AsyncDatabaseManager, "execute_custom_query")

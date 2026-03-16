@@ -1,6 +1,5 @@
 """Tests para SyncQueryExecutor (contrato)"""
 
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -245,6 +244,41 @@ class TestSyncExecutorFetchOptions:
         result = executor.execute_query_one("obtener_tablas", "mariadb", {"database": "test_db"})
 
         assert result == ("CREATE TABLE t (Ó)",)
+        assert mock_conn.cursor.call_count == 2
+        binary_cursor.close.assert_called_once()
+        releaser.assert_called_once_with(mock_conn)
+
+    def test_execute_query_one_mariadb_binary_cursor_preserves_unknown_bytes_as_hex(self, temp_queries_file):
+        """Si el byte binario no es fiable en utf-8/cp1252, se preserva como HEX."""
+        text_cursor = MagicMock()
+        binary_cursor = MagicMock()
+        text_cursor.fetchone.side_effect = UnicodeDecodeError(
+            "utf-8",
+            b"\x81",
+            0,
+            1,
+            "invalid start byte",
+        )
+        binary_cursor.fetchone.return_value = (b"\x81",)
+
+        mock_conn = MagicMock()
+
+        def _cursor_factory(*args, **kwargs):
+            if kwargs.get("binary") is True:
+                return binary_cursor
+            return text_cursor
+
+        mock_conn.cursor.side_effect = _cursor_factory
+
+        provider = MagicMock(return_value=mock_conn)
+        releaser = MagicMock()
+
+        registry = QueryRegistry(temp_queries_file)
+        executor = SyncQueryExecutor(provider, releaser, registry)
+
+        result = executor.execute_query_one("obtener_tablas", "mariadb", {"database": "test_db"})
+
+        assert result == ("0x81",)
         assert mock_conn.cursor.call_count == 2
         binary_cursor.close.assert_called_once()
         releaser.assert_called_once_with(mock_conn)

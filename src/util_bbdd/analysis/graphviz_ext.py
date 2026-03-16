@@ -17,7 +17,7 @@ except ImportError:
     graphviz = None
     GRAPHVIZ_AVAILABLE = False
 
-from ..managers import DatabaseManager
+from ..managers import SyncDatabaseManager
 from .base import DatabaseRelationshipGraphBase, TableRelation
 
 GRAPHVIZ_MISSING_MSG: str = "Graphviz no disponible. Instale: pip install graphviz"
@@ -38,7 +38,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
 
     def __init__(
         self,
-        db_manager: DatabaseManager,
+        db_manager: SyncDatabaseManager,
         show_columns: bool = True,
         orthogonal_edges: bool = True,
         orthogonal_nodesep: float = 0.75,
@@ -61,7 +61,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         # Cache para columnas de tablas (evitar múltiples consultas)
         self._columns_cache: dict[str, list[tuple[str, str]]] = {}
 
-        # Usar cachés centralizadas desde DatabaseManager para relaciones
+        # Usar cachés centralizadas desde SyncDatabaseManager para relaciones
         # No necesitamos cachés locales para PKs, UKs ni cardinalidades
 
     def _get_table_columns_with_types(self, table_name: str) -> list[tuple[str, str]]:

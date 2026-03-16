@@ -26,6 +26,8 @@ from .contracts import (
 from .fetcher import MetadataFetcher
 
 # Imports desde manager
+from .manager import MetadataManager
+
 # Imports desde normalizer
 from .normalizer import (
     NormalizedColumnRow,

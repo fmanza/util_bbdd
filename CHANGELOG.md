@@ -5,6 +5,29 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.5.6] - 2026-03-16
+
+### Removed
+- **Breaking Change**: `DatabaseManager` deja de publicarse como alias sync compatible.
+  - Usa `SyncDatabaseManager` desde `util_bbdd` o `util_bbdd.managers`.
+  - `AsyncDatabaseManager` mantiene su nombre y contrato público.
+
+### Added
+- Soporte MariaDB para metadatos temporales:
+  - `temp_tablespaces` desde `information_schema.FILES` cuando hay acceso.
+  - `temp_storage_variables` para exponer `innodb_temp_data_file_path`.
+- Cobertura adicional de tests para tipado, contratos sync/async y paridad estructural entre managers.
+
+### Changed
+- La lógica específica de MariaDB se reorganiza bajo `metadata/mariadb/` con helpers puros y adaptadores sync/async.
+- `SyncDatabaseManager` pasa a ser el nombre canónico de la API sync en código, tests y documentación.
+- La obtención de DDL y metadatos de MariaDB prioriza `information_schema` y datasets batched por esquema frente a `SHOW CREATE` como ruta principal.
+
+### Fixed
+- Los caminos principales de columnas y DDL de rutinas MariaDB evitan depender del fallback de decodificación del driver.
+- La documentación Word/Excel/HTML refleja almacenamiento temporal MariaDB y falta de permisos sobre `information_schema.FILES` sin romper la generación.
+- Se estabilizan múltiples tests con avisos de tipado en VS Code/Pylance.
+
 ## [0.5.3] - 2026-03-12
 
 ### Added

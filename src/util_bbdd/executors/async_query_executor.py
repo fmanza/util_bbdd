@@ -53,13 +53,13 @@ class AsyncQueryExecutor:
     def _sql_uses_bind_params(sql: str, params: dict[str, Any]) -> bool:
         if not params:
             return False
-        if re.search(r"%\([A-Za-z_][A-Za-z0-9_]*\)s", sql):
+        if re.search(r"%\([A-Za-z_]\w*\)s", sql):
             return True
         if "%s" in sql:
             return True
         if "?" in sql:
             return True
-        return re.search(r"(?<!:):[A-Za-z_][A-Za-z0-9_]*", sql) is not None
+        return re.search(r"(?<!:):[A-Za-z_]\w*", sql) is not None
 
     @staticmethod
     def _is_lob_value(value: Any) -> bool:
@@ -83,6 +83,51 @@ class AsyncQueryExecutor:
                 return ""
         return value
 
+    @staticmethod
+    def _normalize_sql_for_db(sql: str, db_type: str) -> str:
+        if db_type == "mariadb":
+            return sql.replace("%", "%%")
+        return sql
+
+    def _resolve_execute_params(self, sql: str, params: dict[str, Any]) -> dict[str, Any] | None:
+        if self._sql_uses_bind_params(sql, params):
+            return params
+        return None
+
+    async def _get_cursor(self, conn: Any) -> tuple[Any, bool]:
+        if hasattr(conn, "cursor"):
+            cursor = await maybe_await(conn.cursor())
+            return cursor, cursor is not conn
+        return conn, False
+
+    async def _execute_sql_with_optional_params(self, cursor: Any, sql: str, params: dict[str, Any] | None) -> None:
+        if params:
+            await maybe_await(cursor.execute(sql, params))
+            return
+        await maybe_await(cursor.execute(sql))
+
+    async def _fetch_and_normalize(self, cursor: Any, expect_one: bool) -> tuple[RowOrNone | Rows, int]:
+        if expect_one:
+            fetched_one = await maybe_await(cursor.fetchone())
+            materialized_one = self._materialize_lob_value(fetched_one)
+            result_one = self.result_normalizer.normalize_one(materialized_one)
+            result_rows = 1 if result_one is not None else 0
+            return result_one, result_rows
+
+        fetched_many = await maybe_await(cursor.fetchall())
+        materialized_many = self._materialize_lob_value(fetched_many)
+        result_many = self.result_normalizer.normalize_many(materialized_many)
+        return result_many, len(result_many)
+
+    async def _cleanup_cursor_and_connection(self, owns_cursor: bool, cursor: Any, conn: Any) -> None:
+        if owns_cursor and cursor and hasattr(cursor, "close"):
+            try:
+                await maybe_await(cursor.close())
+            except Exception:
+                self.logger.debug("No se pudo cerrar cursor async", exc_info=True)
+        if conn:
+            await self.connection_releaser(conn)
+
     async def _execute_resolved(
         self,
         query_name: str,
@@ -102,32 +147,14 @@ class AsyncQueryExecutor:
                 deadline_seconds=deadline_seconds,
             ):
                 resolved = self.resolver.resolve(query_name, db_type, params)
-                final_sql: str = resolved.final_sql
-                if db_type == "mariadb":
-                    final_sql = final_sql.replace("%", "%%")
+                final_sql: str = self._normalize_sql_for_db(resolved.final_sql, db_type)
                 self.logger.debug(f"SQL final: {final_sql}")
 
                 conn = await self.connection_provider()
-                if hasattr(conn, "cursor"):
-                    cursor = await maybe_await(conn.cursor())
-                    owns_cursor = cursor is not conn
-                else:
-                    cursor = conn
-
-                if self._sql_uses_bind_params(final_sql, params):
-                    await maybe_await(cursor.execute(final_sql, params))
-                else:
-                    await maybe_await(cursor.execute(final_sql))
-                if expect_one:
-                    fetched_one = await maybe_await(cursor.fetchone())
-                    materialized_one = self._materialize_lob_value(fetched_one)
-                    result = self.result_normalizer.normalize_one(materialized_one)
-                    result_rows = 1 if result is not None else 0
-                else:
-                    fetched_many = await maybe_await(cursor.fetchall())
-                    materialized_many = self._materialize_lob_value(fetched_many)
-                    result = self.result_normalizer.normalize_many(materialized_many)
-                    result_rows = len(result)
+                cursor, owns_cursor = await self._get_cursor(conn)
+                execute_params = self._resolve_execute_params(final_sql, params)
+                await self._execute_sql_with_optional_params(cursor, final_sql, execute_params)
+                result, result_rows = await self._fetch_and_normalize(cursor, expect_one)
 
             elapsed_ms: float = (time.time() - start_time) * 1000
             self.logger.debug(
@@ -143,13 +170,7 @@ class AsyncQueryExecutor:
             self.logger.error(msg, exc_info=True)
             raise DatabaseOperationError(msg, "SELECT", db_type=db_type) from err
         finally:
-            if owns_cursor and cursor and hasattr(cursor, "close"):
-                try:
-                    await maybe_await(cursor.close())
-                except Exception:
-                    self.logger.debug("No se pudo cerrar cursor async", exc_info=True)
-            if conn:
-                await self.connection_releaser(conn)
+            await self._cleanup_cursor_and_connection(owns_cursor, cursor, conn)
 
     async def _execute_custom(
         self,
@@ -169,26 +190,9 @@ class AsyncQueryExecutor:
                 deadline_seconds=deadline_seconds,
             ):
                 conn = await self.connection_provider()
-                if hasattr(conn, "cursor"):
-                    cursor = await maybe_await(conn.cursor())
-                    owns_cursor = cursor is not conn
-                else:
-                    cursor = conn
-
-                if params:
-                    await maybe_await(cursor.execute(sql, params))
-                else:
-                    await maybe_await(cursor.execute(sql))
-                if expect_one:
-                    fetched_one = await maybe_await(cursor.fetchone())
-                    materialized_one = self._materialize_lob_value(fetched_one)
-                    result = self.result_normalizer.normalize_one(materialized_one)
-                    result_rows = 1 if result is not None else 0
-                else:
-                    fetched_many = await maybe_await(cursor.fetchall())
-                    materialized_many = self._materialize_lob_value(fetched_many)
-                    result = self.result_normalizer.normalize_many(materialized_many)
-                    result_rows = len(result)
+                cursor, owns_cursor = await self._get_cursor(conn)
+                await self._execute_sql_with_optional_params(cursor, sql, params)
+                result, result_rows = await self._fetch_and_normalize(cursor, expect_one)
 
             elapsed_ms: float = (time.time() - start_time) * 1000
             self.logger.debug(f"✅ Custom query executed: elapsed_ms={elapsed_ms:.2f}, result_rows={result_rows}")
@@ -201,13 +205,7 @@ class AsyncQueryExecutor:
             self.logger.error(msg, exc_info=True)
             raise DatabaseOperationError(msg, "CUSTOM", db_type="unknown") from err
         finally:
-            if owns_cursor and cursor and hasattr(cursor, "close"):
-                try:
-                    await maybe_await(cursor.close())
-                except Exception:
-                    self.logger.debug("No se pudo cerrar cursor async", exc_info=True)
-            if conn:
-                await self.connection_releaser(conn)
+            await self._cleanup_cursor_and_connection(owns_cursor, cursor, conn)
 
     async def execute_query_many(
         self,

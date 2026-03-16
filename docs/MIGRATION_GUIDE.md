@@ -6,7 +6,7 @@
 
 ## ⚠️ IMPORTANTE: Cambios de Compatibilidad
 
-✅ **BUENA NOTICIA:** v0.5.0 es **100% hacia atrás compatible**. Todo el código v0.4.0 sigue funcionando sin cambios.
+⚠️ **CAMBIO RELEVANTE:** el nombre público sync recomendado y exportado es `SyncDatabaseManager`. El alias `DatabaseManager` ya no se publica.
 
 Pero veamos la nueva estructura recomendada para nuevo código.
 
@@ -14,9 +14,9 @@ Pero veamos la nueva estructura recomendada para nuevo código.
 
 ## 📖 Tabla Comparativa: v0.4.0 vs v0.5.0
 
-### DatabaseManager
+### SyncDatabaseManager
 
-#### v0.4.0 (aún funciona)
+#### v0.4.0
 ```python
 from util_bbdd.database_manager import DatabaseManager
 
@@ -26,19 +26,19 @@ manager = DatabaseManager(
 )
 ```
 
-#### v0.5.0 (recomendado - mismo resultado)
+#### v0.5.6+ (requerido)
 ```python
-from util_bbdd.managers import DatabaseManager
+from util_bbdd.managers import SyncDatabaseManager
 # o más simple:
-from util_bbdd import DatabaseManager
+from util_bbdd import SyncDatabaseManager
 
-manager = DatabaseManager(
+manager = SyncDatabaseManager(
     db_type="mariadb",
     conn_params={"host": "localhost", "database": "test"}
 )
 ```
 
-**Diferencia:** Ruta más limpia y clara.
+**Diferencia:** cambia el import y el nombre de clase.
 
 ---
 
@@ -154,10 +154,10 @@ graph_data = graph_mpl.generate_matplotlib_graph_paginated(...)
 
 Si estás refactorizando código legacy para v0.5.0 estilo:
 
-### 1. Imports de DatabaseManager
+### 1. Imports de SyncDatabaseManager
 
-- [ ] `from util_bbdd.database_manager import` → `from util_bbdd.managers import`
-- [ ] O más simple: `from util_bbdd import DatabaseManager`
+- [ ] `from util_bbdd.database_manager import DatabaseManager` → `from util_bbdd.managers import SyncDatabaseManager`
+- [ ] O más simple: `from util_bbdd import SyncDatabaseManager`
 
 **Antes:**
 ```python
@@ -166,9 +166,9 @@ from util_bbdd.database_manager import DatabaseManager
 
 **Después:**
 ```python
-from util_bbdd.managers import DatabaseManager
+from util_bbdd.managers import SyncDatabaseManager
 # O:
-from util_bbdd import DatabaseManager
+from util_bbdd import SyncDatabaseManager
 ```
 
 ### 2. Imports de AsyncDatabaseManager
@@ -247,11 +247,11 @@ manager = DatabaseManager(
 result = manager.execute_query("SELECT * FROM users")
 ```
 
-**v0.5.0 (mismo código, mejor path):**
+**v0.5.6+ (nuevo import y nombre):**
 ```python
-from util_bbdd import DatabaseManager  # Más simple
+from util_bbdd import SyncDatabaseManager
 
-manager = DatabaseManager(
+manager = SyncDatabaseManager(
     db_type="mariadb",
     conn_params={
         "host": "localhost",
@@ -325,13 +325,13 @@ bulk_op = bulk_crud(engine, logger=logger)
 bulk_op.bulk_insert_from_df(df, "users", batch_size=1000)
 ```
 
-**v0.5.0 (mismo código, mejor paths):**
+**v0.5.6+ (nuevo import y nombre):**
 ```python
-from util_bbdd import DatabaseManager
+from util_bbdd import SyncDatabaseManager
 from util_bbdd.bulk import bulk_crud  # Mejor path
 import pandas as pd
 
-manager = DatabaseManager(db_type="mariadb", conn_params={...})
+manager = SyncDatabaseManager(db_type="mariadb", conn_params={...})
 engine = manager.get_sqlalchemy_engine()  # Sin cambios
 
 df = pd.read_csv("data.csv")
@@ -356,15 +356,15 @@ tables = ["users", "orders", "products"]
 graph_html = graph.generate_graphviz_graph_paginated(tables=tables)
 ```
 
-**v0.5.0 (mejor path y más opciones):**
+**v0.5.6+ (nuevo import y nombre):**
 ```python
-from util_bbdd import DatabaseManager
+from util_bbdd import SyncDatabaseManager
 from util_bbdd.analysis import (
     GraphvizRelationshipGraph,
     GraphvizRelationshipGraphExt
 )
 
-manager = DatabaseManager(db_type="mariadb", conn_params={...})
+manager = SyncDatabaseManager(db_type="mariadb", conn_params={...})
 
 # Opción 1: Básico (mismo que v0.4.0)
 graph = GraphvizRelationshipGraph(manager)
@@ -388,7 +388,7 @@ Estos cambios son internos y **NO afectan** tu código:
 
 - ✅ Módulos reorganizados internamente (mejor estructura)
 - ✅ Imports en `__init__.py` centralizados
-- ✅ Wrappers de compatibilidad mantienen ruta antigua
+- ✅ Los wrappers legacy siguen existiendo donde no afectan al manager async
 - ✅ Excepciones siguen siendo las mismas
 - ✅ Métodos públicos idénticos
 
@@ -396,12 +396,13 @@ Estos cambios son internos y **NO afectan** tu código:
 
 ## 🚨 Deprecations (Will Remove Later)
 
-Estas rutas seguirán funcionando en v0.5.0 pero serán deprecadas en v0.6.0+:
+Estas rutas deben migrarse ya si todavía existen en tu código:
 
 ```python
 # Deprecado - seguirá funcionando en v0.5.0 pero no lo uses en nuevo código:
 from util_bbdd.bulk_crud import ...  # Usa: from util_bbdd.bulk import ...
 from util_bbdd.grafos import ...     # Usa: from util_bbdd.analysis import ...
+from util_bbdd.database_manager import DatabaseManager  # Usa: from util_bbdd import SyncDatabaseManager
 ```
 
 Para v0.6.0 esperamos que migres a los nuevos paths.
@@ -423,6 +424,7 @@ grep -r "from util_bbdd.async_database_manager" .
 # from util_bbdd.bulk import ...
 # from util_bbdd.analysis import ...
 # from util_bbdd.managers import ... (o from util_bbdd import ...)
+# from util_bbdd import SyncDatabaseManager
 ```
 
 ---
@@ -448,7 +450,7 @@ Si encuentras problemas después de migrar:
 
 1. Verifica que usas los imports correctos
 2. Revisa que no hay typos en paths
-3. Si aún falla, el código legacy debería funcionar igual (revert y report issue)
+3. Si aún falla, revisa primero imports y nombres de clase sync
 
 ---
 
@@ -456,11 +458,11 @@ Si encuentras problemas después de migrar:
 
 | Aspecto | v0.4.0 | v0.5.0 | Migración |
 |--------|--------|--------|-----------|
-| **DatabaseManager** | `database_manager.py` | `managers/sync.py` | `from util_bbdd import DatabaseManager` |
+| **SyncDatabaseManager** | `database_manager.py` | `managers/sync_mgr.py` | `from util_bbdd import SyncDatabaseManager` |
 | **AsyncDatabaseManager** | `async_database_manager.py` | `managers/async_mgr.py` | `from util_bbdd import AsyncDatabaseManager` |
 | **Bulk Ops** | `bulk_crud/` | `bulk/` | `from util_bbdd.bulk import bulk_crud` |
 | **Analysis** | `grafos/` | `analysis/` | `from util_bbdd.analysis import GraphvizRelationshipGraph` |
-| **Breaking Changes** | N/A | **NONE** ✅ | Todo legacy code funciona |
+| **Breaking Changes** | N/A | rename sync a `SyncDatabaseManager` | actualizar imports y nombre |
 | **Deprecations** | N/A | bulk_crud/, grafos/ paths | Usar nuevos paths para nuevo código |
 
 ---

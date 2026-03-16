@@ -6,12 +6,17 @@ import re
 
 from datetime import date, datetime, time
 from pathlib import Path
+from typing import Any, Callable, cast
 
 import pytest
 
 from sqlalchemy import create_engine
 
 from util_bbdd.bulk.crud import bulk_crud
+
+
+def _get_private_method(manager: bulk_crud, name: str) -> Callable[..., Any]:
+    return cast(Callable[..., Any], getattr(manager, name))
 
 
 class _FakeCompiled:
@@ -57,29 +62,33 @@ def test_detect_sqlserver_driver_sets_specific_db_info(mock_sqlserver_engine) ->
 def test_generar_nombre_sql_dinamico_contains_db_table_operation_and_timestamp() -> None:
     manager = bulk_crud(engine=create_engine("sqlite:///mydb.db"))
 
-    sql_path = manager._bulk_crud__generar_nombre_sql_dinamico("users", "INSERT")
+    sql_path = _get_private_method(manager, "_bulk_crud__generar_nombre_sql_dinamico")("users", "INSERT")
 
     assert re.fullmatch(r"mydb\.db-users-insert_\d{8}_\d{6}\.sql", str(sql_path))
 
 
 def test_validar_y_generar_path_sql_validates_input_type(sqlite_bulk_manager: bulk_crud) -> None:
     with pytest.raises(ValueError, match="path_sql es obligatorio"):
-        sqlite_bulk_manager._bulk_crud__validar_y_generar_path_sql(None, "users", "insert")
+        _get_private_method(sqlite_bulk_manager, "_bulk_crud__validar_y_generar_path_sql")(None, "users", "insert")
 
     with pytest.raises(ValueError, match="instancia de Path"):
-        sqlite_bulk_manager._bulk_crud__validar_y_generar_path_sql("not-a-path", "users", "insert")
+        _get_private_method(sqlite_bulk_manager, "_bulk_crud__validar_y_generar_path_sql")(
+            "not-a-path", "users", "insert"
+        )
 
 
 def test_validar_y_generar_path_sql_joins_base_path_and_dynamic_name(tmp_path: Path, sqlite_bulk_manager: bulk_crud) -> None:
-    sqlite_bulk_manager._bulk_crud__generar_nombre_sql_dinamico = lambda _tabla, _op: Path("generated.sql")  # type: ignore[attr-defined]
+    setattr(sqlite_bulk_manager, "_bulk_crud__generar_nombre_sql_dinamico", lambda _tabla, _op: Path("generated.sql"))
 
-    result = sqlite_bulk_manager._bulk_crud__validar_y_generar_path_sql(tmp_path, "users", "insert")
+    result = _get_private_method(sqlite_bulk_manager, "_bulk_crud__validar_y_generar_path_sql")(
+        tmp_path, "users", "insert"
+    )
 
     assert result == tmp_path / "generated.sql"
 
 
 def test_format_param_value_handles_supported_types(sqlite_bulk_manager: bulk_crud) -> None:
-    formatter = sqlite_bulk_manager._bulk_crud__format_param_value
+    formatter = _get_private_method(sqlite_bulk_manager, "_bulk_crud__format_param_value")
 
     class _CustomObject:
         def __str__(self) -> str:
@@ -98,15 +107,17 @@ def test_format_param_value_handles_supported_types(sqlite_bulk_manager: bulk_cr
 
 
 def test_compilar_stmt_con_binarios_prefers_literal_binds(sqlite_bulk_manager: bulk_crud) -> None:
-    compiled_sql = sqlite_bulk_manager._bulk_crud__compilar_stmt_con_binarios(_LiteralStmt())
+    compiled_sql = _get_private_method(sqlite_bulk_manager, "_bulk_crud__compilar_stmt_con_binarios")(_LiteralStmt())
     assert compiled_sql == "SELECT 1;"
 
 
 def test_compilar_stmt_con_binarios_falls_back_when_binary_literals_fail(sqlite_bulk_manager: bulk_crud) -> None:
-    compiled_sql = sqlite_bulk_manager._bulk_crud__compilar_stmt_con_binarios(_BinaryFallbackStmt())
+    compiled_sql = _get_private_method(sqlite_bulk_manager, "_bulk_crud__compilar_stmt_con_binarios")(
+        _BinaryFallbackStmt()
+    )
     assert compiled_sql == "INSERT INTO t VALUES (0xAA, 'O''Reilly');"
 
 
 def test_compilar_stmt_con_binarios_reraises_non_binary_errors(sqlite_bulk_manager: bulk_crud) -> None:
     with pytest.raises(RuntimeError, match="boom"):
-        sqlite_bulk_manager._bulk_crud__compilar_stmt_con_binarios(_NonBinaryFailingStmt())
+        _get_private_method(sqlite_bulk_manager, "_bulk_crud__compilar_stmt_con_binarios")(_NonBinaryFailingStmt())
