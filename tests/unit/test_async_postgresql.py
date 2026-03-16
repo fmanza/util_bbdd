@@ -16,15 +16,19 @@ class _FakeConn:
         self.last_sql = None
 
     async def execute(self, sql, params=None):
+        await asyncio.sleep(0)
         self.last_sql = sql
 
     async def fetchone(self):
+        await asyncio.sleep(0)
         return ("pg-one",)
 
     async def fetchall(self):
+        await asyncio.sleep(0)
         return [("pg-many",)]
 
     async def close(self):
+        await asyncio.sleep(0)
         self.closed = True
 
 
@@ -35,12 +39,15 @@ class _FakePool:
         self.release_count = 0
 
     async def acquire(self):
+        await asyncio.sleep(0)
         return self.conn
 
     async def release(self, connection):
+        await asyncio.sleep(0)
         self.release_count += 1
 
     async def close(self):
+        await asyncio.sleep(0)
         self.closed = True
 
 
@@ -61,9 +68,11 @@ def _install_fake_asyncpg(monkeypatch):
     fake_pool = _FakePool()
 
     async def fake_connect(**kwargs):
+        await asyncio.sleep(0)
         return _FakeConn()
 
     async def fake_create_pool(**kwargs):
+        await asyncio.sleep(0)
         return fake_pool
 
     fake_module = types.SimpleNamespace(
@@ -76,9 +85,11 @@ def _install_fake_asyncpg(monkeypatch):
 
 def _install_fake_asyncpg_with_pool(monkeypatch, fake_pool):
     async def fake_connect(**kwargs):
+        await asyncio.sleep(0)
         return _FakeConn()
 
     async def fake_create_pool(**kwargs):
+        await asyncio.sleep(0)
         return fake_pool
 
     fake_module = types.SimpleNamespace(
@@ -180,4 +191,3 @@ def test_async_postgresql_pool_forced_close_on_timeout(monkeypatch):
         assert hanging_pool.closed is True
 
     asyncio.run(_run())
-

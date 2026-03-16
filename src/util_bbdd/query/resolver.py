@@ -13,6 +13,9 @@ import time
 
 from typing import Any
 
+from util_bbdd.models import QueryDefinition
+from util_bbdd.validators.base_validator import DatabaseTypeValidator
+
 from ..database_exceptions import (
     QueryNotFoundError,
     QueryParameterError,
@@ -50,8 +53,8 @@ class QueryResolver:
             registry: QueryRegistry para obtener definiciones.
                      Si es None, crea uno nuevo con ruta por defecto.
         """
-        self.logger = logging.getLogger(__name__)
-        self.registry = registry or QueryRegistry()
+        self.logger: logging.Logger = logging.getLogger(__name__)
+        self.registry: QueryRegistry = registry or QueryRegistry()
         self.logger.debug("✅ QueryResolver initialized")
 
     def resolve(
@@ -93,20 +96,20 @@ class QueryResolver:
             # )
         """
         params = params or {}
-        start_time = time.time()
+        start_time: float = time.time()
         db_type = db_type.lower().strip()
 
         try:
             # Paso 1: Obtener QueryDefinition
             self.logger.debug(f"Resolving query: {query_name} for db_type={db_type}")
-            query_def = self.registry.get_query_definition(db_type, query_name)
+            query_def: QueryDefinition = self.registry.get_query_definition(db_type, query_name)
 
             # Paso 2: Validar parámetros con validador específico del motor
-            validator = get_type_validator(db_type)
+            validator: DatabaseTypeValidator = get_type_validator(db_type)
             is_valid, warnings = validator.validate_parameters(query_def, params)
 
             if not is_valid:
-                msg = (
+                msg: str = (
                     f"Validation failed for query '{query_name}' on db_type '{db_type}'. "
                     f"Provided params: {list(params.keys())}"
                 )
@@ -114,10 +117,10 @@ class QueryResolver:
                 raise QueryValidationError(msg)
 
             # Paso 3: Interpolar SQL
-            final_sql = self._interpolate_sql(query_def.sql_template, params)
+            final_sql: str = self._interpolate_sql(query_def.sql_template, params)
 
             # Calcular elapsed time
-            elapsed_ms = (time.time() - start_time) * 1000
+            elapsed_ms: float = (time.time() - start_time) * 1000
 
             self.logger.debug(
                 f"✅ Query resolved successfully: name={query_name}, "
@@ -172,6 +175,6 @@ class QueryResolver:
 
         except KeyError as e:
             missing_param = e.args[0]
-            msg = f"Missing required parameter: '{missing_param}'"
+            msg: str = f"Missing required parameter: '{missing_param}'"
             self.logger.error(f"❌ {msg}")
             raise QueryParameterError(msg) from e

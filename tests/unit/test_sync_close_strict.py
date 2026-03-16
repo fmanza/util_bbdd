@@ -101,14 +101,14 @@ class _ConnForManager:
 
 def test_mariadb_pool_force_close_on_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     module = _import_mariadb_pool_module(monkeypatch)
-    PoolConnection = module.PoolConnection
+    pool_connection_class = module.PoolConnection
 
-    pool = object.__new__(PoolConnection)
+    pool = object.__new__(pool_connection_class)
     pool.logger = logging.getLogger(__name__)
     pool._closed = False
     pool._close_timeout_seconds = 0.01
     fake_pool = _BlockingCloseWithTerminate()
-    setattr(pool, "pool", fake_pool)
+    pool.pool = cast(Any, fake_pool)
 
     pool.close(timeout_seconds=None, force=True)
 
@@ -124,7 +124,7 @@ def test_postgresql_pool_force_close_on_timeout() -> None:
     pool._closed = False
     pool._close_timeout_seconds = 0.01
     fake_pool = _BlockingCloseWithTerminate()
-    setattr(pool, "pool", fake_pool)
+    pool.pool = cast(Any, fake_pool)
 
     pool.close(timeout_seconds=None, force=True)
 
@@ -134,14 +134,14 @@ def test_postgresql_pool_force_close_on_timeout() -> None:
 
 def test_oracle_pool_force_close_on_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     module = _import_oracle_pool_module(monkeypatch)
-    PoolConnection = module.PoolConnection
+    pool_connection_class = module.PoolConnection
 
-    pool = object.__new__(PoolConnection)
+    pool = object.__new__(pool_connection_class)
     pool.logger = logging.getLogger(__name__)
     pool._closed = False
     pool._close_timeout_seconds = 0.01
     fake_pool = _BlockingOracleClose()
-    setattr(pool, "pool", fake_pool)
+    pool.pool = cast(Any, fake_pool)
 
     pool.close(timeout_seconds=None, force=True)
 

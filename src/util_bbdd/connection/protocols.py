@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Protocol, runtime_checkable
 
-__all__ = [
+__all__: list[str] = [
     "ConnectionPoolProtocol",
     "AsyncConnectionProtocol",
     "AsyncPoolProtocol",

@@ -12,27 +12,34 @@ from util_bbdd.connection.protocols import AsyncConnectionProtocol, AsyncPoolPro
 
 class DummyAsyncConnection:
     async def execute(self, query: str, params=None):
+        await asyncio.sleep(0)
         return None
 
     async def fetchone(self):
+        await asyncio.sleep(0)
         return (1,)
 
     async def fetchall(self):
+        await asyncio.sleep(0)
         return [(1,)]
 
     async def close(self) -> None:
-        return None
+        await asyncio.sleep(0)
+        self.closed = True
 
 
 class DummyAsyncPool:
     async def acquire(self):
+        await asyncio.sleep(0)
         return DummyAsyncConnection()
 
     async def release(self, connection) -> None:
-        return None
+        await asyncio.sleep(0)
+        self.last_released = connection
 
     async def close(self, mode: str) -> None:
-        return None
+        await asyncio.sleep(0)
+        self.close_mode = mode
 
 
 def test_runtime_protocol_checks() -> None:

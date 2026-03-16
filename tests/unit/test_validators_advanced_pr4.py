@@ -62,7 +62,7 @@ class TestMariaDBAdvancedValidator:
             optional_params=["charset"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"table": "users", "charset": "utf8mb4"})
+        is_valid, _ = validator.validate_parameters(query_def, {"table": "users", "charset": "utf8mb4"})
         assert is_valid is True
 
 
@@ -79,7 +79,7 @@ class TestOracleAdvancedValidator:
             required_params=["schema"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"schema": "HR"})
+        is_valid, _ = validator.validate_parameters(query_def, {"schema": "HR"})
         assert is_valid is True
 
     def test_oracle_fails_without_schema_param(self):
@@ -92,7 +92,7 @@ class TestOracleAdvancedValidator:
             required_params=["schema"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {})
+        is_valid, _ = validator.validate_parameters(query_def, {})
         assert is_valid is False
 
     def test_oracle_schema_name_max_length(self):
@@ -110,9 +110,9 @@ class TestOracleAdvancedValidator:
         assert is_valid is True
 
         # Invalid: 31 chars
-        is_valid, warnings = validator.validate_parameters(query_def, {"schema": "A" * 31})
+        is_valid, _ = validator.validate_parameters(query_def, {"schema": "A" * 31})
         assert is_valid is False
-        assert any("30" in w for w in warnings)
+        assert any("30" in w for w in _)
 
     def test_oracle_schema_name_allowed_characters(self):
         """Oracle schema names allow alphanumeric, underscore, $, #"""
@@ -141,7 +141,7 @@ class TestOracleAdvancedValidator:
 
         invalid_schemas = ["USER-NAME", "USER.NAME", "USER NAME", "USER@NAME"]
         for schema in invalid_schemas:
-            is_valid, warnings = validator.validate_parameters(query_def, {"schema": schema})
+            is_valid, _ = validator.validate_parameters(query_def, {"schema": schema})
             assert is_valid is False, f"Schema '{schema}' should be invalid"
 
 
@@ -158,7 +158,7 @@ class TestPostgreSQLAdvancedValidator:
             required_params=["database"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"database": "public"})
+        is_valid, _ = validator.validate_parameters(query_def, {"database": "public"})
         assert is_valid is True
 
 
@@ -177,7 +177,7 @@ class TestHSQLDBAdvancedValidator:
 
         valid_names = ["users", "user_profiles", "user-profiles", "USER_123", "table1"]
         for name in valid_names:
-            is_valid, warnings = validator.validate_parameters(query_def, {"table": name})
+            is_valid, _ = validator.validate_parameters(query_def, {"table": name})
             assert is_valid is True, f"Table name '{name}' should be valid for HSQLDB"
 
     def test_hsqldb_table_name_rejects_special_chars(self):
@@ -192,9 +192,9 @@ class TestHSQLDBAdvancedValidator:
 
         invalid_names = ["user@profile", "user.table", "user profile", "user;drop", "user$profile"]
         for name in invalid_names:
-            is_valid, warnings = validator.validate_parameters(query_def, {"table": name})
+            is_valid, _ = validator.validate_parameters(query_def, {"table": name})
             assert is_valid is False, f"Table name '{name}' should be invalid for HSQLDB"
-            assert any("table" in w.lower() for w in warnings)
+            assert any("table" in w.lower() for w in _)
 
     def test_hsqldb_works_without_table_param(self):
         """HSQLDB can handle queries without table parameter"""
@@ -206,7 +206,7 @@ class TestHSQLDBAdvancedValidator:
             required_params=[],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {})
+        is_valid, _ = validator.validate_parameters(query_def, {})
         assert is_valid is True
 
 
@@ -223,7 +223,7 @@ class TestSQLServerAdvancedValidator:
             required_params=[],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {})
+        is_valid, _ = validator.validate_parameters(query_def, {})
         assert is_valid is True
 
     def test_sqlserver_validates_schema_if_provided(self):
@@ -253,7 +253,7 @@ class TestSQLiteAdvancedValidator:
             required_params=[],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {})
+        is_valid, _ = validator.validate_parameters(query_def, {})
         assert is_valid is True
 
 
@@ -328,7 +328,7 @@ class TestValidatorConsistency:
                 required_params=["required_param"],
             )
 
-            is_valid, warnings = validator.validate_parameters(query_def, {})
+            is_valid, _ = validator.validate_parameters(query_def, {})
             assert is_valid is False, f"{db_type} should detect missing required param"
 
 

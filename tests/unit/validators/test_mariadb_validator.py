@@ -34,9 +34,9 @@ class TestMariaDBValidatorRequiredParams:
             required_params=["name"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {})
+        is_valid, _ = validator.validate_parameters(query_def, {})
         assert is_valid is False
-        assert len(warnings) > 0
+        assert len(_) > 0
 
     def test_none_required_param(self):
         """Falla si parámetro requerido es None"""
@@ -48,7 +48,7 @@ class TestMariaDBValidatorRequiredParams:
             required_params=["name"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"name": None})
+        is_valid, _ = validator.validate_parameters(query_def, {"name": None})
         assert is_valid is False
 
     def test_empty_string_required_param(self):
@@ -61,7 +61,7 @@ class TestMariaDBValidatorRequiredParams:
             required_params=["name"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"name": ""})
+        is_valid, _ = validator.validate_parameters(query_def, {"name": ""})
         assert is_valid is False
 
     def test_valid_required_param(self):
@@ -74,7 +74,7 @@ class TestMariaDBValidatorRequiredParams:
             required_params=["name"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"name": "John"})
+        is_valid, _ = validator.validate_parameters(query_def, {"name": "John"})
         assert is_valid is True
 
 
@@ -91,7 +91,7 @@ class TestMariaDBValidatorCharset:
             required_params=["charset"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"charset": "utf8mb4"})
+        is_valid, _ = validator.validate_parameters(query_def, {"charset": "utf8mb4"})
         assert is_valid is True
 
     def test_valid_charsets_variations(self):
@@ -106,7 +106,7 @@ class TestMariaDBValidatorCharset:
 
         valid_charsets = ["utf8", "utf8mb4", "latin1", "ascii", "binary"]
         for charset in valid_charsets:
-            is_valid, warnings = validator.validate_parameters(query_def, {"charset": charset})
+            is_valid, _ = validator.validate_parameters(query_def, {"charset": charset})
             assert is_valid is True, f"Failed for charset: {charset}"
 
 
@@ -123,7 +123,7 @@ class TestMariaDBValidatorDatabaseName:
             required_params=["database"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"database": "my_database"})
+        is_valid, _ = validator.validate_parameters(query_def, {"database": "my_database"})
         assert is_valid is True
 
     def test_empty_database_name(self):
@@ -136,7 +136,7 @@ class TestMariaDBValidatorDatabaseName:
             required_params=["database"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"database": ""})
+        is_valid, _ = validator.validate_parameters(query_def, {"database": ""})
         assert is_valid is False
 
 
@@ -154,7 +154,7 @@ class TestMariaDBValidatorMultipleParams:
         )
 
         params = {"name": "John", "database": "my_db"}
-        is_valid, warnings = validator.validate_parameters(query_def, params)
+        is_valid, _ = validator.validate_parameters(query_def, params)
         assert is_valid is True
 
     def test_multiple_required_params_one_missing(self):
@@ -168,7 +168,7 @@ class TestMariaDBValidatorMultipleParams:
         )
 
         params = {"name": "John"}
-        is_valid, warnings = validator.validate_parameters(query_def, params)
+        is_valid, _ = validator.validate_parameters(query_def, params)
         assert is_valid is False
 
 
@@ -185,7 +185,7 @@ class TestMariaDBValidatorNoRequiredParams:
             required_params=[],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {})
+        is_valid, _ = validator.validate_parameters(query_def, {})
         assert is_valid is True
 
     def test_query_no_required_params_extra_params(self):
@@ -199,5 +199,5 @@ class TestMariaDBValidatorNoRequiredParams:
         )
 
         params = {"extra": "param", "another": "value"}
-        is_valid, warnings = validator.validate_parameters(query_def, params)
+        is_valid, _ = validator.validate_parameters(query_def, params)
         assert is_valid is True

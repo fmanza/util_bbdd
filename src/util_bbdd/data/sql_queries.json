@@ -38,7 +38,7 @@
     "temp_tablespaces": "SELECT tablespace_name AS tablespace, file_name AS archivo, bytes/1024/1024 AS tamano_mb, status AS estado, 'TEMPFILE' AS file_type, autoextensible AS autoextensible, maxbytes/1024/1024 AS max_mb FROM dba_temp_files WHERE tablespace_name = UPPER('{tablespace}') ORDER BY 1, 3 DESC",
     "database_version": "SELECT BANNER AS version FROM v$version WHERE ROWNUM = 1",
     "database_charset_collation": "SELECT PARAMETER AS parameter, VALUE AS value FROM nls_database_parameters WHERE PARAMETER IN ('NLS_CHARACTERSET', 'NLS_NCHAR_CHARACTERSET')",
-    "columns_charset_collation": "SELECT COLUMN_NAME AS column_name, NULL AS charset, NULL AS collation FROM dual WHERE 1=0"
+    "columns_charset_collation": "SELECT COLUMN_NAME AS column_name, NULL AS charset, COLLATION AS collation FROM ALL_TAB_COLS WHERE OWNER = '{database}' AND TABLE_NAME = '{tabla}' AND USER_GENERATED = 'YES' AND COLLATION IS NOT NULL ORDER BY COLUMN_ID"
   },
   "postgresql": {
     "obtener_tablas": "SELECT c.relname AS table_name, COALESCE(obj_description(c.oid), '') AS table_comment FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = '{database}' AND c.relkind = 'r' ORDER BY c.relname",

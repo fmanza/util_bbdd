@@ -12,16 +12,20 @@ from util_bbdd.connection.sqlserver.async_pool_connection_sqlserver import Async
 
 class _FakeSQLServerConn:
     async def execute(self, sql: str, params=None):
+        await asyncio.sleep(0)
         return None
 
     async def fetchone(self):
+        await asyncio.sleep(0)
         return ("sqls-one",)
 
     async def fetchall(self):
+        await asyncio.sleep(0)
         return [("sqls-many",)]
 
     async def close(self):
-        return None
+        """Close SQL Server connection"""
+        await asyncio.sleep(0)
 
 
 class _FakeSQLServerPool:
@@ -31,6 +35,7 @@ class _FakeSQLServerPool:
         self.closed = False
 
     async def acquire(self):
+        await asyncio.sleep(0)
         return self.conn
 
     def release(self, connection) -> None:
@@ -40,6 +45,7 @@ class _FakeSQLServerPool:
         self.closed = True
 
     async def wait_closed(self) -> None:
+        await asyncio.sleep(0)
         return None
 
 
@@ -64,9 +70,11 @@ class _FakeAioODBCModule:
         self.pool = _FakeSQLServerPool()
 
     async def connect(self, **kwargs):
+        await asyncio.sleep(0)
         return self.conn
 
     async def create_pool(self, **kwargs):
+        await asyncio.sleep(0)
         return self.pool
 
 
@@ -83,9 +91,11 @@ def _install_fake_aioodbc_with_pool(monkeypatch, fake_pool):
             self.pool = fake_pool
 
         async def connect(self, **kwargs):
+            await asyncio.sleep(0)
             return self.conn
 
         async def create_pool(self, **kwargs):
+            await asyncio.sleep(0)
             return self.pool
 
     fake_mod = _CustomFakeAioODBCModule()
@@ -188,4 +198,3 @@ def test_async_sqlserver_pool_forced_close_on_timeout(monkeypatch):
         assert hanging_pool.closed is True
 
     asyncio.run(_run())
-

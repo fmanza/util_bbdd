@@ -1,5 +1,7 @@
 """Tests for AsyncDatabaseManager - Async database connection and query management"""
 
+import asyncio
+
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -63,6 +65,7 @@ class TestAsyncDatabaseManagerLifecycle:
         mock_connection = MagicMock()
 
         async def fake_conn_factory(db_type, params):
+            await asyncio.sleep(0)
             return mock_connection
 
         async with AsyncDatabaseManager(
@@ -80,6 +83,7 @@ class TestAsyncDatabaseManagerLifecycle:
         mock_pool_conn.close = AsyncMock()
 
         async def fake_pool_factory(db_type, params):
+            await asyncio.sleep(0)
             return mock_pool_conn
 
         manager = AsyncDatabaseManager(
@@ -92,7 +96,7 @@ class TestAsyncDatabaseManagerLifecycle:
         manager.pool_connection = mock_pool_conn
 
         async with manager:
-            pass
+            assert manager.pool_connection is mock_pool_conn
 
         mock_pool_conn.close.assert_called_once_with(mode="immediate")
 
@@ -103,6 +107,7 @@ class TestAsyncDatabaseManagerLifecycle:
         mock_conn.close = AsyncMock()
 
         async def fake_conn_factory(db_type, params):
+            await asyncio.sleep(0)
             return mock_conn
 
         manager = AsyncDatabaseManager(
@@ -148,6 +153,7 @@ class TestAsyncDatabaseManagerConnectionHandling:
         mock_pool_conn.acquire = AsyncMock(return_value=mock_acquired)
 
         async def fake_pool_factory(db_type, params):
+            await asyncio.sleep(0)
             return mock_pool_conn
 
         manager = AsyncDatabaseManager(
@@ -171,6 +177,7 @@ class TestAsyncDatabaseManagerConnectionHandling:
         mock_conn = MagicMock()
 
         async def fake_conn_factory(db_type, params):
+            await asyncio.sleep(0)
             return mock_conn
 
         manager = AsyncDatabaseManager(
@@ -218,7 +225,7 @@ class TestAsyncDatabaseManagerConnectionHandling:
         mock_conn = MagicMock()
         await manager.release_connection(mock_conn)
 
-        # Should not raise, should be no-op
+        assert manager.pool_connection is None
 
 
 class TestAsyncDatabaseManagerQueryExecution:
@@ -314,6 +321,7 @@ class TestAsyncDatabaseManagerIntegration:
         mock_executor.execute_custom_many = AsyncMock(return_value=[(1, "test")])
 
         async def fake_pool_factory(db_type, params):
+            await asyncio.sleep(0)
             return mock_pool
 
         with patch(
@@ -339,6 +347,7 @@ class TestAsyncDatabaseManagerIntegration:
         mock_executor.execute_custom_many = AsyncMock(side_effect=[[(1, "first")], [(2, "second")]])
 
         async def fake_conn_factory(db_type, params):
+            await asyncio.sleep(0)
             return MagicMock()
 
         async with AsyncDatabaseManager(
@@ -551,6 +560,59 @@ class TestAsyncDatabaseManagerConvenienceMethods:
             query_name="columns_charset_collation",
             db_type="postgresql",
             params={"tabla": "users", "database": "public"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_columns_charset_collation_returns_empty_for_oracle_without_query(self):
+        mock_executor = AsyncMock()
+        mock_executor.execute_query_many = AsyncMock()
+
+        manager = AsyncDatabaseManager(
+            db_type="oracle",
+            conn_params={
+                "user": "DA_DPSS",
+                "password": "secret",  # noqa: S105
+                "host": "localhost",
+                "port": 1521,
+                "service_name": "XE",
+            },
+            use_pool=False,
+        )
+        manager.query_executor = mock_executor
+        manager._initialized = True
+
+        result = await manager.get_columns_charset_collation("V_SAAD_VALORACIONEVE")
+
+        assert result == []
+        mock_executor.execute_query_many.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_columns_charset_collation_uses_oracle_collation_query_for_12_2_plus(self):
+        manager = AsyncDatabaseManager(
+            db_type="oracle",
+            conn_params={
+                "user": "DA_DPSS",
+                "password": "secret",  # noqa: S105
+                "host": "localhost",
+                "port": 1521,
+                "service_name": "XE",
+            },
+            use_pool=False,
+        )
+        manager._initialized = True
+        manager.get_database_version = AsyncMock(
+            return_value="Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production"
+        )
+        manager._execute_metadata_many = AsyncMock(return_value=[("COL1", None, "BINARY_CI")])
+
+        result = await manager.get_columns_charset_collation("V_SAAD_VALORACIONEVE")
+
+        assert result == [("COL1", None, "BINARY_CI")]
+        manager._execute_metadata_many.assert_awaited_once_with(
+            "columns_charset_collation",
+            params={"tabla": "V_SAAD_VALORACIONEVE", "database": "DA_DPSS"},
+            error_message="Error obteniendo charset/collation de columnas",
+            table_name="V_SAAD_VALORACIONEVE",
         )
 
     @pytest.mark.asyncio

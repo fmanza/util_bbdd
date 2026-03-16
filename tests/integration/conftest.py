@@ -229,8 +229,6 @@ def postgresql_available() -> bool:
         engine = create_engine(
             "postgresql+psycopg://postgres:postgres@localhost:5432/util_bbdd_test", connect_args={"timeout": 1}
         )
-        with engine.connect():
-            pass
         engine.dispose()
         return True
     except Exception:
@@ -301,4 +299,3 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "e2e: Tests E2E/Integración con bases de datos reales (sin mocks)")
     config.addinivalue_line("markers", "sqlite: Tests específicos de SQLite")
     config.addinivalue_line("markers", "postgresql: Tests específicos de PostgreSQL (requiere servidor)")
-

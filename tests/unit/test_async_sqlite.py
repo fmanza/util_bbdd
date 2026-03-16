@@ -18,15 +18,19 @@ class _FakeSQLiteConn:
         self.commands: list[str] = []
 
     async def execute(self, sql: str, params=None):
+        await asyncio.sleep(0)
         self.commands.append(sql)
 
     async def fetchone(self):
+        await asyncio.sleep(0)
         return ("sqlite-one",)
 
     async def fetchall(self):
+        await asyncio.sleep(0)
         return [("sqlite-many",)]
 
     async def close(self):
+        await asyncio.sleep(0)
         self.closed = True
 
 
@@ -40,6 +44,7 @@ class _FakeAioSQLiteModule:
         self.conn = _FakeSQLiteConn()
 
     async def connect(self, *args, **kwargs):
+        await asyncio.sleep(0)
         return self.conn
 
 
@@ -52,6 +57,7 @@ def _install_fake_aiosqlite(monkeypatch) -> _FakeSQLiteConn:
 def _install_fake_aiosqlite_with_conn(monkeypatch, conn):
     class _CustomFakeAioSQLiteModule:
         async def connect(self, *args, **kwargs):
+            await asyncio.sleep(0)
             return conn
 
     monkeypatch.setitem(sys.modules, "aiosqlite", _CustomFakeAioSQLiteModule())
@@ -112,4 +118,3 @@ def test_async_sqlite_pool_close_timeout_does_not_block(monkeypatch):
         await pool.close()
 
     asyncio.run(_run())
-

@@ -4,6 +4,7 @@ Soporta MariaDB, Oracle, PostgreSQL, SQLite, HSQLDB y SQL Server.
 """
 
 import logging
+import re
 
 from collections.abc import Callable
 from pathlib import Path
@@ -798,9 +799,7 @@ class SyncDatabaseManager:
     def _fetch_mariadb_routine_from_information_schema(
         self, database: str, routine_name: str, routine_type: str
     ) -> str:
-        return self._get_mariadb_adapter().fetch_routine_from_information_schema(
-            database, routine_name, routine_type
-        )
+        return self._get_mariadb_adapter().fetch_routine_from_information_schema(database, routine_name, routine_type)
 
     def _fetch_mariadb_routine_parameters_detailed(
         self,
@@ -932,9 +931,7 @@ class SyncDatabaseManager:
         routine_type: str,
     ) -> Callable[[], str]:
         if self.db_type == "mariadb":
-            return lambda: self._fetch_mariadb_routine_from_information_schema(
-                context_database, rutina, routine_type
-            )
+            return lambda: self._fetch_mariadb_routine_from_information_schema(context_database, rutina, routine_type)
         return lambda: self._normalize_ddl_result(
             self._execute_metadata_one(
                 "create_rutina",
@@ -1554,7 +1551,7 @@ class SyncDatabaseManager:
         # Mapeo de tipos de BD a funciones de parsing
         parser_map: dict[str, Callable[[tuple[Any, ...], str], tuple[str, str | None, str | None]]] = {
             "mariadb": parse_mariadb_column_charset_collation_row,
-            "oracle": self.__parse_empty_charset_collation_row,
+            "oracle": self.__parse_collation_only_row,
             "postgresql": self.__parse_collation_only_row,
             "sqlserver": self.__parse_collation_only_row,
             "hsqldb": self.__parse_collation_only_row,
@@ -1563,6 +1560,30 @@ class SyncDatabaseManager:
 
         parser = parser_map.get(self.db_type, self.__parse_empty_charset_collation_row)
         return parser(row, column_name)
+
+    def _supports_columns_charset_collation(self) -> bool:
+        """Indica si el motor expone metadata fiable de charset/collation por columna.
+
+        Oracle solo expone collation por columna a partir de 12.2 y no en todas las
+        instalaciones o privilegios. Hasta implementar una ruta versionada, se trata
+        de forma conservadora como no soportado.
+        """
+        if self.db_type == "oracle":
+            cached_support = getattr(self, "_oracle_column_collation_supported", None)
+            if cached_support is not None:
+                return bool(cached_support)
+
+            version_text = self.get_database_version()
+            version_match = re.search(r"Release\s+(\d+)\.(\d+)", version_text)
+            supported = False
+            if version_match:
+                major = int(version_match.group(1))
+                minor = int(version_match.group(2))
+                supported = (major, minor) >= (12, 2)
+            self._oracle_column_collation_supported = supported
+            return supported
+
+        return self.db_type != "sqlite"
 
     def get_database_charset_collation(self) -> dict[str, Any]:
         """
@@ -1603,6 +1624,16 @@ class SyncDatabaseManager:
         context_database: str = self._get_query_context_database()
         context_label = self._get_query_context_label()
         cache_key = self._cache_table_key(context_database, tabla)
+
+        if not self._supports_columns_charset_collation():
+            self.logger.debug(
+                "ℹ️ Charset/collation por columna no soportado para %s; devolviendo lista vacía para %s",
+                self.db_type,
+                tabla,
+            )
+            empty_rows: list[tuple[str, str | None, str | None]] = []
+            self.db_cache.set_columns_charset_collation(cache_key, empty_rows)
+            return empty_rows
 
         return cast(
             list[tuple[str, str | None, str | None]],

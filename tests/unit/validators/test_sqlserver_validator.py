@@ -29,7 +29,7 @@ class TestSQLServerValidatorSchema:
             required_params=["esquema"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"esquema": "dbo"})
+        is_valid, _ = validator.validate_parameters(query_def, {"esquema": "dbo"})
         assert is_valid is True
 
     def test_empty_schema(self):
@@ -42,7 +42,7 @@ class TestSQLServerValidatorSchema:
             required_params=["esquema"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"esquema": ""})
+        is_valid, _ = validator.validate_parameters(query_def, {"esquema": ""})
         assert is_valid is False
 
     def test_none_schema(self):
@@ -55,7 +55,7 @@ class TestSQLServerValidatorSchema:
             required_params=["esquema"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"esquema": None})
+        is_valid, _ = validator.validate_parameters(query_def, {"esquema": None})
         assert is_valid is False
 
     def test_custom_schema(self):
@@ -68,7 +68,7 @@ class TestSQLServerValidatorSchema:
             required_params=["esquema"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"esquema": "custom_schema"})
+        is_valid, _ = validator.validate_parameters(query_def, {"esquema": "custom_schema"})
         assert is_valid is True
 
 
@@ -85,7 +85,7 @@ class TestSQLServerValidatorNoSchema:
             required_params=[],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {})
+        is_valid, _ = validator.validate_parameters(query_def, {})
         assert is_valid is True
 
     def test_multiple_params(self):
@@ -99,5 +99,5 @@ class TestSQLServerValidatorNoSchema:
         )
 
         params = {"esquema": "dbo", "database": "mydb"}
-        is_valid, warnings = validator.validate_parameters(query_def, params)
+        is_valid, _ = validator.validate_parameters(query_def, params)
         assert is_valid is True

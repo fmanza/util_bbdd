@@ -15,15 +15,19 @@ class _FakeMariaConn:
         self.closed = False
 
     async def execute(self, sql: str, params=None):
+        await asyncio.sleep(0)
         return None
 
     async def fetchone(self):
+        await asyncio.sleep(0)
         return ("maria-one",)
 
     async def fetchall(self):
+        await asyncio.sleep(0)
         return [("maria-many",)]
 
     async def close(self):
+        await asyncio.sleep(0)
         self.closed = True
 
 
@@ -34,6 +38,7 @@ class _FakeMariaPool:
         self.closed = False
 
     async def acquire(self):
+        await asyncio.sleep(0)
         return self.conn
 
     def release(self, connection) -> None:
@@ -43,6 +48,7 @@ class _FakeMariaPool:
         self.closed = True
 
     async def wait_closed(self) -> None:
+        await asyncio.sleep(0)
         return None
 
 
@@ -67,9 +73,11 @@ class _FakeAioMySQLModule:
         self.pool = _FakeMariaPool()
 
     async def connect(self, *args, **kwargs):
+        await asyncio.sleep(0)
         return self.conn
 
     async def create_pool(self, *args, **kwargs):
+        await asyncio.sleep(0)
         return self.pool
 
 
@@ -86,9 +94,11 @@ def _install_fake_aiomysql_with_pool(monkeypatch, fake_pool):
             self.pool = fake_pool
 
         async def connect(self, *args, **kwargs):
+            await asyncio.sleep(0)
             return self.conn
 
         async def create_pool(self, *args, **kwargs):
+            await asyncio.sleep(0)
             return self.pool
 
     fake_mod = _CustomFakeAioMySQLModule()
@@ -186,4 +196,3 @@ def test_async_mariadb_pool_forced_close_on_timeout(monkeypatch):
         assert hanging_pool.closed is True
 
     asyncio.run(_run())
-

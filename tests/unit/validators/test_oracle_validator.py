@@ -29,7 +29,7 @@ class TestOracleValidatorSchemaFormat:
             required_params=["schema"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"schema": "MY_SCHEMA"})
+        is_valid, _ = validator.validate_parameters(query_def, {"schema": "MY_SCHEMA"})
         assert is_valid is True
 
     def test_valid_schema_with_special_chars(self):
@@ -44,7 +44,7 @@ class TestOracleValidatorSchemaFormat:
 
         valid_schemas = ["SCHEMA_1", "MY$SCHEMA", "SCHEMA#1", "MY_S"]
         for schema in valid_schemas:
-            is_valid, warnings = validator.validate_parameters(query_def, {"schema": schema})
+            is_valid, _ = validator.validate_parameters(query_def, {"schema": schema})
             assert is_valid is True, f"Failed for schema: {schema}"
 
     def test_schema_too_long(self):
@@ -58,7 +58,7 @@ class TestOracleValidatorSchemaFormat:
         )
 
         long_schema = "A" * 31  # Mayor a 30 caracteres
-        is_valid, warnings = validator.validate_parameters(query_def, {"schema": long_schema})
+        is_valid, _ = validator.validate_parameters(query_def, {"schema": long_schema})
         assert is_valid is False
 
     def test_schema_30_chars_exactly(self):
@@ -72,7 +72,7 @@ class TestOracleValidatorSchemaFormat:
         )
 
         schema_30 = "A" * 30
-        is_valid, warnings = validator.validate_parameters(query_def, {"schema": schema_30})
+        is_valid, _ = validator.validate_parameters(query_def, {"schema": schema_30})
         assert is_valid is True
 
     def test_schema_invalid_characters(self):
@@ -87,7 +87,7 @@ class TestOracleValidatorSchemaFormat:
 
         invalid_schemas = ["SCHEMA-123", "MY.SCHEMA", "SCHEMA@1", "MY SCHEMA"]
         for schema in invalid_schemas:
-            is_valid, warnings = validator.validate_parameters(query_def, {"schema": schema})
+            is_valid, _ = validator.validate_parameters(query_def, {"schema": schema})
             assert is_valid is False, f"Should fail for schema: {schema}"
 
     def test_empty_schema(self):
@@ -100,7 +100,7 @@ class TestOracleValidatorSchemaFormat:
             required_params=["schema"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"schema": ""})
+        is_valid, _ = validator.validate_parameters(query_def, {"schema": ""})
         assert is_valid is False
 
     def test_none_schema(self):
@@ -113,7 +113,7 @@ class TestOracleValidatorSchemaFormat:
             required_params=["schema"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"schema": None})
+        is_valid, _ = validator.validate_parameters(query_def, {"schema": None})
         assert is_valid is False
 
 
@@ -130,5 +130,5 @@ class TestOracleValidatorNoSchema:
             required_params=[],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {})
+        is_valid, _ = validator.validate_parameters(query_def, {})
         assert is_valid is True

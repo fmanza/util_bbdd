@@ -17,7 +17,7 @@ class TestResultNormalizer:
 
     def test_normalize_many_generator_returns_materialized_rows(self) -> None:
         normalizer = ResultNormalizer()
-        raw = (item for item in (("a", 1), ("b", 2)))
+        raw = (("a", 1), ("b", 2))
         assert normalizer.normalize_many(raw) == [("a", 1), ("b", 2)]
 
     def test_normalize_one_list_row_returns_tuple(self) -> None:

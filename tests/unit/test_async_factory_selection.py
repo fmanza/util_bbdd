@@ -24,6 +24,7 @@ def test_connect_factory_selects_registered_async_builder() -> None:
     db_type = "test_async_connection_factory"
 
     async def builder(conn_params, **kwargs):
+        await asyncio.sleep(0)
         return FakeConnection({"conn_params": conn_params, "kwargs": kwargs})
 
     ConnectionFactory.register_async_connection(db_type, builder)
@@ -41,6 +42,7 @@ def test_pool_factory_selects_registered_async_builder() -> None:
     db_type = "test_async_pool_factory"
 
     async def builder(conn_params, **kwargs):
+        await asyncio.sleep(0)
         return FakePool({"conn_params": conn_params, "kwargs": kwargs})
 
     PoolFactory.register_async_pool(db_type, builder)

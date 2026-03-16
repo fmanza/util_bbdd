@@ -29,7 +29,7 @@ class TestSQLiteValidatorDatabaseFile:
             required_params=[],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"database_file": "/path/to/db.sqlite"})
+        is_valid, _ = validator.validate_parameters(query_def, {"database_file": "/path/to/db.sqlite"})
         assert is_valid is True
 
     def test_valid_windows_path(self):
@@ -42,7 +42,7 @@ class TestSQLiteValidatorDatabaseFile:
             required_params=[],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"database_file": "C:\\database\\db.sqlite"})
+        is_valid, _ = validator.validate_parameters(query_def, {"database_file": "C:\\database\\db.sqlite"})
         assert is_valid is True
 
     def test_empty_database_file(self):
@@ -56,9 +56,9 @@ class TestSQLiteValidatorDatabaseFile:
         )
 
         # SQLite debería permitir BD en memoria, pero generar warning si file está vacío
-        is_valid, warnings = validator.validate_parameters(query_def, {"database_file": ""})
-        # SQLite debería pasar (pueden usar :memory:) pero puede haber warnings
-        assert is_valid is True or len(warnings) > 0
+        is_valid, _ = validator.validate_parameters(query_def, {"database_file": ""})
+        # SQLite debería pasar (pueden usar :memory:) pero puede haber _
+        assert is_valid is True or len(_) > 0
 
     def test_no_database_file_param(self):
         """Pasa sin parámetro database_file"""
@@ -70,7 +70,7 @@ class TestSQLiteValidatorDatabaseFile:
             required_params=[],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {})
+        is_valid, _ = validator.validate_parameters(query_def, {})
         assert is_valid is True
 
 
@@ -87,7 +87,7 @@ class TestSQLiteValidatorImMemory:
             required_params=[],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"database_file": ":memory:"})
+        is_valid, _ = validator.validate_parameters(query_def, {"database_file": ":memory:"})
         assert is_valid is True
 
 
@@ -104,7 +104,7 @@ class TestSQLiteValidatorNoRequiredParams:
             required_params=[],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {})
+        is_valid, _ = validator.validate_parameters(query_def, {})
         assert is_valid is True
 
     def test_optional_params_ignored(self):
@@ -118,5 +118,5 @@ class TestSQLiteValidatorNoRequiredParams:
         )
 
         params = {"extra": "param", "another": "value"}
-        is_valid, warnings = validator.validate_parameters(query_def, params)
+        is_valid, _ = validator.validate_parameters(query_def, params)
         assert is_valid is True

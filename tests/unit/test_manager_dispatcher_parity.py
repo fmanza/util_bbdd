@@ -5,7 +5,6 @@ from __future__ import annotations
 from util_bbdd.managers.async_mgr import AsyncDatabaseManager
 from util_bbdd.managers.sync_mgr import SyncDatabaseManager
 
-
 _SHARED_MANAGER_HELPERS = [
     "_get_mariadb_adapter",
     "_fetch_mariadb_routines_from_show_status",

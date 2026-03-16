@@ -54,7 +54,7 @@ class TestQueryNotFoundError:
     def test_query_not_found_error_instantiation(self):
         """Test: puede instanciarse"""
         exc = QueryNotFoundError("Query 'test' not found")
-        assert str(exc) is not None
+        assert str(exc)
 
     def test_query_not_found_error_message(self):
         """Test: captura mensaje de error"""
@@ -80,7 +80,7 @@ class TestQueryValidationError:
     def test_query_validation_error_instantiation(self):
         """Test: puede instanciarse"""
         exc = QueryValidationError("Validation failed")
-        assert str(exc) is not None
+        assert str(exc)
 
     def test_query_validation_error_message(self):
         """Test: captura mensaje de error"""
@@ -105,7 +105,7 @@ class TestQueryParameterError:
     def test_query_parameter_error_instantiation(self):
         """Test: puede instanciarse"""
         exc = QueryParameterError("Invalid parameter")
-        assert str(exc) is not None
+        assert str(exc)
 
     def test_query_parameter_error_message(self):
         """Test: captura mensaje de error"""
@@ -120,7 +120,7 @@ class TestQueryTimeoutError:
     def test_query_timeout_error_instantiation(self):
         """Test: puede instanciarse"""
         exc = QueryTimeoutError("Query execution timed out")
-        assert str(exc) is not None
+        assert str(exc)
 
     def test_query_timeout_error_message(self):
         """Test: captura mensaje de error"""
@@ -145,7 +145,7 @@ class TestDatabaseTypeNotSupportedError:
     def test_database_type_not_supported_error_instantiation(self):
         """Test: puede instanciarse"""
         exc = DatabaseTypeNotSupportedError("db_type 'nosql' not supported")
-        assert str(exc) is not None
+        assert str(exc)
 
     def test_database_type_not_supported_error_message(self):
         """Test: captura mensaje de error"""

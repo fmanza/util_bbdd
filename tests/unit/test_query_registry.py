@@ -79,7 +79,7 @@ class TestGetQueryDefinition:
             registry.get_query_definition("mariadb", "nonexistent_query")
 
         assert "nonexistent_query" in str(exc.value)
-        assert exc.value.__cause__ is not None  # raise ... from err
+        assert exc.value.__cause__ is not None
 
     def test_db_type_not_found(self, temp_queries_file):
         """Test: QueryNotFoundError cuando db_type no existe"""
@@ -89,6 +89,7 @@ class TestGetQueryDefinition:
             registry.get_query_definition("nonexistent_db", "obtener_tablas")
 
         assert "nonexistent_db" in str(exc.value)
+        assert exc.value.__cause__ is not None
 
     def test_db_type_case_insensitive(self, temp_queries_file):
         """Test: db_type es case-insensitive"""

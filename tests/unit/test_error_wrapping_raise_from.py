@@ -57,7 +57,7 @@ def test_query_resolver_wraps_unexpected_errors_with_cause() -> None:
         def __init__(self) -> None:
             self.logger = MagicMock()
 
-        def get_query_definition(self, _db_type: str, _query_name: str) -> Any:
+        def get_query_definition(self, db_type: str, query_name: str) -> Any:
             raise RuntimeError("broken registry")
 
     resolver = QueryResolver(registry=BrokenRegistry())

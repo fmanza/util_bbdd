@@ -44,6 +44,7 @@ class DatabaseDocumentation:
     _ARCHIVO_FISICO: str = "Archivo fisico"
     _TAMANO_MB: str = "Tamaño (MB)"
     _TIPO_FICHERO: str = "Tipo de fichero"
+    _MAXIMO_MB: str = "Maximo (MB)"
 
     def __init__(
         self,
@@ -617,36 +618,67 @@ class DatabaseDocumentation:
 
         parsed_rows: list[list[Any]] = []
         for chunk in [part.strip() for part in value.split(";") if part.strip()]:
-            tokens: list[str] = [token.strip() for token in chunk.split(":") if token.strip()]
-            if not tokens:
-                continue
-
-            file_name: str = tokens[0]
-            initial_mb: float | str = ""
-            autoextend: str = "No"
-            max_mb: float | str = ""
-            idx: int = 1
-
-            if idx < len(tokens):
-                parsed_initial: float | None = cls._parse_mariadb_size_to_mb(tokens[idx])
-                if parsed_initial is not None:
-                    initial_mb = parsed_initial
-                    idx += 1
-
-            while idx < len(tokens):
-                current_token: str = tokens[idx].lower()
-                if current_token == "autoextend":
-                    autoextend = "Si"
-                elif current_token == "max" and idx + 1 < len(tokens):
-                    parsed_max: float | None = cls._parse_mariadb_size_to_mb(tokens[idx + 1])
-                    if parsed_max is not None:
-                        max_mb = parsed_max
-                    idx += 1
-                idx += 1
-
-            parsed_rows.append([variable_name, file_name, initial_mb, autoextend, max_mb, value])
+            row_data = cls._extract_mariadb_temp_data_from_chunk(variable_name, chunk, value)
+            if row_data:
+                parsed_rows.append(row_data)
 
         return parsed_rows
+
+    @classmethod
+    def _extract_mariadb_temp_data_from_chunk(cls, variable_name: str, chunk: str, raw_value: str) -> list[Any] | None:
+        """Extrae datos de un chunk de innodb_temp_data_file_path."""
+        tokens: list[str] = [token.strip() for token in chunk.split(":") if token.strip()]
+        if not tokens:
+            return None
+
+        file_name: str = tokens[0]
+        initial_mb: float | str = ""
+        max_mb: float | str = ""
+        idx: int = 1
+
+        initial_mb, idx = cls._extract_initial_size_and_idx(tokens, idx)
+        autoextend, max_mb = cls._extract_optional_mariadb_params(tokens, idx)
+
+        return [variable_name, file_name, initial_mb, autoextend, max_mb, raw_value]
+
+    @classmethod
+    def _extract_initial_size_and_idx(cls, tokens: list[str], idx: int) -> tuple[float | str, int]:
+        """Extrae tamaño inicial y devuelve el siguiente índice."""
+        initial_mb: float | str = ""
+        if idx < len(tokens):
+            parsed_initial: float | None = cls._parse_mariadb_size_to_mb(tokens[idx])
+            if parsed_initial is not None:
+                initial_mb = parsed_initial
+                idx += 1
+        return initial_mb, idx
+
+    @classmethod
+    def _extract_optional_mariadb_params(cls, tokens: list[str], start_idx: int) -> tuple[str, float | str]:
+        """Extrae parámetros opcionales autoextend y max de MariaDB."""
+        autoextend: str = "No"
+        max_mb: float | str = ""
+        idx: int = start_idx
+
+        while idx < len(tokens):
+            current_token: str = tokens[idx].lower()
+            if cls._is_autoextend_token(current_token):
+                autoextend = "Si"
+            elif cls._is_max_token(current_token, tokens, idx):
+                max_mb = cls._parse_mariadb_size_to_mb(tokens[idx + 1]) or ""
+                idx += 1
+            idx += 1
+
+        return autoextend, max_mb
+
+    @staticmethod
+    def _is_autoextend_token(token: str) -> bool:
+        """Verifica si el token es 'autoextend'."""
+        return token == "autoextend"
+
+    @staticmethod
+    def _is_max_token(token: str, tokens: list[str], idx: int) -> bool:
+        """Verifica si el token es 'max' y hay siguiente elemento."""
+        return token == "max" and idx + 1 < len(tokens)
 
     def _build_storage_query_specs(self) -> list[tuple[str, str]]:
         """Construye secciones de almacenamiento según el motor."""
@@ -696,14 +728,14 @@ class DatabaseDocumentation:
                     "Archivo",
                     "Extent (MB)",
                     "Inicial (MB)",
-                    "Maximo (MB)",
+                    self._MAXIMO_MB,
                 ],
                 "temp_storage_variables": [
                     "Variable",
                     "Archivo",
                     "Inicial (MB)",
                     "Autoextend",
-                    "Maximo (MB)",
+                    self._MAXIMO_MB,
                     "Valor bruto",
                 ],
             },
@@ -715,7 +747,7 @@ class DatabaseDocumentation:
                     "Estado",
                     self._TIPO_FICHERO,
                     "Autoextensible",
-                    "Maximo (MB)",
+                    self._MAXIMO_MB,
                 ],
                 "temp_tablespaces": [
                     "Tablespace",
@@ -724,7 +756,7 @@ class DatabaseDocumentation:
                     "Estado",
                     self._TIPO_FICHERO,
                     "Autoextensible",
-                    "Maximo (MB)",
+                    self._MAXIMO_MB,
                 ],
             },
             "postgresql": {
@@ -1125,9 +1157,8 @@ class DatabaseDocumentation:
         normalized_error: str = str(error_msg or "").strip()
         lowered_error: str = normalized_error.lower()
 
-        if (
-            "information_schema.files" in lowered_error
-            and any(token in lowered_error for token in ("access denied", "permission", "denied", "1142", "1227"))
+        if "information_schema.files" in lowered_error and any(
+            token in lowered_error for token in ("access denied", "permission", "denied", "1142", "1227")
         ):
             return {
                 "query": query_name,

@@ -29,7 +29,7 @@ class TestHSQLDBValidatorTableName:
             required_params=["table"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"table": "users"})
+        is_valid, _ = validator.validate_parameters(query_def, {"table": "users"})
         assert is_valid is True
 
     def test_valid_table_name_with_underscore(self):
@@ -42,7 +42,7 @@ class TestHSQLDBValidatorTableName:
             required_params=["table"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"table": "user_data"})
+        is_valid, _ = validator.validate_parameters(query_def, {"table": "user_data"})
         assert is_valid is True
 
     def test_valid_table_name_with_numbers(self):
@@ -55,7 +55,7 @@ class TestHSQLDBValidatorTableName:
             required_params=["table"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"table": "table123"})
+        is_valid, _ = validator.validate_parameters(query_def, {"table": "table123"})
         assert is_valid is True
 
     def test_valid_table_name_with_dash(self):
@@ -68,7 +68,7 @@ class TestHSQLDBValidatorTableName:
             required_params=["table"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"table": "user-data"})
+        is_valid, _ = validator.validate_parameters(query_def, {"table": "user-data"})
         assert is_valid is True
 
     def test_valid_table_name_complex(self):
@@ -83,7 +83,7 @@ class TestHSQLDBValidatorTableName:
 
         valid_tables = ["user_data_2024", "users-log", "table_1_test", "T123"]
         for table in valid_tables:
-            is_valid, warnings = validator.validate_parameters(query_def, {"table": table})
+            is_valid, _ = validator.validate_parameters(query_def, {"table": table})
             assert is_valid is True, f"Failed for table: {table}"
 
     def test_table_invalid_special_chars(self):
@@ -104,7 +104,7 @@ class TestHSQLDBValidatorTableName:
             "user table",
         ]
         for table in invalid_tables:
-            is_valid, warnings = validator.validate_parameters(query_def, {"table": table})
+            is_valid, _ = validator.validate_parameters(query_def, {"table": table})
             assert is_valid is False, f"Should fail for table: {table}"
 
     def test_empty_table_name(self):
@@ -117,7 +117,7 @@ class TestHSQLDBValidatorTableName:
             required_params=["table"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"table": ""})
+        is_valid, _ = validator.validate_parameters(query_def, {"table": ""})
         assert is_valid is False
 
     def test_none_table_name(self):
@@ -130,7 +130,7 @@ class TestHSQLDBValidatorTableName:
             required_params=["table"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"table": None})
+        is_valid, _ = validator.validate_parameters(query_def, {"table": None})
         assert is_valid is False
 
 
@@ -147,5 +147,5 @@ class TestHSQLDBValidatorNoTable:
             required_params=[],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {})
+        is_valid, _ = validator.validate_parameters(query_def, {})
         assert is_valid is True

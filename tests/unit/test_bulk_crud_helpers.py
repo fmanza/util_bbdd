@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import re
 
+from collections.abc import Callable
 from datetime import date, datetime, time
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 import pytest
 
@@ -21,7 +22,7 @@ def _get_private_method(manager: bulk_crud, name: str) -> Callable[..., Any]:
 
 class _FakeCompiled:
     def __init__(self) -> None:
-        self.params = {"first": b"\xAA", "second": "O'Reilly"}
+        self.params = {"first": b"\xaa", "second": "O'Reilly"}
 
     def __str__(self) -> str:
         return "INSERT INTO t VALUES (%s, %s)"
@@ -77,8 +78,10 @@ def test_validar_y_generar_path_sql_validates_input_type(sqlite_bulk_manager: bu
         )
 
 
-def test_validar_y_generar_path_sql_joins_base_path_and_dynamic_name(tmp_path: Path, sqlite_bulk_manager: bulk_crud) -> None:
-    setattr(sqlite_bulk_manager, "_bulk_crud__generar_nombre_sql_dinamico", lambda _tabla, _op: Path("generated.sql"))
+def test_validar_y_generar_path_sql_joins_base_path_and_dynamic_name(
+    tmp_path: Path, sqlite_bulk_manager: bulk_crud
+) -> None:
+    cast(Any, sqlite_bulk_manager)._bulk_crud__generar_nombre_sql_dinamico = lambda _tabla, _op: Path("generated.sql")
 
     result = _get_private_method(sqlite_bulk_manager, "_bulk_crud__validar_y_generar_path_sql")(
         tmp_path, "users", "insert"

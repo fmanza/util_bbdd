@@ -76,7 +76,7 @@ class TestBuildConnParams:
             host="localhost",
             port=3306,
             user="root",
-            password="pass",
+            password="pass",  # noqa: S105
             database="test",
             charset="utf8mb4",
         )
@@ -93,7 +93,7 @@ class TestBuildConnParams:
             params = build_conn_params(
                 db_type=db_type,
                 user="sys",
-                password="pass",
+                password="pass",  # noqa: S105
                 host="localhost",
                 port=1521,
                 service_name="XE",
@@ -104,7 +104,7 @@ class TestBuildConnParams:
                 host="localhost",
                 port=3306,
                 user="user",
-                password="pass",
+                password="pass",  # noqa: S105
                 database="test",
             )
 
@@ -122,7 +122,7 @@ class TestConnectionParamsManager:
             host="localhost",
             port=3306,
             user="root",
-            password="pass",
+            password="pass",  # noqa: S105
             database="test",
         )
 
@@ -268,9 +268,7 @@ class TestDatabaseTypeValidator:
         validator = DatabaseTypeValidator()
         normalized_db_type = "mariadb" if db_type == "mysql" else db_type
         validator.validate_db_type(normalized_db_type)
-
         # Test pasa si no hay excepción
-        assert True
 
 
 class TestConnectionPooling:
@@ -305,7 +303,7 @@ class TestConfigurationBuilding:
             host="db.example.com",
             port=3306,
             user="admin",
-            password="secret",
+            password="secret",  # noqa: S105
             database="myapp",
         )
 
@@ -320,7 +318,7 @@ class TestConfigurationBuilding:
             host="db.example.com",
             port=5432,
             user="postgres",
-            password="secret",
+            password="secret",  # noqa: S105
             database="myapp",
         )
 
@@ -334,7 +332,7 @@ class TestConfigurationBuilding:
             host="oracle.example.com",
             port=1521,
             user="system",
-            password="secret",
+            password="secret",  # noqa: S105
             service_name="ORCL",
         )
 

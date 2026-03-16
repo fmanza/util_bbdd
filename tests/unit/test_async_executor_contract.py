@@ -196,6 +196,7 @@ class TestAsyncExecutorTimeout:
 
         # Create a mock that blocks until cancellation by timeout
         async def mock_provider():
+            await asyncio.sleep(0)
             conn = AsyncMock()
             cursor = AsyncMock()
 
@@ -208,7 +209,7 @@ class TestAsyncExecutorTimeout:
             return conn
 
         async def mock_releaser(conn):
-            pass
+            await asyncio.sleep(0)
 
         registry = QueryRegistry(temp_queries_file)
         executor = AsyncQueryExecutor(mock_provider, mock_releaser, registry)

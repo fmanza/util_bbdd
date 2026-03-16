@@ -29,7 +29,7 @@ class TestPostgreSQLValidatorDatabaseParam:
             required_params=["database"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"database": "my_database"})
+        is_valid, _ = validator.validate_parameters(query_def, {"database": "my_database"})
         assert is_valid is True
 
     def test_missing_database(self):
@@ -42,7 +42,7 @@ class TestPostgreSQLValidatorDatabaseParam:
             required_params=["database"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {})
+        is_valid, _ = validator.validate_parameters(query_def, {})
         assert is_valid is False
 
     def test_empty_database(self):
@@ -55,7 +55,7 @@ class TestPostgreSQLValidatorDatabaseParam:
             required_params=["database"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"database": ""})
+        is_valid, _ = validator.validate_parameters(query_def, {"database": ""})
         assert is_valid is False
 
     def test_none_database(self):
@@ -68,7 +68,7 @@ class TestPostgreSQLValidatorDatabaseParam:
             required_params=["database"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"database": None})
+        is_valid, _ = validator.validate_parameters(query_def, {"database": None})
         assert is_valid is False
 
 
@@ -85,7 +85,7 @@ class TestPostgreSQLValidatorSchemaParam:
             required_params=["schema"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"schema": "public"})
+        is_valid, _ = validator.validate_parameters(query_def, {"schema": "public"})
         assert is_valid is True
 
     def test_empty_schema(self):
@@ -98,7 +98,7 @@ class TestPostgreSQLValidatorSchemaParam:
             required_params=["schema"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"schema": ""})
+        is_valid, _ = validator.validate_parameters(query_def, {"schema": ""})
         assert is_valid is False
 
 
@@ -116,7 +116,7 @@ class TestPostgreSQLValidatorBothParams:
         )
 
         params = {"database": "my_db", "schema": "public"}
-        is_valid, warnings = validator.validate_parameters(query_def, params)
+        is_valid, _ = validator.validate_parameters(query_def, params)
         assert is_valid is True
 
     def test_database_missing_schema_valid(self):
@@ -129,7 +129,7 @@ class TestPostgreSQLValidatorBothParams:
             required_params=["database"],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {"schema": "public"})
+        is_valid, _ = validator.validate_parameters(query_def, {"schema": "public"})
         assert is_valid is False
 
 
@@ -146,5 +146,5 @@ class TestPostgreSQLValidatorNoRequiredParams:
             required_params=[],
         )
 
-        is_valid, warnings = validator.validate_parameters(query_def, {})
+        is_valid, _ = validator.validate_parameters(query_def, {})
         assert is_valid is True

@@ -43,17 +43,27 @@ try:
         ORDER BY
             ordinal_position"""
 
+    sql = """SHOW CREATE PROCEDURE AVANZAR_CONTADOR"""
+
+    sql = """SELECT ROUTINE_NAME, ROUTINE_DEFINITION
+FROM information_schema.ROUTINES
+WHERE ROUTINE_SCHEMA = 'SOCYALPRO'
+  AND ROUTINE_TYPE = 'PROCEDURE';"""
+
     cur.execute(sql)
 
     # 4. Recuperar y mostrar los resultados
     print("\nResultados de la consulta:")
-    for column_name, column_type, is_nullable, column_key, column_default, extra, column_comment in cur:
-        print(
-            f"column_name: {column_name} | column_type: {column_type} | is_nullable: {is_nullable} | column_key: {column_key} | column_default: {column_default} | extra: {extra} | column_comment: {column_comment}"
-        )
+    for row in cur:
+        print(row)
+    # for column_name, column_type, is_nullable, column_key, column_default, extra, column_comment in cur:
+    #    print(
+    #        f"column_name: {column_name} | column_type: {column_type} | is_nullable: {is_nullable} | column_key: {column_key} | column_default: {column_default} | extra: {extra} | column_comment: {column_comment}"
+    #    )
 
 except mariadb.Error as e:
     print(f"Error conectando a MariaDB: {e}")
+    conn.close()
     sys.exit(1)
 
 finally:

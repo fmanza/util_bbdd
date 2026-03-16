@@ -16,16 +16,20 @@ class FakeConnection:
         self.last_params = None
 
     async def execute(self, query: str, params=None):
+        await asyncio.sleep(0)
         self.last_sql = query
         self.last_params = params
 
     async def fetchone(self):
+        await asyncio.sleep(0)
         return ("one",)
 
     async def fetchall(self):
+        await asyncio.sleep(0)
         return [("many",)]
 
     async def close(self) -> None:
+        await asyncio.sleep(0)
         self.closed = True
 
 
@@ -36,12 +40,15 @@ class FakePool:
         self.connection = FakeConnection()
 
     async def acquire(self):
+        await asyncio.sleep(0)
         return self.connection
 
     async def release(self, connection) -> None:
+        await asyncio.sleep(0)
         self.released += 1
 
     async def close(self, mode: str) -> None:
+        await asyncio.sleep(0)
         self.closed = True
 
 
@@ -50,6 +57,7 @@ def test_async_manager_direct_lifecycle() -> None:
     created: dict[str, FakeConnection] = {}
 
     async def builder(conn_params, **kwargs):
+        await asyncio.sleep(0)
         conn = FakeConnection()
         created["conn"] = conn
         return conn
@@ -71,6 +79,7 @@ def test_async_manager_pool_lifecycle() -> None:
     created: dict[str, FakePool] = {}
 
     async def pool_builder(conn_params, **kwargs):
+        await asyncio.sleep(0)
         pool = FakePool()
         created["pool"] = pool
         return pool

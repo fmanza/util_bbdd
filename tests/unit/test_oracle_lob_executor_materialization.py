@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 from unittest.mock import AsyncMock, MagicMock
@@ -73,12 +74,16 @@ async def test_async_executor_materializes_oracle_lob_before_releasing_connectio
     mock_cursor.fetchone.return_value = (fake_lob,)
     mock_conn.cursor.return_value = mock_cursor
 
-    async def _release(_conn) -> None:
+    def _release_sync(_conn) -> None:
         conn_state["open"] = False
+
+    async def _release_async(_conn) -> None:
+        await asyncio.sleep(0)
+        _release_sync(_conn)
 
     executor = AsyncQueryExecutor(
         connection_provider=AsyncMock(return_value=mock_conn),
-        connection_releaser=_release,
+        connection_releaser=_release_async,
         registry=_build_oracle_registry(tmp_path),
     )
 

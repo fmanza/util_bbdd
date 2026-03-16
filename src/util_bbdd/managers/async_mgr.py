@@ -210,9 +210,7 @@ class AsyncDatabaseManager:
         routine_type: str,
     ) -> Callable[[], Awaitable[str]]:
         if self.db_type == "mariadb":
-            return lambda: self._fetch_mariadb_routine_from_information_schema(
-                context_database, rutina, routine_type
-            )
+            return lambda: self._fetch_mariadb_routine_from_information_schema(context_database, rutina, routine_type)
 
         async def _fetch() -> str:
             params: dict[str, Any] = {
@@ -818,7 +816,7 @@ class AsyncDatabaseManager:
         column_name: str = str(row[0]) if len(row) > 0 else ""
         parser_map: dict[str, Callable[[tuple[Any, ...], str], tuple[str, str | None, str | None]]] = {
             "mariadb": parse_mariadb_column_charset_collation_row,
-            "oracle": self.__parse_empty_charset_collation_row,
+            "oracle": self.__parse_collation_only_row,
             "postgresql": self.__parse_collation_only_row,
             "sqlserver": self.__parse_collation_only_row,
             "hsqldb": self.__parse_collation_only_row,
@@ -826,6 +824,16 @@ class AsyncDatabaseManager:
         }
         parser = parser_map.get(self.db_type, self.__parse_empty_charset_collation_row)
         return parser(row, column_name)
+
+    def _supports_columns_charset_collation(self) -> bool:
+        """Indica si el motor expone metadata fiable de charset/collation por columna."""
+        if self.db_type == "oracle":
+            cached_support = getattr(self, "_oracle_column_collation_supported", None)
+            if cached_support is not None:
+                return bool(cached_support)
+            return False
+
+        return self.db_type != "sqlite"
 
     async def get_tables(self) -> Rows:
         context_database: str = self._get_query_context_database()
@@ -1118,8 +1126,33 @@ class AsyncDatabaseManager:
 
     async def get_columns_charset_collation(self, tabla: str) -> list[tuple[str, str | None, str | None]]:
         context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        cache_key = self._cache_table_key(context_database, tabla)
+        context_label: str = self._get_query_context_label()
+        cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
+
+        supports_columns_charset = self._supports_columns_charset_collation()
+        if self.db_type == "oracle":
+            cached_support = getattr(self, "_oracle_column_collation_supported", None)
+            if cached_support is None:
+                version_text: str = await self.get_database_version()
+                version_match: re.Match[str] | None = re.search(r"Release\s+(\d+)\.(\d+)", version_text)
+                supports_columns_charset = False
+                if version_match:
+                    major = int(version_match.group(1))
+                    minor = int(version_match.group(2))
+                    supports_columns_charset: bool = (major, minor) >= (12, 2)
+                self._oracle_column_collation_supported: bool = supports_columns_charset
+            else:
+                supports_columns_charset = bool(cached_support)
+
+        if not supports_columns_charset:
+            self.logger.debug(
+                "ℹ️ Charset/collation por columna no soportado para %s; devolviendo lista vacía para %s",
+                self.db_type,
+                tabla,
+            )
+            empty_rows: list[tuple[str, str | None, str | None]] = []
+            self.db_cache.set_columns_charset_collation(cache_key, empty_rows)
+            return empty_rows
 
         async def _fetch_charset_collation() -> list[Any]:
             rows = await self._execute_metadata_many(

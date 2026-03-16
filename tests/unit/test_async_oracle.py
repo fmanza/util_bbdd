@@ -12,16 +12,20 @@ from util_bbdd.connection.oracle.async_pool_connection_oracle import AsyncOracle
 
 class _FakeOracleConn:
     async def execute(self, sql: str, params=None):
+        await asyncio.sleep(0)
         return None
 
     async def fetchone(self):
+        await asyncio.sleep(0)
         return ("ora-one",)
 
     async def fetchall(self):
+        await asyncio.sleep(0)
         return [("ora-many",)]
 
     async def close(self):
-        return None
+        """Close connection"""
+        await asyncio.sleep(0)
 
 
 class _FakeOraclePool:
@@ -31,12 +35,15 @@ class _FakeOraclePool:
         self.closed = False
 
     async def acquire(self):
+        await asyncio.sleep(0)
         return self.conn
 
     async def release(self, connection):
+        await asyncio.sleep(0)
         self.release_count += 1
 
     async def close(self):
+        await asyncio.sleep(0)
         self.closed = True
 
 
@@ -66,9 +73,11 @@ class _FakeOracleDBModule:
         return f"{host}:{port}/{sid}"
 
     async def connect_async(self, **kwargs):
+        await asyncio.sleep(0)
         return self.conn
 
     async def create_pool_async(self, **kwargs):
+        await asyncio.sleep(0)
         return self.pool
 
 
@@ -92,9 +101,11 @@ def _install_fake_oracledb_with_pool(monkeypatch, fake_pool):
             return f"{host}:{port}/{sid}"
 
         async def connect_async(self, **kwargs):
+            await asyncio.sleep(0)
             return self.conn
 
         async def create_pool_async(self, **kwargs):
+            await asyncio.sleep(0)
             return self.pool
 
     fake_mod = _CustomFakeOracleDBModule()
@@ -109,7 +120,7 @@ def test_async_oracle_connection(monkeypatch):
         conn = await AsyncOracleConnection.connect(
             {
                 "user": "scott",
-                "password": "tiger",
+                "password": "tiger",  # noqa: S105
                 "host": "localhost",
                 "port": 1521,
                 "service_name": "XE",
@@ -129,7 +140,7 @@ def test_async_oracle_pool(monkeypatch):
         pool = await AsyncOraclePool.create(
             {
                 "user": "scott",
-                "password": "tiger",
+                "password": "tiger",  # noqa: S105
                 "host": "localhost",
                 "port": 1521,
                 "service_name": "XE",
@@ -155,7 +166,7 @@ def test_async_database_manager_oracle_pool(monkeypatch):
             db_type="oracle",
             conn_params={
                 "user": "scott",
-                "password": "tiger",
+                "password": "tiger",  # noqa: S105
                 "host": "localhost",
                 "port": 1521,
                 "service_name": "XE",
@@ -180,7 +191,7 @@ def test_async_oracle_pool_forced_close_on_timeout(monkeypatch):
         pool = await AsyncOraclePool.create(
             {
                 "user": "scott",
-                "password": "tiger",
+                "password": "tiger",  # noqa: S105
                 "host": "localhost",
                 "port": 1521,
                 "service_name": "XE",
@@ -192,4 +203,3 @@ def test_async_oracle_pool_forced_close_on_timeout(monkeypatch):
         assert hanging_pool.closed is True
 
     asyncio.run(_run())
-

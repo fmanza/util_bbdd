@@ -1,6 +1,8 @@
 """Unit tests for helper methods in HTML/Excel/Word generators."""
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -69,7 +71,7 @@ def test_excel_generator_style_normalization_split_and_numeric_conversion() -> N
     assert fallback._safe_tuple_value(("A", None), 0) == "A"
     assert fallback._safe_tuple_value(("A", None), 1) == ""
     assert fallback._safe_tuple_value(("A",), 3) == ""
-    assert fallback._convert_to_numeric(" 1,50 ") == 1.5
+    assert fallback._convert_to_numeric(" 1,50 ") == pytest.approx(1.5)
     assert fallback._convert_to_numeric("abc") == "abc"
     assert fallback._convert_to_numeric(None) == ""
 
@@ -113,15 +115,20 @@ def test_database_documentation_parses_mariadb_temp_data_file_path() -> None:
 
 
 def test_database_documentation_parse_mariadb_size_to_mb_accepts_units() -> None:
-    assert DatabaseDocumentation._parse_mariadb_size_to_mb("64K") == 0.06
-    assert DatabaseDocumentation._parse_mariadb_size_to_mb("12M") == 12.0
-    assert DatabaseDocumentation._parse_mariadb_size_to_mb("2G") == 2048.0
+    assert DatabaseDocumentation._parse_mariadb_size_to_mb("64K") == pytest.approx(0.06)
+    assert DatabaseDocumentation._parse_mariadb_size_to_mb("12M") == pytest.approx(12.0)
+    assert DatabaseDocumentation._parse_mariadb_size_to_mb("2G") == pytest.approx(2048.0)
 
 
 def test_database_documentation_formats_mariadb_files_access_error() -> None:
-    doc = DatabaseDocumentation.__new__(DatabaseDocumentation)
+    doc: DatabaseDocumentation = DatabaseDocumentation.__new__(DatabaseDocumentation)
+    doc_any = cast(Any, doc)
+    build_error_section = cast(
+        Callable[[str, str, str], dict[str, Any]],
+        object.__getattribute__(doc_any, "_DatabaseDocumentation__build_mariadb_temp_tablespaces_error_section"),
+    )
 
-    section = doc._DatabaseDocumentation__build_mariadb_temp_tablespaces_error_section(
+    section: dict[str, Any] = build_error_section(
         "temp_tablespaces",
         "Temp tablespaces",
         "Access denied to information_schema.FILES for user",
