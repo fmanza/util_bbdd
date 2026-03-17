@@ -682,11 +682,10 @@ class DatabaseDocumentation:
 
     def _build_storage_query_specs(self) -> list[tuple[str, str]]:
         """Construye secciones de almacenamiento según el motor."""
-        query_specs: list[tuple[str, str]] = [
-            ("ficheros_fisicos", "Ficheros físicos"),
-            ("ficheros_fisicos_adicional", "Ficheros físicos adicionales"),
-            ("temp_tablespaces", "Temp tablespaces"),
-        ]
+        query_specs: list[tuple[str, str]] = [("ficheros_fisicos", "Ficheros físicos")]
+        if self.db_type == "sqlite":
+            query_specs.append(("sqlite_file_summary", "Ficheros físicos - resumen SQLite"))
+        query_specs.append(("temp_tablespaces", "Temp tablespaces"))
         if self.db_type == "mariadb":
             query_specs.append(("temp_storage_variables", "Configuración temporales InnoDB"))
         return query_specs
@@ -716,12 +715,6 @@ class DatabaseDocumentation:
                     "Datos (MB)",
                     "Indices (MB)",
                     "Total (MB)",
-                ],
-                "ficheros_fisicos_adicional": [
-                    "Tablespace",
-                    self._ARCHIVO_FISICO,
-                    "Tamano fichero (MB)",
-                    "Tamano asignado (MB)",
                 ],
                 "temp_tablespaces": [
                     "Tablespace",
@@ -787,7 +780,7 @@ class DatabaseDocumentation:
             },
             "sqlite": {
                 "ficheros_fisicos": ["Seq", "Nombre", "Archivo"],
-                "ficheros_fisicos_adicional": ["Page count", "Page size", "Size bytes"],
+                "sqlite_file_summary": ["Page count", "Page size", "Size bytes"],
                 "temp_tablespaces": ["Temp store"],
             },
             "hsqldb": {

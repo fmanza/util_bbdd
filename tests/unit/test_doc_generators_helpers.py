@@ -136,3 +136,15 @@ def test_database_documentation_formats_mariadb_files_access_error() -> None:
 
     assert section["status"] == "error"
     assert "Sin acceso a information_schema.FILES" in section["message"]
+
+def test_database_documentation_storage_specs_add_sqlite_summary_section() -> None:
+    doc: DatabaseDocumentation = DatabaseDocumentation.__new__(DatabaseDocumentation)
+    doc.db_manager = cast(Any, type("Manager", (), {"db_type": "sqlite"})())
+
+    specs = doc._build_storage_query_specs()
+
+    assert specs == [
+        ("ficheros_fisicos", "Ficheros físicos"),
+        ("sqlite_file_summary", "Ficheros físicos - resumen SQLite"),
+        ("temp_tablespaces", "Temp tablespaces"),
+    ]

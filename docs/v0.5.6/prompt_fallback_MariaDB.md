@@ -2,6 +2,8 @@
 
 ## 1. Resumen ejecutivo
 
+> Nota de mantenimiento: este prompt recoge el diseño de la refactorización MariaDB. La implementación final de `v0.5.6` ya evolucionó el contrato de almacenamiento y dejó de usar `secondary` y `ficheros_fisicos_adicional`.
+
 Se debe preparar e implementar una ampliacion para la version `v0.5.6` cuyo objetivo es eliminar el flujo fragmentado de consultas de MariaDB para inventario de objetos y almacenamiento, sustituyendolo por una unica extraccion SQL interna y una particion posterior en Python apoyada en cache central.
 
 La decision ya esta tomada y no debe volver a discutirse durante la implementacion:
@@ -23,15 +25,14 @@ La implementacion debe partir de estos hechos observados en el codigo actual:
   - `obtener_rutinas`
   - `ficheros_fisicos`
 - No existe hoy una query unificada MariaDB para inventario global de objetos y almacenamiento.
-- `src/util_bbdd/managers/sync_mgr.py` y `src/util_bbdd/managers/async_mgr.py` mantienen un contrato de almacenamiento basado en:
+- `src/util_bbdd/managers/sync_mgr.py` y `src/util_bbdd/managers/async_mgr.py` exponen hoy un contrato de almacenamiento con claves explicitas por capacidad:
   - `primary`
-  - `secondary`
-  - `temp_tablespaces` solo cuando aplica
-- En MariaDB, la rama actual sigue resolviendo `secondary` mediante `ficheros_fisicos_adicional`.
+  - `temp_tablespaces` cuando aplica
+  - `sqlite_file_summary` en SQLite
 - `src/util_bbdd/doc/database_documentation.py` genera tres secciones diferenciadas de almacenamiento:
   - `ficheros_fisicos`
-  - `ficheros_fisicos_adicional`
   - `temp_tablespaces`
+  - `temp_storage_variables` en MariaDB
 - La capa documental ya sabe representar estados controlados como:
   - `not_supported`
   - `missing_params`
@@ -47,8 +48,8 @@ Se debe crear una **query interna unificada de inventario MariaDB** que obtenga 
 - vistas
 - rutinas
 - almacenamiento principal
-- almacenamiento adicional, solo si MariaDB realmente lo soporta
 - temp tablespaces, solo si MariaDB realmente lo soporta
+- variables de configuracion temporal cuando MariaDB las exponga
 
 Esta query unificada sera una capacidad interna del motor MariaDB. No se exige extender el mismo patron a Oracle, PostgreSQL, SQLite, HSQLDB o SQL Server dentro de esta tarea.
 
@@ -87,7 +88,6 @@ La query unificada MariaDB debe normalizar su salida a un shape unico y estable,
   - `view`
   - `routine`
   - `storage_primary`
-  - `storage_secondary`
   - `temp_tablespace`
 - Los campos no aplicables deben devolverse como `NULL`, no como cadenas vacias inventadas salvo que una capa publica exija texto final.
 - `supported` debe permitir distinguir entre:
@@ -118,13 +118,13 @@ lean desde el dataset unificado cacheado.
 
 #### Contrato externo que no puede romperse
 
-`get_storage_inventory()` debe seguir devolviendo la forma actual:
+`get_storage_inventory()` debe devolver claves explicitas por capacidad:
 
 - `primary`
-- `secondary`
 - `temp_tablespaces` cuando corresponda
+- otras claves especificas del motor solo cuando representen una capacidad real y no un placeholder
 
-La diferencia es interna: `primary`, `secondary` y `temp_tablespaces` saldran de la particion del dataset unificado, no de multiples consultas separadas.
+La diferencia es interna: `primary` y `temp_tablespaces` saldran de la particion del dataset unificado, no de multiples consultas separadas.
 
 ### 5.3 Cache
 
@@ -138,14 +138,14 @@ La diferencia es interna: `primary`, `secondary` y `temp_tablespaces` saldran de
 `src/util_bbdd/doc/database_documentation.py` debe seguir recibiendo secciones separadas para:
 
 - `ficheros_fisicos`
-- `ficheros_fisicos_adicional`
 - `temp_tablespaces`
+- `temp_storage_variables` cuando aplique
 
 pero internamente dichas secciones deben poder derivarse del dataset unificado MariaDB.
 
 Regla obligatoria:
 
-- si MariaDB no ofrece `storage_secondary` o `temp_tablespace`, la documentacion debe producir una seccion controlada de "no disponible" o "sin datos", nunca un traceback ni un mensaje de error generico de bajo nivel.
+- si MariaDB no ofrece `temp_tablespace`, la documentacion debe producir una seccion controlada de "no disponible" o "sin datos", nunca un traceback ni un mensaje de error generico de bajo nivel.
 
 ### 5.5 Word, Excel y HTML
 
@@ -175,7 +175,6 @@ La implementacion debe seguir esta estrategia salvo que durante el desarrollo se
   - vistas
   - rutinas
   - almacenamiento principal
-  - almacenamiento adicional, si existe fuente fiable
   - temp tablespaces, si existe fuente fiable
 - Normalizar tipos y aliases en SQL para que todas las filas compartan el mismo contrato de columnas.
 - Incluir `engine`, `charset` y `collation` directamente para tablas cuando el motor los exponga.
@@ -197,7 +196,6 @@ La capa Python debe exponer funciones o helpers dedicados para derivar, al menos
 - lista normalizada de vistas
 - lista normalizada de rutinas
 - `storage_primary`
-- `storage_secondary`
 - `temp_tablespaces`
 
 Se debe aplicar responsabilidad unica:
@@ -239,7 +237,7 @@ Trabajo esperado:
 
 - inventariar queries actuales MariaDB en `sql_queries.json`
 - identificar que metodos sync/async consumen tablas, vistas, rutinas y almacenamiento
-- confirmar que la documentacion depende del contrato `primary`/`secondary` y de secciones separadas
+- confirmar que la documentacion depende del contrato de claves explicitas por capacidad y de secciones separadas
 - registrar cualquier ruta legacy adicional que siga llamando a consultas MariaDB independientes
 
 Resultado de salida:
@@ -275,7 +273,7 @@ Objetivo:
 Trabajo esperado:
 
 - adaptar managers sync/async para derivar tablas, vistas y rutinas del dataset unificado
-- adaptar `get_storage_inventory()` para seguir entregando `primary` y `secondary`
+- adaptar `get_storage_inventory()` para seguir entregando `primary` y `temp_tablespaces`
 - garantizar que `database_documentation.py` siga generando secciones separadas
 - eliminar o dejar obsoletas las ramas internas que ya no aporten valor en MariaDB
 
@@ -319,7 +317,7 @@ La implementacion debe cubrir, como minimo, estos escenarios:
 - `get_tables()` en MariaDB usa el dataset unificado cacheado.
 - `get_views()` en MariaDB usa el dataset unificado cacheado.
 - `get_routines()` en MariaDB usa el dataset unificado cacheado.
-- `get_storage_inventory()` en MariaDB conserva `primary` y `secondary`.
+- `get_storage_inventory()` en MariaDB conserva `primary` y `temp_tablespaces`.
 - Sync y async mantienen el mismo contrato observable.
 
 ### Cache
@@ -333,7 +331,6 @@ La implementacion debe cubrir, como minimo, estos escenarios:
 - Word no falla al introducir o reordenar columnas visibles.
 - Excel no falla al introducir o reordenar columnas visibles.
 - HTML no falla al introducir o reordenar columnas visibles.
-- Si no existe soporte real para `storage_secondary`, la seccion aparece como no disponible o sin datos.
 - Si no existe soporte real para `temp_tablespaces`, la seccion aparece como no disponible o sin datos.
 
 ### Errores y regresiones

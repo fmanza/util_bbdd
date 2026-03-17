@@ -234,6 +234,18 @@ class TestDatabaseQueriesConsistency:
         temp_variables_sql = dq.get_query("temp_storage_variables")
 
         assert "temp_tablespaces" in storage_queries
+        assert "temp_storage_variables" in storage_queries
         assert "information_schema.FILES" in storage_queries["temp_tablespaces"]
         assert "FILE_TYPE = 'TEMPORARY'" in temp_tablespaces_sql
         assert "innodb_temp_data_file_path" in temp_variables_sql
+
+    def test_sqlite_storage_queries_use_explicit_summary_key(self):
+        """SQLite expone resumen del fichero principal como capacidad propia."""
+        dq = DatabaseQueries(db_type="sqlite")
+
+        storage_queries = dq.get_storage_inventory_queries()
+
+        assert "primary" in storage_queries
+        assert "sqlite_file_summary" in storage_queries
+        assert "ficheros_fisicos_adicional" not in storage_queries
+        assert "pragma_page_count" in storage_queries["sqlite_file_summary"].lower()

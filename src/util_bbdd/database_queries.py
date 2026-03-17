@@ -213,33 +213,41 @@ class DatabaseQueries:
         """Obtiene consultas de inventario de ficheros/tablespaces según motor.
 
         Returns:
-            Diccionario con llaves `primary` y opcionalmente `secondary`.
+            Diccionario con llaves explicitas por capacidad (`primary`,
+            `temp_tablespaces`, `temp_storage_variables`, `sqlite_file_summary`).
         """
         if self.db_type == "sqlserver":
-            return {"primary": self.get_query("ficheros_fisicos")}
+            return {
+                "primary": self.get_query("ficheros_fisicos"),
+                "temp_tablespaces": self.get_query("temp_tablespaces"),
+            }
         if self.db_type == "oracle":
             if not tablespace:
                 raise ValueError("Para Oracle debe indicar 'tablespace'")
-            return {"primary": self.get_query("ficheros_fisicos", tablespace=tablespace)}
+            return {
+                "primary": self.get_query("ficheros_fisicos", tablespace=tablespace),
+                "temp_tablespaces": self.get_query("temp_tablespaces", tablespace=tablespace),
+            }
         if self.db_type == "mariadb":
             if not database:
                 raise ValueError("Para MariaDB debe indicar 'database'")
             return {
                 "primary": self.get_query("ficheros_fisicos", database=database),
-                "secondary": self.get_query("ficheros_fisicos_adicional", database=database),
                 "temp_tablespaces": self.get_query("temp_tablespaces"),
+                "temp_storage_variables": self.get_query("temp_storage_variables"),
             }
         if self.db_type == "postgresql":
             if not tablespace:
                 raise ValueError("Para PostgreSQL debe indicar 'tablespace'")
             return {
                 "primary": self.get_query("ficheros_fisicos", tablespace=tablespace),
-                "secondary": self.get_query("temp_tablespaces"),
+                "temp_tablespaces": self.get_query("temp_tablespaces"),
             }
         if self.db_type == "sqlite":
             return {
                 "primary": self.get_query("ficheros_fisicos"),
-                "secondary": self.get_query("ficheros_fisicos_adicional"),
+                "sqlite_file_summary": self.get_query("sqlite_file_summary"),
+                "temp_tablespaces": self.get_query("temp_tablespaces"),
             }
         # HSQLDB no expone vista SQL estándar para tamaños de fichero físico.
         return {}
@@ -619,7 +627,7 @@ class DatabaseQueries:
             "claves_foraneas": "Obtiene las claves foráneas (foreign keys) de una tabla",
             "claves_unicas": "Obtiene las restricciones únicas de una tabla",
             "ficheros_fisicos": "Obtiene inventario de ficheros físicos y tamaños",
-            "ficheros_fisicos_adicional": "Obtiene inventario adicional de ficheros/tablespaces según motor",
+            "sqlite_file_summary": "Obtiene resumen interno del fichero SQLite principal",
             "temp_tablespaces": "Obtiene configuración de tablespaces temporales",
             "temp_storage_variables": "Obtiene variables de configuración del almacenamiento temporal",
         }
@@ -640,7 +648,7 @@ class DatabaseQueries:
             "columnas_tabla": self._examples_columnas_tabla,
             "create_table": self._examples_create_table,
             "ficheros_fisicos": self._examples_ficheros_fisicos,
-            "ficheros_fisicos_adicional": self._examples_ficheros_fisicos_adicional,
+            "sqlite_file_summary": self._examples_sqlite_file_summary,
             "temp_tablespaces": self._examples_temp_tablespaces,
             "temp_storage_variables": self._examples_temp_storage_variables,
         }
@@ -730,17 +738,11 @@ class DatabaseQueries:
         )
         return [example]
 
-    def _examples_ficheros_fisicos_adicional(self) -> list[dict[str, Any]]:
-        """Ejemplos para consulta ficheros_fisicos_adicional según motor"""
-        examples_by_db: dict[str, dict[str, Any]] = {
-            "mariadb": {
-                "description": "Tablespaces InnoDB para una base en MariaDB",
-                "parameters": {"database": "mi_bd"},
-            },
-            "sqlite": {"description": "Resumen de tamaño del fichero SQLite", "parameters": {}},
-        }
-        example: dict[str, Any] | None = examples_by_db.get(self.db_type)
-        return [example] if example else []
+    def _examples_sqlite_file_summary(self) -> list[dict[str, Any]]:
+        """Ejemplos para consulta sqlite_file_summary."""
+        if self.db_type != "sqlite":
+            return []
+        return [{"description": "Resumen de tamaño del fichero SQLite principal", "parameters": {}}]
 
     def _examples_temp_tablespaces(self) -> list[dict[str, Any]]:
         """Ejemplos para consulta temp_tablespaces"""

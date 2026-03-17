@@ -306,6 +306,10 @@ except QueryNotFoundError as e:
 - `AsyncDatabaseManager` - Full parity with sync version
   - `get_tables()`, `get_views()`, `get_columns()`, `get_routines()`
   - `execute_query_many() / execute_query_one()` support
+- `get_storage_inventory()` usa claves explícitas por capacidad:
+  - `primary`
+  - `temp_tablespaces` cuando aplica
+  - `sqlite_file_summary` en SQLite
 - Advanced validators per database motor
 - Query Registry + Resolver architecture
 - Improved error messages with `raise ... from err` pattern

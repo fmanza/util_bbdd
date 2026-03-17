@@ -251,6 +251,7 @@ result = await executor.execute_custom(query)
 - `cache.py` - `DatabaseMetadataCache` - cachear schema info
 - `normalizer.py` - Normalizar filas de metadata
 - `manager.py` - Orquestar operaciones de metadata
+- `mariadb/` - helpers puros y adaptadores sync/async para metadata específica de MariaDB
 
 **Ejemplo:**
 ```python
@@ -266,6 +267,16 @@ columns = cache.get_columns(connection, "users")
 
 - `types.py` - `RowOrNone`, `Rows` - type aliases
 - `normalizer.py` - `ResultNormalizer` - normalizar a tuples/dicts
+
+#### Contrato de almacenamiento
+`get_storage_inventory()` ya no usa el modelo genérico `primary`/`secondary`.
+
+El contrato actual expone claves explícitas por capacidad:
+- `primary`
+- `temp_tablespaces` cuando aplica
+- `sqlite_file_summary` en SQLite
+
+En la capa documental, MariaDB puede añadir además `temp_storage_variables` para describir `innodb_temp_data_file_path`.
 
 ---
 

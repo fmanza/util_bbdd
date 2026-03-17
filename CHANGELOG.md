@@ -11,17 +11,27 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **Breaking Change**: `DatabaseManager` deja de publicarse como alias sync compatible.
   - Usa `SyncDatabaseManager` desde `util_bbdd` o `util_bbdd.managers`.
   - `AsyncDatabaseManager` mantiene su nombre y contrato público.
+- **Breaking Change**: se elimina `ficheros_fisicos_adicional` del catálogo SQL en todos los motores.
+  - El inventario de almacenamiento deja de modelarse como `primary`/`secondary`.
+  - SQLite deja de exponer un falso bloque de “ficheros adicionales”.
 
 ### Added
 - Soporte MariaDB para metadatos temporales:
   - `temp_tablespaces` desde `information_schema.FILES` cuando hay acceso.
   - `temp_storage_variables` para exponer `innodb_temp_data_file_path`.
+- Nueva capacidad explícita `sqlite_file_summary` para documentar `page_count`, `page_size` y `size_bytes` del fichero SQLite principal.
 - Cobertura adicional de tests para tipado, contratos sync/async y paridad estructural entre managers.
 
 ### Changed
 - La lógica específica de MariaDB se reorganiza bajo `metadata/mariadb/` con helpers puros y adaptadores sync/async.
 - `SyncDatabaseManager` pasa a ser el nombre canónico de la API sync en código, tests y documentación.
 - La obtención de DDL y metadatos de MariaDB prioriza `information_schema` y datasets batched por esquema frente a `SHOW CREATE` como ruta principal.
+- `get_storage_inventory()` pasa a devolver claves explícitas por capacidad:
+  - `primary`
+  - `temp_tablespaces` cuando aplica
+  - `temp_storage_variables` en documentación MariaDB
+  - `sqlite_file_summary` para SQLite
+- Word, Excel y HTML dejan de generar la sección global `Ficheros físicos adicionales`; SQLite integra ahora ese contenido como ampliación del bloque de físicos.
 
 ### Fixed
 - Los caminos principales de columnas y DDL de rutinas MariaDB evitan depender del fallback de decodificación del driver.

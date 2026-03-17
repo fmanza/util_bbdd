@@ -8,6 +8,12 @@
 
 ⚠️ **CAMBIO RELEVANTE:** el nombre público sync recomendado y exportado es `SyncDatabaseManager`. El alias `DatabaseManager` ya no se publica.
 
+⚠️ **CAMBIO RELEVANTE:** `get_storage_inventory()` ya no devuelve `secondary`.
+El contrato actual usa claves explícitas por capacidad:
+- `primary`
+- `temp_tablespaces` cuando aplica
+- `sqlite_file_summary` en SQLite
+
 Pero veamos la nueva estructura recomendada para nuevo código.
 
 ---
@@ -223,6 +229,26 @@ from util_bbdd.analysis import (
     MatplotlibRelationshipGraph
 )
 ```
+
+### 5. Contrato de almacenamiento
+
+- [ ] Si tu código usaba `result["secondary"]`, migra a claves explícitas
+
+**Antes:**
+```python
+storage = manager.get_storage_inventory()
+secondary_rows = storage["secondary"]
+```
+
+**Después:**
+```python
+storage = manager.get_storage_inventory()
+primary_rows = storage["primary"]
+temp_rows = storage.get("temp_tablespaces", [])
+sqlite_summary = storage.get("sqlite_file_summary", [])
+```
+
+**Nota:** `ficheros_fisicos_adicional` desaparece del catálogo SQL. En SQLite, ese contenido pasa a `sqlite_file_summary` y se documenta como ampliación de `Ficheros físicos`.
 
 ---
 
@@ -463,6 +489,7 @@ Si encuentras problemas después de migrar:
 | **Bulk Ops** | `bulk_crud/` | `bulk/` | `from util_bbdd.bulk import bulk_crud` |
 | **Analysis** | `grafos/` | `analysis/` | `from util_bbdd.analysis import GraphvizRelationshipGraph` |
 | **Breaking Changes** | N/A | rename sync a `SyncDatabaseManager` | actualizar imports y nombre |
+| **Storage Inventory** | `primary` + `secondary` | claves explícitas por capacidad | actualizar consumo de `get_storage_inventory()` |
 | **Deprecations** | N/A | bulk_crud/, grafos/ paths | Usar nuevos paths para nuevo código |
 
 ---

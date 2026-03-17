@@ -1665,7 +1665,7 @@ class SyncDatabaseManager:
     def _storage_inventory_sqlserver(self, _context_database: str, _tablespace: str | None) -> dict[str, Any]:
         return {
             "primary": self.execute_query_many("ficheros_fisicos"),
-            "secondary": [],
+            "temp_tablespaces": self.execute_query_many("temp_tablespaces"),
         }
 
     def _storage_inventory_oracle(self, _context_database: str, tablespace: str | None) -> dict[str, Any]:
@@ -1673,7 +1673,7 @@ class SyncDatabaseManager:
             raise ValueError("Para Oracle debe proporcionar 'tablespace'")
         return {
             "primary": self.execute_query_many("ficheros_fisicos", tablespace=tablespace),
-            "secondary": [],
+            "temp_tablespaces": self.execute_query_many("temp_tablespaces", tablespace=tablespace),
         }
 
     def _storage_inventory_mariadb(self, context_database: str, _tablespace: str | None) -> dict[str, Any]:
@@ -1684,13 +1684,13 @@ class SyncDatabaseManager:
             raise ValueError("Para PostgreSQL debe proporcionar 'tablespace'")
         return {
             "primary": self.execute_query_many("ficheros_fisicos", tablespace=tablespace),
-            "secondary": self.execute_query_many("temp_tablespaces"),
+            "temp_tablespaces": self.execute_query_many("temp_tablespaces"),
         }
 
     def _storage_inventory_sqlite(self, _context_database: str, _tablespace: str | None) -> dict[str, Any]:
         result: dict[str, Any] = {
             "primary": self.execute_query_many("ficheros_fisicos"),
-            "secondary": self.execute_query_many("ficheros_fisicos_adicional"),
+            "sqlite_file_summary": self.execute_query_many("sqlite_file_summary"),
         }
         try:
             result["temp_tablespaces"] = self.execute_query_many("temp_tablespaces")
@@ -1705,12 +1705,13 @@ class SyncDatabaseManager:
             tablespace: Nombre de tablespace (requerido en Oracle/PostgreSQL).
 
         Returns:
-            Diccionario con claves `primary` y `secondary`.
+            Diccionario con claves explicitas por capacidad (`primary`,
+            `temp_tablespaces`, `sqlite_file_summary`).
         """
         context_database = self._get_query_context_database()
         handler = self._get_storage_inventory_handler()
         if handler is None:
-            return {"primary": [], "secondary": []}
+            return {"primary": []}
         result = self._run_metadata_operation(
             action=lambda: handler(context_database, tablespace),
             error_message="Error obteniendo inventario de almacenamiento",

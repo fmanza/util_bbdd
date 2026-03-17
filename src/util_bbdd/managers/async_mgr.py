@@ -1058,7 +1058,7 @@ class AsyncDatabaseManager:
     async def _storage_inventory_sqlserver(self, _context_database: str, _tablespace: str | None) -> dict[str, Any]:
         return {
             "primary": await self.execute_query_many("ficheros_fisicos"),
-            "secondary": [],
+            "temp_tablespaces": await self.execute_query_many("temp_tablespaces"),
         }
 
     async def _storage_inventory_oracle(self, _context_database: str, tablespace: str | None) -> dict[str, Any]:
@@ -1066,7 +1066,7 @@ class AsyncDatabaseManager:
             raise ValueError("Para Oracle debe proporcionar 'tablespace'")
         return {
             "primary": await self.execute_query_many("ficheros_fisicos", tablespace=tablespace),
-            "secondary": [],
+            "temp_tablespaces": await self.execute_query_many("temp_tablespaces", tablespace=tablespace),
         }
 
     async def _storage_inventory_mariadb(self, context_database: str, _tablespace: str | None) -> dict[str, Any]:
@@ -1077,13 +1077,13 @@ class AsyncDatabaseManager:
             raise ValueError("Para PostgreSQL debe proporcionar 'tablespace'")
         return {
             "primary": await self.execute_query_many("ficheros_fisicos", tablespace=tablespace),
-            "secondary": await self.execute_query_many("temp_tablespaces"),
+            "temp_tablespaces": await self.execute_query_many("temp_tablespaces"),
         }
 
     async def _storage_inventory_sqlite(self, _context_database: str, _tablespace: str | None) -> dict[str, Any]:
         result: dict[str, Any] = {
             "primary": await self.execute_query_many("ficheros_fisicos"),
-            "secondary": await self.execute_query_many("ficheros_fisicos_adicional"),
+            "sqlite_file_summary": await self.execute_query_many("sqlite_file_summary"),
         }
         try:
             result["temp_tablespaces"] = await self.execute_query_many("temp_tablespaces")
@@ -1095,7 +1095,7 @@ class AsyncDatabaseManager:
         context_database: str = self._get_query_context_database()
         handler = self._get_storage_inventory_handler()
         if handler is None:
-            return {"primary": [], "secondary": []}
+            return {"primary": []}
         result = await handler(context_database, tablespace)
         return result
 

@@ -666,12 +666,11 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         assert result["queries"]["database_version"]["required_parameters"] == []
 
     @pytest.mark.asyncio
-    async def test_get_storage_inventory_mariadb_keeps_shape_with_fragmented_queries(self):
+    async def test_get_storage_inventory_mariadb_returns_explicit_temp_tablespaces_key(self):
         mock_executor = AsyncMock()
         mock_executor.execute_query_many = AsyncMock(
             side_effect=[
                 [("db", "users", "InnoDB", 12.5, 1.5, 14.0)],
-                [],
                 [("ibtmp1", "ibtmp1", 1.0, 12.0, 512.0)],
             ]
         )
@@ -688,21 +687,15 @@ class TestAsyncDatabaseManagerConvenienceMethods:
 
         assert result == {
             "primary": [("db", "users", "InnoDB", 12.5, 1.5, 14.0)],
-            "secondary": [],
             "temp_tablespaces": [("ibtmp1", "ibtmp1", 1.0, 12.0, 512.0)],
         }
-        assert mock_executor.execute_query_many.await_count == 3
+        assert mock_executor.execute_query_many.await_count == 2
         assert mock_executor.execute_query_many.await_args_list[0].kwargs == {
             "query_name": "ficheros_fisicos",
             "db_type": "mariadb",
             "params": {"database": "db"},
         }
         assert mock_executor.execute_query_many.await_args_list[1].kwargs == {
-            "query_name": "ficheros_fisicos_adicional",
-            "db_type": "mariadb",
-            "params": {"database": "db"},
-        }
-        assert mock_executor.execute_query_many.await_args_list[2].kwargs == {
             "query_name": "temp_tablespaces",
             "db_type": "mariadb",
             "params": {},
@@ -714,7 +707,6 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         mock_executor.execute_query_many = AsyncMock(
             side_effect=[
                 [("db", "users", "InnoDB", 12.5, 1.5, 14.0)],
-                DatabaseOperationError("sin acceso a info adicional", operation="SELECT", db_type="mariadb"),
                 DatabaseOperationError(
                     "sin acceso a information_schema.FILES",
                     operation="SELECT",
@@ -735,12 +727,11 @@ class TestAsyncDatabaseManagerConvenienceMethods:
 
         assert result == {
             "primary": [("db", "users", "InnoDB", 12.5, 1.5, 14.0)],
-            "secondary": [],
             "temp_tablespaces": [],
         }
 
     @pytest.mark.asyncio
-    async def test_get_storage_inventory_sqlite_includes_temp_tablespaces_key(self):
+    async def test_get_storage_inventory_sqlite_includes_summary_and_temp_keys(self):
         mock_executor = AsyncMock()
         mock_executor.execute_query_many = AsyncMock(side_effect=[[("main.db",)], [("wal.db",)], RuntimeError("boom")])
 
@@ -755,7 +746,7 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         result = await manager.get_storage_inventory()
 
         assert result["primary"] == [("main.db",)]
-        assert result["secondary"] == [("wal.db",)]
+        assert result["sqlite_file_summary"] == [("wal.db",)]
         assert result["temp_tablespaces"] == []
 
     @pytest.mark.asyncio
@@ -779,7 +770,7 @@ class TestAsyncDatabaseManagerConvenienceMethods:
 
         result = await manager.get_storage_inventory()
 
-        assert result == {"primary": [], "secondary": []}
+        assert result == {"primary": []}
 
     @pytest.mark.asyncio
     async def test_get_routines_mariadb_falls_back_to_show_status_when_metadata_is_empty(self):

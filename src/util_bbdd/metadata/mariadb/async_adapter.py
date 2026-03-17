@@ -194,19 +194,7 @@ class MariaDBAsyncAdapter:
             raise ValueError("Para MariaDB debe proporcionar 'database'")
 
         primary_rows: Rows = await self.manager.execute_query_many("ficheros_fisicos", database=context_database)
-        secondary_rows: Rows = []
         temp_tablespaces_rows: Rows = []
-
-        try:
-            secondary_rows = await self.manager.execute_query_many(
-                "ficheros_fisicos_adicional", database=context_database
-            )
-        except (DatabaseOperationError, QueryError) as error:
-            self.manager.logger.warning(
-                "Inventario adicional MariaDB no disponible para %s. Se devuelve lista vacía. Error: %s",
-                context_database,
-                error,
-            )
 
         try:
             temp_tablespaces_rows = await self.manager.execute_query_many("temp_tablespaces")
@@ -219,6 +207,5 @@ class MariaDBAsyncAdapter:
 
         return {
             "primary": primary_rows,
-            "secondary": secondary_rows,
             "temp_tablespaces": temp_tablespaces_rows,
         }
