@@ -11,12 +11,16 @@ class _FakeDbManager:
         self.db_type = db_type
         self._tables = tables
         self._fk_by_table = fk_by_table
+        self.database = "test_db"
 
     def get_tables(self) -> list[tuple[str]]:
         return [(table_name,) for table_name in self._tables]
 
     def get_foreign_keys(self, table_name: str) -> list[tuple]:
         return self._fk_by_table.get(table_name, [])
+
+    def get_query_context_database(self) -> str:
+        return self.database
 
 
 def test_analyze_table_relations_includes_outgoing_and_incoming_non_mariadb() -> None:

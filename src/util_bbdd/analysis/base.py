@@ -100,13 +100,28 @@ class DatabaseRelationshipGraphBase:
         Esto requiere consultar todas las tablas para encontrar FKs que apunten a nuestra tabla
         """
         self.logger.debug(f"Buscando relaciones entrantes (padres) para: {table_name}")
-        context: str = self.db_manager.get_query_context_database()
+        context: str = self._get_relationship_context()
         index = self._parent_relations_index_by_context.get(context)
         if index is None:
             index = self._build_parent_relations_index(context)
             self._parent_relations_index_by_context[context] = index
 
         return list(index.get(table_name, []))
+
+    def _get_relationship_context(self) -> str:
+        """Obtiene una clave de contexto estable para cachear relaciones entrantes."""
+        get_context = getattr(self.db_manager, "get_query_context_database", None)
+        if callable(get_context):
+            result = get_context()
+            if isinstance(result, str) and result.strip():
+                return result
+
+        for attr_name in ("database", "schema", "owner"):
+            value = getattr(self.db_manager, attr_name, None)
+            if isinstance(value, str) and value.strip():
+                return value
+
+        return f"{self.db_manager.db_type}:default"
 
     def _build_parent_relations_index(self, context: str) -> dict[str, list[TableRelation]]:
         """Construye un índice target_table -> relaciones entrantes para el contexto actual."""
