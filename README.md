@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB (sync).
 
-**Version:** 0.5.0 | **Status:** ✅ Refactorizado & Estable
+**Version:** 0.5.6 | **Status:** ✅ Refactorizado & Estable
 
 Incluye:
 - ✅ **CRUD en lote** desde DataFrames (insert/update/delete masivo)
@@ -11,6 +11,7 @@ Incluye:
 - ✅ **Gestión async** de conexiones/pools (por motor compatible)
 - ✅ **Análisis de relaciones** - Generar grafos de relaciones
 - ✅ **Documentación de BD** generada automáticamente
+- ✅ **Plantillas HTML Jinja2 modulares** con páginas globales `Ver todo`
 - ✅ **Validación de tipos** por dialecto SQL
 - ✅ **Arquitectura 3-level** jerárquica y modular (NEW in v0.5.0)
 
@@ -27,7 +28,7 @@ Incluye:
 
 Nota: `hsqldb` no dispone de implementación async en `util_bbdd`. Las factorías async lanzan error explícito para ese motor.
 
-## Arquitectura v0.5.0 - Estructura de 3 Niveles
+## Arquitectura v0.5.6 - Estructura de 3 Niveles
 
 Util_bbdd usa una **arquitectura jerárquica de 3 niveles** para máxima modularidad:
 
@@ -90,6 +91,16 @@ analysis/            # Análisis de relaciones (1,200+ líneas)
 managers/            # APIs de alto nivel (2,200+ líneas)
   ├── sync_mgr.py    # SyncDatabaseManager (1,000+ líneas)
   └── async_mgr.py   # AsyncDatabaseManager (700+ líneas)
+
+doc/                 # Generadores documentales
+  ├── template_engine.py
+  ├── html_generator.py
+  ├── excel_generator.py
+  ├── word_generator.py
+  └── templates/
+      ├── layouts/
+      ├── macros/
+      └── pages/
 ```
 
 **Beneficios:**
@@ -310,6 +321,10 @@ except QueryNotFoundError as e:
   - `primary`
   - `temp_tablespaces` cuando aplica
   - `sqlite_file_summary` en SQLite
+- HTML `Ver todo` incorpora exportación filtrada:
+  - `CSV` / `TSV` en UTF-8
+  - `XLSX` real
+  - `PDF` vía impresión
 - Advanced validators per database motor
 - Query Registry + Resolver architecture
 - Improved error messages with `raise ... from err` pattern
@@ -389,6 +404,7 @@ from util_bbdd.analysis import (
 - [**ARCHITECTURE.md**](docs/ARCHITECTURE.md) - Complete architectural overview (3-level hierarchy, module responsibilities, data flows)
 - [**MIGRATION_GUIDE.md**](docs/MIGRATION_GUIDE.md) - Detailed migration guide from v0.4.0 → v0.5.0 (with examples)
 - [**REFACTORING_SESSION_PROGRESS.md**](docs/REFACTORING_SESSION_PROGRESS.md) - Session progress metrics (13/19 PRs complete)
+- [**docs/v0.5.6/jinja2_refactor.md**](docs/v0.5.6/jinja2_refactor.md) - Refactorización de la capa Jinja2 standalone
 
 ### 🧪 Testing (v0.5.0)
 - ✅ **443/443 tests passing** consistently
@@ -433,7 +449,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.5.0** (Stable - Refactored Architecture)
+**Current Version: v0.5.6** (Stable - Refactored Architecture)
 
 Roadmap:
 - `v0.1.0`: CRUD base + auditoría

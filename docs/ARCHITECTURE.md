@@ -1,6 +1,6 @@
-# 🏗️ Arquitectura de util_bbdd v0.5.0
+# 🏗️ Arquitectura de util_bbdd v0.5.6
 
-**Versión:** 0.5.0
+**Versión:** 0.5.6
 **Fecha:** Marzo 2026
 **Estado:** Refactorizado & Estabilizado
 
@@ -278,6 +278,20 @@ El contrato actual expone claves explícitas por capacidad:
 
 En la capa documental, MariaDB puede añadir además `temp_storage_variables` para describir `innodb_temp_data_file_path`.
 
+#### Generación HTML con Jinja2
+La documentación HTML usa ahora una estructura modular:
+
+- `doc/template_engine.py`
+- `doc/templates/layouts/`
+- `doc/templates/macros/`
+- `doc/templates/pages/`
+
+Las páginas `collection` centralizan búsqueda, ordenación, paginación y exportación filtrada.
+La exportación HTML usa:
+- `CSV` y `TSV` en UTF-8
+- `XLSX` real
+- `PDF` vía impresión
+
 ---
 
 ### Level 3: Especialización
@@ -309,6 +323,16 @@ graph_data = analyzer.generate_graphviz_graph_paginated(
     max_tables_per_page=5
 )
 ```
+
+#### Optimización de grafos para Word
+- `DatabaseRelationshipGraphBase` mantiene un índice cacheado de relaciones entrantes por contexto.
+- `GraphvizRelationshipGraphExt` registra tiempos de análisis y render por tabla/página.
+- `WordGenerator` registra tiempos de generación e inserción de diagramas.
+- `PrintConfigManager.resolve_for_word()` aplica defaults de grafo más seguros:
+  - `show_columns=False`
+  - `images_paginated=True`
+  - `max_subnodes=5`
+  - `dpi=150`
 
 ---
 
@@ -391,11 +415,12 @@ from util_bbdd.grafos import GraphvizRelationshipGraph
 ## 📈 Versionado
 
 ```
-v0.4.0 → v0.5.0 (estado inicial del rediseño)
+v0.4.0 → v0.5.6
   ├─ Nueva estructura (3-level hierarchy)
   ├─ Level 3 modules (bulk, analysis, managers) NEW
-  ├─ 100% backward compatible
-  └─ Zero breaking changes
+  ├─ manager sync canónico: `SyncDatabaseManager`
+  ├─ documentación HTML modular con Jinja2
+  └─ contrato de almacenamiento explícito por capacidad
 ```
 
 ---

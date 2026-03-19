@@ -21,6 +21,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   - `temp_storage_variables` para exponer `innodb_temp_data_file_path`.
 - Nueva capacidad explícita `sqlite_file_summary` para documentar `page_count`, `page_size` y `size_bytes` del fichero SQLite principal.
 - Cobertura adicional de tests para tipado, contratos sync/async y paridad estructural entre managers.
+- Refactorización Jinja2 standalone para la documentación HTML:
+  - `TemplateEngine` dedicado
+  - `templates/layouts`, `templates/macros` y `templates/pages`
+  - pruebas unitarias específicas del motor de plantillas
+- Páginas HTML globales `Ver todo` con búsqueda, ordenación, paginación y exportación filtrada.
 
 ### Changed
 - La lógica específica de MariaDB se reorganiza bajo `metadata/mariadb/` con helpers puros y adaptadores sync/async.
@@ -32,11 +37,20 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   - `temp_storage_variables` en documentación MariaDB
   - `sqlite_file_summary` para SQLite
 - Word, Excel y HTML dejan de generar la sección global `Ficheros físicos adicionales`; SQLite integra ahora ese contenido como ampliación del bloque de físicos.
+- La documentación HTML deja de usar plantillas monolíticas en `src/util_bbdd/doc/data` y pasa a una estructura modular Jinja2.
+- Word aplica defaults de grafo más conservadores para documentación:
+  - `show_columns=False`
+  - `images_paginated=True`
+  - `max_subnodes=5`
+  - `dpi=150`
+- El análisis de relaciones reutiliza un índice cacheado de relaciones entrantes por contexto para reducir recorridos repetidos.
 
 ### Fixed
 - Los caminos principales de columnas y DDL de rutinas MariaDB evitan depender del fallback de decodificación del driver.
 - La documentación Word/Excel/HTML refleja almacenamiento temporal MariaDB y falta de permisos sobre `information_schema.FILES` sin romper la generación.
 - Se estabilizan múltiples tests con avisos de tipado en VS Code/Pylance.
+- La exportación HTML de colecciones genera CSV y TSV en UTF-8 y Excel en `.xlsx` real.
+- La generación Word de diagramas registra tiempos de análisis, render e inserción para diagnosticar bloqueos aparentes.
 
 ## [0.5.3] - 2026-03-12
 

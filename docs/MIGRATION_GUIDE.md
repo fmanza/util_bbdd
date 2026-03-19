@@ -1,6 +1,6 @@
-# 📚 Guía de Migración - util_bbdd v0.5.0
+# 📚 Guía de Migración - util_bbdd v0.5.6
 
-**Para usuarios que migren desde v0.4.0 → v0.5.0**
+**Para usuarios que migren desde v0.4.0 → v0.5.6**
 
 ---
 
@@ -14,11 +14,13 @@ El contrato actual usa claves explícitas por capacidad:
 - `temp_tablespaces` cuando aplica
 - `sqlite_file_summary` en SQLite
 
+⚠️ **CAMBIO RELEVANTE:** las plantillas HTML antiguas en `src/util_bbdd/doc/data` se sustituyen por una estructura Jinja2 modular en `src/util_bbdd/doc/templates`.
+
 Pero veamos la nueva estructura recomendada para nuevo código.
 
 ---
 
-## 📖 Tabla Comparativa: v0.4.0 vs v0.5.0
+## 📖 Tabla Comparativa: v0.4.0 vs v0.5.6
 
 ### SyncDatabaseManager
 
@@ -158,7 +160,7 @@ graph_data = graph_mpl.generate_matplotlib_graph_paginated(...)
 
 ## 🔄 Path Migration Checklist
 
-Si estás refactorizando código legacy para v0.5.0 estilo:
+Si estás refactorizando código legacy para v0.5.6:
 
 ### 1. Imports de SyncDatabaseManager
 
@@ -249,6 +251,26 @@ sqlite_summary = storage.get("sqlite_file_summary", [])
 ```
 
 **Nota:** `ficheros_fisicos_adicional` desaparece del catálogo SQL. En SQLite, ese contenido pasa a `sqlite_file_summary` y se documenta como ampliación de `Ficheros físicos`.
+
+### 6. Personalizaciones HTML
+
+- [ ] Si personalizabas plantillas HTML antiguas, migra a la nueva estructura
+
+**Antes:**
+```text
+src/util_bbdd/doc/data/html_documentation_template.j2
+src/util_bbdd/doc/data/html_index_template.j2
+src/util_bbdd/doc/data/html_collection_template.j2
+```
+
+**Ahora:**
+```text
+src/util_bbdd/doc/templates/layouts/base_page.j2
+src/util_bbdd/doc/templates/macros/common.j2
+src/util_bbdd/doc/templates/pages/detail.html.j2
+src/util_bbdd/doc/templates/pages/index.html.j2
+src/util_bbdd/doc/templates/pages/collection.html.j2
+```
 
 ---
 
@@ -482,12 +504,13 @@ Si encuentras problemas después de migrar:
 
 ## 📝 Resumen
 
-| Aspecto | v0.4.0 | v0.5.0 | Migración |
+| Aspecto | v0.4.0 | v0.5.6 | Migración |
 |--------|--------|--------|-----------|
 | **SyncDatabaseManager** | `database_manager.py` | `managers/sync_mgr.py` | `from util_bbdd import SyncDatabaseManager` |
 | **AsyncDatabaseManager** | `async_database_manager.py` | `managers/async_mgr.py` | `from util_bbdd import AsyncDatabaseManager` |
 | **Bulk Ops** | `bulk_crud/` | `bulk/` | `from util_bbdd.bulk import bulk_crud` |
 | **Analysis** | `grafos/` | `analysis/` | `from util_bbdd.analysis import GraphvizRelationshipGraph` |
+| **HTML Templates** | `doc/data/*.j2` | `doc/templates/...` | migrar personalizaciones |
 | **Breaking Changes** | N/A | rename sync a `SyncDatabaseManager` | actualizar imports y nombre |
 | **Storage Inventory** | `primary` + `secondary` | claves explícitas por capacidad | actualizar consumo de `get_storage_inventory()` |
 | **Deprecations** | N/A | bulk_crud/, grafos/ paths | Usar nuevos paths para nuevo código |
@@ -495,6 +518,6 @@ Si encuentras problemas después de migrar:
 ---
 
 *Documento: MIGRATION_GUIDE.md*
-*Para: Usuarios migrando v0.4.0 → v0.5.0*
+*Para: Usuarios migrando v0.4.0 → v0.5.6*
 *Generado: Marzo 2026*
 *Status: READY* ✅
