@@ -234,6 +234,22 @@ class PrintConfigManager:
     @staticmethod
     def resolve_for_word(config: dict[str, Any]) -> dict[str, Any]:
         """Resuelve opciones de ejecución para Word."""
+        graph_cfg: dict[str, Any] = config.get("grafo", {})
+        configured_max_subnodes = graph_cfg.get("max_subnodes")
+        default_max_subnodes = PrintConfigManager.DEFAULT_GRAPH["max_subnodes"]
+        word_default_max_subnodes = 5
+        graph_options: dict[str, Any] = {
+            "format": "png",
+            "show_columns": bool(graph_cfg.get("show_columns", False)),
+            "output_dir": Path(graph_cfg.get("output_dir", Path.cwd() / "_table_diagrams")),
+            "first_level_only": bool(graph_cfg.get("first_level_only", True)),
+            "images_paginated": bool(graph_cfg.get("images_paginated", True)),
+            "max_subnodes": PrintConfigManager._to_positive_int(
+                word_default_max_subnodes if configured_max_subnodes == default_max_subnodes else configured_max_subnodes,
+                fallback=word_default_max_subnodes,
+            ),
+            "dpi": PrintConfigManager._to_positive_int(graph_cfg.get("dpi", 150), fallback=150),
+        }
         return {
             "include_tables": bool(config.get("tablas", {}).get("imprimir_tablas", False)),
             "include_views": bool(config.get("vistas", {}).get("imprimir_vistas", False)),
@@ -247,8 +263,8 @@ class PrintConfigManager:
             "database_info_flags": PrintConfigManager.get_database_info_flags(config),
             "template_path": config.get("plantilla_word"),
             "tables_per_document": int(config.get("tablas_por_documento", 50)),
-            "include_diagrams": bool(config["grafo"].get("enabled", False)),
-            "graph_options": dict(config.get("grafo", {})),
+            "include_diagrams": bool(graph_cfg.get("enabled", False)),
+            "graph_options": graph_options,
         }
 
     @staticmethod

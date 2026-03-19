@@ -6,6 +6,7 @@ import inspect
 import logging
 
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 
 # Word imports
@@ -177,6 +178,7 @@ class WordGenerator:
                 self._generate_single_document_chunk(
                     idx=idx,
                     total_chunks=total_chunks,
+                    all_tables=tables_for_chunks,
                     table_chunk=table_chunk,
                     views=views,
                     routines=routines,
@@ -195,6 +197,7 @@ class WordGenerator:
         self,
         idx: int,
         total_chunks: int,
+        all_tables: list[tuple],
         table_chunk: list[tuple],
         views: list[tuple],
         routines: list[tuple],
@@ -220,6 +223,17 @@ class WordGenerator:
             document: Document = self._initialize_document(config.template_path)
             self._configure_document_orientation(document, config.template_path)
             document.add_heading(f"Documentación de la Base de Datos - {self.database}", 0)
+            if idx == 1:
+                self._add_inventory_overview(
+                    document=document,
+                    tables=all_tables,
+                    views=views if config.include_views else [],
+                    routines=routines if (config.include_procedures or config.include_functions) else [],
+                    include_storage=config.include_storage,
+                    data_provider=data_provider,
+                    include_procedures=config.include_procedures,
+                    include_functions=config.include_functions,
+                )
 
             self._add_tables_content(
                 document=document,
@@ -270,6 +284,54 @@ class WordGenerator:
         except Exception as chunk_error:
             self.logger.exception(f"❌ Error generando documento Word {idx}/{total_chunks}: {chunk_error}")
             raise
+
+    def _add_inventory_overview(
+        self,
+        *,
+        document: Document,
+        tables: list[tuple],
+        views: list[tuple],
+        routines: list[tuple],
+        include_storage: bool,
+        data_provider: Any,
+        include_procedures: bool,
+        include_functions: bool,
+    ) -> None:
+        """Agrega un resumen inicial con conteos del inventario."""
+        filtered_routines: list[tuple] = self._filter_routines_by_flags(
+            routines=routines,
+            include_procedures=include_procedures,
+            include_functions=include_functions,
+        )
+        procedures, functions = self._split_routines_by_type(filtered_routines)
+        storage_count: int = self._get_storage_total_rows(data_provider) if include_storage else 0
+
+        self._add_table(
+            document=document,
+            title="Resumen de inventario",
+            headers=["Sección", "Total"],
+            data=[
+                ["Tablas", str(len(tables))],
+                ["Vistas", str(len(views))],
+                ["Rutinas", str(len(filtered_routines))],
+                ["Procedures", str(len(procedures))],
+                ["Funciones", str(len(functions))],
+                ["Almacenamiento", str(storage_count)],
+            ],
+            right_align_indices=[1],
+        )
+
+    def _get_storage_total_rows(self, data_provider: Any) -> int:
+        """Obtiene el total agregado de filas del inventario de almacenamiento."""
+        try:
+            report: dict[str, Any] = data_provider.get_storage_inventory_report()
+        except Exception:
+            return 0
+
+        total: int = 0
+        for section in report.get("sections", []):
+            total += len(section.get("rows", []))
+        return total
 
     def _configure_document_orientation(self, document: Document, template_path: Path | None) -> None:
         """Configura la orientación del documento según la plantilla."""
@@ -476,6 +538,7 @@ class WordGenerator:
         return GraphvizRelationshipGraphExt(
             db_manager=db_manager,
             show_columns=bool(options.get("show_columns", True)),
+            render_dpi=int(options.get("dpi", 150)),
         )
 
     def _add_table_diagram_page(
@@ -486,6 +549,7 @@ class WordGenerator:
         diagram_options: dict[str, Any],
     ) -> None:
         """Inserta una página con el diagrama de una tabla."""
+        self.logger.info(f"🖼️ Iniciando generación de diagrama Word para tabla: {tabla}")
         fmt: str = str(diagram_options.get("format", "png")).lower()
         if fmt == "svg":
             # Word no maneja SVG de forma fiable en python-docx
@@ -496,6 +560,7 @@ class WordGenerator:
         images_paginated: bool = bool(diagram_options.get("images_paginated", False))
 
         try:
+            generation_started = perf_counter()
             generated_paths: list[Path]
             if images_paginated and hasattr(graph_generator, "generate_graphviz_graph_paginated_ext"):
                 paginated_method = graph_generator.generate_graphviz_graph_paginated_ext
@@ -522,14 +587,26 @@ class WordGenerator:
                     kwargs["first_level_only"] = bool(diagram_options.get("first_level_only", True))
                 generated_paths = [Path(method(**kwargs))]
 
+            generation_elapsed_ms = (perf_counter() - generation_started) * 1000
+            self.logger.info(
+                f"🖼️ Diagramas generados para {tabla}: {len(generated_paths)} archivo(s) en "
+                f"{generation_elapsed_ms:.2f} ms"
+            )
+
             for page_idx, generated_path in enumerate(generated_paths, start=1):
                 document.add_page_break()
                 title: str = f"Diagrama de relaciones: {tabla}"
                 if len(generated_paths) > 1:
                     title += f" (Página {page_idx})"
                 title_paragraph: Paragraph = document.add_heading(title, level=2)
+                insert_started = perf_counter()
                 self._add_picture_fit_to_page(
                     document=document, image_path=generated_path, title_paragraph=title_paragraph
+                )
+                insert_elapsed_ms = (perf_counter() - insert_started) * 1000
+                self.logger.info(
+                    f"🖼️ Diagrama insertado en Word para {tabla} (página {page_idx}/{len(generated_paths)}) "
+                    f"en {insert_elapsed_ms:.2f} ms"
                 )
         except Exception as e:
             document.add_page_break()
@@ -605,7 +682,7 @@ class WordGenerator:
 
     def _configure_landscape(self, document: Document, apply_to_all_sections: bool = False) -> None:
         """Configura la página en orientación apaisada sin invertir secciones ya horizontales."""
-        sections: list[Section] = list(document.sections) if apply_to_all_sections else [document.sections[-1]]
+        sections = document.sections if apply_to_all_sections else [document.sections[-1]]
 
         for section in sections:
             if section.orientation == WD_ORIENT.LANDSCAPE:
@@ -663,6 +740,28 @@ class WordGenerator:
                 functions.append(routine)
 
         return procedures, functions
+
+    def _filter_routines_by_flags(
+        self,
+        routines: list[tuple],
+        include_procedures: bool,
+        include_functions: bool,
+    ) -> list[tuple]:
+        """Filtra rutinas según flags de impresión."""
+        if include_procedures and include_functions:
+            return routines
+
+        filtered: list[tuple] = []
+        for routine in routines:
+            _, routine_type, _ = self._normalize_routine_entry(routine)
+            should_include: bool = (
+                (routine_type == "PROCEDURE" and include_procedures)
+                or (routine_type != "PROCEDURE" and include_functions)
+            )
+            if should_include:
+                filtered.append(routine)
+
+        return filtered
 
     def _add_routines_sections(
         self,
@@ -1045,7 +1144,7 @@ class WordGenerator:
             )
             return
 
-        sections: list[dict[str, Any]] = list(report.get("sections", []))
+        sections: list[dict[str, Any]] = report.get("sections", [])
         summary_rows: list[list[str]] = []
         for section in sections:
             summary_rows.append(
@@ -1069,7 +1168,7 @@ class WordGenerator:
         for section in sections:
             title: str = str(section.get("title", "Consulta"))
             headers: list[str] = [str(h) for h in section.get("headers", [])]
-            rows: list[list[Any]] = list(section.get("rows", []))
+            rows: list[list[Any]] = section.get("rows", [])
             if not headers and rows:
                 max_cols: int = max(len(row) for row in rows)
                 headers = [f"Columna {idx}" for idx in range(1, max_cols + 1)]

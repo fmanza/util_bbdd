@@ -7,6 +7,7 @@ import logging
 
 from logging import Logger
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 
 try:
@@ -43,6 +44,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         orthogonal_edges: bool = True,
         orthogonal_nodesep: float = 0.75,
         orthogonal_ranksep: float = 0.9,
+        render_dpi: int = 300,
     ):
         super().__init__(db_manager)
         self.logger: Logger = logging.getLogger(__name__)
@@ -57,6 +59,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         # Espaciado de layout para líneas ortogonales
         self.orthogonal_nodesep: float = orthogonal_nodesep
         self.orthogonal_ranksep: float = orthogonal_ranksep
+        self.render_dpi: int = render_dpi
 
         # Cache para columnas de tablas (evitar múltiples consultas)
         self._columns_cache: dict[str, list[tuple[str, str]]] = {}
@@ -362,7 +365,10 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             f"Iniciando generación paginada extendida de Graphviz para {table_name} "
             f"(max {max_subnodes} nodos por página)"
         )
+        analyze_started: float = perf_counter()
         relations: list[TableRelation] = self.analyze_table_relations(table_name)
+        analyze_elapsed_ms: float = (perf_counter() - analyze_started) * 1000
+        self.logger.info(f"📈 Relaciones analizadas para {table_name}: {len(relations)} en {analyze_elapsed_ms:.2f} ms")
         split_relations: list[list[TableRelation]] = self._split_relations_for_visualization(relations, max_subnodes)
         self.logger.debug(f"Tabla {table_name} dividida en {len(split_relations)} página(s)")
 
@@ -381,8 +387,14 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             output_path: Path = output_dir / file_name
 
             # Generar gráfico para esta página
+            page_started: float = perf_counter()
             generated_file: Path = self._generate_graphviz_graph_internal_ext(
                 table_name, output_path, format, page_relations, show_columns
+            )
+            page_elapsed_ms: float = (perf_counter() - page_started) * 1000
+            self.logger.info(
+                f"🖼️  Página Graphviz {page_num}/{len(split_relations)} de {table_name} generada en "
+                f"{page_elapsed_ms:.2f} ms con {len(page_relations)} relaciones"
             )
             generated_files.append(generated_file)
 
@@ -493,7 +505,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
 
         is_raster_format: bool = format.lower() in {"png", "jpg", "jpeg"}
         if is_raster_format:
-            dot.attr("graph", dpi="300")
+            dot.attr("graph", dpi=str(self.render_dpi))
 
         node_font_size: str = "12" if is_raster_format else "10"
         edge_font_size: str = "10" if is_raster_format else "9"
@@ -582,7 +594,11 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             FileNotFoundError: Si Graphviz no genera el archivo esperado
         """
         output_path_str: str = str(output_file)
+        render_started: float = perf_counter()
+        self.logger.info(f"🎨 Renderizando Graphviz para {table_name}: formato={format}, archivo={output_path_str}")
         dot.render(output_path_str, cleanup=True)
+        render_elapsed_ms: float = (perf_counter() - render_started) * 1000
+        self.logger.info(f"🎨 Render Graphviz completado para {table_name} en {render_elapsed_ms:.2f} ms")
 
         expected_file = Path(f"{output_path_str}.{format}")
         if expected_file.exists():

@@ -32,6 +32,7 @@ class DatabaseRelationshipGraphBase:
         self.relations: list[TableRelation] = []
         self.tables: set[str] = set()
         self.logger: Logger = logging.getLogger(__name__)
+        self._parent_relations_index_by_context: dict[str, dict[str, list[TableRelation]]] = {}
 
     def analyze_table_relations(self, table_name: str) -> list[TableRelation]:
         """
@@ -99,45 +100,50 @@ class DatabaseRelationshipGraphBase:
         Esto requiere consultar todas las tablas para encontrar FKs que apunten a nuestra tabla
         """
         self.logger.debug(f"Buscando relaciones entrantes (padres) para: {table_name}")
-        parent_relations = []
+        context: str = self.db_manager.get_query_context_database()
+        index = self._parent_relations_index_by_context.get(context)
+        if index is None:
+            index = self._build_parent_relations_index(context)
+            self._parent_relations_index_by_context[context] = index
 
-        # Obtener todas las tablas de la base de datos
+        return list(index.get(table_name, []))
+
+    def _build_parent_relations_index(self, context: str) -> dict[str, list[TableRelation]]:
+        """Construye un índice target_table -> relaciones entrantes para el contexto actual."""
+        self.logger.info(f"🧭 Construyendo índice de relaciones entrantes para contexto: {context}")
+        parent_relations_by_target: dict[str, list[TableRelation]] = {}
+
         all_tables = self.db_manager.get_tables()
-
         for table_info in all_tables:
-            current_table = table_info[0]  # El primer elemento es siempre el nombre de la tabla
-
-            if current_table == table_name:
-                continue  # Saltar la misma tabla
-
-            # Obtener FKs de esta tabla para ver si alguna apunta a nuestra tabla
+            current_table = table_info[0]
             foreign_keys = self.db_manager.get_foreign_keys(current_table)
             for fk in foreign_keys:
                 target_table: str = self._extract_target_table(fk)
+                if self.db_manager.db_type == "mariadb":
+                    relation = TableRelation(
+                        source_table=current_table,
+                        target_table=target_table,
+                        constraint_name=fk[0],
+                        source_column=fk[2],
+                        target_column=fk[4],
+                        relation_type="FK",
+                    )
+                else:
+                    relation = TableRelation(
+                        source_table=current_table,
+                        target_table=target_table,
+                        constraint_name=fk[0],
+                        source_column=fk[1],
+                        target_column=fk[3],
+                        relation_type="FK",
+                    )
+                parent_relations_by_target.setdefault(target_table, []).append(relation)
 
-                if target_table == table_name:
-                    # Esta tabla tiene una FK que apunta a nuestra tabla
-                    if self.db_manager.db_type == "mariadb":
-                        relation = TableRelation(
-                            source_table=current_table,
-                            target_table=table_name,
-                            constraint_name=fk[0],
-                            source_column=fk[2],
-                            target_column=fk[4],
-                            relation_type="FK",
-                        )
-                    else:
-                        relation = TableRelation(
-                            source_table=current_table,
-                            target_table=table_name,
-                            constraint_name=fk[0],
-                            source_column=fk[1],
-                            target_column=fk[3],
-                            relation_type="FK",
-                        )
-                    parent_relations.append(relation)
-
-        return parent_relations
+        self.logger.debug(
+            f"🧭 Índice de relaciones entrantes construido para {context}: "
+            f"{len(parent_relations_by_target)} tablas destino"
+        )
+        return parent_relations_by_target
 
     def _extract_target_table(self, fk_data: tuple) -> str:
         """Extrae el nombre de la tabla target de los datos de FK según el tipo de BD"""

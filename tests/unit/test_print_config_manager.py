@@ -30,3 +30,22 @@ def test_normalize_accepts_documented_nested_imprimir_block() -> None:
     assert resolved["include_procedures"] is True
     assert resolved["include_functions"] is True
     assert resolved["include_tables"] is True
+
+
+def test_resolve_for_word_applies_safe_graph_defaults() -> None:
+    normalized = PrintConfigManager.normalize(
+        {
+            "grafo": {
+                "enabled": True,
+            }
+        }
+    )
+
+    resolved = PrintConfigManager.resolve_for_word(normalized)
+
+    assert resolved["include_diagrams"] is True
+    assert resolved["graph_options"]["format"] == "png"
+    assert resolved["graph_options"]["show_columns"] is False
+    assert resolved["graph_options"]["images_paginated"] is True
+    assert resolved["graph_options"]["max_subnodes"] == 5
+    assert resolved["graph_options"]["dpi"] == 150
