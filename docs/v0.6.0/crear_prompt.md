@@ -46,7 +46,7 @@
 -	Añade lo que consideres necesario
 -   La Carpeta de trabajo es docs/v0.6.0/, aqui dejaremos el documento markdown con toda la información, una vez finalizado se moverá a la carpeta raíz de docs y se actualizará el README.md y ARCHITECTURE.md con la nueva versión v0.6.0
 
-# Añado ejemplo de configuración para impresión
+# Añado ejemplo de configuración/parametrización para impresión
 ``` toml
 [imprimir_config]
     # Formato de salida: "word", "excel" o "html"

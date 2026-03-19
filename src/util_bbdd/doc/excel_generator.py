@@ -76,6 +76,19 @@ class ExcelGenerator:
 
             config = self._resolve_print_config(print_config, data_provider)
             fila = self._create_main_header(ws1, fila)
+            fila = self._add_inventory_summary(
+                ws=ws1,
+                fila=fila,
+                tables=tables if config["include_tables"] else [],
+                views=views if config["include_views"] else [],
+                routines=self._filter_routines_by_flags(
+                    routines=routines,
+                    include_procedures=config["include_procedures"],
+                    include_functions=config["include_functions"],
+                ),
+                include_storage=config["include_storage"],
+                data_provider=data_provider,
+            )
 
             data_flat = []
             fila = self._build_overview_sections(ws1, fila, tables, views, routines, data_provider, data_flat, config)
@@ -491,6 +504,62 @@ class ExcelGenerator:
         ws[f"A{fila}"].font = Font(size=14, bold=True)
         return fila + 2
 
+    def _add_inventory_summary(
+        self,
+        *,
+        ws: Worksheet,
+        fila: int,
+        tables: list[tuple],
+        views: list[tuple],
+        routines: list[tuple],
+        include_storage: bool,
+        data_provider: Any,
+    ) -> int:
+        """Agrega un resumen inicial con conteos del inventario."""
+        ws[f"A{fila}"] = "RESUMEN DE INVENTARIO"
+        ws[f"A{fila}"].font = Font(size=12, bold=True)
+        fila += 1
+
+        procedures, functions = self._split_routines_by_type(routines)
+        storage_count: int = self._get_storage_total_rows(data_provider) if include_storage else 0
+        summary_rows: list[tuple[str, int]] = [
+            ("Tablas", len(tables)),
+            ("Vistas", len(views)),
+            ("Rutinas", len(routines)),
+            ("Procedures", len(procedures)),
+            ("Funciones", len(functions)),
+            ("Almacenamiento", storage_count),
+        ]
+
+        header_row: int = fila
+        ws.append(["Sección", "Total"])
+        for cell in ws[header_row]:
+            cell.font = Font(bold=True)
+
+        for label, count in summary_rows:
+            ws.append([label, count])
+            ws.cell(row=ws.max_row, column=2).alignment = Alignment(horizontal="right")
+
+        self._apply_colored_range_style(
+            ws=ws,
+            start_row=header_row,
+            end_row=ws.max_row,
+            column_count=2,
+        )
+        return ws.max_row + 2
+
+    def _get_storage_total_rows(self, data_provider: Any) -> int:
+        """Obtiene el total agregado de filas del inventario de almacenamiento."""
+        try:
+            report: dict[str, Any] = data_provider.get_storage_inventory_report()
+        except Exception:
+            return 0
+
+        total: int = 0
+        for section in report.get("sections", []):
+            total += len(section.get("rows", []))
+        return total
+
     def _process_table(
         self,
         ws: Worksheet,
@@ -841,7 +910,7 @@ class ExcelGenerator:
             ws["A4"] = f"⚠️ No se pudo obtener el inventario de almacenamiento: {error}"
             return
 
-        sections: list[dict[str, Any]] = list(report.get("sections", []))
+        sections: list[dict[str, Any]] = report.get("sections", [])
         current_row: int = self._add_storage_summary(ws, sections)
         current_row += 1
         self._add_storage_details(ws, sections, current_row)
@@ -884,7 +953,7 @@ class ExcelGenerator:
         current_row += 1
 
         headers: list[str] = self._get_storage_headers(section)
-        rows: list[list[Any]] = list(section.get("rows", []))
+        rows: list[list[Any]] = section.get("rows", [])
 
         if not rows:
             ws.cell(row=current_row, column=1, value=str(section.get("message", "Sin datos")))
@@ -901,7 +970,7 @@ class ExcelGenerator:
     def _get_storage_headers(self, section: dict[str, Any]) -> list[str]:
         """Obtiene los headers para una sección de almacenamiento."""
         headers: list[str] = [str(h) for h in section.get("headers", [])]
-        rows: list[list[Any]] = list(section.get("rows", []))
+        rows: list[list[Any]] = section.get("rows", [])
 
         if not headers and rows:
             max_cols: int = max(len(row) for row in rows)
