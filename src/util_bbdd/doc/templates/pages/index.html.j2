@@ -1,0 +1,279 @@
+{% extends "layouts/base_page.j2" %}
+{% import "macros/common.j2" as ui %}
+
+{% block title %}Índice documentación BD - {{ database }}{% endblock %}
+
+{% block styles %}
+  :root { --header-height: 68px; }
+  body { font-family: Arial, sans-serif; margin: 0; color: #1f2937; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px 20px; border-bottom: 1px solid #e5e7eb; }
+  .header-actions { display: flex; align-items: center; gap: 10px; }
+  .search-scope { display: flex; align-items: center; gap: 8px; }
+  .search-scope label { color: #334155; font-size: 13px; }
+  .search-scope select { border: 1px solid #cbd5e1; border-radius: 6px; padding: 7px 8px; background: #fff; }
+  .meta { color: #4b5563; margin-top: 6px; }
+  .layout { display: grid; grid-template-columns: 340px 1fr; min-height: calc(100vh - var(--header-height)); }
+  .layout.sidebar-collapsed { grid-template-columns: 1fr; }
+  .layout.sidebar-collapsed .sidebar { display: none; }
+  .sidebar { border-right: 1px solid #e5e7eb; padding: 12px; overflow: auto; }
+  .content { padding: 0; }
+  .panel-toggle { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 8px 12px; cursor: pointer; white-space: nowrap; }
+  .panel-toggle:hover { background: #f8fafc; }
+  input[type="search"] { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 12px; }
+  .section-title { font-size: 14px; margin: 0; color: #111827; }
+  .item { display: block; text-decoration: none; color: #1f2937; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px; margin-bottom: 8px; }
+  .item:hover { background: #f8fafc; }
+  .item small { color: #6b7280; display: block; margin-top: 3px; }
+  .pager { display: flex; align-items: center; gap: 8px; margin: 6px 0 14px; }
+  .pager button { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 3px 8px; cursor: pointer; }
+  .pager button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .pager span { color: #475569; font-size: 12px; }
+  iframe { width: 100%; height: calc(100vh - var(--header-height)); border: 0; }
+  .empty { color: #6b7280; font-style: italic; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; padding: 16px 20px 0; }
+  .summary-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; background: #fff; box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04); }
+  .summary-card-link { text-decoration: none; color: inherit; display: block; }
+  .summary-card-link:hover .summary-card { transform: translateY(-1px); box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08); }
+  .summary-card-label { color: #475569; font-size: 13px; margin-bottom: 6px; }
+  .summary-card-count { font-size: 28px; font-weight: 700; }
+  .summary-card.tables { border-top: 4px solid #2563eb; }
+  .summary-card.views { border-top: 4px solid #0891b2; }
+  .summary-card.procedures { border-top: 4px solid #b45309; }
+  .summary-card.functions { border-top: 4px solid #15803d; }
+  .summary-card.storage { border-top: 4px solid #be123c; }
+  .section-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0 6px; }
+  .collection-link { font-size: 12px; text-decoration: none; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 999px; padding: 4px 8px; background: #eff6ff; }
+  .collection-link:hover { background: #dbeafe; }
+{% endblock %}
+
+{% block content %}
+  <header>
+    <div>
+      <h1 style="margin: 0; font-size: 20px;">Índice de documentación - {{ database }}</h1>
+      <div class="meta">Generado: {{ generated_at }}</div>
+    </div>
+    <div class="header-actions">
+      <div class="search-scope">
+        <label for="searchScope">Buscar en</label>
+        <select id="searchScope" aria-label="Seleccionar tipo de búsqueda">
+          <option value="table" selected>TABLA</option>
+          <option value="view">VISTA</option>
+          <option value="procedure">PROCEDURE</option>
+          <option value="function">FUNCTION</option>
+          <option value="storage">ALMACENAMIENTO</option>
+          <option value="database-info">INFORMACIÓN BD</option>
+        </select>
+      </div>
+      <button id="panelToggle" class="panel-toggle" type="button" aria-expanded="true" aria-controls="sidebarPanel">Contraer panel lateral</button>
+    </div>
+  </header>
+
+  {% if inventory_summary %}
+  <section class="summary-grid" aria-label="Resumen de inventario">
+    {% for item in inventory_summary %}
+      {{ ui.render_summary_card(item, collection_links.get(item.collection_key, '')) }}
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <div class="layout" id="layoutRoot">
+    <aside class="sidebar" id="sidebarPanel">
+      <input id="searchBox" type="search" placeholder="Buscar tabla..." />
+
+      <div id="scope-table-block" data-scope-block="table">
+        {{ ui.render_sidebar_section('Tablas', tables|length, tables, 'table-item', collection_links.get('tables', ''), 'No hay tablas.') }}
+        <div class="pager" id="tablesPager">
+          <button id="tablesPrev" type="button">Anterior</button>
+          <span id="tablesPageInfo">Página 1/1</span>
+          <button id="tablesNext" type="button">Siguiente</button>
+        </div>
+      </div>
+
+      <div id="scope-view-block" data-scope-block="view">
+        {{ ui.render_sidebar_section('Vistas', views|length, views, 'view-item', collection_links.get('views', ''), 'No hay vistas.') }}
+        <div class="pager" id="viewsPager">
+          <button id="viewsPrev" type="button">Anterior</button>
+          <span id="viewsPageInfo">Página 1/1</span>
+          <button id="viewsNext" type="button">Siguiente</button>
+        </div>
+      </div>
+
+      <div id="scope-procedure-block" data-scope-block="procedure">
+        {{ ui.render_sidebar_section('Procedures', procedures|length, procedures, 'procedure-item', collection_links.get('procedures', ''), 'No hay procedures.') }}
+        <div class="pager" id="proceduresPager">
+          <button id="proceduresPrev" type="button">Anterior</button>
+          <span id="proceduresPageInfo">Página 1/1</span>
+          <button id="proceduresNext" type="button">Siguiente</button>
+        </div>
+      </div>
+
+      <div id="scope-function-block" data-scope-block="function">
+        {{ ui.render_sidebar_section('Funciones', functions|length, functions, 'function-item', collection_links.get('functions', ''), 'No hay funciones.') }}
+        <div class="pager" id="functionsPager">
+          <button id="functionsPrev" type="button">Anterior</button>
+          <span id="functionsPageInfo">Página 1/1</span>
+          <button id="functionsNext" type="button">Siguiente</button>
+        </div>
+      </div>
+
+      <div id="scope-storage-block" data-scope-block="storage">
+        {{ ui.render_sidebar_section('Almacenamiento', storage_total_rows|default(0), storage, 'storage-item', collection_links.get('storage', ''), 'No hay inventario de almacenamiento.') }}
+        <div class="pager" id="storagePager">
+          <button id="storagePrev" type="button">Anterior</button>
+          <span id="storagePageInfo">Página 1/1</span>
+          <button id="storageNext" type="button">Siguiente</button>
+        </div>
+      </div>
+
+      <div id="scope-database-info-block" data-scope-block="database-info">
+        {{ ui.render_sidebar_section('Información BD', database_info|length, database_info, 'database-info-item', '', 'No hay información de base de datos.') }}
+        <div class="pager" id="databaseInfoPager">
+          <button id="databaseInfoPrev" type="button">Anterior</button>
+          <span id="databaseInfoPageInfo">Página 1/1</span>
+          <button id="databaseInfoNext" type="button">Siguiente</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="content">
+      {% if default_content_path %}
+        <iframe name="detailFrame" src="{{ default_content_path }}" title="Detalle entidad"></iframe>
+      {% else %}
+        <div style="padding: 20px;" class="empty">No hay contenido para mostrar.</div>
+      {% endif %}
+    </main>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  (function () {
+    const PAGE_SIZE = {{ page_size|default(15) }};
+    const layoutRoot = document.getElementById('layoutRoot');
+    const panelToggle = document.getElementById('panelToggle');
+    const searchBox = document.getElementById('searchBox');
+    const searchScope = document.getElementById('searchScope');
+    if (!searchBox) return;
+
+    function updatePanelToggleLabel(collapsed) {
+      if (!panelToggle) {
+        return;
+      }
+      panelToggle.textContent = collapsed ? 'Expandir panel lateral' : 'Contraer panel lateral';
+      panelToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    }
+
+    if (panelToggle && layoutRoot) {
+      panelToggle.addEventListener('click', function () {
+        const collapsed = layoutRoot.classList.toggle('sidebar-collapsed');
+        updatePanelToggleLabel(collapsed);
+        if (!collapsed && searchBox) {
+          searchBox.focus();
+        }
+      });
+      updatePanelToggleLabel(layoutRoot.classList.contains('sidebar-collapsed'));
+    }
+
+    function setupPagination(itemSelector, prevId, nextId, infoId) {
+      const allItems = Array.from(document.querySelectorAll(itemSelector));
+      let filtered = allItems.slice();
+      let currentPage = 1;
+      const prevButton = document.getElementById(prevId);
+      const nextButton = document.getElementById(nextId);
+      const infoLabel = document.getElementById(infoId);
+
+      function render() {
+        const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+        const start = (currentPage - 1) * PAGE_SIZE;
+        const end = start + PAGE_SIZE;
+        const visibleSet = new Set(filtered.slice(start, end));
+
+        allItems.forEach(function (item) {
+          item.style.display = visibleSet.has(item) ? '' : 'none';
+        });
+        if (infoLabel) infoLabel.textContent = 'Página ' + currentPage + '/' + totalPages;
+        if (prevButton) prevButton.disabled = currentPage <= 1;
+        if (nextButton) nextButton.disabled = currentPage >= totalPages;
+      }
+
+      if (prevButton) prevButton.addEventListener('click', function () { currentPage -= 1; render(); });
+      if (nextButton) nextButton.addEventListener('click', function () { currentPage += 1; render(); });
+
+      return {
+        applyFilter: function (term) {
+          const q = (term || '').toLowerCase();
+          filtered = allItems.filter(function (item) {
+            const name = (item.getAttribute('data-name') || '').toLowerCase();
+            return name.includes(q);
+          });
+          currentPage = 1;
+          render();
+        },
+        render: render,
+      };
+    }
+
+    const tablesPager = setupPagination('.table-item', 'tablesPrev', 'tablesNext', 'tablesPageInfo');
+    const viewsPager = setupPagination('.view-item', 'viewsPrev', 'viewsNext', 'viewsPageInfo');
+    const proceduresPager = setupPagination('.procedure-item', 'proceduresPrev', 'proceduresNext', 'proceduresPageInfo');
+    const functionsPager = setupPagination('.function-item', 'functionsPrev', 'functionsNext', 'functionsPageInfo');
+    const storagePager = setupPagination('.storage-item', 'storagePrev', 'storageNext', 'storagePageInfo');
+    const databaseInfoPager = setupPagination('.database-info-item', 'databaseInfoPrev', 'databaseInfoNext', 'databaseInfoPageInfo');
+    tablesPager.render();
+    viewsPager.render();
+    proceduresPager.render();
+    functionsPager.render();
+    storagePager.render();
+    databaseInfoPager.render();
+
+    function getScopeLabel(scope) {
+      if (scope === 'view') return 'vista';
+      if (scope === 'procedure') return 'procedure';
+      if (scope === 'function') return 'function';
+      if (scope === 'storage') return 'almacenamiento';
+      if (scope === 'database-info') return 'información de BD';
+      return 'tabla';
+    }
+
+    function applyScopedSearch() {
+      const term = (searchBox.value || '').trim().toLowerCase();
+      const scope = searchScope ? searchScope.value : 'table';
+      tablesPager.applyFilter(scope === 'table' ? term : '');
+      viewsPager.applyFilter(scope === 'view' ? term : '');
+      proceduresPager.applyFilter(scope === 'procedure' ? term : '');
+      functionsPager.applyFilter(scope === 'function' ? term : '');
+      storagePager.applyFilter(scope === 'storage' ? term : '');
+      databaseInfoPager.applyFilter(scope === 'database-info' ? term : '');
+    }
+
+    function updateScopeVisibility() {
+      const scope = searchScope ? searchScope.value : 'table';
+      const blocks = document.querySelectorAll('[data-scope-block]');
+      blocks.forEach(function (block) {
+        const blockScope = block.getAttribute('data-scope-block');
+        block.style.display = blockScope === scope ? '' : 'none';
+      });
+    }
+
+    function updateSearchPlaceholder() {
+      const scope = searchScope ? searchScope.value : 'table';
+      searchBox.placeholder = 'Buscar ' + getScopeLabel(scope) + '...';
+    }
+
+    searchBox.addEventListener('input', applyScopedSearch);
+    if (searchScope) {
+      searchScope.addEventListener('change', function () {
+        searchBox.value = '';
+        updateSearchPlaceholder();
+        updateScopeVisibility();
+        applyScopedSearch();
+        searchBox.focus();
+      });
+    }
+
+    updateSearchPlaceholder();
+    updateScopeVisibility();
+    applyScopedSearch();
+  })();
+{% endblock %}

@@ -1,0 +1,576 @@
+{% extends "layouts/base_page.j2" %}
+{% import "macros/common.j2" as ui %}
+
+{% block title %}{{ title }} - {{ database }}{% endblock %}
+
+{% block styles %}
+  :root { --header-height: 0px; --toolbar-height: 0px; --top-scrollbar-height: 0px; }
+  body { font-family: Arial, sans-serif; margin: 0; background: #f8fafc; color: #1f2937; }
+  header { padding: 20px 24px 12px; border-bottom: 1px solid #e2e8f0; background: #fff; position: sticky; top: 0; z-index: 30; }
+  h1 { margin: 0; font-size: 24px; }
+  .meta { color: #475569; margin-top: 6px; font-size: 14px; }
+  .toolbar { display: flex; flex-wrap: nowrap; gap: 10px; align-items: flex-start; padding: 16px 24px; background: #fff; border-bottom: 1px solid #e2e8f0; position: sticky; top: var(--header-height); z-index: 20; overflow-x: auto; }
+  .toolbar input, .toolbar button, .toolbar select { border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
+  .toolbar input, .toolbar select { padding: 8px 10px; }
+  .toolbar button { padding: 8px 10px; cursor: pointer; }
+  .toolbar button:hover { background: #eff6ff; }
+  .toolbar-group { display: flex; flex-wrap: nowrap; gap: 10px; align-items: center; flex: 0 0 auto; }
+  .toolbar-group.search-group,
+  .toolbar-group.actions-group,
+  .search-stack { min-width: max-content; }
+  .toolbar-group.search-group input { min-width: 220px; }
+  .search-stack { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
+  .pagination-inline { display: flex; flex-wrap: nowrap; gap: 10px; align-items: center; }
+  .pagination-inline button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .pagination-inline span,
+  .toolbar-hint,
+  .muted { color: #64748b; font-size: 14px; }
+  .toolbar-hint { white-space: nowrap; flex: 0 0 auto; }
+  .icon-button { display: inline-flex; align-items: center; justify-content: center; min-width: 40px; height: 38px; padding: 0 10px; font-weight: 700; letter-spacing: 0.03em; }
+  .icon-button .icon-label { font-size: 12px; line-height: 1; }
+  .horizontal-scrollbar { margin: 0 24px; overflow-x: auto; overflow-y: hidden; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; position: sticky; top: calc(var(--header-height) + var(--toolbar-height)); z-index: 18; }
+  .horizontal-scrollbar-inner { height: 1px; }
+  .table-wrap { padding: 0 24px 28px; overflow: auto; max-height: calc(100vh - var(--header-height) - var(--toolbar-height) - var(--top-scrollbar-height) - 24px); }
+  table { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; border: 1px solid #e2e8f0; border-top: 0; }
+  thead th { background: #e0f2fe; color: #0f172a; cursor: pointer; position: sticky; top: -1px; z-index: 10; border-bottom: 1px solid #cbd5e1; box-shadow: 0 2px 0 #cbd5e1; background-clip: padding-box; white-space: nowrap; }
+  thead th::after { content: ' <> '; color: #94a3b8; font-size: 11px; }
+  thead th[data-sort-direction="asc"]::after { content: ' ^'; color: #0f172a; }
+  thead th[data-sort-direction="desc"]::after { content: ' v'; color: #0f172a; }
+  th, td { border-bottom: 1px solid #e2e8f0; padding: 10px 12px; text-align: left; vertical-align: top; }
+  tbody tr:nth-child(even) { background: #f8fafc; }
+  th.is-comment-column, td.is-comment-column { width: 280px; min-width: 280px; max-width: 280px; }
+  .comment-tooltip { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .detail-link { color: #1d4ed8; text-decoration: none; font-weight: 600; }
+  .detail-link:hover { text-decoration: underline; }
+  @media print {
+    header, .toolbar, thead th { position: static; }
+    .toolbar, .horizontal-scrollbar { display: none; }
+    body { background: #fff; }
+  }
+  @media (max-width: 960px) {
+    .toolbar { flex-wrap: wrap; overflow-x: visible; }
+    .toolbar-group { flex-wrap: wrap; }
+    .toolbar-hint { white-space: normal; }
+  }
+{% endblock %}
+
+{% block content %}
+  <header>
+    <h1>{{ title }}</h1>
+    <div class="meta">Base de datos: {{ database }} · Generado: {{ generated_at }} · Registros: {{ rows|length }}</div>
+  </header>
+
+  <section class="toolbar" aria-label="Herramientas de filtrado y exportación">
+    <div class="search-stack">
+      <div class="toolbar-group search-group">
+        <input id="searchInput" type="search" placeholder="Buscar..." aria-label="Buscar en la tabla" />
+        <div class="pagination-inline" aria-label="Paginación de resultados">
+          <button type="button" id="prevPageButton">Anterior</button>
+          <span id="pageInfo">Página 1/1</span>
+          <button type="button" id="nextPageButton">Siguiente</button>
+          <span id="resultsInfo">0 resultados</span>
+        </div>
+      </div>
+      <span class="toolbar-hint">Pulsa la cabecera de cada columna para ordenar. La exportación usa los resultados filtrados.</span>
+    </div>
+    <div class="toolbar-group actions-group">
+      <label for="pageSizeSelect" class="muted">Filas por página</label>
+      <select id="pageSizeSelect" aria-label="Seleccionar tamaño de página">
+        <option value="10">10</option>
+        <option value="25" selected>25</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+        <option value="all">Todas</option>
+      </select>
+      {{ ui.render_export_button("exportCsv", "CSV", "Exportar resultados filtrados a CSV") }}
+      {{ ui.render_export_button("exportTsv", "TSV", "Exportar resultados filtrados a TSV") }}
+      {{ ui.render_export_button("exportExcel", "XLSX", "Exportar resultados filtrados a Excel (.xlsx)") }}
+      {{ ui.render_export_button("exportPdf", "PDF", "Exportar la vista actual a PDF") }}
+    </div>
+  </section>
+
+  <div class="horizontal-scrollbar" id="topHorizontalScrollbar" aria-label="Desplazamiento horizontal de la tabla">
+    <div class="horizontal-scrollbar-inner" id="topHorizontalScrollbarInner"></div>
+  </div>
+
+  <div class="table-wrap">
+    <table id="collectionTable">
+      <thead>
+        <tr>
+          {% for header in headers %}
+            <th
+              data-col-index="{{ loop.index0 }}"
+              class="{% if header|header_key == 'comentario' %}is-comment-column{% endif %}"
+              aria-sort="none"
+            >{{ header }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            {% for value in row %}
+              {% set header = headers[loop.index0] %}
+              {{ ui.render_collection_cell(header, value, header|header_key == 'detalle') }}
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  (function () {
+    const table = document.getElementById('collectionTable');
+    const pageHeader = document.querySelector('header');
+    const toolbar = document.querySelector('.toolbar');
+    const topHorizontalScrollbar = document.getElementById('topHorizontalScrollbar');
+    const topHorizontalScrollbarInner = document.getElementById('topHorizontalScrollbarInner');
+    const tableWrap = document.querySelector('.table-wrap');
+    const searchInput = document.getElementById('searchInput');
+    const pageSizeSelect = document.getElementById('pageSizeSelect');
+    const prevPageButton = document.getElementById('prevPageButton');
+    const nextPageButton = document.getElementById('nextPageButton');
+    const pageInfo = document.getElementById('pageInfo');
+    const resultsInfo = document.getElementById('resultsInfo');
+    const exportCsvButton = document.getElementById('exportCsv');
+    const exportTsvButton = document.getElementById('exportTsv');
+    const exportExcelButton = document.getElementById('exportExcel');
+    const exportPdfButton = document.getElementById('exportPdf');
+    if (!table || !searchInput || !tableWrap) {
+      return;
+    }
+
+    const rows = Array.from(table.querySelectorAll('tbody tr'));
+    let sortState = { index: -1, asc: true };
+    let filtered = rows.slice();
+    let currentPage = 1;
+    let syncingScroll = false;
+
+    function syncStickyOffsets() {
+      const headerHeight = pageHeader ? pageHeader.offsetHeight : 0;
+      const toolbarHeight = toolbar ? toolbar.offsetHeight : 0;
+      const topScrollbarHeight = topHorizontalScrollbar ? topHorizontalScrollbar.offsetHeight : 0;
+      document.documentElement.style.setProperty('--header-height', headerHeight + 'px');
+      document.documentElement.style.setProperty('--toolbar-height', toolbarHeight + 'px');
+      document.documentElement.style.setProperty('--top-scrollbar-height', topScrollbarHeight + 'px');
+    }
+
+    function syncHorizontalScrollbar() {
+      if (!topHorizontalScrollbarInner || !topHorizontalScrollbar) {
+        return;
+      }
+      topHorizontalScrollbarInner.style.width = table.scrollWidth + 'px';
+      topHorizontalScrollbar.scrollLeft = tableWrap.scrollLeft;
+    }
+
+    function cellValue(cell) {
+      return (cell.getAttribute('data-export-value') || cell.textContent || '').trim();
+    }
+
+    function filteredRows() {
+      return filtered.slice();
+    }
+
+    function getPageSize() {
+      if (!pageSizeSelect || pageSizeSelect.value === 'all') {
+        return filtered.length || rows.length || 1;
+      }
+      return Number(pageSizeSelect.value || '25');
+    }
+
+    function renderPagination() {
+      const pageSize = getPageSize();
+      const totalResults = filtered.length;
+      const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
+      currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+
+      const start = (currentPage - 1) * pageSize;
+      const end = start + pageSize;
+      const visibleRows = new Set(filtered.slice(start, end));
+
+      rows.forEach(function (row) {
+        row.style.display = visibleRows.has(row) ? '' : 'none';
+      });
+
+      if (pageInfo) {
+        pageInfo.textContent = 'Página ' + currentPage + '/' + totalPages;
+      }
+      if (resultsInfo) {
+        resultsInfo.textContent = totalResults + ' resultado(s)';
+      }
+      if (prevPageButton) {
+        prevPageButton.disabled = currentPage <= 1;
+      }
+      if (nextPageButton) {
+        nextPageButton.disabled = currentPage >= totalPages;
+      }
+    }
+
+    function applySearch() {
+      const term = (searchInput.value || '').trim().toLowerCase();
+      filtered = rows.filter(function (row) {
+        return row.textContent.toLowerCase().includes(term);
+      });
+      currentPage = 1;
+      renderPagination();
+    }
+
+    function updateSortIndicators() {
+      Array.from(table.querySelectorAll('thead th')).forEach(function (th, index) {
+        if (index === sortState.index) {
+          const direction = sortState.asc ? 'asc' : 'desc';
+          th.setAttribute('data-sort-direction', direction);
+          th.setAttribute('aria-sort', sortState.asc ? 'ascending' : 'descending');
+          return;
+        }
+        th.removeAttribute('data-sort-direction');
+        th.setAttribute('aria-sort', 'none');
+      });
+    }
+
+    function sortByColumn(index) {
+      const tbody = table.querySelector('tbody');
+      if (!tbody) {
+        return;
+      }
+
+      const asc = sortState.index === index ? !sortState.asc : true;
+      sortState = { index: index, asc: asc };
+      const sorted = rows.slice().sort(function (left, right) {
+        const a = cellValue(left.cells[index]);
+        const b = cellValue(right.cells[index]);
+        return asc
+          ? a.localeCompare(b, 'es', { numeric: true, sensitivity: 'base' })
+          : b.localeCompare(a, 'es', { numeric: true, sensitivity: 'base' });
+      });
+      sorted.forEach(function (row) {
+        tbody.appendChild(row);
+      });
+      filtered = sorted.filter(function (row) {
+        return row.textContent.toLowerCase().includes((searchInput.value || '').trim().toLowerCase());
+      });
+      updateSortIndicators();
+      renderPagination();
+    }
+
+    function downloadBlob(blob, fileName) {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    function exportDelimited(separator, fileExtension, mimeType) {
+      const lines = [];
+      const headerValues = Array.from(table.querySelectorAll('thead th')).map(function (th) {
+        return '"' + (th.textContent || '').trim().replace(/"/g, '""') + '"';
+      });
+      lines.push(headerValues.join(separator));
+      filteredRows().forEach(function (row) {
+        const values = Array.from(row.cells).map(function (cell) {
+          return '"' + cellValue(cell).replace(/"/g, '""') + '"';
+        });
+        lines.push(values.join(separator));
+      });
+
+      const blob = new Blob(['\uFEFF', lines.join('\r\n')], { type: mimeType + ';charset=utf-8;' });
+      downloadBlob(blob, '{{ collection_key }}.' + fileExtension);
+    }
+
+    function excelColumnName(columnNumber) {
+      let dividend = columnNumber;
+      let columnName = '';
+      while (dividend > 0) {
+        const modulo = (dividend - 1) % 26;
+        columnName = String.fromCharCode(65 + modulo) + columnName;
+        dividend = Math.floor((dividend - modulo) / 26);
+      }
+      return columnName;
+    }
+
+    function xmlEscape(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+    }
+
+    function buildSheetXml() {
+      const headerValues = Array.from(table.querySelectorAll('thead th')).map(function (th) {
+        return (th.textContent || '').trim();
+      });
+      const exportRows = filteredRows().map(function (row) {
+        return Array.from(row.cells).map(function (cell) {
+          return cellValue(cell);
+        });
+      });
+      const allRows = [headerValues].concat(exportRows);
+      const maxColumn = Math.max(headerValues.length, 1);
+      const totalRows = Math.max(allRows.length, 1);
+      let rowsXml = '';
+
+      allRows.forEach(function (rowValues, rowIndex) {
+        const cellsXml = rowValues.map(function (value, columnIndex) {
+          const cellRef = excelColumnName(columnIndex + 1) + String(rowIndex + 1);
+          const styleId = rowIndex === 0 ? '1' : '0';
+          return '<c r="' + cellRef + '" t="inlineStr" s="' + styleId + '"><is><t xml:space="preserve">'
+            + xmlEscape(value)
+            + '</t></is></c>';
+        }).join('');
+        rowsXml += '<row r="' + String(rowIndex + 1) + '">' + cellsXml + '</row>';
+      });
+
+      return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        + '<dimension ref="A1:' + excelColumnName(maxColumn) + String(totalRows) + '"/>'
+        + '<sheetViews><sheetView workbookViewId="0"/></sheetViews>'
+        + '<sheetFormatPr defaultRowHeight="15"/>'
+        + '<sheetData>' + rowsXml + '</sheetData>'
+        + '</worksheet>';
+    }
+
+    function buildWorkbookZipEntries() {
+      return [
+        {
+          name: '[Content_Types].xml',
+          content:
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            + '<Default Extension="xml" ContentType="application/xml"/>'
+            + '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            + '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            + '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+            + '</Types>',
+        },
+        {
+          name: '_rels/.rels',
+          content:
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            + '</Relationships>',
+        },
+        {
+          name: 'xl/workbook.xml',
+          content:
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+            + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            + '<sheets><sheet name="Datos" sheetId="1" r:id="rId1"/></sheets>'
+            + '</workbook>',
+        },
+        {
+          name: 'xl/_rels/workbook.xml.rels',
+          content:
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            + '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            + '</Relationships>',
+        },
+        {
+          name: 'xl/styles.xml',
+          content:
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            + '<fonts count="2">'
+            + '<font><sz val="11"/><name val="Calibri"/><family val="2"/></font>'
+            + '<font><b/><sz val="11"/><name val="Calibri"/><family val="2"/></font>'
+            + '</fonts>'
+            + '<fills count="2">'
+            + '<fill><patternFill patternType="none"/></fill>'
+            + '<fill><patternFill patternType="gray125"/></fill>'
+            + '</fills>'
+            + '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
+            + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+            + '<cellXfs count="2">'
+            + '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            + '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+            + '</cellXfs>'
+            + '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
+            + '</styleSheet>',
+        },
+        {
+          name: 'xl/worksheets/sheet1.xml',
+          content: buildSheetXml(),
+        },
+      ];
+    }
+
+    function buildCrc32Table() {
+      const table = new Uint32Array(256);
+      for (let index = 0; index < 256; index += 1) {
+        let current = index;
+        for (let bit = 0; bit < 8; bit += 1) {
+          current = (current & 1) ? (0xEDB88320 ^ (current >>> 1)) : (current >>> 1);
+        }
+        table[index] = current >>> 0;
+      }
+      return table;
+    }
+
+    const CRC32_TABLE = buildCrc32Table();
+
+    function crc32(bytes) {
+      let crc = 0xFFFFFFFF;
+      for (let index = 0; index < bytes.length; index += 1) {
+        crc = CRC32_TABLE[(crc ^ bytes[index]) & 0xFF] ^ (crc >>> 8);
+      }
+      return (crc ^ 0xFFFFFFFF) >>> 0;
+    }
+
+    function createZip(entries) {
+      const encoder = new TextEncoder();
+      const localParts = [];
+      const centralParts = [];
+      let offset = 0;
+
+      entries.forEach(function (entry) {
+        const nameBytes = encoder.encode(entry.name);
+        const dataBytes = encoder.encode(entry.content);
+        const entryCrc32 = crc32(dataBytes);
+        const localHeader = new Uint8Array(30 + nameBytes.length);
+        const localView = new DataView(localHeader.buffer);
+
+        localView.setUint32(0, 0x04034B50, true);
+        localView.setUint16(4, 20, true);
+        localView.setUint16(6, 0, true);
+        localView.setUint16(8, 0, true);
+        localView.setUint16(10, 0, true);
+        localView.setUint16(12, 0, true);
+        localView.setUint32(14, entryCrc32, true);
+        localView.setUint32(18, dataBytes.length, true);
+        localView.setUint32(22, dataBytes.length, true);
+        localView.setUint16(26, nameBytes.length, true);
+        localView.setUint16(28, 0, true);
+        localHeader.set(nameBytes, 30);
+        localParts.push(localHeader, dataBytes);
+
+        const centralHeader = new Uint8Array(46 + nameBytes.length);
+        const centralView = new DataView(centralHeader.buffer);
+        centralView.setUint32(0, 0x02014B50, true);
+        centralView.setUint16(4, 20, true);
+        centralView.setUint16(6, 20, true);
+        centralView.setUint16(8, 0, true);
+        centralView.setUint16(10, 0, true);
+        centralView.setUint16(12, 0, true);
+        centralView.setUint16(14, 0, true);
+        centralView.setUint32(16, entryCrc32, true);
+        centralView.setUint32(20, dataBytes.length, true);
+        centralView.setUint32(24, dataBytes.length, true);
+        centralView.setUint16(28, nameBytes.length, true);
+        centralView.setUint16(30, 0, true);
+        centralView.setUint16(32, 0, true);
+        centralView.setUint16(34, 0, true);
+        centralView.setUint16(36, 0, true);
+        centralView.setUint32(38, 0, true);
+        centralView.setUint32(42, offset, true);
+        centralHeader.set(nameBytes, 46);
+        centralParts.push(centralHeader);
+
+        offset += localHeader.length + dataBytes.length;
+      });
+
+      const centralDirectorySize = centralParts.reduce(function (total, part) {
+        return total + part.length;
+      }, 0);
+      const endOfCentralDirectory = new Uint8Array(22);
+      const endView = new DataView(endOfCentralDirectory.buffer);
+      endView.setUint32(0, 0x06054B50, true);
+      endView.setUint16(4, 0, true);
+      endView.setUint16(6, 0, true);
+      endView.setUint16(8, entries.length, true);
+      endView.setUint16(10, entries.length, true);
+      endView.setUint32(12, centralDirectorySize, true);
+      endView.setUint32(16, offset, true);
+      endView.setUint16(20, 0, true);
+
+      return new Blob(localParts.concat(centralParts, [endOfCentralDirectory]), {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+    }
+
+    function exportXlsx() {
+      const xlsxBlob = createZip(buildWorkbookZipEntries());
+      downloadBlob(xlsxBlob, '{{ collection_key }}.xlsx');
+    }
+
+    Array.from(table.querySelectorAll('thead th')).forEach(function (th) {
+      th.addEventListener('click', function () {
+        sortByColumn(Number(th.getAttribute('data-col-index') || '0'));
+      });
+    });
+
+    searchInput.addEventListener('input', applySearch);
+    if (pageSizeSelect) {
+      pageSizeSelect.addEventListener('change', function () {
+        currentPage = 1;
+        renderPagination();
+      });
+    }
+    if (prevPageButton) {
+      prevPageButton.addEventListener('click', function () {
+        currentPage -= 1;
+        renderPagination();
+      });
+    }
+    if (nextPageButton) {
+      nextPageButton.addEventListener('click', function () {
+        currentPage += 1;
+        renderPagination();
+      });
+    }
+    if (exportCsvButton) {
+      exportCsvButton.addEventListener('click', function () {
+        exportDelimited(',', 'csv', 'text/csv');
+      });
+    }
+    if (exportTsvButton) {
+      exportTsvButton.addEventListener('click', function () {
+        exportDelimited('\t', 'tsv', 'text/tab-separated-values');
+      });
+    }
+    if (exportExcelButton) {
+      exportExcelButton.addEventListener('click', function () {
+        exportXlsx();
+      });
+    }
+    if (exportPdfButton) {
+      exportPdfButton.addEventListener('click', function () {
+        window.print();
+      });
+    }
+
+    syncStickyOffsets();
+    syncHorizontalScrollbar();
+    updateSortIndicators();
+    renderPagination();
+    window.addEventListener('resize', syncStickyOffsets);
+    window.addEventListener('resize', syncHorizontalScrollbar);
+
+    if (topHorizontalScrollbar) {
+      topHorizontalScrollbar.addEventListener('scroll', function () {
+        if (syncingScroll) {
+          return;
+        }
+        syncingScroll = true;
+        tableWrap.scrollLeft = topHorizontalScrollbar.scrollLeft;
+        syncingScroll = false;
+      });
+      tableWrap.addEventListener('scroll', function () {
+        if (syncingScroll) {
+          return;
+        }
+        syncingScroll = true;
+        topHorizontalScrollbar.scrollLeft = tableWrap.scrollLeft;
+        syncingScroll = false;
+      });
+    }
+  })();
+{% endblock %}

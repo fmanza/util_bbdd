@@ -1,0 +1,181 @@
+{% extends "layouts/base_page.j2" %}
+{% import "macros/common.j2" as ui %}
+
+{% block title %}{{ entity_kind|capitalize }} - {{ entity.name }} | {{ database }}{% endblock %}
+
+{% block head_assets %}
+  <link rel="stylesheet" href="../assets/sql-highlight.css" />
+  <script defer src="../assets/sql-highlight.js"></script>
+{% endblock %}
+
+{% block styles %}
+  body { font-family: Arial, sans-serif; margin: 20px; color: #1f2937; }
+  h1, h2, h3, h4 { color: #111827; }
+  .meta { color: #4b5563; margin-bottom: 18px; }
+  .block { margin: 20px 0 28px; padding: 14px; border: 1px solid #e5e7eb; border-radius: 8px; }
+  pre { white-space: pre-wrap; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; }
+  th, td { border: 1px solid #d1d5db; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; }
+  .muted { color: #6b7280; }
+  .ddl-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .copy-ddl-btn { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; background: #f9fafb; cursor: pointer; }
+  .copy-ddl-btn:hover { background: #f3f4f6; }
+  .diagram object { width: 100%; min-height: 420px; border: 1px solid #e5e7eb; border-radius: 6px; }
+  .status-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-left: 8px; }
+  .status-ok { background: #dcfce7; color: #166534; }
+  .status-not-supported, .status-missing-params { background: #fef9c3; color: #854d0e; }
+  .status-error { background: #fee2e2; color: #991b1b; }
+  .storage-card { margin-top: 10px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fcfcfd; }
+  .num-right { text-align: right; }
+{% endblock %}
+
+{% block content %}
+  <h1>{{ entity_kind|capitalize }}: {{ entity.name }}</h1>
+  <div class="meta">Generado: {{ generated_at }}</div>
+  <div class="meta">Base de datos: {{ database }}</div>
+
+  <section class="block">
+    {% if entity_kind != 'almacenamiento' %}
+      <p><strong>Comentario:</strong> {{ entity.comment or '' }}</p>
+      {% if entity.charset_collation %}
+        <p><strong>Charset & Collation:</strong> {{ entity.charset_collation }}</p>
+      {% endif %}
+    {% endif %}
+
+    {% if entity.ddl is not none %}
+      <h4>{{ 'Consultas SQL' if entity_kind == 'almacenamiento' else 'DDL' }}</h4>
+      <div class="ddl-container">
+        <div class="ddl-toolbar">
+          <button type="button" class="copy-ddl-btn">{{ 'Copiar consultas' if entity_kind == 'almacenamiento' else 'Copiar DDL' }}</button>
+          <span class="muted copy-ddl-feedback" aria-live="polite"></span>
+        </div>
+        <pre class="sql-block"><code class="language-sql">{{ entity.ddl }}</code></pre>
+      </div>
+    {% endif %}
+
+    {% if entity_kind in ['tabla', 'vista'] and entity.show_columnas %}
+      <h4>Columnas</h4>
+      {{ ui.render_data_table(entity.columnas.headers, entity.columnas.rows, empty_message='No se encontraron columnas.') }}
+    {% endif %}
+
+    {% if entity_kind in ['tabla', 'vista'] and entity.show_columns_charset %}
+      <h4>Charset/Collation de Columnas</h4>
+      {{ ui.render_data_table(entity.columns_charset.headers, entity.columns_charset.rows, empty_message='No se encontró información de charset/collation.') }}
+    {% endif %}
+
+    {% if entity_kind == 'rutina' %}
+      <h4>Tipo</h4>
+      <p>{{ entity.routine_type|routine_label }}</p>
+      <h4>Parámetros</h4>
+      {{ ui.render_data_table(entity.parametros.headers, entity.parametros.rows, empty_message='No se encontraron parámetros.') }}
+    {% endif %}
+
+    {% if entity_kind == 'tabla' %}
+      {% if entity.show_pk %}
+        <h4>Claves Primarias</h4>
+        {% if entity.pk %}
+          <ul>{% for item in entity.pk %}<li>{{ item }}</li>{% endfor %}</ul>
+        {% else %}
+          <p class="muted">No se encontraron claves primarias.</p>
+        {% endif %}
+      {% endif %}
+
+      {% if entity.show_fk %}
+        <h4>Relaciones (Claves Foráneas)</h4>
+        {{ ui.render_data_table(headers.FK, entity.fk, empty_message='No se encontraron claves foráneas.') }}
+      {% endif %}
+
+      {% if entity.show_unicas %}
+        <h4>Restricciones Únicas</h4>
+        {{ ui.render_data_table(headers.UNIQUE, entity.unicas, empty_message='No se encontraron claves únicas.') }}
+      {% endif %}
+
+      {% if entity.show_indices %}
+        <h4>Índices</h4>
+        {{ ui.render_data_table(headers.INDICES, entity.indices, empty_message='No se encontraron índices.') }}
+      {% endif %}
+
+      {% if entity.diagram_paths %}
+        <h4>Diagrama de relaciones</h4>
+        {% for diagram_path in entity.diagram_paths %}
+          <div class="diagram"><object data="../{{ diagram_path }}" type="image/svg+xml" aria-label="Diagrama {{ entity.name }}"></object></div>
+        {% endfor %}
+      {% endif %}
+    {% endif %}
+
+    {% if storage and storage.sections %}
+      <h4>Inventario de almacenamiento</h4>
+      <p class="muted">Total de filas recopiladas: {{ storage.total_rows or 0 }}</p>
+      {% for section in storage.sections %}
+        <div class="storage-card">
+          <p><strong>{{ section.title }}</strong>{{ ui.render_status_badge(section.status) }}</p>
+          {{ ui.render_data_table(section.headers, section.rows, numeric_columns=section.numeric_columns or [], empty_message=section.message) }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  (function () {
+    function fallbackCopyText(text) {
+      var textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', 'readonly');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      var success = false;
+      try {
+        success = document.execCommand('copy');
+      } catch (error) {
+        success = false;
+      }
+      document.body.removeChild(textarea);
+      return success;
+    }
+
+    function setFeedback(feedbackNode, message) {
+      if (!feedbackNode) {
+        return;
+      }
+      feedbackNode.textContent = message;
+      window.setTimeout(function () {
+        feedbackNode.textContent = '';
+      }, 2000);
+    }
+
+    function copyText(text, onDone) {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(function () {
+          onDone(true);
+        }).catch(function () {
+          onDone(fallbackCopyText(text));
+        });
+        return;
+      }
+      onDone(fallbackCopyText(text));
+    }
+
+    var buttons = document.querySelectorAll('.copy-ddl-btn');
+    buttons.forEach(function (button) {
+      button.addEventListener('click', function () {
+        var container = button.closest('.ddl-container');
+        var codeNode = container ? container.querySelector('code.language-sql') : null;
+        var feedbackNode = container ? container.querySelector('.copy-ddl-feedback') : null;
+        if (!codeNode) {
+          setFeedback(feedbackNode, 'No se encontró DDL');
+          return;
+        }
+
+        var ddlText = codeNode.textContent || '';
+        copyText(ddlText, function (success) {
+          setFeedback(feedbackNode, success ? 'DDL copiado' : 'No se pudo copiar');
+        });
+      });
+    });
+  })();
+{% endblock %}

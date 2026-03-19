@@ -12,10 +12,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, LiteralString
 
-from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
+from jinja2 import Template
 
 from ..analysis.graphviz_ext import GraphvizRelationshipGraphExt
 from .print_config_manager import PrintConfigManager
+from .template_engine import TemplateEngine
 
 
 class HtmlGenerator:
@@ -27,8 +28,10 @@ class HtmlGenerator:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.database: str = database
         self.headers: dict = headers
-        self.default_template_file: Path = Path(__file__).parent / "data" / "html_documentation_template.j2"
-        self.default_index_template_file: Path = Path(__file__).parent / "data" / "html_index_template.j2"
+        self.templates_root: Path = Path(__file__).parent / "templates"
+        self.default_template_file: Path = self.templates_root / "pages" / "detail.html.j2"
+        self.default_index_template_file: Path = self.templates_root / "pages" / "index.html.j2"
+        self.default_collection_template_file: Path = self.templates_root / "pages" / "collection.html.j2"
         self.template_file: Path = template_file if template_file is not None else self.default_template_file
 
     def generate_document(
@@ -90,7 +93,7 @@ class HtmlGenerator:
             else []
         )
 
-        detail_template, index_template = self._setup_templates(resolved["template_path"])
+        detail_template, index_template, collection_template = self._setup_templates(resolved["template_path"])
 
         # Actualizar detail_template si es necesario
         self.logger.debug(
@@ -150,6 +153,18 @@ class HtmlGenerator:
             storage_report, detail_template, output_dir, generated_at
         )
 
+        collection_links: dict[str, str] = self._render_collection_pages(
+            collection_template=collection_template,
+            output_dir=output_dir,
+            generated_at=generated_at,
+            tables_index=tables_index,
+            views_index=views_index,
+            routines_index=routines_index,
+            storage_entries=storage_entries,
+            storage_report=storage_report,
+            data_provider=data_provider,
+        )
+
         self._render_index_page(
             index_template,
             generated_at,
@@ -157,9 +172,11 @@ class HtmlGenerator:
             views_index,
             routines_index,
             storage_entries,
+            storage_report,
             resolved,
             output_dir,
             database_info_entries,
+            collection_links,
         )
 
     def _resolve_print_config(
@@ -185,23 +202,17 @@ class HtmlGenerator:
         if resolved["include_procedures"] or resolved["include_functions"]:
             (output_dir / "routines").mkdir(parents=True, exist_ok=True)
 
-    def _setup_templates(self, template_path: Path) -> tuple[Template, Template]:
+    def _setup_templates(self, template_path: Path) -> tuple[Template, Template, Template]:
         """Configura el entorno de plantillas y devuelve las plantillas necesarias."""
-        search_paths: list[str] = [
-            str(template_path.parent),
-            str(self.default_index_template_file.parent),
-        ]
-        unique_search_paths: list[str] = list(dict.fromkeys(search_paths))
+        custom_detail_template: bool = template_path != self.default_template_file
+        extra_search_paths: list[Path] = [template_path.parent] if custom_detail_template else []
+        template_engine = TemplateEngine(templates_root=self.templates_root, extra_search_paths=extra_search_paths)
 
-        env = Environment(
-            loader=FileSystemLoader(unique_search_paths),
-            autoescape=select_autoescape(enabled_extensions=("html", "xml"), default_for_string=True),
-            trim_blocks=True,
-            lstrip_blocks=True,
-        )
-        detail_template: Template = env.get_template(template_path.name)
-        index_template: Template = env.get_template(self.default_index_template_file.name)
-        return detail_template, index_template
+        detail_template_name: str = template_path.name if custom_detail_template else "pages/detail.html.j2"
+        detail_template: Template = template_engine.get_template(detail_template_name)
+        index_template: Template = template_engine.get_template("pages/index.html.j2")
+        collection_template: Template = template_engine.get_template("pages/collection.html.j2")
+        return detail_template, index_template, collection_template
 
     def _build_slug_maps_and_filters(
         self,
@@ -433,6 +444,7 @@ class HtmlGenerator:
                     "name": str(section.get("title", self.DEFAULT_STORAGE_TITLE)),
                     "comment": str(section.get("message", "")),
                     "path": str(storage_rel_path).replace("\\", "/"),
+                    "total_rows": str(len(section.get("rows", []))),
                 }
             )
         return storage_entries
@@ -607,13 +619,17 @@ class HtmlGenerator:
         views_index: list[dict[str, str]],
         routines_index: list[dict[str, str]],
         storage_entries: list[dict[str, str]],
+        storage_report: dict[str, Any],
         resolved: dict[str, Any],
         output_dir: Path,
         database_info_entries: list[dict[str, str]] | None = None,
+        collection_links: dict[str, str] | None = None,
     ) -> None:
         """Renderiza y escribe la página de índice."""
         if database_info_entries is None:
             database_info_entries = []
+        if collection_links is None:
+            collection_links = {}
         tables_index.sort(key=lambda item: str(item.get("name", "")).lower())
         views_index.sort(key=lambda item: str(item.get("name", "")).lower())
         routines_index.sort(
@@ -629,6 +645,13 @@ class HtmlGenerator:
         functions_index: list[dict[str, str]] = [
             item for item in routines_index if str(item.get("routine_type", "")).upper() == "FUNCTION"
         ]
+        inventory_summary: list[dict[str, Any]] = self._build_inventory_summary(
+            tables_index=tables_index,
+            views_index=views_index,
+            procedures_index=procedures_index,
+            functions_index=functions_index,
+            storage_report=storage_report,
+        )
 
         default_content_path: str = self._get_default_content_path(
             tables_index,
@@ -647,8 +670,11 @@ class HtmlGenerator:
             procedures=procedures_index,
             functions=functions_index,
             storage=storage_entries,
+            storage_total_rows=int(storage_report.get("total_rows", 0) or 0),
             database_info=database_info_entries,
             routines=routines_index,
+            inventory_summary=inventory_summary,
+            collection_links=collection_links,
             default_content_path=default_content_path,
             page_size=resolved["html_items_per_page"],
         )
@@ -656,6 +682,398 @@ class HtmlGenerator:
         index_file: Path = Path(output_dir) / "index.html"
         index_file.write_text(rendered_index, encoding="utf-8")
         self.logger.info(f"✅ Índice HTML generado: {index_file}")
+
+    def _build_inventory_summary(
+        self,
+        *,
+        tables_index: list[dict[str, str]],
+        views_index: list[dict[str, str]],
+        procedures_index: list[dict[str, str]],
+        functions_index: list[dict[str, str]],
+        storage_report: dict[str, int],
+    ) -> list[dict[str, Any]]:
+        """Construye el resumen visual de inventario para el índice HTML."""
+        return [
+            {"label": "Tablas", "count": len(tables_index), "accent": "tables", "collection_key": "tables"},
+            {"label": "Vistas", "count": len(views_index), "accent": "views", "collection_key": "views"},
+            {
+                "label": "Procedures",
+                "count": len(procedures_index),
+                "accent": "procedures",
+                "collection_key": "procedures",
+            },
+            {
+                "label": "Funciones",
+                "count": len(functions_index),
+                "accent": "functions",
+                "collection_key": "functions",
+            },
+            {
+                "label": "Almacenamiento",
+                "count": int(storage_report.get("total_rows", 0)),
+                "accent": "storage",
+                "collection_key": "storage",
+            },
+        ]
+
+    def _summarize_storage_entries(self, storage_entries: list[dict[str, str]]) -> dict[str, int]:
+        """Resume el inventario de almacenamiento a partir de las entradas renderizadas."""
+        total_rows: int = 0
+        for entry in storage_entries:
+            try:
+                total_rows += int(str(entry.get("total_rows", "0") or "0"))
+            except ValueError:
+                continue
+        return {"total_rows": total_rows}
+
+    def _render_collection_pages(
+        self,
+        *,
+        collection_template: Template,
+        output_dir: Path,
+        generated_at: str,
+        tables_index: list[dict[str, str]],
+        views_index: list[dict[str, str]],
+        routines_index: list[dict[str, str]],
+        storage_entries: list[dict[str, str]],
+        storage_report: dict[str, Any],
+        data_provider: Any,
+    ) -> dict[str, str]:
+        """Genera páginas HTML globales por categoría con búsqueda, orden y exportación."""
+        collections_dir: Path = output_dir / "collections"
+        collections_dir.mkdir(parents=True, exist_ok=True)
+
+        procedures_index: list[dict[str, str]] = [
+            item for item in routines_index if str(item.get("routine_type", "")).upper() == "PROCEDURE"
+        ]
+        functions_index: list[dict[str, str]] = [
+            item for item in routines_index if str(item.get("routine_type", "")).upper() == "FUNCTION"
+        ]
+
+        tables_headers, tables_rows = self._build_table_collection_dataset(
+            tables_index=tables_index,
+            data_provider=data_provider,
+        )
+        views_headers, views_rows = self._build_view_collection_dataset(
+            views_index=views_index,
+            data_provider=data_provider,
+        )
+        procedures_headers, procedures_rows = self._build_routine_collection_dataset(
+            routines_index=procedures_index,
+            data_provider=data_provider,
+        )
+        functions_headers, functions_rows = self._build_routine_collection_dataset(
+            routines_index=functions_index,
+            data_provider=data_provider,
+        )
+
+        storage_headers, storage_rows = self._build_storage_collection_dataset(
+            storage_entries=storage_entries,
+            storage_report=storage_report,
+        )
+
+        pages: list[tuple[str, str, list[str], list[list[str]], str]] = [
+            (
+                "tables",
+                "Todas las tablas y columnas",
+                tables_headers,
+                tables_rows,
+                "tables_all.html",
+            ),
+            (
+                "views",
+                "Todas las vistas y columnas",
+                views_headers,
+                views_rows,
+                "views_all.html",
+            ),
+            (
+                "procedures",
+                "Todos los procedures",
+                procedures_headers,
+                procedures_rows,
+                "procedures_all.html",
+            ),
+            (
+                "functions",
+                "Todas las funciones",
+                functions_headers,
+                functions_rows,
+                "functions_all.html",
+            ),
+            (
+                "storage",
+                "Todo el almacenamiento",
+                storage_headers,
+                storage_rows,
+                "storage_all.html",
+            ),
+        ]
+
+        collection_links: dict[str, str] = {}
+        for key, title, headers, rows, filename in pages:
+            rel_path: Path = Path("collections") / filename
+            output_file: Path = output_dir / rel_path
+            rendered: str = collection_template.render(
+                database=self.database,
+                generated_at=generated_at,
+                collection_key=key,
+                title=title,
+                headers=headers,
+                rows=rows,
+            )
+            output_file.write_text(rendered, encoding="utf-8")
+            collection_links[key] = str(rel_path).replace("\\", "/")
+        return collection_links
+
+    def _build_storage_collection_dataset(
+        self, storage_entries: list[dict[str, str]], storage_report: dict[str, Any]
+    ) -> tuple[list[str], list[list[str]]]:
+        """Construye el dataset detallado de almacenamiento para la página global HTML."""
+        sections: list[dict[str, Any]] = list(storage_report.get("sections", []))
+        data_headers: list[str] = []
+        seen_headers: set[str] = set()
+
+        for section in sections:
+            for header in [str(value) for value in section.get("headers", [])]:
+                if header not in seen_headers:
+                    seen_headers.add(header)
+                    data_headers.append(header)
+
+        headers: list[str] = ["Sección", "Estado"] + data_headers + ["Mensaje", "Detalle"]
+        rows: list[list[str]] = []
+
+        for index, entry in enumerate(storage_entries):
+            section: dict[str, Any] = sections[index] if index < len(sections) else {}
+            section_name: str = str(entry.get("name", ""))
+            status: str = str(section.get("status", ""))
+            message: str = str(entry.get("comment", ""))
+            detail_path: str = str(entry.get("path", ""))
+            section_headers: list[str] = [str(value) for value in section.get("headers", [])]
+            section_rows: list[list[Any]] = list(section.get("rows", []))
+
+            if not section_rows:
+                rows.append([section_name, status] + [""] * len(data_headers) + [message, detail_path])
+                continue
+
+            for raw_row in section_rows:
+                row_map: dict[str, str] = {}
+                for column_index, header in enumerate(section_headers):
+                    value: Any = raw_row[column_index] if len(raw_row) > column_index else ""
+                    row_map[header] = "" if value is None else str(value)
+                rows.append(
+                    [section_name, status]
+                    + [row_map.get(header, "") for header in data_headers]
+                    + [message, detail_path]
+                )
+
+        return headers, rows
+
+    def _build_table_collection_dataset(
+        self,
+        *,
+        tables_index: list[dict[str, str]],
+        data_provider: Any,
+    ) -> tuple[list[str], list[list[str]]]:
+        """Construye el dataset plano de tablas/columnas alineado con la hoja Columnas de Excel."""
+        flat_headers: list[str] = [str(header) for header in self.headers.get("FLAT", [])]
+        headers: list[str] = flat_headers + ["Detalle"] if flat_headers else ["Tabla", "Comentario", "Detalle"]
+        rows: list[list[str]] = []
+
+        for item in tables_index:
+            table_name: str = str(item.get("name", ""))
+            table_comment: str = str(item.get("comment", ""))
+            detail_path: str = str(item.get("path", ""))
+            try:
+                rows.extend(
+                    self._build_table_collection_rows_for_table(
+                        table_name=table_name,
+                        table_comment=table_comment,
+                        detail_path=detail_path,
+                        data_provider=data_provider,
+                    )
+                )
+            except Exception as error:
+                self.logger.warning(f"⚠️ No se pudo construir dataset HTML global para tabla {table_name}: {error}")
+
+        return headers, rows
+
+    def _build_view_collection_dataset(
+        self,
+        *,
+        views_index: list[dict[str, str]],
+        data_provider: Any,
+    ) -> tuple[list[str], list[list[str]]]:
+        """Construye el dataset plano de vistas/columnas alineado con el detalle HTML de vistas."""
+        base_headers: list[str] = [str(header) for header in self.headers.get("COLUMNAS", [])]
+        headers: list[str] = ["Vista", "Comentario"] + base_headers + ["Detalle"]
+        rows: list[list[str]] = []
+
+        for item in views_index:
+            view_name: str = str(item.get("name", ""))
+            view_comment: str = str(item.get("comment", ""))
+            detail_path: str = str(item.get("path", ""))
+            try:
+                columns = data_provider.get_columns(view_name)
+                processed_columns = self._process_columns_data(columns, str(getattr(data_provider, "db_type", "")))
+                for column in processed_columns:
+                    rows.append([view_name, view_comment] + [str(value) for value in column] + [detail_path])
+            except Exception as error:
+                self.logger.warning(f"⚠️ No se pudo construir dataset HTML global para vista {view_name}: {error}")
+
+        return headers, rows
+
+    def _build_routine_collection_dataset(
+        self,
+        *,
+        routines_index: list[dict[str, str]],
+        data_provider: Any,
+    ) -> tuple[list[str], list[list[str]]]:
+        """Construye el dataset plano de rutinas/parámetros para la página global HTML."""
+        parameter_headers: list[str] = [
+            str(header)
+            for header in self.headers.get(
+                "PARAMETROS_RUTINA",
+                ["Modo", "Parámetro", "Tipo", "Valor por defecto", "Posición"],
+            )
+        ]
+        headers: list[str] = ["Rutina", "Tipo rutina", "Comentario"] + parameter_headers + ["Detalle"]
+        rows: list[list[str]] = []
+
+        for item in routines_index:
+            routine_name: str = str(item.get("name", ""))
+            routine_type: str = str(item.get("routine_type", ""))
+            routine_comment: str = str(item.get("comment", ""))
+            detail_path: str = str(item.get("path", ""))
+            try:
+                parameters = data_provider.get_routine_parameters(routine_name, routine_type)
+                normalized_parameters = self._process_routine_parameters_data(parameters)
+            except Exception as error:
+                self.logger.warning(
+                    f"⚠️ No se pudo construir dataset HTML global para rutina {routine_type}:{routine_name}: {error}"
+                )
+                normalized_parameters = []
+
+            if not normalized_parameters:
+                normalized_parameters = [["", "", "", "", ""]]
+
+            for parameter_row in normalized_parameters:
+                rows.append([routine_name, routine_type, routine_comment] + [str(value) for value in parameter_row] + [detail_path])
+
+        return headers, rows
+
+    def _build_table_collection_rows_for_table(
+        self,
+        *,
+        table_name: str,
+        table_comment: str,
+        detail_path: str,
+        data_provider: Any,
+    ) -> list[list[str]]:
+        """Construye filas planas de una tabla para la página global HTML."""
+        db_type: str = str(getattr(data_provider, "db_type", "") or "").lower()
+        columns: list[Any] = list(data_provider.get_columns(table_name))
+
+        if db_type in {"oracle", "postgresql", "hsqldb"}:
+            return self._build_enriched_table_collection_rows(
+                table_name=table_name,
+                table_comment=table_comment,
+                detail_path=detail_path,
+                data_provider=data_provider,
+                columns=columns,
+            )
+
+        rows: list[list[str]] = []
+        for column in columns:
+            base_row: list[str] = self._get_flat_base_data(column, db_type)
+            rows.append([table_name, table_comment] + base_row + [detail_path])
+        return rows
+
+    def _build_enriched_table_collection_rows(
+        self,
+        *,
+        table_name: str,
+        table_comment: str,
+        detail_path: str,
+        data_provider: Any,
+        columns: list[Any],
+    ) -> list[list[str]]:
+        """Construye filas enriquecidas para motores que ya incluyen PK/FK/índices en Excel."""
+        primary_keys: set[str] = {str(pk[0]) for pk in data_provider.get_primary_keys(table_name)}
+        foreign_keys: dict[str, str] = self._map_foreign_keys_by_column(table_name, data_provider)
+        indices_map: dict[str, list[str]] = self._map_indices_by_column(table_name, data_provider)
+
+        rows: list[list[str]] = []
+        for column in columns:
+            column_name: str = str(column[0]) if len(column) > 0 and column[0] is not None else ""
+            base_data: list[str] = self._get_flat_base_data(column, str(getattr(data_provider, "db_type", "")))
+            base_without_comment: list[str] = base_data[:-1]
+            column_comment: str = base_data[-1] if base_data else ""
+            enriched_attributes: list[str] = [
+                "Sí" if column_name in primary_keys else "No",
+                foreign_keys.get(column_name, "No"),
+                ", ".join(indices_map.get(column_name, [])),
+            ]
+            rows.append([table_name, table_comment] + base_without_comment + enriched_attributes + [column_comment, detail_path])
+        return rows
+
+    def _get_flat_base_data(self, column: Any, db_type: str) -> list[str]:
+        """Obtiene los datos base de una columna con el mismo criterio de la hoja Excel."""
+        if db_type == "mariadb":
+            return [
+                str(column[0]) if len(column) > 0 and column[0] is not None else "",
+                str(column[1]) if len(column) > 1 and column[1] is not None else "",
+                str(column[2]) if len(column) > 2 and column[2] is not None else "",
+                str(column[3]) if len(column) > 3 and column[3] is not None else "",
+                str(column[4]) if len(column) > 4 and column[4] is not None else "",
+                str(column[5]) if len(column) > 5 and column[5] is not None else "",
+                str(column[6]) if len(column) > 6 and column[6] is not None else "",
+            ]
+        if db_type == "sqlserver":
+            return [
+                str(column[0]) if len(column) > 0 and column[0] is not None else "",
+                str(column[1]) if len(column) > 1 and column[1] is not None else "",
+                str(column[2]) if len(column) > 2 and column[2] is not None else "",
+                str(column[3]) if len(column) > 3 and column[3] is not None else "",
+                str(column[4]) if len(column) > 4 and column[4] is not None else "",
+                str(column[5]) if len(column) > 5 and column[5] is not None else "",
+                str(column[6]) if len(column) > 6 and column[6] is not None else "",
+                str(column[7]) if len(column) > 7 and column[7] is not None else "",
+                str(column[8]) if len(column) > 8 and column[8] is not None else "",
+            ]
+        return [
+            str(column[0]) if len(column) > 0 and column[0] is not None else "",
+            str(column[1]) if len(column) > 1 and column[1] is not None else "",
+            str(column[2]) if len(column) > 2 and column[2] is not None else "",
+            str(column[3]) if len(column) > 3 and column[3] is not None else "",
+            str(column[4]) if len(column) > 4 and column[4] is not None else "",
+            str(column[5]) if len(column) > 5 and column[5] is not None else "",
+            str(column[6]) if len(column) > 6 and column[6] is not None else "",
+            str(column[7]) if len(column) > 7 and column[7] is not None else "",
+        ]
+
+    def _map_foreign_keys_by_column(self, table_name: str, data_provider: Any) -> dict[str, str]:
+        """Mapea claves foráneas por columna usando el mismo criterio de Excel."""
+        foreign_keys: dict[str, str] = {}
+        for foreign_key in data_provider.get_foreign_keys(table_name):
+            db_type: str = str(getattr(data_provider, "db_type", "") or "").lower()
+            if db_type == "mariadb":
+                foreign_keys[str(foreign_key[2])] = f"{foreign_key[0]} -> {foreign_key[3]}({foreign_key[4]})"
+            else:
+                foreign_keys[str(foreign_key[1])] = f"{foreign_key[0]} -> {foreign_key[2]}({foreign_key[3]})"
+        return foreign_keys
+
+    def _map_indices_by_column(self, table_name: str, data_provider: Any) -> dict[str, list[str]]:
+        """Mapea índices por columna usando el mismo criterio de Excel."""
+        indices_map: dict[str, list[str]] = {}
+        db_type: str = str(getattr(data_provider, "db_type", "") or "").lower()
+        for index in data_provider.get_indices(table_name):
+            if db_type in {"mariadb", "sqlite"}:
+                column_name = str(index[1])
+            else:
+                column_name = str(index[3])
+            indices_map.setdefault(column_name, []).append(str(index[0]))
+        return indices_map
 
     def _get_default_content_path(
         self,

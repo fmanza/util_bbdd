@@ -50,6 +50,156 @@ def test_html_generator_routine_helpers_default_path_and_entity_decode() -> None
     assert decoded == "<h1>Hi</h1>"
 
 
+def test_html_generator_inventory_summary_and_storage_collection_rows() -> None:
+    generator = HtmlGenerator(database="db", headers={})
+
+    summary = generator._build_inventory_summary(
+        tables_index=[{"name": "t1"}],
+        views_index=[{"name": "v1"}, {"name": "v2"}],
+        procedures_index=[{"name": "p1"}],
+        functions_index=[{"name": "f1"}, {"name": "f2"}],
+        storage_report={"total_rows": 4},
+    )
+    storage_headers, storage_rows = generator._build_storage_collection_dataset(
+        storage_entries=[{"name": "Ficheros físicos", "comment": "OK", "path": "storage/files.html"}],
+        storage_report={"sections": [{"status": "ok", "headers": ["Archivo"], "rows": [["a"], ["b"], ["c"]]}]},
+    )
+
+    assert summary == [
+        {"label": "Tablas", "count": 1, "accent": "tables", "collection_key": "tables"},
+        {"label": "Vistas", "count": 2, "accent": "views", "collection_key": "views"},
+        {"label": "Procedures", "count": 1, "accent": "procedures", "collection_key": "procedures"},
+        {"label": "Funciones", "count": 2, "accent": "functions", "collection_key": "functions"},
+        {"label": "Almacenamiento", "count": 4, "accent": "storage", "collection_key": "storage"},
+    ]
+    assert storage_headers == ["Sección", "Estado", "Archivo", "Mensaje", "Detalle"]
+    assert storage_rows == [
+        ["Ficheros físicos", "ok", "a", "OK", "storage/files.html"],
+        ["Ficheros físicos", "ok", "b", "OK", "storage/files.html"],
+        ["Ficheros físicos", "ok", "c", "OK", "storage/files.html"],
+    ]
+
+
+def test_html_generator_builds_table_collection_dataset_like_excel_flat_sheet() -> None:
+    generator = HtmlGenerator(
+        database="db",
+        headers={"FLAT": ["Tabla", "Comentario", "Campo", "Tipo", "Nulo", "Clave", "Por defecto", "Extra", "Comentario columna"]},
+    )
+
+    class _Provider:
+        db_type = "mariadb"
+
+        def get_columns(self, table_name: str) -> list[tuple[str, ...]]:
+            assert table_name == "users"
+            return [
+                ("id", "INT", "NO", "PRI", "", "auto_increment", "Identificador"),
+                ("name", "VARCHAR(100)", "YES", "", None, "", "Nombre"),
+            ]
+
+    headers, rows = generator._build_table_collection_dataset(
+        tables_index=[{"name": "users", "comment": "Usuarios", "path": "tables/users.html"}],
+        data_provider=_Provider(),
+    )
+
+    assert headers == [
+        "Tabla",
+        "Comentario",
+        "Campo",
+        "Tipo",
+        "Nulo",
+        "Clave",
+        "Por defecto",
+        "Extra",
+        "Comentario columna",
+        "Detalle",
+    ]
+    assert rows == [
+        ["users", "Usuarios", "id", "INT", "NO", "PRI", "", "auto_increment", "Identificador", "tables/users.html"],
+        ["users", "Usuarios", "name", "VARCHAR(100)", "YES", "", "", "", "Nombre", "tables/users.html"],
+    ]
+
+
+def test_html_generator_builds_view_collection_dataset_with_one_row_per_column() -> None:
+    generator = HtmlGenerator(
+        database="db",
+        headers={"COLUMNAS": ["Campo", "Tipo", "Nulo", "Por defecto", "Longitud", "Precisión", "Escala", "Comentario"]},
+    )
+
+    class _Provider:
+        db_type = "oracle"
+
+        def get_columns(self, view_name: str) -> list[tuple[Any, ...]]:
+            assert view_name == "v_users"
+            return [
+                ("ID", "NUMBER", "N", None, 22, 0, 0, "Identificador"),
+                ("NAME", "VARCHAR2", "Y", None, 100, None, None, "Nombre"),
+            ]
+
+    headers, rows = generator._build_view_collection_dataset(
+        views_index=[{"name": "v_users", "comment": "Vista usuarios", "path": "views/v_users.html"}],
+        data_provider=_Provider(),
+    )
+
+    assert headers == [
+        "Vista",
+        "Comentario",
+        "Campo",
+        "Tipo",
+        "Nulo",
+        "Por defecto",
+        "Longitud",
+        "Precisión",
+        "Escala",
+        "Comentario",
+        "Detalle",
+    ]
+    assert rows == [
+        ["v_users", "Vista usuarios", "ID", "NUMBER", "N", "", "22", "0", "0", "Identificador", "views/v_users.html"],
+        ["v_users", "Vista usuarios", "NAME", "VARCHAR2", "Y", "", "100", "", "", "Nombre", "views/v_users.html"],
+    ]
+
+
+def test_html_generator_builds_routine_collection_dataset_with_one_row_per_parameter() -> None:
+    generator = HtmlGenerator(
+        database="db",
+        headers={"PARAMETROS_RUTINA": ["Modo", "Parámetro", "Tipo", "Valor por defecto", "Posición"]},
+    )
+
+    class _Provider:
+        def get_routine_parameters(self, routine_name: str, routine_type: str) -> list[tuple[Any, ...]]:
+            if routine_name == "sp_sync":
+                return [
+                    ("IN", "p_id", "INTEGER", None, 1),
+                    ("OUT", "p_total", "INTEGER", None, 2),
+                ]
+            return []
+
+    headers, rows = generator._build_routine_collection_dataset(
+        routines_index=[
+            {"name": "sp_sync", "routine_type": "PROCEDURE", "comment": "Sincroniza", "path": "routines/sp_sync.html"},
+            {"name": "f_total", "routine_type": "FUNCTION", "comment": "Calcula", "path": "routines/f_total.html"},
+        ],
+        data_provider=_Provider(),
+    )
+
+    assert headers == [
+        "Rutina",
+        "Tipo rutina",
+        "Comentario",
+        "Modo",
+        "Parámetro",
+        "Tipo",
+        "Valor por defecto",
+        "Posición",
+        "Detalle",
+    ]
+    assert rows == [
+        ["sp_sync", "PROCEDURE", "Sincroniza", "IN", "p_id", "INTEGER", "", "1", "routines/sp_sync.html"],
+        ["sp_sync", "PROCEDURE", "Sincroniza", "OUT", "p_total", "INTEGER", "", "2", "routines/sp_sync.html"],
+        ["f_total", "FUNCTION", "Calcula", "", "", "", "", "", "routines/f_total.html"],
+    ]
+
+
 def test_excel_generator_style_normalization_split_and_numeric_conversion() -> None:
     aliased = ExcelGenerator(database="db", headers={}, table_style="Medium Shading 2 Accent 1")
     valid_style = ExcelGenerator(database="db", headers={}, table_style="TableStyleDark1")
@@ -74,6 +224,20 @@ def test_excel_generator_style_normalization_split_and_numeric_conversion() -> N
     assert fallback._convert_to_numeric(" 1,50 ") == pytest.approx(1.5)
     assert fallback._convert_to_numeric("abc") == "abc"
     assert fallback._convert_to_numeric(None) == ""
+
+
+def test_excel_and_word_inventory_summary_helpers_use_storage_totals() -> None:
+    excel = ExcelGenerator(database="db", headers={})
+    word = WordGenerator(database="db", headers={})
+
+    class _Provider:
+        def get_storage_inventory_report(self) -> dict[str, Any]:
+            return {"sections": [{"rows": [[1], [2]]}, {"rows": [[3]]}]}
+
+    provider = _Provider()
+
+    assert excel._get_storage_total_rows(provider) == 3
+    assert word._get_storage_total_rows(provider) == 3
 
 
 def test_word_generator_chunking_output_file_and_routine_split() -> None:

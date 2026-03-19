@@ -1,0 +1,85 @@
+{% macro render_data_table(headers, rows, numeric_columns=None, empty_message='Sin datos.', table_class='') -%}
+  {% if rows %}
+    <table class="{{ table_class }}">
+      <thead>
+        <tr>
+          {% for header in headers %}
+            <th>{{ header }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            {% for value in row %}
+              <td class="{{ 'num-right' if numeric_columns and loop.index0 in numeric_columns else '' }}">{{ value }}</td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">{{ empty_message }}</p>
+  {% endif %}
+{%- endmacro %}
+
+{% macro render_status_badge(status) -%}
+  <span class="status-badge status-{{ status|status_class }}">{{ status }}</span>
+{%- endmacro %}
+
+{% macro render_summary_card(item, target_path='') -%}
+  {% if target_path %}
+    <a class="summary-card-link" href="{{ target_path }}" target="_blank" rel="noopener">
+      <article class="summary-card {{ item.accent }}">
+        <div class="summary-card-label">{{ item.label }}</div>
+        <div class="summary-card-count">{{ item.count }}</div>
+      </article>
+    </a>
+  {% else %}
+    <article class="summary-card {{ item.accent }}">
+      <div class="summary-card-label">{{ item.label }}</div>
+      <div class="summary-card-count">{{ item.count }}</div>
+    </article>
+  {% endif %}
+{%- endmacro %}
+
+{% macro render_sidebar_section(title, count, items, item_class, collection_link='', empty_message='Sin datos.') -%}
+  <div class="section-header">
+    <div class="section-title">{{ title }} ({{ count }})</div>
+    {% if collection_link %}
+      <a class="collection-link" href="{{ collection_link }}" target="_blank" rel="noopener">Ver todo</a>
+    {% endif %}
+  </div>
+  <div>
+    {% for item in items %}
+      <a class="item nav-item {{ item_class }}" data-name="{{ item.search_name|default(item.name)|lower }}" href="{{ item.path }}" target="detailFrame">
+        {{ item.name }}
+        <small>{{ item.comment }}</small>
+      </a>
+    {% endfor %}
+    {% if not items %}
+      <div class="empty">{{ empty_message }}</div>
+    {% endif %}
+  </div>
+{%- endmacro %}
+
+{% macro render_export_button(button_id, short_label, tooltip_text) -%}
+  <button type="button" id="{{ button_id }}" class="icon-button" title="{{ tooltip_text }}">
+    <span class="icon-label">{{ short_label }}</span>
+  </button>
+{%- endmacro %}
+
+{% macro render_collection_cell(header, value, is_detail_column) -%}
+  {% if is_detail_column and value %}
+    <td data-export-value="{{ value }}"><a class="detail-link" href="../{{ value }}" target="_blank" rel="noopener">Abrir detalle</a></td>
+  {% else %}
+    {% set comment_key = header|header_key == 'comentario' %}
+    <td class="{{ 'is-comment-column' if comment_key else '' }}">
+      {% if comment_key and value %}
+        <span class="comment-tooltip" title="{{ value }}">{{ value }}</span>
+      {% else %}
+        {{ value }}
+      {% endif %}
+    </td>
+  {% endif %}
+{%- endmacro %}
