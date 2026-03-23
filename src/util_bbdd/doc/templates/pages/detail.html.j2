@@ -28,6 +28,16 @@
   .status-error { background: #fee2e2; color: #991b1b; }
   .storage-card { margin-top: 10px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fcfcfd; }
   .num-right { text-align: right; }
+  .diagram-summary { margin-bottom: 14px; color: #374151; }
+  .diagram-group { margin-top: 16px; }
+  .diagram-group-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+  .diagram-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .diagram-tab-btn { border: 1px solid #d1d5db; background: #ffffff; border-radius: 999px; padding: 8px 12px; cursor: pointer; color: #374151; }
+  .diagram-tab-btn:hover { background: #f9fafb; }
+  .diagram-tab-btn.is-active { background: #111827; color: #ffffff; border-color: #111827; }
+  .diagram-panel { display: none; }
+  .diagram-panel.is-active { display: block; }
+  .diagram-meta { color: #6b7280; font-size: 14px; }
 {% endblock %}
 
 {% block content %}
@@ -96,7 +106,45 @@
         {{ ui.render_data_table(headers.INDICES, entity.indices, empty_message='No se encontraron índices.') }}
       {% endif %}
 
-      {% if entity.diagram_paths %}
+      {% if entity.diagram_tabs %}
+        <h4>Diagrama de relaciones</h4>
+        {% if entity.diagram_summary %}
+          <div class="diagram-summary">
+            <strong>Profundidad visible:</strong> {{ entity.diagram_summary.max_depth or 0 }}
+            <span class="muted"> | Niveles salida: {{ entity.diagram_summary.total_outgoing_levels or 0 }}</span>
+            <span class="muted"> | Niveles entrada: {{ entity.diagram_summary.total_incoming_levels or 0 }}</span>
+          </div>
+        {% endif %}
+        {% for group in entity.diagram_tabs %}
+          <div class="diagram-group" data-diagram-group="{{ group.group_id }}">
+            <div class="diagram-group-header">
+              <h5>{{ group.direction_label }}</h5>
+              <div class="diagram-meta">
+                Niveles totales: {{ group.total_levels }}
+                {% if group.hidden_levels %}
+                  | No visibles: {{ group.hidden_levels }}
+                {% endif %}
+              </div>
+            </div>
+            <div class="diagram-tabs" role="tablist" aria-label="Pestañas {{ group.direction_label }} {{ entity.name }}">
+              {% for item in group['items'] %}
+                <button
+                  type="button"
+                  class="diagram-tab-btn{% if loop.first %} is-active{% endif %}"
+                  data-tab-target="{{ item.tab_id }}"
+                  role="tab"
+                  aria-selected="{{ 'true' if loop.first else 'false' }}"
+                >{{ item.title }}</button>
+              {% endfor %}
+            </div>
+            {% for item in group['items'] %}
+              <div class="diagram-panel{% if loop.first %} is-active{% endif %}" data-tab-panel="{{ item.tab_id }}" role="tabpanel">
+                <div class="diagram"><object data="../{{ item.path }}" type="image/svg+xml" aria-label="{{ group.direction_label }} {{ item.title }} {{ entity.name }}"></object></div>
+              </div>
+            {% endfor %}
+          </div>
+        {% endfor %}
+      {% elif entity.diagram_paths %}
         <h4>Diagrama de relaciones</h4>
         {% for diagram_path in entity.diagram_paths %}
           <div class="diagram"><object data="../{{ diagram_path }}" type="image/svg+xml" aria-label="Diagrama {{ entity.name }}"></object></div>
@@ -174,6 +222,34 @@
         var ddlText = codeNode.textContent || '';
         copyText(ddlText, function (success) {
           setFeedback(feedbackNode, success ? 'DDL copiado' : 'No se pudo copiar');
+        });
+      });
+    });
+
+    var diagramGroups = document.querySelectorAll('[data-diagram-group]');
+    diagramGroups.forEach(function (group) {
+      var tabButtons = group.querySelectorAll('[data-tab-target]');
+      var panels = group.querySelectorAll('[data-tab-panel]');
+
+      tabButtons.forEach(function (tabButton) {
+        tabButton.addEventListener('click', function () {
+          var targetId = tabButton.getAttribute('data-tab-target');
+
+          tabButtons.forEach(function (button) {
+            button.classList.remove('is-active');
+            button.setAttribute('aria-selected', 'false');
+          });
+          panels.forEach(function (panel) {
+            panel.classList.remove('is-active');
+          });
+
+          tabButton.classList.add('is-active');
+          tabButton.setAttribute('aria-selected', 'true');
+
+          var targetPanel = group.querySelector('[data-tab-panel="' + targetId + '"]');
+          if (targetPanel) {
+            targetPanel.classList.add('is-active');
+          }
         });
       });
     });

@@ -63,7 +63,7 @@ try:
 except ImportError:
 
     def _medir_tiempo(proceso: str = "") -> Callable[[Any], Any]:
-        _ = proceso
+        _: str = proceso
 
         def _decorator(function: Any) -> Any:
             return function

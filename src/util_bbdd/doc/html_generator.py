@@ -1,9 +1,6 @@
-"""
-Módulo para generación de documentación en formato HTML
-"""
+"""Módulo para generación de documentación en formato HTML."""
 
 import html
-import inspect
 import logging
 import shutil
 import xml.etree.ElementTree as ET
@@ -831,43 +828,105 @@ class HtmlGenerator:
     ) -> tuple[list[str], list[list[str]]]:
         """Construye el dataset detallado de almacenamiento para la página global HTML."""
         sections: list[dict[str, Any]] = list(storage_report.get("sections", []))
+        data_headers: list[str] = self._collect_storage_data_headers(sections)
+        headers: list[str] = ["Sección", "Estado"] + data_headers + ["Mensaje", "Detalle"]
+        rows: list[list[str]] = self._build_storage_collection_rows(
+            storage_entries=storage_entries,
+            sections=sections,
+            data_headers=data_headers,
+        )
+        return headers, rows
+
+    def _collect_storage_data_headers(self, sections: list[dict[str, Any]]) -> list[str]:
+        """Recolecta encabezados únicos de todas las secciones de almacenamiento."""
         data_headers: list[str] = []
         seen_headers: set[str] = set()
 
         for section in sections:
-            for header in [str(value) for value in section.get("headers", [])]:
-                if header not in seen_headers:
-                    seen_headers.add(header)
-                    data_headers.append(header)
+            for header in self._normalize_storage_section_headers(section):
+                if header in seen_headers:
+                    continue
+                seen_headers.add(header)
+                data_headers.append(header)
 
-        headers: list[str] = ["Sección", "Estado"] + data_headers + ["Mensaje", "Detalle"]
+        return data_headers
+
+    def _build_storage_collection_rows(
+        self,
+        *,
+        storage_entries: list[dict[str, str]],
+        sections: list[dict[str, Any]],
+        data_headers: list[str],
+    ) -> list[list[str]]:
+        """Construye las filas detalladas para la colección HTML de almacenamiento."""
         rows: list[list[str]] = []
 
         for index, entry in enumerate(storage_entries):
-            section: dict[str, Any] = sections[index] if index < len(sections) else {}
+            section: dict[str, Any] = self._get_storage_section_by_index(sections, index)
             section_name: str = str(entry.get("name", ""))
             status: str = str(section.get("status", ""))
             message: str = str(entry.get("comment", ""))
             detail_path: str = str(entry.get("path", ""))
-            section_headers: list[str] = [str(value) for value in section.get("headers", [])]
-            section_rows: list[list[Any]] = list(section.get("rows", []))
-
-            if not section_rows:
-                rows.append([section_name, status] + [""] * len(data_headers) + [message, detail_path])
-                continue
-
-            for raw_row in section_rows:
-                row_map: dict[str, str] = {}
-                for column_index, header in enumerate(section_headers):
-                    value: Any = raw_row[column_index] if len(raw_row) > column_index else ""
-                    row_map[header] = "" if value is None else str(value)
-                rows.append(
-                    [section_name, status]
-                    + [row_map.get(header, "") for header in data_headers]
-                    + [message, detail_path]
+            rows.extend(
+                self._build_storage_collection_entry_rows(
+                    section=section,
+                    section_name=section_name,
+                    status=status,
+                    message=message,
+                    detail_path=detail_path,
+                    data_headers=data_headers,
                 )
+            )
 
-        return headers, rows
+        return rows
+
+    def _get_storage_section_by_index(self, sections: list[dict[str, Any]], index: int) -> dict[str, Any]:
+        """Devuelve la sección de almacenamiento correspondiente al índice o un dict vacío."""
+        return sections[index] if index < len(sections) else {}
+
+    def _build_storage_collection_entry_rows(
+        self,
+        *,
+        section: dict[str, Any],
+        section_name: str,
+        status: str,
+        message: str,
+        detail_path: str,
+        data_headers: list[str],
+    ) -> list[list[str]]:
+        """Construye las filas asociadas a una entrada de almacenamiento."""
+        section_rows: list[list[Any]] = list(section.get("rows", []))
+        if not section_rows:
+            return [[section_name, status] + [""] * len(data_headers) + [message, detail_path]]
+
+        section_headers: list[str] = self._normalize_storage_section_headers(section)
+        return [
+            [section_name, status]
+            + self._build_storage_collection_data_cells(raw_row, section_headers, data_headers)
+            + [message, detail_path]
+            for raw_row in section_rows
+        ]
+
+    def _normalize_storage_section_headers(self, section: dict[str, Any]) -> list[str]:
+        """Normaliza los encabezados declarados en una sección de almacenamiento."""
+        return [str(value) for value in section.get("headers", [])]
+
+    def _build_storage_collection_data_cells(
+        self,
+        raw_row: list[Any],
+        section_headers: list[str],
+        data_headers: list[str],
+    ) -> list[str]:
+        """Alinea una fila de almacenamiento con el conjunto global de encabezados."""
+        row_map: dict[str, str] = {
+            header: self._stringify_storage_row_value(raw_row[column_index] if len(raw_row) > column_index else "")
+            for column_index, header in enumerate(section_headers)
+        }
+        return [row_map.get(header, "") for header in data_headers]
+
+    def _stringify_storage_row_value(self, value: Any) -> str:
+        """Convierte valores de filas de almacenamiento a string preservando vacíos."""
+        return "" if value is None else str(value)
 
     def _build_table_collection_dataset(
         self,
@@ -958,7 +1017,11 @@ class HtmlGenerator:
                 normalized_parameters = [["", "", "", "", ""]]
 
             for parameter_row in normalized_parameters:
-                rows.append([routine_name, routine_type, routine_comment] + [str(value) for value in parameter_row] + [detail_path])
+                rows.append(
+                    [routine_name, routine_type, routine_comment]
+                    + [str(value) for value in parameter_row]
+                    + [detail_path]
+                )
 
         return headers, rows
 
@@ -1014,43 +1077,32 @@ class HtmlGenerator:
                 foreign_keys.get(column_name, "No"),
                 ", ".join(indices_map.get(column_name, [])),
             ]
-            rows.append([table_name, table_comment] + base_without_comment + enriched_attributes + [column_comment, detail_path])
+            rows.append(
+                [table_name, table_comment] + base_without_comment + enriched_attributes + [column_comment, detail_path]
+            )
         return rows
 
     def _get_flat_base_data(self, column: Any, db_type: str) -> list[str]:
         """Obtiene los datos base de una columna con el mismo criterio de la hoja Excel."""
+        return self._extract_flat_column_values(column, self._get_flat_column_indexes(db_type))
+
+    def _get_flat_column_indexes(self, db_type: str) -> list[int]:
+        """Devuelve los índices de columnas a exportar según el motor."""
         if db_type == "mariadb":
-            return [
-                str(column[0]) if len(column) > 0 and column[0] is not None else "",
-                str(column[1]) if len(column) > 1 and column[1] is not None else "",
-                str(column[2]) if len(column) > 2 and column[2] is not None else "",
-                str(column[3]) if len(column) > 3 and column[3] is not None else "",
-                str(column[4]) if len(column) > 4 and column[4] is not None else "",
-                str(column[5]) if len(column) > 5 and column[5] is not None else "",
-                str(column[6]) if len(column) > 6 and column[6] is not None else "",
-            ]
+            return list(range(7))
         if db_type == "sqlserver":
-            return [
-                str(column[0]) if len(column) > 0 and column[0] is not None else "",
-                str(column[1]) if len(column) > 1 and column[1] is not None else "",
-                str(column[2]) if len(column) > 2 and column[2] is not None else "",
-                str(column[3]) if len(column) > 3 and column[3] is not None else "",
-                str(column[4]) if len(column) > 4 and column[4] is not None else "",
-                str(column[5]) if len(column) > 5 and column[5] is not None else "",
-                str(column[6]) if len(column) > 6 and column[6] is not None else "",
-                str(column[7]) if len(column) > 7 and column[7] is not None else "",
-                str(column[8]) if len(column) > 8 and column[8] is not None else "",
-            ]
-        return [
-            str(column[0]) if len(column) > 0 and column[0] is not None else "",
-            str(column[1]) if len(column) > 1 and column[1] is not None else "",
-            str(column[2]) if len(column) > 2 and column[2] is not None else "",
-            str(column[3]) if len(column) > 3 and column[3] is not None else "",
-            str(column[4]) if len(column) > 4 and column[4] is not None else "",
-            str(column[5]) if len(column) > 5 and column[5] is not None else "",
-            str(column[6]) if len(column) > 6 and column[6] is not None else "",
-            str(column[7]) if len(column) > 7 and column[7] is not None else "",
-        ]
+            return list(range(9))
+        return list(range(8))
+
+    def _extract_flat_column_values(self, column: Any, indexes: list[int]) -> list[str]:
+        """Extrae valores de una columna usando una lista ordenada de índices."""
+        return [self._get_flat_column_value(column, index) for index in indexes]
+
+    def _get_flat_column_value(self, column: Any, index: int) -> str:
+        """Devuelve un valor de columna como string o vacío si no existe."""
+        if len(column) <= index or column[index] is None:
+            return ""
+        return str(column[index])
 
     def _map_foreign_keys_by_column(self, table_name: str, data_provider: Any) -> dict[str, str]:
         """Mapea claves foráneas por columna usando el mismo criterio de Excel."""
@@ -1203,9 +1255,16 @@ class HtmlGenerator:
     def _build_graph_generator(self, data_provider: Any, options: dict[str, Any]) -> Any:
         """Crea GraphvizRelationshipGraphExt para generar SVG al vuelo."""
         db_manager = data_provider.db_manager
+        columns_options: dict[str, Any] = options.get("columns", {})
+        cardinality_options: dict[str, Any] = options.get("cardinality", {})
         return GraphvizRelationshipGraphExt(
             db_manager=db_manager,
-            show_columns=bool(options.get("show_columns", True)),
+            column_mode=str(columns_options.get("mode", "relations")),
+            max_columns=int(columns_options.get("max_items", 8)),
+            show_data_types=bool(columns_options.get("show_data_types", False)),
+            max_depth=int(options.get("max_depth", 1)),
+            direction=str(options.get("direction", "both")),
+            show_constraint_name=bool(cardinality_options.get("show_constraint_name", False)),
         )
 
     def _build_table_payload(
@@ -1232,13 +1291,16 @@ class HtmlGenerator:
         )
 
         if include_diagrams and graph_generator is not None:
-            payload["diagram_paths"] = self._generate_svg_for_table(
+            diagram_tabs, diagram_paths, diagram_summary = self._generate_svg_for_table(
                 table_name=table_name,
                 graph_generator=graph_generator,
                 diagram_options=diagram_options,
                 output_dir=output_dir,
                 navigation_links=svg_navigation_links,
             )
+            payload["diagram_tabs"] = diagram_tabs
+            payload["diagram_paths"] = diagram_paths
+            payload["diagram_summary"] = diagram_summary
 
         return payload
 
@@ -1268,6 +1330,8 @@ class HtmlGenerator:
             "unicas": None,
             "show_indices": bool(section_flags[5]),
             "indices": None,
+            "diagram_tabs": [],
+            "diagram_summary": {},
             "diagram_paths": [],
         }
 
@@ -1496,6 +1560,57 @@ class HtmlGenerator:
             rows.append(values)
         return rows
 
+    def _build_diagram_tab_payload(
+        self,
+        table_name: str,
+        generated_groups: dict[str, Any],
+        output_dir: Path,
+        navigation_links: dict[str, str],
+    ) -> tuple[list[dict[str, Any]], list[str], dict[str, Any]]:
+        """Construye la estructura de pestañas HTML a partir de diagramas generados."""
+        summary = dict(generated_groups.get("summary", {}))
+        tabs: list[dict[str, Any]] = []
+        flat_paths: list[str] = []
+
+        for direction_key, direction_label in (("outgoing", "Salida"), ("incoming", "Entrada")):
+            items = generated_groups.get(direction_key, [])
+            if not items:
+                continue
+
+            tab_items: list[dict[str, Any]] = []
+            for item in items:
+                path = Path(item["path"])
+                if not path.exists():
+                    continue
+                self._inject_links_into_svg(svg_path=path, navigation_links=navigation_links)
+                relative_path = html.escape(str(path.relative_to(output_dir)).replace("\\", "/"))
+                flat_paths.append(relative_path)
+                tab_items.append(
+                    {
+                        "tab_id": f"{table_name}-{direction_key}-level-{int(item['depth'])}",
+                        "title": str(item.get("title", f"Nivel {int(item['depth'])}")),
+                        "depth": int(item["depth"]),
+                        "path": relative_path,
+                        "direction": direction_key,
+                    }
+                )
+
+            if not tab_items:
+                continue
+
+            tabs.append(
+                {
+                    "group_id": f"{table_name}-{direction_key}",
+                    "direction": direction_key,
+                    "direction_label": direction_label,
+                    "items": tab_items,
+                    "total_levels": int(summary.get(f"total_{direction_key}_levels", len(tab_items))),
+                    "hidden_levels": int(summary.get(f"hidden_{direction_key}_levels", 0)),
+                }
+            )
+
+        return tabs, flat_paths, summary
+
     def _generate_svg_for_table(
         self,
         table_name: str,
@@ -1503,8 +1618,8 @@ class HtmlGenerator:
         diagram_options: dict[str, Any],
         output_dir: Path,
         navigation_links: dict[str, str],
-    ) -> list[str]:
-        """Genera SVG(s) de relaciones para una tabla y devuelve rutas relativas para HTML."""
+    ) -> tuple[list[dict[str, Any]], list[str], dict[str, Any]]:
+        """Genera SVG(s) de relaciones para una tabla y devuelve pestañas y rutas relativas."""
         fmt = "svg"
         graph_output_dir: Path = Path(diagram_options.get("output_dir", output_dir / "graphs"))
         graph_output_dir.mkdir(parents=True, exist_ok=True)
@@ -1512,6 +1627,21 @@ class HtmlGenerator:
         images_paginated: bool = bool(diagram_options.get("images_paginated", False))
 
         try:
+            if hasattr(graph_generator, "generate_graphviz_level_graphs_ext"):
+                generated_groups = graph_generator.generate_graphviz_level_graphs_ext(
+                    table_name=table_name,
+                    output_dir=graph_output_dir,
+                    format=fmt,
+                    max_depth=int(diagram_options.get("max_depth", 1)),
+                    direction=str(diagram_options.get("direction", "both")),
+                )
+                return self._build_diagram_tab_payload(
+                    table_name=table_name,
+                    generated_groups=generated_groups,
+                    output_dir=output_dir,
+                    navigation_links=navigation_links,
+                )
+
             generated_paths: list[Path]
             if images_paginated and hasattr(graph_generator, "generate_graphviz_graph_paginated_ext"):
                 generated_paths = [
@@ -1521,7 +1651,8 @@ class HtmlGenerator:
                         output_dir=graph_output_dir,
                         format=fmt,
                         max_subnodes=int(diagram_options.get("max_subnodes", 10)),
-                        show_columns=bool(diagram_options.get("show_columns", True)),
+                        max_depth=int(diagram_options.get("max_depth", 1)),
+                        direction=str(diagram_options.get("direction", "both")),
                     )
                 ]
             else:
@@ -1531,21 +1662,20 @@ class HtmlGenerator:
                     "table_name": table_name,
                     "output_file": output_file,
                     "format": fmt,
-                    "show_columns": bool(diagram_options.get("show_columns", True)),
+                    "max_depth": int(diagram_options.get("max_depth", 1)),
+                    "direction": str(diagram_options.get("direction", "both")),
                 }
-                params = inspect.signature(method).parameters
-                if "first_level_only" in params:
-                    kwargs["first_level_only"] = bool(diagram_options.get("first_level_only", True))
                 generated_paths = [Path(method(**kwargs))]
 
             valid_paths: list[Path] = [path for path in generated_paths if path.exists()]
             for svg_path in valid_paths:
                 self._inject_links_into_svg(svg_path=svg_path, navigation_links=navigation_links)
 
-            return [html.escape(str(path.relative_to(output_dir)).replace("\\", "/")) for path in valid_paths]
+            flat_paths = [html.escape(str(path.relative_to(output_dir)).replace("\\", "/")) for path in valid_paths]
+            return [], flat_paths, {}
         except Exception as error:
             self.logger.warning(f"⚠️ No se pudo generar SVG para tabla {table_name}: {error}")
-            return []
+            return [], [], {}
 
     def _inject_links_into_svg(self, svg_path: Path, navigation_links: dict[str, str]) -> None:
         """Inserta enlaces clicables en nodos SVG apuntando a páginas HTML de detalle."""

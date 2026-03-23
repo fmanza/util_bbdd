@@ -12,8 +12,8 @@ from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 
 def header_key(value: Any) -> str:
     """Normaliza un valor de cabecera a una clave CSS segura."""
-    text = str(value or "").strip().lower()
-    normalized = re.sub(r"[^a-z0-9]+", "-", text)
+    text: str = str(value or "").strip().lower()
+    normalized: str = re.sub(r"[^a-z0-9]+", "-", text)
     return normalized.strip("-") or "column"
 
 
@@ -24,7 +24,7 @@ def status_class(value: Any) -> str:
 
 def routine_label(value: Any) -> str:
     """Devuelve una etiqueta legible para el tipo de rutina."""
-    normalized = str(value or "").strip().upper()
+    normalized: str = str(value or "").strip().upper()
     if normalized == "PROCEDURE":
         return "Procedure"
     if normalized == "FUNCTION":

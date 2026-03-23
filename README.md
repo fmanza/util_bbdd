@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB (sync).
 
-**Version:** 0.5.6 | **Status:** ✅ Refactorizado & Estable
+**Version:** 0.6.0 | **Status:** ✅ Refactorizado & Estable
 
 Incluye:
 - ✅ **CRUD en lote** desde DataFrames (insert/update/delete masivo)
@@ -28,7 +28,7 @@ Incluye:
 
 Nota: `hsqldb` no dispone de implementación async en `util_bbdd`. Las factorías async lanzan error explícito para ese motor.
 
-## Arquitectura v0.5.6 - Estructura de 3 Niveles
+## Arquitectura v0.6.0 - Estructura de 3 Niveles
 
 Util_bbdd usa una **arquitectura jerárquica de 3 niveles** para máxima modularidad:
 
@@ -82,11 +82,11 @@ bulk/                # Operaciones masivas (2,129 líneas)
   ├── audit.py       # Audit trail (866 líneas)
   └── normalize.py   # SQL normalization (264 líneas)
 
-analysis/            # Análisis de relaciones (1,200+ líneas)
-  ├── base.py        # Base classes
+analysis/            # Análisis de relaciones multinivel
+  ├── base.py        # GraphDocument, traversal y niveles
   ├── graphviz.py    # Graphviz visualization
-  ├── graphviz_ext.py# Extended Graphviz (598 líneas)
-  └── matplotlib_graph.py # Matplotlib visualization (278 líneas)
+  ├── graphviz_ext.py# Graphviz multinivel con columnas y cardinalidad
+  └── matplotlib_graph.py # Matplotlib visualization multinivel
 
 managers/            # APIs de alto nivel (2,200+ líneas)
   ├── sync_mgr.py    # SyncDatabaseManager (1,000+ líneas)
@@ -108,6 +108,57 @@ doc/                 # Generadores documentales
 - ✅ Responsabilidad única por archivo
 - ✅ Fácil agregar nuevos motores (solo agregar archivo en `connection/motors/`)
 - ✅ Compatibilidad mantenida en wrappers legacy seleccionados; el manager sync usa `SyncDatabaseManager`
+
+## Novedades v0.6.0 en grafos y documentación
+
+- Relaciones de n niveles mediante `max_depth`
+- Dirección configurable del recorrido: `incoming`, `outgoing` o `both`
+- Modos de visualización de columnas: `compact`, `relations`, `all`
+- Cardinalidad representada por extremos en Graphviz
+- HTML con pestañas por nivel y por sentido
+- Word con resumen de niveles totales y no visibles
+
+### Configuración recomendada del bloque grafo
+
+```toml
+[imprimir_config.imprimir.grafo]
+enabled = true
+max_depth = 3
+direction = "both"
+images_paginated = true
+max_subnodes = 10
+
+[imprimir_config.imprimir.grafo.columns]
+mode = "relations"
+max_items = 8
+show_data_types = false
+
+[imprimir_config.imprimir.grafo.cardinality]
+style = "end_markers"
+show_constraint_name = false
+```
+
+### Ejemplo de uso de diagramas multinivel
+
+```python
+from util_bbdd.analysis import GraphvizRelationshipGraphExt
+
+graph = GraphvizRelationshipGraphExt(
+  db_manager=dm,
+  max_depth=3,
+  direction="both",
+  column_mode="relations",
+  max_columns=8,
+  show_data_types=False,
+)
+
+graph.generate_graphviz_graph_paginated_ext(
+  table_name="users",
+  output_dir="./graphs",
+  format="svg",
+  max_subnodes=10,
+)
+```
 
 ---
 
@@ -350,7 +401,7 @@ except QueryNotFoundError as e:
 - **Same API as before**, better code organization
 
 ```python
-# v0.5.6+ (recommended)
+# v0.6.0+ (recommended)
 from util_bbdd.managers import SyncDatabaseManager
 # Or even simpler:
 from util_bbdd import SyncDatabaseManager
@@ -399,21 +450,25 @@ from util_bbdd.analysis import (
 
 **Note:** los paths legacy de `bulk` y `analysis` siguen disponibles, pero para el manager sync debes usar `SyncDatabaseManager`.
 
-### 📖 Documentation (v0.5.0+)
+Para el núcleo de grafos de relaciones en v0.6.0:
+- usa `util_bbdd.analysis.base` como ubicación canónica
+- `util_bbdd.bulk.base` fue eliminado y ya no está disponible
 
-- [**ARCHITECTURE.md**](docs/ARCHITECTURE.md) - Complete architectural overview (3-level hierarchy, module responsibilities, data flows)
-- [**MIGRATION_GUIDE.md**](docs/MIGRATION_GUIDE.md) - Detailed migration guide from v0.4.0 → v0.5.0 (with examples)
+### 📖 Documentation (v0.6.0+)
+
+- [**docs/v0.6.0/MIGRATION_GUIDE_v0.6.0.md**](docs/v0.6.0/MIGRATION_GUIDE_v0.6.0.md) - Contrato vigente de v0.6.0 para grafos, documentación y cambios de estructura
+- [**MIGRATION_GUIDE.md**](docs/MIGRATION_GUIDE.md) - Detailed migration guide from v0.4.0 → v0.6.0 (with examples)
 - [**REFACTORING_SESSION_PROGRESS.md**](docs/REFACTORING_SESSION_PROGRESS.md) - Session progress metrics (13/19 PRs complete)
-- [**docs/v0.5.6/jinja2_refactor.md**](docs/v0.5.6/jinja2_refactor.md) - Refactorización de la capa Jinja2 standalone
+- [**docs/v0.5.6/jinja2_refactor.md**](docs/v0.5.6/jinja2_refactor.md) - Refactorización histórica de la capa Jinja2 standalone
 
 ### 🧪 Testing (v0.5.0)
-- ✅ **443/443 tests passing** consistently
-- ✅ **No breaking changes** - All v0.4.0 tests pass without modification
+- ✅ **525/525 tests passing** en la validación más reciente
+- ⚠️ **v0.6.0 introduce breaking changes** en el subsistema de grafos/documentación y en paths internos retirados
 - ✅ Test coverage ~39% (focused on critical paths)
 
 ### 🔄 Deprecation Policy
 - v0.5.0: Legacy paths (`bulk_crud/`, `grafos/`) work but discouraged for new code
-- v0.6.0: Legacy paths will be removed - Migrate to new paths now
+- v0.6.0: `util_bbdd.bulk.base` eliminado; migra a `util_bbdd.analysis.base`
 - v1.0.0: New paths only
 
 ---
@@ -449,15 +504,15 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.5.6** (Stable - Refactored Architecture)
+**Current Version: v0.6.0** (Stable - Multi-level Graphs & Documentation)
 
 Roadmap:
 - `v0.1.0`: CRUD base + auditoría
 - `v0.2.0`: Documentación BD automática mejorada
 - `v0.3.0`: Soporte PostgreSQL mejorado
 - `v0.4.0`: Consolidación de conexiones
-- `v0.5.0` ✅ (actual): Refactorización arquitectónica (3-level hierarchy)
-- `v0.6.0`: Eliminación de paths legacy, new features
+- `v0.5.0` ✅: Refactorización arquitectónica (3-level hierarchy)
+- `v0.6.0` ✅ (actual): Grafos multinivel, HTML tabulado y contrato documental nuevo
 - `v1.0.0`: API estable, cobertura 85%+
 
 ## Licencia

@@ -44,6 +44,7 @@ def test_analyze_table_relations_includes_outgoing_and_incoming_non_mariadb() ->
         ("orders", "users", "fk_orders_user"),
     }
     assert graph.tables == {"users", "orders", "companies"}
+    assert DatabaseRelationshipGraphBase.__module__ == "util_bbdd.analysis.base"
 
 
 def test_analyze_table_relations_mariadb_uses_expected_fk_indexes() -> None:
@@ -77,10 +78,7 @@ def test_extract_target_table_depends_on_database_type() -> None:
 
 def test_split_relations_for_visualization_keeps_order_and_balances_chunks() -> None:
     graph = DatabaseRelationshipGraphBase(cast(SyncDatabaseManager, _FakeDbManager("postgresql", [], {})))
-    relations = [
-        TableRelation("t0", f"t{idx}", f"fk_{idx}", "id", "id")
-        for idx in range(11)
-    ]
+    relations = [TableRelation("t0", f"t{idx}", f"fk_{idx}", "id", "id") for idx in range(11)]
 
     chunks = graph._split_relations_for_visualization(relations, max_subnodes=10)
     merged = [item for chunk in chunks for item in chunk]

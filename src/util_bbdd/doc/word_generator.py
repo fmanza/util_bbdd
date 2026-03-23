@@ -2,7 +2,6 @@
 Módulo para generación de documentación en formato Word
 """
 
-import inspect
 import logging
 
 from pathlib import Path
@@ -535,9 +534,16 @@ class WordGenerator:
     def _build_graph_generator(self, data_provider: Any, options: dict[str, Any]) -> Any:
         """Crea GraphvizRelationshipGraphExt para generar diagramas al vuelo."""
         db_manager = data_provider.db_manager
+        columns_options: dict[str, Any] = options.get("columns", {})
+        cardinality_options: dict[str, Any] = options.get("cardinality", {})
         return GraphvizRelationshipGraphExt(
             db_manager=db_manager,
-            show_columns=bool(options.get("show_columns", True)),
+            column_mode=str(columns_options.get("mode", "relations")),
+            max_columns=int(columns_options.get("max_items", 8)),
+            show_data_types=bool(columns_options.get("show_data_types", False)),
+            max_depth=int(options.get("max_depth", 1)),
+            direction=str(options.get("direction", "both")),
+            show_constraint_name=bool(cardinality_options.get("show_constraint_name", False)),
             render_dpi=int(options.get("dpi", 150)),
         )
 
@@ -555,6 +561,12 @@ class WordGenerator:
             # Word no maneja SVG de forma fiable en python-docx
             fmt = "png"
 
+        diagram_summary: str = self._build_diagram_summary_text(
+            tabla=tabla,
+            graph_generator=graph_generator,
+            diagram_options=diagram_options,
+        )
+
         output_dir = Path(diagram_options.get("output_dir", Path.cwd() / "_table_diagrams"))
         output_dir.mkdir(parents=True, exist_ok=True)
         images_paginated: bool = bool(diagram_options.get("images_paginated", False))
@@ -569,7 +581,8 @@ class WordGenerator:
                     "output_dir": output_dir,
                     "format": fmt,
                     "max_subnodes": int(diagram_options.get("max_subnodes", 10)),
-                    "show_columns": bool(diagram_options.get("show_columns", True)),
+                    "max_depth": int(diagram_options.get("max_depth", 1)),
+                    "direction": str(diagram_options.get("direction", "both")),
                 }
                 generated_paths = [Path(path) for path in paginated_method(**kwargs_paginated)]
             else:
@@ -579,12 +592,9 @@ class WordGenerator:
                     "table_name": tabla,
                     "output_file": output_file,
                     "format": fmt,
-                    "show_columns": bool(diagram_options.get("show_columns", True)),
+                    "max_depth": int(diagram_options.get("max_depth", 1)),
+                    "direction": str(diagram_options.get("direction", "both")),
                 }
-
-                params = inspect.signature(method).parameters
-                if "first_level_only" in params:
-                    kwargs["first_level_only"] = bool(diagram_options.get("first_level_only", True))
                 generated_paths = [Path(method(**kwargs))]
 
             generation_elapsed_ms = (perf_counter() - generation_started) * 1000
@@ -608,10 +618,49 @@ class WordGenerator:
                     f"🖼️ Diagrama insertado en Word para {tabla} (página {page_idx}/{len(generated_paths)}) "
                     f"en {insert_elapsed_ms:.2f} ms"
                 )
+                self._add_diagram_summary_paragraph(document=document, summary_text=diagram_summary)
         except Exception as e:
             document.add_page_break()
             document.add_heading(f"Diagrama de relaciones: {tabla}", level=2)
             document.add_paragraph(f"⚠️ No se pudo generar el diagrama: {e}")
+
+    def _build_diagram_summary_text(self, tabla: str, graph_generator: Any, diagram_options: dict[str, Any]) -> str:
+        """Construye el resumen textual de niveles para Word."""
+        if not hasattr(graph_generator, "build_graph_document"):
+            return ""
+
+        try:
+            document = graph_generator.build_graph_document(
+                table_name=tabla,
+                max_depth=int(diagram_options.get("max_depth", 1)),
+                direction=str(diagram_options.get("direction", "both")),
+            )
+        except Exception as error:
+            self.logger.debug(f"⚠️ No se pudo construir el resumen de niveles para {tabla}: {error}")
+            return ""
+
+        parts: list[str] = [f"Profundidad visible: {document.max_depth}"]
+
+        outgoing_summary = f"Salida total: {document.total_outgoing_levels}"
+        if document.hidden_levels.outgoing_hidden_levels > 0:
+            outgoing_summary += f" (no visibles: {document.hidden_levels.outgoing_hidden_levels})"
+        parts.append(outgoing_summary)
+
+        incoming_summary = f"Entrada total: {document.total_incoming_levels}"
+        if document.hidden_levels.incoming_hidden_levels > 0:
+            incoming_summary += f" (no visibles: {document.hidden_levels.incoming_hidden_levels})"
+        parts.append(incoming_summary)
+
+        return " | ".join(parts)
+
+    def _add_diagram_summary_paragraph(self, document: Document, summary_text: str) -> None:
+        """Agrega el resumen de niveles bajo el diagrama en Word."""
+        if not summary_text:
+            return
+
+        paragraph = document.add_paragraph()
+        paragraph.add_run("Resumen de niveles: ").bold = True
+        paragraph.add_run(summary_text)
 
     def _add_picture_fit_to_page(
         self, document: Document, image_path: Path, title_paragraph: Paragraph | None = None
@@ -754,9 +803,8 @@ class WordGenerator:
         filtered: list[tuple] = []
         for routine in routines:
             _, routine_type, _ = self._normalize_routine_entry(routine)
-            should_include: bool = (
-                (routine_type == "PROCEDURE" and include_procedures)
-                or (routine_type != "PROCEDURE" and include_functions)
+            should_include: bool = (routine_type == "PROCEDURE" and include_procedures) or (
+                routine_type != "PROCEDURE" and include_functions
             )
             if should_include:
                 filtered.append(routine)

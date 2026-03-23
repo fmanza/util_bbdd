@@ -34,8 +34,12 @@ class DatabaseDocumentation:
             - tablas_por_documento: Número de tablas por documento Word (default 50)
             - table_style: Estilo de tablas para Word/Excel (default "Table Grid")
             - html_items_por_pagina: Número de elementos por página en índice HTML (default 15)
+            - grafo.max_depth: Profundidad máxima visible de relaciones (default 1)
+            - grafo.direction: Dirección del recorrido: incoming, outgoing o both
             - grafo.images_paginated: Si True, genera imágenes por paginación
             - grafo.max_subnodes: Máximo de subnodos/tablas por imagen paginada (default 10)
+            - grafo.columns.mode: compact, relations o all
+            - grafo.columns.max_items: Límite de columnas visibles en modo compact
         formatos: Lista de formatos de salida a generar. Valores soportados: 'word', 'excel', 'html'
         headers_file: Ruta al fichero JSON con configuración de headers
     """

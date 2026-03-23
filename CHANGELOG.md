@@ -5,6 +5,52 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-03-22
+
+### Removed
+- **Breaking Change**: el contrato de configuración de grafos deja de depender de `first_level_only` y `show_columns` como parámetros principales.
+- **Breaking Change**: la representación HTML antigua de diagramas como lista plana deja paso al modelo por sentido y por nivel.
+- **Breaking Change**: `util_bbdd.bulk.base` deja de existir; el núcleo de grafos queda consolidado en `util_bbdd.analysis.base`.
+
+### Added
+- Nuevo dominio de análisis multinivel en `analysis/base.py`:
+  - `GraphDocument`
+  - `GraphLevel`
+  - `GraphNode`
+  - `GraphEdge`
+  - `HiddenLevelsSummary`
+  - `LevelDirection`
+  - `ColumnVisualizationMode`
+- Soporte de relaciones de `n` niveles mediante `max_depth`.
+- Dirección configurable de recorrido: `incoming`, `outgoing` y `both`.
+- Modos de columnas para diagramas:
+  - `compact`
+  - `relations`
+  - `all`
+- Cardinalidad representada por extremos en Graphviz.
+- HTML con pestañas por sentido y por nivel.
+- Word con resumen de niveles visibles y no visibles bajo cada diagrama.
+- Nueva guía específica de migración en `docs/v0.6.0/MIGRATION_GUIDE_v0.6.0.md`.
+- Cobertura nueva para payloads HTML tabulados, resumen Word y traversal multinivel.
+
+### Changed
+- `GraphvizRelationshipGraphExt` consume `GraphDocument` en lugar de listas planas como fuente principal de renderizado.
+- `PrintConfigManager` normaliza el nuevo bloque `grafo` con:
+  - `max_depth`
+  - `direction`
+  - `columns.mode`
+  - `columns.max_items`
+  - `columns.show_data_types`
+  - `cardinality.show_constraint_name`
+- HTML y Word consumen el nuevo contrato de configuración de grafos.
+- `MatplotlibRelationshipGraph` se alinea con el nuevo traversal multinivel y ya puede renderizar profundidad y dirección configurables.
+- README y guías de migración actualizados a v0.6.0.
+
+### Fixed
+- La generación HTML de diagramas conserva fallback cuando no hay pestañas disponibles.
+- El resumen de niveles ya se refleja también en la salida Word.
+- Se estabilizan pruebas unitarias para payloads documentales y renderizado de detalle.
+
 ## [0.5.6] - 2026-03-16
 
 ### Removed

@@ -1,10 +1,16 @@
-# 📚 Guía de Migración - util_bbdd v0.5.6
+# 📚 Guía de Migración - util_bbdd v0.6.0
 
-**Para usuarios que migren desde v0.4.0 → v0.5.6**
+**Para usuarios que migren hacia v0.6.0**
 
 ---
 
 ## ⚠️ IMPORTANTE: Cambios de Compatibilidad
+
+⚠️ **BREAKING CHANGE:** el subsistema de grafos y documentación usa un contrato nuevo para configuración de relaciones. `first_level_only` y `show_columns` dejan de ser el eje principal de configuración.
+
+⚠️ **BREAKING CHANGE:** los diagramas HTML ya no se presentan como una lista plana de SVG. Ahora se agrupan por sentido (`Salida` y `Entrada`) y por nivel.
+
+⚠️ **BREAKING CHANGE:** la profundidad visible del grafo se controla mediante `grafo.max_depth`.
 
 ⚠️ **CAMBIO RELEVANTE:** el nombre público sync recomendado y exportado es `SyncDatabaseManager`. El alias `DatabaseManager` ya no se publica.
 
@@ -20,7 +26,7 @@ Pero veamos la nueva estructura recomendada para nuevo código.
 
 ---
 
-## 📖 Tabla Comparativa: v0.4.0 vs v0.5.6
+## 📖 Tabla Comparativa: v0.4.0 vs v0.6.0
 
 ### SyncDatabaseManager
 
@@ -34,7 +40,7 @@ manager = DatabaseManager(
 )
 ```
 
-#### v0.5.6+ (requerido)
+#### v0.6.0+ (requerido)
 ```python
 from util_bbdd.managers import SyncDatabaseManager
 # o más simple:
@@ -126,41 +132,43 @@ graph = GraphvizRelationshipGraph(db_manager)
 graph_data = graph.generate_graphviz_graph_paginated(...)
 ```
 
-#### v0.5.0 (recomendado - más clara)
+#### v0.6.0 (requerido para la nueva funcionalidad multinivel)
 ```python
 from util_bbdd.analysis import (
     DatabaseRelationshipGraphBase,
-    GraphvizRelationshipGraph,
+    GraphDocument,
+    LevelDirection,
     GraphvizRelationshipGraphExt,
     MatplotlibRelationshipGraph
 )
 
-# Graphviz
-graph = GraphvizRelationshipGraph(db_manager)
-graph_data = graph.generate_graphviz_graph_paginated(...)
-
-# O versión extendida con columnas
 graph_ext = GraphvizRelationshipGraphExt(db_manager)
-graph_data = graph_ext.generate_graphviz_graph_paginated(
-    show_columns=True,
-    orthogonal_edges=True
+graph_data = graph_ext.generate_graphviz_graph_paginated_ext(
+    table_name="users",
+    output_dir="./graphs",
+    max_depth=3,
+    direction="both",
+    max_subnodes=10,
 )
 
-# O Matplotlib
-graph_mpl = MatplotlibRelationshipGraph(db_manager)
-graph_data = graph_mpl.generate_matplotlib_graph_paginated(...)
+document = graph_ext.build_graph_document(
+    table_name="users",
+    max_depth=3,
+    direction=LevelDirection.BOTH,
+)
 ```
 
-**Ventajas v0.5.0:**
-- Módulo `analysis` es más descriptivo
-- Múltiples implementaciones accesibles
-- Mejor namespace
+**Cambios clave v0.6.0:**
+- `GraphDocument` pasa a ser el modelo intermedio del análisis
+- el recorrido soporta entrada, salida o ambas direcciones
+- la visualización de columnas se configura por modo y no por booleano simple
+- HTML y Word consumen la nueva semántica de niveles
 
 ---
 
 ## 🔄 Path Migration Checklist
 
-Si estás refactorizando código legacy para v0.5.6:
+Si estás refactorizando código legacy para v0.6.0:
 
 ### 1. Imports de SyncDatabaseManager
 
@@ -209,6 +217,21 @@ from util_bbdd.bulk_crud.normalizacion_sql import normalize_records_for_sql
 **Después:**
 ```python
 from util_bbdd.bulk import bulk_crud, AuditManager, normalize_records_for_sql
+```
+
+### 4. Imports del núcleo de analysis
+
+- [ ] `from util_bbdd.bulk.base import ...` → `from util_bbdd.analysis.base import ...`
+- [ ] No usar `util_bbdd.bulk.base`: la ruta fue eliminada en v0.6.0
+
+**Antes:**
+```python
+from util_bbdd.bulk.base import DatabaseRelationshipGraphBase, GraphDocument, LevelDirection
+```
+
+**Después:**
+```python
+from util_bbdd.analysis.base import DatabaseRelationshipGraphBase, GraphDocument, LevelDirection
 ```
 
 ### 4. Imports de Analysis
@@ -421,10 +444,13 @@ graph_html = graph.generate_graphviz_graph_paginated(tables=tables)
 
 # Opción 2: Extendido (nueva en v0.5.0)
 graph_ext = GraphvizRelationshipGraphExt(manager)
-graph_html = graph_ext.generate_graphviz_graph_paginated(
-    tables=tables,
-    show_columns=True,  # Mostrar columnas
-    orthogonal_edges=True  # Edges ortogonales
+graph_paths = graph_ext.generate_graphviz_graph_paginated_ext(
+    table_name="users",
+    output_dir="./graphs",
+    max_depth=3,
+    direction="both",
+    column_mode="relations",
+    max_subnodes=10,
 )
 ```
 
@@ -504,7 +530,7 @@ Si encuentras problemas después de migrar:
 
 ## 📝 Resumen
 
-| Aspecto | v0.4.0 | v0.5.6 | Migración |
+| Aspecto | v0.4.0 | v0.6.0 | Migración |
 |--------|--------|--------|-----------|
 | **SyncDatabaseManager** | `database_manager.py` | `managers/sync_mgr.py` | `from util_bbdd import SyncDatabaseManager` |
 | **AsyncDatabaseManager** | `async_database_manager.py` | `managers/async_mgr.py` | `from util_bbdd import AsyncDatabaseManager` |
@@ -518,6 +544,6 @@ Si encuentras problemas después de migrar:
 ---
 
 *Documento: MIGRATION_GUIDE.md*
-*Para: Usuarios migrando v0.4.0 → v0.5.6*
+*Para: Usuarios migrando v0.4.0 → v0.6.0*
 *Generado: Marzo 2026*
 *Status: READY* ✅

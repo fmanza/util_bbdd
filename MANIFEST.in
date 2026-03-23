@@ -1,4 +1,5 @@
-recursive-include util_bbdd/data *.json
-recursive-include util_bbdd/doc/data *.j2 *.json *.js *.css
+recursive-include src/util_bbdd/data *.json
+recursive-include src/util_bbdd/doc/data *.json *.js *.css
+recursive-include src/util_bbdd/doc/templates *.j2
 include README.md
 include LICENSE

@@ -83,7 +83,19 @@ def test_html_generator_inventory_summary_and_storage_collection_rows() -> None:
 def test_html_generator_builds_table_collection_dataset_like_excel_flat_sheet() -> None:
     generator = HtmlGenerator(
         database="db",
-        headers={"FLAT": ["Tabla", "Comentario", "Campo", "Tipo", "Nulo", "Clave", "Por defecto", "Extra", "Comentario columna"]},
+        headers={
+            "FLAT": [
+                "Tabla",
+                "Comentario",
+                "Campo",
+                "Tipo",
+                "Nulo",
+                "Clave",
+                "Por defecto",
+                "Extra",
+                "Comentario columna",
+            ]
+        },
     )
 
     class _Provider:
@@ -117,6 +129,25 @@ def test_html_generator_builds_table_collection_dataset_like_excel_flat_sheet() 
         ["users", "Usuarios", "id", "INT", "NO", "PRI", "", "auto_increment", "Identificador", "tables/users.html"],
         ["users", "Usuarios", "name", "VARCHAR(100)", "YES", "", "", "", "Nombre", "tables/users.html"],
     ]
+
+
+def test_html_generator_get_flat_base_data_uses_expected_shape_per_db_type() -> None:
+    generator = HtmlGenerator(database="db", headers={})
+
+    assert generator._get_flat_base_data(
+        ("id", "INT", "NO", "PRI", None, "auto_increment", "Identificador", "ignored"),
+        "mariadb",
+    ) == ["id", "INT", "NO", "PRI", "", "auto_increment", "Identificador"]
+
+    assert generator._get_flat_base_data(
+        ("id", "INT", "NO", "PRI", None, "", "100", "0", "Identificador", "ignored"),
+        "sqlserver",
+    ) == ["id", "INT", "NO", "PRI", "", "", "100", "0", "Identificador"]
+
+    assert generator._get_flat_base_data(
+        ("ID", "NUMBER", "N", None, 22, 0, 0, "Comentario", "ignored"),
+        "oracle",
+    ) == ["ID", "NUMBER", "N", "", "22", "0", "0", "Comentario"]
 
 
 def test_html_generator_builds_view_collection_dataset_with_one_row_per_column() -> None:
@@ -260,6 +291,75 @@ def test_word_generator_chunking_output_file_and_routine_split() -> None:
     assert functions == [("f_total", "FUNCTION", "")]
 
 
+def test_word_generator_builds_diagram_summary_text_with_hidden_levels() -> None:
+    generator = WordGenerator(database="db", headers={})
+
+    class _GraphGenerator:
+        class _Document:
+            max_depth = 2
+            total_outgoing_levels = 3
+            total_incoming_levels = 1
+
+            class _Hidden:
+                outgoing_hidden_levels = 1
+                incoming_hidden_levels = 0
+
+            hidden_levels = _Hidden()
+
+        def build_graph_document(self, **kwargs: Any) -> Any:
+            return self._Document()
+
+    summary = generator._build_diagram_summary_text(
+        tabla="users",
+        graph_generator=_GraphGenerator(),
+        diagram_options={"max_depth": 2, "direction": "both"},
+    )
+
+    assert "Profundidad visible: 2" in summary
+    assert "Salida total: 3 (no visibles: 1)" in summary
+    assert "Entrada total: 1" in summary
+
+
+def test_word_generator_adds_summary_paragraph_to_document() -> None:
+    generator = WordGenerator(database="db", headers={})
+    document = generator._initialize_document(template_path=None)
+
+    generator._add_diagram_summary_paragraph(document=document, summary_text="Profundidad visible: 2 | Salida total: 3")
+
+    assert any("Profundidad visible: 2 | Salida total: 3" in paragraph.text for paragraph in document.paragraphs)
+
+
+@pytest.mark.skipif("matplotlib" not in globals(), reason="matplotlib no disponible en entorno de tests")
+def test_matplotlib_relationship_graph_uses_multilevel_document() -> None:
+    from util_bbdd.analysis.matplotlib_graph import MatplotlibRelationshipGraph
+    from util_bbdd.managers import SyncDatabaseManager
+
+    class _FakeDbManager:
+        def __init__(self) -> None:
+            self.db_type = "postgresql"
+            self.database = "db"
+
+        def get_tables(self) -> list[tuple[str]]:
+            return [("users",), ("orders",), ("payments",)]
+
+        def get_foreign_keys(self, table_name: str) -> list[tuple[str, str, str, str]]:
+            mapping = {
+                "users": [],
+                "orders": [("fk_orders_user", "user_id", "users", "id")],
+                "payments": [("fk_payments_order", "order_id", "orders", "id")],
+            }
+            return mapping.get(table_name, [])
+
+        def get_query_context_database(self) -> str:
+            return self.database
+
+    graph = MatplotlibRelationshipGraph(cast(SyncDatabaseManager, _FakeDbManager()), max_depth=2, direction="incoming")
+    document = graph.build_graph_document("users", max_depth=2, direction="incoming")
+
+    assert document.total_incoming_levels == 2
+    assert {relation.constraint_name for relation in document.relations} == {"fk_orders_user", "fk_payments_order"}
+
+
 def test_database_documentation_parses_mariadb_temp_data_file_path() -> None:
     rows = DatabaseDocumentation._parse_mariadb_temp_data_file_path_rows(
         "innodb_temp_data_file_path",
@@ -300,6 +400,7 @@ def test_database_documentation_formats_mariadb_files_access_error() -> None:
 
     assert section["status"] == "error"
     assert "Sin acceso a information_schema.FILES" in section["message"]
+
 
 def test_database_documentation_storage_specs_add_sqlite_summary_section() -> None:
     doc: DatabaseDocumentation = DatabaseDocumentation.__new__(DatabaseDocumentation)

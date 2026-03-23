@@ -1,6 +1,6 @@
-"""
-Implementación de generación de grafos usando Matplotlib y NetworkX
-"""
+"""Renderer Matplotlib alineado con el nuevo modelo multinivel."""
+
+from __future__ import annotations
 
 import logging
 import math
@@ -28,7 +28,7 @@ except ImportError:
 
 
 from ..managers import SyncDatabaseManager
-from .base import DatabaseRelationshipGraphBase, TableRelation
+from .base import DatabaseRelationshipGraphBase, GraphDocument, LevelDirection, TableRelation
 
 MATPLOTLIB_NETWORKX_ERROR = "Matplotlib/NetworkX no disponible. Instale: pip install matplotlib networkx"
 
@@ -36,9 +36,16 @@ MATPLOTLIB_NETWORKX_ERROR = "Matplotlib/NetworkX no disponible. Instale: pip ins
 class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
     """Generador de grafos usando Matplotlib con layout radial"""
 
-    def __init__(self, db_manager: SyncDatabaseManager):
+    def __init__(
+        self,
+        db_manager: SyncDatabaseManager,
+        max_depth: int = 1,
+        direction: LevelDirection | str = LevelDirection.BOTH,
+    ):
         super().__init__(db_manager)
         self.logger: Logger = logging.getLogger(__name__)
+        self.max_depth: int = max(1, int(max_depth))
+        self.direction: LevelDirection = self._normalize_direction(direction)
 
         if not MATPLOTLIB_AVAILABLE or plt is None or nx is None:
             raise ImportError(MATPLOTLIB_NETWORKX_ERROR)
@@ -95,7 +102,13 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
         plt.legend(handles=legend_elements, loc="upper right", bbox_to_anchor=(1, 1))
 
     def generate_matplotlib_graph_paginated(
-        self, table_name: str, output_dir: Path, format: str = "png", max_subnodes: int = 10
+        self,
+        table_name: str,
+        output_dir: Path,
+        format: str = "png",
+        max_subnodes: int = 10,
+        max_depth: int | None = None,
+        direction: LevelDirection | str | None = None,
     ) -> list[Path]:
         """
         Genera grafos Matplotlib dividiendo en múltiples imágenes si es necesario
@@ -112,7 +125,14 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
         self.logger.info(
             f"Iniciando generación paginada de Matplotlib para {table_name} (max {max_subnodes} nodos por página)"
         )
-        relations: list[TableRelation] = self.analyze_table_relations(table_name)
+        effective_depth = self.max_depth if max_depth is None else max(1, int(max_depth))
+        effective_direction = self.direction if direction is None else self._normalize_direction(direction)
+        document = self.build_graph_document(
+            table_name=table_name,
+            max_depth=effective_depth,
+            direction=effective_direction,
+        )
+        relations: list[TableRelation] = list(document.relations)
         split_relations: list[list[TableRelation]] = self._split_relations_for_visualization(relations, max_subnodes)
         self.logger.debug(f"Tabla {table_name} dividida en {len(split_relations)} página(s)")
 
@@ -133,15 +153,51 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
             output_path: Path = output_dir / file_name
 
             # Generar gráfico para esta página
+            page_document = self._build_subset_document(document, page_relations)
             generated_file: Path = self._generate_matplotlib_graph_internal(
-                table_name, output_path, format, page_relations
+                table_name, output_path, format, page_document
             )
             generated_files.append(generated_file)
 
         return generated_files
 
+    def _build_subset_document(self, document: GraphDocument, relations: list[TableRelation]) -> GraphDocument:
+        """Construye un subdocumento para una página de Matplotlib."""
+        selected_relations = set(relations)
+        edges = [edge for edge in document.edges if edge.relation in selected_relations]
+        tables: set[str] = {document.root_table}
+        for relation in relations:
+            tables.add(relation.source_table)
+            tables.add(relation.target_table)
+
+        levels = []
+        for level in document.levels:
+            level_edges = [edge for edge in level.edges if edge.relation in selected_relations]
+            if not level_edges:
+                continue
+            level_tables = {edge.relation.source_table for edge in level_edges}
+            level_tables.update(edge.relation.target_table for edge in level_edges)
+            levels.append(
+                type(level)(depth=level.depth, direction=level.direction, edges=level_edges, tables=level_tables)
+            )
+
+        nodes = {table_name: node for table_name, node in document.nodes.items() if table_name in tables}
+        return GraphDocument(
+            root_table=document.root_table,
+            nodes=nodes,
+            levels=levels,
+            edges=edges,
+            relations=list(relations),
+            tables=tables,
+            max_depth=document.max_depth,
+            direction=document.direction,
+            hidden_levels=document.hidden_levels,
+            total_incoming_levels=document.total_incoming_levels,
+            total_outgoing_levels=document.total_outgoing_levels,
+        )
+
     def _generate_matplotlib_graph_internal(
-        self, table_name: str, output_file: Path, format: str, relations: list[TableRelation]
+        self, table_name: str, output_file: Path, format: str, document: GraphDocument
     ) -> Path:
         """
         Genera un gráfico Matplotlib interno con relaciones específicas
@@ -162,23 +218,19 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
             output_file = Path(output_file).resolve()
             output_file.parent.mkdir(parents=True, exist_ok=True)
 
-            # Construir set de tablas para este gráfico
-            tables_in_page: set[str] = {table_name}
-            for relation in relations:
-                tables_in_page.add(relation.source_table)
-                tables_in_page.add(relation.target_table)
-
             G = nx.DiGraph()
 
-            for table in tables_in_page:
+            for table in document.tables:
                 G.add_node(table, is_main=(table == table_name))
 
-            for relation in relations:
+            for edge in document.edges:
+                relation = edge.relation
                 G.add_edge(
                     relation.source_table,
                     relation.target_table,
-                    label=f"{relation.source_column} → {relation.target_column}",
+                    label=f"{relation.source_column} → {relation.target_column} (L{edge.depth})",
                     constraint=relation.constraint_name,
+                    edge_direction=edge.direction.value,
                 )
 
             plt.figure(figsize=(20, 16))
@@ -222,7 +274,10 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
                 G,
                 pos,
                 alpha=0.6,
-                edge_color="gray",
+                edge_color=[
+                    "#1D70B8" if data.get("edge_direction") == LevelDirection.OUTGOING.value else "#A61C00"
+                    for _, _, data in G.edges(data=True)
+                ],
                 arrows=True,
                 arrowsize=20,
                 arrowstyle="->",
@@ -234,7 +289,11 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
             nx.draw_networkx_edge_labels(G, pos, edge_labels, font_size=8, font_family="Arial", alpha=0.7)
 
             plt.title(
-                f"Relaciones de Primer Nivel - Tabla: {table_name}",
+                (
+                    f"Relaciones multinivel - Tabla: {table_name}\n"
+                    f"Profundidad visible={document.max_depth} | "
+                    f"Salida={document.total_outgoing_levels} | Entrada={document.total_incoming_levels}"
+                ),
                 fontsize=16,
                 fontweight="bold",
                 pad=20,
@@ -270,6 +329,8 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
         format: str = "png",
         skip_tables_without_relations: bool = True,
         max_subnodes: int = 10,
+        max_depth: int | None = None,
+        direction: LevelDirection | str | None = None,
     ) -> dict[str, dict[str, Any]]:
         """
         Genera grafos Matplotlib para todas las tablas de la base de datos
@@ -283,36 +344,20 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
         Returns:
             Diccionario con los resultados {tabla: {status, files, error}}
         """
-        if output_dir is None:
-            output_dir = Path("./grafos_matplotlib")
-
-        output_dir = Path(output_dir).resolve()
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        all_tables = self.db_manager.get_tables()
-        table_names = [table[0] for table in all_tables]
+        output_dir = self._resolve_matplotlib_output_dir(output_dir)
+        table_names = self._get_all_table_names()
 
         self.logger.info(f"Iniciando generación de grafos Matplotlib para {len(table_names)} tablas")
         self.logger.info(f"Directorio de salida: {output_dir}")
         self.logger.info(f"Formato: {format}, max_subnodes: {max_subnodes}")
 
         results: dict[str, dict[str, Any]] = {}
-
-        # Filtrar tablas sin relaciones si es necesario
-        tables_to_process = table_names
-        if skip_tables_without_relations:
-            tables_to_process = []
-            for table in table_names:
-                try:
-                    relations: list[TableRelation] = self.analyze_table_relations(table)
-                    if relations:
-                        tables_to_process.append(table)
-                    else:
-                        self.logger.debug(f"Omitiendo tabla sin relaciones: {table}")
-                except Exception:
-                    pass
-
-            self.logger.info(f"Tablas a procesar tras filtrado: {len(tables_to_process)}/{len(table_names)}")
+        tables_to_process = self._select_tables_to_process(
+            table_names=table_names,
+            skip_tables_without_relations=skip_tables_without_relations,
+            max_depth=max_depth,
+            direction=direction,
+        )
 
         # Generar grafos para cada tabla
         for idx, table_name in enumerate(tables_to_process, 1):
@@ -325,23 +370,94 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
                     output_dir=output_dir,
                     format=format,
                     max_subnodes=max_subnodes,
+                    max_depth=max_depth,
+                    direction=direction,
                 )
-
-                results[table_name] = {
-                    "status": "success",
-                    "files": [str(f) for f in generated_files],
-                    "count": len(generated_files),
-                }
+                self._store_generation_success(results, table_name, generated_files)
 
                 self.logger.debug(f"Gráfico completado para {table_name}: {len(generated_files)} archivo(s)")
 
             except Exception as e:
-                error_msg = str(e)
-                self.logger.error(f"Error generando gráfico para tabla {table_name}: {error_msg}")
-                results[table_name] = {"status": "error", "error": error_msg, "files": []}
+                self._store_generation_error(results, table_name, e)
 
         # Resumen final
         successful: int = sum(1 for r in results.values() if r["status"] == "success")
         self.logger.info(f"Generación completada: {successful}/{len(tables_to_process)} tablas procesadas exitosamente")
 
         return results
+
+    def _resolve_matplotlib_output_dir(self, output_dir: Path | None) -> Path:
+        """Normaliza y crea el directorio de salida para grafos Matplotlib."""
+        resolved_output_dir = Path("./grafos_matplotlib") if output_dir is None else Path(output_dir)
+        resolved_output_dir = resolved_output_dir.resolve()
+        resolved_output_dir.mkdir(parents=True, exist_ok=True)
+        return resolved_output_dir
+
+    def _get_all_table_names(self) -> list[str]:
+        """Obtiene la lista de nombres de tabla desde el manager."""
+        return [table[0] for table in self.db_manager.get_tables()]
+
+    def _select_tables_to_process(
+        self,
+        table_names: list[str],
+        skip_tables_without_relations: bool,
+        max_depth: int | None,
+        direction: LevelDirection | str | None,
+    ) -> list[str]:
+        """Devuelve las tablas que deben procesarse según el filtro de relaciones."""
+        if not skip_tables_without_relations:
+            return table_names
+
+        tables_with_relations = [
+            table_name
+            for table_name in table_names
+            if self._table_has_relations(table_name=table_name, max_depth=max_depth, direction=direction)
+        ]
+        self.logger.info(f"Tablas a procesar tras filtrado: {len(tables_with_relations)}/{len(table_names)}")
+        return tables_with_relations
+
+    def _table_has_relations(
+        self,
+        table_name: str,
+        max_depth: int | None,
+        direction: LevelDirection | str | None,
+    ) -> bool:
+        """Determina si una tabla tiene relaciones visibles para la configuración indicada."""
+        try:
+            document = self.build_graph_document(
+                table_name=table_name,
+                max_depth=self.max_depth if max_depth is None else max_depth,
+                direction=self.direction if direction is None else direction,
+            )
+        except Exception:
+            return False
+
+        if document.relations:
+            return True
+
+        self.logger.debug(f"Omitiendo tabla sin relaciones: {table_name}")
+        return False
+
+    def _store_generation_success(
+        self,
+        results: dict[str, dict[str, Any]],
+        table_name: str,
+        generated_files: list[Path],
+    ) -> None:
+        """Registra un resultado exitoso de generación."""
+        results[table_name] = {
+            "status": "success",
+            "files": [str(file_path) for file_path in generated_files],
+            "count": len(generated_files),
+        }
+
+    def _store_generation_error(
+        self,
+        results: dict[str, dict[str, Any]],
+        table_name: str,
+        error: Exception,
+    ) -> None:
+        """Registra un resultado fallido de generación."""
+        error_msg = str(error)
+        self.logger.error(f"Error generando gráfico para tabla {table_name}: {error_msg}")
+        results[table_name] = {"status": "error", "error": error_msg, "files": []}

@@ -16,7 +16,19 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .base import DatabaseRelationshipGraphBase, TableRelation
+    from .base import (
+        CardinalityEndMarker,
+        ColumnDisplayConfig,
+        ColumnVisualizationMode,
+        DatabaseRelationshipGraphBase,
+        GraphDocument,
+        GraphEdge,
+        GraphLevel,
+        GraphNode,
+        HiddenLevelsSummary,
+        LevelDirection,
+        TableRelation,
+    )
     from .graphviz_ext import GraphvizRelationshipGraphExt
     from .matplotlib_graph import MatplotlibRelationshipGraph
 
@@ -24,6 +36,15 @@ __all__: list[str] = [
     # Clase base y tipos
     "DatabaseRelationshipGraphBase",
     "TableRelation",
+    "LevelDirection",
+    "ColumnVisualizationMode",
+    "ColumnDisplayConfig",
+    "CardinalityEndMarker",
+    "GraphNode",
+    "GraphEdge",
+    "GraphLevel",
+    "HiddenLevelsSummary",
+    "GraphDocument",
     # Implementaciones
     "GraphvizRelationshipGraphExt",
     "MatplotlibRelationshipGraph",
@@ -32,6 +53,15 @@ __all__: list[str] = [
 _SYMBOL_TO_MODULE: dict[str, str] = {
     "DatabaseRelationshipGraphBase": "base",
     "TableRelation": "base",
+    "LevelDirection": "base",
+    "ColumnVisualizationMode": "base",
+    "ColumnDisplayConfig": "base",
+    "CardinalityEndMarker": "base",
+    "GraphNode": "base",
+    "GraphEdge": "base",
+    "GraphLevel": "base",
+    "HiddenLevelsSummary": "base",
+    "GraphDocument": "base",
     "GraphvizRelationshipGraphExt": "graphviz_ext",
     "MatplotlibRelationshipGraph": "matplotlib_graph",
 }

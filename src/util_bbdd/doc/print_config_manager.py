@@ -47,32 +47,28 @@ class PrintConfigManager:
 
     DEFAULT_GRAPH: dict[str, Any] = {
         "enabled": False,
-        "format": "png",
-        "show_columns": False,
-        "first_level_only": True,
-        "image_width_inches": 10.5,
+        "render_format": "svg",
+        "direction": "both",
+        "max_depth": 1,
         "images_paginated": True,
         "max_subnodes": 10,
+        "dpi": 150,
+        "columns": {
+            "mode": "relations",
+            "max_items": 8,
+            "show_data_types": False,
+        },
+        "cardinality": {
+            "style": "end_markers",
+            "show_constraint_name": False,
+        },
     }
 
     @staticmethod
     def normalize(imprimir: dict[str, Any] | None) -> dict[str, Any]:
         """Normaliza `imprimir` y devuelve una estructura estable."""
         if imprimir is None:
-            return {
-                "tablas": dict(PrintConfigManager.DEFAULT_TABLES),
-                "vistas": dict(PrintConfigManager.DEFAULT_VIEWS),
-                "rutinas": dict(PrintConfigManager.DEFAULT_ROUTINES),
-                "almacenamiento": dict(PrintConfigManager.DEFAULT_STORAGE),
-                "info_database": dict(PrintConfigManager.DEFAULT_INFO_DATABASE),
-                "columnas_charset": dict(PrintConfigManager.DEFAULT_COLUMNS_CHARSET),
-                "plantilla_word": None,
-                "plantilla_html": None,
-                "tablas_por_documento": 50,
-                "table_style": "Table Grid",
-                "html_items_por_pagina": 15,
-                "grafo": dict(PrintConfigManager.DEFAULT_GRAPH),
-            }
+            return PrintConfigManager._build_default_normalized_config()
 
         if not isinstance(imprimir, dict):
             raise TypeError("imprimir/print_config debe ser de tipo dict")
@@ -83,106 +79,90 @@ class PrintConfigManager:
         if isinstance(nested_imprimir, dict):
             normalized_input = nested_imprimir
 
-        tablas_cfg: Any = normalized_input.get("tablas", {})
-        if not isinstance(tablas_cfg, dict):
-            tablas_cfg = {}
-        tablas: dict[str, bool] = {
-            "imprimir_tablas": bool(
-                tablas_cfg.get("imprimir_tablas", PrintConfigManager.DEFAULT_TABLES["imprimir_tablas"])
-            ),
-            "ddl": bool(tablas_cfg.get("ddl", PrintConfigManager.DEFAULT_TABLES["ddl"])),
-            "columnas": bool(tablas_cfg.get("columnas", PrintConfigManager.DEFAULT_TABLES["columnas"])),
-            "pk": bool(tablas_cfg.get("pk", PrintConfigManager.DEFAULT_TABLES["pk"])),
-            "fk": bool(tablas_cfg.get("fk", PrintConfigManager.DEFAULT_TABLES["fk"])),
-            "unicas": bool(tablas_cfg.get("unicas", PrintConfigManager.DEFAULT_TABLES["unicas"])),
-            "indices": bool(tablas_cfg.get("indices", PrintConfigManager.DEFAULT_TABLES["indices"])),
-            "charset_collation": bool(
-                tablas_cfg.get("charset_collation", PrintConfigManager.DEFAULT_TABLES["charset_collation"])
-            ),
-        }
-
-        vistas_cfg: Any = normalized_input.get("vistas", {})
-        if not isinstance(vistas_cfg, dict):
-            vistas_cfg = {}
-        vistas: dict[str, bool] = {
-            "imprimir_vistas": bool(
-                vistas_cfg.get("imprimir_vistas", PrintConfigManager.DEFAULT_VIEWS["imprimir_vistas"])
-            ),
-            "ddl": bool(vistas_cfg.get("ddl", PrintConfigManager.DEFAULT_VIEWS["ddl"])),
-            "columnas": bool(vistas_cfg.get("columnas", PrintConfigManager.DEFAULT_VIEWS["columnas"])),
-        }
-
-        rutinas_cfg: Any = normalized_input.get("rutinas", {})
-        if not isinstance(rutinas_cfg, dict):
-            rutinas_cfg = {}
-        rutinas: dict[str, bool] = {
-            "imprimir_procedures": bool(
-                rutinas_cfg.get(
-                    "imprimir_procedures",
-                    PrintConfigManager.DEFAULT_ROUTINES["imprimir_procedures"],
-                )
-            ),
-            "imprimir_function": bool(
-                rutinas_cfg.get("imprimir_function", PrintConfigManager.DEFAULT_ROUTINES["imprimir_function"])
-            ),
-        }
-
-        almacenamiento_cfg: Any = normalized_input.get("almacenamiento", {})
-        if not isinstance(almacenamiento_cfg, dict):
-            almacenamiento_cfg = {}
-        almacenamiento: dict[str, bool] = {
-            "imprimir_almacenamiento": bool(
-                almacenamiento_cfg.get(
-                    "imprimir_almacenamiento",
-                    PrintConfigManager.DEFAULT_STORAGE["imprimir_almacenamiento"],
-                )
-            ),
-        }
-
-        info_database_cfg: Any = normalized_input.get("info_database", {})
-        if not isinstance(info_database_cfg, dict):
-            info_database_cfg = {}
-        info_database: dict[str, bool] = {
-            "imprimir_info_database": bool(
-                info_database_cfg.get(
-                    "imprimir_info_database",
-                    PrintConfigManager.DEFAULT_INFO_DATABASE["imprimir_info_database"],
-                )
-            ),
-            "version": bool(info_database_cfg.get("version", PrintConfigManager.DEFAULT_INFO_DATABASE["version"])),
-            "charset_collation": bool(
-                info_database_cfg.get(
-                    "charset_collation",
-                    PrintConfigManager.DEFAULT_INFO_DATABASE["charset_collation"],
-                )
-            ),
-        }
-
-        columnas_charset_cfg: Any = normalized_input.get("columnas_charset", {})
-        if not isinstance(columnas_charset_cfg, dict):
-            columnas_charset_cfg = {}
-        columnas_charset: dict[str, bool] = {
-            "charset_collation": bool(
-                columnas_charset_cfg.get(
-                    "charset_collation",
-                    PrintConfigManager.DEFAULT_COLUMNS_CHARSET["charset_collation"],
-                )
-            ),
-        }
+        tablas: dict[str, bool] = PrintConfigManager._normalize_boolean_section(
+            normalized_input, "tablas", PrintConfigManager.DEFAULT_TABLES
+        )
+        vistas: dict[str, bool] = PrintConfigManager._normalize_boolean_section(
+            normalized_input, "vistas", PrintConfigManager.DEFAULT_VIEWS
+        )
+        rutinas: dict[str, bool] = PrintConfigManager._normalize_boolean_section(
+            normalized_input, "rutinas", PrintConfigManager.DEFAULT_ROUTINES
+        )
+        almacenamiento: dict[str, bool] = PrintConfigManager._normalize_boolean_section(
+            normalized_input, "almacenamiento", PrintConfigManager.DEFAULT_STORAGE
+        )
+        info_database: dict[str, bool] = PrintConfigManager._normalize_boolean_section(
+            normalized_input, "info_database", PrintConfigManager.DEFAULT_INFO_DATABASE
+        )
+        columnas_charset: dict[str, bool] = PrintConfigManager._normalize_boolean_section(
+            normalized_input, "columnas_charset", PrintConfigManager.DEFAULT_COLUMNS_CHARSET
+        )
 
         graph_cfg: Any = normalized_input.get("grafo", normalized_input.get("graph", {}))
         graph: dict[str, Any] = dict(PrintConfigManager.DEFAULT_GRAPH)
         if isinstance(graph_cfg, dict):
             graph.update(graph_cfg)
+            if "render_format" not in graph_cfg and "format" in graph_cfg:
+                graph["render_format"] = graph_cfg.get("format")
+
+        columns_cfg = graph.get("columns", {})
+        if not isinstance(columns_cfg, dict):
+            columns_cfg = {}
+        columns_cfg = {
+            "mode": PrintConfigManager._normalize_graph_column_mode(
+                columns_cfg.get("mode", PrintConfigManager.DEFAULT_GRAPH["columns"]["mode"])
+            ),
+            "max_items": PrintConfigManager._to_positive_int(
+                columns_cfg.get("max_items", PrintConfigManager.DEFAULT_GRAPH["columns"]["max_items"]),
+                fallback=int(PrintConfigManager.DEFAULT_GRAPH["columns"]["max_items"]),
+            ),
+            "show_data_types": bool(
+                columns_cfg.get(
+                    "show_data_types",
+                    PrintConfigManager.DEFAULT_GRAPH["columns"]["show_data_types"],
+                )
+            ),
+        }
+
+        cardinality_cfg = graph.get("cardinality", {})
+        if not isinstance(cardinality_cfg, dict):
+            cardinality_cfg = {}
+        cardinality_cfg = {
+            "style": str(cardinality_cfg.get("style", PrintConfigManager.DEFAULT_GRAPH["cardinality"]["style"])).strip()
+            or str(PrintConfigManager.DEFAULT_GRAPH["cardinality"]["style"]),
+            "show_constraint_name": bool(
+                cardinality_cfg.get(
+                    "show_constraint_name",
+                    PrintConfigManager.DEFAULT_GRAPH["cardinality"]["show_constraint_name"],
+                )
+            ),
+        }
 
         graph["enabled"] = bool(graph.get("enabled", PrintConfigManager.DEFAULT_GRAPH["enabled"]))
         graph["images_paginated"] = bool(
             graph.get("images_paginated", PrintConfigManager.DEFAULT_GRAPH["images_paginated"])
         )
+        graph["direction"] = PrintConfigManager._normalize_graph_direction(
+            graph.get("direction", PrintConfigManager.DEFAULT_GRAPH["direction"])
+        )
+        graph["render_format"] = PrintConfigManager._normalize_graph_render_format(
+            graph.get("render_format", PrintConfigManager.DEFAULT_GRAPH["render_format"]),
+            fallback=str(PrintConfigManager.DEFAULT_GRAPH["render_format"]),
+        )
+        graph["max_depth"] = PrintConfigManager._to_positive_int(
+            graph.get("max_depth", PrintConfigManager.DEFAULT_GRAPH["max_depth"]),
+            fallback=int(PrintConfigManager.DEFAULT_GRAPH["max_depth"]),
+        )
         graph["max_subnodes"] = PrintConfigManager._to_positive_int(
             graph.get("max_subnodes", PrintConfigManager.DEFAULT_GRAPH["max_subnodes"]),
             fallback=int(PrintConfigManager.DEFAULT_GRAPH["max_subnodes"]),
         )
+        graph["dpi"] = PrintConfigManager._to_positive_int(
+            graph.get("dpi", PrintConfigManager.DEFAULT_GRAPH["dpi"]),
+            fallback=int(PrintConfigManager.DEFAULT_GRAPH["dpi"]),
+        )
+        graph["columns"] = columns_cfg
+        graph["cardinality"] = cardinality_cfg
 
         return {
             "tablas": tablas,
@@ -205,6 +185,36 @@ class PrintConfigManager:
             ),
             "grafo": graph,
         }
+
+    @staticmethod
+    def _build_default_normalized_config() -> dict[str, Any]:
+        """Construye la configuración normalizada por defecto."""
+        return {
+            "tablas": dict(PrintConfigManager.DEFAULT_TABLES),
+            "vistas": dict(PrintConfigManager.DEFAULT_VIEWS),
+            "rutinas": dict(PrintConfigManager.DEFAULT_ROUTINES),
+            "almacenamiento": dict(PrintConfigManager.DEFAULT_STORAGE),
+            "info_database": dict(PrintConfigManager.DEFAULT_INFO_DATABASE),
+            "columnas_charset": dict(PrintConfigManager.DEFAULT_COLUMNS_CHARSET),
+            "plantilla_word": None,
+            "plantilla_html": None,
+            "tablas_por_documento": 50,
+            "table_style": "Table Grid",
+            "html_items_por_pagina": 15,
+            "grafo": dict(PrintConfigManager.DEFAULT_GRAPH),
+        }
+
+    @staticmethod
+    def _normalize_boolean_section(
+        normalized_input: dict[str, Any],
+        section_name: str,
+        defaults: dict[str, Any],
+    ) -> dict[str, bool]:
+        """Normaliza una sección plana cuyos valores se interpretan como booleanos."""
+        section_cfg: Any = normalized_input.get(section_name, {})
+        if not isinstance(section_cfg, dict):
+            section_cfg = {}
+        return {key: bool(section_cfg.get(key, default_value)) for key, default_value in defaults.items()}
 
     @staticmethod
     def get_table_section_flags(config: dict[str, Any]) -> list[bool]:
@@ -238,17 +248,30 @@ class PrintConfigManager:
         configured_max_subnodes = graph_cfg.get("max_subnodes")
         default_max_subnodes = PrintConfigManager.DEFAULT_GRAPH["max_subnodes"]
         word_default_max_subnodes = 5
+        graph_format = PrintConfigManager._normalize_graph_render_format(
+            graph_cfg.get("render_format", graph_cfg.get("format", "png")),
+            fallback="png",
+        )
+        if graph_format == "svg":
+            graph_format = "png"
         graph_options: dict[str, Any] = {
-            "format": "png",
-            "show_columns": bool(graph_cfg.get("show_columns", False)),
+            "format": graph_format,
             "output_dir": Path(graph_cfg.get("output_dir", Path.cwd() / "_table_diagrams")),
-            "first_level_only": bool(graph_cfg.get("first_level_only", True)),
+            "direction": str(graph_cfg.get("direction", PrintConfigManager.DEFAULT_GRAPH["direction"])),
+            "max_depth": PrintConfigManager._to_positive_int(
+                graph_cfg.get("max_depth", PrintConfigManager.DEFAULT_GRAPH["max_depth"]),
+                fallback=int(PrintConfigManager.DEFAULT_GRAPH["max_depth"]),
+            ),
             "images_paginated": bool(graph_cfg.get("images_paginated", True)),
             "max_subnodes": PrintConfigManager._to_positive_int(
-                word_default_max_subnodes if configured_max_subnodes == default_max_subnodes else configured_max_subnodes,
+                word_default_max_subnodes
+                if configured_max_subnodes == default_max_subnodes
+                else configured_max_subnodes,
                 fallback=word_default_max_subnodes,
             ),
             "dpi": PrintConfigManager._to_positive_int(graph_cfg.get("dpi", 150), fallback=150),
+            "columns": dict(graph_cfg.get("columns", {})),
+            "cardinality": dict(graph_cfg.get("cardinality", {})),
         }
         return {
             "include_tables": bool(config.get("tablas", {}).get("imprimir_tablas", False)),
@@ -300,12 +323,20 @@ class PrintConfigManager:
             template_path = Path(str(template_path))
 
         diagram_options: dict[str, Any] = {
-            "format": "svg",
-            "show_columns": bool(graph_cfg.get("show_columns", True)),
+            "format": PrintConfigManager._normalize_graph_render_format(
+                graph_cfg.get("render_format", graph_cfg.get("format", "svg")),
+                fallback="svg",
+            ),
             "output_dir": Path(graph_cfg.get("output_dir", output_dir / "graphs")),
-            "first_level_only": bool(graph_cfg.get("first_level_only", True)),
+            "direction": str(graph_cfg.get("direction", PrintConfigManager.DEFAULT_GRAPH["direction"])),
+            "max_depth": PrintConfigManager._to_positive_int(
+                graph_cfg.get("max_depth", PrintConfigManager.DEFAULT_GRAPH["max_depth"]),
+                fallback=int(PrintConfigManager.DEFAULT_GRAPH["max_depth"]),
+            ),
             "images_paginated": bool(graph_cfg.get("images_paginated", True)),
             "max_subnodes": PrintConfigManager._to_positive_int(graph_cfg.get("max_subnodes", 10), fallback=10),
+            "columns": dict(graph_cfg.get("columns", {})),
+            "cardinality": dict(graph_cfg.get("cardinality", {})),
         }
 
         return {
@@ -348,3 +379,22 @@ class PrintConfigManager:
     def _normalize_non_empty_str(value: Any, fallback: str) -> str:
         text: str = str(value).strip() if value is not None else ""
         return text if text else fallback
+
+    @staticmethod
+    def _normalize_graph_direction(value: Any) -> str:
+        text = str(value).strip().lower() if value is not None else ""
+        return text if text in {"incoming", "outgoing", "both"} else str(PrintConfigManager.DEFAULT_GRAPH["direction"])
+
+    @staticmethod
+    def _normalize_graph_column_mode(value: Any) -> str:
+        text = str(value).strip().lower() if value is not None else ""
+        return (
+            text
+            if text in {"compact", "relations", "all"}
+            else str(PrintConfigManager.DEFAULT_GRAPH["columns"]["mode"])
+        )
+
+    @staticmethod
+    def _normalize_graph_render_format(value: Any, fallback: str) -> str:
+        text = str(value).strip().lower() if value is not None else ""
+        return text if text in {"png", "svg"} else fallback
