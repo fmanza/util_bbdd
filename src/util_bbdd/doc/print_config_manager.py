@@ -49,6 +49,7 @@ class PrintConfigManager:
         "enabled": False,
         "render_format": "svg",
         "direction": "both",
+        "view_policy": "exclude",
         "max_depth": 1,
         "images_paginated": True,
         "max_subnodes": 10,
@@ -144,6 +145,9 @@ class PrintConfigManager:
         )
         graph["direction"] = PrintConfigManager._normalize_graph_direction(
             graph.get("direction", PrintConfigManager.DEFAULT_GRAPH["direction"])
+        )
+        graph["view_policy"] = PrintConfigManager._normalize_graph_view_policy(
+            graph.get("view_policy", PrintConfigManager.DEFAULT_GRAPH["view_policy"])
         )
         graph["render_format"] = PrintConfigManager._normalize_graph_render_format(
             graph.get("render_format", PrintConfigManager.DEFAULT_GRAPH["render_format"]),
@@ -258,6 +262,7 @@ class PrintConfigManager:
             "format": graph_format,
             "output_dir": Path(graph_cfg.get("output_dir", Path.cwd() / "_table_diagrams")),
             "direction": str(graph_cfg.get("direction", PrintConfigManager.DEFAULT_GRAPH["direction"])),
+            "view_policy": str(graph_cfg.get("view_policy", PrintConfigManager.DEFAULT_GRAPH["view_policy"])),
             "max_depth": PrintConfigManager._to_positive_int(
                 graph_cfg.get("max_depth", PrintConfigManager.DEFAULT_GRAPH["max_depth"]),
                 fallback=int(PrintConfigManager.DEFAULT_GRAPH["max_depth"]),
@@ -329,6 +334,7 @@ class PrintConfigManager:
             ),
             "output_dir": Path(graph_cfg.get("output_dir", output_dir / "graphs")),
             "direction": str(graph_cfg.get("direction", PrintConfigManager.DEFAULT_GRAPH["direction"])),
+            "view_policy": str(graph_cfg.get("view_policy", PrintConfigManager.DEFAULT_GRAPH["view_policy"])),
             "max_depth": PrintConfigManager._to_positive_int(
                 graph_cfg.get("max_depth", PrintConfigManager.DEFAULT_GRAPH["max_depth"]),
                 fallback=int(PrintConfigManager.DEFAULT_GRAPH["max_depth"]),
@@ -384,6 +390,11 @@ class PrintConfigManager:
     def _normalize_graph_direction(value: Any) -> str:
         text = str(value).strip().lower() if value is not None else ""
         return text if text in {"incoming", "outgoing", "both"} else str(PrintConfigManager.DEFAULT_GRAPH["direction"])
+
+    @staticmethod
+    def _normalize_graph_view_policy(value: Any) -> str:
+        text = str(value).strip().lower() if value is not None else ""
+        return text if text in {"exclude"} else str(PrintConfigManager.DEFAULT_GRAPH["view_policy"])
 
     @staticmethod
     def _normalize_graph_column_mode(value: Any) -> str:

@@ -318,6 +318,36 @@ def test_word_generator_builds_diagram_summary_text_with_hidden_levels() -> None
     assert "Profundidad visible: 2" in summary
     assert "Salida total: 3 (no visibles: 1)" in summary
     assert "Entrada total: 1" in summary
+    assert "Salida oculta: 1 nivel(es) de tablas hijas o dependientes no visibles por profundidad" in summary
+
+
+def test_word_generator_builds_summary_from_precomputed_document_without_rebuilding() -> None:
+    generator = WordGenerator(database="db", headers={})
+
+    class _GraphGenerator:
+        def build_graph_document(self, **kwargs: Any) -> Any:
+            raise AssertionError("No debe reconstruir el documento si ya fue precalculado")
+
+    class _Document:
+        max_depth = 1
+        total_outgoing_levels = 2
+        total_incoming_levels = 1
+
+        class _Hidden:
+            outgoing_hidden_levels = 1
+            incoming_hidden_levels = 1
+
+        hidden_levels = _Hidden()
+
+    summary = generator._build_diagram_summary_text(
+        tabla="users",
+        graph_generator=_GraphGenerator(),
+        diagram_options={"max_depth": 1, "direction": "both"},
+        document=_Document(),
+    )
+
+    assert "Salida total: 2 (no visibles: 1)" in summary
+    assert "Entrada oculta: 1 nivel(es) de tablas padre o referenciadoras no visibles por profundidad" in summary
 
 
 def test_word_generator_adds_summary_paragraph_to_document() -> None:
@@ -327,6 +357,170 @@ def test_word_generator_adds_summary_paragraph_to_document() -> None:
     generator._add_diagram_summary_paragraph(document=document, summary_text="Profundidad visible: 2 | Salida total: 3")
 
     assert any("Profundidad visible: 2 | Salida total: 3" in paragraph.text for paragraph in document.paragraphs)
+
+
+def test_html_generator_generate_document_builds_graph_generator_when_none(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    generator = HtmlGenerator(database="db", headers={})
+    sentinel = object()
+    captured: dict[str, Any] = {}
+
+    class _Provider:
+        imprimir_config: dict[str, Any] = {}
+
+    monkeypatch.setattr(
+        generator,
+        "_resolve_print_config",
+        lambda *args, **kwargs: {
+            "include_tables": True,
+            "include_views": False,
+            "include_procedures": False,
+            "include_functions": False,
+            "include_storage": False,
+            "include_database_info": False,
+            "template_path": generator.default_template_file,
+            "include_diagrams": True,
+            "diagram_options": {"max_depth": 2, "direction": "both"},
+        },
+    )
+    monkeypatch.setattr(generator, "_prepare_output_directories", lambda *args, **kwargs: None)
+    monkeypatch.setattr(generator, "_setup_templates", lambda *args, **kwargs: (object(), object(), object()))
+    monkeypatch.setattr(generator, "_process_database_info", lambda **kwargs: [])
+    monkeypatch.setattr(generator, "_build_slug_maps_and_filters", lambda *args, **kwargs: ({}, {}, [], {}, {}))
+    monkeypatch.setattr(generator, "_build_graph_generator", lambda *args, **kwargs: sentinel)
+    monkeypatch.setattr(
+        generator,
+        "_process_tables",
+        lambda *args, **kwargs: captured.setdefault("graph_generator", kwargs.get("graph_generator") or args[8]) or [],
+    )
+    monkeypatch.setattr(generator, "_process_views", lambda *args, **kwargs: [])
+    monkeypatch.setattr(generator, "_process_routines", lambda *args, **kwargs: [])
+    monkeypatch.setattr(generator, "_process_storage", lambda *args, **kwargs: [])
+    monkeypatch.setattr(generator, "_render_collection_pages", lambda *args, **kwargs: {})
+    monkeypatch.setattr(generator, "_render_index_page", lambda *args, **kwargs: None)
+
+    generator.generate_document([], [], [], _Provider(), tmp_path)
+
+    assert captured["graph_generator"] is sentinel
+
+
+def test_html_generator_generate_document_reuses_injected_graph_generator(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    generator = HtmlGenerator(database="db", headers={})
+    sentinel = object()
+    captured: dict[str, Any] = {}
+
+    class _Provider:
+        imprimir_config: dict[str, Any] = {}
+
+    def _forbid_graph_builder(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("No debe reconstruir el generador")
+
+    monkeypatch.setattr(
+        generator,
+        "_resolve_print_config",
+        lambda *args, **kwargs: {
+            "include_tables": True,
+            "include_views": False,
+            "include_procedures": False,
+            "include_functions": False,
+            "include_storage": False,
+            "include_database_info": False,
+            "template_path": generator.default_template_file,
+            "include_diagrams": True,
+            "diagram_options": {"max_depth": 2, "direction": "both"},
+        },
+    )
+    monkeypatch.setattr(generator, "_prepare_output_directories", lambda *args, **kwargs: None)
+    monkeypatch.setattr(generator, "_setup_templates", lambda *args, **kwargs: (object(), object(), object()))
+    monkeypatch.setattr(generator, "_process_database_info", lambda **kwargs: [])
+    monkeypatch.setattr(generator, "_build_slug_maps_and_filters", lambda *args, **kwargs: ({}, {}, [], {}, {}))
+    monkeypatch.setattr(
+        generator,
+        "_build_graph_generator",
+        _forbid_graph_builder,
+    )
+    monkeypatch.setattr(
+        generator,
+        "_process_tables",
+        lambda *args, **kwargs: captured.setdefault("graph_generator", kwargs.get("graph_generator") or args[8]) or [],
+    )
+    monkeypatch.setattr(generator, "_process_views", lambda *args, **kwargs: [])
+    monkeypatch.setattr(generator, "_process_routines", lambda *args, **kwargs: [])
+    monkeypatch.setattr(generator, "_process_storage", lambda *args, **kwargs: [])
+    monkeypatch.setattr(generator, "_render_collection_pages", lambda *args, **kwargs: {})
+    monkeypatch.setattr(generator, "_render_index_page", lambda *args, **kwargs: None)
+
+    generator.generate_document([], [], [], _Provider(), tmp_path, graph_generator=cast(Any, sentinel))
+
+    assert captured["graph_generator"] is sentinel
+
+
+def test_word_generator_generate_document_builds_graph_generator_when_none(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    generator = WordGenerator(database="db", headers={})
+    sentinel = object()
+    captured: dict[str, Any] = {}
+
+    class _Provider:
+        imprimir_config: dict[str, Any] = {}
+
+    monkeypatch.setattr(generator, "_build_graph_generator", lambda *args, **kwargs: sentinel)
+    monkeypatch.setattr(
+        generator,
+        "_generate_single_document_chunk",
+        lambda *args, **kwargs: captured.setdefault("graph_generator", kwargs["graph_generator"]),
+    )
+
+    generator.generate_document(
+        [], [], [], _Provider(), tmp_path / "report.docx", print_config={"grafo": {"enabled": True}}
+    )
+
+    assert captured["graph_generator"] is sentinel
+
+
+def test_word_generator_generate_document_reuses_injected_graph_generator(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    generator = WordGenerator(database="db", headers={})
+    sentinel = object()
+    captured: dict[str, Any] = {}
+
+    class _Provider:
+        imprimir_config: dict[str, Any] = {}
+
+    def _forbid_graph_builder(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("No debe reconstruir el generador")
+
+    monkeypatch.setattr(
+        generator,
+        "_build_graph_generator",
+        _forbid_graph_builder,
+    )
+    monkeypatch.setattr(
+        generator,
+        "_generate_single_document_chunk",
+        lambda *args, **kwargs: captured.setdefault("graph_generator", kwargs["graph_generator"]),
+    )
+
+    generator.generate_document(
+        [],
+        [],
+        [],
+        _Provider(),
+        tmp_path / "report.docx",
+        print_config={"grafo": {"enabled": True}},
+        graph_generator=cast(Any, sentinel),
+    )
+
+    assert captured["graph_generator"] is sentinel
 
 
 @pytest.mark.skipif("matplotlib" not in globals(), reason="matplotlib no disponible en entorno de tests")

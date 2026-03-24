@@ -1,6 +1,6 @@
 # 🏗️ Arquitectura de util_bbdd
 
-**Versión:** 0.6.0
+**Versión:** 0.6.1
 **Última Actualización:** Marzo 2026
 **Estado:** Estable | Completamente Refactorizado
 **Motores Soportados:** MariaDB • PostgreSQL • Oracle • SQLite • HSQLDB • SQL Server
@@ -25,7 +25,7 @@
 
 **util_bbdd** es una librería que proporciona abstracción unificada para operaciones con múltiples motores de base de datos, enfatizando:
 
-- **Migraciones explícitas**: v0.6.0 introduce cambios controlados en el subsistema de grafos y documentación
+- **Migraciones explícitas**: v0.6.0 introdujo cambios controlados en el subsistema de grafos y documentación, y v0.6.1 los consolida sin cambiar la arquitectura base
 - **Jerarquía de 3 niveles**: Foundation → Services → Specialization
 - **API moderna**: Managers sync/async con soporte nativo para async/await
 - **Type-safe**: Full type hints con validación en tiempo de desarrollo
@@ -72,7 +72,7 @@ Interfaces (_core/contracts.py) definen contratos sin acoplar a implementaciones
 Estructura clara: Level 1 → Level 2 → Level 3 (nunca al revés)
 
 ### 5. **Migración controlada**
-El repositorio mantiene compatibilidad selectiva en algunos wrappers históricos, pero v0.6.0 ya no trata la retrocompatibilidad como regla absoluta en el subsistema de grafos y documentación.
+El repositorio mantiene compatibilidad selectiva en algunos wrappers históricos, pero desde v0.6.0 la retrocompatibilidad ya no se trata como regla absoluta en el subsistema de grafos y documentación.
 
 ---
 
@@ -488,11 +488,11 @@ DatabaseException
 
 ### D2: ¿Por qué migración controlada en lugar de retrocompatibilidad total?
 
-**Razón:** v0.6.0 necesitó simplificar el contrato de grafos para soportar profundidad, dirección y políticas de columnas sin perpetuar deuda técnica.
+**Razón:** v0.6.0 necesitó simplificar el contrato de grafos para soportar profundidad, dirección y políticas de columnas sin perpetuar deuda técnica, y v0.6.1 aprovecha ese contrato estable para extender semántica visual y reutilización documental.
 
 ```python
 # El código legacy puede seguir existiendo en rutas históricas,
-# pero el flujo recomendado del subsistema de grafos es el nuevo contrato v0.6.0.
+# pero el flujo recomendado del subsistema de grafos es el contrato consolidado en v0.6.x.
 ```
 
 **Mecanismo:** mantener compatibilidad solo donde el coste sea razonable y documentar migraciones cuando el cambio estructural lo requiera.
@@ -652,6 +652,6 @@ elapsed = time.time() - start
 
 ---
 
-*Documento actualizado: Marzo 2026 - alineado a v0.6.0*
+*Documento actualizado: Marzo 2026 - alineado a v0.6.1*
 *Mantenedor: util_bbdd contributors*
 *Licencia: [Ver LICENSE](../LICENSE)*

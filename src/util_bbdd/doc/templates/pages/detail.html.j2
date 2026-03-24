@@ -21,7 +21,6 @@
   .ddl-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   .copy-ddl-btn { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; background: #f9fafb; cursor: pointer; }
   .copy-ddl-btn:hover { background: #f3f4f6; }
-  .diagram object { width: 100%; min-height: 420px; border: 1px solid #e5e7eb; border-radius: 6px; }
   .status-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-left: 8px; }
   .status-ok { background: #dcfce7; color: #166534; }
   .status-not-supported, .status-missing-params { background: #fef9c3; color: #854d0e; }
@@ -29,6 +28,26 @@
   .storage-card { margin-top: 10px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fcfcfd; }
   .num-right { text-align: right; }
   .diagram-summary { margin-bottom: 14px; color: #374151; }
+  .diagram-policy { margin-bottom: 16px; padding: 14px; border: 1px solid #d8e2ea; border-radius: 10px; background: linear-gradient(180deg, #fbfcfe 0%, #f3f6fa 100%); }
+  .diagram-policy h5 { margin: 0 0 8px; }
+  .diagram-policy-label { font-weight: 600; color: #111827; }
+  .diagram-policy-list { margin: 10px 0 0; padding-left: 18px; color: #4b5563; }
+  .diagram-policy-list li { margin-top: 6px; }
+  .diagram-policy-list li:first-child { margin-top: 0; }
+  .diagram-legend { margin-bottom: 16px; padding: 14px; border: 1px solid #dbe4ea; border-radius: 10px; background: linear-gradient(180deg, #fcfefe 0%, #f4f8fb 100%); }
+  .diagram-legend h5 { margin: 0 0 10px; }
+  .diagram-legend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .diagram-legend-section { padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #ffffff; }
+  .diagram-legend-section h6 { margin: 0 0 8px; font-size: 14px; color: #111827; }
+  .diagram-legend-list { list-style: none; padding: 0; margin: 0; }
+  .diagram-legend-list li { display: flex; align-items: flex-start; gap: 10px; margin-top: 8px; }
+  .diagram-legend-list li:first-child { margin-top: 0; }
+  .diagram-legend-swatch { width: 12px; height: 12px; border-radius: 999px; margin-top: 4px; border: 1px solid rgba(17, 24, 39, 0.15); flex: 0 0 12px; }
+  .diagram-legend-marker { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 999px; border: 1px solid #d1d5db; background: #f9fafb; color: #111827; font-size: 13px; font-weight: 700; flex: 0 0 auto; }
+  .diagram-legend-label { font-weight: 600; color: #111827; }
+  .diagram-legend-notes { margin: 10px 0 0; padding-left: 18px; color: #4b5563; }
+  .diagram-legend-notes li { margin-top: 6px; }
+  .diagram-legend-notes li:first-child { margin-top: 0; }
   .diagram-group { margin-top: 16px; }
   .diagram-group-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
   .diagram-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -38,6 +57,16 @@
   .diagram-panel { display: none; }
   .diagram-panel.is-active { display: block; }
   .diagram-meta { color: #6b7280; font-size: 14px; }
+  .diagram-summary-help { margin-top: 8px; font-size: 14px; color: #4b5563; }
+  .diagram-summary-help p { margin: 4px 0 0; }
+  .diagram-viewer { border: 1px solid #e5e7eb; border-radius: 8px; background: #ffffff; overflow: hidden; }
+  .diagram-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid #e5e7eb; background: #f9fafb; }
+  .diagram-toolbar-btn { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; background: #ffffff; cursor: pointer; color: #374151; }
+  .diagram-toolbar-btn:hover { background: #f3f4f6; }
+  .diagram-toolbar-status { color: #6b7280; font-size: 13px; }
+  .diagram-viewport { overflow: auto; max-height: 720px; background: linear-gradient(180deg, #fcfcfd 0%, #f8fafc 100%); }
+  .diagram-canvas { min-width: 100%; padding: 12px; }
+  .diagram-object { display: block; width: 100%; min-height: 420px; border: 1px solid #e5e7eb; border-radius: 6px; background: #ffffff; }
 {% endblock %}
 
 {% block content %}
@@ -111,8 +140,82 @@
         {% if entity.diagram_summary %}
           <div class="diagram-summary">
             <strong>Profundidad visible:</strong> {{ entity.diagram_summary.max_depth or 0 }}
-            <span class="muted"> | Niveles salida: {{ entity.diagram_summary.total_outgoing_levels or 0 }}</span>
-            <span class="muted"> | Niveles entrada: {{ entity.diagram_summary.total_incoming_levels or 0 }}</span>
+            <span class="muted"> | Salida visible: {{ entity.diagram_summary.visible_outgoing_levels or 0 }} de {{ entity.diagram_summary.total_outgoing_levels or 0 }}</span>
+            <span class="muted"> | Entrada visible: {{ entity.diagram_summary.visible_incoming_levels or 0 }} de {{ entity.diagram_summary.total_incoming_levels or 0 }}</span>
+            {% if entity.diagram_summary.has_any_hidden_levels %}
+              <div class="diagram-summary-help">
+                {% if entity.diagram_summary.has_hidden_outgoing_levels %}
+                  <p>{{ entity.diagram_summary.outgoing_hidden_help }}</p>
+                {% endif %}
+                {% if entity.diagram_summary.has_hidden_incoming_levels %}
+                  <p>{{ entity.diagram_summary.incoming_hidden_help }}</p>
+                {% endif %}
+              </div>
+            {% endif %}
+          </div>
+        {% endif %}
+        {% if entity.diagram_legend %}
+          <div class="diagram-legend">
+            <h5>{{ entity.diagram_legend.title }}</h5>
+            <div class="diagram-legend-grid">
+              <section class="diagram-legend-section">
+                <h6>Dirección</h6>
+                <ul class="diagram-legend-list">
+                  {% for item in entity.diagram_legend.direction_items %}
+                    <li>
+                      <span class="diagram-legend-swatch" style="background: {{ item.swatch }};"></span>
+                      <div>
+                        <div class="diagram-legend-label">{{ item.label }}</div>
+                        <div class="muted">{{ item.description }}</div>
+                      </div>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </section>
+              <section class="diagram-legend-section">
+                <h6>Cardinalidad</h6>
+                <ul class="diagram-legend-list">
+                  {% for item in entity.diagram_legend.cardinality_items %}
+                    <li>
+                      <span class="diagram-legend-marker">{{ item.marker }}</span>
+                      <div class="muted">{{ item.description }}</div>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </section>
+              <section class="diagram-legend-section">
+                <h6>Tipo de tabla</h6>
+                <ul class="diagram-legend-list">
+                  {% for item in entity.diagram_legend.table_type_items %}
+                    <li>
+                      <span class="diagram-legend-swatch" style="background: {{ item.swatch }};"></span>
+                      <div>
+                        <div class="diagram-legend-label">{{ item.label }}</div>
+                        <div class="muted">{{ item.description }}</div>
+                      </div>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </section>
+              <section class="diagram-legend-section">
+                <h6>Tipo de relación</h6>
+                <ul class="diagram-legend-list">
+                  {% for item in entity.diagram_legend.relation_type_items %}
+                    <li>
+                      <span class="diagram-legend-marker">{{ item.label }}</span>
+                      <div class="muted">{{ item.description }}</div>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </section>
+            </div>
+            {% if entity.diagram_legend.notes %}
+              <ul class="diagram-legend-notes">
+                {% for note in entity.diagram_legend.notes %}
+                  <li>{{ note }}</li>
+                {% endfor %}
+              </ul>
+            {% endif %}
           </div>
         {% endif %}
         {% for group in entity.diagram_tabs %}
@@ -120,12 +223,13 @@
             <div class="diagram-group-header">
               <h5>{{ group.direction_label }}</h5>
               <div class="diagram-meta">
-                Niveles totales: {{ group.total_levels }}
-                {% if group.hidden_levels %}
+                Niveles visibles: {{ group.visible_levels }} de {{ group.total_levels }}
+                {% if group.has_hidden_levels %}
                   | No visibles: {{ group.hidden_levels }}
                 {% endif %}
               </div>
             </div>
+            <p class="muted">{{ group.direction_help }}</p>
             <div class="diagram-tabs" role="tablist" aria-label="Pestañas {{ group.direction_label }} {{ entity.name }}">
               {% for item in group['items'] %}
                 <button
@@ -134,12 +238,29 @@
                   data-tab-target="{{ item.tab_id }}"
                   role="tab"
                   aria-selected="{{ 'true' if loop.first else 'false' }}"
-                >{{ item.title }}</button>
+                >{{ item.short_title }}</button>
               {% endfor %}
             </div>
             {% for item in group['items'] %}
               <div class="diagram-panel{% if loop.first %} is-active{% endif %}" data-tab-panel="{{ item.tab_id }}" role="tabpanel">
-                <div class="diagram"><object data="../{{ item.path }}" type="image/svg+xml" aria-label="{{ group.direction_label }} {{ item.title }} {{ entity.name }}"></object></div>
+                <div class="diagram-viewer" data-diagram-viewer>
+                  <div class="diagram-toolbar">
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="zoom-out">-</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="zoom-in">+</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="fit">Ajustar</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="reset">Reset</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-left">Izq.</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-right">Der.</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-up">Arriba</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-down">Abajo</button>
+                    <span class="diagram-toolbar-status" data-diagram-status>100%</span>
+                  </div>
+                  <div class="diagram-viewport" data-diagram-viewport>
+                    <div class="diagram-canvas">
+                      <object class="diagram-object" data-diagram-object data="../{{ item.path }}" type="image/svg+xml" aria-label="{{ item.aria_label }}"></object>
+                    </div>
+                  </div>
+                </div>
               </div>
             {% endfor %}
           </div>
@@ -150,6 +271,27 @@
           <div class="diagram"><object data="../{{ diagram_path }}" type="image/svg+xml" aria-label="Diagrama {{ entity.name }}"></object></div>
         {% endfor %}
       {% endif %}
+    {% elif entity_kind == 'vista' and entity.diagram_policy %}
+      <h4>Diagrama de relaciones</h4>
+      <div class="diagram-policy">
+        <h5>{{ entity.diagram_policy.title }}</h5>
+        <p class="diagram-policy-label">{{ entity.diagram_policy.label }}</p>
+        <p class="muted">{{ entity.diagram_policy.description }}</p>
+        {% if entity.diagram_policy.reasons %}
+          <ul class="diagram-policy-list">
+            {% for reason in entity.diagram_policy.reasons %}
+              <li>{{ reason }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        {% if entity.diagram_policy.notes %}
+          <ul class="diagram-policy-list">
+            {% for note in entity.diagram_policy.notes %}
+              <li>{{ note }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </div>
     {% endif %}
 
     {% if storage and storage.sections %}
@@ -252,6 +394,71 @@
           }
         });
       });
+    });
+
+    var diagramViewers = document.querySelectorAll('[data-diagram-viewer]');
+    diagramViewers.forEach(function (viewer) {
+      var viewport = viewer.querySelector('[data-diagram-viewport]');
+      var objectNode = viewer.querySelector('[data-diagram-object]');
+      var statusNode = viewer.querySelector('[data-diagram-status]');
+      var buttons = viewer.querySelectorAll('[data-diagram-action]');
+      var zoom = 1;
+
+      if (!viewport || !objectNode || !statusNode) {
+        return;
+      }
+
+      function renderZoom() {
+        objectNode.style.width = Math.round(zoom * 100) + '%';
+        statusNode.textContent = Math.round(zoom * 100) + '%';
+      }
+
+      function setZoom(nextZoom) {
+        zoom = Math.max(0.5, Math.min(3, nextZoom));
+        renderZoom();
+      }
+
+      function scrollViewport(deltaLeft, deltaTop) {
+        viewport.scrollLeft += deltaLeft;
+        viewport.scrollTop += deltaTop;
+      }
+
+      buttons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          var action = button.getAttribute('data-diagram-action');
+          if (action === 'zoom-in') {
+            setZoom(zoom + 0.25);
+            return;
+          }
+          if (action === 'zoom-out') {
+            setZoom(zoom - 0.25);
+            return;
+          }
+          if (action === 'fit' || action === 'reset') {
+            setZoom(1);
+            viewport.scrollLeft = 0;
+            viewport.scrollTop = 0;
+            return;
+          }
+          if (action === 'pan-left') {
+            scrollViewport(-140, 0);
+            return;
+          }
+          if (action === 'pan-right') {
+            scrollViewport(140, 0);
+            return;
+          }
+          if (action === 'pan-up') {
+            scrollViewport(0, -140);
+            return;
+          }
+          if (action === 'pan-down') {
+            scrollViewport(0, 140);
+          }
+        });
+      });
+
+      renderZoom();
     });
   })();
 {% endblock %}

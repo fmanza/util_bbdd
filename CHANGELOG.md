@@ -5,6 +5,27 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.6.1] - 2026-03-24
+
+### Added
+- Tipología visual de tablas en el análisis de grafos con tres estados iniciales:
+  - `entity`
+  - `association`
+  - `hierarchy`
+- Leyenda HTML ampliada para exponer tipo de tabla, cardinalidad y tipo de relación soportado por el renderer actual.
+- Nota pública preliminar de v0.6.1 en `docs/v0.6.1/RELEASE_NOTES_v0.6.1.md`.
+
+### Changed
+- `GraphvizRelationshipGraphExt` deja de colorear nodos solo como principal vs relacionada y pasa a una paleta visual por tipología de tabla.
+- La heurística de `association` mejora la detección de tablas puente reales al considerar PK compuesta basada en columnas FK.
+- La documentación pública aclara que la tipología visual de tablas es heurística y no una taxonomía absoluta del modelo de datos.
+- La política de diagramado de vistas se documenta explícitamente como `exclude` en el estado actual del renderer enriquecido.
+- Word y HTML pueden reutilizar el mismo generador Graphviz en una misma ejecución multi-formato.
+
+### Fixed
+- El detalle HTML refleja de forma explícita la leyenda de tipos de tabla realmente soportados por el modelo actual.
+- La semántica de niveles ocultos queda alineada entre SVG, HTML y Word.
+
 ## [0.6.0] - 2026-03-22
 
 ### Removed

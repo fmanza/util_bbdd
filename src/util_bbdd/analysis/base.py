@@ -29,6 +29,14 @@ class ColumnVisualizationMode(str, Enum):
     ALL = "all"
 
 
+class TableVisualType(str, Enum):
+    """Tipología visual aproximada de una tabla para renderers."""
+
+    ENTITY = "entity"
+    ASSOCIATION = "association"
+    HIERARCHY = "hierarchy"
+
+
 @dataclass(frozen=True)
 class TableRelation:
     """Representa una relación entre tablas."""
@@ -67,6 +75,7 @@ class GraphNode:
     is_root: bool = False
     outgoing_depth: int | None = None
     incoming_depth: int | None = None
+    visual_type: TableVisualType = TableVisualType.ENTITY
 
 
 @dataclass(frozen=True)
@@ -123,6 +132,7 @@ class DatabaseRelationshipGraphBase:
         self.logger: Logger = logging.getLogger(__name__)
         self._parent_relations_index_by_context: dict[str, dict[str, list[TableRelation]]] = {}
         self._graph_document_cache_by_context: dict[tuple[str, str, int, str], GraphDocument] = {}
+        self._table_visual_type_cache_by_context: dict[tuple[str, str], TableVisualType] = {}
 
     def analyze_table_relations(self, table_name: str) -> list[TableRelation]:
         """Devuelve relaciones visibles del primer nivel."""
@@ -197,6 +207,7 @@ class DatabaseRelationshipGraphBase:
             (level.depth for level in levels if level.direction == LevelDirection.INCOMING),
             default=0,
         )
+        self._assign_node_visual_types(context=context, nodes=nodes)
 
         document = GraphDocument(
             root_table=table_name,
@@ -314,6 +325,68 @@ class DatabaseRelationshipGraphBase:
 
         if node.incoming_depth is None or depth < node.incoming_depth:
             node.incoming_depth = depth
+
+    def _assign_node_visual_types(self, context: str, nodes: dict[str, GraphNode]) -> None:
+        """Calcula y asigna la tipología visual de cada nodo del documento."""
+        for node in nodes.values():
+            node.visual_type = self._classify_table_visual_type(context=context, table_name=node.table_name)
+
+    def _classify_table_visual_type(self, context: str, table_name: str) -> TableVisualType:
+        """Clasifica una tabla para representación visual usando heurísticas mínimas y cacheadas."""
+        cache_key: tuple[str, str] = (context, table_name)
+        cached: TableVisualType | None = self._table_visual_type_cache_by_context.get(cache_key)
+        if cached is not None:
+            return cached
+
+        foreign_keys: list[tuple] = list(self.db_manager.get_foreign_keys(table_name))
+        if any(self._extract_target_table(fk) == table_name for fk in foreign_keys):
+            self._table_visual_type_cache_by_context[cache_key] = TableVisualType.HIERARCHY
+            return TableVisualType.HIERARCHY
+
+        foreign_key_columns: set[str] = {self._extract_source_column(fk).lower() for fk in foreign_keys}
+        primary_key_columns: set[str] = set(self._get_primary_key_column_names(table_name))
+        column_names: list[str] = self._get_table_column_names(table_name)
+        business_columns_count: int = max(0, len(column_names) - len(foreign_key_columns))
+        has_composite_fk_primary_key: bool = bool(primary_key_columns) and primary_key_columns.issubset(
+            foreign_key_columns
+        )
+
+        if len(foreign_keys) >= 2 and (business_columns_count <= 1 or has_composite_fk_primary_key):
+            self._table_visual_type_cache_by_context[cache_key] = TableVisualType.ASSOCIATION
+            return TableVisualType.ASSOCIATION
+
+        self._table_visual_type_cache_by_context[cache_key] = TableVisualType.ENTITY
+        return TableVisualType.ENTITY
+
+    def _get_table_column_names(self, table_name: str) -> list[str]:
+        """Obtiene nombres de columnas normalizados para heurísticas visuales."""
+        try:
+            columns: list[Any] = list(self.db_manager.get_columns(table_name))
+        except Exception:
+            return []
+
+        result: list[str] = []
+        for column in columns:
+            if isinstance(column, (tuple, list)) and column:
+                result.append(str(column[0]).strip().lower())
+                continue
+            result.append(str(column).strip().lower())
+        return [name for name in result if name]
+
+    def _get_primary_key_column_names(self, table_name: str) -> list[str]:
+        """Obtiene nombres de PK normalizados para heurísticas visuales."""
+        try:
+            primary_keys: list[Any] = list(self.db_manager.get_primary_keys(table_name))
+        except Exception:
+            return []
+
+        result: list[str] = []
+        for primary_key in primary_keys:
+            if isinstance(primary_key, (tuple, list)) and primary_key:
+                result.append(str(primary_key[0]).strip().lower())
+                continue
+            result.append(str(primary_key).strip().lower())
+        return [name for name in result if name]
 
     def _compute_total_levels(self, table_name: str, direction: LevelDirection) -> int:
         """Calcula los niveles totales alcanzables en una dirección."""
@@ -459,6 +532,12 @@ class DatabaseRelationshipGraphBase:
         if self.db_manager.db_type == "mariadb":
             return fk_data[3]
         return fk_data[2]
+
+    def _extract_source_column(self, fk_data: tuple) -> str:
+        """Extrae la columna local de la FK según el tipo de BD."""
+        if self.db_manager.db_type == "mariadb":
+            return str(fk_data[2])
+        return str(fk_data[1])
 
     def _build_relation_key(self, relation: TableRelation) -> tuple[str, str, str, str, str]:
         """Clave estable para deduplicar relaciones."""

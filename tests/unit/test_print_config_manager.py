@@ -47,6 +47,7 @@ def test_resolve_for_word_applies_safe_graph_defaults() -> None:
 
     assert resolved["include_diagrams"] is True
     assert resolved["graph_options"]["format"] == "png"
+    assert resolved["graph_options"]["view_policy"] == "exclude"
     assert resolved["graph_options"]["max_depth"] == 1
     assert resolved["graph_options"]["direction"] == "both"
     assert resolved["graph_options"]["images_paginated"] is True
@@ -88,6 +89,7 @@ def test_resolve_for_html_uses_canonical_render_format() -> None:
 
     assert resolved["include_diagrams"] is True
     assert resolved["diagram_options"]["format"] == "png"
+    assert resolved["diagram_options"]["view_policy"] == "exclude"
 
 
 def test_resolve_for_word_coerces_svg_to_png() -> None:

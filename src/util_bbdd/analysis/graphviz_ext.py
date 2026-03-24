@@ -10,6 +10,8 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 
+from util_bbdd.analysis.base import GraphEdge, GraphNode
+
 try:
     import graphviz
 
@@ -27,6 +29,7 @@ from .base import (
     GraphLevel,
     LevelDirection,
     TableRelation,
+    TableVisualType,
 )
 
 GRAPHVIZ_MISSING_MSG: str = "Graphviz no disponible. Instale: pip install graphviz"
@@ -41,9 +44,16 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
     """
 
     # Colores pastel
-    MAIN_TABLE_COLOR: str = "#FFB3BA"  # Rosa pastel para tabla principal
-    RELATED_TABLE_COLOR: str = "#FFFFBA"  # Amarillo pastel para tablas relacionadas
+    ENTITY_TABLE_COLOR: str = "#CFE8FF"  # Azul pastel para tablas entidad
+    ASSOCIATION_TABLE_COLOR: str = "#D8F3DC"  # Verde pastel para tablas de asociación
+    HIERARCHY_TABLE_COLOR: str = "#FFE5C2"  # Naranja pastel para tablas jerárquicas
     TEXT_COLOR: str = "#000000"  # Negro para texto
+    DEFAULT_TABLE_WIDTH: str = "240"
+    DEFAULT_NAME_COLUMN_WIDTH: str = "160"
+    DEFAULT_TYPE_COLUMN_WIDTH: str = "80"
+    DEFAULT_TITLE_MAX_CHARS: int = 28
+    DEFAULT_COLUMN_MAX_CHARS: int = 24
+    DEFAULT_TYPE_MAX_CHARS: int = 18
 
     def __init__(
         self,
@@ -336,35 +346,38 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         target_marker, source_marker = raw_parts
         return CardinalityEndMarker(source_marker=source_marker, target_marker=target_marker, label=cardinality)
 
-    def _get_related_column_names(self, document: GraphDocument, table_name: str) -> set[str]:
-        """Devuelve columnas implicadas en relaciones para una tabla."""
-        related_columns: set[str] = set()
+    def _build_related_columns_lookup(self, document: GraphDocument) -> dict[str, set[str]]:
+        """Precalcula columnas relacionadas por tabla para evitar recorrer todas las aristas por nodo."""
+        related_columns_by_table: dict[str, set[str]] = {table_name: set() for table_name in document.nodes}
         for edge in document.edges:
-            relation = edge.relation
-            if relation.source_table == table_name:
-                related_columns.add(relation.source_column.lower())
-            if relation.target_table == table_name:
-                related_columns.add(relation.target_column.lower())
-        return related_columns
+            relation: TableRelation = edge.relation
+            related_columns_by_table.setdefault(relation.source_table, set()).add(relation.source_column.lower())
+            related_columns_by_table.setdefault(relation.target_table, set()).add(relation.target_column.lower())
+        return related_columns_by_table
 
-    def _select_columns_for_table(self, document: GraphDocument, table_name: str) -> tuple[list[tuple[str, str]], bool]:
-        """Selecciona columnas visibles según la política configurada."""
-        all_columns = self._get_table_columns_with_types(table_name)
+    def _select_columns_for_table(
+        self,
+        table_name: str,
+        related_columns: set[str],
+    ) -> tuple[list[tuple[str, str]], int]:
+        """Selecciona columnas visibles según la política configurada y devuelve cuántas quedan ocultas."""
+        all_columns: list[tuple[str, str]] = self._get_table_columns_with_types(table_name)
         if not self.include_columns:
-            return [], False
+            return [], 0
 
-        related_columns = self._get_related_column_names(document, table_name)
         if self.column_mode == ColumnVisualizationMode.ALL:
-            return list(all_columns), False
+            visible_columns: list[tuple[str, str]] = list(all_columns[: self.max_columns])
+            return visible_columns, max(0, len(all_columns) - len(visible_columns))
 
         if self.column_mode == ColumnVisualizationMode.RELATIONS:
-            filtered = [column for column in all_columns if column[0].lower() in related_columns]
-            return filtered, len(filtered) < len(all_columns)
+            filtered: list[tuple[str, str]] = [column for column in all_columns if column[0].lower() in related_columns]
+            visible_columns = filtered[: self.max_columns]
+            return visible_columns, max(0, len(filtered) - len(visible_columns))
 
         priority_columns: list[tuple[str, str]] = [
             column for column in all_columns if column[0].lower() in related_columns
         ]
-        seen_names = {column[0].lower() for column in priority_columns}
+        seen_names: set[str] = {column[0].lower() for column in priority_columns}
         for column in all_columns:
             if len(priority_columns) >= self.max_columns:
                 break
@@ -372,13 +385,21 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 continue
             priority_columns.append(column)
             seen_names.add(column[0].lower())
-        return priority_columns, len(priority_columns) < len(all_columns)
+        return priority_columns, max(0, len(all_columns) - len(priority_columns))
+
+    def _truncate_label_text(self, value: str, max_chars: int) -> str:
+        """Trunca texto largo para mantener nodos con tamaño visual estable."""
+        normalized: str = str(value).strip()
+        if max_chars <= 3 or len(normalized) <= max_chars:
+            return normalized[:max_chars]
+        return f"{normalized[: max_chars - 3]}..."
 
     def _build_table_html_label(
         self,
-        document: GraphDocument,
         table_name: str,
+        related_columns: set[str] | None = None,
         is_main: bool = False,
+        visual_type: TableVisualType | str = TableVisualType.ENTITY,
         is_raster: bool = False,
     ) -> str:
         """
@@ -391,16 +412,20 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         Returns:
             String con HTML para Graphviz
         """
-        columns, has_more_columns = self._select_columns_for_table(document, table_name)
-        related_columns = self._get_related_column_names(document, table_name)
-        bg_color: str = self.MAIN_TABLE_COLOR if is_main else self.RELATED_TABLE_COLOR
-        label_styles = self._get_table_label_styles(is_raster)
+        resolved_related_columns: set[str] = related_columns or set()
+        columns, hidden_columns_count = self._select_columns_for_table(table_name, resolved_related_columns)
+        bg_color: str = self._resolve_node_fill_color(visual_type)
+        label_styles: dict[str, str] = self._get_table_label_styles(is_raster)
         html_parts: list[str] = [
             self._build_table_header_html(
                 table_name=table_name,
                 bg_color=bg_color,
+                table_border_width="2" if is_main else "1",
+                title_border_width="3" if is_main else "2",
                 title_row_height=label_styles["title_row_height"],
                 title_font_size=label_styles["title_font_size"],
+                table_width=label_styles["table_width"],
+                title_max_chars=int(label_styles["title_max_chars"]),
             )
         ]
 
@@ -412,9 +437,13 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 self._build_column_rows_html(
                     table_name=table_name,
                     columns=columns,
-                    related_columns=related_columns,
+                    related_columns=resolved_related_columns,
                     column_font_size=label_styles["column_font_size"],
                     type_font_size=label_styles["type_font_size"],
+                    name_column_width=label_styles["name_column_width"],
+                    type_column_width=label_styles["type_column_width"],
+                    column_name_max_chars=int(label_styles["column_name_max_chars"]),
+                    type_max_chars=int(label_styles["type_max_chars"]),
                 )
             )
         else:
@@ -422,14 +451,16 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 self._build_message_row_html(
                     message="Sin columnas visibles",
                     font_size=label_styles["type_font_size"],
+                    table_width=label_styles["table_width"],
                 )
             )
 
-        if has_more_columns:
+        if hidden_columns_count > 0:
             html_parts.append(
                 self._build_message_row_html(
-                    message="...",
+                    message=f"... {hidden_columns_count} columna(s) mas",
                     font_size=label_styles["type_font_size"],
+                    table_width=label_styles["table_width"],
                 )
             )
 
@@ -442,22 +473,47 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             "title_font_size": "12" if is_raster else "10",
             "column_font_size": "10" if is_raster else "9",
             "type_font_size": "9" if is_raster else "8",
+            "table_width": "280" if is_raster else self.DEFAULT_TABLE_WIDTH,
+            "name_column_width": "185" if is_raster else self.DEFAULT_NAME_COLUMN_WIDTH,
+            "type_column_width": "95" if is_raster else self.DEFAULT_TYPE_COLUMN_WIDTH,
+            "title_max_chars": str(34 if is_raster else self.DEFAULT_TITLE_MAX_CHARS),
+            "column_name_max_chars": str(28 if is_raster else self.DEFAULT_COLUMN_MAX_CHARS),
+            "type_max_chars": str(22 if is_raster else self.DEFAULT_TYPE_MAX_CHARS),
         }
 
     def _build_table_header_html(
         self,
         table_name: str,
         bg_color: str,
+        table_border_width: str,
+        title_border_width: str,
         title_row_height: str,
         title_font_size: str,
+        table_width: str,
+        title_max_chars: int,
     ) -> str:
         """Construye la cabecera HTML del nodo de tabla."""
         title_colspan = "2" if self.show_data_types and self.include_columns else "1"
+        title_text: str = self._truncate_label_text(table_name, title_max_chars)
         return (
-            f'<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5" BGCOLOR="{bg_color}">'
-            f'<TR HEIGHT="{title_row_height}"><TD COLSPAN="{title_colspan}" BGCOLOR="{bg_color}" BORDER="2" VALIGN="MIDDLE">'
-            f'<B><FONT POINT-SIZE="{title_font_size}">{html.escape(table_name)}</FONT></B></TD></TR>'
+            f'<<TABLE BORDER="{table_border_width}" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5" BGCOLOR="{bg_color}">'
+            f'<TR HEIGHT="{title_row_height}"><TD COLSPAN="{title_colspan}" WIDTH="{table_width}" '
+            f'BGCOLOR="{bg_color}" BORDER="{title_border_width}" VALIGN="MIDDLE">'
+            f'<B><FONT POINT-SIZE="{title_font_size}">{html.escape(title_text)}</FONT></B></TD></TR>'
         )
+
+    def _resolve_node_fill_color(self, visual_type: TableVisualType | str) -> str:
+        """Devuelve el color de relleno según la tipología visual de la tabla."""
+        if isinstance(visual_type, TableVisualType):
+            normalized_visual_type = visual_type.value
+        else:
+            normalized_visual_type = str(visual_type).strip().lower()
+        color_by_type: dict[str, str] = {
+            TableVisualType.ENTITY.value: self.ENTITY_TABLE_COLOR,
+            TableVisualType.ASSOCIATION.value: self.ASSOCIATION_TABLE_COLOR,
+            TableVisualType.HIERARCHY.value: self.HIERARCHY_TABLE_COLOR,
+        }
+        return color_by_type.get(normalized_visual_type, self.ENTITY_TABLE_COLOR)
 
     def _build_column_rows_html(
         self,
@@ -466,6 +522,10 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         related_columns: set[str],
         column_font_size: str,
         type_font_size: str,
+        name_column_width: str,
+        type_column_width: str,
+        column_name_max_chars: int,
+        type_max_chars: int,
     ) -> list[str]:
         """Construye las filas HTML de las columnas visibles."""
         return [
@@ -476,6 +536,10 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 related_columns=related_columns,
                 column_font_size=column_font_size,
                 type_font_size=type_font_size,
+                name_column_width=name_column_width,
+                type_column_width=type_column_width,
+                column_name_max_chars=column_name_max_chars,
+                type_max_chars=type_max_chars,
             )
             for col_name, col_type in columns
         ]
@@ -488,21 +552,28 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         related_columns: set[str],
         column_font_size: str,
         type_font_size: str,
+        name_column_width: str,
+        type_column_width: str,
+        column_name_max_chars: int,
+        type_max_chars: int,
     ) -> str:
         """Construye la fila HTML de una columna."""
-        escaped_name = html.escape(col_name)
-        escaped_type = html.escape(col_type.split("(")[0][:20])
+        escaped_name: str = html.escape(self._truncate_label_text(col_name, column_name_max_chars))
+        escaped_type: str = html.escape(self._truncate_label_text(col_type.split("(")[0], type_max_chars))
         badge_prefix, name_color = self._build_column_badge_prefix(
             table_name=table_name,
             col_name=col_name,
             related_columns=related_columns,
         )
-        html_row = (
-            f'<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="{column_font_size}" COLOR="{name_color}">'
+        html_row: str = (
+            f'<TR><TD ALIGN="LEFT" WIDTH="{name_column_width}"><FONT POINT-SIZE="{column_font_size}" COLOR="{name_color}">'
             f"{html.escape(badge_prefix)}{escaped_name}</FONT></TD>"
         )
         if self.show_data_types:
-            html_row += f'<TD ALIGN="LEFT"><FONT POINT-SIZE="{type_font_size}" COLOR="black">{escaped_type}</FONT></TD>'
+            html_row += (
+                f'<TD ALIGN="LEFT" WIDTH="{type_column_width}"><FONT POINT-SIZE="{type_font_size}" '
+                f'COLOR="black">{escaped_type}</FONT></TD>'
+            )
         return html_row + "</TR>"
 
     def _build_column_badge_prefix(
@@ -512,9 +583,9 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         related_columns: set[str],
     ) -> tuple[str, str]:
         """Calcula badges y color para una columna del nodo."""
-        is_pk = self._is_primary_key(table_name, col_name)
-        is_unique = self._is_unique_column(table_name, col_name)
-        is_related = col_name.lower() in related_columns
+        is_pk: bool = self._is_primary_key(table_name, col_name)
+        is_unique: bool = self._is_unique_column(table_name, col_name)
+        is_related: bool = col_name.lower() in related_columns
         badges: list[str] = []
         if is_pk:
             badges.append("PK")
@@ -522,23 +593,24 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             badges.append("REL")
         if is_unique and not is_pk:
             badges.append("UQ")
-        badge_prefix = f"[{'/'.join(badges)}] " if badges else ""
-        name_color = "#A61C00" if is_pk else self.TEXT_COLOR
+        badge_prefix: str = f"[{'/'.join(badges)}] " if badges else ""
+        name_color: str = "#A61C00" if is_pk else self.TEXT_COLOR
         return badge_prefix, name_color
 
-    def _build_message_row_html(self, message: str, font_size: str) -> str:
+    def _build_message_row_html(self, message: str, font_size: str, table_width: str | None = None) -> str:
         """Construye una fila HTML de mensaje centrado."""
         message_colspan = "2" if self.show_data_types else "1"
+        width_attr: str = f' WIDTH="{table_width}"' if table_width else ""
         return (
-            f'<TR><TD COLSPAN="{message_colspan}" ALIGN="CENTER"><FONT POINT-SIZE="{font_size}" COLOR="black">'
+            f'<TR><TD COLSPAN="{message_colspan}" ALIGN="CENTER"{width_attr}><FONT POINT-SIZE="{font_size}" COLOR="black">'
             f"{html.escape(message)}"
             "</FONT></TD></TR>"
         )
 
     def _build_subset_document(self, document: GraphDocument, relations: list[TableRelation]) -> GraphDocument:
         """Construye un documento parcial para una página del grafo."""
-        selected_relations = set(relations)
-        edges = [edge for edge in document.edges if edge.relation in selected_relations]
+        selected_relations: set[TableRelation] = set(relations)
+        edges: list[GraphEdge] = [edge for edge in document.edges if edge.relation in selected_relations]
         tables: set[str] = {document.root_table}
         for relation in relations:
             tables.add(relation.source_table)
@@ -546,16 +618,18 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
 
         levels: list[GraphLevel] = []
         for level in document.levels:
-            level_edges = [edge for edge in level.edges if edge.relation in selected_relations]
+            level_edges: list[GraphEdge] = [edge for edge in level.edges if edge.relation in selected_relations]
             if not level_edges:
                 continue
-            level_tables = {edge.relation.source_table for edge in level_edges}
+            level_tables: set[str] = {edge.relation.source_table for edge in level_edges}
             level_tables.update(edge.relation.target_table for edge in level_edges)
             levels.append(
                 GraphLevel(depth=level.depth, direction=level.direction, edges=level_edges, tables=level_tables)
             )
 
-        nodes = {table_name: node for table_name, node in document.nodes.items() if table_name in tables}
+        nodes: dict[str, GraphNode] = {
+            table_name: node for table_name, node in document.nodes.items() if table_name in tables
+        }
         return GraphDocument(
             root_table=document.root_table,
             nodes=nodes,
@@ -575,15 +649,17 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         table_name: str,
         max_depth: int | None = None,
         direction: LevelDirection | str | None = None,
+        document: GraphDocument | None = None,
     ) -> tuple[GraphDocument, dict[LevelDirection, list[GraphDocument]]]:
         """Construye subdocumentos independientes por nivel y por sentido."""
-        effective_depth = self.max_depth if max_depth is None else max(1, int(max_depth))
-        effective_direction = self.direction if direction is None else self._normalize_direction(direction)
-        document = self.build_graph_document(
-            table_name=table_name,
-            max_depth=effective_depth,
-            direction=effective_direction,
-        )
+        if document is None:
+            effective_depth = self.max_depth if max_depth is None else max(1, int(max_depth))
+            effective_direction = self.direction if direction is None else self._normalize_direction(direction)
+            document = self.build_graph_document(
+                table_name=table_name,
+                max_depth=effective_depth,
+                direction=effective_direction,
+            )
 
         grouped_documents: dict[LevelDirection, list[GraphDocument]] = {
             LevelDirection.OUTGOING: [],
@@ -604,13 +680,15 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         show_columns: bool | None = None,
         max_depth: int | None = None,
         direction: LevelDirection | str | None = None,
+        document: GraphDocument | None = None,
     ) -> dict[str, Any]:
         """Genera un diagrama independiente por nivel y por sentido."""
-        include_columns = self.include_columns if show_columns is None else bool(show_columns)
+        include_columns: bool = self.include_columns if show_columns is None else bool(show_columns)
         document, grouped_documents = self._build_level_documents(
             table_name=table_name,
             max_depth=max_depth,
             direction=direction,
+            document=document,
         )
 
         output_dir = Path(output_dir).resolve()
@@ -636,9 +714,9 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             for level_document in grouped_documents[group_direction]:
                 if not level_document.levels:
                     continue
-                level_depth = level_document.levels[0].depth
-                output_file = output_dir / f"graphviz_ext_{table_name}_{direction_key}_level{level_depth}"
-                generated_path = self._generate_graphviz_graph_internal_ext(
+                level_depth: int = level_document.levels[0].depth
+                output_file: Path = output_dir / f"graphviz_ext_{table_name}_{direction_key}_level{level_depth}"
+                generated_path: Path = self._generate_graphviz_graph_internal_ext(
                     table_name=table_name,
                     output_file=output_file,
                     format=format,
@@ -664,6 +742,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         show_columns: bool | None = None,
         max_depth: int | None = None,
         direction: LevelDirection | str | None = None,
+        document: GraphDocument | None = None,
     ) -> list[Path]:
         """
         Genera grafos Graphviz extendidos dividiendo en múltiples imágenes si es necesario
@@ -687,11 +766,12 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             f"(max {max_subnodes} nodos por página)"
         )
         analyze_started: float = perf_counter()
-        document = self.build_graph_document(
-            table_name=table_name,
-            max_depth=effective_depth,
-            direction=effective_direction,
-        )
+        if document is None:
+            document = self.build_graph_document(
+                table_name=table_name,
+                max_depth=effective_depth,
+                direction=effective_direction,
+            )
         relations: list[TableRelation] = list(document.relations)
         analyze_elapsed_ms: float = (perf_counter() - analyze_started) * 1000
         self.logger.info(f"📈 Relaciones analizadas para {table_name}: {len(relations)} en {analyze_elapsed_ms:.2f} ms")
@@ -714,7 +794,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
 
             # Generar gráfico para esta página
             page_started: float = perf_counter()
-            page_document = self._build_subset_document(document, page_relations)
+            page_document: GraphDocument = self._build_subset_document(document, page_relations)
             generated_file: Path = self._generate_graphviz_graph_internal_ext(
                 table_name=table_name,
                 output_file=output_path,
@@ -790,9 +870,13 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             f"Niveles entrada: {document.total_incoming_levels}",
         ]
         if document.hidden_levels.outgoing_hidden_levels > 0:
-            footer_lines.append(f"Salida oculta: {document.hidden_levels.outgoing_hidden_levels}")
+            footer_lines.append(
+                f"Salida oculta: {document.hidden_levels.outgoing_hidden_levels} nivel(es) no visibles por profundidad"
+            )
         if document.hidden_levels.incoming_hidden_levels > 0:
-            footer_lines.append(f"Entrada oculta: {document.hidden_levels.incoming_hidden_levels}")
+            footer_lines.append(
+                f"Entrada oculta: {document.hidden_levels.incoming_hidden_levels} nivel(es) no visibles por profundidad"
+            )
 
         dot.attr("graph", label=" | ".join(footer_lines), labelloc="b", labeljust="l")
 
@@ -860,20 +944,30 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             show_columns: Si mostrar columnas
             is_raster_format: Si el formato es raster
         """
+        related_columns_by_table: dict[str, set[str]] = (
+            self._build_related_columns_lookup(document) if show_columns else {}
+        )
         for table, node in document.nodes.items():
             is_main: bool = node.is_root
             if show_columns:
-                html_label: str = self._build_table_html_label(document, table, is_main, is_raster=is_raster_format)
+                html_label: str = self._build_table_html_label(
+                    table,
+                    related_columns_by_table.get(table, set()),
+                    is_main,
+                    node.visual_type,
+                    is_raster=is_raster_format,
+                )
                 dot.node(table, html_label)
                 continue
 
-            bg_color = self.MAIN_TABLE_COLOR if is_main else self.RELATED_TABLE_COLOR
+            bg_color: str = self._resolve_node_fill_color(node.visual_type)
             dot.node(
                 table,
                 table,
                 shape="box",
                 style="filled",
                 fillcolor=bg_color,
+                color="#1F1F1F" if is_main else "#666666",
                 penwidth="2" if is_main else "1",
             )
 
@@ -897,7 +991,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             relation_label: str = f"{relation.source_column} -> {relation.target_column}"
             if self.show_constraint_name:
                 relation_label = f"{relation.constraint_name}: {relation_label}"
-            cardinality_markers = self._build_cardinality_markers(cardinality)
+            cardinality_markers: CardinalityEndMarker = self._build_cardinality_markers(cardinality)
             edge_color = "#1D70B8" if edge.direction == LevelDirection.OUTGOING else "#A61C00"
 
             dot.edge(
@@ -963,16 +1057,16 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         Returns:
             Diccionario con los resultados {tabla: {status, files, error}}
         """
-        include_columns = self.include_columns if show_columns is None else bool(show_columns)
+        include_columns: bool = self.include_columns if show_columns is None else bool(show_columns)
         output_dir = self._resolve_graph_output_dir(output_dir)
-        table_names = self._get_all_table_names()
+        table_names: list[str] = self._get_all_table_names()
 
         self.logger.info(f"Iniciando generación de grafos Graphviz extendidos para {len(table_names)} tablas")
         self.logger.info(f"Directorio de salida: {output_dir}")
         self.logger.info(f"Formato: {format}, max_subnodes: {max_subnodes}, mostrar columnas: {show_columns}")
 
         results: dict[str, dict[str, Any]] = {}
-        tables_to_process = self._select_tables_to_process(
+        tables_to_process: list[str] = self._select_tables_to_process(
             table_names=table_names,
             skip_tables_without_relations=skip_tables_without_relations,
             max_depth=max_depth,
@@ -1013,7 +1107,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
 
     def _resolve_graph_output_dir(self, output_dir: Path | None) -> Path:
         """Normaliza y crea el directorio de salida para grafos Graphviz."""
-        resolved_output_dir = Path("./grafos_graphviz_ext") if output_dir is None else Path(output_dir)
+        resolved_output_dir: Path = Path("./grafos_graphviz_ext") if output_dir is None else Path(output_dir)
         resolved_output_dir = resolved_output_dir.resolve()
         resolved_output_dir.mkdir(parents=True, exist_ok=True)
         return resolved_output_dir
@@ -1033,7 +1127,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         if not skip_tables_without_relations:
             return table_names
 
-        tables_with_relations = [
+        tables_with_relations: list[str] = [
             table_name
             for table_name in table_names
             if self._table_has_relations(table_name=table_name, max_depth=max_depth, direction=direction)
@@ -1049,7 +1143,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
     ) -> bool:
         """Determina si una tabla tiene relaciones visibles para la configuración indicada."""
         try:
-            document = self.build_graph_document(
+            document: GraphDocument = self.build_graph_document(
                 table_name=table_name,
                 max_depth=self.max_depth if max_depth is None else max_depth,
                 direction=self.direction if direction is None else direction,
@@ -1095,6 +1189,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         show_columns: bool | None = None,
         max_depth: int | None = None,
         direction: LevelDirection | str | None = None,
+        document: GraphDocument | None = None,
     ) -> Path:
         """
         Genera un gráfico extendido para una única tabla sin paginación
@@ -1108,15 +1203,18 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         Returns:
             Path del archivo generado
         """
-        include_columns = self.include_columns if show_columns is None else bool(show_columns)
-        effective_depth = self.max_depth if max_depth is None else max(1, int(max_depth))
-        effective_direction = self.direction if direction is None else self._normalize_direction(direction)
-        self.logger.info(f"Generando gráfico extendido simple para tabla: {table_name}")
-        document = self.build_graph_document(
-            table_name=table_name,
-            max_depth=effective_depth,
-            direction=effective_direction,
+        include_columns: bool = self.include_columns if show_columns is None else bool(show_columns)
+        effective_depth: int = self.max_depth if max_depth is None else max(1, int(max_depth))
+        effective_direction: LevelDirection = (
+            self.direction if direction is None else self._normalize_direction(direction)
         )
+        self.logger.info(f"Generando gráfico extendido simple para tabla: {table_name}")
+        if document is None:
+            document = self.build_graph_document(
+                table_name=table_name,
+                max_depth=effective_depth,
+                direction=effective_direction,
+            )
 
         return self._generate_graphviz_graph_internal_ext(
             table_name=table_name,

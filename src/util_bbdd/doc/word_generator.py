@@ -101,6 +101,7 @@ class WordGenerator:
         data_provider: Any,
         output_file: Path,
         print_config: dict[str, Any] | None = None,
+        graph_generator: GraphvizRelationshipGraphExt | None = None,
     ) -> None:
         """Genera el documento Word completo con tablas y vistas.
 
@@ -149,10 +150,14 @@ class WordGenerator:
             if not table_chunks:
                 table_chunks = [[]]
 
-            graph_generator: Any = None
-            if include_diagrams:
+            resolved_graph_generator: GraphvizRelationshipGraphExt | None = (
+                graph_generator if include_diagrams else None
+            )
+            if include_diagrams and resolved_graph_generator is None:
                 self.logger.debug("🟢 Inicializando generador de grafos para diagramas")
-                graph_generator = self._build_graph_generator(data_provider, graph_options)
+                resolved_graph_generator = self._build_graph_generator(data_provider, graph_options)
+            elif resolved_graph_generator is not None:
+                self.logger.debug("♻️ Reutilizando generador de grafos compartido para diagramas Word")
 
             # Configuración de documentos
             doc_config: DocumentChunkConfig = DocumentChunkConfig(
@@ -184,7 +189,7 @@ class WordGenerator:
                     data_provider=data_provider,
                     output_file=output_file,
                     config=doc_config,
-                    graph_generator=graph_generator,
+                    graph_generator=resolved_graph_generator,
                 )
 
             self.logger.info(f"✅ Generación Word finalizada: {total_chunks} documento(s)")
@@ -561,10 +566,16 @@ class WordGenerator:
             # Word no maneja SVG de forma fiable en python-docx
             fmt = "png"
 
+        graph_document: Any | None = self._build_diagram_document(
+            tabla=tabla,
+            graph_generator=graph_generator,
+            diagram_options=diagram_options,
+        )
         diagram_summary: str = self._build_diagram_summary_text(
             tabla=tabla,
             graph_generator=graph_generator,
             diagram_options=diagram_options,
+            document=graph_document,
         )
 
         output_dir = Path(diagram_options.get("output_dir", Path.cwd() / "_table_diagrams"))
@@ -584,6 +595,8 @@ class WordGenerator:
                     "max_depth": int(diagram_options.get("max_depth", 1)),
                     "direction": str(diagram_options.get("direction", "both")),
                 }
+                if graph_document is not None:
+                    kwargs_paginated["document"] = graph_document
                 generated_paths = [Path(path) for path in paginated_method(**kwargs_paginated)]
             else:
                 output_file: Path = output_dir / f"{tabla}.{fmt}"
@@ -595,6 +608,8 @@ class WordGenerator:
                     "max_depth": int(diagram_options.get("max_depth", 1)),
                     "direction": str(diagram_options.get("direction", "both")),
                 }
+                if graph_document is not None:
+                    kwargs["document"] = graph_document
                 generated_paths = [Path(method(**kwargs))]
 
             generation_elapsed_ms = (perf_counter() - generation_started) * 1000
@@ -624,41 +639,82 @@ class WordGenerator:
             document.add_heading(f"Diagrama de relaciones: {tabla}", level=2)
             document.add_paragraph(f"⚠️ No se pudo generar el diagrama: {e}")
 
-    def _build_diagram_summary_text(self, tabla: str, graph_generator: Any, diagram_options: dict[str, Any]) -> str:
-        """Construye el resumen textual de niveles para Word."""
+    def _build_diagram_document(self, tabla: str, graph_generator: Any, diagram_options: dict[str, Any]) -> Any | None:
+        """Construye una vez el GraphDocument para reutilizarlo entre resumen y render."""
         if not hasattr(graph_generator, "build_graph_document"):
-            return ""
+            return None
 
         try:
-            document = graph_generator.build_graph_document(
+            return graph_generator.build_graph_document(
                 table_name=tabla,
                 max_depth=int(diagram_options.get("max_depth", 1)),
                 direction=str(diagram_options.get("direction", "both")),
             )
         except Exception as error:
             self.logger.debug(f"⚠️ No se pudo construir el resumen de niveles para {tabla}: {error}")
+            return None
+
+    def _build_diagram_summary_text(
+        self,
+        tabla: str,
+        graph_generator: Any,
+        diagram_options: dict[str, Any],
+        document: Any | None = None,
+    ) -> str:
+        """Construye el resumen textual de niveles para Word."""
+        graph_document: Any | None = document or self._build_diagram_document(
+            tabla=tabla,
+            graph_generator=graph_generator,
+            diagram_options=diagram_options,
+        )
+        if graph_document is None:
             return ""
 
-        parts: list[str] = [f"Profundidad visible: {document.max_depth}"]
+        parts: list[str] = [f"Profundidad visible: {graph_document.max_depth}"]
 
-        outgoing_summary = f"Salida total: {document.total_outgoing_levels}"
-        if document.hidden_levels.outgoing_hidden_levels > 0:
-            outgoing_summary += f" (no visibles: {document.hidden_levels.outgoing_hidden_levels})"
+        outgoing_summary = f"Salida total: {graph_document.total_outgoing_levels}"
+        if graph_document.hidden_levels.outgoing_hidden_levels > 0:
+            outgoing_summary += f" (no visibles: {graph_document.hidden_levels.outgoing_hidden_levels})"
         parts.append(outgoing_summary)
 
-        incoming_summary = f"Entrada total: {document.total_incoming_levels}"
-        if document.hidden_levels.incoming_hidden_levels > 0:
-            incoming_summary += f" (no visibles: {document.hidden_levels.incoming_hidden_levels})"
+        incoming_summary = f"Entrada total: {graph_document.total_incoming_levels}"
+        if graph_document.hidden_levels.incoming_hidden_levels > 0:
+            incoming_summary += f" (no visibles: {graph_document.hidden_levels.incoming_hidden_levels})"
         parts.append(incoming_summary)
 
+        if graph_document.hidden_levels.outgoing_hidden_levels > 0:
+            parts.append(
+                self._build_hidden_levels_word_help(
+                    direction_key="outgoing",
+                    hidden_levels=graph_document.hidden_levels.outgoing_hidden_levels,
+                )
+            )
+        if graph_document.hidden_levels.incoming_hidden_levels > 0:
+            parts.append(
+                self._build_hidden_levels_word_help(
+                    direction_key="incoming",
+                    hidden_levels=graph_document.hidden_levels.incoming_hidden_levels,
+                )
+            )
+
         return " | ".join(parts)
+
+    def _build_hidden_levels_word_help(self, direction_key: str, hidden_levels: int) -> str:
+        """Explica en Word qué significa cada grupo de niveles ocultos."""
+        if direction_key == "outgoing":
+            return (
+                f"Salida oculta: {hidden_levels} nivel(es) de tablas hijas o dependientes no visibles por profundidad"
+            )
+        return (
+            f"Entrada oculta: {hidden_levels} nivel(es) de tablas padre o referenciadoras no visibles por profundidad"
+        )
 
     def _add_diagram_summary_paragraph(self, document: Document, summary_text: str) -> None:
         """Agrega el resumen de niveles bajo el diagrama en Word."""
         if not summary_text:
             return
 
-        paragraph = document.add_paragraph()
+        paragraph: Paragraph = document.add_paragraph()
         paragraph.add_run("Resumen de niveles: ").bold = True
         paragraph.add_run(summary_text)
 

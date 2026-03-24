@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB (sync).
 
-**Version:** 0.6.0 | **Status:** ✅ Refactorizado & Estable
+**Version:** 0.6.1 | **Status:** ✅ Estable
 
 Incluye:
 - ✅ **CRUD en lote** desde DataFrames (insert/update/delete masivo)
@@ -28,7 +28,7 @@ Incluye:
 
 Nota: `hsqldb` no dispone de implementación async en `util_bbdd`. Las factorías async lanzan error explícito para ese motor.
 
-## Arquitectura v0.6.0 - Estructura de 3 Niveles
+## Arquitectura v0.6.1 - Estructura de 3 Niveles
 
 Util_bbdd usa una **arquitectura jerárquica de 3 niveles** para máxima modularidad:
 
@@ -109,7 +109,7 @@ doc/                 # Generadores documentales
 - ✅ Fácil agregar nuevos motores (solo agregar archivo en `connection/motors/`)
 - ✅ Compatibilidad mantenida en wrappers legacy seleccionados; el manager sync usa `SyncDatabaseManager`
 
-## Novedades v0.6.0 en grafos y documentación
+## Novedades v0.6.1 en grafos y documentación
 
 - Relaciones de n niveles mediante `max_depth`
 - Dirección configurable del recorrido: `incoming`, `outgoing` o `both`
@@ -117,6 +117,34 @@ doc/                 # Generadores documentales
 - Cardinalidad representada por extremos en Graphviz
 - HTML con pestañas por nivel y por sentido
 - Word con resumen de niveles totales y no visibles
+
+### Resumen de la release v0.6.1
+
+La versión v0.6.1 amplía la base multinivel introducida en v0.6.0 y refuerza la legibilidad de los diagramas relacionales en Graphviz, HTML y Word.
+
+- Tipología visual de tablas en diagramas Graphviz y HTML:
+  - `entity`: azul pastel
+  - `association`: verde pastel
+  - `hierarchy`: naranja pastel
+- La tipología visual es heurística y se calcula desde `analysis/base.py`, de forma reutilizable por distintos renderers.
+- La detección inicial de `association` usa varias FKs y, cuando aplica, PK compuesta basada en columnas relacionales.
+- HTML expone una leyenda visual explícita con:
+  - dirección (`Salida` / `Entrada`)
+  - tipo de tabla
+  - cardinalidad
+  - tipo de relación soportado hoy (`FK`)
+- La política actual de vistas en diagramas enriquecidos sigue siendo `exclude`.
+- Word y HTML pueden reutilizar una misma instancia de `GraphvizRelationshipGraphExt` durante la misma corrida multi-formato para evitar recomputación innecesaria.
+
+### Semántica de tipología visual
+
+La clasificación visual de tablas no pretende sustituir el modelo de datos ni imponer una taxonomía absoluta.
+
+- `entity`: tabla de negocio general que no encaja en las heurísticas de asociación o jerarquía
+- `association`: tabla puente detectada por varias claves foráneas y, en los casos soportados, PK compuesta basada en columnas FK
+- `hierarchy`: tabla con autorreferencia que sugiere una relación padre-hijo dentro de la misma entidad
+
+Si un esquema contiene tablas híbridas o patrones muy específicos por motor, la tipología debe interpretarse como ayuda visual y no como clasificación canónica.
 
 ### Configuración recomendada del bloque grafo
 
@@ -504,7 +532,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.6.0** (Stable - Multi-level Graphs & Documentation)
+**Current Version: v0.6.1** (Stable - Diagramas refinados y reutilización documental)
 
 Roadmap:
 - `v0.1.0`: CRUD base + auditoría
@@ -512,7 +540,8 @@ Roadmap:
 - `v0.3.0`: Soporte PostgreSQL mejorado
 - `v0.4.0`: Consolidación de conexiones
 - `v0.5.0` ✅: Refactorización arquitectónica (3-level hierarchy)
-- `v0.6.0` ✅ (actual): Grafos multinivel, HTML tabulado y contrato documental nuevo
+- `v0.6.0` ✅: Grafos multinivel, HTML tabulado y contrato documental nuevo
+- `v0.6.1` ✅ (actual): Tipología visual, leyenda HTML ampliada y reutilización de análisis entre Word y HTML
 - `v1.0.0`: API estable, cobertura 85%+
 
 ## Licencia

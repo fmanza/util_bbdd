@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 # Importar módulos modulares
+from ..analysis.graphviz_ext import GraphvizRelationshipGraphExt
 from ..database_exceptions import QueryNotFoundError
 from ..managers import SyncDatabaseManager
 from .excel_generator import ExcelGenerator
@@ -230,15 +231,45 @@ class DatabaseDocumentation:
 
     def _create_documents(self) -> None:
         """Genera documentación para todos los formatos solicitados."""
+        shared_graph_generator: GraphvizRelationshipGraphExt | None = self._build_shared_graph_generator()
         for output_format in self.formatos:
             if output_format == "word":
-                self._create_document_word()
+                self._create_document_word(graph_generator=shared_graph_generator)
             elif output_format == "excel":
                 self._create_document_excel()
             elif output_format == "html":
-                self._create_document_html()
+                self._create_document_html(graph_generator=shared_graph_generator)
 
-    def _create_document_word(self) -> None:
+    def _build_shared_graph_generator(self) -> GraphvizRelationshipGraphExt | None:
+        """Construye un generador de grafos compartido para Word y HTML cuando ambos formatos lo requieren."""
+        if not self._should_share_graph_generator():
+            return None
+
+        graph_cfg: dict[str, Any] = self.imprimir_config.get("grafo", {})
+        columns_options: dict[str, Any] = dict(graph_cfg.get("columns", {}))
+        cardinality_options: dict[str, Any] = dict(graph_cfg.get("cardinality", {}))
+
+        self.logger.debug("🟢 Inicializando generador de grafos compartido para Word y HTML")
+        return GraphvizRelationshipGraphExt(
+            db_manager=self.db_manager,
+            column_mode=str(columns_options.get("mode", "relations")),
+            max_columns=int(columns_options.get("max_items", 8)),
+            show_data_types=bool(columns_options.get("show_data_types", False)),
+            max_depth=int(graph_cfg.get("max_depth", 1)),
+            direction=str(graph_cfg.get("direction", "both")),
+            show_constraint_name=bool(cardinality_options.get("show_constraint_name", False)),
+            render_dpi=int(graph_cfg.get("dpi", 150)),
+        )
+
+    def _should_share_graph_generator(self) -> bool:
+        """Indica si esta ejecución puede reutilizar un único generador de grafos entre formatos."""
+        if not {"word", "html"}.issubset(set(self.formatos)):
+            return False
+
+        graph_cfg: dict[str, Any] = self.imprimir_config.get("grafo", {})
+        return bool(graph_cfg.get("enabled", False))
+
+    def _create_document_word(self, graph_generator: GraphvizRelationshipGraphExt | None = None) -> None:
         """Crea el documento Word usando el generador modular."""
         context_database: str = self._get_generator_database_context()
         word_generator = WordGenerator(database=context_database, headers=self.headers, table_style=self.table_style)
@@ -252,6 +283,7 @@ class DatabaseDocumentation:
             self,
             output_file,
             print_config=self.imprimir_config,
+            graph_generator=graph_generator,
         )
 
     def _create_document_excel(self) -> None:
@@ -270,7 +302,7 @@ class DatabaseDocumentation:
             print_config=self.imprimir_config,
         )
 
-    def _create_document_html(self) -> None:
+    def _create_document_html(self, graph_generator: GraphvizRelationshipGraphExt | None = None) -> None:
         """Crea la documentación HTML en una carpeta dedicada usando el generador modular."""
         context_database: str = self._get_generator_database_context()
         html_generator = HtmlGenerator(database=context_database, headers=self.headers)
@@ -284,6 +316,7 @@ class DatabaseDocumentation:
             self,
             output_dir,
             print_config=self.imprimir_config,
+            graph_generator=graph_generator,
         )
 
     def _get_execution_root_name(self) -> str:
