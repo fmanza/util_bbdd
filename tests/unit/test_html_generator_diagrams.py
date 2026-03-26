@@ -299,6 +299,23 @@ def test_render_detail_page_writes_tabbed_diagram_markup(tmp_path: Path) -> None
                     "La leyenda de tipos de relación podrá ampliarse cuando analysis exponga más tipos reales además de FK.",
                 ],
             },
+            "diagram_viewer": {
+                "title": "Controles del visor",
+                "help": "Ctrl + rueda para zoom",
+                "tips": [
+                    "Usa las pestañas por nivel para aislar relaciones.",
+                ],
+                "status_ready": "Listo para navegar",
+                "status_dragging": "Moviendo diagrama",
+                "status_zoom_prefix": "Zoom",
+                "min_zoom": 0.5,
+                "max_zoom": 3.0,
+                "zoom_step": 0.25,
+                "pan_step": 140,
+                "initial_zoom": 1.0,
+                "wheel_zoom_requires_ctrl": True,
+                "drag_pan_enabled": True,
+            },
             "diagram_tabs": [
                 {
                     "group_id": "users-outgoing",
@@ -339,3 +356,19 @@ def test_render_detail_page_writes_tabbed_diagram_markup(tmp_path: Path) -> None
     assert "Salida oculta: niveles de tablas hijas o dependientes" in rendered
     assert 'data-diagram-action="zoom-in"' in rendered
     assert 'data-diagram-action="pan-right"' in rendered
+    assert 'data-diagram-action="copy-png"' in rendered
+    assert 'data-diagram-action="copy-svg"' in rendered
+    assert 'data-diagram-action="download-svg"' in rendered
+    assert 'data-diagram-action="download-png"' in rendered
+    assert 'data-tooltip="Alejar"' in rendered
+    assert 'data-tooltip="Acercar"' in rendered
+    assert 'data-tooltip="Ajustar al área visible"' in rendered
+    assert 'data-tooltip="Desplazar a la derecha"' in rendered
+    assert 'data-tooltip="Copiar PNG"' in rendered
+    assert 'data-tooltip="Copiar SVG"' in rendered
+    assert 'data-tooltip="Descargar SVG"' in rendered
+    assert 'data-tooltip="Descargar PNG"' in rendered
+    assert "../assets/icons/icon-png-copy.svg" in rendered
+    assert "../assets/icons/icon-svg-copy.svg" in rendered
+    assert "../assets/icons/icon-svg-download.svg" in rendered
+    assert "../assets/icons/icon-png-download.svg" in rendered

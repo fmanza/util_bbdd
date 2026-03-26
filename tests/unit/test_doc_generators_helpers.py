@@ -11,6 +11,14 @@ pytest.importorskip("jinja2")
 pytest.importorskip("openpyxl")
 
 from util_bbdd.doc.database_documentation import DatabaseDocumentation
+from util_bbdd.doc.diagram_legend import (
+    build_diagram_direction_help,
+    build_diagram_legend_payload,
+    build_diagram_legend_rows,
+    build_diagram_navigation_tips,
+    build_hidden_levels_help,
+)
+from util_bbdd.doc.diagram_summary import build_diagram_summary_line, build_diagram_summary_payload
 from util_bbdd.doc.excel_generator import ExcelGenerator
 from util_bbdd.doc.html_generator import HtmlGenerator
 from util_bbdd.doc.word_generator import WordGenerator
@@ -291,7 +299,7 @@ def test_word_generator_chunking_output_file_and_routine_split() -> None:
     assert functions == [("f_total", "FUNCTION", "")]
 
 
-def test_word_generator_builds_diagram_summary_text_with_hidden_levels() -> None:
+def test_word_generator_builds_diagram_summary_payload_with_hidden_levels() -> None:
     generator = WordGenerator(database="db", headers={})
 
     class _GraphGenerator:
@@ -309,16 +317,18 @@ def test_word_generator_builds_diagram_summary_text_with_hidden_levels() -> None
         def build_graph_document(self, **kwargs: Any) -> Any:
             return self._Document()
 
-    summary = generator._build_diagram_summary_text(
+    summary = generator._build_diagram_summary_payload(
         tabla="users",
         graph_generator=_GraphGenerator(),
-        diagram_options={"max_depth": 2, "direction": "both"},
+        diagram_options={"max_depth": 2, "direction": "both", "summary": {"enabled": True}},
     )
 
-    assert "Profundidad visible: 2" in summary
-    assert "Salida total: 3 (no visibles: 1)" in summary
-    assert "Entrada total: 1" in summary
-    assert "Salida oculta: 1 nivel(es) de tablas hijas o dependientes no visibles por profundidad" in summary
+    assert (
+        build_diagram_summary_line(summary)
+        == "Profundidad visible: 2 | Salida visible: 2 de 3 | Entrada visible: 1 de 1"
+    )
+    assert summary["has_hidden_outgoing_levels"] is True
+    assert summary["outgoing_hidden_help"] == build_hidden_levels_help("outgoing")
 
 
 def test_word_generator_builds_summary_from_precomputed_document_without_rebuilding() -> None:
@@ -339,24 +349,203 @@ def test_word_generator_builds_summary_from_precomputed_document_without_rebuild
 
         hidden_levels = _Hidden()
 
-    summary = generator._build_diagram_summary_text(
+    summary = generator._build_diagram_summary_payload(
         tabla="users",
         graph_generator=_GraphGenerator(),
-        diagram_options={"max_depth": 1, "direction": "both"},
+        diagram_options={"max_depth": 1, "direction": "both", "summary": {"enabled": True}},
         document=_Document(),
     )
 
-    assert "Salida total: 2 (no visibles: 1)" in summary
-    assert "Entrada oculta: 1 nivel(es) de tablas padre o referenciadoras no visibles por profundidad" in summary
+    assert (
+        build_diagram_summary_line(summary)
+        == "Profundidad visible: 1 | Salida visible: 1 de 2 | Entrada visible: 0 de 1"
+    )
+    assert summary["incoming_hidden_help"] == build_hidden_levels_help("incoming")
+
+
+def test_word_generator_omits_diagram_summary_when_disabled() -> None:
+    generator = WordGenerator(database="db", headers={})
+
+    class _GraphGenerator:
+        class _Document:
+            max_depth = 1
+            total_outgoing_levels = 1
+            total_incoming_levels = 0
+
+            class _Hidden:
+                outgoing_hidden_levels = 0
+                incoming_hidden_levels = 0
+
+            hidden_levels = _Hidden()
+
+        def build_graph_document(self, **kwargs: Any) -> Any:
+            return self._Document()
+
+    summary = generator._build_diagram_summary_payload(
+        tabla="users",
+        graph_generator=_GraphGenerator(),
+        diagram_options={"max_depth": 1, "direction": "both", "summary": {"enabled": False}},
+    )
+
+    assert summary == {}
 
 
 def test_word_generator_adds_summary_paragraph_to_document() -> None:
     generator = WordGenerator(database="db", headers={})
     document = generator._initialize_document(template_path=None)
 
-    generator._add_diagram_summary_paragraph(document=document, summary_text="Profundidad visible: 2 | Salida total: 3")
+    generator._add_diagram_summary_paragraph(
+        document=document,
+        summary_payload=build_diagram_summary_payload(
+            max_depth=2,
+            total_outgoing_levels=3,
+            total_incoming_levels=1,
+            visible_outgoing_levels=1,
+            visible_incoming_levels=1,
+            hidden_outgoing_levels=2,
+            hidden_incoming_levels=0,
+        ),
+    )
 
-    assert any("Profundidad visible: 2 | Salida total: 3" in paragraph.text for paragraph in document.paragraphs)
+    paragraph_texts = [paragraph.text for paragraph in document.paragraphs]
+
+    assert any(
+        "Profundidad visible: 2 | Salida visible: 1 de 3 | Entrada visible: 1 de 1" in text for text in paragraph_texts
+    )
+    assert any(build_hidden_levels_help("outgoing") in text for text in paragraph_texts)
+    assert any("salida y entrada por separado" in text for text in paragraph_texts)
+
+
+def test_shared_diagram_summary_payload_matches_html_contract() -> None:
+    summary = build_diagram_summary_payload(
+        max_depth=3,
+        total_outgoing_levels=2,
+        total_incoming_levels=1,
+        visible_outgoing_levels=1,
+        visible_incoming_levels=1,
+        hidden_outgoing_levels=1,
+        hidden_incoming_levels=0,
+    )
+
+    assert summary["title"] == "Resumen de niveles"
+    assert (
+        build_diagram_summary_line(summary)
+        == "Profundidad visible: 3 | Salida visible: 1 de 2 | Entrada visible: 1 de 1"
+    )
+    assert summary["has_any_hidden_levels"] is True
+    assert summary["outgoing_hidden_help"] == build_hidden_levels_help("outgoing")
+
+
+def test_shared_diagram_reading_helpers_match_html_contract() -> None:
+    assert build_diagram_direction_help("outgoing") == (
+        "Relaciones de salida hacia tablas hijas o dependientes de la tabla actual."
+    )
+    assert build_diagram_direction_help("incoming") == (
+        "Relaciones de entrada desde tablas padre o referenciadoras hacia la tabla actual."
+    )
+    assert build_hidden_levels_help("outgoing") == (
+        "Salida oculta: niveles de tablas hijas o dependientes que existen en el grafo, "
+        "pero no se muestran por el límite de profundidad visible."
+    )
+    assert build_hidden_levels_help("incoming", hidden_levels=2) == (
+        "Entrada oculta: 2 nivel(es) de tablas padre o referenciadoras que existen en el grafo, "
+        "pero no se muestran por el límite de profundidad visible."
+    )
+    assert build_diagram_navigation_tips(
+        visible_outgoing_levels=1,
+        visible_incoming_levels=1,
+        hidden_outgoing_levels=0,
+        hidden_incoming_levels=1,
+    ) == [
+        "Revisa salida y entrada por separado para evitar mezclar dependencias hijas con tablas referenciadoras.",
+        "Hay niveles no visibles por límite de profundidad: usa el resumen para decidir si necesitas ampliar el alcance del diagrama.",
+    ]
+
+
+def test_word_generator_adds_diagram_legend_section_with_expected_rows() -> None:
+    generator = WordGenerator(database="db", headers={})
+    document = generator._initialize_document(template_path=None)
+
+    generator._add_diagram_legend_section(document=document)
+
+    paragraph_texts = [paragraph.text for paragraph in document.paragraphs]
+    table_texts = [cell.text for table in document.tables for row in table.rows for cell in row.cells]
+
+    assert any("Leyenda visual" == text for text in paragraph_texts)
+    assert "Salida" in table_texts
+    assert "Entrada" in table_texts
+    assert "Entidad" in table_texts
+    assert "Asociación" in table_texts
+    assert "Jerarquía" in table_texts
+    assert "FK" in table_texts
+    assert any("Los marcadores de cardinalidad se muestran separados" in text for text in paragraph_texts)
+    assert all("Notas de lectura" != text for text in paragraph_texts)
+
+
+def test_shared_diagram_legend_rows_match_html_payload_contract() -> None:
+    payload = build_diagram_legend_payload()
+    rows = build_diagram_legend_rows(payload)
+
+    assert payload["title"] == "Leyenda visual"
+    assert rows[0] == [
+        "Dirección",
+        payload["direction_items"][0]["label"],
+        payload["direction_items"][0]["description"],
+    ]
+    assert rows[1] == [
+        "Dirección",
+        payload["direction_items"][1]["label"],
+        payload["direction_items"][1]["description"],
+    ]
+    assert rows[-1] == [
+        "Tipo de relación",
+        payload["relation_type_items"][0]["label"],
+        payload["relation_type_items"][0]["description"],
+    ]
+
+
+def test_word_generator_inserts_diagram_legend_before_inventory_and_tables(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    generator = WordGenerator(database="db", headers={})
+    call_order: list[str] = []
+
+    class _Provider:
+        imprimir_config: dict[str, Any] = {}
+
+    monkeypatch.setattr(generator, "_configure_document_orientation", lambda *args, **kwargs: None)
+    monkeypatch.setattr(generator, "_add_diagram_legend_section", lambda *args, **kwargs: call_order.append("legend"))
+    monkeypatch.setattr(generator, "_add_inventory_overview", lambda *args, **kwargs: call_order.append("inventory"))
+    monkeypatch.setattr(generator, "_add_tables_content", lambda *args, **kwargs: call_order.append("tables"))
+    monkeypatch.setattr(generator, "_add_views_content", lambda *args, **kwargs: None)
+    monkeypatch.setattr(generator, "_add_routines_content", lambda *args, **kwargs: None)
+    monkeypatch.setattr(generator, "_build_output_file_for_chunk", lambda output_file, idx, total_chunks: output_file)
+
+    from util_bbdd.doc.word_generator import DocumentChunkConfig
+
+    generator._generate_single_document_chunk(
+        idx=1,
+        total_chunks=1,
+        all_tables=[("users", "")],
+        table_chunk=[("users", "")],
+        views=[],
+        routines=[],
+        data_provider=_Provider(),
+        output_file=tmp_path / "report.docx",
+        config=DocumentChunkConfig(
+            include_tables=True,
+            include_views=False,
+            include_procedures=False,
+            include_functions=False,
+            include_storage=False,
+            table_section_flags=[False, False, False, False, False, False],
+            view_section_flags=[False, False],
+            include_diagrams=True,
+        ),
+        graph_generator=None,
+    )
+
+    assert call_order == ["legend", "inventory", "tables"]
 
 
 def test_html_generator_generate_document_builds_graph_generator_when_none(

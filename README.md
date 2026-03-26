@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB (sync).
 
-**Version:** 0.6.1 | **Status:** ✅ Estable
+**Version:** 0.6.2 | **Status:** ✅ Estable
 
 Incluye:
 - ✅ **CRUD en lote** desde DataFrames (insert/update/delete masivo)
@@ -28,7 +28,7 @@ Incluye:
 
 Nota: `hsqldb` no dispone de implementación async en `util_bbdd`. Las factorías async lanzan error explícito para ese motor.
 
-## Arquitectura v0.6.1 - Estructura de 3 Niveles
+## Arquitectura v0.6.2 - Estructura de 3 Niveles
 
 Util_bbdd usa una **arquitectura jerárquica de 3 niveles** para máxima modularidad:
 
@@ -109,7 +109,7 @@ doc/                 # Generadores documentales
 - ✅ Fácil agregar nuevos motores (solo agregar archivo en `connection/motors/`)
 - ✅ Compatibilidad mantenida en wrappers legacy seleccionados; el manager sync usa `SyncDatabaseManager`
 
-## Novedades v0.6.1 en grafos y documentación
+## Novedades v0.6.2 en grafos y documentación
 
 - Relaciones de n niveles mediante `max_depth`
 - Dirección configurable del recorrido: `incoming`, `outgoing` o `both`
@@ -117,10 +117,13 @@ doc/                 # Generadores documentales
 - Cardinalidad representada por extremos en Graphviz
 - HTML con pestañas por nivel y por sentido
 - Word con resumen de niveles totales y no visibles
+- Payloads compartidos para leyenda y resumen entre HTML y Word
+- Exportación HTML offline con iconos SVG locales para paginación y acciones
+- Diagrama HTML inline con zoom, paneo y controles de navegación offline
 
-### Resumen de la release v0.6.1
+### Resumen de la release v0.6.2
 
-La versión v0.6.1 amplía la base multinivel introducida en v0.6.0 y refuerza la legibilidad de los diagramas relacionales en Graphviz, HTML y Word.
+La versión v0.6.2 cierra la evolución multinivel introducida en v0.6.0 y consolidada en v0.6.1, con foco en portabilidad offline, reutilización documental y cierre operativo de la experiencia HTML.
 
 - Tipología visual de tablas en diagramas Graphviz y HTML:
   - `entity`: azul pastel
@@ -128,13 +131,16 @@ La versión v0.6.1 amplía la base multinivel introducida en v0.6.0 y refuerza l
   - `hierarchy`: naranja pastel
 - La tipología visual es heurística y se calcula desde `analysis/base.py`, de forma reutilizable por distintos renderers.
 - La detección inicial de `association` usa varias FKs y, cuando aplica, PK compuesta basada en columnas relacionales.
-- HTML expone una leyenda visual explícita con:
+- HTML y Word comparten una leyenda visual explícita con:
   - dirección (`Salida` / `Entrada`)
   - tipo de tabla
   - cardinalidad
   - tipo de relación soportado hoy (`FK`)
+- El resumen de niveles, ayudas de navegación y textos de dirección se generan desde payloads comunes reutilizables.
 - La política actual de vistas en diagramas enriquecidos sigue siendo `exclude`.
 - Word y HTML pueden reutilizar una misma instancia de `GraphvizRelationshipGraphExt` durante la misma corrida multi-formato para evitar recomputación innecesaria.
+- La salida HTML offline copia iconos SVG locales y mantiene operativos los botones de exportación y paginación sin dependencias externas.
+- Los diagramas de detalle se embeben como SVG inline para garantizar paneo y zoom desde la propia página en navegadores offline.
 
 ### Semántica de tipología visual
 
@@ -151,10 +157,14 @@ Si un esquema contiene tablas híbridas o patrones muy específicos por motor, l
 ```toml
 [imprimir_config.imprimir.grafo]
 enabled = true
+show_columns = true
 max_depth = 3
 direction = "both"
 images_paginated = true
 max_subnodes = 10
+
+[imprimir_config.imprimir.grafo.summary]
+enabled = true
 
 [imprimir_config.imprimir.grafo.columns]
 mode = "relations"
@@ -165,6 +175,28 @@ show_data_types = false
 style = "end_markers"
 show_constraint_name = false
 ```
+
+`show_columns` sigue siendo el interruptor global para el detalle tabular del grafo:
+
+- `true`: se muestran columnas segun `grafo.columns.mode`
+- `false`: los nodos se renderizan sin columnas aunque el bloque `grafo.columns` exista
+
+### Ejemplo completo de imprimir_config
+
+Existe un ejemplo completo, autocomentado y alineado con el contrato actual en:
+
+- [docs/examples/imprimir_config_full_example.toml](docs/examples/imprimir_config_full_example.toml)
+
+Ese fichero documenta todas las secciones soportadas hoy por `imprimir`:
+
+- tablas
+- vistas
+- rutinas
+- almacenamiento
+- columnas_charset
+- info_database
+- grafo
+- opciones generales de Word y HTML
 
 ### Ejemplo de uso de diagramas multinivel
 
@@ -532,7 +564,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.6.1** (Stable - Diagramas refinados y reutilización documental)
+**Current Version: v0.6.2** (Stable - UX HTML offline, assets locales y payloads documentales compartidos)
 
 Roadmap:
 - `v0.1.0`: CRUD base + auditoría
@@ -541,7 +573,8 @@ Roadmap:
 - `v0.4.0`: Consolidación de conexiones
 - `v0.5.0` ✅: Refactorización arquitectónica (3-level hierarchy)
 - `v0.6.0` ✅: Grafos multinivel, HTML tabulado y contrato documental nuevo
-- `v0.6.1` ✅ (actual): Tipología visual, leyenda HTML ampliada y reutilización de análisis entre Word y HTML
+- `v0.6.1` ✅: Tipología visual, leyenda HTML ampliada y reutilización de análisis entre Word y HTML
+- `v0.6.2` ✅ (actual): SVG inline offline, resumen/leyenda compartidos, iconos locales y ajuste de tooltips/exportación
 - `v1.0.0`: API estable, cobertura 85%+
 
 ## Licencia

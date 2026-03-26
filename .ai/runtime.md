@@ -68,3 +68,4 @@ rm -rf build dist *.egg-info .pytest_cache htmlcov
 - **pyproject.toml:** Metadata, dependencies, tool config
 - **pytest.ini:** Test discovery, markers, timeout
 - **docker-compose.yml:** Test infrastructure (DB containers)
+- **docs/examples/imprimir_config_full_example.toml:** Referencia completa del contrato documental `imprimir_config`

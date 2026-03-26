@@ -63,9 +63,21 @@
   </div>
 {%- endmacro %}
 
-{% macro render_export_button(button_id, short_label, tooltip_text) -%}
-  <button type="button" id="{{ button_id }}" class="icon-button" title="{{ tooltip_text }}">
+{% macro render_export_button(button_id, short_label, tooltip_text, icon_name=None) -%}
+  <button type="button" id="{{ button_id }}" class="icon-button" data-tooltip="{{ tooltip_text }}" aria-label="{{ tooltip_text }}">
+    {% if icon_name %}
+      <img class="icon-button-icon" src="../assets/icons/{{ icon_name }}.svg" alt="" aria-hidden="true" />
+    {% endif %}
     <span class="icon-label">{{ short_label }}</span>
+  </button>
+{%- endmacro %}
+
+{% macro render_pagination_button(button_id, label, icon_name, tooltip_text) -%}
+  <button type="button" id="{{ button_id }}" class="pagination-button" data-tooltip="{{ tooltip_text }}" aria-label="{{ label }}">
+    {% if icon_name %}
+      <img class="pagination-button-icon" src="../assets/icons/{{ icon_name }}.svg" alt="" aria-hidden="true" />
+    {% endif %}
+    <span class="pagination-button-label">{{ label }}</span>
   </button>
 {%- endmacro %}
 

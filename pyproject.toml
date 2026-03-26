@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "util_bbdd"
-version = "0.6.1"
+version = "0.6.2"
 description = "Librería de operaciones de base de datos: CRUD en lote, auditoría, conexiones pooled y documentación."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -70,6 +70,7 @@ util_bbdd = [
     "doc/data/**/*.json",
     "doc/data/html_assets/*.js",
     "doc/data/html_assets/*.css",
+    "doc/data/html_assets/icons/*.svg",
 ]
 
 [tool.ruff]

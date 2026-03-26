@@ -2,6 +2,7 @@
 
 import html
 import logging
+import re
 import shutil
 import xml.etree.ElementTree as ET
 
@@ -12,6 +13,13 @@ from typing import Any, LiteralString
 from jinja2 import Template
 
 from ..analysis.graphviz_ext import GraphvizRelationshipGraphExt
+from .diagram_legend import (
+    build_diagram_direction_help,
+    build_diagram_legend_payload,
+    build_diagram_navigation_tips,
+    build_hidden_levels_help,
+)
+from .diagram_summary import build_diagram_summary_payload
 from .print_config_manager import PrintConfigManager
 from .template_engine import TemplateEngine
 
@@ -1246,7 +1254,7 @@ class HtmlGenerator:
         return report
 
     def _copy_offline_assets(self, output_dir: Path) -> None:
-        """Copia assets estáticos para funcionamiento offline del HTML."""
+        """Copia assets estáticos (incluyendo subcarpetas) para funcionamiento offline del HTML."""
         source_assets_dir: Path = Path(__file__).parent / "data" / "html_assets"
         target_assets_dir: Path = output_dir / "assets"
 
@@ -1255,9 +1263,15 @@ class HtmlGenerator:
             return
 
         target_assets_dir.mkdir(parents=True, exist_ok=True)
-        for source_file in source_assets_dir.iterdir():
-            if source_file.is_file():
-                shutil.copy2(source_file, target_assets_dir / source_file.name)
+        for source_item in source_assets_dir.iterdir():
+            target_item: Path = target_assets_dir / source_item.name
+            if source_item.is_file():
+                shutil.copy2(source_item, target_item)
+            elif source_item.is_dir():
+                # Copiar carpeta recursivamente (ej. icons/)
+                if target_item.exists():
+                    shutil.rmtree(target_item)
+                shutil.copytree(source_item, target_item)
 
     def _build_graph_generator(self, data_provider: Any, options: dict[str, Any]) -> Any:
         """Crea GraphvizRelationshipGraphExt para generar SVG al vuelo."""
@@ -1266,6 +1280,7 @@ class HtmlGenerator:
         cardinality_options: dict[str, Any] = options.get("cardinality", {})
         return GraphvizRelationshipGraphExt(
             db_manager=db_manager,
+            show_columns=bool(options.get("show_columns", True)),
             column_mode=str(columns_options.get("mode", "relations")),
             max_columns=int(columns_options.get("max_items", 8)),
             show_data_types=bool(columns_options.get("show_data_types", False)),
@@ -1298,17 +1313,23 @@ class HtmlGenerator:
         )
 
         if include_diagrams and graph_generator is not None:
-            diagram_tabs, diagram_paths, diagram_summary = self._generate_svg_for_table(
+            diagram_tabs, diagram_paths, raw_diagram_summary = self._generate_svg_for_table(
                 table_name=table_name,
                 graph_generator=graph_generator,
                 diagram_options=diagram_options,
                 output_dir=output_dir,
                 navigation_links=svg_navigation_links,
             )
+            summary_enabled = bool(diagram_options.get("summary", {}).get("enabled", True))
+            diagram_summary = raw_diagram_summary if summary_enabled else {}
             payload["diagram_tabs"] = diagram_tabs
             payload["diagram_paths"] = diagram_paths
             payload["diagram_summary"] = diagram_summary
             payload["diagram_legend"] = self._build_diagram_legend_payload()
+            payload["diagram_viewer"] = self._build_diagram_viewer_payload(
+                diagram_summary=raw_diagram_summary,
+                diagram_tabs=diagram_tabs,
+            )
 
         return payload
 
@@ -1341,7 +1362,48 @@ class HtmlGenerator:
             "diagram_tabs": [],
             "diagram_summary": {},
             "diagram_legend": {},
+            "diagram_viewer": {},
             "diagram_paths": [],
+        }
+
+    def _build_diagram_viewer_payload(
+        self,
+        *,
+        diagram_summary: dict[str, Any] | None = None,
+        diagram_tabs: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Expone la configuración del visor HTML para pan y zoom controlado desde la página."""
+        summary: dict[str, Any] = diagram_summary or {}
+        tabs: list[dict[str, Any]] = diagram_tabs or []
+        has_hidden_levels: bool = bool(summary.get("has_any_hidden_levels"))
+        has_both_directions: bool = len(tabs) > 1
+        viewer_tips: list[str] = [
+            "Usa las pestañas por nivel para aislar relaciones cuando el diagrama tenga mucha densidad.",
+            "Empieza con Ajustar y luego aplica zoom solo sobre la zona que estés revisando.",
+        ]
+        if has_hidden_levels:
+            viewer_tips.append(
+                "Existen niveles no visibles por profundidad: revisa el resumen superior antes de asumir que el grafo está completo."
+            )
+        if has_both_directions:
+            viewer_tips.append(
+                "Alterna entre salida y entrada para separar dependencias hijas de tablas referenciadoras."
+            )
+
+        return {
+            "title": "Controles del visor",
+            "help": "Usa los botones, Ctrl + rueda para zoom y arrastra el diagrama para desplazarte.",
+            "status_ready": "Listo para navegar",
+            "status_dragging": "Moviendo diagrama",
+            "status_zoom_prefix": "Zoom",
+            "min_zoom": 0.5,
+            "max_zoom": 3.0,
+            "zoom_step": 0.25,
+            "pan_step": 140,
+            "initial_zoom": 1.0,
+            "wheel_zoom_requires_ctrl": True,
+            "drag_pan_enabled": True,
+            "tips": viewer_tips,
         }
 
     def _populate_table_payload_sections(
@@ -1642,6 +1704,7 @@ class HtmlGenerator:
                         "short_title": title,
                         "depth": depth,
                         "path": relative_path,
+                        "inline_svg": self._read_inline_svg_markup(path),
                         "direction": direction_key,
                         "aria_label": f"{direction_label} {title} de {table_name}",
                     }
@@ -1658,7 +1721,19 @@ class HtmlGenerator:
                     "group_id": f"{table_name}-{direction_key}",
                     "direction": direction_key,
                     "direction_label": direction_label,
+                    "tablist_label": f"Pestañas {direction_label} {table_name}",
                     "direction_help": self._get_diagram_direction_help(direction_key),
+                    "group_hint": self._build_diagram_group_hint(
+                        direction_key=direction_key,
+                        visible_levels=len(tab_items),
+                        total_levels=total_levels,
+                        hidden_levels=hidden_levels,
+                    ),
+                    "density_badge": self._build_diagram_density_badge(
+                        visible_levels=len(tab_items),
+                        total_levels=total_levels,
+                        hidden_levels=hidden_levels,
+                    ),
                     "items": tab_items,
                     "total_levels": total_levels,
                     "visible_levels": len(tab_items),
@@ -1668,6 +1743,12 @@ class HtmlGenerator:
             )
 
         return tabs, flat_paths, self._build_diagram_summary_payload(table_name=table_name, summary=summary, tabs=tabs)
+
+    def _read_inline_svg_markup(self, svg_path: Path) -> str:
+        """Lee un SVG generado y devuelve su markup listo para incrustar inline en HTML."""
+        svg_text: str = svg_path.read_text(encoding="utf-8")
+        svg_text = re.sub(r"^\s*<\?xml[^>]*\?>\s*", "", svg_text, count=1)
+        return svg_text.strip()
 
     def _build_diagram_summary_payload(
         self,
@@ -1687,90 +1768,71 @@ class HtmlGenerator:
         hidden_outgoing_levels = int(summary.get("hidden_outgoing_levels", 0))
         hidden_incoming_levels = int(summary.get("hidden_incoming_levels", 0))
 
-        return {
-            "root_table": str(summary.get("root_table", table_name)),
-            "max_depth": int(summary.get("max_depth", 0)),
-            "total_outgoing_levels": int(summary.get("total_outgoing_levels", visible_outgoing_levels)),
-            "total_incoming_levels": int(summary.get("total_incoming_levels", visible_incoming_levels)),
-            "hidden_outgoing_levels": hidden_outgoing_levels,
-            "hidden_incoming_levels": hidden_incoming_levels,
-            "visible_outgoing_levels": visible_outgoing_levels,
-            "visible_incoming_levels": visible_incoming_levels,
-            "has_hidden_outgoing_levels": hidden_outgoing_levels > 0,
-            "has_hidden_incoming_levels": hidden_incoming_levels > 0,
-            "has_any_hidden_levels": hidden_outgoing_levels > 0 or hidden_incoming_levels > 0,
-            "outgoing_hidden_help": self._build_hidden_levels_help("outgoing"),
-            "incoming_hidden_help": self._build_hidden_levels_help("incoming"),
-        }
+        payload = build_diagram_summary_payload(
+            max_depth=int(summary.get("max_depth", 0)),
+            total_outgoing_levels=int(summary.get("total_outgoing_levels", visible_outgoing_levels)),
+            total_incoming_levels=int(summary.get("total_incoming_levels", visible_incoming_levels)),
+            visible_outgoing_levels=visible_outgoing_levels,
+            visible_incoming_levels=visible_incoming_levels,
+            hidden_outgoing_levels=hidden_outgoing_levels,
+            hidden_incoming_levels=hidden_incoming_levels,
+        )
+        payload["root_table"] = str(summary.get("root_table", table_name))
+        return payload
+
+    def _build_diagram_group_hint(
+        self,
+        *,
+        direction_key: str,
+        visible_levels: int,
+        total_levels: int,
+        hidden_levels: int,
+    ) -> str:
+        """Devuelve una ayuda corta para orientar la lectura de un grupo de tabs."""
+        if hidden_levels > 0:
+            return (
+                f"Esta vista muestra {visible_levels} nivel(es) visibles de {total_levels}. "
+                "Usa las pestañas para aislar relaciones y reduce el ruido visual por profundidad."
+            )
+        if total_levels > 1:
+            return f"Esta vista reparte {total_levels} niveles en pestañas separadas para revisar la dirección {direction_key} sin mezclar recorridos."
+        return "Esta vista muestra un único nivel, útil para inspección rápida sin cambiar de contexto."
+
+    def _build_diagram_density_badge(self, *, visible_levels: int, total_levels: int, hidden_levels: int) -> str:
+        """Resume el nivel de densidad visual del grupo actual."""
+        if hidden_levels > 0:
+            return "Vista densa"
+        if total_levels > 1 or visible_levels > 1:
+            return "Vista multinivel"
+        return "Vista directa"
+
+    def _build_diagram_navigation_tips(
+        self,
+        *,
+        visible_outgoing_levels: int,
+        visible_incoming_levels: int,
+        hidden_outgoing_levels: int,
+        hidden_incoming_levels: int,
+    ) -> list[str]:
+        """Construye consejos de lectura para diagramas con varias pestañas o profundidad oculta."""
+        return build_diagram_navigation_tips(
+            visible_outgoing_levels=visible_outgoing_levels,
+            visible_incoming_levels=visible_incoming_levels,
+            hidden_outgoing_levels=hidden_outgoing_levels,
+            hidden_incoming_levels=hidden_incoming_levels,
+        )
 
     def _build_diagram_legend_payload(self) -> dict[str, Any]:
         """Devuelve la leyenda HTML del diagrama basada en el contrato real actual."""
-        return {
-            "title": "Leyenda visual",
-            "direction_items": [
-                {
-                    "label": "Salida",
-                    "swatch": "#1D70B8",
-                    "description": "Aristas salientes hacia tablas hijas o dependientes visibles en el diagrama.",
-                },
-                {
-                    "label": "Entrada",
-                    "swatch": "#A61C00",
-                    "description": "Aristas entrantes desde tablas padre o referenciadoras visibles en el diagrama.",
-                },
-            ],
-            "table_type_items": [
-                {
-                    "label": "Entidad",
-                    "swatch": GraphvizRelationshipGraphExt.ENTITY_TABLE_COLOR,
-                    "description": "Tabla de negocio general que no encaja en las heurísticas de asociación o jerarquía.",
-                },
-                {
-                    "label": "Asociación",
-                    "swatch": GraphvizRelationshipGraphExt.ASSOCIATION_TABLE_COLOR,
-                    "description": "Tabla puente detectada por varias FKs y, cuando aplica, PK compuesta basada en columnas relacionales.",
-                },
-                {
-                    "label": "Jerarquía",
-                    "swatch": GraphvizRelationshipGraphExt.HIERARCHY_TABLE_COLOR,
-                    "description": "Tabla con autorreferencia que representa relaciones padre-hijo dentro de la misma entidad.",
-                },
-            ],
-            "cardinality_items": [
-                {"marker": "1", "description": "Un registro relacionado."},
-                {"marker": "N", "description": "Muchos registros relacionados."},
-                {"marker": "M", "description": "Muchos registros en relaciones de tabla intermedia."},
-            ],
-            "relation_type_items": [
-                {
-                    "label": "FK",
-                    "description": "Tipo de relación soportado hoy por el renderer de diagramas: clave foránea.",
-                }
-            ],
-            "notes": [
-                "Los marcadores de cardinalidad se muestran separados de la arista para mejorar la legibilidad.",
-                "Los colores de tabla representan una tipología visual heurística del nodo, no una taxonomía absoluta del modelo de datos.",
-                "La leyenda de tipos de relación podrá ampliarse cuando analysis exponga más tipos reales además de FK.",
-            ],
-        }
+        return build_diagram_legend_payload()
 
     def _get_diagram_direction_help(self, direction_key: str) -> str:
         """Devuelve ayuda contextual por sentido del diagrama."""
-        if direction_key == "outgoing":
-            return "Relaciones de salida hacia tablas hijas o dependientes de la tabla actual."
-        return "Relaciones de entrada desde tablas padre o referenciadoras hacia la tabla actual."
+        return build_diagram_direction_help(direction_key)
 
     def _build_hidden_levels_help(self, direction_key: str) -> str:
         """Explica qué significa que existan niveles ocultos por dirección."""
-        if direction_key == "outgoing":
-            return (
-                "Salida oculta: niveles de tablas hijas o dependientes que existen en el grafo, "
-                "pero no se muestran por el límite de profundidad visible."
-            )
-        return (
-            "Entrada oculta: niveles de tablas padre o referenciadoras que existen en el grafo, "
-            "pero no se muestran por el límite de profundidad visible."
-        )
+        return build_hidden_levels_help(direction_key)
 
     def _generate_svg_for_table(
         self,

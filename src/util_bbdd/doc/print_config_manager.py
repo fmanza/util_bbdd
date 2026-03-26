@@ -47,6 +47,7 @@ class PrintConfigManager:
 
     DEFAULT_GRAPH: dict[str, Any] = {
         "enabled": False,
+        "show_columns": True,
         "render_format": "svg",
         "direction": "both",
         "view_policy": "exclude",
@@ -62,6 +63,9 @@ class PrintConfigManager:
         "cardinality": {
             "style": "end_markers",
             "show_constraint_name": False,
+        },
+        "summary": {
+            "enabled": True,
         },
     }
 
@@ -139,7 +143,20 @@ class PrintConfigManager:
             ),
         }
 
+        summary_cfg = graph.get("summary", {})
+        if not isinstance(summary_cfg, dict):
+            summary_cfg = {}
+        summary_cfg = {
+            "enabled": bool(
+                summary_cfg.get(
+                    "enabled",
+                    PrintConfigManager.DEFAULT_GRAPH["summary"]["enabled"],
+                )
+            )
+        }
+
         graph["enabled"] = bool(graph.get("enabled", PrintConfigManager.DEFAULT_GRAPH["enabled"]))
+        graph["show_columns"] = bool(graph.get("show_columns", PrintConfigManager.DEFAULT_GRAPH["show_columns"]))
         graph["images_paginated"] = bool(
             graph.get("images_paginated", PrintConfigManager.DEFAULT_GRAPH["images_paginated"])
         )
@@ -167,6 +184,7 @@ class PrintConfigManager:
         )
         graph["columns"] = columns_cfg
         graph["cardinality"] = cardinality_cfg
+        graph["summary"] = summary_cfg
 
         return {
             "tablas": tablas,
@@ -261,6 +279,7 @@ class PrintConfigManager:
         graph_options: dict[str, Any] = {
             "format": graph_format,
             "output_dir": Path(graph_cfg.get("output_dir", Path.cwd() / "_table_diagrams")),
+            "show_columns": bool(graph_cfg.get("show_columns", PrintConfigManager.DEFAULT_GRAPH["show_columns"])),
             "direction": str(graph_cfg.get("direction", PrintConfigManager.DEFAULT_GRAPH["direction"])),
             "view_policy": str(graph_cfg.get("view_policy", PrintConfigManager.DEFAULT_GRAPH["view_policy"])),
             "max_depth": PrintConfigManager._to_positive_int(
@@ -277,6 +296,7 @@ class PrintConfigManager:
             "dpi": PrintConfigManager._to_positive_int(graph_cfg.get("dpi", 150), fallback=150),
             "columns": dict(graph_cfg.get("columns", {})),
             "cardinality": dict(graph_cfg.get("cardinality", {})),
+            "summary": dict(graph_cfg.get("summary", {})),
         }
         return {
             "include_tables": bool(config.get("tablas", {}).get("imprimir_tablas", False)),
@@ -333,6 +353,7 @@ class PrintConfigManager:
                 fallback="svg",
             ),
             "output_dir": Path(graph_cfg.get("output_dir", output_dir / "graphs")),
+            "show_columns": bool(graph_cfg.get("show_columns", PrintConfigManager.DEFAULT_GRAPH["show_columns"])),
             "direction": str(graph_cfg.get("direction", PrintConfigManager.DEFAULT_GRAPH["direction"])),
             "view_policy": str(graph_cfg.get("view_policy", PrintConfigManager.DEFAULT_GRAPH["view_policy"])),
             "max_depth": PrintConfigManager._to_positive_int(
@@ -343,6 +364,7 @@ class PrintConfigManager:
             "max_subnodes": PrintConfigManager._to_positive_int(graph_cfg.get("max_subnodes", 10), fallback=10),
             "columns": dict(graph_cfg.get("columns", {})),
             "cardinality": dict(graph_cfg.get("cardinality", {})),
+            "summary": dict(graph_cfg.get("summary", {})),
         }
 
         return {

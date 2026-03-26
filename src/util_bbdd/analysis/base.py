@@ -158,7 +158,6 @@ class DatabaseRelationshipGraphBase:
 
         nodes: dict[str, GraphNode] = {table_name: GraphNode(table_name=table_name, is_root=True)}
         levels: list[GraphLevel] = []
-        seen_relations: set[tuple[str, str, str, str, str]] = set()
 
         if normalized_direction in {LevelDirection.OUTGOING, LevelDirection.BOTH}:
             levels.extend(
@@ -167,7 +166,7 @@ class DatabaseRelationshipGraphBase:
                     max_depth=normalized_depth,
                     direction=LevelDirection.OUTGOING,
                     nodes=nodes,
-                    seen_relations=seen_relations,
+                    seen_relations=set(),
                 )
             )
 
@@ -178,11 +177,16 @@ class DatabaseRelationshipGraphBase:
                     max_depth=normalized_depth,
                     direction=LevelDirection.INCOMING,
                     nodes=nodes,
-                    seen_relations=seen_relations,
+                    seen_relations=set(),
                 )
             )
 
-        edges: list[GraphEdge] = [edge for level in levels for edge in level.edges]
+        unique_edges_by_relation: dict[tuple[str, str, str, str, str], GraphEdge] = {}
+        for level in levels:
+            for edge in level.edges:
+                unique_edges_by_relation.setdefault(self._build_relation_key(edge.relation), edge)
+
+        edges: list[GraphEdge] = list(unique_edges_by_relation.values())
         relations: list[TableRelation] = [edge.relation for edge in edges]
         tables: set[str] = {table_name}
         for relation in relations:

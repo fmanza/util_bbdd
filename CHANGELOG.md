@@ -5,6 +5,27 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.6.2] - 2026-03-26
+
+### Added
+- Nuevas fuentes de verdad compartidas para diagramas documentales:
+  - `src/util_bbdd/doc/diagram_legend.py`
+  - `src/util_bbdd/doc/diagram_summary.py`
+- Copia de assets offline con subcarpeta `icons/` para páginas HTML exportadas y prueba dedicada de regresión.
+- Ejemplo completo y comentado del contrato `imprimir_config` en `docs/examples/imprimir_config_full_example.toml`.
+- Notas de release específicas de v0.6.2 en `docs/v0.6.2/RELEASE_NOTES_v0.6.2.md`.
+
+### Changed
+- El detalle HTML de diagramas pasa a consumir SVG inline para garantizar navegación offline con zoom, paneo, ajuste y reset sin depender de `contentDocument`.
+- HTML y Word comparten ahora payloads comunes para resumen de niveles, ayudas de lectura y leyenda visual.
+- Las páginas globales `Ver todo` muestran acciones de exportación con iconografía local y tooltips consistentes en la salida offline.
+- La documentación pública se alinea a v0.6.2 e incorpora el contrato comentado de `imprimir_config` como referencia principal.
+
+### Fixed
+- Los tooltips de exportación de `Ver todo` ya no quedan recortados por el contenedor del toolbar.
+- La exportación HTML offline incluye los iconos SVG necesarios para paginación y acciones de exportación.
+- La experiencia interactiva de diagramas en HTML se mantiene operativa fuera de VS Code y en navegadores externos.
+
 ## [0.6.1] - 2026-03-24
 
 ### Added

@@ -48,12 +48,14 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
     ASSOCIATION_TABLE_COLOR: str = "#D8F3DC"  # Verde pastel para tablas de asociación
     HIERARCHY_TABLE_COLOR: str = "#FFE5C2"  # Naranja pastel para tablas jerárquicas
     TEXT_COLOR: str = "#000000"  # Negro para texto
-    DEFAULT_TABLE_WIDTH: str = "240"
-    DEFAULT_NAME_COLUMN_WIDTH: str = "160"
-    DEFAULT_TYPE_COLUMN_WIDTH: str = "80"
-    DEFAULT_TITLE_MAX_CHARS: int = 28
-    DEFAULT_COLUMN_MAX_CHARS: int = 24
-    DEFAULT_TYPE_MAX_CHARS: int = 18
+    DEFAULT_TABLE_WIDTH: str = "180"
+    DEFAULT_NAME_COLUMN_WIDTH: str = "120"
+    DEFAULT_TYPE_COLUMN_WIDTH: str = "60"
+    DEFAULT_TITLE_MAX_CHARS: int = 21
+    DEFAULT_COLUMN_MAX_CHARS: int = 18
+    DEFAULT_TYPE_MAX_CHARS: int = 13
+    CARDINALITY_LABEL_DISTANCE: str = "2.2"
+    CARDINALITY_LABEL_ANGLE: str = "28"
 
     def __init__(
         self,
@@ -922,7 +924,8 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         edge_font_size: str = "10" if is_raster_format else "9"
         edge_label_font_size: str = "9" if is_raster_format else "8"
 
-        dot.attr("node", shape="plaintext", fontname="Arial", fontsize=node_font_size)
+        # `plain` elimina el margen implícito del nodo y ajusta mejor la arista al borde visual del label HTML.
+        dot.attr("node", shape="plain", margin="0", fontname="Arial", fontsize=node_font_size)
         dot.attr("edge", fontname="Arial", fontsize=edge_font_size, color="#666666")
 
         return dot, is_raster_format, edge_label_font_size
@@ -982,27 +985,34 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         """
         for edge in document.edges:
             relation = edge.relation
-            cardinality: str = self._determine_cardinality(
-                source_col=relation.source_column,
-                target_col=relation.target_column,
-                source_table=relation.source_table,
-                target_table=relation.target_table,
-            )
-            relation_label: str = f"{relation.source_column} -> {relation.target_column}"
-            if self.show_constraint_name:
-                relation_label = f"{relation.constraint_name}: {relation_label}"
-            cardinality_markers: CardinalityEndMarker = self._build_cardinality_markers(cardinality)
-            edge_color = "#1D70B8" if edge.direction == LevelDirection.OUTGOING else "#A61C00"
+            edge_attributes = self._build_edge_attributes(edge=edge, edge_label_font_size=edge_label_font_size)
+            dot.edge(relation.source_table, relation.target_table, **edge_attributes)
 
-            dot.edge(
-                relation.source_table,
-                relation.target_table,
-                xlabel=relation_label,
-                taillabel=cardinality_markers.source_marker,
-                headlabel=cardinality_markers.target_marker,
-                fontsize=edge_label_font_size,
-                color=edge_color,
-            )
+    def _build_edge_attributes(self, edge: GraphEdge, edge_label_font_size: str) -> dict[str, str]:
+        """Construye los atributos de render de una arista, incluyendo cardinalidad legible."""
+        relation: TableRelation = edge.relation
+        cardinality: str = self._determine_cardinality(
+            source_col=relation.source_column,
+            target_col=relation.target_column,
+            source_table=relation.source_table,
+            target_table=relation.target_table,
+        )
+        relation_label: str = f"{relation.source_column} -> {relation.target_column}"
+        if self.show_constraint_name:
+            relation_label = f"{relation.constraint_name}: {relation_label}"
+
+        cardinality_markers: CardinalityEndMarker = self._build_cardinality_markers(cardinality)
+        edge_color: str = "#1D70B8" if edge.direction == LevelDirection.OUTGOING else "#A61C00"
+        return {
+            "xlabel": relation_label,
+            "taillabel": cardinality_markers.source_marker,
+            "headlabel": cardinality_markers.target_marker,
+            "fontsize": edge_label_font_size,
+            "labelfontsize": edge_label_font_size,
+            "labeldistance": self.CARDINALITY_LABEL_DISTANCE,
+            "labelangle": self.CARDINALITY_LABEL_ANGLE,
+            "color": edge_color,
+        }
 
     def _render_graph(self, dot: Any, output_file: Path, format: str, table_name: str) -> Path:
         """

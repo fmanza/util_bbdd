@@ -1,12 +1,12 @@
-# 📚 Guía de Migración - util_bbdd v0.6.0
+# 📚 Guía de Migración - util_bbdd v0.6.2
 
-**Para usuarios que migren hacia v0.6.0**
+**Para usuarios que migren hacia v0.6.2**
 
 ---
 
 ## ⚠️ IMPORTANTE: Cambios de Compatibilidad
 
-⚠️ **BREAKING CHANGE:** el subsistema de grafos y documentación usa un contrato nuevo para configuración de relaciones. `first_level_only` y `show_columns` dejan de ser el eje principal de configuración.
+⚠️ **BREAKING CHANGE:** el subsistema de grafos y documentación usa un contrato nuevo para configuración de relaciones. `first_level_only` deja de ser el eje principal de configuración y pasa a expresarse mediante `grafo.max_depth`.
 
 ⚠️ **BREAKING CHANGE:** los diagramas HTML ya no se presentan como una lista plana de SVG. Ahora se agrupan por sentido (`Salida` y `Entrada`) y por nivel.
 
@@ -22,7 +22,22 @@ El contrato actual usa claves explícitas por capacidad:
 
 ⚠️ **CAMBIO RELEVANTE:** las plantillas HTML antiguas en `src/util_bbdd/doc/data` se sustituyen por una estructura Jinja2 modular en `src/util_bbdd/doc/templates`.
 
+⚠️ **REFERENCIA RECOMENDADA:** para una configuración completa y comentada del bloque `imprimir`, revisa [docs/examples/imprimir_config_full_example.toml](docs/examples/imprimir_config_full_example.toml).
+
 Pero veamos la nueva estructura recomendada para nuevo código.
+
+---
+
+## 🆕 Novedades acumuladas en v0.6.2
+
+v0.6.2 no introduce un nuevo breaking change adicional sobre el contrato funcional de grafos definido en v0.6.0, pero sí consolida la experiencia documental y offline:
+
+- HTML usa SVG inline para asegurar paneo y zoom fuera de VS Code.
+- Word y HTML comparten payloads de resumen y leyenda para mantener semántica consistente.
+- La salida offline copia iconos SVG locales para paginación y exportación.
+- El contrato `imprimir_config` dispone de referencia completa y comentada en [docs/examples/imprimir_config_full_example.toml](docs/examples/imprimir_config_full_example.toml).
+
+Si ya migraste a la familia v0.6.x, el salto a v0.6.2 es principalmente documental y de UX offline.
 
 ---
 
