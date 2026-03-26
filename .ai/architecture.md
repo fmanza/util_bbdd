@@ -1,6 +1,6 @@
 # 🏗️ Arquitectura de util_bbdd
 
-**Versión:** 0.6.1
+**Versión:** 0.6.2
 **Última Actualización:** Marzo 2026
 **Estado:** Estable | Completamente Refactorizado
 **Motores Soportados:** MariaDB • PostgreSQL • Oracle • SQLite • HSQLDB • SQL Server
@@ -25,7 +25,7 @@
 
 **util_bbdd** es una librería que proporciona abstracción unificada para operaciones con múltiples motores de base de datos, enfatizando:
 
-- **Migraciones explícitas**: v0.6.0 introdujo cambios controlados en el subsistema de grafos y documentación, y v0.6.1 los consolida sin cambiar la arquitectura base
+- **Migraciones explícitas**: v0.6.0 introdujo cambios controlados en el subsistema de grafos y documentación; v0.6.1 consolidó semántica visual y v0.6.2 cierra la capa documental con payloads compartidos y portabilidad offline
 - **Jerarquía de 3 niveles**: Foundation → Services → Specialization
 - **API moderna**: Managers sync/async con soporte nativo para async/await
 - **Type-safe**: Full type hints con validación en tiempo de desarrollo
@@ -652,6 +652,6 @@ elapsed = time.time() - start
 
 ---
 
-*Documento actualizado: Marzo 2026 - alineado a v0.6.1*
+*Documento actualizado: Marzo 2026 - alineado a v0.6.2*
 *Mantenedor: util_bbdd contributors*
 *Licencia: [Ver LICENSE](../LICENSE)*

@@ -29,6 +29,8 @@
 - **Metadata Cache**: Esquema en caché con TTL
 - **Audit Trail**: CSV con user, timestamp, operación, delta
 - **GraphDocument**: Modelo intermedio del grafo con nodos, aristas, niveles y resumen de niveles ocultos
+- **DiagramSummary Payload**: Contrato compartido que resume profundidad visible, niveles por sentido y ayudas de navegación para HTML y Word
+- **DiagramLegend Payload**: Contrato compartido con leyenda visual de dirección, cardinalidad, tipo de tabla y tipo de relación
 - **LevelDirection**: Sentido del recorrido relacional: `incoming`, `outgoing` o `both`
 - **Relation Graph**: Grafo de FK/PK con soporte multinivel y agrupación por nivel
 

@@ -1,0 +1,168 @@
+# Ejemplo completo y comentado del contrato de `imprimir_config`.
+#
+# Este archivo sirve como referencia documental y como punto de partida para
+# construir la variable `imprimir` o un bloque `imprimir_config` completo.
+#
+# Formas soportadas por la libreria:
+# 1. Pasar solo el bloque `imprimir` como dict en Python.
+# 2. Pasar un bloque raiz `imprimir_config` que contenga `imprimir`.
+#
+# Este ejemplo usa la forma completa para dejar visible toda la jerarquia.
+
+[imprimir_config]
+
+[imprimir_config.imprimir]
+# Ruta opcional a una plantilla Word personalizada.
+# Si se deja vacia o se omite, util_bbdd usa su plantilla por defecto.
+plantilla_word = "docs/templates/documentar_bbdd.docx"
+
+# Ruta opcional a una plantilla HTML Jinja2 personalizada.
+# Si se deja vacia o se omite, util_bbdd usa la plantilla HTML interna.
+plantilla_html = "src/util_bbdd/doc/templates/pages/detail.html.j2"
+
+# Numero maximo de tablas por documento Word cuando la salida se fragmenta.
+# Debe ser un entero positivo.
+tablas_por_documento = 50
+
+# Estilo de tabla para Word.
+# Debe coincidir con un estilo disponible en la plantilla .docx usada.
+table_style = "Table Grid"
+
+# Numero de elementos por pagina en colecciones HTML.
+# Aplica a listados como tablas, vistas o rutinas.
+html_items_por_pagina = 15
+
+[imprimir_config.imprimir.tablas]
+# Activa o desactiva la generacion de documentacion de tablas.
+imprimir_tablas = true
+
+# Incluye el DDL de cada tabla.
+ddl = true
+
+# Incluye el listado de columnas.
+columnas = true
+
+# Incluye claves primarias.
+pk = true
+
+# Incluye claves foraneas.
+fk = true
+
+# Incluye restricciones unicas.
+unicas = true
+
+# Incluye indices.
+indices = true
+
+# Incluye charset/collation a nivel de tabla cuando el motor lo soporta.
+charset_collation = false
+
+[imprimir_config.imprimir.vistas]
+# Activa o desactiva la generacion de documentacion de vistas.
+imprimir_vistas = true
+
+# Incluye el DDL de cada vista.
+ddl = true
+
+# Incluye las columnas de cada vista.
+columnas = true
+
+[imprimir_config.imprimir.rutinas]
+# Incluye procedimientos almacenados.
+imprimir_procedures = true
+
+# Incluye funciones almacenadas.
+imprimir_function = true
+
+[imprimir_config.imprimir.almacenamiento]
+# Incluye el inventario de almacenamiento si el motor lo soporta.
+imprimir_almacenamiento = true
+
+[imprimir_config.imprimir.columnas_charset]
+# Incluye charset/collation a nivel de columna cuando el motor lo soporta.
+charset_collation = false
+
+[imprimir_config.imprimir.info_database]
+# Activa la pagina o seccion de informacion general de la base de datos.
+imprimir_info_database = true
+
+# Incluye la version del motor.
+version = true
+
+# Incluye charset/collation general de la base de datos cuando aplica.
+charset_collation = true
+
+[imprimir_config.imprimir.grafo]
+# Activa la generacion de diagramas relacionales.
+enabled = true
+
+# Restriccion general para mostrar o no columnas dentro de los nodos del grafo.
+# - true: el renderer puede mostrar columnas segun `grafo.columns.mode`
+# - false: se fuerzan nodos sin detalle de columnas, aunque exista configuracion
+#   en `grafo.columns`
+show_columns = true
+
+# Formato canonico de render.
+# Valores soportados hoy: "svg" y "png".
+# Recomendacion:
+# - HTML: "svg"
+# - Word: puede declararse "svg", pero la libreria lo convertira a "png"
+#   durante la resolucion de la salida Word.
+render_format = "svg"
+
+# Directorio opcional para los artefactos del grafo.
+# Si se omite, cada generador resuelve una ruta por defecto coherente con su salida.
+output_dir = "./documentacion/graphs"
+
+# Direccion del recorrido relacional.
+# Valores soportados: "incoming", "outgoing", "both".
+direction = "both"
+
+# Politica de diagramado para objetos no modelados como nodos del grafo.
+# Valor soportado actualmente: "exclude".
+view_policy = "exclude"
+
+# Profundidad maxima visible del grafo.
+# Debe ser un entero positivo.
+max_depth = 3
+
+# Si es true, divide diagramas densos en varias imagenes o vistas.
+images_paginated = true
+
+# Numero maximo de relaciones visibles por pagina o fragmento del diagrama.
+# Debe ser un entero positivo.
+max_subnodes = 10
+
+# DPI para salidas raster como PNG.
+# En SVG no cambia la geometria base del grafo, pero se mantiene en el contrato.
+dpi = 150
+
+[imprimir_config.imprimir.grafo.summary]
+# Controla la visualizacion compartida del bloque "Resumen de niveles"
+# en HTML y Word.
+enabled = true
+
+[imprimir_config.imprimir.grafo.columns]
+# Politica de columnas visibles en los nodos del diagrama.
+# Este bloque solo aplica si `grafo.show_columns = true`.
+# Valores soportados:
+# - "relations": solo columnas relacionadas con las aristas visibles
+# - "compact": prioriza relacionadas y rellena con otras hasta el maximo
+# - "all": muestra todas las columnas hasta el maximo configurado
+mode = "relations"
+
+# Numero maximo de columnas visibles por nodo.
+# Debe ser un entero positivo.
+max_items = 8
+
+# Si es true, muestra tambien el tipo de dato en la tabla del nodo.
+show_data_types = false
+
+[imprimir_config.imprimir.grafo.cardinality]
+# Estilo de cardinalidad.
+# Valor usado actualmente por el renderer enriquecido: "end_markers".
+style = "end_markers"
+
+# Si es true, añade el nombre de la constraint en la etiqueta relacional.
+# Si es false, se muestra solo el mapeo columna origen -> columna destino.
+show_constraint_name = false

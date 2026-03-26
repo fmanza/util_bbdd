@@ -27,15 +27,28 @@
   .status-error { background: #fee2e2; color: #991b1b; }
   .storage-card { margin-top: 10px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fcfcfd; }
   .num-right { text-align: right; }
-  .diagram-summary { margin-bottom: 14px; color: #374151; }
+  .diagram-disclosure { overflow: hidden; }
+  .diagram-disclosure-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; color: #111827; list-style: none; }
+  .diagram-disclosure-toggle::-webkit-details-marker { display: none; }
+  .diagram-disclosure-toggle::after { content: '+'; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid #d1d5db; background: #ffffff; color: #374151; line-height: 1; }
+  .diagram-disclosure[open] .diagram-disclosure-toggle::after { content: '−'; }
+  .diagram-disclosure-body { padding: 0; }
+  .diagram-disclosure--summary { margin-bottom: 14px; border: 1px solid #dbe4ea; border-radius: 10px; background: linear-gradient(180deg, #fbfcfe 0%, #f4f7fb 100%); color: #374151; }
+  .diagram-disclosure--summary[open] { box-shadow: 0 10px 24px rgba(148, 163, 184, 0.14); }
+  .diagram-disclosure-toggle--summary { padding: 14px; font-weight: 700; }
+  .diagram-disclosure-toggle--summary::after { width: 24px; height: 24px; font-size: 18px; flex: 0 0 24px; }
+  .diagram-disclosure-body--summary { padding: 0 14px 14px; }
   .diagram-policy { margin-bottom: 16px; padding: 14px; border: 1px solid #d8e2ea; border-radius: 10px; background: linear-gradient(180deg, #fbfcfe 0%, #f3f6fa 100%); }
   .diagram-policy h5 { margin: 0 0 8px; }
   .diagram-policy-label { font-weight: 600; color: #111827; }
   .diagram-policy-list { margin: 10px 0 0; padding-left: 18px; color: #4b5563; }
   .diagram-policy-list li { margin-top: 6px; }
   .diagram-policy-list li:first-child { margin-top: 0; }
-  .diagram-legend { margin-bottom: 16px; padding: 14px; border: 1px solid #dbe4ea; border-radius: 10px; background: linear-gradient(180deg, #fcfefe 0%, #f4f8fb 100%); }
-  .diagram-legend h5 { margin: 0 0 10px; }
+  .diagram-disclosure--legend { margin-bottom: 16px; border: 1px solid #dbe4ea; border-radius: 10px; background: linear-gradient(180deg, #fcfefe 0%, #f4f8fb 100%); }
+  .diagram-disclosure--legend[open] { box-shadow: 0 10px 24px rgba(148, 163, 184, 0.16); }
+  .diagram-disclosure-toggle--legend { padding: 14px; font-weight: 700; }
+  .diagram-disclosure-toggle--legend::after { width: 24px; height: 24px; font-size: 18px; flex: 0 0 24px; }
+  .diagram-disclosure-body--legend { padding: 0 14px 14px; }
   .diagram-legend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
   .diagram-legend-section { padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #ffffff; }
   .diagram-legend-section h6 { margin: 0 0 8px; font-size: 14px; color: #111827; }
@@ -50,23 +63,92 @@
   .diagram-legend-notes li:first-child { margin-top: 0; }
   .diagram-group { margin-top: 16px; }
   .diagram-group-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+  .diagram-badge { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; background: #e5eef8; color: #1d4ed8; font-size: 12px; font-weight: 700; }
+  .diagram-group-hint { margin: 10px 0 12px; padding: 10px 12px; border: 1px solid #dbe4ea; border-radius: 8px; background: #f8fbff; color: #374151; font-size: 14px; }
   .diagram-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-  .diagram-tab-btn { border: 1px solid #d1d5db; background: #ffffff; border-radius: 999px; padding: 8px 12px; cursor: pointer; color: #374151; }
+  .diagram-tab-btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #d1d5db; background: #ffffff; border-radius: 999px; padding: 8px 12px; cursor: pointer; color: #374151; }
   .diagram-tab-btn:hover { background: #f9fafb; }
   .diagram-tab-btn.is-active { background: #111827; color: #ffffff; border-color: #111827; }
+  .diagram-tab-meta { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; background: rgba(17, 24, 39, 0.06); color: inherit; font-size: 12px; }
   .diagram-panel { display: none; }
   .diagram-panel.is-active { display: block; }
   .diagram-meta { color: #6b7280; font-size: 14px; }
   .diagram-summary-help { margin-top: 8px; font-size: 14px; color: #4b5563; }
   .diagram-summary-help p { margin: 4px 0 0; }
+  .diagram-summary-tips { margin: 10px 0 0; padding-left: 18px; color: #4b5563; }
+  .diagram-summary-tips li { margin-top: 6px; }
+  .diagram-summary-tips li:first-child { margin-top: 0; }
+  .diagram-disclosure--viewer-help { border-bottom: 1px solid #e5e7eb; background: #fcfcfd; }
+  .diagram-disclosure-toggle--viewer-help { padding: 10px 12px; font-weight: 600; }
+  .diagram-disclosure-toggle--viewer-help::after { width: 22px; height: 22px; font-size: 16px; flex: 0 0 22px; }
+  .diagram-disclosure-body--viewer-help { padding: 0 0 10px; }
   .diagram-viewer { border: 1px solid #e5e7eb; border-radius: 8px; background: #ffffff; overflow: hidden; }
   .diagram-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid #e5e7eb; background: #f9fafb; }
+  .diagram-toolbar-export-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-direction: row-reverse; margin-left: auto; }
   .diagram-toolbar-btn { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; background: #ffffff; cursor: pointer; color: #374151; }
   .diagram-toolbar-btn:hover { background: #f3f4f6; }
+  .diagram-toolbar-btn:disabled { cursor: not-allowed; opacity: 0.45; background: #f3f4f6; color: #9ca3af; }
+  .diagram-toolbar-btn[aria-disabled="true"], .diagram-toolbar-btn.is-disabled { cursor: not-allowed; opacity: 0.45; background: #f3f4f6; color: #9ca3af; }
+  .diagram-toolbar-btn[data-tooltip] { position: relative; }
+  .diagram-toolbar-btn[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 8px);
+    transform: translateX(-50%) translateY(4px);
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgba(17, 24, 39, 0.94);
+    color: #ffffff;
+    font-size: 12px;
+    line-height: 1.2;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease, transform 120ms ease;
+    z-index: 5;
+  }
+  .diagram-toolbar-btn[data-tooltip]::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 2px);
+    transform: translateX(-50%) translateY(4px);
+    border-width: 6px 6px 0 6px;
+    border-style: solid;
+    border-color: rgba(17, 24, 39, 0.94) transparent transparent transparent;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease, transform 120ms ease;
+    z-index: 5;
+  }
+  .diagram-toolbar-btn[data-tooltip]:hover::after,
+  .diagram-toolbar-btn[data-tooltip]:hover::before,
+  .diagram-toolbar-btn[data-tooltip]:focus-visible::after,
+  .diagram-toolbar-btn[data-tooltip]:focus-visible::before {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  .diagram-toolbar-btn--icon-only { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 34px; padding: 6px; }
+  .diagram-toolbar-btn-icon { width: 18px; height: 18px; display: block; pointer-events: none; }
+  .diagram-toolbar-zoom { display: inline-flex; align-items: center; gap: 6px; color: #4b5563; font-size: 13px; }
+  .diagram-toolbar-zoom-input { width: 72px; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; background: #ffffff; color: #111827; }
+  .diagram-toolbar-zoom-input:focus { outline: 2px solid #bfdbfe; outline-offset: 1px; border-color: #93c5fd; }
+  .diagram-toolbar-zoom-input.is-corrected { border-color: #f59e0b; background: #fffbeb; }
   .diagram-toolbar-status { color: #6b7280; font-size: 13px; }
+  .diagram-toolbar-feedback { color: #4b5563; font-size: 13px; }
+  .diagram-panel-help { margin: 0; padding: 10px 12px; border-bottom: 1px solid #e5e7eb; background: #fcfcfd; color: #4b5563; font-size: 14px; }
+  .diagram-viewer-tips { margin: 0; padding: 10px 24px 4px; color: #4b5563; font-size: 14px; background: #fcfcfd; border-bottom: 1px solid #e5e7eb; }
+  .diagram-viewer-tips li { margin-top: 6px; }
+  .diagram-viewer-tips li:first-child { margin-top: 0; }
   .diagram-viewport { overflow: auto; max-height: 720px; background: linear-gradient(180deg, #fcfcfd 0%, #f8fafc 100%); }
-  .diagram-canvas { min-width: 100%; padding: 12px; }
-  .diagram-object { display: block; width: 100%; min-height: 420px; border: 1px solid #e5e7eb; border-radius: 6px; background: #ffffff; }
+  .diagram-viewport.is-draggable { cursor: grab; }
+  .diagram-viewport.is-dragging { cursor: grabbing; user-select: none; }
+  .diagram-canvas { min-width: 100%; min-height: 100%; width: fit-content; padding: 12px; }
+  .diagram-object { display: block; width: fit-content; min-width: 100%; min-height: 420px; border: 1px solid #e5e7eb; border-radius: 6px; background: #ffffff; overflow: visible; }
+  .diagram-object svg { display: block; width: 100%; height: 100%; }
+  .diagram-object.is-interactive { cursor: grab; }
+  .diagram-object.is-interactive.is-dragging { cursor: grabbing; }
 {% endblock %}
 
 {% block content %}
@@ -138,25 +220,36 @@
       {% if entity.diagram_tabs %}
         <h4>Diagrama de relaciones</h4>
         {% if entity.diagram_summary %}
-          <div class="diagram-summary">
-            <strong>Profundidad visible:</strong> {{ entity.diagram_summary.max_depth or 0 }}
-            <span class="muted"> | Salida visible: {{ entity.diagram_summary.visible_outgoing_levels or 0 }} de {{ entity.diagram_summary.total_outgoing_levels or 0 }}</span>
-            <span class="muted"> | Entrada visible: {{ entity.diagram_summary.visible_incoming_levels or 0 }} de {{ entity.diagram_summary.total_incoming_levels or 0 }}</span>
-            {% if entity.diagram_summary.has_any_hidden_levels %}
-              <div class="diagram-summary-help">
-                {% if entity.diagram_summary.has_hidden_outgoing_levels %}
-                  <p>{{ entity.diagram_summary.outgoing_hidden_help }}</p>
-                {% endif %}
-                {% if entity.diagram_summary.has_hidden_incoming_levels %}
-                  <p>{{ entity.diagram_summary.incoming_hidden_help }}</p>
-                {% endif %}
-              </div>
-            {% endif %}
-          </div>
+          <details class="diagram-disclosure diagram-disclosure--summary" data-diagram-summary>
+            <summary class="diagram-disclosure-toggle diagram-disclosure-toggle--summary">Resumen de niveles</summary>
+            <div class="diagram-disclosure-body diagram-disclosure-body--summary">
+              <strong>Profundidad visible:</strong> {{ entity.diagram_summary.max_depth or 0 }}
+              <span class="muted"> | Salida visible: {{ entity.diagram_summary.visible_outgoing_levels or 0 }} de {{ entity.diagram_summary.total_outgoing_levels or 0 }}</span>
+              <span class="muted"> | Entrada visible: {{ entity.diagram_summary.visible_incoming_levels or 0 }} de {{ entity.diagram_summary.total_incoming_levels or 0 }}</span>
+              {% if entity.diagram_summary.has_any_hidden_levels %}
+                <div class="diagram-summary-help">
+                  {% if entity.diagram_summary.has_hidden_outgoing_levels %}
+                    <p>{{ entity.diagram_summary.outgoing_hidden_help }}</p>
+                  {% endif %}
+                  {% if entity.diagram_summary.has_hidden_incoming_levels %}
+                    <p>{{ entity.diagram_summary.incoming_hidden_help }}</p>
+                  {% endif %}
+                </div>
+              {% endif %}
+              {% if entity.diagram_summary.navigation_tips %}
+                <ul class="diagram-summary-tips">
+                  {% for tip in entity.diagram_summary.navigation_tips %}
+                    <li>{{ tip }}</li>
+                  {% endfor %}
+                </ul>
+              {% endif %}
+            </div>
+          </details>
         {% endif %}
         {% if entity.diagram_legend %}
-          <div class="diagram-legend">
-            <h5>{{ entity.diagram_legend.title }}</h5>
+          <details class="diagram-disclosure diagram-disclosure--legend" data-diagram-legend>
+            <summary class="diagram-disclosure-toggle diagram-disclosure-toggle--legend">{{ entity.diagram_legend.title }}</summary>
+            <div class="diagram-disclosure-body diagram-disclosure-body--legend">
             <div class="diagram-legend-grid">
               <section class="diagram-legend-section">
                 <h6>Dirección</h6>
@@ -216,7 +309,8 @@
                 {% endfor %}
               </ul>
             {% endif %}
-          </div>
+            </div>
+          </details>
         {% endif %}
         {% for group in entity.diagram_tabs %}
           <div class="diagram-group" data-diagram-group="{{ group.group_id }}">
@@ -228,9 +322,11 @@
                   | No visibles: {{ group.hidden_levels }}
                 {% endif %}
               </div>
+              <span class="diagram-badge">{{ group.density_badge }}</span>
             </div>
             <p class="muted">{{ group.direction_help }}</p>
-            <div class="diagram-tabs" role="tablist" aria-label="Pestañas {{ group.direction_label }} {{ entity.name }}">
+            <div class="diagram-group-hint">{{ group.group_hint }}</div>
+            <div class="diagram-tabs" role="tablist" aria-label="{{ group.tablist_label }}">
               {% for item in group['items'] %}
                 <button
                   type="button"
@@ -238,26 +334,86 @@
                   data-tab-target="{{ item.tab_id }}"
                   role="tab"
                   aria-selected="{{ 'true' if loop.first else 'false' }}"
-                >{{ item.short_title }}</button>
+                ><span>{{ item.short_title }}</span><span class="diagram-tab-meta">{{ item.depth }}/{{ group.total_levels }}</span></button>
               {% endfor %}
             </div>
             {% for item in group['items'] %}
               <div class="diagram-panel{% if loop.first %} is-active{% endif %}" data-tab-panel="{{ item.tab_id }}" role="tabpanel">
-                <div class="diagram-viewer" data-diagram-viewer>
-                  <div class="diagram-toolbar">
-                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="zoom-out">-</button>
-                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="zoom-in">+</button>
-                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="fit">Ajustar</button>
-                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="reset">Reset</button>
-                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-left">Izq.</button>
-                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-right">Der.</button>
-                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-up">Arriba</button>
-                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-down">Abajo</button>
+                <div
+                  class="diagram-viewer"
+                  data-diagram-viewer
+                  data-min-zoom="{{ entity.diagram_viewer.min_zoom or 0.5 }}"
+                  data-max-zoom="{{ entity.diagram_viewer.max_zoom or 3.0 }}"
+                  data-zoom-step="{{ entity.diagram_viewer.zoom_step or 0.25 }}"
+                  data-pan-step="{{ entity.diagram_viewer.pan_step or 140 }}"
+                  data-initial-zoom="{{ entity.diagram_viewer.initial_zoom or 1.0 }}"
+                  data-wheel-zoom-requires-ctrl="{{ 'true' if entity.diagram_viewer.wheel_zoom_requires_ctrl else 'false' }}"
+                  data-drag-pan-enabled="{{ 'true' if entity.diagram_viewer.drag_pan_enabled else 'false' }}"
+                  data-status-ready="{{ entity.diagram_viewer.status_ready or 'Listo para navegar' }}"
+                  data-status-dragging="{{ entity.diagram_viewer.status_dragging or 'Moviendo diagrama' }}"
+                  data-status-zoom-prefix="{{ entity.diagram_viewer.status_zoom_prefix or 'Zoom' }}"
+                >
+                  <p class="diagram-panel-help">{{ group.direction_label }} · {{ item.title }}. {{ group.group_hint }}</p>
+                  <div class="diagram-toolbar" data-diagram-export-name="{{ entity.name }}-{{ item.direction }}-nivel-{{ item.depth }}">
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="zoom-out" data-tooltip="Alejar" aria-label="Alejar">-</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="zoom-in" data-tooltip="Acercar" aria-label="Acercar">+</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="fit" data-tooltip="Ajustar al área visible" aria-label="Ajustar al área visible">Ajustar</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="reset" data-tooltip="Restablecer vista" aria-label="Restablecer vista">Reset</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-left" data-tooltip="Desplazar a la izquierda" aria-label="Desplazar a la izquierda">Izq.</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-right" data-tooltip="Desplazar a la derecha" aria-label="Desplazar a la derecha">Der.</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-up" data-tooltip="Desplazar hacia arriba" aria-label="Desplazar hacia arriba">Arriba</button>
+                    <button type="button" class="diagram-toolbar-btn" data-diagram-action="pan-down" data-tooltip="Desplazar hacia abajo" aria-label="Desplazar hacia abajo">Abajo</button>
+                    <label class="diagram-toolbar-zoom" for="diagram-zoom-{{ group.group_id }}-{{ item.depth }}">
+                      Zoom
+                      <input
+                        id="diagram-zoom-{{ group.group_id }}-{{ item.depth }}"
+                        type="number"
+                        class="diagram-toolbar-zoom-input"
+                        data-diagram-zoom-input
+                        min="{{ ((entity.diagram_viewer.min_zoom or 0.5) * 100)|int }}"
+                        max="{{ ((entity.diagram_viewer.max_zoom or 3.0) * 100)|int }}"
+                        step="1"
+                        value="{{ ((entity.diagram_viewer.initial_zoom or 1.0) * 100)|int }}"
+                        inputmode="numeric"
+                        aria-label="Porcentaje de zoom"
+                      />
+                      <span>%</span>
+                    </label>
+                    <span class="diagram-toolbar-feedback" data-diagram-export-feedback aria-live="polite"></span>
                     <span class="diagram-toolbar-status" data-diagram-status>100%</span>
+                    <div class="diagram-toolbar-export-group" data-diagram-export-group>
+                      <button type="button" class="diagram-toolbar-btn diagram-toolbar-btn--icon-only" data-diagram-action="copy-png" data-tooltip="Copiar PNG" aria-label="Copiar PNG">
+                        <img class="diagram-toolbar-btn-icon" src="../assets/icons/icon-png-copy.svg" alt="" aria-hidden="true" />
+                      </button>
+                      <button type="button" class="diagram-toolbar-btn diagram-toolbar-btn--icon-only" data-diagram-action="copy-svg" data-tooltip="Copiar SVG" aria-label="Copiar SVG">
+                        <img class="diagram-toolbar-btn-icon" src="../assets/icons/icon-svg-copy.svg" alt="" aria-hidden="true" />
+                      </button>
+                      <button type="button" class="diagram-toolbar-btn diagram-toolbar-btn--icon-only" data-diagram-action="download-svg" data-tooltip="Descargar SVG" aria-label="Descargar SVG">
+                        <img class="diagram-toolbar-btn-icon" src="../assets/icons/icon-svg-download.svg" alt="" aria-hidden="true" />
+                      </button>
+                      <button type="button" class="diagram-toolbar-btn diagram-toolbar-btn--icon-only" data-diagram-action="download-png" data-tooltip="Descargar PNG" aria-label="Descargar PNG">
+                        <img class="diagram-toolbar-btn-icon" src="../assets/icons/icon-png-download.svg" alt="" aria-hidden="true" />
+                      </button>
+                    </div>
                   </div>
-                  <div class="diagram-viewport" data-diagram-viewport>
+                  {% if entity.diagram_viewer.help or entity.diagram_viewer.tips %}
+                    <details class="diagram-disclosure diagram-disclosure--viewer-help" data-diagram-viewer-help>
+                      <summary class="diagram-disclosure-toggle diagram-disclosure-toggle--viewer-help">{{ entity.diagram_viewer.title or 'Controles del visor' }}</summary>
+                      <div class="diagram-disclosure-body diagram-disclosure-body--viewer-help">
+                        <p class="diagram-panel-help">{{ entity.diagram_viewer.help or 'Usa los botones para navegar por el diagrama.' }}</p>
+                        {% if entity.diagram_viewer.tips %}
+                          <ul class="diagram-viewer-tips">
+                            {% for tip in entity.diagram_viewer.tips %}
+                              <li>{{ tip }}</li>
+                            {% endfor %}
+                          </ul>
+                        {% endif %}
+                      </div>
+                    </details>
+                  {% endif %}
+                  <div class="diagram-viewport{% if entity.diagram_viewer.drag_pan_enabled %} is-draggable{% endif %}" data-diagram-viewport tabindex="0">
                     <div class="diagram-canvas">
-                      <object class="diagram-object" data-diagram-object data="../{{ item.path }}" type="image/svg+xml" aria-label="{{ item.aria_label }}"></object>
+                      <div class="diagram-object is-interactive" data-diagram-object aria-label="{{ item.aria_label }}">{{ item.inline_svg|safe }}</div>
                     </div>
                   </div>
                 </div>
@@ -350,6 +506,89 @@
       onDone(fallbackCopyText(text));
     }
 
+    function sanitizeFileName(value) {
+      return (value || 'diagrama')
+        .replace(/[\\/:*?"<>|]+/g, '-')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .toLowerCase() || 'diagrama';
+    }
+
+    function ensureSvgNamespaces(svgText) {
+      var result = svgText;
+      if (!/xmlns=/.test(result)) {
+        result = result.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+      }
+      if (!/xmlns:xlink=/.test(result)) {
+        result = result.replace('<svg', '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+      }
+      return result;
+    }
+
+    function triggerBlobDownload(blob, fileName) {
+      var link = document.createElement('a');
+      var objectUrl = URL.createObjectURL(blob);
+      link.href = objectUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.setTimeout(function () {
+        URL.revokeObjectURL(objectUrl);
+      }, 0);
+    }
+
+    function writeBlobToClipboard(blobMap) {
+      if (!navigator.clipboard || !navigator.clipboard.write || typeof ClipboardItem === 'undefined') {
+        return Promise.reject(new Error('Clipboard API no disponible'));
+      }
+      return navigator.clipboard.write([new ClipboardItem(blobMap)]);
+    }
+
+    function canCopyTextToClipboard() {
+      return Boolean(
+        (navigator.clipboard && window.isSecureContext && navigator.clipboard.writeText) ||
+        document.queryCommandSupported && document.queryCommandSupported('copy')
+      );
+    }
+
+    function canWriteBinaryClipboard() {
+      return Boolean(navigator.clipboard && window.isSecureContext && navigator.clipboard.write && typeof ClipboardItem !== 'undefined');
+    }
+
+    function canRasterizeSvg() {
+      try {
+        var canvas = document.createElement('canvas');
+        return Boolean(canvas.getContext && canvas.getContext('2d'));
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function configureClipboardAction(button, enabled, unsupportedMessage) {
+      if (!button) {
+        return;
+      }
+      var defaultTooltip = button.getAttribute('data-default-tooltip');
+      if (defaultTooltip === null) {
+        defaultTooltip = button.getAttribute('data-tooltip') || '';
+        button.setAttribute('data-default-tooltip', defaultTooltip);
+      }
+      button.disabled = false;
+      button.classList.toggle('is-disabled', !enabled);
+      button.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+      if (!enabled && unsupportedMessage) {
+        button.setAttribute('data-tooltip', unsupportedMessage);
+        return;
+      }
+      if (defaultTooltip) {
+        button.setAttribute('data-tooltip', defaultTooltip);
+        return;
+      }
+      button.removeAttribute('data-tooltip');
+    }
+
     var buttons = document.querySelectorAll('.copy-ddl-btn');
     buttons.forEach(function (button) {
       button.addEventListener('click', function () {
@@ -401,21 +640,282 @@
       var viewport = viewer.querySelector('[data-diagram-viewport]');
       var objectNode = viewer.querySelector('[data-diagram-object]');
       var statusNode = viewer.querySelector('[data-diagram-status]');
+      var zoomInputNode = viewer.querySelector('[data-diagram-zoom-input]');
+      var exportFeedbackNode = viewer.querySelector('[data-diagram-export-feedback]');
+      var toolbarNode = viewer.querySelector('.diagram-toolbar');
+      var canvasNode = viewer.querySelector('.diagram-canvas');
       var buttons = viewer.querySelectorAll('[data-diagram-action]');
-      var zoom = 1;
+      var minZoom = parseFloat(viewer.getAttribute('data-min-zoom') || '0.5');
+      var maxZoom = parseFloat(viewer.getAttribute('data-max-zoom') || '3');
+      var zoomStep = parseFloat(viewer.getAttribute('data-zoom-step') || '0.25');
+      var panStep = parseInt(viewer.getAttribute('data-pan-step') || '140', 10);
+      var initialZoom = parseFloat(viewer.getAttribute('data-initial-zoom') || '1');
+      var requiresCtrlForWheel = viewer.getAttribute('data-wheel-zoom-requires-ctrl') !== 'false';
+      var dragPanEnabled = viewer.getAttribute('data-drag-pan-enabled') !== 'false';
+      var statusReady = viewer.getAttribute('data-status-ready') || 'Listo para navegar';
+      var statusDragging = viewer.getAttribute('data-status-dragging') || 'Moviendo diagrama';
+      var statusZoomPrefix = viewer.getAttribute('data-status-zoom-prefix') || 'Zoom';
+      var supportsTextClipboard = canCopyTextToClipboard();
+      var supportsBinaryClipboard = canWriteBinaryClipboard();
+      var supportsSvgRasterization = canRasterizeSvg();
+      var zoom = initialZoom;
+      var svgMetrics = null;
+      var dragState = {
+        active: false,
+        startX: 0,
+        startY: 0,
+        startLeft: 0,
+        startTop: 0
+      };
 
-      if (!viewport || !objectNode || !statusNode) {
+      if (!viewport || !objectNode || !statusNode || !canvasNode) {
         return;
       }
 
+      configureClipboardAction(
+        viewer.querySelector('[data-diagram-action="copy-svg"]'),
+        supportsBinaryClipboard || supportsTextClipboard,
+        'Tu navegador no permite copiar SVG al portapapeles desde esta página.'
+      );
+      configureClipboardAction(
+        viewer.querySelector('[data-diagram-action="copy-png"]'),
+        supportsBinaryClipboard && supportsSvgRasterization,
+        'Tu navegador no permite copiar PNG al portapapeles desde esta página.'
+      );
+
+      function updateStatus(message) {
+        statusNode.textContent = message;
+      }
+
+      function updateZoomInput() {
+        if (!zoomInputNode) {
+          return;
+        }
+        zoomInputNode.value = String(Math.round(zoom * 100));
+        zoomInputNode.classList.remove('is-corrected');
+      }
+
+      function getZoomBoundsPercent() {
+        return {
+          min: Math.round(minZoom * 100),
+          max: Math.round(maxZoom * 100)
+        };
+      }
+
+      function getSvgRoot() {
+        return objectNode ? objectNode.querySelector('svg') : null;
+      }
+
+      function getExportBaseName() {
+        var rawName = toolbarNode ? toolbarNode.getAttribute('data-diagram-export-name') : '';
+        return sanitizeFileName(rawName || (objectNode ? objectNode.getAttribute('aria-label') : 'diagrama'));
+      }
+
+      function serializeSvgMarkup() {
+        var svgRoot = getSvgRoot();
+        if (!svgRoot) {
+          return '';
+        }
+        var serializer = new XMLSerializer();
+        return ensureSvgNamespaces(serializer.serializeToString(svgRoot));
+      }
+
+      function buildSvgBlob(svgText) {
+        return new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+      }
+
+      function buildPngBlob(svgText, metrics) {
+        return new Promise(function (resolve, reject) {
+          var svgBlob = buildSvgBlob(svgText);
+          var svgUrl = URL.createObjectURL(svgBlob);
+          var image = new Image();
+
+          image.onload = function () {
+            var width = Math.max(1, Math.round((metrics && metrics.width ? metrics.width : image.width || 1) * 2));
+            var height = Math.max(1, Math.round((metrics && metrics.height ? metrics.height : image.height || 1) * 2));
+            var canvas = document.createElement('canvas');
+            var context = canvas.getContext('2d');
+            canvas.width = width;
+            canvas.height = height;
+
+            if (!context) {
+              URL.revokeObjectURL(svgUrl);
+              reject(new Error('Canvas 2D no disponible'));
+              return;
+            }
+
+            context.clearRect(0, 0, width, height);
+            context.drawImage(image, 0, 0, width, height);
+            canvas.toBlob(function (pngBlob) {
+              URL.revokeObjectURL(svgUrl);
+              if (!pngBlob) {
+                reject(new Error('No se pudo generar PNG'));
+                return;
+              }
+              resolve(pngBlob);
+            }, 'image/png');
+          };
+
+          image.onerror = function () {
+            URL.revokeObjectURL(svgUrl);
+            reject(new Error('No se pudo rasterizar el SVG'));
+          };
+
+          image.src = svgUrl;
+        });
+      }
+
+      function copySvgToClipboard() {
+        var svgText = serializeSvgMarkup();
+        if (!svgText) {
+          setFeedback(exportFeedbackNode, 'No se encontró SVG');
+          return;
+        }
+
+        var svgBlob = buildSvgBlob(svgText);
+        writeBlobToClipboard({
+          'image/svg+xml': svgBlob,
+          'text/plain': new Blob([svgText], { type: 'text/plain' })
+        }).then(function () {
+          setFeedback(exportFeedbackNode, 'SVG copiado');
+        }).catch(function () {
+          copyText(svgText, function (success) {
+            setFeedback(exportFeedbackNode, success ? 'SVG copiado como texto' : 'No se pudo copiar SVG');
+          });
+        });
+      }
+
+      function downloadSvgFile() {
+        var svgText = serializeSvgMarkup();
+        if (!svgText) {
+          setFeedback(exportFeedbackNode, 'No se encontró SVG');
+          return;
+        }
+        triggerBlobDownload(buildSvgBlob(svgText), getExportBaseName() + '.svg');
+        setFeedback(exportFeedbackNode, 'SVG descargado');
+      }
+
+      function copyPngToClipboard() {
+        var svgText = serializeSvgMarkup();
+        var metrics = ensureSvgMetrics();
+        if (!svgText) {
+          setFeedback(exportFeedbackNode, 'No se encontró SVG');
+          return;
+        }
+
+        buildPngBlob(svgText, metrics).then(function (pngBlob) {
+          return writeBlobToClipboard({ 'image/png': pngBlob });
+        }).then(function () {
+          setFeedback(exportFeedbackNode, 'PNG copiado');
+        }).catch(function () {
+          setFeedback(exportFeedbackNode, 'No se pudo copiar PNG');
+        });
+      }
+
+      function downloadPngFile() {
+        var svgText = serializeSvgMarkup();
+        var metrics = ensureSvgMetrics();
+        if (!svgText) {
+          setFeedback(exportFeedbackNode, 'No se encontró SVG');
+          return;
+        }
+
+        buildPngBlob(svgText, metrics).then(function (pngBlob) {
+          triggerBlobDownload(pngBlob, getExportBaseName() + '.png');
+          setFeedback(exportFeedbackNode, 'PNG descargado');
+        }).catch(function () {
+          setFeedback(exportFeedbackNode, 'No se pudo descargar PNG');
+        });
+      }
+
+      function resolveSvgMetrics(svgRoot) {
+        if (!svgRoot) {
+          return null;
+        }
+
+        var viewBox = svgRoot.viewBox && svgRoot.viewBox.baseVal;
+        if (viewBox && viewBox.width > 0 && viewBox.height > 0) {
+          return { width: viewBox.width, height: viewBox.height };
+        }
+
+        var widthAttr = parseFloat(svgRoot.getAttribute('width') || '0');
+        var heightAttr = parseFloat(svgRoot.getAttribute('height') || '0');
+        if (widthAttr > 0 && heightAttr > 0) {
+          return { width: widthAttr, height: heightAttr };
+        }
+
+        try {
+          var bbox = svgRoot.getBBox();
+          if (bbox.width > 0 && bbox.height > 0) {
+            return { width: bbox.width, height: bbox.height };
+          }
+        } catch (error) {
+        }
+
+        return null;
+      }
+
+      function ensureSvgMetrics() {
+        if (svgMetrics) {
+          return svgMetrics;
+        }
+        svgMetrics = resolveSvgMetrics(getSvgRoot());
+        return svgMetrics;
+      }
+
       function renderZoom() {
-        objectNode.style.width = Math.round(zoom * 100) + '%';
-        statusNode.textContent = Math.round(zoom * 100) + '%';
+        var svgRoot = getSvgRoot();
+        var metrics = ensureSvgMetrics();
+        if (svgRoot && metrics) {
+          var scaledWidth = Math.max(metrics.width * zoom, viewport.clientWidth - 24);
+          var scaledHeight = Math.max(metrics.height * zoom, 420);
+          objectNode.style.width = scaledWidth + 'px';
+          objectNode.style.height = scaledHeight + 'px';
+          canvasNode.style.width = Math.max(scaledWidth + 24, viewport.clientWidth) + 'px';
+          canvasNode.style.height = Math.max(scaledHeight + 24, viewport.clientHeight || 0) + 'px';
+          svgRoot.style.width = '100%';
+          svgRoot.style.height = '100%';
+        } else if (svgRoot) {
+          objectNode.style.width = Math.round(zoom * 100) + '%';
+          objectNode.style.height = 'auto';
+          canvasNode.style.width = '100%';
+          canvasNode.style.height = 'auto';
+          svgRoot.style.width = '100%';
+          svgRoot.style.height = 'auto';
+        }
+        updateZoomInput();
+        updateStatus(statusZoomPrefix + ' ' + Math.round(zoom * 100) + '%');
       }
 
       function setZoom(nextZoom) {
-        zoom = Math.max(0.5, Math.min(3, nextZoom));
+        zoom = Math.max(minZoom, Math.min(maxZoom, nextZoom));
         renderZoom();
+      }
+
+      function applyZoomInputValue() {
+        if (!zoomInputNode) {
+          return;
+        }
+        var parsed = parseFloat(zoomInputNode.value || '');
+        var bounds = getZoomBoundsPercent();
+        if (Number.isNaN(parsed)) {
+          zoomInputNode.value = String(Math.round(zoom * 100));
+          zoomInputNode.classList.add('is-corrected');
+          setFeedback(exportFeedbackNode, 'Zoom inválido: se mantiene ' + Math.round(zoom * 100) + '%');
+          return;
+        }
+        var clamped = Math.max(bounds.min, Math.min(bounds.max, Math.round(parsed)));
+        zoomInputNode.value = String(clamped);
+        var wasCorrected = clamped !== Math.round(parsed);
+        if (clamped !== Math.round(parsed)) {
+          setFeedback(exportFeedbackNode, 'Zoom ajustado a ' + clamped + '% por límites permitidos');
+        }
+        setZoom(clamped / 100);
+        if (wasCorrected) {
+          zoomInputNode.classList.add('is-corrected');
+          return;
+        }
+        zoomInputNode.classList.remove('is-corrected');
       }
 
       function scrollViewport(deltaLeft, deltaTop) {
@@ -423,42 +923,190 @@
         viewport.scrollTop += deltaTop;
       }
 
+      function resetViewport() {
+        zoom = initialZoom;
+        renderZoom();
+        viewport.scrollLeft = 0;
+        viewport.scrollTop = 0;
+      }
+
+      function fitViewport() {
+        var metrics = ensureSvgMetrics();
+        if (metrics && viewport.clientWidth > 0 && viewport.clientHeight > 0) {
+          var fitWidth = (viewport.clientWidth - 24) / metrics.width;
+          var fitHeight = (viewport.clientHeight - 24) / metrics.height;
+          zoom = Math.max(minZoom, Math.min(maxZoom, Math.min(fitWidth, fitHeight)));
+        } else {
+          zoom = 1;
+        }
+        renderZoom();
+        viewport.scrollLeft = 0;
+        viewport.scrollTop = 0;
+      }
+
+      function stopDragging() {
+        if (!dragState.active) {
+          return;
+        }
+        dragState.active = false;
+        viewport.classList.remove('is-dragging');
+        objectNode.classList.remove('is-dragging');
+        updateStatus(statusReady + ' · ' + Math.round(zoom * 100) + '%');
+      }
+
+      function startDragging(clientX, clientY) {
+        dragState.active = true;
+        dragState.startX = clientX;
+        dragState.startY = clientY;
+        dragState.startLeft = viewport.scrollLeft;
+        dragState.startTop = viewport.scrollTop;
+        viewport.classList.add('is-dragging');
+        objectNode.classList.add('is-dragging');
+        updateStatus(statusDragging + ' · ' + Math.round(zoom * 100) + '%');
+      }
+
+      function handleDragging(clientX, clientY) {
+        if (!dragState.active) {
+          return;
+        }
+        viewport.scrollLeft = dragState.startLeft - (clientX - dragState.startX);
+        viewport.scrollTop = dragState.startTop - (clientY - dragState.startY);
+      }
+
+      function handleWheelZoom(event) {
+        if (requiresCtrlForWheel && !event.ctrlKey) {
+          return;
+        }
+        event.preventDefault();
+        if (event.deltaY < 0) {
+          setZoom(zoom + zoomStep);
+          return;
+        }
+        setZoom(zoom - zoomStep);
+      }
+
+      function bindEmbeddedSvgInteractions() {
+        var svgRoot = getSvgRoot();
+        if (!svgRoot) {
+          updateStatus(statusReady + ' · SVG inline no disponible');
+          return;
+        }
+
+        svgMetrics = resolveSvgMetrics(svgRoot);
+
+        objectNode.classList.add('is-interactive');
+
+        if (dragPanEnabled) {
+          svgRoot.addEventListener('mousedown', function (event) {
+            if (event.button !== 0) {
+              return;
+            }
+            startDragging(event.clientX, event.clientY);
+            event.preventDefault();
+          });
+
+          svgRoot.addEventListener('mousemove', function (event) {
+            handleDragging(event.clientX, event.clientY);
+          });
+
+          svgRoot.addEventListener('mouseup', stopDragging);
+          svgRoot.addEventListener('mouseleave', stopDragging);
+        }
+
+        svgRoot.addEventListener('wheel', handleWheelZoom, { passive: false });
+      }
+
+      if (dragPanEnabled) {
+        viewport.addEventListener('pointerdown', function (event) {
+          if (event.button !== 0) {
+            return;
+          }
+          startDragging(event.clientX, event.clientY);
+        });
+
+        viewport.addEventListener('pointermove', function (event) {
+          handleDragging(event.clientX, event.clientY);
+        });
+
+        viewport.addEventListener('pointerup', stopDragging);
+        viewport.addEventListener('pointerleave', stopDragging);
+        viewport.addEventListener('pointercancel', stopDragging);
+      }
+
+      viewport.addEventListener('wheel', handleWheelZoom, { passive: false });
+
+      if (zoomInputNode) {
+        zoomInputNode.addEventListener('change', applyZoomInputValue);
+        zoomInputNode.addEventListener('blur', applyZoomInputValue);
+        zoomInputNode.addEventListener('keydown', function (event) {
+          if (event.key !== 'Enter') {
+            return;
+          }
+          applyZoomInputValue();
+          event.preventDefault();
+        });
+      }
+
       buttons.forEach(function (button) {
-        button.addEventListener('click', function () {
+        button.addEventListener('click', function (event) {
+          if (button.getAttribute('aria-disabled') === 'true') {
+            event.preventDefault();
+            return;
+          }
           var action = button.getAttribute('data-diagram-action');
+          if (action === 'copy-png') {
+            copyPngToClipboard();
+            return;
+          }
+          if (action === 'copy-svg') {
+            copySvgToClipboard();
+            return;
+          }
+          if (action === 'download-svg') {
+            downloadSvgFile();
+            return;
+          }
+          if (action === 'download-png') {
+            downloadPngFile();
+            return;
+          }
           if (action === 'zoom-in') {
-            setZoom(zoom + 0.25);
+            setZoom(zoom + zoomStep);
             return;
           }
           if (action === 'zoom-out') {
-            setZoom(zoom - 0.25);
+            setZoom(zoom - zoomStep);
             return;
           }
-          if (action === 'fit' || action === 'reset') {
-            setZoom(1);
-            viewport.scrollLeft = 0;
-            viewport.scrollTop = 0;
+          if (action === 'fit') {
+            fitViewport();
+            return;
+          }
+          if (action === 'reset') {
+            resetViewport();
             return;
           }
           if (action === 'pan-left') {
-            scrollViewport(-140, 0);
+            scrollViewport(-panStep, 0);
             return;
           }
           if (action === 'pan-right') {
-            scrollViewport(140, 0);
+            scrollViewport(panStep, 0);
             return;
           }
           if (action === 'pan-up') {
-            scrollViewport(0, -140);
+            scrollViewport(0, -panStep);
             return;
           }
           if (action === 'pan-down') {
-            scrollViewport(0, 140);
+            scrollViewport(0, panStep);
           }
         });
       });
 
       renderZoom();
+      updateStatus(statusReady + ' · ' + Math.round(zoom * 100) + '%');
+      bindEmbeddedSvgInteractions();
     });
   })();
 {% endblock %}

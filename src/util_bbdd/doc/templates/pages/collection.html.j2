@@ -18,6 +18,7 @@
   .toolbar-group.search-group,
   .toolbar-group.actions-group,
   .search-stack { min-width: max-content; }
+  .toolbar-group.actions-group { position: relative; overflow: visible; }
   .toolbar-group.search-group input { min-width: 220px; }
   .search-stack { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
   .pagination-inline { display: flex; flex-wrap: nowrap; gap: 10px; align-items: center; }
@@ -26,8 +27,74 @@
   .toolbar-hint,
   .muted { color: #64748b; font-size: 14px; }
   .toolbar-hint { white-space: nowrap; flex: 0 0 auto; }
-  .icon-button { display: inline-flex; align-items: center; justify-content: center; min-width: 40px; height: 38px; padding: 0 10px; font-weight: 700; letter-spacing: 0.03em; }
+  .icon-button,
+  .pagination-button {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 40px;
+    height: 34px;
+    padding: 6px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    color: #374151;
+  }
+  .icon-button:hover,
+  .pagination-button:hover { background: #f3f4f6; }
+  .icon-button[data-tooltip]::after,
+  .pagination-button[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 8px);
+    transform: translateX(-50%) translateY(4px);
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgba(17, 24, 39, 0.94);
+    color: #ffffff;
+    font-size: 12px;
+    line-height: 1.2;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease, transform 120ms ease;
+    z-index: 5;
+  }
+  .icon-button[data-tooltip]::before,
+  .pagination-button[data-tooltip]::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 2px);
+    transform: translateX(-50%) translateY(4px);
+    border-width: 6px 6px 0 6px;
+    border-style: solid;
+    border-color: rgba(17, 24, 39, 0.94) transparent transparent transparent;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease, transform 120ms ease;
+    z-index: 5;
+  }
+  .icon-button[data-tooltip]:hover::after,
+  .icon-button[data-tooltip]:hover::before,
+  .icon-button[data-tooltip]:focus-visible::after,
+  .icon-button[data-tooltip]:focus-visible::before,
+  .pagination-button[data-tooltip]:hover::after,
+  .pagination-button[data-tooltip]:hover::before,
+  .pagination-button[data-tooltip]:focus-visible::after,
+  .pagination-button[data-tooltip]:focus-visible::before {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
   .icon-button .icon-label { font-size: 12px; line-height: 1; }
+  .icon-button-icon { width: 18px; height: 18px; margin-right: 0; color: inherit; pointer-events: none; }
+  .pagination-inline .pagination-button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .pagination-button-icon { width: 18px; height: 18px; color: #374151; flex-shrink: 0; pointer-events: none; }
+  .pagination-button-label { font-size: 13px; line-height: 1; }
   .horizontal-scrollbar { margin: 0 24px; overflow-x: auto; overflow-y: hidden; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; position: sticky; top: calc(var(--header-height) + var(--toolbar-height)); z-index: 18; }
   .horizontal-scrollbar-inner { height: 1px; }
   .table-wrap { padding: 0 24px 28px; overflow: auto; max-height: calc(100vh - var(--header-height) - var(--toolbar-height) - var(--top-scrollbar-height) - 24px); }
@@ -65,9 +132,9 @@
       <div class="toolbar-group search-group">
         <input id="searchInput" type="search" placeholder="Buscar..." aria-label="Buscar en la tabla" />
         <div class="pagination-inline" aria-label="Paginación de resultados">
-          <button type="button" id="prevPageButton">Anterior</button>
+          {{ ui.render_pagination_button("prevPageButton", "Anterior", "icon-arrow-left", "Ir a página anterior") }}
           <span id="pageInfo">Página 1/1</span>
-          <button type="button" id="nextPageButton">Siguiente</button>
+          {{ ui.render_pagination_button("nextPageButton", "Siguiente", "icon-arrow-right", "Ir a página siguiente") }}
           <span id="resultsInfo">0 resultados</span>
         </div>
       </div>
@@ -82,10 +149,10 @@
         <option value="100">100</option>
         <option value="all">Todas</option>
       </select>
-      {{ ui.render_export_button("exportCsv", "CSV", "Exportar resultados filtrados a CSV") }}
-      {{ ui.render_export_button("exportTsv", "TSV", "Exportar resultados filtrados a TSV") }}
-      {{ ui.render_export_button("exportExcel", "XLSX", "Exportar resultados filtrados a Excel (.xlsx)") }}
-      {{ ui.render_export_button("exportPdf", "PDF", "Exportar la vista actual a PDF") }}
+      {{ ui.render_export_button("exportCsv", "CSV", "Exportar resultados filtrados a CSV", "icon-csv") }}
+      {{ ui.render_export_button("exportTsv", "TSV", "Exportar resultados filtrados a TSV", "icon-tsv") }}
+      {{ ui.render_export_button("exportExcel", "XLSX", "Exportar resultados filtrados a Excel (.xlsx)", "icon-excel") }}
+      {{ ui.render_export_button("exportPdf", "PDF", "Exportar la vista actual a PDF", "icon-pdf") }}
     </div>
   </section>
 

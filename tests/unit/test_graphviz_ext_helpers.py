@@ -2,7 +2,20 @@
 
 from __future__ import annotations
 
-from util_bbdd.analysis.base import ColumnVisualizationMode, GraphNode, TableVisualType
+from types import SimpleNamespace
+
+import pytest
+
+from util_bbdd.analysis.base import (
+    ColumnVisualizationMode,
+    GraphDocument,
+    GraphEdge,
+    GraphNode,
+    HiddenLevelsSummary,
+    LevelDirection,
+    TableRelation,
+    TableVisualType,
+)
 from util_bbdd.analysis.graphviz_ext import GraphvizRelationshipGraphExt
 
 
@@ -11,7 +24,41 @@ def _build_graph_instance() -> GraphvizRelationshipGraphExt:
     graph.include_columns = True
     graph.show_data_types = True
     graph.max_columns = 2
+    graph.orthogonal_edges = True
+    graph.orthogonal_nodesep = 0.75
+    graph.orthogonal_ranksep = 0.9
+    graph.render_dpi = 300
     return graph
+
+
+def test_create_configured_graph_uses_plain_shape_without_margin_for_html_labels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DummyDigraph:
+        def __init__(self, **kwargs: str) -> None:
+            self.kwargs = kwargs
+            self.attr_calls: list[tuple[str, dict[str, str]]] = []
+
+        def attr(self, scope: str, **kwargs: str) -> None:
+            self.attr_calls.append((scope, kwargs))
+
+    import util_bbdd.analysis.graphviz_ext as module
+
+    monkeypatch.setattr(module, "GRAPHVIZ_AVAILABLE", True)
+    monkeypatch.setattr(module, "graphviz", SimpleNamespace(Digraph=DummyDigraph))
+
+    graph = _build_graph_instance()
+
+    dot, is_raster, edge_label_font_size = graph._create_configured_graph(
+        table_name="users",
+        format="svg",
+        show_columns=True,
+    )
+
+    assert dot.kwargs["engine"] == "dot"
+    assert is_raster is False
+    assert edge_label_font_size == "8"
+    assert ("node", {"shape": "plain", "margin": "0", "fontname": "Arial", "fontsize": "10"}) in dot.attr_calls
 
 
 def test_select_columns_for_table_caps_all_mode_to_configured_limit() -> None:
@@ -68,6 +115,27 @@ def test_build_table_html_label_truncates_text_and_reports_hidden_columns() -> N
     assert "... 1 columna(s) mas" in html_label
 
 
+def test_get_table_label_styles_reduces_svg_baseline_but_preserves_raster_size() -> None:
+    graph = _build_graph_instance()
+
+    vector_styles = graph._get_table_label_styles(is_raster=False)
+    raster_styles = graph._get_table_label_styles(is_raster=True)
+
+    assert vector_styles["table_width"] == "180"
+    assert vector_styles["name_column_width"] == "120"
+    assert vector_styles["type_column_width"] == "60"
+    assert vector_styles["title_max_chars"] == "21"
+    assert vector_styles["column_name_max_chars"] == "18"
+    assert vector_styles["type_max_chars"] == "13"
+
+    assert raster_styles["table_width"] == "280"
+    assert raster_styles["name_column_width"] == "185"
+    assert raster_styles["type_column_width"] == "95"
+    assert raster_styles["title_max_chars"] == "34"
+    assert raster_styles["column_name_max_chars"] == "28"
+    assert raster_styles["type_max_chars"] == "22"
+
+
 def test_resolve_node_fill_color_uses_visual_type_palette() -> None:
     graph = _build_graph_instance()
 
@@ -113,3 +181,79 @@ def test_graph_node_defaults_to_entity_visual_type() -> None:
     node = GraphNode(table_name="users")
 
     assert node.visual_type == TableVisualType.ENTITY
+
+
+def test_build_edge_attributes_moves_cardinality_away_from_arrowheads() -> None:
+    graph = _build_graph_instance()
+    graph.show_constraint_name = False
+    graph._determine_cardinality = lambda **kwargs: "1:N"  # type: ignore[attr-defined]
+
+    edge = GraphEdge(
+        relation=TableRelation(
+            source_table="orders",
+            target_table="customers",
+            constraint_name="fk_orders_customers",
+            source_column="customer_id",
+            target_column="id",
+        ),
+        depth=1,
+        direction=LevelDirection.OUTGOING,
+    )
+
+    attributes = graph._build_edge_attributes(edge=edge, edge_label_font_size="8")
+
+    assert attributes["xlabel"] == "customer_id -> id"
+    assert attributes["taillabel"] == "N"
+    assert attributes["headlabel"] == "1"
+    assert attributes["labelfontsize"] == "8"
+    assert attributes["labeldistance"] == GraphvizRelationshipGraphExt.CARDINALITY_LABEL_DISTANCE
+    assert attributes["labelangle"] == GraphvizRelationshipGraphExt.CARDINALITY_LABEL_ANGLE
+    assert attributes["color"] == "#1D70B8"
+
+
+def test_add_edges_to_graph_applies_cardinality_render_contract() -> None:
+    class DummyDot:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, str, dict[str, str]]] = []
+
+        def edge(self, source: str, target: str, **kwargs: str) -> None:
+            self.calls.append((source, target, kwargs))
+
+    graph = _build_graph_instance()
+    graph.show_constraint_name = True
+    graph._determine_cardinality = lambda **kwargs: "1:N"  # type: ignore[attr-defined]
+
+    relation = TableRelation(
+        source_table="orders",
+        target_table="customers",
+        constraint_name="fk_orders_customers",
+        source_column="customer_id",
+        target_column="id",
+    )
+    document = GraphDocument(
+        root_table="orders",
+        nodes={"orders": GraphNode(table_name="orders", is_root=True), "customers": GraphNode(table_name="customers")},
+        levels=[],
+        edges=[GraphEdge(relation=relation, depth=1, direction=LevelDirection.INCOMING)],
+        relations=[relation],
+        tables={"orders", "customers"},
+        max_depth=1,
+        direction=LevelDirection.BOTH,
+        hidden_levels=HiddenLevelsSummary(),
+        total_incoming_levels=1,
+        total_outgoing_levels=1,
+    )
+    dot = DummyDot()
+
+    graph._add_edges_to_graph(dot=dot, document=document, edge_label_font_size="8")
+
+    assert len(dot.calls) == 1
+    source, target, kwargs = dot.calls[0]
+    assert source == "orders"
+    assert target == "customers"
+    assert kwargs["xlabel"] == "fk_orders_customers: customer_id -> id"
+    assert kwargs["taillabel"] == "N"
+    assert kwargs["headlabel"] == "1"
+    assert kwargs["labeldistance"] == GraphvizRelationshipGraphExt.CARDINALITY_LABEL_DISTANCE
+    assert kwargs["labelangle"] == GraphvizRelationshipGraphExt.CARDINALITY_LABEL_ANGLE
+    assert kwargs["color"] == "#A61C00"

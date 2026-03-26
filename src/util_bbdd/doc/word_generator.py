@@ -23,6 +23,11 @@ from docx.text.paragraph import Paragraph
 from docx.text.run import Run
 
 from ..analysis.graphviz_ext import GraphvizRelationshipGraphExt
+from .diagram_legend import (
+    build_diagram_legend_payload,
+    build_diagram_legend_rows,
+)
+from .diagram_summary import build_diagram_summary_line, build_diagram_summary_payload
 from .print_config_manager import PrintConfigManager
 
 
@@ -228,6 +233,8 @@ class WordGenerator:
             self._configure_document_orientation(document, config.template_path)
             document.add_heading(f"Documentación de la Base de Datos - {self.database}", 0)
             if idx == 1:
+                if config.include_diagrams:
+                    self._add_diagram_legend_section(document=document)
                 self._add_inventory_overview(
                     document=document,
                     tables=all_tables,
@@ -324,6 +331,20 @@ class WordGenerator:
             ],
             right_align_indices=[1],
         )
+
+    def _add_diagram_legend_section(self, *, document: Document) -> None:
+        """Agrega una leyenda visual genérica para interpretar diagramas relacionales."""
+        legend_payload: dict[str, Any] = build_diagram_legend_payload()
+        self._add_table(
+            document=document,
+            title=str(legend_payload.get("title", "Leyenda visual")),
+            headers=["Categoría", "Elemento", "Descripción"],
+            data=build_diagram_legend_rows(legend_payload),
+        )
+
+        for note in legend_payload.get("notes", []):
+            document.add_paragraph(note)
+        document.add_paragraph("")
 
     def _get_storage_total_rows(self, data_provider: Any) -> int:
         """Obtiene el total agregado de filas del inventario de almacenamiento."""
@@ -543,6 +564,7 @@ class WordGenerator:
         cardinality_options: dict[str, Any] = options.get("cardinality", {})
         return GraphvizRelationshipGraphExt(
             db_manager=db_manager,
+            show_columns=bool(options.get("show_columns", True)),
             column_mode=str(columns_options.get("mode", "relations")),
             max_columns=int(columns_options.get("max_items", 8)),
             show_data_types=bool(columns_options.get("show_data_types", False)),
@@ -571,7 +593,7 @@ class WordGenerator:
             graph_generator=graph_generator,
             diagram_options=diagram_options,
         )
-        diagram_summary: str = self._build_diagram_summary_text(
+        diagram_summary: dict[str, Any] = self._build_diagram_summary_payload(
             tabla=tabla,
             graph_generator=graph_generator,
             diagram_options=diagram_options,
@@ -633,7 +655,10 @@ class WordGenerator:
                     f"🖼️ Diagrama insertado en Word para {tabla} (página {page_idx}/{len(generated_paths)}) "
                     f"en {insert_elapsed_ms:.2f} ms"
                 )
-                self._add_diagram_summary_paragraph(document=document, summary_text=diagram_summary)
+                self._add_diagram_summary_paragraph(
+                    document=document,
+                    summary_payload=diagram_summary,
+                )
         except Exception as e:
             document.add_page_break()
             document.add_heading(f"Diagrama de relaciones: {tabla}", level=2)
@@ -654,69 +679,63 @@ class WordGenerator:
             self.logger.debug(f"⚠️ No se pudo construir el resumen de niveles para {tabla}: {error}")
             return None
 
-    def _build_diagram_summary_text(
+    def _build_diagram_summary_payload(
         self,
         tabla: str,
         graph_generator: Any,
         diagram_options: dict[str, Any],
         document: Any | None = None,
-    ) -> str:
-        """Construye el resumen textual de niveles para Word."""
+    ) -> dict[str, Any]:
+        """Construye el resumen estructurado de niveles para Word."""
         graph_document: Any | None = document or self._build_diagram_document(
             tabla=tabla,
             graph_generator=graph_generator,
             diagram_options=diagram_options,
         )
-        if graph_document is None:
-            return ""
+        if graph_document is None or not bool(diagram_options.get("summary", {}).get("enabled", True)):
+            return {}
 
-        parts: list[str] = [f"Profundidad visible: {graph_document.max_depth}"]
-
-        outgoing_summary = f"Salida total: {graph_document.total_outgoing_levels}"
-        if graph_document.hidden_levels.outgoing_hidden_levels > 0:
-            outgoing_summary += f" (no visibles: {graph_document.hidden_levels.outgoing_hidden_levels})"
-        parts.append(outgoing_summary)
-
-        incoming_summary = f"Entrada total: {graph_document.total_incoming_levels}"
-        if graph_document.hidden_levels.incoming_hidden_levels > 0:
-            incoming_summary += f" (no visibles: {graph_document.hidden_levels.incoming_hidden_levels})"
-        parts.append(incoming_summary)
-
-        if graph_document.hidden_levels.outgoing_hidden_levels > 0:
-            parts.append(
-                self._build_hidden_levels_word_help(
-                    direction_key="outgoing",
-                    hidden_levels=graph_document.hidden_levels.outgoing_hidden_levels,
-                )
-            )
-        if graph_document.hidden_levels.incoming_hidden_levels > 0:
-            parts.append(
-                self._build_hidden_levels_word_help(
-                    direction_key="incoming",
-                    hidden_levels=graph_document.hidden_levels.incoming_hidden_levels,
-                )
-            )
-
-        return " | ".join(parts)
-
-    def _build_hidden_levels_word_help(self, direction_key: str, hidden_levels: int) -> str:
-        """Explica en Word qué significa cada grupo de niveles ocultos."""
-        if direction_key == "outgoing":
-            return (
-                f"Salida oculta: {hidden_levels} nivel(es) de tablas hijas o dependientes no visibles por profundidad"
-            )
-        return (
-            f"Entrada oculta: {hidden_levels} nivel(es) de tablas padre o referenciadoras no visibles por profundidad"
+        visible_outgoing_levels = max(
+            0,
+            int(graph_document.total_outgoing_levels) - int(graph_document.hidden_levels.outgoing_hidden_levels),
         )
+        visible_incoming_levels = max(
+            0,
+            int(graph_document.total_incoming_levels) - int(graph_document.hidden_levels.incoming_hidden_levels),
+        )
+        payload = build_diagram_summary_payload(
+            max_depth=int(graph_document.max_depth),
+            total_outgoing_levels=int(graph_document.total_outgoing_levels),
+            total_incoming_levels=int(graph_document.total_incoming_levels),
+            visible_outgoing_levels=visible_outgoing_levels,
+            visible_incoming_levels=visible_incoming_levels,
+            hidden_outgoing_levels=int(graph_document.hidden_levels.outgoing_hidden_levels),
+            hidden_incoming_levels=int(graph_document.hidden_levels.incoming_hidden_levels),
+        )
+        payload["root_table"] = tabla
+        return payload
 
-    def _add_diagram_summary_paragraph(self, document: Document, summary_text: str) -> None:
+    def _add_diagram_summary_paragraph(
+        self,
+        document: Document,
+        summary_payload: dict[str, Any],
+    ) -> None:
         """Agrega el resumen de niveles bajo el diagrama en Word."""
-        if not summary_text:
+        if not summary_payload:
             return
 
         paragraph: Paragraph = document.add_paragraph()
         paragraph.add_run("Resumen de niveles: ").bold = True
-        paragraph.add_run(summary_text)
+        paragraph.add_run(build_diagram_summary_line(summary_payload))
+
+        if bool(summary_payload.get("has_any_hidden_levels")):
+            if bool(summary_payload.get("has_hidden_outgoing_levels")):
+                document.add_paragraph(str(summary_payload.get("outgoing_hidden_help", "")))
+            if bool(summary_payload.get("has_hidden_incoming_levels")):
+                document.add_paragraph(str(summary_payload.get("incoming_hidden_help", "")))
+
+        for tip in summary_payload.get("navigation_tips", []):
+            document.add_paragraph(str(tip))
 
     def _add_picture_fit_to_page(
         self, document: Document, image_path: Path, title_paragraph: Paragraph | None = None

@@ -37,6 +37,8 @@ def test_template_engine_renders_collection_page_with_expected_data() -> None:
     assert "Abrir detalle" in rendered
     assert "exportCsv" in rendered
     assert "XLSX" in rendered
+    assert 'data-tooltip="Exportar resultados filtrados a CSV"' in rendered
+    assert 'data-tooltip="Ir a página anterior"' in rendered
 
 
 def test_template_engine_renders_index_page_with_expected_links() -> None:
