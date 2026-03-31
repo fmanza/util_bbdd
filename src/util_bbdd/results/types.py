@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any, TypeAlias
+from typing import Any
 
-Row: TypeAlias = tuple[Any, ...]
+Row = tuple[Any, ...]
 """Fila única devuelta por un cursor DB-API."""
 
-Rows: TypeAlias = list[Row]
+Rows = list[Row]
 """Colección materializada de filas."""
 
-RowOrNone: TypeAlias = Row | None
+RowOrNone = Row | None
 """Resultado para operaciones que pueden devolver 0 o 1 fila."""
 
-QueryResult: TypeAlias = RowOrNone | Rows
+QueryResult = RowOrNone | Rows
 """Unión de resultado singular/múltiple usada solo en capas internas."""

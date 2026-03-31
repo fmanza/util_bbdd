@@ -544,8 +544,8 @@ class AsyncDatabaseManager:
     @staticmethod
     def _clear_tuple_cache_by_context(cache: dict[tuple[Any, ...], Any], context: str) -> None:
         keys_to_remove: list[tuple[Any, ...]] = [key for key in cache if key and str(key[0]) == context]
-        for key in keys_to_remove:
-            cache.pop(key, None)
+        for cache_key in keys_to_remove:
+            cache.pop(cache_key, None)
 
     def _clear_context_cache(self, context: str) -> None:
         """Limpia caché para un contexto/schema específico."""
@@ -556,8 +556,8 @@ class AsyncDatabaseManager:
             self.db_cache._routine_metadata_context_cache,
             self.db_cache._routine_parameters_context_cache,
         )
-        for cache in context_caches:
-            cache.pop(context, None)
+        for context_cache in context_caches:
+            context_cache.pop(context, None)
 
         tuple_caches: tuple[dict[tuple[Any, ...], Any], ...] = (
             self.db_cache._primary_keys_cache,
@@ -570,8 +570,8 @@ class AsyncDatabaseManager:
             self.db_cache._routine_parameters_cache,
             self.db_cache._routine_ddl_cache,
         )
-        for cache in tuple_caches:
-            self._clear_tuple_cache_by_context(cache, context)
+        for tuple_cache in tuple_caches:
+            self._clear_tuple_cache_by_context(tuple_cache, context)
 
         self.logger.info(f"🧹 Caché invalidada para contexto: {context}")
 
@@ -1139,7 +1139,7 @@ class AsyncDatabaseManager:
                 if version_match:
                     major = int(version_match.group(1))
                     minor = int(version_match.group(2))
-                    supports_columns_charset: bool = (major, minor) >= (12, 2)
+                    supports_columns_charset = (major, minor) >= (12, 2)
                 self._oracle_column_collation_supported: bool = supports_columns_charset
             else:
                 supports_columns_charset = bool(cached_support)

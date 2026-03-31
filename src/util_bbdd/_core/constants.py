@@ -4,10 +4,10 @@ Define valores constantes y enums utilizados en toda la librería
 para evitar strings magic y centralizar configuración.
 """
 
-from enum import Enum
+from enum import StrEnum
 
 
-class DatabaseType(str, Enum):
+class DatabaseType(StrEnum):
     """Tipos de bases de datos soportadas."""
 
     MARIADB = "mariadb"
@@ -23,7 +23,7 @@ class DatabaseType(str, Enum):
         return self.value
 
 
-class OperationType(str, Enum):
+class OperationType(StrEnum):
     """Tipos de operaciones de base de datos."""
 
     SELECT = "SELECT"
@@ -39,7 +39,7 @@ class OperationType(str, Enum):
         return self.value
 
 
-class RouterineType(str, Enum):
+class RouterineType(StrEnum):
     """Tipos de rutinas de base de datos."""
 
     PROCEDURE = "PROCEDURE"

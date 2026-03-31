@@ -273,17 +273,17 @@ class RelationshipMetadataCache:
         keys_to_remove: list[tuple[str, str, str, str]] = [
             key for key in self._cardinality_cache if key[2] == table_name or key[3] == table_name
         ]
-        for key in keys_to_remove:
-            self._cardinality_cache.pop(key, None)
+        for cardinality_key in keys_to_remove:
+            self._cardinality_cache.pop(cardinality_key, None)
 
         # Limpiar checks PK/UK de columnas de tabla
         pk_keys: list[tuple[str, str]] = [key for key in self._is_pk_cache if key[0] == table_name]
-        for key in pk_keys:
-            self._is_pk_cache.pop(key, None)
+        for pk_key in pk_keys:
+            self._is_pk_cache.pop(pk_key, None)
 
         uk_keys: list[tuple[str, str]] = [key for key in self._is_uk_cache if key[0] == table_name]
-        for key in uk_keys:
-            self._is_uk_cache.pop(key, None)
+        for uk_key in uk_keys:
+            self._is_uk_cache.pop(uk_key, None)
 
         # Limpiar columnas tipadas
         self._table_columns_typed_cache.pop(table_name, None)

@@ -129,7 +129,7 @@ class PoolFactory:
                     PoolConnection as MariaDBPool,
                 )
 
-                pool = MariaDBPool(conn_params)
+                pool: ConnectionPoolProtocol = MariaDBPool(conn_params)
                 PoolFactory.logger.info("🔗 MariaDB pool creado (nativo)")
                 return pool
 

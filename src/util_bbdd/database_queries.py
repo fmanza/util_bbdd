@@ -14,7 +14,7 @@ import re
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .database_type_validator import DatabaseTypeValidator
 from .query import QueryRegistry, QueryResolver
@@ -268,7 +268,10 @@ class DatabaseQueries:
 
     def get_all_queries(self) -> dict[str, str]:
         """Obtiene todas las consultas disponibles para el tipo de base de datos"""
-        return self.queries.get(self.db_type, {})
+        raw_queries: Any = self.queries.get(self.db_type, {})
+        if not isinstance(raw_queries, dict):
+            return {}
+        return {str(name): str(query) for name, query in raw_queries.items()}
 
     def get_available_query_names(self) -> list[str]:
         """Obtiene los nombres de las consultas disponibles"""
@@ -282,16 +285,17 @@ class DatabaseQueries:
             Diccionario con información de las consultas
         """
         queries: dict[str, str] = self.get_all_queries()
-        info = {
+        query_details: dict[str, dict[str, Any]] = {}
+        info: dict[str, Any] = {
             "db_type": self.db_type,
             "total_queries": len(queries),
             "query_names": self.get_available_query_names(),
-            "queries": {},
+            "queries": query_details,
         }
 
         for name, query in queries.items():
             required_params = list(set(re.findall(PARAMETER_PATTERN, query)))
-            info["queries"][name] = {
+            query_details[name] = {
                 "template": query,
                 "required_parameters": required_params,
                 "parameter_count": len(required_params),
@@ -558,11 +562,15 @@ class DatabaseQueries:
 
     def get_supported_features(self) -> list[str]:
         """Obtiene las características soportadas por el tipo de base de datos"""
-        return self.db_metadata.get("supported_features", [])
+        raw_features: Any = self.db_metadata.get("supported_features", [])
+        if not isinstance(raw_features, list):
+            return []
+        return [str(feature) for feature in raw_features]
 
     def get_driver_requirements(self) -> dict[str, Any]:
         """Obtiene los requisitos del driver para el tipo de base de datos"""
-        return self.db_metadata.get("driver_info", {})
+        raw_driver_info: Any = self.db_metadata.get("driver_info", {})
+        return cast(dict[str, Any], raw_driver_info if isinstance(raw_driver_info, dict) else {})
 
     def get_connection_examples(self) -> dict[str, dict[str, Any]]:
         """Obtiene ejemplos de conexión para el tipo de base de datos"""
@@ -570,7 +578,11 @@ class DatabaseQueries:
 
     def get_default_port(self) -> int:
         """Obtiene el puerto por defecto para el tipo de base de datos"""
-        return self.db_metadata.get("default_port", 0)
+        raw_port: Any = self.db_metadata.get("default_port", 0)
+        try:
+            return int(raw_port)
+        except (TypeError, ValueError):
+            return 0
 
     def get_installation_commands(self) -> dict[str, Any]:
         """Obtiene los comandos de instalación para el tipo de base de datos"""
@@ -582,8 +594,8 @@ class DatabaseQueries:
 
     def get_query_dependencies(self, query_name: str) -> dict[str, list[str]]:
         """Obtiene las dependencias de una consulta (tablas, vistas, etc.)"""
-        query_template = self.queries[self.db_type].get(query_name, "")
-        dependencies = {"tables": [], "views": [], "schemata": [], "columns": []}
+        query_template: str = self.get_all_queries().get(query_name, "")
+        dependencies: dict[str, list[str]] = {"tables": [], "views": [], "schemata": [], "columns": []}
 
         # Buscar tablas en FROM, JOIN, etc.
         from_pattern = r"(?:FROM|JOIN)\s+(\w+)"
@@ -599,7 +611,7 @@ class DatabaseQueries:
 
     def get_query_documentation(self, query_name: str) -> dict[str, Any]:
         """Obtiene documentación completa de una consulta"""
-        query_template = self.queries[self.db_type].get(query_name, "")
+        query_template: str = self.get_all_queries().get(query_name, "")
         parameters = self._get_required_parameters(query_name)
         dependencies = self.get_query_dependencies(query_name)
 
@@ -635,7 +647,7 @@ class DatabaseQueries:
 
     def _get_required_parameters(self, query_name: str) -> list[str]:
         """Obtiene la lista de parámetros requeridos para una consulta"""
-        query_template = self.queries[self.db_type].get(query_name, "")
+        query_template: str = self.get_all_queries().get(query_name, "")
         return list(set(re.findall(PARAMETER_PATTERN, query_template)))
 
     def _get_query_examples(self, query_name: str) -> list[dict[str, Any]]:
@@ -775,14 +787,15 @@ class DatabaseQueries:
 
     def export_documentation(self, output_file: Path) -> None:
         """Exporta documentación completa de todas las consultas a un archivo"""
-        documentation = {
+        documentation_queries: dict[str, dict[str, Any]] = {}
+        documentation: dict[str, Any] = {
             "db_type": self.db_type,
             "db_metadata": self.get_database_metadata(),
-            "queries": {},
+            "queries": documentation_queries,
         }
 
         for query_name in self.get_available_query_names():
-            documentation["queries"][query_name] = self.get_query_documentation(query_name)
+            documentation_queries[query_name] = self.get_query_documentation(query_name)
 
         try:
             with open(output_file, "w", encoding="utf-8") as f:

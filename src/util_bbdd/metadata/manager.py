@@ -10,7 +10,7 @@ from typing import Any
 
 from .builder import DDLBuilder
 from .cache import DatabaseMetadataCache, RelationshipMetadataCache
-from .contracts import Rows
+from .contracts import Rows, SyncMetadataProvider
 from .fetcher import MetadataFetcher
 from .normalizer import (
     NormalizedColumnRow,
@@ -34,7 +34,7 @@ class MetadataManager:
 
     def __init__(
         self,
-        metadata_provider: Any,  # SyncDatabaseManager u otro provider
+        metadata_provider: SyncMetadataProvider,
         db_cache: DatabaseMetadataCache | None = None,
         relationship_cache: RelationshipMetadataCache | None = None,
         db_type: str = "mariadb",
@@ -48,7 +48,7 @@ class MetadataManager:
             db_type: Tipo de BD (mariadb, postgresql, oracle, etc.)
         """
         self.logger: logging.Logger = logging.getLogger(__name__)
-        self.metadata_provider = metadata_provider
+        self.metadata_provider: SyncMetadataProvider = metadata_provider
         self.db_type: str = db_type.lower()
 
         # Cache

@@ -90,7 +90,7 @@ class ExcelGenerator:
                 data_provider=data_provider,
             )
 
-            data_flat = []
+            data_flat: list[list[Any]] = []
             fila = self._build_overview_sections(ws1, fila, tables, views, routines, data_provider, data_flat, config)
             self._create_supplementary_sheets(wb, data_flat, tables, routines, data_provider, config)
 
@@ -546,7 +546,7 @@ class ExcelGenerator:
             end_row=ws.max_row,
             column_count=2,
         )
-        return ws.max_row + 2
+        return int(ws.max_row) + 2
 
     def _get_storage_total_rows(self, data_provider: Any) -> int:
         """Obtiene el total agregado de filas del inventario de almacenamiento."""
@@ -687,7 +687,7 @@ class ExcelGenerator:
                 column_count=len(headers),
             )
 
-        return ws.max_row + 2
+        return int(ws.max_row) + 2
 
     def _process_routine_parameters_row(self, row: tuple) -> list[str]:
         """Normaliza una fila de parámetros de rutina para Excel."""
@@ -823,7 +823,7 @@ class ExcelGenerator:
                 column_count=len(headers),
             )
 
-        return ws.max_row + 2
+        return int(ws.max_row) + 2
 
     def _apply_colored_range_style(
         self,
@@ -1001,7 +1001,7 @@ class ExcelGenerator:
             column_count=column_count,
             prefix="StorageDetail",
         )
-        return ws.max_row
+        return int(ws.max_row)
 
     def _build_storage_row(self, row: list[Any], numeric_columns: list[int]) -> list[Any]:
         """Construye una fila de almacenamiento con conversiones de tipo."""
@@ -1277,7 +1277,7 @@ class ExcelGenerator:
 
     def _map_indices(self, tabla: str, data_provider: Any) -> dict:
         """Mapea los índices de una tabla por columna."""
-        idx_map = {}
+        idx_map: dict[str, list[str]] = {}
         for idx in data_provider.get_indices(tabla):
             if data_provider.db_type in ("mariadb", "sqlite"):
                 col = idx[1]

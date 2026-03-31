@@ -11,25 +11,29 @@ from typing import Any
 
 from matplotlib.axes import Axes
 
-try:
-    import matplotlib.patches as mpatches
-    import matplotlib.pyplot as plt
-    import networkx as nx
-
-    from matplotlib.lines import Line2D
-
-    MATPLOTLIB_AVAILABLE = True
-except ImportError:
-    mpatches = None
-    plt = None
-    Line2D = None
-    nx = None
-    MATPLOTLIB_AVAILABLE = False
-
-
 from ..managers import SyncDatabaseManager
 from .base import DatabaseRelationshipGraphBase, GraphDocument, LevelDirection, TableRelation
 
+mpatches: Any | None = None
+plt: Any | None = None
+nx: Any | None = None
+Line2DFactory: Any | None = None
+
+try:
+    import matplotlib.patches as _mpatches
+    import matplotlib.pyplot as _plt
+    import networkx as _nx
+
+    from matplotlib.lines import Line2D as _Line2D
+
+    mpatches = _mpatches
+    plt = _plt
+    nx = _nx
+    Line2DFactory = _Line2D
+
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
 MATPLOTLIB_NETWORKX_ERROR = "Matplotlib/NetworkX no disponible. Instale: pip install matplotlib networkx"
 
 
@@ -92,12 +96,12 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
     def _add_legend(self) -> None:
         """Agrega una leyenda al grafo de matplotlib"""
         self.logger.debug("Agregando leyenda al gráfico")
-        if not MATPLOTLIB_AVAILABLE or mpatches is None or plt is None or Line2D is None:
+        if not MATPLOTLIB_AVAILABLE or mpatches is None or plt is None or Line2DFactory is None:
             return
         legend_elements = [
             mpatches.Patch(color="lightcoral", label="Tabla Principal"),
             mpatches.Patch(color="lightblue", label="Tablas Relacionadas"),
-            Line2D([0], [0], color="gray", linewidth=2, label="Relación FK"),
+            Line2DFactory([0], [0], color="gray", linewidth=2, label="Relación FK"),
         ]
         plt.legend(handles=legend_elements, loc="upper right", bbox_to_anchor=(1, 1))
 
@@ -218,7 +222,7 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
             output_file = Path(output_file).resolve()
             output_file.parent.mkdir(parents=True, exist_ok=True)
 
-            G = nx.DiGraph()
+            G: Any = nx.DiGraph()
 
             for table in document.tables:
                 G.add_node(table, is_main=(table == table_name))

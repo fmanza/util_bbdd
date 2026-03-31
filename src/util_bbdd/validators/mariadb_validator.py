@@ -38,7 +38,7 @@ class MariaDBValidator(DatabaseTypeValidator):
         Returns:
             (is_valid, warnings)
         """
-        warnings = []
+        warnings: list[str] = []
 
         # Verificar parámetros requeridos
         for required_param in query_def.required_params:
@@ -58,9 +58,9 @@ class MariaDBValidator(DatabaseTypeValidator):
         if "charset" in params:
             valid_charsets: list[str] = ["utf8", "utf8mb4", "utf16", "latin1", "ascii"]
             if params["charset"] not in valid_charsets:
-                msg: str = f"Unusual charset: {params['charset']} (expected one of {valid_charsets})"
-                warnings.append(msg)
-                self.logger.debug(f"⚠️ {msg}")
+                warning_msg: str = f"Unusual charset: {params['charset']} (expected one of {valid_charsets})"
+                warnings.append(warning_msg)
+                self.logger.debug(f"⚠️ {warning_msg}")
 
         if "database" in params:
             db_name = params["database"]

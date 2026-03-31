@@ -42,6 +42,7 @@ ENV/
 # Tests and coverage
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
 .mypy_cache/
 .ruff_cache/
@@ -49,6 +50,7 @@ htmlcov/
 # Build artifacts
 *.whl
 *.tar.gz
+dist_verify/
 
 # Temporary files
 *.tmp

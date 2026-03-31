@@ -302,7 +302,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
 
             # Caso 1: M:N (tabla many-to-many - ambos son PK)
             if source_is_pk and target_is_pk:
-                result: str = "M:N"
+                result = "M:N"
                 self.logger.debug("📊 Detectada relación M:N (ambos son PK)")
                 self.db_manager.relationship_cache.set_cardinality(
                     source_col, target_col, source_table, target_table, result
@@ -311,7 +311,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
 
             # Caso 2: 1:1 (source tiene restricción única)
             if target_is_pk and source_is_uk:
-                result: str = "1:1"
+                result = "1:1"
                 self.logger.debug("📊 Detectada relación 1:1 (target es PK y source es UK)")
                 self.db_manager.relationship_cache.set_cardinality(
                     source_col, target_col, source_table, target_table, result
@@ -320,7 +320,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
 
             # Caso 3: 1:N (target es PK, source es FK)
             if target_is_pk:
-                result: str = "1:N"
+                result = "1:N"
                 self.logger.debug("📊 Detectada relación 1:N (target es PK)")
                 self.db_manager.relationship_cache.set_cardinality(
                     source_col, target_col, source_table, target_table, result
@@ -328,7 +328,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 return result
 
             # Caso 4: N:1 (source es PK, target es FK) - por defecto
-            result: str = "N:1"
+            result = "N:1"
             self.logger.debug("📊 Detectada relación N:1 (por defecto)")
             self.db_manager.relationship_cache.set_cardinality(
                 source_col, target_col, source_table, target_table, result

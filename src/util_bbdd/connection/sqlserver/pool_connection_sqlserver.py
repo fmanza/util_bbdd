@@ -184,8 +184,11 @@ class PoolConnection:
         return leased_connections
 
     def _close_with_timeout(self, connection: Any, timeout_seconds: float | None, action_name: str) -> None:
+        def _close_connection() -> None:
+            connection.close()
+
         run_close_operation_sync(
-            action=lambda conn=connection: conn.close(),
+            action=_close_connection,
             timeout_seconds=timeout_seconds,
             action_name=action_name,
             db_type="sqlserver",

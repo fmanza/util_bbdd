@@ -11,7 +11,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 # Importar módulos modulares
 from ..analysis.graphviz_ext import GraphvizRelationshipGraphExt
@@ -167,7 +167,8 @@ class DatabaseDocumentation:
         """Carga la configuración de headers desde el fichero JSON."""
         try:
             with open(headers_file, encoding="utf-8") as f:
-                return json.load(f)
+                loaded_headers: Any = json.load(f)
+                return cast(dict[str, Any], loaded_headers)
         except FileNotFoundError as e:
             raise FileNotFoundError(f"Fichero de headers no encontrado: {headers_file}") from e
         except json.JSONDecodeError as e:
@@ -837,8 +838,8 @@ class DatabaseDocumentation:
             return preferred_headers
         if not rows:
             return []
-        max_cols: int = max(len(row) for row in rows)
-        return [f"Columna {idx}" for idx in range(1, max_cols + 1)]
+        fallback_max_cols: int = max(len(row) for row in rows)
+        return [f"Columna {idx}" for idx in range(1, fallback_max_cols + 1)]
 
     def _is_size_header(self, header: str) -> bool:
         """Indica si una cabecera corresponde a un valor de tamaño."""
@@ -1175,10 +1176,12 @@ class DatabaseDocumentation:
                 "numeric_columns": self._get_numeric_storage_indices(headers),
             }
         except Exception as error:
-            error_msg: str = self._flatten_exception_messages(error)
+            flattened_error_msg: str = self._flatten_exception_messages(error)
             if self.db_type == "mariadb" and query_name == "temp_tablespaces":
-                return self.__build_mariadb_temp_tablespaces_error_section(query_name, query_title, error_msg)
-            return self.__build_section_error(query_name, query_title, error_msg)
+                return self.__build_mariadb_temp_tablespaces_error_section(
+                    query_name, query_title, flattened_error_msg
+                )
+            return self.__build_section_error(query_name, query_title, flattened_error_msg)
 
     def __build_mariadb_temp_tablespaces_error_section(
         self, query_name: str, query_title: str, error_msg: str

@@ -6,14 +6,14 @@ import logging
 import math
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from logging import Logger
 from typing import Any
 
 from ..managers import SyncDatabaseManager
 
 
-class LevelDirection(str, Enum):
+class LevelDirection(StrEnum):
     """Dirección de recorrido del grafo."""
 
     INCOMING = "incoming"
@@ -21,7 +21,7 @@ class LevelDirection(str, Enum):
     BOTH = "both"
 
 
-class ColumnVisualizationMode(str, Enum):
+class ColumnVisualizationMode(StrEnum):
     """Política de columnas visibles en nodos."""
 
     COMPACT = "compact"
@@ -29,7 +29,7 @@ class ColumnVisualizationMode(str, Enum):
     ALL = "all"
 
 
-class TableVisualType(str, Enum):
+class TableVisualType(StrEnum):
     """Tipología visual aproximada de una tabla para renderers."""
 
     ENTITY = "entity"
@@ -534,8 +534,8 @@ class DatabaseRelationshipGraphBase:
     def _extract_target_table(self, fk_data: tuple) -> str:
         """Extrae el nombre de la tabla target de los datos de FK según el tipo de BD"""
         if self.db_manager.db_type == "mariadb":
-            return fk_data[3]
-        return fk_data[2]
+            return str(fk_data[3])
+        return str(fk_data[2])
 
     def _extract_source_column(self, fk_data: tuple) -> str:
         """Extrae la columna local de la FK según el tipo de BD."""

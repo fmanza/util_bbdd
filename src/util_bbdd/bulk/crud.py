@@ -14,7 +14,7 @@ Compatible con SyncDatabaseManager para integración simplificada.
 
 import logging
 
-from collections.abc import Callable, Hashable
+from collections.abc import Callable, Hashable, Mapping, Sequence
 from datetime import date, datetime, time
 from pathlib import Path
 from time import perf_counter
@@ -45,18 +45,6 @@ from sqlalchemy.orm import Session
 
 from .audit import AuditManager
 from .normalize import normalize_records_for_sql
-
-# Importar HSQLDB dinámicamente si está disponible
-try:
-    from sqlalchemy.dialects import hsqldb  # type: ignore
-except ImportError:
-    hsqldb = None
-
-# Importar SQLite dinámicamente si está disponible
-try:
-    from sqlalchemy.dialects import sqlite  # type: ignore
-except ImportError:
-    sqlite = None
 
 try:
     from util.medir_tiempo import medir_tiempo as _medir_tiempo
@@ -411,7 +399,10 @@ class bulk_crud:
         with self.engine.begin() as conn:
             for i in range(0, numero_registros, self.chunk_size):
                 batch: list[dict[Hashable, Any]] = records[i : i + self.chunk_size]
-                conn.execute(stmt, batch)  # type: ignore
+                execute_batch: Sequence[Mapping[str, Any]] = [
+                    {str(key): value for key, value in record.items()} for record in batch
+                ]
+                conn.execute(stmt, execute_batch)
 
     def __obtener_pk_cols(self, tabla: Table, df_cols) -> list[str]:
         """Obtiene las columnas PK presentes en el DataFrame.
@@ -498,7 +489,7 @@ class bulk_crud:
 
         stmt: Delete = delete(tabla).where(and_(*(tabla.c[col] == bindparam(col) for col in pk_cols)))
         records: list[dict[Hashable, Any]] = batch_df.to_dict(orient="records")
-        conn.execute(stmt, records)  # type: ignore
+        conn.execute(stmt, records)
 
     def __actualizar_df(self, df: pd.DataFrame):
         """Normaliza nombres de columnas según el dialecto de BBDD.

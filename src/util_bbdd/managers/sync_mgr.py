@@ -69,6 +69,8 @@ class SyncDatabaseManager:
     _SYNC_QUERY_EXECUTOR_NOT_INITIALIZED = (
         "Ejecutor sync de consultas no inicializado. Verifique la conexión a la base de datos."
     )
+    _query_catalog: DatabaseQueries
+    sync_query_executor: SyncQueryExecutor | None
 
     def _build_query_executor(
         self,
@@ -117,7 +119,7 @@ class SyncDatabaseManager:
         # Inicializar la conexión como None
         self._connection: Any = None
         self.cursor: Any = None
-        self.sync_query_executor: SyncQueryExecutor | None = None
+        self.sync_query_executor = None
 
         # Inicializar cachés centralizados (composición jerárquica)
         self.db_cache: DatabaseMetadataCache = DatabaseMetadataCache()
@@ -482,8 +484,8 @@ class SyncDatabaseManager:
     @staticmethod
     def _clear_tuple_cache_by_context(cache: dict[tuple[Any, ...], Any], context: str) -> None:
         keys_to_remove: list[tuple[Any, ...]] = [key for key in cache if key and str(key[0]) == context]
-        for key in keys_to_remove:
-            cache.pop(key, None)
+        for cache_key in keys_to_remove:
+            cache.pop(cache_key, None)
 
     def _clear_context_cache(self, context: str) -> None:
         """Limpia caché para un contexto/schema específico."""
@@ -494,8 +496,8 @@ class SyncDatabaseManager:
             self.db_cache._routine_metadata_context_cache,
             self.db_cache._routine_parameters_context_cache,
         )
-        for cache in context_caches:
-            cache.pop(context, None)
+        for context_cache in context_caches:
+            context_cache.pop(context, None)
 
         tuple_caches: tuple[dict[tuple[Any, ...], Any], ...] = (
             self.db_cache._primary_keys_cache,
@@ -508,8 +510,8 @@ class SyncDatabaseManager:
             self.db_cache._routine_parameters_cache,
             self.db_cache._routine_ddl_cache,
         )
-        for cache in tuple_caches:
-            self._clear_tuple_cache_by_context(cache, context)
+        for tuple_cache in tuple_caches:
+            self._clear_tuple_cache_by_context(tuple_cache, context)
 
         self.logger.info(f"🧹 Caché invalidada para contexto: {context}")
 
@@ -658,14 +660,14 @@ class SyncDatabaseManager:
             oracle_user: str = str(self.conn_params.get("user", "")).strip()
             context_database = oracle_user or context_database
         elif self.db_type == "postgresql":
-            explicit_schema: str = str(self.conn_params.get("schema", "")).strip()
-            context_database = explicit_schema or context_database or "public"
+            explicit_context: str = str(self.conn_params.get("schema", "")).strip()
+            context_database = explicit_context or context_database or "public"
         elif self.db_type == "hsqldb":
-            explicit_schema: str = str(self.conn_params.get("schema", "")).strip()
-            context_database = explicit_schema or context_database or "PUBLIC"
+            explicit_context = str(self.conn_params.get("schema", "")).strip()
+            context_database = explicit_context or context_database or "PUBLIC"
         elif self.db_type == "sqlserver":
-            explicit_schema: str = str(self.conn_params.get("schema", "")).strip()
-            context_database = explicit_schema or context_database or "dbo"
+            explicit_context = str(self.conn_params.get("schema", "")).strip()
+            context_database = explicit_context or context_database or "dbo"
 
         return context_database
 

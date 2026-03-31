@@ -78,7 +78,7 @@ class UpdateAutoIncrement:
                 max_id: int = 1
             else:
                 # Se incrementa el valor máximo en 1
-                max_id: int = int(max_id_value) + 1
+                max_id = int(max_id_value) + 1
 
             # Sentencia SQL para actualizar el valor de AUTO_INCREMENT en la tabla
             sql_update: str = f"ALTER TABLE {row['TABLE_NAME']} AUTO_INCREMENT = {max_id};"

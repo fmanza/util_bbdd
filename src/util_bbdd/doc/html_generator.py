@@ -1965,11 +1965,11 @@ class HtmlGenerator:
     def _is_unique(self, index_data: tuple, db_type: str) -> bool:
         """Determina si un índice es único según el tipo de BD."""
         if db_type == "oracle":
-            return index_data[1] == "UNIQUE"
+            return bool(index_data[1] == "UNIQUE")
         if db_type == "postgresql":
-            return index_data[2] is True
+            return bool(index_data[2] is True)
         if db_type == "hsqldb":
-            return index_data[2] == "UNIQUE"
+            return bool(index_data[2] == "UNIQUE")
         if db_type == "sqlite":
             return str(index_data[2]).strip().lower() in ("1", "true", "yes", "unique")
         return False

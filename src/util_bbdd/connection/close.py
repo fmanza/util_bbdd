@@ -104,7 +104,7 @@ async def run_close_operation_async(
             await asyncio.wait_for(action, timeout=timeout_seconds)
         return True
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning(f"⚠️ Timeout en {action_name} tras {timeout_seconds}s para BD '{db_type}'")
         return False
 

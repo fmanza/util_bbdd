@@ -45,7 +45,7 @@ class SQLServerValidator(DatabaseTypeValidator):
         Returns:
             (is_valid, warnings)
         """
-        warnings = []
+        warnings: list[str] = []
 
         # Verificar parámetros requeridos
         for required_param in query_def.required_params:

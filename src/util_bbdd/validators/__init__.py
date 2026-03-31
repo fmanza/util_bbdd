@@ -7,6 +7,8 @@ for each database motor type.
 
 import logging
 
+from collections.abc import Callable
+
 from .base_validator import DatabaseTypeValidator
 from .hsqldb_validator import HSQLDBValidator
 from .mariadb_validator import MariaDBValidator
@@ -17,8 +19,11 @@ from .sqlserver_validator import SQLServerValidator
 
 logger: logging.Logger = logging.getLogger(__name__)
 
+ValidatorFactory = Callable[[], DatabaseTypeValidator]
+"""Fábrica de validadores concretos por tipo de base de datos."""
+
 # Mapping de tipos de BD a sus validadores
-_VALIDATOR_REGISTRY = {
+_VALIDATOR_REGISTRY: dict[str, ValidatorFactory] = {
     "mariadb": MariaDBValidator,
     "oracle": OracleValidator,
     "postgresql": PostgreSQLValidator,
@@ -54,8 +59,8 @@ def get_type_validator(db_type: str) -> DatabaseTypeValidator:
         supported: str = ", ".join(sorted(_VALIDATOR_REGISTRY.keys()))
         raise ValueError(f"Unsupported database type '{db_type}'. Supported types: {supported}")
 
-    validator_class = _VALIDATOR_REGISTRY[db_type_lower]
-    validator = validator_class()
+    validator_factory = _VALIDATOR_REGISTRY[db_type_lower]
+    validator = validator_factory()
 
     logger.debug(f"Created validator for db_type='{db_type}' -> {validator.__class__.__name__}")
     return validator

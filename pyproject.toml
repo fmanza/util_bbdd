@@ -42,6 +42,8 @@ dev = [
     "mypy>=1.0",
     "black>=23.0",
     "isort>=5.12",
+    "pandas-stubs",
+    "types-networkx",
 ]
 docs = [
     "sphinx>=6.0",
@@ -112,14 +114,6 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "--cov=src/util_bbdd --cov-report=html --cov-report=term-missing -v"
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-
 [tool.mypy]
 python_version = "3.12"
 warn_return_any = true
@@ -132,9 +126,32 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = "oracledb.*"
+module = ["oracledb", "oracledb.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "openpyxl.*"
+module = ["openpyxl", "openpyxl.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pymssql",
+    "pyodbc",
+    "aioodbc",
+    "psycopg",
+    "psycopg_pool",
+    "asyncpg",
+    "mariadb",
+    "aiomysql",
+    "jaydebeapi",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "graphviz",
+    "matplotlib",
+    "matplotlib.*",
+    "util.medir_tiempo",
+]
 ignore_missing_imports = true

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from typing import Any
+from typing import Any, cast
 
 from ..connection.builder import build_conn_params
 from ..connection.config import (
@@ -97,7 +97,7 @@ class ConnectionParamsManager:
             sanitized=sanitized,
             context="connection",
         )
-        return sanitized
+        return cast(dict[str, Any], sanitized)
 
     @staticmethod
     def sanitize_for_pool(
@@ -114,7 +114,7 @@ class ConnectionParamsManager:
             sanitized=sanitized,
             context="pool",
         )
-        return sanitized
+        return cast(dict[str, Any], sanitized)
 
     @staticmethod
     def get_connection_config(

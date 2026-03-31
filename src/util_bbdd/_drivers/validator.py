@@ -7,7 +7,7 @@ database_types.json, centralizando la lógica de drivers.
 import json
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .._core import InvalidDatabaseType
 
@@ -37,6 +37,20 @@ class DatabaseTypeValidator:
         self._config_data: dict[str, Any] = {}
         self._load_config()
 
+    def _metadata_config(self) -> dict[str, Any]:
+        """Devuelve la sección metadata tipada del archivo de configuración."""
+        metadata = self._config_data.get("metadata")
+        if isinstance(metadata, dict):
+            return cast(dict[str, Any], metadata)
+        return {}
+
+    def _database_types_config(self) -> dict[str, dict[str, Any]]:
+        """Devuelve la sección database_types tipada del archivo de configuración."""
+        database_types = self._config_data.get("database_types")
+        if isinstance(database_types, dict):
+            return cast(dict[str, dict[str, Any]], database_types)
+        return {}
+
     def _load_config(self) -> None:
         """Carga la configuración desde el archivo JSON.
 
@@ -58,7 +72,8 @@ class DatabaseTypeValidator:
         Returns:
             Lista de tipos de BD soportados (ej: ['mariadb', 'postgresql', ...])
         """
-        return self._config_data.get("metadata", {}).get("supported_db_types", [])
+        supported_db_types = self._metadata_config().get("supported_db_types", [])
+        return cast(list[str], supported_db_types)
 
     def is_db_type_supported(self, db_type: str) -> bool:
         """Verifica si un tipo de base de datos está soportado.
@@ -105,7 +120,7 @@ class DatabaseTypeValidator:
             InvalidDatabaseType: Si el tipo no está soportado
         """
         self.validate_db_type(db_type)
-        return self._config_data.get("database_types", {}).get(db_type.lower(), {})
+        return self._database_types_config().get(db_type.lower(), {})
 
     def get_db_type_name(self, db_type: str) -> str:
         """Obtiene el nombre descriptivo de un tipo de base de datos.
@@ -117,7 +132,8 @@ class DatabaseTypeValidator:
             Nombre descriptivo (ej: 'MariaDB', 'PostgreSQL')
         """
         info: dict[str, Any] = self.get_db_type_info(db_type)
-        return info.get("name", db_type.title())
+        name = info.get("name")
+        return str(name) if isinstance(name, str) else db_type.title()
 
     def get_db_type_description(self, db_type: str) -> str:
         """Obtiene la descripción de un tipo de base de datos.
@@ -129,7 +145,8 @@ class DatabaseTypeValidator:
             Descripción del tipo de BD
         """
         info: dict[str, Any] = self.get_db_type_info(db_type)
-        return info.get("description", "Sin descripción disponible")
+        description = info.get("description")
+        return str(description) if isinstance(description, str) else "Sin descripción disponible"
 
     def get_db_type_features(self, db_type: str) -> list[str]:
         """Obtiene las características soportadas de un tipo de base de datos.
@@ -141,7 +158,8 @@ class DatabaseTypeValidator:
             Lista de características soportadas (ej: ['async', 'transactions', ...])
         """
         info: dict[str, Any] = self.get_db_type_info(db_type)
-        return info.get("supported_features", [])
+        supported_features = info.get("supported_features", [])
+        return cast(list[str], supported_features)
 
     def get_db_type_default_port(self, db_type: str) -> int:
         """Obtiene el puerto por defecto de un tipo de base de datos.
@@ -153,7 +171,8 @@ class DatabaseTypeValidator:
             Puerto por defecto (ej: 3306 para MariaDB)
         """
         info: dict[str, Any] = self.get_db_type_info(db_type)
-        return info.get("default_port", 0)
+        default_port = info.get("default_port", 0)
+        return int(default_port) if isinstance(default_port, int) and not isinstance(default_port, bool) else 0
 
     def get_db_type_driver_info(self, db_type: str) -> dict[str, Any]:
         """Obtiene información del driver de un tipo de base de datos.
@@ -165,7 +184,8 @@ class DatabaseTypeValidator:
             Diccionario con información del driver
         """
         info: dict[str, Any] = self.get_db_type_info(db_type)
-        return info.get("driver_info", {})
+        driver_info = info.get("driver_info", {})
+        return cast(dict[str, Any], driver_info)
 
     def get_db_type_connection_params(self, db_type: str) -> dict[str, Any]:
         """Obtiene la configuración de parámetros de conexión de un tipo de BD.
@@ -177,7 +197,8 @@ class DatabaseTypeValidator:
             Diccionario con configuración de parámetros (required, optional, etc)
         """
         info: dict[str, Any] = self.get_db_type_info(db_type)
-        return info.get("connection_params", {})
+        connection_params = info.get("connection_params", {})
+        return cast(dict[str, Any], connection_params)
 
     def get_required_params(self, db_type: str) -> list[str]:
         """Obtiene los parámetros requeridos para un tipo de base de datos.
@@ -189,7 +210,8 @@ class DatabaseTypeValidator:
             Lista de nombres de parámetros requeridos
         """
         params_config: dict[str, Any] = self.get_db_type_connection_params(db_type)
-        return params_config.get("required", [])
+        required_params = params_config.get("required", [])
+        return cast(list[str], required_params)
 
     def get_optional_params(self, db_type: str) -> list[dict[str, Any]]:
         """Obtiene los parámetros opcionales de un tipo de base de datos.
@@ -201,7 +223,8 @@ class DatabaseTypeValidator:
             Lista de parámetros opcionales con su configuración
         """
         params_config: dict[str, Any] = self.get_db_type_connection_params(db_type)
-        return params_config.get("optional", [])
+        optional_params = params_config.get("optional", [])
+        return cast(list[dict[str, Any]], optional_params)
 
     def validate_connection_params(self, db_type: str, conn_params: dict[str, Any]) -> bool:
         """Valida los parámetros de conexión para un tipo de base de datos.
