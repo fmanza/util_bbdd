@@ -14,3 +14,4 @@ assignees: ''
 ## Motor, entorno y versión
 ## Configuración implicada
 ## Riesgo
+## Evidencia mínima

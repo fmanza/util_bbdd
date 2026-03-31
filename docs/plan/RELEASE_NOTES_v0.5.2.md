@@ -104,7 +104,7 @@ from util_bbdd.connection.close import parse_close_timeout
 - ✅ Documentation updated
 
 ### Compatibility
-- ✅ Python 3.11+
+- ✅ Python 3.11+ en la release v0.5.2
 - ✅ All database drivers (MariaDB, Oracle, PostgreSQL, SQLite, HSQLDB, SQL Server)
 - ✅ Synchronous APIs
 - ✅ Asynchronous APIs

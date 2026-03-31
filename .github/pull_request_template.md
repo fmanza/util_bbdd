@@ -14,10 +14,14 @@ Indica módulos, clases, utilidades, tests o documentación clave.
 ## Impacto en API pública y compatibilidad
 Describe si cambia contratos sync/async, configuración, wrappers o migraciones.
 
+## Supuestos o datos faltantes
+Indica cualquier restricción, decisión temporal o contexto que no haya podido verificarse.
+
 ## Validación
 - [ ] revisión manual
 - [ ] lint ejecutado
 - [ ] tests ejecutados
+- [ ] type-check ejecutado
 - [ ] rollback definido
 
 ## Riesgos

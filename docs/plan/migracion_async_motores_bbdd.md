@@ -52,7 +52,7 @@ Beneficios esperados:
   - Si no, usa `_connect()` (conexion unica).
 
 ### Supuestos explicitados
-- Python objetivo minimo recomendado: 3.11.
+- Python objetivo minimo recomendado: 3.12.
 - No hay uso actual de `asyncio` en `src/util_bbdd/**`.
 - Se permite agregar dependencias por motor.
 

@@ -55,6 +55,50 @@ def test_build_diagram_tab_payload_groups_tabs_by_direction_and_level(tmp_path: 
     assert summary["has_any_hidden_levels"] is True
 
 
+def test_build_diagram_tab_payload_normalizes_incoming_order_and_labels(tmp_path: Path) -> None:
+    generator = HtmlGenerator(database="demo", headers={})
+    output_dir = tmp_path / "site"
+    graph_dir = output_dir / "graphs"
+    graph_dir.mkdir(parents=True)
+
+    incoming_level_1 = graph_dir / "users_incoming_level1.svg"
+    incoming_level_2 = graph_dir / "users_incoming_level2.svg"
+    svg_content = '<svg xmlns="http://www.w3.org/2000/svg"><g class="node"><title>users</title></g></svg>'
+    incoming_level_1.write_text(svg_content, encoding="utf-8")
+    incoming_level_2.write_text(svg_content, encoding="utf-8")
+
+    tabs, flat_paths, _ = generator._build_diagram_tab_payload(
+        table_name="users",
+        generated_groups={
+            "summary": {
+                "max_depth": 5,
+                "total_outgoing_levels": 0,
+                "total_incoming_levels": 2,
+                "hidden_outgoing_levels": 0,
+                "hidden_incoming_levels": 0,
+            },
+            "outgoing": [],
+            "incoming": [
+                {"depth": 2, "path": incoming_level_2, "title": "Nivel 1"},
+                {"depth": 1, "path": incoming_level_1, "title": "Nivel 1"},
+            ],
+        },
+        output_dir=output_dir,
+        navigation_links={"users": "../tables/users.html"},
+    )
+
+    assert len(tabs) == 1
+    assert tabs[0]["direction"] == "incoming"
+    assert [item["depth"] for item in tabs[0]["items"]] == [1, 2]
+    assert [item["title"] for item in tabs[0]["items"]] == ["Nivel 1", "Nivel 2"]
+    assert [item["short_title"] for item in tabs[0]["items"]] == ["Nivel 1", "Nivel 2"]
+    assert [item["aria_label"] for item in tabs[0]["items"]] == [
+        "Entrada Nivel 1 de users",
+        "Entrada Nivel 2 de users",
+    ]
+    assert flat_paths == ["graphs/users_incoming_level1.svg", "graphs/users_incoming_level2.svg"]
+
+
 def test_build_diagram_legend_payload_matches_current_contract() -> None:
     generator = HtmlGenerator(database="demo", headers={})
 

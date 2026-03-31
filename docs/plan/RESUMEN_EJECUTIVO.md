@@ -105,4 +105,4 @@ pytest tests/unit/test_query_registry.py -v
 
 **Análisis completado:** 6 de marzo de 2026
 **Versión objetivo:** 0.2.0 (sin backward compatibility)
-**Python mínimo:** 3.11
+**Python mínimo:** 3.12

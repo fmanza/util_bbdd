@@ -8,3 +8,4 @@
 - compatibilidad
 - rollback
 - checklist final
+- pruebas ejecutadas o sugeridas

@@ -1683,7 +1683,7 @@ class HtmlGenerator:
         flat_paths: list[str] = []
 
         for direction_key, direction_label in (("outgoing", "Salida"), ("incoming", "Entrada")):
-            items = generated_groups.get(direction_key, [])
+            items = sorted(generated_groups.get(direction_key, []), key=lambda item: int(item.get("depth", 0)))
             if not items:
                 continue
 
@@ -1696,7 +1696,7 @@ class HtmlGenerator:
                 relative_path = html.escape(str(path.relative_to(output_dir)).replace("\\", "/"))
                 flat_paths.append(relative_path)
                 depth = int(item["depth"])
-                title = str(item.get("title", f"Nivel {depth}"))
+                title = f"Nivel {depth}"
                 tab_items.append(
                     {
                         "tab_id": f"{table_name}-{direction_key}-level-{depth}",

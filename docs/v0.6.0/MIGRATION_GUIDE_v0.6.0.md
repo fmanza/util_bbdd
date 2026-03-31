@@ -22,6 +22,7 @@ max_subnodes = 10
 ```toml
 [imprimir_config.imprimir.grafo]
 enabled = true
+show_columns = true
 max_depth = 3
 direction = "both"
 images_paginated = true
@@ -41,14 +42,22 @@ show_constraint_name = false
 
 - `first_level_only = true` -> `max_depth = 1`
 - `first_level_only = false` -> definir explícitamente `max_depth > 1`
-- `show_columns = false` -> `columns.mode = "relations"` o `columns.mode = "compact"` según necesidad
-- `show_columns = true` -> `columns.mode = "all"` si se quieren todas las columnas
+- `show_columns = false` -> `grafo.show_columns = false`
+- `show_columns = true` -> `grafo.show_columns = true` y ajustar `columns.mode` según el detalle deseado
 
 ## Comportamiento por formato
 
 - HTML: genera pestañas por sentido y por nivel
 - Word: mantiene imagen por tabla y añade resumen de niveles totales/no visibles
 - Graphviz: marca cardinalidad por extremos y resume niveles en el pie del grafo
+
+## Ejemplo completo recomendado
+
+Si necesitas partir de una configuración completa y comentada del contrato `imprimir_config.imprimir`, usa como referencia:
+
+- [docs/examples/imprimir_config_full_example.toml](docs/examples/imprimir_config_full_example.toml)
+
+Ese ejemplo cubre tanto las opciones generales de documentación como el bloque `grafo` y sus subbloques `columns` y `cardinality`.
 
 ## Cambios de imports en analysis
 

@@ -266,7 +266,7 @@
 - fijar baseline de ruptura, Python objetivo y reglas de test.
 
 **Cambios por archivo**
-- [ ] `pyproject.toml` subir `requires-python` a `>=3.11`
+- [ ] `pyproject.toml` subir `requires-python` a `>=3.12`
 - [ ] `src/util_bbdd/database_exceptions.py` retirar aliases de compatibilidad deprecated
 - [ ] `tests/unit/test_database_exceptions_pr0.py` actualizar a nomenclatura final (sin aliases)
 - [ ] `tests/conftest.py` agregar fakes comunes para sync/async executor tests
@@ -281,7 +281,7 @@
 
 **Incompatibilidades introducidas**
 - Eliminacion de aliases legacy en excepciones.
-- Requisito minimo Python 3.11.
+- Requisito minimo Python 3.12.
 
 ---
 
@@ -530,7 +530,7 @@
   - `db_manager.db_queries` directo
 
 ### 9.5 Nota de version
-- `pyproject.toml` actual declara `>=3.10`; mover a `>=3.11` es cambio de compatibilidad de runtime y debe publicarse como breaking.
+- `pyproject.toml` actual declara `>=3.12`; cualquier cambio adicional del runtime minimo debe publicarse como breaking.
 
 ## 10. Checklist final de salida
 - [ ] `pytest -q` pasa sin servicios externos (al menos suite unitaria)

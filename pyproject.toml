@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "util_bbdd"
-version = "0.6.2"
+version = "0.6.3"
 description = "Librería de operaciones de base de datos: CRUD en lote, auditoría, conexiones pooled y documentación."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "MIT"
 authors = [
     {name = "Francisco", email = "developer@example.com"}
@@ -17,8 +17,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
@@ -51,10 +49,10 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/tu_org/util_bbdd"
-Documentation = "https://util-bbdd.readthedocs.io"
-Repository = "https://github.com/tu_org/util_bbdd.git"
-"Bug Tracker" = "https://github.com/tu_org/util_bbdd/issues"
+Homepage = "https://github.com/fmanza/util_bbdd"
+Documentation = "https://github.com/fmanza/util_bbdd/tree/main/docs"
+Repository = "https://github.com/fmanza/util_bbdd.git"
+"Bug Tracker" = "https://github.com/fmanza/util_bbdd/issues"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -75,7 +73,7 @@ util_bbdd = [
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py312"
 
 #[tool.ruff.isort]
 #known-first-party = ["util_bbdd"]
@@ -123,7 +121,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 check_untyped_defs = true

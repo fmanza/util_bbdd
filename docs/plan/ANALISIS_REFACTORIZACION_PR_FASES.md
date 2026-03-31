@@ -1,4 +1,4 @@
-# Análisis de Refactorización: Unificación de Consultas, Executors y SRP (Python 3.11+)
+# Análisis de Refactorización: Unificación de Consultas, Executors y SRP (Python 3.12+)
 
 ## 1. Resumen ejecutivo
 
@@ -1027,4 +1027,4 @@ raise QueryNotFoundError(f"Query '{query_name}' not found for {db_type}") from e
 
 **Documento generado:** 6 de marzo de 2026
 **Versión objetivo:** 0.2.0 (sin backward compatibility)
-**Python mínimo:** 3.11 (pyproject.toml dice 3.10+, preferible 3.11 para match con prompt)
+**Python mínimo:** 3.12 (alineado con `pyproject.toml` y la política actual del proyecto)

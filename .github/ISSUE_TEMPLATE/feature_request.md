@@ -13,3 +13,4 @@ assignees: ''
 ## Motores o formatos afectados
 ## Criterios de aceptación
 ## Riesgos
+## Restricciones o supuestos

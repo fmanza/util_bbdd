@@ -2,7 +2,9 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB (sync).
 
-**Version:** 0.6.2 | **Status:** ✅ Estable
+**Version:** 0.6.3 | **Status:** ✅ Estable
+
+**Compatibilidad Python:** 3.12+
 
 Incluye:
 - ✅ **CRUD en lote** desde DataFrames (insert/update/delete masivo)
@@ -14,6 +16,31 @@ Incluye:
 - ✅ **Plantillas HTML Jinja2 modulares** con páginas globales `Ver todo`
 - ✅ **Validación de tipos** por dialecto SQL
 - ✅ **Arquitectura 3-level** jerárquica y modular (NEW in v0.5.0)
+
+## Flujo de trabajo con Copilot
+
+El repositorio define una capa combinada de instrucciones, prompts y agentes para trabajar con cambios funcionales, hotfixes, auditorías y cierres.
+
+- La política base está en [.github/copilot-instructions.md](.github/copilot-instructions.md).
+- La jerarquía de decisión y los agentes disponibles están en [.github/README.md](.github/README.md).
+- El ejemplo completo de uso está en [docs/examples/github_usage_complete_example.md](docs/examples/github_usage_complete_example.md).
+
+Cadena recomendada para tareas complejas:
+
+```text
+Workflow Director -> Plan Architect -> Feature Implementer o Hotfix Responder -> Code Auditor -> Version Closer
+```
+
+Mapa rápido:
+
+| Necesidad | Prompt habitual | Agente recomendado |
+|---|---|---|
+| Nueva funcionalidad | `new_feature` | `Plan Architect` y luego `Feature Implementer` |
+| Hotfix acotado | `hotfix` | `Hotfix Responder` |
+| Refactor sin cambio funcional | `refactor` | `Plan Architect` y luego `Feature Implementer` |
+| Auditoría técnica | `audit_code` | `Code Auditor` |
+| Revisión de seguridad | `security_review` | `Security Reviewer` |
+| Cierre de versión o sesión | `version_closure` | `Version Closer` |
 
 ## Soporte Async por Motor
 
@@ -224,6 +251,8 @@ graph.generate_graphviz_graph_paginated_ext(
 
 ## Instalación
 
+Requiere **Python 3.12 o superior**.
+
 ### Desde PyPI (futuro)
 ```bash
 pip install util_bbdd
@@ -231,7 +260,7 @@ pip install util_bbdd
 
 ### Desde fuente (desarrollo)
 ```bash
-git clone https://github.com/tu_org/util_bbdd.git
+git clone https://github.com/fmanza/util_bbdd.git
 cd util_bbdd
 py -m venv venv
 .\venv\Scripts\Activate.ps1  # Windows
@@ -564,7 +593,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.6.2** (Stable - UX HTML offline, assets locales y payloads documentales compartidos)
+**Current Version: v0.6.3** (Stable - capa de agentes de Copilot y flujo prompt-agente documentado)
 
 Roadmap:
 - `v0.1.0`: CRUD base + auditoría
@@ -574,7 +603,8 @@ Roadmap:
 - `v0.5.0` ✅: Refactorización arquitectónica (3-level hierarchy)
 - `v0.6.0` ✅: Grafos multinivel, HTML tabulado y contrato documental nuevo
 - `v0.6.1` ✅: Tipología visual, leyenda HTML ampliada y reutilización de análisis entre Word y HTML
-- `v0.6.2` ✅ (actual): SVG inline offline, resumen/leyenda compartidos, iconos locales y ajuste de tooltips/exportación
+- `v0.6.2` ✅: SVG inline offline, resumen/leyenda compartidos, iconos locales y ajuste de tooltips/exportación
+- `v0.6.3` ✅ (actual): capa de agentes de Copilot, flujo recomendado y mapeo prompt-agente documentado
 - `v1.0.0`: API estable, cobertura 85%+
 
 ## Licencia
@@ -592,5 +622,5 @@ MIT - Ver [LICENSE](LICENSE)
 ## Soporte
 
 - 📧 Email: developer@example.com
-- 🐛 Issues: https://github.com/tu_org/util_bbdd/issues
-- 📚 Docs: https://util-bbdd.readthedocs.io
+- 🐛 Issues: https://github.com/fmanza/util_bbdd/issues
+- 📚 Docs: https://github.com/fmanza/util_bbdd/tree/main/docs

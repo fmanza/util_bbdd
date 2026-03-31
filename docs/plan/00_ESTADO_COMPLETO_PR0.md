@@ -2,7 +2,7 @@
 
 ## 📊 Resumen de Análisis
 
-Se completó análisis exhaustivo de la librería `util_bbdd` (Python 3.11+) para refactorización sin backward compatibility.
+Se completó análisis exhaustivo de la librería `util_bbdd` (Python 3.12+) para refactorización sin backward compatibility.
 
 ### 📁 Documentos generados
 
@@ -237,5 +237,5 @@ c:\Desarrollo\python\libs\util_bbdd\
 **Análisis completado:** 6 de marzo de 2026
 **PR 0 completada:** 6 de marzo de 2026
 **Versión objetivo:** 0.2.0 (sin backward compatibility)
-**Python mínimo:** 3.11/3.10+
+**Python mínimo:** 3.12+
 **Estado:** 🚀 LISTO PARA PR 1

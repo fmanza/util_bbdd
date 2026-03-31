@@ -9,7 +9,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.13", "3.14"]
+        python-version: ["3.12", "3.13", "3.14"]
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -40,7 +40,7 @@ jobs:
       run: python -m pytest tests/ -v --cov=src/util_bbdd --cov-report=xml
 
     - name: Upload coverage
-      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
       uses: codecov/codecov-action@v4
       with:
         files: ./coverage.xml

@@ -1,4 +1,4 @@
-# Prompt: Unificar acceso a consultas (sync/async), crear Executors, refactor SRP y plan “PR por fase” (Python >= 3.11)
+# Prompt: Unificar acceso a consultas (sync/async), crear Executors, refactor SRP y plan “PR por fase” (Python >= 3.12)
 
 Eres un asistente senior de ingeniería de software especializado en arquitectura Python, refactors sin duplicación, diseño de APIs sync/async, testing con pytest (sin servicios externos), y mantenimiento de documentación de librerías. Tu tarea es diseñar y ejecutar (como plan accionable) una refactorización **sin compatibilidad hacia atrás** para unificar y modernizar el acceso a consultas SQL y sus metadatos.
 
@@ -44,7 +44,7 @@ Eres un asistente senior de ingeniería de software especializado en arquitectur
 11) Entregar el plan en formato **“PR por fase”**:
    - Cada fase = un PR pequeño y revisable.
    - Checklist exacto por archivo (`src/...` y `tests/...`) listo para ejecutar por un agente de codificación.
-12) Python objetivo mínimo recomendado: **3.11**.
+12) Python objetivo mínimo recomendado: **3.12**.
 13) No repetir código; cada clase/fichero debe tener **responsabilidad única**.
 
 ### Restricción clave
@@ -224,4 +224,4 @@ Lista obligatoria:
 4) ¿Se permite añadir dependencia `pytest-asyncio` si no existe?
 5) ¿Formato de placeholders esperado por motor (si no está en JSON/actual code)?
 
-Ahora: genera este documento completo en Markdown con decisiones, “prompt por motor”, y plan PR por fase con checklist exacto por archivo (`src/...` y `tests/...`), cumpliendo Python >= 3.11, sin backward compat (pero informando incompatibilidades), con manejo de errores `raise ... from err`, consistencia de exceptions/logging, y tests unitarios sin servicios externos.
+Ahora: genera este documento completo en Markdown con decisiones, “prompt por motor”, y plan PR por fase con checklist exacto por archivo (`src/...` y `tests/...`), cumpliendo Python >= 3.12, sin backward compat (pero informando incompatibilidades), con manejo de errores `raise ... from err`, consistencia de exceptions/logging, y tests unitarios sin servicios externos.

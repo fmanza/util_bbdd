@@ -5,6 +5,23 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- El soporte oficial de runtime pasa a ser Python 3.12+.
+- Se alinean CI, metadatos de paquete y documentación pública con el nuevo rango soportado.
+- Los enlaces públicos del paquete y del README pasan a apuntar al repositorio real de `fmanza/util_bbdd`.
+
+## [0.6.3] - 2026-03-31
+
+### Added
+- Nueva capa de agentes especializados de VS Code en `.github/agents` para clasificación, planificación, implementación, hotfix, auditoría, seguridad y cierre de versión.
+
+### Changed
+- La política transversal de Copilot incorpora el modelo combinado de instrucciones, prompts y agentes.
+- README, guía de `.github` y ejemplo integral documentan el flujo recomendado de trabajo con Copilot y el mapeo rápido prompt-agente.
+- El cierre de v0.6.3 excluye explícitamente `docs/v0.6.4`, que permanece como trabajo futuro fuera del alcance de la release.
+
 ## [0.6.2] - 2026-03-26
 
 ### Added
@@ -432,7 +449,7 @@ See [08_ESTADO_COMPLETO_PR8.md](08_ESTADO_COMPLETO_PR8.md) for detailed migratio
 ### Note
 - HSQLDB: No soporte async (decisión explícita, ver v0.2.0 para más detalles)
 
-[0.5.3]: https://github.com/tu_org/util_bbdd/releases/tag/v0.5.3
-[0.5.2]: https://github.com/tu_org/util_bbdd/releases/tag/v0.5.2
-[0.2.0]: https://github.com/tu_org/util_bbdd/releases/tag/v0.2.0
-[0.1.0]: https://github.com/tu_org/util_bbdd/releases/tag/v0.1.0
+[0.5.3]: https://github.com/fmanza/util_bbdd/releases/tag/v0.5.3
+[0.5.2]: https://github.com/fmanza/util_bbdd/releases/tag/v0.5.2
+[0.2.0]: https://github.com/fmanza/util_bbdd/releases/tag/v0.2.0
+[0.1.0]: https://github.com/fmanza/util_bbdd/releases/tag/v0.1.0
