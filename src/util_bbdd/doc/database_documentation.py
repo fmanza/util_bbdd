@@ -386,7 +386,7 @@ class DatabaseDocumentation:
 
     def _get_storage_inventory_runtime(self) -> StorageInventoryRuntime:
         """Construye el runtime interno compartido para almacenamiento documental."""
-        db_manager = getattr(self, "db_manager", None)
+        db_manager: SyncDatabaseManager = self.db_manager
         logger = getattr(self, "logger", logging.getLogger(__name__))
         db_type = str(getattr(db_manager, "db_type", "") or "")
         database = str(getattr(db_manager, "database", "") or "")
