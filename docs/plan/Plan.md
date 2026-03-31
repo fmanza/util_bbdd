@@ -1,4 +1,8 @@
 ## 1. Resumen Ejecutivo
+> Nota Fase 4 (2026-03-31): este documento conserva un analisis historico previo al cierre de Fases 2-4. Para el estado actual de la libreria, los imports publicos canonicos de managers se documentan desde `util_bbdd`, mientras que referencias a `database_queries.py`, `query_resolver.py`, `database_type_validator.py` o ejecutores legacy deben leerse como contexto historico o rutas de compatibilidad, no como la guia principal vigente.
+
+> Lectura actual: cuando este documento habla de romper compatibilidad, `fetch_one` o ejecutores legacy, describe la propuesta de ese momento. La documentacion viva actual usa imports canónicos desde `util_bbdd` para managers y deja las rutas legacy solo como compatibilidad transitoria o contexto historico.
+
 Se revisó `src/util_bbdd/**` excluyendo `bulk_crud`, `doc` y `grafos`.
 Hallazgo principal: hoy conviven dos arquitecturas en paralelo (legacy y nueva) para ejecución de queries, con duplicidad fuerte entre sync/async y responsabilidades mezcladas.
 
@@ -6,7 +10,7 @@ Decisiones clave:
 - Consolidar una sola capa de ejecución con contrato único sync/async.
 - Mantener `QueryRegistry` + `QueryResolver` como núcleo común.
 - Dividir responsabilidades por dominio (queries, execution, connection/pool, engine policies, validation).
-- Mantener enfoque **sin backward compatibility**.
+- Mantener, en el plan original, un enfoque **sin backward compatibility**.
 - Conservar soporte por motor con matriz explícita de capacidades (incluyendo límite async de `hsqldb`).
 
 Validación rápida ejecutada:
@@ -129,13 +133,13 @@ Contrato objetivo:
 | Componente | Responsabilidad | Métodos objetivo |
 |---|---|---|
 | `DatabaseQueries` | Catálogo y resolución de definiciones SQL + metadata; sin acceso a conexión | `get_query_definition`, `render_query`, `list_queries`, `get_query_info` |
-| `DatabaseQueryExecutor` (sync) | Ejecutar SQL resuelto y custom SQL; manejo de timeout/errores/fetch/transacción | `execute_query(query_name, db_type, params, fetch_one=False, timeout=None)`, `execute_custom_query(sql, params=None, fetch_one=False, timeout=None)`, `execute_batch(...)` |
-| `DatabaseQueryExecutor` (async) | Mismo contrato semántico del sync, con `await` | Misma firma funcional (sin `fetch_options`) |
+| `DatabaseQueryExecutor` (sync) | Ejecutor descrito por la propuesta histórica, previo a la API pública actual `*_many/*_one` | `execute_query(query_name, db_type, params, fetch_one=False, timeout=None)`, `execute_custom_query(sql, params=None, fetch_one=False, timeout=None)`, `execute_batch(...)` |
+| `DatabaseQueryExecutor` (async) | Mismo contrato semántico del sync dentro de la propuesta histórica | Misma firma funcional (sin `fetch_options`) |
 
 Reglas de paridad:
 - Misma lista de capacidades sync/async.
 - Mismo tipo de errores funcionales.
-- Mismo comportamiento `fetch_one` / `fetch_all`.
+- Mismo comportamiento `fetch_one` / `fetch_all` dentro del contrato discutido en ese momento.
 - Mismo mapping por motor (con capability flags para excepciones reales como `hsqldb` async no soportado).
 
 ## 6. Decisiones de Refactor vs Clase Nueva
@@ -181,7 +185,7 @@ Breaking changes esperados:
 
 Guía corta de migración:
 1. Reemplazar imports legacy de ejecutores por el nuevo paquete `execution`.
-2. Adaptar llamadas async de `execute_query(..., fetch_options=...)` a `fetch_one=...`.
+2. Adaptar llamadas async del contrato entonces propuesto desde `execute_query(..., fetch_options=...)` a `fetch_one=...`; en la superficie pública vigente la referencia viva ya pasó a `*_many/*_one`.
 3. Mover cualquier uso de validación manual de query al resolver central.
 4. Actualizar imports de factorías SQLAlchemy a nombres explícitos `sync`/`async`.
 5. Si usas `hsqldb` async, tratarlo como no soportado y usar ruta sync explícita.

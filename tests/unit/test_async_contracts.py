@@ -6,6 +6,7 @@ import asyncio
 
 import pytest
 
+from util_bbdd import maybe_await
 from util_bbdd.connection.factory import ConnectionFactory
 from util_bbdd.connection.protocols import AsyncConnectionProtocol, AsyncPoolProtocol
 
@@ -55,3 +56,21 @@ def test_async_factory_without_registration_raises() -> None:
             await ConnectionFactory.create_async_connection(unique_db_type, {})
 
     asyncio.run(_run())
+
+
+def test_maybe_await_resolves_plain_value() -> None:
+    async def _run() -> int:
+        return await maybe_await(7)
+
+    assert asyncio.run(_run()) == 7
+
+
+def test_maybe_await_resolves_awaitable() -> None:
+    async def _value() -> str:
+        await asyncio.sleep(0)
+        return "ok"
+
+    async def _run() -> str:
+        return await maybe_await(_value())
+
+    assert asyncio.run(_run()) == "ok"

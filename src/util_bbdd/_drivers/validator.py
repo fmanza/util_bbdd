@@ -1,4 +1,4 @@
-"""Módulo para validación y gestión de drivers de bases de datos.
+"""Modulo para validacion y gestion de drivers de bases de datos.
 
 Maneja la configuración y validación de tipos de bases de datos desde
 database_types.json, centralizando la lógica de drivers.
@@ -7,9 +7,20 @@ database_types.json, centralizando la lógica de drivers.
 import json
 
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from .._core import InvalidDatabaseType
+from ._config_loader import (
+    JsonDict,
+    JsonObjectMap,
+    OptionalParamsConfig,
+    as_error_messages_config,
+    as_json_dict,
+    as_json_object_map,
+    as_optional_params_config,
+    as_string_list,
+    load_database_type_config,
+)
 
 
 class DatabaseTypeValidator:
@@ -34,37 +45,33 @@ class DatabaseTypeValidator:
             ValueError: Si el JSON es inválido
         """
         self.config_file: Path = config_file or (Path(__file__).parents[1] / "data" / "database_types.json")
-        self._config_data: dict[str, Any] = {}
+        self._config_data: JsonDict = {}
         self._load_config()
 
-    def _metadata_config(self) -> dict[str, Any]:
+    def _metadata_config(self) -> JsonDict:
         """Devuelve la sección metadata tipada del archivo de configuración."""
-        metadata = self._config_data.get("metadata")
-        if isinstance(metadata, dict):
-            return cast(dict[str, Any], metadata)
-        return {}
+        return as_json_dict(self._config_data.get("metadata"))
 
-    def _database_types_config(self) -> dict[str, dict[str, Any]]:
+    def _database_types_config(self) -> JsonObjectMap:
         """Devuelve la sección database_types tipada del archivo de configuración."""
-        database_types = self._config_data.get("database_types")
-        if isinstance(database_types, dict):
-            return cast(dict[str, dict[str, Any]], database_types)
-        return {}
+        return as_json_object_map(self._config_data.get("database_types"))
+
+    def _examples_config(self) -> JsonObjectMap:
+        """Devuelve la sección examples tipada del archivo de configuración."""
+        return as_json_object_map(self._config_data.get("examples"))
+
+    def _error_messages_config(self) -> dict[str, str]:
+        """Devuelve la sección error_messages tipada del archivo de configuración."""
+        return as_error_messages_config(self._config_data.get("error_messages"))
 
     def _load_config(self) -> None:
-        """Carga la configuración desde el archivo JSON.
+        """Carga la configuracion desde el archivo JSON.
 
         Raises:
             FileNotFoundError: Si no se encuentra el archivo
             ValueError: Si el JSON es inválido
         """
-        try:
-            with open(self.config_file, encoding="utf-8") as f:
-                self._config_data = json.load(f)
-        except FileNotFoundError as e:
-            raise FileNotFoundError(f"Archivo de configuración no encontrado: {self.config_file}") from e
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Error al leer archivo JSON: {e}") from e
+        self._config_data = load_database_type_config(self.config_file)
 
     def get_supported_db_types(self) -> list[str]:
         """Obtiene la lista de tipos de bases de datos soportados.
@@ -72,8 +79,7 @@ class DatabaseTypeValidator:
         Returns:
             Lista de tipos de BD soportados (ej: ['mariadb', 'postgresql', ...])
         """
-        supported_db_types = self._metadata_config().get("supported_db_types", [])
-        return cast(list[str], supported_db_types)
+        return as_string_list(self._metadata_config().get("supported_db_types"))
 
     def is_db_type_supported(self, db_type: str) -> bool:
         """Verifica si un tipo de base de datos está soportado.
@@ -131,7 +137,7 @@ class DatabaseTypeValidator:
         Returns:
             Nombre descriptivo (ej: 'MariaDB', 'PostgreSQL')
         """
-        info: dict[str, Any] = self.get_db_type_info(db_type)
+        info = self.get_db_type_info(db_type)
         name = info.get("name")
         return str(name) if isinstance(name, str) else db_type.title()
 
@@ -144,7 +150,7 @@ class DatabaseTypeValidator:
         Returns:
             Descripción del tipo de BD
         """
-        info: dict[str, Any] = self.get_db_type_info(db_type)
+        info = self.get_db_type_info(db_type)
         description = info.get("description")
         return str(description) if isinstance(description, str) else "Sin descripción disponible"
 
@@ -157,9 +163,8 @@ class DatabaseTypeValidator:
         Returns:
             Lista de características soportadas (ej: ['async', 'transactions', ...])
         """
-        info: dict[str, Any] = self.get_db_type_info(db_type)
-        supported_features = info.get("supported_features", [])
-        return cast(list[str], supported_features)
+        info = self.get_db_type_info(db_type)
+        return as_string_list(info.get("supported_features"))
 
     def get_db_type_default_port(self, db_type: str) -> int:
         """Obtiene el puerto por defecto de un tipo de base de datos.
@@ -170,11 +175,11 @@ class DatabaseTypeValidator:
         Returns:
             Puerto por defecto (ej: 3306 para MariaDB)
         """
-        info: dict[str, Any] = self.get_db_type_info(db_type)
+        info = self.get_db_type_info(db_type)
         default_port = info.get("default_port", 0)
         return int(default_port) if isinstance(default_port, int) and not isinstance(default_port, bool) else 0
 
-    def get_db_type_driver_info(self, db_type: str) -> dict[str, Any]:
+    def get_db_type_driver_info(self, db_type: str) -> JsonDict:
         """Obtiene información del driver de un tipo de base de datos.
 
         Args:
@@ -183,11 +188,10 @@ class DatabaseTypeValidator:
         Returns:
             Diccionario con información del driver
         """
-        info: dict[str, Any] = self.get_db_type_info(db_type)
-        driver_info = info.get("driver_info", {})
-        return cast(dict[str, Any], driver_info)
+        info = self.get_db_type_info(db_type)
+        return as_json_dict(info.get("driver_info"))
 
-    def get_db_type_connection_params(self, db_type: str) -> dict[str, Any]:
+    def get_db_type_connection_params(self, db_type: str) -> JsonDict:
         """Obtiene la configuración de parámetros de conexión de un tipo de BD.
 
         Args:
@@ -196,9 +200,8 @@ class DatabaseTypeValidator:
         Returns:
             Diccionario con configuración de parámetros (required, optional, etc)
         """
-        info: dict[str, Any] = self.get_db_type_info(db_type)
-        connection_params = info.get("connection_params", {})
-        return cast(dict[str, Any], connection_params)
+        info = self.get_db_type_info(db_type)
+        return as_json_dict(info.get("connection_params"))
 
     def get_required_params(self, db_type: str) -> list[str]:
         """Obtiene los parámetros requeridos para un tipo de base de datos.
@@ -209,11 +212,10 @@ class DatabaseTypeValidator:
         Returns:
             Lista de nombres de parámetros requeridos
         """
-        params_config: dict[str, Any] = self.get_db_type_connection_params(db_type)
-        required_params = params_config.get("required", [])
-        return cast(list[str], required_params)
+        params_config = self.get_db_type_connection_params(db_type)
+        return as_string_list(params_config.get("required"))
 
-    def get_optional_params(self, db_type: str) -> list[dict[str, Any]]:
+    def get_optional_params(self, db_type: str) -> OptionalParamsConfig:
         """Obtiene los parámetros opcionales de un tipo de base de datos.
 
         Args:
@@ -222,9 +224,8 @@ class DatabaseTypeValidator:
         Returns:
             Lista de parámetros opcionales con su configuración
         """
-        params_config: dict[str, Any] = self.get_db_type_connection_params(db_type)
-        optional_params = params_config.get("optional", [])
-        return cast(list[dict[str, Any]], optional_params)
+        params_config = self.get_db_type_connection_params(db_type)
+        return as_optional_params_config(params_config.get("optional"))
 
     def validate_connection_params(self, db_type: str, conn_params: dict[str, Any]) -> bool:
         """Valida los parámetros de conexión para un tipo de base de datos.
@@ -246,8 +247,8 @@ class DatabaseTypeValidator:
         self.validate_db_type(db_type)
 
         # Obtener parámetros válidos (requeridos + opcionales)
-        required_params: list[str] = self.get_required_params(db_type)
-        optional_params_list: list[dict[str, Any]] = self.get_optional_params(db_type)
+        required_params = self.get_required_params(db_type)
+        optional_params_list = self.get_optional_params(db_type)
         optional_param_names: list[str] = [str(p.get("name")) for p in optional_params_list if p.get("name")]
 
         valid_params: list[str] = required_params + optional_param_names
@@ -268,7 +269,7 @@ class DatabaseTypeValidator:
 
         return True
 
-    def get_param_info(self, db_type: str, param_name: str) -> dict[str, Any] | None:
+    def get_param_info(self, db_type: str, param_name: str) -> JsonDict | None:
         """Obtiene información de un parámetro específico.
 
         Args:
@@ -278,8 +279,90 @@ class DatabaseTypeValidator:
         Returns:
             Información del parámetro o None si no existe
         """
-        optional_params: list[dict[str, Any]] = self.get_optional_params(db_type)
+        optional_params = self.get_optional_params(db_type)
         for param in optional_params:
             if param.get("name") == param_name:
                 return param
         return None
+
+    def get_db_type_examples(self, db_type: str) -> JsonDict:
+        """Obtiene ejemplos de configuración para un tipo de base de datos."""
+        return self._examples_config().get(db_type.lower(), {})
+
+    def get_error_message(self, error_key: str, **kwargs: Any) -> str:
+        """Obtiene un mensaje de error formateado."""
+        template = self._error_messages_config().get(error_key, "Error desconocido")
+        return template.format(**kwargs)
+
+    def get_all_db_types_summary(self) -> JsonObjectMap:
+        """Obtiene un resumen de todos los tipos de bases de datos."""
+        summary: JsonObjectMap = {}
+        for db_type in self.get_supported_db_types():
+            info = self.get_db_type_info(db_type)
+            summary[db_type] = {
+                "name": info.get("name", ""),
+                "description": info.get("description", ""),
+                "default_port": info.get("default_port", 0),
+                "required_params": self.get_required_params(db_type),
+                "optional_params_count": len(self.get_optional_params(db_type)),
+                "features_count": len(self.get_db_type_features(db_type)),
+            }
+        return summary
+
+    def get_compatibility_info(self) -> JsonDict:
+        """Obtiene información de compatibilidad."""
+        return as_json_dict(self._config_data.get("compatibility"))
+
+    def get_metadata(self) -> JsonDict:
+        """Obtiene metadatos del archivo de configuración."""
+        return self._metadata_config()
+
+    def reload_config(self) -> None:
+        """Recarga la configuración desde el archivo actual."""
+        self._load_config()
+
+    def export_config(self, output_file: Path) -> None:
+        """Exporta la configuración actual a un archivo JSON."""
+        try:
+            with output_file.open("w", encoding="utf-8") as file_handle:
+                json.dump(self._config_data, file_handle, indent=2, ensure_ascii=False)
+        except OSError as e:
+            raise OSError(f"Error al exportar configuración: {e}") from e
+
+
+_db_validator: DatabaseTypeValidator | None = None
+
+
+def get_database_validator(config_file: Path | None = None) -> DatabaseTypeValidator:
+    """Obtiene una instancia reutilizable del validador de tipos de BD."""
+    global _db_validator
+    if _db_validator is None or config_file is not None:
+        _db_validator = DatabaseTypeValidator(config_file)
+    return _db_validator
+
+
+def validate_db_type(db_type: str) -> bool:
+    """Función de conveniencia para validar un tipo de base de datos."""
+    validator = get_database_validator()
+    return validator.validate_db_type(db_type)
+
+
+def get_db_type_info(db_type: str) -> JsonDict:
+    """Función de conveniencia para obtener información de un tipo de base de datos."""
+    validator = get_database_validator()
+    return validator.get_db_type_info(db_type)
+
+
+def get_supported_db_types() -> list[str]:
+    """Función de conveniencia para listar tipos de bases de datos soportados."""
+    validator = get_database_validator()
+    return validator.get_supported_db_types()
+
+
+__all__: list[str] = [
+    "DatabaseTypeValidator",
+    "get_database_validator",
+    "validate_db_type",
+    "get_db_type_info",
+    "get_supported_db_types",
+]

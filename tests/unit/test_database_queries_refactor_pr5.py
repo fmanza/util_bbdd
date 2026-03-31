@@ -10,6 +10,8 @@ DatabaseQueries currently mixes multiple responsibilities:
 PR 5 should preserve public API while internally delegating to new components.
 """
 
+import json
+
 from pathlib import Path
 
 import pytest
@@ -152,6 +154,12 @@ class TestDatabaseQueriesInformationMethods:
 class TestDatabaseQueriesDelegation:
     """Tests verifying internal delegation to Registry/Resolver"""
 
+    def test_database_queries_queries_property_delegates_to_registry(self):
+        """queries expone el storage del registry en lugar de cache duplicada."""
+        dq = DatabaseQueries(db_type="mariadb")
+
+        assert dq.queries is dq.registry.queries
+
     def test_database_queries_get_query_works_with_kwargs(self):
         """get_query should accept and handle arbitrary kwargs for templating"""
         dq = DatabaseQueries(db_type="mariadb")
@@ -168,6 +176,12 @@ class TestDatabaseQueriesDelegation:
             names = dq.get_available_query_names()
             assert isinstance(names, list)
             assert len(names) > 0
+
+    def test_database_queries_available_names_match_registry(self):
+        """La API legacy de nombres usa el camino canónico del registry."""
+        dq = DatabaseQueries(db_type="postgresql")
+
+        assert dq.get_available_query_names() == dq.registry.get_available_queries("postgresql")
 
 
 class TestDatabaseQueriesMultipleMotors:
@@ -249,3 +263,28 @@ class TestDatabaseQueriesConsistency:
         assert "sqlite_file_summary" in storage_queries
         assert "ficheros_fisicos_adicional" not in storage_queries
         assert "pragma_page_count" in storage_queries["sqlite_file_summary"].lower()
+
+    def test_get_query_documentation_exposes_description_dependencies_and_examples(self):
+        """La documentación pública se mantiene estable tras extraer helpers internos."""
+        dq = DatabaseQueries(db_type="mariadb")
+
+        documentation = dq.get_query_documentation("temp_storage_variables")
+
+        assert documentation["query_name"] == "temp_storage_variables"
+        assert documentation["db_type"] == "mariadb"
+        assert documentation["description"] == "Obtiene variables de configuración del almacenamiento temporal"
+        assert isinstance(documentation["dependencies"], dict)
+        assert isinstance(documentation["examples"], list)
+        assert documentation["examples"][0]["description"].startswith("Leer innodb_temp_data_file_path")
+
+    def test_export_documentation_writes_full_catalog_json(self, tmp_path: Path):
+        """export_documentation serializa el catálogo completo en JSON."""
+        dq = DatabaseQueries(db_type="sqlite")
+        output_file = tmp_path / "queries.json"
+
+        dq.export_documentation(output_file)
+
+        exported = json.loads(output_file.read_text(encoding="utf-8"))
+        assert exported["db_type"] == "sqlite"
+        assert "queries" in exported
+        assert "sqlite_file_summary" in exported["queries"]

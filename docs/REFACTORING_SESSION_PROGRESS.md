@@ -1,10 +1,11 @@
-# 📊 REFACTORIZACIÓN v0.5.0 - PROGRESO CONSOLIDADO
+# 📊 REFACTORIZACIÓN - HISTÓRICO CONSOLIDADO Y ESTADO ACTUAL
 
-**Estado General:** 13/19 PRs Completados (68%)
-**Tests:** 443/443 Passing Consistently ✅
-**Cambios:** ~8,500 líneas reorganizadas
-**Compatibilidad:** 100% - Backward compatible
-**Fecha:** 11 de Marzo de 2026
+**Estado actual:** Fase 3 cerrada formalmente | Fase 4 de compatibilidad/documentación viva abierta
+**Referencia operativa:** usar README, CHANGELOG y MIGRATION_GUIDE como fuente vigente de la superficie pública
+**Naturaleza del documento:** bitácora histórica acumulada desde la refactorización v0.5.0, con actualizaciones posteriores de cierre y transición
+**Fecha de última actualización operativa:** 31 de Marzo de 2026
+
+> Nota: gran parte del contenido que sigue documenta hitos históricos de la reorganización v0.5.0. Las secciones añadidas al final del documento contienen el estado vigente del programa de deuda técnica ejecutado en 2026-03-31.
 
 ---
 
@@ -235,8 +236,8 @@ from ..bulk.audit import AuditManager
 from util_bbdd import SyncDatabaseManager
 from util_bbdd.managers import SyncDatabaseManager
 from util_bbdd.managers.sync_mgr import SyncDatabaseManager
-from util_bbdd.bulk import bulk_crud  # Legacy
-from util_bbdd.bulk_crud import bulk_crud  # También legacy
+from util_bbdd.bulk import bulk_crud  # Canónico público
+from util_bbdd.bulk_crud import bulk_crud  # Legacy todavía soportado
 ```
 
 ---
@@ -361,3 +362,32 @@ managers/
 - `pytest -q -m integration`: **19 passed, 432 deselected**
 - `pytest --durations=20 -q`: **451 passed in 5.56s**
 - `pytest -q`: **451 passed**
+
+---
+
+## ✅ Update 2026-03-31: Cierre formal de Fase 3 y apertura de Fase 4 viva
+
+### Cierre formal de Fase 3
+- Queda cerrado el bloque de descomposición de módulos monolíticos ejecutado sobre managers, bulk, queries, rutinas MariaDB y documentación.
+- `DatabaseDocumentation` queda consolidado como fachada sobre helpers internos, incluyendo runtime específico para inventario de almacenamiento.
+- `sync_mgr.py` y `async_mgr.py` mantienen la API pública mientras delegan lifecycle, metadata read-side y selección de storage handlers en módulos internos.
+- `bulk/crud.py` conserva la superficie pública y delega validación, persistencia SQL y ejecución batch en helpers acotados.
+- `database_queries.py` y `database_type_validator.py` quedan explícitamente posicionados como fachadas legacy sobre los caminos canónicos.
+
+### Evidencia de cierre
+- El trabajo reciente priorizó mantener compatibilidad pública y mover responsabilidades internas a runtime/helpers especializados.
+- La cobertura focalizada se reforzó en suites de managers, bulk, queries, rutinas y documentación.
+- El último corte documental de Fase 3 separa el inventario de almacenamiento en `src/util_bbdd/doc/_storage_inventory_runtime.py` y deja a `DatabaseDocumentation` como orquestador.
+
+### Apertura del siguiente corte: compatibilidad/documentación viva
+- El siguiente corte ya no debe introducir más refactor interno salvo correcciones puntuales de compatibilidad.
+- El foco pasa a documentación viva y gobernanza de superficie pública:
+  - fijar imports canónicos en README y guías
+  - documentar rutas legacy todavía soportadas
+  - mantener sincronizados changelog, guía de migración y ejemplos públicos
+  - evitar que los wrappers históricos vuelvan a aparecer como referencia principal
+
+### Validación mínima para este corte
+- Verificar que README y guía de migración nombren la misma superficie canónica.
+- Mantener el cierre de Fase 3 como cambio documental/operativo, sin mezclar nuevas extracciones internas.
+- Usar pruebas focalizadas solo si un ajuste documental obliga a tocar comportamiento público.

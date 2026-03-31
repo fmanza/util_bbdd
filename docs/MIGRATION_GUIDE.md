@@ -42,6 +42,35 @@ Si ya migraste a la familia v0.6.x, el salto a v0.6.3 es principalmente document
 
 ---
 
+## Estado de compatibilidad viva
+
+La Fase 4 de documentación viva arranca fijando una regla simple: para código nuevo, usa imports canónicos; para integración heredada, mantén las rutas legacy solo mientras completes la migración.
+
+### Imports canónicos recomendados
+
+```python
+from util_bbdd import SyncDatabaseManager, AsyncDatabaseManager
+from util_bbdd.bulk import bulk_crud, AuditManager
+from util_bbdd.analysis import GraphvizRelationshipGraphExt
+```
+
+### Rutas legacy aún soportadas
+
+- `util_bbdd.database_manager`
+- `util_bbdd.async_database_manager`
+- `util_bbdd.bulk_crud`
+- `util_bbdd.grafos`
+- `util_bbdd.database_type_validator`
+
+### Criterio operativo
+
+- Mantén rutas legacy solo para compatibilidad backward en proyectos ya desplegados.
+- Evita abrir código nuevo sobre wrappers históricos si existe una superficie canónica equivalente.
+- Considera el README como referencia breve y esta guía como fuente de migración detallada.
+- El refactor interno reciente de documentación, managers, queries, bulk y validadores no cambia la API pública recomendada; aclara qué capa debe usarse en nuevo código.
+
+---
+
 ## 📖 Tabla Comparativa: v0.4.0 vs v0.6.0
 
 ### SyncDatabaseManager
@@ -56,10 +85,8 @@ manager = DatabaseManager(
 )
 ```
 
-#### v0.6.0+ (requerido)
+#### v0.6.0+ (canónico recomendado)
 ```python
-from util_bbdd.managers import SyncDatabaseManager
-# o más simple:
 from util_bbdd import SyncDatabaseManager
 
 manager = SyncDatabaseManager(
@@ -85,10 +112,8 @@ manager = AsyncDatabaseManager(
 await manager.init()
 ```
 
-#### v0.5.0 (recomendado)
+#### v0.5.0+ (canónico recomendado)
 ```python
-from util_bbdd.managers import AsyncDatabaseManager
-# o más simple:
 from util_bbdd import AsyncDatabaseManager
 
 manager = AsyncDatabaseManager(
@@ -188,8 +213,8 @@ Si estás refactorizando código legacy para v0.6.0:
 
 ### 1. Imports de SyncDatabaseManager
 
-- [ ] `from util_bbdd.database_manager import DatabaseManager` → `from util_bbdd.managers import SyncDatabaseManager`
-- [ ] O más simple: `from util_bbdd import SyncDatabaseManager`
+- [ ] `from util_bbdd.database_manager import DatabaseManager` → `from util_bbdd import SyncDatabaseManager`
+- [ ] Usa `util_bbdd.managers` solo si necesitas mantener una importación intermedia explícita
 
 **Antes:**
 ```python
@@ -198,15 +223,13 @@ from util_bbdd.database_manager import DatabaseManager
 
 **Después:**
 ```python
-from util_bbdd.managers import SyncDatabaseManager
-# O:
 from util_bbdd import SyncDatabaseManager
 ```
 
 ### 2. Imports de AsyncDatabaseManager
 
-- [ ] `from util_bbdd.async_database_manager import` → `from util_bbdd.managers import`
-- [ ] O: `from util_bbdd import AsyncDatabaseManager`
+- [ ] `from util_bbdd.async_database_manager import AsyncDatabaseManager` → `from util_bbdd import AsyncDatabaseManager`
+- [ ] Usa `util_bbdd.managers` solo si necesitas mantener una importación intermedia explícita
 
 **Antes:**
 ```python
@@ -215,8 +238,6 @@ from util_bbdd.async_database_manager import AsyncDatabaseManager
 
 **Después:**
 ```python
-from util_bbdd.managers import AsyncDatabaseManager
-# O:
 from util_bbdd import AsyncDatabaseManager
 ```
 
@@ -484,18 +505,18 @@ Estos cambios son internos y **NO afectan** tu código:
 
 ---
 
-## 🚨 Deprecations (Will Remove Later)
+## 🚨 Deprecations y compatibilidad viva
 
 Estas rutas deben migrarse ya si todavía existen en tu código:
 
 ```python
-# Deprecado - seguirá funcionando en v0.5.0 pero no lo uses en nuevo código:
+# Legacy soportado en v0.6.3, pero fuera de la ruta recomendada para código nuevo:
 from util_bbdd.bulk_crud import ...  # Usa: from util_bbdd.bulk import ...
 from util_bbdd.grafos import ...     # Usa: from util_bbdd.analysis import ...
 from util_bbdd.database_manager import DatabaseManager  # Usa: from util_bbdd import SyncDatabaseManager
 ```
 
-Para v0.6.0 esperamos que migres a los nuevos paths.
+En v0.6.3 estas rutas siguen soportadas para no romper integraciones existentes, pero README y ejemplos nuevos deben partir de la superficie canónica.
 
 ---
 
@@ -505,10 +526,10 @@ Para v0.6.0 esperamos que migres a los nuevos paths.
 
 ```bash
 # Buscar imports antiguos
-grep -r "from util_bbdd.bulk_crud" .
-grep -r "from util_bbdd.grafos" .
-grep -r "from util_bbdd.database_manager" .
-grep -r "from util_bbdd.async_database_manager" .
+rg "from util_bbdd\.bulk_crud"
+rg "from util_bbdd\.grafos"
+rg "from util_bbdd\.database_manager"
+rg "from util_bbdd\.async_database_manager"
 
 # Luego reemplaza con:
 # from util_bbdd.bulk import ...
@@ -527,7 +548,7 @@ Después de migrar, ejecuta:
 python -m pytest tests/ -v
 
 # Verifica:
-# - Tests passing: 443/443 ✅
+# - El suite pasa en tu estado actual
 # - No import errors
 # - Funcionalidad idéntica
 ```
@@ -546,20 +567,20 @@ Si encuentras problemas después de migrar:
 
 ## 📝 Resumen
 
-| Aspecto | v0.4.0 | v0.6.0 | Migración |
-|--------|--------|--------|-----------|
-| **SyncDatabaseManager** | `database_manager.py` | `managers/sync_mgr.py` | `from util_bbdd import SyncDatabaseManager` |
-| **AsyncDatabaseManager** | `async_database_manager.py` | `managers/async_mgr.py` | `from util_bbdd import AsyncDatabaseManager` |
-| **Bulk Ops** | `bulk_crud/` | `bulk/` | `from util_bbdd.bulk import bulk_crud` |
-| **Analysis** | `grafos/` | `analysis/` | `from util_bbdd.analysis import GraphvizRelationshipGraph` |
+| Aspecto | Legacy | Canónico actual | Acción recomendada |
+|--------|--------|------------------|--------------------|
+| **SyncDatabaseManager** | `database_manager.py` | `from util_bbdd import SyncDatabaseManager` | migrar import y nombre |
+| **AsyncDatabaseManager** | `async_database_manager.py` | `from util_bbdd import AsyncDatabaseManager` | migrar import |
+| **Bulk Ops** | `bulk_crud/` | `from util_bbdd.bulk import bulk_crud` | migrar import |
+| **Analysis** | `grafos/` | `from util_bbdd.analysis import GraphvizRelationshipGraph` | migrar import |
 | **HTML Templates** | `doc/data/*.j2` | `doc/templates/...` | migrar personalizaciones |
-| **Breaking Changes** | N/A | rename sync a `SyncDatabaseManager` | actualizar imports y nombre |
+| **Breaking Changes** | contrato previo | cambios vigentes desde v0.6.0 | revisar bloque de grafos/documentación |
 | **Storage Inventory** | `primary` + `secondary` | claves explícitas por capacidad | actualizar consumo de `get_storage_inventory()` |
-| **Deprecations** | N/A | bulk_crud/, grafos/ paths | Usar nuevos paths para nuevo código |
+| **Compatibilidad viva** | wrappers legacy | superficie canónica documentada | abrir código nuevo solo sobre la ruta canónica |
 
 ---
 
 *Documento: MIGRATION_GUIDE.md*
-*Para: Usuarios migrando v0.4.0 → v0.6.0*
+*Para: Usuarios migrando código legacy hacia la superficie pública vigente*
 *Generado: Marzo 2026*
 *Status: READY* ✅

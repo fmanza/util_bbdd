@@ -260,6 +260,13 @@ class TestDatabaseTypeValidator:
         validator = DatabaseTypeValidator()
         assert validator is not None
 
+    def test_validator_legacy_module_reexports_canonical_validator(self):
+        """Test: la ruta legacy apunta al validador canónico interno."""
+        from util_bbdd._drivers.validator import DatabaseTypeValidator as CanonicalValidator
+        from util_bbdd.database_type_validator import DatabaseTypeValidator
+
+        assert DatabaseTypeValidator is CanonicalValidator
+
     @pytest.mark.parametrize("db_type", ["mysql", "postgresql", "oracle", "sqlite"])
     def test_database_types_supported(self, db_type):
         """Test: validador soporta tipos comunes."""

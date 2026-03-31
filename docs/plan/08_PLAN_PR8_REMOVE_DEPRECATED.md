@@ -5,6 +5,10 @@
 **Prioridad:** Baja (Limpieza de código)
 **Impacto:** BREAKING CHANGE (v0.3.0)
 
+> Nota Fase 4 (2026-03-31): este plan de retirada es historico. Las referencias a imports desde `database_queries.py` documentan el estado previo; para documentacion actual, los aliases deben apuntar a `database_exceptions.py` y los modulos legacy deben tratarse como compatibilidad transitoria o ya retirada segun el corte actual.
+
+> Lectura actual: donde este documento menciona `backward compat`, debe leerse como compatibilidad residual del momento analizado, no como recomendación vigente para código nuevo.
+
 ---
 
 ## Items Deprecated para Remover
@@ -29,7 +33,7 @@ class DatabaseQueryError(Exception):
 **Impacto de Remover:**
 - BREAKING: Users importing `from database_queries import DatabaseQueryError`
 - Safe: Alias en database_exceptions.py proporciona backward compat
-- Migration: Update imports a `from database_exceptions import QueryNotFoundError`
+- Migration: Update imports a `from util_bbdd.database_exceptions import QueryNotFoundError`
 
 ---
 
@@ -56,7 +60,7 @@ def validate_query_parameters(self, query_name: str, **kwargs) -> bool:
 
 **Impacto de Remover:**
 - BREAKING: Public API removal
-- Safe alternative: `QueryResolver.resolve()` en AsyncDatabaseQueryExecutor
+- Safe alternative: `QueryResolver.resolve()` desde `util_bbdd.query.resolver` o via la API publica vigente del manager
 - Migration: See MIGRATION_GUIDE_v0.1_to_v0.2.md
 
 ---
@@ -156,7 +160,7 @@ def analyze_query_parameters(self, query_name: str, params: dict | None = None) 
 **Recommendation:**
 - If time available: Proceed with PR 8 (clean codebase for v0.3.0)
 - If time constrained: Defer to future maintenance (v0.3.0+)
-- Either way: Deprecation already in place, backward compat maintained
+- Either way: Deprecation already in place, con compatibilidad residual mantenida en ese corte historico
 
 ---
 

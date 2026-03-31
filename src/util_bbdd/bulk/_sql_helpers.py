@@ -1,0 +1,122 @@
+"""Helpers internos para serialización y compilación SQL en bulk_crud."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from datetime import date, datetime, time
+from pathlib import Path
+from typing import Any
+
+from sqlalchemy import Delete, Insert, Table, Update, and_, delete, update
+
+SqlRecord = dict[str, Any]
+
+
+def generate_sql_filename(*, engine_url: str, table: str, operation: str) -> Path:
+    """Genera un nombre de fichero SQL a partir de la URL del engine."""
+    try:
+        db_name: str = engine_url.split("/")[-1].split("?")[0]
+        if not db_name:
+            raise ValueError("No se pudo extraer nombre de BD de engine.url")
+    except Exception as error:
+        raise ValueError(f"No se pudo extraer nombre de BD de engine.url: {engine_url}") from error
+
+    timestamp: str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return Path(f"{db_name}-{table}-{operation.lower()}_{timestamp}.sql")
+
+
+def generate_insert_sql(stmt: Insert, records: Sequence[SqlRecord], dialect: Any) -> list[str]:
+    """Genera SQL INSERT literal para una secuencia de registros."""
+    return [compile_stmt_with_binary_support(stmt.values(record), dialect) for record in records]
+
+
+def generate_update_sql(
+    *,
+    table: Table,
+    records: Sequence[SqlRecord],
+    update_cols: Sequence[str],
+    pk_param_map: dict[str, str],
+    pk_cols: Sequence[str],
+    dialect: Any,
+) -> list[str]:
+    """Genera SQL UPDATE literal para una secuencia de registros."""
+    sql_lines: list[str] = []
+    for record in records:
+        update_values: dict[str, Any] = {column: record[column] for column in update_cols}
+        pk_conditions: dict[str, Any] = {pk_param_map[column]: record[pk_param_map[column]] for column in pk_cols}
+        stmt: Update = (
+            update(table)
+            .where(and_(*(table.c[column] == pk_conditions[pk_param_map[column]] for column in pk_cols)))
+            .values(update_values)
+        )
+        sql_lines.append(compile_stmt_with_binary_support(stmt, dialect))
+    return sql_lines
+
+
+def generate_delete_sql(
+    *,
+    records: Sequence[SqlRecord],
+    table: Table,
+    pk_cols: Sequence[str],
+    dialect: Any,
+) -> list[str]:
+    """Genera SQL DELETE literal para una secuencia de claves primarias."""
+    sql_lines: list[str] = []
+    for record in records:
+        conditions = [table.c[column] == record[column] for column in pk_cols]
+        stmt: Delete = delete(table).where(and_(*conditions))
+        sql_lines.append(compile_stmt_with_binary_support(stmt, dialect))
+    return sql_lines
+
+
+def compile_stmt_with_binary_support(stmt: Any, dialect: Any) -> str:
+    """Compila un statement con fallback para binarios no renderizables."""
+    try:
+        compiled = stmt.compile(dialect=dialect, compile_kwargs={"literal_binds": True})
+        return f"{compiled};"
+    except Exception as error:
+        if "BLOB" not in str(error) and "binary" not in str(error).lower():
+            raise
+
+        compiled = stmt.compile(dialect=dialect)
+        sql_text = str(compiled)
+        params = compiled.params or {}
+        if not params:
+            return f"{sql_text};"
+
+        sql_result: str = sql_text
+        for param_value in params.values():
+            sql_result = sql_result.replace("%s", format_sql_param_value(param_value), 1)
+        return f"{sql_result};"
+
+
+def format_sql_param_value(value: Any) -> str:
+    """Convierte un valor Python a su literal SQL."""
+    if value is None:
+        return "NULL"
+    if isinstance(value, bytes):
+        return f"0x{value.hex().upper()}"
+    if isinstance(value, bool):
+        return "1" if value else "0"
+    if isinstance(value, (datetime, date, time)):
+        return f"'{str(value)}'"
+    if isinstance(value, str):
+        escaped_value: str = value.replace("'", "''")
+        return f"'{escaped_value}'"
+    if isinstance(value, (int, float)):
+        return str(value)
+
+    string_value: str = str(value)
+    escaped_string: str = string_value.replace("'", "''")
+    return f"'{escaped_string}'"
+
+
+__all__: list[str] = [
+    "SqlRecord",
+    "compile_stmt_with_binary_support",
+    "format_sql_param_value",
+    "generate_delete_sql",
+    "generate_insert_sql",
+    "generate_sql_filename",
+    "generate_update_sql",
+]

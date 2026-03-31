@@ -5,7 +5,7 @@ from __future__ import annotations
 import inspect
 
 from collections.abc import Awaitable
-from typing import overload
+from typing import cast, overload
 
 
 @overload
@@ -19,5 +19,5 @@ async def maybe_await[T](value: T) -> T: ...
 async def maybe_await[T](value: T | Awaitable[T]) -> T:
     """Resuelve valores awaitables o directos con una única API."""
     if inspect.isawaitable(value):
-        return await value
+        return await cast(Awaitable[T], value)
     return value

@@ -8,11 +8,13 @@ from collections.abc import Callable
 from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any, cast
+from unittest.mock import MagicMock
 
 import pytest
 
 from sqlalchemy import create_engine
 
+from util_bbdd.bulk._sql_helpers import compile_stmt_with_binary_support, format_sql_param_value
 from util_bbdd.bulk.crud import bulk_crud
 
 
@@ -63,7 +65,7 @@ def test_detect_sqlserver_driver_sets_specific_db_info(mock_sqlserver_engine) ->
 def test_generar_nombre_sql_dinamico_contains_db_table_operation_and_timestamp() -> None:
     manager = bulk_crud(engine=create_engine("sqlite:///mydb.db"))
 
-    sql_path = _get_private_method(manager, "_bulk_crud__generar_nombre_sql_dinamico")("users", "INSERT")
+    sql_path = cast(Any, manager)._persistence.build_sql_filename("users", "INSERT")
 
     assert re.fullmatch(r"mydb\.db-users-insert_\d{8}_\d{6}\.sql", str(sql_path))
 
@@ -81,46 +83,45 @@ def test_validar_y_generar_path_sql_validates_input_type(sqlite_bulk_manager: bu
 def test_validar_y_generar_path_sql_joins_base_path_and_dynamic_name(
     tmp_path: Path, sqlite_bulk_manager: bulk_crud
 ) -> None:
-    cast(Any, sqlite_bulk_manager)._bulk_crud__generar_nombre_sql_dinamico = lambda _tabla, _op: Path("generated.sql")
+    persistence = MagicMock()
+    persistence.resolve_sql_output_path.return_value = tmp_path / "generated.sql"
+    cast(Any, sqlite_bulk_manager)._persistence = persistence
 
     result = _get_private_method(sqlite_bulk_manager, "_bulk_crud__validar_y_generar_path_sql")(
         tmp_path, "users", "insert"
     )
 
     assert result == tmp_path / "generated.sql"
+    persistence.resolve_sql_output_path.assert_called_once_with(tmp_path, "users", "insert")
 
 
 def test_format_param_value_handles_supported_types(sqlite_bulk_manager: bulk_crud) -> None:
-    formatter = _get_private_method(sqlite_bulk_manager, "_bulk_crud__format_param_value")
-
     class _CustomObject:
         def __str__(self) -> str:
             return "custom'value"
 
-    assert formatter(None) == "NULL"
-    assert formatter(b"\x0a\xff") == "0x0AFF"
-    assert formatter(True) == "1"
-    assert formatter(False) == "0"
-    assert formatter(date(2024, 1, 2)) == "'2024-01-02'"
-    assert formatter(datetime(2024, 1, 2, 3, 4, 5)) == "'2024-01-02 03:04:05'"
-    assert formatter(time(10, 20, 30)) == "'10:20:30'"
-    assert formatter("O'Reilly") == "'O''Reilly'"
-    assert formatter(3.25) == "3.25"
-    assert formatter(_CustomObject()) == "'custom''value'"
+    assert format_sql_param_value(None) == "NULL"
+    assert format_sql_param_value(b"\x0a\xff") == "0x0AFF"
+    assert format_sql_param_value(True) == "1"
+    assert format_sql_param_value(False) == "0"
+    assert format_sql_param_value(date(2024, 1, 2)) == "'2024-01-02'"
+    assert format_sql_param_value(datetime(2024, 1, 2, 3, 4, 5)) == "'2024-01-02 03:04:05'"
+    assert format_sql_param_value(time(10, 20, 30)) == "'10:20:30'"
+    assert format_sql_param_value("O'Reilly") == "'O''Reilly'"
+    assert format_sql_param_value(3.25) == "3.25"
+    assert format_sql_param_value(_CustomObject()) == "'custom''value'"
 
 
 def test_compilar_stmt_con_binarios_prefers_literal_binds(sqlite_bulk_manager: bulk_crud) -> None:
-    compiled_sql = _get_private_method(sqlite_bulk_manager, "_bulk_crud__compilar_stmt_con_binarios")(_LiteralStmt())
+    compiled_sql = compile_stmt_with_binary_support(_LiteralStmt(), sqlite_bulk_manager.engine.dialect)
     assert compiled_sql == "SELECT 1;"
 
 
 def test_compilar_stmt_con_binarios_falls_back_when_binary_literals_fail(sqlite_bulk_manager: bulk_crud) -> None:
-    compiled_sql = _get_private_method(sqlite_bulk_manager, "_bulk_crud__compilar_stmt_con_binarios")(
-        _BinaryFallbackStmt()
-    )
+    compiled_sql = compile_stmt_with_binary_support(_BinaryFallbackStmt(), sqlite_bulk_manager.engine.dialect)
     assert compiled_sql == "INSERT INTO t VALUES (0xAA, 'O''Reilly');"
 
 
 def test_compilar_stmt_con_binarios_reraises_non_binary_errors(sqlite_bulk_manager: bulk_crud) -> None:
     with pytest.raises(RuntimeError, match="boom"):
-        _get_private_method(sqlite_bulk_manager, "_bulk_crud__compilar_stmt_con_binarios")(_NonBinaryFailingStmt())
+        compile_stmt_with_binary_support(_NonBinaryFailingStmt(), sqlite_bulk_manager.engine.dialect)

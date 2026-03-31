@@ -8,8 +8,18 @@ Este módulo centraliza:
 Nota: El prefijo _ indica que es interno, aunque disponible para acceso especializado.
 """
 
-from .validator import DatabaseTypeValidator
+from .validator import (
+    DatabaseTypeValidator,
+    get_database_validator,
+    get_db_type_info,
+    get_supported_db_types,
+    validate_db_type,
+)
 
 __all__: list[str] = [
     "DatabaseTypeValidator",
+    "get_database_validator",
+    "validate_db_type",
+    "get_db_type_info",
+    "get_supported_db_types",
 ]

@@ -1,11 +1,15 @@
 # Unificacion de acceso a consultas (sync/async), executors SRP y plan PR por fases
 
+> Nota Fase 4 (2026-03-31): este prompt-output captura un analisis historico previo a la homogeneizacion documental final. Debe leerse como material de trabajo de la fase, no como fotografia actual del codigo; donde menciona wrappers legacy, `fetch_one` o ejecutores legacy, la documentacion viva actual ya los trata como retirados o solo de compatibilidad.
+
+> Lectura actual: este documento conserva decisiones y un plan de ruptura propios del momento analizado. Hoy la documentación viva del repositorio ya fija imports canónicos desde `util_bbdd` para managers y evita presentar `fetch_one` o wrappers legacy como contrato recomendado.
+
 ## 1. Resumen ejecutivo
 - Problema actual: hay unificacion parcial, pero todavia conviven rutas duplicadas (legacy y nuevas) para resolver/ejecutar consultas en sync y async.
-- Objetivo: dejar una arquitectura unica por responsabilidad, con API publica clara, sin backward compatibility, y paridad real sync/async.
+- Objetivo: dejar una arquitectura unica por responsabilidad, con API publica clara, sin backward compatibility en la propuesta original, y paridad real sync/async.
 - Resultado esperado:
   - Un solo flujo para consultas registradas: `QueryRegistry -> QueryResolver -> SyncQueryExecutor/AsyncQueryExecutor -> DatabaseManager/AsyncDatabaseManager`.
-  - API publica final sin `fetch_one` booleano: solo `*_many` y `*_one`.
+  - API publica final sin `fetch_one` booleano dentro de la propuesta: solo `*_many` y `*_one`.
   - Eliminacion de ejecutores legacy y wrappers legacy.
   - Tests de contrato, timeout y wrapping de errores (`raise ... from err`) sin servicios externos.
   - `README.md` y `CHANGELOG.md` actualizados con breaking changes.
@@ -99,6 +103,7 @@
   - deben consumir API publica del manager y resolver dedicado
 
 ### ADR-04: API publica final (sin backward compatibility)
+- Nota 2026-03-31: esta ADR describe el objetivo de la fase historica; la superficie viva actual ya debe contrastarse con README y `docs/MIGRATION_GUIDE.md`.
 - Se mantiene como entrada principal:
   - `DatabaseManager`
   - `AsyncDatabaseManager`
@@ -512,7 +517,7 @@
 - Consumidores no deben depender de `manager.db_queries` como API publica.
 
 ### 9.2 Firmas de metodos cambiadas
-- Eliminar:
+- Eliminar en la propuesta historica:
   - `execute_query(query_name, fetch_one=False, **params)`
   - `execute_custom_query(sql, fetch_one=False, params=None)`
 - Sustituir por:

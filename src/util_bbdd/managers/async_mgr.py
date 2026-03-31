@@ -29,10 +29,44 @@ from ..metadata.mariadb import (
     MariaDBAsyncAdapter,
     build_public_mariadb_routine_parameter_rows,
     escape_mariadb_sql_literal,
-    parse_mariadb_column_charset_collation_row,
-    parse_mariadb_db_charset,
 )
 from ..results import ResultNormalizer, RowOrNone
+from ._manager_lifecycle import (
+    close_async_resources,
+    get_async_connection,
+    init_async_resources,
+    release_async_connection,
+)
+from ._manager_metadata import (
+    add_metadata_context_params,
+    cache_context_key,
+    cache_routine_key,
+    cache_table_key,
+    clear_all_caches,
+    clear_context_cache,
+    clear_routine_cache,
+    clear_table_cache,
+    clear_tuple_cache_by_context,
+    get_query_context_database,
+    get_query_context_label,
+)
+from ._manager_metadata_runtime import (
+    MetadataFetchRequest,
+    build_async_rows_fetcher,
+    build_async_text_fetcher,
+    build_columns_fetch_request,
+    build_routine_ddl_fetch_request,
+    build_routine_parameters_fetch_request,
+    build_routines_fetch_request,
+    build_table_ddl_fetch_request,
+    build_view_ddl_fetch_request,
+    normalize_ddl_result as normalize_manager_ddl_result,
+    oracle_supports_columns_charset_collation,
+    parse_charset_collation_result,
+    parse_column_charset_collation_row,
+    supports_columns_charset_collation as supports_manager_columns_charset_collation,
+)
+from ._manager_storage import get_storage_inventory_handler
 
 
 class AsyncDatabaseManager:
@@ -131,53 +165,62 @@ class AsyncDatabaseManager:
             )
         return await self._fetch_mariadb_routines_from_show_status(context_database)
 
+    async def _execute_metadata_fetch_request_many(self, request: MetadataFetchRequest) -> Rows:
+        return await self._execute_metadata_many(
+            request.query_name,
+            params=request.params,
+            error_message=request.error_message,
+            table_name=request.table_name,
+        )
+
+    async def _execute_metadata_fetch_request_one(self, request: MetadataFetchRequest) -> RowOrNone:
+        return await self._execute_metadata_one(
+            request.query_name,
+            params=request.params,
+            error_message=request.error_message,
+            table_name=request.table_name,
+        )
+
     def _get_routines_fetcher(self, context_database: str) -> Callable[[], Awaitable[Rows]]:
-        if self.db_type == "mariadb":
-            return lambda: self._fetch_mariadb_routines(context_database)
-        return lambda: self._execute_metadata_many(
-            "obtener_rutinas",
-            params={"database": context_database},
-            error_message="Error obteniendo rutinas",
+        return build_async_rows_fetcher(
+            db_type=self.db_type,
+            mariadb_fetcher=lambda: self._fetch_mariadb_routines(context_database),
+            request=build_routines_fetch_request(context_database),
+            execute_many=self._execute_metadata_fetch_request_many,
         )
 
     def _get_table_ddl_fetcher(self, context_database: str, tabla: str) -> Callable[[], Awaitable[str]]:
-        if self.db_type == "mariadb":
-            return lambda: self._build_mariadb_ddl_from_metadata(tabla)
-
-        async def _fetch() -> str:
-            ddl_raw = await self._execute_metadata_one(
-                "create_table",
-                params=self._add_metadata_context_params({"tabla": tabla}, context_database),
-                error_message="Error obteniendo DDL",
-                table_name=tabla,
-            )
-            return self._normalize_ddl_result(ddl_raw)
-
-        return _fetch
+        return build_async_text_fetcher(
+            db_type=self.db_type,
+            mariadb_fetcher=lambda: self._build_mariadb_ddl_from_metadata(tabla),
+            request=build_table_ddl_fetch_request(
+                context_database,
+                tabla,
+                self._add_metadata_context_params,
+            ),
+            execute_one=self._execute_metadata_fetch_request_one,
+            normalize_one=self._normalize_ddl_result,
+        )
 
     def _get_view_ddl_fetcher(self, context_database: str, vista: str) -> Callable[[], Awaitable[str]]:
-        if self.db_type == "mariadb":
-            return lambda: self._fetch_mariadb_view_from_information_schema(context_database, vista)
-
-        async def _fetch() -> str:
-            ddl_raw = await self._execute_metadata_one(
-                "create_view",
-                params=self._add_metadata_context_params({"tabla": vista}, context_database),
-                error_message="Error obteniendo DDL de vista",
-                table_name=vista,
-            )
-            return self._normalize_ddl_result(ddl_raw)
-
-        return _fetch
+        return build_async_text_fetcher(
+            db_type=self.db_type,
+            mariadb_fetcher=lambda: self._fetch_mariadb_view_from_information_schema(context_database, vista),
+            request=build_view_ddl_fetch_request(
+                context_database,
+                vista,
+                self._add_metadata_context_params,
+            ),
+            execute_one=self._execute_metadata_fetch_request_one,
+            normalize_one=self._normalize_ddl_result,
+        )
 
     def _get_columns_fetcher(self, context_database: str, tabla: str) -> Callable[[], Awaitable[Rows]]:
-        if self.db_type == "mariadb":
-            return lambda: self._fetch_mariadb_columns_safe(context_database, tabla)
-        return lambda: self._execute_metadata_many(
-            "columnas_tabla",
-            params={"database": context_database, "tabla": tabla},
-            error_message="Error obteniendo columnas",
-            table_name=tabla,
+        return build_async_rows_fetcher(
+            db_type=self.db_type,
+            mariadb_fetcher=lambda: self._fetch_mariadb_columns_safe(context_database, tabla),
+            request=build_columns_fetch_request(context_database, tabla),
+            execute_many=self._execute_metadata_fetch_request_many,
         )
 
     def _get_routine_parameters_fetcher(
@@ -186,21 +229,19 @@ class AsyncDatabaseManager:
         rutina: str,
         routine_type: str,
     ) -> Callable[[], Awaitable[Rows]]:
-        if self.db_type == "mariadb":
-            return lambda: self._fetch_mariadb_routine_parameters_public_rows(
+        return build_async_rows_fetcher(
+            db_type=self.db_type,
+            mariadb_fetcher=lambda: self._fetch_mariadb_routine_parameters_public_rows(
                 context_database=context_database,
                 rutina=rutina,
                 routine_type=routine_type,
-            )
-        return lambda: self._execute_metadata_many(
-            "parametros_rutina",
-            params={
-                "database": context_database,
-                "rutina": rutina,
-                "tipo_rutina": routine_type,
-            },
-            error_message="Error obteniendo parámetros de rutina",
-            table_name=rutina,
+            ),
+            request=build_routine_parameters_fetch_request(
+                context_database,
+                rutina,
+                routine_type,
+            ),
+            execute_many=self._execute_metadata_fetch_request_many,
         )
 
     def _get_routine_ddl_fetcher(
@@ -209,24 +250,22 @@ class AsyncDatabaseManager:
         rutina: str,
         routine_type: str,
     ) -> Callable[[], Awaitable[str]]:
-        if self.db_type == "mariadb":
-            return lambda: self._fetch_mariadb_routine_from_information_schema(context_database, rutina, routine_type)
-
-        async def _fetch() -> str:
-            params: dict[str, Any] = {
-                "rutina": rutina,
-                "tipo_rutina": routine_type,
-            }
-            params = self._add_metadata_context_params(params, context_database)
-            ddl_raw = await self._execute_metadata_one(
-                "create_rutina",
-                params=params,
-                error_message="Error obteniendo DDL de rutina",
-                table_name=rutina,
-            )
-            return self._normalize_ddl_result(ddl_raw)
-
-        return _fetch
+        return build_async_text_fetcher(
+            db_type=self.db_type,
+            mariadb_fetcher=lambda: self._fetch_mariadb_routine_from_information_schema(
+                context_database,
+                rutina,
+                routine_type,
+            ),
+            request=build_routine_ddl_fetch_request(
+                context_database,
+                rutina,
+                routine_type,
+                self._add_metadata_context_params,
+            ),
+            execute_one=self._execute_metadata_fetch_request_one,
+            normalize_one=self._normalize_ddl_result,
+        )
 
     def _get_storage_inventory_handler(
         self,
@@ -238,7 +277,7 @@ class AsyncDatabaseManager:
             "postgresql": self._storage_inventory_postgresql,
             "sqlite": self._storage_inventory_sqlite,
         }
-        return handlers.get(self.db_type)
+        return get_storage_inventory_handler(self.db_type, handlers)
 
     async def _log_and_call_async(self, message: str, action: Callable[[], Awaitable[Any]]) -> Any:
         self.logger.debug(message)
@@ -275,14 +314,11 @@ class AsyncDatabaseManager:
         if self._initialized:
             return self
 
-        if self.use_pool:
-            try:
-                self.pool_connection = await self._pool_factory(self.db_type, self.conn_params)
-            except NotImplementedError:
-                self.use_pool = False
-
-        if not self.use_pool:
-            self._connection = await self._connection_factory(self.db_type, self.conn_params)
+        self.use_pool, self.pool_connection, self._connection = await init_async_resources(
+            use_pool=self.use_pool,
+            create_pool=lambda: self._pool_factory(self.db_type, self.conn_params),
+            create_connection=lambda: self._connection_factory(self.db_type, self.conn_params),
+        )
 
         self.query_executor = AsyncQueryExecutor(
             connection_provider=self.get_connection,
@@ -299,19 +335,16 @@ class AsyncDatabaseManager:
 
     async def get_connection(self) -> Any:
         """Obtiene conexión del pool o directa."""
-        if not self._initialized:
-            await self.init()
-
-        if self.pool_connection is not None:
-            return await maybe_await(self.pool_connection.acquire())
-
-        return self._connection
+        return await get_async_connection(
+            initialized=self._initialized,
+            ensure_initialized=self.init,
+            pool_connection=self.pool_connection,
+            connection=self._connection,
+        )
 
     async def release_connection(self, connection: Any) -> None:
         """Libera conexión al pool o no-op en conexión directa."""
-        if self.pool_connection is None:
-            return
-        await maybe_await(self.pool_connection.release(connection))
+        await release_async_connection(pool_connection=self.pool_connection, connection=connection)
 
     async def _ensure_initialized(self) -> None:
         """Garantiza inicialización perezosa del manager."""
@@ -464,10 +497,11 @@ class AsyncDatabaseManager:
         pool_connection = self.pool_connection
         connection = self._connection
         try:
-            if pool_connection is not None:
-                await maybe_await(pool_connection.close(mode=close_mode))
-            if connection is not None and hasattr(connection, "close"):
-                await maybe_await(connection.close())
+            await close_async_resources(
+                pool_connection=pool_connection,
+                connection=connection,
+                close_mode=close_mode,
+            )
         finally:
             self.pool_connection = None
             self._connection = None
@@ -475,34 +509,19 @@ class AsyncDatabaseManager:
 
     def _get_query_context_database(self) -> str:
         """Obtiene contexto schema/database para consultas de metadatos."""
-        context_database: str = self.database
-        if self.db_type == "oracle":
-            oracle_user: str = str(self.conn_params.get("user", "")).strip()
-            context_database = oracle_user or context_database
-        elif self.db_type == "postgresql":
-            explicit_schema: str = str(self.conn_params.get("schema", "")).strip()
-            context_database = explicit_schema or context_database or "public"
-        elif self.db_type == "hsqldb":
-            explicit_schema = str(self.conn_params.get("schema", "")).strip()
-            context_database = explicit_schema or context_database or "PUBLIC"
-        elif self.db_type == "sqlserver":
-            explicit_schema = str(self.conn_params.get("schema", "")).strip()
-            context_database = explicit_schema or context_database or "dbo"
-        return context_database
+        return get_query_context_database(
+            db_type=self.db_type,
+            database=self.database,
+            conn_params=self.conn_params,
+        )
 
     def _add_metadata_context_params(self, params: dict[str, Any], context: str | None) -> dict[str, Any]:
         """Añade parámetros de contexto metadata según motor."""
-        if not context or self.db_type == "mariadb":
-            return params
-        if self.db_type in {"oracle", "sqlserver"}:
-            params["esquema"] = context
-        if self.db_type in {"postgresql", "hsqldb", "sqlserver"}:
-            params["database"] = context
-        return params
+        return add_metadata_context_params(db_type=self.db_type, params=params, context=context)
 
     def _get_query_context_label(self) -> str:
         """Obtiene etiqueta descriptiva del contexto de metadatos."""
-        return "owner/schema" if self.db_type == "oracle" else "database"
+        return get_query_context_label(self.db_type)
 
     def get_query_context_database(self) -> str:
         """Devuelve contexto efectivo schema/database para metadata."""
@@ -510,70 +529,35 @@ class AsyncDatabaseManager:
 
     def _clear_all_caches(self) -> None:
         """Limpia completamente todas las cachés de metadatos."""
-        self.db_cache.clear_all()
-        self.relationship_cache.clear_all()
-        self.logger.info("🧹 Todas las cachés de metadatos limpiadas completamente")
+        clear_all_caches(db_cache=self.db_cache, relationship_cache=self.relationship_cache, logger=self.logger)
 
     def _clear_table_cache(self, context: str, table: str) -> None:
         """Limpia caché para una tabla/vista específica."""
-        self.db_cache.clear_by_table(context, table)
-        self.relationship_cache.clear_by_table(table)
-        self.logger.info(f"🧹 Caché invalidada para tabla/vista {table} ({context})")
+        clear_table_cache(
+            db_cache=self.db_cache,
+            relationship_cache=self.relationship_cache,
+            logger=self.logger,
+            context=context,
+            table=table,
+        )
 
     def _clear_routine_cache(self, context: str, routine: str, routine_type: str | None = None) -> None:
         """Limpia caché para una rutina específica."""
-        self.db_cache._routine_metadata_context_cache.pop(context, None)
-        self.db_cache._routine_parameters_context_cache.pop(context, None)
-        if routine_type:
-            routine_key: tuple[str, str, str] = (context, routine, routine_type.upper())
-            self.db_cache._routine_parameters_cache.pop(routine_key, None)
-            self.db_cache._routine_ddl_cache.pop(routine_key, None)
-        else:
-            param_keys: list[tuple[str, str, str]] = [
-                key for key in self.db_cache._routine_parameters_cache if key[0] == context and key[1] == routine
-            ]
-            ddl_keys: list[tuple[str, str, str]] = [
-                key for key in self.db_cache._routine_ddl_cache if key[0] == context and key[1] == routine
-            ]
-            for key in param_keys:
-                self.db_cache._routine_parameters_cache.pop(key, None)
-            for key in ddl_keys:
-                self.db_cache._routine_ddl_cache.pop(key, None)
-        self.logger.info(f"🧹 Caché invalidada para rutina {routine} ({context})")
+        clear_routine_cache(
+            db_cache=self.db_cache,
+            logger=self.logger,
+            context=context,
+            routine=routine,
+            routine_type=routine_type,
+        )
 
     @staticmethod
     def _clear_tuple_cache_by_context(cache: dict[tuple[Any, ...], Any], context: str) -> None:
-        keys_to_remove: list[tuple[Any, ...]] = [key for key in cache if key and str(key[0]) == context]
-        for cache_key in keys_to_remove:
-            cache.pop(cache_key, None)
+        clear_tuple_cache_by_context(cache, context)
 
     def _clear_context_cache(self, context: str) -> None:
         """Limpia caché para un contexto/schema específico."""
-        context_caches: tuple[dict[str, Any], ...] = (
-            self.db_cache._tables_cache,
-            self.db_cache._views_cache,
-            self.db_cache._routines_cache,
-            self.db_cache._routine_metadata_context_cache,
-            self.db_cache._routine_parameters_context_cache,
-        )
-        for context_cache in context_caches:
-            context_cache.pop(context, None)
-
-        tuple_caches: tuple[dict[tuple[Any, ...], Any], ...] = (
-            self.db_cache._primary_keys_cache,
-            self.db_cache._indices_cache,
-            self.db_cache._foreign_keys_cache,
-            self.db_cache._unique_constraints_cache,
-            self.db_cache._columns_cache,
-            self.db_cache._ddl_cache,
-            self.db_cache._view_ddl_cache,
-            self.db_cache._routine_parameters_cache,
-            self.db_cache._routine_ddl_cache,
-        )
-        for tuple_cache in tuple_caches:
-            self._clear_tuple_cache_by_context(tuple_cache, context)
-
-        self.logger.info(f"🧹 Caché invalidada para contexto: {context}")
+        clear_context_cache(db_cache=self.db_cache, logger=self.logger, context=context)
 
     def clear_cache(
         self,
@@ -602,17 +586,13 @@ class AsyncDatabaseManager:
 
     @staticmethod
     def _cache_context_key(context_database: str) -> str:
-        return str(context_database or "")
+        return cache_context_key(context_database)
 
     def _cache_table_key(self, context_database: str, table_name: str) -> tuple[str, str]:
-        return (self._cache_context_key(context_database), str(table_name or ""))
+        return cache_table_key(context_database, table_name)
 
     def _cache_routine_key(self, context_database: str, routine_name: str, routine_type: str) -> tuple[str, str, str]:
-        return (
-            self._cache_context_key(context_database),
-            str(routine_name or ""),
-            str(routine_type or "").upper(),
-        )
+        return cache_routine_key(context_database, routine_name, routine_type)
 
     async def _execute_metadata_many(
         self,
@@ -699,141 +679,24 @@ class AsyncDatabaseManager:
             self.logger.info(success_message)
         return text
 
-    def __parse_collation_only_row(self, row: tuple[Any, ...], column_name: str) -> tuple[str, str | None, str | None]:
-        collation: str | None = str(row[2]) if len(row) > 2 else None
-        return (column_name, None, collation)
-
-    def __parse_empty_charset_collation_row(
-        self, _row: tuple[Any, ...], column_name: str
-    ) -> tuple[str, str | None, str | None]:
-        return (column_name, None, None)
-
-    def __parse_db_charset_oracle(self, result: tuple[Any, ...]) -> dict[str, Any]:
-        if not result:
-            return {}
-        charset: str = str(result[0])
-        if len(result) > 1:
-            nchar_charset: str | None = str(result[1])
-            return {"charset": charset, "nchar_charset": nchar_charset}
-        return {"charset": charset}
-
-    def __parse_db_charset_postgresql(self, result: tuple[Any, ...]) -> dict[str, Any]:
-        if len(result) > 2:
-            return {"encoding": str(result[0]), "collate": str(result[1]), "ctype": str(result[2])}
-        if len(result) > 0:
-            return {"encoding": str(result[0])}
-        return {}
-
-    def __parse_db_charset_single_field(self, result: tuple[Any, ...], field_name: str) -> dict[str, Any]:
-        if len(result) == 0:
-            return {}
-        return {field_name: str(result[0])}
-
     def _parse_charset_collation_result(self, result: tuple[Any, ...] | None) -> dict[str, Any]:
-        if not result:
-            return {}
-
-        parser_map: dict[str, Callable[[tuple[Any, ...]], dict[str, Any]]] = {
-            "mariadb": parse_mariadb_db_charset,
-            "oracle": self.__parse_db_charset_oracle,
-            "postgresql": self.__parse_db_charset_postgresql,
-            "sqlserver": lambda r: self.__parse_db_charset_single_field(r, "collation"),
-            "hsqldb": lambda r: self.__parse_db_charset_single_field(r, "collation"),
-            "sqlite": lambda r: self.__parse_db_charset_single_field(r, "encoding"),
-        }
-
-        parser: Callable[[tuple[Any, ...]], dict[str, Any]] = parser_map.get(self.db_type, lambda _: {})
-        return parser(result)
-
-    def _is_lob(self, value: Any) -> bool:
-        return hasattr(value, "read") and callable(value.read)
-
-    def _read_lob(self, value: Any) -> str:
-        try:
-            return str(value.read())
-        except Exception:
-            return str(value)
-
-    def _contains_create(self, text: str) -> bool:
-        return "CREATE " in text.upper()
-
-    def _extract_preferred_ddl_candidate(self, value: Any) -> str:
-        if value is None:
-            return ""
-
-        if self._is_lob(value):
-            value = self._read_lob(value)
-
-        if isinstance(value, (tuple, list)):
-            nested_text = self._normalize_ddl_result(value)
-            if self._contains_create(nested_text):
-                return nested_text
-            if nested_text.strip():
-                return nested_text
-            return ""
-
-        text = str(value)
-        if self._contains_create(text):
-            return text
-        return ""
-
-    def _extract_any_text(self, value: Any) -> str:
-        if value is None:
-            return ""
-        if self._is_lob(value):
-            return self._read_lob(value)
-        if isinstance(value, (tuple, list)):
-            return self._normalize_ddl_result(value)
-        text = str(value)
-        return text if text.strip() else ""
+        return parse_charset_collation_result(self.db_type, result)
 
     def _normalize_ddl_result(self, ddl: Any) -> str:
-        if ddl is None:
-            return ""
-        if isinstance(ddl, str):
-            return ddl
-        if self._is_lob(ddl):
-            return self._read_lob(ddl)
-        if not isinstance(ddl, (tuple, list)):
-            return str(ddl)
-
-        preferred_positions = [2, 1, 0]
-        for pos in preferred_positions:
-            if len(ddl) <= pos:
-                continue
-            candidate = self._extract_preferred_ddl_candidate(ddl[pos])
-            if candidate:
-                return candidate
-
-        for value in ddl:
-            text = self._extract_any_text(value)
-            if text:
-                return text
-
-        return ""
+        return normalize_manager_ddl_result(ddl)
 
     def __parse_column_charset_collation_row(self, row: tuple[Any, ...]) -> tuple[str, str | None, str | None]:
-        column_name: str = str(row[0]) if len(row) > 0 else ""
-        parser_map: dict[str, Callable[[tuple[Any, ...], str], tuple[str, str | None, str | None]]] = {
-            "mariadb": parse_mariadb_column_charset_collation_row,
-            "oracle": self.__parse_collation_only_row,
-            "postgresql": self.__parse_collation_only_row,
-            "sqlserver": self.__parse_collation_only_row,
-            "hsqldb": self.__parse_collation_only_row,
-            "sqlite": self.__parse_empty_charset_collation_row,
-        }
-        parser = parser_map.get(self.db_type, self.__parse_empty_charset_collation_row)
-        return parser(row, column_name)
+        return parse_column_charset_collation_row(self.db_type, row)
 
     def _supports_columns_charset_collation(self) -> bool:
         """Indica si el motor expone metadata fiable de charset/collation por columna."""
         if self.db_type == "oracle":
             cached_support = getattr(self, "_oracle_column_collation_supported", None)
             if cached_support is not None:
-                return bool(cached_support)
-            return False
+                return supports_manager_columns_charset_collation(self.db_type, bool(cached_support))
+            return supports_manager_columns_charset_collation(self.db_type)
 
-        return self.db_type != "sqlite"
+        return supports_manager_columns_charset_collation(self.db_type)
 
     async def get_tables(self) -> Rows:
         context_database: str = self._get_query_context_database()
@@ -1134,15 +997,14 @@ class AsyncDatabaseManager:
             cached_support = getattr(self, "_oracle_column_collation_supported", None)
             if cached_support is None:
                 version_text: str = await self.get_database_version()
-                version_match: re.Match[str] | None = re.search(r"Release\s+(\d+)\.(\d+)", version_text)
-                supports_columns_charset = False
-                if version_match:
-                    major = int(version_match.group(1))
-                    minor = int(version_match.group(2))
-                    supports_columns_charset = (major, minor) >= (12, 2)
+                supports_columns_charset = oracle_supports_columns_charset_collation(version_text)
                 self._oracle_column_collation_supported: bool = supports_columns_charset
             else:
                 supports_columns_charset = bool(cached_support)
+            supports_columns_charset = supports_manager_columns_charset_collation(
+                self.db_type,
+                supports_columns_charset,
+            )
 
         if not supports_columns_charset:
             self.logger.debug(

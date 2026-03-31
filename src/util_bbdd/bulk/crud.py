@@ -15,7 +15,6 @@ Compatible con SyncDatabaseManager para integración simplificada.
 import logging
 
 from collections.abc import Callable, Hashable, Mapping, Sequence
-from datetime import date, datetime, time
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -26,7 +25,6 @@ import pandas as pd
 from sqlalchemy import (
     Column,
     ColumnElement,
-    Delete,
     Engine,
     Insert,
     MetaData,
@@ -34,7 +32,6 @@ from sqlalchemy import (
     Update,
     and_,
     bindparam,
-    delete,
     func,
     insert,
     select,
@@ -43,6 +40,23 @@ from sqlalchemy import (
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from ._batch_execution import (
+    execute_batch_statement,
+    execute_delete_batch,
+)
+from ._persistence import BulkPersistenceManager
+from ._sql_helpers import (
+    generate_delete_sql,
+    generate_insert_sql,
+    generate_update_sql,
+)
+from ._validation import (
+    build_update_plan,
+    get_insert_columns,
+    get_pk_columns,
+    normalize_dataframe_columns,
+    validate_engine,
+)
 from .audit import AuditManager
 from .normalize import normalize_records_for_sql
 
@@ -79,10 +93,7 @@ class bulk_crud:
         """
         self.logger: logging.Logger = logging.getLogger(__name__)
 
-        if engine is not None:
-            self.engine: Engine = engine
-        else:
-            raise ValueError("❌ 'engine' no puede ser None")
+        self.engine: Engine = validate_engine(engine)
 
         self.chunk_size: int = chunk_size
         self.audit_manager: AuditManager = AuditManager(audit_csv_path)
@@ -92,6 +103,12 @@ class bulk_crud:
 
         # Detectar driver específico para SQL Server
         self.__detectar_sqlserver_driver()
+        self._persistence: BulkPersistenceManager = BulkPersistenceManager(
+            engine_url=str(self.engine.url),
+            logger=self.logger,
+            audit_manager=self.audit_manager,
+            db_info=self.db_info,
+        )
 
     def __detectar_sqlserver_driver(self) -> None:
         """Detecta el driver específico de SQL Server (pymssql o pyodbc) y actualiza db_info."""
@@ -108,45 +125,6 @@ class bulk_crud:
             self.db_info = f"MSSQL ({sqlserver_driver})"
             self.logger.debug(f"🟢 Driver SQL Server detectado: {sqlserver_driver}")
 
-    def __generar_nombre_sql_dinamico(self, tabla: str, operacion: str) -> Path:
-        """
-        Genera un nombre dinámico para archivo SQL.
-
-        Estructura: db_tabla_operacion_YYYYMMDD_HHMMSS.sql
-
-        Args:
-            tabla: Nombre de la tabla
-            operacion: Tipo de operación (insert, update, delete)
-
-        Returns:
-            Path con el nombre dinámico completo
-
-        Raises:
-            ValueError: Si no se puede extraer el nombre de base de datos
-        """
-        try:
-            # Extraer nombre de BD de la URL del engine
-            # URLs típicas: mysql://user:pass@host/dbname, oracle://user:pass@host:port/dbname
-            url_str = str(self.engine.url)
-            db_name: str = url_str.split("/")[-1].split("?")[0]
-
-            if not db_name:
-                raise ValueError("No se pudo extraer nombre de BD de engine.url")
-        except Exception as e:
-            raise ValueError(f"No se pudo extraer nombre de BD de engine.url: {self.engine.url}") from e
-
-        # Generar timestamp YYYYMMDD_HHMMSS
-        timestamp: str = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        # Normalizar operación a minúsculas
-        operacion_lower: str = operacion.lower()
-
-        # Construir nombre: db_tabla_operacion_timestamp.sql
-        nombre_archivo: str = f"{db_name}-{tabla}-{operacion_lower}_{timestamp}.sql"
-
-        self.logger.debug(f"🟢 Nombre SQL generado: {nombre_archivo}")
-        return Path(nombre_archivo)
-
     def __validar_y_generar_path_sql(self, path_sql: Path | None, tabla_destino: str, operacion: str) -> Path:
         """
         Valida path_sql y genera el nombre dinámico combinado con la ruta proporcionada.
@@ -162,21 +140,7 @@ class bulk_crud:
         Raises:
             ValueError: Si path_sql es None o no es un Path válido.
         """
-        if path_sql is None:
-            raise ValueError("❌ path_sql es obligatorio cuando generar_sql=True")
-
-        # Validar que sea una instancia de Path
-        if not isinstance(path_sql, Path):
-            raise ValueError(f"❌ path_sql debe ser una instancia de Path, se recibió {type(path_sql).__name__}")
-
-        # Generar nombre dinámico
-        nombre_dinamico: Path = self.__generar_nombre_sql_dinamico(tabla_destino, operacion)
-
-        # Combinar path_sql con el nombre dinámico
-        ruta_completa: Path = path_sql / nombre_dinamico
-        self.logger.debug(f"📄 Path SQL generado: {ruta_completa}")
-
-        return ruta_completa
+        return self._persistence.resolve_sql_output_path(path_sql, tabla_destino, operacion)
 
     @medir_tiempo("bulk_insert_from_df")
     def bulk_insert_from_df(
@@ -210,8 +174,7 @@ class bulk_crud:
 
         self.__actualizar_df(df)
         tabla: Table = self.reflect_table(tabla_destino)
-        tabla_cols: set[str] = {col.name for col in tabla.columns}
-        insert_cols: list[str] = [c for c in df.columns if c in tabla_cols]
+        insert_cols: list[str] = get_insert_columns(list(df.columns), tabla)
         records: list[dict[Hashable, Any]] = df[insert_cols].to_dict(orient="records")
 
         try:
@@ -234,8 +197,12 @@ class bulk_crud:
             elapsed: float = perf_counter() - start
 
             # Registrar operación finalizada
-            self.audit_manager.registrar_operacion(
-                tabla_destino, self.db_info, "INSERT", numero_registros, elapsed, generar_sql
+            self._persistence.register_operation(
+                table_name=tabla_destino,
+                operation="INSERT",
+                rowcount=numero_registros,
+                elapsed=elapsed,
+                generated_sql=generar_sql,
             )
             self.logger.info(f"✅ bulk INSERT finalizado ({self.db_info}).")
         except SQLAlchemyError as e:
@@ -276,25 +243,17 @@ class bulk_crud:
 
         self.__actualizar_df(df)
         tabla: Table = self.reflect_table(tabla_destino)
-        tabla_cols: set[str] = {col.name for col in tabla.columns}
-        pk_cols: list[str] = [col.name for col in tabla.primary_key.columns if col.name in df.columns]
-
-        if not pk_cols:
-            self.logger.error(f"❌ La tabla '{tabla_destino}' no tiene claves primarias presentes en el DataFrame.")
-            raise ValueError(f"❌ La tabla '{tabla_destino}' no tiene claves primarias presentes en el DataFrame.")
-
-        update_cols: list[str] = [col for col in df.columns if col in tabla_cols and col not in pk_cols]
-        if not update_cols:
-            self.logger.error(f"❌ No hay columnas actualizables válidas. Tabla destino: {tabla_destino}")
-            raise ValueError("❌ No hay columnas actualizables válidas.")
-
-        pk_param_map: dict[str, str] = {col: f"pk_{col}" for col in pk_cols}
+        try:
+            update_plan = build_update_plan(tabla, list(df.columns), tabla_destino)
+        except ValueError as error:
+            self.logger.error(str(error))
+            raise
 
         records: list[dict[Hashable, Any]] = df.to_dict(orient="records")
         records_sql: list[dict] = normalize_records_for_sql(records)
 
         for r in records_sql:
-            for orig, alias in pk_param_map.items():
+            for orig, alias in update_plan.pk_param_map.items():
                 r[alias] = r[orig]
 
         try:
@@ -302,20 +261,32 @@ class bulk_crud:
             start: float = perf_counter()
 
             if generar_sql:
-                sql_lines: list = self.__generar_sql_update(tabla, records_sql, update_cols, pk_param_map, pk_cols)
+                sql_lines: list = self.__generar_sql_update(
+                    tabla,
+                    records_sql,
+                    update_plan.update_cols,
+                    update_plan.pk_param_map,
+                    update_plan.pk_cols,
+                )
                 self.__guardar_fichero_sql(sql_lines, path_sql)
             else:
                 where_clause: ColumnElement[bool] = and_(
-                    *(tabla.c[col] == bindparam(pk_param_map[col]) for col in pk_cols)
+                    *(tabla.c[col] == bindparam(update_plan.pk_param_map[col]) for col in update_plan.pk_cols)
                 )
-                stmt: Update = update(tabla).where(where_clause).values({col: bindparam(col) for col in update_cols})
+                stmt: Update = (
+                    update(tabla).where(where_clause).values({col: bindparam(col) for col in update_plan.update_cols})
+                )
                 self.__ejecutar_batch_stmt(records_sql, stmt, numero_registros)
 
             elapsed: float = perf_counter() - start
 
             # Registrar operación finalizada
-            self.audit_manager.registrar_operacion(
-                tabla_destino, self.db_info, "UPDATE", numero_registros, elapsed, generar_sql
+            self._persistence.register_operation(
+                table_name=tabla_destino,
+                operation="UPDATE",
+                rowcount=numero_registros,
+                elapsed=elapsed,
+                generated_sql=generar_sql,
             )
             self.logger.info(f"✅ bulk UPDATE finalizado ({self.db_info}).")
         except SQLAlchemyError as e:
@@ -376,8 +347,12 @@ class bulk_crud:
             elapsed: float = perf_counter() - start
 
             # Registrar ejecución finalizada de operación
-            self.audit_manager.registrar_operacion(
-                tabla_destino, self.db_info, "DELETE", numero_registros, elapsed, generar_sql
+            self._persistence.register_operation(
+                table_name=tabla_destino,
+                operation="DELETE",
+                rowcount=numero_registros,
+                elapsed=elapsed,
+                generated_sql=generar_sql,
             )
             self.logger.info(f"✅ bulk DELETE finalizado ({self.db_info}).")
         except SQLAlchemyError as e:
@@ -396,13 +371,15 @@ class bulk_crud:
             stmt: Statement SQLAlchemy (Insert, Update, Delete).
             numero_registros: Total de registros (para logging).
         """
-        with self.engine.begin() as conn:
-            for i in range(0, numero_registros, self.chunk_size):
-                batch: list[dict[Hashable, Any]] = records[i : i + self.chunk_size]
-                execute_batch: Sequence[Mapping[str, Any]] = [
-                    {str(key): value for key, value in record.items()} for record in batch
-                ]
-                conn.execute(stmt, execute_batch)
+        records_to_execute: Sequence[Mapping[str, Any]] = [
+            {str(key): value for key, value in record.items()} for record in records[:numero_registros]
+        ]
+        execute_batch_statement(
+            engine=self.engine,
+            records=records_to_execute,
+            stmt=stmt,
+            chunk_size=self.chunk_size,
+        )
 
     def __obtener_pk_cols(self, tabla: Table, df_cols) -> list[str]:
         """Obtiene las columnas PK presentes en el DataFrame.
@@ -417,10 +394,7 @@ class bulk_crud:
         Raises:
             ValueError: Si no hay PKs presentes en el DataFrame.
         """
-        pk_cols: list[str] = [col.name for col in tabla.primary_key.columns if col.name in df_cols]
-        if not pk_cols:
-            raise ValueError("❌ La tabla no tiene claves primarias presentes en el DataFrame.")
-        return pk_cols
+        return get_pk_columns(tabla, df_cols)
 
     def __generar_y_guardar_sql_delete(
         self, df: pd.DataFrame, tabla: Table, pk_cols: list[str], fichero_sql: Path | None
@@ -438,58 +412,15 @@ class bulk_crud:
         numero_registros: int,
     ):
         """Ejecuta borrado por lotes en la base de datos."""
-        is_sql_based: bool = self.engine.dialect.name in ("mysql", "mariadb", "mssql", "hsqldb")
-
-        with self.engine.begin() as conn:
-            for i in range(0, numero_registros, self.chunk_size):
-                batch_df: pd.DataFrame = df[pk_cols].iloc[i : i + self.chunk_size]
-
-                if batch_df.empty:
-                    continue
-
-                if is_sql_based:
-                    self.__execute_sql_based_delete_batch(conn, tabla_destino, batch_df, pk_cols)
-                else:
-                    self.__execute_generic_delete_batch(conn, tabla, batch_df, pk_cols)
-
-    def __execute_sql_based_delete_batch(self, conn, tabla_destino: str, batch_df: pd.DataFrame, pk_cols: list[str]):
-        """Ejecuta un DELETE en bloque usando la sintaxis WHERE (pk1, pk2) IN ((..), (..)).
-
-        Genera la consulta con placeholders y aplana los valores antes de ejecutar con
-        `exec_driver_sql` para drivers compatibles con MySQL/MariaDB/HSQLDB que soportan
-        la sintaxis (col1, col2) IN (valores).
-        """
-        if batch_df.empty:
-            return
-
-        values = [tuple(row[col] for col in pk_cols) for _, row in batch_df.iterrows()]
-
-        if not values:
-            return
-
-        if not all(isinstance(v, tuple) for v in values):
-            raise ValueError("❌ Los valores deben ser tuplas.")
-
-        placeholder: str = "(" + ", ".join(["%s"] * len(pk_cols)) + ")"
-        placeholders: str = ", ".join([placeholder] * len(values))
-        pk_tuple: str = ", ".join(pk_cols)
-        sql: str = f"DELETE FROM {tabla_destino} WHERE ({pk_tuple}) IN ({placeholders})"
-
-        flat_values: list[Any] = [val for tup in values for val in tup]
-        conn.exec_driver_sql(sql, tuple(flat_values))
-
-    def __execute_generic_delete_batch(self, conn, tabla: Table, batch_df: pd.DataFrame, pk_cols: list[str]):
-        """Ejecuta borrado por lotes usando sentencias parametrizadas de SQLAlchemy.
-
-        Convierte el DataFrame del batch a una lista de dicts y ejecuta un DELETE
-        con `bindparam` para cada columna PK.
-        """
-        if batch_df.empty:
-            return
-
-        stmt: Delete = delete(tabla).where(and_(*(tabla.c[col] == bindparam(col) for col in pk_cols)))
-        records: list[dict[Hashable, Any]] = batch_df.to_dict(orient="records")
-        conn.execute(stmt, records)
+        del numero_registros
+        execute_delete_batch(
+            engine=self.engine,
+            table=tabla,
+            table_name=tabla_destino,
+            df=df,
+            pk_cols=pk_cols,
+            chunk_size=self.chunk_size,
+        )
 
     def __actualizar_df(self, df: pd.DataFrame):
         """Normaliza nombres de columnas según el dialecto de BBDD.
@@ -505,14 +436,7 @@ class bulk_crud:
             - mssql: Mayúsculas (identifiers por defecto en SQL Server)
             - hsqldb: Mayúsculas (comportamiento nativo de HSQLDB)
         """
-        # 0. Convertir a mayúsculas o minúsculas el Nombre de las columnas según el dialecto de BBDD
-        if self.engine.dialect.name in ("oracle", "postgresql", "sqlite"):
-            df.columns = df.columns.str.lower()
-        elif self.engine.dialect.name in ("mysql", "mariadb", "mssql", "hsqldb"):
-            df.columns = df.columns.str.upper()
-        else:
-            self.logger.warning(f"⚠️ Dialecto no reconocido: {self.engine.dialect.name}")
-
+        normalize_dataframe_columns(df, self.engine.dialect.name, self.logger)
         df = df.replace({np.nan: None})
 
     def reflect_table(self, tabla_destino: str) -> Table:
@@ -594,11 +518,7 @@ class bulk_crud:
 
         Maneja valores binarios convirtiendo a hexadecimal.
         """
-        sql_lines: list[str] = []
-        for record in records:
-            sql: str = self.__compilar_stmt_con_binarios(stmt.values(record))
-            sql_lines.append(sql)
-        return sql_lines
+        return generate_insert_sql(stmt, records, self.engine.dialect)
 
     def __generar_sql_update(
         self,
@@ -608,96 +528,25 @@ class bulk_crud:
         pk_param_map: dict[str, str],
         pk_cols: list[str],
     ) -> list[str]:
-        sql_lines: list[str] = []
-        for record in records:
-            valores_update: dict[str, Any] = {col: record[col] for col in update_cols}
-            condiciones_pk: dict[str, Any] = {pk_param_map[col]: record[pk_param_map[col]] for col in pk_cols}
-            stmt: Update = (
-                update(tabla)
-                .where(and_(*(tabla.c[col] == condiciones_pk[pk_param_map[col]] for col in pk_cols)))
-                .values(valores_update)
-            )
-            sql: str = self.__compilar_stmt_con_binarios(stmt)
-            sql_lines.append(sql)
-        return sql_lines
+        return generate_update_sql(
+            table=tabla,
+            records=records,
+            update_cols=update_cols,
+            pk_param_map=pk_param_map,
+            pk_cols=pk_cols,
+            dialect=self.engine.dialect,
+        )
 
     def __generar_sql_delete(self, df: pd.DataFrame, tabla: Table, pk_cols: list[str]) -> list[str]:
-        sql_lines: list[str] = []
-        for record in df[pk_cols].to_dict(orient="records"):
-            condiciones: list = [tabla.c[col] == record[col] for col in pk_cols]
-            stmt: Delete = delete(tabla).where(and_(*condiciones))
-            sql: str = self.__compilar_stmt_con_binarios(stmt)
-            sql_lines.append(sql)
-        return sql_lines
-
-    def __compilar_stmt_con_binarios(self, stmt) -> str:
-        """Compila un statement con manejo especial para valores binarios.
-
-        Primero intenta compilar normalmente, si falla por BLOB,
-        se recompila sin literal_binds y se procesan binarios manualmente.
-        """
-        try:
-            # Intentar compilación normal con literal_binds
-            compiled = stmt.compile(dialect=self.engine.dialect, compile_kwargs={"literal_binds": True})
-            return f"{compiled};"
-        except Exception as e:
-            # Si falla por binarios, recompilar sin literal_binds y procesar parámetros
-            if "BLOB" in str(e) or "binary" in str(e).lower():
-                compiled = stmt.compile(dialect=self.engine.dialect)
-                sql_str = str(compiled)
-                params = compiled.params or {}
-
-                if not params:
-                    return f"{sql_str};"
-
-                # Convertir parámetros a literales SQL en una lista ordenada
-                # Los placeholders %s se reemplazan en orden
-                param_values = []
-                for param_value in params.values():
-                    param_values.append(self.__format_param_value(param_value))
-
-                # Reemplazar %s por los valores reales
-                sql_result: str = sql_str
-                for value in param_values:
-                    sql_result = sql_result.replace("%s", value, 1)
-
-                return f"{sql_result};"
-            else:
-                # Si es otro error, re-lanzar
-                raise
-
-    def __format_param_value(self, value: Any) -> str:
-        """Convierte un valor de parámetro a su representación literal SQL.
-
-        Args:
-            value: El valor a convertir.
-
-        Returns:
-            String con la representación literal SQL.
-        """
-        if value is None:
-            return "NULL"
-        elif isinstance(value, bytes):
-            # Datos binarios: convertir a hexadecimal
-            return f"0x{value.hex().upper()}"
-        elif isinstance(value, bool):
-            # Boolean: 1 o 0
-            return "1" if value else "0"
-        elif isinstance(value, (datetime, date, time)):
-            # Datetime/Date/Time: convertir a string y escapar con comillas
-            return f"'{str(value)}'"
-        elif isinstance(value, str):
-            # String: escapar comillas simples y envolver en comillas
-            escaped: str = value.replace("'", "''")
-            return f"'{escaped}'"
-        elif isinstance(value, (int, float)):
-            # Números: convertir a string directo
-            return str(value)
-        else:
-            # Para otros tipos, convertir a string y escapar como string
-            str_value = str(value)
-            escaped = str_value.replace("'", "''")
-            return f"'{escaped}'"
+        delete_records: list[dict[str, Any]] = [
+            {str(key): value for key, value in record.items()} for record in df[pk_cols].to_dict(orient="records")
+        ]
+        return generate_delete_sql(
+            records=delete_records,
+            table=tabla,
+            pk_cols=pk_cols,
+            dialect=self.engine.dialect,
+        )
 
     def __guardar_fichero_sql(self, sql_lines: list, fichero_sql: Path | None):
         """Guarda las líneas SQL en un archivo o las imprime en log.
@@ -706,10 +555,4 @@ class bulk_crud:
             sql_lines: lista de líneas SQL.
             fichero_sql: Ruta del archivo destino. Si es None, imprime en log.
         """
-        if fichero_sql:
-            with open(fichero_sql, "w", encoding="utf-8") as f:
-                f.write("\n".join(sql_lines))
-            self.logger.info(f"💾 SQL guardada en: {fichero_sql}")
-        else:
-            self.logger.info("\n".join(sql_lines))
-            self.logger.info("📄 SQL generada en log.")
+        self._persistence.persist_sql(sql_lines, fichero_sql)

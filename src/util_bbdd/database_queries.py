@@ -10,17 +10,13 @@ Soporta MariaDB, Oracle, PostgreSQL, HSQLDB, SQL Server y SQLite
 
 import json
 import logging
-import re
 
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
-from .database_type_validator import DatabaseTypeValidator
+from ._drivers.validator import DatabaseTypeValidator
 from .query import QueryRegistry, QueryResolver
-
-# Patrón regex para encontrar parámetros en plantillas de consultas
-PARAMETER_PATTERN = r"\{(\w+)\}"
+from .query._documentation import build_query_documentation, build_query_info, get_query_dependencies
 
 
 class DatabaseQueries:
@@ -96,10 +92,7 @@ class DatabaseQueries:
         self.resolver: QueryResolver = QueryResolver(self.registry)
         self.logger.debug("✅ QueryResolver inicializado")
 
-        # Mantener queries accesible para backward compatibility
-        # (algunos métodos aún los utilizan)
-        self.queries: dict[Any, Any] = self.registry.queries
-        self.logger.debug(f"✅ {len(self.queries.get(self.db_type, {}))} consultas cargadas")
+        self.logger.debug(f"✅ {len(self.registry.get_available_queries(self.db_type))} consultas cargadas")
 
         # Inicializar validador de tipos de BD para obtener metadatos
         self.db_validator: DatabaseTypeValidator = DatabaseTypeValidator(config_file)
@@ -182,7 +175,9 @@ class DatabaseQueries:
         """Obtiene la consulta para recuperar el DDL de una rutina."""
         if self.db_type == "mariadb":
             if not schema:
-                raise ValueError("Para MariaDB debe informar 'schema'/'database' para cargar metadata batched de rutinas")
+                raise ValueError(
+                    "Para MariaDB debe informar 'schema'/'database' para cargar metadata batched de rutinas"
+                )
             return self.get_query("rutinas_mariadb_detalle", database=schema)
 
         return self.get_query("create_rutina", rutina=routine_name, tipo_rutina=routine_type.upper(), esquema=schema)
@@ -264,18 +259,23 @@ class DatabaseQueries:
             kwargs["database"] = context
         return kwargs
 
+    @property
+    def queries(self) -> dict[str, dict[str, str]]:
+        """Compatibilidad legacy: expone las queries gestionadas por QueryRegistry."""
+        return self.registry.queries
+
     # ==================== MÉTODOS DE INFORMACIÓN DE CONSULTAS ====================
 
     def get_all_queries(self) -> dict[str, str]:
         """Obtiene todas las consultas disponibles para el tipo de base de datos"""
-        raw_queries: Any = self.queries.get(self.db_type, {})
+        raw_queries: Any = self.registry.queries.get(self.db_type, {})
         if not isinstance(raw_queries, dict):
             return {}
         return {str(name): str(query) for name, query in raw_queries.items()}
 
     def get_available_query_names(self) -> list[str]:
         """Obtiene los nombres de las consultas disponibles"""
-        return list(self.queries.get(self.db_type, {}).keys())
+        return self.registry.get_available_queries(self.db_type)
 
     def get_query_info(self) -> dict[str, Any]:
         """
@@ -284,24 +284,7 @@ class DatabaseQueries:
         Returns:
             Diccionario con información de las consultas
         """
-        queries: dict[str, str] = self.get_all_queries()
-        query_details: dict[str, dict[str, Any]] = {}
-        info: dict[str, Any] = {
-            "db_type": self.db_type,
-            "total_queries": len(queries),
-            "query_names": self.get_available_query_names(),
-            "queries": query_details,
-        }
-
-        for name, query in queries.items():
-            required_params = list(set(re.findall(PARAMETER_PATTERN, query)))
-            query_details[name] = {
-                "template": query,
-                "required_parameters": required_params,
-                "parameter_count": len(required_params),
-            }
-
-        return info
+        return build_query_info(db_type=self.db_type, queries=self.get_all_queries())
 
     # ==================== MÉTODOS AVANZADOS DE VALIDACIÓN ====================
 
@@ -322,237 +305,6 @@ class DatabaseQueries:
             return True, list(resolved.warnings)
         except Exception as e:
             return False, [f"Parámetros inválidos o faltantes para la consulta '{query_name}': {str(e)}"]
-
-    def _validate_sqlserver_query(self, query_name: str, **kwargs) -> list[str]:
-        """Valida específicamente consultas SQL Server"""
-        errors = []
-        table_queries: list[str] = [
-            "columnas_tabla",
-            "create_table",
-            "indices",
-            "claves_primarias",
-            "claves_foraneas",
-            "claves_unicas",
-        ]
-        if query_name in table_queries:
-            errors.extend(self._validate_sqlserver_table_parameter(**kwargs))
-        elif query_name == "obtener_tablas":
-            errors.extend(self._validate_sqlserver_database_parameter(**kwargs))
-        return errors
-
-    def _validate_sqlserver_table_parameter(self, **kwargs) -> list[str]:
-        """Valida el parámetro tabla para consultas SQL Server"""
-        errors = []
-        if "tabla" not in kwargs:
-            errors.append(self.ERROR_TABLA_PARAMETER_REQUIRED)
-            return errors
-        table_name = kwargs["tabla"]
-        if not isinstance(table_name, str) or not table_name.strip():
-            errors.append(self.ERROR_TABLE_NAME_EMPTY)
-            return errors
-        if len(table_name) > 128:
-            errors.append("SQL Server no permite nombres de tabla con más de 128 caracteres")
-        if not re.match(r"^[\w\-]+$", table_name):
-            errors.append("El nombre de la tabla solo puede contener letras, números, guiones y guiones bajos")
-        return errors
-
-    def _validate_sqlserver_database_parameter(self, **kwargs) -> list[str]:
-        """Valida el parámetro database para consultas SQL Server"""
-        errors = []
-        if "database" not in kwargs:
-            errors.append(self.ERROR_OBTENER_TABLAS_REQUIRES_DATABASE)
-            return errors
-        database = kwargs["database"]
-        if not isinstance(database, str) or not database.strip():
-            errors.append(self.ERROR_DATABASE_NAME_EMPTY)
-        if len(database) > 128:
-            errors.append("SQL Server no permite nombres de base de datos con más de 128 caracteres")
-        return errors
-
-    def _validate_postgresql_query(self, query_name: str, **kwargs) -> list[str]:
-        """Valida específicamente consultas PostgreSQL"""
-        errors = []
-        if query_name == "obtener_tablas":
-            errors.extend(self._validate_postgresql_obtener_tablas(**kwargs))
-        elif query_name == "columnas_tabla":
-            errors.extend(self._validate_postgresql_columnas_tabla(**kwargs))
-        elif query_name == "create_table":
-            errors.extend(self._validate_postgresql_create_table(**kwargs))
-        return errors
-
-    def _validate_postgresql_obtener_tablas(self, **kwargs) -> list[str]:
-        """Valida parámetros para obtener_tablas en PostgreSQL"""
-        errors = []
-        if "database" not in kwargs:
-            errors.append(self.ERROR_OBTENER_TABLAS_REQUIRES_DATABASE)
-        else:
-            database = kwargs["database"]
-            if not isinstance(database, str) or not database.strip():
-                errors.append("El nombre del schema/database no puede estar vacío")
-            reserved_schemas: list[str] = ["information_schema", "pg_catalog", "pg_toast"]
-            if database.lower() in reserved_schemas:
-                errors.append(f"'{database}' es un schema reservado de PostgreSQL")
-        return errors
-
-    def _validate_postgresql_columnas_tabla(self, **kwargs) -> list[str]:
-        """Valida parámetros para columnas_tabla en PostgreSQL"""
-        errors = []
-        if "database" not in kwargs:
-            errors.append(self.ERROR_COLUMNAS_TABLA_REQUIRES_DATABASE)
-        if "tabla" not in kwargs:
-            errors.append(self.ERROR_COLUMNAS_TABLA_REQUIRES_TABLA)
-        else:
-            tabla = kwargs["tabla"]
-            if not isinstance(tabla, str) or not tabla.strip():
-                errors.append(self.ERROR_TABLE_NAME_EMPTY)
-            if not tabla.replace("_", "").replace("-", "").isalnum():
-                errors.append(self.ERROR_TABLE_NAME_INVALID_HSQLDB)
-        return errors
-
-    def _validate_postgresql_create_table(self, **kwargs) -> list[str]:
-        """Valida parámetros para create_table en PostgreSQL"""
-        errors = []
-        if "tabla" not in kwargs:
-            errors.append(self.ERROR_CREATE_TABLE_REQUIRES_TABLA)
-        else:
-            tabla = kwargs["tabla"]
-            if not isinstance(tabla, str) or not tabla.strip():
-                errors.append(self.ERROR_TABLE_NAME_EMPTY)
-            if len(tabla) > 63:
-                errors.append("PostgreSQL no permite nombres de tabla con más de 63 caracteres")
-            if tabla.lower().startswith("pg_"):
-                errors.append("Los nombres que empiezan con 'pg_' están reservados en PostgreSQL")
-        return errors
-
-    def _validate_oracle_query(self, query_name: str, **kwargs) -> list[str]:
-        """Valida específicamente consultas Oracle"""
-        errors = []
-        table_queries: list[str] = [
-            "columnas_tabla",
-            "create_table",
-            "indices",
-            "claves_primarias",
-            "claves_foraneas",
-            "claves_unicas",
-        ]
-        if query_name in table_queries:
-            errors.extend(self._validate_oracle_table_parameter(**kwargs))
-        elif query_name == "obtener_tablas":
-            errors.extend(self._validate_oracle_database_parameter(**kwargs))
-        return errors
-
-    def _validate_oracle_table_parameter(self, **kwargs) -> list[str]:
-        """Valida el parámetro tabla para consultas Oracle"""
-        errors = []
-        if "tabla" not in kwargs:
-            errors.append(self.ERROR_TABLA_PARAMETER_REQUIRED)
-            return errors
-        table_name = kwargs["tabla"]
-        if not isinstance(table_name, str) or not table_name.strip():
-            errors.append(self.ERROR_TABLE_NAME_EMPTY)
-            return errors
-        if len(table_name) > 30:
-            errors.append("Oracle no permite nombres de tabla con más de 30 caracteres")
-        if not table_name.replace("_", "").replace("$", "#").isalnum():
-            errors.append("El nombre de la tabla solo puede contener letras, números, guiones bajos y $")
-        return errors
-
-    def _validate_oracle_database_parameter(self, **kwargs) -> list[str]:
-        """Valida el parámetro database para consultas Oracle"""
-        errors = []
-        if "database" not in kwargs:
-            errors.append(self.ERROR_OBTENER_TABLAS_REQUIRES_DATABASE)
-            return errors
-        database = kwargs["database"]
-        if not isinstance(database, str) or not database.strip():
-            errors.append("El nombre del esquema/database no puede estar vacío")
-        return errors
-
-    def _validate_mariadb_query(self, query_name: str, **kwargs) -> list[str]:
-        """Valida específicamente consultas MariaDB"""
-        errors = []
-        table_queries: list[str] = [
-            "columnas_tabla",
-            "create_table",
-            "indices",
-            "claves_primarias",
-            "claves_foraneas",
-            "claves_unicas",
-        ]
-        if query_name in table_queries:
-            errors.extend(self._validate_mariadb_table_parameter(**kwargs))
-        elif query_name == "obtener_tablas":
-            errors.extend(self._validate_mariadb_database_parameter(**kwargs))
-        return errors
-
-    def _validate_mariadb_table_parameter(self, **kwargs) -> list[str]:
-        """Valida el parámetro tabla para consultas MariaDB"""
-        errors = []
-        if "tabla" not in kwargs:
-            errors.append(self.ERROR_TABLA_PARAMETER_REQUIRED)
-            return errors
-        table_name = kwargs["tabla"]
-        if not isinstance(table_name, str) or not table_name.strip():
-            errors.append(self.ERROR_TABLE_NAME_EMPTY)
-            return errors
-        if len(table_name) > 64:
-            errors.append("MariaDB no permite nombres de tabla con más de 64 caracteres")
-        if not table_name.replace("_", "").replace("$", "").isalnum():
-            errors.append("El nombre de la tabla solo puede contener letras, números, guiones bajos y $")
-        return errors
-
-    def _validate_mariadb_database_parameter(self, **kwargs) -> list[str]:
-        """Valida el parámetro database para consultas MariaDB"""
-        errors = []
-        if "database" not in kwargs:
-            errors.append(self.ERROR_OBTENER_TABLAS_REQUIRES_DATABASE)
-            return errors
-        database = kwargs["database"]
-        if not isinstance(database, str) or not database.strip():
-            errors.append(self.ERROR_DATABASE_NAME_EMPTY)
-        return errors
-
-    def _validate_hsqldb_query(self, query_name: str, **kwargs) -> list[str]:
-        """Valida específicamente consultas HSQLDB"""
-        errors = []
-        table_queries: list[str] = [
-            "columnas_tabla",
-            "create_table",
-            "indices",
-            "claves_primarias",
-            "claves_foraneas",
-            "claves_unicas",
-        ]
-        if query_name in table_queries:
-            errors.extend(self._validate_hsqldb_table_parameter(**kwargs))
-        elif query_name == "obtener_tablas":
-            errors.extend(self._validate_hsqldb_database_parameter(**kwargs))
-        return errors
-
-    def _validate_hsqldb_table_parameter(self, **kwargs) -> list[str]:
-        """Valida el parámetro tabla para consultas HSQLDB"""
-        errors = []
-        if "tabla" not in kwargs:
-            errors.append(self.ERROR_TABLA_PARAMETER_REQUIRED)
-            return errors
-        table_name = kwargs["tabla"]
-        if not isinstance(table_name, str) or not table_name.strip():
-            errors.append(self.ERROR_TABLE_NAME_EMPTY)
-            return errors
-        if not table_name.replace("_", "").replace("-", "").isalnum():
-            errors.append(self.ERROR_TABLE_NAME_INVALID_HSQLDB)
-        return errors
-
-    def _validate_hsqldb_database_parameter(self, **kwargs) -> list[str]:
-        """Valida el parámetro database para consultas HSQLDB"""
-        errors = []
-        if "database" not in kwargs:
-            errors.append("La consulta 'obtener_tablas' requiere el parámetro 'database'")
-            return errors
-        database = kwargs["database"]
-        if not isinstance(database, str) or not database.strip():
-            errors.append("El nombre de la base de datos no puede estar vacío")
-        return errors
 
     # ==================== MÉTODOS AVANZADOS DE METADATOS ====================
 
@@ -595,195 +347,16 @@ class DatabaseQueries:
     def get_query_dependencies(self, query_name: str) -> dict[str, list[str]]:
         """Obtiene las dependencias de una consulta (tablas, vistas, etc.)"""
         query_template: str = self.get_all_queries().get(query_name, "")
-        dependencies: dict[str, list[str]] = {"tables": [], "views": [], "schemata": [], "columns": []}
-
-        # Buscar tablas en FROM, JOIN, etc.
-        from_pattern = r"(?:FROM|JOIN)\s+(\w+)"
-        tables = re.findall(from_pattern, query_template, re.IGNORECASE)
-        dependencies["tables"] = list(set(tables))
-
-        # Buscar schemas
-        schema_pattern = r'(?:schema|database)\s*=\s*[\'"]([^\'"]+)[\'"]'
-        schemas = re.findall(schema_pattern, query_template, re.IGNORECASE)
-        dependencies["schemata"] = list(set(schemas))
-
-        return dependencies
+        return get_query_dependencies(query_template)
 
     def get_query_documentation(self, query_name: str) -> dict[str, Any]:
         """Obtiene documentación completa de una consulta"""
         query_template: str = self.get_all_queries().get(query_name, "")
-        parameters = self._get_required_parameters(query_name)
-        dependencies = self.get_query_dependencies(query_name)
-
-        return {
-            "query_name": query_name,
-            "db_type": self.db_type,
-            "description": self._get_query_description(query_name),
-            "template": query_template,
-            "parameters": parameters,
-            "dependencies": dependencies,
-            "examples": self._get_query_examples(query_name),
-        }
-
-    def _get_query_description(self, query_name: str) -> str:
-        """Obtiene descripción legible de una consulta"""
-        descriptions = {
-            "obtener_tablas": "Obtiene la lista de tablas de la base de datos",
-            "columnas_tabla": "Obtiene información detallada de las columnas de una tabla",
-            "create_table": "Genera el DDL (Data Definition Language) para crear una tabla",
-            "obtener_rutinas": "Obtiene la lista de rutinas (procedures y funciones)",
-            "parametros_rutina": "Obtiene la lista de parámetros de una rutina",
-            "create_rutina": "Obtiene el DDL de una rutina (procedure/función)",
-            "indices": "Obtiene la lista de índices de una tabla",
-            "claves_primarias": "Obtiene las claves primarias de una tabla",
-            "claves_foraneas": "Obtiene las claves foráneas (foreign keys) de una tabla",
-            "claves_unicas": "Obtiene las restricciones únicas de una tabla",
-            "ficheros_fisicos": "Obtiene inventario de ficheros físicos y tamaños",
-            "sqlite_file_summary": "Obtiene resumen interno del fichero SQLite principal",
-            "temp_tablespaces": "Obtiene configuración de tablespaces temporales",
-            "temp_storage_variables": "Obtiene variables de configuración del almacenamiento temporal",
-        }
-        return descriptions.get(query_name, "Consulta SQL personalizada")
-
-    def _get_required_parameters(self, query_name: str) -> list[str]:
-        """Obtiene la lista de parámetros requeridos para una consulta"""
-        query_template: str = self.get_all_queries().get(query_name, "")
-        return list(set(re.findall(PARAMETER_PATTERN, query_template)))
-
-    def _get_query_examples(self, query_name: str) -> list[dict[str, Any]]:
-        """Obtiene ejemplos de uso para una consulta"""
-        examples_factory: dict[str, Callable[[], list[dict[str, Any]]]] = {
-            "obtener_tablas": self._examples_obtener_tablas,
-            "obtener_rutinas": self._examples_obtener_rutinas,
-            "parametros_rutina": self._examples_parametros_rutina,
-            "create_rutina": self._examples_create_rutina,
-            "columnas_tabla": self._examples_columnas_tabla,
-            "create_table": self._examples_create_table,
-            "ficheros_fisicos": self._examples_ficheros_fisicos,
-            "sqlite_file_summary": self._examples_sqlite_file_summary,
-            "temp_tablespaces": self._examples_temp_tablespaces,
-            "temp_storage_variables": self._examples_temp_storage_variables,
-        }
-        return examples_factory.get(query_name, lambda: [])()
-
-    def _examples_obtener_tablas(self) -> list[dict[str, Any]]:
-        """Ejemplos para consulta obtener_tablas"""
-        return [
-            {
-                "description": "Obtener todas las tablas del schema public",
-                "parameters": {"database": "public"},
-            }
-        ]
-
-    def _examples_obtener_rutinas(self) -> list[dict[str, Any]]:
-        """Ejemplos para consulta obtener_rutinas"""
-        return [
-            {
-                "description": "Obtener procedures y funciones del schema public",
-                "parameters": {"database": "public"},
-            }
-        ]
-
-    def _examples_parametros_rutina(self) -> list[dict[str, Any]]:
-        """Ejemplos para consulta parametros_rutina"""
-        return [
-            {
-                "description": "Obtener parámetros de la rutina calcular_totales",
-                "parameters": {
-                    "database": "public",
-                    "rutina": "calcular_totales",
-                    "tipo_rutina": "FUNCTION",
-                },
-            }
-        ]
-
-    def _examples_create_rutina(self) -> list[dict[str, Any]]:
-        """Ejemplos para consulta create_rutina"""
-        return [
-            {
-                "description": "Generar DDL de la rutina actualizar_stock",
-                "parameters": {"rutina": "actualizar_stock", "tipo_rutina": "PROCEDURE"},
-            }
-        ]
-
-    def _examples_columnas_tabla(self) -> list[dict[str, Any]]:
-        """Ejemplos para consulta columnas_tabla"""
-        return [
-            {
-                "description": "Obtener columnas de la tabla usuarios",
-                "parameters": {"database": "public", "tabla": "usuarios"},
-            }
-        ]
-
-    def _examples_create_table(self) -> list[dict[str, Any]]:
-        """Ejemplos para consulta create_table"""
-        return [
-            {
-                "description": "Generar DDL de la tabla productos",
-                "parameters": {"tabla": "productos"},
-            }
-        ]
-
-    def _examples_ficheros_fisicos(self) -> list[dict[str, Any]]:
-        """Ejemplos para consulta ficheros_fisicos según motor"""
-        examples_by_db: dict[str, dict[str, Any]] = {
-            "oracle": {
-                "description": "Inventario de ficheros para un tablespace Oracle",
-                "parameters": {"tablespace": "USERS"},
-            },
-            "postgresql": {
-                "description": "Tamaño y ruta de un tablespace PostgreSQL",
-                "parameters": {"tablespace": "pg_default"},
-            },
-            "mariadb": {
-                "description": "Tamaño por tabla en MariaDB",
-                "parameters": {"database": "mi_bd"},
-            },
-            "sqlite": {
-                "description": "Listado de ficheros de bases adjuntas en SQLite",
-                "parameters": {},
-            },
-        }
-        example: dict[str, Any] = examples_by_db.get(
-            self.db_type,
-            {"description": "Inventario de ficheros físicos SQL Server", "parameters": {}},
+        return build_query_documentation(
+            db_type=self.db_type,
+            query_name=query_name,
+            query_template=query_template,
         )
-        return [example]
-
-    def _examples_sqlite_file_summary(self) -> list[dict[str, Any]]:
-        """Ejemplos para consulta sqlite_file_summary."""
-        if self.db_type != "sqlite":
-            return []
-        return [{"description": "Resumen de tamaño del fichero SQLite principal", "parameters": {}}]
-
-    def _examples_temp_tablespaces(self) -> list[dict[str, Any]]:
-        """Ejemplos para consulta temp_tablespaces"""
-        examples_by_db: dict[str, dict[str, Any]] = {
-            "mariadb": {
-                "description": "Inventario de ficheros temporales desde information_schema.FILES en MariaDB",
-                "parameters": {},
-            },
-            "postgresql": {
-                "description": "Ver configuración de tablespaces temporales PostgreSQL",
-                "parameters": {},
-            },
-        }
-        example: dict[str, Any] = examples_by_db.get(
-            self.db_type,
-            {"description": "Consultar tablespaces temporales del motor", "parameters": {}},
-        )
-        return [example]
-
-    def _examples_temp_storage_variables(self) -> list[dict[str, Any]]:
-        """Ejemplos para consulta temp_storage_variables."""
-        if self.db_type != "mariadb":
-            return []
-        return [
-            {
-                "description": "Leer innodb_temp_data_file_path para documentar el almacenamiento temporal InnoDB",
-                "parameters": {},
-            }
-        ]
 
     def export_documentation(self, output_file: Path) -> None:
         """Exporta documentación completa de todas las consultas a un archivo"""
@@ -798,7 +371,7 @@ class DatabaseQueries:
             documentation_queries[query_name] = self.get_query_documentation(query_name)
 
         try:
-            with open(output_file, "w", encoding="utf-8") as f:
+            with output_file.open("w", encoding="utf-8") as f:
                 json.dump(documentation, f, indent=2, ensure_ascii=False)
             self.logger.info(f"✅ Documentación exportada a {output_file}")
         except Exception as e:

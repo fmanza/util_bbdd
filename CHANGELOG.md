@@ -11,6 +11,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - El soporte oficial de runtime pasa a ser Python 3.12+.
 - Se alinean CI, metadatos de paquete y documentación pública con el nuevo rango soportado.
 - Los enlaces públicos del paquete y del README pasan a apuntar al repositorio real de `fmanza/util_bbdd`.
+- Se cierra formalmente la Fase 3 del plan de deuda técnica en la documentación operativa del repositorio.
+- README y guía de migración pasan a distinguir de forma explícita entre imports canónicos y rutas legacy todavía soportadas.
+- Se abre el siguiente corte de Fase 4 sobre compatibilidad/documentación viva sin introducir cambios funcionales adicionales.
 
 ## [0.6.3] - 2026-03-31
 

@@ -1,5 +1,7 @@
 # ADR-001: Refactorización Estructural de util_bbdd
 
+> Nota Fase 4 (2026-03-31): esta ADR conserva una propuesta histórica de reestructuración para v0.4.0/v0.5.0. Sus referencias a backward compatibility, métricas y fases deben leerse como decisión del momento; la documentación viva actual distingue entre superficie pública canónica, fachadas legacy todavía soportadas y material puramente histórico.
+
 **Status:** PROPOSED
 **Date:** 2026-03-11
 **Author:** Análisis de Estructura Automatizado
@@ -31,7 +33,7 @@
 ### Opción A: Sin cambios (Status quo)
 **Ventajas:**
 - ✅ No requiere esfuerzo
-- ✅ Backward compatible (trivial)
+- ✅ Backward compatible (trivial, en el análisis original)
 
 **Desventajas:**
 - ❌ Deuda técnica crece
@@ -135,7 +137,7 @@ Cada PR requiere:
 - ✅ Coverage >= 80%
 - ✅ mypy: 0 errors
 - ✅ ruff: 0 errors
-- ✅ Backward compatible
+- ✅ Backward compatible en el plan original
 - ✅ Code review approval
 
 ---
@@ -163,7 +165,7 @@ Acoplamiento:              Bajo (-40% ✅)
 ### No Negociable
 - ✅ 443/443 tests passing (cobertura del 85%)
 - ✅ Zero breaking changes para API pública
-- ✅ Backward compatible 2 releases
+- ✅ Backward compatible 2 releases en la estrategia histórica
 - ✅ Documentación completa
 
 ---

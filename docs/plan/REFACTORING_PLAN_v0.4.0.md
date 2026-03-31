@@ -5,6 +5,10 @@
 **Versión Actual:** 0.4.0
 **Estado:** Propuesta de Optimización
 
+> Nota Fase 4 (2026-03-31): este plan describe una propuesta historica sobre la estructura de v0.4.0. Donde aparezcan `database_queries.py`, `database_type_validator.py` o rutas raiz antiguas, deben leerse como fotografia del momento; la referencia actual para managers publicos vive en `util_bbdd`, y la organizacion interna canonica ya distingue wrappers legacy de modulos activos.
+
+> Terminologia historica: cuando este documento menciona `backward compatibility`, capas de aliasing o imports desde modulos raiz previos, describe la estrategia propuesta para ese corte. No sustituye la regla viva actual de imports canónicos desde `util_bbdd` ni la separacion actual entre fachadas legacy y modulos canonicos.
+
 ---
 
 ## 📋 Tabla de Contenidos
@@ -28,8 +32,8 @@ util_bbdd/
 ├── async_database_manager.py         # Gestor async de BD
 ├── async_utils.py                    # Utilidades async
 ├── database_manager.py               # Gestor sync de BD (1400+ líneas)
-├── database_queries.py               # Gestor de consultas registradas
-├── database_type_validator.py        # Validación de tipos
+├── database_queries.py               # Gestor de consultas registradas (hoy facade legacy/compat)
+├── database_type_validator.py        # Validación de tipos (hoy wrapper de compatibilidad)
 ├── driver_validator.py               # Validación de drivers
 ├── database_exceptions.py            # Excepciones centralizadas
 ├── metadata_cache.py                 # Caché de metadatos
@@ -820,13 +824,13 @@ from util_bbdd.validators import MariaDBValidator
 
 **Después (mismo, con alias en `__init__.py`):**
 ```python
-from util_bbdd.managers import DatabaseManager
+from util_bbdd import SyncDatabaseManager
 from util_bbdd.query.executors import SyncQueryExecutor
 from util_bbdd.metadata import DatabaseMetadataCache
 from util_bbdd._drivers import MariaDBValidator
 
 # O usando imports legacy (con deprecation warning):
-from util_bbdd import DatabaseManager  # Via __init__.py aliasing
+from util_bbdd.database_manager import DatabaseManager  # Ruta legacy historica de compatibilidad
 ```
 
 ### B. Estructura de `_core/exceptions.py`

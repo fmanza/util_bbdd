@@ -1,5 +1,9 @@
 # PR 5: Refactor DatabaseQueries para Delegar a QueryRegistry/QueryResolver - COMPLETADO ✅
 
+> Nota Fase 4 (2026-03-31): este documento conserva el estado histórico del PR 5. Las referencias a backward compatibility, a self.queries como superficie recomendada o a rutas legacy deben leerse como fotografía del corte original; la documentación viva actual fija la superficie canónica en README y docs/MIGRATION_GUIDE.md.
+
+> Lectura actual: database_queries.py debe interpretarse hoy como fachada histórica/compatibilidad alrededor del camino canónico de query y validación, no como punto de entrada principal para código nuevo.
+
 **Estado:** ✅ **COMPLETADO - 241/241 Tests Pasando (100%)**
 **Fecha:** 7 de marzo de 2026
 **Autores:** Refactorización Automatizada (PR 5)
@@ -10,10 +14,10 @@
 
 **Objetivo Principal:** Refactorizar `DatabaseQueries` de 2001 líneas para delegar responsabilidades a `QueryRegistry` y `QueryResolver`, eliminando duplicación de lógica y mejorando la separación de responsabilidades (SRP).
 
-**Resultado:**
+**Resultado histórico del PR:**
 - ✅ **36/36 Tests de PR 5 Pasando** (específicos del refactoring)
 - ✅ **241/241 Tests Totales Pasando** (PR 0-5 completo)
-- ✅ **Backward Compatibility Mantenida** (API pública sin cambios externos)
+- ✅ **Backward Compatibility Mantenida en ese corte** (API pública sin cambios externos en el momento del PR)
 - ✅ **Delegación Interna Implementada** (QueryRegistry + QueryResolver)
 
 ---
@@ -208,7 +212,7 @@ Delega directamente a QueryRegistry.get_query_definition()
 Retorna qdef.sql_template (con placeholders intactos)
 ```
 
-**Razón:** Backward compatibility - código antiguo que espera template crudo
+**Razón histórica:** backward compatibility para código antiguo que esperaba template crudo
 
 ---
 
@@ -324,15 +328,15 @@ return resolved.final_sql
 - ✅ Comportamiento idéntico desde perspectiva del usuario
 
 ### 2. **QueryRegistry.queries Property**
-- Agregada propiedad `queries` a QueryRegistry para backward compatibility
+- Agregada propiedad `queries` a QueryRegistry para backward compatibility en ese corte
 - Permite: `self.queries = self.registry.queries`
-- Acceso directo sin cambiar API
+- Acceso directo sin cambiar API en el PR histórico; no debe promocionarse como entrada principal en documentación nueva
 
 ### 3. **Deprecations Suave**
 - `validate_query_parameters()` aún funciona
 - `analyze_query_parameters()` aún funciona
 - Marcados como deprecated pero No removidos
-- Usuarios tienen tiempo para migrar
+- Usuarios tenían tiempo para migrar en esa fase; la referencia viva actual debe contrastarse con README y docs/MIGRATION_GUIDE.md
 
 ---
 

@@ -1,17 +1,24 @@
-"""Tipos y type aliases comunes para util_bbdd.
+"""Tipos y aliases comunes para util_bbdd.
 
-Este módulo centraliza todas las definiciones de tipos utilizadas
-en la librería para garantizar consistencia en toda la base de código.
+Este módulo centraliza las definiciones compartidas de tipos para
+mantener consistencia entre contratos internos y API pública.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 # Tipos de resultados
-RowOrNone = tuple[Any, ...] | None
+Row = tuple[Any, ...]
+"""Tupla que representa una fila materializada."""
+
+RowOrNone = Row | None
 """Tupla de una fila o None si no hay resultados."""
 
-Rows = list[tuple[Any, ...]]
+Rows = list[Row]
 """Lista de tuplas representando filas de resultados."""
+
+QueryResult = RowOrNone | Rows
+"""Resultado singular o múltiple usado en contratos internos."""
 
 # Contexto de esquema/base de datos
 SchemaContext = str
@@ -34,15 +41,17 @@ ConnectionID = int
 """Identificador único de una conexión."""
 
 # Callback tipos
-ConnectionProvider = type[None]  # Actual: Callable[[], Any]
+ConnectionProvider = Callable[[], Any]
 """Función que proporciona una conexión."""
 
-ConnectionReleaser = type[None]  # Actual: Callable[[Any], None]
+ConnectionReleaser = Callable[[Any], None]
 """Función que libera/devuelve una conexión."""
 
 __all__: list[str] = [
+    "Row",
     "RowOrNone",
     "Rows",
+    "QueryResult",
     "SchemaContext",
     "DDLStatement",
     "QueryParams",

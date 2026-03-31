@@ -15,3 +15,5 @@ RowOrNone = Row | None
 
 QueryResult = RowOrNone | Rows
 """Unión de resultado singular/múltiple usada solo en capas internas."""
+
+__all__: list[str] = ["Row", "Rows", "RowOrNone", "QueryResult"]

@@ -4,6 +4,14 @@
 **Versión anterior:** v0.1.0
 **Versión nueva:** v0.2.0
 
+> Nota Fase 4 (2026-03-31): esta es una guia historica de la transicion a v0.2.0. Para la documentacion viva actual, los imports publicos canonicos de managers se recomiendan desde `util_bbdd`; las referencias a `database_queries`, `database_exceptions` o rutas internas deben interpretarse como compatibilidad o contexto historico cuando no esten exportadas desde el paquete raiz.
+
+### Referencia viva actual
+
+- Para managers, el import canónico actual es `from util_bbdd import SyncDatabaseManager, AsyncDatabaseManager`.
+- Esta guía conserva ejemplos históricos de `DatabaseQueries` y de rutas previas para explicar la transición a v0.2.0, no para marcar la recomendación actual de entrada al paquete.
+- Si un ejemplo histórico usa una ruta hoy no preferida, toma README y `docs/MIGRATION_GUIDE.md` como fuente vigente.
+
 ---
 
 ## 📋 Resumen
@@ -23,7 +31,7 @@ v0.2.0 introduce una **refactorización significativa** de la arquitectura inter
 
 **ANTES (v0.1.x):**
 ```python
-from util_bbdd.database_queries import DatabaseQueryError
+from util_bbdd.database_exceptions import DatabaseQueryError
 
 try:
     query = dq.get_query("nonexistent")
@@ -54,7 +62,7 @@ except DatabaseError:  # Fallback genérico
 **Alias para compatibilidad:**
 ```python
 # Esto aún funciona en v0.2.0 (deprecated)
-from util_bbdd.database_queries import DatabaseQueryError  # ⚠️ Use QueryNotFoundError instead
+from util_bbdd.database_exceptions import DatabaseQueryError  # ⚠️ Alias de compatibilidad; no usar util_bbdd.database_queries como ruta canónica
 
 # Pero muestra una advertencia en logs
 ```
@@ -103,7 +111,7 @@ result = dq.execute(query)  # ❌ Falla en ejecución!
 **DESPUÉS (v0.2.0):**
 ```python
 # Valida parámetros temprano si se proporcionan
-query = dq.get_query('obtener_tablas')  # ✅ Template sin parámetros (backward compat)
+query = dq.get_query('obtener_tablas')  # ✅ Template sin parámetros (compatibilidad de la transición v0.2.0)
 
 # Con parámetros, valida inmediatamente
 query = dq.get_query('obtener_tablas', database='test')  # ✅ OK, parámetro válido
@@ -136,7 +144,7 @@ except QueryValidationError as e:
 
 **Cambiar de:**
 ```python
-from util_bbdd.database_queries import DatabaseQueryError
+from util_bbdd.database_exceptions import DatabaseQueryError
 
 except DatabaseQueryError:
     pass
@@ -188,7 +196,7 @@ print(analysis)
 
 **Cambiar a:**
 ```python
-from util_bbdd.query_resolver import QueryResolver
+from util_bbdd.query.resolver import QueryResolver
 
 resolver = QueryResolver(dq.registry)
 resolved = resolver.resolve('obtener_tablas', 'mariadb', {})
@@ -283,7 +291,8 @@ Use este checklist para migrar su código a v0.2.0:
 
 **Antes (v0.1.x):**
 ```python
-from util_bbdd.database_queries import DatabaseQueries, DatabaseQueryError
+from util_bbdd.database_queries import DatabaseQueries
+from util_bbdd.database_exceptions import DatabaseQueryError
 
 dq = DatabaseQueries('mariadb')
 
@@ -364,7 +373,7 @@ await adm.execute_custom_query('SELECT table_name FROM information_schema.tables
 
 **Después (v0.2.0):**
 ```python
-from util_bbdd.async_database_manager import AsyncDatabaseManager
+from util_bbdd import AsyncDatabaseManager
 
 adm = AsyncDatabaseManager('postgresql', conn_params)
 await adm.ainit()

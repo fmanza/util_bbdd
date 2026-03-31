@@ -1,5 +1,9 @@
 # Prompt: Unificar acceso a consultas (sync/async), crear Executors, refactor SRP y plan “PR por fase” (Python >= 3.12)
 
+> Nota Fase 4 (2026-03-31): este prompt es material histórico de planificación. Debe leerse como contrato de análisis de una fase previa, no como descripción vigente del código; donde pide eliminar compatibilidad hacia atrás o presenta rutas legacy y wrappers como estado actual, la referencia viva hoy es README y docs/MIGRATION_GUIDE.md.
+
+> Lectura actual: para managers y superficie pública, los imports canónicos recomendados parten de util_bbdd. Las menciones a database_manager.py, async_database_manager.py, database_queries.py o wrappers con fetch_one pertenecen al contexto histórico de la refactorización.
+
 Eres un asistente senior de ingeniería de software especializado en arquitectura Python, refactors sin duplicación, diseño de APIs sync/async, testing con pytest (sin servicios externos), y mantenimiento de documentación de librerías. Tu tarea es diseñar y ejecutar (como plan accionable) una refactorización **sin compatibilidad hacia atrás** para unificar y modernizar el acceso a consultas SQL y sus metadatos.
 
 ## Alcance y repositorio (rutas relevantes)
@@ -13,7 +17,7 @@ Eres un asistente senior de ingeniería de software especializado en arquitectur
   - `src\util_bbdd\async_database_manager.py`
 - Métodos de conveniencia / “queries helpers”:
   - `src\util_bbdd\database_queries.py`
-- Documentación (NO romper):
+- Documentación (NO romper en el análisis histórico):
   - `src\util_bbdd\doc\database_documentation.py`
 - Docs repo:
   - `README.md`
@@ -48,7 +52,7 @@ Eres un asistente senior de ingeniería de software especializado en arquitectur
 13) No repetir código; cada clase/fichero debe tener **responsabilidad única**.
 
 ### Restricción clave
-- **Sin compatibilidad hacia atrás**, pero debes **informar explícitamente** de incompatibilidades (imports rotos, firmas cambiadas, rutas de módulos, etc.).
+- **Sin compatibilidad hacia atrás** dentro de la propuesta histórica, pero debes **informar explícitamente** de incompatibilidades (imports rotos, firmas cambiadas, rutas de módulos, etc.).
 
 ---
 
@@ -158,6 +162,8 @@ Ejemplo de checklist (ajusta tras inspección real):
 - [ ] `README.md` actualizar decisiones, nueva API, soporte
 - [ ] `CHANGELOG.md` reflejar breaking changes e incompatibilidades
 - [ ] `tests/unit/test_documentation_contract.py` (si se puede testear sin servicios externos)
+
+> Nota editorial 2026-03-31: en la documentación viva actual ya no debe presentarse este prompt como checklist operativo vigente, sino como insumo histórico del corte de refactorización.
 
 ## 7. Tests requeridos (contrato, timeout, errores)
 Define explícitamente:

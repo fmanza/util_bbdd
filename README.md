@@ -55,7 +55,7 @@ Mapa rápido:
 
 Nota: `hsqldb` no dispone de implementación async en `util_bbdd`. Las factorías async lanzan error explícito para ese motor.
 
-## Arquitectura v0.6.2 - Estructura de 3 Niveles
+## Arquitectura v0.6.3 - Estructura de 3 Niveles
 
 Util_bbdd usa una **arquitectura jerárquica de 3 niveles** para máxima modularidad:
 
@@ -135,6 +135,25 @@ doc/                 # Generadores documentales
 - ✅ Responsabilidad única por archivo
 - ✅ Fácil agregar nuevos motores (solo agregar archivo en `connection/motors/`)
 - ✅ Compatibilidad mantenida en wrappers legacy seleccionados; el manager sync usa `SyncDatabaseManager`
+
+## Compatibilidad viva
+
+La ruta recomendada para código nuevo usa imports canónicos y deja las rutas legacy solo como capa de compatibilidad.
+
+| Área | Import canónico | Ruta legacy aún soportada |
+|---|---|---|
+| Manager sync | `from util_bbdd import SyncDatabaseManager` | `from util_bbdd.database_manager import DatabaseManager` |
+| Manager async | `from util_bbdd import AsyncDatabaseManager` | `from util_bbdd.async_database_manager import AsyncDatabaseManager` |
+| Bulk | `from util_bbdd.bulk import bulk_crud, AuditManager` | `from util_bbdd.bulk_crud import bulk_crud, AuditManager` |
+| Analysis | `from util_bbdd.analysis import GraphvizRelationshipGraphExt` | `from util_bbdd.grafos import GraphvizRelationshipGraphExt` |
+| Validator de tipo de BD | `from util_bbdd._drivers.validator import DatabaseTypeValidator` | `from util_bbdd.database_type_validator import DatabaseTypeValidator` |
+
+Notas de compatibilidad activa:
+
+- El código nuevo debe preferir la superficie canónica expuesta desde `util_bbdd`, `util_bbdd.managers`, `util_bbdd.bulk` y `util_bbdd.analysis`.
+- Las rutas legacy se mantienen para no romper integraciones existentes, pero ya no son la referencia principal en ejemplos ni en migraciones.
+- `get_storage_inventory()` usa el contrato actual por capacidades: `primary`, `temp_tablespaces` y `sqlite_file_summary` cuando aplica.
+- La guía de detalle para migrar imports y contratos está en [docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md).
 
 ## Novedades v0.6.2 en grafos y documentación
 
@@ -502,10 +521,10 @@ from util_bbdd import SyncDatabaseManager
 - `bulk/normalize.py` - SQL normalization utilities (264 lines)
 
 ```python
-# v0.4.0 (still works)
+# ruta canónica actual
 from util_bbdd.bulk import bulk_crud, AuditManager
 
-# v0.5.0 (recommended)
+# ruta canónica ampliada
 from util_bbdd.bulk import bulk_crud, AuditManager, normalize_records_for_sql
 ```
 
@@ -516,10 +535,10 @@ from util_bbdd.bulk import bulk_crud, AuditManager, normalize_records_for_sql
 - `analysis/matplotlib_graph.py` - Matplotlib/NetworkX visualization (278 lines)
 
 ```python
-# v0.4.0 (still works)
+# ruta canónica estable
 from util_bbdd.analysis import GraphvizRelationshipGraph
 
-# v0.5.0 (recommended - more options available)
+# ruta canónica ampliada
 from util_bbdd.analysis import (
     DatabaseRelationshipGraphBase,
     GraphvizRelationshipGraph,
@@ -528,16 +547,16 @@ from util_bbdd.analysis import (
 )
 ```
 
-### 📚 New Import Paths (v0.5.0)
+### 📚 Imports canónicos y compatibilidad legacy
 
-| Component | v0.4.0 Import | v0.5.0 Import (Recommended) |
-|-----------|---------------|------------------------------|
-| SyncDatabaseManager | `util_bbdd.managers.sync_mgr` | `util_bbdd.managers` / `util_bbdd` |
-| AsyncDatabaseManager | `util_bbdd.async_database_manager` | `util_bbdd.managers` |
-| Bulk Operations | `util_bbdd.bulk_crud` | `util_bbdd.bulk` |
-| Analysis Graphs | `util_bbdd.grafos` | `util_bbdd.analysis` |
+| Componente | Import canónico | Ruta legacy aún soportada |
+|-----------|-----------------|---------------------------|
+| SyncDatabaseManager | `from util_bbdd import SyncDatabaseManager` | `from util_bbdd.database_manager import DatabaseManager` |
+| AsyncDatabaseManager | `from util_bbdd import AsyncDatabaseManager` | `from util_bbdd.async_database_manager import AsyncDatabaseManager` |
+| Bulk Operations | `from util_bbdd.bulk import bulk_crud, AuditManager` | `from util_bbdd.bulk_crud import bulk_crud, AuditManager` |
+| Analysis Graphs | `from util_bbdd.analysis import GraphvizRelationshipGraphExt` | `from util_bbdd.grafos import GraphvizRelationshipGraphExt` |
 
-**Note:** los paths legacy de `bulk` y `analysis` siguen disponibles, pero para el manager sync debes usar `SyncDatabaseManager`.
+**Nota:** para código nuevo, usa siempre la superficie canónica. Las rutas legacy quedan solo como compatibilidad transitoria.
 
 Para el núcleo de grafos de relaciones en v0.6.0:
 - usa `util_bbdd.analysis.base` como ubicación canónica
@@ -546,14 +565,14 @@ Para el núcleo de grafos de relaciones en v0.6.0:
 ### 📖 Documentation (v0.6.0+)
 
 - [**docs/v0.6.0/MIGRATION_GUIDE_v0.6.0.md**](docs/v0.6.0/MIGRATION_GUIDE_v0.6.0.md) - Contrato vigente de v0.6.0 para grafos, documentación y cambios de estructura
-- [**MIGRATION_GUIDE.md**](docs/MIGRATION_GUIDE.md) - Detailed migration guide from v0.4.0 → v0.6.0 (with examples)
-- [**REFACTORING_SESSION_PROGRESS.md**](docs/REFACTORING_SESSION_PROGRESS.md) - Session progress metrics (13/19 PRs complete)
+- [**MIGRATION_GUIDE.md**](docs/MIGRATION_GUIDE.md) - Guía viva de migración y compatibilidad para la superficie pública actual
+- [**REFACTORING_SESSION_PROGRESS.md**](docs/REFACTORING_SESSION_PROGRESS.md) - Bitácora histórica con actualización operativa de cierre de Fase 3 y arranque de Fase 4 viva
 - [**docs/v0.5.6/jinja2_refactor.md**](docs/v0.5.6/jinja2_refactor.md) - Refactorización histórica de la capa Jinja2 standalone
 
-### 🧪 Testing (v0.5.0)
-- ✅ **525/525 tests passing** en la validación más reciente
-- ⚠️ **v0.6.0 introduce breaking changes** en el subsistema de grafos/documentación y en paths internos retirados
-- ✅ Test coverage ~39% (focused on critical paths)
+### 🧪 Testing
+- Usa las tareas del workspace para validar el estado real actual: `test`, `lint`, `type-check` y `build`.
+- `v0.6.0` introduce breaking changes en grafos/documentación y en paths internos retirados; la compatibilidad legacy documentada en `v0.6.3` no revierte esos cambios funcionales.
+- La cobertura histórica sigue centrada en paths críticos; toma `pytest` y `htmlcov/` como fuente de verdad del estado vigente.
 
 ### 🔄 Deprecation Policy
 - v0.5.0: Legacy paths (`bulk_crud/`, `grafos/`) work but discouraged for new code

@@ -5,6 +5,10 @@
 **Fin:** ~11 semanas
 **Status:** 📋 En Propuesta
 
+> Nota Fase 4 (2026-03-31): este documento conserva el plan historico de migracion por PRs. Las menciones a modulos raiz como `database_type_validator.py` o a layouts previos deben interpretarse como origen de la migracion; hoy la referencia vigente distingue entre rutas internas canonicas y facades de compatibilidad.
+
+> Lectura actual: las secciones de `Backward Compatibility` pertenecen al plan histórico y no deben interpretarse como guía viva de imports. Para documentación actual, la referencia principal es la superficie canónica documentada en README y `docs/MIGRATION_GUIDE.md`.
+
 ---
 
 ## Estructura de PRs por Fase
@@ -76,6 +80,7 @@ src/util_bbdd/_drivers/
 
 **Backward Compatibility:**
 - Mantener `database_type_validator.py` importando de `_drivers/validator.py`
+- Tratar `database_type_validator.py` como facade legacy soportada, no como ruta canonica para documentacion nueva
 
 ---
 

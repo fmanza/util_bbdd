@@ -934,15 +934,17 @@ raise QueryNotFoundError(f"Query '{query_name}' not found for {db_type}") from e
 
 ## 9. Incompatibilidades (sin backward compat)
 
+> Nota Fase 4 (2026-03-31): esta sección describe incompatibilidades previstas en un análisis histórico. Los imports mostrados sin prefijo de paquete y varias referencias a backward compat pertenecen al diseño de ese momento; para la documentación viva actual, la superficie pública canónica se documenta desde util_bbdd y las rutas legacy se tratan como compatibilidad residual o retiradas según el corte vigente.
+
 ### Imports/paths que se eliminan o cambian
 
 | Antes | Después | Acción |
 |-------|---------|--------|
-| `from database_queries import DatabaseQueryError` | `from database_exceptions import QueryNotFoundError` | Deprecated (alias) |
-| (No existe) | `from query_registry import QueryRegistry` | Nuevo |
-| (No existe) | `from query_resolver import QueryResolver` | Nuevo |
-| (No existe) | `from executors.sync_query_executor import SyncQueryExecutor` | Nuevo |
-| (No existe) | `from executors.async_query_executor import AsyncQueryExecutor` | Nuevo |
+| `from database_queries import DatabaseQueryError` | `from util_bbdd.database_exceptions import QueryNotFoundError` | Deprecated (alias) |
+| (No existe) | `from util_bbdd.query.registry import QueryRegistry` | Nuevo en el plan histórico |
+| (No existe) | `from util_bbdd.query.resolver import QueryResolver` | Nuevo en el plan histórico |
+| (No existe) | `from util_bbdd.executors.sync_query_executor import SyncQueryExecutor` | Nuevo en el plan histórico |
+| (No existe) | `from util_bbdd.executors.async_query_executor import AsyncQueryExecutor` | Nuevo en el plan histórico |
 
 ### Firmas de métodos cambiadas
 
@@ -950,14 +952,14 @@ raise QueryNotFoundError(f"Query '{query_name}' not found for {db_type}") from e
 |-------|--------|-------|---------|------------------|
 | `DatabaseQueries` | `validate_query_parameters()` | Público | Delegado a Resolver | ⚠️ Si consumidor llama directamente |
 | `DatabaseQueries` | `analyze_query_parameters()` | Público | Eliminado | ⚠️ Si consumidor lo usa |
-| `DatabaseManager` | new | N/A | `execute_query(query_name, **params)` | ✓ Backward compat (método nuevo) |
+| `DatabaseManager` | new | N/A | `execute_query(query_name, **params)` | ✓ Compatibilidad del plan histórico |
 | `AsyncDatabaseManager` | new | N/A | `get_tables()`, `get_views()`, `execute_query()` | ✓ Nuevos métodos |
 
 ### Cambios en nombres de excepciones
 
 | Antigua | Nueva | Acción |
 |---------|-------|--------|
-| `DatabaseQueryError` | `QueryNotFoundError` | Deprecar: alias en database_exceptions.py |
+| `DatabaseQueryError` | `QueryNotFoundError` | Deprecar: alias en util_bbdd.database_exceptions |
 
 ### Cambios en estructura esperada de JSON
 
@@ -1021,10 +1023,10 @@ raise QueryNotFoundError(f"Query '{query_name}' not found for {db_type}") from e
 ### Comunicación durante implementación
 - Cada PR debe tener test suite verde antes de merge
 - Documentar any decisiones inesperadas en PR description
-- Verificar backward compat en cada PR (especialmente PR 2 y 3)
+- Verificar compatibilidad residual en cada PR del plan histórico (especialmente PR 2 y 3)
 
 ---
 
 **Documento generado:** 6 de marzo de 2026
-**Versión objetivo:** 0.2.0 (sin backward compatibility)
+**Versión objetivo:** 0.2.0 (sin backward compatibility en la propuesta original)
 **Python mínimo:** 3.12 (alineado con `pyproject.toml` y la política actual del proyecto)
