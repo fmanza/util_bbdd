@@ -725,4 +725,39 @@ class StorageInventoryRuntime:
         }
 
 
-__all__: list[str] = ["StorageInventoryRuntime"]
+def build_storage_inventory_runtime(
+    *,
+    db_manager: SyncDatabaseManager,
+    logger: logging.Logger,
+    print_config: dict[str, Any],
+) -> StorageInventoryRuntime:
+    """Construye el runtime documental de almacenamiento fuera de la fachada pública."""
+    return StorageInventoryRuntime(
+        db_manager=db_manager,
+        logger=logger,
+        db_type=db_manager.db_type,
+        database=db_manager.database,
+        print_config=print_config,
+    )
+
+
+def get_storage_inventory_report(
+    *,
+    db_manager: SyncDatabaseManager,
+    logger: logging.Logger,
+    print_config: dict[str, Any],
+) -> dict[str, Any]:
+    """Obtiene el informe de almacenamiento sin exponer bootstrap en la fachada documental."""
+    runtime: StorageInventoryRuntime = build_storage_inventory_runtime(
+        db_manager=db_manager,
+        logger=logger,
+        print_config=print_config,
+    )
+    return runtime.get_storage_inventory_report()
+
+
+__all__: list[str] = [
+    "StorageInventoryRuntime",
+    "build_storage_inventory_runtime",
+    "get_storage_inventory_report",
+]

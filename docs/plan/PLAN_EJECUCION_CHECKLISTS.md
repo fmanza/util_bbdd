@@ -999,12 +999,12 @@ pytest tests/integration/ -q
 # Esperado: 0 fallos
 
 # 3. Linting
-ruff check src/util_bbdd
-black --check src/util_bbdd
+ruff check src tests
+ruff format --check src tests
 # Esperado: 0 errores
 
 # 4. Type checking
-mypy src/util_bbdd --strict
+mypy src
 # Esperado: 0 errores
 
 # 5. Docs

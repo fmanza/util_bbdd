@@ -1,0 +1,530 @@
+"""Tests de helpers internos del runtime documental."""
+
+from __future__ import annotations
+
+import json
+import logging
+
+from datetime import datetime
+from pathlib import Path
+from typing import Any, cast
+
+import pytest
+
+from util_bbdd.database_exceptions import QueryNotFoundError
+from util_bbdd.doc._documentation_orchestrator import (
+    DocumentationBootstrap,
+    DocumentationOutputPlanner,
+    DocumentationSession,
+)
+from util_bbdd.doc._documentation_runtime import (
+    generate_auto_output_filename,
+    get_format_output_dir,
+    normalize_output_formats,
+    resolve_document_output_filename,
+)
+from util_bbdd.doc._storage_inventory_runtime import StorageInventoryRuntime
+from util_bbdd.doc.print_config_manager import PrintConfigManager
+
+
+def test_normalize_output_formats_without_duplicates() -> None:
+    assert normalize_output_formats([" WORD ", "html", "word", "", "HTML"]) == ["word", "html"]
+
+
+def test_get_format_output_dir_creates_execution_root(tmp_path: Path) -> None:
+    fichero_salida = Path("nested/report.docx")
+
+    word_dir = get_format_output_dir(tmp_path, fichero_salida, "word")
+    html_dir = get_format_output_dir(tmp_path, fichero_salida, "html")
+
+    assert word_dir == tmp_path / "report" / "WORD"
+    assert html_dir == tmp_path / "report" / "HTML"
+    assert word_dir.is_dir()
+    assert html_dir.is_dir()
+
+
+def test_generate_auto_output_filename_reuses_recent_name_within_batch_window(tmp_path: Path) -> None:
+    cache: dict[tuple[str, str], tuple[float, str]] = {}
+
+    first = generate_auto_output_filename(
+        db_type="postgresql",
+        database="demo",
+        conn_params={},
+        output_dir=tmp_path,
+        output_cache=cache,
+        batch_window_seconds=90,
+        current_time=100.0,
+        current_datetime=datetime(2026, 4, 1, 10, 0, 0),
+    )
+    second = generate_auto_output_filename(
+        db_type="postgresql",
+        database="demo",
+        conn_params={},
+        output_dir=tmp_path,
+        output_cache=cache,
+        batch_window_seconds=90,
+        current_time=130.0,
+        current_datetime=datetime(2026, 4, 1, 10, 1, 0),
+    )
+    third = generate_auto_output_filename(
+        db_type="postgresql",
+        database="demo",
+        conn_params={},
+        output_dir=tmp_path,
+        output_cache=cache,
+        batch_window_seconds=90,
+        current_time=191.0,
+        current_datetime=datetime(2026, 4, 1, 10, 2, 0),
+    )
+
+    assert first == Path("demo-20260401_100000")
+    assert second == first
+    assert third == Path("demo-20260401_100200")
+
+
+def test_resolve_document_output_filename_uses_manager_context_when_missing(tmp_path: Path) -> None:
+    cache: dict[tuple[str, str], tuple[float, str]] = {}
+
+    class _DbManagerWithoutConnParams:
+        db_type = "oracle"
+        database = "xe"
+
+    resolved = resolve_document_output_filename(
+        fichero_salida=None,
+        db_manager=_DbManagerWithoutConnParams(),
+        output_dir=tmp_path,
+        output_cache=cache,
+        batch_window_seconds=90,
+    )
+
+    assert resolved.name.startswith("xe-")
+
+
+def test_documentation_output_planner_builds_ordered_paths(tmp_path: Path) -> None:
+    class _ManagerStub:
+        db_type = "postgresql"
+        database = "demo"
+        conn_params: dict[str, Any] = {}
+
+        def get_query_context_database(self) -> str:
+            return "demo"
+
+    class _DocumentationStub:
+        logger = logging.getLogger(__name__)
+        db_manager = cast(Any, _ManagerStub())
+        imprimir_config = {"grafo": {"enabled": True}}
+        formatos = ["word", "excel", "html"]
+        directorio_salida = tmp_path
+        fichero_salida = Path("report")
+        headers: dict[str, list[str]] = {}
+        table_style = "Table Grid"
+        tablas: list[Any] = []
+        vistas: list[Any] = []
+        rutinas: list[Any] = []
+
+        @property
+        def database(self) -> str:
+            return "demo"
+
+    session = DocumentationSession.from_documentation(_DocumentationStub())
+    plans = DocumentationOutputPlanner(session).build_plans()
+
+    assert [(plan.output_format, plan.output_path) for plan in plans] == [
+        ("word", tmp_path / "report" / "WORD" / "report.docx"),
+        ("excel", tmp_path / "report" / "EXCEL" / "report.xlsx"),
+        ("html", tmp_path / "report" / "HTML"),
+    ]
+    assert [plan.include_graph_generator for plan in plans] == [True, False, True]
+
+
+def test_documentation_bootstrap_builds_initial_state(tmp_path: Path) -> None:
+    class _DbManager:
+        db_type = "postgresql"
+        database = "demo"
+        conn_params: dict[str, Any] = {}
+
+        def get_tables(self) -> list[str]:
+            return ["users"]
+
+        def get_views(self) -> list[str]:
+            return ["active_users"]
+
+        def get_routines(self) -> list[str]:
+            return ["refresh_users"]
+
+    headers_file = tmp_path / "headers.json"
+    headers_file.write_text(
+        json.dumps(
+            {
+                "headers": {
+                    "tables": {"base": ["name"], "postgresql": ["owner"]},
+                },
+                "labels": {
+                    "tables": {
+                        "postgresql": {
+                            "name": "Nombre",
+                            "owner": "Propietario",
+                        }
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    state = DocumentationBootstrap(
+        db_manager=cast(Any, _DbManager()),
+        directorio_salida=tmp_path,
+        fichero_salida=Path("report"),
+        imprimir={"table_style": "Light Grid", "grafo": {"enabled": True}},
+        formatos=[" WORD ", "html", "word"],
+        headers_file=headers_file,
+        output_cache={},
+        batch_window_seconds=90,
+    ).build()
+
+    assert state.print_config == PrintConfigManager.normalize({"table_style": "Light Grid", "grafo": {"enabled": True}})
+    assert state.formatos == ["word", "html"]
+    assert state.directorio_salida == tmp_path
+    assert state.fichero_salida == Path("report")
+    assert state.table_style == "Light Grid"
+    assert state.headers_config["headers"]["tables"]["base"] == ["name"]
+    assert state.headers == {"tables": ["Nombre", "Propietario"]}
+    assert state.tablas == ["users"]
+    assert state.vistas == ["active_users"]
+    assert state.rutinas == ["refresh_users"]
+
+
+def test_documentation_session_caches_manager_metadata_calls(tmp_path: Path) -> None:
+    class _DbManager:
+        db_type = "postgresql"
+        database = "demo"
+        conn_params: dict[str, Any] = {}
+
+        def __init__(self) -> None:
+            self.calls: dict[str, int] = {
+                "get_query_context_database": 0,
+                "get_ddl": 0,
+                "get_columns": 0,
+                "get_primary_keys": 0,
+            }
+
+        def get_query_context_database(self) -> str:
+            self.calls["get_query_context_database"] += 1
+            return "demo"
+
+        def get_ddl(self, tabla: str) -> str:
+            self.calls["get_ddl"] += 1
+            return f"DDL {tabla}"
+
+        def get_columns(self, tabla: str) -> list[tuple[str]]:
+            self.calls["get_columns"] += 1
+            return [(f"{tabla}_id",)]
+
+        def get_primary_keys(self, tabla: str) -> list[tuple[str]]:
+            self.calls["get_primary_keys"] += 1
+            return [(f"pk_{tabla}",)]
+
+    class _DocumentationStub:
+        logger = logging.getLogger(__name__)
+        db_manager = cast(Any, _DbManager())
+        imprimir_config = PrintConfigManager.normalize({})
+        formatos = ["word"]
+        directorio_salida = tmp_path
+        fichero_salida = Path("report")
+        headers: dict[str, list[str]] = {}
+        table_style = "Table Grid"
+        tablas = ["users"]
+        vistas: list[Any] = []
+        rutinas: list[Any] = []
+
+        @property
+        def database(self) -> str:
+            return "legacy-demo"
+
+    session = DocumentationSession.from_documentation(_DocumentationStub())
+
+    assert session.database == "demo"
+    assert session.get_ddl("users") == "DDL users"
+    assert session.get_ddl("users") == "DDL users"
+    assert session.get_columns("users") == [("users_id",)]
+    assert session.get_columns("users") == [("users_id",)]
+    assert session.get_primary_keys("users") == [("pk_users",)]
+    assert session.get_primary_keys("users") == [("pk_users",)]
+    assert session.db_manager.calls == {
+        "get_query_context_database": 1,
+        "get_ddl": 1,
+        "get_columns": 1,
+        "get_primary_keys": 1,
+    }
+
+
+def test_documentation_session_metadata_helpers_delegate_successfully(tmp_path: Path) -> None:
+    class _MetadataDbManager:
+        db_type = "postgresql"
+        database = "demo"
+        conn_params: dict[str, Any] = {}
+
+        def get_query_context_database(self) -> str:
+            return "demo"
+
+        def get_database_version(self) -> str:
+            return "15.2"
+
+        def get_database_charset_collation(self) -> dict[str, str]:
+            return {"charset": "UTF8", "collation": "en_US.UTF-8"}
+
+        def get_columns_charset_collation(self, tabla: str) -> list[tuple[str, str | None, str | None]]:
+            assert tabla == "users"
+            return [("name", "UTF8", "en_US.UTF-8")]
+
+    class _DocumentationStub:
+        logger = logging.getLogger(__name__)
+        db_manager = cast(Any, _MetadataDbManager())
+        imprimir_config = PrintConfigManager.normalize({})
+        formatos = ["word"]
+        directorio_salida = tmp_path
+        fichero_salida = Path("report")
+        headers: dict[str, list[str]] = {}
+        table_style = "Table Grid"
+        tablas: list[Any] = []
+        vistas: list[Any] = []
+        rutinas: list[Any] = []
+
+    session = DocumentationSession.from_documentation(_DocumentationStub())
+
+    assert session.get_database_version() == "15.2"
+    assert session.get_database_charset_collation() == {"charset": "UTF8", "collation": "en_US.UTF-8"}
+    assert session.get_columns_charset_collation("users") == [("name", "UTF8", "en_US.UTF-8")]
+
+
+def test_documentation_session_metadata_helpers_return_none_on_error(tmp_path: Path) -> None:
+    class _BrokenMetadataDbManager:
+        db_type = "postgresql"
+        database = "demo"
+        conn_params: dict[str, Any] = {}
+
+        def get_query_context_database(self) -> str:
+            return "demo"
+
+        def get_database_version(self) -> str:
+            raise RuntimeError("version boom")
+
+        def get_database_charset_collation(self) -> dict[str, str]:
+            raise RuntimeError("charset boom")
+
+        def get_columns_charset_collation(self, _tabla: str) -> list[tuple[str, str | None, str | None]]:
+            raise RuntimeError("columns boom")
+
+    class _DocumentationStub:
+        logger = logging.getLogger(__name__)
+        db_manager = cast(Any, _BrokenMetadataDbManager())
+        imprimir_config = PrintConfigManager.normalize({})
+        formatos = ["word"]
+        directorio_salida = tmp_path
+        fichero_salida = Path("report")
+        headers: dict[str, list[str]] = {}
+        table_style = "Table Grid"
+        tablas: list[Any] = []
+        vistas: list[Any] = []
+        rutinas: list[Any] = []
+
+    session = DocumentationSession.from_documentation(_DocumentationStub())
+
+    assert session.get_database_version() is None
+    assert session.get_database_charset_collation() is None
+    assert session.get_columns_charset_collation("users") is None
+
+
+def test_documentation_session_falls_back_to_schema_context_when_query_context_is_empty(tmp_path: Path) -> None:
+    class _SchemaDbManager:
+        db_type = "postgresql"
+        database = "demo"
+        conn_params = {"schema": "analytics"}
+
+        def get_query_context_database(self) -> str:
+            return ""
+
+    class _DocumentationStub:
+        logger = logging.getLogger(__name__)
+        db_manager = cast(Any, _SchemaDbManager())
+        imprimir_config = PrintConfigManager.normalize({})
+        formatos = ["word"]
+        directorio_salida = tmp_path
+        fichero_salida = Path("report")
+        headers: dict[str, list[str]] = {}
+        table_style = "Table Grid"
+        tablas: list[Any] = []
+        vistas: list[Any] = []
+        rutinas: list[Any] = []
+
+    session = DocumentationSession.from_documentation(_DocumentationStub())
+
+    assert session.database == "analytics"
+
+
+def test_documentation_session_caches_database_version_calls(tmp_path: Path) -> None:
+    class _VersionDbManager:
+        db_type = "postgresql"
+        database = "demo"
+        conn_params: dict[str, Any] = {}
+
+        def __init__(self) -> None:
+            self.calls: dict[str, int] = {
+                "get_query_context_database": 0,
+                "get_database_version": 0,
+            }
+
+        def get_query_context_database(self) -> str:
+            self.calls["get_query_context_database"] += 1
+            return "demo"
+
+        def get_database_version(self) -> str:
+            self.calls["get_database_version"] += 1
+            return "15.2"
+
+    class _DocumentationStub:
+        logger = logging.getLogger(__name__)
+        db_manager = cast(Any, _VersionDbManager())
+        imprimir_config = PrintConfigManager.normalize({})
+        formatos = ["word"]
+        directorio_salida = tmp_path
+        fichero_salida = Path("report")
+        headers: dict[str, list[str]] = {}
+        table_style = "Table Grid"
+        tablas: list[Any] = []
+        vistas: list[Any] = []
+        rutinas: list[Any] = []
+
+    session = DocumentationSession.from_documentation(_DocumentationStub())
+
+    assert session.get_database_version() == "15.2"
+    assert session.get_database_version() == "15.2"
+    assert session.db_manager.calls == {
+        "get_query_context_database": 1,
+        "get_database_version": 1,
+    }
+
+
+def test_documentation_session_storage_inventory_report_returns_runtime_output(tmp_path: Path) -> None:
+    class _ResolvedQuery:
+        def __init__(self, final_sql: str) -> None:
+            self.final_sql = final_sql
+
+    class _MariadbStorageManager:
+        db_type = "mariadb"
+        database = "demo"
+        conn_params: dict[str, Any] = {}
+
+        def get_query_context_database(self) -> str:
+            return "demo"
+
+        def resolve_query(self, query_name: str, **kwargs: Any) -> _ResolvedQuery:
+            if query_name == "temp_storage_variables":
+                assert kwargs["database"] == "demo"
+                return _ResolvedQuery("SHOW VARIABLES LIKE 'innodb_temp_data_file_path'")
+            raise QueryNotFoundError(query_name)
+
+        def execute_query_many(self, query_name: str, **kwargs: Any) -> list[tuple[str, str]]:
+            assert query_name == "temp_storage_variables"
+            assert kwargs["database"] == "demo"
+            return [("innodb_temp_data_file_path", "ibtmp1:12M:autoextend:max:5G")]
+
+        def execute_custom_one(self, _query: str) -> None:
+            return None
+
+    class _DocumentationStub:
+        logger = logging.getLogger(__name__)
+        db_manager = cast(Any, _MariadbStorageManager())
+        imprimir_config = PrintConfigManager.normalize({})
+        formatos = ["word"]
+        directorio_salida = tmp_path
+        fichero_salida = Path("report")
+        headers: dict[str, list[str]] = {}
+        table_style = "Table Grid"
+        tablas: list[Any] = []
+        vistas: list[Any] = []
+        rutinas: list[Any] = []
+
+    session = DocumentationSession.from_documentation(_DocumentationStub())
+    report = session.get_storage_inventory_report()
+
+    assert report["db_type"] == "mariadb"
+    assert report["database"] == "demo"
+    assert report["total_rows"] == 1
+    assert [section["status"] for section in report["sections"]] == ["not_supported", "not_supported", "ok"]
+    assert report["sections"][-1]["rows"] == [
+        [
+            "innodb_temp_data_file_path",
+            "ibtmp1",
+            "12,00",
+            "Si",
+            "5120,00",
+            "ibtmp1:12M:autoextend:max:5G",
+        ]
+    ]
+
+
+def test_storage_inventory_runtime_parses_mariadb_temp_storage_variables() -> None:
+    class _ResolvedQuery:
+        def __init__(self, final_sql: str) -> None:
+            self.final_sql = final_sql
+
+    class _MariadbStorageManager:
+        db_type = "mariadb"
+        conn_params: dict[str, Any] = {}
+
+        def resolve_query(self, query_name: str, **kwargs: Any) -> _ResolvedQuery:
+            if query_name == "temp_storage_variables":
+                assert kwargs["database"] == "demo"
+                return _ResolvedQuery("SHOW VARIABLES LIKE 'innodb_temp_data_file_path'")
+            raise QueryNotFoundError(query_name)
+
+        def execute_query_many(self, query_name: str, **kwargs: Any) -> list[tuple[str, str]]:
+            assert query_name == "temp_storage_variables"
+            assert kwargs["database"] == "demo"
+            return [("innodb_temp_data_file_path", "ibtmp1:12M:autoextend:max:5G")]
+
+        def execute_custom_one(self, _query: str) -> None:
+            return None
+
+    runtime = StorageInventoryRuntime(
+        db_manager=cast(Any, _MariadbStorageManager()),
+        logger=logging.getLogger(__name__),
+        db_type="mariadb",
+        database="demo",
+        print_config={},
+    )
+
+    report = runtime.get_storage_inventory_report()
+
+    assert report["db_type"] == "mariadb"
+    assert report["database"] == "demo"
+    assert report["total_rows"] == 1
+    assert report["tablespace"] == ""
+    assert [section["status"] for section in report["sections"]] == ["not_supported", "not_supported", "ok"]
+    temp_section = report["sections"][-1]
+    assert temp_section["headers"] == [
+        "Variable",
+        "Archivo",
+        "Inicial (MB)",
+        "Autoextend",
+        "Maximo (MB)",
+        "Valor bruto",
+    ]
+    assert temp_section["rows"] == [
+        [
+            "innodb_temp_data_file_path",
+            "ibtmp1",
+            "12,00",
+            "Si",
+            "5120,00",
+            "ibtmp1:12M:autoextend:max:5G",
+        ]
+    ]
+    assert temp_section["numeric_columns"] == [2, 4]
+
+
+def test_normalize_output_formats_rejects_invalid_values() -> None:
+    with pytest.raises(ValueError, match="Formato no soportado"):
+        normalize_output_formats(["pdf"])

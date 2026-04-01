@@ -627,12 +627,14 @@ Qué ejecuta:
 4. `mypy`
 5. `pytest` con cobertura
 6. subida de cobertura desde Ubuntu 3.12
+7. `python -m build` en un job de empaquetado dedicado
 
 Ejemplo de lectura correcta del workflow:
 
 - un fallo de `pytest` rompe el job
-- `ruff` y `mypy` están en `continue-on-error: true`, así que informan pero no bloquean por sí solos
+- `ruff`, `mypy` y `pytest` bloquean la matriz de calidad si fallan
 - la cobertura se publica una sola vez para evitar duplicados
+- el empaquetado se valida aparte para detectar roturas de distribución antes de publicar
 
 ## FAQ
 

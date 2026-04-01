@@ -973,9 +973,9 @@ raise QueryNotFoundError(f"Query '{query_name}' not found for {db_type}") from e
 **Validación:**
 - [ ] `pytest -q` pasa sin error (todos los tests unitarios, 0 BD reales)
 - [ ] `pytest --cov=src/util_bbdd --cov-report=term-missing -q` cobertura mínima 80%
-- [ ] Sin warnings en mypy: `mypy src/util_bbdd --strict`
-- [ ] Sin errores en ruff: `ruff check src/util_bbdd`
-- [ ] Código formateado: `black src/util_bbdd`
+- [ ] Sin warnings en mypy: `mypy src`
+- [ ] Sin errores en ruff: `ruff check src tests`
+- [ ] Código formateado: `ruff format --check src tests`
 
 **Arquitectura:**
 - [ ] Sync y async usan el mismo `QueryRegistry` y `QueryResolver` (DRY)

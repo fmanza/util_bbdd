@@ -1,6 +1,7 @@
 """Unit tests for helper methods in HTML/Excel/Word generators."""
 
-from collections.abc import Callable
+import logging
+
 from pathlib import Path
 from typing import Any, cast
 
@@ -10,7 +11,7 @@ pytest.importorskip("docx")
 pytest.importorskip("jinja2")
 pytest.importorskip("openpyxl")
 
-from util_bbdd.doc.database_documentation import DatabaseDocumentation
+from util_bbdd.doc._storage_inventory_runtime import StorageInventoryRuntime
 from util_bbdd.doc.diagram_legend import (
     build_diagram_direction_help,
     build_diagram_legend_payload,
@@ -109,7 +110,7 @@ def test_html_generator_builds_table_collection_dataset_like_excel_flat_sheet() 
     class _Provider:
         db_type = "mariadb"
 
-        def get_columns(self, table_name: str) -> list[tuple[str, ...]]:
+        def get_columns(self, table_name: str) -> list[tuple[Any, ...]]:
             assert table_name == "users"
             return [
                 ("id", "INT", "NO", "PRI", "", "auto_increment", "Identificador"),
@@ -743,8 +744,8 @@ def test_matplotlib_relationship_graph_uses_multilevel_document() -> None:
     assert {relation.constraint_name for relation in document.relations} == {"fk_orders_user", "fk_payments_order"}
 
 
-def test_database_documentation_parses_mariadb_temp_data_file_path() -> None:
-    rows = DatabaseDocumentation._parse_mariadb_temp_data_file_path_rows(
+def test_storage_inventory_runtime_parses_mariadb_temp_data_file_path() -> None:
+    rows = StorageInventoryRuntime._parse_mariadb_temp_data_file_path_rows(
         "innodb_temp_data_file_path",
         "ibtmp1:12M:autoextend:max:5G",
     )
@@ -761,21 +762,22 @@ def test_database_documentation_parses_mariadb_temp_data_file_path() -> None:
     ]
 
 
-def test_database_documentation_parse_mariadb_size_to_mb_accepts_units() -> None:
-    assert DatabaseDocumentation._parse_mariadb_size_to_mb("64K") == pytest.approx(0.06)
-    assert DatabaseDocumentation._parse_mariadb_size_to_mb("12M") == pytest.approx(12.0)
-    assert DatabaseDocumentation._parse_mariadb_size_to_mb("2G") == pytest.approx(2048.0)
+def test_storage_inventory_runtime_parse_mariadb_size_to_mb_accepts_units() -> None:
+    assert StorageInventoryRuntime._parse_mariadb_size_to_mb("64K") == pytest.approx(0.06)
+    assert StorageInventoryRuntime._parse_mariadb_size_to_mb("12M") == pytest.approx(12.0)
+    assert StorageInventoryRuntime._parse_mariadb_size_to_mb("2G") == pytest.approx(2048.0)
 
 
-def test_database_documentation_formats_mariadb_files_access_error() -> None:
-    doc: DatabaseDocumentation = DatabaseDocumentation.__new__(DatabaseDocumentation)
-    doc_any = cast(Any, doc)
-    build_error_section = cast(
-        Callable[[str, str, str], dict[str, Any]],
-        object.__getattribute__(doc_any, "_DatabaseDocumentation__build_mariadb_temp_tablespaces_error_section"),
+def test_storage_inventory_runtime_formats_mariadb_files_access_error() -> None:
+    runtime = StorageInventoryRuntime(
+        db_manager=cast(Any, type("Manager", (), {"conn_params": {}})()),
+        logger=logging.getLogger(__name__),
+        db_type="mariadb",
+        database="demo",
+        print_config={},
     )
 
-    section: dict[str, Any] = build_error_section(
+    section: dict[str, Any] = runtime._build_mariadb_temp_tablespaces_error_section(
         "temp_tablespaces",
         "Temp tablespaces",
         "Access denied to information_schema.FILES for user",
@@ -785,11 +787,16 @@ def test_database_documentation_formats_mariadb_files_access_error() -> None:
     assert "Sin acceso a information_schema.FILES" in section["message"]
 
 
-def test_database_documentation_storage_specs_add_sqlite_summary_section() -> None:
-    doc: DatabaseDocumentation = DatabaseDocumentation.__new__(DatabaseDocumentation)
-    doc.db_manager = cast(Any, type("Manager", (), {"db_type": "sqlite"})())
+def test_storage_inventory_runtime_storage_specs_add_sqlite_summary_section() -> None:
+    runtime = StorageInventoryRuntime(
+        db_manager=cast(Any, type("Manager", (), {"conn_params": {}})()),
+        logger=logging.getLogger(__name__),
+        db_type="sqlite",
+        database="demo.sqlite",
+        print_config={},
+    )
 
-    specs = doc._build_storage_query_specs()
+    specs = runtime._build_storage_query_specs()
 
     assert specs == [
         ("ficheros_fisicos", "Ficheros físicos"),

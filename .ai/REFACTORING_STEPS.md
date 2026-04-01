@@ -164,10 +164,10 @@ Siguiendo el PLAN, implementar:
 **Después de cada cambio:**
 ```bash
 # Type check
-mypy src/util_bbdd --strict
+mypy src
 
 # Lint
-ruff check src/util_bbdd
+ruff check src tests
 
 # Tests (quick feedback)
 pytest tests/ -k "<test_pattern>" -v

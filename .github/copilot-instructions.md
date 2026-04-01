@@ -17,6 +17,7 @@ y sin depender de servicios externos.
 - Representar metadatos en dataclasses/typed models (Schema/Table/Column/Relationship/Index).
 - Mantener renderizado como funciones puras cuando sea posible.
 - Utilizar siempre que sea posible chache de información obtenida para evitar consultas repetidas a la base de datos.
+- Utilizar siempre clases a funciones aisladas para facilitar la extensión futura (p.ej. añadir soporte a nuevos motores o formatos de salida).
 
 ## Reglas multibase (MUY importante)
 - No asumas un único motor: evita SQL específico salvo que esté encapsulado por adaptadores/dialects.

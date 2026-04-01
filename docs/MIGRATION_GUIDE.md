@@ -22,6 +22,10 @@ El contrato actual usa claves explícitas por capacidad:
 
 ⚠️ **CAMBIO RELEVANTE:** las plantillas HTML antiguas en `src/util_bbdd/doc/data` se sustituyen por una estructura Jinja2 modular en `src/util_bbdd/doc/templates`.
 
+⚠️ **BREAKING CHANGE:** `DatabaseDocumentation` deja de exponer accesos auxiliares legacy a metadatos y DDL como `database`, `get_ddl()`, `get_columns()` o `get_storage_inventory_report()`.
+La clase queda limitada a orquestar la generación documental.
+Si necesitas consultar metadatos desde código de aplicación, usa `SyncDatabaseManager` directamente.
+
 ⚠️ **REFERENCIA RECOMENDADA:** para una configuración completa y comentada del bloque `imprimir`, revisa [docs/examples/imprimir_config_full_example.toml](docs/examples/imprimir_config_full_example.toml).
 
 Pero veamos la nueva estructura recomendada para nuevo código.
@@ -30,15 +34,16 @@ Pero veamos la nueva estructura recomendada para nuevo código.
 
 ## 🆕 Novedades acumuladas en v0.6.3
 
-v0.6.3 no introduce un nuevo breaking change adicional sobre el contrato funcional de grafos definido en v0.6.0, pero sí consolida la superficie documental y operativa del repositorio:
+v0.6.3 consolida la superficie documental y operativa del repositorio y elimina la API auxiliar legacy de `DatabaseDocumentation`:
 
 - HTML usa SVG inline para asegurar paneo y zoom fuera de VS Code.
 - Word y HTML comparten payloads de resumen y leyenda para mantener semántica consistente.
 - La salida offline copia iconos SVG locales para paginación y exportación.
 - El contrato `imprimir_config` dispone de referencia completa y comentada en [docs/examples/imprimir_config_full_example.toml](docs/examples/imprimir_config_full_example.toml).
 - El repositorio incorpora agentes especializados de Copilot y documenta el flujo recomendado entre instrucciones, prompts y agentes.
+- `DatabaseDocumentation` queda como fachada de generación; las consultas ad hoc de metadatos deben hacerse contra `SyncDatabaseManager`.
 
-Si ya migraste a la familia v0.6.x, el salto a v0.6.3 es principalmente documental y de gobernanza operativa.
+Si ya migraste a la familia v0.6.x, el salto a v0.6.3 sigue siendo menor salvo si estabas usando `DatabaseDocumentation` como wrapper de consultas de metadatos.
 
 ---
 

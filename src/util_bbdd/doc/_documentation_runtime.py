@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import time
 
+from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -46,6 +49,60 @@ def resolve_output_filename_identifier(db_type: str, database: str, conn_params:
         identifier = normalize_sqlite_identifier(identifier)
 
     return identifier
+
+
+def generate_auto_output_filename(
+    *,
+    db_type: str,
+    database: str,
+    conn_params: ConnectionParams,
+    output_dir: Path,
+    output_cache: dict[tuple[str, str], tuple[float, str]],
+    batch_window_seconds: int,
+    current_time: float | None = None,
+    current_datetime: datetime | None = None,
+) -> Path:
+    """Genera un nombre automático reutilizable dentro de una ventana temporal corta."""
+    resolved_datetime: datetime = current_datetime or datetime.now()
+    timestamp: str = resolved_datetime.strftime("%Y%m%d_%H%M%S")
+    normalized_conn_params: ConnectionParams = conn_params if isinstance(conn_params, dict) else {}
+    identifier: str = resolve_output_filename_identifier(db_type, database, normalized_conn_params)
+    safe_identifier: str = identifier.replace(" ", "_").replace("/", "_").replace("\\", "_")
+    cache_key: tuple[str, str] = (str(output_dir), safe_identifier)
+    now: float = current_time if current_time is not None else time.time()
+    cached: tuple[float, str] | None = output_cache.get(cache_key)
+    if cached is not None:
+        cached_at, cached_name = cached
+        if now - cached_at <= batch_window_seconds:
+            return Path(cached_name)
+
+    generated_name: str = f"{safe_identifier}-{timestamp}"
+    output_cache[cache_key] = (now, generated_name)
+    return Path(generated_name)
+
+
+def resolve_document_output_filename(
+    *,
+    fichero_salida: Path | None,
+    db_manager: Any,
+    output_dir: Path,
+    output_cache: dict[tuple[str, str], tuple[float, str]],
+    batch_window_seconds: int,
+) -> Path:
+    """Resuelve el nombre base de salida, reutilizando autogeneración cuando no se informa uno explícito."""
+    if fichero_salida is not None:
+        return fichero_salida
+
+    raw_conn_params: Any = getattr(db_manager, "conn_params", None)
+    conn_params: ConnectionParams = raw_conn_params if isinstance(raw_conn_params, dict) else {}
+    return generate_auto_output_filename(
+        db_type=str(getattr(db_manager, "db_type", "") or ""),
+        database=str(getattr(db_manager, "database", "") or ""),
+        conn_params=conn_params,
+        output_dir=output_dir,
+        output_cache=output_cache,
+        batch_window_seconds=batch_window_seconds,
+    )
 
 
 def load_headers_config(headers_file: Path) -> HeadersConfig:
@@ -164,15 +221,79 @@ def resolve_generator_database_context(
     return context_resolver.get(normalized_db_type, database_value or user_value or normalized_db_type)
 
 
+def _call_optional_metadata(
+    *,
+    operation: Callable[[], Any],
+    logger: Any,
+    success_message: str,
+    error_message: str,
+    success_level: str = "info",
+    error_level: str = "error",
+) -> Any | None:
+    """Ejecuta una consulta de metadatos opcional con logging homogéneo."""
+    try:
+        result: Any = operation()
+        getattr(logger, success_level)(success_message.format(result=result))
+        return result
+    except Exception as error:
+        getattr(logger, error_level)(error_message.format(error=error))
+        return None
+
+
+def get_database_version_metadata(*, db_manager: Any, logger: Any) -> str | None:
+    """Obtiene la versión de BD usada por los generadores documentales."""
+    result = _call_optional_metadata(
+        operation=db_manager.get_database_version,
+        logger=logger,
+        success_message="📋 Versión de BD obtenida: {result}",
+        error_message="❌ Error al obtener versión de BD: {error}",
+    )
+    return None if result is None else str(result)
+
+
+def get_database_charset_collation_metadata(*, db_manager: Any, logger: Any) -> dict[str, Any] | None:
+    """Obtiene charset y collation de la base de datos para los generadores."""
+    result = _call_optional_metadata(
+        operation=db_manager.get_database_charset_collation,
+        logger=logger,
+        success_message="📋 Charset/Collation de BD obtenido: {result}",
+        error_message="❌ Error al obtener charset/collation de BD: {error}",
+    )
+    return result if isinstance(result, dict) else None
+
+
+def get_columns_charset_collation_metadata(
+    *,
+    db_manager: Any,
+    logger: Any,
+    table_name: str,
+) -> list[tuple[str, str | None, str | None]] | None:
+    """Obtiene charset y collation de columnas para una tabla concreta."""
+    result = _call_optional_metadata(
+        operation=lambda: db_manager.get_columns_charset_collation(table_name),
+        logger=logger,
+        success_message=f"📋 Charset/Collation de columnas de {table_name} obtenido",
+        error_message=f"⚠️  Error al obtener charset/collation de columnas de {table_name}: {{error}}",
+        success_level="debug",
+        error_level="warning",
+    )
+    return result if isinstance(result, list) else None
+
+
 __all__: list[str] = [
     "build_headers",
     "ensure_execution_root",
+    "get_columns_charset_collation_metadata",
+    "get_database_charset_collation_metadata",
+    "get_database_version_metadata",
+    "generate_auto_output_filename",
     "get_execution_root_name",
     "get_format_output_dir",
     "get_output_base_filename",
     "load_headers_config",
     "normalize_output_formats",
     "normalize_sqlite_identifier",
+    "resolve_document_output_filename",
     "resolve_generator_database_context",
     "resolve_output_filename_identifier",
 ]

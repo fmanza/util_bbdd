@@ -31,12 +31,11 @@ pip install -e ".[dev]"
 pytest -v --cov=src/util_bbdd --cov-report=html
 
 # Type check
-mypy src/util_bbdd --strict
+mypy src
 
 # Lint & format
-ruff check src/util_bbdd
-black src/util_bbdd
-isort src/util_bbdd
+ruff check src tests
+ruff format src tests
 
 # Build
 python -m build

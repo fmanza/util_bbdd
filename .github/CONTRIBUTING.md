@@ -19,7 +19,10 @@ Ejecuta, segun el alcance del cambio:
 python -m ruff check src tests
 python -m mypy src
 python -m pytest
+python -m build
 ```
+
+La CI replica esas comprobaciones en dos bloques: matriz de calidad (`ruff`, `mypy`, `pytest`) y verificacion de empaquetado (`python -m build`).
 
 ## Criterios de aceptacion
 
