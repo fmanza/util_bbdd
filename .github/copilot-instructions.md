@@ -82,6 +82,7 @@ y sin depender de servicios externos.
 - Propón tests mínimos cuando el cambio lo requiera.
 - Proponer tests unitarios e integración para cambios relevantes.
 - Señalar riesgos de seguridad, validación, migraciones y compatibilidad.
+- Antes de aplicar compatibilidad hacia atrás, confirmar explícitamente si se mantiene enfoque "solo OO" o se habilitan funciones wrapper, y si se autoriza romper contratos públicos/snapshots.
 - Evitar cambios masivos sin plan y rollback.
 - Contrasta siempre la solicitud con el código real aportado.
 - No inventes módulos, clases, endpoints ni tests inexistentes.

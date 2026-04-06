@@ -13,6 +13,7 @@ applyTo: "tests/**"
 - Si el cambio afecta a la API pública, añade tests de integración que validen el comportamiento esperado.
 - Para cambios de seguridad, añade tests que verifiquen la mitigación del riesgo.
 - Mantén los tests rápidos y deterministas; evita pruebas que puedan fallar por factores externos.
+- Antes de finalizar cualquier cambio, ejecuta `mypy src`, `ruff check src tests` y los tests de documentación; corrige cualquier rotura restante hasta dejar la validación en verde.
 
 ## Cobertura arquitectónica mínima
 - Valida contratos comunes con tests parametrizados por implementación (sync/async y por motor).

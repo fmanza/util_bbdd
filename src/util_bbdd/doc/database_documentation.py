@@ -6,17 +6,19 @@ Versión refactorizada con arquitectura modular.
 import logging
 
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 # Importar módulos modulares
 from ..analysis.graphviz_ext import GraphvizRelationshipGraphExt
 from ..managers import SyncDatabaseManager
 from ._documentation_orchestrator import (
     DocumentationBootstrap,
+    DocumentationFacade,
     DocumentationOrchestrator,
     DocumentationOutputPlanner,
     DocumentationSession,
 )
+from ._documentation_runtime_types import DocumentationRuntimeManagerProtocol, LoggerProtocol
 from .excel_generator import ExcelGenerator
 from .html_generator import HtmlGenerator
 from .word_generator import WordGenerator
@@ -48,6 +50,23 @@ class DatabaseDocumentation:
         headers_file: Ruta al fichero JSON con configuración de headers
     """
 
+    logger: LoggerProtocol
+    db_manager: DocumentationRuntimeManagerProtocol
+    imprimir_config: dict[str, Any]
+    formatos: list[str]
+    directorio_salida: Path
+    fichero_salida: Path
+    table_style: str
+    headers_config: dict[str, Any]
+    headers: dict[str, list[str]]
+    tablas: list[Any]
+    vistas: list[Any]
+    rutinas: list[Any]
+    _documentation_session: DocumentationSession
+
+    _AUTO_OUTPUT_BATCH_WINDOW_SECONDS: ClassVar[int] = 90
+    _LAST_AUTO_OUTPUT_BY_KEY: ClassVar[dict[tuple[str, str], tuple[float, str]]] = {}
+
     def __init__(
         self,
         db_manager: SyncDatabaseManager,
@@ -57,12 +76,8 @@ class DatabaseDocumentation:
         formatos: list[str] | None = None,
         headers_file: Path = Path(__file__).parent / "data/headers_config.json",
     ) -> None:
-        # Validar que db_manager sea una instancia sync.
-        if not isinstance(db_manager, SyncDatabaseManager):
-            raise TypeError("db_manager debe ser una instancia de SyncDatabaseManager")
-
         # Configurar logger
-        self.logger: logging.Logger = logging.getLogger(__name__)
+        self.logger: LoggerProtocol = logging.getLogger(__name__)
 
         bootstrap_state = DocumentationBootstrap(
             db_manager=db_manager,
@@ -86,7 +101,8 @@ class DatabaseDocumentation:
         self.tablas = bootstrap_state.tablas
         self.vistas = bootstrap_state.vistas
         self.rutinas = bootstrap_state.rutinas
-        self._bind_documentation_session(DocumentationSession.from_documentation(self))
+        documentation_facade: DocumentationFacade = self
+        self._bind_documentation_session(DocumentationSession.from_documentation(documentation_facade))
         self._create_documents()
 
     def _bind_documentation_session(self, session: DocumentationSession) -> None:
@@ -104,5 +120,3 @@ class DatabaseDocumentation:
             html_generator_cls=HtmlGenerator,
         ).generate_documents()
 
-    _AUTO_OUTPUT_BATCH_WINDOW_SECONDS: int = 90
-    _LAST_AUTO_OUTPUT_BY_KEY: dict[tuple[str, str], tuple[float, str]] = {}

@@ -11,6 +11,7 @@ Soporta MariaDB, Oracle, PostgreSQL, HSQLDB, SQL Server y SQLite
 import json
 import logging
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -48,6 +49,12 @@ class DatabaseQueries:
         "El nombre de la tabla solo puede contener letras, números, guiones y guiones bajos"
     )
     ERROR_DATABASE_NAME_EMPTY = "El nombre de la base de datos no puede estar vacío"
+    _CONTEXT_PARAMS_BY_DB: dict[str, tuple[str, ...]] = {
+        "oracle": ("esquema",),
+        "sqlserver": ("esquema", "database"),
+        "postgresql": ("database",),
+        "hsqldb": ("database",),
+    }
 
     def __init__(
         self,
@@ -173,14 +180,8 @@ class DatabaseQueries:
 
     def get_routine_ddl_query(self, routine_name: str, routine_type: str, schema: str | None = None) -> str:
         """Obtiene la consulta para recuperar el DDL de una rutina."""
-        if self.db_type == "mariadb":
-            if not schema:
-                raise ValueError(
-                    "Para MariaDB debe informar 'schema'/'database' para cargar metadata batched de rutinas"
-                )
-            return self.get_query("rutinas_mariadb_detalle", database=schema)
-
-        return self.get_query("create_rutina", rutina=routine_name, tipo_rutina=routine_type.upper(), esquema=schema)
+        strategy = self._get_routine_ddl_strategy()
+        return strategy(routine_name, routine_type, schema)
 
     def get_indices_query(self, table: str, schema: str | None = None) -> str:
         """Obtiene la consulta para listar índices de una tabla"""
@@ -211,53 +212,122 @@ class DatabaseQueries:
             Diccionario con llaves explicitas por capacidad (`primary`,
             `temp_tablespaces`, `temp_storage_variables`, `sqlite_file_summary`).
         """
-        if self.db_type == "sqlserver":
-            return {
-                "primary": self.get_query("ficheros_fisicos"),
-                "temp_tablespaces": self.get_query("temp_tablespaces"),
-            }
-        if self.db_type == "oracle":
-            if not tablespace:
-                raise ValueError("Para Oracle debe indicar 'tablespace'")
-            return {
-                "primary": self.get_query("ficheros_fisicos", tablespace=tablespace),
-                "temp_tablespaces": self.get_query("temp_tablespaces", tablespace=tablespace),
-            }
-        if self.db_type == "mariadb":
-            if not database:
-                raise ValueError("Para MariaDB debe indicar 'database'")
-            return {
-                "primary": self.get_query("ficheros_fisicos", database=database),
-                "temp_tablespaces": self.get_query("temp_tablespaces"),
-                "temp_storage_variables": self.get_query("temp_storage_variables"),
-            }
-        if self.db_type == "postgresql":
-            if not tablespace:
-                raise ValueError("Para PostgreSQL debe indicar 'tablespace'")
-            return {
-                "primary": self.get_query("ficheros_fisicos", tablespace=tablespace),
-                "temp_tablespaces": self.get_query("temp_tablespaces"),
-            }
-        if self.db_type == "sqlite":
-            return {
-                "primary": self.get_query("ficheros_fisicos"),
-                "sqlite_file_summary": self.get_query("sqlite_file_summary"),
-                "temp_tablespaces": self.get_query("temp_tablespaces"),
-            }
-        # HSQLDB no expone vista SQL estándar para tamaños de fichero físico.
-        return {}
+        strategy = self._get_storage_inventory_strategy()
+        return strategy(database, tablespace)
 
     def _build_context_kwargs(self, context: str | None) -> dict[str, str]:
         """Construye kwargs de contexto para plantillas SQL."""
         if not context or self.db_type == "mariadb":
             return {}
+        context_params = self._CONTEXT_PARAMS_BY_DB.get(self.db_type, ())
+        return dict.fromkeys(context_params, context)
 
-        kwargs: dict[str, str] = {}
-        if self.db_type in {"oracle", "sqlserver"}:
-            kwargs["esquema"] = context
-        if self.db_type in {"postgresql", "hsqldb", "sqlserver"}:
-            kwargs["database"] = context
-        return kwargs
+    def _get_routine_ddl_strategy(self) -> Callable[[str, str, str | None], str]:
+        strategies: dict[str, Callable[[str, str, str | None], str]] = {
+            "mariadb": self._build_mariadb_routine_ddl_query,
+        }
+        return strategies.get(self.db_type, self._build_standard_routine_ddl_query)
+
+    def _build_mariadb_routine_ddl_query(
+        self,
+        _routine_name: str,
+        _routine_type: str,
+        schema: str | None,
+    ) -> str:
+        if not schema:
+            raise ValueError("Para MariaDB debe informar 'schema'/'database' para cargar metadata batched de rutinas")
+        return self.get_query("rutinas_mariadb_detalle", database=schema)
+
+    def _build_standard_routine_ddl_query(
+        self,
+        routine_name: str,
+        routine_type: str,
+        schema: str | None,
+    ) -> str:
+        return self.get_query(
+            "create_rutina",
+            rutina=routine_name,
+            tipo_rutina=routine_type.upper(),
+            esquema=schema,
+        )
+
+    def _get_storage_inventory_strategy(
+        self,
+    ) -> Callable[[str | None, str | None], dict[str, str]]:
+        strategies: dict[str, Callable[[str | None, str | None], dict[str, str]]] = {
+            "sqlserver": self._build_storage_inventory_queries_sqlserver,
+            "oracle": self._build_storage_inventory_queries_oracle,
+            "mariadb": self._build_storage_inventory_queries_mariadb,
+            "postgresql": self._build_storage_inventory_queries_postgresql,
+            "sqlite": self._build_storage_inventory_queries_sqlite,
+        }
+        return strategies.get(self.db_type, self._build_storage_inventory_queries_hsqldb)
+
+    def _build_storage_inventory_queries_sqlserver(
+        self,
+        _database: str | None,
+        _tablespace: str | None,
+    ) -> dict[str, str]:
+        return {
+            "primary": self.get_query("ficheros_fisicos"),
+            "temp_tablespaces": self.get_query("temp_tablespaces"),
+        }
+
+    def _build_storage_inventory_queries_oracle(
+        self,
+        _database: str | None,
+        tablespace: str | None,
+    ) -> dict[str, str]:
+        if not tablespace:
+            raise ValueError("Para Oracle debe indicar 'tablespace'")
+        return {
+            "primary": self.get_query("ficheros_fisicos", tablespace=tablespace),
+            "temp_tablespaces": self.get_query("temp_tablespaces", tablespace=tablespace),
+        }
+
+    def _build_storage_inventory_queries_mariadb(
+        self,
+        database: str | None,
+        _tablespace: str | None,
+    ) -> dict[str, str]:
+        if not database:
+            raise ValueError("Para MariaDB debe indicar 'database'")
+        return {
+            "primary": self.get_query("ficheros_fisicos", database=database),
+            "temp_tablespaces": self.get_query("temp_tablespaces"),
+            "temp_storage_variables": self.get_query("temp_storage_variables"),
+        }
+
+    def _build_storage_inventory_queries_postgresql(
+        self,
+        _database: str | None,
+        tablespace: str | None,
+    ) -> dict[str, str]:
+        if not tablespace:
+            raise ValueError("Para PostgreSQL debe indicar 'tablespace'")
+        return {
+            "primary": self.get_query("ficheros_fisicos", tablespace=tablespace),
+            "temp_tablespaces": self.get_query("temp_tablespaces"),
+        }
+
+    def _build_storage_inventory_queries_sqlite(
+        self,
+        _database: str | None,
+        _tablespace: str | None,
+    ) -> dict[str, str]:
+        return {
+            "primary": self.get_query("ficheros_fisicos"),
+            "sqlite_file_summary": self.get_query("sqlite_file_summary"),
+            "temp_tablespaces": self.get_query("temp_tablespaces"),
+        }
+
+    def _build_storage_inventory_queries_hsqldb(
+        self,
+        _database: str | None,
+        _tablespace: str | None,
+    ) -> dict[str, str]:
+        # HSQLDB no expone vista SQL estándar para tamaños de fichero físico.
+        return {}
 
     @property
     def queries(self) -> dict[str, dict[str, str]]:

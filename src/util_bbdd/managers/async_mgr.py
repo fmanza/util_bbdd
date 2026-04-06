@@ -832,81 +832,80 @@ class AsyncDatabaseManager:
             success_message=f"✅ DDL obtenido para rutina {rutina}",
         )
 
-    async def get_indices(self, tabla: str) -> Rows:
+    async def _get_table_metadata_rows_async(
+        self,
+        *,
+        tabla: str,
+        query_name: str,
+        error_message: str,
+        cache_lookup: Callable[[tuple[str, str]], Rows | None],
+        cache_store: Callable[[tuple[str, str], Rows], None],
+        cache_label: str,
+        success_label: str,
+    ) -> Rows:
+        """Template method interno para obtener metadatos tabulares cacheados (async)."""
         context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        cache_key = self._cache_table_key(context_database, tabla)
+        context_label: str = self._get_query_context_label()
+        cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
+
         rows = await self._get_cached_rows_async(
-            cache_lookup=lambda: self.db_cache.get_indices(cache_key),
-            cache_store=lambda items: self.db_cache.set_indices(cache_key, items),
+            cache_lookup=lambda: cache_lookup(cache_key),
+            cache_store=lambda items: cache_store(cache_key, cast(Rows, items)),
             fetch_rows=lambda: self._execute_metadata_many(
-                "indices",
+                query_name,
                 params=self._add_metadata_context_params({"tabla": tabla}, context_database),
-                error_message="Error obteniendo índices",
+                error_message=error_message,
                 table_name=tabla,
             ),
-            cache_hit_message=f"♻️  Usando índices en caché para {tabla}",
-            success_message=f"✅ {{count}} índices obtenidos de {tabla} ({context_label}: {context_database})",
-            fetch_debug_message=f"🔍 Obteniendo índices de {tabla} ({context_label}: {context_database})",
+            cache_hit_message=f"♻️  Usando {cache_label} en caché para {tabla}",
+            success_message=f"✅ {{count}} {success_label} obtenidas de {tabla} ({context_label}: {context_database})",
+            fetch_debug_message=f"🔍 Obteniendo {success_label} de {tabla} ({context_label}: {context_database})",
         )
         return cast(Rows, rows)
+
+    async def get_indices(self, tabla: str) -> Rows:
+        return await self._get_table_metadata_rows_async(
+            tabla=tabla,
+            query_name="indices",
+            error_message="Error obteniendo índices",
+            cache_lookup=self.db_cache.get_indices,
+            cache_store=self.db_cache.set_indices,
+            cache_label="índices",
+            success_label="índices",
+        )
 
     async def get_primary_keys(self, tabla: str) -> Rows:
-        context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        cache_key = self._cache_table_key(context_database, tabla)
-        rows = await self._get_cached_rows_async(
-            cache_lookup=lambda: self.db_cache.get_primary_keys(cache_key),
-            cache_store=lambda items: self.db_cache.set_primary_keys(cache_key, items),
-            fetch_rows=lambda: self._execute_metadata_many(
-                "claves_primarias",
-                params=self._add_metadata_context_params({"tabla": tabla}, context_database),
-                error_message="Error obteniendo claves primarias",
-                table_name=tabla,
-            ),
-            cache_hit_message=f"♻️  Usando claves primarias en caché para {tabla}",
-            success_message=f"✅ {{count}} claves primarias obtenidas de {tabla} ({context_label}: {context_database})",
-            fetch_debug_message=f"🔍 Obteniendo claves primarias de {tabla} ({context_label}: {context_database})",
+        return await self._get_table_metadata_rows_async(
+            tabla=tabla,
+            query_name="claves_primarias",
+            error_message="Error obteniendo claves primarias",
+            cache_lookup=self.db_cache.get_primary_keys,
+            cache_store=self.db_cache.set_primary_keys,
+            cache_label="claves primarias",
+            success_label="claves primarias",
         )
-        return cast(Rows, rows)
 
     async def get_foreign_keys(self, tabla: str) -> Rows:
-        context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        cache_key = self._cache_table_key(context_database, tabla)
-        rows = await self._get_cached_rows_async(
-            cache_lookup=lambda: self.db_cache.get_foreign_keys(cache_key),
-            cache_store=lambda items: self.db_cache.set_foreign_keys(cache_key, items),
-            fetch_rows=lambda: self._execute_metadata_many(
-                "claves_foraneas",
-                params=self._add_metadata_context_params({"tabla": tabla}, context_database),
-                error_message="Error obteniendo claves foráneas",
-                table_name=tabla,
-            ),
-            cache_hit_message=f"♻️  Usando claves foráneas en caché para {tabla}",
-            success_message=f"✅ {{count}} claves foráneas obtenidas de {tabla} ({context_label}: {context_database})",
-            fetch_debug_message=f"🔍 Obteniendo claves foráneas de {tabla} ({context_label}: {context_database})",
+        return await self._get_table_metadata_rows_async(
+            tabla=tabla,
+            query_name="claves_foraneas",
+            error_message="Error obteniendo claves foráneas",
+            cache_lookup=self.db_cache.get_foreign_keys,
+            cache_store=self.db_cache.set_foreign_keys,
+            cache_label="claves foráneas",
+            success_label="claves foráneas",
         )
-        return cast(Rows, rows)
 
     async def get_unique_constraints(self, tabla: str) -> Rows:
-        context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        cache_key = self._cache_table_key(context_database, tabla)
-        rows = await self._get_cached_rows_async(
-            cache_lookup=lambda: self.db_cache.get_unique_constraints(cache_key),
-            cache_store=lambda items: self.db_cache.set_unique_constraints(cache_key, items),
-            fetch_rows=lambda: self._execute_metadata_many(
-                "claves_unicas",
-                params=self._add_metadata_context_params({"tabla": tabla}, context_database),
-                error_message="Error obteniendo restricciones únicas",
-                table_name=tabla,
-            ),
-            cache_hit_message=f"♻️  Usando restricciones únicas en caché para {tabla}",
-            success_message=f"✅ {{count}} restricciones únicas obtenidas de {tabla} ({context_label}: {context_database})",
-            fetch_debug_message=f"🔍 Obteniendo restricciones únicas de {tabla} ({context_label}: {context_database})",
+        return await self._get_table_metadata_rows_async(
+            tabla=tabla,
+            query_name="claves_unicas",
+            error_message="Error obteniendo restricciones únicas",
+            cache_lookup=self.db_cache.get_unique_constraints,
+            cache_store=self.db_cache.set_unique_constraints,
+            cache_label="restricciones únicas",
+            success_label="restricciones únicas",
         )
-        return cast(Rows, rows)
 
     async def get_tables_normalized(self) -> list[NormalizedTableRow]:
         """Obtiene tablas en formato normalizado homogéneo."""

@@ -14,6 +14,11 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.worksheet.worksheet import Worksheet
 
+from ._generator_shared import (
+    GeneratorDatabaseInfoRuntime,
+    GeneratorRoutineRuntime,
+    GeneratorTableRuntime,
+)
 from .print_config_manager import PrintConfigManager
 
 
@@ -236,19 +241,7 @@ class ExcelGenerator:
         fila += 1
 
         for row in tables:
-            # Desempacar: tabla, comentario, [charset/charset_collation opcional], [collation opcional para MariaDB]
-            tabla = row[0]
-            comentario = row[1] if len(row) > 1 else ""
-
-            # Manejar charset_collation: 4 columnas (MariaDB) o 2-3 columnas (otros)
-            if len(row) > 3:
-                # MariaDB: row[2]=charset, row[3]=collation
-                charset = row[2]
-                collation = row[3]
-                charset_collation = f"{charset} {collation}".strip() if charset or collation else None
-            else:
-                # Otros motores: row[2]=charset_collation (opcional)
-                charset_collation = row[2] if len(row) > 2 else None
+            tabla, comentario, charset_collation = GeneratorTableRuntime.extract_table_row_data(row)
 
             fila = self._process_table(
                 ws,
@@ -343,35 +336,28 @@ class ExcelGenerator:
         data_provider: Any,
     ) -> int:
         """Procesa rutinas no clasificadas."""
-        classified_set = set(procedures) | set(functions)
-
-        for routine in routines:
-            if routine not in classified_set:
-                routine_name: str = str(routine[0]) if len(routine) > 0 and routine[0] is not None else ""
-                routine_type: str = str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
-                fila = self._process_routine(
-                    ws,
-                    fila,
-                    (routine_name, routine_type, routine[2] if len(routine) > 2 else ""),
-                    data_provider,
-                )
+        unclassified = GeneratorRoutineRuntime.get_unclassified(
+            routines=routines,
+            procedures=procedures,
+            functions=functions,
+        )
+        for routine in unclassified:
+            routine_name, routine_type, routine_comment = GeneratorRoutineRuntime.normalize_entry(
+                routine,
+                uppercase_type=False,
+            )
+            fila = self._process_routine(
+                ws,
+                fila,
+                (routine_name, routine_type, routine_comment),
+                data_provider,
+            )
 
         return fila
 
     def _split_routines_by_type(self, routines: list[tuple]) -> tuple[list[tuple], list[tuple]]:
         """Separa routines en procedures y funciones."""
-        procedures: list[tuple] = []
-        functions: list[tuple] = []
-
-        for routine in routines:
-            routine_type: str = str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
-            normalized_type: str = routine_type.upper()
-            if normalized_type == "PROCEDURE":
-                procedures.append(routine)
-            elif normalized_type == "FUNCTION":
-                functions.append(routine)
-
-        return procedures, functions
+        return GeneratorRoutineRuntime.split_by_type(routines)
 
     def _create_routines_sheets(
         self,
@@ -439,9 +425,10 @@ class ExcelGenerator:
 
     def _build_routine_sheet_row(self, routine: tuple, data_provider: Any) -> list[str]:
         """Construye una fila tabular para la hoja de rutinas."""
-        routine_name: str = str(routine[0]) if len(routine) > 0 and routine[0] is not None else ""
-        routine_type: str = str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
-        routine_comment: str = str(routine[2]) if len(routine) > 2 and routine[2] is not None else ""
+        routine_name, routine_type, routine_comment = GeneratorRoutineRuntime.normalize_entry(
+            routine,
+            uppercase_type=False,
+        )
 
         routine_ddl: str = ""
         try:
@@ -495,8 +482,11 @@ class ExcelGenerator:
         self, routines: list[tuple], procedures: list[tuple], functions: list[tuple]
     ) -> list[tuple]:
         """Obtiene rutinas no clasificadas como procedures/functions."""
-        classified_set = set(procedures) | set(functions)
-        return [routine for routine in routines if routine not in classified_set]
+        return GeneratorRoutineRuntime.get_unclassified(
+            routines=routines,
+            procedures=procedures,
+            functions=functions,
+        )
 
     def _create_main_header(self, ws: Worksheet, fila: int) -> int:
         """Crea el encabezado principal del documento Excel."""
@@ -602,9 +592,10 @@ class ExcelGenerator:
         data_provider: Any,
     ) -> int:
         """Procesa la información de una rutina (procedure/función)."""
-        routine_name: str = str(routine[0]) if len(routine) > 0 and routine[0] is not None else ""
-        routine_type: str = str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
-        routine_comment: str = str(routine[2]) if len(routine) > 2 and routine[2] is not None else ""
+        routine_name, routine_type, routine_comment = GeneratorRoutineRuntime.normalize_entry(
+            routine,
+            uppercase_type=False,
+        )
 
         ws[f"A{fila}"] = f"{routine_type.title()}: {routine_name}"
         ws[f"A{fila}"].font = Font(size=12, bold=True)
@@ -748,20 +739,12 @@ class ExcelGenerator:
         include_functions: bool,
     ) -> list[tuple]:
         """Filtra rutinas según flags de impresión."""
-        if include_procedures and include_functions:
-            return routines
-        filtered: list[tuple] = []
-        for routine in routines:
-            routine_type: str = str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
-            normalized_type: str = routine_type.upper()
-            if normalized_type == "PROCEDURE" and include_procedures:
-                filtered.append(routine)
-            elif normalized_type == "FUNCTION" and include_functions:
-                filtered.append(routine)
-            elif normalized_type not in {"PROCEDURE", "FUNCTION"}:
-                if include_functions:
-                    filtered.append(routine)
-        return filtered
+        return GeneratorRoutineRuntime.filter_by_flags(
+            routines,
+            include_procedures=include_procedures,
+            include_functions=include_functions,
+            include_non_procedure_as_function=True,
+        )
 
     def _add_ddl_section(self, ws: Worksheet, fila: int, tabla: str, data_provider: Any, is_view: bool = False) -> int:
         """Agrega la sección DDL a la hoja Excel."""
@@ -1098,18 +1081,13 @@ class ExcelGenerator:
 
     def _gather_database_info(self, data_provider: Any, database_info_flags: list[bool]) -> list[list[str]]:
         """Recopila la información de la base de datos según los flags configurados."""
-        include_version: bool = bool(database_info_flags[0]) if len(database_info_flags) > 0 else False
-        include_charset: bool = bool(database_info_flags[1]) if len(database_info_flags) > 1 else False
-
-        info_data: list[list[str]] = []
-
-        if include_version:
-            self._add_version_info(data_provider, info_data)
-
-        if include_charset:
-            self._add_charset_info(data_provider, info_data)
-
-        return info_data
+        return GeneratorDatabaseInfoRuntime.collect_database_info_rows(
+            data_provider=data_provider,
+            database_info_flags=database_info_flags,
+            logger=self.logger,
+            include_error_rows=True,
+            debug_context="para Excel",
+        )
 
     def _add_version_info(self, data_provider: Any, info_data: list[list[str]]) -> None:
         """Agrega la información de versión a los datos."""

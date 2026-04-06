@@ -2,27 +2,19 @@
 
 from __future__ import annotations
 
-import logging
-
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
-from ..managers import SyncDatabaseManager
-from ._documentation_runtime import (
-    build_headers,
-    get_columns_charset_collation_metadata,
-    get_database_charset_collation_metadata,
-    get_database_version_metadata,
-    get_format_output_dir,
-    get_output_base_filename,
-    load_headers_config,
-    normalize_output_formats,
-    resolve_document_output_filename,
-    resolve_generator_database_context,
+from ._documentation_runtime_headers import DocumentationHeadersRuntime
+from ._documentation_runtime_metadata import DocumentationMetadataRuntime
+from ._documentation_runtime_output import DocumentationOutputRuntime
+from ._documentation_runtime_types import DocumentationRuntimeManagerProtocol, LoggerProtocol
+from ._storage_inventory_runtime import (
+    StorageInventoryManagerProtocol,
+    get_storage_inventory_report as get_storage_inventory_report_runtime,
 )
-from ._storage_inventory_runtime import get_storage_inventory_report as get_storage_inventory_report_runtime
 from .print_config_manager import PrintConfigManager
 
 _UNSET_DATABASE_CHARSET_COLLATION: object = object()
@@ -32,7 +24,7 @@ _UNSET_DATABASE_CHARSET_COLLATION: object = object()
 class DocumentationBootstrapState:
     """Estado inicial resuelto para la fachada documental."""
 
-    db_manager: SyncDatabaseManager
+    db_manager: DocumentationRuntimeManagerProtocol
     print_config: dict[str, Any]
     formatos: list[str]
     directorio_salida: Path
@@ -51,7 +43,7 @@ class DocumentationBootstrap:
     def __init__(
         self,
         *,
-        db_manager: SyncDatabaseManager,
+        db_manager: DocumentationRuntimeManagerProtocol,
         directorio_salida: Path,
         fichero_salida: Path | None,
         imprimir: dict[str, Any] | None,
@@ -59,6 +51,8 @@ class DocumentationBootstrap:
         headers_file: Path,
         output_cache: dict[tuple[str, str], tuple[float, str]],
         batch_window_seconds: int,
+        headers_runtime: DocumentationHeadersRuntime | None = None,
+        output_runtime: DocumentationOutputRuntime | None = None,
     ) -> None:
         self._db_manager = db_manager
         self._directorio_salida = directorio_salida
@@ -68,19 +62,21 @@ class DocumentationBootstrap:
         self._headers_file = headers_file
         self._output_cache = output_cache
         self._batch_window_seconds = batch_window_seconds
+        self._headers_runtime = headers_runtime or DocumentationHeadersRuntime()
+        self._output_runtime = output_runtime or DocumentationOutputRuntime()
 
     def build(self) -> DocumentationBootstrapState:
         """Resuelve toda la configuración y metadatos iniciales del documento."""
         print_config = PrintConfigManager.normalize(self._imprimir)
-        resolved_formatos = normalize_output_formats(self._formatos)
-        resolved_output = resolve_document_output_filename(
+        resolved_formatos = self._output_runtime.normalize_output_formats(self._formatos)
+        resolved_output = self._output_runtime.resolve_document_output_filename(
             fichero_salida=self._fichero_salida,
             db_manager=self._db_manager,
             output_dir=self._directorio_salida,
             output_cache=self._output_cache,
             batch_window_seconds=self._batch_window_seconds,
         )
-        headers_config = load_headers_config(self._headers_file)
+        headers_config = self._headers_runtime.load_headers_config(self._headers_file)
 
         return DocumentationBootstrapState(
             db_manager=self._db_manager,
@@ -90,7 +86,7 @@ class DocumentationBootstrap:
             fichero_salida=resolved_output,
             table_style=str(print_config.get("table_style", "Table Grid")),
             headers_config=headers_config,
-            headers=build_headers(headers_config, self._db_manager.db_type),
+            headers=self._headers_runtime.build_headers(headers_config, self._db_manager.db_type),
             tablas=self._db_manager.get_tables(),
             vistas=self._db_manager.get_views(),
             rutinas=self._db_manager.get_routines(),
@@ -100,8 +96,8 @@ class DocumentationBootstrap:
 class DocumentationFacade(Protocol):
     """Contrato mínimo de la fachada pública consumido por la orquestación interna."""
 
-    logger: logging.Logger
-    db_manager: SyncDatabaseManager
+    logger: LoggerProtocol
+    db_manager: DocumentationRuntimeManagerProtocol
     imprimir_config: dict[str, Any]
     formatos: list[str]
     directorio_salida: Path
@@ -118,8 +114,8 @@ class DocumentationSession:
     """Estado efímero requerido para una ejecución documental."""
 
     data_provider: DocumentationFacade
-    logger: logging.Logger
-    db_manager: SyncDatabaseManager
+    logger: LoggerProtocol
+    db_manager: DocumentationRuntimeManagerProtocol
     database: str
     print_config: dict[str, Any]
     formatos: list[str]
@@ -136,12 +132,15 @@ class DocumentationSession:
     _database_charset_collation_cache: dict[str, Any] | None | object = _UNSET_DATABASE_CHARSET_COLLATION
     _columns_charset_collation_cache: dict[str, list[tuple[str, str | None, str | None]] | None] | None = None
     _storage_inventory_report_cache: dict[str, Any] | None = None
+    _metadata_runtime: DocumentationMetadataRuntime | None = None
+    _output_runtime: DocumentationOutputRuntime | None = None
 
     @classmethod
     def from_documentation(cls, documentation: DocumentationFacade) -> DocumentationSession:
         """Construye una sesión interna a partir de la fachada pública."""
+        output_runtime = DocumentationOutputRuntime()
         query_context_database = getattr(documentation.db_manager, "get_query_context_database", lambda: "")()
-        resolved_database = resolve_generator_database_context(
+        resolved_database = output_runtime.resolve_generator_database_context(
             db_type=documentation.db_manager.db_type,
             database=documentation.db_manager.database,
             conn_params=documentation.db_manager.conn_params or {},
@@ -164,6 +163,8 @@ class DocumentationSession:
             _ddl_cache={},
             _list_cache={},
             _columns_charset_collation_cache={},
+            _metadata_runtime=DocumentationMetadataRuntime(logger=documentation.logger),
+            _output_runtime=output_runtime,
         )
 
     @property
@@ -221,15 +222,16 @@ class DocumentationSession:
     def get_database_version(self) -> str | None:
         """Obtiene y cachea la versión de la base de datos."""
         if self._database_version_cache == "":
-            self._database_version_cache = get_database_version_metadata(db_manager=self.db_manager, logger=self.logger)
+            self._database_version_cache = self._get_metadata_runtime().get_database_version_metadata(
+                db_manager=self.db_manager
+            )
         return self._database_version_cache or None
 
     def get_database_charset_collation(self) -> dict[str, Any] | None:
         """Obtiene y cachea charset/collation de base de datos."""
         if self._database_charset_collation_cache is _UNSET_DATABASE_CHARSET_COLLATION:
-            self._database_charset_collation_cache = get_database_charset_collation_metadata(
+            self._database_charset_collation_cache = self._get_metadata_runtime().get_database_charset_collation_metadata(
                 db_manager=self.db_manager,
-                logger=self.logger,
             )
         return (
             self._database_charset_collation_cache if isinstance(self._database_charset_collation_cache, dict) else None
@@ -240,9 +242,8 @@ class DocumentationSession:
         if self._columns_charset_collation_cache is None:
             self._columns_charset_collation_cache = {}
         if tabla not in self._columns_charset_collation_cache:
-            self._columns_charset_collation_cache[tabla] = get_columns_charset_collation_metadata(
+            self._columns_charset_collation_cache[tabla] = self._get_metadata_runtime().get_columns_charset_collation_metadata(
                 db_manager=self.db_manager,
-                logger=self.logger,
                 table_name=tabla,
             )
         return self._columns_charset_collation_cache[tabla]
@@ -251,7 +252,7 @@ class DocumentationSession:
         """Obtiene y cachea el inventario de almacenamiento."""
         if self._storage_inventory_report_cache is None:
             self._storage_inventory_report_cache = get_storage_inventory_report_runtime(
-                db_manager=self.db_manager,
+                db_manager=cast(StorageInventoryManagerProtocol, self.db_manager),
                 logger=self.logger,
                 print_config=self.print_config,
             )
@@ -273,13 +274,29 @@ class DocumentationSession:
             self._list_cache[cache_key] = loader()
         return list(self._list_cache[cache_key])
 
+    def _get_metadata_runtime(self) -> DocumentationMetadataRuntime:
+        """Obtiene el runtime OO de metadata con inicialización diferida."""
+        if self._metadata_runtime is None:
+            self._metadata_runtime = DocumentationMetadataRuntime(logger=self.logger)
+        return self._metadata_runtime
+
+    def _get_output_runtime(self) -> DocumentationOutputRuntime:
+        """Obtiene el runtime OO de salida con inicialización diferida."""
+        if self._output_runtime is None:
+            self._output_runtime = DocumentationOutputRuntime()
+        return self._output_runtime
+
     def resolve_output_path(self, output_format: str, extension: str | None = None) -> Path:
         """Resuelve el directorio o fichero de salida para un formato."""
-        output_dir: Path = get_format_output_dir(self.directorio_salida, self.fichero_salida, output_format)
+        output_dir: Path = self._get_output_runtime().get_format_output_dir(
+            self.directorio_salida,
+            self.fichero_salida,
+            output_format,
+        )
         if extension is None:
             return output_dir
 
-        output_base: Path = output_dir / get_output_base_filename(self.fichero_salida)
+        output_base: Path = output_dir / self._get_output_runtime().get_output_base_filename(self.fichero_salida)
         return output_base.with_suffix(extension)
 
 

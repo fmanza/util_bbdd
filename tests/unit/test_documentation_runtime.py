@@ -17,25 +17,22 @@ from util_bbdd.doc._documentation_orchestrator import (
     DocumentationOutputPlanner,
     DocumentationSession,
 )
-from util_bbdd.doc._documentation_runtime import (
-    generate_auto_output_filename,
-    get_format_output_dir,
-    normalize_output_formats,
-    resolve_document_output_filename,
-)
+from util_bbdd.doc._documentation_runtime_output import DocumentationOutputRuntime
 from util_bbdd.doc._storage_inventory_runtime import StorageInventoryRuntime
 from util_bbdd.doc.print_config_manager import PrintConfigManager
 
 
 def test_normalize_output_formats_without_duplicates() -> None:
-    assert normalize_output_formats([" WORD ", "html", "word", "", "HTML"]) == ["word", "html"]
+    output_runtime = DocumentationOutputRuntime()
+    assert output_runtime.normalize_output_formats([" WORD ", "html", "word", "", "HTML"]) == ["word", "html"]
 
 
 def test_get_format_output_dir_creates_execution_root(tmp_path: Path) -> None:
     fichero_salida = Path("nested/report.docx")
+    output_runtime = DocumentationOutputRuntime()
 
-    word_dir = get_format_output_dir(tmp_path, fichero_salida, "word")
-    html_dir = get_format_output_dir(tmp_path, fichero_salida, "html")
+    word_dir = output_runtime.get_format_output_dir(tmp_path, fichero_salida, "word")
+    html_dir = output_runtime.get_format_output_dir(tmp_path, fichero_salida, "html")
 
     assert word_dir == tmp_path / "report" / "WORD"
     assert html_dir == tmp_path / "report" / "HTML"
@@ -45,8 +42,9 @@ def test_get_format_output_dir_creates_execution_root(tmp_path: Path) -> None:
 
 def test_generate_auto_output_filename_reuses_recent_name_within_batch_window(tmp_path: Path) -> None:
     cache: dict[tuple[str, str], tuple[float, str]] = {}
+    output_runtime = DocumentationOutputRuntime()
 
-    first = generate_auto_output_filename(
+    first = output_runtime.generate_auto_output_filename(
         db_type="postgresql",
         database="demo",
         conn_params={},
@@ -56,7 +54,7 @@ def test_generate_auto_output_filename_reuses_recent_name_within_batch_window(tm
         current_time=100.0,
         current_datetime=datetime(2026, 4, 1, 10, 0, 0),
     )
-    second = generate_auto_output_filename(
+    second = output_runtime.generate_auto_output_filename(
         db_type="postgresql",
         database="demo",
         conn_params={},
@@ -66,7 +64,7 @@ def test_generate_auto_output_filename_reuses_recent_name_within_batch_window(tm
         current_time=130.0,
         current_datetime=datetime(2026, 4, 1, 10, 1, 0),
     )
-    third = generate_auto_output_filename(
+    third = output_runtime.generate_auto_output_filename(
         db_type="postgresql",
         database="demo",
         conn_params={},
@@ -84,14 +82,15 @@ def test_generate_auto_output_filename_reuses_recent_name_within_batch_window(tm
 
 def test_resolve_document_output_filename_uses_manager_context_when_missing(tmp_path: Path) -> None:
     cache: dict[tuple[str, str], tuple[float, str]] = {}
+    output_runtime = DocumentationOutputRuntime()
 
     class _DbManagerWithoutConnParams:
         db_type = "oracle"
         database = "xe"
 
-    resolved = resolve_document_output_filename(
+    resolved = output_runtime.resolve_document_output_filename(
         fichero_salida=None,
-        db_manager=_DbManagerWithoutConnParams(),
+        db_manager=cast(Any, _DbManagerWithoutConnParams()),
         output_dir=tmp_path,
         output_cache=cache,
         batch_window_seconds=90,
@@ -126,7 +125,7 @@ def test_documentation_output_planner_builds_ordered_paths(tmp_path: Path) -> No
         def database(self) -> str:
             return "demo"
 
-    session = DocumentationSession.from_documentation(_DocumentationStub())
+    session = DocumentationSession.from_documentation(cast(Any, _DocumentationStub()))
     plans = DocumentationOutputPlanner(session).build_plans()
 
     assert [(plan.output_format, plan.output_path) for plan in plans] == [
@@ -225,9 +224,11 @@ def test_documentation_session_caches_manager_metadata_calls(tmp_path: Path) -> 
             self.calls["get_primary_keys"] += 1
             return [(f"pk_{tabla}",)]
 
+    manager = _DbManager()
+
     class _DocumentationStub:
         logger = logging.getLogger(__name__)
-        db_manager = cast(Any, _DbManager())
+        db_manager = cast(Any, manager)
         imprimir_config = PrintConfigManager.normalize({})
         formatos = ["word"]
         directorio_salida = tmp_path
@@ -242,7 +243,7 @@ def test_documentation_session_caches_manager_metadata_calls(tmp_path: Path) -> 
         def database(self) -> str:
             return "legacy-demo"
 
-    session = DocumentationSession.from_documentation(_DocumentationStub())
+    session = DocumentationSession.from_documentation(cast(Any, _DocumentationStub()))
 
     assert session.database == "demo"
     assert session.get_ddl("users") == "DDL users"
@@ -251,7 +252,7 @@ def test_documentation_session_caches_manager_metadata_calls(tmp_path: Path) -> 
     assert session.get_columns("users") == [("users_id",)]
     assert session.get_primary_keys("users") == [("pk_users",)]
     assert session.get_primary_keys("users") == [("pk_users",)]
-    assert session.db_manager.calls == {
+    assert manager.calls == {
         "get_query_context_database": 1,
         "get_ddl": 1,
         "get_columns": 1,
@@ -291,7 +292,7 @@ def test_documentation_session_metadata_helpers_delegate_successfully(tmp_path: 
         vistas: list[Any] = []
         rutinas: list[Any] = []
 
-    session = DocumentationSession.from_documentation(_DocumentationStub())
+    session = DocumentationSession.from_documentation(cast(Any, _DocumentationStub()))
 
     assert session.get_database_version() == "15.2"
     assert session.get_database_charset_collation() == {"charset": "UTF8", "collation": "en_US.UTF-8"}
@@ -329,7 +330,7 @@ def test_documentation_session_metadata_helpers_return_none_on_error(tmp_path: P
         vistas: list[Any] = []
         rutinas: list[Any] = []
 
-    session = DocumentationSession.from_documentation(_DocumentationStub())
+    session = DocumentationSession.from_documentation(cast(Any, _DocumentationStub()))
 
     assert session.get_database_version() is None
     assert session.get_database_charset_collation() is None
@@ -358,7 +359,7 @@ def test_documentation_session_falls_back_to_schema_context_when_query_context_i
         vistas: list[Any] = []
         rutinas: list[Any] = []
 
-    session = DocumentationSession.from_documentation(_DocumentationStub())
+    session = DocumentationSession.from_documentation(cast(Any, _DocumentationStub()))
 
     assert session.database == "analytics"
 
@@ -383,9 +384,11 @@ def test_documentation_session_caches_database_version_calls(tmp_path: Path) -> 
             self.calls["get_database_version"] += 1
             return "15.2"
 
+    manager = _VersionDbManager()
+
     class _DocumentationStub:
         logger = logging.getLogger(__name__)
-        db_manager = cast(Any, _VersionDbManager())
+        db_manager = cast(Any, manager)
         imprimir_config = PrintConfigManager.normalize({})
         formatos = ["word"]
         directorio_salida = tmp_path
@@ -396,11 +399,11 @@ def test_documentation_session_caches_database_version_calls(tmp_path: Path) -> 
         vistas: list[Any] = []
         rutinas: list[Any] = []
 
-    session = DocumentationSession.from_documentation(_DocumentationStub())
+    session = DocumentationSession.from_documentation(cast(Any, _DocumentationStub()))
 
     assert session.get_database_version() == "15.2"
     assert session.get_database_version() == "15.2"
-    assert session.db_manager.calls == {
+    assert manager.calls == {
         "get_query_context_database": 1,
         "get_database_version": 1,
     }
@@ -446,7 +449,7 @@ def test_documentation_session_storage_inventory_report_returns_runtime_output(t
         vistas: list[Any] = []
         rutinas: list[Any] = []
 
-    session = DocumentationSession.from_documentation(_DocumentationStub())
+    session = DocumentationSession.from_documentation(cast(Any, _DocumentationStub()))
     report = session.get_storage_inventory_report()
 
     assert report["db_type"] == "mariadb"
@@ -526,5 +529,6 @@ def test_storage_inventory_runtime_parses_mariadb_temp_storage_variables() -> No
 
 
 def test_normalize_output_formats_rejects_invalid_values() -> None:
+    output_runtime = DocumentationOutputRuntime()
     with pytest.raises(ValueError, match="Formato no soportado"):
-        normalize_output_formats(["pdf"])
+        output_runtime.normalize_output_formats(["pdf"])

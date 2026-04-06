@@ -11,6 +11,8 @@
 - No introducir cambios funcionales.
 - Priorizar separación de responsabilidades, eliminación de duplicación y legibilidad.
 - Mantener la API pública salvo justificación explícita.
+- Antes de aplicar compatibilidad hacia atrás, confirmar explícitamente si se mantiene enfoque "solo OO" o se habilitan funciones wrapper, y si se autoriza romper contratos públicos/snapshots.
+- Incluir validación con `mypy src`, `ruff check src tests` y tests de documentación; corregir cualquier rotura restante antes de cerrar el refactor.
 
 ## Revisar
 - módulos

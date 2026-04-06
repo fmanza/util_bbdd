@@ -2,22 +2,120 @@
 
 from __future__ import annotations
 
-import logging
 import re
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from ..database_exceptions import QueryNotFoundError
-from ..managers import SyncDatabaseManager
+
+
+class StorageInventoryManagerProtocol(Protocol):
+    """Contrato mínimo del manager requerido por el runtime de inventario."""
+
+    db_type: str
+    database: str
+    conn_params: dict[str, Any]
+
+    def resolve_query(self, query_name: str, **params: Any) -> Any: ...
+
+    def execute_query_many(self, query_name: str, **params: Any) -> Any: ...
+
+    def execute_custom_one(self, query: str) -> Any: ...
+
+
+class _StorageQueryStrategy(Protocol):
+    """Contrato interno para resolver consultas de almacenamiento por motor."""
+
+    def can_handle(self, runtime: StorageInventoryRuntime, query_name: str) -> bool:
+        """Indica si la estrategia aplica para la consulta actual."""
+        ...
+
+    def process(
+        self,
+        runtime: StorageInventoryRuntime,
+        query_name: str,
+        query_title: str,
+        database_name: str,
+        query_params: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Procesa la consulta de almacenamiento usando la estrategia seleccionada."""
+        ...
+
+
+@dataclass(slots=True, frozen=True)
+class _OracleStorageQueryStrategy:
+    """Estrategia para consultas de almacenamiento Oracle."""
+
+    _ORACLE_QUERIES: frozenset[str] = frozenset({"ficheros_fisicos", "temp_tablespaces"})
+
+    def can_handle(self, runtime: StorageInventoryRuntime, query_name: str) -> bool:
+        return runtime.db_type == "oracle" and query_name in self._ORACLE_QUERIES
+
+    def process(
+        self,
+        runtime: StorageInventoryRuntime,
+        query_name: str,
+        query_title: str,
+        database_name: str,
+        query_params: dict[str, Any],
+    ) -> dict[str, Any]:
+        del query_params
+        return runtime._process_oracle_storage_query(query_name, query_title, database_name)
+
+
+@dataclass(slots=True, frozen=True)
+class _MariadbTempStorageVariablesStrategy:
+    """Estrategia para `temp_storage_variables` en MariaDB."""
+
+    def can_handle(self, runtime: StorageInventoryRuntime, query_name: str) -> bool:
+        return runtime.db_type == "mariadb" and query_name == "temp_storage_variables"
+
+    def process(
+        self,
+        runtime: StorageInventoryRuntime,
+        query_name: str,
+        query_title: str,
+        database_name: str,
+        query_params: dict[str, Any],
+    ) -> dict[str, Any]:
+        del database_name
+        return runtime._process_mariadb_temp_storage_variables_query(query_name, query_title, query_params)
+
+
+@dataclass(slots=True, frozen=True)
+class _StandardStorageQueryStrategy:
+    """Estrategia de fallback para motores y consultas no específicas."""
+
+    def can_handle(self, runtime: StorageInventoryRuntime, query_name: str) -> bool:
+        del runtime, query_name
+        return True
+
+    def process(
+        self,
+        runtime: StorageInventoryRuntime,
+        query_name: str,
+        query_title: str,
+        database_name: str,
+        query_params: dict[str, Any],
+    ) -> dict[str, Any]:
+        del database_name
+        return runtime._process_standard_storage_query(query_name, query_title, query_params)
+
+
+_STORAGE_QUERY_STRATEGIES: tuple[_StorageQueryStrategy, ...] = (
+    _OracleStorageQueryStrategy(),
+    _MariadbTempStorageVariablesStrategy(),
+    _StandardStorageQueryStrategy(),
+)
 
 
 @dataclass(slots=True)
 class StorageInventoryRuntime:
     """Construye el informe de almacenamiento consumido por los generadores."""
 
-    db_manager: SyncDatabaseManager
-    logger: logging.Logger
+    db_manager: StorageInventoryManagerProtocol
+    logger: Any
     db_type: str
     database: str
     print_config: dict[str, Any]
@@ -436,10 +534,9 @@ class StorageInventoryRuntime:
         query_params: dict[str, Any],
     ) -> dict[str, Any]:
         """Procesa una consulta individual de almacenamiento."""
-        if self.db_type == "oracle" and query_name in {"ficheros_fisicos", "temp_tablespaces"}:
-            return self._process_oracle_storage_query(query_name, query_title, database_name)
-        if self.db_type == "mariadb" and query_name == "temp_storage_variables":
-            return self._process_mariadb_temp_storage_variables_query(query_name, query_title, query_params)
+        for strategy in _STORAGE_QUERY_STRATEGIES:
+            if strategy.can_handle(self, query_name):
+                return strategy.process(self, query_name, query_title, database_name, query_params)
         return self._process_standard_storage_query(query_name, query_title, query_params)
 
     def _process_mariadb_temp_storage_variables_query(
@@ -727,8 +824,8 @@ class StorageInventoryRuntime:
 
 def build_storage_inventory_runtime(
     *,
-    db_manager: SyncDatabaseManager,
-    logger: logging.Logger,
+    db_manager: StorageInventoryManagerProtocol,
+    logger: Any,
     print_config: dict[str, Any],
 ) -> StorageInventoryRuntime:
     """Construye el runtime documental de almacenamiento fuera de la fachada pública."""
@@ -743,8 +840,8 @@ def build_storage_inventory_runtime(
 
 def get_storage_inventory_report(
     *,
-    db_manager: SyncDatabaseManager,
-    logger: logging.Logger,
+    db_manager: StorageInventoryManagerProtocol,
+    logger: Any,
     print_config: dict[str, Any],
 ) -> dict[str, Any]:
     """Obtiene el informe de almacenamiento sin exponer bootstrap en la fachada documental."""

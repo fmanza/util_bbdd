@@ -13,6 +13,12 @@ from typing import Any, LiteralString
 from jinja2 import Template
 
 from ..analysis.graphviz_ext import GraphvizRelationshipGraphExt
+from ._generator_shared import (
+    GeneratorDatabaseInfoRuntime,
+    GeneratorRoutineRuntime,
+    GeneratorTableRuntime,
+    GeneratorTabularRuntime,
+)
 from .diagram_legend import (
     build_diagram_direction_help,
     build_diagram_legend_payload,
@@ -275,19 +281,7 @@ class HtmlGenerator:
             return tables_index
 
         for row in tables:
-            # Desempacar: tabla, comentario, [charset/charset_collation opcional], [collation opcional para MariaDB]
-            tabla = row[0]
-            comentario = row[1] if len(row) > 1 else ""
-
-            # Manejar charset_collation: 4 columnas (MariaDB) o 2-3 columnas (otros)
-            if len(row) > 3:
-                # MariaDB: row[2]=charset, row[3]=collation
-                charset = row[2]
-                collation = row[3]
-                charset_collation = f"{charset} {collation}".strip() if charset or collation else None
-            else:
-                # Otros motores: row[2]=charset_collation (opcional)
-                charset_collation = row[2] if len(row) > 2 else None
+            tabla, comentario, charset_collation = GeneratorTableRuntime.extract_table_row_data(row)
 
             table_payload: dict[str, Any] = self._build_table_payload(
                 table_name=tabla,
@@ -511,15 +505,12 @@ class HtmlGenerator:
 
     def _collect_database_properties(self, data_provider: Any, database_info_flags: list[bool]) -> list[list[str]]:
         """Recolecta propiedades de versión y charset/collation de la BD."""
-        properties_list: list[list[str]] = []
-
-        if database_info_flags[0]:
-            self._collect_version_property(data_provider, properties_list)
-
-        if database_info_flags[1]:
-            self._collect_charset_properties(data_provider, properties_list)
-
-        return properties_list
+        return GeneratorDatabaseInfoRuntime.collect_database_info_rows(
+            data_provider=data_provider,
+            database_info_flags=database_info_flags,
+            logger=self.logger,
+            include_error_rows=False,
+        )
 
     def _collect_version_property(self, data_provider: Any, properties_list: list[list[str]]) -> None:
         """Obtiene y agrega la propiedad de versión."""
@@ -601,26 +592,11 @@ class HtmlGenerator:
 
     def _collect_database_queries(self, data_provider: Any, database_info_flags: list[bool]) -> str:
         """Recolecta las queries SQL ejecutadas para obtener información de BD."""
-        sql_queries: list[str] = []
-
-        try:
-            query_info: dict[str, Any] = data_provider.db_manager.get_query_info()
-            queries_map: dict[str, Any] = query_info.get("queries", {})
-
-            if database_info_flags[0]:
-                version_sql: str = str(queries_map.get("database_version", {}).get("template", "") or "")
-                if version_sql.strip():
-                    sql_queries.append(version_sql)
-                    self.logger.debug("✅ Query de versión agregada")
-
-            if database_info_flags[1]:
-                charset_sql: str = str(queries_map.get("database_charset_collation", {}).get("template", "") or "")
-                if charset_sql.strip():
-                    sql_queries.append(charset_sql)
-                    self.logger.debug("✅ Query de charset agregada")
-        except Exception as query_error:
-            self.logger.warning(f"⚠️ Error obteniendo queries SQL: {query_error}")
-
+        sql_queries = GeneratorDatabaseInfoRuntime.collect_database_info_query_templates(
+            data_provider=data_provider,
+            database_info_flags=database_info_flags,
+            logger=self.logger,
+        )
         return "\n\n".join(sql_queries) if sql_queries else ""
 
     def _render_index_page(
@@ -1190,10 +1166,7 @@ class HtmlGenerator:
 
     def _normalize_routine_entry(self, routine: tuple) -> tuple[str, str, str]:
         """Normaliza una fila de rutina a (nombre, tipo, comentario)."""
-        routine_name: str = str(routine[0]) if len(routine) > 0 and routine[0] is not None else ""
-        routine_type: str = str(routine[1]) if len(routine) > 1 and routine[1] is not None else "FUNCTION"
-        routine_comment: str = str(routine[2]) if len(routine) > 2 and routine[2] is not None else ""
-        return routine_name, routine_type.upper(), routine_comment
+        return GeneratorRoutineRuntime.normalize_entry(routine, uppercase_type=True)
 
     def _build_routine_key(self, routine: tuple) -> str:
         """Construye clave estable para slugs de rutina."""
@@ -1644,20 +1617,12 @@ class HtmlGenerator:
         include_functions: bool,
     ) -> list[tuple]:
         """Filtra rutinas según configuración de impresión."""
-        if include_procedures and include_functions:
-            return routines
-
-        filtered: list[tuple] = []
-        for routine in routines:
-            _, routine_type, _ = self._normalize_routine_entry(routine)
-            if routine_type == "PROCEDURE" and include_procedures:
-                filtered.append(routine)
-            elif routine_type == "FUNCTION" and include_functions:
-                filtered.append(routine)
-            elif routine_type not in {"PROCEDURE", "FUNCTION"}:
-                if include_functions:
-                    filtered.append(routine)
-        return filtered
+        return GeneratorRoutineRuntime.filter_by_flags(
+            routines,
+            include_procedures=include_procedures,
+            include_functions=include_functions,
+            include_non_procedure_as_function=True,
+        )
 
     def _process_routine_parameters_data(self, parametros: list) -> list:
         """Normaliza datos de parámetros de rutina para HTML."""
@@ -1954,105 +1919,24 @@ class HtmlGenerator:
 
     def _process_indices_data(self, indices: list, db_type: str) -> list:
         """Procesa los datos de índices según el tipo de base de datos."""
-        if db_type == "mariadb":
-            return [[idx[0], idx[1], "No" if idx[2] else "Sí", idx[3]] for idx in indices]
-
-        if db_type == "oracle":
-            return [[idx[0], idx[3], "Sí" if self._is_unique(idx, db_type) else "No", idx[2]] for idx in indices]
-
-        return [[idx[0], idx[1], "Sí" if self._is_unique(idx, db_type) else "No", idx[3]] for idx in indices]
+        return GeneratorTabularRuntime.process_indices_data(indices, db_type)
 
     def _is_unique(self, index_data: tuple, db_type: str) -> bool:
         """Determina si un índice es único según el tipo de BD."""
-        if db_type == "oracle":
-            return bool(index_data[1] == "UNIQUE")
-        if db_type == "postgresql":
-            return bool(index_data[2] is True)
-        if db_type == "hsqldb":
-            return bool(index_data[2] == "UNIQUE")
-        if db_type == "sqlite":
-            return str(index_data[2]).strip().lower() in ("1", "true", "yes", "unique")
-        return False
+        return GeneratorTabularRuntime.is_unique(index_data, db_type)
 
     def _get_value(self, row: Any, index: int, as_str: bool = False) -> Any:
         """Obtiene un valor por índice de forma segura."""
-        if len(row) <= index:
-            return ""
-
-        value = row[index]
-        if as_str:
-            return str(value) if value is not None else ""
-
-        return value if value is not None else ""
+        return GeneratorTabularRuntime.get_safe_value(row, index, as_str=as_str)
 
     def _format_column_row(self, col: Any, specs: list[tuple[int, bool]]) -> list[Any]:
         """Formatea una fila de metadatos de columna según especificación."""
-        return [self._get_value(col, idx, as_str=as_str) for idx, as_str in specs]
+        return GeneratorTabularRuntime.format_column_row(col, specs)
 
     def _process_columns_data(self, columnas: list, db_type: str) -> list:
         """Procesa datos de columnas para reordenarlos según el tipo de BD."""
-        specs_by_db: dict[str, list[tuple[int, bool]]] = {
-            "mariadb": [
-                (0, False),
-                (1, False),
-                (2, False),
-                (3, False),
-                (4, False),
-                (5, False),
-                (6, False),
-            ],
-            "oracle": [
-                (0, False),
-                (1, False),
-                (2, False),
-                (3, True),
-                (4, True),
-                (5, True),
-                (6, True),
-                (7, True),
-            ],
-            "postgresql": [
-                (0, False),
-                (1, False),
-                (2, False),
-                (3, True),
-                (4, True),
-                (5, True),
-                (6, True),
-                (7, True),
-            ],
-            "hsqldb": [
-                (0, False),
-                (1, False),
-                (2, False),
-                (3, True),
-                (4, True),
-                (5, True),
-                (6, True),
-                (7, True),
-            ],
-            "sqlserver": [
-                (0, False),
-                (1, False),
-                (2, False),
-                (3, True),
-                (4, True),
-                (5, True),
-                (6, True),
-                (7, True),
-                (8, True),
-            ],
-        }
-        default_specs: list[tuple[int, bool]] = [
-            (0, False),
-            (1, False),
-            (2, False),
-            (3, True),
-            (4, True),
-            (5, True),
-            (6, True),
-            (7, True),
-        ]
-        specs: list[tuple[int, bool]] = specs_by_db.get(db_type, default_specs)
-
-        return [self._format_column_row(col, specs) for col in columnas]
+        return GeneratorTabularRuntime.process_columns_data(
+            columnas,
+            db_type,
+            include_sqlite_short_shape=False,
+        )
