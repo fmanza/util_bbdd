@@ -15,7 +15,7 @@ Cada tabla debe documentarse con este orden:
 - `(col1, col2)`
 
 ### Claves foráneas
-- `<col>` → `<schema>.<table>(<col>)`
+- `<col>` -> `<schema>.<table>(<col>)`
 
 ### Índices
 - `<index_name>` (`col1`, `col2`)
@@ -42,3 +42,8 @@ Cada tabla debe documentarse con este orden:
 - Para columnas con tipos de datos complejos o específicos de un motor, puedes añadir una descripción adicional en la columna de Descripción si deriva de metadatos reales o reglas documentadas.
 - Si una tabla tiene muchas claves foráneas o índices, puedes usar listas numeradas para mejorar la legibilidad.
 - Si el caso lo justifica, puedes incluir un diagrama Mermaid `erDiagram` u otro bloque Markdown compatible, siempre generado a partir de metadatos reales.
+
+## Diseño recomendado
+- Usa `Builder` para ensamblar bloques Markdown por sección.
+- Usa `Template Method` para mantener un orden fijo y personalizar solo detalles de salida.
+- Mantén funciones deterministas y sin efectos secundarios para facilitar snapshot tests.

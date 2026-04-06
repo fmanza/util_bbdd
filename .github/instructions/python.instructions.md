@@ -9,10 +9,34 @@ applyTo: "**/*.py"
 - Usa `pathlib.Path` para rutas.
 - Prefiere dataclasses para estructuras de metadatos.
 
+## Programación orientada a objetos
+- Diseña clases cohesivas con invariantes claras y responsabilidades únicas.
+- Prefiere composición sobre herencia; usa herencia solo si existe sustitución real (`LSP`).
+- Mantén el estado mínimo y explícito; evita estado global mutable.
+- Expón comportamiento mediante métodos públicos pequeños y predecibles.
+
+## SOLID
+- `SRP`: separa acceso a datos, normalización, reglas de negocio y renderizado.
+- `OCP`: soporta nuevos motores/formatos añadiendo adaptadores o estrategias, sin romper contratos existentes.
+- `LSP`: toda implementación concreta debe poder sustituir al contrato base sin cambiar semántica.
+- `ISP`: divide interfaces por casos de uso; evita métodos "placeholder" no implementados.
+- `DIP`: orquestadores y servicios dependen de `Protocol`/`ABC`, no de clases concretas.
+
 ## Diseño de API
 - Expón modelos de metadatos (Schema, Table, Column, Relationship).
 - Separa: extracción (introspección) vs render (generación de docs).
 - Mantén funciones puras para renderizado siempre que sea posible.
+- Usa `Protocol` (o `ABC` cuando proceda) para contratos de adaptadores por motor.
+- Evita condicionales por motor dispersos; centraliza resolución en factorías/registro.
+
+## Patrones recomendados
+- `Strategy` para variaciones por motor o formato.
+- `Factory Method` o `Abstract Factory` para construir conectores/adaptadores.
+- `Adapter` para encapsular diferencias entre librerías/driver SQL.
+- `Template Method` para flujos base de introspección y render con pasos extensibles.
+- `Builder` para salidas documentales complejas por etapas.
+- `Query Object`, `Repository`, `Data Mapper` e `Identity Map` cuando ayuden a aislar SQL, mapear modelos y evitar cargas repetidas.
+- No introducir patrones si una solución simple y explícita cubre el caso sin deuda.
 
 ## Errores
 - Define excepciones propias (p.ej., `IntrospectionError`, `RenderError`).

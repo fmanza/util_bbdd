@@ -13,3 +13,12 @@ applyTo: "tests/**"
 - Si el cambio afecta a la API pública, añade tests de integración que validen el comportamiento esperado.
 - Para cambios de seguridad, añade tests que verifiquen la mitigación del riesgo.
 - Mantén los tests rápidos y deterministas; evita pruebas que puedan fallar por factores externos.
+
+## Cobertura arquitectónica mínima
+- Valida contratos comunes con tests parametrizados por implementación (sync/async y por motor).
+- Verifica `LSP`: cualquier implementación concreta debe pasar la misma suite de contrato.
+- Verifica `OCP`: al agregar motor/formato nuevo, no debe romper tests existentes de motores previos.
+- Verifica `SRP`: cambios en render no deben romper tests de introspección y viceversa.
+- Si se usa `Factory` o `Registry`, prueba resolución de implementaciones válidas e inválidas.
+- Si se usa `Identity Map` o cache, prueba consistencia (sin duplicados) e invalidación cuando aplique.
+- Si se introduce `Query Object` o `Repository`, prueba que el SQL/consulta queda encapsulado y tipado.

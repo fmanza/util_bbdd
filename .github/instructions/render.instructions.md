@@ -14,3 +14,9 @@ applyTo: "src/**/render/**/*.py"
 - Documenta claramente qué información se incluye en la documentación generada y cómo se estructura.
 - Proporciona tests de integración que validen la salida generada contra un modelo de metadatos conocido.
 - Si la generación de documentación no puede incluir cierta información (p.ej. comentarios de columnas en SQLite), documenta esta limitación y sugiere alternativas (p.ej. input manual o modelo intermedio).
+
+## Patrones recomendados para render
+- `Template Method`: define pipeline común de render y sobreescribe solo pasos específicos por formato.
+- `Builder`: construye el documento por secciones para evitar funciones monolíticas.
+- `Strategy`: encapsula variaciones por salida (Markdown, HTML, Word, Excel) sin `if/elif` dispersos.
+- `Facade`: expone una API simple de alto nivel para el flujo completo de documentación.

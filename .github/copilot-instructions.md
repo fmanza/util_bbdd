@@ -10,14 +10,20 @@ Estamos construyendo una librería en Python para documentar bases de datos (mul
 - Generación de documentación (Word, Excel, Markdown y/o HTML) de forma reproducible
 y sin depender de servicios externos.
 - La salida de documentación en Markdown debe ser portable y legible, pudiendo usar extensiones ligeras compatibles con el renderer objetivo cuando aporten valor (por ejemplo, Mermaid).
+- Compara modelos de datos con el esquema actual para detectar cambios y generar reportes de diferencias (opcional pero deseable).
 
 
 ## Arquitectura preferida
 - Separar módulos: `introspect/` (extraer) vs `render/` (generar docs).
 - Representar metadatos en dataclasses/typed models (Schema/Table/Column/Relationship/Index).
 - Mantener renderizado como funciones puras cuando sea posible.
-- Utilizar siempre que sea posible chache de información obtenida para evitar consultas repetidas a la base de datos.
-- Utilizar siempre clases a funciones aisladas para facilitar la extensión futura (p.ej. añadir soporte a nuevos motores o formatos de salida).
+- Utilizar siempre que sea posible cache de información obtenida para evitar consultas repetidas a la base de datos.
+- Priorizar clases cuando encapsulan estado, invariantes o colaboraciones; usar funciones puras para transformaciones sin estado.
+
+## Fuentes de referencia de arquitectura
+- `G:\Mi unidad\Trabajo\Manuales\Desarrollo\Patrones de Diseño\design-patterns-es.pdf`
+- https://martinfowler.com/eaaCatalog/
+- Estas fuentes orientan decisiones; no son la única verdad si el contexto real del repositorio indica otra opción mejor.
 
 ## Reglas multibase (MUY importante)
 - No asumas un único motor: evita SQL específico salvo que esté encapsulado por adaptadores/dialects.
@@ -29,6 +35,31 @@ y sin depender de servicios externos.
 - Prioriza claridad y estabilidad de API pública (backward-compatible cuando sea posible).
 - No inventes información del esquema: si falta contexto, genera código que lo obtenga desde la BD o lo reciba como entrada.
 - Sugiere cambios pequeños, con tests.
+
+## OOP y SOLID (reglas operativas)
+- `SRP`: cada clase/módulo debe tener una razón de cambio dominante; separa extracción, normalización, render y persistencia.
+- `OCP`: para soportar un nuevo motor/formato, extender por adaptadores/estrategias sin editar flujos base estables.
+- `LSP`: implementaciones sync/async y por motor deben respetar contratos comunes y semántica de errores.
+- `ISP`: interfaces pequeñas por responsabilidad; evita contratos "todo en uno" para introspección y render.
+- `DIP`: la orquestación depende de Protocol/ABC y factorías, no de implementaciones concretas.
+
+## Patrones recomendados para esta librería
+- `Strategy`: variación por motor y por formato de salida.
+- `Abstract Factory` o `Factory Method`: creación de conexiones/adaptadores según motor.
+- `Adapter`: encapsular diferencias entre drivers y SQL dialect-specific.
+- `Template Method`: flujo base de introspección o render con hooks por motor/formato.
+- `Facade`: entrada simple para orquestar extracción + comparativa + render.
+- `Builder`: construir documentos complejos (Word/Excel/HTML/Markdown) por pasos.
+- `Repository` y `Query Object` (Fowler): encapsular consultas y recuperación de metadatos sin filtrar SQL en capas superiores.
+- `Data Mapper` (Fowler): mapear filas/tablas a modelos de dominio de metadatos desacoplados del motor.
+- `Identity Map` (Fowler): cache coherente dentro de una ejecución para evitar cargas duplicadas.
+
+## Anti-patrones a evitar
+- `God class` o managers que mezclan conexión, introspección, normalización y render.
+- Condicionales `if/elif` por motor distribuidos por todo el código.
+- Acoplar renderizadores a SQL/driver o a estado de conexión.
+- Excepciones genéricas (`Exception`) y errores sin contexto accionable.
+- Aplicar patrones por moda sin justificar complejidad vs beneficio.
 
 
 ## Estilo y calidad
@@ -56,6 +87,7 @@ y sin depender de servicios externos.
 - No inventes módulos, clases, endpoints ni tests inexistentes.
 - Si falta contexto crítico, decláralo y continúa con supuestos explícitos.
 - No mezcles feature, hotfix y refactor en una sola ejecución.
+- Si el cambio toca arquitectura, justificar patrón elegido y alternativa descartada en `PLAN` y `AUDIT_PLAN`.
 - Responde en markdown estructurado.
 
 ## Agentes VS Code
@@ -80,6 +112,8 @@ y sin depender de servicios externos.
 - Toda implementación debe incluir estrategia de pruebas.
 - Toda auditoría debe emitir veredicto.
 - Toda incertidumbre debe quedar etiquetada como supuesto o dato faltante.
+- Toda propuesta de arquitectura debe declarar impacto en SOLID (`SRP/OCP/LSP/ISP/DIP`).
+- Todo patrón aplicado debe incluir criterio de entrada/salida (cuándo usarlo y cuándo no).
 
 ## Formato esperado
 ### PLAN
