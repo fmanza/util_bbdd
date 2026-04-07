@@ -39,6 +39,7 @@ class HtmlGenerator:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.database: str = database
         self.headers: dict = headers
+        self.headers["UNIQUE"] = GeneratorTabularRuntime.normalize_unique_headers(self.headers.get("UNIQUE"))
         self.templates_root: Path = Path(__file__).parent / "templates"
         self.default_template_file: Path = self.templates_root / "pages" / "detail.html.j2"
         self.default_index_template_file: Path = self.templates_root / "pages" / "index.html.j2"
@@ -1459,7 +1460,8 @@ class HtmlGenerator:
             payload["fk"] = data_provider.get_foreign_keys(table_name)
 
         if section_flags[4]:
-            payload["unicas"] = data_provider.get_unique_constraints(table_name)
+            unique_constraints = data_provider.get_unique_constraints(table_name)
+            payload["unicas"] = self._process_unique_constraints_data(unique_constraints)
 
         if section_flags[5]:
             indices = data_provider.get_indices(table_name)
@@ -1920,6 +1922,10 @@ class HtmlGenerator:
     def _process_indices_data(self, indices: list, db_type: str) -> list:
         """Procesa los datos de índices según el tipo de base de datos."""
         return GeneratorTabularRuntime.process_indices_data(indices, db_type)
+
+    def _process_unique_constraints_data(self, unique_constraints: list[Any]) -> list[list[str]]:
+        """Normaliza restricciones únicas para mantener coherencia entre renderers."""
+        return GeneratorTabularRuntime.process_unique_constraints_data(unique_constraints)
 
     def _is_unique(self, index_data: tuple, db_type: str) -> bool:
         """Determina si un índice es único según el tipo de BD."""

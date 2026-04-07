@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from collections.abc import Mapping
 from typing import Any
 
 
@@ -164,6 +165,7 @@ class GeneratorTabularRuntime:
         (5, True),
         (7, True),
     ]
+    _DEFAULT_UNIQUE_HEADERS: tuple[str, str] = ("Nombre Restricción", "Campo")
 
     @staticmethod
     def is_unique(index_data: tuple[Any, ...], db_type: str) -> bool:
@@ -194,6 +196,126 @@ class GeneratorTabularRuntime:
             [idx[0], idx[1], "Sí" if GeneratorTabularRuntime.is_unique(idx, db_type) else "No", idx[3]]
             for idx in indices
         ]
+
+    @staticmethod
+    def normalize_unique_headers(headers: list[Any] | tuple[Any, ...] | None) -> list[str]:
+        """Normaliza cabeceras de UNIQUE al contrato estable de dos columnas."""
+        if headers is None:
+            return list(GeneratorTabularRuntime._DEFAULT_UNIQUE_HEADERS)
+
+        normalized_headers: list[str] = []
+        for header in headers:
+            text = str(header).strip()
+            if text:
+                normalized_headers.append(text)
+
+        if len(normalized_headers) >= 2:
+            return normalized_headers[:2]
+        if len(normalized_headers) == 1:
+            return [normalized_headers[0], GeneratorTabularRuntime._DEFAULT_UNIQUE_HEADERS[1]]
+        return list(GeneratorTabularRuntime._DEFAULT_UNIQUE_HEADERS)
+
+    @staticmethod
+    def process_unique_constraints_data(unique_constraints: list[Any]) -> list[list[str]]:
+        """Normaliza filas de restricciones únicas a [constraint_name, column_name]."""
+        return [list(GeneratorTabularRuntime._extract_unique_constraint_pair(item)) for item in unique_constraints]
+
+    @staticmethod
+    def _extract_unique_constraint_pair(unique_row: Any) -> tuple[str, str]:
+        """Extrae de forma robusta (constraint_name, column_name)."""
+        row_mapping = GeneratorTabularRuntime._as_mapping(unique_row)
+        if row_mapping is not None:
+            constraint_name = GeneratorTabularRuntime._get_mapping_value_case_insensitive(
+                row_mapping,
+                [
+                    "constraint_name",
+                    "constraint",
+                    "name",
+                    "nombre_restriccion",
+                    "nombre_restricción",
+                ],
+            )
+            column_name = GeneratorTabularRuntime._get_mapping_value_case_insensitive(
+                row_mapping,
+                [
+                    "column_name",
+                    "column",
+                    "field",
+                    "campo",
+                    "columna",
+                ],
+            )
+            return constraint_name, column_name
+
+        if isinstance(unique_row, (list, tuple)):
+            if len(unique_row) >= 2:
+                return (
+                    GeneratorTabularRuntime._to_text(unique_row[0]),
+                    GeneratorTabularRuntime._resolve_unique_column_value(unique_row),
+                )
+            if len(unique_row) == 1:
+                return GeneratorTabularRuntime._to_text(unique_row[0]), ""
+            return "", ""
+
+        if unique_row is None:
+            return "", ""
+        return GeneratorTabularRuntime._to_text(unique_row), ""
+
+    @staticmethod
+    def _to_text(value: Any) -> str:
+        """Convierte valor arbitrario a texto seguro para render tabular."""
+        return "" if value is None else str(value)
+
+    @staticmethod
+    def _as_mapping(value: Any) -> Mapping[Any, Any] | None:
+        """Devuelve un mapping uniforme cuando la fila lo soporta."""
+        if isinstance(value, Mapping):
+            return value
+        mapping_attr = getattr(value, "_mapping", None)
+        if isinstance(mapping_attr, Mapping):
+            return mapping_attr
+        return None
+
+    @staticmethod
+    def _get_mapping_value_case_insensitive(mapping: Mapping[Any, Any], keys: list[str]) -> str:
+        """Obtiene un valor de mapping sin depender del casing de la clave."""
+        normalized_keys: dict[str, Any] = {
+            str(raw_key).strip().casefold(): raw_key for raw_key in mapping.keys()
+        }
+        for key in keys:
+            found_key = normalized_keys.get(key.casefold())
+            if found_key is None:
+                continue
+            value = mapping.get(found_key)
+            text = GeneratorTabularRuntime._to_text(value).strip()
+            if text:
+                return text
+        return ""
+
+    @staticmethod
+    def _resolve_unique_column_value(unique_row: list[Any] | tuple[Any, ...]) -> str:
+        """Resuelve el valor de campo/columna en filas posicionales."""
+        candidate = GeneratorTabularRuntime._to_text(unique_row[1]).strip()
+        if GeneratorTabularRuntime._is_likely_column_identifier(candidate):
+            return candidate
+
+        for value in unique_row[2:]:
+            probe = GeneratorTabularRuntime._to_text(value).strip()
+            if GeneratorTabularRuntime._is_likely_column_identifier(probe):
+                return probe
+        return candidate
+
+    @staticmethod
+    def _is_likely_column_identifier(value: str) -> bool:
+        """Heurística ligera para detectar si un valor parece nombre de columna."""
+        if not value:
+            return False
+        lowered = value.casefold()
+        if lowered in {"true", "false"}:
+            return False
+        if value.isdigit():
+            return False
+        return True
 
     @staticmethod
     def get_safe_value(row: Any, index: int, *, as_str: bool = False) -> Any:

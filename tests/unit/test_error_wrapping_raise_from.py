@@ -60,10 +60,10 @@ def test_query_resolver_wraps_unexpected_errors_with_cause() -> None:
         def get_query_definition(self, db_type: str, query_name: str) -> Any:
             raise RuntimeError("broken registry")
 
-    resolver = QueryResolver(registry=BrokenRegistry())
+    resolver = QueryResolver(registry=BrokenRegistry(), db_type="mariadb")
 
     with pytest.raises(QueryParameterError) as exc_info:
-        resolver.resolve("obtener_tablas", "mariadb", {"database": "db"})
+        resolver.resolve("obtener_tablas", {"database": "db"})
 
     assert isinstance(exc_info.value.__cause__, RuntimeError)
     assert "broken registry" in str(exc_info.value.__cause__)

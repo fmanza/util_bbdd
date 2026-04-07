@@ -8,6 +8,7 @@ for each database motor type.
 import logging
 
 from collections.abc import Callable
+from functools import cache
 
 from .base_validator import DatabaseTypeValidator
 from .hsqldb_validator import HSQLDBValidator
@@ -33,6 +34,15 @@ _VALIDATOR_REGISTRY: dict[str, ValidatorFactory] = {
 }
 
 
+@cache
+def _get_cached_validator(db_type_lower: str) -> DatabaseTypeValidator:
+    """Obtiene validador cacheado por db_type normalizado."""
+    validator_factory = _VALIDATOR_REGISTRY[db_type_lower]
+    validator = validator_factory()
+    logger.debug(f"Created validator for db_type='{db_type_lower}' -> {validator.__class__.__name__}")
+    return validator
+
+
 def get_type_validator(db_type: str) -> DatabaseTypeValidator:
     """Factory para obtener el validador apropiado para un tipo de BD.
 
@@ -53,17 +63,13 @@ def get_type_validator(db_type: str) -> DatabaseTypeValidator:
         >>> isinstance(validator, DatabaseTypeValidator)
         True
     """
-    db_type_lower: str = db_type.lower()
+    db_type_lower: str = db_type.lower().strip()
 
     if db_type_lower not in _VALIDATOR_REGISTRY:
         supported: str = ", ".join(sorted(_VALIDATOR_REGISTRY.keys()))
         raise ValueError(f"Unsupported database type '{db_type}'. Supported types: {supported}")
 
-    validator_factory = _VALIDATOR_REGISTRY[db_type_lower]
-    validator = validator_factory()
-
-    logger.debug(f"Created validator for db_type='{db_type}' -> {validator.__class__.__name__}")
-    return validator
+    return _get_cached_validator(db_type_lower)
 
 
 __all__ = [

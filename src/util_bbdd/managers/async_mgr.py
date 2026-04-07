@@ -292,7 +292,10 @@ class AsyncDatabaseManager:
         pool_factory: Callable[..., Awaitable[Any]] | None = None,
     ) -> None:
         self.logger: logging.Logger = logging.getLogger(__name__)
-        self.db_type: str = db_type.lower().strip()
+        normalized_db_type: str = db_type.lower().strip()
+        validator = get_database_validator()
+        validator.validate_db_type(normalized_db_type)
+        self.db_type: str = normalized_db_type
         self.conn_params: dict[str, Any] = conn_params
         self.database: str = str(conn_params.get("database", "") or "").strip()
         self.use_pool: bool = use_pool
@@ -486,7 +489,7 @@ class AsyncDatabaseManager:
         """Resuelve una query registrada y devuelve su SQL final y metadatos."""
         executor = await self._get_query_executor()
         return await self._run_manager_operation_async(
-            action=lambda: executor.resolver.resolve(query_name, self.db_type, params),
+            action=lambda: executor.resolver.bind(self.db_type).resolve(query_name, params),
             error_message=f"Error resolviendo consulta: {query_name}",
             operation="SELECT",
         )

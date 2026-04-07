@@ -96,7 +96,7 @@ class DatabaseQueries:
         self.logger.debug("✅ QueryRegistry inicializado")
 
         # PR 5: Delegar resolución de queries a QueryResolver
-        self.resolver: QueryResolver = QueryResolver(self.registry)
+        self.resolver: QueryResolver = QueryResolver(self.registry, db_type=self.db_type)
         self.logger.debug("✅ QueryResolver inicializado")
 
         self.logger.debug(f"✅ {len(self.registry.get_available_queries(self.db_type))} consultas cargadas")
@@ -140,7 +140,7 @@ class DatabaseQueries:
                 return qdef.sql_template
 
             # PR 5: With params, delegate to resolver for validation and interpolation
-            resolved = self.resolver.resolve(query_name, self.db_type, kwargs)
+            resolved = self.resolver.resolve(query_name, kwargs)
             return resolved.final_sql
         except Exception as e:
             self.logger.error(f"❌ Error obteniendo query '{query_name}': {e}")
@@ -371,7 +371,7 @@ class DatabaseQueries:
         """
         # Validación única: QueryResolver ya aplica validador por motor.
         try:
-            resolved = self.resolver.resolve(query_name, self.db_type, kwargs)
+            resolved = self.resolver.resolve(query_name, kwargs)
             return True, list(resolved.warnings)
         except Exception as e:
             return False, [f"Parámetros inválidos o faltantes para la consulta '{query_name}': {str(e)}"]

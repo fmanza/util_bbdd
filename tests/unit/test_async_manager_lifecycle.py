@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from util_bbdd import AsyncDatabaseManager
-from util_bbdd.connection.factory import ConnectionFactory
-from util_bbdd.factory.pool_factory import PoolFactory
 
 
 class FakeConnection:
@@ -53,19 +53,22 @@ class FakePool:
 
 
 def test_async_manager_direct_lifecycle() -> None:
-    db_type = "test_async_manager_direct"
+    db_type = "sqlite"
     created: dict[str, FakeConnection] = {}
 
-    async def builder(conn_params, **kwargs):
+    async def builder(_db_type: str, _conn_params: dict, **kwargs):
         await asyncio.sleep(0)
         conn = FakeConnection()
         created["conn"] = conn
         return conn
 
-    ConnectionFactory.register_async_connection(db_type, builder)
-
     async def _run() -> None:
-        manager = AsyncDatabaseManager(db_type=db_type, conn_params={}, use_pool=False)
+        manager = AsyncDatabaseManager(
+            db_type=db_type,
+            conn_params={},
+            use_pool=False,
+            connection_factory=builder,
+        )
         rows = await manager.execute_custom_many("SELECT 1")
         assert rows == [("many",)]
         await manager.close()
@@ -75,19 +78,22 @@ def test_async_manager_direct_lifecycle() -> None:
 
 
 def test_async_manager_pool_lifecycle() -> None:
-    db_type = "test_async_manager_pool"
+    db_type = "sqlite"
     created: dict[str, FakePool] = {}
 
-    async def pool_builder(conn_params, **kwargs):
+    async def pool_builder(_db_type: str, _conn_params: dict, **kwargs):
         await asyncio.sleep(0)
         pool = FakePool()
         created["pool"] = pool
         return pool
 
-    PoolFactory.register_async_pool(db_type, pool_builder)
-
     async def _run() -> None:
-        manager = AsyncDatabaseManager(db_type=db_type, conn_params={}, use_pool=True)
+        manager = AsyncDatabaseManager(
+            db_type=db_type,
+            conn_params={},
+            use_pool=True,
+            pool_factory=pool_builder,
+        )
         row = await manager.execute_custom_one("SELECT 1")
         assert row == ("one",)
         assert created["pool"].released == 1
@@ -95,3 +101,10 @@ def test_async_manager_pool_lifecycle() -> None:
         assert created["pool"].closed is True
 
     asyncio.run(_run())
+
+
+def test_async_manager_rejects_unsupported_db_type_without_custom_builder() -> None:
+    with pytest.raises(Exception) as exc_info:
+        AsyncDatabaseManager(db_type="unsupported_db_type", conn_params={}, use_pool=False)
+
+    assert "no soportado" in str(exc_info.value).lower()

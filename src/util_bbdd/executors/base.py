@@ -121,7 +121,7 @@ class QueryExecutorBase(ABC):
         """
         try:
             self.logger.debug(f"Resolving query: {query_name} for db_type={db_type}")
-            resolved = self.resolver.resolve(query_name, db_type, params or {})
+            resolved = self.resolver.bind(db_type).resolve(query_name, params or {})
             self.logger.debug(f"✅ Query resolved: {query_name}, params={list((params or {}).keys())}")
             return resolved
 

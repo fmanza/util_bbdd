@@ -102,6 +102,7 @@ class WordGenerator:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.database: str = database
         self.headers = headers
+        self.headers["UNIQUE"] = GeneratorTabularRuntime.normalize_unique_headers(self.headers.get("UNIQUE"))
         self.table_style: str = table_style
 
     def generate_document(
@@ -1086,7 +1087,8 @@ class WordGenerator:
 
     def _add_unique_constraints_section(self, document: Document, tabla: str, data_provider: Any) -> None:
         """Agrega la sección de restricciones únicas"""
-        claves = data_provider.get_unique_constraints(tabla)
+        unique_constraints = data_provider.get_unique_constraints(tabla)
+        claves = self._process_unique_constraints_data(unique_constraints)
         if claves:
             self._add_table(document, "Restricciones Únicas", self.headers["UNIQUE"], claves)
         else:
@@ -1360,6 +1362,10 @@ class WordGenerator:
     def _process_indices_data(self, indices: list, db_type: str) -> list:
         """Procesa los datos de índices según el tipo de base de datos"""
         return GeneratorTabularRuntime.process_indices_data(indices, db_type)
+
+    def _process_unique_constraints_data(self, unique_constraints: list[Any]) -> list[list[str]]:
+        """Normaliza restricciones únicas para salida tabular coherente."""
+        return GeneratorTabularRuntime.process_unique_constraints_data(unique_constraints)
 
     def _is_unique(self, index_data: tuple, db_type: str) -> bool:
         """Determina si un índice es único según el tipo de BD"""

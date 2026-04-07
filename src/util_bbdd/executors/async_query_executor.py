@@ -36,7 +36,17 @@ class AsyncQueryExecutor:
         self.connection_releaser: Callable[[Any], Awaitable[None]] = connection_releaser
         self.registry: QueryRegistry = registry or QueryRegistry()
         self.resolver: QueryResolver = resolver or QueryResolver(self.registry)
+        self._bound_resolvers: dict[str, QueryResolver] = {}
         self.result_normalizer = ResultNormalizer()
+
+    def _get_bound_resolver(self, db_type: str) -> QueryResolver:
+        """Obtiene un resolver ligado al motor para reutilizar validaciones/cache."""
+        normalized_db_type: str = db_type.lower().strip()
+        bound_resolver: QueryResolver | None = self._bound_resolvers.get(normalized_db_type)
+        if bound_resolver is None:
+            bound_resolver = self.resolver.bind(normalized_db_type)
+            self._bound_resolvers[normalized_db_type] = bound_resolver
+        return bound_resolver
 
     @asynccontextmanager
     async def _timeout_context(self, timeout_message: str, deadline_seconds: float | None) -> AsyncIterator[None]:
@@ -146,7 +156,7 @@ class AsyncQueryExecutor:
                 f"Query execution exceeded timeout: {query_name}",
                 deadline_seconds=deadline_seconds,
             ):
-                resolved = self.resolver.resolve(query_name, db_type, params)
+                resolved = self._get_bound_resolver(db_type).resolve(query_name=query_name, params=params)
                 final_sql: str = self._normalize_sql_for_db(resolved.final_sql, db_type)
                 self.logger.debug(f"SQL final: {final_sql}")
 

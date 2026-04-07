@@ -1567,7 +1567,7 @@ class SyncDatabaseManager:
 
     def resolve_query(self, query_name: str, **params) -> Any:
         """Resuelve una query registrada y devuelve SQL final + metadatos."""
-        return self._query_catalog.resolver.resolve(query_name, self.db_type, params)
+        return self._query_catalog.resolver.resolve(query_name, params)
 
     def get_query_info(self) -> dict[str, Any]:
         """

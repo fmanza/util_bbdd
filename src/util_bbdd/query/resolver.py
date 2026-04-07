@@ -8,6 +8,8 @@ El QueryResolver es responsable de:
 4. Retornar ResolvedQuery listo para ejecutar
 """
 
+from __future__ import annotations
+
 import logging
 import time
 
@@ -36,31 +38,31 @@ class QueryResolver:
     - Retornar ResolvedQuery con SQL final y metadatos
 
     Ejemplo:
-        resolver = QueryResolver()
+        resolver = QueryResolver(db_type="mariadb")
         resolved = resolver.resolve(
             "obtener_tablas",
-            "mariadb",
             {"database": "test_db"}
         )
         assert "{database}" not in resolved.final_sql
         assert resolved.validated
     """
 
-    def __init__(self, registry: QueryRegistry | None = None) -> None:
+    def __init__(self, registry: QueryRegistry | None = None, *, db_type: str | None = None) -> None:
         """Inicializa el resolver con un QueryRegistry.
 
         Args:
             registry: QueryRegistry para obtener definiciones.
                      Si es None, crea uno nuevo con ruta por defecto.
+            db_type: Tipo de BD opcional ligado a la instancia.
         """
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.registry: QueryRegistry = registry or QueryRegistry()
+        self._bound_db_type: str | None = self._normalize_db_type(db_type) if db_type is not None else None
         self.logger.debug("✅ QueryResolver initialized")
 
     def resolve(
         self,
         query_name: str,
-        db_type: str,
         params: dict[str, Any] | None = None,
     ) -> ResolvedQuery:
         """Resuelve una query: validación + interpolación.
@@ -73,7 +75,6 @@ class QueryResolver:
 
         Args:
             query_name: Nombre de la query (ej: "obtener_tablas")
-            db_type: Tipo de BD (ej: "mariadb")
             params: Parámetros para interpolar en la query
 
         Returns:
@@ -87,7 +88,6 @@ class QueryResolver:
         Example:
             resolved = resolver.resolve(
                 "columnas_tabla",
-                "mariadb",
                 {"database": "mydb", "tabla": "users"}
             )
             # ResolvedQuery(
@@ -97,20 +97,20 @@ class QueryResolver:
         """
         params = params or {}
         start_time: float = time.time()
-        db_type = db_type.lower().strip()
+        effective_db_type: str = self._resolve_db_type()
 
         try:
             # Paso 1: Obtener QueryDefinition
-            self.logger.debug(f"Resolving query: {query_name} for db_type={db_type}")
-            query_def: QueryDefinition = self.registry.get_query_definition(db_type, query_name)
+            self.logger.debug(f"Resolving query: {query_name} for db_type={effective_db_type}")
+            query_def: QueryDefinition = self.registry.get_query_definition(effective_db_type, query_name)
 
             # Paso 2: Validar parámetros con validador específico del motor
-            validator: DatabaseTypeValidator = get_type_validator(db_type)
+            validator: DatabaseTypeValidator = get_type_validator(effective_db_type)
             is_valid, warnings = validator.validate_parameters(query_def, params)
 
             if not is_valid:
                 msg: str = (
-                    f"Validation failed for query '{query_name}' on db_type '{db_type}'. "
+                    f"Validation failed for query '{query_name}' on db_type '{effective_db_type}'. "
                     f"Provided params: {list(params.keys())}"
                 )
                 self.logger.error(f"❌ {msg}")
@@ -124,7 +124,7 @@ class QueryResolver:
 
             self.logger.debug(
                 f"✅ Query resolved successfully: name={query_name}, "
-                f"db_type={db_type}, elapsed_ms={elapsed_ms:.2f}, "
+                f"db_type={effective_db_type}, elapsed_ms={elapsed_ms:.2f}, "
                 f"param_count={len(params)}, warnings={len(warnings)}"
             )
 
@@ -134,7 +134,7 @@ class QueryResolver:
                 final_sql=final_sql,
                 validated=True,
                 warnings=warnings,
-                metadata={"elapsed_ms": elapsed_ms, "db_type": db_type},
+                metadata={"elapsed_ms": elapsed_ms, "db_type": effective_db_type},
             )
 
         except (QueryValidationError, QueryParameterError, QueryNotFoundError):
@@ -143,10 +143,25 @@ class QueryResolver:
 
         except Exception as e:
             self.logger.error(
-                f"❌ Error resolving query '{query_name}' for db_type '{db_type}': {e}",
+                f"❌ Error resolving query '{query_name}' for db_type '{effective_db_type}': {e}",
                 exc_info=True,
             )
-            raise QueryParameterError(f"Failed to resolve query '{query_name}' for db_type '{db_type}'") from e
+            raise QueryParameterError(f"Failed to resolve query '{query_name}' for db_type '{effective_db_type}'") from e
+
+    def bind(self, db_type: str) -> QueryResolver:
+        """Crea un resolver ligado a un db_type manteniendo el mismo registry."""
+        return QueryResolver(registry=self.registry, db_type=db_type)
+
+    @staticmethod
+    def _normalize_db_type(db_type: str) -> str:
+        """Normaliza el tipo de base de datos."""
+        return db_type.lower().strip()
+
+    def _resolve_db_type(self) -> str:
+        """Resuelve el db_type efectivo; este resolver debe estar ligado."""
+        if self._bound_db_type is None:
+            raise QueryParameterError("QueryResolver must be bound to a database type before resolving queries")
+        return self._bound_db_type
 
     def _interpolate_sql(self, template: str, params: dict[str, Any]) -> str:
         """Interpola parámetros en SQL template.

@@ -97,12 +97,18 @@ class TestGetTypeValidatorFactory:
         # Should mention some supported types
         assert "mariadb" in error_msg.lower() or "Supported types" in error_msg
 
-    def test_each_call_returns_new_instance(self):
-        """Cada llamada retorna una nueva instancia"""
+    def test_each_call_reuses_cached_instance(self):
+        """Cada llamada reutiliza una instancia cacheada por db_type."""
         validator1 = get_type_validator("mariadb")
         validator2 = get_type_validator("mariadb")
-        assert validator1 is not validator2
+        assert validator1 is validator2
         assert validator1.__class__ is validator2.__class__
+
+    def test_case_insensitive_reuses_same_cached_instance(self):
+        """La cache reutiliza instancia aunque cambie el casing del db_type."""
+        validator1 = get_type_validator("mariadb")
+        validator2 = get_type_validator("MARIADB")
+        assert validator1 is validator2
 
     def test_validator_has_validate_parameters_method(self):
         """Cada validador tiene el método validate_parameters"""

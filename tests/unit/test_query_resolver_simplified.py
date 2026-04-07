@@ -22,7 +22,7 @@ def mock_registry():
 @pytest.fixture
 def resolver(mock_registry):
     """Fixture providing a QueryResolver with mocked registry"""
-    return QueryResolver(registry=mock_registry)
+    return QueryResolver(registry=mock_registry, db_type="mariadb")
 
 
 class TestQueryResolverBasics:
@@ -47,7 +47,7 @@ class TestQueryResolverBasics:
         )
         mock_registry.get_query_definition.return_value = query_def
 
-        result = resolver.resolve("test", "mariadb", {})
+        result = resolver.resolve("test", {})
         assert isinstance(result, ResolvedQuery)
 
     def test_resolve_with_parameters(self, resolver, mock_registry):
@@ -60,7 +60,7 @@ class TestQueryResolverBasics:
         )
         mock_registry.get_query_definition.return_value = query_def
 
-        result = resolver.resolve("select_id", "mariadb", {"id": 123})
+        result = resolver.resolve("select_id", {"id": 123})
         assert result.query_definition.name == "select_id"
         assert result.query_definition.db_type == "mariadb"
 
@@ -75,7 +75,28 @@ class TestQueryResolverBasics:
         mock_registry.get_query_definition.return_value = query_def
 
         with pytest.raises((QueryParameterError, QueryValidationError)):
-            resolver.resolve("select_id", "mariadb", {})
+            resolver.resolve("select_id", {})
+
+    def test_resolve_uses_bound_db_type_when_not_provided(self, mock_registry):
+        """Permite resolver sin db_type explícito cuando está ligado."""
+        query_def = QueryDefinition(
+            name="test",
+            db_type="mariadb",
+            sql_template="SELECT * FROM users",
+            required_params=[],
+        )
+        mock_registry.get_query_definition.return_value = query_def
+        resolver = QueryResolver(registry=mock_registry, db_type="mariadb")
+
+        result = resolver.resolve("test", params={})
+
+        assert isinstance(result, ResolvedQuery)
+        mock_registry.get_query_definition.assert_called_once_with("mariadb", "test")
+
+    def test_resolve_without_db_type_and_without_binding_raises(self, mock_registry):
+        """Falla con QueryParameterError si no hay db_type ni binding."""
+        with pytest.raises(QueryParameterError):
+            QueryResolver(registry=mock_registry).resolve("test", params={})
 
 
 class TestQueryResolverInterpolation:
@@ -117,7 +138,7 @@ class TestQueryResolverMetadata:
         )
         mock_registry.get_query_definition.return_value = query_def
 
-        result = resolver.resolve("test", "mariadb", {})
+        result = resolver.resolve("test", {})
 
         assert hasattr(result, "query_definition")
         assert hasattr(result, "final_sql")
@@ -135,7 +156,7 @@ class TestQueryResolverMetadata:
         )
         mock_registry.get_query_definition.return_value = query_def
 
-        result = resolver.resolve("test", "mariadb", {})
+        result = resolver.resolve("test", {})
 
         assert "elapsed_ms" in result.metadata
         assert result.metadata["elapsed_ms"] >= 0
@@ -159,9 +180,9 @@ class TestQueryResolverByDatabase:
 
         mock_registry = MagicMock()
         mock_registry.get_query_definition.return_value = query_def
-        resolver = QueryResolver(registry=mock_registry)
+        resolver = QueryResolver(registry=mock_registry, db_type=db_type)
 
-        result = resolver.resolve(f"query_{db_type}", db_type, {})
+        result = resolver.resolve(f"query_{db_type}", {})
         assert result.query_definition.db_type == db_type
 
 
@@ -178,9 +199,11 @@ class TestQueryResolverErrors:
         )
         mock_registry.get_query_definition.return_value = query_def
 
-        # QueryResolver wraps exceptions in QueryParameterError
+        resolver_unsupported = QueryResolver(registry=mock_registry, db_type="unsupported_db_type")
+
+        # QueryResolver wraps unexpected exceptions in QueryParameterError
         with pytest.raises(QueryParameterError):
-            resolver.resolve("test", "unsupported_db_type", {})
+            resolver_unsupported.resolve("test", {})
 
     def test_query_not_found_raises_error(self, resolver, mock_registry):
         """Falla si query no existe"""
@@ -190,4 +213,4 @@ class TestQueryResolverErrors:
 
         # QueryResolver re-raises QueryNotFoundError without wrapping
         with pytest.raises(QueryNotFoundError):
-            resolver.resolve("test_query", "mariadb", {})
+            resolver.resolve("test_query", {})

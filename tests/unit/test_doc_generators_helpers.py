@@ -38,6 +38,48 @@ def test_html_generator_builds_unique_slugs_and_map() -> None:
     assert [slug_map["A B"], slug_map["A-B"], slug_map["###"]] == ["a-b", "a-b-2", "item"]
 
 
+def test_html_generator_normalizes_unique_constraints_rows_and_headers() -> None:
+    generator = HtmlGenerator(database="db", headers={"UNIQUE": ["Nombre Restricción"]})
+
+    class _Provider:
+        db_type = "oracle"
+
+        def get_primary_keys(self, table_name: str) -> list[Any]:
+            return []
+
+        def get_foreign_keys(self, table_name: str) -> list[Any]:
+            return []
+
+        def get_unique_constraints(self, table_name: str) -> list[Any]:
+            return [
+                ("UQ_USERS_EMAIL", "EMAIL"),
+                {"CONSTRAINT_NAME": "UQ_USERS_ALIAS", "COLUMN_NAME": "ALIAS"},
+                ("UQ_USERS_LOGIN", 1, "LOGIN"),
+                ("UQ_USERS_NAME",),
+                "UQ_LEGACY",
+            ]
+
+        def get_indices(self, table_name: str) -> list[Any]:
+            return []
+
+    payload: dict[str, Any] = {"pk": None, "fk": None, "unicas": None, "indices": None}
+    generator._populate_constraints_and_indices(
+        payload=payload,
+        data_provider=_Provider(),
+        table_name="users",
+        section_flags=[False, False, False, False, True, False],
+    )
+
+    assert generator.headers["UNIQUE"] == ["Nombre Restricción", "Campo"]
+    assert payload["unicas"] == [
+        ["UQ_USERS_EMAIL", "EMAIL"],
+        ["UQ_USERS_ALIAS", "ALIAS"],
+        ["UQ_USERS_LOGIN", "LOGIN"],
+        ["UQ_USERS_NAME", ""],
+        ["UQ_LEGACY", ""],
+    ]
+
+
 def test_html_generator_routine_helpers_default_path_and_entity_decode() -> None:
     generator = HtmlGenerator(database="db", headers={})
 
@@ -264,6 +306,49 @@ def test_excel_generator_style_normalization_split_and_numeric_conversion() -> N
     assert fallback._convert_to_numeric(" 1,50 ") == pytest.approx(1.5)
     assert fallback._convert_to_numeric("abc") == "abc"
     assert fallback._convert_to_numeric(None) == ""
+
+
+def test_word_generator_normalizes_unique_constraints_rows_and_headers(monkeypatch: pytest.MonkeyPatch) -> None:
+    generator = WordGenerator(database="db", headers={"UNIQUE": []})
+    captured: dict[str, Any] = {}
+
+    class _Provider:
+        def get_unique_constraints(self, table_name: str) -> list[Any]:
+            return [
+                ("UQ_USERS_EMAIL", "EMAIL"),
+                {"constraint_name": "UQ_USERS_ALIAS", "campo": "ALIAS"},
+                ("UQ_USERS_LOGIN", 2, "LOGIN"),
+                "UQ_LEGACY",
+            ]
+
+    def _capture_table(
+        document: Any,
+        title: str,
+        headers: list[str],
+        data: list[Any],
+        right_align_indices: list[int] | None = None,
+    ) -> None:
+        captured["title"] = title
+        captured["headers"] = headers
+        captured["data"] = data
+        captured["right_align_indices"] = right_align_indices
+
+    monkeypatch.setattr(generator, "_add_table", _capture_table)
+
+    generator._add_unique_constraints_section(
+        document=generator._initialize_document(template_path=None),
+        tabla="users",
+        data_provider=_Provider(),
+    )
+
+    assert captured["title"] == "Restricciones Únicas"
+    assert captured["headers"] == ["Nombre Restricción", "Campo"]
+    assert captured["data"] == [
+        ["UQ_USERS_EMAIL", "EMAIL"],
+        ["UQ_USERS_ALIAS", "ALIAS"],
+        ["UQ_USERS_LOGIN", "LOGIN"],
+        ["UQ_LEGACY", ""],
+    ]
 
 
 def test_excel_and_word_inventory_summary_helpers_use_storage_totals() -> None:

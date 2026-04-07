@@ -761,16 +761,15 @@ class TestAsyncDatabaseManagerConvenienceMethods:
             await manager.get_storage_inventory()
 
     @pytest.mark.asyncio
-    async def test_get_storage_inventory_unknown_db_type_returns_empty_shape(self):
-        manager = AsyncDatabaseManager(
-            db_type="db_inexistente",
-            conn_params={"database": "db"},
-            use_pool=False,
-        )
+    async def test_get_storage_inventory_unknown_db_type_rejected_at_init(self):
+        with pytest.raises(Exception) as exc_info:
+            AsyncDatabaseManager(
+                db_type="db_inexistente",
+                conn_params={"database": "db"},
+                use_pool=False,
+            )
 
-        result = await manager.get_storage_inventory()
-
-        assert result == {"primary": []}
+        assert "no soportado" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
     async def test_get_routines_mariadb_falls_back_to_show_status_when_metadata_is_empty(self):
