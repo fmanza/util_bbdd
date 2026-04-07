@@ -716,7 +716,12 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             for level_document in grouped_documents[group_direction]:
                 if not level_document.levels:
                     continue
-                level_depth: int = level_document.levels[0].depth
+                level_depth_candidates: list[int] = [
+                    level.depth for level in level_document.levels if level.direction == group_direction
+                ]
+                level_depth: int = (
+                    min(level_depth_candidates) if level_depth_candidates else level_document.levels[0].depth
+                )
                 output_file: Path = output_dir / f"graphviz_ext_{table_name}_{direction_key}_level{level_depth}"
                 generated_path: Path = self._generate_graphviz_graph_internal_ext(
                     table_name=table_name,
