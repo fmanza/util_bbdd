@@ -2,7 +2,12 @@
 
 from pathlib import Path
 
-from util_bbdd.doc.template_engine import TemplateEngine, header_key, routine_label, status_class
+from util_bbdd.doc.infrastructure.renderers.shared.template_engine import (
+    TemplateEngine,
+    header_key,
+    routine_label,
+    status_class,
+)
 
 
 def _build_engine() -> TemplateEngine:

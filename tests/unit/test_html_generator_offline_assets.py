@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from util_bbdd.doc.html_generator import HtmlGenerator
+from util_bbdd.doc.infrastructure.renderers.html_generator import HtmlGenerator
 
 
 def test_copy_offline_assets_includes_icons_directory(tmp_path: Path) -> None:

@@ -3,6 +3,8 @@ applyTo: "docs/**"
 ---
 # Documentación
 
+> **TL;DR** — Markdown con secciones estándar (Resumen, Instalación, Uso, Configuración, Ejemplos, FAQ). Sin credenciales reales. Ejemplos deterministas. Mantener actualizado con el código; no dejar secciones obsoletas. Tablas para comparar opciones.
+
 - Escribe documentación clara, concisa y orientada a usuarios finales.
 - Escribe docs en Markdown con secciones consistentes: Resumen, Instalación, Uso, Configuración, Ejemplos, FAQ.
 - Incluye ejemplos que no requieran credenciales reales.

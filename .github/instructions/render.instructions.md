@@ -3,6 +3,8 @@ applyTo: "src/**/render/**/*.py"
 ---
 # Renderizado de documentación
 
+> **TL;DR** — Salida determinista (orden alfabético estable). Funciones de render puras: reciben el modelo IR, devuelven contenido sin efectos secundarios. Librería específica por formato (openpyxl, python-docx, Jinja2). Sin servicios externos ni dependencias pesadas. Tests de snapshot o asserts sobre fragmentos clave.
+
 - La salida debe ser determinista: ordena alfabéticamente schemas/tablas/columnas.
 - Formato Markdown con secciones consistentes: Resumen, Tablas, Columnas, PK, FK, Índices, Vistas.
 - Incluye enlaces internos o anchors cuando el formato destino los soporte de forma estable y predecible.

@@ -21,17 +21,18 @@ from util_bbdd.managers._manager_metadata import (
 )
 from util_bbdd.managers._manager_metadata_runtime import (
     MetadataFetchRequest,
-    build_async_rows_fetcher,
-    build_async_text_fetcher,
     build_routine_ddl_fetch_request,
-    build_sync_text_fetcher,
+    get_metadata_fetch_strategy,
     normalize_ddl_result,
     oracle_supports_columns_charset_collation,
     parse_charset_collation_result,
     parse_column_charset_collation_row,
     supports_columns_charset_collation,
 )
-from util_bbdd.managers._manager_storage import get_storage_inventory_handler
+from util_bbdd.managers._manager_storage import (
+    get_async_storage_inventory_strategy,
+    get_sync_storage_inventory_strategy,
+)
 from util_bbdd.metadata import DatabaseMetadataCache
 
 
@@ -83,12 +84,12 @@ async def test_init_async_resources_falls_back_to_direct_connection() -> None:
     assert connection == "direct"
 
 
-def test_get_storage_inventory_handler_returns_selected_handler() -> None:
-    def handler(context: str, tablespace: str | None) -> dict[str, str | None]:
-        return {"context": context, "tablespace": tablespace}
+def test_storage_inventory_strategy_registry_returns_expected_strategy_types() -> None:
+    sync_strategy = get_sync_storage_inventory_strategy("postgresql")
+    async_strategy = get_async_storage_inventory_strategy("postgresql")
 
-    assert get_storage_inventory_handler("postgresql", {"postgresql": handler}) is handler
-    assert get_storage_inventory_handler("sqlite", {"postgresql": handler}) is None
+    assert sync_strategy is not None
+    assert async_strategy is not None
 
 
 def test_get_sync_connection_wraps_pool_errors() -> None:
@@ -158,7 +159,7 @@ def test_parse_column_charset_and_support_rules_are_shared() -> None:
     assert supports_columns_charset_collation("oracle", True) is True
 
 
-def test_build_sync_text_fetcher_uses_query_request_and_normalizer() -> None:
+def test_generic_strategy_build_sync_text_fetcher_uses_query_request_and_normalizer() -> None:
     request = MetadataFetchRequest(
         query_name="create_table",
         params={"database": "demo", "tabla": "users"},
@@ -168,10 +169,9 @@ def test_build_sync_text_fetcher_uses_query_request_and_normalizer() -> None:
     )
     seen_request: list[MetadataFetchRequest] = []
 
-    fetcher = build_sync_text_fetcher(
-        db_type="postgresql",
-        mariadb_fetcher=lambda: "mariadb",
+    fetcher = get_metadata_fetch_strategy("postgresql").build_sync_text_fetcher(
         request=request,
+        specialized_fetcher=lambda: "mariadb",
         execute_one=lambda req: seen_request.append(req) or ("ignored", "CREATE TABLE users(id INT)"),
         normalize_one=normalize_ddl_result,
     )
@@ -181,7 +181,7 @@ def test_build_sync_text_fetcher_uses_query_request_and_normalizer() -> None:
 
 
 @pytest.mark.asyncio
-async def test_build_async_rows_fetcher_prefers_mariadb_branch() -> None:
+async def test_mariadb_strategy_build_async_rows_fetcher_uses_specialized_branch() -> None:
     request = MetadataFetchRequest(
         query_name="columnas_tabla",
         params={"database": "demo", "tabla": "users"},
@@ -189,10 +189,9 @@ async def test_build_async_rows_fetcher_prefers_mariadb_branch() -> None:
         table_name="users",
     )
 
-    fetcher = build_async_rows_fetcher(
-        db_type="mariadb",
-        mariadb_fetcher=lambda: asyncio.sleep(0, result=[("id",)]),
+    fetcher = get_metadata_fetch_strategy("mariadb").build_async_rows_fetcher(
         request=request,
+        specialized_fetcher=lambda: asyncio.sleep(0, result=[("id",)]),
         execute_many=lambda _req: asyncio.sleep(0, result=[]),
     )
 
@@ -200,7 +199,7 @@ async def test_build_async_rows_fetcher_prefers_mariadb_branch() -> None:
 
 
 @pytest.mark.asyncio
-async def test_build_async_text_fetcher_normalizes_result() -> None:
+async def test_generic_strategy_build_async_text_fetcher_normalizes_result() -> None:
     request = MetadataFetchRequest(
         query_name="create_view",
         params={"database": "demo", "tabla": "v_users"},
@@ -209,10 +208,9 @@ async def test_build_async_text_fetcher_normalizes_result() -> None:
         expect_one=True,
     )
 
-    fetcher = build_async_text_fetcher(
-        db_type="postgresql",
-        mariadb_fetcher=lambda: asyncio.sleep(0, result="CREATE VIEW v_users AS SELECT 1"),
+    fetcher = get_metadata_fetch_strategy("postgresql").build_async_text_fetcher(
         request=request,
+        specialized_fetcher=lambda: asyncio.sleep(0, result="CREATE VIEW v_users AS SELECT 1"),
         execute_one=lambda _req: asyncio.sleep(0, result=(None, "CREATE VIEW v_users AS SELECT 1")),
         normalize_one=normalize_ddl_result,
     )

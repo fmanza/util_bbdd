@@ -13,7 +13,7 @@ import threading
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from ..database_exceptions import DatabasePoolError, DatabasePoolTimeoutError
+from .._foundation.exceptions import DatabasePoolError, DatabasePoolTimeoutError
 from .protocols import AsyncCloseMode
 
 __all__: list[str] = [

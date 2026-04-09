@@ -10,6 +10,7 @@ from util_bbdd import SyncDatabaseManager
 
 @pytest.mark.e2e
 @pytest.mark.sqlite
+@pytest.mark.integration
 class TestSyncDatabaseManagerE2E:
     """Tests E2E para SyncDatabaseManager con BD real."""
 

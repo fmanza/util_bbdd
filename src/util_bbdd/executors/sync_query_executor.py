@@ -6,7 +6,7 @@ import time
 
 from typing import Any, cast
 
-from ..database_exceptions import (
+from .._foundation.exceptions import (
     DatabaseOperationError,
     QueryNotFoundError,
     QueryTimeoutError,

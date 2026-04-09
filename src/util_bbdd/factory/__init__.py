@@ -1,7 +1,7 @@
 """Factory para crear conexiones y pools según tipo de base de datos."""
 
+from .._foundation.driver_validator import DriverValidator
 from ..connection.factory import ConnectionFactory
-from ..driver_validator import DriverValidator
 from .async_sqlalchemy_engine_factory import AsyncSQLAlchemyEngineFactory
 from .pool_factory import PoolFactory
 from .sqlalchemy_engine_factory import SQLAlchemyEngineFactory

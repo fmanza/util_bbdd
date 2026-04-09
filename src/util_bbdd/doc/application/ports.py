@@ -1,0 +1,210 @@
+"""Puertos internos para la arquitectura por capas de documentación."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Protocol
+
+from ..._core.types import Rows
+
+HeadersConfig = dict[str, Any]
+ConnectionParams = dict[str, Any]
+OutputCache = dict[tuple[str, str], tuple[float, str]]
+
+
+class LoggerProtocol(Protocol):
+    """Contrato mínimo de logger usado por helpers documentales."""
+
+    def info(self, msg: str, *args: Any, **kwargs: Any) -> Any: ...
+
+    def debug(self, msg: str, *args: Any, **kwargs: Any) -> Any: ...
+
+    def warning(self, msg: str, *args: Any, **kwargs: Any) -> Any: ...
+
+    def error(self, msg: str, *args: Any, **kwargs: Any) -> Any: ...
+
+
+class OutputNamingContextPort(Protocol):
+    """Contexto mínimo del manager para naming/rutas de salida."""
+
+    @property
+    def db_type(self) -> str: ...
+
+    @property
+    def database(self) -> str: ...
+
+    @property
+    def conn_params(self) -> ConnectionParams: ...
+
+
+class OutputPolicyPort(Protocol):
+    """Política de formatos y rutas de salida."""
+
+    def normalize_output_formats(self, formatos: list[str] | None) -> list[str]: ...
+
+    def resolve_document_output_filename(
+        self,
+        *,
+        fichero_salida: Path | None,
+        db_manager: OutputNamingContextPort,
+        output_dir: Path,
+        output_cache: OutputCache,
+        batch_window_seconds: int,
+    ) -> Path: ...
+
+    def get_format_output_dir(self, directorio_salida: Path, fichero_salida: Path, formato: str) -> Path: ...
+
+    def get_output_base_filename(self, fichero_salida: Path) -> str: ...
+
+    def resolve_generator_database_context(
+        self,
+        *,
+        db_type: str,
+        database: str,
+        conn_params: ConnectionParams,
+        query_context_database: str,
+    ) -> str: ...
+
+
+class MetadataReaderPort(Protocol):
+    """Lectura opcional de metadata de base de datos."""
+
+    def get_database_version(self) -> Any: ...
+
+    def get_database_charset_collation(self) -> Any: ...
+
+    def get_columns_charset_collation(self, table_name: str, /) -> Any: ...
+
+
+class StorageInventoryPort(Protocol):
+    """Lectura de inventario de almacenamiento ya normalizado."""
+
+    def get_storage_inventory_report(self) -> dict[str, Any]: ...
+
+
+class DocumentationManagerPort(
+    OutputNamingContextPort,
+    MetadataReaderPort,
+    StorageInventoryPort,
+    Protocol,
+):
+    """Puerto compuesto interno del manager documental (uso en orquestación)."""
+
+    imprimir_config: dict[str, Any]
+
+    def get_query_context_database(self) -> str: ...
+
+    def get_tables(self) -> Rows: ...
+
+    def get_views(self) -> Rows: ...
+
+    def get_routines(self) -> Rows: ...
+
+    def get_ddl(self, table_name: str, /) -> str: ...
+
+    def get_view_ddl(self, view_name: str, /) -> str: ...
+
+    def get_columns(self, table_name: str, /) -> Rows: ...
+
+    def get_routine_ddl(self, routine_name: str, routine_type: str, /) -> str: ...
+
+    def get_routine_parameters(self, routine_name: str, routine_type: str, /) -> Rows: ...
+
+    def get_primary_keys(self, table_name: str, /) -> Rows: ...
+
+    def get_foreign_keys(self, table_name: str, /) -> Rows: ...
+
+    def get_unique_constraints(self, table_name: str, /) -> Rows: ...
+
+    def get_indices(self, table_name: str, /) -> Rows: ...
+
+
+class PrintConfigPolicyPort(Protocol):
+    """Normalización de configuración de impresión/secciones."""
+
+    def normalize(self, imprimir: dict[str, Any] | None) -> dict[str, Any]: ...
+
+
+class HeadersRuntimePort(Protocol):
+    """Carga y composición de cabeceras del documento."""
+
+    def load_headers_config(self, headers_file: Path) -> HeadersConfig: ...
+
+    def build_headers(self, headers_config: HeadersConfig, db_type: str) -> dict[str, list[str]]: ...
+
+
+class MetadataRuntimePort(Protocol):
+    """Runtime de metadata opcional para enriquecimiento documental."""
+
+    def get_database_version_metadata(self, *, db_manager: MetadataReaderPort) -> str | None: ...
+
+    def get_database_charset_collation_metadata(self, *, db_manager: MetadataReaderPort) -> dict[str, Any] | None: ...
+
+    def get_columns_charset_collation_metadata(
+        self,
+        *,
+        db_manager: MetadataReaderPort,
+        table_name: str,
+    ) -> list[tuple[str, str | None, str | None]] | None: ...
+
+
+class MetadataRuntimeFactoryPort(Protocol):
+    """Fábrica para crear runtime de metadata por sesión/documento."""
+
+    def create(self, *, logger: LoggerProtocol) -> MetadataRuntimePort: ...
+
+
+class StorageReportServicePort(Protocol):
+    """Servicio de obtención del reporte de almacenamiento."""
+
+    def get_storage_inventory_report(
+        self,
+        *,
+        db_manager: DocumentationManagerPort,
+        logger: LoggerProtocol,
+        print_config: dict[str, Any],
+    ) -> dict[str, Any]: ...
+
+
+class DocumentationDataProviderPort(DocumentationManagerPort, Protocol):
+    """Contrato mínimo del proveedor de datos consumido por renderers."""
+
+    imprimir_config: dict[str, Any]
+    db_manager: DocumentationManagerPort
+
+
+class DocumentRendererPort(Protocol):
+    """Puerto mínimo de un generador de documentación por formato."""
+
+    def generate_document(
+        self,
+        tables: list[tuple[Any, ...]],
+        views: list[tuple[Any, ...]],
+        routines: list[tuple[Any, ...]],
+        data_provider: DocumentationDataProviderPort,
+        output_target: Path,
+        print_config: dict[str, Any] | None = None,
+        graph_generator: Any | None = None,
+    ) -> None: ...
+
+
+class RendererFactoryPort(Protocol):
+    """Factory de instancias renderer para un formato concreto."""
+
+    def __call__(self, *, database: str, headers: HeadersConfig, table_style: str) -> DocumentRendererPort: ...
+
+
+class RendererRegistrationPort(Protocol):
+    """Definición de formato registrada en el registry de renderers."""
+
+    output_format: str
+    output_extension: str | None
+    include_graph_generator: bool
+    accepts_graph_generator: bool
+    factory: RendererFactoryPort
+
+
+class RendererRegistryPort(Protocol):
+    """Registro de renderers por formato soportado."""
+
+    def get(self, output_format: str) -> RendererRegistrationPort | None: ...

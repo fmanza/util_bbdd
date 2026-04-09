@@ -1,0 +1,231 @@
+"""Protocolos genéricos para adaptadores multi-driver de introspección.
+
+Define contratos agnósticos del motor para extracción de metadatos.
+Cada motor (MariaDB, PostgreSQL, SQLite) implementa estos Protocols
+sin modificar el flujo de orquestación base.
+
+Ejemplo de uso:
+    class MariaDBSyncAdapter(SourceAdapterSync, RoutineAdapterSync):
+        def __init__(self, manager: DbManagerProtocol, logger: Logger, cache: CacheService):
+            self.manager = manager
+            self.logger = logger
+            self.cache = cache
+
+        def fetch_tables_sync(self, schema: str | None = None) -> list[tuple]:
+            # Implementación específica MariaDB (sync)
+            pass
+
+    class MariaDBAsyncAdapter(SourceAdapterAsync, RoutineAdapterAsync):
+        async def fetch_tables_async(self, schema: str | None = None) -> list[tuple]:
+            # Implementación específica MariaDB (async)
+            pass
+"""
+
+from __future__ import annotations
+
+from typing import Protocol
+
+__all__: list[str] = [
+    "SourceAdapterSync",
+    "SourceAdapterAsync",
+    "RoutineAdapterSync",
+    "RoutineAdapterAsync",
+    # Backwards compatibility (deprecated)
+    "SourceAdapter",
+    "RoutineAdapter",
+]
+
+
+class SourceAdapterSync(Protocol):
+    """Adapter agnóstico de motor para introspección sync de BD: tablas, columnas, constraints, índices.
+
+    Responsabilidades:
+    - Extraer metadatos de tablas, columnas, PK, FK, índices.
+    - Devolver tuples normalizadas (no objetos del driver).
+    - Cachear resultados internamente.
+    - Loguear operaciones.
+    """
+
+    def fetch_tables_sync(self, schema: str | None = None) -> list[tuple]:
+        """Obtiene lista de tablas en modo síncrono.
+
+        Args:
+            schema: Nombre del esquema/database (opcional, engine.current_database() por defecto).
+
+        Returns:
+            list[tuple]: Filas (table_name, table_type, table_comment, ...)
+        """
+        ...
+
+    def fetch_columns_sync(self, schema: str, table: str) -> list[tuple]:
+        """Obtiene columnas de una tabla en modo síncrono.
+
+        Args:
+            schema: Nombre del esquema/database.
+            table: Nombre de la tabla.
+
+        Returns:
+            list[tuple]: Filas (column_name, column_type, is_nullable, column_key,
+                               column_default, extra, column_comment, ...)
+        """
+        ...
+
+    def fetch_primary_keys_sync(self, schema: str, table: str) -> list[tuple]:
+        """Obtiene claves primarias en modo síncrono.
+
+        Args:
+            schema: Nombre del esquema.
+            table: Nombre de la tabla.
+
+        Returns:
+            list[tuple]: Filas (column_name, ordinal_position, ...)
+        """
+        ...
+
+    def fetch_foreign_keys_sync(self, schema: str, table: str) -> list[tuple]:
+        """Obtiene claves foráneas en modo síncrono.
+
+        Args:
+            schema: Nombre del esquema.
+            table: Nombre de la tabla.
+
+        Returns:
+            list[tuple]: Filas (constraint_name, column_name,
+                               referenced_table_schema, referenced_table_name,
+                               referenced_column_name, ...)
+        """
+        ...
+
+    def fetch_indexes_sync(self, schema: str, table: str) -> list[tuple]:
+        """Obtiene índices de una tabla en modo síncrono.
+
+        Args:
+            schema: Nombre del esquema.
+            table: Nombre de la tabla.
+
+        Returns:
+            list[tuple]: Filas (index_name, column_name, seq_in_index,
+                               is_unique, index_type, ...)
+        """
+        ...
+
+
+class SourceAdapterAsync(Protocol):
+    """Adapter agnóstico de motor para introspección async de BD: tablas, columnas, constraints, índices."""
+
+    async def fetch_tables_async(self, schema: str | None = None) -> list[tuple]:
+        """Obtiene lista de tablas en modo asíncrono.
+
+        Args:
+            schema: Nombre del esquema/database (opcional).
+
+        Returns:
+            list[tuple]: Filas (table_name, table_type, table_comment, ...)
+        """
+        ...
+
+    async def fetch_columns_async(self, schema: str, table: str) -> list[tuple]:
+        """Obtiene columnas de una tabla en modo asíncrono.
+
+        Args:
+            schema: Nombre del esquema/database.
+            table: Nombre de la tabla.
+
+        Returns:
+            list[tuple]: Filas de columnas.
+        """
+        ...
+
+    async def fetch_primary_keys_async(self, schema: str, table: str) -> list[tuple]:
+        """Obtiene claves primarias en modo asíncrono."""
+        ...
+
+    async def fetch_foreign_keys_async(self, schema: str, table: str) -> list[tuple]:
+        """Obtiene claves foráneas en modo asíncrono."""
+        ...
+
+    async def fetch_indexes_async(self, schema: str, table: str) -> list[tuple]:
+        """Obtiene índices de una tabla en modo asíncrono."""
+        ...
+
+
+class RoutineAdapterSync(Protocol):
+    """Adapter agnóstico de motor para introspección sync de routines: procedures, functions."""
+
+    def fetch_routines_sync(self, schema: str | None = None) -> list[tuple]:
+        """Obtiene lista de routines (procedures, functions) en modo síncrono.
+
+        Args:
+            schema: Nombre del esquema/database (opcional).
+
+        Returns:
+            list[tuple]: Filas (routine_name, routine_type, routine_comment, ...)
+        """
+        ...
+
+    def fetch_routine_parameters_sync(self, schema: str, routine: str, routine_type: str) -> list[tuple]:
+        """Obtiene parámetros de una routine en modo síncrono.
+
+        Args:
+            schema: Nombre del esquema.
+            routine: Nombre de la routine.
+            routine_type: Tipo de routine ('PROCEDURE' o 'FUNCTION').
+
+        Returns:
+            list[tuple]: Filas (parameter_name, parameter_type, data_type, ...)
+        """
+        ...
+
+    def fetch_routine_definition_sync(self, schema: str, routine: str, routine_type: str) -> str:
+        """Obtiene el DDL completo de una routine en modo síncrono.
+
+        Args:
+            schema: Nombre del esquema.
+            routine: Nombre de la routine.
+            routine_type: Tipo de routine ('PROCEDURE' o 'FUNCTION').
+
+        Returns:
+            str: DDL de la routine (p.ej. 'CREATE PROCEDURE ...')."""
+        ...
+
+
+class RoutineAdapterAsync(Protocol):
+    """Adapter agnóstico de motor para introspección async de routines: procedures, functions."""
+
+    async def fetch_routines_async(self, schema: str | None = None) -> list[tuple]:
+        """Obtiene lista de routines en modo asíncrono.
+
+        Args:
+            schema: Nombre del esquema/database (opcional).
+
+        Returns:
+            list[tuple]: Filas de routines.
+        """
+        ...
+
+    async def fetch_routine_parameters_async(self, schema: str, routine: str, routine_type: str) -> list[tuple]:
+        """Obtiene parámetros de una routine en modo asíncrono."""
+        ...
+
+    async def fetch_routine_definition_async(self, schema: str, routine: str, routine_type: str) -> str:
+        """Obtiene el DDL completo de una routine en modo asíncrono."""
+        ...
+
+
+# Backwards compatibility aliases
+class SourceAdapter(SourceAdapterSync, SourceAdapterAsync, Protocol):  # noqa: F821
+    """Deprecated: Use SourceAdapterSync o SourceAdapterAsync según contexto.
+
+    Mantiene ambos métodos sync y async para compatibilidad hacia atrás.
+    """
+
+    pass
+
+
+class RoutineAdapter(RoutineAdapterSync, RoutineAdapterAsync, Protocol):  # noqa: F821
+    """Deprecated: Use RoutineAdapterSync o RoutineAdapterAsync según contexto.
+
+    Mantiene ambos métodos sync y async para compatibilidad hacia atrás.
+    """
+
+    pass

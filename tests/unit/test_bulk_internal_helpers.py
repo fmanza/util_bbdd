@@ -4,17 +4,26 @@ from __future__ import annotations
 
 import re
 
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import MagicMock
 
+import pandas as pd
 import pytest
 
 from sqlalchemy import Column, Integer, MetaData, String, Table, create_engine, insert
 
-from util_bbdd.bulk._batch_execution import execute_batch_statement
-from util_bbdd.bulk._persistence import BulkPersistenceManager
-from util_bbdd.bulk._sql_helpers import generate_insert_sql
-from util_bbdd.bulk._validation import build_update_plan, resolve_sql_output_path
+from util_bbdd.bulk._execution.batch import (
+    BatchStatementExecutor,
+    DeleteBatchExecutor,
+    DeleteStrategyResolver,
+    GenericDeleteStrategy,
+    SqlBasedDeleteStrategy,
+)
+from util_bbdd.bulk._support.persistence import BulkPersistenceManager
+from util_bbdd.bulk._support.sql_helpers import generate_insert_sql
+from util_bbdd.bulk._support.validation import build_update_plan, resolve_sql_output_path
 from util_bbdd.bulk.audit import AuditManager
 
 
@@ -24,7 +33,7 @@ def test_resolve_sql_output_path_requires_path_instance(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="instancia de Path"):
         resolve_sql_output_path(
-            "invalid",
+            cast(Any, "invalid"),
             table_name="users",
             operation="insert",
             generate_name=lambda *_: Path("x.sql"),
@@ -59,7 +68,7 @@ def test_build_update_plan_validates_pk_and_updatable_columns() -> None:
         build_update_plan(table, ["name"], "users")
 
 
-def test_execute_batch_statement_splits_payload_by_chunk_size() -> None:
+def test_batch_statement_executor_splits_payload_by_chunk_size() -> None:
     engine = create_engine("sqlite:///:memory:")
     table = Table(
         "users",
@@ -79,15 +88,134 @@ def test_execute_batch_statement_splits_payload_by_chunk_size() -> None:
         def __exit__(self, exc_type, exc, tb) -> None:
             return None
 
-    engine.begin = MagicMock(return_value=_BeginContext())
+    cast(Any, engine).begin = MagicMock(return_value=_BeginContext())
 
-    execute_batch_statement(engine=engine, records=records, stmt=stmt, chunk_size=2)
+    executor = BatchStatementExecutor(engine=engine, chunk_size=2)
+    executor.execute(records=records, stmt=stmt)
 
     assert connection.execute.call_count == 2
     first_payload = connection.execute.call_args_list[0].args[1]
     second_payload = connection.execute.call_args_list[1].args[1]
     assert first_payload == records[:2]
     assert second_payload == records[2:]
+
+
+def test_delete_strategy_resolver_returns_expected_strategy_by_dialect() -> None:
+    resolver = DeleteStrategyResolver()
+
+    assert isinstance(resolver.resolve("mysql"), SqlBasedDeleteStrategy)
+    assert isinstance(resolver.resolve("mariadb"), SqlBasedDeleteStrategy)
+    assert isinstance(resolver.resolve("sqlite"), GenericDeleteStrategy)
+
+
+def test_sql_based_delete_strategy_uses_named_params_for_single_pk() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    table = Table(
+        "users",
+        MetaData(),
+        Column("id", Integer, primary_key=True),
+    )
+    batch_df = pd.DataFrame({"id": [10, 20, 30]})
+
+    connection = MagicMock()
+    connection.dialect = engine.dialect
+
+    strategy = SqlBasedDeleteStrategy()
+    strategy.execute(connection=connection, table=table, batch_df=batch_df, pk_cols=["id"])
+
+    assert connection.execute.call_count == 1
+    stmt, params = connection.execute.call_args.args
+    assert "DELETE FROM users WHERE id IN" in str(stmt)
+    assert params == {"pk_0_0": 10, "pk_1_0": 20, "pk_2_0": 30}
+
+
+def test_sql_based_delete_strategy_uses_named_params_for_composite_pk() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    table = Table(
+        "orders",
+        MetaData(),
+        Column("tenant_id", Integer, primary_key=True),
+        Column("order_id", Integer, primary_key=True),
+    )
+    batch_df = pd.DataFrame({"tenant_id": [1, 1], "order_id": [100, 101]})
+
+    connection = MagicMock()
+    connection.dialect = engine.dialect
+
+    strategy = SqlBasedDeleteStrategy()
+    strategy.execute(
+        connection=connection,
+        table=table,
+        batch_df=batch_df,
+        pk_cols=["tenant_id", "order_id"],
+    )
+
+    assert connection.execute.call_count == 1
+    stmt, params = connection.execute.call_args.args
+    assert "DELETE FROM orders WHERE (tenant_id, order_id) IN" in str(stmt)
+    assert params == {
+        "pk_0_0": 1,
+        "pk_0_1": 100,
+        "pk_1_0": 1,
+        "pk_1_1": 101,
+    }
+
+
+def test_sql_based_delete_strategy_skips_empty_batches() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    table = Table(
+        "users",
+        MetaData(),
+        Column("id", Integer, primary_key=True),
+    )
+    batch_df = pd.DataFrame({"id": []})
+
+    connection = MagicMock()
+    connection.dialect = engine.dialect
+
+    strategy = SqlBasedDeleteStrategy()
+    strategy.execute(connection=connection, table=table, batch_df=batch_df, pk_cols=["id"])
+
+    connection.execute.assert_not_called()
+
+
+def test_delete_batch_executor_uses_generic_strategy_for_sqlite_dialect() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    table = Table(
+        "users",
+        MetaData(),
+        Column("id", Integer, primary_key=True),
+    )
+    batch_df = pd.DataFrame({"id": [1, 2, 3]})
+
+    class _SpyStrategy:
+        def __init__(self) -> None:
+            self.calls: int = 0
+
+        def execute(
+            self,
+            *,
+            connection: Any,
+            table: Table,
+            batch_df: pd.DataFrame,
+            pk_cols: Sequence[str],
+        ) -> None:
+            del connection, table, batch_df, pk_cols
+            self.calls += 1
+
+    sql_spy = _SpyStrategy()
+    generic_spy = _SpyStrategy()
+    resolver = DeleteStrategyResolver(
+        sql_based_dialects=frozenset({"mysql", "mariadb", "mssql", "hsqldb"}),
+        sql_based_strategy=sql_spy,
+        generic_strategy=generic_spy,
+    )
+    executor = DeleteBatchExecutor(engine=engine, chunk_size=2, resolver=resolver)
+
+    executor.execute(table=table, df=batch_df, pk_cols=["id"])
+
+    assert sql_spy.calls == 0
+    assert generic_spy.calls == 2
 
 
 def test_generate_insert_sql_returns_literal_statements() -> None:

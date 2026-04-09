@@ -13,13 +13,9 @@ from .audit import AuditError, AuditManager, AuditTransaction
 from .crud import bulk_crud
 from .normalize import normalize_records_for_sql, normalize_sql_literal
 
-# Alias para compatibilidad
-BulkCrudManager = bulk_crud
-
 __all__: list[str] = [
     # Clase CRUD principal
     "bulk_crud",
-    "BulkCrudManager",
     # Auditoría
     "AuditManager",
     "AuditTransaction",

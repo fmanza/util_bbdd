@@ -11,15 +11,18 @@ from typing import Any, cast
 
 import pytest
 
-from util_bbdd.database_exceptions import QueryNotFoundError
-from util_bbdd.doc._documentation_orchestrator import (
+from util_bbdd.database_exceptions import DatabaseOperationError, QueryNotFoundError
+from util_bbdd.doc.application.use_cases.documentation_orchestrator import (
     DocumentationBootstrap,
     DocumentationOutputPlanner,
     DocumentationSession,
 )
-from util_bbdd.doc._documentation_runtime_output import DocumentationOutputRuntime
-from util_bbdd.doc._storage_inventory_runtime import StorageInventoryRuntime
-from util_bbdd.doc.print_config_manager import PrintConfigManager
+from util_bbdd.doc.infrastructure.renderers.registry import build_default_renderer_registry
+from util_bbdd.doc.infrastructure.renderers.shared.print_config_manager import PrintConfigManager
+from util_bbdd.doc.infrastructure.runtime.headers_runtime import DocumentationHeadersRuntime
+from util_bbdd.doc.infrastructure.runtime.metadata_runtime import DocumentationMetadataRuntimeFactory
+from util_bbdd.doc.infrastructure.runtime.output_runtime import DocumentationOutputRuntime
+from util_bbdd.doc.infrastructure.storage.runtime import StorageInventoryReportService, StorageInventoryRuntime
 
 
 def test_normalize_output_formats_without_duplicates() -> None:
@@ -125,8 +128,13 @@ def test_documentation_output_planner_builds_ordered_paths(tmp_path: Path) -> No
         def database(self) -> str:
             return "demo"
 
-    session = DocumentationSession.from_documentation(cast(Any, _DocumentationStub()))
-    plans = DocumentationOutputPlanner(session).build_plans()
+    session = DocumentationSession.from_documentation(
+        cast(Any, _DocumentationStub()),
+        output_policy=DocumentationOutputRuntime(),
+        metadata_runtime_factory=DocumentationMetadataRuntimeFactory(),
+        storage_report_service=StorageInventoryReportService(),
+    )
+    plans = DocumentationOutputPlanner(session, build_default_renderer_registry()).build_plans()
 
     assert [(plan.output_format, plan.output_path) for plan in plans] == [
         ("word", tmp_path / "report" / "WORD" / "report.docx"),
@@ -180,6 +188,9 @@ def test_documentation_bootstrap_builds_initial_state(tmp_path: Path) -> None:
         headers_file=headers_file,
         output_cache={},
         batch_window_seconds=90,
+        print_config_policy=PrintConfigManager(),
+        headers_runtime=DocumentationHeadersRuntime(),
+        output_policy=DocumentationOutputRuntime(),
     ).build()
 
     assert state.print_config == PrintConfigManager.normalize({"table_style": "Light Grid", "grafo": {"enabled": True}})
@@ -243,7 +254,12 @@ def test_documentation_session_caches_manager_metadata_calls(tmp_path: Path) -> 
         def database(self) -> str:
             return "legacy-demo"
 
-    session = DocumentationSession.from_documentation(cast(Any, _DocumentationStub()))
+    session = DocumentationSession.from_documentation(
+        cast(Any, _DocumentationStub()),
+        output_policy=DocumentationOutputRuntime(),
+        metadata_runtime_factory=DocumentationMetadataRuntimeFactory(),
+        storage_report_service=StorageInventoryReportService(),
+    )
 
     assert session.database == "demo"
     assert session.get_ddl("users") == "DDL users"
@@ -292,7 +308,12 @@ def test_documentation_session_metadata_helpers_delegate_successfully(tmp_path: 
         vistas: list[Any] = []
         rutinas: list[Any] = []
 
-    session = DocumentationSession.from_documentation(cast(Any, _DocumentationStub()))
+    session = DocumentationSession.from_documentation(
+        cast(Any, _DocumentationStub()),
+        output_policy=DocumentationOutputRuntime(),
+        metadata_runtime_factory=DocumentationMetadataRuntimeFactory(),
+        storage_report_service=StorageInventoryReportService(),
+    )
 
     assert session.get_database_version() == "15.2"
     assert session.get_database_charset_collation() == {"charset": "UTF8", "collation": "en_US.UTF-8"}
@@ -309,13 +330,13 @@ def test_documentation_session_metadata_helpers_return_none_on_error(tmp_path: P
             return "demo"
 
         def get_database_version(self) -> str:
-            raise RuntimeError("version boom")
+            raise DatabaseOperationError("version boom")
 
         def get_database_charset_collation(self) -> dict[str, str]:
-            raise RuntimeError("charset boom")
+            raise DatabaseOperationError("charset boom")
 
         def get_columns_charset_collation(self, _tabla: str) -> list[tuple[str, str | None, str | None]]:
-            raise RuntimeError("columns boom")
+            raise DatabaseOperationError("columns boom")
 
     class _DocumentationStub:
         logger = logging.getLogger(__name__)
@@ -330,7 +351,12 @@ def test_documentation_session_metadata_helpers_return_none_on_error(tmp_path: P
         vistas: list[Any] = []
         rutinas: list[Any] = []
 
-    session = DocumentationSession.from_documentation(cast(Any, _DocumentationStub()))
+    session = DocumentationSession.from_documentation(
+        cast(Any, _DocumentationStub()),
+        output_policy=DocumentationOutputRuntime(),
+        metadata_runtime_factory=DocumentationMetadataRuntimeFactory(),
+        storage_report_service=StorageInventoryReportService(),
+    )
 
     assert session.get_database_version() is None
     assert session.get_database_charset_collation() is None
@@ -359,7 +385,12 @@ def test_documentation_session_falls_back_to_schema_context_when_query_context_i
         vistas: list[Any] = []
         rutinas: list[Any] = []
 
-    session = DocumentationSession.from_documentation(cast(Any, _DocumentationStub()))
+    session = DocumentationSession.from_documentation(
+        cast(Any, _DocumentationStub()),
+        output_policy=DocumentationOutputRuntime(),
+        metadata_runtime_factory=DocumentationMetadataRuntimeFactory(),
+        storage_report_service=StorageInventoryReportService(),
+    )
 
     assert session.database == "analytics"
 
@@ -399,7 +430,12 @@ def test_documentation_session_caches_database_version_calls(tmp_path: Path) -> 
         vistas: list[Any] = []
         rutinas: list[Any] = []
 
-    session = DocumentationSession.from_documentation(cast(Any, _DocumentationStub()))
+    session = DocumentationSession.from_documentation(
+        cast(Any, _DocumentationStub()),
+        output_policy=DocumentationOutputRuntime(),
+        metadata_runtime_factory=DocumentationMetadataRuntimeFactory(),
+        storage_report_service=StorageInventoryReportService(),
+    )
 
     assert session.get_database_version() == "15.2"
     assert session.get_database_version() == "15.2"
@@ -449,7 +485,12 @@ def test_documentation_session_storage_inventory_report_returns_runtime_output(t
         vistas: list[Any] = []
         rutinas: list[Any] = []
 
-    session = DocumentationSession.from_documentation(cast(Any, _DocumentationStub()))
+    session = DocumentationSession.from_documentation(
+        cast(Any, _DocumentationStub()),
+        output_policy=DocumentationOutputRuntime(),
+        metadata_runtime_factory=DocumentationMetadataRuntimeFactory(),
+        storage_report_service=StorageInventoryReportService(),
+    )
     report = session.get_storage_inventory_report()
 
     assert report["db_type"] == "mariadb"

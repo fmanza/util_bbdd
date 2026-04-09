@@ -72,6 +72,8 @@ La carpeta [../../.github/agents](../../.github/agents) añade una capa de espec
 | `Code Auditor` | [../../.github/agents/code-auditor.agent.md](../../.github/agents/code-auditor.agent.md) | Quieres un `AUDIT_CODE` o revisión de regresiones |
 | `Security Reviewer` | [../../.github/agents/security-reviewer.agent.md](../../.github/agents/security-reviewer.agent.md) | Quieres una auditoría de seguridad independiente |
 | `Version Closer` | [../../.github/agents/version-closer.agent.md](../../.github/agents/version-closer.agent.md) | Necesitas cerrar una sesión, release o bloque de cambios |
+| `Maturity Assessment` | [../../.github/agents/maturity-assessment.agent.md](../../.github/agents/maturity-assessment.agent.md) | Quieres evaluar la madurez del repositorio para publicación o revisión integral |
+| `Explore` | [../../.github/agents/explore.agent.md](../../.github/agents/explore.agent.md) | Necesitas explorar el repositorio de forma read-only sin modificar nada |
 
 ## Uso
 
@@ -176,29 +178,40 @@ Cadena recomendada en este repositorio:
 Workflow Director -> Plan Architect -> Feature Implementer o Hotfix Responder -> Code Auditor -> Version Closer
 ```
 
+Para exploración previa o análisis de madurez:
+
+```text
+Explore -> Maturity Assessment -> Version Closer
+```
+
 Regla práctica:
 
-- usa `Workflow Director` cuando la petición todavía no esté clasificada
+- usa `Workflow Director` cuando la petición todavía no esté clasificada; incluye tabla de transiciones `skill → siguiente agente`
+- usa `Explore` para exploración read-only del repositorio antes de planificar
 - usa `Plan Architect` antes de implementar una feature o un hotfix relevante
 - usa `Feature Implementer` solo cuando el alcance ya está aprobado
 - usa `Hotfix Responder` para incidencias con fix mínimo
 - usa `Code Auditor` para revisar regresiones, contratos y cobertura
 - usa `Security Reviewer` cuando el objetivo principal sea seguridad
+- usa `Maturity Assessment` para evaluar readiness de publicación o revisión integral
 - usa `Version Closer` al cerrar una versión, PR o sesión de trabajo
+
+Todos los agentes cargan automáticamente contexto de `.ai/` (product, architecture, standards, runtime, glossary) antes de responder.
 
 Tabla de mapeo rápido entre prompts y agentes:
 
 | Tipo de tarea | Prompt habitual | Agente recomendado |
 |---|---|---|
 | Clasificar una petición ambigua | opcional | `Workflow Director` |
+| Explorar el repositorio sin modificar | — | `Explore` |
 | Planificar una feature | `new_feature` | `Plan Architect` |
 | Implementar una feature ya aprobada | `new_feature` | `Feature Implementer` |
 | Corregir un bug acotado | `hotfix` | `Hotfix Responder` |
 | Refactorizar sin cambio funcional | `refactor` | `Plan Architect` y luego `Feature Implementer` |
 | Auditar código | `audit_code` | `Code Auditor` |
 | Revisar seguridad | `security_review` | `Security Reviewer` |
-| Inventariar deuda técnica | `tech_debt` | `Code Auditor` |
-| Evaluar madurez | `maturity_assessment` | `Code Auditor` |
+| Inventariar deuda técnica | `tech_debt` | `Plan Architect` y luego `Code Auditor` |
+| Evaluar madurez | `maturity_assessment` | `Maturity Assessment` |
 | Cerrar una versión o sesión | `version_closure` | `Version Closer` |
 
 ### Caso 4. Uso de prompts
@@ -371,13 +384,16 @@ Quiero quick wins, prioridades y plan por fases.
 
 Qué obliga este prompt:
 
-- listar deuda por módulo
-- incluir impacto y prioridad
-- proponer quick wins y plan por fases
+- confirmar inputs requeridos antes de responder: módulo objetivo, deuda conocida, versión actual y política de compatibilidad
+- listar deuda por módulo con archivo y línea si aplica
+- clasificar cada hallazgo como `quick_win`, `fase_media` o `deuda_estructural`
+- proponer quick wins con estrategia de prueba mínima
+- emitir veredicto: `LIMPIO | DEUDA_MENOR | DEUDA_SIGNIFICATIVA | CRÍTICO`
 
 Agente recomendado:
 
-- `Code Auditor`
+- `Plan Architect` para delimitar alcance y dependencias entre ítems de deuda
+- `Code Auditor` para el análisis técnico detallado
 
 ### Ejemplo completo 7. `maturity_assessment`
 
@@ -391,13 +407,14 @@ Evalúa la madurez del repositorio para una publicación estable centrada en doc
 
 Qué obliga este prompt:
 
-- emitir veredicto de madurez
+- emitir veredicto de madurez: `PRODUCTION_READY | NEAR_READY | BLOCKED`
 - separar bloqueantes de mejoras recomendadas
 - revisar APIs, contratos, seguridad, tests y mantenibilidad
 
 Agente recomendado:
 
-- `Code Auditor`
+- `Explore` para recopilar evidencia del estado real antes de valorar
+- `Maturity Assessment` para el análisis y veredicto formal
 
 ### Ejemplo completo 8. `version_closure`
 
@@ -665,6 +682,18 @@ Primero manda la política base de [../../.github/copilot-instructions.md](../..
 ### ¿Qué archivo debo leer primero si soy nuevo en el repositorio?
 
 Empieza por [../../.github/README.md](../../.github/README.md) y luego por [../../.github/copilot-instructions.md](../../.github/copilot-instructions.md).
+
+### ¿Cuándo debo usar `Explore` en lugar de preguntar directamente al agente de turno?
+
+Usa `Explore` cuando necesites recopilar evidencia del estado real del repositorio (estructura, módulos, tests, contratos) antes de planificar o evaluar. Es read-only y más rápido que lanzar directamente un `Plan Architect` o `Maturity Assessment` sin contexto suficiente.
+
+### ¿Cómo sé qué agente sigue al `Workflow Director`?
+
+El agente `Workflow Director` incluye una tabla de transiciones `skill → agente → siguiente fase`. Consúltala en [../../.github/agents/workflow-director.agent.md](../../.github/agents/workflow-director.agent.md).
+
+### ¿Qué debo rellenar antes de invocar `tech_debt`?
+
+El prompt `tech_debt` exige cinco inputs antes de responder: módulo objetivo, deuda conocida o síntomas, versión actual, restricciones de scope (solo análisis o también IMPLEMENT) y política de compatibilidad. Si falta alguno, el agente lo declarará como supuesto explícito.
 
 ### ¿Qué archivo debo usar para cerrar una versión?
 

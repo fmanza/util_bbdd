@@ -8,11 +8,11 @@ import re
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
+from .._foundation.exceptions import DatabaseOperationError, QueryError
+from .._foundation.validators_core import get_database_validator, get_db_type_info, get_supported_db_types
 from ..async_utils import maybe_await
 from ..connection.close import AsyncCloseMode, normalize_close_mode
 from ..connection.factory import ConnectionFactory
-from ..database_exceptions import DatabaseOperationError, QueryError
-from ..database_type_validator import get_database_validator, get_db_type_info, get_supported_db_types
 from ..executors.async_query_executor import AsyncQueryExecutor
 from ..factory.async_sqlalchemy_engine_factory import AsyncSQLAlchemyEngineFactory
 from ..factory.pool_factory import PoolFactory
@@ -25,59 +25,40 @@ from ..metadata import (
     normalize_column_rows,
     normalize_table_rows,
 )
+from ..metadata.adapters import get_global_adapter_registry
 from ..metadata.mariadb import (
     MariaDBAsyncAdapter,
-    build_public_mariadb_routine_parameter_rows,
-    escape_mariadb_sql_literal,
 )
 from ..results import ResultNormalizer, RowOrNone
+from ._manager_cache_service import CacheService
 from ._manager_lifecycle import (
     close_async_resources,
     get_async_connection,
     init_async_resources,
     release_async_connection,
 )
-from ._manager_metadata import (
-    add_metadata_context_params,
-    cache_context_key,
-    cache_routine_key,
-    cache_table_key,
-    clear_all_caches,
-    clear_context_cache,
-    clear_routine_cache,
-    clear_table_cache,
-    clear_tuple_cache_by_context,
-    get_query_context_database,
-    get_query_context_label,
-)
+from ._manager_lifecycle_async import AsyncLifecycleManager
+from ._manager_metadata_factory import MetadataStrategyFactory
 from ._manager_metadata_runtime import (
     MetadataFetchRequest,
-    build_async_rows_fetcher,
-    build_async_text_fetcher,
     build_columns_fetch_request,
     build_routine_ddl_fetch_request,
     build_routine_parameters_fetch_request,
     build_routines_fetch_request,
     build_table_ddl_fetch_request,
     build_view_ddl_fetch_request,
-    normalize_ddl_result as normalize_manager_ddl_result,
     oracle_supports_columns_charset_collation,
-    parse_charset_collation_result,
-    parse_column_charset_collation_row,
     supports_columns_charset_collation as supports_manager_columns_charset_collation,
 )
-from ._manager_storage import get_storage_inventory_handler
+from ._manager_session import AsyncSessionManager
+from ._manager_shared_mixin import DatabaseManagerSharedMixin
 
 
-class AsyncDatabaseManager:
+class AsyncDatabaseManager(DatabaseManagerSharedMixin):
     """Manager async-first para conexiones directas o con pool."""
 
     _PARAMETER_PATTERN = r"\{(\w+)\}"
     _ERROR_EXECUTOR_NOT_INITIALIZED = "AsyncQueryExecutor no inicializado"
-
-    @staticmethod
-    def _escape_sql_literal(value: str) -> str:
-        return escape_mariadb_sql_literal(value)
 
     def _get_mariadb_adapter(self) -> MariaDBAsyncAdapter:
         adapter = getattr(self, "_mariadb_adapter", None)
@@ -86,84 +67,45 @@ class AsyncDatabaseManager:
             self._mariadb_adapter = adapter
         return cast(MariaDBAsyncAdapter, adapter)
 
-    async def _fetch_mariadb_routines_from_show_status(self, database: str) -> Rows:
-        return await self._get_mariadb_adapter().fetch_routines_from_show_status(database)
+    def _get_adapter_async(self, adapter_type: str) -> Any:
+        """Obtiene adapter async del Registry según db_type y tipo de adapter.
 
-    async def _get_mariadb_routines_detail_rows(self, context_database: str) -> list[dict[str, Any]]:
-        return await self._get_mariadb_adapter().get_routines_detail_rows(context_database)
+        Esta es la forma genérica y extensible de resolver adapters, a diferencia
+        de `_get_mariadb_adapter()` que es específica de MariaDB.
 
-    async def _get_mariadb_routine_parameters_detail_rows(self, context_database: str) -> list[dict[str, Any]]:
-        return await self._get_mariadb_adapter().get_routine_parameters_detail_rows(context_database)
+        Args:
+            adapter_type: Tipo de adapter ('source' o 'routine')
 
-    async def _fetch_mariadb_columns_safe(self, context_database: str, tabla: str) -> Rows:
-        return await self._get_mariadb_adapter().fetch_columns_safe(context_database, tabla)
+        Returns:
+            Instancia del adapter (SourceAdapter o RoutineAdapter)
 
-    async def _fetch_mariadb_view_from_information_schema(self, database: str, view_name: str) -> str:
-        return await self._get_mariadb_adapter().fetch_view_from_information_schema(database, view_name)
+        Raises:
+            DatabaseConfigurationError: Si no hay adapter registrado para el driver
+        """
+        from .._foundation.exceptions import DatabaseConfigurationError
 
-    async def _fetch_mariadb_routine_from_information_schema(
-        self, database: str, routine_name: str, routine_type: str
-    ) -> str:
-        return await self._get_mariadb_adapter().fetch_routine_from_information_schema(
-            database, routine_name, routine_type
-        )
+        cache_key = f"_adapter_async_{adapter_type}"
+        cached_adapter = getattr(self, cache_key, None)
+        if cached_adapter is not None:
+            return cached_adapter
 
-    async def _fetch_mariadb_routine_parameters_detailed(
-        self,
-        *,
-        database: str,
-        routine_name: str,
-        routine_type: str,
-    ) -> list[dict[str, Any]]:
-        return await self._get_mariadb_adapter().fetch_routine_parameters_detailed(
-            database=database,
-            routine_name=routine_name,
-            routine_type=routine_type,
-        )
+        registry = get_global_adapter_registry()
+        if adapter_type == "source":
+            adapter_class = registry.get_source_adapter_async(self.db_type)
+        elif adapter_type == "routine":
+            adapter_class = registry.get_routine_adapter_async(self.db_type)
+        else:
+            msg = f"Tipo de adapter inválido: {adapter_type}. Use 'source' o 'routine'."
+            raise ValueError(msg)
 
-    async def _fetch_mariadb_routine_parameters_public_rows(
-        self, *, context_database: str, rutina: str, routine_type: str
-    ) -> Rows:
-        return build_public_mariadb_routine_parameter_rows(
-            await self._fetch_mariadb_routine_parameters_detailed(
-                database=context_database,
-                routine_name=rutina,
-                routine_type=routine_type,
-            )
-        )
+        if adapter_class is None:
+            msg = f"No hay adapter async registrado para {self.db_type} (tipo: {adapter_type})"
+            raise DatabaseConfigurationError(msg)
 
-    async def _build_mariadb_ddl_from_metadata(self, tabla: str) -> str:
-        return await self._get_mariadb_adapter().build_table_ddl_from_metadata(tabla)
-
-    async def _fetch_mariadb_routines(self, context_database: str) -> Rows:
-        try:
-            routine_rows = await self._get_mariadb_routines_detail_rows(context_database)
-            if routine_rows:
-                return cast(
-                    Rows,
-                    sorted(
-                        [
-                            (
-                                str(row.get("routine_name") or ""),
-                                str(row.get("routine_type") or ""),
-                                str(row.get("routine_comment") or ""),
-                            )
-                            for row in routine_rows
-                            if str(row.get("routine_name") or "").strip()
-                        ],
-                        key=lambda row: (str(row[1]), str(row[0])),
-                    ),
-                )
-            self.logger.warning(
-                "Fallback listado rutinas MariaDB vacío para %s. Reintentando con SHOW ... STATUS",
-                context_database,
-            )
-        except DatabaseOperationError:
-            self.logger.warning(
-                "Fallback listado rutinas MariaDB por error para %s. Reintentando con SHOW ... STATUS",
-                context_database,
-            )
-        return await self._fetch_mariadb_routines_from_show_status(context_database)
+        # Crear instancia y cachear
+        adapter = adapter_class(self)
+        setattr(self, cache_key, adapter)
+        return adapter
 
     async def _execute_metadata_fetch_request_many(self, request: MetadataFetchRequest) -> Rows:
         return await self._execute_metadata_many(
@@ -182,44 +124,43 @@ class AsyncDatabaseManager:
         )
 
     def _get_routines_fetcher(self, context_database: str) -> Callable[[], Awaitable[Rows]]:
-        return build_async_rows_fetcher(
-            db_type=self.db_type,
-            mariadb_fetcher=lambda: self._fetch_mariadb_routines(context_database),
+        return self._metadata_fetch_strategy.build_async_rows_fetcher(
             request=build_routines_fetch_request(context_database),
+            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_routines(context_database),
             execute_many=self._execute_metadata_fetch_request_many,
         )
 
     def _get_table_ddl_fetcher(self, context_database: str, tabla: str) -> Callable[[], Awaitable[str]]:
-        return build_async_text_fetcher(
-            db_type=self.db_type,
-            mariadb_fetcher=lambda: self._build_mariadb_ddl_from_metadata(tabla),
+        return self._metadata_fetch_strategy.build_async_text_fetcher(
             request=build_table_ddl_fetch_request(
                 context_database,
                 tabla,
                 self._add_metadata_context_params,
             ),
+            specialized_fetcher=lambda: self._get_mariadb_adapter().build_table_ddl_from_metadata(tabla),
             execute_one=self._execute_metadata_fetch_request_one,
             normalize_one=self._normalize_ddl_result,
         )
 
     def _get_view_ddl_fetcher(self, context_database: str, vista: str) -> Callable[[], Awaitable[str]]:
-        return build_async_text_fetcher(
-            db_type=self.db_type,
-            mariadb_fetcher=lambda: self._fetch_mariadb_view_from_information_schema(context_database, vista),
+        return self._metadata_fetch_strategy.build_async_text_fetcher(
             request=build_view_ddl_fetch_request(
                 context_database,
                 vista,
                 self._add_metadata_context_params,
+            ),
+            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_view_from_information_schema(
+                context_database,
+                vista,
             ),
             execute_one=self._execute_metadata_fetch_request_one,
             normalize_one=self._normalize_ddl_result,
         )
 
     def _get_columns_fetcher(self, context_database: str, tabla: str) -> Callable[[], Awaitable[Rows]]:
-        return build_async_rows_fetcher(
-            db_type=self.db_type,
-            mariadb_fetcher=lambda: self._fetch_mariadb_columns_safe(context_database, tabla),
+        return self._metadata_fetch_strategy.build_async_rows_fetcher(
             request=build_columns_fetch_request(context_database, tabla),
+            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_columns_safe(context_database, tabla),
             execute_many=self._execute_metadata_fetch_request_many,
         )
 
@@ -229,11 +170,10 @@ class AsyncDatabaseManager:
         rutina: str,
         routine_type: str,
     ) -> Callable[[], Awaitable[Rows]]:
-        return build_async_rows_fetcher(
-            db_type=self.db_type,
-            mariadb_fetcher=lambda: self._fetch_mariadb_routine_parameters_public_rows(
-                context_database=context_database,
-                rutina=rutina,
+        return self._metadata_fetch_strategy.build_async_rows_fetcher(
+            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_routine_parameters_public_rows(
+                database=context_database,
+                routine_name=rutina,
                 routine_type=routine_type,
             ),
             request=build_routine_parameters_fetch_request(
@@ -250,12 +190,11 @@ class AsyncDatabaseManager:
         rutina: str,
         routine_type: str,
     ) -> Callable[[], Awaitable[str]]:
-        return build_async_text_fetcher(
-            db_type=self.db_type,
-            mariadb_fetcher=lambda: self._fetch_mariadb_routine_from_information_schema(
-                context_database,
-                rutina,
-                routine_type,
+        return self._metadata_fetch_strategy.build_async_text_fetcher(
+            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_routine_from_information_schema(
+                database=context_database,
+                routine_name=rutina,
+                routine_type=routine_type,
             ),
             request=build_routine_ddl_fetch_request(
                 context_database,
@@ -266,18 +205,6 @@ class AsyncDatabaseManager:
             execute_one=self._execute_metadata_fetch_request_one,
             normalize_one=self._normalize_ddl_result,
         )
-
-    def _get_storage_inventory_handler(
-        self,
-    ) -> Callable[[str, str | None], Awaitable[dict[str, Any]]] | None:
-        handlers: dict[str, Callable[[str, str | None], Awaitable[dict[str, Any]]]] = {
-            "sqlserver": self._storage_inventory_sqlserver,
-            "oracle": self._storage_inventory_oracle,
-            "mariadb": self._storage_inventory_mariadb,
-            "postgresql": self._storage_inventory_postgresql,
-            "sqlite": self._storage_inventory_sqlite,
-        }
-        return get_storage_inventory_handler(self.db_type, handlers)
 
     async def _log_and_call_async(self, message: str, action: Callable[[], Awaitable[Any]]) -> Any:
         self.logger.debug(message)
@@ -291,26 +218,55 @@ class AsyncDatabaseManager:
         connection_factory: Callable[..., Awaitable[Any]] | None = None,
         pool_factory: Callable[..., Awaitable[Any]] | None = None,
     ) -> None:
+        """Inicializa el gestor async de base de datos."""
         self.logger: logging.Logger = logging.getLogger(__name__)
+        self.logger.info(f"🔧 Inicializando AsyncDatabaseManager para {db_type.upper()}")
+
+        # Validar tipo de BD
         normalized_db_type: str = db_type.lower().strip()
         validator = get_database_validator()
         validator.validate_db_type(normalized_db_type)
+
         self.db_type: str = normalized_db_type
         self.conn_params: dict[str, Any] = conn_params
         self.database: str = str(conn_params.get("database", "") or "").strip()
         self.use_pool: bool = use_pool
+
+        # Obtener estrategias via factory
+        self._metadata_fetch_strategy = MetadataStrategyFactory.get_fetch_strategy(self.db_type)
+        self._storage_inventory_strategy = MetadataStrategyFactory.get_async_storage_strategy(self.db_type)
+
+        # Inicializar cachés centralizados
+        self.db_cache: DatabaseMetadataCache = DatabaseMetadataCache()
+        self.relationship_cache: RelationshipMetadataCache = RelationshipMetadataCache(db_cache=self.db_cache)
+        self.logger.debug("✅ Cachés centralizados inicializados")
+
+        # Inicializar servicio de caché
+        self.cache_service = CacheService(self.db_cache, self.relationship_cache, self.logger)
+
+        # Factories para conexión
         self._connection_factory: Callable[..., Awaitable[Any]] = (
             connection_factory or ConnectionFactory.create_async_connection
         )
         self._pool_factory: Callable[..., Awaitable[Any]] = pool_factory or PoolFactory.create_async_pool
 
+        # Lifecycle y session managers
+        self.lifecycle_manager = AsyncLifecycleManager(
+            db_type=normalized_db_type,
+            conn_params=conn_params,
+            logger=self.logger,
+            validators=validator,
+        )
+        self.session_manager = AsyncSessionManager(pool_connection=None, logger=self.logger)
+
+        # Estado de conexión
         self._initialized: bool = False
         self._connection: Any = None
         self.pool_connection: Any = None
         self.query_executor: AsyncQueryExecutor | None = None
-        self.db_cache: DatabaseMetadataCache = DatabaseMetadataCache()
-        self.relationship_cache: RelationshipMetadataCache = RelationshipMetadataCache(db_cache=self.db_cache)
         self.result_normalizer = ResultNormalizer()
+
+        self.logger.debug("✅ AsyncDatabaseManager pre-inicializado")
 
     async def init(self) -> AsyncDatabaseManager:
         """Inicializa recursos async una única vez."""
@@ -323,11 +279,17 @@ class AsyncDatabaseManager:
             create_connection=lambda: self._connection_factory(self.db_type, self.conn_params),
         )
 
+        # Actualizar session manager
+        self.session_manager.pool_connection = self.pool_connection
+        self.session_manager._connection = self._connection
+
+        # Construir executor
         self.query_executor = AsyncQueryExecutor(
             connection_provider=self.get_connection,
             connection_releaser=self.release_connection,
         )
         self._initialized = True
+        self.logger.info("✅ AsyncDatabaseManager inicializado")
         return self
 
     async def __aenter__(self) -> AsyncDatabaseManager:
@@ -338,12 +300,17 @@ class AsyncDatabaseManager:
 
     async def get_connection(self) -> Any:
         """Obtiene conexión del pool o directa."""
+        await self._ensure_initialized()
         return await get_async_connection(
             initialized=self._initialized,
-            ensure_initialized=self.init,
+            ensure_initialized=self._noop_init,
             pool_connection=self.pool_connection,
             connection=self._connection,
         )
+
+    async def _noop_init(self) -> None:
+        """Inicialización no-op (ya está hecha en init())."""
+        pass
 
     async def release_connection(self, connection: Any) -> None:
         """Libera conexión al pool o no-op en conexión directa."""
@@ -510,93 +477,6 @@ class AsyncDatabaseManager:
             self._connection = None
             self._initialized = False
 
-    def _get_query_context_database(self) -> str:
-        """Obtiene contexto schema/database para consultas de metadatos."""
-        return get_query_context_database(
-            db_type=self.db_type,
-            database=self.database,
-            conn_params=self.conn_params,
-        )
-
-    def _add_metadata_context_params(self, params: dict[str, Any], context: str | None) -> dict[str, Any]:
-        """Añade parámetros de contexto metadata según motor."""
-        return add_metadata_context_params(db_type=self.db_type, params=params, context=context)
-
-    def _get_query_context_label(self) -> str:
-        """Obtiene etiqueta descriptiva del contexto de metadatos."""
-        return get_query_context_label(self.db_type)
-
-    def get_query_context_database(self) -> str:
-        """Devuelve contexto efectivo schema/database para metadata."""
-        return self._get_query_context_database()
-
-    def _clear_all_caches(self) -> None:
-        """Limpia completamente todas las cachés de metadatos."""
-        clear_all_caches(db_cache=self.db_cache, relationship_cache=self.relationship_cache, logger=self.logger)
-
-    def _clear_table_cache(self, context: str, table: str) -> None:
-        """Limpia caché para una tabla/vista específica."""
-        clear_table_cache(
-            db_cache=self.db_cache,
-            relationship_cache=self.relationship_cache,
-            logger=self.logger,
-            context=context,
-            table=table,
-        )
-
-    def _clear_routine_cache(self, context: str, routine: str, routine_type: str | None = None) -> None:
-        """Limpia caché para una rutina específica."""
-        clear_routine_cache(
-            db_cache=self.db_cache,
-            logger=self.logger,
-            context=context,
-            routine=routine,
-            routine_type=routine_type,
-        )
-
-    @staticmethod
-    def _clear_tuple_cache_by_context(cache: dict[tuple[Any, ...], Any], context: str) -> None:
-        clear_tuple_cache_by_context(cache, context)
-
-    def _clear_context_cache(self, context: str) -> None:
-        """Limpia caché para un contexto/schema específico."""
-        clear_context_cache(db_cache=self.db_cache, logger=self.logger, context=context)
-
-    def clear_cache(
-        self,
-        context_database: str | None = None,
-        table: str | None = None,
-        routine: str | None = None,
-        routine_type: str | None = None,
-    ) -> None:
-        """Limpia cachés de metadatos (global o selectiva)."""
-        if context_database is None and table is None and routine is None and routine_type is None:
-            self._clear_all_caches()
-            return
-
-        resolved_context: str = str(
-            context_database if context_database is not None else self._get_query_context_database() or ""
-        )
-
-        if table:
-            self._clear_table_cache(resolved_context, str(table))
-
-        if routine:
-            self._clear_routine_cache(resolved_context, str(routine), str(routine_type) if routine_type else None)
-
-        if not table and not routine:
-            self._clear_context_cache(resolved_context)
-
-    @staticmethod
-    def _cache_context_key(context_database: str) -> str:
-        return cache_context_key(context_database)
-
-    def _cache_table_key(self, context_database: str, table_name: str) -> tuple[str, str]:
-        return cache_table_key(context_database, table_name)
-
-    def _cache_routine_key(self, context_database: str, routine_name: str, routine_type: str) -> tuple[str, str, str]:
-        return cache_routine_key(context_database, routine_name, routine_type)
-
     async def _execute_metadata_many(
         self,
         query_name: str,
@@ -681,15 +561,6 @@ class AsyncDatabaseManager:
         if success_message:
             self.logger.info(success_message)
         return text
-
-    def _parse_charset_collation_result(self, result: tuple[Any, ...] | None) -> dict[str, Any]:
-        return parse_charset_collation_result(self.db_type, result)
-
-    def _normalize_ddl_result(self, ddl: Any) -> str:
-        return normalize_manager_ddl_result(ddl)
-
-    def __parse_column_charset_collation_row(self, row: tuple[Any, ...]) -> tuple[str, str | None, str | None]:
-        return parse_column_charset_collation_row(self.db_type, row)
 
     def _supports_columns_charset_collation(self) -> bool:
         """Indica si el motor expone metadata fiable de charset/collation por columna."""
@@ -920,48 +791,13 @@ class AsyncDatabaseManager:
         rows: Rows = await self.get_columns(tabla)
         return normalize_column_rows(rows)
 
-    async def _storage_inventory_sqlserver(self, _context_database: str, _tablespace: str | None) -> dict[str, Any]:
-        return {
-            "primary": await self.execute_query_many("ficheros_fisicos"),
-            "temp_tablespaces": await self.execute_query_many("temp_tablespaces"),
-        }
-
-    async def _storage_inventory_oracle(self, _context_database: str, tablespace: str | None) -> dict[str, Any]:
-        if not tablespace:
-            raise ValueError("Para Oracle debe proporcionar 'tablespace'")
-        return {
-            "primary": await self.execute_query_many("ficheros_fisicos", tablespace=tablespace),
-            "temp_tablespaces": await self.execute_query_many("temp_tablespaces", tablespace=tablespace),
-        }
-
-    async def _storage_inventory_mariadb(self, context_database: str, _tablespace: str | None) -> dict[str, Any]:
-        return await self._get_mariadb_adapter().storage_inventory(context_database)
-
-    async def _storage_inventory_postgresql(self, _context_database: str, tablespace: str | None) -> dict[str, Any]:
-        if not tablespace:
-            raise ValueError("Para PostgreSQL debe proporcionar 'tablespace'")
-        return {
-            "primary": await self.execute_query_many("ficheros_fisicos", tablespace=tablespace),
-            "temp_tablespaces": await self.execute_query_many("temp_tablespaces"),
-        }
-
-    async def _storage_inventory_sqlite(self, _context_database: str, _tablespace: str | None) -> dict[str, Any]:
-        result: dict[str, Any] = {
-            "primary": await self.execute_query_many("ficheros_fisicos"),
-            "sqlite_file_summary": await self.execute_query_many("sqlite_file_summary"),
-        }
-        try:
-            result["temp_tablespaces"] = await self.execute_query_many("temp_tablespaces")
-        except Exception:
-            result["temp_tablespaces"] = []
-        return result
-
     async def get_storage_inventory(self, tablespace: str | None = None) -> dict[str, Any]:
         context_database: str = self._get_query_context_database()
-        handler = self._get_storage_inventory_handler()
-        if handler is None:
-            return {"primary": []}
-        result = await handler(context_database, tablespace)
+        result = await self._storage_inventory_strategy.execute(
+            self,
+            context_database,
+            tablespace,
+        )
         return result
 
     async def get_database_version(self) -> str:
@@ -1025,7 +861,7 @@ class AsyncDatabaseManager:
                 error_message="Error obteniendo charset/collation de columnas",
                 table_name=tabla,
             )
-            return [self.__parse_column_charset_collation_row(row) for row in rows]
+            return [self._parse_column_charset_collation_row(row) for row in rows]
 
         rows = await self._get_cached_rows_async(
             cache_lookup=lambda: self.db_cache.get_columns_charset_collation(cache_key),

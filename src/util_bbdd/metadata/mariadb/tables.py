@@ -73,9 +73,7 @@ def _build_column_definition(row: Any) -> str:
 
 def _build_primary_key_constraint(pk_rows: list[Any]) -> str:
     pk_columns: list[str] = [
-        quote_mariadb_identifier(str(row[0]))
-        for row in pk_rows
-        if isinstance(row, (tuple, list)) and len(row) > 0
+        quote_mariadb_identifier(str(row[0])) for row in pk_rows if isinstance(row, (tuple, list)) and len(row) > 0
     ]
     if not pk_columns:
         return ""

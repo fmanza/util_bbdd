@@ -10,11 +10,13 @@ from pathlib import Path
 from typing import Any, cast
 from unittest.mock import MagicMock
 
+import numpy as np
+import pandas as pd
 import pytest
 
 from sqlalchemy import create_engine
 
-from util_bbdd.bulk._sql_helpers import compile_stmt_with_binary_support, format_sql_param_value
+from util_bbdd.bulk._support.sql_helpers import compile_stmt_with_binary_support, format_sql_param_value
 from util_bbdd.bulk.crud import bulk_crud
 
 
@@ -35,6 +37,37 @@ class _BinaryFallbackStmt:
         if compile_kwargs and compile_kwargs.get("literal_binds"):
             raise RuntimeError("BLOB literal rendering is not supported")
         return _FakeCompiled()
+
+
+class _QmarkCompiled:
+    def __init__(self) -> None:
+        self.params = {"first": b"\xaa", "second": "O'Reilly"}
+        self.positiontup = ["first", "second"]
+
+    def __str__(self) -> str:
+        return "INSERT INTO t VALUES (?, ?)"
+
+
+class _QmarkBinaryFallbackStmt:
+    def compile(self, dialect=None, compile_kwargs=None):  # noqa: ANN001, ANN201
+        if compile_kwargs and compile_kwargs.get("literal_binds"):
+            raise RuntimeError("binary literal rendering is not supported")
+        return _QmarkCompiled()
+
+
+class _NamedCompiled:
+    def __init__(self) -> None:
+        self.params = {"first": b"\xaa", "second": "O'Reilly"}
+
+    def __str__(self) -> str:
+        return "INSERT INTO t VALUES (:first, :second)"
+
+
+class _NamedBinaryFallbackStmt:
+    def compile(self, dialect=None, compile_kwargs=None):  # noqa: ANN001, ANN201
+        if compile_kwargs and compile_kwargs.get("literal_binds"):
+            raise RuntimeError("binary literal rendering is not supported")
+        return _NamedCompiled()
 
 
 class _LiteralStmt:
@@ -95,6 +128,14 @@ def test_validar_y_generar_path_sql_joins_base_path_and_dynamic_name(
     persistence.resolve_sql_output_path.assert_called_once_with(tmp_path, "users", "insert")
 
 
+def test_actualizar_df_replaces_nan_with_none(sqlite_bulk_manager: bulk_crud) -> None:
+    df = pd.DataFrame({"col": [1, np.nan]})
+
+    _get_private_method(sqlite_bulk_manager, "_bulk_crud__actualizar_df")(df)
+
+    assert df.iloc[1, 0] is None
+
+
 def test_format_param_value_handles_supported_types(sqlite_bulk_manager: bulk_crud) -> None:
     class _CustomObject:
         def __str__(self) -> str:
@@ -119,6 +160,16 @@ def test_compilar_stmt_con_binarios_prefers_literal_binds(sqlite_bulk_manager: b
 
 def test_compilar_stmt_con_binarios_falls_back_when_binary_literals_fail(sqlite_bulk_manager: bulk_crud) -> None:
     compiled_sql = compile_stmt_with_binary_support(_BinaryFallbackStmt(), sqlite_bulk_manager.engine.dialect)
+    assert compiled_sql == "INSERT INTO t VALUES (0xAA, 'O''Reilly');"
+
+
+def test_compilar_stmt_con_binarios_fallback_qmark(sqlite_bulk_manager: bulk_crud) -> None:
+    compiled_sql = compile_stmt_with_binary_support(_QmarkBinaryFallbackStmt(), sqlite_bulk_manager.engine.dialect)
+    assert compiled_sql == "INSERT INTO t VALUES (0xAA, 'O''Reilly');"
+
+
+def test_compilar_stmt_con_binarios_fallback_named(sqlite_bulk_manager: bulk_crud) -> None:
+    compiled_sql = compile_stmt_with_binary_support(_NamedBinaryFallbackStmt(), sqlite_bulk_manager.engine.dialect)
     assert compiled_sql == "INSERT INTO t VALUES (0xAA, 'O''Reilly');"
 
 

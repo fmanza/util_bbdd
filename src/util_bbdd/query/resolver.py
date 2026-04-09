@@ -18,7 +18,7 @@ from typing import Any
 from util_bbdd.models import QueryDefinition
 from util_bbdd.validators.base_validator import DatabaseTypeValidator
 
-from ..database_exceptions import (
+from .._foundation.exceptions import (
     QueryNotFoundError,
     QueryParameterError,
     QueryValidationError,
@@ -146,7 +146,9 @@ class QueryResolver:
                 f"❌ Error resolving query '{query_name}' for db_type '{effective_db_type}': {e}",
                 exc_info=True,
             )
-            raise QueryParameterError(f"Failed to resolve query '{query_name}' for db_type '{effective_db_type}'") from e
+            raise QueryParameterError(
+                f"Failed to resolve query '{query_name}' for db_type '{effective_db_type}'"
+            ) from e
 
     def bind(self, db_type: str) -> QueryResolver:
         """Crea un resolver ligado a un db_type manteniendo el mismo registry."""

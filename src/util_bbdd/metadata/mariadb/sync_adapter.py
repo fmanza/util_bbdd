@@ -1,47 +1,77 @@
-"""Adaptador sync de orquestacion MariaDB para SyncDatabaseManager."""
+"""Adaptador sync de orquestacion MariaDB para SyncDatabaseManager.
+
+Implementa los Protocols SourceAdapter y RoutineAdapter para introspección
+de metadatos en MariaDB/MySQL.
+"""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
-from ...database_exceptions import DatabaseOperationError, QueryError
 from ...results import Rows
-from .common import escape_mariadb_sql_literal, normalize_mariadb_routine_status_rows
+from ._adapter_helpers import (
+    build_columns_safe_sql,
+    build_routine_ddl_from_detail,
+    build_view_definition_sql,
+    process_view_result,
+    routine_entries_to_rows,
+)
+from ._manager_protocol import MariaDBSyncManagerProtocol
+from ._routine_models import MariaDBRoutineDetail, MariaDBRoutineParameterDetail
 from .routines import (
-    build_mariadb_routine_ddl,
-    decode_mariadb_routine_detail_rows,
-    decode_mariadb_routine_parameter_detail_rows,
-    filter_mariadb_routine_parameter_rows,
+    build_public_mariadb_routine_parameter_entry_rows,
+    decode_mariadb_routine_detail_entries,
+    decode_mariadb_routine_parameter_detail_entries,
+    filter_mariadb_routine_parameter_entries,
 )
 from .tables import build_mariadb_table_ddl, decode_mariadb_safe_column_rows
 
 
 class MariaDBSyncAdapter:
+    """Implementa SourceAdapter y RoutineAdapter para introspección sync de MariaDB.
+
+    Responsabilidades:
+    - Extracción de metadatos: tablas, columnas, constraints, índices, routines.
+    - Caché coherente a través de manager.
+    - Normalización de retornos a list[tuple].
+    """
+
     """Extrae la orquestacion MariaDB del manager sync."""
 
-    def __init__(self, manager: Any) -> None:
+    def __init__(self, manager: MariaDBSyncManagerProtocol) -> None:
         self.manager = manager
 
-    def fetch_routines_from_show_status(self, database: str) -> Rows:
-        escaped_database: str = escape_mariadb_sql_literal(database)
-        procedures_sql: str = f"SHOW PROCEDURE STATUS WHERE Db = '{escaped_database}'"
-        functions_sql: str = f"SHOW FUNCTION STATUS WHERE Db = '{escaped_database}'"
-        procedures_rows: Rows = self.manager.execute_custom_many(procedures_sql)
-        functions_rows: Rows = self.manager.execute_custom_many(functions_sql)
-        combined_rows: Rows = normalize_mariadb_routine_status_rows(
-            procedures_rows, "PROCEDURE"
-        ) + normalize_mariadb_routine_status_rows(functions_rows, "FUNCTION")
-        return sorted(combined_rows, key=lambda row: (str(row[1]), str(row[0])))
+    def _get_cached_entries(
+        self,
+        *,
+        cache_lookup: Callable[[], list[Any] | None],
+        cache_store: Callable[[list[Any]], None],
+        fetch_entries: Callable[[], list[Any]],
+        cache_hit_message: str,
+        success_message: str,
+        fetch_debug_message: str,
+    ) -> list[Any]:
+        return list(
+            self.manager._get_cached_rows(
+                cache_lookup=cache_lookup,
+                cache_store=cache_store,
+                fetch_rows=fetch_entries,
+                cache_hit_message=cache_hit_message,
+                success_message=success_message,
+                fetch_debug_message=fetch_debug_message,
+            )
+        )
 
-    def get_routines_detail_rows(self, context_database: str) -> list[dict[str, Any]]:
+    def get_routine_details(self, context_database: str) -> list[MariaDBRoutineDetail]:
         cache_key: str = self.manager._cache_context_key(context_database)
         context_label: str = self.manager._get_query_context_label()
-        rows = self.manager._get_cached_rows(
+        entries = self._get_cached_entries(
             cache_lookup=lambda: self.manager.db_cache._routine_metadata_context_cache.get(cache_key),
             cache_store=lambda items: self.manager.db_cache._routine_metadata_context_cache.__setitem__(
                 cache_key, list(items)
             ),
-            fetch_rows=lambda: decode_mariadb_routine_detail_rows(
+            fetch_entries=lambda: decode_mariadb_routine_detail_entries(
                 self.manager._execute_metadata_many(
                     "rutinas_mariadb_detalle",
                     params={"database": context_database},
@@ -54,17 +84,17 @@ class MariaDBSyncAdapter:
                 f"🔍 Obteniendo metadata detallada de rutinas MariaDB para {context_label}: {context_database}"
             ),
         )
-        return [row for row in rows if isinstance(row, dict)]
+        return [entry for entry in entries if isinstance(entry, MariaDBRoutineDetail)]
 
-    def get_routine_parameters_detail_rows(self, context_database: str) -> list[dict[str, Any]]:
+    def get_routine_parameters_details(self, context_database: str) -> list[MariaDBRoutineParameterDetail]:
         cache_key: str = self.manager._cache_context_key(context_database)
         context_label: str = self.manager._get_query_context_label()
-        rows = self.manager._get_cached_rows(
+        entries = self._get_cached_entries(
             cache_lookup=lambda: self.manager.db_cache._routine_parameters_context_cache.get(cache_key),
             cache_store=lambda items: self.manager.db_cache._routine_parameters_context_cache.__setitem__(
                 cache_key, list(items)
             ),
-            fetch_rows=lambda: decode_mariadb_routine_parameter_detail_rows(
+            fetch_entries=lambda: decode_mariadb_routine_parameter_detail_entries(
                 self.manager._execute_metadata_many(
                     "parametros_rutinas_mariadb_detalle",
                     params={"database": context_database},
@@ -77,116 +107,57 @@ class MariaDBSyncAdapter:
                 f"🔍 Obteniendo metadata detallada de parámetros de rutinas MariaDB para {context_label}: {context_database}"
             ),
         )
-        return [row for row in rows if isinstance(row, dict)]
+        return [entry for entry in entries if isinstance(entry, MariaDBRoutineParameterDetail)]
 
     def fetch_columns_safe(self, context_database: str, tabla: str) -> Rows:
-        escaped_database: str = escape_mariadb_sql_literal(context_database)
-        escaped_table: str = escape_mariadb_sql_literal(tabla)
-        sql = (
-            "SELECT HEX(COLUMN_NAME) AS column_name_hex, "
-            "HEX(COLUMN_TYPE) AS column_type_hex, "
-            "IS_NULLABLE, "
-            "COLUMN_KEY, "
-            "CASE WHEN COLUMN_DEFAULT IS NULL THEN 1 ELSE 0 END AS default_is_null, "
-            "HEX(CAST(COLUMN_DEFAULT AS BINARY)) AS column_default_hex, "
-            "HEX(COALESCE(EXTRA, '')) AS extra_hex, "
-            "HEX(COALESCE(COLUMN_COMMENT, '')) AS column_comment_hex "
-            "FROM information_schema.columns "
-            f"WHERE table_schema = '{escaped_database}' AND table_name = '{escaped_table}' "
-            "ORDER BY ordinal_position"
-        )
-        safe_rows: Rows = self.manager.execute_custom_many(sql)
-        return decode_mariadb_safe_column_rows(safe_rows)
+        sql = build_columns_safe_sql(context_database, tabla)
+        return decode_mariadb_safe_column_rows(self.manager.execute_custom_many(sql))
 
     def fetch_view_from_information_schema(self, database: str, view_name: str) -> str:
-        escaped_view: str = escape_mariadb_sql_literal(view_name)
-        schema_condition: str = f"'{escape_mariadb_sql_literal(database)}'" if database else "DATABASE()"
-        sql: str = f"""
-            SELECT VIEW_DEFINITION
-            FROM information_schema.views
-            WHERE TABLE_SCHEMA = {schema_condition}
-            AND TABLE_NAME = '{escaped_view}'
-            LIMIT 1
-        """
-        try:
-            result = self.manager.execute_custom_one(sql)
-            if result and len(result) > 0 and result[0]:
-                view_def: str = str(result[0]).strip()
-                if view_def:
-                    return f"CREATE OR REPLACE VIEW `{view_name}` AS\n{view_def}"
-            return f"-- View {view_name} definition unavailable (fallback)\n"
-        except Exception as error:
-            self.manager.logger.warning("Fallback para vista %s también falló: %s", view_name, error)
-            return f"-- View {view_name} definition unavailable\n"
+        sql = build_view_definition_sql(database, view_name)
+        return process_view_result(self.manager.execute_custom_one(sql), view_name)
 
     def fetch_routine_from_information_schema(self, database: str, routine_name: str, routine_type: str) -> str:
-        try:
-            routine_rows = self.get_routines_detail_rows(database)
-            target_row = next(
-                (
-                    row
-                    for row in routine_rows
-                    if str(row.get("routine_type") or "").upper() == routine_type.upper()
-                    and str(row.get("routine_name") or "").upper() == routine_name.upper()
-                ),
-                None,
+        routine_rows = self.get_routine_details(database)
+        target_row = next(
+            (row for row in routine_rows if row.matches(routine_name=routine_name, routine_type=routine_type)),
+            None,
+        )
+        if target_row and target_row.routine_definition:
+            parameters = self.fetch_routine_parameters_detailed(
+                database=database,
+                routine_name=routine_name,
+                routine_type=routine_type.upper(),
             )
-            if target_row and str(target_row.get("routine_definition") or "").strip():
-                parameters = self.fetch_routine_parameters_detailed(
-                    database=database,
-                    routine_name=routine_name,
-                    routine_type=routine_type.upper(),
-                )
-                return build_mariadb_routine_ddl(
-                    database=database,
-                    routine_name=routine_name,
-                    routine_type=routine_type.upper(),
-                    routine_definition=str(target_row.get("routine_definition") or "").strip(),
-                    definer=str(target_row.get("definer") or "").strip(),
-                    security_type=str(target_row.get("security_type") or "").strip().upper(),
-                    sql_data_access=str(target_row.get("sql_data_access") or "").strip().upper(),
-                    is_deterministic=str(target_row.get("is_deterministic") or "").strip().upper(),
-                    return_type=str(target_row.get("return_type") or "").strip(),
-                    routine_comment=str(target_row.get("routine_comment") or "").strip(),
-                    parameters=parameters,
-                )
-            return f"-- {routine_type} {routine_name} definition unavailable (fallback)\n"
-        except Exception as error:
-            self.manager.logger.warning("Fallback para rutina %s también falló: %s", routine_name, error)
-            return f"-- {routine_type} {routine_name} definition unavailable\n"
+            return build_routine_ddl_from_detail(
+                database=database,
+                routine_name=routine_name,
+                routine_type=routine_type,
+                target_row=target_row,
+                parameters=parameters,
+            )
+        return f"-- {routine_type} {routine_name} definition unavailable\n"
 
     def fetch_routine_parameters_detailed(
         self, *, database: str, routine_name: str, routine_type: str
-    ) -> list[dict[str, Any]]:
-        detailed_rows = filter_mariadb_routine_parameter_rows(
-            self.get_routine_parameters_detail_rows(database),
+    ) -> list[MariaDBRoutineParameterDetail]:
+        return filter_mariadb_routine_parameter_entries(
+            self.get_routine_parameters_details(database),
             routine_name=routine_name,
             routine_type=routine_type,
         )
-        if detailed_rows:
-            return detailed_rows
 
-        fallback_rows: list[Any] = list(
-            self.manager._execute_metadata_many(
-                "parametros_rutina",
-                params={"database": database, "rutina": routine_name, "tipo_rutina": routine_type.upper()},
-                error_message="Error obteniendo parámetros de rutina",
-                table_name=routine_name,
+    def fetch_routine_parameters_public_rows(self, *, database: str, routine_name: str, routine_type: str) -> Rows:
+        return build_public_mariadb_routine_parameter_entry_rows(
+            self.fetch_routine_parameters_detailed(
+                database=database,
+                routine_name=routine_name,
+                routine_type=routine_type,
             )
         )
-        return [
-            {
-                "mode": str(row[0] or "").strip().upper() if len(row) > 0 else "",
-                "name": str(row[1] or "").strip() if len(row) > 1 else "",
-                "data_type": str(row[2] or "").strip() if len(row) > 2 else "",
-                "default_value": str(row[3] or "").strip() if len(row) > 3 and row[3] is not None else "",
-                "charset": "",
-                "collation": "",
-                "ordinal_position": row[4] if len(row) > 4 else 0,
-            }
-            for row in fallback_rows
-            if isinstance(row, (tuple, list))
-        ]
+
+    def fetch_routines(self, context_database: str) -> Rows:
+        return routine_entries_to_rows(self.get_routine_details(context_database))
 
     def build_table_ddl_from_metadata(self, tabla: str) -> str:
         rows: list[Any] = list(self.manager.get_columns(tabla))
@@ -198,18 +169,119 @@ class MariaDBSyncAdapter:
             raise ValueError("Para MariaDB debe proporcionar 'database'")
 
         primary_rows: Rows = self.manager.execute_query_many("ficheros_fisicos", database=context_database)
-        temp_tablespaces_rows: Rows = []
-
-        try:
-            temp_tablespaces_rows = self.manager.execute_query_many("temp_tablespaces")
-        except (DatabaseOperationError, QueryError) as error:
-            self.manager.logger.warning(
-                "Temp tablespaces MariaDB no disponibles para %s. Se devuelve lista vacía. Error: %s",
-                context_database,
-                error,
-            )
+        temp_tablespaces_rows: Rows = self.manager.execute_query_many("temp_tablespaces")
 
         return {
             "primary": primary_rows,
             "temp_tablespaces": temp_tablespaces_rows,
         }
+
+    # ==================== SourceAdapter Protocol ====================
+
+    def fetch_tables_sync(self, schema: str | None = None) -> list[tuple]:
+        """Obtiene lista de tablas en modo síncrono (SourceAdapter).
+
+        Args:
+            schema: Nombre del esquema/database (ignorado para MariaDB, usa contexto del manager).
+
+        Returns:
+            list[tuple]: Filas (table_name, table_type, table_comment, ...)
+        """
+        return list(self.manager.get_tables())
+
+    def fetch_columns_sync(self, schema: str, table: str) -> list[tuple]:
+        """Obtiene columnas de una tabla en modo síncrono (SourceAdapter).
+
+        Args:
+            schema: Nombre del esquema (ignorado, se usa contexto del manager).
+            table: Nombre de la tabla.
+
+        Returns:
+            list[tuple]: Filas (column_name, column_type, is_nullable, ...)
+        """
+        return list(self.manager.get_columns(table))
+
+    def fetch_primary_keys_sync(self, schema: str, table: str) -> list[tuple]:
+        """Obtiene claves primarias en modo síncrono (SourceAdapter).
+
+        Args:
+            schema: Nombre del esquema (ignorado).
+            table: Nombre de la tabla.
+
+        Returns:
+            list[tuple]: Filas (column_name, ordinal_position, ...)
+        """
+        return list(self.manager.get_primary_keys(table))
+
+    def fetch_foreign_keys_sync(self, schema: str, table: str) -> list[tuple]:
+        """Obtiene claves foráneas en modo síncrono (SourceAdapter).
+
+        Args:
+            schema: Nombre del esquema (ignorado).
+            table: Nombre de la tabla.
+
+        Returns:
+            list[tuple]: Filas (constraint_name, column_name, ...)
+        """
+        return list(self.manager.get_foreign_keys(table))
+
+    def fetch_indexes_sync(self, schema: str, table: str) -> list[tuple]:
+        """Obtiene índices de una tabla en modo síncrono (SourceAdapter).
+
+        Args:
+            schema: Nombre del esquema (ignorado).
+            table: Nombre de la tabla.
+
+        Returns:
+            list[tuple]: Filas (index_name, column_name, seq_in_index, ...)
+        """
+        return list(self.manager.get_indices(table))
+
+    # ==================== RoutineAdapter Protocol ====================
+
+    def fetch_routines_sync(self, schema: str | None = None) -> list[tuple]:
+        """Obtiene lista de routines en modo síncrono (RoutineAdapter).
+
+        Args:
+            schema: Nombre del esquema/database (ignorado para MariaDB).
+
+        Returns:
+            list[tuple]: Filas (routine_name, routine_type, routine_comment, ...)
+        """
+        return list(self.fetch_routines(schema or self.manager._get_query_context_database()))
+
+    def fetch_routine_parameters_sync(self, schema: str, routine: str, routine_type: str) -> list[tuple]:
+        """Obtiene parámetros de una routine en modo síncrono (RoutineAdapter).
+
+        Args:
+            schema: Nombre del esquema (ignorado).
+            routine: Nombre de la routine.
+            routine_type: Tipo de routine ('PROCEDURE' o 'FUNCTION').
+
+        Returns:
+            list[tuple]: Filas (parameter_name, parameter_type, data_type, ...)
+        """
+        return list(
+            self.fetch_routine_parameters_public_rows(
+                database=schema or self.manager._get_query_context_database(),
+                routine_name=routine,
+                routine_type=routine_type,
+            )
+        )
+
+    def fetch_routine_definition_sync(self, schema: str, routine: str, routine_type: str) -> str:
+        """Obtiene el DDL completo de una routine en modo síncrono (RoutineAdapter).
+
+        Args:
+            schema: Nombre del esquema (ignorado).
+            routine: Nombre de la routine.
+            routine_type: Tipo de routine ('PROCEDURE' o 'FUNCTION').
+
+        Returns:
+            str: DDL de la routine (p.ej. 'CREATE PROCEDURE ...').
+        """
+        return self.fetch_routine_from_information_schema(
+            database=schema or self.manager._get_query_context_database(),
+            routine_name=routine,
+            routine_type=routine_type,
+        )

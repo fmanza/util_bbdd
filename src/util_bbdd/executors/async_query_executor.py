@@ -9,13 +9,13 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
-from ..async_utils import maybe_await
-from ..database_exceptions import (
+from .._foundation.exceptions import (
     DatabaseOperationError,
     QueryNotFoundError,
     QueryTimeoutError,
     QueryValidationError,
 )
+from ..async_utils import maybe_await
 from ..query.registry import QueryRegistry
 from ..query.resolver import QueryResolver
 from ..results import ResultNormalizer, RowOrNone, Rows

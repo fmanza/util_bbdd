@@ -1,8 +1,18 @@
 """Unit tests for relationship graph base behavior."""
 
+from pathlib import Path
 from typing import cast
 
-from util_bbdd.analysis.base import DatabaseRelationshipGraphBase, TableRelation
+from util_bbdd.analysis.base import (
+    DatabaseRelationshipGraphBase,
+    GraphDocument,
+    GraphEdge,
+    GraphLevel,
+    GraphNode,
+    HiddenLevelsSummary,
+    LevelDirection,
+    TableRelation,
+)
 from util_bbdd.managers import SyncDatabaseManager
 
 
@@ -107,3 +117,73 @@ def test_generate_relationship_report_returns_expected_counts_and_metadata() -> 
     assert report["outgoing_relations"]["count"] == 1
     assert report["incoming_relations"]["count"] == 1
     assert set(report["related_tables"]) == {"orders", "companies"}
+
+
+def test_build_subset_document_filters_relations_preserving_document_metadata() -> None:
+    graph = DatabaseRelationshipGraphBase(cast(SyncDatabaseManager, _FakeDbManager("postgresql", [], {})))
+    rel_users_orders = TableRelation("users", "orders", "fk_orders_users", "user_id", "id")
+    rel_orders_items = TableRelation("orders", "items", "fk_items_orders", "order_id", "id")
+    edge_users_orders = GraphEdge(relation=rel_users_orders, depth=1, direction=LevelDirection.OUTGOING)
+    edge_orders_items = GraphEdge(relation=rel_orders_items, depth=2, direction=LevelDirection.OUTGOING)
+    document = GraphDocument(
+        root_table="users",
+        nodes={
+            "users": GraphNode(table_name="users", is_root=True),
+            "orders": GraphNode(table_name="orders"),
+            "items": GraphNode(table_name="items"),
+        },
+        levels=[
+            GraphLevel(
+                depth=1, direction=LevelDirection.OUTGOING, edges=[edge_users_orders], tables={"users", "orders"}
+            ),
+            GraphLevel(
+                depth=2, direction=LevelDirection.OUTGOING, edges=[edge_orders_items], tables={"orders", "items"}
+            ),
+        ],
+        edges=[edge_users_orders, edge_orders_items],
+        relations=[rel_users_orders, rel_orders_items],
+        tables={"users", "orders", "items"},
+        max_depth=2,
+        direction=LevelDirection.OUTGOING,
+        hidden_levels=HiddenLevelsSummary(incoming_hidden_levels=0, outgoing_hidden_levels=1),
+        total_incoming_levels=0,
+        total_outgoing_levels=3,
+    )
+
+    subset = graph._build_subset_document(document, [rel_users_orders])
+
+    assert subset.relations == [rel_users_orders]
+    assert subset.edges == [edge_users_orders]
+    assert subset.tables == {"users", "orders"}
+    assert set(subset.nodes) == {"users", "orders"}
+    assert subset.max_depth == 2
+    assert subset.hidden_levels.outgoing_hidden_levels == 1
+    assert subset.total_outgoing_levels == 3
+
+
+def test_generate_all_tables_batch_registers_success_and_error() -> None:
+    graph = DatabaseRelationshipGraphBase(cast(SyncDatabaseManager, _FakeDbManager("postgresql", [], {})))
+
+    def _generate_for_table(table_name: str) -> list[Path]:
+        if table_name == "broken":
+            raise RuntimeError("boom")
+        return [Path(f"{table_name}.png")]
+
+    results = graph._generate_all_tables_batch(
+        table_names=["users", "broken"],
+        skip_tables_without_relations=False,
+        max_depth=None,
+        direction=None,
+        generate_for_table=_generate_for_table,
+        progress_template="[{idx}/{total}] {table_name}",
+        success_template="{table_name}: {count}",
+        completion_template="{successful}/{total}",
+        error_prefix="Error batch para tabla",
+    )
+
+    assert results["users"]["status"] == "success"
+    assert results["users"]["files"] == ["users.png"]
+    assert results["users"]["count"] == 1
+    assert results["broken"]["status"] == "error"
+    assert results["broken"]["error"] == "boom"
+    assert results["broken"]["files"] == []

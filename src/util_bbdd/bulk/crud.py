@@ -15,9 +15,10 @@ Compatible con SyncDatabaseManager para integración simplificada.
 import logging
 
 from collections.abc import Callable, Hashable, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -40,17 +41,14 @@ from sqlalchemy import (
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from ._batch_execution import (
-    execute_batch_statement,
-    execute_delete_batch,
-)
-from ._persistence import BulkPersistenceManager
-from ._sql_helpers import (
+from ._execution.batch import BatchStatementExecutor, DeleteBatchExecutor
+from ._support.persistence import BulkPersistenceManager
+from ._support.sql_helpers import (
     generate_delete_sql,
     generate_insert_sql,
     generate_update_sql,
 )
-from ._validation import (
+from ._support.validation import (
     build_update_plan,
     get_insert_columns,
     get_pk_columns,
@@ -74,6 +72,23 @@ except ImportError:
 
 
 medir_tiempo: Any = _medir_tiempo
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedBulkOperation:
+    """Resultado de preparar una operación bulk concreta."""
+
+    rowcount: int
+    generate_sql_lines: Callable[[], list[str]]
+    execute: Callable[[], None]
+
+
+@dataclass(frozen=True, slots=True)
+class _BulkOperationStrategy:
+    """Estrategia de preparación para una operación bulk."""
+
+    operation_name: str
+    prepare: Callable[[pd.DataFrame, str], _PreparedBulkOperation]
 
 
 class bulk_crud:
@@ -109,6 +124,28 @@ class bulk_crud:
             audit_manager=self.audit_manager,
             db_info=self.db_info,
         )
+        self._batch_statement_executor: BatchStatementExecutor = BatchStatementExecutor(
+            engine=self.engine,
+            chunk_size=self.chunk_size,
+        )
+        self._delete_batch_executor: DeleteBatchExecutor = DeleteBatchExecutor(
+            engine=self.engine,
+            chunk_size=self.chunk_size,
+        )
+        self._operation_strategies: dict[Literal["insert", "update", "delete"], _BulkOperationStrategy] = {
+            "insert": _BulkOperationStrategy(
+                operation_name="INSERT",
+                prepare=self.__prepare_insert_operation,
+            ),
+            "update": _BulkOperationStrategy(
+                operation_name="UPDATE",
+                prepare=self.__prepare_update_operation,
+            ),
+            "delete": _BulkOperationStrategy(
+                operation_name="DELETE",
+                prepare=self.__prepare_delete_operation,
+            ),
+        }
 
     def __detectar_sqlserver_driver(self) -> None:
         """Detecta el driver específico de SQL Server (pymssql o pyodbc) y actualiza db_info."""
@@ -166,50 +203,13 @@ class bulk_crud:
 
         La operación se registra en auditoría si fue configurada.
         """
-        # Validar y generar ruta completa si se genera SQL
-        if generar_sql:
-            path_sql = self.__validar_y_generar_path_sql(path_sql, tabla_destino, "insert")
-        else:
-            path_sql = None
-
-        self.__actualizar_df(df)
-        tabla: Table = self.reflect_table(tabla_destino)
-        insert_cols: list[str] = get_insert_columns(list(df.columns), tabla)
-        records: list[dict[Hashable, Any]] = df[insert_cols].to_dict(orient="records")
-
-        try:
-            numero_registros: int = len(records)
-            stmt: Insert = insert(tabla)
-            records_sql: list[dict] = normalize_records_for_sql(records)
-
-            # Medir tiempo de ejecución
-            start: float = perf_counter()
-
-            # Generar SQL
-            if generar_sql:
-                sql_lines: list = self.__generar_sql_insert(stmt, records_sql)
-                self.__guardar_fichero_sql(sql_lines, path_sql)
-
-            # Ejecutar SQL
-            else:
-                self.__ejecutar_batch_stmt(records_sql, stmt, numero_registros)
-
-            elapsed: float = perf_counter() - start
-
-            # Registrar operación finalizada
-            self._persistence.register_operation(
-                table_name=tabla_destino,
-                operation="INSERT",
-                rowcount=numero_registros,
-                elapsed=elapsed,
-                generated_sql=generar_sql,
-            )
-            self.logger.info(f"✅ bulk INSERT finalizado ({self.db_info}).")
-        except SQLAlchemyError as e:
-            self.logger.error(f"❌ Error en bulk INSERT: {e}")
-            raise
-        finally:
-            df.columns = df.columns.str.upper()
+        self.__run_bulk_pipeline(
+            df=df,
+            tabla_destino=tabla_destino,
+            generar_sql=generar_sql,
+            path_sql=path_sql,
+            strategy_key="insert",
+        )
 
     @medir_tiempo("bulk_update_from_df")
     def bulk_update_from_df(
@@ -235,65 +235,13 @@ class bulk_crud:
 
         La operación se registra en auditoría si fue configurada.
         """
-        # Validar y generar ruta completa si se genera SQL
-        if generar_sql:
-            path_sql = self.__validar_y_generar_path_sql(path_sql, tabla_destino, "update")
-        else:
-            path_sql = None
-
-        self.__actualizar_df(df)
-        tabla: Table = self.reflect_table(tabla_destino)
-        try:
-            update_plan = build_update_plan(tabla, list(df.columns), tabla_destino)
-        except ValueError as error:
-            self.logger.error(str(error))
-            raise
-
-        records: list[dict[Hashable, Any]] = df.to_dict(orient="records")
-        records_sql: list[dict] = normalize_records_for_sql(records)
-
-        for r in records_sql:
-            for orig, alias in update_plan.pk_param_map.items():
-                r[alias] = r[orig]
-
-        try:
-            numero_registros: int = len(records_sql)
-            start: float = perf_counter()
-
-            if generar_sql:
-                sql_lines: list = self.__generar_sql_update(
-                    tabla,
-                    records_sql,
-                    update_plan.update_cols,
-                    update_plan.pk_param_map,
-                    update_plan.pk_cols,
-                )
-                self.__guardar_fichero_sql(sql_lines, path_sql)
-            else:
-                where_clause: ColumnElement[bool] = and_(
-                    *(tabla.c[col] == bindparam(update_plan.pk_param_map[col]) for col in update_plan.pk_cols)
-                )
-                stmt: Update = (
-                    update(tabla).where(where_clause).values({col: bindparam(col) for col in update_plan.update_cols})
-                )
-                self.__ejecutar_batch_stmt(records_sql, stmt, numero_registros)
-
-            elapsed: float = perf_counter() - start
-
-            # Registrar operación finalizada
-            self._persistence.register_operation(
-                table_name=tabla_destino,
-                operation="UPDATE",
-                rowcount=numero_registros,
-                elapsed=elapsed,
-                generated_sql=generar_sql,
-            )
-            self.logger.info(f"✅ bulk UPDATE finalizado ({self.db_info}).")
-        except SQLAlchemyError as e:
-            self.logger.error(f"❌ Error en bulk UPDATE: {e}")
-            raise
-        finally:
-            df.columns = df.columns.str.upper()
+        self.__run_bulk_pipeline(
+            df=df,
+            tabla_destino=tabla_destino,
+            generar_sql=generar_sql,
+            path_sql=path_sql,
+            strategy_key="update",
+        )
 
     @medir_tiempo("bulk_delete_from_df")
     def bulk_delete_from_df(
@@ -319,51 +267,118 @@ class bulk_crud:
 
         La operación se registra en auditoría si fue configurada.
         """
-        # Validar y generar ruta completa si se genera SQL
+        self.__run_bulk_pipeline(
+            df=df,
+            tabla_destino=tabla_destino,
+            generar_sql=generar_sql,
+            path_sql=path_sql,
+            strategy_key="delete",
+        )
+
+    def __run_bulk_pipeline(
+        self,
+        *,
+        df: pd.DataFrame,
+        tabla_destino: str,
+        generar_sql: bool,
+        path_sql: Path | None,
+        strategy_key: Literal["insert", "update", "delete"],
+    ) -> None:
+        """Template Method para operaciones bulk con estrategia por operación."""
+        strategy: _BulkOperationStrategy = self._operation_strategies[strategy_key]
         if generar_sql:
-            path_sql = self.__validar_y_generar_path_sql(path_sql, tabla_destino, "delete")
+            path_sql = self.__validar_y_generar_path_sql(path_sql, tabla_destino, strategy_key)
         else:
             path_sql = None
 
-        # Actualizar DataFrame para que las columnas sean mayúsculas
         self.__actualizar_df(df)
-        # Obtener tabla reflejada con SQLAlchemy
-        tabla: Table = self.reflect_table(tabla_destino)
-        # Obtener columnas PK de la tabla
-        pk_cols: list[str] = self.__obtener_pk_cols(tabla, df.columns)
-
         try:
-            # Numero de registros a borrar
-            numero_registros: int = len(df)
+            prepared_operation = strategy.prepare(df, tabla_destino)
             start: float = perf_counter()
 
             if generar_sql:
-                # Generar sentencia SQL y guardar en archivo
-                self.__generar_y_guardar_sql_delete(df, tabla, pk_cols, path_sql)
+                sql_lines: list[str] = prepared_operation.generate_sql_lines()
+                self.__guardar_fichero_sql(sql_lines, path_sql)
             else:
-                # Ejecutar en bloque
-                self.__ejecutar_delete_batch(df, tabla, tabla_destino, pk_cols, numero_registros)
+                prepared_operation.execute()
 
             elapsed: float = perf_counter() - start
-
-            # Registrar ejecución finalizada de operación
             self._persistence.register_operation(
                 table_name=tabla_destino,
-                operation="DELETE",
-                rowcount=numero_registros,
+                operation=strategy.operation_name,
+                rowcount=prepared_operation.rowcount,
                 elapsed=elapsed,
                 generated_sql=generar_sql,
             )
-            self.logger.info(f"✅ bulk DELETE finalizado ({self.db_info}).")
-        except SQLAlchemyError as e:
-            # Registrar error
-            self.logger.error(f"❌ Error en bulk DELETE: {e}")
+            self.logger.info(f"✅ bulk {strategy.operation_name} finalizado ({self.db_info}).")
+        except ValueError as error:
+            self.logger.error(str(error))
+            raise
+        except SQLAlchemyError as error:
+            self.logger.error(f"❌ Error en bulk {strategy.operation_name}: {error}")
             raise
         finally:
-            # Actualizar DataFrame para que las columnas sean mayúsculas
             df.columns = df.columns.str.upper()
 
-    def __ejecutar_batch_stmt(self, records: list[dict[Hashable, Any]], stmt, numero_registros: int):
+    def __prepare_insert_operation(self, df: pd.DataFrame, tabla_destino: str) -> _PreparedBulkOperation:
+        tabla: Table = self.reflect_table(tabla_destino)
+        insert_cols: list[str] = get_insert_columns(list(df.columns), tabla)
+        records: list[dict[Hashable, Any]] = df[insert_cols].to_dict(orient="records")
+        stmt: Insert = insert(tabla)
+        records_sql: list[dict[str, Any]] = normalize_records_for_sql(records)
+        numero_registros: int = len(records_sql)
+
+        return _PreparedBulkOperation(
+            rowcount=numero_registros,
+            generate_sql_lines=lambda: self.__generar_sql_insert(stmt, records_sql),
+            execute=lambda: self.__ejecutar_batch_stmt(records_sql, stmt, numero_registros),
+        )
+
+    def __prepare_update_operation(self, df: pd.DataFrame, tabla_destino: str) -> _PreparedBulkOperation:
+        tabla: Table = self.reflect_table(tabla_destino)
+        update_plan = build_update_plan(tabla, list(df.columns), tabla_destino)
+        records: list[dict[Hashable, Any]] = df.to_dict(orient="records")
+        records_sql: list[dict[str, Any]] = normalize_records_for_sql(records)
+
+        for record in records_sql:
+            for original_col, alias_col in update_plan.pk_param_map.items():
+                record[alias_col] = record[original_col]
+
+        numero_registros: int = len(records_sql)
+
+        def _execute_update() -> None:
+            where_clause: ColumnElement[bool] = and_(
+                *(tabla.c[col] == bindparam(update_plan.pk_param_map[col]) for col in update_plan.pk_cols)
+            )
+            stmt: Update = (
+                update(tabla).where(where_clause).values({col: bindparam(col) for col in update_plan.update_cols})
+            )
+            self.__ejecutar_batch_stmt(records_sql, stmt, numero_registros)
+
+        return _PreparedBulkOperation(
+            rowcount=numero_registros,
+            generate_sql_lines=lambda: self.__generar_sql_update(
+                tabla,
+                records_sql,
+                update_plan.update_cols,
+                update_plan.pk_param_map,
+                update_plan.pk_cols,
+            ),
+            execute=_execute_update,
+        )
+
+    def __prepare_delete_operation(self, df: pd.DataFrame, tabla_destino: str) -> _PreparedBulkOperation:
+        tabla: Table = self.reflect_table(tabla_destino)
+        pk_cols: list[str] = self.__obtener_pk_cols(tabla, df.columns)
+        numero_registros: int = len(df)
+
+        return _PreparedBulkOperation(
+            rowcount=numero_registros,
+            generate_sql_lines=lambda: self.__generar_sql_delete(df, tabla, pk_cols),
+            execute=lambda: self.__ejecutar_delete_batch(df, tabla, pk_cols, numero_registros),
+        )
+
+    def __ejecutar_batch_stmt(self, records: Sequence[Mapping[Any, Any]], stmt, numero_registros: int):
         """Ejecuta un statement de SQLAlchemy por lotes.
 
         Args:
@@ -374,12 +389,7 @@ class bulk_crud:
         records_to_execute: Sequence[Mapping[str, Any]] = [
             {str(key): value for key, value in record.items()} for record in records[:numero_registros]
         ]
-        execute_batch_statement(
-            engine=self.engine,
-            records=records_to_execute,
-            stmt=stmt,
-            chunk_size=self.chunk_size,
-        )
+        self._batch_statement_executor.execute(records=records_to_execute, stmt=stmt)
 
     def __obtener_pk_cols(self, tabla: Table, df_cols) -> list[str]:
         """Obtiene las columnas PK presentes en el DataFrame.
@@ -396,30 +406,19 @@ class bulk_crud:
         """
         return get_pk_columns(tabla, df_cols)
 
-    def __generar_y_guardar_sql_delete(
-        self, df: pd.DataFrame, tabla: Table, pk_cols: list[str], fichero_sql: Path | None
-    ):
-        """Genera y guarda el SQL de DELETE."""
-        sql_lines: list = self.__generar_sql_delete(df, tabla, pk_cols)
-        self.__guardar_fichero_sql(sql_lines, fichero_sql)
-
     def __ejecutar_delete_batch(
         self,
         df: pd.DataFrame,
         tabla: Table,
-        tabla_destino: str,
         pk_cols: list[str],
         numero_registros: int,
     ):
         """Ejecuta borrado por lotes en la base de datos."""
         del numero_registros
-        execute_delete_batch(
-            engine=self.engine,
+        self._delete_batch_executor.execute(
             table=tabla,
-            table_name=tabla_destino,
             df=df,
             pk_cols=pk_cols,
-            chunk_size=self.chunk_size,
         )
 
     def __actualizar_df(self, df: pd.DataFrame):
@@ -437,7 +436,7 @@ class bulk_crud:
             - hsqldb: Mayúsculas (comportamiento nativo de HSQLDB)
         """
         normalize_dataframe_columns(df, self.engine.dialect.name, self.logger)
-        df = df.replace({np.nan: None})
+        df.replace({np.nan: None}, inplace=True)
 
     def reflect_table(self, tabla_destino: str) -> Table:
         """

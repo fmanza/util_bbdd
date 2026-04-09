@@ -702,7 +702,7 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         }
 
     @pytest.mark.asyncio
-    async def test_get_storage_inventory_mariadb_keeps_optional_sections_empty_on_error(self):
+    async def test_get_storage_inventory_mariadb_raises_on_temp_tablespaces_error(self):
         mock_executor = AsyncMock()
         mock_executor.execute_query_many = AsyncMock(
             side_effect=[
@@ -723,15 +723,11 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         manager.query_executor = mock_executor
         manager._initialized = True
 
-        result = await manager.get_storage_inventory()
-
-        assert result == {
-            "primary": [("db", "users", "InnoDB", 12.5, 1.5, 14.0)],
-            "temp_tablespaces": [],
-        }
+        with pytest.raises(DatabaseOperationError):
+            await manager.get_storage_inventory()
 
     @pytest.mark.asyncio
-    async def test_get_storage_inventory_sqlite_includes_summary_and_temp_keys(self):
+    async def test_get_storage_inventory_sqlite_raises_when_temp_tablespaces_query_fails(self):
         mock_executor = AsyncMock()
         mock_executor.execute_query_many = AsyncMock(side_effect=[[("main.db",)], [("wal.db",)], RuntimeError("boom")])
 
@@ -743,11 +739,8 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         manager.query_executor = mock_executor
         manager._initialized = True
 
-        result = await manager.get_storage_inventory()
-
-        assert result["primary"] == [("main.db",)]
-        assert result["sqlite_file_summary"] == [("wal.db",)]
-        assert result["temp_tablespaces"] == []
+        with pytest.raises(DatabaseOperationError, match="temp_tablespaces"):
+            await manager.get_storage_inventory()
 
     @pytest.mark.asyncio
     async def test_get_storage_inventory_oracle_requires_tablespace(self):
@@ -772,28 +765,18 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         assert "no soportado" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_get_routines_mariadb_falls_back_to_show_status_when_metadata_is_empty(self):
+    async def test_get_routines_mariadb_without_metadata_returns_empty(self):
         manager = AsyncDatabaseManager(
             db_type="mariadb",
             conn_params={"database": "db"},
             use_pool=False,
         )
         manager._execute_metadata_many = AsyncMock(return_value=[])
-        manager.execute_custom_many = AsyncMock(
-            side_effect=[
-                [("db", "LOPD_FINAL", "PROCEDURE", None, None, None, None, "")],
-                [("db", "REMOVER_ACENTOS", "FUNCTION", None, None, None, None, "texto")],
-            ]
-        )
 
         result = await manager.get_routines()
 
-        assert result == [
-            ("REMOVER_ACENTOS", "FUNCTION", "texto"),
-            ("LOPD_FINAL", "PROCEDURE", ""),
-        ]
+        assert result == []
         manager._execute_metadata_many.assert_awaited_once()
-        assert manager.execute_custom_many.await_count == 2
 
     @pytest.mark.asyncio
     async def test_get_tables_normalized_maps_raw_rows(self):

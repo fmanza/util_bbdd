@@ -11,17 +11,24 @@ from typing import Any, ClassVar
 # Importar módulos modulares
 from ..analysis.graphviz_ext import GraphvizRelationshipGraphExt
 from ..managers import SyncDatabaseManager
-from ._documentation_orchestrator import (
+from .application.ports import DocumentationManagerPort, LoggerProtocol
+from .application.use_cases.documentation_orchestrator import (
     DocumentationBootstrap,
     DocumentationFacade,
     DocumentationOrchestrator,
     DocumentationOutputPlanner,
     DocumentationSession,
 )
-from ._documentation_runtime_types import DocumentationRuntimeManagerProtocol, LoggerProtocol
-from .excel_generator import ExcelGenerator
-from .html_generator import HtmlGenerator
-from .word_generator import WordGenerator
+from .infrastructure.adapters.sync_database_manager_adapter import SyncDatabaseManagerAdapter
+from .infrastructure.renderers.excel_generator import ExcelGenerator
+from .infrastructure.renderers.html_generator import HtmlGenerator
+from .infrastructure.renderers.registry import DocumentationRendererRegistry, build_default_renderer_registry
+from .infrastructure.renderers.shared.print_config_manager import PrintConfigManager
+from .infrastructure.renderers.word_generator import WordGenerator
+from .infrastructure.runtime.headers_runtime import DocumentationHeadersRuntime
+from .infrastructure.runtime.metadata_runtime import DocumentationMetadataRuntimeFactory
+from .infrastructure.runtime.output_runtime import DocumentationOutputRuntime
+from .infrastructure.storage.runtime import StorageInventoryReportService
 
 
 class DatabaseDocumentation:
@@ -51,7 +58,7 @@ class DatabaseDocumentation:
     """
 
     logger: LoggerProtocol
-    db_manager: DocumentationRuntimeManagerProtocol
+    db_manager: DocumentationManagerPort
     imprimir_config: dict[str, Any]
     formatos: list[str]
     directorio_salida: Path
@@ -63,6 +70,11 @@ class DatabaseDocumentation:
     vistas: list[Any]
     rutinas: list[Any]
     _documentation_session: DocumentationSession
+    _output_policy: DocumentationOutputRuntime
+    _headers_runtime: DocumentationHeadersRuntime
+    _metadata_runtime_factory: DocumentationMetadataRuntimeFactory
+    _storage_report_service: StorageInventoryReportService
+    _renderer_registry: DocumentationRendererRegistry
 
     _AUTO_OUTPUT_BATCH_WINDOW_SECONDS: ClassVar[int] = 90
     _LAST_AUTO_OUTPUT_BY_KEY: ClassVar[dict[tuple[str, str], tuple[float, str]]] = {}
@@ -78,9 +90,19 @@ class DatabaseDocumentation:
     ) -> None:
         # Configurar logger
         self.logger: LoggerProtocol = logging.getLogger(__name__)
+        self._output_policy = DocumentationOutputRuntime()
+        self._headers_runtime = DocumentationHeadersRuntime()
+        self._metadata_runtime_factory = DocumentationMetadataRuntimeFactory()
+        self._storage_report_service = StorageInventoryReportService()
+        self._renderer_registry = build_default_renderer_registry(
+            word_generator_cls=WordGenerator,
+            excel_generator_cls=ExcelGenerator,
+            html_generator_cls=HtmlGenerator,
+        )
+        adapted_manager = SyncDatabaseManagerAdapter(db_manager, imprimir or {})
 
         bootstrap_state = DocumentationBootstrap(
-            db_manager=db_manager,
+            db_manager=adapted_manager,
             directorio_salida=directorio_salida,
             fichero_salida=fichero_salida,
             imprimir=imprimir,
@@ -88,9 +110,12 @@ class DatabaseDocumentation:
             headers_file=headers_file,
             output_cache=self._LAST_AUTO_OUTPUT_BY_KEY,
             batch_window_seconds=self._AUTO_OUTPUT_BATCH_WINDOW_SECONDS,
+            print_config_policy=PrintConfigManager(),
+            headers_runtime=self._headers_runtime,
+            output_policy=self._output_policy,
         ).build()
 
-        self.db_manager = bootstrap_state.db_manager
+        self.db_manager = adapted_manager
         self.imprimir_config = bootstrap_state.print_config
         self.formatos = bootstrap_state.formatos
         self.directorio_salida = bootstrap_state.directorio_salida
@@ -102,7 +127,14 @@ class DatabaseDocumentation:
         self.vistas = bootstrap_state.vistas
         self.rutinas = bootstrap_state.rutinas
         documentation_facade: DocumentationFacade = self
-        self._bind_documentation_session(DocumentationSession.from_documentation(documentation_facade))
+        self._bind_documentation_session(
+            DocumentationSession.from_documentation(
+                documentation_facade,
+                output_policy=self._output_policy,
+                metadata_runtime_factory=self._metadata_runtime_factory,
+                storage_report_service=self._storage_report_service,
+            )
+        )
         self._create_documents()
 
     def _bind_documentation_session(self, session: DocumentationSession) -> None:
@@ -113,10 +145,7 @@ class DatabaseDocumentation:
         """Genera documentación para todos los formatos solicitados."""
         DocumentationOrchestrator(
             session=self._documentation_session,
-            planner=DocumentationOutputPlanner(self._documentation_session),
+            planner=DocumentationOutputPlanner(self._documentation_session, self._renderer_registry),
+            renderer_registry=self._renderer_registry,
             graph_generator_cls=GraphvizRelationshipGraphExt,
-            word_generator_cls=WordGenerator,
-            excel_generator_cls=ExcelGenerator,
-            html_generator_cls=HtmlGenerator,
         ).generate_documents()
-

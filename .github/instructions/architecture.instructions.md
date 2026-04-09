@@ -3,6 +3,8 @@ applyTo: "src/**/*.py"
 ---
 # Arquitectura OO, SOLID y Patrones
 
+> **TL;DR** — 3 capas (Foundation → Core Services → Domain Logic). Separar extracción, normalización, render y persistencia (SRP). Extender por adaptadores/Strategy, nunca editando flujos base estables (OCP). Las implementaciones deben respetar contratos comunes (LSP). Orquestar desde Protocol/ABC, no desde clases concretas (DIP).
+
 ## Objetivo
 Definir reglas de arquitectura para una librería multibase orientada a introspección, comparativas de esquemas y generación de documentación.
 

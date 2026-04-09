@@ -3,6 +3,8 @@ applyTo: "src/**/render/**/*.py"
 ---
 # Render Markdown
 
+> **TL;DR** — Cada tabla con secciones en orden fijo: Columnas → Clave primaria → FK → Índices. Orden alfabético estable. Anchors solo si el renderer destino los soporta de forma predecible. Mermaid permitido solo para diagramas de relaciones. Tests sobre fragmentos clave del Markdown generado.
+
 ## Estructura obligatoria por tabla
 Cada tabla debe documentarse con este orden:
 

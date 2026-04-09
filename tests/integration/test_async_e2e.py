@@ -13,6 +13,7 @@ from util_bbdd.database_exceptions import DatabaseOperationError, QueryNotFoundE
 
 @pytest.mark.e2e
 @pytest.mark.sqlite
+@pytest.mark.integration
 class TestAsyncDatabaseManagerE2E:
     """Tests E2E para AsyncDatabaseManager con BD real."""
 

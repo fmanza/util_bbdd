@@ -6,7 +6,7 @@ import re
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol, TypeVar
 
 from ..metadata.mariadb import (
     parse_mariadb_column_charset_collation_row,
@@ -14,6 +14,7 @@ from ..metadata.mariadb import (
 )
 
 ColumnCharsetCollationRow = tuple[str, str | None, str | None]
+_T = TypeVar("_T")
 
 
 @dataclass(frozen=True)
@@ -113,68 +114,156 @@ def build_routine_ddl_fetch_request(
     )
 
 
-def build_sync_rows_fetcher[T](
-    *,
-    db_type: str,
-    mariadb_fetcher: Callable[[], T],
-    request: MetadataFetchRequest,
-    execute_many: Callable[[MetadataFetchRequest], T],
-) -> Callable[[], T]:
-    """Selecciona el fetcher sync adecuado para colecciones de metadata."""
-    if db_type == "mariadb":
-        return mariadb_fetcher
+class MetadataFetchStrategy(Protocol):
+    """Contrato para construir fetchers sync/async por motor."""
 
-    return lambda: execute_many(request)
+    def build_sync_rows_fetcher(
+        self,
+        *,
+        request: MetadataFetchRequest,
+        specialized_fetcher: Callable[[], _T],
+        execute_many: Callable[[MetadataFetchRequest], _T],
+    ) -> Callable[[], _T]: ...
 
+    def build_sync_text_fetcher(
+        self,
+        *,
+        request: MetadataFetchRequest,
+        specialized_fetcher: Callable[[], str],
+        execute_one: Callable[[MetadataFetchRequest], Any],
+        normalize_one: Callable[[Any], str],
+    ) -> Callable[[], str]: ...
 
-def build_sync_text_fetcher(
-    *,
-    db_type: str,
-    mariadb_fetcher: Callable[[], str],
-    request: MetadataFetchRequest,
-    execute_one: Callable[[MetadataFetchRequest], Any],
-    normalize_one: Callable[[Any], str],
-) -> Callable[[], str]:
-    """Selecciona el fetcher sync adecuado para textos DDL."""
-    if db_type == "mariadb":
-        return mariadb_fetcher
+    def build_async_rows_fetcher(
+        self,
+        *,
+        request: MetadataFetchRequest,
+        specialized_fetcher: Callable[[], Awaitable[_T]],
+        execute_many: Callable[[MetadataFetchRequest], Awaitable[_T]],
+    ) -> Callable[[], Awaitable[_T]]: ...
 
-    return lambda: normalize_one(execute_one(request))
-
-
-def build_async_rows_fetcher[T](
-    *,
-    db_type: str,
-    mariadb_fetcher: Callable[[], Awaitable[T]],
-    request: MetadataFetchRequest,
-    execute_many: Callable[[MetadataFetchRequest], Awaitable[T]],
-) -> Callable[[], Awaitable[T]]:
-    """Selecciona el fetcher async adecuado para colecciones de metadata."""
-    if db_type == "mariadb":
-        return mariadb_fetcher
-
-    async def _fetch_many() -> T:
-        return await execute_many(request)
-
-    return _fetch_many
+    def build_async_text_fetcher(
+        self,
+        *,
+        request: MetadataFetchRequest,
+        specialized_fetcher: Callable[[], Awaitable[str]],
+        execute_one: Callable[[MetadataFetchRequest], Awaitable[Any]],
+        normalize_one: Callable[[Any], str],
+    ) -> Callable[[], Awaitable[str]]: ...
 
 
-def build_async_text_fetcher(
-    *,
-    db_type: str,
-    mariadb_fetcher: Callable[[], Awaitable[str]],
-    request: MetadataFetchRequest,
-    execute_one: Callable[[MetadataFetchRequest], Awaitable[Any]],
-    normalize_one: Callable[[Any], str],
-) -> Callable[[], Awaitable[str]]:
-    """Selecciona el fetcher async adecuado para textos DDL."""
-    if db_type == "mariadb":
-        return mariadb_fetcher
+@dataclass(frozen=True)
+class GenericMetadataFetchStrategy:
+    """Estrategia por defecto para motores SQL estándar."""
 
-    async def _fetch_one_normalized() -> str:
-        return normalize_one(await execute_one(request))
+    def build_sync_rows_fetcher(
+        self,
+        *,
+        request: MetadataFetchRequest,
+        specialized_fetcher: Callable[[], _T],
+        execute_many: Callable[[MetadataFetchRequest], _T],
+    ) -> Callable[[], _T]:
+        del specialized_fetcher
+        return lambda: execute_many(request)
 
-    return _fetch_one_normalized
+    def build_sync_text_fetcher(
+        self,
+        *,
+        request: MetadataFetchRequest,
+        specialized_fetcher: Callable[[], str],
+        execute_one: Callable[[MetadataFetchRequest], Any],
+        normalize_one: Callable[[Any], str],
+    ) -> Callable[[], str]:
+        del specialized_fetcher
+        return lambda: normalize_one(execute_one(request))
+
+    def build_async_rows_fetcher(
+        self,
+        *,
+        request: MetadataFetchRequest,
+        specialized_fetcher: Callable[[], Awaitable[_T]],
+        execute_many: Callable[[MetadataFetchRequest], Awaitable[_T]],
+    ) -> Callable[[], Awaitable[_T]]:
+        del specialized_fetcher
+
+        async def _fetch_many() -> _T:
+            return await execute_many(request)
+
+        return _fetch_many
+
+    def build_async_text_fetcher(
+        self,
+        *,
+        request: MetadataFetchRequest,
+        specialized_fetcher: Callable[[], Awaitable[str]],
+        execute_one: Callable[[MetadataFetchRequest], Awaitable[Any]],
+        normalize_one: Callable[[Any], str],
+    ) -> Callable[[], Awaitable[str]]:
+        del specialized_fetcher
+
+        async def _fetch_one_normalized() -> str:
+            return normalize_one(await execute_one(request))
+
+        return _fetch_one_normalized
+
+
+@dataclass(frozen=True)
+class MariaDBMetadataFetchStrategy:
+    """Estrategia especializada para MariaDB."""
+
+    def build_sync_rows_fetcher(
+        self,
+        *,
+        request: MetadataFetchRequest,
+        specialized_fetcher: Callable[[], _T],
+        execute_many: Callable[[MetadataFetchRequest], _T],
+    ) -> Callable[[], _T]:
+        del request, execute_many
+        return specialized_fetcher
+
+    def build_sync_text_fetcher(
+        self,
+        *,
+        request: MetadataFetchRequest,
+        specialized_fetcher: Callable[[], str],
+        execute_one: Callable[[MetadataFetchRequest], Any],
+        normalize_one: Callable[[Any], str],
+    ) -> Callable[[], str]:
+        del request, execute_one, normalize_one
+        return specialized_fetcher
+
+    def build_async_rows_fetcher(
+        self,
+        *,
+        request: MetadataFetchRequest,
+        specialized_fetcher: Callable[[], Awaitable[_T]],
+        execute_many: Callable[[MetadataFetchRequest], Awaitable[_T]],
+    ) -> Callable[[], Awaitable[_T]]:
+        del request, execute_many
+        return specialized_fetcher
+
+    def build_async_text_fetcher(
+        self,
+        *,
+        request: MetadataFetchRequest,
+        specialized_fetcher: Callable[[], Awaitable[str]],
+        execute_one: Callable[[MetadataFetchRequest], Awaitable[Any]],
+        normalize_one: Callable[[Any], str],
+    ) -> Callable[[], Awaitable[str]]:
+        del request, execute_one, normalize_one
+        return specialized_fetcher
+
+
+_DEFAULT_METADATA_FETCH_STRATEGY = GenericMetadataFetchStrategy()
+_METADATA_FETCH_STRATEGIES: dict[str, MetadataFetchStrategy] = {
+    "mariadb": MariaDBMetadataFetchStrategy(),
+}
+
+
+def get_metadata_fetch_strategy(db_type: str) -> MetadataFetchStrategy:
+    """Retorna la estrategia de metadata para el motor indicado."""
+    normalized_db_type: str = str(db_type or "").lower().strip()
+    return _METADATA_FETCH_STRATEGIES.get(normalized_db_type, _DEFAULT_METADATA_FETCH_STRATEGY)
 
 
 def is_lob(value: Any) -> bool:
@@ -338,14 +427,14 @@ def supports_columns_charset_collation(db_type: str, oracle_supported: bool | No
 
 __all__: list[str] = [
     "MetadataFetchRequest",
-    "build_async_rows_fetcher",
-    "build_async_text_fetcher",
+    "MetadataFetchStrategy",
+    "GenericMetadataFetchStrategy",
+    "MariaDBMetadataFetchStrategy",
+    "get_metadata_fetch_strategy",
     "build_columns_fetch_request",
     "build_routine_ddl_fetch_request",
     "build_routine_parameters_fetch_request",
     "build_routines_fetch_request",
-    "build_sync_rows_fetcher",
-    "build_sync_text_fetcher",
     "build_table_ddl_fetch_request",
     "build_view_ddl_fetch_request",
     "ColumnCharsetCollationRow",

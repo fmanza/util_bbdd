@@ -14,11 +14,7 @@ from sqlalchemy.engine.base import Engine
 if TYPE_CHECKING:
     from sqlalchemy.engine.base import Engine
 
-from ..connection.close import parse_close_timeout
-from ..connection.factory import ConnectionFactory
-from ..connection.params import ConnectionParamsManager
-from ..connection.protocols import ConnectionPoolProtocol
-from ..database_exceptions import (
+from .._foundation.exceptions import (
     DatabaseConfigurationError,
     DatabaseConnectionError,
     DatabaseDriverError,
@@ -26,15 +22,18 @@ from ..database_exceptions import (
     DatabaseValidationError,
     QueryError,
 )
-from ..database_queries import DatabaseQueries
-from ..database_type_validator import (
+from .._foundation.queries import DatabaseQueries
+from .._foundation.validators_core import (
     DatabaseTypeValidator,
     get_database_validator,
     get_db_type_info,
     get_supported_db_types,
     validate_db_type,
 )
-from ..driver_validator import DriverValidator
+from ..connection.close import parse_close_timeout
+from ..connection.factory import ConnectionFactory
+from ..connection.params import ConnectionParamsManager
+from ..connection.protocols import ConnectionPoolProtocol
 from ..executors.sync_query_executor import SyncQueryExecutor
 from ..factory.pool_factory import PoolFactory
 from ..factory.sqlalchemy_engine_factory import SQLAlchemyEngineFactory
@@ -47,46 +46,31 @@ from ..metadata import (
     normalize_column_rows,
     normalize_table_rows,
 )
+from ..metadata.adapters import get_global_adapter_registry
 from ..metadata.mariadb import (
     MariaDBSyncAdapter,
-    build_public_mariadb_routine_parameter_rows,
-    escape_mariadb_sql_literal,
 )
 from ..results import RowOrNone
-from ._manager_lifecycle import close_sync_resources, get_sync_connection, release_sync_connection
-from ._manager_metadata import (
-    add_metadata_context_params,
-    cache_context_key,
-    cache_routine_key,
-    cache_table_key,
-    clear_all_caches,
-    clear_context_cache,
-    clear_routine_cache,
-    clear_table_cache,
-    clear_tuple_cache_by_context,
-    get_query_context_database,
-    get_query_context_label,
-)
+from ._manager_cache_service import CacheService
+from ._manager_lifecycle import close_sync_resources
+from ._manager_lifecycle_sync import SyncLifecycleManager
+from ._manager_metadata_factory import MetadataStrategyFactory
 from ._manager_metadata_runtime import (
     MetadataFetchRequest,
     build_columns_fetch_request,
     build_routine_ddl_fetch_request,
     build_routine_parameters_fetch_request,
     build_routines_fetch_request,
-    build_sync_rows_fetcher,
-    build_sync_text_fetcher,
     build_table_ddl_fetch_request,
     build_view_ddl_fetch_request,
-    normalize_ddl_result as normalize_manager_ddl_result,
     oracle_supports_columns_charset_collation,
-    parse_charset_collation_result,
-    parse_column_charset_collation_row,
     supports_columns_charset_collation as supports_manager_columns_charset_collation,
 )
-from ._manager_storage import get_storage_inventory_handler
+from ._manager_session import SyncSessionManager
+from ._manager_shared_mixin import DatabaseManagerSharedMixin
 
 
-class SyncDatabaseManager:
+class SyncDatabaseManager(DatabaseManagerSharedMixin):
     """
     Clase para manejar conexiones y operaciones de base de datos.
 
@@ -100,29 +84,10 @@ class SyncDatabaseManager:
     _query_catalog: DatabaseQueries
     sync_query_executor: SyncQueryExecutor | None
 
-    def _build_query_executor(
-        self,
-        connection_provider: Callable[[], Any],
-        connection_releaser: Callable[[Any], None],
-    ) -> None:
-        """Inicializa ejecutores stateless con provider/releaser.
-
-        Args:
-            connection_provider: Función que obtiene una conexión para cada operación.
-            connection_releaser: Función que libera/devolver la conexión al finalizar.
-        """
-        self.sync_query_executor = SyncQueryExecutor(
-            connection_provider=connection_provider,
-            connection_releaser=connection_releaser,
-            registry=self._query_catalog.registry,
-            resolver=self._query_catalog.resolver,
-        )
-        self.logger.debug("✅ Query executor stateless inicializado")
-
     def __init__(
         self,
         db_type: str,
-        conn_params: dict,
+        conn_params: dict[str, Any],
         queries_file: Path | None = None,
         use_pool: bool = True,
     ):
@@ -144,59 +109,63 @@ class SyncDatabaseManager:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.logger.info(f"🔧 Inicializando SyncDatabaseManager para {db_type.upper()}")
 
-        # Inicializar la conexión como None
-        self._connection: Any = None
-        self.cursor: Any = None
-        self.sync_query_executor = None
-
         # Inicializar cachés centralizados (composición jerárquica)
         self.db_cache: DatabaseMetadataCache = DatabaseMetadataCache()
         self.relationship_cache: RelationshipMetadataCache = RelationshipMetadataCache(db_cache=self.db_cache)
         self.logger.debug("✅ Cachés centralizados [DatabaseMetadataCache + RelationshipMetadataCache] inicializados")
 
+        # Inicializar servicio de caché
+        self.cache_service = CacheService(self.db_cache, self.relationship_cache, self.logger)
+
         # Inicializar validador de tipos (lazy loading)
         self._db_validator: DatabaseTypeValidator | None = None
 
-        # Pool de conexiones
-        self.use_pool: bool = use_pool
-        self.pool_connection: ConnectionPoolProtocol | None = None
+        # Normalizar tipo de BD
+        normalized_db_type = db_type.lower()
         self._default_close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
 
         try:
-            # Validar y normalizar tipo de base de datos
-            self.db_validator.validate_db_type(db_type)
-            self.db_type: str = db_type.lower()
-            self.logger.debug(f"✅ Tipo de BD validado: {self.db_type}")
-
-            # Construir y validar parámetros en una única capa centralizada.
-            self.conn_params = ConnectionParamsManager.prepare_and_validate(
-                self.db_type,
-                conn_params,
-                self.db_validator,
+            # Crear lifecycle manager
+            self.lifecycle_manager = SyncLifecycleManager(
+                db_type=normalized_db_type,
+                conn_params=conn_params.copy(),
+                logger=self.logger,
+                validators=self.db_validator,
             )
 
-            # Extraer database desde conn_params
+            # Validar parámetros de conexión
+            self.lifecycle_manager.validate_connection_params()
+
+            self.db_type: str = normalized_db_type
+            self.conn_params = self.lifecycle_manager.conn_params
             self.database: str = self.conn_params.get("database", "")
-            self.sql_server_driver: str = "pymssql"  # Valor por defecto, se configurará en verificación de drivers
+            self.sql_server_driver: str = self.lifecycle_manager.sql_server_driver
 
-            self.logger.debug("✅ Parámetros de conexión validados")
-
-            # Verificar disponibilidad de drivers y configurar sql_server_driver si es necesario
-            if self.db_type == "sqlserver":
-                self.sql_server_driver = DriverValidator.check_driver_availability(self.db_type, self.conn_params)
-            else:
-                DriverValidator.check_driver_availability(self.db_type, self.conn_params)
+            # Obtener estrategias via factory
+            self._metadata_fetch_strategy = MetadataStrategyFactory.get_fetch_strategy(self.db_type)
+            self._storage_inventory_strategy = MetadataStrategyFactory.get_storage_strategy(self.db_type)
+            self.logger.debug(f"✅ Tipo de BD validado: {self.db_type}")
 
             # Inicializar gestor de consultas
             queries_path: Path | None = queries_file if queries_file else None
             self._query_catalog = DatabaseQueries(self.db_type, queries_path)
             self.logger.debug("✅ Gestor de consultas inicializado")
 
+            # Inicializar gestor de sesión
+            self.session_manager = SyncSessionManager(pool_connection=None, logger=self.logger)
+
+            # Pool de conexiones
+            self.use_pool: bool = use_pool
+            self.pool_connection: ConnectionPoolProtocol | None = None
+            self._connection: Any = None
+            self.cursor: Any = None
+            self.sync_query_executor: SyncQueryExecutor | None = None
+
             # Determinar si usar pool
-            if self.use_pool and self._supports_pool():
+            if self.use_pool and self.lifecycle_manager.supports_pool():
                 self._init_pool()
             else:
-                if self.use_pool and not self._supports_pool():
+                if self.use_pool and not self.lifecycle_manager.supports_pool():
                     self.logger.warning(f"⚠️ Pool no soportado para {self.db_type}. Usando conexión única.")
                 self.use_pool = False
                 self._connect()
@@ -223,33 +192,14 @@ class SyncDatabaseManager:
 
     @property
     def db_validator(self) -> DatabaseTypeValidator:
-        """
-        Propiedad para acceso lazy loading al validador de tipos de BD.
-
-        Inicializa la instancia de DatabaseTypeValidator solo cuando es necesario,
-        mejorando el rendimiento de inicialización de SyncDatabaseManager.
-
-        Returns:
-            Instancia de DatabaseTypeValidator
-        """
+        """Lazy loading del validador de tipos de BD."""
         if self._db_validator is None:
             self._db_validator = DatabaseTypeValidator()
             self.logger.debug("✅ DatabaseTypeValidator inicializado (lazy loading)")
         return self._db_validator
 
     def _filter_connection_params(self, db_type: str) -> dict:
-        """
-        Filtra los parámetros de conexión válidos para el tipo de base de datos especificado.
-
-        Args:
-            db_type: Tipo de base de datos
-
-        Returns:
-            Diccionario con parámetros validados
-
-        Raises:
-            DatabaseValidationError: Si hay error en la validación
-        """
+        """Filtra parámetros de conexión válidos."""
         try:
             filtered = ConnectionParamsManager.sanitize_for_connection(
                 db_type,
@@ -262,23 +212,8 @@ class SyncDatabaseManager:
             self.logger.error(f"❌ Error filtrando parámetros de conexión: {e}")
             raise DatabaseValidationError(f"Error filtrando parámetros: {str(e)}", db_type, str(e)) from e
 
-    def _supports_pool(self) -> bool:
-        """
-        Verifica si el tipo de BD soporta pool de conexiones.
-
-        Returns:
-            True si soporta pool, False en caso contrario
-        """
-        # HSQLDB no soporta pool directo
-        return self.db_type not in ["hsqldb"]
-
     def _init_pool(self) -> None:
-        """Inicializa pool de conexiones según tipo de BD.
-
-        Raises:
-            ValueError: Si el pool no está soportado para el tipo de BD.
-            Exception: Si la creación del pool falla.
-        """
+        """Inicializa pool de conexiones."""
         try:
             self.pool_connection = PoolFactory.create_pool(self.db_type, self.conn_params)
 
@@ -288,10 +223,15 @@ class SyncDatabaseManager:
             self.logger.debug(f"✅ Conexión de prueba obtenida/devuelta al pool para {self.db_type}")
             self.logger.info(f"🔗 Pool habilitado para {self.db_type} (size: {self.conn_params.get('pool_size', 5)})")
 
+            # Actualizar session manager con pool
+            self.session_manager.pool_connection = self.pool_connection
+
             # Inicializar ejecutor stateless (cada operación obtiene/libera conexión)
-            self._build_query_executor(
+            self.sync_query_executor = self.session_manager.build_sync_executor(
                 connection_provider=lambda: self.get_connection(),
                 connection_releaser=lambda conn: self.close_connection(conn),
+                registry=self._query_catalog.registry,
+                resolver=self._query_catalog.resolver,
             )
 
         except ValueError as e:
@@ -303,16 +243,10 @@ class SyncDatabaseManager:
             raise
 
     def _connect(self) -> None:
-        """
-        Establece una conexión a la base de datos
-
-        Raises:
-            DatabaseConnectionError: Si hay error de conexión
-        """
+        """Establece una conexión directa a la base de datos."""
         try:
             self.logger.info(f"🔗 Estableciendo conexión a {self.db_type}")
 
-            # Filtrar parámetros válidos para este tipo de BD
             valid_params = self._filter_connection_params(self.db_type)
 
             # Crear conexión usando la factory
@@ -324,10 +258,15 @@ class SyncDatabaseManager:
             )
             self.logger.info("✅ Conexión establecida exitosamente")
 
-            # Inicializar ejecutor stateless en conexión única
-            self._build_query_executor(
+            # Actualizar session manager
+            self.session_manager._connection = self._connection
+
+            # Inicializar ejecutor stateless
+            self.sync_query_executor = self.session_manager.build_sync_executor(
                 connection_provider=lambda: self._connection,
                 connection_releaser=lambda _conn: None,
+                registry=self._query_catalog.registry,
+                resolver=self._query_catalog.resolver,
             )
         except DatabaseConnectionError:
             raise
@@ -337,56 +276,27 @@ class SyncDatabaseManager:
 
     @property
     def connection(self) -> Any:
-        """
-        Obtiene la conexión a la base de datos
-
-        Returns:
-            Conexión actual
-        """
+        """Obtiene la conexión a la base de datos."""
         return self._connection
 
     @connection.setter
     def connection(self, conn: Any) -> None:
-        """
-        Establece la conexión a la base de datos (solo para conexiones directas)
-
-        Args:
-            conn: Conexión a establecer
-        """
+        """Establece la conexión a la base de datos (solo para conexiones directas)."""
         self._connection = conn
 
     def get_connection(self) -> Any:
-        """Obtiene conexión del pool o conexión única.
-
-        Returns:
-            Conexión a la base de datos.
-
-        Raises:
-            Exception: Si no hay conexiones disponibles.
-        """
-        return get_sync_connection(
-            pool_connection=self.pool_connection,
+        """Obtiene conexión del pool o conexión única."""
+        return self.session_manager.get_connection(
             connection=self._connection,
             db_type=self.db_type,
-            logger=self.logger,
         )
 
     def close_connection(self, connection: Any | None = None) -> None:
-        """Devuelve conexión al pool o cierra conexión única.
+        """Devuelve conexión al pool o cierra conexión única."""
+        self.session_manager.close_connection(connection=connection)
 
-        Args:
-            connection: Conexión a devolver (si es None y hay pool activo, ignora).
-        """
-        release_sync_connection(pool_connection=self.pool_connection, connection=connection, logger=self.logger)
-
-    def close(self, timeout_seconds: float | None, force: bool) -> None:
-        """
-        Cierra la conexión a la base de datos y libera recursos del pool
-
-        Logs:
-            - ✅ Si la operación es exitosa
-            - ❌ Si hay errores
-        """
+    def close(self, timeout_seconds: float | None = None, force: bool = False) -> None:
+        """Cierra la conexión a la base de datos y libera recursos del pool."""
         effective_timeout = self._default_close_timeout_seconds if timeout_seconds is None else timeout_seconds
         pool = self.pool_connection
         self.pool_connection = None
@@ -394,101 +304,27 @@ class SyncDatabaseManager:
         self.cursor = None
         connection = self._connection
         self._connection = None
-        close_sync_resources(
-            pool_connection=pool,
-            cursor=cursor,
-            connection=connection,
-            logger=self.logger,
-            db_type=self.db_type,
-            timeout_seconds=effective_timeout,
-            force=force,
-        )
 
-        self.logger.info("✅ SyncDatabaseManager cerrado")
-
-    def _clear_all_caches(self) -> None:
-        """Limpia completamente todas las cachés de metadatos."""
-        clear_all_caches(db_cache=self.db_cache, relationship_cache=self.relationship_cache, logger=self.logger)
-
-    def _clear_table_cache(self, context: str, table: str) -> None:
-        """Limpia caché para una tabla/vista específica."""
-        clear_table_cache(
-            db_cache=self.db_cache,
-            relationship_cache=self.relationship_cache,
-            logger=self.logger,
-            context=context,
-            table=table,
-        )
-
-    def _clear_routine_cache(self, context: str, routine: str, routine_type: str | None = None) -> None:
-        """Limpia caché para una rutina específica."""
-        clear_routine_cache(
-            db_cache=self.db_cache,
-            logger=self.logger,
-            context=context,
-            routine=routine,
-            routine_type=routine_type,
-        )
-
-    @staticmethod
-    def _clear_tuple_cache_by_context(cache: dict[tuple[Any, ...], Any], context: str) -> None:
-        clear_tuple_cache_by_context(cache, context)
-
-    def _clear_context_cache(self, context: str) -> None:
-        """Limpia caché para un contexto/schema específico."""
-        clear_context_cache(db_cache=self.db_cache, logger=self.logger, context=context)
-
-    def clear_cache(
-        self,
-        context_database: str | None = None,
-        table: str | None = None,
-        routine: str | None = None,
-        routine_type: str | None = None,
-    ) -> None:
-        """Limpia cachés de metadatos (global o selectiva).
-
-        Args:
-            context_database: Contexto de esquema/base a invalidar. Si es None,
-                se usa el contexto actual para invalidaciones selectivas.
-            table: Nombre de tabla/vista para invalidación selectiva.
-            routine: Nombre de rutina para invalidación selectiva.
-            routine_type: Tipo de rutina (PROCEDURE/FUNCTION). Si no se indica,
-                elimina todas las variantes de tipo para la rutina.
-
-        Notes:
-            - Sin argumentos, limpia completamente todas las cachés (incluidas relaciones).
-            - Con argumentos, limpia únicamente entradas relacionadas.
-            - Sincroniza limpieza entre cachés BD y cachés de relaciones.
-        """
-        # Limpieza global si no hay parámetros
-        if context_database is None and table is None and routine is None and routine_type is None:
-            self._clear_all_caches()
-            return
-
-        # Resolver contexto
-        resolved_context: str = str(
-            context_database if context_database is not None else self._get_query_context_database() or ""
-        )
-
-        # Limpieza por tabla
-        if table:
-            self._clear_table_cache(resolved_context, str(table))
-
-        # Limpieza por rutina
-        if routine:
-            self._clear_routine_cache(resolved_context, str(routine), str(routine_type) if routine_type else None)
-
-        # Limpieza por contexto
-        if not table and not routine:
-            self._clear_context_cache(resolved_context)
-
-    # ==================== MÉTODOS DE CONSULTA (DELEGADOS) ====================
-
-    def _verify_executor_initialized(self) -> None:
-        """Verifica que el ejecutor sync de consultas esté inicializado."""
-        self._verify_sync_executor_initialized()
-
-    def _verify_sync_executor_initialized(self) -> None:
+        # Usar lifecycle_manager si existe, sino usar la función directamente (para compatibilidad con tests)
+        if hasattr(self, "lifecycle_manager"):
+            self.lifecycle_manager.close_resources(
+                pool_connection=pool,
+                cursor=cursor,
+                connection=connection,
+                timeout_seconds=effective_timeout,
+                force=force,
+            )
+        else:
+            # Fallback para tests que creen el manager sin pasar __init__
+            close_sync_resources(
+                pool_connection=pool,
+                cursor=cursor,
+                connection=connection,
+                logger=self.logger,
+                db_type=self.db_type,
+                timeout_seconds=effective_timeout,
+                force=force,
+            )
         """Verifica que el ejecutor sync de consultas esté inicializado."""
         if not self.sync_query_executor:
             self.logger.error("❌ Ejecutor sync de consultas no inicializado")
@@ -496,8 +332,8 @@ class SyncDatabaseManager:
 
     def _get_sync_query_executor(self) -> SyncQueryExecutor:
         """Obtiene el ejecutor sync garantizando inicialización."""
-        self._verify_sync_executor_initialized()
-        assert self.sync_query_executor is not None
+        if self.sync_query_executor is None:
+            raise DatabaseOperationError(self._SYNC_QUERY_EXECUTOR_NOT_INITIALIZED, db_type=self.db_type)
         return self.sync_query_executor
 
     def _get_query_executor(self) -> SyncQueryExecutor:
@@ -566,65 +402,6 @@ class SyncDatabaseManager:
         self.logger.info("✅ Consulta SQL personalizada ejecutada exitosamente")
         return cast(RowOrNone | Rows, result)
 
-    def _get_query_context_database(self) -> str:
-        """Obtiene el contexto de esquema/base para consultas de metadatos.
-
-        Returns:
-            Identificador de esquema/base a usar en queries.
-
-        Notes:
-            - En Oracle se prioriza el usuario de conexión (owner/schema).
-            - En PostgreSQL/HSQLDB/SQL Server se permite `schema` explícito
-              (si no viene, mantiene compatibilidad con `self.database`).
-        """
-        return get_query_context_database(
-            db_type=self.db_type,
-            database=self.database,
-            conn_params=self.conn_params,
-        )
-
-    def _get_query_context_label(self) -> str:
-        """Obtiene etiqueta descriptiva del contexto de consultas de metadatos."""
-        return get_query_context_label(self.db_type)
-
-    def _add_metadata_context_params(self, params: dict[str, Any], context: str | None) -> dict[str, Any]:
-        """Añade parámetros de contexto metadata según motor."""
-        return add_metadata_context_params(db_type=self.db_type, params=params, context=context)
-
-    def _normalize_ddl_result(self, ddl: Any) -> str:
-        return normalize_manager_ddl_result(ddl)
-
-    @staticmethod
-    def _iter_exception_chain(err: BaseException) -> list[BaseException]:
-        chain: list[BaseException] = []
-        seen: set[int] = set()
-        current: BaseException | None = err
-        while current is not None and id(current) not in seen:
-            seen.add(id(current))
-            chain.append(current)
-            current = current.__cause__ if current.__cause__ is not None else current.__context__
-        return chain
-
-    def _is_mariadb_show_create_decode_error(self, err: BaseException) -> bool:
-        return self._is_mariadb_decode_error(err)
-
-    def _is_mariadb_decode_error(self, err: BaseException) -> bool:
-        if self.db_type != "mariadb":
-            return False
-        for item in self._iter_exception_chain(err):
-            if isinstance(item, UnicodeDecodeError):
-                return True
-            text = str(item).lower()
-            if "mariadb.cursor" in text and "exception set" in text:
-                return True
-            if "codec can't decode" in text:
-                return True
-        return False
-
-    @staticmethod
-    def _escape_sql_literal(value: str) -> str:
-        return escape_mariadb_sql_literal(value)
-
     def _get_mariadb_adapter(self) -> MariaDBSyncAdapter:
         adapter = getattr(self, "_mariadb_adapter", None)
         if adapter is None:
@@ -632,86 +409,43 @@ class SyncDatabaseManager:
             self._mariadb_adapter = adapter
         return cast(MariaDBSyncAdapter, adapter)
 
-    def _fetch_mariadb_routines_from_show_status(self, database: str) -> Rows:
-        return self._get_mariadb_adapter().fetch_routines_from_show_status(database)
+    def _get_adapter_sync(self, adapter_type: str) -> Any:
+        """Obtiene adapter sync del Registry según db_type y tipo de adapter.
 
-    def _get_mariadb_routines_detail_rows(self, context_database: str) -> list[dict[str, Any]]:
-        return self._get_mariadb_adapter().get_routines_detail_rows(context_database)
+        Esta es la forma genérica y extensible de resolver adapters, a diferencia
+        de `_get_mariadb_adapter()` que es específica de MariaDB.
 
-    def _get_mariadb_routine_parameters_detail_rows(self, context_database: str) -> list[dict[str, Any]]:
-        return self._get_mariadb_adapter().get_routine_parameters_detail_rows(context_database)
+        Args:
+            adapter_type: Tipo de adapter ('source' o 'routine')
 
-    def _fetch_mariadb_columns_safe(self, context_database: str, tabla: str) -> Rows:
-        return self._get_mariadb_adapter().fetch_columns_safe(context_database, tabla)
+        Returns:
+            Instancia del adapter (SourceAdapter o RoutineAdapter)
 
-    def _fetch_mariadb_view_from_information_schema(self, database: str, view_name: str) -> str:
-        return self._get_mariadb_adapter().fetch_view_from_information_schema(database, view_name)
+        Raises:
+            DatabaseConfigurationError: Si no hay adapter registrado para el driver
+        """
+        cache_key = f"_adapter_sync_{adapter_type}"
+        cached_adapter = getattr(self, cache_key, None)
+        if cached_adapter is not None:
+            return cached_adapter
 
-    def _fetch_mariadb_routine_from_information_schema(
-        self, database: str, routine_name: str, routine_type: str
-    ) -> str:
-        return self._get_mariadb_adapter().fetch_routine_from_information_schema(database, routine_name, routine_type)
+        registry = get_global_adapter_registry()
+        if adapter_type == "source":
+            adapter_class = registry.get_source_adapter_sync(self.db_type)
+        elif adapter_type == "routine":
+            adapter_class = registry.get_routine_adapter_sync(self.db_type)
+        else:
+            msg = f"Tipo de adapter inválido: {adapter_type}. Use 'source' o 'routine'."
+            raise ValueError(msg)
 
-    def _fetch_mariadb_routine_parameters_detailed(
-        self,
-        *,
-        database: str,
-        routine_name: str,
-        routine_type: str,
-    ) -> list[dict[str, Any]]:
-        return self._get_mariadb_adapter().fetch_routine_parameters_detailed(
-            database=database,
-            routine_name=routine_name,
-            routine_type=routine_type,
-        )
+        if adapter_class is None:
+            msg = f"No hay adapter sync registrado para {self.db_type} (tipo: {adapter_type})"
+            raise DatabaseConfigurationError(msg)
 
-    def _fetch_mariadb_routine_parameters_public_rows(
-        self,
-        *,
-        context_database: str,
-        rutina: str,
-        routine_type: str,
-    ) -> Rows:
-        return build_public_mariadb_routine_parameter_rows(
-            self._fetch_mariadb_routine_parameters_detailed(
-                database=context_database,
-                routine_name=rutina,
-                routine_type=routine_type,
-            )
-        )
-
-    def _build_mariadb_ddl_from_metadata(self, tabla: str) -> str:
-        return self._get_mariadb_adapter().build_table_ddl_from_metadata(tabla)
-
-    def _fetch_mariadb_routines(self, context_database: str) -> Rows:
-        try:
-            routine_rows = self._get_mariadb_routines_detail_rows(context_database)
-            if routine_rows:
-                return cast(
-                    Rows,
-                    sorted(
-                        [
-                            (
-                                str(row.get("routine_name") or ""),
-                                str(row.get("routine_type") or ""),
-                                str(row.get("routine_comment") or ""),
-                            )
-                            for row in routine_rows
-                            if str(row.get("routine_name") or "").strip()
-                        ],
-                        key=lambda row: (str(row[1]), str(row[0])),
-                    ),
-                )
-            self.logger.warning(
-                "Fallback listado rutinas MariaDB vacío para %s. Reintentando con SHOW ... STATUS",
-                context_database,
-            )
-        except DatabaseOperationError:
-            self.logger.warning(
-                "Fallback listado rutinas MariaDB por error para %s. Reintentando con SHOW ... STATUS",
-                context_database,
-            )
-        return self._fetch_mariadb_routines_from_show_status(context_database)
+        # Crear instancia y cachear
+        adapter = adapter_class(self)
+        setattr(self, cache_key, adapter)
+        return adapter
 
     def _execute_metadata_fetch_request_many(self, request: MetadataFetchRequest) -> Rows:
         return self._execute_metadata_many(
@@ -730,44 +464,43 @@ class SyncDatabaseManager:
         )
 
     def _get_routines_fetcher(self, context_database: str) -> Callable[[], Rows]:
-        return build_sync_rows_fetcher(
-            db_type=self.db_type,
-            mariadb_fetcher=lambda: self._fetch_mariadb_routines(context_database),
+        return self._metadata_fetch_strategy.build_sync_rows_fetcher(
             request=build_routines_fetch_request(context_database),
+            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_routines(context_database),
             execute_many=self._execute_metadata_fetch_request_many,
         )
 
     def _get_table_ddl_fetcher(self, context_database: str, tabla: str) -> Callable[[], str]:
-        return build_sync_text_fetcher(
-            db_type=self.db_type,
-            mariadb_fetcher=lambda: self._build_mariadb_ddl_from_metadata(tabla),
+        return self._metadata_fetch_strategy.build_sync_text_fetcher(
             request=build_table_ddl_fetch_request(
                 context_database,
                 tabla,
                 self._add_metadata_context_params,
             ),
+            specialized_fetcher=lambda: self._get_mariadb_adapter().build_table_ddl_from_metadata(tabla),
             execute_one=self._execute_metadata_fetch_request_one,
             normalize_one=self._normalize_ddl_result,
         )
 
     def _get_view_ddl_fetcher(self, context_database: str, vista: str) -> Callable[[], str]:
-        return build_sync_text_fetcher(
-            db_type=self.db_type,
-            mariadb_fetcher=lambda: self._fetch_mariadb_view_from_information_schema(context_database, vista),
+        return self._metadata_fetch_strategy.build_sync_text_fetcher(
             request=build_view_ddl_fetch_request(
                 context_database,
                 vista,
                 self._add_metadata_context_params,
+            ),
+            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_view_from_information_schema(
+                context_database,
+                vista,
             ),
             execute_one=self._execute_metadata_fetch_request_one,
             normalize_one=self._normalize_ddl_result,
         )
 
     def _get_columns_fetcher(self, context_database: str, tabla: str) -> Callable[[], Rows]:
-        return build_sync_rows_fetcher(
-            db_type=self.db_type,
-            mariadb_fetcher=lambda: self._fetch_mariadb_columns_safe(context_database, tabla),
+        return self._metadata_fetch_strategy.build_sync_rows_fetcher(
             request=build_columns_fetch_request(context_database, tabla),
+            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_columns_safe(context_database, tabla),
             execute_many=self._execute_metadata_fetch_request_many,
         )
 
@@ -777,11 +510,10 @@ class SyncDatabaseManager:
         rutina: str,
         routine_type: str,
     ) -> Callable[[], Rows]:
-        return build_sync_rows_fetcher(
-            db_type=self.db_type,
-            mariadb_fetcher=lambda: self._fetch_mariadb_routine_parameters_public_rows(
-                context_database=context_database,
-                rutina=rutina,
+        return self._metadata_fetch_strategy.build_sync_rows_fetcher(
+            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_routine_parameters_public_rows(
+                database=context_database,
+                routine_name=rutina,
                 routine_type=routine_type,
             ),
             request=build_routine_parameters_fetch_request(
@@ -798,12 +530,11 @@ class SyncDatabaseManager:
         rutina: str,
         routine_type: str,
     ) -> Callable[[], str]:
-        return build_sync_text_fetcher(
-            db_type=self.db_type,
-            mariadb_fetcher=lambda: self._fetch_mariadb_routine_from_information_schema(
-                context_database,
-                rutina,
-                routine_type,
+        return self._metadata_fetch_strategy.build_sync_text_fetcher(
+            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_routine_from_information_schema(
+                database=context_database,
+                routine_name=rutina,
+                routine_type=routine_type,
             ),
             request=build_routine_ddl_fetch_request(
                 context_database,
@@ -815,37 +546,9 @@ class SyncDatabaseManager:
             normalize_one=self._normalize_ddl_result,
         )
 
-    def _get_storage_inventory_handler(self) -> Callable[[str, str | None], dict[str, Any]] | None:
-        handlers: dict[str, Callable[[str, str | None], dict[str, Any]]] = {
-            "sqlserver": self._storage_inventory_sqlserver,
-            "oracle": self._storage_inventory_oracle,
-            "mariadb": self._storage_inventory_mariadb,
-            "postgresql": self._storage_inventory_postgresql,
-            "sqlite": self._storage_inventory_sqlite,
-        }
-        return get_storage_inventory_handler(self.db_type, handlers)
-
     def _log_and_call(self, message: str, action: Callable[[], Any]) -> Any:
         self.logger.debug(message)
         return action()
-
-    def get_query_context_database(self) -> str:
-        """Expone el contexto de metadatos (schema/database) para consumidores externos.
-
-        Returns:
-            Contexto efectivo usado por las consultas de metadatos.
-        """
-        return self._get_query_context_database()
-
-    @staticmethod
-    def _cache_context_key(context_database: str) -> str:
-        return cache_context_key(context_database)
-
-    def _cache_table_key(self, context_database: str, table_name: str) -> tuple[str, str]:
-        return cache_table_key(context_database, table_name)
-
-    def _cache_routine_key(self, context_database: str, routine_name: str, routine_type: str) -> tuple[str, str, str]:
-        return cache_routine_key(context_database, routine_name, routine_type)
 
     def _run_metadata_operation(
         self,
@@ -978,7 +681,7 @@ class SyncDatabaseManager:
             success_message=success_message,
         )
 
-    def get_tables(self) -> list:
+    def get_tables(self) -> Rows:
         """
         Obtiene la lista de tablas de la base de datos.
 
@@ -1005,7 +708,7 @@ class SyncDatabaseManager:
             fetch_debug_message=f"🔍 Obteniendo lista de tablas para {context_label}: {context_database}",
         )
 
-    def get_views(self) -> list:
+    def get_views(self) -> Rows:
         """
         Obtiene la lista de vistas de la base de datos.
 
@@ -1032,7 +735,7 @@ class SyncDatabaseManager:
             fetch_debug_message=f"🔍 Obteniendo lista de vistas para {context_label}: {context_database}",
         )
 
-    def get_routines(self) -> list:
+    def get_routines(self) -> Rows:
         """
         Obtiene la lista de rutinas (procedures y funciones) de la base de datos.
 
@@ -1112,7 +815,7 @@ class SyncDatabaseManager:
             success_message=f"✅ DDL obtenido para vista {vista}",
         )
 
-    def get_columns(self, tabla: str) -> list:
+    def get_columns(self, tabla: str) -> Rows:
         """
         Obtiene las columnas de una tabla.
 
@@ -1138,7 +841,7 @@ class SyncDatabaseManager:
             fetch_debug_message=f"🔍 Obteniendo columnas de {tabla} ({context_label}: {context_database})",
         )
 
-    def get_routine_parameters(self, rutina: str, tipo_rutina: str) -> list:
+    def get_routine_parameters(self, rutina: str, tipo_rutina: str) -> Rows:
         """
         Obtiene los parámetros de una rutina.
 
@@ -1230,7 +933,7 @@ class SyncDatabaseManager:
         )
         return cast(Rows, rows)
 
-    def get_indices(self, tabla: str) -> list:
+    def get_indices(self, tabla: str) -> Rows:
         """
         Obtiene los índices de una tabla.
 
@@ -1253,7 +956,7 @@ class SyncDatabaseManager:
             success_label="índices",
         )
 
-    def get_primary_keys(self, tabla: str) -> list:
+    def get_primary_keys(self, tabla: str) -> Rows:
         """
         Obtiene las claves primarias de una tabla.
 
@@ -1276,7 +979,7 @@ class SyncDatabaseManager:
             success_label="claves primarias",
         )
 
-    def get_foreign_keys(self, tabla: str) -> list:
+    def get_foreign_keys(self, tabla: str) -> Rows:
         """
         Obtiene las claves foráneas de una tabla.
 
@@ -1299,7 +1002,7 @@ class SyncDatabaseManager:
             success_label="claves foráneas",
         )
 
-    def get_unique_constraints(self, tabla: str) -> list:
+    def get_unique_constraints(self, tabla: str) -> Rows:
         """
         Obtiene las restricciones únicas de una tabla.
 
@@ -1352,14 +1055,6 @@ class SyncDatabaseManager:
         version: str = str(result[0]) if result else "Unknown"
         self.logger.info(f"✅ Versión obtenida: {version}")
         return version
-
-    def _parse_charset_collation_result(self, result: tuple[Any, ...] | None) -> dict[str, Any]:
-        """Parsea resultado de database charset/collation según tipo de BD."""
-        return parse_charset_collation_result(self.db_type, result)
-
-    def __parse_column_charset_collation_row(self, row: tuple[Any, ...]) -> tuple[str, str | None, str | None]:
-        """Parsea una fila de resultado de charset/collation de columna según el tipo de BD."""
-        return parse_column_charset_collation_row(self.db_type, row)
 
     def _supports_columns_charset_collation(self) -> bool:
         """Indica si el motor expone metadata fiable de charset/collation por columna.
@@ -1438,7 +1133,7 @@ class SyncDatabaseManager:
                 fetch_rows=lambda: cast(
                     Rows,
                     [
-                        self.__parse_column_charset_collation_row(row)
+                        self._parse_column_charset_collation_row(row)
                         for row in self._execute_metadata_many(
                             "columns_charset_collation",
                             params={"tabla": tabla, "database": context_database},
@@ -1457,42 +1152,6 @@ class SyncDatabaseManager:
             ),
         )
 
-    def _storage_inventory_sqlserver(self, _context_database: str, _tablespace: str | None) -> dict[str, Any]:
-        return {
-            "primary": self.execute_query_many("ficheros_fisicos"),
-            "temp_tablespaces": self.execute_query_many("temp_tablespaces"),
-        }
-
-    def _storage_inventory_oracle(self, _context_database: str, tablespace: str | None) -> dict[str, Any]:
-        if not tablespace:
-            raise ValueError("Para Oracle debe proporcionar 'tablespace'")
-        return {
-            "primary": self.execute_query_many("ficheros_fisicos", tablespace=tablespace),
-            "temp_tablespaces": self.execute_query_many("temp_tablespaces", tablespace=tablespace),
-        }
-
-    def _storage_inventory_mariadb(self, context_database: str, _tablespace: str | None) -> dict[str, Any]:
-        return self._get_mariadb_adapter().storage_inventory(context_database)
-
-    def _storage_inventory_postgresql(self, _context_database: str, tablespace: str | None) -> dict[str, Any]:
-        if not tablespace:
-            raise ValueError("Para PostgreSQL debe proporcionar 'tablespace'")
-        return {
-            "primary": self.execute_query_many("ficheros_fisicos", tablespace=tablespace),
-            "temp_tablespaces": self.execute_query_many("temp_tablespaces"),
-        }
-
-    def _storage_inventory_sqlite(self, _context_database: str, _tablespace: str | None) -> dict[str, Any]:
-        result: dict[str, Any] = {
-            "primary": self.execute_query_many("ficheros_fisicos"),
-            "sqlite_file_summary": self.execute_query_many("sqlite_file_summary"),
-        }
-        try:
-            result["temp_tablespaces"] = self.execute_query_many("temp_tablespaces")
-        except Exception:
-            result["temp_tablespaces"] = []
-        return result
-
     def get_storage_inventory(self, tablespace: str | None = None) -> dict[str, Any]:
         """Obtiene inventario de tamaño de ficheros/tablespaces según el motor.
 
@@ -1504,11 +1163,8 @@ class SyncDatabaseManager:
             `temp_tablespaces`, `sqlite_file_summary`).
         """
         context_database = self._get_query_context_database()
-        handler = self._get_storage_inventory_handler()
-        if handler is None:
-            return {"primary": []}
         result = self._run_metadata_operation(
-            action=lambda: handler(context_database, tablespace),
+            action=lambda: self._storage_inventory_strategy.execute(self, context_database, tablespace),
             error_message="Error obteniendo inventario de almacenamiento",
         )
         return cast(dict[str, Any], result)
@@ -1717,8 +1373,8 @@ class SyncDatabaseManager:
             engine = db_mgr.get_sqlalchemy_engine()
 
             # Usar con bulk_crud
-            from util_bbdd.bulk_crud import BulkCrudManager
-            bcm = BulkCrudManager(engine)
+            from util_bbdd.bulk import bulk_crud
+            bcm = bulk_crud(engine)
         """
         return SQLAlchemyEngineFactory.create_engine(
             self.db_type,

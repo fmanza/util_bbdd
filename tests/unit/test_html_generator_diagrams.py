@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from util_bbdd.doc.html_generator import HtmlGenerator
+from util_bbdd.doc.infrastructure.renderers.html_generator import HtmlGenerator
 
 
 def test_build_diagram_tab_payload_groups_tabs_by_direction_and_level(tmp_path: Path) -> None:

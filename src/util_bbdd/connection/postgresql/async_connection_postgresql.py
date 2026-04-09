@@ -6,7 +6,7 @@ import logging
 
 from typing import Any
 
-from util_bbdd.database_exceptions import DatabaseConnectionError
+from util_bbdd._foundation.exceptions import DatabaseConnectionError
 
 from ..params import ConnectionParamsManager
 

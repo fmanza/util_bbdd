@@ -6,6 +6,7 @@ import logging
 
 from typing import Any, cast
 
+from .._foundation.validators_core import DatabaseTypeValidator, get_database_validator
 from ..connection.builder import build_conn_params
 from ..connection.config import (
     HSQLDBConnectionConfig,
@@ -20,7 +21,6 @@ from ..connection.config import (
     SQLServerConnectionConfig,
     SQLServerPoolConfig,
 )
-from ..database_type_validator import DatabaseTypeValidator, get_database_validator
 
 
 class ConnectionParamsManager:

@@ -47,26 +47,22 @@ def test_database_documentation_does_not_use_legacy_execute_api() -> None:
 def test_database_documentation_does_not_depend_on_db_queries_attribute() -> None:
     tree = _load_database_documentation_tree()
     db_queries_accesses = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Attribute) and node.attr == "db_queries"
+        node for node in ast.walk(tree) if isinstance(node, ast.Attribute) and node.attr == "db_queries"
     ]
     assert db_queries_accesses == []
 
 
 def test_documentation_runtime_modules_do_not_expose_top_level_functions() -> None:
     module_paths = [
-        "src/util_bbdd/doc/_documentation_runtime_headers.py",
-        "src/util_bbdd/doc/_documentation_runtime_metadata.py",
-        "src/util_bbdd/doc/_documentation_runtime_output.py",
+        "src/util_bbdd/doc/infrastructure/runtime/headers_runtime.py",
+        "src/util_bbdd/doc/infrastructure/runtime/metadata_runtime.py",
+        "src/util_bbdd/doc/infrastructure/runtime/output_runtime.py",
     ]
 
     for module_path in module_paths:
         tree = _load_module_tree(module_path)
         top_level_functions = [
-            node.name
-            for node in tree.body
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         ]
         assert top_level_functions == [], f"{module_path} expone funciones top-level: {top_level_functions}"
 

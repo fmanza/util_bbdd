@@ -9,9 +9,13 @@ from typing import Any, cast
 
 import util_bbdd.doc.database_documentation as database_documentation_module
 
-from util_bbdd.doc._documentation_orchestrator import DocumentationSession
+from util_bbdd.doc.application.use_cases.documentation_orchestrator import DocumentationSession
 from util_bbdd.doc.database_documentation import DatabaseDocumentation
-from util_bbdd.doc.print_config_manager import PrintConfigManager
+from util_bbdd.doc.infrastructure.renderers.registry import build_default_renderer_registry
+from util_bbdd.doc.infrastructure.renderers.shared.print_config_manager import PrintConfigManager
+from util_bbdd.doc.infrastructure.runtime.metadata_runtime import DocumentationMetadataRuntimeFactory
+from util_bbdd.doc.infrastructure.runtime.output_runtime import DocumentationOutputRuntime
+from util_bbdd.doc.infrastructure.storage.runtime import StorageInventoryReportService
 
 
 class _FakeDbManager:
@@ -24,7 +28,14 @@ class _FakeDbManager:
 
 
 def _refresh_documentation_session(doc: DatabaseDocumentation) -> None:
-    doc._bind_documentation_session(DocumentationSession.from_documentation(doc))
+    doc._bind_documentation_session(
+        DocumentationSession.from_documentation(
+            doc,
+            output_policy=doc._output_policy,
+            metadata_runtime_factory=doc._metadata_runtime_factory,
+            storage_report_service=doc._storage_report_service,
+        )
+    )
 
 
 def _build_documentation_stub(
@@ -45,6 +56,14 @@ def _build_documentation_stub(
     doc.tablas = []
     doc.vistas = []
     doc.rutinas = []
+    doc._output_policy = DocumentationOutputRuntime()
+    doc._metadata_runtime_factory = DocumentationMetadataRuntimeFactory()
+    doc._storage_report_service = StorageInventoryReportService()
+    doc._renderer_registry = build_default_renderer_registry(
+        word_generator_cls=database_documentation_module.WordGenerator,
+        excel_generator_cls=database_documentation_module.ExcelGenerator,
+        html_generator_cls=database_documentation_module.HtmlGenerator,
+    )
     _refresh_documentation_session(doc)
     return doc
 

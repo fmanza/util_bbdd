@@ -97,4 +97,3 @@ def mock_async_connection() -> AsyncMock:
     conn.cursor = AsyncMock(return_value=cursor)
     conn.close = AsyncMock()
     return conn
-

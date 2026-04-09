@@ -4,7 +4,7 @@ import logging
 
 from typing import TYPE_CHECKING
 
-from ...database_exceptions import DatabasePoolError, DatabasePoolTimeoutError
+from ..._foundation.exceptions import DatabasePoolError, DatabasePoolTimeoutError
 from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
 from ..params import ConnectionParamsManager
 

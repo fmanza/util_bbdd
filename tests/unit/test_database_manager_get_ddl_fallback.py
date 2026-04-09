@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from util_bbdd.managers import SyncDatabaseManager
+from util_bbdd.managers._manager_metadata_runtime import get_metadata_fetch_strategy
 from util_bbdd.metadata import DatabaseMetadataCache
 
 
@@ -16,6 +17,7 @@ class TestDatabaseManagerMariaDbMetadataPaths:
         manager.conn_params = {"database": "db"}
         manager.logger = MagicMock()
         manager.db_cache = DatabaseMetadataCache()
+        manager._metadata_fetch_strategy = get_metadata_fetch_strategy(manager.db_type)
         return manager
 
     def test_get_ddl_uses_metadata_builder_as_primary_path(self) -> None:

@@ -3,6 +3,8 @@ applyTo: "tests/**"
 ---
 # Tests
 
+> **TL;DR** — Pytest, fixtures mínimas, sin red ni servicios externos. Test-first en hotfix (reproduce el bug antes de corregirlo), snapshot o asserts clave para docs generados. Si el cambio toca API pública, añadir test de integración. Tests rápidos y deterministas.
+
 - Añade tests para toda nueva funcionalidad.
 - Prefiere fixtures pequeñas y datos de esquema mínimos (tablas/relaciones pequeñas).
 - Si hay generación de docs, usa snapshot testing o asserts sobre fragmentos clave.

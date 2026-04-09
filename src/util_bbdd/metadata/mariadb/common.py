@@ -4,25 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...results import Rows
-
 
 def escape_mariadb_sql_literal(value: str) -> str:
     """Escapa comillas simples para SQL literal MariaDB."""
     return str(value).replace("'", "''")
-
-
-def normalize_mariadb_routine_status_rows(rows: Rows, routine_type: str) -> Rows:
-    """Normaliza salida de SHOW PROCEDURE/FUNCTION STATUS."""
-    normalized_rows: Rows = []
-    for row in rows:
-        if not isinstance(row, (tuple, list)) or len(row) < 2:
-            continue
-        routine_name: str = str(row[1] or "").strip()
-        routine_comment: str = str(row[7] or "").strip() if len(row) > 7 and row[7] is not None else ""
-        if routine_name:
-            normalized_rows.append((routine_name, routine_type, routine_comment))
-    return normalized_rows
 
 
 def decode_mariadb_hex_text(value: Any) -> str:

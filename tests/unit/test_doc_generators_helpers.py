@@ -11,18 +11,26 @@ pytest.importorskip("docx")
 pytest.importorskip("jinja2")
 pytest.importorskip("openpyxl")
 
-from util_bbdd.doc._storage_inventory_runtime import StorageInventoryRuntime
-from util_bbdd.doc.diagram_legend import (
+from util_bbdd.doc.infrastructure.renderers.excel_generator import ExcelGenerator
+from util_bbdd.doc.infrastructure.renderers.html_generator import HtmlGenerator
+from util_bbdd.doc.infrastructure.renderers.shared.diagram_legend import (
     build_diagram_direction_help,
     build_diagram_legend_payload,
     build_diagram_legend_rows,
     build_diagram_navigation_tips,
     build_hidden_levels_help,
 )
-from util_bbdd.doc.diagram_summary import build_diagram_summary_line, build_diagram_summary_payload
-from util_bbdd.doc.excel_generator import ExcelGenerator
-from util_bbdd.doc.html_generator import HtmlGenerator
-from util_bbdd.doc.word_generator import WordGenerator
+from util_bbdd.doc.infrastructure.renderers.shared.diagram_summary import (
+    build_diagram_summary_line,
+    build_diagram_summary_payload,
+)
+from util_bbdd.doc.infrastructure.renderers.shared.generator_shared import (
+    GeneratorRoutineRuntime,
+    GeneratorTableRuntime,
+    GeneratorTabularRuntime,
+)
+from util_bbdd.doc.infrastructure.renderers.word_generator import WordGenerator
+from util_bbdd.doc.infrastructure.storage.runtime import StorageInventoryRuntime
 
 
 def test_html_generator_builds_unique_slugs_and_map() -> None:
@@ -65,7 +73,7 @@ def test_html_generator_normalizes_unique_constraints_rows_and_headers() -> None
     payload: dict[str, Any] = {"pk": None, "fk": None, "unicas": None, "indices": None}
     generator._populate_constraints_and_indices(
         payload=payload,
-        data_provider=_Provider(),
+        data_provider=cast(Any, _Provider()),
         table_name="users",
         section_flags=[False, False, False, False, True, False],
     )
@@ -161,7 +169,7 @@ def test_html_generator_builds_table_collection_dataset_like_excel_flat_sheet() 
 
     headers, rows = generator._build_table_collection_dataset(
         tables_index=[{"name": "users", "comment": "Usuarios", "path": "tables/users.html"}],
-        data_provider=_Provider(),
+        data_provider=cast(Any, _Provider()),
     )
 
     assert headers == [
@@ -182,23 +190,121 @@ def test_html_generator_builds_table_collection_dataset_like_excel_flat_sheet() 
     ]
 
 
-def test_html_generator_get_flat_base_data_uses_expected_shape_per_db_type() -> None:
-    generator = HtmlGenerator(database="db", headers={})
-
-    assert generator._get_flat_base_data(
+def test_generator_tabular_runtime_build_flat_base_data_uses_expected_shape_per_db_type() -> None:
+    assert GeneratorTabularRuntime.build_flat_base_data(
         ("id", "INT", "NO", "PRI", None, "auto_increment", "Identificador", "ignored"),
         "mariadb",
     ) == ["id", "INT", "NO", "PRI", "", "auto_increment", "Identificador"]
 
-    assert generator._get_flat_base_data(
+    assert GeneratorTabularRuntime.build_flat_base_data(
         ("id", "INT", "NO", "PRI", None, "", "100", "0", "Identificador", "ignored"),
         "sqlserver",
     ) == ["id", "INT", "NO", "PRI", "", "", "100", "0", "Identificador"]
 
-    assert generator._get_flat_base_data(
+    assert GeneratorTabularRuntime.build_flat_base_data(
         ("ID", "NUMBER", "N", None, 22, 0, 0, "Comentario", "ignored"),
         "oracle",
     ) == ["ID", "NUMBER", "N", "", "22", "0", "0", "Comentario"]
+
+
+def test_generator_tabular_runtime_build_enriched_rows_for_table_oracle() -> None:
+    class _Provider:
+        db_type = "oracle"
+
+        def get_primary_keys(self, table_name: str) -> list[tuple[Any, ...]]:
+            return [("ID",)]
+
+        def get_foreign_keys(self, table_name: str) -> list[tuple[Any, ...]]:
+            return [("FK_USERS_ROLE", "ROLE_ID", "ROLES", "ID")]
+
+        def get_indices(self, table_name: str) -> list[tuple[Any, ...]]:
+            return [("IDX_USERS_ROLE", "TABLE", "NONUNIQUE", "ROLE_ID")]
+
+    rows = GeneratorTabularRuntime.build_enriched_flat_rows_for_table(
+        table_name="USERS",
+        table_comment="Usuarios",
+        columns=[
+            ("ID", "NUMBER", "N", None, 22, 0, 0, "Identificador"),
+            ("ROLE_ID", "NUMBER", "N", None, 22, 0, 0, "Rol"),
+        ],
+        data_provider=cast(Any, _Provider()),
+        detail_path="tables/users.html",
+        fk_arrow="->",
+    )
+
+    assert rows == [
+        [
+            "USERS",
+            "Usuarios",
+            "ID",
+            "NUMBER",
+            "N",
+            "",
+            "22",
+            "0",
+            "0",
+            "Sí",
+            "No",
+            "",
+            "Identificador",
+            "tables/users.html",
+        ],
+        [
+            "USERS",
+            "Usuarios",
+            "ROLE_ID",
+            "NUMBER",
+            "N",
+            "",
+            "22",
+            "0",
+            "0",
+            "No",
+            "FK_USERS_ROLE -> ROLES(ID)",
+            "IDX_USERS_ROLE",
+            "Rol",
+            "tables/users.html",
+        ],
+    ]
+
+
+def test_excel_generator_prepare_enriched_data_keeps_arrow_for_excel() -> None:
+    generator = ExcelGenerator(database="db", headers={})
+
+    class _Provider:
+        db_type = "oracle"
+
+        def get_columns(self, table_name: str) -> list[tuple[Any, ...]]:
+            return [("ROLE_ID", "NUMBER", "N", None, 22, 0, 0, "Rol")]
+
+        def get_primary_keys(self, table_name: str) -> list[tuple[Any, ...]]:
+            return []
+
+        def get_foreign_keys(self, table_name: str) -> list[tuple[Any, ...]]:
+            return [("FK_USERS_ROLE", "ROLE_ID", "ROLES", "ID")]
+
+        def get_indices(self, table_name: str) -> list[tuple[Any, ...]]:
+            return []
+
+    rows = generator._prepare_enriched_data("USERS", "Usuarios", cast(Any, _Provider()))
+
+    assert rows == [
+        [
+            "USERS",
+            "Usuarios",
+            "ROLE_ID",
+            "NUMBER",
+            "N",
+            "",
+            "22",
+            "0",
+            "0",
+            "No",
+            "FK_USERS_ROLE → ROLES(ID)",
+            "",
+            "Rol",
+        ]
+    ]
 
 
 def test_html_generator_builds_view_collection_dataset_with_one_row_per_column() -> None:
@@ -219,7 +325,7 @@ def test_html_generator_builds_view_collection_dataset_with_one_row_per_column()
 
     headers, rows = generator._build_view_collection_dataset(
         views_index=[{"name": "v_users", "comment": "Vista usuarios", "path": "views/v_users.html"}],
-        data_provider=_Provider(),
+        data_provider=cast(Any, _Provider()),
     )
 
     assert headers == [
@@ -261,7 +367,7 @@ def test_html_generator_builds_routine_collection_dataset_with_one_row_per_param
             {"name": "sp_sync", "routine_type": "PROCEDURE", "comment": "Sincroniza", "path": "routines/sp_sync.html"},
             {"name": "f_total", "routine_type": "FUNCTION", "comment": "Calcula", "path": "routines/f_total.html"},
         ],
-        data_provider=_Provider(),
+        data_provider=cast(Any, _Provider()),
     )
 
     assert headers == [
@@ -293,7 +399,7 @@ def test_excel_generator_style_normalization_split_and_numeric_conversion() -> N
         ("unknown", "TRIGGER", "ignored"),
         ("default_func", None, ""),
     ]
-    procedures, functions = fallback._split_routines_by_type(routines)
+    procedures, functions = GeneratorRoutineRuntime.split_by_type(routines)
 
     assert aliased.table_style == "TableStyleMedium2"
     assert valid_style.table_style == "TableStyleDark1"
@@ -338,7 +444,7 @@ def test_word_generator_normalizes_unique_constraints_rows_and_headers(monkeypat
     generator._add_unique_constraints_section(
         document=generator._initialize_document(template_path=None),
         tabla="users",
-        data_provider=_Provider(),
+        data_provider=cast(Any, _Provider()),
     )
 
     assert captured["title"] == "Restricciones Únicas"
@@ -352,17 +458,14 @@ def test_word_generator_normalizes_unique_constraints_rows_and_headers(monkeypat
 
 
 def test_excel_and_word_inventory_summary_helpers_use_storage_totals() -> None:
-    excel = ExcelGenerator(database="db", headers={})
-    word = WordGenerator(database="db", headers={})
-
     class _Provider:
         def get_storage_inventory_report(self) -> dict[str, Any]:
             return {"sections": [{"rows": [[1], [2]]}, {"rows": [[3]]}]}
 
     provider = _Provider()
 
-    assert excel._get_storage_total_rows(provider) == 3
-    assert word._get_storage_total_rows(provider) == 3
+    assert GeneratorTableRuntime.get_storage_total_rows(cast(Any, provider)) == 3
+    assert GeneratorTableRuntime.get_storage_total_rows(cast(Any, provider)) == 3
 
 
 def test_word_generator_chunking_output_file_and_routine_split() -> None:
@@ -373,7 +476,7 @@ def test_word_generator_chunking_output_file_and_routine_split() -> None:
     single_output = generator._build_output_file_for_chunk(Path("report.docx"), chunk_index=1, total_chunks=1)
     multi_output = generator._build_output_file_for_chunk(Path("report.docx"), chunk_index=2, total_chunks=3)
     normalized = generator._normalize_routine_entry((None, None, None))
-    procedures, functions = generator._split_routines_by_type(
+    procedures, functions = GeneratorRoutineRuntime.split_by_type(
         [("p_sync", "procedure", ""), ("f_total", "FUNCTION", ""), ("x", "TRIGGER", "")]
     )
 
@@ -405,7 +508,7 @@ def test_word_generator_builds_diagram_summary_payload_with_hidden_levels() -> N
 
     summary = generator._build_diagram_summary_payload(
         tabla="users",
-        graph_generator=_GraphGenerator(),
+        graph_generator=cast(Any, _GraphGenerator()),
         diagram_options={"max_depth": 2, "direction": "both", "summary": {"enabled": True}},
     )
 
@@ -437,7 +540,7 @@ def test_word_generator_builds_summary_from_precomputed_document_without_rebuild
 
     summary = generator._build_diagram_summary_payload(
         tabla="users",
-        graph_generator=_GraphGenerator(),
+        graph_generator=cast(Any, _GraphGenerator()),
         diagram_options={"max_depth": 1, "direction": "both", "summary": {"enabled": True}},
         document=_Document(),
     )
@@ -469,7 +572,7 @@ def test_word_generator_omits_diagram_summary_when_disabled() -> None:
 
     summary = generator._build_diagram_summary_payload(
         tabla="users",
-        graph_generator=_GraphGenerator(),
+        graph_generator=cast(Any, _GraphGenerator()),
         diagram_options={"max_depth": 1, "direction": "both", "summary": {"enabled": False}},
     )
 
@@ -607,7 +710,7 @@ def test_word_generator_inserts_diagram_legend_before_inventory_and_tables(
     monkeypatch.setattr(generator, "_add_routines_content", lambda *args, **kwargs: None)
     monkeypatch.setattr(generator, "_build_output_file_for_chunk", lambda output_file, idx, total_chunks: output_file)
 
-    from util_bbdd.doc.word_generator import DocumentChunkConfig
+    from util_bbdd.doc.infrastructure.renderers.word_generator import DocumentChunkConfig
 
     generator._generate_single_document_chunk(
         idx=1,
@@ -616,7 +719,7 @@ def test_word_generator_inserts_diagram_legend_before_inventory_and_tables(
         table_chunk=[("users", "")],
         views=[],
         routines=[],
-        data_provider=_Provider(),
+        data_provider=cast(Any, _Provider()),
         output_file=tmp_path / "report.docx",
         config=DocumentChunkConfig(
             include_tables=True,
@@ -676,9 +779,56 @@ def test_html_generator_generate_document_builds_graph_generator_when_none(
     monkeypatch.setattr(generator, "_render_collection_pages", lambda *args, **kwargs: {})
     monkeypatch.setattr(generator, "_render_index_page", lambda *args, **kwargs: None)
 
-    generator.generate_document([], [], [], _Provider(), tmp_path)
+    generator.generate_document([], [], [], cast(Any, _Provider()), tmp_path)
 
     assert captured["graph_generator"] is sentinel
+
+
+def test_html_generator_generate_document_processes_database_info_once(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    generator = HtmlGenerator(database="db", headers={})
+    calls: list[Any] = []
+    detail_template = object()
+
+    class _Provider:
+        imprimir_config: dict[str, Any] = {}
+
+    def _capture_database_info(**kwargs: Any) -> list[dict[str, str]]:
+        calls.append(kwargs["detail_template"])
+        return []
+
+    monkeypatch.setattr(
+        generator,
+        "_resolve_print_config",
+        lambda *args, **kwargs: {
+            "include_tables": False,
+            "include_views": False,
+            "include_procedures": False,
+            "include_functions": False,
+            "include_storage": False,
+            "include_database_info": True,
+            "database_info_flags": [True, False],
+            "template_path": generator.default_template_file,
+            "include_diagrams": False,
+            "diagram_options": {"max_depth": 2, "direction": "both"},
+        },
+    )
+    monkeypatch.setattr(generator, "_prepare_output_directories", lambda *args, **kwargs: None)
+    monkeypatch.setattr(generator, "_setup_templates", lambda *args, **kwargs: (detail_template, object(), object()))
+    monkeypatch.setattr(generator, "_process_database_info", _capture_database_info)
+    monkeypatch.setattr(generator, "_build_slug_maps_and_filters", lambda *args, **kwargs: ({}, {}, [], {}, {}))
+    monkeypatch.setattr(generator, "_process_tables", lambda *args, **kwargs: [])
+    monkeypatch.setattr(generator, "_process_views", lambda *args, **kwargs: [])
+    monkeypatch.setattr(generator, "_process_routines", lambda *args, **kwargs: [])
+    monkeypatch.setattr(generator, "_process_storage", lambda *args, **kwargs: [])
+    monkeypatch.setattr(generator, "_render_collection_pages", lambda *args, **kwargs: {})
+    monkeypatch.setattr(generator, "_render_index_page", lambda *args, **kwargs: None)
+
+    generator.generate_document([], [], [], cast(Any, _Provider()), tmp_path)
+
+    assert calls == [detail_template]
 
 
 def test_html_generator_generate_document_reuses_injected_graph_generator(
@@ -730,7 +880,7 @@ def test_html_generator_generate_document_reuses_injected_graph_generator(
     monkeypatch.setattr(generator, "_render_collection_pages", lambda *args, **kwargs: {})
     monkeypatch.setattr(generator, "_render_index_page", lambda *args, **kwargs: None)
 
-    generator.generate_document([], [], [], _Provider(), tmp_path, graph_generator=cast(Any, sentinel))
+    generator.generate_document([], [], [], cast(Any, _Provider()), tmp_path, graph_generator=cast(Any, sentinel))
 
     assert captured["graph_generator"] is sentinel
 
@@ -754,7 +904,7 @@ def test_word_generator_generate_document_builds_graph_generator_when_none(
     )
 
     generator.generate_document(
-        [], [], [], _Provider(), tmp_path / "report.docx", print_config={"grafo": {"enabled": True}}
+        [], [], [], cast(Any, _Provider()), tmp_path / "report.docx", print_config={"grafo": {"enabled": True}}
     )
 
     assert captured["graph_generator"] is sentinel
@@ -789,7 +939,7 @@ def test_word_generator_generate_document_reuses_injected_graph_generator(
         [],
         [],
         [],
-        _Provider(),
+        cast(Any, _Provider()),
         tmp_path / "report.docx",
         print_config={"grafo": {"enabled": True}},
         graph_generator=cast(Any, sentinel),

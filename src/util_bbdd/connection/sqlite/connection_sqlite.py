@@ -5,7 +5,7 @@ import logging
 from sqlite3 import Connection
 from typing import Any, Literal, cast
 
-from util_bbdd.database_exceptions import DatabaseConnectionError
+from util_bbdd._foundation.exceptions import DatabaseConnectionError
 
 from ..params import ConnectionParamsManager
 

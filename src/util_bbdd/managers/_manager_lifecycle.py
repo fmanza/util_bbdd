@@ -7,9 +7,9 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from .._foundation.exceptions import DatabaseOperationError
 from ..async_utils import maybe_await
 from ..connection.close import AsyncCloseMode, run_close_operation_sync
-from ..database_exceptions import DatabaseOperationError
 
 
 def get_sync_connection(

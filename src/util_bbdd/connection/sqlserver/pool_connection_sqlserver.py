@@ -6,7 +6,7 @@ from queue import Empty, LifoQueue
 from threading import Lock
 from typing import Any
 
-from ...database_exceptions import DatabasePoolError, DatabasePoolTimeoutError
+from ..._foundation.exceptions import DatabasePoolError, DatabasePoolTimeoutError
 from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
 from ..params import ConnectionParamsManager
 from ..sqlserver.connection_sqlserver import SQLServerConnection

@@ -54,7 +54,9 @@ def test_sync_execute_query_timeout_behavior(timeout_queries_file: Path, monkeyp
         executor.execute_query_many("obtener_tablas", "mariadb", {"database": "test_db"}, timeout=0.01)
 
 
-def test_sync_execute_custom_query_timeout_behavior(timeout_queries_file: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_sync_execute_custom_query_timeout_behavior(
+    timeout_queries_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
 

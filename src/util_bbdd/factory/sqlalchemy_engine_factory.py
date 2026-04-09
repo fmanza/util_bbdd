@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from sqlalchemy.engine.base import Engine
 
-from ..database_exceptions import DatabaseConnectionError, DatabaseValidationError
+from .._foundation.exceptions import DatabaseConnectionError, DatabaseValidationError
 
 
 class SQLAlchemyEngineFactory:

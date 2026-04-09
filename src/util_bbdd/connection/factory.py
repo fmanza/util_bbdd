@@ -11,7 +11,7 @@ from collections.abc import Callable
 from typing import Any
 
 from .._core import ConnectionError as CoreConnectionError
-from ..core.capabilities import is_async_supported
+from .._core.capabilities import is_async_supported
 
 logger: logging.Logger = logging.getLogger(__name__)
 

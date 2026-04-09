@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from util_bbdd.doc.print_config_manager import PrintConfigManager
+from util_bbdd.doc.infrastructure.renderers.shared.print_config_manager import PrintConfigManager
 
 
 def test_normalize_accepts_documented_nested_imprimir_block() -> None:

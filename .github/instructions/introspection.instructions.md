@@ -3,6 +3,8 @@ applyTo: "src/**/introspect/**/*.py"
 ---
 # Introspección (multibase)
 
+> **TL;DR** — API agnóstica de motor; diferencias por dialecto encapsuladas en adaptadores aislados. Devolver modelo IR estable (dataclass puro, sin objetos del driver). Funciones puras para extraccion. Test contra al menos un motor real. Nunca inventar metadatos; si falta información, introspetar más o pedir como parámetro.
+
 - Prioriza APIs de introspección agnósticas del backend (p.ej. Inspector/reflection si usamos SQLAlchemy).
 - Donde haya diferencias por motor, encapsula en adaptadores por dialecto y documenta limitaciones.
 - Devuelve un modelo intermedio estable (no dependiente de objetos internos del driver).

@@ -7,10 +7,9 @@ import logging
 
 from logging import Logger
 from pathlib import Path
-from time import perf_counter
 from typing import Any
 
-from util_bbdd.analysis.base import GraphEdge, GraphNode
+from util_bbdd.analysis.base import GraphEdge
 
 try:
     import graphviz
@@ -20,13 +19,13 @@ except ImportError:
     graphviz = None
     GRAPHVIZ_AVAILABLE = False
 
+from .._foundation.exceptions import DatabaseError
 from ..managers import SyncDatabaseManager
 from .base import (
     CardinalityEndMarker,
     ColumnVisualizationMode,
     DatabaseRelationshipGraphBase,
     GraphDocument,
-    GraphLevel,
     LevelDirection,
     TableRelation,
     TableVisualType,
@@ -138,7 +137,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
 
             self._columns_cache[table_name] = result
             return result
-        except Exception as e:
+        except DatabaseError as e:
             self.logger.warning(f"Error obteniendo columnas de {table_name}: {e}")
             return []
 
@@ -176,7 +175,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             self.db_manager.relationship_cache.set_primary_keys_list(table_key, pk_list)
             self.logger.debug(f"💾 PKs calculadas: {table_name} = {pk_list}")
             return pk_list
-        except Exception as e:
+        except DatabaseError as e:
             self.logger.warning(f"Error obteniendo claves primarias de {table_name}: {e}")
             return []
 
@@ -214,7 +213,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             self.db_manager.relationship_cache.set_unique_constraints_list(table_key, unique_list)
             self.logger.debug(f"💾 UCs calculadas: {table_name} = {unique_list}")
             return unique_list
-        except Exception as e:
+        except DatabaseError as e:
             self.logger.warning(f"Error obteniendo restricciones únicas de {table_name}: {e}")
             return []
 
@@ -335,7 +334,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             )
             return result
 
-        except Exception as e:
+        except DatabaseError as e:
             self.logger.warning(f"⚠️ Error determinando cardinalidad: {e}, usando 1:N por defecto")
             return "1:N"
 
@@ -609,43 +608,6 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             "</FONT></TD></TR>"
         )
 
-    def _build_subset_document(self, document: GraphDocument, relations: list[TableRelation]) -> GraphDocument:
-        """Construye un documento parcial para una página del grafo."""
-        selected_relations: set[TableRelation] = set(relations)
-        edges: list[GraphEdge] = [edge for edge in document.edges if edge.relation in selected_relations]
-        tables: set[str] = {document.root_table}
-        for relation in relations:
-            tables.add(relation.source_table)
-            tables.add(relation.target_table)
-
-        levels: list[GraphLevel] = []
-        for level in document.levels:
-            level_edges: list[GraphEdge] = [edge for edge in level.edges if edge.relation in selected_relations]
-            if not level_edges:
-                continue
-            level_tables: set[str] = {edge.relation.source_table for edge in level_edges}
-            level_tables.update(edge.relation.target_table for edge in level_edges)
-            levels.append(
-                GraphLevel(depth=level.depth, direction=level.direction, edges=level_edges, tables=level_tables)
-            )
-
-        nodes: dict[str, GraphNode] = {
-            table_name: node for table_name, node in document.nodes.items() if table_name in tables
-        }
-        return GraphDocument(
-            root_table=document.root_table,
-            nodes=nodes,
-            levels=levels,
-            edges=edges,
-            relations=list(relations),
-            tables=tables,
-            max_depth=document.max_depth,
-            direction=document.direction,
-            hidden_levels=document.hidden_levels,
-            total_incoming_levels=document.total_incoming_levels,
-            total_outgoing_levels=document.total_outgoing_levels,
-        )
-
     def _build_level_documents(
         self,
         table_name: str,
@@ -772,7 +734,6 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             f"Iniciando generación paginada extendida de Graphviz para {table_name} "
             f"(max {max_subnodes} nodos por página)"
         )
-        analyze_started: float = perf_counter()
         if document is None:
             document = self.build_graph_document(
                 table_name=table_name,
@@ -780,8 +741,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 direction=effective_direction,
             )
         relations: list[TableRelation] = list(document.relations)
-        analyze_elapsed_ms: float = (perf_counter() - analyze_started) * 1000
-        self.logger.info(f"📈 Relaciones analizadas para {table_name}: {len(relations)} en {analyze_elapsed_ms:.2f} ms")
+        self.logger.info(f"📈 Relaciones analizadas para {table_name}: {len(relations)}")
         split_relations: list[list[TableRelation]] = self._split_relations_for_visualization(relations, max_subnodes)
         self.logger.debug(f"Tabla {table_name} dividida en {len(split_relations)} página(s)")
 
@@ -800,7 +760,6 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             output_path: Path = output_dir / file_name
 
             # Generar gráfico para esta página
-            page_started: float = perf_counter()
             page_document: GraphDocument = self._build_subset_document(document, page_relations)
             generated_file: Path = self._generate_graphviz_graph_internal_ext(
                 table_name=table_name,
@@ -809,10 +768,9 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 document=page_document,
                 show_columns=include_columns,
             )
-            page_elapsed_ms: float = (perf_counter() - page_started) * 1000
             self.logger.info(
-                f"🖼️  Página Graphviz {page_num}/{len(split_relations)} de {table_name} generada en "
-                f"{page_elapsed_ms:.2f} ms con {len(page_relations)} relaciones"
+                f"🖼️  Página Graphviz {page_num}/{len(split_relations)} de {table_name} generada "
+                f"con {len(page_relations)} relaciones"
             )
             generated_files.append(generated_file)
 
@@ -862,7 +820,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             self._add_edges_to_graph(dot=dot, document=document, edge_label_font_size=edge_label_font_size)
 
             return self._render_graph(dot=dot, output_file=output_file, format=format, table_name=table_name)
-        except Exception as e:
+        except (OSError, RuntimeError) as e:
             self.logger.error(
                 f"Error al generar gráfico Graphviz extendido para tabla {table_name}: {str(e)}",
                 exc_info=True,
@@ -1036,11 +994,9 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             FileNotFoundError: Si Graphviz no genera el archivo esperado
         """
         output_path_str: str = str(output_file)
-        render_started: float = perf_counter()
         self.logger.info(f"🎨 Renderizando Graphviz para {table_name}: formato={format}, archivo={output_path_str}")
         dot.render(output_path_str, cleanup=True)
-        render_elapsed_ms: float = (perf_counter() - render_started) * 1000
-        self.logger.info(f"🎨 Render Graphviz completado para {table_name} en {render_elapsed_ms:.2f} ms")
+        self.logger.info(f"🎨 Render Graphviz completado para {table_name}")
 
         expected_file = Path(f"{output_path_str}.{format}")
         if expected_file.exists():
@@ -1080,121 +1036,32 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         self.logger.info(f"Directorio de salida: {output_dir}")
         self.logger.info(f"Formato: {format}, max_subnodes: {max_subnodes}, mostrar columnas: {show_columns}")
 
-        results: dict[str, dict[str, Any]] = {}
-        tables_to_process: list[str] = self._select_tables_to_process(
+        def _generate_for_table(table_name: str) -> list[Path]:
+            return self.generate_graphviz_graph_paginated_ext(
+                table_name=table_name,
+                output_dir=output_dir,
+                format=format,
+                max_subnodes=max_subnodes,
+                show_columns=include_columns,
+                max_depth=max_depth,
+                direction=direction,
+            )
+
+        return self._generate_all_tables_batch(
             table_names=table_names,
             skip_tables_without_relations=skip_tables_without_relations,
             max_depth=max_depth,
             direction=direction,
+            generate_for_table=_generate_for_table,
+            progress_template="[{idx}/{total}] Generando gráfico extendido para tabla: {table_name}",
+            success_template="Gráfico extendido completado para {table_name}: {count} archivo(s)",
+            completion_template="Generación extendida completada: {successful}/{total} tablas procesadas exitosamente",
+            error_prefix="Error generando gráfico extendido para tabla",
         )
-
-        # Generar grafos para cada tabla
-        for idx, table_name in enumerate(tables_to_process, 1):
-            try:
-                self.logger.info(
-                    f"[{idx}/{len(tables_to_process)}] Generando gráfico extendido para tabla: {table_name}"
-                )
-
-                # Generar gráfico paginado extendido
-                generated_files: list[Path] = self.generate_graphviz_graph_paginated_ext(
-                    table_name=table_name,
-                    output_dir=output_dir,
-                    format=format,
-                    max_subnodes=max_subnodes,
-                    show_columns=include_columns,
-                    max_depth=max_depth,
-                    direction=direction,
-                )
-                self._store_generation_success(results, table_name, generated_files)
-
-                self.logger.debug(f"Gráfico extendido completado para {table_name}: {len(generated_files)} archivo(s)")
-
-            except Exception as e:
-                self._store_generation_error(results, table_name, e)
-
-        # Resumen final
-        successful: int = sum(1 for r in results.values() if r["status"] == "success")
-        self.logger.info(
-            f"Generación extendida completada: {successful}/{len(tables_to_process)} tablas procesadas exitosamente"
-        )
-
-        return results
 
     def _resolve_graph_output_dir(self, output_dir: Path | None) -> Path:
         """Normaliza y crea el directorio de salida para grafos Graphviz."""
-        resolved_output_dir: Path = Path("./grafos_graphviz_ext") if output_dir is None else Path(output_dir)
-        resolved_output_dir = resolved_output_dir.resolve()
-        resolved_output_dir.mkdir(parents=True, exist_ok=True)
-        return resolved_output_dir
-
-    def _get_all_table_names(self) -> list[str]:
-        """Obtiene la lista de nombres de tabla desde el manager."""
-        return [table[0] for table in self.db_manager.get_tables()]
-
-    def _select_tables_to_process(
-        self,
-        table_names: list[str],
-        skip_tables_without_relations: bool,
-        max_depth: int | None,
-        direction: LevelDirection | str | None,
-    ) -> list[str]:
-        """Devuelve las tablas que deben procesarse según el filtro de relaciones."""
-        if not skip_tables_without_relations:
-            return table_names
-
-        tables_with_relations: list[str] = [
-            table_name
-            for table_name in table_names
-            if self._table_has_relations(table_name=table_name, max_depth=max_depth, direction=direction)
-        ]
-        self.logger.info(f"Tablas a procesar tras filtrado: {len(tables_with_relations)}/{len(table_names)}")
-        return tables_with_relations
-
-    def _table_has_relations(
-        self,
-        table_name: str,
-        max_depth: int | None,
-        direction: LevelDirection | str | None,
-    ) -> bool:
-        """Determina si una tabla tiene relaciones visibles para la configuración indicada."""
-        try:
-            document: GraphDocument = self.build_graph_document(
-                table_name=table_name,
-                max_depth=self.max_depth if max_depth is None else max_depth,
-                direction=self.direction if direction is None else direction,
-            )
-        except Exception:
-            return False
-
-        if document.relations:
-            return True
-
-        self.logger.debug(f"Omitiendo tabla sin relaciones: {table_name}")
-        return False
-
-    def _store_generation_success(
-        self,
-        results: dict[str, dict[str, Any]],
-        table_name: str,
-        generated_files: list[Path],
-    ) -> None:
-        """Registra un resultado exitoso de generación."""
-        results[table_name] = {
-            "status": "success",
-            "files": [str(file_path) for file_path in generated_files],
-            "count": len(generated_files),
-        }
-
-    def _store_generation_error(
-        self,
-        results: dict[str, dict[str, Any]],
-        table_name: str,
-        error: Exception,
-    ) -> None:
-        """Registra un resultado fallido de generación."""
-        error_msg = str(error)
-        self.logger.error(f"Error generando gráfico extendido para tabla {table_name}: {error_msg}")
-        results[table_name] = {"status": "error", "error": error_msg, "files": []}
+        return self._resolve_output_dir(output_dir=output_dir, default_dir="./grafos_graphviz_ext")
 
     def generate_single_table_graph_ext(
         self,

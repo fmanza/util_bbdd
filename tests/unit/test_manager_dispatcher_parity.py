@@ -7,23 +7,12 @@ from util_bbdd.managers.sync_mgr import SyncDatabaseManager
 
 _SHARED_MANAGER_HELPERS = [
     "_get_mariadb_adapter",
-    "_fetch_mariadb_routines_from_show_status",
-    "_get_mariadb_routines_detail_rows",
-    "_get_mariadb_routine_parameters_detail_rows",
-    "_fetch_mariadb_columns_safe",
-    "_fetch_mariadb_view_from_information_schema",
-    "_fetch_mariadb_routine_from_information_schema",
-    "_fetch_mariadb_routine_parameters_detailed",
-    "_fetch_mariadb_routine_parameters_public_rows",
-    "_build_mariadb_ddl_from_metadata",
-    "_fetch_mariadb_routines",
     "_get_routines_fetcher",
     "_get_table_ddl_fetcher",
     "_get_view_ddl_fetcher",
     "_get_columns_fetcher",
     "_get_routine_parameters_fetcher",
     "_get_routine_ddl_fetcher",
-    "_get_storage_inventory_handler",
 ]
 
 _SHARED_CORE_HELPERS = [
