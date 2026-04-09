@@ -7,27 +7,122 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Removed
-- **Breaking Change**: `DatabaseDocumentation` deja de exponer la API legacy de consulta de metadatos y DDL; ahora se limita a orquestar la generación documental.
+### Planned (v0.6.4 - Phase 4A & 3C.5a)
+
+#### Phase 4A: Redis Caching Layer (Planned)
+- Optional Redis integration for metadata caching
+- Fallback to in-memory cache if Redis unavailable
+- Strategy Pattern: `CacheBackend` protocol with Redis/Memory implementations
+- Estimated: 60-80 tests, 5-7 hours
+- Documentation: `docs/v0.6.4/PHASE_4A_PLAN_REDIS_CACHING.md`
+
+#### Phase 3C.5a: BigQuery Driver (Planned)
+- Google Cloud BigQuery metadata introspection
+- Multi-level schema: Project.Dataset.Table
+- Advisory constraints (like Snowflake)
+- Estimated: 100-120 tests, 3-4 hours
+- Documentation: `docs/v0.6.3/PHASE_3C5a_PLAN_BIGQUERY.md`
+
+### Planned (v0.6.5+)
+
+#### Phase 4B: Async Optimizations
+- Batch query operations
+- Parallel metadata loading
+- Connection pool tuning
+
+#### Phase 4C: Performance Tuning
+- Per-driver configuration profiles
+- Query caching strategies
+
+### Planned (v0.7.0+)
+
+#### MongoDB / NoSQL Support (ADR Pending)
+- Requires architecture decision on DocumentAdapter pattern
+- Roadmap pending formal approval
+
+## [0.6.3] - 2026-04-09
+
+### Added
+
+#### Phase 3C.4: MySQL, Redshift, Snowflake Drivers (3 new drivers, 410+ tests)
+
+**MySQL Driver** (10 modules, 121 tests, ~600 LOC):
+- Full metadata introspection via `information_schema` (Standard SQL)
+- 30+ MySQL type mappings (TINYINT, MEDIUMINT, JSON, ENUM, SET, GEOMETRY, etc.)
+- Auto-increment detection (separate from primary key)
+- Cascade action support (RESTRICT, CASCADE, SET NULL, NO ACTION)
+- Sync adapter (mysql-connector-python) + async adapter (asyncmy)
+- Auto-registration: `registry.register_source_adapter_*("mysql", MysqlAdapter)`
+
+**Redshift Driver** (10 modules, ~87 tests, ~600 LOC):
+- PostgreSQL-derived metadata catalogs (pg_catalog + information_schema)
+- 30+ type mappings (PostgreSQL subset: no arrays, ranges, or UDTs)
+- **Advisory constraints** (PK/FK metadata NOT enforced—warning logged per operation)
+- SortKey detection and optimization hints
+- Limited UDFs support (no stored procedures)
+- Sync adapter (psycopg2) + async adapter (asyncpg)
+- Auto-registration: `registry.register_source_adapter_*("redshift", RedshiftAdapter)`
+- **CRITICAL NOTE:** "Redshift constraints are metadata-only; not enforced by database. Application layer responsible for validation."
+
+**Snowflake Driver** (10 modules, 162 tests, ~700 LOC):
+- Multi-level schema support (DATABASE.SCHEMA.TABLE extraction and normalization)
+- 40+ Snowflake type mappings (VARIANT, OBJECT, ARRAY, GEOGRAPHY, TIMESTAMP_* variants, etc.)
+- Case normalization (uppercased identifiers by default, quoted identifiers preserve case)
+- **NO constraint enforcement** (PK/FK/CHECK constraints return empty stubs with advisory logging)
+- **NO native indexes** (recommendation: use CLUSTERING KEY instead)
+- Support for UDFs and stored procedures across multiple languages
+- Sync adapter (snowflake-connector-python) + async adapter (executor-based)
+- Auto-registration: `registry.register_source_adapter_*("snowflake", SnowflakeAdapter)` + aliases `"snowflake-cloud"`
+- **CRITICAL NOTE:** "Snowflake enforces no constraints; returning empty metadata. Partitioning and clustering keys provide optimization guidance."
+
+**Registry Consolidation (8 drivers total):**
+- MariaDB (Phase 3B)
+- PostgreSQL (Phase 3C.1)
+- Oracle (Phase 3C.2)
+- SQLite (Phase 3C.3)
+- SQL Server (Phase 3C.3)
+- MySQL (Phase 3C.4) ✨ NEW
+- Redshift (Phase 3C.4) ✨ NEW
+- Snowflake (Phase 3C.4) ✨ NEW
+
+All drivers auto-register on import via proven Registry pattern (extensible for future drivers).
+
+**Code Quality Consolidated (Phase 3C.4):**
+- 1,688 total unit tests (410+ new)
+- 100% docstring coverage on all 30 new modules
+- 100% type hints coverage (248 source files total)
+- Ruff: 0 issues ✅
+- Mypy: 248 files, 0 errors in strict mode ✅
+- All SQL queries parameterized (SQL injection prevention enforced)
+
+#### Architectural Evolution
+
+- Nueva capa de agentes especializados de VS Code en `.github/agents` para clasificación, planificación, implementación, hotfix, auditoría, seguridad y cierre de versión.
+- Extra `analysis` en `pyproject.toml` para declarar `graphviz` como dependencia instalable explícita (`pip install util_bbdd[analysis]`).
 
 ### Changed
+
 - El soporte oficial de runtime pasa a ser Python 3.12+.
 - Se alinean CI, metadatos de paquete y documentación pública con el nuevo rango soportado.
 - Los enlaces públicos del paquete y del README pasan a apuntar al repositorio real de `fmanza/util_bbdd`.
-- Se cierra formalmente la Fase 3 del plan de deuda técnica en la documentación operativa del repositorio.
+- Se cierra formalmente la Fase 3.C (drivers SQL) del plan de deuda técnica y desarrollo de features.
 - README y guía de migración pasan a distinguir de forma explícita entre imports canónicos y rutas legacy todavía soportadas.
-- Se abre el siguiente corte de Fase 4 sobre compatibilidad/documentación viva sin introducir cambios funcionales adicionales.
 - `DatabaseDocumentation` queda reducida a la orquestación documental y el acceso ad hoc a metadatos se deriva al manager o a las sesiones internas.
-
-## [0.6.3] - 2026-03-31
-
-### Added
-- Nueva capa de agentes especializados de VS Code en `.github/agents` para clasificación, planificación, implementación, hotfix, auditoría, seguridad y cierre de versión.
-
-### Changed
 - La política transversal de Copilot incorpora el modelo combinado de instrucciones, prompts y agentes.
 - README, guía de `.github` y ejemplo integral documentan el flujo recomendado de trabajo con Copilot y el mapeo rápido prompt-agente.
-- El cierre de v0.6.3 excluye explícitamente `docs/v0.6.4`, que permanece como trabajo futuro fuera del alcance de la release.
+
+### Removed
+
+- **Breaking Change (Pre-3C.4)**: `DatabaseDocumentation` deja de exponer la API legacy de consulta de metadatos y DDL; ahora se limita a orquestar la generación documental.
+- **Note:** El cierre de v0.6.3 cierra explícitamente Phase 3 completa. Fases futuras (4A, 4B, 4C) quedan para v0.6.4+.
+
+### Roadmap (Deferred to v0.6.4+)
+
+- **Phase 4A (Redis Caching):** Planning complete, implementation deferred. Optional optimization for distributed metadata caching. PLAN available at `docs/v0.6.4/PHASE_4A_PLAN_REDIS_CACHING.md`.
+- **Phase 3C.5a (BigQuery):** Planning complete, implementation deferred. SQL data warehouse driver (3-4h implementation). PLAN available at `docs/v0.6.3/PHASE_3C5a_PLAN_BIGQUERY.md`.
+- **Phase 4B (Async Optimizations):** Planned for future. Batch queries, parallelization.
+- **Phase 4C (Connection Pool Tuning):** Planned for future. Per-driver configuration.
+- **MongoDB (NoSQL):** Architecture Decision Record (ADR) pending. Requires separate design discussion post-v0.6.3.
 
 ## [0.6.2] - 2026-03-26
 
