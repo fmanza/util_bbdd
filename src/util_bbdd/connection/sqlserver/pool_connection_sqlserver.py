@@ -6,7 +6,7 @@ from queue import Empty, LifoQueue
 from threading import Lock
 from typing import Any
 
-from ..._foundation.exceptions import DatabasePoolError, DatabasePoolTimeoutError
+from ..._core.exceptions import PoolConnectionError, PoolTimeoutError
 from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
 from ..params import ConnectionParamsManager
 from ..sqlserver.connection_sqlserver import SQLServerConnection
@@ -194,7 +194,7 @@ class PoolConnection:
             db_type="sqlserver",
         )
 
-    def _handle_close_timeout(self, connection: Any, force: bool, err: DatabasePoolTimeoutError) -> str | None:
+    def _handle_close_timeout(self, connection: Any, force: bool, err: PoolTimeoutError) -> str | None:
         if force is False:
             return str(err)
         try:
@@ -215,7 +215,7 @@ class PoolConnection:
                 action_name="cierre conexión pool SQL Server",
             )
             return None
-        except DatabasePoolTimeoutError as err:
+        except PoolTimeoutError as err:
             return self._handle_close_timeout(connection=connection, force=force, err=err)
         except Exception as err:
             return str(err)
@@ -241,7 +241,7 @@ class PoolConnection:
                 errors.append(error)
 
         if errors:
-            raise DatabasePoolError(
+            raise PoolConnectionError(
                 message="Errores cerrando pool SQL Server",
                 db_type="sqlserver",
                 details=" | ".join(errors),

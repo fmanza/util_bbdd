@@ -19,6 +19,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-03-22  | Refactorización v0.6.0: relaciones N niveles        | develop → main (v0.6.0) | refactor     | CLOSED   | `2026-03-22/REFACTOR_v0.6.0_SESSION.md` |
 | 2026-03-24  | Aplicar metodología IA + primera slice v0.6.1 HTML  | develop               | new_feature    | CLOSED   | `2026-03-24/TRACEABILITY.md`          |
 | 2026-03-25  | Aplicar metodología IA + features v0.6.2            | develop               | new_feature    | CLOSED   | `2026-03-25/TRACEABILITY.md`          |
+| 2026-04-10  | v0.6.7: maturity assessment + tech-debt _foundation/ + refactor facades legacy | develop | tech-debt / refactor | CLOSED | `v0.6.7-release-tracking.md` |
 
 ## Crear nueva sesión
 

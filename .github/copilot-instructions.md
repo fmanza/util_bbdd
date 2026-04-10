@@ -102,6 +102,52 @@ y sin depender de servicios externos.
 - Los agentes no sustituyen a los prompts de `.github/prompts/`; los agentes especializan la ejecución y los prompts siguen definiendo el contrato de salida.
 - En `new_feature` y `hotfix`, no invoques agentes de implementación sin que exista antes una fase de planificación aprobada o explícitamente resuelta.
 
+## Flujos estructurados: PLAN → AUDIT_PLAN → IMPLEMENT
+
+### Para Copilot Chat en VS Code
+
+**Flujo manual (sin slash commands)**:
+
+Escribe en Copilot Chat siguiendo esta estructura para cualquier cambio:
+
+```markdown
+Voy a [implementar nueva funcionalidad / corregir un bug / refactorizar].
+
+Sigue el flujo PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION.
+
+Contexto:
+- [proporciona fields según tarea: objetivo, módulos, API, restricciones, etc.]
+
+Primero: emite PLAN con rutas afectadas, componentes implicados, tipos y riesgos.
+Luego: emite AUDIT_PLAN con riesgos funcionales/técnicos/seguridad y veredicto.
+Después: IMPLEMENT por capas (Level 1 → 2 → 3) si veredicto es GO.
+Finalmente: AUDIT_CODE con hallazgos y VERSION con commit + changelog.
+```
+
+**Referencia**:
+- Mapeo Claude Code ↔ Copilot Chat: [`docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md`](../docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md)
+- Ejemplos completos: [`docs/v0.6.7/COPILOT_CHAT_INTEGRATION_GUIDE.md`](../docs/v0.6.7/COPILOT_CHAT_INTEGRATION_GUIDE.md)
+
+### Para Claude Code
+
+Usa slash commands:
+- `/new-feature` — nueva funcionalidad
+- `/hotfix` — corrección de bug
+- `/refactor` — refactor sin cambios funcionales
+- `/audit-code` — auditoría técnica
+- `/security-review` — revisión de seguridad
+- `/tech-debt` — inventario de deuda técnica
+- `/maturity-assessment` — evaluación de madurez
+- `/version-closure` — cierre de versión
+
+**Referencia**: [CLAUDE.md](../CLAUDE.md) (política base) y [.claude/commands/](../.claude/commands/) (comandos detallados)
+
+### Sincronización entre plataformas
+
+Para mantener Claude Code y Copilot Chat alineados:
+- Lee: [`.github/INTEGRATION_MAP.md`](.github/INTEGRATION_MAP.md) — Gobernanza, responsables, checklist de sincronización
+- Lee: [docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md](../docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md) — Equivalencias de comandos entre plataformas
+
 ## Execution policies
 - `new_feature`: prohibido refactorizar.
 - `hotfix`: prohibido refactorizar y prohibido optimizar. Solo FIX.

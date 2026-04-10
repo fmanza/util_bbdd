@@ -6,7 +6,7 @@ import logging
 
 from typing import Any, Literal, cast
 
-from util_bbdd._foundation.exceptions import DatabaseConnectionError
+from util_bbdd._core.exceptions import ConnectionError
 
 from ..params import ConnectionParamsManager
 
@@ -50,11 +50,11 @@ class AsyncSQLiteConnection:
             return conn
         except ImportError as err:
             AsyncSQLiteConnection.logger.error("❌ Error: módulo aiosqlite no disponible")
-            raise DatabaseConnectionError("Módulo aiosqlite no disponible", "sqlite", str(err)) from err
+            raise ConnectionError("Módulo aiosqlite no disponible", db_type="sqlite", details=str(err)) from err
         except Exception as err:
             AsyncSQLiteConnection.logger.error(f"❌ Error conectando a SQLite async: {err}")
-            raise DatabaseConnectionError(
+            raise ConnectionError(
                 f"Error conectando a SQLite async: {str(err)}",
-                "sqlite",
-                str(err),
+                db_type="sqlite",
+                details=str(err),
             ) from err

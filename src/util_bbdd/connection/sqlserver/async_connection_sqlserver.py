@@ -6,7 +6,7 @@ import logging
 
 from typing import Any
 
-from util_bbdd._foundation.exceptions import DatabaseConnectionError
+from util_bbdd._core.exceptions import ConnectionError
 
 from ..params import ConnectionParamsManager
 
@@ -59,11 +59,11 @@ class AsyncSQLServerConnection:
             return conn
         except ImportError as err:
             AsyncSQLServerConnection.logger.error("❌ Error: módulo aioodbc no disponible")
-            raise DatabaseConnectionError("Módulo aioodbc no disponible", "sqlserver", str(err)) from err
+            raise ConnectionError("Módulo aioodbc no disponible", db_type="sqlserver", details=str(err)) from err
         except Exception as err:
             AsyncSQLServerConnection.logger.error(f"❌ Error conectando a SQL Server async: {err}")
-            raise DatabaseConnectionError(
+            raise ConnectionError(
                 f"Error conectando a SQL Server async: {str(err)}",
-                "sqlserver",
-                str(err),
+                db_type="sqlserver",
+                details=str(err),
             ) from err

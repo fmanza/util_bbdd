@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, cast
 
-from ...._foundation.exceptions import DatabaseError, QueryNotFoundError
+from ...._core.exceptions import DatabaseException, QueryNotFoundError
 from ...application.ports import DocumentationManagerPort, LoggerProtocol, StorageReportServicePort
 from .contracts import StorageInventoryManagerProtocol, StorageInventoryStrategyPort
 from .mariadb_strategy import MariadbStorageInventoryStrategy
@@ -152,7 +152,7 @@ class StorageInventoryRuntime:
         try:
             user_tablespaces: object = self.db_manager.execute_custom_one(self._ORACLE_USER_TABLESPACES_QUERY)
             return self._extract_tablespace_from_row(user_tablespaces)
-        except DatabaseError:
+        except DatabaseException:
             return ""
 
     def _extract_tablespace_from_row(self, row_data: object) -> str:
@@ -391,7 +391,7 @@ class StorageInventoryRuntime:
         """Indica si la query de almacenamiento es un placeholder de no soporte."""
         try:
             sql_text: str = str(self.db_manager.resolve_query(query_name, **query_params).final_sql or "")
-        except DatabaseError:
+        except DatabaseException:
             return False
         normalized_sql: str = " ".join(sql_text.strip().lower().split())
         return "where 1=0" in normalized_sql
@@ -478,7 +478,7 @@ class StorageInventoryRuntime:
             resolved = self.db_manager.resolve_query(query_name, **query_params)
         except QueryNotFoundError:
             return self._build_section_not_supported(query_name, query_title)
-        except DatabaseError as error:
+        except DatabaseException as error:
             return self._build_section_missing_params(
                 query_name,
                 query_title,
@@ -504,7 +504,7 @@ class StorageInventoryRuntime:
                 "rows": rows,
                 "numeric_columns": self._get_numeric_storage_indices(headers),
             }
-        except DatabaseError as error:
+        except DatabaseException as error:
             flattened_error_msg: str = self._flatten_exception_messages(error)
             return self._build_storage_error_section(query_name, query_title, flattened_error_msg)
 

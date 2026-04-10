@@ -16,8 +16,9 @@ from pathlib import Path
 from typing import Any, cast
 
 from .._drivers.validator import DatabaseTypeValidator
-from ..query import QueryRegistry, QueryResolver
-from ..query._documentation import build_query_documentation, build_query_info, get_query_dependencies
+from ._documentation import build_query_documentation, build_query_info, get_query_dependencies
+from .registry import QueryRegistry
+from .resolver import QueryResolver
 
 
 class DatabaseQueries:

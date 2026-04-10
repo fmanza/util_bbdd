@@ -7,7 +7,7 @@ import logging
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
-from ....._foundation.exceptions import DatabaseError
+from ....._core.exceptions import DatabaseException
 
 if TYPE_CHECKING:
     from .....analysis.graphviz_ext import GraphvizRelationshipGraphExt
@@ -42,7 +42,7 @@ class GeneratorTableRuntime:
         """Obtiene el total agregado de filas del inventario de almacenamiento."""
         try:
             report: dict[str, Any] = data_provider.get_storage_inventory_report()
-        except DatabaseError:
+        except DatabaseException:
             return 0
 
         total: int = 0
@@ -598,7 +598,7 @@ class GeneratorDatabaseInfoRuntime:
                 logger.debug(f"Version de BD obtenida{context_suffix}: {version}")
             else:
                 logger.debug("No hay informacion de version disponible")
-        except DatabaseError as error:
+        except DatabaseException as error:
             logger.warning(f"Error obteniendo version: {error}")
             if include_error_rows:
                 info_data.append(["Versión", f"Error: {error}"])
@@ -622,7 +622,7 @@ class GeneratorDatabaseInfoRuntime:
                 logger.debug(f"Charset/Collation obtenido{context_suffix}: {charset_info}")
             else:
                 logger.debug("No hay informacion de charset/collation disponible")
-        except DatabaseError as error:
+        except DatabaseException as error:
             logger.warning(f"Error obteniendo charset/collation: {error}")
             if include_error_rows:
                 info_data.append(["Charset/Collation", f"Error: {error}"])
@@ -654,7 +654,7 @@ class GeneratorDatabaseInfoRuntime:
                 if charset_sql.strip():
                     sql_queries.append(charset_sql)
                     logger.debug("Query de charset agregada")
-        except DatabaseError as error:
+        except DatabaseException as error:
             logger.warning(f"Error obteniendo queries SQL: {error}")
         return sql_queries
 

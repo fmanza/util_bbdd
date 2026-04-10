@@ -4,7 +4,7 @@ import logging
 
 from typing import Any
 
-from util_bbdd._foundation.exceptions import DatabaseConnectionError
+from util_bbdd._core.exceptions import ConnectionError
 
 from ..params import ConnectionParamsManager
 
@@ -26,7 +26,7 @@ class PostgreSQLConnection:
             Conexión a PostgreSQL.
 
         Raises:
-            DatabaseConnectionError: Si hay error en la conexión.
+            ConnectionError: Si hay error en la conexión.
         """
         try:
             import psycopg
@@ -44,7 +44,7 @@ class PostgreSQLConnection:
             return conn
         except ImportError as e:
             PostgreSQLConnection.logger.error("❌ Error: módulo psycopg (psycopg3) no disponible")
-            raise DatabaseConnectionError("Módulo psycopg (psycopg3) no disponible", "postgresql", str(e)) from e
+            raise ConnectionError("Módulo psycopg (psycopg3) no disponible", db_type="postgresql", details=str(e)) from e
         except Exception as e:
             PostgreSQLConnection.logger.error(f"❌ Error conectando a PostgreSQL: {e}")
-            raise DatabaseConnectionError(f"Error conectando a PostgreSQL: {str(e)}", "postgresql", str(e)) from e
+            raise ConnectionError(f"Error conectando a PostgreSQL: {str(e)}", db_type="postgresql", details=str(e)) from e

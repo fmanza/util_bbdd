@@ -1,7 +1,7 @@
 # 🏗️ Arquitectura de util_bbdd
 
-**Versión:** 0.6.2
-**Última Actualización:** Marzo 2026
+**Versión:** 0.6.7
+**Última Actualización:** Abril 2026
 **Estado:** Estable | Completamente Refactorizado
 **Motores Soportados:** MariaDB • PostgreSQL • Oracle • SQLite • HSQLDB • SQL Server
 
@@ -88,9 +88,14 @@ El repositorio mantiene compatibilidad selectiva en algunos wrappers históricos
 │
 │    _core/                          ⭐ Core abstractions
 │    ├── types.py                    # Type aliases específicas de util_bbdd
-│    ├── exceptions.py               # DatabaseException + derivadas
+│    ├── exceptions.py               # DatabaseException y jerarquía completa (única fuente de verdad)
 │    ├── contracts.py                # Protocols base (ConnectionProvider, etc.)
 │    └── constants.py                # Enums compartidos
+│
+│    _drivers/                       🔌 Level 1 support (no importar desde Level 2+)
+│    ├── validator.py                # DatabaseTypeValidator: valida motores desde database_types.json
+│    ├── driver_validator.py         # DriverValidator: detecta disponibilidad de drivers Python
+│    └── _config_loader.py           # Carga y tipado del JSON de configuración de motores
 │
 │    core/                           📊 Motor capabilities
 │    └── capabilities.py             # Detecta async support, features por motor
@@ -112,10 +117,10 @@ El repositorio mantiene compatibilidad selectiva en algunos wrappers históricos
 │    │   └── sqlserver.py
 │    └── params.py, config.py, pool.py
 │
-│    query/                          ❓ Registro y ejecución (314 LOC base)
-│    ├── registry.py                 # DatabaseQueries.load()
-│    ├── resolver.py                 # Resuelve placeholders en queries
-│    └── (executors/ - moved to Level 2)
+│    query/                          ❓ Registro y ejecución
+│    ├── registry.py                 # QueryRegistry: carga y acceso a definiciones JSON
+│    ├── resolver.py                 # QueryResolver: resuelve placeholders en queries
+│    └── queries.py                  # DatabaseQueries: wrapper de conveniencia multi-motor
 │
 │    executors/                      ⚡ Ejecución de queries
 │    ├── base.py                     # QueryExecutorBase (abstract)
@@ -167,20 +172,24 @@ El repositorio mantiene compatibilidad selectiva en algunos wrappers históricos
 │    ├── graphviz_ext.py             # Graphviz multinivel con columnas/cardinalidad
 │    └── matplotlib_graph.py         # Visualización Matplotlib alineada al modelo multinivel
 │
+│    comparar/                       🔍 Comparación de esquemas
+│    ├── comparator.py               # SchemaComparator.compare(source, target) → SchemaDiff
+│    ├── contracts.py                # Tipos y contratos de comparación
+│    └── models.py                   # SchemaDiff (frozen dataclasses)
+│
 │    [Otros módulos]
 │    ├── async_utils.py              # Helpers (maybe_await, etc.)
 │    ├── models.py                   # Modelos de dominio
 │    ├── data/                       # Data fixtures para tests
-│    ├── doc/                        # HTML doc generation (Jinja2)
-│    └── database_*                  # Wrappers/helpers legacy
+│    └── doc/                        # HTML/Excel/Word doc generation (Jinja2)
 │
 └─── COMPATIBILIDAD (Legacy Wrappers - Raíz)
-    └─ Se conservan algunos wrappers históricos, pero no garantizan ausencia de breaking changes en nuevas releases
+    └─ Solo se conservan wrappers que no tienen equivalente directo en el paquete:
 
      database_manager.py             → Deprecated (usa SyncDatabaseManager)
      async_database_manager.py       → managers.async_mgr
-     bulk_crud.py                    → bulk.crud (root wrapper)
-     grafos.py                       → analysis (root wrapper)
+     bulk_crud.py                    → bulk.crud
+     grafos.py                       → analysis/
 ```
 
 ---
@@ -331,16 +340,24 @@ result = manager.execute(resolved_query)
 ### Tipos Públicos
 
 ```python
-# Desde _core
-from util_bbdd._core import DatabaseException
-from util_bbdd._core import ConnectionError, QueryError, ValidationError
-# ... y todas las excepciones derivadas
+# Excepciones — directamente desde el paquete raíz (canónico desde v0.6.7)
+from util_bbdd import (
+    DatabaseException,
+    ConnectionError, PoolConnectionError, PoolTimeoutError, PoolExhaustedError,
+    ValidationError, InvalidDatabaseType,
+    DriverError,
+    DatabaseOperationError, DatabaseConfigurationError,
+    QueryError, QueryNotFoundError, QueryValidationError,
+    QueryParameterError, QueryTimeoutError, QueryExecutionError,
+)
 
 # Desde results
 from util_bbdd.results import RowOrNone, Rows
-# Equivalentes a:
 # RowOrNone = dict[str, Any] | None
 # Rows = list[dict[str, Any]]
+
+# Comparación de esquemas
+from util_bbdd import SchemaComparator, SchemaDiff
 ```
 
 ---
@@ -652,6 +669,6 @@ elapsed = time.time() - start
 
 ---
 
-*Documento actualizado: Marzo 2026 - alineado a v0.6.2*
+*Documento actualizado: Abril 2026 - alineado a v0.6.7*
 *Mantenedor: util_bbdd contributors*
 *Licencia: [Ver LICENSE](../LICENSE)*

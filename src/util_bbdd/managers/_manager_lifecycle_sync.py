@@ -6,8 +6,8 @@ import logging
 
 from typing import Any
 
-from .._foundation.exceptions import DatabaseConnectionError, DatabaseValidationError
-from .._foundation.validators_core import DatabaseTypeValidator
+from .._core.exceptions import ConnectionError, ValidationError
+from .._drivers import DatabaseTypeValidator
 from ..connection.factory import ConnectionFactory
 from ..connection.params import ConnectionParamsManager
 from ..connection.protocols import ConnectionPoolProtocol
@@ -47,7 +47,7 @@ class SyncLifecycleManager:
             DatabaseValidationError: Si la validación falla.
         """
         try:
-            from .._foundation.driver_validator import DriverValidator
+            from .._drivers.driver_validator import DriverValidator
 
             self.validators.validate_db_type(self.db_type)
 
@@ -62,11 +62,11 @@ class SyncLifecycleManager:
                 self.validators,
             )
             self.logger.debug(f"✅ Parámetros validados para {self.db_type}")
-        except DatabaseValidationError:
+        except ValidationError:
             raise
         except Exception as e:
             self.logger.error(f"❌ Error validando parámetros: {e}")
-            raise DatabaseValidationError(str(e), self.db_type) from e
+            raise ValidationError(str(e), db_type=self.db_type) from e
 
     def initialize_pool(self, pool_factory_func: Any) -> ConnectionPoolProtocol | None:
         """
@@ -123,11 +123,11 @@ class SyncLifecycleManager:
             )
             self.logger.info("✅ Conexión establecida")
             return connection
-        except DatabaseConnectionError:
+        except ConnectionError:
             raise
         except Exception as e:
             self.logger.error(f"❌ Error en conexión: {e}")
-            raise DatabaseConnectionError(f"Error conectando a {self.db_type}: {str(e)}", self.db_type) from e
+            raise ConnectionError(f"Error conectando a {self.db_type}: {str(e)}", db_type=self.db_type) from e
 
     def close_resources(
         self,

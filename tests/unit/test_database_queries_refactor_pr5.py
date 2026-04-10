@@ -16,8 +16,8 @@ from pathlib import Path
 
 import pytest
 
-from util_bbdd.database_exceptions import QueryNotFoundError
-from util_bbdd.database_queries import DatabaseQueries
+from util_bbdd import QueryNotFoundError
+from util_bbdd.query import DatabaseQueries
 
 
 class TestDatabaseQueriesBackwardCompat:

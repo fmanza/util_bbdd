@@ -4,7 +4,7 @@ import logging
 
 from typing import Any, Literal, cast
 
-from ..._foundation.exceptions import DatabasePoolError, DatabasePoolTimeoutError
+from ..._core.exceptions import PoolConnectionError, PoolTimeoutError
 from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
 from ..params import ConnectionParamsManager
 
@@ -150,7 +150,7 @@ class PoolConnection:
                 db_type="sqlite",
             )
             self.logger.info("✅ Pool SQLite cerrado")
-        except DatabasePoolTimeoutError:
+        except PoolTimeoutError:
             if force is False:
                 raise
             run_close_operation_sync(
@@ -161,7 +161,7 @@ class PoolConnection:
             )
             self.logger.info("✅ Pool SQLite cerrado (forzado)")
         except Exception as err:
-            raise DatabasePoolError(
+            raise PoolConnectionError(
                 message="Error cerrando pool SQLite",
                 db_type="sqlite",
                 details=str(err),

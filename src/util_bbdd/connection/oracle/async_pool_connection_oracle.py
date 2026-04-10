@@ -6,7 +6,7 @@ import logging
 
 from typing import Any
 
-from util_bbdd._foundation.exceptions import DatabaseConnectionError
+from util_bbdd._core.exceptions import ConnectionError
 
 from ...async_utils import maybe_await
 from ..close import (
@@ -89,13 +89,13 @@ class AsyncOraclePool:
             return cls(pool, close_timeout_seconds=close_timeout_seconds)
         except ImportError as err:
             cls.logger.error("❌ Error: módulo oracledb no disponible")
-            raise DatabaseConnectionError("Módulo oracledb no disponible", "oracle", str(err)) from err
+            raise ConnectionError("Módulo oracledb no disponible", db_type="oracle", details=str(err)) from err
         except Exception as err:
             cls.logger.error(f"❌ Error creando pool Oracle async: {err}")
-            raise DatabaseConnectionError(
+            raise ConnectionError(
                 f"Error creando pool Oracle async: {str(err)}",
-                "oracle",
-                str(err),
+                db_type="oracle",
+                details=str(err),
             ) from err
 
     async def acquire(self) -> Any:

@@ -4,15 +4,11 @@ from __future__ import annotations
 
 from typing import get_args, get_origin, get_type_hints
 
-from util_bbdd.database_exceptions import (
-    DatabaseError,
-    DatabaseOperationError,
-    InvalidQueryError,
+from util_bbdd import (
+    DatabaseException,
     QueryExecutionError,
-    QueryExecutionTimeoutError,
     QueryTimeoutError,
     QueryValidationError,
-    UtilBbddError,
 )
 from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
@@ -67,10 +63,10 @@ def test_metadata_protocols_use_rows_contract() -> None:
 
 
 def test_domain_aliases_map_to_existing_hierarchy() -> None:
-    assert UtilBbddError is DatabaseError
-    assert QueryExecutionError is DatabaseOperationError
-    assert InvalidQueryError is QueryValidationError
-    assert QueryExecutionTimeoutError is QueryTimeoutError
+    # QueryTimeoutError and QueryValidationError are canonical classes
+    assert issubclass(QueryTimeoutError, DatabaseException)
+    assert issubclass(QueryValidationError, DatabaseException)
 
+    # QueryExecutionError inherits from QueryError -> DatabaseException
     err = QueryExecutionError("boom")
-    assert isinstance(err, UtilBbddError)
+    assert isinstance(err, DatabaseException)

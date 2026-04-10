@@ -5,7 +5,7 @@ import logging
 from sqlite3 import Connection
 from typing import Any, Literal, cast
 
-from util_bbdd._foundation.exceptions import DatabaseConnectionError
+from util_bbdd._core.exceptions import ConnectionError
 
 from ..params import ConnectionParamsManager
 
@@ -31,7 +31,7 @@ class SQLiteConnection:
             Conexión a SQLite.
 
         Raises:
-            DatabaseConnectionError: Si hay error en la conexión.
+            ConnectionError: Si hay error en la conexión.
 
         Example:
             ```python
@@ -82,7 +82,7 @@ class SQLiteConnection:
             return conn
         except ImportError as e:
             SQLiteConnection.logger.error("❌ Error: módulo sqlite3 no disponible")
-            raise DatabaseConnectionError("Módulo sqlite3 no disponible", "sqlite", str(e)) from e
+            raise ConnectionError("Módulo sqlite3 no disponible", db_type="sqlite", details=str(e)) from e
         except Exception as e:
             SQLiteConnection.logger.error(f"❌ Error conectando a SQLite: {e}")
-            raise DatabaseConnectionError(f"Error conectando a SQLite: {str(e)}", "sqlite", str(e)) from e
+            raise ConnectionError(f"Error conectando a SQLite: {str(e)}", db_type="sqlite", details=str(e)) from e

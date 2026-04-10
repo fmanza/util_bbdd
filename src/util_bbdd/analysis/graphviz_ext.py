@@ -19,7 +19,7 @@ except ImportError:
     graphviz = None
     GRAPHVIZ_AVAILABLE = False
 
-from .._foundation.exceptions import DatabaseError
+from .._core.exceptions import DatabaseException
 from ..managers import SyncDatabaseManager
 from .base import (
     CardinalityEndMarker,
@@ -137,7 +137,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
 
             self._columns_cache[table_name] = result
             return result
-        except DatabaseError as e:
+        except DatabaseException as e:
             self.logger.warning(f"Error obteniendo columnas de {table_name}: {e}")
             return []
 
@@ -175,7 +175,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             self.db_manager.relationship_cache.set_primary_keys_list(table_key, pk_list)
             self.logger.debug(f"💾 PKs calculadas: {table_name} = {pk_list}")
             return pk_list
-        except DatabaseError as e:
+        except DatabaseException as e:
             self.logger.warning(f"Error obteniendo claves primarias de {table_name}: {e}")
             return []
 
@@ -213,7 +213,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             self.db_manager.relationship_cache.set_unique_constraints_list(table_key, unique_list)
             self.logger.debug(f"💾 UCs calculadas: {table_name} = {unique_list}")
             return unique_list
-        except DatabaseError as e:
+        except DatabaseException as e:
             self.logger.warning(f"Error obteniendo restricciones únicas de {table_name}: {e}")
             return []
 
@@ -334,7 +334,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             )
             return result
 
-        except DatabaseError as e:
+        except DatabaseException as e:
             self.logger.warning(f"⚠️ Error determinando cardinalidad: {e}, usando 1:N por defecto")
             return "1:N"
 

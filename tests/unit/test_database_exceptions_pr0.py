@@ -5,9 +5,9 @@ Pruebas unitarias para la jerarquía de excepciones actualizada
 en database_exceptions.py.
 """
 
-from util_bbdd.database_exceptions import (
-    DatabaseError,
-    DatabaseTypeNotSupportedError,
+from util_bbdd import (
+    DatabaseException,
+    InvalidDatabaseType,
     QueryError,
     QueryNotFoundError,
     QueryParameterError,
@@ -20,32 +20,32 @@ class TestExceptionHierarchy:
     """Tests para la jerarquía de excepciones"""
 
     def test_query_error_inherits_from_database_error(self):
-        """Test: QueryError hereda de DatabaseError"""
-        assert issubclass(QueryError, DatabaseError)
+        """Test: QueryError hereda de DatabaseException"""
+        assert issubclass(QueryError, DatabaseException)
 
     def test_query_not_found_error_hierarchy(self):
         """Test: QueryNotFoundError hereda de QueryError"""
         assert issubclass(QueryNotFoundError, QueryError)
-        assert issubclass(QueryNotFoundError, DatabaseError)
+        assert issubclass(QueryNotFoundError, DatabaseException)
 
     def test_query_validation_error_hierarchy(self):
         """Test: QueryValidationError hereda de QueryError"""
         assert issubclass(QueryValidationError, QueryError)
-        assert issubclass(QueryValidationError, DatabaseError)
+        assert issubclass(QueryValidationError, DatabaseException)
 
     def test_query_parameter_error_hierarchy(self):
         """Test: QueryParameterError hereda de QueryError"""
         assert issubclass(QueryParameterError, QueryError)
-        assert issubclass(QueryParameterError, DatabaseError)
+        assert issubclass(QueryParameterError, DatabaseException)
 
     def test_query_timeout_error_hierarchy(self):
         """Test: QueryTimeoutError hereda de QueryError"""
         assert issubclass(QueryTimeoutError, QueryError)
-        assert issubclass(QueryTimeoutError, DatabaseError)
+        assert issubclass(QueryTimeoutError, DatabaseException)
 
     def test_database_type_not_supported_error_hierarchy(self):
-        """Test: DatabaseTypeNotSupportedError hereda de DatabaseError"""
-        assert issubclass(DatabaseTypeNotSupportedError, DatabaseError)
+        """Test: InvalidDatabaseType hereda de DatabaseException"""
+        assert issubclass(InvalidDatabaseType, DatabaseException)
 
 
 class TestQueryNotFoundError:
@@ -139,18 +139,18 @@ class TestQueryTimeoutError:
             assert exc.__cause__ is not None
 
 
-class TestDatabaseTypeNotSupportedError:
-    """Tests para DatabaseTypeNotSupportedError"""
+class TestInvalidDatabaseType:
+    """Tests para InvalidDatabaseType"""
 
     def test_database_type_not_supported_error_instantiation(self):
         """Test: puede instanciarse"""
-        exc = DatabaseTypeNotSupportedError("db_type 'nosql' not supported")
+        exc = InvalidDatabaseType("db_type 'nosql' not supported")
         assert str(exc)
 
     def test_database_type_not_supported_error_message(self):
         """Test: captura mensaje de error"""
         msg = "Database type 'mongodb' is not supported"
-        exc = DatabaseTypeNotSupportedError(msg)
+        exc = InvalidDatabaseType(msg)
         assert msg in str(exc)
 
 
@@ -158,10 +158,10 @@ class TestLegacyAliasRemoval:
     """Tests para validar eliminación definitiva de aliases legacy."""
 
     def test_database_query_error_alias_removed(self):
-        """DatabaseQueryError ya no debe existir."""
-        import util_bbdd.database_exceptions as db_exc
+        """DatabaseQueryError no debe existir en el paquete raíz."""
+        import util_bbdd
 
-        assert not hasattr(db_exc, "DatabaseQueryError")
+        assert not hasattr(util_bbdd, "DatabaseQueryError")
 
 
 class TestExceptionInstantiation:
@@ -177,7 +177,7 @@ class TestExceptionInstantiation:
         exc4 = QueryParameterError(msg)
         exc5 = QueryTimeoutError(msg)
 
-        assert all(isinstance(e, DatabaseError) for e in [exc1, exc2, exc3, exc4, exc5])
+        assert all(isinstance(e, DatabaseException) for e in [exc1, exc2, exc3, exc4, exc5])
 
     def test_exception_message_in_string_representation(self):
         """Test: mensaje aparece en str(exception)"""

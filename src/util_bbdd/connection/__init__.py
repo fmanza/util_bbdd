@@ -49,12 +49,6 @@ from .protocols import (
     ConnectionPoolProtocol,
 )
 
-# ============================================================================
-# Compatibilidad hacia atrás (archivos antiguos - deprecated)
-# ============================================================================
-# Los archivos wrapper fueron eliminados en PR #16 Phase 3
-# Usar los archivos reales listados arriba
-
 __all__: list[str] = [
     # Consolidados - Core
     "ConnectionFactory",

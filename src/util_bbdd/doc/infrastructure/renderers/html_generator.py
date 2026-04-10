@@ -12,7 +12,7 @@ from typing import Any, LiteralString
 
 from jinja2 import Template
 
-from ...._foundation.exceptions import DatabaseError
+from ...._core.exceptions import DatabaseException
 from ....analysis.graphviz_ext import GraphvizRelationshipGraphExt
 from ...application.ports import DocumentationManagerPort, HeadersConfig
 from .shared.diagram_legend import (
@@ -490,7 +490,7 @@ class HtmlGenerator:
             else:
                 self.logger.warning("⚠️  No se recolectaron propiedades de BD")
 
-        except DatabaseError as error:
+        except DatabaseException as error:
             self.logger.error(f"❌ Error procesando información de BD: {error}", exc_info=True)
 
         return database_info_entries
@@ -898,7 +898,7 @@ class HtmlGenerator:
                         data_provider=data_provider,
                     )
                 )
-            except DatabaseError as error:
+            except DatabaseException as error:
                 self.logger.warning(f"⚠️ No se pudo construir dataset HTML global para tabla {table_name}: {error}")
 
         return headers, rows
@@ -927,7 +927,7 @@ class HtmlGenerator:
                 )
                 for column in processed_columns:
                     rows.append([view_name, view_comment] + [str(value) for value in column] + [detail_path])
-            except DatabaseError as error:
+            except DatabaseException as error:
                 self.logger.warning(f"⚠️ No se pudo construir dataset HTML global para vista {view_name}: {error}")
 
         return headers, rows
@@ -957,7 +957,7 @@ class HtmlGenerator:
             try:
                 parameters = data_provider.get_routine_parameters(routine_name, routine_type)
                 normalized_parameters = self._process_routine_parameters_data(parameters)
-            except DatabaseError as error:
+            except DatabaseException as error:
                 self.logger.warning(
                     f"⚠️ No se pudo construir dataset HTML global para rutina {routine_type}:{routine_name}: {error}"
                 )
@@ -1083,7 +1083,7 @@ class HtmlGenerator:
         """Obtiene reporte de almacenamiento para incluirlo en páginas HTML."""
         try:
             report: dict[str, Any] = data_provider.get_storage_inventory_report()
-        except DatabaseError as error:
+        except DatabaseException as error:
             report = {
                 "sections": [
                     {
@@ -1277,7 +1277,7 @@ class HtmlGenerator:
             try:
                 ddl: str = data_provider.get_ddl(table_name)
                 payload["ddl"] = self._decode_html_entities(ddl) if ddl is not None else ""
-            except DatabaseError as error:
+            except DatabaseException as error:
                 payload["ddl"] = f"⚠️ Error obteniendo DDL: {error}"
 
     def _populate_columns_section(
@@ -1300,7 +1300,7 @@ class HtmlGenerator:
                 include_sqlite_short_shape=False,
             )
             self._populate_columns_charset(payload, data_provider, table_name, include_columns_charset)
-        except DatabaseError:
+        except DatabaseException:
             payload["columnas"]["rows"] = []
 
     def _populate_columns_charset(
@@ -1317,7 +1317,7 @@ class HtmlGenerator:
         try:
             charset_info = data_provider.get_columns_charset_collation(table_name)
             payload["columns_charset"]["rows"] = [[row[0], row[1] or "", row[2] or ""] for row in charset_info]
-        except DatabaseError as e:
+        except DatabaseException as e:
             self.logger.debug(f"⚠️  No se pudo obtener charset/collation de columnas para {table_name}: {e}")
             payload["columns_charset"]["rows"] = []
 
@@ -1418,7 +1418,7 @@ class HtmlGenerator:
             try:
                 ddl: str = data_provider.get_view_ddl(view_name)
                 payload["ddl"] = self._decode_html_entities(ddl) if ddl is not None else ""
-            except DatabaseError as error:
+            except DatabaseException as error:
                 payload["ddl"] = f"⚠️ Error obteniendo DDL: {error}"
 
     def _populate_view_columns_section(
@@ -1441,7 +1441,7 @@ class HtmlGenerator:
                 include_sqlite_short_shape=False,
             )
             self._populate_view_columns_charset(payload, data_provider, view_name, include_columns_charset)
-        except DatabaseError:
+        except DatabaseException:
             payload["columnas"]["rows"] = []
 
     def _populate_view_columns_charset(
@@ -1458,7 +1458,7 @@ class HtmlGenerator:
         try:
             charset_info = data_provider.get_columns_charset_collation(view_name)
             payload["columns_charset"]["rows"] = [[row[0], row[1] or "", row[2] or ""] for row in charset_info]
-        except DatabaseError as e:
+        except DatabaseException as e:
             self.logger.debug(f"⚠️  No se pudo obtener charset/collation de columnas para {view_name}: {e}")
             payload["columns_charset"]["rows"] = []
 
@@ -1481,13 +1481,13 @@ class HtmlGenerator:
         try:
             ddl: str = data_provider.get_routine_ddl(routine_name, routine_type)
             payload["ddl"] = self._decode_html_entities(ddl) if ddl is not None else ""
-        except DatabaseError as error:
+        except DatabaseException as error:
             payload["ddl"] = f"⚠️ Error obteniendo DDL: {error}"
 
         try:
             parametros = data_provider.get_routine_parameters(routine_name, routine_type)
             payload["parametros"]["rows"] = self._process_routine_parameters_data(parametros)
-        except DatabaseError:
+        except DatabaseException:
             payload["parametros"]["rows"] = []
 
         return payload

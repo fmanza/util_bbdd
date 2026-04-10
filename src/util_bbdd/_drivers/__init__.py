@@ -8,6 +8,7 @@ Este módulo centraliza:
 Nota: El prefijo _ indica que es interno, aunque disponible para acceso especializado.
 """
 
+from .driver_validator import DriverValidator
 from .validator import (
     DatabaseTypeValidator,
     get_database_validator,
@@ -18,6 +19,7 @@ from .validator import (
 
 __all__: list[str] = [
     "DatabaseTypeValidator",
+    "DriverValidator",
     "get_database_validator",
     "validate_db_type",
     "get_db_type_info",

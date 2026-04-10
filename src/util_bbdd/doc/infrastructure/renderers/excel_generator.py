@@ -14,7 +14,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.worksheet.worksheet import Worksheet
 
-from ...._foundation.exceptions import DatabaseError
+from ...._core.exceptions import DatabaseException
 from ...application.ports import DocumentationManagerPort, HeadersConfig
 from .shared.generator_shared import (
     GeneratorDatabaseInfoRuntime,
@@ -440,7 +440,7 @@ class ExcelGenerator:
         try:
             ddl: str = data_provider.get_routine_ddl(routine_name, routine_type)
             routine_ddl = ddl if ddl is not None else ""
-        except DatabaseError:
+        except DatabaseException:
             routine_ddl = "⚠️ No se pudo obtener el DDL de la rutina"
 
         parameters_text: str = self._get_routine_parameters_text(
@@ -457,7 +457,7 @@ class ExcelGenerator:
         """Obtiene los parámetros de la rutina en formato texto para la hoja tabular."""
         try:
             parameters = data_provider.get_routine_parameters(routine_name, routine_type)
-        except DatabaseError:
+        except DatabaseException:
             return "⚠️ No se pudieron obtener los parámetros de la rutina"
 
         if not parameters:
@@ -607,7 +607,7 @@ class ExcelGenerator:
             fila += 1
             ws[f"A{fila}"] = text_ddl
             fila += 2
-        except DatabaseError:
+        except DatabaseException:
             ws[f"A{fila}"] = "⚠️ No se pudo obtener el DDL de la rutina"
             fila += 2
 
@@ -644,7 +644,7 @@ class ExcelGenerator:
 
         try:
             parameters = data_provider.get_routine_parameters(routine_name, routine_type)
-        except DatabaseError:
+        except DatabaseException:
             ws[f"A{fila + 1}"] = "⚠️ No se pudieron obtener los parámetros de la rutina"
             return fila + 3
 
@@ -703,7 +703,7 @@ class ExcelGenerator:
         if view_section_flags[0]:
             try:
                 fila = self._add_ddl_section(ws, fila, vista, data_provider, is_view=True)
-            except DatabaseError:
+            except DatabaseException:
                 ws[f"A{fila}"] = "⚠️ No se pudo obtener el DDL de la vista"
                 fila += 2
 
@@ -720,7 +720,7 @@ class ExcelGenerator:
                     data_flat_tmp,
                     create_excel_table=False,
                 )
-            except DatabaseError:
+            except DatabaseException:
                 ws[f"A{fila}"] = "⚠️ No se pudieron obtener las columnas de la vista"
                 fila += 2
 
@@ -878,7 +878,7 @@ class ExcelGenerator:
 
         try:
             report: dict[str, Any] = data_provider.get_storage_inventory_report()
-        except DatabaseError as error:
+        except DatabaseException as error:
             ws["A4"] = f"⚠️ No se pudo obtener el inventario de almacenamiento: {error}"
             return
 
@@ -1070,7 +1070,7 @@ class ExcelGenerator:
                 self._populate_database_info_sheet(ws, info_data)
             else:
                 ws["A4"] = "No se configuró información de base de datos para mostrar"
-        except DatabaseError as error:
+        except DatabaseException as error:
             self.logger.exception(f"❌ Error creando hoja de información de BD: {error}")
             ws["A4"] = f"Error al obtener información: {error}"
 
@@ -1136,7 +1136,7 @@ class ExcelGenerator:
                         ws.cell(row=current_row, column=3, value=str(charset) if charset else "")
                         ws.cell(row=current_row, column=4, value=str(collation) if collation else "")
                         current_row += 1
-                except DatabaseError as e:
+                except DatabaseException as e:
                     self.logger.warning(f"Error obteniendo charset/collation para tabla {tabla}: {e}")
             if current_row > start_row + 1:
                 self._apply_table_style_to_range(
@@ -1152,6 +1152,6 @@ class ExcelGenerator:
                 ws.column_dimensions["D"].width = 20
             else:
                 ws["A4"] = "No hay información de charset/collation disponible"
-        except DatabaseError as error:
+        except DatabaseException as error:
             self.logger.exception(f"Error creando hoja de charset/collation: {error}")
             ws["A4"] = f"Error al obtener información: {error}"

@@ -6,8 +6,8 @@ from typing import cast
 
 import pytest
 
+from util_bbdd import DatabaseOperationError
 from util_bbdd.analysis.base import DatabaseRelationshipGraphBase
-from util_bbdd.database_exceptions import DatabaseOperationError
 from util_bbdd.doc.infrastructure.renderers.shared.generator_shared import GeneratorInventoryRuntime
 from util_bbdd.managers import SyncDatabaseManager
 

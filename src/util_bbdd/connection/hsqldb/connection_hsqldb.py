@@ -4,7 +4,7 @@ import logging
 
 from typing import Any
 
-from util_bbdd._foundation.exceptions import DatabaseConnectionError, DatabaseValidationError
+from util_bbdd._core.exceptions import ConnectionError, ValidationError
 
 from ..params import ConnectionParamsManager
 
@@ -26,8 +26,8 @@ class HSQLDBConnection:
             Conexión a HSQLDB.
 
         Raises:
-            DatabaseConnectionError: Si hay error en la conexión.
-            DatabaseValidationError: Si faltan parámetros requeridos.
+            ConnectionError: Si hay error en la conexión.
+            ValidationError: Si faltan parámetros requeridos.
         """
         try:
             import jaydebeapi
@@ -44,10 +44,10 @@ class HSQLDBConnection:
 
             if not jdbc_url:
                 HSQLDBConnection.logger.error("❌ Se requiere jdbc_url para HSQLDB")
-                raise DatabaseValidationError("Se requiere jdbc_url para HSQLDB", "hsqldb")
+                raise ValidationError("Se requiere jdbc_url para HSQLDB", db_type="hsqldb")
             if not jdbc_jar:
                 HSQLDBConnection.logger.error("❌ Se requiere jdbc_jar para HSQLDB")
-                raise DatabaseValidationError("Se requiere jdbc_jar para HSQLDB", "hsqldb")
+                raise ValidationError("Se requiere jdbc_jar para HSQLDB", db_type="hsqldb")
 
             user = sanitized_conn_params.get("user", "")
             password = sanitized_conn_params.get("password", "")
@@ -56,11 +56,11 @@ class HSQLDBConnection:
             conn = jaydebeapi.connect(jdbc_driver, jdbc_url, user, password, jdbc_jar)
             HSQLDBConnection.logger.info("✅ Conexión HSQLDB establecida")
             return conn
-        except DatabaseValidationError:
+        except ValidationError:
             raise
         except ImportError as e:
             HSQLDBConnection.logger.error("❌ Error: módulo jaydebeapi no disponible")
-            raise DatabaseConnectionError("Módulo jaydebeapi no disponible", "hsqldb", str(e)) from e
+            raise ConnectionError("Módulo jaydebeapi no disponible", db_type="hsqldb", details=str(e)) from e
         except Exception as e:
             HSQLDBConnection.logger.error(f"❌ Error conectando a HSQLDB: {e}")
-            raise DatabaseConnectionError(f"Error conectando a HSQLDB: {str(e)}", "hsqldb", str(e)) from e
+            raise ConnectionError(f"Error conectando a HSQLDB: {str(e)}", db_type="hsqldb", details=str(e)) from e

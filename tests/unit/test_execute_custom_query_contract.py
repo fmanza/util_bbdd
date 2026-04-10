@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from util_bbdd.database_exceptions import DatabaseOperationError, QueryNotFoundError
+from util_bbdd import DatabaseOperationError, QueryNotFoundError
 from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
 from util_bbdd.managers import AsyncDatabaseManager, SyncDatabaseManager

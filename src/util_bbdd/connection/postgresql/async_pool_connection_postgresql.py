@@ -6,7 +6,7 @@ import logging
 
 from typing import Any
 
-from util_bbdd._foundation.exceptions import DatabaseConnectionError
+from util_bbdd._core.exceptions import ConnectionError
 
 from ...async_utils import maybe_await
 from ..close import (
@@ -80,13 +80,13 @@ class AsyncPostgreSQLPool:
             return cls(pool, close_timeout_seconds=close_timeout_seconds)
         except ImportError as err:
             cls.logger.error("❌ Error: módulo asyncpg no disponible")
-            raise DatabaseConnectionError("Módulo asyncpg no disponible", "postgresql", str(err)) from err
+            raise ConnectionError("Módulo asyncpg no disponible", db_type="postgresql", details=str(err)) from err
         except Exception as err:
             cls.logger.error(f"❌ Error creando pool PostgreSQL async: {err}")
-            raise DatabaseConnectionError(
+            raise ConnectionError(
                 f"Error creando pool PostgreSQL async: {str(err)}",
-                "postgresql",
-                str(err),
+                db_type="postgresql",
+                details=str(err),
             ) from err
 
     async def acquire(self) -> Any:

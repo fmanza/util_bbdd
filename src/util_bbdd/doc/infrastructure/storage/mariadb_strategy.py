@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from ...._foundation.exceptions import DatabaseError, QueryNotFoundError
+from ...._core.exceptions import DatabaseException, QueryNotFoundError
 from .contracts import StorageInventoryManagerProtocol
 
 
@@ -52,7 +52,7 @@ class MariadbStorageInventoryStrategy:
             resolved = runtime.db_manager.resolve_query(query_name, **query_params)
         except QueryNotFoundError:
             return runtime._build_section_not_supported(query_name, query_title)
-        except DatabaseError as error:
+        except DatabaseException as error:
             return runtime._build_section_missing_params(query_name, query_title, f"Parámetros inválidos: {error}")
 
         try:
@@ -82,7 +82,7 @@ class MariadbStorageInventoryStrategy:
                 "rows": parsed_rows,
                 "numeric_columns": runtime._get_numeric_storage_indices(headers),
             }
-        except DatabaseError as error:
+        except DatabaseException as error:
             return runtime._build_section_error(query_name, query_title, runtime._flatten_exception_messages(error))
 
     def build_temp_tablespaces_error_section(

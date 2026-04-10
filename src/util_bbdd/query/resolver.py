@@ -18,7 +18,7 @@ from typing import Any
 from util_bbdd.models import QueryDefinition
 from util_bbdd.validators.base_validator import DatabaseTypeValidator
 
-from .._foundation.exceptions import (
+from .._core.exceptions import (
     QueryNotFoundError,
     QueryParameterError,
     QueryValidationError,

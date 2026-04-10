@@ -6,7 +6,7 @@ import logging
 
 from typing import Any
 
-from util_bbdd._foundation.exceptions import DatabaseConnectionError
+from util_bbdd._core.exceptions import ConnectionError
 
 from ..params import ConnectionParamsManager
 
@@ -54,11 +54,11 @@ class AsyncMariaDBConnection:
             return conn
         except ImportError as err:
             AsyncMariaDBConnection.logger.error("❌ Error: módulo aiomysql no disponible")
-            raise DatabaseConnectionError("Módulo aiomysql no disponible", "mariadb", str(err)) from err
+            raise ConnectionError("Módulo aiomysql no disponible", db_type="mariadb", details=str(err)) from err
         except Exception as err:
             AsyncMariaDBConnection.logger.error(f"❌ Error conectando a MariaDB async: {err}")
-            raise DatabaseConnectionError(
+            raise ConnectionError(
                 f"Error conectando a MariaDB async: {str(err)}",
-                "mariadb",
-                str(err),
+                db_type="mariadb",
+                details=str(err),
             ) from err

@@ -12,7 +12,7 @@ from logging import Logger
 from pathlib import Path
 from typing import Any
 
-from .._foundation.exceptions import DatabaseError
+from .._core.exceptions import DatabaseException
 from ..managers import SyncDatabaseManager
 
 
@@ -369,7 +369,7 @@ class DatabaseRelationshipGraphBase:
         """Obtiene nombres de columnas normalizados para heurísticas visuales."""
         try:
             columns: list[Any] = list(self.db_manager.get_columns(table_name))
-        except (DatabaseError, AttributeError):
+        except (DatabaseException, AttributeError):
             return []
 
         result: list[str] = []
@@ -384,7 +384,7 @@ class DatabaseRelationshipGraphBase:
         """Obtiene nombres de PK normalizados para heurísticas visuales."""
         try:
             primary_keys: list[Any] = list(self.db_manager.get_primary_keys(table_name))
-        except (DatabaseError, AttributeError):
+        except (DatabaseException, AttributeError):
             return []
 
         result: list[str] = []
@@ -689,7 +689,7 @@ class DatabaseRelationshipGraphBase:
                 max_depth=effective_depth,
                 direction=effective_direction,
             )
-        except DatabaseError:
+        except DatabaseException:
             return False
 
         if document.relations:
@@ -752,7 +752,7 @@ class DatabaseRelationshipGraphBase:
                 generated_files: list[Path] = generate_for_table(table_name)
                 self._store_generation_success(results, table_name, generated_files)
                 self.logger.debug(success_template.format(table_name=table_name, count=len(generated_files)))
-            except (DatabaseError, OSError, RuntimeError, TypeError, ValueError) as error:
+            except (DatabaseException, OSError, RuntimeError, TypeError, ValueError) as error:
                 self._store_generation_error(results, table_name, error, error_prefix=error_prefix)
 
         successful: int = sum(1 for result in results.values() if result["status"] == "success")

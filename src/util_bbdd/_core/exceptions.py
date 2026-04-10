@@ -60,10 +60,34 @@ class PoolConnectionError(ConnectionError):
     pass
 
 
+class PoolExhaustedError(PoolConnectionError):
+    """Pool de conexiones agotado (sin conexiones disponibles)."""
+
+    def __init__(
+        self,
+        message: str = "Pool de conexiones agotado",
+        max_connections: int | None = None,
+        operation: str | None = None,
+        db_type: str | None = None,
+    ) -> None:
+        details = f"Máximo de conexiones: {max_connections}" if max_connections is not None else None
+        super().__init__(message, operation=operation, db_type=db_type, details=details)
+        self.max_connections = max_connections
+
+
 class PoolTimeoutError(ConnectionError):
     """Timeout esperando conexión disponible del pool."""
 
-    pass
+    def __init__(
+        self,
+        message: str = "Timeout esperando conexión del pool",
+        timeout_seconds: float | None = None,
+        operation: str | None = None,
+        db_type: str | None = None,
+    ) -> None:
+        details = f"Timeout: {timeout_seconds}s" if timeout_seconds is not None else None
+        super().__init__(message, operation=operation, db_type=db_type, details=details)
+        self.timeout_seconds = timeout_seconds
 
 
 # ============================================================================
@@ -97,6 +121,12 @@ class QueryNotFoundError(QueryError):
 
 class QueryValidationError(QueryError):
     """Error validando parámetros de query."""
+
+    pass
+
+
+class QueryParameterError(QueryError):
+    """Parámetro específico de query es inválido."""
 
     pass
 
@@ -167,7 +197,24 @@ class InvalidQueryParameters(ValidationError):
 class DriverError(DatabaseException):
     """Error relacionado con drivers."""
 
-    pass
+    def __init__(
+        self,
+        message: str,
+        driver_name: str | None = None,
+        install_command: str | None = None,
+        db_type: str | None = None,
+        operation: str | None = None,
+        details: str | None = None,
+    ) -> None:
+        self.driver_name = driver_name
+        self.install_command = install_command
+        extra: list[str] = []
+        if driver_name:
+            extra.append(f"Driver: {driver_name}")
+        if install_command:
+            extra.append(f"Instalar con: {install_command}")
+        combined_details = " | ".join(extra) if extra else details
+        super().__init__(message, operation=operation, db_type=db_type, details=combined_details)
 
 
 class DriverNotFoundError(DriverError):
@@ -205,6 +252,7 @@ __all__ = [
     # Conexión
     "ConnectionError",
     "PoolConnectionError",
+    "PoolExhaustedError",
     "PoolTimeoutError",
     # Query
     "QueryError",

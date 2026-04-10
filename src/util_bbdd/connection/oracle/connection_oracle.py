@@ -4,7 +4,7 @@ import logging
 
 from typing import Any
 
-from util_bbdd._foundation.exceptions import DatabaseConnectionError
+from util_bbdd._core.exceptions import ConnectionError
 
 from ..params import ConnectionParamsManager
 
@@ -30,7 +30,7 @@ class OracleConnection:
             Conexión a Oracle.
 
         Raises:
-            DatabaseConnectionError: Si hay error en la conexión.
+            ConnectionError: Si hay error en la conexión.
         """
         try:
             import oracledb
@@ -81,7 +81,7 @@ class OracleConnection:
             return conn
         except ImportError as e:
             OracleConnection.logger.error("❌ Error: módulo oracledb no disponible")
-            raise DatabaseConnectionError("Módulo oracledb no disponible", "oracle", str(e)) from e
+            raise ConnectionError("Módulo oracledb no disponible", db_type="oracle", details=str(e)) from e
         except Exception as e:
             OracleConnection.logger.error(f"❌ Error conectando a Oracle: {e}")
-            raise DatabaseConnectionError(f"Error conectando a Oracle: {str(e)}", "oracle", str(e)) from e
+            raise ConnectionError(f"Error conectando a Oracle: {str(e)}", db_type="oracle", details=str(e)) from e

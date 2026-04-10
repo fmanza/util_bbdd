@@ -8,8 +8,8 @@ import re
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
-from .._foundation.exceptions import DatabaseOperationError, QueryError
-from .._foundation.validators_core import get_database_validator, get_db_type_info, get_supported_db_types
+from .._core.exceptions import DatabaseOperationError, QueryError
+from .._drivers import get_database_validator, get_db_type_info, get_supported_db_types
 from ..async_utils import maybe_await
 from ..connection.close import AsyncCloseMode, normalize_close_mode
 from ..connection.factory import ConnectionFactory
@@ -82,7 +82,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         Raises:
             DatabaseConfigurationError: Si no hay adapter registrado para el driver
         """
-        from .._foundation.exceptions import DatabaseConfigurationError
+        from .._core.exceptions import DatabaseConfigurationError
 
         cache_key = f"_adapter_async_{adapter_type}"
         cached_adapter = getattr(self, cache_key, None)

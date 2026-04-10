@@ -6,7 +6,7 @@ import logging
 
 from typing import Any
 
-from util_bbdd._foundation.exceptions import DatabaseConnectionError
+from util_bbdd._core.exceptions import ConnectionError
 
 from ..params import ConnectionParamsManager
 
@@ -57,11 +57,11 @@ class AsyncPostgreSQLConnection:
             return conn
         except ImportError as err:
             AsyncPostgreSQLConnection.logger.error("❌ Error: módulo asyncpg no disponible")
-            raise DatabaseConnectionError("Módulo asyncpg no disponible", "postgresql", str(err)) from err
+            raise ConnectionError("Módulo asyncpg no disponible", db_type="postgresql", details=str(err)) from err
         except Exception as err:
             AsyncPostgreSQLConnection.logger.error(f"❌ Error conectando a PostgreSQL async: {err}")
-            raise DatabaseConnectionError(
+            raise ConnectionError(
                 f"Error conectando a PostgreSQL async: {str(err)}",
-                "postgresql",
-                str(err),
+                db_type="postgresql",
+                details=str(err),
             ) from err

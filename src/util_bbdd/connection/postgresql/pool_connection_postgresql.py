@@ -4,7 +4,7 @@ import logging
 
 from typing import TYPE_CHECKING
 
-from ..._foundation.exceptions import DatabasePoolError, DatabasePoolTimeoutError
+from ..._core.exceptions import PoolConnectionError, PoolTimeoutError
 from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
 from ..params import ConnectionParamsManager
 
@@ -183,7 +183,7 @@ class PoolConnection:
                 db_type="postgresql",
             )
             self.logger.info("✅ Pool PostgreSQL (psycopg3) cerrado")
-        except DatabasePoolTimeoutError:
+        except PoolTimeoutError:
             if force is False:
                 raise
 
@@ -208,7 +208,7 @@ class PoolConnection:
                 )
             self.logger.info("✅ Pool PostgreSQL (psycopg3) cerrado (forzado)")
         except Exception as err:
-            raise DatabasePoolError(
+            raise PoolConnectionError(
                 message="Error cerrando pool PostgreSQL",
                 db_type="postgresql",
                 details=str(err),

@@ -7,7 +7,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from .._foundation.validators_core import DatabaseTypeValidator
+from .._drivers import DatabaseTypeValidator
 
 
 class AsyncLifecycleManager:

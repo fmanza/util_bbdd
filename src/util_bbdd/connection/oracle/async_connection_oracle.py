@@ -6,7 +6,7 @@ import logging
 
 from typing import Any
 
-from util_bbdd._foundation.exceptions import DatabaseConnectionError
+from util_bbdd._core.exceptions import ConnectionError
 
 from ..params import ConnectionParamsManager
 
@@ -75,11 +75,11 @@ class AsyncOracleConnection:
             return conn
         except ImportError as err:
             AsyncOracleConnection.logger.error("❌ Error: módulo oracledb no disponible")
-            raise DatabaseConnectionError("Módulo oracledb no disponible", "oracle", str(err)) from err
+            raise ConnectionError("Módulo oracledb no disponible", db_type="oracle", details=str(err)) from err
         except Exception as err:
             AsyncOracleConnection.logger.error(f"❌ Error conectando a Oracle async: {err}")
-            raise DatabaseConnectionError(
+            raise ConnectionError(
                 f"Error conectando a Oracle async: {str(err)}",
-                "oracle",
-                str(err),
+                db_type="oracle",
+                details=str(err),
             ) from err

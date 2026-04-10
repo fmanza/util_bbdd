@@ -4,7 +4,7 @@ import logging
 
 from typing import Any
 
-from util_bbdd._foundation.exceptions import DatabaseConnectionError
+from util_bbdd._core.exceptions import ConnectionError
 
 from ..params import ConnectionParamsManager
 
@@ -27,7 +27,7 @@ class SQLServerConnection:
             Conexión a SQL Server.
 
         Raises:
-            DatabaseConnectionError: Si hay error en la conexión.
+            ConnectionError: Si hay error en la conexión.
         """
         try:
             sanitized_conn_params: dict[str, Any] = ConnectionParamsManager.sanitize_for_connection(
@@ -41,12 +41,12 @@ class SQLServerConnection:
             elif driver == "pyodbc":
                 return SQLServerConnection._connect_pyodbc(sanitized_conn_params)
             else:
-                raise DatabaseConnectionError(f"Driver SQL Server no reconocido: {driver}", "sqlserver")
-        except DatabaseConnectionError:
+                raise ConnectionError(f"Driver SQL Server no reconocido: {driver}", db_type="sqlserver")
+        except ConnectionError:
             raise
         except Exception as e:
             SQLServerConnection.logger.error(f"❌ Error conectando a SQL Server: {e}")
-            raise DatabaseConnectionError(f"Error conectando a SQL Server: {str(e)}", "sqlserver", str(e)) from e
+            raise ConnectionError(f"Error conectando a SQL Server: {str(e)}", db_type="sqlserver", details=str(e)) from e
 
     @staticmethod
     def _connect_pymssql(conn_params: dict[str, Any]) -> Any:
@@ -60,7 +60,7 @@ class SQLServerConnection:
             Conexión a SQL Server con pymssql.
 
         Raises:
-            DatabaseConnectionError: Si hay error en la conexión.
+            ConnectionError: Si hay error en la conexión.
         """
         try:
             import pymssql
@@ -81,10 +81,10 @@ class SQLServerConnection:
             return conn
         except ImportError as e:
             SQLServerConnection.logger.error("❌ Error: módulo pymssql no disponible")
-            raise DatabaseConnectionError("Módulo pymssql no disponible", "sqlserver", str(e)) from e
+            raise ConnectionError("Módulo pymssql no disponible", db_type="sqlserver", details=str(e)) from e
         except Exception as e:
             SQLServerConnection.logger.error(f"❌ Error conectando a SQL Server (pymssql): {e}")
-            raise DatabaseConnectionError(f"Error conectando a SQL Server: {str(e)}", "sqlserver", str(e)) from e
+            raise ConnectionError(f"Error conectando a SQL Server: {str(e)}", db_type="sqlserver", details=str(e)) from e
 
     @staticmethod
     def _connect_pyodbc(conn_params: dict[str, Any]) -> Any:
@@ -98,7 +98,7 @@ class SQLServerConnection:
             Conexión a SQL Server con pyodbc.
 
         Raises:
-            DatabaseConnectionError: Si hay error en la conexión.
+            ConnectionError: Si hay error en la conexión.
         """
         try:
             import pyodbc
@@ -130,7 +130,7 @@ class SQLServerConnection:
             return conn
         except ImportError as e:
             SQLServerConnection.logger.error("❌ Error: módulo pyodbc no disponible")
-            raise DatabaseConnectionError("Módulo pyodbc no disponible", "sqlserver", str(e)) from e
+            raise ConnectionError("Módulo pyodbc no disponible", db_type="sqlserver", details=str(e)) from e
         except Exception as e:
             SQLServerConnection.logger.error(f"❌ Error conectando a SQL Server (pyodbc): {e}")
-            raise DatabaseConnectionError(f"Error conectando a SQL Server: {str(e)}", "sqlserver", str(e)) from e
+            raise ConnectionError(f"Error conectando a SQL Server: {str(e)}", db_type="sqlserver", details=str(e)) from e

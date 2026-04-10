@@ -13,7 +13,7 @@ except ImportError:
     mariadb = None
     HAS_MARIADB = False
 
-from ..._foundation.exceptions import DatabasePoolError, DatabasePoolTimeoutError
+from ..._core.exceptions import PoolConnectionError, PoolTimeoutError
 from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
 from ..params import ConnectionParamsManager
 
@@ -161,12 +161,12 @@ class PoolConnection:
                 db_type="mariadb",
             )
             self.logger.info("✅ Pool MariaDB cerrado")
-        except DatabasePoolTimeoutError as err:
+        except PoolTimeoutError as err:
             if force is False:
                 raise
             terminate = getattr(pool_ref, "terminate", None)
             if not callable(terminate):
-                raise DatabasePoolError(
+                raise PoolConnectionError(
                     message="Pool MariaDB no soporta cierre forzado",
                     db_type="mariadb",
                 ) from err

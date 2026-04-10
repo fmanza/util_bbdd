@@ -21,7 +21,7 @@ from docx.table import Table, _Row
 from docx.text.paragraph import Paragraph
 from docx.text.run import Run
 
-from ...._foundation.exceptions import DatabaseError
+from ...._core.exceptions import DatabaseException
 from ....analysis.graphviz_ext import GraphvizRelationshipGraphExt
 from ...application.ports import DocumentationManagerPort, HeadersConfig
 from .shared.diagram_legend import (
@@ -801,13 +801,13 @@ class WordGenerator:
         if len(section_flags) > 0 and section_flags[0]:
             try:
                 self._add_ddl_section(document, vista, data_provider, is_view=True)
-            except DatabaseError:
+            except DatabaseException:
                 document.add_paragraph("⚠️ No se pudo obtener el DDL de la vista")
 
         if len(section_flags) > 1 and section_flags[1]:
             try:
                 self._add_columns_section(document, vista, data_provider, include_columns_charset)
-            except DatabaseError:
+            except DatabaseException:
                 document.add_paragraph("⚠️ No se pudieron obtener las columnas de la vista")
 
     def _normalize_routine_entry(self, routine: tuple) -> tuple[str, str, str]:
@@ -919,7 +919,7 @@ class WordGenerator:
                 run.font.size = Pt(10.5)
                 paragraph.style = "No Spacing"
                 document.add_paragraph("")
-            except DatabaseError:
+            except DatabaseException:
                 document.add_paragraph("⚠️ No se pudo obtener el DDL de la rutina")
 
         self._add_routine_parameters_section(
@@ -939,7 +939,7 @@ class WordGenerator:
         """Agrega la tabla de parámetros de una rutina."""
         try:
             parameters = data_provider.get_routine_parameters(routine_name, routine_type)
-        except DatabaseError:
+        except DatabaseException:
             self._add_empty_section(
                 document,
                 self.SECTION_PARAMETROS,
@@ -1025,7 +1025,7 @@ class WordGenerator:
                         self.SECTION_CHARSET_COLLATION,
                         "No hay información de charset/collation disponible.",
                     )
-            except DatabaseError as e:
+            except DatabaseException as e:
                 self.logger.debug(f"⚠️  No se pudo obtener charset/collation de columnas para {tabla}: {e}")
                 self._add_empty_section(
                     document,
@@ -1104,7 +1104,7 @@ class WordGenerator:
                 include_error_rows=True,
             )
             self.__render_database_info_to_document(document, info_data)
-        except DatabaseError as error:
+        except DatabaseException as error:
             self.logger.exception(f"❌ Error agregando sección de información de BD: {error}")
             self._add_empty_section(
                 document=document,
@@ -1140,7 +1140,7 @@ class WordGenerator:
 
         try:
             report: dict[str, Any] = data_provider.get_storage_inventory_report()
-        except DatabaseError as error:
+        except DatabaseException as error:
             self._add_empty_section(
                 document=document,
                 title="Inventario de almacenamiento",

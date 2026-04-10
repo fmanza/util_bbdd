@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from sqlalchemy.engine.base import Engine
 
-from .._foundation.exceptions import DatabaseConnectionError, DatabaseValidationError
+from .._core.exceptions import ConnectionError, ValidationError
 
 
 class SQLAlchemyEngineFactory:
@@ -63,7 +63,7 @@ class SQLAlchemyEngineFactory:
             elif db_type == "sqlite":
                 conn_str = SQLAlchemyEngineFactory._build_sqlite_connection_string(conn_params)
             else:
-                raise DatabaseConnectionError(f"Tipo de BD no soportado para SQLAlchemy: {db_type}", db_type)
+                raise ConnectionError(f"Tipo de BD no soportado para SQLAlchemy: {db_type}", db_type=db_type)
 
             SQLAlchemyEngineFactory.logger.debug(f"📝 Connection string construido: {conn_str[:50]}...")
 
@@ -79,16 +79,16 @@ class SQLAlchemyEngineFactory:
 
         except ImportError as e:
             SQLAlchemyEngineFactory.logger.error("❌ SQLAlchemy no está instalado")
-            raise DatabaseConnectionError(
+            raise ConnectionError(
                 "SQLAlchemy no instalado. Instala con: pip install sqlalchemy",
-                db_type,
-                str(e),
+                db_type=db_type,
+                details=str(e),
             ) from e
-        except DatabaseConnectionError:
+        except ConnectionError:
             raise
         except Exception as e:
             SQLAlchemyEngineFactory.logger.error(f"❌ Error creando Engine de SQLAlchemy: {e}")
-            raise DatabaseConnectionError(f"Error creando Engine de SQLAlchemy: {str(e)}", db_type, str(e)) from e
+            raise ConnectionError(f"Error creando Engine de SQLAlchemy: {str(e)}", db_type=db_type, details=str(e)) from e
 
     @staticmethod
     def _build_mariadb_connection_string(conn_params: dict[str, Any], database: str) -> str:
@@ -102,7 +102,7 @@ class SQLAlchemyEngineFactory:
             Connection string para MariaDB
 
         Raises:
-            DatabaseValidationError: Si faltan parámetros requeridos
+            ValidationError: Si faltan parámetros requeridos
         """
         host: str = conn_params.get("host", "localhost")
         user: str = conn_params.get("user", "root")
@@ -111,9 +111,9 @@ class SQLAlchemyEngineFactory:
 
         if not password:
             SQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para MariaDB")
-            raise DatabaseValidationError(
+            raise ValidationError(
                 "Se requiere una contraseña para la conexión a MariaDB",
-                "mariadb",
+                db_type="mariadb",
             )
 
         return f"mariadb+mariadbconnector://{user}:{password}@{host}:{port}/{database}"
@@ -130,7 +130,7 @@ class SQLAlchemyEngineFactory:
             Connection string para Oracle
 
         Raises:
-            DatabaseValidationError: Si faltan parámetros requeridos
+            ValidationError: Si faltan parámetros requeridos
         """
         user: str | None = conn_params.get("user")
         password: str | None = conn_params.get("password")
@@ -140,9 +140,9 @@ class SQLAlchemyEngineFactory:
 
         if not password:
             SQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para Oracle")
-            raise DatabaseValidationError(
+            raise ValidationError(
                 "Se requiere una contraseña para la conexión a Oracle",
-                "oracle",
+                db_type="oracle",
             )
 
         return f"oracle+oracledb://{user}:{password}@{host}:{port}/?service_name={service_name}"
@@ -159,7 +159,7 @@ class SQLAlchemyEngineFactory:
             Connection string para PostgreSQL
 
         Raises:
-            DatabaseValidationError: Si faltan parámetros requeridos
+            ValidationError: Si faltan parámetros requeridos
         """
         host: str = conn_params.get("host", "localhost")
         user: str = conn_params.get("user", "postgres")
@@ -168,9 +168,9 @@ class SQLAlchemyEngineFactory:
 
         if not password:
             SQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para PostgreSQL")
-            raise DatabaseValidationError(
+            raise ValidationError(
                 "Se requiere una contraseña para la conexión a PostgreSQL",
-                "postgresql",
+                db_type="postgresql",
             )
 
         masked_pass: str = "*" * len(password)
@@ -209,7 +209,7 @@ class SQLAlchemyEngineFactory:
             Connection string para SQL Server
 
         Raises:
-            DatabaseValidationError: Si faltan parámetros requeridos
+            ValidationError: Si faltan parámetros requeridos
         """
         host: str = conn_params.get("host", "localhost")
         user: str = conn_params.get("user", "sa")
@@ -218,9 +218,9 @@ class SQLAlchemyEngineFactory:
 
         if not password:
             SQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para SQL Server")
-            raise DatabaseValidationError(
+            raise ValidationError(
                 "Se requiere una contraseña para la conexión a SQL Server",
-                "sqlserver",
+                db_type="sqlserver",
             )
 
         masked_pass: str = "*" * len(password)
@@ -244,7 +244,7 @@ class SQLAlchemyEngineFactory:
             Connection string para SQLite (URI de SQLAlchemy)
 
         Raises:
-            DatabaseValidationError: Si faltan parámetros requeridos
+            ValidationError: Si faltan parámetros requeridos
 
         Example:
             >>> conn_params = {"database": "/path/to/app.db"}
@@ -254,9 +254,9 @@ class SQLAlchemyEngineFactory:
         db_path: str = conn_params.get("database", ":memory:")
 
         if not db_path:
-            raise DatabaseValidationError(
+            raise ValidationError(
                 "Se requiere el parámetro 'database' para SQLite",
-                "sqlite",
+                db_type="sqlite",
             )
 
         # SQLite URL: sqlite:////absolute/path o sqlite:///relative/path o sqlite:///:memory:

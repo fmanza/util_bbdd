@@ -14,8 +14,8 @@ from typing import Any, cast
 
 import pytest
 
+from util_bbdd import DatabaseOperationError, PoolTimeoutError
 from util_bbdd.connection.protocols import ConnectionPoolProtocol
-from util_bbdd.database_exceptions import DatabaseOperationError, DatabasePoolTimeoutError
 from util_bbdd.managers import SyncDatabaseManager
 
 
@@ -158,7 +158,7 @@ def test_sqlite_pool_raises_timeout_without_force() -> None:
     pool._close_timeout_seconds = 0.01
     pool.connection = _BlockingClose()
 
-    with pytest.raises(DatabasePoolTimeoutError):
+    with pytest.raises(PoolTimeoutError):
         pool.close(timeout_seconds=None, force=False)
 
 

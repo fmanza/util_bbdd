@@ -9,7 +9,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
-from .._foundation.exceptions import (
+from .._core.exceptions import (
     DatabaseOperationError,
     QueryNotFoundError,
     QueryTimeoutError,

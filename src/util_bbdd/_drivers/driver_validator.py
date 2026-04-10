@@ -5,7 +5,7 @@ import logging
 
 from typing import Any
 
-from .exceptions import DatabaseDriverError, DatabaseValidationError
+from .._core.exceptions import DriverError, ValidationError
 
 
 class DriverValidator:
@@ -29,8 +29,8 @@ class DriverValidator:
             Driver a usar (especialmente importante para SQL Server)
 
         Raises:
-            DatabaseDriverError: Si el driver requerido no está disponible
-            DatabaseValidationError: Si hay error en la validación
+            DriverError: Si el driver requerido no está disponible
+            ValidationError: Si hay error en la validación
         """
         DriverValidator.logger.debug(f"🔍 Verificando disponibilidad del driver para {db_type}")
 
@@ -54,24 +54,24 @@ class DriverValidator:
                 return "sqlite3"
             else:
                 raise ValueError(f"Tipo de base de datos desconocido: {db_type}")
-        except DatabaseDriverError:
+        except DriverError:
             raise
-        except DatabaseValidationError:
+        except ValidationError:
             raise
         except Exception as e:
             DriverValidator.logger.error(f"❌ Error verificando disponibilidad de driver: {e}")
-            raise DatabaseDriverError(f"Error verificando driver: {str(e)}", db_type=db_type) from e
+            raise DriverError(f"Error verificando driver: {str(e)}", db_type=db_type) from e
 
     @staticmethod
     def _check_mariadb_driver() -> None:
         """Verifica disponibilidad del driver MariaDB.
 
         Raises:
-            DatabaseDriverError: Si el driver no está disponible
+            DriverError: Si el driver no está disponible
         """
         if importlib.util.find_spec("mariadb") is None:
             DriverValidator.logger.error("❌ Driver MariaDB no disponible")
-            raise DatabaseDriverError(
+            raise DriverError(
                 "MariaDB driver no disponible",
                 "mariadb",
                 "pip install mariadb",
@@ -84,11 +84,11 @@ class DriverValidator:
         """Verifica disponibilidad del driver Oracle.
 
         Raises:
-            DatabaseDriverError: Si el driver no está disponible
+            DriverError: Si el driver no está disponible
         """
         if importlib.util.find_spec("oracledb") is None:
             DriverValidator.logger.error("❌ Driver Oracle no disponible")
-            raise DatabaseDriverError(
+            raise DriverError(
                 "Oracle driver no disponible",
                 "oracledb",
                 "pip install oracledb",
@@ -101,11 +101,11 @@ class DriverValidator:
         """Verifica disponibilidad del driver PostgreSQL (psycopg3).
 
         Raises:
-            DatabaseDriverError: Si el driver no está disponible
+            DriverError: Si el driver no está disponible
         """
         if importlib.util.find_spec("psycopg") is None:
             DriverValidator.logger.error("❌ Driver PostgreSQL (psycopg) no disponible")
-            raise DatabaseDriverError(
+            raise DriverError(
                 "PostgreSQL driver no disponible",
                 "psycopg",
                 "pip install psycopg[binary]",
@@ -118,11 +118,11 @@ class DriverValidator:
         """Verifica disponibilidad del driver HSQLDB.
 
         Raises:
-            DatabaseDriverError: Si el driver no está disponible
+            DriverError: Si el driver no está disponible
         """
         if importlib.util.find_spec("jaydebeapi") is None:
             DriverValidator.logger.error("❌ Driver HSQLDB no disponible")
-            raise DatabaseDriverError(
+            raise DriverError(
                 "HSQLDB driver no disponible",
                 "jaydebeapi",
                 "pip install JayDeBeApi",
@@ -141,8 +141,8 @@ class DriverValidator:
             Driver SQL Server a usar ('pymssql' o 'pyodbc')
 
         Raises:
-            DatabaseValidationError: Si el driver especificado es inválido
-            DatabaseDriverError: Si el driver no está disponible
+            ValidationError: Si el driver especificado es inválido
+            DriverError: Si el driver no está disponible
         """
         # Detectar driver SQL Server a usar (por defecto pymssql)
         sql_server_driver: str = conn_params.get("sql_server_driver", "pymssql").lower()
@@ -151,9 +151,9 @@ class DriverValidator:
         # Validar que el driver especificado es válido
         if sql_server_driver not in ["pymssql", "pyodbc"]:
             DriverValidator.logger.error(f"❌ Driver SQL Server inválido: {sql_server_driver}")
-            raise DatabaseValidationError(
+            raise ValidationError(
                 f"Driver SQL Server inválido: {sql_server_driver}. Use 'pymssql' o 'pyodbc'",
-                "sqlserver",
+                db_type="sqlserver",
             )
 
         # Verificar disponibilidad del driver especificado
@@ -162,7 +162,7 @@ class DriverValidator:
 
         if sql_server_driver == "pymssql" and not pymssql_available:
             DriverValidator.logger.error("❌ Driver pymssql para SQL Server no disponible")
-            raise DatabaseDriverError(
+            raise DriverError(
                 "SQL Server driver pymssql no disponible",
                 "pymssql",
                 "pip install pymssql",
@@ -170,7 +170,7 @@ class DriverValidator:
             )
         elif sql_server_driver == "pyodbc" and not pyodbc_available:
             DriverValidator.logger.error("❌ Driver pyodbc para SQL Server no disponible")
-            raise DatabaseDriverError(
+            raise DriverError(
                 "SQL Server driver pyodbc no disponible",
                 "pyodbc",
                 "pip install pyodbc",
@@ -178,7 +178,7 @@ class DriverValidator:
             )
         elif not pymssql_available and not pyodbc_available:
             DriverValidator.logger.error("❌ Ningún driver disponible para SQL Server")
-            raise DatabaseDriverError(
+            raise DriverError(
                 "Ningún driver disponible para SQL Server",
                 "pymssql/pyodbc",
                 "pip install pymssql pyodbc",
@@ -195,11 +195,11 @@ class DriverValidator:
         SQLite viene incluido en Python por defecto, así que siempre está disponible.
 
         Raises:
-            DatabaseDriverError: Si por alguna razón sqlite3 no está disponible
+            DriverError: Si por alguna razón sqlite3 no está disponible
         """
         if importlib.util.find_spec("sqlite3") is None:
             DriverValidator.logger.error("❌ Driver SQLite no disponible (esto es muy extraño)")
-            raise DatabaseDriverError(
+            raise DriverError(
                 "SQLite driver no disponible",
                 "sqlite3",
                 "SQLite3 viene incluido en Python. Reinstala Python.",

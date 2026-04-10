@@ -6,7 +6,7 @@ from typing import Any
 
 import oracledb
 
-from ..._foundation.exceptions import DatabasePoolError, DatabasePoolTimeoutError
+from ..._core.exceptions import PoolConnectionError, PoolTimeoutError
 from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
 from ..params import ConnectionParamsManager
 
@@ -171,7 +171,7 @@ class PoolConnection:
                 db_type="oracle",
             )
             self.logger.info("✅ Pool Oracle cerrado")
-        except DatabasePoolTimeoutError:
+        except PoolTimeoutError:
             if force is False:
                 raise
 
@@ -189,7 +189,7 @@ class PoolConnection:
             )
             self.logger.info("✅ Pool Oracle cerrado (forzado)")
         except Exception as err:
-            raise DatabasePoolError(
+            raise PoolConnectionError(
                 message="Error cerrando pool Oracle",
                 db_type="oracle",
                 details=str(err),

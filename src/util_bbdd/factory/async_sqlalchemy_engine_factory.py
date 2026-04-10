@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncEngine
 
-from .._foundation.exceptions import DatabaseConnectionError, DatabaseValidationError
+from .._core.exceptions import ConnectionError, ValidationError
 
 
 class AsyncSQLAlchemyEngineFactory:
@@ -55,9 +55,9 @@ class AsyncSQLAlchemyEngineFactory:
                     database,
                 )
             elif normalized_type == "hsqldb":
-                raise DatabaseConnectionError(
+                raise ConnectionError(
                     "hsqldb async no soportado en SQLAlchemyEngineFactory",
-                    normalized_type,
+                    db_type=normalized_type,
                 )
             elif normalized_type == "sqlserver":
                 conn_str = AsyncSQLAlchemyEngineFactory._build_sqlserver_connection_string(
@@ -68,9 +68,9 @@ class AsyncSQLAlchemyEngineFactory:
             elif normalized_type == "sqlite":
                 conn_str = AsyncSQLAlchemyEngineFactory._build_sqlite_connection_string(conn_params)
             else:
-                raise DatabaseConnectionError(
+                raise ConnectionError(
                     f"Tipo de BD no soportado para SQLAlchemy async: {db_type}",
-                    normalized_type,
+                    db_type=normalized_type,
                 )
 
             AsyncSQLAlchemyEngineFactory.logger.debug(
@@ -108,22 +108,22 @@ class AsyncSQLAlchemyEngineFactory:
 
         except ImportError as err:
             AsyncSQLAlchemyEngineFactory.logger.error("❌ SQLAlchemy async no está disponible")
-            raise DatabaseConnectionError(
+            raise ConnectionError(
                 "SQLAlchemy async no disponible. Instala con: pip install sqlalchemy",
-                normalized_type,
-                str(err),
+                db_type=normalized_type,
+                details=str(err),
             ) from err
-        except DatabaseConnectionError:
+        except ConnectionError:
             raise
         except Exception as err:
             AsyncSQLAlchemyEngineFactory.logger.error(
                 "❌ Error creando AsyncEngine de SQLAlchemy: %s",
                 err,
             )
-            raise DatabaseConnectionError(
+            raise ConnectionError(
                 f"Error creando AsyncEngine de SQLAlchemy: {str(err)}",
-                normalized_type,
-                str(err),
+                db_type=normalized_type,
+                details=str(err),
             ) from err
 
     @staticmethod
@@ -152,7 +152,7 @@ class AsyncSQLAlchemyEngineFactory:
             Connection string para MariaDB
 
         Raises:
-            DatabaseValidationError: Si faltan parámetros requeridos
+            ValidationError: Si faltan parámetros requeridos
         """
         host_value: Any = conn_params.get("host", "localhost")
         host: str = str(host_value) if host_value is not None else "localhost"
@@ -168,15 +168,15 @@ class AsyncSQLAlchemyEngineFactory:
 
         if not password:
             AsyncSQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para MariaDB")
-            raise DatabaseValidationError(
+            raise ValidationError(
                 "Se requiere una contraseña para la conexión a MariaDB",
-                "mariadb",
+                db_type="mariadb",
             )
 
         raw_target_db: Any = database if database is not None else conn_params.get("database")
         target_db: str = str(raw_target_db) if raw_target_db is not None else ""
         if not target_db:
-            raise DatabaseValidationError("Se requiere 'database' para MariaDB", "mariadb")
+            raise ValidationError("Se requiere 'database' para MariaDB", db_type="mariadb")
 
         return f"mysql+aiomysql://{user}:{password}@{host}:{port}/{target_db}"
 
@@ -192,7 +192,7 @@ class AsyncSQLAlchemyEngineFactory:
             Connection string para Oracle
 
         Raises:
-            DatabaseValidationError: Si faltan parámetros requeridos
+            ValidationError: Si faltan parámetros requeridos
         """
         user_value: Any = conn_params.get("user")
         user: str | None = str(user_value) if user_value is not None else None
@@ -212,22 +212,22 @@ class AsyncSQLAlchemyEngineFactory:
 
         if not user:
             AsyncSQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó usuario para Oracle")
-            raise DatabaseValidationError(
+            raise ValidationError(
                 "Se requiere un usuario para la conexión a Oracle",
-                "oracle",
+                db_type="oracle",
             )
 
         if not password:
             AsyncSQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para Oracle")
-            raise DatabaseValidationError(
+            raise ValidationError(
                 "Se requiere una contraseña para la conexión a Oracle",
-                "oracle",
+                db_type="oracle",
             )
 
         if not service_name:
-            raise DatabaseValidationError(
+            raise ValidationError(
                 "Se requiere 'service_name' o 'database' para Oracle",
-                "oracle",
+                db_type="oracle",
             )
 
         return f"oracle+oracledb://{user}:{password}@{host}:{port}/?service_name={service_name}"
@@ -244,7 +244,7 @@ class AsyncSQLAlchemyEngineFactory:
             Connection string para PostgreSQL
 
         Raises:
-            DatabaseValidationError: Si faltan parámetros requeridos
+            ValidationError: Si faltan parámetros requeridos
         """
         host_value: Any = conn_params.get("host", "localhost")
         host: str = str(host_value) if host_value is not None else "localhost"
@@ -260,15 +260,15 @@ class AsyncSQLAlchemyEngineFactory:
 
         if not password:
             AsyncSQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para PostgreSQL")
-            raise DatabaseValidationError(
+            raise ValidationError(
                 "Se requiere una contraseña para la conexión a PostgreSQL",
-                "postgresql",
+                db_type="postgresql",
             )
 
         raw_target_db: Any = database if database is not None else conn_params.get("database")
         target_db: str = str(raw_target_db) if raw_target_db is not None else ""
         if not target_db:
-            raise DatabaseValidationError("Se requiere 'database' para PostgreSQL", "postgresql")
+            raise ValidationError("Se requiere 'database' para PostgreSQL", db_type="postgresql")
 
         return f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{target_db}"
 
@@ -305,7 +305,7 @@ class AsyncSQLAlchemyEngineFactory:
             Connection string para SQL Server
 
         Raises:
-            DatabaseValidationError: Si faltan parámetros requeridos
+            ValidationError: Si faltan parámetros requeridos
         """
         host_value: Any = conn_params.get("host", "localhost")
         host: str = str(host_value) if host_value is not None else "localhost"
@@ -321,20 +321,20 @@ class AsyncSQLAlchemyEngineFactory:
 
         if not password:
             AsyncSQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para SQL Server")
-            raise DatabaseValidationError(
+            raise ValidationError(
                 "Se requiere una contraseña para la conexión a SQL Server",
-                "sqlserver",
+                db_type="sqlserver",
             )
 
         raw_target_db: Any = database if database is not None else conn_params.get("database")
         target_db: str = str(raw_target_db) if raw_target_db is not None else ""
         if not target_db:
-            raise DatabaseValidationError("Se requiere 'database' para SQL Server", "sqlserver")
+            raise ValidationError("Se requiere 'database' para SQL Server", db_type="sqlserver")
 
         if sql_server_driver != "aioodbc":
-            raise DatabaseValidationError(
+            raise ValidationError(
                 "Para SQLAlchemy async en SQL Server use sql_server_driver='aioodbc'",
-                "sqlserver",
+                db_type="sqlserver",
             )
 
         return f"mssql+aioodbc://{user}:{password}@{host}:{port}/{target_db}"
@@ -352,7 +352,7 @@ class AsyncSQLAlchemyEngineFactory:
             Connection string para SQLite (URI de SQLAlchemy)
 
         Raises:
-            DatabaseValidationError: Si faltan parámetros requeridos
+            ValidationError: Si faltan parámetros requeridos
 
         Example:
             >>> conn_params = {"database": "/path/to/app.db"}
@@ -363,9 +363,9 @@ class AsyncSQLAlchemyEngineFactory:
         db_path: str = str(db_path_value) if db_path_value is not None else ""
 
         if not db_path:
-            raise DatabaseValidationError(
+            raise ValidationError(
                 "Se requiere el parámetro 'database' para SQLite",
-                "sqlite",
+                db_type="sqlite",
             )
 
         # SQLite URL async: sqlite+aiosqlite:///:memory: o sqlite+aiosqlite:///{path}

@@ -11,7 +11,7 @@ from typing import Any, cast
 
 import pytest
 
-from util_bbdd.database_exceptions import DatabaseOperationError, QueryNotFoundError
+from util_bbdd import DatabaseOperationError, QueryNotFoundError
 from util_bbdd.doc.application.use_cases.documentation_orchestrator import (
     DocumentationBootstrap,
     DocumentationOutputPlanner,

@@ -10,7 +10,7 @@ import pytest
 
 from sqlalchemy.pool import NullPool
 
-from util_bbdd.database_exceptions import DatabaseConnectionError, DatabaseValidationError
+from util_bbdd import ConnectionError, ValidationError
 from util_bbdd.factory.async_sqlalchemy_engine_factory import AsyncSQLAlchemyEngineFactory
 
 
@@ -110,15 +110,15 @@ def test_async_sqlalchemy_engine_factory_hsqldb_not_supported() -> None:
                 conn_params={"host": "localhost"},
                 database="legacy",
             )
-            raise AssertionError("Se esperaba DatabaseConnectionError para hsqldb async")
-        except DatabaseConnectionError as err:
+            raise AssertionError("Se esperaba ConnectionError para hsqldb async")
+        except ConnectionError as err:
             assert "hsqldb async no soportado" in str(err).lower()
 
     asyncio.run(_run())
 
 
 def test_postgresql_builder_requires_password() -> None:
-    with pytest.raises(DatabaseValidationError):
+    with pytest.raises(ValidationError):
         AsyncSQLAlchemyEngineFactory._build_postgresql_connection_string(
             {
                 "host": "localhost",
@@ -153,12 +153,12 @@ def test_sqlite_builder_memory_and_relative_path() -> None:
 
 
 def test_sqlite_builder_requires_database_param() -> None:
-    with pytest.raises(DatabaseValidationError):
+    with pytest.raises(ValidationError):
         AsyncSQLAlchemyEngineFactory._build_sqlite_connection_string({"database": ""})
 
 
 def test_mariadb_builder_requires_password() -> None:
-    with pytest.raises(DatabaseValidationError):
+    with pytest.raises(ValidationError):
         AsyncSQLAlchemyEngineFactory._build_mariadb_connection_string(
             {
                 "host": "localhost",
@@ -221,7 +221,7 @@ def test_async_sqlalchemy_engine_factory_mariadb_pool_mode(monkeypatch) -> None:
 
 
 def test_oracle_builder_requires_user() -> None:
-    with pytest.raises(DatabaseValidationError):
+    with pytest.raises(ValidationError):
         AsyncSQLAlchemyEngineFactory._build_oracle_connection_string(
             {
                 "password": "test_pwd",
@@ -234,7 +234,7 @@ def test_oracle_builder_requires_user() -> None:
 
 
 def test_oracle_builder_requires_password() -> None:
-    with pytest.raises(DatabaseValidationError):
+    with pytest.raises(ValidationError):
         AsyncSQLAlchemyEngineFactory._build_oracle_connection_string(
             {
                 "user": "system",
@@ -247,7 +247,7 @@ def test_oracle_builder_requires_password() -> None:
 
 
 def test_oracle_builder_requires_service_name_or_database() -> None:
-    with pytest.raises(DatabaseValidationError):
+    with pytest.raises(ValidationError):
         AsyncSQLAlchemyEngineFactory._build_oracle_connection_string(
             {
                 "user": "system",
@@ -273,7 +273,7 @@ def test_oracle_builder_uses_database_as_service_name_fallback() -> None:
 
 
 def test_sqlserver_builder_requires_password() -> None:
-    with pytest.raises(DatabaseValidationError):
+    with pytest.raises(ValidationError):
         AsyncSQLAlchemyEngineFactory._build_sqlserver_connection_string(
             {
                 "host": "localhost",
@@ -286,7 +286,7 @@ def test_sqlserver_builder_requires_password() -> None:
 
 
 def test_sqlserver_builder_requires_database() -> None:
-    with pytest.raises(DatabaseValidationError):
+    with pytest.raises(ValidationError):
         AsyncSQLAlchemyEngineFactory._build_sqlserver_connection_string(
             {
                 "host": "localhost",
@@ -299,7 +299,7 @@ def test_sqlserver_builder_requires_database() -> None:
 
 
 def test_sqlserver_builder_requires_aioodbc_driver() -> None:
-    with pytest.raises(DatabaseValidationError):
+    with pytest.raises(ValidationError):
         AsyncSQLAlchemyEngineFactory._build_sqlserver_connection_string(
             {
                 "host": "localhost",

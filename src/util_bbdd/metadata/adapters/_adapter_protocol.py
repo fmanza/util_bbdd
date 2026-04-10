@@ -30,9 +30,6 @@ __all__: list[str] = [
     "SourceAdapterAsync",
     "RoutineAdapterSync",
     "RoutineAdapterAsync",
-    # Backwards compatibility (deprecated)
-    "SourceAdapter",
-    "RoutineAdapter",
 ]
 
 
@@ -212,20 +209,3 @@ class RoutineAdapterAsync(Protocol):
         ...
 
 
-# Backwards compatibility aliases
-class SourceAdapter(SourceAdapterSync, SourceAdapterAsync, Protocol):  # noqa: F821
-    """Deprecated: Use SourceAdapterSync o SourceAdapterAsync según contexto.
-
-    Mantiene ambos métodos sync y async para compatibilidad hacia atrás.
-    """
-
-    pass
-
-
-class RoutineAdapter(RoutineAdapterSync, RoutineAdapterAsync, Protocol):  # noqa: F821
-    """Deprecated: Use RoutineAdapterSync o RoutineAdapterAsync según contexto.
-
-    Mantiene ambos métodos sync y async para compatibilidad hacia atrás.
-    """
-
-    pass

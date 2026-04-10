@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from util_bbdd.database_exceptions import DatabaseOperationError
+from util_bbdd import DatabaseOperationError
 from util_bbdd.managers._manager_lifecycle import (
     close_sync_resources,
     get_sync_connection,

@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from ...._foundation.exceptions import DatabaseError
+from ...._core.exceptions import DatabaseException
 from ...application.ports import (
     LoggerProtocol,
     MetadataReaderPort,
@@ -35,7 +35,7 @@ class DocumentationMetadataRuntime(MetadataRuntimePort):
             result: Any = operation()
             getattr(self._logger, success_level)(success_message.format(result=result))
             return result
-        except DatabaseError as error:
+        except DatabaseException as error:
             getattr(self._logger, error_level)(error_message.format(error=error))
             return None
 

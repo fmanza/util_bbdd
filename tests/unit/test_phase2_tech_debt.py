@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from util_bbdd.database_exceptions import DatabaseOperationError
+from util_bbdd import DatabaseOperationError
 from util_bbdd.managers import SyncDatabaseManager
 from util_bbdd.managers._manager_shared_mixin import DatabaseManagerSharedMixin
 from util_bbdd.metadata import DatabaseMetadataCache

@@ -1,22 +1,19 @@
 """Adaptadores multi-driver para introspección de metadatos.
 
-Proporciona Protocols genéricos (SourceAdapter, RoutineAdapter) y clases base
-reutilizables para implementaciones por motor (MariaDB, PostgreSQL, SQLite, etc.).
+Proporciona Protocols genéricos (Sync/Async) y clases base reutilizables
+para implementaciones por motor (MariaDB, PostgreSQL, SQLite, etc.).
 
 Responsabilidad: definir contratos agnósticos del motor y lógica compartida.
 Sin SQL específico; diferencias entre drivers encapsuladas en adaptadores concretos.
-
-Uso en futuro:
-- metadata/mariadb/sync_adapter.py → implementa SourceAdapter + RoutineAdapter
-- metadata/postgresql/sync_adapter.py → implementa SourceAdapter + RoutineAdapter
-- metadata/sqlite/sync_adapter.py → implementa SourceAdapter + RoutineAdapter
 """
 
 from __future__ import annotations
 
 from ._adapter_protocol import (
-    RoutineAdapter,
-    SourceAdapter,
+    RoutineAdapterAsync,
+    RoutineAdapterSync,
+    SourceAdapterAsync,
+    SourceAdapterSync,
 )
 from ._adapter_registry import (
     AdapterRegistry,
@@ -35,9 +32,6 @@ __all__: list[str] = [
     # Protocols (Async)
     "SourceAdapterAsync",
     "RoutineAdapterAsync",
-    # Backwards compatibility
-    "SourceAdapter",
-    "RoutineAdapter",
     # Registry
     "AdapterRegistry",
     "get_global_adapter_registry",

@@ -14,7 +14,7 @@ import re
 
 from pathlib import Path
 
-from .._foundation.exceptions import QueryNotFoundError
+from .._core.exceptions import QueryNotFoundError
 from ..models import QueryDefinition
 
 # Patrón regex para encontrar placeholders en templates SQL

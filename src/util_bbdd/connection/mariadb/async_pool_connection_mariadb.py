@@ -7,7 +7,7 @@ import logging
 
 from typing import Any
 
-from util_bbdd._foundation.exceptions import DatabaseConnectionError
+from util_bbdd._core.exceptions import ConnectionError
 
 from ...async_utils import maybe_await
 from ..close import (
@@ -89,13 +89,13 @@ class AsyncMariaDBPool:
             return cls(pool, close_timeout_seconds=close_timeout_seconds)
         except ImportError as err:
             cls.logger.error("❌ Error: módulo aiomysql no disponible")
-            raise DatabaseConnectionError("Módulo aiomysql no disponible", "mariadb", str(err)) from err
+            raise ConnectionError("Módulo aiomysql no disponible", db_type="mariadb", details=str(err)) from err
         except Exception as err:
             cls.logger.error(f"❌ Error creando pool MariaDB async: {err}")
-            raise DatabaseConnectionError(
+            raise ConnectionError(
                 f"Error creando pool MariaDB async: {str(err)}",
-                "mariadb",
-                str(err),
+                db_type="mariadb",
+                details=str(err),
             ) from err
 
     async def acquire(self) -> Any:

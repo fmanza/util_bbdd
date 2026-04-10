@@ -1,0 +1,199 @@
+# INTEGRATION_MAP.md
+
+**Versionado**: v0.6.7
+**Última actualización**: 10 de abril de 2026
+**Propósito**: Gobernanza y sincronización entre `.claude/` (Claude Code) y `.github/` (Copilot Chat)
+
+> Este documento es **autoridad única** para responder:
+> - ¿Quién mantiene qué archivo?
+> - ¿Cuándo debo sincronizar cambios?
+> - ¿Cómo evito desalineación entre platforms?
+
+---
+
+## Diferencia: INTEGRATION_MAP.md vs CLAUDE_COPILOT_MAPPING.md
+
+Ambos documentos tratan la relación Claude Code ↔ Copilot Chat, pero con propósitos distintos:
+
+| Documento | Propósito | Quién lo lee | Scope |
+|-----------|-----------|-------------|-------|
+| **CLAUDE_COPILOT_MAPPING.md** | **Equivalencias**: Qué slash command en Claude Code tiene alternate en Copilot Chat | Usuario final (quiere usar ambas platforms) | 8 comandos (new-feature, hotfix, refactor, etc.) |
+| **INTEGRATION_MAP.md** | **Gobernanza**: Cómo mantener `.claude/` y `.github/` sincronizados; quién actualiza qué; cuándo | Maintainer del repo + developers | 13 archivos: `.claude/` + `.github/` |
+
+**Cuándo leer cada uno:**
+- 👤 **Usuario final**: "¿Cómo ejecuto `/new-feature` en Copilot Chat?" → Leer [`CLAUDE_COPILOT_MAPPING.md`](../docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md)
+- 🔧 **Maintainer**: "¿Quién debe editar `.claude/commands/`?" → Leer [`INTEGRATION_MAP.md`](.github/INTEGRATION_MAP.md) (este archivo)
+
+---
+
+## Concepto: Gobernanza de Dos Plataformas
+
+### Arquitectura actual (v0.6.7)
+
+```
+.claude/                           ← Claude Code (Anthropic CLI + VS Code extension)
+├── commands/                      # 8 slash commands (AUTORIDAD para Claude Code)
+│   ├── new-feature.md
+│   ├── hotfix.md
+│   ├── refactor.md
+│   ├── audit-code.md
+│   ├── security-review.md
+│   ├── tech-debt.md
+│   ├── maturity-assessment.md
+│   └── version-closure.md
+├── settings.json                  # Hooks globales (ruff, mypy, pytest)
+├── settings.local.json            # Config local (no commiteable)
+├── README.md                      # Setup guide
+├── COMMAND_TEMPLATE.md            # Plantilla normativa (Fase 2)
+├── EDGE_CASES.md                  # Troubleshooting (Fase 2)
+└── TESTING_GUIDE.md               # Testing patterns (Fase 2)
+
+.github/                           ← Copilot Chat (GitHub Copilot, VS Code extension)
+├── copilot-instructions.md        # Política base (AUTORIDAD para Copilot Chat)
+├── prompts/                       # 8 prompts (Fase 2, equivalentes a .claude/commands/)
+│   ├── new_feature.prompt.md
+│   ├── hotfix.prompt.md
+│   ├── refactor.prompt.md
+│   ├── audit_code.prompt.md
+│   ├── security_review.prompt.md
+│   ├── tech_debt.prompt.md
+│   ├── maturity_assessment.prompt.md
+│   └── version_closure.prompt.md
+└── instructions/                  # Instrucciones por área (python, architecture, tests, etc.)
+
+CLAUDE.md                          ← Política transversal (ambas plataformas)
+docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md  ← Equivalencias (usuario final)
+```
+
+---
+
+## Tabla de Gobernanza: Archivos, Responsables, Frecuencia
+
+| # | Archivo | Plataforma | Owner | Frecuencia | Qué contiene | Sincronización |
+|---|---------|-----------|-------|-----------|-------------|---|
+| **1** | `.claude/commands/new-feature.md` | Claude Code | Backend Lead | Per-release (Phase change) | Flujo PLAN→AUDIT_PLAN→IMPLEMENT→AUDIT_CODE→VERSION para features | Sync con `.github/prompts/new_feature.prompt.md` (contenido paralelo) |
+| **2** | `.claude/commands/hotfix.md` | Claude Code | Backend Lead | Per-release | Flujo PLAN→AUDIT_PLAN→IMPLEMENT→AUDIT_CODE→VERSION para bugs | Sync con `.github/prompts/hotfix.prompt.md` |
+| **3** | `.claude/commands/refactor.md` | Claude Code | Backend Lead | Per-release | Flujo PLAN→AUDIT_PLAN→IMPLEMENT→AUDIT_CODE→VERSION para refactors | Sync con `.github/prompts/refactor.prompt.md` |
+| **4** | `.claude/commands/audit-code.md` | Claude Code | Backend Lead | Per-release | Flujo PLAN→AUDIT_PLAN→AUDIT_CODE→VERSION (sin IMPLEMENT) | Sync con `.github/prompts/audit_code.prompt.md` |
+| **5** | `.claude/commands/security-review.md` | Claude Code | Security Lead | Per-release | Flujo PLAN→AUDIT_PLAN→AUDIT_CODE→VERSION (security-focused) | Sync con `.github/prompts/security_review.prompt.md` |
+| **6** | `.claude/commands/tech-debt.md` | Claude Code | Arch Lead | Per-release | Flujo PLAN→AUDIT_PLAN→AUDIT_CODE→VERSION (debt classification) | Sync con `.github/prompts/tech_debt.prompt.md` |
+| **7** | `.claude/commands/maturity-assessment.md` | Claude Code | Arch Lead | Q-release (quarterly) | Flujo PLAN→AUDIT_PLAN→AUDIT_CODE→VERSION (repos readiness) | Sync con `.github/prompts/maturity_assessment.prompt.md` |
+| **8** | `.claude/commands/version-closure.md` | Claude Code | Backend Lead | Per-release | Flujo VERSION-only (changelog, commit, rollback) | Sync con `.github/prompts/version_closure.prompt.md` |
+| **9** | `.claude/settings.json` | Claude Code | DevOps Lead | Ad-hoc (new hooks needed) | Hooks: ruff, mypy, pytest | Documentado en `.claude/README.md` |
+| **10** | `.claude/README.md` | Claude Code | DevOps Lead | Per-release (reflect changes) | Setup guide, FAQ, offline tips | Reference from CLAUDE.md |
+| **11** | `CLAUDE.md` | Both | Backend Lead | Per-release (policies) | Transversal policy: PLAN→STATUS, SOLID, roles | Authority for both platforms |
+| **12** | `.github/copilot-instructions.md` | Copilot Chat | Backend Lead | Per-release | Policy base, slash command guide (manual entries) | Reference to CLAUDE.md + prompts/ |
+| **13** | `docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md` | Both | DevOps Lead | Per-release (new commands) | User-facing matrix + 3 integration options | Authority for equivalences |
+
+---
+
+## Checklist de Sincronización
+
+Cada vez que **actualices un flujo** (PLAN→AUDIT_PLAN→IMPLEMENT, policy, o estructura de salida), ejecuta este **checklist**:
+
+### ✅ Si cambias un comando en `.claude/commands/`
+
+1. [ ] **Lee el comando actualizado** (`/new-feature`, `/hotfix`, etc.)
+2. [ ] **Localiza su equivalente** en `.github/prompts/` (e.g., `new_feature.prompt.md`)
+3. [ ] **Compara estructura**:
+   - ¿Ambos emiten en mismo orden? (PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION)
+   - ¿Mismos inputs requeridos?
+   - ¿Mismas restricciones y políticas?
+4. [ ] **Actualiza prompt en `.github/prompts/`** si no coinciden
+5. [ ] **Comenta en PR**: "Sync: `.claude/commands/X.md` ↔ `.github/prompts/X.prompt.md`"
+6. [ ] **Valida en lectura cruzada**: Developer no-familiarizado puede leer ambos y notar que son "equivalentes"
+
+### ✅ Si cambias policy en `CLAUDE.md`
+
+1. [ ] **Identifica cambio**: ¿Afecta flujo PLAN/AUDIT_PLAN/IMPLEMENT? ¿Restricciones? ¿Roles?
+2. [ ] **Propaga a relevantes**:
+   - Si policy cambia: actualizar `.github/copilot-instructions.md` (sección "Flujos estructurados")
+   - Si restricción cambia (p.ej. "refactor prohibido", más estricta): reflejar en todos 8 comandos/prompts
+3. [ ] **Actualiza timestamp** en INTEGRATION_MAP.md (este archivo) → "Última actualización"
+4. [ ] **Comenta en PR**: "Policy change in CLAUDE.md: <descripción>. Propagated to [archivo1, archivo2]"
+
+### ✅ Si cambias estructura de salida (por ejemplo: agregar sección CHANGELOG a VERSION)
+
+1. [ ] **Actualiza COMMAND_TEMPLATE.md** (sección 6: "Devuelve en este orden")
+2. [ ] **Actualiza todos 8 comandos** para reflejar nueva estructura
+3. [ ] **Actualiza prompts correspondientes** en `.github/prompts/`
+4. [ ] **Documenta cambio** en `CLAUDE.md` → nueva sección o referencia
+5. [ ] **Comenta en PR**: "Output structure change: Agreguado CHANGELOG a VERSION. Updated in: .claude/commands/*.md, .github/prompts/*.md, COMMAND_TEMPLATE.md"
+
+### ✅ Si agregas un nuevo comando (Post-v0.6.7)
+
+1. [ ] **Crea** `.claude/commands/new-command.md` siguiendo `COMMAND_TEMPLATE.md`
+2. [ ] **Crea equivalente** `.github/prompts/new_command.prompt.md`
+3. [ ] **Actualiza tablas de referencia**:
+   - CLAUDE_COPILOT_MAPPING.md (matriz de equivalencias)
+   - INTEGRATION_MAP.md (esta tabla de gobernanza)
+4. [ ] **Agrega entrada en CLAUDE.md** → slash commands disponibles
+5. [ ] **Actualiza docstring en `.claude/settings.json`** si afecta hooks
+6. [ ] **Comenta en PR**: "New command: `/new-command`. Added in: .claude/commands/, .github/prompts/, CLAUDE_COPILOT_MAPPING.md, INTEGRATION_MAP.md"
+
+---
+
+## Responsables por Rol
+
+| Rol | Responsabilidades | Activa cuando | Contacto |
+|-----|---|---|---|
+| **Backend Lead** | Mantiene CLAUDE.md, .claude/commands/, .github/copilot-instructions.md; decide política | Policy change, command change | Backend @channel |
+| **DevOps Lead** | Mantiene settings.json, .claude/README.md, CLAUDE_COPILOT_MAPPING.md; maneja hooks | New tools, offline needs, integrations | DevOps @channel |
+| **Security Lead** | Mantiene security-review.md y security_review.prompt.md; revisa policy | Security findings, new threats | Security @channel |
+| **Arch Lead** | Mantiene maturity-assessment, tech-debt; oversee SOLID compliance | Architecture decisions, tech debt | Arch @channel |
+
+---
+
+## Pre-Release Checklist (Antes de Publicar v0.6.8+)
+
+Antes de cerrar una release, ejecuta **este checklist** para asegurar coherencia:
+
+### Phase 1: Validación de Cabeceras
+- [ ] CLAUDE.md tiene versión actualizada (v0.6.X)
+- [ ] `.claude/COMMAND_TEMPLATE.md` tiene versión actualizada
+- [ ] `docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md` tiene versión actualizada
+- [ ] INTEGRATION_MAP.md tiene "Última actualización" = hoy
+
+### Phase 2: Validación de 8 Comandos
+- [ ] Cada comando en `.claude/commands/` sigue estructura de COMMAND_TEMPLATE.md (10 secciones)
+- [ ] Cada comando tiene ejemplo determínístico (sin placeholders genéricos)
+- [ ] Cada prompt en `.github/prompts/` tiene equivalente `.claude/commands/` versión
+
+### Phase 3: Validación de Referencias
+- [ ] CLAUDE.md enlaza a CLAUDE_COPILOT_MAPPING.md ✅
+- [ ] CLAUDE.md enlaza a INTEGRATION_MAP.md ✅
+- [ ] `.github/copilot-instructions.md` enlaza a CLAUDE.md ✅
+- [ ] `.claude/README.md` enlaza a CLAUDE.md ✅
+- [ ] No hay links rotos (buscar `[broken]` o URLs muertas)
+
+### Phase 4: Validación de Contenido
+- [ ] Offline section en CLAUDE.md doc claramente: qué funciona sin internet ✅
+- [ ] FAQ en `docs/examples/claude_code_usage_complete_example.md` tiene 18+ preguntas ✅
+- [ ] No hay duplicación entre CLAUDE_COPILOT_MAPPING.md (equivalencias) e INTEGRATION_MAP.md (gobernanza)
+
+### Phase 5: Co señ Off
+- [ ] [ ] Backend Lead sign-off on CLAUDE.md + commands (name + date)
+- [ ] [ ] DevOps Lead sign-off on settings.json + README (name + date)
+- [ ] [ ] Security Lead sign-off on security-review (name + date)
+- [ ] [ ] Arch Lead sign-off on maturity/tech-debt (name + date)
+
+---
+
+## Cómo Mantener Este Documento Actualizado
+
+**Este documento (INTEGRATION_MAP.md) debe actualizarse cuando:**
+
+1. Se agrega un nuevo comando (p.ej. `/analyze-performance`)
+2. Se cambia política de salida (p.ej., PLAN ahora requiere mínimo 100 líneas, no 30)
+3. Se cambia responsable de un archivo
+4. Se descubre nueva sincronización necesaria (p.ej., `.claude/EDGE_CASES.md` ↔ `.github/troubleshooting.md`)
+
+**Responsable principal**: Backend Lead + DevOps Lead (revisado trimestralmente)
+
+---
+
+## Versión
+
+| Versión | Fecha | Cambios |
+|---------|-------|---------|
+| v0.6.7 | 10 abr 2026 | Initial: 13 files, 2 platforms, 4 responsables, pre-release checklist |

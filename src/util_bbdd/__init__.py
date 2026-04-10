@@ -4,7 +4,26 @@ Módulo bbdd para operaciones de base de datos.
 Soporta: MariaDB, Oracle, PostgreSQL, HSQLDB y SQL Server
 """
 
+from ._core.exceptions import (
+    ConnectionError,
+    DatabaseConfigurationError,
+    DatabaseException,
+    DatabaseOperationError,
+    DriverError,
+    InvalidDatabaseType,
+    PoolConnectionError,
+    PoolExhaustedError,
+    PoolTimeoutError,
+    QueryError,
+    QueryExecutionError,
+    QueryNotFoundError,
+    QueryParameterError,
+    QueryTimeoutError,
+    QueryValidationError,
+    ValidationError,
+)
 from .async_utils import maybe_await
+from .comparar import SchemaComparator, SchemaDiff
 from .connection.builder import build_conn_params
 from .factory import ConnectionFactory, PoolFactory
 from .managers.async_mgr import AsyncDatabaseManager
@@ -22,4 +41,23 @@ __all__: list[str] = [
     "PoolFactory",
     "DatabaseMetadataCache",
     "RelationshipMetadataCache",
+    "SchemaComparator",
+    "SchemaDiff",
+    # Excepciones canónicas
+    "DatabaseException",
+    "ConnectionError",
+    "PoolConnectionError",
+    "PoolExhaustedError",
+    "PoolTimeoutError",
+    "DriverError",
+    "ValidationError",
+    "InvalidDatabaseType",
+    "DatabaseOperationError",
+    "DatabaseConfigurationError",
+    "QueryError",
+    "QueryNotFoundError",
+    "QueryValidationError",
+    "QueryParameterError",
+    "QueryTimeoutError",
+    "QueryExecutionError",
 ]

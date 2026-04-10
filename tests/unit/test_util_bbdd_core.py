@@ -219,26 +219,26 @@ class TestExceptionHandling:
 
     def test_database_error_import(self):
         """Test: importar DatabaseError."""
-        from util_bbdd.database_exceptions import DatabaseError
+        from util_bbdd import DatabaseException as DatabaseError
 
         assert DatabaseError is not None
 
     def test_connection_error_import(self):
         """Test: importar DatabaseConnectionError."""
-        from util_bbdd.database_exceptions import DatabaseConnectionError
+        from util_bbdd import ConnectionError as DatabaseConnectionError
 
         assert DatabaseConnectionError is not None
 
     def test_raise_database_error(self):
         """Test: lanzar DatabaseError."""
-        from util_bbdd.database_exceptions import DatabaseError
+        from util_bbdd import DatabaseException as DatabaseError
 
         with pytest.raises(DatabaseError):
             raise DatabaseError("Test error")
 
     def test_raise_connection_error(self):
         """Test: lanzar DatabaseConnectionError."""
-        from util_bbdd.database_exceptions import DatabaseConnectionError
+        from util_bbdd import ConnectionError as DatabaseConnectionError
 
         with pytest.raises(DatabaseConnectionError):
             raise DatabaseConnectionError("Connection failed")
@@ -249,28 +249,28 @@ class TestDatabaseTypeValidator:
 
     def test_validator_import(self):
         """Test: importar DatabaseTypeValidator."""
-        from util_bbdd.database_type_validator import DatabaseTypeValidator
+        from util_bbdd._drivers import DatabaseTypeValidator
 
         assert DatabaseTypeValidator is not None
 
     def test_validator_creation(self):
         """Test: crear validador."""
-        from util_bbdd.database_type_validator import DatabaseTypeValidator
+        from util_bbdd._drivers import DatabaseTypeValidator
 
         validator = DatabaseTypeValidator()
         assert validator is not None
 
     def test_validator_legacy_module_reexports_canonical_validator(self):
         """Test: la ruta legacy apunta al validador canónico interno."""
+        from util_bbdd._drivers import DatabaseTypeValidator
         from util_bbdd._drivers.validator import DatabaseTypeValidator as CanonicalValidator
-        from util_bbdd.database_type_validator import DatabaseTypeValidator
 
         assert DatabaseTypeValidator is CanonicalValidator
 
     @pytest.mark.parametrize("db_type", ["mysql", "postgresql", "oracle", "sqlite"])
     def test_database_types_supported(self, db_type):
         """Test: validador soporta tipos comunes."""
-        from util_bbdd.database_type_validator import DatabaseTypeValidator
+        from util_bbdd._drivers import DatabaseTypeValidator
 
         validator = DatabaseTypeValidator()
         normalized_db_type = "mariadb" if db_type == "mysql" else db_type

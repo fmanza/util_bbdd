@@ -13,7 +13,7 @@ import threading
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from .._foundation.exceptions import DatabasePoolError, DatabasePoolTimeoutError
+from .._core.exceptions import PoolConnectionError, PoolTimeoutError
 from .protocols import AsyncCloseMode
 
 __all__: list[str] = [
@@ -138,8 +138,8 @@ def run_close_operation_sync(
         db_type: Tipo de BD (para contexto del error)
 
     Raises:
-        DatabasePoolTimeoutError: Si se excede el timeout
-        DatabasePoolError: Si hay error en la acción
+        PoolTimeoutError: Si se excede el timeout
+        PoolConnectionError: Si hay error en la acción
     """
     # Sin timeout: ejecutar directamente
     if timeout_seconds is None:
@@ -168,7 +168,7 @@ def run_close_operation_sync(
 
     # Timeout excedido
     if not completed:
-        raise DatabasePoolTimeoutError(
+        raise PoolTimeoutError(
             message=f"Timeout en operación de cierre: {action_name}",
             db_type=db_type,
             timeout_seconds=timeout_seconds,
@@ -178,14 +178,14 @@ def run_close_operation_sync(
     if errors:
         err = errors[0]
         if isinstance(err, Exception):
-            raise DatabasePoolError(
+            raise PoolConnectionError(
                 message=f"Error en operación de cierre: {action_name}",
                 db_type=db_type,
                 details=str(err),
             ) from err
 
         # Error crítico (no-Exception)
-        raise DatabasePoolError(
+        raise PoolConnectionError(
             message=f"Error crítico en operación de cierre: {action_name}",
             db_type=db_type,
             details=repr(err),

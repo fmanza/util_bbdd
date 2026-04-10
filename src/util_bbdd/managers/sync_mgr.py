@@ -14,16 +14,15 @@ from sqlalchemy.engine.base import Engine
 if TYPE_CHECKING:
     from sqlalchemy.engine.base import Engine
 
-from .._foundation.exceptions import (
+from .._core.exceptions import (
+    ConnectionError,
     DatabaseConfigurationError,
-    DatabaseConnectionError,
-    DatabaseDriverError,
     DatabaseOperationError,
-    DatabaseValidationError,
+    DriverError,
     QueryError,
+    ValidationError,
 )
-from .._foundation.queries import DatabaseQueries
-from .._foundation.validators_core import (
+from .._drivers import (
     DatabaseTypeValidator,
     get_database_validator,
     get_db_type_info,
@@ -50,6 +49,7 @@ from ..metadata.adapters import get_global_adapter_registry
 from ..metadata.mariadb import (
     MariaDBSyncAdapter,
 )
+from ..query import DatabaseQueries
 from ..results import RowOrNone
 from ._manager_cache_service import CacheService
 from ._manager_lifecycle import close_sync_resources
@@ -172,18 +172,18 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
 
             self.logger.info(f"✅ Conexión establecida (BD: {self.db_type})")
 
-        except DatabaseValidationError:
+        except ValidationError:
             self.logger.error("❌ Error de validación de parámetros")
             raise
-        except DatabaseDriverError:
+        except DriverError:
             self.logger.error("❌ Error en disponibilidad de driver")
             raise
-        except DatabaseConnectionError:
+        except ConnectionError:
             self.logger.error("❌ Error al conectar a la base de datos")
             raise
         except ValueError as e:
             self.logger.error(f"❌ Error de validación: {e}")
-            raise DatabaseValidationError(str(e), self.db_type) from e
+            raise ValidationError(str(e), db_type=self.db_type) from e
         except Exception as e:
             self.logger.error(f"❌ Error inesperado inicializando SyncDatabaseManager: {e}")
             raise DatabaseConfigurationError(
@@ -210,7 +210,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
             return filtered
         except Exception as e:
             self.logger.error(f"❌ Error filtrando parámetros de conexión: {e}")
-            raise DatabaseValidationError(f"Error filtrando parámetros: {str(e)}", db_type, str(e)) from e
+            raise ValidationError(f"Error filtrando parámetros: {str(e)}", db_type=db_type, details=str(e)) from e
 
     def _init_pool(self) -> None:
         """Inicializa pool de conexiones."""
@@ -268,11 +268,11 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
                 registry=self._query_catalog.registry,
                 resolver=self._query_catalog.resolver,
             )
-        except DatabaseConnectionError:
+        except ConnectionError:
             raise
         except Exception as e:
             self.logger.error(f"❌ Error en conexión: {e}")
-            raise DatabaseConnectionError(f"Error al conectar a {self.db_type}: {str(e)}", self.db_type, str(e)) from e
+            raise ConnectionError(f"Error al conectar a {self.db_type}: {str(e)}", db_type=self.db_type, details=str(e)) from e
 
     @property
     def connection(self) -> Any:

@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "util_bbdd"
-version = "0.6.7.dev0"
+version = "0.6.7"
 description = "Librería de operaciones de base de datos: CRUD en lote, auditoría, conexiones pooled y documentación."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 authors = [
-    {name = "Francisco", email = "developer@example.com"}
+    {name = "Paco Manzano", email = "fmanzano.trabajo@gmail.com"}
 ]
-keywords = ["database", "crud", "bulk", "audit", "mysql", "oracle", "mariadb"]
+keywords = ["database", "crud", "bulk", "audit", "mysql", "oracle", "mariadb", "postgresql", "sqlite", "sqlserver", "async", "compare", "document", "documentation", "sqlalchemy", "pandas", "openpyxl", "python-docx", "oracledb", "jinja2"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
@@ -21,6 +21,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
+    "Typing :: Typed",
 ]
 
 dependencies = [
@@ -40,7 +41,7 @@ dev = [
     "build>=1.2",
     "pytest>=9.0",
     "pytest-cov>=7.0",
-    "pytest-asyncio>=1.3",
+    "pytest-asyncio>=0.23",
     "aiosqlite>=0.22",
     "ruff>=0.1.0",
     "mypy>=1.0",
@@ -158,4 +159,12 @@ module = [
     "matplotlib.*",
     "util.medir_tiempo",
 ]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["pandas", "pandas.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["networkx", "networkx.*"]
 ignore_missing_imports = true

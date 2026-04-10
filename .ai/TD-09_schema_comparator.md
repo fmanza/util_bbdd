@@ -1,6 +1,6 @@
 # TD-09 — Módulo de comparación de esquemas con SQLAlchemy
 
-**Estado:** Pendiente
+**Estado:** CLOSED — implementado en `src/util_bbdd/comparar/` y expuesto en `__init__.py` (2026-04-10)
 **Prioridad:** Media
 **Módulo destino:** `src/util_bbdd/comparar/`
 **Dependencias internas:** `factory/sqlalchemy_engine_factory.py`, `factory/async_sqlalchemy_engine_factory.py`

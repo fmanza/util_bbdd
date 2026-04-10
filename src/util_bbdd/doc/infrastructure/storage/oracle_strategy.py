@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from ...._foundation.exceptions import DatabaseError
+from ...._core.exceptions import DatabaseException
 from .contracts import StorageInventoryManagerProtocol
 
 
@@ -59,7 +59,7 @@ class OracleStorageInventoryStrategy:
                 default_ts: str = str(normalized_user_rows[0][0] or "").strip()
                 if default_ts:
                     data_candidates.append(default_ts)
-        except DatabaseError:
+        except DatabaseException:
             pass
 
         return data_candidates
@@ -75,7 +75,7 @@ class OracleStorageInventoryStrategy:
                 temp_ts: str = str(normalized_user_rows[0][1] or "").strip()
                 if temp_ts:
                     temp_candidates.append(temp_ts)
-        except DatabaseError:
+        except DatabaseException:
             pass
 
         return temp_candidates
@@ -155,7 +155,7 @@ class OracleStorageInventoryStrategy:
                 rows: list[list[object]] = runtime._normalize_storage_rows(result_rows)
                 collected_rows.extend(rows)
                 collected_sql.append(sql_text)
-            except DatabaseError as error:
+            except DatabaseException as error:
                 collected_errors.append(f"{tablespace_name}: {error}")
 
         return collected_rows, collected_sql, collected_errors

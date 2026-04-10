@@ -4,7 +4,7 @@ import logging
 
 from typing import Any
 
-from util_bbdd._foundation.exceptions import DatabaseConnectionError
+from util_bbdd._core.exceptions import ConnectionError
 
 from ..params import ConnectionParamsManager
 
@@ -26,7 +26,7 @@ class MariaDBConnection:
             Conexión a MariaDB.
 
         Raises:
-            DatabaseConnectionError: Si hay error en la conexión.
+            ConnectionError: Si hay error en la conexión.
         """
         try:
             import mariadb
@@ -44,7 +44,7 @@ class MariaDBConnection:
             return conn
         except ImportError as e:
             MariaDBConnection.logger.error("❌ Error: módulo mariadb no disponible")
-            raise DatabaseConnectionError("Módulo mariadb no disponible", "mariadb", str(e)) from e
+            raise ConnectionError("Módulo mariadb no disponible", db_type="mariadb", details=str(e)) from e
         except Exception as e:
             MariaDBConnection.logger.error(f"❌ Error conectando a MariaDB: {e}")
-            raise DatabaseConnectionError(f"Error conectando a MariaDB: {str(e)}", "mariadb", str(e)) from e
+            raise ConnectionError(f"Error conectando a MariaDB: {str(e)}", db_type="mariadb", details=str(e)) from e

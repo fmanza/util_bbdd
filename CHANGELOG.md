@@ -5,6 +5,78 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.6.7] - 2026-04-10
+
+### Breaking Changes
+
+#### Facades legacy eliminados (Option A — nombres canónicos)
+Los siguientes módulos raíz han sido eliminados. Migrar a las rutas canónicas indicadas:
+
+| Módulo eliminado | Ruta canónica |
+|---|---|
+| `util_bbdd.database_exceptions` | `util_bbdd` (todas las excepciones exportadas directamente) |
+| `util_bbdd.database_queries` | `util_bbdd.query.DatabaseQueries` |
+| `util_bbdd.database_type_validator` | `util_bbdd._drivers.DatabaseTypeValidator` |
+| `util_bbdd.driver_validator` | `util_bbdd._drivers.DriverValidator` |
+
+Los aliases históricos (`DatabaseConnectionError`, `DatabasePoolError`, `DatabaseError`, `UtilBbddError`, etc.) ya no existen. Usar nombres canónicos:
+- `DatabaseConnectionError` → `ConnectionError`
+- `DatabasePoolError` → `PoolConnectionError`
+- `DatabasePoolTimeoutError` → `PoolTimeoutError`
+- `DatabaseDriverError` → `DriverError`
+- `DatabaseValidationError` → `ValidationError`
+- `DatabaseTypeNotSupportedError` → `InvalidDatabaseType`
+- `DatabaseError` / `UtilBbddError` → `DatabaseException`
+- `InvalidQueryError` → `QueryValidationError`
+- `QueryExecutionTimeoutError` → `QueryTimeoutError`
+
+#### Protocols de adaptadores: aliases deprecated eliminados
+`SourceAdapter` y `RoutineAdapter` de `util_bbdd.metadata.adapters` han sido eliminados.
+Usar `SourceAdapterSync`/`SourceAdapterAsync` y `RoutineAdapterSync`/`RoutineAdapterAsync`.
+
+### Added
+
+#### Excepciones canónicas en raíz del paquete
+Todas las excepciones de `_core.exceptions` están ahora disponibles directamente desde `util_bbdd`:
+```python
+from util_bbdd import (
+    DatabaseException, ConnectionError, PoolConnectionError, PoolTimeoutError,
+    ValidationError, InvalidDatabaseType, DriverError,
+    DatabaseOperationError, QueryError, QueryNotFoundError, ...
+)
+```
+
+#### Test de contrato B5: excepciones de managers
+`tests/unit/test_manager_exception_contract.py` — 15 tests que verifican:
+- Jerarquía completa de excepciones (`DatabaseException` como base)
+- `InvalidDatabaseType` ante db_type inválido
+- `DatabaseOperationError` ante executor no inicializado (sync y async)
+- Wrapping de errores inesperados como `DatabaseOperationError`
+
+### Changed
+
+#### `_foundation/` eliminado íntegramente
+- `exceptions.py` → consolidado en `_core/exceptions.py` (ya en v0.6.6)
+- `validators_core.py` → movido a `_drivers/` (Phase B1)
+- `driver_validator.py` → movido a `_drivers/driver_validator.py` (Phase B2)
+- `queries.py` → movido a `query/queries.py` como `DatabaseQueries` (Phase C)
+
+#### mypy: overrides para pandas y networkx
+Añadidos `[[tool.mypy.overrides]]` para `pandas`/`pandas.*` y `networkx`/`networkx.*`
+(los stubs son opcionales; mypy pasa sin ellos instalados).
+
+#### pyproject.toml
+- `version`: `0.6.7.dev0` → `0.6.7`
+- `keywords`: añadidos `postgresql`, `sqlite`, `sqlserver`, `async`, `documentation`
+- `classifiers`: añadido `Typing :: Typed`
+
+### Fixed
+
+- Import sort (ruff I001) en múltiples ficheros de test y `connection/__init__.py`
+- Positional constructor calls → keyword args en todos los `raise XxxError(...)` de managers, factory y connection
+
+---
+
 ## [Unreleased]
 
 ### Planned (v0.7.0+)

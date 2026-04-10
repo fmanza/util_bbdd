@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from util_bbdd.database_exceptions import (
+from util_bbdd import (
     DatabaseOperationError,
     QueryNotFoundError,
     QueryTimeoutError,
