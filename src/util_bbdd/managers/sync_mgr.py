@@ -272,7 +272,9 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
             raise
         except Exception as e:
             self.logger.error(f"❌ Error en conexión: {e}")
-            raise ConnectionError(f"Error al conectar a {self.db_type}: {str(e)}", db_type=self.db_type, details=str(e)) from e
+            raise ConnectionError(
+                f"Error al conectar a {self.db_type}: {str(e)}", db_type=self.db_type, details=str(e)
+            ) from e
 
     @property
     def connection(self) -> Any:
@@ -686,10 +688,29 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
         Obtiene la lista de tablas de la base de datos.
 
         Returns:
-            Lista de tablas
+            Lista de tablas (cada fila es una tupla con metadatos de tabla).
 
         Raises:
-            DatabaseOperationError: Si hay error en la operación
+            DatabaseOperationError: Si hay error en la operación.
+
+        Example:
+            Listar todas las tablas de una Base de Datos:
+
+            >>> from util_bbdd import SyncDatabaseManager
+            >>> manager = SyncDatabaseManager(
+            ...     db_type="postgresql",
+            ...     conn_params={
+            ...         "host": "localhost",
+            ...         "port": 5432,
+            ...         "user": "postgres",
+            ...         "password": "secret",
+            ...         "database": "mydb"
+            ...     }
+            ... )
+            >>> tables = manager.get_tables()
+            >>> for table in tables:
+            ...     print(table[0])  # Nombre de la tabla
+            >>> manager.close()
         """
         context_database: str = self._get_query_context_database()
         cache_key: str = self._cache_context_key(context_database)
@@ -713,10 +734,29 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
         Obtiene la lista de vistas de la base de datos.
 
         Returns:
-            Lista de vistas
+            Lista de vistas (cada fila es una tupla con metadatos de vista).
 
         Raises:
-            DatabaseOperationError: Si hay error en la operación
+            DatabaseOperationError: Si hay error en la operación.
+
+        Example:
+            Listar todas las vistas:
+
+            >>> from util_bbdd import SyncDatabaseManager
+            >>> manager = SyncDatabaseManager(
+            ...     db_type="postgresql",
+            ...     conn_params={
+            ...         "host": "localhost",
+            ...         "port": 5432,
+            ...         "user": "postgres",
+            ...         "password": "secret",
+            ...         "database": "mydb"
+            ...     }
+            ... )
+            >>> views = manager.get_views()
+            >>> for view in views:
+            ...     print(f"Vista: {view[0]}")
+            >>> manager.close()
         """
         context_database: str = self._get_query_context_database()
         cache_key: str = self._cache_context_key(context_database)
@@ -820,13 +860,32 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
         Obtiene las columnas de una tabla.
 
         Args:
-            tabla: Nombre de la tabla
+            tabla: Nombre de la tabla.
 
         Returns:
-            Lista de columnas
+            Lista de columnas de la tabla (cada fila contiene metadatos de columna).
 
         Raises:
-            DatabaseOperationError: Si hay error en la operación
+            DatabaseOperationError: Si hay error en la operación.
+
+        Example:
+            Obtener columnas de una tabla específica:
+
+            >>> from util_bbdd import SyncDatabaseManager
+            >>> manager = SyncDatabaseManager(
+            ...     db_type="postgresql",
+            ...     conn_params={
+            ...         "host": "localhost",
+            ...         "port": 5432,
+            ...         "user": "postgres",
+            ...         "password": "secret",
+            ...         "database": "mydb"
+            ...     }
+            ... )
+            >>> columns = manager.get_columns("users")
+            >>> for col in columns:
+            ...     print(f"Columna: {col[0]}, Tipo: {col[1]}")
+            >>> manager.close()
         """
         context_database: str = self._get_query_context_database()
         context_label: str = self._get_query_context_label()
@@ -1197,7 +1256,44 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
         params: dict[str, Any] | None = None,
         timeout: float | None = None,
     ) -> Rows:
-        """Ejecuta una consulta SQL personalizada y retorna múltiples filas."""
+        """
+        Ejecuta una consulta SQL personalizada y retorna múltiples filas.
+
+        Args:
+            sql: Consulta SQL a ejecutar.
+            params: Diccionario de parámetros SQL (opcional).
+            timeout: Timeout en segundos (opcional).
+
+        Returns:
+            Lista de filas resultantes.
+
+        Raises:
+            QueryError: Si hay error en la ejecución de la query.
+
+        Example:
+            Ejecutar una query personalizada:
+
+            >>> from util_bbdd import SyncDatabaseManager
+            >>> manager = SyncDatabaseManager(
+            ...     db_type="postgresql",
+            ...     conn_params={
+            ...         "host": "localhost",
+            ...         "port": 5432,
+            ...         "user": "postgres",
+            ...         "password": "secret",
+            ...         "database": "mydb"
+            ...     }
+            ... )
+            >>> # Query simple sin parámetros
+            >>> result = manager.execute_custom_many("SELECT * FROM users LIMIT 5")
+            >>> print(f"Encontradas {len(result)} filas")
+            >>> # Query con parámetros
+            >>> result = manager.execute_custom_many(
+            ...     "SELECT * FROM users WHERE age > :age",
+            ...     params={"age": 18}
+            ... )
+            >>> manager.close()
+        """
         result = self._execute_custom_sql(
             sql=sql,
             params=params,
@@ -1212,7 +1308,45 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
         params: dict[str, Any] | None = None,
         timeout: float | None = None,
     ) -> RowOrNone:
-        """Ejecuta una consulta SQL personalizada y retorna una única fila o None."""
+        """
+        Ejecuta una consulta SQL personalizada y retorna una única fila o None.
+
+        Args:
+            sql: Consulta SQL a ejecutar.
+            params: Diccionario de parámetros SQL (opcional).
+            timeout: Timeout en segundos (opcional).
+
+        Returns:
+            Una tupla (fila) si encuentra resultado, None si no hay filas.
+
+        Raises:
+            QueryError: Si hay error en la ejecución de la query.
+
+        Example:
+            Obtener un registro único:
+
+            >>> from util_bbdd import SyncDatabaseManager
+            >>> manager = SyncDatabaseManager(
+            ...     db_type="postgresql",
+            ...     conn_params={
+            ...         "host": "localhost",
+            ...         "port": 5432,
+            ...         "user": "postgres",
+            ...         "password": "secret",
+            ...         "database": "mydb"
+            ...     }
+            ... )
+            >>> # Buscar usuario por ID
+            >>> user = manager.execute_custom_one(
+            ...     "SELECT id, name, email FROM users WHERE id = :id",
+            ...     params={"id": 123}
+            ... )
+            >>> if user:
+            ...     print(f"Usuario encontrado: {user[1]} ({user[2]})")
+            ... else:
+            ...     print("Usuario no encontrado")
+            >>> manager.close()
+        """
         result = self._execute_custom_sql(
             sql=sql,
             params=params,

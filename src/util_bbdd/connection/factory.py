@@ -10,8 +10,8 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from .._core.capabilities import is_async_supported
 from .._core.exceptions import ConnectionError
+from ..core.capabilities import is_async_supported
 
 logger: logging.Logger = logging.getLogger(__name__)
 

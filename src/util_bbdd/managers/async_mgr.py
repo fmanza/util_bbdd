@@ -392,7 +392,41 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         sql: str,
         params: Any | None = None,
     ) -> Rows:
-        """Ejecuta SQL custom y retorna múltiples filas."""
+        """
+        Ejecuta SQL custom y retorna múltiples filas.
+
+        Args:
+            sql: Consulta SQL a ejecutar.
+            params: Diccionario de parámetros SQL (opcional).
+
+        Returns:
+            Lista de filas resultantes.
+
+        Raises:
+            QueryError: Si hay error en la ejecución de la query.
+
+        Example:
+            Ejecutar una query personalizada (async):
+
+            >>> import asyncio
+            >>> from util_bbdd import AsyncDatabaseManager
+            >>> async def main():
+            ...     manager = AsyncDatabaseManager(
+            ...         db_type="postgresql",
+            ...         conn_params={
+            ...             "host": "localhost",
+            ...             "port": 5432,
+            ...             "user": "postgres",
+            ...             "password": "secret",
+            ...             "database": "mydb"
+            ...         }
+            ...     )
+            ...     await manager.init()
+            ...     result = await manager.execute_custom_many("SELECT * FROM users LIMIT 5")
+            ...     print(f"Encontradas {len(result)} filas")
+            ...     await manager.close()
+            >>> asyncio.run(main())
+        """
         result = await self._execute_custom_sql(
             sql=sql,
             params=params,
@@ -405,7 +439,47 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         sql: str,
         params: Any | None = None,
     ) -> RowOrNone:
-        """Ejecuta SQL custom y retorna una única fila o None."""
+        """
+        Ejecuta SQL custom y retorna una única fila o None.
+
+        Args:
+            sql: Consulta SQL a ejecutar.
+            params: Diccionario de parámetros SQL (opcional).
+
+        Returns:
+            Una tupla (fila) si encuentra resultado, None si no hay filas.
+
+        Raises:
+            QueryError: Si hay error en la ejecución de la query.
+
+        Example:
+            Obtener un registro único (async):
+
+            >>> import asyncio
+            >>> from util_bbdd import AsyncDatabaseManager
+            >>> async def main():
+            ...     manager = AsyncDatabaseManager(
+            ...         db_type="postgresql",
+            ...         conn_params={
+            ...             "host": "localhost",
+            ...             "port": 5432,
+            ...             "user": "postgres",
+            ...             "password": "secret",
+            ...             "database": "mydb"
+            ...         }
+            ...     )
+            ...     await manager.init()
+            ...     user = await manager.execute_custom_one(
+            ...         "SELECT id, name, email FROM users WHERE id = :id",
+            ...         params={"id": 123}
+            ...     )
+            ...     if user:
+            ...         print(f"Usuario encontrado: {user[1]} ({user[2]})")
+            ...     else:
+            ...         print("Usuario no encontrado")
+            ...     await manager.close()
+            >>> asyncio.run(main())
+        """
         result = await self._execute_custom_sql(
             sql=sql,
             params=params,
@@ -573,6 +647,38 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         return supports_manager_columns_charset_collation(self.db_type)
 
     async def get_tables(self) -> Rows:
+        """
+        Obtiene la lista de tablas de la base de datos.
+
+        Returns:
+            Lista de tablas (cada fila es una tupla con metadatos de tabla).
+
+        Raises:
+            DatabaseOperationError: Si hay error en la operación.
+
+        Example:
+            Listar todas las tablas de una Base de Datos (async):
+
+            >>> import asyncio
+            >>> from util_bbdd import AsyncDatabaseManager
+            >>> async def main():
+            ...     manager = AsyncDatabaseManager(
+            ...         db_type="postgresql",
+            ...         conn_params={
+            ...             "host": "localhost",
+            ...             "port": 5432,
+            ...             "user": "postgres",
+            ...             "password": "secret",
+            ...             "database": "mydb"
+            ...         }
+            ...     )
+            ...     await manager.init()
+            ...     tables = await manager.get_tables()
+            ...     for table in tables:
+            ...         print(table[0])  # Nombre de la tabla
+            ...     await manager.close()
+            >>> asyncio.run(main())
+        """
         context_database: str = self._get_query_context_database()
         cache_key = self._cache_context_key(context_database)
         context_label = self._get_query_context_label()
@@ -658,6 +764,41 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         )
 
     async def get_columns(self, tabla: str) -> Rows:
+        """
+        Obtiene las columnas de una tabla.
+
+        Args:
+            tabla: Nombre de la tabla.
+
+        Returns:
+            Lista de columnas de la tabla (cada fila contiene metadatos de columna).
+
+        Raises:
+            DatabaseOperationError: Si hay error en la operación.
+
+        Example:
+            Obtener columnas de una tabla específica (async):
+
+            >>> import asyncio
+            >>> from util_bbdd import AsyncDatabaseManager
+            >>> async def main():
+            ...     manager = AsyncDatabaseManager(
+            ...         db_type="postgresql",
+            ...         conn_params={
+            ...             "host": "localhost",
+            ...             "port": 5432,
+            ...             "user": "postgres",
+            ...             "password": "secret",
+            ...             "database": "mydb"
+            ...         }
+            ...     )
+            ...     await manager.init()
+            ...     columns = await manager.get_columns("users")
+            ...     for col in columns:
+            ...         print(f"Columna: {col[0]}, Tipo: {col[1]}")
+            ...     await manager.close()
+            >>> asyncio.run(main())
+        """
         context_database: str = self._get_query_context_database()
         context_label = self._get_query_context_label()
         cache_key = self._cache_table_key(context_database, tabla)

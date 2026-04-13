@@ -38,10 +38,21 @@ class SchemaComparator:
     # ------------------------------------------------------------------
 
     #: Mapeo dialect → función fetcher de routines.
-    #: Para añadir soporte a un nuevo motor sin modificar el código base::
+    #: **Las claves son nombres de dialect SQLAlchemy**, no nombres de motor internos.
+    #: Consultar ``_DB_TYPE_TO_DIALECT`` para la correspondencia motor → dialect.
+    #: Ejemplo: SQL Server usa clave ``"mssql"``, no ``"sqlserver"``::
     #:
     #:     SchemaComparator._ROUTINE_FETCHERS["mssql"] = my_mssql_fetcher
     _ROUTINE_FETCHERS: ClassVar[dict[str, Callable[[Inspector, str | None], list[dict[str, str]]]]] = {}
+
+    #: Mapa de PostgreSQL procedure kind codes (pg_proc.prokind) a DDL object type labels.
+    #: 'f' = function, 'p' = procedure, 'w' = window function.
+    #: Used in ``_get_routines_postgresql`` to normalize prokind → DDL type.
+    _PROCEDURE_KIND_MAP: ClassVar[dict[str, str]] = {
+        "f": "FUNCTION",
+        "p": "PROCEDURE",
+        "w": "WINDOW",
+    }
 
     #: Reglas de limpieza DDL dialect-específicas aplicadas antes de la normalización universal.
     #: Cada entrada es ``(patron_regex, reemplazo)``.
@@ -49,9 +60,34 @@ class SchemaComparator:
     #:
     #:     SchemaComparator._DDL_STRIP_RULES.append((r"MY_PATTERN", ""))
     _DDL_STRIP_RULES: ClassVar[list[tuple[str, str]]] = [
-        (r"DEFINER=`[^`]+`@`[^`]+`", ""),  # MariaDB / MySQL
-        (r"CREATE OR REPLACE FORCE", "CREATE OR REPLACE"),  # Oracle
+        # MariaDB / MySQL
+        (r"DEFINER=`[^`]+`@`[^`]+`", ""),
+        # Oracle
+        (r"CREATE OR REPLACE FORCE", "CREATE OR REPLACE"),
+        # SQL Server: Escaped square brackets around identifiers [name], including special chars [My Column Name]
+        (r"\[([^\]]+)\]", r"\1"),
+        # SQL Server: WITH storage hints (FILLFACTOR, etc.)
+        (r"\s+WITH\s*\([^)]*\)(?=\s|$)", ""),
+        # PostgreSQL: LANGUAGE clause
+        (r"\s+LANGUAGE\s+\w+", ""),
+        # PostgreSQL: SECURITY clauses
+        (r"\s+SECURITY\s+(DEFINER|INVOKER)", ""),
+        # PostgreSQL: NULL handling clauses
+        (r"\s+(STRICT|RETURNS\s+NULL\s+ON\s+NULL\s+INPUT)", ""),
     ]
+
+    #: Mapa canónico de nombre de motor interno → nombre de dialect SQLAlchemy.
+    #: Necesario porque ``Inspector.dialect.name`` reporta el nombre de dialect de SA,
+    #: que puede diferir del nombre interno de la librería (p.ej. ``sqlserver`` → ``mssql``).
+    #: Las claves de ``_ROUTINE_FETCHERS`` y ``_DDL_STRIP_RULES`` deben usar los valores de este mapa.
+    _DB_TYPE_TO_DIALECT: ClassVar[dict[str, str]] = {
+        "mariadb": "mariadb",
+        "oracle": "oracle",
+        "postgresql": "postgresql",
+        "sqlserver": "mssql",  # SQL Server reporta dialect "mssql" en SQLAlchemy
+        "sqlite": "sqlite",
+        "hsqldb": "hsqldb",
+    }
 
     # ------------------------------------------------------------------
     # API pública
@@ -84,6 +120,10 @@ class SchemaComparator:
             include_foreign_keys: Comparar foreign keys (solo si ``include_tables``).
             include_comments: Comparar comentarios de tablas/columnas.
             include_routines: Comparar procedures/functions vía catálogo del motor.
+                **Nota**: No todos los motores soportan introspección de routines.
+                - MariaDB, Oracle, SQL Server, PostgreSQL: ✓ Soportado
+                - HSQLDB: ✗ No soportado (DDL no portable); ``include_routines=True`` será ignorado con warning.
+                - SQLite: N/A (sin routines)
 
         Returns:
             ``SchemaDiff`` con todas las diferencias encontradas.
@@ -606,7 +646,10 @@ class SchemaComparator:
     @staticmethod
     def _build_label(inspector: Inspector, schema: str | None) -> str:
         """Construye una etiqueta legible para el inspector."""
-        url = str(getattr(inspector.bind, "url", "unknown") if hasattr(inspector, "bind") else "unknown")
+        # inspector.engine es el atributo canónico en SA 2.x; inspector.bind es el alias
+        # deprecated de SA 1.4 que fue eliminado en SA 2.0.
+        engine = getattr(inspector, "engine", getattr(inspector, "bind", None))
+        url = str(getattr(engine, "url", "unknown"))
         # Ocultar credenciales si las hay
         url = re.sub(r"://[^@]+@", "://***@", url)
         if schema:
@@ -673,28 +716,38 @@ class SchemaComparator:
         """Intenta listar routines via reflect/dialect; devuelve None si no es posible.
 
         Nota: ``Inspector`` de SQLAlchemy no tiene API estándar para routines.
-        Esta implementación delega al registro ``_ROUTINE_FETCHERS`` por nombre de dialect.
+        Esta implementación delega al registro ``_ROUTINE_FETCHERS`` usando el nombre de
+        **dialect SQLAlchemy** (p.ej. ``"mssql"`` para SQL Server, no ``"sqlserver"``).
+        Consultar ``_DB_TYPE_TO_DIALECT`` para la correspondencia completa motor → dialect.
+
         Para soportar un nuevo motor sin modificar este método::
 
-            SchemaComparator._ROUTINE_FETCHERS["mssql"] = my_mssql_fetcher
+            SchemaComparator._ROUTINE_FETCHERS[
+                SchemaComparator._DB_TYPE_TO_DIALECT["sqlserver"]  # → "mssql"
+            ] = my_mssql_fetcher
         """
-        bind = getattr(inspector, "bind", None)
-        dialect_name: str = getattr(getattr(bind, "dialect", None), "name", "") or getattr(bind, "name", "")
+        # inspector.engine es canónico en SA 2.x; fallback a bind para SA 1.4.
+        engine = getattr(inspector, "engine", getattr(inspector, "bind", None))
+        dialect_name: str = getattr(getattr(engine, "dialect", None), "name", "")
 
         fetcher = SchemaComparator._ROUTINE_FETCHERS.get(dialect_name)
         return fetcher(inspector, schema) if fetcher is not None else None
 
     @staticmethod
     def _get_routines_mariadb(inspector: Inspector, schema: str | None) -> list[dict[str, str]]:
-        """Obtiene routines de MariaDB/MySQL via SHOW PROCEDURE STATUS / SHOW CREATE PROCEDURE."""
+        """Obtiene routines de MariaDB/MySQL via SHOW PROCEDURE STATUS / SHOW CREATE PROCEDURE.
+
+        **Performance note**: SHOW PROCEDURE STATUS is relatively fast, but large databases
+        benefit from pagination or result limiting. For performance-critical scenarios,
+        consider:``SchemaComparator.compare(..., include_routines=False)``.
+        """
         from sqlalchemy import text
 
         routines: list[dict[str, str]] = []
-        bind = inspector.bind
-        if bind is None:
+        engine = cast("Engine", getattr(inspector, "engine", getattr(inspector, "bind", None)))
+        if engine is None:
             return routines
 
-        engine = cast("Engine", bind)
         db_name = schema or str(getattr(engine, "url", None) and getattr(engine.url, "database", "") or "")
 
         try:
@@ -724,17 +777,21 @@ class SchemaComparator:
 
     @staticmethod
     def _get_routines_oracle(inspector: Inspector, schema: str | None) -> list[dict[str, str]]:
-        """Obtiene routines de Oracle via ALL_PROCEDURES + DBMS_METADATA."""
+        """Obtiene routines de Oracle via ALL_PROCEDURES + DBMS_METADATA.
+
+        **Performance note**: DBMS_METADATA.GET_DDL() can be slow on large catalogs (5k+ procedures).
+        Index queries on ALL_PROCEDURES and consider result caching for repeated comparisons.
+        For performance-critical workloads, disable routine introspection:
+        ``SchemaComparator.compare(..., include_routines=False)``."""
         from sqlalchemy import text
 
         routines: list[dict[str, str]] = []
-        bind = inspector.bind
-        if bind is None:
+        engine = cast("Engine", getattr(inspector, "engine", getattr(inspector, "bind", None)))
+        if engine is None:
             return routines
         if not schema:
             logger.warning("_get_routines_oracle requiere 'schema'; se omite la comparación de routines Oracle.")
             return routines
-        engine = cast("Engine", bind)
 
         try:
             with engine.connect() as conn:
@@ -762,6 +819,125 @@ class SchemaComparator:
             logger.warning("No se pudieron obtener routines Oracle para schema=%s: %s", schema, exc)
 
         return routines
+
+    @staticmethod
+    def _get_routines_mssql(inspector: Inspector, schema: str | None) -> list[dict[str, str]]:
+        """Obtiene routines de SQL Server via sys.procedures + sys.sql_modules.
+
+        **Performance note**: On large schemas (10k+ procedures), this may be slow.
+        Consider disabling routine introspection for performance-critical scenarios:
+        ``SchemaComparator.compare(..., include_routines=False)``.
+        """
+        from sqlalchemy import text
+
+        routines: list[dict[str, str]] = []
+        engine = cast("Engine", getattr(inspector, "engine", getattr(inspector, "bind", None)))
+        if engine is None:
+            return routines
+
+        schema_name = schema or "dbo"
+
+        try:
+            with engine.connect() as conn:
+                # Procedures (type 'P')
+                result = conn.execute(
+                    text("SELECT name FROM sys.procedures WHERE schema_id = SCHEMA_ID(:schema) ORDER BY name"),
+                    {"schema": schema_name},
+                )
+                for row in result.mappings():
+                    proc_name = str(row["name"])
+                    try:
+                        ddl_result = conn.execute(
+                            text(
+                                "SELECT definition FROM sys.sql_modules "
+                                "WHERE object_id = OBJECT_ID(CONCAT(:schema_name, '.', :proc_name))"
+                            ),
+                            {"schema_name": schema_name, "proc_name": proc_name},
+                        )
+                        ddl_row = ddl_result.first()
+                        definition = str(ddl_row[0]) if ddl_row else ""
+                    except Exception:  # noqa: BLE001
+                        definition = ""
+                    routines.append({"name": proc_name, "type": "PROCEDURE", "definition": definition})
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("No se pudieron obtener routines SQL Server para schema=%s: %s", schema, exc)
+
+        return routines
+
+    @staticmethod
+    def _get_routines_postgresql(inspector: Inspector, schema: str | None) -> list[dict[str, str]]:
+        """Obtiene routines de PostgreSQL via pg_proc + pg_get_functiondef.
+
+        **Performance note**: Uses pg_get_functiondef() which materializes full DDL.
+        On schemas with 10k+ functions, this may consume significant memory.
+        Consider caching results or disabling routine introspection for large catalogs.
+        """
+        from sqlalchemy import text
+
+        routines: list[dict[str, str]] = []
+        engine = cast("Engine", getattr(inspector, "engine", getattr(inspector, "bind", None)))
+        if engine is None:
+            return routines
+
+        schema_name = schema or "public"
+
+        try:
+            with engine.connect() as conn:
+                # Functions and procedures (pg_proc)
+                result = conn.execute(
+                    text(
+                        "SELECT p.proname, p.prokind "
+                        "FROM pg_proc p "
+                        "JOIN pg_namespace n ON p.pronamespace = n.oid "
+                        "WHERE n.nspname = :schema "
+                        "ORDER BY p.proname"
+                    ),
+                    {"schema": schema_name},
+                )
+                for row in result.mappings():
+                    func_name = str(row["proname"])
+                    proc_kind = str(row["prokind"])  # 'f' = function, 'p' = procedure, 'w' = window
+                    kind_label: str = SchemaComparator._PROCEDURE_KIND_MAP.get(proc_kind, "PROCEDURE")
+
+                    try:
+                        # Try pg_get_functiondef for functions; fall back to empty definition for procedures
+                        # M1: Use parameterized query to prevent SQL injection via regprocedure cast
+                        ddl_result = conn.execute(
+                            text(
+                                "SELECT pg_get_functiondef((:schema_name || '.' || :func_name)::regprocedure) AS definition"
+                            ),
+                            {"schema_name": schema_name, "func_name": func_name},
+                        )
+                        ddl_row = ddl_result.first()
+                        definition = str(ddl_row[0]) if ddl_row and ddl_row[0] else ""
+                    except Exception:  # noqa: BLE001
+                        definition = ""
+                    routines.append({"name": func_name, "type": kind_label, "definition": definition})
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("No se pudieron obtener routines PostgreSQL para schema=%s: %s", schema, exc)
+
+        return routines
+
+    @staticmethod
+    def _get_routines_hsqldb(inspector: Inspector, schema: str | None) -> list[dict[str, str]]:
+        """Obtiene routines de HSQLDB (sin soporte de DDL; retorna lista vacía con warning).
+
+        **Limitación**: HSQLDB soporta ``INFORMATION_SCHEMA.ROUTINES``, pero no proporciona
+        una forma portable de extraer el DDL (definición) de procedures/functions via JDBC.
+        Esta implementación retorna una lista vacía de forma segura, evitando falsos negativos
+        en comparaciones de esquemas.
+
+        **Impacto**: Cuando ``SchemaComparator.compare(..., include_routines=True)`` se invoca
+        en HSQLDB, las routines simplemente no se comparan (no se reportan diferencias).
+        Para comparar DDL de routines en HSQLDB, considere usar una BD de producción compatible
+        (PostgreSQL, Oracle, SQL Server o MariaDB).
+
+        **Performance note**: This method returns immediately (O(1)). No database queries are issued."""
+        logger.warning(
+            "HSQLDB no soporta extracción de DDL de routines; se omite la comparación. "
+            "Consulte SchemaComparator.compare(..., include_routines=True) docs para detalles."
+        )
+        return []
 
     # ------------------------------------------------------------------
     # Resumen
@@ -793,7 +969,9 @@ class SchemaComparator:
 SchemaComparator._ROUTINE_FETCHERS.update(
     {
         "mariadb": SchemaComparator._get_routines_mariadb,
-        "mysql": SchemaComparator._get_routines_mariadb,
         "oracle": SchemaComparator._get_routines_oracle,
+        "mssql": SchemaComparator._get_routines_mssql,
+        "postgresql": SchemaComparator._get_routines_postgresql,
+        "hsqldb": SchemaComparator._get_routines_hsqldb,
     }
 )

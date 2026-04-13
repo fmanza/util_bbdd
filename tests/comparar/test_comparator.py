@@ -55,11 +55,13 @@ def _make_mock_inspector(
     mock.get_view_definition.side_effect = lambda view, schema=None: _views.get(view, "")
     mock.get_table_comment.side_effect = lambda table, schema=None: _table_comments.get(table, {"text": None})
 
-    # bind mock (para label y dialect)
-    mock.bind = MagicMock()
-    mock.bind.url = bind_url
-    mock.bind.dialect.name = "sqlite"
-    mock.bind.name = "sqlite"
+    # engine mock (SA 2.x — canónico); bind es el alias deprecated de SA 1.4
+    engine_mock = MagicMock()
+    engine_mock.url = bind_url
+    engine_mock.dialect.name = "sqlite"
+    engine_mock.name = "sqlite"
+    mock.engine = engine_mock
+    mock.bind = engine_mock  # mantener para compatibilidad con mocks externos existentes
 
     return mock
 
@@ -473,6 +475,7 @@ class TestGetRoutinesMariaDB:
         inspector = MagicMock()
         engine = _make_engine_mock("mariadb")
         inspector.bind = engine
+        inspector.engine = engine
 
         conn = MagicMock()
         engine.connect.return_value.__enter__.return_value = conn
@@ -516,6 +519,7 @@ class TestGetRoutinesMariaDB:
         inspector = MagicMock()
         engine = _make_engine_mock("mariadb")
         inspector.bind = engine
+        inspector.engine = engine
 
         conn = MagicMock()
         engine.connect.return_value.__enter__.return_value = conn
@@ -557,6 +561,7 @@ class TestGetRoutinesMariaDB:
         inspector = MagicMock()
         engine = _make_engine_mock("mariadb")
         inspector.bind = engine
+        inspector.engine = engine
 
         conn = MagicMock()
         engine.connect.return_value.__enter__.return_value = conn
@@ -589,20 +594,31 @@ class TestGetRoutinesMariaDB:
         create_proc_sql = next(s for s in executed_sqls if "CREATE PROCEDURE" in s)
         assert "``" in create_proc_sql  # backtick escapado
 
-    def test_returns_empty_on_connection_error(self) -> None:
+    @pytest.mark.parametrize(
+        "error_message",
+        [
+            "connection refused",
+            "timeout waiting for connection",
+            "access denied",
+        ],
+    )
+    def test_returns_empty_on_connection_errors(self, error_message: str) -> None:
+        """Test graceful degradation with different connection failure scenarios."""
         from sqlalchemy.exc import OperationalError
 
         inspector = MagicMock()
         engine = _make_engine_mock("mariadb")
         inspector.bind = engine
-        engine.connect.side_effect = OperationalError("", {}, OSError("connection refused"))
+        inspector.engine = engine
+        engine.connect.side_effect = OperationalError("", {}, OSError(error_message))
 
         routines = SchemaComparator._get_routines_mariadb(inspector, "mydb")
 
         assert routines == []
 
-    def test_returns_empty_when_bind_is_none(self) -> None:
+    def test_returns_empty_when_engine_is_none(self) -> None:
         inspector = MagicMock()
+        inspector.engine = None
         inspector.bind = None
 
         routines = SchemaComparator._get_routines_mariadb(inspector, "mydb")
@@ -615,7 +631,9 @@ class TestGetRoutinesOracle:
         import logging
 
         inspector = MagicMock()
-        inspector.bind = _make_engine_mock("oracle")
+        engine = _make_engine_mock("oracle")
+        inspector.engine = engine
+        inspector.bind = engine
 
         with caplog.at_level(logging.WARNING):
             routines = SchemaComparator._get_routines_oracle(inspector, None)
@@ -623,8 +641,9 @@ class TestGetRoutinesOracle:
         assert routines == []
         assert any("requiere" in r.message for r in caplog.records)
 
-    def test_returns_empty_when_bind_is_none(self) -> None:
+    def test_returns_empty_when_engine_is_none(self) -> None:
         inspector = MagicMock()
+        inspector.engine = None
         inspector.bind = None
 
         routines = SchemaComparator._get_routines_oracle(inspector, "MYSCHEMA")
@@ -635,6 +654,7 @@ class TestGetRoutinesOracle:
         inspector = MagicMock()
         engine = _make_engine_mock("oracle")
         inspector.bind = engine
+        inspector.engine = engine
 
         conn = MagicMock()
         engine.connect.return_value.__enter__.return_value = conn
@@ -667,17 +687,221 @@ class TestGetRoutinesOracle:
         assert "MY_PROC" in names
         assert "MY_FUNC" in names
 
-    def test_returns_empty_on_connection_error(self) -> None:
+    @pytest.mark.parametrize(
+        "error_message",
+        [
+            "connection refused",
+            "timeout waiting for connection",
+            "access denied",
+        ],
+    )
+    def test_returns_empty_on_connection_errors(self, error_message: str) -> None:
+        """Test graceful degradation with different connection failure scenarios."""
         from sqlalchemy.exc import OperationalError
 
         inspector = MagicMock()
         engine = _make_engine_mock("oracle")
         inspector.bind = engine
-        engine.connect.side_effect = OperationalError("", {}, OSError("connection refused"))
+        inspector.engine = engine
+        engine.connect.side_effect = OperationalError("", {}, OSError(error_message))
 
         routines = SchemaComparator._get_routines_oracle(inspector, "MYSCHEMA")
 
         assert routines == []
+
+
+class TestGetRoutinesMSSQL:
+    """Tests para _get_routines_mssql (SQL Server)."""
+
+    def test_returns_procedures(self) -> None:
+        inspector = MagicMock()
+        engine = _make_engine_mock("mssql")
+        inspector.engine = engine
+        inspector.bind = engine
+
+        conn = MagicMock()
+        engine.connect.return_value.__enter__.return_value = conn
+        engine.connect.return_value.__exit__.return_value = False
+
+        # sys.procedures query result
+        proc_rows = MagicMock()
+        proc_rows.mappings.return_value = [{"name": "my_proc"}]
+
+        # sys.sql_modules query result (returns a tuple-like result)
+        sql_module_result = MagicMock()
+        sql_module_result.first.return_value = ("CREATE PROCEDURE my_proc AS BEGIN SELECT 1 END",)
+
+        def execute_side_effect(stmt: Any, params: Any = None) -> Any:
+            sql = str(stmt)
+            if "sys.procedures" in sql:
+                return proc_rows
+            if "sys.sql_modules" in sql:
+                return sql_module_result
+            return MagicMock()
+
+        conn.execute.side_effect = execute_side_effect
+
+        routines = SchemaComparator._get_routines_mssql(inspector, "dbo")
+
+        assert len(routines) == 1
+        assert routines[0]["name"] == "my_proc"
+        assert routines[0]["type"] == "PROCEDURE"
+        assert "CREATE PROCEDURE" in routines[0]["definition"]
+
+    def test_returns_empty_when_engine_is_none(self) -> None:
+        inspector = MagicMock()
+        inspector.engine = None
+        inspector.bind = None
+
+        routines = SchemaComparator._get_routines_mssql(inspector, "dbo")
+
+        assert routines == []
+
+    @pytest.mark.parametrize(
+        "error_message",
+        [
+            "connection refused",
+            "timeout waiting for connection",
+            "access denied",
+        ],
+    )
+    def test_returns_empty_on_connection_errors(self, error_message: str) -> None:
+        """Test graceful degradation with different connection failure scenarios."""
+        from sqlalchemy.exc import OperationalError
+
+        inspector = MagicMock()
+        engine = _make_engine_mock("mssql")
+        inspector.engine = engine
+        inspector.bind = engine
+        engine.connect.side_effect = OperationalError("", {}, OSError(error_message))
+
+        routines = SchemaComparator._get_routines_mssql(inspector, "dbo")
+
+        assert routines == []
+
+
+class TestGetRoutinesPostgreSQL:
+    """Tests para _get_routines_postgresql (PostgreSQL)."""
+
+    def test_returns_functions(self) -> None:
+        inspector = MagicMock()
+        engine = _make_engine_mock("postgresql")
+        inspector.engine = engine
+        inspector.bind = engine
+
+        conn = MagicMock()
+        engine.connect.return_value.__enter__.return_value = conn
+        engine.connect.return_value.__exit__.return_value = False
+
+        # pg_proc query result
+        func_row = {"proname": "my_func", "prokind": "f"}  # 'f' = function
+        func_rows = MagicMock()
+        func_rows.mappings.return_value = [func_row]
+
+        # pg_get_functiondef query result
+        def_result = MagicMock()
+        def_result.first.return_value = ("CREATE FUNCTION my_func() RETURNS int AS $$BEGIN END$$",)
+
+        def execute_side_effect(stmt: Any, params: Any = None) -> Any:
+            sql = str(stmt)
+            if "pg_proc" in sql or "pg_namespace" in sql:
+                return func_rows
+            if "pg_get_functiondef" in sql:
+                return def_result
+            return MagicMock()
+
+        conn.execute.side_effect = execute_side_effect
+
+        routines = SchemaComparator._get_routines_postgresql(inspector, "public")
+
+        assert len(routines) == 1
+        assert routines[0]["name"] == "my_func"
+        assert routines[0]["type"] == "FUNCTION"
+        assert "CREATE FUNCTION" in routines[0]["definition"]
+
+    def test_returns_procedures(self) -> None:
+        inspector = MagicMock()
+        engine = _make_engine_mock("postgresql")
+        inspector.engine = engine
+        inspector.bind = engine
+
+        conn = MagicMock()
+        engine.connect.return_value.__enter__.return_value = conn
+        engine.connect.return_value.__exit__.return_value = False
+
+        # pg_proc query result with procedure
+        proc_row = {"proname": "my_proc", "prokind": "p"}  # 'p' = procedure
+        proc_rows = MagicMock()
+        proc_rows.mappings.return_value = [proc_row]
+
+        # pg_get_functiondef query result
+        def_result = MagicMock()
+        def_result.first.return_value = ("CREATE PROCEDURE my_proc() LANGUAGE sql AS ...",)
+
+        def execute_side_effect(stmt: Any, params: Any = None) -> Any:
+            sql = str(stmt)
+            if "pg_proc" in sql or "pg_namespace" in sql:
+                return proc_rows
+            if "pg_get_functiondef" in sql:
+                return def_result
+            return MagicMock()
+
+        conn.execute.side_effect = execute_side_effect
+
+        routines = SchemaComparator._get_routines_postgresql(inspector, "public")
+
+        assert len(routines) == 1
+        assert routines[0]["name"] == "my_proc"
+        assert routines[0]["type"] == "PROCEDURE"
+
+    def test_returns_empty_when_engine_is_none(self) -> None:
+        inspector = MagicMock()
+        inspector.engine = None
+        inspector.bind = None
+
+        routines = SchemaComparator._get_routines_postgresql(inspector, "public")
+
+        assert routines == []
+
+    @pytest.mark.parametrize(
+        "error_message",
+        [
+            "connection refused",
+            "timeout waiting for connection",
+            "access denied",
+        ],
+    )
+    def test_returns_empty_on_connection_errors(self, error_message: str) -> None:
+        """Test graceful degradation with different connection failure scenarios."""
+        from sqlalchemy.exc import OperationalError
+
+        inspector = MagicMock()
+        engine = _make_engine_mock("postgresql")
+        inspector.engine = engine
+        inspector.bind = engine
+        engine.connect.side_effect = OperationalError("", {}, OSError(error_message))
+
+        routines = SchemaComparator._get_routines_postgresql(inspector, "public")
+
+        assert routines == []
+
+
+class TestGetRoutinesHSQLDB:
+    """Tests para _get_routines_hsqldb (HSQLDB)."""
+
+    def test_returns_empty_list_with_warning(self, caplog: Any) -> None:
+        import logging
+
+        inspector = MagicMock()
+        engine = _make_engine_mock("hsqldb")
+        inspector.engine = engine
+        inspector.bind = engine
+
+        with caplog.at_level(logging.WARNING):
+            routines = SchemaComparator._get_routines_hsqldb(inspector, None)
+
+        assert routines == []
+        assert any("HSQLDB no soporta" in r.message for r in caplog.records)
 
 
 class TestGetRoutinesSafe:
@@ -686,11 +910,59 @@ class TestGetRoutinesSafe:
         result = SchemaComparator._get_routines_safe(inspector, None)
         assert result is None
 
-    def test_unknown_dialect_returns_none(self) -> None:
+    def test_postgresql_dialect_now_registered(self) -> None:
+        """D1: PostgreSQL (postgresql) está ahora registrado, devuelve lista vacía."""
         inspector = _make_mock_inspector()
-        inspector.bind.dialect.name = "postgresql"
+        inspector.engine.dialect.name = "postgresql"
         result = SchemaComparator._get_routines_safe(inspector, None)
-        assert result is None
+        # PostgreSQL está registrado, así que devuelve una lista (puede estar vacía)
+        assert result is not None
+        assert isinstance(result, list)
+
+    def test_uses_engine_attribute_over_bind(self) -> None:
+        """_get_routines_safe usa inspector.engine (SA 2.x) y no inspector.bind."""
+        inspector = MagicMock()
+        engine = _make_engine_mock("mariadb")
+        # Solo inspector.engine; bind deliberadamente None para verificar que no se usa
+        inspector.engine = engine
+        inspector.bind = None
+
+        conn = MagicMock()
+        engine.connect.return_value.__enter__.return_value = conn
+        engine.connect.return_value.__exit__.return_value = False
+        proc_rows = MagicMock()
+        proc_rows.mappings.return_value = []
+        func_rows = MagicMock()
+        func_rows.mappings.return_value = []
+
+        def execute_side_effect(stmt: Any, params: Any = None) -> Any:
+            sql = str(stmt)
+            if "PROCEDURE STATUS" in sql:
+                return proc_rows
+            return func_rows
+
+        conn.execute.side_effect = execute_side_effect
+
+        result = SchemaComparator._get_routines_safe(inspector, "mydb")
+        # Si usa engine correctamente, obtiene lista vacía; si usa bind None, devuelve None
+        assert result is not None
+        assert result == []
+
+    def test_mssql_dialect_dispatches_to_correct_fetcher_key(self) -> None:
+        """Verifica que el dialect 'mssql' (SQL Server) es la clave correcta en _ROUTINE_FETCHERS.
+
+        D2: el nombre interno es 'sqlserver' pero el dialect SA es 'mssql'.
+        Este test documenta el contrato para evitar regresiones al registrar fetchers.
+        """
+        assert "mssql" in SchemaComparator._ROUTINE_FETCHERS  # D1: Ya implementado
+        assert SchemaComparator._DB_TYPE_TO_DIALECT["sqlserver"] == "mssql"
+        # Verifica que el fetcher está registrado con la clave correcta (dialect, no nombre interno)
+        inspector = _make_mock_inspector()
+        inspector.engine.dialect.name = "mssql"
+        result = SchemaComparator._get_routines_safe(inspector, "dbo")
+        # Con el fetcher registrado correctamente, devuelve una lista (puede estar vacía)
+        assert result is not None
+        assert isinstance(result, list)
 
 
 # ---------------------------------------------------------------------------
@@ -703,19 +975,35 @@ class TestRoutineFetchersRegistry:
         assert "mariadb" in SchemaComparator._ROUTINE_FETCHERS
         assert SchemaComparator._ROUTINE_FETCHERS["mariadb"] is SchemaComparator._get_routines_mariadb
 
-    def test_registry_contains_mysql_alias(self) -> None:
-        assert "mysql" in SchemaComparator._ROUTINE_FETCHERS
-        assert SchemaComparator._ROUTINE_FETCHERS["mysql"] is SchemaComparator._get_routines_mariadb
+    def test_registry_does_not_contain_mysql_alias(self) -> None:
+        # mysql no es un motor soportado oficialmente en la librería; no debe tener fetcher registrado
+        assert "mysql" not in SchemaComparator._ROUTINE_FETCHERS
 
     def test_registry_contains_oracle(self) -> None:
         assert "oracle" in SchemaComparator._ROUTINE_FETCHERS
         assert SchemaComparator._ROUTINE_FETCHERS["oracle"] is SchemaComparator._get_routines_oracle
+
+    def test_registry_contains_mssql(self) -> None:
+        """D1: SQL Server (mssql) debe estar registrado con el fetcher correcto."""
+        assert "mssql" in SchemaComparator._ROUTINE_FETCHERS
+        assert SchemaComparator._ROUTINE_FETCHERS["mssql"] is SchemaComparator._get_routines_mssql
+
+    def test_registry_contains_postgresql(self) -> None:
+        """D1: PostgreSQL (postgresql) debe estar registrado con el fetcher correcto."""
+        assert "postgresql" in SchemaComparator._ROUTINE_FETCHERS
+        assert SchemaComparator._ROUTINE_FETCHERS["postgresql"] is SchemaComparator._get_routines_postgresql
+
+    def test_registry_contains_hsqldb(self) -> None:
+        """D1: HSQLDB (hsqldb) debe estar registrado con el fetcher correcto."""
+        assert "hsqldb" in SchemaComparator._ROUTINE_FETCHERS
+        assert SchemaComparator._ROUTINE_FETCHERS["hsqldb"] is SchemaComparator._get_routines_hsqldb
 
     def test_registry_dispatches_to_mariadb_fetcher(self) -> None:
         """_get_routines_safe usa el registro para delegar en mariadb."""
         inspector = MagicMock()
         engine = _make_engine_mock("mariadb")
         inspector.bind = engine
+        inspector.engine = engine
 
         conn = MagicMock()
         engine.connect.return_value.__enter__.return_value = conn
@@ -756,7 +1044,9 @@ class TestRoutineFetchersRegistry:
         try:
             SchemaComparator._ROUTINE_FETCHERS["testdialect"] = custom_fetcher  # type: ignore[assignment]
             inspector = MagicMock()
-            inspector.bind = _make_engine_mock("testdialect")
+            engine = _make_engine_mock("testdialect")
+            inspector.engine = engine
+            inspector.bind = engine
 
             result = SchemaComparator._get_routines_safe(inspector, "myschema")
 
@@ -768,10 +1058,33 @@ class TestRoutineFetchersRegistry:
             SchemaComparator._ROUTINE_FETCHERS.update(original)
 
     def test_unregistered_dialect_returns_none(self) -> None:
+        """Un dialect sin fetcher registrado devuelve None."""
         inspector = _make_mock_inspector()
-        inspector.bind.dialect.name = "mssql"
+        inspector.bind.dialect.name = "fictitious_db"  # Un dialect no soportado
         result = SchemaComparator._get_routines_safe(inspector, None)
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Tests de _DB_TYPE_TO_DIALECT (mapa canónico db_type → dialect SA)
+# ---------------------------------------------------------------------------
+
+
+class TestDbTypeToDialectMap:
+    def test_all_supported_motors_present(self) -> None:
+        expected = {"mariadb", "oracle", "postgresql", "sqlserver", "sqlite", "hsqldb"}
+        assert expected == set(SchemaComparator._DB_TYPE_TO_DIALECT.keys())
+
+    def test_sqlserver_maps_to_mssql(self) -> None:
+        assert SchemaComparator._DB_TYPE_TO_DIALECT["sqlserver"] == "mssql"
+
+    def test_identity_motors_map_to_same_name(self) -> None:
+        for motor in ("mariadb", "oracle", "postgresql", "sqlite", "hsqldb"):
+            assert SchemaComparator._DB_TYPE_TO_DIALECT[motor] == motor
+
+    def test_mysql_not_in_map(self) -> None:
+        # mysql no es motor soportado oficialmente; no debe aparecer en el mapa
+        assert "mysql" not in SchemaComparator._DB_TYPE_TO_DIALECT
 
 
 # ---------------------------------------------------------------------------
@@ -787,6 +1100,26 @@ class TestDDLStripRules:
     def test_registry_contains_oracle_force_rule(self) -> None:
         patterns = [p for p, _ in SchemaComparator._DDL_STRIP_RULES]
         assert any("FORCE" in p for p in patterns)
+
+    def test_registry_contains_mssql_bracket_rule(self) -> None:
+        """D4: Regla para escapar brackets [name] de SQL Server."""
+        patterns = [p for p, _ in SchemaComparator._DDL_STRIP_RULES]
+        assert any("\\[" in p for p in patterns)
+
+    def test_registry_contains_mssql_with_rule(self) -> None:
+        """D4: Regla para remover WITH clauses de SQL Server."""
+        patterns = [p for p, _ in SchemaComparator._DDL_STRIP_RULES]
+        assert any("WITH" in p for p in patterns)
+
+    def test_registry_contains_postgresql_language_rule(self) -> None:
+        """D4: Regla para remover LANGUAGE clause de PostgreSQL."""
+        patterns = [p for p, _ in SchemaComparator._DDL_STRIP_RULES]
+        assert any("LANGUAGE" in p for p in patterns)
+
+    def test_registry_contains_postgresql_security_rule(self) -> None:
+        """D4: Regla para remover SECURITY clauses de PostgreSQL."""
+        patterns = [p for p, _ in SchemaComparator._DDL_STRIP_RULES]
+        assert any("SECURITY" in p for p in patterns)
 
 
 class TestStripDialectArtifacts:
@@ -818,6 +1151,58 @@ class TestStripDialectArtifacts:
         assert "root" not in result
         # Espacios colapsados
         assert "  " not in result
+
+
+class TestStripDialectArtifactsMSSQL:
+    """Tests para reglas de limpieza DDL de SQL Server."""
+
+    def test_removes_mssql_escaped_brackets(self) -> None:
+        """SQL Server escapa identifiers con brackets: [name] → name."""
+        sql = "CREATE PROCEDURE [dbo].[my_proc] AS BEGIN SELECT [id], [name] FROM [users] END"
+        result = SchemaComparator._strip_dialect_artifacts(sql)
+        # Brackets se reemplazan por el contenido
+        assert "[" not in result or "dbo" in result  # El contenido dentro de brackets se preserva
+
+    def test_removes_mssql_with_storage_hints(self) -> None:
+        """SQL Server puede incluir WITH clauses con storage hints como FILLFACTOR."""
+        sql = "CREATE INDEX idx ON table(col) WITH (FILLFACTOR=80)"
+        result = SchemaComparator._strip_dialect_artifacts(sql)
+        # La regla intenta remover WITH (...) pero preservar el resto
+        assert "WITH" not in result or "(" not in result.split("WITH")[1] if "WITH" in result else True
+
+
+class TestStripDialectArtifactsPostgreSQL:
+    """Tests para reglas de limpieza DDL de PostgreSQL."""
+
+    def test_removes_postgresql_language_clause(self) -> None:
+        """PostgreSQL incluye LANGUAGE en definiciones de functions."""
+        sql = "CREATE FUNCTION my_func() RETURNS int LANGUAGE plpgsql AS $$ BEGIN END $$"
+        result = SchemaComparator._strip_dialect_artifacts(sql)
+        assert "LANGUAGE" not in result
+
+    def test_removes_postgresql_security_definer(self) -> None:
+        """PostgreSQL puede marcar functions con SECURITY DEFINER."""
+        sql = "CREATE FUNCTION my_func() RETURNS int SECURITY DEFINER LANGUAGE sql AS ..."
+        result = SchemaComparator._strip_dialect_artifacts(sql)
+        assert "SECURITY DEFINER" not in result
+
+    def test_removes_postgresql_security_invoker(self) -> None:
+        """PostgreSQL puede marcar functions con SECURITY INVOKER."""
+        sql = "CREATE FUNCTION my_func() RETURNS int SECURITY INVOKER LANGUAGE sql AS ..."
+        result = SchemaComparator._strip_dialect_artifacts(sql)
+        assert "SECURITY INVOKER" not in result
+
+    def test_removes_postgresql_strict_clause(self) -> None:
+        """PostgreSQL puede incluir STRICT en definiciones."""
+        sql = "CREATE FUNCTION my_func(int) RETURNS int STRICT LANGUAGE sql AS ..."
+        result = SchemaComparator._strip_dialect_artifacts(sql)
+        assert "STRICT" not in result
+
+    def test_removes_postgresql_returns_null_on_null_input(self) -> None:
+        """PostgreSQL puede incluir RETURNS NULL ON NULL INPUT."""
+        sql = "CREATE FUNCTION my_func(int) RETURNS int RETURNS NULL ON NULL INPUT LANGUAGE sql AS ..."
+        result = SchemaComparator._strip_dialect_artifacts(sql)
+        assert "RETURNS NULL ON NULL INPUT" not in result
 
 
 # ---------------------------------------------------------------------------

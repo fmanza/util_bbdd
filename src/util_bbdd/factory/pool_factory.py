@@ -12,8 +12,8 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from .._core.capabilities import is_async_supported
 from ..connection.protocols import ConnectionPoolProtocol
+from ..core.capabilities import is_async_supported
 
 
 class PoolFactory:
