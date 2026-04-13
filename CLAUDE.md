@@ -181,6 +181,8 @@ chore:    mantenimiento (deps, config, CI)
 
 ### Gobernanza de Plataformas Duales
 - Integración Claude Code ↔ Copilot Chat: [`.github/INTEGRATION_MAP.md`](.github/INTEGRATION_MAP.md) — gobernanza, sincronización, responsables
+- Registro de agentes: [`.github/AGENTS.md`](.github/AGENTS.md) — 10 agentes disponibles, herramientas, flujos y matriz de relaciones
+- Guía Documentation Reviewer: [`docs/DOCUMENTATION_REVIEWER_GUIDE.md`](docs/DOCUMENTATION_REVIEWER_GUIDE.md) — cuándo y cómo invocar auditoría documental
 
 ---
 

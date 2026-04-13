@@ -77,6 +77,45 @@ Añadidos `[[tool.mypy.overrides]]` para `pandas`/`pandas.*` y `networkx`/`netwo
 
 ---
 
+## [0.6.8] - Unreleased (In Development)
+
+### Planned
+
+#### Phase 4 Optimizations (LOW priority, v0.6.8 scope)
+
+**L1: MSSQL Bracket Regex Enhancement** (IN_PROGRESS)
+- File: `src/util_bbdd/comparar/comparator.py:54`
+- Change: `r"\[(\w+)\]"` → `r"\[([^\]]+)\]"` to support spaces/dashes in brackets
+- Examples: `[My Column]`, `[Column-X]`, `[My Table Name]`
+- Tests: New test cases for bracket variations
+- Status: PLAN + AUDIT_PLAN phase (2026-04-13-v0.6.8)
+
+**L2: Performance Limitations Documentation** (PLANNED)
+- File: `src/util_bbdd/comparar/comparator.py` (docstrings)
+- Add: N+1 query warning for large schema comparisons
+- Rationale: Cascade comparisons can trigger multiple queries per table
+- Documentation: Add optimization guide + caching recommendations
+
+**L3: Exception Handling Test Coverage** (PLANNED)
+- File: `tests/comparar/test_comparator.py`
+- Add: 3 parametrized test cases (TimeoutError, PermissionError, Deadlock)
+- Framework: `pytest.mark.parametrize`
+- Coverage: Exception handling robustness validation
+
+### Added
+
+(Placeholder for v0.6.8 additions)
+
+### Changed
+
+(Placeholder for v0.6.8 changes)
+
+### Fixed
+
+(Placeholder for v0.6.8 fixes)
+
+---
+
 ## [Unreleased]
 
 ### Planned (v0.7.0+)

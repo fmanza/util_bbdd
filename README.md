@@ -55,146 +55,367 @@ Mapa rápido:
 
 Nota: `hsqldb` no dispone de implementación async en `util_bbdd`. Las factorías async lanzan error explícito para ese motor.
 
-## Arquitectura v0.6.3 - Estructura de 3 Niveles
+---
 
-Util_bbdd usa una **arquitectura jerárquica de 3 niveles** para máxima modularidad:
+## ⚡ Quick Start (5 minutos)
 
-### Level 1: Abstracciones Internas
+### Instalación
+
+```bash
+pip install util_bbdd
 ```
-_core/               # Tipos básicos, excepciones, contratos
+
+### PostgreSQL — Sync
+
+```python
+from util_bbdd import SyncDatabaseManager
+
+# Conectar a la BD
+manager = SyncDatabaseManager(
+    db_type="postgresql",
+    conn_params={
+        "host": "localhost",
+        "port": 5432,
+        "user": "postgres",
+        "password": "secret",
+        "database": "mydb"
+    }
+)
+
+# Listar tablas
+tables = manager.get_tables()
+print("Tablas:", [table[0] for table in tables])
+
+# Obtener columnas de una tabla
+columns = manager.get_columns("users")
+print("Columnas:", columns)
+
+# Ejecutar query personalizadas
+result = manager.execute_custom_many("SELECT * FROM users LIMIT 5")
+print("Usuarios:", result)
+
+# Cerrar conexión
+manager.close()
+```
+
+### PostgreSQL — Async
+
+```python
+import asyncio
+from util_bbdd import AsyncDatabaseManager
+
+async def main():
+    # Conectar a la BD
+    manager = AsyncDatabaseManager(
+        db_type="postgresql",
+        conn_params={
+            "host": "localhost",
+            "port": 5432,
+            "user": "postgres",
+            "password": "secret",
+            "database": "mydb"
+        }
+    )
+
+    # Inicializar el manager
+    await manager.init()
+
+    # Listar tablas
+    tables = await manager.get_tables()
+    print("Tablas:", [table[0] for table in tables])
+
+    # Cerrar conexión
+    await manager.close()
+
+asyncio.run(main())
+```
+
+### SQLite — Sin configuración
+
+```python
+from util_bbdd import SyncDatabaseManager
+
+# Usar BD en memoria para testing
+manager = SyncDatabaseManager(
+    db_type="sqlite",
+    conn_params={"database": ":memory:"}
+)
+
+# Crear tabla de prueba
+manager.execute_custom_many(
+    "CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)"
+)
+
+tables = manager.get_tables()
+print("Tablas:", tables)
+
+manager.close()
+```
+
+### MariaDB / MySQL
+
+```python
+from util_bbdd import SyncDatabaseManager
+
+manager = SyncDatabaseManager(
+    db_type="mariadb",  # o "mysql"
+    conn_params={
+        "host": "localhost",
+        "port": 3306,
+        "user": "root",
+        "password": "secret",
+        "database": "mydb"
+    }
+)
+
+tables = manager.get_tables()
+print("Tablas:", [table[0] for table in tables])
+
+manager.close()
+```
+
+### Oracle
+
+```python
+from util_bbdd import SyncDatabaseManager
+
+manager = SyncDatabaseManager(
+    db_type="oracle",
+    conn_params={
+        "host": "localhost",
+        "port": 1521,
+        "user": "admin",
+        "password": "secret",
+        "sid": "ORCL"  # o "service_name": "xepdb1"
+    }
+)
+
+tables = manager.get_tables()
+print("Tablas:", [table[0] for table in tables])
+
+manager.close()
+```
+
+#### 📌 Ver más
+
+- [Guía de instalación completa](docs/INSTALLATION.md)
+- [Guía de excepciones](docs/EXCEPTIONS.md)
+- [SchemaComparator — Comparación de esquemas](docs/COMPARATOR.md)
+
+---
+
+## Arquitectura v0.6.7 - Estructura de 3 Niveles (Estable)
+
+Util_bbdd usa una **arquitectura jerárquica de 3 niveles** para máxima modularidad, extensibilidad y separación de responsabilidades:
+
+### Level 1: Abstracciones Internas (Foundation Layer)
+
+Define tipos, excepciones y contratos. **Regla:** No importar desde Level 2 ni 3.
+
+```
+_core/               # Tipos y contratos fundamentales
   ├── types.py       # Type aliases (RowOrNone, Rows, etc.)
-  ├── exceptions.py  # Jerarquía de excepciones
-  ├── contracts.py   # Protocols/interfaces
-  └── constants.py   # Enums
+  ├── exceptions.py  # Jerarquía unificada de excepciones (DatabaseException raíz)
+  ├── contracts.py   # Protocols/interfaces (ConnectionProvider, etc.)
+  └── constants.py   # Enums compartidos
 
-_drivers/            # Gestión de drivers
-  ├── validator.py   # Validación centralizada
-  ├── capabilities.py# Capacidades por motor
-  └── registry.py    # Registro de drivers
+_drivers/            # Gestión de drivers y capabilities (no desde Level 2+)
+  ├── validator.py   # DatabaseTypeValidator: valida motores desde database_types.json
+  ├── driver_validator.py # DriverValidator: detecta disponibilidad de drivers Python
+  ├── capabilities.py # Detecta soporte async y features por motor
+  └── _config_loader.py # Carga y tipado del JSON de configuración
+
+core/
+  └── capabilities.py # Motor capabilities (async support, features)
 ```
 
-### Level 2: Capas de Acceso
+**Beneficio:** Punto único de verdad para excepciones y contratos; facilita evolución sin quebrantar interfaces.
+
+### Level 2: Capas de Acceso (Services Layer)
+
+Operaciones core reutilizables entre managers. **Regla:** Solo importar desde Level 1; nunca desde Level 3.
+
 ```
-connection/          # Pool, factory, configuración (1,305 líneas)
-  ├── factory.py     # Connection factory
+connection/          # Pool, factory, configuración (≈1,305 LOC)
+  ├── factory.py     # ConnectFactory.create_connection/async
+  ├── builder.py     # build_conn_params() por motor
+  ├── protocols.py   # ConnectionPoolProtocol
+  ├── close.py       # Cierre de conexiones y cleanup
+  ├── motors/        # Adaptadores por motor (mariadb, postgresql, oracle, etc.)
   ├── pool.py        # Pool management
-  ├── config.py      # Connection configs
-  ├── params.py      # Parameters management
-  ├── protocols.py   # Interfaces
-  ├── close.py       # Close utilities
-  └── motors/        # Motor-specific implementations
+  ├── params.py      # Parameters normalization
+  └── config.py      # Connection configuration
 
-query/               # Registry, resolver, executors (314 líneas base)
-  ├── registry.py    # Query registry
-  ├── resolver.py    # Query resolver
+query/               # Registry y ejecución (≈314 LOC base)
+  ├── registry.py    # QueryRegistry: carga y acceso a definiciones JSON
+  ├── resolver.py    # QueryResolver: resuelve placeholders en queries
+  ├── queries.py     # DatabaseQueries: wrapper de conveniencia
   └── executors/     # Executor implementations
+      ├── base.py    # QueryExecutorBase (abstract)
+      ├── sync_query_executor.py
+      └── async_query_executor.py
 
-metadata/            # Metadata processing pipeline (887 líneas)
-  ├── cache.py       # Caching layer
-  ├── contracts.py   # Interfaces
-  ├── normalizer.py  # SQL normalization
-  ├── builder.py     # Metadata builder
-  ├── fetcher.py     # Data fetcher
-  └── manager.py     # Orchestration
+metadata/            # Lectura y cache de schema (≈887 LOC)
+  ├── cache.py       # DatabaseMetadataCache + RelationshipMetadataCache
+  ├── normalizer.py  # Normaliza respuestas de metadata
+  ├── builder.py     # DDLBuilder - construye queries DDL
+  ├── fetcher.py     # MetadataFetcher - obtiene schema
+  ├── manager.py     # MetadataManager - orquesta operaciones
+  ├── contracts.py   # Interfaces y tipos de metadata
+  ├── mariadb/       # Helpers específicos de MariaDB
+  └── providers/     # Sync/AsyncMetadataProvider
 
-results/             # Result management (74 líneas)
-  ├── types.py       # Result type definitions
-  └── normalizer.py  # Result normalization
+results/             # Normalización de resultados (≈74 LOC)
+  ├── types.py       # RowOrNone, Rows, tipos de resultado
+  └── normalizer.py  # ResultNormalizer
+
+factory/             # SQLAlchemy engines
+  ├── pool_factory.py
+  ├── sqlalchemy_engine_factory.py
+  └── async_sqlalchemy_engine_factory.py
+
+validators/          # Validadores adicionales por negocio
+  └── (implementations)
 ```
 
-### Level 3: Especialización
+**Beneficio:** Cada módulo < 500 LOC, responsabilidad única, fácil testear en aislamiento.
+
+### Level 3: Especialización (Domain Logic Layer)
+
+Funcionalidad de dominio construida sobre Level 2. **Regla:** Puede importar de Level 1 y 2, nunca al revés.
+
 ```
-bulk/                # Operaciones masivas (2,129 líneas)
-  ├── crud.py        # Bulk insert/update/delete (999 líneas)
-  ├── audit.py       # Audit trail (866 líneas)
-  └── normalize.py   # SQL normalization (264 líneas)
+managers/            # APIs públicas de alto nivel (≈2,200+ LOC)
+  ├── sync_mgr.py    # SyncDatabaseManager (1,000+ LOC)
+  │   └── Interfaz principal para operaciones sync
+  └── async_mgr.py   # AsyncDatabaseManager (700+ LOC)
+      └── Interfaz principal para operaciones async
 
-analysis/            # Análisis de relaciones multinivel
-  ├── base.py        # GraphDocument, traversal y niveles
-  ├── graphviz.py    # Graphviz visualization
-  ├── graphviz_ext.py# Graphviz multinivel con columnas y cardinalidad
-  └── matplotlib_graph.py # Matplotlib visualization multinivel
+bulk/                # Operaciones masivas (≈2,129 LOC)
+  ├── crud.py        # Bulk INSERT/UPDATE/DELETE desde DataFrames (999 LOC)
+  ├── audit.py       # AuditManager para tracking de cambios (866 LOC)
+  └── normalize.py   # Normalización de registros para SQL (264 LOC)
 
-managers/            # APIs de alto nivel (2,200+ líneas)
-  ├── sync_mgr.py    # SyncDatabaseManager (1,000+ líneas)
-  └── async_mgr.py   # AsyncDatabaseManager (700+ líneas)
+analysis/            # Análisis de relaciones multinivel (≈1,500+ LOC)
+  ├── base.py        # GraphDocument, niveles, traversal, dirección, tipología visual
+  ├── graphviz.py    # Visualización con Graphviz base
+  ├── graphviz_ext.py# Graphviz multinivel con columnas, cardinalidad, leyenda
+  └── matplotlib_graph.py # Matplotlib alineado al modelo multinivel
+
+comparar/            # Comparación de esquemas (NEW in v0.6.7)
+  ├── comparator.py  # SchemaComparator.compare(source, target) → SchemaDiff
+  ├── contracts.py   # Tipos y contratos de comparación
+  └── models.py      # SchemaDiff (frozen dataclasses), resultados tipados
 
 doc/                 # Generadores documentales
-  ├── template_engine.py
-  ├── html_generator.py
-  ├── excel_generator.py
-  ├── word_generator.py
-  └── templates/
-      ├── layouts/
-      ├── macros/
-      └── pages/
+  ├── template_engine.py # Motor Jinja2 personalizado
+  ├── html_generator.py # HTML generado + offline SVG
+  ├── excel_generator.py # Excel desde pandas
+  ├── word_generator.py # Word desde python-docx
+  └── templates/     # Plantillas Jinja2 modulares
+      ├── layouts/   # Estilos base (HTML/CSS)
+      ├── macros/    # Bloques reutilizables
+      └── pages/     # Páginas completas y módulos
+
+[Otros]
+├── async_utils.py   # Helpers (maybe_await, etc.)
+├── models.py        # Modelos de dominio compartidos
+└── data/            # Data fixtures para tests
 ```
 
-**Beneficios:**
-- ✅ Cada módulo < 500 líneas
-- ✅ Responsabilidad única por archivo
-- ✅ Fácil agregar nuevos motores (solo agregar archivo en `connection/motors/`)
-- ✅ Compatibilidad mantenida en wrappers legacy seleccionados; el manager sync usa `SyncDatabaseManager`
+**Beneficio:** Dominio enfocado, sin acoplamiento a infraestructura; fácil agregar nuevos formatos/motores sin editar Level 2.
 
-## Compatibilidad viva
+### Regla de Imports (Flujo Prohibido ↔ Permitido)
 
-La ruta recomendada para código nuevo usa imports canónicos y deja las rutas legacy solo como capa de compatibilidad.
+```
+✅ PERMITIDO (jerarquía descendente)
+   Level 1 imports ← ninguno (capa base)
+   Level 2 imports ← Level 1
+   Level 3 imports ← Level 1, Level 2
 
-| Área | Import canónico | Ruta legacy aún soportada |
+❌ PROHIBIDO (círculos o ascensión)
+   Level 2 imports from Level 3
+   Level 1 imports from Level 2 o 3
+   Ciclos internos entre Level 3
+```
+
+### Compatibilidad Viva (v0.6.7)
+
+La ruta recomendada para código nuevo usa **imports canónicos** desde la raíz del paquete. Rutas legacy se mantienen solo como transición.
+
+| Componente | Import Canónico (Recomendado) | Ruta Legacy (Deprecated) |
 |---|---|---|
 | Manager sync | `from util_bbdd import SyncDatabaseManager` | `from util_bbdd.database_manager import DatabaseManager` |
 | Manager async | `from util_bbdd import AsyncDatabaseManager` | `from util_bbdd.async_database_manager import AsyncDatabaseManager` |
-| Bulk | `from util_bbdd.bulk import bulk_crud, AuditManager` | `from util_bbdd.bulk_crud import bulk_crud, AuditManager` |
-| Analysis | `from util_bbdd.analysis import GraphvizRelationshipGraphExt` | `from util_bbdd.grafos import GraphvizRelationshipGraphExt` |
-| Validator de tipo de BD | `from util_bbdd._drivers.validator import DatabaseTypeValidator` | `from util_bbdd.database_type_validator import DatabaseTypeValidator` |
+| Bulk operations | `from util_bbdd.bulk import bulk_crud, AuditManager` | `from util_bbdd.bulk_crud import bulk_crud, AuditManager` |
+| Analysis graphs | `from util_bbdd.analysis import GraphvizRelationshipGraphExt` | `from util_bbdd.grafos import GraphvizRelationshipGraphExt` |
+| Comparator | `from util_bbdd import SchemaComparator, SchemaDiff` | N/A (nuevo en v0.6.7) |
+| Driver validator | `from util_bbdd._drivers.validator import DatabaseTypeValidator` | `from util_bbdd.database_type_validator import DatabaseTypeValidator` |
 
-Notas de compatibilidad activa:
+**Notas de compatibilidad activa:**
 
 - El código nuevo debe preferir la superficie canónica expuesta desde `util_bbdd`, `util_bbdd.managers`, `util_bbdd.bulk` y `util_bbdd.analysis`.
 - Las rutas legacy se mantienen para no romper integraciones existentes, pero ya no son la referencia principal en ejemplos ni en migraciones.
 - `get_storage_inventory()` usa el contrato actual por capacidades: `primary`, `temp_tablespaces` y `sqlite_file_summary` cuando aplica.
 - La guía de detalle para migrar imports y contratos está en [docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md).
 
-## Novedades v0.6.2 en grafos y documentación
+## ✨ Novedades v0.6.7 (Estable Vigente)
 
+### Comparación de Esquemas (NEW)
+- `SchemaComparator.compare(source, target)` → `SchemaDiff` tipado
+- Detección de cambios: tablas, columnas, claves, índices, vistas
+- Soporte multi-motor: diferencias de sintaxis DDL normalizadas
+- Extensible: `_ROUTINE_FETCHERS` y `_DDL_STRIP_RULES` por motor (OCP)
+
+### Capa de Agentes y Flujo Estructurado
+- Instrucciones especializadas para Copilot Chat y Claude Code
+- Flujo `PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION`
+- 10 agentes disponibles (Plan Architect, Feature Implementer, Code Auditor, etc.)
+- Mapeo documentado entre plataformas (Claude Code ↔ Copilot Chat)
+
+### Mejoras en Arquitectura
+- Jerarquía de imports explícita: Level 1 → 2 → 3 (nunca reversa)
+- Excepciones tipadas desde raíz con `from util_bbdd import DatabaseException, ConnectionError, ...`
+- Compatibilidad viva: rutas legacy solo como transición hacia imports canónicos
+
+---
+
+## 📚 Resumen de Evolución (v0.6.0 → v0.6.7)
+
+### v0.6.2 - Cierre Documental Offline
 - Relaciones de n niveles mediante `max_depth`
-- Dirección configurable del recorrido: `incoming`, `outgoing` o `both`
-- Modos de visualización de columnas: `compact`, `relations`, `all`
-- Cardinalidad representada por extremos en Graphviz
-- HTML con pestañas por nivel y por sentido
-- Word con resumen de niveles totales y no visibles
-- Payloads compartidos para leyenda y resumen entre HTML y Word
-- Exportación HTML offline con iconos SVG locales para paginación y acciones
-- Diagrama HTML inline con zoom, paneo y controles de navegación offline
+- Dirección configurable: `incoming`, `outgoing` o `both`
+- Modos de visualización: `compact`, `relations`, `all`
+- Cardinalidad en Graphviz (extremos)
+- HTML con pestañas por nivel/sentido
+- Payloads compartidos entre HTML y Word
+- SVG inline con zoom/paneo offline
 
-### Resumen de la release v0.6.2
+### v0.6.3 - Agentes de Copilot
+- Capa de agentes y flujo prompt-agente documentado
+- Instrucciones por archivo (.instructions.md)
+- Mapeo Copilot Chat → Claude Code
 
-La versión v0.6.2 cierra la evolución multinivel introducida en v0.6.0 y consolidada en v0.6.1, con foco en portabilidad offline, reutilización documental y cierre operativo de la experiencia HTML.
+### v0.6.4 → v0.6.6 - Consolidación
+- Capa de managers estabilizada
+- Testeo multinivel
+- Documentación evolucionada
 
-- Tipología visual de tablas en diagramas Graphviz y HTML:
-  - `entity`: azul pastel
-  - `association`: verde pastel
-  - `hierarchy`: naranja pastel
-- La tipología visual es heurística y se calcula desde `analysis/base.py`, de forma reutilizable por distintos renderers.
-- La detección inicial de `association` usa varias FKs y, cuando aplica, PK compuesta basada en columnas relacionales.
-- HTML y Word comparten una leyenda visual explícita con:
-  - dirección (`Salida` / `Entrada`)
-  - tipo de tabla
-  - cardinalidad
-  - tipo de relación soportado hoy (`FK`)
-- El resumen de niveles, ayudas de navegación y textos de dirección se generan desde payloads comunes reutilizables.
-- La política actual de vistas en diagramas enriquecidos sigue siendo `exclude`.
-- Word y HTML pueden reutilizar una misma instancia de `GraphvizRelationshipGraphExt` durante la misma corrida multi-formato para evitar recomputación innecesaria.
-- La salida HTML offline copia iconos SVG locales y mantiene operativos los botones de exportación y paginación sin dependencias externas.
-- Los diagramas de detalle se embeben como SVG inline para garantizar paneo y zoom desde la propia página en navegadores offline.
+### v0.6.7 - Estable Vigente
+- Comparador de esquemas integrado (SchemaDiff)
+- Imports canónicos desde raíz
+- Instrucción.md por área especializada
+- Esta estructura (3 niveles) como standard de evolución
 
-### Semántica de tipología visual
+---
 
-La clasificación visual de tablas no pretende sustituir el modelo de datos ni imponer una taxonomía absoluta.
+### Tipología Visual de Tablas (v0.6.2+, vigente en v0.6.7)
 
-- `entity`: tabla de negocio general que no encaja en las heurísticas de asociación o jerarquía
-- `association`: tabla puente detectada por varias claves foráneas y, en los casos soportados, PK compuesta basada en columnas FK
-- `hierarchy`: tabla con autorreferencia que sugiere una relación padre-hijo dentro de la misma entidad
+La clasificación visual de tablas en diagramas NO sustituye el modelo de datos real, sino que ofrece ayuda visual heurística:
+
+- `entity`: tabla de negocio general (color azul pastel)
+- `association`: tabla puente detectada por múltiples FKs (color verde pastel)
+- `hierarchy`: tabla autorreferencial con relación padre-hijo (color naranja pastel)
 
 Si un esquema contiene tablas híbridas o patrones muy específicos por motor, la tipología debe interpretarse como ayuda visual y no como clasificación canónica.
 
@@ -612,19 +833,23 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.6.3** (Stable - capa de agentes de Copilot y flujo prompt-agente documentado)
+**Current Version: v0.6.7** (Stable - Arquitectura 3 niveles consolidada, Comparador integrado, Agentes de Copilot)
 
-Roadmap:
-- `v0.1.0`: CRUD base + auditoría
-- `v0.2.0`: Documentación BD automática mejorada
-- `v0.3.0`: Soporte PostgreSQL mejorado
-- `v0.4.0`: Consolidación de conexiones
+Roadmap completado:
+- `v0.1.0` ✅: CRUD base + auditoría
+- `v0.2.0` ✅: Documentación BD automática mejorada
+- `v0.3.0` ✅: Soporte PostgreSQL mejorado
+- `v0.4.0` ✅: Consolidación de conexiones
 - `v0.5.0` ✅: Refactorización arquitectónica (3-level hierarchy)
-- `v0.6.0` ✅: Grafos multinivel, HTML tabulado y contrato documental nuevo
-- `v0.6.1` ✅: Tipología visual, leyenda HTML ampliada y reutilización de análisis entre Word y HTML
-- `v0.6.2` ✅: SVG inline offline, resumen/leyenda compartidos, iconos locales y ajuste de tooltips/exportación
-- `v0.6.3` ✅ (actual): capa de agentes de Copilot, flujo recomendado y mapeo prompt-agente documentado
-- `v1.0.0`: API estable, cobertura 85%+
+- `v0.6.0` ✅: Grafos multinivel, HTML tabulado, contrato documental nuevo
+- `v0.6.1` ✅: Tipología visual, leyenda HTML ampliada, reutilización de análisis entre Word y HTML
+- `v0.6.2` ✅: SVG inline offline, resumen/leyenda compartidos, iconos locales
+- `v0.6.3` ✅: Capa de agentes Copilot, flujo prompt-agente documentado, instrucciones especializadas
+- `v0.6.4` ✅: Consolidación de testeo, stabilización de managers
+- `v0.6.5` ✅: Mejoras en documentación de archivos de instrucción, mapeo Claude Code ↔ Copilot
+- `v0.6.6` ✅: Estabilización de integración, release notes internas
+- `v0.6.7` ✅ (vigente): Comparador de esquemas, imports canónicos desde raíz, esta estructura como standard
+- `v1.0.0` (futuro): API estable, cobertura 85%+
 
 ## Licencia
 

@@ -1,7 +1,7 @@
 # INTEGRATION_MAP.md
 
 **Versionado**: v0.6.7
-**Última actualización**: 10 de abril de 2026
+**Última actualización**: 13 de abril de 2026
 **Propósito**: Gobernanza y sincronización entre `.claude/` (Claude Code) y `.github/` (Copilot Chat)
 
 > Este documento es **autoridad única** para responder:
@@ -50,7 +50,19 @@ Ambos documentos tratan la relación Claude Code ↔ Copilot Chat, pero con prop
 
 .github/                           ← Copilot Chat (GitHub Copilot, VS Code extension)
 ├── copilot-instructions.md        # Política base (AUTORIDAD para Copilot Chat)
-├── prompts/                       # 8 prompts (Fase 2, equivalentes a .claude/commands/)
+├── AGENTS.md                      # Registro central de 10 agentes especializados
+├── agents/                        # Agentes especializados (10 disponibles)
+│   ├── workflow-director.agent.md
+│   ├── plan-architect.agent.md
+│   ├── feature-implementer.agent.md
+│   ├── hotfix-responder.agent.md
+│   ├── code-auditor.agent.md
+│   ├── documentation-reviewer.agent.md
+│   ├── security-reviewer.agent.md
+│   ├── maturity-assessment.agent.md
+│   ├── version-closer.agent.md
+│   └── explore.agent.md
+├── prompts/                       # 9 prompts (8 equivalentes a .claude/commands/ + documentation_review)
 │   ├── new_feature.prompt.md
 │   ├── hotfix.prompt.md
 │   ├── refactor.prompt.md
@@ -58,7 +70,8 @@ Ambos documentos tratan la relación Claude Code ↔ Copilot Chat, pero con prop
 │   ├── security_review.prompt.md
 │   ├── tech_debt.prompt.md
 │   ├── maturity_assessment.prompt.md
-│   └── version_closure.prompt.md
+│   ├── version_closure.prompt.md
+│   └── documentation_review.prompt.md  # Solo Copilot Chat / agente directo (sin equivalente en .claude/commands/)
 └── instructions/                  # Instrucciones por área (python, architecture, tests, etc.)
 
 CLAUDE.md                          ← Política transversal (ambas plataformas)
@@ -84,6 +97,7 @@ docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md  ← Equivalencias (usuario final)
 | **11** | `CLAUDE.md` | Both | Backend Lead | Per-release (policies) | Transversal policy: PLAN→STATUS, SOLID, roles | Authority for both platforms |
 | **12** | `.github/copilot-instructions.md` | Copilot Chat | Backend Lead | Per-release | Policy base, slash command guide (manual entries) | Reference to CLAUDE.md + prompts/ |
 | **13** | `docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md` | Both | DevOps Lead | Per-release (new commands) | User-facing matrix + 3 integration options | Authority for equivalences |
+| **14** | `.github/AGENTS.md` | Copilot Chat + Claude Code | Arch Lead | Per-release (nuevo agente) | Registro central de 10 agentes: propósito, herramientas, invocación, matriz de relaciones | Sync con `.github/agents/*.agent.md` (añadir entrada cuando se crea agente nuevo) |
 
 ---
 
@@ -124,12 +138,14 @@ Cada vez que **actualices un flujo** (PLAN→AUDIT_PLAN→IMPLEMENT, policy, o e
 
 1. [ ] **Crea** `.claude/commands/new-command.md` siguiendo `COMMAND_TEMPLATE.md`
 2. [ ] **Crea equivalente** `.github/prompts/new_command.prompt.md`
-3. [ ] **Actualiza tablas de referencia**:
+3. [ ] **Crea agente si aplica** `.github/agents/new-command.agent.md` (si el comando requiere agente especializado)
+4. [ ] **Actualiza tablas de referencia**:
    - CLAUDE_COPILOT_MAPPING.md (matriz de equivalencias)
    - INTEGRATION_MAP.md (esta tabla de gobernanza)
-4. [ ] **Agrega entrada en CLAUDE.md** → slash commands disponibles
-5. [ ] **Actualiza docstring en `.claude/settings.json`** si afecta hooks
-6. [ ] **Comenta en PR**: "New command: `/new-command`. Added in: .claude/commands/, .github/prompts/, CLAUDE_COPILOT_MAPPING.md, INTEGRATION_MAP.md"
+   - `.github/AGENTS.md` (registro de agentes — añadir entrada con propósito, herramientas, invocación)
+5. [ ] **Agrega entrada en CLAUDE.md** → slash commands disponibles
+6. [ ] **Actualiza docstring en `.claude/settings.json`** si afecta hooks
+7. [ ] **Comenta en PR**: "New command: `/new-command`. Added in: .claude/commands/, .github/prompts/, .github/agents/, .github/AGENTS.md, CLAUDE_COPILOT_MAPPING.md, INTEGRATION_MAP.md"
 
 ---
 
@@ -197,3 +213,4 @@ Antes de cerrar una release, ejecuta **este checklist** para asegurar coherencia
 | Versión | Fecha | Cambios |
 |---------|-------|---------|
 | v0.6.7 | 10 abr 2026 | Initial: 13 files, 2 platforms, 4 responsables, pre-release checklist |
+| v0.6.7.1 | 13 abr 2026 | Add `.github/AGENTS.md` (fila 14), `.github/agents/` (10 agentes), `documentation_review.prompt.md` (9º prompt), checklist actualizado para nuevos agentes |
