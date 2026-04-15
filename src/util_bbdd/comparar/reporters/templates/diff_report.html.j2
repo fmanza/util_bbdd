@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Diff: {{ diff.source_label }} vs {{ diff.target_label }}</title>
+  <title>Diff: {{ diff.source_label | e }} vs {{ diff.target_label | e }}</title>
   <style>
     :root {
       --color-added:    #16a34a;
@@ -30,14 +30,47 @@
     header p  { font-size: 0.9rem; opacity: 0.8; }
     main { max-width: 1100px; margin: 2rem auto; padding: 0 1.5rem; }
 
+    /* Controls bar: filter + search */
+    .controls-bar {
+      display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;
+      background: #fff; border: 1px solid var(--color-border);
+      border-radius: 8px; padding: 0.65rem 1rem; margin-bottom: 1.25rem;
+    }
+    .controls-bar .label {
+      font-size: 0.78rem; font-weight: 600; color: #6b7280; margin-right: 0.25rem;
+    }
+    .filter-btn {
+      padding: 0.25rem 0.7rem; border-radius: 99px; border: 1.5px solid;
+      font-size: 0.75rem; font-weight: 600; cursor: pointer;
+      background: transparent; transition: background 0.15s, opacity 0.15s;
+    }
+    .filter-btn.inactive { opacity: 0.35; }
+    .filter-btn[data-filter="tables-added"]    { border-color: var(--color-added);    color: var(--color-added); }
+    .filter-btn[data-filter="tables-removed"]  { border-color: var(--color-removed);  color: var(--color-removed); }
+    .filter-btn[data-filter="tables-modified"] { border-color: var(--color-modified); color: var(--color-modified); }
+    .filter-btn[data-filter="views"]    { border-color: var(--color-header); color: var(--color-header); }
+    .filter-btn[data-filter="routines"] { border-color: #7c3aed; color: #7c3aed; }
+    .filter-btn[data-filter="tables-added"].active    { background: #f0fdf4; }
+    .filter-btn[data-filter="tables-removed"].active  { background: #fef2f2; }
+    .filter-btn[data-filter="tables-modified"].active { background: #fffbeb; }
+    .filter-btn[data-filter="views"].active    { background: #eff6ff; }
+    .filter-btn[data-filter="routines"].active { background: #f5f3ff; }
+
+    .search-sep { width: 1px; height: 1.5rem; background: var(--color-border); margin: 0 0.25rem; }
+    .search-input {
+      flex: 1; min-width: 180px; max-width: 300px;
+      padding: 0.25rem 0.65rem; border-radius: 99px;
+      border: 1.5px solid var(--color-border);
+      font-size: 0.8rem; outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-input:focus { border-color: var(--color-header); }
+
     /* Summary cards */
     .summary { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 2rem; }
     .card {
-      background: #fff;
-      border: 1px solid var(--color-border);
-      border-radius: 8px;
-      padding: 1rem 1.5rem;
-      min-width: 160px;
+      background: #fff; border: 1px solid var(--color-border);
+      border-radius: 8px; padding: 1rem 1.5rem; min-width: 150px;
     }
     .card .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; }
     .card .value { font-size: 1.75rem; font-weight: 700; }
@@ -48,27 +81,18 @@
     /* Section */
     section { margin-bottom: 2.5rem; }
     section h2 {
-      font-size: 1.2rem;
-      border-bottom: 2px solid var(--color-border);
-      padding-bottom: 0.5rem;
-      margin-bottom: 1rem;
+      font-size: 1.2rem; border-bottom: 2px solid var(--color-border);
+      padding-bottom: 0.5rem; margin-bottom: 1rem;
     }
 
-    /* Table block */
+    /* Diff blocks */
     .diff-block {
-      background: #fff;
-      border: 1px solid var(--color-border);
-      border-radius: 8px;
-      margin-bottom: 1.25rem;
-      overflow: hidden;
+      background: #fff; border: 1px solid var(--color-border);
+      border-radius: 8px; margin-bottom: 1.25rem; overflow: hidden;
     }
     .diff-block-header {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.75rem 1rem;
-      font-weight: 600;
-      font-size: 0.95rem;
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.75rem 1rem; font-weight: 600; font-size: 0.95rem;
       border-bottom: 1px solid var(--color-border);
     }
     .diff-block-header.added    { background: #f0fdf4; border-left: 4px solid var(--color-added); }
@@ -81,245 +105,345 @@
     th { background: var(--color-header); color: #fff; text-align: left; padding: 0.5rem 0.75rem; }
     td { padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--color-border); }
     tr:nth-child(even) td { background: var(--color-row-even); }
-    .sub-title { font-size: 0.8rem; font-weight: 600; color: #374151; margin: 0.5rem 0 0.25rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .sub-title {
+      font-size: 0.8rem; font-weight: 600; color: #374151; margin: 0.5rem 0 0.25rem;
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
 
-    /* Status badges */
+    /* Badges */
     .badge {
-      display: inline-block;
-      font-size: 0.7rem;
-      font-weight: 700;
-      padding: 0.1rem 0.45rem;
-      border-radius: 99px;
-      text-transform: uppercase;
+      display: inline-block; font-size: 0.7rem; font-weight: 700;
+      padding: 0.1rem 0.45rem; border-radius: 99px; text-transform: uppercase;
     }
     .badge.added    { background: #dcfce7; color: var(--color-added); }
     .badge.removed  { background: #fee2e2; color: var(--color-removed); }
     .badge.modified { background: #fef3c7; color: var(--color-modified); }
 
-    code { font-family: ui-monospace, monospace; font-size: 0.85em; background: #f3f4f6; padding: 0.1em 0.3em; border-radius: 3px; }
+    code {
+      font-family: ui-monospace, monospace; font-size: 0.85em;
+      background: #f3f4f6; padding: 0.1em 0.3em; border-radius: 3px;
+    }
     details summary { cursor: pointer; color: #2563eb; font-size: 0.85rem; }
-    pre { white-space: pre-wrap; word-break: break-all; font-size: 0.8rem; background: #1e293b; color: #e2e8f0; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem; }
+    pre {
+      white-space: pre-wrap; word-break: break-all; font-size: 0.8rem;
+      background: #1e293b; color: #e2e8f0; padding: 0.75rem;
+      border-radius: 4px; margin-top: 0.5rem;
+    }
     .no-diff { color: #6b7280; font-style: italic; }
+    .search-no-match { display: none !important; }
 
-    /* Mermaid diagram */
-    .mermaid-container { background: #fff; border: 1px solid var(--color-border); border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; text-align: center; }
+    /* Mermaid */
+    .mermaid-container {
+      background: #fff; border: 1px solid var(--color-border);
+      border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; text-align: center;
+    }
     .mermaid-container h2 { text-align: left; }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Reporte de diferencias de esquema</h1>
-    <p>
-      <strong>Origen:</strong> {{ diff.source_label }} &nbsp;→&nbsp;
-      <strong>Destino:</strong> {{ diff.target_label }}
-    </p>
-    {% if diff.summary %}<p>{{ diff.summary }}</p>{% endif %}
-  </header>
 
-  <main>
-    <!-- Summary cards -->
-    <section>
-      <div class="summary">
-        <div class="card added">
-          <div class="label">Tablas añadidas</div>
-          <div class="value">{{ summary.tables_added }}</div>
-        </div>
-        <div class="card removed">
-          <div class="label">Tablas eliminadas</div>
-          <div class="value">{{ summary.tables_removed }}</div>
-        </div>
-        <div class="card modified">
-          <div class="label">Tablas modificadas</div>
-          <div class="value">{{ summary.tables_modified }}</div>
-        </div>
-        <div class="card modified">
-          <div class="label">Vistas con diff</div>
-          <div class="value">{{ summary.total_views }}</div>
-        </div>
-        <div class="card modified">
-          <div class="label">Rutinas con diff</div>
-          <div class="value">{{ summary.total_routines }}</div>
-        </div>
-      </div>
-      {% if not summary.has_differences %}
-        <p class="no-diff">✅ Sin diferencias detectadas entre los esquemas.</p>
-      {% endif %}
-    </section>
+<header>
+  <h1>Reporte de diferencias de esquema</h1>
+  <p><strong>Origen:</strong> {{ diff.source_label | e }}
+     &nbsp;→&nbsp;
+     <strong>Destino:</strong> {{ diff.target_label | e }}</p>
+  {% if diff.summary %}<p>{{ diff.summary | e }}</p>{% endif %}
+</header>
 
-    <!-- Mermaid diagram -->
-    {% if diff.table_diffs %}
-    <div class="mermaid-container">
-      <h2>Diagrama de diferencias (tablas)</h2>
-      <div class="mermaid">
-graph LR
-{% if added_tables %}
-    subgraph added["✅ Añadidas"]
-{% for name in added_tables %}
-        A_{{ loop.index }}["{{ name | replace('"', "'") }}"]
-{% endfor %}
-    end
+<main>
+
+{# ── Controls bar: filtros + búsqueda ─────────────────────────────────── #}
+{% set cats_with_data = [] %}
+{% if summary.tables_added    %}{% set _ = cats_with_data.append("tables-added")    %}{% endif %}
+{% if summary.tables_removed  %}{% set _ = cats_with_data.append("tables-removed")  %}{% endif %}
+{% if summary.tables_modified %}{% set _ = cats_with_data.append("tables-modified") %}{% endif %}
+{% if summary.total_views     %}{% set _ = cats_with_data.append("views")            %}{% endif %}
+{% if summary.total_routines  %}{% set _ = cats_with_data.append("routines")         %}{% endif %}
+
+{% if cats_with_data %}
+<div class="controls-bar">
+  <span class="label">Filtrar:</span>
+  {% for cat, label in filter_cats %}
+    {% if cat in cats_with_data %}
+  <button class="filter-btn" data-filter="{{ cat }}">{{ label | e }}</button>
+    {% endif %}
+  {% endfor %}
+  <div class="search-sep"></div>
+  <input class="search-input" type="search" id="search-input"
+         placeholder="Buscar elemento…" aria-label="Buscar en el reporte">
+</div>
 {% endif %}
-{% if removed_tables %}
-    subgraph removed["❌ Eliminadas"]
-{% for name in removed_tables %}
-        R_{{ loop.index }}["{{ name | replace('"', "'") }}"]
-{% endfor %}
-    end
-{% endif %}
-{% if modified_tables %}
-    subgraph modified["⚠️ Modificadas"]
-{% for name in modified_tables %}
-        M_{{ loop.index }}["{{ name | replace('"', "'") }}"]
-{% endfor %}
-    end
-{% endif %}
-      </div>
+
+{# ── Tarjetas de resumen ───────────────────────────────────────────────── #}
+<section>
+  <div class="summary">
+    <div class="card added">
+      <div class="label">Tablas añadidas</div>
+      <div class="value">{{ summary.tables_added }}</div>
     </div>
-    {% endif %}
+    <div class="card removed">
+      <div class="label">Tablas eliminadas</div>
+      <div class="value">{{ summary.tables_removed }}</div>
+    </div>
+    <div class="card modified">
+      <div class="label">Tablas modificadas</div>
+      <div class="value">{{ summary.tables_modified }}</div>
+    </div>
+    <div class="card modified">
+      <div class="label">Vistas con diff</div>
+      <div class="value">{{ summary.total_views }}</div>
+    </div>
+    <div class="card modified">
+      <div class="label">Rutinas con diff</div>
+      <div class="value">{{ summary.total_routines }}</div>
+    </div>
+  </div>
+</section>
 
-    <!-- Tables section -->
-    {% if diff.table_diffs %}
-    <section>
-      <h2>Tablas ({{ diff.table_diffs | length }})</h2>
-      {% for td in diff.table_diffs %}
-      <div class="diff-block">
-        <div class="diff-block-header {{ td.status }}">
-          <span class="badge {{ td.status }}">{{ status_es[td.status] }}</span>
-          <code>{{ td.table_name }}</code>
-        </div>
-        <div class="diff-block-body">
-          {% if td.column_diffs %}
-          <p class="sub-title">Columnas ({{ td.column_diffs | length }})</p>
-          <table>
-            <thead><tr><th>Columna</th><th>Atributo</th><th>Origen</th><th>Destino</th></tr></thead>
-            <tbody>
-            {% for cd in td.column_diffs %}
-              <tr><td><code>{{ cd.column_name }}</code></td><td>{{ cd.attribute }}</td>
-                  <td><code>{{ cd.source_value }}</code></td><td><code>{{ cd.target_value }}</code></td></tr>
-            {% endfor %}
-            </tbody>
-          </table>
-          {% endif %}
+{% if not summary.has_differences %}
+<p class="no-diff">✅ Sin diferencias detectadas entre los esquemas.</p>
+{% endif %}
 
-          {% if td.index_diffs %}
-          <p class="sub-title">Índices ({{ td.index_diffs | length }})</p>
-          <table>
-            <thead><tr><th>Índice</th><th>Estado</th><th>Cols origen</th><th>Cols destino</th></tr></thead>
-            <tbody>
-            {% for idx in td.index_diffs %}
-              <tr><td><code>{{ idx.index_name }}</code></td>
-                  <td><span class="badge {{ idx.status }}">{{ status_es[idx.status] }}</span></td>
-                  <td><code>{{ idx.source_columns }}</code></td><td><code>{{ idx.target_columns }}</code></td></tr>
-            {% endfor %}
-            </tbody>
-          </table>
-          {% endif %}
-
-          {% if td.fk_diffs %}
-          <p class="sub-title">Foreign Keys ({{ td.fk_diffs | length }})</p>
-          <table>
-            <thead><tr><th>FK</th><th>Estado</th><th>Cols origen</th><th>→ Tabla</th><th>Cols destino</th><th>→ Tabla</th></tr></thead>
-            <tbody>
-            {% for fk in td.fk_diffs %}
-              <tr><td><code>{{ fk.fk_name }}</code></td>
-                  <td><span class="badge {{ fk.status }}">{{ status_es[fk.status] }}</span></td>
-                  <td><code>{{ fk.source_columns }}</code></td><td><code>{{ fk.source_referred_table }}</code></td>
-                  <td><code>{{ fk.target_columns }}</code></td><td><code>{{ fk.target_referred_table }}</code></td></tr>
-            {% endfor %}
-            </tbody>
-          </table>
-          {% endif %}
-
-          {% if td.comment_diffs %}
-          <p class="sub-title">Comentarios ({{ td.comment_diffs | length }})</p>
-          <table>
-            <thead><tr><th>Objeto</th><th>Columna</th><th>Comentario origen</th><th>Comentario destino</th></tr></thead>
-            <tbody>
-            {% for cm in td.comment_diffs %}
-              <tr><td><code>{{ cm.object_name }}</code></td>
-                  <td>{% if cm.column_name %}<code>{{ cm.column_name }}</code>{% else %}<em>tabla</em>{% endif %}</td>
-                  <td>{{ cm.source_comment }}</td><td>{{ cm.target_comment }}</td></tr>
-            {% endfor %}
-            </tbody>
-          </table>
-          {% endif %}
-
-          {% if not td.column_diffs and not td.index_diffs and not td.fk_diffs and not td.comment_diffs %}
-            <p class="no-diff">Sin detalles adicionales registrados.</p>
-          {% endif %}
-        </div>
-      </div>
+{# ── Mermaid ───────────────────────────────────────────────────────────── #}
+{% if diff.table_diffs %}
+{% set added_tables    = diff.table_diffs | selectattr("status","eq","added")    | list %}
+{% set removed_tables  = diff.table_diffs | selectattr("status","eq","removed")  | list %}
+{% set modified_tables = diff.table_diffs | selectattr("status","eq","modified") | list %}
+<div class="mermaid-container">
+  <h2>Diagrama de diferencias (tablas)</h2>
+  <div class="mermaid">
+graph LR
+    {% if added_tables %}
+    subgraph added["✅ Añadidas"]
+      {% for td in added_tables %}
+      A{{ loop.index }}["{{ td.table_name | escape_mermaid }}"]
       {% endfor %}
-    </section>
+    end
     {% endif %}
-
-    <!-- Views section -->
-    {% if diff.view_diffs %}
-    <section>
-      <h2>Vistas ({{ diff.view_diffs | length }})</h2>
-      {% for vd in diff.view_diffs %}
-      <div class="diff-block">
-        <div class="diff-block-header {{ vd.status }}">
-          <span class="badge {{ vd.status }}">{{ status_es[vd.status] }}</span>
-          <code>{{ vd.view_name }}</code>
-        </div>
-        <div class="diff-block-body">
-          {% if vd.status == "modified" and (vd.source_definition or vd.target_definition) %}
-          <details>
-            <summary>Ver definiciones DDL</summary>
-            {% if vd.source_definition %}
-              <p class="sub-title">Origen</p>
-              <pre>{{ vd.source_definition | e }}</pre>
-            {% endif %}
-            {% if vd.target_definition %}
-              <p class="sub-title">Destino</p>
-              <pre>{{ vd.target_definition | e }}</pre>
-            {% endif %}
-          </details>
-          {% else %}
-            <p class="no-diff">Vista {{ status_es[vd.status] | lower }} sin definición adicional.</p>
-          {% endif %}
-        </div>
-      </div>
+    {% if removed_tables %}
+    subgraph removed["❌ Eliminadas"]
+      {% for td in removed_tables %}
+      R{{ loop.index }}["{{ td.table_name | escape_mermaid }}"]
       {% endfor %}
-    </section>
+    end
     {% endif %}
-
-    <!-- Routines section -->
-    {% if diff.routine_diffs %}
-    <section>
-      <h2>Rutinas ({{ diff.routine_diffs | length }})</h2>
-      {% for rd in diff.routine_diffs %}
-      <div class="diff-block">
-        <div class="diff-block-header {{ rd.status }}">
-          <span class="badge {{ rd.status }}">{{ status_es[rd.status] }}</span>
-          <code>{{ rd.routine_name }}</code>
-          <small>({{ rd.routine_type }})</small>
-        </div>
-        <div class="diff-block-body">
-          {% if rd.status == "modified" and (rd.source_definition or rd.target_definition) %}
-          <details>
-            <summary>Ver definiciones DDL</summary>
-            {% if rd.source_definition %}
-              <p class="sub-title">Origen</p>
-              <pre>{{ rd.source_definition | e }}</pre>
-            {% endif %}
-            {% if rd.target_definition %}
-              <p class="sub-title">Destino</p>
-              <pre>{{ rd.target_definition | e }}</pre>
-            {% endif %}
-          </details>
-          {% else %}
-            <p class="no-diff">Rutina {{ status_es[rd.status] | lower }} sin definición adicional.</p>
-          {% endif %}
-        </div>
-      </div>
+    {% if modified_tables %}
+    subgraph modified["⚠️ Modificadas"]
+      {% for td in modified_tables %}
+      M{{ loop.index }}["{{ td.table_name | escape_mermaid }}"]
       {% endfor %}
-    </section>
+    end
     {% endif %}
-  </main>
+  </div>
+</div>
+{% endif %}
 
-  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-  <script>mermaid.initialize({ startOnLoad: true, theme: "default" });</script>
+{# ── Tablas ────────────────────────────────────────────────────────────── #}
+{% if diff.table_diffs %}
+<section class="filterable" data-section="tables">
+  <h2>Tablas ({{ diff.table_diffs | length }})</h2>
+  {% for td in diff.table_diffs %}
+  {% set cat = status_to_cat.get(td.status, "tables-modified") %}
+  <div class="diff-block" data-cat="{{ cat }}">
+    <div class="diff-block-header {{ td.status }}">
+      <span class="badge {{ td.status }}">{{ status_es.get(td.status, td.status) | e }}</span>
+      <code>{{ td.table_name | e }}</code>
+    </div>
+    <div class="diff-block-body">
+      {% if td.column_diffs %}
+      <p class="sub-title">Columnas ({{ td.column_diffs | length }})</p>
+      <table><thead><tr>
+        <th>Columna</th><th>Atributo</th><th>Origen</th><th>Destino</th>
+      </tr></thead><tbody>
+        {% for cd in td.column_diffs %}
+        <tr>
+          <td><code>{{ cd.column_name | e }}</code></td>
+          <td>{{ cd.attribute | e }}</td>
+          <td><code>{{ cd.source_value | e }}</code></td>
+          <td><code>{{ cd.target_value | e }}</code></td>
+        </tr>
+        {% endfor %}
+      </tbody></table>
+      {% endif %}
+      {% if td.index_diffs %}
+      <p class="sub-title">Índices ({{ td.index_diffs | length }})</p>
+      <table><thead><tr>
+        <th>Índice</th><th>Estado</th><th>Cols origen</th><th>Cols destino</th>
+      </tr></thead><tbody>
+        {% for idx in td.index_diffs %}
+        <tr>
+          <td><code>{{ idx.index_name | e }}</code></td>
+          <td><span class="badge {{ idx.status }}">{{ status_es.get(idx.status, idx.status) | e }}</span></td>
+          <td><code>{{ idx.source_columns | e }}</code></td>
+          <td><code>{{ idx.target_columns | e }}</code></td>
+        </tr>
+        {% endfor %}
+      </tbody></table>
+      {% endif %}
+      {% if td.fk_diffs %}
+      <p class="sub-title">Foreign Keys ({{ td.fk_diffs | length }})</p>
+      <table><thead><tr>
+        <th>FK</th><th>Estado</th><th>Cols origen</th><th>→ Tabla</th><th>Cols destino</th><th>→ Tabla</th>
+      </tr></thead><tbody>
+        {% for fk in td.fk_diffs %}
+        <tr>
+          <td><code>{{ fk.fk_name | e }}</code></td>
+          <td><span class="badge {{ fk.status }}">{{ status_es.get(fk.status, fk.status) | e }}</span></td>
+          <td><code>{{ fk.source_columns | e }}</code></td>
+          <td><code>{{ fk.source_referred_table | e }}</code></td>
+          <td><code>{{ fk.target_columns | e }}</code></td>
+          <td><code>{{ fk.target_referred_table | e }}</code></td>
+        </tr>
+        {% endfor %}
+      </tbody></table>
+      {% endif %}
+      {% if td.comment_diffs %}
+      <p class="sub-title">Comentarios ({{ td.comment_diffs | length }})</p>
+      <table><thead><tr>
+        <th>Objeto</th><th>Columna</th><th>Comentario origen</th><th>Comentario destino</th>
+      </tr></thead><tbody>
+        {% for cm in td.comment_diffs %}
+        <tr>
+          <td><code>{{ cm.object_name | e }}</code></td>
+          <td>{% if cm.column_name %}<code>{{ cm.column_name | e }}</code>{% else %}<em>tabla</em>{% endif %}</td>
+          <td>{{ cm.source_comment | e }}</td>
+          <td>{{ cm.target_comment | e }}</td>
+        </tr>
+        {% endfor %}
+      </tbody></table>
+      {% endif %}
+      {% if not td.column_diffs and not td.index_diffs and not td.fk_diffs and not td.comment_diffs %}
+      <p class="no-diff">Sin detalles adicionales registrados.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{# ── Vistas ────────────────────────────────────────────────────────────── #}
+{% if diff.view_diffs %}
+<section class="filterable" data-section="views">
+  <h2>Vistas ({{ diff.view_diffs | length }})</h2>
+  {% for vd in diff.view_diffs %}
+  <div class="diff-block" data-cat="views">
+    <div class="diff-block-header {{ vd.status }}">
+      <span class="badge {{ vd.status }}">{{ status_es.get(vd.status, vd.status) | e }}</span>
+      <code>{{ vd.view_name | e }}</code>
+    </div>
+    <div class="diff-block-body">
+      {% if vd.status == "modified" and (vd.source_definition or vd.target_definition) %}
+      <details><summary>Ver definiciones DDL</summary>
+        {% if vd.source_definition %}
+        <p class="sub-title">Origen</p><pre>{{ vd.source_definition | e }}</pre>
+        {% endif %}
+        {% if vd.target_definition %}
+        <p class="sub-title">Destino</p><pre>{{ vd.target_definition | e }}</pre>
+        {% endif %}
+      </details>
+      {% else %}
+      <p class="no-diff">Vista {{ status_es.get(vd.status, vd.status) | lower | e }} sin definición adicional.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{# ── Rutinas ───────────────────────────────────────────────────────────── #}
+{% if diff.routine_diffs %}
+<section class="filterable" data-section="routines">
+  <h2>Rutinas ({{ diff.routine_diffs | length }})</h2>
+  {% for rd in diff.routine_diffs %}
+  <div class="diff-block" data-cat="routines">
+    <div class="diff-block-header {{ rd.status }}">
+      <span class="badge {{ rd.status }}">{{ status_es.get(rd.status, rd.status) | e }}</span>
+      <code>{{ rd.routine_name | e }}</code>
+      <small>({{ rd.routine_type | e }})</small>
+    </div>
+    <div class="diff-block-body">
+      {% if rd.status == "modified" and (rd.source_definition or rd.target_definition) %}
+      <details><summary>Ver definiciones DDL</summary>
+        {% if rd.source_definition %}
+        <p class="sub-title">Origen</p><pre>{{ rd.source_definition | e }}</pre>
+        {% endif %}
+        {% if rd.target_definition %}
+        <p class="sub-title">Destino</p><pre>{{ rd.target_definition | e }}</pre>
+        {% endif %}
+      </details>
+      {% else %}
+      <p class="no-diff">Rutina {{ status_es.get(rd.status, rd.status) | lower | e }} sin definición adicional.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+</main>
+
+{# ── Scripts ───────────────────────────────────────────────────────────── #}
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:"default"});</script>
+<script>
+(function () {
+  var activeFilters = new Set([
+    'tables-added','tables-removed','tables-modified','views','routines'
+  ]);
+  var searchTerm = '';
+
+  function normalize(s) {
+    return s.toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  function blockMatchesSearch(block) {
+    if (!searchTerm) return true;
+    return normalize(block.textContent).indexOf(searchTerm) !== -1;
+  }
+
+  function applyAll() {
+    document.querySelectorAll('.diff-block[data-cat]').forEach(function (block) {
+      var catOk    = activeFilters.has(block.dataset.cat);
+      var searchOk = blockMatchesSearch(block);
+      block.style.display = (catOk && searchOk) ? '' : 'none';
+    });
+    document.querySelectorAll('section.filterable').forEach(function (sec) {
+      var hasVisible = Array.from(sec.querySelectorAll('.diff-block[data-cat]'))
+        .some(function (b) { return b.style.display !== 'none'; });
+      sec.style.display = hasVisible ? '' : 'none';
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    // Filtros de categoría
+    document.querySelectorAll('.filter-btn').forEach(function (btn) {
+      btn.classList.add('active');
+      btn.addEventListener('click', function () {
+        var cat = this.dataset.filter;
+        if (activeFilters.has(cat)) {
+          activeFilters.delete(cat);
+          this.classList.remove('active');
+          this.classList.add('inactive');
+        } else {
+          activeFilters.add(cat);
+          this.classList.add('active');
+          this.classList.remove('inactive');
+        }
+        applyAll();
+      });
+    });
+
+    // Búsqueda de texto
+    var searchInput = document.getElementById('search-input');
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        searchTerm = normalize(this.value);
+        applyAll();
+      });
+    }
+  });
+})();
+</script>
+
 </body>
 </html>

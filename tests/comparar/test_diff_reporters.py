@@ -236,6 +236,49 @@ class TestHtmlDiffReporter:
         # Script Mermaid CDN
         assert "cdn.jsdelivr.net" in content
 
+    def test_filter_toolbar_present_when_diffs_exist(
+        self, tmp_path: Path, rich_diff: SchemaDiff
+    ) -> None:
+        """El toolbar de filtros aparece con los 5 botones cuando hay diferencias."""
+        output = tmp_path / "diff.html"
+        HtmlDiffReporter().render(rich_diff, output)
+        content = output.read_text(encoding="utf-8")
+        assert "filter-btn" in content
+        assert 'data-filter="tables-added"' in content
+        assert 'data-filter="tables-removed"' in content
+        assert 'data-filter="tables-modified"' in content
+        assert 'data-filter="views"' in content
+        assert 'data-filter="routines"' in content
+
+    def test_filter_data_cat_attributes(self, tmp_path: Path, rich_diff: SchemaDiff) -> None:
+        """Cada bloque tiene el atributo data-cat correcto según su tipo."""
+        output = tmp_path / "diff.html"
+        HtmlDiffReporter().render(rich_diff, output)
+        content = output.read_text(encoding="utf-8")
+        assert 'data-cat="tables-added"' in content
+        assert 'data-cat="tables-removed"' in content
+        assert 'data-cat="tables-modified"' in content
+        assert 'data-cat="views"' in content
+        assert 'data-cat="routines"' in content
+
+    def test_filter_toolbar_absent_for_empty_diff(
+        self, tmp_path: Path, empty_diff: SchemaDiff
+    ) -> None:
+        """El toolbar NO aparece cuando no hay diferencias (ninguna categoría tiene datos)."""
+        output = tmp_path / "diff.html"
+        HtmlDiffReporter().render(empty_diff, output)
+        content = output.read_text(encoding="utf-8")
+        # No debe haber la barra de controles en el DOM cuando no hay diffs
+        assert '<div class="controls-bar">' not in content
+
+    def test_html_search_input_present(self, tmp_path: Path, rich_diff: SchemaDiff) -> None:
+        """El HTML contiene un input de búsqueda de texto cuando hay diferencias."""
+        output = tmp_path / "diff.html"
+        HtmlDiffReporter().render(rich_diff, output)
+        content = output.read_text(encoding="utf-8")
+        assert 'type="search"' in content
+        assert 'id="search-input"' in content
+
     def test_ddl_is_html_escaped(self, tmp_path: Path) -> None:
         """Verifica que el DDL con caracteres peligrosos se escapa en HTML."""
         diff = SchemaDiff(
@@ -373,6 +416,25 @@ class TestWordDiffReporter:
         """Pasar una ruta sin extensión lanza ValueError."""
         with pytest.raises(ValueError, match="ruta completa del fichero"):
             WordDiffReporter().render(empty_diff, output=tmp_path / "nodotx")
+
+    def test_word_heading1_sections(self, tmp_path: Path, rich_diff: SchemaDiff) -> None:
+        """Las 5 categorías usan estilo Heading 1 en el documento Word."""
+        from docx import Document
+
+        output = tmp_path / "diff.docx"
+        WordDiffReporter().render(rich_diff, output)
+        doc = Document(str(output))
+
+        heading1_texts = [
+            p.text for p in doc.paragraphs
+            if p.style.name == "Heading 1"
+        ]
+        # rich_diff tiene tablas added+removed+modified, vistas y rutinas
+        assert "Tablas añadidas" in heading1_texts
+        assert "Tablas eliminadas" in heading1_texts
+        assert "Tablas modificadas" in heading1_texts
+        assert "Vistas con diff" in heading1_texts
+        assert "Rutinas con diff" in heading1_texts
 
 
 # ---------------------------------------------------------------------------

@@ -25,6 +25,9 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-04-13c | version-closure: v0.6.7 final release — actualizar README.md arquitectura, preparar subida a GitHub | develop → main (v0.6.7) | version-closure | CLOSED | `2026-04-13/v0.6.7-version-closure-2026-04-13.md` |
 | 2026-04-13d | **IN_PROGRESS**: v0.6.8-dev initialization — Phase 4 L1/L2/L3 optimizations planned | develop | new_feature / tech-debt | IN_PROGRESS | `2026-04-13-v0.6.8/` (TBD) |
 | 2026-04-14  | new_feature: reporters de SchemaDiff — HTML (Jinja2+Mermaid), Excel (openpyxl), Word (docx), Markdown (Mermaid) en `comparar/reporters/` | develop | new_feature | CLOSED | `2026-04-14/TRACEABILITY.md` |
+| 2026-04-15  | refactor: OOP exclusivo en reporters (funciones→@staticmethod/ClassVar); docs política OOP en CLAUDE.md + copilot-instructions + python.instructions | develop | refactor | CLOSED | en sesión |
+| 2026-04-15b | new_feature: HTML filtrado interactivo 5 categorías sin Jinja2 (html.escape stdlib); Word compactado sin párrafos vacíos (paragraph_format spacing) | develop | new_feature | CLOSED | en sesión |
+| 2026-04-15c | refactor: HTML restaura Jinja2 + búsqueda de texto (controls-bar); Word aplica Heading 1 a las 5 categorías (Tablas añadidas/eliminadas/modificadas, Vistas, Rutinas) | develop | refactor | CLOSED | en sesión |
 
 ## Crear nueva sesión
 
