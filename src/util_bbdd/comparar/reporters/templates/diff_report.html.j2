@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diff: {{ diff.source_label }} vs {{ diff.target_label }}</title>
+  <style>
+    :root {
+      --color-added:    #16a34a;
+      --color-removed:  #dc2626;
+      --color-modified: #d97706;
+      --color-bg:       #f9fafb;
+      --color-header:   #1e3a5f;
+      --color-border:   #e5e7eb;
+      --color-row-even: #f3f4f6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--color-bg);
+      color: #111827;
+      line-height: 1.5;
+    }
+    header {
+      background: var(--color-header);
+      color: #fff;
+      padding: 1.5rem 2rem;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+    header p  { font-size: 0.9rem; opacity: 0.8; }
+    main { max-width: 1100px; margin: 2rem auto; padding: 0 1.5rem; }
+
+    /* Summary cards */
+    .summary { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 2rem; }
+    .card {
+      background: #fff;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      min-width: 160px;
+    }
+    .card .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; }
+    .card .value { font-size: 1.75rem; font-weight: 700; }
+    .card.added    .value { color: var(--color-added); }
+    .card.removed  .value { color: var(--color-removed); }
+    .card.modified .value { color: var(--color-modified); }
+
+    /* Section */
+    section { margin-bottom: 2.5rem; }
+    section h2 {
+      font-size: 1.2rem;
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    /* Table block */
+    .diff-block {
+      background: #fff;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      margin-bottom: 1.25rem;
+      overflow: hidden;
+    }
+    .diff-block-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      font-weight: 600;
+      font-size: 0.95rem;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .diff-block-header.added    { background: #f0fdf4; border-left: 4px solid var(--color-added); }
+    .diff-block-header.removed  { background: #fef2f2; border-left: 4px solid var(--color-removed); }
+    .diff-block-header.modified { background: #fffbeb; border-left: 4px solid var(--color-modified); }
+    .diff-block-body { padding: 0.75rem 1rem; }
+
+    /* Data tables */
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; margin-bottom: 0.75rem; }
+    th { background: var(--color-header); color: #fff; text-align: left; padding: 0.5rem 0.75rem; }
+    td { padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--color-border); }
+    tr:nth-child(even) td { background: var(--color-row-even); }
+    .sub-title { font-size: 0.8rem; font-weight: 600; color: #374151; margin: 0.5rem 0 0.25rem; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* Status badges */
+    .badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.1rem 0.45rem;
+      border-radius: 99px;
+      text-transform: uppercase;
+    }
+    .badge.added    { background: #dcfce7; color: var(--color-added); }
+    .badge.removed  { background: #fee2e2; color: var(--color-removed); }
+    .badge.modified { background: #fef3c7; color: var(--color-modified); }
+
+    code { font-family: ui-monospace, monospace; font-size: 0.85em; background: #f3f4f6; padding: 0.1em 0.3em; border-radius: 3px; }
+    details summary { cursor: pointer; color: #2563eb; font-size: 0.85rem; }
+    pre { white-space: pre-wrap; word-break: break-all; font-size: 0.8rem; background: #1e293b; color: #e2e8f0; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem; }
+    .no-diff { color: #6b7280; font-style: italic; }
+
+    /* Mermaid diagram */
+    .mermaid-container { background: #fff; border: 1px solid var(--color-border); border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; text-align: center; }
+    .mermaid-container h2 { text-align: left; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Reporte de diferencias de esquema</h1>
+    <p>
+      <strong>Origen:</strong> {{ diff.source_label }} &nbsp;→&nbsp;
+      <strong>Destino:</strong> {{ diff.target_label }}
+    </p>
+    {% if diff.summary %}<p>{{ diff.summary }}</p>{% endif %}
+  </header>
+
+  <main>
+    <!-- Summary cards -->
+    <section>
+      <div class="summary">
+        <div class="card added">
+          <div class="label">Tablas añadidas</div>
+          <div class="value">{{ summary.tables_added }}</div>
+        </div>
+        <div class="card removed">
+          <div class="label">Tablas eliminadas</div>
+          <div class="value">{{ summary.tables_removed }}</div>
+        </div>
+        <div class="card modified">
+          <div class="label">Tablas modificadas</div>
+          <div class="value">{{ summary.tables_modified }}</div>
+        </div>
+        <div class="card modified">
+          <div class="label">Vistas con diff</div>
+          <div class="value">{{ summary.total_views }}</div>
+        </div>
+        <div class="card modified">
+          <div class="label">Rutinas con diff</div>
+          <div class="value">{{ summary.total_routines }}</div>
+        </div>
+      </div>
+      {% if not summary.has_differences %}
+        <p class="no-diff">✅ Sin diferencias detectadas entre los esquemas.</p>
+      {% endif %}
+    </section>
+
+    <!-- Mermaid diagram -->
+    {% if diff.table_diffs %}
+    <div class="mermaid-container">
+      <h2>Diagrama de diferencias (tablas)</h2>
+      <div class="mermaid">
+graph LR
+{% if added_tables %}
+    subgraph added["✅ Añadidas"]
+{% for name in added_tables %}
+        A_{{ loop.index }}["{{ name | replace('"', "'") }}"]
+{% endfor %}
+    end
+{% endif %}
+{% if removed_tables %}
+    subgraph removed["❌ Eliminadas"]
+{% for name in removed_tables %}
+        R_{{ loop.index }}["{{ name | replace('"', "'") }}"]
+{% endfor %}
+    end
+{% endif %}
+{% if modified_tables %}
+    subgraph modified["⚠️ Modificadas"]
+{% for name in modified_tables %}
+        M_{{ loop.index }}["{{ name | replace('"', "'") }}"]
+{% endfor %}
+    end
+{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Tables section -->
+    {% if diff.table_diffs %}
+    <section>
+      <h2>Tablas ({{ diff.table_diffs | length }})</h2>
+      {% for td in diff.table_diffs %}
+      <div class="diff-block">
+        <div class="diff-block-header {{ td.status }}">
+          <span class="badge {{ td.status }}">{{ status_es[td.status] }}</span>
+          <code>{{ td.table_name }}</code>
+        </div>
+        <div class="diff-block-body">
+          {% if td.column_diffs %}
+          <p class="sub-title">Columnas ({{ td.column_diffs | length }})</p>
+          <table>
+            <thead><tr><th>Columna</th><th>Atributo</th><th>Origen</th><th>Destino</th></tr></thead>
+            <tbody>
+            {% for cd in td.column_diffs %}
+              <tr><td><code>{{ cd.column_name }}</code></td><td>{{ cd.attribute }}</td>
+                  <td><code>{{ cd.source_value }}</code></td><td><code>{{ cd.target_value }}</code></td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+
+          {% if td.index_diffs %}
+          <p class="sub-title">Índices ({{ td.index_diffs | length }})</p>
+          <table>
+            <thead><tr><th>Índice</th><th>Estado</th><th>Cols origen</th><th>Cols destino</th></tr></thead>
+            <tbody>
+            {% for idx in td.index_diffs %}
+              <tr><td><code>{{ idx.index_name }}</code></td>
+                  <td><span class="badge {{ idx.status }}">{{ status_es[idx.status] }}</span></td>
+                  <td><code>{{ idx.source_columns }}</code></td><td><code>{{ idx.target_columns }}</code></td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+
+          {% if td.fk_diffs %}
+          <p class="sub-title">Foreign Keys ({{ td.fk_diffs | length }})</p>
+          <table>
+            <thead><tr><th>FK</th><th>Estado</th><th>Cols origen</th><th>→ Tabla</th><th>Cols destino</th><th>→ Tabla</th></tr></thead>
+            <tbody>
+            {% for fk in td.fk_diffs %}
+              <tr><td><code>{{ fk.fk_name }}</code></td>
+                  <td><span class="badge {{ fk.status }}">{{ status_es[fk.status] }}</span></td>
+                  <td><code>{{ fk.source_columns }}</code></td><td><code>{{ fk.source_referred_table }}</code></td>
+                  <td><code>{{ fk.target_columns }}</code></td><td><code>{{ fk.target_referred_table }}</code></td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+
+          {% if td.comment_diffs %}
+          <p class="sub-title">Comentarios ({{ td.comment_diffs | length }})</p>
+          <table>
+            <thead><tr><th>Objeto</th><th>Columna</th><th>Comentario origen</th><th>Comentario destino</th></tr></thead>
+            <tbody>
+            {% for cm in td.comment_diffs %}
+              <tr><td><code>{{ cm.object_name }}</code></td>
+                  <td>{% if cm.column_name %}<code>{{ cm.column_name }}</code>{% else %}<em>tabla</em>{% endif %}</td>
+                  <td>{{ cm.source_comment }}</td><td>{{ cm.target_comment }}</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+
+          {% if not td.column_diffs and not td.index_diffs and not td.fk_diffs and not td.comment_diffs %}
+            <p class="no-diff">Sin detalles adicionales registrados.</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    <!-- Views section -->
+    {% if diff.view_diffs %}
+    <section>
+      <h2>Vistas ({{ diff.view_diffs | length }})</h2>
+      {% for vd in diff.view_diffs %}
+      <div class="diff-block">
+        <div class="diff-block-header {{ vd.status }}">
+          <span class="badge {{ vd.status }}">{{ status_es[vd.status] }}</span>
+          <code>{{ vd.view_name }}</code>
+        </div>
+        <div class="diff-block-body">
+          {% if vd.status == "modified" and (vd.source_definition or vd.target_definition) %}
+          <details>
+            <summary>Ver definiciones DDL</summary>
+            {% if vd.source_definition %}
+              <p class="sub-title">Origen</p>
+              <pre>{{ vd.source_definition | e }}</pre>
+            {% endif %}
+            {% if vd.target_definition %}
+              <p class="sub-title">Destino</p>
+              <pre>{{ vd.target_definition | e }}</pre>
+            {% endif %}
+          </details>
+          {% else %}
+            <p class="no-diff">Vista {{ status_es[vd.status] | lower }} sin definición adicional.</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    <!-- Routines section -->
+    {% if diff.routine_diffs %}
+    <section>
+      <h2>Rutinas ({{ diff.routine_diffs | length }})</h2>
+      {% for rd in diff.routine_diffs %}
+      <div class="diff-block">
+        <div class="diff-block-header {{ rd.status }}">
+          <span class="badge {{ rd.status }}">{{ status_es[rd.status] }}</span>
+          <code>{{ rd.routine_name }}</code>
+          <small>({{ rd.routine_type }})</small>
+        </div>
+        <div class="diff-block-body">
+          {% if rd.status == "modified" and (rd.source_definition or rd.target_definition) %}
+          <details>
+            <summary>Ver definiciones DDL</summary>
+            {% if rd.source_definition %}
+              <p class="sub-title">Origen</p>
+              <pre>{{ rd.source_definition | e }}</pre>
+            {% endif %}
+            {% if rd.target_definition %}
+              <p class="sub-title">Destino</p>
+              <pre>{{ rd.target_definition | e }}</pre>
+            {% endif %}
+          </details>
+          {% else %}
+            <p class="no-diff">Rutina {{ status_es[rd.status] | lower }} sin definición adicional.</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({ startOnLoad: true, theme: "default" });</script>
+</body>
+</html>

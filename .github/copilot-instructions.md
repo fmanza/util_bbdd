@@ -10,7 +10,7 @@ Estamos construyendo una librería en Python para documentar bases de datos (mul
 - Generación de documentación (Word, Excel, Markdown y/o HTML) de forma reproducible
 y sin depender de servicios externos.
 - La salida de documentación en Markdown debe ser portable y legible, pudiendo usar extensiones ligeras compatibles con el renderer objetivo cuando aporten valor (por ejemplo, Mermaid).
-- Compara modelos de datos con el esquema actual para detectar cambios y generar reportes de diferencias (opcional pero deseable).
+- Compara modelos de datos con el esquema actual para detectar cambios y generar reportes de diferencias e instrucciones SQL para su nivelación.
 
 
 ## Arquitectura preferida
@@ -143,9 +143,9 @@ Usa slash commands:
 **Referencia**: [CLAUDE.md](../CLAUDE.md) (política base) y [.claude/commands/](../.claude/commands/) (comandos detallados)
 
 ### Sincronización entre plataformas
-
+C:\Desarrollo\python\libs\util_bbdd\.github\INTEGRATION_MAP.md
 Para mantener Claude Code y Copilot Chat alineados:
-- Lee: [`.github/INTEGRATION_MAP.md`](.github/INTEGRATION_MAP.md) — Gobernanza, responsables, checklist de sincronización
+- Lee: [`INTEGRATION_MAP.md`](INTEGRATION_MAP.md) — Gobernanza, responsables, checklist de sincronización
 - Lee: [docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md](../docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md) — Equivalencias de comandos entre plataformas
 
 ## Execution policies

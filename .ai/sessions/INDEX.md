@@ -24,6 +24,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-04-13b | tech-debt: gaps multimotor en `comparar/` (Fases 0-3: D6+D3, D2+D5, D1+D4, M1+M2) — **Completada exitosamente** | develop | tech-debt                              | CLOSED      | `2026-04-13-comparar/` → PLAN+AUDIT_PLAN+IMPLEMENT+AUDIT_CODE+VERSION (0-3) |
 | 2026-04-13c | version-closure: v0.6.7 final release — actualizar README.md arquitectura, preparar subida a GitHub | develop → main (v0.6.7) | version-closure | CLOSED | `2026-04-13/v0.6.7-version-closure-2026-04-13.md` |
 | 2026-04-13d | **IN_PROGRESS**: v0.6.8-dev initialization — Phase 4 L1/L2/L3 optimizations planned | develop | new_feature / tech-debt | IN_PROGRESS | `2026-04-13-v0.6.8/` (TBD) |
+| 2026-04-14  | new_feature: reporters de SchemaDiff — HTML (Jinja2+Mermaid), Excel (openpyxl), Word (docx), Markdown (Mermaid) en `comparar/reporters/` | develop | new_feature | CLOSED | `2026-04-14/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 

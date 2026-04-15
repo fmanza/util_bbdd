@@ -27,17 +27,29 @@ from .models import (
     TableDiff,
     ViewDiff,
 )
+from .reporters import (
+    ExcelDiffReporter,
+    HtmlDiffReporter,
+    MarkdownDiffReporter,
+    SchemaDiffReporter,
+    WordDiffReporter,
+)
 
 __all__: list[str] = [
     "ColumnDiff",
     "CommentDiff",
     "DiffReporterProtocol",
+    "ExcelDiffReporter",
     "ForeignKeyDiff",
+    "HtmlDiffReporter",
     "IndexDiff",
+    "MarkdownDiffReporter",
     "RoutineDiff",
     "SchemaComparator",
     "SchemaComparatorProtocol",
     "SchemaDiff",
+    "SchemaDiffReporter",
     "TableDiff",
     "ViewDiff",
+    "WordDiffReporter",
 ]
