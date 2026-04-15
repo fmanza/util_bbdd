@@ -16,9 +16,8 @@ y sin depender de servicios externos.
 ## Arquitectura preferida
 - Separar módulos: `introspect/` (extraer) vs `render/` (generar docs).
 - Representar metadatos en dataclasses/typed models (Schema/Table/Column/Relationship/Index).
-- Mantener renderizado como funciones puras cuando sea posible.
+- Usar **exclusivamente clases** en el diseño. No crear funciones a nivel de módulo. Las transformaciones sin estado se implementan como `@staticmethod` dentro de la clase que las utiliza. Solo se permiten funciones de módulo en ficheros de utilidades genuinamente compartidas entre varios módulos (p.ej. `_base.py`).
 - Utilizar siempre que sea posible cache de información obtenida para evitar consultas repetidas a la base de datos.
-- Priorizar clases cuando encapsulan estado, invariantes o colaboraciones; usar funciones puras para transformaciones sin estado.
 
 ## Fuentes de referencia de arquitectura
 - `G:\Mi unidad\Trabajo\Manuales\Desarrollo\Patrones de Diseño\design-patterns-es.pdf`
@@ -60,6 +59,7 @@ y sin depender de servicios externos.
 - Acoplar renderizadores a SQL/driver o a estado de conexión.
 - Excepciones genéricas (`Exception`) y errores sin contexto accionable.
 - Aplicar patrones por moda sin justificar complejidad vs beneficio.
+- Funciones sueltas a nivel de módulo en ficheros de clase: toda lógica que pertenezca a una clase debe vivir dentro de ella como método de instancia o `@staticmethod`.
 
 
 ## Estilo y calidad

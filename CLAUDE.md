@@ -93,10 +93,17 @@ PostgreSQL, SQLite, MariaDB, Oracle y SQL Server tienen soporte async. HSQLDB es
 ### Patrones aplicados en esta librería
 `Strategy` (variación por motor/formato) · `Abstract Factory` (conexiones) · `Adapter` (diferencias de driver) · `Template Method` (flujo base con hooks) · `Facade` (orquestación en managers) · `Builder` (documentos complejos) · `Identity Map` (caché de metadatos dentro de una ejecución)
 
+### OOP obligatorio
+- **Diseño exclusivamente con clases.** No crear funciones sueltas a nivel de módulo en ficheros de clase.
+- Las transformaciones sin estado se implementan como `@staticmethod` dentro de la clase que las utiliza.
+- Las constantes privadas de una clase se declaran como `ClassVar` en la propia clase.
+- Funciones y constantes a nivel de módulo solo en ficheros de utilidades genuinamente compartidas (p.ej. `_base.py`).
+
 ### Anti-patrones a evitar
 - God class que mezcle conexión, introspección, normalización y render.
 - `if/elif` por motor distribuidos fuera de los adaptadores.
 - Excepciones genéricas (`Exception`); usar jerarquía de `_core/exceptions.py`.
+- Funciones sueltas a nivel de módulo en ficheros de clase: toda lógica de una clase vive dentro de ella.
 
 ---
 

@@ -12,6 +12,9 @@ applyTo: "**/*.py"
 - Prefiere dataclasses para estructuras de metadatos.
 
 ## Programación orientada a objetos
+- **Diseña exclusivamente con clases.** No crear funciones sueltas a nivel de módulo en ficheros de clase.
+- Las transformaciones sin estado van como `@staticmethod` dentro de la clase responsable. Las constantes privadas de una clase van como `ClassVar` en la propia clase.
+- Solo se permiten funciones o constantes a nivel de módulo en ficheros de utilidades genuinamente compartidas entre varios módulos (p.ej. `_base.py`, `utils.py`).
 - Diseña clases cohesivas con invariantes claras y responsabilidades únicas.
 - Prefiere composición sobre herencia; usa herencia solo si existe sustitución real (`LSP`).
 - Mantén el estado mínimo y explícito; evita estado global mutable.
@@ -27,7 +30,7 @@ applyTo: "**/*.py"
 ## Diseño de API
 - Expón modelos de metadatos (Schema, Table, Column, Relationship).
 - Separa: extracción (introspección) vs render (generación de docs).
-- Mantén funciones puras para renderizado siempre que sea posible.
+- Las transformaciones de renderizado sin estado se implementan como `@staticmethod` dentro de la clase renderizadora.
 - Usa `Protocol` (o `ABC` cuando proceda) para contratos de adaptadores por motor.
 - Evita condicionales por motor dispersos; centraliza resolución en factorías/registro.
 
