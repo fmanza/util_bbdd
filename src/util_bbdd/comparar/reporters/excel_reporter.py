@@ -13,10 +13,8 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
-from util_bbdd.comparar.reporters._base import DiffSummary
-
 from ..models import RoutineDiff, SchemaDiff, TableDiff, ViewDiff
-from ._base import STATUS_ES, build_diff_summary
+from ._base import STATUS_ES, DdlNormalizer, DiffSummary, build_diff_summary
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -240,8 +238,10 @@ class ExcelDiffReporter:
             estado_cell: Cell = ws.cell(row=row_idx, column=2, value=STATUS_ES.get(vd.status, vd.status))
             estado_cell.fill = self._get_status_fill(vd.status)
             estado_cell.alignment = self._ALIGN_CENTER
-            ws.cell(row=row_idx, column=3, value=vd.source_definition or "").alignment = self._ALIGN_LEFT
-            ws.cell(row=row_idx, column=4, value=vd.target_definition or "").alignment = self._ALIGN_LEFT
+            src_ddl = DdlNormalizer.normalize_view_ddl(vd.source_definition) if vd.source_definition else ""
+            tgt_ddl = DdlNormalizer.normalize_view_ddl(vd.target_definition) if vd.target_definition else ""
+            ws.cell(row=row_idx, column=3, value=src_ddl).alignment = self._ALIGN_LEFT
+            ws.cell(row=row_idx, column=4, value=tgt_ddl).alignment = self._ALIGN_LEFT
 
         self._autofit(ws)
 
@@ -256,7 +256,9 @@ class ExcelDiffReporter:
             estado_cell: Cell = ws.cell(row=row_idx, column=3, value=STATUS_ES.get(rd.status, rd.status))
             estado_cell.fill = self._get_status_fill(rd.status)
             estado_cell.alignment = self._ALIGN_CENTER
-            ws.cell(row=row_idx, column=4, value=rd.source_definition or "").alignment = self._ALIGN_LEFT
-            ws.cell(row=row_idx, column=5, value=rd.target_definition or "").alignment = self._ALIGN_LEFT
+            src_ddl = DdlNormalizer.normalize_routine_ddl(rd.source_definition) if rd.source_definition else ""
+            tgt_ddl = DdlNormalizer.normalize_routine_ddl(rd.target_definition) if rd.target_definition else ""
+            ws.cell(row=row_idx, column=4, value=src_ddl).alignment = self._ALIGN_LEFT
+            ws.cell(row=row_idx, column=5, value=tgt_ddl).alignment = self._ALIGN_LEFT
 
         self._autofit(ws)

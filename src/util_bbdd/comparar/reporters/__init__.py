@@ -5,6 +5,7 @@ Formatos disponibles:
 - ``ExcelDiffReporter``    → ``.xlsx`` con hojas por categoría y color por estado.
 - ``WordDiffReporter``     → ``.docx`` con tablas formateadas y DDL en bloques.
 - ``MarkdownDiffReporter`` → ``.md`` con diagrama Mermaid y tablas GFM.
+- ``SqlDiffReporter``      → ``.sql`` script de nivelación dialect-específico.
 
 Todos implementan ``DiffReporterProtocol``::
 
@@ -14,12 +15,14 @@ Para uso orquestado usa ``SchemaDiffReporter`` (facade)::
 
     from util_bbdd.comparar import SchemaDiffReporter
     paths = SchemaDiffReporter().render_all(diff, output_dir=Path("./reports"))
+    paths = SchemaDiffReporter(sql_dialect="postgresql").render_all(diff, output_dir=Path("./reports"))
 """
 
 from .excel_reporter import ExcelDiffReporter
 from .facade import SchemaDiffReporter
 from .html_reporter import HtmlDiffReporter
 from .markdown_reporter import MarkdownDiffReporter
+from .sql_reporter import SqlDiffReporter
 from .word_reporter import WordDiffReporter
 
 __all__: list[str] = [
@@ -27,5 +30,6 @@ __all__: list[str] = [
     "HtmlDiffReporter",
     "MarkdownDiffReporter",
     "SchemaDiffReporter",
+    "SqlDiffReporter",
     "WordDiffReporter",
 ]

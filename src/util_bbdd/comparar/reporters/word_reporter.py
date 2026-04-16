@@ -21,7 +21,7 @@ from docx.shared import Mm, Pt, RGBColor
 from docx.table import Table, _Cell
 
 from ..models import RoutineDiff, SchemaDiff, TableDiff, ViewDiff
-from ._base import STATUS_ES, build_diff_summary
+from ._base import STATUS_ES, DdlNormalizer, build_diff_summary
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -359,10 +359,10 @@ class WordDiffReporter:
 
             if vd.source_definition:
                 self._mini_heading(doc, "Definición origen")
-                self._code_block(doc, vd.source_definition)
+                self._code_block(doc, DdlNormalizer.normalize_view_ddl(vd.source_definition))
             if vd.target_definition:
                 self._mini_heading(doc, "Definición destino")
-                self._code_block(doc, vd.target_definition)
+                self._code_block(doc, DdlNormalizer.normalize_view_ddl(vd.target_definition))
 
     def _add_routines_section(
         self, doc: DocumentType, routine_diffs: tuple[RoutineDiff, ...]
@@ -377,7 +377,7 @@ class WordDiffReporter:
 
             if rd.source_definition:
                 self._mini_heading(doc, "Definición origen")
-                self._code_block(doc, rd.source_definition)
+                self._code_block(doc, DdlNormalizer.normalize_routine_ddl(rd.source_definition))
             if rd.target_definition:
                 self._mini_heading(doc, "Definición destino")
-                self._code_block(doc, rd.target_definition)
+                self._code_block(doc, DdlNormalizer.normalize_routine_ddl(rd.target_definition))

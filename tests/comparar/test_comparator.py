@@ -1442,3 +1442,80 @@ class TestGetColumnsCallCount:
         # source.get_columns debe llamarse exactamente 1 vez (pre-fetch en _compare_tables)
         assert source.get_columns.call_count == 1
         assert target.get_columns.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Hotfix — gaps en _DDL_STRIP_RULES (ALGORITHM, DEFINER variantes, SQL SECURITY)
+# ---------------------------------------------------------------------------
+
+
+class TestDDLStripRulesHotfix:
+    """Reproduce los tres gaps que causaban falsos positivos en comparación MariaDB."""
+
+    _MARIADB_FULL = (
+        "CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` "
+        "SQL SECURITY DEFINER VIEW `v` AS SELECT id FROM t"
+    )
+    _EXPECTED_NORMALIZED = "create view `v` as select id from t"
+
+    def test_strips_algorithm(self) -> None:
+        """G2: ALGORITHM=xxx debe eliminarse."""
+        result = SchemaComparator._strip_dialect_artifacts("CREATE ALGORITHM=UNDEFINED VIEW v AS SELECT 1")
+        assert "ALGORITHM" not in result
+
+    def test_strips_algorithm_merge(self) -> None:
+        result = SchemaComparator._strip_dialect_artifacts("CREATE ALGORITHM=MERGE VIEW v AS SELECT 1")
+        assert "ALGORITHM" not in result
+
+    def test_strips_definer_with_spaces_around_equals(self) -> None:
+        """G1: DEFINER = `u`@`h` (con espacios alrededor de =) debe eliminarse."""
+        sql = "CREATE DEFINER = `admin`@`%` VIEW v AS SELECT 1"
+        result = SchemaComparator._strip_dialect_artifacts(sql)
+        assert "DEFINER" not in result
+
+    def test_strips_definer_single_quotes(self) -> None:
+        """G1: DEFINER='u'@'h' (comillas simples) debe eliminarse."""
+        sql = "CREATE DEFINER='root'@'localhost' VIEW v AS SELECT 1"
+        result = SchemaComparator._strip_dialect_artifacts(sql)
+        assert "DEFINER" not in result
+
+    def test_strips_definer_unquoted(self) -> None:
+        """G1: DEFINER=user@host (sin comillas) debe eliminarse."""
+        sql = "CREATE DEFINER=root@localhost VIEW v AS SELECT 1"
+        result = SchemaComparator._strip_dialect_artifacts(sql)
+        assert "DEFINER" not in result
+
+    def test_strips_sql_security_definer(self) -> None:
+        """G3: SQL SECURITY DEFINER al inicio del DDL (sin espacio previo) debe eliminarse."""
+        sql = "CREATE SQL SECURITY DEFINER VIEW v AS SELECT 1"
+        result = SchemaComparator._strip_dialect_artifacts(sql)
+        assert "SQL SECURITY" not in result
+
+    def test_strips_sql_security_invoker(self) -> None:
+        sql = "CREATE SQL SECURITY INVOKER VIEW v AS SELECT 1"
+        result = SchemaComparator._strip_dialect_artifacts(sql)
+        assert "SQL SECURITY" not in result
+
+    def test_no_stray_sql_keyword_after_strip(self) -> None:
+        """G3: Después del strip no debe quedar la palabra SQL suelta."""
+        sql = "CREATE SQL SECURITY DEFINER VIEW v AS SELECT 1"
+        result = SchemaComparator._normalize_ddl(sql)
+        # Solo debe quedar "create view v as select 1"
+        assert result == "create view v as select 1"
+
+    def test_full_mariadb_view_normalizes_correctly(self) -> None:
+        """Integración: DDL MariaDB completo se normaliza a solo CREATE VIEW ... AS ..."""
+        result = SchemaComparator._normalize_ddl(self._MARIADB_FULL)
+        assert result == self._EXPECTED_NORMALIZED
+
+    def test_identical_mariadb_views_produce_equal_normalized_ddl(self) -> None:
+        """Caso de uso real: dos vistas idénticas con DEFINER distinto no deben diferir."""
+        ddl_source = (
+            "CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`server1` "
+            "SQL SECURITY DEFINER VIEW `orders_v` AS SELECT id, total FROM orders"
+        )
+        ddl_target = (
+            "CREATE ALGORITHM=UNDEFINED DEFINER=`app_user`@`server2` "
+            "SQL SECURITY DEFINER VIEW `orders_v` AS SELECT id, total FROM orders"
+        )
+        assert SchemaComparator._normalize_ddl(ddl_source) == SchemaComparator._normalize_ddl(ddl_target)

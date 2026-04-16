@@ -14,7 +14,7 @@ from typing import ClassVar
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from ..models import SchemaDiff
-from ._base import STATUS_ES, DiffSummary, build_diff_summary, escape_mermaid_label
+from ._base import STATUS_ES, DdlNormalizer, DiffSummary, build_diff_summary, escape_mermaid_label
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -71,6 +71,8 @@ class HtmlDiffReporter:
             keep_trailing_newline=True,
         )
         self._env.filters["escape_mermaid"] = lambda s: escape_mermaid_label(str(s or ""))
+        self._env.filters["normalize_view_ddl"] = lambda s: DdlNormalizer.normalize_view_ddl(str(s or ""))
+        self._env.filters["normalize_routine_ddl"] = lambda s: DdlNormalizer.normalize_routine_ddl(str(s or ""))
         self._template_name: str = template_name
 
     # ------------------------------------------------------------------

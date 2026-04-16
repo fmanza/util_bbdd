@@ -335,10 +335,10 @@ graph LR
       {% if vd.status == "modified" and (vd.source_definition or vd.target_definition) %}
       <details><summary>Ver definiciones DDL</summary>
         {% if vd.source_definition %}
-        <p class="sub-title">Origen</p><pre>{{ vd.source_definition | e }}</pre>
+        <p class="sub-title">Origen</p><pre>{{ vd.source_definition | normalize_view_ddl | e }}</pre>
         {% endif %}
         {% if vd.target_definition %}
-        <p class="sub-title">Destino</p><pre>{{ vd.target_definition | e }}</pre>
+        <p class="sub-title">Destino</p><pre>{{ vd.target_definition | normalize_view_ddl | e }}</pre>
         {% endif %}
       </details>
       {% else %}
@@ -365,10 +365,10 @@ graph LR
       {% if rd.status == "modified" and (rd.source_definition or rd.target_definition) %}
       <details><summary>Ver definiciones DDL</summary>
         {% if rd.source_definition %}
-        <p class="sub-title">Origen</p><pre>{{ rd.source_definition | e }}</pre>
+        <p class="sub-title">Origen</p><pre>{{ rd.source_definition | normalize_routine_ddl | e }}</pre>
         {% endif %}
         {% if rd.target_definition %}
-        <p class="sub-title">Destino</p><pre>{{ rd.target_definition | e }}</pre>
+        <p class="sub-title">Destino</p><pre>{{ rd.target_definition | normalize_routine_ddl | e }}</pre>
         {% endif %}
       </details>
       {% else %}

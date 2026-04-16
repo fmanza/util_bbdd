@@ -14,7 +14,7 @@ from ..models import (
     TableDiff,
     ViewDiff,
 )
-from ._base import STATUS_EMOJI, STATUS_ES, DiffSummary, build_diff_summary, escape_mermaid_label
+from ._base import STATUS_EMOJI, STATUS_ES, DdlNormalizer, DiffSummary, build_diff_summary, escape_mermaid_label
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -227,9 +227,11 @@ class MarkdownDiffReporter:
                 lines.append("<details><summary>Ver definiciones</summary>")
                 lines.append("")
                 if vd.source_definition:
-                    lines.append(f"**Origen:**\n```sql\n{vd.source_definition}\n```")
+                    src_ddl = DdlNormalizer.normalize_view_ddl(vd.source_definition)
+                    lines.append(f"**Origen:**\n```sql\n{src_ddl}\n```")
                 if vd.target_definition:
-                    lines.append(f"**Destino:**\n```sql\n{vd.target_definition}\n```")
+                    tgt_ddl = DdlNormalizer.normalize_view_ddl(vd.target_definition)
+                    lines.append(f"**Destino:**\n```sql\n{tgt_ddl}\n```")
                 lines.append("</details>")
                 lines.append("")
         return lines
@@ -247,9 +249,11 @@ class MarkdownDiffReporter:
                 lines.append("<details><summary>Ver definiciones</summary>")
                 lines.append("")
                 if rd.source_definition:
-                    lines.append(f"**Origen:**\n```sql\n{rd.source_definition}\n```")
+                    src_ddl = DdlNormalizer.normalize_routine_ddl(rd.source_definition)
+                    lines.append(f"**Origen:**\n```sql\n{src_ddl}\n```")
                 if rd.target_definition:
-                    lines.append(f"**Destino:**\n```sql\n{rd.target_definition}\n```")
+                    tgt_ddl = DdlNormalizer.normalize_routine_ddl(rd.target_definition)
+                    lines.append(f"**Destino:**\n```sql\n{tgt_ddl}\n```")
                 lines.append("</details>")
                 lines.append("")
         return lines

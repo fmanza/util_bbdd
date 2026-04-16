@@ -5,6 +5,10 @@ from __future__ import annotations
 import logging
 
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine import Inspector
 
 from ..contracts import DiffReporterProtocol
 from ..models import SchemaDiff
@@ -12,18 +16,20 @@ from ._base import build_output_stem
 from .excel_reporter import ExcelDiffReporter
 from .html_reporter import HtmlDiffReporter
 from .markdown_reporter import MarkdownDiffReporter
+from .sql_reporter import SqlDiffReporter
 from .word_reporter import WordDiffReporter
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 _EXTENSIONS: dict[str, str] = {
-    "html": ".html",
-    "excel": ".xlsx",
-    "word": ".docx",
+    "html":     ".html",
+    "excel":    ".xlsx",
+    "word":     ".docx",
     "markdown": ".md",
+    "sql":      ".sql",
 }
 
-_ALL_FORMATS: tuple[str, ...] = ("html", "excel", "word", "markdown")
+_ALL_FORMATS: tuple[str, ...] = ("html", "excel", "word", "markdown", "sql")
 
 
 class SchemaDiffReporter:
@@ -40,11 +46,17 @@ class SchemaDiffReporter:
         # Un solo formato
         path = reporter.render(diff, output_dir=Path("./reports"), format="html")
 
+        # Script SQL para MariaDB
+        path = reporter.render(diff, output_dir=Path("./reports"), format="sql")
+
         # Todos los formatos de una vez
         paths = reporter.render_all(diff, output_dir=Path("./reports"))
 
-        # Con plantilla Word corporativa
-        reporter = SchemaDiffReporter(word_template_path=Path("corp_template.docx"))
+        # Con plantilla Word corporativa y dialecto SQL
+        reporter = SchemaDiffReporter(
+            word_template_path=Path("corp_template.docx"),
+            sql_dialect="postgresql",
+        )
         paths = reporter.render_all(diff, output_dir=Path("./reports"))
 
     El nombre de fichero se deriva automáticamente de ``diff.source_label`` y
@@ -55,19 +67,49 @@ class SchemaDiffReporter:
         word_template_path: Ruta opcional a una plantilla Word (``.docx`` / ``.dotx``).
             Si se proporciona, el documento Word hereda los estilos y la
             configuración de página de esa plantilla.
+        sql_dialect: Motor objetivo para el script SQL.  Controla la sintaxis de
+            ``ALTER COLUMN``, ``DROP INDEX`` y ``DROP FOREIGN KEY``.
+            Válidos: ``"generic"`` (por defecto), ``"mariadb"``, ``"mysql"``,
+            ``"postgresql"``, ``"sqlserver"``, ``"oracle"``, ``"sqlite"``.
+        sql_source_inspector: Inspector de SQLAlchemy conectado al esquema origen.
+            Cuando se proporciona, el ``SqlDiffReporter`` genera ``CREATE TABLE``
+            completo para tablas nuevas y ``ADD COLUMN tipo_real`` para columnas
+            añadidas.  Si es ``None`` (por defecto), se emiten placeholders
+            ``-- ⚠`` con instrucciones.
+        sql_source_schema: Nombre del schema origen para el Inspector.  Normalmente
+            ``None`` para el schema por defecto del motor.
 
     Los reporters individuales también están disponibles directamente::
 
-        from util_bbdd.comparar.reporters import HtmlDiffReporter
+        from util_bbdd.comparar.reporters import HtmlDiffReporter, SqlDiffReporter
         HtmlDiffReporter().render(diff, output=Path("my_diff.html"))
+        SqlDiffReporter(dialect="mariadb").render(diff, output=Path("my_diff.sql"))
+
+        # Con Inspector para SQL completo (CREATE TABLE / ADD COLUMN reales):
+        from sqlalchemy import inspect
+        reporter = SchemaDiffReporter(
+            sql_dialect="postgresql",
+            sql_source_inspector=inspect(engine_source),
+        )
     """
 
-    def __init__(self, word_template_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        word_template_path: Path | None = None,
+        sql_dialect: str = "generic",
+        sql_source_inspector: Inspector | None = None,
+        sql_source_schema: str | None = None,
+    ) -> None:
         self._reporters: dict[str, DiffReporterProtocol] = {
-            "html": HtmlDiffReporter(),
-            "excel": ExcelDiffReporter(),
-            "word": WordDiffReporter(template_path=word_template_path),
+            "html":     HtmlDiffReporter(),
+            "excel":    ExcelDiffReporter(),
+            "word":     WordDiffReporter(template_path=word_template_path),
             "markdown": MarkdownDiffReporter(),
+            "sql":      SqlDiffReporter(
+                dialect=sql_dialect,
+                source_inspector=sql_source_inspector,
+                source_schema=sql_source_schema,
+            ),
         }
 
     def render(

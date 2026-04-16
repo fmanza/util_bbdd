@@ -60,8 +60,14 @@ class SchemaComparator:
     #:
     #:     SchemaComparator._DDL_STRIP_RULES.append((r"MY_PATTERN", ""))
     _DDL_STRIP_RULES: ClassVar[list[tuple[str, str]]] = [
-        # MariaDB / MySQL
-        (r"DEFINER=`[^`]+`@`[^`]+`", ""),
+        # MariaDB / MySQL — ALGORITHM debe ir antes de DEFINER (orden significativo)
+        (r"ALGORITHM\s*=\s*\w+", ""),
+        # MariaDB / MySQL — DEFINER todas las variantes de comillado y espacios alrededor de =
+        (r"DEFINER\s*=\s*`[^`]+`@`[^`]+`", ""),  # backticks
+        (r"DEFINER\s*=\s*'[^']*'@'[^']*'", ""),   # comillas simples
+        (r"DEFINER\s*=\s*\S+@\S+", ""),            # sin comillas
+        # MariaDB / MySQL — SQL SECURITY (cubre tanto inicio como interior del DDL)
+        (r"SQL\s+SECURITY\s+(?:DEFINER|INVOKER)", ""),
         # Oracle
         (r"CREATE OR REPLACE FORCE", "CREATE OR REPLACE"),
         # SQL Server: Escaped square brackets around identifiers [name], including special chars [My Column Name]
@@ -71,7 +77,7 @@ class SchemaComparator:
         # PostgreSQL: LANGUAGE clause
         (r"\s+LANGUAGE\s+\w+", ""),
         # PostgreSQL: SECURITY clauses
-        (r"\s+SECURITY\s+(DEFINER|INVOKER)", ""),
+        (r"\s+SECURITY\s+(?:DEFINER|INVOKER)", ""),
         # PostgreSQL: NULL handling clauses
         (r"\s+(STRICT|RETURNS\s+NULL\s+ON\s+NULL\s+INPUT)", ""),
     ]

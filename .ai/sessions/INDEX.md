@@ -28,6 +28,9 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-04-15  | refactor: OOP exclusivo en reporters (funciones→@staticmethod/ClassVar); docs política OOP en CLAUDE.md + copilot-instructions + python.instructions | develop | refactor | CLOSED | en sesión |
 | 2026-04-15b | new_feature: HTML filtrado interactivo 5 categorías sin Jinja2 (html.escape stdlib); Word compactado sin párrafos vacíos (paragraph_format spacing) | develop | new_feature | CLOSED | en sesión |
 | 2026-04-15c | refactor: HTML restaura Jinja2 + búsqueda de texto (controls-bar); Word aplica Heading 1 a las 5 categorías (Tablas añadidas/eliminadas/modificadas, Vistas, Rutinas) | develop | refactor | CLOSED | en sesión |
+| 2026-04-15d | new_feature: SqlDiffReporter — script SQL de nivelación dialect-específico (7 dialectos) integrado en SchemaDiffReporter como formato "sql"; 56 tests verdes | develop | new_feature | CLOSED | en sesión |
+| 2026-04-15e | new_feature: SqlDiffReporter con source_inspector — CREATE TABLE completo + ADD COLUMN tipo_real; corrección gap semántico "exists"/"missing"; SchemaDiffReporter +sql_source_inspector; 72 tests verdes | develop | new_feature | CLOSED | en sesión |
+| 2026-04-16  | new_feature: SqlDiffReporter gaps — CommentDiff (COMMENT ON/ALTER TABLE COMMENT/placeholder); CREATE TABLE completo con FK inline + CREATE INDEX post-tabla; nullable/DEFAULT dialect-aware (MODIFY COLUMN para mariadb/mysql/oracle); 102 tests verdes | develop | new_feature | CLOSED | en sesión |
 
 ## Crear nueva sesión
 
