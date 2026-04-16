@@ -30,7 +30,7 @@
     header p  { font-size: 0.9rem; opacity: 0.8; }
     main { max-width: 1100px; margin: 2rem auto; padding: 0 1.5rem; }
 
-    /* Controls bar: filter + search */
+    /* ── Controls bar: filter + search ──────────────────────────────────── */
     .controls-bar {
       display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;
       background: #fff; border: 1px solid var(--color-border);
@@ -66,7 +66,7 @@
     }
     .search-input:focus { border-color: var(--color-header); }
 
-    /* Summary cards */
+    /* ── Summary cards ───────────────────────────────────────────────────── */
     .summary { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 2rem; }
     .card {
       background: #fff; border: 1px solid var(--color-border);
@@ -78,14 +78,14 @@
     .card.removed  .value { color: var(--color-removed); }
     .card.modified .value { color: var(--color-modified); }
 
-    /* Section */
+    /* ── Section ─────────────────────────────────────────────────────────── */
     section { margin-bottom: 2.5rem; }
     section h2 {
       font-size: 1.2rem; border-bottom: 2px solid var(--color-border);
       padding-bottom: 0.5rem; margin-bottom: 1rem;
     }
 
-    /* Diff blocks */
+    /* ── Diff blocks ─────────────────────────────────────────────────────── */
     .diff-block {
       background: #fff; border: 1px solid var(--color-border);
       border-radius: 8px; margin-bottom: 1.25rem; overflow: hidden;
@@ -100,7 +100,7 @@
     .diff-block-header.modified { background: #fffbeb; border-left: 4px solid var(--color-modified); }
     .diff-block-body { padding: 0.75rem 1rem; }
 
-    /* Data tables */
+    /* ── Data tables ─────────────────────────────────────────────────────── */
     table { width: 100%; border-collapse: collapse; font-size: 0.875rem; margin-bottom: 0.75rem; }
     th { background: var(--color-header); color: #fff; text-align: left; padding: 0.5rem 0.75rem; }
     td { padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--color-border); }
@@ -110,7 +110,7 @@
       text-transform: uppercase; letter-spacing: 0.04em;
     }
 
-    /* Badges */
+    /* ── Badges ──────────────────────────────────────────────────────────── */
     .badge {
       display: inline-block; font-size: 0.7rem; font-weight: 700;
       padding: 0.1rem 0.45rem; border-radius: 99px; text-transform: uppercase;
@@ -132,12 +132,148 @@
     .no-diff { color: #6b7280; font-style: italic; }
     .search-no-match { display: none !important; }
 
-    /* Mermaid */
+    /* ── Mermaid container ───────────────────────────────────────────────── */
     .mermaid-container {
       background: #fff; border: 1px solid var(--color-border);
-      border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; text-align: center;
+      border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem;
     }
-    .mermaid-container h2 { text-align: left; }
+    .mermaid-container > h2 {
+      font-size: 1.2rem; border-bottom: 2px solid var(--color-border);
+      padding-bottom: 0.5rem; margin-bottom: 1.25rem;
+    }
+
+    /* ── Diagram tabs ────────────────────────────────────────────────────── */
+    .diagram-tabs {
+      display: flex;
+      gap: 0.375rem;
+      flex-wrap: wrap;
+      margin-bottom: 0;
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 0;
+    }
+    .diagram-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.45rem 1.1rem;
+      border: 1.5px solid transparent;
+      border-bottom: none;
+      border-radius: 6px 6px 0 0;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #f9fafb;
+      color: #6b7280;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      position: relative;
+      bottom: -2px;
+    }
+    .diagram-tab:hover { filter: brightness(0.97); }
+    .diagram-tab.active {
+      border-color: var(--color-border);
+      border-bottom-color: #fff;
+      background: #fff;
+      z-index: 1;
+    }
+    .diagram-tab[data-tab="added"].active    { color: var(--color-added);    border-top: 3px solid var(--color-added); }
+    .diagram-tab[data-tab="modified"].active { color: var(--color-modified); border-top: 3px solid var(--color-modified); }
+    .diagram-tab[data-tab="removed"].active  { color: var(--color-removed);  border-top: 3px solid var(--color-removed); }
+    .diagram-tab:not(.active) { opacity: 0.6; }
+    .tab-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.5rem;
+      height: 1.5rem;
+      border-radius: 99px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0 0.35rem;
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+    .diagram-tab[data-tab="added"].active    .tab-count { background: #dcfce7; color: var(--color-added); }
+    .diagram-tab[data-tab="modified"].active .tab-count { background: #fef3c7; color: var(--color-modified); }
+    .diagram-tab[data-tab="removed"].active  .tab-count { background: #fee2e2; color: var(--color-removed); }
+
+    /* ── Diagram tab content ─────────────────────────────────────────────── */
+    .diagram-tab-content {
+      display: none;
+      padding-top: 1.25rem;
+    }
+    .diagram-tab-content.active { display: block; }
+
+    /* ── Diagram pages ───────────────────────────────────────────────────── */
+    .diagram-page { display: none; }
+    .diagram-page.active { display: block; }
+    .diagram-page .mermaid {
+      text-align: center;
+      min-height: 80px;
+      padding: 0.5rem 0;
+    }
+    /* Spinner while Mermaid renders */
+    .diagram-page .mermaid:not(:has(svg))::after {
+      content: "Cargando diagrama…";
+      display: block;
+      color: #9ca3af;
+      font-size: 0.82rem;
+      padding: 2rem 0;
+    }
+
+    /* ── Pagination ──────────────────────────────────────────────────────── */
+    .diagram-pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--color-border);
+      font-size: 0.82rem;
+      color: #6b7280;
+      flex-wrap: wrap;
+    }
+    .pagination-btn {
+      padding: 0.3rem 0.9rem;
+      border: 1.5px solid var(--color-border);
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 500;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .pagination-btn:hover:not(:disabled) {
+      background: #f3f4f6;
+      border-color: #9ca3af;
+    }
+    .pagination-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .pagination-info { font-weight: 600; color: #374151; }
+
+    /* ── Page dots ───────────────────────────────────────────────────────── */
+    .page-dots {
+      display: flex;
+      gap: 0.35rem;
+      align-items: center;
+    }
+    .page-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #d1d5db;
+      transition: background 0.15s, transform 0.15s;
+      cursor: pointer;
+      border: none;
+      padding: 0;
+    }
+    .page-dot:hover { background: #9ca3af; }
+    .page-dot.active {
+      background: #6b7280;
+      transform: scale(1.5);
+    }
+    .diagram-tab[data-tab="added"]    ~ .diagram-tab-content .page-dot.active,
+    .page-dot.active[data-tab="added"]    { background: var(--color-added); }
+    .page-dot.active[data-tab="modified"] { background: var(--color-modified); }
+    .page-dot.active[data-tab="removed"]  { background: var(--color-removed); }
   </style>
 </head>
 <body>
@@ -204,38 +340,179 @@
 <p class="no-diff">✅ Sin diferencias detectadas entre los esquemas.</p>
 {% endif %}
 
-{# ── Mermaid ───────────────────────────────────────────────────────────── #}
+{# ── Diagrama de diferencias (tablas) — tabs + paginación ─────────────── #}
 {% if diff.table_diffs %}
 {% set added_tables    = diff.table_diffs | selectattr("status","eq","added")    | list %}
 {% set removed_tables  = diff.table_diffs | selectattr("status","eq","removed")  | list %}
 {% set modified_tables = diff.table_diffs | selectattr("status","eq","modified") | list %}
-<div class="mermaid-container">
+{% if added_tables or modified_tables or removed_tables %}
+
+{% set added_pages    = added_tables    | batch(9) | list %}
+{% set modified_pages = modified_tables | batch(9) | list %}
+{% set removed_pages  = removed_tables  | batch(9) | list %}
+
+<div class="mermaid-container" id="diagram-section">
   <h2>Diagrama de diferencias (tablas)</h2>
-  <div class="mermaid">
-graph LR
+
+  {# ── Barra de tabs ──────────────────────────────────────────────────── #}
+  <div class="diagram-tabs" role="tablist" aria-label="Categorías de cambio">
     {% if added_tables %}
-    subgraph added["✅ Añadidas"]
-      {% for td in added_tables %}
-      A{{ loop.index }}["{{ td.table_name | escape_mermaid }}"]
-      {% endfor %}
-    end
-    {% endif %}
-    {% if removed_tables %}
-    subgraph removed["❌ Eliminadas"]
-      {% for td in removed_tables %}
-      R{{ loop.index }}["{{ td.table_name | escape_mermaid }}"]
-      {% endfor %}
-    end
+    <button class="diagram-tab" data-tab="added" role="tab" aria-controls="diagram-tab-added">
+      ✅ Añadidas
+      <span class="tab-count" aria-label="{{ added_tables | length }} tablas">{{ added_tables | length }}</span>
+    </button>
     {% endif %}
     {% if modified_tables %}
-    subgraph modified["⚠️ Modificadas"]
-      {% for td in modified_tables %}
-      M{{ loop.index }}["{{ td.table_name | escape_mermaid }}"]
-      {% endfor %}
-    end
+    <button class="diagram-tab" data-tab="modified" role="tab" aria-controls="diagram-tab-modified">
+      ⚠️ Modificadas
+      <span class="tab-count" aria-label="{{ modified_tables | length }} tablas">{{ modified_tables | length }}</span>
+    </button>
+    {% endif %}
+    {% if removed_tables %}
+    <button class="diagram-tab" data-tab="removed" role="tab" aria-controls="diagram-tab-removed">
+      ❌ Eliminadas
+      <span class="tab-count" aria-label="{{ removed_tables | length }} tablas">{{ removed_tables | length }}</span>
+    </button>
     {% endif %}
   </div>
-</div>
+
+  {# ── Tab: Añadidas ─────────────────────────────────────────────────── #}
+  {% if added_tables %}
+  <div class="diagram-tab-content" id="diagram-tab-added" data-tab-content="added"
+       role="tabpanel" aria-labelledby="tab-btn-added">
+    {% for page in added_pages %}
+    {% set pn = loop.index %}
+    <div class="diagram-page" id="diagram-added-p{{ pn }}" data-page="{{ pn }}">
+      <div class="mermaid" id="mermaid-added-p{{ pn }}">
+graph LR
+  classDef nodeStyle fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#14532d
+      {% set items = page | reject("none") | list %}
+      {% for td in items %}
+  A{{ loop.index }}["{{ td.table_name | escape_mermaid }}"]:::nodeStyle
+      {% endfor %}
+      {% set n = items | length %}
+      {% for rs in range(0, n, 3) %}
+        {% if rs + 2 < n %}
+  A{{ rs + 1 }} ~~~ A{{ rs + 2 }} ~~~ A{{ rs + 3 }}
+        {% elif rs + 1 < n %}
+  A{{ rs + 1 }} ~~~ A{{ rs + 2 }}
+        {% endif %}
+      {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+    {% if added_pages | length > 1 %}
+    <div class="diagram-pagination" data-pagination="added">
+      <button class="pagination-btn" id="btn-added-prev" data-dir="prev" data-tab="added"
+              aria-label="Página anterior">← Anterior</button>
+      <div class="page-dots" id="dots-added" aria-hidden="true">
+        {% for _ in added_pages %}
+        <button class="page-dot" data-tab="added" data-page="{{ loop.index }}"
+                title="Página {{ loop.index }}" aria-label="Ir a página {{ loop.index }}"></button>
+        {% endfor %}
+      </div>
+      <span class="pagination-info" aria-live="polite">
+        Página <span id="label-added-current">1</span> de {{ added_pages | length }}
+      </span>
+      <button class="pagination-btn" id="btn-added-next" data-dir="next" data-tab="added"
+              aria-label="Página siguiente">Siguiente →</button>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ── Tab: Modificadas ──────────────────────────────────────────────── #}
+  {% if modified_tables %}
+  <div class="diagram-tab-content" id="diagram-tab-modified" data-tab-content="modified"
+       role="tabpanel" aria-labelledby="tab-btn-modified">
+    {% for page in modified_pages %}
+    {% set pn = loop.index %}
+    <div class="diagram-page" id="diagram-modified-p{{ pn }}" data-page="{{ pn }}">
+      <div class="mermaid" id="mermaid-modified-p{{ pn }}">
+graph LR
+  classDef nodeStyle fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#92400e
+      {% set items = page | reject("none") | list %}
+      {% for td in items %}
+  M{{ loop.index }}["{{ td.table_name | escape_mermaid }}"]:::nodeStyle
+      {% endfor %}
+      {% set n = items | length %}
+      {% for rs in range(0, n, 3) %}
+        {% if rs + 2 < n %}
+  M{{ rs + 1 }} ~~~ M{{ rs + 2 }} ~~~ M{{ rs + 3 }}
+        {% elif rs + 1 < n %}
+  M{{ rs + 1 }} ~~~ M{{ rs + 2 }}
+        {% endif %}
+      {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+    {% if modified_pages | length > 1 %}
+    <div class="diagram-pagination" data-pagination="modified">
+      <button class="pagination-btn" id="btn-modified-prev" data-dir="prev" data-tab="modified"
+              aria-label="Página anterior">← Anterior</button>
+      <div class="page-dots" id="dots-modified" aria-hidden="true">
+        {% for _ in modified_pages %}
+        <button class="page-dot" data-tab="modified" data-page="{{ loop.index }}"
+                title="Página {{ loop.index }}" aria-label="Ir a página {{ loop.index }}"></button>
+        {% endfor %}
+      </div>
+      <span class="pagination-info" aria-live="polite">
+        Página <span id="label-modified-current">1</span> de {{ modified_pages | length }}
+      </span>
+      <button class="pagination-btn" id="btn-modified-next" data-dir="next" data-tab="modified"
+              aria-label="Página siguiente">Siguiente →</button>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ── Tab: Eliminadas ───────────────────────────────────────────────── #}
+  {% if removed_tables %}
+  <div class="diagram-tab-content" id="diagram-tab-removed" data-tab-content="removed"
+       role="tabpanel" aria-labelledby="tab-btn-removed">
+    {% for page in removed_pages %}
+    {% set pn = loop.index %}
+    <div class="diagram-page" id="diagram-removed-p{{ pn }}" data-page="{{ pn }}">
+      <div class="mermaid" id="mermaid-removed-p{{ pn }}">
+graph LR
+  classDef nodeStyle fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#991b1b
+      {% set items = page | reject("none") | list %}
+      {% for td in items %}
+  R{{ loop.index }}["{{ td.table_name | escape_mermaid }}"]:::nodeStyle
+      {% endfor %}
+      {% set n = items | length %}
+      {% for rs in range(0, n, 3) %}
+        {% if rs + 2 < n %}
+  R{{ rs + 1 }} ~~~ R{{ rs + 2 }} ~~~ R{{ rs + 3 }}
+        {% elif rs + 1 < n %}
+  R{{ rs + 1 }} ~~~ R{{ rs + 2 }}
+        {% endif %}
+      {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+    {% if removed_pages | length > 1 %}
+    <div class="diagram-pagination" data-pagination="removed">
+      <button class="pagination-btn" id="btn-removed-prev" data-dir="prev" data-tab="removed"
+              aria-label="Página anterior">← Anterior</button>
+      <div class="page-dots" id="dots-removed" aria-hidden="true">
+        {% for _ in removed_pages %}
+        <button class="page-dot" data-tab="removed" data-page="{{ loop.index }}"
+                title="Página {{ loop.index }}" aria-label="Ir a página {{ loop.index }}"></button>
+        {% endfor %}
+      </div>
+      <span class="pagination-info" aria-live="polite">
+        Página <span id="label-removed-current">1</span> de {{ removed_pages | length }}
+      </span>
+      <button class="pagination-btn" id="btn-removed-next" data-dir="next" data-tab="removed"
+              aria-label="Página siguiente">Siguiente →</button>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>{# /mermaid-container #}
+{% endif %}
 {% endif %}
 
 {# ── Tablas ────────────────────────────────────────────────────────────── #}
@@ -383,39 +660,185 @@ graph LR
 </main>
 
 {# ── Scripts ───────────────────────────────────────────────────────────── #}
-<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-<script>mermaid.initialize({startOnLoad:true,theme:"default"});</script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script>
 (function () {
-  var activeFilters = new Set([
-    'tables-added','tables-removed','tables-modified','views','routines'
-  ]);
-  var searchTerm = '';
+  'use strict';
 
-  function normalize(s) {
-    return s.toLowerCase().replace(/\s+/g, ' ').trim();
-  }
+  // ── Mermaid: lazy init (no auto-render al cargar) ──────────────────────
+  mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
-  function blockMatchesSearch(block) {
-    if (!searchTerm) return true;
-    return normalize(block.textContent).indexOf(searchTerm) !== -1;
-  }
+  /** IDs de nodos .mermaid ya renderizados (evita re-renders). */
+  var renderedIds = new Set();
 
-  function applyAll() {
-    document.querySelectorAll('.diff-block[data-cat]').forEach(function (block) {
-      var catOk    = activeFilters.has(block.dataset.cat);
-      var searchOk = blockMatchesSearch(block);
-      block.style.display = (catOk && searchOk) ? '' : 'none';
+  /**
+   * Llama a mermaid.run() sobre los nodos .mermaid no renderizados
+   * dentro del contenedor dado.
+   */
+  function renderMermaidIn(container) {
+    var nodes = Array.from(container.querySelectorAll('.mermaid')).filter(function (el) {
+      return el.id && !renderedIds.has(el.id);
     });
-    document.querySelectorAll('section.filterable').forEach(function (sec) {
-      var hasVisible = Array.from(sec.querySelectorAll('.diff-block[data-cat]'))
-        .some(function (b) { return b.style.display !== 'none'; });
-      sec.style.display = hasVisible ? '' : 'none';
-    });
+    if (nodes.length === 0) return;
+    nodes.forEach(function (n) { renderedIds.add(n.id); });
+    try {
+      if (typeof mermaid.run === 'function') {
+        // Mermaid v10+
+        mermaid.run({ nodes: nodes, suppressErrors: true }).catch(function (err) {
+          console.warn('[mermaid] render error:', err);
+        });
+      } else {
+        // Mermaid v9 fallback
+        mermaid.init(undefined, nodes);
+      }
+    } catch (err) {
+      console.warn('[mermaid] init error:', err);
+    }
   }
 
+  // ── Estado de tabs y paginación ────────────────────────────────────────
+  var currentTab  = null;
+  var currentPage = {};   // { tabName: pageNumber }
+
+  /**
+   * Activa un tab del diagrama: actualiza botones, muestra el panel
+   * correspondiente y renderiza Mermaid de la página activa.
+   */
+  function showDiagramTab(tabName) {
+    // Botones
+    document.querySelectorAll('.diagram-tab').forEach(function (btn) {
+      var active = btn.dataset.tab === tabName;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+
+    // Paneles
+    document.querySelectorAll('.diagram-tab-content').forEach(function (panel) {
+      panel.classList.toggle('active', panel.dataset.tabContent === tabName);
+    });
+
+    // Muestra la página actual del tab (o la primera si es nueva)
+    var page = currentPage[tabName] || 1;
+    showDiagramPage(tabName, page, true);
+
+    currentTab = tabName;
+  }
+
+  /**
+   * Muestra una página concreta de un tab: actualiza visibilidad de páginas,
+   * renderiza Mermaid si es necesario y actualiza los controles de paginación.
+   *
+   * @param {string}  tabName
+   * @param {number}  pageNum    - 1-indexed
+   * @param {boolean} [skipTabSwitch] - true si ya se cambió el panel activo
+   */
+  function showDiagramPage(tabName, pageNum, skipTabSwitch) {
+    var tabContent = document.querySelector('.diagram-tab-content[data-tab-content="' + tabName + '"]');
+    if (!tabContent) return;
+
+    var pages = tabContent.querySelectorAll('.diagram-page');
+    if (pages.length === 0) return;
+
+    // Clampeo
+    pageNum = Math.max(1, Math.min(pageNum, pages.length));
+    currentPage[tabName] = pageNum;
+
+    // Mostrar / ocultar páginas
+    pages.forEach(function (p, i) {
+      p.classList.toggle('active', i + 1 === pageNum);
+    });
+
+    // Render lazy de Mermaid en la página activa
+    var activePage = tabContent.querySelector('.diagram-page.active');
+    if (activePage) {
+      renderMermaidIn(activePage);
+    }
+
+    // Actualizar UI de paginación
+    updatePaginationUI(tabName, pageNum, pages.length);
+  }
+
+  /**
+   * Sincroniza los controles de paginación (botones Prev/Next + dots + label).
+   */
+  function updatePaginationUI(tabName, current, total) {
+    var prevBtn = document.getElementById('btn-' + tabName + '-prev');
+    var nextBtn = document.getElementById('btn-' + tabName + '-next');
+    var label   = document.getElementById('label-' + tabName + '-current');
+    var dotsEl  = document.getElementById('dots-' + tabName);
+
+    if (prevBtn) prevBtn.disabled = current <= 1;
+    if (nextBtn) nextBtn.disabled = current >= total;
+    if (label)   label.textContent = current;
+
+    if (dotsEl) {
+      dotsEl.querySelectorAll('.page-dot').forEach(function (dot) {
+        dot.classList.toggle('active', parseInt(dot.dataset.page, 10) === current);
+      });
+    }
+  }
+
+  // ── Wiring de eventos ──────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () {
-    // Filtros de categoría
+
+    // Tabs del diagrama
+    document.querySelectorAll('.diagram-tab').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        showDiagramTab(this.dataset.tab);
+      });
+    });
+
+    // Botones Anterior / Siguiente
+    document.querySelectorAll('.pagination-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var tab  = this.dataset.tab;
+        var dir  = this.dataset.dir;
+        var page = currentPage[tab] || 1;
+        showDiagramPage(tab, dir === 'prev' ? page - 1 : page + 1);
+      });
+    });
+
+    // Puntos de página (dots)
+    document.querySelectorAll('.page-dot').forEach(function (dot) {
+      dot.addEventListener('click', function () {
+        showDiagramPage(this.dataset.tab, parseInt(this.dataset.page, 10));
+      });
+    });
+
+    // Inicializar: mostrar el primer tab disponible
+    var firstTabBtn = document.querySelector('.diagram-tab');
+    if (firstTabBtn) {
+      showDiagramTab(firstTabBtn.dataset.tab);
+    }
+
+    // ── Filtros de categoría (secciones detalladas) ──────────────────────
+    var activeFilters = new Set([
+      'tables-added', 'tables-removed', 'tables-modified', 'views', 'routines'
+    ]);
+    var searchTerm = '';
+
+    function normalize(s) {
+      return s.toLowerCase().replace(/\s+/g, ' ').trim();
+    }
+
+    function blockMatchesSearch(block) {
+      if (!searchTerm) return true;
+      return normalize(block.textContent).indexOf(searchTerm) !== -1;
+    }
+
+    function applyAll() {
+      document.querySelectorAll('.diff-block[data-cat]').forEach(function (block) {
+        var catOk    = activeFilters.has(block.dataset.cat);
+        var searchOk = blockMatchesSearch(block);
+        block.style.display = (catOk && searchOk) ? '' : 'none';
+      });
+      document.querySelectorAll('section.filterable').forEach(function (sec) {
+        var hasVisible = Array.from(sec.querySelectorAll('.diff-block[data-cat]'))
+          .some(function (b) { return b.style.display !== 'none'; });
+        sec.style.display = hasVisible ? '' : 'none';
+      });
+    }
+
     document.querySelectorAll('.filter-btn').forEach(function (btn) {
       btn.classList.add('active');
       btn.addEventListener('click', function () {
@@ -442,6 +865,7 @@ graph LR
       });
     }
   });
+
 })();
 </script>
 
