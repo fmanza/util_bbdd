@@ -70,9 +70,10 @@ class SQLAlchemyEngineFactory:
             # Crear engine con pool_pre_ping para validar conexiones
             engine: Engine = create_engine(conn_str, pool_pre_ping=True, echo=False)
 
-            # Verificar que la conexión funciona
+            # Verificar que la conexión funciona con query apropiada por motor
+            test_query: str = SQLAlchemyEngineFactory._get_test_query(db_type)
             with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
+                conn.execute(text(test_query))
 
             SQLAlchemyEngineFactory.logger.info(f"✅ Engine de SQLAlchemy creado exitosamente para {db_type}")
             return engine
@@ -88,7 +89,26 @@ class SQLAlchemyEngineFactory:
             raise
         except Exception as e:
             SQLAlchemyEngineFactory.logger.error(f"❌ Error creando Engine de SQLAlchemy: {e}")
-            raise ConnectionError(f"Error creando Engine de SQLAlchemy: {str(e)}", db_type=db_type, details=str(e)) from e
+            raise ConnectionError(
+                f"Error creando Engine de SQLAlchemy: {str(e)}", db_type=db_type, details=str(e)
+            ) from e
+
+    @staticmethod
+    def _get_test_query(db_type: str) -> str:
+        """
+        Retorna query de verificación de conexión apropiada por motor.
+
+        Oracle requiere FROM DUAL; otros motores usan SELECT 1.
+
+        Args:
+            db_type: Tipo de motor ('mariadb', 'oracle', 'postgresql', 'sqlserver', 'hsqldb', 'sqlite')
+
+        Returns:
+            Query SQL de verificación de conexión
+        """
+        if db_type == "oracle":
+            return "SELECT 1 FROM DUAL"
+        return "SELECT 1"
 
     @staticmethod
     def _build_mariadb_connection_string(conn_params: dict[str, Any], database: str) -> str:

@@ -97,8 +97,10 @@ class AsyncSQLAlchemyEngineFactory:
 
             engine: AsyncEngine = create_async_engine(conn_str, **engine_kwargs)
 
+            # Verificar que la conexión funciona con query apropiada por motor
+            test_query: str = AsyncSQLAlchemyEngineFactory._get_test_query(normalized_type)
             async with engine.connect() as conn:
-                await conn.execute(text("SELECT 1"))
+                await conn.execute(text(test_query))
 
             AsyncSQLAlchemyEngineFactory.logger.info(
                 "✅ AsyncEngine de SQLAlchemy creado exitosamente para %s",
@@ -139,6 +141,23 @@ class AsyncSQLAlchemyEngineFactory:
             return conn_str
         user, _password = credentials.split(":", 1)
         return f"{prefix}://{user}:***@{suffix}"
+
+    @staticmethod
+    def _get_test_query(db_type: str) -> str:
+        """
+        Retorna query de verificación de conexión apropiada por motor.
+
+        Oracle requiere FROM DUAL; otros motores usan SELECT 1.
+
+        Args:
+            db_type: Tipo de motor ('mariadb', 'oracle', 'postgresql', 'sqlserver', 'sqlite')
+
+        Returns:
+            Query SQL de verificación de conexión
+        """
+        if db_type == "oracle":
+            return "SELECT 1 FROM DUAL"
+        return "SELECT 1"
 
     @staticmethod
     def _build_mariadb_connection_string(conn_params: dict[str, Any], database: str | None) -> str:
