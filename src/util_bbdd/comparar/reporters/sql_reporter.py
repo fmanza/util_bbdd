@@ -41,6 +41,8 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, LiteralString
 if TYPE_CHECKING:
     from sqlalchemy.engine import Inspector
 
+from util_bbdd._core.exceptions import SchemaDiffValidationError
+
 from ..models import (
     ColumnDiff,
     CommentDiff,
@@ -249,7 +251,11 @@ class SqlDiffReporter:
     ) -> None:
         normalized: str = dialect.strip().lower()
         if normalized not in SUPPORTED_DIALECTS:
-            raise ValueError(f"Dialect '{dialect}' no soportado. Válidos: {sorted(SUPPORTED_DIALECTS)}")
+            raise SchemaDiffValidationError(
+                f"Dialect '{dialect}' no soportado. Válidos: {sorted(SUPPORTED_DIALECTS)}",
+                operation="SqlDiffReporter.init",
+                details=f"dialect={normalized}",
+            )
         self._dialect: str = normalized
         self._source_inspector: Any = source_inspector
         self._source_schema: str | None = source_schema
@@ -976,9 +982,7 @@ class SqlDiffReporter:
                 lines.append(self._build_view_create_sql(vd.view_name, vd.source_definition) + ";")
                 lines.append("GO")
             else:
-                lines.append(
-                    self._build_view_create_sql(vd.view_name, vd.source_definition, or_replace=True) + ";"
-                )
+                lines.append(self._build_view_create_sql(vd.view_name, vd.source_definition, or_replace=True) + ";")
         else:
             lines.append(f"-- ⚠ {vd.view_name}: modificada pero definición origen no disponible en SchemaDiff.")
         lines.append("")

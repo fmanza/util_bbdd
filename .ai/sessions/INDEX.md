@@ -33,6 +33,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-04-16  | new_feature: SqlDiffReporter gaps — CommentDiff (COMMENT ON/ALTER TABLE COMMENT/placeholder); CREATE TABLE completo con FK inline + CREATE INDEX post-tabla; nullable/DEFAULT dialect-aware (MODIFY COLUMN para mariadb/mysql/oracle); 102 tests verdes | develop | new_feature | CLOSED | en sesión |
 | 2026-04-16b | new_feature: HTML diff reporter — diagrama de diferencias tabbed (Añadidas/Modificadas/Eliminadas) con paginación Mermaid lazy (máx. 9 tablas/bloque); ARIA completo; CDN mermaid@10; 1878 tests verdes | develop | new_feature | CLOSED | `2026-04-16/TRACEABILITY.md` |
 | 2026-04-16c | refactor: layout 3 columnas en diagramas Mermaid — invisible links ~~~; fix bug loop.index con None padding (reject("none")); 1878 tests verdes | develop | refactor | CLOSED | en sesión |
+| 2026-04-16d | **refactor: excepciones en comparar/** — reemplazar ValueError/Exception genéricas por ComparerError + 3 subclases (SchemaDiffValidationError, MetadataIntrospectionError, DiffReportGenerationError); 4 nuevas excepciones, 6 tests actualizados; 1878 tests verdes ✅ COMPLETADA | develop | refactor | CLOSED | `2026-04-16-comparar-exceptions/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 

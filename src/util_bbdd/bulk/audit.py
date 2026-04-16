@@ -120,6 +120,20 @@ class AuditTransaction:
         return sum(op.get("rowcount", 0) for op in self.operaciones)
 
     def obtener_resumen(self) -> dict[str, Any]:
+        """
+        Obtener resumen de la transacción actual.
+
+        Returns:
+            Diccionario con:
+            - nombre: Nombre de la transacción
+            - inicio: Timestamp de inicio
+            - fin: Timestamp de fin (o None si aún está en curso)
+            - duracion_segundos: Segundos transcurridos
+            - total_operaciones: Cantidad de operaciones registradas
+            - total_filas: Cantidad total de filas afectadas
+            - exito: Booleano indicando si completó exitosamente
+            - operaciones: Lista de operaciones registradas
+        """
         return {
             "nombre": self.nombre,
             "exito": self.exito,
@@ -229,6 +243,20 @@ class AuditManager:
         elapsed: float,
         genero_sql: bool = False,
     ) -> None:
+        """
+        Registrar una operación CRUD en el CSV de auditoría.
+
+        Args:
+            tabla: Nombre de la tabla modificada
+            motor: Tipo de motor ('mariadb', 'oracle', 'postgresql', etc.)
+            operacion: Tipo de operación ('INSERT', 'UPDATE', 'DELETE')
+            rowcount: Número de filas afectadas
+            elapsed: Tiempo en segundos que tardó la operación
+            genero_sql: Si la operación generó SQL personalizado (default False)
+
+        Raises:
+            AuditValidationError: Si algún parámetro es inválido
+        """
         if self.audit_csv_path is None:
             self.logger.warning("⚠️ Auditoría deshabilitada: audit_csv_path es None")
             return
@@ -279,42 +307,54 @@ class AuditManager:
         )
 
     def leer_auditoria(self, usar_cache: bool = True) -> pd.DataFrame:
+        """Leer el registro de auditoría desde CSV."""
         return self._repository.leer_auditoria(usar_cache=usar_cache)
 
     def _es_cache_valido(self) -> bool:
         return self._repository.es_cache_valido()
 
     def limpiar_cache(self) -> None:
+        """Limpiar el cache en memoria de auditoría."""
         self._repository.limpiar_cache()
 
     def invalidar_cache(self) -> None:
+        """Invalidar el cache en memoria (alias de limpiar_cache)."""
         self.limpiar_cache()
 
     def exportar_resumen_excel(self, agrupar_por: Literal["tabla", "fecha", "tabla_fecha"] = "tabla") -> Path:
+        """Exportar resumen de auditoría a archivo Excel."""
         return self._exporters.exportar_resumen_excel(agrupar_por=agrupar_por)
 
     def obtener_estadisticas(self) -> dict[str, Any]:
+        """Obtener estadísticas generales de auditoría."""
         return self._service.obtener_estadisticas()
 
     def obtener_operaciones_por_tipo(self) -> dict[str, int]:
+        """Contar operaciones por tipo (INSERT, UPDATE, DELETE)."""
         return self._service.obtener_operaciones_por_tipo()
 
     def obtener_operaciones_por_tabla(self) -> dict[str, int]:
+        """Contar operaciones por tabla."""
         return self._service.obtener_operaciones_por_tabla()
 
     def obtener_operaciones_lentas(self, umbral_segundos: float = 5.0) -> pd.DataFrame:
+        """Filtrar operaciones que tardaron más de un umbral."""
         return self._service.obtener_operaciones_lentas(umbral_segundos)
 
     def filtrar_por_operacion(self, operacion: str) -> pd.DataFrame:
+        """Filtrar registros de auditoría por tipo de operación."""
         return self._service.filtrar_por_operacion(operacion)
 
     def filtrar_por_tabla(self, tabla: str) -> pd.DataFrame:
+        """Filtrar registros de auditoría por tabla."""
         return self._service.filtrar_por_tabla(tabla)
 
     def filtrar_por_motor(self, motor: str) -> pd.DataFrame:
+        """Filtrar registros de auditoría por motor de BD."""
         return self._service.filtrar_por_motor(motor)
 
     def filtrar_por_rango_tiempo(self, inicio: datetime, fin: datetime) -> pd.DataFrame:
+        """Filtrar registros de auditoría por rango de fechas."""
         return self._service.filtrar_por_rango_tiempo(inicio, fin)
 
     def filtrar_multiple(
@@ -324,6 +364,7 @@ class AuditManager:
         motor: str | None = None,
         umbral_tiempo: float | None = None,
     ) -> pd.DataFrame:
+        """Filtrar registros de auditoría con múltiples criterios simultáneamente."""
         return self._service.filtrar_multiple(
             operacion=operacion,
             tabla=tabla,
@@ -338,15 +379,19 @@ class AuditManager:
         return self._service.agrupar_y_generar_resumen(df_op, group_cols)
 
     def exportar_resumen_json(self, output_path: Path | None = None) -> Path:
+        """Exportar resumen de auditoría a archivo JSON."""
         return self._exporters.exportar_resumen_json(output_path=output_path)
 
     def exportar_resumen_html(self, output_path: Path | None = None) -> Path:
+        """Exportar resumen de auditoría a archivo HTML interactivo."""
         return self._exporters.exportar_resumen_html(output_path=output_path)
 
     def iniciar_transaccion(self, nombre: str) -> AuditTransaction:
+        """Iniciar una transacción de auditoría (context manager)."""
         return AuditTransaction(self, nombre)
 
     def obtener_historial_transacciones(self) -> list[dict[str, Any]]:
+        """Obtener historial de transacciones completadas."""
         if self.audit_csv_path is None:
             raise AuditConfigError(self.ERROR_AUDIT_PATH_REQUIRED)
         return self._historial_transacciones.copy()

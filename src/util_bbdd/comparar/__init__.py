@@ -15,6 +15,13 @@ Ejemplo básico::
     diff = SchemaComparator().compare(inspect(engine_a), inspect(engine_b))
 """
 
+from util_bbdd._core.exceptions import (
+    ComparerError,
+    DiffReportGenerationError,
+    MetadataIntrospectionError,
+    SchemaDiffValidationError,
+)
+
 from .comparator import SchemaComparator
 from .contracts import DiffReporterProtocol, SchemaComparatorProtocol
 from .models import (
@@ -36,20 +43,29 @@ from .reporters import (
 )
 
 __all__: list[str] = [
+    # Excepciones
+    "ComparerError",
+    "SchemaDiffValidationError",
+    "MetadataIntrospectionError",
+    "DiffReportGenerationError",
+    # Modelos
     "ColumnDiff",
     "CommentDiff",
-    "DiffReporterProtocol",
-    "ExcelDiffReporter",
     "ForeignKeyDiff",
-    "HtmlDiffReporter",
     "IndexDiff",
-    "MarkdownDiffReporter",
     "RoutineDiff",
-    "SchemaComparator",
-    "SchemaComparatorProtocol",
     "SchemaDiff",
-    "SchemaDiffReporter",
     "TableDiff",
     "ViewDiff",
+    # Comparador
+    "SchemaComparator",
+    "SchemaComparatorProtocol",
+    # Reporters
+    "ExcelDiffReporter",
+    "HtmlDiffReporter",
+    "MarkdownDiffReporter",
+    "SchemaDiffReporter",
     "WordDiffReporter",
+    # Protocolos
+    "DiffReporterProtocol",
 ]

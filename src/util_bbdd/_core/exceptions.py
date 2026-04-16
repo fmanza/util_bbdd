@@ -246,6 +246,64 @@ class DatabaseConfigurationError(DatabaseException):
     pass
 
 
+# ============================================================================
+# Categoría 6: Errores de Comparación de Esquemas (módulo comparar/)
+# ============================================================================
+
+
+class ComparerError(DatabaseException):
+    """Excepción base para errores del módulo de comparación de esquemas.
+
+    Captura cualquier error que ocurra durante comparación, validación o
+    generación de reportes de diferencias de esquemas entre dos bases de datos.
+    """
+
+    pass
+
+
+class SchemaDiffValidationError(ComparerError):
+    """Error validando entrada o parámetros de comparación/reporte.
+
+    Cubre:
+    - Dialect SQL no soportado
+    - Formato de reporte no soportado
+    - Rutas de salida o parámetros inválidos
+    - Parámetros mal tipados
+    """
+
+    pass
+
+
+class MetadataIntrospectionError(ComparerError):
+    """Error obteniendo metadatos via SQLAlchemy Inspector.
+
+    Cubre:
+    - Inspector.get_columns() falla (tabla no existe, sin permisos, etc.)
+    - Inspector.get_pk_constraint(), get_foreign_keys() falla
+    - Inspector.get_indexes() no soportado en dialect
+    - Fetching de vistas, routines (procedures/functions) falla
+    - get_view_definition() no soportado en dialect
+    - DDL retrieval falla inesperadamente
+    """
+
+    pass
+
+
+class DiffReportGenerationError(ComparerError):
+    """Error generando reporte de diferencias en formato específico.
+
+    Cubre:
+    - SQL Reporter falla al construir script de nivelación
+    - HTML Reporter falla al renderizar plantilla
+    - Word Reporter falla al crear documento
+    - Excel Reporter falla al escribir celdas
+    - Markdown Reporter falla al formatear
+    - I/O error escribiendo archivo de salida
+    """
+
+    pass
+
+
 __all__ = [
     # Base
     "DatabaseException",
@@ -277,4 +335,9 @@ __all__ = [
     # Genéricos
     "DatabaseOperationError",
     "DatabaseConfigurationError",
+    # Comparación de esquemas
+    "ComparerError",
+    "SchemaDiffValidationError",
+    "MetadataIntrospectionError",
+    "DiffReportGenerationError",
 ]

@@ -14,6 +14,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from util_bbdd._core.exceptions import SchemaDiffValidationError
 from util_bbdd.comparar.models import (
     ColumnDiff,
     CommentDiff,
@@ -240,9 +241,7 @@ class TestHtmlDiffReporter:
         # Script Mermaid CDN
         assert "cdn.jsdelivr.net" in content
 
-    def test_filter_toolbar_present_when_diffs_exist(
-        self, tmp_path: Path, rich_diff: SchemaDiff
-    ) -> None:
+    def test_filter_toolbar_present_when_diffs_exist(self, tmp_path: Path, rich_diff: SchemaDiff) -> None:
         """El toolbar de filtros aparece con los 5 botones cuando hay diferencias."""
         output = tmp_path / "diff.html"
         HtmlDiffReporter().render(rich_diff, output)
@@ -265,9 +264,7 @@ class TestHtmlDiffReporter:
         assert 'data-cat="views"' in content
         assert 'data-cat="routines"' in content
 
-    def test_filter_toolbar_absent_for_empty_diff(
-        self, tmp_path: Path, empty_diff: SchemaDiff
-    ) -> None:
+    def test_filter_toolbar_absent_for_empty_diff(self, tmp_path: Path, empty_diff: SchemaDiff) -> None:
         """El toolbar NO aparece cuando no hay diferencias (ninguna categoría tiene datos)."""
         output = tmp_path / "diff.html"
         HtmlDiffReporter().render(empty_diff, output)
@@ -375,9 +372,7 @@ class TestWordDiffReporter:
         doc = Document(str(output))
         # Labels prod/staging están en celdas de tabla (resumen), no en párrafos
         para_text = " ".join(p.text for p in doc.paragraphs)
-        table_text = " ".join(
-            cell.text for tbl in doc.tables for row in tbl.rows for cell in row.cells
-        )
+        table_text = " ".join(cell.text for tbl in doc.tables for row in tbl.rows for cell in row.cells)
         all_text = para_text + " " + table_text
         assert "prod" in all_text
         assert "staging" in all_text
@@ -412,13 +407,13 @@ class TestWordDiffReporter:
         assert zipfile.is_zipfile(output)
 
     def test_render_raises_on_directory_output(self, tmp_path: Path, empty_diff: SchemaDiff) -> None:
-        """Pasar un directorio como output lanza ValueError con mensaje claro."""
-        with pytest.raises(ValueError, match="ruta completa del fichero"):
+        """Pasar un directorio como output lanza SchemaDiffValidationError con mensaje claro."""
+        with pytest.raises(SchemaDiffValidationError, match="ruta completa del fichero"):
             WordDiffReporter().render(empty_diff, output=tmp_path)
 
     def test_render_raises_on_path_without_extension(self, tmp_path: Path, empty_diff: SchemaDiff) -> None:
-        """Pasar una ruta sin extensión lanza ValueError."""
-        with pytest.raises(ValueError, match="ruta completa del fichero"):
+        """Pasar una ruta sin extensión lanza SchemaDiffValidationError."""
+        with pytest.raises(SchemaDiffValidationError, match="ruta completa del fichero"):
             WordDiffReporter().render(empty_diff, output=tmp_path / "nodotx")
 
     def test_word_heading1_sections(self, tmp_path: Path, rich_diff: SchemaDiff) -> None:
@@ -429,10 +424,7 @@ class TestWordDiffReporter:
         WordDiffReporter().render(rich_diff, output)
         doc = Document(str(output))
 
-        heading1_texts = [
-            p.text for p in doc.paragraphs
-            if p.style.name == "Heading 1"
-        ]
+        heading1_texts = [p.text for p in doc.paragraphs if p.style.name == "Heading 1"]
         # rich_diff tiene tablas added+removed+modified, vistas y rutinas
         assert "Tablas añadidas" in heading1_texts
         assert "Tablas eliminadas" in heading1_texts
@@ -521,7 +513,7 @@ class TestSqlDiffReporter:
         assert "DROP" in content
 
     def test_invalid_dialect_raises(self, tmp_path: Path) -> None:
-        with pytest.raises(ValueError, match="no soportado"):
+        with pytest.raises(SchemaDiffValidationError, match="no soportado"):
             SqlDiffReporter(dialect="cassandra")
 
     def test_drop_fk_before_drop_table(self, tmp_path: Path) -> None:
@@ -547,7 +539,7 @@ class TestSqlDiffReporter:
         SqlDiffReporter(dialect="mariadb").render(diff, output)
         content = output.read_text(encoding="utf-8")
         # Usar cadenas específicas de las instrucciones DDL, no del título de sección
-        drop_fk_pos    = content.index("DROP FOREIGN KEY fk_orders_user")
+        drop_fk_pos = content.index("DROP FOREIGN KEY fk_orders_user")
         drop_table_pos = content.index("DROP TABLE IF EXISTS orders")
         assert drop_fk_pos < drop_table_pos
 
@@ -595,13 +587,14 @@ class TestSchemaDiffReporter:
         assert path.exists()
 
     def test_render_invalid_format(self, tmp_path: Path, empty_diff: SchemaDiff) -> None:
-        with pytest.raises(ValueError, match="no soportado"):
+        with pytest.raises(SchemaDiffValidationError, match="no soportado"):
             SchemaDiffReporter().render(empty_diff, output_dir=tmp_path, format="pdf")
 
     def test_render_all_returns_four_files(self, tmp_path: Path, empty_diff: SchemaDiff) -> None:
         """render_all con subset explícito de 4 formatos sin sql."""
         paths = SchemaDiffReporter().render_all(
-            empty_diff, output_dir=tmp_path,
+            empty_diff,
+            output_dir=tmp_path,
             formats=["html", "excel", "word", "markdown"],
         )
         assert len(paths) == 4
@@ -609,15 +602,11 @@ class TestSchemaDiffReporter:
         assert extensions == {".html", ".xlsx", ".docx", ".md"}
 
     def test_render_all_subset(self, tmp_path: Path, empty_diff: SchemaDiff) -> None:
-        paths = SchemaDiffReporter().render_all(
-            empty_diff, output_dir=tmp_path, formats=["html", "markdown"]
-        )
+        paths = SchemaDiffReporter().render_all(empty_diff, output_dir=tmp_path, formats=["html", "markdown"])
         assert len(paths) == 2
 
     def test_render_custom_filename(self, tmp_path: Path, empty_diff: SchemaDiff) -> None:
-        path = SchemaDiffReporter().render(
-            empty_diff, output_dir=tmp_path, format="html", filename="custom.html"
-        )
+        path = SchemaDiffReporter().render(empty_diff, output_dir=tmp_path, format="html", filename="custom.html")
         assert path.name == "custom.html"
 
     def test_render_creates_output_dir(self, tmp_path: Path, empty_diff: SchemaDiff) -> None:
@@ -637,9 +626,7 @@ class TestSchemaDiffReporter:
         tpl_path = tmp_path / "corp.docx"
         Document().save(str(tpl_path))
 
-        path = SchemaDiffReporter(word_template_path=tpl_path).render(
-            empty_diff, output_dir=tmp_path, format="word"
-        )
+        path = SchemaDiffReporter(word_template_path=tpl_path).render(empty_diff, output_dir=tmp_path, format="word")
         assert path.suffix == ".docx"
         assert zipfile.is_zipfile(path)
 
@@ -656,9 +643,7 @@ class TestSchemaDiffReporter:
         assert path.exists()
 
     def test_render_sql_with_dialect(self, tmp_path: Path, rich_diff: SchemaDiff) -> None:
-        path = SchemaDiffReporter(sql_dialect="postgresql").render(
-            rich_diff, output_dir=tmp_path, format="sql"
-        )
+        path = SchemaDiffReporter(sql_dialect="postgresql").render(rich_diff, output_dir=tmp_path, format="sql")
         assert path.suffix == ".sql"
         content = path.read_text(encoding="utf-8")
         assert "postgresql" in content.lower()
@@ -700,8 +685,8 @@ class TestSqlDiffReporterWithInspector:
     def test_create_table_full_ddl_with_inspector(self, tmp_path: Path) -> None:
         """Con Inspector, genera CREATE TABLE con columnas reales en lugar de placeholder."""
         cols: list[dict[str, Any]] = [
-            {"name": "id",   "type": "INTEGER",      "nullable": False, "default": None},
-            {"name": "name", "type": "VARCHAR(100)",  "nullable": True,  "default": None},
+            {"name": "id", "type": "INTEGER", "nullable": False, "default": None},
+            {"name": "name", "type": "VARCHAR(100)", "nullable": True, "default": None},
         ]
         inspector = self._make_inspector(cols, ["id"])
         diff = SchemaDiff(
@@ -754,9 +739,7 @@ class TestSqlDiffReporterWithInspector:
         assert "CREATE TABLE t (" in content
         assert "IF NOT EXISTS" not in content
 
-    def test_create_table_fallback_placeholder_when_inspector_returns_empty(
-        self, tmp_path: Path
-    ) -> None:
+    def test_create_table_fallback_placeholder_when_inspector_returns_empty(self, tmp_path: Path) -> None:
         """Si el Inspector devuelve lista vacía, se emite el placeholder ⚠."""
         inspector = self._make_inspector([], [])
         diff = SchemaDiff(
@@ -823,8 +806,8 @@ class TestSqlDiffReporterWithInspector:
     def test_add_column_with_real_type_from_inspector(self, tmp_path: Path) -> None:
         """Con Inspector, ADD COLUMN incluye el tipo real en lugar de <TIPO_ORIGEN>."""
         cols: list[dict[str, Any]] = [
-            {"name": "id",    "type": "INTEGER",      "nullable": False, "default": None},
-            {"name": "email", "type": "VARCHAR(200)", "nullable": True,  "default": None},
+            {"name": "id", "type": "INTEGER", "nullable": False, "default": None},
+            {"name": "email", "type": "VARCHAR(200)", "nullable": True, "default": None},
         ]
         inspector = self._make_inspector(cols, ["id"])
         diff = SchemaDiff(
@@ -868,7 +851,7 @@ class TestSqlDiffReporterWithInspector:
                         ColumnDiff(
                             column_name="phone",
                             attribute="existence",
-                            source_value="exists",   # valor real del comparador
+                            source_value="exists",  # valor real del comparador
                             target_value="missing",
                         ),
                     ),
@@ -910,9 +893,7 @@ class TestSqlDiffReporterWithInspector:
         assert "NOT NULL" in content
         assert "⚠" in content  # advertencia de NOT NULL sin DEFAULT
 
-    def test_add_column_fallback_placeholder_without_inspector(
-        self, tmp_path: Path, rich_diff: SchemaDiff
-    ) -> None:
+    def test_add_column_fallback_placeholder_without_inspector(self, tmp_path: Path, rich_diff: SchemaDiff) -> None:
         """Sin Inspector, ADD COLUMN emite placeholder <TIPO_ORIGEN> (comportamiento original)."""
         output = tmp_path / "diff.sql"
         SqlDiffReporter().render(rich_diff, output)
@@ -1022,17 +1003,13 @@ class TestSqlDiffReporterWithInspector:
             target_label="B",
             table_diffs=(TableDiff(table_name="new_t", status="added"),),
         )
-        path = SchemaDiffReporter(sql_source_inspector=inspector).render(
-            diff, output_dir=tmp_path, format="sql"
-        )
+        path = SchemaDiffReporter(sql_source_inspector=inspector).render(diff, output_dir=tmp_path, format="sql")
         content = path.read_text(encoding="utf-8")
         assert "CREATE TABLE" in content
         assert "id INTEGER" in content
         assert "⚠ TABLA NUEVA" not in content
 
-    def test_facade_without_inspector_preserves_placeholder(
-        self, tmp_path: Path, rich_diff: SchemaDiff
-    ) -> None:
+    def test_facade_without_inspector_preserves_placeholder(self, tmp_path: Path, rich_diff: SchemaDiff) -> None:
         """Sin Inspector en la facade, el SQL reporter emite placeholders."""
         path = SchemaDiffReporter().render(rich_diff, output_dir=tmp_path, format="sql")
         content = path.read_text(encoding="utf-8")
@@ -1117,9 +1094,7 @@ class TestSqlDiffReporterCommentDiffs:
         from unittest.mock import MagicMock
 
         mock = MagicMock()
-        mock.get_columns.return_value = [
-            {"name": "email", "type": "VARCHAR(200)", "nullable": True, "default": None}
-        ]
+        mock.get_columns.return_value = [{"name": "email", "type": "VARCHAR(200)", "nullable": True, "default": None}]
         diff = self._diff_with_comment("users", "email", "Email")
         output = tmp_path / "diff.sql"
         SqlDiffReporter(dialect="mariadb", source_inspector=mock).render(diff, output)
@@ -1186,8 +1161,8 @@ class TestSqlDiffReporterCreateTableComplete:
     def test_create_table_includes_named_fk_constraint(self, tmp_path: Path) -> None:
         """CREATE TABLE incluye CONSTRAINT nombre FOREIGN KEY cuando hay FK con nombre."""
         cols = [
-            {"name": "id",      "type": "INTEGER",     "nullable": False, "default": None},
-            {"name": "user_id", "type": "INTEGER",      "nullable": True,  "default": None},
+            {"name": "id", "type": "INTEGER", "nullable": False, "default": None},
+            {"name": "user_id", "type": "INTEGER", "nullable": True, "default": None},
         ]
         fks = [
             {
@@ -1199,7 +1174,8 @@ class TestSqlDiffReporterCreateTableComplete:
         ]
         inspector = self._make_full_inspector(cols, ["id"], foreign_keys=fks)
         diff = SchemaDiff(
-            source_label="A", target_label="B",
+            source_label="A",
+            target_label="B",
             table_diffs=(TableDiff(table_name="orders", status="added"),),
         )
         output = tmp_path / "diff.sql"
@@ -1210,8 +1186,8 @@ class TestSqlDiffReporterCreateTableComplete:
     def test_create_table_includes_unnamed_fk_constraint(self, tmp_path: Path) -> None:
         """CREATE TABLE incluye FOREIGN KEY sin CONSTRAINT cuando la FK no tiene nombre."""
         cols = [
-            {"name": "id",      "type": "INTEGER", "nullable": False, "default": None},
-            {"name": "cat_id",  "type": "INTEGER", "nullable": True,  "default": None},
+            {"name": "id", "type": "INTEGER", "nullable": False, "default": None},
+            {"name": "cat_id", "type": "INTEGER", "nullable": True, "default": None},
         ]
         fks = [
             {
@@ -1223,7 +1199,8 @@ class TestSqlDiffReporterCreateTableComplete:
         ]
         inspector = self._make_full_inspector(cols, ["id"], foreign_keys=fks)
         diff = SchemaDiff(
-            source_label="A", target_label="B",
+            source_label="A",
+            target_label="B",
             table_diffs=(TableDiff(table_name="products", status="added"),),
         )
         output = tmp_path / "diff.sql"
@@ -1235,15 +1212,14 @@ class TestSqlDiffReporterCreateTableComplete:
     def test_create_table_includes_secondary_index(self, tmp_path: Path) -> None:
         """CREATE TABLE genera CREATE INDEX para índices secundarios."""
         cols = [
-            {"name": "id",    "type": "INTEGER",     "nullable": False, "default": None},
-            {"name": "email", "type": "VARCHAR(200)", "nullable": True,  "default": None},
+            {"name": "id", "type": "INTEGER", "nullable": False, "default": None},
+            {"name": "email", "type": "VARCHAR(200)", "nullable": True, "default": None},
         ]
-        indexes = [
-            {"name": "idx_email", "column_names": ["email"], "unique": False}
-        ]
+        indexes = [{"name": "idx_email", "column_names": ["email"], "unique": False}]
         inspector = self._make_full_inspector(cols, ["id"], indexes=indexes)
         diff = SchemaDiff(
-            source_label="A", target_label="B",
+            source_label="A",
+            target_label="B",
             table_diffs=(TableDiff(table_name="users", status="added"),),
         )
         output = tmp_path / "diff.sql"
@@ -1254,15 +1230,14 @@ class TestSqlDiffReporterCreateTableComplete:
     def test_create_table_includes_unique_index(self, tmp_path: Path) -> None:
         """CREATE TABLE genera CREATE UNIQUE INDEX para índices únicos."""
         cols = [
-            {"name": "id",    "type": "INTEGER",     "nullable": False, "default": None},
+            {"name": "id", "type": "INTEGER", "nullable": False, "default": None},
             {"name": "email", "type": "VARCHAR(200)", "nullable": False, "default": None},
         ]
-        indexes = [
-            {"name": "uq_email", "column_names": ["email"], "unique": True}
-        ]
+        indexes = [{"name": "uq_email", "column_names": ["email"], "unique": True}]
         inspector = self._make_full_inspector(cols, ["id"], indexes=indexes)
         diff = SchemaDiff(
-            source_label="A", target_label="B",
+            source_label="A",
+            target_label="B",
             table_diffs=(TableDiff(table_name="users", status="added"),),
         )
         output = tmp_path / "diff.sql"
@@ -1276,7 +1251,8 @@ class TestSqlDiffReporterCreateTableComplete:
         indexes = [{"name": "idx_id", "column_names": ["id"], "unique": False}]
         inspector = self._make_full_inspector(cols, ["id"], indexes=indexes)
         diff = SchemaDiff(
-            source_label="A", target_label="B",
+            source_label="A",
+            target_label="B",
             table_diffs=(TableDiff(table_name="t", status="added"),),
         )
         output = tmp_path / "diff.sql"
@@ -1293,13 +1269,14 @@ class TestSqlDiffReporterCreateTableComplete:
             {
                 "name": "bad_fk",
                 "constrained_columns": ["id"],
-                "referred_table": "",   # vacío → debe omitirse
+                "referred_table": "",  # vacío → debe omitirse
                 "referred_columns": [],
             }
         ]
         inspector = self._make_full_inspector(cols, ["id"], foreign_keys=fks)
         diff = SchemaDiff(
-            source_label="A", target_label="B",
+            source_label="A",
+            target_label="B",
             table_diffs=(TableDiff(table_name="t", status="added"),),
         )
         output = tmp_path / "diff.sql"
@@ -1317,7 +1294,8 @@ class TestSqlDiffReporterCreateTableComplete:
         mock.get_foreign_keys.side_effect = Exception("FK error")
         mock.get_indexes.return_value = []
         diff = SchemaDiff(
-            source_label="A", target_label="B",
+            source_label="A",
+            target_label="B",
             table_diffs=(TableDiff(table_name="t", status="added"),),
         )
         output = tmp_path / "diff.sql"
@@ -1359,9 +1337,7 @@ class TestSqlDiffReporterNullableWithInspector:
     def test_mariadb_nullable_uses_real_type(self, tmp_path: Path) -> None:
         """MariaDB: MODIFY COLUMN usa el tipo real del Inspector."""
         mock = MagicMock()
-        mock.get_columns.return_value = [
-            {"name": "email", "type": "VARCHAR(150)", "nullable": True, "default": None}
-        ]
+        mock.get_columns.return_value = [{"name": "email", "type": "VARCHAR(150)", "nullable": True, "default": None}]
         diff = self._nullable_diff("users", "email", "True")
         output = tmp_path / "diff.sql"
         SqlDiffReporter(dialect="mariadb", source_inspector=mock).render(diff, output)
@@ -1372,9 +1348,7 @@ class TestSqlDiffReporterNullableWithInspector:
     def test_mariadb_not_null_uses_real_type(self, tmp_path: Path) -> None:
         """MariaDB: MODIFY COLUMN usa NOT NULL con tipo real."""
         mock = MagicMock()
-        mock.get_columns.return_value = [
-            {"name": "code", "type": "CHAR(10)", "nullable": False, "default": None}
-        ]
+        mock.get_columns.return_value = [{"name": "code", "type": "CHAR(10)", "nullable": False, "default": None}]
         diff = self._nullable_diff("items", "code", "False")
         output = tmp_path / "diff.sql"
         SqlDiffReporter(dialect="mariadb", source_inspector=mock).render(diff, output)
@@ -1392,9 +1366,7 @@ class TestSqlDiffReporterNullableWithInspector:
     def test_oracle_nullable_uses_real_type(self, tmp_path: Path) -> None:
         """Oracle: MODIFY usa tipo real cuando inspector disponible."""
         mock = MagicMock()
-        mock.get_columns.return_value = [
-            {"name": "status", "type": "VARCHAR2(20)", "nullable": True, "default": None}
-        ]
+        mock.get_columns.return_value = [{"name": "status", "type": "VARCHAR2(20)", "nullable": True, "default": None}]
         diff = self._nullable_diff("orders", "status", "False")
         output = tmp_path / "diff.sql"
         SqlDiffReporter(dialect="oracle", source_inspector=mock).render(diff, output)
@@ -1451,9 +1423,7 @@ class TestSqlDiffReporterDefaultDialectAware:
     def test_mariadb_set_default_uses_modify_column(self, tmp_path: Path) -> None:
         """MariaDB: SET DEFAULT → MODIFY COLUMN col TIPO DEFAULT val."""
         mock = MagicMock()
-        mock.get_columns.return_value = [
-            {"name": "status", "type": "VARCHAR(20)", "nullable": True, "default": None}
-        ]
+        mock.get_columns.return_value = [{"name": "status", "type": "VARCHAR(20)", "nullable": True, "default": None}]
         diff = self._default_diff("orders", "status", "'active'")
         output = tmp_path / "diff.sql"
         SqlDiffReporter(dialect="mariadb", source_inspector=mock).render(diff, output)
@@ -1463,9 +1433,7 @@ class TestSqlDiffReporterDefaultDialectAware:
     def test_mariadb_drop_default_uses_modify_column(self, tmp_path: Path) -> None:
         """MariaDB: DROP DEFAULT → MODIFY COLUMN sin DEFAULT."""
         mock = MagicMock()
-        mock.get_columns.return_value = [
-            {"name": "flag", "type": "TINYINT", "nullable": True, "default": None}
-        ]
+        mock.get_columns.return_value = [{"name": "flag", "type": "TINYINT", "nullable": True, "default": None}]
         diff = self._default_diff("t", "flag", "None")
         output = tmp_path / "diff.sql"
         SqlDiffReporter(dialect="mariadb", source_inspector=mock).render(diff, output)
@@ -1523,8 +1491,7 @@ class TestDdlNormalizerViews:
     """Unit tests para DdlNormalizer.normalize_view_ddl y extract_view_body."""
 
     _MARIADB_FULL = (
-        "CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` "
-        "SQL SECURITY DEFINER VIEW `my_view` AS SELECT id FROM t"
+        "CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `my_view` AS SELECT id FROM t"
     )
     _MARIADB_RESULT = "CREATE VIEW `my_view` AS SELECT id FROM t"
 
@@ -1716,8 +1683,7 @@ class TestSqlDiffReporterRoutineNormalization:
     """Tests de _render_single_routine_diff con DDL con DEFINER."""
 
     _MARIADB_PROC_DDL = (
-        "CREATE DEFINER=`root`@`localhost` PROCEDURE calc_total()\n"
-        "BEGIN\n  SELECT SUM(amount) FROM orders;\nEND"
+        "CREATE DEFINER=`root`@`localhost` PROCEDURE calc_total()\nBEGIN\n  SELECT SUM(amount) FROM orders;\nEND"
     )
 
     @staticmethod

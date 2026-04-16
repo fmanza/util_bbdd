@@ -126,6 +126,54 @@ def demonstrate_schema_comparison():
 
     print(json.dumps(result_dict, indent=2))
 
+    # 7. Generar reportes de diferencias usando SchemaDiffReporter
+    print("\n" + "=" * 70)
+    print("GENERACIÓN DE REPORTES CON REPORTERS")
+    print("=" * 70)
+
+    from pathlib import Path
+
+    from util_bbdd.comparar.reporters import SchemaDiffReporter
+
+    # Crear directorio de salida para reportes
+    output_dir = Path("./schema_comparison_reports")
+    output_dir.mkdir(exist_ok=True)
+
+    reporter = SchemaDiffReporter(diff)
+
+    # 7a. Generar reporte HTML (con Mermaid)
+    html_output = output_dir / "schema_diff.html"
+    html_content = reporter.render_html()
+    html_output.write_text(html_content, encoding="utf-8")
+    print(f"\n✅ Reporte HTML generado: {html_output}")
+
+    # 7b. Generar script SQL para normalizar destino a origen (por defecto SQLite)
+    sql_output = output_dir / "schema_diff.sql"
+    sql_content = reporter.render_sql()  # Usa dialecto del engine de destino si está disponible
+    sql_output.write_text(sql_content, encoding="utf-8")
+    print(f"✅ Script SQL generado: {sql_output}")
+
+    # 7c. Generar reporte Markdown (con tablas)
+    md_output = output_dir / "schema_diff.md"
+    md_content = reporter.render_markdown()
+    md_output.write_text(md_content, encoding="utf-8")
+    print(f"✅ Reporte Markdown generado: {md_output}")
+
+    # 7d. Generar reporte Excel (múltiples hojas por sección)
+    excel_output = output_dir / "schema_diff.xlsx"
+    reporter.render_excel(str(excel_output))
+    print(f"✅ Reporte Excel generado: {excel_output}")
+
+    # 7e. Generar reporte Word
+    word_output = output_dir / "schema_diff.docx"
+    reporter.render_word(str(word_output))
+    print(f"✅ Reporte Word generado: {word_output}")
+
+    # 7f. Generar todos los reportes de una vez (alternativa rápida)
+    print("\n--- Alternativa: render_all() ---")
+    files = reporter.render_all(str(output_dir), basename="schema_comparison")
+    print(f"✅ Reportes generados: {', '.join(files.values())}")
+
 
 if __name__ == "__main__":
     demonstrate_schema_comparison()

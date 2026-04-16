@@ -10,11 +10,11 @@ Este ejemplo muestra cómo:
 
 import logging
 
-from util_bbdd import SyncDatabaseManager
-from util_bbdd._core.exceptions import (
+from util_bbdd import (
     ConnectionError as DbConnectionError,
     DatabaseException,
     QueryTimeoutError,
+    SyncDatabaseManager,
     ValidationError,
 )
 

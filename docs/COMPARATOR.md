@@ -80,7 +80,95 @@ schema_diff = comparator.compare(
 )
 ```
 
-### Paso 3: Interpretar Resultados
+### Paso 4: Generar Reportes de Diferencias (NUEVO en v0.6.7)
+
+La comparación produce un objeto `SchemaDiff`. Para exportar los resultados, usa **`SchemaDiffReporter`** con 6 formatos disponibles:
+
+```python
+from util_bbdd.comparar.reporters import SchemaDiffReporter
+
+reporter = SchemaDiffReporter(schema_diff=schema_diff)
+
+# Opción 1: Generar un formato específico
+html_content = reporter.render_html()            # HTML con Mermaid (filtrable+búsqueda)
+sql_script = reporter.render_sql()               # SQL para normalizar destino a origen
+markdown_content = reporter.render_markdown()    # Markdown con tablas
+excel_file = reporter.render_excel("./diff.xlsx")  # Excel (múltiples hojas)
+word_file = reporter.render_word("./diff.docx")    # Word (formateado)
+
+# Opción 2: Generar todos los reportes de una vez (recomendado)
+files = reporter.render_all(
+    output_dir="./schema_reports",
+    basename="schema_diff",                       # Prefijo de nombres
+    include_sql=True,
+    sql_dialect="postgresql"                     # postgresql, oracle, mariadb, sqlite, sqlserver
+)
+# Retorna: {"html": "path/to/schema_diff.html", "sql": "...", ...}
+```
+
+#### Ejemplo Completo: Generar Todos los Reportes
+
+```python
+from sqlalchemy import create_engine, inspect
+from pathlib import Path
+from util_bbdd.comparar import SchemaComparator
+from util_bbdd.comparar.reporters import SchemaDiffReporter
+
+# 1. Conectar a dos BDs
+source_engine = create_engine("postgresql://user:pass@localhost/db_dev")
+target_engine = create_engine("postgresql://user:pass@prod-server/db_prod")
+
+source_inspector = inspect(source_engine)
+target_inspector = inspect(target_engine)
+
+# 2. Comparar
+comparator = SchemaComparator()
+schema_diff = comparator.compare(
+    source=source_inspector,
+    target=target_inspector,
+    source_schema="public",
+    target_schema="public"
+)
+
+# 3. Generar reportes
+reporter = SchemaDiffReporter(schema_diff)
+
+output_dir = Path("./reports")
+output_dir.mkdir(exist_ok=True)
+
+files = reporter.render_all(
+    output_dir=str(output_dir),
+    basename="schema_comparison_20260416",
+    sql_dialect="postgresql"  # Usa dialecto de la BD de destino
+)
+
+# 4. Archivos generados:
+for format_name, file_path in files.items():
+    print(f"✅ {format_name.upper()}: {file_path}")
+```
+
+**Salida:**
+```
+✅ HTML: ./reports/schema_comparison_20260416.html
+✅ SQL: ./reports/schema_comparison_20260416.sql
+✅ MARKDOWN: ./reports/schema_comparison_20260416.md
+✅ EXCEL: ./reports/schema_comparison_20260416.xlsx
+✅ WORD: ./reports/schema_comparison_20260416.docx
+```
+
+#### Formatos Disponibles
+
+| Formato | Método | Uso | Dialecto SQL |
+|---------|--------|-----|--------------|
+| **HTML** | `render_html()` | Interactivo, filtrable, búsqueda + Mermaid ERD | — |
+| **SQL** | `render_sql(dialect="postgresql")` | Script para ejecutar en BD destino | postgresql, oracle, mariadb, sqlite, sqlserver |
+| **Markdown** | `render_markdown()` | Documentación, GitHub, wikis | — |
+| **Excel** | `render_excel(path)` | Análisis en hoja de cálculo | — |
+| **Word** | `render_word(path)` | Reporte profesional | — |
+
+---
+
+## Ejemplo Completo
 
 ```python
 # Resumen de cambios

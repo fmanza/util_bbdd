@@ -12,8 +12,7 @@ import io
 
 import pandas as pd
 
-from util_bbdd import SyncDatabaseManager
-from util_bbdd._core.exceptions import DatabaseException, ValidationError
+from util_bbdd import DatabaseException, SyncDatabaseManager, ValidationError
 
 # Datos de ejemplo (en producción, leer desde archivo CSV)
 CSV_DATA = """id,name,email,created_at

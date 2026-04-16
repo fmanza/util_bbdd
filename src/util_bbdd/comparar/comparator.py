@@ -8,8 +8,13 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 
+from sqlalchemy import CursorResult, Row, RowMapping
+from sqlalchemy.engine.base import Engine
+from sqlalchemy.engine.interfaces import ReflectedTableComment
+
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine, Inspector
+
 
 from .models import (
     ColumnDiff,
@@ -64,8 +69,8 @@ class SchemaComparator:
         (r"ALGORITHM\s*=\s*\w+", ""),
         # MariaDB / MySQL — DEFINER todas las variantes de comillado y espacios alrededor de =
         (r"DEFINER\s*=\s*`[^`]+`@`[^`]+`", ""),  # backticks
-        (r"DEFINER\s*=\s*'[^']*'@'[^']*'", ""),   # comillas simples
-        (r"DEFINER\s*=\s*\S+@\S+", ""),            # sin comillas
+        (r"DEFINER\s*=\s*'[^']*'@'[^']*'", ""),  # comillas simples
+        (r"DEFINER\s*=\s*\S+@\S+", ""),  # sin comillas
         # MariaDB / MySQL — SQL SECURITY (cubre tanto inicio como interior del DDL)
         (r"SQL\s+SECURITY\s+(?:DEFINER|INVOKER)", ""),
         # Oracle
@@ -355,8 +360,8 @@ class SchemaComparator:
         source_schema: str | None,
         target_schema: str | None,
     ) -> tuple[IndexDiff, ...]:
-        source_idx = self._get_indexes_safe(source, table, source_schema)
-        target_idx = self._get_indexes_safe(target, table, target_schema)
+        source_idx: list[Any] = self._get_indexes_safe(source, table, source_schema)
+        target_idx: list[Any] = self._get_indexes_safe(target, table, target_schema)
 
         source_map: dict[str, dict[str, Any]] = {idx["name"]: idx for idx in source_idx if idx.get("name")}
         target_map: dict[str, dict[str, Any]] = {idx["name"]: idx for idx in target_idx if idx.get("name")}
@@ -364,34 +369,34 @@ class SchemaComparator:
         diffs: list[IndexDiff] = []
 
         for idx_name in sorted(set(source_map) - set(target_map)):
-            idx = source_map[idx_name]
+            source_index_dict = source_map[idx_name]
             diffs.append(
                 IndexDiff(
                     index_name=idx_name,
                     table_name=table,
                     status="added",
-                    source_columns=self._join_columns(idx.get("column_names")),
-                    source_unique=bool(idx.get("unique", False)),
+                    source_columns=self._join_columns(source_index_dict.get("column_names")),
+                    source_unique=bool(source_index_dict.get("unique", False)),
                 )
             )
 
         for idx_name in sorted(set(target_map) - set(source_map)):
-            idx = target_map[idx_name]
+            target_index_dict = target_map[idx_name]
             diffs.append(
                 IndexDiff(
                     index_name=idx_name,
                     table_name=table,
                     status="removed",
-                    target_columns=self._join_columns(idx.get("column_names")),
-                    target_unique=bool(idx.get("unique", False)),
+                    target_columns=self._join_columns(target_index_dict.get("column_names")),
+                    target_unique=bool(target_index_dict.get("unique", False)),
                 )
             )
 
         for idx_name in sorted(set(source_map) & set(target_map)):
-            s_idx = source_map[idx_name]
-            t_idx = target_map[idx_name]
-            s_cols = self._join_columns(s_idx.get("column_names"))
-            t_cols = self._join_columns(t_idx.get("column_names"))
+            s_idx: dict[str, Any] = source_map[idx_name]
+            t_idx: dict[str, Any] = target_map[idx_name]
+            s_cols: str = self._join_columns(s_idx.get("column_names"))
+            t_cols: str = self._join_columns(t_idx.get("column_names"))
             s_unique = bool(s_idx.get("unique", False))
             t_unique = bool(t_idx.get("unique", False))
             if s_cols != t_cols or s_unique != t_unique:
@@ -458,12 +463,12 @@ class SchemaComparator:
         for fk_name in sorted(set(source_map) & set(target_map)):
             s_fk = source_map[fk_name]
             t_fk = target_map[fk_name]
-            s_cols = ",".join(s_fk.get("constrained_columns", []))
-            t_cols = ",".join(t_fk.get("constrained_columns", []))
+            s_cols: str = ",".join(s_fk.get("constrained_columns", []))
+            t_cols: str = ",".join(t_fk.get("constrained_columns", []))
             s_ref = s_fk.get("referred_table", "")
             t_ref = t_fk.get("referred_table", "")
-            s_ref_cols = ",".join(s_fk.get("referred_columns", []))
-            t_ref_cols = ",".join(t_fk.get("referred_columns", []))
+            s_ref_cols: str = ",".join(s_fk.get("referred_columns", []))
+            t_ref_cols: str = ",".join(t_fk.get("referred_columns", []))
 
             if s_cols != t_cols or s_ref != t_ref or s_ref_cols != t_ref_cols:
                 diffs.append(
@@ -558,21 +563,26 @@ class SchemaComparator:
         diffs: list[ViewDiff] = []
 
         for view_name in sorted(source_views - target_views):
-            s_def = self._get_view_definition_safe(source, view_name, source_schema)
-            diffs.append(ViewDiff(view_name=view_name, status="added", source_definition=s_def))
+            source_def = self._get_view_definition_safe(source, view_name, source_schema)
+            diffs.append(ViewDiff(view_name=view_name, status="added", source_definition=source_def))
 
         for view_name in sorted(target_views - source_views):
-            t_def = self._get_view_definition_safe(target, view_name, target_schema)
-            diffs.append(ViewDiff(view_name=view_name, status="removed", target_definition=t_def))
+            target_def = self._get_view_definition_safe(target, view_name, target_schema)
+            diffs.append(ViewDiff(view_name=view_name, status="removed", target_definition=target_def))
 
         for view_name in sorted(source_views & target_views):
-            s_def = self._get_view_definition_safe(source, view_name, source_schema)
-            t_def = self._get_view_definition_safe(target, view_name, target_schema)
-            s_norm = self._normalize_ddl(s_def)
-            t_norm = self._normalize_ddl(t_def)
+            source_def_cmp: str = self._get_view_definition_safe(source, view_name, source_schema)
+            target_def_cmp: str = self._get_view_definition_safe(target, view_name, target_schema)
+            s_norm: str = self._normalize_ddl(source_def_cmp)
+            t_norm: str = self._normalize_ddl(target_def_cmp)
             if s_norm != t_norm:
                 diffs.append(
-                    ViewDiff(view_name=view_name, status="modified", source_definition=s_def, target_definition=t_def)
+                    ViewDiff(
+                        view_name=view_name,
+                        status="modified",
+                        source_definition=source_def_cmp,
+                        target_definition=target_def_cmp,
+                    )
                 )
 
         return tuple(diffs)
@@ -593,8 +603,8 @@ class SchemaComparator:
         Utiliza ``Inspector.get_multi_indexes`` como indicador de capacidad.
         Si el dialect no soporta listado de routines, devuelve tupla vacía.
         """
-        source_routines = self._get_routines_safe(source, source_schema)
-        target_routines = self._get_routines_safe(target, target_schema)
+        source_routines: list[dict[str, str]] | None = self._get_routines_safe(source, source_schema)
+        target_routines: list[dict[str, str]] | None = self._get_routines_safe(target, target_schema)
 
         if source_routines is None and target_routines is None:
             logger.debug("El dialect no soporta listado de routines; se omite la comparación.")
@@ -606,32 +616,32 @@ class SchemaComparator:
         diffs: list[RoutineDiff] = []
 
         for name in sorted(set(source_map) - set(target_map)):
-            r = source_map[name]
+            source_routine = source_map[name]
             diffs.append(
                 RoutineDiff(
                     routine_name=name,
-                    routine_type=cast(Literal["PROCEDURE", "FUNCTION"], r.get("type", "PROCEDURE")),
+                    routine_type=cast(Literal["PROCEDURE", "FUNCTION"], source_routine.get("type", "PROCEDURE")),
                     status="added",
-                    source_definition=r.get("definition", ""),
+                    source_definition=source_routine.get("definition", ""),
                 )
             )
 
         for name in sorted(set(target_map) - set(source_map)):
-            r = target_map[name]
+            target_routine: dict[str, str] = target_map[name]
             diffs.append(
                 RoutineDiff(
                     routine_name=name,
-                    routine_type=cast(Literal["PROCEDURE", "FUNCTION"], r.get("type", "PROCEDURE")),
+                    routine_type=cast(Literal["PROCEDURE", "FUNCTION"], target_routine.get("type", "PROCEDURE")),
                     status="removed",
-                    target_definition=r.get("definition", ""),
+                    target_definition=target_routine.get("definition", ""),
                 )
             )
 
         for name in sorted(set(source_map) & set(target_map)):
-            s_r = source_map[name]
-            t_r = target_map[name]
-            s_norm = self._normalize_ddl(s_r.get("definition", ""))
-            t_norm = self._normalize_ddl(t_r.get("definition", ""))
+            s_r: dict[str, str] = source_map[name]
+            t_r: dict[str, str] = target_map[name]
+            s_norm: str = self._normalize_ddl(s_r.get("definition", ""))
+            t_norm: str = self._normalize_ddl(t_r.get("definition", ""))
             if s_norm != t_norm:
                 diffs.append(
                     RoutineDiff(
@@ -654,10 +664,10 @@ class SchemaComparator:
         """Construye una etiqueta legible para el inspector."""
         # inspector.engine es el atributo canónico en SA 2.x; inspector.bind es el alias
         # deprecated de SA 1.4 que fue eliminado en SA 2.0.
-        engine = getattr(inspector, "engine", getattr(inspector, "bind", None))
-        url = str(getattr(engine, "url", "unknown"))
+        engine: Any | None = getattr(inspector, "engine", getattr(inspector, "bind", None))
+        url_str = str(getattr(engine, "url", "unknown"))
         # Ocultar credenciales si las hay
-        url = re.sub(r"://[^@]+@", "://***@", url)
+        url: str = re.sub(r"://[^@]+@", "://***@", url_str)
         if schema:
             return f"{url} [{schema}]"
         return url
@@ -668,7 +678,7 @@ class SchemaComparator:
 
         Permite añadir reglas para nuevos motores sin modificar ``_normalize_ddl``.
         """
-        result = definition
+        result: str = definition
         for pattern, repl in SchemaComparator._DDL_STRIP_RULES:
             result = re.sub(pattern, repl, result, flags=re.IGNORECASE)
         return result
@@ -678,7 +688,7 @@ class SchemaComparator:
         """Normalización universal de DDL: elimina artefactos de motor y colapsa espacios."""
         if not definition:
             return ""
-        cleaned = SchemaComparator._strip_dialect_artifacts(definition)
+        cleaned: str = SchemaComparator._strip_dialect_artifacts(definition)
         return re.sub(r"\s+", " ", cleaned).strip().lower()
 
     @staticmethod
@@ -700,7 +710,7 @@ class SchemaComparator:
     def _get_table_comment_safe(inspector: Inspector, table: str, schema: str | None) -> str:
         """Obtiene comentario de tabla; devuelve cadena vacía si no está soportado."""
         try:
-            result = inspector.get_table_comment(table, schema=schema)
+            result: ReflectedTableComment = inspector.get_table_comment(table, schema=schema)
             return str(result.get("text") or "") if result else ""
         except NotImplementedError:
             return ""
@@ -709,11 +719,11 @@ class SchemaComparator:
     def _get_view_definition_safe(inspector: Inspector, view_name: str, schema: str | None) -> str:
         """Obtiene definición de vista; devuelve cadena vacía si falla."""
         try:
-            definition = inspector.get_view_definition(view_name, schema=schema)
+            definition: str = inspector.get_view_definition(view_name, schema=schema)
             return str(definition) if definition else ""
         except NotImplementedError:
             return ""
-        except Exception as exc:  # noqa: BLE001 — algunos dialects fallan inesperadamente
+        except Exception as exc:  # M1: Fallback para dialects sin soporte de vista DDL o permisos insuficientes
             logger.warning("No se pudo obtener definición de vista '%s': %s", view_name, exc)
             return ""
 
@@ -733,10 +743,12 @@ class SchemaComparator:
             ] = my_mssql_fetcher
         """
         # inspector.engine es canónico en SA 2.x; fallback a bind para SA 1.4.
-        engine = getattr(inspector, "engine", getattr(inspector, "bind", None))
+        engine: Any | None = getattr(inspector, "engine", getattr(inspector, "bind", None))
         dialect_name: str = getattr(getattr(engine, "dialect", None), "name", "")
 
-        fetcher = SchemaComparator._ROUTINE_FETCHERS.get(dialect_name)
+        fetcher: Callable[[Inspector, str | None], list[dict[str, str]]] | None = (
+            SchemaComparator._ROUTINE_FETCHERS.get(dialect_name)
+        )
         return fetcher(inspector, schema) if fetcher is not None else None
 
     @staticmethod
@@ -750,33 +762,41 @@ class SchemaComparator:
         from sqlalchemy import text
 
         routines: list[dict[str, str]] = []
-        engine = cast("Engine", getattr(inspector, "engine", getattr(inspector, "bind", None)))
+        engine: Engine = cast("Engine", getattr(inspector, "engine", getattr(inspector, "bind", None)))
         if engine is None:
             return routines
 
-        db_name = schema or str(getattr(engine, "url", None) and getattr(engine.url, "database", "") or "")
+        db_name: str = schema or str(getattr(engine, "url", None) and getattr(engine.url, "database", "") or "")
 
         try:
             with engine.connect() as conn:
                 # Procedures
-                proc_result = conn.execute(text("SHOW PROCEDURE STATUS WHERE Db=:db"), {"db": db_name})  # noqa: S608
+                proc_result: CursorResult[Any] = conn.execute(
+                    text("SHOW PROCEDURE STATUS WHERE Db=:db"), {"db": db_name}
+                )  # noqa: S608
                 for row in proc_result.mappings():
                     proc_name = str(row["Name"])
-                    safe_name = proc_name.replace("`", "``")  # escapar backticks
-                    create_result = conn.execute(text(f"SHOW CREATE PROCEDURE `{safe_name}`"))  # noqa: S608
-                    create_row = create_result.mappings().first()
-                    definition = str(create_row["Create Procedure"]) if create_row else ""
-                    routines.append({"name": proc_name, "type": "PROCEDURE", "definition": definition})
+                    proc_safe_name = proc_name.replace("`", "``")  # escapar backticks
+                    proc_create_result = conn.execute(text(f"SHOW CREATE PROCEDURE `{proc_safe_name}`"))  # noqa: S608
+                    proc_create_row = proc_create_result.mappings().first()
+                    proc_definition = str(proc_create_row["Create Procedure"]) if proc_create_row else ""
+                    routines.append({"name": proc_name, "type": "PROCEDURE", "definition": proc_definition})
                 # Functions
-                func_result = conn.execute(text("SHOW FUNCTION STATUS WHERE Db=:db"), {"db": db_name})  # noqa: S608
+                func_result: CursorResult[Any] = conn.execute(
+                    text("SHOW FUNCTION STATUS WHERE Db=:db"), {"db": db_name}
+                )  # noqa: S608
                 for row in func_result.mappings():
                     func_name = str(row["Name"])
-                    safe_name = func_name.replace("`", "``")  # escapar backticks
-                    create_result = conn.execute(text(f"SHOW CREATE FUNCTION `{safe_name}`"))  # noqa: S608
-                    create_row = create_result.mappings().first()
-                    definition = str(create_row["Create Function"]) if create_row else ""
-                    routines.append({"name": func_name, "type": "FUNCTION", "definition": definition})
-        except Exception as exc:  # noqa: BLE001
+                    func_safe_name: str = func_name.replace("`", "``")  # escapar backticks
+                    func_create_result: CursorResult[Any] = conn.execute(
+                        text(f"SHOW CREATE FUNCTION `{func_safe_name}`")
+                    )  # noqa: S608
+                    func_create_row: RowMapping | None = func_create_result.mappings().first()
+                    func_definition: str = str(func_create_row["Create Function"]) if func_create_row else ""
+                    routines.append({"name": func_name, "type": "FUNCTION", "definition": func_definition})
+        except (
+            Exception
+        ) as exc:  # M1: Fallback si MariaDB rechaza conexión, permisos insuficientes o estado impredecible
             logger.warning("No se pudieron obtener routines MariaDB para schema=%s: %s", schema, exc)
 
         return routines
@@ -792,7 +812,7 @@ class SchemaComparator:
         from sqlalchemy import text
 
         routines: list[dict[str, str]] = []
-        engine = cast("Engine", getattr(inspector, "engine", getattr(inspector, "bind", None)))
+        engine: Engine = cast("Engine", getattr(inspector, "engine", getattr(inspector, "bind", None)))
         if engine is None:
             return routines
         if not schema:
@@ -801,7 +821,7 @@ class SchemaComparator:
 
         try:
             with engine.connect() as conn:
-                result = conn.execute(
+                result: CursorResult[Any] = conn.execute(
                     text(
                         "SELECT object_name, object_type FROM all_procedures WHERE owner=:schema AND object_type IN ('PROCEDURE','FUNCTION')"
                     ),
@@ -811,17 +831,19 @@ class SchemaComparator:
                     obj_name = str(row["object_name"])
                     obj_type = str(row["object_type"])
                     try:
-                        ddl_result = conn.execute(
+                        ddl_result: CursorResult[Any] = conn.execute(
                             text("SELECT DBMS_METADATA.GET_DDL(:obj_type, :obj_name, :schema) AS ddl FROM dual"),
                             {"obj_type": obj_type, "obj_name": obj_name, "schema": schema.upper()},
                         )
-                        ddl_row = ddl_result.first()
+                        ddl_row: Row[Any] | None = ddl_result.first()
                         ddl_val: Any = ddl_row[0] if ddl_row else ""
-                        definition = ddl_val.read() if hasattr(ddl_val, "read") else str(ddl_val)
-                    except Exception:  # noqa: BLE001
+                        definition: Any | str = ddl_val.read() if hasattr(ddl_val, "read") else str(ddl_val)
+                    except (
+                        Exception
+                    ):  # M1: DBMS_METADATA.GET_DDL() falla por objeto corrompido, permisos, memoria insuficiente
                         definition = ""
                     routines.append({"name": obj_name, "type": obj_type, "definition": definition})
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # M1: Fallback si Oracle rechaza conexión o query a all_procedures falla
             logger.warning("No se pudieron obtener routines Oracle para schema=%s: %s", schema, exc)
 
         return routines
@@ -837,35 +859,37 @@ class SchemaComparator:
         from sqlalchemy import text
 
         routines: list[dict[str, str]] = []
-        engine = cast("Engine", getattr(inspector, "engine", getattr(inspector, "bind", None)))
+        engine: Engine = cast("Engine", getattr(inspector, "engine", getattr(inspector, "bind", None)))
         if engine is None:
             return routines
 
-        schema_name = schema or "dbo"
+        schema_name: str = schema or "dbo"
 
         try:
             with engine.connect() as conn:
                 # Procedures (type 'P')
-                result = conn.execute(
+                result: CursorResult[Any] = conn.execute(
                     text("SELECT name FROM sys.procedures WHERE schema_id = SCHEMA_ID(:schema) ORDER BY name"),
                     {"schema": schema_name},
                 )
                 for row in result.mappings():
                     proc_name = str(row["name"])
                     try:
-                        ddl_result = conn.execute(
+                        ddl_result: CursorResult[Any] = conn.execute(
                             text(
                                 "SELECT definition FROM sys.sql_modules "
                                 "WHERE object_id = OBJECT_ID(CONCAT(:schema_name, '.', :proc_name))"
                             ),
                             {"schema_name": schema_name, "proc_name": proc_name},
                         )
-                        ddl_row = ddl_result.first()
-                        definition = str(ddl_row[0]) if ddl_row else ""
-                    except Exception:  # noqa: BLE001
+                        ddl_row: Row[Any] | None = ddl_result.first()
+                        definition: str = str(ddl_row[0]) if ddl_row else ""
+                    except (
+                        Exception
+                    ):  # M1: sys.sql_modules falla por permisos de sys, procedure encriptada o estado impredecible
                         definition = ""
                     routines.append({"name": proc_name, "type": "PROCEDURE", "definition": definition})
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # M1: Fallback si SQL Server rechaza conexión o query a sys.procedures falla
             logger.warning("No se pudieron obtener routines SQL Server para schema=%s: %s", schema, exc)
 
         return routines
@@ -881,16 +905,16 @@ class SchemaComparator:
         from sqlalchemy import text
 
         routines: list[dict[str, str]] = []
-        engine = cast("Engine", getattr(inspector, "engine", getattr(inspector, "bind", None)))
+        engine: Engine = cast("Engine", getattr(inspector, "engine", getattr(inspector, "bind", None)))
         if engine is None:
             return routines
 
-        schema_name = schema or "public"
+        schema_name: str = schema or "public"
 
         try:
             with engine.connect() as conn:
                 # Functions and procedures (pg_proc)
-                result = conn.execute(
+                result: CursorResult[Any] = conn.execute(
                     text(
                         "SELECT p.proname, p.prokind "
                         "FROM pg_proc p "
@@ -902,24 +926,26 @@ class SchemaComparator:
                 )
                 for row in result.mappings():
                     func_name = str(row["proname"])
-                    proc_kind = str(row["prokind"])  # 'f' = function, 'p' = procedure, 'w' = window
+                    proc_kind = str(row["prokind"])  # M1: 'f' = function, 'p' = procedure, 'w' = window
                     kind_label: str = SchemaComparator._PROCEDURE_KIND_MAP.get(proc_kind, "PROCEDURE")
 
                     try:
                         # Try pg_get_functiondef for functions; fall back to empty definition for procedures
                         # M1: Use parameterized query to prevent SQL injection via regprocedure cast
-                        ddl_result = conn.execute(
+                        ddl_result: CursorResult[Any] = conn.execute(
                             text(
                                 "SELECT pg_get_functiondef((:schema_name || '.' || :func_name)::regprocedure) AS definition"
                             ),
                             {"schema_name": schema_name, "func_name": func_name},
                         )
-                        ddl_row = ddl_result.first()
-                        definition = str(ddl_row[0]) if ddl_row and ddl_row[0] else ""
-                    except Exception:  # noqa: BLE001
+                        ddl_row: Row[Any] | None = ddl_result.first()
+                        definition: str = str(ddl_row[0]) if ddl_row and ddl_row[0] else ""
+                    except (
+                        Exception
+                    ):  # M1: pg_get_functiondef() falla si función está en C o lenguaje no soportado internamente
                         definition = ""
                     routines.append({"name": func_name, "type": kind_label, "definition": definition})
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # M1: Fallback si PostgreSQL rechaza conexión o query a pg_proc falla
             logger.warning("No se pudieron obtener routines PostgreSQL para schema=%s: %s", schema, exc)
 
         return routines
@@ -958,9 +984,9 @@ class SchemaComparator:
         """Construye un resumen textual de las diferencias encontradas."""
         parts: list[str] = []
         if table_diffs:
-            added = sum(1 for t in table_diffs if t.status == "added")
-            removed = sum(1 for t in table_diffs if t.status == "removed")
-            modified = sum(1 for t in table_diffs if t.status == "modified")
+            added: int = sum(1 for t in table_diffs if t.status == "added")
+            removed: int = sum(1 for t in table_diffs if t.status == "removed")
+            modified: int = sum(1 for t in table_diffs if t.status == "modified")
             parts.append(f"Tablas: {added} añadidas, {removed} eliminadas, {modified} modificadas")
         if view_diffs:
             parts.append(f"Vistas: {len(view_diffs)} diferencias")

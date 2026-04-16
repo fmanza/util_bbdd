@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from sqlalchemy.engine import Inspector
 
+from util_bbdd._core.exceptions import SchemaDiffValidationError
+
 from ..contracts import DiffReporterProtocol
 from ..models import SchemaDiff
 from ._base import build_output_stem
@@ -22,11 +24,11 @@ from .word_reporter import WordDiffReporter
 logger: logging.Logger = logging.getLogger(__name__)
 
 _EXTENSIONS: dict[str, str] = {
-    "html":     ".html",
-    "excel":    ".xlsx",
-    "word":     ".docx",
+    "html": ".html",
+    "excel": ".xlsx",
+    "word": ".docx",
     "markdown": ".md",
-    "sql":      ".sql",
+    "sql": ".sql",
 }
 
 _ALL_FORMATS: tuple[str, ...] = ("html", "excel", "word", "markdown", "sql")
@@ -101,11 +103,11 @@ class SchemaDiffReporter:
         sql_source_schema: str | None = None,
     ) -> None:
         self._reporters: dict[str, DiffReporterProtocol] = {
-            "html":     HtmlDiffReporter(),
-            "excel":    ExcelDiffReporter(),
-            "word":     WordDiffReporter(template_path=word_template_path),
+            "html": HtmlDiffReporter(),
+            "excel": ExcelDiffReporter(),
+            "word": WordDiffReporter(template_path=word_template_path),
             "markdown": MarkdownDiffReporter(),
-            "sql":      SqlDiffReporter(
+            "sql": SqlDiffReporter(
                 dialect=sql_dialect,
                 source_inspector=sql_source_inspector,
                 source_schema=sql_source_schema,
@@ -137,7 +139,11 @@ class SchemaDiffReporter:
         """
         fmt: str = format.strip().lower()
         if fmt not in self._reporters:
-            raise ValueError(f"Formato '{format}' no soportado. Formatos disponibles: {sorted(self._reporters)}")
+            raise SchemaDiffValidationError(
+                f"Formato '{format}' no soportado. Formatos disponibles: {sorted(self._reporters)}",
+                operation="SchemaDiffReporter.render",
+                details=f"format={fmt}",
+            )
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 

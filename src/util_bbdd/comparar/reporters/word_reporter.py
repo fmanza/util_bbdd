@@ -20,6 +20,8 @@ from docx.oxml.ns import qn
 from docx.shared import Mm, Pt, RGBColor
 from docx.table import Table, _Cell
 
+from util_bbdd._core.exceptions import SchemaDiffValidationError
+
 from ..models import RoutineDiff, SchemaDiff, TableDiff, ViewDiff
 from ._base import STATUS_ES, DdlNormalizer, build_diff_summary
 
@@ -47,20 +49,20 @@ class WordDiffReporter:
     """
 
     # Colores de TEXTO por estado — oscuros, WCAG AA sobre fondos de celda.
-    _COLOR_ADDED: ClassVar[RGBColor] = RGBColor(0x16, 0x65, 0x34)    # #166534
+    _COLOR_ADDED: ClassVar[RGBColor] = RGBColor(0x16, 0x65, 0x34)  # #166534
     _COLOR_REMOVED: ClassVar[RGBColor] = RGBColor(0x99, 0x1B, 0x1B)  # #991B1B
     _COLOR_MODIFIED: ClassVar[RGBColor] = RGBColor(0x78, 0x35, 0x0F)  # #78350F
 
     _STATUS_TEXT_COLOR: ClassVar[dict[str, RGBColor]] = {
-        "added":    RGBColor(0x16, 0x65, 0x34),
-        "removed":  RGBColor(0x99, 0x1B, 0x1B),
+        "added": RGBColor(0x16, 0x65, 0x34),
+        "removed": RGBColor(0x99, 0x1B, 0x1B),
         "modified": RGBColor(0x78, 0x35, 0x0F),
     }
 
     # Colores de FONDO de celda — distinguibles en escala de grises.
     _STATUS_HEX: ClassVar[dict[str, str]] = {
-        "added":    "BBF7D0",
-        "removed":  "FECACA",
+        "added": "BBF7D0",
+        "removed": "FECACA",
         "modified": "FDE68A",
     }
 
@@ -85,10 +87,12 @@ class WordDiffReporter:
             ValueError: Si ``output`` no tiene extensión.
         """
         if not output.suffix:
-            raise ValueError(
+            raise SchemaDiffValidationError(
                 f"'output' debe ser la ruta completa del fichero .docx, "
                 f"no un directorio. Recibido: {output!r}\n"
-                f"Ejemplo correcto: {output / 'diff.docx'!r}"
+                f"Ejemplo correcto: {output / 'diff.docx'!r}",
+                operation="WordDiffReporter.render",
+                details=f"output_path={output}, suffix={output.suffix!r}",
             )
         output.parent.mkdir(parents=True, exist_ok=True)
         summary = build_diff_summary(diff)
@@ -164,9 +168,7 @@ class WordDiffReporter:
                     run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
                     run.font.size = Pt(8)
 
-    def _add_data_row(
-        self, table: Table, values: list[str], status: str | None = None
-    ) -> None:
+    def _add_data_row(self, table: Table, values: list[str], status: str | None = None) -> None:
         """Añade una fila de datos con color de fondo opcional por estado."""
         row = table.add_row()
         hex_bg = self._STATUS_HEX.get(status or "", "") if status else ""
@@ -245,9 +247,7 @@ class WordDiffReporter:
         tbl.style = self._TABLE_STYLE
         self._add_header_row(tbl, ["Columna", "Atributo", "Valor origen", "Valor destino"])
         for cd in column_diffs:
-            self._add_data_row(
-                tbl, [cd.column_name, cd.attribute, cd.source_value, cd.target_value]
-            )
+            self._add_data_row(tbl, [cd.column_name, cd.attribute, cd.source_value, cd.target_value])
 
     def _add_indices_table(self, doc: DocumentType, index_diffs: tuple) -> None:
         """Renderiza tabla de diferencias de índices."""
@@ -272,9 +272,7 @@ class WordDiffReporter:
         self._mini_heading(doc, f"Foreign Keys ({len(fk_diffs)})")
         tbl: Table = doc.add_table(rows=1, cols=5)
         tbl.style = self._TABLE_STYLE
-        self._add_header_row(
-            tbl, ["FK", "Estado", "Cols origen", "Tabla ref. origen", "Tabla ref. destino"]
-        )
+        self._add_header_row(tbl, ["FK", "Estado", "Cols origen", "Tabla ref. origen", "Tabla ref. destino"])
         for fk in fk_diffs:
             self._add_data_row(
                 tbl,
@@ -329,13 +327,11 @@ class WordDiffReporter:
         if td.comment_diffs:
             self._add_comments_table(doc, td.comment_diffs)
 
-    def _add_tables_section(
-        self, doc: DocumentType, table_diffs: tuple[TableDiff, ...]
-    ) -> None:
+    def _add_tables_section(self, doc: DocumentType, table_diffs: tuple[TableDiff, ...]) -> None:
         """Emite tres secciones Heading 1: añadidas, eliminadas y modificadas."""
         groups: list[tuple[str, str]] = [
-            ("added",    "Tablas añadidas"),
-            ("removed",  "Tablas eliminadas"),
+            ("added", "Tablas añadidas"),
+            ("removed", "Tablas eliminadas"),
             ("modified", "Tablas modificadas"),
         ]
         for status, label in groups:
@@ -346,9 +342,7 @@ class WordDiffReporter:
             for td in subset:
                 self._add_table_details(doc, td)
 
-    def _add_views_section(
-        self, doc: DocumentType, view_diffs: tuple[ViewDiff, ...]
-    ) -> None:
+    def _add_views_section(self, doc: DocumentType, view_diffs: tuple[ViewDiff, ...]) -> None:
         doc.add_heading("Vistas con diff", level=1)
         for vd in view_diffs:
             estado = STATUS_ES.get(vd.status, vd.status)
@@ -364,9 +358,7 @@ class WordDiffReporter:
                 self._mini_heading(doc, "Definición destino")
                 self._code_block(doc, DdlNormalizer.normalize_view_ddl(vd.target_definition))
 
-    def _add_routines_section(
-        self, doc: DocumentType, routine_diffs: tuple[RoutineDiff, ...]
-    ) -> None:
+    def _add_routines_section(self, doc: DocumentType, routine_diffs: tuple[RoutineDiff, ...]) -> None:
         doc.add_heading("Rutinas con diff", level=1)
         for rd in routine_diffs:
             estado = STATUS_ES.get(rd.status, rd.status)
