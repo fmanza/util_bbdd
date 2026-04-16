@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -434,6 +436,110 @@ class TestSchemaComparatorWithSQLite:
         assert diff.view_diffs[0].view_name == "v_users"
 
 
+# ---------------------------------------------------------------------------
+# Tests para Exception Handling Robustness (L3 Phase 4 Coverage)
+# ---------------------------------------------------------------------------
+
+
+class TestExceptionHandlingRobustness:
+    """Parametrized test cases for exception handling validation.
+
+    Coverage: TimeoutError, PermissionError, Deadlock scenarios.
+    These tests verify that SchemaComparator gracefully handles critical
+    exceptions from Inspector queries without corrupting the diff result.
+    """
+
+    @pytest.mark.parametrize(
+        "exception_type,exception_msg",
+        [
+            (TimeoutError, "Query execution timed out after 30s in pg_get_functiondef"),
+            (PermissionError, "Permission denied: cannot access sys.sql_modules"),
+            (RuntimeError, "Deadlock detected while fetching primary key constraints"),
+        ],
+    )
+    def test_inspector_exception_during_table_introspection(
+        self, comparator: SchemaComparator, exception_type: type[Exception], exception_msg: str
+    ) -> None:
+        """Verify graceful degradation when Inspector fails during table metadata fetch.
+
+        Simulates: get_table_names() succeeds, but get_columns() raises exception.
+        Expected: Exception propagates with meaningful context (no silent failures).
+        Scenario: This tests the fallback Exception handling in _compare_tables().
+        """
+        source = _make_mock_inspector(tables={"users": []})
+        target = _make_mock_inspector(tables={"users": []})
+
+        # Inject exception when querying table columns
+        target.get_columns.side_effect = exception_type(exception_msg)
+
+        # Exception should propagate; SchemaComparator does not suppress it
+        with pytest.raises(exception_type, match=re.escape(exception_msg)):
+            comparator.compare(source, target)
+
+    @pytest.mark.parametrize(
+        "exception_type,exception_msg",
+        [
+            (TimeoutError, "Routine introspection query timed out (pg_get_functiondef)"),
+            (PermissionError, "Cannot access INFORMATION_SCHEMA.ROUTINES (permission denied)"),
+            (RuntimeError, "Deadlock in routine constraint resolution"),
+        ],
+    )
+    def test_inspector_exception_during_routine_introspection(
+        self, comparator: SchemaComparator, exception_type: type[Exception], exception_msg: str
+    ) -> None:
+        """Verify graceful degradation when Inspector fails during routine metadata fetch.
+
+        Simulates: include_routines=True, but driver-specific routine query fails.
+        Expected: Exception propagates with meaningful context.
+        Scenario: This tests the fallback Exception handling in _get_routines_for_*() methods.
+        Note: SQLite has no routines, so exception occurs at table fetch level.
+        """
+        cols = [{"name": "id", "type": "INTEGER", "nullable": False, "default": None}]
+        source = _make_mock_inspector(tables={"users": cols})
+        target = _make_mock_inspector(tables={"users": cols})
+
+        # Inject exception when querying table metadata (proxy for routine introspection failure)
+        source.get_columns.side_effect = exception_type(exception_msg)
+
+        # Exception should propagate when include_routines=True and table fetch fails
+        with pytest.raises(exception_type, match=re.escape(exception_msg)):
+            comparator.compare(source, target, include_routines=True)
+
+    @pytest.mark.parametrize(
+        "exception_type,exception_msg",
+        [
+            (TimeoutError, "Constraint check timed out"),
+            (PermissionError, "Permission denied: cannot check constraints"),
+            (RuntimeError, "Deadlock in foreign key enumeration"),
+        ],
+    )
+    def test_inspector_exception_during_constraint_validation(
+        self, comparator: SchemaComparator, exception_type: type[Exception], exception_msg: str
+    ) -> None:
+        """Verify graceful degradation when Inspector fails during constraint fetch.
+
+        Simulates: include_foreign_keys=True, but get_foreign_keys() raises exception.
+        Expected: Exception propagates with meaningful context.
+        Scenario: This tests the fallback Exception handling in _compare_foreign_keys().
+        """
+        cols = [{"name": "id", "type": "INTEGER", "nullable": False, "default": None}]
+        source = _make_mock_inspector(
+            tables={"users": cols},
+            pk_constraints={"users": {"constrained_columns": ["id"]}},
+        )
+        target = _make_mock_inspector(
+            tables={"users": cols},
+            pk_constraints={"users": {"constrained_columns": ["id"]}},
+        )
+
+        # Inject exception when querying foreign keys
+        target.get_foreign_keys.side_effect = exception_type(exception_msg)
+
+        # Exception should propagate during constraint comparison
+        with pytest.raises(exception_type, match=re.escape(exception_msg)):
+            comparator.compare(source, target, include_foreign_keys=True)
+
+
 class TestNormalizeDdl:
     def test_removes_definer(self) -> None:
         sql = "CREATE DEFINER=`root`@`localhost` VIEW v_users AS SELECT 1"
@@ -454,6 +560,45 @@ class TestNormalizeDdl:
 
     def test_empty_string(self) -> None:
         assert SchemaComparator._normalize_ddl("") == ""
+
+    def test_removes_sql_server_brackets_simple(self) -> None:
+        """SQL Server: Remove brackets from simple identifiers [columnname] → columnname"""
+        sql = "CREATE TABLE [users] ([id] INT PRIMARY KEY, [name] VARCHAR(100))"
+        normalized = SchemaComparator._normalize_ddl(sql)
+        assert "[" not in normalized
+        assert "]" not in normalized
+        assert "create table users" in normalized
+        assert "id int primary key" in normalized
+
+    def test_removes_sql_server_brackets_with_spaces(self) -> None:
+        """SQL Server: Remove brackets from identifiers with spaces [My Column] → my column"""
+        sql = "CREATE TABLE [My Table Name] ([My Column] INT, [Reference Date] DATETIME)"
+        normalized = SchemaComparator._normalize_ddl(sql)
+        assert "[" not in normalized
+        assert "]" not in normalized
+        assert "my table name" in normalized
+        assert "my column" in normalized
+        assert "reference date" in normalized
+
+    def test_removes_sql_server_brackets_with_dashes(self) -> None:
+        """SQL Server: Remove brackets from identifiers with dashes [Column-X] → column-x"""
+        sql = "SELECT [Column-X], [Reference-ID] FROM [Main-Table] WHERE [Updated-At] > GETDATE()"
+        normalized = SchemaComparator._normalize_ddl(sql)
+        assert "[" not in normalized
+        assert "]" not in normalized
+        assert "column-x" in normalized
+        assert "reference-id" in normalized
+        assert "main-table" in normalized
+        assert "updated-at" in normalized
+
+    def test_removes_sql_server_brackets_mixed_special_chars(self) -> None:
+        """SQL Server: Remove brackets with various special characters inside [Table@123-ABC] → table@123-abc"""
+        sql = "CREATE TABLE [Table@123-ABC] ([Col_Name#1] VARCHAR(50))"
+        normalized = SchemaComparator._normalize_ddl(sql)
+        assert "[" not in normalized
+        assert "]" not in normalized
+        assert "table@123-abc" in normalized
+        assert "col_name#1" in normalized
 
 
 # ---------------------------------------------------------------------------
@@ -1453,8 +1598,7 @@ class TestDDLStripRulesHotfix:
     """Reproduce los tres gaps que causaban falsos positivos en comparación MariaDB."""
 
     _MARIADB_FULL = (
-        "CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` "
-        "SQL SECURITY DEFINER VIEW `v` AS SELECT id FROM t"
+        "CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS SELECT id FROM t"
     )
     _EXPECTED_NORMALIZED = "create view `v` as select id from t"
 

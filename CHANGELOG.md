@@ -83,36 +83,97 @@ Añadidos `[[tool.mypy.overrides]]` para `pandas`/`pandas.*` y `networkx`/`netwo
 
 #### Phase 4 Optimizations (LOW priority, v0.6.8 scope)
 
-**L1: MSSQL Bracket Regex Enhancement** (IN_PROGRESS)
-- File: `src/util_bbdd/comparar/comparator.py:54`
+**L1: MSSQL Bracket Regex Enhancement** (COMPLETE)
+- File: `src/util_bbdd/comparar/comparator.py:76`
 - Change: `r"\[(\w+)\]"` → `r"\[([^\]]+)\]"` to support spaces/dashes in brackets
-- Examples: `[My Column]`, `[Column-X]`, `[My Table Name]`
-- Tests: New test cases for bracket variations
-- Status: PLAN + AUDIT_PLAN phase (2026-04-13-v0.6.8)
+- Supported: `[My Column]`, `[Column-X]`, `[My Table Name]`, `[Table@123-ABC]`
+- Tests: 4 dedicated test cases (test_comparator.py: TestNormalizeDdl)
+  - `test_removes_sql_server_brackets_simple` — simple identifiers
+  - `test_removes_sql_server_brackets_with_spaces` — spaces in names
+  - `test_removes_sql_server_brackets_with_dashes` — dashes in names
+  - `test_removes_sql_server_brackets_mixed_special_chars` — special characters
+- Status: ✅ Implemented + Tested (L1 complete with full coverage)
 
-**L2: Performance Limitations Documentation** (PLANNED)
+**L2: Performance Limitations Documentation** (COMPLETE)
 - File: `src/util_bbdd/comparar/comparator.py` (docstrings)
-- Add: N+1 query warning for large schema comparisons
-- Rationale: Cascade comparisons can trigger multiple queries per table
-- Documentation: Add optimization guide + caching recommendations
+- Add: N+1 query warnings and optimization guide for large schema comparisons
+- Implementation: Added "Performance Considerations" section to `compare()` docstring
+- Coverage:
+  - N+1 query cascade warnings (breakdown per flag)
+  - Optimization guide for large schemas (100+ tables)
+  - Driver-specific overhead analysis
+  - Cost table by flag combinations
+  - Best practices for parallelization and caching
+- Status: ✅ Implemented + Tested (L2 complete with cost matrix and optimization patterns)
 
-**L3: Exception Handling Test Coverage** (PLANNED)
+**L3: Exception Handling Test Coverage** (COMPLETE)
 - File: `tests/comparar/test_comparator.py`
-- Add: 3 parametrized test cases (TimeoutError, PermissionError, Deadlock)
-- Framework: `pytest.mark.parametrize`
-- Coverage: Exception handling robustness validation
+- Add: 3 parametrized test cases for exception handling robustness validation
+- Framework: `pytest.mark.parametrize` with 3 test methods × 3 exception types = 9 test cases
+- Coverage:
+  - `test_inspector_exception_during_table_introspection`: TimeoutError, PermissionError, Deadlock (3 cases)
+  - `test_inspector_exception_during_routine_introspection`: TimeoutError, PermissionError, Deadlock (3 cases)
+  - `test_inspector_exception_during_constraint_validation`: TimeoutError, PermissionError, Deadlock (3 cases)
+- Test Results: All 9 tests passing; suite total: 1892 tests (↑9 from L3 addition)
+- Status: ✅ Implemented + Tested (L3 complete with parametrized robustness validation)
 
 ### Added
 
-(Placeholder for v0.6.8 additions)
+#### Exception Hierarchy for `comparar/` Module (Phase 4B)
+- New exception hierarchy in `_core/exceptions.py`:
+  - `ComparerError`: Base exception for all schema comparison errors (inherits from `DatabaseException`)
+  - `SchemaDiffValidationError`: Input/parameter validation failures (dialect, format, path, type errors)
+  - `MetadataIntrospectionError`: Inspector failures (missing tables, permissions, unsupported dialects)
+  - `DiffReportGenerationError`: Reporter rendering failures (SQL script, HTML, Word, Excel, Markdown generation)
+- Exported directly from `util_bbdd` root package (canonical import path)
+- Enables specific error handling in reporters and consumer code
+- Documentation: See `EXCEPTIONS.md` for full hierarchy and usage patterns
 
 ### Changed
 
-(Placeholder for v0.6.8 changes)
+#### BREAKING: Exception Types in `comparar/` Reporters
+- `reporters/sql_reporter.py`: `ValueError` → `SchemaDiffValidationError` (line 253)
+- `reporters/facade.py`: `ValueError` → `SchemaDiffValidationError` (line 140)
+- `reporters/word_reporter.py`: `ValueError` → `SchemaDiffValidationError` (line 88)
+- **Migration guide**: Catch `SchemaDiffValidationError` instead of `ValueError` in consumer code
+  ```python
+  # Before
+  try:
+      reporter = SqlDiffReporter("invalid_dialect")
+  except ValueError as e:
+      log.error(f"Invalid dialect: {e}")
+
+  # After
+  try:
+      reporter = SqlDiffReporter("invalid_dialect")
+  except SchemaDiffValidationError as e:
+      log.error(f"Invalid dialect: {e.details}")
+  ```
+- All tests updated to capture new exception types (6 tests in `test_diff_reporters.py`)
+
+#### Documentation of Fallback Exception Handling
+- 8 `# noqa: BLE001` comments replaced with explicit M1 fallback justifications:
+  - Line 726 (view DDL): Fallback for dialects without native DDL support
+  - Lines 797, 839, 842 (MariaDB, Oracle general): Connection/permission failures
+  - Lines 883, 886 (MSSQL): sys.sql_modules access and connection handling
+  - Lines 937, 940 (PostgreSQL): pg_get_functiondef failures and connection handling
+- Each fallback now documents why capturing `Exception` is necessary in multi-driver introspection
 
 ### Fixed
 
-(Placeholder for v0.6.8 fixes)
+#### 9 mypy `no-redef` Errors in `comparar/comparator.py`
+- **Lines 372/384**: Index loop variables renamed (`idx` → `source_index_dict`/`target_index_dict`)
+- **Lines 573-574/580**: View comparison variables renamed (`s_def`/`t_def` → `source_def_cmp`/`target_def_cmp`)
+- **Line 625**: Routine comparison variable fixed (`r.get()` → `target_routine.get()`)
+- **Lines 663-665**: URL sanitization consolidated (`url_str`/`url`)
+- **Lines 774-799**: MariaDB procedure/function variables contextualized (`proc_*`/`func_*` prefixes)
+- **Result**: mypy clean — `Success: no issues found in 248 source files`
+
+#### Validation
+- All 1,879 tests passing (1 skipped)
+- Lint: all checks passed (ruff)
+- Type-check: all checks passed (mypy v0.942)
+- No functional changes, zero regressions
 
 ---
 

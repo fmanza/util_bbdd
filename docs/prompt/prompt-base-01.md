@@ -162,6 +162,7 @@ Lee .ai/sessions/INDEX.md para contexto de decisiones previas
 Documentar la sesión actual siguiendo .ai\sessions\INDEX.md y .ai\sessions\TEMPLATE\TRACEABILITY.md
 Revisar lo implementado en src\util_bbdd\comparar para asegurar que la documentación generada refleje fielmente la funcionalidad actual del módulo.
 Revisar lo implementado en src\util_bbdd\doc como base de trabajo, se permite mejorar o modificar la estructura de generación de documentación si es necesario para cumplir con los objetivos de este task.
+Actualizar CHANGELOG.md con un resumen claro de los cambios realizados, incluyendo la creación de nuevas excepciones específicas y la actualización de los tests correspondientes.
 
 Sigue el flujo PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION.
 ---

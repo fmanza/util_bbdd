@@ -138,6 +138,97 @@ class SchemaComparator:
 
         Returns:
             ``SchemaDiff`` con todas las diferencias encontradas.
+
+        Performance Considerations:
+            **N+1 Query Cascade Warnings:**
+                - Each ``include_*`` flag triggers Inspector queries per schema:
+
+                  * ``include_tables=True``: 1 query per table (columns, constraints, indexes)
+                  * ``include_foreign_keys=True``: +1 per table for FK relationships
+                  * ``include_indices=True``: +1 per table for index details
+                  * ``include_comments=True``: +1 per table+column for comment metadata
+                  * ``include_routines=True``: +1-2 per routine for DDL materialization (driver-dependent)
+
+                - **Total queries for 100-table schema with all flags enabled**: ~500+ queries per Inspector
+                  This is **expected behavior** but can exceed timeout thresholds for large catalogs.
+
+            **Optimization Guide for Large Schemas (100+ tables):**
+
+                1. **Disable unnecessary flags:**
+
+                   .. code-block:: python
+
+                       # Fast comparison (minimal queries)
+                       diff = comparator.compare(
+                           source, target,
+                           include_tables=True,
+                           include_views=False,
+                           include_indices=False,
+                           include_foreign_keys=False,
+                           include_comments=False,
+                           include_routines=False
+                       )
+
+                2. **Filter by schema where possible:**
+
+                   .. code-block:: python
+
+                       # Only compare 'public' schema, not catalog
+                       diff = comparator.compare(
+                           source, target,
+                           source_schema="public",
+                           target_schema="public"
+                       )
+
+                3. **Increase Inspector timeout:**
+
+                   .. code-block:: python
+
+                       # Set longer timeout at connection level
+                       engine = create_engine(
+                           "postgresql://user:pass@host/db",
+                           connect_args={"connect_timeout": 30}
+                       )
+                       inspector = inspect(engine)
+                       diff = comparator.compare(source, target)
+
+                4. **Cache Inspector results across comparisons:**
+
+                   .. code-block:: python
+
+                       # Reuse inspectors if comparing same source/target multiple times
+                       source_inspector = inspect(source_engine)
+                       target_inspector = inspect(target_engine)
+
+                       diff1 = comparator.compare(source_inspector, target_inspector, ...)
+                       diff2 = comparator.compare(source_inspector, target_inspector, ...)
+                       # No extra Inspector queries; SQLAlchemy caches internally
+
+            **Driver-Specific Overhead:**
+
+                - **PostgreSQL/Oracle/SQL Server**: ``include_routines=True`` materializes full DDL;
+                  can be slow if many routines exist. Consider disabling for first pass.
+                - **MariaDB**: Uses ``information_schema`` which is fast but locks during ``SHOW CREATE`` fallback.
+                - **SQLite**: No significant overhead (single file, no remote I/O).
+                - **HSQLDB**: Introspection is synchronous and slower; avoid large schemas.
+
+            **Cost Analysis by Flag Combinations:**
+
+                +-------+-------+-------+---------+----------+----------+
+                | Table | Index | FK    | Comment | Routine  | Estimate |
+                +=======+=======+=======+=========+==========+==========+
+                | ✓     | ✗     | ✗     | ✗       | ✗        | ~200 q   |
+                +-------+-------+-------+---------+----------+----------+
+                | ✓     | ✓     | ✗     | ✗       | ✗        | ~300 q   |
+                +-------+-------+-------+---------+----------+----------+
+                | ✓     | ✓     | ✓     | ✗       | ✗        | ~400 q   |
+                +-------+-------+-------+---------+----------+----------+
+                | ✓     | ✓     | ✓     | ✓       | ✗        | ~500 q   |
+                +-------+-------+-------+---------+----------+----------+
+                | ✓     | ✓     | ✓     | ✓       | ✓        | ~600+ q  |
+                +-------+-------+-------+---------+----------+----------+
+
+                (Estimates for 100-table PostgreSQL schema; actual varies by catalog size and driver)
         """
         source_label: str = self._build_label(source, source_schema)
         target_label: str = self._build_label(target, target_schema)
