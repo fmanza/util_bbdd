@@ -35,7 +35,7 @@ class SyncLifecycleManager:
         """
         self.db_type = db_type
         self.conn_params = conn_params
-        self.logger = logger
+        self.logger: logging.Logger = logger
         self.validators = validators
         self.sql_server_driver: str = "pymssql"
 

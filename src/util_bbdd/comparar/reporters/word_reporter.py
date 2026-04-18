@@ -25,8 +25,6 @@ from util_bbdd._core.exceptions import SchemaDiffValidationError
 from ..models import RoutineDiff, SchemaDiff, TableDiff, ViewDiff
 from ._base import STATUS_ES, DdlNormalizer, build_diff_summary
 
-logger: logging.Logger = logging.getLogger(__name__)
-
 
 class WordDiffReporter:
     """Genera un reporte Word compacto del SchemaDiff con tablas formateadas.
@@ -70,6 +68,7 @@ class WordDiffReporter:
     _TABLE_STYLE: ClassVar[str] = "Table Grid"
 
     def __init__(self, template_path: Path | None = None) -> None:
+        self.logger: logging.Logger = logging.getLogger(__name__)
         self._template_path: Path | None = template_path
 
     def render(self, diff: SchemaDiff, output: Path) -> Path:
@@ -112,7 +111,7 @@ class WordDiffReporter:
             self._add_routines_section(doc, diff.routine_diffs)
 
         doc.save(str(output))
-        logger.info("Word diff report generado: %s", output)
+        self.logger.info("Word diff report generado: %s", output)
         return output
 
     # ------------------------------------------------------------------
@@ -127,7 +126,9 @@ class WordDiffReporter:
             raise FileNotFoundError(f"Plantilla no encontrada: {resolved}")
         if not resolved.is_file():
             raise FileNotFoundError(f"La plantilla no es un archivo válido: {resolved}")
-        logger.info("Cargando plantilla Word: %s", resolved)
+        # Note: This is a static method, so we cannot use self.logger here
+        # The logger call will be handled by the caller via the instance
+        logging.getLogger(__name__).info("Cargando plantilla Word: %s", resolved)
         return Document(str(resolved))
 
     @staticmethod

@@ -31,7 +31,7 @@ class AsyncLifecycleManager:
         """
         self.db_type = db_type.lower().strip()
         self.conn_params = conn_params
-        self.logger = logger
+        self.logger: logging.Logger = logger
         self.validators = validators
 
     async def initialize_pool(self, pool_factory_func: Callable[..., Awaitable[Any]]) -> Any | None:

@@ -48,7 +48,7 @@ class QueryRegistry:
             FileNotFoundError: Si el archivo no existe
             ValueError: Si el JSON es inválido
         """
-        self.logger = logging.getLogger(__name__)
+        self.logger: logging.Logger = logging.getLogger(__name__)
 
         # Ruta por defecto (sube un nivel desde query/ a util_bbdd/)
         if queries_file is None:

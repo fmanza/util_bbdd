@@ -16,8 +16,6 @@ from ..models import (
 )
 from ._base import STATUS_EMOJI, STATUS_ES, DdlNormalizer, DiffSummary, build_diff_summary, escape_mermaid_label
 
-logger: logging.Logger = logging.getLogger(__name__)
-
 
 class MarkdownDiffReporter:
     """Genera un reporte Markdown con diagrama Mermaid del SchemaDiff.
@@ -33,6 +31,10 @@ class MarkdownDiffReporter:
     _MERMAID_SUBGRAPH_END: ClassVar[str] = "    end"
     _TABLE_SEPARATOR_4COL: ClassVar[str] = "|---|---|---|---|"
     _TABLE_SEPARATOR_6COL: ClassVar[str] = "|---|---|---|---|---|---|"
+
+    def __init__(self) -> None:
+        """Inicializa MarkdownDiffReporter con logger."""
+        self.logger: logging.Logger = logging.getLogger(__name__)
 
     def render(self, diff: SchemaDiff, output: Path) -> Path:
         """Genera el fichero Markdown en la ruta indicada.
@@ -54,7 +56,7 @@ class MarkdownDiffReporter:
         lines += self._render_routines_section(diff.routine_diffs)
         content: str = "\n".join(lines) + "\n"
         output.write_text(content, encoding="utf-8")
-        logger.info("Markdown diff report generado: %s", output)
+        self.logger.info("Markdown diff report generado: %s", output)
         return output
 
     # ------------------------------------------------------------------

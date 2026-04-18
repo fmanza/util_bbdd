@@ -16,8 +16,6 @@ from openpyxl.worksheet.worksheet import Worksheet
 from ..models import RoutineDiff, SchemaDiff, TableDiff, ViewDiff
 from ._base import STATUS_ES, DdlNormalizer, DiffSummary, build_diff_summary
 
-logger: logging.Logger = logging.getLogger(__name__)
-
 
 class ExcelDiffReporter:
     """Genera un reporte Excel del SchemaDiff con hojas por categoría.
@@ -48,6 +46,10 @@ class ExcelDiffReporter:
         "modified": "FFFEF3C7",
     }
 
+    def __init__(self) -> None:
+        """Inicializa ExcelDiffReporter con logger."""
+        self.logger: logging.Logger = logging.getLogger(__name__)
+
     def render(self, diff: SchemaDiff, output: Path) -> Path:
         """Genera el fichero ``.xlsx`` en la ruta indicada.
 
@@ -77,7 +79,7 @@ class ExcelDiffReporter:
             self._add_routines_sheet(wb, diff.routine_diffs)
 
         wb.save(output)
-        logger.info("Excel diff report generado: %s", output)
+        self.logger.info("Excel diff report generado: %s", output)
         return output
 
     # ------------------------------------------------------------------

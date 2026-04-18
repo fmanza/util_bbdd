@@ -180,9 +180,12 @@ Tener encuenta que tiene que servir bien por unifcación de fichero bien separan
 ---
 @#sym:config_review revisar e incorporar intrucciones que indiquen que todas las calses deben incluir grestión de logging y que todas las variables globales siempre tienen que pertecer a clases, no puede haber variables globales a nivel de módulo, y que el logging debe ser consistente en toda la librería, usando un formato estándar y niveles de log adecuados (DEBUG, INFO, WARNING, ERROR, CRITICAL). Además, se debe incluir un logger específico para cada clase o módulo para facilitar la trazabilidad de los logs.
 ---
+Necestio dumentar la aplicación con este módulo de Python https://github.com/squidfunk/mkdocs-material, quiero:
+- Incluirlo como parte del proyecto a la hora de generar la documentación de util_bbdd.
+- Generar las carpetas de estructura necesaria para usarlo y generar la documentación de util_bbdd con este formato.
+- Revisar y adaptar la documentación actual de util_bbdd para que se integre correctamente con mkdocs-material, asegurando que los enlaces, ejemplos y guías estén bien formateados y sean fácilmente navegables en el nuevo formato de documentación.
+- Configurar mkdocs-material para que se adapte a las necesidades específicas de la documentación de util_bbdd, incluyendo la personalización de temas, la organización de la navegación y la integración de cualquier plugin necesario para mejorar la experiencia de usuario y la presentación de la documentación.
 
 
 
-
-https://github.com/squidfunk/mkdocs-material
 https://squidfunk.github.io/mkdocs-material

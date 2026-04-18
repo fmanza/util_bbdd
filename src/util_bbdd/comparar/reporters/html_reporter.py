@@ -16,8 +16,6 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from ..models import SchemaDiff
 from ._base import STATUS_ES, DdlNormalizer, DiffSummary, build_diff_summary, escape_mermaid_label
 
-logger: logging.Logger = logging.getLogger(__name__)
-
 # Directorio de plantillas embebidas (junto a este módulo)
 _TEMPLATES_DIR: Path = Path(__file__).parent / "templates"
 _DEFAULT_TEMPLATE: str = "diff_report.html.j2"
@@ -45,17 +43,17 @@ class HtmlDiffReporter:
 
     # Categorías de filtro: (id CSS/JS, etiqueta visible)
     _FILTER_CATS: ClassVar[list[tuple[str, str]]] = [
-        ("tables-added",    "Tablas añadidas"),
-        ("tables-removed",  "Tablas eliminadas"),
+        ("tables-added", "Tablas añadidas"),
+        ("tables-removed", "Tablas eliminadas"),
         ("tables-modified", "Tablas modificadas"),
-        ("views",           "Vistas con diff"),
-        ("routines",        "Rutinas con diff"),
+        ("views", "Vistas con diff"),
+        ("routines", "Rutinas con diff"),
     ]
 
     # Mapa de status de tabla → categoría de filtro
     _STATUS_TO_CAT: ClassVar[dict[str, str]] = {
-        "added":    "tables-added",
-        "removed":  "tables-removed",
+        "added": "tables-added",
+        "removed": "tables-removed",
         "modified": "tables-modified",
     }
 
@@ -64,6 +62,7 @@ class HtmlDiffReporter:
         template_dir: Path | None = None,
         template_name: str = _DEFAULT_TEMPLATE,
     ) -> None:
+        self.logger: logging.Logger = logging.getLogger(__name__)
         templates_path: Path = template_dir if template_dir is not None else _TEMPLATES_DIR
         self._env: Environment = Environment(
             loader=FileSystemLoader(str(templates_path)),
@@ -95,7 +94,7 @@ class HtmlDiffReporter:
         template = self._env.get_template(self._template_name)
         content = template.render(ctx)
         output.write_text(content, encoding="utf-8")
-        logger.info("HTML diff report generado: %s", output)
+        self.logger.info("HTML diff report generado: %s", output)
         return output
 
     # ------------------------------------------------------------------
@@ -105,9 +104,9 @@ class HtmlDiffReporter:
     def _build_context(self, diff: SchemaDiff, summary: DiffSummary) -> dict:
         """Construye el dict de contexto que se pasa a la plantilla Jinja2."""
         return {
-            "diff":          diff,
-            "summary":       summary,
-            "status_es":     STATUS_ES,
+            "diff": diff,
+            "summary": summary,
+            "status_es": STATUS_ES,
             "status_to_cat": self._STATUS_TO_CAT,
-            "filter_cats":   self._FILTER_CATS,
+            "filter_cats": self._FILTER_CATS,
         }

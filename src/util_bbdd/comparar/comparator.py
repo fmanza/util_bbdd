@@ -8,6 +8,8 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 
+logger: logging.Logger = logging.getLogger(__name__)
+
 from sqlalchemy import CursorResult, Row, RowMapping
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.engine.interfaces import ReflectedTableComment
@@ -26,8 +28,6 @@ from .models import (
     TableDiff,
     ViewDiff,
 )
-
-logger: logging.Logger = logging.getLogger(__name__)
 
 
 class SchemaComparator:
@@ -99,6 +99,14 @@ class SchemaComparator:
         "sqlite": "sqlite",
         "hsqldb": "hsqldb",
     }
+
+    # ------------------------------------------------------------------
+    # Inicialización
+    # ------------------------------------------------------------------
+
+    def __init__(self) -> None:
+        """Inicializa SchemaComparator con logger."""
+        self.logger: logging.Logger = logging.getLogger(__name__)
 
     # ------------------------------------------------------------------
     # API pública
@@ -232,7 +240,7 @@ class SchemaComparator:
         """
         source_label: str = self._build_label(source, source_schema)
         target_label: str = self._build_label(target, target_schema)
-        logger.info("Iniciando comparación: %s ↔ %s", source_label, target_label)
+        self.logger.info("Iniciando comparación: %s ↔ %s", source_label, target_label)
 
         table_diffs: tuple[TableDiff, ...] = ()
         view_diffs: tuple[ViewDiff, ...] = ()
@@ -256,7 +264,7 @@ class SchemaComparator:
             routine_diffs = self._compare_routines(source, target, source_schema, target_schema)
 
         summary = self._build_summary(table_diffs, view_diffs, routine_diffs)
-        logger.info("Comparación finalizada: %s", summary)
+        self.logger.info("Comparación finalizada: %s", summary)
 
         return SchemaDiff(
             source_label=source_label,

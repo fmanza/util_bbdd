@@ -21,8 +21,6 @@ from .markdown_reporter import MarkdownDiffReporter
 from .sql_reporter import SqlDiffReporter
 from .word_reporter import WordDiffReporter
 
-logger: logging.Logger = logging.getLogger(__name__)
-
 _EXTENSIONS: dict[str, str] = {
     "html": ".html",
     "excel": ".xlsx",
@@ -102,6 +100,7 @@ class SchemaDiffReporter:
         sql_source_inspector: Inspector | None = None,
         sql_source_schema: str | None = None,
     ) -> None:
+        self.logger: logging.Logger = logging.getLogger(__name__)
         self._reporters: dict[str, DiffReporterProtocol] = {
             "html": HtmlDiffReporter(),
             "excel": ExcelDiffReporter(),
@@ -180,5 +179,5 @@ class SchemaDiffReporter:
                 path: Path = self.render(diff, output_dir=output_dir, format=fmt)
                 paths.append(path)
             except Exception:
-                logger.exception("Error generando reporte '%s' — se omite y continúa", fmt)
+                self.logger.exception("Error generando reporte '%s' — se omite y continúa", fmt)
         return paths

@@ -23,7 +23,7 @@ class SyncSessionManager:
             logger: Logger para mensajes.
         """
         self.pool_connection = pool_connection
-        self.logger = logger
+        self.logger: logging.Logger = logger
         self._connection: Any = None
         self._cursor: Any = None
 
@@ -95,7 +95,7 @@ class AsyncSessionManager:
             logger: Logger para mensajes.
         """
         self.pool_connection = pool_connection
-        self.logger = logger
+        self.logger: logging.Logger = logger
         self._connection: Any = None
 
     async def get_connection(self) -> Any:

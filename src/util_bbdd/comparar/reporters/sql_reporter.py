@@ -55,8 +55,6 @@ from ..models import (
 )
 from ._base import DdlNormalizer
 
-logger: logging.Logger = logging.getLogger(__name__)
-
 # ---------------------------------------------------------------------------
 # Constantes de módulo — compartidas entre varias clases (política _base.py)
 # ---------------------------------------------------------------------------
@@ -256,6 +254,7 @@ class SqlDiffReporter:
                 operation="SqlDiffReporter.init",
                 details=f"dialect={normalized}",
             )
+        self.logger: logging.Logger = logging.getLogger(__name__)
         self._dialect: str = normalized
         self._source_inspector: Any = source_inspector
         self._source_schema: str | None = source_schema
@@ -287,7 +286,7 @@ class SqlDiffReporter:
         output.parent.mkdir(parents=True, exist_ok=True)
         script: str = self._build_script(diff)
         output.write_text(script, encoding="utf-8")
-        logger.info("SQL diff script generado: %s", output)
+        self.logger.info("SQL diff script generado: %s", output)
         return output
 
     # ------------------------------------------------------------------
@@ -416,7 +415,7 @@ class SqlDiffReporter:
                     "Verificar que source_schema esté configurado si el motor lo requiere "
                     "(p.ej. Oracle, SQL Server multischema)."
                 )
-                logger.warning("Inspector: no se pudieron obtener columnas de '%s': %s", table_name, exc)
+                self.logger.warning("Inspector: no se pudieron obtener columnas de '%s': %s", table_name, exc)
                 self._col_cache[table_name] = []
                 self._col_error_cache[table_name] = error_msg
         return self._col_cache[table_name]
@@ -432,7 +431,7 @@ class SqlDiffReporter:
             pk: dict[str, Any] = self._source_inspector.get_pk_constraint(table_name, schema=self._source_schema)
             return list(pk.get("constrained_columns", []))
         except Exception:
-            logger.warning(
+            self.logger.warning(
                 "Inspector: no se pudo obtener PK de '%s'.",
                 table_name,
             )
@@ -453,7 +452,7 @@ class SqlDiffReporter:
                     self._source_inspector.get_foreign_keys(table_name, schema=self._source_schema)
                 )
             except Exception:
-                logger.warning(
+                self.logger.warning(
                     "Inspector: no se pudieron obtener FKs de '%s'.",
                     table_name,
                 )
@@ -474,7 +473,7 @@ class SqlDiffReporter:
                     self._source_inspector.get_indexes(table_name, schema=self._source_schema)
                 )
             except Exception:
-                logger.warning(
+                self.logger.warning(
                     "Inspector: no se pudieron obtener índices de '%s'.",
                     table_name,
                 )

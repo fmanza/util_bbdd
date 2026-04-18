@@ -22,8 +22,8 @@ class UpdateAutoIncrement:
         Args:
             conf (dict): Configuración de la BBDD de trabajo.
         """
-        logger: logging.Logger = logging.getLogger(__name__)
-        logger.info(f"ℹ️ Update Auto Increment: {conf['database']}")
+        self.logger: logging.Logger = logging.getLogger(__name__)
+        self.logger.info(f"ℹ️ Update Auto Increment: {conf['database']}")
 
         # Crear engine de SQLAlchemy
         self.engine: Engine = SQLAlchemyEngineFactory.create_engine(
@@ -41,19 +41,19 @@ class UpdateAutoIncrement:
             # Ejecutar la consulta y obtener el resultado en un DataFrame
             self.df_information_schema: pd.DataFrame = pd.read_sql(sql, self.engine)
         except OperationalError as e:
-            logger.error("❌ Error en la conexión a la BBDD (OperationalError).")
-            logger.error(e)
-            logger.error(traceback.format_exc())
+            self.logger.error("❌ Error en la conexión a la BBDD (OperationalError).")
+            self.logger.error(e)
+            self.logger.error(traceback.format_exc())
             sys.exit(1)
         except DBAPIError as e:
-            logger.error("❌ Error en la conexión a la BBDD (DBAPI o Interface).")
-            logger.error(e)
-            logger.error(traceback.format_exc())
+            self.logger.error("❌ Error en la conexión a la BBDD (DBAPI o Interface).")
+            self.logger.error(e)
+            self.logger.error(traceback.format_exc())
             sys.exit(1)
         except Exception as e:
-            logger.error("❌ Ocurrió un error inesperado al conectar con la BBDD.")
-            logger.error(e)
-            logger.error(traceback.format_exc())
+            self.logger.error("❌ Ocurrió un error inesperado al conectar con la BBDD.")
+            self.logger.error(e)
+            self.logger.error(traceback.format_exc())
             sys.exit(1)
 
     def salida_sql(self) -> list[str]:
