@@ -1,153 +1,52 @@
-# CLAUDE.md
+# Instrucciones para Claude Code
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
----
-
-## Rol
-
-Actúa como senior de ingeniería de software especializado en arquitectura Python, APIs sync/async, metadatos multi-motor, generación documental y mantenimiento de librerías.
-
-## Proyecto
-
-`util_bbdd` es una librería Python para **operaciones de base de datos y documentación automática** (MariaDB, Oracle, PostgreSQL, SQLite, SQL Server, HSQLDB). Requiere Python 3.12+. Versión en desarrollo: `0.6.7.dev0`.
-
-Funcionalidades principales:
-- CRUD masivo desde DataFrames con auditoría CSV
-- Introspección de metadatos: schemas, tablas, columnas, PK/FK, índices
-- Generación de documentación (Word, Excel, Markdown, HTML con Jinja2)
-- Análisis de relaciones y grafos multinivel
-- Gestión de conexiones con pool singleton, soporte async por motor
+Este fichero proporciona guía a Claude Code cuando trabaja con código de util_bbdd.
 
 ---
 
-## Comandos de desarrollo
+## ⚠️ Notas importantes
+
+**Lea primero**: [`.github/SHARED_INSTRUCTIONS.md`](.github/SHARED_INSTRUCTIONS.md) para arquitectura, SOLID, patrones, flujos y políticas comunes a ambas plataformas.
+
+Esta página contiene **solo especificidades de Claude Code**. Todo lo demás está centralizado en SHARED_INSTRUCTIONS.md.
+
+---
+
+## Slash commands disponibles
+
+Usa estos comandos para activar flujos estructurados:
+
+- `/new-feature` — nueva funcionalidad (PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION)
+- `/hotfix` — corrección acotada de bug
+- `/refactor` — refactor sin cambios funcionales
+- `/audit-code` — auditoría técnica independiente
+- `/security-review` — revisión de seguridad
+- `/tech-debt` — inventario de deuda técnica
+- `/maturity-assessment` — evaluación de madurez del repositorio
+- `/version-closure` — cierre de versión y release notes
+
+Detalles: [`.claude/commands/`](.claude/commands/) (8 slash commands especializados).
+
+---
+
+## Configuración de Claude Code
+
+### Hooks y PostToolUse
+
+Lee [`.claude/README.md`](.claude/README.md) para:
+- `settings.json` — configuración de hooks (ruff, mypy, pytest)
+- `settings.local.json` — personalización local (offline mode, hooks deshabilitados)
+
+### Comandos de desarrollo
 
 ```bash
 python -m ruff check src tests       # lint
 python -m ruff format src tests      # format
 python -m mypy src                   # type-check
-python -m pytest                     # all tests
-python -m pytest tests/path/test_x.py::TestClass::test_name  # single test
+python -m pytest                     # todos los tests
+python -m pytest tests/path/test_x.py::TestClass::test_name  # test específico
 python -m build                      # build package
 ```
-
----
-
-## Arquitectura (3 niveles)
-
-```
-src/util_bbdd/
-  # ── Level 1: Foundation ────────────────────────────────────────────────
-  _core/           # Tipos base, excepciones (DatabaseException y derivadas), contratos (Protocols/ABC), constantes
-  core/            # Capacidades por motor (capabilities.py) — detecta soporte async y features
-
-  # ── Level 1 support (no importar desde Level 2+) ──────────────────────
-  _drivers/        # Implementación canónica de validators y driver checking
-                   #   validator.py         — DatabaseTypeValidator: valida motores desde database_types.json
-                   #   driver_validator.py  — DriverValidator: detecta disponibilidad de drivers Python
-                   #   _config_loader.py    — carga y tipado del JSON de configuración de motores
-
-  # ── Level 2: Services ──────────────────────────────────────────────────
-  connection/      # Pool singleton, factory, configuración; motors/ con adaptadores por motor
-  query/           # registry, resolver, DatabaseQueries (wrapper de conveniencia multi-motor)
-  executors/       # QueryExecutorBase (abstract), sync_query_executor, async_query_executor
-  metadata/        # fetcher → normalizer → builder → cache → manager; providers sync/async; mariadb/
-  results/         # tipos (RowOrNone, Rows) y normalización de respuestas
-  factory/         # pool_factory, sqlalchemy_engine_factory, async_sqlalchemy_engine_factory
-  validators/      # validadores adicionales
-
-  # ── Level 3: Specialization ────────────────────────────────────────────
-  bulk/            # CRUD masivo (crud.py), auditoría (audit.py), normalización SQL
-  analysis/        # grafos multinivel (base.py, graphviz.py, graphviz_ext.py, matplotlib_graph.py)
-  comparar/        # comparación motor-agnóstica de esquemas vía SQLAlchemy Inspector
-                   # SchemaComparator.compare(source, target) → SchemaDiff (frozen dataclasses)
-                   # Extensible vía _ROUTINE_FETCHERS y _DDL_STRIP_RULES (OCP)
-  doc/             # generadores HTML/Excel/Word + plantillas Jinja2 en templates/
-  managers/        # SyncDatabaseManager y AsyncDatabaseManager (APIs públicas de alto nivel)
-```
-
-**Regla de imports:** el flujo va siempre Level 1 → 2 → 3; nunca al revés.
-
-Para agregar un motor nuevo: añadir un archivo en `connection/motors/` sin tocar los flujos base.
-
-### Async por motor
-
-PostgreSQL, SQLite, MariaDB, Oracle y SQL Server tienen soporte async. HSQLDB es sync-only; las factorías async lanzan error explícito.
-
----
-
-## Reglas críticas
-
-### Multibase
-- No asumir un único motor. SQL crudo solo en adaptadores aislados por motor (p.ej. `motors/postgres.py`).
-- No inventar metadatos: obtenerlos por introspección o recibirlos como parámetro.
-
-### SOLID operativo
-- **SRP**: separa extracción, normalización, render y persistencia.
-- **OCP**: nuevo motor/formato → adaptador nuevo, sin editar flujos base.
-- **LSP**: implementaciones sync/async y por motor deben respetar contratos comunes y semántica de errores.
-- **ISP**: interfaces pequeñas por responsabilidad; evitar contratos todo-en-uno para introspección y render.
-- **DIP**: la orquestación depende de `Protocol`/`ABC` y factorías, no de implementaciones concretas.
-
-### Patrones aplicados en esta librería
-`Strategy` (variación por motor/formato) · `Abstract Factory` (conexiones) · `Adapter` (diferencias de driver) · `Template Method` (flujo base con hooks) · `Facade` (orquestación en managers) · `Builder` (documentos complejos) · `Identity Map` (caché de metadatos dentro de una ejecución)
-
-### OOP obligatorio
-- **Diseño exclusivamente con clases.** No crear funciones sueltas a nivel de módulo en ficheros de clase.
-- Las transformaciones sin estado se implementan como `@staticmethod` dentro de la clase que las utiliza.
-- Las constantes privadas de una clase se declaran como `ClassVar` en la propia clase.
-- Funciones y constantes a nivel de módulo solo en ficheros de utilidades genuinamente compartidas (p.ej. `_base.py`).
-
-### Anti-patrones a evitar
-- God class que mezcle conexión, introspección, normalización y render.
-- `if/elif` por motor distribuidos fuera de los adaptadores.
-- Excepciones genéricas (`Exception`); usar jerarquía de `_core/exceptions.py`.
-- Funciones sueltas a nivel de módulo en ficheros de clase: toda lógica de una clase vive dentro de ella.
-
----
-
-## Flujo de trabajo
-
-**Secuencia obligatoria para cambios no triviales:**
-
-```
-PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION
-```
-
-Nunca empieces por código si no se ha definido el objetivo.
-
-### Políticas por tipo de tarea
-
-| Tarea | Política |
-|---|---|
-| `new_feature` | Prohibido refactorizar |
-| `hotfix` | Solo fix mínimo. Prohibido refactorizar y optimizar |
-| `refactor` | Sin cambios funcionales. API pública estable salvo justificación explícita |
-| `security_review` | Hallazgos verificables, ordenados por severidad, con remediación accionable |
-
-### Slash commands disponibles
-
-Usa estos comandos para activar el flujo estructurado correspondiente:
-
-- `/new-feature` — nueva funcionalidad
-- `/hotfix` — corrección acotada
-- `/refactor` — refactor sin cambio funcional
-- `/audit-code` — auditoría técnica
-- `/security-review` — revisión de seguridad
-- `/tech-debt` — inventario de deuda técnica
-- `/maturity-assessment` — evaluación de madurez del repositorio
-- `/version-closure` — cierre de versión
-
----
-
-## Quality bar
-
-- Toda propuesta indica archivos afectados.
-- Toda implementación incluye estrategia de pruebas.
-- Toda auditoría emite veredicto.
-- Toda incertidumbre queda etiquetada como supuesto o dato faltante.
-- Toda propuesta de arquitectura declara impacto en SOLID y justifica el patrón aplicado.
 
 ---
 
@@ -166,30 +65,7 @@ chore:    mantenimiento (deps, config, CI)
 
 ---
 
-## Contexto adicional
 
-### Configuración de Claude Code
-- Configuración: [`.claude/README.md`](.claude/README.md) — hooks, settings.json, settings.local.json
-- Slash commands: [`.claude/commands/`](.claude/commands/) — 8 flujos especializados
-- Equivalencia Copilot Chat: [`docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md`](docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md)
-
-### Documentación del proyecto
-- Instrucciones detalladas (SOLID, patrones, estilo): [`.github/copilot-instructions.md`](.github/copilot-instructions.md)
-- Arquitectura extendida: [`.ai/architecture.md`](.ai/architecture.md)
-- Sesiones y decisiones previas: [`.ai/sessions/`](.ai/sessions/)
-- Instrucciones por área: [`.github/instructions/`](.github/instructions/) (python, architecture, tests, render, introspection)
-- Guía de uso de Claude Code: [`docs/examples/claude_code_usage_complete_example.md`](docs/examples/claude_code_usage_complete_example.md)
-
-### Plan de Mejora v0.6.7
-- Índice general: [`docs/v0.6.7/INDEX.md`](docs/v0.6.7/INDEX.md)
-- Plan detallado: [`docs/v0.6.7/CLAUDE_INSTRUCTIONS_IMPROVEMENT_PLAN.md`](docs/v0.6.7/CLAUDE_INSTRUCTIONS_IMPROVEMENT_PLAN.md)
-- Resumen ejecutivo: [`docs/v0.6.7/EXECUTIVE_SUMMARY.md`](docs/v0.6.7/EXECUTIVE_SUMMARY.md)
-- Checklist de implementación: [`docs/v0.6.7/IMPLEMENTATION_CHECKLIST.md`](docs/v0.6.7/IMPLEMENTATION_CHECKLIST.md)
-
-### Gobernanza de Plataformas Duales
-- Integración Claude Code ↔ Copilot Chat: [`.github/INTEGRATION_MAP.md`](.github/INTEGRATION_MAP.md) — gobernanza, sincronización, responsables
-- Registro de agentes: [`.github/AGENTS.md`](.github/AGENTS.md) — 10 agentes disponibles, herramientas, flujos y matriz de relaciones
-- Guía Documentation Reviewer: [`docs/DOCUMENTATION_REVIEWER_GUIDE.md`](docs/DOCUMENTATION_REVIEWER_GUIDE.md) — cuándo y cómo invocar auditoría documental
 
 ---
 
@@ -358,11 +234,7 @@ rm .claude/settings.local.json  # O dejar para futuras sesiones offline
 3. **PyPI no accesible** → No puedes descargar deps nuevas. Workaround: pre-instala en venv preparado.
 4. **Copilot Chat offline** → No funciona Copilot Chat offline (requiere API). Claude Code SÍ funciona offline.
 
----
-
-### Monitorización: Detectar Dependencias Externas
-
-Si necesitas auditar qué comandos o hooks requieren internet:
+### Auditar Dependencias Externas
 
 ```bash
 # Revisar settings.json
@@ -375,12 +247,22 @@ grep -r "github.*search\|sonarqube" .claude/commands/
 grep -r "requests\|urllib\|httpx" src/ | head -10
 ```
 
-Si encuentras dependencia externa nueva, agregar a sección "Qué requiere internet" de este archivo.
+---
+
+## Gobernanza de plataformas duales
+
+### Sincronización Copilot Chat ↔ Claude Code
+
+- **SHARED_INSTRUCTIONS.md** ← fuente de verdad para arquitectura, flujos, SOLID
+- **copilot-instructions.md** ← especialización Copilot Chat
+- **CLAUDE.md** ← especialización Claude Code
+
+### Referencias clave
+- Agentes: [`.github/AGENTS.md`](.github/AGENTS.md)
+- Integración: [`.github/INTEGRATION_MAP.md`](.github/INTEGRATION_MAP.md)
+- Configuración local: [`.claude/README.md`](.claude/README.md)
+- Guía completa: [`docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md`](docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md)
 
 ---
 
-### Referencias
-
-- [`.claude/README.md`](.claude/README.md) — Configuración de hooks (settings.json, settings.local.json)
-- [`.claude/TESTING_GUIDE.md`](.claude/TESTING_GUIDE.md) — Cómo correr tests offline determinísticamente
-- [`.github/INTEGRATION_MAP.md`](.github/INTEGRATION_MAP.md) — Gobernanza entre plataformas
+*Actualizado: 2026-04-18 — Config Reviewer audit*

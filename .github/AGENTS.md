@@ -67,28 +67,38 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 - **Prompt Copilot Chat**: `.github/prompts/documentation_review.prompt.md`
 - **Slash command**: No disponible en `.claude/commands/` — invocar mediante lenguaje natural en Claude Code
 
-### 7. **Security Reviewer** (`security-reviewer.agent.md`)
+### 7. **Config Reviewer** (`config-reviewer.agent.md`) ⭐ **NUEVO**
+- **Propósito**: Revisar y consolidar ficheros de configuración IA, eliminando duplicación entre plataformas
+- **Entrada**: Ficheros a revisar (copilot-instructions.md, CLAUDE.md, etc.) + estrategia preferida
+- **Salida**: ANÁLISIS (categorización shared/copilot-only/claude-only), PLAN, AUDIT_PLAN, IMPLEMENT, AUDIT_CODE, VERSION
+- **Herramientas**: read, search
+- **Invocable**: Sí (auditoría de configuración)
+- **Criterios**: DRY (sin duplicación), funcionalidad autosuficiente, coherencia de flujos
+- **Prompt Copilot Chat**: `.github/prompts/config_review.prompt.md`
+- **Slash command**: No disponible en `.claude/commands/` — invocar mediante `/config-review` (próx. sesión) o lenguaje natural
+
+### 8. **Security Reviewer** (`security-reviewer.agent.md`)
 - **Propósito**: Auditoría de seguridad independiente sobre auth, validación, secretos, logging
 - **Entrada**: Rutas o áreas de seguridad crítica
 - **Salida**: Executive summary, Scope, Findings, Evidence, Remediation, Residual risk, Verdict
 - **Herramientas**: read, search
 - **Invocable**: Sí (auditoría independiente)
 
-### 8. **Maturity Assessment** (`maturity-assessment.agent.md`)
+### 9. **Maturity Assessment** (`maturity-assessment.agent.md`)
 - **Propósito**: Evaluar madurez del repositorio completo (estructura, contratos, tests, readiness)
 - **Entrada**: Área a evaluar o evaluación completa
 - **Salida**: Executive summary, Findings by area, Blockers, Recommendations, Maturity verdict
 - **Herramientas**: read, search
 - **Invocable**: Sí (auditoría estratégica)
 
-### 9. **Version Closer** (`version-closer.agent.md`)
+### 10. **Version Closer** (`version-closer.agent.md`)
 - **Propósito**: Cierre de versión, resumir cambios, evidence, impacto, handoff
 - **Entrada**: Sesión completada
 - **Salida**: Release notes, Commit messages, Changelog, Rollback strategy, Testing suggestions
 - **Herramientas**: read, search
 - **Invocable**: Sí (final de sesión)
 
-### 10. **Explore** (`explore.agent.md`)
+### 11. **Explore** (`explore.agent.md`)
 - **Propósito**: Exploración rápida del repositorio, Q&A sin modificaciones
 - **Entrada**: Pregunta sobre código, estructura, patrón
 - **Salida**: Context, Findings, ubicación de archivos
@@ -107,7 +117,7 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 | AUDIT_CODE | Code Auditor | Hallazgos, Severidad | CORRECCIÓN (si issues) o VERSION |
 | VERSION | Version Closer | Release notes, Changelog | FIN |
 | HOTFIX DIRECTO | Hotfix Responder | PLAN + FIX + AUDIT + VERSION | FIN |
-| AUDITORÍA INDEPENDIENTE | Security/Documentation/Maturity Reviewer | Executive summary + Findings | BACKLOG / NEXT ITERATION |
+| AUDITORÍA INDEPENDIENTE | Security/Documentation/Config/Maturity Reviewer | Executive summary + Findings | BACKLOG / NEXT ITERATION |
 
 ---
 
@@ -168,6 +178,7 @@ PRODUCTION_READY | NEAR_READY | BLOCKED
 | Hotfix Responder | ✅ | ✅ | ❌ | ✅ | ❌ |
 | Code Auditor | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Documentation Reviewer | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Config Reviewer | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Security Reviewer | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Maturity Assessment | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Version Closer | ✅ | ❌ | ✅ | ❌ | ❌ |

@@ -1,114 +1,38 @@
-# Instrucciones de Copilot para util_bbdd
+# Instrucciones de Copilot Chat para util_bbdd
 
-## Rol esperado
-Actúa como senior de ingeniería de software especializado en arquitectura Python, refactors sin duplicación, diseño de APIs sync/async, testing con pytest sin servicios externos, metadatos multi-motor, generación documental y mantenimiento de librerías.
+## ⚠️ Notas importantes
 
+**Lea primero**: [`.github/SHARED_INSTRUCTIONS.md`](.github/SHARED_INSTRUCTIONS.md) para arquitectura, SOLID, patrones, flujos y políticas comunes a ambas plataformas.
 
-## Objetivo
-Estamos construyendo una librería en Python para documentar bases de datos (multibase), con dos funcionalidades clave:
-- Introspección de metadatos: schemas, tablas, columnas, PK/FK, índices, vistas (si aplica).
-- Generación de documentación (Word, Excel, Markdown y/o HTML) de forma reproducible
-y sin depender de servicios externos.
-- La salida de documentación en Markdown debe ser portable y legible, pudiendo usar extensiones ligeras compatibles con el renderer objetivo cuando aporten valor (por ejemplo, Mermaid).
-- Compara modelos de datos con el esquema actual para detectar cambios y generar reportes de diferencias e instrucciones SQL para su nivelación.
+Esta página contiene **solo especificidades de Copilot Chat**. Todo lo demás está centralizado en SHARED_INSTRUCTIONS.md.
 
-
-## Arquitectura preferida
-- Separar módulos: `introspect/` (extraer) vs `render/` (generar docs).
-- Representar metadatos en dataclasses/typed models (Schema/Table/Column/Relationship/Index).
-- Usar **exclusivamente clases** en el diseño. No crear funciones a nivel de módulo. Las transformaciones sin estado se implementan como `@staticmethod` dentro de la clase que las utiliza. Solo se permiten funciones de módulo en ficheros de utilidades genuinamente compartidas entre varios módulos (p.ej. `_base.py`).
-- Utilizar siempre que sea posible cache de información obtenida para evitar consultas repetidas a la base de datos.
-
-## Fuentes de referencia de arquitectura
-- `G:\Mi unidad\Trabajo\Manuales\Desarrollo\Patrones de Diseño\design-patterns-es.pdf`
-- https://martinfowler.com/eaaCatalog/
-- Estas fuentes orientan decisiones; no son la única verdad si el contexto real del repositorio indica otra opción mejor.
-
-## Reglas multibase (MUY importante)
-- No asumas un único motor: evita SQL específico salvo que esté encapsulado por adaptadores/dialects.
-- Si propones SQL “crudo”, debe estar aislado por motor (p.ej. postgres.py, mysql.py, sqlite.py) y con fallback.
-- No inventes metadatos: si falta contexto, genera código que lo obtenga via introspección o pide el input como parámetro (p.ej. modelo intermedio).
-
-
-## Principios
-- Prioriza claridad y estabilidad de API pública (backward-compatible cuando sea posible).
-- No inventes información del esquema: si falta contexto, genera código que lo obtenga desde la BD o lo reciba como entrada.
-- Sugiere cambios pequeños, con tests.
-
-## OOP y SOLID (reglas operativas)
-- `SRP`: cada clase/módulo debe tener una razón de cambio dominante; separa extracción, normalización, render y persistencia.
-- `OCP`: para soportar un nuevo motor/formato, extender por adaptadores/estrategias sin editar flujos base estables.
-- `LSP`: implementaciones sync/async y por motor deben respetar contratos comunes y semántica de errores.
-- `ISP`: interfaces pequeñas por responsabilidad; evita contratos "todo en uno" para introspección y render.
-- `DIP`: la orquestación depende de Protocol/ABC y factorías, no de implementaciones concretas.
-
-## Patrones recomendados para esta librería
-- `Strategy`: variación por motor y por formato de salida.
-- `Abstract Factory` o `Factory Method`: creación de conexiones/adaptadores según motor.
-- `Adapter`: encapsular diferencias entre drivers y SQL dialect-specific.
-- `Template Method`: flujo base de introspección o render con hooks por motor/formato.
-- `Facade`: entrada simple para orquestar extracción + comparativa + render.
-- `Builder`: construir documentos complejos (Word/Excel/HTML/Markdown) por pasos.
-- `Repository` y `Query Object` (Fowler): encapsular consultas y recuperación de metadatos sin filtrar SQL en capas superiores.
-- `Data Mapper` (Fowler): mapear filas/tablas a modelos de dominio de metadatos desacoplados del motor.
-- `Identity Map` (Fowler): cache coherente dentro de una ejecución para evitar cargas duplicadas.
-
-## Anti-patrones a evitar
-- `God class` o managers que mezclan conexión, introspección, normalización y render.
-- Condicionales `if/elif` por motor distribuidos por todo el código.
-- Acoplar renderizadores a SQL/driver o a estado de conexión.
-- Excepciones genéricas (`Exception`) y errores sin contexto accionable.
-- Aplicar patrones por moda sin justificar complejidad vs beneficio.
-- Funciones sueltas a nivel de módulo en ficheros de clase: toda lógica que pertenezca a una clase debe vivir dentro de ella como método de instancia o `@staticmethod`.
-
-
-## Estilo y calidad
-- Usa tipado (typing) y docstrings en todo código público.
-- Maneja errores con excepciones específicas (no `Exception` genérica).
-- Evita dependencias nuevas sin justificar.
-
-
-## Seguridad
-- Nunca pongas credenciales en ejemplos.
-- Sanitiza/escapa identificadores SQL si generas SQL dinámico o, mejor, usa parametrización cuando aplique.
-
-
-## Forma de trabajar
-- No empieces por código si no se ha definido el objetivo.
-- Devuelve primero PLAN.
-- Después devuelve AUDIT_PLAN.
-- Implementa por rutas, módulos, clases o utilidades pequeñas.
-- No introduzcas conceptos de server/client salvo que realmente existan en el repositorio.
-- Propón tests mínimos cuando el cambio lo requiera.
-- Proponer tests unitarios e integración para cambios relevantes.
-- Señalar riesgos de seguridad, validación, migraciones y compatibilidad.
-- Antes de aplicar compatibilidad hacia atrás, confirmar explícitamente si se mantiene enfoque "solo OO" o se habilitan funciones wrapper, y si se autoriza romper contratos públicos/snapshots.
-- Evitar cambios masivos sin plan y rollback.
-- Contrasta siempre la solicitud con el código real aportado.
-- No inventes módulos, clases, endpoints ni tests inexistentes.
-- Si falta contexto crítico, decláralo y continúa con supuestos explícitos.
-- No mezcles feature, hotfix y refactor en una sola ejecución.
-- Si el cambio toca arquitectura, justificar patrón elegido y alternativa descartada en `PLAN` y `AUDIT_PLAN`.
-- Responde en markdown estructurado.
+---
 
 ## Agentes VS Code
-- Usa `Workflow Director` para clasificar la solicitud, validar contexto mínimo y elegir skill o fase.
-- Usa `Plan Architect` para `PLAN` y `AUDIT_PLAN` cuando la tarea requiera contraste con el código real.
-- Usa `Feature Implementer` solo para `IMPLEMENT` con alcance ya aprobado.
-- Usa `Hotfix Responder` solo en incidencias con política de fix mínimo.
-- Usa `Code Auditor` para `AUDIT_CODE` y revisión de regresiones.
-- Usa `Security Reviewer` para auditorías de seguridad independientes del flujo funcional.
-- Usa `Version Closer` para cierres de sesión, release notes internas y handoff.
-- Los agentes no sustituyen a los prompts de `.github/prompts/`; los agentes especializan la ejecución y los prompts siguen definiendo el contrato de salida.
-- En `new_feature` y `hotfix`, no invoques agentes de implementación sin que exista antes una fase de planificación aprobada o explícitamente resuelta.
 
-## Flujos estructurados: PLAN → AUDIT_PLAN → IMPLEMENT
+Usa estos agentes para orquestar el flujo PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION:
 
-### Para Copilot Chat en VS Code
+- **Workflow Director** — clasificar solicitud, validar contexto, elegir fase siguiente
+- **Plan Architect** — preparar PLAN y AUDIT_PLAN, detectar riesgos
+- **Feature Implementer** — ejecutar IMPLEMENT con alcance aprobado
+- **Hotfix Responder** — RCA, fix mínimo, verificación
+- **Code Auditor** — AUDIT_CODE de implementaciones
+- **Security Reviewer** — auditoría de seguridad independiente
+- **Documentation Reviewer** — auditoría de documentación, ejemplos, gaps
+- **Config Reviewer** — auditoría de ficheros de configuración IA
+- **Maturity Assessment** — evaluar madurez del repositorio
+- **Version Closer** — cierre de versión, release notes
+- **Explore** — exploración rápida, Q&A sin modificaciones
 
-**Flujo manual (sin slash commands)**:
+**Ver detalles completos**: [`.github/AGENTS.md`](.github/AGENTS.md) — matriz de herramientas, flujos y ejemplos de invocación.
 
-Escribe en Copilot Chat siguiendo esta estructura para cualquier cambio:
+---
+
+## Flujos estructurados para Copilot Chat
+
+### Flujo manual (sin slash commands)
+
+Escribe en Copilot Chat siguiendo esta estructura:
 
 ```markdown
 Voy a [implementar nueva funcionalidad / corregir un bug / refactorizar].
@@ -116,7 +40,10 @@ Voy a [implementar nueva funcionalidad / corregir un bug / refactorizar].
 Sigue el flujo PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION.
 
 Contexto:
-- [proporciona fields según tarea: objetivo, módulos, API, restricciones, etc.]
+- Objetivo: [describe el objetivo final]
+- Módulos: [lista módulos afectados]
+- API: [describe cambios públicos, si aplica]
+- Restricciones: [tiempo, breaking changes, etc.]
 
 Primero: emite PLAN con rutas afectadas, componentes implicados, tipos y riesgos.
 Luego: emite AUDIT_PLAN con riesgos funcionales/técnicos/seguridad y veredicto.
@@ -124,76 +51,21 @@ Después: IMPLEMENT por capas (Level 1 → 2 → 3) si veredicto es GO.
 Finalmente: AUDIT_CODE con hallazgos y VERSION con commit + changelog.
 ```
 
-**Referencia**:
+### Referencias para Copilot Chat
 - Mapeo Claude Code ↔ Copilot Chat: [`docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md`](../docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md)
 - Ejemplos completos: [`docs/v0.6.7/COPILOT_CHAT_INTEGRATION_GUIDE.md`](../docs/v0.6.7/COPILOT_CHAT_INTEGRATION_GUIDE.md)
+- Prompts por tarea: [`.github/prompts/`](.github/prompts/) — 9 prompts (new_feature, hotfix, refactor, etc.)
 
-### Para Claude Code
+---
 
-Usa slash commands:
-- `/new-feature` — nueva funcionalidad
-- `/hotfix` — corrección de bug
-- `/refactor` — refactor sin cambios funcionales
-- `/audit-code` — auditoría técnica
-- `/security-review` — revisión de seguridad
-- `/tech-debt` — inventario de deuda técnica
-- `/maturity-assessment` — evaluación de madurez
-- `/version-closure` — cierre de versión
+## Respuesta en markdown estructurado
 
-**Referencia**: [CLAUDE.md](../CLAUDE.md) (política base) y [.claude/commands/](../.claude/commands/) (comandos detallados)
+- Usa markdown con secciones claras: `## Sección`, `### Subsección`
+- Código en bloques con lenguaje: ` ```python`, ` ```sql`
+- Listas con viñetas y sub-viñetas
+- Tablas para comparaciones o matrices
+- No confundas `PLAN`, `AUDIT_PLAN`, `IMPLEMENT`, `AUDIT_CODE`, `VERSION` — son fases distintas
 
-### Sincronización entre plataformas
-C:\Desarrollo\python\libs\util_bbdd\.github\INTEGRATION_MAP.md
-Para mantener Claude Code y Copilot Chat alineados:
-- Lee: [`INTEGRATION_MAP.md`](INTEGRATION_MAP.md) — Gobernanza, responsables, checklist de sincronización
-- Lee: [docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md](../docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md) — Equivalencias de comandos entre plataformas
+---
 
-## Execution policies
-- `new_feature`: prohibido refactorizar.
-- `hotfix`: prohibido refactorizar y prohibido optimizar. Solo FIX.
-- `security_review`: prioriza hallazgos verificables y remediación accionable.
-- `refactor`: no introducir cambios funcionales.
-
-## Quality bar
-- Toda propuesta debe indicar archivos afectados.
-- Toda implementación debe incluir estrategia de pruebas.
-- Toda auditoría debe emitir veredicto.
-- Toda incertidumbre debe quedar etiquetada como supuesto o dato faltante.
-- Toda propuesta de arquitectura debe declarar impacto en SOLID (`SRP/OCP/LSP/ISP/DIP`).
-- Todo patrón aplicado debe incluir criterio de entrada/salida (cuándo usarlo y cuándo no).
-
-## Formato esperado
-### PLAN
-- objetivo
-- rutas afectadas
-- server/client
-- componentes implicados
-- tipos necesarios
-- impactos en auth o roles
-- riesgos
-
-### AUDIT_PLAN
-- riesgos funcionales
-- riesgos técnicos
-- riesgos de seguridad
-- simplificaciones posibles
-
-### IMPLEMENT
-- cambios por archivo
-- código
-- explicación breve
-
-### AUDIT_CODE
-- bugs potenciales
-- edge cases
-- performance
-- seguridad
-- tipado
-- deuda técnica
-
-### VERSION
-- commit message
-- changelog
-- impacto
-- rollback
-- pruebas sugeridas
+*Actualizado: 2026-04-18 — Config Reviewer audit*

@@ -1,13 +1,15 @@
 # INTEGRATION_MAP.md
 
 **Versionado**: v0.6.7
-**Última actualización**: 13 de abril de 2026
+**Última actualización**: 18 de abril de 2026
 **Propósito**: Gobernanza y sincronización entre `.claude/` (Claude Code) y `.github/` (Copilot Chat)
 
 > Este documento es **autoridad única** para responder:
 > - ¿Quién mantiene qué archivo?
 > - ¿Cuándo debo sincronizar cambios?
 > - ¿Cómo evito desalineación entre platforms?
+>
+> **Actualización v0.6.7**: [`.github/SHARED_INSTRUCTIONS.md`](.github/SHARED_INSTRUCTIONS.md) es ahora la **fuente única de verdad** para arquitectura, SOLID, patrones, flujos y políticas comunes a ambas plataformas. Este documento (INTEGRATION_MAP.md) gestiona **gobernanza de archivos y sincronización**.
 
 ---
 
@@ -94,10 +96,11 @@ docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md  ← Equivalencias (usuario final)
 | **8** | `.claude/commands/version-closure.md` | Claude Code | Backend Lead | Per-release | Flujo VERSION-only (changelog, commit, rollback) | Sync con `.github/prompts/version_closure.prompt.md` |
 | **9** | `.claude/settings.json` | Claude Code | DevOps Lead | Ad-hoc (new hooks needed) | Hooks: ruff, mypy, pytest | Documentado en `.claude/README.md` |
 | **10** | `.claude/README.md` | Claude Code | DevOps Lead | Per-release (reflect changes) | Setup guide, FAQ, offline tips | Reference from CLAUDE.md |
-| **11** | `CLAUDE.md` | Both | Backend Lead | Per-release (policies) | Transversal policy: PLAN→STATUS, SOLID, roles | Authority for both platforms |
-| **12** | `.github/copilot-instructions.md` | Copilot Chat | Backend Lead | Per-release | Policy base, slash command guide (manual entries) | Reference to CLAUDE.md + prompts/ |
-| **13** | `docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md` | Both | DevOps Lead | Per-release (new commands) | User-facing matrix + 3 integration options | Authority for equivalences |
-| **14** | `.github/AGENTS.md` | Copilot Chat + Claude Code | Arch Lead | Per-release (nuevo agente) | Registro central de 10 agentes: propósito, herramientas, invocación, matriz de relaciones | Sync con `.github/agents/*.agent.md` (añadir entrada cuando se crea agente nuevo) |
+| **11** | `.github/SHARED_INSTRUCTIONS.md` | Both | Backend Lead + Arch Lead | Per-release (policies change) | **Fuente única de verdad**: arquitectura, SOLID, patrones, flujos, políticas comunes | Authority for both platforms (v0.6.7+) |
+| **12** | `CLAUDE.md` | Both | Backend Lead | Per-release (especialidades Claude) | **Especialización**: slash commands, hooks, offline mode, configuración local | References to SHARED_INSTRUCTIONS.md |
+| **13** | `.github/copilot-instructions.md` | Copilot Chat | Backend Lead | Per-release | **Especialización**: agentes, prompts de Copilot Chat | References to SHARED_INSTRUCTIONS.md |
+| **14** | `docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md` | Both | DevOps Lead | Per-release (new commands) | User-facing matrix + 3 integration options | Authority for equivalences |
+| **15** | `.github/AGENTS.md` | Copilot Chat + Claude Code | Arch Lead | Per-release (nuevo agente) | Registro central de 11 agentes: propósito, herramientas, invocación, matriz de relaciones | Sync con `.github/agents/*.agent.md` (añadir entrada cuando se crea agente nuevo) |
 
 ---
 
@@ -117,14 +120,22 @@ Cada vez que **actualices un flujo** (PLAN→AUDIT_PLAN→IMPLEMENT, policy, o e
 5. [ ] **Comenta en PR**: "Sync: `.claude/commands/X.md` ↔ `.github/prompts/X.prompt.md`"
 6. [ ] **Valida en lectura cruzada**: Developer no-familiarizado puede leer ambos y notar que son "equivalentes"
 
-### ✅ Si cambias policy en `CLAUDE.md`
+### ✅ Si cambias policy en `.github/SHARED_INSTRUCTIONS.md`
 
-1. [ ] **Identifica cambio**: ¿Afecta flujo PLAN/AUDIT_PLAN/IMPLEMENT? ¿Restricciones? ¿Roles?
-2. [ ] **Propaga a relevantes**:
-   - Si policy cambia: actualizar `.github/copilot-instructions.md` (sección "Flujos estructurados")
-   - Si restricción cambia (p.ej. "refactor prohibido", más estricta): reflejar en todos 8 comandos/prompts
-3. [ ] **Actualiza timestamp** en INTEGRATION_MAP.md (este archivo) → "Última actualización"
-4. [ ] **Comenta en PR**: "Policy change in CLAUDE.md: <descripción>. Propagated to [archivo1, archivo2]"
+1. [ ] **Identifica cambio**: ¿Afecta arquitectura, SOLID, patrones, flujos comunes, o políticas?
+2. [ ] **EDITA**: `.github/SHARED_INSTRUCTIONS.md` (fuente única de verdad)
+3. [ ] **NO EDITES**: `CLAUDE.md` ni `.github/copilot-instructions.md` automáticamente sincronizarán por referencia
+4. [ ] **Actualiza timestamp** en INTEGRATION_MAP.md (este archivo) → "Última actualización"
+5. [ ] **Comenta en PR**: "Policy change in SHARED_INSTRUCTIONS.md: <descripción>. Both platforms sync automatically via references."
+
+### ✅ Si cambias especialización en `CLAUDE.md` (slash commands, hooks, offline)
+
+1. [ ] **Identifica cambio**: ¿Afecta solo Claude Code? (slash commands, offline mode, hooks)
+2. [ ] **EDITA**: `CLAUDE.md` (no SHARED_INSTRUCTIONS.md)
+3. [ ] **Propaga a relevantes**:
+   - Si comando cambia: actualizar `.claude/commands/X.md` y `.github/prompts/X.prompt.md`
+4. [ ] **Actualiza timestamp** en INTEGRATION_MAP.md (este archivo)
+5. [ ] **Comenta en PR**: "Specialization change in CLAUDE.md: <descripción>. Propagated to .claude/commands/ and .github/prompts/"
 
 ### ✅ Si cambias estructura de salida (por ejemplo: agregar sección CHANGELOG a VERSION)
 
@@ -165,7 +176,9 @@ Cada vez que **actualices un flujo** (PLAN→AUDIT_PLAN→IMPLEMENT, policy, o e
 Antes de cerrar una release, ejecuta **este checklist** para asegurar coherencia:
 
 ### Phase 1: Validación de Cabeceras
-- [ ] CLAUDE.md tiene versión actualizada (v0.6.X)
+- [ ] `.github/SHARED_INSTRUCTIONS.md` tiene versión actualizada (v0.6.X) y timestamp correcto
+- [ ] `CLAUDE.md` tiene versión actualizada (v0.6.X)
+- [ ] `.github/copilot-instructions.md` tiene referencia a SHARED_INSTRUCTIONS.md
 - [ ] `.claude/COMMAND_TEMPLATE.md` tiene versión actualizada
 - [ ] `docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md` tiene versión actualizada
 - [ ] INTEGRATION_MAP.md tiene "Última actualización" = hoy
@@ -176,10 +189,11 @@ Antes de cerrar una release, ejecuta **este checklist** para asegurar coherencia
 - [ ] Cada prompt en `.github/prompts/` tiene equivalente `.claude/commands/` versión
 
 ### Phase 3: Validación de Referencias
-- [ ] CLAUDE.md enlaza a CLAUDE_COPILOT_MAPPING.md ✅
-- [ ] CLAUDE.md enlaza a INTEGRATION_MAP.md ✅
-- [ ] `.github/copilot-instructions.md` enlaza a CLAUDE.md ✅
+- [ ] SHARED_INSTRUCTIONS.md enlaza a AGENTS.md, INTEGRATION_MAP.md ✅
+- [ ] CLAUDE.md enlaza a SHARED_INSTRUCTIONS.md ✅
+- [ ] `.github/copilot-instructions.md` enlaza a SHARED_INSTRUCTIONS.md ✅
 - [ ] `.claude/README.md` enlaza a CLAUDE.md ✅
+- [ ] CLAUDE_COPILOT_MAPPING.md enlaza a SHARED_INSTRUCTIONS.md ✅
 - [ ] No hay links rotos (buscar `[broken]` o URLs muertas)
 
 ### Phase 4: Validación de Contenido
