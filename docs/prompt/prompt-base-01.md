@@ -177,9 +177,11 @@ Tendremos en cuenta para ello, todos los ficheros actuales y principalmente sus 
 
 Tener encuenta que tiene que servir bien por unifcación de fichero bien separandolos tamto para copilot, como para CLAUDE
 
-
 ---
-Como experto en en revisión de instrucciones para trabajar con la IA, necesitamos revisar la documentación para definir en nuestra arquitectura y donde sea necesario, que el código definido incorporar que todas las clases desarrolladas  con programación orientada a objeto la inclusión de logging  y que todas las variable globales siempre tienene que pertecer a la clase.
+@#sym:config_review revisar e incorporar intrucciones que indiquen que todas las calses deben incluir grestión de logging y que todas las variables globales siempre tienen que pertecer a clases, no puede haber variables globales a nivel de módulo, y que el logging debe ser consistente en toda la librería, usando un formato estándar y niveles de log adecuados (DEBUG, INFO, WARNING, ERROR, CRITICAL). Además, se debe incluir un logger específico para cada clase o módulo para facilitar la trazabilidad de los logs.
+---
+
+
 
 
 https://github.com/squidfunk/mkdocs-material

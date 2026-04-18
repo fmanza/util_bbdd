@@ -65,7 +65,72 @@ chore:    mantenimiento (deps, config, CI)
 
 ---
 
+## Validación local: Logging y Variables Globales
 
+Cuando ejecutes `/hotfix`, `/refactor`, o `/audit-code`:
+
+### Post-fix checklist automático (ruff)
+
+```bash
+python -m ruff check src tests --select=ARG,F,E401  # Detecta imports no usados, shadowing
+python -m mypy src --strict  # Detecta logger sin tipado
+```
+
+### Validación manual recomendada
+
+1. **Logging**: Grep para encontrar clases sin logger
+   ```bash
+   # Buscar clases que podrían no tener logger
+   grep -r "class.*:" src/ --include="*.py" | grep -v "logger"
+   ```
+
+2. **Globales mutables**: Detectar lists/dicts globales
+   ```bash
+   # Encontrar variables mutables a nivel de módulo
+   grep -E "^\s*[a-z_]+ = (\[\]|\{\})" src/**/*.py
+   ```
+
+### Política de logging por tipo de comando
+
+**En `/hotfix`:**
+- **Prohibido refactorizar logging** — solo fix del bug reportado
+- **Permitido añadir logging** si es esencial para debug del hotfix específico
+- **Requerido loguear** cambios de estado en cache o conexiones afectadas
+
+**En `/refactor`:**
+- **Requerido**: Añadir logging a clases nuevas o que lo necesiten
+- **Recomendado**: Mejorar nivel de detalle en logging existente
+- **Prohibido**: Cambiar lógica de logging central (factory, niveles globales)
+
+**En `/audit-code`:**
+- **Verificar**: Cada clase con lógica tiene `self.logger: logging.Logger`
+- **Verificar**: Logger instanciado en `__init__` o `__post_init__`
+- **Reportar**: Métodos sin logs que deberían tenerlos (mutación de estado)
+
+### Checklist pre-push
+
+Antes de hacer push, valida localmente:
+
+```python
+# ✅ Clase correcta
+class MyService:
+    def __init__(self):
+        self.logger: logging.Logger = logging.getLogger(__name__)
+
+    def critical_method(self):
+        self.logger.info("Iniciando operación crítica")
+        try:
+            result = self._do_work()
+            self.logger.info("✅ Operación completada")
+            return result
+        except Exception as e:
+            self.logger.error("❌ Error en operación", exc_info=True)
+            raise
+
+# ✗ Variables globales mutables prohibidas
+my_cache: dict = {}  # ❌ No
+MY_CACHE: ClassVar[dict] = {}  # ✅ Sí (en clase)
+```
 
 ---
 

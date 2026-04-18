@@ -102,6 +102,78 @@ src/util_bbdd/
 - Constantes privadas de una clase: `ClassVar` en la propia clase
 - Funciones/constantes a nivel de módulo: solo en ficheros de utilidades genuinamente compartidas (p.ej. `_base.py`)
 
+### Gestión de estado y logging
+
+#### Logging obligatorio en clases
+Toda clase con lógica de negocio debe gestionar logging para rastrear estado, eventos de ciclo de vida y errores:
+
+```python
+# ✅ CORRECTO: Logger privado en cada clase
+import logging
+
+class MyService:
+    def __init__(self):
+        self.logger: logging.Logger = logging.getLogger(__name__)
+
+    def do_something(self, data: dict) -> dict:
+        self.logger.debug(f"Iniciando procesamiento con {len(data)} elementos")
+        try:
+            result = self._compute(data)
+            self.logger.info(f"✅ Procesamiento exitoso: {len(result)} resultados")
+            return result
+        except Exception as e:
+            self.logger.error(f"❌ Error durante procesamiento: {e}", exc_info=True)
+            raise
+```
+
+**Requisitos:**
+- Importar `import logging` al inicio del módulo
+- Instanciar `self.logger = logging.getLogger(__name__)` en `__init__()` o `__post_init__()` (si dataclass)
+- Usar niveles apropiados: `debug()` (rastreo interno), `info()` (eventos normales), `warning()` (anómalos), `error()` (fallos)
+- Incluir `exc_info=True` en handlers de error para stack trace completo
+- **NO usar**: `print()`, loggers globales sin tipado, setup de logging en librerías
+
+**Para módulos utilities sin clases:**
+```python
+# ✅ CORRECTO: Logger a nivel de módulo en utils
+logger: logging.Logger = logging.getLogger(__name__)
+
+def helper_function(x: int) -> int:
+    logger.debug(f"Procesando x={x}")
+    return x * 2
+```
+
+#### Variables globales: Prohibición de mutable módulo-level
+Todas las variables globales DEBEN ser inmutables o pertenecer a clases:
+
+```python
+# ✅ PERMITIDO: Constantes inmutables
+PARAMETER_PATTERN: str = r"\{(\w+)\}"
+DEFAULT_TIMEOUT: int = 30
+MAX_RETRIES: int = 3
+
+# ✅ PERMITIDO: ClassVar (pertenecen a la clase)
+class ConnectionPool:
+    MAX_CONNECTIONS: ClassVar[int] = 10
+    _instances: ClassVar[dict[str, ConnectionPool]] = {}
+
+# ✗ PROHIBIDO: Mutable módulo-level
+query_cache: dict[str, Any] = {}  # ❌ Global mutable
+initialized_loggers: list[str] = []  # ❌ Global mutable
+current_config: dict = {}  # ❌ Global mutable
+
+# ✓ CORRECTO: Inyectar en clases o usar factory
+class QueryService:
+    def __init__(self, cache: dict[str, Any] | None = None):
+        self.cache = cache or {}  # Instancia, no global
+        self.logger: logging.Logger = logging.getLogger(__name__)
+```
+
+**Anti-patrones detectados:**
+- Variables globales mutables que cambian estado en runtime
+- Singletons implementados vía módulo-level (usar factory pattern explícito instead)
+- Lazy loading con asignación global (usar lazy property o factory method)
+
 ### Anti-patrones a evitar
 - God class que mezcle conexión, introspección, normalización y render
 - `if/elif` por motor distribuidos fuera de adaptadores

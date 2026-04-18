@@ -58,6 +58,53 @@ Finalmente: AUDIT_CODE con hallazgos y VERSION con commit + changelog.
 
 ---
 
+## Auditoría de código: Logging y Variables Globales
+
+Cuando uses agentes de auditoría (Code Auditor, Security Reviewer, Documentation Reviewer) para revisar PRs:
+
+### Checklist: Logging obligatorio
+
+**Bloquea PR si:**
+- ✗ Clase con lógica (servicios, managers, validadores) NO tiene `self.logger: logging.Logger`
+- ✗ Logger no está instanciado en `__init__()` o `__post_init__()`
+- ✗ `logging` importado pero sin tipado (debería ser `logging.Logger`)
+- ✗ `print()` usado en lugar de logging en código de librería
+- ✗ `error()` sin `exc_info=True` en exception handlers
+
+**Verifica:**
+- ✅ Mínimo 1 `self.logger.{debug|info|error}()` en métodos no triviales
+- ✅ Métodos que mutan estado loguean con `info()` o superior
+- ✅ Métodos que fallan loguean con `error(..., exc_info=True)`
+- ✅ Niveles apropiados: `debug` (rastreo), `info` (eventos), `warning` (anómalos), `error` (fallos)
+
+### Checklist: Variables Globales
+
+**Bloquea PR si:**
+- ✗ Variable global mutable a nivel de módulo (p.ej. `cache = {}`, `instances: list = []`)
+- ✗ Singletons implementados vía módulo-level global
+- ✗ Lazy loading con asignación global
+
+**Permite:**
+- ✅ Constantes inmutables: `MAX_RETRIES = 3`, `PATTERN: str = r"..."`
+- ✅ ClassVar en clases: `class Config: TIMEOUT: ClassVar[int] = 30`
+- ✅ Módulo-level logger: `logger: logging.Logger = logging.getLogger(__name__)`
+- ✅ Inyección de dependencias en constructores
+
+### En IMPLEMENT: Integración
+
+Si encuentras violaciones de logging/variables globales, propón refactor junto con feature:
+```markdown
+**Logging gaps encontrados en [module]:**
+- Clases sin logger: ClassA, ClassB, ClassC
+- Propuesta: Añadir `self.logger` en __init__ + 2-3 logs por clase
+
+**Variables globales detectadas en [module]:**
+- [global_var]: mutable dict
+- Propuesta: Convertir a ClassVar o inyectar en __init__
+```
+
+---
+
 ## Respuesta en markdown estructurado
 
 - Usa markdown con secciones claras: `## Sección`, `### Subsección`

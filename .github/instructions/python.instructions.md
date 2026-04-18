@@ -19,7 +19,43 @@ applyTo: "**/*.py"
 - Prefiere composición sobre herencia; usa herencia solo si existe sustitución real (`LSP`).
 - Mantén el estado mínimo y explícito; evita estado global mutable.
 - Expón comportamiento mediante métodos públicos pequeños y predecibles.
+### Logging obligatorio y trazabilidad
 
+Toda clase con lógica debe incluir logging apropiado para rastrear estado y eventos:
+
+```python
+import logging
+
+class MyProcessor:
+    def __init__(self, config: Config):
+        self.logger: logging.Logger = logging.getLogger(__name__)
+        self.config = config
+
+    def process(self, data: list[dict]) -> list[dict]:
+        self.logger.info(f"Processing {len(data)} records")
+        result = []
+        for idx, record in enumerate(data):
+            self.logger.debug(f"Record {idx}: {record['id']}")
+            try:
+                processed = self._transform(record)
+                result.append(processed)
+            except ValidationError as e:
+                self.logger.warning(f"Skipping record {idx}: {e}")
+        self.logger.info(f"✅ Processed {len(result)}/{len(data)} records")
+        return result
+```
+
+**Niveles de logging:**
+- `debug()` — Rastreo detallado (valores internos, transiciones de estado)
+- `info()` — Eventos normales (inicio, fin, hitos, cambios de estado)
+- `warning()` — Situaciones anómalas pero recuperables (valores fuera de rango, retry)
+- `error()` — Errores que requieren manejo, siempre con `exc_info=True` para stack trace
+
+**Anti-patrones:**
+- ✗ `print()` en código de librería
+- ✗ `logger` global sin tipado (`logger = logging.getLogger()` sin `: logging.Logger`)
+- ✗ Omitir `exc_info=True` en error handlers
+- ✗ Setup de logging en librerías (responsabilidad del consumer)
 ## SOLID
 - `SRP`: separa acceso a datos, normalización, reglas de negocio y renderizado.
 - `OCP`: soporta nuevos motores/formatos añadiendo adaptadores o estrategias, sin romper contratos existentes.

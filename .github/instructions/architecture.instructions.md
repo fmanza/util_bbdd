@@ -32,6 +32,70 @@ Definir reglas de arquitectura para una librería multibase orientada a introspe
 - `Data Mapper` (Fowler): mapear filas/tablas a modelos de metadatos.
 - `Identity Map` (Fowler): evitar cargas duplicadas dentro de una unidad de trabajo.
 
+### Logging como responsabilidad transversal
+
+Logging no es un patrón sino una responsabilidad **transversal** presente en todas las capas:
+
+#### Principio SOLID aplicado
+- **SRP**: Cada clase es responsable de su propio logging (rastreo de su estado y transiciones)
+- **OCP**: Nueva clase → nuevo logger, sin modificar logging central
+- **DIP**: Código de negocio NO depende de implementación de logging (delegar al `logging` module estándar)
+
+#### Patrón en capas
+
+**Level 1 (Foundation):** Clases contractuales, logging mínimo (protocolos/ABC)
+```python
+# _core/contracts.py
+import logging
+
+class ConnectionProvider(Protocol):
+    """Contrato para proveedores de conexión."""
+    def get_connection(self) -> Any: ...
+```
+
+**Level 2 (Services):** Clases que implementan servicios, logging obligatorio
+```python
+# connection/factory.py
+import logging
+
+logger: logging.Logger = logging.getLogger(__name__)
+
+class ConnectionFactory:
+    def create_connection(self, db_type: str) -> Connection:
+        logger.info(f"Creating connection for {db_type}")
+        try:
+            conn = self._build_connection(db_type)
+            logger.info(f"✅ Connection created: {conn}")
+            return conn
+        except Exception as e:
+            logger.error(f"❌ Failed to create connection: {e}", exc_info=True)
+            raise
+```
+
+**Level 3 (Specialization):** Clases que orquestan servicios, logging enriquecido con contexto
+```python
+# comparar/comparator.py
+import logging
+
+logger: logging.Logger = logging.getLogger(__name__)
+
+class SchemaComparator:
+    def __init__(self, ...):
+        self.logger: logging.Logger = logging.getLogger(__name__)
+
+    def compare_schemas(self, schema1: str, schema2: str) -> SchemaDiff:
+        self.logger.info(f"Comparing {schema1} vs {schema2}")
+        ...
+```
+
+#### Checklist arquitectónico con logging
+- [ ] Cada clase con estado tiene `self.logger: logging.Logger` o módulo tiene `logger: logging.Logger`
+- [ ] Logger inicializado en `__init__()`, `__post_init__()` (dataclass) o a nivel de módulo
+- [ ] Métodos que mutan estado loguean transiciones (`self.logger.info()`)
+- [ ] Métodos que fallan loguean con `self.logger.error(..., exc_info=True)`
+- [ ] Métodos críticos loguean entrada/salida con `self.logger.debug()`
+- [ ] Sin variables globales mutables (usar inyección o factory pattern)
+
 ## Anti-patrones
 - `God class`.
 - Condicionales por motor repartidos por toda la base de código.
