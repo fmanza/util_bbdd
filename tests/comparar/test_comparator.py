@@ -939,7 +939,7 @@ class TestGetRoutinesPostgreSQL:
         engine.connect.return_value.__exit__.return_value = False
 
         # pg_proc query result
-        func_row = {"proname": "my_func", "prokind": "f"}  # 'f' = function
+        func_row = {"proname": "my_func", "prokind": "f"}  # M1 'f' = function
         func_rows = MagicMock()
         func_rows.mappings.return_value = [func_row]
 

@@ -653,6 +653,50 @@ Ejemplo de lectura correcta del workflow:
 - la cobertura se publica una sola vez para evitar duplicados
 - el empaquetado se valida aparte para detectar roturas de distribución antes de publicar
 
+### Ejemplo completo 17. Definir o revisar ficheros de configuración IA
+
+Cuándo usarlo: cuando quieras revisar, unificar o reestructurar las instrucciones que guían a Copilot Chat y Claude Code en este repositorio (es decir, `.github/copilot-instructions.md` y `CLAUDE.md`).
+
+El prompt está en [../../.github/prompts/config_review.prompt.md](../../.github/prompts/config_review.prompt.md).
+
+Invocación en Copilot Chat:
+
+```text
+#file:.github/copilot-instructions.md #file:CLAUDE.md
+
+Actúa como experto en instrucciones para sistemas IA (GitHub Copilot Chat y Claude Code).
+
+Objetivo: revisar los ficheros de instrucciones actuales y proponer una nueva configuración
+mejor estructurada y sin duplicación.
+
+Sigue el flujo PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION.
+
+Entregable:
+1. ANÁLISIS — mapa de contenido actual: shared / copilot-only / claude-only / duplicado
+2. DECISIÓN — Opción A (fichero compartido + especializaciones) u Opción B (ficheros independientes)
+3. FICHEROS PROPUESTOS — contenido completo de cada fichero resultante
+4. DIFF conceptual — qué desaparece, qué se mueve, qué es nuevo
+```
+
+Agentes recomendados:
+
+| Fase | Agente |
+|---|---|
+| PLAN y análisis de duplicaciones | `Plan Architect` |
+| IMPLEMENT (redactar ficheros nuevos) | `Feature Implementer` |
+| AUDIT_CODE (verificar cobertura de reglas) | `Code Auditor` |
+| VERSION (commit + changelog) | `Version Closer` |
+
+Criterios de calidad esperados:
+- sin duplicación de reglas entre ficheros (DRY)
+- cada fichero es funcional sin leer el otro
+- el flujo PLAN→...→VERSION está presente para ambas plataformas
+- secciones específicas de plataforma claramente delimitadas
+
+Referencia cruzada: el equivalente para Claude Code está en [claude_code_usage_complete_example.md](claude_code_usage_complete_example.md) (Ejemplo 9).
+
+---
+
 ## FAQ
 
 ### ¿Cuándo uso un prompt, un agente o una instrucción?

@@ -169,6 +169,18 @@ Sigue el flujo PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION.
 
 
 Quiero documentar el uso de util_bbdd, mostrando ejemplos prácticos y casos de uso reales.
+---
+Como experto en en revisión de instrucciones para trabajar con la IA quiero que me generes un promtt para definir nuevos archivos de configuración
+Tendremos en cuenta para ello, todos los ficheros actuales y principalmente sus guias principales:
+- .github\copilot-instructions.md
+- CLAUDE.md
+
+Tener encuenta que tiene que servir bien por unifcación de fichero bien separandolos tamto para copilot, como para CLAUDE
+
+
+---
+Como experto en en revisión de instrucciones para trabajar con la IA, necesitamos revisar la documentación para definir en nuestra arquitectura y donde sea necesario, que el código definido incorporar que todas las clases desarrolladas  con programación orientada a objeto la inclusión de logging  y que todas las variable globales siempre tienene que pertecer a la clase.
+
 
 https://github.com/squidfunk/mkdocs-material
 https://squidfunk.github.io/mkdocs-material

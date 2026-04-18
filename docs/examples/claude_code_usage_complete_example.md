@@ -302,6 +302,47 @@ Salida estructurada esperada (con secciones):
 
 ---
 
+### Ejemplo 9. Definir o revisar ficheros de configuración IA
+
+Cuándo usarlo: cuando quieras revisar, unificar o reestructurar las instrucciones que guían a Claude Code y Copilot Chat en este repositorio (es decir, `CLAUDE.md` y `.github/copilot-instructions.md`).
+
+El prompt está en [../../.github/prompts/config_review.prompt.md](../../.github/prompts/config_review.prompt.md).
+
+Invocación directa (sin slash command):
+
+```text
+Lee .github/copilot-instructions.md y CLAUDE.md antes de responder.
+
+Actúa como experto en instrucciones para sistemas IA (GitHub Copilot Chat y Claude Code).
+
+Objetivo: revisar los ficheros de instrucciones actuales y proponer una nueva configuración
+mejor estructurada y sin duplicación.
+
+Sigue el flujo PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION.
+
+Entregable:
+1. ANÁLISIS — mapa de contenido actual: shared / copilot-only / claude-only / duplicado
+2. DECISIÓN — Opción A (fichero compartido + especializaciones) u Opción B (ficheros independientes)
+3. FICHEROS PROPUESTOS — contenido completo de cada fichero resultante
+4. DIFF conceptual — qué desaparece, qué se mueve, qué es nuevo
+```
+
+Qué obliga este flujo:
+
+- Claude lee ambos ficheros antes de proponer cualquier cambio
+- emite PLAN con el mapa de contenido actual y la estrategia elegida
+- emite AUDIT_PLAN con riesgos de divergencia futura entre plataformas
+- propone ficheros completos en IMPLEMENT
+- cierra con AUDIT_CODE (cobertura de reglas clave) y VERSION
+
+Criterios de calidad esperados:
+- sin duplicación de reglas entre ficheros (DRY)
+- cada fichero es funcional sin leer el otro
+- el flujo PLAN→...→VERSION está presente para ambas plataformas
+- secciones específicas de plataforma claramente delimitadas
+
+---
+
 ## Comportamiento del hook de lint
 
 [../../.claude/settings.json](../../.claude/settings.json) tiene configurado un hook `PostToolUse` que ejecuta automáticamente `ruff check src tests --quiet` tras cada edición de fichero (herramientas `Edit` o `Write`).
