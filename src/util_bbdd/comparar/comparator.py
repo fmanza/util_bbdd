@@ -8,15 +8,9 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 
-logger: logging.Logger = logging.getLogger(__name__)
-
 from sqlalchemy import CursorResult, Row, RowMapping
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.engine.interfaces import ReflectedTableComment
-
-if TYPE_CHECKING:
-    from sqlalchemy.engine import Engine, Inspector
-
 
 from .models import (
     ColumnDiff,
@@ -28,6 +22,11 @@ from .models import (
     TableDiff,
     ViewDiff,
 )
+
+logger: logging.Logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine import Engine, Inspector
 
 
 class SchemaComparator:
@@ -823,7 +822,7 @@ class SchemaComparator:
         except NotImplementedError:
             return ""
         except Exception as exc:  # M1: Fallback para dialects sin soporte de vista DDL o permisos insuficientes
-            logger.warning("No se pudo obtener definición de vista '%s': %s", view_name, exc)
+            logging.getLogger(__name__).warning("No se pudo obtener definición de vista '%s': %s", view_name, exc)
             return ""
 
     @staticmethod
