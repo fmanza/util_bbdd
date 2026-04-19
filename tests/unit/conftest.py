@@ -26,5 +26,3 @@ def mock_manager_with_connection() -> MagicMock:
     manager.connection = MagicMock()
     manager.connection.execute.return_value = MagicMock(fetchall=lambda: [])
     return manager
-
-

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 
 from collections.abc import Awaitable, Callable
@@ -88,11 +89,10 @@ class AsyncLifecycleManager:
         try:
             if hasattr(connection, "aclose"):
                 await connection.aclose()
-            elif hasattr(connection, "close"):
-                if callable(connection.close):
-                    result = connection.close()
-                    if hasattr(result, "__await__"):
-                        await result
+            elif hasattr(connection, "close") and callable(connection.close):
+                result = connection.close()
+                if inspect.iscoroutine(result):
+                    await result
             self.logger.debug("🔌 Conexión async cerrada")
         except Exception as e:
             self.logger.error(f"❌ Error cerrando conexión async: {e}")
@@ -110,7 +110,7 @@ class AsyncLifecycleManager:
         try:
             if hasattr(pool, "close"):
                 result = pool.close()
-                if hasattr(result, "__await__"):
+                if inspect.iscoroutine(result):
                     await result
             self.logger.info("🔗 Pool async cerrado")
         except Exception as e:
