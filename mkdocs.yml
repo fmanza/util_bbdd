@@ -34,7 +34,9 @@ nav:
       - Excepciones: EXCEPTIONS.md
       - Troubleshooting: TROUBLESHOOTING.md
       - Comparador de Esquemas: COMPARATOR.md
-      - Guía de Migración: MIGRATION_GUIDE.md
+      - Guía de Migración (v0.6.3): MIGRATION_GUIDE.md
+      - Migración v0.6.6→v0.6.7: MIGRATION_GUIDE_v0.6.7.md
+      - Performance & Benchmarks: BENCHMARKS.md
   - API Reference:
       - Referencia Rápida: API_REFERENCE.md
       - Autodoc:

@@ -2,20 +2,233 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB (sync).
 
-**Version:** 0.6.8.dev0 | **Status:** ✅ Estable
+**Version:** 0.6.8.dev0 | **Status:** ✅ Estable | **Python:** 3.12+
 
-**Compatibilidad Python:** 3.12+
+---
 
-Incluye:
-- ✅ **CRUD en lote** desde DataFrames (insert/update/delete masivo)
-- ✅ **Auditoría automática** en CSV con timestamps
-- ✅ **Gestión de conexiones** con pool singleton
-- ✅ **Gestión async** de conexiones/pools (por motor compatible)
-- ✅ **Análisis de relaciones** - Generar grafos de relaciones
-- ✅ **Documentación de BD** generada automáticamente
-- ✅ **Plantillas HTML Jinja2 modulares** con páginas globales `Ver todo`
-- ✅ **Validación de tipos** por dialecto SQL
-- ✅ **Arquitectura 3-level** jerárquica y modular (NEW in v0.5.0)
+## 🚀 Features principales
+
+| Feature | Sync | Async | Soporta |
+|---------|------|-------|---------|
+| **CRUD en lote** | ✅ | ✅ | Insert/Update/Delete masivo desde CSV/DataFrame |
+| **Async/Await** | ✅ | ✅ | PostgreSQL, SQLite, MariaDB, Oracle, SQL Server |
+| **Gestión de Pool** | ✅ | ✅ | Connection pooling + singleton + tuning |
+| **Análisis de Schema** | ✅ | ✅ | Comparación de tablas, vistas, rutinas, índices |
+| **Documentación BD** | ✅ | — | HTML + Word + Excel generado automáticamente |
+| **Auditoría** | ✅ | ✅ | Logging de cambios con timestamps en CSV |
+| **Validación SQL** | ✅ | ✅ | Typechecking por dialecto de BD |
+| **Grafos** | ✅ | ✅ | Generar relaciones (Mermaid + GraphViz) |
+
+---
+
+## 🏗️ Workflow típico
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 Tu Aplicación Python                         │
+└──────────────┬──────────────────────────────────────────────┘
+               │
+        ┌──────▼─────────┐
+        │ SyncDatabase   │  Operaciones bloqueantes
+        │  Manager       │  (scripts, cron jobs)
+        └──────┬─────────┘
+               │
+        ┌──────▼──────────────┐
+        │ AsyncDatabase      │  Operaciones no-bloqueantes
+        │  Manager           │  (APIs, web servers, batch)
+        └──────┬──────────────┘
+               │
+    ┌──────────▼──────────────┐
+    │  Connection Pool        │
+    │  (Singleton, tuned)     │
+    └──────────┬──────────────┘
+               │
+    ┌──────────▼──────────────────────────────┐
+    │        Base de Datos                     │
+    │  PostgreSQL | MariaDB | Oracle | SQLite │
+    │  SQL Server | HSQLDB (sync solo)         │
+    └────────────────────────────────────────┘
+```
+
+**Flujo de decisión:**
+- ¿Script/cron/offline? → Use `SyncDatabaseManager`
+- ¿API/web/async? → Use `AsyncDatabaseManager`
+- ¿Insertar 100k filas? → Use `bulk_insert_from_csv()`
+- ¿Comparar 2 schemas? → Use `SchemaComparator`
+- ¿Documentar BD? → Use `DatabaseDocumentation`
+
+---
+
+## ⚡ Quick Start (5 minutos)
+
+### Instalación
+
+```bash
+pip install util_bbdd
+
+# Con soporte de documentación (Word/Excel)
+pip install util_bbdd[doc]
+```
+
+### PostgreSQL — Sync (más simple)
+
+```python
+from util_bbdd import SyncDatabaseManager
+
+manager = SyncDatabaseManager(
+    db_type="postgresql",
+    conn_params={
+        "host": "localhost", "port": 5432,
+        "user": "postgres", "password": "secret",
+        "database": "mydb"
+    }
+)
+
+# Obtener tablas
+tables = manager.get_tables()
+print(f"Tablas: {len(tables)}")
+
+# Obtener columnas
+columns = manager.get_table_columns(schema="public", table="users")
+print(f"Columnas: {[c['column_name'] for c in columns]}")
+
+# Ejecutar query
+users = manager.execute_custom_many("SELECT * FROM users LIMIT 5")
+print(f"Usuarios: {users}")
+
+manager.close()
+```
+
+### PostgreSQL — Async (recomendado para APIs)
+
+```python
+import asyncio
+from util_bbdd import AsyncDatabaseManager
+
+async def main():
+    manager = AsyncDatabaseManager(
+        db_type="postgresql",
+        pool_size=10,
+        conn_params={
+            "host": "localhost", "port": 5432,
+            "user": "postgres", "password": "secret",
+            "database": "mydb"
+        }
+    )
+
+    await manager.init()
+
+    # Múltiples queries en paralelo
+    tables, views, routines = await asyncio.gather(
+        manager.get_tables(),
+        manager.get_views(),
+        manager.get_routines(),
+    )
+
+    print(f"Tablas: {len(tables)}, Vistas: {len(views)}")
+    await manager.close()
+
+asyncio.run(main())
+```
+
+### SQLite — Más rápido para testing
+
+```python
+from util_bbdd import SyncDatabaseManager
+
+# En memoria, no requiere BD externa
+manager = SyncDatabaseManager(
+    db_type="sqlite",
+    conn_params={"database": ":memory:"}
+)
+
+manager.execute_custom_many(
+    "CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)"
+)
+
+print("✅ BD de prueba lista")
+manager.close()
+```
+
+---
+
+## 📚 Documentación
+
+| Tema | Descripción | Link |
+|------|-----------|------|
+| **Guías** | Programación async, drivers, troubleshooting | [Docs](docs/) |
+| **API Reference** | Clases, métodos, tipos | [API](docs/API_REFERENCE.md) |
+| **Ejemplos** | Casos de uso, snippets de código | [Examples](docs/examples/) |
+| **Migration** | Actualizar de v0.6.6 → v0.6.7 | [Migration](docs/MIGRATION_GUIDE_v0.6.7.md) |
+| **Benchmarks** | Performance, tuning, optimización | [Benchmarks](docs/BENCHMARKS.md) |
+
+---
+
+## 🔗 Soporte Async por Motor
+
+| Motor      | Conexión | Pool | Driver | Performance |
+|------------|----------|------|--------|-------------|
+| PostgreSQL | ✅ | ✅ | `asyncpg` | ⭐⭐⭐ (Fastest) |
+| SQLite     | ✅ | ✅ | `aiosqlite` | ⭐⭐ |
+| MariaDB    | ✅ | ✅ | `aiomysql` | ⭐⭐ |
+| Oracle     | ✅ | ✅ | `oracledb` | ⭐⭐ |
+| SQL Server | ✅ | ✅ | `aioodbc` | ⭐ |
+| HSQLDB     | ❌ | ❌ | N/A | Sync only |
+
+Recomendación: **PostgreSQL + asyncpg** para máxima performance.
+
+---
+
+## 💡 Copilot Workflow (Desarrollo)
+
+El repositorio usa **Copilot Chat** + **Claude Code** para cambios estructurados:
+
+```
+Tu Tarea
+  │
+  ├─→ Workflow Director (clasificar)
+  │     ├─→ New Feature? → Plan Architect
+  │     ├─→ Bug? → Hotfix Responder
+  │     └─→ Refactor? → Feature Implementer
+  │
+  └─→ Code Auditor (validar)
+        └─→ Version Closer (mergear)
+```
+
+[Ver agentes disponibles](.github/README.md)
+
+---
+
+## 📊 Performance Tips
+
+**Insertar 100k filas:**
+```python
+# ✅ Rápido: ~1 segundo
+manager.bulk_insert_from_csv("users.csv", batch_size=10000)
+
+# ❌ Lento: ~60 segundos
+for row in rows:
+    manager.execute_custom_many(f"INSERT INTO users VALUES ...")
+```
+
+**Pool tuning:**
+```python
+# ✅ API con 100 usuarios concurrentes
+manager = AsyncDatabaseManager(
+    pool_size=20,        # = 2x CPU cores
+    max_overflow=10,
+)
+```
+
+**Metadata caching:**
+```python
+# ✅ 50 consultas de schema → 8x más rápido
+cache = DatabaseMetadataCache()
+```
+
+[Benchmarks completos →](docs/BENCHMARKS.md)
+
+---
 
 ## Flujo de trabajo con Copilot
 
@@ -54,100 +267,6 @@ Mapa rápido:
 | HSQLDB     | ❌             | ❌         | N/A              |
 
 Nota: `hsqldb` no dispone de implementación async en `util_bbdd`. Las factorías async lanzan error explícito para ese motor.
-
----
-
-## ⚡ Quick Start (5 minutos)
-
-### Instalación
-
-```bash
-pip install util_bbdd
-```
-
-### PostgreSQL — Sync
-
-```python
-from util_bbdd import SyncDatabaseManager
-
-# Conectar a la BD
-manager = SyncDatabaseManager(
-    db_type="postgresql",
-    conn_params={
-        "host": "localhost",
-        "port": 5432,
-        "user": "postgres",
-        "password": "secret",
-        "database": "mydb"
-    }
-)
-
-# Listar tablas
-tables = manager.get_tables()
-print("Tablas:", [table[0] for table in tables])
-
-# Obtener columnas de una tabla
-columns = manager.get_columns("users")
-print("Columnas:", columns)
-
-# Ejecutar query personalizadas
-result = manager.execute_custom_many("SELECT * FROM users LIMIT 5")
-print("Usuarios:", result)
-
-# Cerrar conexión
-manager.close()
-```
-
-### PostgreSQL — Async
-
-```python
-import asyncio
-from util_bbdd import AsyncDatabaseManager
-
-async def main():
-    # Conectar a la BD
-    manager = AsyncDatabaseManager(
-        db_type="postgresql",
-        conn_params={
-            "host": "localhost",
-            "port": 5432,
-            "user": "postgres",
-            "password": "secret",
-            "database": "mydb"
-        }
-    )
-
-    # Inicializar el manager
-    await manager.init()
-
-    # Listar tablas
-    tables = await manager.get_tables()
-    print("Tablas:", [table[0] for table in tables])
-
-    # Cerrar conexión
-    await manager.close()
-
-asyncio.run(main())
-```
-
-### SQLite — Sin configuración
-
-```python
-from util_bbdd import SyncDatabaseManager
-
-# Usar BD en memoria para testing
-manager = SyncDatabaseManager(
-    db_type="sqlite",
-    conn_params={"database": ":memory:"}
-)
-
-# Crear tabla de prueba
-manager.execute_custom_many(
-    "CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)"
-)
-
-tables = manager.get_tables()
-print("Tablas:", tables)
 
 manager.close()
 ```
