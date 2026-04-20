@@ -178,14 +178,29 @@ Tendremos en cuenta para ello, todos los ficheros actuales y principalmente sus 
 Tener encuenta que tiene que servir bien por unifcación de fichero bien separandolos tamto para copilot, como para CLAUDE
 
 ---
-@#sym:config_review revisar e incorporar intrucciones que indiquen que todas las calses deben incluir grestión de logging y que todas las variables globales siempre tienen que pertecer a clases, no puede haber variables globales a nivel de módulo, y que el logging debe ser consistente en toda la librería, usando un formato estándar y niveles de log adecuados (DEBUG, INFO, WARNING, ERROR, CRITICAL). Además, se debe incluir un logger específico para cada clase o módulo para facilitar la trazabilidad de los logs.
+@#sym:config_review revisar e incorporar intrucciones que indiquen que todas las clases deben incluir grestión de logging y que todas las variables globales siempre tienen que pertecer a clases, no puede haber variables globales a nivel de módulo, y que el logging debe ser consistente en toda la librería, usando un formato estándar y niveles de log adecuados (DEBUG, INFO, WARNING, ERROR, CRITICAL). Además, se debe incluir un logger específico para cada clase o módulo para facilitar la trazabilidad de los logs.
 ---
-Necestio dumentar la aplicación con este módulo de Python https://github.com/squidfunk/mkdocs-material, quiero:
+Dumentar la aplicación con este módulo de Python https://github.com/squidfunk/mkdocs-material, quiero:
 - Incluirlo como parte del proyecto a la hora de generar la documentación de util_bbdd.
 - Generar las carpetas de estructura necesaria para usarlo y generar la documentación de util_bbdd con este formato.
 - Revisar y adaptar la documentación actual de util_bbdd para que se integre correctamente con mkdocs-material, asegurando que los enlaces, ejemplos y guías estén bien formateados y sean fácilmente navegables en el nuevo formato de documentación.
 - Configurar mkdocs-material para que se adapte a las necesidades específicas de la documentación de util_bbdd, incluyendo la personalización de temas, la organización de la navegación y la integración de cualquier plugin necesario para mejorar la experiencia de usuario y la presentación de la documentación.
 
+Quiero una propuesta detallada de cómo integrar mkdocs-material en el proyecto, incluyendo los pasos necesarios para configurar y personalizar la documentación, así como un plan para migrar la documentación existente a este nuevo formato si fuera necesario, y asegurar que la documentación generada refleje fielmente la funcionalidad actual del módulo util_bbdd.
+
+Ejecutar  PLAN → AUDIT_PLAN
 
 
 https://squidfunk.github.io/mkdocs-material
+
+---
+@#sym:refactor
+Objetivo: Eliminar todo rastro legacy
+Módulo: Todo el proyecto
+Alcance: Refactorización completa para eliminar cualquier rastro de código, documentación o configuración que sea considerado legacy, obsoleto o que no cumpla con los estándares actuales del proyecto. Esto incluye, pero no se limita a, la eliminación de código comentado, funciones o clases no utilizadas, archivos de configuración obsoletos, y la actualización de la documentación para reflejar los cambios realizados.
+Política de compatibilidad: Se autoriza romper contratos públicos.
+Lee .ai/architecture.md antes de proponer cambios
+Lee .ai/sessions/INDEX.md para contexto de decisiones previas
+Documentar la sesión actual siguiendo .ai\sessions\INDEX.md y .ai\sessions\TEMPLATE\TRACEABILITY.md
+Revisar todo el código, documentación y configuración del proyecto para identificar cualquier rastro de legacy y planificar su eliminación o refactorización, asegurando que el resultado final sea un proyecto limpio, moderno y alineado con los estándares actuales de desarrollo y documentación.
+Sigue el flujo PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION.

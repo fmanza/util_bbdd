@@ -72,6 +72,39 @@ class OracleConstraintDefaults:
         return decoded
 
     @staticmethod
+    def _process_fk_row(row: tuple | list) -> tuple | None:
+        """Procesa y valida una fila FK individual (CC isolated).
+
+        Extrae la lógica de validación/normalización de decode_fk_rows para
+        reducir complejidad cognitiva del método principal.
+
+        Args:
+            row: Fila cruda de all_constraints
+
+        Returns:
+            Tupla normalizada (constraint_name, column_name, ref_owner, ref_table,
+            ref_column, on_delete_action, on_update_action, ordinal_position) o None si hay error
+        """
+        if not isinstance(row, (tuple, list)) or len(row) < 8:
+            return None
+
+        try:
+            return (
+                str(row[0]).strip() if row[0] else "",
+                str(row[1]).strip() if row[1] else "",
+                str(row[2]).strip() if row[2] else "",
+                str(row[3]).strip() if row[3] else "",
+                str(row[4]).strip() if row[4] else "",
+                OracleConstraintDefaults.normalize_delete_rule(row[5]),
+                OracleConstraintDefaults.normalize_delete_rule(row[6])
+                if row[6]
+                else OracleConstraintDefaults.NO_ACTION,
+                int(row[7]) if row[7] is not None else 0,
+            )
+        except (ValueError, TypeError):
+            return None
+
+    @staticmethod
     def decode_fk_rows(rows: Rows) -> Rows:
         """Decodifica filas de foreign keys Oracle.
 
@@ -84,27 +117,9 @@ class OracleConstraintDefaults:
         """
         decoded: Rows = []
         for row in rows:
-            if not isinstance(row, (tuple, list)) or len(row) < 8:
-                continue
-
-            try:
-                decoded.append(
-                    (
-                        str(row[0]).strip() if row[0] else "",  # constraint_name
-                        str(row[1]).strip() if row[1] else "",  # column_name
-                        str(row[2]).strip() if row[2] else "",  # ref_owner
-                        str(row[3]).strip() if row[3] else "",  # ref_table
-                        str(row[4]).strip() if row[4] else "",  # ref_column
-                        OracleConstraintDefaults.normalize_delete_rule(row[5]),  # on_delete_action
-                        OracleConstraintDefaults.normalize_delete_rule(row[6])
-                        if row[6]
-                        else OracleConstraintDefaults.NO_ACTION,  # on_update_action
-                        int(row[7]) if row[7] is not None else 0,  # ordinal_position
-                    )
-                )
-            except (ValueError, TypeError):
-                continue
-
+            processed_row = OracleConstraintDefaults._process_fk_row(row)
+            if processed_row is not None:
+                decoded.append(processed_row)
         return decoded
 
 
