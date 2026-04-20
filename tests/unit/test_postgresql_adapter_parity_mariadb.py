@@ -1,7 +1,10 @@
 from __future__ import annotations
+
 import inspect
 import logging
+
 from unittest.mock import MagicMock
+
 from util_bbdd.metadata.mariadb import MariaDBAsyncAdapter, MariaDBSyncAdapter
 from util_bbdd.metadata.postgresql import PostgreSQLAsyncAdapter, PostgreSQLSyncAdapter
 

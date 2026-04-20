@@ -466,7 +466,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 )
             )
 
-        html_content: str = "".join(html_parts)
+        html_content = "".join(html_parts)
         return f"{html_content}</TABLE>>"
 
     def _get_table_label_styles(self, is_raster: bool) -> dict[str, str]:

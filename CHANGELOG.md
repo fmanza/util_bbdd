@@ -5,6 +5,32 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.6.8] - 2026-04-20
+
+### Refactored
+
+#### Tech Debt — Logging tipado (Fases 1-4B)
+Añadido `self.logger: logging.Logger` instanciado en `__init__` a 36 clases en los módulos de mayor riesgo:
+
+- **Comparar reporters** (`_base.py`, `markdown_reporter.py`, `sql_reporter.py`) — 3 clases
+- **Managers** (`_manager_lifecycle.py`, `_manager_metadata.py`, `_manager_metadata_runtime.py`, `async_mgr.py`, `sync_mgr.py`) — 5 clases
+- **Metadata adapters** — 14 adaptadores concretos (mariadb, mysql, oracle sync/async, postgresql, sqlserver) + 8 protocolos de manager
+- **Metadata bases** — `_adapter_protocol.py`, `builder.py`
+
+**Nuevos módulos internos en managers:**
+- `_metadata_cache.py`, `_metadata_context.py`, `_metadata_parser.py`, `_metadata_request.py`
+
+### Fixed
+
+- `src/util_bbdd/metadata/oracle/sync_adapter.py` — referencia a logger en staticmethod corregida
+- `src/util_bbdd/managers/async_mgr.py` — detección de coroutines via `inspect.iscoroutine()` (eliminado `hasattr`)
+
+### Docs / Config
+
+- `.github/SHARED_INSTRUCTIONS.md`, `CLAUDE.md`, `copilot-instructions.md` — política de logging obligatorio y checklist f-strings
+
+---
+
 ## [0.6.7] - 2026-04-10
 
 ### Breaking Changes
