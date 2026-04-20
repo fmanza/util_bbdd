@@ -44,6 +44,7 @@ nav:
           - Bulk Operations: api/bulk.md
           - Excepciones: api/exceptions.md
   - Ejemplos:
+      - Generación de Documentación: examples/database_documentation_generation.md
       - Comparación de Esquemas: examples/schema_comparison.md
       - Diff Reporters: examples/diff_reporters.md
       - Queries Concurrentes (Async): examples/async_concurrent_queries.md
