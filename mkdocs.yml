@@ -134,5 +134,3 @@ extra:
       link: https://github.com/fmanza/util_bbdd
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/util-bbdd/
-  version:
-    provider: mike
