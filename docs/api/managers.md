@@ -1,0 +1,39 @@
+# Managers
+
+Los managers son el punto de entrada principal de `util_bbdd`.
+Proveen la API de alto nivel para operaciones sobre bases de datos.
+
+---
+
+## SyncDatabaseManager
+
+Manager sincrónico para operaciones de base de datos. Soporta todos los motores
+(MariaDB, PostgreSQL, Oracle, SQLite, SQL Server, HSQLDB).
+
+::: util_bbdd.managers.sync_mgr.SyncDatabaseManager
+    options:
+      show_source: false
+      heading_level: 3
+      members_order: source
+      filters:
+        - "!^_"
+        - "!^test"
+
+---
+
+## AsyncDatabaseManager
+
+Manager asincrónico compatible con `asyncio`. Soporta PostgreSQL, SQLite, MariaDB,
+Oracle y SQL Server.
+
+!!! warning "Inicialización requerida"
+    Llamar a `await manager.init()` antes de cualquier operación.
+
+::: util_bbdd.managers.async_mgr.AsyncDatabaseManager
+    options:
+      show_source: false
+      heading_level: 3
+      members_order: source
+      filters:
+        - "!^_"
+        - "!^test"

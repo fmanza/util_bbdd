@@ -652,4 +652,4 @@ diff = comparator.compare(
 
 - Consulta [INSTALLATION.md](INSTALLATION.md) para instalar drivers específicos
 - Lee [EXCEPTIONS.md](EXCEPTIONS.md) para manejo de errores
-- Explora [Quick Start](../README.md#-quick-start-5-minutos) para ejemplos básicos
+- Explora [Quick Start](index.md#quick-start-5-minutos) para ejemplos básicos

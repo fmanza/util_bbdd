@@ -372,7 +372,7 @@ python verify_installation.py
 
 ## Próximos Pasos
 
-1. Consulta [Quick Start](../README.md#-quick-start-5-minutos) para ejemplos rápidos
+1. Consulta [Quick Start](index.md#quick-start-5-minutos) para ejemplos rápidos
 2. Lee [EXCEPTIONS.md](EXCEPTIONS.md) para manejo de errores
 3. Explora [SchemaComparator](COMPARATOR.md) para comparación de esquemas
 

@@ -681,4 +681,4 @@ except Exception as e:
 
 - Consulta [INSTALLATION.md](INSTALLATION.md) para resolver problemas de drivers
 - Lee [COMPARATOR.md](COMPARATOR.md) para operaciones de esquema
-- Explora [Quick Start](../README.md#-quick-start-5-minutos) para ejemplos
+- Explora [Quick Start](index.md#quick-start-5-minutos) para ejemplos

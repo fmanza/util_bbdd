@@ -34,7 +34,15 @@ nav:
       - Excepciones: EXCEPTIONS.md
       - Comparador de Esquemas: COMPARATOR.md
       - Guía de Migración: MIGRATION_GUIDE.md
-  - API Reference: API_REFERENCE.md
+  - API Reference:
+      - Referencia Rápida: API_REFERENCE.md
+      - Autodoc:
+          - Índice: api/index.md
+          - Managers: api/managers.md
+          - Comparador: api/comparator.md
+          - Reporters: api/reporters.md
+          - Bulk Operations: api/bulk.md
+          - Excepciones: api/exceptions.md
   - Ejemplos:
       - Comparación de Esquemas: examples/schema_comparison.md
       - Diff Reporters: examples/diff_reporters.md
@@ -80,9 +88,6 @@ theme:
 plugins:
   - search:
       lang: es
-  - git-revision-date-localized:
-      enable_creation_date: true
-      type: date
   - mkdocstrings:
       handlers:
         python:
