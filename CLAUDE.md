@@ -312,7 +312,7 @@ rm .claude/settings.local.json  # O dejar para futuras sesiones offline
 
 ### Limitaciones Conocidas Offline
 
-1. **GitHub search no disponible** → No puedes buscar related issues. Workaround: busca localmente en `.ai/sessions/` o docs/
+1. **GitHub search no disponible** → No puedes buscar related issues. Workaround: busca localmente en `.ai/sessions/` (sesiones de trabajo) o `docs/` (documentación viva) o `docs/archive/plan-legacy/` (planes históricos de PRs)
 2. **SonarQube no disponible** → `/security-review` se degrada a análisis estático local. Workaround: usar `/audit-code` instead.
 3. **PyPI no accesible** → No puedes descargar deps nuevas. Workaround: pre-instala en venv preparado.
 4. **Copilot Chat offline** → No funciona Copilot Chat offline (requiere API). Claude Code SÍ funciona offline.

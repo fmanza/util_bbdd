@@ -34,6 +34,10 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-04-16b | new_feature: HTML diff reporter — diagrama de diferencias tabbed (Añadidas/Modificadas/Eliminadas) con paginación Mermaid lazy (máx. 9 tablas/bloque); ARIA completo; CDN mermaid@10; 1878 tests verdes | develop | new_feature | CLOSED | `2026-04-16/TRACEABILITY.md` |
 | 2026-04-16c | refactor: layout 3 columnas en diagramas Mermaid — invisible links ~~~; fix bug loop.index con None padding (reject("none")); 1878 tests verdes | develop | refactor | CLOSED | en sesión |
 | 2026-04-16d | **refactor: excepciones en comparar/** — reemplazar ValueError/Exception genéricas por ComparerError + 3 subclases (SchemaDiffValidationError, MetadataIntrospectionError, DiffReportGenerationError); 4 nuevas excepciones, 6 tests actualizados; 1878 tests verdes ✅ COMPLETADA | develop | refactor | CLOSED | `2026-04-16-comparar-exceptions/TRACEABILITY.md` |
+| 2026-04-18-tech-debt-logging | **tech-debt: logging typed annotations Phases 1-4B** — añadir `self.logger: logging.Logger` a 36 clases; release v0.6.8 | develop | tech-debt | CLOSED | `2026-04-18-tech-debt-logging/TRACEABILITY.md` |
+| 2026-04-18-phase4b | **tech-debt Phase 4B** — logging completado en managers, metadata, comparar | develop | tech-debt | CLOSED | `2026-04-18-phase4b/01_PHASE_4B_COMPLETE.md` |
+| 2026-04-20-fase3-managers | **refactor: Fase 3 consolidación managers/** — MetadataRequestBuilder, CharsetCollationParser, DDLNormalizer (v0.6.9) | develop | refactor | IN_PROGRESS | `2026-04-20-fase3-managers/TRACEABILITY.md` |
+| 2026-04-20-reorganizacion-docs | **chore: reorganización .ai/sessions y docs/** — archivar docs/plan/, normalizar sesiones sueltas, mover FASE3_MIGRATION_NOTES a sesión | develop | chore | CLOSED | en sesión |
 
 ## Crear nueva sesión
 
