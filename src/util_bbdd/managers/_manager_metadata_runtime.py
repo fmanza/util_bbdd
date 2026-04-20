@@ -1,9 +1,6 @@
-"""Re-exporter: Helpers internos para metadata read-side compartida de managers.
+"""Helpers internos para metadata read-side compartida de managers.
 
-Este módulo consolida imports desde _metadata_request y _metadata_parser,
-manteniendo backward compatibility con código legacy.
-
-Fase 3: Runtime Metadata - Consolidación de builders, parsers y helpers de DDL.
+Fase 3: Runtime Metadata — strategies de fetching por motor.
 """
 
 from __future__ import annotations
@@ -12,33 +9,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Protocol, TypeVar
 
-# Re-exports: New classes from Fase 3
-from ._metadata_parser import (
-    CharsetCollationParser,
-    ColumnCharsetCollationRow,
-    DDLNormalizer,
-    contains_create,
-    is_lob,
-    normalize_ddl_result,
-    oracle_supports_columns_charset_collation,
-    parse_charset_collation_result,
-    parse_column_charset_collation_row,
-    parse_db_charset_oracle,
-    parse_db_charset_postgresql,
-    parse_db_charset_single_field,
-    read_lob,
-    supports_columns_charset_collation,
-)
-from ._metadata_request import (
-    MetadataFetchRequest,
-    MetadataRequestBuilder,
-    build_columns_fetch_request,
-    build_routine_ddl_fetch_request,
-    build_routine_parameters_fetch_request,
-    build_routines_fetch_request,
-    build_table_ddl_fetch_request,
-    build_view_ddl_fetch_request,
-)
+from ._metadata_parser import CharsetCollationParser, ColumnCharsetCollationRow, DDLNormalizer
+from ._metadata_request import MetadataFetchRequest, MetadataRequestBuilder
 
 _T = TypeVar("_T")
 
@@ -232,36 +204,13 @@ def get_metadata_fetch_strategy(db_type: str) -> MetadataFetchStrategy:
 
 
 __all__: list[str] = [
-    # New classes (Fase 3)
     "MetadataFetchRequest",
     "MetadataRequestBuilder",
     "CharsetCollationParser",
     "DDLNormalizer",
-    # Fetch Strategies
+    "ColumnCharsetCollationRow",
     "MetadataFetchStrategy",
     "GenericMetadataFetchStrategy",
     "MariaDBMetadataFetchStrategy",
     "get_metadata_fetch_strategy",
-    # Request Builders (deprecated wrappers)
-    "build_columns_fetch_request",
-    "build_routine_ddl_fetch_request",
-    "build_routine_parameters_fetch_request",
-    "build_routines_fetch_request",
-    "build_table_ddl_fetch_request",
-    "build_view_ddl_fetch_request",
-    # Type aliases
-    "ColumnCharsetCollationRow",
-    # DDL Helpers (deprecated wrappers)
-    "contains_create",
-    "is_lob",
-    "normalize_ddl_result",
-    "read_lob",
-    # Charset/Collation Parsers (deprecated wrappers)
-    "oracle_supports_columns_charset_collation",
-    "parse_charset_collation_result",
-    "parse_column_charset_collation_row",
-    "parse_db_charset_oracle",
-    "parse_db_charset_postgresql",
-    "parse_db_charset_single_field",
-    "supports_columns_charset_collation",
 ]

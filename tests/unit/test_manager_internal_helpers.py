@@ -10,39 +10,40 @@ import pytest
 
 from util_bbdd import DatabaseOperationError
 from util_bbdd.managers._manager_lifecycle import (
-    close_sync_resources,
-    get_sync_connection,
+    SyncConnectionLifecycleManager,
     init_async_resources,
 )
 from util_bbdd.managers._manager_metadata import (
-    cache_routine_key,
-    clear_context_cache,
-    get_query_context_database,
+    CacheKeyFactory,
+    CacheManager,
+    MetadataContextResolver,
+    MetadataRequestBuilder,
 )
 from util_bbdd.managers._manager_metadata_runtime import (
     MetadataFetchRequest,
-    build_routine_ddl_fetch_request,
     get_metadata_fetch_strategy,
-    normalize_ddl_result,
-    oracle_supports_columns_charset_collation,
-    parse_charset_collation_result,
-    parse_column_charset_collation_row,
-    supports_columns_charset_collation,
 )
 from util_bbdd.managers._manager_storage import (
     get_async_storage_inventory_strategy,
     get_sync_storage_inventory_strategy,
 )
+from util_bbdd.managers._metadata_parser import CharsetCollationParser, DDLNormalizer
 from util_bbdd.metadata import DatabaseMetadataCache
+from util_bbdd.metadata.cache import RelationshipMetadataCache
 
 
 def test_get_query_context_database_uses_schema_defaults() -> None:
     assert (
-        get_query_context_database(db_type="postgresql", database="demo", conn_params={"schema": "analytics"})
+        MetadataContextResolver.get_context_database(
+            db_type="postgresql", database="demo", conn_params={"schema": "analytics"}
+        )
         == "analytics"
     )
-    assert get_query_context_database(db_type="oracle", database="XE", conn_params={"user": "SCOTT"}) == "SCOTT"
-    assert get_query_context_database(db_type="sqlserver", database="", conn_params={}) == "dbo"
+    assert (
+        MetadataContextResolver.get_context_database(db_type="oracle", database="XE", conn_params={"user": "SCOTT"})
+        == "SCOTT"
+    )
+    assert MetadataContextResolver.get_context_database(db_type="sqlserver", database="", conn_params={}) == "dbo"
 
 
 def test_clear_context_cache_removes_only_matching_entries() -> None:
@@ -51,17 +52,23 @@ def test_clear_context_cache_removes_only_matching_entries() -> None:
     db_cache._tables_cache["audit"] = [("events",)]
     db_cache._columns_cache[("public", "users")] = [("id",)]
     db_cache._columns_cache[("audit", "events")] = [("id",)]
-    db_cache._routine_ddl_cache[cache_routine_key("public", "proc_a", "procedure")] = "DDL"
-    db_cache._routine_ddl_cache[cache_routine_key("audit", "proc_b", "procedure")] = "DDL"
+    routine_key_a = CacheKeyFactory.routine_key("public", "proc_a", "procedure")
+    routine_key_b = CacheKeyFactory.routine_key("audit", "proc_b", "procedure")
+    db_cache._routine_ddl_cache[routine_key_a] = "DDL"
+    db_cache._routine_ddl_cache[routine_key_b] = "DDL"
 
-    clear_context_cache(db_cache=db_cache, logger=MagicMock(), context="public")
+    CacheManager(
+        db_cache=db_cache,
+        relationship_cache=RelationshipMetadataCache(),
+        logger=MagicMock(),
+    ).clear_context(context="public")
 
     assert "public" not in db_cache._tables_cache
     assert "audit" in db_cache._tables_cache
     assert ("public", "users") not in db_cache._columns_cache
     assert ("audit", "events") in db_cache._columns_cache
-    assert cache_routine_key("public", "proc_a", "procedure") not in db_cache._routine_ddl_cache
-    assert cache_routine_key("audit", "proc_b", "procedure") in db_cache._routine_ddl_cache
+    assert routine_key_a not in db_cache._routine_ddl_cache
+    assert routine_key_b in db_cache._routine_ddl_cache
 
 
 @pytest.mark.asyncio
@@ -97,11 +104,9 @@ def test_get_sync_connection_wraps_pool_errors() -> None:
     mock_pool.get_connection.side_effect = TimeoutError("pool timeout")
 
     with pytest.raises(DatabaseOperationError, match="Timeout obteniendo conexión del pool"):
-        get_sync_connection(
+        SyncConnectionLifecycleManager("postgresql", MagicMock()).get_connection(
             pool_connection=mock_pool,
             connection=None,
-            db_type="postgresql",
-            logger=MagicMock(),
         )
 
 
@@ -110,12 +115,10 @@ def test_close_sync_resources_aggregates_errors() -> None:
     failing_cursor.close.side_effect = RuntimeError("cursor boom")
 
     with pytest.raises(DatabaseOperationError, match="Errores cerrando recursos") as exc_info:
-        close_sync_resources(
+        SyncConnectionLifecycleManager("sqlite", MagicMock()).close_resources(
             pool_connection=None,
             cursor=failing_cursor,
             connection=None,
-            logger=MagicMock(),
-            db_type="sqlite",
             timeout_seconds=1.0,
             force=False,
         )
@@ -129,34 +132,38 @@ def test_normalize_ddl_result_prefers_create_text_and_reads_lob_values() -> None
         def read(self) -> str:
             return "CREATE TABLE demo(id INT)"
 
-    assert normalize_ddl_result(("ignored", "fallback", _FakeLob())) == "CREATE TABLE demo(id INT)"
-    assert normalize_ddl_result((None, ("nested", "CREATE VIEW v AS SELECT 1"))) == "CREATE VIEW v AS SELECT 1"
+    assert DDLNormalizer.normalize_result(("ignored", "fallback", _FakeLob())) == "CREATE TABLE demo(id INT)"
+    assert DDLNormalizer.normalize_result((None, ("nested", "CREATE VIEW v AS SELECT 1"))) == "CREATE VIEW v AS SELECT 1"
 
 
 def test_parse_charset_helpers_cover_multiple_motors() -> None:
-    assert parse_charset_collation_result("oracle", ("AL32UTF8", "AL16UTF16")) == {
+    parser = CharsetCollationParser(MagicMock())
+    assert parser.parse_db_charset("oracle", ("AL32UTF8", "AL16UTF16")) == {
         "charset": "AL32UTF8",
         "nchar_charset": "AL16UTF16",
     }
-    assert parse_charset_collation_result("postgresql", ("UTF8", "es_ES", "es_ES")) == {
+    assert parser.parse_db_charset("postgresql", ("UTF8", "es_ES", "es_ES")) == {
         "encoding": "UTF8",
         "collate": "es_ES",
         "ctype": "es_ES",
     }
-    assert parse_charset_collation_result("sqlite", ("UTF-8",)) == {"encoding": "UTF-8"}
+    assert parser.parse_db_charset("sqlite", ("UTF-8",)) == {"encoding": "UTF-8"}
 
 
 def test_parse_column_charset_and_support_rules_are_shared() -> None:
-    assert parse_column_charset_collation_row("postgresql", ("name", "unused", "es_ES")) == (
+    parser = CharsetCollationParser(MagicMock())
+    assert parser.parse_column_charset_collation("postgresql", ("name", "unused", "es_ES")) == (
         "name",
         None,
         "es_ES",
     )
-    assert parse_column_charset_collation_row("sqlite", ("name",)) == ("name", None, None)
-    assert oracle_supports_columns_charset_collation("Oracle Database 19c Release 19.0.0.0.0") is True
-    assert oracle_supports_columns_charset_collation("Oracle Database 11g") is False
-    assert supports_columns_charset_collation("sqlite") is False
-    assert supports_columns_charset_collation("oracle", True) is True
+    assert parser.parse_column_charset_collation("sqlite", ("name",)) == ("name", None, None)
+    assert CharsetCollationParser._oracle_supports_columns_charset_collation(
+        "Oracle Database 19c Release 19.0.0.0.0"
+    ) is True
+    assert CharsetCollationParser._oracle_supports_columns_charset_collation("Oracle Database 11g") is False
+    assert parser.supports_charset_collation("sqlite") is False
+    assert parser.supports_charset_collation("oracle", "Oracle Database 19c Release 19.0.0.0.0") is True
 
 
 def test_generic_strategy_build_sync_text_fetcher_uses_query_request_and_normalizer() -> None:
@@ -173,7 +180,7 @@ def test_generic_strategy_build_sync_text_fetcher_uses_query_request_and_normali
         request=request,
         specialized_fetcher=lambda: "mariadb",
         execute_one=lambda req: seen_request.append(req) or ("ignored", "CREATE TABLE users(id INT)"),
-        normalize_one=normalize_ddl_result,
+        normalize_one=DDLNormalizer.normalize_result,
     )
 
     assert fetcher() == "CREATE TABLE users(id INT)"
@@ -212,14 +219,14 @@ async def test_generic_strategy_build_async_text_fetcher_normalizes_result() -> 
         request=request,
         specialized_fetcher=lambda: asyncio.sleep(0, result="CREATE VIEW v_users AS SELECT 1"),
         execute_one=lambda _req: asyncio.sleep(0, result=(None, "CREATE VIEW v_users AS SELECT 1")),
-        normalize_one=normalize_ddl_result,
+        normalize_one=DDLNormalizer.normalize_result,
     )
 
     assert await fetcher() == "CREATE VIEW v_users AS SELECT 1"
 
 
 def test_build_routine_ddl_fetch_request_adds_context_params() -> None:
-    request = build_routine_ddl_fetch_request(
+    request = MetadataRequestBuilder.routine_ddl(
         "analytics",
         "sp_demo",
         "PROCEDURE",

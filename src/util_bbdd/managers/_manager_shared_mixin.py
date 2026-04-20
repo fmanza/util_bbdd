@@ -22,24 +22,9 @@ from typing import Any
 
 from ..metadata.cache import DatabaseMetadataCache, RelationshipMetadataCache
 from ..metadata.mariadb import escape_mariadb_sql_literal
-from ._manager_metadata import (
-    add_metadata_context_params,
-    cache_context_key,
-    cache_routine_key,
-    cache_table_key,
-    clear_all_caches,
-    clear_context_cache,
-    clear_routine_cache,
-    clear_table_cache,
-    clear_tuple_cache_by_context,
-    get_query_context_database,
-    get_query_context_label,
-)
-from ._manager_metadata_runtime import (
-    normalize_ddl_result as normalize_manager_ddl_result,
-    parse_charset_collation_result,
-    parse_column_charset_collation_row,
-)
+from ._metadata_cache import CacheManager
+from ._metadata_context import CacheKeyFactory, MetadataContextResolver
+from ._metadata_parser import CharsetCollationParser, DDLNormalizer
 
 
 class DatabaseManagerSharedMixin:
@@ -57,37 +42,30 @@ class DatabaseManagerSharedMixin:
     # Cache helpers
     # ------------------------------------------------------------------
 
+    def _cache_manager(self) -> CacheManager:
+        return CacheManager(db_cache=self.db_cache, relationship_cache=self.relationship_cache, logger=self.logger)
+
     def _clear_all_caches(self) -> None:
         """Limpia completamente todas las cachés de metadatos."""
-        clear_all_caches(db_cache=self.db_cache, relationship_cache=self.relationship_cache, logger=self.logger)
+        self._cache_manager().clear_all()
 
     def _clear_table_cache(self, context: str, table: str) -> None:
         """Limpia caché para una tabla/vista específica."""
-        clear_table_cache(
-            db_cache=self.db_cache,
-            relationship_cache=self.relationship_cache,
-            logger=self.logger,
-            context=context,
-            table=table,
-        )
+        self._cache_manager().clear_table(context=context, table=table)
 
     def _clear_routine_cache(self, context: str, routine: str, routine_type: str | None = None) -> None:
         """Limpia caché para una rutina específica."""
-        clear_routine_cache(
-            db_cache=self.db_cache,
-            logger=self.logger,
-            context=context,
-            routine=routine,
-            routine_type=routine_type,
-        )
+        self._cache_manager().clear_routine(context=context, routine=routine, routine_type=routine_type)
 
     @staticmethod
     def _clear_tuple_cache_by_context(cache: dict[tuple[Any, ...], Any], context: str) -> None:
-        clear_tuple_cache_by_context(cache, context)
+        keys_to_remove: list[tuple[Any, ...]] = [key for key in cache if key and str(key[0]) == context]
+        for cache_key in keys_to_remove:
+            cache.pop(cache_key, None)
 
     def _clear_context_cache(self, context: str) -> None:
         """Limpia caché para un contexto/schema específico."""
-        clear_context_cache(db_cache=self.db_cache, logger=self.logger, context=context)
+        self._cache_manager().clear_context(context=context)
 
     def clear_cache(
         self,
@@ -124,7 +102,7 @@ class DatabaseManagerSharedMixin:
 
     def _get_query_context_database(self) -> str:
         """Obtiene el contexto de esquema/base para consultas de metadatos."""
-        return get_query_context_database(
+        return MetadataContextResolver.get_context_database(
             db_type=self.db_type,
             database=self.database,
             conn_params=self.conn_params,
@@ -132,11 +110,11 @@ class DatabaseManagerSharedMixin:
 
     def _get_query_context_label(self) -> str:
         """Obtiene etiqueta descriptiva del contexto de consultas de metadatos."""
-        return get_query_context_label(self.db_type)
+        return MetadataContextResolver.get_context_label(self.db_type)
 
     def _add_metadata_context_params(self, params: dict[str, Any], context: str | None) -> dict[str, Any]:
         """Añade parámetros de contexto metadata según motor."""
-        return add_metadata_context_params(db_type=self.db_type, params=params, context=context)
+        return MetadataContextResolver.add_context_params(db_type=self.db_type, params=params, context=context)
 
     def get_query_context_database(self) -> str:
         """Expone el contexto de metadatos (schema/database) para consumidores externos."""
@@ -148,20 +126,20 @@ class DatabaseManagerSharedMixin:
 
     @staticmethod
     def _cache_context_key(context: str) -> str:
-        return cache_context_key(context)
+        return CacheKeyFactory.context_key(context)
 
     def _cache_table_key(self, context_database: str, table_name: str) -> tuple[str, str]:
-        return cache_table_key(context_database, table_name)
+        return CacheKeyFactory.table_key(context_database, table_name)
 
     def _cache_routine_key(self, context_database: str, routine_name: str, routine_type: str) -> tuple[str, str, str]:
-        return cache_routine_key(context_database, routine_name, routine_type)
+        return CacheKeyFactory.routine_key(context_database, routine_name, routine_type)
 
     # ------------------------------------------------------------------
     # Result parsing helpers
     # ------------------------------------------------------------------
 
     def _normalize_ddl_result(self, ddl: Any) -> str:
-        return normalize_manager_ddl_result(ddl)
+        return DDLNormalizer.normalize_result(ddl)
 
     @staticmethod
     def _escape_sql_literal(value: str) -> str:
@@ -169,8 +147,8 @@ class DatabaseManagerSharedMixin:
 
     def _parse_charset_collation_result(self, result: tuple[Any, ...] | None) -> dict[str, Any]:
         """Parsea resultado de database charset/collation según tipo de BD."""
-        return parse_charset_collation_result(self.db_type, result)
+        return CharsetCollationParser(self.logger).parse_db_charset(self.db_type, result)
 
     def _parse_column_charset_collation_row(self, row: tuple[Any, ...]) -> tuple[str, str | None, str | None]:
         """Parsea una fila de resultado de charset/collation de columna según el tipo de BD."""
-        return parse_column_charset_collation_row(self.db_type, row)
+        return CharsetCollationParser(self.logger).parse_column_charset_collation(self.db_type, row)

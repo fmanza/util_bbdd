@@ -139,13 +139,13 @@ class DDLNormalizer:
         for pos in (2, 1, 0):
             if len(ddl) <= pos:
                 continue
-            candidate = DDLNormalizer._extract_preferred_ddl_candidate(ddl[pos])
+            candidate: str = DDLNormalizer._extract_preferred_ddl_candidate(ddl[pos])
             if candidate:
                 return candidate
 
         # Fallback: primer texto no vacío
         for value in ddl:
-            text = DDLNormalizer._extract_any_text(value)
+            text: str = DDLNormalizer._extract_any_text(value)
             if text:
                 return text
 
@@ -165,7 +165,7 @@ class CharsetCollationParser:
         Args:
             logger: Logger para auditoría de parsing
         """
-        self.logger = logger
+        self.logger: logging.Logger = logger
         self._db_charset_parsers = {
             "oracle": self._parse_db_charset_oracle,
             "postgresql": self._parse_db_charset_postgresql,
@@ -180,6 +180,7 @@ class CharsetCollationParser:
             "sqlserver": self._parse_column_charset_collation_collation_only,
             "hsqldb": self._parse_column_charset_collation_collation_only,
             "sqlite": self._parse_column_charset_collation_empty,
+            "mariadb": self._parse_column_charset_collation_mariadb,
         }
 
     def parse_db_charset(self, db_type: str, result: tuple[Any, ...] | None) -> dict[str, Any]:
@@ -248,7 +249,7 @@ class CharsetCollationParser:
             if not oracle_version_text:
                 result = False
             else:
-                result = self._oracle_supports_columns_charset_collation(oracle_version_text)
+                result: bool = self._oracle_supports_columns_charset_collation(oracle_version_text)
             self.logger.debug(f"[oracle] supports_charset_collation: {result}")
             return result
 
@@ -304,6 +305,13 @@ class CharsetCollationParser:
         return (column_name, None, None)
 
     @staticmethod
+    def _parse_column_charset_collation_mariadb(row: tuple[Any, ...], column_name: str) -> ColumnCharsetCollationRow:
+        """Parsea columna MariaDB que expone charset (col 1) y collation (col 2)."""
+        charset: str | None = str(row[1]) if len(row) > 1 else None
+        collation: str | None = str(row[2]) if len(row) > 2 else None
+        return (column_name, charset, collation)
+
+    @staticmethod
     def _oracle_supports_columns_charset_collation(version_text: str) -> bool:
         """Evalúa si una versión Oracle soporta collation por columna."""
         version_match: re.Match[str] | None = re.search(r"Release\s+(\d+)\.(\d+)", version_text)
@@ -314,115 +322,8 @@ class CharsetCollationParser:
         return (major, minor) >= (12, 2)
 
 
-# Compatibilidad: Wrappers deprecated que delegan a las nuevas clases
-def is_lob(value: Any) -> bool:
-    """Indica si el valor expone API de lectura tipo LOB (deprecated).
-
-    Use: DDLNormalizer.is_lob() en su lugar.
-    """
-    return DDLNormalizer.is_lob(value)
-
-
-def read_lob(value: Any) -> str:
-    """Lee de forma segura un valor tipo LOB (deprecated).
-
-    Use: DDLNormalizer.read_lob() en su lugar.
-    """
-    return DDLNormalizer.read_lob(value)
-
-
-def contains_create(text: str) -> bool:
-    """Indica si el texto contiene una sentencia CREATE (deprecated).
-
-    Use: DDLNormalizer.contains_create() en su lugar.
-    """
-    return DDLNormalizer.contains_create(text)
-
-
-def normalize_ddl_result(ddl: Any) -> str:
-    """Normaliza resultados heterogéneos de consultas DDL a texto (deprecated).
-
-    Use: DDLNormalizer.normalize_result() en su lugar.
-    """
-    return DDLNormalizer.normalize_result(ddl)
-
-
-def parse_db_charset_oracle(result: tuple[Any, ...]) -> dict[str, Any]:
-    """Parsea metadata charset/collation de Oracle (deprecated)."""
-    return CharsetCollationParser._parse_db_charset_oracle(result)
-
-
-def parse_db_charset_postgresql(result: tuple[Any, ...]) -> dict[str, Any]:
-    """Parsea metadata charset/collation de PostgreSQL (deprecated)."""
-    return CharsetCollationParser._parse_db_charset_postgresql(result)
-
-
-def parse_db_charset_single_field(result: tuple[Any, ...], field_name: str) -> dict[str, Any]:
-    """Parsea metadata charset/collation de un único campo (deprecated)."""
-    return CharsetCollationParser._parse_db_charset_single_field(result, field_name)
-
-
-def parse_charset_collation_result(db_type: str, result: tuple[Any, ...] | None) -> dict[str, Any]:
-    """Parsea resultado de charset/collation de base de datos según motor (deprecated)."""
-    from ..metadata.mariadb import parse_mariadb_db_charset
-
-    if not result:
-        return {}
-
-    parser_map = {
-        "mariadb": parse_mariadb_db_charset,
-        "oracle": parse_db_charset_oracle,
-        "postgresql": parse_db_charset_postgresql,
-        "sqlserver": lambda row: parse_db_charset_single_field(row, "collation"),
-        "hsqldb": lambda row: parse_db_charset_single_field(row, "collation"),
-        "sqlite": lambda row: parse_db_charset_single_field(row, "encoding"),
-    }
-    parser = parser_map.get(db_type, lambda _row: {})
-    return parser(result)
-
-
-def parse_column_charset_collation_row(db_type: str, row: tuple[Any, ...]) -> ColumnCharsetCollationRow:
-    """Parsea una fila de charset/collation por columna según motor (deprecated)."""
-    from ..metadata.mariadb import parse_mariadb_column_charset_collation_row
-
-    column_name: str = str(row[0]) if len(row) > 0 else ""
-    parser_map = {
-        "mariadb": parse_mariadb_column_charset_collation_row,
-        "oracle": lambda r, cn: CharsetCollationParser._parse_column_charset_collation_collation_only(r, cn),
-        "postgresql": lambda r, cn: CharsetCollationParser._parse_column_charset_collation_collation_only(r, cn),
-        "sqlserver": lambda r, cn: CharsetCollationParser._parse_column_charset_collation_collation_only(r, cn),
-        "hsqldb": lambda r, cn: CharsetCollationParser._parse_column_charset_collation_collation_only(r, cn),
-        "sqlite": lambda r, cn: CharsetCollationParser._parse_column_charset_collation_empty(r, cn),
-    }
-    parser = parser_map.get(db_type, lambda r, cn: CharsetCollationParser._parse_column_charset_collation_empty(r, cn))
-    return parser(row, column_name)
-
-
-def oracle_supports_columns_charset_collation(version_text: str) -> bool:
-    """Evalúa si una versión Oracle soporta collation por columna (deprecated)."""
-    return CharsetCollationParser._oracle_supports_columns_charset_collation(version_text)
-
-
-def supports_columns_charset_collation(db_type: str, oracle_supported: bool | None = None) -> bool:
-    """Indica si el motor soporta metadata fiable de charset/collation por columna (deprecated)."""
-    if db_type == "oracle":
-        return bool(oracle_supported) if oracle_supported is not None else False
-    return db_type != "sqlite"
-
-
 __all__: list[str] = [
     "DDLNormalizer",
     "CharsetCollationParser",
     "ColumnCharsetCollationRow",
-    "is_lob",
-    "read_lob",
-    "contains_create",
-    "normalize_ddl_result",
-    "parse_db_charset_oracle",
-    "parse_db_charset_postgresql",
-    "parse_db_charset_single_field",
-    "parse_charset_collation_result",
-    "parse_column_charset_collation_row",
-    "oracle_supports_columns_charset_collation",
-    "supports_columns_charset_collation",
 ]

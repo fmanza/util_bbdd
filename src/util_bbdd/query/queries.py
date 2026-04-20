@@ -1,11 +1,7 @@
-"""
-Módulo unificado para manejo de consultas de base de datos - Version refactorizada PR 5
-Delegación de responsabilidades:
-- QueryRegistry: Carga de queries desde SQL
-- QueryResolver: Validación y resolución de queries
-- DatabaseTypeValidator: Validación especializada por motor
+"""Manejo unificado de consultas de base de datos multi-motor.
 
-Soporta MariaDB, Oracle, PostgreSQL, HSQLDB, SQL Server y SQLite
+Delega en QueryRegistry (carga), QueryResolver (validación/resolución) y
+DatabaseTypeValidator. Soporta MariaDB, Oracle, PostgreSQL, HSQLDB, SQL Server y SQLite.
 """
 
 import json
@@ -14,6 +10,8 @@ import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
+
+from util_bbdd.models import QueryDefinition, ResolvedQuery
 
 from .._drivers.validator import DatabaseTypeValidator
 from ._documentation import build_query_documentation, build_query_info, get_query_dependencies
@@ -77,7 +75,6 @@ class DatabaseQueries:
         """
         self.logger: logging.Logger = logging.getLogger(__name__)
 
-        # Validar que el tipo de base de datos esté soportado
         supported_types: list[str] = [
             "mariadb",
             "oracle",
@@ -92,35 +89,23 @@ class DatabaseQueries:
         self.db_type: str = db_type.lower()
         self.logger.debug(f"✅ Inicializando DatabaseQueries para {self.db_type}")
 
-        # PR 5: Delegar carga de queries a QueryRegistry
         self.registry: QueryRegistry = QueryRegistry(queries_file)
         self.logger.debug("✅ QueryRegistry inicializado")
 
-        # PR 5: Delegar resolución de queries a QueryResolver
         self.resolver: QueryResolver = QueryResolver(self.registry, db_type=self.db_type)
         self.logger.debug("✅ QueryResolver inicializado")
 
         self.logger.debug(f"✅ {len(self.registry.get_available_queries(self.db_type))} consultas cargadas")
 
-        # Inicializar validador de tipos de BD para obtener metadatos
         self.db_validator: DatabaseTypeValidator = DatabaseTypeValidator(config_file)
-        # Nota: No redundar validate_db_type() aquí, ya validado en línea 68
-
-        # Cargar metadatos adicionales del tipo de BD
         self.db_metadata: dict[str, Any] = self.db_validator.get_db_type_info(db_type)
         self.config_examples: dict[str, Any] = self.db_validator.get_db_type_examples(db_type)
-
-    # PR 5: _load_queries now delegated to QueryRegistry
-    # This method is kept for backward compatibility but should not be called directly
 
     # ==================== MÉTODOS DE CONSULTA BÁSICOS ====================
 
     def get_query(self, query_name: str, **kwargs) -> str:
         """
         Obtiene una consulta SQL formateada con los parámetros proporcionados
-
-        PR 5: Now delegates to QueryResolver for validation and parameter interpolation
-        Para backward compatibility: si no hay kwargs, devuelve el template directo
 
         Args:
             query_name: Nombre de la consulta a obtener
@@ -134,14 +119,11 @@ class DatabaseQueries:
             QueryValidationError: Si los parámetros no son válidos
         """
         try:
-            # PR 5: For backward compatibility, allow getting template without params
             if not kwargs:
-                # Get template directly from registry without validation
-                qdef = self.registry.get_query_definition(self.db_type, query_name)
+                qdef: QueryDefinition = self.registry.get_query_definition(self.db_type, query_name)
                 return qdef.sql_template
 
-            # PR 5: With params, delegate to resolver for validation and interpolation
-            resolved = self.resolver.resolve(query_name, kwargs)
+            resolved: ResolvedQuery = self.resolver.resolve(query_name, kwargs)
             return resolved.final_sql
         except Exception as e:
             self.logger.error(f"❌ Error obteniendo query '{query_name}': {e}")
@@ -330,11 +312,6 @@ class DatabaseQueries:
         # HSQLDB no expone vista SQL estándar para tamaños de fichero físico.
         return {}
 
-    @property
-    def queries(self) -> dict[str, dict[str, str]]:
-        """Compatibilidad legacy: expone las queries gestionadas por QueryRegistry."""
-        return self.registry.queries
-
     # ==================== MÉTODOS DE INFORMACIÓN DE CONSULTAS ====================
 
     def get_all_queries(self) -> dict[str, str]:
@@ -372,7 +349,7 @@ class DatabaseQueries:
         """
         # Validación única: QueryResolver ya aplica validador por motor.
         try:
-            resolved = self.resolver.resolve(query_name, kwargs)
+            resolved: ResolvedQuery = self.resolver.resolve(query_name, kwargs)
             return True, list(resolved.warnings)
         except Exception as e:
             return False, [f"Parámetros inválidos o faltantes para la consulta '{query_name}': {str(e)}"]
@@ -409,7 +386,7 @@ class DatabaseQueries:
 
     def get_installation_commands(self) -> dict[str, Any]:
         """Obtiene los comandos de instalación para el tipo de base de datos"""
-        driver_info = self.get_driver_requirements()
+        driver_info: dict[str, Any] = self.get_driver_requirements()
         return {
             "pip": driver_info.get("install_command", ""),
             "system_requirements": driver_info.get("system_requirements", []),

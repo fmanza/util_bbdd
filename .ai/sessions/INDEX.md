@@ -38,6 +38,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-04-18-phase4b | **tech-debt Phase 4B** — logging completado en managers, metadata, comparar | develop | tech-debt | CLOSED | `2026-04-18-phase4b/01_PHASE_4B_COMPLETE.md` |
 | 2026-04-20-fase3-managers | **refactor: Fase 3 consolidación managers/** — MetadataRequestBuilder, CharsetCollationParser, DDLNormalizer (v0.6.9) | develop | refactor | IN_PROGRESS | `2026-04-20-fase3-managers/TRACEABILITY.md` |
 | 2026-04-20-reorganizacion-docs | **chore: reorganización .ai/sessions y docs/** — archivar docs/plan/, normalizar sesiones sueltas, mover FASE3_MIGRATION_NOTES a sesión | develop | chore | CLOSED | en sesión |
+| 2026-04-21-refactor-legacy-cleanup | **refactor: eliminación completa de legacy** — 31 funciones wrapper deprecated eliminadas de 5 módulos managers/; 6 consumidores migrados a OOP directo; `DatabaseQueries.queries` property eliminada; MariaDB charset/collation gap corregido en `CharsetCollationParser`; 1881 tests verdes | develop | refactor | CLOSED | `2026-04-21-refactor-legacy-cleanup/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 

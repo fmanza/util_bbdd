@@ -154,11 +154,12 @@ class TestDatabaseQueriesInformationMethods:
 class TestDatabaseQueriesDelegation:
     """Tests verifying internal delegation to Registry/Resolver"""
 
-    def test_database_queries_queries_property_delegates_to_registry(self):
-        """queries expone el storage del registry en lugar de cache duplicada."""
+    def test_database_queries_registry_exposes_queries(self):
+        """registry.queries expone el storage de queries cargadas."""
         dq = DatabaseQueries(db_type="mariadb")
 
-        assert dq.queries is dq.registry.queries
+        assert isinstance(dq.registry.queries, dict)
+        assert len(dq.registry.queries) > 0
 
     def test_database_queries_get_query_works_with_kwargs(self):
         """get_query should accept and handle arbitrary kwargs for templating"""

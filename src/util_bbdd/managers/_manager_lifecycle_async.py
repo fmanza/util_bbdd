@@ -30,10 +30,10 @@ class AsyncLifecycleManager:
             logger: Logger para mensajes.
             validators: Validador de tipos de base de datos (opcional).
         """
-        self.db_type = db_type.lower().strip()
-        self.conn_params = conn_params
+        self.db_type: str = db_type.lower().strip()
+        self.conn_params: dict[str, Any] = conn_params
         self.logger: logging.Logger = logger
-        self.validators = validators
+        self.validators: DatabaseTypeValidator | None = validators
 
     async def initialize_pool(self, pool_factory_func: Callable[..., Awaitable[Any]]) -> Any | None:
         """
@@ -90,7 +90,7 @@ class AsyncLifecycleManager:
             if hasattr(connection, "aclose"):
                 await connection.aclose()
             elif hasattr(connection, "close") and callable(connection.close):
-                result = connection.close()
+                result: object = connection.close()
                 if inspect.iscoroutine(result):
                     await result
             self.logger.debug("🔌 Conexión async cerrada")

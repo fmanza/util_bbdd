@@ -75,7 +75,7 @@ class _SyncOracleStorageStrategy:
         tablespace: str | None,
     ) -> dict[str, Any]:
         del context_database
-        resolved_tablespace = _require_tablespace("Oracle", tablespace)
+        resolved_tablespace: str = _require_tablespace("Oracle", tablespace)
         return {
             "primary": manager.execute_query_many("ficheros_fisicos", tablespace=resolved_tablespace),
             "temp_tablespaces": manager.execute_query_many("temp_tablespaces", tablespace=resolved_tablespace),
@@ -103,7 +103,7 @@ class _SyncPostgreSQLStorageStrategy:
         tablespace: str | None,
     ) -> dict[str, Any]:
         del context_database
-        resolved_tablespace = _require_tablespace("PostgreSQL", tablespace)
+        resolved_tablespace: str = _require_tablespace("PostgreSQL", tablespace)
         return {
             "primary": manager.execute_query_many("ficheros_fisicos", tablespace=resolved_tablespace),
             "temp_tablespaces": manager.execute_query_many("temp_tablespaces"),
@@ -162,7 +162,7 @@ class _AsyncOracleStorageStrategy:
         tablespace: str | None,
     ) -> dict[str, Any]:
         del context_database
-        resolved_tablespace = _require_tablespace("Oracle", tablespace)
+        resolved_tablespace: str = _require_tablespace("Oracle", tablespace)
         return {
             "primary": await manager.execute_query_many("ficheros_fisicos", tablespace=resolved_tablespace),
             "temp_tablespaces": await manager.execute_query_many("temp_tablespaces", tablespace=resolved_tablespace),

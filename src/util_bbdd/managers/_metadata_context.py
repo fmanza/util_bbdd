@@ -135,62 +135,7 @@ class CacheKeyFactory:
         )
 
 
-# Compatibilidad: Wrappers deprecated que delegan a las nuevas clases
-def get_query_context_database(*, db_type: str, database: str, conn_params: dict[str, Any]) -> str:
-    """Resuelve el contexto schema/database para queries de metadata (deprecated).
-
-    Use: MetadataContextResolver.get_context_database() en su lugar.
-    """
-    return MetadataContextResolver.get_context_database(db_type=db_type, database=database, conn_params=conn_params)
-
-
-def get_query_context_label(db_type: str) -> str:
-    """Devuelve la etiqueta descriptiva del contexto metadata (deprecated).
-
-    Use: MetadataContextResolver.get_context_label() en su lugar.
-    """
-    return MetadataContextResolver.get_context_label(db_type)
-
-
-def add_metadata_context_params(*, db_type: str, params: dict[str, Any], context: str | None) -> dict[str, Any]:
-    """Añade parámetros de contexto metadata según el motor (deprecated).
-
-    Use: MetadataContextResolver.add_context_params() en su lugar.
-    """
-    return MetadataContextResolver.add_context_params(db_type=db_type, params=params, context=context)
-
-
-def cache_context_key(context_database: str) -> str:
-    """Normaliza la clave de contexto para cachés (deprecated).
-
-    Use: CacheKeyFactory.context_key() en su lugar.
-    """
-    return CacheKeyFactory.context_key(context_database)
-
-
-def cache_table_key(context_database: str, table_name: str) -> tuple[str, str]:
-    """Construye clave de caché por tabla (deprecated).
-
-    Use: CacheKeyFactory.table_key() en su lugar.
-    """
-    return CacheKeyFactory.table_key(context_database, table_name)
-
-
-def cache_routine_key(context_database: str, routine_name: str, routine_type: str) -> tuple[str, str, str]:
-    """Construye clave de caché por rutina (deprecated).
-
-    Use: CacheKeyFactory.routine_key() en su lugar.
-    """
-    return CacheKeyFactory.routine_key(context_database, routine_name, routine_type)
-
-
 __all__: list[str] = [
     "MetadataContextResolver",
     "CacheKeyFactory",
-    "get_query_context_database",
-    "get_query_context_label",
-    "add_metadata_context_params",
-    "cache_context_key",
-    "cache_table_key",
-    "cache_routine_key",
 ]

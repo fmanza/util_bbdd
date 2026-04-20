@@ -31,9 +31,9 @@ class CacheManager:
             relationship_cache: Caché de relaciones
             logger: Logger para auditoría de operaciones de caché
         """
-        self.db_cache = db_cache
-        self.relationship_cache = relationship_cache
-        self.logger = logger
+        self.db_cache: DatabaseMetadataCache = db_cache
+        self.relationship_cache: RelationshipMetadataCache = relationship_cache
+        self.logger: logging.Logger = logger
 
     def clear_all(self) -> None:
         """Limpia todas las cachés de metadata y relaciones.
@@ -169,84 +169,6 @@ class CacheManager:
             raise
 
 
-# Compatibilidad: Wrappers deprecated que delegan a CacheManager
-def clear_all_caches(
-    *,
-    db_cache: DatabaseMetadataCache,
-    relationship_cache: RelationshipMetadataCache,
-    logger: logging.Logger,
-) -> None:
-    """Limpia todas las cachés de metadata y relaciones (deprecated).
-
-    Use: CacheManager.clear_all() en su lugar.
-    """
-    manager = CacheManager(db_cache=db_cache, relationship_cache=relationship_cache, logger=logger)
-    manager.clear_all()
-
-
-def clear_table_cache(
-    *,
-    db_cache: DatabaseMetadataCache,
-    relationship_cache: RelationshipMetadataCache,
-    logger: logging.Logger,
-    context: str,
-    table: str,
-) -> None:
-    """Limpia la caché asociada a una tabla o vista (deprecated).
-
-    Use: CacheManager.clear_table() en su lugar.
-    """
-    manager = CacheManager(db_cache=db_cache, relationship_cache=relationship_cache, logger=logger)
-    manager.clear_table(context=context, table=table)
-
-
-def clear_routine_cache(
-    *,
-    db_cache: DatabaseMetadataCache,
-    logger: logging.Logger,
-    context: str,
-    routine: str,
-    routine_type: str | None = None,
-) -> None:
-    """Limpia la caché asociada a una rutina concreta (deprecated).
-
-    Use: CacheManager.clear_routine() en su lugar.
-    """
-    # Crear un mock relationship_cache para mantener compatibilidad
-    from ..metadata import RelationshipMetadataCache
-
-    relationship_cache = RelationshipMetadataCache()
-    manager = CacheManager(db_cache=db_cache, relationship_cache=relationship_cache, logger=logger)
-    manager.clear_routine(context=context, routine=routine, routine_type=routine_type)
-
-
-def clear_tuple_cache_by_context(cache: dict[tuple[Any, ...], Any], context: str) -> None:
-    """Elimina entradas de caché cuya primera posición coincide con el contexto (deprecated).
-
-    Use: CacheManager.clear_context() en su lugar (interno, no uso directo).
-    """
-    keys_to_remove: list[tuple[Any, ...]] = [key for key in cache if key and str(key[0]) == context]
-    for cache_key in keys_to_remove:
-        cache.pop(cache_key, None)
-
-
-def clear_context_cache(*, db_cache: DatabaseMetadataCache, logger: logging.Logger, context: str) -> None:
-    """Limpia todas las entradas de caché asociadas a un contexto (deprecated).
-
-    Use: CacheManager.clear_context() en su lugar.
-    """
-    from ..metadata import RelationshipMetadataCache
-
-    relationship_cache = RelationshipMetadataCache()
-    manager = CacheManager(db_cache=db_cache, relationship_cache=relationship_cache, logger=logger)
-    manager.clear_context(context=context)
-
-
 __all__: list[str] = [
     "CacheManager",
-    "clear_all_caches",
-    "clear_table_cache",
-    "clear_routine_cache",
-    "clear_tuple_cache_by_context",
-    "clear_context_cache",
 ]

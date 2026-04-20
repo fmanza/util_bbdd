@@ -7,7 +7,7 @@ import logging
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from sqlalchemy.engine.base import Engine
 
@@ -52,22 +52,16 @@ from ..metadata.mariadb import (
 from ..query import DatabaseQueries
 from ..results import RowOrNone
 from ._manager_cache_service import CacheService
-from ._manager_lifecycle import close_sync_resources
+from ._manager_lifecycle import SyncConnectionLifecycleManager
 from ._manager_lifecycle_sync import SyncLifecycleManager
 from ._manager_metadata_factory import MetadataStrategyFactory
 from ._manager_metadata_runtime import (
     MetadataFetchRequest,
-    build_columns_fetch_request,
-    build_routine_ddl_fetch_request,
-    build_routine_parameters_fetch_request,
-    build_routines_fetch_request,
-    build_table_ddl_fetch_request,
-    build_view_ddl_fetch_request,
-    oracle_supports_columns_charset_collation,
-    supports_columns_charset_collation as supports_manager_columns_charset_collation,
+    MetadataRequestBuilder,
 )
 from ._manager_session import SyncSessionManager
 from ._manager_shared_mixin import DatabaseManagerSharedMixin
+from ._metadata_parser import CharsetCollationParser
 
 
 class SyncDatabaseManager(DatabaseManagerSharedMixin):
@@ -121,7 +115,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
         self._db_validator: DatabaseTypeValidator | None = None
 
         # Normalizar tipo de BD
-        normalized_db_type = db_type.lower()
+        normalized_db_type: str = db_type.lower()
         self._default_close_timeout_seconds: float | None = parse_close_timeout(conn_params.get("close_timeout", 10))
 
         try:
@@ -201,7 +195,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
     def _filter_connection_params(self, db_type: str) -> dict:
         """Filtra parámetros de conexión válidos."""
         try:
-            filtered = ConnectionParamsManager.sanitize_for_connection(
+            filtered: dict[str, Any] = ConnectionParamsManager.sanitize_for_connection(
                 db_type,
                 self.conn_params,
                 driver=self.sql_server_driver if db_type == "sqlserver" else None,
@@ -299,8 +293,10 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
 
     def close(self, timeout_seconds: float | None = None, force: bool = False) -> None:
         """Cierra la conexión a la base de datos y libera recursos del pool."""
-        effective_timeout = self._default_close_timeout_seconds if timeout_seconds is None else timeout_seconds
-        pool = self.pool_connection
+        effective_timeout: float | None = (
+            self._default_close_timeout_seconds if timeout_seconds is None else timeout_seconds
+        )
+        pool: ConnectionPoolProtocol | None = self.pool_connection
         self.pool_connection = None
         cursor = self.cursor
         self.cursor = None
@@ -318,12 +314,10 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
             )
         else:
             # Fallback para tests que creen el manager sin pasar __init__
-            close_sync_resources(
+            SyncConnectionLifecycleManager(self.db_type, self.logger).close_resources(
                 pool_connection=pool,
                 cursor=cursor,
                 connection=connection,
-                logger=self.logger,
-                db_type=self.db_type,
                 timeout_seconds=effective_timeout,
                 force=force,
             )
@@ -367,8 +361,8 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
         timeout: float | None,
         expect_one: bool,
     ) -> RowOrNone | Rows:
-        executor = self._get_sync_query_executor()
-        mode = "one" if expect_one else "many"
+        executor: SyncQueryExecutor = self._get_sync_query_executor()
+        mode: Literal["one"] | Literal["many"] = "one" if expect_one else "many"
         self.logger.debug(f"📄 Ejecutando consulta ({mode}): {query_name}")
         execute = executor.execute_query_one if expect_one else executor.execute_query_many
         result = self._run_manager_operation(
@@ -392,8 +386,8 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
         timeout: float | None,
         expect_one: bool,
     ) -> RowOrNone | Rows:
-        executor = self._get_sync_query_executor()
-        mode = "one" if expect_one else "many"
+        executor: SyncQueryExecutor = self._get_sync_query_executor()
+        mode: Literal["one"] | Literal["many"] = "one" if expect_one else "many"
         self.logger.debug(f"📝 Ejecutando consulta SQL personalizada ({mode})")
         execute = executor.execute_custom_one if expect_one else executor.execute_custom_many
         result = self._run_manager_operation(
@@ -405,7 +399,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
         return cast(RowOrNone | Rows, result)
 
     def _get_mariadb_adapter(self) -> MariaDBSyncAdapter:
-        adapter = getattr(self, "_mariadb_adapter", None)
+        adapter: Any | None = getattr(self, "_mariadb_adapter", None)
         if adapter is None:
             adapter = MariaDBSyncAdapter(self)
             self._mariadb_adapter = adapter
@@ -426,8 +420,8 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
         Raises:
             DatabaseConfigurationError: Si no hay adapter registrado para el driver
         """
-        cache_key = f"_adapter_sync_{adapter_type}"
-        cached_adapter = getattr(self, cache_key, None)
+        cache_key: str = f"_adapter_sync_{adapter_type}"
+        cached_adapter: Any | None = getattr(self, cache_key, None)
         if cached_adapter is not None:
             return cached_adapter
 
@@ -437,7 +431,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
         elif adapter_type == "routine":
             adapter_class = registry.get_routine_adapter_sync(self.db_type)
         else:
-            msg = f"Tipo de adapter inválido: {adapter_type}. Use 'source' o 'routine'."
+            msg: str = f"Tipo de adapter inválido: {adapter_type}. Use 'source' o 'routine'."
             raise ValueError(msg)
 
         if adapter_class is None:
@@ -467,14 +461,14 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
 
     def _get_routines_fetcher(self, context_database: str) -> Callable[[], Rows]:
         return self._metadata_fetch_strategy.build_sync_rows_fetcher(
-            request=build_routines_fetch_request(context_database),
+            request=MetadataRequestBuilder.routines(context_database),
             specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_routines(context_database),
             execute_many=self._execute_metadata_fetch_request_many,
         )
 
     def _get_table_ddl_fetcher(self, context_database: str, tabla: str) -> Callable[[], str]:
         return self._metadata_fetch_strategy.build_sync_text_fetcher(
-            request=build_table_ddl_fetch_request(
+            request=MetadataRequestBuilder.table_ddl(
                 context_database,
                 tabla,
                 self._add_metadata_context_params,
@@ -486,7 +480,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
 
     def _get_view_ddl_fetcher(self, context_database: str, vista: str) -> Callable[[], str]:
         return self._metadata_fetch_strategy.build_sync_text_fetcher(
-            request=build_view_ddl_fetch_request(
+            request=MetadataRequestBuilder.view_ddl(
                 context_database,
                 vista,
                 self._add_metadata_context_params,
@@ -501,7 +495,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
 
     def _get_columns_fetcher(self, context_database: str, tabla: str) -> Callable[[], Rows]:
         return self._metadata_fetch_strategy.build_sync_rows_fetcher(
-            request=build_columns_fetch_request(context_database, tabla),
+            request=MetadataRequestBuilder.columns(context_database, tabla),
             specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_columns_safe(context_database, tabla),
             execute_many=self._execute_metadata_fetch_request_many,
         )
@@ -518,7 +512,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
                 routine_name=rutina,
                 routine_type=routine_type,
             ),
-            request=build_routine_parameters_fetch_request(
+            request=MetadataRequestBuilder.routine_parameters(
                 context_database,
                 rutina,
                 routine_type,
@@ -538,7 +532,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
                 routine_name=rutina,
                 routine_type=routine_type,
             ),
-            request=build_routine_ddl_fetch_request(
+            request=MetadataRequestBuilder.routine_ddl(
                 context_database,
                 rutina,
                 routine_type,
@@ -977,7 +971,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
         context_label: str = self._get_query_context_label()
         cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
 
-        rows = self._get_cached_rows(
+        rows: list[Any] = self._get_cached_rows(
             cache_lookup=lambda: cache_lookup(cache_key),
             cache_store=lambda items: cache_store(cache_key, cast(Rows, items)),
             fetch_rows=lambda: self._execute_metadata_many(
@@ -1125,14 +1119,14 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
         if self.db_type == "oracle":
             cached_support = getattr(self, "_oracle_column_collation_supported", None)
             if cached_support is not None:
-                return supports_manager_columns_charset_collation(self.db_type, bool(cached_support))
+                return bool(cached_support)
 
-            version_text = self.get_database_version()
-            supported = oracle_supports_columns_charset_collation(version_text)
+            version_text: str = self.get_database_version()
+            supported: bool = CharsetCollationParser._oracle_supports_columns_charset_collation(version_text)
             self._oracle_column_collation_supported = supported
-            return supports_manager_columns_charset_collation(self.db_type, supported)
+            return supported
 
-        return supports_manager_columns_charset_collation(self.db_type)
+        return self.db_type != "sqlite"
 
     def get_database_charset_collation(self) -> dict[str, Any]:
         """
@@ -1171,8 +1165,8 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
             DatabaseOperationError: Si hay error en la operación
         """
         context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        cache_key = self._cache_table_key(context_database, tabla)
+        context_label: str = self._get_query_context_label()
+        cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
 
         if not self._supports_columns_charset_collation():
             self.logger.debug(
@@ -1221,7 +1215,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
             Diccionario con claves explicitas por capacidad (`primary`,
             `temp_tablespaces`, `sqlite_file_summary`).
         """
-        context_database = self._get_query_context_database()
+        context_database: str = self._get_query_context_database()
         result = self._run_metadata_operation(
             action=lambda: self._storage_inventory_strategy.execute(self, context_database, tablespace),
             error_message="Error obteniendo inventario de almacenamiento",
@@ -1557,7 +1551,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
         Returns:
             True si está soportado, False en caso contrario
         """
-        validator = get_database_validator()
+        validator: DatabaseTypeValidator = get_database_validator()
         return validator.is_db_type_supported(db_type)
 
     @staticmethod

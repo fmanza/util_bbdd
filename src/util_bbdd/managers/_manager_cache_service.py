@@ -7,16 +7,8 @@ import logging
 from typing import Any
 
 from ..metadata.cache import DatabaseMetadataCache, RelationshipMetadataCache
-from ._manager_metadata import (
-    cache_context_key,
-    cache_routine_key,
-    cache_table_key,
-    clear_all_caches,
-    clear_context_cache,
-    clear_routine_cache,
-    clear_table_cache,
-    clear_tuple_cache_by_context,
-)
+from ._metadata_cache import CacheManager
+from ._metadata_context import CacheKeyFactory
 
 
 class CacheService:
@@ -36,61 +28,50 @@ class CacheService:
             relationship_cache: Caché de relaciones.
             logger: Logger para mensajes de debug/info.
         """
-        self.db_cache = db_cache
-        self.relationship_cache = relationship_cache
-        self.logger = logger
+        self.db_cache: DatabaseMetadataCache = db_cache
+        self.relationship_cache: RelationshipMetadataCache = relationship_cache
+        self.logger: logging.Logger = logger
+
+    def _cache_manager(self) -> CacheManager:
+        return CacheManager(db_cache=self.db_cache, relationship_cache=self.relationship_cache, logger=self.logger)
 
     def clear_all(self) -> None:
         """Limpia completamente todas las cachés."""
-        clear_all_caches(
-            db_cache=self.db_cache,
-            relationship_cache=self.relationship_cache,
-            logger=self.logger,
-        )
+        self._cache_manager().clear_all()
 
     def clear_table(self, context: str, table: str) -> None:
         """Limpia caché para una tabla/vista específica."""
-        clear_table_cache(
-            db_cache=self.db_cache,
-            relationship_cache=self.relationship_cache,
-            logger=self.logger,
-            context=context,
-            table=table,
-        )
+        self._cache_manager().clear_table(context=context, table=table)
 
     def clear_routine(self, context: str, routine: str, routine_type: str | None = None) -> None:
         """Limpia caché para una rutina específica."""
-        clear_routine_cache(
-            db_cache=self.db_cache,
-            logger=self.logger,
-            context=context,
-            routine=routine,
-            routine_type=routine_type,
-        )
+        self._cache_manager().clear_routine(context=context, routine=routine, routine_type=routine_type)
 
     def clear_context(self, context: str) -> None:
         """Limpia caché para un contexto/schema específico."""
-        clear_context_cache(db_cache=self.db_cache, logger=self.logger, context=context)
+        self._cache_manager().clear_context(context=context)
 
     @staticmethod
     def clear_tuple_cache_by_context(cache: dict[tuple[Any, ...], Any], context: str) -> None:
         """Limpia caché tuple para un contexto específico."""
-        clear_tuple_cache_by_context(cache, context)
+        keys_to_remove: list[tuple[Any, ...]] = [key for key in cache if key and str(key[0]) == context]
+        for cache_key in keys_to_remove:
+            cache.pop(cache_key, None)
 
     @staticmethod
     def get_context_key(context: str) -> str:
         """Genera clave de caché para contexto."""
-        return cache_context_key(context)
+        return CacheKeyFactory.context_key(context)
 
     @staticmethod
     def get_table_key(context_database: str, table_name: str) -> tuple[str, str]:
         """Genera clave de caché para tabla."""
-        return cache_table_key(context_database, table_name)
+        return CacheKeyFactory.table_key(context_database, table_name)
 
     @staticmethod
     def get_routine_key(context_database: str, routine_name: str, routine_type: str) -> tuple[str, str, str]:
         """Genera clave de caché para rutina."""
-        return cache_routine_key(context_database, routine_name, routine_type)
+        return CacheKeyFactory.routine_key(context_database, routine_name, routine_type)
 
 
-__all__ = ["CacheService"]
+__all__: list[str] = ["CacheService"]

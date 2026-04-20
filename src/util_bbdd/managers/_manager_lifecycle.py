@@ -160,63 +160,12 @@ class SyncConnectionLifecycleManager:
                 self.logger.error(f"[{self.db_type}] Error cerrando conexión: {error}", exc_info=True)
 
         if close_errors:
-            error_details = " | ".join(str(error) for error in close_errors)
+            error_details: str = " | ".join(str(error) for error in close_errors)
             raise DatabaseOperationError(
                 message=f"Errores cerrando recursos de base de datos: {error_details}",
                 operation="CLOSE",
                 db_type=self.db_type,
             ) from close_errors[0]
-
-
-# Compatibilidad: Wrappers deprecated que delegan a SyncConnectionLifecycleManager
-def get_sync_connection(
-    *,
-    pool_connection: Any,
-    connection: Any,
-    db_type: str,
-    logger: logging.Logger,
-) -> Any:
-    """Obtiene una conexión sync desde pool o conexión directa (deprecated).
-
-    Use: SyncConnectionLifecycleManager.get_connection() en su lugar.
-    """
-    manager = SyncConnectionLifecycleManager(db_type, logger)
-    return manager.get_connection(pool_connection=pool_connection, connection=connection)
-
-
-def release_sync_connection(*, pool_connection: Any, connection: Any | None, logger: logging.Logger) -> None:
-    """Devuelve una conexión sync al pool o la cierra si es directa (deprecated).
-
-    Use: SyncConnectionLifecycleManager.release_connection() en su lugar.
-    """
-    # Extraer db_type del pool si es posible, o usar genérico
-    db_type = getattr(pool_connection, "db_type", "unknown") if pool_connection else "unknown"
-    manager = SyncConnectionLifecycleManager(db_type, logger)
-    manager.release_connection(pool_connection=pool_connection, connection=connection)
-
-
-def close_sync_resources(
-    *,
-    pool_connection: Any,
-    cursor: Any,
-    connection: Any,
-    logger: logging.Logger,
-    db_type: str,
-    timeout_seconds: float | None,
-    force: bool,
-) -> None:
-    """Cierra recursos sync y agrega errores si aparecen varios fallos (deprecated).
-
-    Use: SyncConnectionLifecycleManager.close_resources() en su lugar.
-    """
-    manager = SyncConnectionLifecycleManager(db_type, logger)
-    manager.close_resources(
-        pool_connection=pool_connection,
-        cursor=cursor,
-        connection=connection,
-        timeout_seconds=timeout_seconds,
-        force=force,
-    )
 
 
 async def init_async_resources(
@@ -226,7 +175,7 @@ async def init_async_resources(
     create_connection: Callable[[], Awaitable[Any]],
 ) -> tuple[bool, Any, Any]:
     """Inicializa recursos async resolviendo fallback a conexión directa."""
-    resolved_use_pool = use_pool
+    resolved_use_pool: bool = use_pool
     pool_connection: Any = None
     connection: Any = None
 

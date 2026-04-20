@@ -9,6 +9,11 @@ import re
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
+from util_bbdd._drivers.validator import DatabaseTypeValidator
+from util_bbdd.managers._manager_metadata_runtime import MetadataFetchStrategy
+from util_bbdd.managers._manager_storage import AsyncStorageInventoryStrategy, SyncStorageInventoryStrategy
+from util_bbdd.metadata.adapters._adapter_registry import AdapterRegistry
+
 from .._core.exceptions import DatabaseOperationError, QueryError
 from .._drivers import get_database_validator, get_db_type_info, get_supported_db_types
 from ..async_utils import maybe_await
@@ -56,7 +61,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
     _ERROR_EXECUTOR_NOT_INITIALIZED = "AsyncQueryExecutor no inicializado"
 
     def _get_mariadb_adapter(self) -> MariaDBAsyncAdapter:
-        adapter = getattr(self, "_mariadb_adapter", None)
+        adapter: Any | None = getattr(self, "_mariadb_adapter", None)
         if adapter is None:
             adapter = MariaDBAsyncAdapter(self)
             self._mariadb_adapter = adapter
@@ -79,18 +84,18 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         """
         from .._core.exceptions import DatabaseConfigurationError
 
-        cache_key = f"_adapter_async_{adapter_type}"
-        cached_adapter = getattr(self, cache_key, None)
+        cache_key: str = f"_adapter_async_{adapter_type}"
+        cached_adapter: Any | None = getattr(self, cache_key, None)
         if cached_adapter is not None:
             return cached_adapter
 
-        registry = get_global_adapter_registry()
+        registry: AdapterRegistry = get_global_adapter_registry()
         if adapter_type == "source":
             adapter_class = registry.get_source_adapter_async(self.db_type)
         elif adapter_type == "routine":
             adapter_class = registry.get_routine_adapter_async(self.db_type)
         else:
-            msg = f"Tipo de adapter inválido: {adapter_type}. Use 'source' o 'routine'."
+            msg: str = f"Tipo de adapter inválido: {adapter_type}. Use 'source' o 'routine'."
             raise ValueError(msg)
 
         if adapter_class is None:
@@ -219,7 +224,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
 
         # Validar tipo de BD
         normalized_db_type: str = db_type.lower().strip()
-        validator = get_database_validator()
+        validator: DatabaseTypeValidator = get_database_validator()
         validator.validate_db_type(normalized_db_type)
 
         self.db_type: str = normalized_db_type
@@ -228,8 +233,10 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         self.use_pool: bool = use_pool
 
         # Obtener estrategias via factory
-        self._metadata_fetch_strategy = MetadataStrategyFactory.get_fetch_strategy(self.db_type)
-        self._storage_inventory_strategy = MetadataStrategyFactory.get_async_storage_strategy(self.db_type)
+        self._metadata_fetch_strategy: MetadataFetchStrategy = MetadataStrategyFactory.get_fetch_strategy(self.db_type)
+        self._storage_inventory_strategy: AsyncStorageInventoryStrategy | SyncStorageInventoryStrategy = (
+            MetadataStrategyFactory.get_async_storage_strategy(self.db_type)
+        )
 
         # Inicializar cachés centralizados
         self.db_cache: DatabaseMetadataCache = DatabaseMetadataCache()
@@ -319,7 +326,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
     async def _get_query_executor(self) -> AsyncQueryExecutor:
         """Retorna el executor async o lanza error de dominio."""
         await self._ensure_initialized()
-        executor = self.query_executor
+        executor: AsyncQueryExecutor | None = self.query_executor
         if executor is None:
             self.logger.error("❌ AsyncQueryExecutor no inicializado")
             raise DatabaseOperationError(
@@ -353,7 +360,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         params: dict[str, Any],
         expect_one: bool,
     ) -> RowOrNone | Rows:
-        executor = await self._get_query_executor()
+        executor: AsyncQueryExecutor = await self._get_query_executor()
         execute = executor.execute_query_one if expect_one else executor.execute_query_many
         result = await self._run_manager_operation_async(
             action=lambda: execute(
@@ -373,7 +380,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         params: Any | None,
         expect_one: bool,
     ) -> RowOrNone | Rows:
-        executor = await self._get_query_executor()
+        executor: AsyncQueryExecutor = await self._get_query_executor()
         execute = executor.execute_custom_one if expect_one else executor.execute_custom_many
         result = await self._run_manager_operation_async(
             action=lambda: execute(sql=sql, params=params),
@@ -523,7 +530,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
 
     async def resolve_query(self, query_name: str, **params) -> Any:
         """Resuelve una query registrada y devuelve su SQL final y metadatos."""
-        executor = await self._get_query_executor()
+        executor: AsyncQueryExecutor = await self._get_query_executor()
         return await self._run_manager_operation_async(
             action=lambda: executor.resolver.bind(self.db_type).resolve(query_name, params),
             error_message=f"Error resolviendo consulta: {query_name}",
@@ -554,7 +561,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         error_message: str,
         table_name: str | None = None,
     ) -> Rows:
-        executor = await self._get_query_executor()
+        executor: AsyncQueryExecutor = await self._get_query_executor()
         result = await self._run_manager_operation_async(
             action=lambda: executor.execute_query_many(
                 query_name=query_name,
@@ -575,7 +582,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         error_message: str,
         table_name: str | None = None,
     ) -> RowOrNone:
-        executor = await self._get_query_executor()
+        executor: AsyncQueryExecutor = await self._get_query_executor()
         result = await self._run_manager_operation_async(
             action=lambda: executor.execute_query_one(
                 query_name=query_name,
@@ -598,7 +605,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         success_message: str | None = None,
         fetch_debug_message: str | None = None,
     ) -> list[Any]:
-        cached_rows = cache_lookup()
+        cached_rows: list[Any] | None = cache_lookup()
         if cached_rows is not None:
             if cache_hit_message:
                 self.logger.debug(cache_hit_message)
@@ -620,7 +627,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         cache_hit_message: str | None = None,
         success_message: str | None = None,
     ) -> str:
-        cached_text = cache_lookup()
+        cached_text: str | None = cache_lookup()
         if cached_text is not None:
             if cache_hit_message:
                 self.logger.debug(cache_hit_message)
@@ -675,9 +682,9 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
             >>> asyncio.run(main())
         """
         context_database: str = self._get_query_context_database()
-        cache_key = self._cache_context_key(context_database)
-        context_label = self._get_query_context_label()
-        rows = await self._get_cached_rows_async(
+        cache_key: str = self._cache_context_key(context_database)
+        context_label: str = self._get_query_context_label()
+        rows: list[Any] = await self._get_cached_rows_async(
             cache_lookup=lambda: self.db_cache._tables_cache.get(cache_key),
             cache_store=lambda items: self.db_cache._tables_cache.__setitem__(cache_key, list(items)),
             fetch_rows=lambda: self._execute_metadata_many(
@@ -693,9 +700,9 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
 
     async def get_views(self) -> Rows:
         context_database: str = self._get_query_context_database()
-        cache_key = self._cache_context_key(context_database)
-        context_label = self._get_query_context_label()
-        rows = await self._get_cached_rows_async(
+        cache_key: str = self._cache_context_key(context_database)
+        context_label: str = self._get_query_context_label()
+        rows: list[Any] = await self._get_cached_rows_async(
             cache_lookup=lambda: self.db_cache._views_cache.get(cache_key),
             cache_store=lambda items: self.db_cache._views_cache.__setitem__(cache_key, list(items)),
             fetch_rows=lambda: self._execute_metadata_many(
@@ -714,7 +721,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         cache_key: str = self._cache_context_key(context_database)
         context_label: str = self._get_query_context_label()
 
-        rows = await self._get_cached_rows_async(
+        rows: list[Any] = await self._get_cached_rows_async(
             cache_lookup=lambda: self.db_cache._routines_cache.get(cache_key),
             cache_store=lambda items: self.db_cache._routines_cache.__setitem__(cache_key, list(items)),
             fetch_rows=self._get_routines_fetcher(context_database),
@@ -726,9 +733,9 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
 
     async def get_ddl(self, tabla: str) -> str:
         context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        cache_key = self._cache_table_key(context_database, tabla)
-        fetch_ddl = self._get_table_ddl_fetcher(context_database, tabla)
+        context_label: str = self._get_query_context_label()
+        cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
+        fetch_ddl: Callable[[], Awaitable[str]] = self._get_table_ddl_fetcher(context_database, tabla)
 
         return await self._get_cached_text_async(
             cache_lookup=lambda: self.db_cache._ddl_cache.get(cache_key),
@@ -743,9 +750,9 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
 
     async def get_view_ddl(self, vista: str) -> str:
         context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        cache_key = self._cache_table_key(context_database, vista)
-        fetch_ddl = self._get_view_ddl_fetcher(context_database, vista)
+        context_label: str = self._get_query_context_label()
+        cache_key: tuple[str, str] = self._cache_table_key(context_database, vista)
+        fetch_ddl: Callable[[], Awaitable[str]] = self._get_view_ddl_fetcher(context_database, vista)
 
         return await self._get_cached_text_async(
             cache_lookup=lambda: self.db_cache._view_ddl_cache.get(cache_key),
@@ -795,9 +802,9 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
             >>> asyncio.run(main())
         """
         context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        cache_key = self._cache_table_key(context_database, tabla)
-        rows = await self._get_cached_rows_async(
+        context_label: str = self._get_query_context_label()
+        cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
+        rows: list[Any] = await self._get_cached_rows_async(
             cache_lookup=lambda: self.db_cache.get_columns(cache_key),
             cache_store=lambda items: self.db_cache.set_columns(cache_key, items),
             fetch_rows=self._get_columns_fetcher(context_database, tabla),
@@ -809,10 +816,10 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
 
     async def get_routine_parameters(self, rutina: str, tipo_rutina: str) -> Rows:
         context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        routine_type = str(tipo_rutina or "").upper()
-        cache_key = self._cache_routine_key(context_database, rutina, routine_type)
-        rows = await self._get_cached_rows_async(
+        context_label: str = self._get_query_context_label()
+        routine_type: str = str(tipo_rutina or "").upper()
+        cache_key: tuple[str, str, str] = self._cache_routine_key(context_database, rutina, routine_type)
+        rows: list[Any] = await self._get_cached_rows_async(
             cache_lookup=lambda: self.db_cache._routine_parameters_cache.get(cache_key),
             cache_store=lambda items: self.db_cache._routine_parameters_cache.__setitem__(cache_key, list(items)),
             fetch_rows=self._get_routine_parameters_fetcher(context_database, rutina, routine_type),
@@ -826,10 +833,10 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
 
     async def get_routine_ddl(self, rutina: str, tipo_rutina: str) -> str:
         context_database: str = self._get_query_context_database()
-        context_label = self._get_query_context_label()
-        routine_type = str(tipo_rutina or "").upper()
-        cache_key = self._cache_routine_key(context_database, rutina, routine_type)
-        fetch_ddl = self._get_routine_ddl_fetcher(context_database, rutina, routine_type)
+        context_label: str = self._get_query_context_label()
+        routine_type: str = str(tipo_rutina or "").upper()
+        cache_key: tuple[str, str, str] = self._cache_routine_key(context_database, rutina, routine_type)
+        fetch_ddl: Callable[[], Awaitable[str]] = self._get_routine_ddl_fetcher(context_database, rutina, routine_type)
 
         return await self._get_cached_text_async(
             cache_lookup=lambda: self.db_cache._routine_ddl_cache.get(cache_key),
@@ -858,7 +865,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         context_label: str = self._get_query_context_label()
         cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
 
-        rows = await self._get_cached_rows_async(
+        rows: list[Any] = await self._get_cached_rows_async(
             cache_lookup=lambda: cache_lookup(cache_key),
             cache_store=lambda items: cache_store(cache_key, cast(Rows, items)),
             fetch_rows=lambda: self._execute_metadata_many(
@@ -974,9 +981,9 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         context_label: str = self._get_query_context_label()
         cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
 
-        supports_columns_charset = self._supports_columns_charset_collation()
+        supports_columns_charset: bool = self._supports_columns_charset_collation()
         if self.db_type == "oracle":
-            cached_support = getattr(self, "_oracle_column_collation_supported", None)
+            cached_support: Any | None = getattr(self, "_oracle_column_collation_supported", None)
             if cached_support is None:
                 version_text: str = await self.get_database_version()
                 supports_columns_charset = CharsetCollationParser._oracle_supports_columns_charset_collation(
@@ -1005,7 +1012,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
             )
             return [self._parse_column_charset_collation_row(row) for row in rows]
 
-        rows = await self._get_cached_rows_async(
+        rows: list[Any] = await self._get_cached_rows_async(
             cache_lookup=lambda: self.db_cache.get_columns_charset_collation(cache_key),
             cache_store=lambda items: self.db_cache.set_columns_charset_collation(cache_key, items),
             fetch_rows=_fetch_charset_collation,
@@ -1016,7 +1023,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         return cast(list[tuple[str, str | None, str | None]], rows)
 
     async def get_query_info(self) -> dict[str, Any]:
-        executor = await self._get_query_executor()
+        executor: AsyncQueryExecutor = await self._get_query_executor()
 
         def _build_query_info() -> dict[str, Any]:
             queries: dict[str, str] = executor.registry.queries.get(self.db_type, {})
@@ -1126,7 +1133,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         return get_db_type_info(db_type)
 
     async def get_available_queries(self) -> list[str]:
-        executor = await self._get_query_executor()
+        executor: AsyncQueryExecutor = await self._get_query_executor()
         result = await self._run_manager_operation_async(
             action=lambda: executor.registry.get_available_queries(self.db_type),
             error_message="Error obteniendo listado de consultas disponibles",

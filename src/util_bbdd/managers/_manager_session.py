@@ -8,7 +8,7 @@ from typing import Any
 
 from ..connection.protocols import ConnectionPoolProtocol
 from ..executors.sync_query_executor import SyncQueryExecutor
-from ._manager_lifecycle import get_sync_connection, release_sync_connection
+from ._manager_lifecycle import SyncConnectionLifecycleManager
 
 
 class SyncSessionManager:
@@ -22,7 +22,7 @@ class SyncSessionManager:
             pool_connection: Pool de conexiones opcional.
             logger: Logger para mensajes.
         """
-        self.pool_connection = pool_connection
+        self.pool_connection: ConnectionPoolProtocol | None = pool_connection
         self.logger: logging.Logger = logger
         self._connection: Any = None
         self._cursor: Any = None
@@ -38,11 +38,9 @@ class SyncSessionManager:
         Returns:
             Conexión a la base de datos.
         """
-        return get_sync_connection(
+        return SyncConnectionLifecycleManager(db_type, self.logger).get_connection(
             pool_connection=self.pool_connection,
             connection=connection,
-            db_type=db_type,
-            logger=self.logger,
         )
 
     def close_connection(self, connection: Any | None = None) -> None:
@@ -52,7 +50,11 @@ class SyncSessionManager:
         Args:
             connection: Conexión a cerrar/devolver.
         """
-        release_sync_connection(pool_connection=self.pool_connection, connection=connection, logger=self.logger)
+        db_type: Any | str = getattr(self.pool_connection, "db_type", "unknown") if self.pool_connection else "unknown"
+        SyncConnectionLifecycleManager(db_type, self.logger).release_connection(
+            pool_connection=self.pool_connection,
+            connection=connection,
+        )
 
     def build_sync_executor(
         self,
@@ -94,7 +96,7 @@ class AsyncSessionManager:
             pool_connection: Pool de conexiones async opcional.
             logger: Logger para mensajes.
         """
-        self.pool_connection = pool_connection
+        self.pool_connection: Any | None = pool_connection
         self.logger: logging.Logger = logger
         self._connection: Any = None
 
@@ -130,4 +132,4 @@ class AsyncSessionManager:
         pass
 
 
-__all__ = ["SyncSessionManager", "AsyncSessionManager"]
+__all__: list[str] = ["SyncSessionManager", "AsyncSessionManager"]

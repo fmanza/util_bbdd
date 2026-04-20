@@ -11,7 +11,7 @@ from .._drivers import DatabaseTypeValidator
 from ..connection.factory import ConnectionFactory
 from ..connection.params import ConnectionParamsManager
 from ..connection.protocols import ConnectionPoolProtocol
-from ._manager_lifecycle import close_sync_resources
+from ._manager_lifecycle import SyncConnectionLifecycleManager
 
 
 class SyncLifecycleManager:
@@ -33,10 +33,10 @@ class SyncLifecycleManager:
             logger: Logger para mensajes.
             validators: Validador de tipos de base de datos.
         """
-        self.db_type = db_type
-        self.conn_params = conn_params
+        self.db_type: str = db_type
+        self.conn_params: dict[str, Any] = conn_params
         self.logger: logging.Logger = logger
-        self.validators = validators
+        self.validators: DatabaseTypeValidator = validators
         self.sql_server_driver: str = "pymssql"
 
     def validate_connection_params(self) -> None:
@@ -109,7 +109,7 @@ class SyncLifecycleManager:
         try:
             self.logger.info(f"🔗 Estableciendo conexión a {self.db_type}")
 
-            valid_params = ConnectionParamsManager.sanitize_for_connection(
+            valid_params: dict[str, Any] = ConnectionParamsManager.sanitize_for_connection(
                 self.db_type,
                 self.conn_params,
                 driver=self.sql_server_driver if self.db_type == "sqlserver" else None,
@@ -147,12 +147,10 @@ class SyncLifecycleManager:
             timeout_seconds: Timeout para cierre.
             force: Fuerza cierre inmediato.
         """
-        close_sync_resources(
+        SyncConnectionLifecycleManager(self.db_type, self.logger).close_resources(
             pool_connection=pool_connection,
             cursor=cursor,
             connection=connection,
-            logger=self.logger,
-            db_type=self.db_type,
             timeout_seconds=timeout_seconds,
             force=force,
         )
@@ -163,4 +161,4 @@ class SyncLifecycleManager:
         return self.db_type not in ["hsqldb"]
 
 
-__all__ = ["SyncLifecycleManager"]
+__all__: list[str] = ["SyncLifecycleManager"]

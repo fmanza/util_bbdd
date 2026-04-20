@@ -164,79 +164,7 @@ class MetadataRequestBuilder:
         )
 
 
-# Compatibilidad: Wrappers deprecated que delegan a MetadataRequestBuilder
-def build_routines_fetch_request(context_database: str) -> MetadataFetchRequest:
-    """Construye la request estándar para listar rutinas (deprecated).
-
-    Use: MetadataRequestBuilder.routines() en su lugar.
-    """
-    return MetadataRequestBuilder.routines(context_database)
-
-
-def build_table_ddl_fetch_request(
-    context_database: str,
-    table_name: str,
-    add_metadata_context_params: Callable[[dict[str, Any], str | None], dict[str, Any]],
-) -> MetadataFetchRequest:
-    """Construye la request estándar para DDL de tabla (deprecated).
-
-    Use: MetadataRequestBuilder.table_ddl() en su lugar.
-    """
-    return MetadataRequestBuilder.table_ddl(context_database, table_name, add_metadata_context_params)
-
-
-def build_view_ddl_fetch_request(
-    context_database: str,
-    view_name: str,
-    add_metadata_context_params: Callable[[dict[str, Any], str | None], dict[str, Any]],
-) -> MetadataFetchRequest:
-    """Construye la request estándar para DDL de vista (deprecated).
-
-    Use: MetadataRequestBuilder.view_ddl() en su lugar.
-    """
-    return MetadataRequestBuilder.view_ddl(context_database, view_name, add_metadata_context_params)
-
-
-def build_columns_fetch_request(context_database: str, table_name: str) -> MetadataFetchRequest:
-    """Construye la request estándar para columnas de tabla (deprecated).
-
-    Use: MetadataRequestBuilder.columns() en su lugar.
-    """
-    return MetadataRequestBuilder.columns(context_database, table_name)
-
-
-def build_routine_parameters_fetch_request(
-    context_database: str,
-    routine_name: str,
-    routine_type: str,
-) -> MetadataFetchRequest:
-    """Construye la request estándar para parámetros de rutina (deprecated).
-
-    Use: MetadataRequestBuilder.routine_parameters() en su lugar.
-    """
-    return MetadataRequestBuilder.routine_parameters(context_database, routine_name, routine_type)
-
-
-def build_routine_ddl_fetch_request(
-    context_database: str,
-    routine_name: str,
-    routine_type: str,
-    add_metadata_context_params: Callable[[dict[str, Any], str | None], dict[str, Any]],
-) -> MetadataFetchRequest:
-    """Construye la request estándar para DDL de rutina (deprecated).
-
-    Use: MetadataRequestBuilder.routine_ddl() en su lugar.
-    """
-    return MetadataRequestBuilder.routine_ddl(context_database, routine_name, routine_type, add_metadata_context_params)
-
-
 __all__: list[str] = [
     "MetadataFetchRequest",
     "MetadataRequestBuilder",
-    "build_routines_fetch_request",
-    "build_table_ddl_fetch_request",
-    "build_view_ddl_fetch_request",
-    "build_columns_fetch_request",
-    "build_routine_parameters_fetch_request",
-    "build_routine_ddl_fetch_request",
 ]
