@@ -1,0 +1,133 @@
+site_name: util_bbdd
+site_description: Librería Python para operaciones con múltiples motores de base de datos
+site_author: Paco Manzano
+site_url: https://fmanza.github.io/util_bbdd/
+repo_url: https://github.com/fmanza/util_bbdd
+repo_name: fmanza/util_bbdd
+docs_dir: docs
+site_dir: site
+
+exclude_docs: |
+  v0.5.6/
+  v0.6.0/
+  v0.6.1/
+  v0.6.2/
+  v0.6.3/
+  v0.6.4/
+  v0.6.6/
+  v0.6.7/
+  archive/
+  legacy/
+  prompt/
+  DOCUMENTATION_REVIEWER_GUIDE.md
+  RELEASE_v0.5.0.md
+  examples/imprimir_config_full_example.toml
+  examples/claude_code_usage_complete_example.md
+  examples/github_usage_complete_example.md
+
+nav:
+  - Inicio: index.md
+  - Instalación: INSTALLATION.md
+  - Guías:
+      - Programación Asíncrona: ASYNC_GUIDE.md
+      - Drivers PostgreSQL: POSTGRESQL_DRIVER_GUIDE.md
+      - Excepciones: EXCEPTIONS.md
+      - Comparador de Esquemas: COMPARATOR.md
+      - Guía de Migración: MIGRATION_GUIDE.md
+  - API Reference: API_REFERENCE.md
+  - Ejemplos:
+      - Comparación de Esquemas: examples/schema_comparison.md
+      - Diff Reporters: examples/diff_reporters.md
+      - Queries Concurrentes (Async): examples/async_concurrent_queries.md
+      - Bulk Insert desde CSV: examples/bulk_insert_csv.md
+      - Manejo de Excepciones: examples/exception_handling.md
+      - Generación de Grafos: examples/graph_generation.md
+  - Arquitectura:
+      - ADR-001 Refactoring: adr/ADR-001-STRUCTURE-REFACTORING.md
+
+theme:
+  name: material
+  language: es
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Cambiar a modo oscuro
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Cambiar a modo claro
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - search.highlight
+    - search.suggest
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search:
+      lang: es
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: date
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            merge_init_into_class: true
+            members_order: source
+            filters: ["!^_"]
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - tables
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/fmanza/util_bbdd
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/util-bbdd/
+  version:
+    provider: mike

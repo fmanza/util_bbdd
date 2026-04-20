@@ -51,13 +51,14 @@ dev = [
     "types-networkx",
 ]
 docs = [
-    "sphinx>=6.0",
-    "sphinx-rtd-theme>=1.2",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.25",
+    "mkdocs-git-revision-date-localized>=1.2",
 ]
 
 [project.urls]
 Homepage = "https://github.com/fmanza/util_bbdd"
-Documentation = "https://github.com/fmanza/util_bbdd/tree/main/docs"
+Documentation = "https://fmanza.github.io/util_bbdd/"
 Repository = "https://github.com/fmanza/util_bbdd.git"
 "Bug Tracker" = "https://github.com/fmanza/util_bbdd/issues"
 

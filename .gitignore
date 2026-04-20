@@ -60,3 +60,6 @@ dist_verify/
 
 # Claude Code local configuration (do not commit)
 .claude/settings.local.json
+
+# MkDocs generated site
+site/

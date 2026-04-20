@@ -538,7 +538,7 @@ Workflow minimalista:
 
 #### ¿Dónde está la guía de troubleshooting más extendida?
 
-Ver [`.claude/EDGE_CASES.md`](./.claude/EDGE_CASES.md) para 5+ escenarios concretos (comando interrumpido, merge conflict, test failures, LoC limit, regresión silenciosa) con pasos diagnósticos y soluciones paso a paso.
+Ver `.claude/EDGE_CASES.md` para 5+ escenarios concretos (comando interrumpido, merge conflict, test failures, LoC limit, regresión silenciosa) con pasos diagnósticos y soluciones paso a paso.
 
 ---
 
