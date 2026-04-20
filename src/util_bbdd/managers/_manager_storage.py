@@ -190,7 +190,7 @@ class _AsyncPostgreSQLStorageStrategy:
         tablespace: str | None,
     ) -> dict[str, Any]:
         del context_database
-        resolved_tablespace = _require_tablespace("PostgreSQL", tablespace)
+        resolved_tablespace: str = _require_tablespace("PostgreSQL", tablespace)
         return {
             "primary": await manager.execute_query_many("ficheros_fisicos", tablespace=resolved_tablespace),
             "temp_tablespaces": await manager.execute_query_many("temp_tablespaces"),
@@ -215,9 +215,15 @@ class _AsyncSQLiteStorageStrategy:
 
 @dataclass(frozen=True, slots=True)
 class _AsyncHSQLDBStorageStrategy:
-    async def execute(
+    """HSQLDB: in-memory database, no async I/O needed.
+
+    Execute returns synchronously because HSQLDB has no external I/O operations.
+    Compatible with both sync and async contexts.
+    """
+
+    def execute(
         self,
-        manager: AsyncStorageInventoryManagerProtocol,
+        manager: SyncStorageInventoryManagerProtocol,
         context_database: str,
         tablespace: str | None,
     ) -> dict[str, Any]:
@@ -234,13 +240,13 @@ _SYNC_STORAGE_STRATEGY_REGISTRY: dict[str, SyncStorageInventoryStrategy] = {
     "hsqldb": _SyncHSQLDBStorageStrategy(),
 }
 
-_ASYNC_STORAGE_STRATEGY_REGISTRY: dict[str, AsyncStorageInventoryStrategy] = {
+_ASYNC_STORAGE_STRATEGY_REGISTRY: dict[str, AsyncStorageInventoryStrategy | SyncStorageInventoryStrategy] = {
     "sqlserver": _AsyncSqlServerStorageStrategy(),
     "oracle": _AsyncOracleStorageStrategy(),
     "mariadb": _AsyncMariaDBStorageStrategy(),
     "postgresql": _AsyncPostgreSQLStorageStrategy(),
     "sqlite": _AsyncSQLiteStorageStrategy(),
-    "hsqldb": _AsyncHSQLDBStorageStrategy(),
+    "hsqldb": _AsyncHSQLDBStorageStrategy(),  # HSQLDB is in-memory, returns sync dict
 }
 
 
@@ -250,8 +256,12 @@ def get_sync_storage_inventory_strategy(db_type: str) -> SyncStorageInventoryStr
     return _SYNC_STORAGE_STRATEGY_REGISTRY[normalized_db_type]
 
 
-def get_async_storage_inventory_strategy(db_type: str) -> AsyncStorageInventoryStrategy:
-    """Devuelve estrategia async de inventario para el motor."""
+def get_async_storage_inventory_strategy(db_type: str) -> AsyncStorageInventoryStrategy | SyncStorageInventoryStrategy:
+    """Devuelve estrategia async de inventario para el motor.
+
+    Para HSQLDB (in-memory), retorna una estrategia sync que puede usarse
+    en contextos async sin bloqueos.
+    """
     normalized_db_type: str = str(db_type or "").lower().strip()
     return _ASYNC_STORAGE_STRATEGY_REGISTRY[normalized_db_type]
 

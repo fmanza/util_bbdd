@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 
@@ -41,17 +42,11 @@ from ._manager_lifecycle_async import AsyncLifecycleManager
 from ._manager_metadata_factory import MetadataStrategyFactory
 from ._manager_metadata_runtime import (
     MetadataFetchRequest,
-    build_columns_fetch_request,
-    build_routine_ddl_fetch_request,
-    build_routine_parameters_fetch_request,
-    build_routines_fetch_request,
-    build_table_ddl_fetch_request,
-    build_view_ddl_fetch_request,
-    oracle_supports_columns_charset_collation,
-    supports_columns_charset_collation as supports_manager_columns_charset_collation,
+    MetadataRequestBuilder,
 )
 from ._manager_session import AsyncSessionManager
 from ._manager_shared_mixin import DatabaseManagerSharedMixin
+from ._metadata_parser import CharsetCollationParser
 
 
 class AsyncDatabaseManager(DatabaseManagerSharedMixin):
@@ -125,14 +120,14 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
 
     def _get_routines_fetcher(self, context_database: str) -> Callable[[], Awaitable[Rows]]:
         return self._metadata_fetch_strategy.build_async_rows_fetcher(
-            request=build_routines_fetch_request(context_database),
+            request=MetadataRequestBuilder.routines(context_database),
             specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_routines(context_database),
             execute_many=self._execute_metadata_fetch_request_many,
         )
 
     def _get_table_ddl_fetcher(self, context_database: str, tabla: str) -> Callable[[], Awaitable[str]]:
         return self._metadata_fetch_strategy.build_async_text_fetcher(
-            request=build_table_ddl_fetch_request(
+            request=MetadataRequestBuilder.table_ddl(
                 context_database,
                 tabla,
                 self._add_metadata_context_params,
@@ -144,7 +139,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
 
     def _get_view_ddl_fetcher(self, context_database: str, vista: str) -> Callable[[], Awaitable[str]]:
         return self._metadata_fetch_strategy.build_async_text_fetcher(
-            request=build_view_ddl_fetch_request(
+            request=MetadataRequestBuilder.view_ddl(
                 context_database,
                 vista,
                 self._add_metadata_context_params,
@@ -159,7 +154,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
 
     def _get_columns_fetcher(self, context_database: str, tabla: str) -> Callable[[], Awaitable[Rows]]:
         return self._metadata_fetch_strategy.build_async_rows_fetcher(
-            request=build_columns_fetch_request(context_database, tabla),
+            request=MetadataRequestBuilder.columns(context_database, tabla),
             specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_columns_safe(context_database, tabla),
             execute_many=self._execute_metadata_fetch_request_many,
         )
@@ -176,7 +171,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
                 routine_name=rutina,
                 routine_type=routine_type,
             ),
-            request=build_routine_parameters_fetch_request(
+            request=MetadataRequestBuilder.routine_parameters(
                 context_database,
                 rutina,
                 routine_type,
@@ -196,7 +191,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
                 routine_name=rutina,
                 routine_type=routine_type,
             ),
-            request=build_routine_ddl_fetch_request(
+            request=MetadataRequestBuilder.routine_ddl(
                 context_database,
                 rutina,
                 routine_type,
@@ -641,10 +636,10 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         if self.db_type == "oracle":
             cached_support = getattr(self, "_oracle_column_collation_supported", None)
             if cached_support is not None:
-                return supports_manager_columns_charset_collation(self.db_type, bool(cached_support))
-            return supports_manager_columns_charset_collation(self.db_type)
+                return bool(cached_support)
+            return False
 
-        return supports_manager_columns_charset_collation(self.db_type)
+        return self.db_type != "sqlite"
 
     async def get_tables(self) -> Rows:
         """
@@ -933,12 +928,20 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         return normalize_column_rows(rows)
 
     async def get_storage_inventory(self, tablespace: str | None = None) -> dict[str, Any]:
+        """Obtiene inventario de almacenamiento.
+
+        Para estrategias async (Oracle, PostgreSQL, etc.) awaita la coroutine.
+        Para estrategias sync (HSQLDB in-memory) retorna el dict directamente.
+        """
         context_database: str = self._get_query_context_database()
-        result = await self._storage_inventory_strategy.execute(
+        result = self._storage_inventory_strategy.execute(
             self,
             context_database,
             tablespace,
         )
+        # Manejar tanto coroutines como dicts directos (HSQLDB)
+        if asyncio.iscoroutine(result):
+            return await result
         return result
 
     async def get_database_version(self) -> str:
@@ -976,14 +979,12 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
             cached_support = getattr(self, "_oracle_column_collation_supported", None)
             if cached_support is None:
                 version_text: str = await self.get_database_version()
-                supports_columns_charset = oracle_supports_columns_charset_collation(version_text)
+                supports_columns_charset = CharsetCollationParser._oracle_supports_columns_charset_collation(
+                    version_text
+                )
                 self._oracle_column_collation_supported: bool = supports_columns_charset
             else:
                 supports_columns_charset = bool(cached_support)
-            supports_columns_charset = supports_manager_columns_charset_collation(
-                self.db_type,
-                supports_columns_charset,
-            )
 
         if not supports_columns_charset:
             self.logger.debug(
