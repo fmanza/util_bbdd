@@ -32,6 +32,7 @@ nav:
       - Programación Asíncrona: ASYNC_GUIDE.md
       - Drivers PostgreSQL: POSTGRESQL_DRIVER_GUIDE.md
       - Excepciones: EXCEPTIONS.md
+      - Troubleshooting: TROUBLESHOOTING.md
       - Comparador de Esquemas: COMPARATOR.md
       - Guía de Migración: MIGRATION_GUIDE.md
   - API Reference:
@@ -45,6 +46,7 @@ nav:
           - Excepciones: api/exceptions.md
   - Ejemplos:
       - Generación de Documentación: examples/database_documentation_generation.md
+      - Cache de Metadatos: examples/metadata_cache_usage.md
       - Comparación de Esquemas: examples/schema_comparison.md
       - Diff Reporters: examples/diff_reporters.md
       - Queries Concurrentes (Async): examples/async_concurrent_queries.md

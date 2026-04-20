@@ -60,11 +60,30 @@ manager = AsyncDatabaseManager(
 await manager.init()
 ```
 
+### Tabla de Recomendaciones de Pool
+
+Basada en workload típico, benchmarks locales (AWS t3.large PostgreSQL):
+
+| Escenario | CPU Cores | pool_size | max_overflow | pool_recycle | Benchmark |
+|-----------|-----------|-----------|--------------|--------------|-----------|
+| **Desarrollo local** | 2-4 | 5 | 0 | 3600 | ~100 req/s |
+| **API pequeña** | 2 | 10 | 5 | 3600 | ~500 req/s |
+| **API mediana** | 4 | 20 | 10 | 1800 | ~2000 req/s |
+| **API grande** | 8+ | 40 | 20 | 900 | ~5000 req/s |
+| **Batch job serial** | Any | 1 | 0 | N/A | 1 conn, queries secuenciales |
+| **Batch job paralelo** | 8 | 8 | 4 | 600 | 8 workers, max 100k rows |
+
+**Notas:**
+- `pool_recycle`: Reducir para BD con reconnect automático (RDS, Azure, GCP)
+- `max_overflow`: Conexiones temporales si pool lleno (costo CPU/memoria)
+- **Producción:** Monitorear `checked_out / pool_size` ratio; si > 80%, aumentar
+
 ### Reglas de Tamaño
 
-- **API Web:** `pool_size = concurrent_users * avg_query_time`
-- **Batch jobs:** `pool_size = num_workers`
-- **Producción:** Empezar con 5-10, monitorear CPU/memory
+- **API Web:** `pool_size = (CPU_cores * 2) + expected_connections_per_request`
+- **Batch jobs:** `pool_size = num_workers` (máximo 8-16 workers)
+- **Producción:** Empezar con tabla de arriba, ajustar según métricas
+- **Máximo:** Raramente > 100 (conexión BD también tiene límite, p.ej. PostgreSQL `max_connections = 100`)
 
 ## Patrones de Concurrencia
 
