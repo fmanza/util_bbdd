@@ -48,6 +48,15 @@ python -m pytest tests/path/test_x.py::TestClass::test_name  # test específico
 python -m build                      # build package
 ```
 
+**Documentación (mkdocs-material):**
+
+```bash
+pip install -e ".[docs]"             # instalar deps de docs (requiere internet la 1ª vez)
+mkdocs serve                         # servidor local → http://127.0.0.1:8000
+mkdocs build                         # genera site/ estático (validación local)
+mkdocs gh-deploy                     # publica en GitHub Pages (requiere git push)
+```
+
 ---
 
 ## Formato de commits
@@ -171,6 +180,8 @@ Documentar qué comandos y flujos de Claude Code funcionan **sin acceso a intern
 - ✅ `mypy src` — type-checking (SQLAlchemy type stubs necesarios pero locales)
 - ✅ `pytest tests/` — ejecución de tests unitarios e integración (con SQLite `:memory:`)
 - ✅ `python -m build` — build del paquete
+- ✅ `mkdocs serve` — servidor local de documentación (requiere `.[docs]` instalado)
+- ✅ `mkdocs build` — genera `site/` estático y valida links internos
 
 **Flujos de Claude Code sin dependencias externas:**
 - ✅ `/hotfix` — análisis local, puede ejecutar ruff/mypy/pytest post-fix
@@ -185,6 +196,8 @@ python -m mypy src --no-error-summary                            # offline ✅
 python -m pytest tests/ -q                                       # offline ✅ (SQLite local)
 python -m pytest tests/ --cov=src --cov-report=term-missing     # offline ✅
 python -m build                                                  # offline ✅
+mkdocs serve                                                     # offline ✅ (deps ya instaladas)
+mkdocs build                                                     # offline ✅
 ```
 
 ---
@@ -196,6 +209,8 @@ python -m build                                                  # offline ✅
 - ❌ `SonarQube` — análisis de seguridad + cobertura remote
 - ❌ `GitHub Copilot Chat` (`@copilot`) — integración online de Copilot
 - ❌ Descargas de dependencias nuevas (`pip install`) — requiere PyPI o índice custom
+- ❌ `pip install -e ".[docs]"` — instalación inicial de mkdocs-material (requiere PyPI)
+- ❌ `mkdocs gh-deploy` — publicación en GitHub Pages (requiere red + git push)
 - ❌ Conexiones a BDs remotas (PostgreSQL remoto, Oracle remoto, etc.)
 
 **Flujos que necesitan acceso:**
