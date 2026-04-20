@@ -27,7 +27,7 @@ from ._adapter_helpers import (
     routine_entries_to_rows,
 )
 from ._oracle_models import OracleParameterDetail, OracleRoutineDetail
-from .constraints import decode_oracle_fk_rows, decode_oracle_pk_rows
+from .constraints import OracleConstraintDefaults
 from .indexes import decode_oracle_index_rows
 from .tables import decode_oracle_column_rows
 
@@ -135,7 +135,7 @@ class OracleAsyncAdapter:
         """
         sql = build_oracle_pk_query()
         rows: Rows = await self.manager.execute_custom_many(sql, params={"owner": schema, "table_name": table})
-        return decode_oracle_pk_rows(rows)
+        return OracleConstraintDefaults.decode_pk_rows(rows)
 
     async def fetch_foreign_keys_sync(self, schema: str, table: str) -> list[tuple]:
         """Obtiene claves foráneas en modo asíncrono.
@@ -150,7 +150,7 @@ class OracleAsyncAdapter:
         """
         sql = build_oracle_fk_query()
         rows: Rows = await self.manager.execute_custom_many(sql, params={"owner": schema, "table_name": table})
-        return decode_oracle_fk_rows(rows)
+        return OracleConstraintDefaults.decode_fk_rows(rows)
 
     async def fetch_indexes_sync(self, schema: str, table: str) -> list[tuple]:
         """Obtiene índices en modo asíncrono.

@@ -54,7 +54,8 @@ class MarkdownDiffReporter:
         lines += self._render_tables_section(diff.table_diffs)
         lines += self._render_views_section(diff.view_diffs)
         lines += self._render_routines_section(diff.routine_diffs)
-        content: str = "\n".join(lines) + "\n"
+        lines_str: str = "\n".join(lines)
+        content: str = f"{lines_str}\n"
         output.write_text(content, encoding="utf-8")
         self.logger.info("Markdown diff report generado: %s", output)
         return output

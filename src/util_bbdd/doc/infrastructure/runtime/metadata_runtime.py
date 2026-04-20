@@ -33,10 +33,10 @@ class DocumentationMetadataRuntime(MetadataRuntimePort):
         """Ejecuta una consulta de metadatos opcional con logging homogéneo."""
         try:
             result: Any = operation()
-            getattr(self._logger, success_level)(success_message.format(result=result))
+            getattr(self._logger, success_level)(f"Success: {result}")
             return result
         except DatabaseException as error:
-            getattr(self._logger, error_level)(error_message.format(error=error))
+            getattr(self._logger, error_level)(f"Error: {error}")
             return None
 
     def get_database_version_metadata(

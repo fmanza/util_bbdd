@@ -79,7 +79,8 @@ def _build_mariadb_signature(routine_type: str, parameter_specs: list[str]) -> s
         return f"({', '.join(parameter_specs)})" if parameter_specs else "()"
 
     if parameter_specs:
-        return "(\n" + ",\n".join(f"  {spec}" for spec in parameter_specs) + "\n)"
+        specs_str: str = ",\n".join(f"  {spec}" for spec in parameter_specs)
+        return f"(\n{specs_str}\n)"
     return "()"
 
 

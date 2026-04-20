@@ -115,19 +115,19 @@ class SqlDiffReporter:
     _MODIFY_COL_TEMPLATE: ClassVar[str] = "MODIFY COLUMN {col} {type}"
 
     #: Template estándar para DROP INDEX (mariadb, mysql, sqlserver).
-    _DROP_INDEX_ON_TABLE_TEMPLATE: ClassVar[str] = "DROP INDEX {name} ON {table}"
+    _DROP_INDEX_ON_TABLE_TEMPLATE: ClassVar[str] = "DROP INDEX {name} ON {table};"
 
     #: Template estándar para DROP TABLE con IF EXISTS.
-    _DROP_TABLE_IF_EXISTS_TEMPLATE: ClassVar[str] = "DROP TABLE IF EXISTS {table}"
+    _DROP_TABLE_IF_EXISTS_TEMPLATE: ClassVar[str] = "DROP TABLE IF EXISTS {table};"
 
     #: Template estándar para DROP VIEW con IF EXISTS.
-    _DROP_VIEW_IF_EXISTS_TEMPLATE: ClassVar[str] = "DROP VIEW IF EXISTS {name}"
+    _DROP_VIEW_IF_EXISTS_TEMPLATE: ClassVar[str] = "DROP VIEW IF EXISTS {name};"
 
     #: Template estándar para DROP CONSTRAINT.
     _DROP_CONSTRAINT_TEMPLATE: ClassVar[str] = "DROP CONSTRAINT {name}"
 
     #: Template estándar para DROP ROUTINE con IF EXISTS.
-    _DROP_ROUTINE_IF_EXISTS_TEMPLATE: ClassVar[str] = "DROP {rtype} IF EXISTS {name}"
+    _DROP_ROUTINE_IF_EXISTS_TEMPLATE: ClassVar[str] = "DROP {rtype} IF EXISTS {name};"
 
     #: Template base para CREATE TABLE sin IF NOT EXISTS.
     _CREATE_TABLE_TEMPLATE: ClassVar[str] = "CREATE TABLE {table}"
@@ -136,7 +136,7 @@ class SqlDiffReporter:
     _CREATE_TABLE_IF_NOT_EXISTS_TEMPLATE: ClassVar[str] = "CREATE TABLE IF NOT EXISTS {table}"
 
     #: Template base para ADD COLUMN (generic, mariadb, mysql, postgresql, sqlite).
-    _ADD_COLUMN_TEMPLATE: ClassVar[str] = "ALTER TABLE {table} ADD COLUMN {col} {definition}"
+    _ADD_COLUMN_TEMPLATE: ClassVar[str] = "ALTER TABLE {table} ADD COLUMN {col} {definition};"
 
     #: Template para cambiar el tipo de una columna existente.
     #: Placeholders: {col}, {type}
@@ -152,13 +152,13 @@ class SqlDiffReporter:
 
     #: Template para DROP INDEX.  Placeholders: {name}, {table}
     _DROP_INDEX: ClassVar[dict[str, str]] = {
-        "generic": "DROP INDEX {name}",
+        "generic": "DROP INDEX {name};",
         "mariadb": _DROP_INDEX_ON_TABLE_TEMPLATE,
         "mysql": _DROP_INDEX_ON_TABLE_TEMPLATE,
-        "postgresql": "DROP INDEX IF EXISTS {name}",
+        "postgresql": "DROP INDEX IF EXISTS {name};",
         "sqlserver": _DROP_INDEX_ON_TABLE_TEMPLATE,
-        "oracle": "DROP INDEX {name}",
-        "sqlite": "DROP INDEX IF EXISTS {name}",
+        "oracle": "DROP INDEX {name};",
+        "sqlite": "DROP INDEX IF EXISTS {name};",
     }
 
     #: Template para eliminar una FK dentro de ALTER TABLE.  Placeholder: {name}
@@ -174,34 +174,34 @@ class SqlDiffReporter:
 
     #: Prefijo DROP TABLE; los dialectos compatibles añaden IF EXISTS.
     _DROP_TABLE: ClassVar[dict[str, str]] = {
-        "generic": "DROP TABLE {table}",
+        "generic": "DROP TABLE {table};",
         "mariadb": _DROP_TABLE_IF_EXISTS_TEMPLATE,
         "mysql": _DROP_TABLE_IF_EXISTS_TEMPLATE,
         "postgresql": _DROP_TABLE_IF_EXISTS_TEMPLATE,
         "sqlserver": _DROP_TABLE_IF_EXISTS_TEMPLATE,
-        "oracle": "DROP TABLE {table}",
+        "oracle": "DROP TABLE {table};",
         "sqlite": _DROP_TABLE_IF_EXISTS_TEMPLATE,
     }
 
     #: DROP VIEW; algunos dialectos soportan IF EXISTS.
     _DROP_VIEW: ClassVar[dict[str, str]] = {
-        "generic": "DROP VIEW {name}",
+        "generic": "DROP VIEW {name};",
         "mariadb": _DROP_VIEW_IF_EXISTS_TEMPLATE,
         "mysql": _DROP_VIEW_IF_EXISTS_TEMPLATE,
         "postgresql": _DROP_VIEW_IF_EXISTS_TEMPLATE,
         "sqlserver": _DROP_VIEW_IF_EXISTS_TEMPLATE,
-        "oracle": "DROP VIEW {name}",
+        "oracle": "DROP VIEW {name};",
         "sqlite": _DROP_VIEW_IF_EXISTS_TEMPLATE,
     }
 
     #: DROP PROCEDURE; Oracle y SQL Server no distinguen PROCEDURE de FUNCTION en DROP.
     _DROP_ROUTINE: ClassVar[dict[str, str]] = {
-        "generic": "DROP {rtype} {name}",
+        "generic": "DROP {rtype} {name};",
         "mariadb": _DROP_ROUTINE_IF_EXISTS_TEMPLATE,
         "mysql": _DROP_ROUTINE_IF_EXISTS_TEMPLATE,
         "postgresql": _DROP_ROUTINE_IF_EXISTS_TEMPLATE,
         "sqlserver": _DROP_ROUTINE_IF_EXISTS_TEMPLATE,
-        "oracle": "DROP {rtype} {name}",
+        "oracle": "DROP {rtype} {name};",
         "sqlite": "-- ⚠ SQLite: rutinas no soportadas nativamente",
     }
 
@@ -225,8 +225,8 @@ class SqlDiffReporter:
         "mariadb": _ADD_COLUMN_TEMPLATE,
         "mysql": _ADD_COLUMN_TEMPLATE,
         "postgresql": _ADD_COLUMN_TEMPLATE,
-        "sqlserver": "ALTER TABLE {table} ADD {col} {definition}",
-        "oracle": "ALTER TABLE {table} ADD ({col} {definition})",
+        "sqlserver": "ALTER TABLE {table} ADD {col} {definition};",
+        "oracle": "ALTER TABLE {table} ADD ({col} {definition});",
         "sqlite": _ADD_COLUMN_TEMPLATE,
     }
 
@@ -325,7 +325,8 @@ class SqlDiffReporter:
             lines.extend(self._section("5. RUTINAS"))
             lines.extend(self._render_routine_diffs(diff.routine_diffs))
 
-        return "\n".join(lines) + "\n"
+        lines_str: str = "\n".join(lines)
+        return f"{lines_str}\n"
 
     # ------------------------------------------------------------------
     # Secciones principales
@@ -340,7 +341,7 @@ class SqlDiffReporter:
                 for fk in td.fk_diffs:
                     lines.append(f"ALTER TABLE {td.table_name} {self._drop_fk_clause(fk.fk_name)};")
             tpl: str = self._DROP_TABLE.get(self._dialect, self._DROP_TABLE["generic"])
-            lines.append(tpl.format(table=td.table_name) + ";")
+            lines.append(tpl.format(table=td.table_name))
             lines.append("")
         return lines
 
@@ -557,7 +558,7 @@ class SqlDiffReporter:
         indexes: list[dict[str, Any]] = self._fetch_source_indexes(table_name)
         prefix: str = self._CREATE_TABLE_PREFIX.get(self._dialect, self._CREATE_TABLE_PREFIX["generic"])
 
-        lines: list[str] = [prefix.format(table=table_name) + " ("]
+        lines: list[str] = [f"{prefix.format(table=table_name)} ("]
         col_defs: list[str] = [self._render_col_definition(col) for col in cols]
 
         if pk_cols:
@@ -679,7 +680,7 @@ class SqlDiffReporter:
             lines.append(f"-- ⚠ {col_name} es NOT NULL sin DEFAULT: verificar que la tabla no tenga filas existentes.")
         if self._dialect == "sqlite" and not nullable:
             lines.append("-- ⚠ SQLite: ADD COLUMN NOT NULL sin DEFAULT no está soportado nativamente.")
-        lines.append(tpl.format(table=table, col=col_name, definition=definition) + ";")
+        lines.append(f"{tpl.format(table=table, col=col_name, definition=definition)};")
         return lines
 
     # ------------------------------------------------------------------
@@ -811,7 +812,7 @@ class SqlDiffReporter:
     def _render_single_index_diff(self, table: str, idx: IndexDiff) -> list[str]:
         if idx.status == "removed":
             # Índice existe en target, no en source → DROP en target
-            return [self._drop_index_sql(idx.index_name, table) + ";"]
+            return [self._drop_index_sql(idx.index_name, table)]
 
         if idx.status == "added":
             # Índice existe en source, no en target → CREATE en target
@@ -819,7 +820,7 @@ class SqlDiffReporter:
 
         # modified → DROP + CREATE con nueva definición
         return [
-            self._drop_index_sql(idx.index_name, table) + ";",
+            self._drop_index_sql(idx.index_name, table),
             self._create_index_sql(idx, table),
         ]
 
@@ -960,11 +961,11 @@ class SqlDiffReporter:
         drop_tpl: str = self._DROP_VIEW.get(self._dialect, self._DROP_VIEW["generic"])
 
         if vd.status == "removed":
-            return [drop_tpl.format(name=vd.view_name) + ";", ""]
+            return [drop_tpl.format(name=vd.view_name), ""]
 
         if vd.status == "added":
             if vd.source_definition:
-                return [self._build_view_create_sql(vd.view_name, vd.source_definition) + ";", ""]
+                return [f"{self._build_view_create_sql(vd.view_name, vd.source_definition)};", ""]
             return [
                 f"-- ⚠ VISTA NUEVA: {vd.view_name}",
                 "-- Definición no disponible en SchemaDiff — consultar esquema origen.",
@@ -976,12 +977,12 @@ class SqlDiffReporter:
         lines: list[str] = []
         if vd.source_definition:
             if self._dialect == "sqlserver":
-                lines.append(drop_tpl.format(name=vd.view_name) + ";")
+                lines.append(drop_tpl.format(name=vd.view_name))
                 lines.append("GO")
-                lines.append(self._build_view_create_sql(vd.view_name, vd.source_definition) + ";")
+                lines.append(f"{self._build_view_create_sql(vd.view_name, vd.source_definition)};")
                 lines.append("GO")
             else:
-                lines.append(self._build_view_create_sql(vd.view_name, vd.source_definition, or_replace=True) + ";")
+                lines.append(f"{self._build_view_create_sql(vd.view_name, vd.source_definition, or_replace=True)};")
         else:
             lines.append(f"-- ⚠ {vd.view_name}: modificada pero definición origen no disponible en SchemaDiff.")
         lines.append("")
@@ -1002,12 +1003,12 @@ class SqlDiffReporter:
         rtype: Literal["PROCEDURE"] | Literal["FUNCTION"] = rd.routine_type  # "PROCEDURE" | "FUNCTION"
 
         if rd.status == "removed":
-            return [drop_tpl.format(rtype=rtype, name=rd.routine_name) + ";", ""]
+            return [drop_tpl.format(rtype=rtype, name=rd.routine_name), ""]
 
         if rd.status == "added":
             if rd.source_definition:
                 normalized: str = DdlNormalizer.normalize_routine_ddl(rd.source_definition)
-                return [normalized.rstrip(";") + ";", ""]
+                return [f"{normalized.rstrip(';')};", ""]
             return [
                 f"-- ⚠ RUTINA NUEVA: {rd.routine_name} ({rtype})",
                 "-- Definición no disponible en SchemaDiff — consultar esquema origen.",
@@ -1018,7 +1019,7 @@ class SqlDiffReporter:
         lines: list[str] = []
         if rd.source_definition:
             normalized = DdlNormalizer.normalize_routine_ddl(rd.source_definition)
-            lines.append(normalized.rstrip(";") + ";")
+            lines.append(f"{normalized.rstrip(';')};")
         else:
             lines.append(f"-- ⚠ {rd.routine_name}: modificada pero definición origen no disponible.")
         lines.append("")
@@ -1030,15 +1031,15 @@ class SqlDiffReporter:
 
     def _modify_col_type_clause(self, col: str, new_type: str) -> str:
         tpl: str = self._MODIFY_COL_TYPE.get(self._dialect, self._MODIFY_COL_TYPE["generic"])
-        return tpl.format(col=col, type=new_type)
+        return f"{tpl.format(col=col, type=new_type)}"
 
     def _drop_index_sql(self, name: str, table: str) -> str:
         tpl: str = self._DROP_INDEX.get(self._dialect, self._DROP_INDEX["generic"])
-        return tpl.format(name=name, table=table)
+        return f"{tpl.format(name=name, table=table)}"
 
     def _drop_fk_clause(self, name: str) -> str:
         tpl: str = self._DROP_FK.get(self._dialect, self._DROP_FK["generic"])
-        return tpl.format(name=name)
+        return f"{tpl.format(name=name)}"
 
     # ------------------------------------------------------------------
     # Helpers de formato

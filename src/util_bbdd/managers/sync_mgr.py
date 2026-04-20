@@ -624,7 +624,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
             self.logger.debug(fetch_debug_message)
         rows = list(fetch_rows())
         cache_store(rows)
-        self.logger.info(success_message.format(count=len(rows)))
+        self.logger.info(f"Success: {len(rows)} rows")
         return rows
 
     def _get_cached_rows_sync(

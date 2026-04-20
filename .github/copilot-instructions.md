@@ -90,6 +90,23 @@ Cuando uses agentes de auditoría (Code Auditor, Security Reviewer, Documentatio
 - ✅ Módulo-level logger: `logger: logging.Logger = logging.getLogger(__name__)`
 - ✅ Inyección de dependencias en constructores
 
+### Checklist: F-Strings OBLIGATORIOS
+
+**Bloquea PR si:**
+- ✗ String con parámetros usa `.format()`: `"Processing {} records".format(count)` ❌
+- ✗ String con parámetros usa `%` formatting: `"Expected %s rows" % expected` ❌
+- ✗ String con parámetros usa concatenación: `"Table " + name + " (" + str(rows) + ")"`  ❌
+
+**Requiere:**
+- ✅ F-string para todo string con parámetros: `f"Processing {count} records"`
+- ✅ F-string en logging: `logger.info(f"Records: {len(data)}, timeout: {timeout}s")`
+- ✅ F-string en mensajes de error: `error_msg = f"Expected {expected} rows, got {actual}"`
+
+**Permite (strings sin parámetros):**
+- ✅ Strings estáticos: `"Inicializando conexión"`
+- ✅ Docstrings con ejemplos
+- ✅ Constantes documentales
+
 ### En IMPLEMENT: Integración
 
 Si encuentras violaciones de logging/variables globales, propón refactor junto con feature:

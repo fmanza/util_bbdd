@@ -11,6 +11,31 @@ applyTo: "**/*.py"
 - Usa `pathlib.Path` para rutas.
 - Prefiere dataclasses para estructuras de metadatos.
 
+### Formato de cadenas: F-Strings OBLIGATORIOS
+
+**REGLA CRÍTICA:** Todo string que contenga parámetros DEBE usar **f-strings** (`f"...{var}..."`). No se permiten `.format()`, `%` formatting ni concatenación de strings para este propósito.
+
+**✅ Correcto:**
+```python
+logger.info(f"Processing {len(data)} records with timeout={timeout}")
+error_msg = f"Expected {expected} rows, got {actual}"
+print(f"Table {table_name} ({row_count} rows)")
+```
+
+**✗ Prohibido:**
+```python
+logger.info("Processing {} records with timeout={}".format(len(data), timeout))  # ❌
+error_msg = "Expected %s rows, got %s" % (expected, actual)                      # ❌
+print("Table " + table_name + " (" + str(row_count) + " rows)")                 # ❌
+```
+
+**Excepciones permitidas (solo strings sin parámetros):**
+- Strings estáticos: `"Inicializando conexión"`
+- Docstrings con ejemplos
+- Constantes documentales
+
+**En auditoría de código (AUDIT_CODE):** Bloquea PR si encuentra `.format()`, `%` formatting o concatenación en strings con parámetros.
+
 ## Programación orientada a objetos
 - **Diseña exclusivamente con clases.** No crear funciones sueltas a nivel de módulo en ficheros de clase.
 - Las transformaciones sin estado van como `@staticmethod` dentro de la clase responsable. Las constantes privadas de una clase van como `ClassVar` en la propia clase.

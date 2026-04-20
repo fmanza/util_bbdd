@@ -55,10 +55,70 @@ def fetch_tables_sync(connection: Any, schema: str | None = None) -> list[tuple]
     ]
 
 
+def _extract_column_fields(row: tuple[Any, ...]) -> tuple[str, str, int, int, str | None, str, str]:
+    """Extrae y normaliza campos básicos de una fila de columna.
+
+    Aplica conversión de tipos, defaults y strip() a todos los campos.
+
+    Args:
+        row: Tupla con (column_name, column_type, is_nullable, ordinal_position,
+                       column_default, column_comment, extra)
+
+    Returns:
+        tuple: (column_name, column_type, is_nullable, ordinal_position,
+                column_default, column_comment, extra)
+    """
+    column_name: str = str(row[0]).strip()
+    column_type: str = str(row[1]).strip().upper() if row[1] else "VARCHAR"
+    is_nullable: int = 1 if str(row[2]).strip().upper() == "YES" else 0
+    ordinal_position: int = int(row[3]) if row[3] is not None else 0
+    column_default: str | None = str(row[4]) if row[4] else None
+    column_comment: str = str(row[5]).strip() if row[5] else ""
+    extra: str = str(row[6]).strip().upper() if len(row) > 6 else ""
+
+    return column_name, column_type, is_nullable, ordinal_position, column_default, column_comment, extra
+
+
+def _process_column_data(
+    column_name: str,
+    column_type: str,
+    is_nullable: int,
+    ordinal_position: int,
+    column_default: str | None,
+    column_comment: str,
+    extra: str,
+) -> tuple[str, str, int, int, str | None, str]:
+    """Procesa y enriquece datos de columna (normalización, auto_increment).
+
+    Aplica normalización de tipos MySQL → tipos estándar y enriquece comentarios
+    con información de auto_increment si aplica.
+
+    Args:
+        column_name: Nombre de la columna
+        column_type: Tipo en MySQL
+        is_nullable: 1 si nullable, 0 si no
+        ordinal_position: Posición ordinal en tabla
+        column_default: Valor por defecto o None
+        column_comment: Comentario original
+        extra: Campo EXTRA de information_schema
+
+    Returns:
+        tuple: (column_name, normalized_type, is_nullable, ordinal_position,
+                column_default, enriched_comment)
+    """
+    normalized_type: str = normalize_mysql_type(column_type)
+
+    enriched_comment: str = column_comment
+    if "AUTO_INCREMENT" in extra:
+        enriched_comment = f"Auto-increment. {column_comment}".strip()
+
+    return column_name, normalized_type, is_nullable, ordinal_position, column_default, enriched_comment
+
+
 def fetch_columns_sync(connection: Any, schema: str | None = None, table: str | None = None) -> list[tuple]:
     """Obtiene columnas de una tabla.
 
-    Detecta auto_increment via EXTRA field.
+    Detecta auto_increment via EXTRA field y normaliza tipos MySQL a estándar.
 
     Args:
         connection: Conexión a MySQL
@@ -72,8 +132,8 @@ def fetch_columns_sync(connection: Any, schema: str | None = None, table: str | 
     if not schema or not table:
         return []
 
-    sql = build_mysql_columns_query()
-    params = {"schema_name": schema, "table_name": table}
+    sql: str = build_mysql_columns_query()
+    params: dict[str, str] = {"schema_name": schema, "table_name": table}
 
     cursor = connection.execute(sql, params)
     rows: list[tuple[Any, ...]] = cursor.fetchall()
@@ -83,21 +143,8 @@ def fetch_columns_sync(connection: Any, schema: str | None = None, table: str | 
         if not row or len(row) < 7:
             continue
 
-        column_name = str(row[0]).strip()
-        column_type = str(row[1]).strip().upper() if row[1] else "VARCHAR"
-        is_nullable = 1 if str(row[2]).strip().upper() == "YES" else 0
-        ordinal_position = int(row[3]) if row[3] is not None else 0
-        column_default = str(row[4]) if row[4] else None
-        column_comment = str(row[5]).strip() if row[5] else ""
-        extra = str(row[6]).strip().upper() if len(row) > 6 else ""
-
-        # Normalizar tipo
-        normalized_type = normalize_mysql_type(column_type)
-
-        # Agregar auto_increment info al comment si aplica
-        if "AUTO_INCREMENT" in extra:
-            column_comment = f"Auto-increment. {column_comment}".strip()
-
-        result.append((column_name, normalized_type, is_nullable, ordinal_position, column_default, column_comment))
+        fields = _extract_column_fields(row)
+        processed = _process_column_data(*fields)
+        result.append(processed)
 
     return result

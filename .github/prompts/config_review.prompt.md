@@ -92,6 +92,9 @@ Elige esta opción si cada plataforma tiene ciclo de vida o equipo de mantenimie
 ### AUDIT_CODE
 - Cobertura de reglas clave (SOLID, OOP, multibase, políticas por tarea)
 - Secciones ausentes o incompletas
+- **Verificación de f-strings:** Bloquea PR si encuentra `.format()`, `%` formatting o concatenación en strings con parámetros (deben usar f-strings)
+- **Verificación de logging:** Confirma que todas las clases con lógica tienen `self.logger: logging.Logger` instanciado en `__init__`
+- **Verificación de variables globales:** Rechaza variables globales mutables (dicts, listas) a nivel de módulo
 - Veredicto: `APROBADO | APROBADO CON CONDICIONES | RECHAZADO`
 
 ### VERSION

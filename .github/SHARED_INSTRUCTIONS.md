@@ -143,6 +143,31 @@ def helper_function(x: int) -> int:
     return x * 2
 ```
 
+#### Formato de cadenas: F-Strings OBLIGATORIOS
+**REGLA CRÍTICA:** Todo string que contenga parámetros DEBE usar **f-strings**. No se permiten `.format()`, `%` formatting ni concatenación.
+
+```python
+# ✅ CORRECTO: F-strings para strings con parámetros
+count = 42
+logger.info(f"Procesando {count} registros")
+error_msg = f"Esperaba {expected}, obtuve {actual}"
+
+# ✗ PROHIBIDO: .format()
+logger.info("Procesando {} registros".format(count))  # ❌
+
+# ✗ PROHIBIDO: % formatting
+logger.info("Procesando %d registros" % count)  # ❌
+
+# ✗ PROHIBIDO: Concatenación
+logger.info("Procesando " + str(count) + " registros")  # ❌
+
+# ✅ PERMITIDO: Strings sin parámetros
+logger.info("Iniciando conexión")
+DESCRIPTION = "Documentación estática"
+```
+
+**Validación en auditoría:** Bloquea PR si encuentra `.format()`, `%` formatting o concatenación en strings con parámetros.
+
 #### Variables globales: Prohibición de mutable módulo-level
 Todas las variables globales DEBEN ser inmutables o pertenecer a clases:
 

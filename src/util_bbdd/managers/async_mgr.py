@@ -613,7 +613,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         rows = list(await fetch_rows())
         cache_store(rows)
         if success_message:
-            self.logger.info(success_message.format(count=len(rows)))
+            self.logger.info(f"Success: {len(rows)} rows")
         return rows
 
     async def _get_cached_text_async(

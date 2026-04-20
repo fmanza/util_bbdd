@@ -48,7 +48,8 @@ def build_mariadb_table_ddl(tabla: str, rows: list[Any], pk_rows: list[Any]) -> 
         column_defs.append(pk_constraint)
 
     table_identifier: str = quote_mariadb_identifier(tabla)
-    return "CREATE TABLE " + table_identifier + " (\n" + ",\n".join(column_defs) + "\n)"
+    col_defs_str: str = ",\n".join(column_defs)
+    return f"CREATE TABLE {table_identifier} (\n{col_defs_str}\n)"
 
 
 def _is_valid_column_row(row: Any) -> bool:

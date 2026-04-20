@@ -46,7 +46,9 @@ class SQLServerConnection:
             raise
         except Exception as e:
             SQLServerConnection.logger.error(f"❌ Error conectando a SQL Server: {e}")
-            raise ConnectionError(f"Error conectando a SQL Server: {str(e)}", db_type="sqlserver", details=str(e)) from e
+            raise ConnectionError(
+                f"Error conectando a SQL Server: {str(e)}", db_type="sqlserver", details=str(e)
+            ) from e
 
     @staticmethod
     def _connect_pymssql(conn_params: dict[str, Any]) -> Any:
@@ -84,7 +86,9 @@ class SQLServerConnection:
             raise ConnectionError("Módulo pymssql no disponible", db_type="sqlserver", details=str(e)) from e
         except Exception as e:
             SQLServerConnection.logger.error(f"❌ Error conectando a SQL Server (pymssql): {e}")
-            raise ConnectionError(f"Error conectando a SQL Server: {str(e)}", db_type="sqlserver", details=str(e)) from e
+            raise ConnectionError(
+                f"Error conectando a SQL Server: {str(e)}", db_type="sqlserver", details=str(e)
+            ) from e
 
     @staticmethod
     def _connect_pyodbc(conn_params: dict[str, Any]) -> Any:
@@ -133,4 +137,6 @@ class SQLServerConnection:
             raise ConnectionError("Módulo pyodbc no disponible", db_type="sqlserver", details=str(e)) from e
         except Exception as e:
             SQLServerConnection.logger.error(f"❌ Error conectando a SQL Server (pyodbc): {e}")
-            raise ConnectionError(f"Error conectando a SQL Server: {str(e)}", db_type="sqlserver", details=str(e)) from e
+            raise ConnectionError(
+                f"Error conectando a SQL Server: {str(e)}", db_type="sqlserver", details=str(e)
+            ) from e

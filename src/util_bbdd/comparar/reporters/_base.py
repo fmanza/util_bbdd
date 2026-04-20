@@ -115,12 +115,12 @@ class DdlNormalizer:
     #: Patrones de artefactos a eliminar de DDL de vistas (MariaDB/MySQL/Oracle).
     #: Orden significativo: ALGORITHM antes de DEFINER; SQL SECURITY al final.
     _VIEW_STRIP_PATTERNS: ClassVar[list[tuple[str, str]]] = [
-        (r"ALGORITHM\s*=\s*\w+", ""),                   # MariaDB/MySQL ALGORITHM=UNDEFINED etc.
-        (r"DEFINER\s*=\s*`[^`]+`@`[^`]+`", ""),        # DEFINER con backticks
-        (r"DEFINER\s*=\s*'[^']*'@'[^']*'", ""),        # DEFINER con comillas simples
-        (r"DEFINER\s*=\s*\S+@\S+", ""),                # DEFINER sin comillas
-        (r"SQL\s+SECURITY\s+(?:DEFINER|INVOKER)", ""), # SQL SECURITY
-        (r"\bFORCE\s+(?=VIEW\b)", ""),                 # Oracle FORCE VIEW
+        (r"ALGORITHM\s*=\s*\w+", ""),  # MariaDB/MySQL ALGORITHM=UNDEFINED etc.
+        (r"DEFINER\s*=\s*`[^`]+`@`[^`]+`", ""),  # DEFINER con backticks
+        (r"DEFINER\s*=\s*'[^']*'@'[^']*'", ""),  # DEFINER con comillas simples
+        (r"DEFINER\s*=\s*\S+@\S+", ""),  # DEFINER sin comillas
+        (r"SQL\s+SECURITY\s+(?:DEFINER|INVOKER)", ""),  # SQL SECURITY
+        (r"\bFORCE\s+(?=VIEW\b)", ""),  # Oracle FORCE VIEW
     ]
 
     #: Patrones a eliminar de DDL de rutinas.
@@ -194,5 +194,5 @@ class DdlNormalizer:
             raw_ddl,
         )
         if match:
-            return raw_ddl[match.end():].strip()
+            return raw_ddl[match.end() :].strip()
         return raw_ddl.strip()

@@ -44,7 +44,11 @@ class PostgreSQLConnection:
             return conn
         except ImportError as e:
             PostgreSQLConnection.logger.error("❌ Error: módulo psycopg (psycopg3) no disponible")
-            raise ConnectionError("Módulo psycopg (psycopg3) no disponible", db_type="postgresql", details=str(e)) from e
+            raise ConnectionError(
+                "Módulo psycopg (psycopg3) no disponible", db_type="postgresql", details=str(e)
+            ) from e
         except Exception as e:
             PostgreSQLConnection.logger.error(f"❌ Error conectando a PostgreSQL: {e}")
-            raise ConnectionError(f"Error conectando a PostgreSQL: {str(e)}", db_type="postgresql", details=str(e)) from e
+            raise ConnectionError(
+                f"Error conectando a PostgreSQL: {str(e)}", db_type="postgresql", details=str(e)
+            ) from e

@@ -207,5 +207,3 @@ class RoutineAdapterAsync(Protocol):
     async def fetch_routine_definition_async(self, schema: str, routine: str, routine_type: str) -> str:
         """Obtiene el DDL completo de una routine en modo asíncrono."""
         ...
-
-

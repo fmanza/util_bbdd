@@ -431,7 +431,8 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         ]
 
         if not self.include_columns:
-            return "".join(html_parts) + "</TABLE>>"
+            html_content: str = "".join(html_parts)
+            return f"{html_content}</TABLE>>"
 
         if columns:
             html_parts.extend(
@@ -465,7 +466,8 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 )
             )
 
-        return "".join(html_parts) + "</TABLE>>"
+        html_content: str = "".join(html_parts)
+        return f"{html_content}</TABLE>>"
 
     def _get_table_label_styles(self, is_raster: bool) -> dict[str, str]:
         """Devuelve las medidas tipográficas del label según el formato de salida."""

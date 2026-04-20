@@ -60,7 +60,8 @@ class DDLBuilder:
 
         # Formatear CREATE TABLE
         table_id = self._quote_identifier(table_name)
-        return f"CREATE TABLE {table_id} (\n" + ",\n".join(column_defs) + "\n)"
+        col_defs_str: str = ",\n".join(column_defs)
+        return f"CREATE TABLE {table_id} (\n{col_defs_str}\n)"
 
     def _is_valid_column(self, col: Any) -> bool:
         """Valida que columna sea una tupla/lista válida.

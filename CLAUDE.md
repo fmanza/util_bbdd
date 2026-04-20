@@ -106,6 +106,24 @@ python -m mypy src --strict  # Detecta logger sin tipado
 - **Verificar**: Cada clase con lógica tiene `self.logger: logging.Logger`
 - **Verificar**: Logger instanciado en `__init__` o `__post_init__`
 - **Reportar**: Métodos sin logs que deberían tenerlos (mutación de estado)
+- **Verificar**: Todos los strings con parámetros usan f-strings (no `.format()`, `%`, ni concatenación)
+
+### Checklist: F-Strings OBLIGATORIOS
+
+**Bloquea PR si:**
+- ✗ String con parámetros usa `.format()`: `"Processing {} records".format(count)` ❌
+- ✗ String con parámetros usa `%` formatting: `"Expected %s rows" % expected` ❌
+- ✗ String con parámetros usa concatenación: `"Table " + name + " (" + str(rows) + ")"`  ❌
+
+**Requiere:**
+- ✅ F-string para todo string con parámetros: `f"Processing {count} records"`
+- ✅ F-string en logging: `logger.info(f"Records: {len(data)}, timeout: {timeout}s")`
+- ✅ F-string en mensajes de error: `error_msg = f"Expected {expected} rows, got {actual}"`
+
+**Permite (strings sin parámetros):**
+- ✅ Strings estáticos: `"Inicializando conexión"`
+- ✅ Docstrings con ejemplos
+- ✅ Constantes documentales
 
 ### Checklist pre-push
 

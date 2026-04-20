@@ -748,15 +748,15 @@ class DatabaseRelationshipGraphBase:
 
         for idx, table_name in enumerate(tables_to_process, 1):
             try:
-                self.logger.info(progress_template.format(idx=idx, total=len(tables_to_process), table_name=table_name))
+                self.logger.info(f"Progress {idx}/{len(tables_to_process)}: {table_name}")
                 generated_files: list[Path] = generate_for_table(table_name)
                 self._store_generation_success(results, table_name, generated_files)
-                self.logger.debug(success_template.format(table_name=table_name, count=len(generated_files)))
+                self.logger.debug(f"Success: {table_name} - {len(generated_files)} files generated")
             except (DatabaseException, OSError, RuntimeError, TypeError, ValueError) as error:
                 self._store_generation_error(results, table_name, error, error_prefix=error_prefix)
 
         successful: int = sum(1 for result in results.values() if result["status"] == "success")
-        self.logger.info(completion_template.format(successful=successful, total=len(tables_to_process)))
+        self.logger.info(f"Completed: {successful}/{len(tables_to_process)} successful")
         return results
 
     def generate_relationship_report(self, table_name: str) -> dict[str, Any]:
