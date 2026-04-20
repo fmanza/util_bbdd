@@ -139,7 +139,34 @@ class GenericMetadataFetchStrategy:
 
 @dataclass(frozen=True)
 class MariaDBMetadataFetchStrategy:
-    """Estrategia especializada para MariaDB."""
+    """Estrategia especializada para MariaDB (ignora execute_many/execute_one).
+
+    MariaDB usa stored procedures especializadas para metadata, por lo que
+    sync y async implementan el mismo comportamiento: retornar specialized_fetcher
+    sin invocar execute_many/execute_one.
+    """
+
+    @staticmethod
+    def _return_specialized_fetcher_rows(
+        specialized_fetcher: Callable,
+        **_: Any,
+    ) -> Callable:
+        """Template method: retorna specialized_fetcher (ignora execute_many, etc).
+
+        Usado por build_sync_rows_fetcher y build_async_rows_fetcher.
+        """
+        return specialized_fetcher
+
+    @staticmethod
+    def _return_specialized_fetcher_text(
+        specialized_fetcher: Callable[[], str | Awaitable[str]],
+        **_: Any,
+    ) -> Callable:
+        """Template method: retorna specialized_fetcher (ignora execute_one, etc).
+
+        Usado por build_sync_text_fetcher y build_async_text_fetcher.
+        """
+        return specialized_fetcher
 
     def build_sync_rows_fetcher(
         self,
@@ -148,8 +175,7 @@ class MariaDBMetadataFetchStrategy:
         specialized_fetcher: Callable[[], _T],
         execute_many: Callable[[MetadataFetchRequest], _T],
     ) -> Callable[[], _T]:
-        del request, execute_many
-        return specialized_fetcher
+        return self._return_specialized_fetcher_rows(specialized_fetcher, request=request, execute_many=execute_many)
 
     def build_sync_text_fetcher(
         self,
@@ -159,8 +185,12 @@ class MariaDBMetadataFetchStrategy:
         execute_one: Callable[[MetadataFetchRequest], Any],
         normalize_one: Callable[[Any], str],
     ) -> Callable[[], str]:
-        del request, execute_one, normalize_one
-        return specialized_fetcher
+        return self._return_specialized_fetcher_text(
+            specialized_fetcher,
+            request=request,
+            execute_one=execute_one,
+            normalize_one=normalize_one,
+        )
 
     def build_async_rows_fetcher(
         self,
@@ -169,8 +199,8 @@ class MariaDBMetadataFetchStrategy:
         specialized_fetcher: Callable[[], Awaitable[_T]],
         execute_many: Callable[[MetadataFetchRequest], Awaitable[_T]],
     ) -> Callable[[], Awaitable[_T]]:
-        del request, execute_many
-        return specialized_fetcher
+        """Mismo comportamiento que build_sync_rows_fetcher (delega al template method)."""
+        return self._return_specialized_fetcher_rows(specialized_fetcher, request=request, execute_many=execute_many)
 
     def build_async_text_fetcher(
         self,
@@ -180,8 +210,13 @@ class MariaDBMetadataFetchStrategy:
         execute_one: Callable[[MetadataFetchRequest], Awaitable[Any]],
         normalize_one: Callable[[Any], str],
     ) -> Callable[[], Awaitable[str]]:
-        del request, execute_one, normalize_one
-        return specialized_fetcher
+        """Mismo comportamiento que build_sync_text_fetcher (delega al template method)."""
+        return self._return_specialized_fetcher_text(
+            specialized_fetcher,
+            request=request,
+            execute_one=execute_one,
+            normalize_one=normalize_one,
+        )
 
 
 _DEFAULT_METADATA_FETCH_STRATEGY = GenericMetadataFetchStrategy()
