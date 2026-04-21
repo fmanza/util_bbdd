@@ -270,6 +270,12 @@ Traceback (most recent call last):
                            daemon=self.daemon)
                            ^^^^^^^^^^^^^^^^^^^
 PythonFinalizationError: can't create new thread at interpreter shutdown
+---
+@#sym:audit_code
 
-
+Revisa src\util_bbdd\analysis\base.py.
+Quiero bugs, edge cases, compatibilidad y tests faltantes.
+    - Remove the unused function parameter "progress_template".
+    - Remove the unused function parameter "success_template".
+    - Remove the unused function parameter "completion_template".
 Sigue el flujo PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION.

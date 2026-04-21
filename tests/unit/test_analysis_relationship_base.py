@@ -175,9 +175,6 @@ def test_generate_all_tables_batch_registers_success_and_error() -> None:
         max_depth=None,
         direction=None,
         generate_for_table=_generate_for_table,
-        progress_template="[{idx}/{total}] {table_name}",
-        success_template="{table_name}: {count}",
-        completion_template="{successful}/{total}",
         error_prefix="Error batch para tabla",
     )
 

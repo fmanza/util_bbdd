@@ -721,7 +721,7 @@ class DatabaseRelationshipGraphBase:
     ) -> None:
         """Registra un resultado fallido de generación."""
         error_msg: str = str(error)
-        self.logger.error(f"{error_prefix} {table_name}: {error_msg}")
+        self.logger.error(f"{error_prefix} {table_name}: {error_msg}", exc_info=True)
         results[table_name] = {"status": "error", "error": error_msg, "files": []}
 
     def _generate_all_tables_batch(
@@ -732,9 +732,6 @@ class DatabaseRelationshipGraphBase:
         max_depth: int | None,
         direction: LevelDirection | str | None,
         generate_for_table: Callable[[str], list[Path]],
-        progress_template: str,
-        success_template: str,
-        completion_template: str,
         error_prefix: str,
     ) -> dict[str, dict[str, Any]]:
         """Ejecuta la generación batch compartida de artefactos por tabla."""

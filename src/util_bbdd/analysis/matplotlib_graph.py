@@ -336,9 +336,6 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
             max_depth=max_depth,
             direction=direction,
             generate_for_table=_generate_for_table,
-            progress_template="[{idx}/{total}] Generando gráfico para tabla: {table_name}",
-            success_template="Gráfico completado para {table_name}: {count} archivo(s)",
-            completion_template="Generación completada: {successful}/{total} tablas procesadas exitosamente",
             error_prefix="Error generando gráfico para tabla",
         )
 
