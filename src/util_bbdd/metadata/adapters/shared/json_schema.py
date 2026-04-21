@@ -35,6 +35,18 @@ from typing import Any
 
 logger: logging.Logger = logging.getLogger(__name__)
 
+# Type mapping for JSON schema inference
+# Map Python types to JSON schema types (order matters: bool before int)
+_JSON_TYPE_MAPPING: dict[type, str] = {
+    type(None): "null",
+    bool: "boolean",
+    int: "number",
+    float: "number",
+    str: "string",
+    dict: "object",
+    list: "array",
+}
+
 # ============================================================================
 # JSON SCHEMA EXTRACTION (from CHECK constraints)
 # ============================================================================
@@ -187,7 +199,7 @@ def infer_json_schema_from_sample(
             current_depth=0,
         )
     elif top_level_type == "array":
-        return _infer_array_schema(parsed_rows, max_depth=max_depth)
+        return _infer_array_schema(parsed_rows)
     else:
         # Scalar type
         return {
@@ -333,7 +345,6 @@ def _build_property_schema(primary_type: str, examples: list[Any]) -> dict[str, 
 
 def _infer_array_schema(
     rows: list[list[Any]],
-    max_depth: int = 2,
 ) -> dict[str, Any]:
     """Infer schema for array-type rows."""
     element_types: set[str] = set()
@@ -369,27 +380,45 @@ def _infer_array_schema(
 
 
 def _infer_value_type(value: Any) -> str:
-    """Infer JSON type of a single value."""
-    if value is None:
-        return "null"
-    if isinstance(value, bool):
-        return "boolean"
-    if isinstance(value, int):
-        return "number"
-    if isinstance(value, float):
-        return "number"
-    if isinstance(value, str):
-        return "string"
-    if isinstance(value, dict):
-        return "object"
-    if isinstance(value, list):
-        return "array"
+    """Infer JSON type of a single value.
+
+    Uses _JSON_TYPE_MAPPING for fast type lookups.
+    CC reduced from 7 → 2 via dict lookup pattern.
+
+    Args:
+        value: Value to infer type from
+
+    Returns:
+        JSON schema type string (e.g., 'string', 'number', 'null')
+    """
+    for python_type, schema_type in _JSON_TYPE_MAPPING.items():
+        if isinstance(value, python_type):
+            return schema_type
     return "mixed"
 
 
 # ============================================================================
 # SCHEMA NORMALIZATION & MERGING
 # ============================================================================
+
+
+def _convert_types_to_type(types: Any) -> str:
+    """Convert types set to single type string.
+
+    Helper for normalize_json_schema() to reduce CC.
+    CC reduced from 4 nested ifs → 1 call.
+
+    Args:
+        types: Set of types or other value
+
+    Returns:
+        Single type string: specific type if set has 1 element, else "mixed"
+    """
+    if not isinstance(types, set):
+        return "mixed"
+    if len(types) == 1:
+        return str(next(iter(types)))
+    return "mixed"
 
 
 def normalize_json_schema(schema: dict[str, Any]) -> dict[str, Any]:
@@ -421,16 +450,12 @@ def normalize_json_schema(schema: dict[str, Any]) -> dict[str, Any]:
     if "properties" in normalized:
         props = normalized["properties"]
         if isinstance(props, dict):
-            # Convert any "types" to "type"
+            # Convert any "types" to "type" using helper
             for _key, prop_schema in props.items():
-                if isinstance(prop_schema, dict):
-                    if "types" in prop_schema:
-                        types = prop_schema.pop("types")
-                        if "type" not in prop_schema:
-                            if len(types) == 1:
-                                prop_schema["type"] = next(iter(types))
-                            else:
-                                prop_schema["type"] = "mixed"
+                if isinstance(prop_schema, dict) and "types" in prop_schema:
+                    types = prop_schema.pop("types")
+                    if "type" not in prop_schema:
+                        prop_schema["type"] = _convert_types_to_type(types)
 
     # Ensure required is list
     if "required" in normalized:
@@ -442,6 +467,65 @@ def normalize_json_schema(schema: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _collect_keys_from_schemas(
+    schemas: list[dict[str, Any]],
+) -> dict[str, list[str]]:
+    """Collect all keys and their types from schemas.
+
+    Helper for merge_inferred_schemas() to reduce CC.
+    CC reduction: ~8 lines → 1 helper call.
+
+    Args:
+        schemas: List of inferred schemas
+
+    Returns:
+        Dict mapping key names to lists of type strings across schemas
+    """
+    all_keys: dict[str, list[str]] = {}
+
+    for schema in schemas:
+        if schema.get("type") == "object" and "properties" in schema:
+            for key, prop_schema in schema["properties"].items():
+                if key not in all_keys:
+                    all_keys[key] = []
+                prop_type = prop_schema.get("type", "mixed")
+                all_keys[key].append(prop_type)
+
+    return all_keys
+
+
+def _build_merged_properties(
+    all_keys: dict[str, list[str]], total_schemas: int
+) -> tuple[dict[str, dict[str, str]], list[str]]:
+    """Build merged properties and detect required keys.
+
+    Helper for merge_inferred_schemas() to reduce CC.
+    CC reduction: ~10 lines → 1 helper call.
+
+    Args:
+        all_keys: Dict mapping keys to type lists (from _collect_keys_from_schemas)
+        total_schemas: Total number of schemas being merged
+
+    Returns:
+        Tuple of (merged_properties dict, merged_required list)
+    """
+    merged_properties: dict[str, dict[str, str]] = {}
+    merged_required: list[str] = []
+
+    for key, type_list in all_keys.items():
+        # Determine consensus type
+        unique_types = set(type_list)
+        consensus_type = next(iter(unique_types)) if len(unique_types) == 1 else "mixed"
+
+        merged_properties[key] = {"type": consensus_type}
+
+        # Key is required if present in all schemas
+        if len(type_list) == total_schemas:
+            merged_required.append(key)
+
+    return merged_properties, merged_required
+
+
 def merge_inferred_schemas(
     schemas: list[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -451,6 +535,8 @@ def merge_inferred_schemas(
     - Common keys across all schemas → required
     - Union of keys → properties
     - Common type → use it; otherwise "mixed"
+
+    CC reduced from 19 → 6 via _collect_keys_from_schemas() + _build_merged_properties() helpers.
 
     Args:
         schemas: List of inferred schema dicts
@@ -464,35 +550,9 @@ def merge_inferred_schemas(
     if len(schemas) == 1:
         return normalize_json_schema(schemas[0])
 
-    # Collect all keys and their type distributions
-    all_keys: dict[str, list[str]] = {}  # key → list of types
     total_schemas = len(schemas)
-
-    for schema in schemas:
-        if schema.get("type") == "object" and "properties" in schema:
-            for key, prop_schema in schema["properties"].items():
-                if key not in all_keys:
-                    all_keys[key] = []
-                prop_type = prop_schema.get("type", "mixed")
-                all_keys[key].append(prop_type)
-
-    # Build merged properties
-    merged_properties: dict[str, dict[str, str]] = {}
-    merged_required: list[str] = []
-
-    for key, type_list in all_keys.items():
-        # Determine consensus type
-        unique_types = set(type_list)
-        if len(unique_types) == 1:
-            consensus_type = next(iter(unique_types))
-        else:
-            consensus_type = "mixed"
-
-        merged_properties[key] = {"type": consensus_type}
-
-        # Key is required if present in all schemas
-        if len(type_list) == total_schemas:
-            merged_required.append(key)
+    all_keys = _collect_keys_from_schemas(schemas)
+    merged_properties, merged_required = _build_merged_properties(all_keys, total_schemas)
 
     return {
         "type": "object",
