@@ -5,6 +5,53 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-04-21
+
+### Fixed
+
+- `src/util_bbdd/managers/_manager_storage.py` — Eliminado `async` innecesario de `_AsyncHSQLDBStorageStrategy.execute()` (HSQLDB es in-memory, sin I/O async)
+- `src/util_bbdd/managers/async_mgr.py` — Agregado manejo de ambos sync/async returns via `asyncio.iscoroutine()` detection
+
+### Removed
+
+#### Security Improvement — Eliminación de scripts legacy con credenciales hardcodeadas
+- `docs/legacy/main_MariaDB.py` (411 líneas, credenciales hardcodeadas)
+- `docs/legacy/main_Oracle.py` (1,207 líneas, credenciales hardcodeadas: 10.20.0.236, COREUFV/COREUFV)
+- `docs/legacy/MariaDB.py` (407 líneas, credenciales hardcodeadas)
+
+**Razón:** Estos scripts eran desarrollo manual sin valor documental, exponían topología de red interna y credenciales.
+
+**Total:** 1,618 líneas de código legacy eliminadas
+
+### Changed
+
+#### Documentation Reorganization
+- Reorganizado `docs/archive/plan-legacy/` → `docs/archive/releases/v0.1-v0.3.0/` (28 archivos PR 0-8)
+- Movido `docs/v0.5.6/` → `docs/archive/versions/v0.5.6/` (6 archivos de versión)
+- Creado `docs/legacy-versions.md` — nuevo índice/navegación para documentación histórica
+- Actualizado `mkdocs.yml` — agregado entry "Versiones Históricas" a navegación
+
+### Docs
+
+- Documentado patrón Singleton en `get_database_validator()`:
+  - Explicación de implementación con lazy-loading
+  - Por qué se usa (performance, consistency, memory efficiency)
+  - Limitaciones conocidas (single-threaded context)
+  - Ejemplos de uso y reinitialización para testing
+
+- Mejorado docstrings en funciones de conveniencia:
+  - `validate_db_type()` — ejemplos y cross-references
+  - `get_db_type_info()` — estructura de retorno y ejemplos
+
+### Validation
+
+✅ Lint: All checks passed
+✅ Type-check: 257 files clean
+✅ Tests: 1881 passed, 1 skipped
+✅ mkdocs build: Successful
+
+---
+
 ## [0.6.8] - 2026-04-20
 
 ### Refactored
