@@ -130,7 +130,9 @@ def test_normalize_ddl_result_prefers_create_text_and_reads_lob_values() -> None
             return "CREATE TABLE demo(id INT)"
 
     assert DDLNormalizer.normalize_result(("ignored", "fallback", _FakeLob())) == "CREATE TABLE demo(id INT)"
-    assert DDLNormalizer.normalize_result((None, ("nested", "CREATE VIEW v AS SELECT 1"))) == "CREATE VIEW v AS SELECT 1"
+    assert (
+        DDLNormalizer.normalize_result((None, ("nested", "CREATE VIEW v AS SELECT 1"))) == "CREATE VIEW v AS SELECT 1"
+    )
 
 
 def test_parse_charset_helpers_cover_multiple_motors() -> None:
@@ -155,9 +157,10 @@ def test_parse_column_charset_and_support_rules_are_shared() -> None:
         "es_ES",
     )
     assert parser.parse_column_charset_collation("sqlite", ("name",)) == ("name", None, None)
-    assert CharsetCollationParser._oracle_supports_columns_charset_collation(
-        "Oracle Database 19c Release 19.0.0.0.0"
-    ) is True
+    assert (
+        CharsetCollationParser._oracle_supports_columns_charset_collation("Oracle Database 19c Release 19.0.0.0.0")
+        is True
+    )
     assert CharsetCollationParser._oracle_supports_columns_charset_collation("Oracle Database 11g") is False
     assert parser.supports_charset_collation("sqlite") is False
     assert parser.supports_charset_collation("oracle", "Oracle Database 19c Release 19.0.0.0.0") is True
