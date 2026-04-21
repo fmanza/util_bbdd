@@ -430,42 +430,42 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             )
         ]
 
-        if not self.include_columns:
-            html_content: str = "".join(html_parts)
-            return f"{html_content}</TABLE>>"
-
-        if columns:
-            html_parts.extend(
-                self._build_column_rows_html(
-                    table_name=table_name,
-                    columns=columns,
-                    related_columns=resolved_related_columns,
-                    column_font_size=label_styles["column_font_size"],
-                    type_font_size=label_styles["type_font_size"],
-                    name_column_width=label_styles["name_column_width"],
-                    type_column_width=label_styles["type_column_width"],
-                    column_name_max_chars=int(label_styles["column_name_max_chars"]),
-                    type_max_chars=int(label_styles["type_max_chars"]),
+        # Agregar columnas solo si están habilitadas
+        if self.include_columns:
+            if columns:
+                html_parts.extend(
+                    self._build_column_rows_html(
+                        table_name=table_name,
+                        columns=columns,
+                        related_columns=resolved_related_columns,
+                        column_font_size=label_styles["column_font_size"],
+                        type_font_size=label_styles["type_font_size"],
+                        name_column_width=label_styles["name_column_width"],
+                        type_column_width=label_styles["type_column_width"],
+                        column_name_max_chars=int(label_styles["column_name_max_chars"]),
+                        type_max_chars=int(label_styles["type_max_chars"]),
+                    )
                 )
-            )
-        else:
-            html_parts.append(
-                self._build_message_row_html(
-                    message="Sin columnas visibles",
-                    font_size=label_styles["type_font_size"],
-                    table_width=label_styles["table_width"],
+            else:
+                html_parts.append(
+                    self._build_message_row_html(
+                        message="Sin columnas visibles",
+                        font_size=label_styles["type_font_size"],
+                        table_width=label_styles["table_width"],
+                    )
                 )
-            )
 
-        if hidden_columns_count > 0:
-            html_parts.append(
-                self._build_message_row_html(
-                    message=f"... {hidden_columns_count} columna(s) mas",
-                    font_size=label_styles["type_font_size"],
-                    table_width=label_styles["table_width"],
+            # Agregar mensaje de columnas ocultas si las hay
+            if hidden_columns_count > 0:
+                html_parts.append(
+                    self._build_message_row_html(
+                        message=f"... {hidden_columns_count} columna(s) mas",
+                        font_size=label_styles["type_font_size"],
+                        table_width=label_styles["table_width"],
+                    )
                 )
-            )
 
+        # Retorno único al final
         html_content = "".join(html_parts)
         return f"{html_content}</TABLE>>"
 
