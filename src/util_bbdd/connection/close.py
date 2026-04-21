@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 import threading
 
 from collections.abc import Awaitable, Callable
@@ -143,6 +144,13 @@ def run_close_operation_sync(
     """
     # Sin timeout: ejecutar directamente
     if timeout_seconds is None:
+        action()
+        return
+
+    # Durante finalization de Python, no podemos crear threads.
+    # Ejecutar sin timeout y sin threading.
+    if sys.is_finalizing():
+        logger.debug(f"Python finalization detectada en '{action_name}'; ejecutando sin timeout")
         action()
         return
 

@@ -7,6 +7,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [0.8.0] - 2026-04-21
 
+### Fixed
+
+#### Connection Pool Finalization Error (Hotfix)
+- **Issue**: `PythonFinalizationError: can't create new thread at interpreter shutdown` occurring during pool closure at program exit
+- **Root Cause**: Attempt to create worker threads during Python interpreter finalization when `sys.is_finalizing() == True`
+- **Solution**: Added finalization detection in `run_close_operation_sync()` to skip thread-based timeout during interpreter shutdown
+- **Files Modified**: `src/util_bbdd/connection/close.py` (lines 147-150)
+- **Impact**: All database drivers (MariaDB, SQLite, SQLServer, Oracle, PostgreSQL) now gracefully close pools during shutdown
+- **Tests**: Added 6 finalization-safety tests in `tests/unit/test_finalization_safety.py`
+- **Backward Compatibility**: ✅ No breaking changes; normal pool closure behavior unchanged
+
 ### Added
 
 #### Phase 4: Complete Type System Coverage (All 5 Database Drivers)
