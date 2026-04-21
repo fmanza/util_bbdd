@@ -11,14 +11,10 @@ from typing import Any
 
 from .._core import InvalidDatabaseType
 from ._config_loader import (
+    ConfigTypeCoercer,
     JsonDict,
     JsonObjectMap,
     OptionalParamsConfig,
-    as_error_messages_config,
-    as_json_dict,
-    as_json_object_map,
-    as_optional_params_config,
-    as_string_list,
     load_database_type_config,
 )
 
@@ -50,19 +46,19 @@ class DatabaseTypeValidator:
 
     def _metadata_config(self) -> JsonDict:
         """Devuelve la sección metadata tipada del archivo de configuración."""
-        return as_json_dict(self._config_data.get("metadata"))
+        return ConfigTypeCoercer.to_json_dict(self._config_data.get("metadata"))
 
     def _database_types_config(self) -> JsonObjectMap:
         """Devuelve la sección database_types tipada del archivo de configuración."""
-        return as_json_object_map(self._config_data.get("database_types"))
+        return ConfigTypeCoercer.to_json_object_map(self._config_data.get("database_types"))
 
     def _examples_config(self) -> JsonObjectMap:
         """Devuelve la sección examples tipada del archivo de configuración."""
-        return as_json_object_map(self._config_data.get("examples"))
+        return ConfigTypeCoercer.to_json_object_map(self._config_data.get("examples"))
 
     def _error_messages_config(self) -> dict[str, str]:
         """Devuelve la sección error_messages tipada del archivo de configuración."""
-        return as_error_messages_config(self._config_data.get("error_messages"))
+        return ConfigTypeCoercer.to_error_messages_config(self._config_data.get("error_messages"))
 
     def _load_config(self) -> None:
         """Carga la configuracion desde el archivo JSON.
@@ -79,7 +75,7 @@ class DatabaseTypeValidator:
         Returns:
             Lista de tipos de BD soportados (ej: ['mariadb', 'postgresql', ...])
         """
-        return as_string_list(self._metadata_config().get("supported_db_types"))
+        return ConfigTypeCoercer.to_string_list(self._metadata_config().get("supported_db_types"))
 
     def is_db_type_supported(self, db_type: str) -> bool:
         """Verifica si un tipo de base de datos está soportado.
@@ -164,7 +160,7 @@ class DatabaseTypeValidator:
             Lista de características soportadas (ej: ['async', 'transactions', ...])
         """
         info = self.get_db_type_info(db_type)
-        return as_string_list(info.get("supported_features"))
+        return ConfigTypeCoercer.to_string_list(info.get("supported_features"))
 
     def get_db_type_default_port(self, db_type: str) -> int:
         """Obtiene el puerto por defecto de un tipo de base de datos.
@@ -189,7 +185,7 @@ class DatabaseTypeValidator:
             Diccionario con información del driver
         """
         info = self.get_db_type_info(db_type)
-        return as_json_dict(info.get("driver_info"))
+        return ConfigTypeCoercer.to_json_dict(info.get("driver_info"))
 
     def get_db_type_connection_params(self, db_type: str) -> JsonDict:
         """Obtiene la configuración de parámetros de conexión de un tipo de BD.
@@ -201,7 +197,7 @@ class DatabaseTypeValidator:
             Diccionario con configuración de parámetros (required, optional, etc)
         """
         info = self.get_db_type_info(db_type)
-        return as_json_dict(info.get("connection_params"))
+        return ConfigTypeCoercer.to_json_dict(info.get("connection_params"))
 
     def get_required_params(self, db_type: str) -> list[str]:
         """Obtiene los parámetros requeridos para un tipo de base de datos.
@@ -213,7 +209,7 @@ class DatabaseTypeValidator:
             Lista de nombres de parámetros requeridos
         """
         params_config = self.get_db_type_connection_params(db_type)
-        return as_string_list(params_config.get("required"))
+        return ConfigTypeCoercer.to_string_list(params_config.get("required"))
 
     def get_optional_params(self, db_type: str) -> OptionalParamsConfig:
         """Obtiene los parámetros opcionales de un tipo de base de datos.
@@ -225,7 +221,7 @@ class DatabaseTypeValidator:
             Lista de parámetros opcionales con su configuración
         """
         params_config = self.get_db_type_connection_params(db_type)
-        return as_optional_params_config(params_config.get("optional"))
+        return ConfigTypeCoercer.to_optional_params_config(params_config.get("optional"))
 
     def validate_connection_params(self, db_type: str, conn_params: dict[str, Any]) -> bool:
         """Valida los parámetros de conexión para un tipo de base de datos.
@@ -311,7 +307,7 @@ class DatabaseTypeValidator:
 
     def get_compatibility_info(self) -> JsonDict:
         """Obtiene información de compatibilidad."""
-        return as_json_dict(self._config_data.get("compatibility"))
+        return ConfigTypeCoercer.to_json_dict(self._config_data.get("compatibility"))
 
     def get_metadata(self) -> JsonDict:
         """Obtiene metadatos del archivo de configuración."""
