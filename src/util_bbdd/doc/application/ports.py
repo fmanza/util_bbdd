@@ -144,5 +144,3 @@ class DocumentRendererPort(Protocol):
         print_config: dict[str, Any] | None = None,
         graph_generator: Any | None = None,
     ) -> None: ...
-
-

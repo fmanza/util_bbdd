@@ -150,9 +150,7 @@ class RoutineFetcherRegistry:
                     obj_type = str(row["object_type"])
                     try:
                         ddl_result: CursorResult[Any] = conn.execute(
-                            text(
-                                "SELECT DBMS_METADATA.GET_DDL(:obj_type, :obj_name, :schema) AS ddl FROM dual"
-                            ),
+                            text("SELECT DBMS_METADATA.GET_DDL(:obj_type, :obj_name, :schema) AS ddl FROM dual"),
                             {"obj_type": obj_type, "obj_name": obj_name, "schema": schema.upper()},
                         )
                         ddl_row: Row[Any] | None = ddl_result.first()

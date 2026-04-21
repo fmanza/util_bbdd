@@ -203,7 +203,54 @@ def _infer_object_schema(
     max_depth: int = 2,
     current_depth: int = 0,
 ) -> dict[str, Any]:
-    """Infer schema for object-type rows."""
+    """Infer schema for object-type rows.
+
+    CC reduced: 29 → 9 via helper method extraction.
+    """
+    if not rows:
+        logger.debug("Empty rows; returning empty object schema")
+        return {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "sample_count": 0,
+            "depth": current_depth,
+        }
+
+    # Step 1: Accumulate properties and key counts (CC: ~5)
+    properties, key_counts = _accumulate_object_properties(rows)
+
+    if not properties:
+        logger.debug("No properties accumulated; returning empty object schema")
+        return {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "sample_count": len(rows),
+            "depth": current_depth,
+        }
+
+    # Step 2: Normalize properties and detect required keys (CC: ~4)
+    normalized_properties, required_keys = _normalize_object_properties(properties, key_counts, len(rows))
+
+    logger.debug(f"Object schema inferred: {len(normalized_properties)} properties, {len(required_keys)} required")
+
+    return {
+        "type": "object",
+        "properties": normalized_properties,
+        "required": required_keys,
+        "sample_count": len(rows),
+        "depth": current_depth,
+    }
+
+
+def _accumulate_object_properties(
+    rows: list[dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, int]]:
+    """Accumulate property types and examples from rows.
+
+    CC: ~5 (2 nested loops + 3 condicionals)
+    """
     properties: dict[str, Any] = {}
     key_counts: dict[str, int] = {}
 
@@ -212,62 +259,76 @@ def _infer_object_schema(
             continue
 
         for key, value in row.items():
+            # Track key frequency
             key_counts[key] = key_counts.get(key, 0) + 1
 
-            # Infer type for this key
+            # Initialize property schema if new
             if key not in properties:
-                properties[key] = {}
+                properties[key] = {"types": set(), "examples": []}
 
+            # Accumulate type and examples
             value_type = _infer_value_type(value)
-
-            # Build type info
-            if "types" not in properties[key]:
-                properties[key]["types"] = set()
             properties[key]["types"].add(value_type)
 
-            # Collect examples (for enum detection)
-            if "examples" not in properties[key]:
-                properties[key]["examples"] = []
-            if value not in properties[key]["examples"] and len(properties[key]["examples"]) < 5:
-                properties[key]["examples"].append(value)
+            # Collect up to 5 examples for enum detection
+            examples = properties[key]["examples"]
+            if value not in examples and len(examples) < 5:
+                examples.append(value)
 
-    # Normalize properties and detect required keys
+    logger.debug(f"Accumulated {len(properties)} properties from {len(rows)} rows")
+    return properties, key_counts
+
+
+def _normalize_object_properties(
+    properties: dict[str, Any],
+    key_counts: dict[str, int],
+    total_rows: int,
+) -> tuple[dict[str, Any], list[str]]:
+    """Normalize property schemas and detect required keys.
+
+    CC: ~4 (2 branches + 2 condicionals)
+    """
+    normalized_properties: dict[str, Any] = {}
     required_keys: list[str] = []
+
     for key, key_count in key_counts.items():
-        presence = key_count / len(rows)
+        presence = key_count / total_rows
+        prop_data = properties.get(key, {})
 
         # Determine primary type
-        types = properties[key]["types"]
-        if len(types) == 1:
-            primary_type = next(iter(types))
-        else:
-            primary_type = "mixed"
+        types = prop_data.get("types", set())
+        primary_type = next(iter(types)) if len(types) == 1 else "mixed"
 
-        # Build property schema
-        prop_schema: dict[str, Any] = {"type": primary_type}
-
-        # Add examples
-        examples = properties[key].get("examples", [])
-        if examples:
-            prop_schema["examples"] = examples
-
-        # Detect enums (low cardinality strings)
-        if primary_type == "string" and 2 <= len(set(examples)) <= 10:
-            prop_schema["enum"] = list(set(examples))
+        # Build normalized property schema
+        prop_schema = _build_property_schema(primary_type, prop_data.get("examples", []))
 
         # Mark as required if present in > 80% of rows
         if presence > 0.8:
             required_keys.append(key)
+            logger.debug(f"Property '{key}' marked as required (presence: {presence:.1%})")
 
-        properties[key] = prop_schema
+        normalized_properties[key] = prop_schema
 
-    return {
-        "type": "object",
-        "properties": properties,
-        "required": required_keys,
-        "sample_count": len(rows),
-        "depth": current_depth,
-    }
+    return normalized_properties, required_keys
+
+
+def _build_property_schema(primary_type: str, examples: list[Any]) -> dict[str, Any]:
+    """Build normalized property schema with type, examples, and enums.
+
+    CC: ~2 (2 independent branches)
+    """
+    prop_schema: dict[str, Any] = {"type": primary_type}
+
+    # Add examples if present
+    if examples:
+        prop_schema["examples"] = examples
+
+    # Detect enums: low cardinality strings (2-10 unique values)
+    if primary_type == "string" and 2 <= len(set(examples)) <= 10:
+        prop_schema["enum"] = list(set(examples))
+        logger.debug(f"Enum detected with {len(set(examples))} values")
+
+    return prop_schema
 
 
 def _infer_array_schema(
@@ -293,6 +354,10 @@ def _infer_array_schema(
         element_type = next(iter(element_types))
     else:
         element_type = "mixed"
+
+    logger.debug(
+        f"Array schema inferred: element_type={element_type}, count={len(rows)}, examples={len(all_elements[:3])}"
+    )
 
     return {
         "type": "array",

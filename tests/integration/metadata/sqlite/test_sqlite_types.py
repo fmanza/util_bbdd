@@ -202,4 +202,3 @@ def test_sqlite_error_handling_graceful() -> None:
         assert result is None, "Expected None on adapter error"
         # Verify error was logged as warning
         assert mock_logger.warning.called
-
