@@ -57,6 +57,8 @@ nav:
       - Generación de Grafos: examples/graph_generation.md
   - Arquitectura:
       - ADR-001 Refactoring: adr/ADR-001-STRUCTURE-REFACTORING.md
+  - Roadmap & Planificación:
+      - PLAN v0.8.0 Type System: PLAN_v0.8.0_TYPE_SYSTEM_IMPROVEMENTS.md
   - Versiones Históricas: legacy-versions.md
 
 theme:
