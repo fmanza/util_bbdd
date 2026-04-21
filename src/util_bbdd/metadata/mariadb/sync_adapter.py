@@ -178,22 +178,18 @@ class MariaDBSyncAdapter:
 
     # ==================== SourceAdapter Protocol ====================
 
-    def fetch_tables_sync(self, schema: str | None = None) -> list[tuple]:
+    def fetch_tables_sync(self) -> list[tuple]:
         """Obtiene lista de tablas en modo síncrono (SourceAdapter).
-
-        Args:
-            schema: Nombre del esquema/database (ignorado para MariaDB, usa contexto del manager).
 
         Returns:
             list[tuple]: Filas (table_name, table_type, table_comment, ...)
         """
         return list(self.manager.get_tables())
 
-    def fetch_columns_sync(self, schema: str, table: str) -> list[tuple]:
+    def fetch_columns_sync(self, table: str) -> list[tuple]:
         """Obtiene columnas de una tabla en modo síncrono (SourceAdapter).
 
         Args:
-            schema: Nombre del esquema (ignorado, se usa contexto del manager).
             table: Nombre de la tabla.
 
         Returns:
@@ -201,11 +197,10 @@ class MariaDBSyncAdapter:
         """
         return list(self.manager.get_columns(table))
 
-    def fetch_primary_keys_sync(self, schema: str, table: str) -> list[tuple]:
+    def fetch_primary_keys_sync(self, table: str) -> list[tuple]:
         """Obtiene claves primarias en modo síncrono (SourceAdapter).
 
         Args:
-            schema: Nombre del esquema (ignorado).
             table: Nombre de la tabla.
 
         Returns:
@@ -213,11 +208,10 @@ class MariaDBSyncAdapter:
         """
         return list(self.manager.get_primary_keys(table))
 
-    def fetch_foreign_keys_sync(self, schema: str, table: str) -> list[tuple]:
+    def fetch_foreign_keys_sync(self, table: str) -> list[tuple]:
         """Obtiene claves foráneas en modo síncrono (SourceAdapter).
 
         Args:
-            schema: Nombre del esquema (ignorado).
             table: Nombre de la tabla.
 
         Returns:
@@ -225,11 +219,10 @@ class MariaDBSyncAdapter:
         """
         return list(self.manager.get_foreign_keys(table))
 
-    def fetch_indexes_sync(self, schema: str, table: str) -> list[tuple]:
+    def fetch_indexes_sync(self, table: str) -> list[tuple]:
         """Obtiene índices de una tabla en modo síncrono (SourceAdapter).
 
         Args:
-            schema: Nombre del esquema (ignorado).
             table: Nombre de la tabla.
 
         Returns:
