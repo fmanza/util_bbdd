@@ -38,7 +38,7 @@ class TestRoutinesSql:
         assert "FUNCTION" in sql or "function" in sql.lower()
 
     def test_fetch_routine_parameters_sql_valid(self) -> None:
-        sql = fetch_routine_parameters_sql("public", "my_func", "FUNCTION")
+        sql = fetch_routine_parameters_sql()
         assert isinstance(sql, str)
         assert "information_schema.parameters" in sql
 

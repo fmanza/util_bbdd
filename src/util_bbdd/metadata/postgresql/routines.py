@@ -43,13 +43,8 @@ def fetch_routines_sql(schema: str | None = None) -> str:
     )
 
 
-def fetch_routine_parameters_sql(schema: str, routine_name: str, routine_type: str) -> str:
+def fetch_routine_parameters_sql() -> str:
     """SQL query para obtener parámetros de una función/procedimiento en PostgreSQL.
-
-    Args:
-        schema: Nombre del schema
-        routine_name: Nombre de la función/procedimiento
-        routine_type: FUNCTION o PROCEDURE
 
     Returns:
         str: SQL query para (ordinal_position, param_mode, param_name, param_type, default_value)
@@ -71,6 +66,39 @@ def fetch_routine_parameters_sql(schema: str, routine_name: str, routine_type: s
     )
 
 
+def _extract_routine_detail_from_row(row: Any) -> PgRoutineDetail | None:
+    """Extrae los detalles de una fila PostgreSQL individual.
+
+    Args:
+        row: Tupla/lista de rutina del query
+
+    Returns:
+        PgRoutineDetail si la fila es válida, None en caso contrario
+    """
+    routine_name = str(row[0]).strip() if row[0] else ""
+    routine_type = str(row[1]).strip().upper() if len(row) > 1 and row[1] else "FUNCTION"
+    routine_owner = str(row[2]).strip() if len(row) > 2 and row[2] else ""
+    routine_definition = str(row[3]).strip() if len(row) > 3 and row[3] else ""
+    return_type = str(row[4]).strip() if len(row) > 4 and row[4] else ""
+    is_aggregate = bool(row[5]) if len(row) > 5 else False
+    is_window = bool(row[6]) if len(row) > 6 else False
+    security_definer = bool(row[7]) if len(row) > 7 else False
+
+    if not routine_name:
+        return None
+
+    return PgRoutineDetail(
+        routine_name=routine_name,
+        routine_type=routine_type,
+        routine_owner=routine_owner,
+        routine_definition=routine_definition,
+        return_type=return_type,
+        is_aggregate=is_aggregate,
+        is_window=is_window,
+        security_definer=security_definer,
+    )
+
+
 def decode_postgres_routine_rows(rows: Rows) -> list[PgRoutineDetail]:
     """Decodifica filas de rutinas PostgreSQL en modelos IR.
 
@@ -85,30 +113,40 @@ def decode_postgres_routine_rows(rows: Rows) -> list[PgRoutineDetail]:
         if not isinstance(row, (tuple, list)) or len(row) < 5:
             continue
 
-        routine_name = str(row[0]).strip() if row[0] else ""
-        routine_type = str(row[1]).strip().upper() if len(row) > 1 and row[1] else "FUNCTION"
-        routine_owner = str(row[2]).strip() if len(row) > 2 and row[2] else ""
-        routine_definition = str(row[3]).strip() if len(row) > 3 and row[3] else ""
-        return_type = str(row[4]).strip() if len(row) > 4 and row[4] else ""
-        is_aggregate = bool(row[5]) if len(row) > 5 else False
-        is_window = bool(row[6]) if len(row) > 6 else False
-        security_definer = bool(row[7]) if len(row) > 7 else False
-
-        if routine_name:
-            routines.append(
-                PgRoutineDetail(
-                    routine_name=routine_name,
-                    routine_type=routine_type,
-                    routine_owner=routine_owner,
-                    routine_definition=routine_definition,
-                    return_type=return_type,
-                    is_aggregate=is_aggregate,
-                    is_window=is_window,
-                    security_definer=security_definer,
-                )
-            )
+        detail = _extract_routine_detail_from_row(row)
+        if detail:
+            routines.append(detail)
 
     return routines
+
+
+def _extract_parameter_detail_from_row(row: Any) -> PgParameterDetail | None:
+    """Extrae los detalles de una fila de parámetro PostgreSQL individual.
+
+    Args:
+        row: Tupla/lista de parámetro del query
+
+    Returns:
+        PgParameterDetail si la fila es válida, None en caso contrario
+    """
+    ordinal_position = int(row[0]) if row[0] else None
+    mode = str(row[1]).strip().upper() if len(row) > 1 and row[1] else "IN"
+    param_name = str(row[2]).strip() if len(row) > 2 and row[2] else f"param_{ordinal_position}"
+    data_type = str(row[3]).strip() if len(row) > 3 and row[3] else "unknown"
+    default_value = str(row[4]).strip() if len(row) > 4 and row[4] else None
+
+    # Normalizar tipo usando funciones compartidas
+    normalized_type = normalize_postgres_type(data_type)
+
+    return PgParameterDetail(
+        mode=mode,
+        name=param_name,
+        routine_name="",  # Se asigna en filtro
+        routine_type="",  # Se asigna en filtro
+        data_type=normalized_type,
+        ordinal_position=ordinal_position,
+        default_value=default_value,
+    )
 
 
 def decode_postgres_parameter_rows(rows: Rows) -> list[PgParameterDetail]:
@@ -125,26 +163,9 @@ def decode_postgres_parameter_rows(rows: Rows) -> list[PgParameterDetail]:
         if not isinstance(row, (tuple, list)) or len(row) < 4:
             continue
 
-        ordinal_position = int(row[0]) if row[0] else None
-        mode = str(row[1]).strip().upper() if len(row) > 1 and row[1] else "IN"
-        param_name = str(row[2]).strip() if len(row) > 2 and row[2] else f"param_{ordinal_position}"
-        data_type = str(row[3]).strip() if len(row) > 3 and row[3] else "unknown"
-        default_value = str(row[4]).strip() if len(row) > 4 and row[4] else None
-
-        # Normalizar tipo usando funciones compartidas
-        normalized_type = normalize_postgres_type(data_type)
-
-        parameters.append(
-            PgParameterDetail(
-                mode=mode,
-                name=param_name,
-                routine_name="",  # Se asigna en filtro
-                routine_type="",  # Se asigna en filtro
-                data_type=normalized_type,
-                ordinal_position=ordinal_position,
-                default_value=default_value,
-            )
-        )
+        detail = _extract_parameter_detail_from_row(row)
+        if detail:
+            parameters.append(detail)
 
     return parameters
 
@@ -184,11 +205,9 @@ def build_postgres_routine_ddl(
     routine_type: str,
     routine_definition: str,
     routine_owner: str = "",
-    return_type: str = "",
     security_definer: bool = False,
     is_aggregate: bool = False,
     is_window: bool = False,
-    parameters: list[dict[str, Any]] | None = None,
 ) -> str:
     """Construye DDL de función/procedimiento desde componentes.
 
@@ -198,11 +217,9 @@ def build_postgres_routine_ddl(
         routine_type: FUNCTION, PROCEDURE, AGGREGATE, WINDOW
         routine_definition: Cuerpo/definición completa
         routine_owner: Propietario (usuario)
-        return_type: Tipo de retorno (si aplica)
         security_definer: Si debe ser SECURITY DEFINER
         is_aggregate: Si es agregado
         is_window: Si es función ventana
-        parameters: Lista de parámetros (opcional, informativo)
 
     Returns:
         str: DDL completo con comentarios

@@ -7,7 +7,7 @@ que son idénticos entre PostgreSQLSyncAdapter y PostgreSQLAsyncAdapter.
 from __future__ import annotations
 
 from ...results import Rows
-from ._postgres_models import PgParameterDetail, PgRoutineDetail
+from ._postgres_models import PgRoutineDetail
 from .routines import (
     build_postgres_routine_ddl,
 )
@@ -70,7 +70,6 @@ def process_routine_result(
     routine_rows: list[PgRoutineDetail],
     routine_name: str,
     routine_type: str,
-    parameter_rows: list[PgParameterDetail],
 ) -> str:
     """Construye el DDL completo de una rutina desde componentes decodificados.
 
@@ -78,7 +77,6 @@ def process_routine_result(
         routine_rows: Rutinas decodificadas
         routine_name: Nombre de la rutina a buscar
         routine_type: Tipo de rutina (FUNCTION, PROCEDURE, etc)
-        parameter_rows: Parámetros decodificados
 
     Returns:
         str: DDL completo o comentario de fallback
@@ -88,24 +86,15 @@ def process_routine_result(
     )
 
     if target_row and target_row.routine_definition:
-        # Filtrar parámetros de esta rutina específica
-        routine_params = [
-            p
-            for p in parameter_rows
-            if p.routine_name.upper() == routine_name.upper() and p.routine_type.upper() == routine_type.upper()
-        ]
-
         return build_postgres_routine_ddl(
             schema=None,  # No tenemos schema en este contexto
             routine_name=routine_name,
             routine_type=routine_type,
             routine_definition=target_row.routine_definition,
             routine_owner=target_row.routine_owner,
-            return_type=target_row.return_type,
             security_definer=target_row.security_definer,
             is_aggregate=target_row.is_aggregate,
             is_window=target_row.is_window,
-            parameters=[p.to_dict() for p in routine_params],
         )
 
     return f"-- {routine_type} {routine_name} definition unavailable\n"
