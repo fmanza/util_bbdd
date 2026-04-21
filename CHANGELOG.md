@@ -11,6 +11,8 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 - `src/util_bbdd/managers/_manager_storage.py` — Eliminado `async` innecesario de `_AsyncHSQLDBStorageStrategy.execute()` (HSQLDB es in-memory, sin I/O async)
 - `src/util_bbdd/managers/async_mgr.py` — Agregado manejo de ambos sync/async returns via `asyncio.iscoroutine()` detection
+- `docs/INSTALLATION.md` (línea 157) — Fijado link inconsistente a ORACLE_DRIVER_GUIDE.md (archivo no existe)
+- `docs/RELEASE_v0.5.0.md` (líneas 92-96) — Actualizados links a archivos históricos movidos a `archive/`
 
 ### Removed
 
@@ -42,6 +44,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - Mejorado docstrings en funciones de conveniencia:
   - `validate_db_type()` — ejemplos y cross-references
   - `get_db_type_info()` — estructura de retorno y ejemplos
+
+- Creado `docs/DOCUMENTATION_AUDIT_v0.7.0.md`:
+  - Auditoría completa de gaps en documentación
+  - Identificación de links rotos y archivos faltantes
+  - Checklist priorizado de mejoras
+  - Referencias cruzadas entre guías técnicas
+  - Recomendaciones para v0.8.0+
 
 ### Validation
 
