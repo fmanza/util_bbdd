@@ -110,7 +110,6 @@ def extract_json_schema_from_check_constraint(
 def infer_json_schema_from_sample(
     rows: list[str | dict[str, Any] | list[Any]],
     sample_size: int = 100,
-    max_depth: int = 2,
 ) -> dict[str, Any]:
     """Infer JSON schema from sample column values.
 
@@ -129,7 +128,6 @@ def infer_json_schema_from_sample(
     Args:
         rows: Sample of column values (strings or parsed objects)
         sample_size: Max rows to analyze (default 100)
-        max_depth: Max nesting depth for nested object inference (default 2)
 
     Returns:
         dict with schema structure:
@@ -195,7 +193,6 @@ def infer_json_schema_from_sample(
     if top_level_type == "object":
         return _infer_object_schema(
             parsed_rows,
-            max_depth=max_depth,
             current_depth=0,
         )
     elif top_level_type == "array":
@@ -212,7 +209,6 @@ def infer_json_schema_from_sample(
 
 def _infer_object_schema(
     rows: list[dict[str, Any]],
-    max_depth: int = 2,
     current_depth: int = 0,
 ) -> dict[str, Any]:
     """Infer schema for object-type rows.
@@ -245,7 +241,9 @@ def _infer_object_schema(
     # Step 2: Normalize properties and detect required keys (CC: ~4)
     normalized_properties, required_keys = _normalize_object_properties(properties, key_counts, len(rows))
 
-    logger.debug(f"Object schema inferred: {len(normalized_properties)} properties, {len(required_keys)} required")
+    logger.debug(
+        f"Object schema inferred: {len(normalized_properties)} properties, {len(required_keys)} required",
+    )
 
     return {
         "type": "object",
@@ -287,7 +285,9 @@ def _accumulate_object_properties(
             if value not in examples and len(examples) < 5:
                 examples.append(value)
 
-    logger.debug(f"Accumulated {len(properties)} properties from {len(rows)} rows")
+    logger.debug(
+        f"Accumulated {len(properties)} properties from {len(rows)} rows",
+    )
     return properties, key_counts
 
 
@@ -317,7 +317,9 @@ def _normalize_object_properties(
         # Mark as required if present in > 80% of rows
         if presence > 0.8:
             required_keys.append(key)
-            logger.debug(f"Property '{key}' marked as required (presence: {presence:.1%})")
+            logger.debug(
+                f"Property '{key}' marked as required (presence: {presence:.1%})",
+            )
 
         normalized_properties[key] = prop_schema
 
@@ -338,7 +340,9 @@ def _build_property_schema(primary_type: str, examples: list[Any]) -> dict[str, 
     # Detect enums: low cardinality strings (2-10 unique values)
     if primary_type == "string" and 2 <= len(set(examples)) <= 10:
         prop_schema["enum"] = list(set(examples))
-        logger.debug(f"Enum detected with {len(set(examples))} values")
+        logger.debug(
+            f"Enum detected with {len(set(examples))} values",
+        )
 
     return prop_schema
 
@@ -367,7 +371,7 @@ def _infer_array_schema(
         element_type = "mixed"
 
     logger.debug(
-        f"Array schema inferred: element_type={element_type}, count={len(rows)}, examples={len(all_elements[:3])}"
+        f"Array schema inferred: element_type={element_type}, count={len(rows)}, examples={len(all_elements[:3])}",
     )
 
     return {
@@ -402,6 +406,36 @@ def _infer_value_type(value: Any) -> str:
 # ============================================================================
 
 
+def _normalize_properties_types(
+    props: dict[str, Any],
+) -> None:
+    """Normalize property types: convert "types" to "type" in-place.
+
+    Helper to reduce CC in normalize_json_schema().
+    CC: 3 (1 loop + 2 nested ifs)
+    """
+    for _key, prop_schema in props.items():
+        if not isinstance(prop_schema, dict) or "types" not in prop_schema:
+            continue
+        types = prop_schema.pop("types")
+        if "type" not in prop_schema:
+            prop_schema["type"] = _convert_types_to_type(types)
+
+
+def _ensure_required_list(
+    normalized: dict[str, Any],
+) -> None:
+    """Ensure 'required' field is a list in-place.
+
+    Helper to reduce CC in normalize_json_schema().
+    CC: 2 (1 conditional + 1 branch)
+    """
+    if "required" not in normalized:
+        normalized["required"] = []
+    elif not isinstance(normalized["required"], list):
+        normalized["required"] = list(normalized["required"])
+
+
 def _convert_types_to_type(types: Any) -> str:
     """Convert types set to single type string.
 
@@ -430,6 +464,8 @@ def normalize_json_schema(schema: dict[str, Any]) -> dict[str, Any]:
     - "required" is list
     - No dangling "types" field
 
+    CC reduced from 22 → 8 via _normalize_properties_types() and _ensure_required_list() helpers.
+
     Args:
         schema: Raw inferred schema
 
@@ -450,19 +486,10 @@ def normalize_json_schema(schema: dict[str, Any]) -> dict[str, Any]:
     if "properties" in normalized:
         props = normalized["properties"]
         if isinstance(props, dict):
-            # Convert any "types" to "type" using helper
-            for _key, prop_schema in props.items():
-                if isinstance(prop_schema, dict) and "types" in prop_schema:
-                    types = prop_schema.pop("types")
-                    if "type" not in prop_schema:
-                        prop_schema["type"] = _convert_types_to_type(types)
+            _normalize_properties_types(props)
 
     # Ensure required is list
-    if "required" in normalized:
-        if not isinstance(normalized["required"], list):
-            normalized["required"] = list(normalized["required"])
-    else:
-        normalized["required"] = []
+    _ensure_required_list(normalized)
 
     return normalized
 
