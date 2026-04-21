@@ -330,7 +330,60 @@ _db_validator: DatabaseTypeValidator | None = None
 
 
 def get_database_validator(config_file: Path | None = None) -> DatabaseTypeValidator:
-    """Obtiene una instancia reutilizable del validador de tipos de BD."""
+    """Obtiene una instancia reutilizable del validador de tipos de BD (Singleton).
+
+    Implementa el patrón Singleton con lazy-loading para centralizar la carga
+    de configuración de database_types.json y evitar múltiples lecturas de disco.
+
+    **Patrón de Singleton:**
+    - Primera llamada: Crea instancia de DatabaseTypeValidator y la almacena en
+      variable global _db_validator
+    - Llamadas posteriores: Retorna la instancia almacenada (reutilización)
+    - Si config_file es fornecido: Reinicia la instancia (útil para testing)
+
+    **Por qué Singleton aquí:**
+    1. **Performance:** El archivo database_types.json se carga solo 1 vez
+    2. **Consistency:** Todos los clientes usan la misma configuración
+    3. **Memory efficiency:** Una única instancia en memoria
+    4. **Simplicity:** Interfaz clara sin factory patterns complejos
+
+    **Limitation:** Este patrón está limitado a single-threaded synchronous contexts.
+    En contextos multi-threaded o async, puede causar race conditions.
+    Futuro refactor considerará inyección de dependencias o thread-safe singleton.
+
+    Args:
+        config_file: Path al archivo JSON de configuración (opcional).
+                     Si es None, usa `data/database_types.json` por defecto.
+                     Si se fornece, reinicia la instancia con nuevo config_file.
+
+    Returns:
+        DatabaseTypeValidator: Instancia singleton del validador
+
+    Example:
+        >>> # Primera llamada: crea instancia
+        >>> validator = get_database_validator()
+        >>> validator.is_db_type_supported('postgresql')
+        True
+
+        >>> # Segunda llamada: reutiliza la misma instancia
+        >>> validator2 = get_database_validator()
+        >>> validator is validator2  # mismo objeto
+        True
+
+        >>> # Con config_file: reinicia con nueva configuración (testing)
+        >>> validator_test = get_database_validator(Path('tests/fixtures/db_types.json'))
+        >>> validator_test is validator  # nueva instancia creada
+        False
+
+    Raises:
+        FileNotFoundError: Si config_file no existe (delegado a DatabaseTypeValidator)
+        ValueError: Si el JSON es inválido (delegado a DatabaseTypeValidator)
+
+    See Also:
+        DatabaseTypeValidator: Clase que encapsula validación de BD
+        validate_db_type: Función de conveniencia que usa este singleton
+        get_db_type_info: Función de conveniencia que usa este singleton
+    """
     global _db_validator
     if _db_validator is None or config_file is not None:
         _db_validator = DatabaseTypeValidator(config_file)
@@ -338,13 +391,56 @@ def get_database_validator(config_file: Path | None = None) -> DatabaseTypeValid
 
 
 def validate_db_type(db_type: str) -> bool:
-    """Función de conveniencia para validar un tipo de base de datos."""
+    """Función de conveniencia para validar un tipo de base de datos.
+
+    Obtiene el validador singleton y ejecuta validación.
+
+    Args:
+        db_type: Tipo de BD a validar (ej: 'postgresql', 'oracle', 'mariadb')
+
+    Returns:
+        bool: True si el tipo es válido, False en caso contrario
+
+    Raises:
+        InvalidDatabaseType: Si el tipo de BD no es soportado
+
+    Example:
+        >>> validate_db_type('postgresql')
+        True
+        >>> validate_db_type('invalid_db')
+        False
+
+    See Also:
+        get_database_validator: Obtiene la instancia singleton
+        DatabaseTypeValidator.validate_db_type: Implementación real
+    """
     validator = get_database_validator()
     return validator.validate_db_type(db_type)
 
 
 def get_db_type_info(db_type: str) -> JsonDict:
-    """Función de conveniencia para obtener información de un tipo de base de datos."""
+    """Función de conveniencia para obtener información de un tipo de BD.
+
+    Obtiene el validador singleton y retorna metadatos del tipo de BD.
+
+    Args:
+        db_type: Tipo de BD del cual obtener información
+
+    Returns:
+        JsonDict: Diccionario con información del tipo de BD
+                 (driver, parameters, examples, etc.)
+
+    Example:
+        >>> info = get_db_type_info('postgresql')
+        >>> info['driver']
+        'psycopg'
+        >>> info['supports_async']
+        True
+
+    See Also:
+        get_database_validator: Obtiene la instancia singleton
+        DatabaseTypeValidator.get_db_type_info: Implementación real
+    """
     validator = get_database_validator()
     return validator.get_db_type_info(db_type)
 
