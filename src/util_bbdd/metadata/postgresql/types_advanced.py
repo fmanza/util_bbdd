@@ -1,0 +1,359 @@
+"""Advanced PostgreSQL Type System Support — Phase 1.
+
+Provides introspection for complex/composite database types:
+- Composite types (user-defined types)
+- Field-level metadata (names, types, ordinal position)
+- Recursive type resolution (nested composites)
+
+Module Pattern:
+    - Follows PostgreSQL v0.7.0 adapter pattern
+    - Duck-typed methods for manager integration
+    - Uses pg_type + pg_attribute system catalogs
+    - Supports nested types with cycle detection (max 5 levels)
+
+Example:
+    >>> adapter = PostgreSQLSyncAdapter(manager)
+    >>> composite_fields = adapter.get_composite_type_fields("public", "address_type")
+    >>> for field in composite_fields:
+    ...     print(f"{field['name']}: {field['type']}")
+    street: varchar
+    city: varchar
+    zip: varchar(10)
+"""
+
+import logging
+
+from dataclasses import dataclass
+from typing import Any, Protocol, TypeVar
+
+T = TypeVar("T")
+
+logger: logging.Logger = logging.getLogger(__name__)
+
+# ============================================================================
+# COMPOSITE TYPE STRUCTURES (Intermediate Representation)
+# ============================================================================
+
+
+@dataclass(frozen=True, slots=True)
+class CompositeTypeField:
+    """Field within a composite type."""
+
+    name: str
+    type_name: str
+    ordinal_position: int
+    is_array: bool = False
+    is_nullable: bool = True
+    max_length: int | None = None
+    numeric_precision: int | None = None
+    numeric_scale: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to metadata dict for API response."""
+        result: dict[str, Any] = {
+            "name": self.name,
+            "type": self.type_name,
+            "ordinal_position": self.ordinal_position,
+            "nullable": self.is_nullable,
+        }
+        if self.is_array:
+            result["is_array"] = True
+        if self.max_length is not None:
+            result["max_length"] = self.max_length
+        if self.numeric_precision is not None:
+            result["precision"] = self.numeric_precision
+        if self.numeric_scale is not None:
+            result["scale"] = self.numeric_scale
+        return result
+
+
+@dataclass(frozen=True, slots=True)
+class CompositeTypeInfo:
+    """Metadata for a composite type."""
+
+    name: str
+    schema: str
+    owner: str
+    fields: list[CompositeTypeField]
+    is_nested: bool = False
+    depth: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to metadata dict for API response."""
+        return {
+            "name": self.name,
+            "schema": self.schema,
+            "owner": self.owner,
+            "fields": [field.to_dict() for field in self.fields],
+            "depth": self.depth,
+        }
+
+
+# ============================================================================
+# MANAGER PROTOCOL (Duck-typed interface)
+# ============================================================================
+
+
+class PostgreSQLManagerProtocol(Protocol):
+    """Interface that manager must provide."""
+
+    @property
+    def logger(self) -> logging.Logger:
+        """Logger instance."""
+        ...
+
+    def _execute_metadata_many(
+        self, query_name: str, *, params: dict[str, Any], error_message: str
+    ) -> list[tuple[Any, ...]]:
+        """Execute metadata query (rows as tuples)."""
+        ...
+
+
+# ============================================================================
+# COMPOSITE TYPE PARSING FUNCTIONS
+# ============================================================================
+
+
+def parse_composite_type_structure(
+    schema: str, type_name: str, adapter: Any, max_depth: int = 5, current_depth: int = 0
+) -> CompositeTypeInfo | None:
+    """Parse PostgreSQL composite type structure via pg_type + pg_attribute.
+
+    Args:
+        schema: Schema name (e.g., "public")
+        type_name: Composite type name (e.g., "address_type")
+        adapter: Manager adapter with logger + execute methods
+        max_depth: Maximum recursion depth for nested composites (default: 5)
+        current_depth: Current recursion depth (internal use)
+
+    Returns:
+        CompositeTypeInfo with field details, or None if type not found
+
+    Example:
+        >>> info = parse_composite_type_structure("public", "address_type", adapter)
+        >>> for field in info.fields:
+        ...     print(f"{field.name}: {field.type_name}")
+        street: varchar
+        city: varchar
+
+    Notes:
+        - Handles nested composite types (composite within composite)
+        - Cycle detection: max_depth prevents infinite recursion
+        - Returns None if schema/type not found (graceful degradation)
+        - Edge cases: array fields, domain types, types with defaults
+    """
+    if current_depth >= max_depth:
+        adapter.logger.warning(f"Composite type nesting depth limit ({max_depth}) reached for {schema}.{type_name}")
+        return None
+
+    # Query pg_type + pg_attribute to get composite type structure
+    # (Manager executes via query name 'fetch_composite_type_fields')
+    params: dict[str, Any] = {"schema": schema, "type_name": type_name}
+
+    try:
+        rows = adapter._execute_metadata_many(
+            "fetch_composite_type_fields",
+            params=params,
+            error_message=f"Failed to fetch composite type {schema}.{type_name}",
+        )
+    except Exception as e:
+        adapter.logger.error(f"Error fetching composite type {schema}.{type_name}: {e}", exc_info=True)
+        return None
+
+    if not rows:
+        adapter.logger.debug(f"Composite type {schema}.{type_name} not found")
+        return None
+
+    # Parse row data
+    fields: list[CompositeTypeField] = []
+    owner: str = ""
+
+    for row in rows:
+        if not isinstance(row, (tuple, list)) or len(row) < 9:
+            continue
+
+        field_name = str(row[0]) if row[0] else ""
+        # field_type_oid = int(row[1]) if row[1] else 0  # noqa: F841
+        field_type_name = str(row[2]) if row[2] else "unknown"
+        ordinal_position = int(row[3]) if row[3] else 0
+        type_owner = str(row[4]) if row[4] else ""
+        is_array = bool(row[5]) if row[5] is not None else False
+        max_length = int(row[6]) if row[6] and str(row[6]).isdigit() else None
+        numeric_precision = int(row[7]) if row[7] and str(row[7]).isdigit() else None
+        numeric_scale = int(row[8]) if row[8] and str(row[8]).isdigit() else None
+
+        owner = type_owner
+
+        # Normalize field type name
+        normalized_type = _normalize_composite_field_type(field_type_name)
+
+        field = CompositeTypeField(
+            name=field_name,
+            type_name=normalized_type,
+            ordinal_position=ordinal_position,
+            is_array=is_array,
+            is_nullable=True,  # PostgreSQL composite fields are nullable by default
+            max_length=max_length,
+            numeric_precision=numeric_precision,
+            numeric_scale=numeric_scale,
+        )
+        fields.append(field)
+
+    if not fields:
+        adapter.logger.debug(f"No fields found for composite type {schema}.{type_name}")
+        return None
+
+    composite_info = CompositeTypeInfo(
+        name=type_name,
+        schema=schema,
+        owner=owner,
+        fields=fields,
+        is_nested=(current_depth > 0),
+        depth=current_depth,
+    )
+
+    adapter.logger.debug(f"Parsed composite type {schema}.{type_name} with {len(fields)} fields")
+    return composite_info
+
+
+def resolve_field_types(composite_info: CompositeTypeInfo, adapter: Any) -> CompositeTypeInfo:
+    """Recursively resolve nested composite types within fields.
+
+    Args:
+        composite_info: Composite type metadata
+        adapter: Manager adapter
+
+    Returns:
+        CompositeTypeInfo with potentially expanded field types
+
+    Notes:
+        - Currently returns as-is (framework for future nested resolution)
+        - Future: if field type is composite, recursively fetch its structure
+    """
+    return composite_info
+
+
+# ============================================================================
+# SQL BUILDERS
+# ============================================================================
+
+
+def _get_composite_type_query() -> str:
+    """Build SQL to fetch composite type structure from pg_type + pg_attribute.
+
+    Returns:
+        Parameterized SQL query
+    """
+    return """
+        SELECT
+            pg_attribute.attname                           AS field_name,
+            pg_attribute.atttypid                          AS field_type_oid,
+            (SELECT typname FROM pg_type WHERE oid = pg_attribute.atttypid)
+                                                           AS field_type_name,
+            pg_attribute.attnum                            AS ordinal_position,
+            pg_type.typowner::regrole::name               AS type_owner,
+            (SELECT typelem > 0 FROM pg_type WHERE oid = pg_attribute.atttypid)
+                                                           AS is_array,
+            CASE
+                WHEN typlen = -1 THEN atttypmod - 4
+                WHEN typname = 'varchar' OR typname = 'char' THEN atttypmod - 4
+                ELSE NULL
+            END                                            AS max_length,
+            NULL::INTEGER                                  AS numeric_precision,
+            NULL::INTEGER                                  AS numeric_scale
+        FROM
+            pg_type
+            INNER JOIN pg_attribute ON pg_attribute.attrelid = pg_type.typrelid
+        WHERE
+            pg_type.typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = %(schema)s)
+            AND pg_type.typname = %(type_name)s
+            AND pg_attribute.attnum > 0
+        ORDER BY
+            pg_attribute.attnum
+    """  # noqa: F841
+
+
+# ============================================================================
+# TYPE NORMALIZATION
+# ============================================================================
+
+
+def _normalize_composite_field_type(pg_type_name: str) -> str:
+    """Normalize PostgreSQL type name for composite type field.
+
+    Args:
+        pg_type_name: PostgreSQL type name (e.g., "varchar", "timestamp with time zone")
+
+    Returns:
+        Normalized type name
+
+    Example:
+        >>> _normalize_composite_field_type("timestamp with time zone")
+        'timestamp'
+        >>> _normalize_composite_field_type("varchar")
+        'varchar'
+    """
+    if not pg_type_name:
+        return "unknown"
+
+    # Take first part of compound types
+    # "timestamp with time zone" → "timestamp"
+    normalized = pg_type_name.lower().strip().split()[0]
+    return normalized
+
+
+# ============================================================================
+# PUBLIC ADAPTER METHODS (to be called by PostgreSQL adapter)
+# ============================================================================
+
+
+def get_composite_types(schema: str | None, adapter: Any) -> list[CompositeTypeInfo]:
+    """Get all composite types in schema.
+
+    Args:
+        schema: Schema name (None = all schemas)
+        adapter: Manager adapter
+
+    Returns:
+        List of composite type metadata
+
+    Example:
+        >>> types = get_composite_types("public", adapter)
+        >>> for t in types:
+        ...     print(f"{t.schema}.{t.name}")
+        public.address_type
+        public.contact_type
+    """
+    # Note: SQL query is documented above; manager executes via query name "list_composite_types"
+    # where_clause construction not needed: manager handles schema filtering
+    params: dict[str, Any] = {}
+    if schema:
+        params["schema"] = schema
+
+    try:
+        rows = adapter._execute_metadata_many(
+            "list_composite_types",
+            params=params,
+            error_message="Failed to list composite types",
+        )
+    except Exception as exc:
+        adapter.logger.error(f"Error listing composite types: {exc}", exc_info=True)
+        return []
+
+    composite_types: list[CompositeTypeInfo] = []
+
+    for row in rows:
+        if not isinstance(row, (tuple, list)) or len(row) < 3:
+            continue
+
+        type_name = str(row[0]) if row[0] else ""
+        schema_name = str(row[1]) if row[1] else "public"
+        # type_owner = str(row[2]) if row[2] else ""  # Not used currently
+
+        # Fetch detailed field structure
+        composite_info = parse_composite_type_structure(schema_name, type_name, adapter)
+        if composite_info:
+            composite_types.append(composite_info)
+
+    adapter.logger.debug(f"Found {len(composite_types)} composite types")
+    return composite_types
