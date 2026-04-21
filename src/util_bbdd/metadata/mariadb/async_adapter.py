@@ -184,22 +184,18 @@ class MariaDBAsyncAdapter:
 
     # ==================== SourceAdapter Protocol ====================
 
-    async def fetch_tables_async(self, schema: str | None = None) -> list[tuple]:
+    async def fetch_tables_async(self) -> list[tuple]:
         """Obtiene lista de tablas en modo asíncrono (SourceAdapter).
-
-        Args:
-            schema: Nombre del esquema/database (ignorado para MariaDB, usa contexto del manager).
 
         Returns:
             list[tuple]: Filas (table_name, table_type, table_comment, ...)
         """
         return list(await self.manager.get_tables())
 
-    async def fetch_columns_async(self, schema: str, table: str) -> list[tuple]:
+    async def fetch_columns_async(self, table: str) -> list[tuple]:
         """Obtiene columnas de una tabla en modo asíncrono (SourceAdapter).
 
         Args:
-            schema: Nombre del esquema (ignorado, se usa contexto del manager).
             table: Nombre de la tabla.
 
         Returns:
@@ -207,11 +203,10 @@ class MariaDBAsyncAdapter:
         """
         return list(await self.manager.get_columns(table))
 
-    async def fetch_primary_keys_async(self, schema: str, table: str) -> list[tuple]:
+    async def fetch_primary_keys_async(self, table: str) -> list[tuple]:
         """Obtiene claves primarias en modo asíncrono (SourceAdapter).
 
         Args:
-            schema: Nombre del esquema (ignorado).
             table: Nombre de la tabla.
 
         Returns:
@@ -219,11 +214,10 @@ class MariaDBAsyncAdapter:
         """
         return list(await self.manager.get_primary_keys(table))
 
-    async def fetch_foreign_keys_async(self, schema: str, table: str) -> list[tuple]:
+    async def fetch_foreign_keys_async(self, table: str) -> list[tuple]:
         """Obtiene claves foráneas en modo asíncrono (SourceAdapter).
 
         Args:
-            schema: Nombre del esquema (ignorado).
             table: Nombre de la tabla.
 
         Returns:
@@ -231,11 +225,10 @@ class MariaDBAsyncAdapter:
         """
         return list(await self.manager.get_foreign_keys(table))
 
-    async def fetch_indexes_async(self, schema: str, table: str) -> list[tuple]:
+    async def fetch_indexes_async(self, table: str) -> list[tuple]:
         """Obtiene índices de una tabla en modo asíncrono (SourceAdapter).
 
         Args:
-            schema: Nombre del esquema (ignorado).
             table: Nombre de la tabla.
 
         Returns:
