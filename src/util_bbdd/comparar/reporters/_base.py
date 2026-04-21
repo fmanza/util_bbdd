@@ -120,7 +120,7 @@ class DdlNormalizer:
         (r"DEFINER\s*=\s*'[^']*'@'[^']*'", ""),  # DEFINER con comillas simples
         (r"DEFINER\s*=\s*\S+@\S+", ""),  # DEFINER sin comillas
         (r"SQL\s+SECURITY\s+(?:DEFINER|INVOKER)", ""),  # SQL SECURITY
-        (r"\bFORCE\s+(?=VIEW\b)", ""),  # Oracle FORCE VIEW
+        (r"\bFORCE\s+(?=VIEW\b)", ""),  # Oracle FORCE VIEW (elimina solo "FORCE ", preserva "VIEW")
     ]
 
     #: Patrones a eliminar de DDL de rutinas.
@@ -129,6 +129,25 @@ class DdlNormalizer:
         (r"DEFINER\s*=\s*`[^`]+`@`[^`]+`", ""),
         (r"DEFINER\s*=\s*'[^']*'@'[^']*'", ""),
         (r"DEFINER\s*=\s*\S+@\S+", ""),
+    ]
+
+    #: Patrones adicionales para normalización orientada a comparación semántica.
+    #: Complementa ``_VIEW_STRIP_PATTERNS`` con artefactos de SQL Server y PostgreSQL
+    #: que solo tienen sentido al comparar DDLs entre motores (no para display).
+    #: Fuente de verdad única: reemplaza ``SchemaComparator._DDL_STRIP_RULES``.
+    _COMPARISON_EXTRA_PATTERNS: ClassVar[list[tuple[str, str]]] = [
+        # Oracle: elimina FORCE de "CREATE OR REPLACE FORCE VIEW …" — preserva header estándar
+        (r"CREATE\s+OR\s+REPLACE\s+FORCE\b", "CREATE OR REPLACE"),
+        # SQL Server: escaping de identificadores con corchetes [name] → name
+        (r"\[([^\]]+)\]", r"\1"),
+        # SQL Server: WITH storage hints (FILLFACTOR, PAD_INDEX, etc.)
+        (r"\s+WITH\s*\([^)]*\)(?=\s|$)", ""),
+        # PostgreSQL: LANGUAGE clause (no semántica cross-motor)
+        (r"\s+LANGUAGE\s+\w+", ""),
+        # PostgreSQL: SECURITY clauses
+        (r"\s+SECURITY\s+(?:DEFINER|INVOKER)", ""),
+        # PostgreSQL: NULL handling modifiers
+        (r"\s+(STRICT|RETURNS\s+NULL\s+ON\s+NULL\s+INPUT)", ""),
     ]
 
     @staticmethod
@@ -170,6 +189,59 @@ class DdlNormalizer:
             result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
         result = re.sub(r"[ \t]{2,}", " ", result)
         return result.strip()
+
+    @staticmethod
+    def strip_dialect_artifacts(raw_ddl: str) -> str:
+        """Elimina artefactos dialect-específicos sin normalizar espacios ni cambiar case.
+
+        Aplica ``_VIEW_STRIP_PATTERNS`` + ``_COMPARISON_EXTRA_PATTERNS`` sobre el DDL
+        crudo.  No colapsa espacios ni convierte a minúsculas — útil cuando el resultado
+        se mostrará al usuario o cuando el código llamador necesita control del case.
+
+        Args:
+            raw_ddl: DDL crudo de vista o rutina.
+
+        Returns:
+            DDL con artefactos eliminados pero con case y espacios originales.
+
+        Example:
+            >>> DdlNormalizer.strip_dialect_artifacts("CREATE OR REPLACE FORCE VIEW v AS SELECT 1")
+            'CREATE OR REPLACE  VIEW v AS SELECT 1'
+        """
+        result = raw_ddl
+        for pattern, replacement in DdlNormalizer._VIEW_STRIP_PATTERNS:
+            result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+        for pattern, replacement in DdlNormalizer._COMPARISON_EXTRA_PATTERNS:
+            result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+        return result
+
+    @staticmethod
+    def normalize_for_comparison(raw_ddl: str) -> str:
+        """Normalización completa para comparación semántica de DDL entre motores.
+
+        Aplica ``_VIEW_STRIP_PATTERNS`` + ``_COMPARISON_EXTRA_PATTERNS`` y colapsa
+        espacios en blanco para obtener un DDL canónico independiente del motor.
+        Más agresiva que ``normalize_view_ddl`` (que solo limpia para display).
+
+        Args:
+            raw_ddl: DDL crudo de vista o rutina, tal como lo retorna el Inspector.
+
+        Returns:
+            DDL normalizado en minúsculas con espacios colapsados, apto para
+            comparación textual entre motores distintos.
+
+        Example:
+            >>> DdlNormalizer.normalize_for_comparison("CREATE OR REPLACE FORCE VIEW v AS SELECT 1")
+            'create or replace view v as select 1'
+        """
+        if not raw_ddl:
+            return ""
+        result = raw_ddl
+        for pattern, replacement in DdlNormalizer._VIEW_STRIP_PATTERNS:
+            result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+        for pattern, replacement in DdlNormalizer._COMPARISON_EXTRA_PATTERNS:
+            result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+        return re.sub(r"\s+", " ", result).strip().lower()
 
     @staticmethod
     def extract_view_body(raw_ddl: str) -> str:

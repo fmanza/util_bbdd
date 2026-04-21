@@ -9,6 +9,9 @@ from ._core.exceptions import (
     DatabaseConfigurationError,
     DatabaseException,
     DatabaseOperationError,
+    DocumentationConfigError,
+    DocumentationError,
+    DocumentationRenderError,
     DriverError,
     InvalidDatabaseType,
     PoolConnectionError,
@@ -60,4 +63,8 @@ __all__: list[str] = [
     "QueryParameterError",
     "QueryTimeoutError",
     "QueryExecutionError",
+    # Documentación
+    "DocumentationError",
+    "DocumentationConfigError",
+    "DocumentationRenderError",
 ]

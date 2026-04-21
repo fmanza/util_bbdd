@@ -119,55 +119,13 @@ class DocumentationManagerPort(
     def get_indices(self, table_name: str, /) -> Rows: ...
 
 
-class PrintConfigPolicyPort(Protocol):
-    """Normalización de configuración de impresión/secciones."""
+class DocumentationDataProviderPort(Protocol):
+    """Contrato mínimo del proveedor de datos consumido por renderers.
 
-    def normalize(self, imprimir: dict[str, Any] | None) -> dict[str, Any]: ...
-
-
-class HeadersRuntimePort(Protocol):
-    """Carga y composición de cabeceras del documento."""
-
-    def load_headers_config(self, headers_file: Path) -> HeadersConfig: ...
-
-    def build_headers(self, headers_config: HeadersConfig, db_type: str) -> dict[str, list[str]]: ...
-
-
-class MetadataRuntimePort(Protocol):
-    """Runtime de metadata opcional para enriquecimiento documental."""
-
-    def get_database_version_metadata(self, *, db_manager: MetadataReaderPort) -> str | None: ...
-
-    def get_database_charset_collation_metadata(self, *, db_manager: MetadataReaderPort) -> dict[str, Any] | None: ...
-
-    def get_columns_charset_collation_metadata(
-        self,
-        *,
-        db_manager: MetadataReaderPort,
-        table_name: str,
-    ) -> list[tuple[str, str | None, str | None]] | None: ...
-
-
-class MetadataRuntimeFactoryPort(Protocol):
-    """Fábrica para crear runtime de metadata por sesión/documento."""
-
-    def create(self, *, logger: LoggerProtocol) -> MetadataRuntimePort: ...
-
-
-class StorageReportServicePort(Protocol):
-    """Servicio de obtención del reporte de almacenamiento."""
-
-    def get_storage_inventory_report(
-        self,
-        *,
-        db_manager: DocumentationManagerPort,
-        logger: LoggerProtocol,
-        print_config: dict[str, Any],
-    ) -> dict[str, Any]: ...
-
-
-class DocumentationDataProviderPort(DocumentationManagerPort, Protocol):
-    """Contrato mínimo del proveedor de datos consumido por renderers."""
+    Nota de diseño: el proveedor *contiene* un ``DocumentationManagerPort``
+    como atributo ``db_manager`` pero no hereda de él.  La herencia anterior
+    creaba una circularidad (el port era-un manager Y tenía-un manager).
+    """
 
     imprimir_config: dict[str, Any]
     db_manager: DocumentationManagerPort
@@ -181,30 +139,10 @@ class DocumentRendererPort(Protocol):
         tables: list[tuple[Any, ...]],
         views: list[tuple[Any, ...]],
         routines: list[tuple[Any, ...]],
-        data_provider: DocumentationDataProviderPort,
+        data_provider: DocumentationManagerPort,
         output_target: Path,
         print_config: dict[str, Any] | None = None,
         graph_generator: Any | None = None,
     ) -> None: ...
 
 
-class RendererFactoryPort(Protocol):
-    """Factory de instancias renderer para un formato concreto."""
-
-    def __call__(self, *, database: str, headers: HeadersConfig, table_style: str) -> DocumentRendererPort: ...
-
-
-class RendererRegistrationPort(Protocol):
-    """Definición de formato registrada en el registry de renderers."""
-
-    output_format: str
-    output_extension: str | None
-    include_graph_generator: bool
-    accepts_graph_generator: bool
-    factory: RendererFactoryPort
-
-
-class RendererRegistryPort(Protocol):
-    """Registro de renderers por formato soportado."""
-
-    def get(self, output_format: str) -> RendererRegistrationPort | None: ...

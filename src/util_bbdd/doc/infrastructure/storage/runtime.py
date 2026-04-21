@@ -8,7 +8,8 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar, cast
 
 from ...._core.exceptions import DatabaseException, QueryNotFoundError
-from ...application.ports import DocumentationManagerPort, LoggerProtocol, StorageReportServicePort
+from ...application._internal_ports import StorageReportServicePort
+from ...application.ports import DocumentationManagerPort, LoggerProtocol
 from .contracts import StorageInventoryManagerProtocol, StorageInventoryStrategyPort
 from .mariadb_strategy import MariadbStorageInventoryStrategy
 from .oracle_strategy import OracleStorageInventoryStrategy

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ...application.ports import (
-    DocumentRendererPort,
+from ...application._internal_ports import (
     RendererFactoryPort,
     RendererRegistrationPort,
     RendererRegistryPort,
 )
+from ...application.ports import DocumentRendererPort
 from .excel_generator import ExcelGenerator
 from .html_generator import HtmlGenerator
 from .word_generator import WordGenerator

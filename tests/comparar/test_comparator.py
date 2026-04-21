@@ -13,8 +13,10 @@ pytest.importorskip("sqlalchemy")
 
 from sqlalchemy import Column, ForeignKey, Index, Integer, MetaData, String, Table, create_engine, inspect, text
 
+from util_bbdd.comparar._routine_fetchers import RoutineFetcherRegistry
 from util_bbdd.comparar.comparator import SchemaComparator
 from util_bbdd.comparar.contracts import SchemaComparatorProtocol
+from util_bbdd.comparar.reporters._base import DdlNormalizer
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -653,7 +655,7 @@ class TestGetRoutinesMariaDB:
 
         conn.execute.side_effect = execute_side_effect
 
-        routines = SchemaComparator._get_routines_mariadb(inspector, "mydb")
+        routines = RoutineFetcherRegistry.get_routines_mariadb(inspector, "mydb")
 
         assert len(routines) == 1
         assert routines[0]["name"] == "my_proc"
@@ -695,7 +697,7 @@ class TestGetRoutinesMariaDB:
 
         conn.execute.side_effect = execute_side_effect
 
-        routines = SchemaComparator._get_routines_mariadb(inspector, "mydb")
+        routines = RoutineFetcherRegistry.get_routines_mariadb(inspector, "mydb")
 
         assert len(routines) == 1
         assert routines[0]["name"] == "my_func"
@@ -734,7 +736,7 @@ class TestGetRoutinesMariaDB:
 
         conn.execute.side_effect = execute_side_effect
 
-        SchemaComparator._get_routines_mariadb(inspector, "mydb")
+        RoutineFetcherRegistry.get_routines_mariadb(inspector, "mydb")
 
         create_proc_sql = next(s for s in executed_sqls if "CREATE PROCEDURE" in s)
         assert "``" in create_proc_sql  # backtick escapado
@@ -757,7 +759,7 @@ class TestGetRoutinesMariaDB:
         inspector.engine = engine
         engine.connect.side_effect = OperationalError("", {}, OSError(error_message))
 
-        routines = SchemaComparator._get_routines_mariadb(inspector, "mydb")
+        routines = RoutineFetcherRegistry.get_routines_mariadb(inspector, "mydb")
 
         assert routines == []
 
@@ -766,7 +768,7 @@ class TestGetRoutinesMariaDB:
         inspector.engine = None
         inspector.bind = None
 
-        routines = SchemaComparator._get_routines_mariadb(inspector, "mydb")
+        routines = RoutineFetcherRegistry.get_routines_mariadb(inspector, "mydb")
 
         assert routines == []
 
@@ -781,7 +783,7 @@ class TestGetRoutinesOracle:
         inspector.bind = engine
 
         with caplog.at_level(logging.WARNING):
-            routines = SchemaComparator._get_routines_oracle(inspector, None)
+            routines = RoutineFetcherRegistry.get_routines_oracle(inspector, None)
 
         assert routines == []
         assert any("requiere" in r.message for r in caplog.records)
@@ -791,7 +793,7 @@ class TestGetRoutinesOracle:
         inspector.engine = None
         inspector.bind = None
 
-        routines = SchemaComparator._get_routines_oracle(inspector, "MYSCHEMA")
+        routines = RoutineFetcherRegistry.get_routines_oracle(inspector, "MYSCHEMA")
 
         assert routines == []
 
@@ -825,7 +827,7 @@ class TestGetRoutinesOracle:
 
         conn.execute.side_effect = execute_side_effect
 
-        routines = SchemaComparator._get_routines_oracle(inspector, "MYSCHEMA")
+        routines = RoutineFetcherRegistry.get_routines_oracle(inspector, "MYSCHEMA")
 
         assert len(routines) == 2
         names = {r["name"] for r in routines}
@@ -850,7 +852,7 @@ class TestGetRoutinesOracle:
         inspector.engine = engine
         engine.connect.side_effect = OperationalError("", {}, OSError(error_message))
 
-        routines = SchemaComparator._get_routines_oracle(inspector, "MYSCHEMA")
+        routines = RoutineFetcherRegistry.get_routines_oracle(inspector, "MYSCHEMA")
 
         assert routines == []
 
@@ -886,7 +888,7 @@ class TestGetRoutinesMSSQL:
 
         conn.execute.side_effect = execute_side_effect
 
-        routines = SchemaComparator._get_routines_mssql(inspector, "dbo")
+        routines = RoutineFetcherRegistry.get_routines_mssql(inspector, "dbo")
 
         assert len(routines) == 1
         assert routines[0]["name"] == "my_proc"
@@ -898,7 +900,7 @@ class TestGetRoutinesMSSQL:
         inspector.engine = None
         inspector.bind = None
 
-        routines = SchemaComparator._get_routines_mssql(inspector, "dbo")
+        routines = RoutineFetcherRegistry.get_routines_mssql(inspector, "dbo")
 
         assert routines == []
 
@@ -920,7 +922,7 @@ class TestGetRoutinesMSSQL:
         inspector.bind = engine
         engine.connect.side_effect = OperationalError("", {}, OSError(error_message))
 
-        routines = SchemaComparator._get_routines_mssql(inspector, "dbo")
+        routines = RoutineFetcherRegistry.get_routines_mssql(inspector, "dbo")
 
         assert routines == []
 
@@ -957,7 +959,7 @@ class TestGetRoutinesPostgreSQL:
 
         conn.execute.side_effect = execute_side_effect
 
-        routines = SchemaComparator._get_routines_postgresql(inspector, "public")
+        routines = RoutineFetcherRegistry.get_routines_postgresql(inspector, "public")
 
         assert len(routines) == 1
         assert routines[0]["name"] == "my_func"
@@ -993,7 +995,7 @@ class TestGetRoutinesPostgreSQL:
 
         conn.execute.side_effect = execute_side_effect
 
-        routines = SchemaComparator._get_routines_postgresql(inspector, "public")
+        routines = RoutineFetcherRegistry.get_routines_postgresql(inspector, "public")
 
         assert len(routines) == 1
         assert routines[0]["name"] == "my_proc"
@@ -1004,7 +1006,7 @@ class TestGetRoutinesPostgreSQL:
         inspector.engine = None
         inspector.bind = None
 
-        routines = SchemaComparator._get_routines_postgresql(inspector, "public")
+        routines = RoutineFetcherRegistry.get_routines_postgresql(inspector, "public")
 
         assert routines == []
 
@@ -1026,7 +1028,7 @@ class TestGetRoutinesPostgreSQL:
         inspector.bind = engine
         engine.connect.side_effect = OperationalError("", {}, OSError(error_message))
 
-        routines = SchemaComparator._get_routines_postgresql(inspector, "public")
+        routines = RoutineFetcherRegistry.get_routines_postgresql(inspector, "public")
 
         assert routines == []
 
@@ -1043,7 +1045,7 @@ class TestGetRoutinesHSQLDB:
         inspector.bind = engine
 
         with caplog.at_level(logging.WARNING):
-            routines = SchemaComparator._get_routines_hsqldb(inspector, None)
+            routines = RoutineFetcherRegistry.get_routines_hsqldb(inspector, None)
 
         assert routines == []
         assert any("HSQLDB no soporta" in r.message for r in caplog.records)
@@ -1118,7 +1120,7 @@ class TestGetRoutinesSafe:
 class TestRoutineFetchersRegistry:
     def test_registry_contains_mariadb(self) -> None:
         assert "mariadb" in SchemaComparator._ROUTINE_FETCHERS
-        assert SchemaComparator._ROUTINE_FETCHERS["mariadb"] is SchemaComparator._get_routines_mariadb
+        assert SchemaComparator._ROUTINE_FETCHERS["mariadb"] is RoutineFetcherRegistry.get_routines_mariadb
 
     def test_registry_does_not_contain_mysql_alias(self) -> None:
         # mysql no es un motor soportado oficialmente en la librería; no debe tener fetcher registrado
@@ -1126,22 +1128,22 @@ class TestRoutineFetchersRegistry:
 
     def test_registry_contains_oracle(self) -> None:
         assert "oracle" in SchemaComparator._ROUTINE_FETCHERS
-        assert SchemaComparator._ROUTINE_FETCHERS["oracle"] is SchemaComparator._get_routines_oracle
+        assert SchemaComparator._ROUTINE_FETCHERS["oracle"] is RoutineFetcherRegistry.get_routines_oracle
 
     def test_registry_contains_mssql(self) -> None:
         """D1: SQL Server (mssql) debe estar registrado con el fetcher correcto."""
         assert "mssql" in SchemaComparator._ROUTINE_FETCHERS
-        assert SchemaComparator._ROUTINE_FETCHERS["mssql"] is SchemaComparator._get_routines_mssql
+        assert SchemaComparator._ROUTINE_FETCHERS["mssql"] is RoutineFetcherRegistry.get_routines_mssql
 
     def test_registry_contains_postgresql(self) -> None:
         """D1: PostgreSQL (postgresql) debe estar registrado con el fetcher correcto."""
         assert "postgresql" in SchemaComparator._ROUTINE_FETCHERS
-        assert SchemaComparator._ROUTINE_FETCHERS["postgresql"] is SchemaComparator._get_routines_postgresql
+        assert SchemaComparator._ROUTINE_FETCHERS["postgresql"] is RoutineFetcherRegistry.get_routines_postgresql
 
     def test_registry_contains_hsqldb(self) -> None:
         """D1: HSQLDB (hsqldb) debe estar registrado con el fetcher correcto."""
         assert "hsqldb" in SchemaComparator._ROUTINE_FETCHERS
-        assert SchemaComparator._ROUTINE_FETCHERS["hsqldb"] is SchemaComparator._get_routines_hsqldb
+        assert SchemaComparator._ROUTINE_FETCHERS["hsqldb"] is RoutineFetcherRegistry.get_routines_hsqldb
 
     def test_registry_dispatches_to_mariadb_fetcher(self) -> None:
         """_get_routines_safe usa el registro para delegar en mariadb."""
@@ -1238,55 +1240,55 @@ class TestDbTypeToDialectMap:
 
 
 class TestDDLStripRules:
+    """C9: DDL strip rules now live in DdlNormalizer._VIEW_STRIP_PATTERNS + _COMPARISON_EXTRA_PATTERNS."""
+
+    @staticmethod
+    def _all_patterns() -> list[str]:
+        return [p for p, _ in DdlNormalizer._VIEW_STRIP_PATTERNS + DdlNormalizer._COMPARISON_EXTRA_PATTERNS]
+
     def test_registry_contains_mariadb_definer_rule(self) -> None:
-        patterns = [p for p, _ in SchemaComparator._DDL_STRIP_RULES]
-        assert any("DEFINER" in p for p in patterns)
+        assert any("DEFINER" in p for p in self._all_patterns())
 
     def test_registry_contains_oracle_force_rule(self) -> None:
-        patterns = [p for p, _ in SchemaComparator._DDL_STRIP_RULES]
-        assert any("FORCE" in p for p in patterns)
+        assert any("FORCE" in p for p in self._all_patterns())
 
     def test_registry_contains_mssql_bracket_rule(self) -> None:
-        """D4: Regla para escapar brackets [name] de SQL Server."""
-        patterns = [p for p, _ in SchemaComparator._DDL_STRIP_RULES]
-        assert any("\\[" in p for p in patterns)
+        """Regla para escapar brackets [name] de SQL Server."""
+        assert any("\\[" in p for p in self._all_patterns())
 
     def test_registry_contains_mssql_with_rule(self) -> None:
-        """D4: Regla para remover WITH clauses de SQL Server."""
-        patterns = [p for p, _ in SchemaComparator._DDL_STRIP_RULES]
-        assert any("WITH" in p for p in patterns)
+        """Regla para remover WITH clauses de SQL Server."""
+        assert any("WITH" in p for p in self._all_patterns())
 
     def test_registry_contains_postgresql_language_rule(self) -> None:
-        """D4: Regla para remover LANGUAGE clause de PostgreSQL."""
-        patterns = [p for p, _ in SchemaComparator._DDL_STRIP_RULES]
-        assert any("LANGUAGE" in p for p in patterns)
+        """Regla para remover LANGUAGE clause de PostgreSQL."""
+        assert any("LANGUAGE" in p for p in self._all_patterns())
 
     def test_registry_contains_postgresql_security_rule(self) -> None:
-        """D4: Regla para remover SECURITY clauses de PostgreSQL."""
-        patterns = [p for p, _ in SchemaComparator._DDL_STRIP_RULES]
-        assert any("SECURITY" in p for p in patterns)
+        """Regla para remover SECURITY clauses de PostgreSQL."""
+        assert any("SECURITY" in p for p in self._all_patterns())
 
 
 class TestStripDialectArtifacts:
     def test_removes_mariadb_definer(self) -> None:
         sql = "CREATE DEFINER=`admin`@`%` VIEW v AS SELECT 1"
-        result = SchemaComparator._strip_dialect_artifacts(sql)
+        result = DdlNormalizer.strip_dialect_artifacts(sql)
         assert "DEFINER" not in result
         assert "admin" not in result
 
     def test_removes_oracle_force(self) -> None:
         sql = "CREATE OR REPLACE FORCE VIEW v AS SELECT 1"
-        result = SchemaComparator._strip_dialect_artifacts(sql)
+        result = DdlNormalizer.strip_dialect_artifacts(sql)
         assert "FORCE" not in result
         assert "CREATE OR REPLACE VIEW" in result
 
     def test_preserves_unrelated_content(self) -> None:
         sql = "SELECT id FROM users WHERE active = 1"
-        result = SchemaComparator._strip_dialect_artifacts(sql)
+        result = DdlNormalizer.strip_dialect_artifacts(sql)
         assert result == sql
 
     def test_empty_string_returns_empty(self) -> None:
-        assert SchemaComparator._strip_dialect_artifacts("") == ""
+        assert DdlNormalizer.strip_dialect_artifacts("") == ""
 
     def test_normalize_ddl_delegates_stripping(self) -> None:
         """_normalize_ddl debe invocar _strip_dialect_artifacts antes de normalizar."""
@@ -1304,14 +1306,14 @@ class TestStripDialectArtifactsMSSQL:
     def test_removes_mssql_escaped_brackets(self) -> None:
         """SQL Server escapa identifiers con brackets: [name] → name."""
         sql = "CREATE PROCEDURE [dbo].[my_proc] AS BEGIN SELECT [id], [name] FROM [users] END"
-        result = SchemaComparator._strip_dialect_artifacts(sql)
+        result = DdlNormalizer.strip_dialect_artifacts(sql)
         # Brackets se reemplazan por el contenido
         assert "[" not in result or "dbo" in result  # El contenido dentro de brackets se preserva
 
     def test_removes_mssql_with_storage_hints(self) -> None:
         """SQL Server puede incluir WITH clauses con storage hints como FILLFACTOR."""
         sql = "CREATE INDEX idx ON table(col) WITH (FILLFACTOR=80)"
-        result = SchemaComparator._strip_dialect_artifacts(sql)
+        result = DdlNormalizer.strip_dialect_artifacts(sql)
         # La regla intenta remover WITH (...) pero preservar el resto
         assert "WITH" not in result or "(" not in result.split("WITH")[1] if "WITH" in result else True
 
@@ -1322,31 +1324,31 @@ class TestStripDialectArtifactsPostgreSQL:
     def test_removes_postgresql_language_clause(self) -> None:
         """PostgreSQL incluye LANGUAGE en definiciones de functions."""
         sql = "CREATE FUNCTION my_func() RETURNS int LANGUAGE plpgsql AS $$ BEGIN END $$"
-        result = SchemaComparator._strip_dialect_artifacts(sql)
+        result = DdlNormalizer.strip_dialect_artifacts(sql)
         assert "LANGUAGE" not in result
 
     def test_removes_postgresql_security_definer(self) -> None:
         """PostgreSQL puede marcar functions con SECURITY DEFINER."""
         sql = "CREATE FUNCTION my_func() RETURNS int SECURITY DEFINER LANGUAGE sql AS ..."
-        result = SchemaComparator._strip_dialect_artifacts(sql)
+        result = DdlNormalizer.strip_dialect_artifacts(sql)
         assert "SECURITY DEFINER" not in result
 
     def test_removes_postgresql_security_invoker(self) -> None:
         """PostgreSQL puede marcar functions con SECURITY INVOKER."""
         sql = "CREATE FUNCTION my_func() RETURNS int SECURITY INVOKER LANGUAGE sql AS ..."
-        result = SchemaComparator._strip_dialect_artifacts(sql)
+        result = DdlNormalizer.strip_dialect_artifacts(sql)
         assert "SECURITY INVOKER" not in result
 
     def test_removes_postgresql_strict_clause(self) -> None:
         """PostgreSQL puede incluir STRICT en definiciones."""
         sql = "CREATE FUNCTION my_func(int) RETURNS int STRICT LANGUAGE sql AS ..."
-        result = SchemaComparator._strip_dialect_artifacts(sql)
+        result = DdlNormalizer.strip_dialect_artifacts(sql)
         assert "STRICT" not in result
 
     def test_removes_postgresql_returns_null_on_null_input(self) -> None:
         """PostgreSQL puede incluir RETURNS NULL ON NULL INPUT."""
         sql = "CREATE FUNCTION my_func(int) RETURNS int RETURNS NULL ON NULL INPUT LANGUAGE sql AS ..."
-        result = SchemaComparator._strip_dialect_artifacts(sql)
+        result = DdlNormalizer.strip_dialect_artifacts(sql)
         assert "RETURNS NULL ON NULL INPUT" not in result
 
 
@@ -1604,40 +1606,40 @@ class TestDDLStripRulesHotfix:
 
     def test_strips_algorithm(self) -> None:
         """G2: ALGORITHM=xxx debe eliminarse."""
-        result = SchemaComparator._strip_dialect_artifacts("CREATE ALGORITHM=UNDEFINED VIEW v AS SELECT 1")
+        result = DdlNormalizer.strip_dialect_artifacts("CREATE ALGORITHM=UNDEFINED VIEW v AS SELECT 1")
         assert "ALGORITHM" not in result
 
     def test_strips_algorithm_merge(self) -> None:
-        result = SchemaComparator._strip_dialect_artifacts("CREATE ALGORITHM=MERGE VIEW v AS SELECT 1")
+        result = DdlNormalizer.strip_dialect_artifacts("CREATE ALGORITHM=MERGE VIEW v AS SELECT 1")
         assert "ALGORITHM" not in result
 
     def test_strips_definer_with_spaces_around_equals(self) -> None:
         """G1: DEFINER = `u`@`h` (con espacios alrededor de =) debe eliminarse."""
         sql = "CREATE DEFINER = `admin`@`%` VIEW v AS SELECT 1"
-        result = SchemaComparator._strip_dialect_artifacts(sql)
+        result = DdlNormalizer.strip_dialect_artifacts(sql)
         assert "DEFINER" not in result
 
     def test_strips_definer_single_quotes(self) -> None:
         """G1: DEFINER='u'@'h' (comillas simples) debe eliminarse."""
         sql = "CREATE DEFINER='root'@'localhost' VIEW v AS SELECT 1"
-        result = SchemaComparator._strip_dialect_artifacts(sql)
+        result = DdlNormalizer.strip_dialect_artifacts(sql)
         assert "DEFINER" not in result
 
     def test_strips_definer_unquoted(self) -> None:
         """G1: DEFINER=user@host (sin comillas) debe eliminarse."""
         sql = "CREATE DEFINER=root@localhost VIEW v AS SELECT 1"
-        result = SchemaComparator._strip_dialect_artifacts(sql)
+        result = DdlNormalizer.strip_dialect_artifacts(sql)
         assert "DEFINER" not in result
 
     def test_strips_sql_security_definer(self) -> None:
         """G3: SQL SECURITY DEFINER al inicio del DDL (sin espacio previo) debe eliminarse."""
         sql = "CREATE SQL SECURITY DEFINER VIEW v AS SELECT 1"
-        result = SchemaComparator._strip_dialect_artifacts(sql)
+        result = DdlNormalizer.strip_dialect_artifacts(sql)
         assert "SQL SECURITY" not in result
 
     def test_strips_sql_security_invoker(self) -> None:
         sql = "CREATE SQL SECURITY INVOKER VIEW v AS SELECT 1"
-        result = SchemaComparator._strip_dialect_artifacts(sql)
+        result = DdlNormalizer.strip_dialect_artifacts(sql)
         assert "SQL SECURITY" not in result
 
     def test_no_stray_sql_keyword_after_strip(self) -> None:

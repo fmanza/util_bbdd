@@ -135,14 +135,21 @@ class DatabaseDocumentation:
                 storage_report_service=self._storage_report_service,
             )
         )
-        self._create_documents()
 
     def _bind_documentation_session(self, session: DocumentationSession) -> None:
         """Sincroniza la sesión documental interna usada por el orquestador."""
         self._documentation_session = session
 
-    def _create_documents(self) -> None:
-        """Genera documentación para todos los formatos solicitados."""
+    def generate(self) -> None:
+        """Genera documentación para todos los formatos solicitados.
+
+        Separado de ``__init__`` para permitir instanciar la clase sin ejecutar I/O.
+        Llamar explícitamente después de configurar la instancia.
+
+        Example:
+            >>> doc = DatabaseDocumentation(db_manager, output_dir)
+            >>> doc.generate()
+        """
         DocumentationOrchestrator(
             session=self._documentation_session,
             planner=DocumentationOutputPlanner(self._documentation_session, self._renderer_registry),

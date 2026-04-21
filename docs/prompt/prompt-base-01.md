@@ -204,3 +204,72 @@ Lee .ai/sessions/INDEX.md para contexto de decisiones previas
 Documentar la sesión actual siguiendo .ai\sessions\INDEX.md y .ai\sessions\TEMPLATE\TRACEABILITY.md
 Revisar todo el código, documentación y configuración del proyecto para identificar cualquier rastro de legacy y planificar su eliminación o refactorización, asegurando que el resultado final sea un proyecto limpio, moderno y alineado con los estándares actuales de desarrollo y documentación.
 Sigue el flujo PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION.
+
+---
+/tech-debt
+
+Módulo objetivo: src\util_bbdd\comparar\ y src\util_bbdd\doc
+Deuda conocida o síntomas: leer los últimos cambios en los documentos de versión docs\v0.8.0 e identificardeuda tecnica.
+Restricciones de scope: solo análisis (PLAN → AUDIT_PLAN → AUDIT_CODE), sin IMPLEMENT por ahora.
+Política de compatibilidad: se autoriza romper contratos públicos.
+
+Lee docs\v0.8.0\RELEASE_v0.8.0.md para entender el contexto de la deuda técnica actual y las decisiones tomadas en esa versión que puedan haber llevado a esta situación.
+Lee .ai/architecture.md para entender la arquitectura actual del proyecto
+Lee .ai/architecture.md antes de proponer cambios
+Lee .ai/sessions/INDEX.md para contexto de decisiones previas
+
+Documentar la sesión actual siguiendo .ai\sessions\INDEX.md y en docs\v0.8.1
+
+---
+@#sym:hotfix
+2026-04-21 10:03:29] [ERROR   ] [util_bbdd.managers.sync_mgr] - [mariadb] Error cerrando pool: can't create new thread at interpreter shutdown
+Traceback (most recent call last):
+  File "C:\Desarrollo\python\libs\util_bbdd\src\util_bbdd\managers\_manager_lifecycle.py", line 130, in close_resources
+    pool_connection.close(timeout_seconds=timeout_seconds, force=force)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Desarrollo\python\libs\util_bbdd\src\util_bbdd\connection\mariadb\pool_connection_mariadb.py", line 157, in close
+    run_close_operation_sync(
+    ~~~~~~~~~~~~~~~~~~~~~~~~^
+        action=lambda: pool_ref.close(),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        db_type="mariadb",
+        ^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Desarrollo\python\libs\util_bbdd\src\util_bbdd\connection\close.py", line 166, in run_close_operation_sync
+    worker.start()
+    ~~~~~~~~~~~~^^
+  File "C:\Users\manza\AppData\Local\Python\pythoncore-3.14-64\Lib\threading.py", line 1005, in start
+    _start_joinable_thread(self._bootstrap, handle=self._os_thread_handle,
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                           daemon=self.daemon)
+                           ^^^^^^^^^^^^^^^^^^^
+PythonFinalizationError: can't create new thread at interpreter shutdown
+[2026-04-21 10:03:29] [ERROR   ] [util_bbdd.managers.sync_mgr] - [mariadb] Error cerrando pool: can't create new thread at interpreter shutdown
+Traceback (most recent call last):
+  File "C:\Desarrollo\python\libs\util_bbdd\src\util_bbdd\managers\_manager_lifecycle.py", line 130, in close_resources
+    pool_connection.close(timeout_seconds=timeout_seconds, force=force)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Desarrollo\python\libs\util_bbdd\src\util_bbdd\connection\mariadb\pool_connection_mariadb.py", line 157, in close
+    run_close_operation_sync(
+    ~~~~~~~~~~~~~~~~~~~~~~~~^
+        action=lambda: pool_ref.close(),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        db_type="mariadb",
+        ^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Desarrollo\python\libs\util_bbdd\src\util_bbdd\connection\close.py", line 166, in run_close_operation_sync
+    worker.start()
+    ~~~~~~~~~~~~^^
+  File "C:\Users\manza\AppData\Local\Python\pythoncore-3.14-64\Lib\threading.py", line 1005, in start
+    _start_joinable_thread(self._bootstrap, handle=self._os_thread_handle,
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                           daemon=self.daemon)
+                           ^^^^^^^^^^^^^^^^^^^
+PythonFinalizationError: can't create new thread at interpreter shutdown
+
+
+Sigue el flujo PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION.

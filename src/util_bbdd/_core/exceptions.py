@@ -304,6 +304,45 @@ class DiffReportGenerationError(ComparerError):
     pass
 
 
+# ============================================================================
+# Categoría 7: Errores de Generación de Documentación (módulo doc/)
+# ============================================================================
+
+
+class DocumentationError(DatabaseException):
+    """Excepción base para errores del módulo de documentación (doc/).
+
+    Captura cualquier error que ocurra durante la generación de documentación
+    de base de datos en formatos Word, Excel o HTML.
+    """
+
+    pass
+
+
+class DocumentationConfigError(DocumentationError):
+    """Error en configuración del generador documental.
+
+    Cubre:
+    - Formato de salida no soportado
+    - Ruta de plantilla Word inválida o inexistente
+    - Parámetros de configuración incoherentes
+    """
+
+    pass
+
+
+class DocumentationRenderError(DocumentationError):
+    """Error generando un documento de salida.
+
+    Cubre:
+    - WordGenerator / ExcelGenerator / HtmlGenerator falla al escribir
+    - Renderer no registrado para el formato solicitado
+    - I/O error escribiendo archivo de salida
+    """
+
+    pass
+
+
 __all__ = [
     # Base
     "DatabaseException",
@@ -340,4 +379,8 @@ __all__ = [
     "SchemaDiffValidationError",
     "MetadataIntrospectionError",
     "DiffReportGenerationError",
+    # Documentación
+    "DocumentationError",
+    "DocumentationConfigError",
+    "DocumentationRenderError",
 ]

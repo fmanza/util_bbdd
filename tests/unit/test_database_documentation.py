@@ -139,7 +139,7 @@ def test_database_documentation_shares_graph_generator_between_word_and_html(mon
         _fake_html_generate_document,
     )
 
-    doc._create_documents()
+    doc.generate()
 
     assert len(init_calls) == 1
     assert len(word_calls) == 1
@@ -186,7 +186,7 @@ def test_database_documentation_does_not_prebuild_shared_graph_generator_for_sin
         _fake_word_generate_document,
     )
 
-    doc._create_documents()
+    doc.generate()
 
     assert captured["word"] is None
 
@@ -219,7 +219,7 @@ def test_database_documentation_generates_excel_without_graph_generator_kwarg(mo
         _fake_excel_generate_document,
     )
 
-    doc._create_documents()
+    doc.generate()
 
     assert captured["output_file"] == tmp_path / "report" / "EXCEL" / "report.xlsx"
     assert captured["print_config"] == doc.imprimir_config
@@ -284,7 +284,7 @@ def test_database_documentation_creates_requested_formats_in_order(monkeypatch: 
     )
     monkeypatch.setattr(database_documentation_module.HtmlGenerator, "generate_document", _fake_html_generate_document)
 
-    doc._create_documents()
+    doc.generate()
 
     assert [call[0] for call in generator_calls] == ["word", "excel", "html"]
     assert generator_calls[0][1] == tmp_path / "report" / "WORD" / "report.docx"

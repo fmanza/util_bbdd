@@ -283,6 +283,10 @@ class SqlDiffReporter:
         Returns:
             La ruta del fichero generado.
         """
+        self._col_cache = {}
+        self._fk_cache = {}
+        self._idx_cache = {}
+        self._col_error_cache = {}
         output.parent.mkdir(parents=True, exist_ok=True)
         script: str = self._build_script(diff)
         output.write_text(script, encoding="utf-8")
@@ -680,7 +684,7 @@ class SqlDiffReporter:
             lines.append(f"-- ⚠ {col_name} es NOT NULL sin DEFAULT: verificar que la tabla no tenga filas existentes.")
         if self._dialect == "sqlite" and not nullable:
             lines.append("-- ⚠ SQLite: ADD COLUMN NOT NULL sin DEFAULT no está soportado nativamente.")
-        lines.append(f"{tpl.format(table=table, col=col_name, definition=definition)};")
+        lines.append(tpl.format(table=table, col=col_name, definition=definition))
         return lines
 
     # ------------------------------------------------------------------
@@ -1019,6 +1023,10 @@ class SqlDiffReporter:
         lines: list[str] = []
         if rd.source_definition:
             normalized = DdlNormalizer.normalize_routine_ddl(rd.source_definition)
+            # Dialectos sin CREATE OR REPLACE PROCEDURE (mariadb, mysql, sqlserver, generic)
+            # requieren DROP previo para evitar error si la rutina ya existe en destino.
+            if self._dialect in ("mariadb", "mysql", "sqlserver", "generic"):
+                lines.append(drop_tpl.format(rtype=rtype, name=rd.routine_name))
             lines.append(f"{normalized.rstrip(';')};")
         else:
             lines.append(f"-- ⚠ {rd.routine_name}: modificada pero definición origen no disponible.")

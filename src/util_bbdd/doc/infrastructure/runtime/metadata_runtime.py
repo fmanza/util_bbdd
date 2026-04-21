@@ -7,11 +7,13 @@ from dataclasses import dataclass
 from typing import Any
 
 from ...._core.exceptions import DatabaseException
+from ...application._internal_ports import (
+    MetadataRuntimeFactoryPort,
+    MetadataRuntimePort,
+)
 from ...application.ports import (
     LoggerProtocol,
     MetadataReaderPort,
-    MetadataRuntimeFactoryPort,
-    MetadataRuntimePort,
 )
 
 

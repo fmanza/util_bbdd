@@ -160,6 +160,7 @@ class SchemaDiffReporter:
         diff: SchemaDiff,
         output_dir: Path,
         formats: list[str] | None = None,
+        raise_on_error: bool = False,
     ) -> list[Path]:
         """Genera reportes en todos los formatos indicados.
 
@@ -167,10 +168,16 @@ class SchemaDiffReporter:
             diff: Resultado de la comparación de esquemas.
             output_dir: Directorio de salida.
             formats: Lista de formatos a generar.  Si es ``None`` se usan
-                todos: ``["html", "excel", "word", "markdown"]``.
+                todos: ``["html", "excel", "word", "markdown", "sql"]``.
+            raise_on_error: Si ``True``, relanza la primera excepción encontrada
+                en lugar de omitir el formato fallido y continuar.  Útil para
+                pipelines que deben detectar fallos de reporte de forma programática.
 
         Returns:
             Lista de rutas de ficheros generados (en el orden de ``formats``).
+
+        Raises:
+            Exception: Cualquier excepción del reporter cuando ``raise_on_error=True``.
         """
         selected: list[str] = [f.strip().lower() for f in (formats or list(_ALL_FORMATS))]
         paths: list[Path] = []
@@ -179,5 +186,7 @@ class SchemaDiffReporter:
                 path: Path = self.render(diff, output_dir=output_dir, format=fmt)
                 paths.append(path)
             except Exception:
+                if raise_on_error:
+                    raise
                 self.logger.exception("Error generando reporte '%s' — se omite y continúa", fmt)
         return paths

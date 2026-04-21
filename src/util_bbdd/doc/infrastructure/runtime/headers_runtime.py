@@ -7,7 +7,8 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
-from ...application.ports import HeadersConfig, HeadersRuntimePort
+from ...application._internal_ports import HeadersRuntimePort
+from ...application.ports import HeadersConfig
 
 
 class DocumentationHeadersRuntime(HeadersRuntimePort):

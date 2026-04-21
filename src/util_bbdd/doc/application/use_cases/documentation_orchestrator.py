@@ -12,17 +12,19 @@ if TYPE_CHECKING:
 
 from ...domain.models import DocumentationBootstrapState, DocumentationFormatPlan
 from ...domain.services import DocumentationGraphDomainService
-from ..ports import (
-    DocumentationManagerPort,
+from .._internal_ports import (
     HeadersRuntimePort,
-    LoggerProtocol,
     MetadataRuntimeFactoryPort,
     MetadataRuntimePort,
-    OutputCache,
-    OutputPolicyPort,
     PrintConfigPolicyPort,
     RendererRegistryPort,
     StorageReportServicePort,
+)
+from ..ports import (
+    DocumentationManagerPort,
+    LoggerProtocol,
+    OutputCache,
+    OutputPolicyPort,
 )
 
 _UNSET_DATABASE_CHARSET_COLLATION: object = object()
