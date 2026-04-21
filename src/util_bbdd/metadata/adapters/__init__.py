@@ -19,11 +19,6 @@ from ._adapter_registry import (
     AdapterRegistry,
     get_global_adapter_registry,
 )
-from ._helpers import (
-    extract_constraint_from_ddl,
-    normalize_column_type,
-    normalize_routine_type,
-)
 
 __all__: list[str] = [
     # Protocols (Sync)
@@ -35,8 +30,4 @@ __all__: list[str] = [
     # Registry
     "AdapterRegistry",
     "get_global_adapter_registry",
-    # Helpers
-    "normalize_column_type",
-    "normalize_routine_type",
-    "extract_constraint_from_ddl",
 ]

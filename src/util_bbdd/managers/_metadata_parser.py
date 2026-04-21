@@ -246,10 +246,11 @@ class CharsetCollationParser:
             bool: True si soporta
         """
         if db_type == "oracle":
+            result: bool
             if not oracle_version_text:
                 result = False
             else:
-                result: bool = self._oracle_supports_columns_charset_collation(oracle_version_text)
+                result = self._oracle_supports_columns_charset_collation(oracle_version_text)
             self.logger.debug(f"[oracle] supports_charset_collation: {result}")
             return result
 
