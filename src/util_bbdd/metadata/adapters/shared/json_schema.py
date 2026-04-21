@@ -66,7 +66,7 @@ def extract_json_schema_from_check_constraint(
         return None
 
     # Pattern 1: JSON_SCHEMA_VALID('schema', column) or JSON_SCHEMA_VALID("schema", column)
-    pattern_1 = r"JSON_SCHEMA_VALID\s*\(\s*'([^']+)'.*?\)"
+    pattern_1 = r"JSON_SCHEMA_VALID\s*\(\s*'([^']+)'[^\)]*\)"
     match = re.search(pattern_1, check_clause)
     if match:
         schema_str = match.group(1)
@@ -77,7 +77,7 @@ def extract_json_schema_from_check_constraint(
             return None
 
     # Pattern 2: JSON_SCHEMA_VALID("schema", column)
-    pattern_2 = r'JSON_SCHEMA_VALID\s*\(\s*"([^"]+)".*?\)'
+    pattern_2 = r'JSON_SCHEMA_VALID\s*\(\s*"([^"]+)"[^\)]*\)'
     match = re.search(pattern_2, check_clause)
     if match:
         schema_str = match.group(1)
