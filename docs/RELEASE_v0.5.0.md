@@ -89,11 +89,11 @@
 ## 🔗 Official References
 
 **For detailed information about this release, see:**
-- 📄 [PR_REFACTORING_CATALOG.md](PR_REFACTORING_CATALOG.md) - Complete list of 15 PRs
-- 📄 [ARCHITECTURE.md](ARCHITECTURE.md) - 3-level hierarchy diagrams
-- 📄 [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) - v0.4.0 → v0.5.0 upgrade path
-- 📄 [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) - High-level status overview
-- 📄 [README.md](../README.md) - Primary documentation
+- 📄 [PR Refactoring Catalog](archive/releases/v0.1-v0.3.0/PR_REFACTORING_CATALOG.md) - Complete list of 15 PRs (historical)
+- 📄 [Migration Guide](MIGRATION_GUIDE.md) - v0.4.0 → v0.5.0 upgrade path
+- 📄 [Executive Summary](archive/releases/v0.1-v0.3.0/EXECUTIVE_SUMMARY.md) - High-level status overview (historical)
+- 📄 [Architecture](adr/ADR-001-STRUCTURE-REFACTORING.md) - Design patterns and structure
+- 📄 [Main Documentation](index.md) - Primary documentation
 
 ---
 

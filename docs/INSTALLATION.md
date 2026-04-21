@@ -154,7 +154,7 @@ manager.close()
 pip install util_bbdd[oracle]
 ```
 
-**Nota:** Oracle requiere acceso a instantánea cliente o servidor. Consulta [ORACLE_DRIVER_GUIDE.md](POSTGRESQL_DRIVER_GUIDE.md) para configuración avanzada.
+**Nota:** Oracle requiere acceso a instantánea cliente o servidor. Consulta [Configuración de Drivers](POSTGRESQL_DRIVER_GUIDE.md) para detalles de configuración avanzada.
 
 **Verificación:**
 ```python
