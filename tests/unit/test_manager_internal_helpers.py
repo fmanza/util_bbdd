@@ -13,12 +13,6 @@ from util_bbdd.managers._manager_lifecycle import (
     SyncConnectionLifecycleManager,
     init_async_resources,
 )
-from util_bbdd.managers._manager_metadata import (
-    CacheKeyFactory,
-    CacheManager,
-    MetadataContextResolver,
-    MetadataRequestBuilder,
-)
 from util_bbdd.managers._manager_metadata_runtime import (
     MetadataFetchRequest,
     get_metadata_fetch_strategy,
@@ -27,7 +21,10 @@ from util_bbdd.managers._manager_storage import (
     get_async_storage_inventory_strategy,
     get_sync_storage_inventory_strategy,
 )
+from util_bbdd.managers._metadata_cache import CacheManager
+from util_bbdd.managers._metadata_context import CacheKeyFactory, MetadataContextResolver
 from util_bbdd.managers._metadata_parser import CharsetCollationParser, DDLNormalizer
+from util_bbdd.managers._metadata_request import MetadataRequestBuilder
 from util_bbdd.metadata import DatabaseMetadataCache
 from util_bbdd.metadata.cache import RelationshipMetadataCache
 
