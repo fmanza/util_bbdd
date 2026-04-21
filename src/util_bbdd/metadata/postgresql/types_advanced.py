@@ -142,67 +142,163 @@ def parse_composite_type_structure(
         - Returns None if schema/type not found (graceful degradation)
         - Edge cases: array fields, domain types, types with defaults
     """
-    if current_depth >= max_depth:
-        adapter.logger.warning(f"Composite type nesting depth limit ({max_depth}) reached for {schema}.{type_name}")
+    # Validate recursion depth
+    if not _is_depth_valid(current_depth, max_depth, schema, type_name, adapter):
         return None
 
-    # Query pg_type + pg_attribute to get composite type structure
-    # (Manager executes via query name 'fetch_composite_type_fields')
+    # Fetch rows from database
+    rows = _fetch_composite_type_rows(schema, type_name, adapter)
+    if not rows:
+        return None
+
+    # Parse all field rows
+    fields, owner = _parse_all_composite_fields(rows, adapter, schema, type_name)
+    if not fields:
+        return None
+
+    # Build and return composite type info
+    return _build_composite_info(schema, type_name, fields, owner, current_depth)
+
+
+# ============================================================================
+# PRIVATE HELPER FUNCTIONS (Extracted for CC reduction)
+# ============================================================================
+
+
+def _is_depth_valid(current_depth: int, max_depth: int, schema: str, type_name: str, adapter: Any) -> bool:
+    """Validate recursion depth for composite type parsing.
+
+    Args:
+        current_depth: Current recursion depth
+        max_depth: Maximum allowed depth
+        schema: Schema name (for logging)
+        type_name: Type name (for logging)
+        adapter: Adapter with logger
+
+    Returns:
+        True if depth is valid, False if limit reached
+    """
+    if current_depth >= max_depth:
+        adapter.logger.warning(f"Composite type nesting depth limit ({max_depth}) reached for {schema}.{type_name}")
+        return False
+    return True
+
+
+def _fetch_composite_type_rows(schema: str, type_name: str, adapter: Any) -> list[tuple[Any, ...]] | None:
+    """Fetch composite type field rows from database.
+
+    Args:
+        schema: Schema name
+        type_name: Type name
+        adapter: Manager adapter
+
+    Returns:
+        List of row tuples, or None if fetch failed or no rows found
+    """
     params: dict[str, Any] = {"schema": schema, "type_name": type_name}
 
     try:
-        rows = adapter._execute_metadata_many(
+        rows: Any = adapter._execute_metadata_many(
             "fetch_composite_type_fields",
             params=params,
             error_message=f"Failed to fetch composite type {schema}.{type_name}",
         )
+        if not rows:
+            adapter.logger.debug(f"Composite type {schema}.{type_name} not found")
+            return None
+        # Type narrowing: assume list of tuples from adapter
+        return rows if isinstance(rows, list) else None
     except Exception as e:
         adapter.logger.error(f"Error fetching composite type {schema}.{type_name}: {e}", exc_info=True)
         return None
 
-    if not rows:
-        adapter.logger.debug(f"Composite type {schema}.{type_name} not found")
+
+def _parse_composite_field_row(row: Any) -> tuple[CompositeTypeField, str] | None:
+    """Parse a single composite type field row.
+
+    Args:
+        row: Single row tuple from database
+
+    Returns:
+        Tuple of (CompositeTypeField, owner_name), or None if row invalid
+    """
+    # Validate row structure
+    if not isinstance(row, (tuple, list)) or len(row) < 9:
         return None
 
-    # Parse row data
+    # Extract and normalize field values using safe conversion helper
+    field_name = _safe_str(row[0])
+    field_type_name = _safe_str(row[2], default="unknown")
+    ordinal_position = _safe_int(row[3])
+    owner = _safe_str(row[4])
+    is_array = _safe_bool(row[5])
+    max_length = _safe_int_optional(row[6])
+    numeric_precision = _safe_int_optional(row[7])
+    numeric_scale = _safe_int_optional(row[8])
+
+    # Normalize field type name
+    normalized_type = _normalize_composite_field_type(field_type_name)
+
+    # Build field object
+    field = CompositeTypeField(
+        name=field_name,
+        type_name=normalized_type,
+        ordinal_position=ordinal_position,
+        is_array=is_array,
+        is_nullable=True,  # PostgreSQL composite fields are nullable by default
+        max_length=max_length,
+        numeric_precision=numeric_precision,
+        numeric_scale=numeric_scale,
+    )
+
+    return field, owner
+
+
+def _parse_all_composite_fields(
+    rows: list[tuple[Any, ...]], adapter: Any, schema: str, type_name: str
+) -> tuple[list[CompositeTypeField], str]:
+    """Parse all composite type field rows.
+
+    Args:
+        rows: All field rows from database
+        adapter: Manager adapter (for logging)
+        schema: Schema name (for logging)
+        type_name: Type name (for logging)
+
+    Returns:
+        Tuple of (fields_list, owner_name)
+    """
     fields: list[CompositeTypeField] = []
     owner: str = ""
 
     for row in rows:
-        if not isinstance(row, (tuple, list)) or len(row) < 9:
-            continue
-
-        field_name = str(row[0]) if row[0] else ""
-        # field_type_oid = int(row[1]) if row[1] else 0  # noqa: F841
-        field_type_name = str(row[2]) if row[2] else "unknown"
-        ordinal_position = int(row[3]) if row[3] else 0
-        type_owner = str(row[4]) if row[4] else ""
-        is_array = bool(row[5]) if row[5] is not None else False
-        max_length = int(row[6]) if row[6] and str(row[6]).isdigit() else None
-        numeric_precision = int(row[7]) if row[7] and str(row[7]).isdigit() else None
-        numeric_scale = int(row[8]) if row[8] and str(row[8]).isdigit() else None
-
-        owner = type_owner
-
-        # Normalize field type name
-        normalized_type = _normalize_composite_field_type(field_type_name)
-
-        field = CompositeTypeField(
-            name=field_name,
-            type_name=normalized_type,
-            ordinal_position=ordinal_position,
-            is_array=is_array,
-            is_nullable=True,  # PostgreSQL composite fields are nullable by default
-            max_length=max_length,
-            numeric_precision=numeric_precision,
-            numeric_scale=numeric_scale,
-        )
-        fields.append(field)
+        result = _parse_composite_field_row(row)
+        if result:
+            field, row_owner = result
+            fields.append(field)
+            owner = row_owner  # Last owner wins (typically all same)
 
     if not fields:
         adapter.logger.debug(f"No fields found for composite type {schema}.{type_name}")
-        return None
 
+    return fields, owner
+
+
+def _build_composite_info(
+    schema: str, type_name: str, fields: list[CompositeTypeField], owner: str, current_depth: int
+) -> CompositeTypeInfo:
+    """Build CompositeTypeInfo from parsed fields.
+
+    Args:
+        schema: Schema name
+        type_name: Type name
+        fields: List of parsed fields
+        owner: Owner/role name
+        current_depth: Current recursion depth
+
+    Returns:
+        CompositeTypeInfo instance
+    """
     composite_info = CompositeTypeInfo(
         name=type_name,
         schema=schema,
@@ -211,9 +307,43 @@ def parse_composite_type_structure(
         is_nested=(current_depth > 0),
         depth=current_depth,
     )
-
-    adapter.logger.debug(f"Parsed composite type {schema}.{type_name} with {len(fields)} fields")
+    logger.debug(f"Parsed composite type {schema}.{type_name} with {len(fields)} fields")
     return composite_info
+
+
+# ============================================================================
+# SAFE TYPE CONVERSION HELPERS
+# ============================================================================
+
+
+def _safe_str(value: Any, default: str = "") -> str:
+    """Safely convert value to string."""
+    return str(value).strip() if value else default
+
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    """Safely convert value to int."""
+    try:
+        return int(value) if value else default
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_int_optional(value: Any) -> int | None:
+    """Safely convert value to optional int (None if not digit-like)."""
+    if value and str(value).isdigit():
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return None
+    return None
+
+
+def _safe_bool(value: Any, default: bool = False) -> bool:
+    """Safely convert value to bool."""
+    if value is None:
+        return default
+    return bool(value)
 
 
 def resolve_field_types(composite_info: CompositeTypeInfo, adapter: Any) -> CompositeTypeInfo:
