@@ -57,6 +57,7 @@ nav:
       - Generación de Grafos: examples/graph_generation.md
   - Arquitectura:
       - ADR-001 Refactoring: adr/ADR-001-STRUCTURE-REFACTORING.md
+  - Versiones Históricas: legacy-versions.md
 
 theme:
   name: material
