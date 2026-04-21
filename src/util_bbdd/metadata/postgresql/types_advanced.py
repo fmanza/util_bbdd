@@ -357,3 +357,121 @@ def get_composite_types(schema: str | None, adapter: Any) -> list[CompositeTypeI
 
     adapter.logger.debug(f"Found {len(composite_types)} composite types")
     return composite_types
+
+
+# ============================================================================
+# JSON SCHEMA INTROSPECTION (Phase 2)
+# ============================================================================
+
+
+def query_json_column_schema(
+    schema: str,
+    table: str,
+    column: str,
+    adapter: Any,
+    sample_size: int = 100,
+) -> dict[str, Any] | None:
+    """Query JSON column schema for PostgreSQL.
+
+    Strategy:
+    1. Check for CHECK constraints with embedded JSON schema
+    2. If not found, sample column values and infer schema
+    3. Return schema_hint dict or None if no schema available
+
+    Args:
+        schema: Database schema name
+        table: Table name
+        column: Column name
+        adapter: Manager adapter with _execute_metadata_many
+        sample_size: Max rows to sample for schema inference (default: 100)
+
+    Returns:
+        dict with schema structure:
+            {
+                "type": "object" | "array" | "string" | "mixed",
+                "properties": {...},
+                "required": [...],
+                "sample_count": int,
+                "source": "constraint" | "sampling"
+            }
+        or None if schema cannot be determined
+
+    Example:
+        >>> schema_hint = query_json_column_schema("public", "events", "payload", adapter)
+        >>> if schema_hint:
+        ...     print(f"Type: {schema_hint['type']}")
+        ...     print(f"Properties: {list(schema_hint['properties'].keys())}")
+        Type: object
+        Properties: ['user_id', 'timestamp', 'status']
+
+    Notes:
+        - PostgreSQL: Supports CHECK constraints with JSON_SCHEMA_VALID()
+        - JSON and JSONB columns supported equally
+        - Sampling uses LIMIT clause for performance on large tables
+        - Returns None gracefully if no schema available (NULL column, etc)
+    """
+    from util_bbdd.metadata.adapters.shared.json_schema import (
+        extract_json_schema_from_check_constraint,
+        infer_json_schema_from_sample,
+        normalize_json_schema,
+    )
+
+    adapter.logger.debug(f"Querying JSON schema for {schema}.{table}.{column}")
+
+    # Step 1: Try to extract schema from CHECK constraints
+    try:
+        # Query for CHECK constraints via adapter execute method
+        # noqa: F841 - SQL handled by adapter
+        params_check = {"schema": schema, "table": table}
+
+        rows = adapter._execute_metadata_many(
+            "query_check_constraints",
+            params=params_check,
+            error_message=f"Failed to query CHECK constraints for {schema}.{table}",
+        )
+
+        for row in rows:
+            if row and row[0]:
+                check_clause = str(row[0])
+                schema_dict = extract_json_schema_from_check_constraint(check_clause)
+                if schema_dict:
+                    adapter.logger.info(f"JSON schema extracted from CHECK constraint for {schema}.{table}.{column}")
+                    result = normalize_json_schema(schema_dict)
+                    result["source"] = "constraint"
+                    return result
+    except Exception as e:
+        adapter.logger.debug(f"Failed to query CHECK constraints: {e}")
+        # Fall through to sampling
+
+    # Step 2: Fall back to sampling column values
+    try:
+        # Sample JSON column values (SQL handled by adapter)
+        params_sample: dict[str, Any] = {
+            "schema": schema,
+            "table": table,
+            "column": column,
+            "limit": sample_size,
+        }
+
+        rows = adapter._execute_metadata_many(
+            "sample_json_column",
+            params=params_sample,
+            error_message=f"Failed to sample {schema}.{table}.{column}",
+        )
+
+        if not rows:
+            adapter.logger.debug(f"No JSON values found in {schema}.{table}.{column}")
+            return None
+
+        sample_values = [str(row[0]) if row and row[0] else None for row in rows]
+        sample_values_filtered: list[str | dict[str, Any] | list[Any]] = [v for v in sample_values if v]
+        if sample_values_filtered:
+            schema_dict = infer_json_schema_from_sample(sample_values_filtered, sample_size=len(sample_values_filtered))
+            adapter.logger.info(f"JSON schema inferred from {len(sample_values)} samples for {schema}.{table}.{column}")
+            result = normalize_json_schema(schema_dict)
+            result["source"] = "sampling"
+            return result
+    except Exception as e:
+        adapter.logger.warning(f"Failed to sample JSON column {schema}.{table}.{column}: {e}")
+
+    return None
