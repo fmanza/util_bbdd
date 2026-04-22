@@ -16,6 +16,33 @@ from .common import is_system_schema_redshift
 logger = logging.getLogger(__name__)
 
 
+def _normalize_redshift_fk_row(row: Any) -> tuple[str, str, str, str, str, str, int] | None:
+    """Normaliza una fila individual de clave foránea Redshift.
+
+    Args:
+        row: Tupla de 7+ elementos de information_schema
+
+    Returns:
+        Tupla (constraint_name, column_name, ref_table, ref_column, on_delete_action, on_update_action, ordinal_position)
+        o None si es inválida
+    """
+    if not row or len(row) < 7:
+        return None
+
+    constraint_name = str(row[0]).strip()
+    column_name = str(row[1]).strip()
+    ref_table = str(row[2]).strip() if row[2] else ""
+    ref_column = str(row[3]).strip() if row[3] else ""
+    update_action = str(row[4]).strip() if row[4] else "RESTRICT"
+    delete_action = str(row[5]).strip() if row[5] else "RESTRICT"
+    ordinal_position = int(row[6]) if row[6] is not None else 0
+
+    on_delete = normalize_redshift_action(delete_action)
+    on_update = normalize_redshift_action(update_action)
+
+    return (constraint_name, column_name, ref_table, ref_column, on_delete, on_update, ordinal_position)
+
+
 def fetch_primary_keys_sync(connection: Any, schema: str | None = None, table: str | None = None) -> list[tuple]:
     """Obtiene claves primarias de una tabla via information_schema.
 
@@ -87,36 +114,7 @@ def fetch_foreign_keys_sync(connection: Any, schema: str | None = None, table: s
     cursor = connection.execute(sql, params)
     rows: list[tuple[Any, ...]] = cursor.fetchall()
 
-    result: list[tuple] = []
-    for row in rows:
-        if not row or len(row) < 7:
-            continue
-
-        constraint_name = str(row[0]).strip()
-        column_name = str(row[1]).strip()
-        ref_table = str(row[2]).strip() if row[2] else ""
-        ref_column = str(row[3]).strip() if row[3] else ""
-        update_action = str(row[4]).strip() if row[4] else "RESTRICT"
-        delete_action = str(row[5]).strip() if row[5] else "RESTRICT"
-        ordinal_position = int(row[6]) if row[6] is not None else 0
-
-        # Normalizar acciones (Redshift usa NO ACTION por defecto)
-        on_delete = normalize_redshift_action(delete_action)
-        on_update = normalize_redshift_action(update_action)
-
-        result.append(
-            (
-                constraint_name,
-                column_name,
-                ref_table,
-                ref_column,
-                on_delete,
-                on_update,
-                ordinal_position,
-            )
-        )
-
-    return result
+    return [normalized for row in rows if (normalized := _normalize_redshift_fk_row(row)) is not None]
 
 
 def normalize_redshift_action(action: str) -> str:
