@@ -1007,6 +1007,101 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
 
         raise FileNotFoundError(f"Archivo no encontrado: {expected_file}")
 
+    def _pipe_graph_bytes(self, dot: Any, format: str, table_name: str) -> bytes:
+        """Renderiza el grafo en memoria y devuelve los bytes sin escribir a disco.
+
+        Args:
+            dot: Grafo Graphviz configurado
+            format: Formato de salida (png, svg, etc.)
+            table_name: Tabla principal (solo para logging)
+
+        Returns:
+            bytes: Contenido del gráfico renderizado
+
+        Example:
+            >>> png_bytes = self._pipe_graph_bytes(dot, "png", "orders")
+            >>> len(png_bytes) > 0
+            True
+        """
+        self.logger.info(f"🎨 Pipe Graphviz para {table_name}: formato={format}")
+        result: bytes = dot.pipe(format=format)
+        self.logger.info(f"🎨 Pipe Graphviz completado para {table_name} ({len(result)} bytes)")
+        return result
+
+    def pipe_single_table_graph_ext(
+        self,
+        table_name: str,
+        format: str = "png",
+        show_columns: bool | None = None,
+        max_depth: int | None = None,
+        direction: LevelDirection | str | None = None,
+        document: GraphDocument | None = None,
+    ) -> bytes:
+        """Genera el gráfico de una tabla en memoria y devuelve los bytes sin escribir a disco.
+
+        Variante en memoria de generate_single_table_graph_ext. Útil para insertarlos
+        directamente en documentos Word o incrustarlos inline en HTML sin I/O de disco.
+
+        Args:
+            table_name: Nombre de la tabla
+            format: Formato de salida (png, svg, pdf, etc.)
+            show_columns: Si mostrar columnas en nodos (None = usar valor del generador)
+            max_depth: Profundidad máxima de relaciones (None = usar valor del generador)
+            direction: Dirección de relaciones (None = usar valor del generador)
+            document: GraphDocument preconstruido (None = construir internamente)
+
+        Returns:
+            bytes: Contenido del gráfico renderizado en el formato indicado
+
+        Raises:
+            ImportError: Si graphviz no está instalado
+            OSError: Si el ejecutable dot no está disponible
+            RuntimeError: Si la generación falla
+
+        Example:
+            >>> png_bytes = generator.pipe_single_table_graph_ext("orders", format="png")
+            >>> len(png_bytes) > 0
+            True
+        """
+        if not GRAPHVIZ_AVAILABLE or graphviz is None:
+            raise ImportError(GRAPHVIZ_MISSING_MSG)
+
+        include_columns: bool = self.include_columns if show_columns is None else bool(show_columns)
+        effective_depth: int = self.max_depth if max_depth is None else max(1, int(max_depth))
+        effective_direction: LevelDirection = (
+            self.direction if direction is None else self._normalize_direction(direction)
+        )
+        self.logger.info(f"Generando gráfico en memoria para tabla: {table_name}")
+
+        if document is None:
+            document = self.build_graph_document(
+                table_name=table_name,
+                max_depth=effective_depth,
+                direction=effective_direction,
+            )
+
+        try:
+            dot, is_raster_format, edge_label_font_size = self._create_configured_graph(
+                table_name=table_name,
+                format=format,
+                show_columns=include_columns,
+            )
+            self._add_graph_footer(dot=dot, document=document)
+            self._add_nodes_to_graph(
+                dot=dot,
+                document=document,
+                show_columns=include_columns,
+                is_raster_format=is_raster_format,
+            )
+            self._add_edges_to_graph(dot=dot, document=document, edge_label_font_size=edge_label_font_size)
+            return self._pipe_graph_bytes(dot=dot, format=format, table_name=table_name)
+        except (OSError, RuntimeError) as e:
+            self.logger.error(
+                f"Error al generar gráfico en memoria para tabla {table_name}: {str(e)}",
+                exc_info=True,
+            )
+            raise
+
     def generate_all_tables_graphs_ext(
         self,
         output_dir: Path | None = None,

@@ -2,7 +2,9 @@
 Módulo para generación de documentación en formato Word
 """
 
+import io
 import logging
+import tempfile
 
 from pathlib import Path
 from typing import Any
@@ -540,6 +542,7 @@ class WordGenerator:
                 tabla=tabla,
                 graph_generator=graph_generator,
                 diagram_options=diagram_options or {},
+                data_provider=data_provider,
             )
 
     def _build_graph_generator(self, data_provider: Any, options: dict[str, Any]) -> GraphvizRelationshipGraphExt:
@@ -552,12 +555,16 @@ class WordGenerator:
         tabla: str,
         graph_generator: GraphvizRelationshipGraphExt,
         diagram_options: dict[str, Any],
+        data_provider: DocumentationManagerPort | None = None,
     ) -> None:
-        """Inserta una página con el diagrama de una tabla."""
+        """Inserta una página con el diagrama de una tabla.
+
+        Rama non-paginada: genera en memoria via pipe (sin I/O de disco).
+        Rama paginada: usa directorio temporal con limpieza automática.
+        """
         self.logger.info(f"🖼️ Iniciando generación de diagrama Word para tabla: {tabla}")
         fmt: str = str(diagram_options.get("format", "png")).lower()
         if fmt == "svg":
-            # Word no maneja SVG de forma fiable en python-docx
             fmt = "png"
 
         graph_document: Any | None = self._build_diagram_document(
@@ -571,62 +578,200 @@ class WordGenerator:
             diagram_options=diagram_options,
             document=graph_document,
         )
-
-        output_dir = Path(diagram_options.get("output_dir", Path.cwd() / "_table_diagrams"))
-        output_dir.mkdir(parents=True, exist_ok=True)
         images_paginated: bool = bool(diagram_options.get("images_paginated", False))
 
         try:
-            generated_paths: list[Path]
             if images_paginated and hasattr(graph_generator, "generate_graphviz_graph_paginated_ext"):
-                paginated_method = graph_generator.generate_graphviz_graph_paginated_ext
-                kwargs_paginated: dict[str, Any] = {
-                    "table_name": tabla,
-                    "output_dir": output_dir,
-                    "format": fmt,
-                    "max_subnodes": int(diagram_options.get("max_subnodes", 10)),
-                    "max_depth": int(diagram_options.get("max_depth", 1)),
-                    "direction": str(diagram_options.get("direction", "both")),
-                }
-                if graph_document is not None:
-                    kwargs_paginated["document"] = graph_document
-                generated_paths = [Path(path) for path in paginated_method(**kwargs_paginated)]
-            else:
-                output_file: Path = output_dir / f"{tabla}.{fmt}"
-                method = graph_generator.generate_single_table_graph_ext
-                kwargs: dict[str, Any] = {
-                    "table_name": tabla,
-                    "output_file": output_file,
-                    "format": fmt,
-                    "max_depth": int(diagram_options.get("max_depth", 1)),
-                    "direction": str(diagram_options.get("direction", "both")),
-                }
-                if graph_document is not None:
-                    kwargs["document"] = graph_document
-                generated_paths = [Path(method(**kwargs))]
-
-            self.logger.info(f"🖼️  Diagramas generados para {tabla}: {len(generated_paths)} archivo(s)")
-
-            for page_idx, generated_path in enumerate(generated_paths, start=1):
-                document.add_page_break()
-                title: str = f"Diagrama de relaciones: {tabla}"
-                if len(generated_paths) > 1:
-                    title += f" (Página {page_idx})"
-                title_paragraph: Paragraph = document.add_heading(title, level=2)
-                self._add_picture_fit_to_page(
-                    document=document, image_path=generated_path, title_paragraph=title_paragraph
-                )
-                self.logger.info(
-                    f"🖼️  Diagrama insertado en Word para {tabla} (página {page_idx}/{len(generated_paths)})"
-                )
-                self._add_diagram_summary_paragraph(
+                self._add_paginated_diagram_pages(
                     document=document,
-                    summary_payload=diagram_summary,
+                    tabla=tabla,
+                    graph_generator=graph_generator,
+                    diagram_options=diagram_options,
+                    fmt=fmt,
+                    graph_document=graph_document,
+                    diagram_summary=diagram_summary,
+                )
+            else:
+                self._add_single_diagram_page_pipe(
+                    document=document,
+                    tabla=tabla,
+                    graph_generator=graph_generator,
+                    diagram_options=diagram_options,
+                    fmt=fmt,
+                    graph_document=graph_document,
+                    diagram_summary=diagram_summary,
+                    data_provider=data_provider,
                 )
         except (OSError, RuntimeError) as e:
             document.add_page_break()
             document.add_heading(f"Diagrama de relaciones: {tabla}", level=2)
             document.add_paragraph(f"⚠️ No se pudo generar el diagrama: {e}")
+
+    def _add_single_diagram_page_pipe(
+        self,
+        document: Document,
+        tabla: str,
+        graph_generator: GraphvizRelationshipGraphExt,
+        diagram_options: dict[str, Any],
+        fmt: str,
+        graph_document: Any | None,
+        diagram_summary: dict[str, Any],
+        data_provider: DocumentationManagerPort | None = None,
+    ) -> None:
+        """Genera el diagrama en memoria (pipe) e inserta directamente en Word sin disco.
+
+        Si data_provider tiene SVG cacheado (generado previamente por HtmlGenerator) y
+        cairosvg está disponible, convierte SVG→PNG en memoria evitando una segunda
+        llamada a Graphviz. En caso contrario usa pipe_single_table_graph_ext directamente.
+        """
+        max_depth_val: int = int(diagram_options.get("max_depth", 1))
+        direction_val: str = str(diagram_options.get("direction", "both"))
+
+        cached_svg = self._try_get_cached_svg_bytes(data_provider, tabla, max_depth_val, direction_val)
+        if cached_svg is not None:
+            png_bytes = self._convert_svg_to_png(cached_svg, getattr(graph_generator, "render_dpi", 150))
+            if png_bytes is not None:
+                self.logger.info(f"🖼️  Diagrama Word para {tabla} desde caché SVG ({len(png_bytes)} bytes PNG)")
+                document.add_page_break()
+                title_paragraph: Paragraph = document.add_heading(f"Diagrama de relaciones: {tabla}", level=2)
+                self._add_picture_from_bytes(
+                    document=document, image_bytes=png_bytes, title_paragraph=title_paragraph
+                )
+                self._add_diagram_summary_paragraph(document=document, summary_payload=diagram_summary)
+                return
+
+        kwargs: dict[str, Any] = {
+            "table_name": tabla,
+            "format": fmt,
+            "max_depth": max_depth_val,
+            "direction": direction_val,
+        }
+        if graph_document is not None:
+            kwargs["document"] = graph_document
+
+        if hasattr(graph_generator, "pipe_single_table_graph_ext"):
+            image_bytes: bytes = graph_generator.pipe_single_table_graph_ext(**kwargs)
+            self.logger.info(f"🖼️  Diagrama generado en memoria para {tabla} ({len(image_bytes)} bytes)")
+            document.add_page_break()
+            title_paragraph = document.add_heading(f"Diagrama de relaciones: {tabla}", level=2)
+            self._add_picture_from_bytes(
+                document=document, image_bytes=image_bytes, title_paragraph=title_paragraph
+            )
+        else:
+            output_dir = Path(diagram_options.get("output_dir", Path.cwd() / "_table_diagrams"))
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_file: Path = output_dir / f"{tabla}.{fmt}"
+            disk_kwargs: dict[str, Any] = {**kwargs, "output_file": output_file}
+            disk_kwargs.pop("document", None)
+            if graph_document is not None:
+                disk_kwargs["document"] = graph_document
+            generated_path = Path(graph_generator.generate_single_table_graph_ext(**disk_kwargs))
+            self.logger.info(f"🖼️  Diagrama generado en disco para {tabla}: {generated_path}")
+            document.add_page_break()
+            title_paragraph = document.add_heading(f"Diagrama de relaciones: {tabla}", level=2)
+            self._add_picture_fit_to_page(
+                document=document, image_path=generated_path, title_paragraph=title_paragraph
+            )
+
+        self.logger.info(f"🖼️  Diagrama insertado en Word para {tabla}")
+        self._add_diagram_summary_paragraph(document=document, summary_payload=diagram_summary)
+
+    def _add_paginated_diagram_pages(
+        self,
+        document: Document,
+        tabla: str,
+        graph_generator: GraphvizRelationshipGraphExt,
+        diagram_options: dict[str, Any],
+        fmt: str,
+        graph_document: Any | None,
+        diagram_summary: dict[str, Any],
+    ) -> None:
+        """Genera diagramas paginados a disco (directorio temporal) e inserta en Word."""
+        with tempfile.TemporaryDirectory(prefix="util_bbdd_diagrams_") as tmp_dir:
+            output_dir = Path(tmp_dir)
+            kwargs_paginated: dict[str, Any] = {
+                "table_name": tabla,
+                "output_dir": output_dir,
+                "format": fmt,
+                "max_subnodes": int(diagram_options.get("max_subnodes", 10)),
+                "max_depth": int(diagram_options.get("max_depth", 1)),
+                "direction": str(diagram_options.get("direction", "both")),
+            }
+            if graph_document is not None:
+                kwargs_paginated["document"] = graph_document
+            generated_paths = [
+                Path(p) for p in graph_generator.generate_graphviz_graph_paginated_ext(**kwargs_paginated)
+            ]
+            self.logger.info(f"🖼️  Diagramas paginados para {tabla}: {len(generated_paths)} página(s)")
+            for page_idx, generated_path in enumerate(generated_paths, start=1):
+                document.add_page_break()
+                title = f"Diagrama de relaciones: {tabla} (Página {page_idx})"
+                title_paragraph: Paragraph = document.add_heading(title, level=2)
+                self._add_picture_fit_to_page(
+                    document=document, image_path=generated_path, title_paragraph=title_paragraph
+                )
+                self.logger.info(
+                    f"🖼️  Diagrama paginado insertado en Word para {tabla} ({page_idx}/{len(generated_paths)})"
+                )
+                self._add_diagram_summary_paragraph(document=document, summary_payload=diagram_summary)
+
+    def _try_get_cached_svg_bytes(
+        self,
+        data_provider: DocumentationManagerPort | None,
+        table_name: str,
+        max_depth: int,
+        direction: str,
+    ) -> bytes | None:
+        """Devuelve bytes SVG desde el caché de sesión si están disponibles.
+
+        Args:
+            data_provider: Proveedor de datos (puede exponer get_cached_svg_bytes)
+            table_name: Nombre de la tabla
+            max_depth: Profundidad usada en la generación HTML previa
+            direction: Dirección usada en la generación HTML previa
+
+        Returns:
+            bytes | None: Bytes SVG cacheados o None si no están disponibles
+
+        Example:
+            >>> svg = generator._try_get_cached_svg_bytes(session, "orders", 1, "both")
+            >>> svg is None or svg.startswith(b"<")
+            True
+        """
+        get_fn = getattr(data_provider, "get_cached_svg_bytes", None)
+        if get_fn is None:
+            return None
+        result: bytes | None = get_fn(table_name, max_depth, direction)
+        return result
+
+    def _convert_svg_to_png(self, svg_bytes: bytes, render_dpi: int = 150) -> bytes | None:
+        """Convierte bytes SVG a PNG en memoria usando cairosvg (dependencia opcional).
+
+        Si cairosvg no está instalado o la conversión falla, devuelve None para que
+        el llamador caiga al path de generación directa via Graphviz.
+
+        Args:
+            svg_bytes: Contenido SVG como bytes
+            render_dpi: Resolución en DPI para el PNG resultante
+
+        Returns:
+            bytes | None: PNG en memoria, o None si cairosvg no está disponible
+
+        Example:
+            >>> png = generator._convert_svg_to_png(svg_bytes, render_dpi=150)
+            >>> png is None or len(png) > 0
+            True
+        """
+        try:
+            import cairosvg  # type: ignore[import-not-found]  # noqa: PLC0415
+            result: bytes = cairosvg.svg2png(bytestring=svg_bytes, dpi=render_dpi)
+            return result
+        except ImportError:
+            self.logger.debug("cairosvg no está instalado; usando generación PNG directa")
+            return None
+        except Exception as exc:
+            self.logger.debug(f"cairosvg no pudo convertir SVG a PNG: {exc}")
+            return None
 
     def _build_diagram_document(
         self, tabla: str, graph_generator: GraphvizRelationshipGraphExt, diagram_options: dict[str, Any]
@@ -753,6 +898,85 @@ class WordGenerator:
         scaled_width = Emu(max(1, int(image_width * scale)))
         scaled_height = Emu(max(1, int(image_height * scale)))
         document.add_picture(str(image_path), width=scaled_width, height=scaled_height)
+
+    def _compute_max_dimensions(
+        self, document: Document, title_paragraph: Paragraph | None = None
+    ) -> tuple[int, int]:
+        """Calcula el ancho y alto máximos disponibles (en EMU) para una imagen en la página actual.
+
+        Args:
+            document: Documento Word activo
+            title_paragraph: Párrafo de título a reservar (puede ser None)
+
+        Returns:
+            tuple[int, int]: (max_width, max_height) en unidades EMU
+
+        Example:
+            >>> max_w, max_h = generator._compute_max_dimensions(document, title_paragraph)
+            >>> max_w > 0 and max_h > 0
+            True
+        """
+        section: Section = document.sections[-1]
+        page_width: int = int(section.page_width) if section.page_width is not None else int(Emu(0))
+        page_height: int = int(section.page_height) if section.page_height is not None else int(Emu(0))
+        left_margin: int = int(section.left_margin) if section.left_margin is not None else 0
+        right_margin: int = int(section.right_margin) if section.right_margin is not None else 0
+        top_margin: int = int(section.top_margin) if section.top_margin is not None else 0
+        bottom_margin: int = int(section.bottom_margin) if section.bottom_margin is not None else 0
+        reserved_title_height: int = self._estimate_paragraph_reserved_height_emu(title_paragraph)
+        safety_padding = int(Pt(24))
+        picture_paragraph_reserved = int(Pt(18))
+
+        max_width: int = page_width - left_margin - right_margin
+        max_height: int = (
+            page_height
+            - top_margin
+            - bottom_margin
+            - reserved_title_height
+            - picture_paragraph_reserved
+            - safety_padding
+        )
+        return max(max_width, int(Pt(72))), max(max_height, int(Pt(72)))
+
+    def _add_picture_from_bytes(
+        self,
+        document: Document,
+        image_bytes: bytes,
+        title_paragraph: Paragraph | None = None,
+    ) -> None:
+        """Inserta imagen desde bytes en memoria ajustándola al área imprimible de la página.
+
+        Variante en memoria de _add_picture_fit_to_page. No requiere archivo en disco.
+        Realiza seek(0) entre la lectura de dimensiones y la inserción para reutilizar
+        el mismo buffer.
+
+        Args:
+            document: Documento Word activo
+            image_bytes: Bytes de la imagen (PNG, JPEG, etc.)
+            title_paragraph: Párrafo de título ya añadido, para calcular espacio reservado
+
+        Example:
+            >>> generator._add_picture_from_bytes(document, png_bytes, title_paragraph)
+        """
+        max_width, max_height = self._compute_max_dimensions(document, title_paragraph)
+        buf = io.BytesIO(image_bytes)
+        image = DocxImage.from_file(buf)
+        image_width = int(image.width)
+        image_height = int(image.height)
+
+        if image_width <= 0 or image_height <= 0:
+            buf.seek(0)
+            document.add_picture(buf, width=Emu(max_width))
+            return
+
+        width_ratio: float = max_width / image_width
+        height_ratio: float = max_height / image_height
+        scale: float = min(width_ratio, height_ratio, 1.0) * 0.98
+
+        scaled_width = Emu(max(1, int(image_width * scale)))
+        scaled_height = Emu(max(1, int(image_height * scale)))
+        buf.seek(0)
+        document.add_picture(buf, width=scaled_width, height=scaled_height)
 
     def _estimate_paragraph_reserved_height_emu(self, paragraph: Paragraph | None) -> int:
         """Estima espacio vertical a reservar para un título en la página de imagen."""

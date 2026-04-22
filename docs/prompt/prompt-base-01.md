@@ -286,3 +286,7 @@ Remove the unused function parameter "max_depth".
 Refactor this function to reduce its Cognitive Complexity from 35 to the 15 allowed. [+13 locations]
 Merge this if statement with the enclosing one. [+1 location]
 Refactor this function to reduce its Cognitive Complexity from 19 to the 15 allowed. [+11 locations]
+
+---
+Crear un PLAN → AUDIT_PLAN, quiero todo lopropuesto
+Para cada una de las acciones del plan realizaremos → IMPLEMENT → AUDIT_CODE  → Documentation Reviewer → VERSION, para IMPLEMENT solicitara permiso para cada una de las acciones a realizar, quiero que me preguntes antes de ejecutar cada una de las acciones de implementación.

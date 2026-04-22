@@ -1165,6 +1165,7 @@ class HtmlGenerator:
                 diagram_options=diagram_options,
                 output_dir=output_dir,
                 navigation_links=svg_navigation_links,
+                data_provider=data_provider,
             )
             summary_enabled = bool(diagram_options.get("summary", {}).get("enabled", True))
             diagram_summary = raw_diagram_summary if summary_enabled else {}
@@ -1674,12 +1675,17 @@ class HtmlGenerator:
         diagram_options: dict[str, Any],
         output_dir: Path,
         navigation_links: dict[str, str],
+        data_provider: DocumentationManagerPort | None = None,
     ) -> tuple[list[dict[str, Any]], list[str], dict[str, Any]]:
-        """Genera SVG(s) de relaciones para una tabla y devuelve pestañas y rutas relativas."""
+        """Genera SVG(s) de relaciones para una tabla y devuelve pestañas y rutas relativas.
+
+        La rama non-paginada usa pipe en memoria (sin I/O de disco inicial) cuando
+        graph_generator expone pipe_single_table_graph_ext. Los bytes generados se
+        cachean en data_provider para que Word los reutilice sin regenerar el diagrama.
+        """
         fmt = "svg"
         graph_output_dir: Path = Path(diagram_options.get("output_dir", output_dir / "graphs"))
         graph_output_dir.mkdir(parents=True, exist_ok=True)
-
         images_paginated: bool = bool(diagram_options.get("images_paginated", False))
 
         try:
@@ -1698,43 +1704,132 @@ class HtmlGenerator:
                     navigation_links=navigation_links,
                 )
 
-            generated_paths: list[Path]
             if images_paginated and hasattr(graph_generator, "generate_graphviz_graph_paginated_ext"):
-                generated_paths = [
-                    Path(path)
-                    for path in graph_generator.generate_graphviz_graph_paginated_ext(
-                        table_name=table_name,
-                        output_dir=graph_output_dir,
-                        format=fmt,
-                        max_subnodes=int(diagram_options.get("max_subnodes", 10)),
-                        max_depth=int(diagram_options.get("max_depth", 1)),
-                        direction=str(diagram_options.get("direction", "both")),
-                    )
-                ]
+                valid_paths = self._generate_svg_paginated(
+                    table_name=table_name,
+                    graph_generator=graph_generator,
+                    diagram_options=diagram_options,
+                    graph_output_dir=graph_output_dir,
+                    fmt=fmt,
+                    navigation_links=navigation_links,
+                )
             else:
-                output_file: Path = graph_output_dir / f"{table_name}.{fmt}"
-                method = graph_generator.generate_single_table_graph_ext
-                kwargs: dict[str, Any] = {
-                    "table_name": table_name,
-                    "output_file": output_file,
-                    "format": fmt,
-                    "max_depth": int(diagram_options.get("max_depth", 1)),
-                    "direction": str(diagram_options.get("direction", "both")),
-                }
-                generated_paths = [Path(method(**kwargs))]
+                valid_paths = self._generate_svg_single_pipe(
+                    table_name=table_name,
+                    graph_generator=graph_generator,
+                    diagram_options=diagram_options,
+                    graph_output_dir=graph_output_dir,
+                    fmt=fmt,
+                    navigation_links=navigation_links,
+                    data_provider=data_provider,
+                )
 
-            valid_paths: list[Path] = [path for path in generated_paths if path.exists()]
-            for svg_path in valid_paths:
-                self._inject_links_into_svg(svg_path=svg_path, navigation_links=navigation_links)
-
-            flat_paths = [html.escape(str(path.relative_to(output_dir)).replace("\\", "/")) for path in valid_paths]
+            flat_paths = [html.escape(str(p.relative_to(output_dir)).replace("\\", "/")) for p in valid_paths]
             return [], flat_paths, {}
         except (OSError, RuntimeError) as error:
             self.logger.warning(f"⚠️ No se pudo generar SVG para tabla {table_name}: {error}")
             return [], [], {}
 
+    def _generate_svg_paginated(
+        self,
+        table_name: str,
+        graph_generator: GraphvizRelationshipGraphExt,
+        diagram_options: dict[str, Any],
+        graph_output_dir: Path,
+        fmt: str,
+        navigation_links: dict[str, str],
+    ) -> list[Path]:
+        """Genera SVGs paginados a disco e inyecta enlaces navegables en cada archivo."""
+        generated_paths = [
+            Path(path)
+            for path in graph_generator.generate_graphviz_graph_paginated_ext(
+                table_name=table_name,
+                output_dir=graph_output_dir,
+                format=fmt,
+                max_subnodes=int(diagram_options.get("max_subnodes", 10)),
+                max_depth=int(diagram_options.get("max_depth", 1)),
+                direction=str(diagram_options.get("direction", "both")),
+            )
+        ]
+        valid_paths = [p for p in generated_paths if p.exists()]
+        for svg_path in valid_paths:
+            self._inject_links_into_svg(svg_path=svg_path, navigation_links=navigation_links)
+        return valid_paths
+
+    def _generate_svg_single_pipe(
+        self,
+        table_name: str,
+        graph_generator: GraphvizRelationshipGraphExt,
+        diagram_options: dict[str, Any],
+        graph_output_dir: Path,
+        fmt: str,
+        navigation_links: dict[str, str],
+        data_provider: DocumentationManagerPort | None,
+    ) -> list[Path]:
+        """Genera un SVG único en memoria (pipe), inyecta enlaces y escribe una sola vez a disco.
+
+        Consulta el caché de sesión antes de llamar a Graphviz para evitar regenerar
+        el diagrama cuando Word y HTML se generan en la misma sesión.
+        """
+        max_depth_val: int = int(diagram_options.get("max_depth", 1))
+        direction_val: str = str(diagram_options.get("direction", "both"))
+        output_file: Path = graph_output_dir / f"{table_name}.{fmt}"
+
+        svg_bytes = self._resolve_svg_bytes(
+            table_name=table_name,
+            graph_generator=graph_generator,
+            fmt=fmt,
+            max_depth_val=max_depth_val,
+            direction_val=direction_val,
+            output_file=output_file,
+            data_provider=data_provider,
+        )
+
+        cache_fn = getattr(data_provider, "cache_svg_bytes", None)
+        if cache_fn is not None:
+            cache_fn(table_name, max_depth_val, direction_val, svg_bytes)
+
+        svg_markup: str = self._inject_links_into_svg_markup(svg_bytes, navigation_links)
+        output_file.write_text(svg_markup, encoding="utf-8")
+        return [output_file]
+
+    def _resolve_svg_bytes(
+        self,
+        table_name: str,
+        graph_generator: GraphvizRelationshipGraphExt,
+        fmt: str,
+        max_depth_val: int,
+        direction_val: str,
+        output_file: Path,
+        data_provider: DocumentationManagerPort | None,
+    ) -> bytes:
+        """Devuelve bytes SVG desde caché de sesión, pipe en memoria o fallback a disco."""
+        get_cached_fn = getattr(data_provider, "get_cached_svg_bytes", None)
+        if get_cached_fn is not None:
+            cached: bytes | None = get_cached_fn(table_name, max_depth_val, direction_val)
+            if cached is not None:
+                return cached
+
+        if hasattr(graph_generator, "pipe_single_table_graph_ext"):
+            return graph_generator.pipe_single_table_graph_ext(
+                table_name=table_name,
+                format=fmt,
+                max_depth=max_depth_val,
+                direction=direction_val,
+            )
+
+        return graph_generator.generate_single_table_graph_ext(
+            table_name=table_name,
+            output_file=output_file,
+            format=fmt,
+            max_depth=max_depth_val,
+            direction=direction_val,
+        ).read_bytes()
+
     def _inject_links_into_svg(self, svg_path: Path, navigation_links: dict[str, str]) -> None:
         """Inserta enlaces clicables en nodos SVG apuntando a páginas HTML de detalle."""
+        if not navigation_links:
+            return
         svg_ns = "http://www.w3.org/2000/svg"
         xlink_ns = "http://www.w3.org/1999/xlink"
         ET.register_namespace("", svg_ns)
@@ -1774,6 +1869,65 @@ class HtmlGenerator:
             tree.write(str(svg_path), encoding="utf-8", xml_declaration=True)
         except (ET.ParseError, OSError) as error:
             self.logger.warning(f"⚠️ No se pudieron inyectar enlaces en SVG {svg_path.name}: {error}")
+
+    def _inject_links_into_svg_markup(self, svg_bytes: bytes, navigation_links: dict[str, str]) -> str:
+        """Inyecta enlaces clicables en bytes SVG en memoria y devuelve el markup resultante.
+
+        Variante en memoria de _inject_links_into_svg. No escribe ni lee disco.
+        Devuelve el SVG sin declaración XML, listo para incrustar inline en HTML
+        o para escribir a disco una única vez.
+
+        Args:
+            svg_bytes: Contenido SVG como bytes (salida de dot.pipe o caché)
+            navigation_links: Mapa de nombre de tabla → URL de destino
+
+        Returns:
+            str: Markup SVG con enlaces inyectados, sin declaración XML
+
+        Example:
+            >>> markup = generator._inject_links_into_svg_markup(svg_bytes, {"orders": "orders.html"})
+            >>> markup.startswith("<svg")
+            True
+        """
+        svg_ns = "http://www.w3.org/2000/svg"
+        xlink_ns = "http://www.w3.org/1999/xlink"
+        ET.register_namespace("", svg_ns)
+        ET.register_namespace("xlink", xlink_ns)
+
+        def _decode_markup(raw: bytes) -> str:
+            text = raw.decode("utf-8")
+            return re.sub(r"^\s*<\?xml[^>]*\?>\s*", "", text, count=1).strip()
+
+        if not navigation_links:
+            return _decode_markup(svg_bytes)
+
+        try:
+            root: ET.Element = ET.fromstring(svg_bytes)
+            node_selector: LiteralString = f".//{{{svg_ns}}}g[@class='node']"
+            for node_group in root.findall(node_selector):
+                title_element: ET.Element | None = node_group.find(f"{{{svg_ns}}}title")
+                if title_element is None or not title_element.text:
+                    continue
+                target_href: str | None = navigation_links.get(title_element.text)
+                if not target_href:
+                    continue
+                existing_anchor: ET.Element | None = node_group.find(f"{{{svg_ns}}}a")
+                if existing_anchor is not None:
+                    existing_anchor.set(f"{{{xlink_ns}}}href", target_href)
+                    existing_anchor.set("target", "_blank")
+                    continue
+                anchor: ET.Element = ET.Element(f"{{{svg_ns}}}a")
+                anchor.set(f"{{{xlink_ns}}}href", target_href)
+                anchor.set("target", "_blank")
+                children: list[ET.Element] = list(node_group)
+                for child in children:
+                    node_group.remove(child)
+                    anchor.append(child)
+                node_group.append(anchor)
+            return ET.tostring(root, encoding="unicode").strip()
+        except ET.ParseError as error:
+            self.logger.warning(f"⚠️ No se pudieron inyectar enlaces SVG en memoria: {error}")
+            return _decode_markup(svg_bytes)
 
     def _decode_html_entities(self, value: str, max_rounds: int = 3) -> str:
         """Decodifica entidades HTML (incluyendo casos doblemente escapados)."""

@@ -130,6 +130,7 @@ class DocumentationSession:
     _database_charset_collation_cache: dict[str, Any] | None | object = _UNSET_DATABASE_CHARSET_COLLATION
     _columns_charset_collation_cache: dict[str, list[tuple[str, str | None, str | None]] | None] | None = None
     _storage_inventory_report_cache: dict[str, Any] | None = None
+    _svg_bytes_cache: dict[tuple[str, int, str], bytes] | None = None
 
     @classmethod
     def from_documentation(
@@ -169,6 +170,7 @@ class DocumentationSession:
             _ddl_cache={},
             _list_cache={},
             _columns_charset_collation_cache={},
+            _svg_bytes_cache={},
         )
 
     @property
@@ -282,6 +284,47 @@ class DocumentationSession:
                 print_config=self.print_config,
             )
         return self._storage_inventory_report_cache
+
+    def get_cached_svg_bytes(self, table_name: str, max_depth: int, direction: str) -> bytes | None:
+        """Devuelve los bytes SVG cacheados para la tabla, o None si no están en caché.
+
+        La clave incluye los parámetros que afectan el contenido del diagrama.
+        Solo válido cuando Word y HTML comparten el mismo graph_generator.
+
+        Args:
+            table_name: Nombre de la tabla
+            max_depth: Profundidad máxima usada en la generación
+            direction: Dirección de relaciones usada ('both', 'outgoing', 'incoming')
+
+        Returns:
+            bytes | None: Bytes SVG si están cacheados, None en caso contrario
+
+        Example:
+            >>> cached = session.get_cached_svg_bytes("orders", 1, "both")
+            >>> cached is None or len(cached) > 0
+            True
+        """
+        if self._svg_bytes_cache is None:
+            return None
+        return self._svg_bytes_cache.get((table_name, max_depth, direction))
+
+    def cache_svg_bytes(self, table_name: str, max_depth: int, direction: str, svg_bytes: bytes) -> None:
+        """Almacena bytes SVG en caché para reutilización entre renderers.
+
+        Args:
+            table_name: Nombre de la tabla
+            max_depth: Profundidad máxima usada en la generación
+            direction: Dirección de relaciones usada
+            svg_bytes: Contenido SVG a cachear
+
+        Example:
+            >>> session.cache_svg_bytes("orders", 1, "both", b"<svg>...</svg>")
+            >>> session.get_cached_svg_bytes("orders", 1, "both") is not None
+            True
+        """
+        if self._svg_bytes_cache is None:
+            self._svg_bytes_cache = {}
+        self._svg_bytes_cache[(table_name, max_depth, direction)] = svg_bytes
 
     def _get_cached_scalar(self, cache_key: tuple[str, str, str], loader: Callable[[], str]) -> str:
         """Resuelve un valor escalar con cache local por sesión."""
