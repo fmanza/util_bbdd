@@ -65,6 +65,28 @@ def build_pragma_index_info_query(index_name: str) -> str:
     return f"PRAGMA index_info({escaped_index});"
 
 
+def _normalize_pragma_table_result(row: Any) -> SqlitePragmaResult | None:
+    """Normaliza una fila individual de PRAGMA table_info a SqlitePragmaResult.
+
+    Args:
+        row: Tupla de 6+ elementos de PRAGMA table_info
+
+    Returns:
+        SqlitePragmaResult o None si es inválida
+    """
+    if not row or len(row) < 6:
+        return None
+
+    return SqlitePragmaResult(
+        cid=int(row[0]) if row[0] is not None else -1,
+        name=str(row[1]) if row[1] else "",
+        type_name=str(row[2]) if row[2] else "TEXT",
+        notnull=int(row[3]) if row[3] is not None else 0,
+        default_value=str(row[4]) if row[4] else None,
+        pk=int(row[5]) if row[5] is not None else 0,
+    )
+
+
 def decode_pragma_table_info_rows(rows: list[Any]) -> list[SqlitePragmaResult]:
     """Decodifica resultados de PRAGMA table_info a SqlitePragmaResult.
 
@@ -76,21 +98,34 @@ def decode_pragma_table_info_rows(rows: list[Any]) -> list[SqlitePragmaResult]:
     Returns:
         list[SqlitePragmaResult]: Resultados decodificados
     """
-    result: list[SqlitePragmaResult] = []
-    for row in rows:
-        if not row or len(row) < 6:
-            continue
-        result.append(
-            SqlitePragmaResult(
-                cid=int(row[0]) if row[0] is not None else -1,
-                name=str(row[1]) if row[1] else "",
-                type_name=str(row[2]) if row[2] else "TEXT",
-                notnull=int(row[3]) if row[3] is not None else 0,
-                default_value=str(row[4]) if row[4] else None,
-                pk=int(row[5]) if row[5] is not None else 0,
-            )
-        )
-    return result
+    return [normalized for row in rows if (normalized := _normalize_pragma_table_result(row)) is not None]
+
+
+def _normalize_fk_row(row: Any) -> tuple[str, str, str, str, str, str, int] | None:
+    """Normaliza una fila individual de PRAGMA foreign_key_list.
+
+    Args:
+        row: Tupla de 8+ elementos de PRAGMA foreign_key_list
+
+    Returns:
+        Tupla (constraint_name, column_name, ref_table, ref_column, on_delete_action, on_update_action, ordinal_position)
+        o None si es inválida
+    """
+    if not row or len(row) < 8:
+        return None
+
+    fk_id = str(row[0]) if row[0] is not None else "0"
+    seq = int(row[1]) if row[1] is not None else 0
+    ref_table = str(row[2]).strip() if row[2] else ""
+    column_name = str(row[3]).strip() if row[3] else ""
+    ref_column = str(row[4]).strip() if row[4] else ""
+    on_delete = str(row[5]).upper() if row[5] else "NO ACTION"
+    on_update = str(row[6]).upper() if row[6] else "NO ACTION"
+
+    # Constraint name synthesis: "fk_{id}_{column}"
+    constraint_name = f"fk_{fk_id}_{column_name.lower()}"
+
+    return (constraint_name, column_name, ref_table, ref_column, on_delete, on_update, seq + 1)
 
 
 def decode_pragma_fk_rows(rows: list[Any]) -> list[tuple]:
@@ -108,25 +143,7 @@ def decode_pragma_fk_rows(rows: list[Any]) -> list[tuple]:
     Returns:
         list[tuple]: Filas normalizadas
     """
-    result: list[tuple] = []
-    for row in rows:
-        if not row or len(row) < 8:
-            continue
-
-        fk_id = str(row[0]) if row[0] is not None else "0"
-        seq = int(row[1]) if row[1] is not None else 0
-        ref_table = str(row[2]).strip() if row[2] else ""
-        column_name = str(row[3]).strip() if row[3] else ""
-        ref_column = str(row[4]).strip() if row[4] else ""
-        on_delete = str(row[5]).upper() if row[5] else "NO ACTION"
-        on_update = str(row[6]).upper() if row[6] else "NO ACTION"
-
-        # Constraint name synthesis: "fk_{id}_{column}"
-        constraint_name = f"fk_{fk_id}_{column_name.lower()}"
-
-        result.append((constraint_name, column_name, ref_table, ref_column, on_delete, on_update, seq + 1))
-
-    return result
+    return [normalized for row in rows if (normalized := _normalize_fk_row(row)) is not None]
 
 
 def decode_pragma_index_rows(rows: list[tuple[Any, ...]]) -> dict[str, dict[str, Any]]:

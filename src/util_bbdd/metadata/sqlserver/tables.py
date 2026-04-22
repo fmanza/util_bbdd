@@ -12,6 +12,34 @@ from ._adapter_helpers import (
 from .common import normalize_sqlserver_type
 
 
+def _normalize_sqlserver_column_row(row: Any) -> tuple[str, str, int, int, str | None, str] | None:
+    """Normaliza una fila individual de columna SQL Server.
+
+    Args:
+        row: Tupla de 7+ elementos de sys.columns
+
+    Returns:
+        Tupla (column_name, normalized_type, is_nullable, ordinal_position, column_default, column_comment)
+        o None si es inválida
+    """
+    if not row or len(row) < 7:
+        return None
+
+    column_name = str(row[0]).strip()
+    column_type = str(row[1]).strip().upper() if row[1] else "SQL_VARIANT"
+    is_nullable = int(row[2]) if row[2] is not None else 0
+    ordinal_position = int(row[3]) if row[3] is not None else 0
+    column_default = str(row[4]) if row[4] else None
+    column_comment = str(row[5]).strip() if row[5] else ""
+    is_identity = int(row[6]) if row[6] is not None else 0
+
+    normalized_type = normalize_sqlserver_type(column_type)
+    if is_identity:
+        column_comment = f"Identity column. {column_comment}".strip()
+
+    return (column_name, normalized_type, is_nullable, ordinal_position, column_default, column_comment)
+
+
 def fetch_schemas_sync(connection: Any) -> list[tuple]:
     """Obtiene lista de schemas en SQL Server.
 
@@ -75,26 +103,4 @@ def fetch_columns_sync(connection: Any, schema: str | None = None, table: str | 
     cursor = connection.execute(sql, params)
     rows: list[tuple[Any, ...]] = cursor.fetchall()
 
-    result: list[tuple] = []
-    for row in rows:
-        if not row or len(row) < 7:
-            continue
-
-        column_name = str(row[0]).strip()
-        column_type = str(row[1]).strip().upper() if row[1] else "SQL_VARIANT"
-        is_nullable = int(row[2]) if row[2] is not None else 0
-        ordinal_position = int(row[3]) if row[3] is not None else 0
-        column_default = str(row[4]) if row[4] else None
-        column_comment = str(row[5]).strip() if row[5] else ""
-        is_identity = int(row[6]) if row[6] is not None else 0
-
-        # Normalizar tipo
-        normalized_type = normalize_sqlserver_type(column_type)
-
-        # Agregar identity info al comment si aplica
-        if is_identity:
-            column_comment = f"Identity column. {column_comment}".strip()
-
-        result.append((column_name, normalized_type, is_nullable, ordinal_position, column_default, column_comment))
-
-    return result
+    return [normalized for row in rows if (normalized := _normalize_sqlserver_column_row(row)) is not None]

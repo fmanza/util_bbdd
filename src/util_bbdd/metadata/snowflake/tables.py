@@ -12,6 +12,30 @@ from ._adapter_helpers import (
 from .common import is_system_schema_snowflake, normalize_snowflake_identifier, normalize_snowflake_type
 
 
+def _normalize_snowflake_column_row(row: Any) -> tuple[str, str, bool, int, str, str] | None:
+    """Normaliza una fila individual de columna Snowflake.
+
+    Args:
+        row: Tupla de 6+ elementos de INFORMATION_SCHEMA.COLUMNS
+
+    Returns:
+        Tupla (column_name, column_type, is_nullable, ordinal_position, column_default, column_comment)
+        o None si es inválida
+    """
+    if not row:
+        return None
+
+    column_name = normalize_snowflake_identifier(row[0]) if row[0] else ""
+    raw_type = str(row[1]).strip() if len(row) > 1 and row[1] else "object"
+    column_type = normalize_snowflake_type(raw_type)
+    is_nullable = str(row[2]).upper() == "YES" if len(row) > 2 else True
+    ordinal_position = int(row[3]) if len(row) > 3 and row[3] is not None else 0
+    column_default = str(row[4]).strip() if len(row) > 4 and row[4] else ""
+    column_comment = str(row[5]).strip() if len(row) > 5 and row[5] else ""
+
+    return (column_name, column_type, is_nullable, ordinal_position, column_default, column_comment)
+
+
 def fetch_schemas_sync(connection: Any, database: str | None = None) -> list[tuple]:
     """Obtiene lista de schemas en Snowflake via INFORMATION_SCHEMA.SCHEMATA.
 
@@ -103,19 +127,5 @@ def fetch_columns_sync(
     cursor = connection.execute(sql, params)
     rows: list[tuple[Any, ...]] = cursor.fetchall()
 
-    result: list[tuple] = []
-    for r in rows:
-        if r:
-            column_name = normalize_snowflake_identifier(r[0]) if r[0] else ""
-            # Normalizar tipo a genérico
-            raw_type = str(r[1]).strip() if len(r) > 1 and r[1] else "object"
-            column_type = normalize_snowflake_type(raw_type)
-
-            is_nullable = str(r[2]).upper() == "YES" if len(r) > 2 else True
-            ordinal_position = int(r[3]) if len(r) > 3 and r[3] is not None else 0
-            column_default = str(r[4]).strip() if len(r) > 4 and r[4] else ""
-            column_comment = str(r[5]).strip() if len(r) > 5 and r[5] else ""
-
-            result.append((column_name, column_type, is_nullable, ordinal_position, column_default, column_comment))
-
+    result = [normalized for row in rows if (normalized := _normalize_snowflake_column_row(row)) is not None]
     return sorted(result, key=lambda x: x[3])  # Ordenar por ordinal_position

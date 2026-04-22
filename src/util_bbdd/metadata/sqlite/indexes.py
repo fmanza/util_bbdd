@@ -7,6 +7,31 @@ from typing import Any
 from ._adapter_helpers import build_pragma_index_info_query
 
 
+def _process_sqlite_index_columns(
+    connection: Any, schema_name: str, index_name: str, is_unique: int
+) -> list[tuple[str, str, int, int]]:
+    """Procesa columnas de un índice SQLite.
+
+    Args:
+        connection: Conexión sqlite3
+        schema_name: Schema name
+        index_name: Nombre del índice
+        is_unique: Flag de unicidad
+
+    Returns:
+        list[tuple]: Filas (index_name, column_name, is_unique, ordinal_position)
+    """
+    sql_info = build_pragma_index_info_query(index_name)
+    cursor_info = connection.execute(sql_info)
+    column_rows: list[tuple[Any, ...]] = cursor_info.fetchall()
+
+    return [
+        (index_name, str(col_row[2]).strip(), is_unique, int(col_row[0]) + 1 if col_row[0] is not None else seq + 1)
+        for seq, col_row in enumerate(column_rows)
+        if col_row and len(col_row) >= 3
+    ]
+
+
 def fetch_indexes_sync(connection: Any, schema: str | None = None, table: str | None = None) -> list[tuple]:
     """Obtiene índices de una tabla via PRAGMA index_list e index_info.
 
@@ -41,19 +66,8 @@ def fetch_indexes_sync(connection: Any, schema: str | None = None, table: str | 
         if index_name.startswith("sqlite_"):
             continue
 
-        # PRAGMA index_info retorna: (seqno, cid, name)
-        sql_info = build_pragma_index_info_query(index_name)
-
-        cursor_info = connection.execute(sql_info)
-        column_rows: list[tuple[Any, ...]] = cursor_info.fetchall()
-
-        for seq, col_row in enumerate(column_rows):
-            if not col_row or len(col_row) < 3:
-                continue
-
-            column_name = str(col_row[2]).strip()
-            ordinal_position = int(col_row[0]) + 1 if col_row[0] is not None else seq + 1
-
-            result.append((index_name, column_name, is_unique, ordinal_position))
+        # Procesar columnas del índice
+        index_columns = _process_sqlite_index_columns(connection, schema_name, index_name, is_unique)
+        result.extend(index_columns)
 
     return result

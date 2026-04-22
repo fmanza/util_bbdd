@@ -2,9 +2,33 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from .common import normalize_sqlite_type
+
+
+def _normalize_sqlite_column_row(row: Any) -> tuple[str, str, int, int, str | None, str] | None:
+    """Normaliza una fila individual de columna SQLite.
+
+    Args:
+        row: Tupla de 6+ elementos de PRAGMA table_info
+
+    Returns:
+        Tupla (column_name, normalized_type, is_nullable, ordinal_position, column_default, comment)
+        o None si es inválida
+    """
+    if not row or len(row) < 6:
+        return None
+
+    column_name: str = str(row[1]).strip()
+    column_type: str = str(row[2]).strip().upper() if row[2] else "TEXT"
+    notnull = int(row[3]) if row[3] is not None else 0
+    ordinal_position: int = int(row[0]) + 1 if row[0] is not None else 0
+    column_default: str | None = str(row[4]) if row[4] else None
+    is_nullable: Literal[0] | Literal[1] = 0 if notnull else 1
+    normalized_type: str = normalize_sqlite_type(column_type)
+
+    return (column_name, normalized_type, is_nullable, ordinal_position, column_default, "")
 
 
 def fetch_schemas_sync() -> list[tuple]:
@@ -74,21 +98,4 @@ def fetch_columns_sync(connection: Any, schema: str | None = None, table: str | 
     cursor = connection.execute(sql)
     rows: list[tuple[Any, ...]] = cursor.fetchall()
 
-    result: list[tuple] = []
-    for row in rows:
-        if not row or len(row) < 6:
-            continue
-
-        column_name = str(row[1]).strip()
-        column_type = str(row[2]).strip().upper() if row[2] else "TEXT"
-        notnull = int(row[3]) if row[3] is not None else 0
-        ordinal_position = int(row[0]) + 1 if row[0] is not None else 0
-        column_default = str(row[4]) if row[4] else None
-        is_nullable = 0 if notnull else 1
-
-        # Normalizar tipo
-        normalized_type = normalize_sqlite_type(column_type)
-
-        result.append((column_name, normalized_type, is_nullable, ordinal_position, column_default, ""))
-
-    return result
+    return [normalized for row in rows if (normalized := _normalize_sqlite_column_row(row)) is not None]

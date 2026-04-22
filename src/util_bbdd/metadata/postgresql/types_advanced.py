@@ -478,7 +478,6 @@ def get_composite_types(schema: str | None, adapter: Any) -> list[CompositeTypeI
 
         type_name = str(row[0]) if row[0] else ""
         schema_name = str(row[1]) if row[1] else "public"
-        # type_owner = str(row[2]) if row[2] else ""  # Not used currently
 
         # Fetch detailed field structure
         composite_info = parse_composite_type_structure(schema_name, type_name, adapter)

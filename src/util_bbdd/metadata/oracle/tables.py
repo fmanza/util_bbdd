@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from ...results import Rows
 
 
@@ -79,6 +81,36 @@ def fetch_columns_sql() -> str:
     )
 
 
+def _normalize_oracle_column_row(row: Any) -> tuple[str, str, str, int, Any, str] | None:
+    """Normaliza una fila individual de columna Oracle.
+
+    Excluye LONG/LONG RAW (detecta y filtra). Convierte tipos según Oracle semantics.
+
+    Args:
+        row: Tupla/lista de datos de columna (9+ elementos)
+
+    Returns:
+        Tupla normalizada (column_name, column_type, is_nullable, ordinal_position,
+        column_default, column_comment) o None si es inválida o LONG/LONG RAW
+    """
+    if not isinstance(row, (tuple, list)) or len(row) < 9:
+        return None
+
+    # Detectar LONG/LONG RAW y skipear
+    data_type = str(row[1]).upper() if row[1] else "VARCHAR2"
+    if data_type in ("LONG", "LONG RAW"):
+        return None
+
+    return (
+        str(row[0]) if row[0] else "",  # column_name
+        str(row[1]) if row[1] else "VARCHAR2",  # data_type
+        str(row[2]) if row[2] else "YES",  # is_nullable
+        int(row[3]) if row[3] is not None else 0,  # ordinal_position
+        str(row[4]).strip() if row[4] else None,  # column_default (puede ser None)
+        str(row[8]) if row[8] else "",  # column_comment
+    )
+
+
 def decode_oracle_column_rows(safe_rows: Rows) -> Rows:
     """Decodifica y normaliza filas de columnas Oracle.
 
@@ -89,27 +121,7 @@ def decode_oracle_column_rows(safe_rows: Rows) -> Rows:
         Rows normalizadas con estructura (column_name, column_type, is_nullable,
                                           ordinal_position, column_default, column_comment)
     """
-    decoded_rows: Rows = []
-    for row in safe_rows:
-        if not isinstance(row, (tuple, list)) or len(row) < 9:
-            continue
-
-        # Detectar LONG/LONG RAW y skipear
-        data_type = str(row[1]).upper() if row[1] else "VARCHAR2"
-        if data_type in ("LONG", "LONG RAW"):
-            continue
-
-        decoded_rows.append(
-            (
-                str(row[0]) if row[0] else "",  # column_name
-                str(row[1]) if row[1] else "VARCHAR2",  # data_type
-                str(row[2]) if row[2] else "YES",  # is_nullable
-                int(row[3]) if row[3] is not None else 0,  # ordinal_position
-                str(row[4]).strip() if row[4] else None,  # column_default (puede ser None)
-                str(row[8]) if row[8] else "",  # column_comment
-            )
-        )
-    return decoded_rows
+    return [normalized for row in safe_rows if (normalized := _normalize_oracle_column_row(row)) is not None]
 
 
 def fetch_pk_constraint_sql() -> str:
