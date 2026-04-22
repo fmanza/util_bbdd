@@ -7,7 +7,7 @@ import logging
 import tempfile
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 # Word imports
 from docx import Document as load_document
@@ -769,7 +769,7 @@ class WordGenerator:
         """
         try:
             import cairosvg  # type: ignore[import-untyped]  # noqa: PLC0415
-            result: bytes = cairosvg.svg2png(bytestring=svg_bytes, dpi=render_dpi)
+            result: bytes = cast(bytes, cairosvg.svg2png(bytestring=svg_bytes, dpi=render_dpi))
             return result
         except ImportError:
             self.logger.debug("cairosvg no está instalado; usando generación PNG directa")
