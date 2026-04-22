@@ -29,6 +29,13 @@ from typing import Any
 logger: logging.Logger = logging.getLogger(__name__)
 
 # ============================================================================
+# MODULE CONSTANTS
+# ============================================================================
+
+_OBJECT_PREFIX: str = "OBJECT<"
+_ARRAY_PREFIX: str = "ARRAY<"
+
+# ============================================================================
 # SNOWFLAKE TYPE PARSING FUNCTIONS
 # ============================================================================
 
@@ -77,7 +84,7 @@ def parse_snowflake_object_syntax(type_str: str) -> dict[str, Any] | None:
     type_str = type_str.strip()
 
     # Check if it's OBJECT<...> syntax
-    if not type_str.upper().startswith("OBJECT<"):
+    if not type_str.upper().startswith(_OBJECT_PREFIX):
         return None
 
     # Extract content between outer < and >
@@ -141,7 +148,7 @@ def parse_snowflake_array_syntax(type_str: str) -> dict[str, Any] | None:
     type_str = type_str.strip()
 
     # Check if it's ARRAY<...> syntax
-    if not type_str.upper().startswith("ARRAY<"):
+    if not type_str.upper().startswith(_ARRAY_PREFIX):
         return None
 
     try:
@@ -271,13 +278,13 @@ def _parse_snowflake_type(type_str: str) -> dict[str, Any] | None:
     type_str = type_str.strip().upper()
 
     # Try OBJECT
-    if type_str.startswith("OBJECT<"):
+    if type_str.startswith(_OBJECT_PREFIX):
         result = parse_snowflake_object_syntax(type_str)
         if result:
             return result
 
     # Try ARRAY
-    if type_str.startswith("ARRAY<"):
+    if type_str.startswith(_ARRAY_PREFIX):
         result = parse_snowflake_array_syntax(type_str)
         if result:
             return result
@@ -465,9 +472,9 @@ def query_snowflake_column_schema(
 
         # Parse type string
         schema_dict: dict[str, Any] | None = None
-        if type_str.upper().startswith("OBJECT<"):
+        if type_str.upper().startswith(_OBJECT_PREFIX):
             schema_dict = parse_snowflake_object_syntax(type_str)
-        elif type_str.upper().startswith("ARRAY<"):
+        elif type_str.upper().startswith(_ARRAY_PREFIX):
             schema_dict = parse_snowflake_array_syntax(type_str)
         else:
             # Not an OBJECT/ARRAY type
