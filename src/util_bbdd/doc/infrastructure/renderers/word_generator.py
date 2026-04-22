@@ -661,8 +661,13 @@ class WordGenerator:
             output_dir = Path(diagram_options.get("output_dir", Path.cwd() / "_table_diagrams"))
             output_dir.mkdir(parents=True, exist_ok=True)
             output_file: Path = output_dir / f"{tabla}.{fmt}"
-            disk_kwargs: dict[str, Any] = {**kwargs, "output_file": output_file}
-            disk_kwargs.pop("document", None)
+            disk_kwargs: dict[str, Any] = {
+                "table_name": tabla,
+                "format": fmt,
+                "max_depth": max_depth_val,
+                "direction": direction_val,
+                "output_file": output_file,
+            }
             if graph_document is not None:
                 disk_kwargs["document"] = graph_document
             generated_path = Path(graph_generator.generate_single_table_graph_ext(**disk_kwargs))
@@ -763,7 +768,7 @@ class WordGenerator:
             True
         """
         try:
-            import cairosvg  # type: ignore[import-not-found]  # noqa: PLC0415
+            import cairosvg  # type: ignore[import-untyped]  # noqa: PLC0415
             result: bytes = cairosvg.svg2png(bytestring=svg_bytes, dpi=render_dpi)
             return result
         except ImportError:
@@ -856,32 +861,7 @@ class WordGenerator:
             document.add_paragraph(f"⚠️ No se encontró el archivo de imagen: {image_path}")
             return
 
-        section: Section = document.sections[-1]
-        page_width: int = int(section.page_width) if section.page_width is not None else int(Emu(0))
-        page_height: int = int(section.page_height) if section.page_height is not None else int(Emu(0))
-        left_margin: int = int(section.left_margin) if section.left_margin is not None else 0
-        right_margin: int = int(section.right_margin) if section.right_margin is not None else 0
-        top_margin: int = int(section.top_margin) if section.top_margin is not None else 0
-        bottom_margin: int = int(section.bottom_margin) if section.bottom_margin is not None else 0
-        reserved_title_height: int = self._estimate_paragraph_reserved_height_emu(title_paragraph)
-        safety_padding = int(Pt(24))
-        picture_paragraph_reserved = int(Pt(18))
-
-        max_width: int = page_width - left_margin - right_margin
-        max_height: int = (
-            page_height
-            - top_margin
-            - bottom_margin
-            - reserved_title_height
-            - picture_paragraph_reserved
-            - safety_padding
-        )
-        if max_height <= 0:
-            max_height = int(Pt(72))
-
-        if max_width <= 0:
-            max_width = int(Pt(72))
-
+        max_width, max_height = self._compute_max_dimensions(document, title_paragraph)
         image = DocxImage.from_file(str(image_path))
         image_width = int(image.width)
         image_height = int(image.height)
@@ -892,8 +872,7 @@ class WordGenerator:
 
         width_ratio: float = max_width / image_width
         height_ratio: float = max_height / image_height
-        scale: float = min(width_ratio, height_ratio, 1.0)
-        scale *= 0.98
+        scale: float = min(width_ratio, height_ratio, 1.0) * 0.98
 
         scaled_width = Emu(max(1, int(image_width * scale)))
         scaled_height = Emu(max(1, int(image_height * scale)))
