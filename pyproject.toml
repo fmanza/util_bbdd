@@ -37,6 +37,9 @@ dependencies = [
 analysis = [
     "graphviz>=0.20",
 ]
+doc-svg = [
+    "cairosvg>=2.7",
+]
 dev = [
     "build>=1.2",
     "pytest>=9.0",
