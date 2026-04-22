@@ -109,6 +109,77 @@ class UDTTypeInfo:
 
 
 # ============================================================================
+# HELPER FUNCTIONS FOR PARSING
+# ============================================================================
+
+
+def _build_udt_member_from_row(row: tuple | list, member_index: int) -> UDTMember:
+    """Build a UDTMember from a row tuple.
+
+    Extracts member fields from row and creates UDTMember with defaults.
+
+    Args:
+        row: Row tuple from sys.types query
+        member_index: Index for fallback member name
+
+    Returns:
+        UDTMember: Parsed member with all fields populated
+    """
+    member_name = str(row[2]).lower() if row[2] else f"member_{member_index}"
+    member_type = str(row[3]).upper() if row[3] else "VARCHAR"
+    position = int(row[4]) if len(row) > 4 and row[4] else member_index + 1
+    is_nullable = bool(row[5]) if len(row) > 5 else True
+    max_length_val = int(row[6]) if len(row) > 6 and row[6] is not None else None
+    precision_val = int(row[7]) if len(row) > 7 and row[7] is not None else None
+    scale_val = int(row[8]) if len(row) > 8 and row[8] is not None else None
+
+    return UDTMember(
+        name=member_name,
+        type_name=member_type,
+        ordinal_position=position,
+        is_nullable=is_nullable,
+        max_length=max_length_val,
+        precision=precision_val,
+        scale=scale_val,
+    )
+
+
+def _parse_udt_members_from_rows(
+    rows: list[Any],
+    adapter: Any,
+) -> tuple[int, list[UDTMember]]:
+    """Parse UDT members from query result rows.
+
+    Iterates rows, validates structure, extracts type_id, and builds members.
+
+    Args:
+        rows: List of rows from sys.types query
+        adapter: Manager adapter with logger
+
+    Returns:
+        tuple: (type_id, list of UDTMember objects)
+    """
+    type_id: int = 0
+    members: list[UDTMember] = []
+
+    for idx, row in enumerate(rows):
+        # Validate row structure
+        if not isinstance(row, (tuple, list)) or len(row) < 5:
+            adapter.logger.debug(f"Skipping invalid row at index {idx}: {row}")
+            continue
+
+        # Extract type_id from first row
+        if not type_id and len(row) > 1:
+            type_id = int(row[1]) if row[1] else 0
+
+        # Build and append member
+        member = _build_udt_member_from_row(row, len(members))
+        members.append(member)
+
+    return type_id, members
+
+
+# ============================================================================
 # UDT PARSING FUNCTIONS
 # ============================================================================
 
@@ -131,7 +202,7 @@ def _validate_type_name(name: str) -> bool:
         return False
 
     # SQL Server identifier pattern: starts with letter/underscore, contains alphanumeric/_
-    return bool(re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name))
+    return bool(re.match(r"^[a-zA-Z_]\w*$", name))
 
 
 def _detect_udt_kind(type_id: int, adapter: Any) -> str:
@@ -219,50 +290,16 @@ def parse_udt_structure(
             adapter.logger.debug(f"UDT {type_name} not found in sys.types")
             return None
 
-        # Parse row data: (type_name, type_id, member_name, member_type, member_id,
-        #                  nullable, max_length, precision, scale)
-        type_id: int = 0
-        members: list[UDTMember] = []
-
-        for row in rows:
-            # Validate row structure
-            if not isinstance(row, (tuple, list)) or len(row) < 5:
-                continue
-
-            # Extract type_id from first row
-            if not type_id and len(row) > 1:
-                type_id = int(row[1]) if row[1] else 0
-
-            # Extract member fields from row
-            member_name = str(row[2]).lower() if row[2] else f"member_{len(members)}"
-            member_type = str(row[3]).upper() if row[3] else "VARCHAR"
-            position = int(row[4]) if len(row) > 4 and row[4] else len(members) + 1
-            is_nullable = bool(row[5]) if len(row) > 5 else True
-            max_length_val = int(row[6]) if len(row) > 6 and row[6] is not None else None
-            precision_val = int(row[7]) if len(row) > 7 and row[7] is not None else None
-            scale_val = int(row[8]) if len(row) > 8 and row[8] is not None else None
-
-            # Create UDTMember
-            member = UDTMember(
-                name=member_name,
-                type_name=member_type,
-                ordinal_position=position,
-                is_nullable=is_nullable,
-                max_length=max_length_val,
-                precision=precision_val,
-                scale=scale_val,
-            )
-            members.append(member)
+        # Parse members from rows
+        type_id, members = _parse_udt_members_from_rows(rows, adapter)
 
         # Validate members were found
         if not members:
             adapter.logger.warning(f"No members found for UDT {type_name}")
             return None
 
-        # Detect UDT kind
+        # Detect UDT kind and construct result
         kind = _detect_udt_kind(type_id, adapter)
-
-        # Construct result
         result = UDTTypeInfo(
             type_name=type_name,
             kind=kind,
