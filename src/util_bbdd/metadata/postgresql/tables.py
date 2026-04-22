@@ -84,6 +84,30 @@ def fetch_columns_sql(schema: str, table: str) -> str:
     )
 
 
+def _normalize_postgres_column_row(row: Any) -> tuple[str, str, str, str, Any, str, str] | None:
+    """Normaliza una fila individual de columna PostgreSQL.
+
+    Args:
+        row: Tupla/lista de datos de columna
+
+    Returns:
+        Tupla normalizada (column_name, column_type, is_nullable, column_key,
+        column_default, extra, column_comment) o None si es inválida
+    """
+    if not isinstance(row, (tuple, list)) or len(row) < 7:
+        return None
+
+    return (
+        str(row[0]) if row[0] else "",  # column_name
+        str(row[1]) if row[1] else "text",  # column_type
+        str(row[2]) if row[2] else "YES",  # is_nullable
+        str(row[3]) if row[3] else "",  # column_key
+        str(row[4]) if row[4] else None,  # column_default (puede ser None)
+        str(row[5]) if row[5] else "",  # extra (GENERATED, etc)
+        str(row[6]) if row[6] else "",  # column_comment
+    )
+
+
 def decode_postgres_column_rows(safe_rows: Rows) -> Rows:
     """Decodifica y normaliza filas de columnas PostgreSQL.
 
@@ -93,23 +117,7 @@ def decode_postgres_column_rows(safe_rows: Rows) -> Rows:
     Returns:
         Rows normalizadas con estructura (column_name, column_type, is_nullable, column_key, column_default, extra, column_comment)
     """
-    decoded_rows: Rows = []
-    for row in safe_rows:
-        if not isinstance(row, (tuple, list)) or len(row) < 7:
-            continue
-
-        decoded_rows.append(
-            (
-                str(row[0]) if row[0] else "",  # column_name
-                str(row[1]) if row[1] else "text",  # column_type
-                str(row[2]) if row[2] else "YES",  # is_nullable
-                str(row[3]) if row[3] else "",  # column_key
-                str(row[4]) if row[4] else None,  # column_default (puede ser None)
-                str(row[5]) if row[5] else "",  # extra (GENERATED, etc)
-                str(row[6]) if row[6] else "",  # column_comment
-            )
-        )
-    return decoded_rows
+    return [normalized for row in safe_rows if (normalized := _normalize_postgres_column_row(row)) is not None]
 
 
 def fetch_pk_constraint_sql(schema: str, table: str) -> str:
