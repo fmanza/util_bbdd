@@ -39,8 +39,8 @@ imprimir_config = {
         "ddl": True,
     },
     "rutinas": {
-        "imprimir_rutinas": True,  # Stored procedures, functions
-        "ddl": True,
+        "imprimir_procedures": True,  # Stored procedures
+        "imprimir_function": True,    # Functions
     },
 
     # Configuración de gráficos
@@ -74,10 +74,11 @@ documentation = DatabaseDocumentation(
     imprimir={
         "tablas": {"imprimir_tablas": True, "ddl": True},
         "vistas": {"imprimir_vistas": False},
-        "rutinas": {"imprimir_rutinas": False},
+        "rutinas": {"imprimir_procedures": False, "imprimir_function": False},
     },
     formatos=["html"],
 )
+documentation.generate()
 ```
 
 ### Con plantilla Word personalizada
@@ -92,6 +93,7 @@ documentation = DatabaseDocumentation(
     },
     formatos=["word"],
 )
+documentation.generate()
 ```
 
 ### Generar desde conexión existente
@@ -111,21 +113,31 @@ documentation = DatabaseDocumentation(
     formatos=["html", "word", "excel"],
 )
 
-# Acceder a metadatos documentados
+# Acceder a metadatos antes de generar (sin I/O)
 print(f"Tablas: {len(documentation.tablas)}")
 print(f"Vistas: {len(documentation.vistas)}")
 print(f"Rutinas: {len(documentation.rutinas)}")
+
+# Generar los ficheros de salida
+documentation.generate()
 ```
 
 ---
 
 ## Estructura de Salida
 
+Los ficheros se generan en subdirectorios por formato dentro de una carpeta raíz con timestamp:
+
 ```
 generated_docs/
-├── documentacion_20260420_120530.html      # Reportes interactivos
-├── documentacion_20260420_120530.docx      # Reporte Word profesional
-└── documentacion_20260420_120530.xlsx      # Hojas de cálculo Excel
+└── documentacion_20260420_120530/
+    ├── HTML/                                      # Sitio HTML navegable
+    │   ├── index.html
+    │   └── ...
+    ├── WORD/
+    │   └── documentacion_20260420_120530.docx     # Reporte Word profesional
+    └── EXCEL/
+        └── documentacion_20260420_120530.xlsx     # Hojas de cálculo Excel
 ```
 
 Cada formato incluye:
@@ -168,8 +180,9 @@ imprimir_config = {
 ```python
 imprimir_config = {
     "tablas": {"imprimir_tablas": True},
-    "vistas": {"imprimir_vistas": False},      # ← No generar
-    "rutinas": {"imprimir_rutinas": False},    # ← No generar
+    "vistas": {"imprimir_vistas": False},             # ← No generar
+    "rutinas": {"imprimir_procedures": False,         # ← No generar
+                "imprimir_function": False},
 }
 ```
 
@@ -185,7 +198,8 @@ imprimir_config = {
 
 ## Notas
 
-- La documentación se genera **automáticamente en `__init__`** — no necesitas llamar métodos adicionales
-- Los archivos se guardan en `directorio_salida` con nombres auto-generados (timestamp)
+- El constructor `__init__` **solo configura** la instancia y carga metadatos — **no genera ficheros**
+- Llama a `.generate()` explícitamente para producir los ficheros de salida
+- Los archivos se guardan en `directorio_salida/<nombre>/WORD|EXCEL|HTML/` con nombre auto-generado (timestamp)
 - Para generar múltiples formatos, pasar lista: `formatos=["html", "word", "excel"]`
 - Requiere dependencias opcionales: `pip install util-bbdd[doc]`

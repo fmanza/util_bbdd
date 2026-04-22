@@ -279,3 +279,10 @@ Quiero bugs, edge cases, compatibilidad y tests faltantes.
     - Remove the unused function parameter "success_template".
     - Remove the unused function parameter "completion_template".
 Sigue el flujo PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION.
+---
+@#sym:hotfix
+El fichero: src\util_bbdd\metadata\adapters\shared\json_schema.py ruff lanza los siguientes avisos:
+Remove the unused function parameter "max_depth".
+Refactor this function to reduce its Cognitive Complexity from 35 to the 15 allowed. [+13 locations]
+Merge this if statement with the enclosing one. [+1 location]
+Refactor this function to reduce its Cognitive Complexity from 19 to the 15 allowed. [+11 locations]

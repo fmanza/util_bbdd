@@ -79,8 +79,8 @@ imprimir_config = {
     },
     # Qué documentar: Rutinas (Stored Procedures, Functions)
     "rutinas": {
-        "imprimir_rutinas": True,  # ✅ Generar sección de rutinas
-        "ddl": True,  # Incluir DDL de rutina
+        "imprimir_procedures": True,  # ✅ Generar sección de stored procedures
+        "imprimir_function": True,    # ✅ Generar sección de funciones
     },
     # Configuración de gráficos (Mermaid)
     "grafo": {
@@ -99,7 +99,7 @@ print("⚙️  Configuración de documentación:")
 print(f"   - Directorio: {output_dir}")
 print(f"   - Tablas: {imprimir_config['tablas']['imprimir_tablas']}")
 print(f"   - Vistas: {imprimir_config['vistas']['imprimir_vistas']}")
-print(f"   - Rutinas: {imprimir_config['rutinas']['imprimir_rutinas']}")
+print(f"   - Procedures: {imprimir_config['rutinas']['imprimir_procedures']}")
 print(f"   - Gráfos: profundidad={imprimir_config['grafo']['max_depth']}")
 
 # ============================================================================
@@ -108,8 +108,7 @@ print(f"   - Gráfos: profundidad={imprimir_config['grafo']['max_depth']}")
 
 print("\n📄 Generando documentación...")
 
-# Crear instancia de DatabaseDocumentation
-# Nota: La documentación se genera automáticamente en __init__
+# Crear instancia de DatabaseDocumentation (solo configura, no genera I/O)
 documentation = DatabaseDocumentation(
     db_manager=db_manager,
     directorio_salida=output_dir,
@@ -118,16 +117,21 @@ documentation = DatabaseDocumentation(
     formatos=["html", "word", "excel"],  # Generar en estos formatos
 )
 
+# Ejecutar la generación explícitamente
+documentation.generate()
+
 print("✅ Documentación generada exitosamente!\n")
 
 # ============================================================================
 # 4. INFORMACIÓN SOBRE ARCHIVOS GENERADOS
 # ============================================================================
 
-print(f"📁 Archivos generados en: {output_dir.absolute()}")
-print(f"   📊 HTML:   {documentation.fichero_salida}.html")
-print(f"   📘 Word:   {documentation.fichero_salida}.docx")
-print(f"   📊 Excel:  {documentation.fichero_salida}.xlsx")
+base_name = documentation.fichero_salida.name if documentation.fichero_salida.suffix else str(documentation.fichero_salida)
+execution_root = output_dir / base_name
+print(f"📁 Archivos generados en: {execution_root.absolute()}")
+print(f"   📊 HTML:   {execution_root / 'HTML'}/")
+print(f"   📘 Word:   {execution_root / 'WORD' / base_name}.docx")
+print(f"   📊 Excel:  {execution_root / 'EXCEL' / base_name}.xlsx")
 
 print("\n📊 Resumen de documentación:")
 print(f"   Tablas documentadas:  {len(documentation.tablas)}")
@@ -145,10 +149,11 @@ print(f"   Rutinas documentadas: {len(documentation.rutinas)}")
 #     imprimir={
 #         "tablas": {"imprimir_tablas": True, "ddl": True},
 #         "vistas": {"imprimir_vistas": False},
-#         "rutinas": {"imprimir_rutinas": False},
+#         "rutinas": {"imprimir_procedures": False, "imprimir_function": False},
 #     },
 #     formatos=["html"],
 # )
+# documentation_minimal.generate()
 
 # --- Caso 2: Con plantilla personalizada Word ---
 # documentation_custom = DatabaseDocumentation(
@@ -160,8 +165,9 @@ print(f"   Rutinas documentadas: {len(documentation.rutinas)}")
 #     },
 #     formatos=["word"],
 # )
+# documentation_custom.generate()
 
-# --- Caso 3: Generar documentación cada 90 segundos (batch mode) ---
+# --- Caso 3: Generar documentación en batch (reutiliza nombre dentro de 90s) ---
 # # Útil para generar reportes automáticos
 # for i in range(3):
 #     documentation_batch = DatabaseDocumentation(
@@ -170,7 +176,7 @@ print(f"   Rutinas documentadas: {len(documentation.rutinas)}")
 #         imprimir=imprimir_config,
 #         formatos=["html"],
 #     )
+#     documentation_batch.generate()
 #     print(f"Batch {i+1} completado")
-#     # El archivo se genera automáticamente cada 90s en batch mode
 
 print("\n✨ Ejemplo completado. Abre los archivos generados para explorar la documentación.")
