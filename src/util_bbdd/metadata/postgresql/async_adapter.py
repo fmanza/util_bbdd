@@ -169,7 +169,7 @@ class PostgreSQLAsyncAdapter:
 
         async def _fetch_rows() -> list[PgParameterDetail]:
             rows: Rows = await self.manager.execute_custom_many(
-                self._build_parameters_query(schema_name),
+                self._build_parameters_query(),
                 params={"schema": schema_name},
             )
             return decode_postgres_parameter_rows(rows)
@@ -299,7 +299,7 @@ class PostgreSQLAsyncAdapter:
 
         return fetch_routines_sql(schema)
 
-    def _build_parameters_query(self, schema: str) -> str:
+    def _build_parameters_query(self) -> str:
         """Construye la consulta SQL para parámetros de rutinas de PostgreSQL."""
         return (
             "SELECT "

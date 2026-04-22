@@ -139,7 +139,7 @@ class PostgreSQLSyncAdapter:
             ),
             fetch_entries=lambda: decode_postgres_parameter_rows(
                 self.manager.execute_custom_many(
-                    self._build_parameters_query(schema_name),
+                    self._build_parameters_query(),
                     params={"schema": schema_name},
                 )
             ),
@@ -279,7 +279,7 @@ class PostgreSQLSyncAdapter:
 
         return fetch_routines_sql(schema)
 
-    def _build_parameters_query(self, schema: str) -> str:
+    def _build_parameters_query(self) -> str:
         """Construye la consulta SQL para parámetros de rutinas de PostgreSQL."""
 
         # Nota: Esta es una versión simplificada que obtiene todos los parámetros del schema
