@@ -47,6 +47,44 @@ class PostgreSQLAsyncAdapter:
         """
         self.manager = manager
 
+    @staticmethod
+    def _extract_fk_tuple_from_row(row: Any) -> tuple[str, str, str, str, str, str, str]:
+        """Extrae los 7 campos de clave foránea de una fila individual.
+
+        Args:
+            row: Tupla/lista de FK del query
+
+        Returns:
+            tuple: (constraint_name, column_name, referenced_table_schema, referenced_table_name,
+                   referenced_column_name, delete_rule, update_rule) con strings vacíos como defecto
+        """
+        return (
+            str(row[0]) if row[0] else "",
+            str(row[1]) if len(row) > 1 and row[1] else "",
+            str(row[2]) if len(row) > 2 and row[2] else "",
+            str(row[3]) if len(row) > 3 and row[3] else "",
+            str(row[4]) if len(row) > 4 and row[4] else "",
+            str(row[5]) if len(row) > 5 and row[5] else "",
+            str(row[6]) if len(row) > 6 and row[6] else "",
+        )
+
+    @staticmethod
+    def _extract_index_tuple_from_row(row: Any) -> tuple[str, str, bool, bool]:
+        """Extrae los 4 campos de índice de una fila individual.
+
+        Args:
+            row: Tupla/lista de index del query
+
+        Returns:
+            tuple: (index_name, index_definition, is_unique, is_primary) con valores por defecto
+        """
+        return (
+            str(row[0]) if row[0] else "",
+            str(row[1]) if len(row) > 1 and row[1] else "",
+            bool(row[2]) if len(row) > 2 else False,
+            bool(row[3]) if len(row) > 3 else False,
+        )
+
     async def _get_cached_entries(
         self,
         *,
@@ -210,20 +248,7 @@ class PostgreSQLAsyncAdapter:
         """
         sql = build_fk_constraint_sql(schema, table)
         rows = await self.manager.execute_custom_many(sql, params={"schema": schema, "table": table})
-        result = []
-        for r in rows:
-            result.append(
-                (
-                    str(r[0]) if r[0] else "",
-                    str(r[1]) if len(r) > 1 and r[1] else "",
-                    str(r[2]) if len(r) > 2 and r[2] else "",
-                    str(r[3]) if len(r) > 3 and r[3] else "",
-                    str(r[4]) if len(r) > 4 and r[4] else "",
-                    str(r[5]) if len(r) > 5 and r[5] else "",
-                    str(r[6]) if len(r) > 6 and r[6] else "",
-                )
-            )
-        return result
+        return [self._extract_fk_tuple_from_row(r) for r in rows]
 
     async def fetch_indexes_async(self, schema: str, table: str) -> list[tuple]:
         """Obtiene índices de una tabla en modo asíncrono.
@@ -237,17 +262,7 @@ class PostgreSQLAsyncAdapter:
         """
         sql = build_indexes_safe_sql(schema, table)
         rows = await self.manager.execute_custom_many(sql, params={"schema": schema, "table": table})
-        result = []
-        for r in rows:
-            result.append(
-                (
-                    str(r[0]) if r[0] else "",
-                    str(r[1]) if len(r) > 1 and r[1] else "",
-                    bool(r[2]) if len(r) > 2 else False,
-                    bool(r[3]) if len(r) > 3 else False,
-                )
-            )
-        return result
+        return [self._extract_index_tuple_from_row(r) for r in rows]
 
     async def fetch_routines_async(self, schema: str | None = None) -> list[tuple]:
         """Obtiene lista de rutinas (funciones/procedimientos) en modo asíncrono.
