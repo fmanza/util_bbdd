@@ -590,6 +590,7 @@ class WordGenerator:
                     fmt=fmt,
                     graph_document=graph_document,
                     diagram_summary=diagram_summary,
+                    data_provider=data_provider,
                 )
             else:
                 self._add_single_diagram_page_pipe(
@@ -708,12 +709,14 @@ class WordGenerator:
         fmt: str,
         graph_document: Any | None,
         diagram_summary: dict[str, Any],
+        data_provider: DocumentationManagerPort | None = None,
     ) -> None:
         """Genera diagramas paginados e inserta en Word.
 
-        Rama pipe (preferida): si graph_generator expone pipe_paginated_graph_ext,
-        genera todas las páginas en memoria y las inserta directamente sin I/O de disco.
-        Rama disco (fallback): usa directorio temporal con limpieza automática.
+        Prioridad de rutas:
+        1. Caché level groups (HTML ya generó SVGs → convierte a PNG vía cairosvg, sin Graphviz)
+        2. Pipe en memoria (pipe_paginated_graph_ext, sin I/O de disco)
+        3. Disco con directorio temporal (fallback, limpieza automática)
 
         Args:
             document: Documento Word activo
@@ -723,6 +726,7 @@ class WordGenerator:
             fmt: Formato de imagen ('png' siempre para Word)
             graph_document: GraphDocument preconstruido o None
             diagram_summary: Payload de resumen de niveles para párrafos bajo cada imagen
+            data_provider: Sesión documental con caché de level groups; None → se omite
 
         Returns:
             None
@@ -730,13 +734,31 @@ class WordGenerator:
         Raises:
             OSError: Si falla la creación del directorio temporal (rama disco)
             RuntimeError: Si Graphviz no puede renderizar algún gráfico paginado
+
+        Example:
+            >>> generator._add_paginated_diagram_pages(doc, "orders", graph_gen, opts, "png", None, {})
         """
+        max_depth_val: int = int(diagram_options.get("max_depth", 1))
+        direction_val: str = str(diagram_options.get("direction", "both"))
+        render_dpi: int = int(getattr(graph_generator, "render_dpi", 150))
+
+        if self._try_insert_from_level_cache(
+            document=document,
+            tabla=tabla,
+            max_depth=max_depth_val,
+            direction=direction_val,
+            render_dpi=render_dpi,
+            diagram_summary=diagram_summary,
+            data_provider=data_provider,
+        ):
+            return
+
         kwargs_pipe: dict[str, Any] = {
             "table_name": tabla,
             "format": fmt,
             "max_subnodes": int(diagram_options.get("max_subnodes", 10)),
-            "max_depth": int(diagram_options.get("max_depth", 1)),
-            "direction": str(diagram_options.get("direction", "both")),
+            "max_depth": max_depth_val,
+            "direction": direction_val,
         }
         if graph_document is not None:
             kwargs_pipe["document"] = graph_document
@@ -775,6 +797,75 @@ class WordGenerator:
                     f"🖼️  Diagrama paginado insertado en Word para {tabla} ({page_idx}/{len(generated_paths)})"
                 )
                 self._add_diagram_summary_paragraph(document=document, summary_payload=diagram_summary)
+
+    def _try_insert_from_level_cache(
+        self,
+        document: Document,
+        tabla: str,
+        max_depth: int,
+        direction: str,
+        render_dpi: int,
+        diagram_summary: dict[str, Any],
+        data_provider: DocumentationManagerPort | None,
+    ) -> bool:
+        """Intenta insertar páginas Word desde el caché de level groups generado por HTML.
+
+        Convierte cada SVG de nivel a PNG en memoria vía cairosvg. Si cairosvg no está
+        disponible o el caché está vacío, retorna False sin modificar el documento.
+        Solo retorna True cuando TODAS las páginas se insertaron correctamente.
+
+        Args:
+            document: Documento Word activo
+            tabla: Nombre de la tabla central
+            max_depth: Profundidad máxima del diagrama
+            direction: Dirección de relaciones
+            render_dpi: DPI para la conversión SVG→PNG
+            diagram_summary: Payload de resumen para párrafos bajo cada imagen
+            data_provider: Sesión con get_cached_level_groups; None → retorna False
+
+        Returns:
+            bool: True si todas las páginas se insertaron desde caché, False si hay que usar fallback
+
+        Example:
+            >>> inserted = generator._try_insert_from_level_cache(doc, "orders", 1, "both", 150, {}, session)
+        """
+        get_fn = getattr(data_provider, "get_cached_level_groups", None)
+        if get_fn is None:
+            return False
+        cached_groups: dict[str, Any] | None = get_fn(tabla, max_depth, direction)
+        if not cached_groups:
+            return False
+
+        items: list[tuple[str, bytes]] = []
+        for direction_key, direction_label in (("outgoing", "Salida"), ("incoming", "Entrada")):
+            for item in sorted(cached_groups.get(direction_key, []), key=lambda x: int(x.get("depth", 0))):
+                svg_bytes: bytes | None = item.get("bytes")
+                if svg_bytes:
+                    items.append((f"{direction_label} - {item.get('title', '')}", svg_bytes))
+
+        if not items:
+            return False
+
+        png_pages: list[tuple[str, bytes]] = []
+        for title_suffix, svg_bytes in items:
+            png = self._convert_svg_to_png(svg_bytes, render_dpi)
+            if png is None:
+                return False
+            png_pages.append((title_suffix, png))
+
+        self.logger.info(f"🖼️  Diagramas paginados desde caché HTML para {tabla}: {len(png_pages)} página(s)")
+        for page_idx, (title_suffix, png_bytes) in enumerate(png_pages, start=1):
+            document.add_page_break()
+            title = f"Diagrama de relaciones: {tabla} - {title_suffix}"
+            title_paragraph: Paragraph = document.add_heading(title, level=2)
+            self._add_picture_from_bytes(
+                document=document, image_bytes=png_bytes, title_paragraph=title_paragraph
+            )
+            self.logger.info(
+                f"🖼️  Página {page_idx}/{len(png_pages)} desde caché para {tabla}"
+            )
+            self._add_diagram_summary_paragraph(document=document, summary_payload=diagram_summary)
+        return True
 
     def _try_get_cached_svg_bytes(
         self,

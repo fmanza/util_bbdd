@@ -1716,6 +1716,13 @@ class HtmlGenerator:
         try:
             if hasattr(graph_generator, "pipe_level_graphs_ext"):
                 piped = graph_generator.pipe_level_graphs_ext(**level_kwargs)
+                self._write_level_groups_cache(
+                    table_name=table_name,
+                    piped=piped,
+                    max_depth=level_kwargs["max_depth"],
+                    direction=level_kwargs["direction"],
+                    data_provider=data_provider,
+                )
                 generated_groups: dict[str, Any] = {"summary": piped["summary"], "outgoing": [], "incoming": []}
                 for direction_key in ("outgoing", "incoming"):
                     for item in piped[direction_key]:
@@ -1888,6 +1895,41 @@ class HtmlGenerator:
             max_depth=max_depth_val,
             direction=direction_val,
         ).read_bytes()
+
+    def _write_level_groups_cache(
+        self,
+        table_name: str,
+        piped: dict[str, Any],
+        max_depth: int,
+        direction: str,
+        data_provider: DocumentationManagerPort | None,
+    ) -> None:
+        """Almacena el resultado de pipe_level_graphs_ext en el caché de sesión.
+
+        Permite a Word paginated reutilizar los SVGs de nivel ya generados por HTML
+        convirtiéndolos a PNG en memoria, evitando una segunda llamada a Graphviz.
+
+        Args:
+            table_name: Nombre de la tabla
+            piped: Resultado de pipe_level_graphs_ext (summary + bytes por nivel)
+            max_depth: Profundidad máxima usada en la generación
+            direction: Dirección de relaciones usada
+            data_provider: Sesión que expone cache_level_groups; None → no-op
+
+        Returns:
+            None
+
+        Example:
+            >>> generator._write_level_groups_cache("orders", piped, 1, "both", session)
+        """
+        cache_fn = getattr(data_provider, "cache_level_groups", None)
+        if cache_fn is None:
+            return
+        cache_fn(table_name, max_depth, direction, piped)
+        self.logger.debug(
+            f"🗄️ Level groups cacheados para Word paginated: {table_name} "
+            f"({len(piped.get('outgoing', []))} salida, {len(piped.get('incoming', []))} entrada)"
+        )
 
     def _cache_single_svg_for_word(
         self,

@@ -131,6 +131,7 @@ class DocumentationSession:
     _columns_charset_collation_cache: dict[str, list[tuple[str, str | None, str | None]] | None] | None = None
     _storage_inventory_report_cache: dict[str, Any] | None = None
     _svg_bytes_cache: dict[tuple[str, int, str], bytes] | None = None
+    _svg_level_groups_cache: dict[tuple[str, int, str], dict[str, Any]] | None = None
 
     @classmethod
     def from_documentation(
@@ -171,6 +172,7 @@ class DocumentationSession:
             _list_cache={},
             _columns_charset_collation_cache={},
             _svg_bytes_cache={},
+            _svg_level_groups_cache={},
         )
 
     @property
@@ -331,6 +333,63 @@ class DocumentationSession:
         if self._svg_bytes_cache is None:
             self._svg_bytes_cache = {}
         self._svg_bytes_cache[(table_name, max_depth, direction)] = svg_bytes
+
+    def get_cached_level_groups(self, table_name: str, max_depth: int, direction: str) -> dict[str, Any] | None:
+        """Devuelve los grupos de nivel SVG cacheados para la tabla, o None si no están.
+
+        Los level groups contienen los bytes SVG de cada nivel (outgoing/incoming)
+        generados por pipe_level_graphs_ext. Word paginated los usa para convertir
+        SVG→PNG en memoria sin llamar a Graphviz de nuevo.
+
+        Args:
+            table_name: Nombre de la tabla
+            max_depth: Profundidad máxima usada en la generación HTML
+            direction: Dirección de relaciones usada ('both', 'outgoing', 'incoming')
+
+        Returns:
+            dict[str, Any] | None: Resultado de pipe_level_graphs_ext si cacheado,
+                None en caso contrario. Estructura::
+
+                    {
+                        "summary": {...},
+                        "outgoing": [{"depth": int, "bytes": bytes, "title": str}],
+                        "incoming": [{"depth": int, "bytes": bytes, "title": str}],
+                    }
+
+        Example:
+            >>> groups = session.get_cached_level_groups("orders", 1, "both")
+            >>> groups is None or "outgoing" in groups
+            True
+        """
+        if self._svg_level_groups_cache is None:
+            return None
+        return self._svg_level_groups_cache.get((table_name, max_depth, direction))
+
+    def cache_level_groups(
+        self, table_name: str, max_depth: int, direction: str, level_groups: dict[str, Any]
+    ) -> None:
+        """Almacena los grupos de nivel SVG en caché para reutilización en Word paginated.
+
+        Muta el estado interno de la sesión. El caché es efímero: vive solo durante
+        la sesión documental activa y no se persiste a disco.
+
+        Args:
+            table_name: Nombre de la tabla
+            max_depth: Profundidad máxima usada en la generación
+            direction: Dirección de relaciones usada ('both', 'outgoing', 'incoming')
+            level_groups: Resultado de pipe_level_graphs_ext (summary + bytes por nivel)
+
+        Returns:
+            None
+
+        Example:
+            >>> session.cache_level_groups("orders", 1, "both", piped_groups)
+            >>> session.get_cached_level_groups("orders", 1, "both") is not None
+            True
+        """
+        if self._svg_level_groups_cache is None:
+            self._svg_level_groups_cache = {}
+        self._svg_level_groups_cache[(table_name, max_depth, direction)] = level_groups
 
     def _get_cached_scalar(self, cache_key: tuple[str, str, str], loader: Callable[[], str]) -> str:
         """Resuelve un valor escalar con cache local por sesión."""
