@@ -915,7 +915,7 @@ class WordGenerator:
             True
         """
         try:
-            import cairosvg  # type: ignore[import-untyped]  # noqa: PLC0415
+            import cairosvg  # noqa: PLC0415
             result: bytes = cast(bytes, cairosvg.svg2png(bytestring=svg_bytes, dpi=render_dpi))
             return result
         except ImportError:

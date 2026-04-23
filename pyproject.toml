@@ -156,6 +156,10 @@ module = [
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+module = ["cairosvg"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = [
     "graphviz",
     "matplotlib",
