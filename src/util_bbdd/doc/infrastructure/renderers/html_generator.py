@@ -1725,6 +1725,14 @@ class HtmlGenerator:
                         generated_groups[direction_key].append(
                             {"depth": depth, "path": out_path, "title": item["title"]}
                         )
+                if not images_paginated:
+                    self._cache_single_svg_for_word(
+                        table_name=table_name,
+                        graph_generator=graph_generator,
+                        max_depth=level_kwargs["max_depth"],
+                        direction=level_kwargs["direction"],
+                        data_provider=data_provider,
+                    )
                 return self._build_diagram_tab_payload(
                     table_name=table_name,
                     generated_groups=generated_groups,
@@ -1880,6 +1888,56 @@ class HtmlGenerator:
             max_depth=max_depth_val,
             direction=direction_val,
         ).read_bytes()
+
+    def _cache_single_svg_for_word(
+        self,
+        table_name: str,
+        graph_generator: GraphvizRelationshipGraphExt,
+        max_depth: int,
+        direction: str,
+        data_provider: DocumentationManagerPort | None,
+    ) -> None:
+        """Genera y almacena un SVG de tabla única en caché para reutilización en Word.
+
+        Llamado desde la rama pipe_level_graphs_ext cuando images_paginated=False.
+        Word (non-paginated) busca un SVG único vía get_cached_svg_bytes; sin este
+        método, ese caché siempre falla porque pipe_level_graphs_ext no lo popula.
+
+        El coste es una llamada Graphviz adicional en HTML. En la sesión completa el
+        total de llamadas es el mismo: HTML N+1, Word 0 (caché hit) vs HTML N, Word 1.
+
+        Args:
+            table_name: Nombre de la tabla central del diagrama
+            graph_generator: Generador de grafos Graphviz configurado
+            max_depth: Profundidad máxima del diagrama
+            direction: Dirección de relaciones ('both', 'outgoing', 'incoming')
+            data_provider: Sesión que expone cache_svg_bytes; None → no-op
+
+        Returns:
+            None
+
+        Example:
+            >>> generator._cache_single_svg_for_word("orders", graph_gen, 1, "both", session)
+        """
+        cache_fn = getattr(data_provider, "cache_svg_bytes", None)
+        if cache_fn is None:
+            return
+        get_fn = getattr(data_provider, "get_cached_svg_bytes", None)
+        if get_fn is not None and get_fn(table_name, max_depth, direction) is not None:
+            return
+        if not hasattr(graph_generator, "pipe_single_table_graph_ext"):
+            return
+        try:
+            svg_bytes: bytes = graph_generator.pipe_single_table_graph_ext(
+                table_name=table_name,
+                format="svg",
+                max_depth=max_depth,
+                direction=direction,
+            )
+            cache_fn(table_name, max_depth, direction, svg_bytes)
+            self.logger.debug(f"🗄️ SVG cacheado para Word non-paginated: {table_name} ({len(svg_bytes)} bytes)")
+        except (OSError, RuntimeError) as exc:
+            self.logger.debug(f"No se pudo cachear SVG para Word en {table_name}: {exc}")
 
     def _inject_links_into_svg(self, svg_path: Path, navigation_links: dict[str, str]) -> None:
         """Inserta enlaces clicables en nodos SVG apuntando a páginas HTML de detalle.
