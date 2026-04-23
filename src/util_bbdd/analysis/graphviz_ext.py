@@ -1106,6 +1106,233 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             )
             raise
 
+    def _pipe_graph_internal_ext(
+        self,
+        table_name: str,
+        format: str,
+        document: GraphDocument,
+        show_columns: bool = True,
+    ) -> bytes:
+        """Genera un gráfico Graphviz en memoria sin escribir a disco.
+
+        Versión pipe de _generate_graphviz_graph_internal_ext: misma lógica
+        pero llama a dot.pipe() en vez de dot.render(), evitando I/O de disco.
+
+        Args:
+            table_name: Tabla central del grafo
+            format: Formato de salida (png, svg, pdf, etc.)
+            document: GraphDocument con relaciones y niveles ya construidos
+            show_columns: Si mostrar columnas en los nodos
+
+        Returns:
+            bytes: Contenido del gráfico en el formato indicado
+
+        Raises:
+            ImportError: Si graphviz no está instalado
+            OSError: Si el ejecutable dot no está disponible
+            RuntimeError: Si Graphviz falla durante el pipe
+
+        Example:
+            >>> svg_bytes = generator._pipe_graph_internal_ext("orders", "svg", doc)
+            >>> len(svg_bytes) > 0
+            True
+        """
+        if not GRAPHVIZ_AVAILABLE or graphviz is None:
+            raise ImportError(GRAPHVIZ_MISSING_MSG)
+        try:
+            dot, is_raster_format, edge_label_font_size = self._create_configured_graph(
+                table_name=table_name,
+                format=format,
+                show_columns=show_columns,
+            )
+            self._add_graph_footer(dot=dot, document=document)
+            self._add_nodes_to_graph(
+                dot=dot,
+                document=document,
+                show_columns=show_columns,
+                is_raster_format=is_raster_format,
+            )
+            self._add_edges_to_graph(dot=dot, document=document, edge_label_font_size=edge_label_font_size)
+            return self._pipe_graph_bytes(dot=dot, format=format, table_name=table_name)
+        except (OSError, RuntimeError) as e:
+            self.logger.error(
+                f"Error al generar gráfico en memoria para tabla {table_name}: {str(e)}",
+                exc_info=True,
+            )
+            raise
+
+    def pipe_paginated_graph_ext(
+        self,
+        table_name: str,
+        format: str = "png",
+        max_subnodes: int = 10,
+        show_columns: bool | None = None,
+        max_depth: int | None = None,
+        direction: LevelDirection | str | None = None,
+        document: GraphDocument | None = None,
+    ) -> list[bytes]:
+        """Genera grafos Graphviz paginados en memoria sin I/O de disco.
+
+        Versión pipe de generate_graphviz_graph_paginated_ext: divide las
+        relaciones en páginas igual que el método original pero renderiza
+        cada página con dot.pipe() devolviendo bytes en vez de archivos.
+
+        Args:
+            table_name: Tabla central del grafo
+            format: Formato de salida (png, svg, etc.)
+            max_subnodes: Máximo de sub-nodos por página
+            show_columns: Si mostrar columnas; None usa self.include_columns
+            max_depth: Profundidad máxima; None usa self.max_depth
+            direction: Dirección de relaciones; None usa self.direction
+            document: GraphDocument preconstruido; None lo construye internamente
+
+        Returns:
+            list[bytes]: Un elemento por página, en el formato indicado
+
+        Raises:
+            ImportError: Si graphviz no está instalado
+            OSError: Si el ejecutable dot no está disponible
+            RuntimeError: Si Graphviz falla durante el pipe
+
+        Example:
+            >>> pages = generator.pipe_paginated_graph_ext("orders", format="png")
+            >>> len(pages) >= 1
+            True
+            >>> len(pages[0]) > 0
+            True
+        """
+        include_columns = self.include_columns if show_columns is None else bool(show_columns)
+        effective_depth = self.max_depth if max_depth is None else max(1, int(max_depth))
+        effective_direction = self.direction if direction is None else self._normalize_direction(direction)
+
+        self.logger.info(
+            f"Iniciando generación paginada en memoria para {table_name} "
+            f"(max {max_subnodes} nodos por página)"
+        )
+        if document is None:
+            document = self.build_graph_document(
+                table_name=table_name,
+                max_depth=effective_depth,
+                direction=effective_direction,
+            )
+        relations: list[TableRelation] = list(document.relations)
+        self.logger.info(f"📈 Relaciones analizadas para {table_name}: {len(relations)}")
+        split_relations: list[list[TableRelation]] = self._split_relations_for_visualization(relations, max_subnodes)
+        self.logger.debug(f"Tabla {table_name} dividida en {len(split_relations)} página(s) para pipe")
+
+        result: list[bytes] = []
+        for page_num, page_relations in enumerate(split_relations, 1):
+            page_document: GraphDocument = self._build_subset_document(document, page_relations)
+            page_bytes: bytes = self._pipe_graph_internal_ext(
+                table_name=table_name,
+                format=format,
+                document=page_document,
+                show_columns=include_columns,
+            )
+            self.logger.info(
+                f"🖼️  Página {page_num}/{len(split_relations)} de {table_name} generada en memoria "
+                f"({len(page_bytes)} bytes)"
+            )
+            result.append(page_bytes)
+
+        return result
+
+    def pipe_level_graphs_ext(
+        self,
+        table_name: str,
+        format: str = "svg",
+        show_columns: bool | None = None,
+        max_depth: int | None = None,
+        direction: LevelDirection | str | None = None,
+        document: GraphDocument | None = None,
+    ) -> dict[str, Any]:
+        """Genera grafos por nivel en memoria sin I/O de disco.
+
+        Versión pipe de generate_graphviz_level_graphs_ext: misma estructura
+        de retorno pero con clave "bytes" (bytes) en vez de "path" (Path) en
+        cada item de nivel, y sin crear archivos temporales.
+
+        Args:
+            table_name: Tabla central del grafo
+            format: Formato de salida (svg, png, etc.)
+            show_columns: Si mostrar columnas; None usa self.include_columns
+            max_depth: Profundidad máxima; None usa self.max_depth
+            direction: Dirección de relaciones; None usa self.direction
+            document: GraphDocument preconstruido; None lo construye internamente
+
+        Returns:
+            dict[str, Any]: Misma estructura que generate_graphviz_level_graphs_ext
+                pero cada item lleva "bytes": bytes en vez de "path": Path.
+                Ejemplo::
+
+                    {
+                        "summary": {"root_table": "orders", "max_depth": 2, ...},
+                        "outgoing": [{"depth": 1, "bytes": b"...", "title": "Nivel 1"}],
+                        "incoming": [{"depth": 1, "bytes": b"...", "title": "Nivel 1"}],
+                    }
+
+        Raises:
+            ImportError: Si graphviz no está instalado
+            OSError: Si el ejecutable dot no está disponible
+            RuntimeError: Si Graphviz falla durante el pipe
+
+        Example:
+            >>> groups = generator.pipe_level_graphs_ext("orders", format="svg")
+            >>> len(groups["outgoing"]) >= 1
+            True
+            >>> len(groups["outgoing"][0]["bytes"]) > 0
+            True
+        """
+        include_columns: bool = self.include_columns if show_columns is None else bool(show_columns)
+        document, grouped_documents = self._build_level_documents(
+            table_name=table_name,
+            max_depth=max_depth,
+            direction=direction,
+            document=document,
+        )
+
+        results: dict[str, Any] = {
+            "summary": {
+                "root_table": document.root_table,
+                "max_depth": document.max_depth,
+                "total_outgoing_levels": document.total_outgoing_levels,
+                "total_incoming_levels": document.total_incoming_levels,
+                "hidden_outgoing_levels": document.hidden_levels.outgoing_hidden_levels,
+                "hidden_incoming_levels": document.hidden_levels.incoming_hidden_levels,
+            },
+            "outgoing": [],
+            "incoming": [],
+        }
+
+        for group_direction, direction_key in (
+            (LevelDirection.OUTGOING, "outgoing"),
+            (LevelDirection.INCOMING, "incoming"),
+        ):
+            for level_document in grouped_documents[group_direction]:
+                if not level_document.levels:
+                    continue
+                level_depth_candidates: list[int] = [
+                    level.depth for level in level_document.levels if level.direction == group_direction
+                ]
+                level_depth: int = (
+                    min(level_depth_candidates) if level_depth_candidates else level_document.levels[0].depth
+                )
+                svg_bytes: bytes = self._pipe_graph_internal_ext(
+                    table_name=table_name,
+                    format=format,
+                    document=level_document,
+                    show_columns=include_columns,
+                )
+                results[direction_key].append(
+                    {
+                        "depth": level_depth,
+                        "bytes": svg_bytes,
+                        "title": f"Nivel {level_depth}",
+                    }
+                )
+
+        return results
+
     def generate_all_tables_graphs_ext(
         self,
         output_dir: Path | None = None,

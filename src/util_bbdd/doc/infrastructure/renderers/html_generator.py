@@ -1706,19 +1706,39 @@ class HtmlGenerator:
         graph_output_dir: Path = Path(diagram_options.get("output_dir", output_dir / "graphs"))
         graph_output_dir.mkdir(parents=True, exist_ok=True)
         images_paginated: bool = bool(diagram_options.get("images_paginated", False))
+        level_kwargs: dict[str, Any] = {
+            "table_name": table_name,
+            "format": fmt,
+            "max_depth": int(diagram_options.get("max_depth", 1)),
+            "direction": str(diagram_options.get("direction", "both")),
+        }
 
         try:
-            if hasattr(graph_generator, "generate_graphviz_level_graphs_ext"):
-                generated_groups = graph_generator.generate_graphviz_level_graphs_ext(
-                    table_name=table_name,
-                    output_dir=graph_output_dir,
-                    format=fmt,
-                    max_depth=int(diagram_options.get("max_depth", 1)),
-                    direction=str(diagram_options.get("direction", "both")),
-                )
+            if hasattr(graph_generator, "pipe_level_graphs_ext"):
+                piped = graph_generator.pipe_level_graphs_ext(**level_kwargs)
+                generated_groups: dict[str, Any] = {"summary": piped["summary"], "outgoing": [], "incoming": []}
+                for direction_key in ("outgoing", "incoming"):
+                    for item in piped[direction_key]:
+                        depth: int = int(item["depth"])
+                        out_path = graph_output_dir / f"graphviz_ext_{table_name}_{direction_key}_level{depth}.{fmt}"
+                        out_path.write_bytes(item["bytes"])
+                        generated_groups[direction_key].append(
+                            {"depth": depth, "path": out_path, "title": item["title"]}
+                        )
                 return self._build_diagram_tab_payload(
                     table_name=table_name,
                     generated_groups=generated_groups,
+                    output_dir=output_dir,
+                    navigation_links=navigation_links,
+                )
+
+            if hasattr(graph_generator, "generate_graphviz_level_graphs_ext"):
+                disk_groups = graph_generator.generate_graphviz_level_graphs_ext(
+                    **{**level_kwargs, "output_dir": graph_output_dir}
+                )
+                return self._build_diagram_tab_payload(
+                    table_name=table_name,
+                    generated_groups=disk_groups,
                     output_dir=output_dir,
                     navigation_links=navigation_links,
                 )

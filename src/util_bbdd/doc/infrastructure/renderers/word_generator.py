@@ -709,11 +709,11 @@ class WordGenerator:
         graph_document: Any | None,
         diagram_summary: dict[str, Any],
     ) -> None:
-        """Genera diagramas paginados a disco (directorio temporal) e inserta en Word.
+        """Genera diagramas paginados e inserta en Word.
 
-        Usa un directorio temporal gestionado con TemporaryDirectory para garantizar
-        la limpieza automática de los archivos PNG intermedios al finalizar, incluso
-        si ocurre una excepción durante la inserción.
+        Rama pipe (preferida): si graph_generator expone pipe_paginated_graph_ext,
+        genera todas las páginas en memoria y las inserta directamente sin I/O de disco.
+        Rama disco (fallback): usa directorio temporal con limpieza automática.
 
         Args:
             document: Documento Word activo
@@ -728,29 +728,46 @@ class WordGenerator:
             None
 
         Raises:
-            OSError: Si falla la creación del directorio temporal o la escritura de imágenes
+            OSError: Si falla la creación del directorio temporal (rama disco)
             RuntimeError: Si Graphviz no puede renderizar algún gráfico paginado
         """
+        kwargs_pipe: dict[str, Any] = {
+            "table_name": tabla,
+            "format": fmt,
+            "max_subnodes": int(diagram_options.get("max_subnodes", 10)),
+            "max_depth": int(diagram_options.get("max_depth", 1)),
+            "direction": str(diagram_options.get("direction", "both")),
+        }
+        if graph_document is not None:
+            kwargs_pipe["document"] = graph_document
+
+        if hasattr(graph_generator, "pipe_paginated_graph_ext"):
+            pages_bytes: list[bytes] = graph_generator.pipe_paginated_graph_ext(**kwargs_pipe)
+            self.logger.info(f"🖼️  Diagramas paginados en memoria para {tabla}: {len(pages_bytes)} página(s)")
+            for page_idx, page_bytes in enumerate(pages_bytes, start=1):
+                document.add_page_break()
+                title = f"Diagrama de relaciones: {tabla} (Página {page_idx})"
+                title_paragraph: Paragraph = document.add_heading(title, level=2)
+                self._add_picture_from_bytes(
+                    document=document, image_bytes=page_bytes, title_paragraph=title_paragraph
+                )
+                self.logger.info(
+                    f"🖼️  Diagrama paginado insertado en Word para {tabla} ({page_idx}/{len(pages_bytes)})"
+                )
+                self._add_diagram_summary_paragraph(document=document, summary_payload=diagram_summary)
+            return
+
         with tempfile.TemporaryDirectory(prefix="util_bbdd_diagrams_") as tmp_dir:
             output_dir = Path(tmp_dir)
-            kwargs_paginated: dict[str, Any] = {
-                "table_name": tabla,
-                "output_dir": output_dir,
-                "format": fmt,
-                "max_subnodes": int(diagram_options.get("max_subnodes", 10)),
-                "max_depth": int(diagram_options.get("max_depth", 1)),
-                "direction": str(diagram_options.get("direction", "both")),
-            }
-            if graph_document is not None:
-                kwargs_paginated["document"] = graph_document
+            kwargs_disk: dict[str, Any] = {**kwargs_pipe, "output_dir": output_dir}
             generated_paths = [
-                Path(p) for p in graph_generator.generate_graphviz_graph_paginated_ext(**kwargs_paginated)
+                Path(p) for p in graph_generator.generate_graphviz_graph_paginated_ext(**kwargs_disk)
             ]
             self.logger.info(f"🖼️  Diagramas paginados para {tabla}: {len(generated_paths)} página(s)")
             for page_idx, generated_path in enumerate(generated_paths, start=1):
                 document.add_page_break()
                 title = f"Diagrama de relaciones: {tabla} (Página {page_idx})"
-                title_paragraph: Paragraph = document.add_heading(title, level=2)
+                title_paragraph = document.add_heading(title, level=2)
                 self._add_picture_fit_to_page(
                     document=document, image_path=generated_path, title_paragraph=title_paragraph
                 )
