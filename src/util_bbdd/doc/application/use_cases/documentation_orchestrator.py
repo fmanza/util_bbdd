@@ -497,8 +497,43 @@ class DocumentationOrchestrator:
     def generate_documents(self) -> None:
         """Ejecuta la generación documental completa para la sesión activa."""
         shared_graph_generator: GraphvizRelationshipGraphExt | None = self._build_shared_graph_generator()
-        for plan in self._planner.build_plans():
+        plans = self._sort_plans_for_svg_cache(self._planner.build_plans())
+        for plan in plans:
             self._dispatch_plan(plan, shared_graph_generator)
+
+    def _sort_plans_for_svg_cache(
+        self, plans: list[DocumentationFormatPlan]
+    ) -> list[DocumentationFormatPlan]:
+        """Reordena planes para que HTML siempre preceda a Word cuando ambos están presentes.
+
+        HTML popula el caché SVG (level groups + single SVG) que Word consume.
+        Sin este reordenamiento, formatos=['word','html'] ejecutaría Word primero
+        con caché vacío, anulando la optimización de reutilización entre renderers.
+
+        El reordenamiento es transparente: todos los formatos solicitados se generan;
+        solo cambia el orden de escritura a disco.
+
+        Args:
+            plans: Lista de planes en el orden original de session.formatos
+
+        Returns:
+            list[DocumentationFormatPlan]: html primero, luego otros (excel, etc.),
+                word al final; si no hay html o word, el orden original se preserva.
+
+        Example:
+            >>> sorted_plans = orchestrator._sort_plans_for_svg_cache(plans)
+            >>> sorted_plans[0].output_format if any(p.output_format == "html" for p in plans) else ...
+            'html'
+        """
+        html_plans = [p for p in plans if p.output_format == "html"]
+        word_plans = [p for p in plans if p.output_format == "word"]
+        other_plans = [p for p in plans if p.output_format not in ("html", "word")]
+        reordered = html_plans + other_plans + word_plans
+        if reordered != plans:
+            self._session.logger.debug(
+                f"🔀 Reordenando planes para caché SVG: {[p.output_format for p in reordered]}"
+            )
+        return reordered
 
     def _build_shared_graph_generator(self) -> GraphvizRelationshipGraphExt | None:
         """Construye un generador de grafos compartido cuando Word y HTML lo requieren."""
