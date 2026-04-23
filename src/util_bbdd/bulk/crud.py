@@ -12,6 +12,8 @@ compatible con SQLAlchemy para múltiples tipos de bases de datos:
 Compatible con SyncDatabaseManager para integración simplificada.
 """
 
+from __future__ import annotations
+
 import logging
 
 from collections.abc import Callable, Hashable, Mapping, Sequence
@@ -59,19 +61,24 @@ from .audit import AuditManager
 from .normalize import normalize_records_for_sql
 
 try:
-    from util.medir_tiempo import medir_tiempo as _medir_tiempo
+    from util.medir_tiempo import medir_tiempo
 except ImportError:
 
-    def _medir_tiempo(proceso: str = "") -> Callable[[Any], Any]:
+    def medir_tiempo(proceso: str = "") -> Callable[[Any], Any]:
+        """Decorator placeholder for timing (util not available).
+
+        Args:
+            proceso: Process name for logging (unused)
+
+        Returns:
+            Decorator function that returns the original function unchanged
+        """
         _: str = proceso
 
         def _decorator(function: Any) -> Any:
             return function
 
         return _decorator
-
-
-medir_tiempo: Any = _medir_tiempo
 
 
 @dataclass(frozen=True, slots=True)

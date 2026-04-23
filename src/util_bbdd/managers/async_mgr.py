@@ -492,7 +492,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
     async def execute_query_many(
         self,
         query_name: str,
-        **params,
+        **params: Any,
     ) -> Rows:
         """Ejecuta query registrada por nombre y retorna múltiples filas.
 

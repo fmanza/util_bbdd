@@ -305,7 +305,7 @@ if schema is None:
 
 ## See Also
 
-- [Phase 4 Release Notes](../v0.8.0/RELEASE_v0.8.0.md#phase-4-complete-type-system-coverage)
+- [Phase 4 Release Notes](../v0.8.0/RELEASE_v0.8.0.md)
 - [MariaDB JSON Schema Introspection](./phase4_mariadb_json_schema.md)
 - [SQLite JSON Schema Introspection](./phase4_sqlite_json_schema.md)
 - [API Reference: Metadata Type Introspection](../API_REFERENCE.md#metadata-type-introspection-phase-4)

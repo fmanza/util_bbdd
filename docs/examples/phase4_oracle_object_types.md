@@ -225,6 +225,6 @@ if type_info is None:
 
 ## See Also
 
-- [Phase 4 Release Notes](../v0.8.0/RELEASE_v0.8.0.md#phase-4-complete-type-system-coverage)
+- [Phase 4 Release Notes](../v0.8.0/RELEASE_v0.8.0.md)
 - [SQL Server UDT Introspection](./phase4_sqlserver_udt.md)
 - [API Reference: Metadata Type Introspection](../API_REFERENCE.md#metadata-type-introspection-phase-4)

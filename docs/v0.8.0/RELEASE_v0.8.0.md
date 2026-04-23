@@ -368,9 +368,9 @@ v0.8.0 marks the completion of the Type System Improvements project:
 
 For issues or questions about v0.8.0:
 
-1. Check [DOCUMENTATION_AUDIT_v0.7.0.md](DOCUMENTATION_AUDIT_v0.7.0.md) for known issues
-2. Review [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common problems
-3. See [MIGRATION_GUIDE_v0.6.7.md](MIGRATION_GUIDE_v0.6.7.md) for migration advice
+1. Check [DOCUMENTATION_AUDIT_v0.7.0.md](../DOCUMENTATION_AUDIT_v0.7.0.md) for known issues
+2. Review [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) for common problems
+3. See [MIGRATION_GUIDE_v0.6.7.md](../MIGRATION_GUIDE_v0.6.7.md) for migration advice
 4. File an issue on GitHub with details
 
 ---
