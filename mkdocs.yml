@@ -55,6 +55,12 @@ nav:
       - Bulk Insert desde CSV: examples/bulk_insert_csv.md
       - Manejo de Excepciones: examples/exception_handling.md
       - Generación de Grafos: examples/graph_generation.md
+      - "Phase 4: Introspección de Tipos":
+          - Oracle OBJECT Types: examples/phase4_oracle_object_types.md
+          - SQL Server UDTs: examples/phase4_sqlserver_udt.md
+          - MariaDB JSON Schema: examples/phase4_mariadb_json_schema.md
+          - SQLite JSON Schema: examples/phase4_sqlite_json_schema.md
+          - Redshift JSON Schema: examples/phase4_redshift_json_schema.md
   - Arquitectura:
       - ADR-001 Refactoring: adr/ADR-001-STRUCTURE-REFACTORING.md
   - Roadmap & Planificación:

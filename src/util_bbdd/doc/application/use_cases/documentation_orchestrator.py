@@ -311,11 +311,17 @@ class DocumentationSession:
     def cache_svg_bytes(self, table_name: str, max_depth: int, direction: str, svg_bytes: bytes) -> None:
         """Almacena bytes SVG en caché para reutilización entre renderers.
 
+        Muta el estado interno de la sesión (_svg_bytes_cache). El caché es efímero:
+        vive solo durante la sesión documental activa y no se persiste en disco.
+
         Args:
             table_name: Nombre de la tabla
             max_depth: Profundidad máxima usada en la generación
-            direction: Dirección de relaciones usada
-            svg_bytes: Contenido SVG a cachear
+            direction: Dirección de relaciones usada ('both', 'outgoing', 'incoming')
+            svg_bytes: Contenido SVG a cachear (bytes completos del archivo)
+
+        Returns:
+            None
 
         Example:
             >>> session.cache_svg_bytes("orders", 1, "both", b"<svg>...</svg>")

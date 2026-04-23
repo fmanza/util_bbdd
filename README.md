@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB (sync).
 
-**Version:** 0.6.8.dev0 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 0.8.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -66,8 +66,16 @@ Librería Python especializada en **operaciones de base de datos** para MariaDB,
 ```bash
 pip install util_bbdd
 
-# Con soporte de documentación (Word/Excel)
+# Con soporte de documentación (Word/Excel/HTML)
 pip install util_bbdd[doc]
+
+# Con conversión SVG→PNG en memoria para Word (opcional, requiere Cairo)
+# Permite reutilizar diagramas SVG generados para HTML al generar Word,
+# evitando una segunda llamada a Graphviz por tabla.
+pip install util_bbdd[doc-svg]
+
+# Ambos extras a la vez
+pip install util_bbdd[doc,doc-svg]
 ```
 
 ### PostgreSQL — Sync (más simple)

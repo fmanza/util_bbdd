@@ -1011,12 +1011,16 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         """Renderiza el grafo en memoria y devuelve los bytes sin escribir a disco.
 
         Args:
-            dot: Grafo Graphviz configurado
-            format: Formato de salida (png, svg, etc.)
+            dot: Grafo Graphviz configurado y con nodos/aristas ya añadidos
+            format: Formato de salida (png, svg, pdf, etc.)
             table_name: Tabla principal (solo para logging)
 
         Returns:
-            bytes: Contenido del gráfico renderizado
+            bytes: Contenido del gráfico renderizado en el formato indicado
+
+        Raises:
+            OSError: Si el ejecutable dot no está disponible o falla durante el pipe
+            RuntimeError: Si Graphviz produce una salida vacía o inválida
 
         Example:
             >>> png_bytes = self._pipe_graph_bytes(dot, "png", "orders")

@@ -474,3 +474,177 @@ from util_bbdd.analysis import GraphvizRelationshipGraphExt
 graph = GraphvizRelationshipGraphExt(manager, title="My DB")
 graph.render("schema_graph", format="svg")
 ```
+
+---
+
+## Metadata Type Introspection (Phase 4)
+
+**v0.8.0+ Feature:** Advanced introspection for user-defined types and JSON schemas across all supported databases.
+
+### Overview
+
+Phase 4 enables programmatic discovery and parsing of:
+- **Oracle:** OBJECT types (user-defined composite types)
+- **SQL Server:** User-Defined Types (UDTs) with structured members
+- **MariaDB:** JSON column schema inference
+- **SQLite:** JSON column schema inference
+- **Redshift:** JSON column schema inference
+
+### Oracle: Object Type Introspection
+
+**Module:** `util_bbdd.metadata.oracle.types_advanced`
+
+**Main Functions:**
+
+| Function | Args | Returns | Description |
+|----------|------|---------|-------------|
+| `parse_object_type_structure(type_name, adapter)` | `type_name: str`, `adapter: OracleSyncAdapter \| OracleAsyncAdapter` | `ObjectTypeInfo \| None` | Parse Oracle OBJECT type into structured metadata |
+| `get_object_type_fields(type_name, adapter)` | `type_name: str`, `adapter: OracleSyncAdapter \| OracleAsyncAdapter` | `list[ObjectTypeField] \| None` | List fields of an OBJECT type |
+
+**Data Classes:**
+
+- `ObjectTypeField`: Field name, type, ordinal, nullable flag, precision/scale
+- `ObjectTypeInfo`: Type name, owner (schema), list of fields
+
+**Example:**
+
+```python
+from util_bbdd import SyncDatabaseManager
+from util_bbdd.metadata.oracle.types_advanced import parse_object_type_structure
+
+manager = SyncDatabaseManager(
+    db_type="oracle",
+    conn_params={"dsn": "ORCL", "user": "scott", "password": "tiger"}
+)
+
+# Parse OBJECT type
+type_info = parse_object_type_structure("CUSTOMER_TYPE", adapter=manager.adapter)
+
+if type_info:
+    print(f"Type: {type_info.type_name} (Owner: {type_info.owner})")
+    for field in type_info.fields:
+        print(f"  {field.name}: {field.type_name} (nullable={field.is_nullable})")
+
+manager.close()
+```
+
+---
+
+### SQL Server: User-Defined Type Introspection
+
+**Module:** `util_bbdd.metadata.sqlserver.types_advanced`
+
+**Main Functions:**
+
+| Function | Args | Returns | Description |
+|----------|------|---------|-------------|
+| `parse_udt_structure(type_name, adapter)` | `type_name: str`, `adapter: SQLServerSyncAdapter \| SQLServerAsyncAdapter` | `UDTTypeInfo \| None` | Parse SQL Server UDT into structured metadata |
+| `get_udt_members(type_name, adapter)` | `type_name: str`, `adapter: SQLServerSyncAdapter \| SQLServerAsyncAdapter` | `list[UDTMember] \| None` | List members of a UDT |
+
+**Data Classes:**
+
+- `UDTMember`: Member name, type, ordinal, nullable, max_length, precision/scale
+- `UDTTypeInfo`: Type name, schema, kind (STRUCTURED/HIERARCHY/NATIVE), members list
+
+**Example:**
+
+```python
+from util_bbdd import SyncDatabaseManager
+from util_bbdd.metadata.sqlserver.types_advanced import parse_udt_structure
+
+manager = SyncDatabaseManager(
+    db_type="sqlserver",
+    conn_params={"server": "localhost", "database": "mydb", "user": "sa", "password": "pwd"}
+)
+
+# Parse UDT
+udt_info = parse_udt_structure("PersonType", adapter=manager.adapter)
+
+if udt_info:
+    print(f"UDT: {udt_info.type_name} (Schema: {udt_info.schema}, Kind: {udt_info.kind})")
+    for member in udt_info.members:
+        print(f"  {member.name}: {member.type_name} (nullable={member.is_nullable})")
+
+manager.close()
+```
+
+---
+
+### MariaDB/SQLite/Redshift: JSON Schema Introspection
+
+**Modules:**
+- `util_bbdd.metadata.mariadb.types_advanced`
+- `util_bbdd.metadata.sqlite.types_advanced`
+- `util_bbdd.metadata.redshift.types_advanced`
+
+**Main Functions:**
+
+| Function | Args | Returns | Description |
+|----------|------|---------|-------------|
+| `query_json_column_schema(schema, table, column, adapter, sample_size)` | Schema, table, column, adapter, sample rows | `dict \| None` | Infer JSON schema from column sampling |
+
+**Returns Schema Dict:**
+
+```python
+{
+    "type": "object",  # "object", "array", "string", "mixed"
+    "properties": {
+        "user_id": {"type": "integer"},
+        "name": {"type": "string"},
+        "tags": {"type": "array"}
+    },
+    "required": ["user_id", "name"]
+}
+```
+
+**Example (MariaDB):**
+
+```python
+from util_bbdd import SyncDatabaseManager
+from util_bbdd.metadata.mariadb.types_advanced import query_json_column_schema
+
+manager = SyncDatabaseManager(
+    db_type="mariadb",
+    conn_params={"host": "localhost", "user": "root", "password": "pwd", "database": "mydb"}
+)
+
+# Query JSON column schema
+schema = query_json_column_schema(
+    schema="mydb",
+    table="events",
+    column="payload",
+    adapter=manager.adapter,
+    sample_size=100
+)
+
+if schema:
+    print(f"JSON Schema for events.payload:")
+    print(f"  Type: {schema['type']}")
+    print(f"  Properties: {list(schema['properties'].keys())}")
+    print(f"  Required: {schema['required']}")
+
+manager.close()
+```
+
+**Compatibility Matrix (Phase 4):**
+
+| Database | Sync | Async | Module | API |
+|----------|------|-------|--------|-----|
+| **Oracle 9i+** | ✅ | ✅ | `metadata.oracle.types_advanced` | `parse_object_type_structure()` |
+| **SQL Server 2005+** | ✅ | ✅ | `metadata.sqlserver.types_advanced` | `parse_udt_structure()` |
+| **MariaDB 10.2+** | ✅ | ✅ | `metadata.mariadb.types_advanced` | `query_json_column_schema()` |
+| **SQLite 3.38+** | ✅ | ✅ | `metadata.sqlite.types_advanced` | `query_json_column_schema()` |
+| **Redshift (latest)** | ✅ | ✅ | `metadata.redshift.types_advanced` | `query_json_column_schema()` |
+
+---
+
+## Connection Pool Finalization Safety (v0.8.0)
+
+**Issue Fixed:** `PythonFinalizationError` at interpreter shutdown when using connection pools with threading.
+
+**Solution:** Automatic detection of interpreter finalization phase using `sys.is_finalizing()` prevents thread creation during cleanup.
+
+**Impact:** No code changes required — pool automatically handles shutdown safety.
+
+See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md#pythonfinalizationerror-at-shutdown) for details.
+```

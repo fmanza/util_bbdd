@@ -623,6 +623,24 @@ class WordGenerator:
         Si data_provider tiene SVG cacheado (generado previamente por HtmlGenerator) y
         cairosvg está disponible, convierte SVG→PNG en memoria evitando una segunda
         llamada a Graphviz. En caso contrario usa pipe_single_table_graph_ext directamente.
+
+        Args:
+            document: Documento Word activo donde se insertará el diagrama
+            tabla: Nombre de la tabla central del diagrama
+            graph_generator: Generador de grafos Graphviz configurado
+            diagram_options: Opciones de diagrama (max_depth, direction, format, etc.)
+            fmt: Formato de imagen resuelto ('png' siempre para Word)
+            graph_document: GraphDocument preconstruido o None para construirlo internamente
+            diagram_summary: Payload de resumen de niveles para el párrafo bajo el diagrama
+            data_provider: Sesión documental que puede exponer get_cached_svg_bytes.
+                Si es None o no expone el método, se genera sin caché.
+
+        Returns:
+            None
+
+        Raises:
+            OSError: Si falla la escritura del PNG en el fallback a disco
+            RuntimeError: Si Graphviz no puede renderizar el grafo
         """
         max_depth_val: int = int(diagram_options.get("max_depth", 1))
         direction_val: str = str(diagram_options.get("direction", "both"))
@@ -691,7 +709,28 @@ class WordGenerator:
         graph_document: Any | None,
         diagram_summary: dict[str, Any],
     ) -> None:
-        """Genera diagramas paginados a disco (directorio temporal) e inserta en Word."""
+        """Genera diagramas paginados a disco (directorio temporal) e inserta en Word.
+
+        Usa un directorio temporal gestionado con TemporaryDirectory para garantizar
+        la limpieza automática de los archivos PNG intermedios al finalizar, incluso
+        si ocurre una excepción durante la inserción.
+
+        Args:
+            document: Documento Word activo
+            tabla: Nombre de la tabla central del diagrama
+            graph_generator: Generador de grafos Graphviz configurado
+            diagram_options: Opciones (max_depth, direction, max_subnodes, etc.)
+            fmt: Formato de imagen ('png' siempre para Word)
+            graph_document: GraphDocument preconstruido o None
+            diagram_summary: Payload de resumen de niveles para párrafos bajo cada imagen
+
+        Returns:
+            None
+
+        Raises:
+            OSError: Si falla la creación del directorio temporal o la escritura de imágenes
+            RuntimeError: Si Graphviz no puede renderizar algún gráfico paginado
+        """
         with tempfile.TemporaryDirectory(prefix="util_bbdd_diagrams_") as tmp_dir:
             output_dir = Path(tmp_dir)
             kwargs_paginated: dict[str, Any] = {
@@ -932,7 +971,14 @@ class WordGenerator:
         Args:
             document: Documento Word activo
             image_bytes: Bytes de la imagen (PNG, JPEG, etc.)
-            title_paragraph: Párrafo de título ya añadido, para calcular espacio reservado
+            title_paragraph: Párrafo de título ya añadido al documento, usado para calcular
+                el espacio vertical a reservar. Si es None se omite la reserva.
+
+        Returns:
+            None
+
+        Raises:
+            OSError: Si python-docx no puede procesar los bytes como imagen válida
 
         Example:
             >>> generator._add_picture_from_bytes(document, png_bytes, title_paragraph)

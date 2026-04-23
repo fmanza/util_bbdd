@@ -1682,6 +1682,25 @@ class HtmlGenerator:
         La rama non-paginada usa pipe en memoria (sin I/O de disco inicial) cuando
         graph_generator expone pipe_single_table_graph_ext. Los bytes generados se
         cachean en data_provider para que Word los reutilice sin regenerar el diagrama.
+
+        Args:
+            table_name: Nombre de la tabla para la que se genera el diagrama
+            graph_generator: Generador de grafos Graphviz configurado
+            diagram_options: Opciones (max_depth, direction, images_paginated, output_dir, etc.)
+            output_dir: Directorio raíz de salida HTML (para calcular rutas relativas)
+            navigation_links: Mapa tabla→URL para inyectar enlaces clicables en los SVG
+            data_provider: Sesión documental que puede exponer get_cached_svg_bytes y
+                cache_svg_bytes. Si es None se ignora el caché.
+
+        Returns:
+            tuple[list[dict[str, Any]], list[str], dict[str, Any]]:
+                - diagram_tabs: lista de pestañas con inline_svg (solo ruta level graphs)
+                - flat_paths: rutas relativas a los SVG generados (para referencias <img>)
+                - raw_diagram_summary: payload de resumen de niveles del diagrama
+
+        Raises:
+            OSError: Si falla la creación de directorios o la escritura del SVG a disco
+            RuntimeError: Si Graphviz no puede renderizar el grafo
         """
         fmt = "svg"
         graph_output_dir: Path = Path(diagram_options.get("output_dir", output_dir / "graphs"))
@@ -1770,6 +1789,22 @@ class HtmlGenerator:
 
         Consulta el caché de sesión antes de llamar a Graphviz para evitar regenerar
         el diagrama cuando Word y HTML se generan en la misma sesión.
+
+        Args:
+            table_name: Nombre de la tabla para la que se genera el diagrama
+            graph_generator: Generador de grafos Graphviz configurado
+            diagram_options: Opciones (max_depth, direction, output_dir, etc.)
+            graph_output_dir: Directorio donde se escribirá el SVG final
+            fmt: Formato de salida ('svg' siempre en este método)
+            navigation_links: Mapa tabla→URL para inyectar enlaces clicables en el SVG
+            data_provider: Sesión documental para acceder al caché SVG. Puede ser None.
+
+        Returns:
+            list[Path]: Lista con la ruta del SVG generado (siempre un elemento)
+
+        Raises:
+            OSError: Si falla la escritura del SVG a disco
+            RuntimeError: Si Graphviz no puede renderizar el grafo
         """
         max_depth_val: int = int(diagram_options.get("max_depth", 1))
         direction_val: str = str(diagram_options.get("direction", "both"))
@@ -1827,7 +1862,23 @@ class HtmlGenerator:
         ).read_bytes()
 
     def _inject_links_into_svg(self, svg_path: Path, navigation_links: dict[str, str]) -> None:
-        """Inserta enlaces clicables en nodos SVG apuntando a páginas HTML de detalle."""
+        """Inserta enlaces clicables en nodos SVG apuntando a páginas HTML de detalle.
+
+        Modifica el archivo SVG en disco (in-place): lee, inyecta los enlaces en los
+        nodos cuyo título coincida con una clave de navigation_links, y reescribe.
+        Si navigation_links está vacío, retorna sin tocar el archivo.
+
+        Args:
+            svg_path: Ruta al archivo SVG a modificar en disco
+            navigation_links: Mapa de nombre de tabla → URL de destino
+
+        Returns:
+            None
+
+        Raises:
+            ET.ParseError: Capturado internamente; se loguea warning y se deja el SVG sin modificar
+            OSError: Capturado internamente; se loguea warning si el archivo no es accesible
+        """
         if not navigation_links:
             return
         svg_ns = "http://www.w3.org/2000/svg"
