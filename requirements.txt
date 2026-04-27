@@ -3,7 +3,7 @@ aioodbc==0.5.0
 aiosqlite==0.22.1
 asyncpg==0.31.0
 black==26.1.0
-build==1.4.0
+build==1.4.4
 certifi==2026.2.25
 cffi==2.0.0
 charset-normalizer==3.4.4
