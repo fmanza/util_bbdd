@@ -22,8 +22,6 @@ exclude_docs: |
   DOCUMENTATION_REVIEWER_GUIDE.md
   RELEASE_v0.5.0.md
   examples/imprimir_config_full_example.toml
-  examples/claude_code_usage_complete_example.md
-  examples/github_usage_complete_example.md
 
 nav:
   - Inicio: index.md
@@ -37,6 +35,10 @@ nav:
       - Guía de Migración (v0.6.3): MIGRATION_GUIDE.md
       - Migración v0.6.6→v0.6.7: MIGRATION_GUIDE_v0.6.7.md
       - Performance & Benchmarks: BENCHMARKS.md
+      - "Herramientas IA":
+          - Copilot Chat (.github): examples/github_usage_complete_example.md
+          - Claude Code: examples/claude_code_usage_complete_example.md
+          - Codex (OpenAI): examples/codex_usage_complete_example.md
   - API Reference:
       - Referencia Rápida: API_REFERENCE.md
       - Autodoc:
