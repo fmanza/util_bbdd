@@ -278,7 +278,7 @@ Quiero bugs, edge cases, compatibilidad y tests faltantes.
     - Remove the unused function parameter "progress_template".
     - Remove the unused function parameter "success_template".
     - Remove the unused function parameter "completion_template".
-Sigue el flujo PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION.
+Sigue el flujo PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → Documentation Reviewer → VERSION.
 ---
 @#sym:hotfix
 El fichero: src\util_bbdd\metadata\adapters\shared\json_schema.py ruff lanza los siguientes avisos:
@@ -290,3 +290,6 @@ Refactor this function to reduce its Cognitive Complexity from 19 to the 15 allo
 ---
 Crear un PLAN → AUDIT_PLAN, quiero todo lopropuesto
 Para cada una de las acciones del plan realizaremos → IMPLEMENT → AUDIT_CODE  → Documentation Reviewer → VERSION, para IMPLEMENT solicitara permiso para cada una de las acciones a realizar, quiero que me preguntes antes de ejecutar cada una de las acciones de implementación.
+
+
+Sigue el flujo PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE  → Documentation Reviewer → VERSION.
