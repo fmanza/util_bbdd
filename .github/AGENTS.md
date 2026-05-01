@@ -57,7 +57,7 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 - **Herramientas**: read, search
 - **Invocable**: Sí (fase AUDIT_CODE)
 
-### 6. **Documentation Reviewer** (`documentation-reviewer.agent.md`) ⭐ **NUEVO**
+### 6. **Documentation Reviewer** (`documentation-reviewer.agent.md`)
 - **Propósito**: Revisar y auditar documentación completa, ejemplos, gaps, coherencia
 - **Entrada**: Alcance (README | ejemplos | APIs | guías | todas)
 - **Salida**: Scope, Findings por categoría, Critical gaps, Priority improvements, Recomendaciones
@@ -66,6 +66,16 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 - **Criterios**: Nivel 1 (crítico), Nivel 2 (alto), Nivel 3 (recomendado)
 - **Prompt Copilot Chat**: `.github/prompts/documentation_review.prompt.md`
 - **Slash command**: No disponible en `.claude/commands/` — invocar mediante lenguaje natural en Claude Code
+
+### 6b. **Documentation Generator** (`documentation-generator.agent.md`) ⭐ **NUEVO**
+- **Propósito**: GENERAR documentación funcional y técnica con diagramas Mermaid para módulos de util_bbdd
+- **Entrada**: Módulo Python objetivo, tipo (`functional` | `technical` | `both`), directorio destino
+- **Salida**: Archivos `.md` en `docs/` + entrada sugerida para `mkdocs.yml`
+- **Herramientas**: read, write, search
+- **Invocable**: Sí (generación activa, escribe archivos)
+- **Diferencia con Reviewer**: Reviewer audita, Generator crea contenido nuevo
+- **Prompts base**: `.github/prompts/functional_doc.prompt.md` + `.github/prompts/technical_doc.prompt.md`
+- **Workflow CI/CD**: `.github/workflows/doc_agents.yml` (Anthropic / OpenAI)
 
 ### 7. **Config Reviewer** (`config-reviewer.agent.md`) ⭐ **NUEVO**
 - **Propósito**: Revisar y consolidar ficheros de configuración IA, eliminando duplicación entre plataformas
@@ -92,9 +102,13 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 - **Invocable**: Sí (auditoría estratégica)
 
 ### 10. **Version Closer** (`version-closer.agent.md`)
-- **Propósito**: Cierre de versión, resumir cambios, evidence, impacto, handoff
+- **Propósito**: Cierre de versión, resumir cambios, evidence, impacto, validar sincronización y handoff
 - **Entrada**: Sesión completada
 - **Salida**: Release notes, Commit messages, Changelog, Rollback strategy, Testing suggestions
+- **Validación requerida**: Revisar `.github/instructions/sync.instructions.md`
+  - CHANGELOG.md ↔ docs/CHANGELOG.md sincronizados
+  - .ai/COMPATIBILITY.md ↔ docs/COMPATIBILITY.md sincronizados
+  - `mkdocs build` pasa sin errores
 - **Herramientas**: read, search
 - **Invocable**: Sí (final de sesión)
 
@@ -147,7 +161,7 @@ Input: Necesito una auditoría completa de documentación de util_bbdd incluyend
 [Resumen de hallazgos principales]
 
 ## Scope reviewed
-- Archivos de documentación analizados (README.md, docs/v0.6.7/*, docs/examples/*)
+- Archivos de documentación analizados (README.md, docs/*, docs/examples/*, .ai/*)
 - Cobertura de ejemplos por módulo
 - Documentación de APIs públicas
 
@@ -178,6 +192,7 @@ PRODUCTION_READY | NEAR_READY | BLOCKED
 | Hotfix Responder | ✅ | ✅ | ❌ | ✅ | ❌ |
 | Code Auditor | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Documentation Reviewer | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Documentation Generator | ✅ | ✅ | ✅ | ❌ | ❌ |
 | Config Reviewer | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Security Reviewer | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Maturity Assessment | ✅ | ❌ | ✅ | ❌ | ❌ |
@@ -190,9 +205,11 @@ PRODUCTION_READY | NEAR_READY | BLOCKED
 ## Configuración
 
 Personalizaciones por contexto:
-- **Prompts**: `.github/prompts/*.prompt.md` — instrucciones por slash command (9 prompts; 8 equivalentes a `.claude/commands/` + `documentation_review`)
+- **Prompts**: `.github/prompts/*.prompt.md` — instrucciones por slash command (12 prompts; 8 equivalentes a `.claude/commands/` + `documentation_review` + `functional_doc` + `technical_doc` + `config_review`)
 - **Instrucciones**: `.github/instructions/*.instructions.md` — reglas por tipo de archivo
 - **Hooks**: `.claude/settings.json` — comandos pre/post tool (lint, format, type-check)
+- **Workflow IA**: `.github/workflows/doc_agents.yml` — generación automática vía Anthropic/OpenAI
+- **Script**: `.github/scripts/generate_docs.py` — invocado por `doc_agents.yml`
 
 Modificar un agente: editar su archivo `.agent.md` en `.github/agents/`.
 
@@ -202,6 +219,6 @@ Modificar un agente: editar su archivo `.agent.md` en `.github/agents/`.
 
 Los **slash commands** de Claude Code (`.claude/commands/`) cubren 8 flujos (new-feature, hotfix, refactor, audit-code, security-review, tech-debt, maturity-assessment, version-closure).
 
-Los **agentes** (`.github/agents/`) son 10: incluyen los 8 anteriores más `documentation-reviewer` y `explore`, que no tienen slash command pero son invocables por lenguaje natural (Claude Code) o mediante `.github/prompts/documentation_review.prompt.md` (Copilot Chat).
+Los **agentes** (`.github/agents/`) son 11: incluyen los 8 anteriores más `documentation-reviewer`, `documentation-generator` y `explore`. Los dos de documentación no tienen slash command pero son invocables por lenguaje natural (Claude Code) o mediante sus prompts correspondientes (Copilot Chat).
 
 Ver gobernanza completa en [`.github/INTEGRATION_MAP.md`](INTEGRATION_MAP.md).

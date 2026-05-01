@@ -1,313 +1,260 @@
-# Instrucciones Compartidas: Copilot Chat + Claude Code
+# Instrucciones Compartidas: Copilot Chat + Claude Code + Codex
 
-Configuración unificada de arquitectura y flujos para ambas plataformas.
-Cada plataforma especializa según contexto (agentes, hooks, offline).
+Configuración unificada para trabajar en `util_bbdd` con asistentes de código.
+Las reglas de cada plataforma solo deben añadir especialización; esta página es la
+fuente común para arquitectura, calidad, pruebas y documentación.
 
 ---
 
 ## Rol esperado
 
-Actúa como senior de ingeniería de software especializado en:
-- Arquitectura Python multibase
-- Refactors sin duplicación
-- Diseño de APIs sync/async
-- Testing con pytest sin servicios externos
-- Metadatos multi-motor
-- Generación documental y mantenimiento de librerías
+Actúa como senior de ingeniería Python especializado en:
+- Extracción y exportación de tiempos desde GitLab (TIMELOG core).
+- Herramientas CLI con `argparse` y APIs programáticas simples.
+- Operaciones seguras de filesystem con `pathlib`, `shutil` y validación explícita.
+- Procesamiento de datos con pandas y generación de reportes (Excel, CSV, JSON).
+- Testing determinista con pytest sin servicios externos.
+- Documentación de librerías Python con MkDocs.
 
 ---
 
 ## Proyecto: util_bbdd
 
-Librería Python para **operaciones de base de datos y documentación automática**.
+`util_bbdd` es una librería Python para extraer, procesar y exportar tiempos de trabajo
+desde GitLab, generando reportes en Excel, CSV y JSON para auditoría y análisis de proyectos.
 
-**Motores soportados**: MariaDB, Oracle, PostgreSQL, SQLite, SQL Server, HSQLDB
-**Requisitos**: Python 3.12+
-**Versión actual**: 0.6.7.dev0
+**Versión canónica**: consultar `pyproject.toml` antes de cerrar releases.
+**Python**: `>=3.11` según `pyproject.toml`.
 
-### Funcionalidades principales
-- CRUD masivo desde DataFrames con auditoría CSV
-- Introspección de metadatos: schemas, tablas, columnas, PK/FK, índices, vistas
-- Generación de documentación: Word, Excel, Markdown (portable, Mermaid-compatible), HTML/Jinja2
-- Análisis de relaciones y grafos multinivel
-- Gestión de conexiones con pool singleton, soporte async por motor
-- Comparativa de esquemas y generación de instrucciones SQL para nivelación
+### Capacidades principales (TIMELOG)
+- **Extracción de tiempos**: lee timelogs de GitLab vía GraphQL.
+- **Análisis de issues**: recopila datos de issues, milestones e incidentes.
+- **Cálculo de métricas**: tiempo estimado vs. gastado, porcentaje de ejecución.
+- **Exportación múltiple**: Excel (con formato), CSV, JSON.
+- **Configuración flexible**: filtros por proyecto, fechas, equipos.
 
 ---
 
-## Arquitectura (3 niveles)
+## Arquitectura real (TIMELOG Core)
 
-```
+```text
 src/util_bbdd/
-  # ── Level 1: Foundation ────────────────────────────────────────────────
-  _core/           # Tipos base, excepciones, contratos (Protocols/ABC), constantes
-  core/            # Capacidades por motor — detecta soporte async y features
-
-  # ── Level 1 support (no importar desde Level 2+) ──────────────────────
-  _drivers/        # Validators y driver checking
-                   #   validator.py         — DatabaseTypeValidator
-                   #   driver_validator.py  — DriverValidator
-                   #   _config_loader.py    — carga JSON de configuración
-
-  # ── Level 2: Services ──────────────────────────────────────────────────
-  connection/      # Pool singleton, factory, adaptadores por motor
-  query/           # Registry, resolver, DatabaseQueries multi-motor
-  executors/       # Ejecutores (base, sync, async)
-  metadata/        # Fetcher → normalizer → builder → cache → manager
-  results/         # Tipos (RowOrNone, Rows) y normalización
-  factory/         # Pool, SQLAlchemy engines (sync/async)
-  validators/      # Validadores adicionales
-
-  # ── Level 3: Specialization ────────────────────────────────────────────
-  bulk/            # CRUD masivo, auditoría, normalización SQL
-  analysis/        # Grafos multinivel (Graphviz, Matplotlib)
-  comparar/        # Comparador motor-agnóstico vía SQLAlchemy Inspector
-  doc/             # Generadores HTML/Excel/Word + plantillas Jinja2
-  managers/        # SyncDatabaseManager, AsyncDatabaseManager (APIs públicas)
+  timelog/              # Core: time tracking export and reporting
+    time_utils.py       # Parsing de tiempo (mo, w, d, h, m)
+    calendar.py         # Cálculo de semanas (ISO, fiscal)
+    project_loader.py   # Listado y filtrado de proyectos GitLab
+    load_gitlab.py      # Conexión y configuración GitLab
+    issue_helpers.py    # Metadatos de issues e incidentes
+    excel_formatter.py  # Formato Excel
+    crear_csv.py        # Export CSV
+    crear_json.py       # Export JSON
+    __init__.py         # API pública del módulo
+  common/               # Shared utilities
+    decimal_utils.py    # Redondeo y conversión de Decimals
+    __init__.py
+  core/                 # Placeholder (futuro)
+  utils/                # Placeholder (futuro)
+export_gitlab_time.py   # Main CLI for timelog export
 ```
 
-**Regla de imports:** Level 1 → Level 2 → Level 3; nunca al revés.
-**Agregar motor nuevo:** fichero en `connection/motors/` sin tocar flujos base.
+### Responsabilidades por módulo (TIMELOG)
+
+| Módulo | Responsabilidad |
+|---|---|
+| `timelog/` | Extracción de tiempos, análisis de issues, exportación |
+| `common/` | Utilidades compartidas (decimal, conversiones) |
+| `export_gitlab_time.py` | CLI principal: carga config, exporta a Excel/CSV/JSON |
+
+### API pública recomendada
+
+```python
+from util_bbdd import (
+    parse_time_spent,
+    parse_date,
+    listar_proyectos_filtrados,
+    FormatearExcel,
+    convertir_decimales_a_float,
+)
+
+# Ejemplo de uso programático
+time_config = {"hours_per_day": 8, "days_per_week": 5}
+spent = parse_time_spent("1h 30m", time_config)  # Decimal en segundos
+```
+
+### CLI actual
+
+```bash
+python src/export_gitlab_time.py
+```
+
+📌 Consultar `src/export_gitlab_time.py` para configuración via `src/conf/gitlab.toml` (unifica credenciales + filtros por conexión).
 
 ---
 
-## Principios fundamentales
+## Principios de diseño
 
-### Multibase (CRÍTICO)
-- No asumir un único motor: evita SQL específico salvo que esté encapsulado por adaptadores
-- SQL "crudo" solo en adaptadores aislados por motor (p.ej. `postgres.py`, `mysql.py`, `sqlite.py`)
-- No inventar metadatos: obtenerlos por introspección o recibirlos como parámetro
+### Operaciones de filesystem
+- Usa `pathlib.Path` para rutas.
+- Valida existencia de archivos de configuración GitLab.
+- Lee archivos TOML de configuración de forma segura.
+- Escribe archivos Excel, CSV y JSON en directorio de salida.
+- No sobrescribas archivos sin validación explícita.
+
+### Procesamiento de datos
+- Usa `pandas.DataFrame` para manipular datos de issues y timelogs.
+- Redondea `Decimal` con precisión controlada via `safe_decimal_round`.
+- Convierte `Decimal` a `float` para exportación Excel via `convertir_decimales_a_float`.
+- Valida fechas con `es_fecha_valida` y `parse_date`.
+- Parsea tiempo gastado con `parse_time_spent` (soporta mo, w, d, h, m).
 
 ### SOLID operativo
-- **SRP** — cada clase/módulo tiene una razón de cambio dominante; separa extracción, normalización, render, persistencia
-- **OCP** — nuevo motor/formato → adaptador nuevo, sin editar flujos base
-- **LSP** — implementaciones sync/async y por motor respetan contratos comunes
-- **ISP** — interfaces pequeñas por responsabilidad; no contratos todo-en-uno
-- **DIP** — orquestación depende de `Protocol`/`ABC` y factorías, no de implementaciones concretas
+- **SRP**: cada servicio tiene una razón de cambio principal.
+- **OCP**: nuevas familias de archivos o instrucciones IA deben añadirse con
+  generadores o listas de soporte acotadas, sin reescribir el workflow completo.
+- **LSP**: cualquier componente inyectado debe respetar el contrato esperado por
+  managers y CLIs.
+- **ISP**: evita servicios "todo en uno"; prefiere métodos pequeños.
+- **DIP**: la orquestación debe depender de servicios claros, no de detalles de IO
+  duplicados en varias capas.
 
-### Patrones recomendados
-- `Strategy` — variación por motor y formato
-- `Abstract Factory` / `Factory Method` — creación de conexiones y adaptadores
-- `Adapter` — encapsular diferencias entre drivers
-- `Template Method` — flujo base con hooks por motor/formato
-- `Facade` — entrada simple para orquestar extracción + comparativa + render
-- `Builder` — documentos complejos (Word/Excel/HTML/Markdown)
-- `Repository` / `Query Object` — encapsular consultas sin filtrar SQL
-- `Data Mapper` — mapear filas/tablas a modelos de dominio desacoplados del motor
-- `Identity Map` — cache coherente dentro de una ejecución
+### OOP y estado
+- Mantén el estilo basado en clases para servicios y CLIs.
+- Funciones a nivel de módulo solo para utilidades compartidas pequeñas, como
+  `get_logger`.
+- Evita estado global mutable.
+- Usa `ClassVar` para constantes de clase.
 
-### OOP obligatorio
-- **Diseño exclusivamente con clases.** No crear funciones sueltas a nivel de módulo en ficheros de clase
-- Transformaciones sin estado: `@staticmethod` dentro de la clase que las utiliza
-- Constantes privadas de una clase: `ClassVar` en la propia clase
-- Funciones/constantes a nivel de módulo: solo en ficheros de utilidades genuinamente compartidas (p.ej. `_base.py`)
+### Logging
+- Las clases con lógica deben tener `self.logger: logging.Logger`.
+- En `export_gitlab_time.py` (CLI), configura logging basado en nivel INFO.
+- En servicios (`timelog/`, `common/`), pasa logger como parámetro si es necesario.
+- En handlers de error inesperado, usa `exc_info=True`.
+- Evita `print()` en servicios; se permite en CLI para resúmenes de usuario.
 
-### Gestión de estado y logging
-
-#### Logging obligatorio en clases
-Toda clase con lógica de negocio debe gestionar logging para rastrear estado, eventos de ciclo de vida y errores:
-
-```python
-# ✅ CORRECTO: Logger privado en cada clase
-import logging
-
-class MyService:
-    def __init__(self):
-        self.logger: logging.Logger = logging.getLogger(__name__)
-
-    def do_something(self, data: dict) -> dict:
-        self.logger.debug(f"Iniciando procesamiento con {len(data)} elementos")
-        try:
-            result = self._compute(data)
-            self.logger.info(f"✅ Procesamiento exitoso: {len(result)} resultados")
-            return result
-        except Exception as e:
-            self.logger.error(f"❌ Error durante procesamiento: {e}", exc_info=True)
-            raise
-```
-
-**Requisitos:**
-- Importar `import logging` al inicio del módulo
-- Instanciar `self.logger = logging.getLogger(__name__)` en `__init__()` o `__post_init__()` (si dataclass)
-- Usar niveles apropiados: `debug()` (rastreo interno), `info()` (eventos normales), `warning()` (anómalos), `error()` (fallos)
-- Incluir `exc_info=True` en handlers de error para stack trace completo
-- **NO usar**: `print()`, loggers globales sin tipado, setup de logging en librerías
-
-**Para módulos utilities sin clases:**
-```python
-# ✅ CORRECTO: Logger a nivel de módulo en utils
-logger: logging.Logger = logging.getLogger(__name__)
-
-def helper_function(x: int) -> int:
-    logger.debug(f"Procesando x={x}")
-    return x * 2
-```
-
-#### Formato de cadenas: F-Strings OBLIGATORIOS
-**REGLA CRÍTICA:** Todo string que contenga parámetros DEBE usar **f-strings**. No se permiten `.format()`, `%` formatting ni concatenación.
-
-```python
-# ✅ CORRECTO: F-strings para strings con parámetros
-count = 42
-logger.info(f"Procesando {count} registros")
-error_msg = f"Esperaba {expected}, obtuve {actual}"
-
-# ✗ PROHIBIDO: .format()
-logger.info("Procesando {} registros".format(count))  # ❌
-
-# ✗ PROHIBIDO: % formatting
-logger.info("Procesando %d registros" % count)  # ❌
-
-# ✗ PROHIBIDO: Concatenación
-logger.info("Procesando " + str(count) + " registros")  # ❌
-
-# ✅ PERMITIDO: Strings sin parámetros
-logger.info("Iniciando conexión")
-DESCRIPTION = "Documentación estática"
-```
-
-**Validación en auditoría:** Bloquea PR si encuentra `.format()`, `%` formatting o concatenación en strings con parámetros.
-
-#### Variables globales: Prohibición de mutable módulo-level
-Todas las variables globales DEBEN ser inmutables o pertenecer a clases:
-
-```python
-# ✅ PERMITIDO: Constantes inmutables
-PARAMETER_PATTERN: str = r"\{(\w+)\}"
-DEFAULT_TIMEOUT: int = 30
-MAX_RETRIES: int = 3
-
-# ✅ PERMITIDO: ClassVar (pertenecen a la clase)
-class ConnectionPool:
-    MAX_CONNECTIONS: ClassVar[int] = 10
-    _instances: ClassVar[dict[str, ConnectionPool]] = {}
-
-# ✗ PROHIBIDO: Mutable módulo-level
-query_cache: dict[str, Any] = {}  # ❌ Global mutable
-initialized_loggers: list[str] = []  # ❌ Global mutable
-current_config: dict = {}  # ❌ Global mutable
-
-# ✓ CORRECTO: Inyectar en clases o usar factory
-class QueryService:
-    def __init__(self, cache: dict[str, Any] | None = None):
-        self.cache = cache or {}  # Instancia, no global
-        self.logger: logging.Logger = logging.getLogger(__name__)
-```
-
-**Anti-patrones detectados:**
-- Variables globales mutables que cambian estado en runtime
-- Singletons implementados vía módulo-level (usar factory pattern explícito instead)
-- Lazy loading con asignación global (usar lazy property o factory method)
-
-### Anti-patrones a evitar
-- God class que mezcle conexión, introspección, normalización y render
-- `if/elif` por motor distribuidos fuera de adaptadores
-- Renderizadores acoplados a SQL/driver o a estado de conexión
-- Excepciones genéricas (`Exception`); usar jerarquía de `_core/exceptions.py`
-- Aplicar patrones por moda sin justificar complejidad
-- Funciones sueltas a nivel de módulo en ficheros de clase
-
-### Estilo y calidad
-- Tipado completo (typing)
-- Docstrings en todo código público
-- Excepciones específicas (no genéricas)
-- Evitar dependencias nuevas sin justificar
-- Nunca credenciales en ejemplos
-- Sanitizar/escapar identificadores SQL o usar parametrización
+### Formato de cadenas
+- Usa f-strings para strings con parámetros.
+- Evita `.format()`, `%` formatting y concatenación para interpolación.
+- Strings estáticos, docstrings y ejemplos sin parámetros están permitidos.
 
 ---
 
-## Flujo de trabajo estructurado
+## Calidad y pruebas
 
-**Secuencia obligatoria para cambios no triviales:**
+### Comandos de desarrollo
+
+```bash
+python -m ruff check src tests
+python -m ruff format src tests
+python -m mypy src
+python -m pytest
+python -m build
+mkdocs build
+```
+
+### Estrategia de tests
+- Funciones de `timelog/`: tests unitarios sin red (mock pandas, decimal ops).
+- Funciones de `common/`: tests de conversión y validación.
+- `export_gitlab_time.py`: probar parseo de config, construcción de queries, transformación de datos.
+- No depender de red ni GitLab real; mock `gitlab.Gitlab` cuando sea necesario.
+- Fixtures en `tests/conftest.py` para datos de prueba (timelogs, issues mock).
+
+### Documentación obligatoria
+
+#### Cuándo es CRÍTICA (bloquea PRs)
+
+- ✅ Nueva clase pública → docstring Google-style + ejemplo
+- ✅ Cambio de API pública → actualizar guías en `docs/`
+- ✅ Refactor con breaking changes → guía de migración en CHANGELOG.md
+- ✅ Antes de cerrar versión → `mkdocs build` sin errores ni links rotos
+- ✅ Cambios en instrucciones IA → sincronizar todos los ficheros afectados
+- ✅ Nuevo archivo generado o copiado → actualizar README y/o docs de uso
+- ✅ Cambio de CLI → actualizar ejemplos en README, `docs/` y `.ai/runtime.md`
+- ✅ **Nueva versión (VERSION)** → revisar `.github/instructions/sync.instructions.md`
+  para validar que CHANGELOG.md y COMPATIBILITY.md están sincronizados
+
+#### MkDocs — cuándo actualizar
+
+- ✅ Módulo o clase pública nueva → entrada en `mkdocs.yml` bajo `nav:`
+- ✅ Ejecutar `mkdocs serve` localmente antes de publicar
+- ✅ Verificar que `mkdocs build` pase sin warnings
+
+#### Estándar: Docstrings Google-style
+
+```python
+class TimeLogger:
+    """Registrador de tiempos de trabajo desde GitLab.
+
+    Extrae timelogs via GraphQL y aplica filtros de fecha y proyecto.
+
+    Attributes:
+        gitlab_client (gitlab.Gitlab): Cliente GitLab autenticado.
+        logger (logging.Logger): Logger de instancia.
+
+    Example:
+        >>> logger = TimeLogger(gl_client)
+        >>> timelogs = logger.get_timelogs(project_id=42, start="2026-01-01")
+        >>> print(len(timelogs))
+        15
+    """
+```
+
+### Formato de commits
+
+Usa [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
+feat:     nueva funcionalidad (dentro de scope, no refactor)
+fix:      corrección de bug (hotfix, RCA → fix mínimo)
+refactor: cambio sin impacto funcional
+test:     solo tests, sin cambios de funcionalidad
+docs:     solo documentación (README, docstrings, guías)
+chore:    mantenimiento (deps, config, herramientas)
+```
+
+**Ejemplo**:
+```
+feat: extraer timelogs por rango de fechas en timelog/time_utils.py
+
+- Añade función parse_date_range() con validación
+- Tests en tests/unit/timelog/test_time_utils.py
+- Actualiza docstring y ejemplos en README
+```
+
+---
+
+## Flujo de trabajo
+
+Para cambios no triviales:
+
+```text
 PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION
 ```
 
-**Nunca empieces por código si no se ha definido el objetivo.**
+Para auditorías o PR reviews, prioriza hallazgos verificables:
+- bug o regresión;
+- contrato público roto;
+- prueba faltante en comportamiento modificado;
+- documentación obsoleta que pueda inducir uso incorrecto.
 
-### Políticas por tipo de tarea
-
-| Tarea | Política |
-|---|---|
-| `new_feature` | Prohibido refactorizar |
-| `hotfix` | Solo fix mínimo. Prohibido refactorizar y optimizar |
-| `refactor` | Sin cambios funcionales. API pública estable salvo justificación explícita |
-| `security_review` | Hallazgos verificables, ordenados por severidad, con remediación accionable |
-
-### Forma de trabajar general
-- Devuelve primero PLAN
-- Después devuelve AUDIT_PLAN
-- Implementa por rutas, módulos, clases o utilidades pequeñas
-- No introduzcas conceptos server/client salvo que realmente existan en el repositorio
-- Propón tests mínimos cuando el cambio lo requiera (unitarios + integración)
-- Señala riesgos: seguridad, validación, migraciones, compatibilidad
-- Antes de aplicar backward compatibility, confirmar explícitamente si se mantiene enfoque OO-only
-- Evita cambios masivos sin plan y rollback
-- Contrasta siempre la solicitud con el código real aportado
-- No inventes módulos, clases, endpoints, tests inexistentes
-- Si falta contexto crítico, decláralo como supuesto explícito
-- No mezcles feature, hotfix y refactor en una sola ejecución
-- Si toca arquitectura, justifica patrón elegido y alternativa descartada en PLAN y AUDIT_PLAN
+No mezcles feature, hotfix y refactor salvo que el usuario lo pida explícitamente.
+Si detectas instrucciones heredadas de otro proyecto, corrígelas o márcalas como
+deuda técnica con ruta exacta.
 
 ---
 
-## Quality bar
+## Gobernanza de plataformas IA
 
-- Toda propuesta indica **archivos afectados**
-- Toda implementación incluye **estrategia de pruebas**
-- Toda auditoría emite **veredicto explícito**
-- Toda incertidumbre queda **etiquetada como supuesto o dato faltante**
-- Toda propuesta de arquitectura declara **impacto en SOLID** y justifica el patrón aplicado
-- Toda regla aplicada tiene **criterio de entrada/salida** (cuándo usarlo y cuándo no)
+| Archivo | Plataforma | Propósito |
+|---|---|---|
+| `.github/SHARED_INSTRUCTIONS.md` | Copilot, Claude, Codex | Fuente canónica: arquitectura, calidad, comandos |
+| `.github/copilot-instructions.md` | GitHub Copilot Chat | Especialización: agentes VS Code, reglas Copilot |
+| `CLAUDE.md` | Claude Code | Especialización: slash commands, hooks, settings.json |
+| `.github/AGENTS.md` | Copilot/Claude | Registro de agentes especializados |
+| `.ai/*.md` | Todas | Contexto persistente: producto, arquitectura |
 
----
-
-## Formato de commits
-
-Usar [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-feat:     nueva funcionalidad
-fix:      corrección de bug
-refactor: cambio sin impacto funcional
-test:     solo tests
-docs:     solo documentación
-chore:    mantenimiento (deps, config, CI)
-```
+**Regla de oro**: Edita SHARED_INSTRUCTIONS.md primero. Luego sincroniza solo las
+especializaciones afectadas (copilot-instructions.md y/o CLAUDE.md).
 
 ---
 
-## Gobernanza de plataformas duales
-
-### Sincronización Copilot Chat ↔ Claude Code
-
-- **SHARED_INSTRUCTIONS.md** ← fuente de verdad para arquitectura, flujos, SOLID, patrones
-- **copilot-instructions.md** ← especialización Copilot Chat (agentes, prompts)
-- **CLAUDE.md** ← especialización Claude Code (slash commands, offline, settings)
-
-### Referencias clave
-- Agentes: [`.github/AGENTS.md`](.github/AGENTS.md) — 11 agentes (Plan Architect, Config Reviewer, etc.)
-- Mapeo plataformas: [`.github/INTEGRATION_MAP.md`](.github/INTEGRATION_MAP.md) — gobernanza y sincronización
-- Instrucciones por área: [`.github/instructions/`](.github/instructions/)
-- Documentación del proyecto: [`docs/v0.6.7/INDEX.md`](docs/v0.6.7/INDEX.md)
-
----
-
-## Contexto adicional
-
-### Configuración de tools
-- **Copilot Chat**: [`.github/copilot-instructions.md`](.github/copilot-instructions.md)
-- **Claude Code**: [`CLAUDE.md`](CLAUDE.md), [`.claude/README.md`](.claude/README.md)
-- **Prompts**: [`.github/prompts/`](.github/prompts/) — 9 prompts por tipo de tarea
-
-### Documentación y sesiones
-- Arquitectura extendida: [`.ai/architecture.md`](.ai/architecture.md)
-- Sesiones previas: [`.ai/sessions/`](.ai/sessions/)
-- Guía uso Claude Code: [`docs/examples/claude_code_usage_complete_example.md`](docs/examples/claude_code_usage_complete_example.md)
-- Plan v0.6.7: [`docs/v0.6.7/CLAUDE_INSTRUCTIONS_IMPROVEMENT_PLAN.md`](docs/v0.6.7/CLAUDE_INSTRUCTIONS_IMPROVEMENT_PLAN.md)
-
----
-
-*Actualizado: 2026-04-18 — Config Reviewer audit*
+*Actualizado: 2026-05-02*
