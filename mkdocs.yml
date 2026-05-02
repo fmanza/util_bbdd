@@ -26,6 +26,57 @@ exclude_docs: |
 nav:
   - Inicio: index.md
   - Instalación: INSTALLATION.md
+
+  # ── Audiencia: Product Owner, QA, responsables de negocio ──────────────────
+  - Documentación Funcional:
+      - Managers:
+          - Gestión de Conexiones (Sync): functional/managers-sync.md
+          - Gestión de Conexiones (Async): functional/managers-async.md
+      - Metadatos e Introspección:
+          - Extracción de Metadatos: functional/metadata-extraction.md
+          - Selección de Driver: functional/drivers-selection.md
+      - Operaciones de Datos:
+          - Operaciones Bulk (CRUD): functional/bulk-operations.md
+          - Auditoría de Operaciones Bulk: functional/bulk-audit.md
+      - Queries y Validación:
+          - Registro de Queries: functional/query-registry.md
+          - Patrón de Validadores: functional/validators-pattern.md
+      - Comparación de Esquemas:
+          - Comparador de Esquemas: functional/schema-comparison.md
+      - Documentación de BD:
+          - Generación de Documentación: functional/database-documentation.md
+
+  # ── Audiencia: Desarrolladores, ingenieros de datos, DBAs ──────────────────
+  - Referencia Técnica:
+      - Referencia Rápida: API_REFERENCE.md
+      - Managers:
+          - Manager Síncrono: api/managers-sync.md
+          - Manager Asíncrono: api/managers-async.md
+          - Ciclo de Vida de Conexión: api/managers-lifecycle.md
+          - Factory de Estrategias de Metadata: api/managers-metadata-factory.md
+      - Metadatos e Introspección:
+          - Gestor de Metadatos: api/metadata-manager.md
+      - Conexiones:
+          - Factory de Conexiones: api/connection-factory.md
+      - Operaciones Bulk:
+          - CRUD Masivo: api/bulk-crud.md
+          - Auditoría Bulk: api/bulk-audit.md
+      - Sistema de Queries:
+          - Registry y Resolver: api/query-system.md
+          - Sistema de Validadores: api/validators-system.md
+      - Comparación de Esquemas:
+          - Comparador y Reporters: api/schema-comparator.md
+      - Documentación de BD:
+          - Generador de Documentación: api/database-documentation.md
+      - Autodoc (mkdocstrings):
+          - Índice: api/index.md
+          - Managers: api/managers.md
+          - Comparador: api/comparator.md
+          - Reporters: api/reporters.md
+          - Bulk Operations: api/bulk.md
+          - Excepciones: api/exceptions.md
+
+  # ── Guías de uso y operación ───────────────────────────────────────────────
   - Guías:
       - Programación Asíncrona: ASYNC_GUIDE.md
       - Drivers PostgreSQL: POSTGRESQL_DRIVER_GUIDE.md
@@ -36,18 +87,12 @@ nav:
       - Migración v0.6.6→v0.6.7: MIGRATION_GUIDE_v0.6.7.md
       - Performance & Benchmarks: BENCHMARKS.md
       - "Herramientas IA":
+          - Guía completa (VS Code): examples/doc_generation_vscode_guide.md
           - Copilot Chat (.github): examples/github_usage_complete_example.md
           - Claude Code: examples/claude_code_usage_complete_example.md
           - Codex (OpenAI): examples/codex_usage_complete_example.md
-  - API Reference:
-      - Referencia Rápida: API_REFERENCE.md
-      - Autodoc:
-          - Índice: api/index.md
-          - Managers: api/managers.md
-          - Comparador: api/comparator.md
-          - Reporters: api/reporters.md
-          - Bulk Operations: api/bulk.md
-          - Excepciones: api/exceptions.md
+
+  # ── Ejemplos de código ─────────────────────────────────────────────────────
   - Ejemplos:
       - Generación de Documentación: examples/database_documentation_generation.md
       - Cache de Metadatos: examples/metadata_cache_usage.md
@@ -63,6 +108,8 @@ nav:
           - MariaDB JSON Schema: examples/phase4_mariadb_json_schema.md
           - SQLite JSON Schema: examples/phase4_sqlite_json_schema.md
           - Redshift JSON Schema: examples/phase4_redshift_json_schema.md
+
+  # ── Contexto del proyecto ──────────────────────────────────────────────────
   - Arquitectura:
       - ADR-001 Refactoring: adr/ADR-001-STRUCTURE-REFACTORING.md
   - Roadmap & Planificación:

@@ -7,8 +7,9 @@ Genera diagramas Mermaid.js y documentación técnica para módulos de **util_bb
 ```
 Actúa como arquitecto de software senior especializado en Python y herramientas DevOps.
 
-Analiza el módulo [NOMBRE_MÓDULO] de util_bbdd (extractor de timelogs de GitLab).
-util_bbdd usa: python-gitlab, xlsxwriter, pandas, TOML config, Decimal para precisión.
+Analiza el módulo [NOMBRE_MÓDULO] de util_bbdd (framework multi-base de datos).
+util_bbdd usa: SQLAlchemy, pyodbc, cx_Oracle, psycopg2, asyncpg, pandas, openpyxl,
+python-docx, Jinja2 y conectores nativos para Snowflake, MariaDB y Redshift.
 
 Genera documentación técnica en Markdown con estas secciones:
 
@@ -75,7 +76,7 @@ import anthropic
 
 client = anthropic.Anthropic()
 
-with open("src/util_bbdd/timelog/project_loader.py") as f:
+with open("src/util_bbdd/managers/sync_mgr.py") as f:
     codigo = f.read()
 
 message = client.messages.create(
@@ -88,7 +89,7 @@ message = client.messages.create(
 
 Analiza el siguiente módulo de util_bbdd y genera documentación técnica.
 
-MÓDULO: project_loader.py
+MÓDULO: sync_mgr.py
 ```python
 {codigo}
 ```
@@ -116,7 +117,7 @@ from openai import OpenAI
 
 client = OpenAI()
 
-with open("src/util_bbdd/timelog/project_loader.py") as f:
+with open("src/util_bbdd/managers/sync_mgr.py") as f:
     codigo = f.read()
 
 response = client.chat.completions.create(
@@ -157,15 +158,19 @@ print(response.choices[0].message.content)
 
 | Módulo | Diagrama recomendado | Motivo |
 |---|---|---|
-| `load_gitlab.py` | `sequenceDiagram` | Flujo auth → conexión → sesión |
-| `project_loader.py` | `sequenceDiagram` | Request → filtrado → lista proyectos |
-| `time_utils.py` | `flowchart TD` | Lógica de decisión en parseo |
-| `issue_helpers.py` | `flowchart TD` | Clasificación incidente/severidad |
-| `excel_formatter.py` | `flowchart TD` | Pipeline de formateo por hojas |
-| `calendar.py` | `flowchart TD` | Cálculo semana ISO/fiscal |
-| `decimal_utils.py` | `classDiagram` | Contratos de funciones utilitarias |
-| `crear_csv.py` | `sequenceDiagram` | Proceso datos → fichero CSV |
-| `crear_json.py` | `sequenceDiagram` | Proceso datos → fichero JSON |
+| `managers/sync_mgr.py` | `flowchart TD` | Ciclo de vida: create → connect → execute → close |
+| `managers/async_mgr.py` | `flowchart TD` | Mismo ciclo que sync con operaciones await |
+| `metadata/manager.py` | `sequenceDiagram` | Petición → motor de BD → metadatos → resultado |
+| `metadata/fetcher.py` | `sequenceDiagram` | Obtención de metadatos por adaptador de motor |
+| `metadata/cache.py` | `flowchart TD` | Lógica hit/miss/invalidación de caché |
+| `bulk/crud.py` | `flowchart TD` | Pipeline: DataFrame → validación → BD |
+| `bulk/audit.py` | `flowchart TD` | Registro, filtrado y exportación de auditoría |
+| `connection/factory.py` | `flowchart TD` | Decisión de driver por tipo de BD |
+| `comparar/comparator.py` | `flowchart TD` | Prefetch columnas → comparación tablas/columnas/índices/FKs/vistas/rutinas → SchemaDiff |
+| `comparar/reporters/` | `sequenceDiagram` | SchemaDiff → SchemaDiffReporter → ficheros Word/Excel/HTML/Markdown/SQL |
+| `doc/database_documentation.py` | `sequenceDiagram` | Config → render → fichero HTML/Excel/Word |
+| `validators/base_validator.py` | `classDiagram` | Jerarquía de validators por motor |
+| `query/registry.py` | `flowchart TD` | Resolución de queries SQL por driver |
 
 ## Output esperado
 

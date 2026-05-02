@@ -1,15 +1,19 @@
 # Prompt: functional_doc — Documentación funcional (Product Owner)
 
-Genera documentación funcional para módulos de **util_bbdd** (extractor de timelogs de GitLab).
+Genera documentación funcional para módulos de **util_bbdd** (framework multi-base de datos para introspección de esquemas, operaciones bulk y documentación de BD).
 
 ## Instrucción al modelo
 
 ```
-Actúa como Senior Product Owner especializado en herramientas de DevOps y gestión de proyectos.
+Actúa como Senior Product Owner especializado en herramientas de datos e infraestructura.
 
 Analiza el módulo Python proporcionado de util_bbdd.
-util_bbdd extrae timelogs de GitLab vía REST API y genera reportes en Excel, CSV y JSON.
-Sus usuarios son jefes de proyecto, responsables de calidad y equipos de datos.
+util_bbdd es un framework multi-base de datos que conecta a PostgreSQL, MySQL, MariaDB, Oracle,
+SQL Server, SQLite, Snowflake y Redshift. Permite extraer metadatos de esquemas, ejecutar
+operaciones bulk desde DataFrames, comparar esquemas entre dos bases de datos (generando
+diferencias en formato HTML, Excel, Word, Markdown y script SQL de nivelación) y generar
+documentación técnica de BD en Word, Excel y HTML.
+Sus usuarios son desarrolladores, ingenieros de datos, DBAs y equipos DevOps.
 
 Genera un documento Markdown con estas secciones en este orden exacto:
 
@@ -25,7 +29,7 @@ Incluye: datos de entrada, configuraciones previas, dependencias externas.
 Un diagrama Mermaid sequenceDiagram que muestre la interacción entre:
 - El actor principal (usuario, pipeline CI/CD, etc.)
 - Los componentes del módulo (sin nombres de clases internas)
-- El sistema externo relevante (GitLab API, sistema de ficheros)
+- El sistema externo relevante (base de datos: PostgreSQL/MySQL/Oracle/etc., sistema de ficheros)
 - La salida generada
 
 ## Reglas de negocio críticas
@@ -70,7 +74,7 @@ import anthropic
 
 client = anthropic.Anthropic()
 
-with open("src/util_bbdd/timelog/time_utils.py") as f:
+with open("src/util_bbdd/metadata/manager.py") as f:
     codigo = f.read()
 
 message = client.messages.create(
@@ -109,7 +113,7 @@ from openai import OpenAI
 
 client = OpenAI()
 
-with open("src/util_bbdd/timelog/time_utils.py") as f:
+with open("src/util_bbdd/metadata/manager.py") as f:
     codigo = f.read()
 
 response = client.chat.completions.create(
