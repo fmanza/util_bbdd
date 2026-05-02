@@ -186,6 +186,8 @@ Después, verifica con tests.
 
 ### Ejemplo 3. Crear o actualizar documentación
 
+#### Modo módulo concreto
+
 **Solicitud a Codex**:
 
 ```text
@@ -199,6 +201,8 @@ Restricciones:
 - excluir generación mediante APIs externas
 
 Incluye apartados funcionales, técnicos y un ejemplo de funcionamiento verificable.
+Aplica .github/prompts/functional_doc.prompt.md para el apartado funcional
+y .github/prompts/technical_doc.prompt.md para el técnico con diagrama Mermaid.
 Actualiza mkdocs.yml si creas o mueves páginas.
 ```
 
@@ -207,11 +211,36 @@ Actualiza mkdocs.yml si creas o mueves páginas.
 1. Lee `src/util_bbdd/doc/database_documentation.py`
 2. Lee `README.md`, `docs/`, `docs/examples/` y `mkdocs.yml`
 3. Decide si actualiza una página existente o crea una nueva
-4. Separa claramente documentación funcional, técnica y ejemplo de uso
-5. Usa Mermaid solo si el flujo se infiere del código real
-6. Verifica que los ejemplos sean ejecutables o marca lo pendiente de verificación
-7. Ejecuta `mkdocs build` si el entorno lo permite
-8. Resume cambios en documentación y navegación
+4. Genera primero el mapeo funcional (objetivo, precondiciones, flujo, reglas)
+5. Genera después la documentación técnica (responsabilidad, Mermaid, API, contratos)
+6. Añade un ejemplo de uso verificable en `docs/examples/` si falta
+7. Usa Mermaid solo si el flujo se infiere del código real
+8. Verifica que los ejemplos sean ejecutables o marca lo pendiente de verificación
+9. Actualiza `mkdocs.yml` bajo las secciones correspondientes
+10. Ejecuta `mkdocs build` si el entorno lo permite; reporta errores de navegación
+
+#### Modo proyecto completo
+
+Para documentar todo el proyecto, instruye a Codex con fases explícitas:
+
+```text
+Trabaja sobre util_bbdd.
+
+Objetivo: actualizar la documentación pública del proyecto completo.
+Restricciones:
+- no refactorizar código existente
+- no inventar capacidades, módulos, parámetros ni salidas
+- excluir generación mediante APIs externas
+- no usar un prompt masivo; iterar por módulo en cada fase
+
+Fases:
+1. Inventariar módulos públicos en src/util_bbdd/; clasificar en sin-doc / desactualizado / vigente.
+2. Mapeo funcional con functional_doc.prompt.md para cada módulo sin doc o desactualizado.
+3. Documentación técnica con technical_doc.prompt.md y Mermaid apropiado por módulo.
+4. Ejemplos verificables en docs/examples/ para módulos sin ejemplo reproducible.
+5. Sincronizar mkdocs.yml: añadir/mover/retirar entradas de navegación.
+6. Revisión final: validar Markdown, enlaces relativos y sintaxis Mermaid.
+```
 
 ### Ejemplo 4. Auditoría independiente (requiere intervención del usuario)
 

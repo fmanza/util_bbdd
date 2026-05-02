@@ -8,24 +8,27 @@ Fachada pública que orquesta la generación de documentación de bases de datos
 
 ```mermaid
 flowchart TD
-    A[DatabaseDocumentation.__init__] --> B[DocumentationBootstrap.build]
+    A["DatabaseDocumentation()"] --> B["DocumentationBootstrap.build()"]
     B --> C[SyncDatabaseManagerAdapter]
     B --> D[DocumentationSession]
-    A --> E[generate()]
+    A --> E["generate()"]
     E --> F[DocumentationOrchestrator]
     F --> G[DocumentationOutputPlanner]
-    G --> H{Formatos solicitados}
+    G --> H{Formatos}
     H -->|html| K[HtmlGenerator]
     H -->|excel| J[ExcelGenerator]
     H -->|word| I[WordGenerator]
-    I & J & K --> L[SyncDatabaseManager vía Adapter]
+    I --> L[SyncDatabaseManager]
+    J --> L
+    K --> L
     L --> M[Base de datos]
     I --> N[Fichero .docx]
     J --> O[Fichero .xlsx]
     K --> P[Ficheros .html]
-    E --> Q{¿Grafos solicitados?}
-    Q -->|Sí| R[GraphvizRelationshipGraphExt]
+    E --> Q{Grafos?}
+    Q -->|Si| R[GraphvizRelationshipGraphExt]
     R --> N
+    R --> P
 ```
 
 ## API pública

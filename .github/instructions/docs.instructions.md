@@ -41,14 +41,28 @@ applyTo: "docs/**"
 - No incluyas generación de documentación mediante APIs externas por el momento; documenta flujos manuales, locales o asistidos por agentes/prompts del repositorio.
 - No reutilices nombres, rutas o clases de otros proyectos en ejemplos. Antes de escribir ejemplos, valida que las rutas existen en este repositorio y usa siempre `util_bbdd` como contexto del proyecto.
 
+## Punto de entrada único
+
+**Documentation Generator** es el único punto de entrada para crear o actualizar documentación,
+tanto de un módulo concreto como del proyecto completo. No uses un único prompt masivo:
+divide siempre el trabajo en las fases del flujo estándar.
+
+Para auditar sin editar, usa **Documentation Reviewer** con `.github/prompts/documentation_review.prompt.md`.
+
 ## Flujo estándar de creación o actualización
 
-1. Inventariar fuentes reales: código, README, `docs/`, ejemplos, configuración, workflows y `mkdocs.yml`.
-2. Mapear capacidades existentes sin asumir módulos por nombre histórico.
-3. Decidir si se actualiza una página existente o se crea una nueva.
-4. Generar primero el mapeo funcional, después la documentación técnica y finalmente los ejemplos.
-5. Añadir o corregir la entrada correspondiente en `mkdocs.yml`.
-6. Ejecutar o recomendar `mkdocs build` para validar navegación, Markdown y Mermaid.
+Aplica este flujo tanto para un módulo individual como para el proyecto completo:
+
+1. **Inventariar** fuentes reales: `src/`, README, `docs/`, `docs/examples/`, configuración y `mkdocs.yml`.
+2. **Mapear** capacidades existentes sin asumir módulos por nombre histórico.
+3. **Decidir** si se actualiza una página existente o se crea una nueva (preferir actualización).
+4. **Mapeo funcional** (fase separada): aplicar `functional_doc.prompt.md` — objetivo de negocio,
+   precondiciones, flujo Mermaid `sequenceDiagram`, reglas críticas, ejemplo.
+5. **Documentación técnica** (fase separada): aplicar `technical_doc.prompt.md` — responsabilidad,
+   diagrama Mermaid apropiado, API pública, contratos, errores, ejemplo técnico.
+6. **Ejemplos** (fase separada): código verificable, resultado determinista, sin credenciales reales.
+7. **Actualizar `mkdocs.yml`**: añadir, mover o retirar entradas de navegación afectadas.
+8. **Validar**: comprobar Markdown, enlaces relativos y sintaxis Mermaid; ejecutar `mkdocs build`.
 
 ## Prompt base para mapeo funcional
 

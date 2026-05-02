@@ -421,7 +421,32 @@ Usa `/audit-code` cuando quieras una revisión técnica general de un módulo o 
 
 #### ¿Cómo pido documentación con el contrato actual?
 
-Pide una actualización documental, no solo "crear un Markdown". Claude debe leer `.github/SHARED_INSTRUCTIONS.md`, `.github/instructions/docs.instructions.md`, la documentación existente y `mkdocs.yml`; después debe separar contenido funcional, técnico y ejemplos. Mermaid se usa solo si el flujo es verificable y la generación mediante APIs externas queda fuera de alcance por ahora.
+Usa siempre el **Documentation Generator** como único punto de entrada. No pidas "crear un Markdown" en bloque: trabaja por fases separadas.
+
+**Para un módulo concreto**:
+
+```text
+Lee [ruta_del_módulo] y genera documentación funcional y técnica.
+Aplica .github/prompts/functional_doc.prompt.md y .github/prompts/technical_doc.prompt.md.
+Guarda en docs/functional/[nombre].md y docs/api/[nombre].md.
+Actualiza mkdocs.yml si se crean páginas nuevas.
+No inventes capacidades; marca como pendiente lo no verificable.
+```
+
+**Para el proyecto completo** (6 fases; no usar prompt masivo):
+
+```text
+Revisa el proyecto completo y actualiza la documentación pública en 6 fases:
+1. Inventariar módulos reales en src/util_bbdd/ y clasificarlos.
+2. Mapeo funcional con functional_doc.prompt.md por módulo sin doc o desactualizado.
+3. Documentación técnica con technical_doc.prompt.md y Mermaid apropiado.
+4. Ejemplos verificables en docs/examples/ para módulos sin ejemplo reproducible.
+5. Sincronizar mkdocs.yml.
+6. Revisión final: Markdown, enlaces y Mermaid; recomendar mkdocs build.
+No inventes módulos ni capacidades. No uses APIs externas por ahora.
+```
+
+Reglas del contrato documental: separar siempre funcional / técnico / ejemplos; usar Mermaid solo con flujo verificable; actualizar `mkdocs.yml`; no inventar nada; excluir generación por API.
 
 ---
 

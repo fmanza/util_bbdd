@@ -69,3 +69,53 @@ Incluye estas subsecciones dentro de `AUDIT_CODE`:
 - Riesgos de invención
 - Duplicación entre prompts/agentes/instrucciones
 - Cumplimiento de exclusión de APIs externas
+
+## Formato de salida completo
+
+Devuelve el resultado en este orden y con estas secciones:
+
+### PLAN
+- Alcance de la revisión (módulo concreto o proyecto completo)
+- Fuentes consultadas: README, `docs/`, `docs/examples/`, docstrings, `mkdocs.yml`, prompts IA
+- Criterio de priorización: Nivel 1 > Nivel 2 > Nivel 3
+
+### AUDIT_PLAN
+- Riesgos identificados antes de revisar (cobertura insuficiente, desactualización, inventar datos)
+- Veredicto: `GO | GO_CONDICIONAL | NO_GO`
+
+### AUDIT_CODE
+Incluye las subsecciones:
+
+#### README y puntos de entrada
+#### Documentación funcional (`docs/functional/`)
+- Módulos con objetivo de negocio, flujo y reglas documentados
+- Módulos sin documentación funcional
+
+#### Documentación técnica (`docs/api/`)
+- Módulos con responsabilidad, Mermaid, API y contratos documentados
+- Módulos sin documentación técnica
+
+#### Ejemplos (`docs/examples/`)
+- Ejemplos existentes: ubicación, completitud, reproducibilidad
+- Módulos principales sin ejemplo verificable
+
+#### MkDocs y navegación
+- Estado de `mkdocs.yml` (separación funcional/técnica/ejemplos)
+- Páginas huérfanas (en disco, no en nav)
+- Páginas rotas (en nav, no en disco)
+
+#### Docstrings y type hints
+- Cobertura en módulos públicos
+- APIs sin parámetros, returns o excepciones documentadas
+
+#### Prompts IA de documentación
+- Riesgos de invención en prompts/agentes
+- Duplicación entre ficheros de instrucciones
+- Cumplimiento de la exclusión de APIs externas
+
+### VERSION
+- Hallazgos Nivel 1 (críticos): acción inmediata requerida
+- Hallazgos Nivel 2 (altos): planificados para próxima iteración
+- Hallazgos Nivel 3 (recomendados): backlog
+- Veredicto de readiness: `PRODUCTION_READY | NEAR_READY | BLOCKED`
+- Próximos pasos priorizados (máximo 5 ítems)

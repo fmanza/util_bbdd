@@ -113,23 +113,59 @@ duplicación de contenido shared.
 
 ## Documentación con Copilot Chat
 
-Para crear o actualizar documentación, usa **Documentation Generator** como punto de entrada único.
-El agente debe revisar documentación existente, actualizar o crear páginas en `docs/`, y sincronizar
-`mkdocs.yml` cuando cambie la navegación.
+Usa **Documentation Generator** como **único punto de entrada** para crear o actualizar documentación,
+tanto de un módulo concreto como del proyecto completo.
+No uses un único prompt masivo: divide siempre el trabajo por fases.
 
-**Solicitud recomendada**:
+### Flujo por fases
+
+```
+Fase 1 — Inventariar: src/, README, docs/, docs/examples/, mkdocs.yml
+Fase 2 — Mapeo funcional (Senior Product Owner): objetivo, precondiciones, flujo Mermaid, reglas
+Fase 3 — Documentación técnica: responsabilidad, Mermaid, API pública, contratos, errores
+Fase 4 — Ejemplos verificables: código real, resultado determinista, sin credenciales
+Fase 5 — Sincronizar mkdocs.yml: añadir/mover/retirar entradas de navegación
+Fase 6 — Revisión final: Markdown, enlaces relativos, sintaxis Mermaid, mkdocs build
+```
+
+**Solicitud para módulo único**:
 
 ```markdown
 @Documentation Generator
 
-Actualiza la documentación de [módulo/capacidad/proyecto completo].
-Incluye apartados funcionales, técnicos y ejemplos de funcionamiento cuando sean verificables.
-Actualiza mkdocs.yml si se crean, mueven o eliminan páginas.
-No inventes capacidades ni uses generación mediante APIs externas.
+Genera documentación funcional y técnica para [ruta_del_módulo].
+Aplica functional_doc.prompt.md y technical_doc.prompt.md.
+Guarda en docs/functional/[nombre].md y docs/api/[nombre].md.
+Actualiza mkdocs.yml si se crean páginas nuevas.
+No inventes capacidades; marca como pendiente lo no verificable.
 ```
 
-Para auditar documentación sin editar, usa **Documentation Reviewer** y pide revisión explícita de:
-README, `docs/`, `docs/examples/`, docstrings públicos, prompts/agentes IA y `mkdocs.yml`.
+**Solicitud para proyecto completo**:
+
+```markdown
+@Documentation Generator
+
+Revisa el proyecto completo y actualiza la documentación pública en 6 fases:
+1. Inventariar módulos reales en src/util_bbdd/ y clasificarlos.
+2. Mapeo funcional con functional_doc.prompt.md por módulo sin doc o desactualizado.
+3. Documentación técnica con technical_doc.prompt.md y Mermaid apropiado.
+4. Ejemplos verificables en docs/examples/ para módulos sin ejemplo reproducible.
+5. Sincronizar mkdocs.yml.
+6. Revisión final: Markdown, enlaces y Mermaid; recomendar mkdocs build.
+
+No inventes módulos ni capacidades; marca como pendiente lo no verificable.
+No uses APIs externas por el momento.
+```
+
+**Para auditar documentación sin editar**, usa **Documentation Reviewer**:
+
+```markdown
+@Documentation Reviewer
+
+Revisa docs/, docs/examples/, README y mkdocs.yml para detectar gaps.
+Usa .github/prompts/documentation_review.prompt.md como criterio.
+Entrega hallazgos con severidad (Nivel 1/2/3) sin editar archivos.
+```
 
 ---
 

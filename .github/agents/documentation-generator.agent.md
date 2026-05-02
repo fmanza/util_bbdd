@@ -90,11 +90,41 @@ Estructura mínima:
 
 ## Cobertura de proyecto completo
 
-Cuando el usuario pida documentar o actualizar todo el proyecto:
-- Construye un inventario de módulos públicos desde el árbol real.
+Cuando el usuario pida documentar o actualizar todo el proyecto, usa este flujo por fases.
+**No generes todo en un único paso**: itera módulo a módulo dentro de cada fase.
+
+### Fase 1 — Inventario real
+- Lee `src/util_bbdd/` y lista todos los módulos públicos (exportados en `__init__.py` o `__all__`).
 - Contrasta cada módulo con `README.md`, `docs/`, `docs/examples/` y `mkdocs.yml`.
-- Prioriza primero entry points, CLI, API pública, configuración y ejemplos reproducibles.
-- Entrega una lista de páginas creadas, actualizadas y pendientes, con razón verificable.
+- Clasifica: (A) sin documentación, (B) documentación desactualizada, (C) documentación vigente.
+- Prioriza: entry points > CLI > API pública > configuración > ejemplos reproducibles.
+
+### Fase 2 — Mapeo funcional (Senior Product Owner)
+- Para cada módulo de tipo A o B, aplica `functional_doc.prompt.md`.
+- Genera o actualiza `docs/functional/[nombre].md` con: objetivo de negocio, precondiciones,
+  flujo `sequenceDiagram`, reglas críticas, ejemplo genérico verificable.
+- Marca como "Pendiente de verificación" cualquier sección sin evidencia en el código.
+
+### Fase 3 — Documentación técnica con Mermaid
+- Para cada módulo de tipo A o B, aplica `technical_doc.prompt.md`.
+- Genera o actualiza `docs/api/[nombre].md` con: responsabilidad, diagrama Mermaid apropiado,
+  API pública, contratos entrada/salida, errores y ejemplo técnico mínimo.
+- Elige tipo de diagrama según patrón del módulo (ver `technical_doc.prompt.md`).
+
+### Fase 4 — Ejemplos verificables
+- Para cada módulo sin ejemplo en `docs/examples/`, genera un ejemplo de uso real.
+- Código reproducible con datos ficticios seguros; resultado determinista.
+- Sin credenciales reales ni servicios externos obligatorios.
+
+### Fase 5 — Sincronización de mkdocs.yml
+- Añade entradas de navegación para todas las páginas nuevas bajo las secciones correctas.
+- Retira entradas de páginas eliminadas o renombradas.
+- Verifica que no queden páginas huérfanas (en `docs/` pero no en `nav`) ni rotas (en `nav` pero no en disco).
+
+### Fase 6 — Revisión y entrega
+- Valida Markdown, enlaces relativos y sintaxis Mermaid.
+- Ejecuta o recomienda `mkdocs build` para detectar errores de navegación.
+- Entrega inventario final: páginas creadas, actualizadas, sin cambios y pendientes de verificación humana.
 
 ## Restricciones
 
@@ -150,7 +180,14 @@ Destino: docs/api/issue-helpers.md
 ```
 @Documentation Generator
 
-Revisa el proyecto completo y actualiza la documentación pública.
-Incluye documentación funcional, técnica, ejemplos y mkdocs.yml.
-No inventes módulos ni capacidades; marca como pendiente lo que no pueda verificarse.
+Revisa el proyecto completo y actualiza la documentación pública en 6 fases:
+1. Inventariar módulos reales en src/util_bbdd/ y clasificarlos (sin doc / desactualizado / vigente).
+2. Mapeo funcional con functional_doc.prompt.md para cada módulo sin doc o desactualizado.
+3. Documentación técnica con technical_doc.prompt.md y diagrama Mermaid apropiado por módulo.
+4. Ejemplos verificables en docs/examples/ para módulos sin ejemplo reproducible.
+5. Sincronizar mkdocs.yml: añadir/mover/retirar entradas de navegación.
+6. Revisión final: validar Markdown, enlaces y Mermaid; recomendar mkdocs build.
+
+No inventes módulos ni capacidades; marca como pendiente lo no verificable.
+No uses APIs externas por el momento.
 ```

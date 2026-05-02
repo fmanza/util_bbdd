@@ -45,7 +45,26 @@ Lee antes de revisar:
 - NO inventes páginas, módulos, APIs ni ejemplos; si falta evidencia, dilo como incertidumbre.
 - NO recomiendes generación mediante APIs externas por ahora.
 
-## Enfoque
+## Modo de revisión
+
+### Módulo concreto
+Proporciona la ruta del módulo o la página de documentación que quieras auditar.
+El agente revisa la página existente, contrasta con el código real y emite hallazgos.
+
+### Proyecto completo
+Cuando se pida revisar todo el proyecto, sigue estas fases:
+
+1. **Inventario**: lista todos los módulos públicos en `src/util_bbdd/` y contrasta
+   con `docs/functional/`, `docs/api/`, `docs/examples/` y entradas en `mkdocs.yml`.
+2. **Cobertura funcional**: ¿cada módulo tiene objetivo de negocio, flujo y reglas documentados?
+3. **Cobertura técnica**: ¿cada módulo tiene responsabilidad, diagrama Mermaid, API y contratos?
+4. **Ejemplos**: ¿existen ejemplos verificables por módulo principal? ¿son reproducibles?
+5. **Calidad**: docstrings, type hints, enlaces relativos, Mermaid válido, sin detalles inventados.
+6. **Navegación**: `mkdocs.yml` coherente con páginas reales (sin huérfanas ni rotas).
+7. **Separación**: ¿funcional, técnico y ejemplos tienen secciones claramente diferenciadas?
+8. **Veredicto**: readiness global con prioridades de mejora inmediata.
+
+## Enfoque paso a paso
 
 1. **Descubre el estado actual**: mapea archivos de doc, ejemplos, guías.
 2. **Audita coverage**: ¿qué features/módulos/patrones están documentados?

@@ -60,22 +60,44 @@ Restricciones:
 
 ## Cómo usar este prompt
 
-### En Claude Code
+### Modo módulo único — Claude Code
 
 ```
-Lee el archivo [ruta_del_módulo] y genera documentación técnica con diagrama Mermaid
+Lee [ruta_del_módulo] y genera documentación técnica con diagrama Mermaid
 usando el prompt en .github/prompts/technical_doc.prompt.md.
-Guarda el resultado en docs/[sección_apropiada]/[nombre_módulo].md
-Actualiza `mkdocs.yml` si se crea o mueve una página.
+Guarda el resultado en docs/[sección_apropiada]/[nombre_módulo].md.
+Actualiza mkdocs.yml si se crea o mueve una página.
+No inventes firmas ni efectos secundarios; marca como pendiente lo no verificable.
 ```
 
-### En Copilot Chat
+### Modo módulo único — Copilot Chat
 
 ```
 #file:.github/prompts/technical_doc.prompt.md
 #file:[ruta_del_módulo]
 
 Genera la documentación técnica con diagrama Mermaid del módulo indicado.
+```
+
+### Modo proyecto completo (iterativo por módulo)
+
+No uses un único prompt masivo. Recorre el proyecto en fases:
+
+```
+Fase 1 — Inventariar módulos públicos desde src/util_bbdd/.
+  Lista funciones/clases exportadas en __init__.py o __all__; agrúpalas por área funcional.
+
+Fase 2 — Para cada módulo (o área), aplica technical_doc.prompt.md:
+  "Lee [ruta] y genera docs/api/[nombre].md con responsabilidad, diagrama Mermaid,
+   API pública, contratos de entrada/salida, errores y ejemplo técnico mínimo.
+   Elige el tipo de diagrama según el patrón del módulo (ver tabla más abajo).
+   Marca como pendiente lo no verificable."
+
+Fase 3 — Actualizar mkdocs.yml:
+  Añade o actualiza entradas en la sección docs/api/ del nav.
+
+Fase 4 — Revisión cruzada:
+  Contrasta con docs/functional/ y docs/examples/ para detectar inconsistencias de contratos.
 ```
 
 ## Tipos de diagrama recomendados
@@ -86,10 +108,24 @@ Genera la documentación técnica con diagrama Mermaid del módulo indicado.
 | Pipeline de transformación o decisiones | `flowchart TD` | Muestra ramas, validaciones y resultado |
 | Jerarquía pública de clases | `classDiagram` | Muestra contratos orientados a objetos |
 
+## Prompt dedicado para infografías Mermaid
+
+Usa este prompt cuando necesites solo el diagrama, sin la documentación técnica completa:
+
+```
+Basándote únicamente en la lógica verificable del módulo [Nombre], genera exclusivamente
+el código Mermaid.js para un diagrama de secuencia que ilustre la interacción entre el
+usuario, el componente principal y sus salidas.
+Omite: credenciales, puertos, variables internas, rutas de implementación, nombres de bases de datos.
+Incluye: actores externos, operaciones de negocio, puntos de decisión, flujo de datos.
+Máximo 12 nodos. Etiquetas en español.
+Si el flujo no puede inferirse con seguridad, declara qué información falta en lugar de inventar.
+```
+
 ## Exclusiones actuales
 
-- No incluir por ahora ejemplos de generación mediante APIs externas.
-- No usar un único prompt masivo para documentar todo el proyecto; dividir por módulo o capacidad.
+- No incluir ejemplos de generación mediante APIs externas por el momento.
+- No usar un único prompt masivo para todo el proyecto; iterar módulo a módulo o por área.
 
 ## Output esperado
 

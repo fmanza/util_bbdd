@@ -737,7 +737,37 @@ No. La política actual permite Mermaid solo cuando aporta valor claro y el fluj
 
 ### ¿Qué agente uso para crear o actualizar documentación?
 
-Usa `../../.github/agents/documentation-generator.agent.md` como punto de entrada único. Debe revisar README, `docs/`, `docs/examples/`, docstrings públicos y `mkdocs.yml`; después decide si actualiza una página existente o crea una nueva. Para auditoría sin editar, usa `../../.github/agents/documentation-reviewer.agent.md`.
+Usa [documentation-generator.agent.md](../../.github/agents/documentation-generator.agent.md) como **único punto de entrada**. No uses un prompt masivo: trabaja por fases separadas.
+
+**Módulo concreto**:
+
+```text
+@Documentation Generator
+
+Genera documentación funcional y técnica para [ruta_del_módulo].
+Aplica functional_doc.prompt.md y technical_doc.prompt.md.
+Guarda en docs/functional/[nombre].md y docs/api/[nombre].md.
+Actualiza mkdocs.yml si se crean páginas nuevas.
+No inventes capacidades; marca como pendiente lo no verificable.
+```
+
+**Proyecto completo** (6 fases iterativas):
+
+```text
+@Documentation Generator
+
+Revisa el proyecto completo y actualiza la documentación pública en 6 fases:
+1. Inventariar módulos reales en src/util_bbdd/ y clasificarlos.
+2. Mapeo funcional con functional_doc.prompt.md por módulo sin doc o desactualizado.
+3. Documentación técnica con technical_doc.prompt.md y Mermaid apropiado.
+4. Ejemplos verificables en docs/examples/ para módulos sin ejemplo reproducible.
+5. Sincronizar mkdocs.yml.
+6. Revisión final: Markdown, enlaces y Mermaid; recomendar mkdocs build.
+No inventes módulos ni capacidades. No uses APIs externas por ahora.
+```
+
+Para **auditar sin editar**, usa [documentation-reviewer.agent.md](../../.github/agents/documentation-reviewer.agent.md) con
+el prompt [documentation_review.prompt.md](../../.github/prompts/documentation_review.prompt.md) como criterio de severidad.
 
 ### ¿Puedo pedir generación de documentación mediante API externa?
 

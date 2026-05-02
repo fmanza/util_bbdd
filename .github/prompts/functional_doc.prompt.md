@@ -53,28 +53,50 @@ Restricciones:
 
 ## Cómo usar este prompt
 
-### En Claude Code
+### Modo módulo único — Claude Code
 
 ```
-Lee el archivo [ruta_del_módulo] y genera la documentación funcional usando el
+Lee [ruta_del_módulo] y genera la documentación funcional usando el
 prompt en .github/prompts/functional_doc.prompt.md.
-Actualiza docs/functional/[nombre_módulo].md si existe o crea la página si no hay una equivalente.
-Actualiza también mkdocs.yml si se crea o mueve una página.
+Actualiza docs/functional/[nombre_módulo].md si existe, o crea la página si no hay equivalente.
+Actualiza mkdocs.yml si se crea o mueve una página.
+No inventes capacidades; si falta información, márcala como pendiente.
 ```
 
-### En Copilot Chat
+### Modo módulo único — Copilot Chat
 
 ```
 #file:.github/prompts/functional_doc.prompt.md
 #file:[ruta_del_módulo]
 
-Genera la documentación funcional del módulo indicado.
+Genera la documentación funcional del módulo indicado siguiendo las instrucciones del prompt.
+```
+
+### Modo proyecto completo (iterativo por módulo)
+
+No uses un único prompt masivo. Recorre el proyecto en fases:
+
+```
+Fase 1 — Inventariar módulos públicos desde src/util_bbdd/.
+  Lista todos los módulos exportados en __init__.py o __all__; agrúpalos por área.
+
+Fase 2 — Para cada módulo (o área), aplica functional_doc.prompt.md:
+  "Lee [ruta] y genera docs/functional/[nombre].md con objetivo de negocio,
+   precondiciones, flujo (Mermaid sequenceDiagram), reglas críticas y ejemplo.
+   Marca como pendiente cualquier sección que no puedas verificar."
+
+Fase 3 — Actualizar mkdocs.yml:
+  Añade o actualiza entradas en la sección docs/functional/ del nav.
+
+Fase 4 — Revisión cruzada:
+  Contrasta cada página generada con la documentación técnica (docs/api/)
+  y los ejemplos en docs/examples/ para detectar inconsistencias.
 ```
 
 ## Exclusiones actuales
 
-- No incluir por ahora ejemplos de generación mediante APIs externas.
-- No usar un único prompt masivo para documentar todo el proyecto; dividir por módulo o capacidad.
+- No incluir ejemplos de generación mediante APIs externas por el momento.
+- No usar un único prompt masivo para todo el proyecto; iterar módulo a módulo o por área.
 
 ## Output esperado
 
