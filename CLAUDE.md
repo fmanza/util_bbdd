@@ -145,22 +145,57 @@ Esta especialización es **compatible con agentes Copilot Chat**:
 
 ## Documentación con Claude Code
 
-Para crear o actualizar documentación, usa el mismo contrato que Copilot:
+Usa el **Documentation Generator** (agente) como **único punto de entrada** para crear o actualizar
+documentación, tanto de un módulo concreto como del proyecto completo.
+No uses un único prompt masivo: trabaja siempre por fases separadas.
 
-1. Lee `.github/SHARED_INSTRUCTIONS.md` y `.github/instructions/docs.instructions.md`.
-2. Revisa documentación existente antes de crear páginas nuevas.
-3. Separa apartados funcionales, técnicos y ejemplos.
-4. Usa Mermaid.js solo cuando el flujo sea verificable.
-5. Actualiza `mkdocs.yml` si se crean, mueven o eliminan páginas.
-6. No inventes capacidades, módulos, APIs, salidas ni dependencias.
-7. Excluye por el momento generación documental mediante APIs externas.
+### Flujo por fases
 
-Solicitud recomendada:
+```
+Fase 1 — Inventariar: leer src/, README, docs/, docs/examples/, mkdocs.yml
+Fase 2 — Mapeo funcional (Senior Product Owner): objetivo de negocio, precondiciones, flujo, reglas
+Fase 3 — Documentación técnica: responsabilidad, Mermaid, API pública, contratos, errores
+Fase 4 — Ejemplos verificables: código real, resultado determinista, sin credenciales reales
+Fase 5 — Sincronizar mkdocs.yml: añadir/mover/retirar entradas de navegación
+Fase 6 — Revisión final: validar Markdown, enlaces relativos y sintaxis Mermaid
+```
+
+### Solicitud para un módulo
 
 ```markdown
-Actualiza la documentación de [módulo/capacidad/proyecto completo].
-Incluye documentación funcional, técnica, ejemplos verificables y cambios necesarios en mkdocs.yml.
-No uses un único prompt masivo; trabaja por fases y marca como pendiente lo no verificable.
+Lee [ruta_del_módulo] y genera documentación funcional y técnica.
+Aplica .github/prompts/functional_doc.prompt.md y .github/prompts/technical_doc.prompt.md.
+Guarda en docs/functional/[nombre].md y docs/api/[nombre].md.
+Actualiza mkdocs.yml si se crean páginas nuevas.
+No inventes módulos ni capacidades; marca como pendiente lo no verificable.
+```
+
+### Solicitud para proyecto completo
+
+```markdown
+Revisa el proyecto completo y actualiza la documentación pública.
+Fases: (1) inventariar módulos reales, (2) mapeo funcional (Senior PO),
+(3) documentación técnica con Mermaid, (4) ejemplos verificables,
+(5) sincronizar mkdocs.yml.
+No inventes módulos ni capacidades; marca como pendiente lo no verificable.
+No uses APIs externas por el momento.
+```
+
+### Contrato documental obligatorio
+
+1. Revisar documentación existente antes de crear páginas nuevas; actualizar si el tema ya está cubierto.
+2. Separar siempre los apartados **funcional**, **técnico** y **ejemplos** con secciones diferenciadas.
+3. Usar MkDocs Material como generador estático; Mermaid.js para diagramas verificables.
+4. Actualizar `mkdocs.yml` cuando se creen, muevan o eliminen páginas en `docs/`.
+5. No inventar capacidades, módulos, APIs, salidas, errores ni dependencias.
+6. Excluir generación documental mediante APIs externas por el momento.
+
+### Auditoría de documentación (solo lectura)
+
+```markdown
+Revisa docs/, docs/examples/, README y mkdocs.yml para detectar gaps.
+Usa .github/prompts/documentation_review.prompt.md como criterio.
+Entrega hallazgos con severidad (Nivel 1/2/3) sin editar archivos.
 ```
 
 ---

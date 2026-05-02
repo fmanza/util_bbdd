@@ -31,6 +31,7 @@ nav:
   - Documentación Funcional:
       - Managers:
           - Gestión de Conexiones (Sync): functional/managers-sync.md
+          - Ciclo de vida de sesión sincrónica: functional/managers-sync-session-lifecycle.md
           - Gestión de Conexiones (Async): functional/managers-async.md
       - Metadatos e Introspección:
           - Extracción de Metadatos: functional/metadata-extraction.md
@@ -40,9 +41,12 @@ nav:
           - Auditoría de Operaciones Bulk: functional/bulk-audit.md
       - Queries y Validación:
           - Registro de Queries: functional/query-registry.md
+          - Ejecución de Consultas: functional/query-execution.md
           - Patrón de Validadores: functional/validators-pattern.md
       - Comparación de Esquemas:
           - Comparador de Esquemas: functional/schema-comparison.md
+      - Análisis de Relaciones:
+          - Visualización de Grafos: functional/graph-analysis.md
       - Documentación de BD:
           - Generación de Documentación: functional/database-documentation.md
 
@@ -51,6 +55,7 @@ nav:
       - Referencia Rápida: API_REFERENCE.md
       - Managers:
           - Manager Síncrono: api/managers-sync.md
+          - Manager Síncrono (Técnico): api/managers-sync-technical.md
           - Manager Asíncrono: api/managers-async.md
           - Ciclo de Vida de Conexión: api/managers-lifecycle.md
           - Factory de Estrategias de Metadata: api/managers-metadata-factory.md
@@ -63,9 +68,12 @@ nav:
           - Auditoría Bulk: api/bulk-audit.md
       - Sistema de Queries:
           - Registry y Resolver: api/query-system.md
+          - Ejecución de Consultas: api/query-execution.md
           - Sistema de Validadores: api/validators-system.md
       - Comparación de Esquemas:
           - Comparador y Reporters: api/schema-comparator.md
+      - Análisis de Relaciones:
+          - Grafos de Relaciones: api/analysis.md
       - Documentación de BD:
           - Generador de Documentación: api/database-documentation.md
       - Autodoc (mkdocstrings):
@@ -94,6 +102,7 @@ nav:
 
   # ── Ejemplos de código ─────────────────────────────────────────────────────
   - Ejemplos:
+      - Conectar e Introspeccionar Base de Datos: examples/example-connect-introspect.md
       - Generación de Documentación: examples/database_documentation_generation.md
       - Cache de Metadatos: examples/metadata_cache_usage.md
       - Comparación de Esquemas: examples/schema_comparison.md
@@ -102,6 +111,7 @@ nav:
       - Bulk Insert desde CSV: examples/bulk_insert_csv.md
       - Manejo de Excepciones: examples/exception_handling.md
       - Generación de Grafos: examples/graph_generation.md
+      - Ejecución de Consultas: examples/query_execution_example.md
 
   # ── Contexto del proyecto ──────────────────────────────────────────────────
   - Arquitectura:
