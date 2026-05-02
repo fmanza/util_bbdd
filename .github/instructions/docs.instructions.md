@@ -3,10 +3,19 @@ applyTo: "docs/**"
 ---
 # Documentación
 
-> **TL;DR** — Markdown con secciones estándar (Resumen, Instalación, Uso, Configuración, Ejemplos, FAQ). Sin credenciales reales. Ejemplos deterministas. Mantener actualizado con el código; no dejar secciones obsoletas. Tablas para comparar opciones.
+> **TL;DR** — Documentación Markdown para MkDocs Material, basada solo en código y ficheros reales. Separar claramente documentación funcional, técnica y ejemplos. Actualizar `mkdocs.yml` cuando se añadan, muevan o retiren páginas. No inventar capacidades, módulos, APIs, flujos ni salidas.
 
-- Escribe documentación clara, concisa y orientada a usuarios finales.
-- Escribe docs en Markdown con secciones consistentes: Resumen, Instalación, Uso, Configuración, Ejemplos, FAQ.
+- Escribe documentación clara, concisa y orientada a la audiencia de cada página.
+- Usa MkDocs con Material for MkDocs como generador estático de referencia.
+- Usa Mermaid.js para diagramas cuando mejore la comprensión; el diagrama debe ser texto plano renderizable.
+- Unifica creación y actualización: antes de crear una página, busca si ya existe documentación relacionada y actualízala si es el punto de entrada correcto.
+- Para actualizaciones de proyecto completo, revisa README, `docs/`, `docs/examples/`, docstrings públicos, `.github/prompts/`, `.github/agents/` y `mkdocs.yml`.
+- Diferencia siempre, con apartados claros, el contenido funcional del contenido técnico.
+- Incluye ejemplos de funcionamiento cuando el código real permita verificarlos.
+- Escribe docs en Markdown con secciones consistentes según propósito:
+  - Funcional: Resumen funcional, Objetivo de negocio, Precondiciones, Flujo principal, Reglas de negocio, Límites.
+  - Técnica: Responsabilidad, Arquitectura/flujo, API pública, Contratos de entrada/salida, Errores, Consideraciones operativas.
+  - Ejemplos: Objetivo, Requisitos, Código, Ejecución esperada, Notas de seguridad.
 - Incluye ejemplos que no requieran credenciales reales.
 - Si generas ejemplos de salida, mantenlos deterministas (orden estable).
 - Usa tablas para comparar opciones o mostrar configuraciones.
@@ -28,6 +37,30 @@ applyTo: "docs/**"
 - Si el proyecto tiene una sección de "Créditos", reconoce a los colaboradores y contribuyentes de manera adecuada.
 - Si el proyecto tiene una sección de "Roadmap", actualízala regularmente con planes futuros y objetivos a largo plazo.
 - Si el proyecto tiene una sección de "Referencias", incluye enlaces a recursos externos relevantes, como documentación de dependencias, artículos relacionados o tutoriales.
+- No utilices un solo prompt masivo para documentar todo el proyecto. Divide el trabajo en mapeo funcional, documentación técnica, ejemplos, diagramas y revisión final.
+- No incluyas generación de documentación mediante APIs externas por el momento; documenta flujos manuales, locales o asistidos por agentes/prompts del repositorio.
+- No reutilices nombres, rutas o clases de otros proyectos en ejemplos. Antes de escribir ejemplos, valida que las rutas existen en este repositorio y usa siempre `util_bbdd` como contexto del proyecto.
+
+## Flujo estándar de creación o actualización
+
+1. Inventariar fuentes reales: código, README, `docs/`, ejemplos, configuración, workflows y `mkdocs.yml`.
+2. Mapear capacidades existentes sin asumir módulos por nombre histórico.
+3. Decidir si se actualiza una página existente o se crea una nueva.
+4. Generar primero el mapeo funcional, después la documentación técnica y finalmente los ejemplos.
+5. Añadir o corregir la entrada correspondiente en `mkdocs.yml`.
+6. Ejecutar o recomendar `mkdocs build` para validar navegación, Markdown y Mermaid.
+
+## Prompt base para mapeo funcional
+
+```text
+Actúa como Senior Product Owner. Analiza el siguiente bloque de código Python y la documentación existente relacionada. No expliques variables ni clases internas. Genera Markdown con: 1. Objetivo de negocio. 2. Precondiciones necesarias. 3. Flujo principal del usuario. 4. Reglas de negocio críticas aplicadas. No inventes capacidades; si falta información, declárala como pendiente verificable.
+```
+
+## Prompt base para infografías Mermaid
+
+```text
+Basándote únicamente en la lógica verificable del servicio [Nombre], genera exclusivamente código Mermaid.js para un diagrama que ilustre la interacción entre el usuario, el componente principal y sus salidas. Omite detalles de implementación como variables internas, nombres de bases de datos, credenciales, puertos y rutas locales. Si el flujo no se puede inferir con seguridad, indica qué información falta en lugar de inventarla.
+```
 
 
 ## Reglas Markdown (CRÍTICAS)

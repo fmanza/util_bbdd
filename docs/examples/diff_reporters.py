@@ -117,7 +117,7 @@ def compare_and_generate_reports():
     print("=" * 70)
 
     # 1. Crear BDs de demo
-    print("\n📦 Creando esquemas de demo...")
+    print("\nCreando esquemas de demo...")
     source_engine, target_engine = setup_demo_databases()
 
     # 2. Crear inspectors
@@ -125,7 +125,7 @@ def compare_and_generate_reports():
     target_inspector = inspect(target_engine)
 
     # 3. Comparar esquemas
-    print("\n🔍 Comparando esquemas...")
+    print("\nComparando esquemas...")
     comparator = SchemaComparator()
     schema_diff = comparator.compare(
         source=source_inspector,
@@ -135,81 +135,78 @@ def compare_and_generate_reports():
         include_foreign_keys=True,
     )
 
-    print(f"✅ Comparación completada: {schema_diff.summary}")
+    print(f"Comparacion completada: {schema_diff.summary}")
 
     # 4. Generar reportes
-    print("\n📝 Generando reportes...")
+    print("\nGenerando reportes...")
 
     # Crear directorio de salida
     output_dir = Path("./demo_reports")
     output_dir.mkdir(exist_ok=True)
 
     # Usar SchemaDiffReporter (fachada)
-    reporter = SchemaDiffReporter(schema_diff)
+    reporter = SchemaDiffReporter()
 
     # --- HTML (Interactivo) ---
     print("\n  [1/6] HTML...", end="", flush=True)
-    html_content = reporter.render_html()
-    html_file = output_dir / "schema_diff.html"
-    html_file.write_text(html_content, encoding="utf-8")
-    print(f" ✅ {html_file}")
+    html_file = reporter.render(schema_diff, output_dir=output_dir, format="html", filename="schema_diff.html")
+    print(f" {html_file}")
 
     # --- SQL (PostgreSQL) ---
     print("  [2/6] SQL (PostgreSQL)...", end="", flush=True)
-    sql_content_pg = reporter.render_sql(dialect="postgresql")
-    sql_file_pg = output_dir / "schema_diff_postgresql.sql"
-    sql_file_pg.write_text(sql_content_pg, encoding="utf-8")
-    print(f" ✅ {sql_file_pg}")
+    reporter_pg = SchemaDiffReporter(sql_dialect="postgresql")
+    sql_file_pg = reporter_pg.render(
+        schema_diff,
+        output_dir=output_dir,
+        format="sql",
+        filename="schema_diff_postgresql.sql",
+    )
+    print(f" {sql_file_pg}")
 
     # --- SQL (Oracle) ---
     print("  [3/6] SQL (Oracle)...", end="", flush=True)
-    sql_content_oracle = reporter.render_sql(dialect="oracle")
-    sql_file_oracle = output_dir / "schema_diff_oracle.sql"
-    sql_file_oracle.write_text(sql_content_oracle, encoding="utf-8")
-    print(f" ✅ {sql_file_oracle}")
+    reporter_oracle = SchemaDiffReporter(sql_dialect="oracle")
+    sql_file_oracle = reporter_oracle.render(
+        schema_diff,
+        output_dir=output_dir,
+        format="sql",
+        filename="schema_diff_oracle.sql",
+    )
+    print(f" {sql_file_oracle}")
 
     # --- Markdown ---
     print("  [4/6] Markdown...", end="", flush=True)
-    md_content = reporter.render_markdown()
-    md_file = output_dir / "schema_diff.md"
-    md_file.write_text(md_content, encoding="utf-8")
-    print(f" ✅ {md_file}")
+    md_file = reporter.render(schema_diff, output_dir=output_dir, format="markdown", filename="schema_diff.md")
+    print(f" {md_file}")
 
     # --- Excel ---
     print("  [5/6] Excel...", end="", flush=True)
-    excel_file = output_dir / "schema_diff.xlsx"
-    reporter.render_excel(str(excel_file))
-    print(f" ✅ {excel_file}")
+    excel_file = reporter.render(schema_diff, output_dir=output_dir, format="excel", filename="schema_diff.xlsx")
+    print(f" {excel_file}")
 
     # --- Word ---
     print("  [6/6] Word...", end="", flush=True)
-    word_file = output_dir / "schema_diff.docx"
-    reporter.render_word(str(word_file))
-    print(f" ✅ {word_file}")
+    word_file = reporter.render(schema_diff, output_dir=output_dir, format="word", filename="schema_diff.docx")
+    print(f" {word_file}")
 
     # 5. Usar render_all() (método rápido)
-    print("\n📦 Alternativa rápida (render_all)...")
-    files = reporter.render_all(
-        output_dir=str(output_dir),
-        basename="schema_comparison_v2",
-        include_sql=True,
-        sql_dialect="mariadb",  # Generar SQL para MariaDB
-    )
+    print("\nAlternativa rapida (render_all)...")
+    files = reporter.render_all(schema_diff, output_dir=output_dir)
 
-    print("\n✅ Archivos generados:")
-    for format_name, file_path in files.items():
+    print("\nArchivos generados:")
+    for file_path in files:
+        format_name = file_path.suffix.lstrip(".")
         size = Path(file_path).stat().st_size
-        print(f"   • {format_name.upper():12} {size:>8} bytes  →  {file_path}")
+        print(f"   - {format_name.upper():12} {size:>8} bytes -> {file_path}")
 
-    # 6. Leer y mostrar preview del Markdown
+    # 6. Confirmar salida Markdown
     print("\n" + "=" * 70)
-    print("PREVIEW: Primeras líneas del reporte Markdown")
+    print("REPORTE MARKDOWN")
     print("=" * 70)
-    md_preview = md_file.read_text(encoding="utf-8").split("\n")[:30]
-    print("\n".join(md_preview))
+    print(f"Archivo generado: {md_file}")
 
     print("\n" + "=" * 70)
-    print("✅ Demo completada. Reportes guardados en:", output_dir.absolute())
+    print("Demo completada. Reportes guardados en:", output_dir.absolute())
     print("=" * 70)
 
 

@@ -282,6 +282,6 @@ print(f"PostgreSQL tables: {len(target_tables)}")
 ---
 
 **For more examples, see:**
-- [PostgreSQL Adapter Tests](../../../tests/unit/test_postgresql_adapter_tables.py)
+- [PostgreSQL Adapter Tests](https://github.com/fmanza/util_bbdd/blob/main/tests/unit/test_postgresql_adapter_tables.py)
 - [Phase 3C.1 Completion Report](./v0.6.3/PHASE_3C1_COMPLETION_REPORT.md)
 - [Main Documentation](index.md)

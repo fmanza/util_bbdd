@@ -175,8 +175,22 @@ mkdocs build
 #### MkDocs — cuándo actualizar
 
 - ✅ Módulo o clase pública nueva → entrada en `mkdocs.yml` bajo `nav:`
+- ✅ Página nueva, movida o eliminada en `docs/` → actualizar `mkdocs.yml`
+- ✅ Reorganización funcional/técnica/ejemplos → validar que `nav:` mantiene apartados separados
 - ✅ Ejecutar `mkdocs serve` localmente antes de publicar
 - ✅ Verificar que `mkdocs build` pase sin warnings
+
+#### Estándar de generación documental
+
+- Usa MkDocs con Material for MkDocs como salida estática de referencia.
+- Usa Mermaid.js para diagramas de flujo, secuencia o clases cuando aporte claridad.
+- Unifica creación y actualización: busca primero documentación existente y actualízala si es el punto de entrada correcto.
+- Para documentación de proyecto completo, revisa README, `docs/`, `docs/examples/`, docstrings públicos, prompts/agentes IA y `mkdocs.yml`.
+- Separa claramente documentación funcional, técnica y ejemplos.
+- No inventes capacidades, módulos, APIs, salidas, reglas ni dependencias. Si falta información, márcala como pendiente de verificación.
+- No uses ejemplos heredados de otros repositorios: valida nombres de proyecto, rutas, clases y tests contra el árbol real antes de documentarlos.
+- No uses un único prompt masivo; divide en mapeo funcional, técnica, ejemplos, Mermaid y revisión final.
+- Excluye por el momento generación de documentación mediante APIs externas.
 
 #### Estándar: Docstrings Google-style
 

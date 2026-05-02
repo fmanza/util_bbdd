@@ -1,24 +1,34 @@
-# Generación de Documentación de Base de Datos
+# Generación de documentación de base de datos
 
-Ejemplo que demuestra cómo generar documentación completa de una base de datos en múltiples formatos (HTML, Word, Excel) usando `DatabaseDocumentation`.
+Ejemplo verificable para generar documentación de una base de datos con `DatabaseDocumentation`.
+
+El caso principal usa SQLite para evitar credenciales reales y servicios externos. El script crea una base local de demostración, inicializa `SyncDatabaseManager`, configura `DatabaseDocumentation` y escribe la salida en `generated_docs/`.
 
 **Cubre:**
 
-- Conectar a la base de datos
+- Crear una base SQLite mínima para pruebas locales
+- Conectar con `SyncDatabaseManager`
 - Configurar la documentación (`imprimir_config`)
-- Generar HTML interactivo con gráficos
-- Exportar a Word con tablas formateadas
-- Exportar a Excel para análisis
+- Generar HTML, Word y Excel
+- Cerrar el manager al finalizar
 
 **Formatos soportados:**
 
 | Formato | Extensión | Caso de uso |
 |---------|-----------|------------|
-| **HTML** | `.html` | Exploración interactiva, gráficos Mermaid, índices navegables |
+| **HTML** | `.html` | Exploración navegable e índices por entidad |
 | **Word** | `.docx` | Reportes profesionales, compartir con stakeholders |
 | **Excel** | `.xlsx` | Análisis en hojas de cálculo, datos tabulares |
 
 ---
+
+## Requisitos
+
+```bash
+pip install "util-bbdd[doc]"
+```
+
+Para grafos avanzados o reutilización SVG en Word, instala también las dependencias opcionales documentadas en la guía de instalación.
 
 ## Configuración (`imprimir_config`)
 
@@ -43,7 +53,7 @@ imprimir_config = {
         "imprimir_function": True,    # Functions
     },
 
-    # Configuración de gráficos
+    # Configuración de gráficos de relaciones
     "grafo": {
         "max_depth": 2,         # Profundidad de relaciones
         "direction": "outgoing", # incoming, outgoing, both
@@ -71,10 +81,12 @@ imprimir_config = {
 documentation = DatabaseDocumentation(
     db_manager=db_manager,
     directorio_salida=Path("output"),
+    fichero_salida=Path("demo-html"),
     imprimir={
         "tablas": {"imprimir_tablas": True, "ddl": True},
         "vistas": {"imprimir_vistas": False},
         "rutinas": {"imprimir_procedures": False, "imprimir_function": False},
+        "grafo": {"enabled": False},
     },
     formatos=["html"],
 )
@@ -86,6 +98,8 @@ documentation.generate()
 ```python
 documentation = DatabaseDocumentation(
     db_manager=db_manager,
+    directorio_salida=Path("output"),
+    fichero_salida=Path("demo-word"),
     imprimir={
         "plantilla_word": "templates/my_template.docx",
         "tablas": {"imprimir_tablas": True},
@@ -99,27 +113,32 @@ documentation.generate()
 ### Generar desde conexión existente
 
 ```python
-# Si ya tienes SyncDatabaseManager
+from pathlib import Path
+
 from util_bbdd.managers import SyncDatabaseManager
 
-db_manager = SyncDatabaseManager.create(
-    connection_string="postgresql://user:pass@localhost/mydb"
+db_manager = SyncDatabaseManager(
+    db_type="sqlite",
+    conn_params={"database": "demo_documentation.db"},
+    use_pool=False,
 )
 
 documentation = DatabaseDocumentation(
     db_manager=db_manager,
-    directorio_salida=Path("docs"),
+    directorio_salida=Path("generated_docs"),
+    fichero_salida=Path("demo-sqlite"),
     imprimir=imprimir_config,
     formatos=["html", "word", "excel"],
 )
 
-# Acceder a metadatos antes de generar (sin I/O)
+# Los metadatos iniciales se cargan al construir la fachada.
 print(f"Tablas: {len(documentation.tablas)}")
 print(f"Vistas: {len(documentation.vistas)}")
 print(f"Rutinas: {len(documentation.rutinas)}")
 
 # Generar los ficheros de salida
 documentation.generate()
+db_manager.close()
 ```
 
 ---
@@ -142,8 +161,8 @@ generated_docs/
 
 Cada formato incluye:
 
-- **HTML:** Índices navegables, gráficos Mermaid, búsqueda
-- **Word:** Portadas, tablas formateadas, encabezados, Heading 1 por sección
+- **HTML:** Índices navegables y páginas por entidad
+- **Word:** Tablas formateadas, encabezados y secciones
 - **Excel:** Hojas separadas por tipo (tablas, vistas, rutinas)
 
 ---
@@ -198,8 +217,10 @@ imprimir_config = {
 
 ## Notas
 
-- El constructor `__init__` **solo configura** la instancia y carga metadatos — **no genera ficheros**
+- El constructor `__init__` configura la instancia y carga metadatos iniciales — **no genera ficheros**
 - Llama a `.generate()` explícitamente para producir los ficheros de salida
 - Los archivos se guardan en `directorio_salida/<nombre>/WORD|EXCEL|HTML/` con nombre auto-generado (timestamp)
-- Para generar múltiples formatos, pasar lista: `formatos=["html", "word", "excel"]`
+- Para generar múltiples formatos, pasa una lista: `formatos=["html", "word", "excel"]`
+- Si `formatos=None`, el formato por defecto es `["word"]`
+- `formatos` rechaza valores no soportados; usa solo `word`, `excel` o `html`
 - Requiere dependencias opcionales: `pip install util-bbdd[doc]`

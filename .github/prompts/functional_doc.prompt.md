@@ -1,19 +1,15 @@
 # Prompt: functional_doc — Documentación funcional (Product Owner)
 
-Genera documentación funcional para módulos de **util_bbdd** (framework multi-base de datos para introspección de esquemas, operaciones bulk y documentación de BD).
+Genera o actualiza documentación funcional para módulos de **util_bbdd** usando solo
+información verificable del código, README, `docs/` y configuración del proyecto.
 
 ## Instrucción al modelo
 
 ```
-Actúa como Senior Product Owner especializado en herramientas de datos e infraestructura.
+Actúa como Senior Product Owner especializado en documentación de producto para librerías Python.
 
-Analiza el módulo Python proporcionado de util_bbdd.
-util_bbdd es un framework multi-base de datos que conecta a PostgreSQL, MySQL, MariaDB, Oracle,
-SQL Server, SQLite, Snowflake y Redshift. Permite extraer metadatos de esquemas, ejecutar
-operaciones bulk desde DataFrames, comparar esquemas entre dos bases de datos (generando
-diferencias en formato HTML, Excel, Word, Markdown y script SQL de nivelación) y generar
-documentación técnica de BD en Word, Excel y HTML.
-Sus usuarios son desarrolladores, ingenieros de datos, DBAs y equipos DevOps.
+Analiza el módulo Python proporcionado, la documentación existente relacionada y el contexto
+real del repositorio. No asumas capacidades por el nombre histórico del proyecto.
 
 Genera un documento Markdown con estas secciones en este orden exacto:
 
@@ -29,12 +25,17 @@ Incluye: datos de entrada, configuraciones previas, dependencias externas.
 Un diagrama Mermaid sequenceDiagram que muestre la interacción entre:
 - El actor principal (usuario, pipeline CI/CD, etc.)
 - Los componentes del módulo (sin nombres de clases internas)
-- El sistema externo relevante (base de datos: PostgreSQL/MySQL/Oracle/etc., sistema de ficheros)
+- El sistema externo relevante si existe
 - La salida generada
 
 ## Reglas de negocio críticas
 Tabla con columnas: | Regla | Descripción | Impacto si se viola |
 Incluye solo las reglas con impacto en la corrección del resultado.
+
+## Ejemplo de funcionamiento
+Incluye un ejemplo genérico y verificable de uso cuando el módulo lo permita.
+No uses credenciales reales ni servicios externos obligatorios. Si no hay ejemplo seguro,
+indica qué falta para construirlo.
 
 ## Límites y exclusiones
 Qué NO hace este módulo. Máximo 5 ítems en lista.
@@ -45,6 +46,8 @@ Restricciones:
 - NO expliques nombres de variables, clases internas ni implementación
 - NO menciones rutas de archivos a menos que sean de configuración del usuario
 - USA terminología de negocio, no técnica
+- NO inventes capacidades, flujos, integraciones, salidas ni reglas
+- Si falta información, crea una sección breve "Pendiente de verificación" con preguntas concretas
 - Responde SOLO con el Markdown, sin texto introductorio ni cierre
 ```
 
@@ -55,7 +58,8 @@ Restricciones:
 ```
 Lee el archivo [ruta_del_módulo] y genera la documentación funcional usando el
 prompt en .github/prompts/functional_doc.prompt.md.
-Guarda el resultado en docs/functional/[nombre_módulo].md
+Actualiza docs/functional/[nombre_módulo].md si existe o crea la página si no hay una equivalente.
+Actualiza también mkdocs.yml si se crea o mueve una página.
 ```
 
 ### En Copilot Chat
@@ -67,87 +71,13 @@ Guarda el resultado en docs/functional/[nombre_módulo].md
 Genera la documentación funcional del módulo indicado.
 ```
 
-### Con API de Anthropic (Claude)
+## Exclusiones actuales
 
-```python
-import anthropic
-
-client = anthropic.Anthropic()
-
-with open("src/util_bbdd/metadata/manager.py") as f:
-    codigo = f.read()
-
-message = client.messages.create(
-    model="claude-sonnet-4-6",
-    max_tokens=2048,
-    messages=[
-        {
-            "role": "user",
-            "content": f"""Actúa como Senior Product Owner especializado en herramientas de DevOps.
-
-Analiza el siguiente módulo Python de util_bbdd y genera documentación funcional.
-
-MÓDULO:
-```python
-{codigo}
-```
-
-Genera un documento Markdown con:
-1. **Objetivo de negocio** — qué problema resuelve (1-2 párrafos, sin jerga técnica)
-2. **Precondiciones** — lista de lo que debe existir antes de usar el módulo
-3. **Flujo principal** — diagrama Mermaid sequenceDiagram (actor → módulo → salida)
-4. **Reglas de negocio críticas** — tabla: Regla | Descripción | Impacto si se viola
-5. **Límites** — qué NO hace este módulo (máx. 5 ítems)
-
-Responde SOLO con el Markdown."""
-        }
-    ]
-)
-print(message.content[0].text)
-```
-
-### Con API de OpenAI
-
-```python
-from openai import OpenAI
-
-client = OpenAI()
-
-with open("src/util_bbdd/metadata/manager.py") as f:
-    codigo = f.read()
-
-response = client.chat.completions.create(
-    model="gpt-4o",
-    messages=[
-        {
-            "role": "system",
-            "content": "Eres un Senior Product Owner especializado en herramientas DevOps. Generas documentación funcional clara para equipos no técnicos."
-        },
-        {
-            "role": "user",
-            "content": f"""Analiza el módulo Python de util_bbdd y genera documentación funcional en Markdown.
-
-MÓDULO:
-```python
-{codigo}
-```
-
-Secciones requeridas:
-1. Objetivo de negocio (sin jerga técnica)
-2. Precondiciones (lista)
-3. Flujo principal (diagrama Mermaid sequenceDiagram)
-4. Reglas de negocio críticas (tabla)
-5. Límites del módulo (lista, máx. 5)
-
-Responde SOLO con el Markdown."""
-        }
-    ]
-)
-print(response.choices[0].message.content)
-```
+- No incluir por ahora ejemplos de generación mediante APIs externas.
+- No usar un único prompt masivo para documentar todo el proyecto; dividir por módulo o capacidad.
 
 ## Output esperado
 
-Un fichero Markdown con las 5 secciones, con al menos un diagrama Mermaid `sequenceDiagram`
-y una tabla de reglas de negocio. El lenguaje debe ser comprensible por un jefe de proyecto
-sin conocimientos de Python.
+Un fichero Markdown con las secciones funcionales, al menos un diagrama Mermaid `sequenceDiagram`
+cuando el flujo sea inferible, una tabla de reglas de negocio y un ejemplo de funcionamiento si
+puede verificarse sin inventar datos.

@@ -111,6 +111,28 @@ duplicación de contenido shared.
 
 ---
 
+## Documentación con Copilot Chat
+
+Para crear o actualizar documentación, usa **Documentation Generator** como punto de entrada único.
+El agente debe revisar documentación existente, actualizar o crear páginas en `docs/`, y sincronizar
+`mkdocs.yml` cuando cambie la navegación.
+
+**Solicitud recomendada**:
+
+```markdown
+@Documentation Generator
+
+Actualiza la documentación de [módulo/capacidad/proyecto completo].
+Incluye apartados funcionales, técnicos y ejemplos de funcionamiento cuando sean verificables.
+Actualiza mkdocs.yml si se crean, mueven o eliminan páginas.
+No inventes capacidades ni uses generación mediante APIs externas.
+```
+
+Para auditar documentación sin editar, usa **Documentation Reviewer** y pide revisión explícita de:
+README, `docs/`, `docs/examples/`, docstrings públicos, prompts/agentes IA y `mkdocs.yml`.
+
+---
+
 ## Integración con Claude Code
 
 Esta especialización es **compatible con Claude Code**:

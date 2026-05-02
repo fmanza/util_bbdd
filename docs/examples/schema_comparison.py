@@ -83,12 +83,12 @@ def demonstrate_schema_comparison():
     # 5. Mostrar diferencias por tabla
     for table_diff in diff.table_diffs:
         if table_diff.status != "unmodified":
-            print(f"📋 Tabla '{table_diff.table_name}': {table_diff.status.upper()}")
+            print(f"Tabla '{table_diff.table_name}': {table_diff.status.upper()}")
 
             # Columnas nuevas/eliminadas
             if table_diff.column_diffs:
                 for col_diff in table_diff.column_diffs:
-                    print(f"   📝 {col_diff.column_name}:")
+                    print(f"   Columna {col_diff.column_name}:")
                     print(f"      Atributo: {col_diff.attribute}")
                     print(f"      Origen:   {col_diff.source_value}")
                     print(f"      Destino:  {col_diff.target_value}")
@@ -96,7 +96,7 @@ def demonstrate_schema_comparison():
             # Índices nuevos
             if table_diff.index_diffs:
                 for idx_diff in table_diff.index_diffs:
-                    print(f"   🔑 Índice '{idx_diff.index_name}': {idx_diff.status}")
+                    print(f"   Indice '{idx_diff.index_name}': {idx_diff.status}")
 
     # 6. Exportar a JSON
     print("\n" + "=" * 70)
@@ -114,7 +114,7 @@ def demonstrate_schema_comparison():
                 "columns": [
                     {
                         "name": cd.column_name,
-                        "change": f"{cd.attribute}: {cd.source_value} → {cd.target_value}",
+                        "change": f"{cd.attribute}: {cd.source_value} -> {cd.target_value}",
                     }
                     for cd in td.column_diffs
                 ],
@@ -139,40 +139,32 @@ def demonstrate_schema_comparison():
     output_dir = Path("./schema_comparison_reports")
     output_dir.mkdir(exist_ok=True)
 
-    reporter = SchemaDiffReporter(diff)
+    reporter = SchemaDiffReporter()
 
-    # 7a. Generar reporte HTML (con Mermaid)
-    html_output = output_dir / "schema_diff.html"
-    html_content = reporter.render_html()
-    html_output.write_text(html_content, encoding="utf-8")
-    print(f"\n✅ Reporte HTML generado: {html_output}")
+    # 7a. Generar reporte HTML
+    html_output = reporter.render(diff, output_dir=output_dir, format="html", filename="schema_diff.html")
+    print(f"\nReporte HTML generado: {html_output}")
 
-    # 7b. Generar script SQL para normalizar destino a origen (por defecto SQLite)
-    sql_output = output_dir / "schema_diff.sql"
-    sql_content = reporter.render_sql()  # Usa dialecto del engine de destino si está disponible
-    sql_output.write_text(sql_content, encoding="utf-8")
-    print(f"✅ Script SQL generado: {sql_output}")
+    # 7b. Generar script SQL
+    sql_output = reporter.render(diff, output_dir=output_dir, format="sql", filename="schema_diff.sql")
+    print(f"Script SQL generado: {sql_output}")
 
-    # 7c. Generar reporte Markdown (con tablas)
-    md_output = output_dir / "schema_diff.md"
-    md_content = reporter.render_markdown()
-    md_output.write_text(md_content, encoding="utf-8")
-    print(f"✅ Reporte Markdown generado: {md_output}")
+    # 7c. Generar reporte Markdown
+    md_output = reporter.render(diff, output_dir=output_dir, format="markdown", filename="schema_diff.md")
+    print(f"Reporte Markdown generado: {md_output}")
 
-    # 7d. Generar reporte Excel (múltiples hojas por sección)
-    excel_output = output_dir / "schema_diff.xlsx"
-    reporter.render_excel(str(excel_output))
-    print(f"✅ Reporte Excel generado: {excel_output}")
+    # 7d. Generar reporte Excel
+    excel_output = reporter.render(diff, output_dir=output_dir, format="excel", filename="schema_diff.xlsx")
+    print(f"Reporte Excel generado: {excel_output}")
 
     # 7e. Generar reporte Word
-    word_output = output_dir / "schema_diff.docx"
-    reporter.render_word(str(word_output))
-    print(f"✅ Reporte Word generado: {word_output}")
+    word_output = reporter.render(diff, output_dir=output_dir, format="word", filename="schema_diff.docx")
+    print(f"Reporte Word generado: {word_output}")
 
-    # 7f. Generar todos los reportes de una vez (alternativa rápida)
+    # 7f. Generar todos los reportes de una vez
     print("\n--- Alternativa: render_all() ---")
-    files = reporter.render_all(str(output_dir), basename="schema_comparison")
-    print(f"✅ Reportes generados: {', '.join(files.values())}")
+    files = reporter.render_all(diff, output_dir=output_dir)
+    print(f"Reportes generados: {', '.join(str(file) for file in files)}")
 
 
 if __name__ == "__main__":

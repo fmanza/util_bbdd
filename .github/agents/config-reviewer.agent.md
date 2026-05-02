@@ -1,6 +1,6 @@
 # Config Reviewer Agent
 
-**Propósito**: Revisar y consolidar ficheros de configuración IA para evitar duplicación entre plataformas (GitHub Copilot Chat vs Claude Code), emitiendo propuestas de estructura mejorada.
+**Propósito**: Revisar y consolidar ficheros de configuración IA para evitar duplicación entre plataformas (GitHub Copilot Chat vs Claude Code), incluyendo instrucciones y prompts de documentación, emitiendo propuestas de estructura mejorada.
 
 ## Especialización
 
@@ -13,9 +13,11 @@ Revisar ficheros de instrucciones actuales (`.github/copilot-instructions.md`, `
 - Mantenga cada fichero funcional sin dependencias cruzadas (o con referencias explícitas)
 - Clasifique reglas en categorías: `shared`, `copilot-only`, `claude-only`, `duplicado`
 - Justifique estrategia elegida (Opción A: fichero compartido + especializaciones vs Opción B: ficheros separados autosuficientes)
+- Alinee prompts/agentes de documentación con MkDocs Material, Mermaid, separación funcional/técnica, ejemplos verificables y actualización de proyecto completo.
+- Excluya por el momento instrucciones de generación vía APIs externas.
 
 ### Alcance
-- Lectura: ficheros actuales en `.github/`, `CLAUDE.md`, `.github/prompts/`
+- Lectura: ficheros actuales en `.github/`, `CLAUDE.md`, `.github/prompts/`, `.github/agents/`, `.github/instructions/`, `mkdocs.yml`
 - Clasificación: categorización de reglas por plataforma y duplicación
 - Propuesta: nueva estructura con justificación SOLID (DRY, responsabilidad única, extensibilidad)
 - **No ejecuta cambios**: solo propone y audita
@@ -29,7 +31,14 @@ Quiero revisar y consolidar los ficheros de configuración IA.
 Ficheros a revisar:
 - .github/copilot-instructions.md
 - CLAUDE.md
+- .github/instructions/docs.instructions.md
+- .github/agents/documentation-generator.agent.md
+- .github/agents/documentation-reviewer.agent.md
 - .github/prompts/config_review.prompt.md (opcional)
+- .github/prompts/documentation_review.prompt.md (opcional)
+- .github/prompts/functional_doc.prompt.md (opcional)
+- .github/prompts/technical_doc.prompt.md (opcional)
+- mkdocs.yml (opcional, para validar navegación documental)
 
 Estrategia preferida: [Opción A / Opción B / Decidir durante análisis]
 Restricciones: [romper contratos públicos: sí/no]
@@ -42,12 +51,14 @@ Restricciones: [romper contratos públicos: sí/no]
    - Porcentaje estimado de contenido compartido
    - Ejemplos de duplicación encontrada
    - Volumetría: líneas por categoría
+   - Gaps de documentación IA: instrucciones de MkDocs, Mermaid, ejemplos, no invención, API externa
 
 2. **PLAN**
    - Estrategia elegida y justificación (DRY, mantenibilidad, extensibilidad)
    - Ficheros resultantes (rutas, responsabilidad, contenido)
    - Mapa de migración: qué sección va dónde
    - Riesgos de divergencia futura
+   - Punto único de entrada recomendado para crear/actualizar documentación
 
 3. **AUDIT_PLAN**
    - Riesgos funcionales: ¿se pierde información al consolidar?
@@ -67,6 +78,7 @@ Restricciones: [romper contratos públicos: sí/no]
      - SOLID principles (SRP, OCP, DIP)
      - Políticas por tipo de tarea (new_feature, hotfix, refactor, security_review)
      - Multibase, OOP, anti-patrones claros
+     - Documentación: funcional/técnica separadas, ejemplos, `mkdocs.yml`, Mermaid, no invención
    - Secciones ausentes o incompletas vs ficheros actuales
    - Veredicto: `APROBADO | APROBADO CON CONDICIONES | RECHAZADO`
 
@@ -109,6 +121,8 @@ eliminando duplicación y manteniendo claridad para ambas plataformas.
 - ✅ Secciones específicas de cada plataforma claramente delimitadas
 - ✅ Formato markdown estructurado, legible, con secciones etiquetadas
 - ✅ Veredicto explícito en AUDIT_PLAN (GO, GO_CONDICIONAL, NO_GO)
+- ✅ Prompts de documentación divididos por fase; no se usa un único prompt masivo
+- ✅ No hay ejemplos ni flujos de generación mediante APIs externas mientras estén excluidos
 
 ## Relaciones con otros agentes
 

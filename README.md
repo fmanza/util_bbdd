@@ -59,6 +59,41 @@ Librería Python especializada en **operaciones de base de datos** para MariaDB,
 
 ---
 
+## Documentar una base de datos
+
+`DatabaseDocumentation` genera documentación HTML, Word o Excel desde un `SyncDatabaseManager` síncrono. El constructor prepara la configuración y carga metadatos iniciales; la escritura de ficheros ocurre al llamar explícitamente a `generate()`.
+
+```python
+from pathlib import Path
+
+from util_bbdd.doc import DatabaseDocumentation
+from util_bbdd.managers import SyncDatabaseManager
+
+manager = SyncDatabaseManager(
+    db_type="sqlite",
+    conn_params={"database": "demo_documentation.db"},
+    use_pool=False,
+)
+
+documentation = DatabaseDocumentation(
+    db_manager=manager,
+    directorio_salida=Path("generated_docs"),
+    fichero_salida=Path("demo-sqlite"),
+    imprimir={
+        "tablas": {"imprimir_tablas": True, "ddl": True, "columnas": True},
+        "vistas": {"imprimir_vistas": True, "ddl": True},
+        "rutinas": {"imprimir_procedures": False, "imprimir_function": False},
+    },
+    formatos=["html"],
+)
+documentation.generate()
+manager.close()
+```
+
+Formatos válidos: `word`, `excel`, `html`. Para un ejemplo completo y verificable con SQLite, consulta `docs/examples/database_documentation_generation.md`.
+
+---
+
 ## ⚡ Quick Start (5 minutos)
 
 ### Instalación
@@ -97,8 +132,8 @@ tables = manager.get_tables()
 print(f"Tablas: {len(tables)}")
 
 # Obtener columnas
-columns = manager.get_table_columns(schema="public", table="users")
-print(f"Columnas: {[c['column_name'] for c in columns]}")
+columns = manager.get_columns("users")
+print(f"Columnas: {columns}")
 
 # Ejecutar query
 users = manager.execute_custom_many("SELECT * FROM users LIMIT 5")
@@ -116,11 +151,11 @@ from util_bbdd import AsyncDatabaseManager
 async def main():
     manager = AsyncDatabaseManager(
         db_type="postgresql",
-        pool_size=10,
         conn_params={
             "host": "localhost", "port": 5432,
             "user": "postgres", "password": "secret",
-            "database": "mydb"
+            "database": "mydb",
+            "pool_size": 10
         }
     )
 
@@ -216,15 +251,25 @@ manager.bulk_insert_from_csv("users.csv", batch_size=10000)
 
 # ❌ Lento: ~60 segundos
 for row in rows:
-    manager.execute_custom_many(f"INSERT INTO users VALUES ...")
+    manager.execute_custom_many(
+        "INSERT INTO users (id, name, email) VALUES (?, ?, ?)",
+        params=(row["id"], row["name"], row["email"]),
+    )
 ```
 
 **Pool tuning:**
 ```python
 # ✅ API con 100 usuarios concurrentes
 manager = AsyncDatabaseManager(
-    pool_size=20,        # = 2x CPU cores
-    max_overflow=10,
+    db_type="postgresql",
+    conn_params={
+        "host": "localhost",
+        "user": "postgres",
+        "password": "secret",
+        "database": "mydb",
+        "pool_size": 20,        # = 2x CPU cores
+        "max_overflow": 10,
+    },
 )
 ```
 

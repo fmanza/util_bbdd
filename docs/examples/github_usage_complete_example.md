@@ -89,7 +89,8 @@ Cuando pides un cambio cualquiera, la política de [../../.github/copilot-instru
 Ejemplo de petición:
 
 ```text
-Necesito añadir documentación Markdown para vistas y relaciones FK en el renderer.
+Necesito actualizar la documentación de una capacidad del proyecto.
+Incluye documentación funcional, técnica, ejemplo verificable y cambios necesarios en mkdocs.yml.
 ```
 
 Efecto esperado:
@@ -104,7 +105,7 @@ Las instrucciones de [../../.github/instructions](../../.github/instructions) se
 
 | Si editas | Se activa | Qué añade |
 |---|---|---|
-| `docs/**` | [../../.github/instructions/docs.instructions.md](../../.github/instructions/docs.instructions.md) | Markdown portable, secciones consistentes, ejemplos claros |
+| `docs/**` | [../../.github/instructions/docs.instructions.md](../../.github/instructions/docs.instructions.md) | MkDocs Material, Mermaid, secciones funcional/técnica/ejemplos, no inventar |
 | `**/*.py` | [../../.github/instructions/python.instructions.md](../../.github/instructions/python.instructions.md) | Python 3.12+, tipado, API estable |
 | `src/**/introspect/**/*.py` | [../../.github/instructions/introspection.instructions.md](../../.github/instructions/introspection.instructions.md) + reglas Python | Nada de asumir un solo motor, adaptar por dialecto |
 | `src/**/render/**/*.py` | [../../.github/instructions/render.instructions.md](../../.github/instructions/render.instructions.md) + [../../.github/instructions/render-markdown.instructions.md](../../.github/instructions/render-markdown.instructions.md) + reglas Python | Orden determinista, formato consistente, Markdown real |
@@ -123,8 +124,13 @@ docs/examples/nuevo_ejemplo.md
 Qué debe pasar:
 
 - usar Markdown estándar
+- revisar documentación existente antes de crear páginas nuevas
+- separar contenido funcional, técnico y ejemplos
+- actualizar `mkdocs.yml` si se crea, mueve o elimina una página
 - incluir ejemplos sin credenciales reales
+- usar Mermaid solo si aporta valor y el flujo es verificable
 - evitar HTML embebido si no es imprescindible
+- excluir por ahora generación mediante APIs externas
 
 #### 2.2 Editar introspección
 
@@ -152,7 +158,7 @@ Qué debe pasar:
 
 - mantener salida determinista
 - respetar orden de secciones por tabla
-- usar Mermaid solo si deriva de metadatos reales y aporta valor claro
+- usar Mermaid solo si deriva de datos o flujo verificable y aporta valor claro
 
 #### 2.4 Editar tests
 
@@ -655,7 +661,7 @@ Ejemplo de lectura correcta del workflow:
 
 ### Ejemplo completo 17. Definir o revisar ficheros de configuración IA
 
-Cuándo usarlo: cuando quieras revisar, unificar o reestructurar las instrucciones que guían a Copilot Chat y Claude Code en este repositorio (es decir, `.github/copilot-instructions.md` y `CLAUDE.md`).
+Cuándo usarlo: cuando quieras revisar, unificar o reestructurar las instrucciones que guían a Copilot Chat y Claude Code en este repositorio, incluyendo prompts/agentes de documentación y su relación con `mkdocs.yml`.
 
 El prompt está en [../../.github/prompts/config_review.prompt.md](../../.github/prompts/config_review.prompt.md).
 
@@ -663,19 +669,28 @@ Invocación en Copilot Chat:
 
 ```text
 #file:.github/copilot-instructions.md #file:CLAUDE.md
+#file:.github/instructions/docs.instructions.md
+#file:.github/prompts/functional_doc.prompt.md
+#file:.github/prompts/technical_doc.prompt.md
+#file:.github/prompts/documentation_review.prompt.md
+#file:mkdocs.yml
 
 Actúa como experto en instrucciones para sistemas IA (GitHub Copilot Chat y Claude Code).
 
 Objetivo: revisar los ficheros de instrucciones actuales y proponer una nueva configuración
 mejor estructurada y sin duplicación.
 
+Incluye el contrato de documentación: crear/actualizar desde un único flujo, separar parte
+funcional, técnica y ejemplos, sincronizar mkdocs.yml, no inventar y excluir generación por API.
+
 Sigue el flujo PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION.
 
 Entregable:
 1. ANÁLISIS — mapa de contenido actual: shared / copilot-only / claude-only / duplicado
 2. DECISIÓN — Opción A (fichero compartido + especializaciones) u Opción B (ficheros independientes)
-3. FICHEROS PROPUESTOS — contenido completo de cada fichero resultante
-4. DIFF conceptual — qué desaparece, qué se mueve, qué es nuevo
+3. GOBERNANZA DOCUMENTAL — dónde viven MkDocs, Mermaid, ejemplos, no invención y exclusión de APIs
+4. FICHEROS PROPUESTOS — contenido completo de cada fichero resultante
+5. DIFF conceptual — qué desaparece, qué se mueve, qué es nuevo
 ```
 
 Agentes recomendados:
@@ -692,6 +707,7 @@ Criterios de calidad esperados:
 - cada fichero es funcional sin leer el otro
 - el flujo PLAN→...→VERSION está presente para ambas plataformas
 - secciones específicas de plataforma claramente delimitadas
+- prompts de documentación divididos por fase, sin prompt masivo ni generación vía APIs externas
 
 Referencia cruzada: el equivalente para Claude Code está en [claude_code_usage_complete_example.md](claude_code_usage_complete_example.md) (Ejemplo 9).
 
@@ -717,7 +733,15 @@ No es lo recomendable. Para un bug acotado usa [../../.github/prompts/hotfix.pro
 
 ### ¿Puedo meter Mermaid en cualquier Markdown?
 
-No. La política actual permite Mermaid solo cuando aporta valor claro y se genera desde metadatos reales, según [../../.github/instructions/docs.instructions.md](../../.github/instructions/docs.instructions.md) y [../../.github/instructions/render-markdown.instructions.md](../../.github/instructions/render-markdown.instructions.md).
+No. La política actual permite Mermaid solo cuando aporta valor claro y el flujo o relación se puede verificar en código, configuración o documentación existente, según [../../.github/instructions/docs.instructions.md](../../.github/instructions/docs.instructions.md) y [../../.github/instructions/render-markdown.instructions.md](../../.github/instructions/render-markdown.instructions.md).
+
+### ¿Qué agente uso para crear o actualizar documentación?
+
+Usa `../../.github/agents/documentation-generator.agent.md` como punto de entrada único. Debe revisar README, `docs/`, `docs/examples/`, docstrings públicos y `mkdocs.yml`; después decide si actualiza una página existente o crea una nueva. Para auditoría sin editar, usa `../../.github/agents/documentation-reviewer.agent.md`.
+
+### ¿Puedo pedir generación de documentación mediante API externa?
+
+Por ahora no. El contrato actual excluye ejemplos e instrucciones de generación mediante APIs externas; usa flujos locales, prompts y agentes del repositorio.
 
 ### ¿Qué pasa si una regla de prompt choca con una regla de instrucciones?
 

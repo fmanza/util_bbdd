@@ -10,6 +10,7 @@ Cubre:
 - cuáles son los archivos de configuración relevantes
 - flujo de trabajo estructurado (similar a Claude Code)
 - políticas aplicadas a Codex
+- actualización de documentación con MkDocs, Mermaid y ejemplos verificables
 - ejemplos completos por caso de uso
 - diferencias con Claude Code y Copilot Chat
 
@@ -24,15 +25,16 @@ Para la configuración de Copilot Chat, consulta [github_usage_complete_example.
 
 | Archivo | Propósito |
 |---|---|
-| [../../AGENTS.md](../../AGENTS.md) | Instrucciones para Codex — contexto especializado del proyecto |
+| [../../CLAUDE.md](../../CLAUDE.md) | Instrucciones transversales para asistentes de código en este repositorio |
 | [../../.github/SHARED_INSTRUCTIONS.md](../../.github/SHARED_INSTRUCTIONS.md) | Arquitectura, SOLID y políticas comunes |
+| [../../.github/AGENTS.md](../../.github/AGENTS.md) | Registro de agentes y flujos especializados |
 | [../../pyproject.toml](../../pyproject.toml) | Versión, Python soportado, herramientas reales |
 | [../../.claude/settings.json](../../.claude/settings.json) | Hooks y permisos de desarrollo |
 | [../../.github/instructions/](../../.github/instructions/) | Reglas por ruta o tipo de archivo |
 
 ### Cómo Codex funciona en este repositorio
 
-1. **Carga inicial**: Codex lee `AGENTS.md` y entiende el contexto de `project_copy`
+1. **Carga inicial**: Codex lee `CLAUDE.md`, `.github/SHARED_INSTRUCTIONS.md` y entiende el contexto de `util_bbdd`
 2. **Validación de contexto**: Contrasta el código real con lo que ve en las instrucciones
 3. **Edición manual**: Realiza cambios acotados con parches pequeños
 4. **Verificación**: Ejecuta tests relevantes para validar
@@ -43,10 +45,10 @@ Para la configuración de Copilot Chat, consulta [github_usage_complete_example.
 |---|---|---|
 | Slash commands | No aplica | Sí, `/new-feature`, `/hotfix`, etc. |
 | Flujo estructurado | Manual o implícito | Obligatorio por comando |
-| Contexto por defecto | Lee `AGENTS.md` + el código | Lee `CLAUDE.md` + comandos |
+| Contexto por defecto | Lee instrucciones del repositorio + el código real | Lee `CLAUDE.md` + comandos |
 | Salida esperada | Código y cambios acotados | Salida estructurada (PLAN → VERSION) |
 | Auditoría integrada | No | Sí, con `/audit-code` |
-| Punto de entrada | `AGENTS.md` | `CLAUDE.md` |
+| Punto de entrada | `CLAUDE.md` + `.github/SHARED_INSTRUCTIONS.md` | `CLAUDE.md` |
 
 ---
 
@@ -57,7 +59,7 @@ Para la configuración de Copilot Chat, consulta [github_usage_complete_example.
 Abre Codex y describe la tarea con alcance concreto:
 
 ```text
-Trabaja sobre project_copy.
+Trabaja sobre util_bbdd.
 
 Objetivo: [describe el cambio]
 Alcance: [rutas o módulos]
@@ -70,11 +72,11 @@ Después implementa con cambios acotados y ejecuta tests relevantes.
 **Ejemplo real**:
 
 ```text
-Objetivo: añadir soporte para personalización de prefijos de proyecto en generadores
-Alcance: src/project_copy/services/generators.py, tests/unit/services/test_generators.py
-Restricciones: 
+Objetivo: añadir una validación explícita para formatos no soportados en DatabaseDocumentation
+Alcance: src/util_bbdd/doc/database_documentation.py, tests/unit/test_database_documentation.py
+Restricciones:
   - Compatibilidad hacia atrás con API existente
-  - No refactorizar PersonalizationEngine
+  - No refactorizar la arquitectura de renderers
   - Docs en docstrings y ejemplos
 ```
 
@@ -84,22 +86,22 @@ Codex debe:
 
 1. **Leer el código real** — no inventar módulos
 2. **Hacer cambios pequeños** — parches específicos, no refactors
-3. **Respetar la arquitectura** — servicios, facades, CLIs
-4. **Validar con tests** — ejecuta `pytest tests/unit/services -q`
+3. **Respetar la arquitectura** — managers, comparadores, renderers, facades y adaptadores
+4. **Validar con tests** — ejecuta tests unitarios relevantes
 
 Ejemplo de cambio acotado:
 
 ```python
-# services/generators.py
-def generate_project(self, name: str, prefix: str | None = None) -> Path:
-    """Generate a new project structure.
-    
-    Args:
-        name: Project name
-        prefix: Optional prefix for project directories (default: 'gen_')
-        
-    Returns:
-        Path to generated project
+# doc/database_documentation.py
+def generate(self) -> None:
+    """Genera la documentación configurada en los formatos solicitados.
+
+    Raises:
+        ValueError: Si la lista de formatos contiene un valor no soportado.
+
+    Example:
+        >>> documentation = DatabaseDocumentation(db_manager, formatos=["html"])
+        >>> documentation.generate()
     """
 ```
 
@@ -115,7 +117,7 @@ python -m ruff check src tests
 python -m mypy src
 
 # Tests relevantes
-python -m pytest tests/unit/services/test_generators.py -v
+python -m pytest tests/unit/test_database_documentation.py -v
 ```
 
 Si algún comando falla, Codex corrige antes de continuar.
@@ -127,6 +129,7 @@ Si algún comando falla, Codex corrige antes de continuar.
 Antes de terminar, Codex debe:
 
 - ✅ Actualizar documentación si cambia CLI, API pública o archivos generados
+- ✅ Si cambia documentación publicada, sincronizar `mkdocs.yml` y mantener separados los apartados funcionales, técnicos y ejemplos
 - ✅ Sincronizar instrucciones IA si cambian reglas comunes
 - ✅ Ejecutar pruebas relevantes o explicar por qué no se ejecutaron
 - ✅ Resumir archivos modificados y comportamiento verificado
@@ -140,10 +143,10 @@ Antes de terminar, Codex debe:
 **Solicitud a Codex**:
 
 ```text
-Trabaja sobre project_copy.
+Trabaja sobre util_bbdd.
 
-Objetivo: permitir que DuplicateProjectManager valide que el directorio destino sea vacío antes de copiar
-Alcance: src/project_copy/services/project_manager.py
+Objetivo: permitir que SchemaComparator normalice el nombre de dialecto SQL Server como mssql al resolver routines
+Alcance: src/util_bbdd/comparar/comparator.py, tests/comparar/test_comparator.py
 Restricciones: cambios mínimos, mantener la API pública
 
 Revisa el código actual y propón la validación. Luego ejecuta tests relevantes.
@@ -151,22 +154,22 @@ Revisa el código actual y propón la validación. Luego ejecuta tests relevante
 
 **Flujo esperado de Codex**:
 
-1. Lee `src/project_copy/services/project_manager.py`
-2. Identifica la clase `DuplicateProjectManager` y su método principal
-3. Propone una validación con excepción específica
-4. Actualiza tests en `tests/unit/services/test_project_manager.py`
-5. Ejecuta `python -m pytest tests/unit/services/test_project_manager.py -v`
-6. Resume: "✅ Validación añadida. 3 tests nuevos pasan. API pública sin cambios."
+1. Lee `src/util_bbdd/comparar/comparator.py`
+2. Identifica `SchemaComparator` y el mapa `_DB_TYPE_TO_DIALECT`
+3. Propone una validación o ajuste acotado del dialecto
+4. Actualiza tests en `tests/comparar/test_comparator.py`
+5. Ejecuta `python -m pytest tests/comparar/test_comparator.py -v`
+6. Resume: "Validación añadida. Tests relevantes pasan. API pública sin cambios."
 
 ### Ejemplo 2. Fix de bug acotado
 
 **Solicitud a Codex**:
 
 ```text
-Trabaja sobre project_copy.
+Trabaja sobre util_bbdd.
 
-Objetivo: corregir que PersonalizationEngine sobrescribe archivos README sin validación
-Alcance: src/project_copy/services/personalization.py
+Objetivo: corregir que SyncDatabaseManager acepte un db_type con espacios sin normalización previa
+Alcance: src/util_bbdd/managers/sync_mgr.py
 Restricciones: solo fix mínimo, sin refactor
 
 Después, verifica con tests.
@@ -175,44 +178,51 @@ Después, verifica con tests.
 **Flujo esperado de Codex**:
 
 1. Lee el código afectado
-2. Identifica la línea que sobrescribe sin validación
+2. Identifica dónde se normaliza y valida `db_type`
 3. Añade lógica de validación simple
 4. Añade test que valide el comportamiento
-5. Ejecuta tests: `pytest tests/unit/services/test_personalization.py::test_personalization_respects_existing_readme -v`
+5. Ejecuta tests: `pytest tests/unit/test_sync_executor_contract.py -v`
 6. Resume cambios y cierra
 
-### Ejemplo 3. Actualización de documentación
+### Ejemplo 3. Crear o actualizar documentación
 
 **Solicitud a Codex**:
 
 ```text
-Trabaja sobre project_copy.
+Trabaja sobre util_bbdd.
 
-Objetivo: documentar la función generate_project_with_metadata en README.md
-Alcance: docs, README.md, ejemplos
-Restricciones: no refactorizar código existente
+Objetivo: actualizar la documentación de DatabaseDocumentation.
+Alcance: README.md, docs/, docs/examples/, mkdocs.yml
+Restricciones:
+- no refactorizar código existente
+- no inventar capacidades, parámetros ni salidas
+- excluir generación mediante APIs externas
 
-Actualiza la documentación con un ejemplo claro.
+Incluye apartados funcionales, técnicos y un ejemplo de funcionamiento verificable.
+Actualiza mkdocs.yml si creas o mueves páginas.
 ```
 
 **Flujo esperado de Codex**:
 
-1. Lee la función en `src/project_copy/services/generators.py`
-2. Lee `README.md` actual
-3. Propone una sección o ejemplo
-4. Verifica que los ejemplos sean ejecutables
-5. Resume cambios en documentación
+1. Lee `src/util_bbdd/doc/database_documentation.py`
+2. Lee `README.md`, `docs/`, `docs/examples/` y `mkdocs.yml`
+3. Decide si actualiza una página existente o crea una nueva
+4. Separa claramente documentación funcional, técnica y ejemplo de uso
+5. Usa Mermaid solo si el flujo se infiere del código real
+6. Verifica que los ejemplos sean ejecutables o marca lo pendiente de verificación
+7. Ejecuta `mkdocs build` si el entorno lo permite
+8. Resume cambios en documentación y navegación
 
 ### Ejemplo 4. Auditoría independiente (requiere intervención del usuario)
 
 Si quieres que Codex audite sin escribir código:
 
 ```text
-Trabaja sobre project_copy.
+Trabaja sobre util_bbdd.
 
-Objetivo: revisar la función copy_project en FileSystemService
-Alcance: src/project_copy/services/file_system.py
-Quiero: bugs potenciales, edge cases, paths que falten validación, tests insuficientes
+Objetivo: revisar la clase DatabaseDocumentation
+Alcance: src/util_bbdd/doc/database_documentation.py
+Quiero: bugs potenciales, edge cases de configuración, validaciones de formatos y tests insuficientes
 
 NO escribas código. Solo analiza.
 ```
@@ -243,7 +253,8 @@ Usa Copilot Chat para → consultas rápidas, exploración, orientación
 | Nueva feature compleja | Claude Code | Flujo estructurado, auditoría |
 | Pregunta rápida sobre código | Copilot Chat | Conversación natural |
 | Auditoría de seguridad | Claude Code + Security Reviewer | Especialización dedicada |
-| Documentación simple | Codex | Cambios puntuales |
+| Documentación puntual | Codex | Actualización acotada con `mkdocs.yml` |
+| Documentación de proyecto completo | Documentation Generator o Claude Code | Inventario, secciones funcional/técnica/ejemplos y revisión final |
 
 ---
 

@@ -143,6 +143,28 @@ Esta especialización es **compatible con agentes Copilot Chat**:
 
 ---
 
+## Documentación con Claude Code
+
+Para crear o actualizar documentación, usa el mismo contrato que Copilot:
+
+1. Lee `.github/SHARED_INSTRUCTIONS.md` y `.github/instructions/docs.instructions.md`.
+2. Revisa documentación existente antes de crear páginas nuevas.
+3. Separa apartados funcionales, técnicos y ejemplos.
+4. Usa Mermaid.js solo cuando el flujo sea verificable.
+5. Actualiza `mkdocs.yml` si se crean, mueven o eliminan páginas.
+6. No inventes capacidades, módulos, APIs, salidas ni dependencias.
+7. Excluye por el momento generación documental mediante APIs externas.
+
+Solicitud recomendada:
+
+```markdown
+Actualiza la documentación de [módulo/capacidad/proyecto completo].
+Incluye documentación funcional, técnica, ejemplos verificables y cambios necesarios en mkdocs.yml.
+No uses un único prompt masivo; trabaja por fases y marca como pendiente lo no verificable.
+```
+
+---
+
 ## Checklist de sincronización
 
 Cuando actualices **`.github/SHARED_INSTRUCTIONS.md`**, verifica:

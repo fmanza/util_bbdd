@@ -50,27 +50,27 @@ def demonstrate_graph_generation():
     """
     )
 
-    print("✅ Esquema creado: users → orders → items\n")
+    print("Esquema creado: users -> orders -> items\n")
 
     # 2. Obtener metadatos
     tables = manager.get_tables()
     table_names = [t[0] for t in tables]
-    print(f"📊 Tablas encontradas: {table_names}\n")
+    print(f"Tablas encontradas: {table_names}\n")
 
     # 3. Generar grafo paginado por tabla
     from pathlib import Path
 
     graph = GraphvizRelationshipGraphExt(
-        database_manager=manager,
+        db_manager=manager,
         show_columns=True,
         show_data_types=True,
         max_depth=2,
     )
 
-    print("🎨 Generando grafos paginados...\n")
+    print("Generando grafos paginados...\n")
 
     # 4. Generar archivos SVG
-    print("💾 Exportando a formatos:")
+    print("Exportando a formatos:")
 
     output_dir = Path("./graphviz_output")
     output_dir.mkdir(exist_ok=True)
@@ -84,33 +84,31 @@ def demonstrate_graph_generation():
     )
 
     for file in graph_files:
-        print(f"   ✅ {file}")
+        print(f"   {file}")
     print()
 
-    # 5. Visualización ASCII (simulada)
-    print("📝 Visualización ASCII:")
+    # 5. Visualizacion ASCII
+    print("Visualizacion ASCII:")
     print(
         """
-        ┌─────────┐
-        │  users  │
-        └────┬────┘
-             │ (1:N)
-        ┌────▼─────┐
-        │  orders  │
-        └────┬─────┘
-             │ (1:N)
-        ┌────▼─────┐
-        │  items   │
-        └──────────┘
+        users
+          |
+          | (1:N)
+          v
+        orders
+          |
+          | (1:N)
+          v
+        items
     """
     )
 
     # 6. Información del grafo
-    print("📊 Información del grafo:")
+    print("Informacion del grafo:")
     print("   - Tabla raíz: users")
     print("   - Profundidad máxima: 2 niveles")
     print("   - Tablas: 3 (users, orders, items)")
-    print("   - Relaciones: 2 (users→orders, orders→items)")
+    print("   - Relaciones: 2 (users -> orders, orders -> items)")
 
     manager.close()
 

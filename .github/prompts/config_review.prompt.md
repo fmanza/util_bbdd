@@ -21,6 +21,7 @@ tanto para **GitHub Copilot Chat** como para **Claude Code**.
 - Estrategia elegida (Opción A / Opción B):
 - Contenido a unificar o separar:
 - Restricciones de compatibilidad (romper contratos públicos: sí/no):
+- Alcance documental: incluir agentes/prompts de documentación y `mkdocs.yml` cuando aplique:
 
 ## Instrucciones previas obligatorias
 
@@ -28,6 +29,13 @@ Lee los siguientes ficheros **antes** de emitir cualquier propuesta:
 
 - `.github/copilot-instructions.md` — instrucciones actuales para Copilot Chat
 - `CLAUDE.md` — instrucciones actuales para Claude Code
+- `.github/instructions/docs.instructions.md` — reglas canónicas de documentación
+- `.github/agents/documentation-generator.agent.md` — generación/actualización documental
+- `.github/agents/documentation-reviewer.agent.md` — revisión documental
+- `.github/prompts/functional_doc.prompt.md` — prompt funcional
+- `.github/prompts/technical_doc.prompt.md` — prompt técnico
+- `.github/prompts/documentation_review.prompt.md` — prompt de revisión documental
+- `mkdocs.yml` — navegación y configuración documental, si el cambio afecta docs
 
 ## Análisis previo que debes hacer
 
@@ -39,6 +47,7 @@ Antes de proponer, clasifica cada sección de ambos ficheros en una de estas cat
 | `copilot-only` | Específico de Copilot Chat (agentes VS Code, `#file:`, prompts `.prompt.md`) |
 | `claude-only` | Específico de Claude Code (slash commands, hooks, settings.json, ejecución offline) |
 | `duplicado` | Presente en ambos ficheros con variaciones menores — candidato a unificar |
+| `docs-shared` | Regla documental común: MkDocs, Mermaid, no invención, ejemplos, actualización completa |
 
 ## Estrategias disponibles
 
@@ -68,17 +77,23 @@ Elige esta opción si cada plataforma tiene ciclo de vida o equipo de mantenimie
 - El flujo `PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION` está presente en ambos contextos
 - Las secciones específicas de cada plataforma están claramente delimitadas
 - Formato: markdown estructurado con secciones etiquetadas
+- Los prompts de documentación separan funcional, técnico, ejemplos y revisión final
+- La creación y actualización de documentación comparten un único flujo de entrada siempre que sea posible
+- `mkdocs.yml` se incluye cuando se creen, muevan o retiren páginas
+- No se incluyen instrucciones de generación mediante APIs externas mientras esté excluido
 
 ## Formato de salida esperado
 
 ### ANÁLISIS
 - Tabla categorizada (shared / copilot-only / claude-only / duplicado)
 - Porcentaje estimado de contenido compartido
+- Tabla de reglas documentales comunes y dónde deben vivir
 
 ### PLAN
 - Estrategia elegida y justificación
 - Ficheros resultantes (rutas y responsabilidad de cada uno)
 - Riesgos de divergencia futura
+- Punto único de entrada para crear o actualizar documentación del proyecto
 
 ### AUDIT_PLAN
 - Riesgos funcionales
@@ -92,6 +107,8 @@ Elige esta opción si cada plataforma tiene ciclo de vida o equipo de mantenimie
 ### AUDIT_CODE
 - Cobertura de reglas clave (SOLID, OOP, multibase, políticas por tarea)
 - Secciones ausentes o incompletas
+- **Verificación documental:** Confirma separación funcional/técnica/ejemplos, actualización de `mkdocs.yml`, uso de Mermaid y regla de no inventar
+- **Verificación de APIs externas:** Bloquea instrucciones o ejemplos de generación documental mediante API por estar fuera de alcance temporal
 - **Verificación de f-strings:** Bloquea PR si encuentra `.format()`, `%` formatting o concatenación en strings con parámetros (deben usar f-strings)
 - **Verificación de logging:** Confirma que todas las clases con lógica tienen `self.logger: logging.Logger` instanciado en `__init__`
 - **Verificación de variables globales:** Rechaza variables globales mutables (dicts, listas) a nivel de módulo

@@ -10,7 +10,7 @@ Ejemplo que muestra cómo ejecutar múltiples queries en paralelo con `AsyncData
 - Manejar `PoolExhaustedError`
 
 !!! info "Beneficio del paralelismo"
-    4 queries ejecutadas en paralelo (~100ms) vs. secuencial (~400ms).
+    El ejemplo usa `asyncio.gather()` para lanzar cuatro consultas y recoger sus resultados en una sola espera.
     Ver [Guía de Programación Asíncrona](../ASYNC_GUIDE.md) para más detalles.
 
 ---

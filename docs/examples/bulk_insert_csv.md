@@ -7,7 +7,6 @@ Ejemplo que muestra cómo cargar datos de un CSV con pandas, insertarlos masivam
 - Cargar datos desde CSV con `pandas`
 - Inserción masiva con `bulk_crud.bulk_insert_from_df()`
 - Registro de auditoría en CSV con timestamps
-- Generar script SQL de las operaciones
 - Manejo de `ValidationError` y `DatabaseException`
 
 ---

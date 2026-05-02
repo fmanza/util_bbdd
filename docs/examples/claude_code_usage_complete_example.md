@@ -10,6 +10,7 @@ Cubre:
 - cómo funcionan los slash commands de `.claude/commands/`
 - flujo de trabajo estructurado (PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION)
 - políticas por tipo de tarea
+- creación o actualización de documentación con MkDocs, Mermaid y ejemplos verificables
 - ejemplos completos por caso de uso
 
 Para la configuración equivalente de Copilot Chat, consulta [github_usage_complete_example.md](github_usage_complete_example.md).
@@ -91,21 +92,22 @@ Claude Code no debe empezar por código si el objetivo no está definido.
 
 En cualquier conversación, la política de [../../CLAUDE.md](../../CLAUDE.md) está activa sin necesidad de mencionarla. Fija:
 
-- el rol esperado (senior Python, multibase, sync/async)
-- la arquitectura de 3 niveles y la regla de imports
-- las reglas críticas multibase y SOLID
+- el rol esperado y la arquitectura real descrita en `.github/SHARED_INSTRUCTIONS.md`
+- las reglas críticas de calidad, documentación, SOLID y verificación contra código real
 - la obligación de emitir PLAN y AUDIT_PLAN antes del código en cambios no triviales
 
 Ejemplo de petición sin slash command:
 
 ```text
-Necesito añadir documentación Markdown para vistas y relaciones FK en el renderer.
+Necesito actualizar la documentación de una capacidad del proyecto.
+Incluye parte funcional, parte técnica, ejemplo verificable y cambios necesarios en mkdocs.yml.
 ```
 
 Efecto esperado:
 
 - Claude identifica que es una feature y aplica la política `new_feature`
 - emite PLAN y AUDIT_PLAN antes de proponer código
+- revisa documentación existente antes de crear páginas nuevas
 - no mezcla la feature con un refactor no solicitado
 
 ### Caso 2. Slash command para flujo estructurado
@@ -145,14 +147,12 @@ Invocación:
 ```text
 /new-feature
 
-Objetivo: añadir exportación Markdown de vistas con Mermaid opcional.
-Módulo(s) o clase(s) afectadas: src/util_bbdd/doc/render_markdown.py, tests/test_render_markdown.py
-API pública esperada: parámetro opcional para habilitar diagramas Mermaid
-Contrato de entrada: modelo de metadatos ya introspectado
-Contrato de salida: Markdown portable y determinista
-Reglas de negocio: no inventar metadatos, Mermaid solo con datos reales
-Restricciones: sin dependencias nuevas
-Motores o formatos afectados: Markdown
+Objetivo: documentar una capacidad pública existente.
+Módulo(s) o clase(s) afectadas: [rutas reales verificadas]
+Documentación afectada: README.md, docs/, docs/examples/, mkdocs.yml
+Contrato documental: separar apartados funcionales, técnicos y ejemplos
+Reglas de negocio: no inventar capacidades, Mermaid solo con flujo verificable
+Restricciones: sin cambios de código, sin generación mediante APIs externas
 Archivos existentes relevantes: sí
 ```
 
@@ -161,6 +161,7 @@ Qué obliga este comando:
 - presentar `PLAN` con rutas afectadas, componentes, tipos y riesgos
 - presentar `AUDIT_PLAN` con riesgos funcionales, técnicos y de seguridad
 - implementar por capas (Level 1 → 2 → 3)
+- actualizar `mkdocs.yml` si crea, mueve o elimina páginas
 - cerrar con `AUDIT_CODE` y `VERSION`
 - no convertir la tarea en refactor general
 
@@ -417,6 +418,10 @@ Usa `/audit-code` cuando quieras una revisión técnica general de un módulo o 
 #### ¿Cuál es la diferencia entre `/maturity-assessment` y `/audit-code`?
 
 `/audit-code` audita código concreto (módulo, archivo, PR) y emite un veredicto técnico puntual. `/maturity-assessment` evalúa el repositorio completo en múltiples dimensiones (estructura, APIs, tipado, seguridad, tests, documentación) y emite un veredicto de readiness para publicación o mantenimiento a largo plazo.
+
+#### ¿Cómo pido documentación con el contrato actual?
+
+Pide una actualización documental, no solo "crear un Markdown". Claude debe leer `.github/SHARED_INSTRUCTIONS.md`, `.github/instructions/docs.instructions.md`, la documentación existente y `mkdocs.yml`; después debe separar contenido funcional, técnico y ejemplos. Mermaid se usa solo si el flujo es verificable y la generación mediante APIs externas queda fuera de alcance por ahora.
 
 ---
 

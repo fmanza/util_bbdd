@@ -15,6 +15,9 @@
 - Changelog y release notes
 - Cross-references y linkability
 - Consistencia de lenguaje y tone
+- `mkdocs.yml`: navegación, páginas inexistentes, páginas huérfanas, tema Material, Mermaid
+- Prompts e instrucciones IA de documentación en `.github/prompts/`, `.github/agents/` y `.github/instructions/`
+- Separación clara entre documentación funcional, técnica y ejemplos
 
 ## Criterios por severidad
 
@@ -24,6 +27,7 @@
 - APIs sin type hints o sin documentación de parámetros/return/excepciones
 - Ejemplos rotos u obsoletos
 - Instalación no documentada
+- `mkdocs.yml` referencia páginas inexistentes o excluye páginas necesarias para onboarding
 
 ### Nivel 2: Alto
 - Features principales sin ejemplos
@@ -31,6 +35,7 @@
 - Guías de troubleshooting ausentes
 - Incompatibilidades entre motores no aclaradas
 - Errores no documentados
+- Prompts de documentación que inducen a inventar capacidades o mezclan funcional y técnico sin secciones claras
 
 ### Nivel 3: Recomendado
 - Ejemplos avanzados no cubiertos
@@ -46,3 +51,21 @@
 - Sugiere formato y contenido mínimo para cerrar gaps.
 - Etiqueta claramente ejemplos faltantes y ubicación sugerida.
 - Verifica ejemplos en `docs/examples/` y docstrings en módulos `__init__.py` y archivos públicos.
+- Verifica que cada página nueva o existente esté publicada o excluida intencionalmente en `mkdocs.yml`.
+- Comprueba que Mermaid se use en bloques fenced y sin detalles sensibles.
+- Señala si se propone un único prompt masivo para todo el proyecto; recomienda dividir en fases.
+- Excluye por el momento recomendaciones para generación mediante APIs externas.
+
+## Formato adicional requerido
+
+Incluye estas subsecciones dentro de `AUDIT_CODE`:
+
+### MkDocs y navegación
+- Estado de `mkdocs.yml`
+- Páginas huérfanas o rotas
+- Secciones funcional/técnica/ejemplos
+
+### Prompts IA de documentación
+- Riesgos de invención
+- Duplicación entre prompts/agentes/instrucciones
+- Cumplimiento de exclusión de APIs externas

@@ -7,7 +7,7 @@ Ejemplo que demuestra todos los formatos disponibles para exportar comparativas 
 | Reporter | Formato | Caso de uso |
 |---|---|---|
 | `HtmlDiffReporter` | `.html` | Exploración interactiva con filtrado y búsqueda |
-| `SqlDiffReporter` | `.sql` | Script de nivelación dialect-específico (7 dialectos) |
+| `SqlDiffReporter` | `.sql` | Script de nivelación dialect-específico |
 | `MarkdownDiffReporter` | `.md` | Documentación portátil en repositorios |
 | `ExcelDiffReporter` | `.xlsx` | Análisis en hojas de cálculo |
 | `WordDiffReporter` | `.docx` | Reporte profesional |

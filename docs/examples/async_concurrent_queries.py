@@ -16,17 +16,18 @@ from util_bbdd import AsyncDatabaseManager, DatabaseException, PoolExhaustedErro
 async def demonstrate_concurrent_queries():
     """Ejecutar queries concurrentes de forma segura."""
 
-    # 1. Crear manager con pool configurado
+    # 1. Crear manager con pool configurado.
+    # pool_size se declara dentro de conn_params; no es argumento del constructor.
     manager = AsyncDatabaseManager(
         db_type="sqlite",
-        conn_params={"database": ":memory:"},
+        conn_params={"database": "async_queries_demo.db", "pool_size": 5},
         use_pool=True,
-        pool_size=5,  # Limitar conexiones simultáneas
     )
 
     await manager.init()
 
     # 2. Crear tabla de prueba con datos
+    await manager.execute_custom_many("DROP TABLE IF EXISTS products")
     await manager.execute_custom_many(
         """
         CREATE TABLE products (
@@ -43,7 +44,7 @@ async def demonstrate_concurrent_queries():
             f"INSERT INTO products (id, name, price) VALUES ({i}, 'Product {i}', {i * 10.0})"
         )
 
-    print("✅ BD inicializada con 10 productos\n")
+    print("BD inicializada con 10 productos\n")
 
     # 3. Definir queries concurrentes
     async def get_cheap_products():
@@ -67,7 +68,7 @@ async def demonstrate_concurrent_queries():
         return f"Total de productos: {result[0]}"
 
     # 4. Ejecutar todas en paralelo
-    print("🚀 Ejecutando 4 queries en paralelo...\n")
+    print("Ejecutando 4 queries en paralelo...\n")
 
     try:
         results = await asyncio.gather(
@@ -81,12 +82,12 @@ async def demonstrate_concurrent_queries():
             print(f"   {i}. {result}")
 
     except PoolExhaustedError as e:
-        print(f"❌ Pool exhausted: {e}")
+        print(f"Pool exhausted: {e}")
     except DatabaseException as e:
-        print(f"❌ Database error: {e}")
+        print(f"Database error: {e}")
 
     # 5. Resumen
-    print("\n⏱️  Comparación de tiempos (simulado):")
+    print("\nComparacion de tiempos (simulado):")
     print("   - Paralelo: ~100ms (todas simultáneamente)")
     print("   - Secuencial: ~400ms (una por una)")
 
