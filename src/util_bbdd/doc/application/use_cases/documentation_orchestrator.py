@@ -365,9 +365,7 @@ class DocumentationSession:
             return None
         return self._svg_level_groups_cache.get((table_name, max_depth, direction))
 
-    def cache_level_groups(
-        self, table_name: str, max_depth: int, direction: str, level_groups: dict[str, Any]
-    ) -> None:
+    def cache_level_groups(self, table_name: str, max_depth: int, direction: str, level_groups: dict[str, Any]) -> None:
         """Almacena los grupos de nivel SVG en caché para reutilización en Word paginated.
 
         Muta el estado interno de la sesión. El caché es efímero: vive solo durante
@@ -497,12 +495,13 @@ class DocumentationOrchestrator:
     def generate_documents(self) -> None:
         """Ejecuta la generación documental completa para la sesión activa."""
         shared_graph_generator: GraphvizRelationshipGraphExt | None = self._build_shared_graph_generator()
-        plans = self._sort_plans_for_svg_cache(self._planner.build_plans())
+        should_share_graph: bool = self._planner.should_share_graph_generator()
+        plans = self._sort_plans_for_svg_cache(self._planner.build_plans(), should_share_graph=should_share_graph)
         for plan in plans:
             self._dispatch_plan(plan, shared_graph_generator)
 
     def _sort_plans_for_svg_cache(
-        self, plans: list[DocumentationFormatPlan]
+        self, plans: list[DocumentationFormatPlan], should_share_graph: bool = False
     ) -> list[DocumentationFormatPlan]:
         """Reordena planes para que HTML siempre preceda a Word cuando ambos están presentes.
 
@@ -513,26 +512,37 @@ class DocumentationOrchestrator:
         El reordenamiento es transparente: todos los formatos solicitados se generan;
         solo cambia el orden de escritura a disco.
 
+        Solo reordena si SOLO hay Word+HTML (sin otros formatos como Excel).
+        Si hay otros formatos, se preserva el orden del usuario.
+
         Args:
             plans: Lista de planes en el orden original de session.formatos
+            should_share_graph: Si True, reordena para optimizar caché SVG; si False, preserva orden original
 
         Returns:
-            list[DocumentationFormatPlan]: html primero, luego otros (excel, etc.),
-                word al final; si no hay html o word, el orden original se preserva.
+            list[DocumentationFormatPlan]: Si should_share_graph=True y SOLO hay html+word, retorna
+                [html, word]; si no, retorna plans sin cambios.
 
         Example:
-            >>> sorted_plans = orchestrator._sort_plans_for_svg_cache(plans)
+            >>> sorted_plans = orchestrator._sort_plans_for_svg_cache(plans, should_share_graph=True)
             >>> sorted_plans[0].output_format if any(p.output_format == "html" for p in plans) else ...
             'html'
         """
+        # Solo reordenar si realmente hay reutilización de grafos entre Word y HTML
+        # Y solo hay estos dos formatos (sin Excel u otros)
+        if not should_share_graph:
+            return plans
+
+        formats = {p.output_format for p in plans}
+        # Solo reordenar si exactamente tenemos HTML y Word, sin otros formatos
+        if formats != {"html", "word"}:
+            return plans
+
         html_plans = [p for p in plans if p.output_format == "html"]
         word_plans = [p for p in plans if p.output_format == "word"]
-        other_plans = [p for p in plans if p.output_format not in ("html", "word")]
-        reordered = html_plans + other_plans + word_plans
+        reordered = html_plans + word_plans
         if reordered != plans:
-            self._session.logger.debug(
-                f"🔀 Reordenando planes para caché SVG: {[p.output_format for p in reordered]}"
-            )
+            self._session.logger.debug(f"🔀 Reordenando planes para caché SVG: {[p.output_format for p in reordered]}")
         return reordered
 
     def _build_shared_graph_generator(self) -> GraphvizRelationshipGraphExt | None:
