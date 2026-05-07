@@ -2,21 +2,27 @@
 
 Proporciona operaciones de INSERT, UPDATE y DELETE masivo sobre tablas existentes usando DataFrames de pandas como fuente. Internamente aplica normalización de identificadores por motor (minúsculas para Oracle/PostgreSQL, mayúsculas para MySQL/MariaDB/SQL Server/HSQLDB), divide los datos en lotes (`chunk_size`) y delega la ejecución en `BatchStatementExecutor`. Opcionalmente registra cada operación en `AuditManager` y puede generar el SQL equivalente en fichero.
 
+## Internal Dependencies
+
+| Dependencia | Propósito | Requerida | Comportamiento sin ella |
+|---|---|---|---|
+| `util.timing.medir_tiempo` | Decorator para capturar duración de operaciones bulk | Sí (incluida en pyproject.toml) | Fallback: decorator placeholder, timing=0 ms en CSV |
+
 ## Diagrama
 
 ```mermaid
 flowchart TD
     A[bulk_crud] --> B[validate_engine]
     B -->|OK| C{Operación}
-    C -->|insert| D[__prepare_insert_operation]
-    C -->|update| E[__prepare_update_operation]
-    C -->|delete| F[__prepare_delete_operation]
+    C -->|insert| D["@medir_tiempo<br/>bulk_insert_from_df()"]
+    C -->|update| E["@medir_tiempo<br/>bulk_update_from_df()"]
+    C -->|delete| F["@medir_tiempo<br/>bulk_delete_from_df()"]
     D & E & F --> G{generar_sql?}
     G -->|Sí| H[Generar fichero .sql]
     G -->|No| I[BatchStatementExecutor]
     H --> I
     I --> J[SQLAlchemy → BD por lotes]
-    J --> K[AuditManager.registrar]
+    J --> K["AuditManager.registrar<br/>(tabla, motor, filas, tiempo_seg)"]
 ```
 
 ## API pública
@@ -58,3 +64,19 @@ flowchart TD
 - **SQL Server**: detecta el driver (`pymssql` vs `pyodbc`) inspeccionando `engine.url.drivername` y ajusta el `db_info` de auditoría.
 - **generar_sql=True**: el fichero SQL se escribe con el nombre `{tabla}_{operacion}_{timestamp}.sql` dentro de `path_sql`. Si `path_sql` no existe o no es un directorio válido, lanza `ValueError` antes de ejecutar ninguna operación en BD.
 - La auditoría se registra aunque la operación falle parcialmente (el registro refleja las filas afectadas hasta el punto de fallo).
+
+#### Auditoría con métricas de timing
+
+Cada operación bulk genera automáticamente CSV audit_[operacion]_[timestamp].csv con 7 columnas exactas:
+
+| Columna | Tipo | Ejemplo | Descripción |
+|---|---|---|---|
+| timestamp | datetime | 2026-05-08 14:30:45.123 | Momento inicio operación |
+| tabla | str | usuarios | Tabla destino |
+| motor | str | postgresql | Driver utilizado |
+| operacion | str | insert | insert, update, delete |
+| total_filas | int | 1250 | Filas procesadas en lote |
+| tiempo_seg | float | 2.345 | **Duración capturada por util.timing** |
+| sql | str | INSERT INTO usuarios (...) | SQL template generado |
+
+**Nota**: El timing se mide automáticamente con `perf_counter()` dentro de la operación; siempre estará presente en `tiempo_seg`. Si `util.timing` no está disponible, se usa un decorator placeholder sin impacto funcional (el timing manual continúa capturándose correctamente).

@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB (sync).
 
-**Version:** 0.6.8 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 0.7.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -34,6 +34,12 @@ Librería Python especializada en **operaciones de base de datos** para MariaDB,
 
 !!! note
     `hsqldb` no dispone de implementación async en `util_bbdd`. Las factorías async lanzan error explícito para ese motor.
+
+---
+
+## ⏱️ Performance Monitoring
+
+Operaciones CRUD bulk miden automáticamente su duración usando `util.timing`. Cada operación registra en CSV de auditoría: tabla, motor, total de filas, duración (segundos) y timestamp. Permite analizar tendencias y optimizar batch_size.
 
 ---
 
@@ -137,9 +143,10 @@ asyncio.run(main())
     manager.close()
     ```
 
----
+### ⏱️ Performance Monitoring
 
-## Próximos pasos
+Operaciones CRUD bulk miden automáticamente su duración usando `util.timing`. Cada operación registra en CSV de auditoría: tabla, motor, total de filas, duración (segundos) y timestamp. Permite analizar tendencias y optimizar batch_size.
+
 
 - [Guía de instalación completa](INSTALLATION.md)
 - [Programación asíncrona](ASYNC_GUIDE.md)

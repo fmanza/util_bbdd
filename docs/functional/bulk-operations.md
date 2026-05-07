@@ -57,3 +57,27 @@ sequenceDiagram
 - No realiza validaciones de negocio sobre los datos del DataFrame (tipos, rangos, FK): eso es responsabilidad del llamador
 - No deduplica registros automáticamente antes de insertar
 - No soporta UPSERT nativo en todos los motores: la lógica de upsert debe implementarse fuera de este módulo
+
+## Performance Monitoring
+
+Todas las operaciones bulk (`bulk_insert_from_df`, `bulk_update_from_df`, `bulk_delete_from_df`) miden automáticamente su duración usando la dependencia interna `util.timing`. Las métricas se registran en el CSV de auditoría con columna `tiempo_seg` (duración en segundos).
+
+**Análisis de performance en Python**:
+```python
+import pandas as pd
+
+# Leer CSV de auditoría generado
+df = pd.read_csv('audit_insert_20260508_143045.csv')
+
+# Analizar duración promedio por tabla
+print(df.groupby('tabla')['tiempo_seg'].agg(['mean', 'sum', 'max']))
+
+# Calcular ms por fila
+df['ms_por_fila'] = (df['tiempo_seg'] * 1000) / df['total_filas']
+print(df[['tabla', 'total_filas', 'ms_por_fila']].head(10))
+```
+
+**Recomendaciones de optimización**:
+- Si `tiempo_seg` es alto y `total_filas` es bajo → aumentar batch_size
+- Si `tiempo_seg` es alto y `total_filas` es alto → revisar índices/constraints de tabla destino
+- Si `ms_por_fila` > 50 ms → considerar paralelizar en chunks independientes

@@ -2,7 +2,7 @@
 
 Esta guía proporciona instrucciones detalladas para instalar `util_bbdd` en diferentes sistemas operativos y bases de datos.
 
-**Version:** 0.6.7
+**Version:** 0.7.0
 **Requisitos:** Python 3.12+
 
 ---
@@ -12,6 +12,16 @@ Esta guía proporciona instrucciones detalladas para instalar `util_bbdd` en dif
 ```bash
 pip install util_bbdd
 ```
+
+---
+
+## Internal Dependencies
+
+| Dependencia | Propósito | Ubicación |
+|---|---|---|
+| `util @ git+https://github.com/fmanza/util.git@develop` | Timing automático en operaciones CRUD bulk | pyproject.toml |
+
+**Nota**: La dependencia `util` es requerida (incluida en `dependencies`, no en optional-dependencies). Proporciona el decorador `@medir_tiempo` para capturar duración de operaciones. Si no está disponible, operaciones continúan funcionando con timing=0 ms (fallback graceful).
 
 ---
 

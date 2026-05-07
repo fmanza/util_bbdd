@@ -165,6 +165,21 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [0.7.0] - 2026-04-21
 
+### Added
+
+#### Performance Monitoring — Automatic Operation Timing in Bulk CRUD
+- **Feature**: Automatic measurement of bulk CRUD operation duration using `util.timing.medir_tiempo` decorator
+- **CSV Audit Schema**: Extended with `tiempo_seg` column (float, seconds) — now 7 columns: timestamp, tabla, motor, operacion, total_filas, tiempo_seg, sql
+- **Decorated Methods**: `bulk_insert_from_df()`, `bulk_update_from_df()`, `bulk_delete_from_df()` (lines 189, 221, 253 in `src/util_bbdd/bulk/crud.py`)
+- **Fallback Mechanism**: Graceful fallback if `util.timing` unavailable — decorator placeholder, timing manual within operation continues correctly
+- **Documentation**:
+  - Updated `docs/api/bulk-crud.md` — Internal Dependencies section, 7-column schema table, fallback behavior
+  - Added `docs/index.md` — Performance Monitoring subsection
+  - Updated `README.md` — Performance Monitoring feature row in main table
+  - Updated `docs/INSTALLATION.md` — Internal Dependencies note
+  - New example: `docs/examples/bulk_insert_csv.py` — Audit CSV analysis with timing metrics
+- **Dependencies**: Added `util @ git+https://github.com/fmanza/util.git@develop` to `pyproject.toml`
+
 ### Fixed
 
 - `src/util_bbdd/managers/_manager_storage.py` — Eliminado `async` innecesario de `_AsyncHSQLDBStorageStrategy.execute()` (HSQLDB es in-memory, sin I/O async)

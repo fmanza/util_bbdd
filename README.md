@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB (sync).
 
-**Version:** 0.8.0 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 0.7.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -16,6 +16,7 @@ Librería Python especializada en **operaciones de base de datos** para MariaDB,
 | **Análisis de Schema** | ✅ | ✅ | Comparación de tablas, vistas, rutinas, índices |
 | **Documentación BD** | ✅ | — | HTML + Word + Excel generado automáticamente |
 | **Auditoría** | ✅ | ✅ | Logging de cambios con timestamps en CSV |
+| **Performance Monitoring** | ✅ | ✅ | Timing automático en bulk CRUD, métricas en CSV audit |
 | **Validación SQL** | ✅ | ✅ | Typechecking por dialecto de BD |
 | **Grafos** | ✅ | ✅ | Generar relaciones (Mermaid + GraphViz) |
 
