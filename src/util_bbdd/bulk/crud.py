@@ -61,7 +61,7 @@ from .audit import AuditManager
 from .normalize import normalize_records_for_sql
 
 try:
-    from util.medir_tiempo import medir_tiempo
+    from util.timing.medir_tiempo import medir_tiempo
 except ImportError:
 
     def medir_tiempo(proceso: str = "") -> Callable[[Any], Any]:
