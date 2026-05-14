@@ -43,6 +43,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-04-21-fase3-estructural | **refactor: Fase 3 estructural comparar/ + doc/** — C3 RoutineFetcherRegistry, C9 DdlNormalizer unificado, D1 generate() explícito, D4 Port circular, D5 ports split; 1969 passed, mypy+ruff clean | develop | refactor | CLOSED | `2026-04-21-fase3-estructural/TRACEABILITY.md` |
 | 2026-05-02 | **Documentation Generation Fases 1-6** — SyncDatabaseManager módulo piloto; documentación funcional + técnica + ejemplos verificables; mkdocs sync; auditoría APROBADA (100% referencias validadas, 0 módulos inventados) | develop | new_feature (documentation) | CLOSED | `2026-05-02/TRACEABILITY.md` |
 | 2026-05-14 | **config_review: corrección instrucciones IA** — 7 referencias `project_copy` eliminadas; Python `>=3.11`→`>=3.12`; `sync.instructions.md` creado (referencia rota); 3 slash commands añadidos a CLAUDE.md | develop | config_review | CLOSED | `2026-05-14/TRACEABILITY.md` |
+| 2026-05-14-docs-audit | **docs-audit: implementación 11 hallazgos Documentation Reviewer** — extras pip reales en INSTALLATION.md; ejemplo API real en example-connect-introspect.md; arquitectura real en SHARED_INSTRUCTIONS.md; versión 0.7.0→0.8.0; jerarquía excepciones corregida; cx_Oracle→oracledb; módulos results/async_utils/capabilities documentados; páginas huérfanas excluidas en mkdocs.yml; URLs rotas y versión actual en legacy-versions.md | develop | maturity_assessment | CLOSED | `2026-05-14-docs-audit/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 
