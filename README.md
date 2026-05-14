@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB (sync).
 
-**Version:** 0.7.0 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 0.8.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 

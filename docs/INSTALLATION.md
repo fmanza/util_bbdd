@@ -23,6 +23,15 @@ pip install util_bbdd
 
 **Nota**: La dependencia `util` es requerida (incluida en `dependencies`, no en optional-dependencies). Proporciona el decorador `@medir_tiempo` para capturar duración de operaciones. Si no está disponible, operaciones continúan funcionando con timing=0 ms (fallback graceful).
 
+**Troubleshooting de instalación de `util`**: Si `pip install util_bbdd` falla al resolver `util @ git+...`
+(por ejemplo, en entornos sin acceso a GitHub, CI offline o redes corporativas), instala primero
+la dependencia manualmente:
+
+```bash
+pip install git+https://github.com/fmanza/util.git@develop
+pip install util_bbdd --no-deps
+```
+
 ---
 
 ## Instalación desde Fuente (Desarrollo)
@@ -50,21 +59,22 @@ pip install -e ".[dev]"
 
 ## Matriz de Dependencias por Motor
 
-`util_bbdd` soporta múltiples bases de datos. Instala solo las dependencias del motor que uses:
+`util_bbdd` soporta múltiples bases de datos. Instala directamente el driver del motor que uses
+— los drivers **no** forman parte de los extras de `util_bbdd`; se instalan por separado.
 
 ### 1. PostgreSQL (recomendado para empezar)
 
 **Driver:** `psycopg2-binary` (sync) o `asyncpg` (async)
 
 ```bash
-# Sync solamente
-pip install util_bbdd[postgres]
+# Sync
+pip install psycopg2-binary
 
-# Con soporte async
-pip install util_bbdd[postgres-async]
+# Async
+pip install asyncpg
 
 # Ambos
-pip install util_bbdd[postgres,postgres-async]
+pip install psycopg2-binary asyncpg
 ```
 
 **Verificación:**
@@ -92,11 +102,11 @@ manager.close()
 **Driver:** `pymysql` (sync) o `aiomysql` (async)
 
 ```bash
-# Sync solamente
-pip install util_bbdd[mariadb]
+# Sync
+pip install pymysql
 
-# Con soporte async
-pip install util_bbdd[mariadb-async]
+# Async
+pip install aiomysql
 ```
 
 **Verificación:**
@@ -157,14 +167,12 @@ manager.close()
 
 ### 4. Oracle
 
-**Driver:** `oracledb` (sync/async)
+**Driver:** `oracledb` (sync/async, ya incluido en las dependencias base de `util_bbdd`)
 
-```bash
-# Sync y async (oracledb gestiona ambos)
-pip install util_bbdd[oracle]
-```
-
-**Nota:** Oracle requiere acceso a instantánea cliente o servidor. Consulta [Configuración de Drivers](POSTGRESQL_DRIVER_GUIDE.md) para detalles de configuración avanzada.
+El driver `oracledb` se instala automáticamente con `util_bbdd`. No requiere pasos adicionales
+para el driver. Sin embargo, Oracle puede necesitar el **Oracle Instant Client** en el sistema
+operativo para conexiones nativas. Consulta [Configuración de Drivers](POSTGRESQL_DRIVER_GUIDE.md)
+para detalles de configuración avanzada.
 
 **Verificación:**
 ```python
@@ -191,14 +199,14 @@ manager.close()
 **Driver:** `pyodbc` (sync) o `aioodbc` (async)
 
 ```bash
-# Sync solamente
-pip install util_bbdd[sqlserver]
+# Sync
+pip install pyodbc
 
-# Con soporte async
-pip install util_bbdd[sqlserver-async]
+# Async
+pip install aioodbc
 ```
 
-**Nota:** SQL Server requiere ODBC driver nativo instalado en el SO.
+**Nota:** SQL Server requiere el ODBC driver nativo instalado en el SO (ver sección de troubleshooting).
 
 **Verificación:**
 ```python
@@ -226,7 +234,7 @@ manager.close()
 **Driver:** `jaydebeapi` + Java (sync únicamente)
 
 ```bash
-pip install util_bbdd[hsqldb]
+pip install jaydebeapi
 ```
 
 **Nota:** HSQLDB requiere Java instalado en el sistema.
@@ -240,14 +248,14 @@ pip install util_bbdd[hsqldb]
 
 ## Tabla de Resumen: Dependencias por Motor
 
-| Motor      | Sync Driver    | Async Driver | Instalación               | Notas |
-|------------|---|---|---|---|
-| PostgreSQL | `psycopg2-binary` | `asyncpg` | `pip install util_bbdd[postgres]` | Recomendado |
-| MariaDB    | `pymysql`    | `aiomysql` | `pip install util_bbdd[mariadb]` | MySQL compatible |
-| SQLite     | `sqlite3` (built-in) | `aiosqlite` | `pip install util_bbdd` | No requiere driver externo |
-| Oracle     | `oracledb`   | `oracledb` | `pip install util_bbdd[oracle]` | Requiere client libs |
-| SQL Server | `pyodbc`     | `aioodbc` | `pip install util_bbdd[sqlserver]` | Requiere ODBC driver |
-| HSQLDB     | `jaydebeapi` | ❌ N/A | `pip install util_bbdd[hsqldb]` | Solo sync, requiere Java |
+| Motor      | Sync Driver          | Async Driver | Instalación del driver         | Notas |
+|------------|----------------------|--------------|--------------------------------|-------|
+| PostgreSQL | `psycopg2-binary`    | `asyncpg`    | `pip install psycopg2-binary`  | Recomendado |
+| MariaDB    | `pymysql`            | `aiomysql`   | `pip install pymysql`          | MySQL compatible |
+| SQLite     | `sqlite3` (built-in) | `aiosqlite`  | (incluido en Python)           | No requiere driver externo |
+| Oracle     | `oracledb`           | `oracledb`   | (incluido con `util_bbdd`)     | Puede requerir Oracle Instant Client |
+| SQL Server | `pyodbc`             | `aioodbc`    | `pip install pyodbc`           | Requiere ODBC driver nativo |
+| HSQLDB     | `jaydebeapi`         | ❌ N/A        | `pip install jaydebeapi`       | Solo sync, requiere Java |
 
 ---
 
@@ -260,8 +268,6 @@ pip install util_bbdd[hsqldb]
 **Solución:**
 ```bash
 pip install psycopg2-binary
-# o
-pip install util_bbdd[postgres]
 ```
 
 ---
@@ -273,8 +279,6 @@ pip install util_bbdd[postgres]
 **Solución:**
 ```bash
 pip install pymysql
-# o
-pip install util_bbdd[mariadb]
 ```
 
 ---

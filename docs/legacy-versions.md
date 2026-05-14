@@ -5,14 +5,14 @@ Este archivo documenta dónde encontrar la documentación histórica de util_bbd
 ## 📚 Índice de Versiones
 
 ### Releases Principales (Vigentes)
-- **v0.6.7** (Actual) — [MIGRATION_GUIDE_v0.6.7.md](MIGRATION_GUIDE_v0.6.7.md) — Última versión, cambios respecto a v0.6.6
-- **v0.6.x** (Activas) — [index.md](index.md) — Documentación vigente en mkdocs
+- **v0.8.0** (Actual) — [CHANGELOG.md](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md) — Última versión, cambios respecto a v0.7.0
+- **v0.7.x / v0.6.x** (Históricas) — [archive/](https://github.com/fmanza/util_bbdd/tree/main/docs/archive/) — Documentación archivada de versiones anteriores
 
 ### Fases de Refactorización Históricas
-- **v0.1 → v0.3.0** (PR 0-8) — [https://github.com/fmanza/util_bbdd/tree/main/docs/https://github.com/fmanza/util_bbdd/tree/main/docs/archive/releases/v0.1-v0.3.0/](https://github.com/fmanza/util_bbdd/tree/main/docs/https://github.com/fmanza/util_bbdd/tree/main/docs/archive/releases/v0.1-v0.3.0/) — Refactorización inicial completa con checklists de cada PR
+- **v0.1 → v0.3.0** (PR 0-8) — [archive/releases/v0.1-v0.3.0/](https://github.com/fmanza/util_bbdd/tree/main/docs/archive/releases/v0.1-v0.3.0/) — Refactorización inicial completa con checklists de cada PR
 
 ### Versiones Archivadas por Período
-- **v0.5.6** — [https://github.com/fmanza/util_bbdd/tree/main/docs/https://github.com/fmanza/util_bbdd/tree/main/docs/archive/versions/v0.5.6/](https://github.com/fmanza/util_bbdd/tree/main/docs/https://github.com/fmanza/util_bbdd/tree/main/docs/archive/versions/v0.5.6/) — Documentación técnica específica (procedures, refactors de Jinja2, etc.)
+- **v0.5.6** — [archive/versions/v0.5.6/](https://github.com/fmanza/util_bbdd/tree/main/docs/archive/versions/v0.5.6/) — Documentación técnica específica (procedures, refactors de Jinja2, etc.)
 
 ## 🔍 Guía Rápida: ¿Dónde Buscar?
 
@@ -21,7 +21,7 @@ Este archivo documenta dónde encontrar la documentación histórica de util_bbd
 👉 Para migración v0.5 → v0.6, consulta [MIGRATION_GUIDE_v0.6.7.md](MIGRATION_GUIDE_v0.6.7.md)
 
 ### "¿Qué cambió en PR X?"
-👉 Consulta [https://github.com/fmanza/util_bbdd/tree/main/docs/https://github.com/fmanza/util_bbdd/tree/main/docs/archive/releases/v0.1-v0.3.0/](https://github.com/fmanza/util_bbdd/tree/main/docs/https://github.com/fmanza/util_bbdd/tree/main/docs/archive/releases/v0.1-v0.3.0/) para PRs 0-8
+👉 Consulta [archive/releases/v0.1-v0.3.0/](https://github.com/fmanza/util_bbdd/tree/main/docs/archive/releases/v0.1-v0.3.0/) para PRs 0-8
 👉 Para versiones más recientes, revisa [CHANGELOG.md](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md)
 
 ### "¿Cuál es el estado actual de util_bbdd?"
@@ -29,21 +29,23 @@ Este archivo documenta dónde encontrar la documentación histórica de util_bbd
 👉 Para detalles técnicos, consulta [API_REFERENCE.md](API_REFERENCE.md)
 
 ### "¿Necesito info histórica de v0.5.6?"
-👉 Verifica [https://github.com/fmanza/util_bbdd/tree/main/docs/https://github.com/fmanza/util_bbdd/tree/main/docs/archive/versions/v0.5.6/](https://github.com/fmanza/util_bbdd/tree/main/docs/https://github.com/fmanza/util_bbdd/tree/main/docs/archive/versions/v0.5.6/)
-👉 Nota: Esta es documentación de referencia; código actual es v0.6.7+
+👉 Verifica [archive/versions/v0.5.6/](https://github.com/fmanza/util_bbdd/tree/main/docs/archive/versions/v0.5.6/)
+👉 Nota: Esta es documentación de referencia; código actual es v0.8.0+
 
 ## 📊 Timeline de Versiones
 
 ```
 v0.0.5 (Initial Setup)
     ↓
-v0.1.0-v0.3.0 (PR 0-8 Refactorization) ← [https://github.com/fmanza/util_bbdd/tree/main/docs/https://github.com/fmanza/util_bbdd/tree/main/docs/archive/releases/v0.1-v0.3.0/]
+v0.1.0-v0.3.0 (PR 0-8 Refactorization) ← [archive/releases/v0.1-v0.3.0/]
     ↓
 v0.4.0 (Early stable)
     ↓
-v0.5.0-v0.5.6 (Feature additions) ← [https://github.com/fmanza/util_bbdd/tree/main/docs/https://github.com/fmanza/util_bbdd/tree/main/docs/archive/versions/v0.5.6/]
+v0.5.0-v0.5.6 (Feature additions) ← [archive/versions/v0.5.6/]
     ↓
-v0.6.0-v0.6.7 (Recent, current) ← [MIGRATION_GUIDE_v0.6.7.md]
+v0.6.0-v0.7.0 (Mature stable)
+    ↓
+v0.8.0 (Current, type system + finalization) ← CHANGELOG.md
 ```
 
 ## 🎯 Propósito de Cada Sección
@@ -59,7 +61,7 @@ v0.6.0-v0.6.7 (Recent, current) ← [MIGRATION_GUIDE_v0.6.7.md]
 - **Relevancia:** Referencia (procedimientos, configuraciones de ese período)
 
 ### Raíz (`docs/`)
-- **Contenido:** Documentación vigente (versión actual: v0.6.7)
+- **Contenido:** Documentación vigente (versión actual: v0.8.0)
 - **Audiencia:** Usuarios nuevos y actuales
 - **Relevancia:** **VIVA** (actualizada regularmente)
 
@@ -77,7 +79,7 @@ v0.6.0-v0.6.7 (Recent, current) ← [MIGRATION_GUIDE_v0.6.7.md]
 
 ```
 docs/
-├── README.md (versión actual, v0.6.7)
+├── README.md (versión actual, v0.8.0)
 ├── CHANGELOG.md (histórico de versiones)
 ├── MIGRATION_GUIDE.md (guía de migración vigente)
 ├── MIGRATION_GUIDE_v0.6.7.md (específica para v0.6.7)

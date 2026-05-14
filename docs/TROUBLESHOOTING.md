@@ -181,7 +181,7 @@ nc -zv localhost 5432        # netcat (alternativa)
 "mysql+pymysql://user:pass@host:3306/db"
 
 # Oracle
-"oracle+cx_oracle://user:pass@host:1521/db"
+"oracle+oracledb://user:pass@host:1521/db"
 
 # SQLite (local)
 "sqlite:///path/to/database.db"

@@ -2,7 +2,7 @@
 
 `util_bbdd` proporciona una jerarquía estructurada de excepciones para facilitar el manejo de errores específicos en operaciones de base de datos.
 
-**Version:** 0.6.7
+**Version:** 0.8.0
 
 ---
 
@@ -13,9 +13,8 @@ DatabaseException (base)
 │
 ├── ConnectionError
 │   ├── PoolConnectionError
-│   │   ├── PoolExhaustedError
-│   │   └── PoolTimeoutError
-│   └── [otros errores de conexión]
+│   │   └── PoolExhaustedError
+│   └── PoolTimeoutError
 │
 ├── QueryError
 │   ├── QueryTimeoutError
@@ -38,8 +37,17 @@ DatabaseException (base)
 │   ├── DriverNotFoundError
 │   └── DriverConfigurationError
 │
-└── DatabaseOperationError
-    └── DatabaseConfigurationError
+├── DatabaseOperationError
+│   └── DatabaseConfigurationError
+│
+├── ComparerError
+│   ├── SchemaDiffValidationError
+│   ├── MetadataIntrospectionError
+│   └── DiffReportGenerationError
+│
+└── DocumentationError
+    ├── DocumentationConfigError
+    └── DocumentationRenderError
 ```
 
 ---
@@ -488,8 +496,6 @@ except DriverNotFoundError as e:
 **Solución:**
 ```bash
 pip install psycopg2-binary
-# o
-pip install util_bbdd[postgres]
 ```
 
 ---
@@ -673,6 +679,103 @@ try:
     # código
 except Exception as e:
     print(f"Error: {e}")
+```
+
+---
+
+---
+
+## Categoría 7: Errores de Comparación de Esquemas
+
+Estos errores ocurren durante comparación de esquemas entre dos bases de datos.
+
+### `ComparerError` — Error base del comparador
+
+Error genérico del módulo de comparación. Captura cualquier error de `SchemaComparator`.
+
+---
+
+### `SchemaDiffValidationError` — Parámetros inválidos de comparación
+
+```python
+from util_bbdd import SchemaComparator
+from util_bbdd._core.exceptions import SchemaDiffValidationError
+
+try:
+    comparator = SchemaComparator(
+        source_engine=source,
+        target_engine=target,
+        output_format="pdf"  # Formato no soportado
+    )
+except SchemaDiffValidationError as e:
+    print(f"Parámetro inválido: {e.message}")
+    print("Formatos soportados: sql, html, word, excel, markdown")
+```
+
+---
+
+### `MetadataIntrospectionError` — Error obteniendo metadatos para comparación
+
+```python
+from util_bbdd import SchemaComparator
+from util_bbdd._core.exceptions import MetadataIntrospectionError
+
+try:
+    diff = comparator.compare()
+except MetadataIntrospectionError as e:
+    print(f"Error leyendo metadatos: {e.message}")
+    print("Verifica permisos en ambas bases de datos")
+```
+
+---
+
+### `DiffReportGenerationError` — Error generando reporte de diferencias
+
+```python
+from util_bbdd._core.exceptions import DiffReportGenerationError
+
+try:
+    comparator.generate_report(output_path="/report.html")
+except DiffReportGenerationError as e:
+    print(f"Error generando reporte: {e.message}")
+```
+
+---
+
+## Categoría 8: Errores de Generación de Documentación
+
+Estos errores ocurren durante la generación de documentación de esquemas (módulo `doc/`).
+
+### `DocumentationError` — Error base de documentación
+
+Captura cualquier error del generador de documentación de BD.
+
+---
+
+### `DocumentationConfigError` — Configuración de generador inválida
+
+```python
+from util_bbdd._core.exceptions import DocumentationConfigError
+
+try:
+    # Formato de salida no soportado o plantilla inválida
+    generator = DocumentationGenerator(output_format="pdf")
+except DocumentationConfigError as e:
+    print(f"Configuración inválida: {e.message}")
+```
+
+---
+
+### `DocumentationRenderError` — Error generando documento de salida
+
+```python
+from util_bbdd._core.exceptions import DocumentationRenderError
+
+try:
+    generator.generate(output_path="/docs/bd_schema.docx")
+except DocumentationRenderError as e:
+    print(f"Error generando documento: {e.message}")
+    print("Verifica permisos de escritura y que la ruta existe")
 ```
 
 ---

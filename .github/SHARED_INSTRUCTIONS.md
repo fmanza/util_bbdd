@@ -9,103 +9,117 @@ fuente común para arquitectura, calidad, pruebas y documentación.
 ## Rol esperado
 
 Actúa como senior de ingeniería Python especializado en:
-- Extracción y exportación de tiempos desde GitLab (TIMELOG core).
-- Herramientas CLI con `argparse` y APIs programáticas simples.
-- Operaciones seguras de filesystem con `pathlib`, `shutil` y validación explícita.
-- Procesamiento de datos con pandas y generación de reportes (Excel, CSV, JSON).
-- Testing determinista con pytest sin servicios externos.
-- Documentación de librerías Python con MkDocs.
+- Operaciones de bases de datos: conexiones pooled, CRUD en lote, introspección y documentación de esquemas.
+- Diseño de librerías multimotor (MariaDB, Oracle, PostgreSQL, SQLite, SQL Server, HSQLDB).
+- Programación asíncrona con `asyncio` y drivers async (`asyncpg`, `aiosqlite`, `aiomysql`).
+- Procesamiento de datos con `pandas` y SQLAlchemy.
+- Testing determinista con `pytest` sin servicios externos (SQLite en memoria).
+- Documentación de librerías Python con MkDocs Material.
 
 ---
 
 ## Proyecto: util_bbdd
 
-`util_bbdd` es una librería Python para extraer, procesar y exportar tiempos de trabajo
-desde GitLab, generando reportes en Excel, CSV y JSON para auditoría y análisis de proyectos.
+`util_bbdd` es una librería Python para operaciones con múltiples motores de base de datos:
+conexiones pooled (sync/async), CRUD masivo, auditoría, introspección de esquemas, comparación
+entre esquemas, generación de documentación y visualización de relaciones.
 
 **Versión canónica**: consultar `pyproject.toml` antes de cerrar releases.
 **Python**: `>=3.12` según `pyproject.toml`.
 
-### Capacidades principales (TIMELOG)
-- **Extracción de tiempos**: lee timelogs de GitLab vía GraphQL.
-- **Análisis de issues**: recopila datos de issues, milestones e incidentes.
-- **Cálculo de métricas**: tiempo estimado vs. gastado, porcentaje de ejecución.
-- **Exportación múltiple**: Excel (con formato), CSV, JSON.
-- **Configuración flexible**: filtros por proyecto, fechas, equipos.
+### Capacidades principales
+
+- **Managers sync/async**: `SyncDatabaseManager` y `AsyncDatabaseManager` con pool de conexiones.
+- **Bulk CRUD**: inserciones, actualizaciones y borrados masivos desde `pandas.DataFrame`.
+- **Metadatos e introspección**: listar tablas, columnas, índices, DDL por motor.
+- **Comparación de esquemas**: `SchemaComparator` + reporters (SQL, HTML, Word, Excel, Markdown).
+- **Documentación de BD**: genera documentación en Word, Excel o HTML a partir de metadatos reales.
+- **Análisis de relaciones**: grafos con Graphviz (`GraphvizRelationshipGraphExt`).
+- **Validadores y query registry**: `QueryRegistry`, `QueryResolver`, validadores de parámetros.
 
 ---
 
-## Arquitectura real (TIMELOG Core)
+## Arquitectura real
 
 ```text
 src/util_bbdd/
-  timelog/              # Core: time tracking export and reporting
-    time_utils.py       # Parsing de tiempo (mo, w, d, h, m)
-    calendar.py         # Cálculo de semanas (ISO, fiscal)
-    project_loader.py   # Listado y filtrado de proyectos GitLab
-    load_gitlab.py      # Conexión y configuración GitLab
-    issue_helpers.py    # Metadatos de issues e incidentes
-    excel_formatter.py  # Formato Excel
-    crear_csv.py        # Export CSV
-    crear_json.py       # Export JSON
-    __init__.py         # API pública del módulo
-  common/               # Shared utilities
-    decimal_utils.py    # Redondeo y conversión de Decimals
-    __init__.py
-  core/                 # Placeholder (futuro)
-  utils/                # Placeholder (futuro)
-export_gitlab_time.py   # Main CLI for timelog export
+  managers/             # SyncDatabaseManager, AsyncDatabaseManager
+  bulk/                 # bulk_crud, AuditManager
+  metadata/             # SyncMetadataProvider, AsyncMetadataProvider, DatabaseMetadataCache
+  comparar/             # SchemaComparator, SchemaDiff, reporters (SQL/HTML/Word/Excel/MD)
+  doc/                  # Generación de documentación (Word, Excel, HTML, Jinja2)
+  connection/           # build_conn_params, params builder, configs por motor
+  factory/              # ConnectionFactory, PoolFactory
+  query/                # QueryRegistry, QueryResolver, query execution
+  validators/           # Validadores de parámetros de queries
+  analysis/             # GraphvizRelationshipGraphExt, grafos de relaciones
+  executors/            # Ejecutores de queries (sync/async)
+  results/              # Row, Rows, RowOrNone, QueryResult
+  core/                 # capabilities.py (capacidades por motor)
+  _core/                # exceptions.py (jerarquía centralizada de excepciones)
+  _drivers/             # get_supported_db_types, detección de drivers
+  models.py             # Modelos de datos compartidos
+  async_utils.py        # maybe_await
+  __init__.py           # API pública
 ```
 
-### Responsabilidades por módulo (TIMELOG)
+### Responsabilidades por módulo
 
 | Módulo | Responsabilidad |
 |---|---|
-| `timelog/` | Extracción de tiempos, análisis de issues, exportación |
-| `common/` | Utilidades compartidas (decimal, conversiones) |
-| `export_gitlab_time.py` | CLI principal: carga config, exporta a Excel/CSV/JSON |
+| `managers/` | Ciclo de vida de conexión: init, pool, cierre; operaciones de BD |
+| `bulk/` | CRUD masivo desde DataFrame con auditoría y generación de SQL |
+| `metadata/` | Introspección de esquemas: tablas, columnas, índices, DDL; caché en sesión |
+| `comparar/` | Comparación de dos esquemas; diff estructurado; reporters por formato |
+| `doc/` | Documentación de BD en Word, Excel y HTML vía Jinja2 |
+| `connection/` | Construcción de parámetros y configuración de conexión por motor |
+| `factory/` | Factory de conexiones y pools; abstracción de engine SQLAlchemy |
+| `query/` | Registry de queries nombradas, resolver, parámetros |
+| `validators/` | Validación de parámetros de queries antes de ejecución |
+| `analysis/` | Grafos de relaciones entre tablas (Graphviz) |
+| `results/` | Tipos de retorno: `Row`, `Rows`, `RowOrNone`, `QueryResult` |
+| `_core/` | Jerarquía de excepciones canónica |
 
 ### API pública recomendada
 
 ```python
 from util_bbdd import (
-    parse_time_spent,
-    parse_date,
-    listar_proyectos_filtrados,
-    FormatearExcel,
-    convertir_decimales_a_float,
+    SyncDatabaseManager,
+    AsyncDatabaseManager,
+    SyncMetadataProvider,
+    AsyncMetadataProvider,
+    SchemaComparator,
+    ConnectionFactory,
+    PoolFactory,
+    DatabaseMetadataCache,
+    maybe_await,
+    build_conn_params,
 )
 
-# Ejemplo de uso programático
-time_config = {"hours_per_day": 8, "days_per_week": 5}
-spent = parse_time_spent("1h 30m", time_config)  # Decimal en segundos
+# Ejemplo: conexión y listado de tablas
+manager = SyncDatabaseManager(
+    db_type="postgresql",
+    conn_params={"host": "localhost", "port": 5432, "user": "usr", "password": "pwd", "database": "mydb"},
+)
+tables = manager.get_tables()
+manager.close()
 ```
-
-### CLI actual
-
-```bash
-python src/export_gitlab_time.py
-```
-
-📌 Consultar `src/export_gitlab_time.py` para configuración via `src/conf/gitlab.toml` (unifica credenciales + filtros por conexión).
 
 ---
 
 ## Principios de diseño
 
-### Operaciones de filesystem
-- Usa `pathlib.Path` para rutas.
-- Valida existencia de archivos de configuración GitLab.
-- Lee archivos TOML de configuración de forma segura.
-- Escribe archivos Excel, CSV y JSON en directorio de salida.
-- No sobrescribas archivos sin validación explícita.
+### Operaciones de bases de datos
+- Usa `sqlalchemy` como capa de abstracción; no construyas SQL raw en la capa de managers.
+- Valida `db_type` al inicio; lanza `InvalidDatabaseType` antes de intentar conexión.
+- Parámetros de conexión via `conn_params: dict`; usa `build_conn_params()` para normalizar.
+- Cierres explícitos: llama siempre a `manager.close()` o usa el manager como context manager.
+- Pool habilitado por defecto en `AsyncDatabaseManager`; opcional en `SyncDatabaseManager`.
 
 ### Procesamiento de datos
-- Usa `pandas.DataFrame` para manipular datos de issues y timelogs.
-- Redondea `Decimal` con precisión controlada via `safe_decimal_round`.
-- Convierte `Decimal` a `float` para exportación Excel via `convertir_decimales_a_float`.
-- Valida fechas con `es_fecha_valida` y `parse_date`.
-- Parsea tiempo gastado con `parse_time_spent` (soporta mo, w, d, h, m).
+- Usa `pandas.DataFrame` para operaciones masivas (bulk insert, bulk update, bulk delete).
+- Retorna `Rows` (lista de dicts), `Row` (dict) o `RowOrNone` según la cardinalidad esperada.
+- Para metadatos, usa `SyncMetadataProvider` / `AsyncMetadataProvider`; no hagas raw SQL de introspección en managers.
 
 ### SOLID operativo
 - **SRP**: cada servicio tiene una razón de cambio principal.
@@ -126,10 +140,9 @@ python src/export_gitlab_time.py
 
 ### Logging
 - Las clases con lógica deben tener `self.logger: logging.Logger`.
-- En `export_gitlab_time.py` (CLI), configura logging basado en nivel INFO.
-- En servicios (`timelog/`, `common/`), pasa logger como parámetro si es necesario.
+- En servicios (`managers/`, `bulk/`, `metadata/`), pasa logger como parámetro si es necesario.
 - En handlers de error inesperado, usa `exc_info=True`.
-- Evita `print()` en servicios; se permite en CLI para resúmenes de usuario.
+- Evita `print()` en la librería; solo permitido en scripts de ejemplo/CLI externos.
 
 ### Formato de cadenas
 - Usa f-strings para strings con parámetros.
@@ -152,11 +165,11 @@ mkdocs build
 ```
 
 ### Estrategia de tests
-- Funciones de `timelog/`: tests unitarios sin red (mock pandas, decimal ops).
-- Funciones de `common/`: tests de conversión y validación.
-- `export_gitlab_time.py`: probar parseo de config, construcción de queries, transformación de datos.
-- No depender de red ni GitLab real; mock `gitlab.Gitlab` cuando sea necesario.
-- Fixtures en `tests/conftest.py` para datos de prueba (timelogs, issues mock).
+- Managers y bulk: tests unitarios con SQLite en memoria (`":memory:"`); sin BD externas en CI.
+- Metadata, comparar, doc: tests con fixtures de esquemas mock o SQLite.
+- No depender de PostgreSQL, Oracle, SQL Server, MariaDB ni HSQLDB reales en tests unitarios.
+- Fixtures en `tests/conftest.py` para datos de prueba (DataFrames, esquemas mock).
+- Tests de integración opcionales en `tests/integration/` marcados con `pytest.mark.integration`.
 
 ### Documentación obligatoria
 
@@ -195,20 +208,23 @@ mkdocs build
 #### Estándar: Docstrings Google-style
 
 ```python
-class TimeLogger:
-    """Registrador de tiempos de trabajo desde GitLab.
+class SyncDatabaseManager:
+    """Manager sincrónico para operaciones de base de datos.
 
-    Extrae timelogs via GraphQL y aplica filtros de fecha y proyecto.
+    Gestiona conexión (directa o pooled), introspección de esquemas y
+    ejecución de queries para los motores soportados.
 
     Attributes:
-        gitlab_client (gitlab.Gitlab): Cliente GitLab autenticado.
-        logger (logging.Logger): Logger de instancia.
+        db_type (str): Tipo de motor declarado en la instancia.
+        conn_params (dict): Parámetros de conexión normalizados.
 
     Example:
-        >>> logger = TimeLogger(gl_client)
-        >>> timelogs = logger.get_timelogs(project_id=42, start="2026-01-01")
-        >>> print(len(timelogs))
-        15
+        >>> manager = SyncDatabaseManager(
+        ...     db_type="postgresql",
+        ...     conn_params={"host": "localhost", "database": "mydb", ...}
+        ... )
+        >>> tables = manager.get_tables()
+        >>> manager.close()
     """
 ```
 
@@ -227,11 +243,11 @@ chore:    mantenimiento (deps, config, herramientas)
 
 **Ejemplo**:
 ```
-feat: extraer timelogs por rango de fechas en timelog/time_utils.py
+feat: añadir soporte para exportación Parquet en bulk/
 
-- Añade función parse_date_range() con validación
-- Tests en tests/unit/timelog/test_time_utils.py
-- Actualiza docstring y ejemplos en README
+- Añade bulk_export_to_parquet() en bulk/crud.py
+- Tests en tests/unit/bulk/test_export_parquet.py
+- Actualiza docstring y ejemplos en docs/api/bulk.md
 ```
 
 ---

@@ -5,17 +5,36 @@ Jerarquía unificada de excepciones de `util_bbdd`. Todas heredan de `DatabaseEx
 ```
 DatabaseException
 ├── ConnectionError
-│   └── PoolExhaustedError
+│   ├── PoolConnectionError
+│   │   ├── PoolExhaustedError
+│   │   └── (otras subclases de pool)
+│   └── PoolTimeoutError
 ├── QueryError
 │   ├── QueryTimeoutError
-│   └── QuerySyntaxError
+│   ├── QueryExecutionError
+│   ├── QueryNotFoundError
+│   ├── QueryValidationError
+│   └── QueryParameterError
+├── MetadataError
+│   ├── MetadataFetchError
+│   ├── MetadataNormalizationError
+│   └── DDLBuildError
 ├── ValidationError
-├── ConfigurationError
-├── DriverNotAvailableError
-└── ComparerError
-    ├── SchemaDiffValidationError
-    ├── MetadataIntrospectionError
-    └── DiffReportGenerationError
+│   ├── InvalidDatabaseType
+│   ├── InvalidConnectionConfig
+│   └── InvalidQueryParameters
+├── DriverError
+│   ├── DriverNotFoundError
+│   └── DriverConfigurationError
+├── DatabaseOperationError
+│   └── DatabaseConfigurationError
+├── ComparerError
+│   ├── SchemaDiffValidationError
+│   ├── MetadataIntrospectionError
+│   └── DiffReportGenerationError
+└── DocumentationError
+    ├── DocumentationConfigError
+    └── DocumentationRenderError
 ```
 
 !!! tip "Capturar errores genéricamente"

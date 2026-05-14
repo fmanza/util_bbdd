@@ -7,7 +7,7 @@ Las consultas repetidas al mismo objeto no vuelven a la base de datos durante la
 ## Precondiciones
 
 - Servidor de base de datos accesible en red (host, puerto y credenciales válidas)
-- Driver Python del motor instalado en el entorno (`pyodbc` para SQL Server, `cx_Oracle` para Oracle, `psycopg2` para PostgreSQL, `mariadb` para MariaDB, etc.)
+- Driver Python del motor instalado en el entorno (`pyodbc` para SQL Server, `oracledb` para Oracle, `psycopg2` para PostgreSQL, `pymysql` para MariaDB, etc.)
 - Tipo de motor declarado explícitamente al crear el gestor: `mariadb`, `oracle`, `postgresql`, `sqlite`, `hsqldb` o `sqlserver`
 - Parámetros de conexión mínimos: `database` (requerido en todos los motores), más los específicos del motor (`host`, `port`, `user`, `password`)
 - Para Oracle: disponibilidad de Oracle Instant Client si se usa conexión nativa

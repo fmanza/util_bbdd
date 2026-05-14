@@ -17,13 +17,13 @@ Referencia rápida de las clases y métodos públicos de util_bbdd.
 
 ### SyncDatabaseManager
 
-**Ubicación:** `src/util_bbdd/managers/sync_database_manager.py`
+**Ubicación:** `src/util_bbdd/managers/sync_mgr.py`
 
 Manager sincrónico para operaciones de BD.
 
 | Método | Parámetros | Retorna | Descripción |
 |--------|-----------|---------|-------------|
-| `__init__()` | `db_type: str`, `conn_params: dict`, `use_pool: bool = False` | - | Inicializar manager sincrónico |
+| `__init__()` | `db_type: str`, `conn_params: dict`, `use_pool: bool = True` | - | Inicializar manager sincrónico |
 | `get_connection()` | - | `Connection` | Obtener conexión cruda del pool |
 | `get_tables()` | `schema: str \| None = None` | `Rows` | Listar tablas (retorna lista de tuplas) |
 | `get_columns()` | `table_name: str`, `schema: str \| None = None` | `Rows` | Listar columnas de tabla con tipos |
@@ -70,7 +70,7 @@ manager.close()
 
 ### AsyncDatabaseManager
 
-**Ubicación:** `src/util_bbdd/managers/async_database_manager.py`
+**Ubicación:** `src/util_bbdd/managers/async_mgr.py`
 
 Manager asincrónico para operaciones concurrentes de BD.
 
