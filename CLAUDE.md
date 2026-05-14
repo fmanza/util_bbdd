@@ -25,6 +25,9 @@ Usa estos comandos para activar flujos estructurados con automatización integra
 | `/refactor` | Refactor sin cambios funcionales | Área + objetivo | PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE |
 | `/audit-code` | Auditoría técnica independiente | Rutas o cambios | Scope → Findings → Verdict |
 | `/security-review` | Auditoría de seguridad | Áreas críticas | Findings by severity → Remediation |
+| `/tech-debt` | Deuda técnica priorizada | Área o módulo | Findings por severidad → Plan de remediación |
+| `/maturity-assessment` | Evaluación de madurez del repo | Área o evaluación completa | Executive summary → Findings → Maturity verdict |
+| `/version-closure` | Cierre de versión | Sesión completada | Release notes → Changelog → Rollback → Handoff |
 
 **Ejemplo de uso**:
 
@@ -105,6 +108,30 @@ Fase 3: Verdict → APROBADO | APROBADO CON CONDICIONES | RECHAZADO
 Nota: Modo lectura; no edita código. Entrega hallazgos y recomendaciones.
 ```
 
+### `/tech-debt`
+```
+Fase 1: Scope → Identificar módulo o área con deuda acumulada
+Fase 2: Findings → Clasificar deuda por severidad (alta / media / baja)
+Fase 3: Plan → Ordenar por impacto/esfuerzo, proponer remediaciones acotadas
+Nota: No aplica cambios; entrega plan de trabajo priorizado.
+```
+
+### `/maturity-assessment`
+```
+Fase 1: Scope → Inventariar estructura, contratos, tests y docs del repo
+Fase 2: Findings → Evaluar madurez por área (arquitectura, tipado, cobertura, seguridad)
+Fase 3: Verdict → Maturity level + blockers para publicación
+Nota: Solo lectura; no edita código.
+```
+
+### `/version-closure`
+```
+Fase 1: Resumen → Consolidar todos los cambios de la sesión
+Fase 2: Validación → Verificar CHANGELOG.md, COMPATIBILITY.md y mkdocs build
+Fase 3: Handoff → Release notes, commit message, rollback strategy
+Nota: Ver .github/instructions/sync.instructions.md para checklist obligatorio.
+```
+
 ---
 
 ## Integración con Copilot Chat
@@ -148,6 +175,9 @@ Esta especialización es **compatible con agentes Copilot Chat**:
 Usa el **Documentation Generator** (agente) como **único punto de entrada** para crear o actualizar
 documentación, tanto de un módulo concreto como del proyecto completo.
 No uses un único prompt masivo: trabaja siempre por fases separadas.
+
+Sigue el **flujo estándar de 7 fases** definido en [`.github/DOCUMENTATION_STANDARD.md` §5](.github/DOCUMENTATION_STANDARD.md#5-roles-de-agentes-y-flujo-de-trabajo)
+y la estructura de `DOCUMENTATION_STANDARD.md` §3 (funcional) y §3.2 (técnica).
 
 ### Flujo por fases
 
@@ -197,7 +227,7 @@ Revisa docs/, docs/examples/, README y mkdocs.yml para detectar gaps.
 Usa .github/prompts/documentation_review.prompt.md como criterio.
 Entrega hallazgos con severidad (Nivel 1/2/3) sin editar archivos.
 ```
-
+Criterio de completitud: `mkdocs build` sin errores + todos los módulos de `src/` documentados.
 ---
 
 ## Checklist de sincronización
@@ -228,4 +258,4 @@ mkdocs serve                        # Documentación local
 
 ---
 
-*Actualizado: 2026-05-02*
+*Actualizado: 2026-05-11*

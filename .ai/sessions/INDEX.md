@@ -42,6 +42,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-04-21-tech-debt-comparar-doc | **tech-debt: inventario comparar/ + doc/** — 21 ítems (15 comparar/, 6 doc/); 2 bugs activos (C13 doble `;`, C15 routines modified); veredicto DEUDA_SIGNIFICATIVA; plan Fases 1-3 para v0.8.1 | develop | tech-debt | CLOSED | `2026-04-21-tech-debt-comparar-doc/TRACEABILITY.md` |
 | 2026-04-21-fase3-estructural | **refactor: Fase 3 estructural comparar/ + doc/** — C3 RoutineFetcherRegistry, C9 DdlNormalizer unificado, D1 generate() explícito, D4 Port circular, D5 ports split; 1969 passed, mypy+ruff clean | develop | refactor | CLOSED | `2026-04-21-fase3-estructural/TRACEABILITY.md` |
 | 2026-05-02 | **Documentation Generation Fases 1-6** — SyncDatabaseManager módulo piloto; documentación funcional + técnica + ejemplos verificables; mkdocs sync; auditoría APROBADA (100% referencias validadas, 0 módulos inventados) | develop | new_feature (documentation) | CLOSED | `2026-05-02/TRACEABILITY.md` |
+| 2026-05-14 | **config_review: corrección instrucciones IA** — 7 referencias `project_copy` eliminadas; Python `>=3.11`→`>=3.12`; `sync.instructions.md` creado (referencia rota); 3 slash commands añadidos a CLAUDE.md | develop | config_review | CLOSED | `2026-05-14/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 

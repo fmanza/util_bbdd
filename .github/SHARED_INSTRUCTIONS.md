@@ -24,7 +24,7 @@ Actúa como senior de ingeniería Python especializado en:
 desde GitLab, generando reportes en Excel, CSV y JSON para auditoría y análisis de proyectos.
 
 **Versión canónica**: consultar `pyproject.toml` antes de cerrar releases.
-**Python**: `>=3.11` según `pyproject.toml`.
+**Python**: `>=3.12` según `pyproject.toml`.
 
 ### Capacidades principales (TIMELOG)
 - **Extracción de tiempos**: lee timelogs de GitLab vía GraphQL.
@@ -271,4 +271,4 @@ especializaciones afectadas (copilot-instructions.md y/o CLAUDE.md).
 
 ---
 
-*Actualizado: 2026-05-02*
+*Actualizado: 2026-05-14*

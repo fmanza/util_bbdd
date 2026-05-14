@@ -2,10 +2,13 @@
 
 ## ⚠️ Contexto previo obligatorio
 
-Lee **primero**:
-- **`.github/SHARED_INSTRUCTIONS.md`** — Fuente canónica: arquitectura TIMELOG, SOLID,
-  calidad, comandos de desarrollo, documentación, flujo de trabajo, Conventional Commits.
-- **Este fichero** — Especialización para Copilot Chat únicamente.
+## ⚠️ Contexto previo obligatorio
+
+Lee **primero** estos ficheros en este orden:
+
+1. **`.github/SHARED_INSTRUCTIONS.md`** — Fuente canónica: arquitectura de util_bbdd (TIMELOG), SOLID,
+   calidad, comandos de desarrollo, documentación, flujo de trabajo, Conventional Commits.
+2. **Este fichero** — Especialización para Copilot Chat en VS Code/GitHub únicamente.
 
 ---
 
@@ -110,6 +113,44 @@ duplicación de contenido shared.
 | Cambios en instrucciones IA | Config Reviewer | Especialización en DRY y gobernanza |
 
 ---
+### Cambios en Instrucciones IA
+
+Cuando modifiques instrucciones, revisa y sincroniza **al menos**:
+- `.github/SHARED_INSTRUCTIONS.md` (fuente canónica)
+- `.github/copilot-instructions.md` (este fichero, si cambia flujo Copilot)
+- `CLAUDE.md` (si cambia flujo común o slash commands)
+- `.github/AGENTS.md` (si cambia responsabilidades de agentes)
+
+Usa `grep_search` para verificar que no quedan referencias heredadas en ficheros.
+
+---
+
+## Generación de Documentación
+
+Sigue el **flujo estándar de 7 fases** definido en [`DOCUMENTATION_STANDARD.md` §5](DOCUMENTATION_STANDARD.md#5-roles-de-agentes-y-flujo-de-trabajo)
+y la estructura de `DOCUMENTATION_STANDARD.md` §3 (funcional) y §3.2 (técnica).
+
+Para un módulo o el proyecto completo:
+
+```text
+# Módulo individual — funcional
+Lee src/util_bbdd/[modulo].py y genera la documentación funcional
+usando .github/prompts/functional_doc.prompt.md.
+Guarda en docs/functional/[nombre].md y actualiza mkdocs.yml.
+
+# Módulo individual — técnica
+Lee src/util_bbdd/[modulo].py y genera la documentación técnica
+usando .github/prompts/technical_doc.prompt.md.
+Guarda en docs/api/[nombre].md y actualiza mkdocs.yml.
+
+# Proyecto completo (fases 3-4 del flujo estándar)
+@Documentation Generator
+Genera la documentación completa del proyecto: todos los módulos en src/util_bbdd/.
+Tipo: funcional + técnica para cada módulo. Actualiza mkdocs.yml al finalizar.
+```
+
+Regla crítica: no inventar. Lee el código fuente antes de generar cualquier sección.
+Criterio de completitud: `mkdocs build` sin errores + todos los módulos de `src/` documentados.
 
 ## Documentación con Copilot Chat
 
@@ -196,4 +237,4 @@ Cuando actualices **`.github/SHARED_INSTRUCTIONS.md`**, verifica:
 
 ---
 
-*Actualizado: 2026-05-02*
+*Actualizado: 2026-05-11*

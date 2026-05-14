@@ -149,6 +149,7 @@ theme:
     - content.tabs.link
     - search.highlight
     - search.suggest
+    - toc.follow
   icon:
     repo: fontawesome/brands/github
 
@@ -202,3 +203,10 @@ extra:
       link: https://github.com/fmanza/util_bbdd
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/util-bbdd/
+
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js
+  - assets/js/mermaid.js
+
+extra_css:
+  - assets/css/mermaid.css

@@ -46,6 +46,7 @@ Restricciones:
 - NO expliques nombres de variables, clases internas ni implementación
 - NO menciones rutas de archivos a menos que sean de configuración del usuario
 - USA terminología de negocio, no técnica
+- NO uses la directiva --8<-- para incluir código; embebe el código directamente en los bloques fenced
 - NO inventes capacidades, flujos, integraciones, salidas ni reglas
 - Si falta información, crea una sección breve "Pendiente de verificación" con preguntas concretas
 - Responde SOLO con el Markdown, sin texto introductorio ni cierre
@@ -97,6 +98,18 @@ Fase 4 — Revisión cruzada:
 
 - No incluir ejemplos de generación mediante APIs externas por el momento.
 - No usar un único prompt masivo para todo el proyecto; iterar módulo a módulo o por área.
+
+## Prompt para infografías Mermaid
+
+Para generar exclusivamente el diagrama de secuencia de un módulo:
+
+```
+Basándote en la lógica del módulo [Nombre], genera exclusivamente el código Mermaid.js
+para un diagrama de secuencia que ilustre la interacción entre el usuario y el sistema,
+omitiendo detalles de implementación como nombres de variables internas, rutas de ficheros
+del sistema o nombres de clases privadas.
+Usa etiquetas en español. Máximo 12 nodos.
+```
 
 ## Output esperado
 
