@@ -1,7 +1,8 @@
 """
 Módulo bbdd para operaciones de base de datos.
 
-Soporta: MariaDB, Oracle, PostgreSQL, HSQLDB y SQL Server
+Soporta: MariaDB, Oracle, PostgreSQL, HSQLDB y SQL Server.
+Migración DDL: Oracle → MariaDB (migrate.MigrationPlanner).
 """
 
 from ._core.exceptions import (
@@ -32,6 +33,7 @@ from .factory import ConnectionFactory, PoolFactory
 from .managers.async_mgr import AsyncDatabaseManager
 from .managers.sync_mgr import SyncDatabaseManager
 from .metadata import AsyncMetadataProvider, DatabaseMetadataCache, RelationshipMetadataCache, SyncMetadataProvider
+from .migrate import MigrationPlan, MigrationPlanner, MigrationWarning
 
 __all__: list[str] = [
     "SyncDatabaseManager",
@@ -63,6 +65,10 @@ __all__: list[str] = [
     "QueryParameterError",
     "QueryTimeoutError",
     "QueryExecutionError",
+    # Migración DDL
+    "MigrationPlanner",
+    "MigrationPlan",
+    "MigrationWarning",
     # Documentación
     "DocumentationError",
     "DocumentationConfigError",

@@ -1,0 +1,139 @@
+"""Modelos IR (Intermediate Representation) para migración DDL entre motores."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from ..emitters.base import DDLEmitter
+
+WarningSeverity = Literal["INFO", "WARNING", "ERROR"]
+
+
+@dataclass(frozen=True, slots=True)
+class MigrationWarning:
+    """Aviso generado durante la transformación de tipos o identificadores."""
+
+    table: str
+    column: str | None
+    oracle_type: str
+    target_type: str
+    message: str
+    severity: WarningSeverity = "WARNING"
+    proposals: tuple[str, ...] = ()
+
+
+@dataclass(slots=True)
+class CanonicalColumn:
+    """Representación canónica de una columna durante la migración."""
+
+    name: str
+    original_name: str
+    oracle_type: str
+    target_type: str
+    nullable: bool
+    default: str | None
+    comment: str
+    ordinal: int
+    auto_increment: bool = False
+    is_primary_key: bool = False
+    char_length: int | None = None
+    precision: int | None = None
+    scale: int | None = None
+    warnings: list[MigrationWarning] = field(default_factory=list)
+    ddl_comment: str | None = None
+    omit: bool = False
+
+
+@dataclass(slots=True)
+class CanonicalIndex:
+    """Representación canónica de un índice."""
+
+    name: str
+    original_name: str
+    columns: list[str]
+    unique: bool
+
+
+@dataclass(slots=True)
+class CanonicalFK:
+    """Representación canónica de una foreign key."""
+
+    name: str
+    original_name: str
+    columns: list[str]
+    ref_table: str
+    ref_columns: list[str]
+    on_delete: str
+    on_update: str
+    is_external: bool = False
+
+
+@dataclass(slots=True)
+class CanonicalTable:
+    """Representación canónica de una tabla durante la migración."""
+
+    name: str
+    original_name: str
+    schema: str
+    columns: list[CanonicalColumn]
+    primary_key: list[str]
+    indexes: list[CanonicalIndex]
+    foreign_keys: list[CanonicalFK]
+    comment: str
+    warnings: list[MigrationWarning]
+
+
+@dataclass
+class MigrationPlan:
+    """Plan de migración ejecutable: contiene tablas transformadas, warnings y configuración."""
+
+    tables: list[CanonicalTable]
+    warnings: list[MigrationWarning]
+    source_schema: str
+    source_engine: str
+    target_engine: str
+    emitter: DDLEmitter = field(repr=False)
+
+    def emit_ddl(self) -> str:
+        """Genera el script DDL completo para el motor destino."""
+        return self.emitter.emit(self.tables)
+
+    def emit_statements(self) -> list[str]:
+        """Genera la lista de sentencias DDL individuales (sin ';')."""
+        return self.emitter.emit_statements(self.tables)
+
+    def execute(self, target_connection: Any) -> None:
+        """Ejecuta el DDL generado contra el motor destino.
+
+        Args:
+            target_connection: SyncDatabaseManager del motor destino.
+        """
+        for stmt in self.emit_statements():
+            stmt_clean = stmt.strip()
+            if stmt_clean:
+                target_connection.execute_custom_one(stmt_clean, {})
+
+    @property
+    def error_count(self) -> int:
+        return sum(1 for w in self.warnings if w.severity == "ERROR")
+
+    @property
+    def warning_count(self) -> int:
+        return sum(1 for w in self.warnings if w.severity == "WARNING")
+
+    @property
+    def info_count(self) -> int:
+        return sum(1 for w in self.warnings if w.severity == "INFO")
+
+
+__all__: list[str] = [
+    "WarningSeverity",
+    "MigrationWarning",
+    "CanonicalColumn",
+    "CanonicalIndex",
+    "CanonicalFK",
+    "CanonicalTable",
+    "MigrationPlan",
+]
