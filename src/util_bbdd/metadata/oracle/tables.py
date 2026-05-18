@@ -38,7 +38,7 @@ def fetch_tables_sql() -> str:
     return (
         "SELECT "
         "t.table_name, "
-        "t.table_type, "
+        "'TABLE' AS table_type, "
         "COALESCE(c.comments, '') AS table_comment "
         "FROM all_tables t "
         "LEFT JOIN all_tab_comments c "

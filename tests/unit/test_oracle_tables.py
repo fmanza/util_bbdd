@@ -56,6 +56,12 @@ class TestTablesQuery:
         sql = fetch_tables_sql()
         assert "table_type" in sql.lower()
 
+    def test_fetch_tables_sql_does_not_reference_all_tables_column(self) -> None:
+        """Regresión ORA-00904: table_type no existe en ALL_TABLES en todas las ediciones."""
+        sql = fetch_tables_sql()
+        assert "t.table_type" not in sql
+        assert "'TABLE'" in sql or "AS table_type" in sql.lower()
+
     def test_fetch_tables_sql_includes_owner_parameter(self) -> None:
         sql = fetch_tables_sql()
         assert ":owner" in sql
