@@ -113,6 +113,12 @@ class TestColumnsQuery:
         sql = fetch_columns_sql()
         assert "default" in sql.lower()
 
+    def test_fetch_columns_sql_data_default_not_wrapped_in_coalesce(self) -> None:
+        """Regresión ORA-00932: DATA_DEFAULT es tipo LONG en Oracle; COALESCE(LONG, CHAR) falla."""
+        sql = fetch_columns_sql()
+        assert "COALESCE(c.data_default" not in sql
+        assert "c.data_default" in sql
+
 
 class TestDecodeOracleColumnRows:
     """Tests para decode_oracle_column_rows()."""

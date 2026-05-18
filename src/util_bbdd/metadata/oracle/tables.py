@@ -64,7 +64,7 @@ def fetch_columns_sql() -> str:
         "c.data_type, "
         "CASE WHEN c.nullable = 'Y' THEN 'YES' ELSE 'NO' END AS is_nullable, "
         "c.column_id AS ordinal_position, "
-        "COALESCE(c.data_default, '') AS column_default, "
+        "c.data_default AS column_default, "
         "c.data_length, "
         "c.data_precision, "
         "c.data_scale, "
