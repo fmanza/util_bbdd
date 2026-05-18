@@ -32,7 +32,7 @@ def build_oracle_schemas_query() -> str:
 def build_oracle_tables_query() -> str:
     """Construye la consulta parametrizada para obtener tablas de Oracle.
 
-    Parametrizado con %(owner)s.
+    Parametrizado con :owner.
 
     Returns:
         str: SQL query
@@ -43,7 +43,7 @@ def build_oracle_tables_query() -> str:
 def build_oracle_columns_query() -> str:
     """Construye la consulta para obtener columnas de una tabla Oracle.
 
-    Parametrizado con %(owner)s y %(table_name)s.
+    Parametrizado con :owner y :table_name.
 
     Returns:
         str: SQL query
@@ -54,7 +54,7 @@ def build_oracle_columns_query() -> str:
 def build_oracle_pk_query() -> str:
     """Construye la consulta para obtener PK de una tabla Oracle.
 
-    Parametrizado con %(owner)s y %(table_name)s.
+    Parametrizado con :owner y :table_name.
     """
     return fetch_pk_constraint_sql()
 
@@ -62,7 +62,7 @@ def build_oracle_pk_query() -> str:
 def build_oracle_fk_query() -> str:
     """Construye la consulta para obtener FK de una tabla Oracle.
 
-    Parametrizado con %(owner)s y %(table_name)s.
+    Parametrizado con :owner y :table_name.
     """
     return fetch_fk_constraint_sql()
 
@@ -70,7 +70,7 @@ def build_oracle_fk_query() -> str:
 def build_oracle_indexes_query() -> str:
     """Construye la consulta para obtener índices de una tabla Oracle.
 
-    Parametrizado con %(owner)s y %(table_name)s.
+    Parametrizado con :owner y :table_name.
     """
     return fetch_indexes_sql()
 
@@ -78,7 +78,7 @@ def build_oracle_indexes_query() -> str:
 def build_oracle_routines_query() -> str:
     """Construye la consulta para obtener rutinas del schema.
 
-    Parametrizado con %(owner)s.
+    Parametrizado con :owner.
     """
     return fetch_routines_sql()
 
@@ -86,7 +86,7 @@ def build_oracle_routines_query() -> str:
 def build_oracle_parameters_query() -> str:
     """Construye la consulta para obtener parámetros de rutinas.
 
-    Parametrizado con %(owner)s y %(routine_name)s.
+    Parametrizado con :owner y :routine_name.
     """
     return fetch_routine_parameters_sql()
 

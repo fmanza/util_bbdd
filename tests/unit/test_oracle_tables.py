@@ -58,7 +58,8 @@ class TestTablesQuery:
 
     def test_fetch_tables_sql_includes_owner_parameter(self) -> None:
         sql = fetch_tables_sql()
-        assert "%(owner)s" in sql
+        assert ":owner" in sql
+        assert "%(owner)s" not in sql
 
     def test_fetch_tables_sql_includes_comments(self) -> None:
         sql = fetch_tables_sql()
@@ -85,8 +86,10 @@ class TestColumnsQuery:
 
     def test_fetch_columns_sql_includes_owner_and_table_params(self) -> None:
         sql = fetch_columns_sql()
-        assert "%(owner)s" in sql
-        assert "%(table_name)s" in sql
+        assert ":owner" in sql
+        assert ":table_name" in sql
+        assert "%(owner)s" not in sql
+        assert "%(table_name)s" not in sql
 
     def test_fetch_columns_sql_excludes_rowid(self) -> None:
         sql = fetch_columns_sql()
@@ -185,8 +188,10 @@ class TestPKConstraintQuery:
 
     def test_fetch_pk_constraint_sql_includes_params(self) -> None:
         sql = fetch_pk_constraint_sql()
-        assert "%(owner)s" in sql
-        assert "%(table_name)s" in sql
+        assert ":owner" in sql
+        assert ":table_name" in sql
+        assert "%(owner)s" not in sql
+        assert "%(table_name)s" not in sql
 
 
 class TestFKConstraintQuery:
@@ -207,8 +212,10 @@ class TestFKConstraintQuery:
 
     def test_fetch_fk_constraint_sql_includes_params(self) -> None:
         sql = fetch_fk_constraint_sql()
-        assert "%(owner)s" in sql
-        assert "%(table_name)s" in sql
+        assert ":owner" in sql
+        assert ":table_name" in sql
+        assert "%(owner)s" not in sql
+        assert "%(table_name)s" not in sql
 
 
 class TestIndexesQuery:
@@ -229,8 +236,10 @@ class TestIndexesQuery:
 
     def test_fetch_indexes_sql_includes_params(self) -> None:
         sql = fetch_indexes_sql()
-        assert "%(owner)s" in sql
-        assert "%(table_name)s" in sql
+        assert ":owner" in sql
+        assert ":table_name" in sql
+        assert "%(owner)s" not in sql
+        assert "%(table_name)s" not in sql
 
 
 class TestRoutinesQuery:
@@ -243,7 +252,8 @@ class TestRoutinesQuery:
 
     def test_fetch_routines_sql_includes_owner_param(self) -> None:
         sql = fetch_routines_sql()
-        assert "%(owner)s" in sql
+        assert ":owner" in sql
+        assert "%(owner)s" not in sql
 
     def test_fetch_routines_sql_orders_by_name(self) -> None:
         sql = fetch_routines_sql()
@@ -260,8 +270,10 @@ class TestRoutineParametersQuery:
 
     def test_fetch_routine_parameters_sql_includes_params(self) -> None:
         sql = fetch_routine_parameters_sql()
-        assert "%(owner)s" in sql
-        assert "%(routine_name)s" in sql
+        assert ":owner" in sql
+        assert ":routine_name" in sql
+        assert "%(owner)s" not in sql
+        assert "%(routine_name)s" not in sql
 
     def test_fetch_routine_parameters_sql_filters_null_names(self) -> None:
         sql = fetch_routine_parameters_sql()
