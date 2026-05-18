@@ -229,6 +229,13 @@ class TestFKConstraintQuery:
         assert "%(owner)s" not in sql
         assert "%(table_name)s" not in sql
 
+    def test_fetch_fk_constraint_sql_join_uses_r_constraint_name(self) -> None:
+        """Regresión ORA-00904: ALL_CONSTRAINTS no tiene CONSTRAINT_ID; join correcto usa R_OWNER + R_CONSTRAINT_NAME."""
+        sql = fetch_fk_constraint_sql()
+        assert "r_constraint_name" in sql.lower()
+        assert "r_owner" in sql.lower()
+        assert "constraint_id" not in sql.lower()
+
 
 class TestIndexesQuery:
     """Tests para query de índices."""
