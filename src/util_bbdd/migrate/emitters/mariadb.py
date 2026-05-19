@@ -210,20 +210,38 @@ def _topological_sort(
     name_to_table: dict[str, CanonicalTable] = {t.name: t for t in tables}
     all_names: set[str] = set(name_to_table.keys())
 
-    # Dependencias: tabla → set de tablas de las que depende via FK
-    deps: dict[str, set[str]] = {n: set() for n in all_names}
+    deps = _build_deps(tables, all_names)
+    in_degree: dict[str, int] = {n: len(d) for n, d in deps.items()}
+    result = _kahn_result(deps, in_degree, name_to_table)
+
+    visited = {t.name for t in result}
+    circular_tables = [t for t in tables if t.name not in visited]
+    result.extend(circular_tables)
+
+    return result, _collect_circular_fk_pairs(circular_tables, visited)
+
+
+def _build_deps(
+    tables: list[CanonicalTable],
+    all_names: set[str],
+) -> dict[str, set[str]]:
+    """Construye mapa de dependencias FK internas entre tablas del schema."""
+    deps: dict[str, set[str]] = {t.name: set() for t in tables}
     for table in tables:
         for fk in table.foreign_keys:
-            if fk.is_external:
-                continue
-            ref = fk.ref_table
-            if ref in all_names and ref != table.name:
-                deps[table.name].add(ref)
+            if not fk.is_external and fk.ref_table in all_names and fk.ref_table != table.name:
+                deps[table.name].add(fk.ref_table)
+    return deps
 
-    in_degree: dict[str, int] = {n: len(d) for n, d in deps.items()}
-    queue: deque[str] = deque(n for n, d in in_degree.items() if d == 0)
+
+def _kahn_result(
+    deps: dict[str, set[str]],
+    in_degree: dict[str, int],
+    name_to_table: dict[str, CanonicalTable],
+) -> list[CanonicalTable]:
+    """Ejecuta el algoritmo de Kahn y devuelve las tablas en orden topológico."""
+    queue: deque[str] = deque(n for n in in_degree if in_degree[n] == 0)
     result: list[CanonicalTable] = []
-
     while queue:
         name = queue.popleft()
         result.append(name_to_table[name])
@@ -233,22 +251,20 @@ def _topological_sort(
                 in_degree[other] -= 1
                 if in_degree[other] == 0:
                     queue.append(other)
+    return result
 
-    # Nodos restantes pertenecen a ciclos
-    visited = {t.name for t in result}
-    circular_tables = [t for t in tables if t.name not in visited]
 
-    # Para los circulares: añadirlos al resultado pero retirar las FKs problemáticas
-    circular_fk_pairs: list[tuple[str, CanonicalFK]] = []
-    for table in circular_tables:
-        result.append(table)
-        for fk in table.foreign_keys:
-            if fk.is_external:
-                continue
-            if fk.ref_table not in visited:
-                circular_fk_pairs.append((table.name, fk))
-
-    return result, circular_fk_pairs
+def _collect_circular_fk_pairs(
+    tables: list[CanonicalTable],
+    visited: set[str],
+) -> list[tuple[str, CanonicalFK]]:
+    """Retorna pares (tabla, FK) para las FKs que forman ciclos."""
+    return [
+        (table.name, fk)
+        for table in tables
+        for fk in table.foreign_keys
+        if not fk.is_external and fk.ref_table not in visited
+    ]
 
 
 def _format_default(value: str) -> str:
