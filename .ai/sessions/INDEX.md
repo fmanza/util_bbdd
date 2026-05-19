@@ -54,6 +54,8 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-05-19g-hotfix-number-pk-v3 | **hotfix v3 DEFINITIVO: NUMBER PK → INT(11) AUTO_INCREMENT** — normalización `is_primary_key` en `new_table.columns` ANTES de transformar + iteración sobre copia profunda + check PK en `_transform_column`; validado con caso real `ACM_INTEGRACION`; 100 tests verdes | develop | hotfix | CLOSED | `2026-05-19g-hotfix-number-pk-v3/TRACEABILITY.md` |
 | 2026-05-19h-ci-private-dep | **ci: credenciales git para dependencia privada fmanza/util** — `git config --global url.insteadOf` con `GH_PAT` antes de cada `pip install` en `tests.yml` (jobs test+package) y `docs.yml` (jobs build+deploy); requiere secret `GH_PAT` en repo | develop | hotfix | CLOSED | en sesión |
 
+| 2026-05-20-migrate-oracle-sqlserver | **new_feature: módulo migrate/ Oracle → SQL Server** — `OracleToSQLServerTransformer` + `SQLServerDDLEmitter` + `TypeMappingSQLServer` (30+ tipos), IDENTITY(1,1), COLLATE columna opcional, FK circular/externa; `MigrationPlanner` soporta `target_engine="sqlserver"`; backward compat Oracle→MariaDB 100%; 113 tests nuevos (213 migrate, 2191 total) | develop | new_feature | CLOSED | `2026-05-20-migrate-oracle-sqlserver/TRACEABILITY.md` |
+
 ## Crear nueva sesión
 
 1. Copia `TEMPLATE/` con nombre `YYYY-MM-DD/`.

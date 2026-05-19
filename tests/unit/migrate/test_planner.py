@@ -148,6 +148,55 @@ class TestMigrationPlannerPlan:
         assert not name.endswith("_.sql")
 
 
+class TestMigrationPlannerSQLServer:
+    def test_sqlserver_target_valid(self) -> None:
+        p = MigrationPlanner(target_engine="sqlserver")
+        assert p._target_engine == "sqlserver"
+
+    def test_sqlserver_invalid_charset_not_raises(self) -> None:
+        # charset/collation son MariaDB-specific; no deben validarse para sqlserver
+        p = MigrationPlanner(target_engine="sqlserver", charset="cp932_NOT_VALID")
+        assert p._target_engine == "sqlserver"
+
+    def test_sqlserver_plan_returns_migration_plan(self) -> None:
+        manager = _make_mock_manager()
+        planner = MigrationPlanner(target_engine="sqlserver")
+        from util_bbdd.migrate import MigrationPlan
+        plan = planner.plan(connection=manager, schema="TEST_SCHEMA")
+        assert isinstance(plan, MigrationPlan)
+        assert plan.target_engine == "sqlserver"
+
+    def test_sqlserver_emit_ddl_uses_brackets(self) -> None:
+        manager = _make_mock_manager()
+        plan = MigrationPlanner(target_engine="sqlserver").plan(manager, "SCHEMA")
+        ddl = plan.emit_ddl()
+        assert "[USERS]" in ddl
+        assert "ENGINE=" not in ddl
+
+    def test_sqlserver_emit_ddl_no_auto_increment(self) -> None:
+        manager = _make_mock_manager()
+        plan = MigrationPlanner(target_engine="sqlserver").plan(manager, "SCHEMA")
+        ddl = plan.emit_ddl()
+        assert "AUTO_INCREMENT" not in ddl
+
+    def test_sqlserver_suggested_filename(self) -> None:
+        manager = _make_mock_manager()
+        plan = MigrationPlanner(target_engine="sqlserver").plan(manager, "VENTAS")
+        assert plan.suggested_filename() == "ventas_oracle_to_sqlserver.sql"
+
+    def test_sqlserver_collation_param_accepted(self) -> None:
+        p = MigrationPlanner(
+            target_engine="sqlserver",
+            sql_server_collation="SQL_Latin1_General_CP1_CI_AS",
+        )
+        assert p._sql_server_collation == "SQL_Latin1_General_CP1_CI_AS"
+
+    def test_mariadb_still_validates_charset(self) -> None:
+        import pytest
+        with pytest.raises(ValueError, match="Charset"):
+            MigrationPlanner(target_engine="mariadb", charset="cp932_NOT_VALID")
+
+
 class TestMigrationPlanExecute:
     def test_execute_calls_target_manager(self) -> None:
         manager = _make_mock_manager()

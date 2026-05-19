@@ -29,7 +29,7 @@ def format_plan_markdown(plan: MigrationPlan) -> str:
     if plan.warnings:
         lines.extend(_warnings_section(plan.warnings))
     if plan.tables:
-        lines.extend(_tables_section(plan.tables))
+        lines.extend(_tables_section(plan.tables, plan.target_engine.upper()))
 
     return "\n".join(lines)
 
@@ -49,20 +49,20 @@ def _warnings_section(warnings: list[MigrationWarning]) -> list[str]:
     return lines
 
 
-def _tables_section(tables: list[CanonicalTable]) -> list[str]:
+def _tables_section(tables: list[CanonicalTable], target_engine: str) -> list[str]:
     lines: list[str] = ["## Tablas migradas", ""]
     for table in tables:
-        lines.extend(_table_block(table))
+        lines.extend(_table_block(table, target_engine))
     return lines
 
 
-def _table_block(table: CanonicalTable) -> list[str]:
+def _table_block(table: CanonicalTable, target_engine: str) -> list[str]:
     lines: list[str] = [f"### `{table.name}`"]
     if table.original_name != table.name:
         lines.append(f"> Nombre original: `{table.original_name}`")
     lines += [
         "",
-        "| Columna | Tipo Oracle | Tipo MariaDB | Nullable | AI |",
+        f"| Columna | Tipo Oracle | Tipo {target_engine} | Nullable | AI |",
         "|---|---|---|---|---|",
         *(_column_row(col) for col in table.columns),
         "",
