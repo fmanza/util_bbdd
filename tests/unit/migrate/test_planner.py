@@ -124,6 +124,29 @@ class TestMigrationPlannerPlan:
         total = plan.error_count + plan.warning_count + plan.info_count
         assert total == len(plan.warnings)
 
+    def test_suggested_filename_default(self) -> None:
+        manager = _make_mock_manager()
+        plan = MigrationPlanner().plan(manager, "VENTAS")
+        assert plan.suggested_filename() == "ventas_oracle_to_mariadb.sql"
+
+    def test_suggested_filename_with_suffix(self) -> None:
+        manager = _make_mock_manager()
+        plan = MigrationPlanner().plan(manager, "HR")
+        assert plan.suggested_filename(suffix="report", ext="md") == "hr_oracle_to_mariadb_report.md"
+
+    def test_suggested_filename_schema_lowercase(self) -> None:
+        manager = _make_mock_manager()
+        plan = MigrationPlanner().plan(manager, "CONTABILIDAD")
+        name = plan.suggested_filename()
+        assert name.startswith("contabilidad_")
+
+    def test_suggested_filename_no_suffix_no_underscore(self) -> None:
+        manager = _make_mock_manager()
+        plan = MigrationPlanner().plan(manager, "SCHEMA")
+        name = plan.suggested_filename()
+        assert "__" not in name
+        assert not name.endswith("_.sql")
+
 
 class TestMigrationPlanExecute:
     def test_execute_calls_target_manager(self) -> None:

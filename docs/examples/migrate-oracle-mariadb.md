@@ -34,8 +34,8 @@ plan = planner.plan(connection=oracle_manager, schema="VENTAS")
 # 4. Revisar avisos antes de aplicar
 print(format_plan_text(plan))
 
-# 5. Guardar el script
-with open("ventas_mariadb.sql", "w", encoding="utf-8") as f:
+# 5. Guardar el script con nombre canónico (ej: ventas_oracle_to_mariadb.sql)
+with open(plan.suggested_filename(), "w", encoding="utf-8") as f:
     f.write(plan.emit_ddl())
 ```
 
@@ -95,7 +95,7 @@ planner = MigrationPlanner()
 plan = planner.plan(connection=oracle_manager, schema="HR")
 
 report = format_plan_markdown(plan)
-with open("hr_migration_report.md", "w", encoding="utf-8") as f:
+with open(plan.suggested_filename(suffix="report", ext="md"), "w", encoding="utf-8") as f:
     f.write(report)
 ```
 

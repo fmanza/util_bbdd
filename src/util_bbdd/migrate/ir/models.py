@@ -115,6 +115,22 @@ class MigrationPlan:
             if stmt_clean:
                 target_connection.execute_custom_one(stmt_clean, {})
 
+    def suggested_filename(self, suffix: str = "", ext: str = "sql") -> str:
+        """Nombre de fichero canónico que incorpora schema, motor origen y motor destino.
+
+        Args:
+            suffix: Sufijo adicional antes de la extensión (p.ej. ``"report"``).
+            ext: Extensión del fichero sin punto (p.ej. ``"sql"``, ``"md"``).
+
+        Returns:
+            Nombre de fichero normalizado, p.ej. ``ventas_oracle_to_mariadb.sql``
+            o ``ventas_oracle_to_mariadb_report.md``.
+        """
+        base = f"{self.source_schema.lower()}_{self.source_engine}_to_{self.target_engine}"
+        if suffix:
+            base = f"{base}_{suffix}"
+        return f"{base}.{ext}"
+
     @property
     def error_count(self) -> int:
         """Número de warnings con severidad ERROR."""
