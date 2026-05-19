@@ -112,7 +112,8 @@ class TestMariaDBDDLEmitter:
         assert "REFERENCES `USERS`" in ddl
         assert "ON DELETE CASCADE" in ddl
 
-    def test_external_fk_omitted_from_create(self) -> None:
+    def test_external_fk_not_inline_in_create_table(self) -> None:
+        """FK externa no aparece inline en CREATE TABLE; se emite como ALTER TABLE al final."""
         fk = CanonicalFK(
             name="FK_EXT",
             original_name="FK_EXT",
@@ -124,8 +125,27 @@ class TestMariaDBDDLEmitter:
             is_external=True,
         )
         table = _table("T3", [_col("EXT_ID", "BIGINT")], fks=[fk])
-        ddl = self.emitter.emit([table])
-        assert "FK_EXT" not in ddl
+        stmts = self.emitter.emit_statements([table])
+        create_stmt = stmts[0]
+        assert "FK_EXT" not in create_stmt  # no inline en CREATE TABLE
+        assert any("ALTER TABLE" in s and "FK_EXT" in s for s in stmts)  # presente al final
+
+    def test_external_fk_alter_table_has_comment(self) -> None:
+        fk = CanonicalFK(
+            name="FK_EXT2",
+            original_name="FK_EXT2",
+            columns=["EXT_ID"],
+            ref_table="REMOTE_TABLE",
+            ref_columns=["ID"],
+            on_delete="NO ACTION",
+            on_update="NO ACTION",
+            is_external=True,
+        )
+        table = _table("T3B", [_col("EXT_ID", "BIGINT")], fks=[fk])
+        stmts = self.emitter.emit_statements([table])
+        ext_stmt = next(s for s in stmts if "FK_EXT2" in s)
+        assert "-- FK externa" in ext_stmt
+        assert "REMOTE_TABLE" in ext_stmt
 
     def test_index_emitted_separately(self) -> None:
         idx = CanonicalIndex(name="IDX_NAME", original_name="IDX_NAME", columns=["NAME"], unique=False)

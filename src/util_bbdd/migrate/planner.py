@@ -44,6 +44,7 @@ class MigrationPlanner:
         collation: str = DEFAULT_COLLATION,
         number_fallback: NumberFallback = "DOUBLE",
         engine: str = "InnoDB",
+        int_display_width: int = 11,
     ) -> None:
         src = source_engine.strip().lower()
         tgt = target_engine.strip().lower()
@@ -59,6 +60,7 @@ class MigrationPlanner:
         self._collation = validate_collation(collation)
         self._number_fallback = number_fallback
         self._engine = engine
+        self._int_display_width = int_display_width
 
     def plan(self, connection: Any, schema: str) -> MigrationPlan:
         """Extrae y transforma el esquema Oracle, produciendo un MigrationPlan.
@@ -76,6 +78,7 @@ class MigrationPlanner:
         transformer = OracleToMariaDBTransformer(
             number_fallback=self._number_fallback,
             charset=self._charset,
+            int_display_width=self._int_display_width,
         )
         transformed = transformer.transform(raw_tables)
 

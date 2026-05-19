@@ -50,6 +50,13 @@ class MariaDBDDLEmitter:
         """Genera lista de sentencias DDL individuales (sin ';')."""
         ordered, circular_fk_pairs = _topological_sort(tables)
 
+        # Recopilar FKs externas (a tablas fuera del schema migrado)
+        external_fk_pairs: list[tuple[str, CanonicalFK]] = []
+        for table in ordered:
+            for fk in table.foreign_keys:
+                if fk.is_external:
+                    external_fk_pairs.append((table.name, fk))
+
         statements: list[str] = []
 
         for table in ordered:
@@ -65,6 +72,16 @@ class MariaDBDDLEmitter:
         # ALTER TABLE para FKs circulares
         for table_name, fk in circular_fk_pairs:
             stmt = self._emit_alter_table_add_fk(table_name, fk)
+            statements.append(stmt)
+
+        # ALTER TABLE para FKs externas (al final, con comentario)
+        for table_name, fk in external_fk_pairs:
+            fk_stmt = self._emit_alter_table_add_fk(table_name, fk)
+            stmt = (
+                f"-- FK externa: `{fk.name}` en `{table_name}` referencia "
+                f"`{fk.ref_table}` (fuera del schema migrado) — verificar que existe\n"
+                f"{fk_stmt}"
+            )
             statements.append(stmt)
 
         return statements

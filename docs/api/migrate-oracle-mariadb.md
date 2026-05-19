@@ -30,7 +30,7 @@ sequenceDiagram
 
 | Clase / Función | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `MigrationPlanner` | `(source_engine, target_engine, charset, collation, number_fallback, engine)` | Orquestador principal; valida configuración en `__init__` | instancia |
+| `MigrationPlanner` | `(source_engine, target_engine, charset, collation, number_fallback, engine, int_display_width)` | Orquestador principal; valida configuración en `__init__` | instancia |
 | `MigrationPlanner.plan` | `(connection, schema: str)` | Extrae, transforma y consolida en un plan ejecutable | `MigrationPlan` |
 | `MigrationPlan.emit_ddl` | `()` | Script DDL completo listo para guardar en fichero `.sql` | `str` |
 | `MigrationPlan.emit_statements` | `()` | Sentencias individuales sin `;`, para ejecución controlada | `list[str]` |
@@ -58,6 +58,7 @@ sequenceDiagram
 | `collation` | `str` | Collation MariaDB | Debe pertenecer a `VALID_COLLATIONS`; incluye `utf8mb4_spanish2_ci`, `utf8mb4_spanish_ci`, `latin1_spanish_ci` |
 | `number_fallback` | `Literal["DOUBLE", "DECIMAL(38,10)", "DECIMAL(18,4)"]` | Tipo para `NUMBER` Oracle sin precisión | Solo esos tres literales |
 | `engine` | `str` | Motor de almacenamiento MariaDB | `"InnoDB"` por defecto |
+| `int_display_width` | `int` | Display width para tipo `INT` (convenio MariaDB) | `11` por defecto; `0` desactiva el parámetro (emite solo `INT`) |
 
 ### `MigrationPlanner.plan`
 
@@ -107,7 +108,7 @@ sequenceDiagram
 | Identificador > 64 chars | Truncado a 59 chars + sufijo `_XXXX` (MD5 del nombre original); aviso `WARNING` |
 | `NUMBER` sin precisión | Tipo `number_fallback` configurado; aviso `WARNING` con DDL comment |
 | `NEXTVAL` en columna no PK | Se añade como PK automáticamente; aviso `WARNING` |
-| FK a tabla fuera del schema | FK omitida del script; aviso `WARNING` |
+| FK a tabla fuera del schema | Emitida como `ALTER TABLE ADD CONSTRAINT` al final del script con comentario; aviso `WARNING` |
 | FKs circulares | `CREATE TABLE` sin esas FKs + `ALTER TABLE ADD CONSTRAINT` al final del script |
 | Tabla con todas las columnas omitidas | `CREATE TABLE` con comentario `-- ERROR: tabla sin columnas activas` |
 | Índice sobre columna omitida | Índice excluido del script sin aviso adicional |

@@ -30,6 +30,9 @@ _NVARCHAR_CHARSETS = {"NVARCHAR2", "NCHAR"}
 _LOB_UTF8 = {"CLOB", "NCLOB"}
 
 
+_INT_TYPES_AUTOINCREMENT = frozenset({"BIGINT", "INT", "INTEGER", "SMALLINT", "TINYINT", "MEDIUMINT"})
+
+
 class OracleToMariaDBTransformer:
     """Transforma IR Oracle a IR MariaDB.
 
@@ -37,11 +40,19 @@ class OracleToMariaDBTransformer:
         number_fallback: Tipo destino cuando NUMBER no tiene precisión.
             Valores aceptados: "DOUBLE", "DECIMAL(38,10)", "DECIMAL(18,4)".
         charset: Charset MariaDB para columnas de texto.
+        int_display_width: Display width para tipo INT (convenio MariaDB).
+            11 por defecto; 0 deshabilita el display width (solo INT sin parámetro).
     """
 
-    def __init__(self, number_fallback: str = "DOUBLE", charset: str = "utf8mb4") -> None:
+    def __init__(
+        self,
+        number_fallback: str = "DOUBLE",
+        charset: str = "utf8mb4",
+        int_display_width: int = 11,
+    ) -> None:
         self._number_fallback = number_fallback
         self._charset = charset
+        self._int_display_width = int_display_width
 
     def transform(self, tables: list[CanonicalTable]) -> list[CanonicalTable]:
         """Transforma todas las tablas aplicando mapeos Oracle→MariaDB."""
@@ -72,6 +83,7 @@ class OracleToMariaDBTransformer:
         new_table.foreign_keys = [self._transform_fk(table.name, fk, new_table) for fk in table.foreign_keys]
 
         self._handle_sequence_columns(new_table)
+        self._handle_pk_auto_increment(new_table)
 
         return new_table
 
@@ -96,7 +108,7 @@ class OracleToMariaDBTransformer:
 
         if oracle_base == "NUMBER":
             target_type, ddl_comment = resolve_number_type(col.precision, col.scale, self._number_fallback)
-            new_col.target_type = target_type
+            new_col.target_type = self._with_int_width(target_type)
             if ddl_comment:
                 new_col.ddl_comment = ddl_comment
                 new_col.warnings.append(
@@ -199,7 +211,43 @@ class OracleToMariaDBTransformer:
             return "LONGTEXT CHARACTER SET utf8mb4"
 
         # Tipos fijos: retornar el mariadb_type directamente
-        return mariadb_base
+        return self._with_int_width(mariadb_base)
+
+    def _with_int_width(self, type_str: str) -> str:
+        """Aplica el display width configurado al tipo INT."""
+        if type_str == "INT" and self._int_display_width > 0:
+            return f"INT({self._int_display_width})"
+        return type_str
+
+    def _handle_pk_auto_increment(self, table: CanonicalTable) -> None:
+        """Marca la columna PK única como AUTO_INCREMENT si es tipo entero."""
+        if len(table.primary_key) != 1:
+            return  # PK compuesta: AUTO_INCREMENT no aplica en MariaDB
+
+        pk_col_name = table.primary_key[0]
+        pk_col = next(
+            (c for c in table.columns if c.name == pk_col_name and not c.omit),
+            None,
+        )
+        if pk_col is None or pk_col.auto_increment:
+            return  # Ya marcada (por NEXTVAL) o columna no encontrada
+
+        base_type = pk_col.target_type.split("(")[0].upper().strip()
+        if base_type not in _INT_TYPES_AUTOINCREMENT:
+            return
+
+        pk_col.auto_increment = True
+        pk_col.nullable = False  # AUTO_INCREMENT requiere NOT NULL
+        table.warnings.append(
+            MigrationWarning(
+                table=table.name,
+                column=pk_col_name,
+                oracle_type=pk_col.oracle_type,
+                target_type=pk_col.target_type,
+                message=f"Columna PK '{pk_col_name}' marcada como AUTO_INCREMENT",
+                severity="INFO",
+            )
+        )
 
     def _handle_sequence_columns(self, table: CanonicalTable) -> None:
         """Detecta columnas con DEFAULT .NEXTVAL y las convierte a AUTO_INCREMENT."""
@@ -298,10 +346,10 @@ class OracleToMariaDBTransformer:
                     table=table_name,
                     column=None,
                     oracle_type="FOREIGN KEY",
-                    target_type="(omitida)",
+                    target_type="ALTER TABLE (al final)",
                     message=(
                         f"FK '{fk.name}' referencia tabla '{fk.ref_table}' fuera del schema migrado; "
-                        "FK omitida del DDL generado"
+                        "emitida como ALTER TABLE al final del script — verificar que la tabla existe"
                     ),
                     severity="WARNING",
                 )

@@ -189,6 +189,85 @@ class TestIdentifierTruncation:
         assert not any(w.oracle_type == "IDENTIFIER" for w in result.warnings)
 
 
+class TestIntDisplayWidth:
+    def test_integer_oracle_type_gets_display_width(self) -> None:
+        col = _make_column(oracle_type="INTEGER", char_length=None)
+        table = _make_table(columns=[col])
+        result = OracleToMariaDBTransformer().transform([table])[0]
+        assert result.columns[0].target_type == "INT(11)"
+
+    def test_int_oracle_type_gets_display_width(self) -> None:
+        col = _make_column(oracle_type="INT", char_length=None)
+        table = _make_table(columns=[col])
+        result = OracleToMariaDBTransformer().transform([table])[0]
+        assert result.columns[0].target_type == "INT(11)"
+
+    def test_custom_display_width(self) -> None:
+        col = _make_column(oracle_type="INTEGER", char_length=None)
+        table = _make_table(columns=[col])
+        result = OracleToMariaDBTransformer(int_display_width=8).transform([table])[0]
+        assert result.columns[0].target_type == "INT(8)"
+
+    def test_zero_display_width_disables_it(self) -> None:
+        col = _make_column(oracle_type="INTEGER", char_length=None)
+        table = _make_table(columns=[col])
+        result = OracleToMariaDBTransformer(int_display_width=0).transform([table])[0]
+        assert result.columns[0].target_type == "INT"
+
+    def test_number_small_precision_gets_int_display_width(self) -> None:
+        col = _make_column(oracle_type="NUMBER", char_length=None, precision=8, scale=0)
+        table = _make_table(columns=[col])
+        result = OracleToMariaDBTransformer().transform([table])[0]
+        assert result.columns[0].target_type == "INT(11)"
+
+
+class TestPKAutoIncrement:
+    def setup_method(self) -> None:
+        self.t = OracleToMariaDBTransformer()
+
+    def test_single_bigint_pk_becomes_auto_increment(self) -> None:
+        col = _make_column(name="ID", oracle_type="NUMBER", precision=15, scale=0, char_length=None)
+        table = _make_table(columns=[col], pk=["ID"])
+        result = self.t.transform([table])[0]
+        assert result.columns[0].auto_increment is True
+
+    def test_single_int_pk_becomes_auto_increment(self) -> None:
+        col = _make_column(name="ID", oracle_type="NUMBER", precision=8, scale=0, char_length=None)
+        table = _make_table(columns=[col], pk=["ID"])
+        result = self.t.transform([table])[0]
+        assert result.columns[0].auto_increment is True
+
+    def test_composite_pk_not_auto_increment(self) -> None:
+        col1 = _make_column(name="ID1", oracle_type="NUMBER", precision=10, scale=0, char_length=None)
+        col2 = _make_column(name="ID2", oracle_type="NUMBER", precision=10, scale=0, char_length=None)
+        table = _make_table(columns=[col1, col2], pk=["ID1", "ID2"])
+        result = self.t.transform([table])[0]
+        assert result.columns[0].auto_increment is False
+        assert result.columns[1].auto_increment is False
+
+    def test_varchar_pk_not_auto_increment(self) -> None:
+        col = _make_column(name="CODE", oracle_type="VARCHAR2", char_length=10)
+        table = _make_table(columns=[col], pk=["CODE"])
+        result = self.t.transform([table])[0]
+        assert result.columns[0].auto_increment is False
+
+    def test_nextval_pk_not_double_set(self) -> None:
+        col = _make_column(name="ID", oracle_type="NUMBER", precision=10, scale=0,
+                           char_length=None, default="MY_SEQ.NEXTVAL")
+        table = _make_table(columns=[col], pk=["ID"])
+        result = self.t.transform([table])[0]
+        assert result.columns[0].auto_increment is True
+        # Solo una advertencia INFO de sequence (no dos)
+        seq_infos = [w for w in result.warnings if "AUTO_INCREMENT" in w.message]
+        assert len(seq_infos) == 1
+
+    def test_pk_auto_increment_emits_info_warning(self) -> None:
+        col = _make_column(name="ID", oracle_type="NUMBER", precision=15, scale=0, char_length=None)
+        table = _make_table(columns=[col], pk=["ID"])
+        result = self.t.transform([table])[0]
+        assert any(w.severity == "INFO" and "AUTO_INCREMENT" in w.message for w in result.warnings)
+
+
 class TestExternalFK:
     def setup_method(self) -> None:
         self.t = OracleToMariaDBTransformer()
