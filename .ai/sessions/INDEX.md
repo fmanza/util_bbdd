@@ -52,6 +52,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-05-19e-hotfix-number-pk | **hotfix: NUMBER sin precisión en PK → INT** *(SUPERSEDED por 2026-05-19f)* — fix frágil basado en `col.is_primary_key`; solo funcionaba vía `OracleSchemaExtractor` | develop | hotfix | SUPERSEDED | `2026-05-19e-hotfix-number-pk/TRACEABILITY.md` |
 | 2026-05-19f-hotfix-number-pk-v2 | **hotfix v2: NUMBER PK → INT via `_handle_pk_auto_increment`** *(SUPERSEDED por 2026-05-19g)* — fix correcto en teoría pero insuficiente en producción por orden de iteración | develop | hotfix | SUPERSEDED | `2026-05-19f-hotfix-number-pk-v2/TRACEABILITY.md` |
 | 2026-05-19g-hotfix-number-pk-v3 | **hotfix v3 DEFINITIVO: NUMBER PK → INT(11) AUTO_INCREMENT** — normalización `is_primary_key` en `new_table.columns` ANTES de transformar + iteración sobre copia profunda + check PK en `_transform_column`; validado con caso real `ACM_INTEGRACION`; 100 tests verdes | develop | hotfix | CLOSED | `2026-05-19g-hotfix-number-pk-v3/TRACEABILITY.md` |
+| 2026-05-19h-ci-private-dep | **ci: credenciales git para dependencia privada fmanza/util** — `git config --global url.insteadOf` con `GH_PAT` antes de cada `pip install` en `tests.yml` (jobs test+package) y `docs.yml` (jobs build+deploy); requiere secret `GH_PAT` en repo | develop | hotfix | CLOSED | en sesión |
 
 ## Crear nueva sesión
 
