@@ -267,6 +267,21 @@ class TestPKAutoIncrement:
         result = self.t.transform([table])[0]
         assert any(w.severity == "INFO" and "AUTO_INCREMENT" in w.message for w in result.warnings)
 
+    def test_number_no_precision_pk_maps_to_int_not_double(self) -> None:
+        col = _make_column(name="ID", oracle_type="NUMBER", precision=None, scale=None, char_length=None)
+        col.is_primary_key = True
+        table = _make_table(columns=[col], pk=["ID"])
+        result = self.t.transform([table])[0]
+        base = result.columns[0].target_type.split("(")[0].upper()
+        assert base == "INT"
+        assert result.columns[0].auto_increment is True
+
+    def test_number_no_precision_non_pk_still_double(self) -> None:
+        col = _make_column(name="AMT", oracle_type="NUMBER", precision=None, scale=None, char_length=None)
+        table = _make_table(columns=[col])
+        result = self.t.transform([table])[0]
+        assert result.columns[0].target_type == "DOUBLE"
+
 
 class TestExternalFK:
     def setup_method(self) -> None:

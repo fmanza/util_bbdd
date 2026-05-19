@@ -49,6 +49,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-05-19b-reporters-refactor | **refactor: reducción complejidad cognitiva reporters** — `markdown.py` 25→≤2 (4 helpers extraídos); `text.py` 22→≤2 (3 helpers + 2 constantes); API pública sin cambios; 94 tests verdes | develop | refactor | CLOSED | `2026-05-19b-reporters-refactor/TRACEABILITY.md` |
 | 2026-05-19c-emitter-refactor | **refactor: `_topological_sort` complejidad 29→0** — extraídos `_build_deps`, `_kahn_result`, `_collect_circular_fk_pairs`; cada helper ≤ 10; comportamiento y tests intactos (94 verdes) | develop | refactor | CLOSED | `2026-05-19c-emitter-refactor/TRACEABILITY.md` |
 | 2026-05-19d-docs-audit-migrate | **docs-audit: revisión documental módulo migrate/** — 2 hallazgos L1 cerrados (README sin mención, re-export verificado); 5 L2 aplicados (reglas negocio PK→AI + NUMBER>18→DECIMAL, docstrings int_display_width + propiedades + emit); typo "perda"→"pérdida" en DDL generado | develop | documentation_review | CLOSED | `2026-05-19d-docs-audit-migrate/TRACEABILITY.md` |
+| 2026-05-19e-hotfix-number-pk | **hotfix: NUMBER sin precisión en PK → INT en lugar de DOUBLE** — guard `col.is_primary_key and col.precision is None` en `_transform_column`; AUTO_INCREMENT ahora se aplica correctamente; 2 tests nuevos (96 migrate, 100 total, 0 regresiones) | develop | hotfix | CLOSED | `2026-05-19e-hotfix-number-pk/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 
