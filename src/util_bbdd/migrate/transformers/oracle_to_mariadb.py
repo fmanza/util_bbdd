@@ -74,7 +74,14 @@ class OracleToMariaDBTransformer:
                 )
             )
 
-        new_table.columns = [self._transform_column(table.name, col) for col in table.columns]
+        # Garantizar is_primary_key correcto en la copia antes de transformar.
+        # El flag puede estar a False si el IR se construyó sin pasar por OracleSchemaExtractor.
+        pk_set = {n.upper() for n in table.primary_key}
+        for col in new_table.columns:
+            if col.name.upper() in pk_set:
+                col.is_primary_key = True
+
+        new_table.columns = [self._transform_column(table.name, col) for col in new_table.columns]
 
         new_table.primary_key = self._adapt_identifiers(table.name, table.primary_key, new_table)
 
@@ -108,6 +115,10 @@ class OracleToMariaDBTransformer:
 
         if oracle_base == "NUMBER":
             target_type, ddl_comment = resolve_number_type(col.precision, col.scale, self._number_fallback)
+            if col.is_primary_key and col.precision is None:
+                # PK con NUMBER sin precisión: forzar INT (is_primary_key garantizado por _transform_table)
+                target_type = "INT"
+                ddl_comment = None
             new_col.target_type = self._with_int_width(target_type)
             if ddl_comment:
                 new_col.ddl_comment = ddl_comment
