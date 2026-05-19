@@ -19,6 +19,7 @@ Librería Python especializada en **operaciones de base de datos** para MariaDB,
 | **Performance Monitoring** | ✅ | ✅ | Timing automático en bulk CRUD, métricas en CSV audit |
 | **Validación SQL** | ✅ | ✅ | Typechecking por dialecto de BD |
 | **Grafos** | ✅ | ✅ | Generar relaciones (Mermaid + GraphViz) |
+| **Migración DDL** | ✅ | — | Oracle → MariaDB: mapeo de tipos, FKs, secuencias, charset |
 
 ---
 
@@ -57,6 +58,7 @@ Librería Python especializada en **operaciones de base de datos** para MariaDB,
 - ¿Insertar 100k filas? → Use `bulk_insert_from_csv()`
 - ¿Comparar 2 schemas? → Use `SchemaComparator`
 - ¿Documentar BD? → Use `DatabaseDocumentation`
+- ¿Migrar Oracle → MariaDB? → Use `MigrationPlanner`
 
 ---
 

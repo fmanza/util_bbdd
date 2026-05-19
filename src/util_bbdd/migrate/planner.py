@@ -30,6 +30,8 @@ class MigrationPlanner:
         collation: COLLATE MariaDB (obligatorio; default: utf8mb4_unicode_ci).
         number_fallback: Tipo destino para NUMBER Oracle sin precisión.
         engine: Motor de almacenamiento MariaDB (default: InnoDB).
+        int_display_width: Display width para el tipo INT en MariaDB (default: 11).
+            Usar 0 para emitir solo `INT` sin paréntesis.
 
     Raises:
         ValueError: Si source_engine o target_engine no están soportados,

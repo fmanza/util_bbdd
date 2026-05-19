@@ -117,14 +117,17 @@ class MigrationPlan:
 
     @property
     def error_count(self) -> int:
+        """Número de warnings con severidad ERROR."""
         return sum(1 for w in self.warnings if w.severity == "ERROR")
 
     @property
     def warning_count(self) -> int:
+        """Número de warnings con severidad WARNING."""
         return sum(1 for w in self.warnings if w.severity == "WARNING")
 
     @property
     def info_count(self) -> int:
+        """Número de warnings con severidad INFO."""
         return sum(1 for w in self.warnings if w.severity == "INFO")
 
 

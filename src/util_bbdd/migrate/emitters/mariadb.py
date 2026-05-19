@@ -42,12 +42,27 @@ class MariaDBDDLEmitter:
     # ─── API pública ──────────────────────────────────────────────────────────
 
     def emit(self, tables: list[CanonicalTable]) -> str:
-        """Genera el script DDL completo."""
+        """Genera el script DDL completo listo para guardar en fichero .sql.
+
+        Args:
+            tables: Tablas canónicas transformadas, ordenadas topológicamente.
+
+        Returns:
+            Script SQL con sentencias separadas por ';\\n\\n' y terminado en ';\\n'.
+        """
         stmts = self.emit_statements(tables)
         return ";\n\n".join(stmts) + ";\n"
 
     def emit_statements(self, tables: list[CanonicalTable]) -> list[str]:
-        """Genera lista de sentencias DDL individuales (sin ';')."""
+        """Genera lista de sentencias DDL individuales sin ';' al final.
+
+        Args:
+            tables: Tablas canónicas transformadas, ordenadas topológicamente.
+
+        Returns:
+            Lista de sentencias DDL (CREATE TABLE, CREATE INDEX, ALTER TABLE)
+            en el orden correcto para ejecución sin desactivar FK_CHECKS.
+        """
         ordered, circular_fk_pairs = _topological_sort(tables)
 
         # Recopilar FKs externas (a tablas fuera del schema migrado)

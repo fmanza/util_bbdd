@@ -48,7 +48,7 @@ ORACLE_TO_MARIADB: dict[str, TypeMapping] = {
         "DOUBLE",
         warning_msg="NUMBER sin precisión explícita mapeado a DOUBLE",
         severity="WARNING",
-        ddl_comment="-- AVISO: NUMBER sin precisión → DOUBLE (perda de exactitud posible)",
+        ddl_comment="-- AVISO: NUMBER sin precisión → DOUBLE (pérdida de exactitud posible)",
         requires_ddl_comment=True,
     ),
     "NUMERIC": TypeMapping("NUMERIC", "DECIMAL"),
@@ -190,7 +190,7 @@ def resolve_number_type(
         (mariadb_type, optional_ddl_comment)
     """
     if precision is None:
-        comment = f"-- AVISO: NUMBER sin precisión → {fallback} (perda de exactitud posible)"
+        comment = f"-- AVISO: NUMBER sin precisión → {fallback} (pérdida de exactitud posible)"
         return fallback, comment
 
     effective_scale = scale if scale is not None else 0
