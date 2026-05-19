@@ -108,19 +108,6 @@ class OracleToMariaDBTransformer:
 
         if oracle_base == "NUMBER":
             target_type, ddl_comment = resolve_number_type(col.precision, col.scale, self._number_fallback)
-            if col.is_primary_key and col.precision is None:
-                target_type = "INT"
-                ddl_comment = None
-                new_col.warnings.append(
-                    MigrationWarning(
-                        table=table_name,
-                        column=col.name,
-                        oracle_type=col.oracle_type,
-                        target_type="INT",
-                        message="NUMBER sin precisión en columna PK inferido como INT",
-                        severity="INFO",
-                    )
-                )
             new_col.target_type = self._with_int_width(target_type)
             if ddl_comment:
                 new_col.ddl_comment = ddl_comment
@@ -247,7 +234,14 @@ class OracleToMariaDBTransformer:
 
         base_type = pk_col.target_type.split("(")[0].upper().strip()
         if base_type not in _INT_TYPES_AUTOINCREMENT:
-            return
+            # NUMBER sin precisión en PK → resolve_number_type devuelve DOUBLE; forzar INT aquí
+            # usando table.primary_key como fuente canónica (col.is_primary_key puede no estar seteado)
+            oracle_base = pk_col.oracle_type.upper().split("(")[0].strip()
+            if oracle_base != "NUMBER" or pk_col.precision is not None:
+                return
+            pk_col.target_type = self._with_int_width("INT")
+            pk_col.ddl_comment = None
+            pk_col.warnings = [w for w in pk_col.warnings if w.severity != "WARNING"]
 
         pk_col.auto_increment = True
         pk_col.nullable = False  # AUTO_INCREMENT requiere NOT NULL

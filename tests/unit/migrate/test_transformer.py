@@ -268,8 +268,8 @@ class TestPKAutoIncrement:
         assert any(w.severity == "INFO" and "AUTO_INCREMENT" in w.message for w in result.warnings)
 
     def test_number_no_precision_pk_maps_to_int_not_double(self) -> None:
+        # is_primary_key NO seteado en la columna: el fix debe funcionar vía table.primary_key
         col = _make_column(name="ID", oracle_type="NUMBER", precision=None, scale=None, char_length=None)
-        col.is_primary_key = True
         table = _make_table(columns=[col], pk=["ID"])
         result = self.t.transform([table])[0]
         base = result.columns[0].target_type.split("(")[0].upper()
