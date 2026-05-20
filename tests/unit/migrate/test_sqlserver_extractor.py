@@ -1,0 +1,282 @@
+"""Tests para SQLServerSchemaExtractor (sin BD externa — manager mock)."""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock
+
+import pytest
+
+from util_bbdd.migrate.extractors.sqlserver import SQLServerSchemaExtractor, _parse_raw_column
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+
+def _make_manager(
+    tables: list[tuple] | None = None,
+    columns: list[tuple] | None = None,
+    pks: list[tuple] | None = None,
+    fks: list[tuple] | None = None,
+    indexes: list[tuple] | None = None,
+    views: list[tuple] | None = None,
+    view_columns: list[tuple] | None = None,
+) -> MagicMock:
+    """Construye un manager mock que devuelve filas predefinidas por consulta."""
+    manager = MagicMock()
+    call_count = [0]
+
+    def side_effect(sql: str, params: dict) -> list:
+        # Identificar la query por palabras clave
+        sql_upper = sql.upper()
+        if "INFORMATION_SCHEMA.VIEWS" in sql_upper and "TABLE_NAME, VIEW_DEFINITION" in sql_upper:
+            return views or []
+        if "INFORMATION_SCHEMA.VIEWS" in sql_upper:
+            return view_columns or []
+        if "INFORMATION_SCHEMA.TABLES" in sql_upper:
+            return tables or []
+        if "COLUMNPROPERTY" in sql_upper:
+            return columns or []
+        if "CONSTRAINT_TYPE = 'PRIMARY KEY'" in sql_upper:
+            return pks or []
+        if "REFERENTIAL_CONSTRAINTS" in sql_upper:
+            return fks or []
+        if "SYS.INDEXES" in sql_upper:
+            return indexes or []
+        if "INFORMATION_SCHEMA.COLUMNS" in sql_upper:
+            return view_columns or []
+        return []
+
+    manager.execute_custom_many.side_effect = side_effect
+    return manager
+
+
+def _col_row(
+    name: str = "col1",
+    data_type: str = "int",
+    char_length: int | None = None,
+    numeric_precision: int | None = None,
+    numeric_scale: int | None = None,
+    is_nullable: str = "YES",
+    default: str | None = None,
+    is_identity: int = 0,
+    ordinal: int = 1,
+) -> tuple:
+    return (name, data_type, char_length, numeric_precision, numeric_scale,
+            is_nullable, default, is_identity, ordinal)
+
+
+# ── Tests _parse_raw_column ───────────────────────────────────────────────────
+
+
+class TestParseRawColumn:
+    def test_basic_int_column(self) -> None:
+        row = _col_row("ID", "int", None, 10, 0, "NO", None, 0, 1)
+        parsed = _parse_raw_column(row)
+        assert parsed is not None
+        assert parsed["name"] == "ID"
+        assert parsed["data_type"] == "INT"
+        assert parsed["auto_increment"] is False
+        assert parsed["nullable"] is False
+
+    def test_identity_column(self) -> None:
+        row = _col_row("ID", "int", None, 10, 0, "NO", None, 1, 1)
+        parsed = _parse_raw_column(row)
+        assert parsed is not None
+        assert parsed["auto_increment"] is True
+
+    def test_varchar_with_length(self) -> None:
+        row = _col_row("NAME", "varchar", 100, None, None, "YES", None, 0, 2)
+        parsed = _parse_raw_column(row)
+        assert parsed is not None
+        assert parsed["char_length"] == 100
+        assert parsed["nullable"] is True
+
+    def test_varchar_max_sentinel(self) -> None:
+        row = _col_row("CONTENT", "nvarchar", -1, None, None, "YES", None, 0, 3)
+        parsed = _parse_raw_column(row)
+        assert parsed is not None
+        assert parsed["char_length"] == -1
+
+    def test_decimal_precision_scale(self) -> None:
+        row = _col_row("AMOUNT", "decimal", None, 18, 4, "NO", None, 0, 1)
+        parsed = _parse_raw_column(row)
+        assert parsed is not None
+        assert parsed["precision"] == 18
+        assert parsed["scale"] == 4
+
+    def test_too_short_row_returns_none(self) -> None:
+        assert _parse_raw_column(("col", "int")) is None
+
+    def test_none_row_returns_none(self) -> None:
+        assert _parse_raw_column(None) is None  # type: ignore[arg-type]
+
+    def test_default_value_preserved(self) -> None:
+        row = _col_row("STATUS", "int", None, 10, 0, "NO", "1", 0, 1)
+        parsed = _parse_raw_column(row)
+        assert parsed is not None
+        assert parsed["default"] == "1"
+
+
+# ── Tests extract() ──────────────────────────────────────────────────────────
+
+
+class TestExtract:
+    def test_extract_empty_schema(self) -> None:
+        manager = _make_manager(tables=[])
+        ext = SQLServerSchemaExtractor(manager)
+        result = ext.extract("dbo")
+        assert result == []
+
+    def test_extract_single_table(self) -> None:
+        manager = _make_manager(
+            tables=[("ORDERS",)],
+            columns=[_col_row("ID", "int", None, 10, 0, "NO", None, 1, 1)],
+            pks=[("ID",)],
+        )
+        ext = SQLServerSchemaExtractor(manager)
+        result = ext.extract("dbo")
+        assert len(result) == 1
+        assert result[0].name == "ORDERS"
+        assert result[0].columns[0].name == "ID"
+        assert result[0].columns[0].auto_increment is True
+        assert result[0].primary_key == ["ID"]
+
+    def test_pk_marks_column_is_primary_key(self) -> None:
+        manager = _make_manager(
+            tables=[("PRODUCTS",)],
+            columns=[
+                _col_row("PRODUCT_ID", "int", None, 10, 0, "NO", None, 1, 1),
+                _col_row("NAME", "nvarchar", 200, None, None, "NO", None, 0, 2),
+            ],
+            pks=[("PRODUCT_ID",)],
+        )
+        ext = SQLServerSchemaExtractor(manager)
+        result = ext.extract("dbo")
+        pk_col = next(c for c in result[0].columns if c.name == "PRODUCT_ID")
+        other_col = next(c for c in result[0].columns if c.name == "NAME")
+        assert pk_col.is_primary_key is True
+        assert other_col.is_primary_key is False
+
+    def test_schema_stored_in_table(self) -> None:
+        manager = _make_manager(
+            tables=[("T1",)],
+            columns=[_col_row("C1", "int")],
+        )
+        ext = SQLServerSchemaExtractor(manager)
+        result = ext.extract("myschema")
+        assert result[0].schema == "myschema"
+
+    def test_varchar_max_char_length_preserved(self) -> None:
+        manager = _make_manager(
+            tables=[("DOCS",)],
+            columns=[_col_row("BODY", "nvarchar", -1, None, None, "YES", None, 0, 1)],
+        )
+        ext = SQLServerSchemaExtractor(manager)
+        result = ext.extract("dbo")
+        assert result[0].columns[0].char_length == -1
+
+
+# ── Tests extract_views() ────────────────────────────────────────────────────
+
+
+class TestExtractViews:
+    def test_extract_empty_views(self) -> None:
+        manager = _make_manager(views=[])
+        ext = SQLServerSchemaExtractor(manager)
+        result = ext.extract_views("dbo")
+        assert result == []
+
+    def test_extract_single_view(self) -> None:
+        manager = _make_manager(
+            views=[("V_ORDERS", "SELECT id, name FROM orders")],
+            view_columns=[("ID",), ("NAME",)],
+        )
+        ext = SQLServerSchemaExtractor(manager)
+        result = ext.extract_views("dbo")
+        assert len(result) == 1
+        assert result[0].name == "V_ORDERS"
+        assert result[0].query == "SELECT id, name FROM orders"
+
+    def test_view_schema_stored(self) -> None:
+        manager = _make_manager(
+            views=[("V_TEST", "SELECT 1")],
+            view_columns=[],
+        )
+        ext = SQLServerSchemaExtractor(manager)
+        result = ext.extract_views("reporting")
+        assert result[0].schema == "reporting"
+
+
+# ── Tests FK extraction ───────────────────────────────────────────────────────
+
+
+class TestExtractFKs:
+    def test_internal_fk(self) -> None:
+        fk_rows = [
+            ("FK_ORDER_CUSTOMER", "CUSTOMER_ID", "dbo", "CUSTOMERS", "ID", 1, "NO ACTION", "NO ACTION"),
+        ]
+        manager = _make_manager(
+            tables=[("ORDERS",)],
+            columns=[
+                _col_row("ID", "int", None, 10, 0, "NO", None, 1, 1),
+                _col_row("CUSTOMER_ID", "int", None, 10, 0, "NO", None, 0, 2),
+            ],
+            pks=[("ID",)],
+            fks=fk_rows,
+        )
+        ext = SQLServerSchemaExtractor(manager)
+        result = ext.extract("dbo")
+        fks = result[0].foreign_keys
+        assert len(fks) == 1
+        assert fks[0].name == "FK_ORDER_CUSTOMER"
+        assert fks[0].columns == ["CUSTOMER_ID"]
+        assert fks[0].ref_table == "CUSTOMERS"
+        assert fks[0].is_external is False
+
+    def test_external_fk(self) -> None:
+        fk_rows = [
+            ("FK_EXT", "COL_A", "other_schema", "EXT_TABLE", "ID", 1, "CASCADE", "NO ACTION"),
+        ]
+        manager = _make_manager(
+            tables=[("MY_TABLE",)],
+            columns=[_col_row("COL_A", "int")],
+            fks=fk_rows,
+        )
+        ext = SQLServerSchemaExtractor(manager)
+        result = ext.extract("dbo")
+        assert result[0].foreign_keys[0].is_external is True
+
+
+# ── Tests index extraction ────────────────────────────────────────────────────
+
+
+class TestExtractIndexes:
+    def test_unique_index(self) -> None:
+        idx_rows = [
+            ("UQ_EMAIL", "EMAIL", True, 1),
+        ]
+        manager = _make_manager(
+            tables=[("USERS",)],
+            columns=[
+                _col_row("ID", "int", None, 10, 0, "NO", None, 1, 1),
+                _col_row("EMAIL", "nvarchar", 255, None, None, "NO", None, 0, 2),
+            ],
+            pks=[("ID",)],
+            indexes=idx_rows,
+        )
+        ext = SQLServerSchemaExtractor(manager)
+        result = ext.extract("dbo")
+        assert len(result[0].indexes) == 1
+        assert result[0].indexes[0].name == "UQ_EMAIL"
+        assert result[0].indexes[0].unique is True
+
+    def test_non_unique_index(self) -> None:
+        idx_rows = [("IX_STATUS", "STATUS", False, 1)]
+        manager = _make_manager(
+            tables=[("ORDERS",)],
+            columns=[_col_row("STATUS", "int")],
+            indexes=idx_rows,
+        )
+        ext = SQLServerSchemaExtractor(manager)
+        result = ext.extract("dbo")
+        assert result[0].indexes[0].unique is False

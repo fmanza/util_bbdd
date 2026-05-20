@@ -9,6 +9,77 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+#### migrate: soporte SQL Server → Oracle / MariaDB / PostgreSQL
+
+Ampliación del módulo `migrate` para permitir migración DDL **desde SQL Server**
+hacia los tres motores destino disponibles. Completa la matriz 3×3 junto con Oracle
+y MariaDB como fuentes ya existentes.
+
+**Nuevos componentes:**
+
+- `SQLServerSchemaExtractor` (`extractors/sqlserver.py`) — Lee tablas, columnas, PKs,
+  FKs, índices y vistas desde `INFORMATION_SCHEMA` + vistas `sys.*`. Usa param style
+  `%(name)s` (compatible con pymssql). Detecta columnas `IDENTITY` mediante
+  `COLUMNPROPERTY(OBJECT_ID(...), col, 'IsIdentity')` (SQL Server 2008+).
+  Preserva el sentinel `char_length=-1` para tipos `MAX` (VARCHAR/NVARCHAR/VARBINARY).
+
+- `type_map_sqlserver_to_oracle.py` — `TypeMappingSQLServerToOracle` +
+  `SQLSERVER_TO_ORACLE` + `resolve_sqlserver_type_oracle()`. Cubre 25 tipos SQL Server.
+  Señala: TINYINT unsigned→NUMBER(3,0), DATETIMEOFFSET→TIMESTAMP WITH TIME ZONE,
+  TEXT/NTEXT obsoletos→CLOB, GEOGRAPHY/GEOMETRY→CLOB (severity ERROR).
+
+- `type_map_sqlserver_to_mariadb.py` — `TypeMappingSQLServerToMariaDB` +
+  `SQLSERVER_TO_MARIADB` + `resolve_sqlserver_type_mariadb()`. BIT→TINYINT(1),
+  TINYINT→SMALLINT (unsigned/signed, WARNING), DATETIME2→DATETIME(6),
+  DATETIMEOFFSET→VARCHAR(35) (WARNING), MAX types→LONGTEXT/LONGBLOB.
+
+- `type_map_sqlserver_to_postgresql.py` — `TypeMappingSQLServerToPostgreSQL` +
+  `SQLSERVER_TO_POSTGRESQL` + `resolve_sqlserver_type_postgresql()`. BIT→BOOLEAN,
+  NCHAR/NVARCHAR→CHAR/VARCHAR (Unicode-native), UNIQUEIDENTIFIER→UUID,
+  DATETIMEOFFSET→TIMESTAMPTZ, BINARY/VARBINARY→BYTEA (sin parámetros).
+
+- `SQLServerToOracleTransformer` (`transformers/sqlserver_to_oracle.py`) —
+  Identificadores truncados a 30 chars (Oracle 12.1). VARCHAR(MAX)/NVARCHAR(MAX)→CLOB,
+  VARBINARY(n>2000)→BLOB, VARBINARY(MAX)→BLOB. FK ON UPDATE genera WARNING.
+  `auto_increment` (IDENTITY) preservado para SEQUENCE+TRIGGER.
+
+- `SQLServerToMariaDBTransformer` (`transformers/sqlserver_to_mariadb.py`) —
+  Identificadores truncados a 64 chars. VARCHAR(MAX)→LONGTEXT, VARBINARY(MAX)→LONGBLOB.
+  `auto_increment` preservado para AUTO_INCREMENT.
+
+- `SQLServerToPostgreSQLTransformer` (`transformers/sqlserver_to_postgresql.py`) —
+  Identificadores truncados a 63 chars. VARCHAR(MAX)/NVARCHAR(MAX)→TEXT,
+  BINARY/VARBINARY→BYTEA (sin longitud). `auto_increment` preservado para SERIAL.
+
+- Vistas: pass-through v1 en los tres transformers. Warning T-SQL indicando revisión
+  manual (GETDATE, ISNULL, TOP, etc.).
+
+**Actualización MigrationPlanner:**
+
+- `_SUPPORTED_SOURCE` ampliado: añadido `"sqlserver"`.
+- Nuevo método `_plan_from_sqlserver()` que sigue el mismo patrón que
+  `_plan_from_oracle()` y `_plan_from_mariadb()`.
+- Parámetro `schema` en `plan()` corresponde a `TABLE_SCHEMA` (ej. `'dbo'`).
+
+**Tests:**
+
+- `test_sqlserver_extractor.py` — 20 tests: `_parse_raw_column`, extract, FKs, índices, vistas.
+- `test_type_map_sqlserver_source.py` — 60 tests de los 3 mapas de tipos.
+- `test_transformer_sqlserver_to_oracle.py` — 35 tests: tipos, MAX, CLOB/BLOB, PKs, FKs, vistas.
+- `test_transformer_sqlserver_to_mariadb.py` — 28 tests: tipos, MAX→LONGTEXT/LONGBLOB, IDENTITY.
+- `test_transformer_sqlserver_to_postgresql.py` — 30 tests: tipos, MAX→TEXT/BYTEA, PKs, FKs.
+- `test_planner_sqlserver_source.py` — 18 tests: validación engines, pipelines end-to-end, emit_ddl.
+- **Total tests migrate**: 789 (605 existentes + 184 nuevos).
+
+**Limitaciones v1:**
+
+- Param style `%(name)s` (pymssql). Para pyodbc se necesita wrapper en el manager.
+- Vistas: pass-through sin reescritura T-SQL→dialecto destino.
+- Sin soporte de tipos computed columns, UDTs ni tablas temporales.
+- `VIEW_DEFINITION` en INFORMATION_SCHEMA puede truncarse a 4000 chars en SQL Server < 2019.
+
+---
+
 #### migrate: soporte MariaDB → Oracle / SQL Server / PostgreSQL
 
 Ampliación del módulo `migrate` para permitir migración DDL **desde MariaDB** hacia

@@ -54,6 +54,7 @@ nav:
           - Comparador de Esquemas: functional/schema-comparison.md
       - Migración de Esquemas:
           - Migración Oracle → MariaDB: functional/migrate-oracle-mariadb.md
+          - Migración SQL Server → Oracle/MariaDB/PostgreSQL: functional/migrate-sqlserver-source.md
       - Análisis de Relaciones:
           - Visualización de Grafos: functional/graph-analysis.md
       - Documentación de BD:
@@ -83,6 +84,7 @@ nav:
           - Comparador y Reporters: api/schema-comparator.md
       - Migración de Esquemas:
           - Migración Oracle → MariaDB: api/migrate-oracle-mariadb.md
+          - API SQL Server → Oracle/MariaDB/PostgreSQL: api/migrate-sqlserver-source.md
       - Análisis de Relaciones:
           - Grafos de Relaciones: api/analysis.md
       - Documentación de BD:

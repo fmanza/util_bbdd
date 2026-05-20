@@ -55,8 +55,36 @@ Flujo principal (MariaDB → PostgreSQL):
     plan = planner.plan(connection=mariadb_manager, schema="mi_db")
     ddl = plan.emit_ddl()
 
-Soportado: Oracle → MariaDB / SQL Server / PostgreSQL
-           MariaDB → Oracle / SQL Server / PostgreSQL
+Flujo principal (SQL Server → Oracle):
+    planner = MigrationPlanner(
+        source_engine="sqlserver",
+        target_engine="oracle",
+    )
+    plan = planner.plan(connection=sqlserver_manager, schema="dbo")
+    ddl = plan.emit_ddl()
+
+Flujo principal (SQL Server → MariaDB):
+    planner = MigrationPlanner(
+        source_engine="sqlserver",
+        target_engine="mariadb",
+        charset="utf8mb4",
+        collation="utf8mb4_unicode_ci",
+    )
+    plan = planner.plan(connection=sqlserver_manager, schema="dbo")
+    ddl = plan.emit_ddl()
+
+Flujo principal (SQL Server → PostgreSQL):
+    planner = MigrationPlanner(
+        source_engine="sqlserver",
+        target_engine="postgresql",
+        pg_schema="mi_schema",  # opcional
+    )
+    plan = planner.plan(connection=sqlserver_manager, schema="dbo")
+    ddl = plan.emit_ddl()
+
+Soportado: Oracle      → MariaDB / SQL Server / PostgreSQL
+           MariaDB     → Oracle  / SQL Server / PostgreSQL
+           SQL Server  → Oracle  / MariaDB    / PostgreSQL
 """
 
 from .charset import DEFAULT_CHARSET, DEFAULT_COLLATION, validate_charset, validate_collation
@@ -66,6 +94,7 @@ from .emitters.postgresql import PostgreSQLDDLEmitter
 from .emitters.sqlserver import SQLServerDDLEmitter
 from .extractors.mariadb import MariaDBSchemaExtractor
 from .extractors.oracle import OracleSchemaExtractor
+from .extractors.sqlserver import SQLServerSchemaExtractor
 from .ir.models import (
     CanonicalColumn,
     CanonicalFK,
@@ -84,6 +113,9 @@ from .transformers.mariadb_to_sqlserver import MariaDBToSQLServerTransformer
 from .transformers.oracle_to_mariadb import OracleToMariaDBTransformer
 from .transformers.oracle_to_postgresql import OracleToPostgreSQLTransformer
 from .transformers.oracle_to_sqlserver import OracleToSQLServerTransformer
+from .transformers.sqlserver_to_mariadb import SQLServerToMariaDBTransformer
+from .transformers.sqlserver_to_oracle import SQLServerToOracleTransformer
+from .transformers.sqlserver_to_postgresql import SQLServerToPostgreSQLTransformer
 
 __all__: list[str] = [
     # Orquestador
@@ -114,6 +146,13 @@ __all__: list[str] = [
     "MariaDBToSQLServerTransformer",
     # Capas individuales MariaDB → PostgreSQL
     "MariaDBToPostgreSQLTransformer",
+    # Capas individuales SQL Server → Oracle
+    "SQLServerSchemaExtractor",
+    "SQLServerToOracleTransformer",
+    # Capas individuales SQL Server → MariaDB
+    "SQLServerToMariaDBTransformer",
+    # Capas individuales SQL Server → PostgreSQL
+    "SQLServerToPostgreSQLTransformer",
     # Reporters
     "format_plan_text",
     "format_plan_markdown",

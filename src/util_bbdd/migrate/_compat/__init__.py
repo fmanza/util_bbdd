@@ -1,7 +1,22 @@
-"""Tablas de compatibilidad Oracle → MariaDB."""
+"""Tablas de compatibilidad entre motores de bases de datos."""
 
 from .identifier_rules import check_identifier, truncate_identifier
 from .type_map import TypeMapping, resolve_number_type, resolve_oracle_type
+from .type_map_sqlserver_to_mariadb import (
+    SQLSERVER_TO_MARIADB,
+    TypeMappingSQLServerToMariaDB,
+    resolve_sqlserver_type_mariadb,
+)
+from .type_map_sqlserver_to_oracle import (
+    SQLSERVER_TO_ORACLE,
+    TypeMappingSQLServerToOracle,
+    resolve_sqlserver_type_oracle,
+)
+from .type_map_sqlserver_to_postgresql import (
+    SQLSERVER_TO_POSTGRESQL,
+    TypeMappingSQLServerToPostgreSQL,
+    resolve_sqlserver_type_postgresql,
+)
 
 __all__: list[str] = [
     "TypeMapping",
@@ -9,4 +24,13 @@ __all__: list[str] = [
     "resolve_number_type",
     "truncate_identifier",
     "check_identifier",
+    "TypeMappingSQLServerToOracle",
+    "SQLSERVER_TO_ORACLE",
+    "resolve_sqlserver_type_oracle",
+    "TypeMappingSQLServerToMariaDB",
+    "SQLSERVER_TO_MARIADB",
+    "resolve_sqlserver_type_mariadb",
+    "TypeMappingSQLServerToPostgreSQL",
+    "SQLSERVER_TO_POSTGRESQL",
+    "resolve_sqlserver_type_postgresql",
 ]
