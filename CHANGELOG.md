@@ -5,6 +5,69 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased] - develop
+
+### Added
+
+#### migrate: soporte de vistas Oracle → MariaDB / SQL Server / PostgreSQL
+
+Ampliación del módulo `migrate` para incluir vistas DDL en los tres escenarios
+de migración ya existentes. Las vistas se emiten automáticamente **después de
+todas las tablas** en el mismo script DDL producido por `MigrationPlan.emit_ddl()`.
+
+**Nuevos componentes:**
+
+- `CanonicalView` — modelo IR de vista: `name`, `original_name`, `schema`, `query`
+  (SQL reescrito), `columns` (nombres), `comment`, `warnings`.
+- `rewrite_oracle_view()` — motor de reescritura best-effort sin parser SQL externo:
+  - `SYSDATE` → `NOW()` / `GETDATE()` / `NOW()` según target
+  - `SYSTIMESTAMP` → equivalente por target
+  - `USER` → `CURRENT_USER()` / `SYSTEM_USER` / `CURRENT_USER`
+  - `NVL(a, b)` → `COALESCE(a, b)`
+  - `FROM DUAL` → eliminado
+  - Hints Oracle `/*+ ... */` → eliminados
+  - Prefijo `SCHEMA.` → eliminado
+  - `ROWNUM`, `CONNECT BY`, `DECODE`, `outer join (+)`, `LISTAGG`, `NVL2`,
+    `WM_CONCAT`, `MODEL` → se conservan tal cual + `MigrationWarning` severity=WARNING
+- `OracleSchemaExtractor.extract_views(schema)` — lee `ALL_VIEWS.text` + columnas
+  de `ALL_TAB_COLUMNS`.
+- `transform_views()` en los tres transformers (`OracleToMariaDBTransformer`,
+  `OracleToSQLServerTransformer`, `OracleToPostgreSQLTransformer`) con truncación
+  de identificadores según límites del motor (64 / 128 / 63 bytes).
+- `_emit_create_view()` en los tres emitters:
+  - MariaDB: `CREATE OR REPLACE VIEW \`name\` AS ...`
+  - SQL Server: `CREATE OR ALTER VIEW [name] AS ...` _(requiere SQL Server 2016+)_
+  - PostgreSQL: `CREATE OR REPLACE VIEW "name" AS ...`
+- `MigrationPlan.views: list[CanonicalView]` — campo con `default=[]`;
+  `emit_ddl()` y `emit_statements()` incluyen vistas automáticamente. Sin cambios
+  en código existente que no pase `views`.
+
+**Compatibilidad hacia atrás:** total. El campo `views` es opcional con default `[]`.
+Código que construye `MigrationPlan` sin el campo sigue funcionando sin cambios.
+
+**76 tests nuevos** (411 total en el módulo migrate). ruff limpio, mypy 0 errores.
+
+#### Limitaciones conocidas (v1)
+
+> Estas limitaciones están documentadas y no representan bugs. Se abordarán
+> en versiones futuras según prioridad.
+
+1. **Sin ordenación topológica entre vistas.** Las vistas se emiten en orden
+   alfabético Oracle (`ORDER BY view_name`). Si una vista referencia a otra
+   vista del mismo schema, el orden resultante puede ser incorrecto y requerir
+   ajuste manual antes de ejecutar el script en la base de datos destino.
+   Las vistas que solo referencian tablas no se ven afectadas.
+
+2. **`ALL_VIEWS.text` es tipo LONG en Oracle.** Los drivers modernos
+   (`cx_Oracle` ≥ 8, `python-oracledb` ≥ 1.x) convierten el tipo `LONG`
+   a `str` Python automáticamente devolviendo el texto completo. En
+   configuraciones con drivers más antiguos o Oracle < 12.2, la lectura puede
+   producir resultados truncados o un error dependiente del driver. Alternativa
+   para Oracle 12.2+: reemplazar la columna `text` por `text_vc` en la query
+   `_FETCH_VIEWS_SQL` del extractor (limitada a 4 000 caracteres).
+
+---
+
 ## [0.8.0] - 2026-04-21
 
 ### Fixed
