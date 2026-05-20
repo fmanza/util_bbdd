@@ -85,6 +85,25 @@ class CanonicalTable:
     warnings: list[MigrationWarning]
 
 
+@dataclass(slots=True)
+class CanonicalView:
+    """Representación canónica de una vista durante la migración.
+
+    El campo ``query`` contiene el SELECT reescrito con sustituciones
+    best-effort (SYSDATE, NVL, hints Oracle, FROM DUAL, prefijos de schema).
+    Constructs que requieren revisión manual generan MigrationWarning con
+    severity="WARNING" y se dejan sin modificar en el SQL.
+    """
+
+    name: str
+    original_name: str
+    schema: str
+    query: str
+    columns: list[str]
+    comment: str
+    warnings: list[MigrationWarning]
+
+
 @dataclass
 class MigrationPlan:
     """Plan de migración ejecutable: contiene tablas transformadas, warnings y configuración."""
@@ -95,14 +114,21 @@ class MigrationPlan:
     source_engine: str
     target_engine: str
     emitter: DDLEmitter = field(repr=False)
+    views: list[CanonicalView] = field(default_factory=list)
 
     def emit_ddl(self) -> str:
-        """Genera el script DDL completo para el motor destino."""
-        return self.emitter.emit(self.tables)
+        """Genera el script DDL completo para el motor destino.
+
+        Incluye tablas (con índices y FKs) seguidas de vistas.
+        """
+        return self.emitter.emit(self.tables, self.views)
 
     def emit_statements(self) -> list[str]:
-        """Genera la lista de sentencias DDL individuales (sin ';')."""
-        return self.emitter.emit_statements(self.tables)
+        """Genera la lista de sentencias DDL individuales (sin ';').
+
+        Incluye tablas (con índices y FKs) seguidas de vistas.
+        """
+        return self.emitter.emit_statements(self.tables, self.views)
 
     def execute(self, target_connection: Any) -> None:
         """Ejecuta el DDL generado contra el motor destino.
@@ -154,5 +180,6 @@ __all__: list[str] = [
     "CanonicalIndex",
     "CanonicalFK",
     "CanonicalTable",
+    "CanonicalView",
     "MigrationPlan",
 ]

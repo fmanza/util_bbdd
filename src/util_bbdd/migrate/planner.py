@@ -100,6 +100,7 @@ class MigrationPlanner:
         """
         extractor = OracleSchemaExtractor(connection)
         raw_tables = extractor.extract(schema)
+        raw_views = extractor.extract_views(schema)
 
         if self._target_engine == "mariadb":
             transformer: OracleToMariaDBTransformer | OracleToSQLServerTransformer | OracleToPostgreSQLTransformer = (
@@ -126,13 +127,16 @@ class MigrationPlanner:
             emitter = PostgreSQLDDLEmitter(pg_schema=self._pg_schema)
 
         transformed = transformer.transform(raw_tables)
+        transformed_views = transformer.transform_views(raw_views)
 
-        # Consolidar todos los warnings de tablas y columnas
+        # Consolidar todos los warnings de tablas, columnas y vistas
         all_warnings: list[MigrationWarning] = []
         for table in transformed:
             all_warnings.extend(table.warnings)
             for col in table.columns:
                 all_warnings.extend(col.warnings)
+        for view in transformed_views:
+            all_warnings.extend(view.warnings)
 
         return MigrationPlan(
             tables=transformed,
@@ -141,6 +145,7 @@ class MigrationPlanner:
             source_engine=self._source_engine,
             target_engine=self._target_engine,
             emitter=emitter,
+            views=transformed_views,
         )
 
 

@@ -221,9 +221,7 @@ class TestNumberMapping:
         assert result.columns[0].target_type == "NUMERIC(15,2)"
 
     def test_number_pk_no_precision_forced_to_integer(self) -> None:
-        col = _make_column(
-            name="ID", oracle_type="NUMBER", char_length=None, is_primary_key=True
-        )
+        col = _make_column(name="ID", oracle_type="NUMBER", char_length=None, is_primary_key=True)
         table = _make_table(columns=[col], pk=["ID"])
         result = self.t.transform([table])[0]
         assert result.columns[0].target_type == "INTEGER"
@@ -284,8 +282,12 @@ class TestIdentityHandling:
         assert result.columns[0].auto_increment is True
 
     def test_composite_pk_no_serial(self) -> None:
-        col1 = _make_column(name="ID1", oracle_type="NUMBER", char_length=None, precision=9, scale=0, is_primary_key=True)
-        col2 = _make_column(name="ID2", oracle_type="NUMBER", char_length=None, precision=9, scale=0, is_primary_key=True)
+        col1 = _make_column(
+            name="ID1", oracle_type="NUMBER", char_length=None, precision=9, scale=0, is_primary_key=True
+        )
+        col2 = _make_column(
+            name="ID2", oracle_type="NUMBER", char_length=None, precision=9, scale=0, is_primary_key=True
+        )
         table = _make_table(columns=[col1, col2], pk=["ID1", "ID2"])
         result = self.t.transform([table])[0]
         assert result.columns[0].auto_increment is False

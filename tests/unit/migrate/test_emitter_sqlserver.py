@@ -218,14 +218,22 @@ class TestSQLServerDDLEmitter:
 
     def test_fk_circular_emitted_as_alter_table(self) -> None:
         fk_ab = CanonicalFK(
-            name="FK_A_B", original_name="FK_A_B",
-            columns=["B_ID"], ref_table="B", ref_columns=["ID"],
-            on_delete="NO ACTION", on_update="NO ACTION",
+            name="FK_A_B",
+            original_name="FK_A_B",
+            columns=["B_ID"],
+            ref_table="B",
+            ref_columns=["ID"],
+            on_delete="NO ACTION",
+            on_update="NO ACTION",
         )
         fk_ba = CanonicalFK(
-            name="FK_B_A", original_name="FK_B_A",
-            columns=["A_ID"], ref_table="A", ref_columns=["ID"],
-            on_delete="NO ACTION", on_update="NO ACTION",
+            name="FK_B_A",
+            original_name="FK_B_A",
+            columns=["A_ID"],
+            ref_table="A",
+            ref_columns=["ID"],
+            on_delete="NO ACTION",
+            on_update="NO ACTION",
         )
         table_a = _table("A", [_col("ID", "INT"), _col("B_ID", "INT")], fks=[fk_ab])
         table_b = _table("B", [_col("ID", "INT"), _col("A_ID", "INT")], fks=[fk_ba])

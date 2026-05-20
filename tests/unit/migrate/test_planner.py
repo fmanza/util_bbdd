@@ -162,6 +162,7 @@ class TestMigrationPlannerSQLServer:
         manager = _make_mock_manager()
         planner = MigrationPlanner(target_engine="sqlserver")
         from util_bbdd.migrate import MigrationPlan
+
         plan = planner.plan(connection=manager, schema="TEST_SCHEMA")
         assert isinstance(plan, MigrationPlan)
         assert plan.target_engine == "sqlserver"
@@ -193,6 +194,7 @@ class TestMigrationPlannerSQLServer:
 
     def test_mariadb_still_validates_charset(self) -> None:
         import pytest
+
         with pytest.raises(ValueError, match="Charset"):
             MigrationPlanner(target_engine="mariadb", charset="cp932_NOT_VALID")
 

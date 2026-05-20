@@ -13,13 +13,11 @@ Responsabilidades:
 
 from __future__ import annotations
 
-from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalTable
+from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalTable, CanonicalView
 from .mariadb import _topological_sort
 
 # Tipos string en SQL Server que aceptan cláusula COLLATE a nivel columna
-_SQLSERVER_STRING_TYPES: frozenset[str] = frozenset(
-    {"NVARCHAR", "VARCHAR", "NCHAR", "CHAR", "NTEXT", "TEXT"}
-)
+_SQLSERVER_STRING_TYPES: frozenset[str] = frozenset({"NVARCHAR", "VARCHAR", "NCHAR", "CHAR", "NTEXT", "TEXT"})
 
 # Traducción de defaults Oracle a equivalentes SQL Server
 _ORACLE_TO_SS_DEFAULTS: dict[str, str] = {
@@ -60,35 +58,42 @@ class SQLServerDDLEmitter:
 
     # ─── API pública ──────────────────────────────────────────────────────────
 
-    def emit(self, tables: list[CanonicalTable]) -> str:
+    def emit(
+        self,
+        tables: list[CanonicalTable],
+        views: list[CanonicalView] | None = None,
+    ) -> str:
         """Genera el script DDL completo listo para guardar en fichero .sql.
 
         Args:
             tables: Tablas canónicas transformadas.
+            views: Vistas canónicas transformadas. Se emiten después de las tablas.
 
         Returns:
             Script SQL con sentencias separadas por ';\\n\\n' y terminado en ';\\n'.
         """
-        stmts = self.emit_statements(tables)
+        stmts = self.emit_statements(tables, views)
         return ";\n\n".join(stmts) + ";\n"
 
-    def emit_statements(self, tables: list[CanonicalTable]) -> list[str]:
+    def emit_statements(
+        self,
+        tables: list[CanonicalTable],
+        views: list[CanonicalView] | None = None,
+    ) -> list[str]:
         """Genera lista de sentencias DDL individuales sin ';' al final.
 
         Args:
             tables: Tablas canónicas transformadas.
+            views: Vistas canónicas transformadas. Se emiten después de las tablas.
 
         Returns:
-            Lista de sentencias DDL (CREATE TABLE, CREATE INDEX, ALTER TABLE)
-            en el orden correcto para ejecución sin desactivar FK_CHECKS.
+            Lista de sentencias DDL (CREATE TABLE, CREATE INDEX, ALTER TABLE,
+            CREATE OR ALTER VIEW) en el orden correcto para ejecución.
         """
         ordered, circular_fk_pairs = _topological_sort(tables)
 
         external_fk_pairs: list[tuple[str, CanonicalFK]] = [
-            (t.name, fk)
-            for t in ordered
-            for fk in t.foreign_keys
-            if fk.is_external
+            (t.name, fk) for t in ordered for fk in t.foreign_keys if fk.is_external
         ]
 
         statements: list[str] = []
@@ -116,7 +121,24 @@ class SQLServerDDLEmitter:
             )
             statements.append(stmt)
 
+        # Vistas DESPUÉS de todas las tablas
+        statements.extend(self._emit_view_statements(views))
+
         return statements
+
+    def _emit_view_statements(self, views: list[CanonicalView] | None) -> list[str]:
+        return [self._emit_create_view(v) for v in (views or []) if v.query]
+
+    def _emit_create_view(self, view: CanonicalView) -> str:
+        lines: list[str] = []
+        if view.warnings:
+            lines.append("-- NOTE: requires manual review (see migration warnings)")
+        if view.comment:
+            lines.append(f"-- COMMENT: {view.comment.replace(chr(10), ' ')}")
+        # CREATE OR ALTER VIEW requiere SQL Server 2016+ (compatibilidad 130+)
+        lines.append(f"CREATE OR ALTER VIEW {_br(view.name)} AS")
+        lines.append(view.query)
+        return "\n".join(lines)
 
     # ─── CREATE TABLE ─────────────────────────────────────────────────────────
 
@@ -145,9 +167,7 @@ class SQLServerDDLEmitter:
             ddl_lines.append(self._emit_fk_inline(fk))
 
         if not ddl_lines:
-            comment_lines.append(
-                "    -- ERROR: tabla sin columnas activas tras omisión de tipos incompatibles"
-            )
+            comment_lines.append("    -- ERROR: tabla sin columnas activas tras omisión de tipos incompatibles")
 
         body_parts: list[str] = []
         if comment_lines:
@@ -198,10 +218,7 @@ class SQLServerDDLEmitter:
     def _emit_fk_inline(self, fk: CanonicalFK) -> str:
         cols = ", ".join(_br(c) for c in fk.columns)
         ref_cols = ", ".join(_br(c) for c in fk.ref_columns)
-        stmt = (
-            f"    CONSTRAINT {_br(fk.name)} FOREIGN KEY ({cols}) "
-            f"REFERENCES {_br(fk.ref_table)} ({ref_cols})"
-        )
+        stmt = f"    CONSTRAINT {_br(fk.name)} FOREIGN KEY ({cols}) REFERENCES {_br(fk.ref_table)} ({ref_cols})"
         if fk.on_delete and fk.on_delete.upper() not in ("NO ACTION", ""):
             stmt += f" ON DELETE {fk.on_delete.upper()}"
         if fk.on_update and fk.on_update.upper() not in ("NO ACTION", ""):

@@ -4,29 +4,39 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from ..ir.models import CanonicalTable
+from ..ir.models import CanonicalTable, CanonicalView
 
 
 @runtime_checkable
 class DDLEmitter(Protocol):
     """Contrato para emisores de DDL hacia un motor destino."""
 
-    def emit(self, tables: list[CanonicalTable]) -> str:
+    def emit(
+        self,
+        tables: list[CanonicalTable],
+        views: list[CanonicalView] | None = None,
+    ) -> str:
         """Genera el script DDL completo como string.
 
         Args:
             tables: Tablas transformadas (IR destino).
+            views: Vistas transformadas (IR destino). Si None, no se emiten vistas.
 
         Returns:
-            Script DDL completo con sentencias separadas por ';\n\n'.
+            Script DDL completo con sentencias separadas por ';\\n\\n'.
         """
         ...
 
-    def emit_statements(self, tables: list[CanonicalTable]) -> list[str]:
+    def emit_statements(
+        self,
+        tables: list[CanonicalTable],
+        views: list[CanonicalView] | None = None,
+    ) -> list[str]:
         """Genera lista de sentencias DDL individuales sin ';'.
 
         Args:
             tables: Tablas transformadas (IR destino).
+            views: Vistas transformadas (IR destino). Si None, no se emiten vistas.
 
         Returns:
             Lista de sentencias DDL listas para ejecutar.

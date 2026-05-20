@@ -292,8 +292,9 @@ class TestSequenceColumns:
         self.t = OracleToSQLServerTransformer()
 
     def test_nextval_default_converted_to_identity(self) -> None:
-        col = _make_column("ID", oracle_type="NUMBER", precision=10, scale=0,
-                           default="MY_SEQ.NEXTVAL", char_length=None)
+        col = _make_column(
+            "ID", oracle_type="NUMBER", precision=10, scale=0, default="MY_SEQ.NEXTVAL", char_length=None
+        )
         table = _make_table(columns=[col], pk=["ID"])
         result = self.t.transform([table])[0]
         pk_col = result.columns[0]
@@ -302,15 +303,19 @@ class TestSequenceColumns:
 
     def test_nextval_non_pk_column_becomes_pk(self) -> None:
         col_id = _make_column("ID", oracle_type="NUMBER", precision=10, scale=0, char_length=None)
-        col_seq = _make_column("SEQ_COL", oracle_type="NUMBER", precision=10, scale=0,
-                               default="SOME_SEQ.NEXTVAL", char_length=None)
+        col_seq = _make_column(
+            "SEQ_COL", oracle_type="NUMBER", precision=10, scale=0, default="SOME_SEQ.NEXTVAL", char_length=None
+        )
         table = _make_table(columns=[col_id, col_seq], pk=["ID"])
         result = self.t.transform([table])[0]
         seq_col = next(c for c in result.columns if c.name == "SEQ_COL")
         assert seq_col.auto_increment is True
         assert seq_col.is_primary_key is True
-        assert any(w.severity == "WARNING" for w in result.warnings
-                   if "IDENTITY" in w.target_type or "secuencia" in w.message.lower())
+        assert any(
+            w.severity == "WARNING"
+            for w in result.warnings
+            if "IDENTITY" in w.target_type or "secuencia" in w.message.lower()
+        )
 
 
 class TestFKExternal:

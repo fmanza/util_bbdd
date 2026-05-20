@@ -21,8 +21,10 @@ from ..ir.models import (
     CanonicalFK,
     CanonicalIndex,
     CanonicalTable,
+    CanonicalView,
     MigrationWarning,
 )
+from ._view_rewriter import rewrite_oracle_view
 
 _NEXTVAL_RE = re.compile(r"\b(\w+)\.NEXTVAL\b", re.IGNORECASE)
 
@@ -57,6 +59,33 @@ class OracleToMariaDBTransformer:
     def transform(self, tables: list[CanonicalTable]) -> list[CanonicalTable]:
         """Transforma todas las tablas aplicando mapeos Oracle→MariaDB."""
         return [self._transform_table(t) for t in tables]
+
+    def transform_views(self, views: list[CanonicalView]) -> list[CanonicalView]:
+        """Transforma vistas Oracle aplicando reescritura best-effort para MariaDB."""
+        return [self._transform_view(v) for v in views]
+
+    def _transform_view(self, view: CanonicalView) -> CanonicalView:
+        result = rewrite_oracle_view(
+            view,
+            sysdate_fn="NOW()",
+            systimestamp_fn="NOW()",
+            user_fn="CURRENT_USER()",
+            schema=view.schema,
+        )
+        adapted_name, id_warn = check_identifier(view.name)
+        if id_warn:
+            result.name = adapted_name
+            result.warnings.append(
+                MigrationWarning(
+                    table=view.name,
+                    column=None,
+                    oracle_type="IDENTIFIER",
+                    target_type=adapted_name,
+                    message=id_warn,
+                    severity="WARNING",
+                )
+            )
+        return result
 
     def _transform_table(self, table: CanonicalTable) -> CanonicalTable:
         new_table = deepcopy(table)

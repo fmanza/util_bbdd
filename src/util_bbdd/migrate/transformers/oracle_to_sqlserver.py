@@ -21,8 +21,10 @@ from ..ir.models import (
     CanonicalFK,
     CanonicalIndex,
     CanonicalTable,
+    CanonicalView,
     MigrationWarning,
 )
+from ._view_rewriter import rewrite_oracle_view
 
 _NEXTVAL_RE = re.compile(r"\b(\w+)\.NEXTVAL\b", re.IGNORECASE)
 
@@ -47,6 +49,33 @@ class OracleToSQLServerTransformer:
     def transform(self, tables: list[CanonicalTable]) -> list[CanonicalTable]:
         """Transforma todas las tablas aplicando mapeos Oracle→SQL Server."""
         return [self._transform_table(t) for t in tables]
+
+    def transform_views(self, views: list[CanonicalView]) -> list[CanonicalView]:
+        """Transforma vistas Oracle aplicando reescritura best-effort para SQL Server."""
+        return [self._transform_view(v) for v in views]
+
+    def _transform_view(self, view: CanonicalView) -> CanonicalView:
+        result = rewrite_oracle_view(
+            view,
+            sysdate_fn="GETDATE()",
+            systimestamp_fn="SYSDATETIME()",
+            user_fn="SYSTEM_USER",
+            schema=view.schema,
+        )
+        adapted_name, id_warn = check_identifier(view.name, MAX_SQLSERVER_IDENTIFIER_LENGTH)
+        if id_warn:
+            result.name = adapted_name
+            result.warnings.append(
+                MigrationWarning(
+                    table=view.name,
+                    column=None,
+                    oracle_type="IDENTIFIER",
+                    target_type=adapted_name,
+                    message=id_warn,
+                    severity="WARNING",
+                )
+            )
+        return result
 
     def _transform_table(self, table: CanonicalTable) -> CanonicalTable:
         new_table = deepcopy(table)
@@ -100,9 +129,7 @@ class OracleToSQLServerTransformer:
         oracle_base = col.oracle_type.upper().split("(")[0].strip()
 
         if oracle_base == "NUMBER":
-            target_type, ddl_comment = resolve_number_type_sqlserver(
-                col.precision, col.scale, self._number_fallback
-            )
+            target_type, ddl_comment = resolve_number_type_sqlserver(col.precision, col.scale, self._number_fallback)
             if col.is_primary_key and col.precision is None:
                 # PK con NUMBER sin precisión: forzar INT
                 target_type = "INT"
@@ -289,9 +316,7 @@ class OracleToSQLServerTransformer:
                     )
                 )
 
-    def _adapt_identifiers(
-        self, table_name: str, names: list[str], target_table: CanonicalTable
-    ) -> list[str]:
+    def _adapt_identifiers(self, table_name: str, names: list[str], target_table: CanonicalTable) -> list[str]:
         adapted: list[str] = []
         for name in names:
             new_name, warn = check_identifier(name, MAX_SQLSERVER_IDENTIFIER_LENGTH)
@@ -309,9 +334,7 @@ class OracleToSQLServerTransformer:
             adapted.append(new_name)
         return adapted
 
-    def _transform_index(
-        self, table_name: str, idx: CanonicalIndex, target_table: CanonicalTable
-    ) -> CanonicalIndex:
+    def _transform_index(self, table_name: str, idx: CanonicalIndex, target_table: CanonicalTable) -> CanonicalIndex:
         new_idx = deepcopy(idx)
         new_idx.name, warn = check_identifier(idx.name, MAX_SQLSERVER_IDENTIFIER_LENGTH)
         if warn:
@@ -328,9 +351,7 @@ class OracleToSQLServerTransformer:
         new_idx.columns = self._adapt_identifiers(table_name, idx.columns, target_table)
         return new_idx
 
-    def _transform_fk(
-        self, table_name: str, fk: CanonicalFK, target_table: CanonicalTable
-    ) -> CanonicalFK:
+    def _transform_fk(self, table_name: str, fk: CanonicalFK, target_table: CanonicalTable) -> CanonicalFK:
         new_fk = deepcopy(fk)
         new_fk.name, warn = check_identifier(fk.name, MAX_SQLSERVER_IDENTIFIER_LENGTH)
         if warn:

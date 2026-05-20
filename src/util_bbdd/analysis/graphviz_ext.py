@@ -1206,8 +1206,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         effective_direction = self.direction if direction is None else self._normalize_direction(direction)
 
         self.logger.info(
-            f"Iniciando generación paginada en memoria para {table_name} "
-            f"(max {max_subnodes} nodos por página)"
+            f"Iniciando generación paginada en memoria para {table_name} (max {max_subnodes} nodos por página)"
         )
         if document is None:
             document = self.build_graph_document(

@@ -252,8 +252,9 @@ class TestPKAutoIncrement:
         assert result.columns[0].auto_increment is False
 
     def test_nextval_pk_not_double_set(self) -> None:
-        col = _make_column(name="ID", oracle_type="NUMBER", precision=10, scale=0,
-                           char_length=None, default="MY_SEQ.NEXTVAL")
+        col = _make_column(
+            name="ID", oracle_type="NUMBER", precision=10, scale=0, char_length=None, default="MY_SEQ.NEXTVAL"
+        )
         table = _make_table(columns=[col], pk=["ID"])
         result = self.t.transform([table])[0]
         assert result.columns[0].auto_increment is True

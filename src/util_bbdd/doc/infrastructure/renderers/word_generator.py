@@ -653,9 +653,7 @@ class WordGenerator:
                 self.logger.info(f"🖼️  Diagrama Word para {tabla} desde caché SVG ({len(png_bytes)} bytes PNG)")
                 document.add_page_break()
                 title_paragraph: Paragraph = document.add_heading(f"Diagrama de relaciones: {tabla}", level=2)
-                self._add_picture_from_bytes(
-                    document=document, image_bytes=png_bytes, title_paragraph=title_paragraph
-                )
+                self._add_picture_from_bytes(document=document, image_bytes=png_bytes, title_paragraph=title_paragraph)
                 self._add_diagram_summary_paragraph(document=document, summary_payload=diagram_summary)
                 return
 
@@ -673,9 +671,7 @@ class WordGenerator:
             self.logger.info(f"🖼️  Diagrama generado en memoria para {tabla} ({len(image_bytes)} bytes)")
             document.add_page_break()
             title_paragraph = document.add_heading(f"Diagrama de relaciones: {tabla}", level=2)
-            self._add_picture_from_bytes(
-                document=document, image_bytes=image_bytes, title_paragraph=title_paragraph
-            )
+            self._add_picture_from_bytes(document=document, image_bytes=image_bytes, title_paragraph=title_paragraph)
         else:
             output_dir = Path(diagram_options.get("output_dir", Path.cwd() / "_table_diagrams"))
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -693,9 +689,7 @@ class WordGenerator:
             self.logger.info(f"🖼️  Diagrama generado en disco para {tabla}: {generated_path}")
             document.add_page_break()
             title_paragraph = document.add_heading(f"Diagrama de relaciones: {tabla}", level=2)
-            self._add_picture_fit_to_page(
-                document=document, image_path=generated_path, title_paragraph=title_paragraph
-            )
+            self._add_picture_fit_to_page(document=document, image_path=generated_path, title_paragraph=title_paragraph)
 
         self.logger.info(f"🖼️  Diagrama insertado en Word para {tabla}")
         self._add_diagram_summary_paragraph(document=document, summary_payload=diagram_summary)
@@ -770,21 +764,15 @@ class WordGenerator:
                 document.add_page_break()
                 title = f"Diagrama de relaciones: {tabla} (Página {page_idx})"
                 title_paragraph: Paragraph = document.add_heading(title, level=2)
-                self._add_picture_from_bytes(
-                    document=document, image_bytes=page_bytes, title_paragraph=title_paragraph
-                )
-                self.logger.info(
-                    f"🖼️  Diagrama paginado insertado en Word para {tabla} ({page_idx}/{len(pages_bytes)})"
-                )
+                self._add_picture_from_bytes(document=document, image_bytes=page_bytes, title_paragraph=title_paragraph)
+                self.logger.info(f"🖼️  Diagrama paginado insertado en Word para {tabla} ({page_idx}/{len(pages_bytes)})")
                 self._add_diagram_summary_paragraph(document=document, summary_payload=diagram_summary)
             return
 
         with tempfile.TemporaryDirectory(prefix="util_bbdd_diagrams_") as tmp_dir:
             output_dir = Path(tmp_dir)
             kwargs_disk: dict[str, Any] = {**kwargs_pipe, "output_dir": output_dir}
-            generated_paths = [
-                Path(p) for p in graph_generator.generate_graphviz_graph_paginated_ext(**kwargs_disk)
-            ]
+            generated_paths = [Path(p) for p in graph_generator.generate_graphviz_graph_paginated_ext(**kwargs_disk)]
             self.logger.info(f"🖼️  Diagramas paginados para {tabla}: {len(generated_paths)} página(s)")
             for page_idx, generated_path in enumerate(generated_paths, start=1):
                 document.add_page_break()
@@ -858,12 +846,8 @@ class WordGenerator:
             document.add_page_break()
             title = f"Diagrama de relaciones: {tabla} - {title_suffix}"
             title_paragraph: Paragraph = document.add_heading(title, level=2)
-            self._add_picture_from_bytes(
-                document=document, image_bytes=png_bytes, title_paragraph=title_paragraph
-            )
-            self.logger.info(
-                f"🖼️  Página {page_idx}/{len(png_pages)} desde caché para {tabla}"
-            )
+            self._add_picture_from_bytes(document=document, image_bytes=png_bytes, title_paragraph=title_paragraph)
+            self.logger.info(f"🖼️  Página {page_idx}/{len(png_pages)} desde caché para {tabla}")
             self._add_diagram_summary_paragraph(document=document, summary_payload=diagram_summary)
         return True
 
@@ -916,6 +900,7 @@ class WordGenerator:
         """
         try:
             import cairosvg  # noqa: PLC0415
+
             result: bytes = cast(bytes, cairosvg.svg2png(bytestring=svg_bytes, dpi=render_dpi))
             return result
         except ImportError:
@@ -1025,9 +1010,7 @@ class WordGenerator:
         scaled_height = Emu(max(1, int(image_height * scale)))
         document.add_picture(str(image_path), width=scaled_width, height=scaled_height)
 
-    def _compute_max_dimensions(
-        self, document: Document, title_paragraph: Paragraph | None = None
-    ) -> tuple[int, int]:
+    def _compute_max_dimensions(self, document: Document, title_paragraph: Paragraph | None = None) -> tuple[int, int]:
         """Calcula el ancho y alto máximos disponibles (en EMU) para una imagen en la página actual.
 
         Args:

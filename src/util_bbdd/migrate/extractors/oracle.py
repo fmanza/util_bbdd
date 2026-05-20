@@ -23,6 +23,24 @@ from ..ir.models import (
     CanonicalFK,
     CanonicalIndex,
     CanonicalTable,
+    CanonicalView,
+)
+
+# SQL para extracción de vistas (ALL_VIEWS.text es tipo LONG; los drivers
+# cx_Oracle/python-oracledb lo devuelven como str completo sin truncar)
+_FETCH_VIEWS_SQL = (
+    "SELECT v.view_name, v.text, c.comments "
+    "FROM all_views v "
+    "LEFT JOIN all_tab_comments c "
+    "  ON c.owner = v.owner "
+    "  AND c.table_name = v.view_name "
+    "  AND c.table_type = 'VIEW' "
+    "WHERE v.owner = :owner "
+    "ORDER BY v.view_name"
+)
+
+_FETCH_VIEW_COLUMNS_SQL = (
+    "SELECT column_name FROM all_tab_columns WHERE owner = :owner AND table_name = :view_name ORDER BY column_id"
 )
 
 
@@ -113,6 +131,42 @@ class OracleSchemaExtractor:
             )
 
         return tables
+
+    def extract_views(self, schema: str) -> list[CanonicalView]:
+        """Extrae todas las vistas del schema Oracle como IR canónico.
+
+        Usa ``ALL_VIEWS.text`` (tipo LONG) que los drivers cx_Oracle y
+        python-oracledb devuelven como ``str`` completo. Para Oracle < 12.2
+        el comportamiento depende de la configuración del driver.
+        """
+        rows = self._query(_FETCH_VIEWS_SQL, {"owner": schema})
+        views: list[CanonicalView] = []
+
+        for row in rows:
+            if not row:
+                continue
+            view_name = str(row[0]).strip()
+            text = str(row[1]).strip() if row[1] else ""
+            comment = str(row[2]).strip() if len(row) > 2 and row[2] else ""
+
+            columns = self._extract_view_columns(schema, view_name)
+            views.append(
+                CanonicalView(
+                    name=view_name,
+                    original_name=view_name,
+                    schema=schema,
+                    query=text,
+                    columns=columns,
+                    comment=comment,
+                    warnings=[],
+                )
+            )
+
+        return views
+
+    def _extract_view_columns(self, schema: str, view_name: str) -> list[str]:
+        rows = self._query(_FETCH_VIEW_COLUMNS_SQL, {"owner": schema, "view_name": view_name})
+        return [str(r[0]).strip() for r in rows if r and r[0]]
 
     def _extract_columns(self, schema: str, table: str) -> list[CanonicalColumn]:
         rows = self._query(fetch_columns_sql(), {"owner": schema, "table_name": table})

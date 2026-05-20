@@ -42,6 +42,7 @@ from .ir.models import (
     CanonicalFK,
     CanonicalIndex,
     CanonicalTable,
+    CanonicalView,
     MigrationPlan,
     MigrationWarning,
 )
@@ -62,6 +63,7 @@ __all__: list[str] = [
     "CanonicalColumn",
     "CanonicalIndex",
     "CanonicalFK",
+    "CanonicalView",
     # Capas individuales Oracle → MariaDB (uso avanzado)
     "OracleSchemaExtractor",
     "OracleToMariaDBTransformer",

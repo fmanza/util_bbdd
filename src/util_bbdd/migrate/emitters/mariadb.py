@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections import deque
 
-from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalTable
+from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalTable, CanonicalView
 
 
 def _bt(name: str) -> str:
@@ -41,27 +41,37 @@ class MariaDBDDLEmitter:
 
     # ─── API pública ──────────────────────────────────────────────────────────
 
-    def emit(self, tables: list[CanonicalTable]) -> str:
+    def emit(
+        self,
+        tables: list[CanonicalTable],
+        views: list[CanonicalView] | None = None,
+    ) -> str:
         """Genera el script DDL completo listo para guardar en fichero .sql.
 
         Args:
             tables: Tablas canónicas transformadas, ordenadas topológicamente.
+            views: Vistas canónicas transformadas. Se emiten después de las tablas.
 
         Returns:
             Script SQL con sentencias separadas por ';\\n\\n' y terminado en ';\\n'.
         """
-        stmts = self.emit_statements(tables)
+        stmts = self.emit_statements(tables, views)
         return ";\n\n".join(stmts) + ";\n"
 
-    def emit_statements(self, tables: list[CanonicalTable]) -> list[str]:
+    def emit_statements(
+        self,
+        tables: list[CanonicalTable],
+        views: list[CanonicalView] | None = None,
+    ) -> list[str]:
         """Genera lista de sentencias DDL individuales sin ';' al final.
 
         Args:
             tables: Tablas canónicas transformadas, ordenadas topológicamente.
+            views: Vistas canónicas transformadas. Se emiten después de las tablas.
 
         Returns:
-            Lista de sentencias DDL (CREATE TABLE, CREATE INDEX, ALTER TABLE)
-            en el orden correcto para ejecución sin desactivar FK_CHECKS.
+            Lista de sentencias DDL (CREATE TABLE, CREATE INDEX, ALTER TABLE,
+            CREATE OR REPLACE VIEW) en el orden correcto para ejecución.
         """
         ordered, circular_fk_pairs = _topological_sort(tables)
 
@@ -99,7 +109,13 @@ class MariaDBDDLEmitter:
             )
             statements.append(stmt)
 
+        # Vistas DESPUÉS de todas las tablas
+        statements.extend(self._emit_view_statements(views))
+
         return statements
+
+    def _emit_view_statements(self, views: list[CanonicalView] | None) -> list[str]:
+        return [self._emit_create_view(v) for v in (views or []) if v.query]
 
     # ─── CREATE TABLE ─────────────────────────────────────────────────────────
 
@@ -127,9 +143,7 @@ class MariaDBDDLEmitter:
             ddl_lines.append(self._emit_fk_inline(fk))
 
         if not ddl_lines:
-            comment_lines.append(
-                "  -- ERROR: tabla sin columnas activas tras omisión de tipos incompatibles"
-            )
+            comment_lines.append("  -- ERROR: tabla sin columnas activas tras omisión de tipos incompatibles")
 
         body_parts: list[str] = []
         if comment_lines:
@@ -185,6 +199,18 @@ class MariaDBDDLEmitter:
     def _emit_alter_table_add_fk(self, table_name: str, fk: CanonicalFK) -> str:
         fk_inline = self._emit_fk_inline(fk).strip()
         return f"ALTER TABLE {_bt(table_name)} ADD {fk_inline}"
+
+    # ─── Vistas ───────────────────────────────────────────────────────────────
+
+    def _emit_create_view(self, view: CanonicalView) -> str:
+        lines: list[str] = []
+        if view.warnings:
+            lines.append("-- NOTE: requires manual review (see migration warnings)")
+        if view.comment:
+            lines.append(f"-- COMMENT: {view.comment.replace(chr(10), ' ')}")
+        lines.append(f"CREATE OR REPLACE VIEW {_bt(view.name)} AS")
+        lines.append(view.query)
+        return "\n".join(lines)
 
     # ─── Índices ──────────────────────────────────────────────────────────────
 
@@ -291,8 +317,16 @@ def _format_default(value: str) -> str:
 
     # Funciones SQL conocidas (Oracle y MariaDB): pasar sin entrecomillar
     sql_functions = {
-        "NOW()", "CURRENT_TIMESTAMP", "CURRENT_DATE", "NULL", "0", "1",
-        "SYSDATE", "SYSTIMESTAMP", "SYS_GUID()", "USER",
+        "NOW()",
+        "CURRENT_TIMESTAMP",
+        "CURRENT_DATE",
+        "NULL",
+        "0",
+        "1",
+        "SYSDATE",
+        "SYSTIMESTAMP",
+        "SYS_GUID()",
+        "USER",
     }
     if v.upper() in {f.upper() for f in sql_functions}:
         return v
