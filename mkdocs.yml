@@ -55,6 +55,7 @@ nav:
       - Migración de Esquemas:
           - Migración Oracle → MariaDB: functional/migrate-oracle-mariadb.md
           - Migración SQL Server → Oracle/MariaDB/PostgreSQL: functional/migrate-sqlserver-source.md
+          - Migración PostgreSQL → Oracle/MariaDB/SQL Server: functional/migrate-postgresql-source.md
       - Análisis de Relaciones:
           - Visualización de Grafos: functional/graph-analysis.md
       - Documentación de BD:
@@ -85,6 +86,7 @@ nav:
       - Migración de Esquemas:
           - Migración Oracle → MariaDB: api/migrate-oracle-mariadb.md
           - API SQL Server → Oracle/MariaDB/PostgreSQL: api/migrate-sqlserver-source.md
+          - API PostgreSQL → Oracle/MariaDB/SQL Server: api/migrate-postgresql-source.md
       - Análisis de Relaciones:
           - Grafos de Relaciones: api/analysis.md
       - Documentación de BD:

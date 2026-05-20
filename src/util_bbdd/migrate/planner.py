@@ -15,6 +15,7 @@ from .emitters.postgresql import PostgreSQLDDLEmitter
 from .emitters.sqlserver import SQLServerDDLEmitter
 from .extractors.mariadb import MariaDBSchemaExtractor
 from .extractors.oracle import OracleSchemaExtractor
+from .extractors.postgresql import PostgreSQLSchemaExtractor
 from .extractors.sqlserver import SQLServerSchemaExtractor
 from .ir.models import MigrationPlan, MigrationWarning
 from .transformers.mariadb_to_oracle import MariaDBToOracleTransformer
@@ -23,13 +24,16 @@ from .transformers.mariadb_to_sqlserver import MariaDBToSQLServerTransformer
 from .transformers.oracle_to_mariadb import OracleToMariaDBTransformer
 from .transformers.oracle_to_postgresql import OracleToPostgreSQLTransformer
 from .transformers.oracle_to_sqlserver import OracleToSQLServerTransformer
+from .transformers.postgresql_to_mariadb import PostgreSQLToMariaDBTransformer
+from .transformers.postgresql_to_oracle import PostgreSQLToOracleTransformer
+from .transformers.postgresql_to_sqlserver import PostgreSQLToSQLServerTransformer
 from .transformers.sqlserver_to_mariadb import SQLServerToMariaDBTransformer
 from .transformers.sqlserver_to_oracle import SQLServerToOracleTransformer
 from .transformers.sqlserver_to_postgresql import SQLServerToPostgreSQLTransformer
 
 NumberFallback = Literal["DOUBLE", "DECIMAL(38,10)", "DECIMAL(18,4)"]
 
-_SUPPORTED_SOURCE: frozenset[str] = frozenset({"oracle", "mariadb", "sqlserver"})
+_SUPPORTED_SOURCE: frozenset[str] = frozenset({"oracle", "mariadb", "sqlserver", "postgresql"})
 _SUPPORTED_TARGET: frozenset[str] = frozenset({"mariadb", "sqlserver", "postgresql", "oracle"})
 
 # Remapeo de NumberFallback inválido para SQL Server
@@ -124,8 +128,10 @@ class MigrationPlanner:
             return self._plan_from_oracle(connection, schema)
         elif self._source_engine == "mariadb":
             return self._plan_from_mariadb(connection, schema)
-        else:  # sqlserver
+        elif self._source_engine == "sqlserver":
             return self._plan_from_sqlserver(connection, schema)
+        else:  # postgresql
+            return self._plan_from_postgresql(connection, schema)
 
     # ─── Pipelines por motor origen ───────────────────────────────────────────
 
@@ -194,6 +200,28 @@ class MigrationPlanner:
         else:  # postgresql
             transformer = SQLServerToPostgreSQLTransformer()
             emitter = PostgreSQLDDLEmitter(pg_schema=self._pg_schema)
+
+        return self._build_plan(transformer, emitter, raw_tables, raw_views, schema)
+
+    def _plan_from_postgresql(self, connection: Any, schema: str) -> MigrationPlan:
+        """Pipeline PostgreSQL → (Oracle | MariaDB | SQL Server)."""
+        extractor = PostgreSQLSchemaExtractor(connection)
+        raw_tables = extractor.extract(schema)
+        raw_views = extractor.extract_views(schema)
+
+        if self._target_engine == "oracle":
+            transformer: Any = PostgreSQLToOracleTransformer()
+            emitter: Any = OracleDDLEmitter()
+        elif self._target_engine == "mariadb":
+            transformer = PostgreSQLToMariaDBTransformer()
+            emitter = MariaDBDDLEmitter(
+                charset=self._charset,
+                collation=self._collation,
+                engine=self._engine,
+            )
+        else:  # sqlserver
+            transformer = PostgreSQLToSQLServerTransformer()
+            emitter = SQLServerDDLEmitter(collation=self._sql_server_collation)
 
         return self._build_plan(transformer, emitter, raw_tables, raw_views, schema)
 

@@ -9,6 +9,82 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+#### migrate: soporte PostgreSQL → Oracle / MariaDB / SQL Server
+
+Ampliación del módulo `migrate` para permitir migración DDL **desde PostgreSQL**
+hacia los tres motores destino disponibles. Completa la matriz 4×3 (PostgreSQL
+añadido como 4.ª fuente junto con Oracle, MariaDB y SQL Server).
+
+**Nuevos componentes:**
+
+- `PostgreSQLSchemaExtractor` (`extractors/postgresql.py`) — Lee tablas, columnas,
+  PKs, FKs, índices y vistas desde `INFORMATION_SCHEMA` + `pg_catalog.pg_index`.
+  Usa param style `%(name)s` (psycopg2/psycopg3). Normaliza DATA_TYPE a UPPERCASE
+  (tipos multi-palabra: `character varying` → `CHARACTER VARYING`). Detecta SERIAL
+  via `COLUMN_DEFAULT starts with "nextval("`. `char_length=None` indica tipo sin
+  límite (no hay sentinel -1). Índices no-PK: `pg_catalog.pg_index +
+  generate_subscripts(ix.indkey, 1)` (PG 8.4+). FK cross-schema: `is_external=True`.
+
+- `type_map_postgresql_to_oracle.py` — `TypeMappingPostgreSQLToOracle` +
+  `POSTGRESQL_TO_ORACLE` + `resolve_postgresql_type_oracle()`. Cubre 25+ tipos PG.
+  BOOLEAN→NUMBER(1,0) (WARNING), TEXT→CLOB (WARNING), TSVECTOR/ARRAY→CLOB (ERROR),
+  TIMESTAMP WITH TIME ZONE→TIMESTAMP WITH TIME ZONE.
+
+- `type_map_postgresql_to_mariadb.py` — `TypeMappingPostgreSQLToMariaDB` +
+  `POSTGRESQL_TO_MARIADB` + `resolve_postgresql_type_mariadb()`. BOOLEAN→TINYINT(1),
+  TEXT→LONGTEXT, TIMESTAMP WITH TIME ZONE→DATETIME(6) (WARNING: TZ lost),
+  BYTEA→LONGBLOB, ARRAY→LONGTEXT (ERROR).
+
+- `type_map_postgresql_to_sqlserver.py` — `TypeMappingPostgreSQLToSQLServer` +
+  `POSTGRESQL_TO_SQLSERVER` + `resolve_postgresql_type_sqlserver()`. BOOLEAN→BIT,
+  TEXT→NVARCHAR(MAX), UUID→UNIQUEIDENTIFIER, XML→XML (nativo), MONEY→MONEY,
+  ARRAY→NVARCHAR(MAX) (ERROR).
+
+- `PostgreSQLToOracleTransformer` (`transformers/postgresql_to_oracle.py`) —
+  Identificadores truncados a 30 chars (Oracle 12.1). CHARACTER VARYING
+  None→CLOB, >4000→CLOB+warning, ≤4000→VARCHAR2(n). BIT(n)→CHAR(n),
+  BIT VARYING→VARCHAR2(n). FK ON UPDATE genera WARNING.
+  `auto_increment` preservado para SEQUENCE+TRIGGER.
+
+- `PostgreSQLToMariaDBTransformer` (`transformers/postgresql_to_mariadb.py`) —
+  Identificadores truncados a 64 chars. CHARACTER VARYING None→LONGTEXT,
+  BIT(n) nativo, BIT VARYING→VARBINARY(ceil(n/8)).
+  `auto_increment` preservado para AUTO_INCREMENT.
+
+- `PostgreSQLToSQLServerTransformer` (`transformers/postgresql_to_sqlserver.py`) —
+  Identificadores truncados a 128 chars. CHARACTER VARYING None/MAX→NVARCHAR(MAX),
+  BIT VARYING→VARBINARY(ceil(n/8)).
+  `auto_increment` preservado para IDENTITY(1,1).
+
+- Vistas: pass-through v1 en los tres transformers. Warning indicando revisión
+  manual de funciones PostgreSQL-específicas (NOW(), GENERATE_SERIES, EXTRACT, etc.).
+
+**Actualización MigrationPlanner:**
+
+- `_SUPPORTED_SOURCE` ampliado: añadido `"postgresql"`.
+- Nuevo método `_plan_from_postgresql()` que sigue el mismo patrón que
+  `_plan_from_oracle()`, `_plan_from_mariadb()` y `_plan_from_sqlserver()`.
+- Parámetro `schema` en `plan()` corresponde a `TABLE_SCHEMA` (habitualmente `'public'`).
+
+**Tests:**
+
+- `test_postgresql_extractor.py` — 20 tests: `_parse_raw_column`, extract, FKs, índices, vistas.
+- `test_type_map_postgresql_source.py` — 60 tests de los 3 mapas de tipos.
+- `test_transformer_postgresql_to_oracle.py` — 35 tests: tipos, CLOB, PK/FK, vistas.
+- `test_transformer_postgresql_to_mariadb.py` — 28 tests: tipos, LONGTEXT, BIT, SERIAL.
+- `test_transformer_postgresql_to_sqlserver.py` — 30 tests: tipos, NVARCHAR(MAX), XML, MONEY.
+- `test_planner_postgresql_source.py` — 18 tests: validación engines, pipelines end-to-end, emit_ddl.
+- **Total tests migrate**: ~979 (789 existentes + ~190 nuevos).
+
+**Limitaciones v1:**
+
+- Param style `%(name)s` (psycopg2/psycopg3). Para asyncpg se necesita wrapper en el manager.
+- Vistas: pass-through sin reescritura PostgreSQL-SQL→dialecto destino.
+- Sin soporte de `pg_description` (comentarios de columna omitidos).
+- Tipos espaciales (`POINT`, `POLYGON`, etc.) y `USER-DEFINED` (enums) → CLOB equivalente (ERROR).
+
+---
+
 #### migrate: soporte SQL Server → Oracle / MariaDB / PostgreSQL
 
 Ampliación del módulo `migrate` para permitir migración DDL **desde SQL Server**
