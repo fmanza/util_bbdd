@@ -9,6 +9,73 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+#### migrate: soporte MariaDB → Oracle / SQL Server / PostgreSQL
+
+Ampliación del módulo `migrate` para permitir migración DDL **desde MariaDB** hacia
+los tres motores destino disponibles. El flujo sigue el mismo patrón de 3 capas
+(Extractor → Transformer → Emitter) ya existente para Oracle como fuente.
+
+**Nuevos componentes:**
+
+- `MariaDBSchemaExtractor` (`extractors/mariadb.py`) — Lee tablas, columnas, PKs,
+  FKs, índices y vistas de `INFORMATION_SCHEMA` con param style `%(name)s`
+  (compatible con PyMySQL/MariaDB Connector). Detecta `AUTO_INCREMENT` en el campo
+  `EXTRA`, y FKs cross-database (`is_external=True`) cuando `ref_schema != schema`.
+
+- `type_map_mariadb_to_oracle.py` — `TypeMappingMariaToOracle` + `MARIADB_TO_ORACLE`
+  + `resolve_mariadb_type_oracle()`. Cubre todos los tipos comunes de MariaDB con
+  `MigrationWarning` donde aplica (TIMESTAMP, ENUM, JSON, GEOMETRY, BIT, TIME, etc.).
+
+- `type_map_mariadb_to_sqlserver.py` — `TypeMappingMariaToSQLServer` +
+  `MARIADB_TO_SQLSERVER` + `resolve_mariadb_type_sqlserver()`. Señala TINYINT
+  signed/unsigned, TIMESTAMP, JSON, ENUM, GEOMETRY.
+
+- `type_map_mariadb_to_postgresql.py` — `TypeMappingMariaToPostgreSQL` +
+  `MARIADB_TO_POSTGRESQL` + `resolve_mariadb_type_postgresql()`. BIT(n) nativo de
+  PostgreSQL, JSON→JSONB (con INFO), ENUM→TEXT (WARNING).
+
+- `MariaDBToOracleTransformer` (`transformers/mariadb_to_oracle.py`) — Identificadores
+  truncados a 30 chars (Oracle 12.1). VARCHAR>4000→CLOB, VARBINARY>2000→BLOB,
+  BIT(1)→NUMBER(1,0), BIT(n)→RAW(ceil(n/8)). FK ON UPDATE genera WARNING (Oracle no
+  soporta ON UPDATE CASCADE). `auto_increment` preservado para SEQUENCE+TRIGGER.
+
+- `MariaDBToSQLServerTransformer` (`transformers/mariadb_to_sqlserver.py`) —
+  Identificadores truncados a 128 chars. VARCHAR(n)/NVARCHAR(n), CHAR/NCHAR,
+  BINARY/VARBINARY con umbral 8000→MAX. `auto_increment` preservado para IDENTITY(1,1).
+
+- `MariaDBToPostgreSQLTransformer` (`transformers/mariadb_to_postgresql.py`) —
+  Identificadores truncados a 63 chars. VARCHAR(n), CHAR(n), BIT(n) nativo,
+  NUMERIC(p,s). `auto_increment` preservado para SERIAL/BIGSERIAL/SMALLSERIAL.
+
+- `OracleDDLEmitter` (`emitters/oracle.py`) — Identificadores double-quoted en
+  mayúsculas (`"TABLE_NAME"`). SEQUENCE + TRIGGER por columna AUTO_INCREMENT
+  (patrón clásico, compatible Oracle 11g+). COMMENT ON TABLE / COMMENT ON COLUMN.
+  ON DELETE solo CASCADE/SET NULL (ON UPDATE silenciado, ya avisado por transformer).
+  Vistas emitidas como `CREATE OR REPLACE VIEW "NAME" AS`. Orden topológico de tablas
+  y vistas reutilizando `_topological_sort` de `emitters/mariadb.py`.
+
+- `MAX_ORACLE_IDENTIFIER_LENGTH = 30` añadido a `_compat/identifier_rules.py`.
+
+**Integración en `MigrationPlanner`:**
+- `source_engine="mariadb"` ahora soportado además de `"oracle"`.
+- `target_engine="oracle"` ahora soportado además de `"mariadb"`, `"sqlserver"`,
+  `"postgresql"`.
+- Validación `src == tgt` → `ValueError` para prevenir migraciones triviales.
+
+**Vistas v1 (pass-through):** Los tres transformers MariaDB emiten las vistas sin
+reescritura de SQL dialect-específico (funciones MariaDB como NOW, IFNULL,
+GROUP_CONCAT requieren revisión manual). Cada vista recibe un `MigrationWarning`
+severity=WARNING.
+
+**177 tests nuevos** en 5 ficheros:
+- `test_type_map_mariadb.py` — 50 tests (3 clases, 1 por motor)
+- `test_transformer_mariadb_to_oracle.py` — 31 tests (4 clases)
+- `test_transformer_mariadb_to_sqlserver.py` — 31 tests (4 clases)
+- `test_transformer_mariadb_to_postgresql.py` — 33 tests (4 clases)
+- `test_emitter_oracle.py` — 32 tests (7 clases, incluye _format_default_oracle)
+
+Suite completa: **2583 passed, 1 skipped**. ruff limpio, mypy 0 errores.
+
 #### migrate: soporte de vistas Oracle → MariaDB / SQL Server / PostgreSQL
 
 Ampliación del módulo `migrate` para incluir vistas DDL en los tres escenarios

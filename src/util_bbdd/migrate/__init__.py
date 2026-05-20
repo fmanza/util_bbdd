@@ -29,13 +29,42 @@ Flujo principal (Oracle → PostgreSQL):
     plan = planner.plan(connection=oracle_manager, schema="MY_SCHEMA")
     ddl = plan.emit_ddl()
 
-Soportado: Oracle → MariaDB, Oracle → SQL Server, Oracle → PostgreSQL.
+Flujo principal (MariaDB → Oracle):
+    planner = MigrationPlanner(
+        source_engine="mariadb",
+        target_engine="oracle",
+    )
+    plan = planner.plan(connection=mariadb_manager, schema="mi_db")
+    ddl = plan.emit_ddl()
+
+Flujo principal (MariaDB → SQL Server):
+    planner = MigrationPlanner(
+        source_engine="mariadb",
+        target_engine="sqlserver",
+        sql_server_collation="SQL_Latin1_General_CP1_CI_AS",  # opcional
+    )
+    plan = planner.plan(connection=mariadb_manager, schema="mi_db")
+    ddl = plan.emit_ddl()
+
+Flujo principal (MariaDB → PostgreSQL):
+    planner = MigrationPlanner(
+        source_engine="mariadb",
+        target_engine="postgresql",
+        pg_schema="mi_schema",  # opcional
+    )
+    plan = planner.plan(connection=mariadb_manager, schema="mi_db")
+    ddl = plan.emit_ddl()
+
+Soportado: Oracle → MariaDB / SQL Server / PostgreSQL
+           MariaDB → Oracle / SQL Server / PostgreSQL
 """
 
 from .charset import DEFAULT_CHARSET, DEFAULT_COLLATION, validate_charset, validate_collation
 from .emitters.mariadb import MariaDBDDLEmitter
+from .emitters.oracle import OracleDDLEmitter
 from .emitters.postgresql import PostgreSQLDDLEmitter
 from .emitters.sqlserver import SQLServerDDLEmitter
+from .extractors.mariadb import MariaDBSchemaExtractor
 from .extractors.oracle import OracleSchemaExtractor
 from .ir.models import (
     CanonicalColumn,
@@ -49,6 +78,9 @@ from .ir.models import (
 from .planner import MigrationPlanner
 from .reporters.markdown import format_plan_markdown
 from .reporters.text import format_plan_text
+from .transformers.mariadb_to_oracle import MariaDBToOracleTransformer
+from .transformers.mariadb_to_postgresql import MariaDBToPostgreSQLTransformer
+from .transformers.mariadb_to_sqlserver import MariaDBToSQLServerTransformer
 from .transformers.oracle_to_mariadb import OracleToMariaDBTransformer
 from .transformers.oracle_to_postgresql import OracleToPostgreSQLTransformer
 from .transformers.oracle_to_sqlserver import OracleToSQLServerTransformer
@@ -64,16 +96,24 @@ __all__: list[str] = [
     "CanonicalIndex",
     "CanonicalFK",
     "CanonicalView",
-    # Capas individuales Oracle → MariaDB (uso avanzado)
+    # Capas individuales Oracle → MariaDB
     "OracleSchemaExtractor",
     "OracleToMariaDBTransformer",
     "MariaDBDDLEmitter",
-    # Capas individuales Oracle → SQL Server (uso avanzado)
+    # Capas individuales Oracle → SQL Server
     "OracleToSQLServerTransformer",
     "SQLServerDDLEmitter",
-    # Capas individuales Oracle → PostgreSQL (uso avanzado)
+    # Capas individuales Oracle → PostgreSQL
     "OracleToPostgreSQLTransformer",
     "PostgreSQLDDLEmitter",
+    # Capas individuales MariaDB → Oracle
+    "MariaDBSchemaExtractor",
+    "MariaDBToOracleTransformer",
+    "OracleDDLEmitter",
+    # Capas individuales MariaDB → SQL Server
+    "MariaDBToSQLServerTransformer",
+    # Capas individuales MariaDB → PostgreSQL
+    "MariaDBToPostgreSQLTransformer",
     # Reporters
     "format_plan_text",
     "format_plan_markdown",

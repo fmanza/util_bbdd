@@ -15,6 +15,8 @@ import hashlib
 MAX_MARIADB_IDENTIFIER_LENGTH: int = 64
 MAX_SQLSERVER_IDENTIFIER_LENGTH: int = 128
 MAX_POSTGRESQL_IDENTIFIER_LENGTH: int = 63
+# Oracle 12.1 y anteriores: 30 chars. 12.2+ permite 128; se usa 30 como mínimo seguro.
+MAX_ORACLE_IDENTIFIER_LENGTH: int = 30
 _HASH_SUFFIX_LENGTH: int = 4
 
 
@@ -70,6 +72,7 @@ __all__: list[str] = [
     "MAX_MARIADB_IDENTIFIER_LENGTH",
     "MAX_SQLSERVER_IDENTIFIER_LENGTH",
     "MAX_POSTGRESQL_IDENTIFIER_LENGTH",
+    "MAX_ORACLE_IDENTIFIER_LENGTH",
     "truncate_identifier",
     "check_identifier",
 ]

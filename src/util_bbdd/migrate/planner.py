@@ -10,18 +10,23 @@ from typing import Any, Literal
 
 from .charset import DEFAULT_CHARSET, DEFAULT_COLLATION, validate_charset, validate_collation
 from .emitters.mariadb import MariaDBDDLEmitter
+from .emitters.oracle import OracleDDLEmitter
 from .emitters.postgresql import PostgreSQLDDLEmitter
 from .emitters.sqlserver import SQLServerDDLEmitter
+from .extractors.mariadb import MariaDBSchemaExtractor
 from .extractors.oracle import OracleSchemaExtractor
 from .ir.models import MigrationPlan, MigrationWarning
+from .transformers.mariadb_to_oracle import MariaDBToOracleTransformer
+from .transformers.mariadb_to_postgresql import MariaDBToPostgreSQLTransformer
+from .transformers.mariadb_to_sqlserver import MariaDBToSQLServerTransformer
 from .transformers.oracle_to_mariadb import OracleToMariaDBTransformer
 from .transformers.oracle_to_postgresql import OracleToPostgreSQLTransformer
 from .transformers.oracle_to_sqlserver import OracleToSQLServerTransformer
 
 NumberFallback = Literal["DOUBLE", "DECIMAL(38,10)", "DECIMAL(18,4)"]
 
-_SUPPORTED_SOURCE: frozenset[str] = frozenset({"oracle"})
-_SUPPORTED_TARGET: frozenset[str] = frozenset({"mariadb", "sqlserver", "postgresql"})
+_SUPPORTED_SOURCE: frozenset[str] = frozenset({"oracle", "mariadb"})
+_SUPPORTED_TARGET: frozenset[str] = frozenset({"mariadb", "sqlserver", "postgresql", "oracle"})
 
 # Remapeo de NumberFallback inválido para SQL Server
 _SS_FALLBACK_REMAP: dict[str, str] = {"DOUBLE": "FLOAT"}
@@ -34,14 +39,17 @@ class MigrationPlanner:
     """Orquestador de migración DDL entre motores.
 
     Args:
-        source_engine: Motor origen (actualmente solo "oracle").
-        target_engine: Motor destino ("mariadb", "sqlserver" o "postgresql").
-        charset: CHARACTER SET MariaDB (solo aplica cuando target_engine="mariadb").
+        source_engine: Motor origen ("oracle" o "mariadb").
+        target_engine: Motor destino ("mariadb", "sqlserver", "postgresql" o "oracle").
+        charset: CHARACTER SET MariaDB (solo aplica cuando target_engine="mariadb"
+            o source_engine="mariadb" y target_engine="mariadb").
         collation: COLLATE MariaDB (solo aplica cuando target_engine="mariadb").
-        number_fallback: Tipo destino para NUMBER Oracle sin precisión.
+        number_fallback: Tipo destino para NUMBER Oracle sin precisión
+            (solo cuando source_engine="oracle").
         engine: Motor de almacenamiento MariaDB (solo aplica cuando target_engine="mariadb").
         int_display_width: Display width para INT en MariaDB (default: 11).
             Usar 0 para emitir solo ``INT`` sin paréntesis.
+            Solo aplica cuando source_engine="oracle" y target_engine="mariadb".
         sql_server_collation: COLLATE a nivel columna para SQL Server (opcional).
             Si None, no se emite cláusula COLLATE (usa collation de la BD destino).
         pg_schema: Schema PostgreSQL (opcional). Si se indica, emite
@@ -49,7 +57,8 @@ class MigrationPlanner:
 
     Raises:
         ValueError: Si source_engine o target_engine no están soportados,
-                    o si charset/collation no son válidos para MariaDB.
+                    si source_engine == target_engine, o si charset/collation
+                    no son válidos para MariaDB.
     """
 
     def __init__(
@@ -68,9 +77,18 @@ class MigrationPlanner:
         tgt = target_engine.strip().lower()
 
         if src not in _SUPPORTED_SOURCE:
-            raise ValueError(f"Motor origen '{source_engine}' no soportado. Soportados: {sorted(_SUPPORTED_SOURCE)}")
+            raise ValueError(
+                f"Motor origen '{source_engine}' no soportado. Soportados: {sorted(_SUPPORTED_SOURCE)}"
+            )
         if tgt not in _SUPPORTED_TARGET:
-            raise ValueError(f"Motor destino '{target_engine}' no soportado. Soportados: {sorted(_SUPPORTED_TARGET)}")
+            raise ValueError(
+                f"Motor destino '{target_engine}' no soportado. Soportados: {sorted(_SUPPORTED_TARGET)}"
+            )
+        if src == tgt:
+            raise ValueError(
+                f"Motor origen y destino son el mismo ('{src}'). "
+                "La migración requiere motores distintos."
+            )
 
         self._source_engine = src
         self._target_engine = tgt
@@ -84,52 +102,85 @@ class MigrationPlanner:
             self._charset = validate_charset(charset)
             self._collation = validate_collation(collation)
         else:
-            # charset/collation son parámetros MariaDB; no se validan para otros motores
             self._charset = charset
             self._collation = collation
 
     def plan(self, connection: Any, schema: str) -> MigrationPlan:
-        """Extrae y transforma el esquema Oracle, produciendo un MigrationPlan.
+        """Extrae y transforma el esquema origen, produciendo un MigrationPlan.
 
         Args:
-            connection: SyncDatabaseManager de Oracle (duck-typed).
-            schema: Nombre del schema/owner a migrar.
+            connection: SyncDatabaseManager del motor origen (duck-typed).
+            schema: Nombre del schema/owner/database a migrar.
 
         Returns:
             MigrationPlan listo para emit_ddl() o execute().
         """
+        if self._source_engine == "oracle":
+            return self._plan_from_oracle(connection, schema)
+        else:  # mariadb
+            return self._plan_from_mariadb(connection, schema)
+
+    # ─── Pipelines por motor origen ───────────────────────────────────────────
+
+    def _plan_from_oracle(self, connection: Any, schema: str) -> MigrationPlan:
+        """Pipeline Oracle → (MariaDB | SQL Server | PostgreSQL)."""
         extractor = OracleSchemaExtractor(connection)
         raw_tables = extractor.extract(schema)
         raw_views = extractor.extract_views(schema)
 
         if self._target_engine == "mariadb":
-            transformer: OracleToMariaDBTransformer | OracleToSQLServerTransformer | OracleToPostgreSQLTransformer = (
-                OracleToMariaDBTransformer(
-                    number_fallback=self._number_fallback,
-                    charset=self._charset,
-                    int_display_width=self._int_display_width,
-                )
+            transformer: Any = OracleToMariaDBTransformer(
+                number_fallback=self._number_fallback,
+                charset=self._charset,
+                int_display_width=self._int_display_width,
             )
-            emitter: MariaDBDDLEmitter | SQLServerDDLEmitter | PostgreSQLDDLEmitter = MariaDBDDLEmitter(
+            emitter: Any = MariaDBDDLEmitter(
                 charset=self._charset,
                 collation=self._collation,
                 engine=self._engine,
             )
         elif self._target_engine == "sqlserver":
-            # "DOUBLE" no es válido en SQL Server; remap a "FLOAT"
             ss_fallback = _SS_FALLBACK_REMAP.get(self._number_fallback, self._number_fallback)
             transformer = OracleToSQLServerTransformer(number_fallback=ss_fallback)
             emitter = SQLServerDDLEmitter(collation=self._sql_server_collation)
         else:  # postgresql
-            # "DOUBLE" no es válido en PostgreSQL; remap a "DOUBLE PRECISION"
             pg_fallback = _PG_FALLBACK_REMAP.get(self._number_fallback, self._number_fallback)
             transformer = OracleToPostgreSQLTransformer(number_fallback=pg_fallback)
             emitter = PostgreSQLDDLEmitter(pg_schema=self._pg_schema)
 
+        return self._build_plan(transformer, emitter, raw_tables, raw_views, schema)
+
+    def _plan_from_mariadb(self, connection: Any, schema: str) -> MigrationPlan:
+        """Pipeline MariaDB → (Oracle | SQL Server | PostgreSQL)."""
+        extractor = MariaDBSchemaExtractor(connection)
+        raw_tables = extractor.extract(schema)
+        raw_views = extractor.extract_views(schema)
+
+        if self._target_engine == "oracle":
+            transformer = MariaDBToOracleTransformer()
+            emitter = OracleDDLEmitter()
+        elif self._target_engine == "sqlserver":
+            transformer = MariaDBToSQLServerTransformer()
+            emitter = SQLServerDDLEmitter(collation=self._sql_server_collation)
+        else:  # postgresql
+            transformer = MariaDBToPostgreSQLTransformer()
+            emitter = PostgreSQLDDLEmitter(pg_schema=self._pg_schema)
+
+        return self._build_plan(transformer, emitter, raw_tables, raw_views, schema)
+
+    # ─── Construcción del plan ────────────────────────────────────────────────
+
+    def _build_plan(
+        self,
+        transformer: Any,
+        emitter: Any,
+        raw_tables: list[Any],
+        raw_views: list[Any],
+        schema: str,
+    ) -> MigrationPlan:
         transformed = transformer.transform(raw_tables)
         transformed_views = transformer.transform_views(raw_views)
 
-        # Consolidar todos los warnings de tablas, columnas y vistas
         all_warnings: list[MigrationWarning] = []
         for table in transformed:
             all_warnings.extend(table.warnings)
