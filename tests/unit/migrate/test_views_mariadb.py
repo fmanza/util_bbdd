@@ -6,7 +6,7 @@ transform_views (identifier truncation), MigrationPlan.views backward-compat.
 
 from __future__ import annotations
 
-from util_bbdd.migrate.emitters.mariadb import MariaDBDDLEmitter
+from util_bbdd.migrate.emitters.mariadb import MariaDBDDLEmitter, _topological_sort_views
 from util_bbdd.migrate.ir.models import (
     CanonicalColumn,
     CanonicalTable,
@@ -267,6 +267,137 @@ class TestMariaDBEmitStatementsWithViews:
         ddl = self.emitter.emit(tables, views)
         assert "CREATE OR REPLACE VIEW" in ddl
         assert ddl.endswith(";\n")
+
+
+# ─── Tests: _topological_sort_views ──────────────────────────────────────────
+
+
+class TestTopologicalSortViews:
+    """Tests for _topological_sort_views (shared logic used by all three emitters)."""
+
+    def test_empty_list(self) -> None:
+        ordered, circular = _topological_sort_views([])
+        assert ordered == []
+        assert circular == []
+
+    def test_single_view_no_deps(self) -> None:
+        v = _view("V1", "SELECT 1")
+        ordered, circular = _topological_sort_views([v])
+        assert len(ordered) == 1
+        assert circular == []
+
+    def test_independent_views_all_ordered(self) -> None:
+        views = [_view("VA", "SELECT 1"), _view("VB", "SELECT 2"), _view("VC", "SELECT 3")]
+        ordered, circular = _topological_sort_views(views)
+        assert len(ordered) == 3
+        assert circular == []
+
+    def test_chain_dependency_ordering(self) -> None:
+        # VW_RESUMEN references VW_DETALLE → VW_DETALLE must come first
+        v_detalle = _view("VW_DETALLE", "SELECT id, total FROM orders")
+        v_resumen = _view("VW_RESUMEN", "SELECT * FROM VW_DETALLE WHERE total > 0")
+        ordered, circular = _topological_sort_views([v_resumen, v_detalle])
+        assert circular == []
+        names = [v.name for v in ordered]
+        assert names.index("VW_DETALLE") < names.index("VW_RESUMEN")
+
+    def test_chain_three_levels(self) -> None:
+        # C depends on B, B depends on A → order: A, B, C
+        va = _view("VA", "SELECT 1")
+        vb = _view("VB", "SELECT * FROM VA")
+        vc = _view("VC", "SELECT * FROM VB")
+        ordered, circular = _topological_sort_views([vc, vb, va])
+        assert circular == []
+        names = [v.name for v in ordered]
+        assert names.index("VA") < names.index("VB") < names.index("VC")
+
+    def test_diamond_dependency(self) -> None:
+        # VD depends on VB and VC; VB and VC both depend on VA
+        va = _view("VA", "SELECT 1")
+        vb = _view("VB", "SELECT * FROM VA")
+        vc = _view("VC", "SELECT * FROM VA")
+        vd = _view("VD", "SELECT * FROM VB JOIN VC ON 1=1")
+        ordered, circular = _topological_sort_views([vd, vc, vb, va])
+        assert circular == []
+        names = [v.name for v in ordered]
+        assert names.index("VA") < names.index("VB")
+        assert names.index("VA") < names.index("VC")
+        assert names.index("VB") < names.index("VD")
+        assert names.index("VC") < names.index("VD")
+
+    def test_circular_dependency_detected(self) -> None:
+        # VA references VB, VB references VA → both end up in circular
+        va = _view("VA", "SELECT * FROM VB")
+        vb = _view("VB", "SELECT * FROM VA")
+        ordered, circular = _topological_sort_views([va, vb])
+        assert ordered == []
+        assert len(circular) == 2
+
+    def test_circular_plus_independent(self) -> None:
+        # VI is independent; VA and VB form a cycle
+        vi = _view("VI", "SELECT 1")
+        va = _view("VA", "SELECT * FROM VB")
+        vb = _view("VB", "SELECT * FROM VA")
+        ordered, circular = _topological_sort_views([vi, va, vb])
+        assert len(ordered) == 1
+        assert ordered[0].name == "VI"
+        assert len(circular) == 2
+
+    def test_case_insensitive_detection(self) -> None:
+        # Reference in lowercase should still be detected
+        v_base = _view("VW_BASE", "SELECT 1")
+        v_top = _view("VW_TOP", "SELECT * FROM vw_base WHERE id > 0")
+        ordered, circular = _topological_sort_views([v_top, v_base])
+        assert circular == []
+        names = [v.name for v in ordered]
+        assert names.index("VW_BASE") < names.index("VW_TOP")
+
+    def test_original_name_used_for_detection(self) -> None:
+        # When the stored name differs from original_name (truncated), the query
+        # contains the original Oracle name → dep must still be detected
+        v_long = CanonicalView(
+            name="VW_TRUNCATED",
+            original_name="VW_VERY_LONG_ORIGINAL_NAME",
+            schema="S",
+            query="SELECT 1",
+            columns=[],
+            comment="",
+            warnings=[],
+        )
+        v_ref = _view("VW_REF", "SELECT * FROM VW_VERY_LONG_ORIGINAL_NAME")
+        ordered, circular = _topological_sort_views([v_ref, v_long])
+        assert circular == []
+        names = [v.name for v in ordered]
+        assert names.index("VW_TRUNCATED") < names.index("VW_REF")
+
+
+# ─── Tests: topological ordering via emit_statements ─────────────────────────
+
+
+class TestMariaDBViewTopologicalEmit:
+    def setup_method(self) -> None:
+        self.emitter = _emitter()
+
+    def test_dependent_view_emitted_after_base(self) -> None:
+        v_base = _view("VW_BASE", "SELECT id FROM employees")
+        v_top = _view("VW_TOP", "SELECT * FROM VW_BASE WHERE id > 0")
+        stmts = self.emitter.emit_statements([], [v_top, v_base])
+        view_stmts = [s for s in stmts if "CREATE OR REPLACE VIEW" in s]
+        base_idx = next(i for i, s in enumerate(view_stmts) if "VW_BASE" in s)
+        top_idx = next(i for i, s in enumerate(view_stmts) if "VW_TOP" in s)
+        assert base_idx < top_idx
+
+    def test_circular_views_get_aviso_comment(self) -> None:
+        va = _view("VA", "SELECT * FROM VB")
+        vb = _view("VB", "SELECT * FROM VA")
+        stmts = self.emitter.emit_statements([], [va, vb])
+        aviso_stmts = [s for s in stmts if "dependencia circular" in s]
+        assert len(aviso_stmts) == 2
+
+    def test_no_deps_no_aviso(self) -> None:
+        views = [_view("V1", "SELECT 1"), _view("V2", "SELECT 2")]
+        stmts = self.emitter.emit_statements([], views)
+        assert not any("dependencia circular" in s for s in stmts)
 
 
 # ─── Tests: MigrationPlan backward compatibility ──────────────────────────────

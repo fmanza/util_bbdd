@@ -207,3 +207,18 @@ class TestPostgreSQLEmitStatementsWithViews:
         stmts = self.emitter.emit_statements([], views)
         view_stmts = [s for s in stmts if "CREATE OR REPLACE VIEW" in s]
         assert len(view_stmts) == 2
+
+    def test_dependent_view_emitted_after_base(self) -> None:
+        v_base = _view("VW_BASE", "SELECT id FROM employees")
+        v_top = _view("VW_TOP", "SELECT * FROM VW_BASE WHERE id > 0")
+        stmts = self.emitter.emit_statements([], [v_top, v_base])
+        view_stmts = [s for s in stmts if "CREATE OR REPLACE VIEW" in s]
+        base_idx = next(i for i, s in enumerate(view_stmts) if "VW_BASE" in s)
+        top_idx = next(i for i, s in enumerate(view_stmts) if "VW_TOP" in s)
+        assert base_idx < top_idx
+
+    def test_circular_views_get_aviso_comment(self) -> None:
+        va = _view("VA", "SELECT * FROM VB")
+        vb = _view("VB", "SELECT * FROM VA")
+        stmts = self.emitter.emit_statements([], [va, vb])
+        assert any("dependencia circular" in s for s in stmts)

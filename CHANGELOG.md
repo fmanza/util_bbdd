@@ -47,24 +47,36 @@ Código que construye `MigrationPlan` sin el campo sigue funcionando sin cambios
 
 **76 tests nuevos** (411 total en el módulo migrate). ruff limpio, mypy 0 errores.
 
-#### Limitaciones conocidas (v1)
+### Fixed
 
-> Estas limitaciones están documentadas y no representan bugs. Se abordarán
-> en versiones futuras según prioridad.
+#### migrate: ordenación topológica de vistas
 
-1. **Sin ordenación topológica entre vistas.** Las vistas se emiten en orden
-   alfabético Oracle (`ORDER BY view_name`). Si una vista referencia a otra
-   vista del mismo schema, el orden resultante puede ser incorrecto y requerir
-   ajuste manual antes de ejecutar el script en la base de datos destino.
-   Las vistas que solo referencian tablas no se ven afectadas.
+Los emitters (MariaDB, SQL Server, PostgreSQL) ahora ordenan las vistas por
+dependencias antes de emitirlas, usando el mismo algoritmo de Kahn ya empleado
+para las tablas.
 
-2. **`ALL_VIEWS.text` es tipo LONG en Oracle.** Los drivers modernos
-   (`cx_Oracle` ≥ 8, `python-oracledb` ≥ 1.x) convierten el tipo `LONG`
-   a `str` Python automáticamente devolviendo el texto completo. En
-   configuraciones con drivers más antiguos o Oracle < 12.2, la lectura puede
-   producir resultados truncados o un error dependiente del driver. Alternativa
-   para Oracle 12.2+: reemplazar la columna `text` por `text_vc` en la query
-   `_FETCH_VIEWS_SQL` del extractor (limitada a 4 000 caracteres).
+- Nueva función `_topological_sort_views(views)` en `emitters/mariadb.py`,
+  compartida por los tres emitters.
+- Nueva función `_detect_view_deps(view, all_views)` que detecta qué vistas del
+  schema aparecen en `view.query` mediante word-boundary match case-insensitive.
+  Comprueba tanto `name` (truncado) como `original_name` (nombre Oracle original)
+  para cubrir el caso de identificadores truncados.
+- Si dos o más vistas forman un ciclo (dependencia circular), se emiten al final
+  precedidas de un comentario `-- AVISO: dependencia circular detectada`.
+- **12 tests nuevos** (10 en `test_views_mariadb.py`, 2 en cada uno de los otros).
+
+#### Limitaciones conocidas (restante de v1)
+
+> Esta limitación sigue pendiente y no representa un bug. Se abordará en una
+> versión futura según prioridad.
+
+- **`ALL_VIEWS.text` es tipo LONG en Oracle.** Los drivers modernos
+  (`cx_Oracle` ≥ 8, `python-oracledb` ≥ 1.x) convierten el tipo `LONG`
+  a `str` Python automáticamente devolviendo el texto completo. En
+  configuraciones con drivers más antiguos o Oracle < 12.2, la lectura puede
+  producir resultados truncados o un error dependiente del driver. Alternativa
+  para Oracle 12.2+: reemplazar la columna `text` por `text_vc` en la query
+  `_FETCH_VIEWS_SQL` del extractor (limitada a 4 000 caracteres).
 
 ---
 

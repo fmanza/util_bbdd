@@ -14,7 +14,7 @@ Responsabilidades:
 from __future__ import annotations
 
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalTable, CanonicalView
-from .mariadb import _topological_sort
+from .mariadb import _topological_sort, _topological_sort_views
 
 # Tipos string en SQL Server que aceptan cláusula COLLATE a nivel columna
 _SQLSERVER_STRING_TYPES: frozenset[str] = frozenset({"NVARCHAR", "VARCHAR", "NCHAR", "CHAR", "NTEXT", "TEXT"})
@@ -127,7 +127,16 @@ class SQLServerDDLEmitter:
         return statements
 
     def _emit_view_statements(self, views: list[CanonicalView] | None) -> list[str]:
-        return [self._emit_create_view(v) for v in (views or []) if v.query]
+        active = [v for v in (views or []) if v.query]
+        ordered, circular = _topological_sort_views(active)
+        stmts: list[str] = [self._emit_create_view(v) for v in ordered]
+        for v in circular:
+            aviso = (
+                f"-- AVISO: vista '{v.name}' participa en una dependencia circular "
+                "— verificar orden de ejecución manualmente\n"
+            )
+            stmts.append(aviso + self._emit_create_view(v))
+        return stmts
 
     def _emit_create_view(self, view: CanonicalView) -> str:
         lines: list[str] = []

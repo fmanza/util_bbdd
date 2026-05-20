@@ -10,6 +10,8 @@ Responsabilidades:
 
 from __future__ import annotations
 
+import re
+
 from collections import deque
 
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalTable, CanonicalView
@@ -115,7 +117,16 @@ class MariaDBDDLEmitter:
         return statements
 
     def _emit_view_statements(self, views: list[CanonicalView] | None) -> list[str]:
-        return [self._emit_create_view(v) for v in (views or []) if v.query]
+        active = [v for v in (views or []) if v.query]
+        ordered, circular = _topological_sort_views(active)
+        stmts: list[str] = [self._emit_create_view(v) for v in ordered]
+        for v in circular:
+            aviso = (
+                f"-- AVISO: vista '{v.name}' participa en una dependencia circular "
+                "— verificar orden de ejecución manualmente\n"
+            )
+            stmts.append(aviso + self._emit_create_view(v))
+        return stmts
 
     # ─── CREATE TABLE ─────────────────────────────────────────────────────────
 
@@ -237,6 +248,62 @@ class MariaDBDDLEmitter:
 
 
 # ─── Topological sort ─────────────────────────────────────────────────────────
+
+
+def _detect_view_deps(view: CanonicalView, all_views: list[CanonicalView]) -> set[str]:
+    """Detecta nombres de vistas del schema referenciadas en view.query.
+
+    Comprueba tanto el nombre final (posiblemente truncado) como el
+    original_name de Oracle, para cubrir vistas con identificadores truncados.
+    """
+    deps: set[str] = set()
+    query_upper = view.query.upper()
+    for candidate in all_views:
+        if candidate.name == view.name:
+            continue
+        for check_name in (candidate.name, candidate.original_name):
+            if re.search(r"\b" + re.escape(check_name.upper()) + r"\b", query_upper):
+                deps.add(candidate.name)
+                break
+    return deps
+
+
+def _topological_sort_views(
+    views: list[CanonicalView],
+) -> tuple[list[CanonicalView], list[CanonicalView]]:
+    """Ordena vistas por dependencias entre sí (algoritmo de Kahn).
+
+    Detecta dependencias buscando nombres de otras vistas del schema como
+    identificadores completos (\\bNAME\\b, case-insensitive) en la query
+    reescrita. Es best-effort: no usa parser SQL.
+
+    Returns:
+        (ordered, circular) — circular contiene vistas en ciclos, que se
+        emiten al final con un comentario de aviso.
+    """
+    if not views:
+        return [], []
+
+    name_to_view: dict[str, CanonicalView] = {v.name: v for v in views}
+    deps: dict[str, set[str]] = {v.name: _detect_view_deps(v, views) for v in views}
+    in_degree: dict[str, int] = {name: len(d) for name, d in deps.items()}
+
+    queue: deque[str] = deque(n for n, d in in_degree.items() if d == 0)
+    ordered: list[CanonicalView] = []
+
+    while queue:
+        name = queue.popleft()
+        ordered.append(name_to_view[name])
+        for other_name, other_deps in deps.items():
+            if name in other_deps:
+                other_deps.discard(name)
+                in_degree[other_name] -= 1
+                if in_degree[other_name] == 0:
+                    queue.append(other_name)
+
+    visited = {v.name for v in ordered}
+    circular = [v for v in views if v.name not in visited]
+    return ordered, circular
 
 
 def _topological_sort(
