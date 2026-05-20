@@ -2,6 +2,7 @@
 
 MariaDB:    max 64 caracteres.
 SQL Server: max 128 caracteres.
+PostgreSQL: max 63 bytes (ASCII equivalente a 63 chars).
 Oracle 12.2+ permite 128; versiones anteriores 30.
 Cuando un identificador supera el límite del motor destino, se trunca y se
 añade un sufijo hash de 4 caracteres para garantizar unicidad.
@@ -13,6 +14,7 @@ import hashlib
 
 MAX_MARIADB_IDENTIFIER_LENGTH: int = 64
 MAX_SQLSERVER_IDENTIFIER_LENGTH: int = 128
+MAX_POSTGRESQL_IDENTIFIER_LENGTH: int = 63
 _HASH_SUFFIX_LENGTH: int = 4
 
 
@@ -67,6 +69,7 @@ def check_identifier(
 __all__: list[str] = [
     "MAX_MARIADB_IDENTIFIER_LENGTH",
     "MAX_SQLSERVER_IDENTIFIER_LENGTH",
+    "MAX_POSTGRESQL_IDENTIFIER_LENGTH",
     "truncate_identifier",
     "check_identifier",
 ]

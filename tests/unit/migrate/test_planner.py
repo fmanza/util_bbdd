@@ -57,7 +57,7 @@ class TestMigrationPlannerInit:
 
     def test_invalid_target_raises(self) -> None:
         with pytest.raises(ValueError, match="destino"):
-            MigrationPlanner(target_engine="postgresql")
+            MigrationPlanner(target_engine="db2")
 
     def test_invalid_charset_raises(self) -> None:
         with pytest.raises(ValueError, match="Charset"):

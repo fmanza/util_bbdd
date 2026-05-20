@@ -20,11 +20,21 @@ Flujo principal (Oracle → SQL Server):
     plan = planner.plan(connection=oracle_manager, schema="MY_SCHEMA")
     ddl = plan.emit_ddl()
 
-Soportado: Oracle → MariaDB, Oracle → SQL Server.
+Flujo principal (Oracle → PostgreSQL):
+    planner = MigrationPlanner(
+        source_engine="oracle",
+        target_engine="postgresql",
+        pg_schema="mi_schema",  # opcional; emite SET search_path
+    )
+    plan = planner.plan(connection=oracle_manager, schema="MY_SCHEMA")
+    ddl = plan.emit_ddl()
+
+Soportado: Oracle → MariaDB, Oracle → SQL Server, Oracle → PostgreSQL.
 """
 
 from .charset import DEFAULT_CHARSET, DEFAULT_COLLATION, validate_charset, validate_collation
 from .emitters.mariadb import MariaDBDDLEmitter
+from .emitters.postgresql import PostgreSQLDDLEmitter
 from .emitters.sqlserver import SQLServerDDLEmitter
 from .extractors.oracle import OracleSchemaExtractor
 from .ir.models import (
@@ -39,6 +49,7 @@ from .planner import MigrationPlanner
 from .reporters.markdown import format_plan_markdown
 from .reporters.text import format_plan_text
 from .transformers.oracle_to_mariadb import OracleToMariaDBTransformer
+from .transformers.oracle_to_postgresql import OracleToPostgreSQLTransformer
 from .transformers.oracle_to_sqlserver import OracleToSQLServerTransformer
 
 __all__: list[str] = [
@@ -58,6 +69,9 @@ __all__: list[str] = [
     # Capas individuales Oracle → SQL Server (uso avanzado)
     "OracleToSQLServerTransformer",
     "SQLServerDDLEmitter",
+    # Capas individuales Oracle → PostgreSQL (uso avanzado)
+    "OracleToPostgreSQLTransformer",
+    "PostgreSQLDDLEmitter",
     # Reporters
     "format_plan_text",
     "format_plan_markdown",
