@@ -23,6 +23,7 @@ from ..ir.models import (
     CanonicalIndex,
     CanonicalTable,
     CanonicalView,
+    MigrationWarning,
 )
 from ..sql.sqlserver import (
     fetch_columns_sql,

@@ -4,10 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from util_bbdd.migrate.extractors.sqlserver import SQLServerSchemaExtractor, _parse_raw_column
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -23,7 +20,6 @@ def _make_manager(
 ) -> MagicMock:
     """Construye un manager mock que devuelve filas predefinidas por consulta."""
     manager = MagicMock()
-    call_count = [0]
 
     def side_effect(sql: str, params: dict) -> list:
         # Identificar la query por palabras clave

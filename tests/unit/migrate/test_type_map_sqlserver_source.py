@@ -15,7 +15,6 @@ from util_bbdd.migrate._compat.type_map_sqlserver_to_postgresql import (
     resolve_sqlserver_type_postgresql,
 )
 
-
 # ─── SQL Server → Oracle ──────────────────────────────────────────────────────
 
 

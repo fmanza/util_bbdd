@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from util_bbdd.migrate._compat.type_map_mariadb_to_oracle import (
     MARIADB_TO_ORACLE,
     resolve_mariadb_type_oracle,
@@ -16,7 +14,6 @@ from util_bbdd.migrate._compat.type_map_mariadb_to_sqlserver import (
     MARIADB_TO_SQLSERVER,
     resolve_mariadb_type_sqlserver,
 )
-
 
 # ─── MariaDB → Oracle ─────────────────────────────────────────────────────────
 
