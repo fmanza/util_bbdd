@@ -136,6 +136,7 @@ class PostgreSQLConnectionConfig:
     password: str
     database: str
     port: int = 5432
+    schema: str | None = None
     dbname: str | None = None
     sslmode: str | None = None
     connect_timeout: int = 10
@@ -162,6 +163,7 @@ class PostgreSQLConnectionConfig:
             password=_require_str(params, "password", db_type),
             database=_require_str(params, "database", db_type),
             port=_to_int(params.get("port", 5432), "port", db_type, min_value=1),
+            schema=_opt_str(params, "schema"),
             dbname=_opt_str(params, "dbname"),
             sslmode=sslmode,
             connect_timeout=_to_int(params.get("connect_timeout", 10), "connect_timeout", db_type, min_value=0),
@@ -202,6 +204,8 @@ class PostgreSQLConnectionConfig:
             "connect_timeout": self.connect_timeout,
             "keepalives": self.keepalives,
         }
+        if self.schema:
+            payload["schema"] = self.schema
         if self.dbname:
             payload["dbname"] = self.dbname
         if self.sslmode:
