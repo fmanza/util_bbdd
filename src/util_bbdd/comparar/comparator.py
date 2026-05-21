@@ -8,6 +8,7 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 
+from sqlalchemy.engine import make_url
 from sqlalchemy.engine.interfaces import ReflectedTableComment
 
 from ._routine_fetchers import RoutineFetcherRegistry
@@ -202,6 +203,8 @@ class SchemaComparator:
         """
         source_label: str = self._build_label(source, source_schema)
         target_label: str = self._build_label(target, target_schema)
+        source_short_label: str = self._build_short_label(source, source_schema)
+        target_short_label: str = self._build_short_label(target, target_schema)
         self.logger.info("Iniciando comparación: %s ↔ %s", source_label, target_label)
 
         table_diffs: tuple[TableDiff, ...] = ()
@@ -235,6 +238,8 @@ class SchemaComparator:
             view_diffs=view_diffs,
             routine_diffs=routine_diffs,
             summary=summary,
+            source_short_label=source_short_label,
+            target_short_label=target_short_label,
         )
 
     # ------------------------------------------------------------------
@@ -699,6 +704,72 @@ class SchemaComparator:
         if schema:
             return f"{url} [{schema}]"
         return url
+
+    #: Abreviaturas de dialect SQLAlchemy para nombres de fichero de reporte.
+    _DIALECT_ABBREV: ClassVar[dict[str, str]] = {
+        "postgresql": "pg",
+        "mariadb": "maria",
+        "mysql": "mysql",
+        "oracle": "ora",
+        "mssql": "mssql",
+        "sqlite": "sqlite",
+        "hsqldb": "hsqldb",
+    }
+
+    @staticmethod
+    def _build_short_label(inspector: Inspector, schema: str | None) -> str:
+        """Construye una etiqueta compacta para el nombre de fichero de reporte.
+
+        Selecciona el identificador más relevante según el motor:
+
+        - Oracle: usuario (el usuario es el schema en Oracle)
+        - PostgreSQL: schema si se proporciona, si no la base de datos
+        - MariaDB / MySQL: nombre de la base de datos
+        - SQLite: nombre del fichero sin ruta ni extensión
+        - SQL Server (mssql): base de datos, añade schema si se proporciona
+        - Resto: schema o base de datos o usuario, en ese orden
+        """
+        engine: Any | None = getattr(inspector, "engine", None)
+        url_raw: Any | None = getattr(engine, "url", None)
+        if url_raw is None:
+            return schema or "db"
+
+        try:
+            url_obj = make_url(str(url_raw))
+        except Exception:
+            return schema or "db"
+
+        dialect = (url_obj.drivername or "").split("+")[0].lower()
+        dialect_short = SchemaComparator._DIALECT_ABBREV.get(dialect, dialect[:6] if dialect else "db")
+        host_short = (url_obj.host or "").split(".")[0]
+        database = url_obj.database or ""
+        username = url_obj.username or ""
+
+        # SQLite database es una ruta de fichero; extraer solo el nombre sin extensión
+        if dialect == "sqlite":
+            last = database.replace("\\", "/").rsplit("/", 1)[-1]
+            db_short = last.rsplit(".", 1)[0].strip(":") if last else "mem"
+        else:
+            db_short = database.split("/")[-1].split("?")[0]
+
+        identifier = SchemaComparator._pick_identifier(dialect, username, db_short, schema)
+        parts = [p for p in [dialect_short, host_short, identifier] if p]
+        return "_".join(parts) or schema or "db"
+
+    @staticmethod
+    def _pick_identifier(dialect: str, username: str, db_short: str, schema: str | None) -> str:
+        """Devuelve el identificador más relevante para el fichero de reporte según el motor."""
+        if dialect == "oracle":
+            return username or schema or db_short
+        if dialect == "postgresql":
+            return schema or db_short
+        if dialect in ("mariadb", "mysql"):
+            return db_short
+        if dialect == "sqlite":
+            return db_short or "mem"
+        if dialect == "mssql":
+            return f"{db_short}_{schema}" if db_short and schema else db_short or schema or ""
+        return schema or db_short or username
 
     @staticmethod
     def _normalize_ddl(definition: str) -> str:

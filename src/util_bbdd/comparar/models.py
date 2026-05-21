@@ -97,6 +97,8 @@ class SchemaDiff:
     view_diffs: tuple[ViewDiff, ...] = ()
     routine_diffs: tuple[RoutineDiff, ...] = ()
     summary: str = field(default="", repr=False)
+    source_short_label: str = field(default="", repr=False)
+    target_short_label: str = field(default="", repr=False)
 
     @property
     def has_differences(self) -> bool:

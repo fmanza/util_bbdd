@@ -1569,6 +1569,66 @@ class TestEdgeCasesBuildLabel:
         assert "[myschema]" in label
 
 
+class TestBuildShortLabel:
+    """_build_short_label produce etiquetas compactas con el identificador correcto por motor."""
+
+    def test_postgresql_uses_schema_when_provided(self) -> None:
+        inspector = _make_mock_inspector(bind_url="postgresql://user:pass@pghost/mydb")
+        label = SchemaComparator._build_short_label(inspector, "public")
+        assert label == "pg_pghost_public"
+
+    def test_postgresql_uses_database_when_no_schema(self) -> None:
+        inspector = _make_mock_inspector(bind_url="postgresql://user:pass@pghost/mydb")
+        label = SchemaComparator._build_short_label(inspector, None)
+        assert label == "pg_pghost_mydb"
+
+    def test_mariadb_uses_database(self) -> None:
+        inspector = _make_mock_inspector(bind_url="mariadb+mariadbconnector://user:pass@maria-host:3306/appdb")
+        label = SchemaComparator._build_short_label(inspector, None)
+        assert label == "maria_maria-host_appdb"
+
+    def test_oracle_uses_username(self) -> None:
+        inspector = _make_mock_inspector(bind_url="oracle+cx_oracle://MYSCHEMA:pass@orahost/ORCL")
+        label = SchemaComparator._build_short_label(inspector, None)
+        assert label == "ora_orahost_MYSCHEMA"
+
+    def test_sqlite_memory_produces_readable_stem(self) -> None:
+        inspector = _make_mock_inspector(bind_url="sqlite:///:memory:")
+        label = SchemaComparator._build_short_label(inspector, None)
+        assert label == "sqlite_memory"
+
+    def test_sqlite_file_uses_stem(self) -> None:
+        inspector = _make_mock_inspector(bind_url="sqlite:///path/to/mydb.sqlite3")
+        label = SchemaComparator._build_short_label(inspector, None)
+        assert label == "sqlite_mydb"
+
+    def test_mssql_combines_db_and_schema(self) -> None:
+        inspector = _make_mock_inspector(bind_url="mssql+pyodbc://user:pass@sqlsrv/AdventureWorks")
+        label = SchemaComparator._build_short_label(inspector, "dbo")
+        assert label == "mssql_sqlsrv_AdventureWorks_dbo"
+
+    def test_mssql_without_schema_uses_database(self) -> None:
+        inspector = _make_mock_inspector(bind_url="mssql+pyodbc://user:pass@sqlsrv/AdventureWorks")
+        label = SchemaComparator._build_short_label(inspector, None)
+        assert label == "mssql_sqlsrv_AdventureWorks"
+
+    def test_label_does_not_contain_password(self) -> None:
+        inspector = _make_mock_inspector(bind_url="postgresql://user:pass@host/db")
+        label = SchemaComparator._build_short_label(inspector, None)
+        assert "pass" not in label
+
+    def test_host_abbreviated_to_first_segment(self) -> None:
+        inspector = _make_mock_inspector(bind_url="postgresql://user:pass@server.company.internal/db")
+        label = SchemaComparator._build_short_label(inspector, None)
+        assert label.startswith("pg_server_")
+
+    def test_no_engine_returns_schema_fallback(self) -> None:
+        inspector = _make_mock_inspector(bind_url="sqlite://")
+        inspector.engine = None
+        label = SchemaComparator._build_short_label(inspector, "fallback")
+        assert label == "fallback"
+
+
 class TestGetColumnsCallCount:
     """Verifica que get_columns se llama exactamente 2 veces por tabla (source+target),
     no 4 (el pre-fetch evita la doble llamada de _compare_comments)."""

@@ -82,9 +82,20 @@ def sanitize_filename(label: str) -> str:
 
 
 def build_output_stem(diff: SchemaDiff) -> str:
-    """Genera el nombre base (sin extensión) para el fichero de reporte."""
-    src = sanitize_filename(diff.source_label)
-    tgt = sanitize_filename(diff.target_label)
+    """Genera el nombre base (sin extensión) para el fichero de reporte.
+
+    Usa ``source_short_label`` / ``target_short_label`` cuando están disponibles
+    (producen nombres compactos con usuario/schema/database según motor).
+    Recae en ``source_label`` / ``target_label`` para retrocompatibilidad.
+    """
+    src_short = diff.source_short_label
+    tgt_short = diff.target_short_label
+    if src_short and tgt_short:
+        src = sanitize_filename(src_short)
+        tgt = sanitize_filename(tgt_short)
+    else:
+        src = sanitize_filename(diff.source_label)
+        tgt = sanitize_filename(diff.target_label)
     return f"{src}_vs_{tgt}_diff"
 
 
