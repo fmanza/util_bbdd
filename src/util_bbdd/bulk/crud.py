@@ -64,7 +64,7 @@ try:
     from util.timing.medir_tiempo import medir_tiempo
 except ImportError:
 
-    def medir_tiempo(proceso: str = "") -> Callable[[Any], Any]:
+    def medir_tiempo(proceso: str = "") -> Any:
         """Decorator placeholder for timing (util not available).
 
         Args:

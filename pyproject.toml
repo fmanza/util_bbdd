@@ -166,7 +166,7 @@ module = [
     "graphviz",
     "matplotlib",
     "matplotlib.*",
-    "util.medir_tiempo",
+    "util.timing.medir_tiempo",
 ]
 ignore_missing_imports = true
 
