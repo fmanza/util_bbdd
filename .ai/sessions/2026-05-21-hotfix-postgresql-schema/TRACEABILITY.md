@@ -37,7 +37,32 @@ Config TOML de referencia: `[conexion.postgresql]` con `database = "testdb"`, `s
 | Fix config | `src/util_bbdd/connection/config.py` | completado |
 | Fix pool sync | `src/util_bbdd/connection/postgresql/pool_connection_postgresql.py` | completado |
 
+## Hotfix 2 — schema reportado como "admin" (usuario)
+
+### Prompt issued
+Al conectar con PostgreSQL en `src/util_bbdd/migrate`, el reporte muestra el schema como "admin" (el valor de `user`) en lugar de "ventas_test".
+
+### Causa raíz
+El hotfix 1 propagó `schema` como clave directa en `to_driver_kwargs()` → `sanitize_for_connection()` lo inyectaba a `psycopg.connect(schema="ventas_test", ...)`. `schema` no es un parámetro libpq válido; psycopg3 lo ignora silenciosamente → `search_path` no se establece → PostgreSQL usa el default `$user = "admin"`.
+
+### IMPLEMENT
+- `PostgreSQLConnectionConfig.to_driver_kwargs()`: elimina `payload["schema"] = self.schema`; en su lugar combina `schema` + `options` en `payload["options"] = "-c search_path={schema} [self.options]"`.
+- `PoolConnection.__create_pool()`: cambia lectura de `self.conn_params.get("schema")` a `self.conn_params.get("options")`; URL-encoda el valor completo vía `urllib.parse.quote`.
+
+### Resultados
+- mypy: 0 errores en archivos modificados.
+- ruff check: All checks passed.
+- pytest: 3190 passed, 1 skipped, 0 failed.
+
+## Artefactos generados (acumulado)
+
+| Artefacto | Ruta | Estado |
+|---|---|---|
+| Fix config (hotfix 1) | `src/util_bbdd/connection/config.py` | completado |
+| Fix pool sync (hotfix 1+2) | `src/util_bbdd/connection/postgresql/pool_connection_postgresql.py` | completado |
+| Fix to_driver_kwargs (hotfix 2) | `src/util_bbdd/connection/config.py` | completado |
+
 ## Veredicto final
 Veredicto: CLOSED
 Pendientes al cierre:
-- Deuda técnica: `async_pool_connection_postgresql.py` y `async_connection_postgresql.py` ignoran `schema` (asyncpg usa `server_settings`). No bloqueante para el caso reportado (pool sync).
+- Deuda técnica: `async_pool_connection_postgresql.py` y `async_connection_postgresql.py` ignoran `schema` (asyncpg usa `server_settings={"search_path": ...}`). No bloqueante para el caso reportado (pool sync).

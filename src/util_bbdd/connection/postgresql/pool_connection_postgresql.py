@@ -101,11 +101,13 @@ class PoolConnection:
 
             conninfo: str = f"postgresql://{user}:{password}@{host}:{port}/{database}"
 
-            schema: str | None = str(self.conn_params.get("schema")) if self.conn_params.get("schema") else None
-            if schema:
+            options: str | None = (
+                str(self.conn_params.get("options")).strip() if self.conn_params.get("options") else None
+            )
+            if options:
                 from urllib.parse import quote
 
-                conninfo = f"{conninfo}?options={quote(f'-c search_path={schema}', safe='')}"
+                conninfo = f"{conninfo}?options={quote(options, safe='')}"
 
             self.pool = PsycopgConnectionPool(
                 conninfo=conninfo,

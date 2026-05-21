@@ -204,8 +204,14 @@ class PostgreSQLConnectionConfig:
             "connect_timeout": self.connect_timeout,
             "keepalives": self.keepalives,
         }
+        # schema is not a libpq parameter; it must be set via options=-c search_path=...
+        options_parts: list[str] = []
         if self.schema:
-            payload["schema"] = self.schema
+            options_parts.append(f"-c search_path={self.schema}")
+        if self.options:
+            options_parts.append(self.options)
+        if options_parts:
+            payload["options"] = " ".join(options_parts)
         if self.dbname:
             payload["dbname"] = self.dbname
         if self.sslmode:
@@ -220,8 +226,6 @@ class PostgreSQLConnectionConfig:
             payload["tcp_keepalives_interval"] = self.tcp_keepalives_interval
         if self.tcp_keepalives_count is not None:
             payload["tcp_keepalives_count"] = self.tcp_keepalives_count
-        if self.options:
-            payload["options"] = self.options
         if self.target_session_attrs:
             payload["target_session_attrs"] = self.target_session_attrs
         return payload
