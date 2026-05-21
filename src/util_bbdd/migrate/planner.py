@@ -8,7 +8,13 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from .charset import DEFAULT_CHARSET, DEFAULT_COLLATION, validate_charset, validate_collation
+from .charset import (
+    DEFAULT_CHARSET,
+    DEFAULT_COLLATION,
+    validate_charset,
+    validate_charset_collation_pair,
+    validate_collation,
+)
 from .emitters.mariadb import MariaDBDDLEmitter
 from .emitters.oracle import OracleDDLEmitter
 from .emitters.postgresql import PostgreSQLDDLEmitter
@@ -85,18 +91,11 @@ class MigrationPlanner:
         tgt = target_engine.strip().lower()
 
         if src not in _SUPPORTED_SOURCE:
-            raise ValueError(
-                f"Motor origen '{source_engine}' no soportado. Soportados: {sorted(_SUPPORTED_SOURCE)}"
-            )
+            raise ValueError(f"Motor origen '{source_engine}' no soportado. Soportados: {sorted(_SUPPORTED_SOURCE)}")
         if tgt not in _SUPPORTED_TARGET:
-            raise ValueError(
-                f"Motor destino '{target_engine}' no soportado. Soportados: {sorted(_SUPPORTED_TARGET)}"
-            )
+            raise ValueError(f"Motor destino '{target_engine}' no soportado. Soportados: {sorted(_SUPPORTED_TARGET)}")
         if src == tgt:
-            raise ValueError(
-                f"Motor origen y destino son el mismo ('{src}'). "
-                "La migración requiere motores distintos."
-            )
+            raise ValueError(f"Motor origen y destino son el mismo ('{src}'). La migración requiere motores distintos.")
 
         self._source_engine = src
         self._target_engine = tgt
@@ -109,6 +108,7 @@ class MigrationPlanner:
         if tgt == "mariadb":
             self._charset = validate_charset(charset)
             self._collation = validate_collation(collation)
+            validate_charset_collation_pair(self._charset, self._collation)
         else:
             self._charset = charset
             self._collation = collation

@@ -76,7 +76,21 @@ def rewrite_oracle_view(
     query = re.sub(r"\bSYSTIMESTAMP\b", systimestamp_fn, query, flags=re.IGNORECASE)
 
     # 3. USER pseudocolumna
-    query = re.sub(r"\bUSER\b", user_fn, query, flags=re.IGNORECASE)
+    if re.search(r"\bUSER\b", query, flags=re.IGNORECASE):
+        query = re.sub(r"\bUSER\b", user_fn, query, flags=re.IGNORECASE)
+        warnings.append(
+            MigrationWarning(
+                table=view.name,
+                column=None,
+                oracle_type="USER",
+                target_type=user_fn,
+                message=(
+                    f"Vista '{view.name}': pseudocolumna USER sustituida por {user_fn}; "
+                    "verificar que 'user' no sea el nombre de una columna"
+                ),
+                severity="WARNING",
+            )
+        )
 
     # 4. NVL(a, b) → COALESCE(a, b)
     query = _NVL_RE.sub("COALESCE(", query)

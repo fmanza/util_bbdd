@@ -90,6 +90,19 @@ class TestRewriteOracleViewMariaDB:
         result = self._rw("SELECT USER FROM DUAL")
         assert "CURRENT_USER()" in result.query
 
+    def test_user_replacement_emits_warning(self) -> None:
+        """TEST-08: cuando USER es sustituido debe emitirse MigrationWarning con oracle_type='USER'."""
+        result = self._rw("SELECT USER FROM DUAL")
+        user_warnings = [w for w in result.warnings if w.oracle_type == "USER"]
+        assert user_warnings, "Debe emitirse MigrationWarning cuando USER es sustituido"
+        assert user_warnings[0].severity == "WARNING"
+
+    def test_no_user_in_query_no_user_warning(self) -> None:
+        """TEST-08: si la query no contiene USER no se emite MigrationWarning de USER."""
+        result = self._rw("SELECT id, name FROM employees")
+        user_warnings = [w for w in result.warnings if w.oracle_type == "USER"]
+        assert not user_warnings
+
     def test_nvl_replaced(self) -> None:
         result = self._rw("SELECT NVL(col, 0) FROM t")
         assert "COALESCE(col, 0)" in result.query

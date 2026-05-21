@@ -241,9 +241,9 @@ class OracleToMariaDBTransformer:
             length = col.char_length or 255
             return f"VARBINARY({length})"
 
-        # TIMESTAMP con precision (scale en Oracle)
+        # TIMESTAMP con precision (scale en Oracle): default Oracle = 6 dígitos fraccionarios
         if oracle_base == "TIMESTAMP":
-            prec = min(col.scale, 6) if col.scale is not None else 0
+            prec = min(col.scale, 6) if col.scale is not None else 6
             return f"DATETIME({prec})" if prec > 0 else "DATETIME"
 
         # CLOB/NCLOB con charset

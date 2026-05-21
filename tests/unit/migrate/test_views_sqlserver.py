@@ -162,7 +162,10 @@ class TestSQLServerEmitCreateView:
     def test_no_note_without_warnings(self) -> None:
         v = _view()
         ddl = self.emitter._emit_create_view(v)
-        assert "-- NOTE:" not in ddl
+        # La nota de compatibilidad SQL Server 2016+ siempre se incluye (DEBT-07)
+        assert "-- NOTE: CREATE OR ALTER VIEW requires SQL Server 2016+" in ddl
+        # La nota de revisión manual sólo aparece si hay migration warnings
+        assert "-- NOTE: requires manual review" not in ddl
 
 
 # ─── Tests: emit_statements con vistas ────────────────────────────────────────

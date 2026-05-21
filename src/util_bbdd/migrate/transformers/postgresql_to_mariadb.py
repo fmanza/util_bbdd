@@ -141,6 +141,21 @@ class PostgreSQLToMariaDBTransformer:
         target_type = self._resolve_mariadb_type(pg_base, mapping.mariadb_type, col)
         new_col.target_type = target_type
 
+        if pg_base == "CHARACTER VARYING" and col.char_length is not None and col.char_length > _MARIADB_VARCHAR_MAX:
+            new_col.warnings.append(
+                MigrationWarning(
+                    table=table_name,
+                    column=col.name,
+                    oracle_type=col.oracle_type,
+                    target_type="LONGTEXT",
+                    message=(
+                        f"CHARACTER VARYING({col.char_length}) supera el límite MariaDB de "
+                        f"{_MARIADB_VARCHAR_MAX} bytes por fila; mapeado a LONGTEXT"
+                    ),
+                    severity="WARNING",
+                )
+            )
+
         if mapping.requires_ddl_comment and mapping.ddl_comment:
             new_col.ddl_comment = mapping.ddl_comment
 
@@ -170,6 +185,9 @@ class PostgreSQLToMariaDBTransformer:
             # char_length=None indica sin límite → LONGTEXT
             if col.char_length is None:
                 return "LONGTEXT"
+            # Supera el límite práctico de fila MariaDB (65535 bytes) → LONGTEXT
+            if col.char_length > _MARIADB_VARCHAR_MAX:
+                return "LONGTEXT"
             return f"VARCHAR({col.char_length})"
 
         if pg_base == "CHARACTER":
@@ -194,9 +212,7 @@ class PostgreSQLToMariaDBTransformer:
         # Tipos fijos (mariadb_base ya contiene el tipo completo, ej. "TINYINT(1)", "DATETIME(6)")
         return mariadb_base
 
-    def _adapt_identifiers(
-        self, table_name: str, names: list[str], target_table: CanonicalTable
-    ) -> list[str]:
+    def _adapt_identifiers(self, table_name: str, names: list[str], target_table: CanonicalTable) -> list[str]:
         adapted: list[str] = []
         for name in names:
             new_name, warn = check_identifier(name, MAX_MARIADB_IDENTIFIER_LENGTH)
@@ -214,9 +230,7 @@ class PostgreSQLToMariaDBTransformer:
             adapted.append(new_name)
         return adapted
 
-    def _transform_index(
-        self, table_name: str, idx: CanonicalIndex, target_table: CanonicalTable
-    ) -> CanonicalIndex:
+    def _transform_index(self, table_name: str, idx: CanonicalIndex, target_table: CanonicalTable) -> CanonicalIndex:
         new_idx = deepcopy(idx)
         new_idx.name, warn = check_identifier(idx.name, MAX_MARIADB_IDENTIFIER_LENGTH)
         if warn:
@@ -233,9 +247,7 @@ class PostgreSQLToMariaDBTransformer:
         new_idx.columns = self._adapt_identifiers(table_name, idx.columns, target_table)
         return new_idx
 
-    def _transform_fk(
-        self, table_name: str, fk: CanonicalFK, target_table: CanonicalTable
-    ) -> CanonicalFK:
+    def _transform_fk(self, table_name: str, fk: CanonicalFK, target_table: CanonicalTable) -> CanonicalFK:
         new_fk = deepcopy(fk)
         new_fk.name, warn = check_identifier(fk.name, MAX_MARIADB_IDENTIFIER_LENGTH)
         if warn:

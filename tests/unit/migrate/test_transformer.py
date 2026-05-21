@@ -123,6 +123,13 @@ class TestColumnTypeMapping:
         result = self.t.transform([table])[0]
         assert result.columns[0].target_type == "DATETIME(6)"
 
+    def test_timestamp_no_scale_maps_to_datetime6(self) -> None:
+        """DEBT-01 / TEST-07: TIMESTAMP sin precisión explícita → DATETIME(6) (default Oracle=6)."""
+        col = _make_column(oracle_type="TIMESTAMP", char_length=None, scale=None)
+        table = _make_table(columns=[col])
+        result = self.t.transform([table])[0]
+        assert result.columns[0].target_type == "DATETIME(6)"
+
     def test_unknown_type_maps_to_text_with_warning(self) -> None:
         col = _make_column(oracle_type="MYWEIRDTYPE", char_length=None)
         table = _make_table(columns=[col])

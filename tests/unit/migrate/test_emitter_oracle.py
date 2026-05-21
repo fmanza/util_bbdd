@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from util_bbdd.migrate.emitters.oracle import OracleDDLEmitter, _format_default_oracle
 from util_bbdd.migrate.ir.models import (
     CanonicalColumn,
@@ -234,6 +232,7 @@ class TestOracleDDLEmitterSequenceTrigger:
         # Extract sequence name — it's double-quoted
         seq_stmt = seq_stmts[0]
         import re
+
         match = re.search(r'"([^"]+)"', seq_stmt)
         assert match is not None
         assert len(match.group(1)) <= 30
@@ -246,9 +245,21 @@ class TestOracleDDLEmitterSequenceTrigger:
         trg_stmts = [s for s in stmts if "CREATE OR REPLACE TRIGGER" in s]
         assert len(trg_stmts) == 1
         import re
+
         match = re.search(r'TRIGGER "([^"]+)"', trg_stmts[0])
         assert match is not None
         assert len(match.group(1)) <= 30
+
+    def test_two_auto_increment_columns_emit_one_seq_trg(self) -> None:
+        """BUG-06: tabla con 2 columnas auto_increment debe emitir sólo 1 SEQ y 1 TRG."""
+        col1 = _col(name="ID", target_type="NUMBER(10,0)", auto_increment=True)
+        col2 = _col(name="ALT_ID", target_type="NUMBER(10,0)", auto_increment=True)
+        table = _table(name="DUAL_AI", columns=[col1, col2], pk=["ID"])
+        stmts = self.e.emit_statements([table])
+        seq_stmts = [s for s in stmts if "CREATE SEQUENCE" in s]
+        trg_stmts = [s for s in stmts if "CREATE OR REPLACE TRIGGER" in s]
+        assert len(seq_stmts) == 1, "Debe haber exactamente 1 CREATE SEQUENCE"
+        assert len(trg_stmts) == 1, "Debe haber exactamente 1 CREATE OR REPLACE TRIGGER"
 
 
 class TestOracleDDLEmitterComments:
@@ -323,6 +334,7 @@ class TestOracleDDLEmitterViews:
 
     def test_view_with_warnings_gets_note_comment(self) -> None:
         from util_bbdd.migrate.ir.models import MigrationWarning
+
         view = _view(name="MY_VIEW", query="SELECT NOW()")
         view.warnings.append(
             MigrationWarning(

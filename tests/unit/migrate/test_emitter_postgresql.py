@@ -320,6 +320,56 @@ class TestFormatDefaultPostgreSQL:
     def test_empty_string_returns_null(self) -> None:
         assert _format_default_postgresql("") == "NULL"
 
+    def test_current_timestamp_with_precision_passed_through(self) -> None:
+        """DEBT-08: CURRENT_TIMESTAMP(6) debe pasar sin entrecomillar."""
+        assert _format_default_postgresql("CURRENT_TIMESTAMP(6)") == "CURRENT_TIMESTAMP(6)"
+
+    def test_now_with_precision_passed_through(self) -> None:
+        """DEBT-08: NOW(3) debe pasar sin entrecomillar."""
+        assert _format_default_postgresql("NOW(3)") == "NOW(3)"
+
+
+class TestPKNameTruncation:
+    """TEST-05: nombres de PK largos no deben colisionar tras truncado."""
+
+    def setup_method(self) -> None:
+        self.e = PostgreSQLDDLEmitter()
+
+    def test_pk_name_above_63_chars_uses_hash(self) -> None:
+        # Nombre de tabla de 61 chars → PK_<nombre> = 64 chars → debe truncarse con hash
+        long_name = "T" * 61
+        col = _col("ID", target_type="INTEGER")
+        table = _table(long_name, [col], pk=["ID"])
+        stmts = self.e.emit_statements([table])
+        create = next(s for s in stmts if "CREATE TABLE" in s)
+        # El nombre del constraint PK generado debe caber en 63 chars
+        import re
+
+        match = re.search(r'CONSTRAINT "([^"]+)" PRIMARY KEY', create)
+        assert match is not None
+        assert len(match.group(1)) <= 63
+
+    def test_two_long_tables_same_prefix_no_collision(self) -> None:
+        # Dos tablas con el mismo prefijo largo deben generar PK names distintos
+        prefix = "T" * 61
+        name_a = prefix + "A"
+        name_b = prefix + "B"
+        col = _col("ID", target_type="INTEGER")
+        table_a = _table(name_a, [col], pk=["ID"])
+        table_b = _table(name_b, [col], pk=["ID"])
+        import re
+
+        def _pk_name(t: CanonicalTable) -> str:
+            stmts = self.e.emit_statements([t])
+            create = next(s for s in stmts if "CREATE TABLE" in s)
+            m = re.search(r'CONSTRAINT "([^"]+)" PRIMARY KEY', create)
+            assert m is not None
+            return m.group(1)
+
+        pk_a = _pk_name(table_a)
+        pk_b = _pk_name(table_b)
+        assert pk_a != pk_b, "PK names deben ser distintos para tablas distintas"
+
 
 class TestTopologicalOrder:
     def setup_method(self) -> None:
