@@ -153,6 +153,10 @@ class SyncQueryExecutor:
             message = str(item).lower()
             if "codec can't decode" in message:
                 return True
+            # mariadb C-extension raises SystemError via fetchrows (called by fetchall)
+            # when charset data cannot be decoded, without chaining a UnicodeDecodeError
+            if "returned a result with an exception set" in message:
+                return True
         return False
 
     def _retry_fetch_with_binary_cursor(

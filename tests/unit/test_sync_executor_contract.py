@@ -248,6 +248,37 @@ class TestSyncExecutorFetchOptions:
         binary_cursor.close.assert_called_once()
         releaser.assert_called_once_with(mock_conn)
 
+    def test_execute_custom_mariadb_fetchrows_systemeror_triggers_binary_fallback(self, temp_queries_file):
+        """fetchall() vía fetchrows (C-ext) sin UnicodeDecodeError encadenado activa fallback binario."""
+        text_cursor = MagicMock()
+        binary_cursor = MagicMock()
+
+        text_cursor.fetchall.side_effect = SystemError(
+            "<method 'fetchrows' of 'mariadb.cursor' objects> returned a result with an exception set"
+        )
+        binary_cursor.fetchall.return_value = [(b"dato\xd3",)]
+
+        mock_conn = MagicMock()
+        mock_conn.__class__.__module__ = "mariadb"
+
+        def _cursor_factory(*args, **kwargs):
+            if kwargs.get("binary") is True:
+                return binary_cursor
+            return text_cursor
+
+        mock_conn.cursor.side_effect = _cursor_factory
+
+        provider = MagicMock(return_value=mock_conn)
+        releaser = MagicMock()
+
+        executor = SyncQueryExecutor(provider, releaser)
+        result = executor.execute_custom_many("SELECT 1")
+
+        assert result is not None
+        assert mock_conn.cursor.call_count == 2
+        binary_cursor.close.assert_called_once()
+        releaser.assert_called_once_with(mock_conn)
+
     def test_execute_query_one_mariadb_binary_cursor_preserves_unknown_bytes_as_hex(self, temp_queries_file):
         """Si el byte binario no es fiable en utf-8/cp1252, se preserva como HEX."""
         text_cursor = MagicMock()
