@@ -173,14 +173,16 @@ class SyncQueryExecutor:
         saved_charset: str | None = None
         try:
             self._raise_if_timed_out(deadline, timeout_msg)
-            # binary=True uses prepared-stmt protocol but still does charset conversion;
-            # setting character_set='binary' makes the server send raw bytes instead,
-            # bypassing the C-ext conversion bug that affects both fetchrows and fetchone
+            # conn.character_set setter is client-side only and does NOT send SET NAMES
+            # to the server; use explicit SQL so character_set_results='binary' is set
+            # server-side, making the C-ext return raw bytes instead of decoding as utf-8
             try:
-                saved_charset = conn.character_set
-                conn.character_set = "binary"
+                saved_charset = str(getattr(conn, "character_set", "utf8mb4"))
+                set_cursor = conn.cursor()
+                set_cursor.execute("SET NAMES 'binary'")
+                set_cursor.close()
             except Exception:
-                pass
+                saved_charset = None
             binary_cursor = conn.cursor()
 
             if params:
@@ -210,7 +212,9 @@ class SyncQueryExecutor:
                     self.logger.debug("No se pudo cerrar cursor binario sync", exc_info=True)
             if saved_charset is not None:
                 try:
-                    conn.character_set = saved_charset
+                    restore_cursor = conn.cursor()
+                    restore_cursor.execute(f"SET NAMES '{saved_charset}'")
+                    restore_cursor.close()
                 except Exception:
                     pass
 
