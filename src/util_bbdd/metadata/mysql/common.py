@@ -95,19 +95,15 @@ def normalize_mysql_type(mysql_type: str) -> str:
 def quote_mysql_identifier(identifier: str) -> str:
     """Escapea un identificador MySQL con backticks.
 
-    Reemplaza backticks internos con doble backtick (estándar SQL).
-
     Args:
         identifier: Nombre de tabla, columna, schema, etc.
 
     Returns:
         str: Identificador escapado con backticks (ej: `table_name`)
     """
-    if not identifier:
-        return "``"
+    from ..adapters.shared.identifier_utils import quote_backtick_identifier
 
-    escaped = identifier.replace("`", "``")
-    return f"`{escaped}`"
+    return quote_backtick_identifier(identifier)
 
 
 def escape_mysql_string(value: str) -> str:

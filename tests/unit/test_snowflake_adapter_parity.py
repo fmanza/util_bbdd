@@ -188,12 +188,16 @@ class TestSnowflakeAdapterParitySync:
     """Tests para verificar paridad entre sync y async adapters."""
 
     def test_adapters_have_same_public_methods(self) -> None:
-        """Both adapters should expose the same public interface."""
+        """Async adapter debe exponer al menos todos los métodos del sync adapter.
+
+        SnowflakeAsyncAdapter expone los mismos *_sync (implementación real) más
+        los *_async (wrappers de run_in_executor), por lo que es un superconjunto.
+        """
         sync_methods = {m for m in dir(SnowflakeSyncAdapter) if not m.startswith("_")}
         async_methods = {m for m in dir(SnowflakeAsyncAdapter) if not m.startswith("_")}
 
-        # Should have same methods
-        assert sync_methods == async_methods
+        # Async debe tener al menos todos los métodos del sync (puede tener más: *_async)
+        assert sync_methods.issubset(async_methods)
 
     def test_adapters_fetch_schemas_returns_same_type(self) -> None:
         manager_sync = MagicMock()

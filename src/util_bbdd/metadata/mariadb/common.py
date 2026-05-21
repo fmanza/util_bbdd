@@ -29,8 +29,9 @@ def decode_mariadb_hex_text(value: Any) -> str:
 
 def quote_mariadb_identifier(identifier: str) -> str:
     """Quote de identificadores MariaDB con backticks."""
-    safe_identifier = str(identifier).replace("`", "``")
-    return f"`{safe_identifier}`"
+    from ..adapters.shared.identifier_utils import quote_backtick_identifier
+
+    return quote_backtick_identifier(identifier)
 
 
 def format_mariadb_default(default_value: Any) -> str:
