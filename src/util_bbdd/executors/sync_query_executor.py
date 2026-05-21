@@ -186,8 +186,13 @@ class SyncQueryExecutor:
                 decoded = self._decode_binary_value(fetched)
                 return self.result_normalizer.normalize_one(decoded)
 
-            fetched = binary_cursor.fetchall()
-            decoded = self._decode_binary_value(fetched)
+            # fetchall() calls C-level fetchrows which has the same bug; use fetchone loop
+            rows: list[Any] = []
+            row = binary_cursor.fetchone()
+            while row is not None:
+                rows.append(row)
+                row = binary_cursor.fetchone()
+            decoded = self._decode_binary_value(rows)
             return self.result_normalizer.normalize_many(decoded)
         finally:
             if binary_cursor and hasattr(binary_cursor, "close"):

@@ -256,7 +256,8 @@ class TestSyncExecutorFetchOptions:
         text_cursor.fetchall.side_effect = SystemError(
             "<method 'fetchrows' of 'mariadb.cursor' objects> returned a result with an exception set"
         )
-        binary_cursor.fetchall.return_value = [(b"dato\xd3",)]
+        # binary cursor usa fetchone en bucle (no fetchall) para evitar fetchrows
+        binary_cursor.fetchone.side_effect = [(b"dato\xd3",), None]
 
         mock_conn = MagicMock()
         mock_conn.__class__.__module__ = "mariadb"
@@ -275,9 +276,43 @@ class TestSyncExecutorFetchOptions:
         result = executor.execute_custom_many("SELECT 1")
 
         assert result is not None
+        binary_cursor.fetchall.assert_not_called()
         assert mock_conn.cursor.call_count == 2
         binary_cursor.close.assert_called_once()
         releaser.assert_called_once_with(mock_conn)
+
+    def test_execute_custom_mariadb_binary_fetchall_avoided_when_main_fetchall_fails(self, temp_queries_file):
+        """El cursor binario usa fetchone loop; fetchall no se llama aunque el cursor binario lo soportaría."""
+        text_cursor = MagicMock()
+        binary_cursor = MagicMock()
+
+        fetchrows_error = SystemError(
+            "<method 'fetchrows' of 'mariadb.cursor' objects> returned a result with an exception set"
+        )
+        text_cursor.fetchall.side_effect = fetchrows_error
+        # fetchall en cursor binario también fallaría — pero con el fix no se llama
+        binary_cursor.fetchall.side_effect = fetchrows_error
+        binary_cursor.fetchone.side_effect = [("fila1",), ("fila2",), None]
+
+        mock_conn = MagicMock()
+        mock_conn.__class__.__module__ = "mariadb"
+
+        def _cursor_factory(*args, **kwargs):
+            if kwargs.get("binary") is True:
+                return binary_cursor
+            return text_cursor
+
+        mock_conn.cursor.side_effect = _cursor_factory
+
+        provider = MagicMock(return_value=mock_conn)
+        releaser = MagicMock()
+
+        executor = SyncQueryExecutor(provider, releaser)
+        result = executor.execute_custom_many("SELECT 1")
+
+        assert result == [("fila1",), ("fila2",)]
+        binary_cursor.fetchall.assert_not_called()
+        binary_cursor.close.assert_called_once()
 
     def test_execute_query_one_mariadb_binary_cursor_preserves_unknown_bytes_as_hex(self, temp_queries_file):
         """Si el byte binario no es fiable en utf-8/cp1252, se preserva como HEX."""
