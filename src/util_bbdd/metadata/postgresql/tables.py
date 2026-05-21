@@ -121,12 +121,16 @@ def decode_postgres_column_rows(safe_rows: Rows) -> Rows:
 
 
 def fetch_pk_constraint_sql(schema: str, table: str) -> str:
-    """SQL query para obtener columnas de clave primaria en PostgreSQL."""
+    """SQL query para obtener columnas de clave primaria en PostgreSQL.
+
+    Retorna (constraint_name, column_name, ordinal_position) — mismo contrato que Oracle/MariaDB.
+    """
     return (
-        "SELECT a.attname AS column_name, a.attnum AS ordinal_position "
+        "SELECT c.conname AS constraint_name, a.attname AS column_name, a.attnum AS ordinal_position "
         "FROM pg_class t "
         "JOIN pg_namespace n ON t.relnamespace = n.oid "
         "JOIN pg_index i ON i.indrelid = t.oid "
+        "JOIN pg_constraint c ON c.conindid = i.indexrelid AND c.contype = 'p' "
         "JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(i.indkey) "
         "WHERE i.indisprimary "
         "  AND n.nspname = %(schema)s "

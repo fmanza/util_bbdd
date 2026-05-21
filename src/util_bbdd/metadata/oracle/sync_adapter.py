@@ -22,6 +22,7 @@ from ._adapter_helpers import (
     decode_oracle_routine_rows,
     routine_entries_to_rows,
 )
+from ._manager_protocol import OracleSyncManagerProtocol
 from ._oracle_models import OracleParameterDetail, OracleRoutineDetail
 from .constraints import OracleConstraintDefaults
 from .indexes import decode_oracle_index_rows
@@ -39,11 +40,11 @@ class OracleSyncAdapter:
     Utiliza duck-typing; no hereda de Protocol explícitamente.
     """
 
-    def __init__(self, manager: Any) -> None:
+    def __init__(self, manager: OracleSyncManagerProtocol) -> None:
         """Inicializa el adaptador con un manager.
 
         Args:
-            manager: DbManagerProtocol (duck-typed) con métodos execute_custom_one(), execute_custom_many()
+            manager: OracleSyncManagerProtocol con métodos execute_custom_many(), db_cache, etc.
         """
         self.manager = manager
 
@@ -176,12 +177,12 @@ class OracleSyncAdapter:
 
         entries = self._get_cached_entries(
             cache_lookup=lambda: (
-                getattr(self.manager, "db_cache", {}).get("_routine_metadata_context_cache", {}).get(cache_key)
+                self.manager.db_cache._routine_metadata_context_cache.get(cache_key)
+                if hasattr(self.manager, "db_cache")
+                else None
             ),
             cache_store=lambda items: (
-                getattr(self.manager, "db_cache", {})
-                .get("_routine_metadata_context_cache", {})
-                .__setitem__(cache_key, list(items))
+                self.manager.db_cache._routine_metadata_context_cache.__setitem__(cache_key, list(items))
                 if hasattr(self.manager, "db_cache")
                 else None
             ),
@@ -216,12 +217,12 @@ class OracleSyncAdapter:
 
         entries = self._get_cached_entries(
             cache_lookup=lambda: (
-                getattr(self.manager, "db_cache", {}).get("_routine_parameters_context_cache", {}).get(cache_key)
+                self.manager.db_cache._routine_parameters_context_cache.get(cache_key)
+                if hasattr(self.manager, "db_cache")
+                else None
             ),
             cache_store=lambda items: (
-                getattr(self.manager, "db_cache", {})
-                .get("_routine_parameters_context_cache", {})
-                .__setitem__(cache_key, list(items))
+                self.manager.db_cache._routine_parameters_context_cache.__setitem__(cache_key, list(items))
                 if hasattr(self.manager, "db_cache")
                 else None
             ),

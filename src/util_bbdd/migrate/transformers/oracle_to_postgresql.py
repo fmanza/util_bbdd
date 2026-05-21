@@ -18,12 +18,11 @@ from .._compat.identifier_rules import MAX_POSTGRESQL_IDENTIFIER_LENGTH, check_i
 from .._compat.type_map_postgresql import resolve_number_type_postgresql, resolve_oracle_type_postgresql
 from ..ir.models import (
     CanonicalColumn,
-    CanonicalFK,
-    CanonicalIndex,
     CanonicalTable,
     CanonicalView,
     MigrationWarning,
 )
+from ._base_transformer import BaseTransformer
 from ._view_rewriter import rewrite_oracle_view
 
 _NEXTVAL_RE = re.compile(r"\b(\w+)\.NEXTVAL\b", re.IGNORECASE)
@@ -35,7 +34,7 @@ _INT_TYPES_SERIAL = frozenset({"SMALLINT", "INTEGER", "BIGINT"})
 _VARCHAR_MAX_LENGTH: int = 10_485_760
 
 
-class OracleToPostgreSQLTransformer:
+class OracleToPostgreSQLTransformer(BaseTransformer):
     """Transforma IR Oracle a IR PostgreSQL.
 
     Args:
@@ -43,16 +42,11 @@ class OracleToPostgreSQLTransformer:
             Valores recomendados: "DOUBLE PRECISION", "NUMERIC(38,10)", "NUMERIC(18,4)".
     """
 
+    MAX_IDENTIFIER_LENGTH = MAX_POSTGRESQL_IDENTIFIER_LENGTH
+    _TARGET_DIALECT = "PostgreSQL"
+
     def __init__(self, number_fallback: str = "DOUBLE PRECISION") -> None:
         self._number_fallback = number_fallback
-
-    def transform(self, tables: list[CanonicalTable]) -> list[CanonicalTable]:
-        """Transforma todas las tablas aplicando mapeos Oracle→PostgreSQL."""
-        return [self._transform_table(t) for t in tables]
-
-    def transform_views(self, views: list[CanonicalView]) -> list[CanonicalView]:
-        """Transforma vistas Oracle aplicando reescritura best-effort para PostgreSQL."""
-        return [self._transform_view(v) for v in views]
 
     def _transform_view(self, view: CanonicalView) -> CanonicalView:
         result = rewrite_oracle_view(
@@ -62,7 +56,7 @@ class OracleToPostgreSQLTransformer:
             user_fn="CURRENT_USER",
             schema=view.schema,
         )
-        adapted_name, id_warn = check_identifier(view.name, MAX_POSTGRESQL_IDENTIFIER_LENGTH)
+        adapted_name, id_warn = check_identifier(view.name, self.MAX_IDENTIFIER_LENGTH)
         if id_warn:
             result.name = adapted_name
             result.warnings.append(
@@ -80,7 +74,7 @@ class OracleToPostgreSQLTransformer:
     def _transform_table(self, table: CanonicalTable) -> CanonicalTable:
         new_table = deepcopy(table)
 
-        new_table.name, id_warn = check_identifier(table.name, MAX_POSTGRESQL_IDENTIFIER_LENGTH)
+        new_table.name, id_warn = check_identifier(table.name, self.MAX_IDENTIFIER_LENGTH)
         if id_warn:
             new_table.warnings.append(
                 MigrationWarning(
@@ -112,7 +106,7 @@ class OracleToPostgreSQLTransformer:
     def _transform_column(self, table_name: str, col: CanonicalColumn) -> CanonicalColumn:
         new_col = deepcopy(col)
 
-        col_name_adapted, id_warn = check_identifier(col.name, MAX_POSTGRESQL_IDENTIFIER_LENGTH)
+        col_name_adapted, id_warn = check_identifier(col.name, self.MAX_IDENTIFIER_LENGTH)
         if id_warn:
             new_col.name = col_name_adapted
             new_col.warnings.append(
@@ -308,74 +302,6 @@ class OracleToPostgreSQLTransformer:
                         severity="INFO",
                     )
                 )
-
-    def _adapt_identifiers(self, table_name: str, names: list[str], target_table: CanonicalTable) -> list[str]:
-        adapted: list[str] = []
-        for name in names:
-            new_name, warn = check_identifier(name, MAX_POSTGRESQL_IDENTIFIER_LENGTH)
-            if warn:
-                target_table.warnings.append(
-                    MigrationWarning(
-                        table=table_name,
-                        column=name,
-                        oracle_type="IDENTIFIER",
-                        target_type=new_name,
-                        message=warn,
-                        severity="WARNING",
-                    )
-                )
-            adapted.append(new_name)
-        return adapted
-
-    def _transform_index(self, table_name: str, idx: CanonicalIndex, target_table: CanonicalTable) -> CanonicalIndex:
-        new_idx = deepcopy(idx)
-        new_idx.name, warn = check_identifier(idx.name, MAX_POSTGRESQL_IDENTIFIER_LENGTH)
-        if warn:
-            target_table.warnings.append(
-                MigrationWarning(
-                    table=table_name,
-                    column=None,
-                    oracle_type="IDENTIFIER",
-                    target_type=new_idx.name,
-                    message=warn,
-                    severity="WARNING",
-                )
-            )
-        new_idx.columns = self._adapt_identifiers(table_name, idx.columns, target_table)
-        return new_idx
-
-    def _transform_fk(self, table_name: str, fk: CanonicalFK, target_table: CanonicalTable) -> CanonicalFK:
-        new_fk = deepcopy(fk)
-        new_fk.name, warn = check_identifier(fk.name, MAX_POSTGRESQL_IDENTIFIER_LENGTH)
-        if warn:
-            target_table.warnings.append(
-                MigrationWarning(
-                    table=table_name,
-                    column=None,
-                    oracle_type="IDENTIFIER",
-                    target_type=new_fk.name,
-                    message=warn,
-                    severity="WARNING",
-                )
-            )
-
-        if fk.is_external:
-            target_table.warnings.append(
-                MigrationWarning(
-                    table=table_name,
-                    column=None,
-                    oracle_type="FOREIGN KEY",
-                    target_type="ALTER TABLE (al final)",
-                    message=(
-                        f"FK '{fk.name}' referencia tabla '{fk.ref_table}' fuera del schema migrado; "
-                        "emitida como ALTER TABLE al final del script — verificar que la tabla existe"
-                    ),
-                    severity="WARNING",
-                )
-            )
-            new_fk.is_external = True
-
-        return new_fk
 
 
 def _detect_sequence(default: str | None) -> str | None:

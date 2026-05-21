@@ -18,12 +18,11 @@ from .._compat.identifier_rules import MAX_SQLSERVER_IDENTIFIER_LENGTH, check_id
 from .._compat.type_map_sqlserver import resolve_number_type_sqlserver, resolve_oracle_type_sqlserver
 from ..ir.models import (
     CanonicalColumn,
-    CanonicalFK,
-    CanonicalIndex,
     CanonicalTable,
     CanonicalView,
     MigrationWarning,
 )
+from ._base_transformer import BaseTransformer
 from ._view_rewriter import rewrite_oracle_view
 
 _NEXTVAL_RE = re.compile(r"\b(\w+)\.NEXTVAL\b", re.IGNORECASE)
@@ -35,7 +34,7 @@ _INT_TYPES_IDENTITY = frozenset({"BIGINT", "INT", "SMALLINT", "TINYINT"})
 _NVARCHAR_MAX_LENGTH: int = 4000
 
 
-class OracleToSQLServerTransformer:
+class OracleToSQLServerTransformer(BaseTransformer):
     """Transforma IR Oracle a IR SQL Server.
 
     Args:
@@ -43,16 +42,11 @@ class OracleToSQLServerTransformer:
             Valores recomendados: "FLOAT", "NUMERIC(38,10)", "NUMERIC(18,4)".
     """
 
+    MAX_IDENTIFIER_LENGTH = MAX_SQLSERVER_IDENTIFIER_LENGTH
+    _TARGET_DIALECT = "SQL Server"
+
     def __init__(self, number_fallback: str = "FLOAT") -> None:
         self._number_fallback = number_fallback
-
-    def transform(self, tables: list[CanonicalTable]) -> list[CanonicalTable]:
-        """Transforma todas las tablas aplicando mapeos Oracle→SQL Server."""
-        return [self._transform_table(t) for t in tables]
-
-    def transform_views(self, views: list[CanonicalView]) -> list[CanonicalView]:
-        """Transforma vistas Oracle aplicando reescritura best-effort para SQL Server."""
-        return [self._transform_view(v) for v in views]
 
     def _transform_view(self, view: CanonicalView) -> CanonicalView:
         result = rewrite_oracle_view(
@@ -62,7 +56,7 @@ class OracleToSQLServerTransformer:
             user_fn="SYSTEM_USER",
             schema=view.schema,
         )
-        adapted_name, id_warn = check_identifier(view.name, MAX_SQLSERVER_IDENTIFIER_LENGTH)
+        adapted_name, id_warn = check_identifier(view.name, self.MAX_IDENTIFIER_LENGTH)
         if id_warn:
             result.name = adapted_name
             result.warnings.append(
@@ -80,7 +74,7 @@ class OracleToSQLServerTransformer:
     def _transform_table(self, table: CanonicalTable) -> CanonicalTable:
         new_table = deepcopy(table)
 
-        new_table.name, id_warn = check_identifier(table.name, MAX_SQLSERVER_IDENTIFIER_LENGTH)
+        new_table.name, id_warn = check_identifier(table.name, self.MAX_IDENTIFIER_LENGTH)
         if id_warn:
             new_table.warnings.append(
                 MigrationWarning(
@@ -93,7 +87,7 @@ class OracleToSQLServerTransformer:
                 )
             )
 
-        # Garantizar is_primary_key correcto en la copia antes de transformar.
+        # Garantizar is_primary_key correcto antes de transformar columnas
         pk_set = {n.upper() for n in table.primary_key}
         for col in new_table.columns:
             if col.name.upper() in pk_set:
@@ -112,7 +106,7 @@ class OracleToSQLServerTransformer:
     def _transform_column(self, table_name: str, col: CanonicalColumn) -> CanonicalColumn:
         new_col = deepcopy(col)
 
-        col_name_adapted, id_warn = check_identifier(col.name, MAX_SQLSERVER_IDENTIFIER_LENGTH)
+        col_name_adapted, id_warn = check_identifier(col.name, self.MAX_IDENTIFIER_LENGTH)
         if id_warn:
             new_col.name = col_name_adapted
             new_col.warnings.append(
@@ -315,74 +309,6 @@ class OracleToSQLServerTransformer:
                         severity="INFO",
                     )
                 )
-
-    def _adapt_identifiers(self, table_name: str, names: list[str], target_table: CanonicalTable) -> list[str]:
-        adapted: list[str] = []
-        for name in names:
-            new_name, warn = check_identifier(name, MAX_SQLSERVER_IDENTIFIER_LENGTH)
-            if warn:
-                target_table.warnings.append(
-                    MigrationWarning(
-                        table=table_name,
-                        column=name,
-                        oracle_type="IDENTIFIER",
-                        target_type=new_name,
-                        message=warn,
-                        severity="WARNING",
-                    )
-                )
-            adapted.append(new_name)
-        return adapted
-
-    def _transform_index(self, table_name: str, idx: CanonicalIndex, target_table: CanonicalTable) -> CanonicalIndex:
-        new_idx = deepcopy(idx)
-        new_idx.name, warn = check_identifier(idx.name, MAX_SQLSERVER_IDENTIFIER_LENGTH)
-        if warn:
-            target_table.warnings.append(
-                MigrationWarning(
-                    table=table_name,
-                    column=None,
-                    oracle_type="IDENTIFIER",
-                    target_type=new_idx.name,
-                    message=warn,
-                    severity="WARNING",
-                )
-            )
-        new_idx.columns = self._adapt_identifiers(table_name, idx.columns, target_table)
-        return new_idx
-
-    def _transform_fk(self, table_name: str, fk: CanonicalFK, target_table: CanonicalTable) -> CanonicalFK:
-        new_fk = deepcopy(fk)
-        new_fk.name, warn = check_identifier(fk.name, MAX_SQLSERVER_IDENTIFIER_LENGTH)
-        if warn:
-            target_table.warnings.append(
-                MigrationWarning(
-                    table=table_name,
-                    column=None,
-                    oracle_type="IDENTIFIER",
-                    target_type=new_fk.name,
-                    message=warn,
-                    severity="WARNING",
-                )
-            )
-
-        if fk.is_external:
-            target_table.warnings.append(
-                MigrationWarning(
-                    table=table_name,
-                    column=None,
-                    oracle_type="FOREIGN KEY",
-                    target_type="ALTER TABLE (al final)",
-                    message=(
-                        f"FK '{fk.name}' referencia tabla '{fk.ref_table}' fuera del schema migrado; "
-                        "emitida como ALTER TABLE al final del script — verificar que la tabla existe"
-                    ),
-                    severity="WARNING",
-                )
-            )
-            new_fk.is_external = True
-
-        return new_fk
 
 
 def _detect_sequence(default: str | None) -> str | None:

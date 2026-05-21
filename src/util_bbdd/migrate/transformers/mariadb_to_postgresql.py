@@ -17,92 +17,25 @@ from .._compat.identifier_rules import MAX_POSTGRESQL_IDENTIFIER_LENGTH, check_i
 from .._compat.type_map_mariadb_to_postgresql import resolve_mariadb_type_postgresql
 from ..ir.models import (
     CanonicalColumn,
-    CanonicalFK,
-    CanonicalIndex,
-    CanonicalTable,
-    CanonicalView,
     MigrationWarning,
 )
+from ._base_transformer import BaseTransformer
 
 
-class MariaDBToPostgreSQLTransformer:
+class MariaDBToPostgreSQLTransformer(BaseTransformer):
     """Transforma IR MariaDB a IR PostgreSQL.
 
     El campo ``CanonicalColumn.oracle_type`` contiene el tipo fuente MariaDB
     (DATA_TYPE de INFORMATION_SCHEMA); el nombre del campo es histórico.
     """
 
-    def transform(self, tables: list[CanonicalTable]) -> list[CanonicalTable]:
-        """Transforma todas las tablas aplicando mapeos MariaDB→PostgreSQL."""
-        return [self._transform_table(t) for t in tables]
-
-    def transform_views(self, views: list[CanonicalView]) -> list[CanonicalView]:
-        """Transforma vistas MariaDB con pass-through v1 (sin reescritura SQL)."""
-        return [self._transform_view(v) for v in views]
-
-    def _transform_view(self, view: CanonicalView) -> CanonicalView:
-        result = deepcopy(view)
-        adapted_name, id_warn = check_identifier(view.name, MAX_POSTGRESQL_IDENTIFIER_LENGTH)
-        if id_warn:
-            result.name = adapted_name
-            result.warnings.append(
-                MigrationWarning(
-                    table=view.name,
-                    column=None,
-                    oracle_type="IDENTIFIER",
-                    target_type=adapted_name,
-                    message=id_warn,
-                    severity="WARNING",
-                )
-            )
-        result.warnings.append(
-            MigrationWarning(
-                table=view.name,
-                column=None,
-                oracle_type="VIEW",
-                target_type="VIEW",
-                message=(
-                    "Vista MariaDB emitida sin reescritura de SQL dialect-específico (v1 pass-through); "
-                    "revisar manualmente funciones MariaDB (NOW, IFNULL, GROUP_CONCAT, etc.) "
-                    "para compatibilidad PostgreSQL"
-                ),
-                severity="WARNING",
-            )
-        )
-        return result
-
-    def _transform_table(self, table: CanonicalTable) -> CanonicalTable:
-        new_table = deepcopy(table)
-
-        new_table.name, id_warn = check_identifier(table.name, MAX_POSTGRESQL_IDENTIFIER_LENGTH)
-        if id_warn:
-            new_table.warnings.append(
-                MigrationWarning(
-                    table=table.name,
-                    column=None,
-                    oracle_type="IDENTIFIER",
-                    target_type=new_table.name,
-                    message=id_warn,
-                    severity="WARNING",
-                )
-            )
-
-        pk_set = {n.upper() for n in table.primary_key}
-        for col in new_table.columns:
-            if col.name.upper() in pk_set:
-                col.is_primary_key = True
-
-        new_table.columns = [self._transform_column(table.name, col) for col in new_table.columns]
-        new_table.primary_key = self._adapt_identifiers(table.name, table.primary_key, new_table)
-        new_table.indexes = [self._transform_index(table.name, idx, new_table) for idx in table.indexes]
-        new_table.foreign_keys = [self._transform_fk(table.name, fk, new_table) for fk in table.foreign_keys]
-
-        return new_table
+    MAX_IDENTIFIER_LENGTH = MAX_POSTGRESQL_IDENTIFIER_LENGTH
+    _TARGET_DIALECT = "PostgreSQL"
 
     def _transform_column(self, table_name: str, col: CanonicalColumn) -> CanonicalColumn:
         new_col = deepcopy(col)
 
-        col_name_adapted, id_warn = check_identifier(col.name, MAX_POSTGRESQL_IDENTIFIER_LENGTH)
+        col_name_adapted, id_warn = check_identifier(col.name, self.MAX_IDENTIFIER_LENGTH)
         if id_warn:
             new_col.name = col_name_adapted
             new_col.warnings.append(
@@ -178,79 +111,6 @@ class MariaDBToPostgreSQLTransformer:
         # Tipos fijos (TEXT, BYTEA, DATE, TIMESTAMP, BOOLEAN, etc.)
         return pg_base
 
-    def _adapt_identifiers(
-        self, table_name: str, names: list[str], target_table: CanonicalTable
-    ) -> list[str]:
-        adapted: list[str] = []
-        for name in names:
-            new_name, warn = check_identifier(name, MAX_POSTGRESQL_IDENTIFIER_LENGTH)
-            if warn:
-                target_table.warnings.append(
-                    MigrationWarning(
-                        table=table_name,
-                        column=name,
-                        oracle_type="IDENTIFIER",
-                        target_type=new_name,
-                        message=warn,
-                        severity="WARNING",
-                    )
-                )
-            adapted.append(new_name)
-        return adapted
-
-    def _transform_index(
-        self, table_name: str, idx: CanonicalIndex, target_table: CanonicalTable
-    ) -> CanonicalIndex:
-        new_idx = deepcopy(idx)
-        new_idx.name, warn = check_identifier(idx.name, MAX_POSTGRESQL_IDENTIFIER_LENGTH)
-        if warn:
-            target_table.warnings.append(
-                MigrationWarning(
-                    table=table_name,
-                    column=None,
-                    oracle_type="IDENTIFIER",
-                    target_type=new_idx.name,
-                    message=warn,
-                    severity="WARNING",
-                )
-            )
-        new_idx.columns = self._adapt_identifiers(table_name, idx.columns, target_table)
-        return new_idx
-
-    def _transform_fk(
-        self, table_name: str, fk: CanonicalFK, target_table: CanonicalTable
-    ) -> CanonicalFK:
-        new_fk = deepcopy(fk)
-        new_fk.name, warn = check_identifier(fk.name, MAX_POSTGRESQL_IDENTIFIER_LENGTH)
-        if warn:
-            target_table.warnings.append(
-                MigrationWarning(
-                    table=table_name,
-                    column=None,
-                    oracle_type="IDENTIFIER",
-                    target_type=new_fk.name,
-                    message=warn,
-                    severity="WARNING",
-                )
-            )
-
-        if fk.is_external:
-            target_table.warnings.append(
-                MigrationWarning(
-                    table=table_name,
-                    column=None,
-                    oracle_type="FOREIGN KEY",
-                    target_type="ALTER TABLE (al final)",
-                    message=(
-                        f"FK '{fk.name}' referencia tabla '{fk.ref_table}' fuera del schema migrado; "
-                        "emitida como ALTER TABLE al final del script — verificar que la tabla existe"
-                    ),
-                    severity="WARNING",
-                )
-            )
-            new_fk.is_external = True
-
-        return new_fk
 
 
 __all__: list[str] = ["MariaDBToPostgreSQLTransformer"]

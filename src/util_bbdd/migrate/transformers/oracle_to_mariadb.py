@@ -14,16 +14,15 @@ import re
 
 from copy import deepcopy
 
-from .._compat.identifier_rules import check_identifier
+from .._compat.identifier_rules import MAX_MARIADB_IDENTIFIER_LENGTH, check_identifier
 from .._compat.type_map import resolve_number_type, resolve_oracle_type
 from ..ir.models import (
     CanonicalColumn,
-    CanonicalFK,
-    CanonicalIndex,
     CanonicalTable,
     CanonicalView,
     MigrationWarning,
 )
+from ._base_transformer import BaseTransformer
 from ._view_rewriter import rewrite_oracle_view
 
 _NEXTVAL_RE = re.compile(r"\b(\w+)\.NEXTVAL\b", re.IGNORECASE)
@@ -35,7 +34,7 @@ _LOB_UTF8 = {"CLOB", "NCLOB"}
 _INT_TYPES_AUTOINCREMENT = frozenset({"BIGINT", "INT", "INTEGER", "SMALLINT", "TINYINT", "MEDIUMINT"})
 
 
-class OracleToMariaDBTransformer:
+class OracleToMariaDBTransformer(BaseTransformer):
     """Transforma IR Oracle a IR MariaDB.
 
     Args:
@@ -45,6 +44,9 @@ class OracleToMariaDBTransformer:
         int_display_width: Display width para tipo INT (convenio MariaDB).
             11 por defecto; 0 deshabilita el display width (solo INT sin parámetro).
     """
+
+    MAX_IDENTIFIER_LENGTH = MAX_MARIADB_IDENTIFIER_LENGTH
+    _TARGET_DIALECT = "MariaDB"
 
     def __init__(
         self,
@@ -56,14 +58,6 @@ class OracleToMariaDBTransformer:
         self._charset = charset
         self._int_display_width = int_display_width
 
-    def transform(self, tables: list[CanonicalTable]) -> list[CanonicalTable]:
-        """Transforma todas las tablas aplicando mapeos Oracle→MariaDB."""
-        return [self._transform_table(t) for t in tables]
-
-    def transform_views(self, views: list[CanonicalView]) -> list[CanonicalView]:
-        """Transforma vistas Oracle aplicando reescritura best-effort para MariaDB."""
-        return [self._transform_view(v) for v in views]
-
     def _transform_view(self, view: CanonicalView) -> CanonicalView:
         result = rewrite_oracle_view(
             view,
@@ -72,7 +66,7 @@ class OracleToMariaDBTransformer:
             user_fn="CURRENT_USER()",
             schema=view.schema,
         )
-        adapted_name, id_warn = check_identifier(view.name)
+        adapted_name, id_warn = check_identifier(view.name, self.MAX_IDENTIFIER_LENGTH)
         if id_warn:
             result.name = adapted_name
             result.warnings.append(
@@ -90,7 +84,7 @@ class OracleToMariaDBTransformer:
     def _transform_table(self, table: CanonicalTable) -> CanonicalTable:
         new_table = deepcopy(table)
 
-        new_table.name, id_warn = check_identifier(table.name)
+        new_table.name, id_warn = check_identifier(table.name, self.MAX_IDENTIFIER_LENGTH)
         if id_warn:
             new_table.warnings.append(
                 MigrationWarning(
@@ -126,7 +120,7 @@ class OracleToMariaDBTransformer:
     def _transform_column(self, table_name: str, col: CanonicalColumn) -> CanonicalColumn:
         new_col = deepcopy(col)
 
-        col_name_adapted, id_warn = check_identifier(col.name)
+        col_name_adapted, id_warn = check_identifier(col.name, self.MAX_IDENTIFIER_LENGTH)
         if id_warn:
             new_col.name = col_name_adapted
             new_col.warnings.append(
@@ -336,74 +330,6 @@ class OracleToMariaDBTransformer:
                         severity="INFO",
                     )
                 )
-
-    def _adapt_identifiers(self, table_name: str, names: list[str], target_table: CanonicalTable) -> list[str]:
-        adapted: list[str] = []
-        for name in names:
-            new_name, warn = check_identifier(name)
-            if warn:
-                target_table.warnings.append(
-                    MigrationWarning(
-                        table=table_name,
-                        column=name,
-                        oracle_type="IDENTIFIER",
-                        target_type=new_name,
-                        message=warn,
-                        severity="WARNING",
-                    )
-                )
-            adapted.append(new_name)
-        return adapted
-
-    def _transform_index(self, table_name: str, idx: CanonicalIndex, target_table: CanonicalTable) -> CanonicalIndex:
-        new_idx = deepcopy(idx)
-        new_idx.name, warn = check_identifier(idx.name)
-        if warn:
-            target_table.warnings.append(
-                MigrationWarning(
-                    table=table_name,
-                    column=None,
-                    oracle_type="IDENTIFIER",
-                    target_type=new_idx.name,
-                    message=warn,
-                    severity="WARNING",
-                )
-            )
-        new_idx.columns = self._adapt_identifiers(table_name, idx.columns, target_table)
-        return new_idx
-
-    def _transform_fk(self, table_name: str, fk: CanonicalFK, target_table: CanonicalTable) -> CanonicalFK:
-        new_fk = deepcopy(fk)
-        new_fk.name, warn = check_identifier(fk.name)
-        if warn:
-            target_table.warnings.append(
-                MigrationWarning(
-                    table=table_name,
-                    column=None,
-                    oracle_type="IDENTIFIER",
-                    target_type=new_fk.name,
-                    message=warn,
-                    severity="WARNING",
-                )
-            )
-
-        if fk.is_external:
-            target_table.warnings.append(
-                MigrationWarning(
-                    table=table_name,
-                    column=None,
-                    oracle_type="FOREIGN KEY",
-                    target_type="ALTER TABLE (al final)",
-                    message=(
-                        f"FK '{fk.name}' referencia tabla '{fk.ref_table}' fuera del schema migrado; "
-                        "emitida como ALTER TABLE al final del script — verificar que la tabla existe"
-                    ),
-                    severity="WARNING",
-                )
-            )
-            new_fk.is_external = True
-
-        return new_fk
 
 
 def _detect_sequence(default: str | None) -> str | None:

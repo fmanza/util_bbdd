@@ -18,6 +18,7 @@ from ._adapter_helpers import (
     build_tables_sql,
     routine_entries_to_rows,
 )
+from ._manager_protocol import PostgreSQLAsyncManagerProtocol
 from ._postgres_models import PgParameterDetail, PgRoutineDetail
 from .routines import (
     build_public_postgres_routine_parameter_entry_rows,
@@ -39,11 +40,11 @@ class PostgreSQLAsyncAdapter:
     Utiliza duck-typing; no hereda de Protocol explícitamente.
     """
 
-    def __init__(self, manager: Any) -> None:
+    def __init__(self, manager: PostgreSQLAsyncManagerProtocol) -> None:
         """Inicializa el adaptador con un manager.
 
         Args:
-            manager: DbManagerProtocol (duck-typed) con métodos execute_custom_one(), execute_custom_many()
+            manager: PostgreSQLAsyncManagerProtocol con métodos execute_custom_many async, db_cache, etc.
         """
         self.manager = manager
 
@@ -139,12 +140,12 @@ class PostgreSQLAsyncAdapter:
 
         entries = await self._get_cached_entries(
             cache_lookup=lambda: (
-                getattr(self.manager, "db_cache", {}).get("_routine_metadata_context_cache", {}).get(cache_key)
+                self.manager.db_cache._routine_metadata_context_cache.get(cache_key)
+                if hasattr(self.manager, "db_cache")
+                else None
             ),
             cache_store=lambda items: (
-                getattr(self.manager, "db_cache", {})
-                .get("_routine_metadata_context_cache", {})
-                .__setitem__(cache_key, list(items))
+                self.manager.db_cache._routine_metadata_context_cache.__setitem__(cache_key, list(items))
                 if hasattr(self.manager, "db_cache")
                 else None
             ),
@@ -176,12 +177,12 @@ class PostgreSQLAsyncAdapter:
 
         entries = await self._get_cached_entries(
             cache_lookup=lambda: (
-                getattr(self.manager, "db_cache", {}).get("_routine_parameters_context_cache", {}).get(cache_key)
+                self.manager.db_cache._routine_parameters_context_cache.get(cache_key)
+                if hasattr(self.manager, "db_cache")
+                else None
             ),
             cache_store=lambda items: (
-                getattr(self.manager, "db_cache", {})
-                .get("_routine_parameters_context_cache", {})
-                .__setitem__(cache_key, list(items))
+                self.manager.db_cache._routine_parameters_context_cache.__setitem__(cache_key, list(items))
                 if hasattr(self.manager, "db_cache")
                 else None
             ),
@@ -233,7 +234,7 @@ class PostgreSQLAsyncAdapter:
         """
         sql = build_pk_constraint_sql(schema, table)
         rows = await self.manager.execute_custom_many(sql, params={"schema": schema, "table": table})
-        return [(str(r[0]), int(r[1]) if len(r) > 1 else 0) for r in rows]
+        return [(str(r[0]), str(r[1]) if len(r) > 1 else "", int(r[2]) if len(r) > 2 else 0) for r in rows]
 
     async def fetch_foreign_keys_async(self, schema: str, table: str) -> list[tuple]:
         """Obtiene claves foráneas en modo asíncrono.
@@ -299,20 +300,24 @@ class PostgreSQLAsyncAdapter:
 
         return fetch_routines_sql(schema)
 
-    def _build_parameters_query(self) -> str:
+    @staticmethod
+    def _build_parameters_query() -> str:
         """Construye la consulta SQL para parámetros de rutinas de PostgreSQL."""
         return (
             "SELECT "
-            "ia.ordinal_position, "
-            "ia.parameter_mode, "
-            "ia.parameter_name, "
-            "ia.data_type, "
+            "p.ordinal_position, "
+            "p.parameter_mode, "
+            "p.parameter_name, "
+            "p.data_type, "
             "NULL AS default_value, "
-            "ia.routine_name, "
-            "'FUNCTION' AS routine_type "
-            "FROM information_schema.parameters ia "
-            "WHERE ia.specific_schema = %(schema)s "
-            "ORDER BY ia.routine_name, ia.ordinal_position"
+            "p.routine_name, "
+            "r.routine_type "
+            "FROM information_schema.parameters p "
+            "JOIN information_schema.routines r "
+            "  ON r.specific_schema = p.specific_schema "
+            "  AND r.specific_name = p.specific_name "
+            "WHERE p.specific_schema = %(schema)s "
+            "ORDER BY p.routine_name, p.ordinal_position"
         )
 
 
