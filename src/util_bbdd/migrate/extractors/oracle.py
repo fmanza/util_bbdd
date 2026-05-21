@@ -17,6 +17,8 @@ from ...metadata.oracle.tables import (
     fetch_indexes_sql,
     fetch_pk_constraint_sql,
     fetch_tables_sql,
+    fetch_view_columns_sql,
+    fetch_views_sql,
 )
 from ..ir.models import (
     CanonicalColumn,
@@ -24,23 +26,6 @@ from ..ir.models import (
     CanonicalIndex,
     CanonicalTable,
     CanonicalView,
-)
-
-# SQL para extracción de vistas (ALL_VIEWS.text es tipo LONG; los drivers
-# cx_Oracle/python-oracledb lo devuelven como str completo sin truncar)
-_FETCH_VIEWS_SQL = (
-    "SELECT v.view_name, v.text, c.comments "
-    "FROM all_views v "
-    "LEFT JOIN all_tab_comments c "
-    "  ON c.owner = v.owner "
-    "  AND c.table_name = v.view_name "
-    "  AND c.table_type = 'VIEW' "
-    "WHERE v.owner = :owner "
-    "ORDER BY v.view_name"
-)
-
-_FETCH_VIEW_COLUMNS_SQL = (
-    "SELECT column_name FROM all_tab_columns WHERE owner = :owner AND table_name = :view_name ORDER BY column_id"
 )
 
 
@@ -139,7 +124,7 @@ class OracleSchemaExtractor:
         python-oracledb devuelven como ``str`` completo. Para Oracle < 12.2
         el comportamiento depende de la configuración del driver.
         """
-        rows = self._query(_FETCH_VIEWS_SQL, {"owner": schema})
+        rows = self._query(fetch_views_sql(), {"owner": schema})
         views: list[CanonicalView] = []
 
         for row in rows:
@@ -165,7 +150,7 @@ class OracleSchemaExtractor:
         return views
 
     def _extract_view_columns(self, schema: str, view_name: str) -> list[str]:
-        rows = self._query(_FETCH_VIEW_COLUMNS_SQL, {"owner": schema, "view_name": view_name})
+        rows = self._query(fetch_view_columns_sql(), {"owner": schema, "view_name": view_name})
         return [str(r[0]).strip() for r in rows if r and r[0]]
 
     def _extract_columns(self, schema: str, table: str) -> list[CanonicalColumn]:

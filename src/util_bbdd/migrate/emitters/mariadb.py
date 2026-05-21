@@ -398,6 +398,14 @@ def _format_default(value: str) -> str:
     if v.upper() in {f.upper() for f in sql_functions}:
         return v
 
+    # Funciones temporales con argumento de precisión, ej. NOW(3), CURRENT_TIMESTAMP(6)
+    if re.match(
+        r"^(NOW|CURRENT_TIMESTAMP|CURRENT_DATE|CURRENT_TIME|SYSDATE|SYSTIMESTAMP)\s*\(\s*\d*\s*\)$",
+        v,
+        re.IGNORECASE,
+    ):
+        return v
+
     # Valores numéricos
     try:
         float(v)

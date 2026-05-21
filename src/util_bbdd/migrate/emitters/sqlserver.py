@@ -13,6 +13,9 @@ Responsabilidades:
 
 from __future__ import annotations
 
+import re
+
+from .._compat.identifier_rules import MAX_SQLSERVER_IDENTIFIER_LENGTH, truncate_identifier
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalTable, CanonicalView
 from .mariadb import _topological_sort, _topological_sort_views
 
@@ -32,6 +35,9 @@ _ORACLE_TO_SS_DEFAULTS: dict[str, str] = {
     "0": "0",
     "1": "1",
 }
+
+# Acciones ON DELETE / ON UPDATE válidas en T-SQL (RESTRICT no existe en SQL Server)
+_SS_FK_VALID_ACTIONS: frozenset[str] = frozenset({"CASCADE", "SET NULL", "SET DEFAULT"})
 
 
 def _br(name: str) -> str:
@@ -140,11 +146,12 @@ class SQLServerDDLEmitter:
 
     def _emit_create_view(self, view: CanonicalView) -> str:
         lines: list[str] = []
+        # CREATE OR ALTER VIEW requiere SQL Server 2016+ (compatibilidad 130+)
+        lines.append("-- NOTE: CREATE OR ALTER VIEW requires SQL Server 2016+ (compatibility level 130+)")
         if view.warnings:
             lines.append("-- NOTE: requires manual review (see migration warnings)")
         if view.comment:
             lines.append(f"-- COMMENT: {view.comment.replace(chr(10), ' ')}")
-        # CREATE OR ALTER VIEW requiere SQL Server 2016+ (compatibilidad 130+)
         lines.append(f"CREATE OR ALTER VIEW {_br(view.name)} AS")
         lines.append(view.query)
         return "\n".join(lines)
@@ -165,7 +172,7 @@ class SQLServerDDLEmitter:
 
         if table.primary_key:
             pk_cols = ", ".join(_br(c) for c in table.primary_key)
-            pk_name = _br(f"PK_{table.name}"[:128])
+            pk_name = _br(truncate_identifier(f"PK_{table.name}", MAX_SQLSERVER_IDENTIFIER_LENGTH)[0])
             ddl_lines.append(f"    CONSTRAINT {pk_name} PRIMARY KEY ({pk_cols})")
 
         for fk in table.foreign_keys:
@@ -228,9 +235,10 @@ class SQLServerDDLEmitter:
         cols = ", ".join(_br(c) for c in fk.columns)
         ref_cols = ", ".join(_br(c) for c in fk.ref_columns)
         stmt = f"    CONSTRAINT {_br(fk.name)} FOREIGN KEY ({cols}) REFERENCES {_br(fk.ref_table)} ({ref_cols})"
-        if fk.on_delete and fk.on_delete.upper() not in ("NO ACTION", ""):
+        # SQL Server sólo acepta CASCADE, SET NULL y SET DEFAULT; RESTRICT no es T-SQL válido.
+        if fk.on_delete and fk.on_delete.upper() in _SS_FK_VALID_ACTIONS:
             stmt += f" ON DELETE {fk.on_delete.upper()}"
-        if fk.on_update and fk.on_update.upper() not in ("NO ACTION", ""):
+        if fk.on_update and fk.on_update.upper() in _SS_FK_VALID_ACTIONS:
             stmt += f" ON UPDATE {fk.on_update.upper()}"
         return stmt
 
@@ -270,6 +278,14 @@ def _format_default_sqlserver(value: str) -> str:
 
     if upper_v in _ORACLE_TO_SS_DEFAULTS:
         return _ORACLE_TO_SS_DEFAULTS[upper_v]
+
+    # Funciones temporales con argumento de precisión, ej. NOW(3) → SYSDATETIME()
+    if re.match(
+        r"^(NOW|CURRENT_TIMESTAMP|GETDATE)\s*\(\s*\d+\s*\)$",
+        v,
+        re.IGNORECASE,
+    ):
+        return "SYSDATETIME()"
 
     # Valores numéricos
     try:

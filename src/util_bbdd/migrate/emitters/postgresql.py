@@ -13,6 +13,9 @@ Responsabilidades:
 
 from __future__ import annotations
 
+import re
+
+from .._compat.identifier_rules import MAX_POSTGRESQL_IDENTIFIER_LENGTH, truncate_identifier
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalTable, CanonicalView
 from .mariadb import _topological_sort, _topological_sort_views
 
@@ -171,7 +174,7 @@ class PostgreSQLDDLEmitter:
 
         if table.primary_key:
             pk_cols = ", ".join(_dq(c) for c in table.primary_key)
-            pk_name_raw = f"PK_{table.name}"[:63]
+            pk_name_raw = truncate_identifier(f"PK_{table.name}", MAX_POSTGRESQL_IDENTIFIER_LENGTH)[0]
             ddl_lines.append(f"    CONSTRAINT {_dq(pk_name_raw)} PRIMARY KEY ({pk_cols})")
 
         for fk in table.foreign_keys:
@@ -278,6 +281,14 @@ def _format_default_postgresql(value: str) -> str:
 
     if upper_v in _ORACLE_TO_PG_DEFAULTS:
         return _ORACLE_TO_PG_DEFAULTS[upper_v]
+
+    # Funciones temporales con argumento de precisión, ej. CURRENT_TIMESTAMP(6)
+    if re.match(
+        r"^(NOW|CURRENT_TIMESTAMP|CURRENT_DATE|CURRENT_TIME)\s*\(\s*\d*\s*\)$",
+        v,
+        re.IGNORECASE,
+    ):
+        return v
 
     # Valores numéricos
     try:

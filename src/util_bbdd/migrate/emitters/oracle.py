@@ -32,12 +32,11 @@ Secuencias y triggers para AUTO_INCREMENT:
 
 from __future__ import annotations
 
+import re
+
+from .._compat.identifier_rules import MAX_ORACLE_IDENTIFIER_LENGTH, truncate_identifier
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalTable, CanonicalView
 from .mariadb import _topological_sort, _topological_sort_views
-
-# Límite seguro para nombres de secuencia/trigger derivados del nombre de tabla
-# (26 chars prefix + "_SEQ" o "TRG_" = 30 chars, límite Oracle 12.1)
-_MAX_ORA_PREFIX: int = 26
 
 # Oracle ON DELETE acciones soportadas
 _ORACLE_ON_DELETE_SUPPORTED: frozenset[str] = frozenset({"CASCADE", "SET NULL"})
@@ -65,15 +64,15 @@ def _dq(name: str) -> str:
 
 
 def _seq_name(table_name: str) -> str:
-    """Genera el nombre de secuencia para una tabla (max 30 chars)."""
-    prefix = table_name.upper()[:_MAX_ORA_PREFIX]
-    return f"{prefix}_SEQ"
+    """Genera el nombre de secuencia para una tabla (max 30 chars, único por hash)."""
+    raw = f"{table_name.upper()}_SEQ"
+    return truncate_identifier(raw, MAX_ORACLE_IDENTIFIER_LENGTH)[0]
 
 
 def _trg_name(table_name: str) -> str:
-    """Genera el nombre de trigger para una tabla (max 30 chars)."""
-    prefix = table_name.upper()[:_MAX_ORA_PREFIX]
-    return f"TRG_{prefix}"
+    """Genera el nombre de trigger para una tabla (max 30 chars, único por hash)."""
+    raw = f"TRG_{table_name.upper()}"
+    return truncate_identifier(raw, MAX_ORACLE_IDENTIFIER_LENGTH)[0]
 
 
 class OracleDDLEmitter:
@@ -178,7 +177,7 @@ class OracleDDLEmitter:
                 ddl_lines.append(line)
 
         if table.primary_key:
-            pk_name = f"PK_{table.name.upper()}"[:30]
+            pk_name = truncate_identifier(f"PK_{table.name.upper()}", MAX_ORACLE_IDENTIFIER_LENGTH)[0]
             pk_cols = ", ".join(_dq(c) for c in table.primary_key)
             ddl_lines.append(f"    CONSTRAINT {_dq(pk_name)} PRIMARY KEY ({pk_cols})")
 
@@ -234,10 +233,7 @@ class OracleDDLEmitter:
     def _emit_fk_inline(self, fk: CanonicalFK) -> str:
         cols = ", ".join(_dq(c) for c in fk.columns)
         ref_cols = ", ".join(_dq(c) for c in fk.ref_columns)
-        stmt = (
-            f"    CONSTRAINT {_dq(fk.name)} FOREIGN KEY ({cols}) "
-            f"REFERENCES {_dq(fk.ref_table)} ({ref_cols})"
-        )
+        stmt = f"    CONSTRAINT {_dq(fk.name)} FOREIGN KEY ({cols}) REFERENCES {_dq(fk.ref_table)} ({ref_cols})"
         on_delete = (fk.on_delete or "").strip().upper()
         if on_delete in _ORACLE_ON_DELETE_SUPPORTED:
             stmt += f" ON DELETE {on_delete}"
@@ -250,20 +246,19 @@ class OracleDDLEmitter:
     # ─── SEQUENCE + TRIGGER (AUTO_INCREMENT) ──────────────────────────────────
 
     def _emit_sequences_and_triggers(self, table: CanonicalTable) -> list[str]:
-        """Genera pares SEQUENCE + TRIGGER para columnas marcadas como AUTO_INCREMENT."""
+        """Genera UN par SEQUENCE + TRIGGER para la primera columna AUTO_INCREMENT.
+
+        Oracle soporta una sola SEQUENCE/TRIGGER por tabla en el patrón clásico.
+        Si hay múltiples columnas AUTO_INCREMENT se usa solo la primera; el resto
+        debería mapearse con valores DEFAULT fijos o revisarse manualmente.
+        """
         stmts: list[str] = []
         for col in table.columns:
             if col.omit or not col.auto_increment:
                 continue
             seq = _seq_name(table.name)
             trg = _trg_name(table.name)
-            stmts.append(
-                f"CREATE SEQUENCE {_dq(seq)}\n"
-                f"  START WITH 1\n"
-                f"  INCREMENT BY 1\n"
-                f"  NOCACHE\n"
-                f"  NOCYCLE"
-            )
+            stmts.append(f"CREATE SEQUENCE {_dq(seq)}\n  START WITH 1\n  INCREMENT BY 1\n  NOCACHE\n  NOCYCLE")
             stmts.append(
                 f"CREATE OR REPLACE TRIGGER {_dq(trg)}\n"
                 f"  BEFORE INSERT ON {_dq(table.name)}\n"
@@ -274,6 +269,7 @@ class OracleDDLEmitter:
                 f"  END IF;\n"
                 f"END"
             )
+            break  # Un par SEQ/TRG por tabla; columnas adicionales auto_increment son ignoradas
         return stmts
 
     # ─── COMMENT ON ───────────────────────────────────────────────────────────
@@ -288,9 +284,7 @@ class OracleDDLEmitter:
             if col.omit or not col.comment:
                 continue
             escaped = col.comment.replace("'", "''")
-            stmts.append(
-                f"COMMENT ON COLUMN {_dq(table.name)}.{_dq(col.name)} IS '{escaped}'"
-            )
+            stmts.append(f"COMMENT ON COLUMN {_dq(table.name)}.{_dq(col.name)} IS '{escaped}'")
         return stmts
 
     # ─── Índices ──────────────────────────────────────────────────────────────
@@ -349,6 +343,14 @@ def _format_default_oracle(value: str) -> str:
 
     if upper_v in _MARIADB_TO_ORA_DEFAULTS:
         return _MARIADB_TO_ORA_DEFAULTS[upper_v]
+
+    # Funciones temporales con argumento de precisión (ej. NOW(3)) → SYSTIMESTAMP en Oracle
+    if re.match(
+        r"^(NOW|CURRENT_TIMESTAMP|CURTIME)\s*\(\s*\d+\s*\)$",
+        v,
+        re.IGNORECASE,
+    ):
+        return "SYSTIMESTAMP"
 
     try:
         float(v)

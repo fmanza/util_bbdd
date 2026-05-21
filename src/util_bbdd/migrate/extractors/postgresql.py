@@ -27,86 +27,14 @@ from ..ir.models import (
     CanonicalTable,
     CanonicalView,
 )
-
-# ── SQL queries INFORMATION_SCHEMA / pg_catalog ───────────────────────────────
-
-_FETCH_TABLES_SQL = (
-    "SELECT TABLE_NAME "
-    "FROM INFORMATION_SCHEMA.TABLES "
-    "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_TYPE = 'BASE TABLE' "
-    "ORDER BY TABLE_NAME"
-)
-
-_FETCH_COLUMNS_SQL = (
-    "SELECT c.COLUMN_NAME, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, "
-    "c.NUMERIC_PRECISION, c.NUMERIC_SCALE, c.IS_NULLABLE, c.COLUMN_DEFAULT, "
-    "c.ORDINAL_POSITION "
-    "FROM INFORMATION_SCHEMA.COLUMNS c "
-    "WHERE c.TABLE_SCHEMA = %(schema)s AND c.TABLE_NAME = %(table_name)s "
-    "ORDER BY c.ORDINAL_POSITION"
-)
-
-_FETCH_PK_SQL = (
-    "SELECT kcu.COLUMN_NAME "
-    "FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu "
-    "JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc "
-    "  ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME "
-    "  AND tc.TABLE_SCHEMA = kcu.TABLE_SCHEMA "
-    "WHERE kcu.TABLE_SCHEMA = %(schema)s AND kcu.TABLE_NAME = %(table_name)s "
-    "  AND tc.CONSTRAINT_TYPE = 'PRIMARY KEY' "
-    "ORDER BY kcu.ORDINAL_POSITION"
-)
-
-_FETCH_FK_SQL = (
-    "SELECT kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME, "
-    "kcu2.TABLE_SCHEMA AS REF_SCHEMA, kcu2.TABLE_NAME AS REF_TABLE, "
-    "kcu2.COLUMN_NAME AS REF_COLUMN, kcu.ORDINAL_POSITION, "
-    "rc.DELETE_RULE, rc.UPDATE_RULE "
-    "FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc "
-    "JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu "
-    "  ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME "
-    "  AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA "
-    "JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu2 "
-    "  ON kcu2.CONSTRAINT_NAME = rc.UNIQUE_CONSTRAINT_NAME "
-    "  AND kcu2.CONSTRAINT_SCHEMA = rc.UNIQUE_CONSTRAINT_SCHEMA "
-    "  AND kcu2.ORDINAL_POSITION = kcu.POSITION_IN_UNIQUE_CONSTRAINT "
-    "WHERE kcu.TABLE_SCHEMA = %(schema)s AND kcu.TABLE_NAME = %(table_name)s "
-    "ORDER BY kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION"
-)
-
-# Índices no-PK via pg_catalog: devuelve una fila por (índice, columna, posición).
-# generate_subscripts(ix.indkey, 1) itera las posiciones del array de columnas
-# garantizando el orden correcto de columnas en índices compuestos (PG 8.4+).
-_FETCH_INDEXES_SQL = (
-    "SELECT i.relname AS index_name, "
-    "       a.attname AS column_name, "
-    "       ix.indisunique AS is_unique, "
-    "       gs AS seq_in_index "
-    "FROM pg_catalog.pg_class c "
-    "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace "
-    "JOIN pg_catalog.pg_index ix ON ix.indrelid = c.oid "
-    "JOIN pg_catalog.pg_class i ON i.oid = ix.indexrelid "
-    "JOIN generate_subscripts(ix.indkey, 1) AS gs ON true "
-    "JOIN pg_catalog.pg_attribute a "
-    "     ON a.attrelid = c.oid AND a.attnum = ix.indkey[gs] "
-    "WHERE n.nspname = %(schema)s AND c.relname = %(table_name)s "
-    "  AND ix.indisprimary = false AND ix.indisvalid = true "
-    "  AND a.attnum > 0 "
-    "ORDER BY i.relname, gs"
-)
-
-_FETCH_VIEWS_SQL = (
-    "SELECT TABLE_NAME, VIEW_DEFINITION "
-    "FROM INFORMATION_SCHEMA.VIEWS "
-    "WHERE TABLE_SCHEMA = %(schema)s "
-    "ORDER BY TABLE_NAME"
-)
-
-_FETCH_VIEW_COLUMNS_SQL = (
-    "SELECT COLUMN_NAME "
-    "FROM INFORMATION_SCHEMA.COLUMNS "
-    "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_NAME = %(view_name)s "
-    "ORDER BY ORDINAL_POSITION"
+from ..sql.postgresql import (
+    fetch_columns_sql,
+    fetch_fk_sql,
+    fetch_indexes_sql,
+    fetch_pk_sql,
+    fetch_tables_sql,
+    fetch_view_columns_sql,
+    fetch_views_sql,
 )
 
 
@@ -191,7 +119,7 @@ class PostgreSQLSchemaExtractor:
 
     def extract(self, schema: str) -> list[CanonicalTable]:
         """Extrae todas las tablas (BASE TABLE) del schema PostgreSQL como IR canónico."""
-        table_rows = self._query(_FETCH_TABLES_SQL, {"schema": schema})
+        table_rows = self._query(fetch_tables_sql(), {"schema": schema})
         tables: list[CanonicalTable] = []
 
         for t_row in table_rows:
@@ -232,7 +160,7 @@ class PostgreSQLSchemaExtractor:
         El campo ``query`` de cada ``CanonicalView`` contiene VIEW_DEFINITION
         de INFORMATION_SCHEMA.VIEWS.
         """
-        rows = self._query(_FETCH_VIEWS_SQL, {"schema": schema})
+        rows = self._query(fetch_views_sql(), {"schema": schema})
         views: list[CanonicalView] = []
 
         for row in rows:
@@ -257,11 +185,11 @@ class PostgreSQLSchemaExtractor:
         return views
 
     def _extract_view_columns(self, schema: str, view_name: str) -> list[str]:
-        rows = self._query(_FETCH_VIEW_COLUMNS_SQL, {"schema": schema, "view_name": view_name})
+        rows = self._query(fetch_view_columns_sql(), {"schema": schema, "view_name": view_name})
         return [str(r[0]).strip() for r in rows if r and r[0]]
 
     def _extract_columns(self, schema: str, table: str) -> list[CanonicalColumn]:
-        rows = self._query(_FETCH_COLUMNS_SQL, {"schema": schema, "table_name": table})
+        rows = self._query(fetch_columns_sql(), {"schema": schema, "table_name": table})
         columns: list[CanonicalColumn] = []
 
         for row in rows:
@@ -291,11 +219,11 @@ class PostgreSQLSchemaExtractor:
         return columns
 
     def _extract_pk(self, schema: str, table: str) -> list[str]:
-        rows = self._query(_FETCH_PK_SQL, {"schema": schema, "table_name": table})
+        rows = self._query(fetch_pk_sql(), {"schema": schema, "table_name": table})
         return [str(r[0]).strip() for r in rows if r and r[0]]
 
     def _extract_fks(self, schema: str, table: str) -> list[CanonicalFK]:
-        rows = self._query(_FETCH_FK_SQL, {"schema": schema, "table_name": table})
+        rows = self._query(fetch_fk_sql(), {"schema": schema, "table_name": table})
 
         fk_map: dict[str, dict[str, Any]] = defaultdict(
             lambda: {
@@ -338,7 +266,7 @@ class PostgreSQLSchemaExtractor:
         return result
 
     def _extract_indexes(self, schema: str, table: str) -> list[CanonicalIndex]:
-        rows = self._query(_FETCH_INDEXES_SQL, {"schema": schema, "table_name": table})
+        rows = self._query(fetch_indexes_sql(), {"schema": schema, "table_name": table})
 
         idx_map: dict[str, dict[str, Any]] = defaultdict(
             lambda: {"name": "", "columns": [], "unique": False}

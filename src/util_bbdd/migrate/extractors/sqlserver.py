@@ -24,79 +24,14 @@ from ..ir.models import (
     CanonicalTable,
     CanonicalView,
 )
-
-# ── SQL queries INFORMATION_SCHEMA / sys.* ────────────────────────────────────
-
-_FETCH_TABLES_SQL = (
-    "SELECT TABLE_NAME "
-    "FROM INFORMATION_SCHEMA.TABLES "
-    "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_TYPE = 'BASE TABLE' "
-    "ORDER BY TABLE_NAME"
-)
-
-_FETCH_COLUMNS_SQL = (
-    "SELECT c.COLUMN_NAME, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, "
-    "c.NUMERIC_PRECISION, c.NUMERIC_SCALE, c.IS_NULLABLE, c.COLUMN_DEFAULT, "
-    "COLUMNPROPERTY(OBJECT_ID(c.TABLE_SCHEMA + '.' + c.TABLE_NAME), c.COLUMN_NAME, 'IsIdentity') AS IS_IDENTITY, "
-    "c.ORDINAL_POSITION "
-    "FROM INFORMATION_SCHEMA.COLUMNS c "
-    "WHERE c.TABLE_SCHEMA = %(schema)s AND c.TABLE_NAME = %(table_name)s "
-    "ORDER BY c.ORDINAL_POSITION"
-)
-
-_FETCH_PK_SQL = (
-    "SELECT kcu.COLUMN_NAME "
-    "FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu "
-    "JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc "
-    "  ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME "
-    "  AND tc.TABLE_SCHEMA = kcu.TABLE_SCHEMA "
-    "WHERE kcu.TABLE_SCHEMA = %(schema)s AND kcu.TABLE_NAME = %(table_name)s "
-    "  AND tc.CONSTRAINT_TYPE = 'PRIMARY KEY' "
-    "ORDER BY kcu.ORDINAL_POSITION"
-)
-
-_FETCH_FK_SQL = (
-    "SELECT kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME, "
-    "kcu2.TABLE_SCHEMA AS REF_SCHEMA, kcu2.TABLE_NAME AS REF_TABLE, "
-    "kcu2.COLUMN_NAME AS REF_COLUMN, kcu.ORDINAL_POSITION, "
-    "rc.DELETE_RULE, rc.UPDATE_RULE "
-    "FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc "
-    "JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu "
-    "  ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME "
-    "  AND kcu.TABLE_SCHEMA = rc.CONSTRAINT_SCHEMA "
-    "JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu2 "
-    "  ON kcu2.CONSTRAINT_NAME = rc.UNIQUE_CONSTRAINT_NAME "
-    "  AND kcu2.TABLE_SCHEMA = rc.UNIQUE_CONSTRAINT_SCHEMA "
-    "  AND kcu2.ORDINAL_POSITION = kcu.ORDINAL_POSITION "
-    "WHERE kcu.TABLE_SCHEMA = %(schema)s AND kcu.TABLE_NAME = %(table_name)s "
-    "ORDER BY kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION"
-)
-
-_FETCH_INDEXES_SQL = (
-    "SELECT i.name AS INDEX_NAME, c.name AS COLUMN_NAME, i.is_unique, "
-    "ic.key_ordinal AS SEQ_IN_INDEX "
-    "FROM sys.indexes i "
-    "JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id "
-    "JOIN sys.columns c ON c.object_id = i.object_id AND c.column_id = ic.column_id "
-    "JOIN sys.tables t ON t.object_id = i.object_id "
-    "JOIN sys.schemas s ON s.schema_id = t.schema_id "
-    "WHERE s.name = %(schema)s AND t.name = %(table_name)s "
-    "  AND i.is_primary_key = 0 AND i.type > 0 "
-    "ORDER BY i.name, ic.key_ordinal"
-)
-
-_FETCH_VIEWS_SQL = (
-    "SELECT TABLE_NAME, VIEW_DEFINITION "
-    "FROM INFORMATION_SCHEMA.VIEWS "
-    "WHERE TABLE_SCHEMA = %(schema)s "
-    "ORDER BY TABLE_NAME"
-)
-
-_FETCH_VIEW_COLUMNS_SQL = (
-    "SELECT COLUMN_NAME "
-    "FROM INFORMATION_SCHEMA.COLUMNS "
-    "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_NAME = %(view_name)s "
-    "ORDER BY ORDINAL_POSITION"
+from ..sql.sqlserver import (
+    fetch_columns_sql,
+    fetch_fk_sql,
+    fetch_indexes_sql,
+    fetch_pk_sql,
+    fetch_tables_sql,
+    fetch_view_columns_sql,
+    fetch_views_sql,
 )
 
 
@@ -179,7 +114,7 @@ class SQLServerSchemaExtractor:
 
     def extract(self, schema: str) -> list[CanonicalTable]:
         """Extrae todas las tablas (BASE TABLE) del schema SQL Server como IR canónico."""
-        table_rows = self._query(_FETCH_TABLES_SQL, {"schema": schema})
+        table_rows = self._query(fetch_tables_sql(), {"schema": schema})
         tables: list[CanonicalTable] = []
 
         for t_row in table_rows:
@@ -221,7 +156,7 @@ class SQLServerSchemaExtractor:
         de INFORMATION_SCHEMA.VIEWS (puede estar truncado a 4000 chars en versiones
         anteriores a SQL Server 2019 si la definición supera ese límite).
         """
-        rows = self._query(_FETCH_VIEWS_SQL, {"schema": schema})
+        rows = self._query(fetch_views_sql(), {"schema": schema})
         views: list[CanonicalView] = []
 
         for row in rows:
@@ -229,6 +164,25 @@ class SQLServerSchemaExtractor:
                 continue
             view_name = str(row[0]).strip()
             definition = str(row[1]).strip() if row[1] else ""
+
+            view_warnings: list[MigrationWarning] = []
+            # VIEW_DEFINITION en INFORMATION_SCHEMA.VIEWS está truncada a 4000 chars
+            # en SQL Server < 2019. Si coincide exactamente con ese límite, posible truncación.
+            if len(definition) == 4000:
+                view_warnings.append(
+                    MigrationWarning(
+                        table=view_name,
+                        column=None,
+                        oracle_type="VIEW_DEFINITION",
+                        target_type="(truncada)",
+                        message=(
+                            f"Vista '{view_name}': VIEW_DEFINITION tiene exactamente 4000 chars; "
+                            "posible truncación en SQL Server < 2019. "
+                            "Verificar con sys.sql_modules.definition."
+                        ),
+                        severity="WARNING",
+                    )
+                )
 
             columns = self._extract_view_columns(schema, view_name)
             views.append(
@@ -239,18 +193,18 @@ class SQLServerSchemaExtractor:
                     query=definition,
                     columns=columns,
                     comment="",
-                    warnings=[],
+                    warnings=view_warnings,
                 )
             )
 
         return views
 
     def _extract_view_columns(self, schema: str, view_name: str) -> list[str]:
-        rows = self._query(_FETCH_VIEW_COLUMNS_SQL, {"schema": schema, "view_name": view_name})
+        rows = self._query(fetch_view_columns_sql(), {"schema": schema, "view_name": view_name})
         return [str(r[0]).strip() for r in rows if r and r[0]]
 
     def _extract_columns(self, schema: str, table: str) -> list[CanonicalColumn]:
-        rows = self._query(_FETCH_COLUMNS_SQL, {"schema": schema, "table_name": table})
+        rows = self._query(fetch_columns_sql(), {"schema": schema, "table_name": table})
         columns: list[CanonicalColumn] = []
 
         for row in rows:
@@ -280,11 +234,11 @@ class SQLServerSchemaExtractor:
         return columns
 
     def _extract_pk(self, schema: str, table: str) -> list[str]:
-        rows = self._query(_FETCH_PK_SQL, {"schema": schema, "table_name": table})
+        rows = self._query(fetch_pk_sql(), {"schema": schema, "table_name": table})
         return [str(r[0]).strip() for r in rows if r and r[0]]
 
     def _extract_fks(self, schema: str, table: str) -> list[CanonicalFK]:
-        rows = self._query(_FETCH_FK_SQL, {"schema": schema, "table_name": table})
+        rows = self._query(fetch_fk_sql(), {"schema": schema, "table_name": table})
 
         fk_map: dict[str, dict[str, Any]] = defaultdict(
             lambda: {
@@ -327,11 +281,9 @@ class SQLServerSchemaExtractor:
         return result
 
     def _extract_indexes(self, schema: str, table: str) -> list[CanonicalIndex]:
-        rows = self._query(_FETCH_INDEXES_SQL, {"schema": schema, "table_name": table})
+        rows = self._query(fetch_indexes_sql(), {"schema": schema, "table_name": table})
 
-        idx_map: dict[str, dict[str, Any]] = defaultdict(
-            lambda: {"name": "", "columns": [], "unique": False}
-        )
+        idx_map: dict[str, dict[str, Any]] = defaultdict(lambda: {"name": "", "columns": [], "unique": False})
 
         for r in sorted(rows, key=lambda x: (str(x[0]), int(x[3]) if x[3] is not None else 0)):
             idx_name = str(r[0]).strip()

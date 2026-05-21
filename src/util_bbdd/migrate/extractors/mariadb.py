@@ -19,67 +19,14 @@ from ..ir.models import (
     CanonicalTable,
     CanonicalView,
 )
-
-# ── SQL queries INFORMATION_SCHEMA ────────────────────────────────────────────
-
-_FETCH_TABLES_SQL = (
-    "SELECT TABLE_NAME, TABLE_COMMENT "
-    "FROM INFORMATION_SCHEMA.TABLES "
-    "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_TYPE = 'BASE TABLE' "
-    "ORDER BY TABLE_NAME"
-)
-
-_FETCH_COLUMNS_SQL = (
-    "SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, "
-    "NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE, COLUMN_DEFAULT, "
-    "EXTRA, COLUMN_COMMENT, ORDINAL_POSITION "
-    "FROM INFORMATION_SCHEMA.COLUMNS "
-    "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_NAME = %(table_name)s "
-    "ORDER BY ORDINAL_POSITION"
-)
-
-_FETCH_PK_SQL = (
-    "SELECT COLUMN_NAME "
-    "FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE "
-    "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_NAME = %(table_name)s "
-    "AND CONSTRAINT_NAME = 'PRIMARY' "
-    "ORDER BY ORDINAL_POSITION"
-)
-
-_FETCH_FK_SQL = (
-    "SELECT kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME, "
-    "kcu.REFERENCED_TABLE_SCHEMA, kcu.REFERENCED_TABLE_NAME, "
-    "kcu.REFERENCED_COLUMN_NAME, kcu.ORDINAL_POSITION, "
-    "rc.DELETE_RULE, rc.UPDATE_RULE "
-    "FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu "
-    "JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc "
-    "  ON rc.CONSTRAINT_SCHEMA = kcu.TABLE_SCHEMA "
-    "  AND rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME "
-    "WHERE kcu.TABLE_SCHEMA = %(schema)s AND kcu.TABLE_NAME = %(table_name)s "
-    "AND kcu.REFERENCED_TABLE_NAME IS NOT NULL "
-    "ORDER BY kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION"
-)
-
-_FETCH_INDEXES_SQL = (
-    "SELECT INDEX_NAME, COLUMN_NAME, NON_UNIQUE, SEQ_IN_INDEX "
-    "FROM INFORMATION_SCHEMA.STATISTICS "
-    "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_NAME = %(table_name)s "
-    "AND INDEX_NAME <> 'PRIMARY' "
-    "ORDER BY INDEX_NAME, SEQ_IN_INDEX"
-)
-
-_FETCH_VIEWS_SQL = (
-    "SELECT TABLE_NAME, VIEW_DEFINITION "
-    "FROM INFORMATION_SCHEMA.VIEWS "
-    "WHERE TABLE_SCHEMA = %(schema)s "
-    "ORDER BY TABLE_NAME"
-)
-
-_FETCH_VIEW_COLUMNS_SQL = (
-    "SELECT COLUMN_NAME "
-    "FROM INFORMATION_SCHEMA.COLUMNS "
-    "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_NAME = %(view_name)s "
-    "ORDER BY ORDINAL_POSITION"
+from ..sql.mariadb import (
+    fetch_columns_sql,
+    fetch_fk_sql,
+    fetch_indexes_sql,
+    fetch_pk_sql,
+    fetch_tables_sql,
+    fetch_view_columns_sql,
+    fetch_views_sql,
 )
 
 
@@ -153,7 +100,7 @@ class MariaDBSchemaExtractor:
 
     def extract(self, schema: str) -> list[CanonicalTable]:
         """Extrae todas las tablas (BASE TABLE) del schema MariaDB como IR canónico."""
-        table_rows = self._query(_FETCH_TABLES_SQL, {"schema": schema})
+        table_rows = self._query(fetch_tables_sql(), {"schema": schema})
         tables: list[CanonicalTable] = []
 
         for t_row in table_rows:
@@ -195,7 +142,7 @@ class MariaDBSchemaExtractor:
         El campo ``query`` de cada ``CanonicalView`` contiene la definición
         SELECT de la vista (``VIEW_DEFINITION`` de INFORMATION_SCHEMA.VIEWS).
         """
-        rows = self._query(_FETCH_VIEWS_SQL, {"schema": schema})
+        rows = self._query(fetch_views_sql(), {"schema": schema})
         views: list[CanonicalView] = []
 
         for row in rows:
@@ -220,11 +167,11 @@ class MariaDBSchemaExtractor:
         return views
 
     def _extract_view_columns(self, schema: str, view_name: str) -> list[str]:
-        rows = self._query(_FETCH_VIEW_COLUMNS_SQL, {"schema": schema, "view_name": view_name})
+        rows = self._query(fetch_view_columns_sql(), {"schema": schema, "view_name": view_name})
         return [str(r[0]).strip() for r in rows if r and r[0]]
 
     def _extract_columns(self, schema: str, table: str) -> list[CanonicalColumn]:
-        rows = self._query(_FETCH_COLUMNS_SQL, {"schema": schema, "table_name": table})
+        rows = self._query(fetch_columns_sql(), {"schema": schema, "table_name": table})
         columns: list[CanonicalColumn] = []
 
         for row in rows:
@@ -254,11 +201,11 @@ class MariaDBSchemaExtractor:
         return columns
 
     def _extract_pk(self, schema: str, table: str) -> list[str]:
-        rows = self._query(_FETCH_PK_SQL, {"schema": schema, "table_name": table})
+        rows = self._query(fetch_pk_sql(), {"schema": schema, "table_name": table})
         return [str(r[0]).strip() for r in rows if r and r[0]]
 
     def _extract_fks(self, schema: str, table: str) -> list[CanonicalFK]:
-        rows = self._query(_FETCH_FK_SQL, {"schema": schema, "table_name": table})
+        rows = self._query(fetch_fk_sql(), {"schema": schema, "table_name": table})
 
         fk_map: dict[str, dict[str, Any]] = defaultdict(
             lambda: {
@@ -301,7 +248,7 @@ class MariaDBSchemaExtractor:
         return result
 
     def _extract_indexes(self, schema: str, table: str) -> list[CanonicalIndex]:
-        rows = self._query(_FETCH_INDEXES_SQL, {"schema": schema, "table_name": table})
+        rows = self._query(fetch_indexes_sql(), {"schema": schema, "table_name": table})
 
         idx_map: dict[str, dict[str, Any]] = defaultdict(
             lambda: {"name": "", "columns": [], "unique": False}

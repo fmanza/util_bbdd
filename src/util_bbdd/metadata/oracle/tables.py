@@ -210,6 +210,44 @@ def fetch_indexes_sql() -> str:
     )
 
 
+def fetch_views_sql() -> str:
+    """SQL query parametrizada para obtener vistas de un schema Oracle.
+
+    Parametrizado con :owner.
+    ``ALL_VIEWS.text`` es tipo LONG; cx_Oracle/python-oracledb lo devuelven
+    como ``str`` completo. Para Oracle < 12.2 el comportamiento depende de
+    la configuración del driver.
+
+    Returns:
+        str: SQL query para (view_name, text, comments)
+    """
+    return (
+        "SELECT v.view_name, v.text, c.comments "
+        "FROM all_views v "
+        "LEFT JOIN all_tab_comments c "
+        "  ON c.owner = v.owner "
+        "  AND c.table_name = v.view_name "
+        "  AND c.table_type = 'VIEW' "
+        "WHERE v.owner = :owner "
+        "ORDER BY v.view_name"
+    )
+
+
+def fetch_view_columns_sql() -> str:
+    """SQL query parametrizada para obtener columnas de una vista Oracle.
+
+    Parametrizado con :owner y :view_name.
+
+    Returns:
+        str: SQL query para column_name ordenado por column_id
+    """
+    return (
+        "SELECT column_name FROM all_tab_columns "
+        "WHERE owner = :owner AND table_name = :view_name "
+        "ORDER BY column_id"
+    )
+
+
 def fetch_routines_sql() -> str:
     """SQL query parametrizada para obtener rutinas (procedures/functions) Oracle.
 
@@ -258,6 +296,8 @@ __all__: list[str] = [
     "fetch_pk_constraint_sql",
     "fetch_fk_constraint_sql",
     "fetch_indexes_sql",
+    "fetch_views_sql",
+    "fetch_view_columns_sql",
     "fetch_routines_sql",
     "fetch_routine_parameters_sql",
 ]
