@@ -190,10 +190,11 @@ class TestSyncExecutorFetchOptions:
 
         mock_conn = MagicMock()
 
+        _call_count = [0]
+
         def _cursor_factory(*args, **kwargs):
-            if kwargs.get("binary") is True:
-                return binary_cursor
-            return text_cursor
+            _call_count[0] += 1
+            return text_cursor if _call_count[0] == 1 else binary_cursor
 
         mock_conn.cursor.side_effect = _cursor_factory
 
@@ -228,10 +229,11 @@ class TestSyncExecutorFetchOptions:
 
         mock_conn = MagicMock()
 
+        _call_count = [0]
+
         def _cursor_factory(*args, **kwargs):
-            if kwargs.get("binary") is True:
-                return binary_cursor
-            return text_cursor
+            _call_count[0] += 1
+            return text_cursor if _call_count[0] == 1 else binary_cursor
 
         mock_conn.cursor.side_effect = _cursor_factory
 
@@ -256,16 +258,17 @@ class TestSyncExecutorFetchOptions:
         text_cursor.fetchall.side_effect = SystemError(
             "<method 'fetchrows' of 'mariadb.cursor' objects> returned a result with an exception set"
         )
-        # binary cursor usa fetchone en bucle (no fetchall) para evitar fetchrows
+        # cursor de reintento usa fetchone en bucle (no fetchall) para evitar fetchrows
         binary_cursor.fetchone.side_effect = [(b"dato\xd3",), None]
 
         mock_conn = MagicMock()
         mock_conn.__class__.__module__ = "mariadb"
 
+        _call_count = [0]
+
         def _cursor_factory(*args, **kwargs):
-            if kwargs.get("binary") is True:
-                return binary_cursor
-            return text_cursor
+            _call_count[0] += 1
+            return text_cursor if _call_count[0] == 1 else binary_cursor
 
         mock_conn.cursor.side_effect = _cursor_factory
 
@@ -290,17 +293,18 @@ class TestSyncExecutorFetchOptions:
             "<method 'fetchrows' of 'mariadb.cursor' objects> returned a result with an exception set"
         )
         text_cursor.fetchall.side_effect = fetchrows_error
-        # fetchall en cursor binario también fallaría — pero con el fix no se llama
+        # fetchall en cursor de reintento también fallaría — pero con el fix no se llama
         binary_cursor.fetchall.side_effect = fetchrows_error
         binary_cursor.fetchone.side_effect = [("fila1",), ("fila2",), None]
 
         mock_conn = MagicMock()
         mock_conn.__class__.__module__ = "mariadb"
 
+        _call_count = [0]
+
         def _cursor_factory(*args, **kwargs):
-            if kwargs.get("binary") is True:
-                return binary_cursor
-            return text_cursor
+            _call_count[0] += 1
+            return text_cursor if _call_count[0] == 1 else binary_cursor
 
         mock_conn.cursor.side_effect = _cursor_factory
 
@@ -313,6 +317,49 @@ class TestSyncExecutorFetchOptions:
         assert result == [("fila1",), ("fila2",)]
         binary_cursor.fetchall.assert_not_called()
         binary_cursor.close.assert_called_once()
+
+    def test_execute_custom_mariadb_charset_binary_set_for_fetchone_fallback(self, temp_queries_file):
+        """conn.character_set='binary' se fija antes del reintento para evitar el bug C-ext en fetchone."""
+        text_cursor = MagicMock()
+        retry_cursor = MagicMock()
+
+        text_cursor.fetchall.side_effect = SystemError(
+            "<method 'fetchrows' of 'mariadb.cursor' objects> returned a result with an exception set"
+        )
+
+        mock_conn = MagicMock()
+        mock_conn.__class__.__module__ = "mariadb"
+        mock_conn.character_set = "utf8mb4"
+
+        # fetchone verifica que el charset se cambió a 'binary' antes de llamarse
+        _fetchone_calls = [0]
+
+        def _fetchone_tracks_charset():
+            _fetchone_calls[0] += 1
+            assert mock_conn.character_set == "binary", "charset debe ser 'binary' durante el fetch"
+            return (b"resultado\xd3",) if _fetchone_calls[0] == 1 else None
+
+        retry_cursor.fetchone.side_effect = _fetchone_tracks_charset
+
+        _call_count = [0]
+
+        def _cursor_factory(*args, **kwargs):
+            _call_count[0] += 1
+            return text_cursor if _call_count[0] == 1 else retry_cursor
+
+        mock_conn.cursor.side_effect = _cursor_factory
+
+        provider = MagicMock(return_value=mock_conn)
+        releaser = MagicMock()
+
+        executor = SyncQueryExecutor(provider, releaser)
+        result = executor.execute_custom_many("SELECT 1")
+
+        assert result is not None
+        assert mock_conn.character_set == "utf8mb4"  # charset restaurado tras el reintento
+        assert _fetchone_calls[0] == 2
+        retry_cursor.close.assert_called_once()
+        releaser.assert_called_once_with(mock_conn)
 
     def test_execute_query_one_mariadb_binary_cursor_preserves_unknown_bytes_as_hex(self, temp_queries_file):
         """Si el byte binario no es fiable en utf-8/cp1252, se preserva como HEX."""
@@ -329,10 +376,11 @@ class TestSyncExecutorFetchOptions:
 
         mock_conn = MagicMock()
 
+        _call_count = [0]
+
         def _cursor_factory(*args, **kwargs):
-            if kwargs.get("binary") is True:
-                return binary_cursor
-            return text_cursor
+            _call_count[0] += 1
+            return text_cursor if _call_count[0] == 1 else binary_cursor
 
         mock_conn.cursor.side_effect = _cursor_factory
 

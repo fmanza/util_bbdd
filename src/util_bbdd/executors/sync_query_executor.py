@@ -170,9 +170,18 @@ class SyncQueryExecutor:
         timeout_msg: str,
     ) -> RowOrNone | Rows:
         binary_cursor = None
+        saved_charset: str | None = None
         try:
             self._raise_if_timed_out(deadline, timeout_msg)
-            binary_cursor = conn.cursor(binary=True)
+            # binary=True uses prepared-stmt protocol but still does charset conversion;
+            # setting character_set='binary' makes the server send raw bytes instead,
+            # bypassing the C-ext conversion bug that affects both fetchrows and fetchone
+            try:
+                saved_charset = conn.character_set
+                conn.character_set = "binary"
+            except Exception:
+                pass
+            binary_cursor = conn.cursor()
 
             if params:
                 binary_cursor.execute(sql, params)
@@ -186,7 +195,6 @@ class SyncQueryExecutor:
                 decoded = self._decode_binary_value(fetched)
                 return self.result_normalizer.normalize_one(decoded)
 
-            # fetchall() calls C-level fetchrows which has the same bug; use fetchone loop
             rows: list[Any] = []
             row = binary_cursor.fetchone()
             while row is not None:
@@ -200,6 +208,11 @@ class SyncQueryExecutor:
                     binary_cursor.close()
                 except Exception:
                     self.logger.debug("No se pudo cerrar cursor binario sync", exc_info=True)
+            if saved_charset is not None:
+                try:
+                    conn.character_set = saved_charset
+                except Exception:
+                    pass
 
     def _fetch_with_decode_fallback(
         self,
