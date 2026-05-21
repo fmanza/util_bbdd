@@ -1617,10 +1617,15 @@ class TestBuildShortLabel:
         label = SchemaComparator._build_short_label(inspector, None)
         assert "pass" not in label
 
-    def test_host_abbreviated_to_first_segment(self) -> None:
+    def test_hostname_used_as_is(self) -> None:
         inspector = _make_mock_inspector(bind_url="postgresql://user:pass@server.company.internal/db")
         label = SchemaComparator._build_short_label(inspector, None)
-        assert label.startswith("pg_server_")
+        assert label == "pg_server.company.internal_db"
+
+    def test_ip_host_uses_last_octet(self) -> None:
+        inspector = _make_mock_inspector(bind_url="postgresql://user:pass@192.168.1.10/db")
+        label = SchemaComparator._build_short_label(inspector, None)
+        assert label == "pg_10_db"
 
     def test_no_engine_returns_schema_fallback(self) -> None:
         inspector = _make_mock_inspector(bind_url="sqlite://")

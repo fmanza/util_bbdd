@@ -741,7 +741,9 @@ class SchemaComparator:
 
         dialect = (url_obj.drivername or "").split("+")[0].lower()
         dialect_short = SchemaComparator._DIALECT_ABBREV.get(dialect, dialect[:6] if dialect else "db")
-        host_short = (url_obj.host or "").split(".")[0]
+        host = url_obj.host or ""
+        # IP → último octeto (parte más específica); nombre DNS → tal cual
+        host_short = host.rsplit(".", 1)[-1] if re.match(r"^\d+(\.\d+){3}$", host) else host
         database = url_obj.database or ""
         username = url_obj.username or ""
 
