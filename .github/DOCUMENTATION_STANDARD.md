@@ -236,58 +236,68 @@ nav:
 
 ### 4.2 Navegación de util_bbdd (Implementación Actual)
 
-Mapeo concreto del proyecto sobre la estructura anterior:
+Mapeo concreto del proyecto sobre la estructura anterior.
+La fuente canónica de la navegación es siempre `mkdocs.yml`; este bloque refleja
+los grupos principales como referencia rápida:
 
 ```yaml
 nav:
   - Inicio: index.md
+  - Instalación: INSTALLATION.md
 
-  - Guías:
-      - Copiar y Generar Proyectos: DUPLICATE_PROJECT_GUIDE.md
-      - Próximos Pasos: NEXT_STEPS.md
-      - Inicio Rápido: README_DUPLICADOR.md
-      - Arquitectura Visual: ARCHITECTURE_VISUAL.md
+  - Documentación Funcional:
+      - Managers:
+          - Gestión de Conexiones (Sync): functional/managers-sync.md
+          - Ciclo de vida de sesión sincrónica: functional/managers-sync-session-lifecycle.md
+          - Gestión de Conexiones (Async): functional/managers-async.md
+      - Metadatos e Introspección:
+          - Extracción de Metadatos: functional/metadata-extraction.md
+          - Selección de Driver: functional/drivers-selection.md
+      - Operaciones de Datos:
+          - Operaciones Bulk (CRUD): functional/bulk-operations.md
+          - Auditoría de Operaciones Bulk: functional/bulk-audit.md
+      - Queries y Validación:
+          - Registro de Queries: functional/query-registry.md
+          - Ejecución de Consultas: functional/query-execution.md
+          - Patrón de Validadores: functional/validators-pattern.md
+      - Comparación de Esquemas:
+          - Comparador de Esquemas: functional/schema-comparison.md
+      - Migración de Esquemas:
+          - Migración Oracle (origen): functional/migrate-oracle-mariadb.md
+          - Migración MariaDB (origen): functional/migrate-mariadb-source.md
+          - Migración SQL Server (origen): functional/migrate-sqlserver-source.md
+          - Migración PostgreSQL (origen): functional/migrate-postgresql-source.md
+      - Análisis de Relaciones:
+          - Visualización de Grafos: functional/graph-analysis.md
+      - Documentación de BD:
+          - Generación de Documentación: functional/database-documentation.md
 
-  - Funcional:
-      - Contratos Base: functional/base.md
-      - Sistema de Archivos: functional/file-system.md
-      - Generadores: functional/generators.md
-      - Personalización: functional/personalization.md
-      - Orquestador: functional/project-manager.md
-      - CLI Copiar: functional/cli-copy.md
-      - CLI Generar: functional/cli-scaffold.md
-      - CLI Wizard: functional/cli-wizard.md
-      - Web API: functional/web-api.md
+  - Referencia Técnica:
+      - Managers: api/managers-sync.md  # y otros bajo api/managers-*.md
+      - Metadatos: api/metadata-manager.md
+      - Conexiones: api/connection-factory.md
+      - Bulk: api/bulk-crud.md
+      - Queries: api/query-system.md
+      - Migración: api/migrate-oracle-mariadb.md  # y otros bajo api/migrate-*.md
+      - Análisis: api/analysis.md
+      - Documentación BD: api/database-documentation.md
+      - Excepciones: api/exceptions.md
 
   - Ejemplos:
-      - Inicio: examples/README.md
-      - API y CLI:
-          - API - Duplicar: examples/example_duplicate_api.md
-          - API - Generar: examples/example_generate_api.md
-          - Web API REST: examples/example_web_api.md
-          - CLI: examples/example_cli_usage.md
-      - Herramientas de IA:
-          - Primeros pasos con IA: examples/ai_primer_pasos_proyecto_nuevo.md
-          - Claude Code: examples/claude_code_usage_complete_example.md
-          - Copilot Chat: examples/github_usage_complete_example.md
-          - Codex: examples/codex_usage_complete_example.md
+      - Conectar e Introspeccionar: examples/example-connect-introspect.md
+      - Bulk Insert desde CSV: examples/bulk_insert_csv.md
+      - Comparación de Esquemas: examples/schema_comparison.md
+      - Migración Oracle (origen): examples/migrate-oracle-mariadb.md
+      - Migración MariaDB (origen): examples/migrate-mariadb-source.md
+      # ... resto de ejemplos en mkdocs.yml
 
-  - API & Referencias:
-      - Técnica:
-          - Contratos Base: api/base.md
-          - Sistema de Archivos: api/file-system.md
-          - Generadores: api/generators.md
-          - Personalización: api/personalization.md
-          - Orquestador: api/project-manager.md
-          - CLI Copiar: api/cli-copy.md
-          - CLI Generar: api/cli-scaffold.md
-          - CLI Wizard: api/cli-wizard.md
-          - Web API: api/web.md
-      - Web API REST: WEB_API.md
-      - Compatibilidad: COMPATIBILITY.md
-      - PowerShell: POWERSHELL_CHEATSHEET.md
+  - Guías:
+      - Programación Asíncrona: ASYNC_GUIDE.md
+      - Drivers PostgreSQL: POSTGRESQL_DRIVER_GUIDE.md
+      - Excepciones: EXCEPTIONS.md
       - Troubleshooting: TROUBLESHOOTING.md
-      - Changelog: CHANGELOG.md
+      - Herramientas IA: examples/doc_generation_vscode_guide.md
+      # ... resto en mkdocs.yml
 ```
 
 ---

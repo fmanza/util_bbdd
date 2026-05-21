@@ -1,5 +1,5 @@
 site_name: util_bbdd
-site_description: "Librería Python para operaciones con múltiples motores de BD (sync/async): CRUD en lote, comparación de esquemas, documentación automática — MariaDB, Oracle, PostgreSQL, SQLite, SQL Server, HSQLDB"
+site_description: "Librería Python para operaciones con múltiples motores de BD (sync/async): CRUD en lote, migración DDL, comparación de esquemas, documentación automática — MariaDB, MySQL, Oracle, PostgreSQL, Redshift, Snowflake, SQLite, SQL Server, HSQLDB"
 site_author: Paco Manzano
 site_url: https://fmanza.github.io/util_bbdd/
 repo_url: https://github.com/fmanza/util_bbdd
@@ -53,9 +53,10 @@ nav:
       - Comparación de Esquemas:
           - Comparador de Esquemas: functional/schema-comparison.md
       - Migración de Esquemas:
-          - Migración Oracle → MariaDB: functional/migrate-oracle-mariadb.md
-          - Migración SQL Server → Oracle/MariaDB/PostgreSQL: functional/migrate-sqlserver-source.md
-          - Migración PostgreSQL → Oracle/MariaDB/SQL Server: functional/migrate-postgresql-source.md
+          - Migración Oracle (origen): functional/migrate-oracle-mariadb.md
+          - Migración MariaDB (origen): functional/migrate-mariadb-source.md
+          - Migración SQL Server (origen): functional/migrate-sqlserver-source.md
+          - Migración PostgreSQL (origen): functional/migrate-postgresql-source.md
       - Análisis de Relaciones:
           - Visualización de Grafos: functional/graph-analysis.md
       - Documentación de BD:
@@ -84,9 +85,10 @@ nav:
       - Comparación de Esquemas:
           - Comparador y Reporters: api/schema-comparator.md
       - Migración de Esquemas:
-          - Migración Oracle → MariaDB: api/migrate-oracle-mariadb.md
-          - API SQL Server → Oracle/MariaDB/PostgreSQL: api/migrate-sqlserver-source.md
-          - API PostgreSQL → Oracle/MariaDB/SQL Server: api/migrate-postgresql-source.md
+          - API Oracle (origen): api/migrate-oracle-mariadb.md
+          - API MariaDB (origen): api/migrate-mariadb-source.md
+          - API SQL Server (origen): api/migrate-sqlserver-source.md
+          - API PostgreSQL (origen): api/migrate-postgresql-source.md
       - Análisis de Relaciones:
           - Grafos de Relaciones: api/analysis.md
       - Documentación de BD:
@@ -126,7 +128,8 @@ nav:
       - Bulk Insert desde CSV: examples/bulk_insert_csv.md
       - Manejo de Excepciones: examples/exception_handling.md
       - Generación de Grafos: examples/graph_generation.md
-      - Migración Oracle → MariaDB: examples/migrate-oracle-mariadb.md
+      - Migración Oracle (origen): examples/migrate-oracle-mariadb.md
+      - Migración MariaDB (origen): examples/migrate-mariadb-source.md
       - Ejecución de Consultas: examples/query_execution_example.md
 
   # ── Contexto del proyecto ──────────────────────────────────────────────────

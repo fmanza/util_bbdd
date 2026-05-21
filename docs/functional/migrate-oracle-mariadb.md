@@ -1,15 +1,31 @@
+# Migración Oracle como origen
+
 ## Objetivo de negocio
 
-Genera automáticamente el script SQL de creación de estructura (DDL) de un schema Oracle completo, listo para ejecutarse en MariaDB. Cubre tablas, columnas, claves primarias, claves foráneas, índices y tipos de datos, adaptando cada elemento a las reglas del motor destino sin modificar la base de datos origen ni la de destino hasta que el usuario lo autorice.
+Genera automáticamente el script SQL de creación de estructura (DDL) de un schema Oracle completo,
+listo para ejecutarse en **MariaDB**, **SQL Server** o **PostgreSQL**. Cubre tablas, columnas,
+claves primarias, claves foráneas, índices, vistas y tipos de datos, adaptando cada elemento a
+las reglas del motor destino sin modificar la base de datos origen ni la de destino hasta que el
+usuario lo autorice.
 
-Responde a la pregunta "¿cómo paso mi estructura Oracle a MariaDB sin reescribir el DDL a mano?" de forma reproducible y auditada: cada decisión de conversión queda registrada como aviso con nivel de severidad.
+Responde a la pregunta "¿cómo paso mi estructura Oracle a otro motor sin reescribir el DDL a mano?"
+de forma reproducible y auditada: cada decisión de conversión queda registrada como aviso con
+nivel de severidad.
 
 ## Precondiciones
 
-- Conexión activa al servidor Oracle con permisos de lectura sobre `ALL_TABLES`, `ALL_TAB_COLUMNS`, `ALL_CONSTRAINTS` y `ALL_INDEXES` del schema a migrar
+- Conexión activa al servidor Oracle con permisos de lectura sobre `ALL_TABLES`, `ALL_TAB_COLUMNS`,
+  `ALL_CONSTRAINTS`, `ALL_INDEXES` y `ALL_VIEWS` del schema a migrar
 - Identificar el nombre del schema/owner Oracle que se va a migrar
-- Decidir el charset y collation de destino (por defecto `utf8mb4` / `utf8mb4_unicode_ci`; se incluyen variantes en español como `utf8mb4_spanish2_ci`)
-- Opcional: conexión activa al servidor MariaDB destino si se desea ejecución directa en lugar de exportar el script
+- Decidir el motor destino y sus parámetros específicos:
+
+| Motor destino | Parámetro adicional | Valor por defecto |
+|---|---|---|
+| MariaDB | `charset` / `collation` | `utf8mb4` / `utf8mb4_unicode_ci` |
+| SQL Server | `sql_server_collation` | Sin cláusula COLLATE explícita |
+| PostgreSQL | `pg_schema` | Sin `SET search_path` |
+
+- Opcional: conexión activa al servidor destino si se desea ejecución directa en lugar de exportar el script
 
 ## Flujo principal del usuario
 
@@ -21,19 +37,20 @@ sequenceDiagram
     participant Tra as Transformador
     participant Emi as Generador DDL
 
+    Dev->>Plan: MigrationPlanner(source_engine="oracle", target_engine=destino)
     Dev->>Plan: plan(conexión Oracle, nombre schema)
-    Plan->>Ext: Extraer tablas, columnas, PKs, FKs, índices
-    Ext-->>Plan: Modelo intermedio con estructura Oracle
-    Plan->>Tra: Mapear tipos Oracle a MariaDB
+    Plan->>Ext: Extraer tablas, columnas, PKs, FKs, índices, vistas
+    Ext-->>Plan: Modelo intermedio canónico
+    Plan->>Tra: Mapear tipos Oracle al dialecto destino
     Tra-->>Plan: Estructura transformada y lista de avisos
     Plan->>Emi: Generar script DDL ordenado por dependencias
     Emi-->>Plan: Plan de migración listo
 
     alt Exportar como fichero SQL
-        Dev->>Plan: emit_ddl()
-        Plan-->>Dev: Script SQL completo con punto y coma
-    else Ejecutar directamente en MariaDB
-        Dev->>Plan: execute(conexión MariaDB)
+        Dev->>Plan: plan.emit_ddl()
+        Plan-->>Dev: Script SQL completo
+    else Ejecutar directamente en destino
+        Dev->>Plan: plan.execute(conexión destino)
         Plan-->>Dev: DDL aplicado sentencia a sentencia
     end
 ```
@@ -42,49 +59,76 @@ sequenceDiagram
 
 | Regla | Descripción | Impacto si se viola |
 |---|---|---|
-| Nombres preservados por defecto | Tablas, columnas, índices y FKs conservan el nombre original de Oracle | Solo se truncan si superan 64 caracteres; no se normalizan a minúsculas |
-| Truncado determinista de identificadores | Nombres > 64 chars se recortan a 59 + sufijo hash de 4 chars basado en el nombre completo | El sufijo garantiza unicidad; el aviso queda en el plan de migración |
-| `NUMBER` sin precisión → tipo configurable | `NUMBER` Oracle sin precisión explícita se mapea por defecto a `DOUBLE` | Posible pérdida de exactitud numérica; configurable a `DECIMAL(38,10)` o `DECIMAL(18,4)` |
-| `NUMBER(p, 0)` → entero según rango | `NUMBER` con escala 0 se mapea a `TINYINT`, `SMALLINT`, `INT` o `BIGINT` según la precisión | Uso óptimo de espacio; sin pérdida de rango para precisiones hasta 18 |
-| Secuencias Oracle → `AUTO_INCREMENT` | Columnas con DEFAULT `SECUENCIA.NEXTVAL` pasan a `AUTO_INCREMENT` y la secuencia no se migra | El campo debe ser clave primaria en MariaDB; se añade como PK automáticamente si no lo era |
-| PK entera sin secuencia → `AUTO_INCREMENT` | Cualquier columna PK única de tipo entero (sin NEXTVAL) se marca automáticamente como `AUTO_INCREMENT` | Comportamiento equivalente al convenio MariaDB para PKs enteras; no requiere secuencia Oracle explícita |
-| `NUMBER(p, 0)` con precisión > 18 → `DECIMAL` | `NUMBER` con escala 0 y precisión superior a 18 se mapea a `DECIMAL(p, 0)` en lugar de un tipo entero | Cubre rangos que superan `BIGINT` (18 dígitos); sin pérdida de rango pero sin optimización de almacenamiento |
-| `ROWID` y `UROWID` omitidos | Estas columnas no tienen equivalente en MariaDB y se excluyen del DDL | El DDL incluye un comentario SQL explicativo en su lugar |
+| Nombres preservados por defecto | Tablas, columnas, índices y FKs conservan el nombre original Oracle | Solo se truncan si superan el límite del motor destino; no se normalizan a minúsculas |
+| Truncado determinista de identificadores | Nombres demasiado largos se recortan + sufijo hash de 4 chars; límites: MariaDB 64, SQL Server 128, PostgreSQL 63 | El sufijo garantiza unicidad; cada truncado queda en el plan como aviso |
+| `NUMBER` sin precisión → tipo configurable | `NUMBER` Oracle sin precisión explícita se mapea por defecto: `DOUBLE` (MariaDB), `FLOAT` (SQL Server), `DOUBLE PRECISION` (PostgreSQL) | Posible pérdida de exactitud numérica; configurable mediante `number_fallback` |
+| `NUMBER(p, 0)` → entero según rango | `NUMBER` con escala 0 se mapea a `TINYINT/SMALLINT/INT/BIGINT` o equivalente según la precisión y el motor destino | Uso óptimo de espacio; sin pérdida de rango para precisiones hasta 18 |
+| Secuencias Oracle → autoincremento | Columnas con DEFAULT `SECUENCIA.NEXTVAL` pasan a `AUTO_INCREMENT` (MariaDB), `IDENTITY(1,1)` (SQL Server) o `SERIAL/BIGSERIAL` (PostgreSQL) | La secuencia no se migra como objeto independiente |
+| `ROWID` y `UROWID` omitidos | Estas columnas no tienen equivalente en los motores destino y se excluyen del DDL | El DDL incluye un comentario SQL explicativo en su lugar |
 | FKs que referencian tablas externas omitidas | Claves foráneas fuera del schema migrado se excluyen del script generado | Aviso registrado; el desarrollador debe gestionar esas referencias manualmente post-migración |
 | FKs circulares al final del script | Las dependencias circulares entre tablas se emiten como `ALTER TABLE ADD CONSTRAINT` al final | El script completo es ejecutable en orden sin necesidad de desactivar comprobaciones de FK |
-| Charset siempre explícito | Todas las tablas y columnas de texto incluyen `CHARACTER SET utf8mb4` | Sin charset explícito MariaDB aplica el charset del servidor, que puede diferir |
 
-## Ejemplo de funcionamiento
+## Ejemplos de funcionamiento
 
-```python
-from util_bbdd import MigrationPlanner
-from util_bbdd.migrate import format_plan_text
+=== "Oracle → MariaDB"
 
-planner = MigrationPlanner(
-    charset="utf8mb4",
-    collation="utf8mb4_spanish2_ci",   # español moderno
-    number_fallback="DOUBLE",
-)
+    ```python
+    from util_bbdd import MigrationPlanner
+    from util_bbdd.migrate import format_plan_text
 
-plan = planner.plan(connection=oracle_manager, schema="HR")
+    planner = MigrationPlanner(
+        source_engine="oracle",
+        target_engine="mariadb",
+        charset="utf8mb4",
+        collation="utf8mb4_spanish2_ci",
+        number_fallback="DOUBLE",
+    )
 
-# Revisar avisos antes de aplicar
-print(format_plan_text(plan))
+    plan = planner.plan(connection=oracle_manager, schema="HR")
+    print(format_plan_text(plan))
 
-# Exportar el script SQL a disco
-with open("hr_schema_mariadb.sql", "w", encoding="utf-8") as f:
-    f.write(plan.emit_ddl())
+    with open("hr_schema_mariadb.sql", "w", encoding="utf-8") as f:
+        f.write(plan.emit_ddl())
+    ```
 
-# Aplicar directamente en MariaDB (opcional)
-plan.execute(target_connection=mariadb_manager)
-```
+=== "Oracle → SQL Server"
 
-El fichero `hr_schema_mariadb.sql` contiene sentencias `CREATE TABLE`, `CREATE INDEX` y, si hay dependencias circulares, `ALTER TABLE ADD CONSTRAINT`, todas terminadas en `;` y separadas por líneas en blanco.
+    ```python
+    from util_bbdd import MigrationPlanner
+
+    planner = MigrationPlanner(
+        source_engine="oracle",
+        target_engine="sqlserver",
+        sql_server_collation="SQL_Latin1_General_CP1_CI_AS",  # opcional
+    )
+
+    plan = planner.plan(connection=oracle_manager, schema="HR")
+
+    with open("hr_schema_sqlserver.sql", "w", encoding="utf-8") as f:
+        f.write(plan.emit_ddl())
+    ```
+
+=== "Oracle → PostgreSQL"
+
+    ```python
+    from util_bbdd import MigrationPlanner
+
+    planner = MigrationPlanner(
+        source_engine="oracle",
+        target_engine="postgresql",
+        pg_schema="hr",  # opcional; emite SET search_path = hr;
+    )
+
+    plan = planner.plan(connection=oracle_manager, schema="HR")
+
+    with open("hr_schema_postgresql.sql", "w", encoding="utf-8") as f:
+        f.write(plan.emit_ddl())
+    ```
 
 ## Límites y exclusiones
 
-- Solo soporta Oracle como origen y MariaDB como destino en la versión actual
+- Solo soporta Oracle como motor origen (destinos: MariaDB, SQL Server, PostgreSQL)
 - No migra filas de datos, solo la estructura (DDL)
 - No migra triggers, stored procedures, funciones ni paquetes PL/SQL
-- No migra secuencias Oracle como objetos independientes (se incorporan como `AUTO_INCREMENT`)
+- No migra secuencias Oracle como objetos independientes (se incorporan como autoincremento)
 - No modifica ni consulta la base de datos Oracle de forma destructiva en ningún caso
