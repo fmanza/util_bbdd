@@ -266,6 +266,59 @@ git blame src/archivo.py | grep "linea_que_cambió"
 
 ---
 
+## Escenario 6: CI falla — `AttributeError: module does not have attribute X` en tests con `patch()`
+
+**Síntoma:**
+- CI falla en todas las plataformas (idéntico error):
+  ```
+  AttributeError: <module 'util_bbdd.migrate.extractors.X'> does not have the attribute 'func_name'
+  ```
+- El test hace `with patch("util_bbdd.migrate.extractors.X.func_name", ...)`
+- La suite local pasa (o el archivo local fue reescrito y no commiteado)
+
+**Causa raíz típica:**
+- Un hotfix refactorizó el extractor y eliminó funciones de módulo (`fetch_X_sync`, etc.)
+- Los tests seguían parcheando las rutas antiguas
+- El archivo de test fue corregido localmente pero **no commiteado** antes del push
+
+**Diagnóstico:**
+```bash
+# Comparar test local vs commiteado
+git diff HEAD -- tests/path/test_X.py | head -60
+
+# Ver qué función parcheaba el test
+grep "_PATH\|patch(" tests/path/test_X.py
+
+# Verificar que la función existe en el módulo
+grep "def fetch_X_sync" src/util_bbdd/migrate/extractors/X.py
+```
+
+**Solución:**
+
+1. **Reescribir el test para mockear el manager, no las funciones de módulo**:
+   - Extractor actual usa `self._query()` → `manager.execute_custom_many(sql, params)`
+   - Pattern correcto:
+     ```python
+     manager = MagicMock()
+     manager.execute_custom_many.side_effect = [iter(rows1), iter(rows2), ...]
+     ext = XSchemaExtractor(manager)
+     result = ext.extract_routines("schema")
+     ```
+
+2. **Añadir y commitear ANTES de push**:
+   ```bash
+   git add tests/path/test_X.py
+   git commit -m "fix(tests): reescribir test_X con manager mock"
+   git push
+   ```
+
+**Prevención:**
+- Cuando un hotfix cambia la interfaz interna de un extractor, actualizar los tests en el mismo commit
+- Antes de push, verificar `git status -s` para que no queden archivos de test modificados sin commitear
+- Usar `manager.execute_custom_many.side_effect` (patrón establecido) en lugar de `patch()` sobre funciones de módulo
+
+---
+
 ## Matriz de Resolución Rápida
 
 | Síntoma | Link a Escenario | Fix Time | Severity |
@@ -275,6 +328,7 @@ git blame src/archivo.py | grep "linea_que_cambió"
 | Tests fallan post-IMPLEMENT | Escenario 3 | 15-60 min | 🔴 P1 |
 | LoC warning (archivo pequeño) | Escenario 4 | 2-5 min | 🟢 P3 |
 | Cambios desaparecidos | Escenario 5 | 30-120 min | 🔴 P1 |
+| CI: `AttributeError` en `patch()` de función removida | Escenario 6 | 5-15 min | 🔴 P1 |
 
 ---
 
@@ -294,3 +348,4 @@ Si encuentras escenario NOT cubierto aquí, abre issue en repo o actualiza direc
 | Versión | Fecha | Escenarios |
 |---------|-------|-----------|
 | v0.6.7 | 10 abr 2026 | 5 scenarios + matriz resolución |
+| v0.9.0 | 22 may 2026 | +Escenario 6: CI AttributeError patch módulo (tests extractor sqlserver) |
