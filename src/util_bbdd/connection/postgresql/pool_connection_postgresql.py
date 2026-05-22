@@ -1,6 +1,7 @@
 """Pool de conexiones para PostgreSQL (psycopg 3)."""
 
 import logging
+import sys
 
 from typing import TYPE_CHECKING
 
@@ -174,6 +175,11 @@ class PoolConnection:
         pool_ref = self.pool
 
         def _close_with_optional_timeout(close_timeout: float | None) -> None:
+            # Durante la finalización del intérprete, psycopg_pool.close() intenta
+            # unirse a sus threads internos y lanza PythonFinalizationError.
+            # Python está terminando; el OS liberará los recursos.
+            if sys.is_finalizing():
+                return
             close_method = pool_ref.close
             if close_timeout is None:
                 close_method()

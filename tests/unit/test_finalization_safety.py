@@ -132,3 +132,57 @@ class TestFinalizationSafety:
                     action_name="slow_close",
                     db_type="test",
                 )
+
+
+class TestPostgresqlPoolFinalizationSafety:
+    """Tests for PythonFinalizationError prevention in PoolConnection.close()."""
+
+    def test_pool_close_skips_psycopg_close_during_finalization(self) -> None:
+        """pool.close() must not call pool_ref.close() during interpreter shutdown."""
+        import logging
+
+        from util_bbdd.connection.postgresql.pool_connection_postgresql import PoolConnection
+
+        close_called = False
+
+        class _TrackingPool:
+            def close(self, **kwargs: object) -> None:
+                nonlocal close_called
+                close_called = True
+
+        pool = object.__new__(PoolConnection)
+        pool.logger = logging.getLogger(__name__)
+        pool._closed = False
+        pool._close_timeout_seconds = 10.0
+        pool.pool = _TrackingPool()
+
+        with mock.patch("sys.is_finalizing", return_value=True):
+            pool.close(timeout_seconds=10.0, force=False)
+
+        assert close_called is False, "pool_ref.close() should NOT be called during finalization"
+        assert pool.pool is None
+
+    def test_pool_close_calls_psycopg_close_in_normal_mode(self) -> None:
+        """pool.close() must call pool_ref.close() when not finalizing (regression)."""
+        import logging
+
+        from util_bbdd.connection.postgresql.pool_connection_postgresql import PoolConnection
+
+        close_called = False
+
+        class _TrackingPool:
+            def close(self, timeout: float | None = None) -> None:
+                nonlocal close_called
+                close_called = True
+
+        pool = object.__new__(PoolConnection)
+        pool.logger = logging.getLogger(__name__)
+        pool._closed = False
+        pool._close_timeout_seconds = None
+        pool.pool = _TrackingPool()
+
+        with mock.patch("sys.is_finalizing", return_value=False):
+            pool.close(timeout_seconds=None, force=False)
+
+        assert close_called is True, "pool_ref.close() MUST be called during normal shutdown"
+        assert pool.pool is None
