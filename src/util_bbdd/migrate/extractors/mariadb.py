@@ -12,14 +12,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-from ..ir.models import (
-    CanonicalColumn,
-    CanonicalFK,
-    CanonicalIndex,
-    CanonicalTable,
-    CanonicalView,
-)
-from ..sql.mariadb import (
+from ...metadata.mariadb.tables import (
     fetch_columns_sql,
     fetch_fk_sql,
     fetch_indexes_sql,
@@ -27,6 +20,13 @@ from ..sql.mariadb import (
     fetch_tables_sql,
     fetch_view_columns_sql,
     fetch_views_sql,
+)
+from ..ir.models import (
+    CanonicalColumn,
+    CanonicalFK,
+    CanonicalIndex,
+    CanonicalTable,
+    CanonicalView,
 )
 
 
@@ -250,9 +250,7 @@ class MariaDBSchemaExtractor:
     def _extract_indexes(self, schema: str, table: str) -> list[CanonicalIndex]:
         rows = self._query(fetch_indexes_sql(), {"schema": schema, "table_name": table})
 
-        idx_map: dict[str, dict[str, Any]] = defaultdict(
-            lambda: {"name": "", "columns": [], "unique": False}
-        )
+        idx_map: dict[str, dict[str, Any]] = defaultdict(lambda: {"name": "", "columns": [], "unique": False})
 
         for r in sorted(rows, key=lambda x: (str(x[0]), int(x[3]) if x[3] is not None else 0)):
             idx_name = str(r[0]).strip()

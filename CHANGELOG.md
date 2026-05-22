@@ -261,6 +261,47 @@ Código que construye `MigrationPlan` sin el campo sigue funcionando sin cambios
 
 **76 tests nuevos** (411 total en el módulo migrate). ruff limpio, mypy 0 errores.
 
+### Changed
+
+#### metadata: centralización del SQL de introspección (punto canónico único)
+
+Los módulos `metadata/*/tables.py` son ahora el **único punto canónico** para todas
+las queries SQL de introspección de esquema usadas en el pipeline de migración.
+Objetivo: eliminar duplicación entre `migrate/sql/` y `metadata/`, y facilitar
+el mantenimiento a largo plazo (un solo lugar para cambiar una query).
+
+**Cambios en `metadata/`:**
+
+- `metadata/mariadb/tables.py` — Añadidas 7 funciones `fetch_*_sql()` con las queries
+  de extracción de esquema MariaDB: `fetch_tables_sql`, `fetch_columns_sql`,
+  `fetch_pk_sql`, `fetch_fk_sql`, `fetch_indexes_sql`, `fetch_views_sql`,
+  `fetch_view_columns_sql`.
+
+- `metadata/sqlserver/tables.py` — Añadidas 7 funciones `fetch_*_sql()` equivalentes
+  para SQL Server (con soporte `COLUMNPROPERTY` para detección de IDENTITY y
+  `sys.indexes` para índices no-PK).
+
+- `metadata/postgresql/tables.py` — Añadidas 4 funciones sin conflicto de nombre
+  (`fetch_pk_sql`, `fetch_fk_sql`, `fetch_views_sql`, `fetch_view_columns_sql`) y
+  3 aliases con sufijo `_for_extract` para las funciones con nombre solapado respecto
+  a las existentes de display: `fetch_tables_for_extract_sql`,
+  `fetch_columns_for_extract_sql`, `fetch_indexes_for_extract_sql` (Opción P-A).
+
+**Cambios en `migrate/`:**
+
+- `migrate/sql/mariadb.py`, `migrate/sql/sqlserver.py`, `migrate/sql/postgresql.py` —
+  Convertidos a **re-exportadores de compatibilidad**: re-exportan las funciones desde
+  `metadata/*/tables.py`. La API pública de `migrate.sql.*` es idéntica; código
+  externo que importe desde esa ruta sigue funcionando sin cambios.
+
+- `migrate/extractors/mariadb.py`, `migrate/extractors/sqlserver.py`,
+  `migrate/extractors/postgresql.py` — Imports redirigidos directamente a
+  `metadata/*/tables.py` (mismo patrón que `migrate/extractors/oracle.py`, que
+  ya era la referencia canónica).
+
+**Compatibilidad hacia atrás:** total. `migrate.sql.*` mantiene la misma API pública
+vía re-exportación. Ningún cambio de comportamiento; 3202 tests pasan sin modificación.
+
 ### Fixed
 
 #### migrate: ordenación topológica de vistas

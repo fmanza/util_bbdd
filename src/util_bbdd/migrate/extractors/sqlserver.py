@@ -17,15 +17,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-from ..ir.models import (
-    CanonicalColumn,
-    CanonicalFK,
-    CanonicalIndex,
-    CanonicalTable,
-    CanonicalView,
-    MigrationWarning,
-)
-from ..sql.sqlserver import (
+from ...metadata.sqlserver.tables import (
     fetch_columns_sql,
     fetch_fk_sql,
     fetch_indexes_sql,
@@ -33,6 +25,14 @@ from ..sql.sqlserver import (
     fetch_tables_sql,
     fetch_view_columns_sql,
     fetch_views_sql,
+)
+from ..ir.models import (
+    CanonicalColumn,
+    CanonicalFK,
+    CanonicalIndex,
+    CanonicalTable,
+    CanonicalView,
+    MigrationWarning,
 )
 
 
