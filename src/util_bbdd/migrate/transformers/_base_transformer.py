@@ -18,6 +18,7 @@ from ..ir.models import (
     CanonicalColumn,
     CanonicalFK,
     CanonicalIndex,
+    CanonicalRoutine,
     CanonicalTable,
     CanonicalView,
     MigrationWarning,
@@ -37,6 +38,40 @@ class BaseTransformer:
     def transform_views(self, views: list[CanonicalView]) -> list[CanonicalView]:
         """Transforma vistas con pass-through v1 (sin reescritura SQL)."""
         return [self._transform_view(v) for v in views]
+
+    def transform_routines(self, routines: list[CanonicalRoutine]) -> list[CanonicalRoutine]:
+        """Transforma rutinas con pass-through v1 (sin reescritura de body)."""
+        return [self._transform_routine(r) for r in routines]
+
+    def _transform_routine(self, routine: CanonicalRoutine) -> CanonicalRoutine:
+        result = deepcopy(routine)
+        adapted_name, id_warn = check_identifier(routine.name, self.MAX_IDENTIFIER_LENGTH)
+        if id_warn:
+            result.name = adapted_name
+            result.warnings.append(
+                MigrationWarning(
+                    table=routine.name,
+                    column=None,
+                    oracle_type="IDENTIFIER",
+                    target_type=adapted_name,
+                    message=id_warn,
+                    severity="WARNING",
+                )
+            )
+        result.warnings.append(
+            MigrationWarning(
+                table=routine.name,
+                column=None,
+                oracle_type=routine.routine_type,
+                target_type=routine.routine_type,
+                message=(
+                    f"Rutina emitida sin reescritura de SQL dialect-específico (v1 pass-through); "
+                    f"revisar manualmente el body para compatibilidad {self._TARGET_DIALECT}"
+                ),
+                severity="WARNING",
+            )
+        )
+        return result
 
     def _transform_view(self, view: CanonicalView) -> CanonicalView:
         result = deepcopy(view)
@@ -99,9 +134,7 @@ class BaseTransformer:
     def _transform_column(self, table_name: str, col: CanonicalColumn) -> CanonicalColumn:
         raise NotImplementedError(f"{type(self).__name__} debe implementar _transform_column")
 
-    def _adapt_identifiers(
-        self, table_name: str, names: list[str], target_table: CanonicalTable
-    ) -> list[str]:
+    def _adapt_identifiers(self, table_name: str, names: list[str], target_table: CanonicalTable) -> list[str]:
         adapted: list[str] = []
         for name in names:
             new_name, warn = check_identifier(name, self.MAX_IDENTIFIER_LENGTH)
@@ -119,9 +152,7 @@ class BaseTransformer:
             adapted.append(new_name)
         return adapted
 
-    def _transform_index(
-        self, table_name: str, idx: CanonicalIndex, target_table: CanonicalTable
-    ) -> CanonicalIndex:
+    def _transform_index(self, table_name: str, idx: CanonicalIndex, target_table: CanonicalTable) -> CanonicalIndex:
         new_idx = deepcopy(idx)
         new_idx.name, warn = check_identifier(idx.name, self.MAX_IDENTIFIER_LENGTH)
         if warn:
@@ -138,9 +169,7 @@ class BaseTransformer:
         new_idx.columns = self._adapt_identifiers(table_name, idx.columns, target_table)
         return new_idx
 
-    def _transform_fk(
-        self, table_name: str, fk: CanonicalFK, target_table: CanonicalTable
-    ) -> CanonicalFK:
+    def _transform_fk(self, table_name: str, fk: CanonicalFK, target_table: CanonicalTable) -> CanonicalFK:
         new_fk = deepcopy(fk)
         new_fk.name, warn = check_identifier(fk.name, self.MAX_IDENTIFIER_LENGTH)
         if warn:
@@ -176,9 +205,7 @@ class BaseTransformer:
 
         return new_fk
 
-    def _extra_fk_warnings(
-        self, table_name: str, fk: CanonicalFK, target_table: CanonicalTable
-    ) -> None:
+    def _extra_fk_warnings(self, table_name: str, fk: CanonicalFK, target_table: CanonicalTable) -> None:
         """Hook para warnings FK adicionales específicos del motor destino. No-op por defecto."""
 
 

@@ -6,6 +6,7 @@ from typing import Any
 
 from ._adapter_helpers import (
     build_sqlserver_parameters_query,
+    build_sqlserver_routine_body_query,
     build_sqlserver_routines_query,
 )
 from ._sqlserver_models import SqlServerParameterDetail, SqlServerRoutineDetail
@@ -102,3 +103,24 @@ def fetch_routine_parameters_sync(connection: Any, object_id: int | None = None)
     rows: list[tuple[Any, ...]] = cursor.fetchall()
 
     return [normalized for row in rows if (normalized := _normalize_sqlserver_parameter_row(row)) is not None]
+
+
+def fetch_routine_body_sync(connection: Any, schema: str, routine_name: str) -> str:
+    """Obtiene la definición DDL completa de un procedimiento/función SQL Server.
+
+    Args:
+        connection: Conexión a SQL Server
+        schema: Nombre del schema
+        routine_name: Nombre del procedimiento o función
+
+    Returns:
+        str: Definición completa (CREATE PROCEDURE/FUNCTION ...) o ``""`` si no disponible.
+    """
+    sql = build_sqlserver_routine_body_query()
+    params = {"schema_name": schema, "routine_name": routine_name}
+    try:
+        cursor = connection.execute(sql, params)
+        row = cursor.fetchone()
+        return str(row[0]).strip() if row and row[0] else ""
+    except Exception:
+        return ""

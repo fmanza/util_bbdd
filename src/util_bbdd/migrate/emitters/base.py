@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from ..ir.models import CanonicalTable, CanonicalView
+from ..ir.models import CanonicalRoutine, CanonicalTable, CanonicalView
 
 
 @runtime_checkable
@@ -15,12 +15,14 @@ class DDLEmitter(Protocol):
         self,
         tables: list[CanonicalTable],
         views: list[CanonicalView] | None = None,
+        routines: list[CanonicalRoutine] | None = None,
     ) -> str:
         """Genera el script DDL completo como string.
 
         Args:
             tables: Tablas transformadas (IR destino).
             views: Vistas transformadas (IR destino). Si None, no se emiten vistas.
+            routines: Rutinas transformadas (IR destino). Si None, no se emiten rutinas.
 
         Returns:
             Script DDL completo con sentencias separadas por ';\\n\\n'.
@@ -31,12 +33,14 @@ class DDLEmitter(Protocol):
         self,
         tables: list[CanonicalTable],
         views: list[CanonicalView] | None = None,
+        routines: list[CanonicalRoutine] | None = None,
     ) -> list[str]:
         """Genera lista de sentencias DDL individuales sin ';'.
 
         Args:
             tables: Tablas transformadas (IR destino).
             views: Vistas transformadas (IR destino). Si None, no se emiten vistas.
+            routines: Rutinas transformadas (IR destino). Si None, no se emiten rutinas.
 
         Returns:
             Lista de sentencias DDL listas para ejecutar.

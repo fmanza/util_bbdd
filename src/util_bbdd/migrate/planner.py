@@ -140,6 +140,7 @@ class MigrationPlanner:
         extractor = OracleSchemaExtractor(connection)
         raw_tables = extractor.extract(schema)
         raw_views = extractor.extract_views(schema)
+        raw_routines = extractor.extract_routines(schema)
 
         if self._target_engine == "mariadb":
             transformer: Any = OracleToMariaDBTransformer(
@@ -161,13 +162,14 @@ class MigrationPlanner:
             transformer = OracleToPostgreSQLTransformer(number_fallback=pg_fallback)
             emitter = PostgreSQLDDLEmitter(pg_schema=self._pg_schema)
 
-        return self._build_plan(transformer, emitter, raw_tables, raw_views, schema)
+        return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema)
 
     def _plan_from_mariadb(self, connection: Any, schema: str) -> MigrationPlan:
         """Pipeline MariaDB → (Oracle | SQL Server | PostgreSQL)."""
         extractor = MariaDBSchemaExtractor(connection)
         raw_tables = extractor.extract(schema)
         raw_views = extractor.extract_views(schema)
+        raw_routines = extractor.extract_routines(schema)
 
         if self._target_engine == "oracle":
             transformer: Any = MariaDBToOracleTransformer()
@@ -179,13 +181,14 @@ class MigrationPlanner:
             transformer = MariaDBToPostgreSQLTransformer()
             emitter = PostgreSQLDDLEmitter(pg_schema=self._pg_schema)
 
-        return self._build_plan(transformer, emitter, raw_tables, raw_views, schema)
+        return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema)
 
     def _plan_from_sqlserver(self, connection: Any, schema: str) -> MigrationPlan:
         """Pipeline SQL Server → (Oracle | MariaDB | PostgreSQL)."""
         extractor = SQLServerSchemaExtractor(connection)
         raw_tables = extractor.extract(schema)
         raw_views = extractor.extract_views(schema)
+        raw_routines = extractor.extract_routines(schema)
 
         if self._target_engine == "oracle":
             transformer: Any = SQLServerToOracleTransformer()
@@ -201,13 +204,14 @@ class MigrationPlanner:
             transformer = SQLServerToPostgreSQLTransformer()
             emitter = PostgreSQLDDLEmitter(pg_schema=self._pg_schema)
 
-        return self._build_plan(transformer, emitter, raw_tables, raw_views, schema)
+        return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema)
 
     def _plan_from_postgresql(self, connection: Any, schema: str) -> MigrationPlan:
         """Pipeline PostgreSQL → (Oracle | MariaDB | SQL Server)."""
         extractor = PostgreSQLSchemaExtractor(connection)
         raw_tables = extractor.extract(schema)
         raw_views = extractor.extract_views(schema)
+        raw_routines = extractor.extract_routines(schema)
 
         if self._target_engine == "oracle":
             transformer: Any = PostgreSQLToOracleTransformer()
@@ -223,9 +227,9 @@ class MigrationPlanner:
             transformer = PostgreSQLToSQLServerTransformer()
             emitter = SQLServerDDLEmitter(collation=self._sql_server_collation)
 
-        return self._build_plan(transformer, emitter, raw_tables, raw_views, schema)
+        return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema)
 
-    # ─── Construcción del plan ────────────────────────────────────────────────
+    # ─── Construcción del plan ─────────────────────────────────────────────────
 
     def _build_plan(
         self,
@@ -233,10 +237,12 @@ class MigrationPlanner:
         emitter: Any,
         raw_tables: list[Any],
         raw_views: list[Any],
+        raw_routines: list[Any],
         schema: str,
     ) -> MigrationPlan:
         transformed = transformer.transform(raw_tables)
         transformed_views = transformer.transform_views(raw_views)
+        transformed_routines = transformer.transform_routines(raw_routines)
 
         all_warnings: list[MigrationWarning] = []
         for table in transformed:
@@ -245,6 +251,8 @@ class MigrationPlanner:
                 all_warnings.extend(col.warnings)
         for view in transformed_views:
             all_warnings.extend(view.warnings)
+        for routine in transformed_routines:
+            all_warnings.extend(routine.warnings)
 
         return MigrationPlan(
             tables=transformed,
@@ -254,6 +262,7 @@ class MigrationPlanner:
             target_engine=self._target_engine,
             emitter=emitter,
             views=transformed_views,
+            routines=transformed_routines,
         )
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from ..ir.models import CanonicalTable, CanonicalView
+from ..ir.models import CanonicalRoutine, CanonicalTable, CanonicalView
 
 
 @runtime_checkable
@@ -34,6 +34,21 @@ class SchemaTransformer(Protocol):
 
         Returns:
             Vistas con SQL reescrito y warnings poblados.
+        """
+        ...
+
+    def transform_routines(self, routines: list[CanonicalRoutine]) -> list[CanonicalRoutine]:
+        """Transforma una lista de rutinas IR al esquema destino.
+
+        Pass-through v1: aplica verificación de identificadores y emite
+        MigrationWarning invitando a revisión manual del body. No reescribe
+        el cuerpo DDL.
+
+        Args:
+            routines: Rutinas extraídas del motor origen.
+
+        Returns:
+            Rutinas con warnings poblados.
         """
         ...
 

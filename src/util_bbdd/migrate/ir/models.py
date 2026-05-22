@@ -104,6 +104,29 @@ class CanonicalView:
     warnings: list[MigrationWarning]
 
 
+@dataclass(slots=True)
+class CanonicalRoutine:
+    """Representación canónica de una rutina (PROCEDURE/FUNCTION) durante la migración.
+
+    El campo ``body`` contiene el cuerpo DDL verbatim del motor origen.
+    Constructs que requieren revisión manual generan MigrationWarning con
+    severity="WARNING". Si body no está disponible se emite un stub.
+    Los miembros de PACKAGE Oracle se marcan con ``is_package_member=True``;
+    sólo se emite un comentario DDL para ellos.
+    """
+
+    name: str
+    original_name: str
+    schema: str
+    routine_type: str
+    body: str
+    return_type: str
+    comment: str
+    warnings: list[MigrationWarning]
+    is_package_member: bool = False
+    package_name: str | None = None
+
+
 @dataclass
 class MigrationPlan:
     """Plan de migración ejecutable: contiene tablas transformadas, warnings y configuración."""
@@ -115,20 +138,21 @@ class MigrationPlan:
     target_engine: str
     emitter: DDLEmitter = field(repr=False)
     views: list[CanonicalView] = field(default_factory=list)
+    routines: list[CanonicalRoutine] = field(default_factory=list)
 
     def emit_ddl(self) -> str:
         """Genera el script DDL completo para el motor destino.
 
-        Incluye tablas (con índices y FKs) seguidas de vistas.
+        Incluye tablas (con índices y FKs), vistas y rutinas.
         """
-        return self.emitter.emit(self.tables, self.views)
+        return self.emitter.emit(self.tables, self.views, self.routines)
 
     def emit_statements(self) -> list[str]:
         """Genera la lista de sentencias DDL individuales (sin ';').
 
-        Incluye tablas (con índices y FKs) seguidas de vistas.
+        Incluye tablas (con índices y FKs), vistas y rutinas.
         """
-        return self.emitter.emit_statements(self.tables, self.views)
+        return self.emitter.emit_statements(self.tables, self.views, self.routines)
 
     def execute(self, target_connection: Any) -> None:
         """Ejecuta el DDL generado contra el motor destino.

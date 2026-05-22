@@ -211,3 +211,22 @@ def fetch_view_columns_sql() -> str:
         "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_NAME = %(view_name)s "
         "ORDER BY ORDINAL_POSITION"
     )
+
+
+def fetch_routines_sql() -> str:
+    """SQL para obtener routines (procedures/functions) de un schema MariaDB.
+
+    Parámetros: ``%(schema)s``.
+
+    Returns:
+        str: SQL query para (ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_SCHEMA,
+        ROUTINE_DEFINITION, DTD_IDENTIFIER).
+        DTD_IDENTIFIER contiene el tipo de retorno para FUNCTION.
+    """
+    return (
+        "SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_SCHEMA, "
+        "ROUTINE_DEFINITION, DTD_IDENTIFIER "
+        "FROM INFORMATION_SCHEMA.ROUTINES "
+        "WHERE ROUTINE_SCHEMA = %(schema)s "
+        "ORDER BY ROUTINE_NAME"
+    )

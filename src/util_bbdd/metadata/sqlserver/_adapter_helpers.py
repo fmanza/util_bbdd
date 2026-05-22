@@ -227,6 +227,26 @@ def build_sqlserver_parameters_query() -> str:
     return sql
 
 
+def build_sqlserver_routine_body_query() -> str:
+    """Construye query para obtener el cuerpo de un procedimiento/función SQL Server.
+
+    Usa ``sys.sql_modules`` que almacena la definición completa del objeto.
+    Parámetros: ``%(routine_name)s``, ``%(schema_name)s``.
+
+    Returns:
+        str: SQL query parametrizado que retorna (definition,).
+    """
+    sql = """
+        SELECT sm.definition
+        FROM sys.sql_modules sm
+        INNER JOIN sys.objects o ON o.object_id = sm.object_id
+        INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+        WHERE o.name = %(routine_name)s
+        AND s.name = %(schema_name)s
+    """
+    return sql
+
+
 def decode_sqlserver_cascade_rows(rows: list[Any]) -> list[int]:
     """Extrae códigos de cascade action de resultados de FK.
 

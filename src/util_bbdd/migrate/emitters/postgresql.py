@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 
 from .._compat.identifier_rules import MAX_POSTGRESQL_IDENTIFIER_LENGTH, truncate_identifier
-from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalTable, CanonicalView
+from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView
 from .mariadb import _topological_sort, _topological_sort_views
 
 # Tipos PG que admiten SERIAL: mapa tipo → variante SERIAL
@@ -69,23 +69,26 @@ class PostgreSQLDDLEmitter:
         self,
         tables: list[CanonicalTable],
         views: list[CanonicalView] | None = None,
+        routines: list[CanonicalRoutine] | None = None,
     ) -> str:
         """Genera el script DDL completo listo para guardar en fichero .sql.
 
         Args:
             tables: Tablas canónicas transformadas.
             views: Vistas canónicas transformadas. Se emiten después de las tablas.
+            routines: Rutinas canónicas transformadas. Se emiten al final.
 
         Returns:
             Script SQL con sentencias separadas por ';\\n\\n' y terminado en ';\\n'.
         """
-        stmts = self.emit_statements(tables, views)
+        stmts = self.emit_statements(tables, views, routines)
         return ";\n\n".join(stmts) + ";\n"
 
     def emit_statements(
         self,
         tables: list[CanonicalTable],
         views: list[CanonicalView] | None = None,
+        routines: list[CanonicalRoutine] | None = None,
     ) -> list[str]:
         """Genera lista de sentencias DDL individuales sin ';' al final.
 
@@ -134,7 +137,34 @@ class PostgreSQLDDLEmitter:
         # Vistas DESPUÉS de todas las tablas
         statements.extend(self._emit_view_statements(views))
 
+        # Rutinas AL FINAL
+        statements.extend(self._emit_routine_statements(routines))
+
         return statements
+
+    def _emit_routine_statements(self, routines: list[CanonicalRoutine] | None) -> list[str]:
+        return [self._emit_create_routine(r) for r in (routines or [])]
+
+    def _emit_create_routine(self, routine: CanonicalRoutine) -> str:
+        lines: list[str] = []
+        if routine.is_package_member:
+            pkg = routine.package_name or routine.name
+            return (
+                f"-- PACKAGE MEMBER: {pkg}.{routine.name} ({routine.routine_type})\n"
+                f"-- No direct equivalent in PostgreSQL; manual migration required"
+            )
+        if routine.warnings:
+            lines.append("-- NOTE: requires manual review (see migration warnings)")
+        if routine.comment:
+            lines.append(f"-- COMMENT: {routine.comment.replace(chr(10), ' ')}")
+        if not routine.body:
+            lines.append(
+                f"-- TODO: {routine.routine_type} {_dq(routine.name)} — "
+                f"body not available; manual implementation required"
+            )
+            return "\n".join(lines)
+        lines.append(routine.body)
+        return "\n".join(lines)
 
     def _emit_view_statements(self, views: list[CanonicalView] | None) -> list[str]:
         active = [v for v in (views or []) if v.query]

@@ -20,6 +20,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
+from ...metadata.postgresql.routines import fetch_routines_sql as fetch_pg_routines_sql
 from ...metadata.postgresql.tables import (
     fetch_columns_for_extract_sql as fetch_columns_sql,
     fetch_fk_sql,
@@ -33,8 +34,10 @@ from ..ir.models import (
     CanonicalColumn,
     CanonicalFK,
     CanonicalIndex,
+    CanonicalRoutine,
     CanonicalTable,
     CanonicalView,
+    MigrationWarning,
 )
 
 
@@ -187,6 +190,44 @@ class PostgreSQLSchemaExtractor:
     def _extract_view_columns(self, schema: str, view_name: str) -> list[str]:
         rows = self._query(fetch_view_columns_sql(), {"schema": schema, "view_name": view_name})
         return [str(r[0]).strip() for r in rows if r and r[0]]
+
+    def extract_routines(self, schema: str) -> list[CanonicalRoutine]:
+        """Extrae todas las rutinas del schema PostgreSQL como IR canónico."""
+        rows = self._query(fetch_pg_routines_sql(schema), {"schema": schema})
+        return [r for row in rows if (r := self._parse_routine_row(row, schema)) is not None]
+
+    def _parse_routine_row(self, row: Any, schema: str) -> CanonicalRoutine | None:
+        """Parsea una fila de pg_proc a CanonicalRoutine."""
+        if not row or len(row) < 4:
+            return None
+        routine_name = str(row[0]).strip() if row[0] else ""
+        routine_type = str(row[1]).strip().upper() if row[1] else ""
+        if routine_type not in ("FUNCTION", "PROCEDURE"):
+            return None
+        body = str(row[3]).strip() if row[3] else ""
+        return_type = str(row[4]).strip() if len(row) > 4 and row[4] else ""
+        warnings: list[MigrationWarning] = []
+        if not body:
+            warnings.append(
+                MigrationWarning(
+                    table=routine_name,
+                    column=None,
+                    oracle_type=routine_type,
+                    target_type="(no body)",
+                    message=f"Body de '{routine_name}' no disponible; emitir stub.",
+                    severity="WARNING",
+                )
+            )
+        return CanonicalRoutine(
+            name=routine_name,
+            original_name=routine_name,
+            schema=schema,
+            routine_type=routine_type,
+            body=body,
+            return_type=return_type,
+            comment="",
+            warnings=warnings,
+        )
 
     def _extract_columns(self, schema: str, table: str) -> list[CanonicalColumn]:
         rows = self._query(fetch_columns_sql(), {"schema": schema, "table_name": table})

@@ -35,7 +35,7 @@ from __future__ import annotations
 import re
 
 from .._compat.identifier_rules import MAX_ORACLE_IDENTIFIER_LENGTH, truncate_identifier
-from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalTable, CanonicalView
+from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView
 from .mariadb import _topological_sort, _topological_sort_views
 
 # Oracle ON DELETE acciones soportadas
@@ -93,19 +93,21 @@ class OracleDDLEmitter:
         self,
         tables: list[CanonicalTable],
         views: list[CanonicalView] | None = None,
+        routines: list[CanonicalRoutine] | None = None,
     ) -> str:
         """Genera el script DDL Oracle completo listo para guardar en fichero .sql.
 
         Returns:
             Script SQL con sentencias separadas por ';\\n\\n' y terminado en ';\\n'.
         """
-        stmts = self.emit_statements(tables, views)
+        stmts = self.emit_statements(tables, views, routines)
         return ";\n\n".join(stmts) + ";\n"
 
     def emit_statements(
         self,
         tables: list[CanonicalTable],
         views: list[CanonicalView] | None = None,
+        routines: list[CanonicalRoutine] | None = None,
     ) -> list[str]:
         """Genera lista de sentencias DDL individuales sin ';' al final.
 
@@ -117,6 +119,7 @@ class OracleDDLEmitter:
         5. ALTER TABLE ADD CONSTRAINT (FKs circulares)
         6. ALTER TABLE ADD CONSTRAINT (FKs externas, con comentario)
         7. CREATE OR REPLACE VIEW (ordenadas topológicamente)
+        8. CREATE OR REPLACE PROCEDURE/FUNCTION
         """
         ordered, circular_fk_pairs = _topological_sort(tables)
 
@@ -159,6 +162,9 @@ class OracleDDLEmitter:
 
         # Vistas DESPUÉS de todas las tablas
         statements.extend(self._emit_view_statements(views))
+
+        # Rutinas AL FINAL
+        statements.extend(self._emit_routine_statements(routines))
 
         return statements
 
@@ -330,6 +336,30 @@ class OracleDDLEmitter:
             lines.append(f"-- COMMENT: {view.comment.replace(chr(10), ' ')}")
         lines.append(f"CREATE OR REPLACE VIEW {_dq(view.name)} AS")
         lines.append(view.query)
+        return "\n".join(lines)
+
+    def _emit_routine_statements(self, routines: list[CanonicalRoutine] | None) -> list[str]:
+        return [self._emit_create_routine(r) for r in (routines or [])]
+
+    def _emit_create_routine(self, routine: CanonicalRoutine) -> str:
+        lines: list[str] = []
+        if routine.is_package_member:
+            pkg = routine.package_name or routine.name
+            return (
+                f"-- PACKAGE MEMBER: {pkg}.{routine.name} ({routine.routine_type})\n"
+                f"-- No direct equivalent in Oracle target; manual migration required"
+            )
+        if routine.warnings:
+            lines.append("-- NOTE: requires manual review (see migration warnings)")
+        if routine.comment:
+            lines.append(f"-- COMMENT: {routine.comment.replace(chr(10), ' ')}")
+        if not routine.body:
+            lines.append(
+                f"-- TODO: {routine.routine_type} {_dq(routine.name)} — "
+                f"body not available; manual implementation required"
+            )
+            return "\n".join(lines)
+        lines.append(f"CREATE OR REPLACE {routine.body}")
         return "\n".join(lines)
 
 

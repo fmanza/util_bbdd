@@ -17,6 +17,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
+from ...metadata.sqlserver.routines import fetch_routine_body_sync, fetch_routines_sync
 from ...metadata.sqlserver.tables import (
     fetch_columns_sql,
     fetch_fk_sql,
@@ -30,6 +31,7 @@ from ..ir.models import (
     CanonicalColumn,
     CanonicalFK,
     CanonicalIndex,
+    CanonicalRoutine,
     CanonicalTable,
     CanonicalView,
     MigrationWarning,
@@ -203,6 +205,52 @@ class SQLServerSchemaExtractor:
     def _extract_view_columns(self, schema: str, view_name: str) -> list[str]:
         rows = self._query(fetch_view_columns_sql(), {"schema": schema, "view_name": view_name})
         return [str(r[0]).strip() for r in rows if r and r[0]]
+
+    def extract_routines(self, schema: str) -> list[CanonicalRoutine]:
+        """Extrae todas las rutinas del schema SQL Server como IR canónico.
+
+        Usa ``sys.procedures`` para el inventario y ``sys.sql_modules``
+        para el cuerpo DDL completo de cada rutina.
+
+        Nota: ``sys.procedures`` no incluye funciones escalares/table-valued
+        almacenadas en ``sys.objects`` con type 'FN'/'TF'. Estas quedan fuera
+        del inventario v1 por limitación del helper existente.
+        """
+        detail_list = fetch_routines_sync(self._manager, schema)
+        routines: list[CanonicalRoutine] = []
+
+        for detail in detail_list:
+            routine_name = detail.routine_name
+            routine_type = detail.routine_type  # "PROCEDURE" | "FUNCTION"
+            body = fetch_routine_body_sync(self._manager, schema, routine_name)
+
+            warnings: list[MigrationWarning] = []
+            if not body:
+                warnings.append(
+                    MigrationWarning(
+                        table=routine_name,
+                        column=None,
+                        oracle_type=routine_type,
+                        target_type="(no body)",
+                        message=f"Body de '{routine_name}' no disponible en sys.sql_modules; emitir stub.",
+                        severity="WARNING",
+                    )
+                )
+
+            routines.append(
+                CanonicalRoutine(
+                    name=routine_name,
+                    original_name=routine_name,
+                    schema=schema,
+                    routine_type=routine_type,
+                    body=body,
+                    return_type="",
+                    comment="",
+                    warnings=warnings,
+                )
+            )
+
+        return routines
 
     def _extract_columns(self, schema: str, table: str) -> list[CanonicalColumn]:
         rows = self._query(fetch_columns_sql(), {"schema": schema, "table_name": table})

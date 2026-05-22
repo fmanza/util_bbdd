@@ -16,6 +16,8 @@ from ...metadata.oracle.tables import (
     fetch_fk_constraint_sql,
     fetch_indexes_sql,
     fetch_pk_constraint_sql,
+    fetch_routine_body_sql,
+    fetch_routines_sql,
     fetch_tables_sql,
     fetch_view_columns_sql,
     fetch_views_sql,
@@ -24,8 +26,10 @@ from ..ir.models import (
     CanonicalColumn,
     CanonicalFK,
     CanonicalIndex,
+    CanonicalRoutine,
     CanonicalTable,
     CanonicalView,
+    MigrationWarning,
 )
 
 
@@ -152,6 +156,87 @@ class OracleSchemaExtractor:
     def _extract_view_columns(self, schema: str, view_name: str) -> list[str]:
         rows = self._query(fetch_view_columns_sql(), {"owner": schema, "view_name": view_name})
         return [str(r[0]).strip() for r in rows if r and r[0]]
+
+    def extract_routines(self, schema: str) -> list[CanonicalRoutine]:
+        """Extrae todas las rutinas del schema Oracle como IR canónico.
+
+        Los miembros de PACKAGE (is_package_member=True) se incluyen como
+        inventario con body="" y no generan DDL de emisión.
+        El body se obtiene concatenando las líneas de ALL_SOURCE.
+        """
+        rows = self._query(fetch_routines_sql(), {"owner": schema})
+        routines: list[CanonicalRoutine] = []
+
+        for row in rows:
+            if not row or len(row) < 3:
+                continue
+            routine_name = str(row[0]).strip() if row[0] else ""
+            raw_type = str(row[1]).strip().upper() if row[1] else ""
+
+            # Tipos soportados directamente
+            if raw_type in ("PROCEDURE", "FUNCTION"):
+                routine_type = raw_type
+                is_pkg_member = False
+                pkg_name: str | None = None
+                body = self._fetch_routine_body(schema, routine_name, routine_type)
+                warnings: list[MigrationWarning] = []
+                if not body:
+                    warnings.append(
+                        MigrationWarning(
+                            table=routine_name,
+                            column=None,
+                            oracle_type=routine_type,
+                            target_type="(no body)",
+                            message=f"Body de '{routine_name}' no disponible en ALL_SOURCE; emitir stub.",
+                            severity="WARNING",
+                        )
+                    )
+            elif raw_type in ("PACKAGE", "PACKAGE BODY"):
+                # Inventario: miembro de package, sin DDL
+                routine_type = "PROCEDURE"
+                is_pkg_member = True
+                pkg_name = routine_name
+                body = ""
+                warnings = [
+                    MigrationWarning(
+                        table=routine_name,
+                        column=None,
+                        oracle_type=raw_type,
+                        target_type="(package member)",
+                        message=(
+                            f"'{routine_name}' es un ORACLE {raw_type}; "
+                            "no tiene equivalente directo — migración manual requerida."
+                        ),
+                        severity="WARNING",
+                    )
+                ]
+            else:
+                continue
+
+            routines.append(
+                CanonicalRoutine(
+                    name=routine_name,
+                    original_name=routine_name,
+                    schema=schema,
+                    routine_type=routine_type,
+                    body=body,
+                    return_type="",
+                    comment="",
+                    warnings=warnings,
+                    is_package_member=is_pkg_member,
+                    package_name=pkg_name,
+                )
+            )
+
+        return routines
+
+    def _fetch_routine_body(self, schema: str, routine_name: str, routine_type: str) -> str:
+        """Obtiene el body verbatim de una rutina Oracle concatenando ALL_SOURCE."""
+        rows = self._query(
+            fetch_routine_body_sql(),
+            {"owner": schema, "routine_name": routine_name, "routine_type": routine_type},
+        )
+        return "".join(str(r[1]) for r in rows if r and len(r) > 1 and r[1]).strip()
 
     def _extract_columns(self, schema: str, table: str) -> list[CanonicalColumn]:
         rows = self._query(fetch_columns_sql(), {"owner": schema, "table_name": table})

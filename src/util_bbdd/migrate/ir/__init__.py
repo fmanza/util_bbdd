@@ -4,6 +4,7 @@ from .models import (
     CanonicalColumn,
     CanonicalFK,
     CanonicalIndex,
+    CanonicalRoutine,
     CanonicalTable,
     CanonicalView,
     MigrationPlan,
@@ -17,5 +18,6 @@ __all__: list[str] = [
     "CanonicalFK",
     "CanonicalTable",
     "CanonicalView",
+    "CanonicalRoutine",
     "MigrationPlan",
 ]

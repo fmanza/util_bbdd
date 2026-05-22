@@ -241,11 +241,7 @@ def fetch_view_columns_sql() -> str:
     Returns:
         str: SQL query para column_name ordenado por column_id
     """
-    return (
-        "SELECT column_name FROM all_tab_columns "
-        "WHERE owner = :owner AND table_name = :view_name "
-        "ORDER BY column_id"
-    )
+    return "SELECT column_name FROM all_tab_columns WHERE owner = :owner AND table_name = :view_name ORDER BY column_id"
 
 
 def fetch_routines_sql() -> str:
@@ -288,6 +284,25 @@ def fetch_routine_parameters_sql() -> str:
     )
 
 
+def fetch_routine_body_sql() -> str:
+    """SQL query parametrizada para obtener el cuerpo de una rutina Oracle.
+
+    Parametrizado con :owner, :routine_name y :routine_type.
+    Concatena todas las líneas de ALL_SOURCE ordenadas por ``line``.
+
+    Returns:
+        str: SQL query para (line, text) de la rutina indicada.
+    """
+    return (
+        "SELECT line, text "
+        "FROM all_source "
+        "WHERE owner = :owner "
+        "  AND name = :routine_name "
+        "  AND type = :routine_type "
+        "ORDER BY line"
+    )
+
+
 __all__: list[str] = [
     "fetch_schemas_sql",
     "fetch_tables_sql",
@@ -300,4 +315,5 @@ __all__: list[str] = [
     "fetch_view_columns_sql",
     "fetch_routines_sql",
     "fetch_routine_parameters_sql",
+    "fetch_routine_body_sql",
 ]
