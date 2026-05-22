@@ -212,12 +212,9 @@ class SQLServerSchemaExtractor:
     def extract_routines(self, schema: str) -> list[CanonicalRoutine]:
         """Extrae todas las rutinas del schema SQL Server como IR canónico.
 
-        Usa ``sys.procedures`` para el inventario y ``sys.sql_modules``
-        para el cuerpo DDL completo de cada rutina.
-
-        Nota: ``sys.procedures`` no incluye funciones escalares/table-valued
-        almacenadas en ``sys.objects`` con type 'FN'/'TF'. Estas quedan fuera
-        del inventario v1 por limitación del helper existente.
+        Usa ``sys.objects`` para el inventario (procedures + funciones escalares
+        e inline/multi-statement table-valued) y ``sys.sql_modules`` para el
+        cuerpo DDL completo de cada rutina.
         """
         schema_name = schema or "dbo"
         raw_rows = self._query(build_sqlserver_routines_query(), {"schema_name": schema_name})

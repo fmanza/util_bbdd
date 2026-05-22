@@ -50,15 +50,28 @@ class TestMariaDBRoutineEmitter:
         assert "TODO" in ddl
         assert "body not available" in ddl
 
-    def test_package_member_emits_comment_only(self) -> None:
+    def test_package_member_includes_header_comment(self) -> None:
         r = _routine(is_package_member=True, package_name="PKG_UTIL", name="SP_FOO")
         ddl = _emitter().emit(tables=[], routines=[r])
         assert "PACKAGE MEMBER" in ddl
         assert "PKG_UTIL" in ddl
         assert "manual migration required" in ddl
-        # No debe generar CREATE
-        lines_without_comment = [line for line in ddl.splitlines() if not line.strip().startswith("--")]
-        assert not any("CREATE" in line for line in lines_without_comment)
+
+    def test_package_member_body_included_after_header(self) -> None:
+        """El cuerpo de la rutina debe aparecer después del comentario de cabecera."""
+        body = "BEGIN\n  SELECT 'hello';\nEND"
+        r = _routine(is_package_member=True, package_name="PKG_UTIL", name="SP_FOO", body=body)
+        ddl = _emitter().emit(tables=[], routines=[r])
+        assert "PACKAGE MEMBER" in ddl
+        assert "PKG_UTIL" in ddl
+        assert "hello" in ddl
+
+    def test_package_member_stub_when_no_body(self) -> None:
+        """Sin body, muestra stub TODO aunque sea package member."""
+        r = _routine(is_package_member=True, package_name="PKG_UTIL", name="SP_EMPTY", body="")
+        ddl = _emitter().emit(tables=[], routines=[r])
+        assert "PACKAGE MEMBER" in ddl
+        assert "TODO" in ddl
 
     def test_emit_without_routines_backward_compat(self) -> None:
         # emit() sin routines no debe fallar

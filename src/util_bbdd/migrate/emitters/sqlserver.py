@@ -147,7 +147,7 @@ class SQLServerDDLEmitter:
         lines: list[str] = []
         if routine.is_package_member:
             pkg = routine.package_name or routine.name
-            return (
+            lines.append(
                 f"-- PACKAGE MEMBER: {pkg}.{routine.name} ({routine.routine_type})\n"
                 f"-- No direct equivalent in SQL Server; manual migration required"
             )

@@ -76,3 +76,44 @@ class TestSQLServerExtractRoutines:
         assert result[0].routine_type == "PROCEDURE"
         assert result[1].name == "FN_B"
         assert result[1].routine_type == "FUNCTION"
+
+    def test_scalar_function_extracted_as_function_type(self) -> None:
+        """Verifica que funciones escalares (tipo FN) se extraen con routine_type=FUNCTION.
+
+        Antes del fix, build_sqlserver_routines_query() usaba sys.procedures
+        que excluye silenciosamente funciones (FN/IF/TF). El fix usa sys.objects
+        con type IN ('P','FN','IF','TF'), que sí las incluye.
+        """
+        body_text = "CREATE FUNCTION dbo.FN_GET_NAME(@id INT) RETURNS NVARCHAR(100) AS BEGIN RETURN 'x' END"
+        ext = _extractor(
+            [("FN_GET_NAME", "FUNCTION", 2001, 1)],
+            [[(body_text,)]],
+        )
+        result = ext.extract_routines("dbo")
+        assert len(result) == 1
+        r = result[0]
+        assert r.name == "FN_GET_NAME"
+        assert r.routine_type == "FUNCTION"
+        assert r.body == body_text
+        assert r.warnings == []
+
+    def test_inline_tvf_extracted_as_function_type(self) -> None:
+        """Verifica que TVF inline (tipo IF) se extrae con routine_type=FUNCTION."""
+        body_text = "CREATE FUNCTION dbo.FN_TVF(@id INT) RETURNS TABLE AS RETURN SELECT 1 AS val"
+        ext = _extractor(
+            [("FN_TVF", "FUNCTION", 2002, 1)],
+            [[(body_text,)]],
+        )
+        result = ext.extract_routines("dbo")
+        assert len(result) == 1
+        assert result[0].routine_type == "FUNCTION"
+
+    def test_unknown_type_row_included_with_unknown_type(self) -> None:
+        """Filas con tipo UNKNOWN (type no reconocido) son incluidas tal cual."""
+        ext = _extractor(
+            [("OBJ_X", "UNKNOWN", 3001, 0)],
+            [[]],
+        )
+        result = ext.extract_routines("dbo")
+        assert len(result) == 1
+        assert result[0].routine_type == "UNKNOWN"

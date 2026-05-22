@@ -287,7 +287,7 @@ def _make_routines_manager(
     """Manager mock para probar extract_routines().
 
     Args:
-        routine_rows: Filas de sys.procedures (name, type, object_id, params_count).
+        routine_rows: Filas del inventario de rutinas (name, type, object_id, params_count).
         body_map: Mapa routine_name → body DDL; None o ausente → body vacío.
     """
     body_map = body_map or {}
@@ -295,12 +295,14 @@ def _make_routines_manager(
 
     def side_effect(sql: str, params: dict) -> list:
         sql_upper = sql.upper()
-        if "SYS.PROCEDURES" in sql_upper:
-            return routine_rows
+        # Chequear SQL_MODULES ANTES que OBJECTS porque el body query hace JOIN a ambas
         if "SYS.SQL_MODULES" in sql_upper:
             name = params.get("routine_name", "")
             body = body_map.get(name, "")
             return [(body,)] if body else []
+        # El query de inventario ahora usa sys.objects (antes sys.procedures)
+        if "SYS.OBJECTS" in sql_upper:
+            return routine_rows
         return []
 
     manager.execute_custom_many.side_effect = side_effect

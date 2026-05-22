@@ -179,24 +179,35 @@ def build_sqlserver_indexes_query() -> str:
 
 
 def build_sqlserver_routines_query() -> str:
-    """Construye query para obtener procedimientos almacenados.
+    """Construye query para obtener procedimientos y funciones del schema.
 
-    Excluye procedimientos de sistema (is_ms_shipped=0).
+    Usa ``sys.objects`` en lugar de ``sys.procedures`` para incluir tanto
+    stored procedures (type ``P``) como funciones escalares (``FN``),
+    inline table-valued (``IF``) y multi-statement table-valued (``TF``).
+    ``sys.procedures`` solo contiene type ``P`` y excluía silenciosamente
+    todas las funciones. Excluye objetos de sistema (is_ms_shipped = 0).
 
     Returns:
-        str: SQL query parameterizado
+        str: SQL query parametrizado con ``%(schema_name)s``.
     """
     sql = """
         SELECT
-            sp.name,
-            CASE sp.type WHEN 'P' THEN 'PROCEDURE' WHEN 'FN' THEN 'FUNCTION' ELSE 'UNKNOWN' END,
-            sp.object_id,
-            (SELECT COUNT(*) FROM sys.parameters WHERE object_id = sp.object_id AND parameter_id > 0)
-        FROM sys.procedures sp
-        INNER JOIN sys.schemas s ON sp.schema_id = s.schema_id
-        WHERE sp.is_ms_shipped = 0
+            o.name,
+            CASE o.type
+                WHEN 'P'  THEN 'PROCEDURE'
+                WHEN 'FN' THEN 'FUNCTION'
+                WHEN 'IF' THEN 'FUNCTION'
+                WHEN 'TF' THEN 'FUNCTION'
+                ELSE 'UNKNOWN'
+            END,
+            o.object_id,
+            (SELECT COUNT(*) FROM sys.parameters WHERE object_id = o.object_id AND parameter_id > 0)
+        FROM sys.objects o
+        INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+        WHERE o.is_ms_shipped = 0
+        AND o.type IN ('P', 'FN', 'IF', 'TF')
         AND s.name = %(schema_name)s
-        ORDER BY sp.name
+        ORDER BY o.name
     """
     return sql
 
