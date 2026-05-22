@@ -57,8 +57,8 @@ class TestMariaDBRoutineEmitter:
         assert "PKG_UTIL" in ddl
         assert "manual migration required" in ddl
         # No debe generar CREATE
-        lines_without_comment = [l for l in ddl.splitlines() if not l.strip().startswith("--")]
-        assert not any("CREATE" in l for l in lines_without_comment)
+        lines_without_comment = [line for line in ddl.splitlines() if not line.strip().startswith("--")]
+        assert not any("CREATE" in line for line in lines_without_comment)
 
     def test_emit_without_routines_backward_compat(self) -> None:
         # emit() sin routines no debe fallar

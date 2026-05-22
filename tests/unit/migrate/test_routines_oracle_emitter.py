@@ -50,8 +50,8 @@ class TestOracleRoutineEmitter:
         ddl = _emitter().emit(tables=[], routines=[r])
         assert "PACKAGE MEMBER" in ddl
         assert "PKG_UTIL" in ddl
-        lines_without_comment = [l for l in ddl.splitlines() if not l.strip().startswith("--")]
-        assert not any("CREATE" in l for l in lines_without_comment)
+        lines_without_comment = [line for line in ddl.splitlines() if not line.strip().startswith("--")]
+        assert not any("CREATE" in line for line in lines_without_comment)
 
     def test_emit_without_routines_backward_compat(self) -> None:
         ddl = _emitter().emit(tables=[])
