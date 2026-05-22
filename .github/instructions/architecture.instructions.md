@@ -151,7 +151,34 @@ Ante cualquier nueva clase, función o módulo que maneje metadatos de BD:
   es nueva → crea en `metadata/` y expón en `metadata/__init__.py`.
 
 ### REGLA #6 — JERARQUÍA DE DEPENDENCIAS (sin inversiones)
-<!-- TODO: completar body en siguiente sesión -->
+La base de código sigue 3 niveles. Las dependencias fluyen **solo hacia abajo**;
+nunca hacia arriba ni en horizontal entre módulos de nivel equivalente:
+
+```
+Level 1 — Foundation
+  _core/        models.py       results/
+  connection/   factory/        _drivers/
+
+Level 2 — Core Services
+  managers/     metadata/       query/
+  validators/   executors/
+
+Level 3 — Domain Logic
+  bulk/         comparar/       doc/
+  migrate/      analysis/
+```
+
+**Reglas explícitas:**
+- Level 3 puede importar de Level 2 y Level 1.
+- Level 2 puede importar de Level 1.
+- Level 2 **NUNCA** importa de Level 3.
+- Level 1 **NUNCA** importa de Level 2 ni Level 3.
+- No importaciones circulares dentro del mismo nivel.
+- `__init__.py` de cada módulo solo re-exporta; no contiene lógica que genere ciclos.
+
+**En auditoría (AUDIT_CODE):** rechaza cualquier import donde un módulo de nivel
+inferior referencie un símbolo de nivel superior (p.ej. `managers/` importando
+de `migrate/`, o `metadata/` importando de `doc/`).
 
 ## Evidencia mínima en cambios arquitectónicos
 - Justificación del patrón elegido y alternativa descartada.
