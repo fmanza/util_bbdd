@@ -305,6 +305,23 @@ formaba parte de ninguna API pública documentada. Ningún cambio de comportamie
 
 ### Fixed
 
+#### migrate: columnas AUTO_INCREMENT siempre emiten `INT(11)` en MariaDB
+
+Al migrar hacia MariaDB desde cualquier motor fuente (SQL Server, PostgreSQL, Oracle),
+las columnas `AUTO_INCREMENT` no siempre producían el tipo `INT(11)`. El emitter
+usaba `col.target_type` directamente, que los transformers dejaban como `INT`, `BIGINT`,
+`SMALLINT`, etc. según el mapeo del motor de origen.
+
+- **`emitters/mariadb.py` → `_emit_column()`**: cuando `col.auto_increment` es `True`,
+  se usa `INT(11)` en lugar de `col.target_type`, aplicando la convención estándar de
+  MariaDB/MySQL para columnas de auto-incremento.
+- Columnas **sin** `AUTO_INCREMENT` no se ven afectadas.
+- **3 tests nuevos** en `tests/unit/migrate/test_emitter.py`:
+  - `test_auto_increment_column` actualizado para validar `INT(11) NOT NULL AUTO_INCREMENT`.
+  - `test_auto_increment_always_emits_int11` (parametrizado ×5): `INT`, `BIGINT`,
+    `SMALLINT`, `INT(11)`, `BIGINT(20)` como tipo fuente → todos emiten `INT(11)`.
+  - `test_non_auto_increment_preserves_original_type`: regresión para tipos no AUTO_INCREMENT.
+
 #### migrate: ordenación topológica de vistas
 
 Los emitters (MariaDB, SQL Server, PostgreSQL) ahora ordenan las vistas por

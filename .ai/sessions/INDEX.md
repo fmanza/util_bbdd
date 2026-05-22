@@ -78,6 +78,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 
 | 2026-05-22f-hotfix-sqlalchemy-masked-pass | **hotfix: `masked_pass` en lugar de `password` en connection string sync SQLAlchemy** — `_build_sqlserver_connection_string` y `_build_postgresql_connection_string` enviaban asteriscos literales al servidor (error 18456 login failed); eliminada variable `masked_pass`; 2887 tests verdes | develop | hotfix | CLOSED | `2026-05-22f-hotfix-sqlalchemy-masked-pass/TRACEABILITY.md` |
 | 2026-05-22g-hotfix-sqlserver-routines | **hotfix: `AttributeError: 'SyncDatabaseManager' object has no attribute 'execute'` en migrate SQL Server** — `extract_routines()` pasaba `self._manager` a `fetch_routines_sync/fetch_routine_body_sync` (API raw DB-API 2.0); corregido usando `self._query()` + SQL builders de `_adapter_helpers`; 4 tests nuevos en `TestExtractRoutines`; 25 tests verdes | develop | hotfix | CLOSED | `2026-05-22g-hotfix-sqlserver-routines/TRACEABILITY.md` |
+| 2026-05-22h-hotfix-mariadb-autoincrement | **hotfix: columnas AUTO_INCREMENT siempre emiten `INT(11)` en MariaDB** — `_emit_column()` normalizaba `col.target_type` sin aplicar regla `INT(11)` para AUTO_INCREMENT; 1 línea en emitter + 3 tests nuevos (parametrizado ×5 tipos fuente, regresión no-AUTO_INCREMENT); 25/25 tests verdes | develop | hotfix | CLOSED | `2026-05-22h-hotfix-mariadb-autoincrement/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 

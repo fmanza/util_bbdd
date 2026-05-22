@@ -207,7 +207,10 @@ class MariaDBDDLEmitter:
             comment = col.ddl_comment or f"-- AVISO: columna '{col.original_name}' omitida"
             return f"  {comment}"
 
-        parts = [f"  {_bt(col.name)}", col.target_type]
+        # MariaDB requiere INT(11) para columnas AUTO_INCREMENT independientemente
+        # del tipo fuente (INT, BIGINT, SMALLINT, etc. de cualquier motor origen).
+        col_type = "INT(11)" if col.auto_increment else col.target_type
+        parts = [f"  {_bt(col.name)}", col_type]
 
         if not col.nullable:
             parts.append("NOT NULL")

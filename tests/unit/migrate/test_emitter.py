@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from util_bbdd.migrate.emitters.mariadb import MariaDBDDLEmitter, _topological_sort
 from util_bbdd.migrate.ir.models import (
     CanonicalColumn,
@@ -76,13 +78,48 @@ class TestMariaDBDDLEmitter:
         assert "`select`" in ddl
 
     def test_auto_increment_column(self) -> None:
+        # Bug: columnas AUTO_INCREMENT deben emitirse siempre como INT(11) en MariaDB,
+        # independientemente del tipo fuente mapeado en target_type.
         table = _table(
             "ORDERS",
             [_col("ID", "BIGINT", nullable=False, auto_increment=True, is_pk=True)],
             pk=["ID"],
         )
         ddl = self.emitter.emit([table])
-        assert "AUTO_INCREMENT" in ddl
+        assert "`ID` INT(11) NOT NULL AUTO_INCREMENT" in ddl
+
+    @pytest.mark.parametrize(
+        "source_mapped_type",
+        [
+            "INT",  # SQL Server INT IDENTITY / PostgreSQL INTEGER SERIAL
+            "BIGINT",  # SQL Server BIGINT IDENTITY / PostgreSQL BIGINT SERIAL
+            "SMALLINT",  # SQL Server SMALLINT IDENTITY / PostgreSQL SMALLINT
+            "INT(11)",  # ya correcto (MariaDB nativo / Oracle con display width)
+            "BIGINT(20)",  # Oracle NUMBER sin precisión mapeado con display width
+        ],
+    )
+    def test_auto_increment_always_emits_int11(self, source_mapped_type: str) -> None:
+        """Cualquier tipo entero fuente debe emitirse como INT(11) cuando AUTO_INCREMENT."""
+        table = _table(
+            "T_AI",
+            [_col("id", source_mapped_type, nullable=False, auto_increment=True, is_pk=True)],
+            pk=["id"],
+        )
+        ddl = self.emitter.emit([table])
+        assert "`id` INT(11) NOT NULL AUTO_INCREMENT" in ddl
+        # El tipo fuente NO debe aparecer literalmente (excepto si coincide con INT(11))
+        if source_mapped_type not in ("INT(11)",):
+            assert f"`id` {source_mapped_type} " not in ddl
+
+    def test_non_auto_increment_preserves_original_type(self) -> None:
+        """Columnas sin AUTO_INCREMENT NO deben verse afectadas por el fix."""
+        table = _table(
+            "T_NO_AI",
+            [_col("big_col", "BIGINT", nullable=False)],
+        )
+        ddl = self.emitter.emit([table])
+        assert "`big_col` BIGINT NOT NULL" in ddl
+        assert "INT(11)" not in ddl
 
     def test_omitted_column_appears_as_comment(self) -> None:
         table = _table("T1", [_col("ROWID_COL", omit=True)])
