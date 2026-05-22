@@ -30,7 +30,7 @@ del flujo canónico `PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSIO
 | **Config Reviewer** | AUDIT_CODE (configuración IA) | Revisar y consolidar instrucciones IA, eliminar duplicación |
 | **Explore** | lectura | Exploración rápida del repo, responder preguntas (sin editar) |
 | **Maturity Assessment** | evaluación | Evaluar madurez del repositorio (estructura, tests, contratos, readiness) |
-| **Version Closer** | VERSION | Resumir cambios, evidencias, pendientes, compatibilidad, rollback |
+| **Version Closer** | VERSION | Resumir cambios, evidencias, pendientes, compatibilidad, rollback, directrices para futuras IAs |
 
 Ver [`.github/AGENTS.md`](./.github/AGENTS.md) para registro completo.
 

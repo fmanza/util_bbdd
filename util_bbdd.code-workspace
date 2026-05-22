@@ -31,6 +31,12 @@
 			"dist": true,
 			"dist_verify": true,
 			"dist_verify_license": true
+		},
+		"chat.tools.terminal.autoApprove": {
+			"/^\\(Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned\\) ; \\(& c:\\\\Desarrollo\\\\python\\\\libs\\\\util_bbdd\\\\venv\\\\Scripts\\\\Activate\\.ps1\\) ; python -m pytest --tb=short 2>&1 \\| Select-String -Pattern \"passed\\|failed\\|error\\|warning\" \\| Select-Object -Last 5$/": {
+				"approve": true,
+				"matchCommandLine": true
+			}
 		}
 	}
 }

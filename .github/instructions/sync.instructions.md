@@ -81,6 +81,14 @@ Aplica este checklist en la fase **VERSION** de cualquier flujo:
 
 ---
 
+### 6. `.ai/sessions/*/TRACEABILITY.md` (cierre de sesión)
+
+- [ ] Sección `## Directrices para Futuras IAs` presente y poblada (no vacía, no solo `-`)
+- [ ] Cada directriz tiene el formato `**[área]**: <hecho verificable>`
+- [ ] Veredicto final es `CLOSED` (o `GO` / `GO_CONDICIONAL` si la sesión queda abierta)
+
+---
+
 ## Comando de validación final
 
 ```bash
@@ -92,4 +100,4 @@ ni referencias a páginas inexistentes en `mkdocs.yml`.
 
 ---
 
-*Actualizado: 2026-05-14*
+*Actualizado: 2026-05-22*

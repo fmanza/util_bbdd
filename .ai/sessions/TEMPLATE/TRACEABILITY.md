@@ -28,6 +28,14 @@
 | IMPLEMENT        | src/…                      | completado |
 -->
 
+## Directrices para Futuras IAs
+<!--
+Registra conocimiento descubierto DURANTE o DESPUÉS de la sesión que una IA futura necesita
+para no repetir análisis ni tomar decisiones erróneas en el mismo dominio.
+Usar formato: "**[área]**: <hecho verificable>".
+-->
+-
+
 ## Veredicto final
 <!-- GO | GO_CONDICIONAL | NO_GO | CLOSED -->
 Veredicto:

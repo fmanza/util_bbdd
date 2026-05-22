@@ -24,7 +24,10 @@ Lee antes de cerrar:
 1. Resume objetivo y estado final.
 2. Inventaria cambios, validaciones y riesgos residuales.
 3. Explicita pendientes, rollback y compatibilidad.
-4. Deja handoff reutilizable para la siguiente sesion.
+4. Puebla `## Directrices para Futuras IAs` en `.ai/sessions/*/TRACEABILITY.md`
+   con hechos descubiertos durante la sesión que una IA futura necesitaría para
+   no repetir análisis ni tomar decisiones erróneas. Formato: `**[área]**: <hecho>`.
+5. Deja handoff reutilizable para la siguiente sesión.
 
 ## Output contract
 Formato esperado definido en `.github/prompts/version_closure.prompt.md`.
@@ -36,5 +39,6 @@ Formato esperado definido en `.github/prompts/version_closure.prompt.md`.
 ## Tests and evidence
 ## Known limitations
 ## Pending work
+## Directrices para Futuras IAs
 ## Rollback
 ## Handoff

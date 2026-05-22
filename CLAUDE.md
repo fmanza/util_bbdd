@@ -128,7 +128,8 @@ Nota: Solo lectura; no edita código.
 ```
 Fase 1: Resumen → Consolidar todos los cambios de la sesión
 Fase 2: Validación → Verificar CHANGELOG.md, COMPATIBILITY.md y mkdocs build
-Fase 3: Handoff → Release notes, commit message, rollback strategy
+Fase 3: Handoff → Release notes, commit message, rollback strategy;
+         poblar ## Directrices para Futuras IAs en .ai/sessions/*/TRACEABILITY.md
 Nota: Ver .github/instructions/sync.instructions.md para checklist obligatorio.
 ```
 

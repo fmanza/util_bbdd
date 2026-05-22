@@ -107,6 +107,35 @@ descrita como eliminada (no mantenida).
 | Import con alias P-A | `src/util_bbdd/migrate/extractors/postgresql.py` | modificado |
 | CHANGELOG.md | `CHANGELOG.md` | modificado (entrada ### Changed) |
 
+## Directrices para Futuras IAs
+
+- **[migrate/ — SQL canónico]**: `metadata/*/tables.py` es el único punto canónico para SQL de
+  extracción/migración. Los extractores en `migrate/extractors/` importan directamente desde ahí;
+  `migrate/sql/` fue eliminado (era capa de compatibilidad sin consumidores).
+
+- **[doc/ — SQL canónico]**: `src/util_bbdd/data/sql_queries.json` es la única fuente de queries
+  para el módulo `doc/`. El flujo es: `sql_queries.json` → `QueryRegistry` →
+  `SyncDatabaseManager` → `SyncDatabaseManagerAdapter` → módulo doc. No hay SQL inline en `doc/`.
+
+- **[separación query sets]**: Las queries de `doc/` y las de `migrate/` son conjuntos **distintos
+  e independientes**. No hay solapamiento ni duplicación entre ellos. Las de `doc/` incluyen
+  DDL completo, comentarios y collation; las de `migrate/` están optimizadas para el IR canónico
+  de migración. No intentar unificarlas.
+
+- **[formato parámetros]**: `doc/` usa placeholders `{database}`, `{tabla}`, `{esquema}` (estilo
+  f-string, resueltos por `QueryRegistry`). `migrate/extractors/` usa `%(name)s` (DB-API 2.0).
+  Son estilos incompatibles; no intercambiar templates entre módulos.
+
+- **[PostgreSQL aliases P-A]**: `metadata/postgresql/tables.py` expone aliases
+  `fetch_tables_for_extract_sql`, `fetch_columns_for_extract_sql`,
+  `fetch_indexes_for_extract_sql` para evitar colisión de nombres con las funciones homónimas
+  de display. `migrate/extractors/postgresql.py` importa con `as fetch_tables_sql` etc.
+
+- **[lección replace_string_in_file]**: Al reemplazar un archivo completo, el `oldString` debe
+  cubrir TODO el contenido o usar una estrategia de borrado + recreación. Omitir el cuerpo de
+  funciones genera cuerpos huérfanos con indentación inválida que mypy y ruff detectan como
+  `invalid-syntax`.
+
 ## Veredicto final
 Veredicto: CLOSED
 Pendientes al cierre:

@@ -273,6 +273,20 @@ No mezcles feature, hotfix y refactor salvo que el usuario lo pida explícitamen
 Si detectas instrucciones heredadas de otro proyecto, corrígelas o márcalas como
 deuda técnica con ruta exacta.
 
+### Directrices para Futuras IAs — sección obligatoria en VERSION
+
+Cuando cierres una sesión (fase VERSION o `/version-closure`), puebla la sección
+`## Directrices para Futuras IAs` del `TRACEABILITY.md` de la sesión con los hechos
+descubiertos que una IA futura necesitaría para no repetir análisis:
+
+- Puntos canónicos (módulo/archivo) que centralizan una responsabilidad.
+- Decisiones de diseño tomadas y su justificación breve.
+- Patrones con nombre (alias P-A, re-exportadores, etc.) establecidos en la sesión.
+- Lecciones aprendidas de herramientas o técnicas (p.ej. cobertura de `oldString`).
+
+Usar formato: `**[área]**: <hecho verificable>`. El template está en
+`.ai/sessions/TEMPLATE/TRACEABILITY.md`.
+
 ---
 
 ## Gobernanza de plataformas IA
@@ -284,6 +298,7 @@ deuda técnica con ruta exacta.
 | `CLAUDE.md` | Claude Code | Especialización: slash commands, hooks, settings.json |
 | `.github/AGENTS.md` | Copilot/Claude | Registro de agentes especializados |
 | `.ai/*.md` | Todas | Contexto persistente: producto, arquitectura |
+| `.ai/sessions/TEMPLATE/` | Todas | Plantilla canónica de artefactos de sesión |
 
 **Regla de oro**: Edita SHARED_INSTRUCTIONS.md primero. Luego sincroniza solo las
 especializaciones afectadas (copilot-instructions.md y/o CLAUDE.md).
