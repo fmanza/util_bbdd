@@ -5,23 +5,25 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..ir.models import CanonicalColumn, CanonicalTable, MigrationPlan, MigrationWarning
+    from ..ir.models import CanonicalColumn, CanonicalRoutine, CanonicalTable, MigrationPlan, MigrationWarning
 
 
 def format_plan_markdown(plan: MigrationPlan) -> str:
     """Genera un reporte Markdown del plan de migración.
 
     Args:
-        plan: Plan de migración con tablas y warnings.
+        plan: Plan de migración con tablas, rutinas y warnings.
 
     Returns:
-        Documento Markdown con resumen, tabla de avisos y listado de tablas.
+        Documento Markdown con resumen, tabla de avisos, listado de tablas
+        y sección de rutinas (PROCEDURE/FUNCTION) con su código fuente.
     """
     lines: list[str] = [
         f"# Plan de migración: {plan.source_engine.upper()} → {plan.target_engine.upper()}",
         "",
         f"**Schema origen**: `{plan.source_schema}`  ",
         f"**Tablas**: {len(plan.tables)}  ",
+        f"**Rutinas**: {len(plan.routines)}  ",
         f"**Avisos**: {plan.error_count} error / {plan.warning_count} warning / {plan.info_count} info",
         "",
     ]
@@ -30,6 +32,8 @@ def format_plan_markdown(plan: MigrationPlan) -> str:
         lines.extend(_warnings_section(plan.warnings))
     if plan.tables:
         lines.extend(_tables_section(plan.tables, plan.target_engine.upper()))
+    if plan.routines:
+        lines.extend(_routines_section(plan.routines))
 
     return "\n".join(lines)
 
@@ -76,6 +80,55 @@ def _column_row(column: CanonicalColumn) -> str:
     ai = "✓" if column.auto_increment else ""
     null = "YES" if column.nullable else "NO"
     return f"| `{column.name}` | `{column.oracle_type}` | `{column.target_type}` | {null} | {ai} |"
+
+
+def _routines_section(routines: list[CanonicalRoutine]) -> list[str]:
+    lines: list[str] = [
+        "## Rutinas (PROCEDURE/FUNCTION)",
+        "",
+        "> ⚠️ Las rutinas requieren revisión manual. El código se muestra tal como existe "
+        "en el motor origen; adaptar la sintaxis al motor destino antes de ejecutar.",
+        "",
+    ]
+    for routine in routines:
+        lines.extend(_routine_block(routine))
+    return lines
+
+
+def _routine_block(routine: CanonicalRoutine) -> list[str]:
+    lines: list[str] = [f"### `{routine.name}` ({routine.routine_type})"]
+    if routine.original_name != routine.name:
+        lines.append(f"> Nombre original: `{routine.original_name}`")
+    if routine.comment:
+        lines.append(f"> {routine.comment}")
+    lines.append("")
+
+    if routine.is_package_member:
+        pkg = routine.package_name or routine.name
+        lines += [
+            f"> **Miembro de PACKAGE**: `{pkg}` — migración manual requerida.",
+            "",
+        ]
+        return lines
+
+    if routine.warnings:
+        lines.append("> **⚠️ Requiere revisión manual** (ver avisos de migración).")
+        lines.append("")
+
+    if not routine.body:
+        lines += [
+            "> **Código no disponible** — implementación manual requerida.",
+            "",
+        ]
+        return lines
+
+    lines += [
+        "```sql",
+        routine.body,
+        "```",
+        "",
+    ]
+    return lines
 
 
 __all__: list[str] = ["format_plan_markdown"]
