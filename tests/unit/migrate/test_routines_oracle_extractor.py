@@ -78,7 +78,28 @@ class TestOracleExtractRoutines:
         assert result[0].body == ""
         assert any("no disponible" in w.message for w in result[0].warnings)
 
-    def test_package_becomes_package_member(self) -> None:
+    def test_package_body_fetches_and_stores_body(self) -> None:
+        routine_rows = [("PKG_UTIL", "PACKAGE BODY", 1005)]
+        body_rows = [
+            (1, "CREATE OR REPLACE PACKAGE BODY PKG_UTIL AS\n"),
+            (2, "  PROCEDURE GET_DATA IS\n"),
+            (3, "  BEGIN\n"),
+            (4, "    SELECT 1 FROM DUAL;\n"),
+            (5, "  END;\n"),
+            (6, "END PKG_UTIL;\n"),
+        ]
+        manager = MagicMock()
+        manager.execute_custom_many.side_effect = [iter(routine_rows), iter(body_rows)]
+        ext = OracleSchemaExtractor(manager)
+        result = ext.extract_routines("MY_SCHEMA")
+        assert len(result) == 1
+        r = result[0]
+        assert r.is_package_member is True
+        assert r.package_name == "PKG_UTIL"
+        assert "PKG_UTIL" in r.body
+        assert r.body != ""
+
+    def test_package_spec_has_no_body(self) -> None:
         routine_rows = [("PKG_UTIL", "PACKAGE", 1004)]
         manager = MagicMock()
         manager.execute_custom_many.side_effect = [iter(routine_rows)]
@@ -86,17 +107,7 @@ class TestOracleExtractRoutines:
         result = ext.extract_routines("MY_SCHEMA")
         assert len(result) == 1
         assert result[0].is_package_member is True
-        assert result[0].package_name == "PKG_UTIL"
         assert result[0].body == ""
-
-    def test_package_body_becomes_package_member(self) -> None:
-        routine_rows = [("PKG_UTIL", "PACKAGE BODY", 1005)]
-        manager = MagicMock()
-        manager.execute_custom_many.side_effect = [iter(routine_rows)]
-        ext = OracleSchemaExtractor(manager)
-        result = ext.extract_routines("MY_SCHEMA")
-        assert len(result) == 1
-        assert result[0].is_package_member is True
 
     def test_unknown_type_skipped(self) -> None:
         routine_rows = [("OBJ_X", "TRIGGER", 1006)]

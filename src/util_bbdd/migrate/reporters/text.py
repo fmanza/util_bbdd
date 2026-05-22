@@ -34,7 +34,7 @@ def format_plan_text(plan: MigrationPlan) -> str:
     if plan.warnings:
         lines.extend(_warnings_section(plan.warnings))
     if plan.routines:
-        lines.extend(_routines_section(plan.routines))
+        lines.extend(_routines_section(plan.routines, plan.source_engine))
 
     lines.append("")
     return "\n".join(lines)
@@ -63,7 +63,7 @@ def _warning_lines(w: MigrationWarning) -> list[str]:
     return lines
 
 
-def _routines_section(routines: list[CanonicalRoutine]) -> list[str]:
+def _routines_section(routines: list[CanonicalRoutine], source_engine: str) -> list[str]:
     lines: list[str] = [
         "",
         "RUTINAS (PROCEDURE/FUNCTION):",
@@ -72,22 +72,23 @@ def _routines_section(routines: list[CanonicalRoutine]) -> list[str]:
         _SEP_THIN,
     ]
     for routine in routines:
-        lines.extend(_routine_block(routine))
+        lines.extend(_routine_block(routine, source_engine))
     return lines
 
 
-def _routine_block(routine: CanonicalRoutine) -> list[str]:
+def _routine_block(routine: CanonicalRoutine, source_engine: str) -> list[str]:
     header = f"{routine.routine_type}: {routine.name}"
     if routine.original_name != routine.name:
         header += f" (original: {routine.original_name})"
     lines: list[str] = ["", header, "-" * len(header)]
 
+    src_type = ("PACKAGE BODY" if routine.body else "PACKAGE") if routine.is_package_member else routine.routine_type
+    lines.append(f"  Fuente: {source_engine.upper()} · schema {routine.schema} · tipo {src_type}")
+
     if routine.is_package_member:
         pkg = routine.package_name or routine.name
-        lines.append(f"  [PACKAGE MEMBER] {pkg}.{routine.name} — migración manual requerida.")
-        return lines
-
-    if routine.warnings:
+        lines.append(f"  [PACKAGE MEMBER] {pkg} — requiere descomposición manual en rutinas individuales.")
+    elif routine.warnings:
         lines.append("  [REQUIERE REVISIÓN MANUAL] (ver avisos de migración)")
 
     if routine.comment:

@@ -33,7 +33,7 @@ def format_plan_markdown(plan: MigrationPlan) -> str:
     if plan.tables:
         lines.extend(_tables_section(plan.tables, plan.target_engine.upper()))
     if plan.routines:
-        lines.extend(_routines_section(plan.routines))
+        lines.extend(_routines_section(plan.routines, plan.source_engine))
 
     return "\n".join(lines)
 
@@ -82,7 +82,7 @@ def _column_row(column: CanonicalColumn) -> str:
     return f"| `{column.name}` | `{column.oracle_type}` | `{column.target_type}` | {null} | {ai} |"
 
 
-def _routines_section(routines: list[CanonicalRoutine]) -> list[str]:
+def _routines_section(routines: list[CanonicalRoutine], source_engine: str) -> list[str]:
     lines: list[str] = [
         "## Rutinas (PROCEDURE/FUNCTION)",
         "",
@@ -91,11 +91,11 @@ def _routines_section(routines: list[CanonicalRoutine]) -> list[str]:
         "",
     ]
     for routine in routines:
-        lines.extend(_routine_block(routine))
+        lines.extend(_routine_block(routine, source_engine))
     return lines
 
 
-def _routine_block(routine: CanonicalRoutine) -> list[str]:
+def _routine_block(routine: CanonicalRoutine, source_engine: str) -> list[str]:
     lines: list[str] = [f"### `{routine.name}` ({routine.routine_type})"]
     if routine.original_name != routine.name:
         lines.append(f"> Nombre original: `{routine.original_name}`")
@@ -103,15 +103,17 @@ def _routine_block(routine: CanonicalRoutine) -> list[str]:
         lines.append(f"> {routine.comment}")
     lines.append("")
 
+    src_type = ("PACKAGE BODY" if routine.body else "PACKAGE") if routine.is_package_member else routine.routine_type
+    lines.append(f"> **Fuente**: `{source_engine.upper()}` · schema `{routine.schema}` · tipo `{src_type}`")
+    lines.append("")
+
     if routine.is_package_member:
         pkg = routine.package_name or routine.name
         lines += [
-            f"> **Miembro de PACKAGE**: `{pkg}` — migración manual requerida.",
+            f"> **Miembro de PACKAGE**: `{pkg}` — requiere descomposición manual en rutinas individuales.",
             "",
         ]
-        return lines
-
-    if routine.warnings:
+    elif routine.warnings:
         lines.append("> **⚠️ Requiere revisión manual** (ver avisos de migración).")
         lines.append("")
 

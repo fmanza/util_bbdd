@@ -104,11 +104,27 @@ class TestMarkdownReporterRoutines:
         assert "Requiere revisión manual" in result
 
     def test_routine_package_member_shows_package_note(self) -> None:
-        plan = _plan([_routine(is_package_member=True, package_name="PKG_UTILS")])
+        # Sin body: package spec o miembro sin fuente disponible
+        plan = _plan([_routine(is_package_member=True, package_name="PKG_UTILS", body="")])
         result = format_plan_markdown(plan)
         assert "Miembro de PACKAGE" in result
         assert "PKG_UTILS" in result
         assert "```sql" not in result
+
+    def test_package_body_member_with_body_shows_code_block(self) -> None:
+        body = "CREATE OR REPLACE PACKAGE BODY PKG_UTIL AS\nPROCEDURE P1 IS BEGIN NULL; END;\nEND PKG_UTIL;"
+        plan = _plan([_routine(is_package_member=True, body=body)])
+        result = format_plan_markdown(plan)
+        assert "Miembro de PACKAGE" in result
+        assert "```sql" in result
+        assert body in result
+
+    def test_routine_shows_source_info_markdown(self) -> None:
+        plan = _plan([_routine()])
+        result = format_plan_markdown(plan)
+        assert "**Fuente**" in result
+        assert "ORACLE" in result
+        assert "SCHEMA" in result
 
     def test_routine_comment_shown(self) -> None:
         plan = _plan([_routine(comment="Obtiene el usuario por ID")])
@@ -182,6 +198,20 @@ class TestTextReporterRoutines:
         result = format_plan_text(plan)
         assert "PACKAGE MEMBER" in result
         assert "PKG_UTILS" in result
+
+    def test_package_body_member_with_body_shown(self) -> None:
+        body = "CREATE OR REPLACE PACKAGE BODY PKG_UTIL AS\n  PROCEDURE P1 IS BEGIN NULL; END;\nEND;"
+        plan = _plan([_routine(is_package_member=True, body=body)])
+        result = format_plan_text(plan)
+        assert "PACKAGE MEMBER" in result
+        assert "CREATE OR REPLACE PACKAGE BODY" in result
+
+    def test_routine_shows_source_info_text(self) -> None:
+        plan = _plan([_routine()])
+        result = format_plan_text(plan)
+        assert "Fuente:" in result
+        assert "ORACLE" in result
+        assert "SCHEMA" in result
 
     def test_routine_comment_shown(self) -> None:
         plan = _plan([_routine(comment="Obtiene el usuario")])

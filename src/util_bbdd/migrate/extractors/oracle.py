@@ -192,11 +192,14 @@ class OracleSchemaExtractor:
                         )
                     )
             elif raw_type in ("PACKAGE", "PACKAGE BODY"):
-                # Inventario: miembro de package, sin DDL
                 routine_type = "PROCEDURE"
                 is_pkg_member = True
                 pkg_name = routine_name
-                body = ""
+                # PACKAGE BODY: obtener fuente completo desde ALL_SOURCE para revisión manual.
+                # PACKAGE spec: sin implementación, body vacío.
+                body = (
+                    self._fetch_routine_body(schema, routine_name, "PACKAGE BODY") if raw_type == "PACKAGE BODY" else ""
+                )
                 warnings = [
                     MigrationWarning(
                         table=routine_name,
