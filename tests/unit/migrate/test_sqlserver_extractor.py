@@ -57,8 +57,7 @@ def _col_row(
     is_identity: int = 0,
     ordinal: int = 1,
 ) -> tuple:
-    return (name, data_type, char_length, numeric_precision, numeric_scale,
-            is_nullable, default, is_identity, ordinal)
+    return (name, data_type, char_length, numeric_precision, numeric_scale, is_nullable, default, is_identity, ordinal)
 
 
 # ── Tests _parse_raw_column ───────────────────────────────────────────────────
@@ -276,3 +275,85 @@ class TestExtractIndexes:
         ext = SQLServerSchemaExtractor(manager)
         result = ext.extract("dbo")
         assert result[0].indexes[0].unique is False
+
+
+# ── Tests extract_routines() ─────────────────────────────────────────────────
+
+
+def _make_routines_manager(
+    routine_rows: list[tuple],
+    body_map: dict[str, str] | None = None,
+) -> MagicMock:
+    """Manager mock para probar extract_routines().
+
+    Args:
+        routine_rows: Filas de sys.procedures (name, type, object_id, params_count).
+        body_map: Mapa routine_name → body DDL; None o ausente → body vacío.
+    """
+    body_map = body_map or {}
+    manager = MagicMock()
+
+    def side_effect(sql: str, params: dict) -> list:
+        sql_upper = sql.upper()
+        if "SYS.PROCEDURES" in sql_upper:
+            return routine_rows
+        if "SYS.SQL_MODULES" in sql_upper:
+            name = params.get("routine_name", "")
+            body = body_map.get(name, "")
+            return [(body,)] if body else []
+        return []
+
+    manager.execute_custom_many.side_effect = side_effect
+    return manager
+
+
+class TestExtractRoutines:
+    def test_empty_returns_empty(self) -> None:
+        manager = _make_routines_manager([])
+        ext = SQLServerSchemaExtractor(manager)
+        assert ext.extract_routines("dbo") == []
+
+    def test_procedure_with_body(self) -> None:
+        manager = _make_routines_manager(
+            routine_rows=[("SP_TEST", "PROCEDURE", 1001, 2)],
+            body_map={"SP_TEST": "CREATE PROCEDURE SP_TEST AS BEGIN SELECT 1 END"},
+        )
+        ext = SQLServerSchemaExtractor(manager)
+        result = ext.extract_routines("dbo")
+        assert len(result) == 1
+        r = result[0]
+        assert r.name == "SP_TEST"
+        assert r.routine_type == "PROCEDURE"
+        assert "SELECT 1" in r.body
+        assert r.warnings == []
+
+    def test_routine_no_body_emits_warning(self) -> None:
+        manager = _make_routines_manager(
+            routine_rows=[("SP_EMPTY", "PROCEDURE", 1002, 0)],
+            body_map={},
+        )
+        ext = SQLServerSchemaExtractor(manager)
+        result = ext.extract_routines("dbo")
+        assert result[0].body == ""
+        assert len(result[0].warnings) == 1
+        assert "sys.sql_modules" in result[0].warnings[0].message
+
+    def test_schema_propagated(self) -> None:
+        manager = _make_routines_manager(
+            routine_rows=[("FN_CALC", "FUNCTION", 1003, 1)],
+            body_map={"FN_CALC": "CREATE FUNCTION FN_CALC() RETURNS INT AS BEGIN RETURN 1 END"},
+        )
+        ext = SQLServerSchemaExtractor(manager)
+        result = ext.extract_routines("myschema")
+        assert result[0].schema == "myschema"
+
+    def test_manager_execute_custom_many_called_not_execute(self) -> None:
+        """Verifica que se usa execute_custom_many (no .execute() inexistente)."""
+        manager = _make_routines_manager(
+            routine_rows=[("SP_TEST", "PROCEDURE", 1001, 0)],
+            body_map={"SP_TEST": "CREATE PROCEDURE SP_TEST AS BEGIN END"},
+        )
+        ext = SQLServerSchemaExtractor(manager)
+        ext.extract_routines("dbo")
+        assert manager.execute_custom_many.called
+        assert not manager.execute.called

@@ -17,7 +17,10 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-from ...metadata.sqlserver.routines import fetch_routine_body_sync, fetch_routines_sync
+from ...metadata.sqlserver._adapter_helpers import (
+    build_sqlserver_routine_body_query,
+    build_sqlserver_routines_query,
+)
 from ...metadata.sqlserver.tables import (
     fetch_columns_sql,
     fetch_fk_sql,
@@ -216,13 +219,20 @@ class SQLServerSchemaExtractor:
         almacenadas en ``sys.objects`` con type 'FN'/'TF'. Estas quedan fuera
         del inventario v1 por limitación del helper existente.
         """
-        detail_list = fetch_routines_sync(self._manager, schema)
+        schema_name = schema or "dbo"
+        raw_rows = self._query(build_sqlserver_routines_query(), {"schema_name": schema_name})
         routines: list[CanonicalRoutine] = []
 
-        for detail in detail_list:
-            routine_name = detail.routine_name
-            routine_type = detail.routine_type  # "PROCEDURE" | "FUNCTION"
-            body = fetch_routine_body_sync(self._manager, schema, routine_name)
+        for row in raw_rows:
+            if not row or len(row) < 2:
+                continue
+            routine_name = str(row[0]).strip()
+            routine_type = str(row[1]).strip()  # "PROCEDURE" | "FUNCTION"
+            body_rows = self._query(
+                build_sqlserver_routine_body_query(),
+                {"schema_name": schema_name, "routine_name": routine_name},
+            )
+            body = str(body_rows[0][0]).strip() if body_rows and body_rows[0] and body_rows[0][0] else ""
 
             warnings: list[MigrationWarning] = []
             if not body:
