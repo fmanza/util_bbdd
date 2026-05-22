@@ -193,8 +193,7 @@ class SQLAlchemyEngineFactory:
                 db_type="postgresql",
             )
 
-        masked_pass: str = "*" * len(password)
-        return f"postgresql+psycopg://{user}:{masked_pass}@{host}:{port}/{database}"
+        return f"postgresql+psycopg://{user}:{password}@{host}:{port}/{database}"
 
     @staticmethod
     def _build_hsqldb_connection_string(conn_params: dict[str, Any], database: str) -> str:
@@ -243,13 +242,11 @@ class SQLAlchemyEngineFactory:
                 db_type="sqlserver",
             )
 
-        masked_pass: str = "*" * len(password)
-
         # Construir URL diferente según el driver
         if sql_server_driver == "pyodbc":
-            return f"mssql+pyodbc://{user}:{masked_pass}@{host}:{port}/{database}"
+            return f"mssql+pyodbc://{user}:{password}@{host}:{port}/{database}"
         else:  # pymssql por defecto
-            return f"mssql+pymssql://{user}:{masked_pass}@{host}:{port}/{database}"
+            return f"mssql+pymssql://{user}:{password}@{host}:{port}/{database}"
 
     @staticmethod
     def _build_sqlite_connection_string(conn_params: dict[str, Any]) -> str:
