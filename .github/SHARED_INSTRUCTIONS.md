@@ -72,7 +72,7 @@ src/util_bbdd/
 |---|---|
 | `managers/` | Ciclo de vida de conexión: init, pool, cierre; operaciones de BD |
 | `bulk/` | CRUD masivo desde DataFrame con auditoría y generación de SQL |
-| `metadata/` | Introspección de esquemas: tablas, columnas, índices, DDL; caché en sesión |
+| `metadata/` | Introspección de esquemas: tablas, columnas, índices, DDL; caché en sesión; único punto autorizado para SQL de introspección (ver `.github/instructions/architecture.instructions.md` § Reglas de acceso a metadatos) |
 | `comparar/` | Comparación de dos esquemas; diff estructurado; reporters por formato |
 | `doc/` | Documentación de BD en Word, Excel y HTML vía Jinja2 |
 | `connection/` | Construcción de parámetros y configuración de conexión por motor |
