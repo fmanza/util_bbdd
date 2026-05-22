@@ -289,18 +289,19 @@ el mantenimiento a largo plazo (un solo lugar para cambiar una query).
 
 **Cambios en `migrate/`:**
 
-- `migrate/sql/mariadb.py`, `migrate/sql/sqlserver.py`, `migrate/sql/postgresql.py` —
-  Convertidos a **re-exportadores de compatibilidad**: re-exportan las funciones desde
-  `metadata/*/tables.py`. La API pública de `migrate.sql.*` es idéntica; código
-  externo que importe desde esa ruta sigue funcionando sin cambios.
+- `migrate/sql/` — Directorio **eliminado** por completo. Tras redirigir los
+  extractores directamente a `metadata/*/tables.py`, los re-exportadores no tenían
+  ningún consumidor (0 imports en `src/`, tests ni docs). Se elimina la capa
+  intermedia para evitar código muerto.
 
 - `migrate/extractors/mariadb.py`, `migrate/extractors/sqlserver.py`,
   `migrate/extractors/postgresql.py` — Imports redirigidos directamente a
   `metadata/*/tables.py` (mismo patrón que `migrate/extractors/oracle.py`, que
   ya era la referencia canónica).
 
-**Compatibilidad hacia atrás:** total. `migrate.sql.*` mantiene la misma API pública
-vía re-exportación. Ningún cambio de comportamiento; 3202 tests pasan sin modificación.
+**Compatibilidad hacia atrás:** total dentro del proyecto. `migrate.sql.*` no
+formaba parte de ninguna API pública documentada. Ningún cambio de comportamiento;
+1189 tests de migrate + 3202 totales pasan sin modificación.
 
 ### Fixed
 
