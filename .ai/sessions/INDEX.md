@@ -82,6 +82,8 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-05-22i-hotfix-postgresql-finalization | **hotfix: `PythonFinalizationError` al cerrar pool PostgreSQL en shutdown** — guarda `sys.is_finalizing()` añadida en `_close_with_optional_timeout` para omitir `psycopg_pool.close()` cuando Python está finalizando; `import sys` añadido; 2 tests nuevos en `TestPostgresqlPoolFinalizationSafety`; 8/8 verdes | develop | hotfix | CLOSED | `2026-05-22i-hotfix-postgresql-finalization/TRACEABILITY.md` |
 | 2026-05-22j-migrate-reporters-routines | **new_feature: reporters migrate muestran código de PROCEDURE/FUNCTION** — `format_plan_markdown` y `format_plan_text` añaden sección de rutinas con body en bloque SQL, aviso de revisión manual si hay warnings, nota para package members Oracle y stub si body no disponible; línea de conteo `Rutinas: N` en header; 22 tests nuevos en `test_reporters.py` (3291 total) | develop | new_feature | CLOSED | `2026-05-22j-migrate-reporters-routines/TRACEABILITY.md` |
 
+| 2026-05-22k-hotfix-sqlserver-tests | **hotfix: 4 tests `test_routines_sqlserver_extractor.py` rotos en CI** — tests parcheaban `fetch_routines_sync`/`fetch_routine_body_sync` (removidas en sesión g); reescritos con `manager.execute_custom_many.side_effect` + raw tuples; alineados con patrón mariadb/oracle; 4/4 verdes + diagnóstico completo pipeline routines | develop | hotfix | CLOSED | `2026-05-22k-hotfix-sqlserver-tests/TRACEABILITY.md` |
+
 ## Crear nueva sesión
 
 1. Copia `TEMPLATE/` con nombre `YYYY-MM-DD/`.
