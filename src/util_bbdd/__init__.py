@@ -29,6 +29,7 @@ from ._core.exceptions import (
 from .async_utils import maybe_await
 from .comparar import SchemaComparator, SchemaDiff
 from .connection.builder import build_conn_params
+from .dump import DumpConfig, DumpOrchestrator, DumpResult, TableDumpResult
 from .factory import ConnectionFactory, PoolFactory
 from .managers.async_mgr import AsyncDatabaseManager
 from .managers.sync_mgr import SyncDatabaseManager
@@ -65,6 +66,11 @@ __all__: list[str] = [
     "QueryParameterError",
     "QueryTimeoutError",
     "QueryExecutionError",
+    # Volcado de datos
+    "DumpOrchestrator",
+    "DumpConfig",
+    "DumpResult",
+    "TableDumpResult",
     # Migración DDL
     "MigrationPlanner",
     "MigrationPlan",

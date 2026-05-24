@@ -343,6 +343,33 @@ class DocumentationRenderError(DocumentationError):
     pass
 
 
+# ============================================================================
+# Categoría 8: Errores del módulo dump/
+# ============================================================================
+
+
+class DumpError(DatabaseException):
+    """Excepción base para errores del módulo de volcado de datos (dump/).
+
+    Cubre errores de orquestación, lectura de origen, escritura en destino,
+    gestión de constraints y generación de informes Excel.
+    """
+
+    pass
+
+
+class DumpConstraintError(DumpError):
+    """Error desactivando o reactivando constraints en la BD destino."""
+
+    pass
+
+
+class DumpReportError(DumpError):
+    """Error generando el informe Excel de auditoría del volcado."""
+
+    pass
+
+
 __all__ = [
     # Base
     "DatabaseException",
@@ -383,4 +410,8 @@ __all__ = [
     "DocumentationError",
     "DocumentationConfigError",
     "DocumentationRenderError",
+    # Volcado de datos
+    "DumpError",
+    "DumpConstraintError",
+    "DumpReportError",
 ]
