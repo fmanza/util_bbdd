@@ -34,10 +34,11 @@ def _routine(
 
 
 class TestOracleRoutineEmitter:
-    def test_emit_procedure_prepends_create_or_replace(self) -> None:
-        ddl = _emitter().emit(tables=[], routines=[_routine()])
-        assert "CREATE OR REPLACE" in ddl
-        assert "PROCEDURE SP_TEST" in ddl
+    def test_emit_procedure_body_exact_copy(self) -> None:
+        body = "PROCEDURE SP_TEST AS\nBEGIN\n  NULL;\nEND;"
+        ddl = _emitter().emit(tables=[], routines=[_routine(body=body)])
+        assert body in ddl
+        assert "CREATE OR REPLACE" not in ddl
 
     def test_stub_when_no_body(self) -> None:
         r = _routine(body="")
@@ -58,13 +59,16 @@ class TestOracleRoutineEmitter:
         assert isinstance(ddl, str)
 
     def test_emit_statements_includes_routine(self) -> None:
-        r = _routine()
+        body = "PROCEDURE SP_TEST AS\nBEGIN\n  NULL;\nEND;"
+        r = _routine(body=body)
         stmts = _emitter().emit_statements(tables=[], routines=[r])
         combined = "\n".join(stmts)
-        assert "CREATE OR REPLACE" in combined
+        assert body in combined
 
     def test_multiple_routines_emitted(self) -> None:
-        routines = [_routine("SP_A"), _routine("SP_B")]
+        routines = [_routine("SP_A", body="PROCEDURE SP_A AS BEGIN NULL; END;"),
+                    _routine("SP_B", body="PROCEDURE SP_B AS BEGIN NULL; END;")]
         stmts = _emitter().emit_statements(tables=[], routines=routines)
         combined = "\n".join(stmts)
-        assert combined.count("CREATE OR REPLACE") == 2
+        assert "PROCEDURE SP_A" in combined
+        assert "PROCEDURE SP_B" in combined

@@ -7,6 +7,29 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] - develop
 
+### Fixed
+
+#### migrate/emitters: Oracle emite body de rutinas verbatim (sin `CREATE OR REPLACE`)
+
+`_emit_create_routine()` en `OracleDDLEmitter` anteponía `CREATE OR REPLACE` al body
+extraído de `ALL_SOURCE`. Oracle almacena las rutinas sin ese prefijo (la primera línea
+es `PROCEDURE name (...)` / `FUNCTION name (...)`), por lo que el script generado no era
+una copia exacta del origen.
+
+**Fix**: eliminado el prefijo artificial; el emitter Oracle emite ahora `routine.body`
+verbatim, alineado con los emitters de SQL Server, PostgreSQL y MariaDB.
+
+**Archivos afectados**:
+- `src/util_bbdd/migrate/emitters/oracle.py` — `_emit_create_routine()` sin prefijo
+- `tests/unit/migrate/test_routines_oracle_emitter.py` — tests actualizados
+
+**Comportamiento sin cambios**:
+- Aviso `-- NOTE: requires manual review` cuando hay warnings
+- Stub `-- TODO: ... body not available` cuando body no está disponible
+- PACKAGE MEMBERS: solo comentario, sin DDL ejecutable
+
+---
+
 ### Added
 
 #### migrate: soporte PostgreSQL → Oracle / MariaDB / SQL Server

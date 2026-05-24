@@ -359,7 +359,7 @@ class OracleDDLEmitter:
                 f"body not available; manual implementation required"
             )
             return "\n".join(lines)
-        lines.append(f"CREATE OR REPLACE {routine.body}")
+        lines.append(routine.body)
         return "\n".join(lines)
 
 
