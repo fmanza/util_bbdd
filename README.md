@@ -20,6 +20,7 @@ Librería Python especializada en **operaciones de base de datos** para MariaDB,
 | **Validación SQL** | ✅ | ✅ | Typechecking por dialecto de BD |
 | **Grafos** | ✅ | ✅ | Generar relaciones (Mermaid + GraphViz) |
 | **Migración DDL** | ✅ | — | Oracle → MariaDB: mapeo de tipos, FKs, secuencias, charset |
+| **Volcado de Datos** | ✅ | — | Copia datos entre esquemas/motores, orden topológico FK, gestión de constraints, informe Excel |
 
 ---
 
@@ -59,6 +60,7 @@ Librería Python especializada en **operaciones de base de datos** para MariaDB,
 - ¿Comparar 2 schemas? → Use `SchemaComparator`
 - ¿Documentar BD? → Use `DatabaseDocumentation`
 - ¿Migrar Oracle → MariaDB? → Use `MigrationPlanner`
+- ¿Volcar datos entre schemas/motores? → Use `DumpOrchestrator`
 
 ---
 
@@ -176,6 +178,33 @@ async def main():
 
 asyncio.run(main())
 ```
+
+### Volcado de Datos entre Motores
+
+`DumpOrchestrator` copia datos de un esquema origen a otro destino (igual o distinto motor), detecta el orden topológico de carga por claves foráneas, gestiona constraints y genera un informe Excel de auditoría.
+
+```python
+from pathlib import Path
+from sqlalchemy import create_engine
+from util_bbdd.dump import DumpConfig, DumpOrchestrator
+
+config = DumpConfig(
+    source_engine=create_engine("postgresql+psycopg2://user:pw@src/db"),
+    target_engine=create_engine("mssql+pymssql://user:pw@dst/db"),
+    source_schema="public",
+    target_schema="dbo",
+    chunk_size=10_000,
+    output_dir=Path("reports"),
+    truncate_target=True,
+)
+result = DumpOrchestrator(config).run()
+print(f"Informe: {result.report}")
+print(f"Tablas cargadas: {sum(1 for t in result.table_results if t.status == 'success')}")
+```
+
+Para un ejemplo completo con troubleshooting e interpretación del informe Excel, consulta `docs/examples/dump_data_export.md`.
+
+---
 
 ### SQLite — Más rápido para testing
 

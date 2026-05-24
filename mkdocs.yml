@@ -52,6 +52,8 @@ nav:
           - Patrón de Validadores: functional/validators-pattern.md
       - Comparación de Esquemas:
           - Comparador de Esquemas: functional/schema-comparison.md
+      - Volcado de Datos:
+          - Volcado entre esquemas: functional/dump-data-export.md
       - Migración de Esquemas:
           - Migración Oracle (origen): functional/migrate-oracle-mariadb.md
           - Migración MariaDB (origen): functional/migrate-mariadb-source.md
@@ -84,6 +86,8 @@ nav:
           - Sistema de Validadores: api/validators-system.md
       - Comparación de Esquemas:
           - Comparador y Reporters: api/schema-comparator.md
+      - Volcado de Datos:
+          - Orquestador y Reporters: api/dump.md
       - Migración de Esquemas:
           - API Oracle (origen): api/migrate-oracle-mariadb.md
           - API MariaDB (origen): api/migrate-mariadb-source.md
@@ -128,6 +132,7 @@ nav:
       - Bulk Insert desde CSV: examples/bulk_insert_csv.md
       - Manejo de Excepciones: examples/exception_handling.md
       - Generación de Grafos: examples/graph_generation.md
+      - Volcado de Datos entre Motores: examples/dump_data_export.md
       - Migración Oracle (origen): examples/migrate-oracle-mariadb.md
       - Migración MariaDB (origen): examples/migrate-mariadb-source.md
       - Ejecución de Consultas: examples/query_execution_example.md
