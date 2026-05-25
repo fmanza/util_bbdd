@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from typing import Any, Protocol
 
 import pandas as pd
@@ -146,14 +146,13 @@ class DeleteBatchExecutor:
                     strategy=strategy, connection=connection, table=table, batch_df=batch_df, pk_cols=pk_cols
                 )
 
-    def _iter_batches(self, *, df: pd.DataFrame, pk_cols: Sequence[str]) -> Sequence[pd.DataFrame]:
-        """Genera batches no vacíos para la ejecución."""
-        batches: list[pd.DataFrame] = []
+    def _iter_batches(self, *, df: pd.DataFrame, pk_cols: Sequence[str]) -> Iterator[pd.DataFrame]:
+        """Genera batches no vacíos para la ejecución sin materializar la lista completa."""
+        pk_list = list(pk_cols)
         for start in range(0, len(df), self._chunk_size):
-            batch_df: pd.DataFrame = df[list(pk_cols)].iloc[start : start + self._chunk_size]
+            batch_df: pd.DataFrame = df[pk_list].iloc[start : start + self._chunk_size]
             if not batch_df.empty:
-                batches.append(batch_df)
-        return batches
+                yield batch_df
 
     def _execute_batch(
         self,

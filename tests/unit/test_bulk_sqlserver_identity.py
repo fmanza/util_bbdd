@@ -143,7 +143,7 @@ def test_generate_sql_mssql_identity_wraps_with_on_off(mock_sqlserver_engine, id
     df = pd.DataFrame({"id": [1, 2], "name": ["Alice", "Bob"]})
 
     with patch.object(manager, "reflect_table", return_value=identity_table):
-        op = manager._bulk_crud__prepare_insert_operation(df, "orders")  # type: ignore[attr-defined]
+        op = manager._BulkCrud__prepare_insert_operation(df, "orders")  # type: ignore[attr-defined]
         sql_lines = op.generate_sql_lines()
 
     assert sql_lines[0] == "SET IDENTITY_INSERT [dbo].[orders] ON;"
@@ -157,7 +157,7 @@ def test_generate_sql_mssql_no_identity_col_no_wrap(mock_sqlserver_engine, no_id
     df = pd.DataFrame({"id": [1], "name": ["Alice"]})
 
     with patch.object(manager, "reflect_table", return_value=no_identity_table):
-        op = manager._bulk_crud__prepare_insert_operation(df, "orders")  # type: ignore[attr-defined]
+        op = manager._BulkCrud__prepare_insert_operation(df, "orders")  # type: ignore[attr-defined]
         sql_lines = op.generate_sql_lines()
 
     assert all("IDENTITY_INSERT" not in line for line in sql_lines)
@@ -168,7 +168,7 @@ def test_generate_sql_other_dialect_no_wrap(mock_sqlite_engine, identity_table: 
     df = pd.DataFrame({"id": [1], "name": ["Alice"]})
 
     with patch.object(manager, "reflect_table", return_value=identity_table):
-        op = manager._bulk_crud__prepare_insert_operation(df, "orders")  # type: ignore[attr-defined]
+        op = manager._BulkCrud__prepare_insert_operation(df, "orders")  # type: ignore[attr-defined]
         sql_lines = op.generate_sql_lines()
 
     assert all("IDENTITY_INSERT" not in line for line in sql_lines)
@@ -188,7 +188,7 @@ def test_execute_path_unchanged_does_not_call_wrap(mock_sqlserver_engine) -> Non
     df = pd.DataFrame({"ID": [1], "NAME": ["Alice"]})
 
     with patch.object(manager, "reflect_table", return_value=mssql_table):
-        with patch.object(manager, "_bulk_crud__ejecutar_batch_stmt") as mock_exec:
+        with patch.object(manager, "_BulkCrud__ejecutar_batch_stmt") as mock_exec:
             manager.bulk_insert_from_df(df, "orders", generar_sql=False)
 
     mock_exec.assert_called_once()

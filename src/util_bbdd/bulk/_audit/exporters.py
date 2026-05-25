@@ -12,6 +12,7 @@ from typing import Any, Literal
 import pandas as pd
 
 from .errors import AuditConfigError, AuditDataError
+from .html_template import AUDIT_HTML_TEMPLATE
 from .repository import AuditCsvRepository
 from .service import AuditAnalyticsService
 
@@ -129,68 +130,24 @@ class AuditExporters:
 
         try:
             stats = self.service.obtener_estadisticas()
-            html_content = f"""<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auditoría - {datetime.now().strftime("%Y-%m-%d")}</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }}
-        .container {{ max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-        h1 {{ color: #333; border-bottom: 3px solid #007bff; padding-bottom: 10px; }}
-        h2 {{ color: #555; margin-top: 30px; border-left: 4px solid #007bff; padding-left: 10px; }}
-        .stats {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin: 20px 0; }}
-        .stat-box {{ background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #007bff; }}
-        .stat-label {{ font-size: 12px; color: #666; text-transform: uppercase; }}
-        .stat-value {{ font-size: 24px; font-weight: bold; color: #333; }}
-        table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-        th {{ background-color: #007bff; color: white; padding: 12px; text-align: left; }}
-        td {{ padding: 10px; border-bottom: 1px solid #ddd; }}
-        tr:hover {{ background-color: #f0f0f0; }}
-        .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 12px; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>📊 Reporte de Auditoría</h1>
-        <p>Generado: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
-
-        <h2>Estadísticas Generales</h2>
-        <div class="stats">
-            <div class="stat-box">
-                <div class="stat-label">Total Operaciones</div>
-                <div class="stat-value">{stats.get("total_operaciones", 0)}</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Filas Procesadas</div>
-                <div class="stat-value">{stats.get("total_filas_procesadas", 0):,}</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Tiempo Total (s)</div>
-                <div class="stat-value">{stats.get("tiempo_total_segundos", 0):.2f}</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-label">Tiempo Promedio (s)</div>
-                <div class="stat-value">{stats.get("tiempo_promedio_segundos", 0):.4f}</div>
-            </div>
-        </div>
-
-        <h2>Últimas 20 Operaciones</h2>
-        {dataframe.tail(20).to_html(classes="audit-table", index=False)}
-
-        <h2>Operaciones por Tipo</h2>
-        {pd.DataFrame(self.service.obtener_operaciones_por_tipo().items(), columns=["Operación", "Cantidad"]).to_html(classes="audit-table", index=False)}
-
-        <h2>Operaciones por Tabla</h2>
-        {pd.DataFrame(self.service.obtener_operaciones_por_tabla().items(), columns=["Tabla", "Cantidad"]).to_html(classes="audit-table", index=False)}
-
-        <div class="footer">
-            <p>Este reporte fue generado automáticamente por AuditManager (Phase 2)</p>
-        </div>
-    </div>
-</body>
-</html>"""
+            now = datetime.now()
+            html_content = AUDIT_HTML_TEMPLATE.substitute(
+                page_title=now.strftime("%Y-%m-%d"),
+                generated_datetime=now.strftime("%Y-%m-%d %H:%M:%S"),
+                total_operaciones=stats.get("total_operaciones", 0),
+                total_filas=f"{stats.get('total_filas_procesadas', 0):,}",
+                tiempo_total=f"{stats.get('tiempo_total_segundos', 0):.2f}",
+                tiempo_promedio=f"{stats.get('tiempo_promedio_segundos', 0):.4f}",
+                tabla_ultimas_ops=dataframe.tail(20).to_html(classes="audit-table", index=False),
+                tabla_por_tipo=pd.DataFrame(
+                    self.service.obtener_operaciones_por_tipo().items(),
+                    columns=["Operación", "Cantidad"],
+                ).to_html(classes="audit-table", index=False),
+                tabla_por_tabla=pd.DataFrame(
+                    self.service.obtener_operaciones_por_tabla().items(),
+                    columns=["Tabla", "Cantidad"],
+                ).to_html(classes="audit-table", index=False),
+            )
 
             output_html.parent.mkdir(parents=True, exist_ok=True)
             with open(output_html, "w", encoding="utf-8") as file_handle:

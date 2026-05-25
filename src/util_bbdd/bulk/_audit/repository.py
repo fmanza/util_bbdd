@@ -12,6 +12,8 @@ import pandas as pd
 
 from .errors import AuditConfigError, AuditDataError, AuditFileError
 
+_ERR_NO_CSV_PATH = "❌ 'audit_csv_path' no está establecido."
+
 
 class AuditCsvRepository:
     """Gestiona almacenamiento CSV de auditoría y caché de lecturas."""
@@ -55,10 +57,9 @@ class AuditCsvRepository:
     ) -> None:
         """Persistencia principal para una operación de auditoría."""
         if self.audit_csv_path is None:
-            raise AuditConfigError("❌ 'audit_csv_path' no está establecido.")
+            raise AuditConfigError(_ERR_NO_CSV_PATH)
 
         self.auditar_lote_csv(
-            audit_path=self.audit_csv_path,
             tabla=tabla,
             motor=motor,
             operacion=operacion,
@@ -71,7 +72,6 @@ class AuditCsvRepository:
     def auditar_lote_csv(
         self,
         *,
-        audit_path: Path,
         tabla: str,
         motor: str,
         operacion: str,
@@ -79,16 +79,18 @@ class AuditCsvRepository:
         elapsed: float,
         genero_sql: bool = False,
     ) -> None:
-        """Escribe una fila de auditoría en CSV."""
-        audit_path.parent.mkdir(parents=True, exist_ok=True)
-        file_exists: bool = audit_path.exists()
+        """Escribe una fila de auditoría en el CSV configurado (self.audit_csv_path)."""
+        if self.audit_csv_path is None:
+            raise AuditConfigError(_ERR_NO_CSV_PATH)
+        self.audit_csv_path.parent.mkdir(parents=True, exist_ok=True)
+        file_exists: bool = self.audit_csv_path.exists()
 
-        with open(audit_path, "a", newline="", encoding="utf-8") as file_handle:
+        with open(self.audit_csv_path, "a", newline="", encoding="utf-8") as file_handle:
             writer = csv.writer(file_handle, delimiter="\t")
             if not file_exists:
                 writer.writerow(self.columnas_auditoria)
 
-            tiempo_formateado: str = f"{elapsed:.3f}".replace(".", ",")
+            tiempo_formateado: str = f"{elapsed:.3f}"
             sql_texto: str = "Sí" if genero_sql else "No"
             writer.writerow(
                 [
@@ -109,7 +111,7 @@ class AuditCsvRepository:
             return self._cache_df.copy()
 
         if self.audit_csv_path is None:
-            raise AuditConfigError("❌ 'audit_csv_path' no está establecido.")
+            raise AuditConfigError(_ERR_NO_CSV_PATH)
         if not self.audit_csv_path.exists():
             raise AuditFileError(f"❌ Archivo de auditoría no encontrado: {self.audit_csv_path}")
 

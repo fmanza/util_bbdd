@@ -7,6 +7,90 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] - develop
 
+### Refactored
+
+#### bulk: remediación de deuda técnica — 20 ítems en 4 fases
+
+Auditoría completa del módulo `bulk` con corrección de 20 ítems de deuda técnica
+clasificados como `quick_win`, `fase_media` y `deuda_estructural`.
+Sin cambios de contrato público; retrocompatibilidad total garantizada.
+
+**Fase 1 — Quick wins:**
+
+- `audit.py`: eliminado guard erróneo en `obtener_historial_transacciones` que
+  requería `audit_csv_path` para operaciones que no lo necesitan (QW-1)
+- `_audit/service.py`: corregido `if operacion:` → `if operacion is not None:`
+  para evitar falso negativo cuando el string es `"0"` (QW-2)
+- `_support/sql_helpers.py`: reemplazado parsing manual de URL por `make_url()`
+  de SQLAlchemy para evitar fallos con URIs con parámetros (QW-3)
+- `bulk/normalize.py`: corregida rama muerta `dtype.kind == "O"` en
+  `pandas_dtype_to_sqlalchemy`; `_decode_bytes_to_string` simplificado a
+  un único bloque try/except sin conversión redundante (QW-4)
+- `crud.py`: anotaciones de retorno `-> None` añadidas a los métodos públicos
+  de mutación (QW-5)
+
+**Fase 2 — Correcciones core:**
+
+- `crud.py`: clase renombrada `bulk_crud` → `BulkCrud` (PEP 8); alias
+  `bulk_crud = BulkCrud` mantiene retrocompatibilidad (C1)
+- `crud.py`: eliminada entrada `"insert"` de `_operation_strategies` — era
+  código muerto que nunca se invocaba; tipo del dict actualizado a
+  `dict[Literal["update", "delete"], _BulkOperationStrategy]` (C2)
+- `_support/validation.py`: nueva función `normalize_identifier()` que
+  normaliza mayúsculas/minúsculas del identificador de tabla según el
+  dialecto (oracle/postgresql→lower, mssql/mysql→upper) (C4)
+- `crud.py`: `reflect_table` usa `normalize_identifier()` en lugar de
+  `.lower()` incondicional (C4)
+- `_support/sql_helpers.py`: parsing de URL migrado a `make_url()` (QW-3)
+- `crud.py`: importaciones no usadas `func`, `select`, `Session` eliminadas (C1)
+
+**Fase 3 — Refactor audit:**
+
+- `audit.py`: eliminados 7 miembros privados muertos/con leak:
+  `_cache_df`, `_cache_timestamp`, `_validar_ruta`, `_auditar_lote_csv`,
+  `_es_cache_valido`, `_determinar_group_cols`, `_agrupar_y_generar_resumen` (A1+A2)
+- `audit.py`: `AuditTransaction.__exit__` guarda la excepción en
+  `self.audit_error` en lugar de silenciarla (A4)
+- `_audit/repository.py`: `auditar_lote_csv` ya no acepta `audit_path`
+  externo; usa `self.audit_csv_path` con `AuditConfigError` si no está
+  configurado; constante `_ERR_NO_CSV_PATH` para Sonar S1192 (R1+R2)
+- `_audit/repository.py`: separador de decimales eliminado en
+  `elapsed` — `f"{elapsed:.3f}"` en lugar de `.replace(".", ",")` (R1)
+- `_execution/batch.py`: `_iter_batches` convertido a generador
+  `Iterator[pd.DataFrame]` para evitar materializar todos los batches
+  en memoria simultáneamente (B1)
+- `_audit/exporters.py` + nuevo `_audit/html_template.py`: template HTML de
+  60+ líneas extraído a `AUDIT_HTML_TEMPLATE = Template(...)` en módulo
+  propio; `exporters.py` usa `substitute()` (E1)
+
+**Fase 4 — Tabla utils y delegación:**
+
+- Nuevo `_support/table_utils.py`: `get_column_case_insensitive()` y
+  `get_max_column_value()`; `crud.py` delega en estas funciones (C5)
+- `__init__.py`: `BulkCrud` añadido a exports y `__all__` junto con el
+  alias retrocompatible `bulk_crud` (C1)
+
+**Archivos afectados:**
+- `src/util_bbdd/bulk/crud.py`
+- `src/util_bbdd/bulk/audit.py`
+- `src/util_bbdd/bulk/normalize.py`
+- `src/util_bbdd/bulk/__init__.py`
+- `src/util_bbdd/bulk/_audit/exporters.py`
+- `src/util_bbdd/bulk/_audit/repository.py`
+- `src/util_bbdd/bulk/_audit/service.py`
+- `src/util_bbdd/bulk/_execution/batch.py`
+- `src/util_bbdd/bulk/_support/sql_helpers.py`
+- `src/util_bbdd/bulk/_support/validation.py`
+- Nuevos: `src/util_bbdd/bulk/_audit/html_template.py`,
+  `src/util_bbdd/bulk/_support/table_utils.py`
+
+**Tests añadidos:**
+- `tests/unit/test_audit_subsystem.py` — 39 tests para `_audit/`
+- `tests/unit/test_normalize.py` — 45 tests para `bulk/normalize.py`
+- Tests existentes actualizados para reflejar renombrado `BulkCrud`
+
+---
+
 ### Fixed
 
 #### migrate/emitters: Oracle emite body de rutinas verbatim (sin `CREATE OR REPLACE`)

@@ -110,7 +110,7 @@ def test_bulk_insert_exclude_does_not_modify_original_df(mock_sqlite_engine, ide
     original_columns = list(df.columns)
 
     with patch.object(manager, "reflect_table", return_value=identity_table):
-        with patch.object(manager, "_bulk_crud__ejecutar_batch_stmt"):
+        with patch.object(manager, "_BulkCrud__ejecutar_batch_stmt"):
             manager.bulk_insert_from_df(df, "orders", generar_sql=False, exclude_autoincrement_pk=True)
 
     assert list(df.columns) == original_columns or set(df.columns) == {
@@ -128,7 +128,7 @@ def test_bulk_insert_generate_sql_excludes_identity_col(mock_sqlite_engine, iden
 
     with patch.object(manager, "reflect_table", return_value=identity_table):
         with patch("util_bbdd.bulk.crud.generate_insert_sql", return_value=["SQL1;", "SQL2;"]) as mock_gen:
-            op = manager._bulk_crud__prepare_insert_operation(  # type: ignore[attr-defined]
+            op = manager._BulkCrud__prepare_insert_operation(  # type: ignore[attr-defined]
                 df, "orders", exclude_autoincrement_pk=True
             )
             sql_lines = op.generate_sql_lines()
@@ -146,7 +146,7 @@ def test_bulk_insert_execute_excludes_identity_col(mock_sqlite_engine, identity_
     df = pd.DataFrame({"id": [1], "name": ["Alice"], "amount": [100]})
 
     with patch.object(manager, "reflect_table", return_value=identity_table):
-        with patch.object(manager, "_bulk_crud__ejecutar_batch_stmt") as mock_exec:
+        with patch.object(manager, "_BulkCrud__ejecutar_batch_stmt") as mock_exec:
             manager.bulk_insert_from_df(df, "orders", generar_sql=False, exclude_autoincrement_pk=True)
 
     mock_exec.assert_called_once()
@@ -162,7 +162,7 @@ def test_bulk_insert_false_includes_identity_col(mock_sqlite_engine, identity_ta
     df = pd.DataFrame({"id": [1], "name": ["Alice"], "amount": [100]})
 
     with patch.object(manager, "reflect_table", return_value=identity_table):
-        op = manager._bulk_crud__prepare_insert_operation(  # type: ignore[attr-defined]
+        op = manager._BulkCrud__prepare_insert_operation(  # type: ignore[attr-defined]
             df, "orders", exclude_autoincrement_pk=False
         )
         sql_lines = op.generate_sql_lines()

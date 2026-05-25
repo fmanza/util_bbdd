@@ -35,13 +35,10 @@ from sqlalchemy import (
     Update,
     and_,
     bindparam,
-    func,
     insert,
-    select,
     update,
 )
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
 
 from ._execution.batch import BatchStatementExecutor, DeleteBatchExecutor
 from ._support.persistence import BulkPersistenceManager
@@ -54,12 +51,14 @@ from ._support.sql_helpers import (
     should_wrap_identity_insert,
     wrap_identity_insert_sql,
 )
+from ._support.table_utils import get_column_case_insensitive, get_max_column_value
 from ._support.validation import (
     build_update_plan,
     detect_always_identity_columns,
     get_insert_columns,
     get_pk_columns,
     normalize_dataframe_columns,
+    normalize_identifier,
     validate_engine,
 )
 from .audit import AuditManager
@@ -103,7 +102,7 @@ class _BulkOperationStrategy:
     prepare: Callable[[pd.DataFrame, str], _PreparedBulkOperation]
 
 
-class bulk_crud:
+class BulkCrud:
     """Realiza operaciones CRUD en lote sobre bases de datos usando SQLAlchemy."""
 
     def __init__(self, engine: Engine | None, chunk_size: int = 5000, audit_csv_path: Path | None = None):
@@ -144,11 +143,9 @@ class bulk_crud:
             engine=self.engine,
             chunk_size=self.chunk_size,
         )
-        self._operation_strategies: dict[Literal["insert", "update", "delete"], _BulkOperationStrategy] = {
-            "insert": _BulkOperationStrategy(
-                operation_name="INSERT",
-                prepare=self.__prepare_insert_operation,
-            ),
+        # INSERT no entra en este dict porque requiere kwargs extra (override_identity,
+        # exclude_autoincrement_pk) que la interfaz Callable[[df, tabla], ...] no soporta.
+        self._operation_strategies: dict[Literal["update", "delete"], _BulkOperationStrategy] = {
             "update": _BulkOperationStrategy(
                 operation_name="UPDATE",
                 prepare=self.__prepare_update_operation,
@@ -200,7 +197,7 @@ class bulk_crud:
         path_sql: Path | None = None,
         override_identity: bool = False,
         exclude_autoincrement_pk: bool = False,
-    ):
+    ) -> None:
         """
         Inserta en bloque los datos del DataFrame en la tabla destino, o genera la SQL si se indica.
 
@@ -242,7 +239,7 @@ class bulk_crud:
         tabla_destino: str,
         generar_sql: bool = True,
         path_sql: Path | None = None,
-    ):
+    ) -> None:
         """
         Actualiza en bloque los registros del DataFrame en la tabla destino.
 
@@ -274,7 +271,7 @@ class bulk_crud:
         tabla_destino: str,
         generar_sql: bool = True,
         path_sql: Path | None = None,
-    ):
+    ) -> None:
         """
         Borra en bloque registros del DataFrame desde la tabla destino.
 
@@ -311,7 +308,6 @@ class bulk_crud:
         exclude_autoincrement_pk: bool = False,
     ) -> None:
         """Template Method para operaciones bulk con estrategia por operación."""
-        strategy: _BulkOperationStrategy = self._operation_strategies[strategy_key]
         if generar_sql:
             path_sql = self.__validar_y_generar_path_sql(path_sql, tabla_destino, strategy_key)
         else:
@@ -321,6 +317,7 @@ class bulk_crud:
         self.__actualizar_df(working_df)
         try:
             if strategy_key == "insert":
+                operation_name = "INSERT"
                 prepared_operation = self.__prepare_insert_operation(
                     working_df,
                     tabla_destino,
@@ -328,6 +325,8 @@ class bulk_crud:
                     exclude_autoincrement_pk=exclude_autoincrement_pk,
                 )
             else:
+                strategy: _BulkOperationStrategy = self._operation_strategies[strategy_key]
+                operation_name = strategy.operation_name
                 prepared_operation = strategy.prepare(working_df, tabla_destino)
 
             elapsed: float = 0.0
@@ -341,17 +340,17 @@ class bulk_crud:
 
             self._persistence.register_operation(
                 table_name=tabla_destino,
-                operation=strategy.operation_name,
+                operation=operation_name,
                 rowcount=prepared_operation.rowcount,
                 elapsed=elapsed,
                 generated_sql=generar_sql,
             )
-            self.logger.info(f"✅ bulk {strategy.operation_name} finalizado ({self.db_info}).")
+            self.logger.info(f"✅ bulk {operation_name} finalizado ({self.db_info}).")
         except ValueError as error:
             self.logger.error(str(error))
             raise
         except SQLAlchemyError as error:
-            self.logger.error(f"❌ Error en bulk {strategy.operation_name}: {error}")
+            self.logger.error(f"❌ Error en bulk {strategy_key.upper()}: {error}")
             raise
 
     def __prepare_insert_operation(
@@ -454,7 +453,7 @@ class bulk_crud:
             execute=lambda: self.__ejecutar_delete_batch(df, tabla, pk_cols, numero_registros),
         )
 
-    def __ejecutar_batch_stmt(self, records: Sequence[Mapping[Any, Any]], stmt: Any, numero_registros: int):
+    def __ejecutar_batch_stmt(self, records: Sequence[Mapping[Any, Any]], stmt: Any, numero_registros: int) -> None:
         """Ejecuta un statement de SQLAlchemy por lotes.
 
         Args:
@@ -497,11 +496,11 @@ class bulk_crud:
             pk_cols=pk_cols,
         )
 
-    def __actualizar_df(self, df: pd.DataFrame):
+    def __actualizar_df(self, df: pd.DataFrame) -> None:
         """Normaliza nombres de columnas según el dialecto de BBDD.
 
         Args:
-            df: DataFrame a normalizar.
+            df: DataFrame a normalizar. Debe ser una copia — se muta en lugar.
 
         Comportamiento de dialectos:
             - oracle: Minúsculas (identifiers sin comillas se tratan como minúsculas)
@@ -519,74 +518,23 @@ class bulk_crud:
         Refleja una tabla desde la base de datos y devuelve el objeto `Table` correspondiente.
 
         Args:
-            tabla_destino: Nombre lógico de la tabla (no se tiene en cuenta el caso).
+            tabla_destino: Nombre lógico de la tabla. Se normaliza el casing según el dialecto.
 
         Returns:
             El objeto `Table` reflejado.
         """
         metadata = MetaData()
-        tabla_destino = tabla_destino.lower()
-        tabla = Table(tabla_destino, metadata, autoload_with=self.engine)
+        tabla_normalizada: str = normalize_identifier(tabla_destino, self.engine.dialect.name)
+        tabla = Table(tabla_normalizada, metadata, autoload_with=self.engine)
         return tabla
 
     def get_columna_may_min(self, tabla: Table, nombre_col: str) -> Column | None:
-        """
-        Devuelve una columna de una tabla SQLAlchemy ignorando mayúsculas/minúsculas.
-
-        Args:
-            tabla: Objeto `Table` de SQLAlchemy.
-            nombre_col: Nombre lógico de la columna (sin preocuparse por el caso).
-
-        Returns:
-            La columna si se encuentra; None en caso contrario.
-        """
-        # Crear un diccionario con nombres en minúsculas como claves
-        # para evitar que se tengan en cuenta el caso
-        columnas: dict[str, Column[Any]] = {col.name.lower(): col for col in tabla.columns}
-
-        # Buscar la columna en el diccionario
-        # y devolverla si se encuentra
-        return columnas.get(nombre_col.lower())
+        """Devuelve una columna de una tabla SQLAlchemy ignorando mayúsculas/minúsculas."""
+        return get_column_case_insensitive(tabla, nombre_col)
 
     def obtener_valor_max_columna(self, tabla: Table, nombre_col: str) -> int:
-        """
-        Obtiene el valor máximo de una columna en una tabla SQLAlchemy.
-
-        Parameters
-        ----------
-        tabla : Table
-            Objeto Table reflejado o definido con SQLAlchemy
-        nombre_col : str
-            Nombre de la columna (insensible a mayúsculas)
-
-        Returns
-        -------
-        int
-            Valor máximo como entero, controlando si es None o negativo
-        """
-        # Obtener columna de la tabla
-        col: Column[Any] | None = next((c for c in tabla.columns if c.name.lower() == nombre_col.lower()), None)
-        if col is None:
-            # Lanzar excepción si no se encuentra la columna
-            raise ValueError(f"Columna '{nombre_col}' no encontrada en la tabla '{tabla.name}'")
-
-        # Crear sentencia SQL para obtener el valor máximo de la columna
-        stmt = select(func.max(col))
-        # Ejecutar sentencia SQL y obtener el valor máximo
-        with Session(self.engine) as session:
-            # Obtener el valor máximo de la columna
-            max_val: int | None = session.execute(stmt).scalar_one_or_none()
-
-        # Controlar que el valor no sea None o negativo
-        if max_val is None or max_val < 0:
-            # Si es None o negativo, establecer en 1
-            max_val = 1
-        else:
-            # Incrementar en 1 el valor máximo
-            max_val = max_val + 1
-
-        # Devolver el valor máximo
-        return max_val
+        """Devuelve MAX(nombre_col)+1; retorna 1 si la columna está vacía o el máximo es negativo."""
+        return get_max_column_value(self.engine, tabla, nombre_col)
 
     def __generar_sql_insert(self, stmt: Insert, records: list[dict]) -> list[str]:
         """Genera SQL INSERT desde un statement y una lista de registros.
@@ -623,7 +571,7 @@ class bulk_crud:
             dialect=self.engine.dialect,
         )
 
-    def __guardar_fichero_sql(self, sql_lines: list, fichero_sql: Path | None):
+    def __guardar_fichero_sql(self, sql_lines: list, fichero_sql: Path | None) -> None:
         """Guarda las líneas SQL en un archivo o las imprime en log.
 
         Args:
@@ -631,3 +579,7 @@ class bulk_crud:
             fichero_sql: Ruta del archivo destino. Si es None, imprime en log.
         """
         self._persistence.persist_sql(sql_lines, fichero_sql)
+
+
+# Alias retrocompatible — la API pública histórica usaba snake_case.
+bulk_crud = BulkCrud

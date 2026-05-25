@@ -39,6 +39,7 @@ class AuditTransaction:
         self.fin: datetime | None = None
         self.operaciones: list[dict[str, Any]] = []
         self.exito: bool = False
+        self.audit_error: Exception | None = None
         self.logger: logging.Logger = logging.getLogger(__name__)
 
     def __enter__(self) -> AuditTransaction:
@@ -58,6 +59,7 @@ class AuditTransaction:
                 self._registrar_transaccion_fallida(duracion, exc_type, exc_val)
         except Exception as error:
             self.logger.error(f"❌ Error al finalizar transacción {self.nombre}: {error}")
+            self.audit_error = error
 
     def _registrar_transaccion_exitosa(self, duracion: timedelta) -> None:
         tiempo_segundos: float = duracion.total_seconds()
@@ -215,25 +217,6 @@ class AuditManager:
     def cache_ttl_seconds(self, value: int) -> None:
         self._repository.cache_ttl_seconds = value
 
-    @property
-    def _cache_df(self) -> pd.DataFrame | None:
-        return self._repository._cache_df
-
-    @_cache_df.setter
-    def _cache_df(self, value: pd.DataFrame | None) -> None:
-        self._repository._cache_df = value
-
-    @property
-    def _cache_timestamp(self) -> datetime | None:
-        return self._repository._cache_timestamp
-
-    @_cache_timestamp.setter
-    def _cache_timestamp(self, value: datetime | None) -> None:
-        self._repository._cache_timestamp = value
-
-    def _validar_ruta(self, ruta: Path) -> None:
-        self._repository.validar_ruta(ruta)
-
     def registrar_operacion(
         self,
         tabla: str,
@@ -286,32 +269,9 @@ class AuditManager:
         if not isinstance(elapsed, (int, float)) or elapsed < 0:
             raise AuditValidationError(f"❌ 'elapsed' debe ser un número >= 0, se recibió {elapsed}")
 
-    def _auditar_lote_csv(
-        self,
-        audit_path: Path,
-        tabla: str,
-        motor: str,
-        operacion: str,
-        rowcount: int,
-        elapsed: float,
-        genero_sql: bool = False,
-    ) -> None:
-        self._repository.auditar_lote_csv(
-            audit_path=audit_path,
-            tabla=tabla,
-            motor=motor,
-            operacion=operacion,
-            rowcount=rowcount,
-            elapsed=elapsed,
-            genero_sql=genero_sql,
-        )
-
     def leer_auditoria(self, usar_cache: bool = True) -> pd.DataFrame:
         """Leer el registro de auditoría desde CSV."""
         return self._repository.leer_auditoria(usar_cache=usar_cache)
-
-    def _es_cache_valido(self) -> bool:
-        return self._repository.es_cache_valido()
 
     def limpiar_cache(self) -> None:
         """Limpiar el cache en memoria de auditoría."""
@@ -372,12 +332,6 @@ class AuditManager:
             umbral_tiempo=umbral_tiempo,
         )
 
-    def _determinar_group_cols(self, agrupar_por: str) -> list[str]:
-        return self._service.determinar_group_cols(agrupar_por)
-
-    def _agrupar_y_generar_resumen(self, df_op: pd.DataFrame, group_cols: list[str]) -> pd.DataFrame:
-        return self._service.agrupar_y_generar_resumen(df_op, group_cols)
-
     def exportar_resumen_json(self, output_path: Path | None = None) -> Path:
         """Exportar resumen de auditoría a archivo JSON."""
         return self._exporters.exportar_resumen_json(output_path=output_path)
@@ -392,8 +346,6 @@ class AuditManager:
 
     def obtener_historial_transacciones(self) -> list[dict[str, Any]]:
         """Obtener historial de transacciones completadas."""
-        if self.audit_csv_path is None:
-            raise AuditConfigError(self.ERROR_AUDIT_PATH_REQUIRED)
         return self._historial_transacciones.copy()
 
 

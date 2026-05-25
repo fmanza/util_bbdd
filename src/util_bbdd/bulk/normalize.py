@@ -124,8 +124,8 @@ def pandas_dtype_to_sqlalchemy(series: pd.Series) -> Any:
     if pd.api.types.is_string_dtype(dtype):
         return _get_string_type(series)
 
-    # Tipos binarios y unicode (numpy)
-    if series.dtype.kind in ["S", "V", "O", "U"]:
+    # Tipos binarios (numpy S/V) y unicode (U) no capturados por las ramas anteriores
+    if series.dtype.kind in ["S", "V", "U"]:
         return _detect_binary_or_string_dtype(series)
 
     return String(255)
@@ -176,25 +176,11 @@ def normalize_records_for_sql(records: list[dict[Hashable, Any]]) -> list[dict[s
 
 def _decode_bytes_to_string(value: bytes | bytearray | memoryview) -> str | bytes:
     """Intenta decodificar bytes a string UTF-8, retorna bytes si falla."""
+    raw: bytes = bytes(value) if not isinstance(value, bytes) else value
     try:
-        # Convertir memoryview a bytes
-        if isinstance(value, memoryview):
-            value = bytes(value)
-        # Convertir bytearray a bytes
-        if isinstance(value, bytearray):
-            value = bytes(value)
-
-        # Ahora value es bytes, puede decodificarse
-        if isinstance(value, bytes):
-            return value.decode("utf-8")
-        return value
+        return raw.decode("utf-8")
     except (UnicodeDecodeError, AttributeError, TypeError):
-        # Si la decodificación falla, retornar como bytes
-        if isinstance(value, memoryview):
-            return bytes(value)
-        if isinstance(value, bytearray):
-            return bytes(value)
-        return value
+        return raw
 
 
 def _convert_numpy_scalar(value: np.generic) -> Any:

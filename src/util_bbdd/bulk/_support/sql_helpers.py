@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import Delete, Insert, Table, Update, and_, delete, text, update
+from sqlalchemy.engine import make_url
 
 SqlRecord = dict[str, Any]
 
@@ -17,11 +18,11 @@ SqlRecord = dict[str, Any]
 def generate_sql_filename(*, engine_url: str, table: str, operation: str) -> Path:
     """Genera un nombre de fichero SQL a partir de la URL del engine."""
     try:
-        db_name: str = engine_url.split("/")[-1].split("?")[0]
-        if not db_name:
-            raise ValueError("No se pudo extraer nombre de BD de engine.url")
+        db_name: str = make_url(engine_url).database or ""
     except Exception as error:
         raise ValueError(f"No se pudo extraer nombre de BD de engine.url: {engine_url}") from error
+    if not db_name:
+        raise ValueError(f"No se pudo extraer nombre de BD de engine.url: {engine_url}")
 
     timestamp: str = datetime.now().strftime("%Y%m%d_%H%M%S")
     return Path(f"{db_name}-{table}-{operation.lower()}_{timestamp}.sql")

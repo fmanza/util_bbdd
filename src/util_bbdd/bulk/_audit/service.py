@@ -103,7 +103,7 @@ class AuditAnalyticsService:
         """Filtra aplicando múltiples criterios con lógica AND."""
         dataframe = self.repository.leer_auditoria()
 
-        if operacion:
+        if operacion is not None:
             if operacion not in ("INSERT", "UPDATE", "DELETE"):
                 raise AuditValidationError(f"❌ Operación inválida: {operacion}")
             dataframe = dataframe[dataframe["operacion"] == operacion]

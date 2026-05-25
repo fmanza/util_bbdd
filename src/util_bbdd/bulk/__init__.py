@@ -10,12 +10,13 @@ Consolidación de:
 """
 
 from .audit import AuditError, AuditManager, AuditTransaction
-from .crud import bulk_crud
+from .crud import BulkCrud, bulk_crud
 from .normalize import normalize_records_for_sql, normalize_sql_literal
 
 __all__: list[str] = [
     # Clase CRUD principal
-    "bulk_crud",
+    "BulkCrud",
+    "bulk_crud",  # alias retrocompatible
     # Auditoría
     "AuditManager",
     "AuditTransaction",

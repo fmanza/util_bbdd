@@ -44,6 +44,15 @@ def resolve_sql_output_path(
     return path_sql / generate_name(table_name, operation)
 
 
+def normalize_identifier(name: str, dialect_name: str) -> str:
+    """Normaliza el casing de un identificador según el dialecto."""
+    if dialect_name in ("oracle", "postgresql", "sqlite"):
+        return name.lower()
+    if dialect_name in ("mysql", "mariadb", "mssql", "hsqldb"):
+        return name.upper()
+    return name
+
+
 def normalize_dataframe_columns(df: pd.DataFrame, dialect_name: str, logger: logging.Logger) -> None:
     """Normaliza el casing de columnas de entrada según el dialecto."""
     if dialect_name in ("oracle", "postgresql", "sqlite"):
@@ -116,6 +125,7 @@ __all__: list[str] = [
     "get_insert_columns",
     "get_pk_columns",
     "normalize_dataframe_columns",
+    "normalize_identifier",
     "resolve_sql_output_path",
     "validate_engine",
 ]

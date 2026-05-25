@@ -105,10 +105,10 @@ def test_generar_nombre_sql_dinamico_contains_db_table_operation_and_timestamp()
 
 def test_validar_y_generar_path_sql_validates_input_type(sqlite_bulk_manager: bulk_crud) -> None:
     with pytest.raises(ValueError, match="path_sql es obligatorio"):
-        _get_private_method(sqlite_bulk_manager, "_bulk_crud__validar_y_generar_path_sql")(None, "users", "insert")
+        _get_private_method(sqlite_bulk_manager, "_BulkCrud__validar_y_generar_path_sql")(None, "users", "insert")
 
     with pytest.raises(ValueError, match="instancia de Path"):
-        _get_private_method(sqlite_bulk_manager, "_bulk_crud__validar_y_generar_path_sql")(
+        _get_private_method(sqlite_bulk_manager, "_BulkCrud__validar_y_generar_path_sql")(
             "not-a-path", "users", "insert"
         )
 
@@ -120,7 +120,7 @@ def test_validar_y_generar_path_sql_joins_base_path_and_dynamic_name(
     persistence.resolve_sql_output_path.return_value = tmp_path / "generated.sql"
     cast(Any, sqlite_bulk_manager)._persistence = persistence
 
-    result = _get_private_method(sqlite_bulk_manager, "_bulk_crud__validar_y_generar_path_sql")(
+    result = _get_private_method(sqlite_bulk_manager, "_BulkCrud__validar_y_generar_path_sql")(
         tmp_path, "users", "insert"
     )
 
@@ -131,7 +131,7 @@ def test_validar_y_generar_path_sql_joins_base_path_and_dynamic_name(
 def test_actualizar_df_replaces_nan_with_none(sqlite_bulk_manager: bulk_crud) -> None:
     df = pd.DataFrame({"col": [1, np.nan]})
 
-    _get_private_method(sqlite_bulk_manager, "_bulk_crud__actualizar_df")(df)
+    _get_private_method(sqlite_bulk_manager, "_BulkCrud__actualizar_df")(df)
 
     assert df.iloc[1, 0] is None
 
