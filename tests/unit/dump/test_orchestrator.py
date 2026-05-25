@@ -5,13 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from util_bbdd.dump._sql_utils import quote_identifier as _qi, quote_table as _qt
 from util_bbdd.dump.orchestrator import (
     DumpConfig,
     DumpOrchestrator,
     DumpResult,
-    _qi,
-    _qt,
-    _topological_sort,
 )
 
 # ---------------------------------------------------------------------------
@@ -96,7 +94,7 @@ class TestTopologicalSort:
     def test_no_fks_returns_tables_in_original_order(self):
         insp = _make_inspector([], fks={})
         tables = ["a", "b", "c"]
-        order, cycles = _topological_sort(tables, insp, None)
+        order, cycles = DumpOrchestrator._topological_sort(tables, insp, None)
         assert set(order) == {"a", "b", "c"}
         assert cycles == []
 
@@ -105,7 +103,7 @@ class TestTopologicalSort:
         fks = {"orders": [{"referred_table": "customers", "constrained_columns": ["customer_id"]}]}
         insp = _make_inspector([], fks=fks)
         tables = ["orders", "customers"]
-        order, cycles = _topological_sort(tables, insp, None)
+        order, cycles = DumpOrchestrator._topological_sort(tables, insp, None)
 
         assert order.index("customers") < order.index("orders")
         assert cycles == []
@@ -118,7 +116,7 @@ class TestTopologicalSort:
         }
         insp = _make_inspector([], fks=fks)
         tables = ["c", "b", "a"]
-        order, cycles = _topological_sort(tables, insp, None)
+        order, cycles = DumpOrchestrator._topological_sort(tables, insp, None)
 
         assert order == ["a", "b", "c"]
         assert cycles == []
@@ -131,7 +129,7 @@ class TestTopologicalSort:
         }
         insp = _make_inspector([], fks=fks)
         tables = ["a", "b"]
-        order, cycles = _topological_sort(tables, insp, None)
+        order, cycles = DumpOrchestrator._topological_sort(tables, insp, None)
 
         assert set(order) == {"a", "b"}
         assert len(cycles) == 1
@@ -142,7 +140,7 @@ class TestTopologicalSort:
         fks = {"employee": [{"referred_table": "employee"}]}
         insp = _make_inspector([], fks=fks)
         tables = ["employee", "department"]
-        order, cycles = _topological_sort(tables, insp, None)
+        order, cycles = DumpOrchestrator._topological_sort(tables, insp, None)
 
         assert cycles == []
         assert set(order) == {"employee", "department"}
@@ -154,7 +152,7 @@ class TestTopologicalSort:
         }
         insp = _make_inspector([], fks=fks)
         tables = ["a", "b", "c"]  # c is independent
-        order, cycles = _topological_sort(tables, insp, None)
+        order, cycles = DumpOrchestrator._topological_sort(tables, insp, None)
 
         assert "c" in order
         assert set(cycles[0]) == {"a", "b"}

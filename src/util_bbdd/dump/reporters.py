@@ -12,6 +12,7 @@ import logging
 
 from datetime import datetime
 from pathlib import Path
+from typing import ClassVar
 
 import openpyxl
 
@@ -22,102 +23,102 @@ from openpyxl.worksheet.worksheet import Worksheet
 from util_bbdd.comparar import SchemaDiff
 
 from ._constraints import ConstraintResult
-from .orchestrator import TableDumpResult
+from ._models import TableDumpResult
 
 _log = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Paleta de colores (ARGB)
-# ---------------------------------------------------------------------------
-
-_COL_HEADER_BLUE = "FF4472C4"
-_COL_HEADER_ORANGE = "FFED7D31"
-_COL_GREEN = "FF92D050"
-_COL_RED = "FFFF0000"
-_COL_YELLOW = "FFFFFF00"
-_COL_ORANGE = "FFFFC000"
-_COL_LIGHT_BLUE = "FFDCE6F1"
-_COL_LIGHT_ORANGE = "FFFCE4D6"
-_COL_WHITE_FONT = "FFFFFFFF"
-
-_STATUS_BG: dict[str, str] = {
-    "success": _COL_GREEN,
-    "error": _COL_RED,
-    "skipped": _COL_YELLOW,
-    "missing_target": _COL_ORANGE,
-    "enabled": _COL_GREEN,
-    "failed": _COL_RED,
-    "unverified": _COL_YELLOW,
-}
-
-
-# ---------------------------------------------------------------------------
-# Helpers de escritura
-# ---------------------------------------------------------------------------
-
-
-def _header(ws: Worksheet, row: int, col: int, value: str, color: str = _COL_HEADER_BLUE) -> None:
-    cell = ws.cell(row=row, column=col, value=value)
-    cell.font = Font(bold=True, color=_COL_WHITE_FONT)
-    cell.fill = PatternFill("solid", fgColor=color)
-    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-
-
-def _cell(ws: Worksheet, row: int, col: int, value: str | int | float | bool | None, bg: str | None = None) -> None:
-    cell = ws.cell(row=row, column=col, value=value)
-    cell.alignment = Alignment(vertical="center", wrap_text=False)
-    if bg:
-        cell.fill = PatternFill("solid", fgColor=bg)
-
-
-def _autowidth(ws: Worksheet) -> None:
-    for col_cells in ws.columns:
-        width = max((len(str(c.value or "")) for c in col_cells), default=8)
-        ws.column_dimensions[get_column_letter(col_cells[0].column or 1)].width = min(width + 4, 65)
-
-
-def _write_audit_rows(ws: Worksheet, table_results: list[TableDumpResult], cycle_set: set[str]) -> None:
-    for row, res in enumerate(table_results, 2):
-        bg = _STATUS_BG.get(res.status)
-        pos = str(res.load_order_position) if res.load_order_position >= 0 else "—"
-        _cell(ws, row, 1, res.table_name)
-        _cell(ws, row, 2, pos)
-        _cell(ws, row, 3, "Sí" if res.table_name in cycle_set else "No")
-        _cell(ws, row, 4, res.source_rows if res.source_rows >= 0 else "—")
-        _cell(ws, row, 5, res.target_rows_before if res.target_rows_before >= 0 else "—")
-        _cell(ws, row, 6, res.target_rows_after if res.target_rows_after >= 0 else "—")
-        _cell(ws, row, 7, res.status.upper(), bg=bg)
-        _cell(ws, row, 8, ", ".join(res.skipped_columns) if res.skipped_columns else "—")
-        _cell(ws, row, 9, res.error_msg or "—")
-
-
-def _write_constraint_section(
-    ws: Worksheet,
-    constraint_results: list[ConstraintResult],
-    table_count: int,
-) -> None:
-    failed = [r for r in constraint_results if r.status in ("failed", "unverified")]
-    if not failed:
-        return
-    offset = table_count + 4
-    _header(ws, offset, 1, "Constraints con incidencia al rehabilitar", color=_COL_HEADER_ORANGE)
-    for col, h in enumerate(["Tabla", "Constraint", "Dialect", "Estado", "Mensaje"], 2):
-        _header(ws, offset, col, h, color=_COL_HEADER_ORANGE)
-    for i, cr in enumerate(failed, offset + 1):
-        _cell(ws, i, 1, cr.table_name)
-        _cell(ws, i, 2, cr.constraint_name)
-        _cell(ws, i, 3, cr.dialect)
-        _cell(ws, i, 4, cr.status.upper(), bg=_STATUS_BG.get(cr.status))
-        _cell(ws, i, 5, cr.error_msg or "—")
-
-
-# ---------------------------------------------------------------------------
-# Reporter principal
-# ---------------------------------------------------------------------------
 
 
 class DumpReporter:
     """Genera el informe Excel de auditoría de un volcado de datos."""
+
+    # ------------------------------------------------------------------
+    # Paleta de colores (ARGB)
+    # ------------------------------------------------------------------
+
+    _COL_HEADER_BLUE: ClassVar[str] = "FF4472C4"
+    _COL_HEADER_ORANGE: ClassVar[str] = "FFED7D31"
+    _COL_GREEN: ClassVar[str] = "FF92D050"
+    _COL_RED: ClassVar[str] = "FFFF0000"
+    _COL_YELLOW: ClassVar[str] = "FFFFFF00"
+    _COL_ORANGE: ClassVar[str] = "FFFFC000"
+    _COL_LIGHT_ORANGE: ClassVar[str] = "FFFCE4D6"
+    _COL_WHITE_FONT: ClassVar[str] = "FFFFFFFF"
+    _STATUS_BG: ClassVar[dict[str, str]] = {
+        "success": "FF92D050",
+        "error": "FFFF0000",
+        "skipped": "FFFFFF00",
+        "missing_target": "FFFFC000",
+        "enabled": "FF92D050",
+        "failed": "FFFF0000",
+        "unverified": "FFFFFF00",
+    }
+
+    # ------------------------------------------------------------------
+    # Helpers estáticos de escritura de celdas
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _header(ws: Worksheet, row: int, col: int, value: str, color: str = "FF4472C4") -> None:
+        cell = ws.cell(row=row, column=col, value=value)
+        cell.font = Font(bold=True, color=DumpReporter._COL_WHITE_FONT)
+        cell.fill = PatternFill("solid", fgColor=color)
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    @staticmethod
+    def _cell(
+        ws: Worksheet,
+        row: int,
+        col: int,
+        value: str | int | float | bool | None,
+        bg: str | None = None,
+    ) -> None:
+        cell = ws.cell(row=row, column=col, value=value)
+        cell.alignment = Alignment(vertical="center", wrap_text=False)
+        if bg:
+            cell.fill = PatternFill("solid", fgColor=bg)
+
+    @staticmethod
+    def _autowidth(ws: Worksheet) -> None:
+        for col_cells in ws.columns:
+            width = max((len(str(c.value or "")) for c in col_cells), default=8)
+            ws.column_dimensions[get_column_letter(col_cells[0].column or 1)].width = min(width + 4, 65)
+
+    @staticmethod
+    def _write_audit_rows(ws: Worksheet, table_results: list[TableDumpResult], cycle_set: set[str]) -> None:
+        for row, res in enumerate(table_results, 2):
+            bg = DumpReporter._STATUS_BG.get(res.status)
+            pos = str(res.load_order_position) if res.load_order_position >= 0 else "—"
+            DumpReporter._cell(ws, row, 1, res.table_name)
+            DumpReporter._cell(ws, row, 2, pos)
+            DumpReporter._cell(ws, row, 3, "Sí" if res.table_name in cycle_set else "No")
+            DumpReporter._cell(ws, row, 4, res.source_rows if res.source_rows >= 0 else "—")
+            DumpReporter._cell(ws, row, 5, res.target_rows_before if res.target_rows_before >= 0 else "—")
+            DumpReporter._cell(ws, row, 6, res.target_rows_after if res.target_rows_after >= 0 else "—")
+            DumpReporter._cell(ws, row, 7, res.status.upper(), bg=bg)
+            DumpReporter._cell(ws, row, 8, ", ".join(res.skipped_columns) if res.skipped_columns else "—")
+            DumpReporter._cell(ws, row, 9, res.error_msg or "—")
+
+    @staticmethod
+    def _write_constraint_section(
+        ws: Worksheet,
+        constraint_results: list[ConstraintResult],
+        table_count: int,
+    ) -> None:
+        failed = [r for r in constraint_results if r.status in ("failed", "unverified")]
+        if not failed:
+            return
+        offset = table_count + 4
+        DumpReporter._header(
+            ws, offset, 1, "Constraints con incidencia al rehabilitar", color=DumpReporter._COL_HEADER_ORANGE
+        )
+        for col, h in enumerate(["Tabla", "Constraint", "Dialect", "Estado", "Mensaje"], 2):
+            DumpReporter._header(ws, offset, col, h, color=DumpReporter._COL_HEADER_ORANGE)
+        for i, cr in enumerate(failed, offset + 1):
+            DumpReporter._cell(ws, i, 1, cr.table_name)
+            DumpReporter._cell(ws, i, 2, cr.constraint_name)
+            DumpReporter._cell(ws, i, 3, cr.dialect)
+            DumpReporter._cell(ws, i, 4, cr.status.upper(), bg=DumpReporter._STATUS_BG.get(cr.status))
+            DumpReporter._cell(ws, i, 5, cr.error_msg or "—")
 
     def __init__(self, output_dir: Path) -> None:
         self._output_dir = output_dir
@@ -180,14 +181,14 @@ class DumpReporter:
             "Error",
         ]
         for col, h in enumerate(headers, 1):
-            _header(ws, 1, col, h)
+            self._header(ws, 1, col, h)
         ws.row_dimensions[1].height = 30
         ws.freeze_panes = "A2"
 
         cycle_set = {t for group in cycles for t in group}
-        _write_audit_rows(ws, table_results, cycle_set)
-        _write_constraint_section(ws, constraint_results, len(table_results))
-        _autowidth(ws)
+        self._write_audit_rows(ws, table_results, cycle_set)
+        self._write_constraint_section(ws, constraint_results, len(table_results))
+        self._autowidth(ws)
 
     # ------------------------------------------------------------------
     # Hoja 2: Tablas faltantes en destino
@@ -202,7 +203,7 @@ class DumpReporter:
 
         headers = ["Tabla Origen", "Motivo", "Acción Sugerida"]
         for col, h in enumerate(headers, 1):
-            _header(ws, 1, col, h, color=_COL_HEADER_ORANGE)
+            self._header(ws, 1, col, h, color=self._COL_HEADER_ORANGE)
         ws.freeze_panes = "A2"
 
         if not missing_tables:
@@ -210,11 +211,11 @@ class DumpReporter:
             cell.font = Font(italic=True)
         else:
             for row, table in enumerate(missing_tables, 2):
-                _cell(ws, row, 1, table, bg=_COL_LIGHT_ORANGE)
-                _cell(ws, row, 2, "La tabla no existe en la BD destino")
-                _cell(ws, row, 3, "Crear la tabla en destino con el DDL del origen antes de reintentar")
+                self._cell(ws, row, 1, table, bg=self._COL_LIGHT_ORANGE)
+                self._cell(ws, row, 2, "La tabla no existe en la BD destino")
+                self._cell(ws, row, 3, "Crear la tabla en destino con el DDL del origen antes de reintentar")
 
-        _autowidth(ws)
+        self._autowidth(ws)
 
     # ------------------------------------------------------------------
     # Hoja 3: Columnas inexistentes en destino
@@ -235,7 +236,7 @@ class DumpReporter:
             "Acción Sugerida",
         ]
         for col, h in enumerate(headers, 1):
-            _header(ws, 1, col, h, color=_COL_HEADER_ORANGE)
+            self._header(ws, 1, col, h, color=self._COL_HEADER_ORANGE)
         ws.freeze_panes = "A2"
 
         row = 2
@@ -246,15 +247,15 @@ class DumpReporter:
             for cd in td.column_diffs:
                 # Columna en origen, ausente en destino
                 if cd.attribute == "existence" and cd.source_value == "exists":
-                    _cell(ws, row, 1, td.table_name)
-                    _cell(ws, row, 2, cd.column_name, bg=_COL_YELLOW)
-                    _cell(ws, row, 3, cd.source_value)
-                    _cell(ws, row, 4, "Columna ausente en BD destino")
-                    _cell(ws, row, 5, "Columna omitida del volcado — añadir DDL al destino si se requiere")
+                    self._cell(ws, row, 1, td.table_name)
+                    self._cell(ws, row, 2, cd.column_name, bg=self._COL_YELLOW)
+                    self._cell(ws, row, 3, cd.source_value)
+                    self._cell(ws, row, 4, "Columna ausente en BD destino")
+                    self._cell(ws, row, 5, "Columna omitida del volcado — añadir DDL al destino si se requiere")
                     row += 1
 
         if row == 2:
             cell = ws.cell(row=2, column=1, value="Sin columnas inexistentes en destino")
             cell.font = Font(italic=True)
 
-        _autowidth(ws)
+        self._autowidth(ws)

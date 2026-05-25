@@ -13,7 +13,10 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from sqlalchemy import Engine, Inspector, event, inspect, text
+from sqlalchemy.engine import Connection
 from sqlalchemy.exc import SQLAlchemyError
+
+from ._sql_utils import quote_identifier, quote_table
 
 _log = logging.getLogger(__name__)
 
@@ -53,6 +56,8 @@ class ConstraintManager:
         self._dialect = engine.dialect.name
         # Oracle / PostgreSQL: (tabla, nombre_constraint) desactivadas
         self._disabled: list[tuple[str, str]] = []
+        # PostgreSQL: tablas con triggers desactivados (para re-activar solo las afectadas)
+        self._disabled_pg: list[str] = []
         # SQL Server: tablas con NOCHECK aplicado
         self._nocheck_tables: list[str] = []
         # MariaDB: listener almacenado para poder eliminarlo
@@ -118,14 +123,27 @@ class ConstraintManager:
 
         self._mariadb_listener = _fk_off
         event.listen(self._engine, "connect", _fk_off)
-        # Ciclar el pool para que las conexiones existentes se renueven con el listener
+        # Ciclar el pool para que las conexiones existentes se renueven con el listener.
+        # ADVERTENCIA: dispose() cierra TODAS las conexiones activas del pool.
+        # En entornos multi-hilo con engine compartido esto puede interrumpir
+        # otras operaciones en curso. Usar este ConstraintManager con un engine
+        # dedicado al volcado para evitar efectos laterales.
+        _log.warning(
+            "MariaDB: se llama a engine.dispose() para ciclar el pool. "
+            "Asegúrese de usar un engine dedicado al volcado si hay concurrencia."
+        )
         self._engine.dispose()
 
     def _enable_mariadb(self) -> list[ConstraintResult]:
         if self._mariadb_listener is not None:
             event.remove(self._engine, "connect", self._mariadb_listener)
             self._mariadb_listener = None
-        # Ciclar pool: nuevas conexiones sin el listener (FK checks activados)
+        # Ciclar pool: nuevas conexiones sin el listener (FK checks activados).
+        # Misma advertencia de concurrencia que en _disable_mariadb.
+        _log.warning(
+            "MariaDB: se llama a engine.dispose() al reactivar FK checks. "
+            "Asegúrese de usar un engine dedicado al volcado si hay concurrencia."
+        )
         self._engine.dispose()
         # MariaDB no valida integridad retroactiva al reactivar FK checks
         return [
@@ -183,19 +201,22 @@ class ConstraintManager:
     # ------------------------------------------------------------------
 
     def _disable_postgresql(self, tables: list[str]) -> None:
+        self._disabled_pg = []
         with self._engine.connect() as conn:
             for table in tables:
                 try:
                     conn.execute(text(f"ALTER TABLE {self._qt(table)} DISABLE TRIGGER ALL"))
                     conn.commit()
+                    self._disabled_pg.append(table)
                 except SQLAlchemyError as exc:
                     conn.rollback()
                     _log.warning("No se pudo deshabilitar triggers en '%s' (¿falta permiso?): %s", table, exc)
 
     def _enable_postgresql(self) -> list[ConstraintResult]:
         results: list[ConstraintResult] = []
+        # Usar solo las tablas que fueron desactivadas (no todas las del schema)
+        tables = list(self._disabled_pg)
         insp: Inspector = inspect(self._engine)
-        tables = insp.get_table_names(schema=self._schema)
 
         with self._engine.connect() as conn:
             for table in tables:
@@ -265,7 +286,7 @@ class ConstraintManager:
                 for name in _fetch_names(insp.get_unique_constraints, table):
                     self._exec_disable_oracle(conn, table, name)
 
-    def _exec_disable_oracle(self, conn: Any, table: str, name: str) -> None:
+    def _exec_disable_oracle(self, conn: Connection, table: str, name: str) -> None:
         try:
             conn.execute(text(f"ALTER TABLE {self._qt(table)} DISABLE CONSTRAINT {self._qi(name)}"))
             self._disabled.append((table, name))
@@ -308,10 +329,8 @@ class ConstraintManager:
 
     def _qi(self, name: str) -> str:
         """Quoted identifier según el dialect del engine destino."""
-        return self._engine.dialect.identifier_preparer.quote(name)
+        return quote_identifier(name, self._engine)
 
     def _qt(self, table: str) -> str:
         """Tabla quoted con prefijo de schema opcional."""
-        if self._schema:
-            return f"{self._qi(self._schema)}.{self._qi(table)}"
-        return self._qi(table)
+        return quote_table(table, self._schema, self._engine)

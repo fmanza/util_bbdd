@@ -10,7 +10,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from util_bbdd.comparar import ColumnDiff, SchemaDiff, TableDiff
 from util_bbdd.dump._constraints import ConstraintResult
-from util_bbdd.dump.orchestrator import TableDumpResult
+from util_bbdd.dump._models import TableDumpResult
 from util_bbdd.dump.reporters import DumpReporter
 
 # ---------------------------------------------------------------------------

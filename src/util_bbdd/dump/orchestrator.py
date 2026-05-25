@@ -16,8 +16,6 @@ from __future__ import annotations
 import logging
 
 from collections import deque
-from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Literal
 
 import pandas as pd
@@ -29,158 +27,14 @@ from util_bbdd.bulk import bulk_crud
 from util_bbdd.comparar import SchemaComparator, SchemaDiff
 
 from ._constraints import ConstraintManager, ConstraintResult
+from ._models import DumpConfig, DumpResult, TableDumpResult
+from ._sql_utils import quote_identifier, quote_table
+from .reporters import DumpReporter
 
 _log = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# Tipos públicos
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class DumpConfig:
-    """Configuración de un volcado de datos de esquema/BD origen a destino.
-
-    Args:
-        source_engine: Engine SQLAlchemy del esquema origen (lectura).
-        target_engine: Engine SQLAlchemy del esquema destino (escritura).
-        source_schema: Nombre del schema origen; ``None`` usa el default del engine.
-        target_schema: Nombre del schema destino; ``None`` usa el default del engine.
-        tables: Tablas a volcar. ``None`` = todas las tablas del origen.
-        chunk_size: Filas por chunk tanto en lectura como en bulk insert.
-        output_dir: Directorio donde guardar el informe Excel.
-        truncate_target: ``True`` (default) = limpiar tablas destino antes de cargar.
-            Recomendado para volcados completos. ``False`` = modo append.
-    """
-
-    source_engine: Engine
-    target_engine: Engine
-    source_schema: str | None = None
-    target_schema: str | None = None
-    tables: list[str] | None = None
-    chunk_size: int = 5000
-    output_dir: Path = field(default_factory=Path)
-    truncate_target: bool = True
-
-
-@dataclass
-class TableDumpResult:
-    """Resultado del volcado de una tabla individual."""
-
-    table_name: str
-    source_rows: int
-    target_rows_before: int
-    target_rows_after: int
-    status: Literal["success", "missing_target", "skipped", "error"]
-    skipped_columns: list[str]
-    load_order_position: int
-    in_cycle: bool = False
-    error_msg: str = ""
-
-
-@dataclass
-class DumpResult:
-    """Resultado completo de un volcado.
-
-    Attributes:
-        table_results: Resultado por tabla volcada (o intentada).
-        constraint_results: Resultado por constraint al rehabilitar.
-        load_order: Orden topológico de carga aplicado.
-        cycles_detected: Grupos de tablas con FK circular (cargadas al final).
-        report: Ruta del informe Excel generado (3 hojas).
-    """
-
-    table_results: list[TableDumpResult]
-    constraint_results: list[ConstraintResult]
-    load_order: list[str]
-    cycles_detected: list[list[str]]
-    report: Path
-
-
-# ---------------------------------------------------------------------------
-# Helpers de quoting e identificadores
-# ---------------------------------------------------------------------------
-
-
-def _qi(name: str, engine: Engine) -> str:
-    """Quoted identifier según el dialect del engine."""
-    return engine.dialect.identifier_preparer.quote(name)
-
-
-def _qt(table: str, schema: str | None, engine: Engine) -> str:
-    """Tabla quoted con prefijo de schema opcional."""
-    if schema:
-        return f"{_qi(schema, engine)}.{_qi(table, engine)}"
-    return _qi(table, engine)
-
-
-def _count_rows(engine: Engine, table: str, schema: str | None) -> int:
-    quoted = _qt(table, schema, engine)
-    with engine.connect() as conn:
-        result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted}"))
-        val = result.scalar_one()
-        return int(val) if val is not None else 0
-
-
-# ---------------------------------------------------------------------------
-# Sort topológico (Kahn)
-# ---------------------------------------------------------------------------
-
-
-def _build_fk_graph(
-    tables: list[str],
-    inspector: Inspector,
-    schema: str | None,
-) -> tuple[dict[str, set[str]], dict[str, int]]:
-    """Construye el grafo de dependencias FK entre las tablas dadas."""
-    tables_set = set(tables)
-    # dependents[A] = {B} → B depende de A (A debe cargarse antes que B)
-    dependents: dict[str, set[str]] = {t: set() for t in tables}
-    in_degree: dict[str, int] = dict.fromkeys(tables, 0)
-
-    for table in tables:
-        try:
-            fks = inspector.get_foreign_keys(table, schema=schema)
-        except SQLAlchemyError:
-            continue
-        for fk in fks:
-            referred = fk.get("referred_table", "")
-            if referred and referred != table and referred in tables_set and table not in dependents[referred]:
-                dependents[referred].add(table)
-                in_degree[table] += 1
-
-    return dependents, in_degree
-
-
-def _topological_sort(
-    tables: list[str],
-    inspector: Inspector,
-    schema: str | None,
-) -> tuple[list[str], list[list[str]]]:
-    """Ordena tablas respetando dependencias FK usando el algoritmo de Kahn.
-
-    Returns:
-        (ordered_tables, cycles) — las tablas en ciclos se añaden al final
-        de ``ordered_tables`` y se listan en ``cycles``.
-    """
-    dependents, in_degree = _build_fk_graph(tables, inspector, schema)
-
-    queue: deque[str] = deque(t for t in tables if in_degree[t] == 0)
-    ordered: list[str] = []
-
-    while queue:
-        node = queue.popleft()
-        ordered.append(node)
-        for dep in sorted(dependents[node]):
-            in_degree[dep] -= 1
-            if in_degree[dep] == 0:
-                queue.append(dep)
-
-    cycle_tables = [t for t in tables if t not in set(ordered)]
-    cycles: list[list[str]] = [cycle_tables] if cycle_tables else []
-
-    return ordered + cycle_tables, cycles
+# Re-exportaciones para compatibilidad con importadores que usan orchestrator directamente
+__all__: list[str] = ["DumpConfig", "DumpOrchestrator", "DumpResult", "TableDumpResult"]
 
 
 # ---------------------------------------------------------------------------
@@ -234,7 +88,7 @@ class DumpOrchestrator:
         dst_tables_set = set(self._dst_insp.get_table_names(schema=cfg.target_schema))
         missing_in_dst: list[str] = [t for t in src_tables if t not in dst_tables_set]
 
-        load_order, cycles = _topological_sort(src_tables, self._src_insp, cfg.source_schema)
+        load_order, cycles = DumpOrchestrator._topological_sort(src_tables, self._src_insp, cfg.source_schema)
         # Tablas que existen en destino, en el orden topológico calculado
         effective_order: list[str] = [t for t in load_order if t in dst_tables_set]
 
@@ -286,11 +140,9 @@ class DumpOrchestrator:
             for table in missing_in_dst
         )
 
-        constraint_results = constraint_mgr.constraint_results
+        constraint_results: list[ConstraintResult] = constraint_mgr.constraint_results
 
         # FASE 6b: Generar informe Excel
-        from .reporters import DumpReporter  # import local para evitar ciclo
-
         report_path = DumpReporter(cfg.output_dir).generate(
             table_results=table_results,
             missing_tables=missing_in_dst,
@@ -325,7 +177,7 @@ class DumpOrchestrator:
             for table in reversed_order:
                 if table in skip:
                     continue
-                quoted = _qt(table, cfg.target_schema, cfg.target_engine)
+                quoted = quote_table(table, cfg.target_schema, cfg.target_engine)
                 sql = f"DELETE FROM {quoted}" if use_delete else f"TRUNCATE TABLE {quoted}"
                 try:
                     conn.execute(text(sql))
@@ -358,8 +210,8 @@ class DumpOrchestrator:
         source_rows = self._safe_count(cfg.source_engine, table, cfg.source_schema)
         target_rows_before = self._safe_count(cfg.target_engine, table, cfg.target_schema)
 
-        cols_quoted = ", ".join(_qi(c, cfg.source_engine) for c in common_cols)
-        table_quoted = _qt(table, cfg.source_schema, cfg.source_engine)
+        cols_quoted = ", ".join(quote_identifier(c, cfg.source_engine) for c in common_cols)
+        table_quoted = quote_table(table, cfg.source_schema, cfg.source_engine)
         sql = f"SELECT {cols_quoted} FROM {table_quoted}"
 
         crud = bulk_crud(cfg.target_engine, chunk_size=cfg.chunk_size)
@@ -374,7 +226,7 @@ class DumpOrchestrator:
                         crud.bulk_insert_from_df(df_filtered, table, generar_sql=False)
                     except (SQLAlchemyError, ValueError) as exc:
                         error_msgs.append(str(exc))
-        except Exception as exc:  # noqa: BLE001
+        except (SQLAlchemyError, ValueError, pd.errors.DatabaseError) as exc:
             error_msgs.append(f"Error leyendo origen: {exc}")
 
         target_rows_after = self._safe_count(cfg.target_engine, table, cfg.target_schema)
@@ -411,6 +263,74 @@ class DumpOrchestrator:
 
     def _safe_count(self, engine: Engine, table: str, schema: str | None) -> int:
         try:
-            return _count_rows(engine, table, schema)
+            return DumpOrchestrator._count_rows(engine, table, schema)
         except SQLAlchemyError:
             return -1
+
+    # ------------------------------------------------------------------
+    # Helpers estáticos: conteo, grafo FK y orden topológico
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _count_rows(engine: Engine, table: str, schema: str | None) -> int:
+        """Cuenta filas de una tabla usando una conexión del engine dado."""
+        quoted = quote_table(table, schema, engine)
+        with engine.connect() as conn:
+            result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted}"))
+            val = result.scalar_one()
+            return int(val) if val is not None else 0
+
+    @staticmethod
+    def _build_fk_graph(
+        tables: list[str],
+        inspector: Inspector,
+        schema: str | None,
+    ) -> tuple[dict[str, set[str]], dict[str, int]]:
+        """Construye el grafo de dependencias FK entre las tablas dadas."""
+        tables_set = set(tables)
+        # dependents[A] = {B} → B depende de A (A debe cargarse antes que B)
+        dependents: dict[str, set[str]] = {t: set() for t in tables}
+        in_degree: dict[str, int] = dict.fromkeys(tables, 0)
+
+        for table in tables:
+            try:
+                fks = inspector.get_foreign_keys(table, schema=schema)
+            except SQLAlchemyError:
+                continue
+            for fk in fks:
+                referred = fk.get("referred_table", "")
+                if referred and referred != table and referred in tables_set and table not in dependents[referred]:
+                    dependents[referred].add(table)
+                    in_degree[table] += 1
+
+        return dependents, in_degree
+
+    @staticmethod
+    def _topological_sort(
+        tables: list[str],
+        inspector: Inspector,
+        schema: str | None,
+    ) -> tuple[list[str], list[list[str]]]:
+        """Ordena tablas respetando dependencias FK usando el algoritmo de Kahn.
+
+        Returns:
+            (ordered_tables, cycles) — las tablas en ciclos se añaden al final
+            de ``ordered_tables`` y se listan en ``cycles``.
+        """
+        dependents, in_degree = DumpOrchestrator._build_fk_graph(tables, inspector, schema)
+
+        queue: deque[str] = deque(t for t in tables if in_degree[t] == 0)
+        ordered: list[str] = []
+
+        while queue:
+            node = queue.popleft()
+            ordered.append(node)
+            for dep in sorted(dependents[node]):
+                in_degree[dep] -= 1
+                if in_degree[dep] == 0:
+                    queue.append(dep)
+
+        cycle_tables = [t for t in tables if t not in set(ordered)]
+        cycles: list[list[str]] = [cycle_tables] if cycle_tables else []
+
+        return ordered + cycle_tables, cycles

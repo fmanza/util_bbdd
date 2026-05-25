@@ -27,7 +27,8 @@ Ejemplo básico::
 """
 
 from ._constraints import ConstraintManager, ConstraintResult
-from .orchestrator import DumpConfig, DumpOrchestrator, DumpResult, TableDumpResult
+from ._models import DumpConfig, DumpResult, TableDumpResult
+from .orchestrator import DumpOrchestrator
 from .reporters import DumpReporter
 
 __all__: list[str] = [
