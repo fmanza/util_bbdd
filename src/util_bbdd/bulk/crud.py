@@ -317,26 +317,28 @@ class bulk_crud:
         else:
             path_sql = None
 
-        self.__actualizar_df(df)
+        working_df: pd.DataFrame = df.copy()
+        self.__actualizar_df(working_df)
         try:
             if strategy_key == "insert":
                 prepared_operation = self.__prepare_insert_operation(
-                    df,
+                    working_df,
                     tabla_destino,
                     override_identity=override_identity,
                     exclude_autoincrement_pk=exclude_autoincrement_pk,
                 )
             else:
-                prepared_operation = strategy.prepare(df, tabla_destino)
-            start: float = perf_counter()
+                prepared_operation = strategy.prepare(working_df, tabla_destino)
 
+            elapsed: float = 0.0
             if generar_sql:
                 sql_lines: list[str] = prepared_operation.generate_sql_lines()
                 self.__guardar_fichero_sql(sql_lines, path_sql)
             else:
+                start: float = perf_counter()
                 prepared_operation.execute()
+                elapsed = perf_counter() - start
 
-            elapsed: float = perf_counter() - start
             self._persistence.register_operation(
                 table_name=tabla_destino,
                 operation=strategy.operation_name,
@@ -351,8 +353,6 @@ class bulk_crud:
         except SQLAlchemyError as error:
             self.logger.error(f"❌ Error en bulk {strategy.operation_name}: {error}")
             raise
-        finally:
-            df.columns = df.columns.str.upper()
 
     def __prepare_insert_operation(
         self,
@@ -454,7 +454,7 @@ class bulk_crud:
             execute=lambda: self.__ejecutar_delete_batch(df, tabla, pk_cols, numero_registros),
         )
 
-    def __ejecutar_batch_stmt(self, records: Sequence[Mapping[Any, Any]], stmt, numero_registros: int):
+    def __ejecutar_batch_stmt(self, records: Sequence[Mapping[Any, Any]], stmt: Any, numero_registros: int):
         """Ejecuta un statement de SQLAlchemy por lotes.
 
         Args:
@@ -588,7 +588,7 @@ class bulk_crud:
         # Devolver el valor máximo
         return max_val
 
-    def __generar_sql_insert(self, stmt: Insert, records: list[dict]) -> list:
+    def __generar_sql_insert(self, stmt: Insert, records: list[dict]) -> list[str]:
         """Genera SQL INSERT desde un statement y una lista de registros.
 
         Maneja valores binarios convirtiendo a hexadecimal.

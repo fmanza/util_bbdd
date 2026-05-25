@@ -65,6 +65,11 @@ def get_insert_columns(df_columns: Sequence[str], table: Table, *, exclude_autoi
             if col.autoincrement is True or getattr(col, "identity", None) is not None
         }
         columns = [col for col in columns if col not in ai_pk_names]
+    if not columns:
+        raise ValueError(
+            f"❌ No hay columnas válidas para INSERT en la tabla '{table.name}'. "
+            "Verifica que el DataFrame tenga columnas que coincidan con la tabla."
+        )
     return columns
 
 

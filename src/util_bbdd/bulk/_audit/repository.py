@@ -116,7 +116,10 @@ class AuditCsvRepository:
         try:
             dataframe: pd.DataFrame = pd.read_csv(str(self.audit_csv_path), delimiter="\t", parse_dates=["timestamp"])
             if "tiempo_seg" in dataframe.columns:
-                dataframe["tiempo_seg"] = dataframe["tiempo_seg"].astype(str).str.replace(",", ".").astype(float)
+                dataframe["tiempo_seg"] = pd.to_numeric(
+                    dataframe["tiempo_seg"].astype(str).str.replace(",", ".", regex=False),
+                    errors="coerce",
+                )
 
             if self.cache_enabled:
                 self._cache_df = dataframe.copy()

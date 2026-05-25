@@ -174,13 +174,20 @@ def test_generate_sql_other_dialect_no_wrap(mock_sqlite_engine, identity_table: 
     assert all("IDENTITY_INSERT" not in line for line in sql_lines)
 
 
-def test_execute_path_unchanged_does_not_call_wrap(mock_sqlserver_engine, identity_table: Table) -> None:
+def test_execute_path_unchanged_does_not_call_wrap(mock_sqlserver_engine) -> None:
     """La ejecución directa generar_sql=False delega en SQLAlchemy sin wrapping."""
+    # MSSQL normaliza columnas a mayúsculas; la tabla reflejada debe coincidir.
+    mssql_table = Table(
+        "orders",
+        MetaData(),
+        Column("ID", Integer, Identity(), primary_key=True),
+        Column("NAME", String(50)),
+    )
     manager = bulk_crud(engine=mock_sqlserver_engine)
     mock_sqlserver_engine.dialect.name = "mssql"
-    df = pd.DataFrame({"id": [1], "name": ["Alice"]})
+    df = pd.DataFrame({"ID": [1], "NAME": ["Alice"]})
 
-    with patch.object(manager, "reflect_table", return_value=identity_table):
+    with patch.object(manager, "reflect_table", return_value=mssql_table):
         with patch.object(manager, "_bulk_crud__ejecutar_batch_stmt") as mock_exec:
             manager.bulk_insert_from_df(df, "orders", generar_sql=False)
 

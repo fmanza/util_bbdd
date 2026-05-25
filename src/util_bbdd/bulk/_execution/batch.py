@@ -40,8 +40,6 @@ class SqlBasedDeleteStrategy:
         values: list[tuple[Any, ...]] = [tuple(row[column] for column in pk_cols) for _, row in batch_df.iterrows()]
         if not values:
             return
-        if not all(isinstance(value, tuple) for value in values):
-            raise ValueError("❌ Los valores deben ser tuplas.")
 
         preparer = connection.dialect.identifier_preparer
         quoted_table: str = preparer.format_table(table)
