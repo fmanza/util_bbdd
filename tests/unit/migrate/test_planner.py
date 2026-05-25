@@ -221,3 +221,39 @@ class TestMigrationPlanExecute:
         calls = target.execute_custom_one.call_args_list
         # Debe haberse llamado al menos una vez con SQL de CREATE TABLE
         assert any("CREATE TABLE" in str(call) for call in calls)
+
+
+class TestMigrationPlannerOracleIdentityMode:
+    def test_default_oracle_identity_mode_is_sequence_trigger(self) -> None:
+        p = MigrationPlanner()
+        assert p._oracle_identity_mode == "sequence_trigger"
+
+    def test_oracle_identity_mode_stored(self) -> None:
+        p = MigrationPlanner(oracle_identity_mode="identity_by_default_on_null")
+        assert p._oracle_identity_mode == "identity_by_default_on_null"
+
+    def test_invalid_oracle_identity_mode_raises(self) -> None:
+        with pytest.raises(ValueError, match="oracle_identity_mode"):
+            MigrationPlanner(oracle_identity_mode="always")  # type: ignore[arg-type]
+
+    def test_planner_passes_identity_mode_to_oracle_emitter(self) -> None:
+        from unittest.mock import MagicMock, patch
+
+        from util_bbdd.migrate.emitters.oracle import OracleDDLEmitter
+
+        with patch("util_bbdd.migrate.planner.MariaDBSchemaExtractor") as mock_cls:
+            mock_extractor = MagicMock()
+            mock_extractor.extract.return_value = []
+            mock_extractor.extract_views.return_value = []
+            mock_extractor.extract_routines.return_value = []
+            mock_cls.return_value = mock_extractor
+
+            planner = MigrationPlanner(
+                source_engine="mariadb",
+                target_engine="oracle",
+                oracle_identity_mode="identity_by_default_on_null",
+            )
+            plan = planner.plan(connection=MagicMock(), schema="TEST")
+
+        assert isinstance(plan.emitter, OracleDDLEmitter)
+        assert plan.emitter._identity_mode == "identity_by_default_on_null"

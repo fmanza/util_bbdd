@@ -16,7 +16,7 @@ from .charset import (
     validate_collation,
 )
 from .emitters.mariadb import MariaDBDDLEmitter
-from .emitters.oracle import OracleDDLEmitter
+from .emitters.oracle import _VALID_ORACLE_IDENTITY_MODES, OracleDDLEmitter, OracleIdentityMode
 from .emitters.postgresql import PostgreSQLDDLEmitter
 from .emitters.sqlserver import SQLServerDDLEmitter
 from .extractors.mariadb import MariaDBSchemaExtractor
@@ -86,6 +86,7 @@ class MigrationPlanner:
         int_display_width: int = 11,
         sql_server_collation: str | None = None,
         pg_schema: str | None = None,
+        oracle_identity_mode: OracleIdentityMode = "sequence_trigger",
     ) -> None:
         src = source_engine.strip().lower()
         tgt = target_engine.strip().lower()
@@ -96,6 +97,11 @@ class MigrationPlanner:
             raise ValueError(f"Motor destino '{target_engine}' no soportado. Soportados: {sorted(_SUPPORTED_TARGET)}")
         if src == tgt:
             raise ValueError(f"Motor origen y destino son el mismo ('{src}'). La migración requiere motores distintos.")
+        if oracle_identity_mode not in _VALID_ORACLE_IDENTITY_MODES:
+            raise ValueError(
+                f"oracle_identity_mode '{oracle_identity_mode}' no es válido. "
+                f"Valores aceptados: {sorted(_VALID_ORACLE_IDENTITY_MODES)}"
+            )
 
         self._source_engine = src
         self._target_engine = tgt
@@ -104,6 +110,7 @@ class MigrationPlanner:
         self._int_display_width = int_display_width
         self._sql_server_collation = sql_server_collation
         self._pg_schema = pg_schema
+        self._oracle_identity_mode: OracleIdentityMode = oracle_identity_mode
 
         if tgt == "mariadb":
             self._charset = validate_charset(charset)
@@ -173,7 +180,7 @@ class MigrationPlanner:
 
         if self._target_engine == "oracle":
             transformer: Any = MariaDBToOracleTransformer()
-            emitter: Any = OracleDDLEmitter()
+            emitter: Any = OracleDDLEmitter(oracle_identity_mode=self._oracle_identity_mode)
         elif self._target_engine == "sqlserver":
             transformer = MariaDBToSQLServerTransformer()
             emitter = SQLServerDDLEmitter(collation=self._sql_server_collation)
@@ -192,7 +199,7 @@ class MigrationPlanner:
 
         if self._target_engine == "oracle":
             transformer: Any = SQLServerToOracleTransformer()
-            emitter: Any = OracleDDLEmitter()
+            emitter: Any = OracleDDLEmitter(oracle_identity_mode=self._oracle_identity_mode)
         elif self._target_engine == "mariadb":
             transformer = SQLServerToMariaDBTransformer()
             emitter = MariaDBDDLEmitter(
@@ -215,7 +222,7 @@ class MigrationPlanner:
 
         if self._target_engine == "oracle":
             transformer: Any = PostgreSQLToOracleTransformer()
-            emitter: Any = OracleDDLEmitter()
+            emitter: Any = OracleDDLEmitter(oracle_identity_mode=self._oracle_identity_mode)
         elif self._target_engine == "mariadb":
             transformer = PostgreSQLToMariaDBTransformer()
             emitter = MariaDBDDLEmitter(
