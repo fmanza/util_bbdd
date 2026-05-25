@@ -46,12 +46,15 @@ from sqlalchemy.orm import Session
 from ._execution.batch import BatchStatementExecutor, DeleteBatchExecutor
 from ._support.persistence import BulkPersistenceManager
 from ._support.sql_helpers import (
+    build_override_identity_text_stmt,
     generate_delete_sql,
     generate_insert_sql,
+    generate_insert_sql_override_identity,
     generate_update_sql,
 )
 from ._support.validation import (
     build_update_plan,
+    detect_always_identity_columns,
     get_insert_columns,
     get_pk_columns,
     normalize_dataframe_columns,
@@ -193,6 +196,7 @@ class bulk_crud:
         tabla_destino: str,
         generar_sql: bool = True,
         path_sql: Path | None = None,
+        override_identity: bool = False,
     ):
         """
         Inserta en bloque los datos del DataFrame en la tabla destino, o genera la SQL si se indica.
@@ -203,10 +207,15 @@ class bulk_crud:
             generar_sql: Si True, genera la sentencia SQL en texto.
             path_sql: Ruta donde guardar el archivo SQL. Es obligatorio si generar_sql=True.
                      El nombre del archivo se genera dinámicamente y se combina con esta ruta.
+            override_identity: Si True y el motor es PostgreSQL, genera INSERT con
+                     OVERRIDING SYSTEM VALUE para columnas GENERATED ALWAYS AS IDENTITY.
+                     Ignorado en otros motores. Por defecto False.
 
         Raises:
             ValueError: Si generar_sql=True y path_sql no es proporcionado o no es válido.
             ValueError: Si el DataFrame es vacío o si hay errores de SQL.
+            ValueError: Si override_identity=False y el DataFrame incluye columnas
+                     GENERATED ALWAYS AS IDENTITY en PostgreSQL.
 
         La operación se registra en auditoría si fue configurada.
         """
@@ -216,6 +225,7 @@ class bulk_crud:
             generar_sql=generar_sql,
             path_sql=path_sql,
             strategy_key="insert",
+            override_identity=override_identity,
         )
 
     @medir_tiempo("bulk_update_from_df")
@@ -290,6 +300,7 @@ class bulk_crud:
         generar_sql: bool,
         path_sql: Path | None,
         strategy_key: Literal["insert", "update", "delete"],
+        override_identity: bool = False,
     ) -> None:
         """Template Method para operaciones bulk con estrategia por operación."""
         strategy: _BulkOperationStrategy = self._operation_strategies[strategy_key]
@@ -300,7 +311,12 @@ class bulk_crud:
 
         self.__actualizar_df(df)
         try:
-            prepared_operation = strategy.prepare(df, tabla_destino)
+            if strategy_key == "insert":
+                prepared_operation = self.__prepare_insert_operation(
+                    df, tabla_destino, override_identity=override_identity
+                )
+            else:
+                prepared_operation = strategy.prepare(df, tabla_destino)
             start: float = perf_counter()
 
             if generar_sql:
@@ -327,14 +343,37 @@ class bulk_crud:
         finally:
             df.columns = df.columns.str.upper()
 
-    def __prepare_insert_operation(self, df: pd.DataFrame, tabla_destino: str) -> _PreparedBulkOperation:
+    def __prepare_insert_operation(
+        self, df: pd.DataFrame, tabla_destino: str, *, override_identity: bool = False
+    ) -> _PreparedBulkOperation:
         tabla: Table = self.reflect_table(tabla_destino)
         insert_cols: list[str] = get_insert_columns(list(df.columns), tabla)
+
+        is_postgres: bool = self.engine.dialect.name == "postgresql"
+        always_identity_cols: list[str] = detect_always_identity_columns(insert_cols, tabla) if is_postgres else []
+
+        if always_identity_cols and not override_identity:
+            raise ValueError(
+                f"❌ Las columnas {always_identity_cols} son GENERATED ALWAYS AS IDENTITY en PostgreSQL. "
+                "Usa override_identity=True para insertar valores manuales."
+            )
+
         records: list[dict[Hashable, Any]] = df[insert_cols].to_dict(orient="records")
-        stmt: Insert = insert(tabla)
         records_sql: list[dict[str, Any]] = normalize_records_for_sql(records)
         numero_registros: int = len(records_sql)
 
+        if override_identity and always_identity_cols:
+            stmt_for_sql: Insert = insert(tabla)
+            text_stmt = build_override_identity_text_stmt(tabla, insert_cols, self.engine.dialect)
+            return _PreparedBulkOperation(
+                rowcount=numero_registros,
+                generate_sql_lines=lambda: generate_insert_sql_override_identity(
+                    stmt_for_sql, records_sql, self.engine.dialect
+                ),
+                execute=lambda: self.__ejecutar_batch_stmt(records_sql, text_stmt, numero_registros),
+            )
+
+        stmt: Insert = insert(tabla)
         return _PreparedBulkOperation(
             rowcount=numero_registros,
             generate_sql_lines=lambda: self.__generar_sql_insert(stmt, records_sql),

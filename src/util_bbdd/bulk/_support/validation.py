@@ -60,6 +60,17 @@ def get_insert_columns(df_columns: Sequence[str], table: Table) -> list[str]:
     return [column for column in df_columns if column in table_columns]
 
 
+def detect_always_identity_columns(columns: Sequence[str], table: Table) -> list[str]:
+    """Devuelve las columnas de `columns` que son GENERATED ALWAYS AS IDENTITY en la tabla."""
+    col_set: set[str] = set(columns)
+    return [
+        col.name
+        for col in table.columns
+        if col.name in col_set
+        and getattr(getattr(col, "identity", None), "always", False)
+    ]
+
+
 def get_pk_columns(table: Table, df_columns: Sequence[str]) -> list[str]:
     """Devuelve las claves primarias presentes en el DataFrame."""
     pk_cols: list[str] = [column.name for column in table.primary_key.columns if column.name in df_columns]
@@ -89,6 +100,7 @@ def build_update_plan(table: Table, df_columns: Sequence[str], table_name: str) 
 __all__: list[str] = [
     "UpdatePlan",
     "build_update_plan",
+    "detect_always_identity_columns",
     "get_insert_columns",
     "get_pk_columns",
     "normalize_dataframe_columns",

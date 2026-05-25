@@ -9,7 +9,7 @@ from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import Delete, Insert, Table, Update, and_, delete, update
+from sqlalchemy import Delete, Insert, Table, Update, and_, delete, text, update
 
 SqlRecord = dict[str, Any]
 
@@ -30,6 +30,29 @@ def generate_sql_filename(*, engine_url: str, table: str, operation: str) -> Pat
 def generate_insert_sql(stmt: Insert, records: Sequence[SqlRecord], dialect: Any) -> list[str]:
     """Genera SQL INSERT literal para una secuencia de registros."""
     return [compile_stmt_with_binary_support(stmt.values(record), dialect) for record in records]
+
+
+def generate_insert_sql_override_identity(stmt: Insert, records: Sequence[SqlRecord], dialect: Any) -> list[str]:
+    """Genera SQL INSERT PostgreSQL con OVERRIDING SYSTEM VALUE para columnas identity always."""
+    result: list[str] = []
+    for record in records:
+        sql = compile_stmt_with_binary_support(stmt.values(record), dialect)
+        sql = re.sub(r"\)\s+VALUES\b", ") OVERRIDING SYSTEM VALUE VALUES", sql, count=1, flags=re.IGNORECASE)
+        result.append(sql)
+    return result
+
+
+def build_override_identity_text_stmt(table: Table, columns: Sequence[str], dialect: Any) -> Any:
+    """Construye un text() INSERT con OVERRIDING SYSTEM VALUE para ejecución en PostgreSQL."""
+    preparer = dialect.identifier_preparer
+    quoted_table: str = preparer.format_table(table)
+    quoted_cols: list[str] = [preparer.quote(col) for col in columns]
+    params: list[str] = [f":{col}" for col in columns]
+    sql: str = (
+        f"INSERT INTO {quoted_table} ({', '.join(quoted_cols)}) "
+        f"OVERRIDING SYSTEM VALUE VALUES ({', '.join(params)})"
+    )
+    return text(sql)
 
 
 def generate_update_sql(
@@ -151,10 +174,12 @@ def format_sql_param_value(value: Any) -> str:
 
 __all__: list[str] = [
     "SqlRecord",
+    "build_override_identity_text_stmt",
     "compile_stmt_with_binary_support",
     "format_sql_param_value",
     "generate_delete_sql",
     "generate_insert_sql",
+    "generate_insert_sql_override_identity",
     "generate_sql_filename",
     "generate_update_sql",
 ]
