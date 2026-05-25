@@ -51,6 +51,8 @@ from ._support.sql_helpers import (
     generate_insert_sql,
     generate_insert_sql_override_identity,
     generate_update_sql,
+    should_wrap_identity_insert,
+    wrap_identity_insert_sql,
 )
 from ._support.validation import (
     build_update_plan,
@@ -374,6 +376,18 @@ class bulk_crud:
             )
 
         stmt: Insert = insert(tabla)
+
+        if should_wrap_identity_insert(tabla, insert_cols, self.engine.dialect):
+            _tabla = tabla
+            _dialect = self.engine.dialect
+            return _PreparedBulkOperation(
+                rowcount=numero_registros,
+                generate_sql_lines=lambda: wrap_identity_insert_sql(
+                    generate_insert_sql(stmt, records_sql, _dialect), _tabla, _dialect
+                ),
+                execute=lambda: self.__ejecutar_batch_stmt(records_sql, stmt, numero_registros),
+            )
+
         return _PreparedBulkOperation(
             rowcount=numero_registros,
             generate_sql_lines=lambda: self.__generar_sql_insert(stmt, records_sql),

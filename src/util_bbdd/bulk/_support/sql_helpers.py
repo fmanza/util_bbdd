@@ -55,6 +55,29 @@ def build_override_identity_text_stmt(table: Table, columns: Sequence[str], dial
     return text(sql)
 
 
+def should_wrap_identity_insert(table: Table, insert_cols: Sequence[str], dialect: Any) -> bool:
+    """Devuelve True si hay que envolver los INSERT con SET IDENTITY_INSERT ON/OFF.
+
+    Solo aplica en MSSQL cuando alguna columna de insert_cols tiene IDENTITY definida
+    en la tabla (getattr(col, 'identity', None) is not None).
+    """
+    if dialect.name != "mssql":
+        return False
+    col_set: set[str] = set(insert_cols)
+    return any(col.name in col_set and getattr(col, "identity", None) is not None for col in table.columns)
+
+
+def wrap_identity_insert_sql(sql_lines: list[str], table: Table, dialect: Any) -> list[str]:
+    """Envuelve una lista de INSERT con SET IDENTITY_INSERT <tabla> ON/OFF para SQL Server."""
+    preparer = dialect.identifier_preparer
+    quoted_table: str = preparer.format_table(table)
+    return [
+        f"SET IDENTITY_INSERT {quoted_table} ON;",
+        *sql_lines,
+        f"SET IDENTITY_INSERT {quoted_table} OFF;",
+    ]
+
+
 def generate_update_sql(
     *,
     table: Table,
@@ -182,4 +205,6 @@ __all__: list[str] = [
     "generate_insert_sql_override_identity",
     "generate_sql_filename",
     "generate_update_sql",
+    "should_wrap_identity_insert",
+    "wrap_identity_insert_sql",
 ]
