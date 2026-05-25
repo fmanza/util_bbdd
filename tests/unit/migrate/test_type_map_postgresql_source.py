@@ -290,19 +290,49 @@ class TestDictCoverage:
     """Verifica que los dicts tienen los tipos clave cubiertos."""
 
     def test_oracle_dict_covers_core_types(self) -> None:
-        core = {"INTEGER", "BIGINT", "CHARACTER VARYING", "TEXT", "BOOLEAN",
-                "NUMERIC", "DATE", "TIMESTAMP WITHOUT TIME ZONE", "UUID", "BYTEA"}
+        core = {
+            "INTEGER",
+            "BIGINT",
+            "CHARACTER VARYING",
+            "TEXT",
+            "BOOLEAN",
+            "NUMERIC",
+            "DATE",
+            "TIMESTAMP WITHOUT TIME ZONE",
+            "UUID",
+            "BYTEA",
+        }
         for t in core:
             assert t in POSTGRESQL_TO_ORACLE, f"Falta {t!r} en POSTGRESQL_TO_ORACLE"
 
     def test_mariadb_dict_covers_core_types(self) -> None:
-        core = {"INTEGER", "BIGINT", "CHARACTER VARYING", "TEXT", "BOOLEAN",
-                "NUMERIC", "DATE", "TIMESTAMP WITHOUT TIME ZONE", "UUID", "BYTEA"}
+        core = {
+            "INTEGER",
+            "BIGINT",
+            "CHARACTER VARYING",
+            "TEXT",
+            "BOOLEAN",
+            "NUMERIC",
+            "DATE",
+            "TIMESTAMP WITHOUT TIME ZONE",
+            "UUID",
+            "BYTEA",
+        }
         for t in core:
             assert t in POSTGRESQL_TO_MARIADB, f"Falta {t!r} en POSTGRESQL_TO_MARIADB"
 
     def test_sqlserver_dict_covers_core_types(self) -> None:
-        core = {"INTEGER", "BIGINT", "CHARACTER VARYING", "TEXT", "BOOLEAN",
-                "NUMERIC", "DATE", "TIMESTAMP WITHOUT TIME ZONE", "UUID", "BYTEA"}
+        core = {
+            "INTEGER",
+            "BIGINT",
+            "CHARACTER VARYING",
+            "TEXT",
+            "BOOLEAN",
+            "NUMERIC",
+            "DATE",
+            "TIMESTAMP WITHOUT TIME ZONE",
+            "UUID",
+            "BYTEA",
+        }
         for t in core:
             assert t in POSTGRESQL_TO_SQLSERVER, f"Falta {t!r} en POSTGRESQL_TO_SQLSERVER"

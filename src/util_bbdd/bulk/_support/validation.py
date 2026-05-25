@@ -54,10 +54,18 @@ def normalize_dataframe_columns(df: pd.DataFrame, dialect_name: str, logger: log
         logger.warning(f"⚠️ Dialecto no reconocido: {dialect_name}")
 
 
-def get_insert_columns(df_columns: Sequence[str], table: Table) -> list[str]:
+def get_insert_columns(df_columns: Sequence[str], table: Table, *, exclude_autoincrement_pk: bool = False) -> list[str]:
     """Obtiene columnas del DataFrame que existen en la tabla destino."""
     table_columns: set[str] = {column.name for column in table.columns}
-    return [column for column in df_columns if column in table_columns]
+    columns = [column for column in df_columns if column in table_columns]
+    if exclude_autoincrement_pk:
+        ai_pk_names: set[str] = {
+            col.name
+            for col in table.primary_key.columns
+            if col.autoincrement is True or getattr(col, "identity", None) is not None
+        }
+        columns = [col for col in columns if col not in ai_pk_names]
+    return columns
 
 
 def detect_always_identity_columns(columns: Sequence[str], table: Table) -> list[str]:
@@ -66,8 +74,7 @@ def detect_always_identity_columns(columns: Sequence[str], table: Table) -> list
     return [
         col.name
         for col in table.columns
-        if col.name in col_set
-        and getattr(getattr(col, "identity", None), "always", False)
+        if col.name in col_set and getattr(getattr(col, "identity", None), "always", False)
     ]
 
 

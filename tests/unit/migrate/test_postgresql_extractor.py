@@ -53,8 +53,7 @@ def _col_row(
     default: str | None = None,
     ordinal: int = 1,
 ) -> tuple:
-    return (name, data_type, char_length, numeric_precision, numeric_scale,
-            is_nullable, default, ordinal)
+    return (name, data_type, char_length, numeric_precision, numeric_scale, is_nullable, default, ordinal)
 
 
 # ── Tests _parse_raw_column ───────────────────────────────────────────────────
@@ -173,8 +172,7 @@ class TestExtract:
     def test_extract_single_table(self) -> None:
         manager = _make_manager(
             tables=[("orders",)],
-            columns=[_col_row("id", "integer", None, 32, 0, "NO",
-                               "nextval('orders_id_seq'::regclass)", 1)],
+            columns=[_col_row("id", "integer", None, 32, 0, "NO", "nextval('orders_id_seq'::regclass)", 1)],
             pks=[("id",)],
         )
         ext = PostgreSQLSchemaExtractor(manager)
@@ -189,8 +187,7 @@ class TestExtract:
         manager = _make_manager(
             tables=[("products",)],
             columns=[
-                _col_row("product_id", "integer", None, 32, 0, "NO",
-                          "nextval('seq'::regclass)", 1),
+                _col_row("product_id", "integer", None, 32, 0, "NO", "nextval('seq'::regclass)", 1),
                 _col_row("name", "character varying", 200, None, None, "NO", None, 2),
             ],
             pks=[("product_id",)],
@@ -258,8 +255,7 @@ class TestExtractViews:
 class TestExtractFKs:
     def test_internal_fk(self) -> None:
         fk_rows = [
-            ("fk_order_customer", "customer_id", "public", "customers", "id",
-             1, "NO ACTION", "NO ACTION"),
+            ("fk_order_customer", "customer_id", "public", "customers", "id", 1, "NO ACTION", "NO ACTION"),
         ]
         manager = _make_manager(
             tables=[("orders",)],
@@ -281,8 +277,7 @@ class TestExtractFKs:
 
     def test_external_fk(self) -> None:
         fk_rows = [
-            ("fk_ext", "col_a", "other_schema", "ext_table", "id",
-             1, "CASCADE", "NO ACTION"),
+            ("fk_ext", "col_a", "other_schema", "ext_table", "id", 1, "CASCADE", "NO ACTION"),
         ]
         manager = _make_manager(
             tables=[("my_table",)],

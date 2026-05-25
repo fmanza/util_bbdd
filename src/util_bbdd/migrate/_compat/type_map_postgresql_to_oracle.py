@@ -34,6 +34,10 @@ class TypeMappingPostgreSQLToOracle:
     severity: WarningSeverity = "INFO"
 
 
+_INTERVAL_DAY_TO_SECOND = "INTERVAL DAY TO SECOND"
+_TIMESTAMP_WITH_TZ = "TIMESTAMP WITH TIME ZONE"
+_VARCHAR2_100 = "VARCHAR2(100)"
+
 # Mapeo canónico PostgreSQL → Oracle.
 # Clave: DATA_TYPE de INFORMATION_SCHEMA en MAYÚSCULAS, sin parámetros.
 POSTGRESQL_TO_ORACLE: dict[str, TypeMappingPostgreSQLToOracle] = {
@@ -103,7 +107,7 @@ POSTGRESQL_TO_ORACLE: dict[str, TypeMappingPostgreSQLToOracle] = {
         "VARCHAR2(15)",
         warning_msg="TIME WITHOUT TIME ZONE PostgreSQL sin equivalente directo en Oracle; mapeado a VARCHAR2(15)",
         severity="WARNING",
-        proposals=("VARCHAR2(15)", "INTERVAL DAY TO SECOND"),
+        proposals=("VARCHAR2(15)", _INTERVAL_DAY_TO_SECOND),
         ddl_comment="-- AVISO: TIME → VARCHAR2(15) [A] | INTERVAL DAY TO SECOND [B]",
         requires_ddl_comment=True,
     ),
@@ -115,24 +119,22 @@ POSTGRESQL_TO_ORACLE: dict[str, TypeMappingPostgreSQLToOracle] = {
         ddl_comment="-- AVISO: TIMETZ → VARCHAR2(21); verificar formato HH:MM:SS+HH:MM",
         requires_ddl_comment=True,
     ),
-    "TIMESTAMP WITHOUT TIME ZONE": TypeMappingPostgreSQLToOracle(
-        "TIMESTAMP WITHOUT TIME ZONE", "TIMESTAMP"
-    ),
-    "TIMESTAMP WITH TIME ZONE": TypeMappingPostgreSQLToOracle(
-        "TIMESTAMP WITH TIME ZONE",
-        "TIMESTAMP WITH TIME ZONE",
+    "TIMESTAMP WITHOUT TIME ZONE": TypeMappingPostgreSQLToOracle("TIMESTAMP WITHOUT TIME ZONE", "TIMESTAMP"),
+    _TIMESTAMP_WITH_TZ: TypeMappingPostgreSQLToOracle(
+        _TIMESTAMP_WITH_TZ,
+        _TIMESTAMP_WITH_TZ,
         warning_msg="TIMESTAMP WITH TIME ZONE PostgreSQL mapeado a TIMESTAMP WITH TIME ZONE Oracle; verificar comportamiento TZ",
         severity="INFO",
     ),
     "INTERVAL": TypeMappingPostgreSQLToOracle(
         "INTERVAL",
-        "INTERVAL DAY TO SECOND",
+        _INTERVAL_DAY_TO_SECOND,
         warning_msg=(
             "INTERVAL PostgreSQL (año-mes y día-hora) mapeado a INTERVAL DAY TO SECOND Oracle; "
             "intervalos año-mes (YEAR TO MONTH) requieren revisión manual"
         ),
         severity="WARNING",
-        proposals=("INTERVAL DAY TO SECOND", "INTERVAL YEAR TO MONTH"),
+        proposals=(_INTERVAL_DAY_TO_SECOND, "INTERVAL YEAR TO MONTH"),
         ddl_comment="-- AVISO: INTERVAL PG → INTERVAL DAY TO SECOND [A] | YEAR TO MONTH [B]; revisar semántica",
         requires_ddl_comment=True,
     ),
@@ -254,50 +256,57 @@ POSTGRESQL_TO_ORACLE: dict[str, TypeMappingPostgreSQLToOracle] = {
     ),
     # ── Tipos geométricos ────────────────────────────────────────────────────────
     "POINT": TypeMappingPostgreSQLToOracle(
-        "POINT", "VARCHAR2(100)",
+        "POINT",
+        _VARCHAR2_100,
         warning_msg="POINT PostgreSQL sin equivalente directo en Oracle; mapeado a VARCHAR2(100). Oracle usa SDO_GEOMETRY",
         severity="ERROR",
-        proposals=("VARCHAR2(100)", "SDO_GEOMETRY -- Oracle Spatial"),
+        proposals=(_VARCHAR2_100, "SDO_GEOMETRY -- Oracle Spatial"),
         ddl_comment="-- ERROR: POINT → VARCHAR2(100) [A] | SDO_GEOMETRY Oracle Spatial [B]",
         requires_ddl_comment=True,
     ),
     "LINE": TypeMappingPostgreSQLToOracle(
-        "LINE", "VARCHAR2(100)",
+        "LINE",
+        _VARCHAR2_100,
         warning_msg="LINE PostgreSQL sin equivalente en Oracle; mapeado a VARCHAR2(100)",
         severity="ERROR",
         ddl_comment="-- ERROR: LINE → VARCHAR2(100); revisar con Oracle Spatial",
         requires_ddl_comment=True,
     ),
     "LSEG": TypeMappingPostgreSQLToOracle(
-        "LSEG", "VARCHAR2(100)",
+        "LSEG",
+        _VARCHAR2_100,
         warning_msg="LSEG PostgreSQL sin equivalente en Oracle; mapeado a VARCHAR2(100)",
         severity="ERROR",
         ddl_comment="-- ERROR: LSEG → VARCHAR2(100)",
         requires_ddl_comment=True,
     ),
     "BOX": TypeMappingPostgreSQLToOracle(
-        "BOX", "VARCHAR2(100)",
+        "BOX",
+        _VARCHAR2_100,
         warning_msg="BOX PostgreSQL sin equivalente en Oracle; mapeado a VARCHAR2(100)",
         severity="ERROR",
         ddl_comment="-- ERROR: BOX → VARCHAR2(100)",
         requires_ddl_comment=True,
     ),
     "PATH": TypeMappingPostgreSQLToOracle(
-        "PATH", "VARCHAR2(200)",
+        "PATH",
+        "VARCHAR2(200)",
         warning_msg="PATH PostgreSQL sin equivalente en Oracle; mapeado a VARCHAR2(200)",
         severity="ERROR",
         ddl_comment="-- ERROR: PATH → VARCHAR2(200)",
         requires_ddl_comment=True,
     ),
     "POLYGON": TypeMappingPostgreSQLToOracle(
-        "POLYGON", "VARCHAR2(200)",
+        "POLYGON",
+        "VARCHAR2(200)",
         warning_msg="POLYGON PostgreSQL sin equivalente en Oracle; mapeado a VARCHAR2(200)",
         severity="ERROR",
         ddl_comment="-- ERROR: POLYGON → VARCHAR2(200)",
         requires_ddl_comment=True,
     ),
     "CIRCLE": TypeMappingPostgreSQLToOracle(
-        "CIRCLE", "VARCHAR2(100)",
+        "CIRCLE",
+        _VARCHAR2_100,
         warning_msg="CIRCLE PostgreSQL sin equivalente en Oracle; mapeado a VARCHAR2(100)",
         severity="ERROR",
         ddl_comment="-- ERROR: CIRCLE → VARCHAR2(100)",

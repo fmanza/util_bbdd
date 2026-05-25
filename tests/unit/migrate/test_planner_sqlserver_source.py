@@ -106,9 +106,15 @@ class TestPlanEmptySchema:
 
 class TestPlanWithTable:
     def _col_row(
-        self, name: str, data_type: str, char_length: int | None = None,
-        precision: int | None = None, scale: int | None = None,
-        nullable: str = "YES", identity: int = 0, ordinal: int = 1,
+        self,
+        name: str,
+        data_type: str,
+        char_length: int | None = None,
+        precision: int | None = None,
+        scale: int | None = None,
+        nullable: str = "YES",
+        identity: int = 0,
+        ordinal: int = 1,
     ) -> tuple:
         return (name, data_type, char_length, precision, scale, nullable, None, identity, ordinal)
 
@@ -165,7 +171,8 @@ class TestPlanWithTable:
 class TestPlannerOptionsWithSSSource:
     def test_pg_schema_passed_to_emitter(self) -> None:
         planner = MigrationPlanner(
-            source_engine="sqlserver", target_engine="postgresql",
+            source_engine="sqlserver",
+            target_engine="postgresql",
             pg_schema="reporting",
         )
         manager = _make_manager()
@@ -175,8 +182,10 @@ class TestPlannerOptionsWithSSSource:
 
     def test_mariadb_charset_passed(self) -> None:
         planner = MigrationPlanner(
-            source_engine="sqlserver", target_engine="mariadb",
-            charset="utf8mb4", collation="utf8mb4_unicode_ci",
+            source_engine="sqlserver",
+            target_engine="mariadb",
+            charset="utf8mb4",
+            collation="utf8mb4_unicode_ci",
         )
         manager = _make_manager()
         plan = planner.plan(manager, "dbo")

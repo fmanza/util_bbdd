@@ -320,9 +320,9 @@ class TestSyncExecutorFetchOptions:
 
     def test_execute_custom_mariadb_set_names_binary_sent_via_sql(self, temp_queries_file):
         """SET NAMES 'binary' se envía al servidor vía SQL (no vía property setter) para cambiar charset."""
-        text_cursor = MagicMock()    # cursor principal (fetchall falla)
+        text_cursor = MagicMock()  # cursor principal (fetchall falla)
         set_names_cursor = MagicMock()  # cursor para SET NAMES 'binary'
-        retry_cursor = MagicMock()   # cursor de fetch real
+        retry_cursor = MagicMock()  # cursor de fetch real
         restore_cursor = MagicMock()  # cursor para SET NAMES de restauración
 
         text_cursor.fetchall.side_effect = SystemError(

@@ -33,7 +33,9 @@ def _make_engine(dialect_name: str = "postgresql") -> MagicMock:
 
 
 def _make_inspector(
-    tables: list[str], columns_map: dict[str, list[str]] | None = None, fks: dict | None = None,
+    tables: list[str],
+    columns_map: dict[str, list[str]] | None = None,
+    fks: dict | None = None,
 ) -> MagicMock:
     insp = MagicMock()
     insp.get_table_names.return_value = tables

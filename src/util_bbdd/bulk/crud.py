@@ -199,6 +199,7 @@ class bulk_crud:
         generar_sql: bool = True,
         path_sql: Path | None = None,
         override_identity: bool = False,
+        exclude_autoincrement_pk: bool = False,
     ):
         """
         Inserta en bloque los datos del DataFrame en la tabla destino, o genera la SQL si se indica.
@@ -212,6 +213,9 @@ class bulk_crud:
             override_identity: Si True y el motor es PostgreSQL, genera INSERT con
                      OVERRIDING SYSTEM VALUE para columnas GENERATED ALWAYS AS IDENTITY.
                      Ignorado en otros motores. Por defecto False.
+            exclude_autoincrement_pk: Si True, excluye la columna PK autoincremental/identity
+                     del INSERT (tanto en ejecución como en generación SQL). El DataFrame original
+                     no se modifica. Solo afecta a INSERT; no a UPDATE ni DELETE. Por defecto False.
 
         Raises:
             ValueError: Si generar_sql=True y path_sql no es proporcionado o no es válido.
@@ -228,6 +232,7 @@ class bulk_crud:
             path_sql=path_sql,
             strategy_key="insert",
             override_identity=override_identity,
+            exclude_autoincrement_pk=exclude_autoincrement_pk,
         )
 
     @medir_tiempo("bulk_update_from_df")
@@ -303,6 +308,7 @@ class bulk_crud:
         path_sql: Path | None,
         strategy_key: Literal["insert", "update", "delete"],
         override_identity: bool = False,
+        exclude_autoincrement_pk: bool = False,
     ) -> None:
         """Template Method para operaciones bulk con estrategia por operación."""
         strategy: _BulkOperationStrategy = self._operation_strategies[strategy_key]
@@ -315,7 +321,10 @@ class bulk_crud:
         try:
             if strategy_key == "insert":
                 prepared_operation = self.__prepare_insert_operation(
-                    df, tabla_destino, override_identity=override_identity
+                    df,
+                    tabla_destino,
+                    override_identity=override_identity,
+                    exclude_autoincrement_pk=exclude_autoincrement_pk,
                 )
             else:
                 prepared_operation = strategy.prepare(df, tabla_destino)
@@ -346,10 +355,17 @@ class bulk_crud:
             df.columns = df.columns.str.upper()
 
     def __prepare_insert_operation(
-        self, df: pd.DataFrame, tabla_destino: str, *, override_identity: bool = False
+        self,
+        df: pd.DataFrame,
+        tabla_destino: str,
+        *,
+        override_identity: bool = False,
+        exclude_autoincrement_pk: bool = False,
     ) -> _PreparedBulkOperation:
         tabla: Table = self.reflect_table(tabla_destino)
-        insert_cols: list[str] = get_insert_columns(list(df.columns), tabla)
+        insert_cols: list[str] = get_insert_columns(
+            list(df.columns), tabla, exclude_autoincrement_pk=exclude_autoincrement_pk
+        )
 
         is_postgres: bool = self.engine.dialect.name == "postgresql"
         always_identity_cols: list[str] = detect_always_identity_columns(insert_cols, tabla) if is_postgres else []

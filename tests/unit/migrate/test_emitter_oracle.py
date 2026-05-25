@@ -473,5 +473,6 @@ class TestOracleDDLEmitterIdentityMode:
 
     def test_invalid_identity_mode_raises_value_error(self) -> None:
         import pytest
+
         with pytest.raises(ValueError, match="oracle_identity_mode"):
             OracleDDLEmitter(oracle_identity_mode="always")  # type: ignore[arg-type]

@@ -22,10 +22,19 @@ def _col(
     is_primary_key: bool = False,
 ) -> CanonicalColumn:
     return CanonicalColumn(
-        name=name, original_name=name, oracle_type=ss_type, target_type="",
-        nullable=nullable, default=None, comment="", ordinal=1,
-        char_length=char_length, precision=precision, scale=scale,
-        auto_increment=auto_increment, is_primary_key=is_primary_key,
+        name=name,
+        original_name=name,
+        oracle_type=ss_type,
+        target_type="",
+        nullable=nullable,
+        default=None,
+        comment="",
+        ordinal=1,
+        char_length=char_length,
+        precision=precision,
+        scale=scale,
+        auto_increment=auto_increment,
+        is_primary_key=is_primary_key,
     )
 
 
@@ -36,9 +45,15 @@ def _table(
     fks: list[CanonicalFK] | None = None,
 ) -> CanonicalTable:
     return CanonicalTable(
-        name=name, original_name=name, schema="dbo",
-        columns=columns or [], primary_key=pk or [],
-        indexes=[], foreign_keys=fks or [], comment="", warnings=[],
+        name=name,
+        original_name=name,
+        schema="dbo",
+        columns=columns or [],
+        primary_key=pk or [],
+        indexes=[],
+        foreign_keys=fks or [],
+        comment="",
+        warnings=[],
     )
 
 
@@ -176,9 +191,14 @@ class TestIdentifierTruncation:
 class TestFKTransform:
     def test_external_fk_gets_warning(self) -> None:
         fk = CanonicalFK(
-            name="FK_EXT", original_name="FK_EXT",
-            columns=["COL_A"], ref_table="EXT_TABLE", ref_columns=["ID"],
-            on_delete="NO ACTION", on_update="NO ACTION", is_external=True,
+            name="FK_EXT",
+            original_name="FK_EXT",
+            columns=["COL_A"],
+            ref_table="EXT_TABLE",
+            ref_columns=["ID"],
+            on_delete="NO ACTION",
+            on_update="NO ACTION",
+            is_external=True,
         )
         result = SQLServerToMariaDBTransformer().transform([_table(columns=[_col("COL_A")], fks=[fk])])[0]
         assert any("FK_EXT" in w.message for w in result.warnings)
@@ -187,9 +207,13 @@ class TestFKTransform:
 class TestViewTransform:
     def test_view_passthrough_warning(self) -> None:
         view = CanonicalView(
-            name="V_TEST", original_name="V_TEST", schema="dbo",
+            name="V_TEST",
+            original_name="V_TEST",
+            schema="dbo",
             query="SELECT GETDATE(), TOP 10 * FROM t",
-            columns=[], comment="", warnings=[],
+            columns=[],
+            comment="",
+            warnings=[],
         )
         result = SQLServerToMariaDBTransformer().transform_views([view])[0]
         assert any("pass-through" in w.message for w in result.warnings)

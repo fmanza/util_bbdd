@@ -33,6 +33,8 @@ class TypeMappingPostgreSQLToMariaDB:
     severity: WarningSeverity = "INFO"
 
 
+_VARCHAR_100 = "VARCHAR(100)"
+
 # Mapeo canónico PostgreSQL → MariaDB.
 # Clave: DATA_TYPE de INFORMATION_SCHEMA en MAYÚSCULAS, sin parámetros.
 POSTGRESQL_TO_MARIADB: dict[str, TypeMappingPostgreSQLToMariaDB] = {
@@ -72,9 +74,7 @@ POSTGRESQL_TO_MARIADB: dict[str, TypeMappingPostgreSQLToMariaDB] = {
     "BOOLEAN": TypeMappingPostgreSQLToMariaDB("BOOLEAN", "TINYINT(1)"),
     # ── Fecha y hora ─────────────────────────────────────────────────────────────
     "DATE": TypeMappingPostgreSQLToMariaDB("DATE", "DATE"),
-    "TIME WITHOUT TIME ZONE": TypeMappingPostgreSQLToMariaDB(
-        "TIME WITHOUT TIME ZONE", "TIME(6)"
-    ),
+    "TIME WITHOUT TIME ZONE": TypeMappingPostgreSQLToMariaDB("TIME WITHOUT TIME ZONE", "TIME(6)"),
     "TIME WITH TIME ZONE": TypeMappingPostgreSQLToMariaDB(
         "TIME WITH TIME ZONE",
         "VARCHAR(21)",
@@ -83,9 +83,7 @@ POSTGRESQL_TO_MARIADB: dict[str, TypeMappingPostgreSQLToMariaDB] = {
         ddl_comment="-- AVISO: TIMETZ → VARCHAR(21); sin soporte de zona horaria en TIME MariaDB",
         requires_ddl_comment=True,
     ),
-    "TIMESTAMP WITHOUT TIME ZONE": TypeMappingPostgreSQLToMariaDB(
-        "TIMESTAMP WITHOUT TIME ZONE", "DATETIME(6)"
-    ),
+    "TIMESTAMP WITHOUT TIME ZONE": TypeMappingPostgreSQLToMariaDB("TIMESTAMP WITHOUT TIME ZONE", "DATETIME(6)"),
     "TIMESTAMP WITH TIME ZONE": TypeMappingPostgreSQLToMariaDB(
         "TIMESTAMP WITH TIME ZONE",
         "DATETIME(6)",
@@ -221,45 +219,52 @@ POSTGRESQL_TO_MARIADB: dict[str, TypeMappingPostgreSQLToMariaDB] = {
     ),
     # ── Tipos geométricos ────────────────────────────────────────────────────────
     "POINT": TypeMappingPostgreSQLToMariaDB(
-        "POINT", "POINT",
+        "POINT",
+        "POINT",
         warning_msg="POINT PostgreSQL mapeado a POINT MariaDB (tipo espacial nativo disponible)",
         severity="INFO",
     ),
     "LINE": TypeMappingPostgreSQLToMariaDB(
-        "LINE", "VARCHAR(100)",
+        "LINE",
+        _VARCHAR_100,
         warning_msg="LINE PostgreSQL sin equivalente directo en MariaDB; mapeado a VARCHAR(100)",
         severity="ERROR",
         ddl_comment="-- ERROR: LINE → VARCHAR(100); MariaDB no tiene tipo LINE",
         requires_ddl_comment=True,
     ),
     "LSEG": TypeMappingPostgreSQLToMariaDB(
-        "LSEG", "VARCHAR(100)",
+        "LSEG",
+        _VARCHAR_100,
         warning_msg="LSEG PostgreSQL sin equivalente en MariaDB; mapeado a VARCHAR(100)",
         severity="ERROR",
         ddl_comment="-- ERROR: LSEG → VARCHAR(100)",
         requires_ddl_comment=True,
     ),
     "BOX": TypeMappingPostgreSQLToMariaDB(
-        "BOX", "POLYGON",
+        "BOX",
+        "POLYGON",
         warning_msg="BOX PostgreSQL mapeado a POLYGON MariaDB (aproximación espacial)",
         severity="WARNING",
         ddl_comment="-- AVISO: BOX → POLYGON MariaDB; verificar compatibilidad espacial",
         requires_ddl_comment=True,
     ),
     "PATH": TypeMappingPostgreSQLToMariaDB(
-        "PATH", "LINESTRING",
+        "PATH",
+        "LINESTRING",
         warning_msg="PATH PostgreSQL mapeado a LINESTRING MariaDB (aproximación espacial)",
         severity="WARNING",
         ddl_comment="-- AVISO: PATH → LINESTRING MariaDB",
         requires_ddl_comment=True,
     ),
     "POLYGON": TypeMappingPostgreSQLToMariaDB(
-        "POLYGON", "POLYGON",
+        "POLYGON",
+        "POLYGON",
         warning_msg="POLYGON PostgreSQL mapeado a POLYGON MariaDB (tipo espacial nativo disponible)",
         severity="INFO",
     ),
     "CIRCLE": TypeMappingPostgreSQLToMariaDB(
-        "CIRCLE", "VARCHAR(100)",
+        "CIRCLE",
+        _VARCHAR_100,
         warning_msg="CIRCLE PostgreSQL sin equivalente en MariaDB; mapeado a VARCHAR(100)",
         severity="ERROR",
         ddl_comment="-- ERROR: CIRCLE → VARCHAR(100); MariaDB no tiene tipo CIRCLE",

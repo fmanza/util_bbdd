@@ -131,8 +131,7 @@ class TestPlanFullPipeline:
     def test_pg_to_mariadb_serial_column(self) -> None:
         manager = _make_manager(
             tables=[("users",)],
-            columns=[("id", "integer", None, 32, 0, "NO",
-                       "nextval('users_id_seq'::regclass)", 1)],
+            columns=[("id", "integer", None, 32, 0, "NO", "nextval('users_id_seq'::regclass)", 1)],
             pks=[("id",)],
         )
         planner = MigrationPlanner(source_engine="postgresql", target_engine="mariadb")

@@ -49,8 +49,7 @@ def build_override_identity_text_stmt(table: Table, columns: Sequence[str], dial
     quoted_cols: list[str] = [preparer.quote(col) for col in columns]
     params: list[str] = [f":{col}" for col in columns]
     sql: str = (
-        f"INSERT INTO {quoted_table} ({', '.join(quoted_cols)}) "
-        f"OVERRIDING SYSTEM VALUE VALUES ({', '.join(params)})"
+        f"INSERT INTO {quoted_table} ({', '.join(quoted_cols)}) OVERRIDING SYSTEM VALUE VALUES ({', '.join(params)})"
     )
     return text(sql)
 

@@ -107,70 +107,63 @@ class SQLServerToOracleTransformer(BaseTransformer):
         oracle_base: str,
     ) -> str:
         """Construye el tipo Oracle con parámetros según el tipo SQL Server fuente."""
-        is_max = col.char_length == _SS_MAX_SENTINEL
-
         if ss_base in ("VARCHAR", "NVARCHAR"):
-            if is_max:
-                return "CLOB"
-            length = col.char_length or 255
-            if length > _ORACLE_VARCHAR2_MAX:
-                col.ddl_comment = (
-                    f"-- AVISO: {ss_base}({length}) → CLOB (supera límite Oracle {_ORACLE_VARCHAR2_MAX})"
-                )
-                col.warnings.append(
-                    MigrationWarning(
-                        table=table_name,
-                        column=col.original_name,
-                        oracle_type=f"{ss_base}({length})",
-                        target_type="CLOB",
-                        message=f"{ss_base}({length}) supera límite Oracle ({_ORACLE_VARCHAR2_MAX}); mapeado a CLOB",
-                        severity="WARNING",
-                    )
-                )
-                return "CLOB"
-            base = "NVARCHAR2" if ss_base == "NVARCHAR" else "VARCHAR2"
-            return f"{base}({length})"
-
+            return self._resolve_varchar_type(table_name, col, ss_base)
         if ss_base in ("CHAR", "NCHAR"):
-            length = col.char_length or 1
             base = "NCHAR" if ss_base == "NCHAR" else "CHAR"
-            return f"{base}({length})"
-
+            return f"{base}({col.char_length or 1})"
         if ss_base == "BINARY":
             return f"RAW({col.char_length or 1})"
-
         if ss_base == "VARBINARY":
-            if is_max:
-                return "BLOB"
-            length = col.char_length or 255
-            if length > _ORACLE_RAW_MAX:
-                col.ddl_comment = (
-                    f"-- AVISO: VARBINARY({length}) → BLOB (supera límite RAW Oracle {_ORACLE_RAW_MAX})"
-                )
-                col.warnings.append(
-                    MigrationWarning(
-                        table=table_name,
-                        column=col.original_name,
-                        oracle_type=f"VARBINARY({length})",
-                        target_type="BLOB",
-                        message=f"VARBINARY({length}) supera límite RAW Oracle ({_ORACLE_RAW_MAX}); mapeado a BLOB",
-                        severity="WARNING",
-                    )
-                )
-                return "BLOB"
-            return f"RAW({length})"
-
+            return self._resolve_varbinary_type(table_name, col)
         if ss_base in ("DECIMAL", "NUMERIC"):
-            p = col.precision or 18
             s = col.scale if col.scale is not None else 0
-            return f"NUMBER({p},{s})"
-
+            return f"NUMBER({col.precision or 18},{s})"
         # Tipos fijos (oracle_base ya contiene el tipo Oracle completo)
         return oracle_base
 
-    def _extra_fk_warnings(
-        self, table_name: str, fk: CanonicalFK, target_table: CanonicalTable
-    ) -> None:
+    def _resolve_varchar_type(self, table_name: str, col: CanonicalColumn, ss_base: str) -> str:
+        """Resuelve VARCHAR/NVARCHAR a VARCHAR2/NVARCHAR2 o CLOB."""
+        if col.char_length == _SS_MAX_SENTINEL:
+            return "CLOB"
+        length = col.char_length or 255
+        if length > _ORACLE_VARCHAR2_MAX:
+            col.ddl_comment = f"-- AVISO: {ss_base}({length}) → CLOB (supera límite Oracle {_ORACLE_VARCHAR2_MAX})"
+            col.warnings.append(
+                MigrationWarning(
+                    table=table_name,
+                    column=col.original_name,
+                    oracle_type=f"{ss_base}({length})",
+                    target_type="CLOB",
+                    message=f"{ss_base}({length}) supera límite Oracle ({_ORACLE_VARCHAR2_MAX}); mapeado a CLOB",
+                    severity="WARNING",
+                )
+            )
+            return "CLOB"
+        base = "NVARCHAR2" if ss_base == "NVARCHAR" else "VARCHAR2"
+        return f"{base}({length})"
+
+    def _resolve_varbinary_type(self, table_name: str, col: CanonicalColumn) -> str:
+        """Resuelve VARBINARY a RAW o BLOB."""
+        if col.char_length == _SS_MAX_SENTINEL:
+            return "BLOB"
+        length = col.char_length or 255
+        if length > _ORACLE_RAW_MAX:
+            col.ddl_comment = f"-- AVISO: VARBINARY({length}) → BLOB (supera límite RAW Oracle {_ORACLE_RAW_MAX})"
+            col.warnings.append(
+                MigrationWarning(
+                    table=table_name,
+                    column=col.original_name,
+                    oracle_type=f"VARBINARY({length})",
+                    target_type="BLOB",
+                    message=f"VARBINARY({length}) supera límite RAW Oracle ({_ORACLE_RAW_MAX}); mapeado a BLOB",
+                    severity="WARNING",
+                )
+            )
+            return "BLOB"
+        return f"RAW({length})"
+
+    def _extra_fk_warnings(self, table_name: str, fk: CanonicalFK, target_table: CanonicalTable) -> None:
         if fk.on_update and fk.on_update.upper() not in ("NO ACTION", "RESTRICT", ""):
             target_table.warnings.append(
                 MigrationWarning(

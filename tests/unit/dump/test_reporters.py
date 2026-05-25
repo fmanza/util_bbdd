@@ -114,7 +114,10 @@ class TestDumpReporterSheetStructure:
 
 class TestAuditSheet:
     def _get_audit_ws(
-        self, tmp_path: Path, results: list[TableDumpResult], **kwargs,
+        self,
+        tmp_path: Path,
+        results: list[TableDumpResult],
+        **kwargs,
     ) -> Worksheet:
         reporter = DumpReporter(tmp_path)
         path = reporter.generate(

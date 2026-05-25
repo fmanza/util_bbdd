@@ -198,8 +198,7 @@ class SqlServerAsyncAdapter:
         )
 
         return [
-            (p.param_name, p.object_id, p.parameter_id, p.data_type, p.is_output, p.precision, p.scale)
-            for p in params
+            (p.param_name, p.object_id, p.parameter_id, p.data_type, p.is_output, p.precision, p.scale) for p in params
         ]
 
     async def fetch_routine_parameters_by_id_async(self, object_id: int) -> list[SqlServerParameterDetail]:

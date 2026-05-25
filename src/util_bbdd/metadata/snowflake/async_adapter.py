@@ -219,16 +219,15 @@ class SnowflakeAsyncAdapter:
 
     async def fetch_databases_async(self) -> list[tuple]:
         """Versión async de fetch_databases_sync."""
-        return self.fetch_databases_sync()
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.fetch_databases_sync)
 
     async def fetch_schemas_async(self, database: str | None = None) -> list[tuple]:
         """Versión async de fetch_schemas_sync."""
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, functools.partial(self.fetch_schemas_sync, database))
 
-    async def fetch_tables_async(
-        self, database: str | None = None, schema: str | None = None
-    ) -> list[tuple]:
+    async def fetch_tables_async(self, database: str | None = None, schema: str | None = None) -> list[tuple]:
         """Versión async de fetch_tables_sync."""
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, functools.partial(self.fetch_tables_sync, database, schema))
@@ -238,9 +237,7 @@ class SnowflakeAsyncAdapter:
     ) -> list[tuple]:
         """Versión async de fetch_columns_sync."""
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            None, functools.partial(self.fetch_columns_sync, database, schema, table)
-        )
+        return await loop.run_in_executor(None, functools.partial(self.fetch_columns_sync, database, schema, table))
 
     async def fetch_primary_keys_async(
         self, database: str | None = None, schema: str | None = None, table: str | None = None
@@ -265,9 +262,7 @@ class SnowflakeAsyncAdapter:
     ) -> list[tuple]:
         """Versión async de fetch_indexes_sync."""
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            None, functools.partial(self.fetch_indexes_sync, database, schema, table)
-        )
+        return await loop.run_in_executor(None, functools.partial(self.fetch_indexes_sync, database, schema, table))
 
     async def fetch_routines_async(
         self, database: str | None = None, schema: str | None = None
@@ -288,6 +283,7 @@ class SnowflakeAsyncAdapter:
         Args:
             routine_type: Tipo de rutina (no usado en Snowflake).
         """
+        del routine_type  # not applicable in Snowflake; kept for interface compatibility
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             None, functools.partial(self.fetch_routine_parameters_sync, database, schema, routine_name)
@@ -301,4 +297,6 @@ class SnowflakeAsyncAdapter:
         routine_type: str | None = None,
     ) -> str:
         """Obtiene DDL de una rutina (no soportado directamente en Snowflake)."""
+        del database, schema  # not applicable in this stub; kept for interface compatibility
+        await asyncio.sleep(0)
         return f"-- {routine_type or 'ROUTINE'} {routine} definition not available via this adapter\n"

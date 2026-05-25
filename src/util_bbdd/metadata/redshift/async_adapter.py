@@ -149,9 +149,7 @@ class RedshiftAsyncAdapter:
             return []
         return fetch_routines_sync(conn, schema)
 
-    def fetch_routine_parameters_sync(
-        self, schema: str | None = None, routine_name: str | None = None
-    ) -> list[tuple]:
+    def fetch_routine_parameters_sync(self, schema: str | None = None, routine_name: str | None = None) -> list[tuple]:
         """Obtiene parámetros de una rutina.
 
         Args:
@@ -213,6 +211,7 @@ class RedshiftAsyncAdapter:
             routine_name: Nombre de la rutina.
             routine_type: Tipo de rutina (no usado en Redshift).
         """
+        del routine_type  # not applicable in Redshift; kept for interface compatibility
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             None, functools.partial(self.fetch_routine_parameters_sync, schema, routine_name)
@@ -222,4 +221,6 @@ class RedshiftAsyncAdapter:
         self, schema: str | None = None, routine: str | None = None, routine_type: str | None = None
     ) -> str:
         """Obtiene DDL de una rutina (no soportado directamente en Redshift)."""
+        del schema  # not applicable in Redshift; kept for interface compatibility
+        await asyncio.sleep(0)
         return f"-- {routine_type or 'ROUTINE'} {routine} definition not available in Redshift\n"

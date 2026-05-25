@@ -208,9 +208,14 @@ class TestIdentifierTruncation:
 class TestFKTransform:
     def test_internal_fk_no_warning(self) -> None:
         fk = CanonicalFK(
-            name="FK_TEST", original_name="FK_TEST",
-            columns=["COL_A"], ref_table="OTHER_TABLE", ref_columns=["ID"],
-            on_delete="NO ACTION", on_update="NO ACTION", is_external=False,
+            name="FK_TEST",
+            original_name="FK_TEST",
+            columns=["COL_A"],
+            ref_table="OTHER_TABLE",
+            ref_columns=["ID"],
+            on_delete="NO ACTION",
+            on_update="NO ACTION",
+            is_external=False,
         )
         t = _table(columns=[_col("COL_A", "INT")], fks=[fk])
         result = SQLServerToOracleTransformer().transform([t])[0]
@@ -219,9 +224,14 @@ class TestFKTransform:
 
     def test_external_fk_gets_warning(self) -> None:
         fk = CanonicalFK(
-            name="FK_EXT", original_name="FK_EXT",
-            columns=["COL_A"], ref_table="EXT_TABLE", ref_columns=["ID"],
-            on_delete="NO ACTION", on_update="NO ACTION", is_external=True,
+            name="FK_EXT",
+            original_name="FK_EXT",
+            columns=["COL_A"],
+            ref_table="EXT_TABLE",
+            ref_columns=["ID"],
+            on_delete="NO ACTION",
+            on_update="NO ACTION",
+            is_external=True,
         )
         t = _table(columns=[_col("COL_A", "INT")], fks=[fk])
         result = SQLServerToOracleTransformer().transform([t])[0]
@@ -230,9 +240,14 @@ class TestFKTransform:
 
     def test_on_update_cascade_gets_warning(self) -> None:
         fk = CanonicalFK(
-            name="FK_UPD", original_name="FK_UPD",
-            columns=["COL_A"], ref_table="T2", ref_columns=["ID"],
-            on_delete="NO ACTION", on_update="CASCADE", is_external=False,
+            name="FK_UPD",
+            original_name="FK_UPD",
+            columns=["COL_A"],
+            ref_table="T2",
+            ref_columns=["ID"],
+            on_delete="NO ACTION",
+            on_update="CASCADE",
+            is_external=False,
         )
         t = _table(columns=[_col("COL_A", "INT")], fks=[fk])
         result = SQLServerToOracleTransformer().transform([t])[0]
@@ -243,17 +258,26 @@ class TestFKTransform:
 class TestViewTransform:
     def test_view_gets_passthrough_warning(self) -> None:
         view = CanonicalView(
-            name="V_REPORT", original_name="V_REPORT", schema="dbo",
+            name="V_REPORT",
+            original_name="V_REPORT",
+            schema="dbo",
             query="SELECT GETDATE(), ISNULL(a, b) FROM t",
-            columns=["a", "b"], comment="", warnings=[],
+            columns=["a", "b"],
+            comment="",
+            warnings=[],
         )
         result = SQLServerToOracleTransformer().transform_views([view])[0]
         assert any("pass-through" in w.message for w in result.warnings)
 
     def test_view_name_truncated_at_30(self) -> None:
         view = CanonicalView(
-            name="V_" + "X" * 35, original_name="V_" + "X" * 35, schema="dbo",
-            query="SELECT 1", columns=[], comment="", warnings=[],
+            name="V_" + "X" * 35,
+            original_name="V_" + "X" * 35,
+            schema="dbo",
+            query="SELECT 1",
+            columns=[],
+            comment="",
+            warnings=[],
         )
         result = SQLServerToOracleTransformer().transform_views([view])[0]
         assert len(result.name) <= 30

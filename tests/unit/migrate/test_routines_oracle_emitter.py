@@ -66,8 +66,10 @@ class TestOracleRoutineEmitter:
         assert body in combined
 
     def test_multiple_routines_emitted(self) -> None:
-        routines = [_routine("SP_A", body="PROCEDURE SP_A AS BEGIN NULL; END;"),
-                    _routine("SP_B", body="PROCEDURE SP_B AS BEGIN NULL; END;")]
+        routines = [
+            _routine("SP_A", body="PROCEDURE SP_A AS BEGIN NULL; END;"),
+            _routine("SP_B", body="PROCEDURE SP_B AS BEGIN NULL; END;"),
+        ]
         stmts = _emitter().emit_statements(tables=[], routines=routines)
         combined = "\n".join(stmts)
         assert "PROCEDURE SP_A" in combined

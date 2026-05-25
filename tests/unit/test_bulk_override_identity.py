@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -18,7 +18,6 @@ from util_bbdd.bulk._support.sql_helpers import (
 )
 from util_bbdd.bulk._support.validation import detect_always_identity_columns
 from util_bbdd.bulk.crud import bulk_crud
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -94,9 +93,7 @@ def test_detect_always_identity_columns_ignores_columns_absent_from_df(always_id
 # ---------------------------------------------------------------------------
 
 
-def test_generate_insert_sql_override_identity_injects_clause(
-    sqlite_engine, always_identity_table: Table
-) -> None:
+def test_generate_insert_sql_override_identity_injects_clause(sqlite_engine, always_identity_table: Table) -> None:
     stmt = insert(always_identity_table)
     records = [{"id": 1, "name": "Alice"}]
 
@@ -107,9 +104,7 @@ def test_generate_insert_sql_override_identity_injects_clause(
     assert sql_lines[0].index("OVERRIDING SYSTEM VALUE") < sql_lines[0].index("VALUES")
 
 
-def test_generate_insert_sql_regular_has_no_override_clause(
-    sqlite_engine, always_identity_table: Table
-) -> None:
+def test_generate_insert_sql_regular_has_no_override_clause(sqlite_engine, always_identity_table: Table) -> None:
     stmt = insert(always_identity_table)
     records = [{"id": 1, "name": "Alice"}]
 
@@ -135,9 +130,7 @@ def test_generate_insert_sql_override_identity_generates_one_line_per_record(
 # ---------------------------------------------------------------------------
 
 
-def test_build_override_identity_text_stmt_contains_clause(
-    sqlite_engine, always_identity_table: Table
-) -> None:
+def test_build_override_identity_text_stmt_contains_clause(sqlite_engine, always_identity_table: Table) -> None:
     stmt = build_override_identity_text_stmt(always_identity_table, ["id", "name"], sqlite_engine.dialect)
 
     sql = str(stmt)

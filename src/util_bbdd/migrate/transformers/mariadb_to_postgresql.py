@@ -112,5 +112,4 @@ class MariaDBToPostgreSQLTransformer(BaseTransformer):
         return pg_base
 
 
-
 __all__: list[str] = ["MariaDBToPostgreSQLTransformer"]

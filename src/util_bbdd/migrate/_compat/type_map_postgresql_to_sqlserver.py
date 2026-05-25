@@ -33,6 +33,10 @@ class TypeMappingPostgreSQLToSQLServer:
     severity: WarningSeverity = "INFO"
 
 
+_NVARCHAR_MAX = "NVARCHAR(MAX)"
+_VARCHAR_100 = "VARCHAR(100)"
+_VARCHAR_200 = "VARCHAR(200)"
+
 # Mapeo canónico PostgreSQL → SQL Server.
 # Clave: DATA_TYPE de INFORMATION_SCHEMA en MAYÚSCULAS, sin parámetros.
 POSTGRESQL_TO_SQLSERVER: dict[str, TypeMappingPostgreSQLToSQLServer] = {
@@ -60,7 +64,7 @@ POSTGRESQL_TO_SQLSERVER: dict[str, TypeMappingPostgreSQLToSQLServer] = {
     # CHARACTER VARYING: char_length=None → NVARCHAR(MAX); >4000 → NVARCHAR(MAX)
     "CHARACTER VARYING": TypeMappingPostgreSQLToSQLServer("CHARACTER VARYING", "NVARCHAR"),
     "CHARACTER": TypeMappingPostgreSQLToSQLServer("CHARACTER", "NCHAR"),
-    "TEXT": TypeMappingPostgreSQLToSQLServer("TEXT", "NVARCHAR(MAX)"),
+    "TEXT": TypeMappingPostgreSQLToSQLServer("TEXT", _NVARCHAR_MAX),
     # ── Booleano ─────────────────────────────────────────────────────────────────
     "BOOLEAN": TypeMappingPostgreSQLToSQLServer(
         "BOOLEAN",
@@ -70,9 +74,7 @@ POSTGRESQL_TO_SQLSERVER: dict[str, TypeMappingPostgreSQLToSQLServer] = {
     ),
     # ── Fecha y hora ─────────────────────────────────────────────────────────────
     "DATE": TypeMappingPostgreSQLToSQLServer("DATE", "DATE"),
-    "TIME WITHOUT TIME ZONE": TypeMappingPostgreSQLToSQLServer(
-        "TIME WITHOUT TIME ZONE", "TIME(6)"
-    ),
+    "TIME WITHOUT TIME ZONE": TypeMappingPostgreSQLToSQLServer("TIME WITHOUT TIME ZONE", "TIME(6)"),
     "TIME WITH TIME ZONE": TypeMappingPostgreSQLToSQLServer(
         "TIME WITH TIME ZONE",
         "VARCHAR(21)",
@@ -81,9 +83,7 @@ POSTGRESQL_TO_SQLSERVER: dict[str, TypeMappingPostgreSQLToSQLServer] = {
         ddl_comment="-- AVISO: TIMETZ → VARCHAR(21); SQL Server TIME no soporta zona horaria",
         requires_ddl_comment=True,
     ),
-    "TIMESTAMP WITHOUT TIME ZONE": TypeMappingPostgreSQLToSQLServer(
-        "TIMESTAMP WITHOUT TIME ZONE", "DATETIME2(6)"
-    ),
+    "TIMESTAMP WITHOUT TIME ZONE": TypeMappingPostgreSQLToSQLServer("TIMESTAMP WITHOUT TIME ZONE", "DATETIME2(6)"),
     "TIMESTAMP WITH TIME ZONE": TypeMappingPostgreSQLToSQLServer(
         "TIMESTAMP WITH TIME ZONE",
         "DATETIMEOFFSET(6)",
@@ -108,7 +108,7 @@ POSTGRESQL_TO_SQLSERVER: dict[str, TypeMappingPostgreSQLToSQLServer] = {
     # ── JSON ──────────────────────────────────────────────────────────────────────
     "JSON": TypeMappingPostgreSQLToSQLServer(
         "JSON",
-        "NVARCHAR(MAX)",
+        _NVARCHAR_MAX,
         warning_msg=(
             "JSON PostgreSQL mapeado a NVARCHAR(MAX) SQL Server; "
             "SQL Server 2016+ soporta JSON vía OPENJSON/FOR JSON pero no tiene tipo nativo"
@@ -119,7 +119,7 @@ POSTGRESQL_TO_SQLSERVER: dict[str, TypeMappingPostgreSQLToSQLServer] = {
     ),
     "JSONB": TypeMappingPostgreSQLToSQLServer(
         "JSONB",
-        "NVARCHAR(MAX)",
+        _NVARCHAR_MAX,
         warning_msg="JSONB PostgreSQL mapeado a NVARCHAR(MAX) SQL Server; sin tipo JSONB nativo",
         severity="WARNING",
         ddl_comment="-- AVISO: JSONB → NVARCHAR(MAX); SQL Server no tiene JSONB nativo",
@@ -201,7 +201,7 @@ POSTGRESQL_TO_SQLSERVER: dict[str, TypeMappingPostgreSQLToSQLServer] = {
     # ── Full-text search ─────────────────────────────────────────────────────────
     "TSVECTOR": TypeMappingPostgreSQLToSQLServer(
         "TSVECTOR",
-        "NVARCHAR(MAX)",
+        _NVARCHAR_MAX,
         warning_msg="TSVECTOR PostgreSQL sin equivalente en SQL Server; mapeado a NVARCHAR(MAX) — revisar full-text search",
         severity="ERROR",
         ddl_comment="-- ERROR: TSVECTOR → NVARCHAR(MAX); implementar Full-Text Index SQL Server manualmente",
@@ -209,7 +209,7 @@ POSTGRESQL_TO_SQLSERVER: dict[str, TypeMappingPostgreSQLToSQLServer] = {
     ),
     "TSQUERY": TypeMappingPostgreSQLToSQLServer(
         "TSQUERY",
-        "NVARCHAR(MAX)",
+        _NVARCHAR_MAX,
         warning_msg="TSQUERY PostgreSQL sin equivalente en SQL Server; mapeado a NVARCHAR(MAX)",
         severity="ERROR",
         ddl_comment="-- ERROR: TSQUERY → NVARCHAR(MAX); revisar implementación de búsqueda",
@@ -217,51 +217,58 @@ POSTGRESQL_TO_SQLSERVER: dict[str, TypeMappingPostgreSQLToSQLServer] = {
     ),
     # ── Tipos geométricos ────────────────────────────────────────────────────────
     "POINT": TypeMappingPostgreSQLToSQLServer(
-        "POINT", "VARCHAR(100)",
+        "POINT",
+        _VARCHAR_100,
         warning_msg="POINT PostgreSQL sin equivalente directo en SQL Server; mapeado a VARCHAR(100). SQL Server usa geometry/geography",
         severity="ERROR",
-        proposals=("VARCHAR(100)", "geometry -- SQL Server Spatial"),
+        proposals=(_VARCHAR_100, "geometry -- SQL Server Spatial"),
         ddl_comment="-- ERROR: POINT → VARCHAR(100) [A] | geometry SQL Server Spatial [B]",
         requires_ddl_comment=True,
     ),
     "LINE": TypeMappingPostgreSQLToSQLServer(
-        "LINE", "VARCHAR(100)",
+        "LINE",
+        _VARCHAR_100,
         warning_msg="LINE PostgreSQL sin equivalente en SQL Server; mapeado a VARCHAR(100)",
         severity="ERROR",
         ddl_comment="-- ERROR: LINE → VARCHAR(100); revisar con SQL Server Spatial",
         requires_ddl_comment=True,
     ),
     "LSEG": TypeMappingPostgreSQLToSQLServer(
-        "LSEG", "VARCHAR(100)",
+        "LSEG",
+        _VARCHAR_100,
         warning_msg="LSEG PostgreSQL sin equivalente en SQL Server; mapeado a VARCHAR(100)",
         severity="ERROR",
         ddl_comment="-- ERROR: LSEG → VARCHAR(100)",
         requires_ddl_comment=True,
     ),
     "BOX": TypeMappingPostgreSQLToSQLServer(
-        "BOX", "VARCHAR(100)",
+        "BOX",
+        _VARCHAR_100,
         warning_msg="BOX PostgreSQL sin equivalente en SQL Server; mapeado a VARCHAR(100)",
         severity="ERROR",
         ddl_comment="-- ERROR: BOX → VARCHAR(100)",
         requires_ddl_comment=True,
     ),
     "PATH": TypeMappingPostgreSQLToSQLServer(
-        "PATH", "VARCHAR(200)",
+        "PATH",
+        _VARCHAR_200,
         warning_msg="PATH PostgreSQL sin equivalente en SQL Server; mapeado a VARCHAR(200)",
         severity="ERROR",
         ddl_comment="-- ERROR: PATH → VARCHAR(200)",
         requires_ddl_comment=True,
     ),
     "POLYGON": TypeMappingPostgreSQLToSQLServer(
-        "POLYGON", "VARCHAR(200)",
+        "POLYGON",
+        _VARCHAR_200,
         warning_msg="POLYGON PostgreSQL mapeado a VARCHAR(200) SQL Server; usar geometry para datos espaciales reales",
         severity="ERROR",
-        proposals=("VARCHAR(200)", "geometry -- SQL Server Spatial"),
+        proposals=(_VARCHAR_200, "geometry -- SQL Server Spatial"),
         ddl_comment="-- ERROR: POLYGON → VARCHAR(200) [A] | geometry SQL Server Spatial [B]",
         requires_ddl_comment=True,
     ),
     "CIRCLE": TypeMappingPostgreSQLToSQLServer(
-        "CIRCLE", "VARCHAR(100)",
+        "CIRCLE",
+        _VARCHAR_100,
         warning_msg="CIRCLE PostgreSQL sin equivalente en SQL Server; mapeado a VARCHAR(100)",
         severity="ERROR",
         ddl_comment="-- ERROR: CIRCLE → VARCHAR(100)",
@@ -270,7 +277,7 @@ POSTGRESQL_TO_SQLSERVER: dict[str, TypeMappingPostgreSQLToSQLServer] = {
     # ── Tipos especiales ─────────────────────────────────────────────────────────
     "ARRAY": TypeMappingPostgreSQLToSQLServer(
         "ARRAY",
-        "NVARCHAR(MAX)",
+        _NVARCHAR_MAX,
         warning_msg="Tipo ARRAY PostgreSQL sin equivalente en SQL Server; mapeado a NVARCHAR(MAX) — revisar estructura",
         severity="ERROR",
         ddl_comment="-- ERROR: ARRAY → NVARCHAR(MAX); normalizar en tablas separadas (1FN)",
@@ -278,7 +285,7 @@ POSTGRESQL_TO_SQLSERVER: dict[str, TypeMappingPostgreSQLToSQLServer] = {
     ),
     "USER-DEFINED": TypeMappingPostgreSQLToSQLServer(
         "USER-DEFINED",
-        "NVARCHAR(MAX)",
+        _NVARCHAR_MAX,
         warning_msg="Tipo USER-DEFINED (enum/composite) PostgreSQL sin equivalente en SQL Server; mapeado a NVARCHAR(MAX)",
         severity="ERROR",
         ddl_comment="-- ERROR: USER-DEFINED → NVARCHAR(MAX); revisar tipo personalizado",

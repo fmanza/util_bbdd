@@ -150,9 +150,7 @@ class PostgreSQLToOracleTransformer(BaseTransformer):
         # Tipos fijos (oracle_base ya contiene el tipo Oracle completo)
         return oracle_base
 
-    def _extra_fk_warnings(
-        self, table_name: str, fk: CanonicalFK, target_table: CanonicalTable
-    ) -> None:
+    def _extra_fk_warnings(self, table_name: str, fk: CanonicalFK, target_table: CanonicalTable) -> None:
         if fk.on_update and fk.on_update.upper() not in ("NO ACTION", "RESTRICT", ""):
             target_table.warnings.append(
                 MigrationWarning(
