@@ -194,7 +194,7 @@ class DumpOrchestrator:
 
     def _process_table(self, table: str, position: int, in_cycle: bool) -> TableDumpResult:
         cfg = self._cfg
-        common_cols, skipped_cols = self._common_columns(table)
+        common_cols, skipped_cols, col_name_map = self._common_columns(table)
 
         if not common_cols:
             target_count = self._safe_count(cfg.target_engine, table, cfg.target_schema)
@@ -228,7 +228,7 @@ class DumpOrchestrator:
             with cfg.source_engine.connect() as conn:
                 chunks = pd.read_sql(text(sql), conn, chunksize=cfg.chunk_size)
                 for chunk in chunks:
-                    df_filtered = chunk[common_cols]
+                    df_filtered = chunk[common_cols].rename(columns=col_name_map)
                     try:
                         crud.bulk_insert_from_df(df_filtered, dest_table, generar_sql=False)
                     except (SQLAlchemyError, ValueError) as exc:
@@ -257,16 +257,22 @@ class DumpOrchestrator:
 
     def _get_source_tables(self) -> list[str]:
         if self._cfg.tables is not None:
-            return list(self._cfg.tables)
+            return sorted(self._cfg.tables)
         return self._src_insp.get_table_names(schema=self._cfg.source_schema)
 
-    def _common_columns(self, table: str) -> tuple[list[str], list[str]]:
-        """Retorna (columnas_comunes, columnas_omitidas) en el case del origen."""
+    def _common_columns(self, table: str) -> tuple[list[str], list[str], dict[str, str]]:
+        """Retorna (columnas_comunes_origen, columnas_omitidas, mapa_origen→destino).
+
+        El mapa permite renombrar el DataFrame antes del INSERT cuando la BD
+        destino tiene el mismo nombre de columna en distinto case (p.ej. origen
+        ``UserID`` → destino ``userid`` en una BD case-sensitive).
+        """
         src = [c["name"] for c in self._src_insp.get_columns(table, schema=self._cfg.source_schema)]
-        dst_lower = {c["name"].lower() for c in self._dst_insp.get_columns(table, schema=self._cfg.target_schema)}
-        common = [name for name in src if name.lower() in dst_lower]
-        skipped = [name for name in src if name.lower() not in dst_lower]
-        return common, skipped
+        dst_by_lower = {c["name"].lower(): c["name"] for c in self._dst_insp.get_columns(table, schema=self._cfg.target_schema)}
+        common = [name for name in src if name.lower() in dst_by_lower]
+        skipped = [name for name in src if name.lower() not in dst_by_lower]
+        name_map = {name: dst_by_lower[name.lower()] for name in common}
+        return common, skipped, name_map
 
     def _safe_count(self, engine: Engine, table: str, schema: str | None) -> int:
         try:

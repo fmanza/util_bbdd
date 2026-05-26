@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 
+from collections import Counter
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from sqlalchemy import text
@@ -44,6 +45,13 @@ def _is_safe_identifier(name: str) -> bool:
     Rechaza: cadenas vacías, NUL bytes (\\x00) y cualquier carácter ASCII < 0x20.
     """
     return bool(name) and "\x00" not in name and all(ord(c) >= _MIN_PRINTABLE_ORD for c in name)
+
+
+def _mariadb_ddl_from_row(row_or_none: RowMapping | None, col: str) -> str:
+    """Extrae el DDL de una fila de SHOW CREATE PROCEDURE/FUNCTION, o retorna '' si no hay fila."""
+    if row_or_none is None:
+        return ""
+    return str(row_or_none[col] or "")
 
 
 class RoutineFetcherRegistry:
@@ -81,7 +89,7 @@ class RoutineFetcherRegistry:
         if engine is None:
             return routines
 
-        db_name: str = schema or str((getattr(engine, "url", None) and getattr(engine.url, "database", "")) or "")
+        db_name: str = schema or str(getattr(getattr(engine, "url", None), "database", "") or "")
 
         try:
             with engine.connect() as conn:
@@ -97,8 +105,7 @@ class RoutineFetcherRegistry:
                         continue
                     proc_safe_name = proc_name.replace("`", "``")
                     proc_create_result = conn.execute(text(f"SHOW CREATE PROCEDURE `{proc_safe_name}`"))
-                    proc_create_row = proc_create_result.mappings().first()
-                    proc_definition = str(proc_create_row["Create Procedure"] or "") if proc_create_row else ""
+                    proc_definition = _mariadb_ddl_from_row(proc_create_result.mappings().first(), "Create Procedure")
                     routines.append({"name": proc_name, "type": "PROCEDURE", "definition": proc_definition})
                 # Functions
                 func_result: CursorResult[Any] = conn.execute(
@@ -114,8 +121,7 @@ class RoutineFetcherRegistry:
                     func_create_result: CursorResult[Any] = conn.execute(
                         text(f"SHOW CREATE FUNCTION `{func_safe_name}`"),
                     )
-                    func_create_row: RowMapping | None = func_create_result.mappings().first()
-                    func_definition: str = str(func_create_row["Create Function"] or "") if func_create_row else ""
+                    func_definition: str = _mariadb_ddl_from_row(func_create_result.mappings().first(), "Create Function")
                     routines.append({"name": func_name, "type": "FUNCTION", "definition": func_definition})
         except (
             OperationalError,
@@ -280,9 +286,7 @@ class RoutineFetcherRegistry:
                 )
                 rows_list = list(result.mappings())
                 # Detectar nombres con overloads para asignar clave única solo cuando es necesario
-                name_counts: dict[str, int] = {}
-                for row in rows_list:
-                    name_counts[str(row["proname"])] = name_counts.get(str(row["proname"]), 0) + 1
+                name_counts = Counter(str(row["proname"]) for row in rows_list)
 
                 for row in rows_list:
                     func_oid = row["oid"]

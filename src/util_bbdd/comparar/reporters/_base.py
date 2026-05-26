@@ -219,6 +219,9 @@ class DdlNormalizer:
         Example:
             >>> DdlNormalizer.strip_dialect_artifacts("CREATE OR REPLACE FORCE VIEW v AS SELECT 1")
             'CREATE OR REPLACE  VIEW v AS SELECT 1'
+
+            Note: double space after REPLACE is intentional — spaces are not collapsed
+            in this method. Use ``normalize_for_comparison`` if collapsed output is needed.
         """
         result = raw_ddl
         for pattern, replacement in DdlNormalizer._VIEW_STRIP_PATTERNS:

@@ -272,7 +272,14 @@ class TestConstraintManagerPostgreSQL:
         from sqlalchemy.exc import SQLAlchemyError
 
         engine = _make_engine("postgresql")
-        engine.begin.return_value.__enter__.return_value.execute.side_effect = SQLAlchemyError("fk violation")
+        conn_mock = engine.connect.return_value.__enter__.return_value
+
+        # Forzar fallo solo en VALIDATE CONSTRAINT, no en SAVEPOINT ni ROLLBACK
+        def _selective_fail(sql: object, *args: object, **kwargs: object) -> None:
+            if "VALIDATE CONSTRAINT" in str(sql):
+                raise SQLAlchemyError("fk violation")
+
+        conn_mock.execute.side_effect = _selective_fail
         insp = MagicMock()
         insp.get_foreign_keys.return_value = [{"name": "fk_orders_cust"}]
         with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
@@ -283,6 +290,30 @@ class TestConstraintManagerPostgreSQL:
         assert len(results) == 1
         assert results[0].status == "failed"
         assert "fk violation" in results[0].error_msg
+
+    def test_enable_trigger_failure_skips_fk_validation(self):
+        """C3: si ENABLE TRIGGER falla, no se intenta VALIDATE CONSTRAINT."""
+        from sqlalchemy.exc import SQLAlchemyError
+
+        engine = _make_engine("postgresql")
+        conn_mock = engine.connect.return_value.__enter__.return_value
+
+        def _trigger_fail(sql: object, *args: object, **kwargs: object) -> None:
+            if "ENABLE TRIGGER" in str(sql):
+                raise SQLAlchemyError("permission denied")
+
+        conn_mock.execute.side_effect = _trigger_fail
+        insp = MagicMock()
+        insp.get_foreign_keys.return_value = [{"name": "fk_orders_cust"}]
+        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+            mgr = ConstraintManager(engine)
+            mgr._disabled_pg = ["orders"]
+            results = mgr.enable_all()
+
+        # FK validation skipped → no results
+        assert results == []
+        # Inspector no consultado para FK (tabla excluida)
+        insp.get_foreign_keys.assert_not_called()
 
     def test_enable_without_prior_disable_returns_empty(self):
         engine = _make_engine("postgresql")

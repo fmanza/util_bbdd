@@ -218,28 +218,36 @@ class TestCommonColumns:
 
     def test_all_common(self):
         orch = self._make_orchestrator(["id", "name"], ["id", "name"])
-        common, skipped = orch._common_columns("t")
+        common, skipped, name_map = orch._common_columns("t")
         assert common == ["id", "name"]
         assert skipped == []
+        assert name_map == {"id": "id", "name": "name"}
 
     def test_some_skipped(self):
         orch = self._make_orchestrator(["id", "name", "extra_col"], ["id", "name"])
-        common, skipped = orch._common_columns("t")
+        common, skipped, _ = orch._common_columns("t")
         assert "extra_col" in skipped
         assert "extra_col" not in common
 
     def test_empty_intersection(self):
         orch = self._make_orchestrator(["col_src"], ["col_dst"])
-        common, skipped = orch._common_columns("t")
+        common, skipped, _ = orch._common_columns("t")
         assert common == []
         assert skipped == ["col_src"]
 
     def test_case_insensitive_match(self):
         # Source returns uppercase (Oracle), dest lowercase (PostgreSQL)
         orch = self._make_orchestrator(["ID", "NAME"], ["id", "name"])
-        common, skipped = orch._common_columns("t")
+        common, skipped, name_map = orch._common_columns("t")
         assert common == ["ID", "NAME"]
         assert skipped == []
+        # name_map debe mapear al case del destino para INSERT correcto
+        assert name_map == {"ID": "id", "NAME": "name"}
+
+    def test_case_map_used_as_identity_when_case_matches(self):
+        orch = self._make_orchestrator(["userid", "email"], ["userid", "email"])
+        _, _, name_map = orch._common_columns("t")
+        assert name_map == {"userid": "userid", "email": "email"}
 
 
 # ---------------------------------------------------------------------------
@@ -561,3 +569,38 @@ class TestTargetSchemaPropagation:
         assert t_result.status == "error"
         assert "FK violation" in t_result.error_msg
         assert mock_crud.bulk_insert_from_df.call_count == 2
+
+
+# ---------------------------------------------------------------------------
+# DumpOrchestrator._get_source_tables — determinismo con sorted (O3)
+# ---------------------------------------------------------------------------
+
+
+class TestGetSourceTables:
+    def test_explicit_tables_returned_sorted(self):
+        engine = _make_engine()
+        cfg = DumpConfig(
+            source_engine=engine,
+            target_engine=engine,
+            tables=["z_table", "a_table", "m_table"],
+        )
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = cfg
+        orch._src_insp = MagicMock()
+
+        result = orch._get_source_tables()
+
+        assert result == ["a_table", "m_table", "z_table"]
+
+    def test_without_explicit_tables_delegates_to_inspector(self):
+        engine = _make_engine()
+        cfg = DumpConfig(source_engine=engine, target_engine=engine)
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = cfg
+        orch._src_insp = MagicMock()
+        orch._src_insp.get_table_names.return_value = ["c", "a", "b"]
+
+        result = orch._get_source_tables()
+
+        # Inspector order preserved (no sort applied)
+        assert result == ["c", "a", "b"]

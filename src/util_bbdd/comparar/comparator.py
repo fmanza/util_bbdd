@@ -33,7 +33,7 @@ _URL_CREDENTIALS_MASK: str = "://***@"
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-    from sqlalchemy.engine import Inspector
+    from sqlalchemy.engine import URL, Inspector
     from sqlalchemy.engine.interfaces import ReflectedTableComment
 
 
@@ -657,10 +657,10 @@ class SchemaComparator:
             return ()
 
         source_map: dict[str, dict[str, str]] = {
-            f"{r['name']}:{r.get('type', 'PROCEDURE')}": r for r in (source_routines or [])
+            f"{r['name']}\x00{r.get('type', 'PROCEDURE')}": r for r in (source_routines or [])
         }
         target_map: dict[str, dict[str, str]] = {
-            f"{r['name']}:{r.get('type', 'PROCEDURE')}": r for r in (target_routines or [])
+            f"{r['name']}\x00{r.get('type', 'PROCEDURE')}": r for r in (target_routines or [])
         }
 
         diffs: list[RoutineDiff] = []
@@ -710,7 +710,7 @@ class SchemaComparator:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _parse_url_safe(inspector: Inspector) -> Any | None:
+    def _parse_url_safe(inspector: Inspector) -> URL | None:
         """Parsea la URL del engine asociado al inspector; devuelve None si no es posible."""
         engine: Any | None = getattr(inspector, "engine", None)
         url_raw: Any = getattr(engine, "url", None)
@@ -722,22 +722,24 @@ class SchemaComparator:
             return None
 
     @staticmethod
+    def _mask_url(s: str) -> str:
+        """Enmascara credenciales de una URL ya convertida a string."""
+        return re.sub(_URL_CREDENTIALS_RE, _URL_CREDENTIALS_MASK, s)
+
+    @staticmethod
     def _build_label(inspector: Inspector, schema: str | None) -> str:
         """Construye una etiqueta legible para el inspector."""
         url_obj = SchemaComparator._parse_url_safe(inspector)
         if url_obj is not None:
             try:
-                # render_as_string replaces the password with *** and then the regex
-                # safely strips the entire username:***@ prefix.
                 safe_str: str = url_obj.render_as_string(hide_password=True)
-                url: str = re.sub(_URL_CREDENTIALS_RE, _URL_CREDENTIALS_MASK, safe_str)
             except (AttributeError, ValueError):
-                url = re.sub(_URL_CREDENTIALS_RE, _URL_CREDENTIALS_MASK, str(url_obj))
+                safe_str = str(url_obj)
+            url: str = SchemaComparator._mask_url(safe_str)
         else:
             engine: Any | None = getattr(inspector, "engine", None)
             url_raw: Any = getattr(engine, "url", None)
-            url_str: str = str(url_raw) if url_raw is not None else "unknown"
-            url = re.sub(_URL_CREDENTIALS_RE, _URL_CREDENTIALS_MASK, url_str)
+            url = SchemaComparator._mask_url(str(url_raw) if url_raw is not None else "unknown")
         if schema:
             return f"{url} [{schema}]"
         return url

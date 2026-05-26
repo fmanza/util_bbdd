@@ -12,7 +12,16 @@ from typing import Literal
 
 from sqlalchemy import Engine
 
-from ._constraints import ConstraintResult
+
+@dataclass
+class ConstraintResult:
+    """Resultado de rehabilitar una constraint individual en el destino."""
+
+    table_name: str
+    constraint_name: str
+    dialect: str
+    status: Literal["enabled", "failed", "unverified"]
+    error_msg: str = ""
 
 
 @dataclass

@@ -239,23 +239,23 @@ class DumpReporter:
             self._header(ws, 1, col, h, color=self._COL_HEADER_ORANGE)
         ws.freeze_panes = "A2"
 
-        row = 2
-        for td in diff.table_diffs:
-            # Tablas completamente faltantes ya están en Hoja 2
-            if td.status == "added":
-                continue
-            for cd in td.column_diffs:
-                # Columna en origen, ausente en destino
-                if cd.attribute == "existence" and cd.source_value == "exists":
-                    self._cell(ws, row, 1, td.table_name)
-                    self._cell(ws, row, 2, cd.column_name, bg=self._COL_YELLOW)
-                    self._cell(ws, row, 3, cd.source_value)
-                    self._cell(ws, row, 4, "Columna ausente en BD destino")
-                    self._cell(ws, row, 5, "Columna omitida del volcado — añadir DDL al destino si se requiere")
-                    row += 1
+        missing_col_pairs = [
+            (td, cd)
+            for td in diff.table_diffs
+            if td.status != "added"
+            for cd in td.column_diffs
+            if cd.attribute == "existence" and cd.source_value == "exists"
+        ]
 
-        if row == 2:
+        if not missing_col_pairs:
             cell = ws.cell(row=2, column=1, value="Sin columnas inexistentes en destino")
             cell.font = Font(italic=True)
+        else:
+            for row, (td, cd) in enumerate(missing_col_pairs, 2):
+                self._cell(ws, row, 1, td.table_name)
+                self._cell(ws, row, 2, cd.column_name, bg=self._COL_YELLOW)
+                self._cell(ws, row, 3, cd.source_value)
+                self._cell(ws, row, 4, "Columna ausente en BD destino")
+                self._cell(ws, row, 5, "Columna omitida del volcado — añadir DDL al destino si se requiere")
 
         self._autowidth(ws)

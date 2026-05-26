@@ -8,29 +8,18 @@ from __future__ import annotations
 
 import logging
 
-from collections.abc import Callable
-from dataclasses import dataclass
-from typing import Any, Literal
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any
 
 from sqlalchemy import Engine, Inspector, event, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
+from ._models import ConstraintResult
 from ._sql_utils import quote_identifier, quote_table
 
 _log = logging.getLogger(__name__)
 
 _SUPPORTED_DIALECTS = frozenset({"mssql", "mariadb", "mysql", "oracle", "postgresql"})
-
-
-@dataclass
-class ConstraintResult:
-    """Resultado de rehabilitar una constraint individual en el destino."""
-
-    table_name: str
-    constraint_name: str
-    dialect: str
-    status: Literal["enabled", "failed", "unverified"]
-    error_msg: str = ""
 
 
 class ConstraintManager:
@@ -220,48 +209,69 @@ class ConstraintManager:
         # Usar solo las tablas que fueron desactivadas (no todas las del schema)
         tables = list(self._disabled_pg)
         insp: Inspector = inspect(self._engine)
+        # Tablas donde ENABLE TRIGGER falló — no intentar VALIDATE CONSTRAINT en ellas (C3)
+        failed_trigger: set[str] = set()
 
         with self._engine.connect() as conn:
+            # Fase A: reactivar triggers
             for table in tables:
                 try:
                     conn.execute(text(f"ALTER TABLE {self._qt(table)} ENABLE TRIGGER ALL"))
                     conn.commit()
                 except SQLAlchemyError as exc:
                     conn.rollback()
+                    failed_trigger.add(table)
                     _log.warning("Error reactivando triggers en '%s': %s", table, exc)
 
-        # Validar FK constraints por tabla tras re-activar
-        for table in tables:
-            try:
-                fks = insp.get_foreign_keys(table, schema=self._schema)
-            except SQLAlchemyError:
-                continue
-            for fk in fks:
-                fk_name: str | None = fk.get("name")
-                if not fk_name:
+            # Fase B: validar FKs usando savepoints para aislar errores por constraint
+            for table in tables:
+                if table in failed_trigger:
                     continue
                 try:
-                    with self._engine.begin() as conn:
-                        conn.execute(text(f"ALTER TABLE {self._qt(table)} VALIDATE CONSTRAINT {self._qi(fk_name)}"))
-                    results.append(
-                        ConstraintResult(
-                            table_name=table,
-                            constraint_name=fk_name,
-                            dialect=self._dialect,
-                            status="enabled",
-                        ),
-                    )
-                except SQLAlchemyError as exc:
-                    results.append(
-                        ConstraintResult(
-                            table_name=table,
-                            constraint_name=fk_name,
-                            dialect=self._dialect,
-                            status="failed",
-                            error_msg=str(exc),
-                        ),
-                    )
+                    fks = insp.get_foreign_keys(table, schema=self._schema)
+                except SQLAlchemyError:
+                    continue
+                self._validate_fks_pg(conn, table, fks, results)
+            conn.commit()
         return results
+
+    def _validate_fks_pg(
+        self,
+        conn: Any,
+        table: str,
+        fks: Sequence[Mapping[str, Any]],
+        results: list[ConstraintResult],
+    ) -> None:
+        """Valida cada FK de una tabla PostgreSQL con savepoints para aislar fallos."""
+        for fk in fks:
+            fk_name: str | None = fk.get("name")
+            if not fk_name:
+                continue
+            try:
+                conn.execute(text("SAVEPOINT sp_validate"))
+                conn.execute(
+                    text(f"ALTER TABLE {self._qt(table)} VALIDATE CONSTRAINT {self._qi(fk_name)}"),
+                )
+                conn.execute(text("RELEASE SAVEPOINT sp_validate"))
+                results.append(
+                    ConstraintResult(
+                        table_name=table,
+                        constraint_name=fk_name,
+                        dialect=self._dialect,
+                        status="enabled",
+                    ),
+                )
+            except SQLAlchemyError as exc:
+                conn.execute(text("ROLLBACK TO SAVEPOINT sp_validate"))
+                results.append(
+                    ConstraintResult(
+                        table_name=table,
+                        constraint_name=fk_name,
+                        dialect=self._dialect,
+                        status="failed",
+                        error_msg=str(exc),
+                    ),
+                )
 
     # ------------------------------------------------------------------
     # Oracle  (DISABLE/ENABLE VALIDATE por constraint — catalog-level)
@@ -279,22 +289,26 @@ class ConstraintManager:
                 return []
 
         for table in tables:
-            for name in _fetch_names(insp.get_foreign_keys, table):
-                self._exec_disable_oracle(table, name)
-            for name in _fetch_names(insp.get_check_constraints, table):
-                # Filtrar constraints de sistema Oracle (SYS_C...)
-                if not name.upper().startswith("SYS_C"):
-                    self._exec_disable_oracle(table, name)
-            for name in _fetch_names(insp.get_unique_constraints, table):
-                self._exec_disable_oracle(table, name)
+            names: list[str] = []
+            names.extend(_fetch_names(insp.get_foreign_keys, table))
+            names.extend(
+                n for n in _fetch_names(insp.get_check_constraints, table)
+                if not n.upper().startswith("SYS_C")  # filtrar constraints de sistema Oracle
+            )
+            names.extend(_fetch_names(insp.get_unique_constraints, table))
+            self._exec_disable_oracle_batch(table, names)
 
-    def _exec_disable_oracle(self, table: str, name: str) -> None:
-        try:
-            with self._engine.begin() as conn:
-                conn.execute(text(f"ALTER TABLE {self._qt(table)} DISABLE CONSTRAINT {self._qi(name)}"))
-            self._disabled.append((table, name))
-        except SQLAlchemyError as exc:
-            _log.warning("No se pudo deshabilitar '%s.%s': %s", table, name, exc)
+    def _exec_disable_oracle_batch(self, table: str, names: list[str]) -> None:
+        """Deshabilita múltiples constraints de una tabla en una sola conexión."""
+        if not names:
+            return
+        with self._engine.connect() as conn:
+            for name in names:
+                try:
+                    conn.execute(text(f"ALTER TABLE {self._qt(table)} DISABLE CONSTRAINT {self._qi(name)}"))
+                    self._disabled.append((table, name))
+                except SQLAlchemyError as exc:
+                    _log.warning("No se pudo deshabilitar '%s.%s': %s", table, name, exc)
 
     def _enable_oracle(self) -> list[ConstraintResult]:
         results: list[ConstraintResult] = []
