@@ -5,11 +5,9 @@ from __future__ import annotations
 import logging
 import re
 
-from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 
 from sqlalchemy.engine import make_url
-from sqlalchemy.engine.interfaces import ReflectedTableComment
 
 from ._routine_fetchers import RoutineFetcherRegistry
 from .models import (
@@ -27,7 +25,10 @@ from .reporters._base import DdlNormalizer
 logger: logging.Logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Mapping
+
     from sqlalchemy.engine import Inspector
+    from sqlalchemy.engine.interfaces import ReflectedTableComment
 
 
 class SchemaComparator:
@@ -565,9 +566,9 @@ class SchemaComparator:
 
         source_cols: dict[str, Any] = {col["name"]: col for col in source_cols_raw}
         target_cols: dict[str, Any] = {col["name"]: col for col in target_cols_raw}
-        for col_name in sorted(set(source_cols) & set(target_cols)):
-            s_col_comment = str(source_cols[col_name].get("comment") or "")
-            t_col_comment = str(target_cols[col_name].get("comment") or "")
+        for col_name in sorted(set(source_cols) | set(target_cols)):
+            s_col_comment = str((source_cols.get(col_name) or {}).get("comment") or "")
+            t_col_comment = str((target_cols.get(col_name) or {}).get("comment") or "")
             if s_col_comment != t_col_comment:
                 diffs.append(
                     CommentDiff(
@@ -644,42 +645,46 @@ class SchemaComparator:
             self.logger.debug("El dialect no soporta listado de routines; se omite la comparación.")
             return ()
 
-        source_map: dict[str, dict[str, str]] = {r["name"]: r for r in (source_routines or [])}
-        target_map: dict[str, dict[str, str]] = {r["name"]: r for r in (target_routines or [])}
+        source_map: dict[str, dict[str, str]] = {
+            f"{r['name']}:{r.get('type', 'PROCEDURE')}": r for r in (source_routines or [])
+        }
+        target_map: dict[str, dict[str, str]] = {
+            f"{r['name']}:{r.get('type', 'PROCEDURE')}": r for r in (target_routines or [])
+        }
 
         diffs: list[RoutineDiff] = []
 
-        for name in sorted(set(source_map) - set(target_map)):
-            source_routine = source_map[name]
+        for key in sorted(set(source_map) - set(target_map)):
+            source_routine = source_map[key]
             diffs.append(
                 RoutineDiff(
-                    routine_name=name,
+                    routine_name=source_routine["name"],
                     routine_type=cast(Literal["PROCEDURE", "FUNCTION"], source_routine.get("type", "PROCEDURE")),
                     status="added",
                     source_definition=source_routine.get("definition", ""),
                 )
             )
 
-        for name in sorted(set(target_map) - set(source_map)):
-            target_routine: dict[str, str] = target_map[name]
+        for key in sorted(set(target_map) - set(source_map)):
+            target_routine: dict[str, str] = target_map[key]
             diffs.append(
                 RoutineDiff(
-                    routine_name=name,
+                    routine_name=target_routine["name"],
                     routine_type=cast(Literal["PROCEDURE", "FUNCTION"], target_routine.get("type", "PROCEDURE")),
                     status="removed",
                     target_definition=target_routine.get("definition", ""),
                 )
             )
 
-        for name in sorted(set(source_map) & set(target_map)):
-            s_r: dict[str, str] = source_map[name]
-            t_r: dict[str, str] = target_map[name]
+        for key in sorted(set(source_map) & set(target_map)):
+            s_r: dict[str, str] = source_map[key]
+            t_r: dict[str, str] = target_map[key]
             s_norm: str = self._normalize_ddl(s_r.get("definition", ""))
             t_norm: str = self._normalize_ddl(t_r.get("definition", ""))
             if s_norm != t_norm:
                 diffs.append(
                     RoutineDiff(
-                        routine_name=name,
+                        routine_name=s_r["name"],
                         routine_type=cast(Literal["PROCEDURE", "FUNCTION"], s_r.get("type", "PROCEDURE")),
                         status="modified",
                         source_definition=s_r.get("definition", ""),
@@ -694,22 +699,33 @@ class SchemaComparator:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _build_label(inspector: Inspector, schema: str | None) -> str:
-        """Construye una etiqueta legible para el inspector."""
-        # inspector.engine es el atributo canónico en SA 2.x; inspector.bind es el alias
-        # deprecated de SA 1.4 que fue eliminado en SA 2.0.
+    def _parse_url_safe(inspector: Inspector) -> Any | None:
+        """Parsea la URL del engine asociado al inspector; devuelve None si no es posible."""
         engine: Any | None = getattr(inspector, "engine", None)
         url_raw: Any = getattr(engine, "url", None)
-        url_str: str = str(url_raw) if url_raw is not None else "unknown"
+        if url_raw is None:
+            return None
         try:
-            # make_url correctly handles passwords with '@' or other encoded characters;
-            # render_as_string replaces the password with *** and then the regex
-            # safely strips the entire username:***@ prefix.
-            url_obj = make_url(url_str)
-            safe_str: str = url_obj.render_as_string(hide_password=True)
-            url: str = re.sub(r"://[^@]+@", "://***@", safe_str)
+            return make_url(str(url_raw))
         except Exception:
-            # Fallback para URLs malformadas
+            return None
+
+    @staticmethod
+    def _build_label(inspector: Inspector, schema: str | None) -> str:
+        """Construye una etiqueta legible para el inspector."""
+        url_obj = SchemaComparator._parse_url_safe(inspector)
+        if url_obj is not None:
+            try:
+                # render_as_string replaces the password with *** and then the regex
+                # safely strips the entire username:***@ prefix.
+                safe_str: str = url_obj.render_as_string(hide_password=True)
+                url: str = re.sub(r"://[^@]+@", "://***@", safe_str)
+            except Exception:
+                url = re.sub(r"://[^@]+@", "://***@", str(url_obj))
+        else:
+            engine: Any | None = getattr(inspector, "engine", None)
+            url_raw: Any = getattr(engine, "url", None)
+            url_str: str = str(url_raw) if url_raw is not None else "unknown"
             url = re.sub(r"://[^@]+@", "://***@", url_str)
         if schema:
             return f"{url} [{schema}]"
@@ -739,14 +755,8 @@ class SchemaComparator:
         - SQL Server (mssql): base de datos, añade schema si se proporciona
         - Resto: schema o base de datos o usuario, en ese orden
         """
-        engine: Any | None = getattr(inspector, "engine", None)
-        url_raw: Any | None = getattr(engine, "url", None)
-        if url_raw is None:
-            return schema or "db"
-
-        try:
-            url_obj = make_url(str(url_raw))
-        except Exception:
+        url_obj = SchemaComparator._parse_url_safe(inspector)
+        if url_obj is None:
             return schema or "db"
 
         dialect = (url_obj.drivername or "").split("+")[0].lower()

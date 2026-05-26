@@ -23,13 +23,17 @@ import logging
 
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from sqlalchemy import CursorResult, Row, RowMapping
-from sqlalchemy.engine.base import Engine
+from sqlalchemy import text
+from sqlalchemy.exc import DatabaseError, OperationalError, ProgrammingError
 
 if TYPE_CHECKING:
+    from sqlalchemy import CursorResult, Row, RowMapping
     from sqlalchemy.engine import Inspector
+    from sqlalchemy.engine.base import Engine
 
 logger: logging.Logger = logging.getLogger(__name__)
+
+_MIN_PRINTABLE_ORD: int = 0x20  # primer carácter ASCII imprimible (espacio)
 
 
 def _is_safe_identifier(name: str) -> bool:
@@ -39,7 +43,7 @@ def _is_safe_identifier(name: str) -> bool:
     template de cadena (p.ej. ``SHOW CREATE PROCEDURE `{name}```).
     Rechaza: cadenas vacías, NUL bytes (\\x00) y cualquier carácter ASCII < 0x20.
     """
-    return bool(name) and "\x00" not in name and all(ord(c) >= 32 for c in name)
+    return bool(name) and "\x00" not in name and all(ord(c) >= _MIN_PRINTABLE_ORD for c in name)
 
 
 class RoutineFetcherRegistry:
@@ -72,8 +76,6 @@ class RoutineFetcherRegistry:
         benefit from pagination or result limiting. For performance-critical scenarios,
         consider: ``SchemaComparator.compare(..., include_routines=False)``.
         """
-        from sqlalchemy import text
-
         routines: list[dict[str, str]] = []
         engine: Engine = inspector.engine
         if engine is None:
@@ -113,7 +115,10 @@ class RoutineFetcherRegistry:
                     func_create_row: RowMapping | None = func_create_result.mappings().first()
                     func_definition: str = str(func_create_row["Create Function"]) if func_create_row else ""
                     routines.append({"name": func_name, "type": "FUNCTION", "definition": func_definition})
-        except Exception as exc:  # M1: Fallback si MariaDB rechaza conexión o permisos insuficientes
+        except (
+            OperationalError,
+            DatabaseError,
+        ) as exc:  # M1: Fallback si MariaDB rechaza conexión o permisos insuficientes
             logger.warning("No se pudieron obtener routines MariaDB para schema=%s: %s", schema, exc)
 
         return routines
@@ -126,8 +131,6 @@ class RoutineFetcherRegistry:
         For performance-critical workloads, disable routine introspection:
         ``SchemaComparator.compare(..., include_routines=False)``.
         """
-        from sqlalchemy import text
-
         routines: list[dict[str, str]] = []
         engine: Engine = inspector.engine
         if engine is None:
@@ -156,10 +159,16 @@ class RoutineFetcherRegistry:
                         ddl_row: Row[Any] | None = ddl_result.first()
                         ddl_val: Any = ddl_row[0] if ddl_row else ""
                         definition: Any | str = ddl_val.read() if hasattr(ddl_val, "read") else str(ddl_val)
-                    except Exception:  # M1: DBMS_METADATA falla por permisos o objeto corrompido
+                    except (
+                        ProgrammingError,
+                        DatabaseError,
+                    ):  # M1: DBMS_METADATA falla por permisos o objeto corrompido
                         definition = ""
                     routines.append({"name": obj_name, "type": obj_type, "definition": definition})
-        except Exception as exc:  # M1: Fallback si Oracle rechaza conexión o query a all_procedures falla
+        except (
+            OperationalError,
+            DatabaseError,
+        ) as exc:  # M1: Fallback si Oracle rechaza conexión o query a all_procedures falla
             logger.warning("No se pudieron obtener routines Oracle para schema=%s: %s", schema, exc)
 
         return routines
@@ -172,8 +181,6 @@ class RoutineFetcherRegistry:
         Consider disabling routine introspection for performance-critical scenarios:
         ``SchemaComparator.compare(..., include_routines=False)``.
         """
-        from sqlalchemy import text
-
         routines: list[dict[str, str]] = []
         engine: Engine = inspector.engine
         if engine is None:
@@ -199,7 +206,10 @@ class RoutineFetcherRegistry:
                         )
                         ddl_row: Row[Any] | None = ddl_result.first()
                         definition: str = str(ddl_row[0]) if ddl_row else ""
-                    except Exception:  # M1: sys.sql_modules falla por permisos o procedure encriptada
+                    except (
+                        ProgrammingError,
+                        DatabaseError,
+                    ):  # M1: sys.sql_modules falla por permisos o procedure encriptada
                         definition = ""
                     routines.append({"name": proc_name, "type": "PROCEDURE", "definition": definition})
                 # Funciones escalares, inline y multi-statement (FN, IF, TF)
@@ -224,10 +234,16 @@ class RoutineFetcherRegistry:
                         )
                         func_ddl_row: Row[Any] | None = func_ddl_result.first()
                         func_definition: str = str(func_ddl_row[0]) if func_ddl_row else ""
-                    except Exception:  # M1: sys.sql_modules falla por permisos o función encriptada
+                    except (
+                        ProgrammingError,
+                        DatabaseError,
+                    ):  # M1: sys.sql_modules falla por permisos o función encriptada
                         func_definition = ""
                     routines.append({"name": func_name, "type": "FUNCTION", "definition": func_definition})
-        except Exception as exc:  # M1: Fallback si SQL Server rechaza conexión o query a sys.procedures falla
+        except (
+            OperationalError,
+            DatabaseError,
+        ) as exc:  # M1: Fallback si SQL Server rechaza conexión o query a sys.procedures falla
             logger.warning("No se pudieron obtener routines SQL Server para schema=%s: %s", schema, exc)
 
         return routines
@@ -240,8 +256,6 @@ class RoutineFetcherRegistry:
         On schemas with 10k+ functions, this may consume significant memory.
         Consider caching results or disabling routine introspection for large catalogs.
         """
-        from sqlalchemy import text
-
         routines: list[dict[str, str]] = []
         engine: Engine = inspector.engine
         if engine is None:
@@ -285,16 +299,22 @@ class RoutineFetcherRegistry:
                         )
                         ddl_row: Row[Any] | None = ddl_result.first()
                         definition: str = str(ddl_row[0]) if ddl_row and ddl_row[0] else ""
-                    except Exception:  # M1: pg_get_functiondef() falla en C, trigger o lenguaje no soportado
+                    except (
+                        ProgrammingError,
+                        DatabaseError,
+                    ):  # M1: pg_get_functiondef() falla en C, trigger o lenguaje no soportado
                         definition = ""
                     routines.append({"name": unique_name, "type": kind_label, "definition": definition})
-        except Exception as exc:  # M1: Fallback si PostgreSQL rechaza conexión o query a pg_proc falla
+        except (
+            OperationalError,
+            DatabaseError,
+        ) as exc:  # M1: Fallback si PostgreSQL rechaza conexión o query a pg_proc falla
             logger.warning("No se pudieron obtener routines PostgreSQL para schema=%s: %s", schema, exc)
 
         return routines
 
     @staticmethod
-    def get_routines_hsqldb(inspector: Inspector, schema: str | None) -> list[dict[str, str]]:
+    def get_routines_hsqldb(_inspector: Inspector, _schema: str | None) -> list[dict[str, str]]:
         """Obtiene routines de HSQLDB (sin soporte de DDL; retorna lista vacía con warning).
 
         **Limitación**: HSQLDB soporta ``INFORMATION_SCHEMA.ROUTINES``, pero no proporciona

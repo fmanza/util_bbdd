@@ -21,9 +21,8 @@ from docx.shared import Mm, Pt, RGBColor
 from docx.table import Table, _Cell
 
 from util_bbdd._core.exceptions import SchemaDiffValidationError
-
-from ..models import RoutineDiff, SchemaDiff, TableDiff, ViewDiff
-from ._base import STATUS_ES, DdlNormalizer, build_diff_summary
+from util_bbdd.comparar.models import RoutineDiff, SchemaDiff, TableDiff, ViewDiff
+from util_bbdd.comparar.reporters._base import STATUS_ES, DdlNormalizer, build_diff_summary
 
 
 class WordDiffReporter:
@@ -123,9 +122,11 @@ class WordDiffReporter:
         """Abre una plantilla Word para usarla como base del documento."""
         resolved: Path = template_path.expanduser().resolve()
         if not resolved.exists():
-            raise FileNotFoundError(f"Plantilla no encontrada: {resolved}")
+            msg = f"Plantilla no encontrada: {resolved}"
+            raise FileNotFoundError(msg)
         if not resolved.is_file():
-            raise FileNotFoundError(f"La plantilla no es un archivo válido: {resolved}")
+            msg = f"La plantilla no es un archivo válido: {resolved}"
+            raise FileNotFoundError(msg)
         # Note: This is a static method, so we cannot use self.logger here
         # The logger call will be handled by the caller via the instance
         logging.getLogger(__name__).info("Cargando plantilla Word: %s", resolved)

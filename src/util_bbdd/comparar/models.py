@@ -73,6 +73,7 @@ class CommentDiff:
     column_name: str | None  # None => comentario de tabla
     source_comment: str
     target_comment: str
+    status: Literal["modified"] = "modified"  # siempre modificado; campo por consistencia con otros diffs
 
 
 @dataclass(frozen=True)
@@ -109,3 +110,11 @@ class SchemaDiff:
     def total_differences(self) -> int:
         """Número total de diferencias de primer nivel."""
         return len(self.table_diffs) + len(self.view_diffs) + len(self.routine_diffs)
+
+    @property
+    def total_leaf_differences(self) -> int:
+        """Número total de diferencias hoja (columnas, índices, FKs, comentarios, vistas, routines)."""
+        table_leaves = sum(
+            len(t.column_diffs) + len(t.index_diffs) + len(t.fk_diffs) + len(t.comment_diffs) for t in self.table_diffs
+        )
+        return table_leaves + len(self.view_diffs) + len(self.routine_diffs)
