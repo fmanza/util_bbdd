@@ -9,11 +9,13 @@ from __future__ import annotations
 import logging
 
 from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from ..models import SchemaDiff
+if TYPE_CHECKING:
+    from util_bbdd.comparar.models import SchemaDiff
+
 from ._base import STATUS_ES, DdlNormalizer, DiffSummary, build_diff_summary, escape_mermaid_label
 
 # Directorio de plantillas embebidas (junto a este módulo)

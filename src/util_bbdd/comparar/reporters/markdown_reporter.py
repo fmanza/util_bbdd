@@ -4,16 +4,14 @@ from __future__ import annotations
 
 import logging
 
-from collections.abc import Sequence
-from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
-from ..models import (
-    RoutineDiff,
-    SchemaDiff,
-    TableDiff,
-    ViewDiff,
-)
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from pathlib import Path
+
+    from util_bbdd.comparar.models import RoutineDiff, SchemaDiff, TableDiff, ViewDiff
+
 from ._base import STATUS_EMOJI, STATUS_ES, DdlNormalizer, DiffSummary, build_diff_summary, escape_mermaid_label
 
 
@@ -140,8 +138,10 @@ class MarkdownDiffReporter:
             "| Columna | Atributo | Origen | Destino |",
             self._TABLE_SEPARATOR_4COL,
         ]
-        for cd in column_diffs:
-            lines.append(f"| `{cd.column_name}` | {cd.attribute} | `{cd.source_value}` | `{cd.target_value}` |")
+        lines.extend(
+            f"| `{cd.column_name}` | {cd.attribute} | `{cd.source_value}` | `{cd.target_value}` |"
+            for cd in column_diffs
+        )
         lines.append("")
         return lines
 
@@ -172,7 +172,7 @@ class MarkdownDiffReporter:
             lines.append(
                 f"| `{fk.fk_name}` | {estado_fk} "
                 f"| `{fk.source_columns}` | `{fk.source_referred_table}` "
-                f"| `{fk.target_columns}` | `{fk.target_referred_table}` |"
+                f"| `{fk.target_columns}` | `{fk.target_referred_table}` |",
             )
         lines.append("")
         return lines

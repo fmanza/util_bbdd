@@ -4,16 +4,20 @@ from __future__ import annotations
 
 import logging
 
-from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from openpyxl import Workbook
-from openpyxl.cell import Cell
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
-from openpyxl.worksheet.worksheet import Worksheet
 
-from ..models import RoutineDiff, SchemaDiff, TableDiff, ViewDiff
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from openpyxl.cell import Cell
+    from openpyxl.worksheet.worksheet import Worksheet
+
+    from util_bbdd.comparar.models import RoutineDiff, SchemaDiff, TableDiff, ViewDiff
+
 from ._base import STATUS_ES, DdlNormalizer, DiffSummary, build_diff_summary
 
 

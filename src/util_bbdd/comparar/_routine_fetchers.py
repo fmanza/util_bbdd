@@ -81,28 +81,30 @@ class RoutineFetcherRegistry:
         if engine is None:
             return routines
 
-        db_name: str = schema or str(getattr(engine, "url", None) and getattr(engine.url, "database", "") or "")
+        db_name: str = schema or str((getattr(engine, "url", None) and getattr(engine.url, "database", "")) or "")
 
         try:
             with engine.connect() as conn:
                 # Procedures
                 proc_result: CursorResult[Any] = conn.execute(
-                    text("SHOW PROCEDURE STATUS WHERE Db=:db"), {"db": db_name}
-                )  # noqa: S608
+                    text("SHOW PROCEDURE STATUS WHERE Db=:db"),
+                    {"db": db_name},
+                )
                 for row in proc_result.mappings():
                     proc_name = str(row["Name"])
                     if not _is_safe_identifier(proc_name):
                         logger.warning("Nombre de procedure no seguro, se omite: %r", proc_name)
                         continue
                     proc_safe_name = proc_name.replace("`", "``")
-                    proc_create_result = conn.execute(text(f"SHOW CREATE PROCEDURE `{proc_safe_name}`"))  # noqa: S608
+                    proc_create_result = conn.execute(text(f"SHOW CREATE PROCEDURE `{proc_safe_name}`"))
                     proc_create_row = proc_create_result.mappings().first()
                     proc_definition = str(proc_create_row["Create Procedure"]) if proc_create_row else ""
                     routines.append({"name": proc_name, "type": "PROCEDURE", "definition": proc_definition})
                 # Functions
                 func_result: CursorResult[Any] = conn.execute(
-                    text("SHOW FUNCTION STATUS WHERE Db=:db"), {"db": db_name}
-                )  # noqa: S608
+                    text("SHOW FUNCTION STATUS WHERE Db=:db"),
+                    {"db": db_name},
+                )
                 for row in func_result.mappings():
                     func_name = str(row["Name"])
                     if not _is_safe_identifier(func_name):
@@ -110,8 +112,8 @@ class RoutineFetcherRegistry:
                         continue
                     func_safe_name: str = func_name.replace("`", "``")
                     func_create_result: CursorResult[Any] = conn.execute(
-                        text(f"SHOW CREATE FUNCTION `{func_safe_name}`")
-                    )  # noqa: S608
+                        text(f"SHOW CREATE FUNCTION `{func_safe_name}`"),
+                    )
                     func_create_row: RowMapping | None = func_create_result.mappings().first()
                     func_definition: str = str(func_create_row["Create Function"]) if func_create_row else ""
                     routines.append({"name": func_name, "type": "FUNCTION", "definition": func_definition})
@@ -144,7 +146,7 @@ class RoutineFetcherRegistry:
                 result: CursorResult[Any] = conn.execute(
                     text(
                         "SELECT object_name, object_type FROM all_procedures "
-                        "WHERE owner=:schema AND object_type IN ('PROCEDURE','FUNCTION')"
+                        "WHERE owner=:schema AND object_type IN ('PROCEDURE','FUNCTION')",
                     ),
                     {"schema": schema.upper()},
                 )
@@ -200,7 +202,7 @@ class RoutineFetcherRegistry:
                         ddl_result: CursorResult[Any] = conn.execute(
                             text(
                                 "SELECT definition FROM sys.sql_modules "
-                                "WHERE object_id = OBJECT_ID(CONCAT(:schema_name, '.', :proc_name))"
+                                "WHERE object_id = OBJECT_ID(CONCAT(:schema_name, '.', :proc_name))",
                             ),
                             {"schema_name": schema_name, "proc_name": proc_name},
                         )
@@ -218,7 +220,7 @@ class RoutineFetcherRegistry:
                         "SELECT o.name FROM sys.objects o "
                         "WHERE o.schema_id = SCHEMA_ID(:schema) "
                         "AND o.type IN ('FN', 'IF', 'TF') "
-                        "ORDER BY o.name"
+                        "ORDER BY o.name",
                     ),
                     {"schema": schema_name},
                 )
@@ -228,7 +230,7 @@ class RoutineFetcherRegistry:
                         func_ddl_result: CursorResult[Any] = conn.execute(
                             text(
                                 "SELECT definition FROM sys.sql_modules "
-                                "WHERE object_id = OBJECT_ID(CONCAT(:schema_name, '.', :func_name))"
+                                "WHERE object_id = OBJECT_ID(CONCAT(:schema_name, '.', :func_name))",
                             ),
                             {"schema_name": schema_name, "func_name": func_name},
                         )
@@ -272,7 +274,7 @@ class RoutineFetcherRegistry:
                         "FROM pg_proc p "
                         "JOIN pg_namespace n ON p.pronamespace = n.oid "
                         "WHERE n.nspname = :schema "
-                        "ORDER BY p.proname, proargs"
+                        "ORDER BY p.proname, proargs",
                     ),
                     {"schema": schema_name},
                 )
@@ -325,6 +327,6 @@ class RoutineFetcherRegistry:
         """
         logger.warning(
             "HSQLDB no soporta extracción de DDL de routines; se omite la comparación. "
-            "Consulte SchemaComparator.compare(..., include_routines=True) docs para detalles."
+            "Consulte SchemaComparator.compare(..., include_routines=True) docs para detalles.",
         )
         return []

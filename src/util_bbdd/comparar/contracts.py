@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from sqlalchemy.engine import Inspector
 
-from .models import SchemaDiff
+    from util_bbdd.comparar.models import SchemaDiff
 
 
 @runtime_checkable

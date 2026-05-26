@@ -9,19 +9,23 @@ from __future__ import annotations
 
 import logging
 
-from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from docx import Document
-from docx.document import Document as DocumentType
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Mm, Pt, RGBColor
-from docx.table import Table, _Cell
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from docx.document import Document as DocumentType
+    from docx.table import Table, _Cell
+
+    from util_bbdd.comparar.models import RoutineDiff, SchemaDiff, TableDiff, ViewDiff
 
 from util_bbdd._core.exceptions import SchemaDiffValidationError
-from util_bbdd.comparar.models import RoutineDiff, SchemaDiff, TableDiff, ViewDiff
 from util_bbdd.comparar.reporters._base import STATUS_ES, DdlNormalizer, build_diff_summary
 
 
@@ -85,10 +89,13 @@ class WordDiffReporter:
             ValueError: Si ``output`` no tiene extensión.
         """
         if not output.suffix:
-            raise SchemaDiffValidationError(
+            msg = (
                 f"'output' debe ser la ruta completa del fichero .docx, "
                 f"no un directorio. Recibido: {output!r}\n"
-                f"Ejemplo correcto: {output / 'diff.docx'!r}",
+                f"Ejemplo correcto: {output / 'diff.docx'!r}"
+            )
+            raise SchemaDiffValidationError(
+                msg,
                 operation="WordDiffReporter.render",
                 details=f"output_path={output}, suffix={output.suffix!r}",
             )
@@ -146,7 +153,7 @@ class WordDiffReporter:
     @staticmethod
     def _set_cell_shading(cell: _Cell, hex_color: str) -> None:
         """Aplica color de fondo a una celda de tabla Word (OOXML)."""
-        tc = cell._tc
+        tc = cell._tc  # noqa: SLF001 — API interna de python-docx necesaria para OOXML shading
         tc_pr = tc.get_or_add_tcPr()
         shd = OxmlElement("w:shd")
         shd.set(qn("w:val"), "clear")

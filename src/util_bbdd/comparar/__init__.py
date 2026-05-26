@@ -42,12 +42,12 @@ from .reporters import (
     WordDiffReporter,
 )
 
-__all__: list[str] = [
+__all__: list[str] = [  # noqa: RUF022 — agrupación intencional por categoría
     # Excepciones
     "ComparerError",
-    "SchemaDiffValidationError",
-    "MetadataIntrospectionError",
     "DiffReportGenerationError",
+    "MetadataIntrospectionError",
+    "SchemaDiffValidationError",
     # Modelos
     "ColumnDiff",
     "CommentDiff",

@@ -5,9 +5,10 @@ from __future__ import annotations
 import re
 
 from dataclasses import dataclass
-from typing import ClassVar, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
-from ..models import SchemaDiff
+if TYPE_CHECKING:
+    from util_bbdd.comparar.models import SchemaDiff
 
 StatusLabel = Literal["added", "removed", "modified"]
 

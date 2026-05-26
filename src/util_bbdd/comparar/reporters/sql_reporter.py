@@ -35,24 +35,28 @@ from __future__ import annotations
 
 import logging
 
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, LiteralString
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from sqlalchemy.engine import Inspector
+
+    from util_bbdd.comparar.models import (
+        ColumnDiff,
+        CommentDiff,
+        ForeignKeyDiff,
+        IndexDiff,
+        RoutineDiff,
+        SchemaDiff,
+        TableDiff,
+        ViewDiff,
+    )
+
+from sqlalchemy.exc import DatabaseError, OperationalError
 
 from util_bbdd._core.exceptions import SchemaDiffValidationError
 
-from ..models import (
-    ColumnDiff,
-    CommentDiff,
-    ForeignKeyDiff,
-    IndexDiff,
-    RoutineDiff,
-    SchemaDiff,
-    TableDiff,
-    ViewDiff,
-)
 from ._base import DdlNormalizer
 
 # ---------------------------------------------------------------------------
@@ -69,7 +73,7 @@ SUPPORTED_DIALECTS: frozenset[str] = frozenset(
         "sqlserver",
         "oracle",
         "sqlite",
-    }
+    },
 )
 
 
@@ -249,8 +253,9 @@ class SqlDiffReporter:
     ) -> None:
         normalized: str = dialect.strip().lower()
         if normalized not in SUPPORTED_DIALECTS:
+            msg = f"Dialect '{dialect}' no soportado. Válidos: {sorted(SUPPORTED_DIALECTS)}"
             raise SchemaDiffValidationError(
-                f"Dialect '{dialect}' no soportado. Válidos: {sorted(SUPPORTED_DIALECTS)}",
+                msg,
                 operation="SqlDiffReporter.init",
                 details=f"dialect={normalized}",
             )
@@ -342,8 +347,7 @@ class SqlDiffReporter:
             # Eliminar primero las FKs propias que puedan causar violaciones de integridad
             if td.fk_diffs:
                 lines.append(f"-- FK constraints en {td.table_name}:")
-                for fk in td.fk_diffs:
-                    lines.append(f"ALTER TABLE {td.table_name} {self._drop_fk_clause(fk.fk_name)};")
+                lines.extend(f"ALTER TABLE {td.table_name} {self._drop_fk_clause(fk.fk_name)};" for fk in td.fk_diffs)
             tpl: str = self._DROP_TABLE.get(self._dialect, self._DROP_TABLE["generic"])
             lines.append(tpl.format(table=td.table_name))
             lines.append("")
@@ -369,7 +373,7 @@ class SqlDiffReporter:
                             "source_inspector no proporcionado — "
                             "pasar source_inspector=inspect(engine_origen) al SqlDiffReporter."
                         ),
-                    )
+                    ),
                 )
             lines.append("")
         return lines
@@ -414,7 +418,7 @@ class SqlDiffReporter:
         if table_name not in self._col_cache:
             try:
                 self._col_cache[table_name] = self._source_inspector.get_columns(table_name, schema=self._source_schema)
-            except Exception as exc:
+            except (OperationalError, DatabaseError, NotImplementedError) as exc:
                 error_msg = (
                     f"Inspector.get_columns() falló — {exc}. "
                     "Verificar que source_schema esté configurado si el motor lo requiere "
@@ -435,7 +439,7 @@ class SqlDiffReporter:
         try:
             pk: dict[str, Any] = self._source_inspector.get_pk_constraint(table_name, schema=self._source_schema)
             return list(pk.get("constrained_columns", []))
-        except Exception:
+        except (OperationalError, DatabaseError, NotImplementedError):
             self.logger.warning(
                 "Inspector: no se pudo obtener PK de '%s'.",
                 table_name,
@@ -454,9 +458,9 @@ class SqlDiffReporter:
         if table_name not in self._fk_cache:
             try:
                 self._fk_cache[table_name] = list(
-                    self._source_inspector.get_foreign_keys(table_name, schema=self._source_schema)
+                    self._source_inspector.get_foreign_keys(table_name, schema=self._source_schema),
                 )
-            except Exception:
+            except (OperationalError, DatabaseError, NotImplementedError):
                 self.logger.warning(
                     "Inspector: no se pudieron obtener FKs de '%s'.",
                     table_name,
@@ -475,9 +479,9 @@ class SqlDiffReporter:
         if table_name not in self._idx_cache:
             try:
                 self._idx_cache[table_name] = list(
-                    self._source_inspector.get_indexes(table_name, schema=self._source_schema)
+                    self._source_inspector.get_indexes(table_name, schema=self._source_schema),
                 )
-            except Exception:
+            except (OperationalError, DatabaseError, NotImplementedError):
                 self.logger.warning(
                     "Inspector: no se pudieron obtener índices de '%s'.",
                     table_name,
@@ -597,7 +601,7 @@ class SqlDiffReporter:
 
             if fk_name:
                 fk_defs.append(
-                    f"  CONSTRAINT {fk_name} FOREIGN KEY ({constrained_str}) REFERENCES {ref_table}{ref_cols_str}"
+                    f"  CONSTRAINT {fk_name} FOREIGN KEY ({constrained_str}) REFERENCES {ref_table}{ref_cols_str}",
                 )
             else:
                 fk_defs.append(f"  FOREIGN KEY ({constrained_str}) REFERENCES {ref_table}{ref_cols_str}")
@@ -829,7 +833,7 @@ class SqlDiffReporter:
         ]
 
     def _create_index_sql(self, idx: IndexDiff, table: str) -> str:
-        unique: Literal["UNIQUE "] | Literal[""] = "UNIQUE " if idx.source_unique else ""
+        unique: Literal["UNIQUE ", ""] = "UNIQUE " if idx.source_unique else ""
         cols: str = idx.source_columns or idx.target_columns or "<columnas>"
         return f"CREATE {unique}INDEX {idx.index_name} ON {table} ({cols});"
 
@@ -1004,7 +1008,7 @@ class SqlDiffReporter:
 
     def _render_single_routine_diff(self, rd: RoutineDiff) -> list[str]:
         drop_tpl: str = self._DROP_ROUTINE.get(self._dialect, self._DROP_ROUTINE["generic"])
-        rtype: Literal["PROCEDURE"] | Literal["FUNCTION"] = rd.routine_type  # "PROCEDURE" | "FUNCTION"
+        rtype: Literal["PROCEDURE", "FUNCTION"] = rd.routine_type  # "PROCEDURE" | "FUNCTION"
 
         if rd.status == "removed":
             return [drop_tpl.format(rtype=rtype, name=rd.routine_name), ""]

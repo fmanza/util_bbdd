@@ -242,3 +242,133 @@ Archivos modificados: 4
 Veredicto: GO
 Pendientes al cierre:
 - D11: `ComparisonOptions` dataclass — deuda_estructural, diferida; requiere PLAN+AUDIT_PLAN por alcance amplio
+
+---
+
+## Continuación — Fases N1–N19 (post D1–D12)
+
+### Prompt
+```
+@#sym:tech_debt  (segunda pasada post-D12)
+IMPLEMENTE Plan por Fases
+```
+
+### Inventario N1–N19 (clasificación post-D12)
+
+| ID | Regla | Archivo | Clasificación |
+|---|---|---|---|
+| N1–N5 | COM812, TC006, RUF100, RUF022, RUF021, SLF001 | varios | quick_win |
+| N6–N12 | BLE001×7, PERF401×6 | comparator.py, reporters | quick_win |
+| N13–N15 | EM102/TRY003×3, A002×1 | facade.py, sql/word_reporter | quick_win |
+| N16–N18 | TID252×17, TC001×17, TC002×5, TC003×5 | todos los reporters + contracts | fase_media |
+| N19 | PLR0913 (`compare()` 10 args), FBT001/02 | comparator.py, contracts.py | deuda_estructural (diferida) |
+
+### Fase 1 — Autofix + mecánicas triviales
+
+- `__init__.py`: `# noqa: RUF022` + sort alfabético dentro del grupo Excepciones.
+- `_routine_fetchers.py`: COM812 trailing commas, 4× `# noqa: S608` redundantes eliminados,
+  RUF021 parenthesized or-expression en L84.
+- `comparator.py`: TC006 cast() expressions quoted, `# noqa: SLF001` en OCP registration.
+
+### Fase 2 — BLE001 + PERF401 + EM102/TRY003 + A002
+
+**BLE001** — `except Exception` → excepciones específicas de SQLAlchemy:
+- `comparator.py` ×3: `(ArgumentError, ValueError)`, `(AttributeError, ValueError)`,
+  `(OperationalError, DatabaseError)`. Añadido `from sqlalchemy.exc import ArgumentError, DatabaseError, OperationalError`.
+- `sql_reporter.py` ×4: `(OperationalError, DatabaseError, NotImplementedError)`. Añadido mismo import.
+
+**PERF401** — list-append loops → `diffs.extend(generator)`:
+- `comparator.py` ×4: tablas added/removed, columnas added/removed.
+- `sql_reporter.py` ×1: FK drop lines.
+- `markdown_reporter.py` ×1: column diffs table rows.
+
+**EM102/TRY003** — f-strings en raise → variable `msg`:
+- `facade.py`, `sql_reporter.py`, `word_reporter.py`.
+
+**A002** — `format` shadowing builtin → `# noqa: A002` con nota de API establecida (`facade.py`).
+
+### Fase 3 — TID252 + TC masivo (59 errores → 0)
+
+| Archivo | Cambios |
+|---|---|
+| `contracts.py` | TC003 `Path`, TC001 `SchemaDiff` → `TYPE_CHECKING`; TID252 absoluto |
+| `reporters/_base.py` | TID252+TC001 `SchemaDiff` → `TYPE_CHECKING` absoluto |
+| `reporters/excel_reporter.py` | TC003 `Path`, TC002 `Cell`/`Worksheet`, TC001+TID252 models |
+| `reporters/html_reporter.py` | TC001+TID252 `SchemaDiff`; `Path` conservado (uso runtime) |
+| `reporters/markdown_reporter.py` | TC003 `Sequence`/`Path`, TC001+TID252 models |
+| `reporters/sql_reporter.py` | TC003 `Path`, TC001+TID252 8 models |
+| `reporters/facade.py` | TC001+TID252 `DiffReporterProtocol`/`SchemaDiff`; `Path` conservado |
+| `reporters/word_reporter.py` | TC003 `Path`, TC002 `DocumentType`/`Table`/`_Cell`, TC001 models |
+
+### SonarQube S1192 — literales duplicados
+
+- `type _RoutineType = Literal["PROCEDURE", "FUNCTION"]` — elimina 3 cast() con string literal.
+- `_URL_CREDENTIALS_RE: str = r"://[^@]+@"` — elimina 3 ocurrencias inline.
+- `_URL_CREDENTIALS_MASK: str = "://***@"` — elimina 3 ocurrencias inline.
+  Las tres constantes son de módulo (no `ClassVar`) porque se usan en `@staticmethod` y son
+  detalles de implementación ajenos al contrato de la clase.
+
+### Corrección tests
+
+`tests/comparar/test_diff_reporters.py`:
+- `side_effect = Exception("connection lost")` → `OperationalError("connection lost", None, None)`
+- `side_effect = Exception("FK error")` → `OperationalError("FK error", None, None)`
+  Necesario porque Fase 2 estrechó los `except` de los reporters; los mocks deben usar
+  excepciones realistas para que el fallback se active.
+
+### Resultado
+
+| Métrica | Antes | Después |
+|---|---|---|
+| Tests | 279/279 passed | 279/279 passed |
+| `ruff check src tests` | All checks passed | All checks passed |
+| Errores TID252+TC (extended) | 59 | 0 |
+| `except Exception` en reporters | 7 | 0 |
+| Literales duplicados SonarQube | 3+3+3 | 0 |
+
+Archivos modificados (esta fase):
+- `src/util_bbdd/comparar/__init__.py`
+- `src/util_bbdd/comparar/_routine_fetchers.py`
+- `src/util_bbdd/comparar/comparator.py`
+- `src/util_bbdd/comparar/contracts.py`
+- `src/util_bbdd/comparar/reporters/_base.py`
+- `src/util_bbdd/comparar/reporters/excel_reporter.py`
+- `src/util_bbdd/comparar/reporters/facade.py`
+- `src/util_bbdd/comparar/reporters/html_reporter.py`
+- `src/util_bbdd/comparar/reporters/markdown_reporter.py`
+- `src/util_bbdd/comparar/reporters/sql_reporter.py`
+- `src/util_bbdd/comparar/reporters/word_reporter.py`
+- `tests/comparar/test_diff_reporters.py`
+
+## Directrices para Futuras IAs
+
+- **[comparar/D9]**: `_compare_routines` usa clave `f"{r['name']}:{r.get('type','PROCEDURE')}"`.
+  NO usar solo `r["name"]` — colisiona cuando PROCEDURE y FUNCTION comparten nombre.
+
+- **[comparar/D7]**: `_compare_comments_from_raw` itera `set(source) | set(target)` (unión).
+  Columnas exclusivas también se comparan (comentario del lado ausente = `""`).
+
+- **[comparar/D10+N6-N12]**: `except` en fetchers y reporters son específicos de SQLAlchemy.
+  NO ampliar a `Exception` genérico. Tests deben usar `OperationalError(msg, None, None)`.
+
+- **[comparar/N3]**: `reporters/html_reporter.py` conserva `from pathlib import Path` a nivel
+  de módulo (runtime) porque `_TEMPLATES_DIR: Path = Path(__file__).parent / "templates"`.
+  NO mover a TYPE_CHECKING — rompe la resolución del directorio de templates en tiempo de ejecución.
+
+- **[comparar/N3]**: `reporters/facade.py` conserva `from pathlib import Path` a nivel
+  de módulo porque `Path(output_dir)` se usa en el cuerpo de `render_all()` (constructor runtime).
+
+- **[comparar/SonarQube]**: `_URL_CREDENTIALS_RE`/`_URL_CREDENTIALS_MASK`/`_RoutineType`
+  son constantes de módulo, NO `ClassVar`. Justificación: usadas en `@staticmethod` y ajenas
+  al contrato OCP de `SchemaComparator`.
+
+- **[comparar/D11 — PENDIENTE]**: `ComparisonOptions` dataclass para los 10 parámetros de
+  `compare()` sigue diferida como deuda_estructural. Requiere PLAN+AUDIT_PLAN independiente.
+
+- **[comparar/N19 — PENDIENTE]**: PLR0913 en `_compare_tables()` (7 args) y FBT001/02 en
+  `facade.py:163`/`sql_reporter.py:933` también diferidos. No implementar sin alcance aprobado.
+
+## Veredicto final (actualizado)
+Veredicto: CLOSED
+Pendientes al cierre:
+- D11/N19: `ComparisonOptions` dataclass + FBT — deuda_estructural, diferida

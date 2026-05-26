@@ -14,6 +14,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from sqlalchemy.exc import OperationalError
+
 from util_bbdd._core.exceptions import SchemaDiffValidationError
 from util_bbdd.comparar.models import (
     ColumnDiff,
@@ -756,7 +758,7 @@ class TestSqlDiffReporterWithInspector:
     def test_create_table_fallback_when_inspector_raises(self, tmp_path: Path) -> None:
         """Si el Inspector lanza excepción en get_columns, se usa placeholder."""
         inspector = MagicMock()
-        inspector.get_columns.side_effect = Exception("connection lost")
+        inspector.get_columns.side_effect = OperationalError("connection lost", None, None)
         diff = SchemaDiff(
             source_label="A",
             target_label="B",
@@ -1291,7 +1293,7 @@ class TestSqlDiffReporterCreateTableComplete:
         mock = MagicMock()
         mock.get_columns.return_value = cols
         mock.get_pk_constraint.return_value = {"constrained_columns": ["id"], "name": None}
-        mock.get_foreign_keys.side_effect = Exception("FK error")
+        mock.get_foreign_keys.side_effect = OperationalError("FK error", None, None)
         mock.get_indexes.return_value = []
         diff = SchemaDiff(
             source_label="A",

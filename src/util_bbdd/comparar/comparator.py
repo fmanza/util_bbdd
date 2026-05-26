@@ -8,6 +8,7 @@ import re
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError, DatabaseError, OperationalError
 
 from ._routine_fetchers import RoutineFetcherRegistry
 from .models import (
@@ -23,6 +24,11 @@ from .models import (
 from .reporters._base import DdlNormalizer
 
 logger: logging.Logger = logging.getLogger(__name__)
+
+type _RoutineType = Literal["PROCEDURE", "FUNCTION"]
+
+_URL_CREDENTIALS_RE: str = r"://[^@]+@"
+_URL_CREDENTIALS_MASK: str = "://***@"
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -265,12 +271,10 @@ class SchemaComparator:
         diffs: list[TableDiff] = []
 
         # Tablas solo en source
-        for table in sorted(source_tables - target_tables):
-            diffs.append(TableDiff(table_name=table, status="added"))
+        diffs.extend(TableDiff(table_name=t, status="added") for t in sorted(source_tables - target_tables))
 
         # Tablas solo en target
-        for table in sorted(target_tables - source_tables):
-            diffs.append(TableDiff(table_name=table, status="removed"))
+        diffs.extend(TableDiff(table_name=t, status="removed") for t in sorted(target_tables - source_tables))
 
         # Tablas comunes
         for table in sorted(source_tables & target_tables):
@@ -310,7 +314,7 @@ class SchemaComparator:
                         index_diffs=idx_diffs,
                         fk_diffs=fk_diffs,
                         comment_diffs=comment_diffs,
-                    )
+                    ),
                 )
 
         return tuple(diffs)
@@ -336,16 +340,16 @@ class SchemaComparator:
         diffs: list[ColumnDiff] = []
 
         # Columnas solo en source
-        for col_name in sorted(set(source_cols) - set(target_cols)):
-            diffs.append(
-                ColumnDiff(column_name=col_name, attribute="existence", source_value="exists", target_value="missing")
-            )
+        diffs.extend(
+            ColumnDiff(column_name=cn, attribute="existence", source_value="exists", target_value="missing")
+            for cn in sorted(set(source_cols) - set(target_cols))
+        )
 
         # Columnas solo en target
-        for col_name in sorted(set(target_cols) - set(source_cols)):
-            diffs.append(
-                ColumnDiff(column_name=col_name, attribute="existence", source_value="missing", target_value="exists")
-            )
+        diffs.extend(
+            ColumnDiff(column_name=cn, attribute="existence", source_value="missing", target_value="exists")
+            for cn in sorted(set(target_cols) - set(source_cols))
+        )
 
         # Columnas comunes — comparar atributos
         for col_name in sorted(set(source_cols) & set(target_cols)):
@@ -356,7 +360,7 @@ class SchemaComparator:
                     target_cols[col_name],
                     source_pks,
                     target_pks,
-                )
+                ),
             )
 
         return tuple(diffs)
@@ -381,21 +385,26 @@ class SchemaComparator:
         t_nullable = str(t_col.get("nullable", True))
         if s_nullable != t_nullable:
             diffs.append(
-                ColumnDiff(column_name=col_name, attribute="nullable", source_value=s_nullable, target_value=t_nullable)
+                ColumnDiff(
+                    column_name=col_name,
+                    attribute="nullable",
+                    source_value=s_nullable,
+                    target_value=t_nullable,
+                ),
             )
 
         s_pk = str(col_name in source_pks)
         t_pk = str(col_name in target_pks)
         if s_pk != t_pk:
             diffs.append(
-                ColumnDiff(column_name=col_name, attribute="primary_key", source_value=s_pk, target_value=t_pk)
+                ColumnDiff(column_name=col_name, attribute="primary_key", source_value=s_pk, target_value=t_pk),
             )
 
         s_default = str(s_col.get("default") or "")
         t_default = str(t_col.get("default") or "")
         if s_default != t_default:
             diffs.append(
-                ColumnDiff(column_name=col_name, attribute="default", source_value=s_default, target_value=t_default)
+                ColumnDiff(column_name=col_name, attribute="default", source_value=s_default, target_value=t_default),
             )
 
         return diffs
@@ -429,7 +438,7 @@ class SchemaComparator:
                     status="added",
                     source_columns=self._join_columns(source_index_dict.get("column_names")),
                     source_unique=bool(source_index_dict.get("unique", False)),
-                )
+                ),
             )
 
         for idx_name in sorted(set(target_map) - set(source_map)):
@@ -441,7 +450,7 @@ class SchemaComparator:
                     status="removed",
                     target_columns=self._join_columns(target_index_dict.get("column_names")),
                     target_unique=bool(target_index_dict.get("unique", False)),
-                )
+                ),
             )
 
         for idx_name in sorted(set(source_map) & set(target_map)):
@@ -461,7 +470,7 @@ class SchemaComparator:
                         target_columns=t_cols,
                         source_unique=s_unique,
                         target_unique=t_unique,
-                    )
+                    ),
                 )
 
         return tuple(diffs)
@@ -496,7 +505,7 @@ class SchemaComparator:
                     source_columns=",".join(fk.get("constrained_columns", [])),
                     source_referred_table=fk.get("referred_table", ""),
                     source_referred_columns=",".join(fk.get("referred_columns", [])),
-                )
+                ),
             )
 
         for fk_name in sorted(set(target_map) - set(source_map)):
@@ -509,7 +518,7 @@ class SchemaComparator:
                     target_columns=",".join(fk.get("constrained_columns", [])),
                     target_referred_table=fk.get("referred_table", ""),
                     target_referred_columns=",".join(fk.get("referred_columns", [])),
-                )
+                ),
             )
 
         for fk_name in sorted(set(source_map) & set(target_map)):
@@ -534,7 +543,7 @@ class SchemaComparator:
                         target_referred_table=t_ref,
                         source_referred_columns=s_ref_cols,
                         target_referred_columns=t_ref_cols,
-                    )
+                    ),
                 )
 
         return tuple(diffs)
@@ -561,7 +570,7 @@ class SchemaComparator:
                     column_name=None,
                     source_comment=s_table_comment,
                     target_comment=t_table_comment,
-                )
+                ),
             )
 
         source_cols: dict[str, Any] = {col["name"]: col for col in source_cols_raw}
@@ -576,7 +585,7 @@ class SchemaComparator:
                         column_name=col_name,
                         source_comment=s_col_comment,
                         target_comment=t_col_comment,
-                    )
+                    ),
                 )
 
         return tuple(diffs)
@@ -617,7 +626,7 @@ class SchemaComparator:
                         status="modified",
                         source_definition=source_def_cmp,
                         target_definition=target_def_cmp,
-                    )
+                    ),
                 )
 
         return tuple(diffs)
@@ -659,10 +668,10 @@ class SchemaComparator:
             diffs.append(
                 RoutineDiff(
                     routine_name=source_routine["name"],
-                    routine_type=cast(Literal["PROCEDURE", "FUNCTION"], source_routine.get("type", "PROCEDURE")),
+                    routine_type=cast(_RoutineType, source_routine.get("type", "PROCEDURE")),
                     status="added",
                     source_definition=source_routine.get("definition", ""),
-                )
+                ),
             )
 
         for key in sorted(set(target_map) - set(source_map)):
@@ -670,10 +679,10 @@ class SchemaComparator:
             diffs.append(
                 RoutineDiff(
                     routine_name=target_routine["name"],
-                    routine_type=cast(Literal["PROCEDURE", "FUNCTION"], target_routine.get("type", "PROCEDURE")),
+                    routine_type=cast(_RoutineType, target_routine.get("type", "PROCEDURE")),
                     status="removed",
                     target_definition=target_routine.get("definition", ""),
-                )
+                ),
             )
 
         for key in sorted(set(source_map) & set(target_map)):
@@ -685,11 +694,11 @@ class SchemaComparator:
                 diffs.append(
                     RoutineDiff(
                         routine_name=s_r["name"],
-                        routine_type=cast(Literal["PROCEDURE", "FUNCTION"], s_r.get("type", "PROCEDURE")),
+                        routine_type=cast(_RoutineType, s_r.get("type", "PROCEDURE")),
                         status="modified",
                         source_definition=s_r.get("definition", ""),
                         target_definition=t_r.get("definition", ""),
-                    )
+                    ),
                 )
 
         return tuple(diffs)
@@ -707,7 +716,7 @@ class SchemaComparator:
             return None
         try:
             return make_url(str(url_raw))
-        except Exception:
+        except (ArgumentError, ValueError):
             return None
 
     @staticmethod
@@ -719,14 +728,14 @@ class SchemaComparator:
                 # render_as_string replaces the password with *** and then the regex
                 # safely strips the entire username:***@ prefix.
                 safe_str: str = url_obj.render_as_string(hide_password=True)
-                url: str = re.sub(r"://[^@]+@", "://***@", safe_str)
-            except Exception:
-                url = re.sub(r"://[^@]+@", "://***@", str(url_obj))
+                url: str = re.sub(_URL_CREDENTIALS_RE, _URL_CREDENTIALS_MASK, safe_str)
+            except (AttributeError, ValueError):
+                url = re.sub(_URL_CREDENTIALS_RE, _URL_CREDENTIALS_MASK, str(url_obj))
         else:
             engine: Any | None = getattr(inspector, "engine", None)
             url_raw: Any = getattr(engine, "url", None)
             url_str: str = str(url_raw) if url_raw is not None else "unknown"
-            url = re.sub(r"://[^@]+@", "://***@", url_str)
+            url = re.sub(_URL_CREDENTIALS_RE, _URL_CREDENTIALS_MASK, url_str)
         if schema:
             return f"{url} [{schema}]"
         return url
@@ -853,7 +862,10 @@ class SchemaComparator:
             return str(definition) if definition else ""
         except NotImplementedError:
             return ""
-        except Exception as exc:  # M1: Fallback para dialects sin soporte de vista DDL o permisos insuficientes
+        except (
+            OperationalError,
+            DatabaseError,
+        ) as exc:  # M1: Fallback para dialects sin soporte de vista DDL o permisos insuficientes
             logger.warning("No se pudo obtener definición de vista '%s': %s", view_name, exc)
             return ""
 
@@ -910,7 +922,7 @@ class SchemaComparator:
 # La asignación directa evita mutar el dict vacío; mantiene la semántica de
 # "fuente de verdad inicial" y permite sobrescritura posterior por motor externo.
 # ---------------------------------------------------------------------------
-SchemaComparator._ROUTINE_FETCHERS = {
+SchemaComparator._ROUTINE_FETCHERS = {  # noqa: SLF001  # OCP registration pattern — ver docstring del módulo
     "mariadb": RoutineFetcherRegistry.get_routines_mariadb,
     "oracle": RoutineFetcherRegistry.get_routines_oracle,
     "mssql": RoutineFetcherRegistry.get_routines_mssql,

@@ -10,10 +10,11 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from sqlalchemy.engine import Inspector
 
+    from util_bbdd.comparar.contracts import DiffReporterProtocol
+    from util_bbdd.comparar.models import SchemaDiff
+
 from util_bbdd._core.exceptions import SchemaDiffValidationError
 
-from ..contracts import DiffReporterProtocol
-from ..models import SchemaDiff
 from ._base import build_output_stem
 from .excel_reporter import ExcelDiffReporter
 from .html_reporter import HtmlDiffReporter
@@ -117,7 +118,7 @@ class SchemaDiffReporter:
         self,
         diff: SchemaDiff,
         output_dir: Path,
-        format: str,
+        format: str,  # noqa: A002 — API pública establecida; renombrar requiere MINOR change
         filename: str | None = None,
     ) -> Path:
         """Genera un reporte en el formato indicado.
@@ -138,8 +139,9 @@ class SchemaDiffReporter:
         """
         fmt: str = format.strip().lower()
         if fmt not in self._reporters:
+            msg = f"Formato '{format}' no soportado. Formatos disponibles: {sorted(self._reporters)}"
             raise SchemaDiffValidationError(
-                f"Formato '{format}' no soportado. Formatos disponibles: {sorted(self._reporters)}",
+                msg,
                 operation="SchemaDiffReporter.render",
                 details=f"format={fmt}",
             )
