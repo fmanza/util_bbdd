@@ -196,11 +196,12 @@ class DumpOrchestrator:
         common_cols, skipped_cols = self._common_columns(table)
 
         if not common_cols:
+            target_count = self._safe_count(cfg.target_engine, table, cfg.target_schema)
             return TableDumpResult(
                 table_name=table,
                 source_rows=self._safe_count(cfg.source_engine, table, cfg.source_schema),
-                target_rows_before=self._safe_count(cfg.target_engine, table, cfg.target_schema),
-                target_rows_after=self._safe_count(cfg.target_engine, table, cfg.target_schema),
+                target_rows_before=target_count,
+                target_rows_after=target_count,
                 status="skipped",
                 skipped_columns=skipped_cols,
                 load_order_position=position,
@@ -215,6 +216,7 @@ class DumpOrchestrator:
         sql = f"SELECT {cols_quoted} FROM {table_quoted}"
 
         crud = bulk_crud(cfg.target_engine, chunk_size=cfg.chunk_size)
+        dest_table = f"{cfg.target_schema}.{table}" if cfg.target_schema else table
         error_msgs: list[str] = []
 
         try:
@@ -223,7 +225,7 @@ class DumpOrchestrator:
                 for chunk in chunks:
                     df_filtered = chunk[common_cols]
                     try:
-                        crud.bulk_insert_from_df(df_filtered, table, generar_sql=False)
+                        crud.bulk_insert_from_df(df_filtered, dest_table, generar_sql=False)
                     except (SQLAlchemyError, ValueError) as exc:
                         error_msgs.append(str(exc))
         except (SQLAlchemyError, ValueError, pd.errors.DatabaseError) as exc:
@@ -331,6 +333,58 @@ class DumpOrchestrator:
                     queue.append(dep)
 
         cycle_tables = [t for t in tables if t not in set(ordered)]
-        cycles: list[list[str]] = [cycle_tables] if cycle_tables else []
+        if not cycle_tables:
+            return ordered, []
 
+        cycles = DumpOrchestrator._find_cycle_components(cycle_tables, dependents)
         return ordered + cycle_tables, cycles
+
+    @staticmethod
+    def _find_cycle_components(
+        cycle_tables: list[str],
+        dependents: dict[str, set[str]],
+    ) -> list[list[str]]:
+        """Agrupa nodos en ciclo FK en componentes conexas mediante BFS no dirigido."""
+        adj = DumpOrchestrator._build_cycle_adj(cycle_tables, dependents)
+        visited: set[str] = set()
+        cycles: list[list[str]] = []
+        for start in cycle_tables:
+            if start not in visited:
+                component = DumpOrchestrator._bfs_component(start, adj, visited)
+                cycles.append(component)
+        return cycles
+
+    @staticmethod
+    def _build_cycle_adj(
+        cycle_tables: list[str],
+        dependents: dict[str, set[str]],
+    ) -> dict[str, set[str]]:
+        """Construye grafo de adyacencia no dirigido restringido a los nodos en ciclo."""
+        cycle_set = set(cycle_tables)
+        adj: dict[str, set[str]] = {t: set() for t in cycle_tables}
+        for node, deps in dependents.items():
+            if node not in cycle_set:
+                continue
+            for dep in deps:
+                if dep in cycle_set:
+                    adj[node].add(dep)
+                    adj[dep].add(node)
+        return adj
+
+    @staticmethod
+    def _bfs_component(
+        start: str,
+        adj: dict[str, set[str]],
+        visited: set[str],
+    ) -> list[str]:
+        """Retorna todos los nodos alcanzables desde ``start`` mediante BFS."""
+        component: list[str] = []
+        queue: deque[str] = deque([start])
+        while queue:
+            node = queue.popleft()
+            if node in visited:
+                continue
+            visited.add(node)
+            component.append(node)
+            queue.extend(n for n in adj[node] if n not in visited)
+        return component

@@ -157,6 +157,24 @@ class TestTopologicalSort:
         assert "c" in order
         assert set(cycles[0]) == {"a", "b"}
 
+    def test_multiple_disconnected_cycles_reported_separately(self):
+        # Two independent cycles: a<->b and c<->d — must appear as separate groups.
+        fks = {
+            "a": [{"referred_table": "b"}],
+            "b": [{"referred_table": "a"}],
+            "c": [{"referred_table": "d"}],
+            "d": [{"referred_table": "c"}],
+        }
+        insp = _make_inspector([], fks=fks)
+        tables = ["a", "b", "c", "d"]
+        order, cycles = DumpOrchestrator._topological_sort(tables, insp, None)
+
+        assert set(order) == {"a", "b", "c", "d"}
+        assert len(cycles) == 2
+        cycle_sets = [frozenset(c) for c in cycles]
+        assert frozenset({"a", "b"}) in cycle_sets
+        assert frozenset({"c", "d"}) in cycle_sets
+
 
 # ---------------------------------------------------------------------------
 # Quoting helpers
@@ -326,3 +344,125 @@ class TestDumpOrchestratorRun:
         skipped = [r for r in result.table_results if r.status == "skipped"]
         assert len(skipped) == 1
         assert skipped[0].table_name == "t"
+
+
+# ---------------------------------------------------------------------------
+# DumpOrchestrator._cleanup — truncate y delete
+# ---------------------------------------------------------------------------
+
+
+class TestCleanup:
+    def _make_orchestrator(self, dialect: str) -> DumpOrchestrator:
+        src = _make_engine()
+        dst = _make_engine(dialect)
+        cfg = DumpConfig(source_engine=src, target_engine=dst, truncate_target=True)
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = cfg
+        orch._src_insp = MagicMock()
+        orch._dst_insp = MagicMock()
+        return orch
+
+    def _executed_sql(self, orch: DumpOrchestrator) -> list[str]:
+        engine: MagicMock = orch._cfg.target_engine  # type: ignore[assignment]
+        return [str(call[0][0]) for call in engine.connect.return_value.__enter__.return_value.execute.call_args_list]
+
+    def test_truncate_used_for_non_mssql(self):
+        orch = self._make_orchestrator("postgresql")
+        orch._cleanup(["customers", "orders"], skip=set())
+        sql_stmts = self._executed_sql(orch)
+        assert all("TRUNCATE TABLE" in s for s in sql_stmts)
+        assert len(sql_stmts) == 2
+
+    def test_delete_used_for_mssql(self):
+        orch = self._make_orchestrator("mssql")
+        orch._cleanup(["customers"], skip=set())
+        sql_stmts = self._executed_sql(orch)
+        assert len(sql_stmts) == 1
+        assert "DELETE FROM" in sql_stmts[0]
+
+    def test_skip_set_excludes_tables(self):
+        orch = self._make_orchestrator("postgresql")
+        orch._cleanup(["customers", "orders"], skip={"orders"})
+        sql_stmts = self._executed_sql(orch)
+        assert len(sql_stmts) == 1
+        assert "orders" not in sql_stmts[0]
+
+    def test_truncate_called_during_run_when_truncate_target_true(self):
+        from unittest.mock import patch
+
+        src = _make_engine()
+        dst = _make_engine()
+        cfg = DumpConfig(source_engine=src, target_engine=dst, truncate_target=True)
+        src_insp = _make_inspector(["customers"], {"customers": ["id", "name"]})
+        dst_insp = _make_inspector(["customers"], {"customers": ["id", "name"]})
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = cfg
+        orch._src_insp = src_insp
+        orch._dst_insp = dst_insp
+
+        with (
+            patch("util_bbdd.dump.orchestrator.SchemaComparator") as mock_cmp,
+            patch("util_bbdd.dump.orchestrator.ConstraintManager") as mock_mgr_cls,
+            patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx")),
+            patch("pandas.read_sql", return_value=iter([])),
+            patch.object(orch, "_cleanup") as mock_cleanup,
+        ):
+            mock_cmp.return_value.compare.return_value = MagicMock(table_diffs=())
+            mock_mgr = MagicMock()
+            mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
+            mock_mgr.__exit__ = MagicMock(return_value=False)
+            mock_mgr.constraint_results = []
+            mock_mgr_cls.return_value = mock_mgr
+            orch.run()
+
+        mock_cleanup.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# DumpOrchestrator — propagación de target_schema al INSERT (T4)
+# ---------------------------------------------------------------------------
+
+
+class TestTargetSchemaPropagation:
+    @patch("util_bbdd.dump.orchestrator.SchemaComparator")
+    @patch("util_bbdd.dump.orchestrator.ConstraintManager")
+    @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
+    @patch("pandas.read_sql")
+    @patch("util_bbdd.dump.orchestrator.bulk_crud")
+    def test_target_schema_passed_to_bulk_insert(
+        self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator
+    ):
+        import pandas as pd
+
+        mock_comparator.return_value.compare.return_value = MagicMock(table_diffs=())
+        mock_mgr = MagicMock()
+        mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
+        mock_mgr.__exit__ = MagicMock(return_value=False)
+        mock_mgr.constraint_results = []
+        mock_mgr_cls.return_value = mock_mgr
+
+        df_chunk = pd.DataFrame({"id": [1], "name": ["x"]})
+        mock_read_sql.return_value = iter([df_chunk])
+        mock_crud = MagicMock()
+        mock_bulk_cls.return_value = mock_crud
+
+        src = _make_engine()
+        dst = _make_engine()
+        cfg = DumpConfig(
+            source_engine=src,
+            target_engine=dst,
+            target_schema="staging",
+            truncate_target=False,
+        )
+        src_insp = _make_inspector(["orders"], {"orders": ["id", "name"]})
+        dst_insp = _make_inspector(["orders"], {"orders": ["id", "name"]})
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = cfg
+        orch._src_insp = src_insp
+        orch._dst_insp = dst_insp
+        orch.run()
+
+        call_args = mock_crud.bulk_insert_from_df.call_args
+        assert call_args is not None
+        tabla_arg = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("tabla_destino", "")
+        assert tabla_arg == "staging.orders"

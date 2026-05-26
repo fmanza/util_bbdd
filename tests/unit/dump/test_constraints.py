@@ -209,6 +209,92 @@ class TestConstraintManagerOracle:
 
 
 # ---------------------------------------------------------------------------
+# ConstraintManager — PostgreSQL
+# ---------------------------------------------------------------------------
+
+
+class TestConstraintManagerPostgreSQL:
+    def test_disable_stores_disabled_pg_list(self):
+        engine = _make_engine("postgresql")
+        mgr = ConstraintManager(engine)
+        mgr.disable_all(tables=["orders", "items"])
+
+        assert "orders" in mgr._disabled_pg
+        assert "items" in mgr._disabled_pg
+
+    def test_disable_with_permission_error_skips_table(self):
+        from sqlalchemy.exc import SQLAlchemyError
+
+        engine = _make_engine("postgresql")
+        engine.connect.return_value.__enter__.return_value.execute.side_effect = SQLAlchemyError("permission denied")
+        mgr = ConstraintManager(engine)
+        mgr.disable_all(tables=["orders"])
+
+        assert "orders" not in mgr._disabled_pg
+
+    def test_enable_only_reenables_disabled_tables(self):
+        engine = _make_engine("postgresql")
+        insp = MagicMock()
+        insp.get_foreign_keys.return_value = []
+        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+            mgr = ConstraintManager(engine)
+            mgr._disabled_pg = ["orders"]
+            results = mgr.enable_all()
+
+        assert results == []
+
+    def test_enable_empty_disabled_list_returns_empty(self):
+        engine = _make_engine("postgresql")
+        insp = MagicMock()
+        insp.get_foreign_keys.return_value = []
+        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+            mgr = ConstraintManager(engine)
+            results = mgr.enable_all()
+
+        assert results == []
+
+    def test_enable_validates_fk_constraints(self):
+        engine = _make_engine("postgresql")
+        insp = MagicMock()
+        insp.get_foreign_keys.return_value = [{"name": "fk_orders_cust"}]
+        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+            mgr = ConstraintManager(engine)
+            mgr._disabled_pg = ["orders"]
+            results = mgr.enable_all()
+
+        assert len(results) == 1
+        assert results[0].constraint_name == "fk_orders_cust"
+        assert results[0].status == "enabled"
+
+    def test_enable_fk_failure_returns_failed_status(self):
+        from sqlalchemy.exc import SQLAlchemyError
+
+        engine = _make_engine("postgresql")
+        engine.begin.return_value.__enter__.return_value.execute.side_effect = SQLAlchemyError("fk violation")
+        insp = MagicMock()
+        insp.get_foreign_keys.return_value = [{"name": "fk_orders_cust"}]
+        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+            mgr = ConstraintManager(engine)
+            mgr._disabled_pg = ["orders"]
+            results = mgr.enable_all()
+
+        assert len(results) == 1
+        assert results[0].status == "failed"
+        assert "fk violation" in results[0].error_msg
+
+    def test_enable_without_prior_disable_returns_empty(self):
+        engine = _make_engine("postgresql")
+        insp = MagicMock()
+        insp.get_foreign_keys.return_value = []
+        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+            mgr = ConstraintManager(engine)
+            results = mgr.enable_all()
+
+        assert results == []
+        insp.get_foreign_keys.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # ConstraintManager — quoting helpers
 # ---------------------------------------------------------------------------
 

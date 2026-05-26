@@ -53,6 +53,9 @@ class DumpReporter:
         "unverified": "FFFFFF00",
     }
 
+    def __init__(self, output_dir: Path) -> None:
+        self._output_dir = output_dir
+
     # ------------------------------------------------------------------
     # Helpers estáticos de escritura de celdas
     # ------------------------------------------------------------------
@@ -111,17 +114,14 @@ class DumpReporter:
         DumpReporter._header(
             ws, offset, 1, "Constraints con incidencia al rehabilitar", color=DumpReporter._COL_HEADER_ORANGE
         )
-        for col, h in enumerate(["Tabla", "Constraint", "Dialect", "Estado", "Mensaje"], 2):
-            DumpReporter._header(ws, offset, col, h, color=DumpReporter._COL_HEADER_ORANGE)
-        for i, cr in enumerate(failed, offset + 1):
+        for col, h in enumerate(["Tabla", "Constraint", "Dialect", "Estado", "Mensaje"], 1):
+            DumpReporter._header(ws, offset + 1, col, h, color=DumpReporter._COL_HEADER_ORANGE)
+        for i, cr in enumerate(failed, offset + 2):
             DumpReporter._cell(ws, i, 1, cr.table_name)
             DumpReporter._cell(ws, i, 2, cr.constraint_name)
             DumpReporter._cell(ws, i, 3, cr.dialect)
             DumpReporter._cell(ws, i, 4, cr.status.upper(), bg=DumpReporter._STATUS_BG.get(cr.status))
             DumpReporter._cell(ws, i, 5, cr.error_msg or "—")
-
-    def __init__(self, output_dir: Path) -> None:
-        self._output_dir = output_dir
 
     def generate(
         self,

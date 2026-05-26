@@ -518,15 +518,19 @@ class BulkCrud:
         Refleja una tabla desde la base de datos y devuelve el objeto `Table` correspondiente.
 
         Args:
-            tabla_destino: Nombre lógico de la tabla. Se normaliza el casing según el dialecto.
+            tabla_destino: Nombre lógico de la tabla. Puede ser ``"schema.tabla"`` para
+                especificar un schema explícito. Se normaliza el casing según el dialecto.
 
         Returns:
             El objeto `Table` reflejado.
         """
         metadata = MetaData()
-        tabla_normalizada: str = normalize_identifier(tabla_destino, self.engine.dialect.name)
-        tabla = Table(tabla_normalizada, metadata, autoload_with=self.engine)
-        return tabla
+        if "." in tabla_destino:
+            schema_part, table_part = tabla_destino.split(".", 1)
+            tabla_normalizada: str = normalize_identifier(table_part, self.engine.dialect.name)
+            return Table(tabla_normalizada, metadata, schema=schema_part, autoload_with=self.engine)
+        tabla_normalizada = normalize_identifier(tabla_destino, self.engine.dialect.name)
+        return Table(tabla_normalizada, metadata, autoload_with=self.engine)
 
     def get_columna_may_min(self, tabla: Table, nombre_col: str) -> Column | None:
         """Devuelve una columna de una tabla SQLAlchemy ignorando mayúsculas/minúsculas."""

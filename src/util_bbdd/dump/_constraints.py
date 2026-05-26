@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from sqlalchemy import Engine, Inspector, event, inspect, text
-from sqlalchemy.engine import Connection
 from sqlalchemy.exc import SQLAlchemyError
 
 from ._sql_utils import quote_identifier, quote_table
@@ -73,7 +72,10 @@ class ConstraintManager:
         return self
 
     def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
-        self.constraint_results = self.enable_all()
+        try:
+            self.constraint_results = self.enable_all()
+        except Exception:  # noqa: BLE001
+            _log.exception("Error al rehabilitar constraints — la excepción original no se enmascara")
 
     # ------------------------------------------------------------------
     # API pública
@@ -135,9 +137,10 @@ class ConstraintManager:
         self._engine.dispose()
 
     def _enable_mariadb(self) -> list[ConstraintResult]:
-        if self._mariadb_listener is not None:
-            event.remove(self._engine, "connect", self._mariadb_listener)
-            self._mariadb_listener = None
+        if self._mariadb_listener is None:
+            return []
+        event.remove(self._engine, "connect", self._mariadb_listener)
+        self._mariadb_listener = None
         # Ciclar pool: nuevas conexiones sin el listener (FK checks activados).
         # Misma advertencia de concurrencia que en _disable_mariadb.
         _log.warning(
@@ -275,20 +278,20 @@ class ConstraintManager:
             except SQLAlchemyError:
                 return []
 
-        with self._engine.begin() as conn:
-            for table in tables:
-                for name in _fetch_names(insp.get_foreign_keys, table):
-                    self._exec_disable_oracle(conn, table, name)
-                for name in _fetch_names(insp.get_check_constraints, table):
-                    # Filtrar constraints de sistema Oracle (SYS_C...)
-                    if not name.upper().startswith("SYS_C"):
-                        self._exec_disable_oracle(conn, table, name)
-                for name in _fetch_names(insp.get_unique_constraints, table):
-                    self._exec_disable_oracle(conn, table, name)
+        for table in tables:
+            for name in _fetch_names(insp.get_foreign_keys, table):
+                self._exec_disable_oracle(table, name)
+            for name in _fetch_names(insp.get_check_constraints, table):
+                # Filtrar constraints de sistema Oracle (SYS_C...)
+                if not name.upper().startswith("SYS_C"):
+                    self._exec_disable_oracle(table, name)
+            for name in _fetch_names(insp.get_unique_constraints, table):
+                self._exec_disable_oracle(table, name)
 
-    def _exec_disable_oracle(self, conn: Connection, table: str, name: str) -> None:
+    def _exec_disable_oracle(self, table: str, name: str) -> None:
         try:
-            conn.execute(text(f"ALTER TABLE {self._qt(table)} DISABLE CONSTRAINT {self._qi(name)}"))
+            with self._engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE {self._qt(table)} DISABLE CONSTRAINT {self._qi(name)}"))
             self._disabled.append((table, name))
         except SQLAlchemyError as exc:
             _log.warning("No se pudo deshabilitar '%s.%s': %s", table, name, exc)
