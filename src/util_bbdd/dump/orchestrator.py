@@ -28,6 +28,7 @@ from util_bbdd.comparar import SchemaComparator, SchemaDiff
 
 from ._constraints import ConstraintManager, ConstraintResult
 from ._models import DumpConfig, DumpResult, TableDumpResult
+from ._protocols import BulkInserter
 from ._sql_utils import quote_identifier, quote_table
 from .reporters import DumpReporter
 
@@ -215,7 +216,11 @@ class DumpOrchestrator:
         table_quoted = quote_table(table, cfg.source_schema, cfg.source_engine)
         sql = f"SELECT {cols_quoted} FROM {table_quoted}"
 
-        crud = bulk_crud(cfg.target_engine, chunk_size=cfg.chunk_size)
+        crud: BulkInserter = bulk_crud(
+            cfg.target_engine,
+            chunk_size=cfg.chunk_size,
+            audit_csv_path=cfg.bulk_audit_path,
+        )
         dest_table = f"{cfg.target_schema}.{table}" if cfg.target_schema else table
         error_msgs: list[str] = []
 

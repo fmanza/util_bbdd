@@ -25,10 +25,14 @@ class DumpConfig:
         source_schema: Nombre del schema origen; ``None`` usa el default del engine.
         target_schema: Nombre del schema destino; ``None`` usa el default del engine.
         tables: Tablas a volcar. ``None`` = todas las tablas del origen.
-        chunk_size: Filas por chunk tanto en lectura como en bulk insert.
+        chunk_size: Filas por chunk. Se aplica en dos niveles: (1) lectura origen
+            vía ``pd.read_sql(chunksize=chunk_size)`` y (2) inserción destino en
+            ``BulkCrud(chunk_size=chunk_size)``. Ambos reciben el mismo valor.
         output_dir: Directorio donde guardar el informe Excel.
         truncate_target: ``True`` (default) = limpiar tablas destino antes de cargar.
             Recomendado para volcados completos. ``False`` = modo append.
+        bulk_audit_path: Ruta del CSV de auditoría para los inserts en destino.
+            ``None`` (default) = los inserts no se registran en auditoría.
     """
 
     source_engine: Engine
@@ -39,6 +43,7 @@ class DumpConfig:
     chunk_size: int = 5000
     output_dir: Path = field(default_factory=Path)
     truncate_target: bool = True
+    bulk_audit_path: Path | None = None
 
 
 @dataclass
