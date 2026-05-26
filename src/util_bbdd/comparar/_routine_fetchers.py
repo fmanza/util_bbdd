@@ -98,7 +98,7 @@ class RoutineFetcherRegistry:
                     proc_safe_name = proc_name.replace("`", "``")
                     proc_create_result = conn.execute(text(f"SHOW CREATE PROCEDURE `{proc_safe_name}`"))
                     proc_create_row = proc_create_result.mappings().first()
-                    proc_definition = str(proc_create_row["Create Procedure"]) if proc_create_row else ""
+                    proc_definition = str(proc_create_row["Create Procedure"] or "") if proc_create_row else ""
                     routines.append({"name": proc_name, "type": "PROCEDURE", "definition": proc_definition})
                 # Functions
                 func_result: CursorResult[Any] = conn.execute(
@@ -115,7 +115,7 @@ class RoutineFetcherRegistry:
                         text(f"SHOW CREATE FUNCTION `{func_safe_name}`"),
                     )
                     func_create_row: RowMapping | None = func_create_result.mappings().first()
-                    func_definition: str = str(func_create_row["Create Function"]) if func_create_row else ""
+                    func_definition: str = str(func_create_row["Create Function"] or "") if func_create_row else ""
                     routines.append({"name": func_name, "type": "FUNCTION", "definition": func_definition})
         except (
             OperationalError,

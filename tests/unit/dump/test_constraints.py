@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from util_bbdd.dump._constraints import ConstraintManager, ConstraintResult
 
 # ---------------------------------------------------------------------------
@@ -317,3 +319,35 @@ class TestConstraintManagerQuoting:
         engine.dialect.identifier_preparer.quote.side_effect = lambda n: f'"{n}"'
         mgr = ConstraintManager(engine)
         assert mgr._qi("order") == '"order"'
+
+
+# ---------------------------------------------------------------------------
+# ConstraintManager — __exit__ silencia enable_all() pero propaga excepción original
+# ---------------------------------------------------------------------------
+
+
+class TestConstraintManagerExitBehavior:
+    def test_exit_propagates_original_exception_when_enable_all_raises(self):
+        """TC6: si enable_all() lanza dentro de __exit__, la excepción original del bloque with
+        sigue propagándose; la excepción de enable_all() solo se loguea."""
+        engine = _make_engine("mssql")
+        mgr = ConstraintManager(engine)
+
+        # Forzar que enable_all() falle
+        mgr.enable_all = MagicMock(side_effect=RuntimeError("enable_all broken"))
+
+        with pytest.raises(ValueError, match="original error"):
+            with mgr:
+                raise ValueError("original error")
+
+    def test_exit_constraint_results_accessible_even_when_body_raises(self):
+        """__exit__ asigna constraint_results aunque el bloque with lance excepción."""
+        engine = _make_engine("mssql")
+        mgr = ConstraintManager(engine)
+        mgr._nocheck_tables = ["orders"]
+
+        with pytest.raises(RuntimeError):
+            with mgr:
+                raise RuntimeError("body error")
+
+        assert isinstance(mgr.constraint_results, list)

@@ -828,6 +828,78 @@ class TestGetRoutinesMariaDB:
 
         assert routines == []
 
+    def test_procedure_ddl_null_returns_empty_string_not_none_string(self) -> None:
+        """TC2/B2: si Create Procedure es NULL (sin permisos), la definición debe ser ''
+        no el string literal 'None'."""
+        engine = _make_engine_mock("mariadb")
+        inspector = MagicMock()
+        inspector.engine = engine
+        inspector.bind = engine
+
+        conn = MagicMock()
+        engine.connect.return_value.__enter__.return_value = conn
+        engine.connect.return_value.__exit__.return_value = False
+
+        # SHOW PROCEDURE STATUS devuelve una fila
+        proc_rows = MagicMock()
+        proc_rows.mappings.return_value = [{"Name": "my_proc"}]
+        # SHOW CREATE PROCEDURE devuelve fila con columna NULL (sin privilegios)
+        create_result = MagicMock()
+        create_result.mappings.return_value.first.return_value = {"Create Procedure": None}
+
+        func_rows = MagicMock()
+        func_rows.mappings.return_value = []
+
+        def execute_side_effect(stmt: Any, params: Any = None) -> Any:
+            sql = str(stmt)
+            if "PROCEDURE STATUS" in sql:
+                return proc_rows
+            if "FUNCTION STATUS" in sql:
+                return func_rows
+            return create_result
+
+        conn.execute.side_effect = execute_side_effect
+
+        routines = RoutineFetcherRegistry.get_routines_mariadb(inspector, "mydb")
+
+        assert len(routines) == 1
+        assert routines[0]["definition"] == ""
+        assert routines[0]["definition"] != "None"
+
+    def test_function_ddl_null_returns_empty_string_not_none_string(self) -> None:
+        """TC2/B2 (función): si Create Function es NULL, la definición debe ser ''."""
+        engine = _make_engine_mock("mariadb")
+        inspector = MagicMock()
+        inspector.engine = engine
+        inspector.bind = engine
+
+        conn = MagicMock()
+        engine.connect.return_value.__enter__.return_value = conn
+        engine.connect.return_value.__exit__.return_value = False
+
+        proc_rows = MagicMock()
+        proc_rows.mappings.return_value = []
+        func_rows = MagicMock()
+        func_rows.mappings.return_value = [{"Name": "my_func"}]
+        create_result = MagicMock()
+        create_result.mappings.return_value.first.return_value = {"Create Function": None}
+
+        def execute_side_effect(stmt: Any, params: Any = None) -> Any:
+            sql = str(stmt)
+            if "PROCEDURE STATUS" in sql:
+                return proc_rows
+            if "FUNCTION STATUS" in sql:
+                return func_rows
+            return create_result
+
+        conn.execute.side_effect = execute_side_effect
+
+        routines = RoutineFetcherRegistry.get_routines_mariadb(inspector, "mydb")
+
+        assert len(routines) == 1
+        assert routines[0]["definition"] == ""
+        assert routines[0]["definition"] != "None"
+
 
 class TestGetRoutinesOracle:
     def test_returns_empty_when_schema_is_none(self, caplog: Any) -> None:
@@ -1547,6 +1619,42 @@ class TestEdgeCasesNullableDefault:
         assert len(default_diffs) == 1
         assert default_diffs[0].source_value == "0"
         assert default_diffs[0].target_value == "42"
+
+    def test_default_zero_vs_none_emits_diff(self, comparator: SchemaComparator) -> None:
+        """B3: default=0 vs default=None deben generar ColumnDiff (0 es valor explícito, None es ausencia)."""
+        source = _make_mock_inspector(
+            tables={"t": [{"name": "col", "type": "INTEGER", "nullable": True, "default": 0}]},
+            pk_constraints={"t": {"constrained_columns": []}},
+        )
+        target = _make_mock_inspector(
+            tables={"t": [{"name": "col", "type": "INTEGER", "nullable": True, "default": None}]},
+            pk_constraints={"t": {"constrained_columns": []}},
+        )
+
+        diff = comparator.compare(source, target)
+
+        default_diffs = [d for d in diff.table_diffs[0].column_diffs if d.attribute == "default"]
+        assert len(default_diffs) == 1
+        assert default_diffs[0].source_value == "0"
+        assert default_diffs[0].target_value == ""
+
+    def test_default_false_vs_none_emits_diff(self, comparator: SchemaComparator) -> None:
+        """B3: default=False vs default=None deben generar ColumnDiff."""
+        source = _make_mock_inspector(
+            tables={"t": [{"name": "active", "type": "BOOLEAN", "nullable": True, "default": False}]},
+            pk_constraints={"t": {"constrained_columns": []}},
+        )
+        target = _make_mock_inspector(
+            tables={"t": [{"name": "active", "type": "BOOLEAN", "nullable": True, "default": None}]},
+            pk_constraints={"t": {"constrained_columns": []}},
+        )
+
+        diff = comparator.compare(source, target)
+
+        default_diffs = [d for d in diff.table_diffs[0].column_diffs if d.attribute == "default"]
+        assert len(default_diffs) == 1
+        assert default_diffs[0].source_value == "False"
+        assert default_diffs[0].target_value == ""
 
 
 class TestEdgeCasesPrimaryKey:

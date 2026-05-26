@@ -400,8 +400,10 @@ class SchemaComparator:
                 ColumnDiff(column_name=col_name, attribute="primary_key", source_value=s_pk, target_value=t_pk),
             )
 
-        s_default = str(s_col.get("default") or "")
-        t_default = str(t_col.get("default") or "")
+        s_default_raw = s_col.get("default")
+        t_default_raw = t_col.get("default")
+        s_default = "" if s_default_raw is None else str(s_default_raw)
+        t_default = "" if t_default_raw is None else str(t_default_raw)
         if s_default != t_default:
             diffs.append(
                 ColumnDiff(column_name=col_name, attribute="default", source_value=s_default, target_value=t_default),

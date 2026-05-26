@@ -221,7 +221,7 @@ class DumpOrchestrator:
             chunk_size=cfg.chunk_size,
             audit_csv_path=cfg.bulk_audit_path,
         )
-        dest_table = f"{cfg.target_schema}.{table}" if cfg.target_schema else table
+        dest_table = quote_table(table, cfg.target_schema, cfg.target_engine)
         error_msgs: list[str] = []
 
         try:

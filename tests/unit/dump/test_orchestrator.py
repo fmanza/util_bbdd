@@ -466,3 +466,98 @@ class TestTargetSchemaPropagation:
         assert call_args is not None
         tabla_arg = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("tabla_destino", "")
         assert tabla_arg == "staging.orders"
+
+    @patch("util_bbdd.dump.orchestrator.SchemaComparator")
+    @patch("util_bbdd.dump.orchestrator.ConstraintManager")
+    @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
+    @patch("pandas.read_sql")
+    @patch("util_bbdd.dump.orchestrator.bulk_crud")
+    def test_dest_table_uses_quote_table_for_reserved_words(
+        self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator
+    ):
+        """TC1: dest_table debe usar quote_table(), no concatenación directa."""
+        import pandas as pd
+
+        mock_comparator.return_value.compare.return_value = MagicMock(table_diffs=())
+        mock_mgr = MagicMock()
+        mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
+        mock_mgr.__exit__ = MagicMock(return_value=False)
+        mock_mgr.constraint_results = []
+        mock_mgr_cls.return_value = mock_mgr
+
+        df_chunk = pd.DataFrame({"id": [1]})
+        mock_read_sql.return_value = iter([df_chunk])
+        mock_crud = MagicMock()
+        mock_bulk_cls.return_value = mock_crud
+
+        src = _make_engine()
+        dst = _make_engine()
+        # Engine que añade corchetes (simula SQL Server)
+        dst.dialect.identifier_preparer.quote.side_effect = lambda n: f"[{n}]"
+
+        cfg = DumpConfig(
+            source_engine=src,
+            target_engine=dst,
+            target_schema="order",  # keyword reservada en SQL
+            truncate_target=False,
+        )
+        src_insp = _make_inspector(["user"], {"user": ["id"]})  # "user" también es keyword
+        dst_insp = _make_inspector(["user"], {"user": ["id"]})
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = cfg
+        orch._src_insp = src_insp
+        orch._dst_insp = dst_insp
+        orch.run()
+
+        call_args = mock_crud.bulk_insert_from_df.call_args
+        assert call_args is not None
+        tabla_arg = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("tabla_destino", "")
+        # Debe estar quoted, no concatenado crudamente
+        assert tabla_arg == "[order].[user]"
+
+    @patch("util_bbdd.dump.orchestrator.SchemaComparator")
+    @patch("util_bbdd.dump.orchestrator.ConstraintManager")
+    @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
+    @patch("pandas.read_sql")
+    @patch("util_bbdd.dump.orchestrator.bulk_crud")
+    def test_chunk_error_sets_error_status_and_correct_row_count(
+        self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator
+    ):
+        """TC5: error en chunk 2 de 2 → status=error, bulk_insert llamado dos veces."""
+        import pandas as pd
+
+        from sqlalchemy.exc import SQLAlchemyError
+
+        mock_comparator.return_value.compare.return_value = MagicMock(table_diffs=())
+        mock_mgr = MagicMock()
+        mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
+        mock_mgr.__exit__ = MagicMock(return_value=False)
+        mock_mgr.constraint_results = []
+        mock_mgr_cls.return_value = mock_mgr
+
+        chunk1 = pd.DataFrame({"id": [1, 2]})
+        chunk2 = pd.DataFrame({"id": [3, 4]})
+        mock_read_sql.return_value = iter([chunk1, chunk2])
+
+        mock_crud = MagicMock()
+        # Primer chunk OK, segundo falla con SQLAlchemyError
+        mock_crud.bulk_insert_from_df.side_effect = [None, SQLAlchemyError("FK violation")]
+        mock_bulk_cls.return_value = mock_crud
+
+        cfg = DumpConfig(
+            source_engine=_make_engine(),
+            target_engine=_make_engine(),
+            truncate_target=False,
+        )
+        src_insp = _make_inspector(["t"], {"t": ["id"]})
+        dst_insp = _make_inspector(["t"], {"t": ["id"]})
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = cfg
+        orch._src_insp = src_insp
+        orch._dst_insp = dst_insp
+        result = orch.run()
+
+        t_result = next(r for r in result.table_results if r.table_name == "t")
+        assert t_result.status == "error"
+        assert "FK violation" in t_result.error_msg
+        assert mock_crud.bulk_insert_from_df.call_count == 2
