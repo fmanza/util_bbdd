@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 
 from sqlalchemy.engine import make_url
@@ -101,6 +101,7 @@ class SchemaComparator:
             include_indices: Comparar índices (solo si ``include_tables`` también está activo).
             include_foreign_keys: Comparar foreign keys (solo si ``include_tables``).
             include_comments: Comparar comentarios de tablas/columnas.
+                **Nota**: Solo efectivo cuando ``include_tables=True``.
             include_routines: Comparar procedures/functions vía catálogo del motor.
                 **Nota**: No todos los motores soportan introspección de routines.
                 - MariaDB, Oracle, SQL Server, PostgreSQL: ✓ Soportado
@@ -479,8 +480,8 @@ class SchemaComparator:
         source_fks = list(source.get_foreign_keys(table, schema=source_schema))
         target_fks = list(target.get_foreign_keys(table, schema=target_schema))
 
-        source_map: dict[str, Any] = {str(fk.get("name", "")): fk for fk in source_fks if fk.get("name")}
-        target_map: dict[str, Any] = {str(fk.get("name", "")): fk for fk in target_fks if fk.get("name")}
+        source_map: dict[str, Any] = {SchemaComparator._fk_key(fk): fk for fk in source_fks}
+        target_map: dict[str, Any] = {SchemaComparator._fk_key(fk): fk for fk in target_fks}
 
         diffs: list[ForeignKeyDiff] = []
 
@@ -698,9 +699,18 @@ class SchemaComparator:
         # inspector.engine es el atributo canónico en SA 2.x; inspector.bind es el alias
         # deprecated de SA 1.4 que fue eliminado en SA 2.0.
         engine: Any | None = getattr(inspector, "engine", None)
-        url_str = str(getattr(engine, "url", "unknown"))
-        # Ocultar credenciales si las hay
-        url: str = re.sub(r"://[^@]+@", "://***@", url_str)
+        url_raw: Any = getattr(engine, "url", None)
+        url_str: str = str(url_raw) if url_raw is not None else "unknown"
+        try:
+            # make_url correctly handles passwords with '@' or other encoded characters;
+            # render_as_string replaces the password with *** and then the regex
+            # safely strips the entire username:***@ prefix.
+            url_obj = make_url(url_str)
+            safe_str: str = url_obj.render_as_string(hide_password=True)
+            url: str = re.sub(r"://[^@]+@", "://***@", safe_str)
+        except Exception:
+            # Fallback para URLs malformadas
+            url = re.sub(r"://[^@]+@", "://***@", url_str)
         if schema:
             return f"{url} [{schema}]"
         return url
@@ -784,6 +794,22 @@ class SchemaComparator:
             DdlNormalizer._COMPARISON_EXTRA_PATTERNS.append((r"MY_PATTERN", ""))
         """
         return DdlNormalizer.normalize_for_comparison(definition)
+
+    @staticmethod
+    def _fk_key(fk: Mapping[str, Any]) -> str:
+        """Genera una clave única para una FK, incluyendo FKs anónimas (name=None).
+
+        Para FKs con nombre usa el nombre como clave.
+        Para FKs anónimas (comunes en SQLite) genera una clave sintética basada en
+        columnas restringidas, tabla referenciada y columnas referenciadas.
+        """
+        name = fk.get("name")
+        if name:
+            return str(name)
+        cols = ",".join(fk.get("constrained_columns") or [])
+        ref_table = fk.get("referred_table") or ""
+        ref_cols = ",".join(fk.get("referred_columns") or [])
+        return f"__anon__{cols}__{ref_table}__{ref_cols}"
 
     @staticmethod
     def _join_columns(column_names: list[str] | None) -> str:

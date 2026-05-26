@@ -299,6 +299,62 @@ class TestSchemaComparatorWithMocks:
         assert "pass" not in label
         assert "***" in label
 
+    def test_label_hides_credentials_with_encoded_special_chars(self, comparator: SchemaComparator) -> None:
+        """T5: Credenciales con '%40' (@ codificado) deben redactarse completamente."""
+        inspector = _make_mock_inspector(bind_url="postgresql+psycopg2://admin:p%40ss%21@host:5432/mydb")
+        label = comparator._build_label(inspector, None)
+        assert "admin" not in label
+        assert "p%40ss%21" not in label
+        assert "***" in label
+
+    def test_anonymous_fk_detected(self, comparator: SchemaComparator) -> None:
+        """T1: FKs an\u00f3nimas (name=None) deben detectarse y no descartarse silenciosamente."""
+        cols = [
+            {"name": "id", "type": "INTEGER", "nullable": False, "default": None},
+            {"name": "role_id", "type": "INTEGER", "nullable": True, "default": None},
+        ]
+        anon_fk = {
+            "name": None,  # FK an\u00f3nima
+            "constrained_columns": ["role_id"],
+            "referred_table": "roles",
+            "referred_columns": ["id"],
+        }
+        source = _make_mock_inspector(
+            tables={"users": cols},
+            pk_constraints={"users": {"constrained_columns": ["id"]}},
+            foreign_keys={"users": [anon_fk]},
+        )
+        target = _make_mock_inspector(
+            tables={"users": cols},
+            pk_constraints={"users": {"constrained_columns": ["id"]}},
+        )
+
+        diff = comparator.compare(source, target)
+
+        assert diff.has_differences
+        assert len(diff.table_diffs[0].fk_diffs) == 1
+        assert diff.table_diffs[0].fk_diffs[0].status == "added"
+        assert diff.table_diffs[0].fk_diffs[0].fk_name == "__anon__role_id__roles__id"
+
+    def test_include_comments_requires_include_tables(self, comparator: SchemaComparator) -> None:
+        """T6: Cuando include_tables=False, los comentarios no se comparan aunque include_comments=True."""
+        cols = [{"name": "id", "type": "INTEGER", "nullable": False, "default": None, "comment": "PK"}]
+        source = _make_mock_inspector(
+            tables={"users": cols},
+            pk_constraints={"users": {"constrained_columns": ["id"]}},
+            table_comments={"users": {"text": "Original comment"}},
+        )
+        target_cols = [{"name": "id", "type": "INTEGER", "nullable": False, "default": None, "comment": "Different"}]
+        target = _make_mock_inspector(
+            tables={"users": target_cols},
+            pk_constraints={"users": {"constrained_columns": ["id"]}},
+            table_comments={"users": {"text": "Different comment"}},
+        )
+
+        diff = comparator.compare(source, target, include_tables=False, include_comments=True)
+
+        assert not diff.has_differences
+
 
 # ---------------------------------------------------------------------------
 # Tests con SQLite in-memory
@@ -884,6 +940,10 @@ class TestGetRoutinesMSSQL:
                 return proc_rows
             if "sys.sql_modules" in sql:
                 return sql_module_result
+            if "sys.objects" in sql:
+                empty_rows = MagicMock()
+                empty_rows.mappings.return_value = []
+                return empty_rows
             return MagicMock()
 
         conn.execute.side_effect = execute_side_effect
@@ -894,6 +954,48 @@ class TestGetRoutinesMSSQL:
         assert routines[0]["name"] == "my_proc"
         assert routines[0]["type"] == "PROCEDURE"
         assert "CREATE PROCEDURE" in routines[0]["definition"]
+
+    def test_returns_functions(self) -> None:
+        """B2: get_routines_mssql debe incluir funciones escalares e inline (FN, IF, TF)."""
+        inspector = MagicMock()
+        engine = _make_engine_mock("mssql")
+        inspector.engine = engine
+        inspector.bind = engine
+
+        conn = MagicMock()
+        engine.connect.return_value.__enter__.return_value = conn
+        engine.connect.return_value.__exit__.return_value = False
+
+        # sys.procedures → vac\u00edo
+        proc_rows = MagicMock()
+        proc_rows.mappings.return_value = []
+
+        # sys.objects (functions) → una funci\u00f3n
+        func_rows = MagicMock()
+        func_rows.mappings.return_value = [{"name": "my_func"}]
+
+        # sys.sql_modules para la funci\u00f3n
+        func_module_result = MagicMock()
+        func_module_result.first.return_value = ("CREATE FUNCTION my_func() RETURNS INT AS BEGIN RETURN 1 END",)
+
+        def execute_side_effect(stmt: Any, params: Any = None) -> Any:
+            sql = str(stmt)
+            if "sys.procedures" in sql:
+                return proc_rows
+            if "sys.objects" in sql:
+                return func_rows
+            if "sys.sql_modules" in sql:
+                return func_module_result
+            return MagicMock()
+
+        conn.execute.side_effect = execute_side_effect
+
+        routines = RoutineFetcherRegistry.get_routines_mssql(inspector, "dbo")
+
+        assert len(routines) == 1
+        assert routines[0]["name"] == "my_func"
+        assert routines[0]["type"] == "FUNCTION"
+        assert "CREATE FUNCTION" in routines[0]["definition"]
 
     def test_returns_empty_when_engine_is_none(self) -> None:
         inspector = MagicMock()
@@ -941,7 +1043,7 @@ class TestGetRoutinesPostgreSQL:
         engine.connect.return_value.__exit__.return_value = False
 
         # pg_proc query result
-        func_row = {"proname": "my_func", "prokind": "f"}  # M1 'f' = function
+        func_row = {"oid": 12345, "proname": "my_func", "prokind": "f", "proargs": ""}  # M1 'f' = function
         func_rows = MagicMock()
         func_rows.mappings.return_value = [func_row]
 
@@ -977,7 +1079,7 @@ class TestGetRoutinesPostgreSQL:
         engine.connect.return_value.__exit__.return_value = False
 
         # pg_proc query result with procedure
-        proc_row = {"proname": "my_proc", "prokind": "p"}  # 'p' = procedure
+        proc_row = {"oid": 67890, "proname": "my_proc", "prokind": "p", "proargs": ""}  # 'p' = procedure
         proc_rows = MagicMock()
         proc_rows.mappings.return_value = [proc_row]
 
@@ -1375,8 +1477,8 @@ class TestEdgeCasesIndexAnonymous:
 
         assert not diff.has_differences
 
-    def test_anonymous_fk_is_skipped(self, comparator: SchemaComparator) -> None:
-        """FKs sin nombre deben ignorarse."""
+    def test_anonymous_fk_is_detected(self, comparator: SchemaComparator) -> None:
+        """FKs sin nombre (anónimas) deben detectarse con clave sintética (B1 fix)."""
         cols = [{"name": "id", "type": "INTEGER", "nullable": False, "default": None}]
         source = _make_mock_inspector(
             tables={"t": cols},
@@ -1394,7 +1496,10 @@ class TestEdgeCasesIndexAnonymous:
 
         diff = comparator.compare(source, target)
 
-        assert not diff.has_differences
+        # Anonymous FK in target (not in source) must be reported as 'removed'
+        assert diff.has_differences
+        assert len(diff.table_diffs[0].fk_diffs) == 1
+        assert diff.table_diffs[0].fk_diffs[0].status == "removed"
 
 
 class TestEdgeCasesNullableDefault:

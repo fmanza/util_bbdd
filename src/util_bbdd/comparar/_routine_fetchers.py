@@ -202,6 +202,31 @@ class RoutineFetcherRegistry:
                     except Exception:  # M1: sys.sql_modules falla por permisos o procedure encriptada
                         definition = ""
                     routines.append({"name": proc_name, "type": "PROCEDURE", "definition": definition})
+                # Funciones escalares, inline y multi-statement (FN, IF, TF)
+                func_result: CursorResult[Any] = conn.execute(
+                    text(
+                        "SELECT o.name FROM sys.objects o "
+                        "WHERE o.schema_id = SCHEMA_ID(:schema) "
+                        "AND o.type IN ('FN', 'IF', 'TF') "
+                        "ORDER BY o.name"
+                    ),
+                    {"schema": schema_name},
+                )
+                for row in func_result.mappings():
+                    func_name = str(row["name"])
+                    try:
+                        func_ddl_result: CursorResult[Any] = conn.execute(
+                            text(
+                                "SELECT definition FROM sys.sql_modules "
+                                "WHERE object_id = OBJECT_ID(CONCAT(:schema_name, '.', :func_name))"
+                            ),
+                            {"schema_name": schema_name, "func_name": func_name},
+                        )
+                        func_ddl_row: Row[Any] | None = func_ddl_result.first()
+                        func_definition: str = str(func_ddl_row[0]) if func_ddl_row else ""
+                    except Exception:  # M1: sys.sql_modules falla por permisos o función encriptada
+                        func_definition = ""
+                    routines.append({"name": func_name, "type": "FUNCTION", "definition": func_definition})
         except Exception as exc:  # M1: Fallback si SQL Server rechaza conexión o query a sys.procedures falla
             logger.warning("No se pudieron obtener routines SQL Server para schema=%s: %s", schema, exc)
 
@@ -228,32 +253,41 @@ class RoutineFetcherRegistry:
             with engine.connect() as conn:
                 result: CursorResult[Any] = conn.execute(
                     text(
-                        "SELECT p.proname, p.prokind "
+                        "SELECT p.oid, p.proname, p.prokind, "
+                        "pg_catalog.pg_get_function_arguments(p.oid) AS proargs "
                         "FROM pg_proc p "
                         "JOIN pg_namespace n ON p.pronamespace = n.oid "
                         "WHERE n.nspname = :schema "
-                        "ORDER BY p.proname"
+                        "ORDER BY p.proname, proargs"
                     ),
                     {"schema": schema_name},
                 )
-                for row in result.mappings():
+                rows_list = list(result.mappings())
+                # Detectar nombres con overloads para asignar clave única solo cuando es necesario
+                name_counts: dict[str, int] = {}
+                for row in rows_list:
+                    name_counts[str(row["proname"])] = name_counts.get(str(row["proname"]), 0) + 1
+
+                for row in rows_list:
+                    func_oid = row["oid"]
                     func_name = str(row["proname"])
                     proc_kind = str(row["prokind"])  # M1: 'f' = function, 'p' = procedure, 'w' = window
                     kind_label: str = RoutineFetcherRegistry._PROCEDURE_KIND_MAP.get(proc_kind, "PROCEDURE")
+                    proargs: str = str(row.get("proargs") or "")
+                    # Nombre único: incluye firma de argumentos solo si hay overloads con el mismo nombre
+                    unique_name: str = f"{func_name}({proargs})" if name_counts[func_name] > 1 else func_name
 
                     try:
+                        # Usar OID directamente evita el fallo de ::regprocedure con overloads
                         ddl_result: CursorResult[Any] = conn.execute(
-                            text(
-                                "SELECT pg_get_functiondef((:schema_name || '.' || :func_name)::regprocedure)"
-                                " AS definition"
-                            ),
-                            {"schema_name": schema_name, "func_name": func_name},
+                            text("SELECT pg_get_functiondef(:oid) AS definition"),
+                            {"oid": func_oid},
                         )
                         ddl_row: Row[Any] | None = ddl_result.first()
                         definition: str = str(ddl_row[0]) if ddl_row and ddl_row[0] else ""
-                    except Exception:  # M1: pg_get_functiondef() falla en C o lenguaje no soportado
+                    except Exception:  # M1: pg_get_functiondef() falla en C, trigger o lenguaje no soportado
                         definition = ""
-                    routines.append({"name": func_name, "type": kind_label, "definition": definition})
+                    routines.append({"name": unique_name, "type": kind_label, "definition": definition})
         except Exception as exc:  # M1: Fallback si PostgreSQL rechaza conexión o query a pg_proc falla
             logger.warning("No se pudieron obtener routines PostgreSQL para schema=%s: %s", schema, exc)
 
