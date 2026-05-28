@@ -15,29 +15,24 @@ de Oracle, MariaDB y SQL Server como fuentes: extraer metadatos → transformar 
 
 ## Flujo principal
 
-```
-PostgreSQL Schema
-        │
-        ▼
-PostgreSQLSchemaExtractor
-  ├── INFORMATION_SCHEMA.TABLES
-  ├── INFORMATION_SCHEMA.COLUMNS (auto_increment via nextval())
-  ├── INFORMATION_SCHEMA.KEY_COLUMN_USAGE (PK/FK)
-  ├── pg_catalog.pg_index + generate_subscripts (índices)
-  └── INFORMATION_SCHEMA.VIEWS
-        │
-        ▼
-PostgreSQLTo{Oracle|MariaDB|SQLServer}Transformer
-  ├── Mapeo de tipos (type_map_postgresql_to_*)
-  ├── Resolución dinámica (CHARACTER VARYING, NUMERIC, BIT)
-  ├── char_length=None → sin límite (CLOB/LONGTEXT/NVARCHAR(MAX))
-  └── Truncación de identificadores + warnings
-        │
-        ▼
-{Oracle|MariaDB|SQLServer}DDLEmitter
-        │
-        ▼
-MigrationPlan.emit_ddl() → script .sql
+```mermaid
+flowchart TD
+    PL["MigrationPlanner\n(source='postgresql')"]
+    EX["PostgreSQLSchemaExtractor\n(INFORMATION_SCHEMA\npg_catalog.pg_index)"]
+    TR_OR["PostgreSQLToOracleTransformer"]
+    TR_MB["PostgreSQLToMariaDBTransformer"]
+    TR_SS["PostgreSQLToSQLServerTransformer"]
+    EM_OR["OracleDDLEmitter\n(SEQUENCE+TRIGGER\no GENERATED AS IDENTITY)"]
+    EM_MB["MariaDBDDLEmitter\n(AUTO_INCREMENT)"]
+    EM_SS["SQLServerDDLEmitter\n(IDENTITY 1,1)"]
+    OUT["MigrationPlan\n.emit_ddl() → .sql\n.execute(target)"]
+
+    PL --> EX
+    EX --> TR_OR & TR_MB & TR_SS
+    TR_OR --> EM_OR
+    TR_MB --> EM_MB
+    TR_SS --> EM_SS
+    EM_OR & EM_MB & EM_SS --> OUT
 ```
 
 ## Reglas de negocio
@@ -96,11 +91,29 @@ revisión manual antes de ejecutar en el motor destino.
 Si una FK referencia una tabla en un schema distinto al migrado, se marca `is_external=True`
 y se emite como `ALTER TABLE` al final del script, con un `WARNING` para verificación manual.
 
+## Stored procedures y funciones
+
+El módulo migra stored procedures y funciones PostgreSQL con estrategia **pass-through v1**:
+el cuerpo DDL se extrae desde `INFORMATION_SCHEMA.ROUTINES` (`ROUTINE_DEFINITION`) y se emite
+verbatim acompañado de cabecera identificativa y aviso de revisión manual.
+
+```sql
+-- FUNCTION: "calcular_total"
+-- NOTE: requires manual review (see migration warnings)
+BEGIN
+  RETURN (SELECT SUM(importe) FROM pedidos WHERE cliente_id = p_id);
+END
+```
+
+Las rutinas se incluyen al final del script DDL. La sintaxis PL/pgSQL (`$$`, `RETURNS`,
+`LANGUAGE plpgsql`, `RAISE`, etc.) no se traduce automáticamente; el aviso indica que
+el body requiere adaptación al dialecto destino.
+
 ## Limitaciones v1
 
 | Limitación | Descripción |
 |---|---|
-| Vistas sin reescritura | Las funciones PostgreSQL-específicas no se traducen automáticamente |
+| Vistas y rutinas sin reescritura | Las funciones PostgreSQL-específicas no se traducen automáticamente |
 | Comentarios de columna | `pg_description` omitido en v1 |
 | Tipos espaciales | `POINT`, `POLYGON`, etc. se mapean a VARCHAR/CLOB/LONGTEXT con severidad `ERROR` |
 | `TSVECTOR`/`TSQUERY` | Se mapean a CLOB/LONGTEXT/NVARCHAR(MAX) con severidad `ERROR` |

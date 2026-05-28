@@ -135,6 +135,8 @@ nav:
       - Volcado de Datos entre Motores: examples/dump_data_export.md
       - Migración Oracle (origen): examples/migrate-oracle-mariadb.md
       - Migración MariaDB (origen): examples/migrate-mariadb-source.md
+      - Migración SQL Server (origen): examples/migrate-sqlserver-source.md
+      - Migración PostgreSQL (origen): examples/migrate-postgresql-source.md
       - Ejecución de Consultas: examples/query_execution_example.md
 
   # ── Contexto del proyecto ──────────────────────────────────────────────────

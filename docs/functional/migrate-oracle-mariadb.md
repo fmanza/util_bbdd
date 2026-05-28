@@ -125,10 +125,33 @@ sequenceDiagram
         f.write(plan.emit_ddl())
     ```
 
+## Stored procedures y funciones
+
+El módulo migra stored procedures, funciones y paquetes PL/SQL con una estrategia **pass-through v1**:
+el cuerpo DDL se extrae verbatim desde `ALL_SOURCE` y se emite en el script destino
+acompañado de un comentario de identificación y un aviso de revisión manual.
+
+```sql
+-- PROCEDURE: "GET_CLIENTES"
+-- NOTE: requires manual review (see migration warnings)
+PROCEDURE GET_CLIENTES(p_id IN NUMBER) AS
+BEGIN
+  SELECT * FROM CLIENTES WHERE ID = p_id;
+END;
+```
+
+Las rutinas se incluyen al final del script DDL, después de tablas y vistas.
+El aviso de revisión manual indica que la sintaxis PL/SQL puede requerir adaptación
+al dialecto del motor destino.
+
+Los miembros de un **PACKAGE** Oracle se marcan con el comentario
+`-- PACKAGE MEMBER: PKG_NAME.ROUTINE_NAME (PROCEDURE|FUNCTION)` y no generan DDL ejecutable
+(los paquetes no tienen equivalente directo en MariaDB, SQL Server ni PostgreSQL).
+
 ## Límites y exclusiones
 
 - Solo soporta Oracle como motor origen (destinos: MariaDB, SQL Server, PostgreSQL)
 - No migra filas de datos, solo la estructura (DDL)
-- No migra triggers, stored procedures, funciones ni paquetes PL/SQL
 - No migra secuencias Oracle como objetos independientes (se incorporan como autoincremento)
+- Las rutinas se emiten verbatim (pass-through v1): la sintaxis PL/SQL no se traduce automáticamente
 - No modifica ni consulta la base de datos Oracle de forma destructiva en ningún caso

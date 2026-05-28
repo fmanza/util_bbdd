@@ -1,7 +1,7 @@
 # 🏗️ Arquitectura de util_bbdd
 
-**Versión:** 0.6.7
-**Última Actualización:** Abril 2026
+**Versión:** 0.8.0
+**Última Actualización:** Mayo 2026
 **Estado:** Estable | Completamente Refactorizado
 **Motores Soportados:** MariaDB • PostgreSQL • Oracle • SQLite • HSQLDB • SQL Server
 
@@ -176,6 +176,21 @@ El repositorio mantiene compatibilidad selectiva en algunos wrappers históricos
 │    ├── comparator.py               # SchemaComparator.compare(source, target) → SchemaDiff
 │    ├── contracts.py                # Tipos y contratos de comparación
 │    └── models.py                   # SchemaDiff (frozen dataclasses)
+│
+│    migrate/                        🔄 Migración DDL entre motores (v0.8.0+)
+│    ├── planner.py                  # MigrationPlanner — orquestador principal (4×3 flujos)
+│    ├── ir/models.py                # IR: CanonicalTable, CanonicalView, CanonicalRoutine, MigrationPlan
+│    ├── extractors/                 # Extracción de metadatos por motor (mariadb, oracle, postgresql, sqlserver)
+│    ├── transformers/               # Mapeo de tipos por par origen→destino (12 transformers)
+│    ├── emitters/                   # Generación DDL por motor destino (mariadb, oracle, postgresql, sqlserver)
+│    ├── _compat/                    # Mapas de tipos por par de motores (12 type_map_*.py)
+│    └── reporters/                  # Reportes text/markdown del plan de migración
+│
+│    dump/                           📤 Volcado de datos entre motores (v0.8.0+)
+│    ├── orchestrator.py             # DumpOrchestrator — copia DataFrames con gestión de constraints
+│    ├── _constraints.py             # ConstraintManager por motor (PG savepoints, Oracle batch, SS NOCHECK)
+│    ├── _models.py                  # DumpConfig, ConstraintResult
+│    └── reporters.py                # DumpReporter (Excel + texto)
 │
 │    [Otros módulos]
 │    ├── async_utils.py              # Helpers (maybe_await, etc.)
@@ -669,6 +684,6 @@ elapsed = time.time() - start
 
 ---
 
-*Documento actualizado: Abril 2026 - alineado a v0.6.7*
+*Documento actualizado: Mayo 2026 - alineado a v0.8.0*
 *Mantenedor: util_bbdd contributors*
 *Licencia: [Ver LICENSE](../LICENSE)*

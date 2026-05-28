@@ -15,29 +15,24 @@ de Oracle y MariaDB como fuentes: extraer metadatos → transformar tipos → em
 
 ## Flujo principal
 
-```
-SQL Server Schema
-        │
-        ▼
-SQLServerSchemaExtractor
-  ├── INFORMATION_SCHEMA.TABLES
-  ├── INFORMATION_SCHEMA.COLUMNS + COLUMNPROPERTY (IDENTITY)
-  ├── INFORMATION_SCHEMA.KEY_COLUMN_USAGE (PK/FK)
-  ├── sys.indexes / sys.index_columns (índices)
-  └── INFORMATION_SCHEMA.VIEWS
-        │
-        ▼
-SQLServerTo{Oracle|MariaDB|PostgreSQL}Transformer
-  ├── Mapeo de tipos (25+ tipos SQL Server)
-  ├── Truncado de identificadores (30/64/63 chars)
-  ├── Detección de MAX (char_length = -1)
-  └── Warnings por decisiones no triviales
-        │
-        ▼
-{Oracle|MariaDB|PostgreSQL}DDLEmitter
-        │
-        ▼
-MigrationPlan.emit_ddl() → script .sql
+```mermaid
+flowchart TD
+    PL["MigrationPlanner\n(source='sqlserver')"]
+    EX["SQLServerSchemaExtractor\n(INFORMATION_SCHEMA\nsys.indexes / sys.objects)"]
+    TR_OR["SQLServerToOracleTransformer"]
+    TR_MB["SQLServerToMariaDBTransformer"]
+    TR_PG["SQLServerToPostgreSQLTransformer"]
+    EM_OR["OracleDDLEmitter\n(SEQUENCE+TRIGGER\no GENERATED AS IDENTITY)"]
+    EM_MB["MariaDBDDLEmitter\n(AUTO_INCREMENT)"]
+    EM_PG["PostgreSQLDDLEmitter\n(SERIAL/BIGSERIAL)"]
+    OUT["MigrationPlan\n.emit_ddl() → .sql\n.execute(target)"]
+
+    PL --> EX
+    EX --> TR_OR & TR_MB & TR_PG
+    TR_OR --> EM_OR
+    TR_MB --> EM_MB
+    TR_PG --> EM_PG
+    EM_OR & EM_MB & EM_PG --> OUT
 ```
 
 ## Uso básico
@@ -192,11 +187,32 @@ T-SQL (`GETDATE`, `ISNULL`, `TOP`, `NOLOCK`, etc.) requieren revisión manual.
 | WARNING | TINYINT (rango), DATETIMEOFFSET→MariaDB, TEXT/NTEXT obsoletos, VIEW pass-through |
 | INFO | BIT, TINYINT→SMALLINT (PG), FLOAT, REAL, MONEY, DATETIME2 truncación |
 
+## Stored procedures y funciones
+
+El módulo migra stored procedures y funciones SQL Server con estrategia **pass-through v1**:
+el cuerpo DDL se extrae desde `sys.sql_modules` y se emite verbatim acompañado de
+cabecera identificativa y aviso de revisión manual.
+
+```sql
+-- PROCEDURE: [usp_get_clientes]
+-- NOTE: requires manual review (see migration warnings)
+CREATE PROCEDURE [dbo].[usp_get_clientes]
+  @p_id INT
+AS
+BEGIN
+  SELECT * FROM CLIENTES WHERE ID = @p_id;
+END
+```
+
+Las rutinas se incluyen al final del script DDL. La sintaxis T-SQL (variables `@`, `TOP`,
+`NOLOCK`, `GETDATE()`, etc.) no se traduce automáticamente; el aviso de revisión manual
+indica que el body requiere adaptación al dialecto destino.
+
 ## Limitaciones v1
 
 - Param style `%(name)s` (pymssql). Para pyodbc se necesita un manager wrapper que
   adapte `%(name)s` → `?`.
-- Vistas: pass-through sin reescritura de funciones T-SQL específicas.
+- Vistas y rutinas: pass-through sin reescritura de funciones T-SQL específicas.
 - Sin soporte de: columnas computadas, UDTs (User-Defined Types), tipos alias, tablas
   temporales, tablas con particionado.
 - `VIEW_DEFINITION` puede truncarse en SQL Server < 2019.

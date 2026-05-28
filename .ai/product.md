@@ -4,7 +4,7 @@
 
 **util_bbdd** es una librería Python especializada en operaciones de base de datos para múltiples motores (MariaDB, PostgreSQL, Oracle, SQLite, SQL Server, HSQLDB). Proporciona abstracción unificada con operaciones CRUD en lote, auditoría automática, gestión de conexiones con pool singleton, y análisis de relaciones.
 
-**Versión:** 0.6.3 | **Estado:** Estable | **Python:** ≥3.12
+**Versión:** 0.8.0 | **Estado:** Estable | **Python:** ≥3.12
 
 ## Motores Soportados
 
@@ -26,6 +26,9 @@
 - **Query Registry**: Registro centralizado y versionado de consultas
 - **Visualización**: Grafos de relaciones multinivel (graphviz, matplotlib)
 - **Documentación**: Generación automática de esquema en HTML, Word y Excel
+- **Migración DDL**: `MigrationPlanner` convierte DDL entre 4 motores (12 combinaciones: Oracle/MariaDB/SQL Server/PostgreSQL); tablas, vistas, rutinas; 25+ tipos mapeados por par de motores
+- **Comparación de esquemas**: `SchemaComparator` detecta diferencias entre dos schemas; reporters HTML/Excel/Word/Markdown/SQL
+- **Volcado de datos**: `DumpOrchestrator` copia datos entre motores con gestión de constraints
 
 ## Migración y compatibilidad
 
