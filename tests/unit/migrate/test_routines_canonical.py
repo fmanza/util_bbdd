@@ -116,7 +116,9 @@ class TestMigrationPlanRoutines:
         plan = _plan_with_routines([_routine(name="SP_ONE"), _routine(name="SP_TWO")])
         stmts = plan.emit_statements()
         bodies = "\n".join(stmts)
-        assert "SP_ONE" not in bodies  # body verbatim, no el nombre wrapeado
+        assert "-- PROCEDURE: `SP_ONE`" in bodies  # cabecera identifica nombre y tipo
+        assert "-- PROCEDURE: `SP_TWO`" in bodies
+        assert "CREATE PROCEDURE" not in bodies  # body verbatim, sin wrapping DDL
         assert "BEGIN" in bodies
 
     def test_routine_stub_when_no_body(self) -> None:
