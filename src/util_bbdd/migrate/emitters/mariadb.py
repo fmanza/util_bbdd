@@ -135,6 +135,7 @@ class MariaDBDDLEmitter:
                 f"-- PACKAGE MEMBER: {pkg}.{routine.name} ({routine.routine_type})\n"
                 f"-- No direct equivalent in MariaDB; manual migration required"
             )
+        lines.append(f"-- {routine.routine_type}: {_bt(routine.name)}")
         if routine.warnings:
             lines.append("-- NOTE: requires manual review (see migration warnings)")
         if routine.comment:

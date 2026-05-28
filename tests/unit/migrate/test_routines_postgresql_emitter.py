@@ -81,3 +81,17 @@ class TestPostgreSQLRoutineEmitter:
         routines = [_routine("sp_a"), _routine("sp_b")]
         stmts = _emitter().emit_statements(tables=[], routines=routines)
         assert len([s for s in stmts if "PERFORM 1" in s]) == 2
+
+    def test_routine_type_and_name_header_procedure(self) -> None:
+        ddl = _emitter().emit(tables=[], routines=[_routine(name="sp_test", routine_type="PROCEDURE")])
+        assert '-- PROCEDURE: "sp_test"' in ddl
+
+    def test_routine_type_and_name_header_function(self) -> None:
+        r = _routine(name="fn_calc", routine_type="FUNCTION", body="BEGIN\n  RETURN 1;\nEND;")
+        ddl = _emitter().emit(tables=[], routines=[r])
+        assert '-- FUNCTION: "fn_calc"' in ddl
+
+    def test_routine_header_present_even_without_warnings(self) -> None:
+        r = _routine(name="sp_nowarns", warnings=[])
+        ddl = _emitter().emit(tables=[], routines=[r])
+        assert '-- PROCEDURE: "sp_nowarns"' in ddl

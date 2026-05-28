@@ -387,6 +387,7 @@ class OracleDDLEmitter:
                 f"-- PACKAGE MEMBER: {pkg}.{routine.name} ({routine.routine_type})\n"
                 f"-- No direct equivalent in Oracle target; manual migration required"
             )
+        lines.append(f"-- {routine.routine_type}: {_dq(routine.name)}")
         if routine.warnings:
             lines.append("-- NOTE: requires manual review (see migration warnings)")
         if routine.comment:

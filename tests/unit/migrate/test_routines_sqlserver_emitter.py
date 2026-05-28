@@ -82,3 +82,17 @@ class TestSQLServerRoutineEmitter:
         stmts = _emitter().emit_statements(tables=[], routines=routines)
         all_combined = "\n".join(stmts)
         assert all_combined.count("SELECT 1") == 2
+
+    def test_routine_type_and_name_header_procedure(self) -> None:
+        ddl = _emitter().emit(tables=[], routines=[_routine(name="SP_TEST", routine_type="PROCEDURE")])
+        assert "-- PROCEDURE: [SP_TEST]" in ddl
+
+    def test_routine_type_and_name_header_function(self) -> None:
+        r = _routine(name="FN_CALC", routine_type="FUNCTION", body="CREATE FUNCTION dbo.FN_CALC() RETURNS INT AS BEGIN RETURN 1 END")
+        ddl = _emitter().emit(tables=[], routines=[r])
+        assert "-- FUNCTION: [FN_CALC]" in ddl
+
+    def test_routine_header_present_even_without_warnings(self) -> None:
+        r = _routine(name="SP_NOWARNS", warnings=[])
+        ddl = _emitter().emit(tables=[], routines=[r])
+        assert "-- PROCEDURE: [SP_NOWARNS]" in ddl

@@ -151,6 +151,7 @@ class SQLServerDDLEmitter:
                 f"-- PACKAGE MEMBER: {pkg}.{routine.name} ({routine.routine_type})\n"
                 f"-- No direct equivalent in SQL Server; manual migration required"
             )
+        lines.append(f"-- {routine.routine_type}: {_br(routine.name)}")
         if routine.warnings:
             lines.append("-- NOTE: requires manual review (see migration warnings)")
         if routine.comment:
