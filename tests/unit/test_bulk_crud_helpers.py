@@ -176,3 +176,56 @@ def test_compilar_stmt_con_binarios_fallback_named(sqlite_bulk_manager: bulk_cru
 def test_compilar_stmt_con_binarios_reraises_non_binary_errors(sqlite_bulk_manager: bulk_crud) -> None:
     with pytest.raises(RuntimeError, match="boom"):
         compile_stmt_with_binary_support(_NonBinaryFailingStmt(), sqlite_bulk_manager.engine.dialect)
+
+
+# ---------------------------------------------------------------------------
+# Propuesta B — bulk_session
+# ---------------------------------------------------------------------------
+
+
+def test_bulk_session_reuses_single_connection() -> None:
+    """engine.begin() se abre 1 vez para 3 llamadas a bulk_insert_from_df dentro de bulk_session."""
+    from unittest.mock import patch
+
+    from sqlalchemy import Column, Integer, MetaData, Table
+
+    engine = create_engine("sqlite:///:memory:")
+    Table("widgets", MetaData(), Column("id", Integer, primary_key=True)).create(bind=engine)
+
+    import pandas as pd
+
+    crud = bulk_crud(engine=engine)
+
+    open_count: list[int] = [0]
+    original_begin = engine.begin
+
+    def counting_begin():
+        open_count[0] += 1
+        return original_begin()
+
+    with patch.object(engine, "begin", side_effect=counting_begin):
+        with crud.bulk_session():
+            for _ in range(3):
+                crud.bulk_insert_from_df(pd.DataFrame({"id": []}), "widgets", generar_sql=False)
+
+    assert open_count[0] == 1, f"Se esperaba 1 transacción, se abrieron {open_count[0]}"
+
+
+def test_bulk_session_resets_active_connection_on_exit() -> None:
+    """_active_connection vuelve a None al salir del bloque bulk_session."""
+    engine = create_engine("sqlite:///:memory:")
+    crud = bulk_crud(engine=engine)
+
+    with crud.bulk_session():
+        assert crud._batch_statement_executor._active_connection is not None
+
+    assert crud._batch_statement_executor._active_connection is None
+
+
+def test_bulk_session_atomic_false_does_not_inject_connection() -> None:
+    """Con atomic=False, _active_connection nunca se inyecta (comportamiento legacy)."""
+    engine = create_engine("sqlite:///:memory:")
+    crud = bulk_crud(engine=engine)
+
+    with crud.bulk_session(atomic=False):
+        assert crud._batch_statement_executor._active_connection is None

@@ -25,13 +25,12 @@ import pandas as pd
 from sqlalchemy import Engine, Inspector, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from util_bbdd.bulk import bulk_crud
+from util_bbdd.bulk import BulkCrud, bulk_crud
 from util_bbdd.bulk.audit import AuditManager
 from util_bbdd.comparar import SchemaComparator, SchemaDiff
 
 from ._constraints import ConstraintManager, ConstraintResult
 from ._models import DumpAuditSummary, DumpConfig, DumpResult, TableDumpResult
-from ._protocols import BulkInserter
 from ._sql_utils import quote_identifier, quote_table
 from .reporters import DumpReporter
 
@@ -99,8 +98,7 @@ class DumpOrchestrator:
             _key = _t.lower()
             if _key in dst_lower:
                 _log.warning(
-                    "Colisión de nombre en destino (case): '%s' y '%s' colisionan al normalizar; "
-                    "se usará '%s'.",
+                    "Colisión de nombre en destino (case): '%s' y '%s' colisionan al normalizar; se usará '%s'.",
                     dst_lower[_key],
                     _t,
                     dst_lower[_key],
@@ -223,26 +221,33 @@ class DumpOrchestrator:
         common_cols, skipped_cols, col_name_map = self._common_columns(src_table, dst_table)
 
         if not common_cols:
-            target_count = self._safe_count(cfg.target_engine, dst_table, cfg.target_schema)
+            if cfg.collect_row_counts:
+                src_count = self._safe_count(cfg.source_engine, src_table, cfg.source_schema)
+                tgt_count = self._safe_count(cfg.target_engine, dst_table, cfg.target_schema)
+            else:
+                src_count = tgt_count = -1
             return TableDumpResult(
                 table_name=src_table,
-                source_rows=self._safe_count(cfg.source_engine, src_table, cfg.source_schema),
-                target_rows_before=target_count,
-                target_rows_after=target_count,
+                source_rows=src_count,
+                target_rows_before=tgt_count,
+                target_rows_after=tgt_count,
                 status="skipped",
                 skipped_columns=skipped_cols,
                 load_order_position=position,
                 in_cycle=in_cycle,
             )
 
-        source_rows = self._safe_count(cfg.source_engine, src_table, cfg.source_schema)
-        target_rows_before = self._safe_count(cfg.target_engine, dst_table, cfg.target_schema)
+        if cfg.collect_row_counts:
+            source_rows = self._safe_count(cfg.source_engine, src_table, cfg.source_schema)
+            target_rows_before = self._safe_count(cfg.target_engine, dst_table, cfg.target_schema)
+        else:
+            source_rows = target_rows_before = -1
 
         cols_quoted = ", ".join(quote_identifier(c, cfg.source_engine) for c in common_cols)
         table_quoted = quote_table(src_table, cfg.source_schema, cfg.source_engine)
         sql = f"SELECT {cols_quoted} FROM {table_quoted}"
 
-        crud: BulkInserter = bulk_crud(
+        crud: BulkCrud = bulk_crud(
             cfg.target_engine,
             chunk_size=cfg.chunk_size,
             audit_csv_path=cfg.bulk_audit_path,
@@ -256,16 +261,19 @@ class DumpOrchestrator:
         try:
             with cfg.source_engine.connect() as conn:
                 chunks = pd.read_sql(text(sql), conn, chunksize=cfg.chunk_size)
-                for chunk in chunks:
-                    df_filtered = chunk[common_cols].rename(columns=col_name_map)
-                    try:
-                        crud.bulk_insert_from_df(df_filtered, dest_table_logical, generar_sql=False)
-                    except (SQLAlchemyError, ValueError) as exc:
-                        error_msgs.append(str(exc))
+                try:
+                    with crud.bulk_session():
+                        for chunk in chunks:
+                            df_filtered = chunk[common_cols].rename(columns=col_name_map)
+                            crud.bulk_insert_from_df(df_filtered, dest_table_logical, generar_sql=False)
+                except (SQLAlchemyError, ValueError) as exc:
+                    error_msgs.append(str(exc))
         except (SQLAlchemyError, ValueError, pd.errors.DatabaseError) as exc:
             error_msgs.append(f"Error leyendo origen: {exc}")
 
-        target_rows_after = self._safe_count(cfg.target_engine, dst_table, cfg.target_schema)
+        target_rows_after = (
+            self._safe_count(cfg.target_engine, dst_table, cfg.target_schema) if cfg.collect_row_counts else -1
+        )
         status: Literal["success", "error"] = "error" if error_msgs else "success"
 
         return TableDumpResult(
@@ -299,7 +307,9 @@ class DumpOrchestrator:
         para soportar motores con diferente sensibilidad a mayúsculas.
         """
         src = [c["name"] for c in self._src_insp.get_columns(src_table, schema=self._cfg.source_schema)]
-        dst_by_lower = {c["name"].lower(): c["name"] for c in self._dst_insp.get_columns(dst_table, schema=self._cfg.target_schema)}
+        dst_by_lower = {
+            c["name"].lower(): c["name"] for c in self._dst_insp.get_columns(dst_table, schema=self._cfg.target_schema)
+        }
         common = [name for name in src if name.lower() in dst_by_lower]
         skipped = [name for name in src if name.lower() not in dst_by_lower]
         name_map = {name: dst_by_lower[name.lower()] for name in common}

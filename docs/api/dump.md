@@ -37,6 +37,7 @@ class DumpConfig:
     output_dir: Path = Path()
     truncate_target: bool = True
     bulk_audit_path: Path | None = None
+    collect_row_counts: bool = True
 ```
 
 | Parámetro | Tipo | Default | Descripción |
@@ -50,6 +51,7 @@ class DumpConfig:
 | `output_dir` | `Path` | `Path()` | Directorio donde guardar el informe Excel |
 | `truncate_target` | `bool` | `True` | `True` = vaciar destino antes de cargar; `False` = append |
 | `bulk_audit_path` | `Path \| None` | `None` | Ruta del CSV de auditoría de `util_bbdd.bulk.audit`. Si se proporciona: (1) cada INSERT queda registrado en el CSV durante la carga y (2) al finalizar el volcado, `DumpResult.audit_summary` se popula con las métricas del CSV filtradas al rango temporal del volcado. `None` = sin auditoría de inserts. |
+| `collect_row_counts` | `bool` | `True` | Si `True`, ejecuta `COUNT(*)` sobre origen y destino por tabla para obtener volumetría. Si `False`, omite todos los conteos y usa `-1` como sentinel en `TableDumpResult.source_rows`, `target_rows_before` y `target_rows_after`. Útil en volcados de alto volumen donde el conteo es costoso (Snowflake, Oracle sin estadísticas actualizadas, tablas de decenas de millones de filas). El informe Excel muestra `—` para los valores `-1`. |
 
 ---
 
@@ -143,9 +145,9 @@ Resultado del volcado de una tabla individual. Presente en `DumpResult.table_res
 @dataclass
 class TableDumpResult:
     table_name: str
-    source_rows: int          # -1 si no se pudo contar
-    target_rows_before: int   # -1 si no se pudo contar
-    target_rows_after: int    # -1 si no se pudo contar
+    source_rows: int          # -1 si no se pudo contar o collect_row_counts=False
+    target_rows_before: int   # -1 si no se pudo contar o collect_row_counts=False
+    target_rows_after: int    # -1 si no se pudo contar o collect_row_counts=False
     status: Literal["success", "missing_target", "skipped", "error"]
     skipped_columns: list[str]
     load_order_position: int  # -1 para tablas missing_target
@@ -157,8 +159,8 @@ class TableDumpResult:
 
 | Valor | Significado |
 |---|---|
-| `"success"` | Todos los chunks cargados sin error |
-| `"error"` | Al menos un chunk falló; `error_msg` contiene el detalle |
+| `"success"` | Todos los chunks cargados sin error (table-atomic: un error en cualquier chunk hace rollback de toda la tabla) |
+| `"error"` | La carga falló; `error_msg` contiene el detalle. Errores de lectura del origen llevan prefijo `"Error leyendo origen: "` |
 | `"skipped"` | No hay columnas comunes entre origen y destino |
 | `"missing_target"` | La tabla no existe en el destino |
 

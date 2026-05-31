@@ -681,9 +681,7 @@ class TestCrossEngineTableMatching:
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
     @patch("pandas.read_sql", return_value=iter([]))
-    def test_genuinely_missing_table_still_reported(
-        self, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator
-    ):
+    def test_genuinely_missing_table_still_reported(self, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator):
         """Una tabla que realmente no existe en destino debe seguir reportándose."""
         mock_comparator.return_value.compare.return_value = MagicMock(table_diffs=())
         mock_mgr = MagicMock()
@@ -693,7 +691,7 @@ class TestCrossEngineTableMatching:
         mock_mgr_cls.return_value = mock_mgr
 
         orch = self._make_cross_engine_orchestrator(
-            src_tables=["Orders", "Inventory"],   # Inventory no existe en dst
+            src_tables=["Orders", "Inventory"],  # Inventory no existe en dst
             dst_tables=["orders"],
         )
         result = orch.run()
@@ -733,9 +731,7 @@ class TestCrossEngineTableMatching:
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
     @patch("pandas.read_sql", return_value=iter([]))
-    def test_same_engine_no_regression(
-        self, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator
-    ):
+    def test_same_engine_no_regression(self, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator):
         """Mismo motor (mismo case en nombres) no introduce regresiÃ³n."""
         mock_comparator.return_value.compare.return_value = MagicMock(table_diffs=())
         mock_mgr = MagicMock()
@@ -759,3 +755,89 @@ class TestCrossEngineTableMatching:
         success_or_skipped = [r for r in result.table_results if r.status in ("success", "skipped")]
         assert missing == []
         assert len(success_or_skipped) == 2
+
+
+# ---------------------------------------------------------------------------
+# Propuesta C — collect_row_counts
+# ---------------------------------------------------------------------------
+
+
+class TestCollectRowCounts:
+    def test_dump_config_collect_row_counts_defaults_true(self) -> None:
+        """DumpConfig.collect_row_counts es True por defecto."""
+        engine = _make_engine()
+        cfg = DumpConfig(source_engine=engine, target_engine=engine)
+        assert cfg.collect_row_counts is True
+
+    @patch("util_bbdd.dump.orchestrator.SchemaComparator")
+    @patch("util_bbdd.dump.orchestrator.ConstraintManager")
+    @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
+    @patch("pandas.read_sql", return_value=iter([]))
+    @patch("util_bbdd.dump.orchestrator.bulk_crud")
+    def test_collect_row_counts_false_returns_minus_one(
+        self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator
+    ) -> None:
+        """collect_row_counts=False → source_rows y target_rows_* son -1."""
+        mock_comparator.return_value.compare.return_value = MagicMock(table_diffs=())
+        mock_mgr = MagicMock()
+        mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
+        mock_mgr.__exit__ = MagicMock(return_value=False)
+        mock_mgr.constraint_results = []
+        mock_mgr_cls.return_value = mock_mgr
+        mock_bulk_cls.return_value = MagicMock()
+
+        cfg = DumpConfig(
+            source_engine=_make_engine(),
+            target_engine=_make_engine(),
+            truncate_target=False,
+            collect_row_counts=False,
+        )
+        src_insp = _make_inspector(["customers"], {"customers": ["id"]})
+        dst_insp = _make_inspector(["customers"], {"customers": ["id"]})
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = cfg
+        orch._src_insp = src_insp
+        orch._dst_insp = dst_insp
+
+        with patch.object(orch, "_safe_count") as mock_safe_count:
+            result = orch.run()
+
+        mock_safe_count.assert_not_called()
+        t = next(r for r in result.table_results if r.table_name == "customers")
+        assert t.source_rows == -1
+        assert t.target_rows_before == -1
+        assert t.target_rows_after == -1
+
+    @patch("util_bbdd.dump.orchestrator.SchemaComparator")
+    @patch("util_bbdd.dump.orchestrator.ConstraintManager")
+    @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
+    @patch("pandas.read_sql", return_value=iter([]))
+    @patch("util_bbdd.dump.orchestrator.bulk_crud")
+    def test_process_table_calls_bulk_session(
+        self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator
+    ) -> None:
+        """bulk_session() se llama al menos una vez durante el procesado de la tabla."""
+        mock_comparator.return_value.compare.return_value = MagicMock(table_diffs=())
+        mock_mgr = MagicMock()
+        mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
+        mock_mgr.__exit__ = MagicMock(return_value=False)
+        mock_mgr.constraint_results = []
+        mock_mgr_cls.return_value = mock_mgr
+
+        mock_crud = MagicMock()
+        mock_bulk_cls.return_value = mock_crud
+
+        cfg = DumpConfig(
+            source_engine=_make_engine(),
+            target_engine=_make_engine(),
+            truncate_target=False,
+        )
+        src_insp = _make_inspector(["orders"], {"orders": ["id"]})
+        dst_insp = _make_inspector(["orders"], {"orders": ["id"]})
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = cfg
+        orch._src_insp = src_insp
+        orch._dst_insp = dst_insp
+        orch.run()
+
+        mock_crud.bulk_session.assert_called_once()

@@ -7,6 +7,63 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] - develop
 
+### Performance
+
+#### bulk/dump: tres mejoras de rendimiento en el pipeline dump→DataFrame→bulk
+
+Análisis de cuellos de botella en `DumpOrchestrator._process_table` e implementación
+de tres optimizaciones ortogonales. Sin cambios de contrato público; retrocompatibilidad
+total garantizada (`collect_row_counts=True` por defecto).
+
+**Propuesta A — Identity Map en `reflect_table` (`BulkCrud`):**
+
+- `crud.py`: `_table_cache: dict[str, Table] = {}` en `__init__`; `reflect_table()`
+  devuelve el objeto cacheado en llamadas sucesivas con el mismo nombre de tabla.
+  Elimina N-1 round-trips de introspección SQL por tabla en loops de chunks
+  (con `chunk_size=5000` y 500K filas eran 100 `autoload_with` innecesarios).
+  Caché aislado por instancia (no compartido entre instancias de `BulkCrud`).
+
+**Propuesta B — `bulk_session()` + conexión inyectada en `BatchStatementExecutor`:**
+
+- `crud.py`: nuevo `@contextmanager bulk_session(*, atomic: bool = True)` — abre
+  1 única transacción para todo el loop de chunks. Con `atomic=False` preserva el
+  comportamiento anterior (transacción por chunk / legacy).
+- `_execution/batch.py`: `BatchStatementExecutor` gana `_active_connection: Any | None`;
+  si está inyectado (via `bulk_session()`), reutiliza la conexión en lugar de abrir
+  `engine.begin()` por lote. Método interno `_execute_on_connection()` extrae la
+  lógica del loop.
+- `dump/orchestrator.py`: loop de chunks envuelto en `with crud.bulk_session()`.
+  **Cambio de semántica**: comportamiento anterior era partial-commit (commit por chunk);
+  nuevo es table-atomic (todo o nada por tabla). Error en cualquier chunk → rollback
+  completo de la tabla. Inner `try/except` por chunk eliminado; outer `except` cubre
+  errores de lectura origen con prefijo `"Error leyendo origen: "`.
+
+**Propuesta C — `collect_row_counts: bool = True` en `DumpConfig`:**
+
+- `dump/_models.py`: nuevo campo `collect_row_counts: bool = True` en `DumpConfig`.
+  Con `False`, omite los `COUNT(*)` sobre origen y destino y devuelve `-1` como
+  sentinel; útil en volcados de alto volumen donde el conteo es costoso (Snowflake,
+  Oracle sin estadísticas actualizadas, tablas de decenas de millones de filas).
+  `DumpReporter` ya manejaba `-1` con guarda `if res.source_rows >= 0`.
+- `dump/orchestrator.py`: `_process_table` (ruta normal y ruta `skipped`) aplica la
+  guarda. `_safe_count` no se invoca cuando `collect_row_counts=False`.
+
+**Tests añadidos (9 nuevos):**
+- `tests/unit/test_bulk_internal_helpers.py`: caché aislado por instancia, hit del caché,
+  conexión inyectada omite `engine.begin()`
+- `tests/unit/test_bulk_crud_helpers.py`: `bulk_session` abre 1 transacción, resetea
+  `_active_connection` al salir, `atomic=False` no inyecta
+- `tests/unit/dump/test_orchestrator.py`: `collect_row_counts` default `True`,
+  `False` devuelve `-1` sin llamar `_safe_count`, `bulk_session` se invoca por tabla
+
+**Archivos afectados:**
+- `src/util_bbdd/bulk/crud.py`
+- `src/util_bbdd/bulk/_execution/batch.py`
+- `src/util_bbdd/dump/_models.py`
+- `src/util_bbdd/dump/orchestrator.py`
+
+---
+
 ### Refactored
 
 #### bulk: remediación de deuda técnica — 20 ítems en 4 fases

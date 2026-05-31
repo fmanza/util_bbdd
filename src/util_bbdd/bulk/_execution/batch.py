@@ -113,14 +113,26 @@ class BatchStatementExecutor:
     def __init__(self, *, engine: Engine, chunk_size: int) -> None:
         self._engine: Engine = engine
         self._chunk_size: int = chunk_size
+        self._active_connection: Any | None = None
 
     def execute(self, *, records: Sequence[Mapping[str, Any]], stmt: Any) -> None:
-        """Ejecuta un statement SQLAlchemy por batches."""
-        with self._engine.begin() as connection:
-            for start in range(0, len(records), self._chunk_size):
-                batch = records[start : start + self._chunk_size]
-                payload = [{str(key): value for key, value in record.items()} for record in batch]
-                connection.execute(stmt, payload)
+        """Ejecuta un statement SQLAlchemy por batches.
+
+        Si ``_active_connection`` está activo (inyectado via ``BulkCrud.bulk_session()``),
+        reutiliza esa conexión en lugar de abrir una nueva transacción por lote.
+        """
+        if self._active_connection is not None:
+            self._execute_on_connection(self._active_connection, records, stmt)
+        else:
+            with self._engine.begin() as connection:
+                self._execute_on_connection(connection, records, stmt)
+
+    def _execute_on_connection(self, connection: Any, records: Sequence[Mapping[str, Any]], stmt: Any) -> None:
+        """Ejecuta los batches sobre una conexión ya abierta."""
+        for start in range(0, len(records), self._chunk_size):
+            batch = records[start : start + self._chunk_size]
+            payload = [{str(key): value for key, value in record.items()} for record in batch]
+            connection.execute(stmt, payload)
 
 
 class DeleteBatchExecutor:

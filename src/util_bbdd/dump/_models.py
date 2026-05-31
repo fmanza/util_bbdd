@@ -53,6 +53,10 @@ class DumpConfig:
             Recomendado para volcados completos. ``False`` = modo append.
         bulk_audit_path: Ruta del CSV de auditoría para los inserts en destino.
             ``None`` (default) = los inserts no se registran en auditoría.
+        collect_row_counts: Si ``True`` (default), se ejecutan ``COUNT(*)`` sobre origen
+            y destino por tabla para obtener la volumetría real. ``False`` los omite y
+            usa ``-1`` como sentinel; útil en volcados de alto volumen donde el conteo
+            es costoso (Snowflake, Oracle sin estadísticas actualizadas, tablas muy grandes).
     """
 
     source_engine: Engine
@@ -64,6 +68,7 @@ class DumpConfig:
     output_dir: Path = field(default_factory=Path)
     truncate_target: bool = True
     bulk_audit_path: Path | None = None
+    collect_row_counts: bool = True
 
 
 @dataclass

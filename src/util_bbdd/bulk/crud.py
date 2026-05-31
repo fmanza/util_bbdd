@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import logging
 
-from collections.abc import Callable, Hashable, Mapping, Sequence
+from collections.abc import Callable, Hashable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
@@ -120,6 +121,7 @@ class BulkCrud:
         self.logger: logging.Logger = logging.getLogger(__name__)
 
         self.engine: Engine = validate_engine(engine)
+        self._table_cache: dict[str, Table] = {}
 
         self.chunk_size: int = chunk_size
         self.audit_manager: AuditManager = AuditManager(audit_csv_path)
@@ -517,6 +519,10 @@ class BulkCrud:
         """
         Refleja una tabla desde la base de datos y devuelve el objeto `Table` correspondiente.
 
+        El resultado se almacena en ``_table_cache`` (Identity Map) para evitar round-trips
+        repetidos de introspección cuando se llama varias veces con el mismo nombre de tabla
+        dentro de la misma instancia (p.ej. loop de chunks en ``DumpOrchestrator``).
+
         Args:
             tabla_destino: Nombre lógico de la tabla. Puede ser ``"schema.tabla"`` para
                 especificar un schema explícito. Se normaliza el casing según el dialecto.
@@ -524,13 +530,43 @@ class BulkCrud:
         Returns:
             El objeto `Table` reflejado.
         """
+        if tabla_destino in self._table_cache:
+            return self._table_cache[tabla_destino]
         metadata = MetaData()
         if "." in tabla_destino:
             schema_part, table_part = tabla_destino.split(".", 1)
             tabla_normalizada: str = normalize_identifier(table_part, self.engine.dialect.name)
-            return Table(tabla_normalizada, metadata, schema=schema_part, autoload_with=self.engine)
-        tabla_normalizada = normalize_identifier(tabla_destino, self.engine.dialect.name)
-        return Table(tabla_normalizada, metadata, autoload_with=self.engine)
+            tabla = Table(tabla_normalizada, metadata, schema=schema_part, autoload_with=self.engine)
+        else:
+            tabla_normalizada = normalize_identifier(tabla_destino, self.engine.dialect.name)
+            tabla = Table(tabla_normalizada, metadata, autoload_with=self.engine)
+        self._table_cache[tabla_destino] = tabla
+        return tabla
+
+    @contextmanager
+    def bulk_session(self, *, atomic: bool = True) -> Iterator[None]:
+        """Context manager que reutiliza una única conexión de BD para múltiples inserts.
+
+        Usar cuando se invoca ``bulk_insert_from_df`` repetidamente (p.ej. en un loop
+        de chunks), para evitar abrir y cerrar una transacción por cada invocación.
+
+        Args:
+            atomic: Si ``True`` (default), todos los inserts de la sesión se commitean
+                atómicamente al salir del bloque. Un error en cualquier chunk hace
+                rollback de toda la sesión. Si ``False``, cada ``bulk_insert_from_df``
+                gestiona su propia transacción (comportamiento legacy).
+
+        Nota: ``BulkCrud`` no es thread-safe. No compartir instancias entre hilos.
+        """
+        if not atomic:
+            yield
+            return
+        with self._batch_statement_executor._engine.begin() as conn:
+            self._batch_statement_executor._active_connection = conn
+            try:
+                yield
+            finally:
+                self._batch_statement_executor._active_connection = None
 
     def get_columna_may_min(self, tabla: Table, nombre_col: str) -> Column | None:
         """Devuelve una columna de una tabla SQLAlchemy ignorando mayúsculas/minúsculas."""

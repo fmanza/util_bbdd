@@ -85,7 +85,7 @@ Las tablas se cargan en el orden topológico calculado. Para cada tabla:
 
 1. Se calculan las **columnas comunes** (intersección case-insensitive entre origen y destino).
 2. Se leen los datos en chunks (`chunk_size`, por defecto 5 000 filas).
-3. Se insertan mediante `bulk_crud.bulk_insert_from_df()`.
+3. Todos los chunks de una tabla se insertan **dentro de una única transacción** (`bulk_session(atomic=True)`): si cualquier chunk falla, la tabla completa hace rollback.
 4. Si una tabla falla, se registra el error y **se continúa** con la siguiente (best-effort).
 
 Las tablas sin columnas comunes se marcan como `skipped` sin lanzar error.
@@ -115,12 +115,14 @@ Al salir del contexto `ConstraintManager` (incluso si se lanzó una excepción d
 |---|---|
 | No aplica DDL | Si la tabla no existe en destino, no se crea automáticamente |
 | No soporta secuencias/identidades | Las columnas IDENTITY/AUTOINCREMENT del destino no se resetean |
-| Sin transacción global | Cada tabla se inserta en su propia transacción; no hay rollback global |
+| Sin transacción global | Cada tabla se inserta en su propia transacción (`bulk_session`); no hay rollback global entre tablas |
+| Semántica table-atomic | Dentro de cada tabla, todos los chunks son atómicos: un error en cualquier chunk hace rollback de toda la tabla |
 | Constraint management solo en 4 motores | SQL Server, MariaDB, PostgreSQL, Oracle. Otros: no-op con warning |
 | El informe Excel usa openpyxl | Requiere la dependencia `openpyxl` instalada |
 | `truncate_target=False` (modo append) | Puede generar duplicados si los datos ya existen en destino |
 | MariaDB/MySQL — pool recomendado | El engine destino MariaDB debe crearse con `pool_pre_ping=True` y `pool_recycle=3600` para evitar `Server has gone away`. `SyncDatabaseManager.get_sqlalchemy_engine()` los incluye por defecto. |
 | MariaDB/MySQL — `max_allowed_packet` | Tablas con columnas `TEXT`/`BLOB`/`JSON` extensas requieren `chunk_size` reducido (≤ 500) o aumentar `max_allowed_packet` en el servidor. |
+| `collect_row_counts=False` | Deshabilita los `COUNT(*)` sobre origen y destino por tabla. Los campos de volumetría en el informe Excel muestran `—`. Útil en volcados de alto volumen (Snowflake, Oracle sin estadísticas actualizadas). |
 
 ---
 

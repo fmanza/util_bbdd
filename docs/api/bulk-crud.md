@@ -2,6 +2,8 @@
 
 Proporciona operaciones de INSERT, UPDATE y DELETE masivo sobre tablas existentes usando DataFrames de pandas como fuente. Internamente aplica normalización de identificadores por motor (minúsculas para Oracle/PostgreSQL, mayúsculas para MySQL/MariaDB/SQL Server/HSQLDB), divide los datos en lotes (`chunk_size`) y delega la ejecución en `BatchStatementExecutor`. Opcionalmente registra cada operación en `AuditManager` y puede generar el SQL equivalente en fichero.
 
+Para loops de múltiples inserts sobre la misma tabla (p.ej. volcado por chunks), usar `bulk_session()` para reutilizar una única transacción y aprovechar el caché de reflexión de tabla.
+
 ## Internal Dependencies
 
 | Dependencia | Propósito | Requerida | Comportamiento sin ella |
@@ -33,6 +35,8 @@ flowchart TD
 | `bulk_insert_from_df` | `(df, tabla_destino, generar_sql?, path_sql?)` | INSERT masivo desde DataFrame | `None` |
 | `bulk_update_from_df` | `(df, tabla_destino, generar_sql?, path_sql?)` | UPDATE masivo desde DataFrame | `None` |
 | `bulk_delete_from_df` | `(df, tabla_destino, generar_sql?, path_sql?)` | DELETE masivo desde DataFrame | `None` |
+| `bulk_session` | `(*, atomic=True)` | Context manager para loop de inserts con 1 transacción | `Iterator[None]` |
+| `reflect_table` | `(tabla_destino)` | Refleja tabla SQLAlchemy (con caché interno) | `Table` |
 
 ## Contrato de entrada
 
@@ -64,6 +68,8 @@ flowchart TD
 - **SQL Server**: detecta el driver (`pymssql` vs `pyodbc`) inspeccionando `engine.url.drivername` y ajusta el `db_info` de auditoría.
 - **generar_sql=True**: el fichero SQL se escribe con el nombre `{tabla}_{operacion}_{timestamp}.sql` dentro de `path_sql`. Si `path_sql` no existe o no es un directorio válido, lanza `ValueError` antes de ejecutar ninguna operación en BD.
 - La auditoría se registra aunque la operación falle parcialmente (el registro refleja las filas afectadas hasta el punto de fallo).
+- **`reflect_table` — Identity Map**: la reflexión de tabla (`autoload_with=engine`) se cachea en `_table_cache` por instancia. Llamadas sucesivas con el mismo nombre de tabla devuelven el objeto `Table` sin nuevo round-trip SQL. El caché es independiente por instancia (no compartido entre instancias de `BulkCrud`).
+- **`bulk_session(atomic=True)`**: abre una única transacción para todos los inserts dentro del bloque. Un error en cualquier insert hace rollback completo (semántica table-atomic). Con `atomic=False` cada `bulk_insert_from_df` gestiona su propia transacción (comportamiento legacy). `BulkCrud` no es thread-safe; no compartir instancias entre hilos.
 
 #### Auditoría con métricas de timing
 

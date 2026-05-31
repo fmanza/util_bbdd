@@ -285,3 +285,57 @@ def test_bulk_persistence_manager_registers_operations_in_audit() -> None:
     )
 
     audit_manager.registrar_operacion.assert_called_once_with("users", "SQLITE", "INSERT", 3, 1.25, True)
+
+
+# ---------------------------------------------------------------------------
+# Propuesta A — caché reflect_table (Identity Map)
+# ---------------------------------------------------------------------------
+
+
+def test_reflect_table_caches_result() -> None:
+    """Segunda llamada con la misma tabla devuelve el mismo objeto (sin autoload_with extra)."""
+    from util_bbdd.bulk.crud import BulkCrud
+
+    engine = create_engine("sqlite:///:memory:")
+    Table("items", MetaData(), Column("id", Integer, primary_key=True)).create(bind=engine)
+
+    crud = BulkCrud(engine=engine)
+    table_a = crud.reflect_table("items")
+    table_b = crud.reflect_table("items")
+
+    assert table_a is table_b
+
+
+def test_reflect_table_cache_isolated_per_instance() -> None:
+    """El caché no se comparte entre distintas instancias de BulkCrud."""
+    from util_bbdd.bulk.crud import BulkCrud
+
+    engine = create_engine("sqlite:///:memory:")
+    Table("items", MetaData(), Column("id", Integer, primary_key=True)).create(bind=engine)
+
+    crud_1 = BulkCrud(engine=engine)
+    crud_2 = BulkCrud(engine=engine)
+    table_1 = crud_1.reflect_table("items")
+    table_2 = crud_2.reflect_table("items")
+
+    assert table_1 is not table_2
+    assert crud_1._table_cache is not crud_2._table_cache
+
+
+# ---------------------------------------------------------------------------
+# Propuesta B — BatchStatementExecutor con conexión inyectada
+# ---------------------------------------------------------------------------
+
+
+def test_batch_executor_uses_injected_connection() -> None:
+    """Si _active_connection está inyectado, engine.begin() no debe llamarse."""
+    engine = MagicMock()
+    executor = BatchStatementExecutor(engine=engine, chunk_size=10)
+
+    conn = MagicMock()
+    executor._active_connection = conn
+
+    executor.execute(records=[{"id": 1}], stmt=MagicMock())
+
+    engine.begin.assert_not_called()
+    conn.execute.assert_called_once()
