@@ -527,28 +527,47 @@ for table_diff in diff.table_diffs:
 
 ### Comparar entre Diferentes Motores
 
+La comparación es **case-insensitive en nombres de tabla y columna**, lo que permite
+cruzar motores con convenciones de mayúsculas distintas:
+
+| Motor  | Convención de nombres |
+|--------|-----------------------|
+| Oracle | `UPPERCASE` |
+| MariaDB / MySQL | `lowercase` |
+| PostgreSQL | `lowercase` |
+| SQL Server | preserva el case del DDL |
+| SQLite | preserva el case del DDL |
+
+Columnas como `EMPLOYEE_ID` (Oracle) y `employee_id` (MariaDB) se reconocen como
+la **misma columna** y no generan diffs de existencia. Las diferencias de tipo
+(`NUMBER` vs `INT`) sí se reportan como `attribute="type"` — son esperadas e informacionales
+en comparaciones cross-engine.
+
 ```python
 from sqlalchemy import create_engine, inspect
 from util_bbdd.comparar import SchemaComparator
 
-# PostgreSQL
-postgres_engine = create_engine("postgresql://user:pass@localhost/db_pg")
-postgres_inspector = inspect(postgres_engine)
+# Oracle origen
+oracle_engine = create_engine("oracle+oracledb://user:pass@host:1521/?service_name=ORCL")
+oracle_inspector = inspect(oracle_engine)
 
-# SQLite
-sqlite_engine = create_engine("sqlite:///db.sqlite")
-sqlite_inspector = inspect(sqlite_engine)
+# MariaDB destino
+mariadb_engine = create_engine("mariadb+mariadbconnector://user:pass@host:3306/db")
+mariadb_inspector = inspect(mariadb_engine)
 
-# Comparar (las diferencias de tipos se normalizarán)
 comparator = SchemaComparator()
 diff = comparator.compare(
-    source=postgres_inspector,
-    target=sqlite_inspector,
+    source=oracle_inspector,
+    target=mariadb_inspector,
+    source_schema="HR",      # Schema origen en Oracle
+    target_schema="hr_db",  # Schema destino en MariaDB
 )
 
-# Notar: tipos VARCHAR vs TEXT, etc., aparecerán como "modified"
+# Columnas con el mismo nombre (distinto case) NO aparecen como "missing"
+# Solo aparecen diffs de tipo (NUMBER vs INT, VARCHAR2 vs VARCHAR, etc.)
 for col_diff in [cd for t in diff.table_diffs for cd in t.column_diffs]:
-    print(f"{col_diff.column_name}: {col_diff.source_value} → {col_diff.target_value}")
+    print(f"{col_diff.column_name}: [{col_diff.attribute}] "
+          f"{col_diff.source_value} → {col_diff.target_value}")
 ```
 
 ---

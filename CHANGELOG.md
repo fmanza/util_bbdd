@@ -150,6 +150,38 @@ Sin cambios de contrato público; retrocompatibilidad total garantizada.
 
 ### Fixed
 
+#### comparar: comparación de columnas case-insensitive en migraciones cross-engine (Oracle → MariaDB)
+
+En comparaciones entre motores con convenciones de case distintas (Oracle devuelve
+nombres en `UPPERCASE`, MariaDB en `lowercase`), las columnas de la tabla origen
+aparecían todas como `"missing"` en el destino aunque existiesen con el mismo nombre.
+
+**Root cause**: `SchemaComparator._compare_columns_from_raw()` construía diccionarios
+con clave `col["name"]` (case-sensitive). Las operaciones de `set` producían intersección
+vacía entre `{"EMPLOYEE_ID"}` y `{"employee_id"}`.
+
+**Fix**:
+
+- `_compare_columns_from_raw`: construye `source_by_lower` / `target_by_lower`
+  (`lower→col`). Operaciones de existencia sobre claves lowercase; `ColumnDiff`
+  preserva el nombre canónico del motor origen. Añade `logger.warning` si dos columnas
+  colisionan al normalizar.
+- `_diff_common_column`: nuevo parámetro `tgt_col_name`; PK check usa
+  `{pk.lower() for pk in pks}` para ser case-insensitive entre motores.
+- `_compare_comments_from_raw`: mismo patrón `lower→col`; nombre canónico en
+  `CommentDiff` usa el del origen cuando existe, el del destino si la columna
+  solo está en target.
+
+El volcado de datos (`_common_columns`) ya era case-insensitive desde la sesión
+`2026-05-31-dump-cross-engine`. Este fix corrige el **informe Excel** que reportaba
+incorrectamente columnas como inexistentes.
+
+**Archivos afectados**:
+- `src/util_bbdd/comparar/comparator.py`
+- `tests/comparar/test_comparator.py` — 5 tests nuevos (`TestCrossEngineCaseInsensitiveColumns`)
+
+---
+
 #### migrate/emitters: doble entrecomillado de DEFAULT en migraciones Oracle → MariaDB / PostgreSQL / SQL Server
 
 Oracle almacena `DATA_DEFAULT` en `ALL_TAB_COLUMNS` **incluyendo las comillas simples**

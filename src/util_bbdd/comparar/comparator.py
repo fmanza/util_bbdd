@@ -342,34 +342,76 @@ class SchemaComparator:
         source_pk: Any,
         target_pk: Any,
     ) -> tuple[ColumnDiff, ...]:
-        """Compara columnas a partir de listas ya cargadas (evita doble consulta)."""
-        source_cols: dict[str, Any] = {col["name"]: col for col in source_cols_raw}
-        target_cols: dict[str, Any] = {col["name"]: col for col in target_cols_raw}
+        """Compara columnas a partir de listas ya cargadas (evita doble consulta).
+
+        La comparación de existencia es case-insensitive para soportar motores con
+        convenciones de case distintas (p.ej. Oracle UPPERCASE vs MariaDB lowercase).
+        Los nombres canónicos de cada motor se preservan en los ColumnDiff.
+        """
+        # Mapas lower→col para comparación case-insensitive entre motores distintos
+        source_by_lower: dict[str, Any] = {}
+        for col in source_cols_raw:
+            key = col["name"].lower()
+            if key in source_by_lower:
+                logger.warning(
+                    "Colisión de case en columnas origen: '%s' y '%s' colisionan al normalizar; se usará '%s'.",
+                    source_by_lower[key]["name"],
+                    col["name"],
+                    source_by_lower[key]["name"],
+                )
+            else:
+                source_by_lower[key] = col
+
+        target_by_lower: dict[str, Any] = {}
+        for col in target_cols_raw:
+            key = col["name"].lower()
+            if key in target_by_lower:
+                logger.warning(
+                    "Colisión de case en columnas destino: '%s' y '%s' colisionan al normalizar; se usará '%s'.",
+                    target_by_lower[key]["name"],
+                    col["name"],
+                    target_by_lower[key]["name"],
+                )
+            else:
+                target_by_lower[key] = col
 
         source_pks: list[str] = (source_pk or {}).get("constrained_columns") or []
         target_pks: list[str] = (target_pk or {}).get("constrained_columns") or []
 
         diffs: list[ColumnDiff] = []
 
-        # Columnas solo en source
+        # Columnas solo en source — nombre canónico del motor origen
         diffs.extend(
-            ColumnDiff(column_name=cn, attribute="existence", source_value="exists", target_value="missing")
-            for cn in sorted(set(source_cols) - set(target_cols))
+            ColumnDiff(
+                column_name=source_by_lower[k]["name"],
+                attribute="existence",
+                source_value="exists",
+                target_value="missing",
+            )
+            for k in sorted(source_by_lower.keys() - target_by_lower.keys())
         )
 
-        # Columnas solo en target
+        # Columnas solo en target — nombre canónico del motor destino
         diffs.extend(
-            ColumnDiff(column_name=cn, attribute="existence", source_value="missing", target_value="exists")
-            for cn in sorted(set(target_cols) - set(source_cols))
+            ColumnDiff(
+                column_name=target_by_lower[k]["name"],
+                attribute="existence",
+                source_value="missing",
+                target_value="exists",
+            )
+            for k in sorted(target_by_lower.keys() - source_by_lower.keys())
         )
 
-        # Columnas comunes — comparar atributos
-        for col_name in sorted(set(source_cols) & set(target_cols)):
+        # Columnas comunes — comparar atributos usando nombres canónicos de cada motor
+        for lower_key in sorted(source_by_lower.keys() & target_by_lower.keys()):
+            s_col = source_by_lower[lower_key]
+            t_col = target_by_lower[lower_key]
             diffs.extend(
                 SchemaComparator._diff_common_column(
-                    col_name,
-                    source_cols[col_name],
-                    target_cols[col_name],
+                    s_col["name"],
+                    t_col["name"],
+                    s_col,
+                    t_col,
                     source_pks,
                     target_pks,
                 ),
@@ -380,12 +422,18 @@ class SchemaComparator:
     @staticmethod
     def _diff_common_column(
         col_name: str,
+        tgt_col_name: str,
         s_col: dict[str, Any],
         t_col: dict[str, Any],
         source_pks: list[str],
         target_pks: list[str],
     ) -> list[ColumnDiff]:
-        """Devuelve los ColumnDiff para una columna presente en ambos esquemas."""
+        """Devuelve los ColumnDiff para una columna presente en ambos esquemas.
+
+        ``col_name`` es el nombre canónico en el motor origen (usado en todos los ColumnDiff).
+        ``tgt_col_name`` es el nombre canónico en el motor destino (usado solo para el check de PK,
+        que puede tener distinto case entre motores).
+        """
         diffs: list[ColumnDiff] = []
 
         s_type = str(s_col.get("type", ""))
@@ -405,8 +453,11 @@ class SchemaComparator:
                 ),
             )
 
-        s_pk = str(col_name in source_pks)
-        t_pk = str(col_name in target_pks)
+        # PK check case-insensitive: Oracle devuelve PKs en UPPER, MariaDB en lower
+        source_pks_lower = {pk.lower() for pk in source_pks}
+        target_pks_lower = {pk.lower() for pk in target_pks}
+        s_pk = str(col_name.lower() in source_pks_lower)
+        t_pk = str(tgt_col_name.lower() in target_pks_lower)
         if s_pk != t_pk:
             diffs.append(
                 ColumnDiff(column_name=col_name, attribute="primary_key", source_value=s_pk, target_value=t_pk),
@@ -589,16 +640,19 @@ class SchemaComparator:
                 ),
             )
 
-        source_cols: dict[str, Any] = {col["name"]: col for col in source_cols_raw}
-        target_cols: dict[str, Any] = {col["name"]: col for col in target_cols_raw}
-        for col_name in sorted(set(source_cols) | set(target_cols)):
-            s_col_comment = str((source_cols.get(col_name) or {}).get("comment") or "")
-            t_col_comment = str((target_cols.get(col_name) or {}).get("comment") or "")
+        # Mapas lower→col para comparación case-insensitive entre motores distintos.
+        # El nombre canónico en ColumnDiff usa source si existe, target en caso contrario.
+        source_cols_lower: dict[str, Any] = {col["name"].lower(): col for col in source_cols_raw}
+        target_cols_lower: dict[str, Any] = {col["name"].lower(): col for col in target_cols_raw}
+        for lower_key in sorted(source_cols_lower.keys() | target_cols_lower.keys()):
+            s_col_comment = str((source_cols_lower.get(lower_key) or {}).get("comment") or "")
+            t_col_comment = str((target_cols_lower.get(lower_key) or {}).get("comment") or "")
             if s_col_comment != t_col_comment:
+                canonical = (source_cols_lower.get(lower_key) or target_cols_lower[lower_key])["name"]
                 diffs.append(
                     CommentDiff(
                         object_name=table,
-                        column_name=col_name,
+                        column_name=canonical,
                         source_comment=s_col_comment,
                         target_comment=t_col_comment,
                     ),

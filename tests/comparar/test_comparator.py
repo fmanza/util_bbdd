@@ -598,6 +598,162 @@ class TestExceptionHandlingRobustness:
             comparator.compare(source, target, include_foreign_keys=True)
 
 
+# ---------------------------------------------------------------------------
+# Tests cross-engine: comparación case-insensitive de columnas
+# ---------------------------------------------------------------------------
+
+
+class TestCrossEngineCaseInsensitiveColumns:
+    """Verifica que la comparación de columnas sea case-insensitive entre motores.
+
+    Escenario típico: Oracle devuelve nombres en UPPERCASE, MariaDB en lowercase.
+    Las columnas que existen en ambos no deben reportarse como 'missing'.
+    """
+
+    def test_identical_columns_upper_vs_lower_no_existence_diffs(self, comparator: SchemaComparator) -> None:
+        """Source UPPERCASE (Oracle), target lowercase (MariaDB): sin diffs de existencia."""
+        source = _make_mock_inspector(
+            tables={
+                "EMPLOYEES": [
+                    {"name": "ID", "type": "NUMBER", "nullable": False, "default": None},
+                    {"name": "EMPLOYEE_NAME", "type": "VARCHAR2(100)", "nullable": True, "default": None},
+                    {"name": "SALARY", "type": "NUMBER", "nullable": True, "default": None},
+                ]
+            },
+            pk_constraints={"EMPLOYEES": {"constrained_columns": ["ID"]}},
+        )
+        target = _make_mock_inspector(
+            tables={
+                "employees": [
+                    {"name": "id", "type": "INT", "nullable": False, "default": None},
+                    {"name": "employee_name", "type": "VARCHAR(100)", "nullable": True, "default": None},
+                    {"name": "salary", "type": "DECIMAL(10,2)", "nullable": True, "default": None},
+                ]
+            },
+            pk_constraints={"employees": {"constrained_columns": ["id"]}},
+        )
+
+        diff = comparator.compare(source, target)
+
+        # Pueden haber diffs de tipo (NUMBER vs INT es esperado cross-engine)
+        # pero NUNCA diffs de existencia
+        existence_diffs = [
+            d
+            for td in diff.table_diffs
+            for d in td.column_diffs
+            if d.attribute == "existence"
+        ]
+        assert existence_diffs == [], f"Falsos diffs de existencia: {existence_diffs}"
+
+    def test_extra_column_only_in_source_reports_canonical_name(self, comparator: SchemaComparator) -> None:
+        """Columna extra en source (UPPERCASE) → reportada con nombre canónico del origen."""
+        source = _make_mock_inspector(
+            tables={
+                "EMPLOYEES": [
+                    {"name": "ID", "type": "NUMBER", "nullable": False, "default": None},
+                    {"name": "BONUS", "type": "NUMBER", "nullable": True, "default": None},
+                ]
+            },
+            pk_constraints={"EMPLOYEES": {"constrained_columns": ["ID"]}},
+        )
+        target = _make_mock_inspector(
+            tables={
+                "employees": [
+                    {"name": "id", "type": "INT", "nullable": False, "default": None},
+                ]
+            },
+            pk_constraints={"employees": {"constrained_columns": ["id"]}},
+        )
+
+        diff = comparator.compare(source, target)
+
+        existence_diffs = [
+            d
+            for td in diff.table_diffs
+            for d in td.column_diffs
+            if d.attribute == "existence" and d.source_value == "exists"
+        ]
+        assert len(existence_diffs) == 1
+        assert existence_diffs[0].column_name == "BONUS"  # Nombre canónico del origen
+        assert existence_diffs[0].target_value == "missing"
+
+    def test_pk_cross_engine_no_false_pk_diff(self, comparator: SchemaComparator) -> None:
+        """PK ['ID'] en Oracle vs ['id'] en MariaDB: no debe reportar diff de primary_key."""
+        source = _make_mock_inspector(
+            tables={
+                "ORDERS": [
+                    {"name": "ORDER_ID", "type": "NUMBER", "nullable": False, "default": None},
+                    {"name": "AMOUNT", "type": "NUMBER", "nullable": True, "default": None},
+                ]
+            },
+            pk_constraints={"ORDERS": {"constrained_columns": ["ORDER_ID"]}},
+        )
+        target = _make_mock_inspector(
+            tables={
+                "orders": [
+                    {"name": "order_id", "type": "INT", "nullable": False, "default": None},
+                    {"name": "amount", "type": "DECIMAL(10,2)", "nullable": True, "default": None},
+                ]
+            },
+            pk_constraints={"orders": {"constrained_columns": ["order_id"]}},
+        )
+
+        diff = comparator.compare(source, target)
+
+        pk_diffs = [
+            d
+            for td in diff.table_diffs
+            for d in td.column_diffs
+            if d.attribute == "primary_key"
+        ]
+        assert pk_diffs == [], f"Falsos diffs de primary_key: {pk_diffs}"
+
+    def test_same_engine_same_case_no_regression(self, comparator: SchemaComparator) -> None:
+        """Mismo motor, mismo case: comportamiento idéntico al original."""
+        cols = [
+            {"name": "id", "type": "INTEGER", "nullable": False, "default": None},
+            {"name": "name", "type": "VARCHAR(50)", "nullable": True, "default": None},
+        ]
+        source = _make_mock_inspector(
+            tables={"users": cols},
+            pk_constraints={"users": {"constrained_columns": ["id"]}},
+        )
+        target = _make_mock_inspector(
+            tables={"users": cols},
+            pk_constraints={"users": {"constrained_columns": ["id"]}},
+        )
+
+        diff = comparator.compare(source, target)
+
+        assert not diff.has_differences
+
+    def test_comments_cross_engine_no_false_comment_diffs(self, comparator: SchemaComparator) -> None:
+        """Comentarios de columna con mismo texto pero distinto case de nombre: sin falsos diffs."""
+        source = _make_mock_inspector(
+            tables={
+                "PRODUCTS": [
+                    {"name": "PRODUCT_ID", "type": "NUMBER", "nullable": False, "default": None, "comment": "PK"},
+                ]
+            },
+            pk_constraints={"PRODUCTS": {"constrained_columns": ["PRODUCT_ID"]}},
+            table_comments={"PRODUCTS": {"text": "Productos"}},
+        )
+        target = _make_mock_inspector(
+            tables={
+                "products": [
+                    {"name": "product_id", "type": "INT", "nullable": False, "default": None, "comment": "PK"},
+                ]
+            },
+            pk_constraints={"products": {"constrained_columns": ["product_id"]}},
+            table_comments={"products": {"text": "Productos"}},
+        )
+
+        diff = comparator.compare(source, target, include_comments=True)
+
+        comment_diffs = [d for td in diff.table_diffs for d in td.comment_diffs]
+        assert comment_diffs == [], f"Falsos diffs de comentario: {comment_diffs}"
+
+
 class TestNormalizeDdl:
     def test_removes_definer(self) -> None:
         sql = "CREATE DEFINER=`root`@`localhost` VIEW v_users AS SELECT 1"
