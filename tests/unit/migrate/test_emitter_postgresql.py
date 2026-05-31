@@ -324,6 +324,19 @@ class TestFormatDefaultPostgreSQL:
         """DEBT-08: CURRENT_TIMESTAMP(6) debe pasar sin entrecomillar."""
         assert _format_default_postgresql("CURRENT_TIMESTAMP(6)") == "CURRENT_TIMESTAMP(6)"
 
+    def test_oracle_quoted_numeric_default_not_double_quoted(self) -> None:
+        """Regresión: Oracle almacena DATA_DEFAULT con comillas ('6').
+        El emitter no debe volver a entrecomillar → evitar DEFAULT '''6'''."""
+        assert _format_default_postgresql("'6'") == "'6'"
+
+    def test_oracle_quoted_string_default_not_double_quoted(self) -> None:
+        """Regresión: literal de texto Oracle ya entrecomillado ('ACTIVO') no se dobla."""
+        assert _format_default_postgresql("'ACTIVO'") == "'ACTIVO'"
+
+    def test_oracle_empty_string_default_preserved(self) -> None:
+        """Literal vacío Oracle ('') se preserva tal cual."""
+        assert _format_default_postgresql("''") == "''"
+
     def test_now_with_precision_passed_through(self) -> None:
         """DEBT-08: NOW(3) debe pasar sin entrecomillar."""
         assert _format_default_postgresql("NOW(3)") == "NOW(3)"

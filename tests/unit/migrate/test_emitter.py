@@ -235,6 +235,36 @@ class TestMariaDBDDLEmitter:
         assert "DEFAULT SYS_GUID()" in ddl
         assert "DEFAULT 'SYS_GUID()'" not in ddl
 
+    def test_oracle_quoted_numeric_default_not_double_quoted(self) -> None:
+        """Regresión: Oracle almacena DATA_DEFAULT con comillas (p.ej. '6').
+        El emitter no debe volver a entrecomillar → evitar DEFAULT '''6'''."""
+        table = _table(
+            "T_APP",
+            [_col("IDAPLICACION", "INT(11)", nullable=False, default="'6'")],
+        )
+        ddl = self.emitter.emit([table])
+        assert "DEFAULT '6'" in ddl
+        assert "DEFAULT '''6'''" not in ddl
+
+    def test_oracle_quoted_string_default_not_double_quoted(self) -> None:
+        """Regresión: literal de texto Oracle ya entrecomillado ('ACTIVO') no se dobla."""
+        table = _table(
+            "T_ESTADO",
+            [_col("ESTADO", "VARCHAR(10)", nullable=False, default="'ACTIVO'")],
+        )
+        ddl = self.emitter.emit([table])
+        assert "DEFAULT 'ACTIVO'" in ddl
+        assert "DEFAULT ''ACTIVO''" not in ddl
+
+    def test_oracle_empty_string_default_preserved(self) -> None:
+        """Literal vacío Oracle ('') se preserva tal cual."""
+        table = _table(
+            "T_EMPTY",
+            [_col("NOTA", "VARCHAR(100)", nullable=True, default="''")],
+        )
+        ddl = self.emitter.emit([table])
+        assert "DEFAULT ''" in ddl
+
 
 class TestTopologicalSort:
     def _fk(self, name: str, ref_table: str) -> CanonicalFK:

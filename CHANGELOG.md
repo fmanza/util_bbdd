@@ -150,6 +150,31 @@ Sin cambios de contrato público; retrocompatibilidad total garantizada.
 
 ### Fixed
 
+#### migrate/emitters: doble entrecomillado de DEFAULT en migraciones Oracle → MariaDB / PostgreSQL / SQL Server
+
+Oracle almacena `DATA_DEFAULT` en `ALL_TAB_COLUMNS` **incluyendo las comillas simples**
+cuando el valor por defecto es un literal de texto (p.ej. `'6'`, `'ACTIVO'`).
+Las funciones `_format_default` de los tres emitters no detectaban el literal ya
+entrecomillado y lo re-envolvían, produciendo `DEFAULT '''6'''`, que falla al ejecutar.
+
+**Fix**: añadido guard en `_format_default` / `_format_default_postgresql` /
+`_format_default_sqlserver`:
+
+```python
+if len(v) >= 2 and v.startswith("'") and v.endswith("'"):
+    return v
+```
+
+**Archivos afectados**:
+- `src/util_bbdd/migrate/emitters/mariadb.py`
+- `src/util_bbdd/migrate/emitters/postgresql.py`
+- `src/util_bbdd/migrate/emitters/sqlserver.py`
+- `tests/unit/migrate/test_emitter.py` — 3 tests nuevos
+- `tests/unit/migrate/test_emitter_postgresql.py` — 3 tests nuevos
+- `tests/unit/migrate/test_emitter_sqlserver.py` — 3 tests nuevos
+
+---
+
 #### migrate/emitters: Oracle emite body de rutinas verbatim (sin `CREATE OR REPLACE`)
 
 `_emit_create_routine()` en `OracleDDLEmitter` anteponía `CREATE OR REPLACE` al body

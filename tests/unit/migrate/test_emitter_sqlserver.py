@@ -337,3 +337,16 @@ class TestFormatDefaultSQLServer:
 
     def test_empty_string_returns_null(self) -> None:
         assert _format_default_sqlserver("") == "NULL"
+
+    def test_oracle_quoted_numeric_default_not_double_quoted(self) -> None:
+        """Regresión: Oracle almacena DATA_DEFAULT con comillas ('6').
+        El emitter no debe volver a entrecomillar → evitar DEFAULT '''6'''."""
+        assert _format_default_sqlserver("'6'") == "'6'"
+
+    def test_oracle_quoted_string_default_not_double_quoted(self) -> None:
+        """Regresión: literal de texto Oracle ya entrecomillado ('ACTIVO') no se dobla."""
+        assert _format_default_sqlserver("'ACTIVO'") == "'ACTIVO'"
+
+    def test_oracle_empty_string_default_preserved(self) -> None:
+        """Literal vacío Oracle ('') se preserva tal cual."""
+        assert _format_default_sqlserver("''") == "''"

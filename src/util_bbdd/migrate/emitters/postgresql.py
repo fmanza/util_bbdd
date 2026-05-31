@@ -328,7 +328,11 @@ def _format_default_postgresql(value: str) -> str:
     except ValueError:
         pass
 
-    # String literal
+    # String literal ya entrecomillado (Oracle almacena DATA_DEFAULT con comillas, p.ej. '6')
+    if len(v) >= 2 and v.startswith("'") and v.endswith("'"):
+        return v
+
+    # String literal sin entrecomillar
     escaped = v.replace("'", "''")
     return f"'{escaped}'"
 
