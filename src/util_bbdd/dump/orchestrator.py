@@ -240,7 +240,10 @@ class DumpOrchestrator:
             chunk_size=cfg.chunk_size,
             audit_csv_path=cfg.bulk_audit_path,
         )
-        dest_table_quoted = quote_table(dst_table, cfg.target_schema, cfg.target_engine)
+        # bulk_insert_from_df → reflect_table espera nombre lógico sin quoting de dialecto
+        # (schema.tabla o solo tabla). quote_table genera backticks/corchetes que reflect_table
+        # no puede procesar, pues los pasa literalmente a SQLAlchemy Table().
+        dest_table_logical = f"{cfg.target_schema}.{dst_table}" if cfg.target_schema else dst_table
         error_msgs: list[str] = []
 
         try:
@@ -249,7 +252,7 @@ class DumpOrchestrator:
                 for chunk in chunks:
                     df_filtered = chunk[common_cols].rename(columns=col_name_map)
                     try:
-                        crud.bulk_insert_from_df(df_filtered, dest_table_quoted, generar_sql=False)
+                        crud.bulk_insert_from_df(df_filtered, dest_table_logical, generar_sql=False)
                     except (SQLAlchemyError, ValueError) as exc:
                         error_msgs.append(str(exc))
         except (SQLAlchemyError, ValueError, pd.errors.DatabaseError) as exc:

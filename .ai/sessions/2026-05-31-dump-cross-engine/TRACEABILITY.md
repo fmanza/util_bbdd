@@ -30,6 +30,17 @@ Se ha realizado una primera prueba de src\util_bbdd\dump con dos motores diferen
 
 ## Root cause analysis
 
+### Bug cuaternario — `orchestrator.py._process_table` (descubierto en ejecución real)
+`bulk_insert_from_df` recibía `dest_table_quoted` (resultado de `quote_table`), por ejemplo
+`` `SURVEY_CATALOGO` `` para MariaDB. `reflect_table` en `BulkCrud` espera un nombre lógico
+(`schema.tabla` sin delimitadores de dialecto) ya que los pasa directamente a `Table()` de
+SQLAlchemy. `normalize_identifier` solo cambia el case, no elimina backticks ni corchetes,
+por lo que SQLAlchemy intentaba reflejar una tabla literalmente llamada `` `SURVEY_CATALOGO` ``.
+Este bug era latente: antes del fix cross-engine, los INSERTs nunca se ejecutaban (todo era
+`missing_target`). Al corregir la detección de tablas, el INSERT se intentó y el bug afloró.
+**Fix:** `dest_table_logical = f"{schema}.{dst_table}" if schema else dst_table` — formato
+lógico solo para `bulk_insert_from_df`; `quote_table` sigue usándose para el SELECT directo.
+
 ### Bug raíz — `orchestrator.py` líneas 88–94
 Comparación exacta de strings para lookup de tablas en destino:
 ```python
@@ -69,6 +80,11 @@ Veredicto: **APROBADO CON CONDICIONES**. Tres condiciones aprobadas:
 ### IMPLEMENT
 
 #### `src/util_bbdd/dump/orchestrator.py`
+- `_process_table`: `dest_table_quoted` → `dest_table_logical` para `bulk_insert_from_df`.
+  `reflect_table` en `BulkCrud` espera `"schema.tabla"` sin quoting de dialecto; `quote_table`
+  solo se usa para el SQL SELECT directo. Test `test_dest_table_uses_quote_table_for_reserved_words`
+  renombrado a `test_dest_table_uses_logical_name_for_bulk_insert` y assertion actualizada a
+  `"order.user"` (antes `"[order].[user]"`).
 - `run()`: `dst_lower: dict[str, str]` (`lower → canonical_dst`), `src_to_dst` mapping,
   `effective_src_order` (nombres origen) y `effective_dst_order` (nombres destino).
   `_log.warning` ante colisión de case en destino.
@@ -131,6 +147,9 @@ Veredicto: **APROBADO CON CONDICIONES**. Tres condiciones aprobadas:
   respetar esta firma — no revertir a un único argumento.
 - **`TableDumpResult.table_name`** preserva el nombre del origen (configurado por el usuario
   en `DumpConfig.tables`). El nombre canónico del destino no se expone en el modelo público.
+- **`dest_table_logical` vs `quote_table`**: `bulk_insert_from_df` siempre recibe nombre lógico
+  (`schema.tabla` sin delimitadores de dialecto). `quote_table` solo aplica en SQL text directo.
+  Nunca pasar resultado de `quote_table` a APIs que usen `Table()` de SQLAlchemy internamente.
 - **`IndexDiff.table_name` / `ForeignKeyDiff.table_name`**: convención = nombre origen
   (para trazabilidad con el usuario).
 - **Colisión de case en destino**: `_log.warning` + conservar el primer nombre encontrado
@@ -141,6 +160,7 @@ Veredicto: **APROBADO CON CONDICIONES**. Tres condiciones aprobadas:
 
 Veredicto: **CLOSED**
 
-Bug raíz corregido: comparación case-insensitive en `run()`. Bug secundario corregido:
+Bug cuaternario corregido: `dest_table_logical` para `bulk_insert_from_df` (latente, afloró
+en ejecución real). Bug raíz corregido: comparación case-insensitive en `run()`. Bug secundario corregido:
 `_common_columns` usa nombre canónico por motor. Bug terciario corregido: `_compare_tables`
 y métodos internos del comparador propagan nombres canónicos. Suite completa verde.

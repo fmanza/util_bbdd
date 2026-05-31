@@ -493,10 +493,12 @@ class TestTargetSchemaPropagation:
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
     @patch("pandas.read_sql")
     @patch("util_bbdd.dump.orchestrator.bulk_crud")
-    def test_dest_table_uses_quote_table_for_reserved_words(
+    def test_dest_table_uses_logical_name_for_bulk_insert(
         self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator
     ):
-        """TC1: dest_table debe usar quote_table(), no concatenación directa."""
+        """TC1: bulk_insert_from_df recibe nombre lógico (schema.tabla sin quoting de dialecto).
+        reflect_table() en BulkCrud espera 'schema.tabla', no '[schema].[tabla]' ni `tabla`.
+        El quoting de dialecto solo aplica al SQL directo (SELECT), no a la reflexión de tabla."""
         import pandas as pd
 
         mock_comparator.return_value.compare.return_value = MagicMock(table_diffs=())
@@ -513,7 +515,7 @@ class TestTargetSchemaPropagation:
 
         src = _make_engine()
         dst = _make_engine()
-        # Engine que añade corchetes (simula SQL Server)
+        # Engine con quoting de SQL Server (simula dialecto que añade corchetes)
         dst.dialect.identifier_preparer.quote.side_effect = lambda n: f"[{n}]"
 
         cfg = DumpConfig(
@@ -533,8 +535,8 @@ class TestTargetSchemaPropagation:
         call_args = mock_crud.bulk_insert_from_df.call_args
         assert call_args is not None
         tabla_arg = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("tabla_destino", "")
-        # Debe estar quoted, no concatenado crudamente
-        assert tabla_arg == "[order].[user]"
+        # Debe ser el nombre lógico (schema.tabla), NO la forma quoted del dialecto
+        assert tabla_arg == "order.user"
 
     @patch("util_bbdd.dump.orchestrator.SchemaComparator")
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
