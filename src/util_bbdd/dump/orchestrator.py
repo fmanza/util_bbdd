@@ -16,6 +16,8 @@ from __future__ import annotations
 import logging
 
 from collections import deque
+from datetime import datetime
+from pathlib import Path
 from typing import Literal
 
 import pandas as pd
@@ -24,10 +26,11 @@ from sqlalchemy import Engine, Inspector, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from util_bbdd.bulk import bulk_crud
+from util_bbdd.bulk.audit import AuditManager
 from util_bbdd.comparar import SchemaComparator, SchemaDiff
 
 from ._constraints import ConstraintManager, ConstraintResult
-from ._models import DumpConfig, DumpResult, TableDumpResult
+from ._models import DumpAuditSummary, DumpConfig, DumpResult, TableDumpResult
 from ._protocols import BulkInserter
 from ._sql_utils import quote_identifier, quote_table
 from .reporters import DumpReporter
@@ -76,6 +79,7 @@ class DumpOrchestrator:
     def run(self) -> DumpResult:
         """Ejecuta el volcado completo y retorna el resultado con el informe."""
         cfg = self._cfg
+        dump_inicio = datetime.now()
 
         # FASE 1: Inspección y comparación de esquemas
         diff: SchemaDiff = SchemaComparator().compare(
@@ -179,6 +183,7 @@ class DumpOrchestrator:
             load_order=load_order,
             cycles_detected=cycles,
             report=report_path,
+            audit_summary=DumpOrchestrator._build_audit_summary(cfg.bulk_audit_path, dump_inicio),
         )
 
     # ------------------------------------------------------------------
@@ -425,6 +430,41 @@ class DumpOrchestrator:
             component.append(node)
             queue.extend(n for n in adj[node] if n not in visited)
         return component
+
+    @staticmethod
+    def _build_audit_summary(audit_path: Path | None, desde: datetime) -> DumpAuditSummary | None:
+        """Lee el CSV de auditoría y extrae métricas del volcado actual.
+
+        Filtra por ``timestamp >= desde`` para aislar las entradas de este volcado
+        frente a operaciones previas que pudieran existir en el mismo CSV.
+        Devuelve ``None`` si la ruta no está configurada, el fichero no existe o no
+        hay entradas en el rango temporal.
+        """
+        if audit_path is None or not audit_path.exists():
+            return None
+        try:
+            mgr = AuditManager(audit_path, cache_enabled=False)
+            df = mgr.leer_auditoria()
+        except Exception as exc:
+            _log.warning("No se pudo leer el CSV de auditoría '%s': %s", audit_path, exc)
+            return None
+        if df.empty:
+            return None
+        df = df.copy()
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+        df = df[df["timestamp"] >= pd.Timestamp(desde)]
+        if df.empty:
+            return None
+        tabla_mas_activa: str | None = str(df["tabla"].value_counts().index[0]) if len(df) > 0 else None
+        return DumpAuditSummary(
+            total_operaciones=int(len(df)),
+            total_filas=int(df["total_filas"].sum()),
+            tiempo_total_seg=round(float(df["tiempo_seg"].sum()), 3),
+            tiempo_promedio_seg=round(float(df["tiempo_seg"].mean()), 3),
+            tablas_auditadas=int(df["tabla"].nunique()),
+            tabla_mas_activa=tabla_mas_activa,
+            audit_path=audit_path,
+        )
 
     @staticmethod
     def _warn_chunk_size(engine: Engine, chunk_size: int) -> None:

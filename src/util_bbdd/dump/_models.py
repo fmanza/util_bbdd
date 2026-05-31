@@ -82,6 +82,32 @@ class TableDumpResult:
 
 
 @dataclass
+class DumpAuditSummary:
+    """Métricas de auditoría de inserts extraídas del CSV de ``bulk.audit`` al finalizar el volcado.
+
+    Solo se popula cuando ``DumpConfig.bulk_audit_path`` está configurado y el CSV
+    contiene entradas del rango temporal del volcado.
+
+    Attributes:
+        total_operaciones: Número de lotes INSERT registrados en auditoría.
+        total_filas: Suma de filas insertadas según el CSV de auditoría.
+        tiempo_total_seg: Tiempo total de inserción (segundos) según auditoría.
+        tiempo_promedio_seg: Tiempo medio por lote INSERT.
+        tablas_auditadas: Número de tablas distintas con al menos un INSERT registrado.
+        tabla_mas_activa: Tabla con mayor número de lotes INSERT (``None`` si no hay datos).
+        audit_path: Ruta del CSV de auditoría consultado.
+    """
+
+    total_operaciones: int
+    total_filas: int
+    tiempo_total_seg: float
+    tiempo_promedio_seg: float
+    tablas_auditadas: int
+    tabla_mas_activa: str | None
+    audit_path: Path
+
+
+@dataclass
 class DumpResult:
     """Resultado completo de un volcado.
 
@@ -91,6 +117,9 @@ class DumpResult:
         load_order: Orden topológico de carga aplicado.
         cycles_detected: Grupos de tablas con FK circular (cargadas al final).
         report: Ruta del informe Excel generado (3 hojas).
+        audit_summary: Métricas de auditoría extraídas de ``bulk.audit`` al finalizar.
+            ``None`` cuando ``DumpConfig.bulk_audit_path`` no está configurado o el CSV
+            no contiene entradas del volcado actual.
     """
 
     table_results: list[TableDumpResult]
@@ -98,3 +127,4 @@ class DumpResult:
     load_order: list[str]
     cycles_detected: list[list[str]]
     report: Path
+    audit_summary: DumpAuditSummary | None = None
