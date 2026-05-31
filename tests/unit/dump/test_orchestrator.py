@@ -300,7 +300,7 @@ class TestDumpOrchestratorRun:
 
     @patch("util_bbdd.dump.orchestrator.SchemaComparator")
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
-    @patch("util_bbdd.dump.orchestrator.bulk_crud")
+    @patch("util_bbdd.dump.orchestrator.BulkCrud")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("dump_report.xlsx"))
     @patch("pandas.read_sql", return_value=iter([]))
     def test_run_returns_dump_result(self, mock_read_sql, mock_report, mock_bulk, mock_mgr_cls, mock_comparator):
@@ -394,8 +394,24 @@ class TestCleanup:
         assert all("TRUNCATE TABLE" in s for s in sql_stmts)
         assert len(sql_stmts) == 2
 
-    def test_delete_used_for_mssql(self):
+    def test_truncate_used_for_mssql_no_fk_references(self):
+        """Tabla SQL Server sin FK entrantes → TRUNCATE (optimización híbrida)."""
         orch = self._make_orchestrator("mssql")
+        # Sin FK entrantes detectadas → TRUNCATE
+        orch._dst_insp.get_table_names.return_value = ["customers"]
+        orch._dst_insp.get_foreign_keys.return_value = []
+        orch._cleanup(["customers"], skip=set())
+        sql_stmts = self._executed_sql(orch)
+        assert len(sql_stmts) == 1
+        assert "TRUNCATE TABLE" in sql_stmts[0]
+
+    def test_delete_used_for_mssql_referenced_table(self):
+        """Tabla SQL Server referenciada por FK de otra tabla → DELETE."""
+        orch = self._make_orchestrator("mssql")
+        orch._dst_insp.get_table_names.return_value = ["customers", "orders"]
+        orch._dst_insp.get_foreign_keys.side_effect = lambda t, schema=None: (
+            [{"referred_table": "customers"}] if t == "orders" else []
+        )
         orch._cleanup(["customers"], skip=set())
         sql_stmts = self._executed_sql(orch)
         assert len(sql_stmts) == 1
@@ -449,7 +465,7 @@ class TestTargetSchemaPropagation:
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
     @patch("pandas.read_sql")
-    @patch("util_bbdd.dump.orchestrator.bulk_crud")
+    @patch("util_bbdd.dump.orchestrator.BulkCrud")
     def test_target_schema_passed_to_bulk_insert(
         self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator
     ):
@@ -492,7 +508,7 @@ class TestTargetSchemaPropagation:
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
     @patch("pandas.read_sql")
-    @patch("util_bbdd.dump.orchestrator.bulk_crud")
+    @patch("util_bbdd.dump.orchestrator.BulkCrud")
     def test_dest_table_uses_logical_name_for_bulk_insert(
         self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator
     ):
@@ -542,7 +558,7 @@ class TestTargetSchemaPropagation:
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
     @patch("pandas.read_sql")
-    @patch("util_bbdd.dump.orchestrator.bulk_crud")
+    @patch("util_bbdd.dump.orchestrator.BulkCrud")
     def test_chunk_error_sets_error_status_and_correct_row_count(
         self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator
     ):
@@ -773,7 +789,7 @@ class TestCollectRowCounts:
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
     @patch("pandas.read_sql", return_value=iter([]))
-    @patch("util_bbdd.dump.orchestrator.bulk_crud")
+    @patch("util_bbdd.dump.orchestrator.BulkCrud")
     def test_collect_row_counts_false_returns_minus_one(
         self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator
     ) -> None:
@@ -812,7 +828,7 @@ class TestCollectRowCounts:
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
     @patch("pandas.read_sql", return_value=iter([]))
-    @patch("util_bbdd.dump.orchestrator.bulk_crud")
+    @patch("util_bbdd.dump.orchestrator.BulkCrud")
     def test_process_table_calls_bulk_session(
         self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator
     ) -> None:

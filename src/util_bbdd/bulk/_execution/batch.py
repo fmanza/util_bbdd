@@ -7,9 +7,140 @@ from typing import Any, Protocol
 
 import pandas as pd
 
-from sqlalchemy import Delete, Engine, Table, and_, bindparam, delete, text
+from sqlalchemy import Delete, Engine, Table, and_, bindparam, delete, event, text
+
+# ---------------------------------------------------------------------------
+# FA — fast_executemany para SQL Server / pyodbc
+# ---------------------------------------------------------------------------
 
 _DEFAULT_SQL_BASED_DELETE_DIALECTS: frozenset[str] = frozenset({"mysql", "mariadb", "mssql", "hsqldb"})
+
+
+def _fast_executemany_listener(
+    conn: Any,
+    cursor: Any,
+    statement: Any,
+    params: Any,
+    context: Any,
+    executemany: bool,
+) -> None:
+    if executemany and hasattr(cursor, "fast_executemany"):
+        cursor.fast_executemany = True
+
+
+def _register_fast_executemany(engine: Engine) -> None:
+    """Registra el listener fast_executemany en el engine si aún no está registrado.
+
+    Omite el registro si ``engine`` no es un Engine SQLAlchemy real (p.ej. MagicMock
+    en tests) o si el listener ya está presente. Delega la deduplicación a
+    ``event.contains``, evitando el riesgo de falso-positivo con ``id()`` cuando un
+    engine destruido y otro nuevo comparten la misma dirección de memoria.
+    """
+    if not isinstance(engine, Engine):
+        return
+    if not event.contains(engine, "before_cursor_execute", _fast_executemany_listener):
+        event.listen(engine, "before_cursor_execute", _fast_executemany_listener)
+
+
+# ---------------------------------------------------------------------------
+# FB — Estrategias INSERT (execute_values para PostgreSQL/psycopg2)
+# ---------------------------------------------------------------------------
+
+
+class InsertExecutionStrategyProtocol(Protocol):
+    """Contrato para ejecutar INSERT de un batch."""
+
+    def execute(
+        self,
+        *,
+        connection: Any,
+        stmt: Any,
+        records: Sequence[Mapping[str, Any]],
+    ) -> None:
+        """Ejecuta inserción de un batch."""
+
+
+class DefaultInsertStrategy:
+    """INSERT por defecto: SQLAlchemy executemany (todos los motores)."""
+
+    def execute(
+        self,
+        *,
+        connection: Any,
+        stmt: Any,
+        records: Sequence[Mapping[str, Any]],
+    ) -> None:
+        connection.execute(stmt, list(records))
+
+
+class PostgreSQLExecuteValuesStrategy:
+    """INSERT para PostgreSQL/psycopg2 vía execute_values.
+
+    Genera un único ``INSERT INTO t (...) VALUES (%s,...), (%s,...), ...`` por
+    batch en lugar de N sentencias individuales: 1 round-trip por chunk en vez
+    de N, con ganancia típica de 3–5× respecto a executemany.
+
+    Fallback a :class:`DefaultInsertStrategy` cuando:
+    - ``stmt`` es un ``TextClause`` (ruta ``override_identity``).
+    - psycopg2 no está disponible en el entorno.
+    """
+
+    def execute(
+        self,
+        *,
+        connection: Any,
+        stmt: Any,
+        records: Sequence[Mapping[str, Any]],
+    ) -> None:
+        if not records:
+            return
+        if not hasattr(stmt, "table"):
+            # TextClause (OVERRIDING SYSTEM VALUE) u otro stmt sin .table → fallback
+            connection.execute(stmt, list(records))
+            return
+        try:
+            from psycopg2.extras import execute_values as _pg_execute_values  # type: ignore[import-untyped]
+        except ImportError:
+            connection.execute(stmt, list(records))
+            return
+
+        table = stmt.table
+        cols: list[str] = list(records[0].keys())
+        preparer = connection.dialect.identifier_preparer
+        quoted_table: str = preparer.format_table(table)
+        quoted_cols: str = ", ".join(preparer.quote(c) for c in cols)
+        sql: str = f"INSERT INTO {quoted_table} ({quoted_cols}) VALUES %s"
+        data: list[tuple[Any, ...]] = [tuple(r[c] for c in cols) for r in records]
+        with connection.connection.cursor() as raw_cursor:
+            _pg_execute_values(raw_cursor, sql, data, page_size=len(data))
+
+
+class InsertStrategyResolver:
+    """Resuelve la estrategia INSERT óptima según dialecto y driver."""
+
+    def __init__(
+        self,
+        *,
+        pg_strategy: InsertExecutionStrategyProtocol | None = None,
+        default_strategy: InsertExecutionStrategyProtocol | None = None,
+    ) -> None:
+        self._pg_strategy: InsertExecutionStrategyProtocol = (
+            pg_strategy or PostgreSQLExecuteValuesStrategy()
+        )
+        self._default_strategy: InsertExecutionStrategyProtocol = (
+            default_strategy or DefaultInsertStrategy()
+        )
+
+    def resolve(self, dialect_name: str, drivername: str) -> InsertExecutionStrategyProtocol:
+        """Devuelve la estrategia adecuada para el dialecto y driver indicados."""
+        if dialect_name == "postgresql" and "psycopg2" in drivername:
+            return self._pg_strategy
+        return self._default_strategy
+
+
+# ---------------------------------------------------------------------------
+# DELETE strategies (sin cambios)
+# ---------------------------------------------------------------------------
 
 
 class DeleteExecutionStrategyProtocol(Protocol):
@@ -37,7 +168,7 @@ class SqlBasedDeleteStrategy:
         batch_df: pd.DataFrame,
         pk_cols: Sequence[str],
     ) -> None:
-        values: list[tuple[Any, ...]] = [tuple(row[column] for column in pk_cols) for _, row in batch_df.iterrows()]
+        values: list[tuple[Any, ...]] = [tuple(r) for r in batch_df[pk_cols].itertuples(index=False, name=None)]
         if not values:
             return
 
@@ -107,13 +238,31 @@ class DeleteStrategyResolver:
         return self._generic_strategy
 
 
+# ---------------------------------------------------------------------------
+# BatchStatementExecutor — INSERT con estrategia por motor
+# ---------------------------------------------------------------------------
+
+
 class BatchStatementExecutor:
     """Ejecutor OO de statements SQLAlchemy por lotes."""
 
-    def __init__(self, *, engine: Engine, chunk_size: int) -> None:
+    def __init__(
+        self,
+        *,
+        engine: Engine,
+        chunk_size: int,
+        enable_fast_executemany: bool = True,
+        insert_resolver: InsertStrategyResolver | None = None,
+    ) -> None:
         self._engine: Engine = engine
         self._chunk_size: int = chunk_size
         self._active_connection: Any | None = None
+        drivername: str = str(engine.url.drivername).lower()
+        self._insert_strategy: InsertExecutionStrategyProtocol = (
+            insert_resolver or InsertStrategyResolver()
+        ).resolve(engine.dialect.name, drivername)
+        if enable_fast_executemany and engine.dialect.name == "mssql" and "pyodbc" in drivername:
+            _register_fast_executemany(engine)
 
     def execute(self, *, records: Sequence[Mapping[str, Any]], stmt: Any) -> None:
         """Ejecuta un statement SQLAlchemy por batches.
@@ -130,9 +279,16 @@ class BatchStatementExecutor:
     def _execute_on_connection(self, connection: Any, records: Sequence[Mapping[str, Any]], stmt: Any) -> None:
         """Ejecuta los batches sobre una conexión ya abierta."""
         for start in range(0, len(records), self._chunk_size):
-            batch = records[start : start + self._chunk_size]
-            payload = [{str(key): value for key, value in record.items()} for record in batch]
-            connection.execute(stmt, payload)
+            self._insert_strategy.execute(
+                connection=connection,
+                stmt=stmt,
+                records=records[start : start + self._chunk_size],
+            )
+
+
+# ---------------------------------------------------------------------------
+# DeleteBatchExecutor (sin cambios)
+# ---------------------------------------------------------------------------
 
 
 class DeleteBatchExecutor:
@@ -181,9 +337,13 @@ class DeleteBatchExecutor:
 
 __all__: list[str] = [
     "BatchStatementExecutor",
+    "DefaultInsertStrategy",
     "DeleteBatchExecutor",
     "DeleteExecutionStrategyProtocol",
     "DeleteStrategyResolver",
     "GenericDeleteStrategy",
+    "InsertExecutionStrategyProtocol",
+    "InsertStrategyResolver",
+    "PostgreSQLExecuteValuesStrategy",
     "SqlBasedDeleteStrategy",
 ]

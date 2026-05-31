@@ -288,27 +288,22 @@ class ConstraintManager:
             except SQLAlchemyError:
                 return []
 
-        for table in tables:
-            names: list[str] = []
-            names.extend(_fetch_names(insp.get_foreign_keys, table))
-            names.extend(
-                n for n in _fetch_names(insp.get_check_constraints, table)
-                if not n.upper().startswith("SYS_C")  # filtrar constraints de sistema Oracle
-            )
-            names.extend(_fetch_names(insp.get_unique_constraints, table))
-            self._exec_disable_oracle_batch(table, names)
-
-    def _exec_disable_oracle_batch(self, table: str, names: list[str]) -> None:
-        """Deshabilita múltiples constraints de una tabla en una sola conexión."""
-        if not names:
-            return
         with self._engine.connect() as conn:
-            for name in names:
-                try:
-                    conn.execute(text(f"ALTER TABLE {self._qt(table)} DISABLE CONSTRAINT {self._qi(name)}"))
-                    self._disabled.append((table, name))
-                except SQLAlchemyError as exc:
-                    _log.warning("No se pudo deshabilitar '%s.%s': %s", table, name, exc)
+            for table in tables:
+                names: list[str] = []
+                names.extend(_fetch_names(insp.get_foreign_keys, table))
+                names.extend(
+                    n for n in _fetch_names(insp.get_check_constraints, table)
+                    if not n.upper().startswith("SYS_C")  # filtrar constraints de sistema Oracle
+                )
+                names.extend(_fetch_names(insp.get_unique_constraints, table))
+                for name in names:
+                    try:
+                        conn.execute(text(f"ALTER TABLE {self._qt(table)} DISABLE CONSTRAINT {self._qi(name)}"))
+                        self._disabled.append((table, name))
+                    except SQLAlchemyError as exc:
+                        _log.warning("No se pudo deshabilitar '%s.%s': %s", table, name, exc)
+            conn.commit()
 
     def _enable_oracle(self) -> list[ConstraintResult]:
         results: list[ConstraintResult] = []

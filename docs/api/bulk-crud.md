@@ -45,6 +45,8 @@ flowchart TD
 | `engine` | `Engine` | Engine síncrono de SQLAlchemy | No puede ser `None`; lanza `ValueError` si es `None` |
 | `chunk_size` | `int` | Filas por lote | Default `5000`; valores muy bajos aumentan nº de round-trips a BD |
 | `audit_csv_path` | `Path \| None` | Ruta del CSV de auditoría | `None` desactiva la auditoría |
+| `enable_fast_executemany` | `bool` | Si `True` (default) y el engine es `mssql+pyodbc`, registra `cursor.fast_executemany = True` antes de cada `executemany`, acelerando las operaciones 5–15×. Poner a `False` si el entorno SQL Server presenta incompatibilidades con esta opción (p.ej. `NVARCHAR(MAX)` con pyodbc < 4.0.28). Sin efecto en otros motores. | Default `True` |
+| `insert_resolver` | `InsertStrategyResolver \| None` | Estrategia INSERT personalizada. `None` usa resolución automática: `execute_values` para PostgreSQL+psycopg2 (3–5×), `executemany` estándar para el resto. Útil en tests o para inyectar estrategias personalizadas. | Default `None` |
 | `df` | `pd.DataFrame` | Datos fuente de la operación | No puede estar vacío; columnas deben coincidir con tabla destino |
 | `tabla_destino` | `str` | Nombre de la tabla en BD | La tabla debe existir; se normaliza mayúsculas/minúsculas por motor |
 | `generar_sql` | `bool` | Escribir el SQL generado en fichero | Si `True`, `path_sql` es obligatorio |
@@ -65,6 +67,8 @@ flowchart TD
 
 **Casos especiales:**
 - **Normalización de identificadores**: Oracle, PostgreSQL y SQLite usan minúsculas; MySQL, MariaDB, SQL Server y HSQLDB usan mayúsculas. La clase detecta el dialecto desde `engine.dialect.name` y normaliza automáticamente los nombres de columna del DataFrame.
+- **SQL Server (pyodbc)**: cuando `enable_fast_executemany=True` (default), registra un listener `before_cursor_execute` en el engine que activa `cursor.fast_executemany = True`. El listener se registra como máximo una vez por engine (deduplica vía `event.contains`). Poner `enable_fast_executemany=False` si el entorno lo requiere.
+- **PostgreSQL (psycopg2)**: cuando `insert_resolver=None` (default) y el driver es `psycopg2`, `BulkCrud` usa automáticamente `psycopg2.extras.execute_values` para los INSERT — genera un único `INSERT ... VALUES (...), (...), ...` por chunk en lugar de N sentencias. Si psycopg2 no está disponible o la sentencia es un `TextClause` (`override_identity`), degradación automática a `executemany`.
 - **SQL Server**: detecta el driver (`pymssql` vs `pyodbc`) inspeccionando `engine.url.drivername` y ajusta el `db_info` de auditoría.
 - **generar_sql=True**: el fichero SQL se escribe con el nombre `{tabla}_{operacion}_{timestamp}.sql` dentro de `path_sql`. Si `path_sql` no existe o no es un directorio válido, lanza `ValueError` antes de ejecutar ninguna operación en BD.
 - La auditoría se registra aunque la operación falle parcialmente (el registro refleja las filas afectadas hasta el punto de fallo).

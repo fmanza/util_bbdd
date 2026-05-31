@@ -76,7 +76,7 @@ Si `truncate_target=True` (por defecto), las tablas destino se vacían antes de 
 
 | Motor | SQL usado | Motivo |
 |---|---|---|
-| **SQL Server** | `DELETE FROM tabla` | TRUNCATE es rechazado aunque las FKs estén en NOCHECK |
+| **SQL Server** | `TRUNCATE TABLE tabla` (tablas sin FK entrantes) / `DELETE FROM tabla` (tablas referenciadas) | TRUNCATE se rechaza cuando otra tabla tiene una FK apuntando a la tabla, aunque esté en NOCHECK. El volcado detecta las FK entrantes al esquema destino y aplica `TRUNCATE` donde es posible, `DELETE` solo donde es obligatorio. |
 | **Todos los demás** | `TRUNCATE TABLE tabla` | Más rápido, no genera log de transacción |
 
 ### Fase 5 — Carga best-effort

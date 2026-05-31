@@ -18,14 +18,14 @@ import logging
 from collections import deque
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import pandas as pd
 
 from sqlalchemy import Engine, Inspector, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from util_bbdd.bulk import BulkCrud, bulk_crud
+from util_bbdd.bulk import BulkCrud
 from util_bbdd.bulk.audit import AuditManager
 from util_bbdd.comparar import SchemaComparator, SchemaDiff
 
@@ -137,9 +137,10 @@ class DumpOrchestrator:
 
             # FASE 5: Carga (best-effort)
             cycle_set = {t for group in cycles for t in group}
+            crud = BulkCrud(cfg.target_engine, chunk_size=cfg.chunk_size, audit_csv_path=cfg.bulk_audit_path)
             for position, src_t in enumerate(effective_src_order):
                 dst_t = src_to_dst[src_t]
-                result = self._process_table(src_t, dst_t, position, src_t in cycle_set)
+                result = self._process_table(src_t, dst_t, position, src_t in cycle_set, crud)
                 table_results.append(result)
                 _log.info(
                     "  [%d/%d] %s → %s (%d filas)",
@@ -191,32 +192,82 @@ class DumpOrchestrator:
     def _cleanup(self, reversed_order: list[str], skip: set[str]) -> None:
         """Borra o trunca las tablas destino antes de cargar.
 
-        SQL Server usa DELETE (TRUNCATE no funciona con FKs catalogadas aunque
-        estén desactivadas). Otros motores usan TRUNCATE TABLE.
+        Para SQL Server: TRUNCATE TABLE en tablas sin FK entrantes (instantáneo)
+        y DELETE FROM en las referenciadas. Si TRUNCATE falla (FK de esquema
+        externo no detectada), reintenta con DELETE via ``_cleanup_table``.
+        Para otros motores: TRUNCATE TABLE siempre.
         """
         cfg = self._cfg
         dialect = cfg.target_engine.dialect.name
-        use_delete = dialect == "mssql"
-
+        mssql_referenced: frozenset[str] = (
+            self._get_dst_fk_referenced_tables(cfg.target_schema) if dialect == "mssql" else frozenset()
+        )
         with cfg.target_engine.connect() as conn:
             for table in reversed_order:
                 if table in skip:
                     continue
-                quoted = quote_table(table, cfg.target_schema, cfg.target_engine)
-                sql = f"DELETE FROM {quoted}" if use_delete else f"TRUNCATE TABLE {quoted}"
-                try:
-                    conn.execute(text(sql))
-                    conn.commit()
-                    _log.debug("Limpiada tabla '%s'.", table)
-                except SQLAlchemyError as exc:
-                    conn.rollback()
-                    _log.warning("Error limpiando tabla '%s': %s", table, exc)
+                use_delete = dialect == "mssql" and table.lower() in mssql_referenced
+                self._cleanup_table(conn, table, cfg.target_schema, use_delete, dialect)
+
+    def _cleanup_table(
+        self,
+        conn: Any,
+        table: str,
+        schema: str | None,
+        use_delete: bool,
+        dialect: str,
+    ) -> None:
+        """Ejecuta DELETE o TRUNCATE en una tabla; reintenta con DELETE si TRUNCATE falla en mssql."""
+        quoted = quote_table(table, schema, self._cfg.target_engine)
+        sql = f"DELETE FROM {quoted}" if use_delete else f"TRUNCATE TABLE {quoted}"
+        try:
+            conn.execute(text(sql))
+            conn.commit()
+            _log.debug("Limpiada tabla '%s' (%s).", table, "DELETE" if use_delete else "TRUNCATE")
+        except SQLAlchemyError as exc:
+            conn.rollback()
+            if not use_delete and dialect == "mssql":
+                self._cleanup_table_delete_fallback(conn, table, quoted)
+            else:
+                _log.warning("Error limpiando tabla '%s': %s", table, exc)
+
+    def _cleanup_table_delete_fallback(self, conn: Any, table: str, quoted: str) -> None:
+        """Retry DELETE tras TRUNCATE fallido en SQL Server (FK de esquema externo)."""
+        try:
+            conn.execute(text(f"DELETE FROM {quoted}"))
+            conn.commit()
+            _log.debug("Limpiada tabla '%s' (DELETE fallback).", table)
+        except SQLAlchemyError as exc:
+            conn.rollback()
+            _log.warning("Error limpiando tabla '%s': %s", table, exc)
+
+    def _get_dst_fk_referenced_tables(self, schema: str | None) -> frozenset[str]:
+        """Devuelve el conjunto (lowercase) de tablas destino con FK entrantes.
+
+        Sólo se invoca para SQL Server. Permite usar TRUNCATE TABLE en tablas
+        sin referencias FK entrantes. Si falla, devuelve frozenset vacío y el
+        retry DELETE en _cleanup actúa como safety net.
+        """
+        try:
+            referenced: set[str] = set()
+            for table in self._dst_insp.get_table_names(schema=schema):
+                for fk in self._dst_insp.get_foreign_keys(table, schema=schema):
+                    ref: str = fk.get("referred_table", "")
+                    if ref:
+                        referenced.add(ref.lower())
+            return frozenset(referenced)
+        except SQLAlchemyError:
+            _log.warning(
+                "No se pudo determinar tablas con FK entrantes en destino SQL Server; "
+                "se intentará TRUNCATE y se aplicará fallback DELETE en caso de error."
+            )
+            return frozenset()
 
     # ------------------------------------------------------------------
     # Fase 5: Carga de tabla individual
     # ------------------------------------------------------------------
 
-    def _process_table(self, src_table: str, dst_table: str, position: int, in_cycle: bool) -> TableDumpResult:
+    def _process_table(self, src_table: str, dst_table: str, position: int, in_cycle: bool, crud: BulkCrud) -> TableDumpResult:
         cfg = self._cfg
         common_cols, skipped_cols, col_name_map = self._common_columns(src_table, dst_table)
 
@@ -247,11 +298,6 @@ class DumpOrchestrator:
         table_quoted = quote_table(src_table, cfg.source_schema, cfg.source_engine)
         sql = f"SELECT {cols_quoted} FROM {table_quoted}"
 
-        crud: BulkCrud = bulk_crud(
-            cfg.target_engine,
-            chunk_size=cfg.chunk_size,
-            audit_csv_path=cfg.bulk_audit_path,
-        )
         # bulk_insert_from_df → reflect_table espera nombre lógico sin quoting de dialecto
         # (schema.tabla o solo tabla). quote_table genera backticks/corchetes que reflect_table
         # no puede procesar, pues los pasa literalmente a SQLAlchemy Table().

@@ -49,9 +49,21 @@ class DumpConfig:
 | `tables` | `list[str] \| None` | `None` | Tablas a volcar; `None` = todas las del origen |
 | `chunk_size` | `int` | `5000` | Filas por chunk en lectura y en bulk insert. **MariaDB/MySQL con columnas TEXT/BLOB/JSON extensas:** valores altos pueden superar `max_allowed_packet` del servidor (16 MB por defecto), produciendo `InterfaceError: Lost connection to server during query`. Usar `500` o menos para estas tablas. `DumpOrchestrator` emite `WARNING` si `chunk_size > 1000` con destino MariaDB/MySQL. |
 | `output_dir` | `Path` | `Path()` | Directorio donde guardar el informe Excel |
-| `truncate_target` | `bool` | `True` | `True` = vaciar destino antes de cargar; `False` = append |
+| `truncate_target` | `bool` | `True` | `True` = vaciar destino antes de cargar; `False` = append. **SQL Server:** usa `TRUNCATE TABLE` en tablas sin FK entrantes (instantáneo) y `DELETE FROM` solo en tablas referenciadas por FK de otras tablas del esquema — TRUNCATE falla en SQL Server cuando existe una FK entrante aunque esté en NOCHECK. La detección es automática; si falla, el volcado reintenta con `DELETE`. |
 | `bulk_audit_path` | `Path \| None` | `None` | Ruta del CSV de auditoría de `util_bbdd.bulk.audit`. Si se proporciona: (1) cada INSERT queda registrado en el CSV durante la carga y (2) al finalizar el volcado, `DumpResult.audit_summary` se popula con las métricas del CSV filtradas al rango temporal del volcado. `None` = sin auditoría de inserts. |
 | `collect_row_counts` | `bool` | `True` | Si `True`, ejecuta `COUNT(*)` sobre origen y destino por tabla para obtener volumetría. Si `False`, omite todos los conteos y usa `-1` como sentinel en `TableDumpResult.source_rows`, `target_rows_before` y `target_rows_after`. Útil en volcados de alto volumen donde el conteo es costoso (Snowflake, Oracle sin estadísticas actualizadas, tablas de decenas de millones de filas). El informe Excel muestra `—` para los valores `-1`. |
+
+### Optimizaciones automáticas de inserción
+
+`DumpOrchestrator` delega la carga de datos en `BulkCrud`, que aplica automáticamente la estrategia INSERT óptima según el motor destino:
+
+| Motor destino | Estrategia aplicada | Ganancia típica |
+|---|---|---|
+| **PostgreSQL + psycopg2** | `psycopg2.extras.execute_values` — un único `INSERT ... VALUES ...` multi-row por chunk | 3–5× vs `executemany` |
+| **SQL Server + pyodbc** | `cursor.fast_executemany = True` vía listener `before_cursor_execute` | 5–15× vs `executemany` |
+| **Otros motores** | `executemany` estándar del driver | — |
+
+Estas optimizaciones están activas por defecto y no requieren configuración en `DumpConfig`. Para deshabilitar `fast_executemany` en SQL Server (p.ej. por incompatibilidad con pyodbc antiguo), crear el engine y pasar `BulkCrud(enable_fast_executemany=False)` directamente — `DumpOrchestrator` no expone este control en `DumpConfig`.
 
 ---
 

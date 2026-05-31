@@ -128,12 +128,14 @@ def test_validar_y_generar_path_sql_joins_base_path_and_dynamic_name(
     persistence.resolve_sql_output_path.assert_called_once_with(tmp_path, "users", "insert")
 
 
-def test_actualizar_df_replaces_nan_with_none(sqlite_bulk_manager: bulk_crud) -> None:
-    df = pd.DataFrame({"col": [1, np.nan]})
+def test_actualizar_df_normalizes_columns_nan_unchanged(sqlite_bulk_manager: bulk_crud) -> None:
+    # __actualizar_df sólo normaliza casing; NaN→None ocurre en normalize_sql_literal.
+    df = pd.DataFrame({"Col": [1, np.nan]})
 
     _get_private_method(sqlite_bulk_manager, "_BulkCrud__actualizar_df")(df)
 
-    assert df.iloc[1, 0] is None
+    assert "col" in df.columns  # SQLite → lowercase
+    assert pd.isna(df.iloc[1, 0])  # NaN no se convierte aquí
 
 
 def test_format_param_value_handles_supported_types(sqlite_bulk_manager: bulk_crud) -> None:

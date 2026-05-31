@@ -23,7 +23,6 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any, Literal
 
-import numpy as np
 import pandas as pd
 
 from sqlalchemy import (
@@ -41,7 +40,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import SQLAlchemyError
 
-from ._execution.batch import BatchStatementExecutor, DeleteBatchExecutor
+from ._execution.batch import BatchStatementExecutor, DeleteBatchExecutor, InsertStrategyResolver
 from ._support.persistence import BulkPersistenceManager
 from ._support.sql_helpers import (
     build_override_identity_text_stmt,
@@ -106,7 +105,14 @@ class _BulkOperationStrategy:
 class BulkCrud:
     """Realiza operaciones CRUD en lote sobre bases de datos usando SQLAlchemy."""
 
-    def __init__(self, engine: Engine | None, chunk_size: int = 5000, audit_csv_path: Path | None = None):
+    def __init__(
+        self,
+        engine: Engine | None,
+        chunk_size: int = 5000,
+        audit_csv_path: Path | None = None,
+        enable_fast_executemany: bool = True,
+        insert_resolver: InsertStrategyResolver | None = None,
+    ):
         """
         Constructor de la clase bulk_crud.
 
@@ -114,6 +120,12 @@ class BulkCrud:
             engine: Engine de SQLAlchemy para las operaciones. Obligatorio.
             chunk_size: Tamaño del lote para procesar. Por defecto es 5000.
             audit_csv_path: Ruta del archivo CSV para auditoría. Por defecto es None.
+            enable_fast_executemany: Si True (default) y el engine es mssql+pyodbc,
+                registra ``cursor.fast_executemany = True`` para acelerar executemany
+                5–15×. Poner a False si el entorno SQL Server no lo soporta
+                (p.ej. NVARCHAR(MAX) en pyodbc < 4.0.28 con algunas configuraciones).
+            insert_resolver: Estrategia INSERT personalizada. None usa la resolución
+                automática (execute_values para postgresql+psycopg2, default para el resto).
 
         Raises:
             ValueError: Si engine es None.
@@ -140,6 +152,8 @@ class BulkCrud:
         self._batch_statement_executor: BatchStatementExecutor = BatchStatementExecutor(
             engine=self.engine,
             chunk_size=self.chunk_size,
+            enable_fast_executemany=enable_fast_executemany,
+            insert_resolver=insert_resolver,
         )
         self._delete_batch_executor: DeleteBatchExecutor = DeleteBatchExecutor(
             engine=self.engine,
@@ -455,7 +469,7 @@ class BulkCrud:
             execute=lambda: self.__ejecutar_delete_batch(df, tabla, pk_cols, numero_registros),
         )
 
-    def __ejecutar_batch_stmt(self, records: Sequence[Mapping[Any, Any]], stmt: Any, numero_registros: int) -> None:
+    def __ejecutar_batch_stmt(self, records: Sequence[Mapping[str, Any]], stmt: Any, numero_registros: int) -> None:
         """Ejecuta un statement de SQLAlchemy por lotes.
 
         Args:
@@ -463,10 +477,7 @@ class BulkCrud:
             stmt: Statement SQLAlchemy (Insert, Update, Delete).
             numero_registros: Total de registros (para logging).
         """
-        records_to_execute: Sequence[Mapping[str, Any]] = [
-            {str(key): value for key, value in record.items()} for record in records[:numero_registros]
-        ]
-        self._batch_statement_executor.execute(records=records_to_execute, stmt=stmt)
+        self._batch_statement_executor.execute(records=records[:numero_registros], stmt=stmt)
 
     def __obtener_pk_cols(self, tabla: Table, df_cols) -> list[str]:
         """Obtiene las columnas PK presentes en el DataFrame.
@@ -513,7 +524,6 @@ class BulkCrud:
             - hsqldb: Mayúsculas (comportamiento nativo de HSQLDB)
         """
         normalize_dataframe_columns(df, self.engine.dialect.name, self.logger)
-        df.replace({np.nan: None}, inplace=True)
 
     def reflect_table(self, tabla_destino: str) -> Table:
         """
