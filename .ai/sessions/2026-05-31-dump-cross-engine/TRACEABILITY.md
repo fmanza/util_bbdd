@@ -174,14 +174,27 @@ a partir de tabla 3, el driver nativo `mariadb+mariadbconnector` producía `Serv
 - **`IndexDiff.table_name` / `ForeignKeyDiff.table_name`**: convención = nombre origen.
 - **Colisión de case en destino**: `_log.warning` + conservar el primer nombre encontrado.
 
+#### Bug senario — `Lost connection to server during query` (SURVEY_LOG, 5000 filas, JSON extenso)
+Error 2013 (distinto del 2006 anterior): el paquete INSERT supera `max_allowed_packet` del
+servidor MariaDB. `SURVEY_LOG.INFO` contiene JSON de varios KB por fila; 5000 filas × JSON
+= paquete > 16 MB (límite por defecto en MariaDB antiguas).
+- **`src/util_bbdd/dump/_models.py`**: docstring `chunk_size` documenta el riesgo con
+  TEXT/BLOB/JSON, cita `chunk_size=500` como mitigación y `SET GLOBAL max_allowed_packet`.
+- **`src/util_bbdd/dump/orchestrator.py`**: `_warn_chunk_size` nuevo método estático.
+  Emite `WARNING` en `__init__` si `chunk_size > 1000` y destino es MariaDB/MySQL.
+  Llamado desde `__init__` junto a `_warn_pool_config`.
+
+**Solución operativa**: `DumpConfig(chunk_size=500)` para tablas con JSON/TEXT extenso.
+
 ## Veredicto final
 
 Veredicto: **CLOSED**
 
-5 bugs corregidos en ejecución real cross-engine (PostgreSQL → MariaDB):
+6 bugs corregidos en ejecución real cross-engine (PostgreSQL → MariaDB):
 - Raíz: comparación case-sensitive de tablas → todas marcadas `missing_target`
 - Secundario: `_common_columns` consultaba destino con nombre origen
 - Terciario: comparador producía diff de esquema incorrecto
 - Cuaternario: `quote_table` pasado a `bulk_insert_from_df` → `NoSuchTableError`
 - Quinario: `mariadbconnector` `Server has gone away` → `pool_recycle=3600` en factory
+- Senario: `Lost connection during query` (max_allowed_packet) → `_warn_chunk_size` + docstring
 Suite completa verde: 3440 passed, 1 skipped.

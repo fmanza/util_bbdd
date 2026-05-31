@@ -67,6 +67,7 @@ class DumpOrchestrator:
         self._src_insp: Inspector = inspect(config.source_engine)
         self._dst_insp: Inspector = inspect(config.target_engine)
         self._warn_pool_config(config.target_engine)
+        self._warn_chunk_size(config.target_engine, config.chunk_size)
 
     # ------------------------------------------------------------------
     # Punto de entrada
@@ -424,6 +425,25 @@ class DumpOrchestrator:
             component.append(node)
             queue.extend(n for n in adj[node] if n not in visited)
         return component
+
+    @staticmethod
+    def _warn_chunk_size(engine: Engine, chunk_size: int) -> None:
+        """Advierte si chunk_size es alto para destinos MariaDB/MySQL.
+
+        Tablas con columnas TEXT/BLOB/JSON pueden producir paquetes INSERT que superen
+        ``max_allowed_packet`` del servidor (16 MB por defecto en MariaDB antiguas),
+        resultando en ``Lost connection to server during query`` (error 2013).
+        """
+        if engine.dialect.name not in ("mariadb", "mysql"):
+            return
+        if chunk_size > 1000:
+            _log.warning(
+                "chunk_size=%d con destino %s puede causar 'Lost connection to server during query' "
+                "en tablas con columnas TEXT/BLOB/JSON extensas (max_allowed_packet excedido). "
+                "Considera reducir chunk_size a 500 o menos, o aumentar max_allowed_packet en el servidor.",
+                chunk_size,
+                engine.dialect.name,
+            )
 
     @staticmethod
     def _warn_pool_config(engine: Engine) -> None:

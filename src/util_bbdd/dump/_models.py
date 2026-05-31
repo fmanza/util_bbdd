@@ -43,6 +43,11 @@ class DumpConfig:
         chunk_size: Filas por chunk. Se aplica en dos niveles: (1) lectura origen
             vía ``pd.read_sql(chunksize=chunk_size)`` y (2) inserción destino en
             ``BulkCrud(chunk_size=chunk_size)``. Ambos reciben el mismo valor.
+            **Tablas con columnas TEXT/BLOB/JSON extensas:** el tamaño del paquete INSERT
+            puede superar ``max_allowed_packet`` del servidor MariaDB/MySQL (16 MB por
+            defecto), produciendo ``Lost connection to server during query``. Reduce el
+            valor (p.ej. ``chunk_size=500`` o ``chunk_size=100``) o aumenta
+            ``max_allowed_packet`` en el servidor (``SET GLOBAL max_allowed_packet=67108864``).
         output_dir: Directorio donde guardar el informe Excel.
         truncate_target: ``True`` (default) = limpiar tablas destino antes de cargar.
             Recomendado para volcados completos. ``False`` = modo append.
