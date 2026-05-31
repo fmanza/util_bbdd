@@ -66,6 +66,7 @@ class DumpOrchestrator:
         self._cfg = config
         self._src_insp: Inspector = inspect(config.source_engine)
         self._dst_insp: Inspector = inspect(config.target_engine)
+        self._warn_pool_config(config.target_engine)
 
     # ------------------------------------------------------------------
     # Punto de entrada
@@ -423,3 +424,33 @@ class DumpOrchestrator:
             component.append(node)
             queue.extend(n for n in adj[node] if n not in visited)
         return component
+
+    @staticmethod
+    def _warn_pool_config(engine: Engine) -> None:
+        """Emite warnings si el engine MariaDB/MySQL destino carece de configuración de pool robusta.
+
+        El driver nativo ``mariadb+mariadbconnector`` tiene casos donde ``ping()`` retorna éxito
+        pero la siguiente query falla con ``InterfaceError: Server has gone away``. Mitigaciones:
+        - ``pool_pre_ping=True``: SQLAlchemy verifica la conexión antes de usarla.
+        - ``pool_recycle=3600``: fuerza rotación de conexiones cada hora.
+
+        Engines creados vía ``SyncDatabaseManager.get_sqlalchemy_engine()`` ya incluyen ambas.
+        """
+        if engine.dialect.name not in ("mariadb", "mysql"):
+            return
+        pre_ping: bool = getattr(engine.pool, "_pre_ping", False)
+        if not pre_ping:
+            _log.warning(
+                "El engine destino (%s) no tiene pool_pre_ping=True. "
+                "Crea el engine con create_engine(url, pool_pre_ping=True, pool_recycle=3600) "
+                "o usa SyncDatabaseManager.get_sqlalchemy_engine().",
+                engine.dialect.name,
+            )
+        recycle: int = getattr(engine.pool, "_recycle", -1)
+        if recycle < 0:
+            _log.warning(
+                "El engine destino (%s) no tiene pool_recycle configurado. "
+                "Sin rotación de conexiones, 'Server has gone away' puede ocurrir en volcados largos. "
+                "Añade pool_recycle=3600 al create_engine() o usa SyncDatabaseManager.get_sqlalchemy_engine().",
+                engine.dialect.name,
+            )

@@ -31,6 +31,12 @@ class DumpConfig:
     Args:
         source_engine: Engine SQLAlchemy del esquema origen (lectura).
         target_engine: Engine SQLAlchemy del esquema destino (escritura).
+            **Recomendación para MariaDB/MySQL:** crear con ``pool_pre_ping=True`` y
+            ``pool_recycle=3600`` para evitar ``InterfaceError: Server has gone away``
+            cuando el pool reutiliza conexiones ociosas entre tablas::
+
+                target_engine = create_engine(url, pool_pre_ping=True, pool_recycle=3600)
+
         source_schema: Nombre del schema origen; ``None`` usa el default del engine.
         target_schema: Nombre del schema destino; ``None`` usa el default del engine.
         tables: Tablas a volcar. ``None`` = todas las tablas del origen.

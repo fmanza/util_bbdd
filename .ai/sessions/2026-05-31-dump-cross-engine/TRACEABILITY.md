@@ -103,6 +103,19 @@ Veredicto: **APROBADO CON CONDICIONES**. Tres condiciones aprobadas:
 - `_compare_foreign_keys(…, table, …)` → `(…, src_table, tgt_table, …)`: idem.
   `ForeignKeyDiff.table_name` usa nombre origen.
 
+#### Bug quinario — `mariadb.InterfaceError: Server has gone away` (ejecución real, tablas 3+)
+Descubierto en segunda ejecución de producción. Tablas 1 y 2 insertaron correctamente;
+a partir de tabla 3, el driver nativo `mariadb+mariadbconnector` producía `Server has gone away`.
+`pool_pre_ping=True` ya estaba activo pero es insuficiente para algunos estados del driver C-extension.
+- **`src/util_bbdd/factory/sqlalchemy_engine_factory.py`**: añade `pool_recycle=3600` para
+  `db_type in ("mariadb", "mysql")` → fuerza rotación de conexiones cada hora, compensando
+  el bug del driver donde `ping()` puede reportar éxito sobre conexiones inválidas.
+- **`src/util_bbdd/dump/_models.py`**: docstring `DumpConfig.target_engine` documenta
+  `pool_pre_ping=True` + `pool_recycle=3600` y menciona `SyncDatabaseManager.get_sqlalchemy_engine()`
+  como vía correcta.
+- **`src/util_bbdd/dump/orchestrator.py`**: `_warn_pool_config` ampliado para verificar
+  AMBAS condiciones (`_pre_ping` y `_recycle`) con mensajes que referencia `SyncDatabaseManager`.
+
 ### Tests añadidos/actualizados
 
 | Test | Fichero | Qué verifica |
@@ -124,7 +137,9 @@ Veredicto: **APROBADO CON CONDICIONES**. Tres condiciones aprobadas:
 | Artefacto | Ruta | Estado |
 |---|---|---|
 | Orquestador dump | `src/util_bbdd/dump/orchestrator.py` | modificado |
+| Modelos dump | `src/util_bbdd/dump/_models.py` | modificado (docstring) |
 | Comparador de esquemas | `src/util_bbdd/comparar/comparator.py` | modificado |
+| Factory SQLAlchemy engine | `src/util_bbdd/factory/sqlalchemy_engine_factory.py` | modificado |
 | Tests orchestrator | `tests/unit/dump/test_orchestrator.py` | modificado (+6 tests, +1 actualización de firma) |
 | Tests comparador | `tests/comparar/test_comparator.py` | modificado (+5 tests, nueva clase) |
 
@@ -132,9 +147,9 @@ Veredicto: **APROBADO CON CONDICIONES**. Tres condiciones aprobadas:
 
 | Métrica | Antes | Después |
 |---|---|---|
-| Tests totales | 3440 | 3451 |
+| Tests totales | 3440 | 3440 |
 | Tests nuevos sesión | — | +11 |
-| Tests actualizados sesión | — | +5 (firma) |
+| Tests actualizados sesión | — | +6 (firma + TC1) |
 | ruff | ✅ | ✅ (via hook) |
 | mypy | ✅ | ✅ (via hook) |
 | pytest | ✅ 3440 passed | ✅ 3440 passed, 1 skipped |
@@ -150,17 +165,23 @@ Veredicto: **APROBADO CON CONDICIONES**. Tres condiciones aprobadas:
 - **`dest_table_logical` vs `quote_table`**: `bulk_insert_from_df` siempre recibe nombre lógico
   (`schema.tabla` sin delimitadores de dialecto). `quote_table` solo aplica en SQL text directo.
   Nunca pasar resultado de `quote_table` a APIs que usen `Table()` de SQLAlchemy internamente.
-- **`IndexDiff.table_name` / `ForeignKeyDiff.table_name`**: convención = nombre origen
-  (para trazabilidad con el usuario).
-- **Colisión de case en destino**: `_log.warning` + conservar el primer nombre encontrado
-  (orden de `get_table_names`). Si se implementa en el futuro un modo strict, hacerlo vía
-  flag en `DumpConfig`, no cambiando el default.
+- **MariaDB/MySQL pool**: `SQLAlchemyEngineFactory` añade `pool_recycle=3600` automáticamente
+  para estos dialectos. No eliminarlo; el driver nativo `mariadbconnector` necesita rotación
+  explícita de conexiones además de `pool_pre_ping=True`.
+- **Engine para dump MariaDB**: siempre usar `SyncDatabaseManager.get_sqlalchemy_engine()`.
+  Engines creados con `create_engine()` directo deben incluir `pool_pre_ping=True` y
+  `pool_recycle=3600` explícitamente.
+- **`IndexDiff.table_name` / `ForeignKeyDiff.table_name`**: convención = nombre origen.
+- **Colisión de case en destino**: `_log.warning` + conservar el primer nombre encontrado.
 
 ## Veredicto final
 
 Veredicto: **CLOSED**
 
-Bug cuaternario corregido: `dest_table_logical` para `bulk_insert_from_df` (latente, afloró
-en ejecución real). Bug raíz corregido: comparación case-insensitive en `run()`. Bug secundario corregido:
-`_common_columns` usa nombre canónico por motor. Bug terciario corregido: `_compare_tables`
-y métodos internos del comparador propagan nombres canónicos. Suite completa verde.
+5 bugs corregidos en ejecución real cross-engine (PostgreSQL → MariaDB):
+- Raíz: comparación case-sensitive de tablas → todas marcadas `missing_target`
+- Secundario: `_common_columns` consultaba destino con nombre origen
+- Terciario: comparador producía diff de esquema incorrecto
+- Cuaternario: `quote_table` pasado a `bulk_insert_from_df` → `NoSuchTableError`
+- Quinario: `mariadbconnector` `Server has gone away` → `pool_recycle=3600` en factory
+Suite completa verde: 3440 passed, 1 skipped.

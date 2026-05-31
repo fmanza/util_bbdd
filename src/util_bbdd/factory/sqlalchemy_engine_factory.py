@@ -67,8 +67,13 @@ class SQLAlchemyEngineFactory:
 
             SQLAlchemyEngineFactory.logger.debug(f"📝 Connection string construido: {conn_str[:50]}...")
 
-            # Crear engine con pool_pre_ping para validar conexiones
-            engine: Engine = create_engine(conn_str, pool_pre_ping=True, echo=False)
+            # pool_pre_ping: valida conexiones antes de usarlas (detecta "Server has gone away")
+            # pool_recycle: fuerza rotación de conexiones cada hora; compensa bugs del
+            #   driver mariadb+mariadbconnector donde ping() puede fallar silenciosamente
+            pool_kwargs: dict[str, Any] = {"pool_pre_ping": True, "echo": False}
+            if db_type in ("mariadb", "mysql"):
+                pool_kwargs["pool_recycle"] = 3600
+            engine: Engine = create_engine(conn_str, **pool_kwargs)
 
             # Verificar que la conexión funciona con query apropiada por motor
             test_query: str = SQLAlchemyEngineFactory._get_test_query(db_type)
