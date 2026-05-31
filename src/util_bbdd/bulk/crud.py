@@ -41,7 +41,9 @@ from sqlalchemy import (
 from sqlalchemy.exc import SQLAlchemyError
 
 from ._execution.batch import BatchStatementExecutor, DeleteBatchExecutor, InsertStrategyResolver
+from ._models import PKSyncResult
 from ._support.persistence import BulkPersistenceManager
+from ._support.pk_sync import PKSequenceSyncer
 from ._support.sql_helpers import (
     build_override_identity_text_stmt,
     generate_delete_sql,
@@ -629,6 +631,40 @@ class BulkCrud:
             fichero_sql: Ruta del archivo destino. Si es None, imprime en log.
         """
         self._persistence.persist_sql(sql_lines, fichero_sql)
+
+    def sync_pk_sequences(self, tables: list[str] | None = None) -> list[PKSyncResult]:
+        """Sincroniza los contadores PK tras una carga masiva con PKs explícitas.
+
+        Debe llamarse **después** de haber insertado los datos, cuando los contadores
+        de sequence/identity/auto_increment han quedado por detrás del MAX real de la tabla.
+
+        Args:
+            tables: Nombres de tabla a sincronizar (misma convención que
+                ``bulk_insert_from_df``). ``None`` = sincronizar todas las tablas
+                reflejadas en esta sesión (``_table_cache``).
+
+        Returns:
+            Lista de ``PKSyncResult``, uno por columna PK identity procesada.
+            Los errores se capturan en ``PKSyncResult.status = "error"``; no se propagan.
+
+        Permisos requeridos por motor:
+
+        - **PostgreSQL**: propietario de la tabla o ``SUPERUSER``.
+        - **SQL Server**: ``ALTER TABLE`` permission o membresía en ``db_owner``.
+        - **MariaDB/MySQL**: ``ALTER`` privilege sobre la tabla.
+        - **Oracle >= 12c**: ``SELECT`` en ``ALL_TAB_IDENTITY_COLS`` +
+          ``ALTER ANY SEQUENCE`` (o ser propietario de la sequence).
+        """
+        if tables is None:
+            table_objects = list(self._table_cache.values())
+        else:
+            table_objects = [self.reflect_table(t) for t in tables]
+
+        if not table_objects:
+            return []
+
+        syncer = PKSequenceSyncer(self.engine)
+        return syncer.sync_all(table_objects)
 
 
 # Alias retrocompatible — la API pública histórica usaba snake_case.

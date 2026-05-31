@@ -25,7 +25,7 @@ Casos de uso típicos:
 
 ---
 
-## Flujo de las 6 fases
+## Flujo de las 7 fases
 
 ```mermaid
 flowchart TD
@@ -37,13 +37,17 @@ flowchart TD
     E -- No --> G
     F --> G[Fase 5: Carga best-effort]
     G --> H[Fase 6: Rehabilitar constraints]
-    H --> I[Generar informe Excel]
+    H --> J{sync_pk_sequences?}
+    J -- Sí --> K[Fase 6a: Sincronizar contadores PK]
+    J -- No --> I
+    K --> I[Fase 7: Generar informe Excel]
     I --> Z([DumpResult])
 
     style A fill:#4472C4,color:#fff
     style Z fill:#92D050,color:#333
     style D fill:#ED7D31,color:#fff
     style H fill:#ED7D31,color:#fff
+    style K fill:#5B9BD5,color:#fff
 ```
 
 ### Fase 1 — Inspección
@@ -94,6 +98,20 @@ Las tablas sin columnas comunes se marcan como `skipped` sin lanzar error.
 
 Al salir del contexto `ConstraintManager` (incluso si se lanzó una excepción durante la carga), las constraints se reactivan. Si una constraint no puede reactivarse (p.ej., datos que infringen la restricción), se registra como `failed` en el informe sin detener el proceso.
 
+### Fase 6a — Resincronización de contadores PK *(si `sync_pk_sequences=True`)*
+
+Tras la rehabilitación de constraints, los contadores internos de PK (sequences, IDENTITY, AUTO_INCREMENT) del destino se actualizan para que coincidan con el `MAX` real de cada columna cargada. Esto es necesario cuando los datos se insertaron con PKs explícitas (el caso habitual en volcados de datos).
+
+| Motor | Operación ejecutada |
+|---|---|
+| **PostgreSQL** | `SELECT setval(pg_get_serial_sequence(tabla, col), MAX(col), true)` |
+| **SQL Server** | `DBCC CHECKIDENT (tabla, RESEED, MAX(col))` |
+| **MariaDB/MySQL** | `ALTER TABLE tabla AUTO_INCREMENT = MAX(col) + 1` |
+| **Oracle ≥ 12c** | `ALTER SEQUENCE seq RESTART START WITH MAX(col) + 1` (sequence localizada via `ALL_TAB_IDENTITY_COLS`) |
+| **Oracle < 12c** | `status="unsupported"` — patrón trigger+sequence sin metadata declarativa |
+
+Los resultados quedan en `DumpResult.pk_sync_results`. Los errores de permisos se capturan como `status="error"` sin interrumpir el volcado. Desactivar con `DumpConfig.sync_pk_sequences=False` si se gestiona la resincronización manualmente.
+
 ---
 
 ## Reglas de negocio
@@ -114,7 +132,7 @@ Al salir del contexto `ConstraintManager` (incluso si se lanzó una excepción d
 | Límite | Detalle |
 |---|---|
 | No aplica DDL | Si la tabla no existe en destino, no se crea automáticamente |
-| No soporta secuencias/identidades | Las columnas IDENTITY/AUTOINCREMENT del destino no se resetean |
+| Resincronización de secuencias/identidades | Soportada para PostgreSQL, SQL Server, MariaDB y Oracle ≥ 12c (Fase 6a). Oracle < 12c (trigger+sequence): sin soporte automático. Desactivar con `sync_pk_sequences=False` si se gestiona manualmente. |
 | Sin transacción global | Cada tabla se inserta en su propia transacción (`bulk_session`); no hay rollback global entre tablas |
 | Semántica table-atomic | Dentro de cada tabla, todos los chunks son atómicos: un error en cualquier chunk hace rollback de toda la tabla |
 | Constraint management solo en 4 motores | SQL Server, MariaDB, PostgreSQL, Oracle. Otros: no-op con warning |

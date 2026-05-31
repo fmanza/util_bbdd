@@ -30,7 +30,7 @@ from util_bbdd.bulk.audit import AuditManager
 from util_bbdd.comparar import SchemaComparator, SchemaDiff
 
 from ._constraints import ConstraintManager, ConstraintResult
-from ._models import DumpAuditSummary, DumpConfig, DumpResult, TableDumpResult
+from ._models import DumpAuditSummary, DumpConfig, DumpResult, PKSyncResult, TableDumpResult
 from ._sql_utils import quote_identifier, quote_table
 from .reporters import DumpReporter
 
@@ -167,6 +167,12 @@ class DumpOrchestrator:
 
         constraint_results: list[ConstraintResult] = constraint_mgr.constraint_results
 
+        # FASE 6a: Resincronizar contadores PK en destino (si está habilitado)
+        pk_sync_results: list[PKSyncResult] | None = self._sync_pk_sequences(
+            crud=crud,
+            effective_dst_order=effective_dst_order,
+        )
+
         # FASE 6b: Generar informe Excel
         report_path = DumpReporter(cfg.output_dir).generate(
             table_results=table_results,
@@ -183,6 +189,7 @@ class DumpOrchestrator:
             cycles_detected=cycles,
             report=report_path,
             audit_summary=DumpOrchestrator._build_audit_summary(cfg.bulk_audit_path, dump_inicio),
+            pk_sync_results=pk_sync_results,
         )
 
     # ------------------------------------------------------------------
@@ -333,6 +340,48 @@ class DumpOrchestrator:
             in_cycle=in_cycle,
             error_msg="; ".join(error_msgs),
         )
+
+    # ------------------------------------------------------------------
+    # Fase 6a: Resincronización de contadores PK
+    # ------------------------------------------------------------------
+
+    def _sync_pk_sequences(
+        self,
+        crud: BulkCrud,
+        effective_dst_order: list[str],
+    ) -> list[PKSyncResult] | None:
+        """Resincroniza los contadores PK en el destino tras la carga masiva.
+
+        Usa las tablas ya reflejadas en ``crud._table_cache`` para evitar una segunda
+        ronda de introspección. Si ``DumpConfig.sync_pk_sequences=False``, retorna ``None``.
+        Los errores por tabla se capturan en ``PKSyncResult.status="error"`` y no
+        interrumpen el volcado.
+        """
+        if not self._cfg.sync_pk_sequences:
+            return None
+
+        tables = [t for t in effective_dst_order if t in crud._table_cache]
+        if not tables:
+            _log.debug("PK sync: no hay tablas en caché para sincronizar (load vacío).")
+            return None
+
+        results = crud.sync_pk_sequences(tables)
+
+        synced = sum(1 for r in results if r.status == "synced")
+        no_rows = sum(1 for r in results if r.status == "no_rows")
+        skipped = sum(1 for r in results if r.status == "skipped")
+        unsupported = sum(1 for r in results if r.status == "unsupported")
+        errors = sum(1 for r in results if r.status == "error")
+
+        _log.info(
+            "Fase 6a (PK sync): synced=%d, no_rows=%d, skipped=%d, unsupported=%d, errors=%d",
+            synced, no_rows, skipped, unsupported, errors,
+        )
+        for r in results:
+            if r.status == "error":
+                _log.warning("  PK sync error %s.%s: %s", r.table_name, r.column_name, r.error_msg)
+
+        return results or None
 
     # ------------------------------------------------------------------
     # Helpers internos

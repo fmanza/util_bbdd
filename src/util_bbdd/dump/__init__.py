@@ -27,7 +27,7 @@ Ejemplo básico::
 """
 
 from ._constraints import ConstraintManager, ConstraintResult
-from ._models import DumpAuditSummary, DumpConfig, DumpResult, TableDumpResult
+from ._models import DumpAuditSummary, DumpConfig, DumpResult, PKSyncResult, TableDumpResult
 from ._protocols import BulkInserter
 from .orchestrator import DumpOrchestrator
 from .reporters import DumpReporter
@@ -41,5 +41,6 @@ __all__: list[str] = [
     "DumpOrchestrator",
     "DumpReporter",
     "DumpResult",
+    "PKSyncResult",
     "TableDumpResult",
 ]

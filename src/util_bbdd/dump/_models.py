@@ -12,6 +12,10 @@ from typing import Literal
 
 from sqlalchemy import Engine
 
+from util_bbdd.bulk._models import PKSyncResult
+
+__all__: list[str] = ["PKSyncResult"]
+
 
 @dataclass
 class ConstraintResult:
@@ -57,6 +61,11 @@ class DumpConfig:
             y destino por tabla para obtener la volumetría real. ``False`` los omite y
             usa ``-1`` como sentinel; útil en volcados de alto volumen donde el conteo
             es costoso (Snowflake, Oracle sin estadísticas actualizadas, tablas muy grandes).
+        sync_pk_sequences: Si ``True`` (default), ejecuta la Fase 6a tras la carga:
+            resincroniza los contadores PK (sequence / IDENTITY / AUTO_INCREMENT) en el
+            destino para que coincidan con el ``MAX`` real de cada columna. Desactivar
+            con ``False`` si se gestiona la resincronización manualmente o si el motor
+            destino no soporta la operación con los permisos disponibles.
     """
 
     source_engine: Engine
@@ -69,6 +78,7 @@ class DumpConfig:
     truncate_target: bool = True
     bulk_audit_path: Path | None = None
     collect_row_counts: bool = True
+    sync_pk_sequences: bool = True
 
 
 @dataclass
@@ -125,6 +135,9 @@ class DumpResult:
         audit_summary: Métricas de auditoría extraídas de ``bulk.audit`` al finalizar.
             ``None`` cuando ``DumpConfig.bulk_audit_path`` no está configurado o el CSV
             no contiene entradas del volcado actual.
+        pk_sync_results: Resultado por columna PK sincronizada en la Fase 6a.
+            ``None`` cuando ``DumpConfig.sync_pk_sequences=False`` o el motor destino
+            no tiene tablas con contadores PK.
     """
 
     table_results: list[TableDumpResult]
@@ -133,3 +146,4 @@ class DumpResult:
     cycles_detected: list[list[str]]
     report: Path
     audit_summary: DumpAuditSummary | None = None
+    pk_sync_results: list[PKSyncResult] | None = None

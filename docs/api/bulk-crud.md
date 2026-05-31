@@ -37,6 +37,7 @@ flowchart TD
 | `bulk_delete_from_df` | `(df, tabla_destino, generar_sql?, path_sql?)` | DELETE masivo desde DataFrame | `None` |
 | `bulk_session` | `(*, atomic=True)` | Context manager para loop de inserts con 1 transacción | `Iterator[None]` |
 | `reflect_table` | `(tabla_destino)` | Refleja tabla SQLAlchemy (con caché interno) | `Table` |
+| `sync_pk_sequences` | `(tables=None)` | Resincroniza contadores PK (sequence / IDENTITY / AUTO_INCREMENT) al `MAX` actual. `None` = todas las tablas reflejadas en la sesión. | `list[PKSyncResult]` |
 
 ## Contrato de entrada
 
@@ -54,8 +55,9 @@ flowchart TD
 
 ## Contrato de salida
 
-- Todos los métodos públicos retornan `None`.
-- Efecto secundario principal: filas modificadas en BD.
+- Los métodos de escritura (`bulk_insert_from_df`, `bulk_update_from_df`, `bulk_delete_from_df`) retornan `None`.
+- `sync_pk_sequences(tables?)` retorna `list[PKSyncResult]` — uno por columna PK identity procesada. Los errores se capturan en `PKSyncResult.status = "error"` y nunca se propagan.
+- Efecto secundario principal: filas modificadas en BD (escritura) o contadores PK actualizados (sync).
 - Efecto secundario opcional: fichero `.sql` escrito en `path_sql` y entrada registrada en el CSV de auditoría.
 
 ## Errores y casos especiales

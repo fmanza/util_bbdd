@@ -12,6 +12,7 @@ from util_bbdd.dump import (
     DumpOrchestrator,
     DumpResult,
     DumpAuditSummary,
+    PKSyncResult,
     TableDumpResult,
     ConstraintManager,
     ConstraintResult,
@@ -38,6 +39,7 @@ class DumpConfig:
     truncate_target: bool = True
     bulk_audit_path: Path | None = None
     collect_row_counts: bool = True
+    sync_pk_sequences: bool = True
 ```
 
 | Parámetro | Tipo | Default | Descripción |
@@ -52,6 +54,7 @@ class DumpConfig:
 | `truncate_target` | `bool` | `True` | `True` = vaciar destino antes de cargar; `False` = append. **SQL Server:** usa `TRUNCATE TABLE` en tablas sin FK entrantes (instantáneo) y `DELETE FROM` solo en tablas referenciadas por FK de otras tablas del esquema — TRUNCATE falla en SQL Server cuando existe una FK entrante aunque esté en NOCHECK. La detección es automática; si falla, el volcado reintenta con `DELETE`. |
 | `bulk_audit_path` | `Path \| None` | `None` | Ruta del CSV de auditoría de `util_bbdd.bulk.audit`. Si se proporciona: (1) cada INSERT queda registrado en el CSV durante la carga y (2) al finalizar el volcado, `DumpResult.audit_summary` se popula con las métricas del CSV filtradas al rango temporal del volcado. `None` = sin auditoría de inserts. |
 | `collect_row_counts` | `bool` | `True` | Si `True`, ejecuta `COUNT(*)` sobre origen y destino por tabla para obtener volumetría. Si `False`, omite todos los conteos y usa `-1` como sentinel en `TableDumpResult.source_rows`, `target_rows_before` y `target_rows_after`. Útil en volcados de alto volumen donde el conteo es costoso (Snowflake, Oracle sin estadísticas actualizadas, tablas de decenas de millones de filas). El informe Excel muestra `—` para los valores `-1`. |
+| `sync_pk_sequences` | `bool` | `True` | Si `True` (default), ejecuta la Fase 6a tras la carga: resincroniza los contadores PK (sequence / IDENTITY / AUTO_INCREMENT) del destino al valor `MAX(pk)` real de cada tabla. Motores soportados: PostgreSQL, SQL Server, MariaDB/MySQL, Oracle ≥ 12c. Los resultados quedan en `DumpResult.pk_sync_results`. Usar `False` para gestionar la resincronización manualmente o si los permisos requeridos no están disponibles. |
 
 ### Optimizaciones automáticas de inserción
 
@@ -83,7 +86,7 @@ Prepara los inspectores SQLAlchemy de origen y destino. No abre conexiones hasta
 
 ### `run() → DumpResult`
 
-Ejecuta las 6 fases del volcado y retorna el resultado completo con el informe Excel.
+Ejecuta las 7 fases del volcado y retorna el resultado completo con el informe Excel.
 
 Puede propagar `SQLAlchemyError` si la conexión a origen o destino falla antes de comenzar.
 
@@ -102,6 +105,7 @@ class DumpResult:
     cycles_detected: list[list[str]]
     report: Path
     audit_summary: DumpAuditSummary | None = None
+    pk_sync_results: list[PKSyncResult] | None = None
 ```
 
 | Atributo | Tipo | Descripción |
@@ -112,6 +116,7 @@ class DumpResult:
 | `cycles_detected` | `list[list[str]]` | Grupos de tablas con FK circular |
 | `report` | `Path` | Ruta del fichero Excel generado |
 | `audit_summary` | `DumpAuditSummary \| None` | Métricas de auditoría de inserts extraídas de `bulk.audit` al finalizar. `None` cuando `DumpConfig.bulk_audit_path` no está configurado o el CSV no contiene entradas del volcado actual. |
+| `pk_sync_results` | `list[PKSyncResult] \| None` | Resultado de la resincronización de contadores PK (Fase 6a). `None` cuando `DumpConfig.sync_pk_sequences=False` o no hay columnas con identity/autoincrement en las tablas cargadas. |
 
 ---
 
@@ -146,6 +151,51 @@ class DumpAuditSummary:
 `DumpAuditSummary` se construye leyendo el CSV de `util_bbdd.bulk.audit` al finalizar el volcado. Solo se incluyen las entradas cuyo `timestamp >= inicio_del_volcado`, para aislar este volcado de operaciones previas en el mismo CSV.
 
 El CSV de auditoría contiene una fila por lote INSERT, no por tabla. Una tabla grande con `chunk_size=5000` y 50 000 filas genera 10 entradas en el CSV, todas reflejadas en `total_operaciones`.
+
+---
+
+## PKSyncResult
+
+Resultado de sincronizar el contador PK de una columna tras la carga masiva (Fase 6a). Presente en `DumpResult.pk_sync_results` y también disponible desde `util_bbdd.bulk`.
+
+```python
+@dataclass
+class PKSyncResult:
+    table_name: str
+    column_name: str
+    engine_dialect: str
+    max_value: int | None
+    status: Literal["synced", "skipped", "no_rows", "unsupported", "error"]
+    error_msg: str = ""
+```
+
+| Atributo | Tipo | Descripción |
+|---|---|---|
+| `table_name` | `str` | Nombre de la tabla |
+| `column_name` | `str` | Nombre de la columna PK sincronizada |
+| `engine_dialect` | `str` | Dialecto del motor (`"postgresql"`, `"mssql"`, etc.) |
+| `max_value` | `int \| None` | `MAX(pk)` leído antes del sync; `None` si la tabla estaba vacía |
+| `status` | `Literal` | Resultado de la operación (ver tabla de valores) |
+| `error_msg` | `str` | Detalle del error cuando `status="error"` o `"unsupported"` |
+
+### Valores de `status`
+
+| Valor | Significado |
+|---|---|
+| `"synced"` | Contador actualizado al `MAX(pk)` real. El próximo INSERT sin PK explícita usará `MAX + 1`. |
+| `"skipped"` | Columna sin sequence vinculada (PK natural, UUID). No se ejecutó ninguna operación. |
+| `"no_rows"` | Tabla vacía tras la carga. Contador reiniciado al valor semilla del motor (1 para PostgreSQL/MariaDB, 0 para SQL Server). |
+| `"unsupported"` | Motor o patrón no soportado. Oracle < 12c (trigger + sequence manual) cae aquí. |
+| `"error"` | Fallo de permisos u otro error SQL. Ver `error_msg`. La Fase 6a continúa con la siguiente columna (best-effort). |
+
+### Permisos requeridos por motor
+
+| Motor | Permiso mínimo |
+|---|---|
+| **PostgreSQL** | Propietario de la tabla o `SUPERUSER` (para `setval()` en schemas ajenos) |
+| **SQL Server** | `ALTER TABLE` permission o membresía en `db_owner` (para `DBCC CHECKIDENT`) |
+| **MariaDB/MySQL** | `ALTER` privilege sobre la tabla |
+| **Oracle ≥ 12c** | `SELECT` en `ALL_TAB_IDENTITY_COLS` (disponible por defecto) + `ALTER ANY SEQUENCE` o propietario de la sequence |
 
 ---
 
