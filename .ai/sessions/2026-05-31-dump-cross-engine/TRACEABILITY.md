@@ -198,3 +198,73 @@ Veredicto: **CLOSED**
 - Quinario: `mariadbconnector` `Server has gone away` → `pool_recycle=3600` en factory
 - Senario: `Lost connection during query` (max_allowed_packet) → `_warn_chunk_size` + docstring
 Suite completa verde: 3440 passed, 1 skipped.
+
+---
+
+## Addendum — dump → bulk.audit integration + documentación (2026-05-31)
+
+### Cambios añadidos
+
+#### `feat: DumpAuditSummary — integración dump con bulk.audit`
+
+**`src/util_bbdd/dump/_models.py`**
+- Nuevo dataclass `DumpAuditSummary` con campos: `total_operaciones`, `total_filas`,
+  `tiempo_total_seg`, `tiempo_promedio_seg`, `tablas_auditadas`, `tabla_mas_activa`, `audit_path`.
+- `DumpResult`: nuevo campo `audit_summary: DumpAuditSummary | None = None`.
+
+**`src/util_bbdd/dump/orchestrator.py`**
+- Imports añadidos: `datetime`, `Path`, `AuditManager` (de `util_bbdd.bulk.audit`).
+- `run()`: registra `dump_inicio = datetime.now()` al inicio; pasa `audit_summary` al construir `DumpResult`.
+- Nuevo método estático `_build_audit_summary(audit_path, desde)`:
+  abre un `AuditManager` (cache desactivado), lee el CSV, filtra por `timestamp >= dump_inicio`
+  para aislar entradas del volcado actual frente a operaciones previas en el mismo CSV,
+  construye `DumpAuditSummary`. Devuelve `None` si la ruta es `None`, el fichero no existe
+  o el CSV no tiene entradas en el rango temporal.
+
+**`src/util_bbdd/dump/__init__.py`**
+- `DumpAuditSummary` añadido a imports y a `__all__`.
+
+#### `docs: documentar DumpAuditSummary, bulk_audit_path y ejemplos de auditoría`
+
+**`docs/api/dump.md`**
+- `DumpAuditSummary` añadido a imports canónicos.
+- `DumpConfig`: parámetro `bulk_audit_path` documentado (faltaba completamente), con descripción de
+  sus dos efectos: registro de INSERTs durante la carga + `audit_summary` al finalizar.
+- `DumpResult`: atributo `audit_summary` añadido a firma y tabla.
+- Nueva sección `## DumpAuditSummary` con firma completa, tabla de atributos y nota sobre
+  filtrado temporal por volcado (lotes INSERT desde inicio de `run()`).
+
+**`docs/functional/dump-data-export.md`**
+- Nueva sección `## Auditoría en bulk.audit` con tabla de dos niveles de auditoría (por lote INSERT
+  y por tabla) y explicación de cuándo `audit_summary` es `None`.
+
+**`docs/examples/dump_data_export.md`**
+- Nueva sección `## Auditoría de inserts con bulk.audit` con:
+  - Ejemplo ejecutable completo con `bulk_audit_path` y lectura de todos los campos de `DumpAuditSummary`.
+  - Tabla de casos cuando `audit_summary` es `None`.
+  - Bloque adicional mostrando exploración del CSV con `AuditManager` (filtros, export Excel).
+
+### Artefactos modificados (addendum)
+
+| Artefacto | Ruta | Tipo de cambio |
+|---|---|---|
+| Modelos dump | `src/util_bbdd/dump/_models.py` | feat: DumpAuditSummary + DumpResult.audit_summary |
+| Orquestador dump | `src/util_bbdd/dump/orchestrator.py` | feat: _build_audit_summary + dump_inicio |
+| Exports dump | `src/util_bbdd/dump/__init__.py` | feat: DumpAuditSummary en __all__ |
+| API técnica dump | `docs/api/dump.md` | docs: DumpAuditSummary + bulk_audit_path + audit_summary |
+| Doc funcional dump | `docs/functional/dump-data-export.md` | docs: sección Auditoría en bulk.audit |
+| Ejemplo dump | `docs/examples/dump_data_export.md` | docs: ejemplo completo bulk_audit_path |
+
+### Directrices para Futuras IAs (addendum)
+
+- **`DumpAuditSummary` es read-only**: se construye leyendo el CSV al finalizar `run()`. No
+  es un writer ni modifica el esquema de `bulk.audit`. No añadir campos sin verificar que
+  `AuditCsvRepository` los persiste.
+- **Filtrado temporal**: `_build_audit_summary` filtra por `timestamp >= dump_inicio` para aislar
+  el volcado actual. Si se paraleliza `run()` en el futuro, necesitará un mecanismo de correlación.
+- **Sin cambios en `bulk.audit`**: la integración es unidireccional y de solo lectura. El
+  esquema CSV (`timestamp, tabla, motor, operacion, total_filas, tiempo_seg, sql`) no cambia.
+- **`audit_summary` cuenta lotes INSERT, no tablas**: una tabla con 50 000 filas y `chunk_size=5000`
+  genera 10 entradas en `total_operaciones`. Aclarar esta distinción en comunicación al usuario.
+- **`bulk_audit_path` ausente de la doc API anterior**: estaba en `DumpConfig` desde la sesión
+  `2026-05-26-dump-bulk-protocol` pero faltaba en `docs/api/dump.md`. Ya corregido.

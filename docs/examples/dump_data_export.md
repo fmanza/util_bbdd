@@ -137,6 +137,81 @@ Columnas presentes en origen pero ausentes en destino. Estas columnas se omitier
 
 ---
 
+## Auditoría de inserts con bulk.audit
+
+Para registrar cada lote INSERT en el subsistema de auditoría de `util_bbdd.bulk.audit` y obtener métricas al finalizar, configura `bulk_audit_path` en `DumpConfig`:
+
+```python
+from pathlib import Path
+from sqlalchemy import create_engine
+
+from util_bbdd.dump import DumpConfig, DumpOrchestrator
+
+src_engine = create_engine("postgresql+psycopg2://user:password@prod-server:5432/production_db")
+dst_engine = create_engine("mssql+pymssql://user:password@analytics-server/analytics_db")
+
+config = DumpConfig(
+    source_engine=src_engine,
+    target_engine=dst_engine,
+    source_schema="public",
+    target_schema="dbo",
+    output_dir=Path("reports"),
+    bulk_audit_path=Path("audit/dump_audit.csv"),   # activa auditoría de inserts
+)
+
+result = DumpOrchestrator(config).run()
+
+# audit_summary está disponible cuando bulk_audit_path está configurado
+# y el volcado ha generado al menos un INSERT registrado
+if result.audit_summary is not None:
+    s = result.audit_summary
+    print(f"Lotes INSERT registrados : {s.total_operaciones}")
+    print(f"Filas insertadas (audit) : {s.total_filas:,}")
+    print(f"Tiempo total inserción   : {s.tiempo_total_seg:.1f}s")
+    print(f"Tiempo medio por lote    : {s.tiempo_promedio_seg:.3f}s")
+    print(f"Tablas auditadas         : {s.tablas_auditadas}")
+    print(f"Tabla más activa         : {s.tabla_mas_activa}")
+    print(f"CSV de auditoría         : {s.audit_path}")
+else:
+    print("Sin resumen de auditoría (bulk_audit_path no configurado o volcado sin inserts).")
+```
+
+### Cuándo `audit_summary` es `None`
+
+| Situación | `audit_summary` |
+|---|---|
+| `bulk_audit_path=None` (default) | `None` — auditoría desactivada |
+| `bulk_audit_path` configurado, volcado sin inserts (todas las tablas `skipped` o `missing_target`) | `None` — el CSV no contiene entradas del volcado |
+| `bulk_audit_path` configurado y hay inserts | `DumpAuditSummary` con métricas del volcado |
+
+### Analizar el CSV de auditoría tras el volcado
+
+El CSV acumula operaciones de múltiples volcados y otras operaciones `bulk_crud`. Para explorar los datos directamente:
+
+```python
+from util_bbdd.bulk.audit import AuditManager
+
+mgr = AuditManager(Path("audit/dump_audit.csv"))
+
+# Estadísticas globales del CSV (todos los volcados acumulados)
+stats = mgr.obtener_estadisticas()
+print(stats)
+
+# Filtrar solo inserts de una tabla concreta
+df = mgr.filtrar_por_tabla("orders")
+print(df)
+
+# Operaciones que tardaron más de 2 segundos
+lentas = mgr.obtener_operaciones_lentas(umbral_segundos=2.0)
+print(lentas)
+
+# Exportar resumen agrupado por tabla a Excel
+ruta_excel = mgr.exportar_resumen_excel(agrupar_por="tabla")
+print(f"Resumen de auditoría: {ruta_excel}")
+```
+
+---
+
 ## Troubleshooting
 
 ### La tabla tiene ciclos FK (`in_cycle=True`)

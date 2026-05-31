@@ -11,6 +11,7 @@ from util_bbdd.dump import (
     DumpConfig,
     DumpOrchestrator,
     DumpResult,
+    DumpAuditSummary,
     TableDumpResult,
     ConstraintManager,
     ConstraintResult,
@@ -35,6 +36,7 @@ class DumpConfig:
     chunk_size: int = 5000
     output_dir: Path = Path()
     truncate_target: bool = True
+    bulk_audit_path: Path | None = None
 ```
 
 | Parámetro | Tipo | Default | Descripción |
@@ -47,6 +49,7 @@ class DumpConfig:
 | `chunk_size` | `int` | `5000` | Filas por chunk en lectura y en bulk insert |
 | `output_dir` | `Path` | `Path()` | Directorio donde guardar el informe Excel |
 | `truncate_target` | `bool` | `True` | `True` = vaciar destino antes de cargar; `False` = append |
+| `bulk_audit_path` | `Path \| None` | `None` | Ruta del CSV de auditoría de `util_bbdd.bulk.audit`. Si se proporciona: (1) cada INSERT queda registrado en el CSV durante la carga y (2) al finalizar el volcado, `DumpResult.audit_summary` se popula con las métricas del CSV filtradas al rango temporal del volcado. `None` = sin auditoría de inserts. |
 
 ---
 
@@ -84,6 +87,7 @@ class DumpResult:
     load_order: list[str]
     cycles_detected: list[list[str]]
     report: Path
+    audit_summary: DumpAuditSummary | None = None
 ```
 
 | Atributo | Tipo | Descripción |
@@ -93,6 +97,41 @@ class DumpResult:
 | `load_order` | `list[str]` | Orden topológico aplicado (tablas con ciclos al final) |
 | `cycles_detected` | `list[list[str]]` | Grupos de tablas con FK circular |
 | `report` | `Path` | Ruta del fichero Excel generado |
+| `audit_summary` | `DumpAuditSummary \| None` | Métricas de auditoría de inserts extraídas de `bulk.audit` al finalizar. `None` cuando `DumpConfig.bulk_audit_path` no está configurado o el CSV no contiene entradas del volcado actual. |
+
+---
+
+## DumpAuditSummary
+
+Métricas de auditoría de inserts generadas al finalizar el volcado. Disponible en `DumpResult.audit_summary` cuando `DumpConfig.bulk_audit_path` está configurado.
+
+```python
+@dataclass
+class DumpAuditSummary:
+    total_operaciones: int
+    total_filas: int
+    tiempo_total_seg: float
+    tiempo_promedio_seg: float
+    tablas_auditadas: int
+    tabla_mas_activa: str | None
+    audit_path: Path
+```
+
+| Atributo | Tipo | Descripción |
+|---|---|---|
+| `total_operaciones` | `int` | Número de lotes INSERT registrados en el CSV de auditoría durante el volcado |
+| `total_filas` | `int` | Suma de filas insertadas según el CSV de auditoría |
+| `tiempo_total_seg` | `float` | Tiempo total de inserción en segundos (redondeado a 3 decimales) |
+| `tiempo_promedio_seg` | `float` | Tiempo medio por lote INSERT (redondeado a 3 decimales) |
+| `tablas_auditadas` | `int` | Número de tablas distintas con al menos un INSERT registrado |
+| `tabla_mas_activa` | `str \| None` | Tabla con mayor número de lotes INSERT; `None` si no hay entradas |
+| `audit_path` | `Path` | Ruta del CSV de auditoría consultado |
+
+### Relación con `bulk.audit`
+
+`DumpAuditSummary` se construye leyendo el CSV de `util_bbdd.bulk.audit` al finalizar el volcado. Solo se incluyen las entradas cuyo `timestamp >= inicio_del_volcado`, para aislar este volcado de operaciones previas en el mismo CSV.
+
+El CSV de auditoría contiene una fila por lote INSERT, no por tabla. Una tabla grande con `chunk_size=5000` y 50 000 filas genera 10 entradas en el CSV, todas reflejadas en `total_operaciones`.
 
 ---
 

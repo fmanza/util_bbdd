@@ -121,6 +121,21 @@ Al salir del contexto `ConstraintManager` (incluso si se lanzó una excepción d
 
 ---
 
+## Auditoría en bulk.audit
+
+Cuando `DumpConfig.bulk_audit_path` apunta a un fichero CSV de `util_bbdd.bulk.audit`, el volcado integra dos niveles de auditoría:
+
+| Nivel | Qué registra | Dónde se consulta |
+|---|---|---|
+| **Por lote INSERT** | Tabla, motor, filas, tiempo por chunk | CSV en `bulk_audit_path`; también en `DumpResult.audit_summary` |
+| **Por tabla** | Estado, filas origen/destino, columnas omitidas, errores | `DumpResult.table_results` + informe Excel |
+
+Al terminar el volcado, `DumpResult.audit_summary` contiene las métricas agregadas del CSV filtradas al rango temporal del volcado (lotes INSERT realizados desde que comenzó `run()`). Si `bulk_audit_path` es `None` o el CSV no tiene entradas del volcado actual, `audit_summary` es `None`.
+
+El CSV de `bulk.audit` puede acumular operaciones de múltiples volcados y otras operaciones bulk. El filtrado temporal garantiza que `audit_summary` solo refleja este volcado concreto.
+
+---
+
 ## Informe Excel de auditoría
 
 El volcado genera automáticamente un fichero `.xlsx` en `output_dir` con tres hojas:
