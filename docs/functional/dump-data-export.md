@@ -29,7 +29,7 @@ Casos de uso típicos:
 
 ```mermaid
 flowchart TD
-    A([Inicio]) --> B[Fase 1: Inspección]
+    A([Inicio]) --> B[Fase 1: Introspección]
     B --> C[Fase 2: Análisis FK]
     C --> D[Fase 3: Deshabilitar constraints]
     D --> E{truncate_target?}
@@ -50,9 +50,11 @@ flowchart TD
     style K fill:#5B9BD5,color:#fff
 ```
 
-### Fase 1 — Inspección
+### Fase 1 — Introspección
 
-Introspección de origen y destino mediante SQLAlchemy `Inspector`. Se calcula un `SchemaDiff` que identifica tablas y columnas presentes en origen pero ausentes en destino.
+Introspección de origen y destino mediante SQLAlchemy `Inspector`, limitada a lo imprescindible para la carga: nombres de tablas, columnas y claves foráneas del origen.
+
+El volcado **no** ejecuta una comparación de esquemas (`SchemaComparator`). Las columnas presentes en origen y ausentes en destino se detectan durante la carga (`TableDumpResult.skipped_columns`, ver Fase 5) y alimentan directamente la hoja «Columnas Inexistentes» del informe. De este modo se evita la cascada N+1 de introspección de índices, FKs de destino, comentarios y vistas que no intervienen en el volcado de datos y que penalizaba el tiempo total frente a una inserción directa.
 
 ### Fase 2 — Análisis topológico
 

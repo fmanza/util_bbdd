@@ -297,7 +297,6 @@ class DumpReporter:
         self,
         table_results: list[TableDumpResult],
         missing_tables: list[str],
-        diff: SchemaDiff,
         constraint_results: list[ConstraintResult],
         cycles: list[list[str]],
     ) -> Path: ...
@@ -313,7 +312,7 @@ El fichero contiene tres hojas:
 |---|---|
 | `Auditoría Tablas` | Volumetría y estado por tabla; constraints con incidencias al pie |
 | `Tablas Faltantes` | Tablas de origen sin correspondencia en destino |
-| `Columnas Inexistentes` | Columnas de origen ausentes en destino |
+| `Columnas Inexistentes` | Columnas de origen ausentes en destino (derivadas de `TableDumpResult.skipped_columns`) |
 
 ---
 
@@ -335,4 +334,3 @@ Los errores a nivel de tabla se capturan internamente y se registran en `TableDu
 
 - [Documentación Funcional — Volcado de Datos](../functional/dump-data-export.md)
 - [Ejemplo ejecutable — Volcado PostgreSQL → SQL Server](../examples/dump_data_export.md)
-- [API Comparador de Esquemas](schema-comparator.md) — `SchemaDiff` usado en el informe

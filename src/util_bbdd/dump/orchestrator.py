@@ -2,13 +2,19 @@
 
 Punto de entrada público: ``DumpOrchestrator(config).run() → DumpResult``.
 
-Flujo (6 fases):
-  1. Inspección: introspección de origen y destino + comparación de esquemas.
-  2. Análisis: orden de carga topológico (FK), tablas faltantes.
-  3. Desactivación de constraints en destino.
-  4. Limpieza del destino (si ``truncate_target=True``).
-  5. Carga de datos (best-effort, continúa ante errores).
-  6. Rehabilitación de constraints + generación del informe Excel.
+Flujo (5 fases):
+  1. Análisis: orden de carga topológico (FK), tablas y columnas faltantes.
+  2. Desactivación de constraints en destino.
+  3. Limpieza del destino (si ``truncate_target=True``).
+  4. Carga de datos (best-effort, continúa ante errores).
+  5. Rehabilitación de constraints + sincronización PK + informe Excel.
+
+Nota de rendimiento: el volcado **no** ejecuta una comparación de esquemas
+(``SchemaComparator``). La introspección se limita a lo imprescindible para la
+carga (tablas, columnas y FKs de origen); las columnas presentes en origen y
+ausentes en destino se derivan durante la carga (``TableDumpResult.skipped_columns``)
+y alimentan directamente el informe Excel, evitando la cascada N+1 de comparar
+índices, FKs de destino, comentarios y vistas que no intervienen en el volcado.
 """
 
 from __future__ import annotations
@@ -27,7 +33,6 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from util_bbdd.bulk import BulkCrud
 from util_bbdd.bulk.audit import AuditManager
-from util_bbdd.comparar import SchemaComparator, SchemaDiff
 
 from ._constraints import ConstraintManager, ConstraintResult
 from ._models import DumpAuditSummary, DumpConfig, DumpResult, PKSyncResult, TableDumpResult
@@ -80,16 +85,7 @@ class DumpOrchestrator:
         cfg = self._cfg
         dump_inicio = datetime.now()
 
-        # FASE 1: Inspección y comparación de esquemas
-        diff: SchemaDiff = SchemaComparator().compare(
-            self._src_insp,
-            self._dst_insp,
-            source_schema=cfg.source_schema,
-            target_schema=cfg.target_schema,
-            include_routines=False,
-        )
-
-        # FASE 2: Análisis de carga
+        # FASE 1: Análisis de carga
         src_tables = self._get_source_tables()
         _dst_names = self._dst_insp.get_table_names(schema=cfg.target_schema)
         # Comparación case-insensitive: motores distintos pueden devolver distinto case
@@ -123,19 +119,19 @@ class DumpOrchestrator:
             len(cycles),
         )
 
-        # Fases 3-6: dentro del ConstraintManager (enable_all garantizado en __exit__)
+        # Fases 2-5: dentro del ConstraintManager (enable_all garantizado en __exit__)
         table_results: list[TableDumpResult] = []
         constraint_mgr = ConstraintManager(cfg.target_engine, cfg.target_schema)
 
         with constraint_mgr:
-            # FASE 3: Deshabilitar constraints (usando nombres canónicos del destino)
+            # FASE 2: Deshabilitar constraints (usando nombres canónicos del destino)
             constraint_mgr.disable_all(tables=effective_dst_order)
 
-            # FASE 4: Limpieza del destino (usando nombres canónicos del destino)
+            # FASE 3: Limpieza del destino (usando nombres canónicos del destino)
             if cfg.truncate_target:
                 self._cleanup(list(reversed(effective_dst_order)), skip=set(missing_in_dst))
 
-            # FASE 5: Carga (best-effort)
+            # FASE 4: Carga (best-effort)
             cycle_set = {t for group in cycles for t in group}
             crud = BulkCrud(cfg.target_engine, chunk_size=cfg.chunk_size, audit_csv_path=cfg.bulk_audit_path)
             for position, src_t in enumerate(effective_src_order):
@@ -167,17 +163,17 @@ class DumpOrchestrator:
 
         constraint_results: list[ConstraintResult] = constraint_mgr.constraint_results
 
-        # FASE 6a: Resincronizar contadores PK en destino (si está habilitado)
+        # FASE 5a: Resincronizar contadores PK en destino (si está habilitado)
         pk_sync_results: list[PKSyncResult] | None = self._sync_pk_sequences(
             crud=crud,
             effective_dst_order=effective_dst_order,
         )
 
-        # FASE 6b: Generar informe Excel
+        # FASE 5b: Generar informe Excel (la hoja "Columnas Inexistentes" se deriva
+        # de TableDumpResult.skipped_columns; no requiere comparación de esquemas)
         report_path = DumpReporter(cfg.output_dir).generate(
             table_results=table_results,
             missing_tables=missing_in_dst,
-            diff=diff,
             constraint_results=constraint_results,
             cycles=cycles,
         )
@@ -193,7 +189,7 @@ class DumpOrchestrator:
         )
 
     # ------------------------------------------------------------------
-    # Fase 4: Limpieza del destino
+    # Fase 3: Limpieza del destino
     # ------------------------------------------------------------------
 
     def _cleanup(self, reversed_order: list[str], skip: set[str]) -> None:
@@ -271,10 +267,12 @@ class DumpOrchestrator:
             return frozenset()
 
     # ------------------------------------------------------------------
-    # Fase 5: Carga de tabla individual
+    # Fase 4: Carga de tabla individual
     # ------------------------------------------------------------------
 
-    def _process_table(self, src_table: str, dst_table: str, position: int, in_cycle: bool, crud: BulkCrud) -> TableDumpResult:
+    def _process_table(
+        self, src_table: str, dst_table: str, position: int, in_cycle: bool, crud: BulkCrud
+    ) -> TableDumpResult:
         cfg = self._cfg
         common_cols, skipped_cols, col_name_map = self._common_columns(src_table, dst_table)
 
@@ -342,7 +340,7 @@ class DumpOrchestrator:
         )
 
     # ------------------------------------------------------------------
-    # Fase 6a: Resincronización de contadores PK
+    # Fase 5a: Resincronización de contadores PK
     # ------------------------------------------------------------------
 
     def _sync_pk_sequences(
@@ -374,8 +372,12 @@ class DumpOrchestrator:
         errors = sum(1 for r in results if r.status == "error")
 
         _log.info(
-            "Fase 6a (PK sync): synced=%d, no_rows=%d, skipped=%d, unsupported=%d, errors=%d",
-            synced, no_rows, skipped, unsupported, errors,
+            "Fase 5a (PK sync): synced=%d, no_rows=%d, skipped=%d, unsupported=%d, errors=%d",
+            synced,
+            no_rows,
+            skipped,
+            unsupported,
+            errors,
         )
         for r in results:
             if r.status == "error":

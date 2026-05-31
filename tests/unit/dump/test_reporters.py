@@ -8,7 +8,6 @@ import openpyxl
 
 from openpyxl.worksheet.worksheet import Worksheet
 
-from util_bbdd.comparar import ColumnDiff, SchemaDiff, TableDiff
 from util_bbdd.dump._constraints import ConstraintResult
 from util_bbdd.dump._models import TableDumpResult
 from util_bbdd.dump.reporters import DumpReporter
@@ -50,16 +49,6 @@ def _constraint_result(status: str = "enabled") -> ConstraintResult:
     )
 
 
-def _make_diff(
-    table_diffs: tuple[TableDiff, ...] = (),
-) -> SchemaDiff:
-    return SchemaDiff(
-        source_label="src",
-        target_label="dst",
-        table_diffs=table_diffs,
-    )
-
-
 # ---------------------------------------------------------------------------
 # DumpReporter.generate — estructura del fichero
 # ---------------------------------------------------------------------------
@@ -71,7 +60,6 @@ class TestDumpReporterSheetStructure:
         path = reporter.generate(
             table_results=[_table_result()],
             missing_tables=[],
-            diff=_make_diff(),
             constraint_results=[],
             cycles=[],
         )
@@ -88,7 +76,6 @@ class TestDumpReporterSheetStructure:
         path = reporter.generate(
             table_results=[],
             missing_tables=[],
-            diff=_make_diff(),
             constraint_results=[],
             cycles=[],
         )
@@ -99,7 +86,6 @@ class TestDumpReporterSheetStructure:
         path = reporter.generate(
             table_results=[],
             missing_tables=[],
-            diff=_make_diff(),
             constraint_results=[],
             cycles=[],
         )
@@ -123,7 +109,6 @@ class TestAuditSheet:
         path = reporter.generate(
             table_results=results,
             missing_tables=kwargs.get("missing_tables", []),
-            diff=_make_diff(),
             constraint_results=kwargs.get("constraint_results", []),
             cycles=kwargs.get("cycles", []),
         )
@@ -172,7 +157,6 @@ class TestMissingTablesSheet:
         path = reporter.generate(
             table_results=[],
             missing_tables=missing,
-            diff=_make_diff(),
             constraint_results=[],
             cycles=[],
         )
@@ -201,26 +185,13 @@ class TestMissingTablesSheet:
 
 
 class TestMissingColumnsSheet:
-    def _make_diff_with_existence(self, table: str, col: str) -> SchemaDiff:
-        col_diff = ColumnDiff(
-            column_name=col,
-            attribute="existence",
-            source_value="exists",
-            target_value="missing",
-        )
-        td = TableDiff(
-            table_name=table,
-            status="modified",
-            column_diffs=(col_diff,),
-        )
-        return SchemaDiff(source_label="src", target_label="dst", table_diffs=(td,))
+    """La hoja 3 se deriva de ``TableDumpResult.skipped_columns`` (sin comparación de esquemas)."""
 
-    def _get_ws(self, tmp_path: Path, diff: SchemaDiff) -> Worksheet:
+    def _get_ws(self, tmp_path: Path, table_results: list[TableDumpResult]) -> Worksheet:
         reporter = DumpReporter(tmp_path)
         path = reporter.generate(
-            table_results=[],
+            table_results=table_results,
             missing_tables=[],
-            diff=diff,
             constraint_results=[],
             cycles=[],
         )
@@ -228,46 +199,34 @@ class TestMissingColumnsSheet:
         return wb["Columnas Inexistentes"]
 
     def test_no_missing_columns_shows_placeholder(self, tmp_path: Path):
-        ws = self._get_ws(tmp_path, _make_diff())
+        ws = self._get_ws(tmp_path, [_table_result("orders", "success", skipped=[])])
         assert ws.cell(2, 1).value is not None
         assert "sin" in str(ws.cell(2, 1).value).lower()
 
     def test_missing_column_row_appears(self, tmp_path: Path):
-        diff = self._make_diff_with_existence("orders", "extra_col")
-        ws = self._get_ws(tmp_path, diff)
+        ws = self._get_ws(tmp_path, [_table_result("orders", "success", skipped=["extra_col"])])
         row2 = [ws.cell(2, c).value for c in range(1, 6)]
         assert "orders" in row2
         assert "extra_col" in row2
 
-    def test_column_with_exists_in_source_only_reported(self, tmp_path: Path):
-        # source_value="missing" means it's in target but not source → NOT reported
-        col_diff_in_target = ColumnDiff(
-            column_name="target_only_col",
-            attribute="existence",
-            source_value="missing",
-            target_value="exists",
+    def test_only_skipped_columns_are_reported(self, tmp_path: Path):
+        # Una tabla sin skipped_columns no aporta filas; solo las columnas omitidas aparecen.
+        ws = self._get_ws(
+            tmp_path,
+            [
+                _table_result("a", "success", skipped=[]),
+                _table_result("b", "success", skipped=["only_in_source"]),
+            ],
         )
-        td = TableDiff(
-            table_name="t",
-            status="modified",
-            column_diffs=(col_diff_in_target,),
-        )
-        diff = SchemaDiff(source_label="s", target_label="d", table_diffs=(td,))
-        ws = self._get_ws(tmp_path, diff)
         all_vals = [ws.cell(r, 2).value for r in range(2, ws.max_row + 1)]
-        assert "target_only_col" not in all_vals
+        assert "only_in_source" in all_vals
+        # La tabla 'a' (sin skipped) no genera ninguna fila propia.
+        table_col = [ws.cell(r, 1).value for r in range(2, ws.max_row + 1)]
+        assert "a" not in table_col
 
-    def test_table_with_status_added_skipped(self, tmp_path: Path):
-        # Tables with status="added" (src-only) are already in Hoja 2 → Hoja 3 skips them
-        col_diff = ColumnDiff(
-            column_name="col",
-            attribute="existence",
-            source_value="exists",
-            target_value="missing",
-        )
-        td = TableDiff(table_name="missing_table", status="added", column_diffs=(col_diff,))
-        diff = SchemaDiff(source_label="s", target_label="d", table_diffs=(td,))
-        ws = self._get_ws(tmp_path, diff)
+    def test_missing_target_table_with_empty_skipped_not_listed(self, tmp_path: Path):
+        # Tablas ausentes en destino llegan con skipped vacío → no figuran en la hoja 3.
+        ws = self._get_ws(tmp_path, [_table_result("ghost", "missing_target", skipped=[])])
         row2_col1 = ws.cell(2, 1).value
-        # Should show placeholder (no data rows), not "missing_table"
-        assert row2_col1 != "missing_table"
+        assert row2_col1 != "ghost"
+        assert "sin" in str(row2_col1).lower()

@@ -9,6 +9,30 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Performance
 
+#### dump: el volcado ya no ejecuta comparación de esquemas (elimina cascada N+1)
+
+`DumpOrchestrator.run()` ya **no** invoca `SchemaComparator().compare()` en su fase de
+inspección. Esa comparación introspeccionaba índices, FKs de destino, comentarios y vistas
+(~500 queries para 100 tablas según el propio docstring de `compare()`) **antes de insertar
+una sola fila**, y su resultado solo alimentaba la hoja «Columnas Inexistentes» del informe.
+En esquemas con muchas tablas y pocas filas por tabla, ese coste fijo dominaba el tiempo total
+y explicaba que un volcado fuera mucho más lento que una inserción directa con `bulk`.
+
+La hoja «Columnas Inexistentes» se reconstruye ahora desde `TableDumpResult.skipped_columns`
+—las columnas presentes en origen y ausentes en destino, ya calculadas durante la carga en
+`_common_columns`—, por lo que el informe es **equivalente** sin coste adicional. El volcado
+queda con solo la introspección imprescindible (tablas, columnas y FKs de origen).
+
+- `dump/orchestrator.py`: eliminada la FASE 1 (`SchemaComparator.compare`) y su import; fases
+  renumeradas (1: análisis, 2: deshabilitar constraints, 3: limpieza, 4: carga, 5a/5b: sync PK + informe).
+- `dump/reporters.py`: `_sheet_missing_columns` se alimenta de `table_results`.
+
+**BREAKING (API interna del módulo `dump`)**: `DumpReporter.generate()` elimina el parámetro
+`diff: SchemaDiff`; la firma pasa a `generate(table_results, missing_tables, constraint_results, cycles)`.
+Solo afecta a quien invoque `DumpReporter` directamente. `DumpOrchestrator.run()` mantiene su API
+y su salida (`DumpResult`, informe Excel de 3 hojas) sin cambios. `SchemaComparator` sigue disponible
+en `util_bbdd.comparar` para comparaciones de esquema independientes.
+
 #### bulk/dump: tres mejoras de rendimiento en el pipeline dump→DataFrame→bulk
 
 Análisis de cuellos de botella en `DumpOrchestrator._process_table` e implementación

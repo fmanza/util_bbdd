@@ -20,8 +20,6 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
-from util_bbdd.comparar import SchemaDiff
-
 from ._constraints import ConstraintResult
 from ._models import TableDumpResult
 
@@ -127,16 +125,16 @@ class DumpReporter:
         self,
         table_results: list[TableDumpResult],
         missing_tables: list[str],
-        diff: SchemaDiff,
         constraint_results: list[ConstraintResult],
         cycles: list[list[str]],
     ) -> Path:
         """Genera el fichero Excel y retorna su ruta.
 
         Args:
-            table_results: Resultado por tabla volcada.
+            table_results: Resultado por tabla volcada. ``skipped_columns`` alimenta
+                la hoja "Columnas Inexistentes" (columnas presentes en origen y ausentes
+                en destino), por lo que el informe no requiere comparar esquemas.
             missing_tables: Tablas del origen que no existen en el destino.
-            diff: Diferencias de esquema (fuente para columnas inexistentes).
             constraint_results: Resultados de rehabilitación de constraints.
             cycles: Grupos de tablas con FK circular.
         """
@@ -150,7 +148,7 @@ class DumpReporter:
 
         self._sheet_audit(wb, table_results, constraint_results, cycles)
         self._sheet_missing_tables(wb, missing_tables)
-        self._sheet_missing_columns(wb, diff)
+        self._sheet_missing_columns(wb, table_results)
 
         wb.save(output_path)
         _log.info("Informe Excel guardado en '%s'.", output_path)
@@ -224,8 +222,15 @@ class DumpReporter:
     def _sheet_missing_columns(
         self,
         wb: openpyxl.Workbook,
-        diff: SchemaDiff,
+        table_results: list[TableDumpResult],
     ) -> None:
+        """Hoja "Columnas Inexistentes": columnas presentes en origen y ausentes en destino.
+
+        Se deriva de ``TableDumpResult.skipped_columns`` (calculado durante la carga en
+        ``DumpOrchestrator._common_columns``), evitando una comparación de esquemas
+        independiente. Las tablas ausentes en destino (``status="missing_target"``) ya
+        figuran en la hoja "Tablas Faltantes" y llegan con ``skipped_columns`` vacío.
+        """
         ws: Worksheet = wb.create_sheet("Columnas Inexistentes")
 
         headers = [
@@ -239,22 +244,16 @@ class DumpReporter:
             self._header(ws, 1, col, h, color=self._COL_HEADER_ORANGE)
         ws.freeze_panes = "A2"
 
-        missing_col_pairs = [
-            (td, cd)
-            for td in diff.table_diffs
-            if td.status != "added"
-            for cd in td.column_diffs
-            if cd.attribute == "existence" and cd.source_value == "exists"
-        ]
+        missing_col_pairs = [(res.table_name, col_name) for res in table_results for col_name in res.skipped_columns]
 
         if not missing_col_pairs:
             cell = ws.cell(row=2, column=1, value="Sin columnas inexistentes en destino")
             cell.font = Font(italic=True)
         else:
-            for row, (td, cd) in enumerate(missing_col_pairs, 2):
-                self._cell(ws, row, 1, td.table_name)
-                self._cell(ws, row, 2, cd.column_name, bg=self._COL_YELLOW)
-                self._cell(ws, row, 3, cd.source_value)
+            for row, (table_name, col_name) in enumerate(missing_col_pairs, 2):
+                self._cell(ws, row, 1, table_name)
+                self._cell(ws, row, 2, col_name, bg=self._COL_YELLOW)
+                self._cell(ws, row, 3, "exists")
                 self._cell(ws, row, 4, "Columna ausente en BD destino")
                 self._cell(ws, row, 5, "Columna omitida del volcado — añadir DDL al destino si se requiere")
 
