@@ -42,11 +42,11 @@ class DumpConfig:
 | Parámetro | Tipo | Default | Descripción |
 |---|---|---|---|
 | `source_engine` | `Engine` | — | Engine SQLAlchemy del esquema origen (lectura) |
-| `target_engine` | `Engine` | — | Engine SQLAlchemy del esquema destino (escritura) |
+| `target_engine` | `Engine` | — | Engine SQLAlchemy del esquema destino (escritura). **MariaDB/MySQL:** crear con `pool_pre_ping=True` y `pool_recycle=3600` para evitar `InterfaceError: Server has gone away`. `SyncDatabaseManager.get_sqlalchemy_engine()` los incluye por defecto. |
 | `source_schema` | `str \| None` | `None` | Schema origen; `None` usa el default del engine |
 | `target_schema` | `str \| None` | `None` | Schema destino; `None` usa el default del engine |
 | `tables` | `list[str] \| None` | `None` | Tablas a volcar; `None` = todas las del origen |
-| `chunk_size` | `int` | `5000` | Filas por chunk en lectura y en bulk insert |
+| `chunk_size` | `int` | `5000` | Filas por chunk en lectura y en bulk insert. **MariaDB/MySQL con columnas TEXT/BLOB/JSON extensas:** valores altos pueden superar `max_allowed_packet` del servidor (16 MB por defecto), produciendo `InterfaceError: Lost connection to server during query`. Usar `500` o menos para estas tablas. `DumpOrchestrator` emite `WARNING` si `chunk_size > 1000` con destino MariaDB/MySQL. |
 | `output_dir` | `Path` | `Path()` | Directorio donde guardar el informe Excel |
 | `truncate_target` | `bool` | `True` | `True` = vaciar destino antes de cargar; `False` = append |
 | `bulk_audit_path` | `Path \| None` | `None` | Ruta del CSV de auditoría de `util_bbdd.bulk.audit`. Si se proporciona: (1) cada INSERT queda registrado en el CSV durante la carga y (2) al finalizar el volcado, `DumpResult.audit_summary` se popula con las métricas del CSV filtradas al rango temporal del volcado. `None` = sin auditoría de inserts. |

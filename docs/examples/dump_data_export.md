@@ -39,7 +39,7 @@ config = DumpConfig(
     target_engine=dst_engine,
     source_schema="public",          # esquema origen en PostgreSQL
     target_schema="dbo",             # esquema destino en SQL Server
-    chunk_size=10_000,               # filas por chunk (tuning por volumen)
+    chunk_size=1_000,                # filas por chunk (ver sección Performance)
     output_dir=Path("reports"),      # directorio para el informe Excel
     truncate_target=True,            # vaciar destino antes de cargar
 )
@@ -71,6 +71,44 @@ if failed:
     for cr in failed:
         print(f"  [{cr.status.upper()}] {cr.table_name}.{cr.constraint_name}: {cr.error_msg}")
 ```
+
+---
+
+## Volcado cross-engine con SyncDatabaseManager (MariaDB destino)
+
+Cuando el destino es MariaDB, el engine debe configurarse con `pool_pre_ping=True` y `pool_recycle=3600` para evitar errores de conexión entre tablas. La forma recomendada es usar `SyncDatabaseManager.get_sqlalchemy_engine()`, que ya los incluye:
+
+```python
+from pathlib import Path
+from util_bbdd.dump import DumpConfig, DumpOrchestrator
+from util_bbdd.managers import SyncDatabaseManager
+
+# Engine origen (PostgreSQL)
+src_mgr = SyncDatabaseManager("postgresql", {
+    "host": "prod-server", "user": "reader",
+    "password": "***", "database": "production_db",
+})
+src_engine = src_mgr.get_sqlalchemy_engine()
+
+# Engine destino (MariaDB) — pool_pre_ping + pool_recycle ya incluidos
+dst_mgr = SyncDatabaseManager("mariadb", {
+    "host": "replica-server", "user": "writer",
+    "password": "***", "database": "replica_db",
+})
+dst_engine = dst_mgr.get_sqlalchemy_engine()
+
+config = DumpConfig(
+    source_engine=src_engine,
+    target_engine=dst_engine,
+    chunk_size=500,         # reducir si hay columnas TEXT/JSON extensas
+    output_dir=Path("reports"),
+    truncate_target=True,
+)
+result = DumpOrchestrator(config).run()
+```
+
+!!! info "Comparación case-insensitive entre motores"
+    PostgreSQL devuelve nombres de tabla en minúsculas (`orders`); MariaDB puede devolverlos en mayúsculas (`ORDERS`). El módulo aplica comparación **case-insensitive** tanto para tablas como para columnas, de modo que ambas se reconocen como la misma tabla y el volcado funciona correctamente.
 
 ---
 
@@ -226,6 +264,57 @@ Si `skipped_columns` contiene columnas que esperabas cargar, verifica que el nom
 
 El módulo usa comparación **case-insensitive**, pero si la columna simplemente no existe en destino, se omite. Crea la columna en destino con el DDL correspondiente.
 
+### `InterfaceError: Server has gone away` (MariaDB, error 2006)
+
+Se produce cuando una **conexión ociosa del pool** es usada por el servidor después de que el servidor la cerró (p.ej., mientras se procesaban datos del motor origen).
+
+**Causas comunes:**
+- Engine creado con `create_engine()` sin `pool_pre_ping=True`
+- Servidor MariaDB con `wait_timeout` configurado bajo
+
+**Solución:** Usa `SyncDatabaseManager.get_sqlalchemy_engine()`, que ya incluye `pool_pre_ping=True` y `pool_recycle=3600`:
+
+```python
+from util_bbdd.managers import SyncDatabaseManager
+dst_engine = SyncDatabaseManager("mariadb", conn_params).get_sqlalchemy_engine()
+```
+
+O si creas el engine directamente:
+```python
+dst_engine = create_engine(url, pool_pre_ping=True, pool_recycle=3600)
+```
+
+El `DumpOrchestrator` emite un `WARNING` al inicializar si detecta que el engine MariaDB carece de estas configuraciones.
+
+---
+
+### `InterfaceError: Lost connection to server during query` (MariaDB, error 2013)
+
+Se produce cuando el paquete INSERT supera el `max_allowed_packet` del servidor MariaDB. Es diferente al error 2006: ocurre **durante una query activa**, no en conexión ociosa.
+
+**Causas comunes:**
+- Tabla con columnas `TEXT`, `BLOB`, o `JSON` con contenido de varios KB por fila
+- `chunk_size` demasiado alto (5 000 filas × 5 KB/fila = 25 MB > límite de 16 MB)
+
+**Solución 1 — Reducir `chunk_size`:**
+
+```python
+config = DumpConfig(
+    ...,
+    chunk_size=500,   # reduce el tamaño del paquete INSERT
+)
+```
+
+**Solución 2 — Aumentar `max_allowed_packet` en el servidor:**
+
+```sql
+SET GLOBAL max_allowed_packet = 67108864;  -- 64 MB
+```
+
+El `DumpOrchestrator` emite un `WARNING` al inicializar si `chunk_size > 1000` con destino MariaDB/MySQL.
+
+---
+
 ### Constraint failed al rehabilitar
 
 Si `ConstraintResult.status == "failed"`, significa que los datos cargados infringen la restricción. El informe Excel incluye el mensaje de error de la BD.
@@ -237,23 +326,42 @@ Si `ConstraintResult.status == "failed"`, significa que los datos cargados infri
 
 **Solución:** Corregir los datos en origen o ajustar el orden de carga mediante `DumpConfig.tables`.
 
-### Performance con tablas grandes
+### Performance y `chunk_size`
 
-Para tablas con millones de filas, ajusta `chunk_size`:
+`chunk_size` controla cuántas filas se leen del origen y se insertan en destino por cada lote. El valor adecuado depende del motor destino y del tipo de datos:
+
+**Para destinos que no son MariaDB/MySQL** (SQL Server, PostgreSQL, Oracle):
 
 ```python
 config = DumpConfig(
     source_engine=src_engine,
     target_engine=dst_engine,
-    chunk_size=50_000,    # chunks más grandes → menos round-trips
+    chunk_size=10_000,    # tablas < 100 MB
+    # chunk_size=50_000,  # tablas > 1 GB (ajustar según RAM)
     output_dir=Path("reports"),
 )
 ```
 
-Valores recomendados:
-- Tablas < 100 MB: `chunk_size=10_000`
-- Tablas 100 MB – 1 GB: `chunk_size=25_000`–`50_000`
-- Tablas > 1 GB: `chunk_size=50_000`–`100_000` (según RAM disponible)
+**Para destinos MariaDB/MySQL — riesgo `max_allowed_packet`:**
+
+Tablas con columnas `TEXT`, `BLOB`, o `JSON` con contenido extenso pueden superar el límite `max_allowed_packet` del servidor (por defecto 16 MB en MariaDB antiguas), produciendo `Lost connection to server during query`. El `DumpOrchestrator` emite un `WARNING` al inicializar si `chunk_size > 1000` con destino MariaDB.
+
+```python
+config = DumpConfig(
+    source_engine=src_engine,
+    target_engine=dst_engine,
+    chunk_size=500,   # seguro para columnas JSON/TEXT extensas
+    output_dir=Path("reports"),
+)
+```
+
+| Tipo de tabla destino MariaDB | `chunk_size` recomendado |
+|---|---|
+| Solo columnas numéricas/fecha | `2000`–`5000` |
+| Con columnas `VARCHAR` medias | `1000`–`2000` |
+| Con columnas `TEXT` o `JSON` extensas | `100`–`500` |
+
+Alternativa server-side: `SET GLOBAL max_allowed_packet = 67108864;` (64 MB).
 
 ---
 

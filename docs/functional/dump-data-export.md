@@ -101,7 +101,8 @@ Al salir del contexto `ConstraintManager` (incluso si se lanzó una excepción d
 - **Solo datos, nunca DDL.** Si una tabla existe en origen pero no en destino, se informa como `missing_target` y se omite.
 - **Columnas faltantes se saltan.** Si una columna existe en origen pero no en destino, se omite de la SELECT y se informa como columna omitida (`skipped_columns`).
 - **Columnas adicionales en destino se ignoran.** Solo se mapean columnas presentes en ambos extremos.
-- **La comparación de nombres de columnas es case-insensitive.** Necesario para interoperabilidad Oracle (UPPERCASE) ↔ PostgreSQL (lowercase).
+- **La comparación de nombres de tabla es case-insensitive.** Necesario para interoperabilidad entre motores: PostgreSQL devuelve `orders` (lowercase), MariaDB puede devolver `ORDERS` (uppercase). Ambos se reconocen como la misma tabla. Si dos tablas del destino colisionan al normalizar el case, se emite un `WARNING` y se usa el primer nombre encontrado.
+- **La comparación de nombres de columna es case-insensitive.** Necesario para interoperabilidad Oracle (UPPERCASE) ↔ PostgreSQL (lowercase). El `INSERT` usa siempre el nombre canónico del motor destino.
 - **Los errores de tabla no detienen el volcado.** Cada tabla es independiente; se registra el error y se continúa.
 - **`enable_all()` siempre se ejecuta.** El `ConstraintManager` actúa como context manager y garantiza la rehabilitación aunque la carga falle.
 - **El informe Excel se genera siempre**, incluso si hubo errores parciales.
@@ -118,6 +119,8 @@ Al salir del contexto `ConstraintManager` (incluso si se lanzó una excepción d
 | Constraint management solo en 4 motores | SQL Server, MariaDB, PostgreSQL, Oracle. Otros: no-op con warning |
 | El informe Excel usa openpyxl | Requiere la dependencia `openpyxl` instalada |
 | `truncate_target=False` (modo append) | Puede generar duplicados si los datos ya existen en destino |
+| MariaDB/MySQL — pool recomendado | El engine destino MariaDB debe crearse con `pool_pre_ping=True` y `pool_recycle=3600` para evitar `Server has gone away`. `SyncDatabaseManager.get_sqlalchemy_engine()` los incluye por defecto. |
+| MariaDB/MySQL — `max_allowed_packet` | Tablas con columnas `TEXT`/`BLOB`/`JSON` extensas requieren `chunk_size` reducido (≤ 500) o aumentar `max_allowed_packet` en el servidor. |
 
 ---
 
