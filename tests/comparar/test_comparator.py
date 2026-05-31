@@ -1943,3 +1943,99 @@ class TestDDLStripRulesHotfix:
             "SQL SECURITY DEFINER VIEW `orders_v` AS SELECT id, total FROM orders"
         )
         assert SchemaComparator._normalize_ddl(ddl_source) == SchemaComparator._normalize_ddl(ddl_target)
+
+
+# ---------------------------------------------------------------------------
+# Tests de comparación cross-engine (case-insensitive en nombres de tabla)
+# ---------------------------------------------------------------------------
+
+
+def _make_cross_engine_inspector(
+    tables: dict[str, list[dict[str, Any]]],
+    bind_url: str = "sqlite://",
+    dialect: str = "sqlite",
+) -> MagicMock:
+    """Inspector mock con dialect configurable para simular motores distintos."""
+    mock = _make_mock_inspector(tables=tables, bind_url=bind_url)
+    mock.engine.dialect.name = dialect
+    return mock
+
+
+class TestCrossEngineTableComparison:
+    """Verifica comparación case-insensitive de tablas entre motores distintos."""
+
+    def test_tables_matched_when_only_case_differs(self, comparator: SchemaComparator) -> None:
+        """SQL Server devuelve 'Orders'; PostgreSQL devuelve 'orders'.
+        No debe aparecer ninguna tabla como added ni removed."""
+        col = [{"name": "id", "type": "INTEGER", "nullable": False, "default": None}]
+        source = _make_cross_engine_inspector({"Orders": col}, dialect="mssql")
+        target = _make_cross_engine_inspector({"orders": col}, dialect="postgresql")
+
+        diff = comparator.compare(
+            source, target, include_indices=False, include_foreign_keys=False, include_comments=False
+        )
+
+        added = [d for d in diff.table_diffs if d.status == "added"]
+        removed = [d for d in diff.table_diffs if d.status == "removed"]
+        assert added == [], f"No debería haber tablas 'added': {[d.table_name for d in added]}"
+        assert removed == [], f"No debería haber tablas 'removed': {[d.table_name for d in removed]}"
+
+    def test_multiple_tables_cross_engine_no_false_positives(self, comparator: SchemaComparator) -> None:
+        """Todos los pares (Mixed_case → lowercase) se reconocen como tablas comunes."""
+        col = [{"name": "id", "type": "INTEGER", "nullable": False, "default": None}]
+        source = _make_cross_engine_inspector(
+            {"Orders": col, "Customers": col, "Products": col}, dialect="mssql"
+        )
+        target = _make_cross_engine_inspector(
+            {"orders": col, "customers": col, "products": col}, dialect="postgresql"
+        )
+
+        diff = comparator.compare(
+            source, target, include_indices=False, include_foreign_keys=False, include_comments=False
+        )
+
+        assert not diff.has_differences
+
+    def test_genuinely_missing_table_still_detected_cross_engine(self, comparator: SchemaComparator) -> None:
+        """Una tabla que realmente solo existe en origen se reporta como 'added'."""
+        col = [{"name": "id", "type": "INTEGER", "nullable": False, "default": None}]
+        source = _make_cross_engine_inspector({"Orders": col, "Inventory": col}, dialect="mssql")
+        target = _make_cross_engine_inspector({"orders": col}, dialect="postgresql")
+
+        diff = comparator.compare(
+            source, target, include_indices=False, include_foreign_keys=False, include_comments=False
+        )
+
+        added = [d for d in diff.table_diffs if d.status == "added"]
+        assert len(added) == 1
+        assert added[0].table_name == "Inventory"
+
+    def test_columns_queried_with_canonical_names_per_engine(self, comparator: SchemaComparator) -> None:
+        """get_columns se llama con el nombre canónico de cada motor, no el del otro."""
+        col = [{"name": "id", "type": "INTEGER", "nullable": False, "default": None}]
+        source = _make_cross_engine_inspector({"MyTable": col}, dialect="mssql")
+        target = _make_cross_engine_inspector({"mytable": col}, dialect="postgresql")
+
+        comparator.compare(
+            source, target, include_indices=False, include_foreign_keys=False, include_comments=False
+        )
+
+        # El inspector origen debe haber recibido "MyTable"
+        source_calls = [call[0][0] for call in source.get_columns.call_args_list]
+        assert "MyTable" in source_calls, f"Esperado 'MyTable' en llamadas al src: {source_calls}"
+
+        # El inspector destino debe haber recibido "mytable"
+        target_calls = [call[0][0] for call in target.get_columns.call_args_list]
+        assert "mytable" in target_calls, f"Esperado 'mytable' en llamadas al tgt: {target_calls}"
+
+    def test_same_engine_same_case_no_regression(self, comparator: SchemaComparator) -> None:
+        """Mismo motor con mismo case en nombres: comportamiento idéntico al original."""
+        col = [{"name": "id", "type": "INTEGER", "nullable": False, "default": None}]
+        source = _make_cross_engine_inspector({"users": col, "orders": col}, dialect="postgresql")
+        target = _make_cross_engine_inspector({"users": col, "orders": col}, dialect="postgresql")
+
+        diff = comparator.compare(
+            source, target, include_indices=False, include_foreign_keys=False, include_comments=False
+        )
+
+        assert not diff.has_differences

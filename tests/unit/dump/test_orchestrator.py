@@ -218,27 +218,27 @@ class TestCommonColumns:
 
     def test_all_common(self):
         orch = self._make_orchestrator(["id", "name"], ["id", "name"])
-        common, skipped, name_map = orch._common_columns("t")
+        common, skipped, name_map = orch._common_columns("t", "t")
         assert common == ["id", "name"]
         assert skipped == []
         assert name_map == {"id": "id", "name": "name"}
 
     def test_some_skipped(self):
         orch = self._make_orchestrator(["id", "name", "extra_col"], ["id", "name"])
-        common, skipped, _ = orch._common_columns("t")
+        common, skipped, _ = orch._common_columns("t", "t")
         assert "extra_col" in skipped
         assert "extra_col" not in common
 
     def test_empty_intersection(self):
         orch = self._make_orchestrator(["col_src"], ["col_dst"])
-        common, skipped, _ = orch._common_columns("t")
+        common, skipped, _ = orch._common_columns("t", "t")
         assert common == []
         assert skipped == ["col_src"]
 
     def test_case_insensitive_match(self):
         # Source returns uppercase (Oracle), dest lowercase (PostgreSQL)
         orch = self._make_orchestrator(["ID", "NAME"], ["id", "name"])
-        common, skipped, name_map = orch._common_columns("t")
+        common, skipped, name_map = orch._common_columns("t", "t")
         assert common == ["ID", "NAME"]
         assert skipped == []
         # name_map debe mapear al case del destino para INSERT correcto
@@ -246,8 +246,21 @@ class TestCommonColumns:
 
     def test_case_map_used_as_identity_when_case_matches(self):
         orch = self._make_orchestrator(["userid", "email"], ["userid", "email"])
-        _, _, name_map = orch._common_columns("t")
+        _, _, name_map = orch._common_columns("t", "t")
         assert name_map == {"userid": "userid", "email": "email"}
+
+    def test_cross_engine_different_table_names_queried_separately(self):
+        """_common_columns consulta el inspector destino con el nombre canónico destino."""
+        orch = self._make_orchestrator(["id", "name"], ["id", "name"])
+        # src_table="Orders" (SQL Server), dst_table="orders" (PostgreSQL)
+        orch._src_insp.get_columns.return_value = [{"name": "id"}, {"name": "name"}]
+        orch._dst_insp.get_columns.return_value = [{"name": "id"}, {"name": "name"}]
+        common, skipped, _ = orch._common_columns("Orders", "orders")
+        assert common == ["id", "name"]
+        assert skipped == []
+        # Verificar que cada inspector recibió su nombre canónico
+        orch._src_insp.get_columns.assert_called_with("Orders", schema=None)
+        orch._dst_insp.get_columns.assert_called_with("orders", schema=None)
 
 
 # ---------------------------------------------------------------------------
@@ -604,3 +617,143 @@ class TestGetSourceTables:
 
         # Inspector order preserved (no sort applied)
         assert result == ["c", "a", "b"]
+
+
+# ---------------------------------------------------------------------------
+# DumpOrchestrator — comparación cross-engine (case-insensitive)
+# ---------------------------------------------------------------------------
+
+
+class TestCrossEngineTableMatching:
+    """Verifica que la comparación de tablas entre motores distintos (case mismatch)
+    no declare tablas como faltantes cuando existen bajo distinto case."""
+
+    def _make_cross_engine_orchestrator(
+        self,
+        src_tables: list[str],
+        dst_tables: list[str],
+        truncate: bool = False,
+    ) -> DumpOrchestrator:
+        src_cols = {t: ["id", "name"] for t in src_tables}
+        dst_cols = {t: ["id", "name"] for t in dst_tables}
+
+        src_engine = _make_engine("mssql")
+        dst_engine = _make_engine("postgresql")
+        cfg = DumpConfig(source_engine=src_engine, target_engine=dst_engine, truncate_target=truncate)
+
+        src_insp = _make_inspector(src_tables, src_cols)
+        dst_insp = _make_inspector(dst_tables, dst_cols)
+
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = cfg
+        orch._src_insp = src_insp
+        orch._dst_insp = dst_insp
+        return orch
+
+    @patch("util_bbdd.dump.orchestrator.SchemaComparator")
+    @patch("util_bbdd.dump.orchestrator.ConstraintManager")
+    @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
+    @patch("pandas.read_sql", return_value=iter([]))
+    def test_no_missing_when_same_tables_differ_only_in_case(
+        self, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator
+    ):
+        """SQL Server devuelve 'Orders','Customers'; PostgreSQL 'orders','customers'.
+        Ninguna tabla debe aparecer como missing_target."""
+        mock_comparator.return_value.compare.return_value = MagicMock(table_diffs=())
+        mock_mgr = MagicMock()
+        mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
+        mock_mgr.__exit__ = MagicMock(return_value=False)
+        mock_mgr.constraint_results = []
+        mock_mgr_cls.return_value = mock_mgr
+
+        orch = self._make_cross_engine_orchestrator(
+            src_tables=["Orders", "Customers"],
+            dst_tables=["orders", "customers"],
+        )
+        result = orch.run()
+
+        missing = [r for r in result.table_results if r.status == "missing_target"]
+        assert missing == [], f"No debería haber tablas faltantes, encontradas: {[r.table_name for r in missing]}"
+
+    @patch("util_bbdd.dump.orchestrator.SchemaComparator")
+    @patch("util_bbdd.dump.orchestrator.ConstraintManager")
+    @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
+    @patch("pandas.read_sql", return_value=iter([]))
+    def test_genuinely_missing_table_still_reported(
+        self, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator
+    ):
+        """Una tabla que realmente no existe en destino debe seguir reportándose."""
+        mock_comparator.return_value.compare.return_value = MagicMock(table_diffs=())
+        mock_mgr = MagicMock()
+        mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
+        mock_mgr.__exit__ = MagicMock(return_value=False)
+        mock_mgr.constraint_results = []
+        mock_mgr_cls.return_value = mock_mgr
+
+        orch = self._make_cross_engine_orchestrator(
+            src_tables=["Orders", "Inventory"],   # Inventory no existe en dst
+            dst_tables=["orders"],
+        )
+        result = orch.run()
+
+        missing = [r for r in result.table_results if r.status == "missing_target"]
+        assert len(missing) == 1
+        assert missing[0].table_name == "Inventory"
+
+    @patch("util_bbdd.dump.orchestrator.SchemaComparator")
+    @patch("util_bbdd.dump.orchestrator.ConstraintManager")
+    @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
+    @patch("pandas.read_sql", return_value=iter([]))
+    def test_effective_dst_order_uses_canonical_dst_names(
+        self, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator
+    ):
+        """ConstraintManager.disable_all debe recibir los nombres canónicos del destino."""
+        mock_comparator.return_value.compare.return_value = MagicMock(table_diffs=())
+        mock_mgr = MagicMock()
+        mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
+        mock_mgr.__exit__ = MagicMock(return_value=False)
+        mock_mgr.constraint_results = []
+        mock_mgr_cls.return_value = mock_mgr
+
+        orch = self._make_cross_engine_orchestrator(
+            src_tables=["Orders"],
+            dst_tables=["orders"],
+        )
+        orch.run()
+
+        # ConstraintManager.disable_all debe recibir nombre destino "orders", no "Orders"
+        disable_call_args = mock_mgr.disable_all.call_args
+        assert disable_call_args is not None
+        tables_arg = disable_call_args[1].get("tables") or disable_call_args[0][0]
+        assert tables_arg == ["orders"], f"Se esperaba ['orders'], se recibió {tables_arg}"
+
+    @patch("util_bbdd.dump.orchestrator.SchemaComparator")
+    @patch("util_bbdd.dump.orchestrator.ConstraintManager")
+    @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
+    @patch("pandas.read_sql", return_value=iter([]))
+    def test_same_engine_no_regression(
+        self, mock_read_sql, mock_report, mock_mgr_cls, mock_comparator
+    ):
+        """Mismo motor (mismo case en nombres) no introduce regresiÃ³n."""
+        mock_comparator.return_value.compare.return_value = MagicMock(table_diffs=())
+        mock_mgr = MagicMock()
+        mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
+        mock_mgr.__exit__ = MagicMock(return_value=False)
+        mock_mgr.constraint_results = []
+        mock_mgr_cls.return_value = mock_mgr
+
+        src_engine = _make_engine("postgresql")
+        dst_engine = _make_engine("postgresql")
+        cfg = DumpConfig(source_engine=src_engine, target_engine=dst_engine, truncate_target=False)
+        src_insp = _make_inspector(["customers", "orders"], {"customers": ["id"], "orders": ["id"]})
+        dst_insp = _make_inspector(["customers", "orders"], {"customers": ["id"], "orders": ["id"]})
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = cfg
+        orch._src_insp = src_insp
+        orch._dst_insp = dst_insp
+        result = orch.run()
+
+        missing = [r for r in result.table_results if r.status == "missing_target"]
+        success_or_skipped = [r for r in result.table_results if r.status in ("success", "skipped")]
+        assert missing == []
+        assert len(success_or_skipped) == 2

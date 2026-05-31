@@ -265,50 +265,62 @@ class SchemaComparator:
         include_foreign_keys: bool,
         include_comments: bool,
     ) -> tuple[TableDiff, ...]:
-        source_tables: set[str] = set(source.get_table_names(schema=source_schema))
-        target_tables: set[str] = set(target.get_table_names(schema=target_schema))
+        # Índices normalizados: lower(name) → canonical_name para comparación cross-engine
+        source_tables_lower: dict[str, str] = {t.lower(): t for t in source.get_table_names(schema=source_schema)}
+        target_tables_lower: dict[str, str] = {t.lower(): t for t in target.get_table_names(schema=target_schema)}
+
+        only_source = source_tables_lower.keys() - target_tables_lower.keys()
+        only_target = target_tables_lower.keys() - source_tables_lower.keys()
+        common_keys = source_tables_lower.keys() & target_tables_lower.keys()
 
         diffs: list[TableDiff] = []
 
-        # Tablas solo en source
-        diffs.extend(TableDiff(table_name=t, status="added") for t in sorted(source_tables - target_tables))
+        # Tablas solo en source (nombre canónico del origen)
+        diffs.extend(
+            TableDiff(table_name=source_tables_lower[k], status="added") for k in sorted(only_source)
+        )
 
-        # Tablas solo en target
-        diffs.extend(TableDiff(table_name=t, status="removed") for t in sorted(target_tables - source_tables))
+        # Tablas solo en target (nombre canónico del destino)
+        diffs.extend(
+            TableDiff(table_name=target_tables_lower[k], status="removed") for k in sorted(only_target)
+        )
 
-        # Tablas comunes
-        for table in sorted(source_tables & target_tables):
+        # Tablas comunes: usar nombres canónicos de cada motor para consultas
+        for key in sorted(common_keys):
+            src_table = source_tables_lower[key]
+            tgt_table = target_tables_lower[key]
+
             # Pre-fetch columnas una sola vez para reutilizar en _compare_columns y _compare_comments
-            source_cols_raw: list[Any] = source.get_columns(table, schema=source_schema)
-            target_cols_raw: list[Any] = target.get_columns(table, schema=target_schema)
+            source_cols_raw: list[Any] = source.get_columns(src_table, schema=source_schema)
+            target_cols_raw: list[Any] = target.get_columns(tgt_table, schema=target_schema)
 
             col_diffs = self._compare_columns_from_raw(
                 source_cols_raw,
                 target_cols_raw,
-                source.get_pk_constraint(table, schema=source_schema),
-                target.get_pk_constraint(table, schema=target_schema),
+                source.get_pk_constraint(src_table, schema=source_schema),
+                target.get_pk_constraint(tgt_table, schema=target_schema),
             )
             idx_diffs: tuple[IndexDiff, ...] = ()
             fk_diffs: tuple[ForeignKeyDiff, ...] = ()
             comment_diffs: tuple[CommentDiff, ...] = ()
 
             if include_indices:
-                idx_diffs = self._compare_indices(source, target, table, source_schema, target_schema)
+                idx_diffs = self._compare_indices(source, target, src_table, tgt_table, source_schema, target_schema)
             if include_foreign_keys:
-                fk_diffs = self._compare_foreign_keys(source, target, table, source_schema, target_schema)
+                fk_diffs = self._compare_foreign_keys(source, target, src_table, tgt_table, source_schema, target_schema)
             if include_comments:
                 comment_diffs = self._compare_comments_from_raw(
                     source_cols_raw,
                     target_cols_raw,
-                    table,
-                    self._get_table_comment_safe(source, table, source_schema),
-                    self._get_table_comment_safe(target, table, target_schema),
+                    src_table,
+                    self._get_table_comment_safe(source, src_table, source_schema),
+                    self._get_table_comment_safe(target, tgt_table, target_schema),
                 )
 
             if col_diffs or idx_diffs or fk_diffs or comment_diffs:
                 diffs.append(
                     TableDiff(
-                        table_name=table,
+                        table_name=src_table,
                         status="modified",
                         column_diffs=col_diffs,
                         index_diffs=idx_diffs,
@@ -419,12 +431,13 @@ class SchemaComparator:
         self,
         source: Inspector,
         target: Inspector,
-        table: str,
+        src_table: str,
+        tgt_table: str,
         source_schema: str | None,
         target_schema: str | None,
     ) -> tuple[IndexDiff, ...]:
-        source_idx: list[Any] = self._get_indexes_safe(source, table, source_schema)
-        target_idx: list[Any] = self._get_indexes_safe(target, table, target_schema)
+        source_idx: list[Any] = self._get_indexes_safe(source, src_table, source_schema)
+        target_idx: list[Any] = self._get_indexes_safe(target, tgt_table, target_schema)
 
         source_map: dict[str, dict[str, Any]] = {idx["name"]: idx for idx in source_idx if idx.get("name")}
         target_map: dict[str, dict[str, Any]] = {idx["name"]: idx for idx in target_idx if idx.get("name")}
@@ -436,7 +449,7 @@ class SchemaComparator:
             diffs.append(
                 IndexDiff(
                     index_name=idx_name,
-                    table_name=table,
+                    table_name=src_table,
                     status="added",
                     source_columns=self._join_columns(source_index_dict.get("column_names")),
                     source_unique=bool(source_index_dict.get("unique", False)),
@@ -448,7 +461,7 @@ class SchemaComparator:
             diffs.append(
                 IndexDiff(
                     index_name=idx_name,
-                    table_name=table,
+                    table_name=src_table,
                     status="removed",
                     target_columns=self._join_columns(target_index_dict.get("column_names")),
                     target_unique=bool(target_index_dict.get("unique", False)),
@@ -466,7 +479,7 @@ class SchemaComparator:
                 diffs.append(
                     IndexDiff(
                         index_name=idx_name,
-                        table_name=table,
+                        table_name=src_table,
                         status="modified",
                         source_columns=s_cols,
                         target_columns=t_cols,
@@ -485,12 +498,13 @@ class SchemaComparator:
         self,
         source: Inspector,
         target: Inspector,
-        table: str,
+        src_table: str,
+        tgt_table: str,
         source_schema: str | None,
         target_schema: str | None,
     ) -> tuple[ForeignKeyDiff, ...]:
-        source_fks = list(source.get_foreign_keys(table, schema=source_schema))
-        target_fks = list(target.get_foreign_keys(table, schema=target_schema))
+        source_fks = list(source.get_foreign_keys(src_table, schema=source_schema))
+        target_fks = list(target.get_foreign_keys(tgt_table, schema=target_schema))
 
         source_map: dict[str, Any] = {SchemaComparator._fk_key(fk): fk for fk in source_fks}
         target_map: dict[str, Any] = {SchemaComparator._fk_key(fk): fk for fk in target_fks}
@@ -502,7 +516,7 @@ class SchemaComparator:
             diffs.append(
                 ForeignKeyDiff(
                     fk_name=fk_name,
-                    table_name=table,
+                    table_name=src_table,
                     status="added",
                     source_columns=",".join(fk.get("constrained_columns", [])),
                     source_referred_table=fk.get("referred_table", ""),
@@ -515,7 +529,7 @@ class SchemaComparator:
             diffs.append(
                 ForeignKeyDiff(
                     fk_name=fk_name,
-                    table_name=table,
+                    table_name=src_table,
                     status="removed",
                     target_columns=",".join(fk.get("constrained_columns", [])),
                     target_referred_table=fk.get("referred_table", ""),
@@ -537,7 +551,7 @@ class SchemaComparator:
                 diffs.append(
                     ForeignKeyDiff(
                         fk_name=fk_name,
-                        table_name=table,
+                        table_name=src_table,
                         status="modified",
                         source_columns=s_cols,
                         target_columns=t_cols,

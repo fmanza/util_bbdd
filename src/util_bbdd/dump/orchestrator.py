@@ -86,17 +86,35 @@ class DumpOrchestrator:
 
         # FASE 2: Análisis de carga
         src_tables = self._get_source_tables()
-        dst_tables_set = set(self._dst_insp.get_table_names(schema=cfg.target_schema))
-        missing_in_dst: list[str] = [t for t in src_tables if t not in dst_tables_set]
+        _dst_names = self._dst_insp.get_table_names(schema=cfg.target_schema)
+        # Comparación case-insensitive: motores distintos pueden devolver distinto case
+        dst_lower: dict[str, str] = {}
+        for _t in _dst_names:
+            _key = _t.lower()
+            if _key in dst_lower:
+                _log.warning(
+                    "Colisión de nombre en destino (case): '%s' y '%s' colisionan al normalizar; "
+                    "se usará '%s'.",
+                    dst_lower[_key],
+                    _t,
+                    dst_lower[_key],
+                )
+            else:
+                dst_lower[_key] = _t
+
+        # src_to_dst: nombre_origen → nombre_canonical_destino
+        src_to_dst: dict[str, str] = {t: dst_lower[t.lower()] for t in src_tables if t.lower() in dst_lower}
+        missing_in_dst: list[str] = [t for t in src_tables if t.lower() not in dst_lower]
 
         load_order, cycles = DumpOrchestrator._topological_sort(src_tables, self._src_insp, cfg.source_schema)
-        # Tablas que existen en destino, en el orden topológico calculado
-        effective_order: list[str] = [t for t in load_order if t in dst_tables_set]
+        # Orden topológico filtrado a tablas presentes en destino
+        effective_src_order: list[str] = [t for t in load_order if t in src_to_dst]
+        effective_dst_order: list[str] = [src_to_dst[t] for t in effective_src_order]
 
         _log.info(
             "Volcado: %d tablas origen, %d en destino, %d faltantes, %d ciclos FK.",
             len(src_tables),
-            len(effective_order),
+            len(effective_src_order),
             len(missing_in_dst),
             len(cycles),
         )
@@ -106,23 +124,24 @@ class DumpOrchestrator:
         constraint_mgr = ConstraintManager(cfg.target_engine, cfg.target_schema)
 
         with constraint_mgr:
-            # FASE 3: Deshabilitar constraints
-            constraint_mgr.disable_all(tables=effective_order)
+            # FASE 3: Deshabilitar constraints (usando nombres canónicos del destino)
+            constraint_mgr.disable_all(tables=effective_dst_order)
 
-            # FASE 4: Limpieza del destino
+            # FASE 4: Limpieza del destino (usando nombres canónicos del destino)
             if cfg.truncate_target:
-                self._cleanup(list(reversed(effective_order)), skip=set(missing_in_dst))
+                self._cleanup(list(reversed(effective_dst_order)), skip=set(missing_in_dst))
 
             # FASE 5: Carga (best-effort)
             cycle_set = {t for group in cycles for t in group}
-            for position, table in enumerate(effective_order):
-                result = self._process_table(table, position, table in cycle_set)
+            for position, src_t in enumerate(effective_src_order):
+                dst_t = src_to_dst[src_t]
+                result = self._process_table(src_t, dst_t, position, src_t in cycle_set)
                 table_results.append(result)
                 _log.info(
                     "  [%d/%d] %s → %s (%d filas)",
                     position + 1,
-                    len(effective_order),
-                    table,
+                    len(effective_src_order),
+                    src_t,
                     result.status,
                     result.target_rows_after,
                 )
@@ -192,15 +211,15 @@ class DumpOrchestrator:
     # Fase 5: Carga de tabla individual
     # ------------------------------------------------------------------
 
-    def _process_table(self, table: str, position: int, in_cycle: bool) -> TableDumpResult:
+    def _process_table(self, src_table: str, dst_table: str, position: int, in_cycle: bool) -> TableDumpResult:
         cfg = self._cfg
-        common_cols, skipped_cols, col_name_map = self._common_columns(table)
+        common_cols, skipped_cols, col_name_map = self._common_columns(src_table, dst_table)
 
         if not common_cols:
-            target_count = self._safe_count(cfg.target_engine, table, cfg.target_schema)
+            target_count = self._safe_count(cfg.target_engine, dst_table, cfg.target_schema)
             return TableDumpResult(
-                table_name=table,
-                source_rows=self._safe_count(cfg.source_engine, table, cfg.source_schema),
+                table_name=src_table,
+                source_rows=self._safe_count(cfg.source_engine, src_table, cfg.source_schema),
                 target_rows_before=target_count,
                 target_rows_after=target_count,
                 status="skipped",
@@ -209,11 +228,11 @@ class DumpOrchestrator:
                 in_cycle=in_cycle,
             )
 
-        source_rows = self._safe_count(cfg.source_engine, table, cfg.source_schema)
-        target_rows_before = self._safe_count(cfg.target_engine, table, cfg.target_schema)
+        source_rows = self._safe_count(cfg.source_engine, src_table, cfg.source_schema)
+        target_rows_before = self._safe_count(cfg.target_engine, dst_table, cfg.target_schema)
 
         cols_quoted = ", ".join(quote_identifier(c, cfg.source_engine) for c in common_cols)
-        table_quoted = quote_table(table, cfg.source_schema, cfg.source_engine)
+        table_quoted = quote_table(src_table, cfg.source_schema, cfg.source_engine)
         sql = f"SELECT {cols_quoted} FROM {table_quoted}"
 
         crud: BulkInserter = bulk_crud(
@@ -221,7 +240,7 @@ class DumpOrchestrator:
             chunk_size=cfg.chunk_size,
             audit_csv_path=cfg.bulk_audit_path,
         )
-        dest_table = quote_table(table, cfg.target_schema, cfg.target_engine)
+        dest_table_quoted = quote_table(dst_table, cfg.target_schema, cfg.target_engine)
         error_msgs: list[str] = []
 
         try:
@@ -230,17 +249,17 @@ class DumpOrchestrator:
                 for chunk in chunks:
                     df_filtered = chunk[common_cols].rename(columns=col_name_map)
                     try:
-                        crud.bulk_insert_from_df(df_filtered, dest_table, generar_sql=False)
+                        crud.bulk_insert_from_df(df_filtered, dest_table_quoted, generar_sql=False)
                     except (SQLAlchemyError, ValueError) as exc:
                         error_msgs.append(str(exc))
         except (SQLAlchemyError, ValueError, pd.errors.DatabaseError) as exc:
             error_msgs.append(f"Error leyendo origen: {exc}")
 
-        target_rows_after = self._safe_count(cfg.target_engine, table, cfg.target_schema)
+        target_rows_after = self._safe_count(cfg.target_engine, dst_table, cfg.target_schema)
         status: Literal["success", "error"] = "error" if error_msgs else "success"
 
         return TableDumpResult(
-            table_name=table,
+            table_name=src_table,
             source_rows=source_rows,
             target_rows_before=target_rows_before,
             target_rows_after=target_rows_after,
@@ -260,15 +279,17 @@ class DumpOrchestrator:
             return sorted(self._cfg.tables)
         return self._src_insp.get_table_names(schema=self._cfg.source_schema)
 
-    def _common_columns(self, table: str) -> tuple[list[str], list[str], dict[str, str]]:
+    def _common_columns(self, src_table: str, dst_table: str) -> tuple[list[str], list[str], dict[str, str]]:
         """Retorna (columnas_comunes_origen, columnas_omitidas, mapa_origen→destino).
 
         El mapa permite renombrar el DataFrame antes del INSERT cuando la BD
         destino tiene el mismo nombre de columna en distinto case (p.ej. origen
         ``UserID`` → destino ``userid`` en una BD case-sensitive).
+        Acepta nombres distintos para origen (``src_table``) y destino (``dst_table``)
+        para soportar motores con diferente sensibilidad a mayúsculas.
         """
-        src = [c["name"] for c in self._src_insp.get_columns(table, schema=self._cfg.source_schema)]
-        dst_by_lower = {c["name"].lower(): c["name"] for c in self._dst_insp.get_columns(table, schema=self._cfg.target_schema)}
+        src = [c["name"] for c in self._src_insp.get_columns(src_table, schema=self._cfg.source_schema)]
+        dst_by_lower = {c["name"].lower(): c["name"] for c in self._dst_insp.get_columns(dst_table, schema=self._cfg.target_schema)}
         common = [name for name in src if name.lower() in dst_by_lower]
         skipped = [name for name in src if name.lower() not in dst_by_lower]
         name_map = {name: dst_by_lower[name.lower()] for name in common}
