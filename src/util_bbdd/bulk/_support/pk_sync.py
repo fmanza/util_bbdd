@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import Column, Engine, Table, func, select, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -254,6 +254,7 @@ class PKSequenceSyncer:
 
         max_val_raw = conn.execute(select(func.max(col))).scalar()
 
+        status: Literal["synced", "no_rows"]
         if max_val_raw is None:
             next_val = 1
             max_val: int | None = None
@@ -326,6 +327,7 @@ class PKSequenceSyncer:
         seq_name: str = seq_row[0]
         max_val_raw = conn.execute(select(func.max(col))).scalar()
 
+        status: Literal["synced", "no_rows"]
         if max_val_raw is None:
             next_val = 1
             max_val2: int | None = None
