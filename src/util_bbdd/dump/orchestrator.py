@@ -20,8 +20,10 @@ y alimentan directamente el informe Excel, evitando la cascada N+1 de comparar
 from __future__ import annotations
 
 import logging
+import math
 
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
 from datetime import datetime
 from pathlib import Path
@@ -29,7 +31,7 @@ from typing import Any, Literal
 
 import pandas as pd
 
-from sqlalchemy import Engine, Inspector, inspect, text
+from sqlalchemy import Engine, Inspector, Integer, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from util_bbdd.bulk import BulkCrud
@@ -144,24 +146,33 @@ class DumpOrchestrator:
 
                 # FASE 4: Carga (best-effort)
                 cycle_set = {t for group in cycles for t in group}
+                # Concurrencia efectiva: tablas en paralelo y rangos de PK por tabla,
+                # ambos acotados a la capacidad real del pool (tablas * rangos <= capacidad).
+                table_workers = self._resolve_max_workers(cfg.max_parallel_tables)
+                self._effective_pk_ranges = self._resolve_range_count(cfg.parallel_pk_ranges, table_workers)
                 crud = BulkCrud(
                     cfg.target_engine,
                     chunk_size=cfg.chunk_size,
                     audit_csv_path=cfg.bulk_audit_path,
                     commit_every_n_chunks=cfg.commit_every_n_chunks,
                 )
-                for position, src_t in enumerate(effective_src_order):
-                    dst_t = src_to_dst[src_t]
-                    result = self._process_table(src_t, dst_t, position, src_t in cycle_set, crud)
-                    table_results.append(result)
-                    _log.info(
-                        "  [%d/%d] %s → %s (%d filas)",
-                        position + 1,
-                        len(effective_src_order),
-                        src_t,
-                        result.status,
-                        result.target_rows_after,
-                    )
+                if cfg.max_parallel_tables > 1:
+                    table_results.extend(self._load_parallel(effective_src_order, src_to_dst, cycle_set, table_workers))
+                    # Reflejar tablas cargadas en la crud compartida para la Fase 5a (PK sync)
+                    self._reflect_loaded_tables(crud, table_results, src_to_dst)
+                else:
+                    for position, src_t in enumerate(effective_src_order):
+                        dst_t = src_to_dst[src_t]
+                        result = self._process_table(src_t, dst_t, position, src_t in cycle_set, crud)
+                        table_results.append(result)
+                        _log.info(
+                            "  [%d/%d] %s → %s (%d filas)",
+                            position + 1,
+                            len(effective_src_order),
+                            src_t,
+                            result.status,
+                            result.target_rows_after,
+                        )
 
         # Añadir tablas faltantes al resultado (informativo)
         table_results.extend(
@@ -292,8 +303,35 @@ class DumpOrchestrator:
     def _process_table(
         self, src_table: str, dst_table: str, position: int, in_cycle: bool, crud: BulkCrud
     ) -> TableDumpResult:
-        cfg = self._cfg
         common_cols, skipped_cols, col_name_map = self._common_columns(src_table, dst_table)
+        pk_range_col = self._detect_pk_range_col(src_table, common_cols) if self._cfg.parallel_pk_ranges > 1 else None
+        return self._process_table_with_columns(
+            src_table, dst_table, position, in_cycle, crud, common_cols, skipped_cols, col_name_map, pk_range_col
+        )
+
+    def _process_table_with_columns(
+        self,
+        src_table: str,
+        dst_table: str,
+        position: int,
+        in_cycle: bool,
+        crud: BulkCrud,
+        common_cols: list[str],
+        skipped_cols: list[str],
+        col_name_map: dict[str, str],
+        pk_range_col: str | None = None,
+    ) -> TableDumpResult:
+        """Carga una tabla con sus columnas comunes ya resueltas.
+
+        La introspección (``_common_columns``, ``pk_range_col``, vía Inspector no
+        thread-safe) se calcula fuera de este método para poder precomputarla en serie
+        antes de paralelizar. Este método solo abre conexiones propias (origen/destino),
+        por lo que es seguro de ejecutar en un hilo dedicado con su propia instancia ``crud``.
+
+        Si ``pk_range_col`` está presente y ``_effective_pk_ranges > 1``, la carga se
+        particiona por rangos de esa PK entera y se ejecuta en paralelo (Incremento 3b).
+        """
+        cfg = self._cfg
 
         if not common_cols:
             if cfg.collect_row_counts:
@@ -318,28 +356,18 @@ class DumpOrchestrator:
         else:
             source_rows = target_rows_before = -1
 
-        cols_quoted = ", ".join(quote_identifier(c, cfg.source_engine) for c in common_cols)
-        table_quoted = quote_table(src_table, cfg.source_schema, cfg.source_engine)
-        sql = f"SELECT {cols_quoted} FROM {table_quoted}"
-
         # bulk_insert_from_df → reflect_table espera nombre lógico sin quoting de dialecto
         # (schema.tabla o solo tabla). quote_table genera backticks/corchetes que reflect_table
         # no puede procesar, pues los pasa literalmente a SQLAlchemy Table().
         dest_table_logical = f"{cfg.target_schema}.{dst_table}" if cfg.target_schema else dst_table
-        error_msgs: list[str] = []
 
-        try:
-            with cfg.source_engine.connect() as conn:
-                chunks = pd.read_sql(text(sql), conn, chunksize=cfg.chunk_size)
-                try:
-                    with crud.bulk_session():
-                        for chunk in chunks:
-                            df_filtered = chunk[common_cols].rename(columns=col_name_map)
-                            crud.bulk_insert_from_df(df_filtered, dest_table_logical, generar_sql=False)
-                except (SQLAlchemyError, ValueError) as exc:
-                    error_msgs.append(str(exc))
-        except (SQLAlchemyError, ValueError, pd.errors.DatabaseError) as exc:
-            error_msgs.append(f"Error leyendo origen: {exc}")
+        n_ranges: int = getattr(self, "_effective_pk_ranges", 1)
+        if pk_range_col is not None and n_ranges > 1:
+            error_msgs = self._load_in_pk_ranges(
+                src_table, common_cols, col_name_map, pk_range_col, dest_table_logical, n_ranges
+            )
+        else:
+            error_msgs = self._load_whole_table(src_table, common_cols, col_name_map, dest_table_logical, crud)
 
         target_rows_after = (
             self._safe_count(cfg.target_engine, dst_table, cfg.target_schema) if cfg.collect_row_counts else -1
@@ -357,6 +385,332 @@ class DumpOrchestrator:
             in_cycle=in_cycle,
             error_msg="; ".join(error_msgs),
         )
+
+    def _load_whole_table(
+        self,
+        src_table: str,
+        common_cols: list[str],
+        col_name_map: dict[str, str],
+        dest_table_logical: str,
+        crud: BulkCrud,
+    ) -> list[str]:
+        """Lee la tabla origen completa y la inserta por chunks. Devuelve mensajes de error."""
+        cfg = self._cfg
+        cols_quoted = ", ".join(quote_identifier(c, cfg.source_engine) for c in common_cols)
+        table_quoted = quote_table(src_table, cfg.source_schema, cfg.source_engine)
+        sql = f"SELECT {cols_quoted} FROM {table_quoted}"
+        error_msgs: list[str] = []
+        try:
+            with cfg.source_engine.connect() as conn:
+                chunks = pd.read_sql(text(sql), conn, chunksize=cfg.chunk_size)
+                try:
+                    with crud.bulk_session():
+                        for chunk in chunks:
+                            df_filtered = chunk[common_cols].rename(columns=col_name_map)
+                            crud.bulk_insert_from_df(df_filtered, dest_table_logical, generar_sql=False)
+                except (SQLAlchemyError, ValueError) as exc:
+                    error_msgs.append(str(exc))
+        except (SQLAlchemyError, ValueError, pd.errors.DatabaseError) as exc:
+            error_msgs.append(f"Error leyendo origen: {exc}")
+        return error_msgs
+
+    # ------------------------------------------------------------------
+    # Fase 4 (paralela): carga por rangos de PK (Incremento 3b)
+    # ------------------------------------------------------------------
+
+    def _load_in_pk_ranges(
+        self,
+        src_table: str,
+        common_cols: list[str],
+        col_name_map: dict[str, str],
+        pk_col: str,
+        dest_table_logical: str,
+        n_ranges: int,
+    ) -> list[str]:
+        """Particiona la tabla por rangos contiguos de ``pk_col`` y los carga en paralelo.
+
+        Cada rango usa su propia ``BulkCrud`` y sus propias conexiones origen/destino.
+        Los rangos son disjuntos por PK ⇒ sin colisión entre inserts concurrentes.
+        """
+        cfg = self._cfg
+        pk_q = quote_identifier(pk_col, cfg.source_engine)
+        table_quoted = quote_table(src_table, cfg.source_schema, cfg.source_engine)
+
+        try:
+            with cfg.source_engine.connect() as conn:
+                row = conn.execute(text(f"SELECT MIN({pk_q}), MAX({pk_q}) FROM {table_quoted}")).one()
+        except (SQLAlchemyError, ValueError) as exc:
+            return [f"Error calculando rango PK: {exc}"]
+
+        if row[0] is None or row[1] is None:
+            return []  # tabla vacía
+
+        bounds = DumpOrchestrator._compute_range_bounds(int(row[0]), int(row[1]), n_ranges)
+        cols_quoted = ", ".join(quote_identifier(c, cfg.source_engine) for c in common_cols)
+
+        def _load_range(low: int, high: int, is_last: bool) -> str | None:
+            crud = self._make_worker_crud()
+            op = "<=" if is_last else "<"
+            sql = f"SELECT {cols_quoted} FROM {table_quoted} WHERE {pk_q} >= :lo AND {pk_q} {op} :hi"
+            try:
+                with cfg.source_engine.connect() as conn:
+                    chunks = pd.read_sql(text(sql), conn, params={"lo": low, "hi": high}, chunksize=cfg.chunk_size)
+                    with crud.bulk_session():
+                        for chunk in chunks:
+                            df_filtered = chunk[common_cols].rename(columns=col_name_map)
+                            crud.bulk_insert_from_df(df_filtered, dest_table_logical, generar_sql=False)
+            except (SQLAlchemyError, ValueError, pd.errors.DatabaseError) as exc:
+                return f"rango[{low},{high}]: {exc}"
+            return None
+
+        error_msgs: list[str] = []
+        with ThreadPoolExecutor(max_workers=n_ranges) as pool:
+            futures = [pool.submit(_load_range, lo, hi, last) for lo, hi, last in bounds]
+            for future in as_completed(futures):
+                err = future.result()
+                if err:
+                    error_msgs.append(err)
+        return error_msgs
+
+    @staticmethod
+    def _compute_range_bounds(lo: int, hi: int, n: int) -> list[tuple[int, int, bool]]:
+        """Divide [lo, hi] en hasta ``n`` rangos contiguos ``(low, high, is_last)``.
+
+        Para rangos no finales: ``pk >= low AND pk < high`` (high exclusivo). Para el
+        último: ``pk >= low AND pk <= hi`` (inclusivo). Sin solapes ni huecos.
+        """
+        if hi < lo:
+            return []
+        n = max(1, n)
+        span = hi - lo + 1
+        step = max(1, math.ceil(span / n))
+        bounds: list[tuple[int, int, bool]] = []
+        start = lo
+        while start <= hi:
+            end_excl = start + step
+            if end_excl > hi:
+                bounds.append((start, hi, True))
+            else:
+                bounds.append((start, end_excl, False))
+            start = end_excl
+        return bounds
+
+    def _detect_pk_range_col(self, src_table: str, common_cols: list[str]) -> str | None:
+        """Devuelve el nombre de la PK si es una única columna entera presente en ``common_cols``.
+
+        Usa el Inspector de origen (no thread-safe): debe invocarse en serie, nunca en hilos.
+        ``None`` si no hay PK de columna única entera o no está en las columnas comunes.
+        """
+        schema = self._cfg.source_schema
+        try:
+            pk = self._src_insp.get_pk_constraint(src_table, schema=schema)
+        except SQLAlchemyError:
+            return None
+        cols = pk.get("constrained_columns") or []
+        if len(cols) != 1 or cols[0] not in common_cols:
+            return None
+        pk_col = cols[0]
+        try:
+            for column in self._src_insp.get_columns(src_table, schema=schema):
+                if column["name"] == pk_col:
+                    return pk_col if isinstance(column.get("type"), Integer) else None
+        except SQLAlchemyError:
+            return None
+        return None
+
+    def _resolve_range_count(self, requested: int, table_workers: int) -> int:
+        """Clampa el nº de rangos para que ``table_workers * rangos`` no exceda el pool."""
+        if requested <= 1:
+            return 1
+        capacities = [
+            DumpOrchestrator._pool_capacity(self._cfg.source_engine),
+            DumpOrchestrator._pool_capacity(self._cfg.target_engine),
+        ]
+        known = [c for c in capacities if c is not None and c > 0]
+        if known:
+            cap = min(known)
+            allowed = max(1, cap // max(table_workers, 1))
+            if requested > allowed:
+                _log.warning(
+                    "parallel_pk_ranges=%d con %d tablas en paralelo excede la capacidad del pool (%d); "
+                    "se degrada a %d rangos.",
+                    requested,
+                    table_workers,
+                    cap,
+                    allowed,
+                )
+                return allowed
+        return requested
+
+    # ------------------------------------------------------------------
+    # Fase 4 (paralela): carga por niveles topológicos
+    # ------------------------------------------------------------------
+
+    def _load_parallel(
+        self,
+        effective_src_order: list[str],
+        src_to_dst: dict[str, str],
+        cycle_set: set[str],
+        workers: int,
+    ) -> list[TableDumpResult]:
+        """Carga las tablas en paralelo por nivel topológico FK.
+
+        Tablas de un mismo nivel (sin dependencia FK mutua) se cargan concurrentemente
+        (hasta ``workers`` a la vez), cada una con su propia ``BulkCrud`` (no thread-safe).
+        Las tablas en ciclos FK se cargan secuencialmente al final. Las columnas comunes y
+        la PK de rango se precomputan en serie (Inspector no thread-safe). Resultados
+        ordenados por posición de carga.
+        """
+        cfg = self._cfg
+        position_of: dict[str, int] = {t: i for i, t in enumerate(effective_src_order)}
+
+        if cfg.bulk_audit_path is not None:
+            _log.warning(
+                "max_parallel_tables>1: la auditoría de inserts por-operación se desactiva "
+                "(el CSV no es seguro ante escrituras concurrentes)."
+            )
+
+        noncycle = [t for t in effective_src_order if t not in cycle_set]
+        cycle_tables = [t for t in effective_src_order if t in cycle_set]
+        levels = DumpOrchestrator._topological_levels(noncycle, self._src_insp, cfg.source_schema)
+
+        results: list[TableDumpResult] = []
+
+        for level in levels:
+            # Precomputar columnas y PK de rango en serie (Inspector no es thread-safe)
+            precomputed = {src_t: self._precompute_table_meta(src_t, src_to_dst[src_t]) for src_t in level}
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = {
+                    pool.submit(
+                        self._load_one_table,
+                        src_t,
+                        src_to_dst[src_t],
+                        position_of[src_t],
+                        False,
+                        precomputed[src_t],
+                    ): src_t
+                    for src_t in level
+                }
+                for future in as_completed(futures):
+                    result = future.result()
+                    results.append(result)
+                    _log.info("  (par) %s → %s (%d filas)", futures[future], result.status, result.target_rows_after)
+
+        # Ciclos FK: secuencial con una única crud
+        if cycle_tables:
+            cycle_crud = self._make_worker_crud()
+            for src_t in cycle_tables:
+                dst_t = src_to_dst[src_t]
+                common_cols, skipped_cols, col_name_map, pk_col = self._precompute_table_meta(src_t, dst_t)
+                result = self._process_table_with_columns(
+                    src_t, dst_t, position_of[src_t], True, cycle_crud, common_cols, skipped_cols, col_name_map, pk_col
+                )
+                results.append(result)
+                _log.info("  (ciclo) %s → %s (%d filas)", src_t, result.status, result.target_rows_after)
+
+        results.sort(key=lambda r: r.load_order_position)
+        return results
+
+    def _precompute_table_meta(
+        self, src_table: str, dst_table: str
+    ) -> tuple[list[str], list[str], dict[str, str], str | None]:
+        """Calcula en serie (Inspector no thread-safe) columnas comunes + PK de rango."""
+        common_cols, skipped_cols, col_name_map = self._common_columns(src_table, dst_table)
+        pk_col = self._detect_pk_range_col(src_table, common_cols) if self._cfg.parallel_pk_ranges > 1 else None
+        return common_cols, skipped_cols, col_name_map, pk_col
+
+    def _load_one_table(
+        self,
+        src_table: str,
+        dst_table: str,
+        position: int,
+        in_cycle: bool,
+        meta: tuple[list[str], list[str], dict[str, str], str | None],
+    ) -> TableDumpResult:
+        """Tarea de hilo: carga una tabla con su propia ``BulkCrud`` y metadatos precomputados."""
+        crud = self._make_worker_crud()
+        common_cols, skipped_cols, col_name_map, pk_col = meta
+        return self._process_table_with_columns(
+            src_table, dst_table, position, in_cycle, crud, common_cols, skipped_cols, col_name_map, pk_col
+        )
+
+    def _reflect_loaded_tables(
+        self,
+        crud: BulkCrud,
+        table_results: list[TableDumpResult],
+        src_to_dst: dict[str, str],
+    ) -> None:
+        """Refleja en ``crud`` las tablas efectivamente cargadas (para la Fase 5a PK sync).
+
+        Bajo carga paralela las ``BulkCrud`` por hilo no pueblan la caché de ``crud``.
+        Se reflejan aquí las tablas con carga intentada (``success``/``error``), usando la
+        misma convención de nombre lógico que la ruta secuencial, para que
+        ``_sync_pk_sequences`` opere sin cambios.
+        """
+        schema = self._cfg.target_schema
+        for res in table_results:
+            if res.status not in ("success", "error"):
+                continue
+            dst = src_to_dst.get(res.table_name)
+            if dst is None:
+                continue
+            dest_logical = f"{schema}.{dst}" if schema else dst
+            try:
+                crud.reflect_table(dest_logical)
+            except SQLAlchemyError as exc:
+                _log.debug("No se pudo reflejar '%s' para PK sync: %s", dest_logical, exc)
+
+    def _make_worker_crud(self) -> BulkCrud:
+        """Crea una ``BulkCrud`` dedicada (sin auditoría: el CSV no es concurrente-seguro)."""
+        cfg = self._cfg
+        return BulkCrud(
+            cfg.target_engine,
+            chunk_size=cfg.chunk_size,
+            audit_csv_path=None,
+            commit_every_n_chunks=cfg.commit_every_n_chunks,
+        )
+
+    def _resolve_max_workers(self, requested: int) -> int:
+        """Clampa los workers a la capacidad real de pool de ambos engines.
+
+        Devuelve ``min(requested, capacidad_origen, capacidad_destino)``; degrada con
+        warning si el pool no alcanza ``requested``. Si la capacidad no es determinable
+        (pool sin ``size()``), respeta ``requested``.
+        """
+        if requested <= 1:
+            return 1
+        capacities = [
+            DumpOrchestrator._pool_capacity(self._cfg.source_engine),
+            DumpOrchestrator._pool_capacity(self._cfg.target_engine),
+        ]
+        known = [c for c in capacities if c is not None and c > 0]
+        if known:
+            cap = min(known)
+            if requested > cap:
+                _log.warning(
+                    "max_parallel_tables=%d excede la capacidad del pool (%d); se degrada a %d. "
+                    "Aumenta pool_size/max_overflow para mayor paralelismo.",
+                    requested,
+                    cap,
+                    cap,
+                )
+                return cap
+        return requested
+
+    @staticmethod
+    def _pool_capacity(engine: Engine) -> int | None:
+        """Capacidad del pool (``size + max_overflow``) o ``None`` si no es determinable."""
+        pool = engine.pool
+        size_fn = getattr(pool, "size", None)
+        if not callable(size_fn):
+            return None
+        try:
+            base = int(size_fn())
+            overflow_raw: Any = getattr(pool, "_max_overflow", 0) or 0
+            overflow = int(overflow_raw)
+        except (TypeError, ValueError):
+            return None
+        return base + max(overflow, 0)
 
     # ------------------------------------------------------------------
     # Fase 5a: Resincronización de contadores PK
@@ -474,6 +828,36 @@ class DumpOrchestrator:
                     in_degree[table] += 1
 
         return dependents, in_degree
+
+    @staticmethod
+    def _topological_levels(
+        tables: list[str],
+        inspector: Inspector,
+        schema: str | None,
+    ) -> list[list[str]]:
+        """Agrupa las tablas en niveles topológicos FK (Kahn por profundidad).
+
+        Cada nivel contiene tablas mutuamente independientes (sin FK entre ellas),
+        cargables concurrentemente. Las tablas en ciclos FK se excluyen (no aparecen
+        en ningún nivel). Dentro de cada nivel el orden es alfabético (determinista).
+        """
+        dependents, in_degree = DumpOrchestrator._build_fk_graph(tables, inspector, schema)
+        levels: list[list[str]] = []
+        seen: set[str] = set()
+        current: list[str] = sorted(t for t in tables if in_degree[t] == 0)
+
+        while current:
+            levels.append(current)
+            seen.update(current)
+            nxt: set[str] = set()
+            for node in current:
+                for dep in dependents[node]:
+                    in_degree[dep] -= 1
+                    if in_degree[dep] == 0:
+                        nxt.add(dep)
+            current = sorted(nxt)
+
+        return levels
 
     @staticmethod
     def _topological_sort(

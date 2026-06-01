@@ -104,6 +104,22 @@ class DumpConfig:
             NONCLUSTERED), oracle ``UNUSABLE``→``REBUILD``, postgresql ``DROP``+recreate
             desde ``pg_get_indexdef`` (DDL logueado antes del DROP), mariadb/mysql no
             soportado (no-op). Nunca toca índices que respaldan PK/UNIQUE.
+        max_parallel_tables: Número máximo de tablas a cargar concurrentemente dentro de
+            un mismo nivel topológico FK (tablas mutuamente independientes). ``1`` (default)
+            = carga secuencial. Valores > 1 usan un ``ThreadPoolExecutor`` con una instancia
+            ``BulkCrud`` por hilo. Las tablas en ciclos FK se cargan siempre secuencialmente.
+            Se degrada automáticamente (con warning) a la capacidad real del pool de
+            conexiones (``pool_size + max_overflow``) de origen/destino. **Bajo paralelismo
+            de tabla la auditoría por-operación se desactiva** (CSV no es seguro ante
+            escrituras concurrentes); ``DumpResult.audit_summary`` será ``None``.
+        parallel_pk_ranges: Número de rangos contiguos de PK en que particionar la carga de
+            **cada** tabla con PK de una sola columna entera (``WHERE pk >= lo AND pk < hi``),
+            cargados en paralelo con su propia ``BulkCrud``. ``1`` (default) = sin
+            particionado. Solo aplica a tablas cuya PK es una única columna entera presente
+            en las columnas comunes; el resto se cargan completas. La concurrencia total
+            (``max_parallel_tables * parallel_pk_ranges``) se degrada con warning a la
+            capacidad real del pool. **Requiere** que el destino no tenga triggers per-fila
+            dependientes del orden de inserción.
     """
 
     source_engine: Engine
@@ -119,6 +135,8 @@ class DumpConfig:
     sync_pk_sequences: bool = True
     commit_every_n_chunks: int | None = None
     manage_indexes: bool = False
+    max_parallel_tables: int = 1
+    parallel_pk_ranges: int = 1
 
 
 @dataclass

@@ -11,6 +11,7 @@ from util_bbdd.dump.orchestrator import (
     DumpConfig,
     DumpOrchestrator,
     DumpResult,
+    TableDumpResult,
 )
 
 # ---------------------------------------------------------------------------
@@ -410,6 +411,301 @@ class TestDumpOrchestratorRun:
         skipped = [r for r in result.table_results if r.status == "skipped"]
         assert len(skipped) == 1
         assert skipped[0].table_name == "t"
+
+    @patch("util_bbdd.dump.orchestrator.ConstraintManager")
+    @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("dump_report.xlsx"))
+    @patch("pandas.read_sql", return_value=iter([]))
+    def test_parallel_path_used_when_max_parallel_tables_gt_1(self, mock_read_sql, mock_report, mock_mgr_cls):
+        mock_mgr = MagicMock()
+        mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
+        mock_mgr.__exit__ = MagicMock(return_value=False)
+        mock_mgr.constraint_results = []
+        mock_mgr_cls.return_value = mock_mgr
+
+        orch = self._build_orchestrator(src_tables=["customers", "products"], dst_tables=["customers", "products"])
+        orch._cfg.max_parallel_tables = 2
+        orch._load_parallel = MagicMock(return_value=[])  # type: ignore[method-assign]
+        orch._reflect_loaded_tables = MagicMock()  # type: ignore[method-assign]
+        orch.run()
+
+        orch._load_parallel.assert_called_once()
+        orch._reflect_loaded_tables.assert_called_once()
+
+    @patch("util_bbdd.dump.orchestrator.ConstraintManager")
+    @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("dump_report.xlsx"))
+    @patch("pandas.read_sql", return_value=iter([]))
+    def test_sequential_path_when_default(self, mock_read_sql, mock_report, mock_mgr_cls):
+        mock_mgr = MagicMock()
+        mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
+        mock_mgr.__exit__ = MagicMock(return_value=False)
+        mock_mgr.constraint_results = []
+        mock_mgr_cls.return_value = mock_mgr
+
+        orch = self._build_orchestrator(src_tables=["customers"], dst_tables=["customers"])
+        orch._load_parallel = MagicMock()  # type: ignore[method-assign]
+        orch.run()
+
+        orch._load_parallel.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# DumpOrchestrator — paralelización (Incremento 3a)
+# ---------------------------------------------------------------------------
+
+
+class TestTopologicalLevels:
+    def test_independent_tables_same_level(self):
+        insp = _make_inspector(["customers", "products"])
+        levels = DumpOrchestrator._topological_levels(["customers", "products"], insp, None)
+        assert levels == [["customers", "products"]]
+
+    def test_dependent_table_next_level(self):
+        insp = _make_inspector(
+            ["customers", "products", "orders"],
+            fks={"orders": [{"referred_table": "customers"}]},
+        )
+        levels = DumpOrchestrator._topological_levels(["customers", "products", "orders"], insp, None)
+        assert levels == [["customers", "products"], ["orders"]]
+
+    def test_chain_produces_one_table_per_level(self):
+        insp = _make_inspector(
+            ["a", "b", "c"],
+            fks={"b": [{"referred_table": "a"}], "c": [{"referred_table": "b"}]},
+        )
+        levels = DumpOrchestrator._topological_levels(["a", "b", "c"], insp, None)
+        assert levels == [["a"], ["b"], ["c"]]
+
+    def test_cycle_tables_excluded(self):
+        insp = _make_inspector(
+            ["a", "b", "c"],
+            fks={"a": [{"referred_table": "b"}], "b": [{"referred_table": "a"}]},
+        )
+        levels = DumpOrchestrator._topological_levels(["a", "b", "c"], insp, None)
+        # a y b forman ciclo → excluidas; solo c (independiente) aparece
+        assert levels == [["c"]]
+
+
+class TestResolveMaxWorkers:
+    def _orch_with_pools(self, src_cap: int | None, dst_cap: int | None) -> DumpOrchestrator:
+        def _engine(cap: int | None) -> MagicMock:
+            eng = MagicMock()
+            if cap is None:
+                eng.pool.size = "not-callable"
+            else:
+                eng.pool.size = MagicMock(return_value=cap)
+                eng.pool._max_overflow = 0
+            return eng
+
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = DumpConfig(source_engine=_engine(src_cap), target_engine=_engine(dst_cap))
+        return orch
+
+    def test_requested_1_returns_1(self):
+        orch = self._orch_with_pools(10, 10)
+        assert orch._resolve_max_workers(1) == 1
+
+    def test_degrades_to_min_pool_capacity(self, caplog):
+        orch = self._orch_with_pools(8, 4)
+        with caplog.at_level("WARNING"):
+            assert orch._resolve_max_workers(6) == 4
+        assert "se degrada" in caplog.text.lower()
+
+    def test_respects_requested_when_pool_sufficient(self):
+        orch = self._orch_with_pools(10, 10)
+        assert orch._resolve_max_workers(4) == 4
+
+    def test_respects_requested_when_capacity_unknown(self):
+        orch = self._orch_with_pools(None, None)
+        assert orch._resolve_max_workers(4) == 4
+
+    def test_pool_capacity_includes_overflow(self):
+        eng = MagicMock()
+        eng.pool.size = MagicMock(return_value=5)
+        eng.pool._max_overflow = 10
+        assert DumpOrchestrator._pool_capacity(eng) == 15
+
+
+class TestLoadParallel:
+    def _build(self, src_tables, fks=None):
+        src_cols = {t: ["id", "name"] for t in src_tables}
+        dst_cols = {t: ["id", "name"] for t in src_tables}
+        cfg = DumpConfig(source_engine=_make_engine(), target_engine=_make_engine(), max_parallel_tables=2)
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = cfg
+        orch._src_insp = _make_inspector(src_tables, src_cols, fks)
+        orch._dst_insp = _make_inspector(src_tables, dst_cols)
+        return orch
+
+    def _stub_process(self, orch):
+        def _fake(src_table, dst_table, position, in_cycle, crud, common, skipped, name_map, pk_range_col=None):
+            return TableDumpResult(
+                table_name=src_table,
+                source_rows=0,
+                target_rows_before=0,
+                target_rows_after=0,
+                status="success",
+                skipped_columns=[],
+                load_order_position=position,
+                in_cycle=in_cycle,
+            )
+
+        orch._process_table_with_columns = MagicMock(side_effect=_fake)  # type: ignore[method-assign]
+        orch._make_worker_crud = MagicMock(return_value=MagicMock())  # type: ignore[method-assign]
+
+    def test_loads_all_tables_ordered_by_position(self):
+        orch = self._build(["customers", "products", "orders"], fks={"orders": [{"referred_table": "customers"}]})
+        self._stub_process(orch)
+        src_to_dst = {t: t for t in ["customers", "products", "orders"]}
+
+        results = orch._load_parallel(["customers", "products", "orders"], src_to_dst, set(), 2)
+
+        assert [r.table_name for r in results] == ["customers", "products", "orders"]
+        assert [r.load_order_position for r in results] == [0, 1, 2]
+        assert orch._process_table_with_columns.call_count == 3
+
+    def test_cycle_tables_loaded_sequentially(self):
+        orch = self._build(["c", "a", "b"], fks={"a": [{"referred_table": "b"}], "b": [{"referred_table": "a"}]})
+        self._stub_process(orch)
+        src_to_dst = {t: t for t in ["c", "a", "b"]}
+
+        results = orch._load_parallel(["c", "a", "b"], src_to_dst, {"a", "b"}, 2)
+
+        names = {r.table_name for r in results}
+        assert names == {"a", "b", "c"}
+        # a y b marcadas in_cycle
+        in_cycle = {r.table_name for r in results if r.in_cycle}
+        assert in_cycle == {"a", "b"}
+
+
+# ---------------------------------------------------------------------------
+# DumpOrchestrator — paralelización por rangos de PK (Incremento 3b)
+# ---------------------------------------------------------------------------
+
+
+class TestComputeRangeBounds:
+    def test_even_split_covers_full_range_without_gaps(self):
+        bounds = DumpOrchestrator._compute_range_bounds(1, 10, 3)
+        assert bounds == [(1, 5, False), (5, 9, False), (9, 10, True)]
+
+    def test_last_range_is_inclusive(self):
+        bounds = DumpOrchestrator._compute_range_bounds(1, 10, 3)
+        assert bounds[-1][2] is True  # is_last → usa <=
+
+    def test_fewer_rows_than_ranges(self):
+        bounds = DumpOrchestrator._compute_range_bounds(1, 2, 5)
+        assert bounds == [(1, 2, False), (2, 2, True)]
+
+    def test_single_value(self):
+        bounds = DumpOrchestrator._compute_range_bounds(7, 7, 4)
+        assert bounds == [(7, 7, True)]
+
+    def test_empty_when_hi_lt_lo(self):
+        assert DumpOrchestrator._compute_range_bounds(10, 1, 3) == []
+
+
+class TestResolveRangeCount:
+    def _orch(self, cap: int | None) -> DumpOrchestrator:
+        def _engine() -> MagicMock:
+            eng = MagicMock()
+            if cap is None:
+                eng.pool.size = "x"
+            else:
+                eng.pool.size = MagicMock(return_value=cap)
+                eng.pool._max_overflow = 0
+            return eng
+
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = DumpConfig(source_engine=_engine(), target_engine=_engine())
+        return orch
+
+    def test_requested_1_returns_1(self):
+        assert self._orch(10)._resolve_range_count(1, 4) == 1
+
+    def test_degrades_so_product_fits_pool(self, caplog):
+        # cap=8, table_workers=4 → allowed=2; requested=5 → degrada a 2
+        with caplog.at_level("WARNING"):
+            assert self._orch(8)._resolve_range_count(5, 4) == 2
+        assert "degrada" in caplog.text.lower()
+
+    def test_respects_when_product_fits(self):
+        assert self._orch(20)._resolve_range_count(4, 4) == 4
+
+    def test_respects_when_capacity_unknown(self):
+        assert self._orch(None)._resolve_range_count(4, 4) == 4
+
+
+class TestDetectPkRangeCol:
+    def _orch(self, pk_cols: list[str], col_types: dict[str, object]) -> DumpOrchestrator:
+        from sqlalchemy import Integer, String
+
+        insp = MagicMock()
+        insp.get_pk_constraint.return_value = {"constrained_columns": pk_cols}
+
+        type_objs = {"int": Integer(), "str": String()}
+
+        def _get_columns(table, schema=None):
+            return [{"name": name, "type": type_objs[col_types[name]]} for name in col_types]
+
+        insp.get_columns.side_effect = _get_columns
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = DumpConfig(source_engine=_make_engine(), target_engine=_make_engine())
+        orch._src_insp = insp
+        return orch
+
+    def test_single_integer_pk_in_common_returns_col(self):
+        orch = self._orch(["id"], {"id": "int", "name": "str"})
+        assert orch._detect_pk_range_col("t", ["id", "name"]) == "id"
+
+    def test_composite_pk_returns_none(self):
+        orch = self._orch(["a", "b"], {"a": "int", "b": "int"})
+        assert orch._detect_pk_range_col("t", ["a", "b"]) is None
+
+    def test_non_integer_pk_returns_none(self):
+        orch = self._orch(["code"], {"code": "str"})
+        assert orch._detect_pk_range_col("t", ["code"]) is None
+
+    def test_pk_not_in_common_returns_none(self):
+        orch = self._orch(["id"], {"id": "int"})
+        assert orch._detect_pk_range_col("t", ["name"]) is None
+
+
+class TestLoadInPkRanges:
+    def _orch(self) -> DumpOrchestrator:
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = DumpConfig(source_engine=_make_engine(), target_engine=_make_engine())
+        return orch
+
+    def test_empty_table_returns_no_errors(self):
+        orch = self._orch()
+        conn = orch._cfg.source_engine.connect.return_value
+        conn.execute.return_value.one.return_value = (None, None)
+        orch._make_worker_crud = MagicMock()  # type: ignore[method-assign]
+
+        errors = orch._load_in_pk_ranges("t", ["id"], {"id": "id"}, "id", "t", 3)
+        assert errors == []
+        orch._make_worker_crud.assert_not_called()
+
+    @patch("pandas.read_sql", return_value=iter([]))
+    def test_partitions_into_n_ranges(self, mock_read_sql):
+        orch = self._orch()
+        conn = orch._cfg.source_engine.connect.return_value
+        conn.execute.return_value.one.return_value = (1, 9)
+
+        crud = MagicMock()
+        crud.bulk_session.return_value.__enter__ = MagicMock(return_value=None)
+        crud.bulk_session.return_value.__exit__ = MagicMock(return_value=False)
+        orch._make_worker_crud = MagicMock(return_value=crud)  # type: ignore[method-assign]
+
+        errors = orch._load_in_pk_ranges("t", ["id", "name"], {"id": "id", "name": "name"}, "id", "t", 3)
+
+        assert errors == []
+        # Una crud por rango (3 rangos para [1,9] con n=3)
+        assert orch._make_worker_crud.call_count == 3
+        # Las queries de rango usan WHERE pk >= / < (o <=)
+        range_sqls = [str(c.args[0]) for c in mock_read_sql.call_args_list]
+        assert all(">= :lo" in s for s in range_sqls)
+        assert any("< :hi" in s for s in range_sqls)
+        assert any("<= :hi" in s for s in range_sqls)
 
 
 # ---------------------------------------------------------------------------
