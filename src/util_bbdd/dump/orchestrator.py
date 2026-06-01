@@ -395,7 +395,15 @@ class DumpOrchestrator:
         dest_table_logical: str,
         crud: BulkCrud,
     ) -> list[str]:
-        """Lee la tabla origen completa y la inserta por chunks. Devuelve mensajes de error."""
+        """Lee la tabla origen completa y la inserta por chunks. Devuelve mensajes de error.
+
+        Delega en ``bulk_insert_from_chunks``, que resuelve columnas de inserción y
+        estrategia de identidad **una sola vez** para toda la tabla (en lugar de
+        re-resolverlas por chunk como haría un bucle de ``bulk_insert_from_df``) y
+        gestiona su propia ``bulk_session`` atómica. El renombrado de columnas se
+        aplica de forma perezosa por chunk mediante un generador, manteniendo el
+        streaming desde el origen sin materializar la tabla completa.
+        """
         cfg = self._cfg
         cols_quoted = ", ".join(quote_identifier(c, cfg.source_engine) for c in common_cols)
         table_quoted = quote_table(src_table, cfg.source_schema, cfg.source_engine)
@@ -404,11 +412,9 @@ class DumpOrchestrator:
         try:
             with cfg.source_engine.connect() as conn:
                 chunks = pd.read_sql(text(sql), conn, chunksize=cfg.chunk_size)
+                renamed = (chunk[common_cols].rename(columns=col_name_map) for chunk in chunks)
                 try:
-                    with crud.bulk_session():
-                        for chunk in chunks:
-                            df_filtered = chunk[common_cols].rename(columns=col_name_map)
-                            crud.bulk_insert_from_df(df_filtered, dest_table_logical, generar_sql=False)
+                    crud.bulk_insert_from_chunks(renamed, dest_table_logical)
                 except (SQLAlchemyError, ValueError) as exc:
                     error_msgs.append(str(exc))
         except (SQLAlchemyError, ValueError, pd.errors.DatabaseError) as exc:

@@ -253,10 +253,16 @@ class TestCommonColumns:
 
     def test_cross_engine_different_table_names_queried_separately(self):
         """_common_columns consulta el inspector destino con el nombre canónico destino."""
-        orch = self._make_orchestrator(["id", "name"], ["id", "name"])
-        # src_table="Orders" (SQL Server), dst_table="orders" (PostgreSQL)
+        src_engine = _make_engine()
+        dst_engine = _make_engine()
+        cfg = DumpConfig(source_engine=src_engine, target_engine=dst_engine)
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = cfg
+        orch._src_insp = MagicMock()
+        orch._dst_insp = MagicMock()
         orch._src_insp.get_columns.return_value = [{"name": "id"}, {"name": "name"}]
         orch._dst_insp.get_columns.return_value = [{"name": "id"}, {"name": "name"}]
+        # src_table="Orders" (SQL Server), dst_table="orders" (PostgreSQL)
         common, skipped, _ = orch._common_columns("Orders", "orders")
         assert common == ["id", "name"]
         assert skipped == []
@@ -736,6 +742,47 @@ class TestLoadInPkRanges:
         assert any("<= :hi" in s for s in range_sqls)
 
 
+class TestLoadWholeTable:
+    """``_load_whole_table`` delega en ``bulk_insert_from_chunks`` (resolución única)."""
+
+    def _orch(self) -> DumpOrchestrator:
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = DumpConfig(source_engine=_make_engine(), target_engine=_make_engine())
+        return orch
+
+    def test_delegates_to_bulk_insert_from_chunks(self):
+        import pandas as pd
+
+        orch = self._orch()
+        crud = MagicMock()
+        crud.bulk_insert_from_chunks.return_value = 4
+        chunks = [pd.DataFrame({"id": [1, 2], "name": ["a", "b"]})]
+
+        with patch("pandas.read_sql", return_value=iter(chunks)):
+            errors = orch._load_whole_table("t", ["id", "name"], {"id": "id", "name": "name"}, "dbo.t", crud)
+
+        assert errors == []
+        # Resolución única por tabla: un solo bulk_insert_from_chunks, sin bucle de bulk_insert_from_df
+        crud.bulk_insert_from_chunks.assert_called_once()
+        assert crud.bulk_insert_from_chunks.call_args.args[1] == "dbo.t"
+        crud.bulk_insert_from_df.assert_not_called()
+
+    def test_renames_columns_lazily_per_chunk(self):
+        import pandas as pd
+
+        orch = self._orch()
+        crud = MagicMock()
+        captured: list[pd.DataFrame] = []
+        crud.bulk_insert_from_chunks.side_effect = lambda gen, *a, **k: (captured.extend(list(gen)), 0)[1]
+        chunks = [pd.DataFrame({"UserID": [1], "Name": ["a"]})]
+
+        with patch("pandas.read_sql", return_value=iter(chunks)):
+            orch._load_whole_table("t", ["UserID", "Name"], {"UserID": "userid", "Name": "name"}, "t", crud)
+
+        assert len(captured) == 1
+        assert list(captured[0].columns) == ["userid", "name"]
+
+
 # ---------------------------------------------------------------------------
 # DumpOrchestrator._cleanup — truncate y delete
 # ---------------------------------------------------------------------------
@@ -862,9 +909,10 @@ class TestTargetSchemaPropagation:
         orch._dst_insp = dst_insp
         orch.run()
 
-        call_args = mock_crud.bulk_insert_from_df.call_args
+        # El volcado delega en bulk_insert_from_chunks(generador, dest_logical)
+        call_args = mock_crud.bulk_insert_from_chunks.call_args
         assert call_args is not None
-        tabla_arg = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("tabla_destino", "")
+        tabla_arg = call_args[0][1]
         assert tabla_arg == "staging.orders"
 
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
@@ -874,7 +922,7 @@ class TestTargetSchemaPropagation:
     def test_dest_table_uses_logical_name_for_bulk_insert(
         self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls
     ):
-        """TC1: bulk_insert_from_df recibe nombre lógico (schema.tabla sin quoting de dialecto).
+        """TC1: bulk_insert_from_chunks recibe nombre lógico (schema.tabla sin quoting de dialecto).
         reflect_table() en BulkCrud espera 'schema.tabla', no '[schema].[tabla]' ni `tabla`.
         El quoting de dialecto solo aplica al SQL directo (SELECT), no a la reflexión de tabla."""
         import pandas as pd
@@ -909,9 +957,9 @@ class TestTargetSchemaPropagation:
         orch._dst_insp = dst_insp
         orch.run()
 
-        call_args = mock_crud.bulk_insert_from_df.call_args
+        call_args = mock_crud.bulk_insert_from_chunks.call_args
         assert call_args is not None
-        tabla_arg = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("tabla_destino", "")
+        tabla_arg = call_args[0][1]
         # Debe ser el nombre lógico (schema.tabla), NO la forma quoted del dialecto
         assert tabla_arg == "order.user"
 
@@ -922,7 +970,12 @@ class TestTargetSchemaPropagation:
     def test_chunk_error_sets_error_status_and_correct_row_count(
         self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls
     ):
-        """TC5: error en chunk 2 de 2 → status=error, bulk_insert llamado dos veces."""
+        """TC5: error durante la carga de la tabla → status=error con el mensaje propagado.
+
+        Con la delegación en ``bulk_insert_from_chunks`` (resolución única por tabla),
+        un fallo en cualquier chunk aborta la inserción de la tabla con una única
+        llamada que propaga el ``SQLAlchemyError``.
+        """
         import pandas as pd
 
         from sqlalchemy.exc import SQLAlchemyError
@@ -938,8 +991,7 @@ class TestTargetSchemaPropagation:
         mock_read_sql.return_value = iter([chunk1, chunk2])
 
         mock_crud = MagicMock()
-        # Primer chunk OK, segundo falla con SQLAlchemyError
-        mock_crud.bulk_insert_from_df.side_effect = [None, SQLAlchemyError("FK violation")]
+        mock_crud.bulk_insert_from_chunks.side_effect = SQLAlchemyError("FK violation")
         mock_bulk_cls.return_value = mock_crud
 
         cfg = DumpConfig(
@@ -958,7 +1010,7 @@ class TestTargetSchemaPropagation:
         t_result = next(r for r in result.table_results if r.table_name == "t")
         assert t_result.status == "error"
         assert "FK violation" in t_result.error_msg
-        assert mock_crud.bulk_insert_from_df.call_count == 2
+        assert mock_crud.bulk_insert_from_chunks.call_count == 1
 
 
 # ---------------------------------------------------------------------------
@@ -1173,8 +1225,10 @@ class TestCollectRowCounts:
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
     @patch("pandas.read_sql", return_value=iter([]))
     @patch("util_bbdd.dump.orchestrator.BulkCrud")
-    def test_process_table_calls_bulk_session(self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls) -> None:
-        """bulk_session() se llama al menos una vez durante el procesado de la tabla."""
+    def test_process_table_delegates_to_bulk_insert_from_chunks(
+        self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls
+    ) -> None:
+        """El procesado de la tabla delega en bulk_insert_from_chunks (gestiona su propia sesión)."""
         mock_mgr = MagicMock()
         mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
         mock_mgr.__exit__ = MagicMock(return_value=False)
@@ -1197,7 +1251,7 @@ class TestCollectRowCounts:
         orch._dst_insp = dst_insp
         orch.run()
 
-        mock_crud.bulk_session.assert_called_once()
+        mock_crud.bulk_insert_from_chunks.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

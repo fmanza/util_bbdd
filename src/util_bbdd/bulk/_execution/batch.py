@@ -80,6 +80,9 @@ class PostgreSQLExecuteValuesStrategy:
     batch en lugar de N sentencias individuales: 1 round-trip por chunk en vez
     de N, con ganancia típica de 3–5× respecto a executemany.
 
+    Solo aplica al driver legacy ``psycopg2``. Para ``psycopg`` (psycopg3, el
+    driver por defecto de la librería) se usa :class:`PostgresCopyStrategy`.
+
     Fallback a :class:`DefaultInsertStrategy` cuando:
     - ``stmt`` es un ``TextClause`` (ruta ``override_identity``).
     - psycopg2 no está disponible en el entorno.
@@ -115,22 +118,142 @@ class PostgreSQLExecuteValuesStrategy:
             _pg_execute_values(raw_cursor, sql, data, page_size=len(data))
 
 
+class PostgresCopyStrategy:
+    """INSERT para PostgreSQL/psycopg3 vía ``COPY ... FROM STDIN`` (``cursor.copy()``).
+
+    Es la vía nativa más rápida de PostgreSQL: ``COPY`` salta el parseo SQL por
+    fila y transmite los datos por STDIN (sin staging a disco), con ganancias de
+    1 orden de magnitud sobre ``executemany`` en cargas de gran volumen.
+
+    psycopg3 adapta automáticamente cada valor Python (``int``, ``float``, ``str``,
+    ``datetime``, ``bytes``, ``None`` → NULL, JSON como texto) al formato COPY, por
+    lo que se reutilizan los registros ya normalizados por ``normalize_records_for_sql``.
+
+    Fallback a ejecución estándar (``connection.execute``) cuando ``stmt`` es un
+    ``TextClause`` (ruta ``override_identity`` / ``OVERRIDING SYSTEM VALUE``), que
+    no es expresable con COPY.
+    """
+
+    def execute(
+        self,
+        *,
+        connection: Any,
+        stmt: Any,
+        records: Sequence[Mapping[str, Any]],
+    ) -> None:
+        if not records:
+            return
+        if not hasattr(stmt, "table"):
+            # TextClause (OVERRIDING SYSTEM VALUE) u otro stmt sin .table → fallback
+            connection.execute(stmt, list(records))
+            return
+
+        table = stmt.table
+        cols: list[str] = list(records[0].keys())
+        preparer = connection.dialect.identifier_preparer
+        quoted_table: str = preparer.format_table(table)
+        quoted_cols: str = ", ".join(preparer.quote(c) for c in cols)
+        sql: str = f"COPY {quoted_table} ({quoted_cols}) FROM STDIN"
+        raw_cursor = connection.connection.cursor()
+        try:
+            with raw_cursor.copy(sql) as copy:
+                for record in records:
+                    copy.write_row([record[c] for c in cols])
+        finally:
+            raw_cursor.close()
+
+
+class MySQLMultiRowInsertStrategy:
+    """INSERT para MySQL/MariaDB vía sentencia multi-fila (``INSERT ... VALUES (...),(...)``).
+
+    Construye una única sentencia parametrizada con varias filas por round-trip en
+    lugar de N inserts individuales, evitando el coste de parseo por fila. Es la vía
+    portable y segura (parametrizada, sin ficheros) frente a ``LOAD DATA INFILE``,
+    que exige ``local_infile`` (riesgo de lectura de ficheros) y staging a disco.
+
+    Las filas se sub-lotean en grupos de ``max_rows_per_statement`` para acotar el
+    tamaño del paquete (``max_allowed_packet``): una sentencia demasiado grande con
+    columnas TEXT/BLOB puede provocar ``Lost connection to server (2013)``.
+
+    Fallback a ejecución estándar cuando ``stmt`` no expone ``.table`` (``TextClause``).
+    """
+
+    def __init__(self, *, max_rows_per_statement: int = 1000) -> None:
+        if max_rows_per_statement < 1:
+            raise ValueError(f"max_rows_per_statement debe ser ≥ 1, recibido: {max_rows_per_statement}")
+        self._max_rows: int = max_rows_per_statement
+
+    def execute(
+        self,
+        *,
+        connection: Any,
+        stmt: Any,
+        records: Sequence[Mapping[str, Any]],
+    ) -> None:
+        if not records:
+            return
+        if not hasattr(stmt, "table"):
+            connection.execute(stmt, list(records))
+            return
+
+        table = stmt.table
+        cols: list[str] = list(records[0].keys())
+        preparer = connection.dialect.identifier_preparer
+        quoted_table: str = preparer.format_table(table)
+        quoted_cols: str = ", ".join(preparer.quote(c) for c in cols)
+
+        for start in range(0, len(records), self._max_rows):
+            sub_batch: Sequence[Mapping[str, Any]] = records[start : start + self._max_rows]
+            value_clauses: list[str] = []
+            params: dict[str, Any] = {}
+            for row_index, record in enumerate(sub_batch):
+                tokens: list[str] = []
+                for col_index, col in enumerate(cols):
+                    bind_name: str = f"p{row_index}_{col_index}"
+                    tokens.append(f":{bind_name}")
+                    params[bind_name] = record[col]
+                value_clauses.append(f"({', '.join(tokens)})")
+            sql: str = f"INSERT INTO {quoted_table} ({quoted_cols}) VALUES {', '.join(value_clauses)}"
+            connection.execute(text(sql), params)
+
+
 class InsertStrategyResolver:
-    """Resuelve la estrategia INSERT óptima según dialecto y driver."""
+    """Resuelve la estrategia INSERT óptima según dialecto y driver.
+
+    Mapa de resolución:
+
+    - ``postgresql`` + ``psycopg2`` → :class:`PostgreSQLExecuteValuesStrategy`.
+    - ``postgresql`` + ``psycopg`` (psycopg3, driver por defecto) → :class:`PostgresCopyStrategy`.
+    - ``mysql`` / ``mariadb`` → :class:`MySQLMultiRowInsertStrategy`.
+    - resto (Oracle, SQL Server, SQLite, HSQLDB) → :class:`DefaultInsertStrategy`
+      (``executemany``; en SQL Server acelerado por ``fast_executemany``).
+    """
 
     def __init__(
         self,
         *,
-        pg_strategy: InsertExecutionStrategyProtocol | None = None,
+        pg_copy_strategy: InsertExecutionStrategyProtocol | None = None,
+        pg_execute_values_strategy: InsertExecutionStrategyProtocol | None = None,
+        mysql_strategy: InsertExecutionStrategyProtocol | None = None,
         default_strategy: InsertExecutionStrategyProtocol | None = None,
     ) -> None:
-        self._pg_strategy: InsertExecutionStrategyProtocol = pg_strategy or PostgreSQLExecuteValuesStrategy()
+        self._pg_copy_strategy: InsertExecutionStrategyProtocol = pg_copy_strategy or PostgresCopyStrategy()
+        self._pg_execute_values_strategy: InsertExecutionStrategyProtocol = (
+            pg_execute_values_strategy or PostgreSQLExecuteValuesStrategy()
+        )
+        self._mysql_strategy: InsertExecutionStrategyProtocol = mysql_strategy or MySQLMultiRowInsertStrategy()
         self._default_strategy: InsertExecutionStrategyProtocol = default_strategy or DefaultInsertStrategy()
 
     def resolve(self, dialect_name: str, drivername: str) -> InsertExecutionStrategyProtocol:
         """Devuelve la estrategia adecuada para el dialecto y driver indicados."""
-        if dialect_name == "postgresql" and "psycopg2" in drivername:
-            return self._pg_strategy
+        if dialect_name == "postgresql":
+            # "psycopg2" contiene "psycopg": comprobar el legacy primero.
+            if "psycopg2" in drivername:
+                return self._pg_execute_values_strategy
+            if "psycopg" in drivername:
+                return self._pg_copy_strategy
+        if dialect_name in ("mysql", "mariadb"):
+            return self._mysql_strategy
         return self._default_strategy
 
 
@@ -363,6 +486,8 @@ __all__: list[str] = [
     "GenericDeleteStrategy",
     "InsertExecutionStrategyProtocol",
     "InsertStrategyResolver",
+    "MySQLMultiRowInsertStrategy",
+    "PostgresCopyStrategy",
     "PostgreSQLExecuteValuesStrategy",
     "SqlBasedDeleteStrategy",
 ]

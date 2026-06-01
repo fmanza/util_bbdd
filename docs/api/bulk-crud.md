@@ -48,7 +48,7 @@ flowchart TD
 | `chunk_size` | `int` | Filas por lote | Default `5000`; valores muy bajos aumentan nº de round-trips a BD |
 | `audit_csv_path` | `Path \| None` | Ruta del CSV de auditoría | `None` desactiva la auditoría |
 | `enable_fast_executemany` | `bool` | Si `True` (default) y el engine es `mssql+pyodbc`, registra `cursor.fast_executemany = True` antes de cada `executemany`, acelerando las operaciones 5–15×. Poner a `False` si el entorno SQL Server presenta incompatibilidades con esta opción (p.ej. `NVARCHAR(MAX)` con pyodbc < 4.0.28). Sin efecto en otros motores. | Default `True` |
-| `insert_resolver` | `InsertStrategyResolver \| None` | Estrategia INSERT personalizada. `None` usa resolución automática: `execute_values` para PostgreSQL+psycopg2 (3–5×), `executemany` estándar para el resto. Útil en tests o para inyectar estrategias personalizadas. | Default `None` |
+| `insert_resolver` | `InsertStrategyResolver \| None` | Estrategia INSERT personalizada. `None` usa resolución automática por motor (ver "Estrategias INSERT por motor"). Útil en tests o para inyectar estrategias personalizadas. | Default `None` |
 | `commit_every_n_chunks` | `int \| None` | Si se indica (entero ≥ 1), commitea cada N lotes de `chunk_size` filas (commit-as-you-go) en lugar de en una única transacción, acotando el tamaño de la transacción en cargas de alto volumen. **Advertencia:** la sesión deja de ser atómica (un fallo a mitad deja committeados los lotes anteriores). | Default `None` (una sola transacción) |
 | `df` | `pd.DataFrame` | Datos fuente de la operación | No puede estar vacío; columnas deben coincidir con tabla destino |
 | `tabla_destino` | `str` | Nombre de la tabla en BD | La tabla debe existir; se normaliza mayúsculas/minúsculas por motor |
@@ -72,8 +72,18 @@ flowchart TD
 **Casos especiales:**
 - **Normalización de identificadores**: Oracle, PostgreSQL y SQLite usan minúsculas; MySQL, MariaDB, SQL Server y HSQLDB usan mayúsculas. La clase detecta el dialecto desde `engine.dialect.name` y normaliza automáticamente los nombres de columna del DataFrame.
 - **SQL Server (pyodbc)**: cuando `enable_fast_executemany=True` (default), registra un listener `before_cursor_execute` en el engine que activa `cursor.fast_executemany = True`. El listener se registra como máximo una vez por engine (deduplica vía `event.contains`). Poner `enable_fast_executemany=False` si el entorno lo requiere.
-- **PostgreSQL (psycopg2)**: cuando `insert_resolver=None` (default) y el driver es `psycopg2`, `BulkCrud` usa automáticamente `psycopg2.extras.execute_values` para los INSERT — genera un único `INSERT ... VALUES (...), (...), ...` por chunk en lugar de N sentencias. Si psycopg2 no está disponible o la sentencia es un `TextClause` (`override_identity`), degradación automática a `executemany`.
 - **SQL Server**: detecta el driver (`pymssql` vs `pyodbc`) inspeccionando `engine.url.drivername` y ajusta el `db_info` de auditoría.
+
+#### Estrategias INSERT por motor
+
+Cuando `insert_resolver=None` (default), `InsertStrategyResolver` elige automáticamente la vía nativa más rápida según `engine.dialect.name` y `engine.url.drivername`. Todas las estrategias degradan a `executemany` estándar cuando la sentencia es un `TextClause` (ruta `override_identity` / `OVERRIDING SYSTEM VALUE`), que no es expresable por la vía rápida.
+
+| Motor / driver | Estrategia | Mecanismo |
+|---|---|---|
+| `postgresql` + `psycopg` (psycopg3, **driver por defecto de la librería**) | `PostgresCopyStrategy` | `COPY ... FROM STDIN` vía `cursor.copy()`; transmite por STDIN (sin staging a disco) saltando el parseo SQL por fila. La vía más rápida de PostgreSQL. psycopg3 adapta automáticamente cada valor Python (incluyendo `None`→NULL). |
+| `postgresql` + `psycopg2` (legacy) | `PostgreSQLExecuteValuesStrategy` | `psycopg2.extras.execute_values`: un único `INSERT ... VALUES (...), (...), ...` por chunk (3–5× sobre `executemany`). Si psycopg2 no está instalado, degrada a `executemany`. |
+| `mysql` / `mariadb` | `MySQLMultiRowInsertStrategy` | `INSERT ... VALUES (...),(...)` parametrizado multi-fila, sub-loteado en grupos de `max_rows_per_statement` (default 1000) para acotar `max_allowed_packet`. Alternativa portable y segura a `LOAD DATA INFILE` (que exige `local_infile` y staging a disco). |
+| `oracle`, `mssql`, `sqlite`, `hsqldb` | `DefaultInsertStrategy` | `executemany` de SQLAlchemy (en Oracle, la capa C de `oracledb`; en SQL Server, acelerado por `fast_executemany`). |
 - **generar_sql=True**: el fichero SQL se escribe con el nombre `{tabla}_{operacion}_{timestamp}.sql` dentro de `path_sql`. Si `path_sql` no existe o no es un directorio válido, lanza `ValueError` antes de ejecutar ninguna operación en BD.
 - La auditoría se registra aunque la operación falle parcialmente (el registro refleja las filas afectadas hasta el punto de fallo).
 - **`reflect_table` — Identity Map**: la reflexión de tabla (`autoload_with=engine`) se cachea en `_table_cache` por instancia. Llamadas sucesivas con el mismo nombre de tabla devuelven el objeto `Table` sin nuevo round-trip SQL. El caché es independiente por instancia (no compartido entre instancias de `BulkCrud`).
