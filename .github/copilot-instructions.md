@@ -237,4 +237,4 @@ Cuando actualices **`.github/SHARED_INSTRUCTIONS.md`**, verifica:
 
 ---
 
-*Actualizado: 2026-05-11*
+*Actualizado: 2026-06-02*

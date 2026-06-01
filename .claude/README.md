@@ -152,6 +152,19 @@ Claude Code funciona sin internet para tareas locales. Ver sección **"Ejecució
 
 ---
 
+## Troubleshooting
+
+Si encuentras problemas al usar Claude Code o slash commands, consulta **[EDGE_CASES.md](EDGE_CASES.md)** para:
+- Comando interrumpido a mitad de ejecución (token budget exhausted)
+- Tests fallan después de IMPLEMENT
+- Módulo nuevo no auto-importa (lazy-loading incompleto)
+- Heurística devuelve valor inesperado (p.ej. packet size calculation)
+- Y más escenarios comunes con diagnostico y soluciones
+
+**Versión**: EDGE_CASES.md v0.10.0 (9 escenarios documentados)
+
+---
+
 ## FAQ
 
 ### ¿Mi `settings.local.json` no afecta nada?

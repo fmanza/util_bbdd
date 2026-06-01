@@ -1,6 +1,6 @@
 # TESTING_GUIDE.md
 
-**Versionado**: v0.6.7
+**Versionado**: v0.10.0
 **Propósito**: Patrones and best practices para escribir tests deterministas y reutilizables en util_bbdd
 
 > Usa este archivo como referencia al escribir tests como parte de IMPLEMENT, `/audit-code`, o `/new-feature`.
@@ -272,6 +272,120 @@ def seeded_random():
     random.seed(42)
     yield random
     random.seed(None)  # Reset after
+```
+
+---
+
+## MySQL Variables Testing (v0.10.0+)
+
+### Patrón: Mocking `connection.execute()` para ReturnValue Iterator
+
+`MySQLVariableValidator` y pruebas de packet size calculation requieren mocking de `connection.execute()`
+que retorna un Iterator (tipo `ResultProxy` de SQLAlchemy). Los mocks ingenuos fallan si devuelven
+listas o `None` en lugar de iterables.
+
+### Antipattern: Mock Incorrecto
+
+```python
+# ❌ INCORRECTO — Devuelve lista, no Iterator
+connection.execute.return_value = [
+    {"max_allowed_packet": 16777216},
+]
+# TypeError: validator intenta iterar pero recibe list (que sí es iterable pero mock no es ResultProxy)
+
+# ❌ INCORRECTO — Devuelve None
+connection.execute.return_value = None
+# TypeError: 'NoneType' object is not iterable
+```
+
+### Patrón Correcto: MagicMock con `__iter__`
+
+```python
+from unittest.mock import MagicMock
+
+@pytest.fixture
+def mock_mysql_connection(mocker):
+    """Mock MySQL connection que retorna Iterator via execute()."""
+    connection = MagicMock()
+
+    # Configura execute() para retornar iterator simulado
+    def side_effect_execute(*args, **kwargs):
+        # Simula SHOW VARIABLES para múltiples variables
+        if "max_allowed_packet" in str(args):
+            mock_result = MagicMock()
+            mock_result.__iter__ = MagicMock(return_value=iter([
+                {"max_allowed_packet": 16777216}
+            ]))
+            return mock_result
+        elif "innodb_buffer_pool_size" in str(args):
+            mock_result = MagicMock()
+            mock_result.__iter__ = MagicMock(return_value=iter([
+                {"innodb_buffer_pool_size": 1073741824}
+            ]))
+            return mock_result
+        return iter([])  # Fallback
+
+    connection.execute.side_effect = side_effect_execute
+    return connection
+
+# Uso en test
+def test_mysql_variables_read(mock_mysql_connection):
+    from util_bbdd.connection.mariadb import MySQLVariableValidator
+
+    validator = MySQLVariableValidator(mock_mysql_connection)
+    variables = validator.read_variables()
+
+    assert variables["max_allowed_packet"] == 16777216
+    assert variables["innodb_buffer_pool_size"] == 1073741824
+```
+
+### Patrón Alternativo: `side_effect` con Iterators Directo
+
+```python
+from unittest.mock import MagicMock
+
+@pytest.fixture
+def mock_connection_with_side_effect(mocker):
+    """Mock simplificado usando side_effect."""
+    connection = MagicMock()
+
+    # Secuencia de iterators para múltiples llamadas a execute()
+    connection.execute.side_effect = [
+        iter([{"max_allowed_packet": 16777216}]),
+        iter([{"innodb_buffer_pool_size": 1073741824}]),
+    ]
+    return connection
+
+def test_validator_with_direct_side_effect(mock_connection_with_side_effect):
+    from util_bbdd.connection.mariadb import MySQLVariableValidator
+
+    validator = MySQLVariableValidator(mock_connection_with_side_effect)
+    vars1 = validator.read_variables()  # Consume primer iterator
+    vars2 = validator.read_variables()  # Consume segundo iterator
+```
+
+### Testing Heurística de Packet Size
+
+`MySQLMultiRowInsertStrategy.get_min_max_allowed_packet()` calcula valores basados en
+`max_rows_per_statement` y `avg_row_bytes`. Los tests validan power-of-2 y límites.
+
+```python
+@pytest.mark.parametrize("max_rows,avg_row_bytes,expected_min", [
+    (1000, 2000, 64 * 1048576),      # Típico → 64 MB mínimo
+    (10000, 1000, 128 * 1048576),    # Grande → 128 MB
+    (100000, 2000, 256 * 1048576),   # Muy grande → 256 MB máximo
+])
+def test_packet_size_is_power_of_two(max_rows, avg_row_bytes, expected_min):
+    from util_bbdd.bulk._execution.batch import MySQLMultiRowInsertStrategy
+
+    strategy = MySQLMultiRowInsertStrategy(max_rows_per_statement=max_rows)
+    packet_size = strategy.get_min_max_allowed_packet(avg_row_bytes=avg_row_bytes)
+
+    # Valida power-of-2: 64 MB, 128 MB, o 256 MB
+    assert packet_size in [64 * 1048576, 128 * 1048576, 256 * 1048576]
+    # Valida >= mínimo recomendado
+    assert packet_size >= 64 * 1048576
+    assert packet_size <= 256 * 1048576
 ```
 
 ---

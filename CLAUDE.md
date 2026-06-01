@@ -259,4 +259,4 @@ mkdocs serve                        # Documentación local
 
 ---
 
-*Actualizado: 2026-05-11*
+*Actualizado: 2026-06-02*

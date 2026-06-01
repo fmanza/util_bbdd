@@ -50,6 +50,63 @@ sequenceDiagram
 | Procesamiento por lotes | Los datos se envían en lotes (configurable con `chunk_size`) para evitar saturar memoria y BD | Lotes muy grandes pueden agotar la memoria del proceso o superar límites del driver |
 | Transaccionalidad implícita | Cada lote se ejecuta en su propia transacción; un fallo a mitad de proceso deja datos parcialmente insertados | No hay rollback automático entre lotes; el llamador debe gestionar reintento o limpieza |
 
+## Validación automática de variables MySQL/MariaDB (v0.10.0+)
+
+Cuando usas `BulkCrud` con MySQL o MariaDB, la instancia valida automáticamente la configuración del servidor y emite advertencias si las variables críticas están por debajo de lo recomendado para tu carga de datos.
+
+**Variables monitoreadas:**
+- `max_allowed_packet` — Tamaño máximo del paquete SQL. Default: 16 MB. Para inserciones multi-fila de 1000+ registros, se recomienda ≥ 64 MB.
+- `innodb_buffer_pool_size` — Caché de InnoDB para tablas e índices. Default: 128–256 MB. Para cargas > 100K filas, se recomienda ≥ 1 GB.
+
+**Cuándo se valida:**
+
+```mermaid
+sequenceDiagram
+    actor APP as Aplicación
+    participant BULK as BulkCrud.__init__()
+    participant VAL as MySQLVariableValidator
+    participant BD as MySQL/MariaDB
+
+    APP->>BULK: new BulkCrud(engine, ...)
+    BULK->>BULK: Detectar dialecto (mysql/mariadb?)
+    alt Sí es MySQL/MariaDB
+        BULK->>VAL: Leer variables críticas
+        VAL->>BD: SHOW VARIABLES LIKE 'max_allowed_packet'
+        BD-->>VAL: Valor actual
+        VAL->>BD: SHOW VARIABLES LIKE 'innodb_buffer_pool_size'
+        BD-->>VAL: Valor actual
+        VAL-->>BULK: Resumen (log.info + warnings si aplica)
+    end
+    BULK-->>APP: Instancia lista
+```
+
+**Ejemplo de log generado:**
+
+```
+INFO: MySQL variables: max_allowed_packet=64 MB, innodb_buffer_pool_size=1 GB
+INFO: Configuración óptima para ~1M filas sugerida: max_allowed_packet=64 MB, innodb_buffer_pool_size=1 GB
+```
+
+O si la configuración es inadecuada:
+
+```
+INFO: MySQL variables: max_allowed_packet=16 MB, innodb_buffer_pool_size=128 MB
+WARNING: max_allowed_packet por debajo de lo recomendado: actual=16 MB, requerido=64 MB
+WARNING: Considera ajustar con: SET GLOBAL max_allowed_packet=67108864; (requiere privilegio SUPER)
+```
+
+**Permisos requeridos:** Solo lectura (INFORMACIÓN_SCHEMA). No requiere SUPER; no modifica configuración.
+
+**Recomendaciones por workload:**
+
+| Workload | Filas | max_allowed_packet | innodb_buffer_pool_size |
+|---|---|---|---|
+| Desarrollo local | < 50K | 16 MB | 256 MB |
+| Producción estándar | 100K–1M | 64 MB | 1 GB |
+| Alto volumen | > 1M | 128 MB | 4 GB |
+
+Para determinar la configuración automáticamente, usa `MySQLOptimalConfig.suggest(num_rows)`. Ver [docs/api/mysql-variables.md](../api/mysql-variables.md) para detalles técnicos.
+
 ## Límites y exclusiones
 
 - No crea tablas ni modifica el esquema: solo opera sobre tablas existentes
