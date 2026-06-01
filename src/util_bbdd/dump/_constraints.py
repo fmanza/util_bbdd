@@ -48,8 +48,9 @@ class ConstraintManager:
         self._disabled_pg: list[str] = []
         # SQL Server: tablas con NOCHECK aplicado
         self._nocheck_tables: list[str] = []
-        # MariaDB: listener almacenado para poder eliminarlo
-        self._mariadb_listener: Callable[..., None] | None = None
+        # MariaDB: listeners checkout/checkin almacenados para poder eliminarlos
+        self._mariadb_checkout: Callable[..., None] | None = None
+        self._mariadb_checkin: Callable[..., None] | None = None
         # Resultados accesibles tras __exit__
         self.constraint_results: list[ConstraintResult] = []
 
@@ -106,37 +107,40 @@ class ConstraintManager:
     # MariaDB / MySQL  (event listener sobre el engine pool)
     # ------------------------------------------------------------------
 
-    def _disable_mariadb(self) -> None:
-        def _fk_off(dbapi_conn: Any, _rec: Any) -> None:
-            cursor = dbapi_conn.cursor()
-            cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+    @staticmethod
+    def _exec_session_var(dbapi_conn: Any, sql: str) -> None:
+        """Ejecuta una sentencia SET de sesión sobre la conexión DBAPI cruda."""
+        cursor = dbapi_conn.cursor()
+        try:
+            cursor.execute(sql)
+        finally:
             cursor.close()
 
-        self._mariadb_listener = _fk_off
-        event.listen(self._engine, "connect", _fk_off)
-        # Ciclar el pool para que las conexiones existentes se renueven con el listener.
-        # ADVERTENCIA: dispose() cierra TODAS las conexiones activas del pool.
-        # En entornos multi-hilo con engine compartido esto puede interrumpir
-        # otras operaciones en curso. Usar este ConstraintManager con un engine
-        # dedicado al volcado para evitar efectos laterales.
-        _log.warning(
-            "MariaDB: se llama a engine.dispose() para ciclar el pool. "
-            "Asegúrese de usar un engine dedicado al volcado si hay concurrencia."
-        )
-        self._engine.dispose()
+    def _disable_mariadb(self) -> None:
+        # Aplicar FK=0 en cada checkout del pool (cubre también conexiones ya creadas,
+        # sin necesidad de reciclar el pool con dispose()) y restaurar FK=1 en cada
+        # checkin, para no dejar conexiones con FK desactivado al devolverlas al pool.
+        # A diferencia de dispose(), no cierra conexiones activas, por lo que es seguro
+        # con un engine compartido entre hilos (paralelización del volcado).
+        def _fk_off(dbapi_conn: Any, _rec: Any, _proxy: Any) -> None:
+            self._exec_session_var(dbapi_conn, "SET SESSION FOREIGN_KEY_CHECKS = 0")
+
+        def _fk_on(dbapi_conn: Any, _rec: Any) -> None:
+            self._exec_session_var(dbapi_conn, "SET SESSION FOREIGN_KEY_CHECKS = 1")
+
+        self._mariadb_checkout = _fk_off
+        self._mariadb_checkin = _fk_on
+        event.listen(self._engine, "checkout", _fk_off)
+        event.listen(self._engine, "checkin", _fk_on)
 
     def _enable_mariadb(self) -> list[ConstraintResult]:
-        if self._mariadb_listener is None:
+        if self._mariadb_checkout is None:
             return []
-        event.remove(self._engine, "connect", self._mariadb_listener)
-        self._mariadb_listener = None
-        # Ciclar pool: nuevas conexiones sin el listener (FK checks activados).
-        # Misma advertencia de concurrencia que en _disable_mariadb.
-        _log.warning(
-            "MariaDB: se llama a engine.dispose() al reactivar FK checks. "
-            "Asegúrese de usar un engine dedicado al volcado si hay concurrencia."
-        )
-        self._engine.dispose()
+        event.remove(self._engine, "checkout", self._mariadb_checkout)
+        if self._mariadb_checkin is not None:
+            event.remove(self._engine, "checkin", self._mariadb_checkin)
+        self._mariadb_checkout = None
+        self._mariadb_checkin = None
         # MariaDB no valida integridad retroactiva al reactivar FK checks
         return [
             ConstraintResult(
@@ -293,7 +297,8 @@ class ConstraintManager:
                 names: list[str] = []
                 names.extend(_fetch_names(insp.get_foreign_keys, table))
                 names.extend(
-                    n for n in _fetch_names(insp.get_check_constraints, table)
+                    n
+                    for n in _fetch_names(insp.get_check_constraints, table)
                     if not n.upper().startswith("SYS_C")  # filtrar constraints de sistema Oracle
                 )
                 names.extend(_fetch_names(insp.get_unique_constraints, table))

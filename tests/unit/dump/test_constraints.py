@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -134,36 +135,63 @@ class TestConstraintManagerSqlServer:
 
 
 class TestConstraintManagerMariaDB:
-    def test_disable_registers_event_listener(self):
+    def test_disable_registers_checkout_and_checkin_without_dispose(self):
         engine = _make_engine("mariadb")
         with patch("util_bbdd.dump._constraints.event") as mock_event:
             mgr = ConstraintManager(engine)
             mgr.disable_all(tables=[])
-            mock_event.listen.assert_called_once()
-            # Cyclar pool
-            engine.dispose.assert_called_once()
+            # Se registran listeners checkout (FK=0) y checkin (FK=1)
+            assert mock_event.listen.call_count == 2
+            registered_events = {call.args[1] for call in mock_event.listen.call_args_list}
+            assert registered_events == {"checkout", "checkin"}
+            # No se cicla el pool: dispose() ya no se usa (seguro bajo concurrencia)
+            engine.dispose.assert_not_called()
 
-    def test_enable_removes_listener_and_returns_unverified(self):
+    def test_disable_sets_fk_off_on_checkout_and_fk_on_on_checkin(self):
+        """Los listeners ejecutan SET SESSION FOREIGN_KEY_CHECKS sobre la conexión DBAPI."""
+        engine = _make_engine("mariadb")
+        captured: dict[str, Callable[..., None]] = {}
+
+        def _capture(_engine: object, event_name: str, fn: Callable[..., None]) -> None:
+            captured[event_name] = fn
+
+        with patch("util_bbdd.dump._constraints.event") as mock_event:
+            mock_event.listen.side_effect = _capture
+            mgr = ConstraintManager(engine)
+            mgr.disable_all(tables=[])
+
+        dbapi_conn = MagicMock()
+        cursor = dbapi_conn.cursor.return_value
+        captured["checkout"](dbapi_conn, MagicMock(), MagicMock())
+        cursor.execute.assert_called_with("SET SESSION FOREIGN_KEY_CHECKS = 0")
+
+        dbapi_conn2 = MagicMock()
+        cursor2 = dbapi_conn2.cursor.return_value
+        captured["checkin"](dbapi_conn2, MagicMock())
+        cursor2.execute.assert_called_with("SET SESSION FOREIGN_KEY_CHECKS = 1")
+
+    def test_enable_removes_both_listeners_and_returns_unverified(self):
         engine = _make_engine("mariadb")
 
         with patch("util_bbdd.dump._constraints.event") as mock_event:
             mgr = ConstraintManager(engine)
             mgr.disable_all(tables=[])
-            mgr._mariadb_listener = MagicMock()
 
             results = mgr.enable_all()
-            mock_event.remove.assert_called_once()
+            assert mock_event.remove.call_count == 2
+            # No se cicla el pool al reactivar
+            engine.dispose.assert_not_called()
 
         assert len(results) == 1
         assert results[0].status == "unverified"
 
-    def test_enable_without_prior_disable_returns_unverified(self):
+    def test_enable_without_prior_disable_returns_empty(self):
         engine = _make_engine("mariadb")
         with patch("util_bbdd.dump._constraints.event"):
             mgr = ConstraintManager(engine)
             results = mgr.enable_all()
         # Sin listener previo, no hay resultados de habilitación
-        assert results == [] or results[0].status == "unverified"
+        assert results == []
 
 
 # ---------------------------------------------------------------------------
