@@ -29,6 +29,30 @@ class ConstraintResult:
 
 
 @dataclass
+class IndexActionResult:
+    """Resultado de gestionar (deshabilitar/reconstruir) un índice individual en el destino.
+
+    Attributes:
+        table_name: Tabla a la que pertenece el índice (``"*"`` para resultados globales).
+        index_name: Nombre del índice (``"*"`` para resultados globales).
+        dialect: Dialecto del motor destino.
+        action: Resultado de la operación:
+
+            - ``"rebuilt"`` — índice deshabilitado/unusable y reconstruido (mssql/oracle).
+            - ``"recreated"`` — índice eliminado y recreado desde su DDL (postgresql).
+            - ``"failed"`` — fallo al reconstruir/recrear; ver ``error_msg``.
+            - ``"unsupported"`` — motor no soportado (mariadb/mysql InnoDB).
+        error_msg: Detalle del error cuando ``action="failed"`` o ``"unsupported"``.
+    """
+
+    table_name: str
+    index_name: str
+    dialect: str
+    action: Literal["rebuilt", "recreated", "failed", "unsupported"]
+    error_msg: str = ""
+
+
+@dataclass
 class DumpConfig:
     """Configuración de un volcado de datos de esquema/BD origen a destino.
 
@@ -73,6 +97,13 @@ class DumpConfig:
             **Advertencia:** con la cadencia activa la carga de una tabla deja de ser
             atómica; un fallo a mitad deja committeados los lotes anteriores de esa tabla
             (coherente con la semántica best-effort del volcado).
+        manage_indexes: Si ``True``, deshabilita los índices secundarios **no únicos** del
+            destino antes de la carga y los reconstruye al final, acelerando los INSERT en
+            tablas con muchos índices. ``False`` (default) = no se tocan los índices.
+            Comportamiento por motor: mssql ``ALTER INDEX DISABLE``→``REBUILD`` (solo
+            NONCLUSTERED), oracle ``UNUSABLE``→``REBUILD``, postgresql ``DROP``+recreate
+            desde ``pg_get_indexdef`` (DDL logueado antes del DROP), mariadb/mysql no
+            soportado (no-op). Nunca toca índices que respaldan PK/UNIQUE.
     """
 
     source_engine: Engine
@@ -87,6 +118,7 @@ class DumpConfig:
     collect_row_counts: bool = True
     sync_pk_sequences: bool = True
     commit_every_n_chunks: int | None = None
+    manage_indexes: bool = False
 
 
 @dataclass
@@ -146,6 +178,8 @@ class DumpResult:
         pk_sync_results: Resultado por columna PK sincronizada en la Fase 6a.
             ``None`` cuando ``DumpConfig.sync_pk_sequences=False`` o el motor destino
             no tiene tablas con contadores PK.
+        index_results: Resultado por índice gestionado (deshabilitado y reconstruido).
+            ``None`` cuando ``DumpConfig.manage_indexes=False``.
     """
 
     table_results: list[TableDumpResult]
@@ -155,3 +189,4 @@ class DumpResult:
     report: Path
     audit_summary: DumpAuditSummary | None = None
     pk_sync_results: list[PKSyncResult] | None = None
+    index_results: list[IndexActionResult] | None = None

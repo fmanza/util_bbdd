@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 
 from collections import deque
+from contextlib import ExitStack
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -35,7 +36,8 @@ from util_bbdd.bulk import BulkCrud
 from util_bbdd.bulk.audit import AuditManager
 
 from ._constraints import ConstraintManager, ConstraintResult
-from ._models import DumpAuditSummary, DumpConfig, DumpResult, PKSyncResult, TableDumpResult
+from ._indexes import IndexManager
+from ._models import DumpAuditSummary, DumpConfig, DumpResult, IndexActionResult, PKSyncResult, TableDumpResult
 from ._sql_utils import quote_identifier, quote_table
 from .reporters import DumpReporter
 
@@ -122,35 +124,44 @@ class DumpOrchestrator:
         # Fases 2-5: dentro del ConstraintManager (enable_all garantizado en __exit__)
         table_results: list[TableDumpResult] = []
         constraint_mgr = ConstraintManager(cfg.target_engine, cfg.target_schema)
+        index_mgr: IndexManager | None = None
 
         with constraint_mgr:
             # FASE 2: Deshabilitar constraints (usando nombres canónicos del destino)
             constraint_mgr.disable_all(tables=effective_dst_order)
 
-            # FASE 3: Limpieza del destino (usando nombres canónicos del destino)
-            if cfg.truncate_target:
-                self._cleanup(list(reversed(effective_dst_order)), skip=set(missing_in_dst))
+            # FASE 2b: Deshabilitar índices secundarios (opt-in). El IndexManager se anida
+            # dentro del ConstraintManager para que su rebuild (__exit__) se ejecute ANTES
+            # de la rehabilitación de constraints, que se beneficia de índices presentes.
+            with ExitStack() as index_stack:
+                if cfg.manage_indexes:
+                    index_mgr = index_stack.enter_context(IndexManager(cfg.target_engine, cfg.target_schema))
+                    index_mgr.disable_all(tables=effective_dst_order)
 
-            # FASE 4: Carga (best-effort)
-            cycle_set = {t for group in cycles for t in group}
-            crud = BulkCrud(
-                cfg.target_engine,
-                chunk_size=cfg.chunk_size,
-                audit_csv_path=cfg.bulk_audit_path,
-                commit_every_n_chunks=cfg.commit_every_n_chunks,
-            )
-            for position, src_t in enumerate(effective_src_order):
-                dst_t = src_to_dst[src_t]
-                result = self._process_table(src_t, dst_t, position, src_t in cycle_set, crud)
-                table_results.append(result)
-                _log.info(
-                    "  [%d/%d] %s → %s (%d filas)",
-                    position + 1,
-                    len(effective_src_order),
-                    src_t,
-                    result.status,
-                    result.target_rows_after,
+                # FASE 3: Limpieza del destino (usando nombres canónicos del destino)
+                if cfg.truncate_target:
+                    self._cleanup(list(reversed(effective_dst_order)), skip=set(missing_in_dst))
+
+                # FASE 4: Carga (best-effort)
+                cycle_set = {t for group in cycles for t in group}
+                crud = BulkCrud(
+                    cfg.target_engine,
+                    chunk_size=cfg.chunk_size,
+                    audit_csv_path=cfg.bulk_audit_path,
+                    commit_every_n_chunks=cfg.commit_every_n_chunks,
                 )
+                for position, src_t in enumerate(effective_src_order):
+                    dst_t = src_to_dst[src_t]
+                    result = self._process_table(src_t, dst_t, position, src_t in cycle_set, crud)
+                    table_results.append(result)
+                    _log.info(
+                        "  [%d/%d] %s → %s (%d filas)",
+                        position + 1,
+                        len(effective_src_order),
+                        src_t,
+                        result.status,
+                        result.target_rows_after,
+                    )
 
         # Añadir tablas faltantes al resultado (informativo)
         table_results.extend(
@@ -167,6 +178,7 @@ class DumpOrchestrator:
         )
 
         constraint_results: list[ConstraintResult] = constraint_mgr.constraint_results
+        index_results: list[IndexActionResult] | None = index_mgr.index_results if index_mgr is not None else None
 
         # FASE 5a: Resincronizar contadores PK en destino (si está habilitado)
         pk_sync_results: list[PKSyncResult] | None = self._sync_pk_sequences(
@@ -181,6 +193,7 @@ class DumpOrchestrator:
             missing_tables=missing_in_dst,
             constraint_results=constraint_results,
             cycles=cycles,
+            index_results=index_results,
         )
 
         return DumpResult(
@@ -191,6 +204,7 @@ class DumpOrchestrator:
             report=report_path,
             audit_summary=DumpOrchestrator._build_audit_summary(cfg.bulk_audit_path, dump_inicio),
             pk_sync_results=pk_sync_results,
+            index_results=index_results,
         )
 
     # ------------------------------------------------------------------

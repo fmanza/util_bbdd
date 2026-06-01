@@ -21,7 +21,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 from ._constraints import ConstraintResult
-from ._models import TableDumpResult
+from ._models import IndexActionResult, TableDumpResult
 
 _log = logging.getLogger(__name__)
 
@@ -49,6 +49,9 @@ class DumpReporter:
         "enabled": "FF92D050",
         "failed": "FFFF0000",
         "unverified": "FFFFFF00",
+        "rebuilt": "FF92D050",
+        "recreated": "FF92D050",
+        "unsupported": "FFFFC000",
     }
 
     def __init__(self, output_dir: Path) -> None:
@@ -127,6 +130,7 @@ class DumpReporter:
         missing_tables: list[str],
         constraint_results: list[ConstraintResult],
         cycles: list[list[str]],
+        index_results: list[IndexActionResult] | None = None,
     ) -> Path:
         """Genera el fichero Excel y retorna su ruta.
 
@@ -137,6 +141,8 @@ class DumpReporter:
             missing_tables: Tablas del origen que no existen en el destino.
             constraint_results: Resultados de rehabilitación de constraints.
             cycles: Grupos de tablas con FK circular.
+            index_results: Resultados de gestión de índices. ``None`` (default) cuando
+                ``DumpConfig.manage_indexes=False``: no se añade la hoja "Índices".
         """
         self._output_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -149,10 +155,42 @@ class DumpReporter:
         self._sheet_audit(wb, table_results, constraint_results, cycles)
         self._sheet_missing_tables(wb, missing_tables)
         self._sheet_missing_columns(wb, table_results)
+        if index_results is not None:
+            self._sheet_indexes(wb, index_results)
 
         wb.save(output_path)
         _log.info("Informe Excel guardado en '%s'.", output_path)
         return output_path
+
+    # ------------------------------------------------------------------
+    # Hoja 4: Índices gestionados (opcional)
+    # ------------------------------------------------------------------
+
+    def _sheet_indexes(
+        self,
+        wb: openpyxl.Workbook,
+        index_results: list[IndexActionResult],
+    ) -> None:
+        """Hoja "Índices": resultado de deshabilitar/reconstruir índices secundarios."""
+        ws: Worksheet = wb.create_sheet("Índices")
+
+        headers = ["Tabla", "Índice", "Dialect", "Acción", "Mensaje"]
+        for col, h in enumerate(headers, 1):
+            self._header(ws, 1, col, h)
+        ws.freeze_panes = "A2"
+
+        if not index_results:
+            cell = ws.cell(row=2, column=1, value="Sin índices secundarios gestionados")
+            cell.font = Font(italic=True)
+        else:
+            for row, ir in enumerate(index_results, 2):
+                self._cell(ws, row, 1, ir.table_name)
+                self._cell(ws, row, 2, ir.index_name)
+                self._cell(ws, row, 3, ir.dialect)
+                self._cell(ws, row, 4, ir.action.upper(), bg=self._STATUS_BG.get(ir.action))
+                self._cell(ws, row, 5, ir.error_msg or "—")
+
+        self._autowidth(ws)
 
     # ------------------------------------------------------------------
     # Hoja 1: Auditoría de tablas

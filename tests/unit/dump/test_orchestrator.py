@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from util_bbdd.dump._models import IndexActionResult
 from util_bbdd.dump._sql_utils import quote_identifier as _qi, quote_table as _qt
 from util_bbdd.dump.orchestrator import (
     DumpConfig,
@@ -317,6 +318,56 @@ class TestDumpOrchestratorRun:
 
         assert isinstance(result, DumpResult)
         assert len(result.table_results) >= 1
+
+    @patch("util_bbdd.dump.orchestrator.IndexManager")
+    @patch("util_bbdd.dump.orchestrator.ConstraintManager")
+    @patch("util_bbdd.dump.orchestrator.BulkCrud")
+    @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("dump_report.xlsx"))
+    @patch("pandas.read_sql", return_value=iter([]))
+    def test_manage_indexes_disables_and_reports(
+        self, mock_read_sql, mock_report, mock_bulk, mock_mgr_cls, mock_index_cls
+    ):
+        mock_mgr = MagicMock()
+        mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
+        mock_mgr.__exit__ = MagicMock(return_value=False)
+        mock_mgr.constraint_results = []
+        mock_mgr_cls.return_value = mock_mgr
+
+        index_results = [IndexActionResult("customers", "ix_a", "postgresql", "recreated")]
+        mock_index = MagicMock()
+        mock_index.__enter__ = MagicMock(return_value=mock_index)
+        mock_index.__exit__ = MagicMock(return_value=False)
+        mock_index.index_results = index_results
+        mock_index_cls.return_value = mock_index
+
+        orch = self._build_orchestrator(src_tables=["customers"], dst_tables=["customers"])
+        orch._cfg.manage_indexes = True
+        result = orch.run()
+
+        mock_index.disable_all.assert_called_once_with(tables=["customers"])
+        assert result.index_results == index_results
+        # El informe recibe los resultados de índices
+        assert mock_report.call_args.kwargs["index_results"] == index_results
+
+    @patch("util_bbdd.dump.orchestrator.IndexManager")
+    @patch("util_bbdd.dump.orchestrator.ConstraintManager")
+    @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("dump_report.xlsx"))
+    @patch("pandas.read_sql", return_value=iter([]))
+    def test_manage_indexes_false_does_not_instantiate_index_manager(
+        self, mock_read_sql, mock_report, mock_mgr_cls, mock_index_cls
+    ):
+        mock_mgr = MagicMock()
+        mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
+        mock_mgr.__exit__ = MagicMock(return_value=False)
+        mock_mgr.constraint_results = []
+        mock_mgr_cls.return_value = mock_mgr
+
+        orch = self._build_orchestrator(src_tables=["customers"], dst_tables=["customers"])
+        result = orch.run()
+
+        mock_index_cls.assert_not_called()
+        assert result.index_results is None
+        assert mock_report.call_args.kwargs["index_results"] is None
 
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("dump_report.xlsx"))
