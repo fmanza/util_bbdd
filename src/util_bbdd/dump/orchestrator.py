@@ -23,6 +23,7 @@ import logging
 import math
 
 from collections import deque
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
 from datetime import datetime
@@ -34,7 +35,7 @@ import pandas as pd
 from sqlalchemy import Engine, Inspector, Integer, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from util_bbdd.bulk import BulkCrud
+from util_bbdd.bulk import BulkCrud, ParallelBulkLoader
 from util_bbdd.bulk.audit import AuditManager
 
 from ._constraints import ConstraintManager, ConstraintResult
@@ -429,8 +430,10 @@ class DumpOrchestrator:
     ) -> list[str]:
         """Particiona la tabla por rangos contiguos de ``pk_col`` y los carga en paralelo.
 
-        Cada rango usa su propia ``BulkCrud`` y sus propias conexiones origen/destino.
-        Los rangos son disjuntos por PK ⇒ sin colisión entre inserts concurrentes.
+        Responsabilidad de ``dump`` (política): calcular los rangos a partir del origen
+        (MIN/MAX + bounds) y construir un *lector* por rango. El mecanismo de inserción
+        paralela (un hilo y una ``BulkCrud`` por partición) lo aporta
+        ``bulk.ParallelBulkLoader``. Los rangos son disjuntos por PK ⇒ sin colisión.
         """
         cfg = self._cfg
         pk_q = quote_identifier(pk_col, cfg.source_engine)
@@ -448,29 +451,27 @@ class DumpOrchestrator:
         bounds = DumpOrchestrator._compute_range_bounds(int(row[0]), int(row[1]), n_ranges)
         cols_quoted = ", ".join(quote_identifier(c, cfg.source_engine) for c in common_cols)
 
-        def _load_range(low: int, high: int, is_last: bool) -> str | None:
-            crud = self._make_worker_crud()
+        def _make_reader(low: int, high: int, is_last: bool) -> Callable[[], Iterator[pd.DataFrame]]:
             op = "<=" if is_last else "<"
             sql = f"SELECT {cols_quoted} FROM {table_quoted} WHERE {pk_q} >= :lo AND {pk_q} {op} :hi"
-            try:
-                with cfg.source_engine.connect() as conn:
-                    chunks = pd.read_sql(text(sql), conn, params={"lo": low, "hi": high}, chunksize=cfg.chunk_size)
-                    with crud.bulk_session():
-                        for chunk in chunks:
-                            df_filtered = chunk[common_cols].rename(columns=col_name_map)
-                            crud.bulk_insert_from_df(df_filtered, dest_table_logical, generar_sql=False)
-            except (SQLAlchemyError, ValueError, pd.errors.DatabaseError) as exc:
-                return f"rango[{low},{high}]: {exc}"
-            return None
 
-        error_msgs: list[str] = []
-        with ThreadPoolExecutor(max_workers=n_ranges) as pool:
-            futures = [pool.submit(_load_range, lo, hi, last) for lo, hi, last in bounds]
-            for future in as_completed(futures):
-                err = future.result()
-                if err:
-                    error_msgs.append(err)
-        return error_msgs
+            def _reader() -> Iterator[pd.DataFrame]:
+                with cfg.source_engine.connect() as conn:
+                    for chunk in pd.read_sql(text(sql), conn, params={"lo": low, "hi": high}, chunksize=cfg.chunk_size):
+                        yield chunk[common_cols].rename(columns=col_name_map)
+
+            return _reader
+
+        loader = ParallelBulkLoader(
+            cfg.target_engine,
+            chunk_size=cfg.chunk_size,
+            max_workers=n_ranges,
+            commit_every_n_chunks=cfg.commit_every_n_chunks,
+            audit_csv_path=cfg.bulk_audit_path,
+        )
+        readers = [_make_reader(lo, hi, last) for lo, hi, last in bounds]
+        result = loader.load(dest_table_logical, readers)
+        return result.partition_errors
 
     @staticmethod
     def _compute_range_bounds(lo: int, hi: int, n: int) -> list[tuple[int, int, bool]]:

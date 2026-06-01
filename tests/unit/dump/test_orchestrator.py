@@ -679,30 +679,58 @@ class TestLoadInPkRanges:
         orch = self._orch()
         conn = orch._cfg.source_engine.connect.return_value
         conn.execute.return_value.one.return_value = (None, None)
-        orch._make_worker_crud = MagicMock()  # type: ignore[method-assign]
 
-        errors = orch._load_in_pk_ranges("t", ["id"], {"id": "id"}, "id", "t", 3)
+        with patch("util_bbdd.dump.orchestrator.ParallelBulkLoader") as loader_cls:
+            errors = orch._load_in_pk_ranges("t", ["id"], {"id": "id"}, "id", "t", 3)
+
         assert errors == []
-        orch._make_worker_crud.assert_not_called()
+        # Tabla vacía: no se construye el loader
+        loader_cls.assert_not_called()
 
-    @patch("pandas.read_sql", return_value=iter([]))
-    def test_partitions_into_n_ranges(self, mock_read_sql):
+    def test_delegates_to_parallel_loader_with_one_reader_per_range(self):
         orch = self._orch()
         conn = orch._cfg.source_engine.connect.return_value
         conn.execute.return_value.one.return_value = (1, 9)
 
-        crud = MagicMock()
-        crud.bulk_session.return_value.__enter__ = MagicMock(return_value=None)
-        crud.bulk_session.return_value.__exit__ = MagicMock(return_value=False)
-        orch._make_worker_crud = MagicMock(return_value=crud)  # type: ignore[method-assign]
+        from util_bbdd.bulk import ParallelLoadResult
 
-        errors = orch._load_in_pk_ranges("t", ["id", "name"], {"id": "id", "name": "name"}, "id", "t", 3)
+        with patch("util_bbdd.dump.orchestrator.ParallelBulkLoader") as loader_cls:
+            loader = loader_cls.return_value
+            loader.load.return_value = ParallelLoadResult(total_rows=9, partition_errors=[])
+            errors = orch._load_in_pk_ranges("t", ["id", "name"], {"id": "id", "name": "name"}, "id", "t", 3)
 
         assert errors == []
-        # Una crud por rango (3 rangos para [1,9] con n=3)
-        assert orch._make_worker_crud.call_count == 3
-        # Las queries de rango usan WHERE pk >= / < (o <=)
+        # ParallelBulkLoader construido con el engine destino y max_workers = nº de rangos
+        assert loader_cls.call_args.args[0] is orch._cfg.target_engine
+        assert loader_cls.call_args.kwargs["max_workers"] == 3
+        # load() recibe la tabla destino y un lector por rango (3 rangos para [1,9] con n=3)
+        tabla_arg, readers = loader.load.call_args.args
+        assert tabla_arg == "t"
+        assert len(readers) == 3
+
+    @patch("pandas.read_sql", return_value=iter([]))
+    def test_range_readers_emit_correct_where_sql(self, mock_read_sql):
+        orch = self._orch()
+        conn = orch._cfg.source_engine.connect.return_value
+        conn.execute.return_value.one.return_value = (1, 9)
+
+        captured: list = []
+
+        from util_bbdd.bulk import ParallelLoadResult
+
+        def _capture(tabla, readers, **kwargs):
+            captured.extend(readers)
+            return ParallelLoadResult()
+
+        with patch("util_bbdd.dump.orchestrator.ParallelBulkLoader") as loader_cls:
+            loader_cls.return_value.load.side_effect = _capture
+            orch._load_in_pk_ranges("t", ["id", "name"], {"id": "id", "name": "name"}, "id", "t", 3)
+
+        # Invocar cada lector consume pandas.read_sql con el WHERE de rango parametrizado
+        for reader in captured:
+            list(reader())
         range_sqls = [str(c.args[0]) for c in mock_read_sql.call_args_list]
+        assert len(range_sqls) == 3
         assert all(">= :lo" in s for s in range_sqls)
         assert any("< :hi" in s for s in range_sqls)
         assert any("<= :hi" in s for s in range_sqls)
