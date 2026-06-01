@@ -79,6 +79,7 @@ nav:
           - Factory de Conexiones: api/connection-factory.md
       - Operaciones Bulk:
           - CRUD Masivo: api/bulk-crud.md
+          - Carga Masiva Paralela: api/bulk-parallel.md
           - Auditoría Bulk: api/bulk-audit.md
       - Sistema de Queries:
           - Registry y Resolver: api/query-system.md
