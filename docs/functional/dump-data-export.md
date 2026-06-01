@@ -71,10 +71,23 @@ Antes de la carga, las constraints del destino se desactivan para evitar violaci
 | Motor | Estrategia |
 |---|---|
 | **SQL Server** | `ALTER TABLE t NOCHECK CONSTRAINT ALL` (catalog-level, persiste entre conexiones) |
-| **MariaDB/MySQL** | `event.listen(engine, "connect", SET FOREIGN_KEY_CHECKS=0)` + `dispose()` del pool (cross-connection safe) |
+| **MariaDB/MySQL** | Listeners `checkout`/`checkin` que aplican `SET SESSION FOREIGN_KEY_CHECKS=0`/`=1` por-conexión, sin reciclar el pool (seguro bajo concurrencia) |
 | **PostgreSQL** | `ALTER TABLE t DISABLE TRIGGER ALL` (catalog-level, requiere OWNER o SUPERUSER) |
 | **Oracle** | `DISABLE CONSTRAINT` por constraint individual; filtra automáticamente constraints de sistema (`SYS_C%`) |
 | **Otros motores** | No-op con advertencia en el log |
+
+#### Fase 3b — Desactivación de índices *(si `manage_indexes=True`)*
+
+Tras desactivar las constraints y antes de la carga, se deshabilitan los **índices secundarios no únicos** del destino, reconstruyéndolos al finalizar (su `__exit__` corre **antes** de la rehabilitación de constraints). Solo se gestionan índices no únicos: los que respaldan PK/UNIQUE quedan intactos.
+
+| Motor | Estrategia | Destructivo |
+|---|---|---|
+| **SQL Server** | `ALTER INDEX … DISABLE` → `REBUILD` (solo NONCLUSTERED) | No |
+| **Oracle** | `ALTER INDEX … UNUSABLE` → `REBUILD` | No |
+| **PostgreSQL** | `pg_get_indexdef` (DDL logueado) → `DROP INDEX` → recreate | Sí — DDL logueado antes del DROP |
+| **MariaDB/MySQL** | No soportado (InnoDB ignora `DISABLE KEYS`) — no-op | — |
+
+Los resultados quedan en `DumpResult.index_results`.
 
 ### Fase 4 — Limpieza del destino
 
@@ -116,6 +129,23 @@ Los resultados quedan en `DumpResult.pk_sync_results`. Los errores de permisos s
 
 ---
 
+## Palancas de rendimiento
+
+El volcado expone cuatro palancas **opt-in** en `DumpConfig`, todas desactivadas por defecto (comportamiento secuencial/atómico sin cambios). Son combinables:
+
+| Palanca | Parámetro | Efecto | Contrapartida |
+|---|---|---|---|
+| **Cadencia de commit** | `commit_every_n_chunks=N` | Commitea cada N lotes en lugar de una transacción por tabla; acota el undo/redo log en tablas enormes | La carga de la tabla deja de ser atómica: un fallo a mitad deja committeados los lotes anteriores |
+| **Gestión de índices** | `manage_indexes=True` | Deshabilita/reconstruye índices secundarios no únicos (Fase 3b); acelera los INSERT | En PostgreSQL es DROP+recreate (DDL logueado antes del DROP) |
+| **Paralelismo por tabla** | `max_parallel_tables=N` | Carga en paralelo tablas independientes de un mismo nivel topológico FK (una `BulkCrud` por hilo) | Auditoría de inserts por-operación desactivada; ciclos FK siguen secuenciales |
+| **Paralelismo por rangos PK** | `parallel_pk_ranges=N` | Particiona una tabla con PK entera única en N rangos cargados en paralelo | Requiere destino sin triggers per-fila dependientes del orden |
+
+**Concurrencia y pool.** La concurrencia total (`max_parallel_tables × parallel_pk_ranges`) se acota a la capacidad real del pool (`pool_size + max_overflow`) de origen y destino; si la supera, el volcado **degrada** la concurrencia y emite un `WARNING`. Dimensiona los engines en consecuencia.
+
+**Orden FK bajo paralelismo.** Solo se paralelizan tablas dentro del mismo nivel topológico (sin dependencia FK entre ellas). Las tablas en ciclos FK se cargan siempre secuencialmente. El informe conserva el orden determinista por posición de carga.
+
+---
+
 ## Reglas de negocio
 
 - **Solo datos, nunca DDL.** Si una tabla existe en origen pero no en destino, se informa como `missing_target` y se omite.
@@ -136,7 +166,10 @@ Los resultados quedan en `DumpResult.pk_sync_results`. Los errores de permisos s
 | No aplica DDL | Si la tabla no existe en destino, no se crea automáticamente |
 | Resincronización de secuencias/identidades | Soportada para PostgreSQL, SQL Server, MariaDB y Oracle ≥ 12c (Fase 6a). Oracle < 12c (trigger+sequence): sin soporte automático. Desactivar con `sync_pk_sequences=False` si se gestiona manualmente. |
 | Sin transacción global | Cada tabla se inserta en su propia transacción (`bulk_session`); no hay rollback global entre tablas |
-| Semántica table-atomic | Dentro de cada tabla, todos los chunks son atómicos: un error en cualquier chunk hace rollback de toda la tabla |
+| Semántica table-atomic | Dentro de cada tabla, todos los chunks son atómicos: un error en cualquier chunk hace rollback de toda la tabla. **Excepción:** con `commit_every_n_chunks` activo la tabla deja de ser atómica (commit cada N lotes) |
+| Gestión de índices solo en 3 motores | SQL Server, Oracle, PostgreSQL (`manage_indexes`). MariaDB/MySQL InnoDB: no soportado (no-op). PostgreSQL es el único path destructivo (DROP+recreate) |
+| Paralelismo y auditoría | Con `max_parallel_tables > 1` la auditoría de inserts por-operación se desactiva (CSV no concurrente-seguro); `DumpResult.audit_summary` será `None` |
+| Paralelismo por rangos PK | Solo tablas con PK de una única columna entera; requiere destino sin triggers per-fila dependientes del orden de inserción |
 | Constraint management solo en 4 motores | SQL Server, MariaDB, PostgreSQL, Oracle. Otros: no-op con warning |
 | El informe Excel usa openpyxl | Requiere la dependencia `openpyxl` instalada |
 | `truncate_target=False` (modo append) | Puede generar duplicados si los datos ya existen en destino |
@@ -163,7 +196,7 @@ El CSV de `bulk.audit` puede acumular operaciones de múltiples volcados y otras
 
 ## Informe Excel de auditoría
 
-El volcado genera automáticamente un fichero `.xlsx` en `output_dir` con tres hojas:
+El volcado genera automáticamente un fichero `.xlsx` en `output_dir` con tres hojas (cuatro si `manage_indexes=True`):
 
 ### Hoja 1 — Auditoría Tablas
 
@@ -188,6 +221,10 @@ Lista de tablas presentes en el origen que no existen en el destino. Incluye el 
 ### Hoja 3 — Columnas Inexistentes
 
 Lista de columnas presentes en el origen pero ausentes en el destino, agrupadas por tabla.
+
+### Hoja 4 — Índices *(solo con `manage_indexes=True`)*
+
+Resultado de deshabilitar y reconstruir los índices secundarios por tabla: nombre del índice, dialecto, acción (`REBUILT`, `RECREATED`, `FAILED`, `UNSUPPORTED`) y mensaje de error si aplica.
 
 ---
 

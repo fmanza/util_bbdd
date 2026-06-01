@@ -212,6 +212,50 @@ results = await asyncio.gather(
 
 ---
 
+## 🗄️ Volcado de datos (`dump`): palancas de rendimiento
+
+`DumpOrchestrator` aplica automáticamente la estrategia INSERT óptima por motor (`execute_values` en PostgreSQL/psycopg2, `fast_executemany` en SQL Server/pyodbc) y deshabilita constraints durante la carga. Además, `DumpConfig` expone cuatro palancas **opt-in** (default desactivadas) para volúmenes altos:
+
+| Palanca | Parámetro | Cuándo aporta | Contrapartida |
+|---|---|---|---|
+| **Cadencia de commit** | `commit_every_n_chunks=N` | Tablas tan grandes que una sola transacción desborda el undo/redo log | La carga de la tabla deja de ser atómica |
+| **Gestión de índices** | `manage_indexes=True` | Tablas destino con muchos índices secundarios (el coste de mantenerlos por fila domina el INSERT) | En PostgreSQL es DROP+recreate (DDL logueado antes del DROP) |
+| **Paralelismo por tabla** | `max_parallel_tables=N` | Muchas tablas medianas independientes (mismo nivel topológico FK) | Auditoría de inserts por-operación desactivada |
+| **Paralelismo por rangos PK** | `parallel_pk_ranges=N` | Pocas tablas muy grandes con PK entera única | Requiere destino sin triggers per-fila dependientes del orden |
+
+### Cómo combinarlas
+
+```python
+from sqlalchemy import create_engine
+from util_bbdd.dump import DumpConfig, DumpOrchestrator
+
+# El pool debe tolerar la concurrencia total: pool_size + max_overflow
+#   >= max_parallel_tables * parallel_pk_ranges  (origen y destino)
+target = create_engine(url, pool_size=12, max_overflow=4, pool_pre_ping=True, pool_recycle=3600)
+source = create_engine(src_url, pool_size=12, max_overflow=4)
+
+config = DumpConfig(
+    source_engine=source,
+    target_engine=target,
+    chunk_size=10_000,
+    manage_indexes=True,          # reconstruye índices secundarios al final
+    commit_every_n_chunks=20,     # acota la transacción en tablas enormes
+    max_parallel_tables=4,        # 4 tablas independientes en paralelo
+    parallel_pk_ranges=2,         # cada tabla grande en 2 rangos → 4*2 = 8 conexiones
+)
+result = DumpOrchestrator(config).run()
+```
+
+### Reglas de tuning
+
+1. **Dimensiona el pool primero.** `pool_size + max_overflow` de origen **y** destino debe ser ≥ `max_parallel_tables × parallel_pk_ranges`. Si no, el volcado degrada la concurrencia y emite un `WARNING` (no falla).
+2. **Paraleliza por tabla** cuando hay muchas tablas independientes; **por rangos PK** cuando dominan pocas tablas muy grandes. Combinarlas multiplica la concurrencia.
+3. **`manage_indexes`** rinde más cuanto más índices secundarios tenga la tabla; es neutro o contraproducente en tablas sin índices secundarios.
+4. **`commit_every_n_chunks`** solo es necesario si el motor destino sufre por transacciones gigantes (undo/redo log, tempdb); sacrifica atomicidad por tabla.
+5. **Ciclos FK** y la rehabilitación/validación de constraints permanecen secuenciales por diseño (integridad referencial).
+
+---
+
 ## 📈 Real-World Scenarios
 
 ### Scenario 1: FastAPI Web Server (100 concurrent users)

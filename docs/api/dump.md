@@ -16,6 +16,8 @@ from util_bbdd.dump import (
     TableDumpResult,
     ConstraintManager,
     ConstraintResult,
+    IndexManager,
+    IndexActionResult,
     DumpReporter,
 )
 ```
@@ -40,6 +42,10 @@ class DumpConfig:
     bulk_audit_path: Path | None = None
     collect_row_counts: bool = True
     sync_pk_sequences: bool = True
+    commit_every_n_chunks: int | None = None
+    manage_indexes: bool = False
+    max_parallel_tables: int = 1
+    parallel_pk_ranges: int = 1
 ```
 
 | Parámetro | Tipo | Default | Descripción |
@@ -55,6 +61,10 @@ class DumpConfig:
 | `bulk_audit_path` | `Path \| None` | `None` | Ruta del CSV de auditoría de `util_bbdd.bulk.audit`. Si se proporciona: (1) cada INSERT queda registrado en el CSV durante la carga y (2) al finalizar el volcado, `DumpResult.audit_summary` se popula con las métricas del CSV filtradas al rango temporal del volcado. `None` = sin auditoría de inserts. |
 | `collect_row_counts` | `bool` | `True` | Si `True`, ejecuta `COUNT(*)` sobre origen y destino por tabla para obtener volumetría. Si `False`, omite todos los conteos y usa `-1` como sentinel en `TableDumpResult.source_rows`, `target_rows_before` y `target_rows_after`. Útil en volcados de alto volumen donde el conteo es costoso (Snowflake, Oracle sin estadísticas actualizadas, tablas de decenas de millones de filas). El informe Excel muestra `—` para los valores `-1`. |
 | `sync_pk_sequences` | `bool` | `True` | Si `True` (default), ejecuta la Fase 6a tras la carga: resincroniza los contadores PK (sequence / IDENTITY / AUTO_INCREMENT) del destino al valor `MAX(pk)` real de cada tabla. Motores soportados: PostgreSQL, SQL Server, MariaDB/MySQL, Oracle ≥ 12c. Los resultados quedan en `DumpResult.pk_sync_results`. Usar `False` para gestionar la resincronización manualmente o si los permisos requeridos no están disponibles. |
+| `commit_every_n_chunks` | `int \| None` | `None` | Si se indica (entero ≥ 1), la carga de cada tabla commitea cada N lotes de `chunk_size` filas (commit-as-you-go) en lugar de en una única transacción por tabla, acotando el tamaño de la transacción (undo/redo log) en tablas muy grandes. **Advertencia:** con la cadencia activa la carga de una tabla deja de ser atómica; un fallo a mitad deja committeados los lotes anteriores (coherente con la semántica best-effort del volcado). `None` (default) = una transacción por tabla. |
+| `manage_indexes` | `bool` | `False` | Si `True`, deshabilita los índices secundarios **no únicos** del destino antes de la carga y los reconstruye al final (Fase 3b), acelerando los INSERT en tablas con muchos índices. Comportamiento por motor: mssql `ALTER INDEX … DISABLE`→`REBUILD` (solo NONCLUSTERED), oracle `UNUSABLE`→`REBUILD`, postgresql `DROP`+recreate desde `pg_get_indexdef` (DDL logueado antes del DROP), mariadb/mysql no soportado (no-op). **Nunca toca índices que respaldan PK/UNIQUE.** Resultados en `DumpResult.index_results`. |
+| `max_parallel_tables` | `int` | `1` | Número máximo de tablas a cargar concurrentemente dentro de un mismo nivel topológico FK (tablas mutuamente independientes), vía `ThreadPoolExecutor` con una `BulkCrud` por hilo. Las tablas en ciclos FK se cargan siempre secuencialmente. Se degrada automáticamente (con `WARNING`) a la capacidad real del pool (`pool_size + max_overflow`) de origen/destino. **Bajo paralelismo de tabla la auditoría de inserts por-operación se desactiva** (el CSV no es seguro ante escrituras concurrentes); `DumpResult.audit_summary` será `None`. `1` (default) = carga secuencial. |
+| `parallel_pk_ranges` | `int` | `1` | Número de rangos contiguos de PK en que particionar la carga de **cada** tabla con PK de una sola columna entera (`WHERE pk >= lo AND pk < hi`), cargados en paralelo con su propia `BulkCrud`. Solo aplica a tablas cuya PK es una única columna entera presente en las columnas comunes; el resto se cargan completas. La concurrencia total (`max_parallel_tables × parallel_pk_ranges`) se degrada con `WARNING` a la capacidad del pool. **Requiere** que el destino no tenga triggers per-fila dependientes del orden de inserción. `1` (default) = sin particionado. |
 
 ### Optimizaciones automáticas de inserción
 
@@ -67,6 +77,19 @@ class DumpConfig:
 | **Otros motores** | `executemany` estándar del driver | — |
 
 Estas optimizaciones están activas por defecto y no requieren configuración en `DumpConfig`. Para deshabilitar `fast_executemany` en SQL Server (p.ej. por incompatibilidad con pyodbc antiguo), crear el engine y pasar `BulkCrud(enable_fast_executemany=False)` directamente — `DumpOrchestrator` no expone este control en `DumpConfig`.
+
+### Palancas de rendimiento opt-in
+
+Además de las optimizaciones automáticas, `DumpConfig` expone cuatro palancas **desactivadas por defecto** (comportamiento secuencial/atómico sin cambios). Combinables entre sí:
+
+| Palanca | Parámetro | Qué hace | Cuándo usarla |
+|---|---|---|---|
+| **Cadencia de commit** | `commit_every_n_chunks` | Commitea cada N lotes en vez de una transacción por tabla | Tablas enormes que desbordan el undo/redo log; sacrifica atomicidad por tabla |
+| **Gestión de índices** | `manage_indexes` | Deshabilita/reconstruye índices secundarios no únicos | Tablas destino con muchos índices secundarios |
+| **Paralelismo por tabla** | `max_parallel_tables` | Carga tablas independientes (mismo nivel FK) en paralelo | Esquemas con muchas tablas medianas independientes |
+| **Paralelismo por rangos PK** | `parallel_pk_ranges` | Particiona una tabla grande por rangos de PK entera y los carga en paralelo | Pocas tablas muy grandes con PK entera única |
+
+Recomendación de pool: para paralelismo, `pool_size + max_overflow` del engine destino (y origen) debe ser ≥ `max_parallel_tables × parallel_pk_ranges`; en caso contrario el volcado degrada la concurrencia y emite un `WARNING`.
 
 ---
 
@@ -106,6 +129,7 @@ class DumpResult:
     report: Path
     audit_summary: DumpAuditSummary | None = None
     pk_sync_results: list[PKSyncResult] | None = None
+    index_results: list[IndexActionResult] | None = None
 ```
 
 | Atributo | Tipo | Descripción |
@@ -117,6 +141,7 @@ class DumpResult:
 | `report` | `Path` | Ruta del fichero Excel generado |
 | `audit_summary` | `DumpAuditSummary \| None` | Métricas de auditoría de inserts extraídas de `bulk.audit` al finalizar. `None` cuando `DumpConfig.bulk_audit_path` no está configurado o el CSV no contiene entradas del volcado actual. |
 | `pk_sync_results` | `list[PKSyncResult] \| None` | Resultado de la resincronización de contadores PK (Fase 6a). `None` cuando `DumpConfig.sync_pk_sequences=False` o no hay columnas con identity/autoincrement en las tablas cargadas. |
+| `index_results` | `list[IndexActionResult] \| None` | Resultado de deshabilitar/reconstruir índices secundarios (Fase 3b). `None` cuando `DumpConfig.manage_indexes=False`. |
 
 ---
 
@@ -257,7 +282,7 @@ with mgr:
 | Motor | `disable_all` | `enable_all` | Status retornado |
 |---|---|---|---|
 | **SQL Server** | `NOCHECK CONSTRAINT ALL` por tabla | `WITH CHECK CHECK CONSTRAINT ALL` | `enabled` / `failed` |
-| **MariaDB/MySQL** | Listener `SET FK_CHECKS=0` + `dispose()` | Elimina listener + `dispose()` | `unverified` (sin validación retroactiva) |
+| **MariaDB/MySQL** | Listeners `checkout`/`checkin` (`SET SESSION FOREIGN_KEY_CHECKS=0`/`=1`) por-conexión, sin reciclar el pool | Elimina ambos listeners | `unverified` (sin validación retroactiva) |
 | **PostgreSQL** | `DISABLE TRIGGER ALL` por tabla | `ENABLE TRIGGER ALL` + `VALIDATE CONSTRAINT` por FK | `enabled` / `failed` |
 | **Oracle** | `DISABLE CONSTRAINT` por constraint (filtra `SYS_C%`) | `ENABLE VALIDATE CONSTRAINT` | `enabled` / `failed` |
 | **Otros** | No-op + warning en log | Retorna `[]` | — |
@@ -286,6 +311,57 @@ class ConstraintResult:
 
 ---
 
+## IndexManager
+
+Gestiona la desactivación y reconstrucción de **índices secundarios no únicos** en el destino durante la carga (Fase 3b, activada con `DumpConfig.manage_indexes=True`). Context manager: garantiza la reconstrucción aunque la carga falle. Se anida dentro de `ConstraintManager` para que el rebuild ocurra **antes** de la rehabilitación de constraints.
+
+```python
+class IndexManager:
+    def __init__(self, engine: Engine, schema: str | None = None) -> None: ...
+    def __enter__(self) -> IndexManager: ...
+    def __exit__(self, ...) -> None: ...  # llama rebuild_all()
+    def disable_all(self, tables: list[str]) -> None: ...
+    def rebuild_all(self) -> list[IndexActionResult]: ...
+    index_results: list[IndexActionResult]  # poblado tras __exit__
+```
+
+### Comportamiento por motor
+
+| Motor | `disable_all` | `rebuild_all` | Destructivo |
+|---|---|---|---|
+| **SQL Server** | `ALTER INDEX … DISABLE` (solo NONCLUSTERED no únicos) | `ALTER INDEX … REBUILD` | No (definición preservada) |
+| **Oracle** | `ALTER INDEX … UNUSABLE` (índices NORMAL no asociados a constraint) | `ALTER INDEX … REBUILD` | No (definición preservada) |
+| **PostgreSQL** | Captura DDL con `pg_get_indexdef` (logueado), `DROP INDEX` | Recrea ejecutando el DDL guardado | **Sí** (DROP+CREATE; DDL logueado antes del DROP) |
+| **MariaDB/MySQL** | No-op (`DISABLE KEYS` se ignora en InnoDB) | `action="unsupported"` | — |
+| **Otros** | No-op + warning | `[]` | — |
+
+> **Selección de índices.** Solo se gestionan índices **no únicos** secundarios; los que respaldan PK o UNIQUE quedan intactos, preservando la integridad durante la carga. En SQL Server se excluye además el índice clustered (deshabilitarlo dejaría la tabla inaccesible).
+
+---
+
+## IndexActionResult
+
+Resultado de gestionar un índice individual. Presente en `DumpResult.index_results`.
+
+```python
+@dataclass
+class IndexActionResult:
+    table_name: str
+    index_name: str
+    dialect: str
+    action: Literal["rebuilt", "recreated", "failed", "unsupported"]
+    error_msg: str = ""
+```
+
+| `action` | Significado |
+|---|---|
+| `"rebuilt"` | Índice deshabilitado/unusable y reconstruido (mssql/oracle) |
+| `"recreated"` | Índice eliminado y recreado desde su DDL (postgresql) |
+| `"failed"` | Fallo al reconstruir/recrear; ver `error_msg` |
+| `"unsupported"` | Motor no soportado (mariadb/mysql InnoDB); `table_name`/`index_name` = `"*"` |
+
+---
+
 ## DumpReporter
 
 Genera el informe Excel de auditoría. Llamado automáticamente por `DumpOrchestrator.run()`.
@@ -299,6 +375,7 @@ class DumpReporter:
         missing_tables: list[str],
         constraint_results: list[ConstraintResult],
         cycles: list[list[str]],
+        index_results: list[IndexActionResult] | None = None,
     ) -> Path: ...
 ```
 
@@ -306,13 +383,14 @@ class DumpReporter:
 
 Crea un fichero `dump_report_<timestamp>.xlsx` en `output_dir` y retorna su ruta. El directorio se crea automáticamente si no existe.
 
-El fichero contiene tres hojas:
+El fichero contiene tres hojas (cuatro si `index_results` no es `None`):
 
 | Hoja | Contenido |
 |---|---|
 | `Auditoría Tablas` | Volumetría y estado por tabla; constraints con incidencias al pie |
 | `Tablas Faltantes` | Tablas de origen sin correspondencia en destino |
 | `Columnas Inexistentes` | Columnas de origen ausentes en destino (derivadas de `TableDumpResult.skipped_columns`) |
+| `Índices` *(opcional)* | Resultado de deshabilitar/reconstruir índices secundarios. Solo cuando `manage_indexes=True` (`index_results` no es `None`) |
 
 ---
 
