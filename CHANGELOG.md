@@ -7,7 +7,32 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] - develop
 
+## [0.9.0] - 2026-06-01
+
 ### Performance
+
+#### dump: palancas de rendimiento opt-in (cadencia de commit, índices, paralelización)
+
+Cuatro palancas nuevas en `DumpConfig`, **todas desactivadas por defecto** (comportamiento
+secuencial/atómico byte-idéntico). Combinables entre sí.
+
+- **`commit_every_n_chunks: int | None = None`** — la carga de cada tabla commitea cada N
+  lotes (commit-as-you-go) en lugar de una transacción por tabla, acotando el undo/redo log.
+  Implementado en `bulk` (`BulkCrud`/`BatchStatementExecutor`/`bulk_session`); `dump` lo
+  propaga. **No atómico** con la cadencia activa.
+- **`manage_indexes: bool = False`** — nueva clase `IndexManager` (`dump/_indexes.py`):
+  deshabilita los índices secundarios **no únicos** y los reconstruye al final.
+  mssql `DISABLE`→`REBUILD` (solo NONCLUSTERED), oracle `UNUSABLE`→`REBUILD`, postgresql
+  `DROP`+recreate desde `pg_get_indexdef` (DDL logueado antes del DROP), mariadb/mysql no
+  soportado. Resultados en `DumpResult.index_results` (`IndexActionResult`) + 4ª hoja Excel.
+- **`max_parallel_tables: int = 1`** — carga concurrente de tablas independientes de un mismo
+  nivel topológico FK (`ThreadPoolExecutor`, una `BulkCrud` por hilo); ciclos FK secuenciales;
+  workers degradados a la capacidad real del pool con `WARNING`.
+- **`parallel_pk_ranges: int = 1`** — particiona una tabla con PK entera única en N rangos
+  (`WHERE pk BETWEEN`) cargados en paralelo; concurrencia total acotada al pool.
+
+Documentación: `docs/api/dump.md`, `docs/functional/dump-data-export.md`,
+`docs/examples/dump_data_export.md`, `docs/BENCHMARKS.md`.
 
 #### dump: el volcado ya no ejecuta comparación de esquemas (elimina cascada N+1)
 
@@ -89,6 +114,23 @@ total garantizada (`collect_row_counts=True` por defecto).
 ---
 
 ### Refactored
+
+#### dump: FK MariaDB por checkout/checkin sin engine.dispose()
+
+`ConstraintManager` deshabilitaba los FK checks de MariaDB/MySQL ciclando todo el pool con
+`engine.dispose()` (cerraba todas las conexiones activas), incompatible con un engine
+compartido entre hilos. Se sustituye por listeners `checkout`/`checkin` que aplican
+`SET SESSION FOREIGN_KEY_CHECKS=0`/`=1` por-conexión, sin reciclar el pool. Comportamiento y
+API públicos sin cambios. Prerequisito de la paralelización del volcado. (`dump/_constraints.py`)
+
+#### bulk: API de carga de gran volumen — relocalización del mecanismo paralelo
+
+El mecanismo de inserción paralela por rangos de PK, que antes orquestaba `dump`
+(`_load_in_pk_ranges` gestionaba el `ThreadPoolExecutor` y las `BulkCrud`), se traslada a la
+nueva clase `bulk.ParallelBulkLoader`. `dump` conserva solo la **política** (MIN/MAX, cálculo
+de rangos, SQL de origen) y delega el **mecanismo** vía lectores de partición. Frontera
+clara: `bulk` = cómo cargar gran volumen, `dump` = qué/cómo particionar. Sin cambios de
+comportamiento observable del volcado. (`bulk/_execution/parallel_loader.py`, `dump/orchestrator.py`)
 
 #### bulk: remediación de deuda técnica — 20 ítems en 4 fases
 
@@ -174,6 +216,21 @@ Sin cambios de contrato público; retrocompatibilidad total garantizada.
 
 ### Fixed
 
+#### bulk: auditoría thread-safe ante escrituras concurrentes
+
+`AuditCsvRepository.auditar_lote_csv` serializa las escrituras al mismo CSV mediante un lock
+por-ruta compartido a nivel de proceso (registro keyed por `path.resolve()`). Evita filas
+intercaladas y cabeceras duplicadas cuando varios `AuditManager` concurrentes (una `BulkCrud`
+por hilo en el volcado paralelo) apuntan al mismo fichero. Con esto, la auditoría de inserts
+**vuelve a estar activa bajo `max_parallel_tables > 1`** (antes se desactivaba con warning).
+(`bulk/_audit/repository.py`, `dump/orchestrator.py`)
+
+#### dump: `_pool_capacity` defensivo ante `size()` no numérico
+
+`_pool_capacity` convierte el resultado de `pool.size()` de forma defensiva (vía `str` si no
+es `int`/`float`/`str`), evitando fallos cuando un pool devuelve un tipo inesperado.
+(`dump/orchestrator.py`)
+
 #### comparar: comparación de columnas case-insensitive en migraciones cross-engine (Oracle → MariaDB)
 
 En comparaciones entre motores con convenciones de case distintas (Oracle devuelve
@@ -253,6 +310,20 @@ verbatim, alineado con los emitters de SQL Server, PostgreSQL y MariaDB.
 ---
 
 ### Added
+
+#### bulk: API de carga de gran volumen (`bulk_insert_from_chunks`, `ParallelBulkLoader`)
+
+- **`BulkCrud.bulk_insert_from_chunks(chunks, tabla_destino, *, override_identity=False,
+  exclude_autoincrement_pk=False) -> int`** — inserta en streaming un iterable de DataFrames
+  (p.ej. `pandas.read_sql(chunksize=N)`) sin materializar todo el dataset, resolviendo columnas
+  de inserción e identidad **una sola vez** (frente a la re-resolución por chunk de
+  `bulk_insert_from_df`). Gestiona su propio `bulk_session` (respeta `commit_every_n_chunks`).
+- **`bulk.ParallelBulkLoader`** + **`ParallelLoadResult`** — carga particiones disjuntas en
+  paralelo, una `BulkCrud`/conexión por hilo, sobre `bulk_insert_from_chunks`. Agnóstico del
+  origen: cada partición es un lector `Callable[[], Iterable[DataFrame]]`. Best-effort
+  (errores agregados por partición). Exportados desde `util_bbdd.bulk`.
+
+Documentación: `docs/api/bulk-crud.md`, `docs/api/bulk-parallel.md` (nuevo).
 
 #### migrate: soporte PostgreSQL → Oracle / MariaDB / SQL Server
 
