@@ -66,6 +66,13 @@ class DumpConfig:
             destino para que coincidan con el ``MAX`` real de cada columna. Desactivar
             con ``False`` si se gestiona la resincronización manualmente o si el motor
             destino no soporta la operación con los permisos disponibles.
+        commit_every_n_chunks: Si se indica (entero ≥ 1), la carga de cada tabla commitea
+            cada N lotes de ``chunk_size`` filas en lugar de en una única transacción por
+            tabla, acotando el tamaño de la transacción (undo/redo log) en tablas muy
+            grandes. ``None`` (default) = una transacción por tabla (atómico por tabla).
+            **Advertencia:** con la cadencia activa la carga de una tabla deja de ser
+            atómica; un fallo a mitad deja committeados los lotes anteriores de esa tabla
+            (coherente con la semántica best-effort del volcado).
     """
 
     source_engine: Engine
@@ -79,6 +86,7 @@ class DumpConfig:
     bulk_audit_path: Path | None = None
     collect_row_counts: bool = True
     sync_pk_sequences: bool = True
+    commit_every_n_chunks: int | None = None
 
 
 @dataclass

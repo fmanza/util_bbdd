@@ -124,12 +124,8 @@ class InsertStrategyResolver:
         pg_strategy: InsertExecutionStrategyProtocol | None = None,
         default_strategy: InsertExecutionStrategyProtocol | None = None,
     ) -> None:
-        self._pg_strategy: InsertExecutionStrategyProtocol = (
-            pg_strategy or PostgreSQLExecuteValuesStrategy()
-        )
-        self._default_strategy: InsertExecutionStrategyProtocol = (
-            default_strategy or DefaultInsertStrategy()
-        )
+        self._pg_strategy: InsertExecutionStrategyProtocol = pg_strategy or PostgreSQLExecuteValuesStrategy()
+        self._default_strategy: InsertExecutionStrategyProtocol = default_strategy or DefaultInsertStrategy()
 
     def resolve(self, dialect_name: str, drivername: str) -> InsertExecutionStrategyProtocol:
         """Devuelve la estrategia adecuada para el dialecto y driver indicados."""
@@ -253,14 +249,17 @@ class BatchStatementExecutor:
         chunk_size: int,
         enable_fast_executemany: bool = True,
         insert_resolver: InsertStrategyResolver | None = None,
+        commit_every_n_chunks: int | None = None,
     ) -> None:
         self._engine: Engine = engine
         self._chunk_size: int = chunk_size
         self._active_connection: Any | None = None
+        self._commit_every_n_chunks: int | None = commit_every_n_chunks
+        self._chunks_since_commit: int = 0
         drivername: str = str(engine.url.drivername).lower()
-        self._insert_strategy: InsertExecutionStrategyProtocol = (
-            insert_resolver or InsertStrategyResolver()
-        ).resolve(engine.dialect.name, drivername)
+        self._insert_strategy: InsertExecutionStrategyProtocol = (insert_resolver or InsertStrategyResolver()).resolve(
+            engine.dialect.name, drivername
+        )
         if enable_fast_executemany and engine.dialect.name == "mssql" and "pyodbc" in drivername:
             _register_fast_executemany(engine)
 
@@ -269,21 +268,41 @@ class BatchStatementExecutor:
 
         Si ``_active_connection`` está activo (inyectado via ``BulkCrud.bulk_session()``),
         reutiliza esa conexión en lugar de abrir una nueva transacción por lote.
+
+        Cuando ``commit_every_n_chunks`` está configurado y no hay conexión activa,
+        usa ``engine.connect()`` (commit-as-you-go) en lugar de ``engine.begin()``
+        para poder commitear lotes intermedios, y hace un commit final del resto.
         """
         if self._active_connection is not None:
             self._execute_on_connection(self._active_connection, records, stmt)
+        elif self._commit_every_n_chunks is not None:
+            self._chunks_since_commit = 0
+            with self._engine.connect() as connection:
+                self._execute_on_connection(connection, records, stmt)
+                connection.commit()
+                self._chunks_since_commit = 0
         else:
             with self._engine.begin() as connection:
                 self._execute_on_connection(connection, records, stmt)
 
     def _execute_on_connection(self, connection: Any, records: Sequence[Mapping[str, Any]], stmt: Any) -> None:
-        """Ejecuta los batches sobre una conexión ya abierta."""
+        """Ejecuta los batches sobre una conexión ya abierta.
+
+        Si ``commit_every_n_chunks`` está activo, commitea sobre ``connection``
+        (que debe estar en modo commit-as-you-go) cada N lotes. El commit del
+        resto (tail) es responsabilidad del llamador (``execute`` / ``bulk_session``).
+        """
         for start in range(0, len(records), self._chunk_size):
             self._insert_strategy.execute(
                 connection=connection,
                 stmt=stmt,
                 records=records[start : start + self._chunk_size],
             )
+            if self._commit_every_n_chunks is not None:
+                self._chunks_since_commit += 1
+                if self._chunks_since_commit >= self._commit_every_n_chunks:
+                    connection.commit()
+                    self._chunks_since_commit = 0
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,176 @@
+"""Tests de la cadencia de commit por lotes (commit_every_n_chunks)."""
+
+from __future__ import annotations
+
+from typing import Any, cast
+from unittest.mock import MagicMock
+
+import pandas as pd
+import pytest
+
+from sqlalchemy import Column, Engine, Integer, MetaData, String, Table, create_engine, insert
+
+from util_bbdd.bulk._execution.batch import BatchStatementExecutor
+from util_bbdd.bulk.crud import BulkCrud
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_sqlite_engine() -> Engine:
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as conn:
+        conn.exec_driver_sql("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)")
+    return engine
+
+
+def _table() -> Table:
+    return Table(
+        "items",
+        MetaData(),
+        Column("id", Integer, primary_key=True),
+        Column("name", String(50)),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Validación del parámetro
+# ---------------------------------------------------------------------------
+
+
+class TestCommitCadenceValidation:
+    def test_zero_raises_value_error(self) -> None:
+        engine = create_engine("sqlite:///:memory:")
+        with pytest.raises(ValueError, match="commit_every_n_chunks"):
+            BulkCrud(engine, commit_every_n_chunks=0)
+
+    def test_negative_raises_value_error(self) -> None:
+        engine = create_engine("sqlite:///:memory:")
+        with pytest.raises(ValueError, match="commit_every_n_chunks"):
+            BulkCrud(engine, commit_every_n_chunks=-3)
+
+    def test_none_is_accepted(self) -> None:
+        engine = create_engine("sqlite:///:memory:")
+        crud = BulkCrud(engine, commit_every_n_chunks=None)
+        assert crud._batch_statement_executor._commit_every_n_chunks is None
+
+
+# ---------------------------------------------------------------------------
+# Path por defecto (None) — comportamiento inalterado: usa engine.begin()
+# ---------------------------------------------------------------------------
+
+
+class TestDefaultPathUnchanged:
+    def test_execute_without_cadence_uses_engine_begin(self) -> None:
+        engine = create_engine("sqlite:///:memory:")
+        records = [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}, {"id": 3, "name": "c"}]
+        connection = MagicMock()
+
+        class _BeginCtx:
+            def __enter__(self) -> Any:
+                return connection
+
+            def __exit__(self, *_: object) -> None:
+                return None
+
+        cast(Any, engine).begin = MagicMock(return_value=_BeginCtx())
+        cast(Any, engine).connect = MagicMock()
+
+        executor = BatchStatementExecutor(engine=engine, chunk_size=2)
+        executor.execute(records=records, stmt=insert(_table()))
+
+        cast(Any, engine).begin.assert_called_once()
+        cast(Any, engine).connect.assert_not_called()
+        # Sin cadencia no se commitea manualmente sobre la conexión
+        connection.commit.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Path con cadencia — usa engine.connect() y commitea cada N lotes + tail
+# ---------------------------------------------------------------------------
+
+
+class TestCadenceCommits:
+    def test_execute_with_cadence_uses_connect_and_commits_every_n(self) -> None:
+        engine = create_engine("sqlite:///:memory:")
+        # 5 lotes de chunk_size=1 → con cadencia=2: commits en lotes 2 y 4, + tail final
+        records = [{"id": i, "name": f"n{i}"} for i in range(1, 6)]
+        connection = MagicMock()
+
+        class _ConnectCtx:
+            def __enter__(self) -> Any:
+                return connection
+
+            def __exit__(self, *_: object) -> None:
+                return None
+
+        cast(Any, engine).connect = MagicMock(return_value=_ConnectCtx())
+        cast(Any, engine).begin = MagicMock()
+
+        executor = BatchStatementExecutor(engine=engine, chunk_size=1, commit_every_n_chunks=2)
+        executor.execute(records=records, stmt=insert(_table()))
+
+        cast(Any, engine).connect.assert_called_once()
+        cast(Any, engine).begin.assert_not_called()
+        # 2 commits periódicos (tras lote 2 y 4) + 1 commit final del tail
+        assert connection.commit.call_count == 3
+
+    def test_counter_resets_after_each_commit(self) -> None:
+        engine = create_engine("sqlite:///:memory:")
+        records = [{"id": i, "name": f"n{i}"} for i in range(1, 5)]  # 4 lotes
+        connection = MagicMock()
+
+        class _ConnectCtx:
+            def __enter__(self) -> Any:
+                return connection
+
+            def __exit__(self, *_: object) -> None:
+                return None
+
+        cast(Any, engine).connect = MagicMock(return_value=_ConnectCtx())
+
+        executor = BatchStatementExecutor(engine=engine, chunk_size=1, commit_every_n_chunks=2)
+        executor.execute(records=records, stmt=insert(_table()))
+
+        # 4 lotes / cadencia 2 → 2 commits periódicos; tail vacío → +1 commit final no-op
+        assert connection.commit.call_count == 3
+        assert executor._chunks_since_commit == 0
+
+
+# ---------------------------------------------------------------------------
+# Persistencia real con SQLite (end-to-end)
+# ---------------------------------------------------------------------------
+
+
+class TestCadenceEndToEnd:
+    def test_all_rows_persist_with_cadence(self) -> None:
+        engine = _make_sqlite_engine()
+        crud = BulkCrud(engine, chunk_size=2, commit_every_n_chunks=2)
+        df = pd.DataFrame({"id": [1, 2, 3, 4, 5], "name": ["a", "b", "c", "d", "e"]})
+
+        crud.bulk_insert_from_df(df, "items", generar_sql=False)
+
+        with engine.connect() as conn:
+            total = conn.exec_driver_sql("SELECT COUNT(*) FROM items").scalar()
+        assert total == 5
+
+    def test_bulk_session_with_cadence_persists_tail(self) -> None:
+        engine = _make_sqlite_engine()
+        crud = BulkCrud(engine, chunk_size=2, commit_every_n_chunks=2)
+
+        with crud.bulk_session():
+            for start in range(0, 5, 2):
+                df = pd.DataFrame(
+                    {
+                        "id": list(range(start + 1, min(start + 3, 6))),
+                        "name": ["x"] * len(range(start + 1, min(start + 3, 6))),
+                    }
+                )
+                crud.bulk_insert_from_df(df, "items", generar_sql=False)
+
+        with engine.connect() as conn:
+            total = conn.exec_driver_sql("SELECT COUNT(*) FROM items").scalar()
+        assert total == 5
+        # El contador queda limpio tras la sesión
+        assert crud._batch_statement_executor._chunks_since_commit == 0

@@ -114,6 +114,7 @@ class BulkCrud:
         audit_csv_path: Path | None = None,
         enable_fast_executemany: bool = True,
         insert_resolver: InsertStrategyResolver | None = None,
+        commit_every_n_chunks: int | None = None,
     ):
         """
         Constructor de la clase bulk_crud.
@@ -128,14 +129,24 @@ class BulkCrud:
                 (p.ej. NVARCHAR(MAX) en pyodbc < 4.0.28 con algunas configuraciones).
             insert_resolver: Estrategia INSERT personalizada. None usa la resolución
                 automática (execute_values para postgresql+psycopg2, default para el resto).
+            commit_every_n_chunks: Si se indica (entero ≥ 1), commitea cada N lotes de
+                ``chunk_size`` filas en lugar de en una única transacción al final, para
+                acotar el tamaño de la transacción (undo/redo log) en cargas de alto
+                volumen. ``None`` (default) = una sola transacción (comportamiento atómico).
+                **Advertencia:** al activar la cadencia la sesión deja de ser atómica:
+                un fallo a mitad deja committeados los lotes anteriores.
 
         Raises:
             ValueError: Si engine es None.
+            ValueError: Si ``commit_every_n_chunks`` no es None ni un entero ≥ 1.
         """
         self.logger: logging.Logger = logging.getLogger(__name__)
 
         self.engine: Engine = validate_engine(engine)
         self._table_cache: dict[str, Table] = {}
+
+        if commit_every_n_chunks is not None and commit_every_n_chunks < 1:
+            raise ValueError(f"commit_every_n_chunks debe ser None o un entero ≥ 1, recibido: {commit_every_n_chunks}")
 
         self.chunk_size: int = chunk_size
         self.audit_manager: AuditManager = AuditManager(audit_csv_path)
@@ -156,6 +167,7 @@ class BulkCrud:
             chunk_size=self.chunk_size,
             enable_fast_executemany=enable_fast_executemany,
             insert_resolver=insert_resolver,
+            commit_every_n_chunks=commit_every_n_chunks,
         )
         self._delete_batch_executor: DeleteBatchExecutor = DeleteBatchExecutor(
             engine=self.engine,
@@ -569,16 +581,33 @@ class BulkCrud:
                 gestiona su propia transacción (comportamiento legacy).
 
         Nota: ``BulkCrud`` no es thread-safe. No compartir instancias entre hilos.
+
+        Nota: si se construyó ``BulkCrud(commit_every_n_chunks=N)``, la sesión usa
+        commit-as-you-go (commitea cada N lotes y al salir el resto). En ese modo
+        la sesión **no** es atómica aunque ``atomic=True``: un fallo a mitad deja
+        committeados los lotes anteriores.
         """
         if not atomic:
             yield
             return
-        with self._batch_statement_executor._engine.begin() as conn:
-            self._batch_statement_executor._active_connection = conn
+        executor = self._batch_statement_executor
+        if executor._commit_every_n_chunks is not None:
+            executor._chunks_since_commit = 0
+            with executor._engine.connect() as conn:
+                executor._active_connection = conn
+                try:
+                    yield
+                    conn.commit()
+                    executor._chunks_since_commit = 0
+                finally:
+                    executor._active_connection = None
+            return
+        with executor._engine.begin() as conn:
+            executor._active_connection = conn
             try:
                 yield
             finally:
-                self._batch_statement_executor._active_connection = None
+                executor._active_connection = None
 
     def get_columna_may_min(self, tabla: Table, nombre_col: str) -> Column | None:
         """Devuelve una columna de una tabla SQLAlchemy ignorando mayúsculas/minúsculas."""

@@ -133,7 +133,12 @@ class DumpOrchestrator:
 
             # FASE 4: Carga (best-effort)
             cycle_set = {t for group in cycles for t in group}
-            crud = BulkCrud(cfg.target_engine, chunk_size=cfg.chunk_size, audit_csv_path=cfg.bulk_audit_path)
+            crud = BulkCrud(
+                cfg.target_engine,
+                chunk_size=cfg.chunk_size,
+                audit_csv_path=cfg.bulk_audit_path,
+                commit_every_n_chunks=cfg.commit_every_n_chunks,
+            )
             for position, src_t in enumerate(effective_src_order):
                 dst_t = src_to_dst[src_t]
                 result = self._process_table(src_t, dst_t, position, src_t in cycle_set, crud)
