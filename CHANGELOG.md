@@ -7,6 +7,43 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] - develop
 
+## [0.10.0] - 2026-06-01
+
+### Performance
+
+#### bulk: vías rápidas de INSERT por motor (PostgreSQL COPY, MySQL multi-fila)
+
+`InsertStrategyResolver` (`bulk/_execution/batch.py`) elige automáticamente la vía nativa
+más rápida por motor cuando `BulkCrud(insert_resolver=None)` (default). Output idéntico;
+cambia el mecanismo de ejecución. Degradación automática a `executemany` cuando la sentencia
+es un `TextClause` (ruta `override_identity` / `OVERRIDING SYSTEM VALUE`).
+
+- **`PostgresCopyStrategy`** (nuevo) — `COPY ... FROM STDIN` vía psycopg3 `cursor.copy()`:
+  la vía nativa más rápida de PostgreSQL (streaming por STDIN, sin staging a disco). psycopg3
+  adapta automáticamente cada valor Python (incluido `None`→NULL).
+- **`MySQLMultiRowInsertStrategy`** (nuevo) — `INSERT ... VALUES (...),(...)` parametrizado
+  multi-fila para MySQL/MariaDB, sub-loteado por `max_rows_per_statement` (default 1000) para
+  acotar `max_allowed_packet`. Alternativa portable y segura a `LOAD DATA INFILE` (que exige
+  `local_infile` y staging a disco).
+- Oracle, SQL Server, SQLite y HSQLDB siguen con `DefaultInsertStrategy` (`executemany`;
+  SQL Server acelerado por `fast_executemany`, Oracle vía la capa C de `oracledb`).
+
+Documentación: tabla "Estrategias INSERT por motor" en `docs/api/bulk-crud.md`.
+
+#### dump: el volcado reutiliza la resolución única por tabla
+
+`DumpOrchestrator._load_whole_table` (`dump/orchestrator.py`) ahora delega en
+`bulk_insert_from_chunks` (resuelve columnas de inserción y estrategia de identidad **una sola
+vez** por tabla) en lugar de re-resolver el pipeline por cada chunk con `bulk_insert_from_df`.
+El renombrado de columnas se aplica de forma perezosa por chunk, manteniendo el streaming.
+
+### Fixed
+
+- **bulk**: el fast path de PostgreSQL era **código muerto** con el driver real de la librería.
+  `InsertStrategyResolver` solo activaba la vía rápida con `psycopg2`, pero el engine síncrono
+  se construye con `postgresql+psycopg` (psycopg3), por lo que la aceleración nunca se aplicaba
+  (siempre caía en `executemany`). Ahora `psycopg3` → COPY y `psycopg2` → `execute_values`.
+
 ## [0.9.0] - 2026-06-01
 
 ### Performance
