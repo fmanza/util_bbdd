@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 
-from collections.abc import Callable, Hashable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Hashable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -325,6 +325,113 @@ class BulkCrud:
             path_sql=path_sql,
             strategy_key="delete",
         )
+
+    @medir_tiempo("bulk_insert_from_chunks")
+    def bulk_insert_from_chunks(
+        self,
+        chunks: Iterable[pd.DataFrame],
+        tabla_destino: str,
+        *,
+        override_identity: bool = False,
+        exclude_autoincrement_pk: bool = False,
+    ) -> int:
+        """Inserta en streaming una secuencia de DataFrames en la tabla destino.
+
+        Pensado para cargas de gran volumen sin materializar todo el dataset en memoria
+        (p.ej. consumiendo ``pandas.read_sql(..., chunksize=N)``). A diferencia de llamar
+        repetidamente a :meth:`bulk_insert_from_df`, resuelve las columnas de inserción y
+        la estrategia de identidad **una sola vez** (a partir del primer chunk no vacío),
+        evitando la re-resolución por chunk. Todos los chunks se insertan dentro de un
+        único :meth:`bulk_session` (atómico, salvo que se construya la instancia con
+        ``commit_every_n_chunks``).
+
+        Solo ejecuta (no genera SQL). El esquema de columnas debe ser **homogéneo** entre
+        chunks (invariante natural de ``pandas.read_sql(chunksize=...)``). No debe llamarse
+        dentro de un ``bulk_session`` ya abierto: gestiona su propia transacción.
+
+        Args:
+            chunks: Iterable de DataFrames con el mismo conjunto de columnas.
+            tabla_destino: Nombre de la tabla destino (``schema.tabla`` o ``tabla``).
+            override_identity: Igual que en :meth:`bulk_insert_from_df` (PostgreSQL).
+            exclude_autoincrement_pk: Excluye la PK autoincremental/identity del INSERT.
+
+        Returns:
+            Número total de filas insertadas.
+
+        Raises:
+            ValueError: Si hay columnas GENERATED ALWAYS AS IDENTITY (PostgreSQL) y
+                ``override_identity=False``.
+            SQLAlchemyError: Ante errores SQL durante la inserción.
+        """
+        tabla: Table = self.reflect_table(tabla_destino)
+        total: int = 0
+        resolved: tuple[Any, list[str]] | None = None
+
+        with self.bulk_session():
+            for chunk in chunks:
+                working_df: pd.DataFrame = chunk.copy()
+                self.__actualizar_df(working_df)
+                if working_df.empty:
+                    continue
+                if resolved is None:
+                    resolved = self.__resolve_stream_insert(
+                        working_df,
+                        tabla,
+                        override_identity=override_identity,
+                        exclude_autoincrement_pk=exclude_autoincrement_pk,
+                    )
+                stmt, insert_cols = resolved
+
+                records: list[dict[Hashable, Any]] = working_df[insert_cols].to_dict(orient="records")
+                records_sql: list[dict[str, Any]] = normalize_records_for_sql(records)
+                numero_registros: int = len(records_sql)
+
+                start: float = perf_counter()
+                self.__ejecutar_batch_stmt(records_sql, stmt, numero_registros)
+                elapsed: float = perf_counter() - start
+                total += numero_registros
+
+                self._persistence.register_operation(
+                    table_name=tabla_destino,
+                    operation="INSERT",
+                    rowcount=numero_registros,
+                    elapsed=elapsed,
+                    generated_sql=False,
+                )
+
+        self.logger.info(f"✅ bulk INSERT (chunks) finalizado: {total} filas ({self.db_info}).")
+        return total
+
+    def __resolve_stream_insert(
+        self,
+        df: pd.DataFrame,
+        tabla: Table,
+        *,
+        override_identity: bool,
+        exclude_autoincrement_pk: bool,
+    ) -> tuple[Any, list[str]]:
+        """Resuelve (stmt_de_ejecución, columnas_de_inserción) para la carga en streaming.
+
+        Replica la rama de ejecución de ``__prepare_insert_operation`` (sin la rama de
+        generación de SQL, que no aplica al streaming).
+        """
+        insert_cols: list[str] = get_insert_columns(
+            list(df.columns), tabla, exclude_autoincrement_pk=exclude_autoincrement_pk
+        )
+        is_postgres: bool = self.engine.dialect.name == "postgresql"
+        always_identity_cols: list[str] = detect_always_identity_columns(insert_cols, tabla) if is_postgres else []
+
+        if always_identity_cols and not override_identity:
+            raise ValueError(
+                f"❌ Las columnas {always_identity_cols} son GENERATED ALWAYS AS IDENTITY en PostgreSQL. "
+                "Usa override_identity=True para insertar valores manuales."
+            )
+
+        if override_identity and always_identity_cols:
+            stmt: Any = build_override_identity_text_stmt(tabla, insert_cols, self.engine.dialect)
+        else:
+            stmt = insert(tabla)
+        return stmt, insert_cols
 
     def __run_bulk_pipeline(
         self,
