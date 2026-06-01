@@ -131,6 +131,7 @@ nav:
       - Diff Reporters: examples/diff_reporters.md
       - Queries Concurrentes (Async): examples/async_concurrent_queries.md
       - Bulk Insert desde CSV: examples/bulk_insert_csv.md
+      - Benchmark: Commit Cadence: examples/benchmark_commit_cadence.md
       - Manejo de Excepciones: examples/exception_handling.md
       - Generación de Grafos: examples/graph_generation.md
       - Volcado de Datos entre Motores: examples/dump_data_export.md

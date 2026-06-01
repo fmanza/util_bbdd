@@ -130,11 +130,28 @@ class BulkCrud:
             insert_resolver: Estrategia INSERT personalizada. None usa la resolución
                 automática (execute_values para postgresql+psycopg2, default para el resto).
             commit_every_n_chunks: Si se indica (entero ≥ 1), commitea cada N lotes de
-                ``chunk_size`` filas en lugar de en una única transacción al final, para
-                acotar el tamaño de la transacción (undo/redo log) en cargas de alto
-                volumen. ``None`` (default) = una sola transacción (comportamiento atómico).
+                ``chunk_size`` filas en lugar de en una única transacción al final. **Crítico
+                para MariaDB/MySQL en cargas masivas** (millones de filas) donde el undo log
+                crece linealmente y el buffer pool se satura, causando degradación exponencial
+                de latencia.
+
+                | BD | Buffer Pool | Recomendado | Aprox. Filas/commit |
+                |---|---|---|---|
+                | MariaDB 8.0 | 256 MB | 10 | 50 K |
+                | MariaDB 8.0 | 1 GB | 20 | 100 K |
+                | MariaDB 8.0 | 4 GB+ | 50 | 250 K |
+                | MySQL 8.0 | 1 GB | 20 | 100 K |
+
+                **Ejemplo de tuning** (10M filas en MariaDB con 1 GB buffer pool)::
+
+                    bulk = BulkCrud(engine, chunk_size=5_000, commit_every_n_chunks=20)
+                    bulk.bulk_insert_from_df(df_10m, "tabla_destino")
+                    # Commitea cada 20 × 5_000 = 100 K filas → undo log limitado
+
+                ``None`` (default) = una sola transacción (comportamiento atómico).
                 **Advertencia:** al activar la cadencia la sesión deja de ser atómica:
                 un fallo a mitad deja committeados los lotes anteriores.
+                **Nota:** Los valores recomendados son heurísticos; mide latencia en tu entorno.
 
         Raises:
             ValueError: Si engine es None.

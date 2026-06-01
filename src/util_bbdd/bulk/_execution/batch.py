@@ -175,6 +175,9 @@ class MySQLMultiRowInsertStrategy:
     tamaño del paquete (``max_allowed_packet``): una sentencia demasiado grande con
     columnas TEXT/BLOB puede provocar ``Lost connection to server (2013)``.
 
+    **Optimización**: Cachea templates SQL por número de filas para evitar reconstrucción
+    en sub-lotes del mismo tamaño (típicamente todos excepto el último).
+
     Fallback a ejecución estándar cuando ``stmt`` no expone ``.table`` (``TextClause``).
     """
 
@@ -182,6 +185,47 @@ class MySQLMultiRowInsertStrategy:
         if max_rows_per_statement < 1:
             raise ValueError(f"max_rows_per_statement debe ser ≥ 1, recibido: {max_rows_per_statement}")
         self._max_rows: int = max_rows_per_statement
+        # Caché: (num_rows, cols_tuple) → (template_sql_string, placeholder_pattern)
+        self._sql_template_cache: dict[tuple[int, tuple[str, ...]], tuple[str, str]] = {}
+
+    def _build_sql_template(
+        self,
+        num_rows: int,
+        cols: list[str],
+        quoted_table: str,
+        quoted_cols: str,
+    ) -> str:
+        """Construye template SQL para N filas, reutilizando caché si existe.
+
+        Args:
+            num_rows: Número de filas en el sub-lote.
+            cols: Lista de nombres de columnas (sin comillas).
+            quoted_table: Nombre de tabla con comillas.
+            quoted_cols: Nombres de columnas con comillas, separados por `,`.
+
+        Returns:
+            SQL template como string (p.ej., "INSERT INTO t (a, b) VALUES (:p0_0, :p0_1), (:p1_0, :p1_1)")
+        """
+        cols_tuple: tuple[str, ...] = tuple(cols)
+        cache_key: tuple[int, tuple[str, ...]] = (num_rows, cols_tuple)
+
+        if cache_key in self._sql_template_cache:
+            cached_sql, _pattern = self._sql_template_cache[cache_key]
+            return cached_sql
+
+        # Construir template: VALUES (:p0_0, :p0_1, ...), (:p1_0, :p1_1, ...), ...
+        value_clauses: list[str] = []
+        for row_index in range(num_rows):
+            tokens: list[str] = []
+            for col_index in range(len(cols)):
+                bind_name: str = f"p{row_index}_{col_index}"
+                tokens.append(f":{bind_name}")
+            value_clauses.append(f"({', '.join(tokens)})")
+
+        template_sql: str = f"INSERT INTO {quoted_table} ({quoted_cols}) VALUES {', '.join(value_clauses)}"
+        # Guardar en caché
+        self._sql_template_cache[cache_key] = (template_sql, "")
+        return template_sql
 
     def execute(
         self,
@@ -204,17 +248,19 @@ class MySQLMultiRowInsertStrategy:
 
         for start in range(0, len(records), self._max_rows):
             sub_batch: Sequence[Mapping[str, Any]] = records[start : start + self._max_rows]
-            value_clauses: list[str] = []
+            num_rows: int = len(sub_batch)
+
+            # Obtener template (del caché si existe)
+            template_sql: str = self._build_sql_template(num_rows, cols, quoted_table, quoted_cols)
+
+            # Rellenar parámetros
             params: dict[str, Any] = {}
             for row_index, record in enumerate(sub_batch):
-                tokens: list[str] = []
                 for col_index, col in enumerate(cols):
                     bind_name: str = f"p{row_index}_{col_index}"
-                    tokens.append(f":{bind_name}")
                     params[bind_name] = record[col]
-                value_clauses.append(f"({', '.join(tokens)})")
-            sql: str = f"INSERT INTO {quoted_table} ({quoted_cols}) VALUES {', '.join(value_clauses)}"
-            connection.execute(text(sql), params)
+
+            connection.execute(text(template_sql), params)
 
 
 class InsertStrategyResolver:

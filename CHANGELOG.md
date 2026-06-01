@@ -7,6 +7,62 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] - develop
 
+### Documentation
+
+#### bulk: Guía de tuning de commit_cadence para cargas masivas en MariaDB/MySQL
+
+Se agregó documentación exhaustiva sobre `commit_every_n_chunks` en `BulkCrud`, que es **crítico**
+para evitar degradación exponencial de rendimiento en cargas masivas en MariaDB/MySQL.
+
+**Problema**: Sin commits intermedios, el undo log crece linealmente y el buffer pool se satura,
+causando degradación exponencial (latencia × 5–10 en millones de filas).
+
+**Solución**: Usar `commit_every_n_chunks` para emitir `COMMIT` cada N lotes, liberando el undo log
+periódicamente.
+
+Cambios:
+
+- **`BulkCrud.__init__` docstring** actualizado con tabla de recomendaciones por servidor
+  (`innodb_buffer_pool_size` → `commit_every_n_chunks`), ejemplos y advertencias de atomicidad.
+- **Nuevo ejemplo**: `docs/examples/benchmark_commit_cadence.py` — script reproducible que demuestra
+  el patrón de degradación vs. solución (100K–2M filas, compara sin/con cadencia).
+- **Nueva guía**: `docs/examples/benchmark_commit_cadence.md` — análisis detallado de la causa raíz,
+  tabla de recomendaciones por BD, caso de uso Oracle→MariaDB, y advertencias.
+  - **Sección 3 (NUEVA)**: "Configuración Crítica de MySQL/MariaDB" — Describe `innodb_buffer_pool_size` y `max_allowed_packet`
+    con comandos SHOW/SET, recomendaciones por tamaño de carga, e impacto en bulk inserts.
+    Incluye checklist pre-carga masiva.
+- **mkdocs.yml**: Agregado nuevo ejemplo "Benchmark: Commit Cadence" bajo sección Ejemplos.
+
+Referencia:
+- [bulk: Guía de Tuning › commit_every_n_chunks](docs/examples/benchmark_commit_cadence.md)
+- [BulkCrud.commit_every_n_chunks](src/util_bbdd/bulk/crud.py) (docstring actualizado)
+
+### Performance
+
+#### bulk: Caching de plantillas SQL en MySQLMultiRowInsertStrategy
+
+Se optimizó `MySQLMultiRowInsertStrategy` en `src/util_bbdd/bulk/_execution/batch.py`
+mediante caching de plantillas SQL. La estrategia evita reconstruir el mismo template SQL
+para sub-lotes de igual tamaño durante inserciones masivas en MySQL/MariaDB.
+
+**Beneficio**: 5–20% mejora de rendimiento en operaciones de 1M+ filas (reducción de CPU,
+menor asignación de memoria en construcción de strings).
+
+**Implementación**:
+- Nuevo atributo: `_sql_template_cache: dict[tuple[int, tuple[str, ...]], tuple[str, str]]`
+  crea caché por clave `(num_rows, columns_tuple)`.
+- Nuevo método: `_build_sql_template()` construye template una única vez y reutiliza
+  para sub-lotes del mismo tamaño.
+- Modificado: `execute()` ahora consulta caché antes de construir SQL.
+
+**Cambios**:
+- `src/util_bbdd/bulk/_execution/batch.py`: Nuevo método `_build_sql_template()`, caché inicializado en `__init__`.
+- `tests/unit/bulk/test_insert_strategies_cache.py` (nuevo): 11 tests de cobertura E2E (caché hit/miss, aislamiento, corrección funcional).
+
+Referencia:
+- [MySQLMultiRowInsertStrategy._build_sql_template()](src/util_bbdd/bulk/_execution/batch.py)
+- [Test suite: insert strategies cache](tests/unit/bulk/test_insert_strategies_cache.py)
+
 ## [0.10.0] - 2026-06-01
 
 ### Performance
