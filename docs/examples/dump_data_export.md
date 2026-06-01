@@ -150,7 +150,7 @@ config = DumpConfig(
 
 ## Interpretar el informe Excel
 
-El fichero `dump_report_<timestamp>.xlsx` contiene tres hojas:
+El fichero `dump_report_<timestamp>.xlsx` contiene tres hojas (cuatro si `manage_indexes=True`):
 
 ### Hoja 1 — Auditoría Tablas
 
@@ -172,6 +172,10 @@ Lista de tablas presentes en origen que no tienen correspondencia en destino. Pa
 ### Hoja 3 — Columnas Inexistentes
 
 Columnas presentes en origen pero ausentes en destino. Estas columnas se omitieron del volcado automáticamente.
+
+### Hoja 4 — Índices *(solo con `manage_indexes=True`)*
+
+Resultado de deshabilitar y reconstruir los índices secundarios por tabla: índice, dialecto, acción (`REBUILT`, `RECREATED`, `FAILED`, `UNSUPPORTED`) y mensaje de error si aplica.
 
 ---
 
@@ -247,6 +251,74 @@ print(lentas)
 ruta_excel = mgr.exportar_resumen_excel(agrupar_por="tabla")
 print(f"Resumen de auditoría: {ruta_excel}")
 ```
+
+---
+
+## Volcado de alto volumen con palancas de rendimiento
+
+Para esquemas grandes, `DumpConfig` expone cuatro palancas **opt-in** (todas desactivadas por defecto). Este ejemplo las combina: paraleliza tablas independientes, particiona las tablas grandes por rangos de PK, deshabilita índices secundarios durante la carga y acota el tamaño de transacción.
+
+```python
+from pathlib import Path
+from sqlalchemy import create_engine
+
+from util_bbdd.dump import DumpConfig, DumpOrchestrator
+
+# El pool debe tolerar la concurrencia total:
+#   pool_size + max_overflow >= max_parallel_tables * parallel_pk_ranges
+# (en AMBOS engines: origen para las lecturas, destino para los inserts).
+# Aquí 4 * 2 = 8 conexiones concurrentes → pool de 8 + 4 de overflow.
+src_engine = create_engine(
+    "postgresql+psycopg2://user:password@prod-server:5432/production_db",
+    pool_size=8, max_overflow=4,
+)
+dst_engine = create_engine(
+    "mssql+pymssql://user:password@analytics-server/analytics_db",
+    pool_size=8, max_overflow=4,
+)
+
+config = DumpConfig(
+    source_engine=src_engine,
+    target_engine=dst_engine,
+    source_schema="public",
+    target_schema="dbo",
+    chunk_size=10_000,
+    output_dir=Path("reports"),
+    truncate_target=True,
+    bulk_audit_path=Path("audit/dump_audit.csv"),  # auditoría concurrente-segura
+    # --- palancas de rendimiento ---
+    max_parallel_tables=4,        # tablas independientes en paralelo (mismo nivel FK)
+    parallel_pk_ranges=2,         # cada tabla con PK entera única → 2 rangos en paralelo
+    manage_indexes=True,          # deshabilita/reconstruye índices secundarios no únicos
+    commit_every_n_chunks=20,     # commit cada 20 lotes (acota la transacción)
+)
+
+result = DumpOrchestrator(config).run()
+
+# Resultado de la gestión de índices (None si manage_indexes=False)
+if result.index_results is not None:
+    for ir in result.index_results:
+        print(f"  [{ir.action.upper():11}] {ir.table_name}.{ir.index_name}")
+
+# La auditoría funciona bajo paralelismo (escrituras al CSV serializadas por lock)
+if result.audit_summary is not None:
+    print(f"Lotes INSERT registrados: {result.audit_summary.total_operaciones}")
+```
+
+!!! warning "Atomicidad y triggers"
+    Con `commit_every_n_chunks` la carga de cada tabla **deja de ser atómica**: un fallo a mitad deja committeados los lotes anteriores. Con `parallel_pk_ranges > 1` el destino **no** debe tener triggers per-fila dependientes del orden de inserción.
+
+!!! info "Degradación automática"
+    Si `pool_size + max_overflow` no alcanza `max_parallel_tables × parallel_pk_ranges`, el volcado **degrada** la concurrencia a la capacidad real del pool y emite un `WARNING` (no falla). Dimensiona los engines en consecuencia.
+
+### Cuándo activar cada palanca
+
+| Palanca | Actívala cuando… |
+|---|---|
+| `max_parallel_tables` | Hay muchas tablas medianas **independientes** (sin FK entre ellas) |
+| `parallel_pk_ranges` | Dominan **pocas tablas muy grandes** con PK de una única columna entera |
+| `manage_indexes` | Las tablas destino tienen **muchos índices secundarios** |
+| `commit_every_n_chunks` | Una tabla es tan grande que una sola transacción **desborda el undo/redo log** |
 
 ---
 
