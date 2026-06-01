@@ -173,6 +173,10 @@ class BulkCrud:
 
         # Detectar driver específico para SQL Server
         self.__detectar_sqlserver_driver()
+
+        # Validar y loguear configuración MySQL/MariaDB si aplica
+        self.__validate_mysql_config()
+
         self._persistence: BulkPersistenceManager = BulkPersistenceManager(
             engine_url=str(self.engine.url),
             logger=self.logger,
@@ -217,6 +221,57 @@ class BulkCrud:
             # Actualizar db_info con el driver específico
             self.db_info = f"MSSQL ({sqlserver_driver})"
             self.logger.debug(f"🟢 Driver SQL Server detectado: {sqlserver_driver}")
+
+    def __validate_mysql_config(self) -> None:
+        """Valida y loguea configuración MySQL/MariaDB para bulk operations.
+
+        Lee variables críticas (max_allowed_packet, innodb_buffer_pool_size)
+        e identifica potenciales problemas antes de cargas masivas.
+
+        Solo se ejecuta para motores 'mysql' o 'mariadb'; sin-op para otros.
+        """
+        if self.engine.dialect.name not in ("mysql", "mariadb"):
+            return
+
+        try:
+            from ..connection.mariadb import MySQLOptimalConfig, MySQLVariableValidator
+        except ImportError:
+            self.logger.debug("Módulos MySQL validation no disponibles; saltando validación")
+            return
+
+        try:
+            # Crear conexión temporal para leer variables
+            with self.engine.connect() as conn:
+                validator = MySQLVariableValidator(conn)
+
+                # Leer variables actuales
+                current_vars = validator.read_variables()
+                if current_vars:
+                    # Log informativo
+                    var_strs = [f"{k}={validator.format_bytes(v)}" for k, v in current_vars.items()]
+                    self.logger.info(f"MySQL/MariaDB variables: {', '.join(var_strs)}")
+
+                    # Obtener configuración recomendada
+                    recommended_config = MySQLOptimalConfig.production()
+                    required_vars = {
+                        "max_allowed_packet": recommended_config.max_allowed_packet,
+                        "innodb_buffer_pool_size": recommended_config.innodb_buffer_pool_size,
+                    }
+
+                    # Validar
+                    is_valid = validator.validate(required_vars)
+                    if not all(is_valid.values()):
+                        invalid_vars = [k for k, v in is_valid.items() if not v]
+                        self.logger.warning(
+                            f"Variables MySQL por debajo de lo recomendado: {', '.join(invalid_vars)}. "
+                            f"Para bulk operations, considera: "
+                            f"SET GLOBAL max_allowed_packet = 67108864; "
+                            f"SET GLOBAL innodb_buffer_pool_size = 1073741824; "
+                            f"(requiere privilegio SUPER o SYSTEM_VARIABLES_ADMIN)"
+                        )
+
+        except Exception as exc:
+            self.logger.debug(f"Error validando configuración MySQL: {exc}")
 
     def __validar_y_generar_path_sql(self, path_sql: Path | None, tabla_destino: str, operacion: str) -> Path:
         """

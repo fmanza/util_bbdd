@@ -10,18 +10,29 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from ._config import MySQLOptimalConfig
+    from ._variables import MySQLVariableValidator
     from .async_connection_mariadb import AsyncMariaDBConnection
     from .async_pool_connection_mariadb import AsyncMariaDBPool
     from .connection_mariadb import MariaDBConnection
     from .pool_connection_mariadb import PoolConnection
 
-__all__: list[str] = ["MariaDBConnection", "PoolConnection", "AsyncMariaDBConnection", "AsyncMariaDBPool"]
+__all__: list[str] = [
+    "MariaDBConnection",
+    "PoolConnection",
+    "AsyncMariaDBConnection",
+    "AsyncMariaDBPool",
+    "MySQLVariableValidator",
+    "MySQLOptimalConfig",
+]
 
 _SYMBOL_TO_MODULE: dict[str, str] = {
     "MariaDBConnection": "connection_mariadb",
     "PoolConnection": "pool_connection_mariadb",
     "AsyncMariaDBConnection": "async_connection_mariadb",
     "AsyncMariaDBPool": "async_pool_connection_mariadb",
+    "MySQLVariableValidator": "_variables",
+    "MySQLOptimalConfig": "_config",
 }
 
 

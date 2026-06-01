@@ -66,9 +66,7 @@ class TestConcurrentAuditWrites:
 
         def worker(idx: int) -> None:
             mgr = AuditManager(csv_path)
-            mgr.registrar_operacion(
-                tabla=f"t{idx}", motor="mssql", operacion="INSERT", rowcount=10, elapsed=0.5
-            )
+            mgr.registrar_operacion(tabla=f"t{idx}", motor="mssql", operacion="INSERT", rowcount=10, elapsed=0.5)
 
         threads = [threading.Thread(target=worker, args=(i,)) for i in range(5)]
         for t in threads:

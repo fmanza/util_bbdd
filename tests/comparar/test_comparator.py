@@ -637,12 +637,7 @@ class TestCrossEngineCaseInsensitiveColumns:
 
         # Pueden haber diffs de tipo (NUMBER vs INT es esperado cross-engine)
         # pero NUNCA diffs de existencia
-        existence_diffs = [
-            d
-            for td in diff.table_diffs
-            for d in td.column_diffs
-            if d.attribute == "existence"
-        ]
+        existence_diffs = [d for td in diff.table_diffs for d in td.column_diffs if d.attribute == "existence"]
         assert existence_diffs == [], f"Falsos diffs de existencia: {existence_diffs}"
 
     def test_extra_column_only_in_source_reports_canonical_name(self, comparator: SchemaComparator) -> None:
@@ -700,12 +695,7 @@ class TestCrossEngineCaseInsensitiveColumns:
 
         diff = comparator.compare(source, target)
 
-        pk_diffs = [
-            d
-            for td in diff.table_diffs
-            for d in td.column_diffs
-            if d.attribute == "primary_key"
-        ]
+        pk_diffs = [d for td in diff.table_diffs for d in td.column_diffs if d.attribute == "primary_key"]
         assert pk_diffs == [], f"Falsos diffs de primary_key: {pk_diffs}"
 
     def test_same_engine_same_case_no_regression(self, comparator: SchemaComparator) -> None:
@@ -2139,12 +2129,8 @@ class TestCrossEngineTableComparison:
     def test_multiple_tables_cross_engine_no_false_positives(self, comparator: SchemaComparator) -> None:
         """Todos los pares (Mixed_case → lowercase) se reconocen como tablas comunes."""
         col = [{"name": "id", "type": "INTEGER", "nullable": False, "default": None}]
-        source = _make_cross_engine_inspector(
-            {"Orders": col, "Customers": col, "Products": col}, dialect="mssql"
-        )
-        target = _make_cross_engine_inspector(
-            {"orders": col, "customers": col, "products": col}, dialect="postgresql"
-        )
+        source = _make_cross_engine_inspector({"Orders": col, "Customers": col, "Products": col}, dialect="mssql")
+        target = _make_cross_engine_inspector({"orders": col, "customers": col, "products": col}, dialect="postgresql")
 
         diff = comparator.compare(
             source, target, include_indices=False, include_foreign_keys=False, include_comments=False
@@ -2172,9 +2158,7 @@ class TestCrossEngineTableComparison:
         source = _make_cross_engine_inspector({"MyTable": col}, dialect="mssql")
         target = _make_cross_engine_inspector({"mytable": col}, dialect="postgresql")
 
-        comparator.compare(
-            source, target, include_indices=False, include_foreign_keys=False, include_comments=False
-        )
+        comparator.compare(source, target, include_indices=False, include_foreign_keys=False, include_comments=False)
 
         # El inspector origen debe haber recibido "MyTable"
         source_calls = [call[0][0] for call in source.get_columns.call_args_list]

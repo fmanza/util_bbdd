@@ -188,6 +188,43 @@ class MySQLMultiRowInsertStrategy:
         # Caché: (num_rows, cols_tuple) → (template_sql_string, placeholder_pattern)
         self._sql_template_cache: dict[tuple[int, tuple[str, ...]], tuple[str, str]] = {}
 
+    def get_min_max_allowed_packet(self, avg_row_bytes: int = 2000) -> int:
+        """Calcula el `max_allowed_packet` mínimo recomendado para esta estrategia.
+
+        Estima el tamaño máximo de una sentencia INSERT multi-fila basado en:
+        - Número máximo de filas por statement (max_rows_per_statement)
+        - Bytes promedio por fila (datos + overhead SQL parametrizado)
+        - Buffer de seguridad (50% extra para overhead de binding)
+
+        Args:
+            avg_row_bytes: Estimación de bytes promedio por fila en la sentencia SQL.
+                          Default 2000 bytes (típico para columnas normales).
+
+        Returns:
+            Tamaño mínimo recomendado en bytes.
+            Típicamente 64 MB (67108864) para max_rows_per_statement=1000.
+
+        Examples:
+            >>> strategy = MySQLMultiRowInsertStrategy(max_rows_per_statement=1000)
+            >>> min_packet = strategy.get_min_max_allowed_packet()
+            >>> print(min_packet)
+            67108864  # 64 MB
+        """
+        # Estimación: max_rows × avg_row_bytes × 1.5 (overhead SQL + binding + parsing)
+        estimated_size: int = int(self._max_rows * avg_row_bytes * 1.5)
+
+        # Redondear a potencia de 2 más cercana (recomendación práctica)
+        # Mínimo 32 MB, máximo 256 MB
+        # Usar recomendación de 64 MB como estándar para bulk operations
+        if estimated_size <= 16 * 1_048_576:
+            return 64 * 1_048_576  # 64 MB (standard para bulk)
+        elif estimated_size <= 64 * 1_048_576:
+            return 64 * 1_048_576  # 64 MB
+        elif estimated_size <= 128 * 1_048_576:
+            return 128 * 1_048_576  # 128 MB
+        else:
+            return 256 * 1_048_576  # 256 MB (máximo seguro)
+
     def _build_sql_template(
         self,
         num_rows: int,

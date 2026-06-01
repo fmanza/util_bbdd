@@ -88,7 +88,11 @@ class TestSQLServerRoutineEmitter:
         assert "-- PROCEDURE: [SP_TEST]" in ddl
 
     def test_routine_type_and_name_header_function(self) -> None:
-        r = _routine(name="FN_CALC", routine_type="FUNCTION", body="CREATE FUNCTION dbo.FN_CALC() RETURNS INT AS BEGIN RETURN 1 END")
+        r = _routine(
+            name="FN_CALC",
+            routine_type="FUNCTION",
+            body="CREATE FUNCTION dbo.FN_CALC() RETURNS INT AS BEGIN RETURN 1 END",
+        )
         ddl = _emitter().emit(tables=[], routines=[r])
         assert "-- FUNCTION: [FN_CALC]" in ddl
 

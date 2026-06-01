@@ -37,6 +37,59 @@ Referencia:
 - [bulk: Guía de Tuning › commit_every_n_chunks](docs/examples/benchmark_commit_cadence.md)
 - [BulkCrud.commit_every_n_chunks](src/util_bbdd/bulk/crud.py) (docstring actualizado)
 
+### Added
+
+#### connection/mariadb: validación automática de variables MySQL/MariaDB para bulk operations
+
+Se agregaron dos módulos nuevos (`_variables.py`, `_config.py`) para automatizar la validación
+y recomendación de configuración crítica de MySQL/MariaDB **antes** de cargas masivas.
+
+**Problema**: `max_allowed_packet` (default 16 MB) e `innodb_buffer_pool_size` (default 128–256 MB)
+insuficientes causan fallos en producción (`Lost connection to server (2013)`) o degradación exponencial
+sin avisos tempranos.
+
+**Solución**: Tres nuevas clases (read-only, sin breaking changes):
+
+1. **`MySQLVariableValidator`** (`connection.mariadb._variables.MySQLVariableValidator`)
+   - Lee variables críticas (`max_allowed_packet`, `innodb_buffer_pool_size`) vía `SHOW VARIABLES` (sin modificación)
+   - Método `validate(required)` compara actuales vs. requeridos, emite warnings
+   - Método `log_summary()` loguea estado actual + recomendaciones en log.info/warning
+   - **Permisos**: Solo lectura de `INFORMACIÓN_SCHEMA` (sin SUPER)
+
+2. **`MySQLOptimalConfig`** (`connection.mariadb._config.MySQLOptimalConfig`)
+   - Dataclass congelada con valores recomendados por workload:
+     - `dev()`: 256 MB buffer, 16 MB packet (default)
+     - `production()`: 1 GB buffer, 64 MB packet (estándar)
+     - `high_volume()`: 4 GB buffer, 128 MB packet (1M+ filas)
+   - Método `suggest(num_rows)` retorna configuración automática basada en tamaño de dataset
+
+3. **`MySQLMultiRowInsertStrategy.get_min_max_allowed_packet()`** (nuevo método)
+   - Calcula el `max_allowed_packet` mínimo recomendado basado en `max_rows_per_statement`
+   - Típicamente retorna 64 MB para max_rows=1000 (default)
+   - Permite a clientes proactivos validar configuración
+
+**Integración en BulkCrud**:
+- `BulkCrud.__init__` llamaahora `__validate_mysql_config()` para dialectos mysql/mariadb
+- Lee variables actuales + loguea recomendaciones en nivel INFO/WARNING (no lanzaexcepción, no breaking)
+- Ejemplo de log: `"MySQL variables: max_allowed_packet=16 MB, innodb_buffer_pool_size=128 MB"` +
+  `"WARNING: max_allowed_packet por debajo de mínimo: actual=16 MB, requerido=64 MB"`
+
+**Cambios**:
+- Nuevo archivo: `src/util_bbdd/connection/mariadb/_variables.py` (MySQLVariableValidator, 150 líneas)
+- Nuevo archivo: `src/util_bbdd/connection/mariadb/_config.py` (MySQLOptimalConfig, 110 líneas)
+- Modificado: `src/util_bbdd/connection/mariadb/__init__.py` (lazy-loaded exports)
+- Modificado: `src/util_bbdd/bulk/crud.py` (__validate_mysql_config method, ~40 líneas)
+- Modificado: `src/util_bbdd/bulk/_execution/batch.py` (MySQLMultiRowInsertStrategy.get_min_max_allowed_packet)
+- Nuevo: `tests/unit/connection/mariadb/test_mysql_variables_config.py` (18 tests)
+- Nuevo: `tests/unit/bulk/test_mysql_min_packet_calculation.py` (8 tests)
+
+**Backward compatibility**: 100% — nuevos módulos no afectan API pública, validación es opt-in (logging).
+
+Referencia:
+- [MySQLVariableValidator](src/util_bbdd/connection/mariadb/_variables.py)
+- [MySQLOptimalConfig](src/util_bbdd/connection/mariadb/_config.py)
+- [BulkCrud.__validate_mysql_config](src/util_bbdd/bulk/crud.py)
+
 ### Performance
 
 #### bulk: Caching de plantillas SQL en MySQLMultiRowInsertStrategy

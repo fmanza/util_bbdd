@@ -121,7 +121,9 @@ class RoutineFetcherRegistry:
                     func_create_result: CursorResult[Any] = conn.execute(
                         text(f"SHOW CREATE FUNCTION `{func_safe_name}`"),
                     )
-                    func_definition: str = _mariadb_ddl_from_row(func_create_result.mappings().first(), "Create Function")
+                    func_definition: str = _mariadb_ddl_from_row(
+                        func_create_result.mappings().first(), "Create Function"
+                    )
                     routines.append({"name": func_name, "type": "FUNCTION", "definition": func_definition})
         except (
             OperationalError,

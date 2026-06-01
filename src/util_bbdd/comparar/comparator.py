@@ -276,14 +276,10 @@ class SchemaComparator:
         diffs: list[TableDiff] = []
 
         # Tablas solo en source (nombre canónico del origen)
-        diffs.extend(
-            TableDiff(table_name=source_tables_lower[k], status="added") for k in sorted(only_source)
-        )
+        diffs.extend(TableDiff(table_name=source_tables_lower[k], status="added") for k in sorted(only_source))
 
         # Tablas solo en target (nombre canónico del destino)
-        diffs.extend(
-            TableDiff(table_name=target_tables_lower[k], status="removed") for k in sorted(only_target)
-        )
+        diffs.extend(TableDiff(table_name=target_tables_lower[k], status="removed") for k in sorted(only_target))
 
         # Tablas comunes: usar nombres canónicos de cada motor para consultas
         for key in sorted(common_keys):
@@ -307,7 +303,9 @@ class SchemaComparator:
             if include_indices:
                 idx_diffs = self._compare_indices(source, target, src_table, tgt_table, source_schema, target_schema)
             if include_foreign_keys:
-                fk_diffs = self._compare_foreign_keys(source, target, src_table, tgt_table, source_schema, target_schema)
+                fk_diffs = self._compare_foreign_keys(
+                    source, target, src_table, tgt_table, source_schema, target_schema
+                )
             if include_comments:
                 comment_diffs = self._compare_comments_from_raw(
                     source_cols_raw,
