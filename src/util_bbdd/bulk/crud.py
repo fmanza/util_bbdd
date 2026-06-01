@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 
-from collections.abc import Callable, Hashable, Iterable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Generator, Hashable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,6 +36,7 @@ from sqlalchemy import (
     and_,
     bindparam,
     insert,
+    text,
     update,
 )
 from sqlalchemy.exc import SQLAlchemyError
@@ -795,6 +796,174 @@ class BulkCrud:
     def obtener_valor_max_columna(self, tabla: Table, nombre_col: str) -> int:
         """Devuelve MAX(nombre_col)+1; retorna 1 si la columna está vacía o el máximo es negativo."""
         return get_max_column_value(self.engine, tabla, nombre_col)
+
+    @contextmanager
+    def maintenance_scope(
+        self,
+        tabla_destino: str,
+        disable_constraints: bool = True,
+        disable_indexes: bool = False,
+    ) -> Generator[None, None, None]:
+        """Context manager que prepara la tabla para una carga de alto volumen (>1M).
+
+        Deshabilita temporalmente las comprobaciones de integridad y (opcionalmente)
+        los índices para maximizar el rendimiento (throughput).
+
+        Soporte por motor:
+        - **MariaDB/MySQL**: Deshabilita `FOREIGN_KEY_CHECKS` a nivel de sesión.
+          Aplica `DISABLE KEYS` (aunque InnoDB suele ignorarlo).
+        - **PostgreSQL**: Ejecuta `ALTER TABLE ... DISABLE TRIGGER ALL`. Requiere ser
+          propietario de la tabla o superusuario.
+        - **SQL Server**: Ejecuta `ALTER TABLE ... NOCHECK CONSTRAINT ALL`. Persiste en
+          catálogo pero se restaura al salir del bloque.
+          Soporta `ALTER INDEX ALL ON ... DISABLE` si `disable_indexes=True`.
+
+        Args:
+            tabla_destino: Nombre de la tabla destino (acepta "esquema.tabla").
+            disable_constraints: Deshabilita FKs y triggers. Por defecto True.
+            disable_indexes: Deshabilita índices secundarios (MariaDB, MySQL y SQL Server).
+                Por defecto False.
+
+        Ejemplo:
+            >>> bulk = BulkCrud(engine)
+            >>> with bulk.bulk_session():
+            ...     with bulk.maintenance_scope("usuarios", disable_indexes=True):
+            ...         bulk.bulk_insert_from_df(df, "usuarios")
+
+        Raises:
+            RuntimeError: Si se invoca fuera de un :meth:`bulk_session` activo.
+        """
+        dialect: str = self.engine.dialect.name
+        executor = self._batch_statement_executor
+        tabla = self.reflect_table(tabla_destino)
+        quoted_name = self.engine.dialect.identifier_preparer.format_table(tabla)
+
+        conn = executor._active_connection
+        if conn is None:
+            raise RuntimeError(
+                "maintenance_scope requiere una sesión activa. "
+                "Úsalo siempre dentro de bulk_session(): "
+                "'with bulk.bulk_session():\\n    with bulk.maintenance_scope(...):\\n        ...'"
+            )
+
+        pg_disabled = False
+        mssql_constraints_disabled = False
+        mssql_indexes_disabled = False
+        try:
+            if disable_constraints:
+                pg_disabled, mssql_constraints_disabled = self.__maintenance_disable_constraints(
+                    conn, dialect, quoted_name, tabla, tabla_destino
+                )
+            if disable_indexes:
+                mssql_indexes_disabled = self.__maintenance_disable_indexes(
+                    conn, dialect, quoted_name, tabla_destino
+                )
+            self.logger.info(f"🛠️ Modo mantenimiento activado: {tabla_destino} ({dialect})")
+            yield
+        finally:
+            if disable_indexes:
+                self.__maintenance_enable_indexes(conn, dialect, quoted_name, mssql_indexes_disabled)
+            if disable_constraints:
+                self.__maintenance_enable_constraints(
+                    conn, dialect, quoted_name, pg_disabled, mssql_constraints_disabled
+                )
+            self.logger.debug(f"🛠️ Modo mantenimiento finalizado: {tabla_destino}")
+
+    def __maintenance_disable_constraints(
+        self,
+        conn: Any,
+        dialect: str,
+        quoted_name: str,
+        tabla: Table,
+        tabla_destino: str,
+    ) -> tuple[bool, bool]:
+        """Deshabilita constraints por motor; retorna (pg_disabled, mssql_disabled)."""
+        if dialect in ("mysql", "mariadb"):
+            conn.execute(text("SET SESSION FOREIGN_KEY_CHECKS=0"))
+            return False, False
+        if dialect == "postgresql":
+            can_disable = conn.execute(
+                text(
+                    "SELECT current_setting('is_superuser') = 'on' "
+                    "OR EXISTS ("
+                    "  SELECT 1 FROM pg_tables "
+                    "  WHERE schemaname = COALESCE(:schema, current_schema()) "
+                    "  AND tablename = :tbl AND tableowner = current_user"
+                    ")"
+                ),
+                {"schema": tabla.schema, "tbl": tabla.name},
+            ).scalar()
+            if can_disable:
+                conn.execute(text(f"ALTER TABLE {quoted_name} DISABLE TRIGGER ALL"))
+                return True, False
+            self.logger.warning(
+                f"⚠️ El usuario actual no tiene privilegios suficientes en PostgreSQL "
+                f"(requiere SUPERUSER o ser propietario de la tabla). "
+                f"Se omite DISABLE TRIGGER en {tabla_destino}."
+            )
+            return False, False
+        if dialect == "mssql":
+            conn.execute(text(f"ALTER TABLE {quoted_name} NOCHECK CONSTRAINT ALL"))
+            return False, True
+        return False, False
+
+    def __maintenance_disable_indexes(
+        self,
+        conn: Any,
+        dialect: str,
+        quoted_name: str,
+        tabla_destino: str,
+    ) -> bool:
+        """Deshabilita índices secundarios por motor; retorna True si SQL Server los deshabilitó."""
+        if dialect in ("mysql", "mariadb"):
+            self.logger.warning(
+                f"⚠️ DISABLE KEYS en {tabla_destino} solo afecta a tablas MyISAM. "
+                "En InnoDB (motor por defecto) este comando es ignorado por el servidor."
+            )
+            conn.execute(text(f"ALTER TABLE {quoted_name} DISABLE KEYS"))
+            return False
+        if dialect == "mssql":
+            has_clustered = conn.execute(
+                text("SELECT COUNT(*) FROM sys.indexes WHERE object_id = OBJECT_ID(:tbl) AND type = 1"),
+                {"tbl": tabla_destino},
+            ).scalar()
+            if has_clustered == 0:
+                conn.execute(text(f"ALTER INDEX ALL ON {quoted_name} DISABLE"))
+                return True
+            self.logger.warning(
+                f"⚠️ La tabla {tabla_destino} tiene un índice CLUSTERED. "
+                "Se omite la desactivación masiva de índices para mantener la tabla accesible."
+            )
+        return False
+
+    def __maintenance_enable_indexes(
+        self,
+        conn: Any,
+        dialect: str,
+        quoted_name: str,
+        mssql_disabled: bool,
+    ) -> None:
+        """Restaura índices deshabilitados por motor."""
+        if dialect in ("mysql", "mariadb"):
+            conn.execute(text(f"ALTER TABLE {quoted_name} ENABLE KEYS"))
+        elif dialect == "mssql" and mssql_disabled:
+            conn.execute(text(f"ALTER INDEX ALL ON {quoted_name} REBUILD"))
+
+    def __maintenance_enable_constraints(
+        self,
+        conn: Any,
+        dialect: str,
+        quoted_name: str,
+        pg_disabled: bool,
+        mssql_disabled: bool,
+    ) -> None:
+        """Restaura constraints deshabilitadas por motor."""
+        if dialect in ("mysql", "mariadb"):
+            conn.execute(text("SET SESSION FOREIGN_KEY_CHECKS=1"))
+        elif dialect == "postgresql" and pg_disabled:
+            conn.execute(text(f"ALTER TABLE {quoted_name} ENABLE TRIGGER ALL"))
+        elif dialect == "mssql" and mssql_disabled:
+            conn.execute(text(f"ALTER TABLE {quoted_name} WITH CHECK CHECK CONSTRAINT ALL"))
 
     def __generar_sql_insert(self, stmt: Insert, records: list[dict]) -> list[str]:
         """Genera SQL INSERT desde un statement y una lista de registros.
