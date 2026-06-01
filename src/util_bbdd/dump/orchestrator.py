@@ -705,7 +705,8 @@ class DumpOrchestrator:
         if not callable(size_fn):
             return None
         try:
-            base = int(size_fn())
+            size_result = size_fn()
+            base = int(size_result) if isinstance(size_result, (int, str, float)) else int(str(size_result))
             overflow_raw: Any = getattr(pool, "_max_overflow", 0) or 0
             overflow = int(overflow_raw)
         except (TypeError, ValueError):

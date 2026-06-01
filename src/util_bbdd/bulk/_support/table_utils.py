@@ -20,9 +20,7 @@ def get_max_column_value(engine: Engine, table: Table, column_name: str) -> int:
     Raises:
         ValueError: Si la columna no existe en la tabla.
     """
-    col: Column[Any] | None = next(
-        (c for c in table.columns if c.name.lower() == column_name.lower()), None
-    )
+    col: Column[Any] | None = next((c for c in table.columns if c.name.lower() == column_name.lower()), None)
     if col is None:
         raise ValueError(f"Columna '{column_name}' no encontrada en la tabla '{table.name}'")
 

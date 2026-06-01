@@ -92,10 +92,10 @@ class TestParallelBulkLoaderEndToEnd:
     def test_disjoint_partitions_all_persist(self, tmp_path: Path) -> None:
         engine = self._make_file_engine(tmp_path)
 
-        def reader_lo() -> object:
+        def reader_lo():
             return iter([pd.DataFrame({"id": [1, 2, 3], "name": ["a", "b", "c"]})])
 
-        def reader_hi() -> object:
+        def reader_hi():
             return iter([pd.DataFrame({"id": [4, 5], "name": ["d", "e"]})])
 
         loader = ParallelBulkLoader(engine, chunk_size=10, max_workers=2)
