@@ -220,7 +220,7 @@ results = await asyncio.gather(
 |---|---|---|---|
 | **Cadencia de commit** | `commit_every_n_chunks=N` | Tablas tan grandes que una sola transacción desborda el undo/redo log | La carga de la tabla deja de ser atómica |
 | **Gestión de índices** | `manage_indexes=True` | Tablas destino con muchos índices secundarios (el coste de mantenerlos por fila domina el INSERT) | En PostgreSQL es DROP+recreate (DDL logueado antes del DROP) |
-| **Paralelismo por tabla** | `max_parallel_tables=N` | Muchas tablas medianas independientes (mismo nivel topológico FK) | Auditoría de inserts por-operación desactivada |
+| **Paralelismo por tabla** | `max_parallel_tables=N` | Muchas tablas medianas independientes (mismo nivel topológico FK) | Los ciclos FK siguen secuenciales |
 | **Paralelismo por rangos PK** | `parallel_pk_ranges=N` | Pocas tablas muy grandes con PK entera única | Requiere destino sin triggers per-fila dependientes del orden |
 
 ### Cómo combinarlas

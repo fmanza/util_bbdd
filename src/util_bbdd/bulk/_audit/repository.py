@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import logging
+import threading
 
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +14,29 @@ import pandas as pd
 from .errors import AuditConfigError, AuditDataError, AuditFileError
 
 _ERR_NO_CSV_PATH = "❌ 'audit_csv_path' no está establecido."
+
+# Locks por-ruta compartidos a nivel de proceso. Permiten que múltiples instancias
+# AuditManager/AuditCsvRepository (p.ej. una BulkCrud por hilo en el volcado paralelo)
+# que apuntan al MISMO fichero CSV serialicen sus escrituras, evitando filas
+# intercaladas y cabeceras duplicadas. El alcance es intra-proceso (hilos): no
+# coordina escrituras entre procesos distintos.
+_FILE_LOCKS: dict[str, threading.Lock] = {}
+_FILE_LOCKS_GUARD = threading.Lock()
+
+
+def _get_file_lock(path: Path) -> threading.Lock:
+    """Devuelve el lock compartido para ``path`` (creándolo si no existe).
+
+    La clave se normaliza con ``resolve()`` para que rutas relativa y absoluta al
+    mismo fichero compartan el mismo lock.
+    """
+    key = str(path.resolve())
+    with _FILE_LOCKS_GUARD:
+        lock = _FILE_LOCKS.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _FILE_LOCKS[key] = lock
+        return lock
 
 
 class AuditCsvRepository:
@@ -83,26 +107,29 @@ class AuditCsvRepository:
         if self.audit_csv_path is None:
             raise AuditConfigError(_ERR_NO_CSV_PATH)
         self.audit_csv_path.parent.mkdir(parents=True, exist_ok=True)
-        file_exists: bool = self.audit_csv_path.exists()
 
-        with open(self.audit_csv_path, "a", newline="", encoding="utf-8") as file_handle:
-            writer = csv.writer(file_handle, delimiter="\t")
-            if not file_exists:
-                writer.writerow(self.columnas_auditoria)
+        # Sección crítica: existencia → cabecera → fila debe ser atómica frente a otros
+        # hilos que escriban el mismo CSV (volcado paralelo con una BulkCrud por hilo).
+        with _get_file_lock(self.audit_csv_path):
+            file_exists: bool = self.audit_csv_path.exists()
+            with open(self.audit_csv_path, "a", newline="", encoding="utf-8") as file_handle:
+                writer = csv.writer(file_handle, delimiter="\t")
+                if not file_exists:
+                    writer.writerow(self.columnas_auditoria)
 
-            tiempo_formateado: str = f"{elapsed:.3f}"
-            sql_texto: str = "Sí" if genero_sql else "No"
-            writer.writerow(
-                [
-                    datetime.now().isoformat(timespec="seconds"),
-                    tabla,
-                    motor,
-                    operacion,
-                    rowcount,
-                    tiempo_formateado,
-                    sql_texto,
-                ]
-            )
+                tiempo_formateado: str = f"{elapsed:.3f}"
+                sql_texto: str = "Sí" if genero_sql else "No"
+                writer.writerow(
+                    [
+                        datetime.now().isoformat(timespec="seconds"),
+                        tabla,
+                        motor,
+                        operacion,
+                        rowcount,
+                        tiempo_formateado,
+                        sql_texto,
+                    ]
+                )
 
     def leer_auditoria(self, usar_cache: bool = True) -> pd.DataFrame:
         """Lee el CSV de auditoría con soporte de caché temporal."""

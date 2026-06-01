@@ -137,7 +137,7 @@ El volcado expone cuatro palancas **opt-in** en `DumpConfig`, todas desactivadas
 |---|---|---|---|
 | **Cadencia de commit** | `commit_every_n_chunks=N` | Commitea cada N lotes en lugar de una transacción por tabla; acota el undo/redo log en tablas enormes | La carga de la tabla deja de ser atómica: un fallo a mitad deja committeados los lotes anteriores |
 | **Gestión de índices** | `manage_indexes=True` | Deshabilita/reconstruye índices secundarios no únicos (Fase 3b); acelera los INSERT | En PostgreSQL es DROP+recreate (DDL logueado antes del DROP) |
-| **Paralelismo por tabla** | `max_parallel_tables=N` | Carga en paralelo tablas independientes de un mismo nivel topológico FK (una `BulkCrud` por hilo) | Auditoría de inserts por-operación desactivada; ciclos FK siguen secuenciales |
+| **Paralelismo por tabla** | `max_parallel_tables=N` | Carga en paralelo tablas independientes de un mismo nivel topológico FK (una `BulkCrud` por hilo) | Los ciclos FK siguen secuenciales (la auditoría de inserts es concurrente-segura) |
 | **Paralelismo por rangos PK** | `parallel_pk_ranges=N` | Particiona una tabla con PK entera única en N rangos cargados en paralelo | Requiere destino sin triggers per-fila dependientes del orden |
 
 **Concurrencia y pool.** La concurrencia total (`max_parallel_tables × parallel_pk_ranges`) se acota a la capacidad real del pool (`pool_size + max_overflow`) de origen y destino; si la supera, el volcado **degrada** la concurrencia y emite un `WARNING`. Dimensiona los engines en consecuencia.
@@ -168,7 +168,7 @@ El volcado expone cuatro palancas **opt-in** en `DumpConfig`, todas desactivadas
 | Sin transacción global | Cada tabla se inserta en su propia transacción (`bulk_session`); no hay rollback global entre tablas |
 | Semántica table-atomic | Dentro de cada tabla, todos los chunks son atómicos: un error en cualquier chunk hace rollback de toda la tabla. **Excepción:** con `commit_every_n_chunks` activo la tabla deja de ser atómica (commit cada N lotes) |
 | Gestión de índices solo en 3 motores | SQL Server, Oracle, PostgreSQL (`manage_indexes`). MariaDB/MySQL InnoDB: no soportado (no-op). PostgreSQL es el único path destructivo (DROP+recreate) |
-| Paralelismo y auditoría | Con `max_parallel_tables > 1` la auditoría de inserts por-operación se desactiva (CSV no concurrente-seguro); `DumpResult.audit_summary` será `None` |
+| Paralelismo y auditoría | La auditoría de inserts funciona bajo `max_parallel_tables > 1`: las escrituras al CSV se serializan con un lock por-ruta (intra-proceso). `DumpResult.audit_summary` se popula normalmente |
 | Paralelismo por rangos PK | Solo tablas con PK de una única columna entera; requiere destino sin triggers per-fila dependientes del orden de inserción |
 | Constraint management solo en 4 motores | SQL Server, MariaDB, PostgreSQL, Oracle. Otros: no-op con warning |
 | El informe Excel usa openpyxl | Requiere la dependencia `openpyxl` instalada |

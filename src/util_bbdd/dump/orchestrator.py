@@ -564,12 +564,6 @@ class DumpOrchestrator:
         cfg = self._cfg
         position_of: dict[str, int] = {t: i for i, t in enumerate(effective_src_order)}
 
-        if cfg.bulk_audit_path is not None:
-            _log.warning(
-                "max_parallel_tables>1: la auditoría de inserts por-operación se desactiva "
-                "(el CSV no es seguro ante escrituras concurrentes)."
-            )
-
         noncycle = [t for t in effective_src_order if t not in cycle_set]
         cycle_tables = [t for t in effective_src_order if t in cycle_set]
         levels = DumpOrchestrator._topological_levels(noncycle, self._src_insp, cfg.source_schema)
@@ -661,12 +655,17 @@ class DumpOrchestrator:
                 _log.debug("No se pudo reflejar '%s' para PK sync: %s", dest_logical, exc)
 
     def _make_worker_crud(self) -> BulkCrud:
-        """Crea una ``BulkCrud`` dedicada (sin auditoría: el CSV no es concurrente-seguro)."""
+        """Crea una ``BulkCrud`` dedicada por hilo.
+
+        La auditoría es concurrente-segura: ``AuditCsvRepository`` serializa las
+        escrituras al mismo CSV mediante un lock por-ruta, por lo que cada worker
+        puede registrar inserts en ``bulk_audit_path`` sin intercalar filas.
+        """
         cfg = self._cfg
         return BulkCrud(
             cfg.target_engine,
             chunk_size=cfg.chunk_size,
-            audit_csv_path=None,
+            audit_csv_path=cfg.bulk_audit_path,
             commit_every_n_chunks=cfg.commit_every_n_chunks,
         )
 
