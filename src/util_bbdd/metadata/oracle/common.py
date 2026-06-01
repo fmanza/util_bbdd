@@ -56,14 +56,14 @@ def oracle_type_mapping() -> dict[str, str]:
     }
 
 
-def normalize_oracle_type(oracle_type: str) -> str:
+def normalize_oracle_type(oracle_type: str | None) -> str:
     """Normaliza un tipo Oracle al tipo genérico.
 
     Para tipos con precisión/escala (e.g., "NUMBER(10,2)"), extrae la palabra base.
     Si no está en el mapeo, devuelve "object".
 
     Args:
-        oracle_type: Tipo Oracle crudado del query (ej: "VARCHAR2", "NUMBER(10,2)")
+        oracle_type: Tipo Oracle crudado del query (ej: "VARCHAR2", "NUMBER(10,2)"), o None
 
     Returns:
         str: Tipo genérico normalizado o "object" si no se mapea

@@ -18,7 +18,7 @@ Fecha: Febrero 2026
 
 import json
 
-from collections.abc import Hashable, Iterator
+from collections.abc import Iterator, Sequence
 from typing import Any
 
 import numpy as np
@@ -131,7 +131,7 @@ def pandas_dtype_to_sqlalchemy(series: pd.Series) -> Any:
     return String(255)
 
 
-def iter_normalize_records(records: list[dict[Hashable, Any]]) -> Iterator[dict[str, Any]]:
+def iter_normalize_records(records: Sequence[dict[Any, Any]]) -> Iterator[dict[str, Any]]:
     """
     Procesa una secuencia de registros y los normaliza para SQL, devolviendo un iterador.
 
@@ -139,7 +139,7 @@ def iter_normalize_records(records: list[dict[Hashable, Any]]) -> Iterator[dict[
     ideal para conjuntos de datos muy grandes.
 
     Args:
-        records: Lista de diccionarios con datos a normalizar
+        records: Secuencia de diccionarios con datos a normalizar
 
     Yields:
         Diccionarios con claves y valores normalizados para SQL
@@ -152,15 +152,15 @@ def iter_normalize_records(records: list[dict[Hashable, Any]]) -> Iterator[dict[
     return ({str(k): normalize_sql_literal(v) for k, v in row.items()} for row in records)
 
 
-def normalize_records_for_sql(records: list[dict[Hashable, Any]]) -> list[dict[str, Any]]:
+def normalize_records_for_sql(records: Sequence[dict[Any, Any]]) -> list[dict[str, Any]]:
     """
-    Normaliza una lista de registros para SQL, devolviendo una nueva lista materializada.
+    Normaliza una secuencia de registros para SQL, devolviendo una nueva lista materializada.
 
     Esta función consume más memoria que `iter_normalize_records` pero es compatible
     con operaciones que requieren una lista completa (ej. acceso por índice, múltiples pasadas).
 
     Args:
-        records: Lista de diccionarios con datos a normalizar
+        records: Secuencia de diccionarios con datos a normalizar
 
     Returns:
         Nueva lista con registros normalizados

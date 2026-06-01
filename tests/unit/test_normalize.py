@@ -117,7 +117,9 @@ class TestNormalizeSqlLiteralStrings:
         assert normalize_sql_literal(99) == 99
 
     def test_native_float_passthrough(self) -> None:
-        assert normalize_sql_literal(1.5) == 1.5
+        result = normalize_sql_literal(1.5)
+        assert isinstance(result, float)
+        assert abs(result - 1.5) < 1e-10
 
     def test_native_bool_passthrough(self) -> None:
         assert normalize_sql_literal(True) is True
@@ -228,6 +230,7 @@ class TestPandasDtypeToSqlalchemy:
 
     def test_dict_object_series_returns_json(self) -> None:
         from sqlalchemy import JSON
+
         s = pd.Series([{"key": "val"}])
         result = pandas_dtype_to_sqlalchemy(s)
         assert result is JSON

@@ -154,7 +154,8 @@ class TestPostgresqlPoolFinalizationSafety:
         pool.logger = logging.getLogger(__name__)
         pool._closed = False
         pool._close_timeout_seconds = 10.0
-        pool.pool = _TrackingPool()
+        pool.pool = mock.MagicMock(spec=_TrackingPool)
+        pool.pool.close = _TrackingPool().close
 
         with mock.patch("sys.is_finalizing", return_value=True):
             pool.close(timeout_seconds=10.0, force=False)
@@ -179,7 +180,8 @@ class TestPostgresqlPoolFinalizationSafety:
         pool.logger = logging.getLogger(__name__)
         pool._closed = False
         pool._close_timeout_seconds = None
-        pool.pool = _TrackingPool()
+        pool.pool = mock.MagicMock(spec=_TrackingPool)
+        pool.pool.close = _TrackingPool().close
 
         with mock.patch("sys.is_finalizing", return_value=False):
             pool.close(timeout_seconds=None, force=False)

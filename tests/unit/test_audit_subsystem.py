@@ -69,9 +69,7 @@ def populated_manager(manager: AuditManager) -> AuditManager:
     manager._repository.registrar_operacion(
         tabla="orders", motor="sqlite", operacion="INSERT", rowcount=10, elapsed=0.5
     )
-    manager._repository.registrar_operacion(
-        tabla="users", motor="sqlite", operacion="UPDATE", rowcount=3, elapsed=0.2
-    )
+    manager._repository.registrar_operacion(tabla="users", motor="sqlite", operacion="UPDATE", rowcount=3, elapsed=0.2)
     return manager
 
 
@@ -99,9 +97,7 @@ class TestRepositoryWrite:
 
     def test_registrar_sin_path_lanza_error(self, repo_no_path: AuditCsvRepository) -> None:
         with pytest.raises(AuditConfigError):
-            repo_no_path.registrar_operacion(
-                tabla="t", motor="sqlite", operacion="INSERT", rowcount=1, elapsed=0.1
-            )
+            repo_no_path.registrar_operacion(tabla="t", motor="sqlite", operacion="INSERT", rowcount=1, elapsed=0.1)
 
     def test_multiples_filas_acumulan(self, populated_repo: AuditCsvRepository) -> None:
         df = populated_repo.leer_auditoria(usar_cache=False)
@@ -120,9 +116,7 @@ class TestRepositoryCache:
 
     def test_registrar_invalida_cache(self, populated_repo: AuditCsvRepository) -> None:
         populated_repo.leer_auditoria()
-        populated_repo.registrar_operacion(
-            tabla="new", motor="sqlite", operacion="INSERT", rowcount=1, elapsed=0.0
-        )
+        populated_repo.registrar_operacion(tabla="new", motor="sqlite", operacion="INSERT", rowcount=1, elapsed=0.0)
         assert not populated_repo.es_cache_valido()
 
     def test_usar_cache_false_relectura_directa(self, populated_repo: AuditCsvRepository) -> None:
@@ -318,5 +312,12 @@ class TestAuditTransaction:
             tx.agregar_operacion("t", "sqlite", "INSERT", 1, 0.0)
         resumen = tx.obtener_resumen()
         assert set(resumen.keys()) >= {
-            "nombre", "exito", "duracion_segundos", "total_operaciones", "total_filas", "operaciones"
+            "nombre",
+            "exito",
+            "duracion_segundos",
+            "total_operaciones",
+            "total_filas",
+            "operaciones",
         }
+        assert resumen["nombre"] == "resumen-test"
+        assert resumen["exito"] is True

@@ -126,9 +126,60 @@ def test_build_view_payload_exposes_excluded_diagram_policy_when_diagrams_are_en
 
     class _Provider:
         db_type = "postgresql"
+        database = "demo"
+        conn_params = {}
+        imprimir_config = {"COLUMNAS": []}
 
         def get_columns(self, table_name: str) -> list[tuple[Any, ...]]:
             return []
+
+        def get_query_context_database(self) -> Any:
+            return None
+
+        def get_tables(self) -> list[tuple[Any, ...]]:
+            return []
+
+        def get_views(self) -> list[tuple[Any, ...]]:
+            return []
+
+        def get_routines(self) -> list[tuple[Any, ...]]:
+            return []
+
+        def get_ddl(self, table_name: str) -> str:
+            return ""
+
+        def get_view_ddl(self, view_name: str) -> str:
+            return ""
+
+        def get_routine_ddl(self, routine_name: str, routine_type: str) -> str:
+            return ""
+
+        def get_routine_parameters(self, routine_name: str, routine_type: str) -> list[tuple[Any, ...]]:
+            return []
+
+        def get_primary_keys(self, table_name: str) -> list[tuple[Any, ...]]:
+            return []
+
+        def get_foreign_keys(self, table_name: str) -> list[tuple[Any, ...]]:
+            return []
+
+        def get_unique_constraints(self, table_name: str) -> list[tuple[Any, ...]]:
+            return []
+
+        def get_indices(self, table_name: str) -> list[tuple[Any, ...]]:
+            return []
+
+        def get_database_version(self) -> str:
+            return ""
+
+        def get_database_charset_collation(self) -> tuple[str, str]:
+            return ("", "")
+
+        def get_columns_charset_collation(self, table_name: str) -> list[tuple[Any, ...]]:
+            return []
+
+        def get_storage_inventory_report(self) -> dict[str, Any]:
+            return {}
 
     payload = generator._build_view_payload(
         view_name="v_users",
@@ -193,21 +244,60 @@ def test_build_table_payload_includes_tabbed_diagram_metadata(tmp_path: Path) ->
 
     class _Provider:
         db_type = "postgresql"
+        database = "demo"
+        conn_params: dict[str, Any] = {}
+        imprimir_config: dict[str, Any] = {"COLUMNAS": []}
+
+        def get_query_context_database(self) -> str:
+            return "demo"
+
+        def get_tables(self) -> list[tuple[Any, ...]]:
+            return []
+
+        def get_views(self) -> list[tuple[Any, ...]]:
+            return []
+
+        def get_routines(self) -> list[tuple[Any, ...]]:
+            return []
+
+        def get_ddl(self, table_name: str) -> str:
+            return ""
+
+        def get_view_ddl(self, view_name: str) -> str:
+            return ""
 
         def get_columns(self, table_name: str) -> list[tuple[Any, ...]]:
             return []
 
-        def get_primary_keys(self, table_name: str) -> list[str]:
+        def get_routine_ddl(self, routine_name: str, routine_type: str) -> str:
+            return ""
+
+        def get_routine_parameters(self, routine_name: str, routine_type: str) -> list[tuple[Any, ...]]:
+            return []
+
+        def get_primary_keys(self, table_name: str) -> list[tuple[Any, ...]]:
             return []
 
         def get_foreign_keys(self, table_name: str) -> list[tuple[Any, ...]]:
             return []
 
-        def get_unique_constraints(self, table_name: str) -> list[str]:
+        def get_unique_constraints(self, table_name: str) -> list[tuple[Any, ...]]:
             return []
 
         def get_indices(self, table_name: str) -> list[tuple[Any, ...]]:
             return []
+
+        def get_database_version(self) -> str:
+            return ""
+
+        def get_database_charset_collation(self) -> tuple[str, str]:
+            return ("", "")
+
+        def get_columns_charset_collation(self, table_name: str) -> list[tuple[Any, ...]]:
+            return []
+
+        def get_storage_inventory_report(self) -> dict[str, Any]:
+            return {}
 
     class _GraphGenerator:
         def generate_graphviz_level_graphs_ext(self, **kwargs: Any) -> dict[str, Any]:
@@ -236,7 +326,7 @@ def test_build_table_payload_includes_tabbed_diagram_metadata(tmp_path: Path) ->
         data_provider=_Provider(),
         section_flags=[False, False, False, False, False, False],
         include_diagrams=True,
-        graph_generator=_GraphGenerator(),
+        graph_generator=_GraphGenerator(),  # type: ignore
         diagram_options={"output_dir": output_dir / "graphs", "max_depth": 2, "direction": "both"},
         output_dir=output_dir,
         svg_navigation_links={"users": "../tables/users.html"},

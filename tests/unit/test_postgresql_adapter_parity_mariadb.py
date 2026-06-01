@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 import logging
 
@@ -92,6 +93,30 @@ class TestAdapterInstantiation:
             logger = logging.getLogger(__name__)
             db_cache = MagicMock()
 
+            def _cache_context_key(self, context: str) -> str:
+                return f"cache_{context}"
+
+            def _get_query_context_label(self) -> str:
+                return "test_query"
+
+            def _get_query_context_database(self) -> str:
+                return "test_db"
+
+            def _get_cached_rows(
+                self,
+                *,
+                cache_lookup,
+                cache_store,
+                fetch_rows,
+                cache_hit_message,
+                success_message,
+                fetch_debug_message=None,
+            ):
+                return fetch_rows()
+
+            def _execute_metadata_many(self, query_name: str, *, params, error_message: str):
+                return []
+
             def execute_custom_many(self, sql, params=None):
                 return []
 
@@ -108,8 +133,39 @@ class TestAdapterInstantiation:
             logger = logging.getLogger(__name__)
             db_cache = MagicMock()
 
+            def _cache_context_key(self, context: str) -> str:
+                return f"cache_{context}"
+
+            def _get_query_context_label(self) -> str:
+                return "test_query"
+
+            def _get_query_context_database(self) -> str:
+                return "test_db"
+
+            async def _get_cached_rows_async(
+                self,
+                *,
+                cache_lookup,
+                cache_store,
+                fetch_rows,
+                cache_hit_message: str | None,
+                success_message: str | None,
+                fetch_debug_message: str | None = None,
+            ) -> list:
+                await asyncio.sleep(0)
+                result = fetch_rows() if callable(fetch_rows) else []
+                return result if isinstance(result, list) else []
+
+            async def _execute_metadata_many(self, query_name: str, *, params, error_message: str):
+                await asyncio.sleep(0)
+                return []
+
             async def execute_custom_many(self, sql, params=None):
                 return []
+
+            async def execute_custom_one(self, sql, params=None):
+                await asyncio.sleep(0)
+                return None
 
         manager = MockAsyncManager()
         adapter = PostgreSQLAsyncAdapter(manager)
@@ -121,7 +177,52 @@ class TestAdapterInstantiation:
             logger = logging.getLogger(__name__)
             db_cache = MagicMock()
 
+            def _cache_context_key(self, context: str) -> str:
+                return f"cache_{context}"
+
+            def _get_query_context_label(self) -> str:
+                return "test_query"
+
+            def _get_query_context_database(self) -> str:
+                return "test_db"
+
+            def _get_cached_rows(
+                self,
+                *,
+                cache_lookup,
+                cache_store,
+                fetch_rows,
+                cache_hit_message,
+                success_message,
+                fetch_debug_message=None,
+            ):
+                return fetch_rows()
+
+            def _execute_metadata_many(self, query_name: str, *, params, error_message: str):
+                return []
+
             def execute_custom_many(self, sql, params=None):
+                return []
+
+            def execute_custom_one(self, sql):
+                return None
+
+            def get_tables(self):
+                return []
+
+            def get_columns(self, tabla: str):
+                return []
+
+            def get_primary_keys(self, tabla: str):
+                return []
+
+            def get_foreign_keys(self, tabla: str):
+                return []
+
+            def get_indices(self, tabla: str):
+                return []
+
+            def execute_query_many(self, query_name: str, **kwargs):
                 return []
 
         manager = MockManager()

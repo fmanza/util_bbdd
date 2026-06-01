@@ -34,6 +34,9 @@ class _FakeDbManager:
     def get_query_context_database(self) -> str:
         return self.database
 
+    def get_primary_keys(self, table_name: str) -> list[tuple[str, ...]]:
+        return [("id",)]
+
 
 def test_build_graph_document_tracks_incoming_and_outgoing_levels() -> None:
     manager = _FakeDbManager(

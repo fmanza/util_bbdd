@@ -30,11 +30,16 @@ def _make_manager_with_cache() -> MagicMock:
     manager = MagicMock()
     cache = DatabaseMetadataCache()
     type(manager).db_cache = PropertyMock(return_value=cache)
-    manager._get_cached_rows.side_effect = lambda *, cache_lookup, cache_store, fetch_rows, **_: (
-        (cached := cache_lookup(), cached if cached is not None else (cache_store(result := fetch_rows()) or result))[0]
-        if False
-        else (cached if (cached := cache_lookup()) is not None else (lambda r: (cache_store(r), r)[1])(fetch_rows()))
-    )
+
+    def _get_cached_rows_impl(*, cache_lookup, cache_store, fetch_rows, **_):
+        cached = cache_lookup()
+        if cached is not None:
+            return cached
+        result = fetch_rows()
+        cache_store(result)
+        return result
+
+    manager._get_cached_rows.side_effect = _get_cached_rows_impl
     return manager
 
 
