@@ -168,7 +168,7 @@ class ParallelBulkLoader:
             size_attr = getattr(pool, "size", None)
             if not callable(size_attr):
                 return
-            size: int = size_attr()
+            size = size_attr()
             if isinstance(size, int) and size < self._max_workers:
                 _log.warning(
                     "connection pool size (%d) < max_workers (%d): los workers adicionales "
