@@ -1,11 +1,11 @@
-"""Tests de RangePartitioner (particionamiento por rango de PK)."""
+"""Tests de RangePartitioner y HashPartitioner (particionamiento para carga paralela)."""
 
 from __future__ import annotations
 
 import pandas as pd
 import pytest
 
-from util_bbdd.bulk import RangePartitioner
+from util_bbdd.bulk import HashPartitioner, RangePartitioner
 
 
 class TestPartitionRanges:
@@ -129,3 +129,62 @@ class TestPartitionDataframe:
         second_part_ids = sorted(parts[1]["id"].tolist())
         # primer grupo tiene los IDs más bajos
         assert max(first_part_ids) < min(second_part_ids)
+
+
+class TestHashPartitioner:
+    """F-01: HashPartitioner acepta cualquier tipo hashable (str, UUID, int…)."""
+
+    def test_all_rows_covered(self) -> None:
+        df = pd.DataFrame({"pk": ["alpha", "beta", "gamma", "delta", "epsilon"]})
+        parts = HashPartitioner.partition_dataframe(df, "pk", 3)
+        combined = pd.concat(parts)
+        assert len(combined) == 5
+        assert set(combined["pk"].tolist()) == set(df["pk"].tolist())
+
+    def test_partitions_are_disjoint(self) -> None:
+        df = pd.DataFrame({"pk": [f"item_{i}" for i in range(50)]})
+        parts = HashPartitioner.partition_dataframe(df, "pk", 4)
+        all_vals = [v for p in parts for v in p["pk"].tolist()]
+        assert len(all_vals) == len(set(all_vals))
+
+    def test_string_column_accepted(self) -> None:
+        df = pd.DataFrame({"pk": ["a", "b", "c", "d"]})
+        parts = HashPartitioner.partition_dataframe(df, "pk", 2)
+        assert sum(len(p) for p in parts) == 4
+
+    def test_integer_column_accepted(self) -> None:
+        df = pd.DataFrame({"pk": list(range(12))})
+        parts = HashPartitioner.partition_dataframe(df, "pk", 3)
+        assert sum(len(p) for p in parts) == 12
+
+    def test_empty_df_returns_single_empty_partition(self) -> None:
+        df = pd.DataFrame({"pk": pd.Series([], dtype=str)})
+        parts = HashPartitioner.partition_dataframe(df, "pk", 3)
+        assert len(parts) == 1
+        assert parts[0].empty
+
+    def test_n_partitions_one_returns_full_df(self) -> None:
+        df = pd.DataFrame({"pk": ["x", "y", "z"]})
+        parts = HashPartitioner.partition_dataframe(df, "pk", 1)
+        assert len(parts) == 1
+        assert len(parts[0]) == 3
+
+    def test_n_partitions_zero_raises(self) -> None:
+        df = pd.DataFrame({"pk": ["a", "b"]})
+        with pytest.raises(ValueError, match="n_partitions"):
+            HashPartitioner.partition_dataframe(df, "pk", 0)
+
+    def test_missing_col_raises(self) -> None:
+        df = pd.DataFrame({"pk": ["a", "b"]})
+        with pytest.raises(ValueError, match="'no_existe'"):
+            HashPartitioner.partition_dataframe(df, "no_existe", 2)
+
+    def test_result_has_no_empty_partitions(self) -> None:
+        df = pd.DataFrame({"pk": ["only_one_value"] * 10})
+        parts = HashPartitioner.partition_dataframe(df, "pk", 4)
+        assert all(len(p) > 0 for p in parts)
+
+    def test_total_rows_preserved_with_many_partitions(self) -> None:
+        df = pd.DataFrame({"pk": [f"k{i}" for i in range(200)]})
+        parts = HashPartitioner.partition_dataframe(df, "pk", 8)
+        assert sum(len(p) for p in parts) == 200

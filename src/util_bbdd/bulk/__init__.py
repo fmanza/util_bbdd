@@ -10,7 +10,7 @@ Consolidación de:
 """
 
 from ._execution.parallel_loader import ParallelBulkLoader, ParallelLoadResult, PartitionResult
-from ._execution.range_partitioner import RangePartitioner
+from ._execution.range_partitioner import HashPartitioner, RangePartitioner
 from ._models import PKSyncResult
 from .audit import AuditError, AuditManager, AuditTransaction
 from .crud import BulkCrud, bulk_crud
@@ -24,7 +24,8 @@ __all__: list[str] = [
     "ParallelBulkLoader",
     "ParallelLoadResult",
     "PartitionResult",
-    # Particionamiento por rango para cargas masivas
+    # Particionamiento para cargas masivas
+    "HashPartitioner",
     "RangePartitioner",
     # Resultados de sync PK
     "PKSyncResult",

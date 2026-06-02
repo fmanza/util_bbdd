@@ -140,4 +140,62 @@ class RangePartitioner:
             )
 
 
-__all__: list[str] = ["RangePartitioner"]
+class HashPartitioner:
+    """Particiones por hash de columna para tipos no admitidos por ``RangePartitioner``.
+
+    A diferencia de :class:`RangePartitioner`, acepta cualquier tipo hashable
+    (``str``, ``UUID``, ``bytes``, etc.) usando ``pandas.util.hash_pandas_object``
+    para asignar cada fila al bucket ``hash % n_partitions``.
+
+    La distribución es estadísticamente uniforme para columnas con alta cardinalidad,
+    pero no garantiza particiones del mismo tamaño. Para PKs enteras o datetime se
+    recomienda :class:`RangePartitioner` (distribución garantizada por posición).
+
+    Ejemplo::
+
+        partitions = HashPartitioner.partition_dataframe(df, pk_col="uuid_col", n_partitions=4)
+        readers = [lambda df=p: iter([df]) for p in partitions]
+        result = ParallelBulkLoader(engine, max_workers=4).load("orders", readers)
+    """
+
+    @staticmethod
+    def partition_dataframe(
+        df: pd.DataFrame,
+        pk_col: str,
+        n_partitions: int,
+    ) -> list[pd.DataFrame]:
+        """Divide ``df`` en hasta ``n_partitions`` particiones usando hash de ``pk_col``.
+
+        Cada fila se asigna al bucket ``hash(pk_col) % n_partitions``. Los buckets vacíos
+        no se incluyen en el resultado, por lo que la lista puede tener menos de
+        ``n_partitions`` elementos si la columna tiene baja cardinalidad.
+
+        Args:
+            df: DataFrame a particionar.
+            pk_col: Columna por la que particionar. Acepta cualquier tipo hashable.
+            n_partitions: Número máximo de particiones. Debe ser ≥ 1.
+
+        Returns:
+            Lista de DataFrames disjuntos. Puede tener menos de ``n_partitions``
+            elementos si algún bucket hash queda vacío.
+
+        Raises:
+            ValueError: Si ``pk_col`` no existe en ``df`` o ``n_partitions < 1``.
+        """
+        if n_partitions < 1:
+            raise ValueError(f"n_partitions debe ser ≥ 1, recibido: {n_partitions}")
+        if pk_col not in df.columns:
+            raise ValueError(f"Columna '{pk_col}' no existe en el DataFrame.")
+        if df.empty:
+            return [df.iloc[:0].copy()]
+
+        hash_vals = pd.util.hash_pandas_object(df[pk_col], index=False)
+        assignments = hash_vals % n_partitions
+        return [
+            df[assignments == bucket].copy()
+            for bucket in range(n_partitions)
+            if (assignments == bucket).any()
+        ]
+
+
+__all__: list[str] = ["HashPartitioner", "RangePartitioner"]
