@@ -117,11 +117,11 @@ class AuditCsvRepository:
                 if not file_exists:
                     writer.writerow(self.columnas_auditoria)
 
-                tiempo_formateado: str = f"{elapsed:.3f}"
+                tiempo_formateado: str = f"{elapsed:.3f}".replace(".", ",")
                 sql_texto: str = "Sí" if genero_sql else "No"
                 writer.writerow(
                     [
-                        datetime.now().isoformat(timespec="seconds"),
+                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         tabla,
                         motor,
                         operacion,
