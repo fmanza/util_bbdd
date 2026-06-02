@@ -9,7 +9,8 @@ Consolidación de:
 - normalize.py - Funciones de normalización de datos para SQL
 """
 
-from ._execution.parallel_loader import ParallelBulkLoader, ParallelLoadResult
+from ._execution.parallel_loader import ParallelBulkLoader, ParallelLoadResult, PartitionResult
+from ._execution.range_partitioner import RangePartitioner
 from ._models import PKSyncResult
 from .audit import AuditError, AuditManager, AuditTransaction
 from .crud import BulkCrud, bulk_crud
@@ -22,6 +23,9 @@ __all__: list[str] = [
     # Carga masiva paralela por particiones
     "ParallelBulkLoader",
     "ParallelLoadResult",
+    "PartitionResult",
+    # Particionamiento por rango para cargas masivas
+    "RangePartitioner",
     # Resultados de sync PK
     "PKSyncResult",
     # Auditoría
