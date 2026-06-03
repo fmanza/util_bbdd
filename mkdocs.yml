@@ -29,6 +29,7 @@ exclude_docs: |
   FASE6_FINAL_AUDIT_REPORT.md
   v0.8.0/RELEASE_v0.8.0.md
   examples/imprimir_config_full_example.toml
+  API_REFERENCE.md
 
 nav:
   - Inicio: index.md
@@ -46,6 +47,7 @@ nav:
       - Operaciones de Datos:
           - Operaciones Bulk (CRUD): functional/bulk-operations.md
           - Auditoría de Operaciones Bulk: functional/bulk-audit.md
+          - Carga Masiva Paralela: functional/bulk-parallel-loading.md
       - Queries y Validación:
           - Registro de Queries: functional/query-registry.md
           - Ejecución de Consultas: functional/query-execution.md
@@ -66,7 +68,7 @@ nav:
 
   # ── Audiencia: Desarrolladores, ingenieros de datos, DBAs ──────────────────
   - Referencia Técnica:
-      - Referencia Rápida: API_REFERENCE.md
+      - Índice de Referencia: api/intro.md
       - Managers:
           - Manager Síncrono: api/managers-sync.md
           - Manager Síncrono (Técnico): api/managers-sync-technical.md
@@ -82,6 +84,7 @@ nav:
           - MySQL Variables Validator: api/mysql-variables.md
           - Carga Masiva Paralela: api/bulk-parallel.md
           - Auditoría Bulk: api/bulk-audit.md
+          - Normalización de Datos: api/normalize.md
       - Sistema de Queries:
           - Registry y Resolver: api/query-system.md
           - Ejecución de Consultas: api/query-execution.md
@@ -89,7 +92,8 @@ nav:
       - Comparación de Esquemas:
           - Comparador y Reporters: api/schema-comparator.md
       - Volcado de Datos:
-          - Orquestador y Reporters: api/dump.md
+          - Orquestador: api/dump.md
+          - Generador de Reportes: api/dump-reporter.md
       - Migración de Esquemas:
           - API Oracle (origen): api/migrate-oracle-mariadb.md
           - API MariaDB (origen): api/migrate-mariadb-source.md
@@ -103,8 +107,9 @@ nav:
           - Índice: api/index.md
           - Managers: api/managers.md
           - Comparador: api/comparator.md
-          - Reporters: api/reporters.md
+          - Comparador Diff Reporters: api/reporters.md
           - Bulk Operations: api/bulk.md
+          - Dump: api/dump-autodoc.md
           - Excepciones: api/exceptions.md
 
   # ── Guías de uso y operación ───────────────────────────────────────────────
@@ -118,10 +123,10 @@ nav:
       - Migración v0.6.6→v0.6.7: MIGRATION_GUIDE_v0.6.7.md
       - Performance & Benchmarks: BENCHMARKS.md
       - "Herramientas IA":
-          - Guía completa (VS Code): examples/doc_generation_vscode_guide.md
-          - Copilot Chat (.github): examples/github_usage_complete_example.md
-          - Claude Code: examples/claude_code_usage_complete_example.md
-          - Codex (OpenAI): examples/codex_usage_complete_example.md
+          - Guía completa (VS Code): doc_generation_vscode_guide.md
+          - Copilot Chat (.github): github_copilot_guide.md
+          - Claude Code: claude_code_guide.md
+          - Codex (OpenAI): codex_guide.md
 
   # ── Ejemplos de código ─────────────────────────────────────────────────────
   - Ejemplos:
@@ -133,6 +138,7 @@ nav:
       - Queries Concurrentes (Async): examples/async_concurrent_queries.md
       - "Validación de Variables MySQL/MariaDB": examples/mysql-variables-example.md
       - Bulk Insert desde CSV: examples/bulk_insert_csv.md
+      - Carga Masiva Paralela: examples/parallel_bulk_insert.md
       - "Benchmark: Commit Cadence": examples/benchmark_commit_cadence.md
       - Manejo de Excepciones: examples/exception_handling.md
       - Generación de Grafos: examples/graph_generation.md
@@ -146,9 +152,9 @@ nav:
   # ── Contexto del proyecto ──────────────────────────────────────────────────
   - Arquitectura:
       - ADR-001 Refactoring: adr/ADR-001-STRUCTURE-REFACTORING.md
-  - Roadmap & Planificación:
-      - PLAN v0.8.0 Type System: v0.8.0/PLAN_v0.8.0_TYPE_SYSTEM_IMPROVEMENTS.md
-  - Versiones Históricas: legacy-versions.md
+      - Plantilla ADR: adr/ADR-TEMPLATE.md
+      - Roadmap v0.8.0: v0.8.0/PLAN_v0.8.0_TYPE_SYSTEM_IMPROVEMENTS.md
+      - Versiones Históricas: legacy-versions.md
 
 theme:
   name: material

@@ -1,54 +1,70 @@
-## Objetivo de negocio
+# Selección de Driver de Conexión
 
-Oculta la complejidad de seleccionar y cargar el driver correcto para cada motor de base de datos. El resto de la librería solicita una conexión indicando solo el tipo de motor y los parámetros; `ConnectionFactory` resuelve qué driver usar, cómo inicializarlo y si el motor soporta conexiones asíncronas.
+## 1. Descripción General
 
-Esto permite que los managers y otros componentes sean independientes del driver concreto: cambiar de `psycopg2` a `asyncpg` para PostgreSQL, por ejemplo, no afecta al código que usa el manager.
+Oculta la complejidad de seleccionar y cargar el driver correcto para cada motor de base de datos. El resto de la librería solicita una conexión indicando solo el tipo de motor y los parámetros; la factoría resuelve qué driver usar, cómo inicializarlo y si el motor soporta conexiones asíncronas.
 
-## Precondiciones
+Esto permite que los gestores y otros componentes sean independientes del driver concreto: cambiar de `psycopg2` a `asyncpg` para PostgreSQL, por ejemplo, no afecta al código que usa el gestor.
+
+**Precondiciones:**
 
 - Driver Python instalado para el motor objetivo (`psycopg2`, `asyncpg`, `cx_Oracle`, `pyodbc`, `aiomysql`, etc.)
-- Tipo de motor reconocido por `util_bbdd`: MariaDB, MySQL, PostgreSQL, Oracle, SQL Server, SQLite, Snowflake, Redshift o HSQLDB
+- Tipo de motor reconocido: MariaDB, MySQL, PostgreSQL, Oracle, SQL Server, SQLite, Snowflake, Redshift o HSQLDB
 - Parámetros de conexión completos según el motor (host, port, database, user, password y cualquier parámetro driver-específico)
 
-## Flujo principal del usuario
-
-```mermaid
-sequenceDiagram
-    actor Mgr as Manager (Sync o Async)
-    participant CF as ConnectionFactory
-    participant Reg as Registro de builders
-    participant Drv as Driver nativo
-
-    Mgr->>CF: create_sync_connection(db_type, conn_params)
-    CF->>Reg: ¿Builder registrado para db_type?
-    alt Builder ya registrado
-        Reg-->>CF: Builder disponible
-    else Lazy load
-        CF->>Reg: _register_lazy_async_builders(db_type)
-        Reg-->>CF: Builder cargado
-    end
-    CF->>Drv: Ejecutar builder(conn_params)
-    Drv-->>CF: Conexión nativa
-    CF-->>Mgr: Conexión lista
-
-    alt Motor sin soporte async
-        Mgr->>CF: create_async_connection(db_type, ...)
-        CF-->>Mgr: NotImplementedError
-    end
-```
-
-## Reglas de negocio críticas
+## 2. Reglas de Negocio
 
 | Regla | Descripción | Impacto si se viola |
 |---|---|---|
 | Lazy loading de builders | Los builders async se cargan bajo demanda la primera vez que se solicita el motor | Si el driver no está instalado, el error aparece en la primera petición, no al importar la librería |
-| Registro extensible | Nuevos motores se añaden con `register_async_connection(db_type, builder)` sin modificar la factory | Sin registrar el builder, el motor no estará disponible para conexiones async |
-| Normalización del tipo de motor | `db_type` se convierte a minúsculas y se elimina espacio antes de buscar el builder | Usar `"PostgreSQL"` y `"postgresql"` como clave produce el mismo resultado |
-| `NotImplementedError` para async no soportado | Si el motor no tiene soporte async declarado, se lanza `NotImplementedError` | Los managers async capturan este error y caen a conexión directa sync |
+| Registro extensible | Nuevos motores se añaden mediante registro sin modificar la factoría | Sin registrar el builder, el motor no estará disponible para conexiones async |
+| Normalización del tipo de motor | El tipo de motor se convierte a minúsculas antes de buscar el builder | Usar `"PostgreSQL"` y `"postgresql"` produce el mismo resultado |
+| Error controlado para async no soportado | Si el motor no tiene soporte async declarado, se indica con error controlado | Los gestores async capturan este error y caen a conexión directa sync |
 
-## Límites y exclusiones
+## 3. Casos de Uso
 
-- No gestiona el ciclo de vida de la conexión (apertura, cierre, pool): eso lo hace `_manager_lifecycle`
+### Flujo principal
+
+```mermaid
+sequenceDiagram
+    actor Mgr as Gestor (Sync o Async)
+    participant CF as Factoría de Conexiones
+    participant Reg as Registro de builders
+    participant Drv as Driver nativo
+
+    Mgr->>CF: Solicitar conexión (tipo motor, parámetros)
+    CF->>Reg: ¿Builder registrado para este motor?
+    alt Builder ya registrado
+        Reg-->>CF: Builder disponible
+    else Lazy load
+        CF->>Reg: Cargar builder bajo demanda
+        Reg-->>CF: Builder cargado
+    end
+    CF->>Drv: Ejecutar builder con parámetros
+    Drv-->>CF: Conexión nativa lista
+    CF-->>Mgr: Conexión lista
+
+    alt Motor sin soporte async
+        Mgr->>CF: Solicitar conexión async para motor no soportado
+        CF-->>Mgr: Error controlado (motor no soporta async)
+    end
+```
+
+### Flujos alternativos
+
+**Motor async no soportado:** Cuando el gestor asíncrono solicita una conexión para un motor sin soporte async declarado, recibe un error controlado y puede caer de forma transparente a una conexión directa síncrona.
+
+**Límites y exclusiones:**
+
+- No gestiona el ciclo de vida de la conexión (apertura, cierre, pool): eso lo hace el gestor
 - No valida las credenciales: la validación ocurre cuando el driver intenta conectar
 - No cachea conexiones: cada llamada crea una conexión nueva
-- No configura parámetros de pool: la configuración del pool es responsabilidad del manager que lo solicita
+- No configura parámetros de pool: la configuración del pool es responsabilidad del gestor
+
+## 4. Glosario y Términos
+
+| Término | Definición |
+|---|---|
+| Builder | Función registrada en la factoría que sabe cómo instanciar la conexión nativa de un motor específico |
+| Lazy loading | Técnica de cargar el driver del motor solo cuando se solicita por primera vez, no al iniciar la librería |
+| Driver nativo | Librería Python que implementa el protocolo de comunicación específico del motor de base de datos (`psycopg2`, `cx_Oracle`, etc.) |

@@ -1,10 +1,8 @@
-## Responsabilidad del módulo
+# Sistema de Validadores (DatabaseTypeValidator)
 
-Define la interfaz abstracta `DatabaseTypeValidator` que todos los validadores de motor deben implementar, y expone `get_type_validator(db_type)` como punto de entrada para obtener el validador concreto de cada motor. El `QueryResolver` usa este subsistema para validar parámetros antes de interpolar SQL.
+Define la interfaz abstracta `DatabaseTypeValidator` que todos los validadores de motor deben implementar, y expone `get_type_validator(db_type)` como punto de entrada para obtener el validador concreto de cada motor.
 
-Motores con validador concreto: MariaDB, MySQL, Oracle, PostgreSQL, SQL Server, SQLite, HSQLDB.
-
-## Diagrama
+## 1. Arquitectura y Diseño
 
 ```mermaid
 classDiagram
@@ -45,30 +43,32 @@ classDiagram
     DatabaseTypeValidator <|-- SQLServerValidator
 ```
 
-## API pública
+## 2. Modelo de Datos / Contratos
 
-### Clase abstracta `DatabaseTypeValidator`
+### API pública
+
+#### Clase abstracta `DatabaseTypeValidator`
 
 | Elemento | Tipo | Descripción |
 |---|---|---|
 | `db_type` | `str` (atributo de clase) | Identificador del motor que valida |
 | `validate_parameters` | `abstractmethod (query_def, params) → tuple[bool, list[str]]` | Valida parámetros y retorna `(is_valid, warnings)` |
 
-### Función de acceso
+#### Función de acceso
 
 | Función | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
 | `get_type_validator` | `(db_type)` | Obtiene el validador concreto para el motor | `DatabaseTypeValidator` |
 
-## Contrato de entrada
+### Contrato de entrada
 
 | Parámetro | Tipo | Descripción | Restricciones |
 |---|---|---|---|
-| `query_def` | `QueryDefinition` | Definición de la query con `required_params` declarados | Proporcionado por `QueryRegistry` |
+| `query_def` | `QueryDefinition` | Definición de la query con `required_params` | Proporcionado por `QueryRegistry` |
 | `params` | `dict[str, Any]` | Parámetros a validar | Puede estar vacío si la query no requiere parámetros |
 | `db_type` | `str` | Tipo de motor en `get_type_validator` | Debe coincidir con un motor registrado |
 
-## Contrato de salida
+### Contrato de salida
 
 - **`validate_parameters`** — siempre retorna `tuple[bool, list[str]]`:
   - `(True, [])` — validación correcta sin advertencias.
@@ -76,14 +76,34 @@ classDiagram
   - `(False, ["error..."])` — validación fallida; el `QueryResolver` lanzará `QueryValidationError`.
 - **`get_type_validator`** — instancia del validador concreto para el motor indicado.
 
-## Errores y casos especiales
+### Errores y casos especiales
 
 | Error | Cuándo ocurre |
 |---|---|
-| `KeyError` / `ValueError` | `get_type_validator` con un `db_type` no registrado |
-| `TypeError` | Instanciar una subclase que no implementa `validate_parameters` |
+| `KeyError` / `ValueError` | `get_type_validator` con `db_type` no registrado |
+| `TypeError` | Subclase sin implementar `validate_parameters` al instanciarla |
 
-**Casos especiales:**
-- El contrato prohíbe explícitamente lanzar excepciones dentro de `validate_parameters`: los errores deben retornarse como `(False, [mensaje])`. Una excepción no controlada en un validador rompe el `QueryResolver`.
-- Las advertencias (`list[str]` con `is_valid=True`) permiten validaciones permisivas: el llamador puede registrar los avisos o ignorarlos sin interrumpir el flujo.
-- Cada motor tiene exactamente una subclase concreta. No existe herencia entre validadores de distintos motores.
+**Contrato crítico:** está prohibido lanzar excepciones dentro de `validate_parameters`. Los errores deben retornarse como `(False, [mensaje])`. Una excepción no controlada en un validador rompe el `QueryResolver`.
+
+## 3. Componentes y Clases
+
+| Clase | Responsabilidad |
+|---|---|
+| `DatabaseTypeValidator` | Interfaz abstracta; contrato para todos los validadores |
+| `MariaDBValidator` | Reglas de validación específicas para MariaDB |
+| `OracleValidator` | Reglas de validación específicas para Oracle |
+| `PostgreSQLValidator` | Reglas de validación específicas para PostgreSQL |
+| `SQLiteValidator` | Reglas de validación específicas para SQLite |
+| `HSQLDBValidator` | Reglas de validación específicas para HSQLDB |
+| `SQLServerValidator` | Reglas de validación específicas para SQL Server |
+
+## 4. Dependencias y Requisitos
+
+| Dependencia | Propósito | Requerida | Comportamiento sin ella |
+|---|---|---|---|
+| `QueryDefinition` (de `query-system`) | Definición de la query a validar | Sí | Sin `QueryDefinition` no hay nada que validar |
+
+## 5. Ejemplos Relacionados
+
+!!! info "Ejemplo en preparación"
+    Pendiente — crear ejemplo en docs/examples/validators-system.md

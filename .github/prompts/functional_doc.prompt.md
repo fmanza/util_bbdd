@@ -11,44 +11,52 @@ Actúa como Senior Product Owner especializado en documentación de producto par
 Analiza el módulo Python proporcionado, la documentación existente relacionada y el contexto
 real del repositorio. No asumas capacidades por el nombre histórico del proyecto.
 
-Genera un documento Markdown con estas secciones en este orden exacto:
+Genera un documento Markdown siguiendo el Arquetipo 1 con estas secciones en este orden exacto:
 
-## Objetivo de negocio
-Qué problema de negocio resuelve este módulo específico (1-2 párrafos).
-Evita jerga técnica. Habla en términos de valor para el usuario final.
+# [Título del Módulo/Funcionalidad]
 
-## Precondiciones
-Lista de requisitos que deben cumplirse antes de usar este módulo.
-Incluye: datos de entrada, configuraciones previas, dependencias externas.
+## 1. Descripción General
+Contexto de negocio y objetivo (2-3 párrafos). Evita jerga técnica.
+Habla en términos de valor para el usuario final.
 
-## Flujo principal del usuario
+## 2. Reglas de Negocio
+Tabla con columnas: | Regla | Descripción | Impacto si se viola |
+Incluye solo las reglas con impacto en la corrección del resultado.
+
+## 3. Casos de Uso
+
+### Flujo principal
 Un diagrama Mermaid sequenceDiagram que muestre la interacción entre:
 - El actor principal (usuario, pipeline CI/CD, etc.)
 - Los componentes del módulo (sin nombres de clases internas)
 - El sistema externo relevante si existe
 - La salida generada
 
-## Reglas de negocio críticas
-Tabla con columnas: | Regla | Descripción | Impacto si se viola |
-Incluye solo las reglas con impacto en la corrección del resultado.
+### Flujos alternativos
+Casos de error, variantes de uso o condiciones excepcionales.
+Si no hay flujos alternativos verificables: "*No aplica para este módulo.*"
 
-## Ejemplo de funcionamiento
-Incluye un ejemplo genérico y verificable de uso cuando el módulo lo permita.
-No uses credenciales reales ni servicios externos obligatorios. Si no hay ejemplo seguro,
-indica qué falta para construirlo.
+## 4. Criterios de Aceptación
+[SECCIÓN PENDIENTE DE VALIDACIÓN QA — incluir ÚNICAMENTE el siguiente placeholder:]
+*Pendiente de definición con el equipo QA. Estructura prevista:
+Tabla | ID | Criterio | Verificable con |
+Redacción: "Dado X, cuando Y, entonces Z."*
 
-## Límites y exclusiones
-Qué NO hace este módulo. Máximo 5 ítems en lista.
+## 5. Glosario y Términos
+Tabla con columnas: | Término | Definición |
+Solo términos de dominio específicos de este módulo.
+Si no hay términos específicos: "*No aplica para este módulo.*"
 
 ---
 
 Restricciones:
+- Si una sección queda vacía, escribe "*No aplica para este módulo.*" — nunca omitas la sección
 - NO expliques nombres de variables, clases internas ni implementación
 - NO menciones rutas de archivos a menos que sean de configuración del usuario
 - USA terminología de negocio, no técnica
 - NO uses la directiva --8<-- para incluir código; embebe el código directamente en los bloques fenced
 - NO inventes capacidades, flujos, integraciones, salidas ni reglas
-- Si falta información, crea una sección breve "Pendiente de verificación" con preguntas concretas
+- Si falta información, añade subsección "### Pendiente de verificación" con preguntas concretas
 - Responde SOLO con el Markdown, sin texto introductorio ni cierre
 ```
 
@@ -113,6 +121,7 @@ Usa etiquetas en español. Máximo 12 nodos.
 
 ## Output esperado
 
-Un fichero Markdown con las secciones funcionales, al menos un diagrama Mermaid `sequenceDiagram`
-cuando el flujo sea inferible, una tabla de reglas de negocio y un ejemplo de funcionamiento si
-puede verificarse sin inventar datos.
+Un fichero Markdown con las 5 secciones del Arquetipo 1 numeradas (`## 1.`–`## 5.`), título H1,
+al menos un diagrama Mermaid `sequenceDiagram` en `## 3.`, tabla de reglas en `## 2.`,
+`## 4. Criterios de Aceptación` con el placeholder de pendiente QA,
+y `## 5. Glosario` con tabla o `*No aplica para este módulo.*`.

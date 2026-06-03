@@ -1,170 +1,67 @@
-# Migración PostgreSQL → Oracle / MariaDB / SQL Server
+# Migración PostgreSQL como Origen
 
-## Descripción funcional
+## 1. Descripción General
 
-El módulo `migrate` soporta migración DDL **desde PostgreSQL** como motor origen hacia
-tres motores destino: Oracle, MariaDB y SQL Server. El flujo de trabajo es idéntico al
-de Oracle, MariaDB y SQL Server como fuentes: extraer metadatos → transformar tipos → emitir DDL.
+Genera automáticamente el script SQL de creación de estructura (DDL) de un schema PostgreSQL completo, listo para ejecutarse en Oracle, MariaDB o SQL Server. Cubre tablas, columnas, claves primarias, claves foráneas, índices, vistas y tipos de datos, adaptando cada elemento a las reglas del motor destino.
 
-## Precondiciones
+El flujo de trabajo es idéntico al de otros motores origen: extraer metadatos desde `INFORMATION_SCHEMA` y `pg_catalog` → transformar tipos → emitir DDL ordenado por dependencias.
 
-- Conexión activa al esquema PostgreSQL origen (manager compatible con `execute_custom_many`).
-- Driver Python compatible: **psycopg2** o **psycopg3** (param style `%(name)s`).
-- El parámetro `schema` corresponde a `TABLE_SCHEMA` en PostgreSQL (habitualmente `'public'`).
-- La conexión debe apuntar a la base de datos correcta.
+**Precondiciones:**
 
-## Flujo principal
+- Conexión activa al schema PostgreSQL origen compatible con el gestor de BD
+- Driver Python compatible: `psycopg2` o `psycopg3` (param style `%(name)s`)
+- El parámetro `schema` corresponde a `TABLE_SCHEMA` en PostgreSQL (habitualmente `'public'`)
+- La conexión debe apuntar a la base de datos correcta
+
+## 2. Reglas de Negocio
+
+| Regla | Descripción | Impacto si se viola |
+|---|---|---|
+| Detección de SERIAL como autoincremento | Columnas SERIAL/BIGSERIAL/SMALLSERIAL se detectan por su `COLUMN_DEFAULT` de tipo `nextval(...)` | Sin detección, la columna se genera sin autoincremento en el destino |
+| `CHARACTER VARYING` sin límite → LOB | `character varying` sin longitud produce tipo LOB en el destino (CLOB, LONGTEXT o NVARCHAR(MAX)) | Posible cambio de semántica de almacenamiento; aviso incluido en el plan |
+| Índices no-PK via pg_catalog | Los índices secundarios se obtienen de `pg_catalog.pg_index`, no de `INFORMATION_SCHEMA` | Sin este paso, los índices secundarios no se incluyen en el DDL generado |
+| Vistas: pass-through sin reescritura | Las vistas se emiten sin traducir el SQL PL/pgSQL-específico | Aviso de revisión manual por cada vista; el cuerpo requiere adaptación al dialecto destino |
+| FKs circulares al final del script | Las dependencias circulares se emiten como `ALTER TABLE ADD CONSTRAINT` al final | El script completo es ejecutable en orden sin desactivar comprobaciones de FK |
+
+## 3. Casos de Uso
+
+### Flujo principal
 
 ```mermaid
 flowchart TD
-    PL["MigrationPlanner\n(source='postgresql')"]
-    EX["PostgreSQLSchemaExtractor\n(INFORMATION_SCHEMA\npg_catalog.pg_index)"]
-    TR_OR["PostgreSQLToOracleTransformer"]
-    TR_MB["PostgreSQLToMariaDBTransformer"]
-    TR_SS["PostgreSQLToSQLServerTransformer"]
-    EM_OR["OracleDDLEmitter\n(SEQUENCE+TRIGGER\no GENERATED AS IDENTITY)"]
-    EM_MB["MariaDBDDLEmitter\n(AUTO_INCREMENT)"]
-    EM_SS["SQLServerDDLEmitter\n(IDENTITY 1,1)"]
-    OUT["MigrationPlan\n.emit_ddl() → .sql\n.execute(target)"]
+    PL["Planificador\n(source='postgresql')"]
+    EX["Extractor PostgreSQL\n(INFORMATION_SCHEMA\npg_catalog)"]
+    TR_OR["Transformador → Oracle"]
+    TR_MB["Transformador → MariaDB"]
+    TR_SS["Transformador → SQL Server"]
+    EM["Generadores DDL\n(por motor destino)"]
+    OUT["Plan de Migración\n.emit_ddl() → .sql\n.execute(target)"]
 
     PL --> EX
     EX --> TR_OR & TR_MB & TR_SS
-    TR_OR --> EM_OR
-    TR_MB --> EM_MB
-    TR_SS --> EM_SS
-    EM_OR & EM_MB & EM_SS --> OUT
+    TR_OR & TR_MB & TR_SS --> EM
+    EM --> OUT
 ```
 
-## Reglas de negocio
+### Flujos alternativos
 
-### Detección de auto_increment (SERIAL)
+**Stored procedures y funciones:** El módulo extrae el cuerpo desde `INFORMATION_SCHEMA.ROUTINES` verbatim con un aviso de revisión manual. La sintaxis PL/pgSQL no se traduce automáticamente.
 
-Las columnas `SERIAL`, `BIGSERIAL` y `SMALLSERIAL` de PostgreSQL se definen en `INFORMATION_SCHEMA` como
-tipos `integer`/`bigint`/`smallint` con `COLUMN_DEFAULT = nextval('tablename_colname_seq'::regclass)`.
-El extractor detecta este patrón y activa `auto_increment=True`.
+**Tipos sin equivalente directo:** Tipos PostgreSQL-específicos (`ARRAY`, `TSVECTOR`, `USER-DEFINED`) se mapean al tipo LOB más cercano del motor destino con severidad ERROR en el plan de avisos.
 
-Los emitters destino generan:
-- **Oracle**: `SEQUENCE` + `BEFORE INSERT TRIGGER`
-- **MariaDB**: `AUTO_INCREMENT`
-- **SQL Server**: `IDENTITY(1,1)`
+**Límites y exclusiones:**
 
-### CHARACTER VARYING sin límite
+- Solo soporta PostgreSQL como motor origen (destinos: Oracle, MariaDB, SQL Server)
+- No migra filas de datos, solo la estructura (DDL)
+- Los comentarios de columna no se incluyen en esta versión
+- Los tipos espaciales, arrays y enums se mapean a tipos de texto con aviso de severidad ERROR
+- `asyncpg` usa `$1, $2, ...` como param style; requiere un wrapper para usar con este módulo
 
-`character varying` sin longitud explícita devuelve `CHARACTER_MAXIMUM_LENGTH = NULL` en `INFORMATION_SCHEMA`.
-A diferencia de SQL Server (donde `-1` indica `MAX`), en PostgreSQL `NULL` indica "sin límite".
+## 4. Glosario y Términos
 
-Mapeo de `CHARACTER VARYING` con `char_length=None`:
-
-| Destino | Tipo generado |
+| Término | Definición |
 |---|---|
-| Oracle | `CLOB` |
-| MariaDB | `LONGTEXT` |
-| SQL Server | `NVARCHAR(MAX)` |
-
-### Tipos multi-palabra
-
-PostgreSQL usa tipos multi-palabra en `INFORMATION_SCHEMA.COLUMNS.DATA_TYPE`:
-
-| PostgreSQL DATA_TYPE | Normalizado (uppercase) | Ejemplo destino Oracle |
-|---|---|---|
-| `character varying` | `CHARACTER VARYING` | `VARCHAR2(n)` |
-| `timestamp without time zone` | `TIMESTAMP WITHOUT TIME ZONE` | `TIMESTAMP` |
-| `timestamp with time zone` | `TIMESTAMP WITH TIME ZONE` | `TIMESTAMP WITH TIME ZONE` |
-| `time without time zone` | `TIME WITHOUT TIME ZONE` | `VARCHAR2(15)` |
-| `bit varying` | `BIT VARYING` | `VARCHAR2(n)` |
-
-### Índices no-PK
-
-`INFORMATION_SCHEMA` no expone índices en PostgreSQL. Se usa `pg_catalog.pg_index` con
-`generate_subscripts(ix.indkey, 1)` para garantizar el orden correcto de columnas
-en índices compuestos (compatible con PostgreSQL 8.4+).
-
-### Vistas (v1 pass-through)
-
-Las vistas se emiten **sin reescritura** del SQL fuente. Se añade un `MigrationWarning` de
-severidad `WARNING` indicando que las funciones PostgreSQL-específicas
-(`NOW()`, `CURRENT_TIMESTAMP`, `COALESCE`, `EXTRACT`, `GENERATE_SERIES`, etc.) requieren
-revisión manual antes de ejecutar en el motor destino.
-
-### FKs externas
-
-Si una FK referencia una tabla en un schema distinto al migrado, se marca `is_external=True`
-y se emite como `ALTER TABLE` al final del script, con un `WARNING` para verificación manual.
-
-## Stored procedures y funciones
-
-El módulo migra stored procedures y funciones PostgreSQL con estrategia **pass-through v1**:
-el cuerpo DDL se extrae desde `INFORMATION_SCHEMA.ROUTINES` (`ROUTINE_DEFINITION`) y se emite
-verbatim acompañado de cabecera identificativa y aviso de revisión manual.
-
-```sql
--- FUNCTION: "calcular_total"
--- NOTE: requires manual review (see migration warnings)
-BEGIN
-  RETURN (SELECT SUM(importe) FROM pedidos WHERE cliente_id = p_id);
-END
-```
-
-Las rutinas se incluyen al final del script DDL. La sintaxis PL/pgSQL (`$$`, `RETURNS`,
-`LANGUAGE plpgsql`, `RAISE`, etc.) no se traduce automáticamente; el aviso indica que
-el body requiere adaptación al dialecto destino.
-
-## Limitaciones v1
-
-| Limitación | Descripción |
-|---|---|
-| Vistas y rutinas sin reescritura | Las funciones PostgreSQL-específicas no se traducen automáticamente |
-| Comentarios de columna | `pg_description` omitido en v1 |
-| Tipos espaciales | `POINT`, `POLYGON`, etc. se mapean a VARCHAR/CLOB/LONGTEXT con severidad `ERROR` |
-| `TSVECTOR`/`TSQUERY` | Se mapean a CLOB/LONGTEXT/NVARCHAR(MAX) con severidad `ERROR` |
-| `ARRAY` | Se mapea a CLOB/LONGTEXT/NVARCHAR(MAX) con severidad `ERROR` |
-| `USER-DEFINED` (enums) | Se mapea a CLOB/LONGTEXT/NVARCHAR(MAX) con severidad `ERROR` |
-| Param style asyncpg | asyncpg usa `$1, $2, ...`; requiere wrapper de manager |
-
-## Uso
-
-```python
-from util_bbdd.migrate import MigrationPlanner
-
-# PostgreSQL → Oracle
-planner = MigrationPlanner(
-    source_engine="postgresql",
-    target_engine="oracle",
-)
-plan = planner.plan(connection=pg_manager, schema="public")
-ddl = plan.emit_ddl()
-print(ddl)
-
-# PostgreSQL → MariaDB
-planner = MigrationPlanner(
-    source_engine="postgresql",
-    target_engine="mariadb",
-    charset="utf8mb4",
-    collation="utf8mb4_unicode_ci",
-)
-plan = planner.plan(connection=pg_manager, schema="public")
-ddl = plan.emit_ddl()
-
-# PostgreSQL → SQL Server
-planner = MigrationPlanner(
-    source_engine="postgresql",
-    target_engine="sqlserver",
-    sql_server_collation="SQL_Latin1_General_CP1_CI_AS",  # opcional
-)
-plan = planner.plan(connection=pg_manager, schema="public")
-ddl = plan.emit_ddl()
-```
-
-## Warnings frecuentes
-
-| Tipo origen | Decisión | Severidad |
-|---|---|---|
-| `BOOLEAN` | → `NUMBER(1,0)` en Oracle | WARNING |
-| `TIMESTAMP WITH TIME ZONE` | → `DATETIME(6)` en MariaDB (TZ perdida) | WARNING |
-| `JSON`/`JSONB` | → `CLOB`/`LONGTEXT`/`NVARCHAR(MAX)` | WARNING |
-| `CHARACTER VARYING(n>4000)` | → `CLOB` en Oracle | WARNING |
-| `INTERVAL` | → `VARCHAR(30)` en MariaDB/SQL Server | WARNING |
-| `INET`/`CIDR` | → `VARCHAR2(45)` / `VARCHAR(45)` | WARNING |
-| `TSVECTOR`/`TSQUERY` | → CLOB equivalente | ERROR |
-| `ARRAY` | → CLOB equivalente | ERROR |
-| Vistas | SQL sin reescritura | WARNING |
+| SERIAL / BIGSERIAL | Tipos PostgreSQL que definen columnas con autoincremento mediante una secuencia interna |
+| `TABLE_SCHEMA` | Nombre del schema en PostgreSQL tal como aparece en `INFORMATION_SCHEMA.TABLES` (habitualmente `'public'`) |
+| Pass-through | Estrategia que emite el código fuente de vistas/rutinas sin modificarlo, con aviso de revisión manual |
+| `pg_catalog` | Catálogo interno de PostgreSQL que expone metadatos avanzados no disponibles en `INFORMATION_SCHEMA` estándar |

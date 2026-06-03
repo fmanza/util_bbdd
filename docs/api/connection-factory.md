@@ -1,8 +1,8 @@
-## Responsabilidad del módulo
+# Factory de Conexiones (ConnectionFactory)
 
-Factory centralizado para crear conexiones nativas sync y async según el tipo de motor. Mantiene un registro de builders async (uno por motor), los carga bajo demanda (lazy loading) y verifica si el motor soporta conexiones asíncronas antes de intentar crearlas. Los managers nunca importan drivers directamente: siempre pasan por `ConnectionFactory`.
+Factory centralizado para crear conexiones nativas sync y async según el tipo de motor, con registro lazy de builders por motor y verificación de soporte async antes de intentar la conexión.
 
-## Diagrama
+## 1. Arquitectura y Diseño
 
 ```mermaid
 flowchart TD
@@ -24,39 +24,52 @@ flowchart TD
     E --> O
 ```
 
-## API pública
+## 2. Modelo de Datos / Contratos
+
+### API pública
 
 | Función/Clase | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `ConnectionFactory` | — | Factory (no se instancia; todos sus métodos son `@staticmethod`) | — |
+| `ConnectionFactory` | — | Factory de solo métodos estáticos; no se instancia | — |
 | `register_async_connection` | `(db_type, builder)` *(estático)* | Registra builder async para un motor | `None` |
 | `create_async_connection` | `async (db_type, conn_params, **kwargs)` *(estático)* | Crea conexión async con lazy loading | `Any` |
 | `create_sync_connection` | `(db_type, conn_params, **kwargs)` *(estático)* | Crea conexión sync nativa del motor | `Any` |
 
-## Contrato de entrada
+### Contrato de entrada
 
 | Parámetro | Tipo | Descripción | Restricciones |
 |---|---|---|---|
-| `db_type` | `str` | Tipo de motor de base de datos | Se normaliza a minúsculas; debe ser un motor reconocido |
-| `conn_params` | `dict[str, Any]` | Parámetros de conexión nativos del driver | Estructura específica por motor y driver |
-| `builder` | `Callable[..., Any]` | Callable que recibe `conn_params` y retorna conexión o corrutina | Puede ser corrutina (async) o función síncrona; `ConnectionFactory` detecta y adapta |
-| `**kwargs` | `Any` | Parámetros adicionales al builder | Opcionales; se pasan directamente al builder del driver |
+| `db_type` | `str` | Tipo de motor | Se normaliza a minúsculas |
+| `conn_params` | `dict[str, Any]` | Parámetros de conexión nativos del driver | Estructura específica por motor |
+| `builder` | `Callable[..., Any]` | Callable que recibe `conn_params` y retorna conexión o corrutina | Puede ser sync o async; `ConnectionFactory` detecta y adapta |
 
-## Contrato de salida
+### Contrato de salida
 
-- **`create_async_connection`** — objeto de conexión async del driver (`asyncpg.Connection`, `aiomysql.Connection`, etc.); tipo opaco dependiente del motor.
-- **`create_sync_connection`** — objeto de conexión sync (`pyodbc.Connection`, `cx_Oracle.Connection`, etc.); tipo opaco dependiente del motor.
-- **`register_async_connection`** — `None`; efecto secundario: registra el builder en `_async_connection_builders` (dict de clase compartido).
+- **`create_async_connection`** — conexión async del driver (`asyncpg.Connection`, `aiomysql.Connection`, etc.); tipo opaco.
+- **`create_sync_connection`** — conexión sync del driver (`pyodbc.Connection`, etc.); tipo opaco.
+- **`register_async_connection`** — `None`; efecto secundario: registra el builder en el dict de clase compartido.
 
-## Errores y casos especiales
+### Errores y casos especiales
 
 | Error | Cuándo ocurre |
 |---|---|
-| `NotImplementedError` | `create_async_connection` cuando el motor no tiene soporte async declarado (`is_async_supported` retorna `False`) |
-| `ValueError` | Builder async no disponible y `is_async_supported` retorna `True` pero no hay builder registrado (inconsistencia de registro) |
-| `ConnectionError` | El builder falla al crear la conexión (credenciales incorrectas, servidor no alcanzable) |
+| `NotImplementedError` | Motor sin soporte async declarado |
+| `ValueError` | Builder async no disponible y motor declarado como async soportado |
+| `ConnectionError` | Builder falla al crear la conexión (credenciales, servidor no alcanzable) |
 
-**Casos especiales:**
-- `_async_connection_builders` es un atributo de **clase** (no de instancia), compartido entre todos los usos de `ConnectionFactory` en el proceso. Llamar a `register_async_connection` una vez tiene efecto global.
-- El lazy loading se activa en la primera llamada por motor: si el builder no está pre-registrado, `_register_lazy_async_builders` lo importa dinámicamente. Drivers no instalados generan `ImportError` en este punto, no al importar la librería.
-- Si el builder retorna algo awaitable, `ConnectionFactory` hace el `await` internamente — el llamador recibe la conexión ya resuelta, no una corrutina.
+`_async_connection_builders` es un atributo de clase compartido globalmente; `register_async_connection` una vez tiene efecto global en el proceso.
+
+## 3. Componentes y Clases
+
+*No aplica para este módulo.* `ConnectionFactory` es la única clase del módulo y no se instancia.
+
+## 4. Dependencias y Requisitos
+
+| Dependencia | Propósito | Requerida | Comportamiento sin ella |
+|---|---|---|---|
+| Driver Python del motor | Conexión nativa con la BD | Sí (motor-específico) | `ImportError` en lazy loading al primer uso |
+
+## 5. Ejemplos Relacionados
+
+!!! info "Ejemplo en preparación"
+    Pendiente — crear ejemplo en docs/examples/connection-factory.md

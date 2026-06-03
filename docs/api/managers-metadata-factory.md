@@ -1,8 +1,8 @@
-## Responsabilidad del módulo
+# Factory de Estrategias de Metadata (MetadataStrategyFactory)
 
-Factory estático que resuelve, según el tipo de motor, las estrategias de obtención de metadatos (fetch) e inventario de almacenamiento (sync y async) que los managers utilizan internamente.
+Factory estático que resuelve, según el tipo de motor, las estrategias de obtención de metadatos e inventario de almacenamiento que los managers utilizan internamente.
 
-## Diagrama
+## 1. Arquitectura y Diseño
 
 ```mermaid
 flowchart TD
@@ -15,34 +15,48 @@ flowchart TD
     C & D & F & G --> H[Estrategia lista para usar]
 ```
 
-## API pública
+## 2. Modelo de Datos / Contratos
+
+### API pública
 
 | Función/Clase | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `MetadataStrategyFactory` | — | Factory (solo métodos estáticos; no se instancia) | — |
-| `get_fetch_strategy` | `(db_type)` *(estático)* | Estrategia de fetch de metadatos para el motor | `MetadataFetchStrategy` |
+| `MetadataStrategyFactory` | — | Factory de solo métodos estáticos; no se instancia | — |
+| `get_fetch_strategy` | `(db_type)` *(estático)* | Estrategia de fetch de metadatos | `MetadataFetchStrategy` |
 | `get_storage_strategy` | `(db_type)` *(estático)* | Estrategia sync de inventario de almacenamiento | `SyncStorageInventoryStrategy` |
-| `get_async_storage_strategy` | `(db_type)` *(estático)* | Estrategia async de inventario de almacenamiento (o sync para HSQLDB) | `AsyncStorageInventoryStrategy \| SyncStorageInventoryStrategy` |
+| `get_async_storage_strategy` | `(db_type)` *(estático)* | Estrategia async de inventario (o sync para HSQLDB) | `AsyncStorageInventoryStrategy \| SyncStorageInventoryStrategy` |
 
-## Contrato de entrada
+### Contrato de entrada
 
 | Parámetro | Tipo | Descripción | Restricciones |
 |---|---|---|---|
-| `db_type` | `str` | Tipo de motor de base de datos | Debe ser un motor reconocido por util_bbdd; se pasa directamente a las funciones de resolución de estrategia |
+| `db_type` | `str` | Tipo de motor de base de datos | Debe ser un motor reconocido; se pasa a las funciones de resolución |
 
-## Contrato de salida
+### Contrato de salida
 
-- **`get_fetch_strategy`** — devuelve un objeto `MetadataFetchStrategy` con los métodos `build_sync_rows_fetcher`, `build_async_rows_fetcher`, `build_sync_text_fetcher` y `build_async_text_fetcher` que los managers usan para construir las llamadas de fetch de metadatos.
-- **`get_storage_strategy`** — devuelve un `SyncStorageInventoryStrategy` con método `execute(manager, database, tablespace)` que retorna un `dict[str, Any]` con el inventario de almacenamiento.
-- **`get_async_storage_strategy`** — devuelve `AsyncStorageInventoryStrategy` para la mayoría de motores (su `execute` devuelve una coroutine), o `SyncStorageInventoryStrategy` para HSQLDB (su `execute` devuelve un `dict` directamente, compatible con `asyncio.iscoroutine` check en el manager async).
+- **`get_fetch_strategy`** — `MetadataFetchStrategy` con métodos `build_sync_rows_fetcher`, `build_async_rows_fetcher`, `build_sync_text_fetcher` y `build_async_text_fetcher`.
+- **`get_storage_strategy`** — `SyncStorageInventoryStrategy` con método `execute(manager, database, tablespace)` → `dict[str, Any]`.
+- **`get_async_storage_strategy`** — `AsyncStorageInventoryStrategy` para la mayoría de motores, o `SyncStorageInventoryStrategy` para HSQLDB.
 
-## Errores y casos especiales
+### Errores y casos especiales
 
 | Error | Cuándo ocurre |
 |---|---|
-| Depende de las funciones internas de resolución | Si `db_type` no tiene estrategia registrada, las funciones delegadas pueden lanzar `KeyError` o `ValueError` |
+| `KeyError` / `ValueError` | `db_type` sin estrategia registrada en las funciones delegadas |
 
-**Casos especiales:**
-- `get_async_storage_strategy` devuelve intencionalmente una estrategia **sync** para HSQLDB (motor in-memory), ya que no tiene operaciones de almacenamiento bloqueantes. El manager async detecta esto con `asyncio.iscoroutine()` y maneja ambos casos sin cambios en el llamador.
-- `MetadataStrategyFactory` no se instancia: todos sus métodos son `@staticmethod`. Usarla como instancia es técnicamente posible pero no aporta valor.
-- La resolución de estrategia ocurre en el `__init__` de los managers, no en cada operación, por lo que el coste de resolución es constante por sesión.
+**Caso HSQLDB:** `get_async_storage_strategy` retorna intencionalmente una estrategia sync para HSQLDB (motor in-memory sin operaciones bloqueantes). El manager async detecta esto con `asyncio.iscoroutine()` y maneja ambos casos.
+
+## 3. Componentes y Clases
+
+*No aplica para este módulo.* `MetadataStrategyFactory` es la única clase de este módulo y no se instancia; solo expone métodos estáticos.
+
+## 4. Dependencias y Requisitos
+
+| Dependencia | Propósito | Requerida | Comportamiento sin ella |
+|---|---|---|---|
+| Estrategias de motor (internas) | Implementaciones concretas por motor | Sí | `KeyError` al solicitar estrategia para motor no registrado |
+
+## 5. Ejemplos Relacionados
+
+!!! info "Ejemplo en preparación"
+    Pendiente — crear ejemplo en docs/examples/managers-metadata-factory.md

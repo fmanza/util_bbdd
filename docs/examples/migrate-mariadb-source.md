@@ -1,166 +1,56 @@
-# Migración DDL MariaDB como origen
+# Ejemplo: Migración DDL MariaDB → Oracle / SQL Server / PostgreSQL
 
-## Objetivo
+## 1. Contexto del Ejemplo
 
-Migrar la estructura completa de un schema MariaDB a Oracle, SQL Server o PostgreSQL: generar el
-script DDL y, opcionalmente, aplicarlo directamente contra el servidor destino.
+Genera automáticamente el script DDL de un schema MariaDB para ejecutarlo en Oracle, SQL Server o PostgreSQL, adaptando tipos de datos, `AUTO_INCREMENT` y vistas al dialecto destino.
 
-## Requisitos
+Resuelve el caso de migrar una aplicación MariaDB a un motor de BD corporativo sin reescribir el DDL manualmente: el plan registra cada decisión de conversión con nivel de severidad.
 
-- `util_bbdd` instalado con el driver del motor destino (`cx_Oracle`/`oracledb`, `pymssql`,
-  `psycopg2`/`psycopg3`)
-- Conexión MariaDB con permisos de lectura sobre `INFORMATION_SCHEMA`
-- Opcional: conexión al motor destino activa para ejecución directa
-
----
-
-## MariaDB → Oracle
+## 2. Implementación de Referencia
 
 ```python
-from util_bbdd import SyncDatabaseManager, MigrationPlanner
-from util_bbdd.migrate import format_plan_text
-
-mariadb_manager = SyncDatabaseManager(
-    connection_string="mariadb+mariadbconnector://user:pass@maria-host:3306/ventas",
-)
-
-planner = MigrationPlanner(
-    source_engine="mariadb",
-    target_engine="oracle",
-)
-
-plan = planner.plan(connection=mariadb_manager, schema="ventas")
-print(format_plan_text(plan))
-
-with open(plan.suggested_filename(), "w", encoding="utf-8") as f:
-    f.write(plan.emit_ddl())
+--8<-- "examples/migrate-mariadb-source.py"
 ```
 
-### Extracto del script Oracle
+## 3. Explicación del Código
 
-```sql
-CREATE TABLE "CLIENTES" (
-  "ID" NUMBER(19) NOT NULL,
-  "NOMBRE" VARCHAR2(200),
-  "FECHA_ALTA" DATE,
-  CONSTRAINT "PK_CLIENTES" PRIMARY KEY ("ID")
-);
+Aspectos críticos:
 
-CREATE SEQUENCE "CLIENTES_SEQ" START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
-CREATE OR REPLACE TRIGGER "TRG_CLIENTES"
-  BEFORE INSERT ON "CLIENTES" FOR EACH ROW
-BEGIN
-  IF :NEW."ID" IS NULL THEN
-    SELECT "CLIENTES_SEQ".NEXTVAL INTO :NEW."ID" FROM DUAL;
-  END IF;
-END;
-/
-```
+- **`schema`**: corresponde al `TABLE_SCHEMA` en `INFORMATION_SCHEMA` de MariaDB (equivale al nombre de la base de datos). Para una BD llamada `ventas`, usar `schema="ventas"`.
+- **`AUTO_INCREMENT` → equivalentes**: el planificador convierte automáticamente: MariaDB `AUTO_INCREMENT` → Oracle `SEQUENCE+TRIGGER`, SQL Server `IDENTITY(1,1)`, PostgreSQL `SERIAL/BIGSERIAL`.
+- **Vistas pass-through**: las vistas se incluyen en el script sin reescritura del SQL MariaDB-específico. El plan emite un aviso de revisión manual por cada vista.
+- **`plan.error_count`**: verificar antes de ejecutar contra el destino. Errores indican tipos sin equivalente directo que requieren intervención manual.
 
----
-
-## MariaDB → SQL Server
+Para MariaDB → Oracle:
 
 ```python
-from util_bbdd import SyncDatabaseManager, MigrationPlanner
-from util_bbdd.migrate import format_plan_text
-
-mariadb_manager = SyncDatabaseManager(
-    connection_string="mariadb+mariadbconnector://user:pass@maria-host:3306/ventas",
-)
-
-planner = MigrationPlanner(
-    source_engine="mariadb",
-    target_engine="sqlserver",
-    sql_server_collation="SQL_Latin1_General_CP1_CI_AS",  # opcional
-)
-
-plan = planner.plan(connection=mariadb_manager, schema="ventas")
-print(format_plan_text(plan))
-
-with open(plan.suggested_filename(), "w", encoding="utf-8") as f:
-    f.write(plan.emit_ddl())
-```
-
-### Extracto del script SQL Server
-
-```sql
-CREATE TABLE [CLIENTES] (
-  [ID] BIGINT NOT NULL IDENTITY(1,1),
-  [NOMBRE] NVARCHAR(200) COLLATE SQL_Latin1_General_CP1_CI_AS,
-  [FECHA_ALTA] DATETIME2,
-  PRIMARY KEY ([ID])
-);
-```
-
----
-
-## MariaDB → PostgreSQL
-
-```python
-from util_bbdd import SyncDatabaseManager, MigrationPlanner
-from util_bbdd.migrate import format_plan_text
-
-mariadb_manager = SyncDatabaseManager(
-    connection_string="mariadb+mariadbconnector://user:pass@maria-host:3306/ventas",
-)
-
-planner = MigrationPlanner(
-    source_engine="mariadb",
-    target_engine="postgresql",
-    pg_schema="ventas",   # opcional; emite SET search_path = ventas;
-)
-
-plan = planner.plan(connection=mariadb_manager, schema="ventas")
-print(format_plan_text(plan))
-
-with open(plan.suggested_filename(), "w", encoding="utf-8") as f:
-    f.write(plan.emit_ddl())
-```
-
-### Extracto del script PostgreSQL
-
-```sql
-SET search_path = ventas;
-
-CREATE TABLE "clientes" (
-  "id" BIGSERIAL NOT NULL,
-  "nombre" VARCHAR(200),
-  "fecha_alta" TIMESTAMP,
-  PRIMARY KEY ("id")
-);
-```
-
----
-
-## Revisar avisos del plan
-
-```python
-from util_bbdd import MigrationPlanner
-from util_bbdd.migrate import format_plan_markdown
-
 planner = MigrationPlanner(source_engine="mariadb", target_engine="oracle")
-plan = planner.plan(connection=mariadb_manager, schema="ventas")
-
-# Reporte en texto
-for w in plan.warnings:
-    if w.severity in ("ERROR", "WARNING"):
-        loc = f"{w.table}.{w.column}" if w.column else w.table
-        print(f"[{w.severity}] {loc}: {w.message}")
-
-# Reporte Markdown completo
-report = format_plan_markdown(plan)
-with open("ventas_migration_report.md", "w", encoding="utf-8") as f:
-    f.write(report)
 ```
 
----
+Para MariaDB → SQL Server:
 
-## Notas de operación
+```python
+planner = MigrationPlanner(
+    source_engine="mariadb", target_engine="sqlserver",
+    sql_server_collation="SQL_Latin1_General_CP1_CI_AS",
+)
+```
 
-- `AUTO_INCREMENT` se convierte automáticamente según el motor destino (SEQUENCE+TRIGGER en Oracle,
-  `IDENTITY(1,1)` en SQL Server, `SERIAL`/`BIGSERIAL` en PostgreSQL)
-- Las vistas se incluyen en el script con el SQL original de MariaDB; revisar manualmente la
-  compatibilidad de sintaxis con el motor destino
-- Identificadores > 30 chars se truncan con sufijo hash en Oracle (límite Oracle 12.1)
-- FKs circulares se emiten como `ALTER TABLE ADD CONSTRAINT` al final del script en todos los motores
+## 4. Ejecución y Pruebas
+
+```bash
+# Validación sintáctica
+python -m py_compile docs/examples/migrate-mariadb-source.py
+
+# Ejecución (requiere servidor MariaDB accesible)
+# Sustituir credenciales antes de ejecutar
+python docs/examples/migrate-mariadb-source.py
+```
+
+El script DDL se guarda como `ventas_schema_postgresql.sql` (o el nombre configurado).
+
+## 5. Referencias Relacionadas
+
+- **Documentación funcional**: [Migración MariaDB como Origen](../functional/migrate-mariadb-source.md) — casos de uso y reglas de negocio
+- **Referencia técnica**: [API Migración MariaDB](../api/migrate-mariadb-source.md) — API de `MigrationPlanner` con origen MariaDB
+- **Ejemplos relacionados**: [Migración Oracle](migrate-oracle-mariadb.md) — patrón equivalente con origen Oracle

@@ -12,12 +12,13 @@ Analiza el módulo [NOMBRE_MÓDULO] de util_bbdd y la documentación existente r
 No asumas dependencias, motores, APIs ni capacidades que no aparezcan en el código real,
 `pyproject.toml`, README, `docs/` o `mkdocs.yml`.
 
-Genera documentación técnica en Markdown con estas secciones:
+Genera documentación técnica en Markdown siguiendo el Arquetipo 2 con estas secciones en este orden exacto:
 
-## Responsabilidad del módulo
-Una frase. Qué hace exactamente este módulo en el sistema.
+# [Nombre del Componente/Módulo]
 
-## Diagrama
+[Una frase que describa la responsabilidad exacta del módulo en el sistema.]
+
+## 1. Arquitectura y Diseño
 Elige el tipo de diagrama más apropiado:
 - `sequenceDiagram` → si el módulo procesa requests/responses o tiene flujo I/O
 - `flowchart TD` → si el módulo tiene lógica de decisión o pipeline de transformación
@@ -30,53 +31,53 @@ Criterios del diagrama:
 - Usa etiquetas en español para actores y acciones
 - Si no hay suficiente información para un diagrama correcto, declara la limitación y no inventes flujo
 
-## API pública
+Si el módulo contiene Web API, servidor web, base de datos o contenedores, añade inmediatamente
+después del diagrama principal un párrafo de infraestructura y un diagrama `architecture-beta`.
+Ver restricciones de sintaxis en docs.instructions.md.
+
+## 2. API Reference
+
+### Autodoc
+Incluir la directiva de generación automática según el lenguaje del proyecto:
+  Python:     ::: util_bbdd.[modulo].[Clase]
+  Java:       ::: com.ejemplo.[paquete].[Clase]
+  TypeScript: ::: [Modulo].[Clase]
+Solo exportados en __all__, public o export. No implementación interna.
+
+### API pública
 Tabla con columnas: | Función/Clase | Firma simplificada | Descripción | Retorna |
 Solo las funciones/clases exportadas en __all__ o __init__.py.
 
-## Contrato de entrada
-Parámetros de las funciones principales con tipos y restricciones.
-Formato: tabla con columnas: | Parámetro | Tipo | Descripción | Restricciones |
+### Contratos
+Tabla entrada: | Parámetro | Tipo | Descripción | Restricciones |
+Contrato de salida: tipos, estructura y casos especiales de cada función principal.
+Errores y casos especiales: qué ocurre con entradas inválidas o conexión fallida.
 
-## Contrato de salida
-Qué retorna cada función principal. Tipos, estructura de datos, casos especiales.
+## 3. Componentes y Clases
+Responsabilidad de cada clase o función principal exportada (una línea por componente).
+Si el módulo tiene una sola clase o función: "*No aplica para este módulo.*"
 
-## Errores y casos especiales
-Qué ocurre con entradas inválidas, valores fuera de rango, o conexión fallida.
+## 4. Dependencias y Requisitos
+Tabla con columnas: | Dependencia | Propósito | Requerida | Comportamiento sin ella |
+Incluye dependencias externas (librerías) e internas (módulos del mismo paquete).
+Si no hay dependencias externas: indicar explícitamente.
 
-
-## Arquitectura física (solo si aplica)
-Añade esta sección INMEDIATAMENTE DESPUÉS del diagrama principal si el módulo o proyecto
-contiene cualquiera de los siguientes indicadores:
-- Web API: FastAPI, Flask, Django, APIRouter, directorio src/**/web/
-- Servidor web / proxy: uvicorn, gunicorn, nginx, Caddy, traefik
-- Base de datos: SQLAlchemy, psycopg2, pymongo, redis, sqlite3, alembic
-- Contenedores: Dockerfile, docker-compose.yml, .dockerignore
-
-La sección contiene:
-1. Un párrafo con los componentes de infraestructura detectados (no inventes).
-2. Un diagrama architecture-beta para representar la topología física de servicios.
-
-Usa group para agrupar servicios en el mismo contenedor o red.
-Etiquetas en español. Solo incluye lo que está en el código real.
-
-Restricciones críticas de sintaxis architecture-beta:
-- Labels []: solo alfanuméricos y espacios. NUNCA uses +, #, &, (, ) u otros símbolos.
-- IDs de servicio distintos del icono: service webserver(server), NUNCA service server(server).
-- Conectores: A:R -- L:B con doble guión. NUNCA uses --> (es sintaxis de flowchart).
-- Iconos válidos en Mermaid 11: cloud, database, disk, internet, server.
-
-## Ejemplo técnico mínimo
-Incluye un ejemplo de uso verificable de la API pública cuando sea posible.
-Debe usar datos ficticios seguros y no requerir credenciales reales.
+## 5. Ejemplos Relacionados
+Lista de enlaces a docs/examples/ con descripción de lo que ilustra cada uno.
+Busca en docs/examples/ los ficheros que referencian este módulo.
+Si no existe ninguno:
+  "Pendiente — crear ejemplo en docs/examples/[nombre-modulo].md"
+Formato:
+- [Ejemplo: Nombre del patrón](../examples/[nombre].md) — descripción de 1 línea
 
 ---
 
 Restricciones:
+- Si una sección queda vacía, escribe "*No aplica para este módulo.*" — nunca omitas la sección
 - SOLO incluye lo exportado públicamente, no implementación interna
 - El diagrama debe ser Mermaid válido en bloque fenced `mermaid`
 - No inventes firmas, excepciones, tipos, dependencias ni efectos secundarios
-- Si falta información, añade "Pendiente de verificación" con puntos concretos
+- Si falta información, añade subsección "### Pendiente de verificación" con puntos concretos
 - NO uses la directiva --8<-- para incluir código; embebe el código directamente en los bloques fenced
 - Responde SOLO con el Markdown
 ```
@@ -169,6 +170,8 @@ Si el flujo no puede inferirse con seguridad, declara qué información falta en
 
 ## Output esperado
 
-Markdown con las 6 secciones obligatorias (más `Arquitectura física` si aplica), incluyendo
-un bloque `mermaid` válido que se renderiza correctamente en MkDocs Material y en GitHub.
+Markdown con título H1, párrafo introductorio de una frase y las 5 secciones del Arquetipo 2
+numeradas (`## 1.`–`## 5.`), incluyendo un bloque `mermaid` válido en `## 1.`, directiva
+autodoc y tablas de contratos en `## 2.`, y al menos un enlace a ejemplo en `## 5.` o el
+placeholder de "Pendiente". Secciones vacías con `*No aplica para este módulo.*`.
 Todo el contenido derivado del código real: sin inventar parámetros, retornos ni comportamientos.

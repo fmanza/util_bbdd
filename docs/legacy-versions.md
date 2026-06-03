@@ -26,7 +26,7 @@ Este archivo documenta dónde encontrar la documentación histórica de util_bbd
 
 ### "¿Cuál es el estado actual de util_bbdd?"
 👉 Lee [README.md](index.md) y [Inicio](index.md) (documentación vigente)
-👉 Para detalles técnicos, consulta [API_REFERENCE.md](API_REFERENCE.md)
+👉 Para detalles técnicos, consulta [API_REFERENCE.md](api/intro.md)
 
 ### "¿Necesito info histórica de v0.5.6?"
 👉 Verifica [archive/versions/v0.5.6/](https://github.com/fmanza/util_bbdd/tree/main/docs/archive/versions/v0.5.6/)
@@ -104,7 +104,7 @@ docs/
 
 ## 🔗 Enlaces Útiles
 
-- **Actual:** [README.md](index.md) | [API_REFERENCE.md](API_REFERENCE.md)
+- **Actual:** [README.md](index.md) | [API_REFERENCE.md](api/intro.md)
 - **Migración:** [MIGRATION_GUIDE_v0.6.7.md](MIGRATION_GUIDE_v0.6.7.md) | [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)
 - **Histórico:** [https://github.com/fmanza/util_bbdd/tree/main/docs/https://github.com/fmanza/util_bbdd/tree/main/docs/archive/releases/v0.1-v0.3.0/README.md](https://github.com/fmanza/util_bbdd/tree/main/docs/https://github.com/fmanza/util_bbdd/tree/main/docs/archive/releases/v0.1-v0.3.0/README.md)
 - **Versiones:** [https://github.com/fmanza/util_bbdd/tree/main/docs/https://github.com/fmanza/util_bbdd/tree/main/docs/archive/versions/v0.5.6/](https://github.com/fmanza/util_bbdd/tree/main/docs/https://github.com/fmanza/util_bbdd/tree/main/docs/archive/versions/v0.5.6/)

@@ -151,5 +151,5 @@ Operaciones CRUD bulk miden automáticamente su duración usando `util.timing`. 
 - [Guía de instalación completa](INSTALLATION.md)
 - [Programación asíncrona](ASYNC_GUIDE.md)
 - [Comparación de esquemas](COMPARATOR.md)
-- [API Reference](API_REFERENCE.md)
+- [API Reference](api/intro.md)
 - [Ejemplos de código](examples/schema_comparison.md)

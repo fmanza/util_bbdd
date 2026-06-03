@@ -1,6 +1,7 @@
+<!-- arquetipo: informativo-libre -->
 # PLAN — v0.8.0: Advanced Type System Improvements
 
-**Document Type:** Technical Plan (ADR-style)
+**Document Type:** Technical Plan (informativo-libre)
 **Version:** 0.1 (Draft)
 **Date:** 2026-04-21
 **Proposer:** Development Team

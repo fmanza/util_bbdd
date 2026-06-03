@@ -54,67 +54,146 @@ Estandarizar instrucciones de documentación para asegurar:
 
 ## 3. Propuesta de Cambios
 
-### 3.1 Documentación Funcional (Usuario)
+### 3.1 Arquetipo 1 — Documentación Funcional (`docs/functional/`)
 
-**Propósito**: Responder "¿Qué puedo hacer con el software?"
+**Propósito**: Responder "¿Qué hace y por qué?"
+
+**Audiencia**: Product Owner, QA, responsables de negocio.
 
 **Ubicación**: `docs/functional/[módulo].md`
 
-**Estructura obligatoria por módulo**:
-- **Resumen Ejecutivo** — Descripción breve (2-3 líneas) y casos de uso principales
-- **Características Principales** — Capacidades clave con ejemplos cortos
-- **Objetivo de Negocio** — Problema resuelto y valor agregado
-- **Precondiciones y Requisitos** — Dependencias y configuración necesaria
-- **Flujo Principal del Usuario** — Pasos con código de ejemplo
-- **Reglas de Negocio Críticas** — Restricciones y validaciones obligatorias
-- **Límites y Exclusiones** — Qué NO hace y edge cases
-- **Flujos de Trabajo de Usuario** — Casos de uso detallados
-- **Referencias** — Enlaces a doc técnica, ejemplos y tests
+**Estructura obligatoria** (secciones numeradas, en este orden):
 
-**Diagramas recomendados**:
-- User Journey (flujo del usuario)
-- Flowchart (decisiones)
-- Sequence Diagram (interacción entre actores)
+```
+# [Título del Módulo/Funcionalidad]
+
+## 1. Descripción General
+Contexto de negocio y objetivo (2-3 párrafos, sin jerga técnica).
+
+## 2. Reglas de Negocio
+Tabla: | Regla | Descripción | Impacto si se viola |
+
+## 3. Casos de Uso
+### Flujo principal
+Diagrama Mermaid sequenceDiagram (actor → módulo → salida).
+### Flujos alternativos
+Casos de error o variantes. Si no hay, "No aplica para este módulo."
+
+## 4. Glosario y Términos
+Tabla: | Término | Definición |
+Si no hay términos específicos: "No aplica para este módulo."
+```
+
+**Regla de sección vacía**: Si un subapartado queda vacío, escribe `*No aplica para este módulo.*` — nunca omitas la sección.
+
+**Diagramas recomendados**: `sequenceDiagram` (flujo principal), `flowchart TD` (decisiones).
 
 ---
 
-### 3.2 Documentación Técnica (Desarrollador)
+### 3.2 Arquetipo 2 — Documentación Técnica (`docs/api/`)
 
-**Propósito**: Responder "¿Cómo funciona internamente?"
+**Propósito**: Responder "¿Cómo está construido?"
+
+**Audiencia**: desarrolladores, ingenieros de datos, DBAs.
 
 **Ubicación**: `docs/api/[módulo].md`
 
-**Estructura obligatoria**:
-- **Resumen de la Arquitectura** — Rol en la arquitectura, relaciones, patrón de diseño
-- **Arquitectura del Sistema**:
-  - Diagrama de Contexto (C4 nivel 1)
-  - Diagrama de Contenedores (C4 nivel 2)
-  - Diagrama de Componentes (C4 nivel 3)
-  - Decisiones Arquitectónicas (ADR si aplica)
-  - Patrones de Diseño Utilizados
-- **Responsabilidad del Módulo** — Descripción general, responsabilidades principales
-- **Dependencias** — Externas (librerías) e internas (módulos)
-- **Clases Principales** — Nombre, descripción y firma
-- **Flujo de Datos** — Cómo fluyen datos internamente
-- **API Reference**:
-  - Overview de métodos públicos
-  - Detalle de cada método (firma, parámetros, retorno, excepciones)
-  - Contratos de entrada y salida
-  - Manejo de errores y edge cases
-- **Consideraciones de Seguridad** (si aplica) — Validación, sanitización, protecciones
-- **Rendimiento y Optimización** (si aplica) — Complejidad O(n), caché, límites
-- **Referencias** — Enlaces a doc funcional, ejemplos y tests
+**Nota**: Los archivos generados automáticamente por `mkdocstrings` (`bulk.md`, `comparator.md`, `managers.md`, `reporters.md`, `exceptions.md`, `index.md`) están excluidos de este arquetipo.
 
-**Diagramas recomendados**:
-- C4 Diagram (contexto, contenedores, componentes)
-- Class Diagram (clases y relaciones)
-- State Diagram (máquina de estados, si aplica)
-- Sequence Diagram (flujo de llamadas)
-- Entity Relationship Diagram (si hay persistencia)
-- Architecture Diagrams (si hay web API, microservicios, etc.)
-- Docker Deployment Diagram (si hay `Dockerfile` o `docker-compose.yml`: contenedores, puertos, volúmenes, redes)
-- Event Modeling Diagram (si hay que describir sistemas mediante un ejemplo de cómo ha cambiado la información dentro de ellos a lo largo del tiempo)
-- TreeView Diagram (si hay estructuras de datos jerárquicas)
+**Estructura obligatoria** (secciones numeradas, en este orden):
+
+```
+# [Nombre del Componente/Módulo]
+
+[Párrafo introductorio de una frase: responsabilidad exacta del módulo.]
+
+## 1. Arquitectura y Diseño
+Diagrama Mermaid (flowchart TD, classDiagram, sequenceDiagram o architecture-beta).
+Máximo 12 nodos. Ver criterios de selección en docs.instructions.md.
+
+## 2. Modelo de Datos / Contratos
+### API pública
+Tabla: | Función/Clase | Firma simplificada | Descripción | Retorna |
+### Contrato de entrada
+Tabla: | Parámetro | Tipo | Descripción | Restricciones |
+### Contrato de salida
+Tipos, estructura y casos especiales.
+### Errores y casos especiales
+Excepciones propias del módulo y entradas inválidas.
+
+## 3. Componentes y Clases
+Responsabilidad de cada clase exportada.
+Para módulos con una sola clase: "No aplica para este módulo."
+
+## 4. Dependencias y Requisitos
+Tabla: | Dependencia | Propósito | Requerida | Comportamiento sin ella |
+```
+
+**Regla de sección vacía**: Si un subapartado queda vacío, escribe `*No aplica para este módulo.*`.
+
+**Diagramas recomendados**: Ver tabla en `docs.instructions.md` y en `technical_doc.prompt.md`.
+
+---
+
+### 3.3 Arquetipo 3 — Guías de Usuario o Configuración (`docs/` raíz)
+
+**Propósito**: Responder "¿Cómo se usa/instala?"
+
+**Audiencia**: usuarios finales que instalan o configuran el sistema.
+
+**Ubicación**: `docs/[nombre-guia].md`
+
+**Estructura obligatoria** (secciones numeradas, en este orden):
+
+```
+# [Guía de X / Configuración de Y]
+
+## 1. Requisitos Previos
+Lista: herramientas, accesos o estado inicial requerido.
+
+## 2. Pasos de Instalación / Configuración
+Procedimiento secuencial con bloques de código.
+
+## 3. Verificación
+Comando + output esperado para confirmar éxito.
+
+## 4. Solución de Problemas
+Tabla: | Error / Síntoma | Causa probable | Solución |
+Si no hay casos conocidos: "No aplica para este módulo."
+```
+
+**Excepciones aceptadas**: `docs/index.md` y `docs/legacy-versions.md` están exentos de arquetipo (páginas especiales).
+
+---
+
+### 3.4 Arquetipo 4 — Guías de Ejemplos de Código (`docs/examples/`)
+
+**Propósito**: Responder "¿Cómo se implementa?"
+
+**Audiencia**: desarrolladores que quieren implementar un patrón concreto.
+
+**Ubicación**: `docs/examples/[nombre].md`
+
+**Estructura obligatoria** (secciones numeradas, en este orden):
+
+```
+# Ejemplo: [Nombre del Patrón/Funcionalidad]
+
+## 1. Contexto del Ejemplo
+Qué problema concreto resuelve este código (1-2 párrafos).
+
+## 2. Implementación de Referencia
+Exclusivamente: --8<-- "examples/[ruta].py"
+
+## 3. Explicación del Código
+Puntos críticos: concurrencia, rendimiento, contratos.
+Para ejemplos triviales: "No aplica para este módulo."
+
+## 4. Ejecución y Pruebas
+Comando exacto + output esperado si determinista.
+```
+
+**Regla de snippet**: En `## 2.` usar siempre `--8<--`. Si el `.py` no existe, crearlo antes de referenciar.
 
 ---
 
@@ -429,11 +508,14 @@ Generar release notes.
 
 La estandarización se considera **completa** cuando:
 
-- [ ] `mkdocs build` finaliza sin errores ni warnings de links rotos
+- [ ] `mkdocs build --strict` finaliza sin errores ni warnings de links rotos
 - [ ] Todos los módulos en `src/` tienen doc funcional (`docs/functional/`) y técnica (`docs/api/`)
 - [ ] Todos los archivos referenciados en `docs/examples/` existen en disco
 - [ ] `CHANGELOG.md` y `COMPATIBILITY.md` reflejan la versión actual de `pyproject.toml`
 - [ ] Las instrucciones IA (`CLAUDE.md`, `copilot-instructions.md`) son coherentes con el código real
+- [ ] Todos los documentos en `nav:` (excepto `index.md` y `legacy-versions.md`) tienen exactamente las 4 secciones numeradas de su arquetipo asignado
+- [ ] Las secciones vacías contienen `*No aplica para este módulo.*` en lugar de estar omitidas
+- [ ] Los prompts `.github/prompts/guide_doc.prompt.md` y `example_doc.prompt.md` existen y son coherentes con Arquetipos 3 y 4
 
 ---
 

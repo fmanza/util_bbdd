@@ -1,25 +1,38 @@
-## Objetivo de negocio
+# Patrón de Validadores
+
+## 1. Descripción General
 
 Define el contrato que deben cumplir todos los validadores de parámetros de la librería. Cada motor de base de datos soportado tiene reglas propias sobre qué parámetros son válidos para cada tipo de query; el patrón de validador garantiza que esas reglas se aplican de forma consistente y que los errores se comunican de manera uniforme, sin lanzar excepciones inesperadas que interrumpan flujos de resolución de queries.
 
 El resultado es que cualquier componente que use el sistema de queries recibe una respuesta clara: la validación es correcta o hay advertencias, siempre en el mismo formato.
 
-## Precondiciones
+**Precondiciones:**
 
 - Tipo de motor conocido y mapeado a su validador concreto (MariaDB, Oracle, PostgreSQL, HSQLDB, SQL Server, SQLite)
-- Definición de query disponible (`QueryDefinition`) con los parámetros requeridos declarados
+- Definición de query disponible con los parámetros requeridos declarados
 - Parámetros proporcionados por el llamador en forma de diccionario
 
-## Flujo principal del usuario
+## 2. Reglas de Negocio
+
+| Regla | Descripción | Impacto si se viola |
+|---|---|---|
+| Sin excepciones | Los validadores deben retornar siempre `(bool, list[str])`, nunca lanzar excepciones | Una excepción en la validación rompe el resolvedor de queries sin mensaje útil para el llamador |
+| Advertencias, no errores fatales | Los problemas se acumulan en la lista de advertencias; el llamador decide si bloquear o continuar | Permite validaciones permisivas en contextos de compatibilidad o migración sin romper el flujo |
+| Un validador por motor | Cada motor tiene su clase concreta registrada; no se comparte lógica entre motores distintos | Reglas específicas de un motor (ej.: Oracle requiere `schema`) no contaminan la validación de otros |
+| Interfaz abstracta | El validador base define el método como abstracto | Cualquier subclase sin implementar el método lanzará error al instanciarse, no en tiempo de validación |
+
+## 3. Casos de Uso
+
+### Flujo principal
 
 ```mermaid
 sequenceDiagram
-    actor Res as QueryResolver
-    participant Val as DatabaseTypeValidator (concreto)
-    participant QD as QueryDefinition
+    actor Res as Resolvedor de Queries
+    participant Val as Validador de Motor (concreto)
+    participant QD as Definición de Query
 
-    Res->>Val: validate_parameters(query_def, params)
-    Val->>QD: Leer required_params
+    Res->>Val: Validar parámetros (definición_query, params)
+    Val->>QD: Leer parámetros requeridos
     QD-->>Val: ["database", "schema"]
 
     loop Por cada parámetro requerido
@@ -31,22 +44,27 @@ sequenceDiagram
         end
     end
 
-    Val-->>Res: (is_valid: bool, warnings: list[str])
+    Val-->>Res: (válido: bool, advertencias: list[str])
     Note over Res: Nunca lanza excepciones
 ```
 
-## Reglas de negocio críticas
+### Flujos alternativos
 
-| Regla | Descripción | Impacto si se viola |
-|---|---|---|
-| Sin excepciones | Los validadores deben retornar siempre `(bool, list[str])`, nunca lanzar excepciones | Una excepción en `validate_parameters` rompe el `QueryResolver` sin mensaje de error útil para el llamador |
-| Advertencias, no errores fatales | Los problemas se acumulan en la lista de advertencias; el llamador decide si bloquear o continuar con avisos | Permite validaciones permisivas en contextos de compatibilidad o migración sin romper el flujo |
-| Un validador por motor | Cada motor tiene su clase concreta de `DatabaseTypeValidator` registrada; no se comparte lógica entre motores distintos | Reglas específicas de un motor (ej.: Oracle requiere `schema`) no contaminen la validación de otros motores |
-| Interfaz abstracta | `DatabaseTypeValidator` es ABC con `validate_parameters` como método abstracto | Cualquier subclase sin implementar el método lanzará `TypeError` al instanciarse, no en tiempo de ejecución de la validación |
+**Validación permisiva:** En contextos de migración o compatibilidad, el llamador puede recibir `(False, [avisos])` y decidir continuar de todas formas, registrando los avisos en el log en lugar de bloquear la ejecución.
 
-## Límites y exclusiones
+**Motor sin validador registrado:** Si se solicita un validador para un motor no registrado, el sistema devuelve un error controlado antes de llegar a la validación de parámetros.
+
+**Límites y exclusiones:**
 
 - No valida el SQL generado ni su sintaxis: solo valida los parámetros de entrada
 - No valida contra el estado real de la base de datos (que la tabla exista, que el usuario tenga permisos): eso ocurre en la ejecución
-- El patrón solo cubre validación de queries predefinidas del registry; las queries libres (`execute_custom_*`) no pasan por este sistema
-- No es el punto de validación del tipo de motor: eso lo hace `DatabaseTypeValidator` en el nivel del manager, no aquí
+- Solo cubre validación de queries predefinidas del registro; las queries libres no pasan por este sistema
+- No es el punto de validación del tipo de motor: eso lo hace el gestor, no el validador de queries
+
+## 4. Glosario y Términos
+
+| Término | Definición |
+|---|---|
+| Validador de motor | Clase concreta que implementa las reglas de validación de parámetros específicas de un motor de base de datos |
+| Advertencia de validación | Mensaje descriptivo devuelto cuando un parámetro no cumple una regla; no interrumpe el flujo sino que informa al llamador |
+| Interfaz abstracta | Contrato (clase base) que define qué método debe implementar cada validador concreto sin proporcionar implementación |

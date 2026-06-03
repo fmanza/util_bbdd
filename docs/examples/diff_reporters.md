@@ -1,26 +1,43 @@
-# Diff Reporters
+# Ejemplo: Diff Reporters — Todos los Formatos de Reporte
 
-Ejemplo que demuestra todos los formatos disponibles para exportar comparativas de esquemas.
+## 1. Contexto del Ejemplo
 
-**Formatos cubiertos:**
+Genera reportes de comparación de esquemas en los cinco formatos disponibles: HTML interactivo, script SQL de nivelación, Markdown portátil, Excel y Word profesional.
 
-| Reporter | Formato | Caso de uso |
-|---|---|---|
-| `HtmlDiffReporter` | `.html` | Exploración interactiva con filtrado y búsqueda |
-| `SqlDiffReporter` | `.sql` | Script de nivelación dialect-específico |
-| `MarkdownDiffReporter` | `.md` | Documentación portátil en repositorios |
-| `ExcelDiffReporter` | `.xlsx` | Análisis en hojas de cálculo |
-| `WordDiffReporter` | `.docx` | Reporte profesional |
-| `SchemaDiffReporter` | todos | Fachada que coordina todos los reportes |
+Resuelve el caso de equipos que necesitan comunicar diferencias de esquema a diferentes audiencias: los desarrolladores usan el script SQL, los arquitectos el HTML, los gestores el Word.
 
----
+## 2. Implementación de Referencia
 
 ```python
 --8<-- "examples/diff_reporters.py"
 ```
 
----
+## 3. Explicación del Código
 
-!!! tip "Ver también"
-    - [Comparador de Esquemas](../COMPARATOR.md) — documentación de `SchemaComparator`
-    - [Comparación de Esquemas](schema_comparison.md) — ejemplo completo con introspección
+Aspectos críticos:
+
+- **`SchemaDiffReporter` como fachada**: coordina todos los reporters individuales desde un único punto de entrada. Internamente instancia `HtmlDiffReporter`, `ExcelDiffReporter`, etc.
+- **Dependencias opcionales**: Excel requiere `openpyxl`, Word requiere `python-docx`, HTML requiere `Jinja2`. Si no están instaladas, el reporter correspondiente lanza error.
+- **`render_all(formats=...)`**: permite seleccionar un subconjunto de formatos. Omitir `formats` genera todos los disponibles.
+- **Script SQL dialect-específico**: `SqlDiffReporter` usa el dialecto configurado para emitir SQL compatible con el motor destino. SQLite emite comentarios `-- ⚠ no soportado` para operaciones sin equivalente.
+
+## 4. Ejecución y Pruebas
+
+```bash
+# Instalar dependencias de reportes
+pip install "util-bbdd[doc]"
+
+# Validación sintáctica
+python -m py_compile docs/examples/diff_reporters.py
+
+# Ejecución (requiere dos BDs accesibles)
+python docs/examples/diff_reporters.py
+```
+
+Ver [Comparación de Esquemas](schema_comparison.md) para el ejemplo completo con introspección.
+
+## 5. Referencias Relacionadas
+
+- **Documentación funcional**: [Comparador de Esquemas](../functional/schema-comparison.md) — objetivo de negocio y casos de uso
+- **Referencia técnica**: [Comparador y Reporters](../api/schema-comparator.md) — API de `SchemaDiffReporter` y reporters individuales
+- **Ejemplos relacionados**: [Comparación de Esquemas](schema_comparison.md) — ejemplo completo con introspección previa

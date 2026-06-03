@@ -3,7 +3,7 @@
 Documentación generada automáticamente desde los docstrings del código fuente.
 
 !!! tip "Referencia rápida"
-    Para una tabla de métodos y firmas en formato compacto, ver [API Reference](../API_REFERENCE.md).
+    Para una tabla de métodos y firmas en formato compacto, ver [API Reference](intro.md).
 
 ## Módulos disponibles
 

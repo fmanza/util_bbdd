@@ -1,218 +1,67 @@
-# Migración SQL Server → Oracle / MariaDB / PostgreSQL
+# Migración SQL Server como Origen
 
-## Descripción funcional
+## 1. Descripción General
 
-El módulo `migrate` soporta migración DDL **desde SQL Server** como motor origen hacia
-tres motores destino: Oracle, MariaDB y PostgreSQL. El flujo de trabajo es idéntico al
-de Oracle y MariaDB como fuentes: extraer metadatos → transformar tipos → emitir DDL.
+Genera automáticamente el script SQL de creación de estructura (DDL) de un schema SQL Server completo, listo para ejecutarse en Oracle, MariaDB o PostgreSQL. Cubre tablas, columnas, claves primarias, claves foráneas, índices, vistas y tipos de datos, adaptando cada elemento a las reglas del motor destino.
 
-## Precondiciones
+El flujo de trabajo es idéntico al de otros motores origen: extraer metadatos desde `INFORMATION_SCHEMA` y catálogos del sistema (`sys.indexes`, `sys.sql_modules`) → transformar tipos → emitir DDL ordenado por dependencias.
 
-- Conexión activa al esquema SQL Server origen (manager compatible con `execute_custom_many`).
-- Driver Python compatible: **pymssql** (param style `%(name)s`) o pyodbc con wrapper.
-- El parámetro `schema` corresponde a `TABLE_SCHEMA` en SQL Server (habitualmente `'dbo'`).
-- La conexión debe apuntar a la base de datos correcta (`USE mydb` o en la cadena de conexión).
+**Precondiciones:**
 
-## Flujo principal
+- Conexión activa al schema SQL Server origen compatible con el gestor de BD
+- Driver Python compatible: `pymssql` (param style `%(name)s`) o pyodbc con wrapper
+- El parámetro `schema` corresponde a `TABLE_SCHEMA` en SQL Server (habitualmente `'dbo'`)
+- La conexión debe apuntar a la base de datos correcta
+
+## 2. Reglas de Negocio
+
+| Regla | Descripción | Impacto si se viola |
+|---|---|---|
+| Tipos MAX (char_length = -1) | SQL Server usa `-1` como sentinel para `VARCHAR(MAX)`, `NVARCHAR(MAX)` y `VARBINARY(MAX)` | Sin detección, el tipo LOB no se genera correctamente en el destino |
+| Columnas IDENTITY detectadas via sys | La detección de columnas IDENTITY usa `COLUMNPROPERTY` del catálogo del sistema | Sin detección, la columna se genera sin autoincremento en el destino |
+| Vistas: pass-through sin reescritura | Las vistas se emiten sin traducir el SQL T-SQL-específico | Aviso de revisión manual por cada vista; el cuerpo requiere adaptación al dialecto destino |
+| `VIEW_DEFINITION` puede truncarse | En versiones SQL Server < 2019, las definiciones de vista largas pueden truncarse a 4000 chars | Vistas largas generarán DDL incompleto; verificar manualmente |
+| FKs circulares al final del script | Las dependencias circulares se emiten como `ALTER TABLE ADD CONSTRAINT` al final | El script completo es ejecutable en orden sin desactivar comprobaciones de FK |
+
+## 3. Casos de Uso
+
+### Flujo principal
 
 ```mermaid
 flowchart TD
-    PL["MigrationPlanner\n(source='sqlserver')"]
-    EX["SQLServerSchemaExtractor\n(INFORMATION_SCHEMA\nsys.indexes / sys.objects)"]
-    TR_OR["SQLServerToOracleTransformer"]
-    TR_MB["SQLServerToMariaDBTransformer"]
-    TR_PG["SQLServerToPostgreSQLTransformer"]
-    EM_OR["OracleDDLEmitter\n(SEQUENCE+TRIGGER\no GENERATED AS IDENTITY)"]
-    EM_MB["MariaDBDDLEmitter\n(AUTO_INCREMENT)"]
-    EM_PG["PostgreSQLDDLEmitter\n(SERIAL/BIGSERIAL)"]
-    OUT["MigrationPlan\n.emit_ddl() → .sql\n.execute(target)"]
+    PL["Planificador\n(source='sqlserver')"]
+    EX["Extractor SQL Server\n(INFORMATION_SCHEMA\nsys.indexes)"]
+    TR_OR["Transformador → Oracle"]
+    TR_MB["Transformador → MariaDB"]
+    TR_PG["Transformador → PostgreSQL"]
+    EM["Generadores DDL\n(por motor destino)"]
+    OUT["Plan de Migración\n.emit_ddl() → .sql\n.execute(target)"]
 
     PL --> EX
     EX --> TR_OR & TR_MB & TR_PG
-    TR_OR --> EM_OR
-    TR_MB --> EM_MB
-    TR_PG --> EM_PG
-    EM_OR & EM_MB & EM_PG --> OUT
+    TR_OR & TR_MB & TR_PG --> EM
+    EM --> OUT
 ```
 
-## Uso básico
+### Flujos alternativos
 
-### SQL Server → Oracle
+**Stored procedures y funciones:** El módulo extrae el cuerpo T-SQL desde `sys.sql_modules` verbatim con un aviso de revisión manual. La sintaxis T-SQL (variables `@`, `TOP`, `NOLOCK`, `GETDATE()`) no se traduce automáticamente.
 
-```python
-from util_bbdd.migrate import MigrationPlanner
+**Tipos geoespaciales:** `GEOGRAPHY` y `GEOMETRY` se mapean a tipos de texto con severidad ERROR en el plan de avisos, indicando que requieren revisión manual para conversión espacial.
 
-planner = MigrationPlanner(
-    source_engine="sqlserver",
-    target_engine="oracle",
-)
-plan = planner.plan(connection=sqlserver_manager, schema="dbo")
-ddl = plan.emit_ddl()
-print(ddl)
-```
+**Límites y exclusiones:**
 
-### SQL Server → MariaDB
+- Solo soporta SQL Server como motor origen (destinos: Oracle, MariaDB, PostgreSQL)
+- No migra filas de datos, solo la estructura (DDL)
+- No soporta columnas computadas, UDTs, tipos alias ni tablas temporales
+- Las vistas se incluyen como pass-through sin reescritura automática del SQL T-SQL
+- Para pyodbc se necesita un wrapper que adapte el param style `%(name)s` → `?`
 
-```python
-from util_bbdd.migrate import MigrationPlanner
+## 4. Glosario y Términos
 
-planner = MigrationPlanner(
-    source_engine="sqlserver",
-    target_engine="mariadb",
-    charset="utf8mb4",
-    collation="utf8mb4_unicode_ci",
-)
-plan = planner.plan(connection=sqlserver_manager, schema="dbo")
-ddl = plan.emit_ddl()
-```
-
-### SQL Server → PostgreSQL
-
-```python
-from util_bbdd.migrate import MigrationPlanner
-
-planner = MigrationPlanner(
-    source_engine="sqlserver",
-    target_engine="postgresql",
-    pg_schema="mi_schema",  # opcional: emite SET search_path
-)
-plan = planner.plan(connection=sqlserver_manager, schema="dbo")
-ddl = plan.emit_ddl()
-```
-
-## Reglas de mapeo por motor destino
-
-### SQL Server → Oracle
-
-| Tipo SQL Server | Tipo Oracle | Notas |
-|---|---|---|
-| INT | NUMBER(10,0) | |
-| BIGINT | NUMBER(19,0) | |
-| SMALLINT | NUMBER(5,0) | |
-| TINYINT | NUMBER(3,0) | SS unsigned 0-255; Oracle cubre -999..999 |
-| BIT | NUMBER(1,0) | Oracle < 23c sin BOOLEAN nativo |
-| DECIMAL(p,s) | NUMBER(p,s) | |
-| FLOAT | BINARY_DOUBLE | IEEE 754 double |
-| REAL | BINARY_FLOAT | IEEE 754 single |
-| MONEY | NUMBER(19,4) | |
-| SMALLMONEY | NUMBER(10,4) | |
-| VARCHAR(n) | VARCHAR2(n) | n>4000 → CLOB |
-| VARCHAR(MAX) | CLOB | char_length=-1 sentinel |
-| NVARCHAR(n) | NVARCHAR2(n) | n>4000 → CLOB |
-| NVARCHAR(MAX) | CLOB | |
-| CHAR(n) | CHAR(n) | |
-| NCHAR(n) | NCHAR(n) | |
-| TEXT/NTEXT | CLOB | Obsoletos en SS 2005+ |
-| DATE | DATE | SS DATE solo fecha; Oracle DATE incluye hora |
-| TIME | VARCHAR2(15) | Sin equivalente directo en Oracle |
-| DATETIME | DATE | |
-| DATETIME2 | TIMESTAMP | |
-| SMALLDATETIME | DATE | |
-| DATETIMEOFFSET | TIMESTAMP WITH TIME ZONE | Warning TZ |
-| BINARY(n) | RAW(n) | |
-| VARBINARY(n) | RAW(n) si n≤2000; BLOB si n>2000 | |
-| VARBINARY(MAX) | BLOB | |
-| IMAGE | BLOB | Obsoleto en SS 2005+ |
-| UNIQUEIDENTIFIER | CHAR(36) | Formato 8-4-4-4-12 |
-| XML | CLOB | Warning: XMLType disponible en Oracle 12c+ |
-| GEOGRAPHY | CLOB | ERROR severity; revisar manualmente |
-| GEOMETRY | CLOB | ERROR severity; revisar manualmente |
-
-### SQL Server → MariaDB
-
-| Tipo SQL Server | Tipo MariaDB | Notas |
-|---|---|---|
-| INT | INT | |
-| BIGINT | BIGINT | |
-| SMALLINT | SMALLINT | |
-| TINYINT | SMALLINT | WARNING: usar TINYINT UNSIGNED si rango exacto |
-| BIT | TINYINT(1) | Equivale a BOOL MariaDB |
-| DECIMAL(p,s) | DECIMAL(p,s) | |
-| FLOAT | DOUBLE | |
-| REAL | FLOAT | |
-| MONEY | DECIMAL(19,4) | |
-| VARCHAR(n) | VARCHAR(n) | |
-| VARCHAR(MAX) | LONGTEXT | |
-| NVARCHAR(n) | VARCHAR(n) | Usar charset utf8mb4 |
-| NVARCHAR(MAX) | LONGTEXT | |
-| DATETIME2 | DATETIME(6) | SS hasta 7 fracciones; MariaDB max 6 |
-| DATETIMEOFFSET | VARCHAR(35) | WARNING: sin TZ nativo en MariaDB |
-| VARBINARY(MAX) | LONGBLOB | |
-| UNIQUEIDENTIFIER | CHAR(36) | |
-
-### SQL Server → PostgreSQL
-
-| Tipo SQL Server | Tipo PostgreSQL | Notas |
-|---|---|---|
-| INT | INTEGER | |
-| TINYINT | SMALLINT | |
-| BIT | BOOLEAN | |
-| FLOAT | DOUBLE PRECISION | |
-| MONEY | NUMERIC(19,4) | |
-| NVARCHAR(n) | VARCHAR(n) | PG es Unicode-native |
-| NVARCHAR(MAX) | TEXT | |
-| VARCHAR(MAX) | TEXT | |
-| BINARY/VARBINARY | BYTEA | Sin parámetros de longitud |
-| DATETIME | TIMESTAMP | |
-| DATETIME2 | TIMESTAMP(6) | SS hasta 7 fracciones; PG max 6 |
-| DATETIMEOFFSET | TIMESTAMPTZ | Mapeo más directo |
-| UNIQUEIDENTIFIER | UUID | Tipo nativo PG |
-| XML | XML | Tipo nativo PG |
-
-## Comportamiento especial
-
-### Tipos MAX (char_length = -1)
-SQL Server usa `-1` como sentinel en `INFORMATION_SCHEMA.COLUMNS.CHARACTER_MAXIMUM_LENGTH`
-para `VARCHAR(MAX)`, `NVARCHAR(MAX)` y `VARBINARY(MAX)`. El extractor preserva este valor
-en `CanonicalColumn.char_length`; los transformers lo detectan y emiten el tipo LOB apropiado.
-
-### Columnas IDENTITY
-Detectadas mediante `COLUMNPROPERTY(OBJECT_ID(...), col, 'IsIdentity')`. El flag
-`auto_increment=True` en el IR activa la generación de SEQUENCE+TRIGGER (Oracle),
-AUTO_INCREMENT (MariaDB) o SERIAL/BIGSERIAL (PostgreSQL).
-
-### Vistas (v1 pass-through)
-Las vistas se extraen con su `VIEW_DEFINITION` de `INFORMATION_SCHEMA.VIEWS` y se emiten
-sin reescritura del SQL. Cada vista recibe un `MigrationWarning` indicando que las funciones
-T-SQL (`GETDATE`, `ISNULL`, `TOP`, `NOLOCK`, etc.) requieren revisión manual.
-
-> **Nota**: `VIEW_DEFINITION` en SQL Server puede truncarse a 4000 caracteres para vistas
-> con definiciones muy largas en versiones < SQL Server 2019.
-
-## Warnings y severidades
-
-| Severidad | Ejemplos |
+| Término | Definición |
 |---|---|
-| ERROR | GEOGRAPHY, GEOMETRY (requieren revisión manual para conversión espacial) |
-| WARNING | TINYINT (rango), DATETIMEOFFSET→MariaDB, TEXT/NTEXT obsoletos, VIEW pass-through |
-| INFO | BIT, TINYINT→SMALLINT (PG), FLOAT, REAL, MONEY, DATETIME2 truncación |
-
-## Stored procedures y funciones
-
-El módulo migra stored procedures y funciones SQL Server con estrategia **pass-through v1**:
-el cuerpo DDL se extrae desde `sys.sql_modules` y se emite verbatim acompañado de
-cabecera identificativa y aviso de revisión manual.
-
-```sql
--- PROCEDURE: [usp_get_clientes]
--- NOTE: requires manual review (see migration warnings)
-CREATE PROCEDURE [dbo].[usp_get_clientes]
-  @p_id INT
-AS
-BEGIN
-  SELECT * FROM CLIENTES WHERE ID = @p_id;
-END
-```
-
-Las rutinas se incluyen al final del script DDL. La sintaxis T-SQL (variables `@`, `TOP`,
-`NOLOCK`, `GETDATE()`, etc.) no se traduce automáticamente; el aviso de revisión manual
-indica que el body requiere adaptación al dialecto destino.
-
-## Limitaciones v1
-
-- Param style `%(name)s` (pymssql). Para pyodbc se necesita un manager wrapper que
-  adapte `%(name)s` → `?`.
-- Vistas y rutinas: pass-through sin reescritura de funciones T-SQL específicas.
-- Sin soporte de: columnas computadas, UDTs (User-Defined Types), tipos alias, tablas
-  temporales, tablas con particionado.
-- `VIEW_DEFINITION` puede truncarse en SQL Server < 2019.
+| IDENTITY | Mecanismo de autoincremento en SQL Server; equivale a `AUTO_INCREMENT` (MariaDB), `SERIAL` (PostgreSQL) o `SEQUENCE+TRIGGER` (Oracle) |
+| T-SQL | Dialecto SQL propietario de SQL Server con extensiones propias (`@variables`, `TOP`, `NOLOCK`, `GETDATE()`) |
+| Pass-through | Estrategia que emite el código fuente de vistas/rutinas sin modificarlo, con aviso de revisión manual |
+| `sys.sql_modules` | Vista del catálogo interno de SQL Server que expone el código fuente de procedimientos, funciones y vistas |

@@ -1,201 +1,57 @@
-# Ejecución de Consultas — Ejemplos
+# Ejemplo: Ejecución de Consultas con SyncQueryExecutor
 
-Ejemplos verificables para `SyncQueryExecutor`, `AsyncQueryExecutor` y los tipos de resultado
-(`Row`, `Rows`, `RowOrNone`).
+## 1. Contexto del Ejemplo
 
-## Requisitos
+Ejecuta consultas SQL libres y registradas por nombre sobre SQLite en memoria usando `SyncQueryExecutor`, demostrando los tipos de resultado `Row`, `Rows` y `RowOrNone`.
+
+Resuelve la necesidad de ejecutar queries de forma desacoplada del gestor de BD: el executor recibe un proveedor y un liberador de conexión como callables, independizándose del tipo de manager subyacente.
+
+## 2. Implementación de Referencia
+
+```python
+--8<-- "examples/query_execution_example.py"
+```
+
+## 3. Explicación del Código
+
+Aspectos críticos:
+
+- **`execute_custom_many` vs `execute_custom_one`**: el primero retorna siempre `list[tuple]` (vacío si no hay filas, nunca `None`); el segundo retorna `tuple | None`.
+- **`execute_query_*`**: requiere que la query esté registrada en `QueryRegistry`. Si no está, lanza `QueryNotFoundError`. Útil para centralizar el SQL y evitar duplicación.
+- **`connection_provider` y `connection_releaser`**: callables que el executor invoca para obtener y liberar conexiones. Permite usar cualquier tipo de conexión (pool, directa, mock en tests).
+- **Parámetros nombrados**: usar siempre `:nombre` como placeholders. El executor pasa los parámetros al driver como bind params (no interpolación de strings), previniendo inyección SQL.
+
+Para el ejecutor async (`AsyncQueryExecutor`), la única diferencia es que todos los métodos son corrutinas y el parámetro de timeout se llama `deadline_seconds`:
+
+```python
+filas = await executor.execute_custom_many(
+    "SELECT id FROM tabla WHERE activo = :activo",
+    params={"activo": 1},
+    deadline_seconds=5.0,
+)
+```
+
+## 4. Ejecución y Pruebas
 
 ```bash
-pip install util_bbdd
+# Validación sintáctica
+python -m py_compile docs/examples/query_execution_example.py
+
+# Ejecución (usa SQLite en memoria; no requiere servidor externo)
+python docs/examples/query_execution_example.py
 ```
 
-No se necesitan credenciales reales: los ejemplos usan SQLite en memoria.
-
----
-
-## Ejemplo 1. Consulta libre síncrona con SQLite en memoria
-
-```python
-import sqlite3
-from util_bbdd.executors import SyncQueryExecutor
-from util_bbdd.results import Row, Rows
-
-# Conexión SQLite en memoria
-conn = sqlite3.connect(":memory:")
-conn.execute("CREATE TABLE usuarios (id INTEGER PRIMARY KEY, nombre TEXT, activo INTEGER)")
-conn.execute("INSERT INTO usuarios VALUES (1, 'Ana', 1)")
-conn.execute("INSERT INTO usuarios VALUES (2, 'Luis', 1)")
-conn.execute("INSERT INTO usuarios VALUES (3, 'Eva', 0)")
-conn.commit()
-
-# El ejecutor recibe callables de proveedor y liberador
-executor = SyncQueryExecutor(
-    connection_provider=lambda: conn,
-    connection_releaser=lambda c: None,  # en memoria, no se cierra
-)
-
-# Múltiples filas
-filas: Rows = executor.execute_custom_many(
-    "SELECT id, nombre FROM usuarios WHERE activo = :activo",
-    params={"activo": 1},
-)
-print(filas)
-# [(1, 'Ana'), (2, 'Luis')]
-
-# Una sola fila
-fila: Row | None = executor.execute_custom_one(
-    "SELECT nombre FROM usuarios WHERE id = :id",
-    params={"id": 3},
-)
-print(fila)
-# ('Eva',)
-
-# Sin resultado
-vacio = executor.execute_custom_one(
-    "SELECT nombre FROM usuarios WHERE id = :id",
-    params={"id": 99},
-)
-print(vacio)
-# None
-```
-
-**Resultado esperado**:
+Resultado esperado:
 
 ```
-[(1, 'Ana'), (2, 'Luis')]
-('Eva',)
-None
+Activos: [(1, 'Ana'), (2, 'Luis')]
+Usuario 3: ('Eva',)
+Query registrada: (1, 'Ana')
 ```
 
----
+## 5. Referencias Relacionadas
 
-## Ejemplo 2. Consulta con QueryRegistry (queries nombradas)
-
-```python
-import sqlite3
-from util_bbdd.executors import SyncQueryExecutor
-from util_bbdd.query import QueryRegistry
-
-conn = sqlite3.connect(":memory:")
-conn.execute("CREATE TABLE productos (id INTEGER, nombre TEXT, precio REAL)")
-conn.execute("INSERT INTO productos VALUES (1, 'Teclado', 29.99)")
-conn.execute("INSERT INTO productos VALUES (2, 'Ratón', 14.50)")
-conn.commit()
-
-# Registrar queries por motor
-registry = QueryRegistry()
-registry.register(
-    "get_productos",
-    {"sqlite": "SELECT id, nombre, precio FROM productos ORDER BY precio"},
-)
-registry.register(
-    "get_producto_por_id",
-    {"sqlite": "SELECT id, nombre, precio FROM productos WHERE id = :id"},
-)
-
-executor = SyncQueryExecutor(
-    connection_provider=lambda: conn,
-    connection_releaser=lambda c: None,
-    registry=registry,
-)
-
-# Todos los productos
-productos = executor.execute_query_many("get_productos", "sqlite", {})
-for p in productos:
-    print(f"[{p[0]}] {p[1]} — {p[2]:.2f} €")
-
-# Un producto por ID
-producto = executor.execute_query_one("get_producto_por_id", "sqlite", {"id": 1})
-print(producto)
-```
-
-**Resultado esperado**:
-
-```
-[2] Ratón — 14.50 €
-[1] Teclado — 29.99 €
-(1, 'Teclado', 29.99)
-```
-
----
-
-## Ejemplo 3. Ejecutor asíncrono con SQLite
-
-```python
-import asyncio
-import aiosqlite
-from util_bbdd.executors import AsyncQueryExecutor
-
-async def main() -> None:
-    async with aiosqlite.connect(":memory:") as db:
-        await db.execute(
-            "CREATE TABLE tareas (id INTEGER, titulo TEXT, completada INTEGER)"
-        )
-        await db.execute("INSERT INTO tareas VALUES (1, 'Revisar código', 0)")
-        await db.execute("INSERT INTO tareas VALUES (2, 'Escribir tests', 1)")
-        await db.commit()
-
-        executor = AsyncQueryExecutor(
-            connection_provider=lambda: asyncio.coroutine(lambda: db)(),
-            connection_releaser=lambda c: asyncio.coroutine(lambda: None)(),
-        )
-
-        filas = await executor.execute_custom_many(
-            "SELECT id, titulo FROM tareas WHERE completada = :completada",
-            params={"completada": 0},
-        )
-        print(filas)
-        # [(1, 'Revisar código')]
-
-asyncio.run(main())
-```
-
-**Resultado esperado**:
-
-```
-[(1, 'Revisar código')]
-```
-
----
-
-## Ejemplo 4. Uso directo de ResultNormalizer
-
-```python
-from util_bbdd.results import ResultNormalizer, Row, Rows
-
-normalizer = ResultNormalizer()
-
-# Resultado de fetchone() — puede ser tuple, Row o None
-raw_one = (42, "Ana García")
-fila: Row | None = normalizer.normalize_one(raw_one)
-print(fila)          # (42, 'Ana García')
-print(type(fila))    # <class 'tuple'>
-
-# Sin resultado
-vacio = normalizer.normalize_one(None)
-print(vacio)         # None
-
-# Resultado de fetchall()
-raw_many = [(1, "A"), (2, "B"), (3, "C")]
-filas: Rows = normalizer.normalize_many(raw_many)
-print(filas)         # [(1, 'A'), (2, 'B'), (3, 'C')]
-print(len(filas))    # 3
-```
-
-**Resultado esperado**:
-
-```
-(42, 'Ana García')
-<class 'tuple'>
-None
-[(1, 'A'), (2, 'B'), (3, 'C')]
-3
-```
-
----
-
-## Notas de seguridad
-
-- Usa siempre parámetros nombrados (`:nombre`) en lugar de concatenar SQL con variables.
-- No pasar entrada de usuario directamente a `execute_custom_*` sin validación previa.
-- El timeout (`float | None`) ayuda a evitar conexiones colgadas en entornos de producción.
+- **Documentación funcional**: [Ejecución de Consultas](../functional/query-execution.md) — objetivo de negocio y reglas de negocio
+- **Referencia técnica**: [Ejecución de Consultas](../api/query-execution.md) — API de `SyncQueryExecutor`, `AsyncQueryExecutor` y `ResultNormalizer`
+- **Referencia técnica**: [Registry y Resolver](../api/query-system.md) — API de `QueryRegistry` y `QueryResolver`
+- **Ejemplos relacionados**: [Conectar e Introspeccionar Base de Datos](example-connect-introspect.md) — uso de `execute_custom_many` directamente desde el manager

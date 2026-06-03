@@ -1,37 +1,28 @@
-## Responsabilidad del módulo
+# Auditoría Bulk (AuditManager)
 
-`AuditManager` es la fachada pública del subsistema de auditoría de operaciones bulk. Coordina tres componentes internos: `AuditCsvRepository` (persistencia en CSV con caché TTL), `AuditAnalyticsService` (estadísticas y filtros) y `AuditExporters` (Excel, JSON, HTML). `AuditTransaction` es el context manager que agrupa y registra operaciones atómicamente.
+`AuditManager` es la fachada del subsistema de auditoría de operaciones bulk: coordina persistencia en CSV, estadísticas y exportación; `AuditTransaction` es el context manager que agrupa y registra operaciones atómicamente.
 
-## Diagrama
+## 1. Arquitectura y Diseño
 
 ```mermaid
 flowchart TD
-    A[bulk_crud] --> B[AuditTransaction.__enter__]
+    A[BulkCrud] --> B[AuditTransaction.__enter__]
     B --> C[Registrar timestamp inicio]
     C --> D[Ejecutar operaciones bulk]
     D --> E[tx.agregar_operacion]
     E --> F{__exit__ sin excepción?}
-    F -->|Sí| G[_registrar_transaccion_exitosa]
-    F -->|No| H[_registrar_transaccion_fallida]
+    F -->|Sí| G[Registrar transacción exitosa]
+    F -->|No| H[Registrar transacción fallida]
     G & H --> I[AuditCsvRepository.escribir]
     I --> J[CSV de auditoría]
-    I --> K[invalidar_cache si cache_enabled]
+    I --> K[Invalidar caché si activa]
 ```
 
-## API pública
+## 2. Modelo de Datos / Contratos
 
-### Clase `AuditTransaction`
+### API pública
 
-| Método / Propiedad | Firma simplificada | Descripción | Retorna |
-|---|---|---|---|
-| `AuditTransaction` | `(manager, nombre)` | Context manager de transacción | `AuditTransaction` |
-| `agregar_operacion` | `(tabla, motor, operacion, rowcount, elapsed, genero_sql?)` | Agrega operación a la transacción en curso | `None` |
-| `obtener_resumen` | `()` | Dict con métricas de la transacción | `dict[str, Any]` |
-| `duracion_segundos` | propiedad | Segundos entre inicio y fin | `float` |
-| `total_operaciones` | propiedad | Número de operaciones registradas | `int` |
-| `total_filas` | propiedad | Suma de filas afectadas | `int` |
-
-### Clase `AuditManager`
+#### Clase `AuditManager`
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
@@ -44,33 +35,57 @@ flowchart TD
 | `filtrar_por_fecha` | `(desde, hasta?)` | Filtra operaciones por rango de fechas | `pd.DataFrame` |
 | `invalidar_cache` | `()` | Fuerza recarga del CSV en la próxima lectura | `None` |
 
-## Contrato de entrada
+#### Clase `AuditTransaction`
+
+| Método / Propiedad | Firma simplificada | Descripción | Retorna |
+|---|---|---|---|
+| `AuditTransaction` | `(manager, nombre)` | Context manager de transacción | `AuditTransaction` |
+| `agregar_operacion` | `(tabla, motor, operacion, rowcount, elapsed, genero_sql?)` | Agrega operación a la transacción en curso | `None` |
+| `obtener_resumen` | `()` | Dict con métricas de la transacción | `dict[str, Any]` |
+| `duracion_segundos` | propiedad | Segundos entre inicio y fin | `float` |
+| `total_operaciones` | propiedad | Número de operaciones registradas | `int` |
+| `total_filas` | propiedad | Suma de filas afectadas | `int` |
+
+### Contrato de entrada
 
 | Parámetro | Tipo | Descripción | Restricciones |
 |---|---|---|---|
-| `audit_csv_path` | `Path \| None` | Fichero CSV donde persistir el historial | Si `None`, el CSV no se escribe; las operaciones se acumulan solo en memoria |
-| `cache_enabled` | `bool` | Activar caché del CSV con TTL | Default `True`; si `False`, cada lectura recarga el CSV |
+| `audit_csv_path` | `Path \| None` | Fichero CSV donde persistir el historial | `None` = sin persistencia en disco |
+| `cache_enabled` | `bool` | Activar caché del CSV con TTL | Default `True` |
 | `cache_ttl_seconds` | `int` | Segundos de validez de la caché del CSV | Default `300` (5 min) |
-| `nombre` | `str` | Nombre de la transacción en `AuditTransaction` | No puede ser vacío ni solo espacios; `AuditValidationError` si se viola |
-| `tabla` | `str` | Nombre de tabla en `agregar_operacion` | Libre; se usa como clave en estadísticas |
-| `motor` | `str` | Identificador del motor en `agregar_operacion` | Libre; normalmente `engine.dialect.name.upper()` |
+| `nombre` | `str` | Nombre de la transacción | No puede ser vacío ni solo espacios; `AuditValidationError` si se viola |
 | `operacion` | `str` | Tipo en `agregar_operacion` | `"INSERT"`, `"UPDATE"` o `"DELETE"` |
 
-## Contrato de salida
+### Contrato de salida
 
-- **`obtener_resumen`** de `AuditTransaction` — `dict` con claves `nombre`, `exito`, `duracion_segundos`, `total_operaciones`, `total_filas`, `operaciones` (lista de dicts con detalle por operación).
-- **`filtrar_por_fecha`** — `pd.DataFrame` con las columnas del CSV de auditoría filtradas por el rango indicado.
-- Exportadores (`exportar_excel`, `exportar_json`, `exportar_html`) — `None`; crean el fichero en la ruta indicada.
+- **`obtener_resumen`** (`AuditTransaction`) — `dict` con `nombre`, `exito`, `duracion_segundos`, `total_operaciones`, `total_filas`, `operaciones`.
+- **`filtrar_por_fecha`** — `pd.DataFrame` con columnas del CSV filtradas por rango de fechas.
+- Exportadores — `None`; crean el fichero en la ruta indicada.
 
-## Errores y casos especiales
+### Errores y casos especiales
 
 | Error | Cuándo ocurre |
 |---|---|
 | `AuditValidationError` | Nombre de transacción vacío; `agregar_operacion` sobre transacción ya cerrada |
 | `AuditFileError` | Error de escritura en el CSV (permisos, ruta inválida) |
-| `AuditConfigError` | Configuración inválida al inicializar `AuditManager` |
+| `AuditConfigError` | Configuración inválida al inicializar; exportar sin CSV configurado |
 
-**Casos especiales:**
-- Si `audit_csv_path=None`, las operaciones se acumulan en `_historial_transacciones` (atributo en memoria) pero no se persisten. `exportar_excel` y similares lanzarán `AuditConfigError` si no hay CSV configurado.
-- `invalidar_cache` se llama automáticamente al finalizar una transacción exitosa cuando `cache_enabled=True`, para que la siguiente lectura del CSV refleje los datos recién escritos.
-- `agregar_operacion` lanza `AuditValidationError` si se llama antes de `__enter__` o después de `__exit__` (transacción cerrada). El context manager es obligatorio para agregar operaciones.
+## 3. Componentes y Clases
+
+| Clase | Responsabilidad |
+|---|---|
+| `AuditManager` | Fachada pública; coordina repositorio, analytics y exportadores |
+| `AuditTransaction` | Context manager que agrupa y registra operaciones atómicamente |
+| `AuditCsvRepository` | Persistencia en CSV con caché TTL |
+| `AuditAnalyticsService` | Estadísticas y filtros sobre el historial |
+
+## 4. Dependencias y Requisitos
+
+| Dependencia | Propósito | Requerida | Comportamiento sin ella |
+|---|---|---|---|
+| `pandas` | Lectura y filtrado del CSV de auditoría | Sí | Sin pandas no se puede leer ni exportar el historial |
+| `openpyxl` | Exportación a Excel | Solo para `exportar_excel` | `AuditConfigError` al intentar exportar a Excel |
+
+## 5. Ejemplos Relacionados
+
+- [Ejemplo: Bulk Insert desde CSV con Auditoría](../examples/bulk_insert_csv.md) — Uso de `AuditManager` con transacciones de auditoría

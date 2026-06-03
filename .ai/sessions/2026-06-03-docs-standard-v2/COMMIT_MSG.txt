@@ -1,0 +1,57 @@
+docs: estándar documental v2 (5 arquetipos × 5 secciones) + fix cobertura autodoc bulk/dump
+
+Homogeniza toda la documentación pública al estándar v2 y corrige dos gaps
+de cobertura de autodoc (mkdocstrings). Sin cambios de código de funcionalidad.
+
+Estándar v2: 5 arquetipos × 5 secciones
+- Arquetipo 1 (Funcional): +§4 Criterios de Aceptación (POSPUESTO — pendiente
+  validación QA, solo placeholder) y +§5 Glosario; 19 archivos en docs/functional/.
+- Arquetipo 2 (Técnica): +§5 Ejemplos Relacionados (enlace bidireccional);
+  24 archivos en docs/api/.
+- Arquetipo 3 (Guías): +§1 Objetivo, renumeración §1→§5 y §5 Variantes y
+  Solución de Problemas; 13 guías en docs/.
+- Arquetipo 4 (Ejemplos): +§5 Referencias Relacionadas (enlace bidireccional
+  a functional/ y api/); 18 archivos en docs/examples/.
+- Arquetipo 5 (Arquitectura): nuevo arquetipo ADR; docs/adr/ADR-001 restructurado
+  + nueva plantilla docs/adr/ADR-TEMPLATE.md.
+
+Navegación: 7 secciones top-level exactas
+- mkdocs.yml consolidado de 9 a 7 secciones: Inicio, Instalación, Documentación
+  Funcional, Referencia Técnica, Guías, Ejemplos, Arquitectura.
+- "Roadmap & Planificación" y "Versiones Históricas" reubicadas bajo Arquitectura.
+- API_REFERENCE.md reemplazado por api/intro.md; añadido a exclude_docs.
+
+Reubicación de guías de herramientas IA
+- 4 guías movidas de docs/examples/ a docs/ raíz (eran guías Arquetipo 3):
+  claude_code_guide.md, codex_guide.md, doc_generation_vscode_guide.md,
+  github_copilot_guide.md. Resuelve 99 warnings de links rotos a .github/.
+
+Fix cobertura autodoc (mkdocstrings)
+- bulk.md: la directiva apuntaba al alias de variable bulk_crud (= BulkCrud).
+  mkdocstrings trata los aliases de variable como escalares y no expande los
+  métodos de la clase. Corregido a la clase real BulkCrud; añadidas directivas
+  para ParallelBulkLoader, AuditManager y AuditTransaction.
+- dump: el módulo NO tenía ningún archivo autodoc; sus docstrings nunca se
+  renderizaban. Creado api/dump-autodoc.md con 11 clases públicas. PKSyncResult
+  excluido por ser re-export de bulk._models, ya cubierto en bulk.md.
+
+Instrucciones IA (gobernanza)
+- docs.instructions.md: 5 arquetipos × 5 secciones, detección multi-lenguaje
+  (Python/Java/TypeScript), regla crítica de aliases de autodoc y regla de
+  cobertura "cada módulo público necesita un archivo autodoc".
+- DOCUMENTATION_STANDARD.md: §3.1–§3.5 (5 arquetipos) + §3.6 multi-lenguaje.
+- Prompts actualizados: functional_doc, technical_doc, guide_doc, example_doc.
+- Nuevo prompt: architecture_doc.prompt.md (Arquetipo 5 ADR).
+
+Ejemplos ejecutables
+- 7 nuevos .py de ejemplo verificados con python -m py_compile.
+
+Trazabilidad
+- .ai/sessions/2026-06-03-docs-standard-v2/ (REQUEST, CONTEXT_SNAPSHOT,
+  TRACEABILITY, GITHUB_COMMIT_MESSAGE) + entrada en INDEX.md.
+
+Validación
+- mkdocs build --strict: 0 errores, 0 warnings.
+- Decisiones AUDIT_PLAN: C1 (criterios QA) POSPUESTO; C6 (anchors) verificado.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
