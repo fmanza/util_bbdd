@@ -7,30 +7,6 @@ repo_name: fmanza/util_bbdd
 docs_dir: docs
 site_dir: site
 
-exclude_docs: |
-  v0.5.6/
-  v0.6.0/
-  v0.6.1/
-  v0.6.2/
-  v0.6.3/
-  v0.6.4/
-  v0.6.6/
-  v0.6.7/
-  v0.6.5/
-  v0.6.8/
-  v0.6.9/
-  v0.8.1/
-  archive/
-  legacy/
-  prompt/
-  DOCUMENTATION_REVIEWER_GUIDE.md
-  RELEASE_v0.5.0.md
-  DOCUMENTATION_AUDIT_v0.7.0.md
-  FASE6_FINAL_AUDIT_REPORT.md
-  v0.8.0/RELEASE_v0.8.0.md
-  examples/imprimir_config_full_example.toml
-  API_REFERENCE.md
-
 nav:
   - Inicio: index.md
   - Instalación: INSTALLATION.md

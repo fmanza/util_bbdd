@@ -63,3 +63,6 @@ dist_verify/
 
 # MkDocs generated site
 site/
+
+# Documentación histórica (no usada en la doc publicada)
+doc_old/
