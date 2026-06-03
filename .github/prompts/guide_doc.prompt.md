@@ -74,9 +74,11 @@ Genera la guía de usuario del área indicada siguiendo las instrucciones del pr
 
 ## Arquetipos de guías en este proyecto
 
+> **Nota**: `docs/INSTALLATION.md` ya **no** se rige por este arquetipo; pasó al Arquetipo 6
+> (`landing_doc.prompt.md`, Variante B). Para instalación usa ese prompt, no este.
+
 | Archivo | Tipo de guía |
 |---|---|
-| `docs/INSTALLATION.md` | Instalación y dependencias |
 | `docs/ASYNC_GUIDE.md` | Configuración de programación asíncrona |
 | `docs/POSTGRESQL_DRIVER_GUIDE.md` | Configuración de driver PostgreSQL |
 | `docs/EXCEPTIONS.md` | Referencia de excepciones y manejo de errores |
@@ -89,6 +91,6 @@ Genera la guía de usuario del área indicada siguiendo las instrucciones del pr
 
 ## Output esperado
 
-Markdown con título H1 y las 4 secciones del Arquetipo 3 numeradas (`## 1.`–`## 4.`).
-`## 3. Verificación` debe incluir siempre al menos un comando ejecutable.
-`## 4. Solución de Problemas` con tabla o `*No aplica para este módulo.*`.
+Markdown con título H1 y las 5 secciones del Arquetipo 3 numeradas (`## 1.`–`## 5.`).
+`## 4. Verificación` debe incluir siempre al menos un comando ejecutable.
+`## 5. Variantes y Solución de Problemas` con tabla o `*No aplica para este módulo.*`.

@@ -3,7 +3,7 @@ applyTo: "docs/**"
 ---
 # Documentación
 
-> **TL;DR** — Cinco arquetipos fijos (funcional, técnica, guía, ejemplo, arquitectura). Secciones numeradas 1–5 obligatorias. Mermaid.js para diagramas. MkDocs Material como generador estático. No inventar nada. Si una sección queda vacía, escribe `*No aplica para este módulo.*` — nunca la omitas. Enlace bidireccional obligatorio entre Arquetipo 2 §5 y Arquetipo 4 §5.
+> **TL;DR** — Seis arquetipos fijos (funcional, técnica, guía, ejemplo, arquitectura, páginas de navegación). Secciones numeradas 1–5 obligatorias. Mermaid.js para diagramas. MkDocs Material como generador estático. No inventar nada. Si una sección queda vacía, escribe `*No aplica para este módulo.*` — nunca la omitas. Enlace bidireccional obligatorio entre Arquetipo 2 §5 y Arquetipo 4 §5.
 
 ---
 
@@ -227,6 +227,49 @@ Fecha de última revisión.
 
 **Documentos de planificación** (roadmap, release plans): marcar con
 `<!-- arquetipo: informativo-libre -->` — no aplica estructura de Arquetipo 5.
+
+---
+
+## Arquetipo 6 — Páginas de Navegación Principal (`docs/` raíz)
+
+**Audiencia**: cualquier visitante que llega a la documentación por primera vez.
+Para las páginas de entrada de nivel raíz del `nav:` — **Inicio**, **Instalación** y **Arquitectura del sistema**.
+
+**Prompt**: `.github/prompts/landing_doc.prompt.md` (tres variantes A/B/C, 5 secciones cada una).
+
+### Estructura obligatoria (según variante)
+
+```
+# Variante A — Inicio (docs/index.md)
+## 1. Identidad y Propósito
+## 2. Capacidades Principales
+## 3. Quick Start
+## 4. Mapa de la Documentación
+## 5. Compatibilidad y Soporte
+
+# Variante B — Instalación (docs/INSTALLATION.md)
+## 1. Requisitos Previos
+## 2. Instalación del Paquete
+## 3. Drivers por Motor
+## 4. Verificación
+## 5. Solución de Problemas
+
+# Variante C — Arquitectura del sistema (docs/ARCHITECTURE.md)
+## 1. Visión General
+## 2. Mapa de Módulos
+## 3. Flujo de una Operación
+## 4. Contratos y Reglas Transversales
+## 5. Extensión y Límites
+```
+
+**Distinción con el Arquetipo 5**: el Arquetipo 5 documenta **un ADR concreto** (`docs/adr/`); la
+Variante C documenta la **visión global del sistema** (`docs/ARCHITECTURE.md`). Ambas conviven bajo la
+sección `Arquitectura` del nav.
+
+**Distinción con el Arquetipo 3**: el Arquetipo 3 cubre guías genéricas (async, drivers, troubleshooting);
+la Variante B es específica de instalación del paquete y drivers.
+
+`docs/legacy-versions.md` permanece exento de arquetipo.
 
 ---
 
@@ -456,9 +499,9 @@ Etiquetas en español. Solo incluye componentes presentes en el código real.
 
 Para generar o actualizar la documentación completa del proyecto:
 
-1. **Inventario**: lista todos los módulos en `src/` y clasifica qué arquetipo necesita cada documento (`docs/functional/` → Arquetipo 1, `docs/api/` → Arquetipo 2, guías raíz `docs/` → Arquetipo 3, `docs/examples/` → Arquetipo 4).
+1. **Inventario**: lista todos los módulos en `src/` y clasifica qué arquetipo necesita cada documento (`docs/functional/` → Arquetipo 1, `docs/api/` → Arquetipo 2, guías raíz `docs/` → Arquetipo 3, `docs/examples/` → Arquetipo 4, ADR `docs/adr/` → Arquetipo 5, páginas raíz `index.md`/`INSTALLATION.md`/`ARCHITECTURE.md` → Arquetipo 6).
 2. **Orden de generación**: empieza por módulos base (`_base.py`, contratos) antes que servicios; los servicios antes que las CLIs y la capa web.
-3. **Generación por arquetipo**: aplica el prompt correspondiente (`functional_doc`, `technical_doc`, `guide_doc` o `example_doc`) a cada archivo.
+3. **Generación por arquetipo**: aplica el prompt correspondiente (`functional_doc`, `technical_doc`, `guide_doc`, `example_doc`, `architecture_doc` o `landing_doc`) a cada archivo.
 4. **mkdocs.yml**: actualiza la sección `nav:` con todas las entradas nuevas o modificadas.
 5. **Consistencia**: usa el mismo tono, nivel de detalle y estructura en todos los archivos del mismo arquetipo.
 
@@ -595,4 +638,4 @@ Ejecuta `mkdocs build` para validar que la referencia se resuelve sin ERROR.
 
 ---
 
-*Estándar actualizado: 2026-06-03 — Estándar v2: 5 Arquetipos × 5 secciones, enlace bidireccional, multi-lenguaje*
+*Estándar actualizado: 2026-06-03 — Estándar v2.1: 6 Arquetipos × 5 secciones (Arquetipo 6: páginas de navegación), enlace bidireccional, multi-lenguaje*

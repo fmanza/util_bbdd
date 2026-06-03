@@ -205,7 +205,7 @@ PRODUCTION_READY | NEAR_READY | BLOCKED
 ## Configuración
 
 Personalizaciones por contexto:
-- **Prompts**: `.github/prompts/*.prompt.md` — instrucciones por slash command (12 prompts; 8 equivalentes a `.claude/commands/` + `documentation_review` + `functional_doc` + `technical_doc` + `config_review`)
+- **Prompts**: `.github/prompts/*.prompt.md` — instrucciones por slash command (16 prompts; 8 equivalentes a `.claude/commands/` + 6 arquetipos de documentación `functional_doc`/`technical_doc`/`guide_doc`/`example_doc`/`architecture_doc`/`landing_doc` + `documentation_review` + `config_review`)
 - **Instrucciones**: `.github/instructions/*.instructions.md` — reglas por tipo de archivo
 - **Hooks**: `.claude/settings.json` — comandos pre/post tool (lint, format, type-check)
 - **Workflow IA**: `.github/workflows/doc_agents.yml` — generación automática vía Anthropic/OpenAI

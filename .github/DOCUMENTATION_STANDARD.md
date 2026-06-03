@@ -42,6 +42,7 @@ Estandarizar instrucciones de documentación para asegurar:
 | **Prompt: config_review** | `.github/prompts/config_review.prompt.md` | ✅ Existente |
 | **Prompt: functional_doc** | `.github/prompts/functional_doc.prompt.md` | ✅ Existente |
 | **Prompt: technical_doc** | `.github/prompts/technical_doc.prompt.md` | ✅ Existente |
+| **Prompt: landing_doc** | `.github/prompts/landing_doc.prompt.md` | ✅ Existente |
 | **Prompt: documentation_review** | `.github/prompts/documentation_review.prompt.md` | ✅ Existente |
 
 ### 2.4 Gaps Actuales
@@ -76,10 +77,14 @@ Tabla: | Regla | Descripción | Impacto si se viola |
 ## 3. Casos de Uso
 ### Flujo principal
 Diagrama Mermaid sequenceDiagram (actor → módulo → salida).
-### Flujos alternativos
-Casos de error o variantes. Si no hay, "No aplica para este módulo."
+### Flujos alternativos y de error
+Variantes y casos de error verificables. Si no hay, "No aplica para este módulo."
 
-## 4. Glosario y Términos
+## 4. Criterios de Aceptación      ← PENDIENTE QA (placeholder hasta validación)
+Estructura prevista: Tabla | ID | Criterio | Verificable con |
+Redacción: "Dado X, cuando Y, entonces Z."
+
+## 5. Glosario y Términos
 Tabla: | Término | Definición |
 Si no hay términos específicos: "No aplica para este módulo."
 ```
@@ -127,6 +132,10 @@ Para módulos con una sola clase: "No aplica para este módulo."
 
 ## 4. Dependencias y Requisitos
 Tabla: | Dependencia | Propósito | Requerida | Comportamiento sin ella |
+
+## 5. Ejemplos Relacionados      ← OBLIGATORIO (enlace bidireccional con Arquetipo 4 §5)
+Lista de enlaces a docs/examples/ con descripción de lo que ilustra cada uno.
+Si no existe ningún ejemplo del módulo: "Pendiente — crear ejemplo en docs/examples/[nombre].md"
 ```
 
 **Regla de sección vacía**: Si un subapartado queda vacío, escribe `*No aplica para este módulo.*`.
@@ -146,19 +155,23 @@ Tabla: | Dependencia | Propósito | Requerida | Comportamiento sin ella |
 **Estructura obligatoria** (secciones numeradas, en este orden):
 
 ```
-# [Guía de X / Configuración de Y]
+# [Guía de X / Tutorial de Y]
 
-## 1. Requisitos Previos
-Lista: herramientas, accesos o estado inicial requerido.
+## 1. Objetivo
+Qué conseguirás al seguir esta guía (1 párrafo). Distingue how-to ("instalar X") vs tutorial ("entender X").
 
-## 2. Pasos de Instalación / Configuración
-Procedimiento secuencial con bloques de código.
+## 2. Requisitos Previos
+Lista: herramientas, versiones, accesos o estado inicial requerido.
 
-## 3. Verificación
+## 3. Pasos
+Procedimiento secuencial numerado con bloques de código. Cada paso atómico y verificable.
+
+## 4. Verificación
 Comando + output esperado para confirmar éxito.
 
-## 4. Solución de Problemas
-Tabla: | Error / Síntoma | Causa probable | Solución |
+## 5. Variantes y Solución de Problemas
+Tabla: | Escenario/Error | Causa probable | Solución |
+Incluye alternativas al flujo principal y configuraciones opcionales.
 Si no hay casos conocidos: "No aplica para este módulo."
 ```
 
@@ -191,9 +204,54 @@ Para ejemplos triviales: "No aplica para este módulo."
 
 ## 4. Ejecución y Pruebas
 Comando exacto + output esperado si determinista.
+
+## 5. Referencias Relacionadas      ← OBLIGATORIO (enlace bidireccional con Arquetipo 2 §5)
+- Documentación funcional: [enlace a docs/functional/...]
+- Referencia técnica: [enlace a docs/api/...]
+- Ejemplos relacionados: [otros ejemplos del mismo área si existen]
 ```
 
 **Regla de snippet**: En `## 2.` usar siempre `--8<--`. Si el `.py` no existe, crearlo antes de referenciar.
+
+---
+
+### 3.5 Arquetipo 5 — Decisión Arquitectónica / ADR (`docs/adr/`)
+
+**Propósito**: Responder "¿Por qué se decidió así?"
+
+**Audiencia**: arquitectos de software, tech leads, responsables de plataforma.
+
+**Ubicación**: `docs/adr/ADR-[NNN]-[nombre-kebab-case].md`
+
+**Prompt**: `.github/prompts/architecture_doc.prompt.md`.
+
+**Secciones obligatorias**: Contexto y Problema → Decisión → Consecuencias → Alternativas Consideradas → Estado y Revisión.
+
+Documenta **una decisión concreta con trade-offs**, no la visión global del sistema (esa es la Variante C del Arquetipo 6). Los documentos de planificación (roadmap, release plans) se marcan con `<!-- arquetipo: informativo-libre -->` y quedan exentos.
+
+---
+
+### 3.6 Arquetipo 6 — Páginas de Navegación Principal (`docs/` raíz)
+
+**Propósito**: Responder "¿Qué es, cómo lo instalo y cómo está organizado?" en las páginas de entrada.
+
+**Audiencia**: cualquier visitante que llega a la documentación por primera vez.
+
+**Ubicación**: `docs/index.md` (Inicio), `docs/INSTALLATION.md` (Instalación), `docs/ARCHITECTURE.md` (Arquitectura).
+
+**Prompt**: `.github/prompts/landing_doc.prompt.md` (tres variantes A/B/C, 5 secciones cada una).
+
+Estas páginas entran directamente en `nav:` (nivel raíz), no bajo `functional/`, `api/`, `examples/` ni `adr/`:
+
+- **Variante A — Inicio**: Identidad y Propósito → Capacidades → Quick Start → Mapa de la Documentación → Compatibilidad y Soporte.
+- **Variante B — Instalación**: Requisitos → Instalación del Paquete → Drivers por Motor → Verificación → Solución de Problemas.
+- **Variante C — Arquitectura**: Visión General → Mapa de Módulos → Flujo de una Operación → Contratos y Reglas → Extensión y Límites.
+
+**Distinción con otros arquetipos**:
+- El Arquetipo 5 (`architecture_doc`) documenta **un ADR concreto**; la Variante C documenta la **visión global del sistema**. Ambas conviven bajo la sección "Arquitectura" del nav.
+- El Arquetipo 3 (`guide_doc`) cubre guías genéricas (async, drivers, troubleshooting); la Variante B es específica de instalación del paquete y drivers.
+
+**Excepción**: `docs/index.md` y `docs/legacy-versions.md` seguían exentos en v1; con este arquetipo `index.md` pasa a regirse por la Variante A. `legacy-versions.md` permanece exento.
 
 ---
 
@@ -513,7 +571,7 @@ La estandarización se considera **completa** cuando:
 - [ ] Todos los archivos referenciados en `docs/examples/` existen en disco
 - [ ] `CHANGELOG.md` y `COMPATIBILITY.md` reflejan la versión actual de `pyproject.toml`
 - [ ] Las instrucciones IA (`CLAUDE.md`, `copilot-instructions.md`) son coherentes con el código real
-- [ ] Todos los documentos en `nav:` (excepto `index.md` y `legacy-versions.md`) tienen exactamente las 4 secciones numeradas de su arquetipo asignado
+- [ ] Todos los documentos en `nav:` (excepto `legacy-versions.md`) tienen exactamente las secciones numeradas de su arquetipo asignado (`index.md`, `INSTALLATION.md` y `ARCHITECTURE.md` se rigen por el Arquetipo 6)
 - [ ] Las secciones vacías contienen `*No aplica para este módulo.*` en lugar de estar omitidas
 - [ ] Los prompts `.github/prompts/guide_doc.prompt.md` y `example_doc.prompt.md` existen y son coherentes con Arquetipos 3 y 4
 

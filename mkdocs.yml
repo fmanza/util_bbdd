@@ -127,6 +127,7 @@ nav:
 
   # ── Contexto del proyecto ──────────────────────────────────────────────────
   - Arquitectura:
+      - Arquitectura del Sistema: ARCHITECTURE.md
       - ADR-001 Refactoring: adr/ADR-001-STRUCTURE-REFACTORING.md
       - Plantilla ADR: adr/ADR-TEMPLATE.md
       - Roadmap v0.8.0: v0.8.0/PLAN_v0.8.0_TYPE_SYSTEM_IMPROVEMENTS.md

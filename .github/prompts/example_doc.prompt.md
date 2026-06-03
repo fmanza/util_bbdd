@@ -117,6 +117,7 @@ docs/examples/
 
 ## Output esperado
 
-Markdown con título `# Ejemplo: [Nombre]` y las 4 secciones del Arquetipo 4 numeradas
-(`## 1.`–`## 4.`). `## 2.` contiene exclusivamente `--8<-- "examples/..."`.
+Markdown con título `# Ejemplo: [Nombre]` y las 5 secciones del Arquetipo 4 numeradas
+(`## 1.`–`## 5.`). `## 2.` contiene exclusivamente `--8<-- "examples/..."`.
 `## 4.` incluye siempre `python -m py_compile` como verificación mínima.
+`## 5. Referencias Relacionadas` es obligatoria (enlace bidireccional con Arquetipo 2 §5).
