@@ -254,13 +254,18 @@ Para las páginas de entrada de nivel raíz del `nav:` — **Inicio**, **Instala
 ## 4. Verificación
 ## 5. Solución de Problemas
 
-# Variante C — Arquitectura del sistema (docs/ARCHITECTURE.md)
-## 1. Visión General
-## 2. Mapa de Módulos
-## 3. Flujo de una Operación
-## 4. Contratos y Reglas Transversales
-## 5. Extensión y Límites
+# Variante C — Arquitectura del sistema (docs/ARCHITECTURE.md) — modelo arc42-lite + C4
+## 1. Visión General y Objetivos de Calidad   (arc42 1+3; incluye diagrama C4 nivel 1)
+## 2. Mapa de Módulos (Building Blocks)        (arc42 5; C4 nivel 3)
+## 3. Flujo en Ejecución (Runtime)             (arc42 6)
+## 4. Conceptos Transversales y Estándares No Funcionales  (arc42 8+10; checklist NFR)
+## 5. Decisiones, Extensión y Límites          (arc42 9+11; enlace a docs/adr/)
 ```
+
+La Variante C es la **vista panorámica** (arc42-lite + C4); las decisiones puntuales se registran
+como ADR (Arquetipo 5, `docs/adr/`). El checklist no funcional de §4 cubre, como mínimo:
+Seguridad, Observabilidad, Rendimiento, Compatibilidad, Robustez/Errores y Tipado/Calidad,
+anclando cada ítem a un mecanismo real del código.
 
 **Distinción con el Arquetipo 5**: el Arquetipo 5 documenta **un ADR concreto** (`docs/adr/`); la
 Variante C documenta la **visión global del sistema** (`docs/ARCHITECTURE.md`). Ambas conviven bajo la

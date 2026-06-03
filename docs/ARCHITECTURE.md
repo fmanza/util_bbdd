@@ -1,19 +1,47 @@
 # Arquitectura del Sistema — util_bbdd
 
-Visión global de cómo está organizado `util_bbdd`: una librería en capas que abstrae conexión, introspección y operaciones de alto nivel sobre `sqlalchemy`. Esta página describe el sistema completo; para decisiones puntuales con trade-offs consulta los [ADR](adr/ADR-001-STRUCTURE-REFACTORING.md).
+Vista panorámica de cómo está organizado `util_bbdd`: una librería en capas que abstrae conexión, introspección y operaciones de alto nivel sobre `sqlalchemy`. Esta página es el modelo **arc42-lite + C4** del sistema; las decisiones puntuales con trade-offs viven en el [log de ADR](adr/ADR-001-STRUCTURE-REFACTORING.md).
 
-## 1. Visión General
+> Las 5 secciones mapean un subconjunto de [arc42](https://arc42.org): §1 ≈ arc42 1+3 (objetivos + contexto, C4 nivel 1), §2 ≈ arc42 5 (building blocks, C4 nivel 3), §3 ≈ arc42 6 (runtime), §4 ≈ arc42 8+10 (transversal + calidad), §5 ≈ arc42 9+11 (decisiones + riesgos).
+
+## 1. Visión General y Objetivos de Calidad
 
 `util_bbdd` se organiza en **capas con responsabilidad única**:
 
-- **Capa de orquestación** (`managers/`): punto de entrada público; gestiona ciclo de vida de conexión y expone operaciones.
-- **Capa de infraestructura** (`factory/`, `connection/`, `executors/`): construye conexiones/pools y ejecuta SQL contra el engine de `sqlalchemy`.
-- **Capa de operaciones** (`bulk/`, `comparar/`, `dump/`, `migrate/`, `metadata/`, `query/`, `analysis/`, `doc/`): capacidades de alto nivel construidas sobre las dos anteriores.
-- **Capa de soporte** (`results/`, `validators/`, `_core/`, `core/`, `_drivers/`, `models.py`): tipos de retorno, validación, excepciones canónicas y detección de capacidades por motor.
+- **Orquestación** (`managers/`): punto de entrada público; gestiona ciclo de vida de conexión y expone operaciones.
+- **Infraestructura** (`factory/`, `connection/`, `executors/`): construye conexiones/pools y ejecuta SQL contra el engine de `sqlalchemy`.
+- **Operaciones** (`bulk/`, `comparar/`, `dump/`, `migrate/`, `metadata/`, `query/`, `analysis/`, `doc/`): capacidades de alto nivel.
+- **Soporte** (`results/`, `validators/`, `_core/`, `core/`, `_drivers/`, `models.py`): tipos de retorno, validación, excepciones canónicas y detección de capacidades por motor.
 
-**Frontera de la librería**: `util_bbdd` no construye SQL raw en la capa de managers (usa `sqlalchemy` como abstracción) y no expone introspección directa fuera de `metadata/`. Queda fuera de su alcance la gestión de credenciales/secretos y la orquestación de procesos externos.
+**Frontera de la librería**: usa `sqlalchemy` como abstracción (no construye SQL raw en managers) y concentra la introspección en `metadata/`. Queda **fuera de su alcance** la gestión de credenciales/secretos y la orquestación de procesos externos.
 
-## 2. Mapa de Módulos
+### Objetivos de calidad
+
+| Objetivo de calidad | Por qué importa |
+|---|---|
+| **Portabilidad multi-motor** | El mismo código opera sobre 6 motores; cambiar de motor no debe cambiar la lógica de aplicación. |
+| **Mantenibilidad (SOLID/SRP)** | Cada módulo tiene una única razón de cambio; facilita evolución y auditoría. |
+| **Fiabilidad de datos** | Operaciones masivas con auditoría, cierres explícitos y excepciones canónicas evitan estados a medias. |
+| **Rendimiento en cargas masivas** | Pool, `batch_size` y carga paralela hacen viables volúmenes grandes. |
+| **Seguridad de tipos** | API tipada (`py.typed` + mypy) detecta errores de contrato antes de ejecución. |
+
+### Diagrama de contexto (C4 nivel 1)
+
+```mermaid
+flowchart LR
+    Dev[Desarrollador / aplicación consumidora] -->|"API Python sync/async"| Lib[util_bbdd]
+    Lib -->|timing automático| Util[util · medición de tiempos]
+    Lib -->|SQLAlchemy + drivers| PG[(PostgreSQL)]
+    Lib --> ORA[(Oracle)]
+    Lib --> MAR[(MariaDB / MySQL)]
+    Lib --> LITE[(SQLite)]
+    Lib --> MSSQL[(SQL Server)]
+    Lib --> HSQL[(HSQLDB · solo sync)]
+```
+
+## 2. Mapa de Módulos (Building Blocks)
+
+Vista estática equivalente a **C4 nivel 3 (Component)**.
 
 ```text
 src/util_bbdd/
@@ -57,7 +85,7 @@ src/util_bbdd/
 | `results/` | Tipos de retorno: `Row`, `Rows`, `RowOrNone`, `QueryResult` |
 | `_core/` | Jerarquía de excepciones canónica |
 
-## 3. Flujo de una Operación
+## 3. Flujo en Ejecución (Runtime)
 
 Flujo típico de una operación de lectura/escritura a través de las capas:
 
@@ -77,28 +105,63 @@ flowchart TD
     J --> G
 ```
 
-Las operaciones de alto nivel (`bulk/`, `comparar/`, `dump/`, `migrate/`) se apoyan en el mismo camino: obtienen conexión vía factory, consultan estructura vía `metadata/` y ejecutan vía `executors/`, devolviendo tipos de `results/`.
+Las operaciones de alto nivel (`bulk/`, `comparar/`, `dump/`, `migrate/`) recorren el mismo camino: obtienen conexión vía factory, consultan estructura vía `metadata/` y ejecutan vía `executors/`, devolviendo tipos de `results/`.
 
-## 4. Contratos y Reglas Transversales
+## 4. Conceptos Transversales y Estándares No Funcionales
 
-Principios de diseño aplicados en todas las capas (ver [`.github/SHARED_INSTRUCTIONS.md`](https://github.com/fmanza/util_bbdd/blob/main/.github/SHARED_INSTRUCTIONS.md)):
+### Conceptos transversales
+
+Principios aplicados en todas las capas (ver [`.github/SHARED_INSTRUCTIONS.md`](https://github.com/fmanza/util_bbdd/blob/main/.github/SHARED_INSTRUCTIONS.md)):
 
 - **SOLID operativo**: cada servicio tiene una sola razón de cambio (SRP); la orquestación depende de servicios, no de detalles de IO (DIP).
-- **Acceso a metadatos**: `metadata/` es el **único punto autorizado** para SQL de introspección; los managers no ejecutan introspección raw.
-- **Abstracción de motor**: se usa `sqlalchemy` como capa común; `db_type` se valida al inicio y lanza `InvalidDatabaseType` antes de conectar.
+- **Acceso a metadatos**: `metadata/` es el **único punto autorizado** para SQL de introspección.
+- **Abstracción de motor**: `sqlalchemy` como capa común; `db_type` se valida al inicio y lanza `InvalidDatabaseType` antes de conectar.
 - **Cierres explícitos**: usar el manager como context manager o llamar a `close()`.
 - **Tipos de retorno uniformes**: `Row`, `Rows`, `RowOrNone`, `QueryResult` desde `results/`.
 - **Excepciones canónicas**: jerarquía centralizada en `_core/exceptions.py`, reexportada en la API pública.
 
-Decisión estructural formal: [ADR-001 — Structure Refactoring](adr/ADR-001-STRUCTURE-REFACTORING.md).
+### Checklist no funcional
 
-## 5. Extensión y Límites
+Estándares que toda evolución debe preservar. Cada fila se ancla a un mecanismo real del código:
+
+| Dimensión | Requisito | Cómo se cumple en util_bbdd |
+|---|---|---|
+| **Seguridad** | Credenciales fuera del código y no expuestas en logs | `conn_params: dict` provisto externamente; `db_type` validado (`InvalidDatabaseType`) antes de conectar; la librería no persiste secretos |
+| **Observabilidad** | Logging estructurado (sin `print`) y métricas de tiempo | `self.logger` en clases con lógica; `util.timing` registra duración por operación en CSV de auditoría; `exc_info=True` en errores inesperados |
+| **Rendimiento** | Pool, batching, paralelismo y caché | `PoolFactory`; `batch_size` configurable en `bulk/`; `ParallelBulkLoader`; caché de metadatos en sesión |
+| **Compatibilidad** | Matriz de motores, versionado y tipado público | Matriz de soporte en [Inicio](index.md#5-compatibilidad-y-soporte); [CHANGELOG](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md) (SemVer); `py.typed` distribuido |
+| **Robustez / errores** | Errores tipados y sin estados a medias | Jerarquía canónica en `_core/exceptions.py`; cierres explícitos vía context manager / `close()` |
+| **Tipado / calidad** | Análisis estático y pruebas automatizadas | `mypy`, `ruff` y `pytest` (extra `[dev]` en `pyproject.toml`); `py.typed` distribuido |
+
+Estado de cobertura:
+
+- [x] Seguridad — credenciales externas y validación previa de `db_type`
+- [x] Observabilidad — logging + auditoría temporal en CSV
+- [x] Rendimiento — pool, `batch_size`, carga paralela y caché de metadatos
+- [x] Compatibilidad — matriz de motores y `py.typed`
+- [x] Robustez / errores — excepciones canónicas y cierres explícitos
+- [x] Tipado / calidad — mypy + ruff + pytest
+
+## 5. Decisiones, Extensión y Límites
+
+### Decisiones arquitectónicas (ADR)
+
+Las decisiones de diseño con trade-offs se registran como ADR en [`docs/adr/`](adr/ADR-001-STRUCTURE-REFACTORING.md) (formato MADR-lite, ver [Plantilla ADR](adr/ADR-TEMPLATE.md)). Decisión estructural vigente: [ADR-001 — Structure Refactoring](adr/ADR-001-STRUCTURE-REFACTORING.md).
+
+### Riesgos y deuda técnica
+
+| Riesgo / deuda | Impacto | Mitigación |
+|---|---|---|
+| HSQLDB sin soporte async | Funcionalidad async no disponible para ese motor | Las factorías async lanzan error explícito; documentado en la matriz de soporte |
+| Dependencia interna `util` desde `git+@develop` | Instalación falla sin acceso a GitHub | Procedimiento `--no-deps` documentado en [Instalación](INSTALLATION.md#5-solucion-de-problemas) |
+
+### Extensión y límites
 
 Formas soportadas de extender el sistema:
 
 - **Nuevo reporter de comparación**: añadir un reporter en `comparar/reporters/` respetando el contrato de salida de `SchemaDiff`.
 - **Nueva query nombrada**: registrarla en `query/` (QueryRegistry) y, si lleva parámetros, su validador en `validators/`.
-- **Soporte/capacidades por motor**: declarar capacidades en `core/capabilities.py` y la detección de driver en `_drivers/`.
+- **Capacidades por motor**: declararlas en `core/capabilities.py` y la detección de driver en `_drivers/`.
 
 Anti-patrones a evitar:
 
@@ -108,4 +171,4 @@ Anti-patrones a evitar:
 
 ### Pendiente de verificación
 
-- El procedimiento exacto para registrar un **motor nuevo** de extremo a extremo (factory + connection + capabilities + drivers) no está documentado de forma consolidada; conviene confirmarlo con el equipo antes de publicarlo como contrato estable.
+- El procedimiento de alta de un **motor nuevo** de extremo a extremo (factory + connection + capabilities + drivers) no está documentado de forma consolidada; conviene confirmarlo con el equipo y, si se formaliza, registrarlo como ADR.
