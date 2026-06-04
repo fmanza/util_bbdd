@@ -72,7 +72,10 @@ Actualiza mkdocs.yml si la página es nueva.
 ## 4. Verificación
 
 ```bash
-# Validar que el build de documentación pasa sin errores
+# Validar el build de documentación — Zensical es el generador por defecto (lee mkdocs.yml)
+zensical build
+
+# Validación estricta de enlaces con MkDocs Material (recíproco, mismo mkdocs.yml)
 python -m mkdocs build --strict
 
 # Ejecutar los tests para verificar que el código sigue funcionando

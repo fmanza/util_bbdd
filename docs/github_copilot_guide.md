@@ -63,7 +63,7 @@ Guarda en docs/functional/managers-sync.md y actualiza mkdocs.yml.
 
 ```text
 #file:.github/prompts/technical_doc.prompt.md
-#file:src/util_bbdd/bulk/bulk_crud.py
+#file:src/util_bbdd/bulk/crud.py
 
 Genera documentación técnica con diagrama Mermaid. Tipo: flowchart TD.
 Guarda en docs/api/bulk-crud.md.
@@ -72,11 +72,14 @@ Guarda en docs/api/bulk-crud.md.
 ## 4. Verificación
 
 ```bash
-# Validar build de documentación
+# Validar build de documentación — Zensical es el generador por defecto (lee mkdocs.yml)
+zensical build
+
+# Validación estricta de enlaces con MkDocs Material (recíproco, mismo mkdocs.yml)
 python -m mkdocs build --strict
 
-# Servir localmente para revisión visual
-python -m mkdocs serve
+# Servir localmente para revisión visual (Zensical por defecto)
+zensical serve
 ```
 
 Navegar a `http://127.0.0.1:8000` y verificar que la nueva página aparece en la navegación y que los diagramas Mermaid se renderizan correctamente.

@@ -17,7 +17,7 @@ Lee antes de revisar:
 - `.ai/architecture.md` — niveles, módulos y patrones del repositorio
 - `.ai/standards.md` — convenciones de calidad y estilo
 - `.github/instructions/docs.instructions.md` — estándar documental canónico
-- `docs/v0.6.7/` — documentación de versión actual
+- `docs/` y `docs/v0.8.0/` — documentación publicada y planes de versión entregados (versión vigente: v0.10.0)
 - `docs/examples/` — ejemplos existentes
 - `mkdocs.yml` — navegación, tema Material, Mermaid y páginas publicadas
 - `.github/instructions/` — guías de desarrollo y patrones

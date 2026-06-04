@@ -23,7 +23,7 @@ code --install-extension openai.codex
 En los ajustes de VS Code (`Ctrl+,` → buscar "Codex"), configurar:
 
 - `codex.apiKey`: tu API Key de OpenAI
-- `codex.model`: modelo preferido (por defecto `gpt-4o` o equivalente)
+- `codex.model`: modelo preferido (usa el más reciente disponible en tu cuenta)
 
 ### Paso 2 — Entender qué archivos lee Codex automáticamente
 
@@ -59,7 +59,7 @@ Guarda el resultado en docs/functional/managers-sync.md.
 
 ```text
 Usando el prompt en .github/prompts/technical_doc.prompt.md, genera documentación
-técnica para src/util_bbdd/bulk/bulk_crud.py. Tipo de diagrama: flowchart TD.
+técnica para src/util_bbdd/bulk/crud.py. Tipo de diagrama: flowchart TD.
 Guarda en docs/api/bulk-crud.md y añade la entrada en mkdocs.yml.
 ```
 
@@ -75,13 +75,20 @@ Guarda en docs/api/bulk-crud.md y añade la entrada en mkdocs.yml.
 ## 4. Verificación
 
 ```bash
-# Validar build de documentación
+# Validar build de documentación — Zensical es el generador por defecto (lee mkdocs.yml)
+zensical build
+
+# Validación estricta de enlaces con MkDocs Material (recíproco, mismo mkdocs.yml)
 python -m mkdocs build --strict
 ```
 
 Si el build pasa sin errores, la documentación generada es válida. Revisar visualmente con:
 
 ```bash
+# Servidor local por defecto (Zensical)
+zensical serve
+
+# Alternativa recíproca con MkDocs Material
 python -m mkdocs serve
 ```
 

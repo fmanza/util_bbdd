@@ -456,7 +456,7 @@ manager.close()
 
 ---
 
-## Arquitectura v0.6.7 - Estructura de 3 Niveles (Estable)
+## Arquitectura v0.10.0 — Estructura de 3 Niveles (Estable)
 
 Util_bbdd usa una **arquitectura jerárquica de 3 niveles** para máxima modularidad, extensibilidad y separación de responsabilidades:
 
@@ -471,10 +471,9 @@ _core/               # Tipos y contratos fundamentales
   ├── contracts.py   # Protocols/interfaces (ConnectionProvider, etc.)
   └── constants.py   # Enums compartidos
 
-_drivers/            # Gestión de drivers y capabilities (no desde Level 2+)
+_drivers/            # Gestión de drivers (no desde Level 2+)
   ├── validator.py   # DatabaseTypeValidator: valida motores desde database_types.json
   ├── driver_validator.py # DriverValidator: detecta disponibilidad de drivers Python
-  ├── capabilities.py # Detecta soporte async y features por motor
   └── _config_loader.py # Carga y tipado del JSON de configuración
 
 core/
@@ -488,36 +487,36 @@ core/
 Operaciones core reutilizables entre managers. **Regla:** Solo importar desde Level 1; nunca desde Level 3.
 
 ```
-connection/          # Pool, factory, configuración (≈1,305 LOC)
-  ├── factory.py     # ConnectFactory.create_connection/async
+connection/          # Conexiones y configuración por motor
+  ├── factory.py     # Creación de conexiones (sync/async)
   ├── builder.py     # build_conn_params() por motor
   ├── protocols.py   # ConnectionPoolProtocol
   ├── close.py       # Cierre de conexiones y cleanup
-  ├── motors/        # Adaptadores por motor (mariadb, postgresql, oracle, etc.)
-  ├── pool.py        # Pool management
-  ├── params.py      # Parameters normalization
-  └── config.py      # Connection configuration
+  ├── params.py      # Normalización de parámetros
+  ├── config.py      # Configuración de conexión
+  └── {hsqldb,mariadb,oracle,postgresql,sqlite,sqlserver}/ # Adaptadores y pools por motor
 
-query/               # Registry y ejecución (≈314 LOC base)
+executors/           # Ejecución de queries (paquete de nivel superior)
+  ├── base.py        # QueryExecutorBase (abstract)
+  ├── sync_query_executor.py
+  └── async_query_executor.py
+
+query/               # Registry y resolución de queries
   ├── registry.py    # QueryRegistry: carga y acceso a definiciones JSON
   ├── resolver.py    # QueryResolver: resuelve placeholders en queries
-  ├── queries.py     # DatabaseQueries: wrapper de conveniencia
-  └── executors/     # Executor implementations
-      ├── base.py    # QueryExecutorBase (abstract)
-      ├── sync_query_executor.py
-      └── async_query_executor.py
+  └── queries.py     # DatabaseQueries: wrapper de conveniencia
 
-metadata/            # Lectura y cache de schema (≈887 LOC)
+metadata/            # Lectura y cache de schema
   ├── cache.py       # DatabaseMetadataCache + RelationshipMetadataCache
   ├── normalizer.py  # Normaliza respuestas de metadata
   ├── builder.py     # DDLBuilder - construye queries DDL
   ├── fetcher.py     # MetadataFetcher - obtiene schema
   ├── manager.py     # MetadataManager - orquesta operaciones
   ├── contracts.py   # Interfaces y tipos de metadata
-  ├── mariadb/       # Helpers específicos de MariaDB
-  └── providers/     # Sync/AsyncMetadataProvider
+  ├── adapters/      # Adaptadores base + helpers compartidos
+  └── {mariadb,mysql,oracle,postgresql,redshift,snowflake,sqlite,sqlserver}/ # Introspección por motor
 
-results/             # Normalización de resultados (≈74 LOC)
+results/             # Normalización de resultados
   ├── types.py       # RowOrNone, Rows, tipos de resultado
   └── normalizer.py  # ResultNormalizer
 
@@ -526,48 +525,45 @@ factory/             # SQLAlchemy engines
   ├── sqlalchemy_engine_factory.py
   └── async_sqlalchemy_engine_factory.py
 
-validators/          # Validadores adicionales por negocio
-  └── (implementations)
+validators/          # Validadores de parámetros por motor
+  ├── base_validator.py # DatabaseTypeValidator (ABC) + get_type_validator()
+  └── {mariadb,oracle,postgresql,hsqldb,sqlserver,sqlite}_validator.py
 ```
 
-**Beneficio:** Cada módulo < 500 LOC, responsabilidad única, fácil testear en aislamiento.
+**Beneficio:** Módulos de responsabilidad única, acotados y fáciles de testear en aislamiento.
 
 ### Level 3: Especialización (Domain Logic Layer)
 
 Funcionalidad de dominio construida sobre Level 2. **Regla:** Puede importar de Level 1 y 2, nunca al revés.
 
 ```
-managers/            # APIs públicas de alto nivel (≈2,200+ LOC)
-  ├── sync_mgr.py    # SyncDatabaseManager (1,000+ LOC)
-  │   └── Interfaz principal para operaciones sync
-  └── async_mgr.py   # AsyncDatabaseManager (700+ LOC)
-      └── Interfaz principal para operaciones async
+managers/            # APIs públicas de alto nivel
+  ├── sync_mgr.py    # SyncDatabaseManager: interfaz principal sync
+  └── async_mgr.py   # AsyncDatabaseManager: interfaz principal async
 
-bulk/                # Operaciones masivas (≈2,129 LOC)
-  ├── crud.py        # Bulk INSERT/UPDATE/DELETE desde DataFrames (999 LOC)
-  ├── audit.py       # AuditManager para tracking de cambios (866 LOC)
-  └── normalize.py   # Normalización de registros para SQL (264 LOC)
+bulk/                # Operaciones masivas
+  ├── crud.py        # Bulk INSERT/UPDATE/DELETE desde DataFrames
+  ├── audit.py       # AuditManager para tracking de cambios
+  ├── normalize.py   # Normalización de registros para SQL
+  └── _execution/, _audit/, _support/ # Estrategias INSERT por motor, auditoría y utilidades internas
 
-analysis/            # Análisis de relaciones multinivel (≈1,500+ LOC)
+analysis/            # Análisis de relaciones multinivel
   ├── base.py        # GraphDocument, niveles, traversal, dirección, tipología visual
-  ├── graphviz.py    # Visualización con Graphviz base
-  ├── graphviz_ext.py# Graphviz multinivel con columnas, cardinalidad, leyenda
+  ├── graphviz_ext.py # Graphviz multinivel con columnas, cardinalidad, leyenda
   └── matplotlib_graph.py # Matplotlib alineado al modelo multinivel
 
 comparar/            # Comparación de esquemas (NEW in v0.6.7)
   ├── comparator.py  # SchemaComparator.compare(source, target) → SchemaDiff
   ├── contracts.py   # Tipos y contratos de comparación
-  └── models.py      # SchemaDiff (frozen dataclasses), resultados tipados
+  ├── models.py      # SchemaDiff (frozen dataclasses), resultados tipados
+  └── reporters/     # Reporters Excel/HTML/Markdown/SQL/Word del diff
 
-doc/                 # Generadores documentales
-  ├── template_engine.py # Motor Jinja2 personalizado
-  ├── html_generator.py # HTML generado + offline SVG
-  ├── excel_generator.py # Excel desde pandas
-  ├── word_generator.py # Word desde python-docx
-  └── templates/     # Plantillas Jinja2 modulares
-      ├── layouts/   # Estilos base (HTML/CSS)
-      ├── macros/    # Bloques reutilizables
-      └── pages/     # Páginas completas y módulos
+doc/                 # Documentación de BD (arquitectura hexagonal)
+  ├── database_documentation.py # Punto de entrada del generador
+  ├── application/   # Casos de uso y puertos (documentation_orchestrator, ports)
+  ├── domain/        # Modelos y servicios de dominio
+  ├── infrastructure/ # Renderers (html/excel/word), storage por motor, runtime, adapters
+  └── templates/     # Plantillas Jinja2 modulares (layouts, macros, pages)
 
 [Otros]
 ├── async_utils.py   # Helpers (maybe_await, etc.)
@@ -591,7 +587,7 @@ doc/                 # Generadores documentales
    Ciclos internos entre Level 3
 ```
 
-### Compatibilidad Viva (v0.6.7)
+### Compatibilidad Viva (v0.10.0)
 
 La ruta recomendada para código nuevo usa **imports canónicos** desde la raíz del paquete. Rutas legacy se mantienen solo como transición.
 
@@ -611,28 +607,24 @@ La ruta recomendada para código nuevo usa **imports canónicos** desde la raíz
 - `get_storage_inventory()` usa el contrato actual por capacidades: `primary`, `temp_tablespaces` y `sqlite_file_summary` cuando aplica.
 - La guía de detalle para migrar imports y contratos está en [docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md).
 
-## ✨ Novedades v0.6.7 (Estable Vigente)
+## ✨ Novedades v0.10.0 (Estable Vigente)
 
-### Comparación de Esquemas (NEW)
-- `SchemaComparator.compare(source, target)` → `SchemaDiff` tipado
-- Detección de cambios: tablas, columnas, claves, índices, vistas
-- Soporte multi-motor: diferencias de sintaxis DDL normalizadas
-- Extensible: `_ROUTINE_FETCHERS` y `_DDL_STRIP_RULES` por motor (OCP)
+### Vías rápidas de INSERT por motor (bulk)
+- `InsertStrategyResolver` elige automáticamente la vía nativa más rápida por motor (default `insert_resolver=None`)
+- **PostgreSQL**: `COPY ... FROM STDIN` vía psycopg3 (streaming por STDIN, sin staging a disco)
+- **MySQL/MariaDB**: `INSERT ... VALUES (...),(...)` multi-fila, sub-loteado por `max_rows_per_statement` (default 1000)
+- Oracle, SQL Server, SQLite y HSQLDB siguen con `executemany` (SQL Server acelerado por `fast_executemany`)
+- Output idéntico; cambia solo el mecanismo de ejecución (degradación automática a `executemany` cuando aplica)
 
-### Capa de Agentes y Flujo Estructurado
-- Instrucciones especializadas para Copilot Chat y Claude Code
-- Flujo `PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION`
-- 10 agentes disponibles (Plan Architect, Feature Implementer, Code Auditor, etc.)
-- Mapeo documentado entre plataformas (Claude Code ↔ Copilot Chat)
+### Volcado con resolución única por tabla (dump)
+- `DumpOrchestrator` reutiliza la resolución de columnas y estrategia de identidad **una sola vez** por tabla
+- El renombrado de columnas se aplica de forma perezosa por chunk, manteniendo el streaming
 
-### Mejoras en Arquitectura
-- Jerarquía de imports explícita: Level 1 → 2 → 3 (nunca reversa)
-- Excepciones tipadas desde raíz con `from util_bbdd import DatabaseException, ConnectionError, ...`
-- Compatibilidad viva: rutas legacy solo como transición hacia imports canónicos
+> Detalle completo en [CHANGELOG.md](CHANGELOG.md) y en la tabla "Estrategias INSERT por motor" de [docs/api/bulk-crud.md](docs/api/bulk-crud.md).
 
 ---
 
-## 📚 Resumen de Evolución (v0.6.0 → v0.6.7)
+## 📚 Resumen de Evolución (v0.6.0 → v0.10.0)
 
 ### v0.6.2 - Cierre Documental Offline
 - Relaciones de n niveles mediante `max_depth`
@@ -653,15 +645,31 @@ La ruta recomendada para código nuevo usa **imports canónicos** desde la raíz
 - Testeo multinivel
 - Documentación evolucionada
 
-### v0.6.7 - Estable Vigente
+### v0.6.7 - Comparador de Esquemas
 - Comparador de esquemas integrado (SchemaDiff)
 - Imports canónicos desde raíz
 - Instrucción.md por área especializada
 - Esta estructura (3 niveles) como standard de evolución
 
+### v0.7.0 - Monitorización de Rendimiento
+- Medición automática de duración en operaciones bulk CRUD (`tiempo_seg`)
+- CSV de auditoría extendido a 7 columnas
+
+### v0.8.0 - Cobertura Completa del Sistema de Tipos
+- Introspección de tipos avanzados en los 8 motores (Oracle OBJECT types, etc.)
+- Hotfix de finalización de pool durante el cierre del intérprete
+
+### v0.9.0 - Palancas de Rendimiento en dump (opt-in)
+- Cadencia de commit, gestión de índices, paralelización por tablas y por rangos de PK
+- Todas desactivadas por defecto (comportamiento secuencial/atómico preservado)
+
+### v0.10.0 - Vías Rápidas de INSERT (Estable Vigente)
+- PostgreSQL `COPY` y MySQL/MariaDB multi-fila automáticos por motor
+- `dump` reutiliza la resolución única por tabla
+
 ---
 
-### Tipología Visual de Tablas (v0.6.2+, vigente en v0.6.7)
+### Tipología Visual de Tablas (v0.6.2+, vigente)
 
 La clasificación visual de tablas en diagramas NO sustituye el modelo de datos real, sino que ofrece ayuda visual heurística:
 
@@ -966,6 +974,10 @@ except QueryNotFoundError as e:
 
 ## 🆕 What's New in v0.5.0
 
+> **Nota histórica.** Esta sección documenta el estado en **v0.5.0** y se conserva como registro.
+> Para la estructura vigente consulta [Arquitectura v0.10.0](#arquitectura-v0100--estructura-de-3-niveles-estable).
+> Algunas cifras de líneas y rutas internas han evolucionado desde entonces.
+
 **Major Refactoring:** Arquitectura 3-level jerárquica + consolidación de módulos
 
 ### ✅ What Changed (Internal)
@@ -977,8 +989,8 @@ except QueryNotFoundError as e:
 ### 🆕 New Modules (v0.5.0+)
 
 #### `managers/` - Consolidated DB Managers
-- `managers.sync_mgr.SyncDatabaseManager` (1,000+ lines)
-- `managers.async_mgr.AsyncDatabaseManager` (700+ lines)
+- `managers.sync_mgr.SyncDatabaseManager`
+- `managers.async_mgr.AsyncDatabaseManager`
 - **Same API as before**, better code organization
 
 ```python
@@ -989,9 +1001,9 @@ from util_bbdd import SyncDatabaseManager
 ```
 
 #### `bulk/` - Bulk Operations Module
-- `bulk/crud.py` - Bulk insert/update/delete from DataFrames (999 lines)
-- `bulk/audit.py` - Audit trail with transactions (866 lines)
-- `bulk/normalize.py` - SQL normalization utilities (264 lines)
+- `bulk/crud.py` - Bulk insert/update/delete from DataFrames
+- `bulk/audit.py` - Audit trail with transactions
+- `bulk/normalize.py` - SQL normalization utilities
 
 ```python
 # ruta canónica actual
@@ -1003,18 +1015,16 @@ from util_bbdd.bulk import bulk_crud, AuditManager, normalize_records_for_sql
 
 #### `analysis/` - Relationship Graph Analysis
 - `analysis/base.py` - Base classes for graph analysis
-- `analysis/graphviz.py` - Graphviz visualization
-- `analysis/graphviz_ext.py` - Extended Graphviz with columns/types (598 lines)
-- `analysis/matplotlib_graph.py` - Matplotlib/NetworkX visualization (278 lines)
+- `analysis/graphviz_ext.py` - Extended Graphviz with columns/types
+- `analysis/matplotlib_graph.py` - Matplotlib/NetworkX visualization
 
 ```python
 # ruta canónica estable
-from util_bbdd.analysis import GraphvizRelationshipGraph
+from util_bbdd.analysis import GraphvizRelationshipGraphExt
 
 # ruta canónica ampliada
 from util_bbdd.analysis import (
     DatabaseRelationshipGraphBase,
-    GraphvizRelationshipGraph,
     GraphvizRelationshipGraphExt,
     MatplotlibRelationshipGraph
 )

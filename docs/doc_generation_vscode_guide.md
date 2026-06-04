@@ -71,7 +71,7 @@ Genera la documentación funcional del módulo indicado siguiendo las instruccio
 
 ```text
 Usando el prompt en .github/prompts/technical_doc.prompt.md, genera documentación
-técnica para src/util_bbdd/bulk/bulk_crud.py. Guarda en docs/api/bulk-crud.md.
+técnica para src/util_bbdd/bulk/crud.py. Guarda en docs/api/bulk-crud.md.
 ```
 
 ### Paso 4 — Actualizar mkdocs.yml
@@ -88,17 +88,24 @@ Tras crear o mover una página, añadir la entrada correspondiente en `mkdocs.ym
 
 ```bash
 # En el terminal integrado (Ctrl + `)
+# Zensical es el generador por defecto (lee mkdocs.yml)
+zensical build
+
+# Validación estricta de enlaces con MkDocs Material (recíproco, mismo mkdocs.yml)
 python -m mkdocs build --strict
 ```
 
 ## 4. Verificación
 
 ```bash
-# Construir el sitio y comprobar que no hay errores
+# Construir el sitio y comprobar que no hay errores (Zensical por defecto)
+zensical build
+
+# Validación estricta de enlaces con MkDocs Material (recíproco, mismo mkdocs.yml)
 python -m mkdocs build --strict
 
-# Si pasa, servir localmente para revisión visual
-python -m mkdocs serve
+# Si pasa, servir localmente para revisión visual (Zensical por defecto)
+zensical serve
 ```
 
 Navegar a `http://127.0.0.1:8000` y comprobar que la nueva página aparece en la navegación y que los diagramas Mermaid se renderizan correctamente.
@@ -117,4 +124,5 @@ INFO    -  Documentation built in X.X seconds
 | La herramienta IA inventa capacidades | El prompt no referencia el código real | Añadir `#file:src/...` al prompt o especificar la ruta del módulo explícitamente |
 | Diagrama Mermaid no se renderiza | Sintaxis Mermaid inválida | Validar el bloque `mermaid` en [mermaid.live](https://mermaid.live) antes de guardar |
 | La página no aparece en el sitio | Entrada faltante en `mkdocs.yml` | Añadir la ruta bajo `nav:` en `mkdocs.yml` |
+| `zensical: command not found` | Zensical no instalado | `pip install zensical` |
 | `mkdocs: command not found` | MkDocs no instalado | `pip install mkdocs-material mkdocstrings[python]` |

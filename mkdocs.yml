@@ -55,6 +55,8 @@ nav:
           - Gestor de Metadatos: api/metadata-manager.md
       - Conexiones:
           - Factory de Conexiones: api/connection-factory.md
+      - Utilidades:
+          - Utilidades Async (maybe_await): api/async-utils.md
       - Operaciones Bulk:
           - CRUD Masivo: api/bulk-crud.md
           - MySQL Variables Validator: api/mysql-variables.md
@@ -127,6 +129,7 @@ nav:
       - Sistema de Queries:
           - Ejecución de Consultas: examples/query_execution_example.md
           - Queries Concurrentes (Async): examples/async_concurrent_queries.md
+          - Patrón de Validadores: examples/validators_pattern.md
       - Comparación de Esquemas:
           - Comparación de Esquemas: examples/schema_comparison.md
           - Diff Reporters: examples/diff_reporters.md
