@@ -30,7 +30,8 @@ Primero PLAN y AUDIT_PLAN; luego IMPLEMENT, commit y actualización documental.
 - VERSION: commit `cd22520` en develop (7 ficheros, +335/−5). Excluido `.claude/settings.json` (allowlist de sesión, ajeno).
 - Registro de sesión: commit `1bf511b` (REQUEST + CONTEXT_SNAPSHOT + TRACEABILITY).
 - Revisión documental (agente `documentation-reviewer`) sobre los artefactos de la sesión: NEAR_READY; 1 hallazgo Nivel 1 + 2 Nivel 2 + 1 Nivel 3.
-- Correcciones aplicadas: (N1) directiva falsa sobre `.ai/standards.md` corregida —el fichero SÍ existe y está versionado—; (N2) alcance de Codex declarado fuera de alcance en el prompt; (N2) título y gobernanza de `SHARED_INSTRUCTIONS.md` reconciliados con Gemini y Cursor + fila `GEMINI.md`; (N3) conteo de agentes 11→12 en `AGENTS.md`.
+- Correcciones aplicadas: (N1) directiva falsa sobre `.ai/standards.md` corregida —el fichero SÍ existe y está versionado—; (N2) título y gobernanza de `SHARED_INSTRUCTIONS.md` reconciliados con Gemini y Cursor + fila `GEMINI.md`; (N3) conteo de agentes 11→12 en `AGENTS.md`.
+- Corrección posterior (indicación del usuario): **Codex se incluye** como 5.ª plataforma (no se excluye). Codex no tiene fichero de instrucciones propio; lee `CLAUDE.md` + `SHARED_INSTRUCTIONS.md` + `AGENTS.md`, con guía en `docs/codex_guide.md`. Actualizados el prompt y los 5 entry points para listar las 5 plataformas.
 
 ## Artefactos generados
 | Artefacto | Ruta | Estado |
@@ -49,7 +50,7 @@ Primero PLAN y AUDIT_PLAN; luego IMPLEMENT, commit y actualización documental.
 - **[método]**: el bootstrap usa modelo PULL — se invoca DESDE el proyecto destino con el origen como plantilla de solo lectura; lanzarlo desde el origen arrastra supuestos de Python/util_bbdd.
 - **[clasificación]**: todo activo IA se clasifica en capas A (verbatim/revisar comandos) · B (copiar+reescribir dominio) · C (regenerar analizando el destino) · D (excluir: sesiones, changelog, caches, settings.local.json).
 - **[capa A no es verbatim puro]**: agentes/prompts/commands llevan comandos embebidos del origen (`pytest`, `mkdocs build`, rutas `src/`) que deben sustituirse por equivalentes del destino.
-- **[plataformas]**: el repo soporta 4 plataformas IA — Claude (`CLAUDE.md`), Gemini (`GEMINI.md`), Copilot (`.github/copilot-instructions.md`), Cursor (`.cursorrules`); todas referencian `SHARED_INSTRUCTIONS.md` como canónico.
+- **[plataformas]**: el repo soporta 5 plataformas IA — Claude (`CLAUDE.md`), Gemini (`GEMINI.md`), Copilot (`.github/copilot-instructions.md`), Cursor (`.cursorrules`) y Codex (sin fichero propio: lee `CLAUDE.md`+`SHARED_INSTRUCTIONS.md`+`AGENTS.md`, guía en `docs/codex_guide.md`); todas referencian `SHARED_INSTRUCTIONS.md` como canónico.
 - **[parámetros]**: lenguaje y arquitectura del destino son parámetros de entrada del prompt, no constantes; el prompt detiene la emisión de PLAN si falta cualquier campo de contexto.
 - **[contexto .ai]**: `.ai/standards.md` existe y está versionado; es referenciado por `plan-architect`, los demás agentes y el prompt de bootstrap como fuente de convenciones de calidad. En el destino del bootstrap es un objetivo a regenerar (capa C).
 

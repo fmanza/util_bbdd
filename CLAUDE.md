@@ -48,7 +48,7 @@ Restricciones:
 
 ## Trasladar esta configuración IA a otro proyecto (bootstrap)
 
-Para replicar este sistema de instrucciones IA (Claude / Gemini / Copilot / Cursor) en **otro
+Para replicar este sistema de instrucciones IA (Claude / Gemini / Copilot / Cursor / Codex) en **otro
 proyecto**, incluso de **otro lenguaje y arquitectura**, usa el prompt
 [`.github/prompts/bootstrap_ai_config.prompt.md`](./.github/prompts/bootstrap_ai_config.prompt.md).
 La auditoría posterior la hace el agente **Config Reviewer**.
@@ -67,7 +67,7 @@ Lee y aplica .github/prompts/bootstrap_ai_config.prompt.md
 Origen (solo lectura): c:\Desarrollo\python\libs\util_bbdd
 Destino: <raíz de este proyecto>
 Lenguaje/arquitectura destino: <p.ej. TypeScript + NestJS hexagonal>
-Plataformas IA activas: Claude Code, Gemini, Copilot, Cursor
+Plataformas IA activas: Claude Code, Gemini, Copilot, Cursor, Codex
 Fase: PLAN y AUDIT_PLAN únicamente.
 ```
 

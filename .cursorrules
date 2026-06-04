@@ -4,7 +4,7 @@
 > especialización.
 >
 > **Bootstrap a otro proyecto**: para trasladar esta configuración IA (Claude / Gemini / Copilot /
-> Cursor) a otro proyecto, incluso de otro lenguaje y arquitectura, usa el prompt
+> Cursor / Codex) a otro proyecto, incluso de otro lenguaje y arquitectura, usa el prompt
 > `.github/prompts/bootstrap_ai_config.prompt.md` (modelo PULL: se invoca desde el proyecto destino).
 
 ## Estándar de Documentación y Ejemplos de Código

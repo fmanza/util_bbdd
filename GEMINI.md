@@ -53,7 +53,7 @@ Si se modifican reglas comunes o flujos, actualiza los ficheros en este orden:
 
 ## Bootstrap de configuración IA a otro proyecto
 
-Para replicar este sistema de instrucciones IA (Claude / Gemini / Copilot / Cursor) en otro proyecto,
+Para replicar este sistema de instrucciones IA (Claude / Gemini / Copilot / Cursor / Codex) en otro proyecto,
 incluso de **otro lenguaje y arquitectura**, usa el prompt
 [`bootstrap_ai_config.prompt.md`](.github/prompts/bootstrap_ai_config.prompt.md).
 

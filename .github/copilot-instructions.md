@@ -212,7 +212,7 @@ Entrega hallazgos con severidad (Nivel 1/2/3) sin editar archivos.
 
 ## Bootstrap de configuración IA a otro proyecto
 
-Para **trasladar este sistema de instrucciones IA** (Claude / Gemini / Copilot / Cursor) a otro
+Para **trasladar este sistema de instrucciones IA** (Claude / Gemini / Copilot / Cursor / Codex) a otro
 proyecto, incluso de **otro lenguaje y arquitectura**, usa el prompt
 [`bootstrap_ai_config.prompt.md`](prompts/bootstrap_ai_config.prompt.md) y audita el resultado con
 **Config Reviewer**.
@@ -227,7 +227,7 @@ Lee y aplica .github/prompts/bootstrap_ai_config.prompt.md
 Origen (solo lectura): <ruta del repo origen>
 Destino: <raíz de este proyecto>
 Lenguaje/arquitectura destino: <p.ej. TypeScript + NestJS>
-Plataformas IA activas: Claude Code, Gemini, Copilot, Cursor
+Plataformas IA activas: Claude Code, Gemini, Copilot, Cursor, Codex
 Fase: PLAN y AUDIT_PLAN únicamente.
 ```
 

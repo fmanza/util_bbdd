@@ -4,15 +4,15 @@
 
 Replicar el sistema de instrucciones IA de este repositorio (origen) en un **proyecto destino**,
 que puede usar **otro lenguaje y otra arquitectura**, separando lo reutilizable de lo que debe
-regenerarse analizando el código real del destino. Cubre las cuatro plataformas en uso:
-**Claude Code, Gemini Code Assist, GitHub Copilot Chat y Cursor**.
+regenerarse analizando el código real del destino. Cubre las cinco plataformas en uso:
+**Claude Code, Gemini Code Assist, GitHub Copilot Chat, Cursor y Codex (OpenAI)**.
 
 Este prompt es **agnóstico de lenguaje**: el lenguaje y la arquitectura del destino son **parámetros
 de entrada** que confirma quien lo invoca, no constantes embebidas.
 
-> **Alcance de plataformas**: este bootstrap cubre Claude, Gemini, Copilot y Cursor. El repo origen
-> también documenta **Codex** (`docs/codex_guide.md`); queda **fuera de alcance por ahora**. Para
-> incluirlo, replica el patrón de entry point como una fila más del mapeo por plataforma.
+> **Nota sobre Codex**: Codex (OpenAI) **no usa un fichero de instrucciones propio**; lee
+> `CLAUDE.md`, `.github/SHARED_INSTRUCTIONS.md` y `.github/AGENTS.md`, con su guía de uso en
+> `docs/codex_guide.md`. Al hacer bootstrap, replica esa guía adaptada al destino.
 
 ---
 
@@ -34,7 +34,7 @@ Lee y aplica .github/prompts/bootstrap_ai_config.prompt.md
 Origen (solo lectura): <ruta absoluta del repo origen, p.ej. c:\Desarrollo\python\libs\util_bbdd>
 Destino: <raíz de este proyecto>
 Lenguaje/arquitectura destino: <p.ej. TypeScript + NestJS hexagonal, Go + Clean Architecture, Java + Spring>
-Plataformas IA activas: <Claude Code, Gemini, Copilot, Cursor — marca las que apliquen>
+Plataformas IA activas: <Claude Code, Gemini, Copilot, Cursor, Codex — marca las que apliquen>
 Generador de documentación destino: <p.ej. Docusaurus, Typedoc, MkDocs, ninguno>
 Fase: PLAN y AUDIT_PLAN únicamente.   # o "completa" para llegar hasta VERSION
 ```
@@ -49,6 +49,7 @@ Fase: PLAN y AUDIT_PLAN únicamente.   # o "completa" para llegar hasta VERSION
 | `.ai/sessions/TEMPLATE/` | `.ai/sessions/TEMPLATE/` | verbatim |
 | `.github/SHARED_INSTRUCTIONS.md` | idem | copiar + reescribir dominio |
 | `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.github/AGENTS.md`, `.cursorrules` | idem | copiar + reescribir dominio |
+| `docs/codex_guide.md` (guía de uso de Codex) | idem | copiar + reescribir dominio |
 | `.ai/{product,architecture,runtime,glossary,standards}.md` | idem | **regenerar desde cero** |
 
 ---
@@ -70,7 +71,7 @@ Fase: PLAN y AUDIT_PLAN únicamente.   # o "completa" para llegar hasta VERSION
 - [ ] **Ruta del destino**:
 - [ ] **Lenguaje y framework del destino**:
 - [ ] **Arquitectura del destino** (capas, módulos, patrón: hexagonal, MVC, Clean, etc.):
-- [ ] **Plataformas IA activas** (Claude / Gemini / Copilot / Cursor):
+- [ ] **Plataformas IA activas** (Claude / Gemini / Copilot / Cursor / Codex):
 - [ ] **Herramientas de calidad del destino** (linter, formateador, type-checker, test runner):
 - [ ] **Generador de documentación del destino** (o "ninguno"):
 - [ ] **Gestor de paquetes / comando de build**:
@@ -134,7 +135,7 @@ Clasifica **cada** activo IA del origen en una de estas cuatro capas:
 
 1. `.github/SHARED_INSTRUCTIONS.md` — canónico, **reescrito** para el dominio del destino.
 2. Un punto de entrada **por cada plataforma activa**: `CLAUDE.md`, `GEMINI.md`,
-   `.github/copilot-instructions.md`, `.cursorrules`.
+   `.github/copilot-instructions.md`, `.cursorrules` y `docs/codex_guide.md` (Codex).
 3. `.ai/architecture.md` + `.ai/product.md` — contexto que los agentes leen antes de planificar.
 4. Núcleo de método: prompts/commands `new_feature`, `hotfix`, `refactor`, `audit_code`,
    `version_closure` + agentes `plan-architect`, `code-auditor`, `version-closer`.
@@ -158,6 +159,7 @@ Clasifica **cada** activo IA del origen en una de estas cuatro capas:
 | Gemini | `GEMINI.md` | estándares de código del lenguaje destino, comandos rápidos |
 | Copilot Chat | `.github/copilot-instructions.md` | agentes VS Code, `#file:`, validación de rutas |
 | Cursor | `.cursorrules` | estándar de documentación/ejemplos y reglas de estilo del destino |
+| Codex (OpenAI) | `docs/codex_guide.md` | guía de uso; lee `CLAUDE.md` + `SHARED_INSTRUCTIONS.md` + `AGENTS.md` (sin fichero propio) |
 
 Todos referencian a `.github/SHARED_INSTRUCTIONS.md` como **fuente canónica**.
 **Regla de oro**: edita primero `SHARED_INSTRUCTIONS.md`; los entry points solo añaden especialización.

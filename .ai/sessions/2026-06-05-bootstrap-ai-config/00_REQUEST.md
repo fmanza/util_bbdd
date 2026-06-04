@@ -23,7 +23,7 @@ teniendo en cuenta:
 
 Respuestas del usuario a las condiciones del AUDIT_PLAN:
 1. Confirmar lenguaje/arquitectura del destino → SÍ (pasa a ser parámetro de entrada del prompt).
-2. Plataformas activas → **Todo** (Claude, Gemini, Copilot, Cursor).
+2. Plataformas activas → **Todo** (Claude, Gemini, Copilot, Cursor, Codex).
 3. Aceptar que prompts/commands con comandos embebidos se revisan (no verbatim puro) → Aceptado.
 4. ¿Crear el prompt `bootstrap_ai_config` en este repo? → **Sí, copiar en este repo.**
 - Indicación adicional: "Actualizar la documentación, sobre todo incluir Método y dirección de la llamada."
@@ -31,7 +31,7 @@ Respuestas del usuario a las condiciones del AUDIT_PLAN:
 
 ## Objetivo operativo de esta sesión
 - Crear un prompt reutilizable de bootstrap de configuración IA multiplataforma en el origen.
-- Documentar el **Método y dirección de la llamada** (modelo PULL) en los entry points de las 4 plataformas.
+- Documentar el **Método y dirección de la llamada** (modelo PULL) en los entry points de las 5 plataformas (Claude, Gemini, Copilot, Cursor, Codex).
 - Definir contexto obligatorio vs. opcional para el proyecto destino.
 - Registrar la sesión con artefactos de trazabilidad.
 

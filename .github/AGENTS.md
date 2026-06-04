@@ -215,7 +215,7 @@ arquitectura) usa el prompt `bootstrap_ai_config` y, como auditor del resultado,
 - **Capas**: A (copiar verbatim) · B (copiar + reescribir dominio) · C (regenerar) · D (excluir).
 
 Ver el detalle completo de rutas, contexto obligatorio/opcional y mapeo por plataforma
-(Claude / Gemini / Copilot / Cursor) en el propio prompt.
+(Claude / Gemini / Copilot / Cursor / Codex) en el propio prompt.
 
 ---
 
