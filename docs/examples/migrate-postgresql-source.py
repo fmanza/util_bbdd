@@ -20,7 +20,7 @@ planner = MigrationPlanner(
     source_engine="postgresql",
     target_engine="mariadb",
     charset="utf8mb4",
-    collation="utf8mb4_unicode_ci",
+    collation="utf8mb4_uca1400_ai_ci",  # por defecto; requiere MariaDB >= 10.10
 )
 
 # 3. Planificar (extrae metadatos y transforma tipos)

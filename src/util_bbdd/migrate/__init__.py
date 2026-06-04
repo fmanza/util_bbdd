@@ -5,7 +5,7 @@ Flujo principal (Oracle → MariaDB):
         source_engine="oracle",
         target_engine="mariadb",
         charset="utf8mb4",
-        collation="utf8mb4_unicode_ci",
+        collation="utf8mb4_uca1400_ai_ci",
     )
     plan = planner.plan(connection=oracle_manager, schema="MY_SCHEMA")
     ddl = plan.emit_ddl()                               # script .sql
@@ -68,7 +68,7 @@ Flujo principal (SQL Server → MariaDB):
         source_engine="sqlserver",
         target_engine="mariadb",
         charset="utf8mb4",
-        collation="utf8mb4_unicode_ci",
+        collation="utf8mb4_uca1400_ai_ci",
     )
     plan = planner.plan(connection=sqlserver_manager, schema="dbo")
     ddl = plan.emit_ddl()
@@ -95,7 +95,7 @@ Flujo principal (PostgreSQL → MariaDB):
         source_engine="postgresql",
         target_engine="mariadb",
         charset="utf8mb4",
-        collation="utf8mb4_unicode_ci",
+        collation="utf8mb4_uca1400_ai_ci",
     )
     plan = planner.plan(connection=pg_manager, schema="public")
     ddl = plan.emit_ddl()

@@ -112,7 +112,7 @@ planner = MigrationPlanner(
     source_engine="oracle",   # "oracle" | "mariadb" | "sqlserver" | "postgresql"
     target_engine="mariadb",  # cualquier motor distinto al origen
     charset="utf8mb4",
-    collation="utf8mb4_unicode_ci",
+    collation="utf8mb4_uca1400_ai_ci",  # por defecto; requiere MariaDB >= 10.10
 )
 plan = planner.plan(connection=oracle_manager, schema="VENTAS")
 

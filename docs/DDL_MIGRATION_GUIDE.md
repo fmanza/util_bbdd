@@ -50,8 +50,8 @@ planner = MigrationPlanner(
     source_engine="oracle",
     target_engine="mariadb",
     number_fallback="DOUBLE",   # tipo para NUMBER Oracle sin precisión
-    charset="utf8mb4",          # solo aplica a destino MariaDB
-    collation="utf8mb4_unicode_ci",
+    charset="utf8mb4",                  # solo aplica a destino MariaDB (por defecto)
+    collation="utf8mb4_uca1400_ai_ci",  # por defecto; requiere MariaDB ≥ 10.10
 )
 ```
 

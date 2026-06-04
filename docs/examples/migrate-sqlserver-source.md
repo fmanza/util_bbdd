@@ -36,7 +36,7 @@ Para SQL Server → MariaDB:
 ```python
 planner = MigrationPlanner(
     source_engine="sqlserver", target_engine="mariadb",
-    charset="utf8mb4", collation="utf8mb4_unicode_ci",
+    charset="utf8mb4", collation="utf8mb4_uca1400_ai_ci",  # por defecto; requiere MariaDB >= 10.10
 )
 ```
 

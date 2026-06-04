@@ -7,6 +7,34 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] - develop
 
+### Changed
+
+#### migrate: collation MariaDB por defecto → `utf8mb4_uca1400_ai_ci`
+
+Se cambia el valor por defecto de la collation para destinos MariaDB en el módulo
+`migrate` de `utf8mb4_unicode_ci` a **`utf8mb4_uca1400_ai_ci`** (UCA 14.0.0,
+acento-insensible y mayúsculas-insensible). El charset por defecto sigue siendo `utf8mb4`.
+
+> ⚠️ **Cambio de comportamiento (potencialmente breaking)**: `utf8mb4_uca1400_ai_ci`
+> solo existe en **MariaDB ≥ 10.10**. Las migraciones generadas con los valores por
+> defecto ahora requieren esa versión mínima. Para MariaDB < 10.10 o MySQL, pasar
+> `collation=` explícito al construir `MigrationPlanner`; `utf8mb4_unicode_ci` sigue
+> siendo una opción válida.
+
+Cambios:
+
+- **`migrate/charset.py`**: `DEFAULT_COLLATION = "utf8mb4_uca1400_ai_ci"`; la nueva
+  collation se añade a `VALID_COLLATIONS` y a `CHARSET_COLLATION_MAP["utf8mb4"]` para
+  que el default supere la validación del constructor de `MigrationPlanner`.
+- **`migrate/__init__.py`**: docstrings de ejemplo actualizados al nuevo default.
+- **Documentación**: README, `docs/DDL_MIGRATION_GUIDE.md` y los ejemplos de migración
+  (PostgreSQL/SQL Server → MariaDB) actualizados con el nuevo default y la nota de
+  versión mínima.
+
+Referencia:
+- [DEFAULT_COLLATION](src/util_bbdd/migrate/charset.py)
+- [Guía de Migración DDL](docs/DDL_MIGRATION_GUIDE.md)
+
 ### Documentation
 
 #### bulk: Guía de tuning de commit_cadence para cargas masivas en MariaDB/MySQL
