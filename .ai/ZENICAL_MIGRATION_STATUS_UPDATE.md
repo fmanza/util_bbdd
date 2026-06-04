@@ -2,16 +2,34 @@
 
 ## Situación Actual
 
-**Blocker Identificado**: Zenical v0.0.44 **no está disponible actualmente**
+**Actualización**: Zenical v0.0.44 SÍ existe en GitHub releases (binarios precompilados disponibles)
 
 | Recurso | Estado | Detalles |
 |---------|--------|----------|
+| **GitHub Releases** | ✅ Disponible | https://github.com/zensical/zensical/releases/tag/v0.0.44 |
+| **Binarios precompilados** | ✅ Disponibles | Windows (x86_64-pc-windows-msvc), macOS, Linux |
 | **crates.io** | ❌ No publicado | Solo v0.0.3 disponible (placeholder no compilable) |
-| **GitHub Releases** | ❌ No publicado | Zensical repo sin release v0.0.44 |
-| **Cargo.install** | ❌ Falla | `cargo install zensical --version 0.0.44` → Not found |
+| **cargo install** | ❌ No funciona | Zenical v0.0.44 no en crates.io |
 | **Rust/Cargo** | ✅ Instalado | Rust 1.96.0 disponible en sistema |
 | **Configuración** | ✅ Lista | `zensical.toml` (634L) completado y validado |
 | **CI/CD** | ✅ Listo | `.github/workflows/docs.yml` actualizado para Zenical |
+
+---
+
+## Decisión: Opción Flexible
+
+Para mantener el proyecto funcional Y permitir usar Zenical cuando esté listo:
+
+### ✅ Opción A: Usar binario precompilado AHORA
+1. Descargar: https://github.com/zensical/zensical/releases/tag/v0.0.44
+2. Extraer ZIP → `zensical.exe`
+3. Instalar: Copiar a `%USERPROFILE%\.cargo\bin\` o añadir a PATH
+4. Usar: `zensical build` (validar con `zensical --version`)
+
+### ✅ Opción B: Mantener MkDocs ahora → Zenical después
+- Mantener **MkDocs Material 9.5** como build tool actual (estable)
+- Esperar publicación en crates.io para instalación via `cargo install`
+- **Fecha estimada**: 2026-Q3 (cuando Zenical sea officially published)
 
 ---
 
@@ -25,46 +43,35 @@ Para mantener el proyecto funcional:
 - **Todos los assets Markdown 100% compatibles** con Zenical (0 cambios requeridos)
 
 ### 📋 Planificación Futura
-- **Rama `migrate/zenical-pure`**: Conservada como "ready to merge" cuando Zenical esté disponible
-- **PR #19**: Convertido a "Zenical Migration Roadmap" (no es técnicamente un change PR, es un plan)
-- **ZENICAL_MIGRATION_ROADMAP.md**: Creado para documentar la transición post-disponibilidad
+- **Rama `migrate/zenical-pure`**: Conservada como "ready to merge" cuando Zenical esté instalado/disponible
+- **PR #19**: Convertido a "Zenical Migration Roadmap" (plan documentado)
+- **ZENICAL_MIGRATION_ROADMAP.md**: Guía detallada para IAs futuras
 
 ### ⏳ Siguiente Paso
-Cuando Zenical v0.0.44 sea publicado:
-1. Instalar: `cargo install zensical --version 0.0.44`
-2. Validar: `zensical build` genera site/ idéntico
-3. Merge: Checkout `migrate/zenical-pure`, merge a develop
-4. Release: v0.11.0 con "+80% performance" en changelog
 
----
+**Opción A (Ahora - 15 min)**:
+1. Descargar binario: https://github.com/zensical/zensical/releases/tag/v0.0.44
+2. Instalar: Extraer y añadir a PATH
+3. Validar: `zensical build` en repo root
+4. Si todo funciona: Merge rama `migrate/zenical-pure`
 
-## Impacto Cero en Usuarios
-
-- ✅ Documentación funciona ahora con MkDocs
-- ✅ Contenido 100% compatible (migración es herramienta-agnóstica)
-- ✅ Cuando Zenical esté disponible: simple merge, rebuild, ship
-- ✅ No requiere cambios en docs/ ni código fuente
-
----
-
-## Archivos de Referencia
-
-- **Configuración Zenical**: `zensical.toml` (listo para usar)
-- **Guía Técnica**: `ZENICAL.md` (450+ líneas)
-- **Roadmap**: `.ai/ZENICAL_MIGRATION_ROADMAP.md` (nuevo, para futuras IAs)
-- **TRACEABILITY**: `.ai/sessions/zenical-migration-2026-06-04/` (sesión anterior)
-- **Plan Original**: `.ai/sessions/zenical-migration-2026-06-04/PLAN_MIGRATION_ZENICAL_PURE.md`
+**Opción B (Después - Esperar crates.io)**:
+Cuando `cargo install zensical --version 0.0.44` funcione:
+1. Instalar via Cargo
+2. Validar: `zensical build`
+3. Merge rama `migrate/zenical-pure`
+4. Release v0.11.0 con "+80% performance"
 
 ---
 
 ## Recomendación
 
-**Cerrar PR #19 con estado**: "Pending external dependency (Zenical availability)"
-
-La infraestructura está lista; es un blocker amable que se resolverá cuando Zenical sea públicamente estable. Mientras tanto, MkDocs sigue siendo una opción de calidad (Material Design 3 sigue ahí vía Material for MkDocs 9.5+).
+**Código está 100% listo para Zenical.** Depende de ti:
+- ✅ Si quieres performance NOW → Descarga binario hoy (15 min)
+- ✅ Si prefieres wait-and-see → Mantén MkDocs, revisit en Q3
 
 ---
 
 **Updated by**: GitHub Copilot  
-**Date**: 2026-06-04  
-**Version**: v0.10.0 (stable on MkDocs)
+**Date**: 2026-06-04 (Late session — corrección de información)  
+**Version**: v0.10.0 (stable on MkDocs, Zenical binarios disponibles en GitHub)

@@ -55,7 +55,8 @@ dev = [
     "types-networkx",
 ]
 docs = [
-    "zensical>=0.0.44",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.25",
 ]
 
 [project.urls]
