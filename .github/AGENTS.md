@@ -202,10 +202,27 @@ PRODUCTION_READY | NEAR_READY | BLOCKED
 
 ---
 
+## Bootstrap a otro proyecto (cross-project)
+
+Para **trasladar este sistema de instrucciones IA a otro proyecto** (incluso de otro lenguaje y
+arquitectura) usa el prompt `bootstrap_ai_config` y, como auditor del resultado, el agente
+**Config Reviewer**.
+
+- **Prompt**: [`.github/prompts/bootstrap_ai_config.prompt.md`](prompts/bootstrap_ai_config.prompt.md)
+- **Auditor**: `config-reviewer.agent.md` (DRY + referencias huérfanas)
+- **Método y dirección**: modelo **PULL** — se invoca **desde el proyecto destino**, apuntando a
+  este repo como plantilla de solo lectura. El lenguaje/arquitectura del destino es un **parámetro**.
+- **Capas**: A (copiar verbatim) · B (copiar + reescribir dominio) · C (regenerar) · D (excluir).
+
+Ver el detalle completo de rutas, contexto obligatorio/opcional y mapeo por plataforma
+(Claude / Gemini / Copilot / Cursor) en el propio prompt.
+
+---
+
 ## Configuración
 
 Personalizaciones por contexto:
-- **Prompts**: `.github/prompts/*.prompt.md` — instrucciones por slash command (16 prompts; 8 equivalentes a `.claude/commands/` + 6 arquetipos de documentación `functional_doc`/`technical_doc`/`guide_doc`/`example_doc`/`architecture_doc`/`landing_doc` + `documentation_review` + `config_review`)
+- **Prompts**: `.github/prompts/*.prompt.md` — instrucciones por slash command (17 prompts; 8 equivalentes a `.claude/commands/` + 6 arquetipos de documentación `functional_doc`/`technical_doc`/`guide_doc`/`example_doc`/`architecture_doc`/`landing_doc` + `documentation_review` + `config_review` + `bootstrap_ai_config`)
 - **Instrucciones**: `.github/instructions/*.instructions.md` — reglas por tipo de archivo
 - **Hooks**: `.claude/settings.json` — comandos pre/post tool (lint, format, type-check)
 - **Workflow IA**: `.github/workflows/doc_agents.yml` — generación automática vía Anthropic/OpenAI

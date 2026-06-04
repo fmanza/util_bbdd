@@ -302,6 +302,8 @@ Usar formato: `**[área]**: <hecho verificable>`. El template está en
 | `.github/copilot-instructions.md` | GitHub Copilot Chat | Especialización: agentes VS Code, reglas Copilot |
 | `CLAUDE.md` | Claude Code | Especialización: slash commands, hooks, settings.json |
 | `.github/AGENTS.md` | Copilot/Claude | Registro de agentes especializados |
+| `.github/prompts/bootstrap_ai_config.prompt.md` | Todas | Trasladar esta configuración IA a otro proyecto (modelo PULL) |
+| `.cursorrules` | Cursor | Especialización: estándar de documentación/ejemplos |
 | `.ai/*.md` | Todas | Contexto persistente: producto, arquitectura |
 | `.ai/sessions/TEMPLATE/` | Todas | Plantilla canónica de artefactos de sesión |
 
@@ -310,4 +312,4 @@ especializaciones afectadas (copilot-instructions.md y/o CLAUDE.md).
 
 ---
 
-*Actualizado: 2026-05-14*
+*Actualizado: 2026-06-05*

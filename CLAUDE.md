@@ -46,6 +46,47 @@ Restricciones:
 
 ---
 
+## Trasladar esta configuración IA a otro proyecto (bootstrap)
+
+Para replicar este sistema de instrucciones IA (Claude / Gemini / Copilot / Cursor) en **otro
+proyecto**, incluso de **otro lenguaje y arquitectura**, usa el prompt
+[`.github/prompts/bootstrap_ai_config.prompt.md`](./.github/prompts/bootstrap_ai_config.prompt.md).
+La auditoría posterior la hace el agente **Config Reviewer**.
+
+### Método y dirección de la llamada
+
+**Modelo PULL — se invoca desde el proyecto DESTINO**, apuntando a este repo como plantilla de
+solo lectura. Motivo: la adaptación necesita el **código real del destino en contexto**; lanzarlo
+desde el origen arrastraría supuestos de Python/util_bbdd. El lenguaje y la arquitectura del destino
+son **parámetros de entrada**, no constantes.
+
+```text
+# Abre el PROYECTO DESTINO en Claude Code y escribe:
+
+Lee y aplica .github/prompts/bootstrap_ai_config.prompt.md
+Origen (solo lectura): c:\Desarrollo\python\libs\util_bbdd
+Destino: <raíz de este proyecto>
+Lenguaje/arquitectura destino: <p.ej. TypeScript + NestJS hexagonal>
+Plataformas IA activas: Claude Code, Gemini, Copilot, Cursor
+Fase: PLAN y AUDIT_PLAN únicamente.
+```
+
+### Capas y dirección de ficheros
+
+| Capa | Acción | Ejemplos |
+|---|---|---|
+| **A — Metodología** | Copiar verbatim (revisar comandos embebidos) | `.github/agents/`, `.github/prompts/`, `.claude/commands/`, `.ai/sessions/TEMPLATE/` |
+| **B — Especialización** | Copiar + reescribir dominio | `SHARED_INSTRUCTIONS.md`, `CLAUDE.md`, `GEMINI.md`, `copilot-instructions.md`, `.cursorrules` |
+| **C — Contexto** | Regenerar analizando el destino | `.ai/{product,architecture,runtime,glossary,standards}.md` |
+| **D — No copiar** | Excluir | `.ai/sessions/<fechas>/`, `CHANGELOG.md`, caches, `settings.local.json` |
+
+**Contexto obligatorio mínimo en el destino**: `SHARED_INSTRUCTIONS.md` reescrito, un entry point por
+plataforma activa, `.ai/architecture.md` + `.ai/product.md`, núcleo de método (`new_feature`,
+`hotfix`, `refactor`, `audit_code`, `version_closure` + agentes `plan-architect`, `code-auditor`,
+`version-closer`) y `.ai/sessions/TEMPLATE/`. El resto es opcional e incremental.
+
+---
+
 ## Configuración: Hooks y PostToolUse
 
 Lee [`.claude/README.md`](./.claude/README.md) para detalles completos sobre hooks:
@@ -260,4 +301,4 @@ mkdocs serve                        # Documentación local (recíproco, mismo mk
 
 ---
 
-*Actualizado: 2026-06-02*
+*Actualizado: 2026-06-05*

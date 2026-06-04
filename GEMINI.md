@@ -51,6 +51,19 @@ Si se modifican reglas comunes o flujos, actualiza los ficheros en este orden:
 
 ---
 
+## Bootstrap de configuración IA a otro proyecto
+
+Para replicar este sistema de instrucciones IA (Claude / Gemini / Copilot / Cursor) en otro proyecto,
+incluso de **otro lenguaje y arquitectura**, usa el prompt
+[`bootstrap_ai_config.prompt.md`](.github/prompts/bootstrap_ai_config.prompt.md).
+
+**Método y dirección — modelo PULL**: se invoca **desde el proyecto destino**, apuntando a este repo
+como plantilla de solo lectura; el lenguaje/arquitectura del destino es un **parámetro**. Capas:
+**A** copiar verbatim · **B** copiar + reescribir dominio · **C** regenerar analizando el destino ·
+**D** excluir. Detalle completo en el propio prompt.
+
+---
+
 ## Comandos de Desarrollo Rápidos
 
 ```bash
@@ -64,4 +77,4 @@ mkdocs serve                        # Previsualizar documentación (recíproco, 
 
 ---
 
-*Actualizado: 2026-05-11*
+*Actualizado: 2026-06-05*

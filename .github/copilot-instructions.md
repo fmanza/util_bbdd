@@ -210,6 +210,32 @@ Entrega hallazgos con severidad (Nivel 1/2/3) sin editar archivos.
 
 ---
 
+## Bootstrap de configuración IA a otro proyecto
+
+Para **trasladar este sistema de instrucciones IA** (Claude / Gemini / Copilot / Cursor) a otro
+proyecto, incluso de **otro lenguaje y arquitectura**, usa el prompt
+[`bootstrap_ai_config.prompt.md`](prompts/bootstrap_ai_config.prompt.md) y audita el resultado con
+**Config Reviewer**.
+
+**Método y dirección — modelo PULL**: invoca **desde el proyecto destino**, apuntando a este repo
+como plantilla de solo lectura (el destino debe estar en contexto para adaptar lenguaje, arquitectura
+y comandos). El lenguaje/arquitectura del destino es un **parámetro**.
+
+```markdown
+# Abre el PROYECTO DESTINO en VS Code y escribe:
+Lee y aplica .github/prompts/bootstrap_ai_config.prompt.md
+Origen (solo lectura): <ruta del repo origen>
+Destino: <raíz de este proyecto>
+Lenguaje/arquitectura destino: <p.ej. TypeScript + NestJS>
+Plataformas IA activas: Claude Code, Gemini, Copilot, Cursor
+Fase: PLAN y AUDIT_PLAN únicamente.
+```
+
+Capas: **A** copiar verbatim · **B** copiar + reescribir dominio · **C** regenerar analizando el
+destino · **D** excluir (sesiones, changelog, caches). Detalle completo en el propio prompt.
+
+---
+
 ## Integración con Claude Code
 
 Esta especialización es **compatible con Claude Code**:
@@ -237,4 +263,4 @@ Cuando actualices **`.github/SHARED_INSTRUCTIONS.md`**, verifica:
 
 ---
 
-*Actualizado: 2026-06-02*
+*Actualizado: 2026-06-05*
