@@ -1,0 +1,609 @@
+# Zenical Configuration for util_bbdd
+# Migrated from mkdocs.yml to zensical.toml
+# Date: 2026-06-04
+
+[build]
+docs_dir = "docs"
+site_dir = "site"
+
+[site]
+title = "util_bbdd"
+description = "Librería Python para operaciones con múltiples motores de BD (sync/async): CRUD en lote, migración DDL, comparación de esquemas, documentación automática — MariaDB, MySQL, Oracle, PostgreSQL, Redshift, Snowflake, SQLite, SQL Server, HSQLDB"
+author = "Paco Manzano"
+url = "https://fmanza.github.io/util_bbdd/"
+repo_url = "https://github.com/fmanza/util_bbdd"
+repo_name = "fmanza/util_bbdd"
+language = "es"
+
+[theme]
+name = "material"
+icon_repo = "fontawesome/brands/github"
+
+[theme.palette]
+# Light mode (default)
+[[theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "indigo"
+accent = "blue"
+icon_toggle = "material/brightness-7"
+name_toggle = "Cambiar a modo oscuro"
+
+# Dark mode
+[[theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "indigo"
+accent = "blue"
+icon_toggle = "material/brightness-4"
+name_toggle = "Cambiar a modo claro"
+
+[theme.features]
+navigation_tabs = true
+navigation_sticky_tabs = true
+navigation_top = true
+navigation_footer = true
+content_code_copy = true
+content_code_annotate = true
+content_tabs_link = true
+search_highlight = true
+search_suggest = true
+toc_follow = true
+
+[search]
+lang = "es"
+
+[markdown]
+extensions = [
+    "admonition",
+    "pymdownx.details",
+    "pymdownx.superfences",
+    "pymdownx.emoji",
+    "pymdownx.highlight",
+    "pymdownx.inlinehilite",
+    "pymdownx.tabbed",
+    "tables",
+    "toc"
+]
+
+# Navigation structure
+[[nav]]
+title = "Inicio"
+path = "index.md"
+
+[[nav]]
+title = "Instalación"
+path = "INSTALLATION.md"
+
+# ── Audiencia: Product Owner, QA, responsables de negocio ──────────────────
+[[nav]]
+title = "Documentación Funcional"
+
+# Managers
+[[nav.children]]
+title = "Managers"
+
+[[nav.children.children]]
+title = "Gestión de Conexiones (Sync)"
+path = "functional/managers-sync.md"
+
+[[nav.children.children]]
+title = "Ciclo de vida de sesión sincrónica"
+path = "functional/managers-sync-session-lifecycle.md"
+
+[[nav.children.children]]
+title = "Gestión de Conexiones (Async)"
+path = "functional/managers-async.md"
+
+# Metadatos e Introspección
+[[nav.children]]
+title = "Metadatos e Introspección"
+
+[[nav.children.children]]
+title = "Extracción de Metadatos"
+path = "functional/metadata-extraction.md"
+
+[[nav.children.children]]
+title = "Selección de Driver"
+path = "functional/drivers-selection.md"
+
+# Operaciones de Datos
+[[nav.children]]
+title = "Operaciones de Datos"
+
+[[nav.children.children]]
+title = "Operaciones Bulk (CRUD)"
+path = "functional/bulk-operations.md"
+
+[[nav.children.children]]
+title = "Auditoría de Operaciones Bulk"
+path = "functional/bulk-audit.md"
+
+[[nav.children.children]]
+title = "Carga Masiva Paralela"
+path = "functional/bulk-parallel-loading.md"
+
+# Queries y Validación
+[[nav.children]]
+title = "Queries y Validación"
+
+[[nav.children.children]]
+title = "Registro de Queries"
+path = "functional/query-registry.md"
+
+[[nav.children.children]]
+title = "Ejecución de Consultas"
+path = "functional/query-execution.md"
+
+[[nav.children.children]]
+title = "Patrón de Validadores"
+path = "functional/validators-pattern.md"
+
+# Comparación de Esquemas
+[[nav.children]]
+title = "Comparación de Esquemas"
+
+[[nav.children.children]]
+title = "Comparador de Esquemas"
+path = "functional/schema-comparison.md"
+
+# Volcado de Datos
+[[nav.children]]
+title = "Volcado de Datos"
+
+[[nav.children.children]]
+title = "Volcado entre esquemas"
+path = "functional/dump-data-export.md"
+
+# Migración de Esquemas
+[[nav.children]]
+title = "Migración de Esquemas"
+
+[[nav.children.children]]
+title = "Migración Oracle (origen)"
+path = "functional/migrate-oracle-mariadb.md"
+
+[[nav.children.children]]
+title = "Migración MariaDB (origen)"
+path = "functional/migrate-mariadb-source.md"
+
+[[nav.children.children]]
+title = "Migración SQL Server (origen)"
+path = "functional/migrate-sqlserver-source.md"
+
+[[nav.children.children]]
+title = "Migración PostgreSQL (origen)"
+path = "functional/migrate-postgresql-source.md"
+
+# Análisis de Relaciones
+[[nav.children]]
+title = "Análisis de Relaciones"
+
+[[nav.children.children]]
+title = "Visualización de Grafos"
+path = "functional/graph-analysis.md"
+
+# Documentación de BD
+[[nav.children]]
+title = "Documentación de BD"
+
+[[nav.children.children]]
+title = "Generación de Documentación"
+path = "functional/database-documentation.md"
+
+# ── Audiencia: Desarrolladores, ingenieros de datos, DBAs ──────────────────
+[[nav]]
+title = "Referencia Técnica"
+
+# Intro
+[[nav.children]]
+title = "Índice de Referencia"
+path = "api/intro.md"
+
+# Managers
+[[nav.children]]
+title = "Managers"
+
+[[nav.children.children]]
+title = "Manager Síncrono"
+path = "api/managers-sync.md"
+
+[[nav.children.children]]
+title = "Manager Síncrono (Técnico)"
+path = "api/managers-sync-technical.md"
+
+[[nav.children.children]]
+title = "Manager Asíncrono"
+path = "api/managers-async.md"
+
+[[nav.children.children]]
+title = "Ciclo de Vida de Conexión"
+path = "api/managers-lifecycle.md"
+
+[[nav.children.children]]
+title = "Factory de Estrategias de Metadata"
+path = "api/managers-metadata-factory.md"
+
+# Metadatos e Introspección
+[[nav.children]]
+title = "Metadatos e Introspección"
+
+[[nav.children.children]]
+title = "Gestor de Metadatos"
+path = "api/metadata-manager.md"
+
+# Conexiones
+[[nav.children]]
+title = "Conexiones"
+
+[[nav.children.children]]
+title = "Factory de Conexiones"
+path = "api/connection-factory.md"
+
+# Operaciones Bulk
+[[nav.children]]
+title = "Operaciones Bulk"
+
+[[nav.children.children]]
+title = "CRUD Masivo"
+path = "api/bulk-crud.md"
+
+[[nav.children.children]]
+title = "MySQL Variables Validator"
+path = "api/mysql-variables.md"
+
+[[nav.children.children]]
+title = "Carga Masiva Paralela"
+path = "api/bulk-parallel.md"
+
+[[nav.children.children]]
+title = "Auditoría Bulk"
+path = "api/bulk-audit.md"
+
+[[nav.children.children]]
+title = "Normalización de Datos"
+path = "api/normalize.md"
+
+# Sistema de Queries
+[[nav.children]]
+title = "Sistema de Queries"
+
+[[nav.children.children]]
+title = "Registry y Resolver"
+path = "api/query-system.md"
+
+[[nav.children.children]]
+title = "Ejecución de Consultas"
+path = "api/query-execution.md"
+
+[[nav.children.children]]
+title = "Sistema de Validadores"
+path = "api/validators-system.md"
+
+# Comparación de Esquemas
+[[nav.children]]
+title = "Comparación de Esquemas"
+
+[[nav.children.children]]
+title = "Comparador y Reporters"
+path = "api/schema-comparator.md"
+
+# Volcado de Datos
+[[nav.children]]
+title = "Volcado de Datos"
+
+[[nav.children.children]]
+title = "Orquestador"
+path = "api/dump.md"
+
+[[nav.children.children]]
+title = "Generador de Reportes"
+path = "api/dump-reporter.md"
+
+# Migración de Esquemas
+[[nav.children]]
+title = "Migración de Esquemas"
+
+[[nav.children.children]]
+title = "API Oracle (origen)"
+path = "api/migrate-oracle-mariadb.md"
+
+[[nav.children.children]]
+title = "API MariaDB (origen)"
+path = "api/migrate-mariadb-source.md"
+
+[[nav.children.children]]
+title = "API SQL Server (origen)"
+path = "api/migrate-sqlserver-source.md"
+
+[[nav.children.children]]
+title = "API PostgreSQL (origen)"
+path = "api/migrate-postgresql-source.md"
+
+# Análisis de Relaciones
+[[nav.children]]
+title = "Análisis de Relaciones"
+
+[[nav.children.children]]
+title = "Grafos de Relaciones"
+path = "api/analysis.md"
+
+# Documentación de BD
+[[nav.children]]
+title = "Documentación de BD"
+
+[[nav.children.children]]
+title = "Generador de Documentación"
+path = "api/database-documentation.md"
+
+# Autodoc
+[[nav.children]]
+title = "Autodoc (mkdocstrings)"
+
+[[nav.children.children]]
+title = "Índice"
+path = "api/index.md"
+
+[[nav.children.children]]
+title = "Managers"
+path = "api/managers.md"
+
+[[nav.children.children]]
+title = "Comparador"
+path = "api/comparator.md"
+
+[[nav.children.children]]
+title = "Comparador Diff Reporters"
+path = "api/reporters.md"
+
+[[nav.children.children]]
+title = "Bulk Operations"
+path = "api/bulk.md"
+
+[[nav.children.children]]
+title = "Dump"
+path = "api/dump-autodoc.md"
+
+[[nav.children.children]]
+title = "Excepciones"
+path = "api/exceptions.md"
+
+# ── Guías de uso y operación ───────────────────────────────────────────────
+[[nav]]
+title = "Guías"
+
+# Conexión y Drivers
+[[nav.children]]
+title = "Conexión y Drivers"
+
+[[nav.children.children]]
+title = "Conexión y Drivers por Motor"
+path = "CONNECTION_GUIDE.md"
+
+[[nav.children.children]]
+title = "Programación Asíncrona"
+path = "ASYNC_GUIDE.md"
+
+[[nav.children.children]]
+title = "Drivers PostgreSQL"
+path = "POSTGRESQL_DRIVER_GUIDE.md"
+
+# Errores y Diagnóstico
+[[nav.children]]
+title = "Errores y Diagnóstico"
+
+[[nav.children.children]]
+title = "Excepciones"
+path = "EXCEPTIONS.md"
+
+[[nav.children.children]]
+title = "Troubleshooting"
+path = "TROUBLESHOOTING.md"
+
+# Comparación de Esquemas
+[[nav.children]]
+title = "Comparación de Esquemas"
+
+[[nav.children.children]]
+title = "Comparador de Esquemas"
+path = "COMPARATOR.md"
+
+# Volcado de Datos
+[[nav.children]]
+title = "Volcado de Datos"
+
+[[nav.children.children]]
+title = "Volcado de Datos entre Motores"
+path = "DUMP_GUIDE.md"
+
+# Migración de Esquemas
+[[nav.children]]
+title = "Migración de Esquemas"
+
+[[nav.children.children]]
+title = "Migración DDL entre Motores"
+path = "DDL_MIGRATION_GUIDE.md"
+
+# Rendimiento
+[[nav.children]]
+title = "Rendimiento"
+
+[[nav.children.children]]
+title = "Performance & Benchmarks"
+path = "BENCHMARKS.md"
+
+# Migración de Versión
+[[nav.children]]
+title = "Migración de Versión"
+
+[[nav.children.children]]
+title = "Guía de Migración (v0.6.3)"
+path = "MIGRATION_GUIDE.md"
+
+[[nav.children.children]]
+title = "Migración v0.6.6→v0.6.7"
+path = "MIGRATION_GUIDE_v0.6.7.md"
+
+# Herramientas IA
+[[nav.children]]
+title = "Herramientas IA"
+
+[[nav.children.children]]
+title = "Guía completa (VS Code)"
+path = "doc_generation_vscode_guide.md"
+
+[[nav.children.children]]
+title = "Copilot Chat (.github)"
+path = "github_copilot_guide.md"
+
+[[nav.children.children]]
+title = "Claude Code"
+path = "claude_code_guide.md"
+
+[[nav.children.children]]
+title = "Codex (OpenAI)"
+path = "codex_guide.md"
+
+# ── Ejemplos de código ─────────────────────────────────────────────────────
+[[nav]]
+title = "Ejemplos"
+
+# Metadatos e Introspección
+[[nav.children]]
+title = "Metadatos e Introspección"
+
+[[nav.children.children]]
+title = "Conectar e Introspeccionar Base de Datos"
+path = "examples/example-connect-introspect.md"
+
+[[nav.children.children]]
+title = "Cache de Metadatos"
+path = "examples/metadata_cache_usage.md"
+
+# Operaciones Bulk
+[[nav.children]]
+title = "Operaciones Bulk"
+
+[[nav.children.children]]
+title = "Bulk Insert desde CSV"
+path = "examples/bulk_insert_csv.md"
+
+[[nav.children.children]]
+title = "Carga Masiva Paralela"
+path = "examples/parallel_bulk_insert.md"
+
+[[nav.children.children]]
+title = "Benchmark: Commit Cadence"
+path = "examples/benchmark_commit_cadence.md"
+
+[[nav.children.children]]
+title = "Validación de Variables MySQL/MariaDB"
+path = "examples/mysql-variables-example.md"
+
+# Sistema de Queries
+[[nav.children]]
+title = "Sistema de Queries"
+
+[[nav.children.children]]
+title = "Ejecución de Consultas"
+path = "examples/query_execution_example.md"
+
+[[nav.children.children]]
+title = "Queries Concurrentes (Async)"
+path = "examples/async_concurrent_queries.md"
+
+# Comparación de Esquemas
+[[nav.children]]
+title = "Comparación de Esquemas"
+
+[[nav.children.children]]
+title = "Comparación de Esquemas"
+path = "examples/schema_comparison.md"
+
+[[nav.children.children]]
+title = "Diff Reporters"
+path = "examples/diff_reporters.md"
+
+# Volcado de Datos
+[[nav.children]]
+title = "Volcado de Datos"
+
+[[nav.children.children]]
+title = "Volcado de Datos entre Motores"
+path = "examples/dump_data_export.md"
+
+# Migración de Esquemas
+[[nav.children]]
+title = "Migración de Esquemas"
+
+[[nav.children.children]]
+title = "Migración Oracle (origen)"
+path = "examples/migrate-oracle-mariadb.md"
+
+[[nav.children.children]]
+title = "Migración MariaDB (origen)"
+path = "examples/migrate-mariadb-source.md"
+
+[[nav.children.children]]
+title = "Migración SQL Server (origen)"
+path = "examples/migrate-sqlserver-source.md"
+
+[[nav.children.children]]
+title = "Migración PostgreSQL (origen)"
+path = "examples/migrate-postgresql-source.md"
+
+# Análisis de Relaciones
+[[nav.children]]
+title = "Análisis de Relaciones"
+
+[[nav.children.children]]
+title = "Generación de Grafos"
+path = "examples/graph_generation.md"
+
+# Documentación de BD
+[[nav.children]]
+title = "Documentación de BD"
+
+[[nav.children.children]]
+title = "Generación de Documentación"
+path = "examples/database_documentation_generation.md"
+
+# Manejo de Excepciones
+[[nav.children]]
+title = "Manejo de Excepciones"
+
+[[nav.children.children]]
+title = "Manejo de Excepciones"
+path = "examples/exception_handling.md"
+
+# ── Contexto del proyecto ──────────────────────────────────────────────────
+[[nav]]
+title = "Arquitectura"
+
+[[nav.children]]
+title = "Arquitectura del Sistema"
+path = "ARCHITECTURE.md"
+
+[[nav.children]]
+title = "ADR-001 Refactoring"
+path = "adr/ADR-001-STRUCTURE-REFACTORING.md"
+
+[[nav.children]]
+title = "Plantilla ADR"
+path = "adr/ADR-TEMPLATE.md"
+
+# Historia y Planes
+[[nav]]
+title = "Historia y Planes"
+
+[[nav.children]]
+title = "Roadmap"
+path = "ROADMAP.md"
+
+[[nav.children]]
+title = "Versiones Históricas"
+path = "legacy-versions.md"
+
+[[nav.children]]
+title = "Plan v0.8.0 — Sistema de Tipos Avanzado (entregado)"
+path = "v0.8.0/PLAN_v0.8.0_TYPE_SYSTEM_IMPROVEMENTS.md"
