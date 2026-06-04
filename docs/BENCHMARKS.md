@@ -24,20 +24,36 @@ Configurar el pool de conexiones y las opciones de bulk insert para obtener el r
 
 **Sweet spot**: `pool_size=20, max_overflow=10` da el mejor ratio throughput/CPU.
 
-### Configuración para bulk insert de alto volumen
+### Tuning de carga masiva (bulk)
+
+Punto único de referencia para acelerar inserciones masivas. Las palancas se combinan; empieza por
+`chunk_size` y `commit_every_n_chunks`, y recurre a la carga paralela solo si una sola tabla domina
+el tiempo total.
+
+| Palanca | Dónde | Efecto | Cuándo usarla |
+|---|---|---|---|
+| `chunk_size` | `BulkCrud` / `ParallelBulkLoader` | Filas por lote (default 5000) | Bajar a ≤500 si el destino MariaDB tiene `TEXT`/`JSON` (`max_allowed_packet`) |
+| `commit_every_n_chunks` | `BulkCrud` / `ParallelBulkLoader` | Commit cada N lotes; acota el undo log | **Crítico** en MariaDB/MySQL con millones de filas (evita degradación exponencial) |
+| `enable_fast_executemany` | `BulkCrud` / `ParallelBulkLoader` | Activa `fast_executemany` de pyodbc | SQL Server: 5–15× más rápido |
+| Vía nativa por motor | Automática | COPY / multi-row / fast_executemany (tabla abajo) | Siempre activa con `BulkCrud(insert_resolver=None)` (default) |
+| Carga paralela | `ParallelBulkLoader` | Inserta particiones disjuntas en paralelo, una `BulkCrud` por hilo | Tablas muy grandes; el pool debe tener capacidad ≥ `max_workers` |
+
+Configuración base con `BulkCrud`:
 
 ```python
 from util_bbdd.bulk import BulkCrud
 
 bulk = BulkCrud(
     engine=engine,
-    chunk_size=5_000,          # filas por lote
-    commit_every_n_chunks=20,  # commit cada 100K filas (MariaDB)
+    chunk_size=5_000,              # filas por lote
+    commit_every_n_chunks=20,      # commit cada 100K filas (MariaDB)
     enable_fast_executemany=True,  # SQL Server: 5–15× más rápido
 )
 ```
 
-### Estrategia INSERT por motor (automática)
+#### Estrategia INSERT por motor (automática)
+
+`BulkCrud` elige la vía nativa más rápida por motor sin configuración (`insert_resolver=None`, default):
 
 | Motor | Estrategia | Ganancia típica |
 |---|---|---|
@@ -46,6 +62,23 @@ bulk = BulkCrud(
 | MySQL / MariaDB | INSERT multi-row sub-loteado | 2–4× sobre `executemany` |
 | SQL Server + pyodbc | `fast_executemany=True` | 5–15× sobre `executemany` |
 | Oracle, SQLite, HSQLDB | `executemany` estándar | — |
+
+#### Carga paralela por particiones
+
+Cuando una sola tabla domina el tiempo, `ParallelBulkLoader` inserta particiones **disjuntas** en
+paralelo (una `BulkCrud` por hilo). El pool del engine debe tener capacidad ≥ `max_workers`:
+
+```python
+from util_bbdd.bulk import ParallelBulkLoader
+
+loader = ParallelBulkLoader(engine, max_workers=4, chunk_size=5_000, commit_every_n_chunks=20)
+result = loader.load("ventas", partition_readers)   # un callable por partición disjunta
+print(result.total_rows, result.partition_errors)
+```
+
+Detalle y políticas de particionado: [Carga Masiva Paralela (funcional)](functional/bulk-parallel-loading.md),
+[API ParallelBulkLoader](api/bulk-parallel.md) y el ejemplo [Carga Masiva Paralela](examples/parallel_bulk_insert.md).
+Para medir el impacto de la cadencia de commit, ver el ejemplo [Commit Cadence](examples/benchmark_commit_cadence.md).
 
 ### Tiempos de referencia por tipo de operación (PostgreSQL 15)
 

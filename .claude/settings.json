@@ -1,4 +1,14 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests -k \"charset or migrate\" -q)",
+      "Bash(git checkout *)",
+      "Bash(cd c:/Desarrollo/python/libs/util_bbdd && git commit --amend -F .git/COMMIT_EDITMSG_FIX.txt && rm .git/COMMIT_EDITMSG_FIX.txt && echo \"---FIXED SUBJECT---\" && git log -1 --format=\"%s\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Desarrollo\\python\\libs\\util_bbdd\\.git"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
@@ -10,13 +20,11 @@
           },
           {
             "type": "command",
-            "command": "python -m mypy src --no-error-summary 2>&1 | head -10",
-            "optional": true
+            "command": "python -m mypy src --no-error-summary 2>&1 | head -10"
           },
           {
             "type": "command",
-            "command": "python -m pytest --collect-only -q src 2>&1 | head -10",
-            "optional": true
+            "command": "python -m pytest --collect-only -q src 2>&1 | head -10"
           }
         ]
       }

@@ -245,10 +245,10 @@ Estas páginas entran directamente en `nav:` (nivel raíz), no bajo `functional/
 
 - **Variante A — Inicio**: Identidad y Propósito → Capacidades → Quick Start → Mapa de la Documentación → Compatibilidad y Soporte.
 - **Variante B — Instalación**: Requisitos → Instalación del Paquete → Drivers por Motor → Verificación → Solución de Problemas.
-- **Variante C — Arquitectura**: Visión General → Mapa de Módulos → Flujo de una Operación → Contratos y Reglas → Extensión y Límites.
+- **Variante C — Arquitectura** (modelo **arc42-lite + C4**): Visión General y Objetivos de Calidad (C4 nivel 1) → Mapa de Módulos / Building Blocks (C4 nivel 3) → Flujo en Ejecución (Runtime) → Conceptos Transversales y Estándares No Funcionales (checklist NFR) → Decisiones, Extensión y Límites (enlace a `docs/adr/`).
 
 **Distinción con otros arquetipos**:
-- El Arquetipo 5 (`architecture_doc`) documenta **un ADR concreto**; la Variante C documenta la **visión global del sistema**. Ambas conviven bajo la sección "Arquitectura" del nav.
+- El Arquetipo 5 (`architecture_doc`) documenta **un ADR concreto** (decisión con trade-offs, formato MADR-lite); la Variante C es la **vista panorámica del sistema** (arc42-lite + C4) y enlaza al log de ADR. Ambas conviven bajo la sección "Arquitectura" del nav y forman un modelo único: panorámica + decisiones.
 - El Arquetipo 3 (`guide_doc`) cubre guías genéricas (async, drivers, troubleshooting); la Variante B es específica de instalación del paquete y drivers.
 
 **Excepción**: `docs/index.md` y `docs/legacy-versions.md` seguían exentos en v1; con este arquetipo `index.md` pasa a regirse por la Variante A. `legacy-versions.md` permanece exento.
@@ -420,21 +420,28 @@ nav:
       - Documentación BD: api/database-documentation.md
       - Excepciones: api/exceptions.md
 
-  - Ejemplos:
-      - Conectar e Introspeccionar: examples/example-connect-introspect.md
-      - Bulk Insert desde CSV: examples/bulk_insert_csv.md
-      - Comparación de Esquemas: examples/schema_comparison.md
-      - Migración Oracle (origen): examples/migrate-oracle-mariadb.md
-      - Migración MariaDB (origen): examples/migrate-mariadb-source.md
-      # ... resto de ejemplos en mkdocs.yml
+  - Ejemplos:                              # subsecciones por área, igual que Referencia Técnica
+      - Metadatos e Introspección:
+          - Conectar e Introspeccionar: examples/example-connect-introspect.md
+      - Operaciones Bulk:
+          - Bulk Insert desde CSV: examples/bulk_insert_csv.md
+      - Comparación de Esquemas:
+          - Comparación de Esquemas: examples/schema_comparison.md
+      - Migración de Esquemas:
+          - Migración Oracle (origen): examples/migrate-oracle-mariadb.md
+          - Migración MariaDB (origen): examples/migrate-mariadb-source.md
+      # ... resto de ejemplos agrupados por área en mkdocs.yml
 
-  - Guías:
-      - Programación Asíncrona: ASYNC_GUIDE.md
-      - Drivers PostgreSQL: POSTGRESQL_DRIVER_GUIDE.md
-      - Excepciones: EXCEPTIONS.md
-      - Troubleshooting: TROUBLESHOOTING.md
-      - Herramientas IA: examples/doc_generation_vscode_guide.md
-      # ... resto en mkdocs.yml
+  - Guías:                                 # subsecciones temáticas (how-tos transversales)
+      - Conexión y Drivers:
+          - Programación Asíncrona: ASYNC_GUIDE.md
+          - Drivers PostgreSQL: POSTGRESQL_DRIVER_GUIDE.md
+      - Errores y Diagnóstico:
+          - Excepciones: EXCEPTIONS.md
+          - Troubleshooting: TROUBLESHOOTING.md
+      - Herramientas IA:
+          - Guía completa (VS Code): doc_generation_vscode_guide.md
+      # ... resto de guías agrupadas por tema en mkdocs.yml
 ```
 
 ---
@@ -500,8 +507,12 @@ nav:
 2. **Ubicaciones Fijas** (No cambiar sin consenso):
    - Funcional: `docs/functional/[módulo].md`
    - Técnica: `docs/api/[módulo].md`
-   - Ejemplos: `docs/examples/[caso].md` (estructura plana; sin subcarpetas por tipo)
-   - Guías: `docs/[nombre].md` en raíz
+   - Ejemplos: `docs/examples/[caso].md` (ficheros **planos en disco**, sin subcarpetas por tipo).
+     En `nav:` **se agrupan en subsecciones por área funcional**, igual que `Referencia Técnica`
+     y `Documentación Funcional` (ver `docs.instructions.md` → "Agrupación en subsecciones por área").
+   - Guías: `docs/[nombre].md` en raíz (ficheros **planos en disco**).
+     En `nav:` **se agrupan en subsecciones temáticas** (Conexión y Drivers, Errores y Diagnóstico,
+     Rendimiento, Migración de Versión, Herramientas IA…), no por módulo.
 
 3. **Actualización de mkdocs.yml**: Automatizada con `mkdocstrings` + agente `documentation-generator`
 

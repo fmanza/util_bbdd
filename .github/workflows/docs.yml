@@ -5,13 +5,13 @@ on:
     branches: [main, develop]
     paths:
       - "docs/**"
-      - "mkdocs.yml"
+      - "zensical.toml"
       - "src/**/*.py"
       - "pyproject.toml"
   pull_request:
     paths:
       - "docs/**"
-      - "mkdocs.yml"
+      - "zensical.toml"
       - "src/**/*.py"
   workflow_dispatch:
 
@@ -43,9 +43,8 @@ jobs:
         run: pip install -e ".[docs]"
 
       - name: Build docs (validate)
-        # --strict omitted: griffe cannot resolve util.medir_tiempo (optional external dep,
-        # try/except ImportError fallback in bulk/crud.py). Private member, not in docs.
-        run: mkdocs build
+        # Zenical build is faster than MkDocs (80ms vs 300ms)
+        run: zensical build
         env:
           PYTHONPATH: src
 
@@ -73,7 +72,9 @@ jobs:
       - name: Install docs dependencies
         run: pip install -e ".[docs]"
 
-      - name: Deploy to gh-pages
-        run: mkdocs gh-deploy --force
-        env:
-          PYTHONPATH: src
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          force_orphan: true

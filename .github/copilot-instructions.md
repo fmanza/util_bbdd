@@ -150,7 +150,7 @@ Tipo: funcional + técnica para cada módulo. Actualiza mkdocs.yml al finalizar.
 ```
 
 Regla crítica: no inventar. Lee el código fuente antes de generar cualquier sección.
-Criterio de completitud: `mkdocs build` sin errores + todos los módulos de `src/` documentados.
+Criterio de completitud: `zensical build` sin errores + todos los módulos de `src/` documentados.
 
 ## Documentación con Copilot Chat
 
@@ -161,12 +161,12 @@ No uses un único prompt masivo: divide siempre el trabajo por fases.
 ### Flujo por fases
 
 ```
-Fase 1 — Inventariar: src/, README, docs/, docs/examples/, mkdocs.yml
+Fase 1 — Inventariar: src/, README, docs/, docs/examples/, zensical.toml
 Fase 2 — Mapeo funcional (Senior Product Owner): objetivo, precondiciones, flujo Mermaid, reglas
 Fase 3 — Documentación técnica: responsabilidad, Mermaid, API pública, contratos, errores
 Fase 4 — Ejemplos verificables: código real, resultado determinista, sin credenciales
-Fase 5 — Sincronizar mkdocs.yml: añadir/mover/retirar entradas de navegación
-Fase 6 — Revisión final: Markdown, enlaces relativos, sintaxis Mermaid, mkdocs build
+Fase 5 — Sincronizar zensical.toml: añadir/mover/retirar entradas de navegación
+Fase 6 — Revisión final: Markdown, enlaces relativos, sintaxis Mermaid, zensical build
 ```
 
 **Solicitud para módulo único**:
@@ -177,7 +177,7 @@ Fase 6 — Revisión final: Markdown, enlaces relativos, sintaxis Mermaid, mkdoc
 Genera documentación funcional y técnica para [ruta_del_módulo].
 Aplica functional_doc.prompt.md y technical_doc.prompt.md.
 Guarda en docs/functional/[nombre].md y docs/api/[nombre].md.
-Actualiza mkdocs.yml si se crean páginas nuevas.
+Zensical renderiza automáticamente; no requiere actualización manual de config.
 No inventes capacidades; marca como pendiente lo no verificable.
 ```
 
@@ -191,8 +191,8 @@ Revisa el proyecto completo y actualiza la documentación pública en 6 fases:
 2. Mapeo funcional con functional_doc.prompt.md por módulo sin doc o desactualizado.
 3. Documentación técnica con technical_doc.prompt.md y Mermaid apropiado.
 4. Ejemplos verificables en docs/examples/ para módulos sin ejemplo reproducible.
-5. Sincronizar mkdocs.yml.
-6. Revisión final: Markdown, enlaces y Mermaid; recomendar mkdocs build.
+5. Zenical renderiza automáticamente (no requiere sync manual).
+6. Revisión final: Markdown, enlaces y Mermaid; recomendar zensical build.
 
 No inventes módulos ni capacidades; marca como pendiente lo no verificable.
 No uses APIs externas por el momento.
@@ -203,7 +203,7 @@ No uses APIs externas por el momento.
 ```markdown
 @Documentation Reviewer
 
-Revisa docs/, docs/examples/, README y mkdocs.yml para detectar gaps.
+Revisa docs/, docs/examples/, README y zensical.toml para detectar gaps.
 Usa .github/prompts/documentation_review.prompt.md como criterio.
 Entrega hallazgos con severidad (Nivel 1/2/3) sin editar archivos.
 ```

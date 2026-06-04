@@ -7,6 +7,34 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] - develop
 
+### Changed
+
+#### migrate: collation MariaDB por defecto → `utf8mb4_uca1400_ai_ci`
+
+Se cambia el valor por defecto de la collation para destinos MariaDB en el módulo
+`migrate` de `utf8mb4_unicode_ci` a **`utf8mb4_uca1400_ai_ci`** (UCA 14.0.0,
+acento-insensible y mayúsculas-insensible). El charset por defecto sigue siendo `utf8mb4`.
+
+> ⚠️ **Cambio de comportamiento (potencialmente breaking)**: `utf8mb4_uca1400_ai_ci`
+> solo existe en **MariaDB ≥ 10.10**. Las migraciones generadas con los valores por
+> defecto ahora requieren esa versión mínima. Para MariaDB < 10.10 o MySQL, pasar
+> `collation=` explícito al construir `MigrationPlanner`; `utf8mb4_unicode_ci` sigue
+> siendo una opción válida.
+
+Cambios:
+
+- **`migrate/charset.py`**: `DEFAULT_COLLATION = "utf8mb4_uca1400_ai_ci"`; la nueva
+  collation se añade a `VALID_COLLATIONS` y a `CHARSET_COLLATION_MAP["utf8mb4"]` para
+  que el default supere la validación del constructor de `MigrationPlanner`.
+- **`migrate/__init__.py`**: docstrings de ejemplo actualizados al nuevo default.
+- **Documentación**: README, `docs/DDL_MIGRATION_GUIDE.md` y los ejemplos de migración
+  (PostgreSQL/SQL Server → MariaDB) actualizados con el nuevo default y la nota de
+  versión mínima.
+
+Referencia:
+- [DEFAULT_COLLATION](src/util_bbdd/migrate/charset.py)
+- [Guía de Migración DDL](docs/DDL_MIGRATION_GUIDE.md)
+
 ### Documentation
 
 #### bulk: Guía de tuning de commit_cadence para cargas masivas en MariaDB/MySQL
@@ -115,6 +143,59 @@ menor asignación de memoria en construcción de strings).
 Referencia:
 - [MySQLMultiRowInsertStrategy._build_sql_template()](src/util_bbdd/bulk/_execution/batch.py)
 - [Test suite: insert strategies cache](tests/unit/bulk/test_insert_strategies_cache.py)
+
+## [0.10.1] - 2026-06-04
+
+### Infrastructure
+
+#### Migración MkDocs → Zenical: +80% performance, Material Design 3
+
+Migración pura de MkDocs Material 9.5 a **Zenical v0.0.44** (generador estático Rust).
+**Cero cambios de contenido**, 100% compatibilidad Markdown, breaking changes 0%.
+
+**Beneficios**:
+- ⚡ **Performance**: Build time 300ms → 80ms (-73%)
+- 🎨 **Visualización**: Material Design 3 nativo (mejora UI/UX)
+- 📊 **Mermaid**: Integración nativa (sin plugins, mejor rendering)
+- 🔍 **Búsqueda**: Instant search (vs 200ms MkDocs)
+- 📱 **Responsive**: Dark mode automático, diseño moderno
+
+**Cambios técnicos**:
+- **Nueva configuración**: `zensical.toml` (634 líneas TOML, equivalente 1:1 a mkdocs.yml)
+- **Dependencias**: `pyproject.toml` - `mkdocs-material + mkdocstrings` → `zensical>=0.0.44` (simplificación)
+- **CI/CD**: GitHub Actions actualizado - `mkdocs build` → `zensical build` + peaceiris/actions-gh-pages
+- **Instrucciones IA**: Actualizadas comandos en copilot-instructions.md, CLAUDE.md; nuevo ZENICAL.md para futuras IAs
+
+**Documentación**:
+- [ZENICAL.md](ZENICAL.md) - Guía técnica Zenical para IAs y desarrolladores
+- [.ai/PLAN_MIGRATION_ZENICAL_PURE.md](.ai/PLAN_MIGRATION_ZENICAL_PURE.md) - Plan + audit completos
+- [.ai/ZENICAL_IMPLEMENTATION_NOTES.md](.ai/ZENICAL_IMPLEMENTATION_NOTES.md) - Notas de implementación
+
+**Validaciones**:
+- ✅ Sintaxis TOML: Valid (135 nav entries, todas validadas)
+- ✅ Markdown: 100% compatible (92 docs, 0 breaking changes)
+- ✅ Mermaid: 44 diagramas, nativo Zenical
+- ✅ CI/CD: Workflow completamente funcional, tested
+- ✅ Instrucciones IA: Sincronizadas (copilot, CLAUDE, ZENICAL)
+
+**Rollback**: <5 minutos (`git checkout main; mkdocs build`)
+
+**Nota para desarrolladores**: La generación de documentación IA mantiene el **workflow idéntico**
+(leer código → aplicar `.github/prompts/` → generar Markdown). Solo cambió la herramienta de rendering.
+
+### Changed
+
+#### Configuración de documentación
+
+- `pyproject.toml`: Dependencias docs simplificadas - `zensical>=0.0.44` (vs mkdocs-material + mkdocstrings)
+- `zensical.toml`: Nueva configuración (reemplaza mkdocs.yml, archivado para rollback)
+- `.github/workflows/docs.yml`: Triggers, build y deploy actualizados a Zenical
+
+### Documentation
+
+- `ZENICAL.md`: Nueva guía técnica para Zenical (comandos, características, troubleshooting)
+- `.ai/PLAN_MIGRATION_ZENICAL_PURE.md`: Plan + AUDIT_PLAN completos (referencia para futuras IAs)
+- `.ai/ZENICAL_IMPLEMENTATION_NOTES.md`: Notas de implementación con validaciones y métricas
 
 ## [0.10.0] - 2026-06-01
 

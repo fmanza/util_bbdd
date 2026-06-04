@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DEFAULT_CHARSET: str = "utf8mb4"
-DEFAULT_COLLATION: str = "utf8mb4_unicode_ci"
+DEFAULT_COLLATION: str = "utf8mb4_uca1400_ai_ci"
 
 VALID_CHARSETS: frozenset[str] = frozenset(
     {
@@ -25,6 +25,7 @@ VALID_CHARSETS: frozenset[str] = frozenset(
 VALID_COLLATIONS: frozenset[str] = frozenset(
     {
         # utf8mb4 — general
+        "utf8mb4_uca1400_ai_ci",
         "utf8mb4_unicode_ci",
         "utf8mb4_unicode_520_ci",
         "utf8mb4_general_ci",
@@ -60,6 +61,7 @@ VALID_COLLATIONS: frozenset[str] = frozenset(
 CHARSET_COLLATION_MAP: dict[str, frozenset[str]] = {
     "utf8mb4": frozenset(
         {
+            "utf8mb4_uca1400_ai_ci",
             "utf8mb4_unicode_ci",
             "utf8mb4_unicode_520_ci",
             "utf8mb4_general_ci",

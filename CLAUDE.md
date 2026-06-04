@@ -197,7 +197,7 @@ Fase 6 — Revisión final: validar Markdown, enlaces relativos y sintaxis Merma
 Lee [ruta_del_módulo] y genera documentación funcional y técnica.
 Aplica .github/prompts/functional_doc.prompt.md y .github/prompts/technical_doc.prompt.md.
 Guarda en docs/functional/[nombre].md y docs/api/[nombre].md.
-Actualiza mkdocs.yml si se crean páginas nuevas.
+Zensical renderiza automáticamente sin requiere actualización manual.
 No inventes módulos ni capacidades; marca como pendiente lo no verificable.
 ```
 
@@ -207,7 +207,7 @@ No inventes módulos ni capacidades; marca como pendiente lo no verificable.
 Revisa el proyecto completo y actualiza la documentación pública.
 Fases: (1) inventariar módulos reales, (2) mapeo funcional (Senior PO),
 (3) documentación técnica con Mermaid, (4) ejemplos verificables,
-(5) sincronizar mkdocs.yml.
+(5) Zenical renderiza automáticamente.
 No inventes módulos ni capacidades; marca como pendiente lo no verificable.
 No uses APIs externas por el momento.
 ```
@@ -228,7 +228,7 @@ Revisa docs/, docs/examples/, README y mkdocs.yml para detectar gaps.
 Usa .github/prompts/documentation_review.prompt.md como criterio.
 Entrega hallazgos con severidad (Nivel 1/2/3) sin editar archivos.
 ```
-Criterio de completitud: `mkdocs build` sin errores + todos los módulos de `src/` documentados.
+Criterio de completitud: `zensical build` sin errores + todos los módulos de `src/` documentados.
 ---
 
 ## Checklist de sincronización

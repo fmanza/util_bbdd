@@ -90,14 +90,24 @@ nav:
 
   # ── Guías de uso y operación ───────────────────────────────────────────────
   - Guías:
-      - Programación Asíncrona: ASYNC_GUIDE.md
-      - Drivers PostgreSQL: POSTGRESQL_DRIVER_GUIDE.md
-      - Excepciones: EXCEPTIONS.md
-      - Troubleshooting: TROUBLESHOOTING.md
-      - Comparador de Esquemas: COMPARATOR.md
-      - Guía de Migración (v0.6.3): MIGRATION_GUIDE.md
-      - Migración v0.6.6→v0.6.7: MIGRATION_GUIDE_v0.6.7.md
-      - Performance & Benchmarks: BENCHMARKS.md
+      - Conexión y Drivers:
+          - Conexión y Drivers por Motor: CONNECTION_GUIDE.md
+          - Programación Asíncrona: ASYNC_GUIDE.md
+          - Drivers PostgreSQL: POSTGRESQL_DRIVER_GUIDE.md
+      - Errores y Diagnóstico:
+          - Excepciones: EXCEPTIONS.md
+          - Troubleshooting: TROUBLESHOOTING.md
+      - Comparación de Esquemas:
+          - Comparador de Esquemas: COMPARATOR.md
+      - Volcado de Datos:
+          - Volcado de Datos entre Motores: DUMP_GUIDE.md
+      - Migración de Esquemas:
+          - Migración DDL entre Motores: DDL_MIGRATION_GUIDE.md
+      - Rendimiento:
+          - Performance & Benchmarks: BENCHMARKS.md
+      - Migración de Versión:
+          - Guía de Migración (v0.6.3): MIGRATION_GUIDE.md
+          - Migración v0.6.6→v0.6.7: MIGRATION_GUIDE_v0.6.7.md
       - "Herramientas IA":
           - Guía completa (VS Code): doc_generation_vscode_guide.md
           - Copilot Chat (.github): github_copilot_guide.md
@@ -106,32 +116,43 @@ nav:
 
   # ── Ejemplos de código ─────────────────────────────────────────────────────
   - Ejemplos:
-      - Conectar e Introspeccionar Base de Datos: examples/example-connect-introspect.md
-      - Generación de Documentación: examples/database_documentation_generation.md
-      - Cache de Metadatos: examples/metadata_cache_usage.md
-      - Comparación de Esquemas: examples/schema_comparison.md
-      - Diff Reporters: examples/diff_reporters.md
-      - Queries Concurrentes (Async): examples/async_concurrent_queries.md
-      - "Validación de Variables MySQL/MariaDB": examples/mysql-variables-example.md
-      - Bulk Insert desde CSV: examples/bulk_insert_csv.md
-      - Carga Masiva Paralela: examples/parallel_bulk_insert.md
-      - "Benchmark: Commit Cadence": examples/benchmark_commit_cadence.md
-      - Manejo de Excepciones: examples/exception_handling.md
-      - Generación de Grafos: examples/graph_generation.md
-      - Volcado de Datos entre Motores: examples/dump_data_export.md
-      - Migración Oracle (origen): examples/migrate-oracle-mariadb.md
-      - Migración MariaDB (origen): examples/migrate-mariadb-source.md
-      - Migración SQL Server (origen): examples/migrate-sqlserver-source.md
-      - Migración PostgreSQL (origen): examples/migrate-postgresql-source.md
-      - Ejecución de Consultas: examples/query_execution_example.md
+      - Metadatos e Introspección:
+          - Conectar e Introspeccionar Base de Datos: examples/example-connect-introspect.md
+          - Cache de Metadatos: examples/metadata_cache_usage.md
+      - Operaciones Bulk:
+          - Bulk Insert desde CSV: examples/bulk_insert_csv.md
+          - Carga Masiva Paralela: examples/parallel_bulk_insert.md
+          - "Benchmark: Commit Cadence": examples/benchmark_commit_cadence.md
+          - "Validación de Variables MySQL/MariaDB": examples/mysql-variables-example.md
+      - Sistema de Queries:
+          - Ejecución de Consultas: examples/query_execution_example.md
+          - Queries Concurrentes (Async): examples/async_concurrent_queries.md
+      - Comparación de Esquemas:
+          - Comparación de Esquemas: examples/schema_comparison.md
+          - Diff Reporters: examples/diff_reporters.md
+      - Volcado de Datos:
+          - Volcado de Datos entre Motores: examples/dump_data_export.md
+      - Migración de Esquemas:
+          - Migración Oracle (origen): examples/migrate-oracle-mariadb.md
+          - Migración MariaDB (origen): examples/migrate-mariadb-source.md
+          - Migración SQL Server (origen): examples/migrate-sqlserver-source.md
+          - Migración PostgreSQL (origen): examples/migrate-postgresql-source.md
+      - Análisis de Relaciones:
+          - Generación de Grafos: examples/graph_generation.md
+      - Documentación de BD:
+          - Generación de Documentación: examples/database_documentation_generation.md
+      - Manejo de Excepciones:
+          - Manejo de Excepciones: examples/exception_handling.md
 
   # ── Contexto del proyecto ──────────────────────────────────────────────────
   - Arquitectura:
       - Arquitectura del Sistema: ARCHITECTURE.md
       - ADR-001 Refactoring: adr/ADR-001-STRUCTURE-REFACTORING.md
       - Plantilla ADR: adr/ADR-TEMPLATE.md
-      - Roadmap v0.8.0: v0.8.0/PLAN_v0.8.0_TYPE_SYSTEM_IMPROVEMENTS.md
+  - Historia y Planes:
+      - Roadmap: ROADMAP.md
       - Versiones Históricas: legacy-versions.md
+      - "Plan v0.8.0 — Sistema de Tipos Avanzado (entregado)": v0.8.0/PLAN_v0.8.0_TYPE_SYSTEM_IMPROVEMENTS.md
 
 theme:
   name: material
@@ -154,7 +175,6 @@ theme:
   features:
     - navigation.tabs
     - navigation.tabs.sticky
-    - navigation.sections
     - navigation.top
     - navigation.footer
     - content.code.copy
@@ -223,3 +243,4 @@ extra_javascript:
 
 extra_css:
   - assets/css/mermaid.css
+  - assets/css/nav.css

@@ -254,13 +254,18 @@ Para las páginas de entrada de nivel raíz del `nav:` — **Inicio**, **Instala
 ## 4. Verificación
 ## 5. Solución de Problemas
 
-# Variante C — Arquitectura del sistema (docs/ARCHITECTURE.md)
-## 1. Visión General
-## 2. Mapa de Módulos
-## 3. Flujo de una Operación
-## 4. Contratos y Reglas Transversales
-## 5. Extensión y Límites
+# Variante C — Arquitectura del sistema (docs/ARCHITECTURE.md) — modelo arc42-lite + C4
+## 1. Visión General y Objetivos de Calidad   (arc42 1+3; incluye diagrama C4 nivel 1)
+## 2. Mapa de Módulos (Building Blocks)        (arc42 5; C4 nivel 3)
+## 3. Flujo en Ejecución (Runtime)             (arc42 6)
+## 4. Conceptos Transversales y Estándares No Funcionales  (arc42 8+10; checklist NFR)
+## 5. Decisiones, Extensión y Límites          (arc42 9+11; enlace a docs/adr/)
 ```
+
+La Variante C es la **vista panorámica** (arc42-lite + C4); las decisiones puntuales se registran
+como ADR (Arquetipo 5, `docs/adr/`). El checklist no funcional de §4 cubre, como mínimo:
+Seguridad, Observabilidad, Rendimiento, Compatibilidad, Robustez/Errores y Tipado/Calidad,
+anclando cada ítem a un mecanismo real del código.
 
 **Distinción con el Arquetipo 5**: el Arquetipo 5 documenta **un ADR concreto** (`docs/adr/`); la
 Variante C documenta la **visión global del sistema** (`docs/ARCHITECTURE.md`). Ambas conviven bajo la
@@ -278,26 +283,58 @@ la Variante B es específica de instalación del paquete y drivers.
 El proyecto usa **MkDocs** con el tema **Material for MkDocs** como generador estático.
 
 - Toda documentación generada debe tener su entrada en `mkdocs.yml` bajo `nav:`.
-- La navegación tiene **exactamente 7 secciones top-level**:
-  `Inicio`, `Instalación`, `Documentación Funcional`, `Referencia Técnica`, `Guías`, `Ejemplos`, `Arquitectura`.
+- La navegación tiene **exactamente 8 secciones top-level**:
+  `Inicio`, `Instalación`, `Documentación Funcional`, `Referencia Técnica`, `Guías`, `Ejemplos`,
+  `Arquitectura`, `Historia y Planes`.
 - No añadir secciones top-level adicionales.
 - No añadir plugins sin justificación documentada.
+
+### Agrupación en subsecciones por área
+
+`Documentación Funcional`, `Referencia Técnica`, `Ejemplos` y `Guías` **agrupan sus entradas en
+subsecciones** (no listas planas).
+
+- En `Documentación Funcional`, `Referencia Técnica` y `Ejemplos` los grupos son **áreas de dominio**
+  con nombres **consistentes entre las tres secciones**, de modo que un mismo dominio aparece bajo el
+  mismo rótulo en funcional, técnica y ejemplos:
+
+  `Managers` · `Metadatos e Introspección` · `Conexiones` · `Operaciones Bulk` · `Sistema de Queries` ·
+  `Comparación de Esquemas` · `Volcado de Datos` · `Migración de Esquemas` · `Análisis de Relaciones` ·
+  `Documentación de BD`
+
+- En `Guías` los grupos son **temáticos** (how-tos transversales). Pueden reusar nombres de área de
+  dominio cuando la guía trata de un módulo concreto (`Comparación de Esquemas`, `Volcado de Datos`,
+  `Migración de Esquemas`) o usar rótulos propios para temas transversales (`Conexión y Drivers` ·
+  `Errores y Diagnóstico` · `Rendimiento` · `Migración de Versión` · `Herramientas IA`).
+
+- Una subsección con **un solo documento es válida** (igual que en `Referencia Técnica`).
+- Un documento que no encaje en ningún grupo puede agruparse bajo un rótulo propio
+  (p. ej. `Manejo de Excepciones`).
+- La agrupación es **solo de navegación**: los ficheros `.md` siguen planos en sus carpetas
+  (`docs/`, `docs/examples/`, `docs/functional/`, `docs/api/`); ver Arquetipo 4 y §6 de
+  `DOCUMENTATION_STANDARD.md`.
 
 ```yaml
 nav:
   - Inicio: index.md
   - Instalación: INSTALLATION.md
   - Documentación Funcional:
-      - [Nombre módulo]: functional/[nombre-modulo].md
+      - [Área]:
+          - [Nombre módulo]: functional/[nombre-modulo].md
   - Referencia Técnica:
       - Índice de Referencia: api/intro.md
-      - [Nombre módulo]: api/[nombre-modulo].md
+      - [Área]:
+          - [Nombre módulo]: api/[nombre-modulo].md
   - Guías:
-      - [Nombre guía]: [nombre-guia].md
+      - [Tema]:
+          - [Nombre guía]: [nombre-guia].md
   - Ejemplos:
-      - [Nombre ejemplo]: examples/[nombre-ejemplo].md
+      - [Área]:
+          - [Nombre ejemplo]: examples/[nombre-ejemplo].md
   - Arquitectura:
       - [ADR-NNN]: adr/[adr-nombre].md
+  - Historia y Planes:
+      - Roadmap: ROADMAP.md
 ```
 
 ## Detección de lenguaje y autodoc

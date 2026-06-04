@@ -33,16 +33,16 @@ v0.5.0 – v0.5.6  (Adición de funcionalidades)
    ↓
 v0.6.0 – v0.7.0  (Madurez / estable)
    ↓
-v0.8.0  (Actual: sistema de tipos + finalización)
+v0.8.0 – v0.10.0  (Actual: sistema de tipos + rendimiento de bulk/dump)
 ```
 
-Los detalles de cada hito están registrados en el
-[`CHANGELOG.md`](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md).
+La vista panorámica de versiones está en el [Roadmap](ROADMAP.md); los detalles de cada hito,
+en el [`CHANGELOG.md`](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md).
 
 ## ⚠️ Notas Importantes
 
 1. **No uses documentación histórica como referencia de código nuevo** — consulta siempre
-   [Inicio](index.md) y el [README](index.md) para la API vigente (v0.8.0).
+   [Inicio](index.md) y el [README](index.md) para la API vigente (v0.10.0).
 2. **Breaking changes** — si ves un error de import/API en código antiguo, revisa
    [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md).
 3. **Reportes de issues** — indica tu versión de util_bbdd

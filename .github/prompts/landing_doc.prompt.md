@@ -87,30 +87,49 @@ Errores reales de drivers/conexión/pool. Si no hay casos: "*No aplica para este
 
 # Arquitectura del Sistema — [Nombre del Proyecto]
 
-[Una frase: estilo arquitectónico y propósito global. NO es un ADR individual.]
+[Una frase: estilo arquitectónico y propósito global. Es la VISTA PANORÁMICA del sistema
+(modelo arc42-lite + C4), NO un ADR individual: las decisiones puntuales viven en docs/adr/.]
 
-## 1. Visión General
+> Las 5 secciones mapean un subconjunto de arc42: §1≈arc42 1+3 (objetivos+contexto, C4 nivel 1),
+> §2≈arc42 5 (building blocks, C4 nivel 3), §3≈arc42 6 (runtime), §4≈arc42 8+10 (transversal+calidad),
+> §5≈arc42 9+11 (decisiones+riesgos).
+
+## 1. Visión General y Objetivos de Calidad
 Estilo arquitectónico (capas / niveles), principios rectores y frontera de la librería
 (qué hace y qué deja fuera). Basado en .github/SHARED_INSTRUCTIONS.md, no en suposiciones.
+Incluye:
+- Tabla de **objetivos de calidad** (máx. 3-5): | Objetivo de calidad | Por qué importa |
+- **Diagrama de contexto (C4 nivel 1)** en Mermaid (`flowchart`, máx. 12 nodos): quién consume
+  la librería y contra qué sistemas externos opera (motores de BD, dependencias). C4Context nativo
+  de Mermaid es opcional (experimental); preferir `flowchart` por estabilidad de render.
 
-## 2. Mapa de Módulos
-Árbol real de src/[paquete]/ (refleja las carpetas que existen) +
+## 2. Mapa de Módulos (Building Blocks)
+Vista estática equivalente a C4 nivel 3 (Component). Árbol real de src/[paquete]/ (refleja las
+carpetas que existen) +
 Tabla: | Módulo | Responsabilidad |
 Una fila por módulo de primer nivel verificable en src/.
 
-## 3. Flujo de una Operación
-Diagrama Mermaid (flowchart TD o sequenceDiagram, máx. 12 nodos) que muestre cómo fluye
+## 3. Flujo en Ejecución (Runtime)
+Diagrama Mermaid (`flowchart TD` o `sequenceDiagram`, máx. 12 nodos) que muestre cómo fluye
 una operación típica entre capas (p. ej. manager → factory → connection → executor → results).
 Solo componentes que existan en src/.
 
-## 4. Contratos y Reglas Transversales
-Principios de diseño aplicados (SOLID operativo, logging, formato) y reglas de acceso
-transversales (p. ej. único punto autorizado para SQL de introspección). Enlaza a los ADR
-de docs/adr/ cuando una regla tenga una decisión formal asociada.
+## 4. Conceptos Transversales y Estándares No Funcionales
+Dos bloques:
+- **Conceptos transversales**: principios de diseño aplicados (SOLID operativo, logging, formato)
+  y reglas de acceso transversales (p. ej. único punto autorizado para SQL de introspección).
+- **Checklist no funcional** (tabla): | Dimensión | Requisito | Cómo se cumple |
+  Dimensiones mínimas: Seguridad, Observabilidad, Rendimiento, Compatibilidad, Robustez/Errores, Tipado/Calidad.
+  Cada fila debe anclarse a un mecanismo REAL del código (no aspiraciones). Usa `- [x]`/`- [ ]`
+  para marcar lo ya cubierto vs pendiente.
 
-## 5. Extensión y Límites
-Cómo extender el sistema de forma soportada (añadir motor, reporter, validador) y qué NO
-hacer (anti-patrones). Si no está documentado de forma verificable: "*No aplica para este módulo.*"
+## 5. Decisiones, Extensión y Límites
+Tres bloques:
+- **Decisiones arquitectónicas**: enlace al log de ADR (`docs/adr/`); citar los ADR cuando una
+  regla transversal tenga decisión formal asociada.
+- **Riesgos y deuda técnica** conocidos (verificables), o "*No aplica para este módulo.*".
+- **Extensión y límites**: cómo extender de forma soportada (añadir motor, reporter, validador)
+  y qué NO hacer (anti-patrones).
 
 ───────────────────────────────────────────────────────────────────────────────
 
