@@ -47,7 +47,7 @@ Ver la sección `[Unreleased]` del
 - **`v1.0.0`** — API estable bajo SemVer estricto y cobertura de tests ≥ 85%.
 
 Ideas exploradas pero **fuera de alcance** por ahora (registradas en el
-[plan de tipos v0.8.0](v0.8.0/PLAN_v0.8.0_TYPE_SYSTEM_IMPROVEMENTS.md#3-goals--non-goals)):
+[plan de tipos v0.8.0](v0.8.0/PLAN_v0.8.0_TYPE_SYSTEM_IMPROVEMENTS.md)):
 validación completa de JSON Schema, generación de dataclasses/TypeScript, motores no relacionales
 (MongoDB, Cassandra) y notificaciones de cambio de esquema en tiempo real.
 

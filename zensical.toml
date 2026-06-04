@@ -2,18 +2,18 @@
 # Migrated from mkdocs.yml to zensical.toml
 # Date: 2026-06-04
 
-[build]
-docs_dir = "docs"
-site_dir = "site"
-
-[site]
-title = "util_bbdd"
-description = "Librería Python para operaciones con múltiples motores de BD (sync/async): CRUD en lote, migración DDL, comparación de esquemas, documentación automática — MariaDB, MySQL, Oracle, PostgreSQL, Redshift, Snowflake, SQLite, SQL Server, HSQLDB"
-author = "Paco Manzano"
-url = "https://fmanza.github.io/util_bbdd/"
+site_name = "util_bbdd"
+site_url = "https://fmanza.github.io/util_bbdd/"
+site_description = "Librería Python para operaciones con múltiples motores de BD (sync/async): CRUD en lote, migración DDL, comparación de esquemas, documentación automática — MariaDB, MySQL, Oracle, PostgreSQL, Redshift, Snowflake, SQLite, SQL Server, HSQLDB"
+site_author = "Paco Manzano"
 repo_url = "https://github.com/fmanza/util_bbdd"
 repo_name = "fmanza/util_bbdd"
 language = "es"
+
+[build]
+docs_dir = "docs"
+site_dir = "site"
+exclude = ["adr/ADR-TEMPLATE.md"]
 
 [theme]
 name = "material"
