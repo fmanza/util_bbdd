@@ -50,12 +50,17 @@
 
 ### Configuración
 
-| Aspecto | MkDocs | Zenical |
+> **Importante**: Zensical lee `mkdocs.yml` de forma **nativa y completa** (orden de
+> búsqueda: `zensical.toml` → `mkdocs.yml` → `mkdocs.yaml`). En `util_bbdd` la fuente
+> única de configuración es **`mkdocs.yml`**; no se usa `zensical.toml`. Esto evita
+> duplicar y sincronizar dos ficheros de navegación/tema.
+
+| Aspecto | MkDocs CLI | Zensical CLI |
 |--------|--------|---------|
-| **File config** | `mkdocs.yml` (YAML) | `zensical.toml` (TOML) |
-| **Format** | YAML nativo | TOML nativo |
-| **Lines** | ~212 | ~200 (estimado) |
-| **Complejidad** | Media | Baja (TOML más explícito) |
+| **File config** | `mkdocs.yml` (YAML) | `mkdocs.yml` (YAML, nativo) |
+| **Format** | YAML nativo | YAML nativo (también soporta TOML) |
+| **Fuente única** | `mkdocs.yml` | `mkdocs.yml` (compartido) |
+| **Complejidad** | Media | Media (sin config duplicada) |
 
 ### Performance
 
@@ -465,7 +470,7 @@ Zenical renderiza automáticamente.
 ```markdown
 @Documentation Reviewer
 
-Revisa docs/, docs/examples/, README y zensical.toml para detectar gaps.
+Revisa docs/, docs/examples/, README y mkdocs.yml para detectar gaps.
 Usa .github/prompts/documentation_review.prompt.md como criterio.
 ```
 
@@ -488,22 +493,25 @@ Usa .github/prompts/documentation_review.prompt.md como criterio.
 ### Problema 1: Build falla con "Config error"
 
 ```
-Error: Failed to parse zensical.toml
+Error: Encountered an error parsing the configuration file
 ```
 
 **Verificar**:
-1. Sintaxis TOML válida (usar `toml-test`)
+1. Sintaxis YAML válida en `mkdocs.yml`
 2. Paths existen (docs/, site/)
-3. No caracteres inválidos (ñ, é, etc.)
+3. La navegación (`nav:`) apunta a ficheros existentes en `docs/`
 
 **Solución**:
 ```bash
-# Validar configuración
-zensical validate
+# Validar build (usa mkdocs.yml automáticamente)
+zensical build
 
-# Reconstruir zensical.toml desde backup
-cp zensical.toml.bak zensical.toml
+# Forzar fichero de configuración explícito si hiciera falta
+zensical build -f mkdocs.yml
 ```
+
+> Nota: no se usa `zensical.toml`. Si existe un `zensical.toml`, Zensical lo prioriza
+> sobre `mkdocs.yml`; en este repo se conserva desactivado como `zensical.toml.disabled`.
 
 ### Problema 2: Markdown render incorrecto
 
@@ -605,7 +613,7 @@ docs/
 └── ...
 
 Cambio en Zenical: CERO
-Cambio en zensical.toml: añadir nav entries
+Cambio en mkdocs.yml: añadir nav entries
 ```
 
 ### Si Añadimos R SDK
@@ -614,7 +622,7 @@ Cambio en zensical.toml: añadir nav entries
 Idéntico a Java:
 - docs/api/r/
 - .github/prompts/ (adaptar para R)
-- zensical.toml (nav update)
+- mkdocs.yml (nav update)
 
 Zenical sigue funcionando (Markdown puro).
 ```
@@ -657,7 +665,8 @@ zensical stats                 # Estadísticas
 
 | Archivo | Propósito |
 |---------|-----------|
-| `zensical.toml` | Configuración (nav, theme, site metadata) |
+| `mkdocs.yml` | Configuración única (nav, theme, site metadata, plugins) — leída nativamente por Zensical |
+| `zensical.toml.disabled` | Config TOML antigua, desactivada (Zensical la priorizaría si se reactivara) |
 | `docs/*.md` | Documentos fuente |
 | `site/` | Output generado (deploy a GitHub Pages) |
 | `.github/workflows/*.yml` | CI/CD configuration |

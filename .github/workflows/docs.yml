@@ -5,13 +5,13 @@ on:
     branches: [main, develop]
     paths:
       - "docs/**"
-      - "zensical.toml"
+      - "mkdocs.yml"
       - "src/**/*.py"
       - "pyproject.toml"
   pull_request:
     paths:
       - "docs/**"
-      - "zensical.toml"
+      - "mkdocs.yml"
       - "src/**/*.py"
   workflow_dispatch:
 
