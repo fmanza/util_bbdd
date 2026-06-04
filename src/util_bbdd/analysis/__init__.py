@@ -5,7 +5,6 @@ Graphviz y Matplotlib.
 
 Consolidación de:
 - base.py - Clase base DatabaseRelationshipGraphBase y TableRelation
-- graphviz.py - Implementación con Graphviz
 - graphviz_ext.py - Implementación extendida con Graphviz (con columnas)
 - matplotlib_graph.py - Implementación con Matplotlib y NetworkX
 """
