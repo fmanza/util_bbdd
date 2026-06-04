@@ -19,7 +19,6 @@ language = "es"
 name = "material"
 icon_repo = "fontawesome/brands/github"
 
-[theme.palette]
 # Light mode (default)
 [[theme.palette]]
 media = "(prefers-color-scheme: light)"
