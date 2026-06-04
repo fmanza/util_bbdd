@@ -1,4 +1,4 @@
-# ADR-[NNN]: [Título de la Decisión]
+# ADR-`[NNN]`: `[Título de la Decisión]`
 
 > Reemplazar este bloque de nota con contexto adicional si aplica.
 > Eliminar este bloque antes de publicar el ADR.
@@ -37,7 +37,7 @@
 
 ## 5. Estado y Revisión
 
-**Estado:** PROPUESTO | ACEPTADO | OBSOLETO | REEMPLAZADO POR [ADR-NNN]
+**Estado:** PROPUESTO | ACEPTADO | OBSOLETO | REEMPLAZADO POR `[ADR-NNN]`
 
 *Descripción breve del estado actual y cómo se llegó a él.*
 
