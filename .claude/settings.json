@@ -3,7 +3,7 @@
     "allow": [
       "Bash(python -m pytest tests -k \"charset or migrate\" -q)",
       "Bash(git checkout *)",
-      "Bash(cd c:/Desarrollo/python/libs/util_bbdd && git commit --amend -F .git/COMMIT_EDITMSG_FIX.txt && rm .git/COMMIT_EDITMSG_FIX.txt && echo \"---FIXED SUBJECT---\" && git log -1 --format=\"%s\")"
+      "PowerShell(zensical build*)"
     ],
     "additionalDirectories": [
       "c:\\Desarrollo\\python\\libs\\util_bbdd\\.git"
