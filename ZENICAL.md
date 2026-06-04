@@ -98,19 +98,42 @@
 
 **Conclusión**: 100% compatible, sin cambios de contenido.
 
+### Compatibilidad recíproca (mkdocs.yml compartido)
+
+La compatibilidad es **bidireccional**: el repositorio mantiene un único `mkdocs.yml` y
+**ambos generadores lo consumen sin conversión**.
+
+| Acción | Zensical | MkDocs Material |
+|---|---|---|
+| Servidor local con recarga | `zensical serve` | `mkdocs serve` |
+| Build estático (output `site/`) | `zensical build` | `mkdocs build` |
+| Fichero de configuración | `mkdocs.yml` | `mkdocs.yml` |
+
+- Zensical busca config en este orden: `zensical.toml` → `mkdocs.yml` → `mkdocs.yaml`.
+  Como **no hay `zensical.toml` activo**, usa `mkdocs.yml` automáticamente.
+- Cualquier cambio en `nav:`, `theme:`, `plugins:` o `markdown_extensions:` de `mkdocs.yml`
+  se refleja en **los dos** generadores; no hay que sincronizar dos ficheros.
+
 ---
 
 ## ⌨️ Comandos Zenical
 
 ### Instalación
 
-```bash
-# Opción 1: Cargo (recomendado para dev)
-cargo install zensical --version 0.0.44
+Zensical es un **paquete de Python** (no requiere Rust/Cargo). En `util_bbdd` se instala
+con el resto de herramientas de documentación mediante el extra `docs`:
 
-# Opción 2: Descargar binario precompilado
-# https://github.com/zensical/zensical/releases/tag/v0.0.44
+```bash
+# Recomendado: junto al resto de dependencias de documentación
+pip install -e ".[docs]"     # incluye zensical, mkdocs-material y mkdocstrings
+
+# O de forma aislada
+pip install "zensical>=0.0.44"
 ```
+
+> El extra `docs` instala **ambos generadores** (Zensical y MkDocs Material) porque son
+> recíprocamente compatibles sobre el mismo `mkdocs.yml`. Ver
+> [Comparativa: MkDocs vs. Zenical](#comparativa-mkdocs-vs-zenical).
 
 ### Comandos Principales
 

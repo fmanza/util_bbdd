@@ -55,6 +55,10 @@ dev = [
     "types-networkx",
 ]
 docs = [
+    # Generadores compatibles (ambos leen el mismo mkdocs.yml):
+    #   - zensical: generador por defecto (CI usa `zensical build`)
+    #   - mkdocs-material: generador clásico, compatibilidad recíproca (`mkdocs build`)
+    "zensical>=0.0.44",
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.25",
 ]

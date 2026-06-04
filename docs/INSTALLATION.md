@@ -24,7 +24,7 @@ Solo estos extras están declarados en `pyproject.toml`:
 |---|---|---|
 | `analysis` | `pip install "util-bbdd[analysis]"` | Grafos de relaciones entre tablas (Graphviz) |
 | `doc-svg` | `pip install "util-bbdd[doc-svg]"` | Render de SVG a otros formatos (CairoSVG) |
-| `docs` | `pip install "util-bbdd[docs]"` | Construir el sitio de documentación (MkDocs Material + mkdocstrings) |
+| `docs` | `pip install "util-bbdd[docs]"` | Construir el sitio de documentación (Zensical + MkDocs Material + mkdocstrings) |
 | `dev` | `pip install "util-bbdd[dev]"` | Toolchain de desarrollo (pytest, ruff, mypy, build) |
 
 !!! note
@@ -40,6 +40,26 @@ python -m venv venv
 # Linux/Mac:  source venv/bin/activate
 pip install -e ".[dev]"
 ```
+
+### Construir la documentación (Zensical ↔ MkDocs)
+
+La documentación usa **`mkdocs.yml` como única fuente de configuración**. El extra `docs`
+instala dos generadores **compatibles de forma recíproca**, y ambos leen ese mismo
+`mkdocs.yml`:
+
+```bash
+pip install -e ".[docs]"
+```
+
+| Generador | Servidor local | Build estático | Notas |
+|---|---|---|---|
+| **Zensical** (por defecto, lo usa el CI) | `zensical serve` | `zensical build` | Más rápido; lee `mkdocs.yml` nativamente |
+| **MkDocs Material** (clásico) | `mkdocs serve` | `mkdocs build` | Compatibilidad recíproca con el mismo `mkdocs.yml` |
+
+!!! note
+    No existe un `zensical.toml` activo: Zensical lo priorizaría sobre `mkdocs.yml` si
+    estuviera presente. La configuración se mantiene **solo en `mkdocs.yml`** para evitar
+    duplicación. Ver [ZENICAL.md](https://github.com/fmanza/util_bbdd/blob/main/ZENICAL.md).
 
 ## 3. Drivers por Motor
 

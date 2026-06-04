@@ -127,7 +127,7 @@ Nota: Solo lectura; no edita código.
 ### `/version-closure`
 ```
 Fase 1: Resumen → Consolidar todos los cambios de la sesión
-Fase 2: Validación → Verificar CHANGELOG.md, COMPATIBILITY.md y mkdocs build
+Fase 2: Validación → Verificar CHANGELOG.md, COMPATIBILITY.md y zensical build (o mkdocs build)
 Fase 3: Handoff → Release notes, commit message, rollback strategy;
          poblar ## Directrices para Futuras IAs en .ai/sessions/*/TRACEABILITY.md
 Nota: Ver .github/instructions/sync.instructions.md para checklist obligatorio.
@@ -216,7 +216,7 @@ No uses APIs externas por el momento.
 
 1. Revisar documentación existente antes de crear páginas nuevas; actualizar si el tema ya está cubierto.
 2. Separar siempre los apartados **funcional**, **técnico** y **ejemplos** con secciones diferenciadas.
-3. Usar MkDocs Material como generador estático; Mermaid.js para diagramas verificables.
+3. Usar Zensical como generador estático por defecto (o MkDocs Material, recíprocamente compatibles sobre el mismo `mkdocs.yml`); Mermaid.js para diagramas verificables.
 4. Actualizar `mkdocs.yml` cuando se creen, muevan o eliminen páginas en `docs/`.
 5. No inventar capacidades, módulos, APIs, salidas, errores ni dependencias.
 6. Excluir generación documental mediante APIs externas por el momento.
@@ -254,7 +254,8 @@ python -m ruff format src tests     # Formato
 python -m mypy src                  # Type-checking
 python -m pytest                    # Tests
 python -m build                     # Empaquetamiento
-mkdocs serve                        # Documentación local
+zensical serve                      # Documentación local (por defecto, lee mkdocs.yml)
+mkdocs serve                        # Documentación local (recíproco, mismo mkdocs.yml)
 ```
 
 ---

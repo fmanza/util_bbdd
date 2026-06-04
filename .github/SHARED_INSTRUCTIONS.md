@@ -164,7 +164,8 @@ python -m ruff format src tests
 python -m mypy src
 python -m pytest
 python -m build
-mkdocs build
+zensical build        # generador por defecto (CI); lee mkdocs.yml
+mkdocs build          # equivalente recíproco con el mismo mkdocs.yml
 ```
 
 ### Estrategia de tests
@@ -181,24 +182,28 @@ mkdocs build
 - ✅ Nueva clase pública → docstring Google-style + ejemplo
 - ✅ Cambio de API pública → actualizar guías en `docs/`
 - ✅ Refactor con breaking changes → guía de migración en CHANGELOG.md
-- ✅ Antes de cerrar versión → `mkdocs build` sin errores ni links rotos
+- ✅ Antes de cerrar versión → `zensical build` (o `mkdocs build`) sin errores ni links rotos
 - ✅ Cambios en instrucciones IA → sincronizar todos los ficheros afectados
 - ✅ Nuevo archivo generado o copiado → actualizar README y/o docs de uso
 - ✅ Cambio de CLI → actualizar ejemplos en README, `docs/` y `.ai/runtime.md`
 - ✅ **Nueva versión (VERSION)** → revisar `.github/instructions/sync.instructions.md`
   para validar que CHANGELOG.md y COMPATIBILITY.md están sincronizados
 
-#### MkDocs — cuándo actualizar
+#### Configuración de documentación — cuándo actualizar
+
+> **Fuente única**: `mkdocs.yml`. Dos generadores recíprocamente compatibles lo consumen:
+> **Zensical** (`zensical serve` / `zensical build`, usado por el CI) y **MkDocs Material**
+> (`mkdocs serve` / `mkdocs build`). No se usa `zensical.toml`. Ver `ZENICAL.md`.
 
 - ✅ Módulo o clase pública nueva → entrada en `mkdocs.yml` bajo `nav:`
 - ✅ Página nueva, movida o eliminada en `docs/` → actualizar `mkdocs.yml`
 - ✅ Reorganización funcional/técnica/ejemplos → validar que `nav:` mantiene apartados separados
-- ✅ Ejecutar `mkdocs serve` localmente antes de publicar
-- ✅ Verificar que `mkdocs build` pase sin warnings
+- ✅ Ejecutar `zensical serve` (o `mkdocs serve`) localmente antes de publicar
+- ✅ Verificar que `zensical build` (o `mkdocs build`) pase sin warnings
 
 #### Estándar de generación documental
 
-- Usa MkDocs con Material for MkDocs como salida estática de referencia.
+- Usa Zensical (o MkDocs con Material for MkDocs, recíprocamente compatibles) como salida estática de referencia.
 - Usa Mermaid.js para diagramas de flujo, secuencia o clases cuando aporte claridad.
 - Unifica creación y actualización: busca primero documentación existente y actualízala si es el punto de entrada correcto.
 - Para documentación de proyecto completo, revisa README, `docs/`, `docs/examples/`, docstrings públicos, prompts/agentes IA y `mkdocs.yml`.

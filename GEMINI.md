@@ -58,7 +58,8 @@ python -m ruff check src tests      # Linting
 python -m ruff format src tests     # Formato
 python -m mypy src                  # Type-checking
 python -m pytest                    # Ejecución de tests
-mkdocs serve                        # Previsualizar documentación
+zensical serve                      # Previsualizar documentación (por defecto, lee mkdocs.yml)
+mkdocs serve                        # Previsualizar documentación (recíproco, mismo mkdocs.yml)
 ```
 
 ---
