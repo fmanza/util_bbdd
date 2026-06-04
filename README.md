@@ -1085,22 +1085,17 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.6.7** (Stable - Arquitectura 3 niveles consolidada, Comparador integrado, Agentes de Copilot)
+**Current Version: v0.10.0** (Vías rápidas de INSERT por motor en bulk; rendimiento opt-in en dump)
 
-Roadmap completado:
-- `v0.1.0` ✅: CRUD base + auditoría
-- `v0.2.0` ✅: Documentación BD automática mejorada
-- `v0.3.0` ✅: Soporte PostgreSQL mejorado
-- `v0.4.0` ✅: Consolidación de conexiones
-- `v0.5.0` ✅: Refactorización arquitectónica (3-level hierarchy)
-- `v0.6.0` ✅: Grafos multinivel, HTML tabulado, contrato documental nuevo
-- `v0.6.1` ✅: Tipología visual, leyenda HTML ampliada, reutilización de análisis entre Word y HTML
-- `v0.6.2` ✅: SVG inline offline, resumen/leyenda compartidos, iconos locales
-- `v0.6.3` ✅: Capa de agentes Copilot, flujo prompt-agente documentado, instrucciones especializadas
-- `v0.6.4` ✅: Consolidación de testeo, stabilización de managers
-- `v0.6.5` ✅: Mejoras en documentación de archivos de instrucción, mapeo Claude Code ↔ Copilot
-- `v0.6.6` ✅: Estabilización de integración, release notes internas
-- `v0.6.7` ✅ (vigente): Comparador de esquemas, imports canónicos desde raíz, esta estructura como standard
+Roadmap resumido (ver [ROADMAP completo](docs/ROADMAP.md) y
+[CHANGELOG](CHANGELOG.md) para el detalle):
+- `v0.1.0 – v0.4.0` ✅: CRUD base + auditoría, documentación de BD, PostgreSQL, primera estable
+- `v0.5.0` ✅: Refactorización arquitectónica (jerarquía de 3 niveles)
+- `v0.6.x` ✅: Grafos multinivel, HTML tabulado, comparador de esquemas, agentes Copilot
+- `v0.7.0` ✅: Timing automático de operaciones en bulk CRUD; retirada de scripts legacy
+- `v0.8.0` ✅: Cobertura completa del sistema de tipos (8 motores); hotfix de finalización del pool
+- `v0.9.0` ✅: Palancas de rendimiento opt-in en dump (commit cadence, índices, paralelización)
+- `v0.10.0` ✅ (vigente): Vías rápidas de INSERT por motor (PostgreSQL COPY, MySQL multi-fila)
 - `v1.0.0` (futuro): API estable, cobertura 85%+
 
 ## Licencia

@@ -420,21 +420,28 @@ nav:
       - Documentación BD: api/database-documentation.md
       - Excepciones: api/exceptions.md
 
-  - Ejemplos:
-      - Conectar e Introspeccionar: examples/example-connect-introspect.md
-      - Bulk Insert desde CSV: examples/bulk_insert_csv.md
-      - Comparación de Esquemas: examples/schema_comparison.md
-      - Migración Oracle (origen): examples/migrate-oracle-mariadb.md
-      - Migración MariaDB (origen): examples/migrate-mariadb-source.md
-      # ... resto de ejemplos en mkdocs.yml
+  - Ejemplos:                              # subsecciones por área, igual que Referencia Técnica
+      - Metadatos e Introspección:
+          - Conectar e Introspeccionar: examples/example-connect-introspect.md
+      - Operaciones Bulk:
+          - Bulk Insert desde CSV: examples/bulk_insert_csv.md
+      - Comparación de Esquemas:
+          - Comparación de Esquemas: examples/schema_comparison.md
+      - Migración de Esquemas:
+          - Migración Oracle (origen): examples/migrate-oracle-mariadb.md
+          - Migración MariaDB (origen): examples/migrate-mariadb-source.md
+      # ... resto de ejemplos agrupados por área en mkdocs.yml
 
-  - Guías:
-      - Programación Asíncrona: ASYNC_GUIDE.md
-      - Drivers PostgreSQL: POSTGRESQL_DRIVER_GUIDE.md
-      - Excepciones: EXCEPTIONS.md
-      - Troubleshooting: TROUBLESHOOTING.md
-      - Herramientas IA: examples/doc_generation_vscode_guide.md
-      # ... resto en mkdocs.yml
+  - Guías:                                 # subsecciones temáticas (how-tos transversales)
+      - Conexión y Drivers:
+          - Programación Asíncrona: ASYNC_GUIDE.md
+          - Drivers PostgreSQL: POSTGRESQL_DRIVER_GUIDE.md
+      - Errores y Diagnóstico:
+          - Excepciones: EXCEPTIONS.md
+          - Troubleshooting: TROUBLESHOOTING.md
+      - Herramientas IA:
+          - Guía completa (VS Code): doc_generation_vscode_guide.md
+      # ... resto de guías agrupadas por tema en mkdocs.yml
 ```
 
 ---
@@ -500,8 +507,12 @@ nav:
 2. **Ubicaciones Fijas** (No cambiar sin consenso):
    - Funcional: `docs/functional/[módulo].md`
    - Técnica: `docs/api/[módulo].md`
-   - Ejemplos: `docs/examples/[caso].md` (estructura plana; sin subcarpetas por tipo)
-   - Guías: `docs/[nombre].md` en raíz
+   - Ejemplos: `docs/examples/[caso].md` (ficheros **planos en disco**, sin subcarpetas por tipo).
+     En `nav:` **se agrupan en subsecciones por área funcional**, igual que `Referencia Técnica`
+     y `Documentación Funcional` (ver `docs.instructions.md` → "Agrupación en subsecciones por área").
+   - Guías: `docs/[nombre].md` en raíz (ficheros **planos en disco**).
+     En `nav:` **se agrupan en subsecciones temáticas** (Conexión y Drivers, Errores y Diagnóstico,
+     Rendimiento, Migración de Versión, Herramientas IA…), no por módulo.
 
 3. **Actualización de mkdocs.yml**: Automatizada con `mkdocstrings` + agente `documentation-generator`
 

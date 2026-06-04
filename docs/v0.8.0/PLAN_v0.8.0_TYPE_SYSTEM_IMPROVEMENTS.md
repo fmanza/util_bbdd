@@ -1,11 +1,18 @@
 <!-- arquetipo: informativo-libre -->
 # PLAN — v0.8.0: Advanced Type System Improvements
 
+> ✅ **IMPLEMENTADO en v0.8.0 (2026-04-21).** Documento histórico de planificación, conservado
+> como referencia. La capacidad descrita aquí se entregó —y se amplió a los 8 motores— en la
+> release v0.8.0; ver [CHANGELOG](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md)
+> §0.8.0 («Phase 4: Complete Type System Coverage»). El estado «Draft / Awaiting Approval» de
+> abajo refleja el momento de redacción,
+> no la situación actual del proyecto (versión vigente: v0.10.0).
+
 **Document Type:** Technical Plan (informativo-libre)
-**Version:** 0.1 (Draft)
+**Version:** 0.1 (Draft — histórico)
 **Date:** 2026-04-21
 **Proposer:** Development Team
-**Status:** 📋 PLANNED (Awaiting Approval)
+**Status:** ✅ IMPLEMENTADO en v0.8.0 _(redactado originalmente como 📋 PLANNED — Awaiting Approval)_
 
 ---
 
