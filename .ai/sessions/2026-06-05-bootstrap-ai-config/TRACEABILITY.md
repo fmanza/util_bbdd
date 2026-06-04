@@ -28,6 +28,9 @@ Primero PLAN y AUDIT_PLAN; luego IMPLEMENT, commit y actualización documental.
 - Documentación sincronizada: CLAUDE.md (sección + tabla), copilot-instructions.md (sección), AGENTS.md (sección + contador 16→17), GEMINI.md (puntero), .cursorrules (cabecera + puntero), SHARED_INSTRUCTIONS.md (2 filas de gobernanza). Timestamps → 2026-06-05.
 - AUDIT_CODE: verificado DRY, rutas relativas, cobertura de las 4 plataformas, condición nº3 reflejada en el prompt.
 - VERSION: commit `cd22520` en develop (7 ficheros, +335/−5). Excluido `.claude/settings.json` (allowlist de sesión, ajeno).
+- Registro de sesión: commit `1bf511b` (REQUEST + CONTEXT_SNAPSHOT + TRACEABILITY).
+- Revisión documental (agente `documentation-reviewer`) sobre los artefactos de la sesión: NEAR_READY; 1 hallazgo Nivel 1 + 2 Nivel 2 + 1 Nivel 3.
+- Correcciones aplicadas: (N1) directiva falsa sobre `.ai/standards.md` corregida —el fichero SÍ existe y está versionado—; (N2) alcance de Codex declarado fuera de alcance en el prompt; (N2) título y gobernanza de `SHARED_INSTRUCTIONS.md` reconciliados con Gemini y Cursor + fila `GEMINI.md`; (N3) conteo de agentes 11→12 en `AGENTS.md`.
 
 ## Artefactos generados
 | Artefacto | Ruta | Estado |
@@ -48,7 +51,7 @@ Primero PLAN y AUDIT_PLAN; luego IMPLEMENT, commit y actualización documental.
 - **[capa A no es verbatim puro]**: agentes/prompts/commands llevan comandos embebidos del origen (`pytest`, `mkdocs build`, rutas `src/`) que deben sustituirse por equivalentes del destino.
 - **[plataformas]**: el repo soporta 4 plataformas IA — Claude (`CLAUDE.md`), Gemini (`GEMINI.md`), Copilot (`.github/copilot-instructions.md`), Cursor (`.cursorrules`); todas referencian `SHARED_INSTRUCTIONS.md` como canónico.
 - **[parámetros]**: lenguaje y arquitectura del destino son parámetros de entrada del prompt, no constantes; el prompt detiene la emisión de PLAN si falta cualquier campo de contexto.
-- **[deuda menor]**: `.ai/standards.md` es referenciado por `plan-architect` y por el prompt de bootstrap pero no está versionado bajo `.ai/` en este repo; verificar antes de citarlo como existente.
+- **[contexto .ai]**: `.ai/standards.md` existe y está versionado; es referenciado por `plan-architect`, los demás agentes y el prompt de bootstrap como fuente de convenciones de calidad. En el destino del bootstrap es un objetivo a regenerar (capa C).
 
 ## Veredicto final
 Veredicto: CLOSED

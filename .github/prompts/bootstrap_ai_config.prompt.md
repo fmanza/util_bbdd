@@ -10,6 +10,10 @@ regenerarse analizando el código real del destino. Cubre las cuatro plataformas
 Este prompt es **agnóstico de lenguaje**: el lenguaje y la arquitectura del destino son **parámetros
 de entrada** que confirma quien lo invoca, no constantes embebidas.
 
+> **Alcance de plataformas**: este bootstrap cubre Claude, Gemini, Copilot y Cursor. El repo origen
+> también documenta **Codex** (`docs/codex_guide.md`); queda **fuera de alcance por ahora**. Para
+> incluirlo, replica el patrón de entry point como una fila más del mapeo por plataforma.
+
 ---
 
 ## Método y dirección de la llamada (OBLIGATORIO leer antes de empezar)

@@ -1,4 +1,4 @@
-# Instrucciones Compartidas: Copilot Chat + Claude Code + Codex
+# Instrucciones Compartidas: Copilot Chat + Claude Code + Gemini + Codex + Cursor
 
 Configuración unificada para trabajar en `util_bbdd` con asistentes de código.
 Las reglas de cada plataforma solo deben añadir especialización; esta página es la
@@ -298,7 +298,8 @@ Usar formato: `**[área]**: <hecho verificable>`. El template está en
 
 | Archivo | Plataforma | Propósito |
 |---|---|---|
-| `.github/SHARED_INSTRUCTIONS.md` | Copilot, Claude, Codex | Fuente canónica: arquitectura, calidad, comandos |
+| `.github/SHARED_INSTRUCTIONS.md` | Copilot, Claude, Gemini, Codex, Cursor | Fuente canónica: arquitectura, calidad, comandos |
+| `GEMINI.md` | Gemini Code Assist | Especialización: estándares de código y comandos rápidos |
 | `.github/copilot-instructions.md` | GitHub Copilot Chat | Especialización: agentes VS Code, reglas Copilot |
 | `CLAUDE.md` | Claude Code | Especialización: slash commands, hooks, settings.json |
 | `.github/AGENTS.md` | Copilot/Claude | Registro de agentes especializados |

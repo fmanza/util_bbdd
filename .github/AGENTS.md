@@ -236,6 +236,6 @@ Modificar un agente: editar su archivo `.agent.md` en `.github/agents/`.
 
 Los **slash commands** de Claude Code (`.claude/commands/`) cubren 8 flujos (new-feature, hotfix, refactor, audit-code, security-review, tech-debt, maturity-assessment, version-closure).
 
-Los **agentes** (`.github/agents/`) son 11: incluyen los 8 anteriores más `documentation-reviewer`, `documentation-generator` y `explore`. Los dos de documentación no tienen slash command pero son invocables por lenguaje natural (Claude Code) o mediante sus prompts correspondientes (Copilot Chat).
+Los **agentes** (`.github/agents/`) son 12: incluyen los 8 anteriores más `documentation-reviewer`, `documentation-generator`, `config-reviewer`, `explore` y `workflow-director` (este último interno, no invocable). Los de documentación y `config-reviewer` no tienen slash command pero son invocables por lenguaje natural (Claude Code) o mediante sus prompts correspondientes (Copilot Chat).
 
 Ver gobernanza completa en [`.github/INTEGRATION_MAP.md`](INTEGRATION_MAP.md).
