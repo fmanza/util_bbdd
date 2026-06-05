@@ -116,6 +116,7 @@ nav:
           - Claude Code: claude_code_guide.md
           - Codex (OpenAI): codex_guide.md
           - Verificación de docs (--verify-tools / --verify-build): doc_verification_guide.md
+          - Distribución offline (ZIP): docs_offline_zip_guide.md
 
   # ── Ejemplos de código ─────────────────────────────────────────────────────
   - Ejemplos:

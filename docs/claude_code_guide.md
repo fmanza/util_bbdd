@@ -80,6 +80,12 @@ python -m mkdocs build --strict
 
 # Ejecutar los tests para verificar que el código sigue funcionando
 python -m pytest
+
+# Generar ZIP de la documentación para distribución offline o release de GitHub
+python scripts/build_docs_zip.py
+# → dist/util_bbdd-docs-{version}.zip
+# Opciones: --builder mkdocs | --no-strict | --no-build | --output-dir <dir>
+# Ver docs/docs_offline_zip_guide.md para la guía completa.
 ```
 
 Para confirmar que los hooks de Claude Code están activos, crea o edita un archivo en `src/` y verifica que los hooks de `ruff` y `mypy` se ejecutan automáticamente al guardar.

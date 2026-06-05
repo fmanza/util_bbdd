@@ -166,6 +166,7 @@ python -m pytest
 python -m build
 zensical build        # generador por defecto (CI); lee mkdocs.yml
 mkdocs build          # equivalente recíproco con el mismo mkdocs.yml
+python scripts/build_docs_zip.py   # build + ZIP offline en dist/util_bbdd-docs-{version}.zip
 ```
 
 ### Estrategia de tests

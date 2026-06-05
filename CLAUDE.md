@@ -301,6 +301,7 @@ python -m pytest                    # Tests
 python -m build                     # Empaquetamiento
 zensical serve                      # Documentación local (por defecto, lee mkdocs.yml)
 mkdocs serve                        # Documentación local (recíproco, mismo mkdocs.yml)
+python scripts/build_docs_zip.py    # Genera dist/util_bbdd-docs-{version}.zip para distribución offline
 ```
 
 ---

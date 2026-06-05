@@ -50,6 +50,7 @@ Fase: PLAN y AUDIT_PLAN únicamente.   # o "completa" para llegar hasta VERSION
 | `.github/SHARED_INSTRUCTIONS.md` | idem | copiar + reescribir dominio |
 | `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.github/AGENTS.md`, `.cursorrules` | idem | copiar + reescribir dominio |
 | `docs/codex_guide.md` (guía de uso de Codex) | idem | copiar + reescribir dominio |
+| `scripts/build_docs_zip.py` + `.github/workflows/docs-release.yml` | idem | copiar + adaptar builder/secrets/prefijo ZIP |
 | `.ai/{product,architecture,runtime,glossary,standards}.md` | idem | **regenerar desde cero** |
 
 ---
@@ -109,6 +110,9 @@ Clasifica **cada** activo IA del origen en una de estas cuatro capas:
 - `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.cursorrules`
 - `.github/AGENTS.md`, `.github/instructions/sync.instructions.md`
 - `.github/DOCUMENTATION_STANDARD.md` (solo si el destino publica documentación)
+- `scripts/build_docs_zip.py` + `.github/workflows/docs-release.yml` (solo si el destino
+  publica documentación con generador estático): adaptar el builder por defecto (`--builder`),
+  los secrets del workflow (`GH_PAT`) y el prefijo del ZIP si difiere del nombre del paquete
 
 ### Capa C — Regenerar desde cero (NO copiar contenido del origen)
 
