@@ -544,6 +544,73 @@ Para generar o actualizar la documentación completa del proyecto:
 
 ---
 
+## Verificación en tiempo real (opciones `--verify-tools` y `--verify-build`)
+
+Dos opciones independientes y complementarias. Ambas son opt-in; ninguna se activa automáticamente.
+
+---
+
+### `--verify-tools` — Verificar configuración contra documentación oficial
+
+Activar cuando el usuario solicite comprobar compatibilidad de versiones o plugins con las webs de referencia oficial.
+
+#### Fuentes oficiales
+
+| Herramienta | URL de referencia |
+|---|---|
+| MkDocs | `https://www.mkdocs.org/about/release-notes/` |
+| Material for MkDocs | `https://squidfunk.github.io/mkdocs-material/plugins/` |
+| Zensical | `https://zensical.org/` |
+
+#### Procedimiento
+
+1. Fetch la documentación oficial según el generador activo (`mkdocs.yml` → `theme.name`, o `zensical.toml`).
+2. Contrasta las directivas del fichero de configuración con la documentación oficial.
+3. Reporta discrepancias con severidad:
+   - **Nivel 1** — plugin o directiva inexistente en la versión instalada (build roto).
+   - **Nivel 2** — directiva deprecada con alternativa disponible.
+   - **Nivel 3** — configuración subóptima o con comportamiento no documentado.
+4. No modifica ningún fichero de configuración sin confirmación explícita del usuario.
+
+---
+
+### `--verify-build` — Verificar el HTML generado tras el build
+
+Activar tras la generación de documentación para detectar errores solo visibles en el output renderizado (alias bug, snippets sin resolver, autodoc vacío).
+
+#### Modo A — build (por defecto)
+
+```bash
+zensical build --strict   # o: mkdocs build --strict
+```
+
+Leer páginas clave de `site/` con el tool `Read`. Priorizar páginas con directivas `:::`, bloques Mermaid o snippets `--8<--`.
+
+| Verificación | Señal buscada | Fallo si |
+|---|---|---|
+| Autodoc expandido | `doc-function` o `doc-class` con métodos en el HTML | Solo aparece docstring de clase |
+| Alias bug | Métodos presentes bajo el nombre real de la clase | Sección autodoc vacía |
+| Snippet `--8<--` resuelto | Ausencia de `--8<--` literal en el HTML | La cadena aparece como texto |
+| Mermaid presente | `<code class="language-mermaid">` o SVG | Bloque no encontrado |
+| Nav sin huérfanos | Cada página del `nav:` existe en `site/` | Fichero `.html` ausente |
+| Build limpio | `--strict` termina con código 0 | Cualquier warning con `--strict` |
+
+#### Modo B — serve (activar con `--verify-build --serve`)
+
+```bash
+zensical serve   # o: mkdocs serve  — confirmar con el usuario antes de arrancar
+```
+
+Usar `WebFetch` sobre `http://localhost:8000/` para las mismas verificaciones que el Modo A.
+El servidor ejecuta JavaScript: los diagramas Mermaid aparecen como SVG (verificación más completa).
+Indicar al usuario que detenga el servidor tras la verificación.
+
+#### Restricción común a ambos modos
+
+No modifica ningún fichero basándose solo en hallazgos del HTML. Propone correcciones y espera confirmación.
+
+---
+
 ## Reglas Markdown (CRÍTICAS)
 
 - Genera Markdown portable y legible.

@@ -61,12 +61,80 @@ Estructura mínima:
 
 ## Flujo de trabajo
 
+### Paso 0 — Verificación de herramientas (opcional, activar con `--verify-tools`)
+
+Solo ejecutar cuando el usuario solicite verificar compatibilidad de versiones o plugins:
+
+- Fetch MkDocs release notes: `https://www.mkdocs.org/about/release-notes/`
+- Fetch Material for MkDocs plugins: `https://squidfunk.github.io/mkdocs-material/plugins/`
+- Fetch Zensical docs: `https://zensical.org/`
+
+**Propósito**: verificar que las directivas en `mkdocs.yml` / `zensical.toml` son válidas para la versión instalada.
+
+**Resultado**: lista de discrepancias detectadas (plugin renombrado, sintaxis cambiada, versión mínima requerida).
+No modifica ningún archivo sin confirmación explícita del usuario.
+
 1. **Inventariar contexto**: leer código, README, `docs/`, ejemplos, prompts y `mkdocs.yml`.
 2. **Detectar destino**: actualizar una página existente si cubre el mismo tema; crear una nueva solo si no hay punto de entrada adecuado.
 3. **Dividir el trabajo**: no usar un único prompt masivo. Generar por fases: mapeo funcional, técnica, ejemplos, Mermaid y revisión final.
 4. **Generar contenido**: aplicar el prompt correspondiente usando solo información verificable.
 5. **Actualizar navegación**: añadir, mover o corregir la entrada en `mkdocs.yml` bajo la sección adecuada.
 6. **Validar**: comprobar Markdown, enlaces relativos y sintaxis Mermaid; recomendar o ejecutar `mkdocs build` cuando el entorno lo permita.
+
+### Paso 7 — Verificación de build (opcional, activar con `--verify-build`)
+
+Ejecutar tras la fase de generación y validación cuando el usuario solicite comprobar el output renderizado.
+
+#### Modo A — build (por defecto dentro de `--verify-build`)
+
+```bash
+zensical build --strict   # o: mkdocs build --strict
+```
+
+Leer páginas clave de `site/` con el tool `Read` y comprobar:
+
+| Verificación | Señal buscada | Fallo si |
+|---|---|---|
+| Autodoc expandido | `doc-function` o `doc-class` con métodos en el HTML | Solo aparece el docstring de clase |
+| Alias bug | Métodos presentes bajo el nombre de clase correcto | Sección autodoc vacía o sin miembros |
+| Snippets `--8<--` resueltos | Ausencia de la cadena literal `--8<--` en el HTML | El texto `--8<--` aparece en el output |
+| Mermaid presente | `<code class="language-mermaid">` o diagrama SVG | El bloque mermaid no aparece en el HTML |
+| Nav sin huérfanos | Cada página del `nav:` de `mkdocs.yml` existe en `site/` | Fichero `.html` ausente en `site/` |
+| Build limpio | `--strict` termina con código 0 | Cualquier WARNING con `--strict` es error |
+
+Páginas a inspeccionar: priorizar las que contienen directivas `:::`, bloques Mermaid o snippets `--8<--`.
+
+#### Modo B — serve (activar con `--verify-build --serve`)
+
+```bash
+zensical serve   # o: mkdocs serve
+# lanza en background; confirmar con el usuario antes de arrancar el servidor
+```
+
+Una vez activo, usar `WebFetch` sobre `http://localhost:8000/` para comprobar las mismas páginas que en Modo A. El servidor ejecuta JavaScript, por lo que los diagramas Mermaid aparecen como SVG.
+
+Detener el servidor tras la verificación o indicar al usuario que lo cierre manualmente.
+
+#### Formato de reporte de `--verify-build`
+
+```
+## Verificación de build — [Modo A / Modo B]
+
+### Hallazgos
+| Página | Verificación | Estado | Detalle |
+|---|---|---|---|
+| api/managers.md | Autodoc expandido | ✅ OK | 12 métodos encontrados |
+| api/bulk-crud.md | Alias bug | ❌ FALLO | Sección sin métodos — usar nombre real de clase |
+| examples/bulk_insert.md | Snippet resuelto | ✅ OK | |
+
+### Páginas con errores de build
+- [lista de warnings/errors del build --strict]
+
+### Acciones recomendadas
+- [solo si hay hallazgos de fallo — proponer correcciones para confirmación]
+```
+
+No modifica ningún fichero basándose solo en hallazgos del HTML; propone cambios y espera confirmación.
 
 ## Reglas de generación
 
@@ -133,7 +201,8 @@ Cuando el usuario pida documentar o actualizar todo el proyecto, usa este flujo 
 - SOLO escribe en `docs/`, `mkdocs.yml` y, si el usuario lo pide, instrucciones/prompts relacionados.
 - Valida que el Mermaid generado es sintácticamente correcto antes de escribir.
 - Si el módulo ya tiene documentación en `docs/`, actualízala conservando contenido vigente; no borres secciones útiles sin razón explícita.
-- Excluye por el momento instrucciones y ejemplos para generación a través de APIs externas.
+- No uses APIs de IA externas para generar contenido documental.
+- Puedes consultar webs de referencia oficial (MkDocs, Zensical, PyPI) cuando el usuario activa `--verify-tools`.
 
 ## Formato de salida al usuario
 

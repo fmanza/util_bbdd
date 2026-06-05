@@ -230,6 +230,9 @@ Fase 3 — Documentación técnica: responsabilidad, Mermaid, API pública, cont
 Fase 4 — Ejemplos verificables: código real, resultado determinista, sin credenciales reales
 Fase 5 — Sincronizar mkdocs.yml: añadir/mover/retirar entradas de navegación
 Fase 6 — Revisión final: validar Markdown, enlaces relativos y sintaxis Mermaid
+Fase 7 — Verificación de build (opt-in --verify-build): build del sitio + inspección del HTML generado
+         Modo A (build): zensical build --strict / mkdocs build --strict → leer site/ con Read
+         Modo B (serve):  zensical serve / mkdocs serve en background → WebFetch localhost:8000
 ```
 
 ### Solicitud para un módulo
@@ -250,7 +253,8 @@ Fases: (1) inventariar módulos reales, (2) mapeo funcional (Senior PO),
 (3) documentación técnica con Mermaid, (4) ejemplos verificables,
 (5) Zenical renderiza automáticamente.
 No inventes módulos ni capacidades; marca como pendiente lo no verificable.
-No uses APIs externas por el momento.
+No uses APIs de IA externas para generar contenido.
+Opcional: añade `--verify-tools` para verificar plugins y versiones contra las webs oficiales.
 ```
 
 ### Contrato documental obligatorio
@@ -260,7 +264,7 @@ No uses APIs externas por el momento.
 3. Usar Zensical como generador estático por defecto (o MkDocs Material, recíprocamente compatibles sobre el mismo `mkdocs.yml`); Mermaid.js para diagramas verificables.
 4. Actualizar `mkdocs.yml` cuando se creen, muevan o eliminen páginas en `docs/`.
 5. No inventar capacidades, módulos, APIs, salidas, errores ni dependencias.
-6. Excluir generación documental mediante APIs externas por el momento.
+6. Excluir **generación** de contenido documental delegando a LLMs o APIs de IA externas. Se permite consultar webs de referencia oficial (MkDocs, Zensical, PyPI) para verificar configuración, plugins y versiones (opción `--verify-tools`).
 
 ### Auditoría de documentación (solo lectura)
 

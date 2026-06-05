@@ -19,7 +19,11 @@ Estandarizar instrucciones de documentación para asegurar:
 ## 2. Estado Actual
 
 ### 2.1 Estructura MkDocs
-- **Site**: `mkdocs.yml` (v1.5+, Material theme)
+- **Site**: `mkdocs.yml` (v1.5+, Material theme) / `zensical.toml` (alternativo, compatible)
+- **Webs de referencia oficial** (consultar con `--verify-tools` para validar versiones y plugins):
+  - MkDocs: `https://www.mkdocs.org/about/release-notes/`
+  - Material for MkDocs: `https://squidfunk.github.io/mkdocs-material/plugins/`
+  - Zensical: `https://zensical.org/`
 - **Secciones existentes**:
   - ✅ Guías (DUPLICATE_PROJECT_GUIDE, NEXT_STEPS, README_DUPLICADOR, ARCHITECTURE_VISUAL)
   - ✅ Funcional (`docs/functional/`) — 8 módulos
@@ -37,7 +41,7 @@ Estandarizar instrucciones de documentación para asegurar:
 |------------|-----------|--------|
 | **Configuración IA** | `CLAUDE.md`, `copilot-instructions.md` | ✅ Existente |
 | **Agent: config-reviewer** | `.github/agents/config-reviewer.agent.md` | ✅ Existente |
-| **Agent: documentation-generator** | `.github/agents/documentation-generator.agent.md` | ✅ Existente |
+| **Agent: documentation-generator** | `.github/agents/documentation-generator.agent.md` | ✅ Existente — soporta `--verify-tools` |
 | **Agent: documentation-reviewer** | `.github/agents/documentation-reviewer.agent.md` | ✅ Existente |
 | **Prompt: config_review** | `.github/prompts/config_review.prompt.md` | ✅ Existente |
 | **Prompt: functional_doc** | `.github/prompts/functional_doc.prompt.md` | ✅ Existente |
@@ -473,7 +477,8 @@ nav:
 | **3. Exploración** | `Explore` | Mapear módulos existentes vs faltantes | `src/`, `docs/` | Matriz de cobertura |
 | **4. Generación** | `documentation-generator` | Crear/actualizar docs funcional + técnica | Código fuente + prompts | Archivos en `docs/` + `mkdocs.yml` |
 | **5. Auditoría** | `documentation-reviewer` | Validar completitud, ejemplos, coherencia | Docs generadas | Findings + mejoras |
-| **6. Integración** | `Code Auditor` | Validar `mkdocs build` y no rompe refs | Output de build | Reporte |
+| **6. Verificación de config** (opt-in `--verify-tools`) | `documentation-generator` | Fetch webs oficiales — validar plugins y versiones en `mkdocs.yml` / `zensical.toml` | Config + webs MkDocs/Zensical/PyPI | Discrepancias por severidad |
+| **6b. Verificación de build** (opt-in `--verify-build`) | `documentation-generator` | Build + inspección HTML generado — alias bug, snippets, Mermaid, nav | `site/` (Modo A) o `localhost:8000` (Modo B `--serve`) | Hallazgos por página + acciones recomendadas |
 | **7. Cierre** | `Version Closer` | Sincronizar `CHANGELOG.md` + `COMPATIBILITY.md` | Cambios completados | Release notes |
 
 ### Cuándo Usar Cada Agente
