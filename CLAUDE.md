@@ -274,6 +274,21 @@ Usa .github/prompts/documentation_review.prompt.md como criterio.
 Entrega hallazgos con severidad (Nivel 1/2/3) sin editar archivos.
 ```
 Criterio de completitud: `zensical build` sin errores + todos los módulos de `src/` documentados.
+
+### Validación de Markdown — Checklist obligatorio
+
+Ver `.github/SHARED_INSTRUCTIONS.md` § "Validación de Markdown en documentación" para directrices completas.
+
+**Puntos críticos**:
+- ✅ Listas: usar `- item` o `1. item`, NUNCA dos espacios al final de línea
+  - ❌ `✅ Item 1  ` → Renderiza con `<br />` (horizontal)
+  - ✅ `- ✅ Item 1` → Renderiza como `<ul><li>` (vertical)
+- ✅ Enlaces a archivos estáticos: usar rutas relativas, NO placeholders
+  - ❌ `[archivo.zip](#)`
+  - ✅ `[archivo.zip](../util_bbdd.zip)` (desde `site/downloads/index.html` → apunta a `site/util_bbdd.zip`)
+- ✅ Validar: `python -m mkdocs build --strict` sin errores
+- ✅ Inspeccionar HTML: Revisar que `<ul><li>` se usan para listas, NUNCA `<p><br /></p>`
+
 ---
 
 ## 📦 Descarga de Documentación Offline

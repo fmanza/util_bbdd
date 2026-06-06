@@ -270,6 +270,31 @@ class SyncDatabaseManager:
     """
 ```
 
+#### Estándar: Validación de Markdown en documentación
+
+**Problemas comunes (registrados 2026-06-06)**:
+
+1. **Listas renderizadas como párrafos**: Usar dos espacios al final de línea EN LUGAR DE crear lista HTML real
+   - ❌ Incorrecto: `✅ **Item 1**  \n✅ **Item 2**` → Renderiza con `<br />` horizontales
+   - ✅ Correcto: `- ✅ **Item 1**\n- ✅ **Item 2**` → Renderiza como `<ul><li>`
+
+2. **Enlaces rotos a archivos estáticos generados**: Usar placeholders tipo `#` en lugar de rutas relativas
+   - ❌ Incorrecto: `[archivo.zip](#)` → No descarga nada
+   - ✅ Correcto: `[archivo.zip](../archivo.zip)` → Descarga desde `site/`
+
+3. **Archivos generados por plugins**: Entender que ZIP, PDFs y otros artefactos se crean en `site/` durante `mkdocs build`
+   - Plugin: `src/util_bbdd/docs_build_plugin.py` → genera `site/util_bbdd.zip`
+   - Links desde subpáginas (ej. `site/downloads/index.html`): usar `../util_bbdd.zip`
+
+**Validación pre-commit**:
+```bash
+# Build con --strict (sin errores de markdown)
+python -m mkdocs build --strict
+
+# Verificar visualmente que listas son verticales, no horizontales
+# Revisar site/downloads/index.html: deben haber <ul><li>, no <p><br /></p>
+```
+
 ### Formato de commits
 
 Usa [Conventional Commits](https://www.conventionalcommits.org/):
