@@ -127,43 +127,51 @@ util_bbdd-docs-latest.zip
 
 ### Generar ZIP Localmente
 
-```bash
-# Opción 1: Con Zensical (recomendado)
-zensical build
-python scripts/build_docs_zip.py
+El ZIP se genera **automáticamente** durante el build de documentación a través del plugin `DocumentationZipPlugin`.
 
-# Opción 2: Con MkDocs
-mkdocs build
-python scripts/build_docs_zip.py
+```bash
+# Opción 1: Con MkDocs (recomendado)
+python -m mkdocs build
+# → Genera: site/util_bbdd-docs-latest.zip
+
+# Opción 2: Con Zensical
+zensical build
+# → Genera: site/util_bbdd-docs-latest.zip
 
 # Opción 3: VS Code Task (Ctrl+Shift+P)
-Run Task → "docs: build + zip"
+Run Task → "build"
 ```
 
-**Output**: `dist/util_bbdd-docs-{version}-{date}.zip`
+**Output**: `site/util_bbdd-docs-latest.zip` (generado automáticamente)
+
+El archivo ZIP incluye automáticamente:
+- Documentación HTML renderizada
+- Servidor local (`start-server.py`) para búsqueda offline
+- Instrucciones README (`README_OFFLINE.txt`)
 
 ### Validar Integridad
 
 ```bash
-# Calcular SHA256
-sha256sum dist/util_bbdd-docs-*.zip
+# Windows (PowerShell)
+(Get-FileHash site/util_bbdd-docs-latest.zip -Algorithm SHA256).Hash
 
-# Comparar con el publicado (si está disponible)
+# Linux/macOS
+sha256sum site/util_bbdd-docs-latest.zip
+
+# Comparar manualmente con el SHA256 publicado en GitHub Releases
 # ✅ Si coinciden, el archivo está íntegro
 ```
 
-### Opciones Avanzadas
+### Plugin de Documentación
 
-```bash
-# Build + ZIP con builder específico
-python scripts/build_docs_zip.py --builder zensical
+El ZIP se genera mediante el plugin `DocumentationZipPlugin` integrado en `mkdocs.yml`:
 
-# Solo generar ZIP sin rebuild
-python scripts/build_docs_zip.py --no-build
-
-# ZIP en ubicación personalizada
-python scripts/build_docs_zip.py --output-dir /tmp
+```ini
+[project.entry-points."mkdocs.plugins"]
+documentation_zip = "util_bbdd.docs_build_plugin:DocumentationZipPlugin"
 ```
+
+**Configuración**: Automática, no requiere parámetros. El plugin se ejecuta en el hook `on_post_build` de mkdocs.
 
 ---
 
