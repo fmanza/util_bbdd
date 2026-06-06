@@ -152,20 +152,20 @@ Todas las versiones publicadas están disponibles en:
 
 ## ❓ FAQ
 
-**P: ¿Cómo buscar en el ZIP offline?**  
-R: Abre `index.html` y usa el campo de búsqueda en la esquina superior (requiere JavaScript habilitado).
+- **¿Cómo buscar en el ZIP offline?**  
+  Abre `index.html` y usa el campo de búsqueda en la esquina superior (requiere JavaScript habilitado).
 
-**P: ¿Puedo actualizar el ZIP?**  
-R: Sí. Descargar la última versión desde esta página. También puedes construir uno personalizado siguiendo los pasos de "Para Desarrolladores".
+- **¿Puedo actualizar el ZIP?**  
+  Sí. Descargar la última versión desde esta página. También puedes construir uno personalizado siguiendo los pasos de "Para Desarrolladores".
 
-**P: ¿Incluye código fuente?**  
-R: No. El ZIP contiene solo documentación HTML/CSS/JS. El código fuente está en [GitHub](https://github.com/fmanza/util_bbdd).
+- **¿Incluye código fuente?**  
+  No. El ZIP contiene solo documentación HTML/CSS/JS. El código fuente está en [GitHub](https://github.com/fmanza/util_bbdd).
 
-**P: ¿Funcionan los links internos?**  
-R: Sí. Todos los links relativos funcionan dentro del ZIP.
+- **¿Funcionan los links internos?**  
+  Sí. Todos los links relativos funcionan dentro del ZIP.
 
-**P: ¿Qué navegadores soporta?**  
-R: Todos los navegadores modernos (Chrome, Firefox, Safari, Edge). Requiere JavaScript habilitado para búsqueda.
+- **¿Qué navegadores soporta?**  
+  Todos los navegadores modernos (Chrome, Firefox, Safari, Edge). Requiere JavaScript habilitado para búsqueda.
 
 ---
 
