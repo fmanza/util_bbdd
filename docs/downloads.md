@@ -20,9 +20,9 @@ La documentación completa está disponible como un archivo ZIP comprimido que p
 
 ## 🔗 Descarga Actual
 
-| Versión | Tamaño | SHA256 | Fecha |
+| Versión | Tamaño | Checksum | Fecha |
 |---|---|---|---|
-| [util_bbdd-docs-latest.zip](../util_bbdd.zip) | ~2.5 MB | `SHA256_HASH_HERE` | 2026-06-06 |
+| [util_bbdd-docs-latest.zip](../util_bbdd-docs-latest.zip) | ~2.5 MB | [.sha256](../util_bbdd-docs-latest.zip.sha256) | 2026-06-06 |
 
 **Cómo usar**
 
@@ -58,35 +58,41 @@ La búsqueda offline usa **Web Workers** de JavaScript, que los navegadores **no
 
 ## 🔐 Validar Integridad (SHA256)
 
-El SHA256 se proporciona junto al ZIP para verificar que el archivo no ha sido corrupto durante la descarga.
+El archivo `.sha256` adjunto contiene el hash de integridad del ZIP. Descarga ambos archivos y valida usando tu plataforma.
 
-### Método 1: Terminal (Linux/Mac)
+### Método 1: Terminal (Linux/macOS)
 
 ```bash
-# Descargar ZIP y checksum desde la release de GitHub
-wget https://github.com/fmanza/util_bbdd/releases/download/docs-vX.X.X/util_bbdd-docs-X.X.X.zip
-wget https://github.com/fmanza/util_bbdd/releases/download/docs-vX.X.X/util_bbdd-docs-X.X.X.zip.sha256
+# Descargar ZIP y checksum
+wget https://github.com/fmanza/util_bbdd/releases/download/docs-vX.X.X/util_bbdd-docs-latest.zip
+wget https://github.com/fmanza/util_bbdd/releases/download/docs-vX.X.X/util_bbdd-docs-latest.zip.sha256
 
-# Validar
-sha256sum -c util_bbdd-docs-X.X.X.zip.sha256
-# Salida: util_bbdd-docs-X.X.X.zip: OK ✅
+# Validar con el archivo checksum
+sha256sum -c util_bbdd-docs-latest.zip.sha256
+# Salida esperada: util_bbdd-docs-latest.zip: OK ✅
 ```
 
 ### Método 2: PowerShell (Windows)
 
 ```powershell
-# Calcular SHA256 del ZIP descargado
-(Get-FileHash util_bbdd-docs-X.X.X.zip -Algorithm SHA256).Hash
+# Opción A: Calcular SHA256 del ZIP y comparar manualmente
+(Get-FileHash util_bbdd-docs-latest.zip -Algorithm SHA256).Hash
 
-# Comparar manualmente con el SHA256 publicado en la release
-# ✅ Si coinciden, el archivo es íntegro
+# Luego, abre util_bbdd-docs-latest.zip.sha256 y compara el valor
+# Si coinciden: ✅ Archivo íntegro
+
+# Opción B: Script automático
+$hash = (Get-FileHash util_bbdd-docs-latest.zip -Algorithm SHA256).Hash
+$checksum = (Get-Content util_bbdd-docs-latest.zip.sha256).Split()[0]
+if ($hash -eq $checksum) { Write-Host "✅ Integridad verificada" } else { Write-Host "❌ Checksum no coincide" }
 ```
 
-### Método 3: Visual (GitHub)
+### Método 3: macOS (con shasum)
 
-1. Abre la [Release en GitHub](https://github.com/fmanza/util_bbdd/releases)
-2. Busca el SHA256 en el texto de la release (field "🔐 Integrity Verification")
-3. Compara con la salida de tu terminal
+```bash
+shasum -a 256 -c util_bbdd-docs-latest.zip.sha256
+# Salida esperada: util_bbdd-docs-latest.zip: OK ✅
+```
 
 ---
 

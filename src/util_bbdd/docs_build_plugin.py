@@ -6,8 +6,10 @@ Incluye:
 - Documentación HTML generada (site/)
 - Servidor local para ejecución offline (start-server.py)
 - Instrucciones README para usuarios
+- Checksum SHA256 para validación de integridad
 """
 
+import hashlib
 import os
 import zipfile
 
@@ -50,7 +52,25 @@ class DocumentationZipPlugin(BasePlugin):
                     print(f"[ZIP] Incluyendo instrucciones: {readme_offline.name}")
                     zipf.write(readme_offline, arcname="README_OFFLINE.txt")
 
+            # Calcular SHA256 del ZIP
+            sha256_hash = self._calculate_sha256(zip_path)
+
+            # Guardar SHA256 en archivo .sha256
+            sha256_file = zip_path.with_suffix(".zip.sha256")
+            with open(sha256_file, "w") as f:
+                f.write(f"{sha256_hash}  {zip_path.name}\n")
+
             file_size_mb = zip_path.stat().st_size / (1024 * 1024)
             print(f"[OK] ZIP creado: {zip_path.name} ({file_size_mb:.2f} MB)")
+            print(f"[OK] SHA256: {sha256_hash}")
+            print(f"[OK] Checksum guardado: {sha256_file.name}")
         else:
             print(f"[WARN] Directorio {site_dir} no encontrado")
+
+    def _calculate_sha256(self, file_path: Path) -> str:
+        """Calcula el hash SHA256 de un archivo."""
+        sha256_hash = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                sha256_hash.update(chunk)
+        return sha256_hash.hexdigest()
