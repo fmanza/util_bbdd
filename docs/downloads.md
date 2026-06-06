@@ -22,7 +22,7 @@ La documentación completa está disponible como un archivo ZIP comprimido que p
 
 | Versión | Tamaño | SHA256 | Fecha |
 |---|---|---|---|
-| [util_bbdd-docs-latest.zip](#) | ~2.5 MB | `SHA256_HASH_HERE` | 2026-06-06 |
+| [util_bbdd-docs-latest.zip](../util_bbdd.zip) | ~2.5 MB | `SHA256_HASH_HERE` | 2026-06-06 |
 
 **Cómo usar**:
 1. Descarga el ZIP desde el link superior
