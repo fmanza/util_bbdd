@@ -171,8 +171,9 @@ R: Todos los navegadores modernos (Chrome, Firefox, Safari, Edge). Requiere Java
 
 ## 🔗 Enlaces Relacionados
 
-- [ZENICAL.md](../ZENICAL.md) — Configuración de generadores
-- [Guía de Setup](../.github/docs-zip-setup-guide.md) — Instalación y CI/CD
+- [Configuración Zensical](https://github.com/fmanza/util_bbdd/blob/develop/ZENICAL.md) — Generadores de documentación
+- [Guía de Instalación CI/CD](https://github.com/fmanza/util_bbdd/blob/develop/.github/docs-zip-setup-guide.md) — GitHub Actions y automatización
+- [Guía offline ZIP](docs_offline_zip_guide.md) — Documentación técnica del sistema
 - [GitHub Repository](https://github.com/fmanza/util_bbdd) — Código fuente
 
 ---
