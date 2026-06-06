@@ -27,7 +27,26 @@ La documentación completa está disponible como un archivo ZIP comprimido que p
 **Cómo usar**:
 1. Descarga el ZIP desde el link superior
 2. Extrae los archivos: `unzip util_bbdd-docs-latest.zip`
-3. Abre `index.html` en tu navegador
+3. **Opción A (Recomendada - Búsqueda completa)**:
+   - Windows: Abre PowerShell en la carpeta extraída y ejecuta: `python start-server.py`
+   - Linux/macOS: Abre terminal y ejecuta: `python3 start-server.py`
+   - El navegador se abrirá automáticamente en `http://localhost:8000`
+4. **Opción B (Navegación sin búsqueda)**:
+   - Abre directamente `index.html` en tu navegador
+   - Todos los menús y referencias funcionan correctamente
+   - La búsqueda no disponible en este modo (limitación de seguridad del navegador)
+
+### ¿Por qué usar el servidor local?
+
+La búsqueda offline usa **Web Workers** de JavaScript, que los navegadores **no permiten ejecutar desde archivos** (`file:///`) por razones de seguridad. El servidor local resuelve esto sirviendo la documentación a través de `http://`, permitiendo:
+
+- ✅ Búsqueda completa e instantánea
+- ✅ Diagramas Mermaid interactivos
+- ✅ JavaScript habilitado para todas las características
+- ✅ Mejor experiencia de usuario (sin limitaciones)
+
+**Sin servidor**: navegación funcional, búsqueda deshabilitada (CORS).  
+**Con servidor**: todas las características disponibles.
 
 ---
 
