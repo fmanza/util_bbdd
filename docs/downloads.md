@@ -24,17 +24,23 @@ La documentación completa está disponible como un archivo ZIP comprimido que p
 |---|---|---|---|
 | [util_bbdd-docs-latest.zip](../util_bbdd.zip) | ~2.5 MB | `SHA256_HASH_HERE` | 2026-06-06 |
 
-**Cómo usar**:
+**Cómo usar**
+
 1. Descarga el ZIP desde el link superior
 2. Extrae los archivos: `unzip util_bbdd-docs-latest.zip`
-3. **Opción A (Recomendada - Búsqueda completa)**:
-   - Windows: Abre PowerShell en la carpeta extraída y ejecuta: `python start-server.py`
-   - Linux/macOS: Abre terminal y ejecuta: `python3 start-server.py`
-   - El navegador se abrirá automáticamente en `http://localhost:8000`
-4. **Opción B (Navegación sin búsqueda)**:
-   - Abre directamente `index.html` en tu navegador
-   - Todos los menús y referencias funcionan correctamente
-   - La búsqueda no disponible en este modo (limitación de seguridad del navegador)
+3. Elige una opción:
+
+**Opción A (Recomendada - Búsqueda completa)**
+
+- Windows: Abre PowerShell en la carpeta extraída y ejecuta: `python start-server.py`
+- Linux/macOS: Abre terminal y ejecuta: `python3 start-server.py`
+- El navegador se abrirá automáticamente en `http://localhost:8000`
+
+**Opción B (Navegación sin búsqueda)**
+
+- Abre directamente `index.html` en tu navegador
+- Todos los menús y referencias funcionan correctamente
+- La búsqueda no disponible en este modo (limitación de seguridad del navegador)
 
 ### ¿Por qué usar el servidor local?
 
