@@ -25,8 +25,7 @@ class DocumentationZipPlugin(BasePlugin):
     def on_post_build(self, config: Config) -> None:  # type: ignore[override]
         """Ejecutado después del build de mkdocs."""
         site_dir = Path(config.get("site_dir", "site"))
-        project_name = config.get("site_name", "documentation").replace(" ", "_")
-        zip_path = site_dir / f"{project_name}.zip"
+        zip_path = site_dir / "util_bbdd-docs-latest.zip"
 
         if site_dir.exists():
             print(f"\n[ZIP] Generando descarga de documentacion: {zip_path}")
