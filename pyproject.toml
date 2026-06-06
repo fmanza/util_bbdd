@@ -181,3 +181,6 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["networkx", "networkx.*"]
 ignore_missing_imports = true
+
+[project.entry-points."mkdocs.plugins"]
+documentation_zip = "docs_build_plugin:DocumentationZipPlugin"

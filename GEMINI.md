@@ -73,7 +73,33 @@ python -m mypy src                  # Type-checking
 python -m pytest                    # Ejecución de tests
 zensical serve                      # Previsualizar documentación (por defecto, lee mkdocs.yml)
 mkdocs serve                        # Previsualizar documentación (recíproco, mismo mkdocs.yml)
+python scripts/build_docs_zip.py    # Generar ZIP offline con SHA256 checksums
 ```
+
+---
+
+## 📦 Descarga de Documentación Offline
+
+Util_bbdd ofrece **documentación en ZIP offline** con búsqueda integrada, SHA256 checksums y auto-publicación en GitHub Releases.
+
+### Características
+
+✅ **Página de descargas**: https://fmanza.github.io/util_bbdd/downloads/  
+✅ **ZIP comprimido**: ~2.5 MB (150+ archivos HTML)  
+✅ **SHA256 Checksum**: Validación de integridad  
+✅ **Auto-publicar**: GitHub Release automático en cada push  
+✅ **Búsqueda offline**: `search_index.json` incluido en ZIP  
+
+### Generación y Distribución
+
+- **Local**: `python scripts/build_docs_zip.py` genera ZIP en `dist/`
+- **CI/CD**: `.github/workflows/docs-zip-release.yml` auto-publica releases
+- **Validación**: `sha256sum -c dist/*.sha256` (Linux/Mac) o PowerShell (Windows)
+
+### Para otros proyectos
+
+El sistema es reutilizable mediante bootstrap. Ver `.github/prompts/bootstrap_ai_config.prompt.md`
+(sección "📦 Descarga de Documentación Offline") con matriz de equivalencias para múltiples lenguajes.
 
 ---
 

@@ -251,6 +251,49 @@ Esta especialización es **compatible con Claude Code**:
 
 ---
 
+## 📦 Descarga de Documentación Offline
+
+Util_bbdd proporciona **documentación en ZIP offline** con búsqueda integrada, SHA256 checksums y auto-publicación en GitHub Releases.
+
+### Funcionalidades
+
+✅ **Página de descargas**: https://fmanza.github.io/util_bbdd/downloads/
+✅ **ZIP comprimido**: ~2.5 MB (150+ archivos HTML)
+✅ **SHA256 Checksum**: Validación de integridad del archivo
+✅ **Auto-publicar**: GitHub Release automático en cada push a `main`/`develop`
+✅ **Búsqueda offline**: `search_index.json` incluido en ZIP
+
+### Generar localmente
+
+```bash
+# Con Zensical (recomendado)
+zensical build
+python scripts/build_docs_zip.py
+
+# O con MkDocs Material (recíproco)
+mkdocs build
+python scripts/build_docs_zip.py
+
+# Validar checksums
+sha256sum -c dist/*.sha256
+```
+
+### En GitHub Actions
+
+El workflow `.github/workflows/docs-zip-release.yml` se ejecuta automáticamente:
+1. En cada `push` a `main`/`develop` (si hay cambios en `docs/`)
+2. Manualmente desde Actions UI
+
+**Resultado**: Release con tag `docs-vX.X.X` + ZIP + checksums adjuntos
+
+### Para otros proyectos (Bootstrap)
+
+El sistema de descarga ZIP es **reutilizable** via bootstrap. Ver:
+- `.github/prompts/bootstrap_ai_config.prompt.md` — Sección "📦 Descarga de Documentación Offline"
+- Incluye matriz de equivalencias para Python, Node.js, Go, Java
+
+---
+
 ## Checklist de sincronización
 
 Cuando actualices **`.github/SHARED_INSTRUCTIONS.md`**, verifica:

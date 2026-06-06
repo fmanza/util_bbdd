@@ -198,6 +198,39 @@ python scripts/build_docs_zip.py   # build + ZIP offline en dist/util_bbdd-docs-
 
 - ✅ Módulo o clase pública nueva → entrada en `mkdocs.yml` bajo `nav:`
 - ✅ Página nueva, movida o eliminada en `docs/` → actualizar `mkdocs.yml`
+
+### 📦 Distribución de documentación offline
+
+**Util_bbdd** ofrece 3 características integradas para distribución documentación:
+
+1. **Página de descargas** (`docs/downloads.md`)
+   - URL pública: https://fmanza.github.io/util_bbdd/downloads/
+   - Tabla de versiones descargables
+   - Instrucciones SHA256 por plataforma (Linux, Windows, Mac)
+   - FAQ y changelog
+
+2. **SHA256 Checksums** (`scripts/build_docs_zip.py`)
+   - Genera `.sha256` file con hash del ZIP
+   - Append histórico en `CHECKSUMS.txt`
+   - Validación: `sha256sum -c dist/*.sha256` (Linux/Mac) o PowerShell (Windows)
+
+3. **Auto-publish en GitHub Releases** (`.github/workflows/docs-zip-release.yml`)
+   - Trigger automático: push a `main`/`develop` + cambios en `docs/`
+   - Release con tag `docs-vX.X.X`
+   - Artifacts: ZIP, .sha256, CHECKSUMS.txt
+   - Body: versionado, fecha, instrucciones, SHA256
+
+**Comandos locales**:
+```bash
+zensical build && python scripts/build_docs_zip.py    # Build + ZIP
+python scripts/build_docs_zip.py --no-build           # ZIP sin build
+sha256sum -c dist/*.sha256                             # Validar checksums
+```
+
+**Bootstrap para otros proyectos**:
+- Ver `.github/prompts/bootstrap_ai_config.prompt.md`
+- Sección: "📦 Descarga de Documentación Offline (Capa B)"
+- Matriz de equivalencias: Python + MkDocs, Node.js + Docusaurus, Go + Hugo, Java + Sphinx
 - ✅ Reorganización funcional/técnica/ejemplos → validar que `nav:` mantiene apartados separados
 - ✅ Ejecutar `zensical serve` (o `mkdocs serve`) localmente antes de publicar
 - ✅ Verificar que `zensical build` (o `mkdocs build`) pase sin warnings

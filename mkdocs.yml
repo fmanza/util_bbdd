@@ -10,6 +10,7 @@ site_dir: site
 nav:
   - Inicio: index.md
   - Instalación: INSTALLATION.md
+  - 📥 Descargas: downloads.md
 
   # ── Audiencia: Product Owner, QA, responsables de negocio ──────────────────
   - Documentación Funcional:
@@ -194,6 +195,7 @@ theme:
 plugins:
   - search:
       lang: es
+  - documentation_zip
   - mkdocstrings:
       handlers:
         python:

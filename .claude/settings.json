@@ -3,7 +3,15 @@
     "allow": [
       "Bash(python -m pytest tests -k \"charset or migrate\" -q)",
       "Bash(git checkout *)",
-      "PowerShell(zensical build*)"
+      "PowerShell(zensical build*)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Desarrollo\\\\python\\\\libs\\\\util_bbdd\\\\.ai\" -Recurse -Force)",
+      "Bash(Select-Object FullName, Length, CreationTime, LastWriteTime)",
+      "Bash(Format-Table -AutoSize)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Desarrollo\\\\python\\\\libs\\\\util_bbdd\\\\.ai\" -Recurse -Force | Select-Object FullName, @{Name='Size\\(B\\)';Expression={if\\($_.PSIsContainer\\){'<DIR>'}else{$_.Length}}}, LastWriteTime | Sort-Object FullName | Format-Table -AutoSize -Wrap)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Desarrollo\\\\python\\\\libs\\\\util_bbdd\\\\.ai\" -Recurse -File | Select-Object FullName, @{Name='Size\\(KB\\)';Expression={[Math]::Round\\($_.Length/1024, 2\\)}} | Sort-Object FullName)",
+      "PowerShell(Get-ChildItem \"c:\\\\Desarrollo\\\\python\\\\libs\\\\util_bbdd\\\\.ai\\\\sessions\" -Directory | Where-Object { $_.Name -match \"^2026-05-3|^2026-06|^zenical\" } | Select-Object Name | Sort-Object Name)",
+      "Bash(git -C \"c:\\\\Desarrollo\\\\python\\\\libs\\\\util_bbdd\" add scripts/build_docs_zip.py .github/workflows/docs-release.yml docs/docs_offline_zip_guide.md mkdocs.yml \".github/prompts/bootstrap_ai_config.prompt.md\" CLAUDE.md \".github/SHARED_INSTRUCTIONS.md\" docs/claude_code_guide.md \".ai/sessions/2026-06-05-docs-offline-zip/\")",
+      "Bash(git -C 'c:\\\\Desarrollo\\\\python\\\\libs\\\\util_bbdd' commit -m ' *)"
     ],
     "additionalDirectories": [
       "c:\\Desarrollo\\python\\libs\\util_bbdd\\.git"

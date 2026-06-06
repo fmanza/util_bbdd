@@ -110,9 +110,10 @@ Clasifica **cada** activo IA del origen en una de estas cuatro capas:
 - `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.cursorrules`
 - `.github/AGENTS.md`, `.github/instructions/sync.instructions.md`
 - `.github/DOCUMENTATION_STANDARD.md` (solo si el destino publica documentación)
-- `scripts/build_docs_zip.py` + `.github/workflows/docs-release.yml` (solo si el destino
-  publica documentación con generador estático): adaptar el builder por defecto (`--builder`),
-  los secrets del workflow (`GH_PAT`) y el prefijo del ZIP si difiere del nombre del paquete
+- **NUEVO**: `docs/downloads.md` (página de descarga offline si destino publica documentación)
+- **NUEVO**: `scripts/build_docs_zip.py` + `.github/workflows/docs-zip-release.yml` (si destino
+  publica documentación con generador estático): adaptar builder por defecto (`--builder`),
+  secrets del workflow, prefijo ZIP, SHA256 y generación de checksums
 
 ### Capa C — Regenerar desde cero (NO copiar contenido del origen)
 
@@ -170,7 +171,66 @@ Todos referencian a `.github/SHARED_INSTRUCTIONS.md` como **fuente canónica**.
 
 ---
 
-## Adaptación de hooks (`.claude/settings.json`)
+## 📦 Sección Especial: Descarga de Documentación Offline (Capa B)
+
+**Aplica solo si** el destino publica documentación pública con un generador estático
+(MkDocs, Docusaurus, Hugo, Sphinx, etc.) **y necesita ZIP offline distribuible**.
+
+### Archivos a copiar/adaptar
+
+1. **`docs/downloads.md`** — Página de descargas
+   - Copiar verbatim, adaptar URLs y rutas del proyecto destino
+   - Reemplazar: `util_bbdd` → nombre del proyecto destino
+   - Reemplazar: `https://fmanza.github.io/util_bbdd/` → URL raíz del destino
+
+2. **`scripts/build_docs_zip.py`** — Script de generación
+   - **Copiar y adaptar**:
+     - Línea 23: `PYPROJECT = ROOT / "pyproject.toml"` → archivo de versión del destino
+       - Python: `pyproject.toml`
+       - Node.js: `package.json`
+       - Go: `go.mod` (extraer versión del tag o var)
+       - Java: `pom.xml`
+     - Línea 43: `[builder, "build"]` → comando build del destino
+       - Python: `zensical build` / `mkdocs build`
+       - Node.js: `docusaurus build` / `npm run build:docs`
+       - Go: `hugo` / `make docs`
+     - Línea 21: builder default (`zensical`) → el del destino (`mkdocs`, `docusaurus`, etc.)
+
+3. **`.github/workflows/docs-zip-release.yml`** — Workflow CI/CD
+   - **Copiar y adaptar**:
+     - Setup Python/Node/Go según lenguaje destino
+     - Comando build: `zensical build --strict` → equivalente del destino
+     - Script: `python scripts/build_docs_zip.py` → equivalente del destino
+     - Secrets: mantener `GITHUB_TOKEN` (nativo en GH Actions)
+
+### Características clave (comunes a todos los destinos)
+
+✅ **SHA256 Checksum**: `scripts/build_docs_zip.py` genera:
+   - `{project}-docs-{version}.zip.sha256` (para validación offline)
+   - `dist/CHECKSUMS.txt` (histórico de hashes)
+
+✅ **Auto-publicar**: `.github/workflows/docs-zip-release.yml`
+   - Trigger: push a `main`/`develop` + cambios en `docs/`
+   - Release automática: tag `docs-vX.X.X` con artifacts adjuntos
+   - Body con instrucciones y SHA256
+
+✅ **Página de descargas**: `docs/downloads.md`
+   - Tabla de versiones disponibles
+   - Instrucciones SHA256 por plataforma (Linux, Windows, Mac)
+   - FAQ, changelog, links
+
+### Matriz de equivalencias (Capa A → Capa B)
+
+| Componente | Python + MkDocs | Node.js + Docusaurus | Go + Hugo |
+|---|---|---|---|
+| Versión desde | `pyproject.toml` | `package.json` | `git describe` o var |
+| Builder | `zensical` / `mkdocs` | `docusaurus` | `hugo` |
+| Build cmd | `zensical build --strict` | `docusaurus build` | `hugo` |
+| Output dir | `site/` | `build/` | `public/` |
+| ZIP script | `python scripts/build_docs_zip.py` | `node scripts/build-docs-zip.js` | `./scripts/build-docs-zip.sh` |
+| CI language | Python 3.12 | Node.js 20 | Go 1.22 |
+
+---
 
 Copia únicamente `.claude/settings.json.example` y adapta los comandos a las herramientas del destino.
 No copies `settings.json` del origen (apunta a herramientas Python). Sustituye según la matriz:

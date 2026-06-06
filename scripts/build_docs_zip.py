@@ -11,11 +11,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import shutil
 import subprocess
 import sys
 import tomllib
 
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -44,6 +46,40 @@ def _zip(output_dir: Path, version: str) -> Path:
     archive = Path(shutil.make_archive(str(zip_stem), "zip", SITE_DIR))
     print(f"[build_docs_zip] Created: {archive}")
     return archive
+
+
+def _sha256_file(file_path: Path) -> str:
+    """Calculate SHA256 hash of a file."""
+    sha256_hash = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            sha256_hash.update(chunk)
+    return sha256_hash.hexdigest()
+
+
+def _create_checksum_files(archive: Path) -> str:
+    """Create .sha256 and CHECKSUMS.txt files for integrity validation."""
+    sha256_hash = _sha256_file(archive)
+
+    # Create .sha256 file (single line with hash and filename)
+    sha256_file = archive.with_suffix(".zip.sha256")
+    with open(sha256_file, "w") as f:
+        f.write(f"{sha256_hash}  {archive.name}\n")
+
+    # Create/append to CHECKSUMS.txt in the same directory
+    checksums_file = archive.parent / "CHECKSUMS.txt"
+    timestamp = datetime.now().isoformat()
+    with open(checksums_file, "a") as f:
+        f.write(f"{sha256_hash}  {archive.name}  ({timestamp})\n")
+
+    # Display checksums
+    file_size_mb = archive.stat().st_size / (1024 * 1024)
+    print(f"\n[build_docs_zip] ✅ ZIP created: {archive.name} ({file_size_mb:.2f} MB)")
+    print(f"[build_docs_zip] 🔐 SHA256: {sha256_hash}")
+    print(f"[build_docs_zip] 📄 Checksum saved to: {sha256_file.name}")
+    print(f"[build_docs_zip] 📋 All checksums in: {checksums_file.name}")
+
+    return sha256_hash
 
 
 def main() -> None:
@@ -82,7 +118,8 @@ def main() -> None:
         sys.exit(1)
 
     output_dir = Path(args.output_dir) if Path(args.output_dir).is_absolute() else ROOT / args.output_dir
-    _zip(output_dir, _version())
+    archive = _zip(output_dir, _version())
+    _create_checksum_files(archive)
 
 
 if __name__ == "__main__":
