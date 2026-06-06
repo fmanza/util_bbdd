@@ -10,11 +10,11 @@ La documentación completa está disponible como un archivo ZIP comprimido que p
 
 ### Características del ZIP
 
-✅ **Búsqueda offline** — Índice de búsqueda completo  
-✅ **Navegación interactiva** — Menú y referencias cruzadas  
-✅ **Diagramas Mermaid** — Grafos de relaciones, flujos, arquitectura  
-✅ **Ejemplos de código** — CRUD, async, comparadores, migraciones  
-✅ **Responsive** — Compatible con móvil, tablet y desktop  
+- ✅ **Búsqueda offline** — Índice de búsqueda completo
+- ✅ **Navegación interactiva** — Menú y referencias cruzadas
+- ✅ **Diagramas Mermaid** — Grafos de relaciones, flujos, arquitectura
+- ✅ **Ejemplos de código** — CRUD, async, comparadores, migraciones
+- ✅ **Responsive** — Compatible con móvil, tablet y desktop  
 
 ---
 
