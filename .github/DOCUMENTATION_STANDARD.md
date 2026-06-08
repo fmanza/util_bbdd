@@ -295,7 +295,87 @@ Estas páginas entran directamente en `nav:` (nivel raíz), no bajo `functional/
 
 ---
 
-### 3.8 Estándar de la Sección Guías (`docs/guides/`)
+### 3.8 Arquetipo 8 — Trazabilidad Normativa (`docs/normativa/`) — **Condicional**
+
+**Propósito**: Responder "¿Qué obligaciones legales o reglamentarias están cubiertas por este sistema?"
+
+**Condición de activación**: SOLO si el proyecto hace referencia explícita a leyes, decretos,
+directivas, normas UNE o cualquier normativa de obligado cumplimiento. Verificar en `.ai/product.md`
+o `README.md`. Si no hay normativa de referencia → **este arquetipo no aplica** y la carpeta
+`docs/normativa/` no se crea.
+
+> **Este proyecto (util_bbdd)**: librería Python de operaciones de base de datos sin normativa de
+> referencia explícita. El arquetipo no aplica actualmente. Si en el futuro se incorpora
+> normativa (ej. RGPD, LOPD-GDD para datos procesados, normas de accesibilidad), aplicar entonces.
+
+**Audiencia**: auditores de cumplimiento, técnicos de normativa, responsables de proyecto.
+
+**Ubicación**: `docs/normativa/<abbrev_norma>_traceability.md`  
+**Naming**: nombre en minúsculas con guión bajo (ej. `ley39_rd174_traceability.md`, `rgpd_traceability.md`)
+
+**Estructura obligatoria** (secciones en este orden):
+
+```
+# Trazabilidad Normativa — <Nombre de las normas>
+
+(versión del sistema analizado + fecha de revisión)
+
+## Propósito
+
+## 1. <Norma A> — <Nombre corto>
+  ### 1.1 <Grupo de artículos>
+  Tabla: | Artículo | Obligación | Módulo/servicio | Doc de referencia | Cobertura |
+  ### ...
+
+## 2. <Norma B> — ...
+
+## N. Resumen de gaps por severidad
+  ### Nivel 1 — Crítico (riesgo de incumplimiento o auditoría bloqueada)
+  Tabla: | ID | Gap | Norma | Módulo afectado | Acción recomendada |
+  ### Nivel 2 — Importante (gap documental, dificulta mantenimiento)
+  ### Nivel 3 — Mejora
+
+## N+1. Normativa complementaria referenciada
+Tabla: | Norma | Objeto | Cobertura en el sistema |
+
+## N+2. Próximas acciones priorizadas
+```
+
+**Leyenda de cobertura**:
+
+| Símbolo | Significado |
+|---------|-------------|
+| ✅ | Cubierto — implementado y documentado |
+| ⚠️ | Parcial — implementado pero con gap documental o funcional conocido |
+| ❌ | Gap — no implementado o sin documentación verificable |
+| 🔍 | A verificar — evidencia insuficiente para determinar cobertura |
+
+**Sección MkDocs** (solo si el arquetipo aplica):
+
+```yaml
+- Normativa:                                                     # Entre "Funcional" y "Arquitectura"
+    - Trazabilidad <Nombre norma>: normativa/<codigo>_traceability.md
+```
+
+**Cuándo crear**: al comenzar el proyecto si la normativa es conocida desde el inicio, o en la
+primera auditoría de cumplimiento formal.
+
+**Cuándo actualizar**:
+- Cuando cambia la normativa de referencia (modificación legal, nuevo artículo)
+- Cuando se implementa un módulo que cubre un gap documentado
+- En cada revisión de versión mayor que afecte lógica de negocio regulada
+
+**Restricciones estrictas**:
+- No inventar contenido normativo sin verificar contra el texto oficial
+- Marcar como 🔍 cualquier artículo sin evidencia suficiente en código o documentación
+- No documentar como ✅ ningún artículo sin módulo del sistema identificado
+- No copiar texto legal verbatim; describir la obligación en términos del sistema
+
+**Prompt de generación**: `.github/prompts/normative_traceability.prompt.md`
+
+---
+
+### 3.9 Estándar de la Sección Guías (`docs/guides/`)
 
 Esta sección define el contrato mínimo y las reglas de nomenclatura para **todos los proyectos**.
 
@@ -550,6 +630,7 @@ nav:
 | **Microservicios** | `docs/architecture/microservices.md` | Si el proyecto expone o consume múltiples servicios |
 | **Docker / Contenedores** | `docs/architecture/docker.md` | Si existe `Dockerfile` o `docker-compose.yml` en el repo |
 | **Contributing** | `docs/contributing.md` | Proyectos open source |
+| **Normativa** | `docs/normativa/` | **Solo** si el proyecto referencia leyes, decretos o normativas de obligado cumplimiento (Arquetipo 8) |
 
 ---
 

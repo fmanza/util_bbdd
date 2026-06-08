@@ -25,6 +25,15 @@ Lee antes de generar:
 
 ## Tipos de documentación que crea o actualiza
 
+### 0. Detección de normativa de referencia (paso previo automático)
+
+Antes de generar documentación, leer `.ai/product.md` y `README.md`.
+Si el proyecto menciona leyes, decretos, directivas o normativas de obligado cumplimiento:
+- Verificar si existe `docs/normativa/` con documentos de trazabilidad (Arquetipo 8).
+- Si no existe → ofrecer generarlo con `.github/prompts/normative_traceability.prompt.md`.
+- Si existe → verificar que la sección `Normativa` está en `mkdocs.yml`.
+Si el proyecto **no tiene normativa de referencia** → omitir este tipo por completo.
+
 ### 1. Documentación funcional (`docs/functional/`)
 
 Destinada a: jefes de proyecto, responsables de calidad, equipos de negocio.
@@ -193,6 +202,20 @@ Cuando el usuario pida documentar o actualizar todo el proyecto, usa este flujo 
 - Valida Markdown, enlaces relativos y sintaxis Mermaid.
 - Ejecuta o recomienda `mkdocs build` para detectar errores de navegación.
 - Entrega inventario final: páginas creadas, actualizadas, sin cambios y pendientes de verificación humana.
+
+### 4. Documentación normativa (`docs/normativa/`) — Condicional
+
+Solo cuando el proyecto tenga normativa de referencia (detectada en paso 0).
+
+Aplica `.github/prompts/normative_traceability.prompt.md`.
+
+Genera o actualiza `docs/normativa/<codigo_norma>_traceability.md` con:
+- Tabla de cobertura artículo por artículo (norma → módulo → doc existente → símbolo cobertura)
+- Resumen de gaps por severidad (Nivel 1/2/3)
+- Normativa complementaria referenciada
+- Próximas acciones priorizadas
+
+Actualiza `mkdocs.yml`: añade sección `Normativa` entre `Funcional` y `Arquitectura` si no existe.
 
 ## Restricciones
 

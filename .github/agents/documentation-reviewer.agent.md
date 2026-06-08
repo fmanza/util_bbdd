@@ -34,6 +34,12 @@ Lee antes de revisar:
 7. **Changelog y releases**: claridad, linkability, impacto comunicado
 8. **MkDocs**: `nav`, páginas huérfanas, páginas referenciadas inexistentes, Mermaid, extensiones
 9. **Prompts e instrucciones IA**: calidad, no duplicación, no invención, separación funcional/técnica
+10. **Normativa (condicional)**: leer `.ai/product.md` y `README.md`:
+    - Si el proyecto referencia leyes, decretos o normativas de obligado cumplimiento:
+      verificar que existe `docs/normativa/` con al menos un documento de trazabilidad
+      (Arquetipo 8), que sigue la estructura artículo → módulo → cobertura, y que la sección
+      `Normativa` está en `mkdocs.yml` entre Funcional y Arquitectura.
+    - Si **no hay normativa de referencia** en el proyecto → omitir este punto completamente.
 
 ## Restricciones
 
