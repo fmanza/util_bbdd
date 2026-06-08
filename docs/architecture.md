@@ -153,7 +153,7 @@ Las decisiones de diseño con trade-offs se registran como ADR en [`docs/adr/`](
 | Riesgo / deuda | Impacto | Mitigación |
 |---|---|---|
 | HSQLDB sin soporte async | Funcionalidad async no disponible para ese motor | Las factorías async lanzan error explícito; documentado en la matriz de soporte |
-| Dependencia interna `util` desde `git+@develop` | Instalación falla sin acceso a GitHub | Procedimiento `--no-deps` documentado en [Instalación](INSTALLATION.md#5-solucion-de-problemas) |
+| Dependencia interna `util` desde `git+@develop` | Instalación falla sin acceso a GitHub | Procedimiento `--no-deps` documentado en [Instalación](installation.md#5-solucion-de-problemas) |
 
 ### Extensión y límites
 
