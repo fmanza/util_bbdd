@@ -123,7 +123,7 @@ Un resultado limpio muestra todas las verificaciones en ✅ OK y ninguna entrada
 | Escenario | Causa probable | Solución |
 |---|---|---|
 | `--strict` falla con WARNING en plugin desconocido | Plugin no instalado o nombre cambiado en la versión activa | Ejecutar `--verify-tools` para obtener el nombre correcto |
-| Sección autodoc sin métodos (alias bug) | Directiva `:::` apunta a un alias de variable, no a la clase real | Cambiar `util_bbdd.modulo.alias` → `util_bbdd.modulo.ClaseReal` (ver [Referencia Técnica](api/bulk-crud.md)) |
+| Sección autodoc sin métodos (alias bug) | Directiva `:::` apunta a un alias de variable, no a la clase real | Cambiar `util_bbdd.modulo.alias` → `util_bbdd.modulo.ClaseReal` (ver [Referencia Técnica](../api/bulk-crud.md)) |
 | `--8<--` aparece en el HTML como texto literal | El plugin `snippets` no está habilitado en `mkdocs.yml` | Añadir `- pymdownx.snippets` en `markdown_extensions` |
 | Puerto 8000 ocupado en Modo B | Otro proceso usa el puerto | Detener el proceso o cambiar el puerto: `mkdocs serve --dev-addr=127.0.0.1:8001` |
 | Mermaid no aparece como SVG en Modo A | Correcto — en build estático Mermaid requiere JS en cliente | Usar Modo B (`--serve`) para ver el SVG renderizado |

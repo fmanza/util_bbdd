@@ -212,6 +212,30 @@ Esta especialización es **compatible con agentes Copilot Chat**:
 
 ---
 
+## 📐 Arquetipos Formales de Documentación
+
+Toda documentación en util_bbdd sigue **7 arquetipos formales** definidos en [`.github/DOCUMENTATION_STANDARD.md`](./.github/DOCUMENTATION_STANDARD.md#3-propuesta-de-cambios):
+
+| Arquetipo | Propósito | Ubicación | Prompt | Secciones |
+|---|---|---|---|---|
+| **1. Funcional** | ¿Qué hace y por qué? | `docs/functional/` | `functional_doc.prompt.md` | 1. Descripción · 2. Reglas · 3. Casos de Uso · 4. Criterios* · 5. Glosario |
+| **2. Técnica/API** | ¿Cómo funciona internamente? | `docs/api/` | `technical_doc.prompt.md` | 1. Arquitectura · 2. Contratos · 3. Componentes · 4. Dependencias · 5. Ejemplos Relacionados ↔ |
+| **3. Guía de Usuario** | ¿Cómo se usa/instala? | `docs/` raíz | `guide_doc.prompt.md` | 1. Objetivo · 2. Requisitos · 3. Pasos · 4. Verificación · 5. Variantes |
+| **4. Ejemplos de Código** | ¿Cómo se implementa? | `docs/examples/` | `example_doc.prompt.md` | 1. Contexto · 2. Código (`--8<--`) · 3. Explicación · 4. Ejecución · 5. Referencias ↔ |
+| **5. Decisión Arquitectónica** | ¿Por qué se decidió así? | `docs/adr/` | `architecture_doc.prompt.md` | Contexto → Decisión → Consecuencias → Alternativas → Estado |
+| **6. Navegación Principal** *(variante)* | Intro + instalación + visión | `docs/index.md`, `INSTALLATION.md` | `landing_doc.prompt.md` | Variante A/B/C según tipo |
+| **7. Onboarding Desarrolladores** | ¿Cómo me incorporo al proyecto? | `docs/ONBOARDING_DEV.md` | `onboarding_dev.prompt.md` | 1–4 Entorno · 5–6 Infra/App · 7 Mapa · 8 Convenciones · 9 Git · 10 Verificación · 11 Recursos |
+
+**Características clave**:
+- ✅ Secciones fijas: estructura inmutable (nunca omitir, escribir "No aplica" si vacío)
+- ✅ Enlaces bidireccionales: Arquetipo 2 (§5) ↔ Arquetipo 4 (§5) obligatorios
+- ✅ Multi-lenguaje: Arquetipos 2 y 7 soportan cualquier stack (Python, Java, TypeScript, Go…)
+- ✅ Navegación: 7 secciones top-level exactas en `mkdocs.yml`
+
+**Notas especiales**:
+- Criterios de Aceptación (Arq.1 §4): Pendiente QA — placeholder hasta validación
+- Documentación informativo-libre: Roadmaps/planes de release usan `<!-- arquetipo: informativo-libre -->` y quedan exentos
+
 ## Documentación con Claude Code
 
 Usa el **Documentation Generator** (agente) como **único punto de entrada** para crear o actualizar

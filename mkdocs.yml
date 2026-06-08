@@ -9,7 +9,7 @@ site_dir: site
 
 nav:
   - Inicio: index.md
-  - Instalación: INSTALLATION.md
+  - Instalación: installation.md
   - 📥 Descargas: downloads.md
 
   # ── Audiencia: Product Owner, QA, responsables de negocio ──────────────────
@@ -93,31 +93,32 @@ nav:
 
   # ── Guías de uso y operación ───────────────────────────────────────────────
   - Guías:
+      - Incorporación para Desarrolladores: guides/onboarding_dev.md
       - Conexión y Drivers:
-          - Conexión y Drivers por Motor: CONNECTION_GUIDE.md
-          - Programación Asíncrona: ASYNC_GUIDE.md
-          - Drivers PostgreSQL: POSTGRESQL_DRIVER_GUIDE.md
+          - Conexión y Drivers por Motor: guides/connection_guide.md
+          - Programación Asíncrona: guides/async_guide.md
+          - Drivers PostgreSQL: guides/postgresql_driver_guide.md
       - Errores y Diagnóstico:
-          - Excepciones: EXCEPTIONS.md
-          - Troubleshooting: TROUBLESHOOTING.md
+          - Excepciones: guides/exceptions.md
+          - Troubleshooting: guides/troubleshooting.md
       - Comparación de Esquemas:
-          - Comparador de Esquemas: COMPARATOR.md
+          - Comparador de Esquemas: guides/comparator.md
       - Volcado de Datos:
-          - Volcado de Datos entre Motores: DUMP_GUIDE.md
+          - Volcado de Datos entre Motores: guides/dump_guide.md
       - Migración de Esquemas:
-          - Migración DDL entre Motores: DDL_MIGRATION_GUIDE.md
+          - Migración DDL entre Motores: guides/ddl_migration_guide.md
       - Rendimiento:
-          - Performance & Benchmarks: BENCHMARKS.md
+          - Performance & Benchmarks: guides/benchmarks.md
       - Migración de Versión:
-          - Guía de Migración (v0.6.3): MIGRATION_GUIDE.md
-          - Migración v0.6.6→v0.6.7: MIGRATION_GUIDE_v0.6.7.md
+          - Guía de Migración (v0.6.3): guides/migration_guide.md
+          - Migración v0.6.6→v0.6.7: guides/migration_guide_v0.6.7.md
       - "Herramientas IA":
-          - Guía completa (VS Code): doc_generation_vscode_guide.md
-          - Copilot Chat (.github): github_copilot_guide.md
-          - Claude Code: claude_code_guide.md
-          - Codex (OpenAI): codex_guide.md
-          - Verificación de docs (--verify-tools / --verify-build): doc_verification_guide.md
-          - Distribución offline (ZIP): docs_offline_zip_guide.md
+          - Guía completa (VS Code): guides/doc_generation_vscode_guide.md
+          - Copilot Chat (.github): guides/github_copilot_guide.md
+          - Claude Code: guides/claude_code_guide.md
+          - Codex (OpenAI): guides/codex_guide.md
+          - Verificación de docs (--verify-tools / --verify-build): guides/doc_verification_guide.md
+          - Distribución offline (ZIP): guides/docs_offline_zip_guide.md
 
   # ── Ejemplos de código ─────────────────────────────────────────────────────
   - Ejemplos:
@@ -152,11 +153,11 @@ nav:
 
   # ── Contexto del proyecto ──────────────────────────────────────────────────
   - Arquitectura:
-      - Arquitectura del Sistema: ARCHITECTURE.md
+      - Arquitectura del Sistema: architecture.md
       - ADR-001 Refactoring: adr/ADR-001-STRUCTURE-REFACTORING.md
       - Plantilla ADR: adr/ADR-TEMPLATE.md
   - Historia y Planes:
-      - Roadmap: ROADMAP.md
+      - Roadmap: roadmap.md
       - Versiones Históricas: legacy-versions.md
       - "Plan v0.8.0 — Sistema de Tipos Avanzado (entregado)": v0.8.0/PLAN_v0.8.0_TYPE_SYSTEM_IMPROVEMENTS.md
 

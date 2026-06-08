@@ -212,7 +212,7 @@ Todas las versiones publicadas están disponibles en:
 
 - [Configuración Zensical](https://github.com/fmanza/util_bbdd/blob/develop/ZENICAL.md) — Generadores de documentación
 - [Guía de Instalación CI/CD](https://github.com/fmanza/util_bbdd/blob/develop/.github/docs-zip-setup-guide.md) — GitHub Actions y automatización
-- [Guía offline ZIP](docs_offline_zip_guide.md) — Documentación técnica del sistema
+- [Guía offline ZIP](guides/docs_offline_zip_guide.md) — Documentación técnica del sistema
 - [GitHub Repository](https://github.com/fmanza/util_bbdd) — Código fuente
 
 ---

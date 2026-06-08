@@ -31,10 +31,10 @@ python -m py_compile docs/examples/exception_handling.py
 python docs/examples/exception_handling.py
 ```
 
-Ver [Guía de Excepciones](../EXCEPTIONS.md) para la jerarquía completa de errores.
+Ver [Guía de Excepciones](../guides/exceptions.md) para la jerarquía completa de errores.
 
 ## 5. Referencias Relacionadas
 
 - **Documentación funcional**: *No aplica para este módulo.* Las excepciones son transversales a todos los módulos.
 - **Referencia técnica**: [Excepciones](../api/exceptions.md) — jerarquía completa y autodoc de la clase base
-- **Guía**: [Guía de Excepciones](../EXCEPTIONS.md) — patrones de manejo y jerarquía completa
+- **Guía**: [Guía de Excepciones](../guides/exceptions.md) — patrones de manejo y jerarquía completa

@@ -5,11 +5,11 @@
 Generar automáticamente el script de creación de estructura (DDL) de un esquema completo de un
 motor para ejecutarlo en otro, adaptando tipos, autoincremento y FKs circulares al dialecto
 destino. Es un **how-to operativo**; para casos de uso y reglas de negocio por motor, ver la
-documentación funcional de migración (p. ej. [Oracle como origen](functional/migrate-oracle-mariadb.md))
-y la [referencia técnica](api/migrate-oracle-mariadb.md).
+documentación funcional de migración (p. ej. [Oracle como origen](../functional/migrate-oracle-mariadb.md))
+y la [referencia técnica](../api/migrate-oracle-mariadb.md).
 
 La migración produce **solo DDL** (estructura), no copia filas. Para mover los datos una vez creada
-la estructura, usa la [guía de volcado de datos](DUMP_GUIDE.md).
+la estructura, usa la [guía de volcado de datos](dump_guide.md).
 
 **Motores soportados** (origen ≠ destino):
 
@@ -20,7 +20,7 @@ la estructura, usa la [guía de volcado de datos](DUMP_GUIDE.md).
 
 ## 2. Requisitos Previos
 
-- Python 3.12+ con `util_bbdd` y el driver del motor **origen** instalado (ver [Instalación](INSTALLATION.md)).
+- Python 3.12+ con `util_bbdd` y el driver del motor **origen** instalado (ver [Instalación](../installation.md)).
 - Un `SyncDatabaseManager` **activo** del motor origen con permisos de lectura sobre sus catálogos de metadatos (p. ej. en Oracle: `ALL_TABLES`, `ALL_TAB_COLUMNS`, `ALL_CONSTRAINTS`, `ALL_INDEXES`, `ALL_VIEWS`).
 - El nombre del **schema/owner** a migrar (sensible a mayúsculas en Oracle; en SQL Server es el `TABLE_SCHEMA`, p. ej. `dbo`).
 - Opcional: un manager del motor **destino** si se desea ejecutar el DDL directamente.
@@ -132,5 +132,5 @@ print(format_plan_text(plan))          # resumen de avisos por severidad
 | Columnas `ROWID`/`UROWID` (Oracle) | Sin equivalente en el destino | Se omiten con un comentario SQL explicativo en su lugar |
 
 Para un script completo por motor origen, ver los ejemplos de migración
-([Oracle](examples/migrate-oracle-mariadb.md), [MariaDB](examples/migrate-mariadb-source.md),
-[SQL Server](examples/migrate-sqlserver-source.md), [PostgreSQL](examples/migrate-postgresql-source.md)).
+([Oracle](../examples/migrate-oracle-mariadb.md), [MariaDB](../examples/migrate-mariadb-source.md),
+[SQL Server](../examples/migrate-sqlserver-source.md), [PostgreSQL](../examples/migrate-postgresql-source.md)).

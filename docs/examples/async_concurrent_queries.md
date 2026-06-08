@@ -31,7 +31,7 @@ python -m py_compile docs/examples/async_concurrent_queries.py
 python docs/examples/async_concurrent_queries.py
 ```
 
-Ver [Guía de Programación Asíncrona](../ASYNC_GUIDE.md) para más patrones async/await.
+Ver [Guía de Programación Asíncrona](../guides/async_guide.md) para más patrones async/await.
 
 ## 5. Referencias Relacionadas
 

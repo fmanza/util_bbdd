@@ -111,7 +111,7 @@ except Exception as e:
 | Excepción | Causa típica | Solución |
 |---|---|---|
 | `InvalidDatabaseType` | `db_type` no reconocido | Usar exactamente: `mariadb`, `oracle`, `postgresql`, `sqlite`, `hsqldb`, `sqlserver` |
-| `DriverNotFoundError` | Driver Python del motor no instalado | Instalar el driver correspondiente (ver INSTALLATION.md) |
+| `DriverNotFoundError` | Driver Python del motor no instalado | Instalar el driver correspondiente (ver installation.md) |
 | `PoolExhaustedError` | Más conexiones concurrentes que `pool_size` | Aumentar `pool_size` o usar semáforo para limitar concurrencia |
 | `QueryTimeoutError` | La query supera el timeout configurado | Aumentar el timeout o optimizar la query |
 | `QueryNotFoundError` | Query por nombre no registrada en `QueryRegistry` | Registrar la query antes de usarla o usar `execute_custom_*` |

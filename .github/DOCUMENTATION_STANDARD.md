@@ -148,13 +148,13 @@ Si no existe ningún ejemplo del módulo: "Pendiente — crear ejemplo en docs/e
 
 ---
 
-### 3.3 Arquetipo 3 — Guías de Usuario o Configuración (`docs/` raíz)
+### 3.3 Arquetipo 3 — Guías de Usuario o Configuración (`docs/guides/`)
 
-**Propósito**: Responder "¿Cómo se usa/instala?"
+**Propósito**: Responder "¿Cómo se usa/instala/opera?"
 
-**Audiencia**: usuarios finales que instalan o configuran el sistema.
+**Audiencia**: usuarios finales, operadores y desarrolladores que necesitan una guía how-to.
 
-**Ubicación**: `docs/[nombre-guia].md`
+**Ubicación**: `docs/guides/[nombre_guia].md` (siempre en `guides/`, nombre en minúsculas con guiones bajos)
 
 **Estructura obligatoria** (secciones numeradas, en este orden):
 
@@ -241,7 +241,7 @@ Documenta **una decisión concreta con trade-offs**, no la visión global del si
 
 **Audiencia**: cualquier visitante que llega a la documentación por primera vez.
 
-**Ubicación**: `docs/index.md` (Inicio), `docs/INSTALLATION.md` (Instalación), `docs/ARCHITECTURE.md` (Arquitectura).
+**Ubicación**: `docs/index.md` (Inicio), `docs/installation.md` (Instalación), `docs/architecture.md` (Arquitectura).
 
 **Prompt**: `.github/prompts/landing_doc.prompt.md` (tres variantes A/B/C, 5 secciones cada una).
 
@@ -256,6 +256,92 @@ Estas páginas entran directamente en `nav:` (nivel raíz), no bajo `functional/
 - El Arquetipo 3 (`guide_doc`) cubre guías genéricas (async, drivers, troubleshooting); la Variante B es específica de instalación del paquete y drivers.
 
 **Excepción**: `docs/index.md` y `docs/legacy-versions.md` seguían exentos en v1; con este arquetipo `index.md` pasa a regirse por la Variante A. `legacy-versions.md` permanece exento.
+
+---
+
+### 3.7 Arquetipo 7 — Guía de Incorporación para Desarrolladores (`docs/ONBOARDING_DEV.md`)
+
+**Propósito**: Responder "¿Cómo me incorporo al proyecto y pongo en marcha mi entorno?"
+
+**Audiencia**: desarrolladores que se incorporan al proyecto por primera vez.
+
+**Ubicación**: `docs/guides/onboarding_dev.md` (todos los proyectos — mismo convenio que el resto de guías)
+
+**Prompt**: `.github/prompts/onboarding_dev.prompt.md`
+
+**Secciones obligatorias** (11, en este orden):
+
+```
+## 1. Prerequisitos del Entorno      — tabla: Herramienta | Versión mínima | Verificar con | Notas
+## 2. Obtener el Código              — clone, rama de trabajo, submódulos/dependencias privadas
+## 3. Configurar el Entorno          — venv/IDE, credenciales, registros privados, ficheros de config
+## 4. Primera Compilación/Instalación — comando principal + tabla de errores frecuentes
+## 5. Infraestructura Local           — BD, contenedores, servicios; "*No aplica*" si librería stateless
+## 6. Ejecutar la Aplicación          — puertos, URLs, credenciales; "*No aplica*" si librería
+## 7. Mapa del Código                 — árbol simplificado, responsabilidad por módulo/paquete, regla de capas
+## 8. Convenciones y Herramientas     — lint, format, tipos, tests — verificar contra SHARED_INSTRUCTIONS.md
+## 9. Flujo de Trabajo Git            — ramas, Conventional Commits, PR/MR
+## 10. Verificación del Entorno       — tabla: Verificación | Comando | Output esperado
+## 11. Recursos y Referencias         — .ai/*.md, docs/ relevantes, normativa, contacto
+```
+
+**Regla de sección vacía**: §5 y §6 **siempre** están presentes. Si el proyecto no requiere infraestructura o no tiene servidor, escribir `*No aplica para este proyecto.*` con explicación breve. Nunca omitir la sección.
+
+**Distinción con Arquetipo 3** (Guías de Usuario):
+- Arquetipo 3 documenta **cómo usar o configurar una funcionalidad** (guía how-to para usuarios finales).
+- Arquetipo 7 documenta **cómo unirse al equipo de desarrollo** (entorno, código, convenciones, workflow).
+
+**Cuándo actualizar**: en cada release mayor, tras cambios de stack o infraestructura, o cuando un nuevo desarrollador detecte que la guía está desactualizada.
+
+---
+
+### 3.8 Estándar de la Sección Guías (`docs/guides/`)
+
+Esta sección define el contrato mínimo y las reglas de nomenclatura para **todos los proyectos**.
+
+#### Convenio de nombres
+
+| Regla | Correcto | Incorrecto |
+|---|---|---|
+| Nombre en minúsculas | `connection_guide.md` | `CONNECTION_GUIDE.md` |
+| Palabras con guión bajo | `async_guide.md` | `async-guide.md`, `asyncGuide.md` |
+| Ubicación siempre en `guides/` | `docs/guides/troubleshooting.md` | `docs/TROUBLESHOOTING.md` |
+| Sin subcarpetas dentro de `guides/` | `guides/deployment_guide.md` | `guides/ops/deployment.md` |
+
+#### Conjunto mínimo obligatorio
+
+| Fichero | Arquetipo | Contenido | Mandatorio |
+|---|---|---|---|
+| `guides/onboarding_dev.md` | 7 | Incorporación: entorno, código, convenciones, verificación | ✅ Siempre |
+| `guides/troubleshooting.md` | 3 | Problemas frecuentes por categoría + solución verificable | ✅ Siempre |
+
+#### Guías adicionales según tipo de proyecto
+
+| Tipo de proyecto | Guías recomendadas |
+|---|---|
+| Librería Python (util_bbdd) | `connection_guide.md`, `async_guide.md`, `exceptions.md`, `migration_guide.md`, + guías de drivers y herramientas IA |
+| Aplicación con servidor (dpss) | `despliegue_docker.md` o `deployment_guide.md` |
+| Cualquier proyecto con herramientas IA | Subsección "Herramientas IA" en Guías: claude_code_guide.md, codex_guide.md, etc. |
+
+#### Estructura de la sección en `mkdocs.yml`
+
+```yaml
+- Guías:
+    - Incorporación para Desarrolladores: guides/onboarding_dev.md   # Siempre primero
+    - [Grupos operativos según el proyecto]:                           # Conexión, Despliegue, etc.
+        - [Guía específica]: guides/[nombre_guia].md
+    - Errores y Diagnóstico:
+        - Troubleshooting: guides/troubleshooting.md                  # Siempre en esta subsección
+    - Herramientas IA:                                                 # Si el proyecto usa herramientas IA
+        - [Nombre herramienta]: guides/[tool]_guide.md
+```
+
+#### Cuándo actualizar
+
+- Al incorporar el primer desarrollador externo → generar `onboarding_dev.md` si no existe.
+- Tras cambios de stack, build tool o infraestructura → actualizar `onboarding_dev.md`.
+- Cuando se reporta un error no documentado → añadir a `troubleshooting.md`.
+- Cuando se añade una herramienta IA nueva → añadir su guía en Herramientas IA.
 
 ---
 
@@ -437,14 +523,15 @@ nav:
       # ... resto de ejemplos agrupados por área en mkdocs.yml
 
   - Guías:                                 # subsecciones temáticas (how-tos transversales)
+      - Incorporación para Desarrolladores: guides/onboarding_dev.md
       - Conexión y Drivers:
-          - Programación Asíncrona: ASYNC_GUIDE.md
-          - Drivers PostgreSQL: POSTGRESQL_DRIVER_GUIDE.md
+          - Programación Asíncrona: guides/async_guide.md
+          - Drivers PostgreSQL: guides/postgresql_driver_guide.md
       - Errores y Diagnóstico:
-          - Excepciones: EXCEPTIONS.md
-          - Troubleshooting: TROUBLESHOOTING.md
+          - Excepciones: guides/exceptions.md
+          - Troubleshooting: guides/troubleshooting.md
       - Herramientas IA:
-          - Guía completa (VS Code): doc_generation_vscode_guide.md
+          - Guía completa (VS Code): guides/doc_generation_vscode_guide.md
       # ... resto de guías agrupadas por tema en mkdocs.yml
 ```
 
@@ -515,8 +602,8 @@ nav:
    - Ejemplos: `docs/examples/[caso].md` (ficheros **planos en disco**, sin subcarpetas por tipo).
      En `nav:` **se agrupan en subsecciones por área funcional**, igual que `Referencia Técnica`
      y `Documentación Funcional` (ver `docs.instructions.md` → "Agrupación en subsecciones por área").
-   - Guías: `docs/[nombre].md` en raíz (ficheros **planos en disco**).
-     En `nav:` **se agrupan en subsecciones temáticas** (Conexión y Drivers, Errores y Diagnóstico,
+   - Guías: `docs/guides/[nombre].md` (ficheros en carpeta `guides/`, **nombre siempre en minúsculas con guiones bajos**).
+     En `nav:` **se agrupan en subsecciones temáticas** (Incorporación, Conexión y Drivers, Errores y Diagnóstico,
      Rendimiento, Migración de Versión, Herramientas IA…), no por módulo.
 
 3. **Actualización de mkdocs.yml**: Automatizada con `mkdocstrings` + agente `documentation-generator`

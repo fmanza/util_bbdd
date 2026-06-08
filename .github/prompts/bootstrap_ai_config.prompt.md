@@ -110,10 +110,20 @@ Clasifica **cada** activo IA del origen en una de estas cuatro capas:
 - `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.cursorrules`
 - `.github/AGENTS.md`, `.github/instructions/sync.instructions.md`
 - `.github/DOCUMENTATION_STANDARD.md` (solo si el destino publica documentación)
+- **PROMPTS DE ARQUETIPOS DOCUMENTALES** (si el destino publica documentación):
+  - `.github/prompts/functional_doc.prompt.md` (Arquetipo 1: Documentación Funcional)
+  - `.github/prompts/technical_doc.prompt.md` (Arquetipo 2: Documentación Técnica/API)
+  - `.github/prompts/guide_doc.prompt.md` (Arquetipo 3: Guías de Usuario)
+  - `.github/prompts/example_doc.prompt.md` (Arquetipo 4: Ejemplos de Código)
+  - `.github/prompts/architecture_doc.prompt.md` (Arquetipo 5: Decisiones Arquitectónicas/ADR)
+  - `.github/prompts/landing_doc.prompt.md` (Arquetipo 6: Páginas Navegación Principal)
 - **NUEVO**: `docs/downloads.md` (página de descarga offline si destino publica documentación)
 - **NUEVO**: `scripts/build_docs_zip.py` + `.github/workflows/docs-zip-release.yml` (si destino
   publica documentación con generador estático): adaptar builder por defecto (`--builder`),
   secrets del workflow, prefijo ZIP, SHA256 y generación de checksums
+- **NUEVO**: `.github/prompts/onboarding_dev.prompt.md` (Arquetipo 7 — Onboarding Desarrolladores):
+  copiar + actualizar el bloque "Especialización de dominio" con stack, herramientas, infraestructura
+  y rutas del destino; las 11 secciones del núcleo son idénticas en todos los proyectos
 
 ### Capa C — Regenerar desde cero (NO copiar contenido del origen)
 
@@ -148,11 +158,10 @@ Clasifica **cada** activo IA del origen en una de estas cuatro capas:
 
 ### OPCIONAL (añadir según necesidad)
 
-- Agentes/prompts de documentación (`documentation-*`, `*_doc.prompt.md`) → solo si el destino
-  publica documentación con un generador estático.
+- Agentes de documentación (`documentation-generator`, `documentation-reviewer`) → solo si destino publica docs.
 - `security-review`, `tech-debt`, `maturity-assessment` → recomendables, no críticos al arrancar.
 - `EDGE_CASES.md`, `TESTING_GUIDE.md` → copiar como plantilla vacía; se pueblan con el tiempo.
-- `INTEGRATION_MAP.md`, `DOCUMENTATION_STANDARD.md` → si el destino es una librería con docs públicas.
+- `INTEGRATION_MAP.md` → si el destino es una librería con docs públicas.
 
 ---
 
@@ -160,14 +169,61 @@ Clasifica **cada** activo IA del origen en una de estas cuatro capas:
 
 | Plataforma | Fichero entry point | Especificidad a reescribir |
 |---|---|---|
-| Claude Code | `CLAUDE.md` | slash commands, hooks `.claude/settings.json`, ejecución local |
-| Gemini | `GEMINI.md` | estándares de código del lenguaje destino, comandos rápidos |
-| Copilot Chat | `.github/copilot-instructions.md` | agentes VS Code, `#file:`, validación de rutas |
+| Claude Code | `CLAUDE.md` | slash commands, hooks `.claude/settings.json`, ejecución local, arquetipos doc |
+| Gemini | `GEMINI.md` | estándares de código del lenguaje destino, comandos rápidos, arquetipos doc |
+| Copilot Chat | `.github/copilot-instructions.md` | agentes VS Code, `#file:`, validación de rutas, arquetipos doc |
 | Cursor | `.cursorrules` | estándar de documentación/ejemplos y reglas de estilo del destino |
 | Codex (OpenAI) | `docs/codex_guide.md` | guía de uso; lee `CLAUDE.md` + `SHARED_INSTRUCTIONS.md` + `AGENTS.md` (sin fichero propio) |
 
 Todos referencian a `.github/SHARED_INSTRUCTIONS.md` como **fuente canónica**.
 **Regla de oro**: edita primero `SHARED_INSTRUCTIONS.md`; los entry points solo añaden especialización.
+
+---
+
+## 📐 Sección Especial: Arquetipos Documentales (Capa B)
+
+**Aplica solo si** el destino publica documentación pública con un generador estático
+(MkDocs, Docusaurus, Hugo, Sphinx, etc.).
+
+### Estructura de arquetipos (5 tipos + 1 variante)
+
+El estándar de documentación incluye **6 arquetipos formales** que garantizan consistencia y
+búsqueda automática por IA. Cada uno responde una pregunta de usuario distinta:
+
+| Arq. | Nombre | Propósito | Ubicación | Prompt |
+|---|---|---|---|---|
+| **1** | Funcional | ¿Qué hace y por qué? | `docs/functional/` | `functional_doc.prompt.md` |
+| **2** | Técnica/API | ¿Cómo funciona internamente? | `docs/api/` | `technical_doc.prompt.md` |
+| **3** | Guía de Usuario | ¿Cómo se usa/instala? | `docs/` raíz | `guide_doc.prompt.md` |
+| **4** | Ejemplos de Código | ¿Cómo se implementa? | `docs/examples/` | `example_doc.prompt.md` |
+| **5** | Decisión Arquitectónica (ADR) | ¿Por qué se decidió así? | `docs/adr/` | `architecture_doc.prompt.md` |
+| **6** | Navegación Principal *(variante)* | Intro + instalación + visión | `docs/index.md`, `INSTALLATION.md`, `ARCHITECTURE.md` | `landing_doc.prompt.md` |
+
+### Adaptación de arquetipos al destino
+
+Cada prompt de arquetipo (`functional_doc.prompt.md`, etc.) contiene:
+- Estructura fija de secciones (numeradas, inmutables)
+- Ejemplos de Mermaid específicos del patrón
+- Reglas de validación (p.ej., "no inventar módulos")
+- Directivas de inclusión de código (`--8<--` para snippets)
+
+**En el destino, adaptar**:
+1. **Lenguaje de ejemplo en diagramas**: sustituir `Python` → lenguaje destino
+2. **Rutas de módulos**: reemplazar `src/util_bbdd/` → estructura real del destino
+3. **Herramientas de documentación**: si destino usa Docusaurus en lugar de MkDocs,
+   adaptar referencias a `mkdocs.yml` → `docusaurus.config.js`, plugins, etc.
+4. **Comandos de construcción**: actualizar en instrucciones IA si destino usa otra herramienta
+
+**Regla de no-invención**: Los prompts generados deben describir **solo módulos y capacidades
+reales** del destino. Marcar como "Pendiente" cualquier sección que no se pueda verificar.
+
+### Enlace bidireccional (Capa B)
+
+Los arquetipos 2 (Técnica) y 4 (Ejemplos) **están obligados a enlazarse entre sí**:
+- Arquetipo 2 §5 → lista ejemplos relacionados de Arquetipo 4
+- Arquetipo 4 §5 → lista documentación técnica de Arquetipo 2
+
+Este enlace facilita navegación y retroalimentación de IA (agentes pueden validar coherencia).
 
 ---
 

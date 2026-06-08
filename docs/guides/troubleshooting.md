@@ -6,7 +6,7 @@ Diagnosticar y resolver los errores más frecuentes de conexión, pool, drivers 
 
 ## 2. Requisitos Previos
 
-- `util_bbdd` instalado y el driver del motor configurado (ver [Guía de Instalación](INSTALLATION.md))
+- `util_bbdd` instalado y el driver del motor configurado (ver [Guía de Instalación](../installation.md))
 - Acceso al log de Python habilitado (`logging.basicConfig(level=logging.DEBUG)`) para diagnóstico de errores de pool y conexión
 - Para errores de pool async: Python 3.10+ con `asyncio`
 
@@ -74,7 +74,7 @@ with SyncDatabaseManager('sqlite', {'database': ':memory:'}) as m:
 | `ConnectionError: No se pudo conectar` | Servidor no alcanzable, credenciales incorrectas, listener apagado | Verificar host/port/credenciales; ejecutar `telnet host port` para probar conectividad |
 | `InvalidDatabaseType` | `db_type` escrito incorrectamente | Usar exactamente: `mariadb`, `oracle`, `postgresql`, `sqlite`, `hsqldb`, `sqlserver` |
 | `DriverError: No module named 'psycopg2'` | Driver no instalado en el entorno virtual activo | `pip install psycopg2-binary` en el entorno virtual correcto |
-| `pyodbc.Error: ('IM002'...)` SQL Server | ODBC driver nativo no instalado en el SO | Instalar Microsoft ODBC Driver for SQL Server (ver INSTALLATION.md) |
+| `pyodbc.Error: ('IM002'...)` SQL Server | ODBC driver nativo no instalado en el SO | Instalar Microsoft ODBC Driver for SQL Server (ver installation.md) |
 | `Lost connection to server` MariaDB bulk | `max_allowed_packet` del servidor es insuficiente | Reducir `chunk_size` a 500 o aumentar `max_allowed_packet` en el servidor |
 | `Server has gone away` MariaDB | Conexión ociosa cerrada por el servidor | Usar `SyncDatabaseManager.get_sqlalchemy_engine()` que incluye `pool_pre_ping=True` |
 | `PythonFinalizationError` al cerrar | Conexiones no cerradas explícitamente | Usar `with SyncDatabaseManager(...) as m:` o llamar `manager.close()` explícitamente |

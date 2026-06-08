@@ -76,9 +76,9 @@ result = loader.load("ventas", partition_readers)   # un callable por partición
 print(result.total_rows, result.partition_errors)
 ```
 
-Detalle y políticas de particionado: [Carga Masiva Paralela (funcional)](functional/bulk-parallel-loading.md),
-[API ParallelBulkLoader](api/bulk-parallel.md) y el ejemplo [Carga Masiva Paralela](examples/parallel_bulk_insert.md).
-Para medir el impacto de la cadencia de commit, ver el ejemplo [Commit Cadence](examples/benchmark_commit_cadence.md).
+Detalle y políticas de particionado: [Carga Masiva Paralela (funcional)](../functional/bulk-parallel-loading.md),
+[API ParallelBulkLoader](../api/bulk-parallel.md) y el ejemplo [Carga Masiva Paralela](../examples/parallel_bulk_insert.md).
+Para medir el impacto de la cadencia de commit, ver el ejemplo [Commit Cadence](../examples/benchmark_commit_cadence.md).
 
 ### Tiempos de referencia por tipo de operación (PostgreSQL 15)
 

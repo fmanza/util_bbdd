@@ -5,16 +5,16 @@
 Copiar todos los datos de un esquema origen a otro destino (mismo motor o motores distintos)
 respetando automáticamente el orden de las claves foráneas, con limpieza opcional del destino e
 informe Excel de auditoría. Es un **how-to operativo**: para el detalle de las 7 fases y los
-contratos completos, ver la [documentación funcional](functional/dump-data-export.md) y la
-[referencia técnica](api/dump.md).
+contratos completos, ver la [documentación funcional](../functional/dump-data-export.md) y la
+[referencia técnica](../api/dump.md).
 
 El volcado mueve **solo datos, nunca DDL**: las tablas destino deben existir previamente. Si
 necesitas crear primero la estructura en otro motor, usa la
-[guía de migración DDL](DDL_MIGRATION_GUIDE.md).
+[guía de migración DDL](ddl_migration_guide.md).
 
 ## 2. Requisitos Previos
 
-- Python 3.12+ con `util_bbdd` instalado y los drivers de **ambos** motores (ver [Instalación](INSTALLATION.md)).
+- Python 3.12+ con `util_bbdd` instalado y los drivers de **ambos** motores (ver [Instalación](../installation.md)).
 - `pandas` y `openpyxl` disponibles (dependencias del módulo de volcado; `openpyxl` es necesario para el informe Excel).
 - Dos engines SQLAlchemy **conectables**:
     - Origen: permiso `SELECT` sobre las tablas a volcar.
@@ -109,5 +109,5 @@ El volcado es correcto cuando: `errores` está vacío, `result.report` apunta a 
 | Paralelismo por rangos PK | `parallel_pk_ranges=N` | Particiona una tabla con PK entera en N rangos | Requiere destino sin triggers per-fila |
 
 Para un script completo y la medición del impacto, ver el
-[ejemplo ejecutable de volcado](examples/dump_data_export.md) y la guía de
-[Performance & Benchmarks](BENCHMARKS.md).
+[ejemplo ejecutable de volcado](../examples/dump_data_export.md) y la guía de
+[Performance & Benchmarks](benchmarks.md).
