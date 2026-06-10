@@ -21,6 +21,29 @@ flowchart TD
 
 ### API pública
 
+#### Clases `RangePartitioner` y `HashPartitioner`
+
+Exportadas desde `util_bbdd.bulk`. Generan listas de particiones disjuntas para usarse como `partition_readers` en `ParallelBulkLoader.load`.
+
+| Clase | Método | Firma simplificada | Descripción | Retorna |
+|---|---|---|---|---|
+| `RangePartitioner` | `partition_dataframe` | `(df, pk_col, n_partitions)` → `list[DataFrame]` | Ordena `df` por `pk_col` (int/datetime64) y devuelve N slices disjuntos | `list[pd.DataFrame]` |
+| `RangePartitioner` | `partition_ranges` | `(min_val, max_val, n_partitions)` → `list[tuple[int,int]]` | Genera N rangos `(lo, hi)` inclusivos que cubren `[min_val, max_val]`. Útil para lectores SQL sin materializar el DataFrame completo | `list[tuple[int, int]]` |
+| `HashPartitioner` | `partition_dataframe` | `(df, pk_col, n_partitions)` → `list[DataFrame]` | Asigna cada fila al bucket `hash(pk_col) % n_partitions`. Admite cualquier tipo hashable | `list[pd.DataFrame]` |
+
+**Errores de `RangePartitioner`**:
+
+| Error | Cuándo ocurre |
+|---|---|
+| `ValueError` | `n_partitions < 1` o `min_val > max_val` |
+| `TypeError` | `pk_col` no es de tipo entero ni `datetime64` en `partition_dataframe` |
+
+**Errores de `HashPartitioner`**:
+
+| Error | Cuándo ocurre |
+|---|---|
+| `ValueError` | `pk_col` no existe en `df` o `n_partitions < 1` |
+
 #### Clase `ParallelBulkLoader`
 
 | Método | Firma simplificada | Descripción | Retorna |
@@ -64,6 +87,8 @@ flowchart TD
 
 | Clase | Responsabilidad |
 |---|---|
+| `RangePartitioner` | Genera particiones disjuntas por rango de PK entera o `datetime64`; dos variantes: DataFrame en memoria o rangos `(lo, hi)` para lectores SQL |
+| `HashPartitioner` | Genera particiones disjuntas por hash de columna; admite cualquier tipo hashable |
 | `ParallelBulkLoader` | Orquesta el paralelismo: `ThreadPoolExecutor` + una `BulkCrud` por hilo |
 | `ParallelLoadResult` | Dataclass con el resultado agregado (filas totales + errores por partición) |
 

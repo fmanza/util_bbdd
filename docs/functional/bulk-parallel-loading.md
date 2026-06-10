@@ -21,7 +21,7 @@ Casos de uso típicos: refrescar un data lake con datos de un data warehouse; mi
 | Particiones disjuntas | Los rangos de cada partición no deben solaparse | Colisiones de inserción → error de integridad en destino |
 | Nº de workers ≤ pool capacity | El número de workers no debe exceder la capacidad del pool de conexiones | Bloqueo de workers; degradación exponencial de latencia |
 | Thread-safety del lector | Cada lector de partición se ejecuta en su propio hilo; si accede a estado compartido sin locks, hay condición de carrera | Lectura inconsistente; filas duplicadas o perdidas |
-| Distribución equilibrada de volumen | Cada partición debe tener un volumen similar para distribución equilibrada de carga | Desbalanceo: tiempo total = máx(tiempos de worker) |
+| Distribución equilibrada de volumen | Cada partición debe tener un volumen similar para distribución equilibrada de carga. Usar `RangePartitioner` (PKs enteras/datetime) o `HashPartitioner` (PKs tipo string/UUID) para generarlas automáticamente | Desbalanceo: tiempo total = máx(tiempos de worker) |
 | Best-effort, no atómico | Un error en una partición no cancela las demás; el volcado continúa | Datos parcialmente cargados; requiere validación post-carga |
 
 ## 3. Casos de Uso
@@ -69,9 +69,31 @@ sequenceDiagram
 
 - No apto para cargas < 100K filas (overhead de paralelización supera el beneficio)
 - No apto para datos con solapamiento de PK entre particiones
-- No incluye generación automática de rangos de partición; el usuario debe definir rangos disjuntos
 - No incluye reintento automático de particiones fallidas
 - No garantiza atomicidad global: un volcado interrumpido deja datos parcialmente cargados
+
+### Generación automática de particiones
+
+`RangePartitioner` y `HashPartitioner` generan particiones disjuntas sin escribir rangos manualmente:
+
+| Helper | Cuándo usarlo | Método principal |
+|---|---|---|
+| `RangePartitioner` | PK de tipo entero o `datetime64` — distribución uniforme garantizada | `partition_dataframe(df, pk_col, n)` / `partition_ranges(min, max, n)` |
+| `HashPartitioner` | PK de tipo `str`, `UUID` u otro tipo hashable | `partition_dataframe(df, pk_col, n)` |
+
+`partition_ranges` es útil cuando el volumen supera la memoria disponible: genera los rangos `(lo, hi)` para construir lectores SQL con `WHERE pk BETWEEN :lo AND :hi` sin materializar el DataFrame completo.
+
+### Preparación de tabla para alta carga (`maintenance_scope`)
+
+Para cargas >1 M de filas conviene deshabilitar temporalmente las comprobaciones de integridad antes de insertar. `BulkCrud.maintenance_scope` se encarga de ello dentro del `bulk_session` activo:
+
+```
+with bulk.bulk_session():
+    with bulk.maintenance_scope("pedidos", disable_indexes=True):
+        loader.load("pedidos", readers)
+```
+
+Soporte por motor: MariaDB/MySQL (`FOREIGN_KEY_CHECKS`, `DISABLE KEYS`), PostgreSQL (`DISABLE TRIGGER ALL`, requiere propietario), SQL Server (`NOCHECK CONSTRAINT ALL` + `ALTER INDEX … DISABLE`). Las restricciones se restauran siempre al salir del bloque, incluso si se produce una excepción.
 
 ## 4. Glosario y Términos
 
@@ -81,3 +103,6 @@ sequenceDiagram
 | Lector de partición | Callable que, dado un rango de PK, retorna un iterador de DataFrames con las filas de esa partición |
 | Throughput | Velocidad de inserción medida en filas por segundo; métrica principal de rendimiento de la carga paralela |
 | Best-effort | Estrategia de carga que continúa aunque falle alguna partición, en lugar de cancelar todo ante el primer error |
+| `RangePartitioner` | Helper que divide un DataFrame (o genera tuplas `(lo, hi)`) en N rangos disjuntos ordenados por una PK entera o `datetime64` |
+| `HashPartitioner` | Helper que asigna filas a N buckets usando `hash(pk_col) % N`; admite cualquier tipo hashable pero no garantiza particiones de igual tamaño |
+| `maintenance_scope` | Context manager de `BulkCrud` que deshabilita FKs, triggers e índices durante la carga y los restaura al salir, incluso ante excepciones |

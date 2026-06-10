@@ -22,7 +22,7 @@ La documentación completa está disponible como un archivo ZIP comprimido que p
 
 | Versión | Tamaño | Checksum | Fecha |
 |---|---|---|---|
-| [util_bbdd-docs-latest.zip](../util_bbdd-docs-latest.zip) | ~2.5 MB | [.sha256](../util_bbdd-docs-latest.zip.sha256) | 2026-06-06 |
+| [util_bbdd-docs-latest.zip](https://github.com/fmanza/util_bbdd/releases/latest) | ~2.5 MB | [.sha256](https://github.com/fmanza/util_bbdd/releases/latest) | 2026-06-06 |
 
 **Cómo usar**
 

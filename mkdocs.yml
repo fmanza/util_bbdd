@@ -151,6 +151,10 @@ nav:
       - Manejo de Excepciones:
           - Manejo de Excepciones: examples/exception_handling.md
 
+  # ── Configuración IA ──────────────────────────────────────────────────────
+  - Config IA:
+      - Claude Code: ai-config/claude.md
+
   # ── Contexto del proyecto ──────────────────────────────────────────────────
   - Arquitectura:
       - Arquitectura del Sistema: architecture.md

@@ -342,7 +342,7 @@ Output esperado: `INFO - Documentation built in Xs` sin warnings.
 - [Conexión y Drivers por Motor](connection_guide.md) — conexión por motor y troubleshooting
 - [Excepciones](exceptions.md) — jerarquía de excepciones canónica
 - [Guía de Migración](migration_guide.md) — migración entre versiones de la librería
-- [Ejemplos](../examples/) — casos de uso por funcionalidad (punto de entrada recomendado para explorar la API)
+- [Ejemplos](../examples/example-connect-introspect.md) — casos de uso por funcionalidad (punto de entrada recomendado para explorar la API)
 
 ### Contexto IA del proyecto
 

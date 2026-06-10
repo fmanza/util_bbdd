@@ -42,6 +42,58 @@ Aspectos críticos:
 
 **Throughput esperado con SQLite** (motor del ejemplo): 1.5× sobre secuencial. Con PostgreSQL/MySQL en producción el speedup típico es 2.5–3.5× con 4 workers.
 
+**`RangePartitioner` — PK entera, DataFrame en memoria:**
+
+```python
+from util_bbdd.bulk import RangePartitioner, ParallelBulkLoader
+
+# Divide el DataFrame en 4 slices disjuntos ordenados por 'id'
+partitions = RangePartitioner.partition_dataframe(df, pk_col="id", n_partitions=4)
+readers = [lambda p=part: iter([p]) for part in partitions]
+result = ParallelBulkLoader(engine, max_workers=4).load("orders", readers)
+```
+
+**`RangePartitioner` — rangos para lectores SQL (volúmenes >RAM):**
+
+```python
+# Genera rangos (lo, hi) sin materializar el DataFrame completo
+ranges = RangePartitioner.partition_ranges(1, 13_000_000, n_partitions=8)
+readers = [
+    lambda lo=lo, hi=hi: pd.read_sql(
+        "SELECT * FROM orders WHERE id BETWEEN :lo AND :hi",
+        src_engine, params={"lo": lo, "hi": hi}, chunksize=5000,
+    )
+    for lo, hi in ranges
+]
+result = ParallelBulkLoader(dst_engine, max_workers=8).load("orders", readers)
+```
+
+**`HashPartitioner` — PK de tipo UUID o string:**
+
+```python
+from util_bbdd.bulk import HashPartitioner
+
+# Acepta cualquier tipo hashable; distribución estadísticamente uniforme
+partitions = HashPartitioner.partition_dataframe(df, pk_col="uuid_col", n_partitions=4)
+readers = [lambda p=part: iter([p]) for part in partitions]
+result = ParallelBulkLoader(engine, max_workers=4).load("orders", readers)
+```
+
+**`maintenance_scope` — deshabilitar FKs e índices para cargas >1 M filas:**
+
+```python
+from util_bbdd.bulk import BulkCrud
+
+bulk = BulkCrud(engine)
+loader = ParallelBulkLoader(engine, max_workers=4)
+
+with bulk.bulk_session():
+    with bulk.maintenance_scope("orders", disable_indexes=True):
+        # Las FKs y los índices secundarios están deshabilitados durante la carga
+        result = loader.load("orders", readers)
+# Al salir del bloque maintenance_scope se restauran automáticamente
+```
+
 ## 4. Ejecución y Pruebas
 
 ```bash
