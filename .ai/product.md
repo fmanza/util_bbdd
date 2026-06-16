@@ -2,40 +2,52 @@
 
 ## Descripción
 
-**util_bbdd** es una librería Python especializada en operaciones de base de datos para múltiples motores (MariaDB, PostgreSQL, Oracle, SQLite, SQL Server, HSQLDB). Proporciona abstracción unificada con operaciones CRUD en lote, auditoría automática, gestión de conexiones con pool singleton, y análisis de relaciones.
+**util_bbdd** es una librería Python especializada en operaciones de base de datos para múltiples motores (MariaDB, MySQL, PostgreSQL, Oracle, SQLite, SQL Server, HSQLDB, Redshift, Snowflake). Proporciona abstracción unificada con operaciones CRUD en lote, auditoría automática, gestión de conexiones con pool singleton, y análisis de relaciones.
 
-**Versión:** 0.8.0 | **Estado:** Estable | **Python:** ≥3.12
+**Versión:** 0.10.0 | **Estado:** Estable | **Python:** ≥3.12
 
 ## Motores Soportados
 
 | Motor      | Sync | Async | Driver            |
 |------------|------|-------|-------------------|
 | MariaDB    | ✅   | ✅    | `aiomysql`        |
+| MySQL      | ✅   | ✅    | `aiomysql`        |
 | PostgreSQL | ✅   | ✅    | `asyncpg`         |
 | Oracle     | ✅   | ✅    | `oracledb`        |
 | SQLite     | ✅   | ✅    | `aiosqlite`       |
 | SQL Server | ✅   | ✅    | `aioodbc`         |
 | HSQLDB     | ✅   | ❌    | Solo sync         |
+| Redshift   | ✅   | ❌    | Via PostgreSQL    |
+| Snowflake  | ✅   | ❌    | Via SQLAlchemy    |
 
 ## Capacidades Principales
 
-- **CRUD en lote**: Insert/Update/Delete masivo desde DataFrames
-- **Auditoría**: Registro automático en CSV con timestamps y user context
+- **CRUD en lote**: Insert/Update/Delete masivo desde DataFrames con path optimizados por motor
+- **Fast paths INSERT**: `PostgresCopyStrategy` (psycopg3 COPY ~10×), `MySQLMultiRowInsertStrategy` (multi-fila), `InsertStrategyResolver` (selección automática)
+- **Carga masiva paralela**: `ParallelBulkLoader` con `RangePartitioner` (PK entera/datetime) y `HashPartitioner` (string/UUID)
+- **Auditoría**: Registro automático en CSV con timestamps y user context; thread-safe en modo paralelo
 - **Managers**: APIs sync (`SyncDatabaseManager`) y async (`AsyncDatabaseManager`)
-- **Metadata**: Caché de esquema, introspection, relaciones
+- **Metadata**: Caché de esquema, introspection, relaciones; único punto canónico en `metadata/*/tables.py`
 - **Query Registry**: Registro centralizado y versionado de consultas
 - **Visualización**: Grafos de relaciones multinivel (graphviz, matplotlib)
-- **Documentación**: Generación automática de esquema en HTML, Word y Excel
-- **Migración DDL**: `MigrationPlanner` convierte DDL entre 4 motores (12 combinaciones: Oracle/MariaDB/SQL Server/PostgreSQL); tablas, vistas, rutinas; 25+ tipos mapeados por par de motores
-- **Comparación de esquemas**: `SchemaComparator` detecta diferencias entre dos schemas; reporters HTML/Excel/Word/Markdown/SQL
-- **Volcado de datos**: `DumpOrchestrator` copia datos entre motores con gestión de constraints
+- **Documentación de BD**: Generación automática de esquema en HTML, Word y Excel
+- **Migración DDL**: `MigrationPlanner` convierte DDL entre 4 motores (12 combinaciones: Oracle/MariaDB/SQL Server/PostgreSQL); tablas, vistas, rutinas (PROCEDURE/FUNCTION/PACKAGE); 25+ tipos mapeados por par de motores
+- **Comparación de esquemas**: `SchemaComparator` detecta diferencias entre dos schemas; reporters HTML/Excel/Word/Markdown/SQL; cross-engine case-insensitive
+- **Volcado de datos**: `DumpOrchestrator` copia datos entre motores con gestión de constraints, paralelización por niveles FK, `DumpAuditSummary` integrado
+- **Sincronización de PK**: `PKSequenceSyncer` ajusta contadores PK post-bulk (PostgreSQL/SQL Server/MariaDB/Oracle ≥12c)
+- **Variables MySQL/MariaDB**: `MySQLVariableValidator` + `MySQLOptimalConfig` detectan y recomiendan configuración óptima para bulk
+- **Documentación offline**: Plugin MkDocs `documentation_zip` genera ZIP con SHA256; auto-publicación en GitHub Releases
 
 ## Migración y compatibilidad
 
-La librería conserva compatibilidad histórica selectiva en algunos wrappers. v0.6.0 introdujo el breaking change deliberado del contrato de grafos y documentación, v0.6.1 consolidó la semántica visual y v0.6.2 cierra la portabilidad offline con payloads compartidos de leyenda/resumen, SVG inline e iconografía local para HTML exportado.
+- v0.6.0: breaking change deliberado en grafos y documentación
+- v0.8.0: módulos `migrate/` y `dump/` introducidos
+- v0.9.0: `ParallelBulkLoader`, `IndexManager`, `commit_every_n_chunks`, paralelización FK-topológica
+- v0.10.0: `PostgresCopyStrategy`, `MySQLMultiRowInsertStrategy`, `InsertStrategyResolver`, `MySQLVariableValidator`; `PKSequenceSyncer`; `HashPartitioner`
 
 ## Audiencia
 
 - Desarrolladores backend Python con BD complejas
 - Equipos que necesitan abstracción multi-motor
 - Proyectos con requisitos de auditoría y versionado de schema
+- Ingenieros de datos con cargas ETL masivas

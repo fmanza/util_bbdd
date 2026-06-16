@@ -66,3 +66,4 @@ site/
 
 # Documentación histórica (no usada en la doc publicada)
 doc_old/
+.claude/settings.json

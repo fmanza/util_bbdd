@@ -53,6 +53,7 @@ python -m mkdocs serve            # Preview local en http://127.0.0.1:8000
 | `/hotfix` | Bug P1/P2 mínimo, sin refactorizar | RCA → FIX → AUDIT_CODE → VERSION |
 | `/refactor` | Cambio estructural sin impacto funcional | PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE |
 | `/audit-code` | Auditoría técnica independiente (solo lectura) | Scope → Findings → Verdict |
+| `/security-review` | Auditoría de seguridad (solo lectura) | Findings by severity → Remediation |
 | `/tech-debt` | Deuda técnica priorizada (solo lectura) | Scope → Findings → Plan |
 | `/maturity-assessment` | Evaluación de madurez del repositorio (solo lectura) | Scope → Findings → Verdict |
 | `/version-closure` | Cierre de versión: release notes, changelog, handoff | Resumen → Validación → Handoff |
