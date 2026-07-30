@@ -1,0 +1,72 @@
+# 2026-06-24 — Fix convert_to_md: caché docling, CUDA y progreso
+
+## Contexto
+El script `convert_to_md.py` se colgaba al ejecutar con `--engine docling`
+en la conversión masiva de `doc_referencia/` (~875 ficheros).
+
+## Diagnóstico
+1. `import torch` tardaba ~27 min en Python 3.14 y ~95 min en Python 3.13
+   debido a la inicialización de CUDA en una máquina con GPU NVIDIA sin
+   CUDA Toolkit configurado.
+2. Con `CUDA_VISIBLE_DEVICES=""`, torch carga en 1.2s.
+3. `DocumentConverter` se recreaba en cada fichero, repitiendo la carga pesada.
+4. Los `print()` sin `flush=True` no mostraban progreso en tiempo real.
+
+## Cambios en `scripts/convert_to_md.py`
+- **`os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")`** al inicio del módulo.
+- **Caché de `DocumentConverter`** por clave de configuración (`_docling_converter_cache`).
+- **Mensaje `INFO Cargando motor docling...`** antes de la primera inicialización.
+- **`flush=True`** en todos los prints de progreso (OMITIR, CONV, OK, ERROR).
+- **Formato de progreso mejorado**: `CONV <fichero> ... OK -> md/<destino>`.
+
+## Hallazgos adicionales
+- Python 3.14.2 + torch 2.12.1: funcional pero lento sin fix CUDA.
+- Python 3.13.14 instalado como alternativa (via `py install 3.13`).
+- RapidOCR falla con `torch.PP-OCRv6.det.small` → usar `--no-ocr` o easyocr.
+- Ficheros `.msg` no detectados por docling → usar markitdown como fallback.
+
+## Commits
+```
+fix(convert): cachear converter docling, desactivar CUDA y mejorar progreso
+docs(convert): documentar compatibilidad Python 3.14/CUDA y troubleshooting docling
+feat(convert): GPU opcional, batch convert_all y detección segura de CUDA
+```
+
+## Fase 2: GPU opcional, batch y rendimiento
+
+### Cambios en `scripts/convert_to_md.py` (+298 líneas)
+- **ConvertOptions**: 5 nuevos campos (device, num_threads, flash_attention, batch_size, workers)
+- **CLI args**: --device cpu|cuda|auto, --num-threads, --flash-attention, --batch-size, --workers
+- **`_detect_device()`**: detección CUDA vía nvidia-smi (sin importar torch), timeout 5s
+- **`_cuda_available()`**: check rápido de nvidia-smi sin colgar
+- **`AcceleratorOptions`**: cableado en `_build_docling_converter()` (device, threads, flash attn)
+- **EasyOCR GPU**: `use_gpu` automático según device resuelto
+- **`_convert_batch_docling()`**: usa `convert_all()` de docling con pre-filtrado
+- **`_prefilter_files()`**: separa OMITIR/INVÁLID/NOSOPOR antes del batch
+- **`_process_batch_result()`**: procesa resultados individuales de convert_all
+- **`_batch_context()`**: configura `BatchConcurrencySettings` vía `scoped()`
+- **`main()`**: docling siempre usa batch path; markitdown/pandoc mantienen secuencial
+
+### Tests (+23 nuevos, 65 total)
+- Device detection: cpu, auto sin/con nvidia-smi, cuda no disponible, env vars existentes
+- CLI args: defaults, validaciones cruzadas (flash+cpu, batch+markitdown)
+- Prefilter: omit existing, reject invalid, dry-run
+
+### Documentación
+- **ADR-002**: CPU por defecto, GPU opt-in (MADR 4.0)
+- `docs/functional/convert_to_md.md`: secciones GPU y batch
+- `docs/api/convert_to_md.md`: nuevos campos, funciones, CLI args
+- `docs/guides/troubleshooting.md`: 4 nuevos problemas GPU/batch
+- `docs/installation.md`: guía CUDA Toolkit
+- `CLAUDE.md`: comandos GPU/batch
+- `mkdocs.yml`: ADR-002 en nav
+
+## Estado
+- [x] Diagnóstico CUDA completado
+- [x] Fix inicial (caché, CUDA_VISIBLE_DEVICES, progreso)
+- [x] GPU opcional + batch + rendimiento implementado
+- [x] Tests 65/65 passing, ruff + mypy + mkdocs build --strict OK
+- [x] Documentación completa (ADR-002 + 6 ficheros actualizados)
+- [ ] Commit pendiente (usuario preparando)
+- [ ] Conversión masiva en curso con `--no-ocr`
+- [ ] Pendiente: reconvertir `.msg` con `--engine markitdown`
