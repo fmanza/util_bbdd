@@ -85,6 +85,27 @@ src/util_bbdd/
 | `results/` | Tipos de retorno: `Row`, `Rows`, `RowOrNone`, `QueryResult` |
 | `_core/` | Jerarquía de excepciones canónica |
 
+### Capas e imports reales
+
+Los tres niveles de la arquitectura (Foundation → Servicios → Especialización) con los imports que hay hoy entre los paquetes de `src/util_bbdd/`. Cada flecha va de quien importa hacia quien es importado.
+
+<figure class="arq-figure">
+<div class="arq-scroll">
+--8<-- "assets/diagrams/arquitectura-capas.svg"
+</div>
+<figcaption>Instantánea de v0.10.0 (2026-09-21) medida con <code>ast</code> sobre 338 ficheros. Niveles según <code>.ai/architecture.md</code>; <code>models.py</code> y <code>async_utils.py</code> no tienen nivel asignado y se dibujan con Foundation. El <code>__init__.py</code> raíz (re-exports) no aparece.</figcaption>
+</figure>
+
+Cómo leerlo:
+
+- **Sentido único**: ningún import de módulo sube de nivel. El único que sube (`metadata/` → `managers/`, marca 2) está bajo `TYPE_CHECKING`.
+- **Marca 1 · ciclo `connection/` ⇄ `factory/`**: `factory/` importa de `connection/` y un único fichero, `connection/mariadb/update_auto_increment.py`, importa de `factory/`. Hoy los imports resuelven sin error.
+- **Marca 2 · `metadata/` → `managers/`**: import de `CacheService` solo para tipado, en `metadata/adapters/base_adapter.py`.
+- **Marca 3 · `analysis/` y `doc/` → `managers/`**: importan `SyncDatabaseManager` para anotar el constructor, sin instanciarlo. La Regla #4 de [`architecture.instructions.md`](https://github.com/fmanza/util_bbdd/blob/main/.github/instructions/architecture.instructions.md) pide un Protocol (`SyncMetadataProvider`).
+- **Operaciones por parámetro**: `bulk/`, `dump/` y `comparar/` no importan `managers/`, `factory/` ni `metadata/`; reciben un `Engine` o un `Inspector` de SQLAlchemy.
+
+Para regenerar la figura tras cambiar imports: `python scripts/gen_arquitectura_capas.py`. Si el dibujo deja de coincidir con los imports reales, el script falla sin escribir nada; `--edges` imprime la tabla medida. Guía completa: [Diagrama de arquitectura (regenerar)](guides/architecture_diagram_guide.md).
+
 ## 3. Flujo en Ejecución (Runtime)
 
 Flujo típico de una operación de lectura/escritura a través de las capas:

@@ -86,6 +86,11 @@ python scripts/build_docs_zip.py
 # → dist/util_bbdd-docs-{version}.zip
 # Opciones: --builder mkdocs | --no-strict | --no-build | --output-dir <dir>
 # Ver docs/docs_offline_zip_guide.md para la guía completa.
+
+# Regenerar el diagrama de capas e imports de docs/architecture.md tras cambiar imports entre paquetes de src/
+python scripts/gen_arquitectura_capas.py
+# Falla sin escribir nada si el dibujo ya no coincide con el código; --edges imprime la tabla medida.
+# Ver docs/guides/architecture_diagram_guide.md para la guía completa.
 ```
 
 Para confirmar que los hooks de Claude Code están activos, crea o edita un archivo en `src/` y verifica que los hooks de `ruff` y `mypy` se ejecutan automáticamente al guardar.
