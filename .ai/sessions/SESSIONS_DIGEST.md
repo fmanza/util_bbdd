@@ -123,9 +123,19 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 
 ---
 
+## FASE 5 — Reglas de dependencia y capas (Sep 2026) → ACTIVAS
+
+| Fecha | Sesión | Cambio principal | Estado |
+|-------|--------|-----------------|--------|
+| 2026-09-21 | Regla #6: ciclo `connection`⇄`factory` | Ciclo eliminado reescribiendo `UpdateAutoIncrement` (recibe `Engine`, Inspector, sin `factory`); Regla #6 reconciliada; guarda `test_architecture_import_rules.py`; commit `92e6c7c`; capas estrictas (pasos 1–3) planificadas | IN_PROGRESS |
+
+> Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
+
+---
+
 ## Notas
 
 - **Total sesiones archivadas** en `doc_old/sessions/`: ~65 sesiones (Mar-04 a May-28).
 - **Total sesiones activas**: 21 sesiones (May-31 a Jun-05).
-- **Test suite**: creció de ~1800 (Abr) → 3826 (Jun-05).
+- **Test suite**: creció de ~1800 (Abr) → 3826 (Jun-05) → 3856 passed / 4 skipped (Sep-22).
 - **Versiones**: v0.6.0 (Mar) → v0.6.7 → v0.6.8 (logging) → v0.6.9 → v0.8.0 → v0.9.0 (Jun-01c) → v0.10.0 (Jun-01d).
