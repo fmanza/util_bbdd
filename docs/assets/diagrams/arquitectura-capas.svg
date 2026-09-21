@@ -1,12 +1,12 @@
-<svg class="arq" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 648" role="img" aria-label="Los tres niveles de util_bbdd con sus imports reales: connection y factory se importan mutuamente, metadata importa managers solo para tipado y analysis y doc importan el manager concreto." font-family="system-ui,sans-serif">
-<defs><marker id="arq-h" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="arq-head" d="M0 0L10 5L0 10z" fill="currentColor"/></marker><marker id="arq-h-warn" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="arq-head-warn" d="M0 0L10 5L0 10z" fill="currentColor"/></marker><marker id="arq-h-cycle" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="arq-head-cycle" d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+<svg class="arq" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 648" role="img" aria-label="Los tres niveles de util_bbdd con sus imports reales: factory importa de connection en un solo sentido, metadata importa managers solo para tipado y analysis y doc importan el manager concreto." font-family="system-ui,sans-serif">
+<defs><marker id="arq-h" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="arq-head" d="M0 0L10 5L0 10z" fill="currentColor"/></marker><marker id="arq-h-warn" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path class="arq-head-warn" d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
 <rect class="arq-band arq-band-3" x="8" y="12" width="984" height="126" rx="10" fill="none" stroke="currentColor" stroke-opacity=".25"/>
 <rect class="arq-band arq-band-2" x="8" y="214" width="984" height="210" rx="10" fill="none" stroke="currentColor" stroke-opacity=".25"/>
 <rect class="arq-band arq-band-1" x="8" y="476" width="984" height="124" rx="10" fill="none" stroke="currentColor" stroke-opacity=".25"/>
 <text class="arq-band-label" x="30" y="36" font-size="11" font-weight="600" letter-spacing="1.3" fill="currentColor">NIVEL 3 · ESPECIALIZACIÓN</text>
-<text class="arq-band-note" x="970" y="36" text-anchor="end" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">puede importar de N2 y N1</text>
+<text class="arq-band-note" x="970" y="36" text-anchor="end" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">importa de N2, N1 y su nivel</text>
 <text class="arq-band-label" x="30" y="238" font-size="11" font-weight="600" letter-spacing="1.3" fill="currentColor">NIVEL 2 · SERVICIOS</text>
-<text class="arq-band-note" x="970" y="238" text-anchor="end" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">solo de N1</text>
+<text class="arq-band-note" x="970" y="238" text-anchor="end" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">importa de N1 y su nivel</text>
 <text class="arq-band-label" x="30" y="500" font-size="11" font-weight="600" letter-spacing="1.3" fill="currentColor">NIVEL 1 · FOUNDATION</text>
 <text class="arq-band-note" x="970" y="500" text-anchor="end" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">no importa de otros niveles</text>
 <path class="arq-edge " d="M168 83 H142" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
@@ -22,8 +22,7 @@
 <path class="arq-edge " d="M876 306 L812 354" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
 <path class="arq-edge " d="M940 306 V354" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
 <path class="arq-edge " d="M720 379 H694" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
-<path class="arq-edge " d="M210 274 H142" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
-<path class="arq-edge cycle" d="M142 294 H210" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h-cycle)"/>
+<path class="arq-edge " d="M210 281 H142" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
 <path class="arq-edge " d="M500 424 V476" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
 <path class="arq-edge " d="M190 551 H162" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
 <g class="arq-node"><rect x="30" y="58" width="112" height="50" rx="6" fill="none" stroke="currentColor"/><text class="arq-name" x="86" y="79" text-anchor="middle" font-family="ui-monospace,Consolas,monospace" font-size="13" fill="currentColor">bulk/</text><text class="arq-sub" x="86" y="96" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">recibe Engine</text></g>
@@ -49,23 +48,17 @@
 <text class="arq-lbl" x="728" y="160" text-anchor="end" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">importa connection, factory, executors,</text>
 <text class="arq-lbl" x="728" y="176" text-anchor="end" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">metadata, query y results (6 de 7)</text>
 <text class="arq-lbl" x="796" y="186" text-anchor="start" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">solo tipado</text>
-<text class="arq-lbl" x="176" y="268" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">×12</text>
-<text class="arq-lbl arq-lbl-cycle" x="176" y="314" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">×1</text>
-<text class="arq-lbl arq-lbl-cycle" x="30" y="344" text-anchor="start" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">un solo import cierra el ciclo:</text>
-<text class="arq-lbl arq-lbl-cycle arq-lbl-mono" x="30" y="360" font-family="ui-monospace,Consolas,monospace" font-size="11" fill="currentColor">connection/mariadb/update_auto_increment.py</text>
+<text class="arq-lbl" x="176" y="275" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">×12</text>
 <text class="arq-lbl" x="512" y="447" text-anchor="start" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">9 paquetes importan de Foundation</text>
 <text class="arq-lbl" x="512" y="463" text-anchor="start" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">Foundation no importa hacia arriba (0 imports)</text>
-<text class="arq-lbl" x="690" y="516" text-anchor="start" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">compartidos · sin nivel asignado</text>
-<g class="arq-badge"><circle class="arq-badge-cycle" cx="176" cy="294" r="8.5" fill="currentColor"/><text class="arq-badge-num" x="176" y="298" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#fff">1</text></g>
-<g class="arq-badge"><circle class="arq-badge-warn" cx="780" cy="178" r="8.5" fill="currentColor"/><text class="arq-badge-num" x="780" y="182" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#fff">2</text></g>
-<g class="arq-badge"><circle class="arq-badge-warn" cx="707" cy="68" r="8.5" fill="currentColor"/><text class="arq-badge-num" x="707" y="72" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#fff">3</text></g>
-<g class="arq-badge"><circle class="arq-badge-warn" cx="638" cy="44" r="8.5" fill="currentColor"/><text class="arq-badge-num" x="638" y="48" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#fff">3</text></g>
+<text class="arq-lbl" x="690" y="516" text-anchor="start" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">módulos raíz compartidos</text>
+<g class="arq-badge"><circle class="arq-badge-warn" cx="780" cy="178" r="8.5" fill="currentColor"/><text class="arq-badge-num" x="780" y="182" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#fff">1</text></g>
+<g class="arq-badge"><circle class="arq-badge-warn" cx="707" cy="68" r="8.5" fill="currentColor"/><text class="arq-badge-num" x="707" y="72" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#fff">2</text></g>
+<g class="arq-badge"><circle class="arq-badge-warn" cx="638" cy="44" r="8.5" fill="currentColor"/><text class="arq-badge-num" x="638" y="48" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="#fff">2</text></g>
 <path class="arq-edge " d="M30 620 H64" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
 <text class="arq-lbl" x="74" y="624" text-anchor="start" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">import de módulo</text>
 <path class="arq-edge lazy" d="M230 620 H264" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
 <text class="arq-lbl" x="274" y="624" text-anchor="start" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">import perezoso (dentro de una función)</text>
 <path class="arq-edge warn" d="M540 620 H574" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h-warn)"/>
 <text class="arq-lbl" x="584" y="624" text-anchor="start" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">contra una regla de nivel</text>
-<path class="arq-edge cycle" d="M770 620 H804" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h-cycle)"/>
-<text class="arq-lbl" x="814" y="624" text-anchor="start" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">ciclo</text>
 </svg>

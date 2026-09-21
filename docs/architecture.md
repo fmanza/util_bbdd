@@ -93,15 +93,15 @@ Los tres niveles de la arquitectura (Foundation → Servicios → Especializaci�
 <div class="arq-scroll">
 --8<-- "assets/diagrams/arquitectura-capas.svg"
 </div>
-<figcaption>Instantánea de v0.10.0 (2026-09-21) medida con <code>ast</code> sobre 338 ficheros. Niveles según <code>.ai/architecture.md</code>; <code>models.py</code> y <code>async_utils.py</code> no tienen nivel asignado y se dibujan con Foundation. El <code>__init__.py</code> raíz (re-exports) no aparece.</figcaption>
+<figcaption>Instantánea de v0.10.0 (2026-09-21) medida con <code>ast</code> sobre 338 ficheros. Niveles según <code>.ai/architecture.md</code>; <code>models.py</code> y <code>async_utils.py</code> son módulos raíz de Foundation: no importan nada de la librería. El <code>__init__.py</code> raíz (re-exports) no aparece.</figcaption>
 </figure>
 
 Cómo leerlo:
 
-- **Sentido único**: ningún import de módulo sube de nivel. El único que sube (`metadata/` → `managers/`, marca 2) está bajo `TYPE_CHECKING`.
-- **Marca 1 · ciclo `connection/` ⇄ `factory/`**: `factory/` importa de `connection/` y un único fichero, `connection/mariadb/update_auto_increment.py`, importa de `factory/`. Hoy los imports resuelven sin error.
-- **Marca 2 · `metadata/` → `managers/`**: import de `CacheService` solo para tipado, en `metadata/adapters/base_adapter.py`.
-- **Marca 3 · `analysis/` y `doc/` → `managers/`**: importan `SyncDatabaseManager` para anotar el constructor, sin instanciarlo. La Regla #4 de [`architecture.instructions.md`](https://github.com/fmanza/util_bbdd/blob/main/.github/instructions/architecture.instructions.md) pide un Protocol (`SyncMetadataProvider`).
+- **Sentido único**: ningún import de módulo sube de nivel. El único que sube (`metadata/` → `managers/`, marca 1) está bajo `TYPE_CHECKING`.
+- **Dentro de un nivel**: un paquete puede importar de otro del mismo nivel si el import va en un solo sentido, como `factory/` → `connection/`, y nunca en ambos. La [Regla #6](https://github.com/fmanza/util_bbdd/blob/main/.github/instructions/architecture.instructions.md) prohíbe los ciclos entre paquetes y `tests/unit/test_architecture_import_rules.py` los vigila.
+- **Marca 1 · `metadata/` → `managers/`**: import de `CacheService` solo para tipado, en `metadata/adapters/base_adapter.py`.
+- **Marca 2 · `analysis/` y `doc/` → `managers/`**: importan `SyncDatabaseManager` para anotar el constructor, sin instanciarlo. La Regla #4 de [`architecture.instructions.md`](https://github.com/fmanza/util_bbdd/blob/main/.github/instructions/architecture.instructions.md) pide un Protocol (`SyncMetadataProvider`).
 - **Operaciones por parámetro**: `bulk/`, `dump/` y `comparar/` no importan `managers/`, `factory/` ni `metadata/`; reciben un `Engine` o un `Inspector` de SQLAlchemy.
 
 Para regenerar la figura tras cambiar imports: `python scripts/gen_arquitectura_capas.py`. Si el dibujo deja de coincidir con los imports reales, el script falla sin escribir nada; `--edges` imprime la tabla medida. Guía completa: [Diagrama de arquitectura (regenerar)](guides/architecture_diagram_guide.md).

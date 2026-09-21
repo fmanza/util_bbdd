@@ -35,7 +35,69 @@ Referencia:
 - [DEFAULT_COLLATION](src/util_bbdd/migrate/charset.py)
 - [Guía de Migración DDL](docs/DDL_MIGRATION_GUIDE.md)
 
+#### connection/mariadb: `UpdateAutoIncrement` reescrito sin dependencia de `factory`
+
+`UpdateAutoIncrement` (`connection/mariadb/update_auto_increment.py`) importaba `factory/`, una capa superior, y
+cerraba un ciclo `connection/` ⇄ `factory/` contrario a la Regla #6 de `architecture.instructions.md`. Se reescribe en
+su misma ruta: recibe el `Engine` por parámetro, como `MySQLVariableValidator` recibe la conexión, y deja de depender
+de `factory/`, de `pandas` y de SQL de introspección propio (Reglas #1 y #3). Sigue generando las sentencias sin
+ejecutarlas.
+
+> ⚠️ **Breaking**: el constructor ya no recibe el `dict` de configuración, sino un `Engine` de SQLAlchemy con dialecto
+> `mysql` o `mariadb`. Pasar un `dict` lanza `TypeError` con la indicación de migración:
+> `UpdateAutoIncrement(conf)` → `UpdateAutoIncrement(SQLAlchemyEngineFactory.create_engine(db_type, conf, database))`.
+
+Correcciones de comportamiento respecto a la versión anterior:
+
+- **Una sentencia por tabla**, sobre su columna `AUTO_INCREMENT` (antes, una por cada columna de la clave primaria:
+  incorrecto con claves compuestas).
+- **Sin `ValueError`** con claves no numéricas: las columnas `AUTO_INCREMENT` no enteras se omiten con un `WARNING`.
+- **Identificadores siempre entre backticks**, también el esquema (antes se interpolaban sin escapar, `conf["database"]`
+  incluido).
+- **Valor mínimo 1**: un máximo negativo ya no produce un valor no positivo.
+- **Sin `sys.exit(1)`**: los fallos se elevan como `DatabaseOperationError` con la causa encadenada; un dialecto no
+  soportado lanza `InvalidDatabaseType`.
+- **Salida ordenada por tabla**, parámetro opcional `schema` y exportada desde `util_bbdd.connection.mariadb`.
+
+Para ejecutar el ajuste en vez de generarlo existe `BulkCrud.sync_pk_sequences()`.
+
+Cambios:
+
+- **`connection/mariadb/update_auto_increment.py`** reescrito; **`connection/mariadb/__init__.py`**: export perezoso.
+- **`tests/unit/connection/mariadb/test_update_auto_increment.py`**: 23 tests, sin servidor.
+- **`tests/integration/test_update_auto_increment_mariadb.py`**: 3 pruebas contra un MariaDB real sobre una base
+  temporal que se elimina siempre (se saltan sin `UTIL_BBDD_TEST_MARIADB_URL`). Ejecutadas con éxito contra un
+  servidor de pruebas: claves compuestas, `BIGINT UNSIGNED`, vistas, nombres con palabra reservada o backtick, y que el
+  script ejecutado deja cada contador en `MAX + 1`.
+- **Documentación**: [API](docs/api/update-auto-increment.md), [ejemplo](docs/examples/update-auto-increment-example.md)
+  y `mkdocs.yml`.
+- **`scripts/gen_arquitectura_capas.py`**: la figura ya no dibuja `connection → factory` ni su marca; las marcas
+  restantes se renumeran (1 = `metadata → managers`, 2 = `analysis`/`doc → managers`). Si el import vuelve, el script
+  y `tests/unit/test_architecture_import_rules.py` fallan.
+
+Referencia:
+- [UpdateAutoIncrement](src/util_bbdd/connection/mariadb/update_auto_increment.py)
+- [Regla #6](.github/instructions/architecture.instructions.md)
+
 ### Documentation
+
+#### architecture: Regla #6 reconciliada (niveles e imports dentro de un nivel)
+
+La Regla #6 (`architecture.instructions.md`) asignaba `connection/`, `factory/` y `results/` a Level 1 y
+`managers/` a Level 2, frente a Level 2 y Level 3 en `.ai/architecture.md`, README, onboarding y el script del
+diagrama. Además, su frase inicial prohibía los imports entre paquetes del mismo nivel mientras su propia lista de
+reglas solo prohibía los ciclos, y el código tiene 11 pares de paquetes con import en un solo sentido dentro de un
+nivel (p. ej. `factory` → `connection`, `metadata` → `results`).
+
+- **Niveles**: los de `.ai/architecture.md`; `models.py` y `async_utils.py` cuentan como Foundation.
+- **Regla**: un paquete importa de su nivel o de niveles inferiores, nunca de uno superior; dentro de un nivel,
+  solo en un sentido (sin ciclos). Los imports perezosos cuentan.
+- **Actualizados**: `.github/instructions/architecture.instructions.md`, `.ai/architecture.md`, `README.md`,
+  `docs/guides/onboarding_dev.md`, `docs/architecture.md` (figura y notas de nivel) y `.ai/DECISIONS_LOG.md`.
+
+Referencia:
+- [Regla #6](.github/instructions/architecture.instructions.md)
+- [Decisión 2026-09-21](.ai/DECISIONS_LOG.md)
 
 #### bulk: Guía de tuning de commit_cadence para cargas masivas en MariaDB/MySQL
 
@@ -66,6 +128,22 @@ Referencia:
 - [BulkCrud.commit_every_n_chunks](src/util_bbdd/bulk/crud.py) (docstring actualizado)
 
 ### Added
+
+#### tests: guarda automática de la Regla #6
+
+Nuevo `tests/unit/test_architecture_import_rules.py`. Reutiliza `measure()` y `LEVEL` de
+`scripts/gen_arquitectura_capas.py` (los niveles se declaran en un único sitio) y falla ante:
+
+- un **ciclo de imports entre paquetes** (los imports perezosos cuentan);
+- un **import que sube de nivel** (los de `TYPE_CHECKING` solo se admiten como excepción listada: hoy
+  `metadata` → `managers`);
+- un **paquete nuevo sin nivel asignado**;
+- un paquete que **no se importa como primer import** de un intérprete (import circular o dependiente del orden).
+
+Los mensajes indican el `fichero:línea` del import. No añade dependencias.
+
+Referencia:
+- [test_architecture_import_rules.py](tests/unit/test_architecture_import_rules.py)
 
 #### connection/mariadb: validación automática de variables MySQL/MariaDB para bulk operations
 

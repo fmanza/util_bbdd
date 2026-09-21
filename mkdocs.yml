@@ -61,6 +61,7 @@ nav:
       - Operaciones Bulk:
           - CRUD Masivo: api/bulk-crud.md
           - MySQL Variables Validator: api/mysql-variables.md
+          - Reajuste de AUTO_INCREMENT (MariaDB): api/update-auto-increment.md
           - Carga Masiva Paralela: api/bulk-parallel.md
           - Auditoría Bulk: api/bulk-audit.md
           - Normalización de Datos: api/normalize.md
@@ -131,6 +132,7 @@ nav:
           - Carga Masiva Paralela: examples/parallel_bulk_insert.md
           - "Benchmark: Commit Cadence": examples/benchmark_commit_cadence.md
           - "Validación de Variables MySQL/MariaDB": examples/mysql-variables-example.md
+          - "Reajuste de AUTO_INCREMENT (MariaDB)": examples/update-auto-increment-example.md
       - Sistema de Queries:
           - Ejecución de Consultas: examples/query_execution_example.md
           - Queries Concurrentes (Async): examples/async_concurrent_queries.md

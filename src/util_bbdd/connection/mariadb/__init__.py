@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from .async_pool_connection_mariadb import AsyncMariaDBPool
     from .connection_mariadb import MariaDBConnection
     from .pool_connection_mariadb import PoolConnection
+    from .update_auto_increment import UpdateAutoIncrement
 
 __all__: list[str] = [
     "MariaDBConnection",
@@ -24,6 +25,7 @@ __all__: list[str] = [
     "AsyncMariaDBPool",
     "MySQLVariableValidator",
     "MySQLOptimalConfig",
+    "UpdateAutoIncrement",
 ]
 
 _SYMBOL_TO_MODULE: dict[str, str] = {
@@ -33,6 +35,7 @@ _SYMBOL_TO_MODULE: dict[str, str] = {
     "AsyncMariaDBPool": "async_pool_connection_mariadb",
     "MySQLVariableValidator": "_variables",
     "MySQLOptimalConfig": "_config",
+    "UpdateAutoIncrement": "update_auto_increment",
 }
 
 

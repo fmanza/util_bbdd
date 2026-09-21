@@ -484,7 +484,7 @@ core/
 
 ### Level 2: Capas de Acceso (Services Layer)
 
-Operaciones core reutilizables entre managers. **Regla:** Solo importar desde Level 1; nunca desde Level 3.
+Operaciones core reutilizables entre managers. **Regla:** Importa de Level 1 y, entre paquetes de Level 2, solo en un sentido (sin ciclos); nunca de Level 3.
 
 ```
 connection/          # Conexiones y configuración por motor
@@ -534,7 +534,7 @@ validators/          # Validadores de parámetros por motor
 
 ### Level 3: Especialización (Domain Logic Layer)
 
-Funcionalidad de dominio construida sobre Level 2. **Regla:** Puede importar de Level 1 y 2, nunca al revés.
+Funcionalidad de dominio construida sobre Level 2. **Regla:** Puede importar de Level 1 y 2 y, entre paquetes de Level 3, solo en un sentido (sin ciclos); nunca al revés.
 
 ```
 managers/            # APIs públicas de alto nivel
@@ -565,7 +565,7 @@ doc/                 # Documentación de BD (arquitectura hexagonal)
   ├── infrastructure/ # Renderers (html/excel/word), storage por motor, runtime, adapters
   └── templates/     # Plantillas Jinja2 modulares (layouts, macros, pages)
 
-[Otros]
+[Otros: módulos raíz; async_utils.py y models.py cuentan como Level 1 (no importan nada de la librería)]
 ├── async_utils.py   # Helpers (maybe_await, etc.)
 ├── models.py        # Modelos de dominio compartidos
 └── data/            # Data fixtures para tests
@@ -577,15 +577,17 @@ doc/                 # Documentación de BD (arquitectura hexagonal)
 
 ```
 ✅ PERMITIDO (jerarquía descendente)
-   Level 1 imports ← ninguno (capa base)
-   Level 2 imports ← Level 1
-   Level 3 imports ← Level 1, Level 2
+   Level 1 imports ← Level 1 (p. ej. _drivers → _core)
+   Level 2 imports ← Level 1, y otros paquetes de Level 2 en un solo sentido (p. ej. factory → connection)
+   Level 3 imports ← Level 1, Level 2, y otros paquetes de Level 3 en un solo sentido (p. ej. dump → bulk)
 
 ❌ PROHIBIDO (círculos o ascensión)
    Level 2 imports from Level 3
    Level 1 imports from Level 2 o 3
-   Ciclos internos entre Level 3
+   Ciclos entre paquetes, dentro de un nivel o entre niveles (los imports perezosos cuentan)
 ```
+
+Lo comprueba `tests/unit/test_architecture_import_rules.py`.
 
 ### Compatibilidad Viva (v0.10.0)
 

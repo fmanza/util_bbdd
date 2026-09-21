@@ -181,3 +181,17 @@ Fuente: TRACEABILITYs de sesiones + docs de análisis.
 **Alternativas descartadas**: Modelo PUSH (desde el origen) — arrastra supuestos Python/util_bbdd al destino.  
 **Razón**: El destino puede tener otro lenguaje y arquitectura. El prompt necesita el código real del destino en contexto.  
 **Impacto actual**: Prompt `.github/prompts/bootstrap_ai_config.prompt.md`. Soporta 5 plataformas: Claude, Gemini, Copilot, Cursor, Codex.
+
+---
+
+## 2026-09-21 — Regla #6: niveles canónicos, imports acíclicos dentro de un nivel y guarda automática
+
+**Decisión**: (1) Los niveles canónicos son los de `.ai/architecture.md`, los mismos que `LEVEL` en `scripts/gen_arquitectura_capas.py`; `models.py` y `async_utils.py` son Foundation (no importan nada de la librería). (2) Un paquete importa de su nivel o de niveles inferiores, nunca de uno superior; dentro de un nivel el import es válido solo si va en un único sentido (sin ciclos). Los imports perezosos cuentan como dependencia. (3) `tests/unit/test_architecture_import_rules.py` hace cumplir la ausencia de ciclos entre paquetes, de imports ascendentes y que todo paquete nuevo tenga nivel. Excepción acotada: `metadata/` → `managers/` bajo `TYPE_CHECKING` (marca 1 de `docs/architecture.md`).
+
+**Alternativas descartadas**:
+- **Prohibir todo import horizontal** (la frase inicial de la Regla #6 y «Level 2 → Level 1 únicamente»): el código tiene 11 pares de paquetes con import en un solo sentido dentro del mismo nivel (p. ej. `factory` → `connection`, `metadata` → `results`, `executors` → `query`); prohibirlos obligaría a reestructurarlos sin ganar nada frente a la ausencia de ciclos.
+- **Los niveles de `architecture.instructions.md`** (`connection/`, `factory/`, `results/` en Level 1; `managers/` en Level 2): README, onboarding, `.ai/architecture.md`, la decisión de 2026-03 y el script coinciden en la otra asignación, y D3 de `.ai/architecture.md` justifica `managers/` en Level 3.
+- **import-linter**: añade una dependencia y un fichero de contratos para lo que `gen_arquitectura_capas.py` ya mide.
+
+**Razón**: Convivían dos asignaciones de niveles y una regla cuya frase inicial prohibía lo que su propia lista de reglas daba por supuesto («dentro del mismo nivel») y el código practica. Sin guarda automática, `connection/` ⇄ `factory/` cerró un ciclo latente (`update_auto_increment.py`, reescrito el mismo día para recibir el `Engine` por parámetro); un import perezoso no lo habría arreglado, porque la dependencia sigue.
+**Impacto actual**: Sustituye la parte «Nivel 3 → Nivel 3 prohibido» de la decisión 2026-05-25: `dump/` importa `BulkCrud` en `dump/orchestrator.py` (l. 38) y lo instancia (l. 154 y 672). `architecture.instructions.md`, `.ai/architecture.md`, `README.md` y `docs/guides/onboarding_dev.md` enuncian la misma regla. `UpdateAutoIncrement` (`connection/mariadb/`) recibe el `Engine` por parámetro y descubre las columnas `AUTO_INCREMENT` con el Inspector de SQLAlchemy: excepción a la Regla #2 documentada en el propio módulo, como `comparar/`.

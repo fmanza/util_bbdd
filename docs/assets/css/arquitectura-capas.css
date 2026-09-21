@@ -12,11 +12,10 @@
   --arq-band-1: color-mix(in srgb, var(--md-default-fg-color) 10%, var(--md-default-bg-color));
   --arq-band-line: var(--md-default-fg-color--lightest);
   --arq-amber: #a45500;
-  --arq-red: #c0261a;
   --arq-badge-ink: #fff;
   margin: 1.5em 0;
 }
-[data-md-color-scheme="slate"] .arq-figure { --arq-amber: #f0a03c; --arq-red: #ff8078; --arq-badge-ink: #101418; }
+[data-md-color-scheme="slate"] .arq-figure { --arq-amber: #f0a03c; --arq-badge-ink: #101418; }
 .arq-figure .arq-scroll { overflow-x: auto; }
 .arq-figure svg.arq { min-width: 640px; }
 .arq-figure figcaption { font-size: .8rem; color: var(--md-default-fg-color--light); margin-top: .5rem; }
@@ -33,12 +32,7 @@
 .arq .arq-edge { fill: none; stroke: var(--arq-line); stroke-width: 1.4; }
 .arq .arq-edge.lazy { stroke-dasharray: 2 4; stroke-linecap: round; }
 .arq .arq-edge.warn { stroke: var(--arq-amber); stroke-width: 1.8; stroke-dasharray: 6 4; }
-.arq .arq-edge.cycle { stroke: var(--arq-red); stroke-width: 2.4; }
 .arq .arq-head { fill: var(--arq-line); }
 .arq .arq-head-warn { fill: var(--arq-amber); }
-.arq .arq-head-cycle { fill: var(--arq-red); }
 .arq .arq-badge-warn { fill: var(--arq-amber); }
-.arq .arq-badge-cycle { fill: var(--arq-red); }
 .arq .arq-badge-num { fill: var(--arq-badge-ink); font: 700 11px var(--arq-sans); }
-.arq .arq-lbl-cycle { fill: var(--arq-red); }
-.arq .arq-lbl-mono { font: 400 11px var(--arq-mono); }

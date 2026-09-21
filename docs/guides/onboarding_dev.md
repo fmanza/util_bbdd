@@ -122,7 +122,7 @@ manager.close()
 
 ## 7. Mapa del Código
 
-El código fuente está en `src/util_bbdd/` con una **arquitectura de 3 niveles**. Las dependencias solo fluyen hacia abajo: Level 3 puede importar de Level 2 y Level 1; Level 2 puede importar de Level 1; Level 1 no importa de nadie.
+El código fuente está en `src/util_bbdd/` con una **arquitectura de 3 niveles**. Las dependencias fluyen hacia abajo: Level 3 puede importar de Level 2 y Level 1; Level 2 puede importar de Level 1; Level 1 no importa de niveles superiores. Dentro de un nivel, un paquete puede importar de otro solo en un único sentido (sin ciclos).
 
 ```
 src/util_bbdd/
@@ -156,7 +156,7 @@ src/util_bbdd/
 └── models.py           # Modelos de datos compartidos
 ```
 
-**Regla de imports crítica**: Level 2 NO importa de Level 3; Level 1 NO importa de Level 2 ni Level 3. El punto de entrada recomendado para código externo es `from util_bbdd import <Clase>`.
+**Regla de imports crítica**: Level 2 NO importa de Level 3; Level 1 NO importa de Level 2 ni Level 3; entre paquetes del mismo nivel solo se admite un sentido, sin ciclos (lo vigila `tests/unit/test_architecture_import_rules.py`). `async_utils.py` y `models.py` cuentan como Level 1: no importan nada de la librería. El punto de entrada recomendado para código externo es `from util_bbdd import <Clase>`.
 
 **Dónde mirar primero según la tarea**:
 

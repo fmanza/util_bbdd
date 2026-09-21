@@ -10,7 +10,7 @@ El script `scripts/gen_arquitectura_capas.py` encadena tres pasos:
 2. **Verificar** — comprueba que cada flecha dibujada existe en el código y que no falta ninguna flecha real. Si algo no coincide, falla y no escribe nada.
 3. **Escribir** — reescribe `docs/assets/diagrams/arquitectura-capas.svg` y `docs/assets/css/arquitectura-capas.css`.
 
-La colocación de los nodos, el nivel de cada paquete y las tres marcas numeradas son manuales. El script solo comprueba que siguen siendo ciertas.
+La colocación de los nodos, el nivel de cada paquete y las dos marcas numeradas son manuales. El script solo comprueba que siguen siendo ciertas.
 
 ---
 
@@ -110,7 +110,6 @@ __init__      -> async_utils        1     0       0
 | `package drawn but no longer in src/: X` | Paquete renombrado o eliminado | Quítalo de `LEVEL`, de `DRAWN` y de `render_svg()` |
 | `drawn but not found in the code: A -> B` | Se eliminó un import, por ejemplo al corregir un desvío | Quita la flecha de `render_svg()` y el par de `DRAWN`. Si era una flecha marcada, retira también su marca y su viñeta en `docs/architecture.md` |
 | `found in the code but not drawn: A -> B` | Hay un import nuevo entre paquetes | Añade la flecha en `render_svg()` y el par en `DRAWN`. Si va contra una regla de nivel, revisa primero el import (Regla #6 de `architecture.instructions.md`) |
-| `upward imports differ from the single type-only one drawn (badge 2): [...]` | Aparece un import que sube de nivel, o desaparece el de `metadata` → `managers` | Un import de módulo hacia arriba es un desvío nuevo: corrígelo en el código. Si desaparece el de tipado, retira la marca 2 |
-| `metadata -> managers is no longer type-only` | El import ya no está bajo `TYPE_CHECKING` | Ahora es un import de módulo hacia arriba: corrígelo o actualiza la marca 2 y su texto |
-| `connection -> factory is no longer a single module-level import (found N)` | Cambió el número o el tipo de imports que cierran el ciclo | Actualiza el texto «un solo import cierra el ciclo» y la marca 1 en `render_svg()` |
+| `upward imports differ from the single type-only one drawn (badge 1): [...]` | Aparece un import que sube de nivel, o desaparece el de `metadata` → `managers` | Un import de módulo hacia arriba es un desvío nuevo: corrígelo en el código. Si desaparece el de tipado, retira la marca 1 |
+| `metadata -> managers is no longer type-only` | El import ya no está bajo `TYPE_CHECKING` | Ahora es un import de módulo hacia arriba: corrígelo o actualiza la marca 1 y su texto |
 | `ERROR: cannot parse <fichero>` | Error de sintaxis en un fichero de `src/` | Corrige el fichero; el script no escribe nada con la medición incompleta |

@@ -7,9 +7,12 @@ drawn in the figure exists in the code (and that no measured arrow is missing), 
     docs/assets/diagrams/arquitectura-capas.svg
     docs/assets/css/arquitectura-capas.css
 
-The layout, the level of each package and the three flagged findings are placed by hand below. If the check fails
+The layout, the level of each package and the two flagged findings are placed by hand below. If the check fails
 the figure no longer matches the code: fix the drawing (or the code) and run the script again. Nothing is written
 while the check fails.
+
+``measure()``, ``LEVEL`` and ``EXCLUDED`` are also used by tests/unit/test_architecture_import_rules.py, which enforces
+Regla #6 (no cycles, no upward imports); keep their names and shapes.
 
 Usage:
     python scripts/gen_arquitectura_capas.py
@@ -32,8 +35,8 @@ OUT_SVG = ROOT / "docs" / "assets" / "diagrams" / "arquitectura-capas.svg"
 OUT_CSS = ROOT / "docs" / "assets" / "css" / "arquitectura-capas.css"
 PKG = "util_bbdd"
 
-# Levels according to .ai/architecture.md. models.py and async_utils.py have no level there; they are drawn with
-# Foundation because they import nothing from the library.
+# Levels according to .ai/architecture.md (Regla #6 in architecture.instructions.md lists the same ones). models.py and
+# async_utils.py are root modules that count as Foundation: they import nothing from the library.
 LEVEL = {
     "_core": 1, "_drivers": 1, "core": 1, "models": 1, "async_utils": 1,
     "connection": 2, "factory": 2, "query": 2, "validators": 2, "executors": 2, "metadata": 2, "results": 2,
@@ -45,7 +48,7 @@ DRAWN = {
     ("dump", "bulk"), ("doc", "analysis"), ("analysis", "managers"), ("doc", "managers"),
     ("bulk", "connection"), ("metadata", "managers"), ("migrate", "metadata"),
     ("metadata", "query"), ("metadata", "results"), ("executors", "query"), ("executors", "results"),
-    ("query", "validators"), ("factory", "connection"), ("connection", "factory"), ("_drivers", "_core"),
+    ("query", "validators"), ("factory", "connection"), ("_drivers", "_core"),
 } | {("managers", t) for t in ("connection", "factory", "executors", "metadata", "query", "results")}  # fmt: skip
 
 # Top-level modules deliberately left out of the figure.
@@ -184,13 +187,10 @@ def verify(edges: dict[tuple[str, str], Edge]) -> list[str]:
             problems.append(f"found in the code but not drawn: {s} -> {t}")
     upward = sorted(pair for pair in measured if LEVEL[pair[0]] < LEVEL[pair[1]])
     if upward != [("metadata", "managers")]:
-        problems.append(f"upward imports differ from the single type-only one drawn (badge 2): {upward}")
+        problems.append(f"upward imports differ from the single type-only one drawn (badge 1): {upward}")
     up = measured.get(("metadata", "managers"))
     if up is not None and (up.module or up.lazy):
         problems.append("metadata -> managers is no longer type-only (the figure says 'solo tipado')")
-    back = measured.get(("connection", "factory"))
-    if back is not None and (back.total, back.module) != (1, 1):
-        problems.append(f"connection -> factory is no longer a single module-level import (found {back.total})")
     return problems
 
 
@@ -208,19 +208,14 @@ def print_edges(edges: dict[tuple[str, str], Edge]) -> None:
 class _Facts(NamedTuple):
     to_foundation: int  # packages of levels 2 and 3 that import from Foundation
     factory_to_connection: int
-    connection_to_factory: int
-    cycle_file: str  # the file whose import closes the cycle
     lazy_where: str  # bulk -> connection lazy import, "path:line"
 
 
 def _facts(edges: dict[tuple[str, str], Edge]) -> _Facts:
     to_foundation = {s for (s, t) in edges if s in LEVEL and t in LEVEL and LEVEL[t] == 1 and LEVEL[s] > 1}
-    back = edges[("connection", "factory")]
     return _Facts(
         to_foundation=len(to_foundation),
         factory_to_connection=edges[("factory", "connection")].total,
-        connection_to_factory=back.total,
-        cycle_file=back.first["module"].rsplit(":", 1)[0],
         lazy_where=edges[("bulk", "connection")].first["lazy"],
     )
 
@@ -229,7 +224,7 @@ NODE_W, NODE_H = 112, 50
 COLS = [30, 168, 306, 444, 582, 720, 858]
 Y3, Y2A, Y2B, Y1 = 58, 256, 354, 526  # top of the node rows: level 3, level 2 (two rows), level 1
 ARIA = (
-    "Los tres niveles de util_bbdd con sus imports reales: connection y factory se importan mutuamente, "
+    "Los tres niveles de util_bbdd con sus imports reales: factory importa de connection en un solo sentido, "
     "metadata importa managers solo para tipado y analysis y doc importan el manager concreto."
 )
 
@@ -277,13 +272,7 @@ def render_svg(f: _Facts) -> str:
     s.parts.append(
         f'<svg class="arq" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 648" role="img" aria-label="{ARIA}" font-family="system-ui,sans-serif">'
     )
-    s.parts.append(
-        "<defs>"
-        + _marker("arq-h", "arq-head")
-        + _marker("arq-h-warn", "arq-head-warn")
-        + _marker("arq-h-cycle", "arq-head-cycle")
-        + "</defs>"
-    )
+    s.parts.append("<defs>" + _marker("arq-h", "arq-head") + _marker("arq-h-warn", "arq-head-warn") + "</defs>")
 
     # bands
     for cls, y, h in (("3", 12, 126), ("2", 214, 210), ("1", 476, 124)):
@@ -291,8 +280,8 @@ def render_svg(f: _Facts) -> str:
             f'<rect class="arq-band arq-band-{cls}" x="8" y="{y}" width="984" height="{h}" rx="10" fill="none" stroke="currentColor" stroke-opacity=".25"/>'
         )
     for y, label, note in (
-        (36, "NIVEL 3 · ESPECIALIZACIÓN", "puede importar de N2 y N1"),
-        (238, "NIVEL 2 · SERVICIOS", "solo de N1"),
+        (36, "NIVEL 3 · ESPECIALIZACIÓN", "importa de N2, N1 y su nivel"),
+        (238, "NIVEL 2 · SERVICIOS", "importa de N1 y su nivel"),
         (500, "NIVEL 1 · FOUNDATION", "no importa de otros niveles"),
     ):
         s.parts.append(
@@ -312,8 +301,7 @@ def render_svg(f: _Facts) -> str:
     for d in ("M752 306 V354", "M796 306 L900 354", "M876 306 L812 354", "M940 306 V354"):
         s.edge(d)  # {metadata, executors} -> {query, results}
     s.edge("M720 379 H694")  # query -> validators
-    s.edge("M210 274 H142")  # factory -> connection
-    s.edge("M142 294 H210", "cycle", "arq-h-cycle")  # connection -> factory (closes the cycle)
+    s.edge("M210 281 H142")  # factory -> connection
     s.edge("M500 424 V476")  # levels 2 and 3 -> Foundation
     s.edge("M190 551 H162")  # _drivers -> _core
 
@@ -343,26 +331,19 @@ def render_svg(f: _Facts) -> str:
     s.text(728, 160, "importa connection, factory, executors,", anchor="end")
     s.text(728, 176, "metadata, query y results (6 de 7)", anchor="end")
     s.text(796, 186, "solo tipado")
-    s.text(176, 268, f"×{f.factory_to_connection}", anchor="middle")
-    s.text(176, 314, f"×{f.connection_to_factory}", "arq-lbl arq-lbl-cycle", "middle")
-    s.text(30, 344, "un solo import cierra el ciclo:", "arq-lbl arq-lbl-cycle")
-    s.parts.append(
-        f'<text class="arq-lbl arq-lbl-cycle arq-lbl-mono" x="30" y="360" font-family="ui-monospace,Consolas,monospace" font-size="11" fill="currentColor">{f.cycle_file}</text>'
-    )
+    s.text(176, 275, f"×{f.factory_to_connection}", anchor="middle")
     s.text(512, 447, f"{f.to_foundation} paquetes importan de Foundation")
     s.text(512, 463, "Foundation no importa hacia arriba (0 imports)")
-    s.text(690, 516, "compartidos · sin nivel asignado")
-    s.badge(176, 294, 1, "cycle")
-    s.badge(780, 178, 2, "warn")
-    s.badge(707, 68, 3, "warn")
-    s.badge(638, 44, 3, "warn")
+    s.text(690, 516, "módulos raíz compartidos")
+    s.badge(780, 178, 1, "warn")
+    s.badge(707, 68, 2, "warn")
+    s.badge(638, 44, 2, "warn")
 
     # legend
     for x, kind, head, label in (
         (30, "", "arq-h", "import de módulo"),
         (230, "lazy", "arq-h", "import perezoso (dentro de una función)"),
         (540, "warn", "arq-h-warn", "contra una regla de nivel"),
-        (770, "cycle", "arq-h-cycle", "ciclo"),
     ):
         s.edge(f"M{x} 620 H{x + 34}", kind, head)
         s.text(x + 44, 624, label)
@@ -388,11 +369,10 @@ CSS_HEAD = """/* Diagrama de capas e imports (docs/architecture.md). Tokens liga
   --arq-band-1: color-mix(in srgb, var(--md-default-fg-color) 10%, var(--md-default-bg-color));
   --arq-band-line: var(--md-default-fg-color--lightest);
   --arq-amber: #a45500;
-  --arq-red: #c0261a;
   --arq-badge-ink: #fff;
   margin: 1.5em 0;
 }
-[data-md-color-scheme="slate"] .arq-figure { --arq-amber: #f0a03c; --arq-red: #ff8078; --arq-badge-ink: #101418; }
+[data-md-color-scheme="slate"] .arq-figure { --arq-amber: #f0a03c; --arq-badge-ink: #101418; }
 .arq-figure .arq-scroll { overflow-x: auto; }
 .arq-figure svg.arq { min-width: 640px; }
 .arq-figure figcaption { font-size: .8rem; color: var(--md-default-fg-color--light); margin-top: .5rem; }
@@ -411,15 +391,10 @@ CSS_RULES = """.arq { display: block; width: 100%; height: auto; color: var(--ar
 .arq .arq-edge { fill: none; stroke: var(--arq-line); stroke-width: 1.4; }
 .arq .arq-edge.lazy { stroke-dasharray: 2 4; stroke-linecap: round; }
 .arq .arq-edge.warn { stroke: var(--arq-amber); stroke-width: 1.8; stroke-dasharray: 6 4; }
-.arq .arq-edge.cycle { stroke: var(--arq-red); stroke-width: 2.4; }
 .arq .arq-head { fill: var(--arq-line); }
 .arq .arq-head-warn { fill: var(--arq-amber); }
-.arq .arq-head-cycle { fill: var(--arq-red); }
 .arq .arq-badge-warn { fill: var(--arq-amber); }
-.arq .arq-badge-cycle { fill: var(--arq-red); }
 .arq .arq-badge-num { fill: var(--arq-badge-ink); font: 700 11px var(--arq-sans); }
-.arq .arq-lbl-cycle { fill: var(--arq-red); }
-.arq .arq-lbl-mono { font: 400 11px var(--arq-mono); }
 """
 
 

@@ -40,6 +40,9 @@
 │    core/
 │    └── capabilities.py             # Capacidades por motor
 │
+│    models.py                       # Modelos de dominio compartidos (módulo raíz, sin imports de la librería)
+│    async_utils.py                  # maybe_await (módulo raíz, sin imports de la librería)
+│
 ├─── LEVEL 2: SERVICIOS (Services Layer)
 │
 │    connection/                     🔌 Gestión de conexiones
@@ -130,10 +133,8 @@
 │    doc/                            📄 Documentación de BD
 │    └── (Jinja2 templates → HTML/Word/Excel)
 │
-│    async_utils.py                  # maybe_await
-│    models.py                       # Modelos de dominio compartidos
-│    __init__.py                     # API pública (re-exports)
-│    docs_build_plugin.py            # Plugin MkDocs: documentation_zip (ZIP + SHA256)
+│    __init__.py                     # API pública (re-exports); módulo raíz sin nivel
+│    docs_build_plugin.py            # Plugin MkDocs: documentation_zip (ZIP + SHA256); fuera de la librería
 ```
 
 ---
@@ -143,10 +144,10 @@
 | Regla | Descripción |
 |---|---|
 | Level 1 → no importa Level 2/3 | Foundation nunca depende de servicios |
-| Level 2 → importa Level 1 únicamente | Services no importa managers ni bulk |
-| Level 3 → importa Level 1+2 | Specialization construye sobre la base |
+| Level 2 → importa Level 1 y otros paquetes de Level 2 en un solo sentido | Services no importa managers ni bulk |
+| Level 3 → importa Level 1+2 y otros paquetes de Level 3 en un solo sentido | Specialization construye sobre la base |
 | `metadata/*/tables.py` = único punto canónico SQL | Ningún módulo duplica SQL de introspección |
-| Sin ciclos de importación | Orden estricto por nivel |
+| Sin ciclos de importación | Ni dentro de un nivel ni entre niveles; los imports perezosos cuentan. Guarda: `tests/unit/test_architecture_import_rules.py` |
 
 ---
 
