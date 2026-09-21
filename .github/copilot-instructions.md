@@ -288,6 +288,19 @@ Ver `.github/SHARED_INSTRUCTIONS.md` § "Validación de Markdown en documentaci�
 
 ---
 
+## 🗺️ Diagrama de Capas e Imports
+
+La figura «Capas e imports reales» de `docs/architecture.md` se genera desde el código; no se edita a mano. Regla común: `.github/SHARED_INSTRUCTIONS.md` § «Diagrama de capas e imports».
+
+```bash
+python scripts/gen_arquitectura_capas.py          # mide imports con ast, verifica el dibujo y reescribe SVG + CSS
+python scripts/gen_arquitectura_capas.py --edges  # tabla de imports medida (diagnóstico, no escribe nada)
+```
+
+Guía completa: `docs/guides/architecture_diagram_guide.md`.
+
+---
+
 ## 📦 Descarga de Documentación Offline
 
 Util_bbdd proporciona **documentación en ZIP offline** con búsqueda integrada, SHA256 checksums y auto-publicación en GitHub Releases.
@@ -343,4 +356,4 @@ Cuando actualices **`.github/SHARED_INSTRUCTIONS.md`**, verifica:
 
 ---
 
-*Actualizado: 2026-06-05*
+*Actualizado: 2026-09-21*

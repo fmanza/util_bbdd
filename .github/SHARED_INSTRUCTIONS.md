@@ -167,6 +167,7 @@ python -m build
 zensical build        # generador por defecto (CI); lee mkdocs.yml
 mkdocs build          # equivalente recíproco con el mismo mkdocs.yml
 python scripts/build_docs_zip.py   # build + ZIP offline en dist/util_bbdd-docs-{version}.zip
+python scripts/gen_arquitectura_capas.py   # regenera el diagrama de capas e imports (falla si no coincide con el código)
 # Onboarding: generar/actualizar guía de incorporación para nuevos desarrolladores
 # → aplicar .github/prompts/onboarding_dev.prompt.md → docs/ONBOARDING_DEV.md
 ```
@@ -255,6 +256,20 @@ sha256sum -c dist/*.sha256                             # Validar checksums
 - No uses ejemplos heredados de otros repositorios: valida nombres de proyecto, rutas, clases y tests contra el árbol real antes de documentarlos.
 - No uses un único prompt masivo; divide en mapeo funcional, técnica, ejemplos, Mermaid y revisión final.
 - Excluye por el momento generación de documentación mediante APIs externas.
+
+#### Diagrama de capas e imports
+
+La figura «Capas e imports reales» de `docs/architecture.md` se genera desde el código; no se edita a mano.
+
+```bash
+python scripts/gen_arquitectura_capas.py          # mide imports con ast, verifica el dibujo y reescribe SVG + CSS
+python scripts/gen_arquitectura_capas.py --edges  # tabla de imports medida (diagnóstico, no escribe nada)
+```
+
+- Ejecútalo si un cambio añade, mueve o elimina un paquete de primer nivel de `src/util_bbdd/` o un import entre ellos.
+- Si falla, no escribe nada: el dibujo (`LEVEL`, `DRAWN` y `render_svg()` en el script) ya no coincide con el código. Decide si el import es correcto (actualiza el dibujo) o un error (corrige el código); no fuerces la salida.
+- Si pasa, revisa el pie de figura de `docs/architecture.md` (versión, fecha y número de ficheros medidos).
+- Guía completa: `docs/guides/architecture_diagram_guide.md`.
 
 #### Estándar: Docstrings Google-style
 
@@ -381,4 +396,4 @@ especializaciones afectadas (copilot-instructions.md y/o CLAUDE.md).
 
 ---
 
-*Actualizado: 2026-06-05*
+*Actualizado: 2026-09-21*

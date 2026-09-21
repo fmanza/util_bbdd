@@ -27,7 +27,7 @@ pip install -e ".[docs]"       # Para mkdocs build
 |---|---|
 | `src/util_bbdd/` | Código fuente (namespace package) |
 | `tests/` | Tests pytest (discovery automático) |
-| `scripts/` | Utilidades: `build_docs_zip.py`, `check_env.py` |
+| `scripts/` | Utilidades: `build_docs_zip.py`, `gen_arquitectura_capas.py`, `start-server.py` |
 | `docs/` | Documentación MkDocs (fuente) |
 | `site/` | Salida de build (git-ignored) |
 | `dist/` | ZIP offline + checksums |
@@ -61,8 +61,8 @@ zensical serve
 # Distribución offline
 python scripts/build_docs_zip.py  # Genera dist/util_bbdd-docs-{version}.zip + SHA256
 
-# Verificación del entorno
-python scripts/check_env.py
+# Diagrama de capas e imports (docs/architecture.md)
+python scripts/gen_arquitectura_capas.py  # Regenera SVG + CSS; falla si el dibujo no coincide con el código
 ```
 
 ## Database Testing

@@ -1,7 +1,7 @@
 # INTEGRATION_MAP.md
 
 **Versionado**: v0.6.7
-**Última actualización**: 18 de abril de 2026
+**Última actualización**: 21 de septiembre de 2026
 **Propósito**: Gobernanza y sincronización entre `.claude/` (Claude Code) y `.github/` (Copilot Chat)
 
 > Este documento es **autoridad única** para responder:

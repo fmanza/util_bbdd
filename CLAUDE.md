@@ -315,6 +315,21 @@ Ver `.github/SHARED_INSTRUCTIONS.md` § "Validación de Markdown en documentaci�
 
 ---
 
+## 🗺️ Diagrama de Capas e Imports
+
+La figura «Capas e imports reales» de `docs/architecture.md` se **genera desde el código**; no se edita a mano. Regla común y comandos: `.github/SHARED_INSTRUCTIONS.md` § «Diagrama de capas e imports».
+
+```bash
+python scripts/gen_arquitectura_capas.py          # mide imports con ast, verifica el dibujo y reescribe SVG + CSS
+python scripts/gen_arquitectura_capas.py --edges  # tabla de imports medida (diagnóstico, no escribe nada)
+```
+
+**Cuándo ejecutarlo**: si tu cambio añade, mueve o elimina un paquete de primer nivel de `src/util_bbdd/` o un import entre ellos (típico en `/new-feature` y `/refactor`). Si falla, no fuerces la salida: sigue la regla común.
+
+- Guía completa: [`docs/guides/architecture_diagram_guide.md`](./docs/guides/architecture_diagram_guide.md).
+
+---
+
 ## 📦 Descarga de Documentación Offline
 
 Util_bbdd proporciona **documentación en ZIP offline** con búsqueda integrada, SHA256 checksums y auto-publicación en GitHub Releases.
@@ -390,8 +405,9 @@ python -m build                     # Empaquetamiento
 zensical serve                      # Documentación local (por defecto, lee mkdocs.yml)
 mkdocs serve                        # Documentación local (recíproco, mismo mkdocs.yml)
 python scripts/build_docs_zip.py    # Genera dist/util_bbdd-docs-{version}.zip para distribución offline
+python scripts/gen_arquitectura_capas.py  # Regenera el diagrama de capas e imports (falla si no coincide con el código)
 ```
 
 ---
 
-*Actualizado: 2026-06-05*
+*Actualizado: 2026-09-21*

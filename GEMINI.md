@@ -74,6 +74,7 @@ python -m pytest                    # Ejecución de tests
 zensical serve                      # Previsualizar documentación (por defecto, lee mkdocs.yml)
 mkdocs serve                        # Previsualizar documentación (recíproco, mismo mkdocs.yml)
 python scripts/build_docs_zip.py    # Generar ZIP offline con SHA256 checksums
+python scripts/gen_arquitectura_capas.py  # Regenerar el diagrama de capas e imports (ver SHARED_INSTRUCTIONS)
 ```
 
 ### Validación de Markdown — Checklist obligatorio
@@ -117,4 +118,4 @@ El sistema es reutilizable mediante bootstrap. Ver `.github/prompts/bootstrap_ai
 
 ---
 
-*Actualizado: 2026-06-05*
+*Actualizado: 2026-09-21*

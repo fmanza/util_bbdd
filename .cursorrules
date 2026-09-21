@@ -264,6 +264,17 @@ Cuando un archivo de ejemplo `.py` se mueve o renombra:
 #   A:  --8<-- "examples/database/connection_pool.py"
 ```
 
+### 10. Figuras Generadas desde el Código
+
+La figura «Capas e imports reales» de `docs/architecture.md` se genera desde los imports de `src/util_bbdd/`; no se edita a mano el SVG ni el CSS de `docs/assets/`.
+
+```bash
+python scripts/gen_arquitectura_capas.py          # mide imports con ast, verifica el dibujo y reescribe SVG + CSS
+python scripts/gen_arquitectura_capas.py --edges  # tabla de imports medida (diagnóstico, no escribe nada)
+```
+
+**Regla:** Si el script falla, no fuerces la salida: sigue la regla común de `.github/SHARED_INSTRUCTIONS.md` § «Diagrama de capas e imports».
+
 ---
 
 ## Checklist Completo — Antes de Documentar
@@ -326,4 +337,4 @@ Cuando un archivo de ejemplo `.py` se mueve o renombra:
 ---
 
 *Estándar adoptado: 2026-06-03 — Refactorización de snippets en parallel_bulk_insert.md*
-*Última actualización: 2026-06-03 — Documentación de Referencias Técnicas*
+*Última actualización: 2026-09-21 — Figuras generadas desde el código (diagrama de capas e imports)*
