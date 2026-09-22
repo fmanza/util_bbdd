@@ -20,6 +20,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
+from .._core.exceptions import DumpReportError
 from ._constraints import ConstraintResult
 from ._models import IndexActionResult, TableDumpResult
 
@@ -143,22 +144,30 @@ class DumpReporter:
             cycles: Grupos de tablas con FK circular.
             index_results: Resultados de gestión de índices. ``None`` (default) cuando
                 ``DumpConfig.manage_indexes=False``: no se añade la hoja "Índices".
+
+        Raises:
+            DumpReportError: Si falla la creación del directorio de salida o la
+                escritura del fichero Excel (p.ej. disco lleno, permisos, ruta inválida).
         """
-        self._output_dir.mkdir(parents=True, exist_ok=True)
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = self._output_dir / f"dump_report_{ts}.xlsx"
+        try:
+            self._output_dir.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_path = self._output_dir / f"dump_report_{ts}.xlsx"
 
-        wb = openpyxl.Workbook()
-        if wb.active is not None:
-            wb.remove(wb.active)
+            wb = openpyxl.Workbook()
+            if wb.active is not None:
+                wb.remove(wb.active)
 
-        self._sheet_audit(wb, table_results, constraint_results, cycles)
-        self._sheet_missing_tables(wb, missing_tables)
-        self._sheet_missing_columns(wb, table_results)
-        if index_results is not None:
-            self._sheet_indexes(wb, index_results)
+            self._sheet_audit(wb, table_results, constraint_results, cycles)
+            self._sheet_missing_tables(wb, missing_tables)
+            self._sheet_missing_columns(wb, table_results)
+            if index_results is not None:
+                self._sheet_indexes(wb, index_results)
 
-        wb.save(output_path)
+            wb.save(output_path)
+        except OSError as exc:
+            raise DumpReportError(f"Error generando el informe Excel de volcado: {exc}") from exc
+
         _log.info("Informe Excel guardado en '%s'.", output_path)
         return output_path
 

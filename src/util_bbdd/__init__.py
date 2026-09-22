@@ -27,9 +27,24 @@ from ._core.exceptions import (
     ValidationError,
 )
 from .async_utils import maybe_await
-from .comparar import SchemaComparator, SchemaDiff
+from .comparar import (
+    ComparerError,
+    DiffReportGenerationError,
+    MetadataIntrospectionError,
+    SchemaComparator,
+    SchemaDiff,
+    SchemaDiffValidationError,
+)
 from .connection.builder import build_conn_params
-from .dump import DumpConfig, DumpOrchestrator, DumpResult, TableDumpResult
+from .dump import (
+    DumpConfig,
+    DumpConstraintError,
+    DumpError,
+    DumpOrchestrator,
+    DumpReportError,
+    DumpResult,
+    TableDumpResult,
+)
 from .factory import ConnectionFactory, PoolFactory
 from .managers.async_mgr import AsyncDatabaseManager
 from .managers.sync_mgr import SyncDatabaseManager
@@ -49,6 +64,11 @@ __all__: list[str] = [
     "RelationshipMetadataCache",
     "SchemaComparator",
     "SchemaDiff",
+    # Excepciones de comparar/
+    "ComparerError",
+    "SchemaDiffValidationError",
+    "MetadataIntrospectionError",
+    "DiffReportGenerationError",
     # Excepciones canónicas
     "DatabaseException",
     "ConnectionError",
@@ -71,6 +91,9 @@ __all__: list[str] = [
     "DumpConfig",
     "DumpResult",
     "TableDumpResult",
+    "DumpError",
+    "DumpConstraintError",
+    "DumpReportError",
     # Migración DDL
     "MigrationPlanner",
     "MigrationPlan",

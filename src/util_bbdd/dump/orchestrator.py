@@ -38,6 +38,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader
 from util_bbdd.bulk.audit import AuditManager
 
+from .._core.exceptions import DumpError
 from ._constraints import ConstraintManager, ConstraintResult
 from ._indexes import IndexManager
 from ._models import DumpAuditSummary, DumpConfig, DumpResult, IndexActionResult, PKSyncResult, TableDumpResult
@@ -86,13 +87,23 @@ class DumpOrchestrator:
     # ------------------------------------------------------------------
 
     def run(self) -> DumpResult:
-        """Ejecuta el volcado completo y retorna el resultado con el informe."""
+        """Ejecuta el volcado completo y retorna el resultado con el informe.
+
+        Raises:
+            DumpError: Si falla el análisis inicial de carga (introspección de tablas
+                de origen/destino) — un fallo no recuperable de orquestación, a
+                diferencia de los fallos por tabla individual durante la carga
+                (best-effort, reflejados en ``TableDumpResult.error_msg``).
+        """
         cfg = self._cfg
         dump_inicio = datetime.now()
 
         # FASE 1: Análisis de carga
-        src_tables = self._get_source_tables()
-        _dst_names = self._dst_insp.get_table_names(schema=cfg.target_schema)
+        try:
+            src_tables = self._get_source_tables()
+            _dst_names = self._dst_insp.get_table_names(schema=cfg.target_schema)
+        except SQLAlchemyError as exc:
+            raise DumpError(f"Error analizando tablas de origen/destino para el volcado: {exc}") from exc
         # Comparación case-insensitive: motores distintos pueden devolver distinto case
         dst_lower: dict[str, str] = {}
         for _t in _dst_names:

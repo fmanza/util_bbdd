@@ -5,9 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import openpyxl
+import pytest
 
 from openpyxl.worksheet.worksheet import Worksheet
 
+from util_bbdd._core.exceptions import DumpReportError
 from util_bbdd.dump._constraints import ConstraintResult
 from util_bbdd.dump._models import TableDumpResult
 from util_bbdd.dump.reporters import DumpReporter
@@ -91,6 +93,34 @@ class TestDumpReporterSheetStructure:
         )
         assert "dump_report_" in path.name
         assert path.suffix == ".xlsx"
+
+
+class TestDumpReporterDumpReportError:
+    """FND-03/FND-04 (AUDIT_CODE 2026-09-22, decisión confirmada por el usuario):
+    un fallo de I/O generando el informe (disco lleno, permisos, ruta inválida)
+    debe surgir como DumpReportError, no como OSError crudo."""
+
+    def test_output_dir_conflicting_with_existing_file_raises_dump_report_error(self, tmp_path: Path):
+        # output_dir apunta a un fichero ya existente: mkdir(exist_ok=True) falla con
+        # FileExistsError (subclase de OSError) porque no es un directorio.
+        blocking_file = tmp_path / "reports"
+        blocking_file.write_text("not a directory")
+        reporter = DumpReporter(blocking_file)
+
+        with pytest.raises(DumpReportError):
+            reporter.generate(table_results=[], missing_tables=[], constraint_results=[], cycles=[])
+
+    def test_wb_save_failure_wrapped_in_dump_report_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        import openpyxl as openpyxl_module
+
+        def _boom(self, path, *args, **kwargs):  # noqa: ANN001, ARG001
+            raise OSError("disk full")
+
+        monkeypatch.setattr(openpyxl_module.Workbook, "save", _boom)
+        reporter = DumpReporter(tmp_path)
+
+        with pytest.raises(DumpReportError, match="disk full"):
+            reporter.generate(table_results=[], missing_tables=[], constraint_results=[], cycles=[])
 
 
 # ---------------------------------------------------------------------------

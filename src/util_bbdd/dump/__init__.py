@@ -26,6 +26,7 @@ Ejemplo básico::
     print(f"Tablas cargadas: {len(result.table_results)}")
 """
 
+from .._core.exceptions import DumpConstraintError, DumpError, DumpReportError
 from ._constraints import ConstraintManager, ConstraintResult
 from ._indexes import IndexManager
 from ._models import (
@@ -46,7 +47,10 @@ __all__: list[str] = [
     "ConstraintResult",
     "DumpAuditSummary",
     "DumpConfig",
+    "DumpConstraintError",
+    "DumpError",
     "DumpOrchestrator",
+    "DumpReportError",
     "DumpReporter",
     "DumpResult",
     "IndexActionResult",

@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy import Engine, Inspector, event, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
+from .._core.exceptions import DumpConstraintError
 from ._models import ConstraintResult
 from ._sql_utils import quote_identifier, quote_table
 
@@ -72,36 +73,59 @@ class ConstraintManager:
     # ------------------------------------------------------------------
 
     def disable_all(self, tables: list[str]) -> None:
-        """Desactiva constraints en las tablas indicadas del motor destino."""
+        """Desactiva constraints en las tablas indicadas del motor destino.
+
+        Los fallos por constraint/tabla individual se degradan a warning (best-effort,
+        ver los métodos `_disable_*`); un fallo real que impida desactivar constraints
+        en absoluto (p.ej. conexión perdida a mitad de la operación) se relanza como
+        `DumpConstraintError` en vez de propagar la excepción cruda de SQLAlchemy.
+
+        Raises:
+            DumpConstraintError: Si falla la desactivación de forma no recuperable.
+        """
         dialect = self._dialect
         if dialect not in _SUPPORTED_DIALECTS:
             _log.warning("Dialect '%s' no soportado para gestión de constraints. Se continúa sin desactivar.", dialect)
             return
 
-        if dialect in ("mariadb", "mysql"):
-            self._disable_mariadb()
-        elif dialect == "mssql":
-            self._disable_sqlserver(tables)
-        elif dialect == "postgresql":
-            self._disable_postgresql(tables)
-        elif dialect == "oracle":
-            self._disable_oracle(tables)
+        try:
+            if dialect in ("mariadb", "mysql"):
+                self._disable_mariadb()
+            elif dialect == "mssql":
+                self._disable_sqlserver(tables)
+            elif dialect == "postgresql":
+                self._disable_postgresql(tables)
+            elif dialect == "oracle":
+                self._disable_oracle(tables)
+        except SQLAlchemyError as exc:
+            raise DumpConstraintError(f"Error desactivando constraints en destino ({dialect}): {exc}") from exc
 
     def enable_all(self) -> list[ConstraintResult]:
-        """Reactiva todas las constraints desactivadas. Retorna resultado por constraint."""
+        """Reactiva todas las constraints desactivadas. Retorna resultado por constraint.
+
+        Igual que `disable_all`: fallos por constraint individual se reflejan en el
+        `ConstraintResult` correspondiente (status="failed"); un fallo real no
+        recuperable se relanza como `DumpConstraintError`.
+
+        Raises:
+            DumpConstraintError: Si falla la reactivación de forma no recuperable.
+        """
         dialect = self._dialect
         if dialect not in _SUPPORTED_DIALECTS:
             return []
 
-        if dialect in ("mariadb", "mysql"):
-            return self._enable_mariadb()
-        if dialect == "mssql":
-            return self._enable_sqlserver()
-        if dialect == "postgresql":
-            return self._enable_postgresql()
-        if dialect == "oracle":
-            return self._enable_oracle()
-        return []
+        try:
+            if dialect in ("mariadb", "mysql"):
+                return self._enable_mariadb()
+            if dialect == "mssql":
+                return self._enable_sqlserver()
+            if dialect == "postgresql":
+                return self._enable_postgresql()
+            if dialect == "oracle":
+                return self._enable_oracle()
+            return []
+        except SQLAlchemyError as exc:
+            raise DumpConstraintError(f"Error reactivando constraints en destino ({dialect}): {exc}") from exc
 
     # ------------------------------------------------------------------
     # MariaDB / MySQL  (event listener sobre el engine pool)

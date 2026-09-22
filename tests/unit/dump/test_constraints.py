@@ -7,6 +7,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sqlalchemy.exc import SQLAlchemyError
+
+from util_bbdd._core.exceptions import DumpConstraintError
 from util_bbdd.dump._constraints import ConstraintManager, ConstraintResult
 
 # ---------------------------------------------------------------------------
@@ -410,3 +413,54 @@ class TestConstraintManagerExitBehavior:
                 raise RuntimeError("body error")
 
         assert isinstance(mgr.constraint_results, list)
+
+
+# ---------------------------------------------------------------------------
+# ConstraintManager — FND-03/FND-04: fallos no recuperables → DumpConstraintError
+# ---------------------------------------------------------------------------
+
+
+class TestConstraintManagerDumpConstraintError:
+    """FND-03/FND-04 (AUDIT_CODE 2026-09-22, decisión confirmada por el usuario):
+    un fallo real (no por-constraint) desactivando/reactivando constraints debe
+    surgir como DumpConstraintError, no como SQLAlchemyError crudo."""
+
+    def test_disable_all_wraps_sqlalchemy_error_in_dump_constraint_error(self):
+        engine = _make_engine("mssql")
+        engine.begin.return_value.execute.side_effect = SQLAlchemyError("connection lost")
+        mgr = ConstraintManager(engine)
+
+        with pytest.raises(DumpConstraintError, match="connection lost"):
+            mgr.disable_all(tables=["orders"])
+
+    def test_disable_all_dump_constraint_error_preserves_cause(self):
+        engine = _make_engine("mssql")
+        original = SQLAlchemyError("connection lost")
+        engine.begin.return_value.execute.side_effect = original
+        mgr = ConstraintManager(engine)
+
+        with pytest.raises(DumpConstraintError) as exc_info:
+            mgr.disable_all(tables=["orders"])
+
+        assert exc_info.value.__cause__ is original
+
+    def test_enable_all_wraps_sqlalchemy_error_in_dump_constraint_error(self):
+        engine = _make_engine("mssql")
+        mgr = ConstraintManager(engine)
+        mgr._nocheck_tables = ["orders"]
+        engine.connect.return_value.execute.side_effect = SQLAlchemyError("connection lost")
+        # No debe entrar en el except SQLAlchemyError por-tabla ya existente: forzamos
+        # el fallo directamente en el dispatcher simulando un error inesperado.
+        mgr._enable_sqlserver = MagicMock(side_effect=SQLAlchemyError("connection lost"))  # type: ignore[method-assign]
+
+        with pytest.raises(DumpConstraintError, match="connection lost"):
+            mgr.enable_all()
+
+    def test_disable_all_non_sqlalchemy_error_propagates_unwrapped(self):
+        """Solo SQLAlchemyError se envuelve; otros errores (p.ej. bugs) se propagan tal cual."""
+        engine = _make_engine("mssql")
+        engine.begin.return_value.execute.side_effect = RuntimeError("unexpected bug")
+        mgr = ConstraintManager(engine)
+
+        with pytest.raises(RuntimeError, match="unexpected bug"):
+            mgr.disable_all(tables=["orders"])

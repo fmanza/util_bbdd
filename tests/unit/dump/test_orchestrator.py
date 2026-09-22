@@ -5,6 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from sqlalchemy.exc import SQLAlchemyError
+
+from util_bbdd._core.exceptions import DumpError
 from util_bbdd.dump._models import IndexActionResult
 from util_bbdd.dump._sql_utils import quote_identifier as _qi, quote_table as _qt
 from util_bbdd.dump.orchestrator import (
@@ -395,6 +400,17 @@ class TestDumpOrchestratorRun:
 
         missing = [r for r in result.table_results if r.status == "missing_target"]
         assert any(r.table_name == "orders" for r in missing)
+
+    def test_run_wraps_introspection_failure_in_dump_error(self):
+        """FND-03/FND-04 (AUDIT_CODE 2026-09-22, decisión confirmada por el usuario):
+        un fallo de introspección en FASE 1 (análisis inicial) es un fallo de
+        orquestación no recuperable — debe surgir como DumpError, no como
+        SQLAlchemyError crudo (a diferencia de los fallos por tabla individual)."""
+        orch = self._build_orchestrator(src_tables=["customers"], dst_tables=["customers"])
+        orch._dst_insp.get_table_names.side_effect = SQLAlchemyError("connection lost")
+
+        with pytest.raises(DumpError, match="connection lost"):
+            orch.run()
 
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("dump_report.xlsx"))
