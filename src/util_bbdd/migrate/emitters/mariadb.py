@@ -22,6 +22,42 @@ def _bt(name: str) -> str:
     return f"`{name.replace('`', '``')}`"
 
 
+#: Display width convencional de MariaDB/MySQL por tipo entero, aplicado a columnas
+#: AUTO_INCREMENT cuando target_type no trae ya uno propio (p.ej. "BIGINT" sin ancho
+#: mapeado por sqlserver_to_mariadb/postgresql_to_mariadb, a diferencia de oracle_to_mariadb
+#: que sí aplica _with_int_width a "INT").
+_AUTO_INCREMENT_DISPLAY_WIDTH: dict[str, int] = {
+    "TINYINT": 4,
+    "SMALLINT": 6,
+    "MEDIUMINT": 9,
+    "INT": 11,
+    "INTEGER": 11,
+    "BIGINT": 20,
+}
+
+
+def _auto_increment_col_type(target_type: str) -> str:
+    """Tipo MariaDB para una columna AUTO_INCREMENT, preservando el ancho del tipo origen.
+
+    Antes de este fix el emitter forzaba ``INT(11)`` para toda columna AUTO_INCREMENT
+    sin importar el tipo fuente, lo que descartaba en silencio BIGINT/SMALLINT y
+    arriesgaba overflow en PKs grandes migradas desde SQL Server/Oracle/PostgreSQL.
+
+    Si ``target_type`` ya trae un display width propio (p.ej. ``"BIGINT(20)"`` de
+    Oracle NUMBER sin precisión, o ``"INT(11)"`` de ``_with_int_width``), se preserva
+    tal cual. Si no lo trae (p.ej. ``"BIGINT"``/``"SMALLINT"`` mapeados por los
+    transformers de SQL Server/PostgreSQL), se aplica el display width convencional
+    de MariaDB para ese tipo entero base. Un ``target_type`` que no sea uno de los
+    tipos enteros reconocidos (no debería ocurrir: solo columnas PK/secuencia enteras
+    se marcan auto_increment) se devuelve sin modificar.
+    """
+    if "(" in target_type:
+        return target_type
+    base = target_type.upper().strip()
+    width = _AUTO_INCREMENT_DISPLAY_WIDTH.get(base)
+    return f"{base}({width})" if width else target_type
+
+
 class MariaDBDDLEmitter:
     """Genera DDL MariaDB desde IR canónico.
 
@@ -208,9 +244,7 @@ class MariaDBDDLEmitter:
             comment = col.ddl_comment or f"-- AVISO: columna '{col.original_name}' omitida"
             return f"  {comment}"
 
-        # MariaDB requiere INT(11) para columnas AUTO_INCREMENT independientemente
-        # del tipo fuente (INT, BIGINT, SMALLINT, etc. de cualquier motor origen).
-        col_type = "INT(11)" if col.auto_increment else col.target_type
+        col_type = _auto_increment_col_type(col.target_type) if col.auto_increment else col.target_type
         parts = [f"  {_bt(col.name)}", col_type]
 
         if not col.nullable:

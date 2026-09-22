@@ -78,38 +78,37 @@ class TestMariaDBDDLEmitter:
         assert "`select`" in ddl
 
     def test_auto_increment_column(self) -> None:
-        # Bug: columnas AUTO_INCREMENT deben emitirse siempre como INT(11) en MariaDB,
-        # independientemente del tipo fuente mapeado en target_type.
+        # MIG-02: columnas AUTO_INCREMENT preservan el ancho del tipo origen — un PK
+        # BIGINT no se colapsa a INT(11) (evita overflow en PKs grandes migradas desde
+        # SQL Server/Oracle/PostgreSQL). Ver .ai/sessions/.../02_PLAN_p1_p2.md.
         table = _table(
             "ORDERS",
             [_col("ID", "BIGINT", nullable=False, auto_increment=True, is_pk=True)],
             pk=["ID"],
         )
         ddl = self.emitter.emit([table])
-        assert "`ID` INT(11) NOT NULL AUTO_INCREMENT" in ddl
+        assert "`ID` BIGINT(20) NOT NULL AUTO_INCREMENT" in ddl
 
     @pytest.mark.parametrize(
-        "source_mapped_type",
+        ("source_mapped_type", "expected_col_type"),
         [
-            "INT",  # SQL Server INT IDENTITY / PostgreSQL INTEGER SERIAL
-            "BIGINT",  # SQL Server BIGINT IDENTITY / PostgreSQL BIGINT SERIAL
-            "SMALLINT",  # SQL Server SMALLINT IDENTITY / PostgreSQL SMALLINT
-            "INT(11)",  # ya correcto (MariaDB nativo / Oracle con display width)
-            "BIGINT(20)",  # Oracle NUMBER sin precisión mapeado con display width
+            ("INT", "INT(11)"),  # SQL Server INT IDENTITY / PostgreSQL INTEGER SERIAL
+            ("BIGINT", "BIGINT(20)"),  # SQL Server BIGINT IDENTITY / PostgreSQL BIGINT SERIAL
+            ("SMALLINT", "SMALLINT(6)"),  # SQL Server SMALLINT IDENTITY / PostgreSQL SMALLINT
+            ("TINYINT", "TINYINT(4)"),  # MySQL/MariaDB TINYINT AUTO_INCREMENT
+            ("INT(11)", "INT(11)"),  # ya trae display width propio (Oracle _with_int_width)
+            ("BIGINT(20)", "BIGINT(20)"),  # Oracle NUMBER sin precisión con display width
         ],
     )
-    def test_auto_increment_always_emits_int11(self, source_mapped_type: str) -> None:
-        """Cualquier tipo entero fuente debe emitirse como INT(11) cuando AUTO_INCREMENT."""
+    def test_auto_increment_preserves_source_width(self, source_mapped_type: str, expected_col_type: str) -> None:
+        """AUTO_INCREMENT preserva la categoría del tipo fuente con su display width convencional."""
         table = _table(
             "T_AI",
             [_col("id", source_mapped_type, nullable=False, auto_increment=True, is_pk=True)],
             pk=["id"],
         )
         ddl = self.emitter.emit([table])
-        assert "`id` INT(11) NOT NULL AUTO_INCREMENT" in ddl
-        # El tipo fuente NO debe aparecer literalmente (excepto si coincide con INT(11))
-        if source_mapped_type not in ("INT(11)",):
-            assert f"`id` {source_mapped_type} " not in ddl
+        assert f"`id` {expected_col_type} NOT NULL AUTO_INCREMENT" in ddl
 
     def test_non_auto_increment_preserves_original_type(self) -> None:
         """Columnas sin AUTO_INCREMENT NO deben verse afectadas por el fix."""
