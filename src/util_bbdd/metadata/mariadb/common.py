@@ -5,6 +5,97 @@ from __future__ import annotations
 from typing import Any
 
 
+def mariadb_type_mapping() -> dict[str, str]:
+    """Retorna mapeo completo de tipos MariaDB a tipos genéricos.
+
+    MEO-07 (AUDIT_CODE 2026-09-22): MariaDB no tenía ninguna función de
+    normalización propia — MariaDBSyncAdapter/AsyncAdapter.fetch_columns_sync/async
+    exponían el tipo nativo crudo (p.ej. "varchar(255)") como ``column_type``, a
+    diferencia del resto de motores (mysql, postgresql, sqlserver, oracle, sqlite),
+    que devuelven un tipo genérico normalizado. Mapeo alineado con
+    ``mysql_type_mapping()`` (MariaDB es históricamente compatible con el sistema
+    de tipos de MySQL en ``information_schema``).
+
+    Returns:
+        dict[str, str]: Mapeo {mariadb_type_upper: generic_type}
+    """
+    return {
+        # Integers
+        "TINYINT": "tinyint",
+        "SMALLINT": "smallint",
+        "MEDIUMINT": "integer",
+        "INT": "integer",
+        "INTEGER": "integer",
+        "BIGINT": "bigint",
+        "BIT": "bit",
+        # Floating point
+        "FLOAT": "float",
+        "DOUBLE": "float",
+        "DOUBLE PRECISION": "float",
+        "REAL": "float",
+        # Fixed point
+        "DECIMAL": "decimal",
+        "DEC": "decimal",
+        "NUMERIC": "numeric",
+        "FIXED": "numeric",
+        # Strings
+        "CHAR": "char",
+        "VARCHAR": "varchar",
+        "BINARY": "binary",
+        "VARBINARY": "binary",
+        "TINYBLOB": "binary",
+        "BLOB": "binary",
+        "MEDIUMBLOB": "binary",
+        "LONGBLOB": "binary",
+        "TINYTEXT": "text",
+        "TEXT": "text",
+        "MEDIUMTEXT": "text",
+        "LONGTEXT": "text",
+        # Date/Time
+        "DATE": "date",
+        "TIME": "time",
+        "DATETIME": "datetime",
+        "TIMESTAMP": "timestamp",
+        "YEAR": "year",
+        # Special types
+        "JSON": "json",
+        "ENUM": "enum",
+        "SET": "set",
+        "GEOMETRY": "geometry",
+        "POINT": "geometry",
+        "LINESTRING": "geometry",
+        "POLYGON": "geometry",
+        "MULTIPOINT": "geometry",
+        "MULTILINESTRING": "geometry",
+        "MULTIPOLYGON": "geometry",
+        "GEOMETRYCOLLECTION": "geometry",
+    }
+
+
+def normalize_mariadb_type(mariadb_type: str) -> str:
+    """Normaliza un tipo MariaDB al tipo genérico.
+
+    Para tipos con parámetros (e.g., "VARCHAR(255)", "DECIMAL(10,2)"), extrae la
+    palabra base. Si no está en el mapeo, devuelve "object".
+
+    Args:
+        mariadb_type: Tipo MariaDB crudo de information_schema (ej: "varchar(255)")
+
+    Returns:
+        str: Tipo genérico (ej: "varchar", "integer")
+    """
+    if not mariadb_type:
+        return "object"
+
+    base_type = mariadb_type.strip().upper().split("(")[0].strip()
+
+    mapping = mariadb_type_mapping()
+    if base_type in mapping:
+        return mapping[base_type]
+
+    return "object"
+
+
 def escape_mariadb_sql_literal(value: str) -> str:
     """Escapa comillas simples para SQL literal MariaDB."""
     return str(value).replace("'", "''")

@@ -19,6 +19,7 @@ from ._adapter_helpers import (
 )
 from ._manager_protocol import MariaDBSyncManagerProtocol
 from ._routine_models import MariaDBRoutineDetail, MariaDBRoutineParameterDetail
+from .common import normalize_mariadb_type
 from .routines import (
     build_public_mariadb_routine_parameter_entry_rows,
     decode_mariadb_routine_detail_entries,
@@ -197,14 +198,19 @@ class MariaDBSyncAdapter:
     def fetch_columns_sync(self, schema: str, table: str) -> list[tuple]:
         """Obtiene columnas de una tabla en modo síncrono (SourceAdapter).
 
+        Normaliza el tipo nativo (``column_type``, p.ej. "varchar(255)") a un tipo
+        genérico (p.ej. "varchar"), igual que el resto de motores (MEO-07,
+        AUDIT_CODE 2026-09-22: antes exponía el tipo crudo sin normalizar).
+
         Args:
             schema: Ignorado; MariaDB usa la database ya vinculada al manager.
             table: Nombre de la tabla.
 
         Returns:
-            list[tuple]: Filas (column_name, column_type, is_nullable, ...)
+            list[tuple]: Filas (column_name, generic_type, is_nullable, ...)
         """
-        return list(self.manager.get_columns(table))
+        rows = self.manager.get_columns(table)
+        return [(row[0], normalize_mariadb_type(str(row[1])), *row[2:]) if len(row) > 1 else tuple(row) for row in rows]
 
     def fetch_primary_keys_sync(self, schema: str, table: str) -> list[tuple]:
         """Obtiene claves primarias en modo síncrono (SourceAdapter).

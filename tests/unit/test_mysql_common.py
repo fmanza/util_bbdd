@@ -28,6 +28,12 @@ class TestMysqlTypeMapping:
         assert "BIGINT" in mapping
         assert mapping["INT"] == "integer"
 
+    def test_type_mapping_contains_bit(self) -> None:
+        """MEO-07 (AUDIT_CODE 2026-09-22): BIT faltaba, caía al fallback "object"."""
+        mapping = mysql_type_mapping()
+        assert "BIT" in mapping
+        assert mapping["BIT"] == "bit"
+
     def test_type_mapping_contains_floating_point(self) -> None:
         mapping = mysql_type_mapping()
         assert "FLOAT" in mapping
@@ -65,6 +71,12 @@ class TestNormalizeMysqlType:
 
     def test_normalize_int(self) -> None:
         assert normalize_mysql_type("INT") == "integer"
+
+    def test_normalize_bit(self) -> None:
+        assert normalize_mysql_type("BIT") == "bit"
+
+    def test_normalize_bit_with_width(self) -> None:
+        assert normalize_mysql_type("BIT(1)") == "bit"
 
     def test_normalize_bigint(self) -> None:
         assert normalize_mysql_type("BIGINT") == "bigint"

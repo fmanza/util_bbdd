@@ -24,6 +24,8 @@ def mysql_type_mapping() -> dict[str, str]:
         "INT": "integer",
         "INTEGER": "integer",
         "BIGINT": "bigint",
+        # Bit-field (MEO-07, AUDIT_CODE 2026-09-22: faltaba, caía al fallback "object")
+        "BIT": "bit",
         # Floating point
         "FLOAT": "float",
         "DOUBLE": "float",
