@@ -71,6 +71,29 @@ def test_template_engine_renders_index_page_with_expected_links() -> None:
     assert "CORE_USUARIOS" in rendered
 
 
+def test_template_engine_autoescapes_html_payloads_in_j2_templates() -> None:
+    """DOC-01 (AUDIT_CODE 2026-09-22): select_autoescape() solo miraba ".html"/".xml", pero
+    todas las plantillas reales se nombran "*.html.j2", así que el autoescape nunca se activaba
+    y un nombre/comentario de tabla con HTML/JS se insertaba sin escapar en el documento generado.
+    """
+    engine = _build_engine()
+
+    rendered = engine.render(
+        "pages/collection.html.j2",
+        database="<script>alert(1)</script>",
+        generated_at="2026-03-18 10:00:00",
+        collection_key="tables",
+        title="Todas las tablas y columnas",
+        headers=["Tabla", "Comentario", "Detalle"],
+        rows=[["<img src=x onerror=alert(2)>", "'; DROP TABLE x; --", "tables/x.html"]],
+    )
+
+    assert "<script>alert(1)</script>" not in rendered
+    assert "<img src=x onerror=alert(2)>" not in rendered
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in rendered
+    assert "&lt;img src=x onerror=alert(2)&gt;" in rendered
+
+
 def test_template_engine_filters_normalize_values() -> None:
     assert header_key("Comentario columna") == "comentario-columna"
     assert status_class("NOT_SUPPORTED") == "not-supported"

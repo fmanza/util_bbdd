@@ -47,7 +47,10 @@ class TemplateEngine:
 
         environment = Environment(
             loader=FileSystemLoader(list(dict.fromkeys(search_paths))),
-            autoescape=select_autoescape(enabled_extensions=("html", "xml"), default_for_string=True),
+            # Todas las plantillas reales se nombran "*.html.j2"/"*.xml.j2": select_autoescape()
+            # solo mira la extensión final del nombre de plantilla, así que "j2" debe declararse
+            # aquí o el autoescape nunca se activa (ver AUDIT_CODE DOC-01, 2026-09-22).
+            autoescape=select_autoescape(enabled_extensions=("html", "xml", "j2"), default_for_string=True),
             trim_blocks=True,
             lstrip_blocks=True,
             auto_reload=False,
