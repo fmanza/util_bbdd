@@ -10,7 +10,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from .._core.exceptions import ConnectionError
+from .._core.exceptions import InvalidDatabaseType
 from ..core.capabilities import is_async_supported
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -101,7 +101,8 @@ class ConnectionFactory:
             Conexión del driver específico
 
         Raises:
-            ConnectionError: Si hay error en la creación
+            InvalidDatabaseType: Si db_type no está soportado
+            ConnectionError: Si hay error en la creación de la conexión nativa
 
         Example:
             >>> conn = ConnectionFactory.create_connection(
@@ -157,7 +158,7 @@ class ConnectionFactory:
                 return connection
 
             else:
-                raise ConnectionError(
+                raise InvalidDatabaseType(
                     message=f"Tipo de base de datos no soportado: {db_type}",
                     operation="CREATE_CONNECTION",
                     db_type=db_type,

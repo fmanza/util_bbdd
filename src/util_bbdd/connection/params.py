@@ -6,6 +6,7 @@ import logging
 
 from typing import Any, cast
 
+from .._core.exceptions import InvalidDatabaseType
 from .._drivers import DatabaseTypeValidator, get_database_validator
 from ..connection.builder import build_conn_params
 from ..connection.config import (
@@ -135,7 +136,10 @@ class ConnectionParamsManager:
             return SQLServerConnectionConfig.from_params(conn_params, driver=driver)
         if normalized_type == "sqlite":
             return SQLiteConnectionConfig.from_params(conn_params)
-        raise ValueError(f"Tipo de base de datos no soportado para configuración de conexión: {db_type}")
+        raise InvalidDatabaseType(
+            message=f"Tipo de base de datos no soportado para configuración de conexión: {db_type}",
+            db_type=db_type,
+        )
 
     @staticmethod
     def get_pool_config(
@@ -153,7 +157,10 @@ class ConnectionParamsManager:
             return SQLServerPoolConfig.from_params(conn_params)
         if normalized_type == "sqlite":
             return SQLitePoolConfig.from_params(conn_params)
-        raise ValueError(f"Tipo de base de datos no soportado para configuración de pool: {db_type}")
+        raise InvalidDatabaseType(
+            message=f"Tipo de base de datos no soportado para configuración de pool: {db_type}",
+            db_type=db_type,
+        )
 
     @staticmethod
     def _log_ignored(
