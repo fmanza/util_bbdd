@@ -140,10 +140,15 @@ class TestOracleSyncAdapterCacheKeyDifferentiation:
 
         assert hasattr(adapter, "fetch_tables_sync")
 
-    def test_async_adapter_has_fetch_columns_sync_method(self) -> None:
+    def test_async_adapter_has_fetch_columns_async_method(self) -> None:
+        """MEO-01 (AUDIT_CODE 2026-09-22): antes de este fix, OracleAsyncAdapter definía sus
+        métodos como ``fetch_*_sync`` (copia-pega del adaptador sync); nunca implementaba
+        ``SourceAdapterAsync`` pese a registrarse como tal. Este test certificaba el bug
+        (comprobaba el nombre incorrecto) en vez de detectarlo."""
         manager = MagicMock()
         adapter = OracleAsyncAdapter(manager)
-        assert hasattr(adapter, "fetch_columns_sync")
+        assert hasattr(adapter, "fetch_columns_async")
+        assert not hasattr(adapter, "fetch_columns_sync")
 
     def test_async_adapter_has_routine_methods(self) -> None:
         manager = MagicMock()

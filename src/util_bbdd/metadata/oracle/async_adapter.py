@@ -19,10 +19,12 @@ from ._adapter_helpers import (
     build_oracle_indexes_query,
     build_oracle_parameters_query,
     build_oracle_pk_query,
+    build_oracle_routine_body_query,
     build_oracle_routines_query,
     build_oracle_schemas_query,
     build_oracle_tables_query,
     decode_oracle_parameter_rows,
+    decode_oracle_routine_body,
     decode_oracle_routine_rows,
     routine_entries_to_rows,
 )
@@ -85,7 +87,7 @@ class OracleAsyncAdapter:
         cache_store(entries)
         return entries
 
-    async def fetch_schemas_sync(self) -> list[tuple]:
+    async def fetch_schemas_async(self) -> list[tuple]:
         """Obtiene lista de schemas (owners) en modo asíncrono.
 
         Returns:
@@ -95,8 +97,8 @@ class OracleAsyncAdapter:
         rows: Rows = await self.manager.execute_custom_many(sql, params={})
         return [(str(r[0]).strip(),) if r else ("",) for r in rows if r]
 
-    async def fetch_tables_sync(self, schema: str | None = None) -> list[tuple]:
-        """Obtiene lista de tablas en modo asíncrono.
+    async def fetch_tables_async(self, schema: str | None = None) -> list[tuple]:
+        """Obtiene lista de tablas en modo asíncrono (SourceAdapter).
 
         Args:
             schema: Nombre del esquema (owner).
@@ -109,8 +111,8 @@ class OracleAsyncAdapter:
         rows: Rows = await self.manager.execute_custom_many(sql, params={"owner": schema_name})
         return [(str(r[0]), str(r[1]) if len(r) > 1 else "TABLE", str(r[2]) if len(r) > 2 else "") for r in rows if r]
 
-    async def fetch_columns_sync(self, schema: str, table: str) -> list[tuple]:
-        """Obtiene columnas de una tabla en modo asíncrono.
+    async def fetch_columns_async(self, schema: str, table: str) -> list[tuple]:
+        """Obtiene columnas de una tabla en modo asíncrono (SourceAdapter).
 
         Args:
             schema: Nombre del schema (owner).
@@ -124,8 +126,8 @@ class OracleAsyncAdapter:
         rows: Rows = await self.manager.execute_custom_many(sql, params={"owner": schema, "table_name": table})
         return decode_oracle_column_rows(rows)
 
-    async def fetch_primary_keys_sync(self, schema: str, table: str) -> list[tuple]:
-        """Obtiene claves primarias en modo asíncrono.
+    async def fetch_primary_keys_async(self, schema: str, table: str) -> list[tuple]:
+        """Obtiene claves primarias en modo asíncrono (SourceAdapter).
 
         Args:
             schema: Nombre del schema.
@@ -138,8 +140,8 @@ class OracleAsyncAdapter:
         rows: Rows = await self.manager.execute_custom_many(sql, params={"owner": schema, "table_name": table})
         return OracleConstraintDefaults.decode_pk_rows(rows)
 
-    async def fetch_foreign_keys_sync(self, schema: str, table: str) -> list[tuple]:
-        """Obtiene claves foráneas en modo asíncrono.
+    async def fetch_foreign_keys_async(self, schema: str, table: str) -> list[tuple]:
+        """Obtiene claves foráneas en modo asíncrono (SourceAdapter).
 
         Args:
             schema: Nombre del schema.
@@ -153,8 +155,8 @@ class OracleAsyncAdapter:
         rows: Rows = await self.manager.execute_custom_many(sql, params={"owner": schema, "table_name": table})
         return OracleConstraintDefaults.decode_fk_rows(rows)
 
-    async def fetch_indexes_sync(self, schema: str, table: str) -> list[tuple]:
-        """Obtiene índices en modo asíncrono.
+    async def fetch_indexes_async(self, schema: str, table: str) -> list[tuple]:
+        """Obtiene índices en modo asíncrono (SourceAdapter).
 
         Args:
             schema: Nombre del schema.
@@ -257,6 +259,53 @@ class OracleAsyncAdapter:
         """
         routines = await self.get_routine_details(schema)
         return routine_entries_to_rows(routines)
+
+    # ==================== RoutineAdapter Protocol ====================
+    # MEO-01 (AUDIT_CODE 2026-09-22): OracleAsyncAdapter se registra como routine adapter
+    # (metadata/oracle/__init__.py) pero no implementaba estos 3 métodos del Protocol.
+
+    async def fetch_routines_async(self, schema: str | None = None) -> list[tuple]:
+        """Obtiene lista de routines en modo asíncrono (RoutineAdapter).
+
+        Args:
+            schema: Nombre del esquema (owner).
+
+        Returns:
+            list[tuple]: Filas (routine_name, routine_type, routine_owner).
+        """
+        return await self.get_routines_public_rows(schema)
+
+    async def fetch_routine_parameters_async(self, schema: str, routine: str, routine_type: str) -> list[tuple]:
+        """Obtiene parámetros de una routine en modo asíncrono (RoutineAdapter).
+
+        Args:
+            schema: Nombre del esquema (owner).
+            routine: Nombre de la routine.
+            routine_type: Tipo de routine ('PROCEDURE' o 'FUNCTION').
+
+        Returns:
+            list[tuple]: Filas (in_out, parameter_name, data_type, ordinal_position).
+        """
+        details = await self.get_routine_parameters_details(schema, routine, routine_type)
+        return [detail.to_public_row() for detail in details]
+
+    async def fetch_routine_definition_async(self, schema: str, routine: str, routine_type: str) -> str:
+        """Obtiene el DDL completo de una routine en modo asíncrono (RoutineAdapter).
+
+        Args:
+            schema: Nombre del esquema (owner).
+            routine: Nombre de la routine.
+            routine_type: Tipo de routine ('PROCEDURE' o 'FUNCTION').
+
+        Returns:
+            str: DDL de la rutina (p.ej. 'CREATE OR REPLACE PROCEDURE ...').
+        """
+        sql = build_oracle_routine_body_query()
+        rows: Rows = await self.manager.execute_custom_many(
+            sql,
+            params={"owner": schema, "routine_name": routine, "routine_type": routine_type.upper()},
+        )
+        return decode_oracle_routine_body(routine_type, routine, rows)
 
 
 __all__: list[str] = [

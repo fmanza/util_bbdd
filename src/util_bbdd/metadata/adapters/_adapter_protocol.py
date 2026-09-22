@@ -52,6 +52,7 @@ class MetadataCachePort(Protocol):
     def clear_context(self, context: str, /) -> None: ...
 
 
+@runtime_checkable
 class SourceAdapterSync(Protocol):
     """Adapter agnóstico de motor para introspección sync de BD: tablas, columnas, constraints, índices.
 
@@ -126,6 +127,7 @@ class SourceAdapterSync(Protocol):
         ...
 
 
+@runtime_checkable
 class SourceAdapterAsync(Protocol):
     """Adapter agnóstico de motor para introspección async de BD: tablas, columnas, constraints, índices."""
 
@@ -165,6 +167,7 @@ class SourceAdapterAsync(Protocol):
         ...
 
 
+@runtime_checkable
 class RoutineAdapterSync(Protocol):
     """Adapter agnóstico de motor para introspección sync de routines: procedures, functions."""
 
@@ -205,6 +208,7 @@ class RoutineAdapterSync(Protocol):
         ...
 
 
+@runtime_checkable
 class RoutineAdapterAsync(Protocol):
     """Adapter agnóstico de motor para introspección async de routines: procedures, functions."""
 

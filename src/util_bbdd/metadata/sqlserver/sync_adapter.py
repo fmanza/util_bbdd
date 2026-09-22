@@ -126,11 +126,63 @@ class SqlServerSyncAdapter(BaseConnectionAdapter):
             return []
         return fetch_routines_sync(conn, schema)
 
-    def fetch_routine_parameters_sync(self, object_id: int) -> list[SqlServerParameterDetail]:
+    def fetch_routine_parameters_sync(
+        self,
+        schema: str | None = None,
+        routine: str | None = None,
+        routine_type: str | None = None,
+    ) -> list[tuple]:
         """Obtiene parámetros de un procedimiento/función.
 
+        Implementa RoutineAdapterSync. Resuelve el object_id de SQL Server a partir del nombre
+        de la rutina antes de delegar a ``fetch_routine_parameters_by_id_sync`` — MSS-01
+        (AUDIT_CODE 2026-09-22): antes tenía la firma ``(object_id: int)``, que no cumplía el
+        Protocol (``schema, routine, routine_type``) ni coincidía con la contraparte async.
+
         Args:
-            object_id: ID del procedimiento/función en SQL Server
+            schema: Nombre del schema (por defecto 'dbo').
+            routine: Nombre del procedimiento/función.
+            routine_type: Tipo de rutina ('PROCEDURE' o 'FUNCTION', opcional).
+
+        Returns:
+            list[tuple]: Filas (param_name, object_id, parameter_id, data_type, is_output,
+                               precision, scale)
+        """
+        conn = self._get_conn()
+        if not conn or not routine:
+            return []
+
+        all_routines: list[SqlServerRoutineDetail] = fetch_routines_sync(conn, schema)
+
+        routine_upper = routine.strip().upper()
+        type_upper = routine_type.strip().upper() if routine_type else None
+
+        matched = next(
+            (
+                r
+                for r in all_routines
+                if r.routine_name.upper() == routine_upper
+                and (type_upper is None or r.routine_type.upper() == type_upper)
+            ),
+            None,
+        )
+
+        if matched is None:
+            return []
+
+        params = self.fetch_routine_parameters_by_id_sync(matched.object_id)
+
+        return [
+            (p.param_name, p.object_id, p.parameter_id, p.data_type, p.is_output, p.precision, p.scale) for p in params
+        ]
+
+    def fetch_routine_parameters_by_id_sync(self, object_id: int) -> list[SqlServerParameterDetail]:
+        """Obtiene parámetros directamente por object_id (API interna SQL Server).
+
+        Útil cuando ya se dispone del object_id (p.ej. desde fetch_routines_sync).
+
+        Args:
+            object_id: ID del procedimiento/función en sys.objects.
 
         Returns:
             list[SqlServerParameterDetail]: Detalles de parámetros

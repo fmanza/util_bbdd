@@ -183,19 +183,28 @@ class MariaDBAsyncAdapter:
         }
 
     # ==================== SourceAdapter Protocol ====================
+    # MEO-03 (AUDIT_CODE 2026-09-22): firma alineada con SourceAdapterAsync (los otros 8 motores
+    # aceptan schema/table explícitos). El manager de MariaDB está ligado a una única database
+    # por instancia (sin parámetro de schema en get_tables()/get_columns()/...), así que aquí
+    # `schema` se acepta por conformidad de contrato pero se ignora: se usa siempre el contexto
+    # ya vinculado al manager, igual que ya documentaban los métodos de RoutineAdapter de abajo.
 
-    async def fetch_tables_async(self) -> list[tuple]:
+    async def fetch_tables_async(self, schema: str | None = None) -> list[tuple]:
         """Obtiene lista de tablas en modo asíncrono (SourceAdapter).
+
+        Args:
+            schema: Ignorado; MariaDB usa la database ya vinculada al manager.
 
         Returns:
             list[tuple]: Filas (table_name, table_type, table_comment, ...)
         """
         return list(await self.manager.get_tables())
 
-    async def fetch_columns_async(self, table: str) -> list[tuple]:
+    async def fetch_columns_async(self, schema: str, table: str) -> list[tuple]:
         """Obtiene columnas de una tabla en modo asíncrono (SourceAdapter).
 
         Args:
+            schema: Ignorado; MariaDB usa la database ya vinculada al manager.
             table: Nombre de la tabla.
 
         Returns:
@@ -203,10 +212,11 @@ class MariaDBAsyncAdapter:
         """
         return list(await self.manager.get_columns(table))
 
-    async def fetch_primary_keys_async(self, table: str) -> list[tuple]:
+    async def fetch_primary_keys_async(self, schema: str, table: str) -> list[tuple]:
         """Obtiene claves primarias en modo asíncrono (SourceAdapter).
 
         Args:
+            schema: Ignorado; MariaDB usa la database ya vinculada al manager.
             table: Nombre de la tabla.
 
         Returns:
@@ -214,10 +224,11 @@ class MariaDBAsyncAdapter:
         """
         return list(await self.manager.get_primary_keys(table))
 
-    async def fetch_foreign_keys_async(self, table: str) -> list[tuple]:
+    async def fetch_foreign_keys_async(self, schema: str, table: str) -> list[tuple]:
         """Obtiene claves foráneas en modo asíncrono (SourceAdapter).
 
         Args:
+            schema: Ignorado; MariaDB usa la database ya vinculada al manager.
             table: Nombre de la tabla.
 
         Returns:
@@ -225,10 +236,11 @@ class MariaDBAsyncAdapter:
         """
         return list(await self.manager.get_foreign_keys(table))
 
-    async def fetch_indexes_async(self, table: str) -> list[tuple]:
+    async def fetch_indexes_async(self, schema: str, table: str) -> list[tuple]:
         """Obtiene índices de una tabla en modo asíncrono (SourceAdapter).
 
         Args:
+            schema: Ignorado; MariaDB usa la database ya vinculada al manager.
             table: Nombre de la tabla.
 
         Returns:

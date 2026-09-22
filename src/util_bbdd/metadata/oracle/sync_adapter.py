@@ -15,10 +15,12 @@ from ._adapter_helpers import (
     build_oracle_indexes_query,
     build_oracle_parameters_query,
     build_oracle_pk_query,
+    build_oracle_routine_body_query,
     build_oracle_routines_query,
     build_oracle_schemas_query,
     build_oracle_tables_query,
     decode_oracle_parameter_rows,
+    decode_oracle_routine_body,
     decode_oracle_routine_rows,
     routine_entries_to_rows,
 )
@@ -252,6 +254,53 @@ class OracleSyncAdapter:
         """
         routines = self.get_routine_details(schema)
         return routine_entries_to_rows(routines)
+
+    # ==================== RoutineAdapter Protocol ====================
+    # MEO-01 (AUDIT_CODE 2026-09-22): OracleSyncAdapter se registra como routine adapter
+    # (metadata/oracle/__init__.py) pero no implementaba estos 3 métodos del Protocol.
+
+    def fetch_routines_sync(self, schema: str | None = None) -> list[tuple]:
+        """Obtiene lista de routines en modo síncrono (RoutineAdapter).
+
+        Args:
+            schema: Nombre del esquema (owner).
+
+        Returns:
+            list[tuple]: Filas (routine_name, routine_type, routine_owner).
+        """
+        return self.get_routines_public_rows(schema)
+
+    def fetch_routine_parameters_sync(self, schema: str, routine: str, routine_type: str) -> list[tuple]:
+        """Obtiene parámetros de una routine en modo síncrono (RoutineAdapter).
+
+        Args:
+            schema: Nombre del esquema (owner).
+            routine: Nombre de la routine.
+            routine_type: Tipo de routine ('PROCEDURE' o 'FUNCTION').
+
+        Returns:
+            list[tuple]: Filas (in_out, parameter_name, data_type, ordinal_position).
+        """
+        details = self.get_routine_parameters_details(schema, routine, routine_type)
+        return [detail.to_public_row() for detail in details]
+
+    def fetch_routine_definition_sync(self, schema: str, routine: str, routine_type: str) -> str:
+        """Obtiene el DDL completo de una routine en modo síncrono (RoutineAdapter).
+
+        Args:
+            schema: Nombre del esquema (owner).
+            routine: Nombre de la routine.
+            routine_type: Tipo de routine ('PROCEDURE' o 'FUNCTION').
+
+        Returns:
+            str: DDL de la rutina (p.ej. 'CREATE OR REPLACE PROCEDURE ...').
+        """
+        sql = build_oracle_routine_body_query()
+        rows = self.manager.execute_custom_many(
+            sql,
+            params={"owner": schema, "routine_name": routine, "routine_type": routine_type.upper()},
+        )
+        return decode_oracle_routine_body(routine_type, routine, rows)
 
 
 __all__: list[str] = [

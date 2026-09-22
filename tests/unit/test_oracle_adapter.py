@@ -48,14 +48,14 @@ class TestOracleAsyncAdapterBasics:
         assert adapter is not None
 
     def test_async_adapter_is_duck_typeable(self) -> None:
-        """Verifica que el adaptador async implementa la interfaz esperada."""
+        """Verifica que el adaptador async implementa la interfaz esperada (SourceAdapterAsync)."""
         manager = MagicMock()
         adapter = OracleAsyncAdapter(manager)
 
         # Async versions of SourceAdapter protocol methods
-        assert callable(getattr(adapter, "fetch_schemas_sync", None))
-        assert callable(getattr(adapter, "fetch_tables_sync", None))
-        assert callable(getattr(adapter, "fetch_columns_sync", None))
+        assert callable(getattr(adapter, "fetch_schemas_async", None))
+        assert callable(getattr(adapter, "fetch_tables_async", None))
+        assert callable(getattr(adapter, "fetch_columns_async", None))
 
 
 class TestOracleSyncAdapterFetchSchemasSync:
@@ -265,12 +265,15 @@ class TestOracleAsyncAdapterBasicAsync:
         adapter = OracleAsyncAdapter(manager)
 
         methods = [
-            "fetch_schemas_sync",
-            "fetch_tables_sync",
-            "fetch_columns_sync",
-            "fetch_primary_keys_sync",
-            "fetch_foreign_keys_sync",
-            "fetch_indexes_sync",
+            "fetch_schemas_async",
+            "fetch_tables_async",
+            "fetch_columns_async",
+            "fetch_primary_keys_async",
+            "fetch_foreign_keys_async",
+            "fetch_indexes_async",
+            "fetch_routines_async",
+            "fetch_routine_parameters_async",
+            "fetch_routine_definition_async",
             "get_routine_details",
             "get_routine_parameters_details",
         ]

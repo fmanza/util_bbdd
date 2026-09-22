@@ -14,13 +14,31 @@ from __future__ import annotations
 
 import logging
 
+from unittest.mock import MagicMock
+
+import pytest
+
 from util_bbdd.analysis.contracts import RelationshipGraphSource
 from util_bbdd.doc.application.ports import DocumentationManagerPort, DocumentationSourcePort
 from util_bbdd.doc.infrastructure.adapters.sync_database_manager_adapter import SyncDatabaseManagerAdapter
 from util_bbdd.managers import SyncDatabaseManager
 from util_bbdd.managers._manager_cache_service import CacheService
-from util_bbdd.metadata.adapters._adapter_protocol import MetadataCachePort
+from util_bbdd.metadata.adapters._adapter_protocol import (
+    MetadataCachePort,
+    RoutineAdapterAsync,
+    RoutineAdapterSync,
+    SourceAdapterAsync,
+    SourceAdapterSync,
+)
 from util_bbdd.metadata.cache import DatabaseMetadataCache, RelationshipMetadataCache
+from util_bbdd.metadata.mariadb import MariaDBAsyncAdapter, MariaDBSyncAdapter
+from util_bbdd.metadata.mysql import MysqlAsyncAdapter, MysqlSyncAdapter
+from util_bbdd.metadata.oracle import OracleAsyncAdapter, OracleSyncAdapter
+from util_bbdd.metadata.postgresql import PostgreSQLAsyncAdapter, PostgreSQLSyncAdapter
+from util_bbdd.metadata.redshift import RedshiftAsyncAdapter, RedshiftSyncAdapter
+from util_bbdd.metadata.snowflake import SnowflakeAsyncAdapter, SnowflakeSyncAdapter
+from util_bbdd.metadata.sqlite import SqliteAsyncAdapter, SqliteSyncAdapter
+from util_bbdd.metadata.sqlserver import SqlServerAsyncAdapter, SqlServerSyncAdapter
 
 
 def _as_metadata_cache_port(service: CacheService) -> MetadataCachePort:
@@ -56,3 +74,143 @@ def test_cache_service_satisfies_metadata_cache_port() -> None:
 
     assert isinstance(service, MetadataCachePort)
     assert _as_metadata_cache_port(service) is service
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# MDC-05 (AUDIT_CODE 2026-09-22): SourceAdapterSync/Async y RoutineAdapterSync/Async no tenían ninguna cobertura
+# de conformidad, ni en tiempo de ejecución ni con mypy. Esto permitió que 3 adaptadores divergieran del Protocol
+# sin que ningún test lo detectara (OracleAsyncAdapter con métodos fetch_*_sync dentro de la clase async — MEO-01;
+# SqlServerSyncAdapter.fetch_routine_parameters_sync con firma (object_id) en vez de (schema, routine, routine_type)
+# — MSS-01; MariaDBSync/AsyncAdapter sin parámetro schema — MEO-03). Los 8 motores implementan SourceAdapter; solo
+# mariadb y oracle implementan RoutineAdapter completo hoy (postgresql y sqlserver todavía no exponen
+# fetch_routine_definition_*: MPG-01/MSS-02, fuera de esta ronda).
+#
+# Snowflake queda fuera de las funciones `_as_*` (comprobación estática con mypy) porque su jerarquía de 3
+# niveles (database.schema.table) le exige un parámetro `database` adicional en fetch_columns_sync/etc. — una
+# divergencia de diseño legítima, no un bug (confirmado en el AUDIT_CODE: "Snowflake — jerarquía de 3 niveles...
+# bien resuelta"). Sí participa en el test de `isinstance` (runtime): ese chequeo solo verifica que los métodos
+# existan por nombre, no su firma exacta, así que sigue detectando un método renombrado o eliminado por error.
+# ---------------------------------------------------------------------------------------------------------------
+
+
+def _mariadb_sync_as_source(adapter: MariaDBSyncAdapter) -> SourceAdapterSync:
+    return adapter
+
+
+def _mariadb_async_as_source(adapter: MariaDBAsyncAdapter) -> SourceAdapterAsync:
+    return adapter
+
+
+def _mariadb_sync_as_routine(adapter: MariaDBSyncAdapter) -> RoutineAdapterSync:
+    return adapter
+
+
+def _mariadb_async_as_routine(adapter: MariaDBAsyncAdapter) -> RoutineAdapterAsync:
+    return adapter
+
+
+def _mysql_sync_as_source(adapter: MysqlSyncAdapter) -> SourceAdapterSync:
+    return adapter
+
+
+def _mysql_async_as_source(adapter: MysqlAsyncAdapter) -> SourceAdapterAsync:
+    return adapter
+
+
+def _oracle_sync_as_source(adapter: OracleSyncAdapter) -> SourceAdapterSync:
+    return adapter
+
+
+def _oracle_async_as_source(adapter: OracleAsyncAdapter) -> SourceAdapterAsync:
+    return adapter
+
+
+def _oracle_sync_as_routine(adapter: OracleSyncAdapter) -> RoutineAdapterSync:
+    return adapter
+
+
+def _oracle_async_as_routine(adapter: OracleAsyncAdapter) -> RoutineAdapterAsync:
+    return adapter
+
+
+def _postgresql_sync_as_source(adapter: PostgreSQLSyncAdapter) -> SourceAdapterSync:
+    return adapter
+
+
+def _postgresql_async_as_source(adapter: PostgreSQLAsyncAdapter) -> SourceAdapterAsync:
+    return adapter
+
+
+def _redshift_sync_as_source(adapter: RedshiftSyncAdapter) -> SourceAdapterSync:
+    return adapter
+
+
+def _redshift_async_as_source(adapter: RedshiftAsyncAdapter) -> SourceAdapterAsync:
+    return adapter
+
+
+def _sqlite_sync_as_source(adapter: SqliteSyncAdapter) -> SourceAdapterSync:
+    return adapter
+
+
+def _sqlite_async_as_source(adapter: SqliteAsyncAdapter) -> SourceAdapterAsync:
+    return adapter
+
+
+def _sqlserver_sync_as_source(adapter: SqlServerSyncAdapter) -> SourceAdapterSync:
+    return adapter
+
+
+def _sqlserver_async_as_source(adapter: SqlServerAsyncAdapter) -> SourceAdapterAsync:
+    return adapter
+
+
+_SYNC_SOURCE_ADAPTERS: tuple[type, ...] = (
+    MariaDBSyncAdapter,
+    MysqlSyncAdapter,
+    OracleSyncAdapter,
+    PostgreSQLSyncAdapter,
+    RedshiftSyncAdapter,
+    SnowflakeSyncAdapter,
+    SqliteSyncAdapter,
+    SqlServerSyncAdapter,
+)
+
+_ASYNC_SOURCE_ADAPTERS: tuple[type, ...] = (
+    MariaDBAsyncAdapter,
+    MysqlAsyncAdapter,
+    OracleAsyncAdapter,
+    PostgreSQLAsyncAdapter,
+    RedshiftAsyncAdapter,
+    SnowflakeAsyncAdapter,
+    SqliteAsyncAdapter,
+    SqlServerAsyncAdapter,
+)
+
+# Solo estos implementan RoutineAdapter completo hoy (ver nota arriba).
+_SYNC_ROUTINE_ADAPTERS: tuple[type, ...] = (MariaDBSyncAdapter, OracleSyncAdapter)
+_ASYNC_ROUTINE_ADAPTERS: tuple[type, ...] = (MariaDBAsyncAdapter, OracleAsyncAdapter)
+
+
+@pytest.mark.parametrize("adapter_cls", _SYNC_SOURCE_ADAPTERS, ids=lambda c: c.__name__)
+def test_sync_adapter_satisfies_source_adapter_sync(adapter_cls: type) -> None:
+    adapter = adapter_cls(MagicMock())
+    assert isinstance(adapter, SourceAdapterSync)
+
+
+@pytest.mark.parametrize("adapter_cls", _ASYNC_SOURCE_ADAPTERS, ids=lambda c: c.__name__)
+def test_async_adapter_satisfies_source_adapter_async(adapter_cls: type) -> None:
+    adapter = adapter_cls(MagicMock())
+    assert isinstance(adapter, SourceAdapterAsync)
+
+
+@pytest.mark.parametrize("adapter_cls", _SYNC_ROUTINE_ADAPTERS, ids=lambda c: c.__name__)
+def test_sync_adapter_satisfies_routine_adapter_sync(adapter_cls: type) -> None:
+    adapter = adapter_cls(MagicMock())
+    assert isinstance(adapter, RoutineAdapterSync)
+
+
+@pytest.mark.parametrize("adapter_cls", _ASYNC_ROUTINE_ADAPTERS, ids=lambda c: c.__name__)
+def test_async_adapter_satisfies_routine_adapter_async(adapter_cls: type) -> None:
+    adapter = adapter_cls(MagicMock())
+    assert isinstance(adapter, RoutineAdapterAsync)

@@ -13,6 +13,7 @@ from .tables import (
     fetch_fk_constraint_sql,
     fetch_indexes_sql,
     fetch_pk_constraint_sql,
+    fetch_routine_body_sql,
     fetch_routine_parameters_sql,
     fetch_routines_sql,
     fetch_schemas_sql,
@@ -89,6 +90,38 @@ def build_oracle_parameters_query() -> str:
     Parametrizado con :owner y :routine_name.
     """
     return fetch_routine_parameters_sql()
+
+
+def build_oracle_routine_body_query() -> str:
+    """Construye la consulta para obtener el body de una rutina desde ALL_SOURCE.
+
+    Parametrizado con :owner, :routine_name y :routine_type.
+    """
+    return fetch_routine_body_sql()
+
+
+def decode_oracle_routine_body(routine_type: str, routine_name: str, rows: Rows) -> str:
+    """Reconstruye el DDL completo de una rutina Oracle a partir de las líneas de ALL_SOURCE.
+
+    ``ALL_SOURCE.TEXT`` no incluye la cabecera ``CREATE OR REPLACE`` (empieza directamente en
+    ``PROCEDURE "NOMBRE" (...) IS``); se antepone aquí para que el resultado cumpla el contrato
+    de ``RoutineAdapterSync/Async.fetch_routine_definition_*`` (DDL ejecutable), a diferencia del
+    extractor de ``migrate/`` que deja el body verbatim porque el emisor destino añade su propia
+    cabecera.
+
+    Args:
+        routine_type: Tipo de rutina ('PROCEDURE' o 'FUNCTION'), usado solo para el fallback.
+        routine_name: Nombre de la rutina, usado solo para el fallback.
+        rows: Filas (line, text) de ``fetch_routine_body_sql()``, ya ordenadas por ``line``.
+
+    Returns:
+        str: DDL completo, o un comentario de fallback si ALL_SOURCE no tiene body accesible.
+    """
+    lines = [str(row[1]) for row in rows if isinstance(row, (tuple, list)) and len(row) > 1 and row[1]]
+    body = "".join(lines).strip()
+    if not body:
+        return f"-- {routine_type} {routine_name} definition unavailable\n"
+    return f"CREATE OR REPLACE {body}"
 
 
 def decode_oracle_routine_rows(rows: Rows) -> list[OracleRoutineDetail]:
@@ -190,7 +223,9 @@ __all__: list[str] = [
     "build_oracle_indexes_query",
     "build_oracle_routines_query",
     "build_oracle_parameters_query",
+    "build_oracle_routine_body_query",
     "decode_oracle_routine_rows",
     "decode_oracle_parameter_rows",
+    "decode_oracle_routine_body",
     "routine_entries_to_rows",
 ]
