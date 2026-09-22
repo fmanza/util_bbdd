@@ -112,19 +112,25 @@ class SqlServerSyncAdapter(BaseConnectionAdapter):
             return []
         return fetch_indexes_sync(conn, schema, table)
 
-    def fetch_routines_sync(self, schema: str | None = None) -> list[SqlServerRoutineDetail]:
-        """Obtiene procedimientos y funciones.
+    def fetch_routines_sync(self, schema: str | None = None) -> list[tuple]:
+        """Obtiene procedimientos y funciones (RoutineAdapter).
+
+        Convierte ``SqlServerRoutineDetail`` (dataclass interno) a tupla en el
+        límite público del adapter, para cumplir el Protocol ``RoutineAdapterSync``
+        (MDC-03, AUDIT_CODE 2026-09-22: antes devolvía la dataclass directamente,
+        incompatible con ``list[tuple[Any, ...]]`` — invariancia de ``list`` en mypy).
 
         Args:
             schema: Nombre del schema (por defecto 'dbo')
 
         Returns:
-            list[SqlServerRoutineDetail]: Detalles de routines
+            list[tuple]: Filas (routine_name, routine_type, object_id, parameters_count)
         """
         conn = self._get_conn()
         if not conn:
             return []
-        return fetch_routines_sync(conn, schema)
+        details: list[SqlServerRoutineDetail] = fetch_routines_sync(conn, schema)
+        return [(d.routine_name, d.routine_type, d.object_id, d.parameters_count) for d in details]
 
     def fetch_routine_parameters_sync(
         self,

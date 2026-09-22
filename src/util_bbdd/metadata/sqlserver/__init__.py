@@ -57,10 +57,14 @@ def _register_sqlserver_adapters() -> None:
 
         registry.register_source_adapter_sync("sqlserver", SqlServerSyncAdapter)
         registry.register_source_adapter_async("sqlserver", SqlServerAsyncAdapter)
+        registry.register_routine_adapter_sync("sqlserver", SqlServerSyncAdapter)
+        registry.register_routine_adapter_async("sqlserver", SqlServerAsyncAdapter)
 
         # Alternate names commonly used
         registry.register_source_adapter_sync("mssql", SqlServerSyncAdapter)
         registry.register_source_adapter_async("mssql", SqlServerAsyncAdapter)
+        registry.register_routine_adapter_sync("mssql", SqlServerSyncAdapter)
+        registry.register_routine_adapter_async("mssql", SqlServerAsyncAdapter)
 
     except ImportError:
         # registry no disponible, fallback silencioso

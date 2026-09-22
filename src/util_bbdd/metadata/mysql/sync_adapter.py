@@ -10,7 +10,11 @@ from .._base_adapter import BaseConnectionAdapter
 from ._mysql_models import MysqlRoutineDetail
 from .constraints import fetch_foreign_keys_sync, fetch_primary_keys_sync
 from .indexes import fetch_indexes_sync
-from .routines import fetch_routine_parameters_sync, fetch_routines_sync
+from .routines import (
+    fetch_routine_definition_sync,
+    fetch_routine_parameters_sync,
+    fetch_routines_sync,
+)
 from .tables import fetch_columns_sync, fetch_schemas_sync, fetch_tables_sync
 
 
@@ -20,7 +24,7 @@ class MysqlSyncAdapter(BaseConnectionAdapter):
     Responsabilidades:
     - Extracción de metadatos: tablas, columnas, constraints, índices, routines.
     - Caché coherente a través de manager.
-    - Normalización de retornos a list[tuple] (excepto routines que retorna list[MysqlRoutineDetail]).
+    - Normalización de retornos a list[tuple].
 
     Utiliza duck-typing; no hereda de Protocol explícitamente.
     """
@@ -112,26 +116,41 @@ class MysqlSyncAdapter(BaseConnectionAdapter):
             return []
         return fetch_indexes_sync(conn, schema, table)
 
-    def fetch_routines_sync(self, schema: str | None = None) -> list[MysqlRoutineDetail]:
-        """Obtiene rutinas (PROCEDURE, FUNCTION) de un schema.
+    def fetch_routines_sync(self, schema: str | None = None) -> list[tuple]:
+        """Obtiene rutinas (PROCEDURE, FUNCTION) de un schema (RoutineAdapter).
+
+        Convierte ``MysqlRoutineDetail`` (dataclass interno, no cabe en tuple plana —
+        ver ``_mysql_models.py``) a tupla en el límite público del adapter, para
+        cumplir el Protocol ``RoutineAdapterSync`` (MDC-03, AUDIT_CODE 2026-09-22:
+        antes devolvía la dataclass directamente, incompatible con
+        ``list[tuple[Any, ...]]`` — invariancia de ``list`` en mypy).
 
         Args:
             schema: Nombre del schema.
 
         Returns:
-            list[MysqlRoutineDetail]: Detalles de rutinas
+            list[tuple]: Filas (routine_name, routine_type, created_datetime)
         """
         conn = self._get_conn()
         if not conn:
             return []
-        return fetch_routines_sync(conn, schema)
+        details: list[MysqlRoutineDetail] = fetch_routines_sync(conn, schema)
+        return [(d.routine_name, d.routine_type, d.created_datetime) for d in details]
 
-    def fetch_routine_parameters_sync(self, schema: str | None = None, routine_name: str | None = None) -> list[tuple]:
-        """Obtiene parámetros de una rutina.
+    def fetch_routine_parameters_sync(
+        self,
+        schema: str | None = None,
+        routine_name: str | None = None,
+        routine_type: str | None = None,
+    ) -> list[tuple]:
+        """Obtiene parámetros de una rutina (RoutineAdapter).
 
         Args:
             schema: Nombre del schema.
             routine_name: Nombre de la rutina.
+            routine_type: Tipo de rutina (ignorado: information_schema.PARAMETERS
+                no filtra por tipo). Aceptado para cumplir el Protocol RoutineAdapterSync
+                (MDC-03, AUDIT_CODE 2026-09-22).
 
         Returns:
             list[tuple]: Filas (parameter_name, parameter_mode, data_type, ordinal_position)
@@ -140,3 +159,19 @@ class MysqlSyncAdapter(BaseConnectionAdapter):
         if not conn:
             return []
         return fetch_routine_parameters_sync(conn, schema, routine_name)
+
+    def fetch_routine_definition_sync(self, schema: str, routine: str, routine_type: str) -> str:
+        """Obtiene el DDL completo de una rutina (RoutineAdapter).
+
+        Args:
+            schema: Nombre del schema.
+            routine: Nombre de la rutina.
+            routine_type: Tipo de rutina ('PROCEDURE' o 'FUNCTION').
+
+        Returns:
+            str: DDL de la rutina (p.ej. 'CREATE PROCEDURE ...') o cadena vacía si no disponible.
+        """
+        conn = self._get_conn()
+        if not conn:
+            return ""
+        return fetch_routine_definition_sync(conn, schema, routine, routine_type)

@@ -56,10 +56,14 @@ def _register_mysql_adapters() -> None:
 
         registry.register_source_adapter_sync("mysql", MysqlSyncAdapter)
         registry.register_source_adapter_async("mysql", MysqlAsyncAdapter)
+        registry.register_routine_adapter_sync("mysql", MysqlSyncAdapter)
+        registry.register_routine_adapter_async("mysql", MysqlAsyncAdapter)
 
         # Alternate names commonly used
         registry.register_source_adapter_sync("mariadb-mysql", MysqlSyncAdapter)
         registry.register_source_adapter_async("mariadb-mysql", MysqlAsyncAdapter)
+        registry.register_routine_adapter_sync("mariadb-mysql", MysqlSyncAdapter)
+        registry.register_routine_adapter_async("mariadb-mysql", MysqlAsyncAdapter)
 
     except ImportError:
         # registry no disponible, fallback silencioso

@@ -16,7 +16,11 @@ from typing import Any, TypeVar
 from ._mysql_models import MysqlRoutineDetail
 from .constraints import fetch_foreign_keys_sync, fetch_primary_keys_sync
 from .indexes import fetch_indexes_sync
-from .routines import fetch_routine_parameters_sync, fetch_routines_sync
+from .routines import (
+    fetch_routine_definition_sync,
+    fetch_routine_parameters_sync,
+    fetch_routines_sync,
+)
 from .tables import fetch_columns_sync, fetch_schemas_sync, fetch_tables_sync
 
 _T = TypeVar("_T")
@@ -137,19 +141,24 @@ class MysqlAsyncAdapter:
             return []
         return await self._run_sync(fetch_indexes_sync, conn, schema, table)
 
-    async def fetch_routines_async(self, schema: str | None = None) -> list[MysqlRoutineDetail]:
-        """Obtiene rutinas (PROCEDURE, FUNCTION) de un schema.
+    async def fetch_routines_async(self, schema: str | None = None) -> list[tuple]:
+        """Obtiene rutinas (PROCEDURE, FUNCTION) de un schema (RoutineAdapter).
+
+        Convierte ``MysqlRoutineDetail`` (dataclass interno) a tupla en el límite
+        público del adapter, para cumplir el Protocol ``RoutineAdapterAsync``
+        (MDC-03, AUDIT_CODE 2026-09-22; ver nota en ``sync_adapter.py``).
 
         Args:
             schema: Nombre del schema.
 
         Returns:
-            list[MysqlRoutineDetail]: Detalles de rutinas
+            list[tuple]: Filas (routine_name, routine_type, created_datetime)
         """
         conn = self._get_conn()
         if not conn:
             return []
-        return await self._run_sync(fetch_routines_sync, conn, schema)
+        details: list[MysqlRoutineDetail] = await self._run_sync(fetch_routines_sync, conn, schema)
+        return [(d.routine_name, d.routine_type, d.created_datetime) for d in details]
 
     async def fetch_routine_parameters_async(
         self, schema: str | None = None, routine_name: str | None = None, routine_type: str | None = None
@@ -169,3 +178,19 @@ class MysqlAsyncAdapter:
         if not conn:
             return []
         return await self._run_sync(fetch_routine_parameters_sync, conn, schema, routine_name)
+
+    async def fetch_routine_definition_async(self, schema: str, routine: str, routine_type: str) -> str:
+        """Obtiene el DDL completo de una rutina (RoutineAdapter).
+
+        Args:
+            schema: Nombre del schema.
+            routine: Nombre de la rutina.
+            routine_type: Tipo de rutina ('PROCEDURE' o 'FUNCTION').
+
+        Returns:
+            str: DDL de la rutina (p.ej. 'CREATE PROCEDURE ...') o cadena vacía si no disponible.
+        """
+        conn = self._get_conn()
+        if not conn:
+            return ""
+        return await self._run_sync(fetch_routine_definition_sync, conn, schema, routine, routine_type)

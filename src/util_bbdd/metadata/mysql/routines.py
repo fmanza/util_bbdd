@@ -10,6 +10,7 @@ from ._adapter_helpers import (
     build_mysql_routines_query,
 )
 from ._mysql_models import MysqlRoutineDetail
+from .common import quote_mysql_identifier
 
 
 def fetch_routines_sync(connection: Any, schema: str | None = None) -> list[MysqlRoutineDetail]:
@@ -90,3 +91,42 @@ def fetch_routine_parameters_sync(
         result.append((parameter_name, parameter_mode, data_type, ordinal_position))
 
     return result
+
+
+def fetch_routine_definition_sync(connection: Any, schema: str, routine_name: str, routine_type: str) -> str:
+    """Obtiene el DDL completo de una rutina vía ``SHOW CREATE PROCEDURE``/``FUNCTION``.
+
+    MDC-03 (AUDIT_CODE 2026-09-22): MySQL nunca implementó ``fetch_routine_definition_*``
+    pese a estar registrado como productor de metadatos; sin este método no puede
+    registrarse como ``RoutineAdapter`` completo (mismo patrón que MPG-01/MSS-02 en
+    la Fase 3 de esta sesión).
+
+    ``SHOW CREATE`` no admite bind params para el identificador de la rutina (no es un
+    valor, es parte de la sintaxis); se cita con ``quote_mysql_identifier()`` en vez de
+    interpolar el valor crudo, igual que el resto de introspección MySQL.
+
+    Args:
+        connection: Conexión a MySQL
+        schema: Nombre del schema
+        routine_name: Nombre de la rutina
+        routine_type: Tipo de rutina ('PROCEDURE' o 'FUNCTION')
+
+    Returns:
+        str: DDL de la rutina (p.ej. 'CREATE PROCEDURE ...') o cadena vacía si no disponible.
+    """
+    if not schema or not routine_name:
+        return ""
+
+    keyword = "FUNCTION" if routine_type.upper() == "FUNCTION" else "PROCEDURE"
+    qualified_name = f"{quote_mysql_identifier(schema)}.{quote_mysql_identifier(routine_name)}"
+    sql = f"SHOW CREATE {keyword} {qualified_name}"
+
+    try:
+        cursor = connection.execute(sql)
+        row = cursor.fetchone()
+    except Exception:
+        return ""
+
+    if not row or len(row) < 3:
+        return ""
+    return str(row[2]).strip() if row[2] else ""

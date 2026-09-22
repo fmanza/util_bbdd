@@ -81,9 +81,14 @@ def test_cache_service_satisfies_metadata_cache_port() -> None:
 # de conformidad, ni en tiempo de ejecución ni con mypy. Esto permitió que 3 adaptadores divergieran del Protocol
 # sin que ningún test lo detectara (OracleAsyncAdapter con métodos fetch_*_sync dentro de la clase async — MEO-01;
 # SqlServerSyncAdapter.fetch_routine_parameters_sync con firma (object_id) en vez de (schema, routine, routine_type)
-# — MSS-01; MariaDBSync/AsyncAdapter sin parámetro schema — MEO-03). Los 8 motores implementan SourceAdapter; solo
-# mariadb y oracle implementan RoutineAdapter completo hoy (postgresql y sqlserver todavía no exponen
-# fetch_routine_definition_*: MPG-01/MSS-02, fuera de esta ronda).
+# — MSS-01; MariaDBSync/AsyncAdapter sin parámetro schema — MEO-03). Los 8 motores implementan SourceAdapter.
+#
+# RoutineAdapter completo (Fase 3/4 de la remediación, 2026-09-22): mariadb y oracle lo tenían desde el
+# AUDIT_CODE original; postgresql (MPG-01) y sqlserver (MSS-02) expusieron fetch_routine_definition_*
+# reutilizando helpers ya existentes sin caller; mysql (MDC-03) requirió implementar
+# fetch_routine_definition_* desde cero (SHOW CREATE PROCEDURE/FUNCTION, no existía ningún mecanismo) y
+# ampliar fetch_routine_parameters_sync/async con el parámetro routine_type que exige el Protocol (antes
+# solo aceptaba schema/routine_name — mismo patrón de firma reducida que MEO-03 detectó en mariadb).
 #
 # Snowflake queda fuera de las funciones `_as_*` (comprobación estática con mypy) porque su jerarquía de 3
 # niveles (database.schema.table) le exige un parámetro `database` adicional en fetch_columns_sync/etc. — una
@@ -117,6 +122,14 @@ def _mysql_async_as_source(adapter: MysqlAsyncAdapter) -> SourceAdapterAsync:
     return adapter
 
 
+def _mysql_sync_as_routine(adapter: MysqlSyncAdapter) -> RoutineAdapterSync:
+    return adapter
+
+
+def _mysql_async_as_routine(adapter: MysqlAsyncAdapter) -> RoutineAdapterAsync:
+    return adapter
+
+
 def _oracle_sync_as_source(adapter: OracleSyncAdapter) -> SourceAdapterSync:
     return adapter
 
@@ -138,6 +151,14 @@ def _postgresql_sync_as_source(adapter: PostgreSQLSyncAdapter) -> SourceAdapterS
 
 
 def _postgresql_async_as_source(adapter: PostgreSQLAsyncAdapter) -> SourceAdapterAsync:
+    return adapter
+
+
+def _postgresql_sync_as_routine(adapter: PostgreSQLSyncAdapter) -> RoutineAdapterSync:
+    return adapter
+
+
+def _postgresql_async_as_routine(adapter: PostgreSQLAsyncAdapter) -> RoutineAdapterAsync:
     return adapter
 
 
@@ -165,6 +186,14 @@ def _sqlserver_async_as_source(adapter: SqlServerAsyncAdapter) -> SourceAdapterA
     return adapter
 
 
+def _sqlserver_sync_as_routine(adapter: SqlServerSyncAdapter) -> RoutineAdapterSync:
+    return adapter
+
+
+def _sqlserver_async_as_routine(adapter: SqlServerAsyncAdapter) -> RoutineAdapterAsync:
+    return adapter
+
+
 _SYNC_SOURCE_ADAPTERS: tuple[type, ...] = (
     MariaDBSyncAdapter,
     MysqlSyncAdapter,
@@ -187,9 +216,22 @@ _ASYNC_SOURCE_ADAPTERS: tuple[type, ...] = (
     SqlServerAsyncAdapter,
 )
 
-# Solo estos implementan RoutineAdapter completo hoy (ver nota arriba).
-_SYNC_ROUTINE_ADAPTERS: tuple[type, ...] = (MariaDBSyncAdapter, OracleSyncAdapter)
-_ASYNC_ROUTINE_ADAPTERS: tuple[type, ...] = (MariaDBAsyncAdapter, OracleAsyncAdapter)
+# Redshift/snowflake/sqlite quedan fuera: excluidos de esta ronda de remediación (redshift/snowflake) o
+# sin concepto de rutina almacenada aplicable (sqlite). Ver nota arriba para el resto.
+_SYNC_ROUTINE_ADAPTERS: tuple[type, ...] = (
+    MariaDBSyncAdapter,
+    MysqlSyncAdapter,
+    OracleSyncAdapter,
+    PostgreSQLSyncAdapter,
+    SqlServerSyncAdapter,
+)
+_ASYNC_ROUTINE_ADAPTERS: tuple[type, ...] = (
+    MariaDBAsyncAdapter,
+    MysqlAsyncAdapter,
+    OracleAsyncAdapter,
+    PostgreSQLAsyncAdapter,
+    SqlServerAsyncAdapter,
+)
 
 
 @pytest.mark.parametrize("adapter_cls", _SYNC_SOURCE_ADAPTERS, ids=lambda c: c.__name__)
