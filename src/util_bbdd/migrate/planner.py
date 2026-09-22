@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
+from ._compat.identifier_rules import find_case_insensitive_collisions
 from .charset import (
     DEFAULT_CHARSET,
     DEFAULT_COLLATION,
@@ -260,6 +261,29 @@ class MigrationPlanner:
             all_warnings.extend(view.warnings)
         for routine in transformed_routines:
             all_warnings.extend(routine.warnings)
+
+        # CMP-02 (AUDIT_CODE 2026-09-22): tablas y vistas comparten namespace en el
+        # motor destino; dos nombres que solo difieran en case no colisionan en el
+        # DDL migrado (siempre entrecomillado), pero sí bajo case-folding si algo
+        # los referencia sin comillas.
+        table_and_view_names = [table.name for table in transformed] + [view.name for view in transformed_views]
+        for name_a, name_b in find_case_insensitive_collisions(table_and_view_names):
+            all_warnings.append(
+                MigrationWarning(
+                    table=name_a,
+                    column=None,
+                    oracle_type="IDENTIFIER_CASE_COLLISION",
+                    target_type=name_b,
+                    message=(
+                        f"Identificadores '{name_a}' y '{name_b}' solo difieren en "
+                        "mayúsculas/minúsculas; el DDL migrado los entrecomilla y no "
+                        "colisiona, pero cualquier referencia sin comillas en un motor "
+                        "con case-folding colapsaría ambos en el mismo nombre. Revisar "
+                        "manualmente."
+                    ),
+                    severity="WARNING",
+                )
+            )
 
         return MigrationPlan(
             tables=transformed,

@@ -5,6 +5,7 @@ from __future__ import annotations
 from util_bbdd.migrate._compat.identifier_rules import (
     MAX_MARIADB_IDENTIFIER_LENGTH,
     check_identifier,
+    find_case_insensitive_collisions,
     truncate_identifier,
 )
 
@@ -68,3 +69,29 @@ class TestCheckIdentifier:
         adapted, warn = check_identifier("")
         assert adapted == ""
         assert warn is None
+
+
+class TestFindCaseInsensitiveCollisions:
+    """CMP-02 (AUDIT_CODE 2026-09-22): identifier_rules.py no detectaba pares de
+    identificadores que solo difieren en case, riesgo bajo case-folding de motor."""
+
+    def test_no_collision_for_distinct_names(self) -> None:
+        assert find_case_insensitive_collisions(["users", "orders", "products"]) == []
+
+    def test_detects_case_only_collision(self) -> None:
+        collisions = find_case_insensitive_collisions(["Employees", "EMPLOYEES"])
+        assert collisions == [("Employees", "EMPLOYEES")]
+
+    def test_exact_duplicate_same_case_not_reported(self) -> None:
+        """Un duplicado literal (mismo case) no es una colisión de folding."""
+        assert find_case_insensitive_collisions(["users", "users"]) == []
+
+    def test_three_way_collision_reports_pairs_against_first_seen(self) -> None:
+        collisions = find_case_insensitive_collisions(["Orders", "ORDERS", "orders"])
+        assert collisions == [("Orders", "ORDERS"), ("Orders", "orders")]
+
+    def test_empty_input_no_collisions(self) -> None:
+        assert find_case_insensitive_collisions([]) == []
+
+    def test_single_name_no_collisions(self) -> None:
+        assert find_case_insensitive_collisions(["users"]) == []

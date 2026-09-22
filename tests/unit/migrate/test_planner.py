@@ -148,6 +148,37 @@ class TestMigrationPlannerPlan:
         assert not name.endswith("_.sql")
 
 
+class TestMigrationPlannerCaseCollisionWarning:
+    """CMP-02 (AUDIT_CODE 2026-09-22): dos tablas cuyo nombre solo difiere en case
+    deben generar un MigrationWarning en plan.warnings — antes se ignoraba en
+    silencio y el planner no detectaba el riesgo de colisión bajo case-folding."""
+
+    def test_case_only_table_names_emit_collision_warning(self) -> None:
+        manager = _make_mock_manager(
+            tables=[
+                ("USERS", "TABLE", ""),
+                ("users", "TABLE", ""),
+            ]
+        )
+        plan = MigrationPlanner().plan(manager, "SCHEMA")
+
+        collision_warnings = [w for w in plan.warnings if w.oracle_type == "IDENTIFIER_CASE_COLLISION"]
+        assert len(collision_warnings) == 1
+        assert {collision_warnings[0].table, collision_warnings[0].target_type} == {"USERS", "users"}
+        assert collision_warnings[0].severity == "WARNING"
+
+    def test_distinct_table_names_no_collision_warning(self) -> None:
+        manager = _make_mock_manager(
+            tables=[
+                ("USERS", "TABLE", ""),
+                ("ORDERS", "TABLE", ""),
+            ]
+        )
+        plan = MigrationPlanner().plan(manager, "SCHEMA")
+
+        assert not any(w.oracle_type == "IDENTIFIER_CASE_COLLISION" for w in plan.warnings)
+
+
 class TestMigrationPlannerSQLServer:
     def test_sqlserver_target_valid(self) -> None:
         p = MigrationPlanner(target_engine="sqlserver")
