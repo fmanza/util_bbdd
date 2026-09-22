@@ -127,7 +127,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 
 | Fecha | Sesión | Cambio principal | Estado |
 |-------|--------|-----------------|--------|
-| 2026-09-21 | Regla #6: ciclo `connection`⇄`factory` | Ciclo eliminado reescribiendo `UpdateAutoIncrement` (recibe `Engine`, Inspector, sin `factory`); Regla #6 reconciliada; guarda `test_architecture_import_rules.py`; commit `92e6c7c`; capas estrictas (pasos 1–3) planificadas | IN_PROGRESS |
+| 2026-09-21 | Regla #6: capas estrictas y ciclo `connection`⇄`factory` | Ciclo eliminado reescribiendo `UpdateAutoIncrement` (`Engine`, Inspector; commit `92e6c7c`); Regla #6 con 7 capas (`LAYER` como fuente única) y guarda `test_architecture_import_rules.py`; `metadata`/`analysis`/`doc` dependen de Protocols y solo el `__init__` raíz importa `managers`; capas sin commitear | IN_PROGRESS |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 
@@ -137,5 +137,5 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 
 - **Total sesiones archivadas** en `doc_old/sessions/`: ~65 sesiones (Mar-04 a May-28).
 - **Total sesiones activas**: 21 sesiones (May-31 a Jun-05).
-- **Test suite**: creció de ~1800 (Abr) → 3826 (Jun-05) → 3856 passed / 4 skipped (Sep-22).
+- **Test suite**: creció de ~1800 (Abr) → 3826 (Jun-05) → 3859 passed / 4 skipped (Sep-22).
 - **Versiones**: v0.6.0 (Mar) → v0.6.7 → v0.6.8 (logging) → v0.6.9 → v0.8.0 → v0.9.0 (Jun-01c) → v0.10.0 (Jun-01d).

@@ -21,13 +21,18 @@ Instrucciones posteriores del usuario, en orden:
 6. `PLAN` y `AUDIT_PLAN`: `update_auto_increment.py` debe reincorporarse como utilidad propia de MariaDB; pide la mejor estrategia según la arquitectura actual.
 7. Decisiones: firma → `Engine`; Inspector frente a proveedor → Inspector; hay un MariaDB de pruebas; reescribir antes del commit base → sí.
 8. Ejecuta él mismo el test de integración contra su MariaDB (3 passed) para no exponer credenciales.
-9. «Actualizar .ai\sessions».
+9. «Actualizar .ai\sessions» (primera versión del registro).
+10. «Commit» (del registro de sesión; commit `a54ce69`).
+11. «IMPLEMENT» de los pasos 1–3 de capas estrictas, sin responder a las tres decisiones abiertas: se aplicaron las recomendaciones por defecto y no se tocó la CI en ese momento.
+12. «Actualizar .ai/sessions» (con los pasos 1–3 implementados).
+13. «Línea de mypy en tests.yml: añadir. Tocar CI»: el paso `mypy` de CI pasa a incluir `tests/unit/test_protocol_conformance.py`.
+14. «El paso mypy las dos opciones»: `exclude` de `docs_build_plugin.py` en `[tool.mypy]` y override de `mkdocs` con corrección del fichero, para dejar en verde el paso `mypy` de CI.
 
 ## Objetivo operativo de esta sesión
 - Verificar la afirmación del ciclo `connection/` ⇄ `factory/` (recuentos, latencia, alcance) y emitir veredicto AUDIT_CODE.
 - Eliminar el ciclo sin perder la capacidad de generar sentencias `AUTO_INCREMENT` (reincorporar la utilidad como utilidad MariaDB).
 - Reconciliar la Regla #6 (niveles y política dentro de un nivel) y hacerla cumplir con una guarda automática.
-- Dejar planificado (PLAN + AUDIT_PLAN) el endurecimiento a capas estrictas, pasos 1–3.
+- Planificar (PLAN + AUDIT_PLAN) e implementar el endurecimiento a capas estrictas, pasos 1–3.
 
 ## Restricciones explícitas
 - Cada fase se ejecuta solo cuando el usuario la pide (`IMPLEMENT`, o «PLAN y AUDIT_PLAN» sin tocar código).
@@ -38,4 +43,4 @@ Instrucciones posteriores del usuario, en orden:
 ## Resultado esperado
 - Carpeta `.ai/sessions/2026-09-21-regla6-ciclo-connection-factory/` con los artefactos mínimos de trazabilidad.
 - Ciclo eliminado y vigilado por test; `UpdateAutoIncrement` reincorporado; Regla #6 coherente en todas las fuentes que la enuncian.
-- Plan de capas estrictas persistido para la siguiente fase.
+- Capas estrictas implementadas y vigiladas por test, con el plan persistido (`01_PLAN_capas_estrictas.md`).

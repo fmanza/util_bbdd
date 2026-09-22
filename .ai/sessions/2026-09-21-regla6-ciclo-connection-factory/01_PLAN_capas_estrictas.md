@@ -1,6 +1,6 @@
 # PLAN + AUDIT_PLAN — capas estrictas (pasos 1, 2 y 3)
 
-Estado: **emitido, sin IMPLEMENT**. Formato `/refactor`. Veredicto: **GO_CONDICIONAL**.
+Estado: **implementado el 2026-09-22, sin commitear** (ver «Resultado de la implementación» al final). Formato `/refactor`. Veredicto emitido: **GO_CONDICIONAL**. El texto de abajo es el plan tal como se emitió.
 
 ## PLAN
 
@@ -70,3 +70,20 @@ Estado final tras el paso 3: `analysis` baja a la capa 6 y `doc` a la 7 (7 capas
 1. Confirmar la tabla de capas, en especial la capa 6.
 2. ¿`DocumentationManagerPort` gana `relationship_cache`? (recomendado: sí, cierra el hueco del `cast`).
 3. ¿Se añade el fichero de conformidad al paso `mypy` de `.github/workflows/tests.yml`? (recomendado: sí; una línea, fuera de los tres pasos).
+
+## Resultado de la implementación (2026-09-22)
+
+El usuario respondió solo «IMPLEMENT»: las decisiones 1 y 2 se aplicaron en su valor recomendado y la 3 se dejó a propósito sin aplicar hasta que el usuario la pidió (ver abajo).
+
+- **Decisión 1 (tabla)**: adoptada. El paso 1 arrancó con 8 capas (`analysis` en la 7, `doc` en la 8); el paso 3 las bajó a la 6 y a la 7 (**7 capas**), como preveía el plan.
+- **Decisión 2 (`relationship_cache` en `DocumentationManagerPort`)**: adoptada. mypy destapó que `DocumentationSession` (`documentation_orchestrator.py`), que se pasa a los renderers como ese puerto, no lo exponía; ahora lo expone por delegación.
+- **Decisión 3 (CI)**: **aplicada después**, por decisión expresa del usuario (2026-09-22). Se creó `tests/unit/test_protocol_conformance.py` y el paso `mypy` de `.github/workflows/tests.yml` ejecuta ahora `python -m mypy src tests/unit/test_protocol_conformance.py`.
+
+Desviaciones respecto al plan:
+- **Tabla generada.** El script escribe además `docs/assets/diagrams/arquitectura-capas-tabla.txt`, que `docs/architecture.md` incrusta con `--8<--`: la doc pública no duplica la tabla a mano.
+- **Sin excepciones.** Se eliminó el mecanismo `TYPING_ONLY_UPWARD` de la guarda; los imports de `TYPE_CHECKING` cuentan igual que los demás.
+- **Protocols posicionales.** mypy no compara nombres de parámetros al comprobar un Protocol (verificado por mutación), así que `MetadataCachePort`, `RelationshipGraphSource` y los puertos de `doc` los declaran posicionales (`/`).
+- **Puertos de `doc`.** `DocumentationManagerPort` se recompuso a partir de `DocumentationIntrospectionPort` (extraído); `DocumentationSourcePort` se compone de este, `DocumentationQueryPort`, `OutputNamingContextPort` y `MetadataReaderPort`.
+- **Figura.** Al dejar de importar `managers`, `analysis` y `doc` importan de `metadata`; esas aristas se resumen en una nota junto a la flecha de `migrate → metadata`, como ya se resumía `managers`. Se retiraron las flechas ámbar, las marcas y la entrada de leyenda; se conservaron las primitivas.
+
+Cifras finales: 3859 passed / 4 skipped; `mypy src` con los 2 errores previos; conformidad con mypy limpia; 339 ficheros medidos; 26 ficheros tocados (23 modificados y 3 nuevos: `analysis/contracts.py`, `tests/unit/test_protocol_conformance.py` y la tabla generada).

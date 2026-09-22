@@ -11,6 +11,7 @@
 - `docs/architecture.md`, `docs/guides/architecture_diagram_guide.md`, `scripts/gen_arquitectura_capas.py`
 - `README.md` (sección de arquitectura), `docs/guides/onboarding_dev.md`, `CHANGELOG.md`, `mkdocs.yml`
 - `pytest.ini`, `tests/conftest.py`, `tests/integration/conftest.py`, `docker-compose.yml`
+- Para las capas estrictas: `src/util_bbdd/analysis/{__init__,base,graphviz_ext,matplotlib_graph}.py`, `doc/application/ports.py`, `doc/application/use_cases/documentation_orchestrator.py`, `doc/infrastructure/adapters/sync_database_manager_adapter.py`, `metadata/adapters/{_adapter_protocol,base_adapter}.py`, `managers/_manager_cache_service.py`, `metadata/cache.py`, `docs/api/{analysis,database-documentation}.md` y la configuración de snippets de `mkdocs.yml` (`base_path: [docs]`)
 
 ## Estado actual observado
 - Tests: 3826 passed / 1 skipped (primera medición, tras el primer cambio).
@@ -18,6 +19,11 @@
 - `mypy src`: 2 errores previos en `docs_build_plugin.py:25,27` (`var-annotated`, `unused-ignore`).
 - `mkdocs build --strict`: 13 warnings previos (faltan `installation.md` y `roadmap.md`).
 - El trabajo del diagrama de capas (`docs/architecture.md`, `mkdocs.yml`, `docs/assets/…`, `scripts/gen_arquitectura_capas.py`) estaba sin commitear al empezar; el usuario lo commiteó durante la sesión (`712c91b`, `485ab8e`).
+
+## Estado al retomar para implementar las capas estrictas (2026-09-22)
+- HEAD `a54ce69`, árbol limpio. Tests: 3856 passed / 4 skipped (3 de integración sin servidor y 1 previo).
+- Sin cambios respecto al arranque: `mypy src` con 2 errores previos, `mkdocs --strict` con 13 warnings previos, `ruff check` limpio.
+- Decisiones abiertas del AUDIT_PLAN sin responder por el usuario (tabla, `relationship_cache`, CI): se aplicaron las dos primeras por defecto y no se tocó la CI.
 
 ## Estado Git relevante
 - Rama activa: develop
