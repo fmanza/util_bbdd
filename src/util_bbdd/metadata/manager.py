@@ -1,7 +1,8 @@
 """Gestor centralizado de operaciones de metadatos.
 
 Responsabilidad: Coordinar y orquestar operaciones de metadatos
-utilizando Builder, Fetcher, Cache y Normalizer.
+utilizando Builder, Cache y Normalizer sobre un `SyncMetadataProvider` real
+(p.ej. `SyncDatabaseManager`).
 """
 
 import logging
@@ -11,7 +12,6 @@ from typing import Any
 from .builder import DDLBuilder
 from .cache import DatabaseMetadataCache, RelationshipMetadataCache
 from .contracts import Rows, SyncMetadataProvider
-from .fetcher import MetadataFetcher
 from .normalizer import (
     NormalizedColumnRow,
     NormalizedTableRow,
@@ -25,7 +25,7 @@ class MetadataManager:
 
     Orquesta las operaciones entre:
     - Builder: Construcción DDL
-    - Fetcher: Obtención de metadatos
+    - metadata_provider: Obtención de metadatos (p.ej. `SyncDatabaseManager`)
     - Cache: Cacheo de resultados
     - Normalizer: Normalización de respuestas
 
@@ -57,9 +57,8 @@ class MetadataManager:
             self.db_cache
         )
 
-        # Constructores
+        # Constructor DDL
         self.builder = DDLBuilder(db_type=db_type)
-        self.fetcher = MetadataFetcher(metadata_provider)
 
         self.logger.debug(f"✅ MetadataManager inicializado para {db_type}")
 

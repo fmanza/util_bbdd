@@ -38,6 +38,7 @@ from ..factory.pool_factory import PoolFactory
 from ..factory.sqlalchemy_engine_factory import SQLAlchemyEngineFactory
 from ..metadata import (
     DatabaseMetadataCache,
+    MetadataManager,
     NormalizedColumnRow,
     NormalizedTableRow,
     RelationshipMetadataCache,
@@ -110,6 +111,9 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
 
         # Inicializar servicio de caché
         self.cache_service = CacheService(self.db_cache, self.relationship_cache, self.logger)
+
+        # MetadataManager (DDLBuilder + cache compartido) — construcción diferida, ver get_metadata_manager()
+        self._metadata_manager: MetadataManager | None = None
 
         # Inicializar validador de tipos (lazy loading)
         self._db_validator: DatabaseTypeValidator | None = None
@@ -1479,6 +1483,27 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
     def get_relationship_cache(self) -> "RelationshipMetadataCache":
         """Return centralized relationship metadata cache."""
         return self.relationship_cache
+
+    def get_metadata_manager(self) -> "MetadataManager":
+        """Expone `DDLBuilder` (construcción de DDL desde columnas) sobre esta conexión.
+
+        Reutiliza `self` como `SyncMetadataProvider` (ya implementa get_tables/get_columns/
+        get_primary_keys/etc. contra la ruta real de producción) y comparte db_cache/
+        relationship_cache con el resto de este manager, sin duplicar cacheo.
+
+        Returns:
+            MetadataManager listo para usar (p.ej. `get_metadata_manager().get_ddl(tabla)`
+            para construir un CREATE TABLE portable desde metadatos, distinto del DDL
+            nativo de `self.get_ddl(tabla)`).
+        """
+        if self._metadata_manager is None:
+            self._metadata_manager = MetadataManager(
+                metadata_provider=self,
+                db_cache=self.db_cache,
+                relationship_cache=self.relationship_cache,
+                db_type=self.db_type,
+            )
+        return self._metadata_manager
 
     # ==================== MÉTODO PARA SQLALCHEMY ====================
 

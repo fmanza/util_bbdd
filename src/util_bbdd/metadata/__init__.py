@@ -8,6 +8,7 @@ Consolidación de:
 
 # Imports desde cache
 # Imports desde builder
+from .async_manager import AsyncMetadataManager
 from .builder import DDLBuilder
 from .cache import (
     DatabaseMetadataCache,
@@ -58,4 +59,5 @@ __all__: list[str] = [
     "MetadataFetcher",
     # Manager
     "MetadataManager",
+    "AsyncMetadataManager",
 ]

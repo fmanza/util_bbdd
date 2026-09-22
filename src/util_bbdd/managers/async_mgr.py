@@ -23,6 +23,7 @@ from ..executors.async_query_executor import AsyncQueryExecutor
 from ..factory.async_sqlalchemy_engine_factory import AsyncSQLAlchemyEngineFactory
 from ..factory.pool_factory import PoolFactory
 from ..metadata import (
+    AsyncMetadataManager,
     DatabaseMetadataCache,
     NormalizedColumnRow,
     NormalizedTableRow,
@@ -245,6 +246,10 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
 
         # Inicializar servicio de caché
         self.cache_service = CacheService(self.db_cache, self.relationship_cache, self.logger)
+
+        # AsyncMetadataManager (DDLBuilder + cache compartido) — construcción diferida,
+        # ver get_metadata_manager()
+        self._metadata_manager: AsyncMetadataManager | None = None
 
         # Factories para conexión
         self._connection_factory: Callable[..., Awaitable[Any]] = (
@@ -1107,6 +1112,27 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
     def get_relationship_cache(self) -> RelationshipMetadataCache:
         """Retorna caché centralizada de metadatos de relaciones."""
         return self.relationship_cache
+
+    def get_metadata_manager(self) -> AsyncMetadataManager:
+        """Expone `DDLBuilder` (construcción de DDL desde columnas) sobre esta conexión.
+
+        Reutiliza `self` como `AsyncMetadataProvider` (ya implementa get_tables/get_columns/
+        get_primary_keys/etc. contra la ruta real de producción) y comparte db_cache/
+        relationship_cache con el resto de este manager, sin duplicar cacheo.
+
+        Returns:
+            AsyncMetadataManager listo para usar (p.ej.
+            `await get_metadata_manager().get_ddl(tabla)` para construir un CREATE TABLE
+            portable desde metadatos, distinto del DDL nativo de `await self.get_ddl(tabla)`).
+        """
+        if self._metadata_manager is None:
+            self._metadata_manager = AsyncMetadataManager(
+                metadata_provider=self,
+                db_cache=self.db_cache,
+                relationship_cache=self.relationship_cache,
+                db_type=self.db_type,
+            )
+        return self._metadata_manager
 
     async def get_sqlalchemy_engine(self) -> Any:
         """Obtiene un AsyncEngine de SQLAlchemy basado en la configuración actual."""
