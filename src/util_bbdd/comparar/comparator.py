@@ -31,7 +31,7 @@ _URL_CREDENTIALS_RE: str = r"://[^@]+@"
 _URL_CREDENTIALS_MASK: str = "://***@"
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Iterable, Mapping
 
     from sqlalchemy.engine import URL, Inspector
     from sqlalchemy.engine.interfaces import ReflectedTableComment
@@ -488,16 +488,22 @@ class SchemaComparator:
         source_idx: list[Any] = self._get_indexes_safe(source, src_table, source_schema)
         target_idx: list[Any] = self._get_indexes_safe(target, tgt_table, target_schema)
 
-        source_map: dict[str, dict[str, Any]] = {idx["name"]: idx for idx in source_idx if idx.get("name")}
-        target_map: dict[str, dict[str, Any]] = {idx["name"]: idx for idx in target_idx if idx.get("name")}
+        # Comparación case-insensitive del nombre del índice (igual que tablas/columnas)
+        # para soportar motores con convenciones de case distintas.
+        source_map: dict[str, dict[str, Any]] = self._case_insensitive_key_map(
+            (idx for idx in source_idx if idx.get("name")), lambda idx: idx["name"], kind="índices origen"
+        )
+        target_map: dict[str, dict[str, Any]] = self._case_insensitive_key_map(
+            (idx for idx in target_idx if idx.get("name")), lambda idx: idx["name"], kind="índices destino"
+        )
 
         diffs: list[IndexDiff] = []
 
-        for idx_name in sorted(set(source_map) - set(target_map)):
-            source_index_dict = source_map[idx_name]
+        for key in sorted(source_map.keys() - target_map.keys()):
+            source_index_dict = source_map[key]
             diffs.append(
                 IndexDiff(
-                    index_name=idx_name,
+                    index_name=source_index_dict["name"],
                     table_name=src_table,
                     status="added",
                     source_columns=self._join_columns(source_index_dict.get("column_names")),
@@ -505,11 +511,11 @@ class SchemaComparator:
                 ),
             )
 
-        for idx_name in sorted(set(target_map) - set(source_map)):
-            target_index_dict = target_map[idx_name]
+        for key in sorted(target_map.keys() - source_map.keys()):
+            target_index_dict = target_map[key]
             diffs.append(
                 IndexDiff(
-                    index_name=idx_name,
+                    index_name=target_index_dict["name"],
                     table_name=src_table,
                     status="removed",
                     target_columns=self._join_columns(target_index_dict.get("column_names")),
@@ -517,9 +523,9 @@ class SchemaComparator:
                 ),
             )
 
-        for idx_name in sorted(set(source_map) & set(target_map)):
-            s_idx: dict[str, Any] = source_map[idx_name]
-            t_idx: dict[str, Any] = target_map[idx_name]
+        for key in sorted(source_map.keys() & target_map.keys()):
+            s_idx: dict[str, Any] = source_map[key]
+            t_idx: dict[str, Any] = target_map[key]
             s_cols: str = self._join_columns(s_idx.get("column_names"))
             t_cols: str = self._join_columns(t_idx.get("column_names"))
             s_unique = bool(s_idx.get("unique", False))
@@ -527,7 +533,7 @@ class SchemaComparator:
             if s_cols != t_cols or s_unique != t_unique:
                 diffs.append(
                     IndexDiff(
-                        index_name=idx_name,
+                        index_name=s_idx["name"],
                         table_name=src_table,
                         status="modified",
                         source_columns=s_cols,
@@ -555,16 +561,22 @@ class SchemaComparator:
         source_fks = list(source.get_foreign_keys(src_table, schema=source_schema))
         target_fks = list(target.get_foreign_keys(tgt_table, schema=target_schema))
 
-        source_map: dict[str, Any] = {SchemaComparator._fk_key(fk): fk for fk in source_fks}
-        target_map: dict[str, Any] = {SchemaComparator._fk_key(fk): fk for fk in target_fks}
+        # Comparación case-insensitive del nombre/clave de la FK (igual que tablas/columnas)
+        # para soportar motores con convenciones de case distintas.
+        source_map: dict[str, Any] = self._case_insensitive_key_map(
+            source_fks, SchemaComparator._fk_key, kind="foreign keys origen"
+        )
+        target_map: dict[str, Any] = self._case_insensitive_key_map(
+            target_fks, SchemaComparator._fk_key, kind="foreign keys destino"
+        )
 
         diffs: list[ForeignKeyDiff] = []
 
-        for fk_name in sorted(set(source_map) - set(target_map)):
-            fk = source_map[fk_name]
+        for key in sorted(source_map.keys() - target_map.keys()):
+            fk = source_map[key]
             diffs.append(
                 ForeignKeyDiff(
-                    fk_name=fk_name,
+                    fk_name=SchemaComparator._fk_key(fk),
                     table_name=src_table,
                     status="added",
                     source_columns=",".join(fk.get("constrained_columns", [])),
@@ -573,11 +585,11 @@ class SchemaComparator:
                 ),
             )
 
-        for fk_name in sorted(set(target_map) - set(source_map)):
-            fk = target_map[fk_name]
+        for key in sorted(target_map.keys() - source_map.keys()):
+            fk = target_map[key]
             diffs.append(
                 ForeignKeyDiff(
-                    fk_name=fk_name,
+                    fk_name=SchemaComparator._fk_key(fk),
                     table_name=src_table,
                     status="removed",
                     target_columns=",".join(fk.get("constrained_columns", [])),
@@ -586,9 +598,9 @@ class SchemaComparator:
                 ),
             )
 
-        for fk_name in sorted(set(source_map) & set(target_map)):
-            s_fk = source_map[fk_name]
-            t_fk = target_map[fk_name]
+        for key in sorted(source_map.keys() & target_map.keys()):
+            s_fk = source_map[key]
+            t_fk = target_map[key]
             s_cols: str = ",".join(s_fk.get("constrained_columns", []))
             t_cols: str = ",".join(t_fk.get("constrained_columns", []))
             s_ref = s_fk.get("referred_table", "")
@@ -599,7 +611,7 @@ class SchemaComparator:
             if s_cols != t_cols or s_ref != t_ref or s_ref_cols != t_ref_cols:
                 diffs.append(
                     ForeignKeyDiff(
-                        fk_name=fk_name,
+                        fk_name=SchemaComparator._fk_key(s_fk),
                         table_name=src_table,
                         status="modified",
                         source_columns=s_cols,
@@ -899,6 +911,38 @@ class SchemaComparator:
         ref_table = fk.get("referred_table") or ""
         ref_cols = ",".join(fk.get("referred_columns") or [])
         return f"__anon__{cols}__{ref_table}__{ref_cols}"
+
+    @staticmethod
+    def _case_insensitive_key_map(
+        items: Iterable[Any],
+        key_fn: Callable[[Any], str],
+        *,
+        kind: str,
+    ) -> dict[str, Any]:
+        """Agrupa items en un dict indexado por ``key_fn(item).lower()``.
+
+        Soporta motores con convenciones de case distintas (p.ej. índices/FKs
+        UPPERCASE en Oracle vs lowercase en PostgreSQL) evitando falsos
+        positivos "added+removed" por diferencia de case únicamente. El nombre
+        canónico de cada item se recupera llamando de nuevo a ``key_fn`` sobre
+        el item almacenado. Advierte (no falla) si dos items colisionan al
+        normalizar el case.
+        """
+        result: dict[str, Any] = {}
+        for item in items:
+            raw_key = key_fn(item)
+            lowered_key = raw_key.lower()
+            if lowered_key in result:
+                logger.warning(
+                    "Colisión de case en %s: '%s' y '%s' colisionan al normalizar; se usará '%s'.",
+                    kind,
+                    key_fn(result[lowered_key]),
+                    raw_key,
+                    key_fn(result[lowered_key]),
+                )
+            else:
+                result[lowered_key] = item
+        return result
 
     @staticmethod
     def _join_columns(column_names: list[str] | None) -> str:

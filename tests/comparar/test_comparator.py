@@ -744,6 +744,131 @@ class TestCrossEngineCaseInsensitiveColumns:
         assert comment_diffs == [], f"Falsos diffs de comentario: {comment_diffs}"
 
 
+class TestCrossEngineCaseInsensitiveIndicesAndForeignKeys:
+    """BLK-02 (AUDIT_CODE 2026-09-22): índices y FKs se comparaban sensibles a
+    mayúsculas (a diferencia de tablas/columnas, que sí normalizan) → falsos
+    positivos 'added+removed' cross-motor cuando solo cambia el case del nombre."""
+
+    def test_identical_index_upper_vs_lower_name_no_false_diff(self, comparator: SchemaComparator) -> None:
+        """Mismo índice, distinto case de nombre (Oracle IDX_ID vs MariaDB idx_id): sin diffs."""
+        cols = [{"name": "id", "type": "INTEGER", "nullable": False, "default": None}]
+        source = _make_mock_inspector(
+            tables={"users": cols},
+            pk_constraints={"users": {"constrained_columns": ["id"]}},
+            indexes={"users": [{"name": "IDX_ID", "column_names": ["id"], "unique": False}]},
+        )
+        target = _make_mock_inspector(
+            tables={"users": cols},
+            pk_constraints={"users": {"constrained_columns": ["id"]}},
+            indexes={"users": [{"name": "idx_id", "column_names": ["id"], "unique": False}]},
+        )
+
+        diff = comparator.compare(source, target)
+
+        assert not diff.has_differences
+
+    def test_index_only_in_source_reports_canonical_source_name(self, comparator: SchemaComparator) -> None:
+        cols = [{"name": "id", "type": "INTEGER", "nullable": False, "default": None}]
+        source = _make_mock_inspector(
+            tables={"users": cols},
+            pk_constraints={"users": {"constrained_columns": ["id"]}},
+            indexes={"users": [{"name": "IDX_EXTRA", "column_names": ["id"], "unique": False}]},
+        )
+        target = _make_mock_inspector(
+            tables={"users": cols},
+            pk_constraints={"users": {"constrained_columns": ["id"]}},
+        )
+
+        diff = comparator.compare(source, target)
+
+        assert len(diff.table_diffs[0].index_diffs) == 1
+        assert diff.table_diffs[0].index_diffs[0].status == "added"
+        assert diff.table_diffs[0].index_diffs[0].index_name == "IDX_EXTRA"
+
+    def test_index_modified_columns_detected_despite_case_difference_in_name(
+        self, comparator: SchemaComparator
+    ) -> None:
+        """El nombre difiere solo en case, pero las columnas cubiertas sí difieren: debe reportarse."""
+        cols = [
+            {"name": "id", "type": "INTEGER", "nullable": False, "default": None},
+            {"name": "email", "type": "VARCHAR(100)", "nullable": True, "default": None},
+        ]
+        source = _make_mock_inspector(
+            tables={"users": cols},
+            pk_constraints={"users": {"constrained_columns": ["id"]}},
+            indexes={"users": [{"name": "IDX_ID", "column_names": ["id"], "unique": False}]},
+        )
+        target = _make_mock_inspector(
+            tables={"users": cols},
+            pk_constraints={"users": {"constrained_columns": ["id"]}},
+            indexes={"users": [{"name": "idx_id", "column_names": ["id", "email"], "unique": False}]},
+        )
+
+        diff = comparator.compare(source, target)
+
+        assert len(diff.table_diffs[0].index_diffs) == 1
+        assert diff.table_diffs[0].index_diffs[0].status == "modified"
+        assert diff.table_diffs[0].index_diffs[0].index_name == "IDX_ID"
+
+    def test_identical_fk_upper_vs_lower_name_no_false_diff(self, comparator: SchemaComparator) -> None:
+        cols = [
+            {"name": "id", "type": "INTEGER", "nullable": False, "default": None},
+            {"name": "user_id", "type": "INTEGER", "nullable": True, "default": None},
+        ]
+        fk_source = {
+            "name": "FK_USER",
+            "constrained_columns": ["user_id"],
+            "referred_table": "users",
+            "referred_columns": ["id"],
+        }
+        fk_target = {
+            "name": "fk_user",
+            "constrained_columns": ["user_id"],
+            "referred_table": "users",
+            "referred_columns": ["id"],
+        }
+        source = _make_mock_inspector(
+            tables={"orders": cols},
+            pk_constraints={"orders": {"constrained_columns": ["id"]}},
+            foreign_keys={"orders": [fk_source]},
+        )
+        target = _make_mock_inspector(
+            tables={"orders": cols},
+            pk_constraints={"orders": {"constrained_columns": ["id"]}},
+            foreign_keys={"orders": [fk_target]},
+        )
+
+        diff = comparator.compare(source, target)
+
+        assert not diff.has_differences
+
+    def test_fk_only_in_target_reports_canonical_target_name(self, comparator: SchemaComparator) -> None:
+        cols = [{"name": "id", "type": "INTEGER", "nullable": False, "default": None}]
+        source = _make_mock_inspector(
+            tables={"orders": cols},
+            pk_constraints={"orders": {"constrained_columns": ["id"]}},
+        )
+        target = _make_mock_inspector(
+            tables={"orders": cols},
+            pk_constraints={"orders": {"constrained_columns": ["id"]}},
+            foreign_keys={
+                "orders": [
+                    {
+                        "name": "FK_USER",
+                        "constrained_columns": ["user_id"],
+                        "referred_table": "users",
+                        "referred_columns": ["id"],
+                    }
+                ]
+            },
+        )
+
+        diff = comparator.compare(source, target)
+
+        assert diff.table_diffs[0].fk_diffs[0].status == "removed"
+        assert diff.table_diffs[0].fk_diffs[0].fk_name == "FK_USER"
+
+
 class TestNormalizeDdl:
     def test_removes_definer(self) -> None:
         sql = "CREATE DEFINER=`root`@`localhost` VIEW v_users AS SELECT 1"
