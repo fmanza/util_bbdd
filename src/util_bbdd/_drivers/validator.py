@@ -399,7 +399,8 @@ def validate_db_type(db_type: str) -> bool:
         db_type: Tipo de BD a validar (ej: 'postgresql', 'oracle', 'mariadb')
 
     Returns:
-        bool: True si el tipo es válido, False en caso contrario
+        bool: True si el tipo es válido. Nunca retorna False: un tipo no
+        soportado lanza una excepción en su lugar.
 
     Raises:
         InvalidDatabaseType: Si el tipo de BD no es soportado
@@ -408,7 +409,9 @@ def validate_db_type(db_type: str) -> bool:
         >>> validate_db_type('postgresql')
         True
         >>> validate_db_type('invalid_db')
-        False
+        Traceback (most recent call last):
+            ...
+        util_bbdd.InvalidDatabaseType: Tipo de base de datos 'invalid_db' no soportado
 
     See Also:
         get_database_validator: Obtiene la instancia singleton
