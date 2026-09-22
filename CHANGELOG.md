@@ -113,6 +113,22 @@ forma estructural.
 - **Tests**: `tests/unit/test_protocol_conformance.py` comprueba con `mypy` (tipos, aridad y miembros) que el manager, el
   adaptador y el puerto de `doc` cumplen ambos contratos.
 
+#### ci/mypy: el paso `mypy` deja de fallar por `docs_build_plugin.py`
+
+El paso `mypy` de `.github/workflows/tests.yml` corre antes de los tests y sin `continue-on-error`: si falla, los tests
+no se ejecutan. `docs_build_plugin.py` (plugin de MkDocs, cargado por entry point desde `mkdocs.yml`) daba 2 errores con
+mkdocs instalado y, en una simulación sin él —el caso de CI, porque los extras `dev` no lo instalan—, 4: los mismos 2
+más dos `import-not-found`.
+
+- **`[tool.mypy] exclude`** para ese fichero: es una herramienta de documentación, no la librería, y `mypy src` ya no
+  lo recorre.
+- **Override de mypy para `mkdocs`** (`ignore_missing_imports`) y corrección del fichero, para que también quede limpio
+  si se comprueba de forma explícita o desde el IDE: `config_options: ClassVar[dict[str, Any]]` y sin el
+  `# type: ignore[override]`, que sobraba con y sin mkdocs. Sin cambio funcional.
+- **Resultado**: `python -m mypy src tests/unit/test_protocol_conformance.py` termina con `Success: no issues found`,
+  también con caché en frío. Con `--no-incremental` mypy avisa de que el override de `mkdocs` queda sin uso, porque la
+  exclusión deja fuera el único fichero que lo necesitaba: es solo un aviso.
+
 ### Documentation
 
 #### architecture: Regla #6 con capas estrictas
@@ -184,8 +200,8 @@ Los mensajes indican el `fichero:línea` del import. No añade dependencias.
 
 Junto a ella, `tests/unit/test_protocol_conformance.py` comprueba que las implementaciones reales cumplen los Protocols
 que las capas altas usan en lugar de importarlas (`CacheService`, `SyncDatabaseManager` y el adaptador de `doc`). En
-ejecución solo comprueba que los miembros existen; las firmas las verifica `python -m mypy
-tests/unit/test_protocol_conformance.py`, que `mypy src` no cubre.
+ejecución solo comprueba que los miembros existen; las firmas las verifica `mypy`, que `mypy src` por sí solo no cubre:
+el paso `mypy` de `.github/workflows/tests.yml` ejecuta ahora `python -m mypy src tests/unit/test_protocol_conformance.py`.
 
 Referencia:
 - [test_architecture_import_rules.py](tests/unit/test_architecture_import_rules.py)

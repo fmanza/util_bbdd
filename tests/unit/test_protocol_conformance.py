@@ -4,9 +4,10 @@ Los paquetes de capas altas no importan los de capas más bajas por su clase con
 ``Protocol`` definido por el consumidor. Este módulo comprueba que la implementación real lo cumple:
 
 - **En ejecución**, ``isinstance`` contra un ``@runtime_checkable`` comprueba que los miembros existen.
-- **Con mypy**, las funciones ``_as_*`` comprueban además miembros, tipos, aridad y propiedades. No comparan los
-  nombres de los parámetros, por eso los Protocols los declaran posicionales (``/``). mypy solo revisa ``src/`` por
-  defecto: para verlo, ``python -m mypy tests/unit/test_protocol_conformance.py``.
+- **Con mypy**, las funciones de conversión (``_*_as_*``) comprueban además miembros, tipos, aridad y propiedades. No
+  comparan los nombres de los parámetros, por eso los Protocols los declaran posicionales (``/``). ``mypy src`` no
+  revisa este fichero: el paso ``mypy`` de CI (``.github/workflows/tests.yml``) lo ejecuta junto a ``src``, y en local
+  se lanza con ``python -m mypy src tests/unit/test_protocol_conformance.py``.
 """
 
 from __future__ import annotations
