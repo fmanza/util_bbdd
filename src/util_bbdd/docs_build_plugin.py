@@ -11,6 +11,8 @@ Incluye:
 
 import hashlib
 import os
+import shutil
+import tempfile
 import zipfile
 
 from pathlib import Path
@@ -33,25 +35,38 @@ class DocumentationZipPlugin(BasePlugin):
         if site_dir.exists():
             print(f"\n[ZIP] Generando descarga de documentacion: {zip_path}")
 
-            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-                # 1. Copiar documentación HTML desde site/
-                for root, _, files in os.walk(site_dir):
-                    for file in files:
-                        file_path = Path(root) / file
-                        arcname = file_path.relative_to(site_dir)
-                        zipf.write(file_path, arcname=arcname)
+            # Se escribe a un fichero temporal FUERA de site_dir: escribir directamente en
+            # zip_path (dentro de site_dir) hace que zipfile.ZipFile(zip_path, "w") cree/trunque
+            # el archivo en disco antes de recorrer site_dir, y el os.walk() de abajo lo
+            # encuentra y lo incluye en sí mismo a mitad de escritura (entrada autorreferencial
+            # corrupta) — ver AUDIT_CODE DOC-02, 2026-09-22.
+            tmp_fd, tmp_name = tempfile.mkstemp(prefix="util_bbdd-docs-", suffix=".zip.tmp")
+            os.close(tmp_fd)
+            tmp_path = Path(tmp_name)
+            try:
+                with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+                    # 1. Copiar documentación HTML desde site/
+                    for root, _, files in os.walk(site_dir):
+                        for file in files:
+                            file_path = Path(root) / file
+                            arcname = file_path.relative_to(site_dir)
+                            zipf.write(file_path, arcname=arcname)
 
-                # 2. Copiar script de servidor local (si existe)
-                server_script = Path(__file__).parent.parent.parent / "scripts" / "start-server.py"
-                if server_script.exists():
-                    print(f"[ZIP] Incluyendo servidor local: {server_script.name}")
-                    zipf.write(server_script, arcname="start-server.py")
+                    # 2. Copiar script de servidor local (si existe)
+                    server_script = Path(__file__).parent.parent.parent / "scripts" / "start-server.py"
+                    if server_script.exists():
+                        print(f"[ZIP] Incluyendo servidor local: {server_script.name}")
+                        zipf.write(server_script, arcname="start-server.py")
 
-                # 3. Copiar README con instrucciones offline
-                readme_offline = Path(__file__).parent / "OFFLINE_README.txt"
-                if readme_offline.exists():
-                    print(f"[ZIP] Incluyendo instrucciones: {readme_offline.name}")
-                    zipf.write(readme_offline, arcname="README_OFFLINE.txt")
+                    # 3. Copiar README con instrucciones offline
+                    readme_offline = Path(__file__).parent / "OFFLINE_README.txt"
+                    if readme_offline.exists():
+                        print(f"[ZIP] Incluyendo instrucciones: {readme_offline.name}")
+                        zipf.write(readme_offline, arcname="README_OFFLINE.txt")
+
+                shutil.move(str(tmp_path), str(zip_path))
+            finally:
+                tmp_path.unlink(missing_ok=True)
 
             # Calcular SHA256 del ZIP
             sha256_hash = self._calculate_sha256(zip_path)
