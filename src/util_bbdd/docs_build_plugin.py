@@ -14,6 +14,7 @@ import os
 import zipfile
 
 from pathlib import Path
+from typing import Any, ClassVar
 
 from mkdocs.config import Config
 from mkdocs.plugins import BasePlugin
@@ -22,9 +23,9 @@ from mkdocs.plugins import BasePlugin
 class DocumentationZipPlugin(BasePlugin):
     """Plugin que genera ZIP de la documentación después del build."""
 
-    config_options = {}
+    config_options: ClassVar[dict[str, Any]] = {}
 
-    def on_post_build(self, config: Config) -> None:  # type: ignore[override]
+    def on_post_build(self, config: Config) -> None:
         """Ejecutado después del build de mkdocs."""
         site_dir = Path(config.get("site_dir", "site"))
         zip_path = site_dir / "util_bbdd-docs-latest.zip"

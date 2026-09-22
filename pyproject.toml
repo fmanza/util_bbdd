@@ -138,6 +138,9 @@ ignore_missing_imports = false
 no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
+# docs_build_plugin.py es un plugin de MkDocs (herramienta de documentación, no la librería) y depende de mkdocs, que los
+# extras `dev` no instalan: no se comprueba al recorrer src/. Con una ejecución explícita sí, de ahí el override de abajo.
+exclude = ['(^|/)docs_build_plugin\.py$']
 
 [[tool.mypy.overrides]]
 module = ["oracledb", "oracledb.*"]
@@ -163,6 +166,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["cairosvg"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["mkdocs", "mkdocs.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
