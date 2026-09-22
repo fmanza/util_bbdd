@@ -65,7 +65,8 @@ class SQLAlchemyEngineFactory:
             else:
                 raise ConnectionError(f"Tipo de BD no soportado para SQLAlchemy: {db_type}", db_type=db_type)
 
-            SQLAlchemyEngineFactory.logger.debug(f"📝 Connection string construido: {conn_str[:50]}...")
+            sanitized_conn_str: str = SQLAlchemyEngineFactory._sanitize_conn_str(conn_str)
+            SQLAlchemyEngineFactory.logger.debug(f"📝 Connection string construido: {sanitized_conn_str}")
 
             # pool_pre_ping: valida conexiones antes de usarlas (detecta "Server has gone away")
             # pool_recycle: fuerza rotación de conexiones cada hora; compensa bugs del
@@ -114,6 +115,25 @@ class SQLAlchemyEngineFactory:
         if db_type == "oracle":
             return "SELECT 1 FROM DUAL"
         return "SELECT 1"
+
+    @staticmethod
+    def _sanitize_conn_str(conn_str: str) -> str:
+        """Oculta contraseña en una URL de conexión para logging.
+
+        SVC-01 (AUDIT_CODE 2026-09-22): antes se logueaban los primeros 50 caracteres del
+        connection string sin redactar, exponiendo la contraseña en claro para hosts/usuarios
+        cortos. Réplica exacta de ``AsyncSQLAlchemyEngineFactory._sanitize_conn_str``.
+        """
+        if "@" not in conn_str or "://" not in conn_str:
+            return conn_str
+        prefix, rest = conn_str.split("://", 1)
+        if ":" not in rest or "@" not in rest:
+            return conn_str
+        credentials, suffix = rest.split("@", 1)
+        if ":" not in credentials:
+            return conn_str
+        user, _password = credentials.split(":", 1)
+        return f"{prefix}://{user}:***@{suffix}"
 
     @staticmethod
     def _build_mariadb_connection_string(conn_params: dict[str, Any], database: str) -> str:
