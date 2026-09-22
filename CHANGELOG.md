@@ -5,9 +5,190 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] - develop
+## [0.11.0] - 2026-09-22
+
+Auditoría completa del proyecto (12 franjas por capa/módulo) y remediación de todo el
+backlog resultante (9 hallazgos P0 de seguridad, 15 P1, 27 P2 — 53 ítems en total, cada
+uno con su propio commit y tests de regresión). Sesión `.ai/sessions/2026-09-22-audit-completo-remediacion/`.
+
+### Security
+
+- **doc**: autoescape Jinja2 activado en las plantillas `*.html.j2` — un valor de BD con
+  `<script>`/`<img onerror=...>` incrustado en un comentario o nombre se renderizaba sin
+  escapar en el HTML generado (XSS reflejado en documentación auto-generada).
+- **metadata (MariaDB)**: `schema`/`table` bindeados como parámetros en los helpers SQL en
+  vez de interpolados en el texto de la consulta (inyección SQL vía nombre de schema/tabla).
+- **validators**: allowlist de caracteres para `tabla`/`rutina`/`tipo_rutina`/`tablespace`
+  en los 6 validadores de `query/` — cerraba una vía de inyección SQL por esos parámetros.
+- **factory**: la contraseña ya no aparece en claro en el log del connection string
+  síncrono (paridad con el camino async, que ya la redactaba).
+- **connection (PostgreSQL)**: `user`/`password`/`database` URL-encoded en el conninfo del
+  pool — un valor con `@`, `:` o `/` sin escapar corrompía la cadena de conexión o, en el
+  peor caso, permitía inyectar parámetros de conexión adicionales.
+- **connection (SQL Server)**: valores escapados en el DSN ODBC (sync y async) — mismo
+  riesgo que el punto anterior, vía el driver ODBC.
+
+> ⚠️ **Recomendado actualizar en cuanto sea posible** si se conecta contra motores con
+> nombres de schema/tabla o credenciales no plenamente controlados por el propio equipo.
+
+### Fixed
+
+#### migrate: `execute()` bloquea si el plan tiene warnings de severidad `ERROR`
+
+`MigrationPlan.execute()` ejecutaba el DDL generado aunque `plan.error_count > 0` (p. ej.
+tipos sin mapeo, identificadores irresolubles). Ahora lanza `ValueError` antes de ejecutar
+si hay algún warning `ERROR` pendiente, **sin** flag de override — decisión de producto
+explícita: no existían callers internos que dependieran del comportamiento permisivo previo.
+
+> ⚠️ **Cambio de comportamiento**: código que llamaba a `execute()` sobre un plan con
+> errores y confiaba en que se aplicara parcialmente ahora recibe `ValueError`. Revisar
+> `plan.warnings`/`plan.error_count` antes de `execute()` para decidir si proceder.
+
+#### migrate: `AUTO_INCREMENT` preserva el tipo origen en MariaDB
+
+El emisor MariaDB colapsaba cualquier columna `AUTO_INCREMENT` a `INT(11)` sin importar el
+tipo origen. Ahora conserva la categoría (`TINYINT`/`SMALLINT`/`MEDIUMINT`/`INT`/`BIGINT`)
+con su display width convencional.
+
+> ⚠️ **Cambio de comportamiento**: DDL ya generado con columnas `AUTO_INCREMENT` de tipo
+> distinto a `INT` cambiará de ancho en la próxima migración con los mismos datos.
+
+#### comparar: índices y foreign keys se comparan sin distinguir mayúsculas/minúsculas
+
+`SchemaComparator.compare()` reportaba como `added`+`removed` pares de índices/FKs cuyo
+nombre solo difería en el case (mismo patrón ya aplicado a tablas/columnas). Ahora se
+normalizan a minúsculas antes de comparar.
+
+> ⚠️ **Cambio de comportamiento**: comparaciones entre motores con distinto case-folding
+> (p. ej. Oracle mayúsculas vs. PostgreSQL minúsculas) reportarán **menos** diferencias
+> falsas-positivas que antes.
+
+#### bulk: `ParallelBulkLoader` reporta filas reales tras un fallo a mitad de partición
+
+Con `commit_every_n_chunks` activo, una partición que fallaba a mitad de carga reportaba
+`PartitionResult.rows=0` aunque varios lotes anteriores ya estuvieran confirmados en BD.
+`BulkCrud.rows_committed` (nueva propiedad) expone las filas durablemente comprometidas —
+solo avanza en los commits reales, nunca en filas ejecutadas-pero-pendientes — y
+`ParallelBulkLoader` la usa en vez del `0` fijo.
+
+> ⚠️ **Cambio de comportamiento**: `ParallelLoadResult.total_rows`/`PartitionResult.rows`
+> pueden ser mayores que antes para particiones fallidas con `commit_every_n_chunks` activo.
+
+#### migrate: más `MigrationWarning` al migrar vistas y tablas Oracle
+
+- `rewrite_oracle_view` avisa ahora de **todas** las sustituciones léxicas con riesgo de
+  falso positivo en literales de texto (SYSDATE, SYSTIMESTAMP, NVL, FROM DUAL, prefijo de
+  schema) — antes solo avisaba de la sustitución de `USER`.
+- El emisor Oracle avisa cuando una tabla tiene **más de una** columna `AUTO_INCREMENT`
+  (solo la primera recibe `SEQUENCE`/`TRIGGER`; antes las demás se descartaban en silencio).
+- `find_case_insensitive_collisions()` (nuevo, `migrate/_compat/identifier_rules.py`)
+  detecta pares de identificadores de tabla/vista que solo difieren en case y genera
+  `MigrationWarning` (`IDENTIFIER_CASE_COLLISION`) — riesgo bajo case-folding de motor
+  destino (Oracle mayúsculas, PostgreSQL minúsculas).
+
+> ⚠️ **Cambio de comportamiento**: `plan.warning_count`/`plan.warnings` pueden ser mayores
+> que antes para migraciones con esos patrones, aunque el DDL generado no cambia.
+
+#### doc: nombres de fichero de diagramas saneados; aviso cuando no hay estrategia de almacenamiento
+
+- `word_generator.py`/`html_generator.py` saneaban el nombre de tabla insertándolo sin
+  filtrar en la ruta del diagrama de fallback a disco — un nombre con `/`/`..`/caracteres
+  inválidos de Windows podía escribir fuera del directorio de salida o fallar. Nuevo
+  `sanitize_table_filename()` compartido.
+- `StorageInventoryRuntime` caía en silencio a un fallback genérico de almacenamiento para
+  motores sin estrategia dedicada (p. ej. SQL Server). Ahora loguea un warning y añade una
+  sección visible en el documento generado explicando que los datos pueden ser imprecisos.
+
+> ⚠️ **Cambio de comportamiento**: el nombre de fichero de los diagramas de fallback cambia
+> de forma para tablas con caracteres no alfanuméricos; el informe de almacenamiento gana
+> una sección nueva para motores sin estrategia dedicada.
+
+#### Resto de correcciones (sin cambio de comportamiento observable)
+
+- **Excepciones unificadas a `InvalidDatabaseType`** para `db_type` desconocido/no
+  soportado, en vez de excepciones genéricas dispares: `DriverValidator`
+  (`check_driver_availability`), `connection/factory.py`, `connection/params.py`.
+- **Citado de identificadores** (cierra el patrón de interpolación insegura ya corregido en
+  la ronda P0): PRAGMA de SQLite, `SqlDiffReporter` (tabla/columna/índice/FK/vista/rutina),
+  `DBCC CHECKIDENT` de SQL Server.
+- **`Protocol`/adaptadores de metadatos**: `extract_views` declarado en `SchemaExtractor`
+  (las 4 implementaciones ya lo exponían); MySQL y SQL Server registrados como
+  `RoutineAdapter` completo (`fetch_routine_definition_sync/async`); PostgreSQL y SQL
+  Server ganan `fetch_routine_definition_sync/async`; adaptadores de Oracle/SQL
+  Server/MariaDB alineados con `SourceAdapter`/`RoutineAdapter`.
+- **Oracle**: identificadores normalizados a mayúsculas antes de bindear en los 12 puntos
+  de consulta de metadatos; columnas `LONG`/`LONG RAW` conservadas con marcador en vez de
+  descartadas; filtro de schema de sistema corregido a `WMSYS` exacto (antes excluía
+  cualquier schema con prefijo `WM`, incluidos schemas de negocio legítimos); overflow
+  `TINYINT` en `NUMBER(1-2,0)` → SQL Server avisado.
+- **MySQL/MariaDB**: mapeo `BIT` añadido a MySQL; MariaDB gana su propia normalización de
+  tipos (`mariadb_type_mapping`/`normalize_mariadb_type`, antes copiaba parcialmente el
+  comportamiento de MySQL sin fuente de verdad propia); registro de adapters ya no
+  enmascara errores reales de programación tras un `except Exception: pass` demasiado
+  amplio (ahora `except ImportError`).
+- **Managers**: `close_async_resources` agrega errores por recurso en vez de abortar en el
+  primero (paridad con la versión sync); `CacheManager.clear_context/clear_routine` delega
+  en la API pública nueva de `DatabaseMetadataCache` en vez de tocar 14 atributos privados;
+  `DatabaseRelationshipGraphBase.clear_cache()` (nuevo) invalida las 3 cachés internas del
+  grafo de relaciones — antes no tenían ningún método de invalidación propio;
+  `RelationshipMetadataCache` incluye `context` (schema) en sus 4 cachés, evitando colisión
+  cross-schema entre tablas homónimas.
+- **bulk/comparar**: `__run_bulk_pipeline` captura también `AuditError`/`OSError`;
+  `_substitute_ordered_params`/`_substitute_named_params` localizan placeholders sobre el
+  SQL original antes de sustituir (un valor con `%s`/`?`/`:param` literal ya no corrompe el
+  siguiente parámetro); `escape_markdown_table_cell()` (nuevo) escapa `|`/backtick/salto de
+  línea en comentarios de `MarkdownDiffReporter`.
+- **PostgreSQL async**: aplica `schema`/`options`/`application_name` vía `server_settings`
+  (asyncpg no soporta el `options=` estilo libpq de psycopg3).
+- **Oracle**: import de `oracledb` en `PoolConnectionOracle` hecho perezoso — antes fallaba
+  en import-time si el paquete no estaba instalado, incluso sin usar Oracle.
+- **`DumpOrchestrator`** conecta de verdad `DumpError`/`DumpConstraintError`/
+  `DumpReportError` en fallos reales de introspección/constraints/reportes (antes código
+  muerto); toda la jerarquía se exporta desde `util_bbdd/__init__.py`.
+- **`MetadataManager`/`AsyncMetadataManager` conectados a producción**:
+  `SyncDatabaseManager.get_metadata_manager()`/`AsyncDatabaseManager.get_metadata_manager()`
+  (nuevo, aditivo) construyen de forma diferida un `MetadataManager` que reutiliza `self`
+  como `metadata_provider` y comparte `db_cache`/`relationship_cache` con el resto del
+  manager. `DDLBuilder._quote_identifier` corregido para duplicar el delimitador embebido
+  (cerraba una inyección de identificador) y citar/escapar `DEFAULT` string.
+- **Docstrings corregidos** (sin cambio de código): `validate_db_type` (nunca retorna
+  `False`, siempre lanza `InvalidDatabaseType`); `transform_views` (la reescritura Oracle es
+  un hook sobrescrito solo por los 3 pares con Oracle como origen, no los 12).
+
+### Removed
+
+- **`AsyncLifecycleManager`/`AsyncSessionManager`** (`managers/async_mgr.py`): se
+  construían pero ningún método llegaba a invocarse — código muerto.
+- **`QueryExecutorBase`** (ABC sin implementaciones reales) y
+  `_build_hsqldb_connection_string` async (nunca invocado).
+- **`MetadataFetcher`** dejó de instanciarse dentro de `MetadataManager` (nunca se usaba);
+  la clase sigue exportada tal cual, sin cambios.
 
 ### Changed
+
+- **Renombrados por colisión de nombre** entre un `Protocol`/ABC interno y un alias
+  `Callable`/clase homónima ya exportados:
+  - `ConnectionProvider`/`ConnectionReleaser` (Protocol, `_core/contracts.py`) →
+    `ConnectionProviderProtocol`/`ConnectionReleaserProtocol`.
+  - `DatabaseTypeValidator` (ABC, `validators/base_validator.py`) → `QueryParameterValidator`.
+
+  > ⚠️ **Breaking** si se importaban estos nombres directamente (poco probable: son tipos
+  > internos de anotación, no instanciados por consumidores típicos). Actualizar el import
+  > al nuevo nombre; el comportamiento en ejecución no cambia.
+- **3 ficheros de mapeo de tipos renombrados** a la convención
+  `type_map_<origen>_to_<destino>.py`: `type_map.py` → `type_map_oracle_to_mariadb.py`,
+  `type_map_postgresql.py` → `type_map_oracle_to_postgresql.py`, `type_map_sqlserver.py` →
+  `type_map_oracle_to_sqlserver.py`. `migrate/_compat/__init__.py` reexporta ahora los 12
+  mapas de tipos (antes 7) y los 4 emisores DDL se exportan desde `migrate/emitters/__init__.py`
+  (antes solo 2 de 4).
+
+  > ⚠️ **Breaking** solo para quien importara `migrate._compat.type_map`/
+  > `type_map_postgresql`/`type_map_sqlserver` por su ruta antigua directamente (no desde
+  > `migrate`/`migrate._compat` como paquete, que ya funcionaba). Actualizar el import a la
+  > nueva ruta.
+- **`sync_query_executor`**: normalización `%`→`%%` de MariaDB antes de bindear;
+  `sqlalchemy_engine_factory` valida `database`/`user`/`service_name` vacíos antes de
+  construir la connection string.
 
 #### migrate: collation MariaDB por defecto → `utf8mb4_uca1400_ai_ci`
 
