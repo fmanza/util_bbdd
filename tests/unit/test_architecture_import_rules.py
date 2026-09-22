@@ -2,14 +2,15 @@
 
 Regla #6 (``.github/instructions/architecture.instructions.md``):
 
-- Un paquete importa de su mismo nivel o de niveles inferiores; nunca de uno superior.
-- Dentro de un nivel, un import solo es válido si va en un único sentido: sin ciclos entre paquetes.
+- Un paquete importa solo de paquetes de capas estrictamente inferiores; los de una misma capa son independientes.
+- Cada capa pertenece a un nivel (Foundation, Servicios, Especialización) y no hay ciclos entre paquetes.
 
-La medición y la tabla de niveles (``LEVEL``) son las de ``scripts/gen_arquitectura_capas.py``, que también dibuja la
-figura de ``docs/architecture.md``: los niveles se declaran en un único sitio.
+La medición y la tabla de capas (``LAYER``, de la que se deriva ``LEVEL``) son las de
+``scripts/gen_arquitectura_capas.py``, que también dibuja la figura de ``docs/architecture.md``: las capas se declaran
+en un único sitio.
 
 Un import perezoso (dentro de una función) cuenta como dependencia igual que uno de módulo: aplazarlo no rompe el
-ciclo. Un import bajo ``TYPE_CHECKING`` no crea ciclo en ejecución, pero tampoco puede subir de nivel.
+ciclo. Un import bajo ``TYPE_CHECKING`` no crea ciclo en ejecución, pero tampoco puede ir a una capa igual o superior.
 """
 
 from __future__ import annotations
@@ -28,8 +29,8 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = PROJECT_ROOT / "scripts" / "gen_arquitectura_capas.py"
 
-# Imports que suben de nivel bajo ``TYPE_CHECKING`` y se aceptan como deuda (marca 1 de docs/architecture.md).
-# Debe coincidir con lo medido: si el import desaparece, hay que quitarlo de aquí.
+# Imports bajo ``TYPE_CHECKING`` que no van a una capa inferior y se aceptan como deuda (marca 1 de
+# docs/architecture.md). Debe coincidir con lo medido: si el import desaparece, hay que quitarlo de aquí.
 TYPING_ONLY_UPWARD = {("metadata", "managers")}
 
 # Importa cada paquete como primer import de un intérprete con la raíz ``util_bbdd`` sin inicializar. Se vacía
@@ -116,6 +117,15 @@ def _where(edge: Any) -> str:
     return edge.first.get("module") or edge.first.get("lazy") or edge.first.get("typing", "?")
 
 
+def _against_layers(pairs: set[tuple[str, str]], layer: dict[str, int]) -> list[tuple[str, str]]:
+    """Pares que no van a una capa estrictamente inferior (suben o se quedan en la misma capa)."""
+    return sorted(pair for pair in pairs if layer[pair[0]] <= layer[pair[1]])
+
+
+def _describe(pairs: list[tuple[str, str]], edges: dict[tuple[str, str], Any], layer: dict[str, int]) -> str:
+    return "\n".join(f"  {s} (capa {layer[s]}) -> {t} (capa {layer[t]}) en {_where(edges[(s, t)])}" for s, t in pairs)
+
+
 @pytest.fixture(scope="module")
 def script() -> ModuleType:
     if not SCRIPT.exists():
@@ -146,6 +156,13 @@ def test_cycle_detector_ignores_acyclic_graphs() -> None:
     assert _cycles({("a", "b"), ("b", "c"), ("a", "c")}) == []
 
 
+def test_layer_checker_flags_upward_and_same_layer_imports() -> None:
+    layer = {"a": 1, "b": 2, "c": 2}
+    assert _against_layers({("b", "a")}, layer) == []  # hacia abajo
+    assert _against_layers({("a", "b")}, layer) == [("a", "b")]  # hacia arriba
+    assert _against_layers({("b", "c")}, layer) == [("b", "c")]  # misma capa
+
+
 # ---------------------------------------------------------------------------
 # Regla #6 sobre el código real
 # ---------------------------------------------------------------------------
@@ -165,23 +182,21 @@ def test_no_import_cycles_between_packages(edges: dict[tuple[str, str], Any]) ->
     )
 
 
-def test_no_upward_imports(script: ModuleType, edges: dict[tuple[str, str], Any]) -> None:
-    level: dict[str, int] = script.LEVEL
-    upward = {
-        pair: edge
-        for pair, edge in edges.items()
-        if pair[0] in level and pair[1] in level and level[pair[0]] < level[pair[1]]
-    }
+def test_imports_only_go_to_lower_layers(script: ModuleType, edges: dict[tuple[str, str], Any]) -> None:
+    layer: dict[str, int] = script.LAYER
+    placed = {pair for pair in edges if pair[0] in layer and pair[1] in layer}
+    against = _against_layers(placed, layer)
 
-    at_runtime = sorted(pair for pair, edge in upward.items() if edge.module or edge.lazy)
-    assert not at_runtime, "Regla #6: import que sube de nivel:\n" + "\n".join(
-        f"  {s} (N{level[s]}) -> {t} (N{level[t]}) en {_where(upward[(s, t)])}" for s, t in at_runtime
+    at_runtime = [pair for pair in against if edges[pair].module or edges[pair].lazy]
+    assert not at_runtime, (
+        "Regla #6: import que no va a una capa estrictamente inferior (los paquetes de una misma capa son "
+        "independientes entre sí):\n" + _describe(at_runtime, edges, layer)
     )
 
-    typing_only = {pair for pair in upward if pair not in at_runtime}
+    typing_only = {pair for pair in against if pair not in at_runtime}
     new = sorted(typing_only - TYPING_ONLY_UPWARD)
-    assert not new, "Regla #6: import ascendente nuevo bajo TYPE_CHECKING:\n" + "\n".join(
-        f"  {s} (N{level[s]}) -> {t} (N{level[t]}) en {_where(upward[(s, t)])}" for s, t in new
+    assert not new, "Regla #6: import nuevo bajo TYPE_CHECKING que no va a una capa inferior:\n" + _describe(
+        new, edges, layer
     )
     stale = sorted(TYPING_ONLY_UPWARD - typing_only)
     assert not stale, (
@@ -190,12 +205,25 @@ def test_no_upward_imports(script: ModuleType, edges: dict[tuple[str, str], Any]
     )
 
 
-def test_every_top_level_package_has_a_level(script: ModuleType) -> None:
-    unplaced = sorted(script.top_level_names() - script.EXCLUDED - set(script.LEVEL))
+def test_layer_table_is_consistent(script: ModuleType) -> None:
+    layer: dict[str, int] = script.LAYER
+    level_of_layer: dict[int, int] = script.LEVEL_OF_LAYER
+    used = sorted(set(layer.values()))
+
+    assert used == list(range(1, len(used) + 1)), f"Capas no contiguas: {used}"
+    assert set(level_of_layer) == set(used), (
+        "Cada capa usada necesita un nivel en LEVEL_OF_LAYER (y no debe sobrar ninguna)"
+    )
+    levels = [level_of_layer[n] for n in used]
+    assert levels == sorted(levels), "Un nivel no puede quedar por debajo de una capa de un nivel inferior"
+    assert all(script.LEVEL[name] == level_of_layer[n] for name, n in layer.items()), "LEVEL debe derivarse de LAYER"
+
+
+def test_every_top_level_package_has_a_layer(script: ModuleType) -> None:
+    unplaced = sorted(script.top_level_names() - script.EXCLUDED - set(script.LAYER))
     assert not unplaced, (
-        f"Sin nivel asignado: {unplaced}. Sin nivel, la guarda de imports ascendentes no los vigila: añádelos a "
-        "LEVEL en scripts/gen_arquitectura_capas.py y a las listas de niveles de .ai/architecture.md y "
-        ".github/instructions/architecture.instructions.md."
+        f"Sin capa asignada: {unplaced}. Sin capa, la guarda de imports no los vigila: añádelos a LAYER en "
+        "scripts/gen_arquitectura_capas.py y a la tabla de capas de .ai/architecture.md."
     )
 
 

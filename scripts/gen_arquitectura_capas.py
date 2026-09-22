@@ -6,13 +6,14 @@ drawn in the figure exists in the code (and that no measured arrow is missing), 
 
     docs/assets/diagrams/arquitectura-capas.svg
     docs/assets/css/arquitectura-capas.css
+    docs/assets/diagrams/arquitectura-capas-tabla.txt   (layer table, included by docs/architecture.md)
 
-The layout, the level of each package and the two flagged findings are placed by hand below. If the check fails
-the figure no longer matches the code: fix the drawing (or the code) and run the script again. Nothing is written
-while the check fails.
+The layout, the layer of each package (``LAYER``; the level is derived from it) and the two flagged findings are placed
+by hand below. If the check fails the figure no longer matches the code: fix the drawing (or the code) and run the
+script again. Nothing is written while the check fails.
 
-``measure()``, ``LEVEL`` and ``EXCLUDED`` are also used by tests/unit/test_architecture_import_rules.py, which enforces
-Regla #6 (no cycles, no upward imports); keep their names and shapes.
+``measure()``, ``LAYER``, ``LEVEL`` and ``EXCLUDED`` are also used by tests/unit/test_architecture_import_rules.py, which
+enforces Regla #6 (no cycles, imports only to strictly lower layers); keep their names and shapes.
 
 Usage:
     python scripts/gen_arquitectura_capas.py
@@ -33,15 +34,27 @@ ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src" / "util_bbdd"
 OUT_SVG = ROOT / "docs" / "assets" / "diagrams" / "arquitectura-capas.svg"
 OUT_CSS = ROOT / "docs" / "assets" / "css" / "arquitectura-capas.css"
+OUT_TABLE = ROOT / "docs" / "assets" / "diagrams" / "arquitectura-capas-tabla.txt"
 PKG = "util_bbdd"
 
-# Levels according to .ai/architecture.md (Regla #6 in architecture.instructions.md lists the same ones). models.py and
-# async_utils.py are root modules that count as Foundation: they import nothing from the library.
-LEVEL = {
-    "_core": 1, "_drivers": 1, "core": 1, "models": 1, "async_utils": 1,
-    "connection": 2, "factory": 2, "query": 2, "validators": 2, "executors": 2, "metadata": 2, "results": 2,
-    "managers": 3, "bulk": 3, "comparar": 3, "dump": 3, "migrate": 3, "analysis": 3, "doc": 3,
+# Regla #6 (architecture.instructions.md): a package imports only from packages in strictly lower layers. Packages in the
+# same layer are independent of each other. The layers are assigned by role, not by the depth the graph happens to have.
+# models.py and async_utils.py are root modules that count as Foundation: they import nothing from the library.
+LAYER = {
+    "_core": 1, "core": 1, "models": 1, "async_utils": 1,
+    "_drivers": 2,
+    "results": 3, "validators": 3,
+    "connection": 4, "query": 4,
+    "executors": 5, "factory": 5, "metadata": 5,
+    "bulk": 6, "comparar": 6, "migrate": 6, "managers": 6,
+    "analysis": 7, "dump": 7,
+    "doc": 8,
 }  # fmt: skip
+
+# Each layer belongs to one level of .ai/architecture.md: 1 Foundation, 2 Services, 3 Domain (Especialización).
+LEVEL_OF_LAYER = {1: 1, 2: 1, 3: 2, 4: 2, 5: 2, 6: 3, 7: 3, 8: 3}
+LEVEL_LABEL = {1: "FOUNDATION", 2: "SERVICIOS", 3: "ESPECIALIZACIÓN"}
+LEVEL = {name: LEVEL_OF_LAYER[layer] for name, layer in LAYER.items()}
 
 # Every arrow drawn between packages. Arrows into Foundation from levels 2 and 3 are collapsed into one.
 DRAWN = {
@@ -177,17 +190,20 @@ def verify(edges: dict[tuple[str, str], Edge]) -> list[str]:
     problems: list[str] = []
     names = top_level_names() - EXCLUDED
     problems += [
-        f"package not placed in any level (add it to LEVEL and draw it): {n}" for n in sorted(names - set(LEVEL))
+        f"package not placed in any layer (add it to LAYER and draw it): {n}" for n in sorted(names - set(LAYER))
     ]
-    problems += [f"package drawn but no longer in src/: {n}" for n in sorted(set(LEVEL) - names)]
-    measured = {pair: e for pair, e in edges.items() if pair[0] in LEVEL and pair[1] in LEVEL}
+    problems += [f"package drawn but no longer in src/: {n}" for n in sorted(set(LAYER) - names)]
+    measured = {pair: e for pair, e in edges.items() if pair[0] in LAYER and pair[1] in LAYER}
     problems += [f"drawn but not found in the code: {s} -> {t}" for s, t in sorted(DRAWN - set(measured))]
     for s, t in sorted(set(measured) - DRAWN):
         if not (LEVEL[t] == 1 and LEVEL[s] > 1):  # those are the collapsed arrow into Foundation
             problems.append(f"found in the code but not drawn: {s} -> {t}")
-    upward = sorted(pair for pair in measured if LEVEL[pair[0]] < LEVEL[pair[1]])
-    if upward != [("metadata", "managers")]:
-        problems.append(f"upward imports differ from the single type-only one drawn (badge 1): {upward}")
+    against_layers = sorted(pair for pair in measured if LAYER[pair[0]] <= LAYER[pair[1]])
+    if against_layers != [("metadata", "managers")]:
+        problems.append(
+            f"imports that do not go to a strictly lower layer differ from the single type-only one drawn (badge 1): "
+            f"{against_layers}"
+        )
     up = measured.get(("metadata", "managers"))
     if up is not None and (up.module or up.lazy):
         problems.append("metadata -> managers is no longer type-only (the figure says 'solo tipado')")
@@ -227,6 +243,27 @@ ARIA = (
     "Los tres niveles de util_bbdd con sus imports reales: factory importa de connection en un solo sentido, "
     "metadata importa managers solo para tipado y analysis y doc importan el manager concreto."
 )
+
+
+def _layer_range(level: int) -> str:
+    """The layers that make up a level, as the note of its band (for example ``capas 6–8``)."""
+    layers = sorted({LAYER[name] for name in LAYER if LEVEL[name] == level})
+    return f"capas {layers[0]}–{layers[-1]}"
+
+
+def _display(name: str) -> str:
+    """``name/`` for a package, ``name.py`` for a root module."""
+    return f"{name}/" if (SRC / name).is_dir() else f"{name}.py"
+
+
+def render_layer_table() -> str:
+    """Markdown table of the layers, highest first (the order of the figure), for docs/architecture.md."""
+    rows = ["| Capa | Nivel | Paquetes |", "|---|---|---|"]
+    for layer in sorted(set(LAYER.values()), reverse=True):
+        level = LEVEL_OF_LAYER[layer]
+        packages = ", ".join(f"`{_display(name)}`" for name in sorted(n for n, lay in LAYER.items() if lay == layer))
+        rows.append(f"| {layer} | N{level} · {LEVEL_LABEL[level].capitalize()} | {packages} |")
+    return "\n".join(rows) + "\n"
 
 
 def _marker(marker_id: str, cls: str) -> str:
@@ -279,15 +316,11 @@ def render_svg(f: _Facts) -> str:
         s.parts.append(
             f'<rect class="arq-band arq-band-{cls}" x="8" y="{y}" width="984" height="{h}" rx="10" fill="none" stroke="currentColor" stroke-opacity=".25"/>'
         )
-    for y, label, note in (
-        (36, "NIVEL 3 · ESPECIALIZACIÓN", "importa de N2, N1 y su nivel"),
-        (238, "NIVEL 2 · SERVICIOS", "importa de N1 y su nivel"),
-        (500, "NIVEL 1 · FOUNDATION", "no importa de otros niveles"),
-    ):
+    for level, y in ((3, 36), (2, 238), (1, 500)):
         s.parts.append(
-            f'<text class="arq-band-label" x="30" y="{y}" font-size="11" font-weight="600" letter-spacing="1.3" fill="currentColor">{label}</text>'
+            f'<text class="arq-band-label" x="30" y="{y}" font-size="11" font-weight="600" letter-spacing="1.3" fill="currentColor">NIVEL {level} · {LEVEL_LABEL[level]}</text>'
         )
-        s.text(970, y, note, "arq-band-note", "end")
+        s.text(970, y, _layer_range(level), "arq-band-note", "end")
 
     # edges (before the nodes so the node fill covers any overlap)
     s.edge(f"M{c[1]} 83 H{c[0] + NODE_W}")  # dump -> bulk
@@ -417,7 +450,8 @@ def main() -> None:
         sys.exit(1)
 
     facts = _facts(edges)
-    for path, content in ((OUT_SVG, render_svg(facts)), (OUT_CSS, CSS_HEAD + CSS_RULES)):
+    outputs = ((OUT_SVG, render_svg(facts)), (OUT_CSS, CSS_HEAD + CSS_RULES), (OUT_TABLE, render_layer_table()))
+    for path, content in outputs:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8", newline="\n")
         print(f"[gen_arquitectura_capas] wrote {path.relative_to(ROOT).as_posix()}")

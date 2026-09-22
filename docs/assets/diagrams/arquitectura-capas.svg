@@ -4,11 +4,11 @@
 <rect class="arq-band arq-band-2" x="8" y="214" width="984" height="210" rx="10" fill="none" stroke="currentColor" stroke-opacity=".25"/>
 <rect class="arq-band arq-band-1" x="8" y="476" width="984" height="124" rx="10" fill="none" stroke="currentColor" stroke-opacity=".25"/>
 <text class="arq-band-label" x="30" y="36" font-size="11" font-weight="600" letter-spacing="1.3" fill="currentColor">NIVEL 3 · ESPECIALIZACIÓN</text>
-<text class="arq-band-note" x="970" y="36" text-anchor="end" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">importa de N2, N1 y su nivel</text>
+<text class="arq-band-note" x="970" y="36" text-anchor="end" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">capas 6–8</text>
 <text class="arq-band-label" x="30" y="238" font-size="11" font-weight="600" letter-spacing="1.3" fill="currentColor">NIVEL 2 · SERVICIOS</text>
-<text class="arq-band-note" x="970" y="238" text-anchor="end" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">importa de N1 y su nivel</text>
+<text class="arq-band-note" x="970" y="238" text-anchor="end" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">capas 3–5</text>
 <text class="arq-band-label" x="30" y="500" font-size="11" font-weight="600" letter-spacing="1.3" fill="currentColor">NIVEL 1 · FOUNDATION</text>
-<text class="arq-band-note" x="970" y="500" text-anchor="end" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">no importa de otros niveles</text>
+<text class="arq-band-note" x="970" y="500" text-anchor="end" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">capas 1–2</text>
 <path class="arq-edge " d="M168 83 H142" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
 <path class="arq-edge " d="M556 83 H582" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
 <path class="arq-edge warn" d="M694 83 H720" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h-warn)"/>

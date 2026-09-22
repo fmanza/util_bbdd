@@ -150,52 +150,36 @@ Ante cualquier nueva clase, función o módulo que maneje metadatos de BD:
 - Si existe → reutiliza. Si hay gap menor → extiende en `metadata/`. Si la lógica
   es nueva → crea en `metadata/` y expón en `metadata/__init__.py`.
 
-### REGLA #6 — JERARQUÍA DE DEPENDENCIAS (sin inversiones)
-La base de código sigue 3 niveles. Un paquete importa de su mismo nivel o de niveles
-inferiores; **nunca de uno superior**. Dentro de un mismo nivel el import solo es válido
-si va en un único sentido (sin ciclos):
+### REGLA #6 — JERARQUÍA DE DEPENDENCIAS (capas estrictas)
+La base de código se organiza en 3 niveles (Foundation, Core Services, Domain Logic), cada uno
+dividido en capas numeradas. Un paquete importa **solo de paquetes de capas de número menor**;
+los paquetes de una misma capa son independientes entre sí.
 
-```
-Level 1 — Foundation
-  _core/        _drivers/       core/
-  models.py     async_utils.py
-
-Level 2 — Core Services
-  connection/   factory/        query/
-  validators/   executors/      metadata/
-  results/
-
-Level 3 — Domain Logic
-  managers/     bulk/           dump/
-  comparar/     migrate/        analysis/
-  doc/
-```
-
-Los niveles son los de `.ai/architecture.md` y los de `LEVEL` en
-`scripts/gen_arquitectura_capas.py`; las tres fuentes deben coincidir. `models.py` y
-`async_utils.py` son módulos raíz de Foundation: no importan nada de la librería.
+La tabla de capas es `LAYER` en `scripts/gen_arquitectura_capas.py` y se documenta en
+`.ai/architecture.md` § Capas; las dos deben coincidir. Las capas se asignan por función, no por
+la profundidad que tenga hoy el grafo de imports. `models.py` y `async_utils.py` son módulos raíz
+de Foundation: no importan nada de la librería.
 
 **Reglas explícitas:**
-- Level 3 puede importar de Level 2 y Level 1.
-- Level 2 puede importar de Level 1.
-- Level 2 **NUNCA** importa de Level 3.
-- Level 1 **NUNCA** importa de Level 2 ni Level 3.
-- Dentro de un mismo nivel un paquete puede importar de otro (p. ej. `factory/` → `connection/`,
-  `dump/` → `bulk/`, `_drivers/` → `_core/`) solo si el grafo de paquetes resultante es acíclico:
-  si A importa de B, B no puede llegar a A ni directa ni indirectamente.
+- Un import es válido solo si va a una capa de número menor. Ir a una capa superior o a la misma
+  capa es una violación, aunque no cierre un ciclo (p. ej. `factory/` → `connection/` es válido;
+  `results/` → `validators/`, ambos de la misma capa, no).
+- Cada nivel agrupa capas consecutivas. En consecuencia: Level 2 **NUNCA** importa de Level 3 y
+  Level 1 **NUNCA** importa de Level 2 ni Level 3.
 - Los imports perezosos (dentro de una función) cuentan igual que los de módulo: aplazar un import
   no rompe un ciclo. Los imports bajo `TYPE_CHECKING` no crean ciclo en ejecución, pero tampoco
-  pueden subir de nivel.
+  pueden ir a una capa igual o superior.
 - `__init__.py` de cada módulo solo re-exporta; no contiene lógica que genere ciclos.
+- Un paquete nuevo necesita capa: añádelo a `LAYER` y a la tabla de `.ai/architecture.md`.
 
 **Guarda automática:** `tests/unit/test_architecture_import_rules.py` falla ante un ciclo entre
-paquetes, un import que suba de nivel o un paquete sin nivel asignado. Excepción vigente y
-acotada: `metadata/` → `managers/` bajo `TYPE_CHECKING` (marca 1 de `docs/architecture.md`).
+paquetes, un import que no vaya a una capa inferior, una tabla de capas incoherente o un paquete
+sin capa. Excepción vigente y acotada: `metadata/` → `managers/` bajo `TYPE_CHECKING` (marca 1 de
+`docs/architecture.md`).
 
-**En auditoría (AUDIT_CODE):** rechaza cualquier import donde un módulo de nivel
-inferior referencie un símbolo de nivel superior (p.ej. `query/` importando
-de `managers/`, o `metadata/` importando de `doc/`) y cualquiera que cierre un ciclo
-dentro de un nivel (p.ej. `connection/` importando de `factory/`, que ya importa de `connection/`).
+**En auditoría (AUDIT_CODE):** rechaza cualquier import que no vaya a una capa de número menor
+(p.ej. `query/` importando de `managers/`, `results/` importando de `validators/` —misma capa— o
+`connection/` importando de `factory/`).
 
 ## Evidencia mínima en cambios arquitectónicos
 - Justificación del patrón elegido y alternativa descartada.

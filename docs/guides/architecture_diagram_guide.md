@@ -8,9 +8,9 @@ El script `scripts/gen_arquitectura_capas.py` encadena tres pasos:
 
 1. **Medir** — recorre con `ast` los ficheros de `src/util_bbdd/` y cuenta los imports entre paquetes de primer nivel, separando los de módulo, los perezosos (dentro de una función) y los que están bajo `TYPE_CHECKING`.
 2. **Verificar** — comprueba que cada flecha dibujada existe en el código y que no falta ninguna flecha real. Si algo no coincide, falla y no escribe nada.
-3. **Escribir** — reescribe `docs/assets/diagrams/arquitectura-capas.svg` y `docs/assets/css/arquitectura-capas.css`.
+3. **Escribir** — reescribe `docs/assets/diagrams/arquitectura-capas.svg`, `docs/assets/css/arquitectura-capas.css` y la tabla de capas `docs/assets/diagrams/arquitectura-capas-tabla.txt` (la incrusta `docs/architecture.md`).
 
-La colocación de los nodos, el nivel de cada paquete y las dos marcas numeradas son manuales. El script solo comprueba que siguen siendo ciertas.
+La colocación de los nodos, la capa de cada paquete y las dos marcas numeradas son manuales. El script solo comprueba que siguen siendo ciertas.
 
 ---
 
@@ -37,6 +37,7 @@ La colocación de los nodos, el nivel de cada paquete y las dos marcas numeradas
         ```text
         [gen_arquitectura_capas] wrote docs/assets/diagrams/arquitectura-capas.svg
         [gen_arquitectura_capas] wrote docs/assets/css/arquitectura-capas.css
+        [gen_arquitectura_capas] wrote docs/assets/diagrams/arquitectura-capas-tabla.txt
         [gen_arquitectura_capas] measured 338 files; 9 packages import from Foundation.
         [gen_arquitectura_capas] Update the figcaption in docs/architecture.md if the version, date or file count changed.
         ```
@@ -50,7 +51,7 @@ La colocación de los nodos, el nivel de cada paquete y las dos marcas numeradas
         ```
 
 4. **Si el fallo es legítimo** (el código es correcto y el dibujo está desfasado), edita el dibujo en `scripts/gen_arquitectura_capas.py` y vuelve al paso 2:
-    - `LEVEL`: nivel de cada paquete, según `.ai/architecture.md`.
+    - `LAYER`: capa de cada paquete (de ella se derivan `LEVEL`, las notas de banda y la tabla generada). Actualiza también la tabla de `.ai/architecture.md` § Capas. `LEVEL_OF_LAYER`: nivel de cada capa.
     - `DRAWN`: pares de paquetes con flecha.
     - `EXCLUDED`: módulos que no forman parte de la librería y quedan fuera de la figura.
     - `render_svg()`: nodos (`s.node`), flechas (`s.edge`) y marcas numeradas (`s.badge`).
@@ -106,10 +107,10 @@ __init__      -> async_utils        1     0       0
 
 | Mensaje | Causa probable | Solución |
 |---|---|---|
-| `package not placed in any level (add it to LEVEL and draw it): X` | Hay un paquete o módulo nuevo en `src/util_bbdd/` | Añádelo a `LEVEL`, dibújalo en `render_svg()` y añade sus flechas a `DRAWN`. Si no forma parte de la librería, añádelo a `EXCLUDED` |
-| `package drawn but no longer in src/: X` | Paquete renombrado o eliminado | Quítalo de `LEVEL`, de `DRAWN` y de `render_svg()` |
+| `package not placed in any layer (add it to LAYER and draw it): X` | Hay un paquete o módulo nuevo en `src/util_bbdd/` | Añádelo a `LAYER` (y a la tabla de `.ai/architecture.md`), dibújalo en `render_svg()` y añade sus flechas a `DRAWN`. Si no forma parte de la librería, añádelo a `EXCLUDED` |
+| `package drawn but no longer in src/: X` | Paquete renombrado o eliminado | Quítalo de `LAYER`, de `DRAWN` y de `render_svg()` |
 | `drawn but not found in the code: A -> B` | Se eliminó un import, por ejemplo al corregir un desvío | Quita la flecha de `render_svg()` y el par de `DRAWN`. Si era una flecha marcada, retira también su marca y su viñeta en `docs/architecture.md` |
 | `found in the code but not drawn: A -> B` | Hay un import nuevo entre paquetes | Añade la flecha en `render_svg()` y el par en `DRAWN`. Si va contra una regla de nivel, revisa primero el import (Regla #6 de `architecture.instructions.md`) |
-| `upward imports differ from the single type-only one drawn (badge 1): [...]` | Aparece un import que sube de nivel, o desaparece el de `metadata` → `managers` | Un import de módulo hacia arriba es un desvío nuevo: corrígelo en el código. Si desaparece el de tipado, retira la marca 1 |
+| `imports that do not go to a strictly lower layer differ from the single type-only one drawn (badge 1): [...]` | Aparece un import a una capa igual o superior, o desaparece el de `metadata` → `managers` | Un import de módulo a una capa igual o superior es un desvío nuevo: corrígelo en el código. Si desaparece el de tipado, retira la marca 1 |
 | `metadata -> managers is no longer type-only` | El import ya no está bajo `TYPE_CHECKING` | Ahora es un import de módulo hacia arriba: corrígelo o actualiza la marca 1 y su texto |
 | `ERROR: cannot parse <fichero>` | Error de sintaxis en un fichero de `src/` | Corrige el fichero; el script no escribe nada con la medición incompleta |

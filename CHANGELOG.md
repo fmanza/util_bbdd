@@ -81,23 +81,28 @@ Referencia:
 
 ### Documentation
 
-#### architecture: Regla #6 reconciliada (niveles e imports dentro de un nivel)
+#### architecture: Regla #6 con capas estrictas
 
 La Regla #6 (`architecture.instructions.md`) asignaba `connection/`, `factory/` y `results/` a Level 1 y
 `managers/` a Level 2, frente a Level 2 y Level 3 en `.ai/architecture.md`, README, onboarding y el script del
 diagrama. Además, su frase inicial prohibía los imports entre paquetes del mismo nivel mientras su propia lista de
-reglas solo prohibía los ciclos, y el código tiene 11 pares de paquetes con import en un solo sentido dentro de un
-nivel (p. ej. `factory` → `connection`, `metadata` → `results`).
+reglas solo prohibía los ciclos. Tres niveles no bastan para expresar la estructura real sin imports horizontales
+(11 pares de paquetes en el código, p. ej. `factory` → `connection`, `metadata` → `results`).
 
+- **Capas**: cada nivel se divide en 8 capas numeradas asignadas por función. Un paquete importa solo de paquetes de
+  capas de número menor; los de una misma capa son independientes. La tabla es `LAYER` en
+  `scripts/gen_arquitectura_capas.py`, de la que se derivan `LEVEL`, las notas de banda de la figura y la tabla
+  generada que incrusta `docs/architecture.md`.
 - **Niveles**: los de `.ai/architecture.md`; `models.py` y `async_utils.py` cuentan como Foundation.
-- **Regla**: un paquete importa de su nivel o de niveles inferiores, nunca de uno superior; dentro de un nivel,
-  solo en un sentido (sin ciclos). Los imports perezosos cuentan.
+- **Imports perezosos** cuentan igual que los de módulo; los de `TYPE_CHECKING` tampoco pueden ir a una capa igual o
+  superior.
 - **Actualizados**: `.github/instructions/architecture.instructions.md`, `.ai/architecture.md`, `README.md`,
-  `docs/guides/onboarding_dev.md`, `docs/architecture.md` (figura y notas de nivel) y `.ai/DECISIONS_LOG.md`.
+  `docs/guides/onboarding_dev.md`, `docs/architecture.md`, `docs/guides/architecture_diagram_guide.md` y
+  `.ai/DECISIONS_LOG.md`.
 
 Referencia:
 - [Regla #6](.github/instructions/architecture.instructions.md)
-- [Decisión 2026-09-21](.ai/DECISIONS_LOG.md)
+- [Decisión 2026-09-22](.ai/DECISIONS_LOG.md)
 
 #### bulk: Guía de tuning de commit_cadence para cargas masivas en MariaDB/MySQL
 
@@ -131,13 +136,14 @@ Referencia:
 
 #### tests: guarda automática de la Regla #6
 
-Nuevo `tests/unit/test_architecture_import_rules.py`. Reutiliza `measure()` y `LEVEL` de
-`scripts/gen_arquitectura_capas.py` (los niveles se declaran en un único sitio) y falla ante:
+Nuevo `tests/unit/test_architecture_import_rules.py`. Reutiliza `measure()`, `LAYER` y `LEVEL` (derivado) de
+`scripts/gen_arquitectura_capas.py` (las capas se declaran en un único sitio) y falla ante:
 
 - un **ciclo de imports entre paquetes** (los imports perezosos cuentan);
-- un **import que sube de nivel** (los de `TYPE_CHECKING` solo se admiten como excepción listada: hoy
-  `metadata` → `managers`);
-- un **paquete nuevo sin nivel asignado**;
+- un **import que no va a una capa estrictamente inferior**, sea hacia arriba o entre paquetes de la misma capa (los
+  de `TYPE_CHECKING` solo se admiten como excepción listada: hoy `metadata` → `managers`);
+- una **tabla de capas incoherente** (capas no contiguas, o un nivel por debajo de una capa de un nivel inferior);
+- un **paquete nuevo sin capa asignada**;
 - un paquete que **no se importa como primer import** de un intérprete (import circular o dependiente del orden).
 
 Los mensajes indican el `fichero:línea` del import. No añade dependencias.

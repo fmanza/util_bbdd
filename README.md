@@ -484,7 +484,7 @@ core/
 
 ### Level 2: Capas de Acceso (Services Layer)
 
-Operaciones core reutilizables entre managers. **Regla:** Importa de Level 1 y, entre paquetes de Level 2, solo en un sentido (sin ciclos); nunca de Level 3.
+Operaciones core reutilizables entre managers. **Regla:** Importa solo de capas inferiores (Level 1 y capas previas de Level 2); nunca de Level 3.
 
 ```
 connection/          # Conexiones y configuración por motor
@@ -534,7 +534,7 @@ validators/          # Validadores de parámetros por motor
 
 ### Level 3: Especialización (Domain Logic Layer)
 
-Funcionalidad de dominio construida sobre Level 2. **Regla:** Puede importar de Level 1 y 2 y, entre paquetes de Level 3, solo en un sentido (sin ciclos); nunca al revés.
+Funcionalidad de dominio construida sobre Level 2. **Regla:** Puede importar de Level 1, Level 2 y capas inferiores de Level 3; nunca al revés.
 
 ```
 managers/            # APIs públicas de alto nivel
@@ -576,15 +576,15 @@ doc/                 # Documentación de BD (arquitectura hexagonal)
 ### Regla de Imports (Flujo Prohibido ↔ Permitido)
 
 ```
-✅ PERMITIDO (jerarquía descendente)
-   Level 1 imports ← Level 1 (p. ej. _drivers → _core)
-   Level 2 imports ← Level 1, y otros paquetes de Level 2 en un solo sentido (p. ej. factory → connection)
-   Level 3 imports ← Level 1, Level 2, y otros paquetes de Level 3 en un solo sentido (p. ej. dump → bulk)
+✅ PERMITIDO (solo hacia capas de número menor)
+   Level 1 imports ← capas inferiores de Level 1 (p. ej. _drivers → _core)
+   Level 2 imports ← Level 1 y capas inferiores de Level 2 (p. ej. factory → connection)
+   Level 3 imports ← Level 1, Level 2 y capas inferiores de Level 3 (p. ej. dump → bulk)
 
-❌ PROHIBIDO (círculos o ascensión)
-   Level 2 imports from Level 3
-   Level 1 imports from Level 2 o 3
-   Ciclos entre paquetes, dentro de un nivel o entre niveles (los imports perezosos cuentan)
+❌ PROHIBIDO
+   Importar de una capa superior o de la misma capa, aunque no cierre un ciclo
+   Level 2 imports from Level 3; Level 1 imports from Level 2 o 3
+   Ciclos entre paquetes (los imports perezosos cuentan)
 ```
 
 Lo comprueba `tests/unit/test_architecture_import_rules.py`.

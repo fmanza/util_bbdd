@@ -139,15 +139,39 @@
 
 ---
 
+## Capas (Regla #6)
+
+Cada nivel se divide en capas numeradas. Un paquete importa **solo de paquetes de capas de número menor**; los de
+una misma capa son independientes entre sí. La fuente ejecutable de esta tabla es `LAYER` en
+`scripts/gen_arquitectura_capas.py` (de ella se derivan el nivel de cada paquete, la figura y la tabla de
+`docs/architecture.md`); esta copia hay que mantenerla a mano.
+
+| Capa | Nivel | Paquetes |
+|---|---|---|
+| 8 | Level 3 · Especialización | `doc/` |
+| 7 | Level 3 · Especialización | `analysis/`, `dump/` |
+| 6 | Level 3 · Especialización | `bulk/`, `comparar/`, `managers/`, `migrate/` |
+| 5 | Level 2 · Servicios | `executors/`, `factory/`, `metadata/` |
+| 4 | Level 2 · Servicios | `connection/`, `query/` |
+| 3 | Level 2 · Servicios | `results/`, `validators/` |
+| 2 | Level 1 · Foundation | `_drivers/` |
+| 1 | Level 1 · Foundation | `_core/`, `core/`, `models.py`, `async_utils.py` |
+
+Las capas se asignan por función, no por la profundidad que tenga hoy el grafo de imports: `comparar/` apenas
+importa nada de la librería, pero es Especialización.
+
+---
+
 ## Reglas de dependencia (NO violar)
 
 | Regla | Descripción |
 |---|---|
+| Un paquete importa solo de capas de número menor | Los paquetes de una misma capa son independientes; ver § Capas |
 | Level 1 → no importa Level 2/3 | Foundation nunca depende de servicios |
-| Level 2 → importa Level 1 y otros paquetes de Level 2 en un solo sentido | Services no importa managers ni bulk |
-| Level 3 → importa Level 1+2 y otros paquetes de Level 3 en un solo sentido | Specialization construye sobre la base |
+| Level 2 → no importa Level 3 | Services no importa managers ni bulk |
+| Level 3 → importa Level 1+2 y capas inferiores de Level 3 | Specialization construye sobre la base |
 | `metadata/*/tables.py` = único punto canónico SQL | Ningún módulo duplica SQL de introspección |
-| Sin ciclos de importación | Ni dentro de un nivel ni entre niveles; los imports perezosos cuentan. Guarda: `tests/unit/test_architecture_import_rules.py` |
+| Sin ciclos de importación | Consecuencia de las capas; los imports perezosos cuentan. Guarda: `tests/unit/test_architecture_import_rules.py` |
 
 ---
 
