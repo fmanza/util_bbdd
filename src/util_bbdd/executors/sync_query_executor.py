@@ -256,6 +256,17 @@ class SyncQueryExecutor:
             )
 
     @staticmethod
+    def _normalize_sql_for_db(sql: str, db_type: str) -> str:
+        """Escapa ``%`` literales en SQL final para MariaDB (paramstyle pyformat).
+
+        SVC-03 (AUDIT_CODE 2026-09-22): esta normalización ya existía en
+        ``AsyncQueryExecutor`` pero faltaba aquí (asimetría sync/async).
+        """
+        if db_type == "mariadb":
+            return sql.replace("%", "%%")
+        return sql
+
+    @staticmethod
     def _resolve_execute_params(sql: str, params: dict[str, Any]) -> dict[str, Any] | None:
         if SyncQueryExecutor._sql_uses_bind_params(sql, params):
             return params
@@ -300,20 +311,21 @@ class SyncQueryExecutor:
         try:
             self._raise_if_timed_out(deadline, timeout_msg)
             resolved = self._get_bound_resolver(db_type).resolve(query_name=query_name, params=params)
+            final_sql: str = self._normalize_sql_for_db(resolved.final_sql, db_type)
             self._raise_if_timed_out(deadline, timeout_msg)
 
             conn = self.connection_provider()
             self._raise_if_timed_out(deadline, timeout_msg)
 
             cursor = conn.cursor()
-            execute_params = self._resolve_execute_params(resolved.final_sql, params)
-            self._execute_sql_with_optional_params(cursor, resolved.final_sql, execute_params)
+            execute_params = self._resolve_execute_params(final_sql, params)
+            self._execute_sql_with_optional_params(cursor, final_sql, execute_params)
             self._raise_if_timed_out(deadline, timeout_msg)
 
             result = self._fetch_with_decode_fallback(
                 cursor=cursor,
                 conn=conn,
-                sql=resolved.final_sql,
+                sql=final_sql,
                 params=params,
                 expect_one=expect_one,
                 db_type=db_type,

@@ -96,3 +96,60 @@ class TestAsyncSyncParityResults:
         assert sync_result == ("users",)
         assert async_result == ("users",)
         assert type(sync_result) is type(async_result)
+
+
+class TestNormalizeSqlForDbParity:
+    """SVC-03 (AUDIT_CODE 2026-09-22): el escape de ``%`` literales para MariaDB
+    (paramstyle pyformat) existía solo en AsyncQueryExecutor; SyncQueryExecutor
+    ejecutaba el SQL sin escapar, arriesgando que un LIKE con wildcard `%` fuera
+    malinterpretado por el driver DBAPI como un placeholder de formato."""
+
+    def test_mariadb_doubles_literal_percent(self) -> None:
+        sql = "SELECT * FROM users WHERE name LIKE '%test%'"
+        assert (
+            SyncQueryExecutor._normalize_sql_for_db(sql, "mariadb") == "SELECT * FROM users WHERE name LIKE '%%test%%'"
+        )
+        assert (
+            AsyncQueryExecutor._normalize_sql_for_db(sql, "mariadb") == "SELECT * FROM users WHERE name LIKE '%%test%%'"
+        )
+
+    def test_non_mariadb_leaves_sql_unchanged(self) -> None:
+        sql = "SELECT * FROM users WHERE name LIKE '%test%'"
+        for db_type in ("oracle", "postgresql", "sqlserver", "sqlite"):
+            assert SyncQueryExecutor._normalize_sql_for_db(sql, db_type) == sql
+            assert AsyncQueryExecutor._normalize_sql_for_db(sql, db_type) == sql
+
+    def test_sync_and_async_normalization_are_identical(self) -> None:
+        sql = "SELECT * FROM t WHERE a LIKE '%foo%' AND b LIKE '%bar%'"
+        for db_type in ("mariadb", "oracle", "postgresql", "sqlserver", "sqlite"):
+            assert SyncQueryExecutor._normalize_sql_for_db(sql, db_type) == AsyncQueryExecutor._normalize_sql_for_db(
+                sql, db_type
+            )
+
+    def test_execute_resolved_applies_normalization_before_cursor_execute(self, temp_queries_file: Path) -> None:
+        """Verifica que la normalización se aplica de verdad en el flujo real de ejecución."""
+        import json
+        import tempfile
+
+        queries_data = {"mariadb": {"buscar": "SELECT * FROM users WHERE name LIKE '%test%'"}}
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(queries_data, f)
+            registry_path = Path(f.name)
+
+        try:
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.fetchall.return_value = ()
+            mock_conn.cursor.return_value = mock_cursor
+
+            executor = SyncQueryExecutor(
+                connection_provider=MagicMock(return_value=mock_conn),
+                connection_releaser=MagicMock(),
+                registry=QueryRegistry(registry_path),
+            )
+            executor.execute_query_many("buscar", "mariadb", {})
+
+            executed_sql = mock_cursor.execute.call_args[0][0]
+            assert "%%test%%" in executed_sql
+        finally:
+            registry_path.unlink()

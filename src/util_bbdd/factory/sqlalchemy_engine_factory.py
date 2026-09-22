@@ -161,6 +161,9 @@ class SQLAlchemyEngineFactory:
                 db_type="mariadb",
             )
 
+        if not database:
+            raise ValidationError("Se requiere 'database' para MariaDB", db_type="mariadb")
+
         return f"mariadb+mariadbconnector://{user}:{password}@{host}:{port}/{database}"
 
     @staticmethod
@@ -183,12 +186,22 @@ class SQLAlchemyEngineFactory:
         port: int = conn_params.get("port", 1521)
         service_name: str = conn_params.get("service_name") or database
 
+        if not user:
+            SQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó usuario para Oracle")
+            raise ValidationError(
+                "Se requiere un usuario para la conexión a Oracle",
+                db_type="oracle",
+            )
+
         if not password:
             SQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para Oracle")
             raise ValidationError(
                 "Se requiere una contraseña para la conexión a Oracle",
                 db_type="oracle",
             )
+
+        if not service_name:
+            raise ValidationError("Se requiere 'service_name' o 'database' para Oracle", db_type="oracle")
 
         return f"oracle+oracledb://{user}:{password}@{host}:{port}/?service_name={service_name}"
 
@@ -217,6 +230,9 @@ class SQLAlchemyEngineFactory:
                 "Se requiere una contraseña para la conexión a PostgreSQL",
                 db_type="postgresql",
             )
+
+        if not database:
+            raise ValidationError("Se requiere 'database' para PostgreSQL", db_type="postgresql")
 
         return f"postgresql+psycopg://{user}:{password}@{host}:{port}/{database}"
 
@@ -304,9 +320,9 @@ class SQLAlchemyEngineFactory:
         # SQLite URL: sqlite:////absolute/path o sqlite:///relative/path o sqlite:///:memory:
         if db_path == ":memory:":
             return "sqlite:///:memory:"
-        elif db_path.startswith("/"):
-            # Ruta absoluta: agrega cuarto / para archivo local absoluto
-            return f"sqlite:///{db_path}"
-        else:
-            # Ruta relativa: agrega triple / para archivo relativo
-            return f"sqlite:///{db_path}"
+
+        # Normaliza separadores Windows (\) a / — una ruta absoluta tipo "C:\a\b.db" sin
+        # normalizar produce un URI SQLite inválido/frágil (SVC-03: la versión async ya
+        # normalizaba, la sync no).
+        normalized_path: str = db_path.replace("\\", "/")
+        return f"sqlite:///{normalized_path}"
