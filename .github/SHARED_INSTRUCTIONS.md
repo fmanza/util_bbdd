@@ -161,7 +161,7 @@ manager.close()
 ```bash
 python -m ruff check src tests
 python -m ruff format src tests
-python -m mypy src
+python -m mypy src tests/unit/test_protocol_conformance.py   # el segundo verifica Protocols de la Regla #6 (docs/architecture.md)
 python -m pytest
 python -m build
 zensical build        # generador por defecto (CI); lee mkdocs.yml
@@ -396,4 +396,4 @@ especializaciones afectadas (copilot-instructions.md y/o CLAUDE.md).
 
 ---
 
-*Actualizado: 2026-09-21*
+*Actualizado: 2026-09-22*

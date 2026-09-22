@@ -69,7 +69,7 @@ como plantilla de solo lectura; el lenguaje/arquitectura del destino es un **par
 ```bash
 python -m ruff check src tests      # Linting
 python -m ruff format src tests     # Formato
-python -m mypy src                  # Type-checking
+python -m mypy src tests/unit/test_protocol_conformance.py   # Type-checking (2º arg: Protocols de la Regla #6)
 python -m pytest                    # Ejecución de tests
 zensical serve                      # Previsualizar documentación (por defecto, lee mkdocs.yml)
 mkdocs serve                        # Previsualizar documentación (recíproco, mismo mkdocs.yml)
@@ -118,4 +118,4 @@ El sistema es reutilizable mediante bootstrap. Ver `.github/prompts/bootstrap_ai
 
 ---
 
-*Actualizado: 2026-09-21*
+*Actualizado: 2026-09-22*

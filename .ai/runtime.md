@@ -46,8 +46,8 @@ python -m pytest -v --cov=src/util_bbdd --cov-report=html
 python -m ruff check src tests
 python -m ruff format src tests
 
-# Type-checking
-python -m mypy src
+# Type-checking (2º arg: Protocols de la Regla #6, docs/architecture.md)
+python -m mypy src tests/unit/test_protocol_conformance.py
 
 # Build del paquete
 python -m build

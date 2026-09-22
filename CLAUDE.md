@@ -399,7 +399,7 @@ Consulta SHARED_INSTRUCTIONS.md para detalles completos:
 ```bash
 python -m ruff check src tests      # Linting
 python -m ruff format src tests     # Formato
-python -m mypy src                  # Type-checking
+python -m mypy src tests/unit/test_protocol_conformance.py   # Type-checking (2º arg: Protocols de la Regla #6)
 python -m pytest                    # Tests
 python -m build                     # Empaquetamiento
 zensical serve                      # Documentación local (por defecto, lee mkdocs.yml)
@@ -410,4 +410,4 @@ python scripts/gen_arquitectura_capas.py  # Regenera el diagrama de capas e impo
 
 ---
 
-*Actualizado: 2026-09-21*
+*Actualizado: 2026-09-22*

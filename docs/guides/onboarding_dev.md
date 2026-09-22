@@ -196,10 +196,10 @@ python -m ruff check src tests --fix
 
 ```bash
 # Verificar tipos estáticos
-python -m mypy src
+python -m mypy src tests/unit/test_protocol_conformance.py
 ```
 
-Configurado en `pyproject.toml [tool.mypy]`: Python 3.12, `warn_return_any`, `check_untyped_defs`. Los drivers externos (oracledb, openpyxl, psycopg, asyncpg, etc.) tienen `ignore_missing_imports = true`.
+Configurado en `pyproject.toml [tool.mypy]`: Python 3.12, `warn_return_any`, `check_untyped_defs`. Los drivers externos (oracledb, openpyxl, psycopg, asyncpg, etc.) tienen `ignore_missing_imports = true`; `docs_build_plugin.py` (plugin de MkDocs) está excluido. El segundo argumento verifica, con firmas incluidas, que las implementaciones reales cumplen los Protocols que sustituyen a un import de capa superior (Regla #6, `docs/architecture.md`); `mypy src` por sí solo no lo cubre.
 
 ### Tests
 
@@ -293,7 +293,7 @@ PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION
 ```bash
 python -m ruff format src tests    # Sin cambios pendientes
 python -m ruff check src tests     # Sin errores de lint
-python -m mypy src                 # Sin errores de tipos
+python -m mypy src tests/unit/test_protocol_conformance.py   # Sin errores de tipos
 python -m pytest -q                # Suite completa sin fallos
 ```
 
@@ -309,13 +309,13 @@ Ejecuta estos comandos en orden. Si todos producen el output esperado, el entorn
 | Paquete instalado | `python -c "from importlib.metadata import version; print(version('util_bbdd'))"` | `0.10.0` |
 | Manager sync funciona | `python -c "from util_bbdd import SyncDatabaseManager; m = SyncDatabaseManager(db_type='sqlite', conn_params={'database': ':memory:'}); print(m.get_tables()); m.close()"` | `[]` |
 | ruff sin errores | `python -m ruff check src tests` | Sin output (sin errores) |
-| mypy sin errores | `python -m mypy src` | `Success: no issues found in N source files` |
+| mypy sin errores | `python -m mypy src tests/unit/test_protocol_conformance.py` | `Success: no issues found in N source files` |
 | Tests pasan | `python -m pytest -q` | `N passed` sin fallos |
 
 ### Verificación rápida en una línea
 
 ```bash
-python -m ruff check src tests && python -m mypy src && python -m pytest -q
+python -m ruff check src tests && python -m mypy src tests/unit/test_protocol_conformance.py && python -m pytest -q
 ```
 
 Si este comando termina con código 0 y sin errores, el entorno está operativo.
