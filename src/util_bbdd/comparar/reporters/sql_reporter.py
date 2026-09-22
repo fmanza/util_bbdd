@@ -53,6 +53,8 @@ if TYPE_CHECKING:
         ViewDiff,
     )
 
+from sqlalchemy.dialects import mssql, mysql, oracle, postgresql, sqlite as sqlite_dialect
+from sqlalchemy.engine.default import DefaultDialect
 from sqlalchemy.exc import DatabaseError, OperationalError
 
 from util_bbdd._core.exceptions import SchemaDiffValidationError
@@ -245,6 +247,19 @@ class SqlDiffReporter:
     #: Literal "NOT NULL" para constraints de columna.
     _NOT_NULL: ClassVar[str] = "NOT NULL"
 
+    #: Factoría de ``Dialect`` de SQLAlchemy por dialecto, usada solo para obtener su
+    #: ``identifier_preparer`` (citado de identificadores dialect-aware). No se usa para
+    #: compilar ni ejecutar SQL.
+    _DIALECT_FACTORY: ClassVar[dict[str, Any]] = {
+        "generic": DefaultDialect,
+        "mariadb": mysql.dialect,
+        "mysql": mysql.dialect,
+        "postgresql": postgresql.dialect,
+        "sqlserver": mssql.dialect,
+        "oracle": oracle.dialect,
+        "sqlite": sqlite_dialect.dialect,
+    }
+
     def __init__(
         self,
         dialect: str = "generic",
@@ -261,6 +276,7 @@ class SqlDiffReporter:
             )
         self.logger: logging.Logger = logging.getLogger(__name__)
         self._dialect: str = normalized
+        self._identifier_preparer: Any = self._DIALECT_FACTORY[normalized]().identifier_preparer
         self._source_inspector: Any = source_inspector
         self._source_schema: str | None = source_schema
         #: Caché de columnas SA por nombre de tabla.  Evita consultas repetidas
@@ -344,12 +360,13 @@ class SqlDiffReporter:
     def _render_dropped_tables(self, tables: list[TableDiff]) -> list[str]:
         lines: list[str] = []
         for td in tables:
+            table = self._quote(td.table_name)
             # Eliminar primero las FKs propias que puedan causar violaciones de integridad
             if td.fk_diffs:
                 lines.append(f"-- FK constraints en {td.table_name}:")
-                lines.extend(f"ALTER TABLE {td.table_name} {self._drop_fk_clause(fk.fk_name)};" for fk in td.fk_diffs)
+                lines.extend(f"ALTER TABLE {table} {self._drop_fk_clause(fk.fk_name)};" for fk in td.fk_diffs)
             tpl: str = self._DROP_TABLE.get(self._dialect, self._DROP_TABLE["generic"])
-            lines.append(tpl.format(table=td.table_name))
+            lines.append(tpl.format(table=table))
             lines.append("")
         return lines
 
@@ -505,7 +522,7 @@ class SqlDiffReporter:
 
         Formato: ``  nombre TIPO [NOT NULL] [DEFAULT valor]``
         """
-        name: str = col["name"]
+        name: str = self._quote(col["name"])
         col_type: str = self._format_col_type(col)
         nullable: bool = col.get("nullable", True)
         default: Any = col.get("default")
@@ -566,11 +583,12 @@ class SqlDiffReporter:
         indexes: list[dict[str, Any]] = self._fetch_source_indexes(table_name)
         prefix: str = self._CREATE_TABLE_PREFIX.get(self._dialect, self._CREATE_TABLE_PREFIX["generic"])
 
-        lines: list[str] = [f"{prefix.format(table=table_name)} ("]
+        lines: list[str] = [f"{prefix.format(table=self._quote(table_name))} ("]
         col_defs: list[str] = [self._render_col_definition(col) for col in cols]
 
         if pk_cols:
-            col_defs.append(f"  PRIMARY KEY ({', '.join(pk_cols)})")
+            quoted_pk_cols = ", ".join(self._quote(c) for c in pk_cols)
+            col_defs.append(f"  PRIMARY KEY ({quoted_pk_cols})")
 
         col_defs.extend(self._build_fk_definitions(fks))
         lines.extend(self._build_column_definitions_lines(col_defs))
@@ -596,15 +614,17 @@ class SqlDiffReporter:
             if not constrained or not ref_table:
                 continue
 
-            constrained_str = ", ".join(constrained)
-            ref_cols_str = f" ({', '.join(ref_cols)})" if ref_cols else ""
+            constrained_str = ", ".join(self._quote(c) for c in constrained)
+            ref_table_q = self._quote(ref_table)
+            ref_cols_str = f" ({', '.join(self._quote(c) for c in ref_cols)})" if ref_cols else ""
 
             if fk_name:
+                fk_name_q = self._quote(fk_name)
                 fk_defs.append(
-                    f"  CONSTRAINT {fk_name} FOREIGN KEY ({constrained_str}) REFERENCES {ref_table}{ref_cols_str}",
+                    f"  CONSTRAINT {fk_name_q} FOREIGN KEY ({constrained_str}) REFERENCES {ref_table_q}{ref_cols_str}",
                 )
             else:
-                fk_defs.append(f"  FOREIGN KEY ({constrained_str}) REFERENCES {ref_table}{ref_cols_str}")
+                fk_defs.append(f"  FOREIGN KEY ({constrained_str}) REFERENCES {ref_table_q}{ref_cols_str}")
 
         return fk_defs
 
@@ -620,13 +640,13 @@ class SqlDiffReporter:
             lines.append(f"{col_def}{sep}")
         return lines
 
-    @staticmethod
-    def _build_secondary_indexes_lines(indexes: list[dict[str, Any]], table_name: str) -> list[str]:
+    def _build_secondary_indexes_lines(self, indexes: list[dict[str, Any]], table_name: str) -> list[str]:
         """Genera las sentencias ``CREATE INDEX`` para índices secundarios.
 
         Excluye índices sin nombre o sin columnas (típicamente FK implícitos o PK).
         """
         lines: list[str] = []
+        table_q = self._quote(table_name)
         for idx in indexes:
             idx_name = idx.get("name", "")
             idx_cols: list[str] = [c for c in (idx.get("column_names") or []) if c]
@@ -635,8 +655,8 @@ class SqlDiffReporter:
                 continue
 
             unique = "UNIQUE " if idx.get("unique", False) else ""
-            cols_str = ", ".join(idx_cols)
-            lines.append(f"CREATE {unique}INDEX {idx_name} ON {table_name} ({cols_str});")
+            cols_str = ", ".join(self._quote(c) for c in idx_cols)
+            lines.append(f"CREATE {unique}INDEX {self._quote(idx_name)} ON {table_q} ({cols_str});")
 
         return lines
 
@@ -688,7 +708,7 @@ class SqlDiffReporter:
             lines.append(f"-- ⚠ {col_name} es NOT NULL sin DEFAULT: verificar que la tabla no tenga filas existentes.")
         if self._dialect == "sqlite" and not nullable:
             lines.append("-- ⚠ SQLite: ADD COLUMN NOT NULL sin DEFAULT no está soportado nativamente.")
-        lines.append(tpl.format(table=table, col=col_name, definition=definition))
+        lines.append(tpl.format(table=self._quote(table), col=self._quote(col_name), definition=definition))
         return lines
 
     # ------------------------------------------------------------------
@@ -709,7 +729,7 @@ class SqlDiffReporter:
 
         if cd.attribute == "type":
             clause: str = self._modify_col_type_clause(col, cd.source_value)
-            return [f"ALTER TABLE {table} {clause};  -- tipo: {cd.target_value!r} → {cd.source_value!r}"]
+            return [f"ALTER TABLE {self._quote(table)} {clause};  -- tipo: {cd.target_value!r} → {cd.source_value!r}"]
 
         if cd.attribute == "nullable":
             return self._render_nullable_diff(table, col, cd)
@@ -745,11 +765,11 @@ class SqlDiffReporter:
                     return self._render_add_column_with_type(table, col, col_info)
             return [
                 f"-- ⚠ ADD COLUMN {col}: tipo no disponible en SchemaDiff — verificar en origen.",
-                f"ALTER TABLE {table} ADD COLUMN {col} <TIPO_ORIGEN>;  -- ⚠ REVISAR TIPO",
+                f"ALTER TABLE {self._quote(table)} ADD COLUMN {self._quote(col)} <TIPO_ORIGEN>;  -- ⚠ REVISAR TIPO",
             ]
         if src_absent:
             # Columna existe en target, no en source → DROP
-            return [f"ALTER TABLE {table} DROP COLUMN {col};"]
+            return [f"ALTER TABLE {self._quote(table)} DROP COLUMN {self._quote(col)};"]
         return [f"-- ⚠ existence diff inesperado en {col}: {cd.source_value!r} → {cd.target_value!r}"]
 
     def _render_nullable_diff(self, table: str, col: str, cd: ColumnDiff) -> list[str]:
@@ -762,21 +782,22 @@ class SqlDiffReporter:
         """
         target_null: bool = cd.source_value.upper() in ("YES", "TRUE", "1", "NULL")
         null_kw: str = "NULL" if target_null else self._NOT_NULL
+        table_q, col_q = self._quote(table), self._quote(col)
 
         if self._dialect in ("mariadb", "mysql"):
             col_type: str = self._get_col_type_for_modify(table, col)
-            return [f"ALTER TABLE {table} MODIFY COLUMN {col} {col_type} {null_kw};"]
+            return [f"ALTER TABLE {table_q} MODIFY COLUMN {col_q} {col_type} {null_kw};"]
 
         if self._dialect == "oracle":
             col_type = self._get_col_type_for_modify(table, col)
             if col_type != "<TIPO>":
-                return [f"ALTER TABLE {table} MODIFY ({col} {col_type} {null_kw});"]
-            return [f"ALTER TABLE {table} MODIFY ({col} {null_kw});"]
+                return [f"ALTER TABLE {table_q} MODIFY ({col_q} {col_type} {null_kw});"]
+            return [f"ALTER TABLE {table_q} MODIFY ({col_q} {null_kw});"]
 
         # Standard SQL / PostgreSQL / SQLite / SQL Server
         if target_null:
-            return [f"ALTER TABLE {table} ALTER COLUMN {col} DROP NOT NULL;"]
-        return [f"ALTER TABLE {table} ALTER COLUMN {col} SET NOT NULL;"]
+            return [f"ALTER TABLE {table_q} ALTER COLUMN {col_q} DROP NOT NULL;"]
+        return [f"ALTER TABLE {table_q} ALTER COLUMN {col_q} SET NOT NULL;"]
 
     def _render_default_diff(self, table: str, col: str, cd: ColumnDiff) -> list[str]:
         """Genera cláusula de cambio de DEFAULT — dialect-aware.
@@ -790,22 +811,23 @@ class SqlDiffReporter:
         """
         src_default: str = cd.source_value
         is_drop: bool = src_default.upper() in ("NONE", "NULL", "")
+        table_q, col_q = self._quote(table), self._quote(col)
 
         if self._dialect in ("mariadb", "mysql"):
             col_type: str = self._get_col_type_for_modify(table, col)
             if is_drop:
-                return [f"ALTER TABLE {table} MODIFY COLUMN {col} {col_type};  -- DEFAULT eliminado"]
-            return [f"ALTER TABLE {table} MODIFY COLUMN {col} {col_type} DEFAULT {src_default};"]
+                return [f"ALTER TABLE {table_q} MODIFY COLUMN {col_q} {col_type};  -- DEFAULT eliminado"]
+            return [f"ALTER TABLE {table_q} MODIFY COLUMN {col_q} {col_type} DEFAULT {src_default};"]
 
         if self._dialect == "oracle":
             if is_drop:
-                return [f"ALTER TABLE {table} MODIFY ({col} DEFAULT NULL);"]
-            return [f"ALTER TABLE {table} MODIFY ({col} DEFAULT {src_default});"]
+                return [f"ALTER TABLE {table_q} MODIFY ({col_q} DEFAULT NULL);"]
+            return [f"ALTER TABLE {table_q} MODIFY ({col_q} DEFAULT {src_default});"]
 
         # Generic / PostgreSQL / SQLite / SQL Server
         if is_drop:
-            return [f"ALTER TABLE {table} ALTER COLUMN {col} DROP DEFAULT;"]
-        return [f"ALTER TABLE {table} ALTER COLUMN {col} SET DEFAULT {src_default};"]
+            return [f"ALTER TABLE {table_q} ALTER COLUMN {col_q} DROP DEFAULT;"]
+        return [f"ALTER TABLE {table_q} ALTER COLUMN {col_q} SET DEFAULT {src_default};"]
 
     # ------------------------------------------------------------------
     # Diferencias de índice
@@ -834,8 +856,9 @@ class SqlDiffReporter:
 
     def _create_index_sql(self, idx: IndexDiff, table: str) -> str:
         unique: Literal["UNIQUE ", ""] = "UNIQUE " if idx.source_unique else ""
-        cols: str = idx.source_columns or idx.target_columns or "<columnas>"
-        return f"CREATE {unique}INDEX {idx.index_name} ON {table} ({cols});"
+        joined_cols: str = idx.source_columns or idx.target_columns or "<columnas>"
+        cols: str = joined_cols if joined_cols == "<columnas>" else self._quote_columns(joined_cols)
+        return f"CREATE {unique}INDEX {self._quote(idx.index_name)} ON {self._quote(table)} ({cols});"
 
     # ------------------------------------------------------------------
     # Diferencias de Foreign Key
@@ -848,9 +871,10 @@ class SqlDiffReporter:
         return lines
 
     def _render_single_fk_diff(self, table: str, fk: ForeignKeyDiff) -> list[str]:
+        table_q = self._quote(table)
         if fk.status == "removed":
             # FK existe en target, no en source → DROP en target
-            return [f"ALTER TABLE {table} {self._drop_fk_clause(fk.fk_name)};"]
+            return [f"ALTER TABLE {table_q} {self._drop_fk_clause(fk.fk_name)};"]
 
         if fk.status == "added":
             # FK existe en source, no en target → ADD en target
@@ -858,16 +882,19 @@ class SqlDiffReporter:
 
         # modified → DROP + ADD con nueva definición
         return [
-            f"ALTER TABLE {table} {self._drop_fk_clause(fk.fk_name)};",
+            f"ALTER TABLE {table_q} {self._drop_fk_clause(fk.fk_name)};",
             self._add_fk_sql(table, fk),
         ]
 
     def _add_fk_sql(self, table: str, fk: ForeignKeyDiff) -> str:
-        cols: str = fk.source_columns or "<columnas_origen>"
-        ref_table: str = fk.source_referred_table or "<tabla_referenciada>"
-        ref_cols: str = fk.source_referred_columns
+        cols: str = self._quote_columns(fk.source_columns) if fk.source_columns else "<columnas_origen>"
+        ref_table: str = self._quote(fk.source_referred_table) if fk.source_referred_table else "<tabla_referenciada>"
+        ref_cols: str = self._quote_columns(fk.source_referred_columns)
         ref_part: str = f" ({ref_cols})" if ref_cols else ""
-        return f"ALTER TABLE {table} ADD CONSTRAINT {fk.fk_name} FOREIGN KEY ({cols}) REFERENCES {ref_table}{ref_part};"
+        return (
+            f"ALTER TABLE {self._quote(table)} ADD CONSTRAINT {self._quote(fk.fk_name)} "
+            f"FOREIGN KEY ({cols}) REFERENCES {ref_table}{ref_part};"
+        )
 
     # ------------------------------------------------------------------
     # Diferencias de comentario
@@ -909,18 +936,21 @@ class SqlDiffReporter:
                 f"-- Nuevo comentario: {cd.source_comment!r}",
             ]
 
+        table_q = self._quote(table)
         if self._dialect in ("mariadb", "mysql"):
             if cd.column_name is None:
                 # Comentario de tabla
-                return [f"ALTER TABLE {table} COMMENT = '{comment}';"]
+                return [f"ALTER TABLE {table_q} COMMENT = '{comment}';"]
             # Comentario de columna — requiere tipo
             col_type = self._get_col_type_for_modify(table, cd.column_name)
-            return [f"ALTER TABLE {table} MODIFY COLUMN {cd.column_name} {col_type} COMMENT '{comment}';"]
+            return [
+                f"ALTER TABLE {table_q} MODIFY COLUMN {self._quote(cd.column_name)} {col_type} COMMENT '{comment}';"
+            ]
 
         # generic / postgresql / oracle → COMMENT ON
         if cd.column_name is None:
-            return [f"COMMENT ON TABLE {table} IS '{comment}';"]
-        return [f"COMMENT ON COLUMN {table}.{cd.column_name} IS '{comment}';"]
+            return [f"COMMENT ON TABLE {table_q} IS '{comment}';"]
+        return [f"COMMENT ON COLUMN {table_q}.{self._quote(cd.column_name)} IS '{comment}';"]
 
     @staticmethod
     def _escape_sql_string(value: str) -> str:
@@ -929,6 +959,26 @@ class SqlDiffReporter:
         Sigue la convención SQL estándar: ``'`` → ``''``.
         """
         return value.replace("'", "''")
+
+    def _quote(self, identifier: str) -> str:
+        """Cita un identificador (tabla, columna, índice, constraint) dialect-aware.
+
+        Usa ``IdentifierPreparer.quote()`` de SQLAlchemy: solo añade comillas cuando
+        el identificador las necesita (palabra reservada, espacios, mayúsculas
+        sensibles, etc.), dejando los nombres simples sin decorar.
+        """
+        return str(self._identifier_preparer.quote(identifier))
+
+    def _quote_columns(self, joined: str) -> str:
+        """Cita cada columna de una lista de nombres separados por comas.
+
+        ``IndexDiff``/``ForeignKeyDiff`` almacenan sus columnas unidas con ``,`` (el
+        comparador real no añade espacio, pero se admite por robustez); se citan
+        individualmente y se reúnen con ``", "`` para el SQL generado.
+        """
+        if not joined:
+            return joined
+        return ", ".join(self._quote(col.strip()) for col in joined.split(","))
 
     # ------------------------------------------------------------------
     # Vistas
@@ -953,11 +1003,12 @@ class SqlDiffReporter:
             Statement completo sin punto y coma final.
         """
         body: str = DdlNormalizer.extract_view_body(DdlNormalizer.normalize_view_ddl(raw_ddl))
+        name_q: str = self._quote(view_name)
         if self._dialect == "sqlserver":
-            return f"CREATE VIEW {view_name} AS\n{body}"
+            return f"CREATE VIEW {name_q} AS\n{body}"
         if or_replace:
-            return f"CREATE OR REPLACE VIEW {view_name} AS\n{body}"
-        return f"CREATE VIEW {view_name} AS\n{body}"
+            return f"CREATE OR REPLACE VIEW {name_q} AS\n{body}"
+        return f"CREATE VIEW {name_q} AS\n{body}"
 
     def _render_view_diffs(self, view_diffs: tuple[ViewDiff, ...]) -> list[str]:
         lines: list[str] = []
@@ -969,7 +1020,7 @@ class SqlDiffReporter:
         drop_tpl: str = self._DROP_VIEW.get(self._dialect, self._DROP_VIEW["generic"])
 
         if vd.status == "removed":
-            return [drop_tpl.format(name=vd.view_name), ""]
+            return [drop_tpl.format(name=self._quote(vd.view_name)), ""]
 
         if vd.status == "added":
             if vd.source_definition:
@@ -985,7 +1036,7 @@ class SqlDiffReporter:
         lines: list[str] = []
         if vd.source_definition:
             if self._dialect == "sqlserver":
-                lines.append(drop_tpl.format(name=vd.view_name))
+                lines.append(drop_tpl.format(name=self._quote(vd.view_name)))
                 lines.append("GO")
                 lines.append(f"{self._build_view_create_sql(vd.view_name, vd.source_definition)};")
                 lines.append("GO")
@@ -1011,7 +1062,7 @@ class SqlDiffReporter:
         rtype: Literal["PROCEDURE", "FUNCTION"] = rd.routine_type  # "PROCEDURE" | "FUNCTION"
 
         if rd.status == "removed":
-            return [drop_tpl.format(rtype=rtype, name=rd.routine_name), ""]
+            return [drop_tpl.format(rtype=rtype, name=self._quote(rd.routine_name)), ""]
 
         if rd.status == "added":
             if rd.source_definition:
@@ -1030,7 +1081,7 @@ class SqlDiffReporter:
             # Dialectos sin CREATE OR REPLACE PROCEDURE (mariadb, mysql, sqlserver, generic)
             # requieren DROP previo para evitar error si la rutina ya existe en destino.
             if self._dialect in ("mariadb", "mysql", "sqlserver", "generic"):
-                lines.append(drop_tpl.format(rtype=rtype, name=rd.routine_name))
+                lines.append(drop_tpl.format(rtype=rtype, name=self._quote(rd.routine_name)))
             lines.append(f"{normalized.rstrip(';')};")
         else:
             lines.append(f"-- ⚠ {rd.routine_name}: modificada pero definición origen no disponible.")
@@ -1043,15 +1094,15 @@ class SqlDiffReporter:
 
     def _modify_col_type_clause(self, col: str, new_type: str) -> str:
         tpl: str = self._MODIFY_COL_TYPE.get(self._dialect, self._MODIFY_COL_TYPE["generic"])
-        return f"{tpl.format(col=col, type=new_type)}"
+        return f"{tpl.format(col=self._quote(col), type=new_type)}"
 
     def _drop_index_sql(self, name: str, table: str) -> str:
         tpl: str = self._DROP_INDEX.get(self._dialect, self._DROP_INDEX["generic"])
-        return f"{tpl.format(name=name, table=table)}"
+        return f"{tpl.format(name=self._quote(name), table=self._quote(table))}"
 
     def _drop_fk_clause(self, name: str) -> str:
         tpl: str = self._DROP_FK.get(self._dialect, self._DROP_FK["generic"])
-        return f"{tpl.format(name=name)}"
+        return f"{tpl.format(name=self._quote(name))}"
 
     # ------------------------------------------------------------------
     # Helpers de formato

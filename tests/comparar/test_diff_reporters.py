@@ -1726,3 +1726,239 @@ class TestSqlDiffReporterRoutineNormalization:
         SqlDiffReporter(dialect="generic").render(diff, output)
         content = output.read_text(encoding="utf-8")
         assert "SELECT SUM(amount) FROM orders" in content
+
+
+# ---------------------------------------------------------------------------
+# Tests de SqlDiffReporter — citado de identificadores dialect-aware (BLK-04)
+# ---------------------------------------------------------------------------
+
+
+class TestSqlDiffReporterIdentifierQuoting:
+    """BLK-04: tabla/columna/índice/FK/vista/rutina deben citarse vía identifier_preparer.
+
+    Usa ``order`` (palabra reservada en los 7 dialectos soportados) como identificador
+    "difícil" para verificar que el SQL generado lo cita; un identificador simple como
+    ``users`` debe seguir saliendo sin comillas (sin regresión de legibilidad).
+    """
+
+    def test_simple_identifier_stays_unquoted(self, tmp_path: Path) -> None:
+        diff = SchemaDiff(
+            source_label="src",
+            target_label="tgt",
+            table_diffs=(TableDiff(table_name="users", status="removed"),),
+        )
+        output = tmp_path / "diff.sql"
+        SqlDiffReporter(dialect="mariadb").render(diff, output)
+        content = output.read_text(encoding="utf-8")
+        assert "DROP TABLE IF EXISTS users;" in content
+
+    def test_drop_table_reserved_word_mariadb(self, tmp_path: Path) -> None:
+        diff = SchemaDiff(
+            source_label="src",
+            target_label="tgt",
+            table_diffs=(TableDiff(table_name="order", status="removed"),),
+        )
+        output = tmp_path / "diff.sql"
+        SqlDiffReporter(dialect="mariadb").render(diff, output)
+        content = output.read_text(encoding="utf-8")
+        assert "DROP TABLE IF EXISTS `order`;" in content
+
+    def test_drop_table_reserved_word_postgresql(self, tmp_path: Path) -> None:
+        diff = SchemaDiff(
+            source_label="src",
+            target_label="tgt",
+            table_diffs=(TableDiff(table_name="order", status="removed"),),
+        )
+        output = tmp_path / "diff.sql"
+        SqlDiffReporter(dialect="postgresql").render(diff, output)
+        content = output.read_text(encoding="utf-8")
+        assert 'DROP TABLE IF EXISTS "order";' in content
+
+    def test_drop_table_with_fk_quotes_both(self, tmp_path: Path) -> None:
+        diff = SchemaDiff(
+            source_label="src",
+            target_label="tgt",
+            table_diffs=(
+                TableDiff(
+                    table_name="order",
+                    status="removed",
+                    fk_diffs=(ForeignKeyDiff(fk_name="select", table_name="order", status="removed"),),
+                ),
+            ),
+        )
+        output = tmp_path / "diff.sql"
+        SqlDiffReporter(dialect="mariadb").render(diff, output)
+        content = output.read_text(encoding="utf-8")
+        assert "ALTER TABLE `order` DROP FOREIGN KEY `select`;" in content
+
+    def test_alter_table_add_column_reserved_words(self, tmp_path: Path) -> None:
+        diff = SchemaDiff(
+            source_label="src",
+            target_label="tgt",
+            table_diffs=(
+                TableDiff(
+                    table_name="order",
+                    status="modified",
+                    column_diffs=(
+                        ColumnDiff(
+                            column_name="group",
+                            attribute="existence",
+                            source_value="exists",
+                            target_value="missing",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        output = tmp_path / "diff.sql"
+        SqlDiffReporter(dialect="postgresql").render(diff, output)
+        content = output.read_text(encoding="utf-8")
+        assert 'ALTER TABLE "order" ADD COLUMN "group"' in content
+
+    def test_alter_table_drop_column_reserved_words(self, tmp_path: Path) -> None:
+        diff = SchemaDiff(
+            source_label="src",
+            target_label="tgt",
+            table_diffs=(
+                TableDiff(
+                    table_name="order",
+                    status="modified",
+                    column_diffs=(
+                        ColumnDiff(
+                            column_name="group",
+                            attribute="existence",
+                            source_value="missing",
+                            target_value="exists",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        output = tmp_path / "diff.sql"
+        SqlDiffReporter(dialect="postgresql").render(diff, output)
+        content = output.read_text(encoding="utf-8")
+        assert 'ALTER TABLE "order" DROP COLUMN "group";' in content
+
+    def test_modify_column_default_reserved_words_mariadb(self, tmp_path: Path) -> None:
+        diff = SchemaDiff(
+            source_label="src",
+            target_label="tgt",
+            table_diffs=(
+                TableDiff(
+                    table_name="order",
+                    status="modified",
+                    column_diffs=(
+                        ColumnDiff(
+                            column_name="group",
+                            attribute="default",
+                            source_value="'x'",
+                            target_value="NULL",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        output = tmp_path / "diff.sql"
+        SqlDiffReporter(dialect="mariadb").render(diff, output)
+        content = output.read_text(encoding="utf-8")
+        assert "ALTER TABLE `order` MODIFY COLUMN `group` <TIPO> DEFAULT 'x';" in content
+
+    def test_index_create_and_drop_reserved_words(self, tmp_path: Path) -> None:
+        diff = SchemaDiff(
+            source_label="src",
+            target_label="tgt",
+            table_diffs=(
+                TableDiff(
+                    table_name="order",
+                    status="modified",
+                    index_diffs=(
+                        IndexDiff(
+                            index_name="select",
+                            table_name="order",
+                            status="added",
+                            source_columns="group",
+                            source_unique=False,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        output = tmp_path / "diff.sql"
+        SqlDiffReporter(dialect="postgresql").render(diff, output)
+        content = output.read_text(encoding="utf-8")
+        assert 'CREATE INDEX "select" ON "order" ("group");' in content
+
+    def test_fk_add_reserved_words(self, tmp_path: Path) -> None:
+        diff = SchemaDiff(
+            source_label="src",
+            target_label="tgt",
+            table_diffs=(
+                TableDiff(
+                    table_name="order",
+                    status="modified",
+                    fk_diffs=(
+                        ForeignKeyDiff(
+                            fk_name="select",
+                            table_name="order",
+                            status="added",
+                            source_columns="group",
+                            source_referred_table="user",
+                            source_referred_columns="references",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        output = tmp_path / "diff.sql"
+        SqlDiffReporter(dialect="postgresql").render(diff, output)
+        content = output.read_text(encoding="utf-8")
+        assert (
+            'ALTER TABLE "order" ADD CONSTRAINT "select" FOREIGN KEY ("group") '
+            'REFERENCES "user" ("references");' in content
+        )
+
+    def test_comment_on_table_and_column_reserved_words(self, tmp_path: Path) -> None:
+        diff = SchemaDiff(
+            source_label="src",
+            target_label="tgt",
+            table_diffs=(
+                TableDiff(
+                    table_name="order",
+                    status="modified",
+                    comment_diffs=(
+                        CommentDiff(
+                            object_name="order",
+                            column_name="group",
+                            source_comment="c",
+                            target_comment="",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        output = tmp_path / "diff.sql"
+        SqlDiffReporter(dialect="postgresql").render(diff, output)
+        content = output.read_text(encoding="utf-8")
+        assert 'COMMENT ON COLUMN "order"."group" IS' in content
+
+    def test_view_drop_and_create_reserved_words(self, tmp_path: Path) -> None:
+        diff = SchemaDiff(
+            source_label="src",
+            target_label="tgt",
+            view_diffs=(ViewDiff(view_name="order", status="added", source_definition="SELECT 1"),),
+        )
+        output = tmp_path / "diff.sql"
+        SqlDiffReporter(dialect="postgresql").render(diff, output)
+        content = output.read_text(encoding="utf-8")
+        assert 'CREATE VIEW "order" AS' in content
+
+    def test_routine_drop_reserved_words(self, tmp_path: Path) -> None:
+        diff = SchemaDiff(
+            source_label="src",
+            target_label="tgt",
+            routine_diffs=(RoutineDiff(routine_name="order", routine_type="PROCEDURE", status="removed"),),
+        )
+        output = tmp_path / "diff.sql"
+        SqlDiffReporter(dialect="postgresql").render(diff, output)
+        content = output.read_text(encoding="utf-8")
+        assert 'DROP PROCEDURE IF EXISTS "order";' in content
