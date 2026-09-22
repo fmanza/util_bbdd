@@ -7,20 +7,22 @@ solo coordinan la parte sync/async (await vs directa).
 
 from __future__ import annotations
 
+from typing import Any
+
 from ...results import RowOrNone, Rows
 from ._routine_models import MariaDBRoutineDetail, MariaDBRoutineParameterDetail
-from .common import escape_mariadb_sql_literal
 from .routines import build_mariadb_routine_ddl
 
 
-def build_columns_safe_sql(context_database: str, tabla: str) -> str:
+def build_columns_safe_sql(context_database: str, tabla: str) -> tuple[str, dict[str, Any]]:
     """Construye la consulta HEX-safe para columnas de una tabla MariaDB.
 
-    Usa HEX(...) para evitar corrupción de charset en information_schema.
+    Usa HEX(...) para evitar corrupción de charset en information_schema. ``schema``/``table``
+    van bindeados como parámetros (no interpolados): interpolar un literal escapado solo con
+    duplicado de comillas simples es bypasseable con un backslash bajo el ``sql_mode`` por
+    defecto de MariaDB/MySQL (ver AUDIT_CODE MEO-02, 2026-09-22).
     """
-    escaped_database: str = escape_mariadb_sql_literal(context_database)
-    escaped_table: str = escape_mariadb_sql_literal(tabla)
-    return (
+    sql = (
         "SELECT HEX(COLUMN_NAME) AS column_name_hex, "
         "HEX(COLUMN_TYPE) AS column_type_hex, "
         "IS_NULLABLE, "
@@ -30,22 +32,30 @@ def build_columns_safe_sql(context_database: str, tabla: str) -> str:
         "HEX(COALESCE(EXTRA, '')) AS extra_hex, "
         "HEX(COALESCE(COLUMN_COMMENT, '')) AS column_comment_hex "
         "FROM information_schema.columns "
-        f"WHERE table_schema = '{escaped_database}' AND table_name = '{escaped_table}' "
+        "WHERE table_schema = %(schema)s AND table_name = %(table)s "
         "ORDER BY ordinal_position"
     )
+    return sql, {"schema": context_database, "table": tabla}
 
 
-def build_view_definition_sql(database: str, view_name: str) -> str:
-    """Construye la consulta para obtener VIEW_DEFINITION desde information_schema."""
-    escaped_view: str = escape_mariadb_sql_literal(view_name)
-    schema_condition: str = f"'{escape_mariadb_sql_literal(database)}'" if database else "DATABASE()"
-    return (
+def build_view_definition_sql(database: str, view_name: str) -> tuple[str, dict[str, Any]]:
+    """Construye la consulta para obtener VIEW_DEFINITION desde information_schema.
+
+    ``schema``/``view`` van bindeados como parámetros; ver nota de seguridad en
+    :func:`build_columns_safe_sql`.
+    """
+    schema_condition: str = "%(schema)s" if database else "DATABASE()"
+    sql = (
         "SELECT VIEW_DEFINITION "
         "FROM information_schema.views "
         f"WHERE TABLE_SCHEMA = {schema_condition} "
-        f"AND TABLE_NAME = '{escaped_view}' "
+        "AND TABLE_NAME = %(view)s "
         "LIMIT 1"
     )
+    params: dict[str, Any] = {"view": view_name}
+    if database:
+        params["schema"] = database
+    return sql, params
 
 
 def process_view_result(result: RowOrNone, view_name: str) -> str:

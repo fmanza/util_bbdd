@@ -174,29 +174,38 @@ def _hex(text: str) -> str:
 
 
 def test_build_columns_safe_sql_contains_hex_and_where() -> None:
-    sql = build_columns_safe_sql("ventas", "pedidos")
+    sql, params = build_columns_safe_sql("ventas", "pedidos")
     assert "HEX(COLUMN_NAME)" in sql
-    assert "table_schema = 'ventas'" in sql
-    assert "table_name = 'pedidos'" in sql
+    assert "table_schema = %(schema)s" in sql
+    assert "table_name = %(table)s" in sql
     assert "ORDER BY ordinal_position" in sql
+    assert params == {"schema": "ventas", "table": "pedidos"}
 
 
-def test_build_columns_safe_sql_escapes_single_quotes() -> None:
-    sql = build_columns_safe_sql("db'name", "ta'ble")
-    assert "db''name" in sql
-    assert "ta''ble" in sql
+def test_build_columns_safe_sql_binds_adversarial_values_instead_of_interpolating() -> None:
+    """MEO-02 (AUDIT_CODE 2026-09-22): un escapado por duplicado de comillas simples sin
+    escapar backslash es bypasseable bajo el sql_mode por defecto de MariaDB/MySQL. El fix
+    bindea schema/table como parámetros reales en vez de interpolarlos en el SQL."""
+    sql, params = build_columns_safe_sql("db\\'; DROP TABLE x; --", "ta'ble")
+
+    assert "DROP TABLE" not in sql
+    assert "db" not in sql
+    assert "ta'ble" not in sql
+    assert params == {"schema": "db\\'; DROP TABLE x; --", "table": "ta'ble"}
 
 
 def test_build_view_definition_sql_uses_schema_condition() -> None:
-    sql = build_view_definition_sql("my_db", "v_resumen")
-    assert "TABLE_SCHEMA = 'my_db'" in sql
-    assert "TABLE_NAME = 'v_resumen'" in sql
+    sql, params = build_view_definition_sql("my_db", "v_resumen")
+    assert "TABLE_SCHEMA = %(schema)s" in sql
+    assert "TABLE_NAME = %(view)s" in sql
     assert "LIMIT 1" in sql
+    assert params == {"view": "v_resumen", "schema": "my_db"}
 
 
 def test_build_view_definition_sql_empty_database_uses_database_function() -> None:
-    sql = build_view_definition_sql("", "v_test")
+    sql, params = build_view_definition_sql("", "v_test")
     assert "TABLE_SCHEMA = DATABASE()" in sql
+    assert params == {"view": "v_test"}
 
 
 def test_process_view_result_returns_create_view() -> None:

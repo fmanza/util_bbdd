@@ -110,12 +110,12 @@ class MariaDBSyncAdapter:
         return [entry for entry in entries if isinstance(entry, MariaDBRoutineParameterDetail)]
 
     def fetch_columns_safe(self, context_database: str, tabla: str) -> Rows:
-        sql = build_columns_safe_sql(context_database, tabla)
-        return decode_mariadb_safe_column_rows(self.manager.execute_custom_many(sql))
+        sql, params = build_columns_safe_sql(context_database, tabla)
+        return decode_mariadb_safe_column_rows(self.manager.execute_custom_many(sql, params))
 
     def fetch_view_from_information_schema(self, database: str, view_name: str) -> str:
-        sql = build_view_definition_sql(database, view_name)
-        return process_view_result(self.manager.execute_custom_one(sql), view_name)
+        sql, params = build_view_definition_sql(database, view_name)
+        return process_view_result(self.manager.execute_custom_one(sql, params), view_name)
 
     def fetch_routine_from_information_schema(self, database: str, routine_name: str, routine_type: str) -> str:
         routine_rows = self.get_routine_details(database)
