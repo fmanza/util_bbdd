@@ -143,6 +143,55 @@ class TestCadenceCommits:
 # ---------------------------------------------------------------------------
 
 
+class TestRowsCommittedTracking:
+    """BLK-08 (AUDIT_CODE 2026-09-22): rows_committed debe reflejar solo las filas
+    que ya sobrevivieron un commit real, no las ejecutadas-pero-pendientes."""
+
+    def test_rows_committed_stays_zero_without_cadence(self) -> None:
+        engine = _make_sqlite_engine()
+        crud = BulkCrud(engine, chunk_size=2)  # sin commit_every_n_chunks (modo atómico)
+        df = pd.DataFrame({"id": [1, 2, 3], "name": ["a", "b", "c"]})
+
+        crud.bulk_insert_from_df(df, "items", generar_sql=False)
+
+        assert crud.rows_committed == 0
+
+    def test_rows_committed_accumulates_periodic_and_tail_commits(self) -> None:
+        engine = _make_sqlite_engine()
+        crud = BulkCrud(engine, chunk_size=1, commit_every_n_chunks=2)
+        df = pd.DataFrame({"id": [1, 2, 3, 4, 5], "name": ["a", "b", "c", "d", "e"]})
+
+        crud.bulk_insert_from_df(df, "items", generar_sql=False)
+
+        assert crud.rows_committed == 5
+
+    def test_rows_committed_reflects_only_durable_rows_on_mid_batch_failure(self) -> None:
+        """5 filas, chunk_size=1, cadencia=2: falla la 4ª sub-tanda tras 1 commit
+        periódico (filas 1-2). La fila 3 (ejecutada pero sin commitear) se pierde
+        al hacer rollback implícito; rows_committed debe reflejar 2, no 0 ni 5."""
+        engine = _make_sqlite_engine()
+        crud = BulkCrud(engine, chunk_size=1, commit_every_n_chunks=2)
+        original_execute = crud._batch_statement_executor._insert_strategy.execute
+        call_count = {"n": 0}
+
+        def _flaky_execute(*, connection: Any, stmt: Any, records: Any) -> None:
+            call_count["n"] += 1
+            if call_count["n"] == 4:
+                raise RuntimeError("boom on 4th sub-batch")
+            original_execute(connection=connection, stmt=stmt, records=records)
+
+        crud._batch_statement_executor._insert_strategy.execute = _flaky_execute  # type: ignore[method-assign]
+
+        df = pd.DataFrame({"id": [1, 2, 3, 4, 5], "name": ["a", "b", "c", "d", "e"]})
+        with pytest.raises(RuntimeError, match="boom"):
+            crud.bulk_insert_from_df(df, "items", generar_sql=False)
+
+        assert crud.rows_committed == 2
+        with engine.connect() as conn:
+            total = conn.exec_driver_sql("SELECT COUNT(*) FROM items").scalar()
+        assert total == 2
+
+
 class TestCadenceEndToEnd:
     def test_all_rows_persist_with_cadence(self) -> None:
         engine = _make_sqlite_engine()

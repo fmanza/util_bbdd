@@ -462,6 +462,12 @@ class BatchStatementExecutor:
         self._active_connection: Any | None = None
         self._commit_every_n_chunks: int | None = commit_every_n_chunks
         self._chunks_since_commit: int = 0
+        # BLK-08 (AUDIT_CODE 2026-09-22): filas durablemente comprometidas (ya vía
+        # commit periódico, ya vía el commit final) frente a las ejecutadas pero
+        # aún no commiteadas — permite reportar cuántas filas sobreviven si una
+        # carga falla a mitad de sesión con commit_every_n_chunks activo.
+        self.rows_committed: int = 0
+        self._rows_pending_commit: int = 0
         drivername: str = str(engine.url.drivername).lower()
         self._insert_strategy: InsertExecutionStrategyProtocol = (insert_resolver or InsertStrategyResolver()).resolve(
             engine.dialect.name, drivername
@@ -487,6 +493,8 @@ class BatchStatementExecutor:
                 self._execute_on_connection(connection, records, stmt)
                 connection.commit()
                 self._chunks_since_commit = 0
+                self.rows_committed += self._rows_pending_commit
+                self._rows_pending_commit = 0
         else:
             with self._engine.begin() as connection:
                 self._execute_on_connection(connection, records, stmt)
@@ -499,16 +507,20 @@ class BatchStatementExecutor:
         resto (tail) es responsabilidad del llamador (``execute`` / ``bulk_session``).
         """
         for start in range(0, len(records), self._chunk_size):
+            batch: Sequence[Mapping[str, Any]] = records[start : start + self._chunk_size]
             self._insert_strategy.execute(
                 connection=connection,
                 stmt=stmt,
-                records=records[start : start + self._chunk_size],
+                records=batch,
             )
             if self._commit_every_n_chunks is not None:
+                self._rows_pending_commit += len(batch)
                 self._chunks_since_commit += 1
                 if self._chunks_since_commit >= self._commit_every_n_chunks:
                     connection.commit()
                     self._chunks_since_commit = 0
+                    self.rows_committed += self._rows_pending_commit
+                    self._rows_pending_commit = 0
 
 
 # ---------------------------------------------------------------------------

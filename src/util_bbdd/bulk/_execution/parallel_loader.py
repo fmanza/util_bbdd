@@ -56,8 +56,8 @@ def _quote_pg_table(tabla_destino: str) -> tuple[str | None, str, str]:
     """
     if "." in tabla_destino:
         schema, table = tabla_destino.split(".", 1)
-        return schema, table, f'"{schema.replace(chr(34), chr(34)*2)}"."{table.replace(chr(34), chr(34)*2)}"'
-    return None, tabla_destino, f'"{tabla_destino.replace(chr(34), chr(34)*2)}"'
+        return schema, table, f'"{schema.replace(chr(34), chr(34) * 2)}"."{table.replace(chr(34), chr(34) * 2)}"'
+    return None, tabla_destino, f'"{tabla_destino.replace(chr(34), chr(34) * 2)}"'
 
 
 def _validate_partition_ranges(ranges: Sequence[tuple[int, int]], n_readers: int) -> None:
@@ -88,7 +88,10 @@ class PartitionResult:
 
     Attributes:
         index: Índice de la partición (0-based, orden del ``partition_readers``).
-        rows: Filas insertadas correctamente en esta partición.
+        rows: Filas insertadas correctamente en esta partición. Si la partición
+            falló a mitad con ``commit_every_n_chunks`` activo, refleja las filas
+            ya comprometidas en BD antes del fallo (no necesariamente 0) —
+            ver ``BulkCrud.rows_committed``.
         elapsed_seconds: Tiempo de carga de la partición en segundos.
         error: Mensaje de error si la partición falló; ``None`` si tuvo éxito.
         retries: Número de reintentos realizados (0 si tuvo éxito en el primer intento).
@@ -377,7 +380,10 @@ class ParallelBulkLoader:
                 _log.warning("Error permanente cargando partición %d de '%s': %s", index, tabla_destino, exc)
                 return PartitionResult(
                     index=index,
-                    rows=0,
+                    # BLK-08: crud.rows_committed refleja filas ya comprometidas vía
+                    # commit_every_n_chunks antes del fallo (0 en modo atómico, donde
+                    # un fallo revierte toda la sesión).
+                    rows=crud.rows_committed,
                     elapsed_seconds=elapsed,
                     error=f"partición {index}: {exc}",
                     retries=attempt,
@@ -388,7 +394,7 @@ class ParallelBulkLoader:
         _log.warning("Partición %d agotó %d reintentos: %s", index, self._max_retries, last_exc)
         return PartitionResult(
             index=index,
-            rows=0,
+            rows=crud.rows_committed,
             elapsed_seconds=elapsed,
             error=f"partición {index}: {last_exc}",
             retries=self._max_retries,
@@ -429,7 +435,6 @@ class ParallelBulkLoader:
                     )
                     total += len(chunk)
         return total
-
 
     @contextmanager
     def _hoist_constraints_for_workers(self, tabla_destino: str) -> Iterator[bool]:

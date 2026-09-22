@@ -53,6 +53,7 @@ class TestParallelBulkLoaderOrchestration:
             calls["n"] += 1
             if calls["n"] == 2:  # la 2ª partición falla
                 crud.bulk_insert_from_chunks.side_effect = SQLAlchemyError("boom")
+                crud.rows_committed = 0  # sin commit_every_n_chunks: nada sobrevive al fallo
             else:
                 crud.bulk_insert_from_chunks.return_value = 7
             return crud
@@ -179,6 +180,7 @@ class TestParallelBulkLoaderRetry:
         readers = [lambda: iter([])]
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_cls.return_value.bulk_insert_from_chunks.side_effect = TimeoutError("timeout")
+            crud_cls.return_value.rows_committed = 0  # sin commit_every_n_chunks: nada sobrevive al fallo
             loader = ParallelBulkLoader(MagicMock(), max_workers=1, max_retries=2)
             result = loader.load("t", readers)
 
@@ -196,6 +198,7 @@ class TestParallelBulkLoaderRetry:
         readers = [lambda: iter([])]
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_cls.return_value.bulk_insert_from_chunks.side_effect = _permanent
+            crud_cls.return_value.rows_committed = 0
             loader = ParallelBulkLoader(MagicMock(), max_workers=1, max_retries=3)
             result = loader.load("t", readers)
 
@@ -209,6 +212,40 @@ class TestParallelBulkLoaderRetry:
             loader = ParallelBulkLoader(MagicMock(), max_workers=1, max_retries=3)
             result = loader.load("t", readers)
 
+        assert result.partition_results[0].retries == 0
+
+
+class TestParallelBulkLoaderPartialRowsOnFailure:
+    """BLK-08 (AUDIT_CODE 2026-09-22): PartitionResult.rows no debe caer a 0 si ya
+    hay filas comprometidas vía commit_every_n_chunks cuando la partición falla."""
+
+    def test_permanent_failure_reports_rows_already_committed(self) -> None:
+        readers = [lambda: iter([])]
+        with patch.object(pl_mod, "BulkCrud") as crud_cls:
+            crud_mock = MagicMock()
+            crud_mock.bulk_insert_from_chunks.side_effect = SQLAlchemyError("boom mid partition")
+            crud_mock.rows_committed = 4000  # ya comprometido vía commit_every_n_chunks antes del fallo
+            crud_cls.return_value = crud_mock
+            loader = ParallelBulkLoader(MagicMock(), max_workers=1, commit_every_n_chunks=10)
+            result = loader.load("t", readers)
+
+        assert result.partition_results[0].rows == 4000
+        assert result.total_rows == 4000
+        assert len(result.partition_errors) == 1
+
+    def test_retries_exhausted_reports_rows_already_committed(self) -> None:
+        readers = [lambda: iter([])]
+        with patch.object(pl_mod, "BulkCrud") as crud_cls:
+            crud_mock = MagicMock()
+            crud_mock.bulk_insert_from_chunks.side_effect = TimeoutError("timeout mid partition")
+            crud_mock.rows_committed = 250
+            crud_cls.return_value = crud_mock
+            # commit_every_n_chunks y max_retries>0 son incompatibles (validado en
+            # __init__); max_retries=0 es el único modo compatible con cadencia.
+            loader = ParallelBulkLoader(MagicMock(), max_workers=1, commit_every_n_chunks=10, max_retries=0)
+            result = loader.load("t", readers)
+
+        assert result.partition_results[0].rows == 250
         assert result.partition_results[0].retries == 0
 
 
@@ -329,10 +366,13 @@ class TestParallelBulkLoaderConstraintHoist:
         df = pd.DataFrame({"id": [1], "v": ["a"]})
         readers = [lambda: iter([df])]
 
-        with patch.object(pl_mod, "BulkCrud") as crud_cls, patch.object(
-            pl_mod.ParallelBulkLoader,
-            "_hoist_constraints_for_workers",
-            return_value=contextlib.nullcontext(True),
+        with (
+            patch.object(pl_mod, "BulkCrud") as crud_cls,
+            patch.object(
+                pl_mod.ParallelBulkLoader,
+                "_hoist_constraints_for_workers",
+                return_value=contextlib.nullcontext(True),
+            ),
         ):
             crud_mock = MagicMock()
             crud_cls.return_value = crud_mock
@@ -368,10 +408,13 @@ class TestParallelBulkLoaderConstraintHoist:
         df = pd.DataFrame({"id": [1], "v": ["a"]})
         readers = [lambda: iter([df])]
 
-        with patch.object(pl_mod, "BulkCrud") as crud_cls, patch.object(
-            pl_mod.ParallelBulkLoader,
-            "_hoist_constraints_for_workers",
-            return_value=contextlib.nullcontext(True),
+        with (
+            patch.object(pl_mod, "BulkCrud") as crud_cls,
+            patch.object(
+                pl_mod.ParallelBulkLoader,
+                "_hoist_constraints_for_workers",
+                return_value=contextlib.nullcontext(True),
+            ),
         ):
             crud_mock = MagicMock()
             crud_cls.return_value = crud_mock
@@ -387,10 +430,13 @@ class TestParallelBulkLoaderConstraintHoist:
         df = pd.DataFrame({"id": [1], "v": ["a"]})
         readers = [lambda: iter([df])]
 
-        with patch.object(pl_mod, "BulkCrud") as crud_cls, patch.object(
-            pl_mod.ParallelBulkLoader,
-            "_hoist_constraints_for_workers",
-            return_value=contextlib.nullcontext(False),
+        with (
+            patch.object(pl_mod, "BulkCrud") as crud_cls,
+            patch.object(
+                pl_mod.ParallelBulkLoader,
+                "_hoist_constraints_for_workers",
+                return_value=contextlib.nullcontext(False),
+            ),
         ):
             crud_mock = MagicMock()
             crud_cls.return_value = crud_mock
@@ -447,9 +493,7 @@ class TestParallelBulkLoaderPartitionRanges:
         readers = [lambda: iter([])]
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_cls.return_value.bulk_insert_from_chunks.return_value = 0
-            result = ParallelBulkLoader(MagicMock(), max_workers=1).load(
-                "t", readers, partition_ranges=None
-            )
+            result = ParallelBulkLoader(MagicMock(), max_workers=1).load("t", readers, partition_ranges=None)
         assert result.partition_errors == []
 
     def test_adjacent_ranges_not_considered_overlapping(self) -> None:

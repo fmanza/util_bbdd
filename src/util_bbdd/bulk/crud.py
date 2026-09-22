@@ -750,6 +750,21 @@ class BulkCrud:
         self._table_cache[tabla_destino] = tabla
         return tabla
 
+    @property
+    def rows_committed(self) -> int:
+        """Filas durablemente comprometidas en BD por esta instancia hasta el momento.
+
+        BLK-08 (AUDIT_CODE 2026-09-22): solo avanza cuando la instancia se construyó
+        con ``commit_every_n_chunks`` — cada vez que se alcanza el commit periódico
+        o el commit final de ``bulk_session()``. En modo atómico (default, sin
+        ``commit_every_n_chunks``) permanece en 0: un fallo revierte toda la sesión,
+        por lo que no hay filas parciales que reportar como comprometidas.
+
+        Permite a quien orquesta cargas por partición (p.ej. ``ParallelBulkLoader``)
+        saber cuántas filas sobrevivieron aunque la carga falle a mitad de sesión.
+        """
+        return self._batch_statement_executor.rows_committed
+
     @contextmanager
     def bulk_session(self, *, atomic: bool = True) -> Iterator[None]:
         """Context manager que reutiliza una única conexión de BD para múltiples inserts.
@@ -792,6 +807,8 @@ class BulkCrud:
                     yield
                     conn.commit()
                     executor._chunks_since_commit = 0
+                    executor.rows_committed += executor._rows_pending_commit
+                    executor._rows_pending_commit = 0
                 finally:
                     executor._active_connection = None
             return
@@ -868,9 +885,7 @@ class BulkCrud:
                     conn, dialect, quoted_name, tabla, tabla_destino
                 )
             if disable_indexes:
-                mssql_indexes_disabled = self.__maintenance_disable_indexes(
-                    conn, dialect, quoted_name, tabla_destino
-                )
+                mssql_indexes_disabled = self.__maintenance_disable_indexes(conn, dialect, quoted_name, tabla_destino)
             self.logger.info(f"🛠️ Modo mantenimiento activado: {tabla_destino} ({dialect})")
             yield
         finally:
