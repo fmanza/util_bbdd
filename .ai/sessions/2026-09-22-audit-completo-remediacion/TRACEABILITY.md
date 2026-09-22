@@ -122,11 +122,13 @@ tests/unit/test_protocol_conformance.py` limpios en el estado final.
   ya no fuerza `INT(11)` para todo `AUTO_INCREMENT`; `_auto_increment_col_type()` preserva la
   categoría del tipo origen (`TINYINT`/`SMALLINT`/`MEDIUMINT`/`INT`/`BIGINT`) con su display width
   convencional. No reabrir salvo nuevo hallazgo real.
-- **[metadata/MDC-01]**: decisión de arquitectura ya tomada con el usuario (2026-09-22, vía
-  `AskUserQuestion`) pero **no implementada**: exponer `MetadataManager`/`DDLBuilder` vía un
-  **método nuevo en `managers/sync_mgr.py`/`async_mgr.py`** (no un manager dedicado, no deprecar).
-  Antes de escribir código: corregir `builder.py::_quote_identifier` (no escapa comillas
-  embebidas) y el `DEFAULT` sin comillas en `builder.py:107-111`. Ver `02_PLAN_p1_p2.md` Fase 2.
+- **[metadata/MDC-01]**: **RESUELTO e IMPLEMENTADO en esta sesión (commits `b701a3d`, `6e5a559`)**
+  — `DDLBuilder._quote_identifier`/`DEFAULT` corregidos primero; `SyncDatabaseManager`/
+  `AsyncDatabaseManager` exponen `get_metadata_manager()` (construcción diferida, cachea la
+  instancia, reutiliza `self` como `metadata_provider` y comparte `db_cache`/
+  `relationship_cache`). `MetadataFetcher` resultó ser código muerto dentro de `MetadataManager`
+  (nunca invocado) — se eliminó la referencia en vez de implementarlo, ver detalle en "Veredicto
+  final" § MDC-01. No reabrir salvo nuevo hallazgo real.
 - **[foundation/FND-03-FND-04]**: decisión ya tomada con el usuario (2026-09-22) pero **no
   implementada**: conectar `DumpOrchestrator` para que lance de verdad `DumpError`/
   `DumpConstraintError`/`DumpReportError` en fallos reales (en vez de retirar la jerarquía como
@@ -161,23 +163,55 @@ Veredicto: **GO** para los 9 ítems P0 (implementados, testeados, commiteados si
 Veredicto: **GO** para Fase 1 + MIG-02 del backlog P1/P2 (4 ítems: MSS-03, BLK-04, BLK-06, MIG-02 —
 implementados, testeados, commiteados sin incidencias; BLK-03 descartado como falso positivo tras
 verificación, ver arriba).
+Veredicto: **GO** para MDC-01 (Fase 2 completa, ciclo `/refactor` dedicado — ver detalle abajo).
+
+### MDC-01 — IMPLEMENTADO 2026-09-22 (commits `b701a3d`, `6e5a559`)
+
+Ciclo `/refactor` dedicado (PLAN+AUDIT_PLAN+IMPLEMENT+AUDIT_CODE), continuación de esta sesión:
+
+- **Sub-paso 1 (seguridad, commit `b701a3d`)**: `DDLBuilder._quote_identifier` ahora duplica el
+  delimitador embebido (backtick/comilla/corchete) en vez de solo envolver el identificador
+  — cierra la inyección de identificador. `_build_column_definition` cita y escapa los `DEFAULT`
+  string vía `_format_default_value()` (palabras clave/funciones SQL conocidas y numéricos pasan
+  sin citar, igual que el patrón ya establecido en `migrate/emitters/mariadb.py::_format_default`,
+  replicado localmente para no romper la regla de capas). 22 tests de regresión nuevos
+  (`tests/unit/test_metadata_builder.py`), incluidos payloads de inyección explícitos.
+- **Hallazgo de reconciliación (no estaba en `01_PLAN_remediacion.md`/`02_PLAN_p1_p2.md`)**:
+  `MetadataManager.__init__` construía `self.fetcher = MetadataFetcher(metadata_provider)` pero
+  ningún método de `MetadataManager` lo usaba jamás — todas las operaciones ya llamaban
+  directamente a `metadata_provider.get_xxx()`. `MetadataFetcher` era código muerto *dentro de*
+  `MetadataManager`, no un componente que activar. Confirmado con el usuario vía
+  `AskUserQuestion` (2026-09-22): se elimina la línea muerta en vez de "implementar"
+  `MetadataFetcher` (que hubiera sido trabajo no consumido por nadie); la clase `MetadataFetcher`
+  queda sin tocar y sigue exportada tal cual (sin implementar, comportamiento previo intacto).
+  Mismo patrón que el falso positivo BLK-03 de esta sesión: una asunción de plan que la lectura
+  del código contradice.
+- **Sub-pasos 2-4 (arquitectura, commit `6e5a559`)**: `SyncDatabaseManager.get_metadata_manager()`
+  y `AsyncDatabaseManager.get_metadata_manager()` (nuevo, aditivo) construyen de forma diferida un
+  `MetadataManager`/`AsyncMetadataManager` (nuevo, espejo async — `SyncDatabaseManager`/
+  `AsyncDatabaseManager` ya implementaban íntegramente `SyncMetadataProvider`/
+  `AsyncMetadataProvider` contra producción, confirmado con mypy antes de conectar) reutilizando
+  `self` como `metadata_provider` y compartiendo `db_cache`/`relationship_cache` con el resto del
+  manager (sin duplicar cacheo). 8 tests de integración reales (sqlite3/aiosqlite, no mockeados,
+  `tests/unit/test_metadata_manager_production_wiring.py`), incluido un roundtrip: el DDL
+  construido por `DDLBuilder` se ejecuta de verdad contra la conexión.
+- Suite completa verde tras cada commit (4163→4193 tests); `ruff check`/`ruff format --check`/
+  `mypy src tests/unit/test_protocol_conformance.py` limpios; Regla #6
+  (`test_architecture_import_rules.py`) verde; diagrama de capas regenerado sin cambios (el borde
+  `managers→metadata` ya existía).
 
 Pendientes al cierre:
 - Reconciliación de `01_PLAN_remediacion.md` contra el estado actual: ya implementados MEO-03 (P1)
   y MDC-05 (P2) junto con los P0 en el commit `c373e29`; Fase 1 + MIG-02 de `02_PLAN_p1_p2.md`
-  implementados en esta sesión (commits `0d6c81e`…`70935d2`). Quedan **10 ítems P1 + 31 ítems P2 =
-  41** (13 P1 restando MEO-03/MIG-02, no 14 — MIG-02 ya está implementado).
-- Decisión ya tomada pero **no implementada**: MDC-01 (conectar `MetadataManager`/
-  `MetadataFetcher`/`DDLBuilder` a la ruta real, vía método nuevo en `sync_mgr.py`/`async_mgr.py`)
-  — Fase 2 de `02_PLAN_p1_p2.md`, el ítem de mayor esfuerzo del lote; requiere su propio ciclo
-  `/refactor` con PLAN+AUDIT_PLAN dedicados. Corregir `builder.py::_quote_identifier` y el
-  `DEFAULT` sin comillas **antes** de conectar.
+  implementados en esta sesión (commits `0d6c81e`…`70935d2`); MDC-01 implementado (commits
+  `b701a3d`, `6e5a559`, ver detalle arriba). Quedan **9 ítems P1 + 31 ítems P2 = 40** (12 P1
+  restando MEO-03/MIG-02/MDC-01).
 - Decisión ya tomada pero **no implementada**: FND-03/FND-04 (conectar `DumpOrchestrator` a
   `DumpError` real, luego exportar toda la jerarquía) — Fase 4 de `02_PLAN_p1_p2.md`.
 - Decisión ya tomada pero **no implementada**: MIG-01 (gate `error_count > 0` sin flag de
   override) — Fase 3 de `02_PLAN_p1_p2.md`.
 - Decisión sin resolver: alcance de la exclusión redshift/snowflake en documentación pública.
-- Esta sesión permanece **IN_PROGRESS**: AUDIT_CODE, fase P0, y Fase 1 + MIG-02 del backlog P1/P2
-  están cerrados; MDC-01 (Fase 2), Fase 3 y Fase 4 quedan abiertos para continuar en sesión(es)
+- Esta sesión permanece **IN_PROGRESS**: AUDIT_CODE, fase P0, Fase 1 + MIG-02 y MDC-01 (Fase 2)
+  del backlog P1/P2 están cerrados; Fase 3 y Fase 4 quedan abiertas para continuar en sesión(es)
   futuras referenciando `01_PLAN_remediacion.md` + `02_PLAN_p1_p2.md` + las decisiones ya
   registradas arriba en "Directrices para Futuras IAs" (para no volver a preguntarlas).
