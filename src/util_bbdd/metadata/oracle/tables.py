@@ -81,25 +81,33 @@ def fetch_columns_sql() -> str:
     )
 
 
+#: Tipos Oracle sin mapeo genérico fiable (deprecados por Oracle desde 9i en favor de
+#: CLOB/BLOB). MEO-05 (AUDIT_CODE 2026-09-22): antes se descartaban en silencio (la
+#: columna desaparecía del resultado sin ningún indicio); ahora se conservan con un
+#: marcador explícito en el comentario en vez de desaparecer sin avisar.
+_UNSUPPORTED_ORACLE_COLUMN_TYPES: frozenset[str] = frozenset({"LONG", "LONG RAW"})
+
+
 def _normalize_oracle_column_row(row: Any) -> tuple[str, str, str, int, Any, str] | None:
     """Normaliza una fila individual de columna Oracle.
 
-    Excluye LONG/LONG RAW (detecta y filtra). Convierte tipos según Oracle semantics.
+    Las columnas LONG/LONG RAW se conservan (no se descartan) con un marcador
+    explícito ``[TIPO NO SOPORTADO]`` antepuesto al comentario — ver MEO-05.
 
     Args:
         row: Tupla/lista de datos de columna (9+ elementos)
 
     Returns:
         Tupla normalizada (column_name, column_type, is_nullable, ordinal_position,
-        column_default, column_comment) o None si es inválida o LONG/LONG RAW
+        column_default, column_comment) o None si la fila es inválida.
     """
     if not isinstance(row, (tuple, list)) or len(row) < 9:
         return None
 
-    # Detectar LONG/LONG RAW y skipear
     data_type = str(row[1]).upper() if row[1] else "VARCHAR2"
-    if data_type in ("LONG", "LONG RAW"):
-        return None
+    comment = str(row[8]) if row[8] else ""
+    if data_type in _UNSUPPORTED_ORACLE_COLUMN_TYPES:
+        comment = f"[TIPO NO SOPORTADO: {data_type}] {comment}".strip()
 
     return (
         str(row[0]) if row[0] else "",  # column_name
@@ -107,7 +115,7 @@ def _normalize_oracle_column_row(row: Any) -> tuple[str, str, str, int, Any, str
         str(row[2]) if row[2] else "YES",  # is_nullable
         int(row[3]) if row[3] is not None else 0,  # ordinal_position
         str(row[4]).strip() if row[4] else None,  # column_default (puede ser None)
-        str(row[8]) if row[8] else "",  # column_comment
+        comment,  # column_comment
     )
 
 

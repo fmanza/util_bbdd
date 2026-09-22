@@ -136,19 +136,35 @@ class TestDecodeOracleColumnRows:
         assert result[0][0] == "ID"
         assert result[0][1] == "NUMBER"
 
-    def test_decode_skips_long_type(self) -> None:
+    def test_decode_keeps_long_type_with_unsupported_marker(self) -> None:
+        """MEO-05 (AUDIT_CODE 2026-09-22): LONG/LONG RAW ya no desaparecen en
+        silencio; se conservan con un marcador explícito en el comentario."""
         rows = [
             ("DATA", "LONG", "Y", 1, "", 0, 0, 0, ""),
         ]
         result = decode_oracle_column_rows(rows)
-        assert len(result) == 0
+        assert len(result) == 1
+        assert result[0][0] == "DATA"
+        assert result[0][1] == "LONG"
+        assert "TIPO NO SOPORTADO" in result[0][5]
+        assert "LONG" in result[0][5]
 
-    def test_decode_skips_long_raw_type(self) -> None:
+    def test_decode_keeps_long_raw_type_with_unsupported_marker(self) -> None:
         rows = [
             ("DATA", "LONG RAW", "Y", 1, "", 0, 0, 0, ""),
         ]
         result = decode_oracle_column_rows(rows)
-        assert len(result) == 0
+        assert len(result) == 1
+        assert result[0][1] == "LONG RAW"
+        assert "TIPO NO SOPORTADO" in result[0][5]
+
+    def test_decode_long_type_preserves_existing_comment(self) -> None:
+        rows = [
+            ("DATA", "LONG", "Y", 1, "", 0, 0, 0, "Comentario original"),
+        ]
+        result = decode_oracle_column_rows(rows)
+        assert "Comentario original" in result[0][5]
+        assert "TIPO NO SOPORTADO" in result[0][5]
 
     def test_decode_column_with_default(self) -> None:
         rows = [
