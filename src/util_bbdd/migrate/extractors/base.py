@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from ..ir.models import CanonicalRoutine, CanonicalTable
+from ..ir.models import CanonicalRoutine, CanonicalTable, CanonicalView
 
 
 @runtime_checkable
@@ -30,6 +30,23 @@ class SchemaExtractor(Protocol):
 
         Returns:
             Lista de CanonicalRoutine con body y warnings poblados.
+        """
+        ...
+
+    def extract_views(self, schema: str) -> list[CanonicalView]:
+        """Extrae todas las vistas del esquema y las retorna como IR canónico.
+
+        MIG-04 (AUDIT_CODE 2026-09-22): las 4 implementaciones concretas
+        (Oracle/MariaDB/PostgreSQL/SQL Server) exponen este método y
+        ``migrate/planner.py`` lo invoca incondicionalmente; forma parte del
+        contrato real de ``SchemaExtractor`` aunque antes no estuviera
+        declarado en el Protocol.
+
+        Args:
+            schema: Nombre del schema/owner en el motor origen.
+
+        Returns:
+            Lista de CanonicalView con definición y columnas pobladas.
         """
         ...
 
