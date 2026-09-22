@@ -4,7 +4,26 @@ Responsabilidad: Construir sentencias SQL (CREATE TABLE, etc.) basadas en
 metadatos obtenidos de la base de datos.
 """
 
+import re
+
 from typing import Any
+
+_DEFAULT_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "NULL",
+        "CURRENT_TIMESTAMP",
+        "CURRENT_DATE",
+        "CURRENT_TIME",
+        "NOW()",
+        "SYSDATE",
+        "SYSTIMESTAMP",
+    }
+)
+
+_DEFAULT_FUNCTION_PATTERN = re.compile(
+    r"^(NOW|CURRENT_TIMESTAMP|CURRENT_DATE|CURRENT_TIME|SYSDATE|SYSTIMESTAMP)\(\d*\)$",
+    re.IGNORECASE,
+)
 
 
 class DDLBuilder:
@@ -108,9 +127,37 @@ class DDLBuilder:
         if len(col) > 4 and col[4] is not None:
             default = str(col[4]).strip()
             if default and default.upper() != "NONE":
-                col_def += f" DEFAULT {default}"
+                col_def += f" DEFAULT {self._format_default_value(default)}"
 
         return col_def
+
+    def _format_default_value(self, default: str) -> str:
+        """Formatea un valor DEFAULT para DDL, citando literales string.
+
+        Palabras clave/funciones SQL conocidas y valores numéricos se devuelven
+        tal cual; cualquier otro valor se trata como literal string y se cita,
+        escapando comillas simples embebidas (evita DDL inválido o inyectable).
+
+        Args:
+            default: Valor DEFAULT crudo (ya no vacío ni "NONE")
+
+        Returns:
+            Valor formateado listo para concatenar tras `DEFAULT `
+        """
+        if default.upper() in _DEFAULT_KEYWORDS or _DEFAULT_FUNCTION_PATTERN.match(default):
+            return default
+
+        try:
+            float(default)
+            return default
+        except ValueError:
+            pass
+
+        if len(default) >= 2 and default.startswith("'") and default.endswith("'"):
+            return default
+
+        escaped = default.replace("'", "''")
+        return f"'{escaped}'"
 
     def _build_primary_key_constraint(self, pk_columns: list[str]) -> str:
         """Construye constraint de PRIMARY KEY.
@@ -130,19 +177,23 @@ class DDLBuilder:
     def _quote_identifier(self, identifier: str) -> str:
         """Escapa identificador según motor de BD.
 
+        Duplica el carácter delimitador si aparece embebido en el identificador,
+        siguiendo la convención de escapado de cada motor (evita inyección de
+        identificador vía un nombre de tabla/columna con comilla/backtick/corchete).
+
         Args:
             identifier: Nombre a escapar
 
         Returns:
             Identificador escapado
         """
-        if self.db_type in ("postgresql",):
-            return f'"{identifier}"'
-        elif self.db_type in ("mariadb", "mysql", "sqlite"):
-            return f"`{identifier}`"
-        elif self.db_type in ("oracle",):
-            return f'"{identifier}"'
+        if self.db_type in ("postgresql", "oracle"):
+            escaped = identifier.replace('"', '""')
+            return f'"{escaped}"'
         elif self.db_type in ("sqlserver",):
-            return f"[{identifier}]"
+            escaped = identifier.replace("]", "]]")
+            return f"[{escaped}]"
         else:
-            return f"`{identifier}`"
+            # mariadb, mysql, sqlite y cualquier otro motor: backtick por defecto
+            escaped = identifier.replace("`", "``")
+            return f"`{escaped}`"
