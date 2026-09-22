@@ -30,6 +30,8 @@ class MariaDBValidator(DatabaseTypeValidator):
         Verifica:
         1. Todos los parámetros requeridos están presentes y no vacíos
         2. Parámetros conocidos tienen tipos válidos
+        3. Identificadores (database, tabla, rutina, tipo_rutina, tablespace) con allowlist
+           compartida — ``QueryResolver`` los interpola crudo en el SQL final
 
         Args:
             query_def: Definición de la query
@@ -40,19 +42,10 @@ class MariaDBValidator(DatabaseTypeValidator):
         """
         warnings: list[str] = []
 
-        # Verificar parámetros requeridos
-        for required_param in query_def.required_params:
-            if required_param not in params:
-                msg = f"Missing required parameter '{required_param}' for query '{query_def.name}'"
-                self.logger.debug(f"❌ Validation failed: {msg}")
-                return False, [msg]
-
-            if params[required_param] is None or (
-                isinstance(params[required_param], str) and params[required_param].strip() == ""
-            ):
-                msg = f"Parameter '{required_param}' cannot be empty or None"
-                self.logger.debug(f"❌ Validation failed: {msg}")
-                return False, [msg]
+        required_check = self._check_required_params(query_def, params)
+        if required_check is not None:
+            self.logger.debug(f"❌ Validation failed: {required_check[1][0]}")
+            return required_check
 
         # Validar parámetros específicos de MariaDB
         if "charset" in params:
@@ -62,10 +55,11 @@ class MariaDBValidator(DatabaseTypeValidator):
                 warnings.append(warning_msg)
                 self.logger.debug(f"⚠️ {warning_msg}")
 
-        if "database" in params:
-            db_name = params["database"]
-            if not isinstance(db_name, str) or len(db_name) == 0:
-                return False, ["Database name cannot be empty"]
+        identifier_check = self._check_optional_identifiers(
+            params, (("database", "Database name", None), *self._COMMON_IDENTIFIER_SPECS)
+        )
+        if identifier_check is not None:
+            return identifier_check
 
         self.logger.debug(f"✅ MariaDB validation passed (warnings={len(warnings)})")
         return True, warnings

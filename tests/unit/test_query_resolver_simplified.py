@@ -214,3 +214,18 @@ class TestQueryResolverErrors:
         # QueryResolver re-raises QueryNotFoundError without wrapping
         with pytest.raises(QueryNotFoundError):
             resolver.resolve("test_query", {})
+
+    def test_resolve_rejects_sql_injection_in_table_param(self, resolver, mock_registry):
+        """SVC-02 (AUDIT_CODE 2026-09-22): _interpolate_sql() usa str.format() sin bind params;
+        la única defensa es la validación por motor. Antes del fix, 'tabla' no se validaba en
+        absoluto para MariaDB y un payload como este llegaba tal cual al SQL final."""
+        query_def = QueryDefinition(
+            name="create_table_ddl",
+            db_type="mariadb",
+            sql_template="SHOW CREATE TABLE {tabla}",
+            required_params=["tabla"],
+        )
+        mock_registry.get_query_definition.return_value = query_def
+
+        with pytest.raises(QueryValidationError):
+            resolver.resolve("create_table_ddl", {"tabla": "x; DROP TABLE users; --"})

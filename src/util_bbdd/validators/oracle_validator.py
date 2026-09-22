@@ -49,6 +49,7 @@ class OracleValidator(DatabaseTypeValidator):
         Verifica:
         1. Parámetros requeridos presentes y no vacíos
         2. Esquema tiene formato válido (alfanumérico, guión bajo)
+        3. Resto de identificadores (tabla, rutina, tipo_rutina, tablespace) con allowlist compartida
 
         Args:
             query_def: Definición de la query
@@ -59,18 +60,10 @@ class OracleValidator(DatabaseTypeValidator):
         """
         warnings: list[str] = []
 
-        # Verificar parámetros requeridos
-        for required_param in query_def.required_params:
-            if required_param not in params:
-                msg: str = f"Missing required parameter '{required_param}' for query '{query_def.name}'"
-                self.logger.debug(f"❌ Validation failed: {msg}")
-                return False, [msg]
-
-            if params[required_param] is None or (
-                isinstance(params[required_param], str) and params[required_param].strip() == ""
-            ):
-                msg = f"Parameter '{required_param}' cannot be empty or None"
-                return False, [msg]
+        required_check = self._check_required_params(query_def, params)
+        if required_check is not None:
+            self.logger.debug(f"❌ Validation failed: {required_check[1][0]}")
+            return required_check
 
         # Oracle templates reales usan "esquema", pero se mantiene compatibilidad con "schema".
         schema_value = params.get("esquema", params.get("schema"))
@@ -78,6 +71,10 @@ class OracleValidator(DatabaseTypeValidator):
             is_valid_schema, schema_errors = self._validate_oracle_identifier(schema_value, "Schema")
             if not is_valid_schema:
                 return False, schema_errors
+
+        identifier_check = self._check_optional_identifiers(params, self._COMMON_IDENTIFIER_SPECS)
+        if identifier_check is not None:
+            return identifier_check
 
         self.logger.debug(f"✅ Oracle validation passed (warnings={len(warnings)})")
         return True, warnings

@@ -38,6 +38,9 @@ class SQLServerValidator(DatabaseTypeValidator):
     def validate_parameters(self, query_def: QueryDefinition, params: dict[str, Any]) -> tuple[bool, list[str]]:
         """Valida parámetros para SQL Server.
 
+        Verifica también, con la allowlist compartida, los identificadores tabla/rutina/
+        tipo_rutina/tablespace que ``QueryResolver`` interpola crudo en el SQL final.
+
         Args:
             query_def: Definición de la query
             params: Parámetros proporcionados
@@ -47,18 +50,10 @@ class SQLServerValidator(DatabaseTypeValidator):
         """
         warnings: list[str] = []
 
-        # Verificar parámetros requeridos
-        for required_param in query_def.required_params:
-            if required_param not in params:
-                msg: str = f"Missing required parameter '{required_param}' for query '{query_def.name}'"
-                self.logger.debug(f"❌ Validation failed: {msg}")
-                return False, [msg]
-
-            if params[required_param] is None or (
-                isinstance(params[required_param], str) and params[required_param].strip() == ""
-            ):
-                msg = f"Parameter '{required_param}' cannot be empty or None"
-                return False, [msg]
+        required_check = self._check_required_params(query_def, params)
+        if required_check is not None:
+            self.logger.debug(f"❌ Validation failed: {required_check[1][0]}")
+            return required_check
 
         # SQL Server templates pueden usar "esquema" o "schema".
         schema_value = params.get("esquema", params.get("schema"))
@@ -66,6 +61,10 @@ class SQLServerValidator(DatabaseTypeValidator):
             is_valid_schema, schema_errors = self._validate_schema_name(schema_value)
             if not is_valid_schema:
                 return False, schema_errors
+
+        identifier_check = self._check_optional_identifiers(params, self._COMMON_IDENTIFIER_SPECS)
+        if identifier_check is not None:
+            return identifier_check
 
         self.logger.debug(f"✅ SQL Server validation passed (warnings={len(warnings)})")
         return True, warnings

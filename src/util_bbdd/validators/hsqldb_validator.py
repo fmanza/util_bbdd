@@ -41,6 +41,7 @@ class HSQLDBValidator(DatabaseTypeValidator):
         Verifica:
         1. Parámetros requeridos presentes
         2. Nombre de tabla válido para HSQLDB
+        3. Resto de identificadores (rutina, tipo_rutina, tablespace) con allowlist compartida
 
         Args:
             query_def: Definición de la query
@@ -51,25 +52,29 @@ class HSQLDBValidator(DatabaseTypeValidator):
         """
         warnings: list[str] = []
 
-        # Verificar parámetros requeridos
-        for required_param in query_def.required_params:
-            if required_param not in params:
-                msg: str = f"Missing required parameter '{required_param}' for query '{query_def.name}'"
-                self.logger.debug(f"❌ Validation failed: {msg}")
-                return False, [msg]
+        required_check = self._check_required_params(query_def, params)
+        if required_check is not None:
+            self.logger.debug(f"❌ Validation failed: {required_check[1][0]}")
+            return required_check
 
-            if params[required_param] is None or (
-                isinstance(params[required_param], str) and params[required_param].strip() == ""
-            ):
-                msg = f"Parameter '{required_param}' cannot be empty or None"
-                return False, [msg]
-
-        # Plantillas usan "tabla", pero se mantiene alias legacy "table".
+        # Plantillas usan "tabla", pero se mantiene alias legacy "table" (regla propia de HSQLDB,
+        # más permisiva que la allowlist compartida: admite guion).
         table_name = params.get("tabla", params.get("table"))
         if table_name is not None:
             is_valid_table, table_errors = self._validate_table_name(table_name)
             if not is_valid_table:
                 return False, table_errors
+
+        identifier_check = self._check_optional_identifiers(
+            params,
+            (
+                ("rutina", "Routine name", None),
+                ("tipo_rutina", "Routine type", None),
+                ("tablespace", "Tablespace", None),
+            ),
+        )
+        if identifier_check is not None:
+            return identifier_check
 
         self.logger.debug(f"✅ HSQLDB validation passed (warnings={len(warnings)})")
         return True, warnings
