@@ -27,8 +27,8 @@ from .constants import (
 
 # Importaciones desde contracts
 from .contracts import (
-    ConnectionProvider as ConnectionProviderProtocol,
-    ConnectionReleaser as ConnectionReleaserProtocol,
+    ConnectionProviderProtocol,
+    ConnectionReleaserProtocol,
     DatabaseValidator,
     MetadataFetcher,
     PoolConnection,

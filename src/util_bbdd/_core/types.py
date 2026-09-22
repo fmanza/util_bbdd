@@ -42,10 +42,19 @@ ConnectionID = int
 
 # Callback tipos
 ConnectionProvider = Callable[[], Any]
-"""Función que proporciona una conexión."""
+"""Función (callback plano) que proporciona una conexión.
+
+Distinto de ``_core.contracts.ConnectionProviderProtocol`` (FND-05: AUDIT_CODE
+2026-09-22), que exige un objeto con método ``get_connection()`` — no un callable
+directo. Antes ambos compartían el nombre ``ConnectionProvider``.
+"""
 
 ConnectionReleaser = Callable[[Any], None]
-"""Función que libera/devuelve una conexión."""
+"""Función (callback plano) que libera/devuelve una conexión.
+
+Distinto de ``_core.contracts.ConnectionReleaserProtocol`` — ver nota de
+``ConnectionProvider``.
+"""
 
 __all__: list[str] = [
     "Row",

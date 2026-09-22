@@ -8,8 +8,16 @@ from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
-class ConnectionProvider(Protocol):
-    """Protocol para proveedor de conexiones."""
+class ConnectionProviderProtocol(Protocol):
+    """Protocol para un objeto proveedor de conexiones (expone ``get_connection()``).
+
+    Distinto de ``_core.types.ConnectionProvider`` (FND-05: AUDIT_CODE 2026-09-22),
+    que es un alias de ``Callable[[], Any]`` — un callback plano, no un objeto con
+    método nombrado. Antes ambos compartían el nombre ``ConnectionProvider`` y solo
+    se distinguían por un alias de import (``as ConnectionProviderProtocol``) en
+    ``_core/__init__.py``; renombrado en el origen para que la colisión de nombres
+    no dependa de recordar el alias correcto en cada import.
+    """
 
     def get_connection(self) -> Any:
         """Obtiene una conexión a la base de datos.
@@ -25,8 +33,12 @@ class ConnectionProvider(Protocol):
 
 
 @runtime_checkable
-class ConnectionReleaser(Protocol):
-    """Protocol para liberador de conexiones."""
+class ConnectionReleaserProtocol(Protocol):
+    """Protocol para un objeto liberador de conexiones (expone ``close_connection()``).
+
+    Distinto de ``_core.types.ConnectionReleaser`` (``Callable[[Any], None]``) — ver
+    nota de ``ConnectionProviderProtocol`` (FND-05).
+    """
 
     def close_connection(self, connection: Any) -> None:
         """Libera/devuelve una conexión.
@@ -147,8 +159,8 @@ class MetadataFetcher(Protocol):
 
 
 __all__ = [
-    "ConnectionProvider",
-    "ConnectionReleaser",
+    "ConnectionProviderProtocol",
+    "ConnectionReleaserProtocol",
     "QueryExecutor",
     "PoolConnection",
     "DatabaseValidator",
