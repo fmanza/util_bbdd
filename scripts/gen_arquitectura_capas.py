@@ -59,7 +59,7 @@ LEVEL = {name: LEVEL_OF_LAYER[layer] for name, layer in LAYER.items()}
 # Every arrow drawn between packages. Arrows into Foundation from levels 2 and 3 are collapsed into one.
 DRAWN = {
     ("dump", "bulk"), ("doc", "analysis"), ("analysis", "managers"), ("doc", "managers"),
-    ("bulk", "connection"), ("metadata", "managers"), ("migrate", "metadata"),
+    ("bulk", "connection"), ("migrate", "metadata"),
     ("metadata", "query"), ("metadata", "results"), ("executors", "query"), ("executors", "results"),
     ("query", "validators"), ("factory", "connection"), ("_drivers", "_core"),
 } | {("managers", t) for t in ("connection", "factory", "executors", "metadata", "query", "results")}  # fmt: skip
@@ -199,14 +199,8 @@ def verify(edges: dict[tuple[str, str], Edge]) -> list[str]:
         if not (LEVEL[t] == 1 and LEVEL[s] > 1):  # those are the collapsed arrow into Foundation
             problems.append(f"found in the code but not drawn: {s} -> {t}")
     against_layers = sorted(pair for pair in measured if LAYER[pair[0]] <= LAYER[pair[1]])
-    if against_layers != [("metadata", "managers")]:
-        problems.append(
-            f"imports that do not go to a strictly lower layer differ from the single type-only one drawn (badge 1): "
-            f"{against_layers}"
-        )
-    up = measured.get(("metadata", "managers"))
-    if up is not None and (up.module or up.lazy):
-        problems.append("metadata -> managers is no longer type-only (the figure says 'solo tipado')")
+    if against_layers:
+        problems.append(f"imports that do not go to a strictly lower layer (Regla #6): {against_layers}")
     return problems
 
 
@@ -240,8 +234,8 @@ NODE_W, NODE_H = 112, 50
 COLS = [30, 168, 306, 444, 582, 720, 858]
 Y3, Y2A, Y2B, Y1 = 58, 256, 354, 526  # top of the node rows: level 3, level 2 (two rows), level 1
 ARIA = (
-    "Los tres niveles de util_bbdd con sus imports reales: factory importa de connection en un solo sentido, "
-    "metadata importa managers solo para tipado y analysis y doc importan el manager concreto."
+    "Los tres niveles de util_bbdd y sus capas con los imports reales: cada paquete importa solo de capas "
+    "inferiores, y analysis y doc importan el manager concreto."
 )
 
 
@@ -329,7 +323,6 @@ def render_svg(f: _Facts) -> str:
     s.edge(f"M{c[3] + 56} {Y3} V44 H{c[5] + 56} V{Y3}", "warn", "arq-h-warn")  # doc -> managers (arc)
     s.edge(f"M86 {Y3 + NODE_H} V{Y2A}", "lazy")  # bulk -> connection (lazy)
     s.edge(f"M736 {Y3 + NODE_H} V214")  # managers -> level 2 band
-    s.edge(f"M780 {Y2A} V{Y3 + NODE_H}", "warn", "arq-h-warn")  # metadata -> managers (type-only)
     s.edge(f"M900 {Y3 + NODE_H} V196 H822 V{Y2A}")  # migrate -> metadata
     for d in ("M752 306 V354", "M796 306 L900 354", "M876 306 L812 354", "M940 306 V354"):
         s.edge(d)  # {metadata, executors} -> {query, results}
@@ -363,20 +356,18 @@ def render_svg(f: _Facts) -> str:
     s.text(96, 180, f"import perezoso · {f.lazy_where}")
     s.text(728, 160, "importa connection, factory, executors,", anchor="end")
     s.text(728, 176, "metadata, query y results (6 de 7)", anchor="end")
-    s.text(796, 186, "solo tipado")
     s.text(176, 275, f"×{f.factory_to_connection}", anchor="middle")
     s.text(512, 447, f"{f.to_foundation} paquetes importan de Foundation")
     s.text(512, 463, "Foundation no importa hacia arriba (0 imports)")
     s.text(690, 516, "módulos raíz compartidos")
-    s.badge(780, 178, 1, "warn")
-    s.badge(707, 68, 2, "warn")
-    s.badge(638, 44, 2, "warn")
+    s.badge(707, 68, 1, "warn")
+    s.badge(638, 44, 1, "warn")
 
     # legend
     for x, kind, head, label in (
         (30, "", "arq-h", "import de módulo"),
         (230, "lazy", "arq-h", "import perezoso (dentro de una función)"),
-        (540, "warn", "arq-h-warn", "contra una regla de nivel"),
+        (540, "warn", "arq-h-warn", "contra una regla de arquitectura"),
     ):
         s.edge(f"M{x} 620 H{x + 34}", kind, head)
         s.text(x + 44, 624, label)

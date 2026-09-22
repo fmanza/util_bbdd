@@ -6,7 +6,7 @@ sin modificar el flujo de orquestación base.
 
 Ejemplo de uso:
     class MariaDBSyncAdapter(SourceAdapterSync, RoutineAdapterSync):
-        def __init__(self, manager: DbManagerProtocol, logger: Logger, cache: CacheService):
+        def __init__(self, manager: DbManagerProtocol, logger: Logger, cache: MetadataCachePort):
             self.manager = manager
             self.logger = logger
             self.cache = cache
@@ -23,14 +23,33 @@ Ejemplo de uso:
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 __all__: list[str] = [
+    "MetadataCachePort",
     "SourceAdapterSync",
     "SourceAdapterAsync",
     "RoutineAdapterSync",
     "RoutineAdapterAsync",
 ]
+
+
+@runtime_checkable
+class MetadataCachePort(Protocol):
+    """Contrato de invalidación de caché que los adaptadores reciben del manager.
+
+    Lo cumple estructuralmente ``managers._manager_cache_service.CacheService``. Los adaptadores dependen de este
+    contrato y no del manager: ``metadata/`` no importa de una capa superior (Regla #6). Los parámetros son
+    posicionales: mypy no compara sus nombres al comprobar un Protocol, así que el contrato no puede apoyarse en ellos.
+    """
+
+    def clear_all(self) -> None: ...
+
+    def clear_table(self, context: str, table: str, /) -> None: ...
+
+    def clear_routine(self, context: str, routine: str, routine_type: str | None = None, /) -> None: ...
+
+    def clear_context(self, context: str, /) -> None: ...
 
 
 class SourceAdapterSync(Protocol):

@@ -11,10 +11,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ._adapter_protocol import MetadataCachePort
+
 if TYPE_CHECKING:
     from logging import Logger
-
-    from ...managers._manager_cache_service import CacheService
 
 __all__: list[str] = ["BaseSourceAdapter", "BaseRoutineAdapter"]
 
@@ -26,12 +26,12 @@ class BaseSourceAdapter:
     heredan: logging, caché, normalización de keys.
     """
 
-    def __init__(self, logger: Logger, cache_service: CacheService):
+    def __init__(self, logger: Logger, cache_service: MetadataCachePort):
         """Inicializa el adapter base.
 
         Args:
             logger: Logger inyectado para trazabilidad.
-            cache_service: CacheService inyectado para caché coherente.
+            cache_service: Servicio de caché inyectado (cumple ``MetadataCachePort``) para caché coherente.
         """
         self.logger = logger
         self.cache = cache_service
@@ -157,12 +157,12 @@ class BaseRoutineAdapter:
     Subclases concretas heredan: logging, caché, parsing de routines.
     """
 
-    def __init__(self, logger: Logger, cache_service: CacheService):
+    def __init__(self, logger: Logger, cache_service: MetadataCachePort):
         """Inicializa el adapter base para routines.
 
         Args:
             logger: Logger inyectado.
-            cache_service: CacheService inyectado.
+            cache_service: Servicio de caché inyectado (cumple ``MetadataCachePort``).
         """
         self.logger = logger
         self.cache = cache_service

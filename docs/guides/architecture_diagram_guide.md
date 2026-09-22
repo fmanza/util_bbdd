@@ -10,7 +10,7 @@ El script `scripts/gen_arquitectura_capas.py` encadena tres pasos:
 2. **Verificar** — comprueba que cada flecha dibujada existe en el código y que no falta ninguna flecha real. Si algo no coincide, falla y no escribe nada.
 3. **Escribir** — reescribe `docs/assets/diagrams/arquitectura-capas.svg`, `docs/assets/css/arquitectura-capas.css` y la tabla de capas `docs/assets/diagrams/arquitectura-capas-tabla.txt` (la incrusta `docs/architecture.md`).
 
-La colocación de los nodos, la capa de cada paquete y las dos marcas numeradas son manuales. El script solo comprueba que siguen siendo ciertas.
+La colocación de los nodos, la capa de cada paquete y la marca numerada son manuales. El script solo comprueba que siguen siendo ciertas.
 
 ---
 
@@ -111,6 +111,5 @@ __init__      -> async_utils        1     0       0
 | `package drawn but no longer in src/: X` | Paquete renombrado o eliminado | Quítalo de `LAYER`, de `DRAWN` y de `render_svg()` |
 | `drawn but not found in the code: A -> B` | Se eliminó un import, por ejemplo al corregir un desvío | Quita la flecha de `render_svg()` y el par de `DRAWN`. Si era una flecha marcada, retira también su marca y su viñeta en `docs/architecture.md` |
 | `found in the code but not drawn: A -> B` | Hay un import nuevo entre paquetes | Añade la flecha en `render_svg()` y el par en `DRAWN`. Si va contra una regla de nivel, revisa primero el import (Regla #6 de `architecture.instructions.md`) |
-| `imports that do not go to a strictly lower layer differ from the single type-only one drawn (badge 1): [...]` | Aparece un import a una capa igual o superior, o desaparece el de `metadata` → `managers` | Un import de módulo a una capa igual o superior es un desvío nuevo: corrígelo en el código. Si desaparece el de tipado, retira la marca 1 |
-| `metadata -> managers is no longer type-only` | El import ya no está bajo `TYPE_CHECKING` | Ahora es un import de módulo hacia arriba: corrígelo o actualiza la marca 1 y su texto |
+| `imports that do not go to a strictly lower layer (Regla #6): [...]` | Aparece un import a una capa igual o superior (de módulo, perezoso o de tipado) | Es una violación de la Regla #6: corrígelo en el código; el script no la dibuja |
 | `ERROR: cannot parse <fichero>` | Error de sintaxis en un fichero de `src/` | Corrige el fichero; el script no escribe nada con la medición incompleta |

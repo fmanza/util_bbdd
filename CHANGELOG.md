@@ -79,6 +79,20 @@ Referencia:
 - [UpdateAutoIncrement](src/util_bbdd/connection/mariadb/update_auto_increment.py)
 - [Regla #6](.github/instructions/architecture.instructions.md)
 
+#### metadata: los adaptadores dependen de `MetadataCachePort`, no de `managers`
+
+`metadata/adapters/base_adapter.py` importaba `CacheService` de `managers/` (capa superior) bajo `TYPE_CHECKING`, solo
+para anotar `cache_service` en los constructores de `BaseSourceAdapter` y `BaseRoutineAdapter`. Ahora depende del
+Protocol `MetadataCachePort` (`metadata/adapters/_adapter_protocol.py`), que refleja las cuatro operaciones públicas
+de invalidación de `CacheService` (`clear_all`, `clear_table`, `clear_routine`, `clear_context`) y que este cumple de
+forma estructural.
+
+- **API pública**: solo cambia la anotación de `cache_service` (acepta cualquier objeto con esos métodos, `CacheService`
+  incluido). Comportamiento en ejecución idéntico.
+- **Regla #6**: desaparece la única excepción de la guarda (`metadata` → `managers` bajo `TYPE_CHECKING`).
+- **Tests**: `tests/unit/test_protocol_conformance.py` comprueba que `CacheService` cumple el Protocol (en ejecución con
+  `isinstance` y, con `mypy`, también las firmas).
+
 ### Documentation
 
 #### architecture: Regla #6 con capas estrictas
@@ -140,8 +154,8 @@ Nuevo `tests/unit/test_architecture_import_rules.py`. Reutiliza `measure()`, `LA
 `scripts/gen_arquitectura_capas.py` (las capas se declaran en un único sitio) y falla ante:
 
 - un **ciclo de imports entre paquetes** (los imports perezosos cuentan);
-- un **import que no va a una capa estrictamente inferior**, sea hacia arriba o entre paquetes de la misma capa (los
-  de `TYPE_CHECKING` solo se admiten como excepción listada: hoy `metadata` → `managers`);
+- un **import que no va a una capa estrictamente inferior**, sea hacia arriba o entre paquetes de la misma capa
+  (cuentan los de módulo, los perezosos y los de `TYPE_CHECKING`; sin excepciones);
 - una **tabla de capas incoherente** (capas no contiguas, o un nivel por debajo de una capa de un nivel inferior);
 - un **paquete nuevo sin capa asignada**;
 - un paquete que **no se importa como primer import** de un intérprete (import circular o dependiente del orden).

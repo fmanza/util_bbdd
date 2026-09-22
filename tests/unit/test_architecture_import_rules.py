@@ -29,10 +29,6 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = PROJECT_ROOT / "scripts" / "gen_arquitectura_capas.py"
 
-# Imports bajo ``TYPE_CHECKING`` que no van a una capa inferior y se aceptan como deuda (marca 1 de
-# docs/architecture.md). Debe coincidir con lo medido: si el import desaparece, hay que quitarlo de aquí.
-TYPING_ONLY_UPWARD = {("metadata", "managers")}
-
 # Importa cada paquete como primer import de un intérprete con la raíz ``util_bbdd`` sin inicializar. Se vacía
 # ``sys.modules`` de ``util_bbdd`` entre paquetes para que cada uno parta de cero sin pagar un intérprete por paquete.
 _ISOLATED_IMPORT_PROBE = """
@@ -62,7 +58,8 @@ print(json.dumps(failures))
 
 def _load_script() -> ModuleType:
     spec = importlib.util.spec_from_file_location("gen_arquitectura_capas", SCRIPT)
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module  # los @dataclass del script resuelven sus anotaciones vía sys.modules
     try:
@@ -187,21 +184,10 @@ def test_imports_only_go_to_lower_layers(script: ModuleType, edges: dict[tuple[s
     placed = {pair for pair in edges if pair[0] in layer and pair[1] in layer}
     against = _against_layers(placed, layer)
 
-    at_runtime = [pair for pair in against if edges[pair].module or edges[pair].lazy]
-    assert not at_runtime, (
+    assert not against, (
         "Regla #6: import que no va a una capa estrictamente inferior (los paquetes de una misma capa son "
-        "independientes entre sí):\n" + _describe(at_runtime, edges, layer)
-    )
-
-    typing_only = {pair for pair in against if pair not in at_runtime}
-    new = sorted(typing_only - TYPING_ONLY_UPWARD)
-    assert not new, "Regla #6: import nuevo bajo TYPE_CHECKING que no va a una capa inferior:\n" + _describe(
-        new, edges, layer
-    )
-    stale = sorted(TYPING_ONLY_UPWARD - typing_only)
-    assert not stale, (
-        f"La excepción {stale} ya no existe: quítala de TYPING_ONLY_UPWARD y retira su marca en "
-        "docs/architecture.md y scripts/gen_arquitectura_capas.py."
+        "independientes entre sí; cuentan los imports de módulo, los perezosos y los de TYPE_CHECKING):\n"
+        + _describe(against, edges, layer)
     )
 
 

@@ -102,10 +102,9 @@ Capas, de mayor a menor dependencia (tabla generada por el mismo script que la f
 
 Cómo leerlo:
 
-- **Capas estrictas**: un paquete importa solo de paquetes de una capa de número menor; los de una misma capa son independientes entre sí. El único import que no lo cumple (`metadata/` → `managers/`, marca 1) está bajo `TYPE_CHECKING`.
+- **Capas estrictas**: un paquete importa solo de paquetes de una capa de número menor; los de una misma capa son independientes entre sí. Ningún import lo incumple, ni siquiera bajo `TYPE_CHECKING`.
 - **Guarda**: la [Regla #6](https://github.com/fmanza/util_bbdd/blob/main/.github/instructions/architecture.instructions.md) exige capas estrictas y `tests/unit/test_architecture_import_rules.py` la vigila: imports solo hacia capas inferiores, sin ciclos y con capa asignada a todo paquete.
-- **Marca 1 · `metadata/` → `managers/`**: import de `CacheService` solo para tipado, en `metadata/adapters/base_adapter.py`.
-- **Marca 2 · `analysis/` y `doc/` → `managers/`**: importan `SyncDatabaseManager` para anotar el constructor, sin instanciarlo. La Regla #4 de [`architecture.instructions.md`](https://github.com/fmanza/util_bbdd/blob/main/.github/instructions/architecture.instructions.md) pide depender de un contrato, y `SyncMetadataProvider` no basta: solo cubre 9 lecturas de metadatos.
+- **Marca 1 · `analysis/` y `doc/` → `managers/`**: importan `SyncDatabaseManager` para anotar el constructor, sin instanciarlo. La Regla #4 de [`architecture.instructions.md`](https://github.com/fmanza/util_bbdd/blob/main/.github/instructions/architecture.instructions.md) pide depender de un contrato, y `SyncMetadataProvider` no basta: solo cubre 9 lecturas de metadatos.
 - **Operaciones por parámetro**: `bulk/`, `dump/` y `comparar/` no importan `managers/`, `factory/` ni `metadata/`; reciben un `Engine` o un `Inspector` de SQLAlchemy.
 
 Para regenerar la figura tras cambiar imports: `python scripts/gen_arquitectura_capas.py`. Si el dibujo deja de coincidir con los imports reales, el script falla sin escribir nada; `--edges` imprime la tabla medida. Guía completa: [Diagrama de arquitectura (regenerar)](guides/architecture_diagram_guide.md).

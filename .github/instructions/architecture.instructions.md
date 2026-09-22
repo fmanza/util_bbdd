@@ -173,9 +173,8 @@ de Foundation: no importan nada de la librería.
 - Un paquete nuevo necesita capa: añádelo a `LAYER` y a la tabla de `.ai/architecture.md`.
 
 **Guarda automática:** `tests/unit/test_architecture_import_rules.py` falla ante un ciclo entre
-paquetes, un import que no vaya a una capa inferior, una tabla de capas incoherente o un paquete
-sin capa. Excepción vigente y acotada: `metadata/` → `managers/` bajo `TYPE_CHECKING` (marca 1 de
-`docs/architecture.md`).
+paquetes, un import que no vaya a una capa inferior (también bajo `TYPE_CHECKING`), una tabla de
+capas incoherente o un paquete sin capa. No hay excepciones vigentes.
 
 **En auditoría (AUDIT_CODE):** rechaza cualquier import que no vaya a una capa de número menor
 (p.ej. `query/` importando de `managers/`, `results/` importando de `validators/` —misma capa— o
