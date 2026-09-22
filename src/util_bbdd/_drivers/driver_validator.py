@@ -5,7 +5,7 @@ import logging
 
 from typing import Any
 
-from .._core.exceptions import DriverError, ValidationError
+from .._core.exceptions import DriverError, InvalidDatabaseType, ValidationError
 
 
 class DriverValidator:
@@ -30,6 +30,7 @@ class DriverValidator:
 
         Raises:
             DriverError: Si el driver requerido no está disponible
+            InvalidDatabaseType: Si db_type no es un tipo de base de datos soportado
             ValidationError: Si hay error en la validación
         """
         DriverValidator.logger.debug(f"🔍 Verificando disponibilidad del driver para {db_type}")
@@ -53,7 +54,10 @@ class DriverValidator:
                 DriverValidator._check_sqlite_driver()
                 return "sqlite3"
             else:
-                raise ValueError(f"Tipo de base de datos desconocido: {db_type}")
+                raise InvalidDatabaseType(
+                    message=f"Tipo de base de datos desconocido: {db_type}",
+                    db_type=db_type,
+                )
         except DriverError:
             raise
         except ValidationError:
