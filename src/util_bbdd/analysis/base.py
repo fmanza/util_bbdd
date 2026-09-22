@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .._core.exceptions import DatabaseException
-from ..managers import SyncDatabaseManager
+from .contracts import RelationshipGraphSource
 
 
 class LevelDirection(StrEnum):
@@ -128,8 +128,8 @@ class GraphDocument:
 class DatabaseRelationshipGraphBase:
     """Clase base para generar grafos de relaciones de bases de datos."""
 
-    def __init__(self, db_manager: SyncDatabaseManager):
-        self.db_manager: SyncDatabaseManager = db_manager
+    def __init__(self, db_manager: RelationshipGraphSource):
+        self.db_manager: RelationshipGraphSource = db_manager
         self.relations: list[TableRelation] = []
         self.tables: set[str] = set()
         self.logger: Logger = logging.getLogger(__name__)

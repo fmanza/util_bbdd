@@ -10,8 +10,7 @@ from typing import Any, ClassVar
 
 # Importar módulos modulares
 from ..analysis.graphviz_ext import GraphvizRelationshipGraphExt
-from ..managers import SyncDatabaseManager
-from .application.ports import DocumentationManagerPort, LoggerProtocol
+from .application.ports import DocumentationManagerPort, DocumentationSourcePort, LoggerProtocol
 from .application.use_cases.documentation_orchestrator import (
     DocumentationBootstrap,
     DocumentationFacade,
@@ -39,7 +38,8 @@ class DatabaseDocumentation:
     sesiones internas usadas por los generadores.
 
     Args:
-        db_manager: Instancia de SyncDatabaseManager ya configurada
+        db_manager: Fuente de metadatos y consultas (``DocumentationSourcePort``), normalmente una instancia de
+            SyncDatabaseManager ya configurada
         directorio_salida: Directorio de salida para los archivos
         fichero_salida: Path del archivo de salida (sin extensión). Si es None, se genera automáticamente
         imprimir: Diccionario de configuración para secciones y gráficos.
@@ -81,7 +81,7 @@ class DatabaseDocumentation:
 
     def __init__(
         self,
-        db_manager: SyncDatabaseManager,
+        db_manager: DocumentationSourcePort,
         directorio_salida: Path = Path(""),
         fichero_salida: Path | None = None,
         imprimir: dict[str, Any] | None = None,

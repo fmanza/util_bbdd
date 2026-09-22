@@ -8,9 +8,9 @@ drawn in the figure exists in the code (and that no measured arrow is missing), 
     docs/assets/css/arquitectura-capas.css
     docs/assets/diagrams/arquitectura-capas-tabla.txt   (layer table, included by docs/architecture.md)
 
-The layout, the layer of each package (``LAYER``; the level is derived from it) and the two flagged findings are placed
-by hand below. If the check fails the figure no longer matches the code: fix the drawing (or the code) and run the
-script again. Nothing is written while the check fails.
+The layout and the layer of each package (``LAYER``; the level is derived from it) are placed by hand below, and so is any
+flagged finding (an amber arrow with a numbered badge; there are none today). If the check fails the figure no longer
+matches the code: fix the drawing (or the code) and run the script again. Nothing is written while the check fails.
 
 ``measure()``, ``LAYER``, ``LEVEL`` and ``EXCLUDED`` are also used by tests/unit/test_architecture_import_rules.py, which
 enforces Regla #6 (no cycles, imports only to strictly lower layers); keep their names and shapes.
@@ -46,19 +46,18 @@ LAYER = {
     "results": 3, "validators": 3,
     "connection": 4, "query": 4,
     "executors": 5, "factory": 5, "metadata": 5,
-    "bulk": 6, "comparar": 6, "migrate": 6, "managers": 6,
-    "analysis": 7, "dump": 7,
-    "doc": 8,
+    "bulk": 6, "comparar": 6, "migrate": 6, "managers": 6, "analysis": 6,
+    "dump": 7, "doc": 7,
 }  # fmt: skip
 
 # Each layer belongs to one level of .ai/architecture.md: 1 Foundation, 2 Services, 3 Domain (Especialización).
-LEVEL_OF_LAYER = {1: 1, 2: 1, 3: 2, 4: 2, 5: 2, 6: 3, 7: 3, 8: 3}
+LEVEL_OF_LAYER = {1: 1, 2: 1, 3: 2, 4: 2, 5: 2, 6: 3, 7: 3}
 LEVEL_LABEL = {1: "FOUNDATION", 2: "SERVICIOS", 3: "ESPECIALIZACIÓN"}
 LEVEL = {name: LEVEL_OF_LAYER[layer] for name, layer in LAYER.items()}
 
 # Every arrow drawn between packages. Arrows into Foundation from levels 2 and 3 are collapsed into one.
 DRAWN = {
-    ("dump", "bulk"), ("doc", "analysis"), ("analysis", "managers"), ("doc", "managers"),
+    ("dump", "bulk"), ("doc", "analysis"), ("analysis", "metadata"), ("doc", "metadata"),
     ("bulk", "connection"), ("migrate", "metadata"),
     ("metadata", "query"), ("metadata", "results"), ("executors", "query"), ("executors", "results"),
     ("query", "validators"), ("factory", "connection"), ("_drivers", "_core"),
@@ -234,13 +233,12 @@ NODE_W, NODE_H = 112, 50
 COLS = [30, 168, 306, 444, 582, 720, 858]
 Y3, Y2A, Y2B, Y1 = 58, 256, 354, 526  # top of the node rows: level 3, level 2 (two rows), level 1
 ARIA = (
-    "Los tres niveles de util_bbdd y sus capas con los imports reales: cada paquete importa solo de capas "
-    "inferiores, y analysis y doc importan el manager concreto."
+    "Los tres niveles de util_bbdd y sus capas con los imports reales: cada paquete importa solo de capas inferiores."
 )
 
 
 def _layer_range(level: int) -> str:
-    """The layers that make up a level, as the note of its band (for example ``capas 6–8``)."""
+    """The layers that make up a level, as the note of its band (for example ``capas 6–7``)."""
     layers = sorted({LAYER[name] for name in LAYER if LEVEL[name] == level})
     return f"capas {layers[0]}–{layers[-1]}"
 
@@ -319,11 +317,9 @@ def render_svg(f: _Facts) -> str:
     # edges (before the nodes so the node fill covers any overlap)
     s.edge(f"M{c[1]} 83 H{c[0] + NODE_W}")  # dump -> bulk
     s.edge(f"M{c[3] + NODE_W} 83 H{c[4]}")  # doc -> analysis
-    s.edge(f"M{c[4] + NODE_W} 83 H{c[5]}", "warn", "arq-h-warn")  # analysis -> managers
-    s.edge(f"M{c[3] + 56} {Y3} V44 H{c[5] + 56} V{Y3}", "warn", "arq-h-warn")  # doc -> managers (arc)
     s.edge(f"M86 {Y3 + NODE_H} V{Y2A}", "lazy")  # bulk -> connection (lazy)
     s.edge(f"M736 {Y3 + NODE_H} V214")  # managers -> level 2 band
-    s.edge(f"M900 {Y3 + NODE_H} V196 H822 V{Y2A}")  # migrate -> metadata
+    s.edge(f"M900 {Y3 + NODE_H} V196 H822 V{Y2A}")  # migrate -> metadata (analysis and doc share the summary note)
     for d in ("M752 306 V354", "M796 306 L900 354", "M876 306 L812 354", "M940 306 V354"):
         s.edge(d)  # {metadata, executors} -> {query, results}
     s.edge("M720 379 H694")  # query -> validators
@@ -356,18 +352,17 @@ def render_svg(f: _Facts) -> str:
     s.text(96, 180, f"import perezoso · {f.lazy_where}")
     s.text(728, 160, "importa connection, factory, executors,", anchor="end")
     s.text(728, 176, "metadata, query y results (6 de 7)", anchor="end")
+    s.text(892, 152, "analysis/ y doc/ también", anchor="end")
+    s.text(892, 168, "importan de metadata/", anchor="end")
     s.text(176, 275, f"×{f.factory_to_connection}", anchor="middle")
     s.text(512, 447, f"{f.to_foundation} paquetes importan de Foundation")
     s.text(512, 463, "Foundation no importa hacia arriba (0 imports)")
     s.text(690, 516, "módulos raíz compartidos")
-    s.badge(707, 68, 1, "warn")
-    s.badge(638, 44, 1, "warn")
 
     # legend
     for x, kind, head, label in (
         (30, "", "arq-h", "import de módulo"),
         (230, "lazy", "arq-h", "import perezoso (dentro de una función)"),
-        (540, "warn", "arq-h-warn", "contra una regla de arquitectura"),
     ):
         s.edge(f"M{x} 620 H{x + 34}", kind, head)
         s.text(x + 44, 624, label)

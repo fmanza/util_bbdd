@@ -4,6 +4,7 @@ Proporciona visualización y análisis de relaciones mediante grafos usando
 Graphviz y Matplotlib.
 
 Consolidación de:
+- contracts.py - Protocol RelationshipGraphSource (lo que se exige de la fuente de metadatos)
 - base.py - Clase base DatabaseRelationshipGraphBase y TableRelation
 - graphviz_ext.py - Implementación extendida con Graphviz (con columnas)
 - matplotlib_graph.py - Implementación con Matplotlib y NetworkX
@@ -28,10 +29,13 @@ if TYPE_CHECKING:
         LevelDirection,
         TableRelation,
     )
+    from .contracts import RelationshipGraphSource
     from .graphviz_ext import GraphvizRelationshipGraphExt
     from .matplotlib_graph import MatplotlibRelationshipGraph
 
 __all__: list[str] = [
+    # Contrato de la fuente de metadatos
+    "RelationshipGraphSource",
     # Clase base y tipos
     "DatabaseRelationshipGraphBase",
     "TableRelation",
@@ -50,6 +54,7 @@ __all__: list[str] = [
 ]
 
 _SYMBOL_TO_MODULE: dict[str, str] = {
+    "RelationshipGraphSource": "contracts",
     "DatabaseRelationshipGraphBase": "base",
     "TableRelation": "base",
     "LevelDirection": "base",

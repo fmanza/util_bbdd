@@ -11,8 +11,8 @@ from typing import Any
 
 from matplotlib.axes import Axes
 
-from ..managers import SyncDatabaseManager
 from .base import DatabaseRelationshipGraphBase, GraphDocument, LevelDirection, TableRelation
+from .contracts import RelationshipGraphSource
 
 mpatches: Any | None = None
 plt: Any | None = None
@@ -42,7 +42,7 @@ class MatplotlibRelationshipGraph(DatabaseRelationshipGraphBase):
 
     def __init__(
         self,
-        db_manager: SyncDatabaseManager,
+        db_manager: RelationshipGraphSource,
         max_depth: int = 1,
         direction: LevelDirection | str = LevelDirection.BOTH,
     ):

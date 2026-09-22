@@ -6,7 +6,7 @@ import logging
 
 from typing import Any, cast
 
-from ....managers import SyncDatabaseManager
+from ...application.ports import DocumentationSourcePort
 from ..storage.runtime import (
     StorageInventoryManagerProtocol,
     get_storage_inventory_report as get_storage_inventory_report_runtime,
@@ -22,7 +22,7 @@ class SyncDatabaseManagerAdapter:
     documental.
     """
 
-    def __init__(self, db_manager: SyncDatabaseManager, imprimir_config: dict[str, Any]) -> None:
+    def __init__(self, db_manager: DocumentationSourcePort, imprimir_config: dict[str, Any]) -> None:
         self._db_manager = db_manager
         self.imprimir_config: dict[str, Any] = imprimir_config
         self.db_type: str = db_manager.db_type

@@ -6,7 +6,7 @@ Proporciona clases para extraer relaciones FK de un esquema y renderizarlas como
 
 ```mermaid
 flowchart TD
-    A[SyncDatabaseManager] --> B[DatabaseRelationshipGraphBase]
+    A["RelationshipGraphSource<br/>(p. ej. SyncDatabaseManager)"] --> B[DatabaseRelationshipGraphBase]
     B --> C{Motor de visualización}
     C -->|Graphviz con columnas| D[GraphvizRelationshipGraphExt]
     C -->|Matplotlib radial| E[MatplotlibRelationshipGraph]
@@ -52,11 +52,23 @@ flowchart TD
 
 | Parámetro | Tipo | Descripción | Restricciones |
 |---|---|---|---|
-| `db_manager` | `SyncDatabaseManager` | Manager con conexión activa | No soporta `AsyncDatabaseManager` |
+| `db_manager` | `RelationshipGraphSource` | Fuente de metadatos, normalmente un `SyncDatabaseManager` con conexión activa | Debe cumplir el contrato de abajo; no soporta `AsyncDatabaseManager` |
 | `max_depth` | `int` | Profundidad máxima de relaciones FK | Valores > 3 pueden generar grafos ilegibles |
 | `direction` | `LevelDirection` | `OUTGOING`, `INCOMING` o `BOTH` | Filtra el sentido de las relaciones |
 | `output_file` | `Path` | Fichero de salida SVG o PNG | La extensión determina el formato |
 | `format` | `str` | Formato de imagen | `"svg"`, `"png"`, u otros formatos Graphviz/Matplotlib |
+
+#### Protocol `RelationshipGraphSource`
+
+Lo que `analysis/` exige de `db_manager`; se importa de `util_bbdd.analysis`. `analysis/` no importa `managers/` (Regla #6): `SyncDatabaseManager` y el adaptador de `doc/` lo cumplen de forma estructural. Los parámetros son posicionales.
+
+| Miembro | Firma | Descripción |
+|---|---|---|
+| `db_type` | `str` (propiedad) | Motor de la conexión |
+| `relationship_cache` | `RelationshipMetadataCache` (propiedad) | Caché de relaciones y claves |
+| `get_query_context_database` | `() -> str` | Base de datos de contexto de las consultas |
+| `get_tables` | `() -> Rows` | Tablas del esquema |
+| `get_columns`, `get_primary_keys`, `get_foreign_keys`, `get_unique_constraints` | `(table_name, /) -> Rows` | Metadatos de una tabla |
 
 ### Contrato de salida
 

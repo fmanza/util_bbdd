@@ -10,7 +10,7 @@ El script `scripts/gen_arquitectura_capas.py` encadena tres pasos:
 2. **Verificar** — comprueba que cada flecha dibujada existe en el código y que no falta ninguna flecha real. Si algo no coincide, falla y no escribe nada.
 3. **Escribir** — reescribe `docs/assets/diagrams/arquitectura-capas.svg`, `docs/assets/css/arquitectura-capas.css` y la tabla de capas `docs/assets/diagrams/arquitectura-capas-tabla.txt` (la incrusta `docs/architecture.md`).
 
-La colocación de los nodos, la capa de cada paquete y la marca numerada son manuales. El script solo comprueba que siguen siendo ciertas.
+La colocación de los nodos, la capa de cada paquete y las marcas numeradas (hoy no hay ninguna) son manuales. El script solo comprueba que siguen siendo ciertas.
 
 ---
 
@@ -38,7 +38,7 @@ La colocación de los nodos, la capa de cada paquete y la marca numerada son man
         [gen_arquitectura_capas] wrote docs/assets/diagrams/arquitectura-capas.svg
         [gen_arquitectura_capas] wrote docs/assets/css/arquitectura-capas.css
         [gen_arquitectura_capas] wrote docs/assets/diagrams/arquitectura-capas-tabla.txt
-        [gen_arquitectura_capas] measured 338 files; 9 packages import from Foundation.
+        [gen_arquitectura_capas] measured 339 files; 9 packages import from Foundation.
         [gen_arquitectura_capas] Update the figcaption in docs/architecture.md if the version, date or file count changed.
         ```
 

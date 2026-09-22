@@ -39,7 +39,7 @@ flowchart TD
 
 | Parámetro | Tipo | Descripción | Restricciones |
 |---|---|---|---|
-| `db_manager` | `SyncDatabaseManager` | Manager con conexión activa | No puede ser `None`; no soporta `AsyncDatabaseManager` |
+| `db_manager` | `DocumentationSourcePort` | Fuente de metadatos y consultas, normalmente un `SyncDatabaseManager` con conexión activa | No puede ser `None`; debe cumplir el puerto (`doc/application/ports.py`); no soporta `AsyncDatabaseManager` |
 | `directorio_salida` | `Path` | Directorio base donde escribir ficheros | Se crean subdirectorios por ejecución y formato |
 | `fichero_salida` | `Path \| None` | Nombre base sin extensión | `None` genera automáticamente con timestamp y clave de BD |
 | `imprimir` | `dict[str, Any] \| None` | Configuración de secciones, estilos y grafos | `None` usa valores por defecto |

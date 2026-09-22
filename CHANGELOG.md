@@ -93,6 +93,26 @@ forma estructural.
 - **Tests**: `tests/unit/test_protocol_conformance.py` comprueba que `CacheService` cumple el Protocol (en ejecución con
   `isinstance` y, con `mypy`, también las firmas).
 
+#### analysis, doc: dependen de contratos, no de `managers`
+
+`analysis/` (3 ficheros) y `doc/` (2) importaban `SyncDatabaseManager` solo para anotar sus constructores. Ahora
+`analysis/` depende del Protocol `RelationshipGraphSource` (`analysis/contracts.py`) y `doc/` de
+`DocumentationSourcePort` (`doc/application/ports.py`), definidos por el consumidor y con parámetros posicionales.
+`SyncDatabaseManager`, `SyncDatabaseManagerAdapter` y `DocumentationManagerPort` los cumplen de forma estructural.
+
+- **API pública**: solo cambia la anotación de `db_manager` en `DatabaseRelationshipGraphBase`,
+  `GraphvizRelationshipGraphExt`, `MatplotlibRelationshipGraph`, `DatabaseDocumentation` y
+  `SyncDatabaseManagerAdapter`: acepta más tipos y `SyncDatabaseManager` sigue valiendo. `RelationshipGraphSource` se
+  exporta desde `util_bbdd.analysis`. Comportamiento en ejecución idéntico.
+- **`doc/application/ports.py`**: `DocumentationIntrospectionPort` (extraído de `DocumentationManagerPort`),
+  `DocumentationQueryPort` y `DocumentationSourcePort` (nuevos). `DocumentationManagerPort` gana `relationship_cache`,
+  que `DocumentationSession` expone por delegación: cierra el hueco de tipado que tapaba un `cast`, porque `analysis`
+  usaba `relationship_cache` sin que el puerto de `doc` lo declarase.
+- **Regla #6**: solo el `__init__.py` raíz importa ya `managers/`; `analysis` baja a la capa 6 y `doc` a la 7 (7 capas).
+  No quedan excepciones ni marcas en la figura.
+- **Tests**: `tests/unit/test_protocol_conformance.py` comprueba con `mypy` (tipos, aridad y miembros) que el manager, el
+  adaptador y el puerto de `doc` cumplen ambos contratos.
+
 ### Documentation
 
 #### architecture: Regla #6 con capas estrictas
@@ -103,7 +123,7 @@ diagrama. Además, su frase inicial prohibía los imports entre paquetes del mis
 reglas solo prohibía los ciclos. Tres niveles no bastan para expresar la estructura real sin imports horizontales
 (11 pares de paquetes en el código, p. ej. `factory` → `connection`, `metadata` → `results`).
 
-- **Capas**: cada nivel se divide en 8 capas numeradas asignadas por función. Un paquete importa solo de paquetes de
+- **Capas**: cada nivel se divide en 7 capas numeradas asignadas por función. Un paquete importa solo de paquetes de
   capas de número menor; los de una misma capa son independientes. La tabla es `LAYER` en
   `scripts/gen_arquitectura_capas.py`, de la que se derivan `LEVEL`, las notas de banda de la figura y la tabla
   generada que incrusta `docs/architecture.md`.
@@ -162,8 +182,14 @@ Nuevo `tests/unit/test_architecture_import_rules.py`. Reutiliza `measure()`, `LA
 
 Los mensajes indican el `fichero:línea` del import. No añade dependencias.
 
+Junto a ella, `tests/unit/test_protocol_conformance.py` comprueba que las implementaciones reales cumplen los Protocols
+que las capas altas usan en lugar de importarlas (`CacheService`, `SyncDatabaseManager` y el adaptador de `doc`). En
+ejecución solo comprueba que los miembros existen; las firmas las verifica `python -m mypy
+tests/unit/test_protocol_conformance.py`, que `mypy src` no cubre.
+
 Referencia:
 - [test_architecture_import_rules.py](tests/unit/test_architecture_import_rules.py)
+- [test_protocol_conformance.py](tests/unit/test_protocol_conformance.py)
 
 #### connection/mariadb: validación automática de variables MySQL/MariaDB para bulk operations
 

@@ -148,9 +148,8 @@ una misma capa son independientes entre sí. La fuente ejecutable de esta tabla 
 
 | Capa | Nivel | Paquetes |
 |---|---|---|
-| 8 | Level 3 · Especialización | `doc/` |
-| 7 | Level 3 · Especialización | `analysis/`, `dump/` |
-| 6 | Level 3 · Especialización | `bulk/`, `comparar/`, `managers/`, `migrate/` |
+| 7 | Level 3 · Especialización | `doc/`, `dump/` |
+| 6 | Level 3 · Especialización | `analysis/`, `bulk/`, `comparar/`, `managers/`, `migrate/` |
 | 5 | Level 2 · Servicios | `executors/`, `factory/`, `metadata/` |
 | 4 | Level 2 · Servicios | `connection/`, `query/` |
 | 3 | Level 2 · Servicios | `results/`, `validators/` |

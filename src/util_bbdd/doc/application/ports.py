@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from ..._core.types import Rows
+from ...metadata.cache import RelationshipMetadataCache
 
 HeadersConfig = dict[str, Any]
 ConnectionParams = dict[str, Any]
@@ -82,15 +83,8 @@ class StorageInventoryPort(Protocol):
     def get_storage_inventory_report(self) -> dict[str, Any]: ...
 
 
-class DocumentationManagerPort(
-    OutputNamingContextPort,
-    MetadataReaderPort,
-    StorageInventoryPort,
-    Protocol,
-):
-    """Puerto compuesto interno del manager documental (uso en orquestación)."""
-
-    imprimir_config: dict[str, Any]
+class DocumentationIntrospectionPort(Protocol):
+    """Lecturas de introspección de metadatos y DDL que consume la documentación."""
 
     def get_query_context_database(self) -> str: ...
 
@@ -117,6 +111,49 @@ class DocumentationManagerPort(
     def get_unique_constraints(self, table_name: str, /) -> Rows: ...
 
     def get_indices(self, table_name: str, /) -> Rows: ...
+
+
+class DocumentationQueryPort(Protocol):
+    """Ejecución de consultas nombradas y libres que consume el inventario de almacenamiento."""
+
+    def resolve_query(self, query_name: str, **params: Any) -> Any: ...
+
+    def execute_query_many(self, query_name: str, **params: Any) -> Any: ...
+
+    def execute_custom_one(self, query: str) -> Any: ...
+
+    def get_query_info(self) -> dict[str, Any]: ...
+
+
+class DocumentationManagerPort(
+    OutputNamingContextPort,
+    MetadataReaderPort,
+    StorageInventoryPort,
+    DocumentationIntrospectionPort,
+    Protocol,
+):
+    """Puerto compuesto interno del manager documental (uso en orquestación)."""
+
+    imprimir_config: dict[str, Any]
+
+    @property
+    def relationship_cache(self) -> RelationshipMetadataCache: ...
+
+
+class DocumentationSourcePort(
+    OutputNamingContextPort,
+    MetadataReaderPort,
+    DocumentationIntrospectionPort,
+    DocumentationQueryPort,
+    Protocol,
+):
+    """Superficie del manager que consume el adaptador documental (``SyncDatabaseManagerAdapter``).
+
+    La cumple estructuralmente ``SyncDatabaseManager``; ``doc/`` depende de este contrato y no del manager (Regla #6).
+    """
+
+    @property
+    def relationship_cache(self) -> RelationshipMetadataCache: ...
 
 
 class DocumentationDataProviderPort(Protocol):

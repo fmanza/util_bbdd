@@ -20,7 +20,6 @@ except ImportError:
     GRAPHVIZ_AVAILABLE = False
 
 from .._core.exceptions import DatabaseException
-from ..managers import SyncDatabaseManager
 from .base import (
     CardinalityEndMarker,
     ColumnVisualizationMode,
@@ -30,6 +29,7 @@ from .base import (
     TableRelation,
     TableVisualType,
 )
+from .contracts import RelationshipGraphSource
 
 GRAPHVIZ_MISSING_MSG: str = "Graphviz no disponible. Instale: pip install graphviz"
 
@@ -58,7 +58,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
 
     def __init__(
         self,
-        db_manager: SyncDatabaseManager,
+        db_manager: RelationshipGraphSource,
         show_columns: bool | None = None,
         column_mode: ColumnVisualizationMode | str = ColumnVisualizationMode.RELATIONS,
         max_columns: int = 8,

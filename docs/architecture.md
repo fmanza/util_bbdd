@@ -93,7 +93,7 @@ Los tres niveles de la arquitectura (Foundation → Servicios → Especializaci�
 <div class="arq-scroll">
 --8<-- "assets/diagrams/arquitectura-capas.svg"
 </div>
-<figcaption>Instantánea de v0.10.0 (2026-09-22) medida con <code>ast</code> sobre 338 ficheros. Capas y niveles según <code>.ai/architecture.md</code>; <code>models.py</code> y <code>async_utils.py</code> son módulos raíz de Foundation: no importan nada de la librería. El <code>__init__.py</code> raíz (re-exports) no aparece.</figcaption>
+<figcaption>Instantánea de v0.10.0 (2026-09-22) medida con <code>ast</code> sobre 339 ficheros. Capas y niveles según <code>.ai/architecture.md</code>; <code>models.py</code> y <code>async_utils.py</code> son módulos raíz de Foundation: no importan nada de la librería. El <code>__init__.py</code> raíz (re-exports) no aparece.</figcaption>
 </figure>
 
 Capas, de mayor a menor dependencia (tabla generada por el mismo script que la figura):
@@ -104,7 +104,7 @@ Cómo leerlo:
 
 - **Capas estrictas**: un paquete importa solo de paquetes de una capa de número menor; los de una misma capa son independientes entre sí. Ningún import lo incumple, ni siquiera bajo `TYPE_CHECKING`.
 - **Guarda**: la [Regla #6](https://github.com/fmanza/util_bbdd/blob/main/.github/instructions/architecture.instructions.md) exige capas estrictas y `tests/unit/test_architecture_import_rules.py` la vigila: imports solo hacia capas inferiores, sin ciclos y con capa asignada a todo paquete.
-- **Marca 1 · `analysis/` y `doc/` → `managers/`**: importan `SyncDatabaseManager` para anotar el constructor, sin instanciarlo. La Regla #4 de [`architecture.instructions.md`](https://github.com/fmanza/util_bbdd/blob/main/.github/instructions/architecture.instructions.md) pide depender de un contrato, y `SyncMetadataProvider` no basta: solo cubre 9 lecturas de metadatos.
+- **Contratos, no la fachada**: `analysis/` depende de `RelationshipGraphSource` y `doc/` de `DocumentationSourcePort`; ninguno importa `managers/`. El manager, el adaptador de `doc/` y su puerto los cumplen de forma estructural, y `tests/unit/test_protocol_conformance.py` lo comprueba (con mypy, también las firmas).
 - **Operaciones por parámetro**: `bulk/`, `dump/` y `comparar/` no importan `managers/`, `factory/` ni `metadata/`; reciben un `Engine` o un `Inspector` de SQLAlchemy.
 
 Para regenerar la figura tras cambiar imports: `python scripts/gen_arquitectura_capas.py`. Si el dibujo deja de coincidir con los imports reales, el script falla sin escribir nada; `--edges` imprime la tabla medida. Guía completa: [Diagrama de arquitectura (regenerar)](guides/architecture_diagram_guide.md).
