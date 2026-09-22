@@ -6,7 +6,7 @@
 - rama: develop
 - skill: audit_code → tech_debt
 - fase: AUDIT_CODE (12 franjas) + PLAN + AUDIT_PLAN + IMPLEMENT (P0 + Fase 1 + MIG-02 + MDC-01 +
-  Fase 3 del backlog P1/P2; Fase 4 pendiente)
+  Fase 3 + Fase 4 del backlog P1/P2 — **backlog de `02_PLAN_p1_p2.md` completo**)
 
 ## Prompt issued
 1. "AUDIT_CODE — De todo el proyecto — Separa la auditoría por módulos y por capas."
@@ -28,6 +28,11 @@
    MGR-01, BLK-01, BLK-02, MIG-01 (gate ya decidido: bloquear sin flag), MIG-03, MDC-02." — los 10
    ítems implementados como ciclos `/hotfix` independientes, un commit por ítem, ver tabla en
    "Fase 3 — IMPLEMENTADA" abajo.
+6. "IMPLEMENT" (continuación tras compactación de contexto) + "continua" — Fase 4 completa (28
+   ítems P2 restantes de `02_PLAN_p1_p2.md`: FND-03/04, SVC-03..05, CNX-03..05, MDC-03/04,
+   MEO-04..07, MGR-02..04, BLK-05/07/08, MIG-04..08, CMP-02/03, DOC-03), sin pausar para
+   confirmación entre ítems salvo hallazgos que requerían reconciliación — ver tabla en
+   "Fase 4 — IMPLEMENTADA" abajo.
 
 ## Context supplied
 - `.github/SHARED_INSTRUCTIONS.md`, `CLAUDE.md`, `docs/architecture.md`,
@@ -77,7 +82,8 @@
 | IMPLEMENT — 9 ítems P0 | ver tabla de commits abajo | **completado** |
 | PLAN + AUDIT_PLAN — backlog P1/P2 restante | `.ai/sessions/2026-09-22-audit-completo-remediacion/02_PLAN_p1_p2.md` | emitido |
 | IMPLEMENT — Fase 1 + MIG-02 (4 ítems) | ver tabla de commits abajo | **completado** |
-| IMPLEMENT — Fase 2 (MDC-01), Fase 3, Fase 4 | — | pendiente (sesión futura) |
+| IMPLEMENT — Fase 2 (MDC-01), Fase 3 (10 ítems) | ver tabla de commits abajo | **completado** |
+| IMPLEMENT — Fase 4 (28 ítems, backlog P1/P2 completo) | ver tabla de commits abajo | **completado** |
 
 ### Commits de la fase IMPLEMENT (2026-09-22, todos en `develop`)
 
@@ -134,16 +140,13 @@ tests/unit/test_protocol_conformance.py` limpios en el estado final.
   `relationship_cache`). `MetadataFetcher` resultó ser código muerto dentro de `MetadataManager`
   (nunca invocado) — se eliminó la referencia en vez de implementarlo, ver detalle en "Veredicto
   final" § MDC-01. No reabrir salvo nuevo hallazgo real.
-- **[foundation/FND-03-FND-04]**: decisión ya tomada con el usuario (2026-09-22) pero **no
-  implementada**: conectar `DumpOrchestrator` para que lance de verdad `DumpError`/
-  `DumpConstraintError`/`DumpReportError` en fallos reales (en vez de retirar la jerarquía como
-  código muerto). Una vez conectado, exportar toda la jerarquía desde `util_bbdd/__init__.py`
-  (FND-04 completo). No implementar FND-03 (retirar) ni FND-04 (exportar) por separado sin este
-  contexto — son la misma decisión.
-- **[migrate/MIG-01]**: decisión ya tomada con el usuario (2026-09-22) pero **no implementada**:
-  `MigrationPlan.execute()` debe bloquear (lanzar excepción) si `self.error_count > 0`, **sin**
-  flag de override explícito. No hay callers internos reales que dependan del comportamiento
-  permisivo actual (solo un ejemplo en el docstring de `migrate/__init__.py`).
+- **[foundation/FND-03-FND-04]**: **RESUELTO e IMPLEMENTADO en Fase 4 (commit `23f2f24`)** —
+  `DumpOrchestrator` conecta `DumpError`/`DumpConstraintError`/`DumpReportError` reales en fallos
+  reales; la jerarquía completa se exporta desde `util_bbdd/__init__.py`. No reabrir salvo nuevo
+  hallazgo real.
+- **[migrate/MIG-01]**: **RESUELTO e IMPLEMENTADO en Fase 3 (commit `27bf667`)** —
+  `MigrationPlan.execute()` bloquea (lanza `ValueError`) si `self.error_count > 0`, sin flag de
+  override explícito. No reabrir salvo nuevo hallazgo real.
 - **[metadata]**: el patrón "test de paridad que certifica el bug en vez de detectarlo" apareció
   de forma independiente en `test_oracle_adapter_parity.py`, `test_sqlserver_adapter_parity.py` y
   `test_type_map_sqlserver.py`. Al escribir un test de "paridad"/"conformidad" futuro, comparar
@@ -172,6 +175,10 @@ Veredicto: **GO** para MDC-01 (Fase 2 completa, ciclo `/refactor` dedicado — v
 Veredicto: **GO** para Fase 3 del backlog P1/P2 (10 ítems: FND-01, FND-02, MPG-01, MSS-02, MGR-01,
 BLK-01, BLK-02, MIG-01, MIG-03, MDC-02 — implementados, testeados, commiteados sin incidencias; ver
 sección "Fase 3 — IMPLEMENTADA" arriba para hallazgos de reconciliación y pendientes de CHANGELOG).
+Veredicto: **GO** para Fase 4 del backlog P1/P2 (28 ítems: FND-03/04, FND-05, SVC-03..05, CNX-03..05,
+MDC-03/04, MEO-04..07, MGR-02..04, BLK-05/07/08, MIG-04..08, CMP-02/03, DOC-03 — implementados,
+testeados, commiteados sin incidencias; ver sección "Fase 4 — IMPLEMENTADA" arriba para hallazgos de
+reconciliación y pendientes de CHANGELOG). **Backlog de `02_PLAN_p1_p2.md` agotado.**
 
 ### MDC-01 — IMPLEMENTADO 2026-09-22 (commits `b701a3d`, `6e5a559`)
 
@@ -266,21 +273,116 @@ Hallazgos de reconciliación / decisiones de diseño durante Fase 3 (no estaban 
   de cierre de esta sesión, que debe repasar `git log` de toda la sesión y no solo el
   `[Unreleased]` actual (que sigue siendo un snapshot de trabajo anterior a esta sesión).
 
+### Fase 4 — IMPLEMENTADA 2026-09-22 (28 ítems P2, backlog `02_PLAN_p1_p2.md` completo)
+
+Los 28 ítems de Fase 4 (última fase del backlog P1/P2) implementados como ciclos
+`/hotfix`/`/refactor` independientes agrupados por módulo, cada uno con su propio
+commit (Conventional Commits) y tests de regresión. Suite completa verde tras cada
+commit (4252→4420 tests); `ruff check`/`ruff format --check`/`mypy src
+tests/unit/test_protocol_conformance.py` limpios; Regla #6
+(`test_architecture_import_rules.py`) verde; diagrama de capas regenerado sin
+cambios en ningún ítem (ninguno añadió/movió/eliminó un paquete de primer nivel ni
+un import entre paquetes de capas distintas).
+
+| Commit | Ítem | Resumen |
+|---|---|---|
+| `23f2f24` | FND-03+FND-04 | `DumpOrchestrator` conecta `DumpError`/`DumpConstraintError`/`DumpReportError` reales (antes código muerto); jerarquía completa exportada desde `util_bbdd/__init__.py` |
+| `081abc7` | FND-05 | `ConnectionProvider`/`ConnectionReleaser` (Protocol) renombrados a `ConnectionProviderProtocol`/`ConnectionReleaserProtocol` para evitar colisión de nombre con los alias `Callable` de `_core/types.py` |
+| `93058c7` | SVC-03 | Asimetrías sync/async cerradas: normalización `%`→`%%` de MariaDB en `sync_query_executor`, validación de `database`/`user`/`service_name` vacíos en `sqlalchemy_engine_factory` |
+| `ba88ffc` | SVC-04 | `QueryExecutorBase` (ABC muerta) y `_build_hsqldb_connection_string` async (nunca invocado) retirados |
+| `ad35352` | SVC-05 | `DatabaseTypeValidator` (ABC) renombrado a `QueryParameterValidator` — colisión de nombre con el Protocol homónimo de `_core/contracts.py` |
+| `b1f63dd` | CNX-03 | `connection/factory.py`/`params.py` lanzan `InvalidDatabaseType` para `db_type` no soportado (antes `ConnectionError`/`ValueError` genéricos) |
+| `05800ef` | CNX-04 | PostgreSQL async aplica `schema`/`options`/`application_name` vía `server_settings` (asyncpg no soporta el `options=` estilo libpq de psycopg3) |
+| `cbd7634` | CNX-05 | Import de `oracledb` en `PoolConnectionOracle` hecho lazy (`try/except ImportError`), igual que mariadb/postgresql — antes fallaba en import-time sin el paquete instalado |
+| `285ff27` | MDC-03 | MySQL y SQL Server registrados como `RoutineAdapter` completo (`fetch_routine_definition_sync/async` + conversión dataclass→tupla para cumplir el Protocol) |
+| `ca53a15` | MDC-04 | `except Exception: pass` → `except ImportError: pass` en el registro de adapters de mariadb/postgresql/oracle — ya no enmascara errores reales de programación |
+| `a04b05a` | MEO-04 | Identificadores normalizados a MAYÚSCULAS antes de bindear en los 12 puntos de bind de Oracle (`owner`/`table_name`/`routine_name`) — Oracle pliega a mayúsculas por defecto |
+| `026ad7c` | MEO-05 | Columnas Oracle `LONG`/`LONG RAW` conservadas con marcador `[TIPO NO SOPORTADO]` en vez de descartadas silenciosamente |
+| `7e61d34` | MEO-06 | Filtro de schema de sistema Oracle corregido a `WMSYS` exacto (antes excluía cualquier schema con prefijo `WM`, incluidos schemas de negocio legítimos) |
+| `6cf820e` | MEO-07 | Mapeo `BIT` añadido a MySQL; MariaDB gana su propio `mariadb_type_mapping()`/`normalize_mariadb_type()` (antes carecía de normalización propia) |
+| `319db9e` | MGR-02 | `AsyncLifecycleManager`/`AsyncSessionManager` (construidos pero con cero métodos invocados) retirados de `async_mgr.py` |
+| `3fdbe4a` | MGR-03 | `CacheManager.clear_context/clear_routine` delega en la nueva API pública `DatabaseMetadataCache.clear_by_context/clear_by_routine` en vez de tocar 14 atributos privados por nombre hardcodeado |
+| `781165e` | MGR-04 | `DatabaseRelationshipGraphBase.clear_cache()` (nuevo) invalida las 3 cachés internas del grafo — antes no tenían ningún método de invalidación propio |
+| `0e7a1aa` | BLK-05 | `_substitute_ordered_params`/`_substitute_named_params` localizan placeholders sobre el SQL original antes de sustituir (evita que un valor con `%s`/`?`/`:param` literal corrompa el siguiente parámetro) |
+| `d1acb48` | BLK-07 | `escape_markdown_table_cell()` (nuevo) escapa `\|`/backtick/newline en comentarios de `MarkdownDiffReporter` — antes rompían la tabla Markdown |
+| `c22dcc5` | BLK-08 | `BulkCrud.rows_committed` (nuevo) expone filas durablemente comprometidas vía `commit_every_n_chunks`; `ParallelBulkLoader` ya no reporta `rows=0` si una partición falla tras commits parciales |
+| `3d0b009` | MIG-04 | `extract_views` declarado en el Protocol `SchemaExtractor` — las 4 implementaciones ya lo exponían y `planner.py` lo invocaba incondicionalmente |
+| `73665ed` | MIG-05 | Los 4 emisores DDL exportados desde `migrate/emitters/__init__.py` (antes solo `DDLEmitter`/`MariaDBDDLEmitter`) |
+| `d632fc2` | MIG-06 | Docstring de `transform_views` corregido: la reescritura Oracle es un hook (`_transform_view`) sobrescrito solo por los 3 pares con Oracle como origen, no los 12 |
+| `7fbf745` | MIG-07 | `rewrite_oracle_view` emite `MigrationWarning` para las 5 sustituciones léxicas (antes solo `USER`) — mismo riesgo de falso positivo en literales string para todas |
+| `ad68f6d` | MIG-08 | Columnas `AUTO_INCREMENT` adicionales (más allá de la primera) generan `MigrationWarning` en el emisor Oracle — antes se descartaban con un `break` silencioso |
+| `3f4ed12` | CMP-02 | `find_case_insensitive_collisions()` (nuevo) detecta pares de identificadores que solo difieren en case; conectado en `planner.py` sobre nombres de tabla+vista |
+| `6ba812d` | CMP-03 | 3 ficheros `type_map_*.py` renombrados a la convención `type_map_<origen>_to_<destino>.py`; `_compat/__init__.py` reexporta los 12 mapas de tipos (antes 7) |
+| `c48ae80` | DOC-03 | `sanitize_table_filename()` (nuevo) sanea nombres de tabla en los fallbacks a disco de word/html_generator; `StorageInventoryRuntime` advierte (log + sección visible) cuando usa el fallback de almacenamiento genérico |
+
+Hallazgos de reconciliación / decisiones de diseño durante Fase 4 (no estaban en
+`01_PLAN_remediacion.md`/`02_PLAN_p1_p2.md`):
+
+- **MDC-03** resultó más amplio que "exponer `fetch_routine_definition_sync/async`":
+  MySQL carecía por completo de esa función (no existía ni siquiera sin registrar), y
+  tanto MySQL como SQL Server devolvían `list[DataclassDetail]` en vez de
+  `list[tuple[Any, ...]]` — incompatible con `RoutineAdapter` por invariancia de
+  `list` (detectado por mypy al añadir ambos adaptadores a
+  `test_protocol_conformance.py`). Se implementó la función completa para MySQL y se
+  convirtió a tupla en el límite del adaptador para ambos motores.
+- **MEO-07** igual: "añadir mapeo BIT" se amplió a construir la infraestructura de
+  normalización de tipos de MariaDB desde cero (`mariadb_type_mapping`/
+  `normalize_mariadb_type`), que no existía pese a que MySQL sí la tenía — MariaDB
+  copiaba parcialmente el comportamiento de MySQL sin tener su propia fuente de
+  verdad (no se importa de `mysql/` para no violar Regla #6 de independencia entre
+  paquetes del mismo nivel).
+- **MGR-03** dependía de MDC-02 (Fase 3) por diseño ya documentado en
+  `02_PLAN_p1_p2.md` — `metadata/cache.py::clear_by_context/clear_by_routine`
+  replican la lógica de construcción de clave `(context, routine, routine_type.upper())`
+  inline en vez de importar `CacheKeyFactory` de `managers/` (capa 6), para no violar
+  Regla #6 (metadata es capa 5, managers es capa 6).
+- **BLK-08** requirió trazar el commit real hasta su origen: `PartitionResult.rows`
+  se calculaba a nivel de "chunk del reader" en `parallel_loader.py`, pero
+  `commit_every_n_chunks` conmuta a nivel de "sub-lote interno" de
+  `BatchStatementExecutor` (`bulk/_execution/batch.py`), con límites que no
+  coinciden. Aproximar por chunk de reader podía SOBREESTIMAR filas committeadas
+  (reportar como comprometido un chunk ejecutado pero no confirmado). Se añadió
+  `BatchStatementExecutor.rows_committed`, incrementado únicamente en los puntos
+  reales de `connection.commit()` (periódico y final), expuesto como
+  `BulkCrud.rows_committed` (propiedad).
+- **CMP-02** se resolvió sin cambiar el case de ningún identificador emitido (los 4
+  emisores ya entrecomillan siempre, preservando case exacto — el DDL migrado nunca
+  colisiona por sí solo). Se optó por detección + `MigrationWarning`, no por
+  renombrado automático, para no introducir una decisión de "a qué case plegar" sin
+  mandato explícito del usuario.
+- **CMP-03** provocó renombrar también 3 ficheros de test (`test_type_map.py` →
+  `test_type_map_oracle_to_mariadb.py`, etc.) para no dejar una inconsistencia nueva
+  (fuente renombrada, test no) — no estaba en el hallazgo original pero es la misma
+  causa raíz.
+- **DOC-03** se descubrió que el mismo patrón (nombre de tabla sin sanear insertado en
+  un `Path`) también existía en `html_generator.py:1846`, no solo en
+  `word_generator.py:676-678` (único fichero nombrado en el hallazgo original). Se
+  corrigieron ambos con la misma función compartida (`generator_shared.py`) para no
+  dejar el mismo bug en el fichero hermano.
+
 Pendientes al cierre:
 - Reconciliación de `01_PLAN_remediacion.md` contra el estado actual: ya implementados MEO-03 (P1)
   y MDC-05 (P2) junto con los P0 en el commit `c373e29`; Fase 1 + MIG-02 de `02_PLAN_p1_p2.md`
   implementados en esta sesión (commits `0d6c81e`…`70935d2`); MDC-01 implementado (commits
-  `b701a3d`, `6e5a559`); Fase 3 completa (10 ítems, commits `879aba5`…`eaf6098`, ver tabla arriba).
-  Quedan de `02_PLAN_p1_p2.md`: **Fase 4 completa** — FND-03/FND-04 (decisión ya tomada, no
-  implementada) + el resto de ítems P2 agrupables por módulo (SVC-03..05, CNX-03..05, MDC-03/04,
-  MEO-04..07, MGR-02..04, BLK-04..08 [BLK-04/06 ya implementados en Fase 1], MIG-04..08, CMP-02/03,
-  DOC-03).
-- Decisión ya tomada pero **no implementada**: FND-03/FND-04 (conectar `DumpOrchestrator` a
-  `DumpError` real, luego exportar toda la jerarquía) — Fase 4 de `02_PLAN_p1_p2.md`.
-- **CHANGELOG.md pendiente**: MIG-02 (Fase 1, P0) y BLK-02 (Fase 3) cambian comportamiento
-  observable y no tienen entrada en `CHANGELOG.md` todavía — consolidar en `/version-closure`.
-- Decisión sin resolver: alcance de la exclusión redshift/snowflake en documentación pública.
-- Esta sesión permanece **IN_PROGRESS**: AUDIT_CODE, fase P0, Fase 1 + MIG-02, MDC-01 (Fase 2) y
-  Fase 3 completa del backlog P1/P2 están cerrados; solo Fase 4 queda abierta para continuar en
-  sesión(es) futuras referenciando `01_PLAN_remediacion.md` + `02_PLAN_p1_p2.md` + las decisiones ya
-  registradas arriba en "Directrices para Futuras IAs" (para no volver a preguntarlas).
+  `b701a3d`, `6e5a559`); Fase 3 completa (10 ítems, commits `879aba5`…`eaf6098`); **Fase 4 completa**
+  (28 ítems, commits `23f2f24`…`c48ae80`, ver tabla arriba). El backlog de `02_PLAN_p1_p2.md` queda
+  **agotado**: no hay ítems pendientes de implementación en este plan de remediación.
+- **CHANGELOG.md pendiente**: los siguientes ítems cambian comportamiento/salida observable y no
+  tienen entrada en `CHANGELOG.md` todavía — consolidar todos juntos en `/version-closure` (no uno
+  por uno, siguiendo el mismo patrón ya usado para MIG-02/BLK-02):
+  - MIG-02 (Fase 1, P0): `AUTO_INCREMENT` ya no colapsa a `INT(11)` fijo.
+  - BLK-02 (Fase 3): índices/FKs comparados case-insensitive en `SchemaComparator.compare()`.
+  - BLK-08 (Fase 4): `PartitionResult.rows` puede ser > 0 en una partición fallida (antes siempre 0).
+  - MIG-07 (Fase 4): más `MigrationWarning` emitidos por vista (SYSDATE/SYSTIMESTAMP/NVL/FROM
+    DUAL/prefijo de schema, antes solo USER) — sube `plan.warning_count` para migraciones ya
+    existentes con esos patrones.
+  - MIG-08 (Fase 4): tablas Oracle con múltiples `AUTO_INCREMENT` generan warnings nuevos.
+  - CMP-02 (Fase 4): nuevo `MigrationWarning` (`IDENTIFIER_CASE_COLLISION`) cuando aplica.
+  - DOC-03 (Fase 4): nombres de fichero de diagramas de fallback cambian de forma para tablas con
+    caracteres no alfanuméricos (antes `f"{tabla}.{fmt}"` crudo, ahora saneado); motores sin
+    estrategia de almacenamiento dedicada ganan una sección de aviso nueva en el documento.
+- Decisión sin resolver: alcance de la exclusión redshift/snowflake en documentación pública (no
+  forma parte de este plan de remediación).
+- Esta sesión pasa a **CERRADA** en cuanto a implementación: AUDIT_CODE, fase P0, Fase 1 + MIG-02,
+  MDC-01 (Fase 2), Fase 3 y Fase 4 completas del backlog P1/P2. Queda pendiente únicamente el
+  `/version-closure` que consolide el CHANGELOG.md listado arriba y cierre formalmente la sesión.
