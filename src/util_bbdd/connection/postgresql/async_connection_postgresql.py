@@ -9,6 +9,7 @@ from typing import Any
 from util_bbdd._core.exceptions import ConnectionError
 
 from ..params import ConnectionParamsManager
+from ._server_settings import build_server_settings
 
 
 class AsyncPostgreSQLConnection:
@@ -34,6 +35,10 @@ class AsyncPostgreSQLConnection:
         sslmode: Any = conn_params.get("sslmode")
         if "ssl" not in mapped and sslmode is not None:
             mapped["ssl"] = str(sslmode).lower() not in {"disable", "false", "0"}
+
+        server_settings: dict[str, str] = build_server_settings(conn_params)
+        if server_settings:
+            mapped["server_settings"] = server_settings
 
         return mapped
 

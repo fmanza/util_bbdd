@@ -17,6 +17,7 @@ from ..close import (
     run_close_operation_async,
 )
 from ..params import ConnectionParamsManager
+from ._server_settings import build_server_settings
 
 
 class AsyncPostgreSQLPool:
@@ -52,6 +53,10 @@ class AsyncPostgreSQLPool:
         sslmode: Any = conn_kwargs.pop("sslmode", None)
         if "ssl" not in conn_kwargs and sslmode is not None:
             conn_kwargs["ssl"] = str(sslmode).lower() not in {"disable", "false", "0"}
+
+        server_settings: dict[str, str] = build_server_settings(conn_params)
+        if server_settings:
+            conn_kwargs["server_settings"] = server_settings
 
         pool_kwargs: dict[str, Any] = {
             "min_size": pool_size,
