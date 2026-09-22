@@ -979,15 +979,15 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         )
         manager.db_cache._columns_cache[("db", "users")] = [("id", "int")]
         manager.db_cache._ddl_cache[("db", "users")] = "CREATE TABLE users (id INT)"
-        manager.relationship_cache._is_pk_cache[("users", "id")] = True
-        manager.relationship_cache._table_columns_typed_cache["users"] = [("id", "int")]
+        manager.relationship_cache._is_pk_cache[("db", "users", "id")] = True
+        manager.relationship_cache._table_columns_typed_cache[("db", "users")] = [("id", "int")]
 
         manager.clear_cache(context_database="db", table="users")
 
         assert ("db", "users") not in manager.db_cache._columns_cache
         assert ("db", "users") not in manager.db_cache._ddl_cache
-        assert ("users", "id") not in manager.relationship_cache._is_pk_cache
-        assert "users" not in manager.relationship_cache._table_columns_typed_cache
+        assert ("db", "users", "id") not in manager.relationship_cache._is_pk_cache
+        assert ("db", "users") not in manager.relationship_cache._table_columns_typed_cache
 
     def test_clear_cache_by_routine_supports_typed_and_untyped_invalidation(self):
         manager = AsyncDatabaseManager(

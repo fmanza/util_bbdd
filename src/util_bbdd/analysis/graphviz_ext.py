@@ -228,14 +228,17 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             True si es clave primaria
         """
         # Verificar caché centralizada primero
-        cached_result: bool | None = self.db_manager.relationship_cache.get_is_primary_key(table_name, column_name)
+        context: str = self.db_manager.get_query_context_database()
+        cached_result: bool | None = self.db_manager.relationship_cache.get_is_primary_key(
+            table_name, column_name, context=context
+        )
         if cached_result is not None:
             self.logger.debug(f"♻️  PK cacheado: {table_name}.{column_name} = {cached_result}")
             return cached_result
 
         pks: list[str] = self._get_primary_keys(table_name)
         result: bool = column_name.lower() in pks
-        self.db_manager.relationship_cache.set_is_primary_key(table_name, column_name, result)
+        self.db_manager.relationship_cache.set_is_primary_key(table_name, column_name, result, context=context)
         self.logger.debug(f"💾 PK calculado: {table_name}.{column_name} = {result}")
         return result
 
@@ -250,14 +253,17 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             True si tiene restricción única
         """
         # Verificar caché centralizada primero
-        cached_result: bool | None = self.db_manager.relationship_cache.get_is_unique_column(table_name, column_name)
+        context: str = self.db_manager.get_query_context_database()
+        cached_result: bool | None = self.db_manager.relationship_cache.get_is_unique_column(
+            table_name, column_name, context=context
+        )
         if cached_result is not None:
             self.logger.debug(f"♻️  UK cacheado: {table_name}.{column_name} = {cached_result}")
             return cached_result
 
         ucs: list[str] = self._get_unique_columns(table_name)
         result: bool = column_name.lower() in ucs
-        self.db_manager.relationship_cache.set_is_unique_column(table_name, column_name, result)
+        self.db_manager.relationship_cache.set_is_unique_column(table_name, column_name, result, context=context)
         self.logger.debug(f"💾 UK calculado: {table_name}.{column_name} = {result}")
         return result
 
@@ -280,8 +286,9 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             String con cardinalidad (ej: "1:N", "N:1", "1:1", "M:N")
         """
         # Verificar caché centralizada primero
+        context: str = self.db_manager.get_query_context_database()
         cached_result: str | None = self.db_manager.relationship_cache.get_cardinality(
-            source_col, target_col, source_table, target_table
+            source_col, target_col, source_table, target_table, context=context
         )
         if cached_result is not None:
             self.logger.debug(
@@ -304,7 +311,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 result = "M:N"
                 self.logger.debug("📊 Detectada relación M:N (ambos son PK)")
                 self.db_manager.relationship_cache.set_cardinality(
-                    source_col, target_col, source_table, target_table, result
+                    source_col, target_col, source_table, target_table, result, context=context
                 )
                 return result
 
@@ -313,7 +320,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 result = "1:1"
                 self.logger.debug("📊 Detectada relación 1:1 (target es PK y source es UK)")
                 self.db_manager.relationship_cache.set_cardinality(
-                    source_col, target_col, source_table, target_table, result
+                    source_col, target_col, source_table, target_table, result, context=context
                 )
                 return result
 
@@ -322,7 +329,7 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
                 result = "1:N"
                 self.logger.debug("📊 Detectada relación 1:N (target es PK)")
                 self.db_manager.relationship_cache.set_cardinality(
-                    source_col, target_col, source_table, target_table, result
+                    source_col, target_col, source_table, target_table, result, context=context
                 )
                 return result
 

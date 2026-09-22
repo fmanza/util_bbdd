@@ -68,15 +68,15 @@ class TestAsyncDatabaseManagerCache:
         )
         manager.db_cache._columns_cache[("db", "users")] = [("id", "int")]
         manager.db_cache._columns_cache[("db", "orders")] = [("id", "int")]
-        manager.relationship_cache._is_pk_cache[("users", "id")] = True
-        manager.relationship_cache._is_pk_cache[("orders", "id")] = True
+        manager.relationship_cache._is_pk_cache[("db", "users", "id")] = True
+        manager.relationship_cache._is_pk_cache[("db", "orders", "id")] = True
 
         manager.clear_cache(context_database="db", table="users")
 
         assert ("db", "users") not in manager.db_cache._columns_cache
         assert ("db", "orders") in manager.db_cache._columns_cache
-        assert ("users", "id") not in manager.relationship_cache._is_pk_cache
-        assert ("orders", "id") in manager.relationship_cache._is_pk_cache
+        assert ("db", "users", "id") not in manager.relationship_cache._is_pk_cache
+        assert ("db", "orders", "id") in manager.relationship_cache._is_pk_cache
 
     def test_relationship_cache_composition_uses_manager_db_cache(self):
         manager = AsyncDatabaseManager(

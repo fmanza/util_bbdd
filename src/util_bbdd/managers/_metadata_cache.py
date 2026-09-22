@@ -63,7 +63,7 @@ class CacheManager:
         self.logger.debug(f"Limpiando caché de tabla: {table} ({context})")
         try:
             self.db_cache.clear_by_table(context, table)
-            self.relationship_cache.clear_by_table(table)
+            self.relationship_cache.clear_by_table(table, context=context)
             self.logger.info(f"✅ Caché invalidada para tabla/vista {table} ({context})")
         except Exception as error:
             self.logger.error(f"❌ Error limpiando caché de tabla {table}: {error}", exc_info=True)

@@ -187,10 +187,12 @@ class RelationshipMetadataCache:
         self.db_cache: DatabaseMetadataCache = db_cache or DatabaseMetadataCache()
 
         # Cachés de análisis (NO duplican datos, solo resultados derivados)
-        self._cardinality_cache: dict[tuple[str, str, str, str], str] = {}
-        self._is_pk_cache: dict[tuple[str, str], bool] = {}
-        self._is_uk_cache: dict[tuple[str, str], bool] = {}
-        self._table_columns_typed_cache: dict[str, list[tuple[str, str]]] = {}
+        # Claves incluyen un componente de contexto (schema/db) en primera posición
+        # para evitar colisiones entre tablas homónimas de distinto schema (MDC-02).
+        self._cardinality_cache: dict[tuple[str, str, str, str, str], str] = {}
+        self._is_pk_cache: dict[tuple[str, str, str], bool] = {}
+        self._is_uk_cache: dict[tuple[str, str, str], bool] = {}
+        self._table_columns_typed_cache: dict[tuple[str, str], list[tuple[str, str]]] = {}
 
         self.logger.debug("✅ RelationshipMetadataCache inicializado")
 
@@ -214,9 +216,24 @@ class RelationshipMetadataCache:
         """Guarda UCs en caché de BD centralizada."""
         self.db_cache.set_unique_constraints(table_key, ucs)
 
-    def get_cardinality(self, source_col: str, target_col: str, source_table: str, target_table: str) -> str | None:
-        """Obtiene cardinalidad del caché de análisis."""
-        key: tuple[str, str, str, str] = (source_col, target_col, source_table, target_table)
+    def get_cardinality(
+        self,
+        source_col: str,
+        target_col: str,
+        source_table: str,
+        target_table: str,
+        *,
+        context: str = "",
+    ) -> str | None:
+        """Obtiene cardinalidad del caché de análisis.
+
+        Args:
+            context: Contexto (schema/database) de las tablas relacionadas. Opcional
+                por retrocompatibilidad; si se omite, todas las llamadas comparten un
+                único namespace sin aislar por schema (MDC-02: pasarlo explícitamente
+                evita colisiones entre tablas homónimas de distinto schema).
+        """
+        key: tuple[str, str, str, str, str] = (context, source_col, target_col, source_table, target_table)
         return self._cardinality_cache.get(key)
 
     def set_cardinality(
@@ -226,38 +243,55 @@ class RelationshipMetadataCache:
         source_table: str,
         target_table: str,
         cardinality: str,
+        *,
+        context: str = "",
     ) -> None:
-        """Guarda cardinalidad en caché de análisis."""
-        key: tuple[str, str, str, str] = (source_col, target_col, source_table, target_table)
+        """Guarda cardinalidad en caché de análisis. Ver `context` en `get_cardinality`."""
+        key: tuple[str, str, str, str, str] = (context, source_col, target_col, source_table, target_table)
         self._cardinality_cache[key] = cardinality
 
-    def get_is_primary_key(self, table_name: str, column_name: str) -> bool | None:
-        """Obtiene resultado de check PK del caché de análisis."""
-        key: tuple[str, str] = (table_name, column_name)
+    def get_is_primary_key(self, table_name: str, column_name: str, *, context: str = "") -> bool | None:
+        """Obtiene resultado de check PK del caché de análisis.
+
+        Args:
+            context: Contexto (schema/database) de la tabla. Opcional por
+                retrocompatibilidad; ver nota de `get_cardinality` (MDC-02).
+        """
+        key: tuple[str, str, str] = (context, table_name, column_name)
         return self._is_pk_cache.get(key)
 
-    def set_is_primary_key(self, table_name: str, column_name: str, is_pk: bool) -> None:
-        """Guarda resultado de check PK en caché de análisis."""
-        key: tuple[str, str] = (table_name, column_name)
+    def set_is_primary_key(self, table_name: str, column_name: str, is_pk: bool, *, context: str = "") -> None:
+        """Guarda resultado de check PK en caché de análisis. Ver `context` en `get_is_primary_key`."""
+        key: tuple[str, str, str] = (context, table_name, column_name)
         self._is_pk_cache[key] = is_pk
 
-    def get_is_unique_column(self, table_name: str, column_name: str) -> bool | None:
-        """Obtiene resultado de check UK del caché de análisis."""
-        key: tuple[str, str] = (table_name, column_name)
+    def get_is_unique_column(self, table_name: str, column_name: str, *, context: str = "") -> bool | None:
+        """Obtiene resultado de check UK del caché de análisis.
+
+        Args:
+            context: Contexto (schema/database) de la tabla. Opcional por
+                retrocompatibilidad; ver nota de `get_cardinality` (MDC-02).
+        """
+        key: tuple[str, str, str] = (context, table_name, column_name)
         return self._is_uk_cache.get(key)
 
-    def set_is_unique_column(self, table_name: str, column_name: str, is_uk: bool) -> None:
-        """Guarda resultado de check UK en caché de análisis."""
-        key: tuple[str, str] = (table_name, column_name)
+    def set_is_unique_column(self, table_name: str, column_name: str, is_uk: bool, *, context: str = "") -> None:
+        """Guarda resultado de check UK en caché de análisis. Ver `context` en `get_is_unique_column`."""
+        key: tuple[str, str, str] = (context, table_name, column_name)
         self._is_uk_cache[key] = is_uk
 
-    def get_table_columns_typed(self, table_name: str) -> list[tuple[str, str]] | None:
-        """Obtiene columnas tipadas de tabla del caché."""
-        return self._table_columns_typed_cache.get(table_name)
+    def get_table_columns_typed(self, table_name: str, *, context: str = "") -> list[tuple[str, str]] | None:
+        """Obtiene columnas tipadas de tabla del caché.
 
-    def set_table_columns_typed(self, table_name: str, columns: list[tuple[str, str]]) -> None:
-        """Guarda columnas tipadas de tabla en caché."""
-        self._table_columns_typed_cache[table_name] = list(columns)
+        Args:
+            context: Contexto (schema/database) de la tabla. Opcional por
+                retrocompatibilidad; ver nota de `get_cardinality` (MDC-02).
+        """
+        return self._table_columns_typed_cache.get((context, table_name))
+
+    def set_table_columns_typed(self, table_name: str, columns: list[tuple[str, str]], *, context: str = "") -> None:
+        """Guarda columnas tipadas de tabla en caché. Ver `context` en `get_table_columns_typed`."""
+        self._table_columns_typed_cache[(context, table_name)] = list(columns)
 
     def clear_all(self) -> None:
         """Limpia cachés de análisis (NOT de BD)."""
@@ -267,28 +301,51 @@ class RelationshipMetadataCache:
         self._table_columns_typed_cache.clear()
         self.logger.info("🧹 RelationshipMetadataCache limpiado completamente")
 
-    def clear_by_table(self, table_name: str) -> None:
-        """Invalida cachés de análisis para tabla específica."""
+    def clear_by_table(self, table_name: str, *, context: str | None = None) -> None:
+        """Invalida cachés de análisis para tabla específica.
+
+        Args:
+            table_name: Nombre de la tabla a invalidar.
+            context: Contexto (schema/database). Si se omite (``None``, valor por
+                defecto retrocompatible), invalida ``table_name`` en **todos** los
+                contextos — más conservador, nunca deja una entrada obsoleta, pero
+                no distingue schemas homónimos (MDC-02). Pasarlo explícitamente
+                limita la invalidación a ese contexto únicamente.
+        """
+
+        def _matches_context(entry_context: str) -> bool:
+            return context is None or entry_context == context
+
         # Limpiar cardinalidades que involucren esta tabla
-        keys_to_remove: list[tuple[str, str, str, str]] = [
-            key for key in self._cardinality_cache if key[2] == table_name or key[3] == table_name
+        keys_to_remove: list[tuple[str, str, str, str, str]] = [
+            key
+            for key in self._cardinality_cache
+            if (key[3] == table_name or key[4] == table_name) and _matches_context(key[0])
         ]
         for cardinality_key in keys_to_remove:
             self._cardinality_cache.pop(cardinality_key, None)
 
         # Limpiar checks PK/UK de columnas de tabla
-        pk_keys: list[tuple[str, str]] = [key for key in self._is_pk_cache if key[0] == table_name]
+        pk_keys: list[tuple[str, str, str]] = [
+            key for key in self._is_pk_cache if key[1] == table_name and _matches_context(key[0])
+        ]
         for pk_key in pk_keys:
             self._is_pk_cache.pop(pk_key, None)
 
-        uk_keys: list[tuple[str, str]] = [key for key in self._is_uk_cache if key[0] == table_name]
+        uk_keys: list[tuple[str, str, str]] = [
+            key for key in self._is_uk_cache if key[1] == table_name and _matches_context(key[0])
+        ]
         for uk_key in uk_keys:
             self._is_uk_cache.pop(uk_key, None)
 
         # Limpiar columnas tipadas
-        self._table_columns_typed_cache.pop(table_name, None)
+        typed_keys: list[tuple[str, str]] = [
+            key for key in self._table_columns_typed_cache if key[1] == table_name and _matches_context(key[0])
+        ]
+        for typed_key in typed_keys:
+            self._table_columns_typed_cache.pop(typed_key, None)
 
-        self.logger.debug(f"🧹 RelationshipMetadataCache invalidado para tabla: {table_name}")
+        self.logger.debug(f"🧹 RelationshipMetadataCache invalidado para tabla: {table_name} (context={context})")
 
     def get_cache_stats(self) -> dict[str, int]:
         """Retorna estadísticas de cachés de análisis."""

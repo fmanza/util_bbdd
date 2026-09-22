@@ -300,7 +300,7 @@ class AsyncMetadataManager:
         """
         if table_name:
             self.db_cache.clear_by_table("default", table_name)
-            self.relationship_cache.clear_by_table(table_name)
+            self.relationship_cache.clear_by_table(table_name, context="default")
             self.logger.info(f"🧹 Cache limpiado para tabla: {table_name}")
         else:
             self.db_cache.clear_all()
