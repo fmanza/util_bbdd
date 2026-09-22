@@ -91,6 +91,16 @@ class SQLServerConnection:
             ) from e
 
     @staticmethod
+    def _escape_odbc_value(value: Any) -> str:
+        """Envuelve un valor en ``{}`` (doblando ``}`` internas) para un connection string ODBC.
+
+        Sin este quoting, un valor con ``;``, ``{`` o ``}`` puede inyectar atributos adicionales
+        en la cadena de conexión (p. ej. ``TrustServerCertificate=yes``) — ver AUDIT_CODE CNX-02,
+        2026-09-22.
+        """
+        return "{" + str(value).replace("}", "}}") + "}"
+
+    @staticmethod
     def _connect_pyodbc(conn_params: dict[str, Any]) -> Any:
         """
         Crea conexión raw a SQL Server usando pyodbc.
@@ -116,12 +126,13 @@ class SQLServerConnection:
             encryption = conn_params.get("encryption", "optional")
             trust_cert = conn_params.get("trust_cert", False)
 
+            esc = SQLServerConnection._escape_odbc_value
             conn_str: str = (
-                f"Driver={{{driver_name}}};"
-                f"Server={host},{port};"
-                f"Database={database};"
-                f"UID={user};"
-                f"PWD={password};"
+                f"Driver={esc(driver_name)};"
+                f"Server={esc(host)},{port};"
+                f"Database={esc(database)};"
+                f"UID={esc(user)};"
+                f"PWD={esc(password)};"
                 f"Encrypt={encryption.lower()};"
                 f"TrustServerCertificate={'yes' if trust_cert else 'no'};"
             )

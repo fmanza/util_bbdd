@@ -17,6 +17,17 @@ class AsyncSQLServerConnection:
     logger: logging.Logger = logging.getLogger(__name__)
 
     @staticmethod
+    def _escape_odbc_value(value: Any) -> str:
+        """Envuelve un valor en ``{}`` (doblando ``}`` internas) para un connection string ODBC.
+
+        Sin este quoting, un valor con ``;``, ``{`` o ``}`` puede inyectar atributos adicionales
+        en la cadena de conexión (p. ej. ``TrustServerCertificate=yes``) — ver AUDIT_CODE CNX-02,
+        2026-09-22. Usado también por ``AsyncPoolConnection`` (sqlserver), que reutiliza
+        ``_build_dsn``.
+        """
+        return "{" + str(value).replace("}", "}}") + "}"
+
+    @staticmethod
     def _build_dsn(conn_params: dict[str, Any]) -> str:
         host: str = str(conn_params.get("host", "localhost"))
         user: str = str(conn_params.get("user", "sa"))
@@ -28,12 +39,13 @@ class AsyncSQLServerConnection:
         trust_cert: bool = bool(conn_params.get("trust_cert", False))
         use_mars: bool = bool(conn_params.get("use_mars", True))
 
+        esc = AsyncSQLServerConnection._escape_odbc_value
         return (
-            f"Driver={{{driver_name}}};"
-            f"Server={host},{port};"
-            f"Database={database};"
-            f"UID={user};"
-            f"PWD={password};"
+            f"Driver={esc(driver_name)};"
+            f"Server={esc(host)},{port};"
+            f"Database={esc(database)};"
+            f"UID={esc(user)};"
+            f"PWD={esc(password)};"
             f"Encrypt={encryption};"
             f"TrustServerCertificate={'yes' if trust_cert else 'no'};"
             f"MARS_Connection={'yes' if use_mars else 'no'};"
