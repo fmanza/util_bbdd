@@ -10,7 +10,7 @@ from .._base_adapter import BaseConnectionAdapter
 from ._sqlserver_models import SqlServerParameterDetail, SqlServerRoutineDetail
 from .constraints import fetch_foreign_keys_sync, fetch_primary_keys_sync
 from .indexes import fetch_indexes_sync
-from .routines import fetch_routine_parameters_sync, fetch_routines_sync
+from .routines import fetch_routine_body_sync, fetch_routine_parameters_sync, fetch_routines_sync
 from .tables import fetch_columns_sync, fetch_schemas_sync, fetch_tables_sync
 
 
@@ -191,3 +191,20 @@ class SqlServerSyncAdapter(BaseConnectionAdapter):
         if not conn:
             return []
         return fetch_routine_parameters_sync(conn, object_id)
+
+    def fetch_routine_definition_sync(self, schema: str, routine: str, routine_type: str) -> str:
+        """Obtiene el DDL completo de una rutina (RoutineAdapter).
+
+        Args:
+            schema: Nombre del schema (por defecto 'dbo').
+            routine: Nombre del procedimiento/función.
+            routine_type: Tipo de rutina ('PROCEDURE' o 'FUNCTION', ignorado: la búsqueda de
+                sys.sql_modules es por nombre, no distingue tipo).
+
+        Returns:
+            str: Definición completa (CREATE PROCEDURE/FUNCTION ...) o ``""`` si no disponible.
+        """
+        conn = self._get_conn()
+        if not conn or not routine:
+            return ""
+        return fetch_routine_body_sync(conn, schema or "dbo", routine)
