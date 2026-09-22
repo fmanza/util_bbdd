@@ -45,7 +45,14 @@ __all__: list[str] = [
 
 # Registrar adapters en el registry global (se ejecuta una vez al importar este módulo)
 def _register_mariadb_adapters() -> None:
-    """Registra adapters MariaDB en el registry global de adapters."""
+    """Registra adapters MariaDB en el registry global de adapters.
+
+    Falla silenciosamente solo si el registry no está disponible (import circular
+    o entorno especial). MDC-04 (AUDIT_CODE 2026-09-22): antes capturaba
+    ``Exception`` en vez de ``ImportError``, enmascarando errores reales de
+    bootstrap — incluido el ``ValueError`` que el registry lanza a propósito ante
+    un doble registro (p.ej. una recarga accidental del módulo en tests).
+    """
     try:
         from ..adapters import get_global_adapter_registry
 
@@ -54,7 +61,7 @@ def _register_mariadb_adapters() -> None:
         registry.register_source_adapter_async("mariadb", MariaDBAsyncAdapter)
         registry.register_routine_adapter_sync("mariadb", MariaDBSyncAdapter)
         registry.register_routine_adapter_async("mariadb", MariaDBAsyncAdapter)
-    except Exception:
+    except ImportError:
         # Silenciosamente fallar si el registry no está disponible
         # (ej: en casos de importación circular o entornos especiales)
         pass

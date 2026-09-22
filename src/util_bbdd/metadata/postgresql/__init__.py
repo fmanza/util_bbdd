@@ -86,8 +86,12 @@ __all__: list[str] = [
 def _register_postgresql_adapters() -> None:
     """Registra adaptadores PostgreSQL en el registry global de adaptadores.
 
-    Se ejecuta al importar este módulo. Falla silenciosamente si el registry
-    no está disponible (p.ej. entornos especiales o importación circular).
+    Se ejecuta al importar este módulo. Falla silenciosamente solo si el registry
+    no está disponible (p.ej. entornos especiales o importación circular). MDC-04
+    (AUDIT_CODE 2026-09-22, mismo patrón detectado en mariadb): antes capturaba
+    ``Exception`` en vez de ``ImportError``, enmascarando errores reales de
+    bootstrap — incluido el ``ValueError`` que el registry lanza a propósito ante
+    un doble registro.
     """
     try:
         from ..adapters import get_global_adapter_registry
@@ -97,7 +101,7 @@ def _register_postgresql_adapters() -> None:
         registry.register_source_adapter_async("postgresql", PostgreSQLAsyncAdapter)
         registry.register_routine_adapter_sync("postgresql", PostgreSQLSyncAdapter)
         registry.register_routine_adapter_async("postgresql", PostgreSQLAsyncAdapter)
-    except Exception:
+    except ImportError:
         # Silenciosamente fallar si el registry no está disponible
         # (ej: en casos de importación circular o entornos especiales)
         pass
