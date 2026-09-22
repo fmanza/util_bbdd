@@ -105,6 +105,21 @@ def escape_mermaid_label(name: str) -> str:
     return name.replace('"', "'").replace("[", "(").replace("]", ")")
 
 
+def escape_markdown_table_cell(value: str) -> str:
+    """Escapa texto libre (p.ej. comentarios de BD) para una celda de tabla Markdown.
+
+    BLK-07 (AUDIT_CODE 2026-09-22): un comentario de BD es texto libre sin
+    restricciones — puede contener "|" (rompe la estructura de columnas de la
+    tabla), backticks (abren un code span sin cerrar) o saltos de línea
+    (terminan la fila antes de tiempo). Se escapan con backslash por ser
+    caracteres de puntuación ASCII válidos para backslash-escape en CommonMark.
+    """
+    if not value:
+        return value
+    escaped = value.replace("\\", "\\\\").replace("|", "\\|").replace("`", "\\`")
+    return escaped.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+
+
 class DdlNormalizer:
     """Normaliza DDL de vistas y rutinas eliminando artefactos dialect-específicos.
 

@@ -39,6 +39,7 @@ from util_bbdd.comparar.reporters._base import (
     DdlNormalizer,
     build_diff_summary,
     build_output_stem,
+    escape_markdown_table_cell,
     escape_mermaid_label,
     sanitize_filename,
 )
@@ -150,6 +151,16 @@ class TestBase:
         assert '"' not in escape_mermaid_label('table"name')
         assert "[" not in escape_mermaid_label("table[name]")
 
+    def test_escape_markdown_table_cell_escapes_pipe_backtick_backslash_and_newlines(self) -> None:
+        """BLK-07 (AUDIT_CODE 2026-09-22): un comentario de BD es texto libre que puede
+        romper la estructura de una tabla Markdown."""
+        assert escape_markdown_table_cell("a | b") == "a \\| b"
+        assert escape_markdown_table_cell("`code`") == "\\`code\\`"
+        assert escape_markdown_table_cell("path\\to\\file") == "path\\\\to\\\\file"
+        assert escape_markdown_table_cell("line1\nline2") == "line1 line2"
+        assert escape_markdown_table_cell("line1\r\nline2") == "line1 line2"
+        assert escape_markdown_table_cell("") == ""
+
     def test_build_diff_summary_empty(self, empty_diff: SchemaDiff) -> None:
         s = build_diff_summary(empty_diff)
         assert s.tables_added == 0
@@ -211,6 +222,37 @@ class TestMarkdownDiffReporter:
         MarkdownDiffReporter().render(rich_diff, output)
         content = output.read_text(encoding="utf-8")
         assert "Comparación de entornos" in content
+
+    def test_render_escapes_pipe_backtick_and_newline_in_comments(self, tmp_path: Path) -> None:
+        """BLK-07 (AUDIT_CODE 2026-09-22): un comentario con '|', backtick o salto de
+        línea no debe romper la estructura de la tabla Markdown de comentarios."""
+        diff = SchemaDiff(
+            source_label="prod",
+            target_label="staging",
+            table_diffs=(
+                TableDiff(
+                    table_name="users",
+                    status="modified",
+                    comment_diffs=(
+                        CommentDiff(
+                            object_name="users",
+                            column_name="bio",
+                            source_comment="A | B `code` C\nsecond line",
+                            target_comment="clean",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        output = tmp_path / "diff.md"
+        MarkdownDiffReporter().render(diff, output)
+        lines = output.read_text(encoding="utf-8").splitlines()
+
+        comment_line = next(line for line in lines if line.startswith("| `users`"))
+        columns = comment_line.split(" | ")
+        assert len(columns) == 4
+        assert "A \\| B \\`code\\` C second line" in comment_line
+        assert not any(line.strip() == "second line" for line in lines)
 
 
 # ---------------------------------------------------------------------------

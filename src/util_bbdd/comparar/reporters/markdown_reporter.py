@@ -12,7 +12,15 @@ if TYPE_CHECKING:
 
     from util_bbdd.comparar.models import RoutineDiff, SchemaDiff, TableDiff, ViewDiff
 
-from ._base import STATUS_EMOJI, STATUS_ES, DdlNormalizer, DiffSummary, build_diff_summary, escape_mermaid_label
+from ._base import (
+    STATUS_EMOJI,
+    STATUS_ES,
+    DdlNormalizer,
+    DiffSummary,
+    build_diff_summary,
+    escape_markdown_table_cell,
+    escape_mermaid_label,
+)
 
 
 class MarkdownDiffReporter:
@@ -188,7 +196,9 @@ class MarkdownDiffReporter:
         ]
         for cm in comment_diffs:
             col_label: str = f"`{cm.column_name}`" if cm.column_name else "*(tabla)*"
-            lines.append(f"| `{cm.object_name}` | {col_label} | {cm.source_comment} | {cm.target_comment} |")
+            source_comment: str = escape_markdown_table_cell(cm.source_comment)
+            target_comment: str = escape_markdown_table_cell(cm.target_comment)
+            lines.append(f"| `{cm.object_name}` | {col_label} | {source_comment} | {target_comment} |")
         lines.append("")
         return lines
 
