@@ -185,6 +185,17 @@ class TestIsSystemSchemaOracle:
     def test_lowercase_sys_is_system(self) -> None:
         assert is_system_schema_oracle("sys") is True
 
+    def test_wmsys_is_system(self) -> None:
+        assert is_system_schema_oracle("WMSYS") is True
+
+    def test_user_schema_starting_with_wm_is_not_system(self) -> None:
+        """MEO-06 (AUDIT_CODE 2026-09-22): el filtro por prefijo "WM" excluía por
+        error esquemas de usuario legítimos que solo coincidían en el prefijo."""
+        assert is_system_schema_oracle("WMHOLDINGS") is False
+
+    def test_user_schema_wm_reports_is_not_system(self) -> None:
+        assert is_system_schema_oracle("WM_REPORTS") is False
+
 
 class TestGetOracleTableType:
     """Tests para get_oracle_table_type()."""

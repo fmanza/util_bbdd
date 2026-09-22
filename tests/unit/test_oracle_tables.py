@@ -39,6 +39,16 @@ class TestSchemasQuery:
         assert "%(schema)s" not in sql
         assert "%(owner)s" not in sql
 
+    def test_fetch_schemas_sql_excludes_wmsys_by_exact_name_only(self) -> None:
+        """MEO-06 (AUDIT_CODE 2026-09-22): antes había también un filtro
+        `NOT LIKE 'WM%'` que excluía por error cualquier schema de usuario que
+        empezara por "WM" (p.ej. WMHOLDINGS); WMSYS ya está cubierto por el NOT IN
+        exacto, así que el filtro por prefijo se retiró por redundante y demasiado
+        amplio."""
+        sql = fetch_schemas_sql()
+        assert "WMSYS" in sql
+        assert "WM%" not in sql
+
 
 class TestTablesQuery:
     """Tests para queries de tablas."""

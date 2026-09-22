@@ -127,7 +127,7 @@ def is_system_schema_oracle(owner: str) -> bool:
     """Determina si un esquema es del sistema Oracle (debe excluirse).
 
     Excluye: SYS, SYSTEM, XDB, APEX_*, MDSYS, ORDDATA, SI_INFORMTN_SCHEMA,
-    CTXSYS, TXNSYS, WM*, WMSYS, etc.
+    CTXSYS, TXNSYS, WMSYS (match exacto, no prefijo — ver MEO-06), etc.
 
     Args:
         owner: Nombre del propietario/schema
@@ -159,8 +159,13 @@ def is_system_schema_oracle(owner: str) -> bool:
     if owner_upper in system_schemas:
         return True
 
-    # Prefijos de schemas de sistema
-    system_prefixes = ["APEX_", "WM", "ORDS", "RMAN", "DVF", "C##"]
+    # Prefijos de schemas de sistema. MEO-06 (AUDIT_CODE 2026-09-22): "WM" (sin
+    # sufijo) excluía por error cualquier schema de usuario que empezara por esas
+    # letras (p.ej. WMHOLDINGS, WM_REPORTS); WMSYS, el único schema de sistema real
+    # con ese prefijo, ya está cubierto por el match exacto de `system_schemas`
+    # arriba. Retirado el prefijo "WM" — no reintroducirlo sin un sufijo/límite de
+    # palabra que no capture nombres de schema de usuario legítimos.
+    system_prefixes = ["APEX_", "ORDS", "RMAN", "DVF", "C##"]
     for prefix in system_prefixes:
         if owner_upper.startswith(prefix):
             return True

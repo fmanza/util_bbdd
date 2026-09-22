@@ -15,6 +15,11 @@ def fetch_schemas_sql() -> str:
     Returns:
         str: SQL query para obtener DISTINCT OWNER de all_tables
     """
+    # MEO-06 (AUDIT_CODE 2026-09-22): "NOT LIKE 'WM%'" excluía por error cualquier
+    # schema de usuario que empezara por "WM" (p.ej. WMHOLDINGS, WM_REPORTS); WMSYS
+    # (el único schema de sistema real con ese prefijo) ya está cubierto por el
+    # NOT IN exacto de abajo, así que el filtro por prefijo era redundante y demasiado
+    # amplio a la vez. Retirado.
     return (
         "SELECT DISTINCT owner "
         "FROM all_tables "
@@ -22,7 +27,6 @@ def fetch_schemas_sql() -> str:
         "'SI_INFORMTN_SCHEMA', 'CTXSYS', 'TXNSYS', 'WMSYS', 'OLAPSYS', "
         "'OWBSYS', 'FLOWS_FILES') "
         "AND owner NOT LIKE 'APEX\\_%%' ESCAPE '\\' "
-        "AND owner NOT LIKE 'WM%%' "
         "ORDER BY owner"
     )
 
