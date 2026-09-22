@@ -45,6 +45,22 @@ class TestAsyncDatabaseManagerInit:
 
         assert manager.use_pool is False
 
+    def test_manager_has_no_dead_lifecycle_or_session_manager_attributes(self):
+        """MGR-02 (AUDIT_CODE 2026-09-22): AsyncLifecycleManager/AsyncSessionManager se
+        construían en __init__ (y sus atributos se actualizaban en init()) pero ningún
+        método suyo se invocaba jamás — código muerto que aparentaba funcionar. Retirados;
+        AsyncDatabaseManager implementa su propio ciclo de vida directamente."""
+        manager = AsyncDatabaseManager(
+            db_type="mariadb",
+            conn_params={"host": "localhost", "user": "root"},
+            use_pool=True,
+            connection_factory=AsyncMock(),
+            pool_factory=AsyncMock(),
+        )
+
+        assert not hasattr(manager, "lifecycle_manager")
+        assert not hasattr(manager, "session_manager")
+
     def test_manager_db_type_normalized(self):
         """AsyncDatabaseManager normalizes db_type to lowercase"""
         manager = AsyncDatabaseManager(

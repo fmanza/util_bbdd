@@ -44,13 +44,11 @@ from ._manager_lifecycle import (
     init_async_resources,
     release_async_connection,
 )
-from ._manager_lifecycle_async import AsyncLifecycleManager
 from ._manager_metadata_factory import MetadataStrategyFactory
 from ._manager_metadata_runtime import (
     MetadataFetchRequest,
     MetadataRequestBuilder,
 )
-from ._manager_session import AsyncSessionManager
 from ._manager_shared_mixin import DatabaseManagerSharedMixin
 from ._metadata_parser import CharsetCollationParser
 
@@ -257,15 +255,6 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         )
         self._pool_factory: Callable[..., Awaitable[Any]] = pool_factory or PoolFactory.create_async_pool
 
-        # Lifecycle y session managers
-        self.lifecycle_manager = AsyncLifecycleManager(
-            db_type=normalized_db_type,
-            conn_params=conn_params,
-            logger=self.logger,
-            validators=validator,
-        )
-        self.session_manager = AsyncSessionManager(pool_connection=None, logger=self.logger)
-
         # Estado de conexión
         self._initialized: bool = False
         self._connection: Any = None
@@ -285,10 +274,6 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
             create_pool=lambda: self._pool_factory(self.db_type, self.conn_params),
             create_connection=lambda: self._connection_factory(self.db_type, self.conn_params),
         )
-
-        # Actualizar session manager
-        self.session_manager.pool_connection = self.pool_connection
-        self.session_manager._connection = self._connection
 
         # Construir executor
         self.query_executor = AsyncQueryExecutor(
