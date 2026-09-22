@@ -5,11 +5,11 @@ Tests for Validators Factory - get_type_validator()
 import pytest
 
 from util_bbdd.validators import (
-    DatabaseTypeValidator,
     HSQLDBValidator,
     MariaDBValidator,
     OracleValidator,
     PostgreSQLValidator,
+    QueryParameterValidator,
     SQLiteValidator,
     SQLServerValidator,
     get_type_validator,
@@ -56,11 +56,11 @@ class TestGetTypeValidatorFactory:
         assert validator.db_type == "sqlite"
 
     def test_all_validators_inherit_from_base(self):
-        """Todos los validadores heredan de DatabaseTypeValidator"""
+        """Todos los validadores heredan de QueryParameterValidator"""
         db_types = ["mariadb", "oracle", "postgresql", "hsqldb", "sqlserver", "sqlite"]
         for db_type in db_types:
             validator = get_type_validator(db_type)
-            assert isinstance(validator, DatabaseTypeValidator)
+            assert isinstance(validator, QueryParameterValidator)
 
     def test_case_insensitive_mariadb(self):
         """Factory es case-insensitive para 'MARIADB'"""

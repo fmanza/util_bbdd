@@ -8,10 +8,10 @@ import re
 from typing import Any
 
 from ..models import QueryDefinition
-from .base_validator import DatabaseTypeValidator
+from .base_validator import QueryParameterValidator
 
 
-class SQLServerValidator(DatabaseTypeValidator):
+class SQLServerValidator(QueryParameterValidator):
     """Validador de queries para SQL Server.
 
     Reglas específicas de SQL Server:

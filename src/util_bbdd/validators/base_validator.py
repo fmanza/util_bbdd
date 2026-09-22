@@ -16,11 +16,16 @@ from ..models import QueryDefinition
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9_$#]+$")
 
 
-class DatabaseTypeValidator(ABC):
-    """Clase base para validadores específicos de motor de BD.
+class QueryParameterValidator(ABC):
+    """Clase base para validadores de parámetros de query específicos de motor de BD.
 
     Cada motor (MariaDB, Oracle, PostgreSQL, etc.) puede tener reglas
     de validación específicas. Esta clase define la interfaz común.
+
+    Renombrada desde ``DatabaseTypeValidator`` (SVC-05, AUDIT_CODE 2026-09-22):
+    colisionaba en nombre con ``_drivers.validator.DatabaseTypeValidator`` (una
+    clase totalmente distinta que valida si un db_type está soportado, no
+    parámetros de query) — superficie de import confusa entre ambas.
 
     Subclases:
     - MariaDBValidator

@@ -10,7 +10,7 @@ import logging
 from collections.abc import Callable
 from functools import cache
 
-from .base_validator import DatabaseTypeValidator
+from .base_validator import QueryParameterValidator
 from .hsqldb_validator import HSQLDBValidator
 from .mariadb_validator import MariaDBValidator
 from .oracle_validator import OracleValidator
@@ -20,7 +20,7 @@ from .sqlserver_validator import SQLServerValidator
 
 logger: logging.Logger = logging.getLogger(__name__)
 
-ValidatorFactory = Callable[[], DatabaseTypeValidator]
+ValidatorFactory = Callable[[], QueryParameterValidator]
 """Fábrica de validadores concretos por tipo de base de datos."""
 
 # Mapping de tipos de BD a sus validadores
@@ -35,7 +35,7 @@ _VALIDATOR_REGISTRY: dict[str, ValidatorFactory] = {
 
 
 @cache
-def _get_cached_validator(db_type_lower: str) -> DatabaseTypeValidator:
+def _get_cached_validator(db_type_lower: str) -> QueryParameterValidator:
     """Obtiene validador cacheado por db_type normalizado."""
     validator_factory = _VALIDATOR_REGISTRY[db_type_lower]
     validator = validator_factory()
@@ -43,7 +43,7 @@ def _get_cached_validator(db_type_lower: str) -> DatabaseTypeValidator:
     return validator
 
 
-def get_type_validator(db_type: str) -> DatabaseTypeValidator:
+def get_type_validator(db_type: str) -> QueryParameterValidator:
     """Factory para obtener el validador apropiado para un tipo de BD.
 
     Args:
@@ -60,7 +60,7 @@ def get_type_validator(db_type: str) -> DatabaseTypeValidator:
         >>> validator = get_type_validator("mariadb")
         >>> validator.db_type
         'mariadb'
-        >>> isinstance(validator, DatabaseTypeValidator)
+        >>> isinstance(validator, QueryParameterValidator)
         True
     """
     db_type_lower: str = db_type.lower().strip()
@@ -73,7 +73,7 @@ def get_type_validator(db_type: str) -> DatabaseTypeValidator:
 
 
 __all__ = [
-    "DatabaseTypeValidator",
+    "QueryParameterValidator",
     "MariaDBValidator",
     "OracleValidator",
     "PostgreSQLValidator",

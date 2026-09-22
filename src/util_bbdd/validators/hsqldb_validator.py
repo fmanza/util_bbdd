@@ -8,10 +8,10 @@ import re
 from typing import Any
 
 from ..models import QueryDefinition
-from .base_validator import DatabaseTypeValidator
+from .base_validator import QueryParameterValidator
 
 
-class HSQLDBValidator(DatabaseTypeValidator):
+class HSQLDBValidator(QueryParameterValidator):
     """Validador de queries para HSQLDB.
 
     Reglas específicas de HSQLDB:

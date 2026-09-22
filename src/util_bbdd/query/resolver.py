@@ -16,7 +16,7 @@ import time
 from typing import Any
 
 from util_bbdd.models import QueryDefinition
-from util_bbdd.validators.base_validator import DatabaseTypeValidator
+from util_bbdd.validators.base_validator import QueryParameterValidator
 
 from .._core.exceptions import (
     QueryNotFoundError,
@@ -33,7 +33,7 @@ class QueryResolver:
 
     Responsabilidades:
     - Obtener QueryDefinition desde QueryRegistry
-    - Validar parámetros usando DatabaseTypeValidator específico
+    - Validar parámetros usando QueryParameterValidator específico
     - Interpolar parámetros en SQL template
     - Retornar ResolvedQuery con SQL final y metadatos
 
@@ -105,7 +105,7 @@ class QueryResolver:
             query_def: QueryDefinition = self.registry.get_query_definition(effective_db_type, query_name)
 
             # Paso 2: Validar parámetros con validador específico del motor
-            validator: DatabaseTypeValidator = get_type_validator(effective_db_type)
+            validator: QueryParameterValidator = get_type_validator(effective_db_type)
             is_valid, warnings = validator.validate_parameters(query_def, params)
 
             if not is_valid:

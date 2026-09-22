@@ -7,10 +7,10 @@ import logging
 from typing import Any
 
 from ..models import QueryDefinition
-from .base_validator import DatabaseTypeValidator
+from .base_validator import QueryParameterValidator
 
 
-class MariaDBValidator(DatabaseTypeValidator):
+class MariaDBValidator(QueryParameterValidator):
     """Validador de queries para MariaDB.
 
     Reglas específicas de MariaDB:

@@ -7,10 +7,10 @@ import logging
 from typing import Any
 
 from ..models import QueryDefinition
-from .base_validator import DatabaseTypeValidator
+from .base_validator import QueryParameterValidator
 
 
-class PostgreSQLValidator(DatabaseTypeValidator):
+class PostgreSQLValidator(QueryParameterValidator):
     """Validador de queries para PostgreSQL.
 
     Reglas específicas de PostgreSQL:
