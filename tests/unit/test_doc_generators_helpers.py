@@ -28,6 +28,7 @@ from util_bbdd.doc.infrastructure.renderers.shared.generator_shared import (
     GeneratorRoutineRuntime,
     GeneratorTableRuntime,
     GeneratorTabularRuntime,
+    sanitize_table_filename,
 )
 from util_bbdd.doc.infrastructure.renderers.word_generator import WordGenerator
 from util_bbdd.doc.infrastructure.storage.runtime import StorageInventoryRuntime
@@ -44,6 +45,36 @@ def test_html_generator_builds_unique_slugs_and_map() -> None:
     assert first == "users-table"
     assert second == "users-table-2"
     assert [slug_map["A B"], slug_map["A-B"], slug_map["###"]] == ["a-b", "a-b-2", "item"]
+
+
+class TestSanitizeTableFilename:
+    """DOC-03 (AUDIT_CODE 2026-09-22): el fallback a disco de word_generator.py y
+    html_generator.py insertaba el nombre de tabla directamente en un Path sin
+    sanear, permitiendo path traversal o caracteres inválidos de filesystem."""
+
+    def test_plain_name_lowercased_unchanged_shape(self) -> None:
+        assert sanitize_table_filename("Users") == "users"
+
+    def test_path_traversal_sequence_stripped(self) -> None:
+        result = sanitize_table_filename("../../etc/passwd")
+        assert "/" not in result
+        assert ".." not in result
+        assert result == "etc-passwd"
+
+    def test_windows_invalid_characters_stripped(self) -> None:
+        result = sanitize_table_filename('weird:name*with?"invalid<chars>|')
+        for char in ':*?"<>|':
+            assert char not in result
+
+    def test_spaces_and_punctuation_become_hyphens(self) -> None:
+        assert sanitize_table_filename("My Table (v2)") == "my-table-v2"
+
+    def test_empty_or_fully_stripped_name_falls_back_to_item(self) -> None:
+        assert sanitize_table_filename("") == "item"
+        assert sanitize_table_filename("///") == "item"
+
+    def test_result_never_empty(self) -> None:
+        assert sanitize_table_filename("...") != ""
 
 
 def test_html_generator_normalizes_unique_constraints_rows_and_headers() -> None:

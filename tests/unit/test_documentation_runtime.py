@@ -569,6 +569,74 @@ def test_storage_inventory_runtime_parses_mariadb_temp_storage_variables() -> No
     assert temp_section["numeric_columns"] == [2, 4]
 
 
+def test_storage_inventory_runtime_unregistered_engine_adds_fallback_notice(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """DOC-03 (AUDIT_CODE 2026-09-22): un motor sin estrategia dedicada (p.ej.
+    SQL Server) debe advertir explícitamente que usa el fallback genérico, no
+    caer en silencio."""
+
+    class _UnregisteredEngineManager:
+        db_type = "sqlserver"
+        conn_params: dict[str, Any] = {}
+
+        def resolve_query(self, query_name: str, **kwargs: Any) -> Any:
+            raise QueryNotFoundError(query_name)
+
+        def execute_query_many(self, query_name: str, **kwargs: Any) -> list[tuple[str, str]]:
+            return []
+
+        def execute_custom_one(self, _query: str) -> None:
+            return None
+
+    runtime = StorageInventoryRuntime(
+        db_manager=cast(Any, _UnregisteredEngineManager()),
+        logger=logging.getLogger(__name__),
+        db_type="sqlserver",
+        database="demo",
+        print_config={},
+    )
+
+    with caplog.at_level(logging.WARNING):
+        report = runtime.get_storage_inventory_report()
+
+    notice_sections = [s for s in report["sections"] if s["query"] == "generic_storage_fallback_notice"]
+    assert len(notice_sections) == 1
+    assert notice_sections[0]["status"] == "not_supported"
+    assert "fallback genérico" in notice_sections[0]["message"]
+    assert any("sqlserver" in message.lower() and "genérico" in message.lower() for message in caplog.messages)
+
+
+def test_storage_inventory_runtime_registered_engine_has_no_fallback_notice() -> None:
+    """DOC-03 (AUDIT_CODE 2026-09-22): un motor con estrategia dedicada (mariadb)
+    no debe generar la sección de aviso de fallback genérico."""
+
+    class _MariadbStorageManager:
+        db_type = "mariadb"
+        conn_params: dict[str, Any] = {}
+
+        def resolve_query(self, query_name: str, **kwargs: Any) -> Any:
+            raise QueryNotFoundError(query_name)
+
+        def execute_query_many(self, query_name: str, **kwargs: Any) -> list[tuple[str, str]]:
+            return []
+
+        def execute_custom_one(self, _query: str) -> None:
+            return None
+
+    runtime = StorageInventoryRuntime(
+        db_manager=cast(Any, _MariadbStorageManager()),
+        logger=logging.getLogger(__name__),
+        db_type="mariadb",
+        database="demo",
+        print_config={},
+    )
+
+    report = runtime.get_storage_inventory_report()
+
+    assert not any(s["query"] == "generic_storage_fallback_notice" for s in report["sections"])
+
+
 def test_normalize_output_formats_rejects_invalid_values() -> None:
     output_runtime = DocumentationOutputRuntime()
     with pytest.raises(ValueError, match="Formato no soportado"):

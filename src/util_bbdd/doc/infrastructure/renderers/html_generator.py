@@ -29,6 +29,7 @@ from .shared.generator_shared import (
     GeneratorTableRuntime,
     GeneratorTabularRuntime,
     build_graph_generator_from_options,
+    sanitize_table_filename,
 )
 from .shared.print_config_manager import PrintConfigManager
 from .shared.template_engine import TemplateEngine
@@ -1843,7 +1844,7 @@ class HtmlGenerator:
         """
         max_depth_val: int = int(diagram_options.get("max_depth", 1))
         direction_val: str = str(diagram_options.get("direction", "both"))
-        output_file: Path = graph_output_dir / f"{table_name}.{fmt}"
+        output_file: Path = graph_output_dir / f"{sanitize_table_filename(table_name)}.{fmt}"
 
         svg_bytes = self._resolve_svg_bytes(
             table_name=table_name,

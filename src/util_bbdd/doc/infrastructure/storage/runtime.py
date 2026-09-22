@@ -37,6 +37,11 @@ class StorageInventoryRuntime:
     _TIPO_FICHERO: str = "Tipo de fichero"
     _MAXIMO_MB: str = "Maximo (MB)"
     _TEMP_TABLESPACES: str = "Temp tablespaces"
+    _GENERIC_STORAGE_FALLBACK_MESSAGE: str = (
+        "Este motor no tiene una estrategia de almacenamiento dedicada; se usa un "
+        "fallback genérico (tablespace vacío, consultas por defecto) que puede ser "
+        "impreciso o no aplicable."
+    )
     _SIZE_HEADER_HINTS: tuple[str, ...] = ("mb", "tamano", "tamaño", "size")
     _ORACLE_USER_TABLESPACES_QUERY: str = "SELECT default_tablespace, temporary_tablespace FROM user_users"
     _DEFAULT_STORAGE_QUERY_SPECS: ClassVar[tuple[tuple[str, str], ...]] = (
@@ -109,6 +114,14 @@ class StorageInventoryRuntime:
         query_params: dict[str, Any] = {"database": database_name, "tablespace": tablespace}
 
         sections_payload: list[StorageSectionPayload] = []
+        if self._uses_generic_storage_fallback():
+            self.logger.warning(
+                f"Motor '{self.db_type}' sin estrategia de almacenamiento dedicada; usando fallback genérico"
+            )
+            sections_payload.append(
+                StorageSectionPayload.from_mapping(self._build_generic_storage_fallback_notice_section())
+            )
+
         for query_name, query_title in query_specs:
             section_dict: dict[str, Any] = self._process_storage_query(
                 query_name, query_title, database_name, query_params
@@ -251,6 +264,29 @@ class StorageInventoryRuntime:
     def _resolve_storage_strategy(self) -> StorageInventoryStrategyPort:
         """Resuelve la estrategia por motor o fallback genérico."""
         return self._storage_strategy_registry.get(self.db_type, self._default_storage_strategy)
+
+    def _uses_generic_storage_fallback(self) -> bool:
+        """True si el motor actual no tiene estrategia de almacenamiento dedicada.
+
+        DOC-03 (AUDIT_CODE 2026-09-22): antes de esto, un motor sin entrada en
+        ``_storage_strategy_registry`` (p.ej. SQL Server) caía en silencio al
+        fallback genérico (tablespace vacío, consultas por defecto), sin
+        ninguna indicación en el documento generado ni en logs.
+        """
+        return self.db_type not in self._storage_strategy_registry
+
+    def _build_generic_storage_fallback_notice_section(self) -> dict[str, Any]:
+        """Construye la sección informativa que hace visible el uso del fallback genérico."""
+        return {
+            "query": "generic_storage_fallback_notice",
+            "title": "Aviso: estrategia de almacenamiento genérica",
+            "status": "not_supported",
+            "message": self._GENERIC_STORAGE_FALLBACK_MESSAGE,
+            "sql": "",
+            "headers": [],
+            "rows": [],
+            "numeric_columns": [],
+        }
 
     @staticmethod
     def _flatten_exception_messages(error: Exception) -> str:

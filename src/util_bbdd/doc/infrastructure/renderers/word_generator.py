@@ -38,6 +38,7 @@ from .shared.generator_shared import (
     GeneratorTableRuntime,
     GeneratorTabularRuntime,
     build_graph_generator_from_options,
+    sanitize_table_filename,
 )
 from .shared.print_config_manager import PrintConfigManager
 
@@ -675,7 +676,7 @@ class WordGenerator:
         else:
             output_dir = Path(diagram_options.get("output_dir", Path.cwd() / "_table_diagrams"))
             output_dir.mkdir(parents=True, exist_ok=True)
-            output_file: Path = output_dir / f"{tabla}.{fmt}"
+            output_file: Path = output_dir / f"{sanitize_table_filename(tabla)}.{fmt}"
             disk_kwargs: dict[str, Any] = {
                 "table_name": tabla,
                 "format": fmt,

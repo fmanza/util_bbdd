@@ -17,6 +17,32 @@ if TYPE_CHECKING:
 DbRow = tuple[Any, ...]
 
 
+def sanitize_table_filename(raw_name: str) -> str:
+    """Sanea un nombre de tabla/vista para usarlo como nombre de fichero.
+
+    DOC-03 (AUDIT_CODE 2026-09-22): los fallbacks a disco de word_generator.py
+    y html_generator.py insertaban el nombre de tabla directamente en un
+    ``Path`` (p.ej. ``f"{tabla}.{fmt}"``) sin sanear. Un nombre de tabla con
+    identificador entrecomillado (Oracle/PostgreSQL permiten casi cualquier
+    carácter, incluido ``/`` o ``..``) podía escribir fuera de ``output_dir``
+    o fallar por caracteres inválidos en el sistema de ficheros.
+
+    Mismo criterio de saneado que ``HtmlDocumentGenerator._build_unique_slug``
+    (minúsculas, alfanumérico + guiones), sin la fase de unicidad: aquí cada
+    llamada genera un único fichero intermedio para una tabla, no un mapa de
+    páginas navegables donde las colisiones deban resolverse con sufijo.
+
+    Args:
+        raw_name: Nombre de tabla/vista tal como viene del motor origen.
+
+    Returns:
+        Nombre saneado, apto como componente de ``Path`` (nunca vacío).
+    """
+    normalized = "".join(char.lower() if char.isalnum() else "-" for char in raw_name)
+    normalized = "-".join(part for part in normalized.split("-") if part)
+    return normalized or "item"
+
+
 class GeneratorTableRuntime:
     """Utilidades compartidas para parseo de filas de tablas."""
 
