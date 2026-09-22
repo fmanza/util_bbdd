@@ -261,6 +261,37 @@ class TestOracleDDLEmitterSequenceTrigger:
         assert len(seq_stmts) == 1, "Debe haber exactamente 1 CREATE SEQUENCE"
         assert len(trg_stmts) == 1, "Debe haber exactamente 1 CREATE OR REPLACE TRIGGER"
 
+    def test_second_auto_increment_column_emits_warning(self) -> None:
+        """MIG-08 (AUDIT_CODE 2026-09-22): la columna auto_increment adicional que se
+        ignora silenciosamente debe generar MigrationWarning, no desaparecer sin aviso."""
+        col1 = _col(name="ID", target_type="NUMBER(10,0)", auto_increment=True)
+        col2 = _col(name="ALT_ID", target_type="NUMBER(10,0)", auto_increment=True)
+        table = _table(name="DUAL_AI", columns=[col1, col2], pk=["ID"])
+        self.e.emit_statements([table])
+
+        ai_warnings = [w for w in table.warnings if w.oracle_type == "AUTO_INCREMENT"]
+        assert len(ai_warnings) == 1
+        assert ai_warnings[0].column == "ALT_ID"
+        assert ai_warnings[0].severity == "WARNING"
+        assert "ALT_ID" in ai_warnings[0].message
+
+    def test_single_auto_increment_column_emits_no_warning(self) -> None:
+        col = _col(name="ID", target_type="NUMBER(10,0)", auto_increment=True)
+        table = _table(name="MY_TABLE", columns=[col], pk=["ID"])
+        self.e.emit_statements([table])
+
+        assert not any(w.oracle_type == "AUTO_INCREMENT" for w in table.warnings)
+
+    def test_three_auto_increment_columns_emit_two_warnings(self) -> None:
+        col1 = _col(name="ID", target_type="NUMBER(10,0)", auto_increment=True)
+        col2 = _col(name="ALT_ID", target_type="NUMBER(10,0)", auto_increment=True)
+        col3 = _col(name="OTHER_ID", target_type="NUMBER(10,0)", auto_increment=True)
+        table = _table(name="TRIPLE_AI", columns=[col1, col2, col3], pk=["ID"])
+        self.e.emit_statements([table])
+
+        ai_warnings = [w for w in table.warnings if w.oracle_type == "AUTO_INCREMENT"]
+        assert {w.column for w in ai_warnings} == {"ALT_ID", "OTHER_ID"}
+
 
 class TestOracleDDLEmitterComments:
     def setup_method(self) -> None:

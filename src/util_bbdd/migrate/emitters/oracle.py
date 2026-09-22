@@ -37,7 +37,7 @@ import re
 from typing import Literal
 
 from .._compat.identifier_rules import MAX_ORACLE_IDENTIFIER_LENGTH, truncate_identifier
-from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView
+from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView, MigrationWarning
 from ._default_fallback import default_fallback_warning
 from .mariadb import _topological_sort, _topological_sort_views
 
@@ -300,7 +300,9 @@ class OracleDDLEmitter:
 
         Oracle soporta una sola SEQUENCE/TRIGGER por tabla en el patrón clásico.
         Si hay múltiples columnas AUTO_INCREMENT se usa solo la primera; el resto
-        debería mapearse con valores DEFAULT fijos o revisarse manualmente.
+        genera MigrationWarning (MIG-08, AUDIT_CODE 2026-09-22) — antes se
+        ignoraban en silencio (ni SEQUENCE/TRIGGER ni aviso) — y debería
+        mapearse con valores DEFAULT fijos o revisarse manualmente.
 
         En modo "identity_by_default_on_null" la cláusula IDENTITY ya va inline
         en la columna, por lo que no se emite ni SEQUENCE ni TRIGGER.
@@ -308,8 +310,24 @@ class OracleDDLEmitter:
         if self._identity_mode == "identity_by_default_on_null":
             return []
         stmts: list[str] = []
-        for col in table.columns:
-            if col.omit or not col.auto_increment:
+        auto_increment_cols = [col for col in table.columns if not col.omit and col.auto_increment]
+        for index, col in enumerate(auto_increment_cols):
+            if index > 0:
+                table.warnings.append(
+                    MigrationWarning(
+                        table=table.name,
+                        column=col.name,
+                        oracle_type="AUTO_INCREMENT",
+                        target_type="(sin SEQUENCE/TRIGGER)",
+                        message=(
+                            f"Tabla '{table.name}': columna '{col.name}' es AUTO_INCREMENT pero "
+                            "Oracle solo soporta un SEQUENCE/TRIGGER por tabla en este patrón; ya "
+                            f"se generó para '{auto_increment_cols[0].name}'. Revisar manualmente: "
+                            f"usar un DEFAULT fijo o un mecanismo alternativo para '{col.name}'."
+                        ),
+                        severity="WARNING",
+                    )
+                )
                 continue
             seq = _seq_name(table.name)
             trg = _trg_name(table.name)
@@ -324,7 +342,6 @@ class OracleDDLEmitter:
                 f"  END IF;\n"
                 f"END"
             )
-            break  # Un par SEQ/TRG por tabla; columnas adicionales auto_increment son ignoradas
         return stmts
 
     # ─── COMMENT ON ───────────────────────────────────────────────────────────
