@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .common import quote_sqlite_identifier
+
 
 def fetch_triggers_sync(connection: Any, schema: str | None = None, table: str | None = None) -> list[tuple]:
     """Obtiene triggers para una tabla en SQLite.
@@ -21,12 +23,13 @@ def fetch_triggers_sync(connection: Any, schema: str | None = None, table: str |
         list[tuple]: Filas (trigger_name, table_name, trigger_event, trigger_action)
     """
     schema_name = schema or "main"
+    escaped_schema = quote_sqlite_identifier(schema_name)
 
     # Query sqlite_master para triggers
     if table:
         sql = f"""
             SELECT name, tbl_name, 'TRIGGER', ''
-            FROM [{schema_name}].sqlite_master
+            FROM {escaped_schema}.sqlite_master
             WHERE type='trigger'
             AND tbl_name = :table_name
             ORDER BY name
@@ -35,7 +38,7 @@ def fetch_triggers_sync(connection: Any, schema: str | None = None, table: str |
     else:
         sql = f"""
             SELECT name, tbl_name, 'TRIGGER', ''
-            FROM [{schema_name}].sqlite_master
+            FROM {escaped_schema}.sqlite_master
             WHERE type='trigger'
             ORDER BY name
         """

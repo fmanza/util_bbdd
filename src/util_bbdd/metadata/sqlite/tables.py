@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from .common import normalize_sqlite_type
+from .common import normalize_sqlite_type, quote_sqlite_identifier
 
 
 def _normalize_sqlite_column_row(row: Any) -> tuple[str, str, int, int, str | None, str] | None:
@@ -58,11 +58,12 @@ def fetch_tables_sync(connection: Any, schema: str | None = None) -> list[tuple]
         list[tuple]: Filas (table_name, table_type, table_comment)
     """
     schema_name = schema or "main"
+    escaped_schema = quote_sqlite_identifier(schema_name)
 
     # SQLite no tiene comentarios; retornar vacío
     sql = f"""
         SELECT name, 'TABLE', '' as comments
-        FROM [{schema_name}].sqlite_master
+        FROM {escaped_schema}.sqlite_master
         WHERE type='table'
         AND name NOT LIKE 'sqlite_%'
         ORDER BY name
@@ -93,7 +94,7 @@ def fetch_columns_sync(connection: Any, schema: str | None = None, table: str | 
 
     # PRAGMA table_info retorna: (cid, name, type, notnull, dflt_value, pk)
     # Mapear a tupla estándar: (name, type, nullable, ordinal, default, comments)
-    sql = f"PRAGMA [{schema_name}].table_info([{table}])"
+    sql = f"PRAGMA {quote_sqlite_identifier(schema_name)}.table_info({quote_sqlite_identifier(table)})"
 
     cursor = connection.execute(sql)
     rows: list[tuple[Any, ...]] = cursor.fetchall()

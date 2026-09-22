@@ -11,47 +11,6 @@ from ._sqlite_models import SqlitePragmaResult
 from .common import quote_sqlite_identifier
 
 
-def build_pragma_table_query(table_name: str) -> str:
-    """Construye query PRAGMA table_info para introspección de columnas.
-
-    Args:
-        table_name: Nombre de la tabla
-
-    Returns:
-        str: SQL PRAGMA table_info
-    """
-    escaped_table = quote_sqlite_identifier(table_name)
-    return f"PRAGMA table_info({escaped_table});"
-
-
-def build_pragma_fk_query(table_name: str) -> str:
-    """Construye query PRAGMA foreign_key_list para introspección de FKs.
-
-    Nota: Requiere PRAGMA foreign_keys=ON activado en la conexión.
-
-    Args:
-        table_name: Nombre de la tabla
-
-    Returns:
-        str: SQL PRAGMA foreign_key_list
-    """
-    escaped_table = quote_sqlite_identifier(table_name)
-    return f"PRAGMA foreign_key_list({escaped_table});"
-
-
-def build_pragma_index_list_query(table_name: str) -> str:
-    """Construye query PRAGMA index_list para introspección de índices.
-
-    Args:
-        table_name: Nombre de la tabla
-
-    Returns:
-        str: SQL PRAGMA index_list
-    """
-    escaped_table = quote_sqlite_identifier(table_name)
-    return f"PRAGMA index_list({escaped_table});"
-
-
 def build_pragma_index_info_query(index_name: str) -> str:
     """Construye query PRAGMA index_info para introspección de columnas de índice.
 

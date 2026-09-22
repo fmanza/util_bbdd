@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from ._adapter_helpers import build_pragma_index_info_query
+from .common import quote_sqlite_identifier
 
 
 def _process_sqlite_index_columns(
@@ -49,7 +50,7 @@ def fetch_indexes_sync(connection: Any, schema: str | None = None, table: str | 
     schema_name = schema or "main"
 
     # PRAGMA index_list retorna: (seq, name, unique, origin, partial)
-    sql_list = f"PRAGMA [{schema_name}].index_list([{table}])"
+    sql_list = f"PRAGMA {quote_sqlite_identifier(schema_name)}.index_list({quote_sqlite_identifier(table)})"
 
     cursor = connection.execute(sql_list)
     index_rows: list[tuple[Any, ...]] = cursor.fetchall()

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from ._adapter_helpers import decode_pragma_fk_rows
+from .common import quote_sqlite_identifier
 
 
 def fetch_primary_keys_sync(connection: Any, schema: str | None = None, table: str | None = None) -> list[tuple]:
@@ -26,7 +27,7 @@ def fetch_primary_keys_sync(connection: Any, schema: str | None = None, table: s
     schema_name = schema or "main"
 
     # PRAGMA table_info retorna columnas con pk > 0 si forman parte de PK
-    sql = f"PRAGMA [{schema_name}].table_info([{table}])"
+    sql = f"PRAGMA {quote_sqlite_identifier(schema_name)}.table_info({quote_sqlite_identifier(table)})"
 
     cursor = connection.execute(sql)
     rows: list[tuple[Any, ...]] = cursor.fetchall()
@@ -68,7 +69,7 @@ def fetch_foreign_keys_sync(connection: Any, schema: str | None = None, table: s
     schema_name = schema or "main"
 
     # PRAGMA foreign_key_list retorna: (id, seq, table, from, to, on_delete, on_update, match)
-    sql = f"PRAGMA [{schema_name}].foreign_key_list([{table}])"
+    sql = f"PRAGMA {quote_sqlite_identifier(schema_name)}.foreign_key_list({quote_sqlite_identifier(table)})"
 
     cursor = connection.execute(sql)
     rows: list[tuple[Any, ...]] = cursor.fetchall()
