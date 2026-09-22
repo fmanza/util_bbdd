@@ -25,15 +25,26 @@ class SchemaTransformer(Protocol):
     def transform_views(self, views: list[CanonicalView]) -> list[CanonicalView]:
         """Transforma una lista de vistas IR al esquema destino.
 
-        Aplica reescritura best-effort del SQL Oracle: sustituye SYSDATE,
-        NVL, FROM DUAL, hints y prefijos de schema. Constructs complejos
-        (ROWNUM, CONNECT BY, outer-join (+), DECODE) generan MigrationWarning.
+        MIG-06 (AUDIT_CODE 2026-09-22): esta iteración (``BaseTransformer.
+        transform_views``) es común a los 12 pares origen→destino y nunca se
+        sobrescribe; lo que varía por par es el hook privado
+        ``_transform_view``. Por defecto (pass-through v1) solo verifica
+        identificadores, sin tocar el SQL. Solo los 3 pares con Oracle como
+        origen (``oracle_to_mariadb``, ``oracle_to_postgresql``,
+        ``oracle_to_sqlserver``) invocan ``rewrite_oracle_view`` desde ese
+        hook para aplicar reescritura best-effort del SQL: sustituyen
+        SYSDATE, NVL, FROM DUAL, hints y prefijos de schema. Constructs
+        complejos (ROWNUM, CONNECT BY, outer-join (+), DECODE) generan
+        MigrationWarning en esos 3 pares. Otros pares pueden sobrescribir
+        ``_transform_view`` por motivos ajenos a la reescritura SQL (p.ej.
+        advertencias de revisión manual) sin invocar ese rewriter.
 
         Args:
             views: Vistas extraídas del motor origen.
 
         Returns:
-            Vistas con SQL reescrito y warnings poblados.
+            Vistas transformadas (SQL reescrito solo si el origen es Oracle)
+            con warnings poblados.
         """
         ...
 
