@@ -181,7 +181,10 @@ Sí, en `settings.local.json`:
 ```
 
 ### ¿Qué si ruff/mypy/pytest no están instalados?
-Hooks opcionales (`optional: true`) los ignoran silenciosamente. Hooks obligatorios (como ruff) fallarán; instala con `pip install -r requirements.txt` o `pip install ruff mypy pytest`.
+Hooks opcionales (`optional: true`) los ignoran silenciosamente. Hooks obligatorios (como ruff) fallarán; instala con `pip install -e ".[dev]"` (recomendado, mismas versiones que usa CI) o `pip install ruff mypy pytest`.
+
+### ¿Los hooks necesitan el entorno virtual activo?
+Sí. Los hooks invocan `python`, `ruff`, `mypy` y `pytest` por nombre (resueltos vía `PATH`), así que la sesión de shell donde corre Claude Code debe tener el venv del proyecto activado (`.\venv\Scripts\Activate.ps1` en Windows, `source venv/bin/activate` en Linux/Mac). Si abres Claude Code desde una terminal sin activar, los hooks usarán el Python global del sistema (o fallarán si no existe).
 
 ### ¿Puedo agregar más hooks?
 Sí, en `settings.local.json`. Ejemplo: agregar `pylint`:

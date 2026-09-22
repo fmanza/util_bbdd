@@ -36,6 +36,8 @@ Solo estos extras están declarados en `pyproject.toml`:
 git clone https://github.com/fmanza/util_bbdd.git
 cd util_bbdd
 python -m venv venv
+# Windows:    si PowerShell bloquea el script (política "Restricted" por defecto), ejecuta antes:
+#               Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 # Windows:    .\venv\Scripts\Activate.ps1
 # Linux/Mac:  source venv/bin/activate
 pip install -e ".[dev]"

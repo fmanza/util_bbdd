@@ -28,8 +28,7 @@ MANIFEST
 venv/
 env/
 ENV/
-.venv
-.venv.disabled/
+.venv/
 
 # IDE
 .vscode/

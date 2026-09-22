@@ -5,12 +5,11 @@
 		}
 	],
 	"settings": {
-		"python.defaultInterpreterPath": "C:/Desarrollo/python/libs/util_bbdd/venv/Scripts/python.exe",
 		"python.terminal.activateEnvironment": true,
 		"terminal.integrated.cwd": "${workspaceFolder}",
 		"files.exclude": {
+			"venv": true,
 			".venv": true,
-			".venv.disabled": true,
 			"**/__pycache__": true,
 			".pytest_cache": true,
 			".ruff_cache": true,
@@ -21,8 +20,8 @@
 			"dist_verify_license": true
 		},
 		"search.exclude": {
+			"venv": true,
 			".venv": true,
-			".venv.disabled": true,
 			"**/__pycache__": true,
 			".pytest_cache": true,
 			".ruff_cache": true,
@@ -33,7 +32,7 @@
 			"dist_verify_license": true
 		},
 		"chat.tools.terminal.autoApprove": {
-			"/^\\(Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned\\) ; \\(& c:\\\\Desarrollo\\\\python\\\\libs\\\\util_bbdd\\\\venv\\\\Scripts\\\\Activate\\.ps1\\) ; python -m pytest --tb=short 2>&1 \\| Select-String -Pattern \"passed\\|failed\\|error\\|warning\" \\| Select-Object -Last 5$/": {
+			"/^\\(Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned\\) ; \\(& \\.\\\\venv\\\\Scripts\\\\Activate\\.ps1\\) ; python -m pytest --tb=short 2>&1 \\| Select-String -Pattern \"passed\\|failed\\|error\\|warning\" \\| Select-Object -Last 5$/": {
 				"approve": true,
 				"matchCommandLine": true
 			}

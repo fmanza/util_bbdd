@@ -765,6 +765,8 @@ pip install util_bbdd
 git clone https://github.com/fmanza/util_bbdd.git
 cd util_bbdd
 py -m venv venv
+# Windows: si PowerShell bloquea el script (política "Restricted" por defecto), ejecuta antes:
+#   Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 .\venv\Scripts\Activate.ps1  # Windows
 pip install -e ".[dev]"
 ```

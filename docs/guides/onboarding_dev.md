@@ -51,7 +51,8 @@ Si el acceso falla, solicita permiso al propietario del repositorio o configura 
 python -m venv venv
 
 # 2. Activar el entorno virtual
-#    Windows (PowerShell)
+#    Windows (PowerShell): si el script se bloquea (política "Restricted" por defecto), ejecuta antes:
+#      Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 .\venv\Scripts\Activate.ps1
 #    Linux / macOS
 source venv/bin/activate
