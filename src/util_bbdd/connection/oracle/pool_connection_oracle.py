@@ -1,15 +1,25 @@
 """Pool de conexiones para Oracle (oracledb)."""
 
+from __future__ import annotations
+
 import logging
 import sys
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import oracledb
+try:
+    import oracledb
+
+    HAS_ORACLEDB = True
+except ImportError:
+    HAS_ORACLEDB = False
 
 from ..._core.exceptions import PoolConnectionError, PoolTimeoutError
 from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
 from ..params import ConnectionParamsManager
+
+if TYPE_CHECKING:
+    import oracledb
 
 
 class PoolConnection:
@@ -34,6 +44,7 @@ class PoolConnection:
                 - pool_size (int, optional): Conexiones en pool (default: 5)
 
         Raises:
+            ImportError: Si el módulo 'oracledb' no está instalado.
             ValueError: Si faltan parámetros críticos.
             Exception: Si la creación del pool falla.
 
@@ -50,6 +61,9 @@ class PoolConnection:
             pool = PoolConnection(conn_params)
             ```
         """
+        if not HAS_ORACLEDB:
+            raise ImportError("Módulo 'oracledb' no está instalado. Instale con: pip install oracledb")
+
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.pool: oracledb.ConnectionPool | None = None
         self._closed: bool = False
