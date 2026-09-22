@@ -26,6 +26,7 @@ from ._adapter_helpers import (
 )
 from ._manager_protocol import OracleSyncManagerProtocol
 from ._oracle_models import OracleParameterDetail, OracleRoutineDetail
+from .common import normalize_oracle_bind_identifier
 from .constraints import OracleConstraintDefaults
 from .indexes import decode_oracle_index_rows
 from .tables import decode_oracle_column_rows
@@ -102,7 +103,7 @@ class OracleSyncAdapter:
         Returns:
             list[tuple]: Filas (table_name, table_type, table_comment)
         """
-        schema_name = schema or ""
+        schema_name = normalize_oracle_bind_identifier(schema) or ""
         sql = build_oracle_tables_query()
         rows = self.manager.execute_custom_many(sql, params={"owner": schema_name})
         return [(str(r[0]), str(r[1]) if len(r) > 1 else "TABLE", str(r[2]) if len(r) > 2 else "") for r in rows if r]
@@ -119,7 +120,13 @@ class OracleSyncAdapter:
                                ordinal_position, column_default, column_comment)
         """
         sql = build_oracle_columns_query()
-        rows = self.manager.execute_custom_many(sql, params={"owner": schema, "table_name": table})
+        rows = self.manager.execute_custom_many(
+            sql,
+            params={
+                "owner": normalize_oracle_bind_identifier(schema),
+                "table_name": normalize_oracle_bind_identifier(table),
+            },
+        )
         return decode_oracle_column_rows(rows)
 
     def fetch_primary_keys_sync(self, schema: str, table: str) -> list[tuple]:
@@ -133,7 +140,13 @@ class OracleSyncAdapter:
             list[tuple]: Filas (constraint_name, column_name, ordinal_position)
         """
         sql = build_oracle_pk_query()
-        rows = self.manager.execute_custom_many(sql, params={"owner": schema, "table_name": table})
+        rows = self.manager.execute_custom_many(
+            sql,
+            params={
+                "owner": normalize_oracle_bind_identifier(schema),
+                "table_name": normalize_oracle_bind_identifier(table),
+            },
+        )
         return OracleConstraintDefaults.decode_pk_rows(rows)
 
     def fetch_foreign_keys_sync(self, schema: str, table: str) -> list[tuple]:
@@ -148,7 +161,13 @@ class OracleSyncAdapter:
                                ref_column, on_delete_action, on_update_action, ordinal_position)
         """
         sql = build_oracle_fk_query()
-        rows = self.manager.execute_custom_many(sql, params={"owner": schema, "table_name": table})
+        rows = self.manager.execute_custom_many(
+            sql,
+            params={
+                "owner": normalize_oracle_bind_identifier(schema),
+                "table_name": normalize_oracle_bind_identifier(table),
+            },
+        )
         return OracleConstraintDefaults.decode_fk_rows(rows)
 
     def fetch_indexes_sync(self, schema: str, table: str) -> list[tuple]:
@@ -162,7 +181,13 @@ class OracleSyncAdapter:
             list[tuple]: Filas (index_name, column_name, order_direction, uniqueness, ordinal_position)
         """
         sql = build_oracle_indexes_query()
-        rows = self.manager.execute_custom_many(sql, params={"owner": schema, "table_name": table})
+        rows = self.manager.execute_custom_many(
+            sql,
+            params={
+                "owner": normalize_oracle_bind_identifier(schema),
+                "table_name": normalize_oracle_bind_identifier(table),
+            },
+        )
         return decode_oracle_index_rows(rows)
 
     def get_routine_details(self, schema: str | None = None) -> list[OracleRoutineDetail]:
@@ -174,7 +199,7 @@ class OracleSyncAdapter:
         Returns:
             list[OracleRoutineDetail]: Rutinas decodificadas
         """
-        schema_name = schema or ""
+        schema_name = normalize_oracle_bind_identifier(schema) or ""
         cache_key: str = f"oracle:routines:{schema_name}"
 
         entries = self._get_cached_entries(
@@ -213,8 +238,8 @@ class OracleSyncAdapter:
         Returns:
             list[OracleParameterDetail]: Parámetros decodificados
         """
-        schema_name = schema or ""
-        routine_name_param = routine_name or ""
+        schema_name = normalize_oracle_bind_identifier(schema) or ""
+        routine_name_param = normalize_oracle_bind_identifier(routine_name) or ""
         cache_key: str = f"oracle:routine_parameters:{schema_name}:{routine_name_param}"
 
         entries = self._get_cached_entries(
@@ -230,11 +255,11 @@ class OracleSyncAdapter:
             ),
             fetch_entries=lambda: decode_oracle_parameter_rows(
                 schema_name,
-                routine_name or "",
+                routine_name_param,
                 routine_type,
                 self.manager.execute_custom_many(
                     build_oracle_parameters_query(),
-                    params={"owner": schema_name, "routine_name": routine_name or ""},
+                    params={"owner": schema_name, "routine_name": routine_name_param},
                 ),
             ),
             cache_hit_message=f"♻️  Usando metadata detallada de parámetros Oracle en caché para {schema_name}.{routine_name}",
@@ -298,7 +323,11 @@ class OracleSyncAdapter:
         sql = build_oracle_routine_body_query()
         rows = self.manager.execute_custom_many(
             sql,
-            params={"owner": schema, "routine_name": routine, "routine_type": routine_type.upper()},
+            params={
+                "owner": normalize_oracle_bind_identifier(schema),
+                "routine_name": normalize_oracle_bind_identifier(routine),
+                "routine_type": routine_type.upper(),
+            },
         )
         return decode_oracle_routine_body(routine_type, routine, rows)
 

@@ -168,6 +168,24 @@ def is_system_schema_oracle(owner: str) -> bool:
     return False
 
 
+def normalize_oracle_bind_identifier(value: str | None) -> str | None:
+    """Normaliza a mayúsculas un identificador antes de bindearlo en una query Oracle.
+
+    MEO-04 (AUDIT_CODE 2026-09-22): los diccionarios de datos de Oracle
+    (``ALL_TABLES.OWNER``, ``ALL_TAB_COLUMNS.TABLE_NAME``, etc.) almacenan los
+    nombres en MAYÚSCULAS salvo que se hayan creado con identificador citado
+    (``"MiTabla"``, minoritario). Bindear ``schema``/``table`` en minúsculas sin
+    normalizar devuelve 0 filas de forma silenciosa, sin ningún error.
+
+    Args:
+        value: Valor a normalizar (``None`` se preserva tal cual).
+
+    Returns:
+        str | None: ``value.upper()``, o ``None``/cadena vacía sin cambios.
+    """
+    return value.upper() if value else value
+
+
 def get_oracle_table_type(object_type: str) -> str:
     """Normaliza OBJECT_TYPE de all_tables a tipo genérico (TABLE/VIEW).
 
@@ -220,6 +238,7 @@ def parse_oracle_number_precision_scale(data_precision: Any, data_scale: Any) ->
 __all__: list[str] = [
     "oracle_type_mapping",
     "normalize_oracle_type",
+    "normalize_oracle_bind_identifier",
     "quote_oracle_identifier",
     "escape_oracle_string",
     "is_system_schema_oracle",
