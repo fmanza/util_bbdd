@@ -215,9 +215,51 @@ async def release_async_connection(*, pool_connection: Any, connection: Any) -> 
     await maybe_await(pool_connection.release(connection))
 
 
-async def close_async_resources(*, pool_connection: Any, connection: Any, close_mode: AsyncCloseMode) -> None:
-    """Cierra recursos async compartidos."""
+async def close_async_resources(
+    *,
+    pool_connection: Any,
+    connection: Any,
+    close_mode: AsyncCloseMode,
+    db_type: str = "unknown",
+    logger: logging.Logger | None = None,
+) -> None:
+    """Cierra recursos async compartidos, agregando errores si aparecen varios fallos.
+
+    Espejo async de ``SyncConnectionLifecycleManager.close_resources``: un fallo
+    cerrando el pool ya no impide intentar cerrar la conexión directa, y ambos
+    fallos (si ocurren) se agregan en un único ``DatabaseOperationError``.
+
+    Args:
+        pool_connection: Pool a cerrar (si disponible)
+        connection: Conexión a cerrar (si disponible)
+        close_mode: Política de cierre async
+        db_type: Tipo de base de datos, para logging/mensajes de error
+        logger: Logger a usar (por defecto, el logger del módulo)
+
+    Raises:
+        DatabaseOperationError: Si hay errores al cerrar recursos
+    """
+    active_logger: logging.Logger = logger or logging.getLogger(__name__)
+    close_errors: list[Exception] = []
+
     if pool_connection is not None:
-        await maybe_await(pool_connection.close(mode=close_mode))
+        try:
+            await maybe_await(pool_connection.close(mode=close_mode))
+        except Exception as error:
+            close_errors.append(error)
+            active_logger.error(f"[{db_type}] Error cerrando pool: {error}", exc_info=True)
+
     if connection is not None and hasattr(connection, "close"):
-        await maybe_await(connection.close())
+        try:
+            await maybe_await(connection.close())
+        except Exception as error:
+            close_errors.append(error)
+            active_logger.error(f"[{db_type}] Error cerrando conexión: {error}", exc_info=True)
+
+    if close_errors:
+        error_details: str = " | ".join(str(error) for error in close_errors)
+        raise DatabaseOperationError(
+            message=f"Errores cerrando recursos de base de datos: {error_details}",
+            operation="CLOSE",
+            db_type=db_type,
+        ) from close_errors[0]

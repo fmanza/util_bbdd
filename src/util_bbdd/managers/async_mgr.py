@@ -552,6 +552,8 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
                 pool_connection=pool_connection,
                 connection=connection,
                 close_mode=close_mode,
+                db_type=self.db_type,
+                logger=self.logger,
             )
         finally:
             self.pool_connection = None
