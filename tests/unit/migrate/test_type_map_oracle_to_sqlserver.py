@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from util_bbdd.migrate._compat.type_map_sqlserver import (
+from util_bbdd.migrate._compat.type_map_oracle_to_sqlserver import (
     ORACLE_TO_SQLSERVER,
     resolve_number_type_sqlserver,
     resolve_oracle_type_sqlserver,

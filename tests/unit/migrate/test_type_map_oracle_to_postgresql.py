@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from util_bbdd.migrate._compat.type_map_postgresql import (
+from util_bbdd.migrate._compat.type_map_oracle_to_postgresql import (
     ORACLE_TO_POSTGRESQL,
     resolve_number_type_postgresql,
     resolve_oracle_type_postgresql,

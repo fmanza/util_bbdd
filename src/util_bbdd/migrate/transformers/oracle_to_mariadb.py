@@ -15,7 +15,7 @@ import re
 from copy import deepcopy
 
 from .._compat.identifier_rules import MAX_MARIADB_IDENTIFIER_LENGTH, check_identifier
-from .._compat.type_map import resolve_number_type, resolve_oracle_type
+from .._compat.type_map_oracle_to_mariadb import resolve_number_type, resolve_oracle_type
 from ..ir.models import (
     CanonicalColumn,
     CanonicalTable,

@@ -8,14 +8,6 @@ from __future__ import annotations
 
 import pytest
 
-# ── Oracle → MariaDB ─────────────────────────────────────────────────────────
-from util_bbdd.migrate._compat.type_map import (
-    ORACLE_TO_MARIADB,
-    TypeMapping,
-    resolve_number_type,
-    resolve_oracle_type,
-)
-
 # ── MariaDB → * ───────────────────────────────────────────────────────────────
 from util_bbdd.migrate._compat.type_map_mariadb_to_oracle import (
     MARIADB_TO_ORACLE,
@@ -27,11 +19,24 @@ from util_bbdd.migrate._compat.type_map_mariadb_to_sqlserver import (
     MARIADB_TO_SQLSERVER,
 )
 
+# ── Oracle → MariaDB ─────────────────────────────────────────────────────────
+from util_bbdd.migrate._compat.type_map_oracle_to_mariadb import (
+    ORACLE_TO_MARIADB,
+    TypeMapping,
+    resolve_number_type,
+    resolve_oracle_type,
+)
+
 # ── Oracle → PostgreSQL ───────────────────────────────────────────────────────
-from util_bbdd.migrate._compat.type_map_postgresql import (
+from util_bbdd.migrate._compat.type_map_oracle_to_postgresql import (
     ORACLE_TO_POSTGRESQL,
     resolve_number_type_postgresql,
     resolve_oracle_type_postgresql,
+)
+
+# ── Oracle → SQL Server ───────────────────────────────────────────────────────
+from util_bbdd.migrate._compat.type_map_oracle_to_sqlserver import (
+    ORACLE_TO_SQLSERVER,
 )
 
 # ── PostgreSQL → * ────────────────────────────────────────────────────────────
@@ -46,11 +51,6 @@ from util_bbdd.migrate._compat.type_map_postgresql_to_oracle import (
 from util_bbdd.migrate._compat.type_map_postgresql_to_sqlserver import (
     POSTGRESQL_TO_SQLSERVER,
     resolve_postgresql_type_sqlserver,
-)
-
-# ── Oracle → SQL Server ───────────────────────────────────────────────────────
-from util_bbdd.migrate._compat.type_map_sqlserver import (
-    ORACLE_TO_SQLSERVER,
 )
 
 # ── SQL Server → * ────────────────────────────────────────────────────────────

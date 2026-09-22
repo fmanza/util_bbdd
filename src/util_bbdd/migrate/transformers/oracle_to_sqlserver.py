@@ -15,7 +15,7 @@ import re
 from copy import deepcopy
 
 from .._compat.identifier_rules import MAX_SQLSERVER_IDENTIFIER_LENGTH, check_identifier
-from .._compat.type_map_sqlserver import resolve_number_type_sqlserver, resolve_oracle_type_sqlserver
+from .._compat.type_map_oracle_to_sqlserver import resolve_number_type_sqlserver, resolve_oracle_type_sqlserver
 from ..ir.models import (
     CanonicalColumn,
     CanonicalTable,

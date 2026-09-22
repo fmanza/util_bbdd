@@ -15,7 +15,7 @@ import re
 from copy import deepcopy
 
 from .._compat.identifier_rules import MAX_POSTGRESQL_IDENTIFIER_LENGTH, check_identifier
-from .._compat.type_map_postgresql import resolve_number_type_postgresql, resolve_oracle_type_postgresql
+from .._compat.type_map_oracle_to_postgresql import resolve_number_type_postgresql, resolve_oracle_type_postgresql
 from ..ir.models import (
     CanonicalColumn,
     CanonicalTable,

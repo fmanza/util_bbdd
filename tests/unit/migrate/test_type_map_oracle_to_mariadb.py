@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from util_bbdd.migrate._compat.type_map import resolve_number_type, resolve_oracle_type
+from util_bbdd.migrate._compat.type_map_oracle_to_mariadb import resolve_number_type, resolve_oracle_type
 
 
 class TestResolveOracleType:
