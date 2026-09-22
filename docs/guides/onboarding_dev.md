@@ -135,7 +135,7 @@ src/util_bbdd/
 │
 │  # ── Level 2: Capas de acceso (Services) ─────────────────────────────
 ├── connection/         # build_conn_params(); adaptadores y pools por motor
-├── executors/          # QueryExecutorBase; ejecutores sync y async
+├── executors/          # Ejecutores sync y async (SyncQueryExecutor, AsyncQueryExecutor)
 ├── factory/            # SQLAlchemy engine factory (sync/async)
 ├── metadata/           # Introspección de esquemas (tablas, columnas, DDL, caché)
 ├── query/              # QueryRegistry, QueryResolver — queries nombradas en JSON

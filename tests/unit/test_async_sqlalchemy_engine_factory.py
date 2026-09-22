@@ -117,6 +117,13 @@ def test_async_sqlalchemy_engine_factory_hsqldb_not_supported() -> None:
     asyncio.run(_run())
 
 
+def test_build_hsqldb_connection_string_removed_as_dead_code() -> None:
+    """SVC-04 (AUDIT_CODE 2026-09-22): _build_hsqldb_connection_string era inalcanzable
+    (create_engine rechaza hsqldb explícitamente antes de llegar a ningún builder) y
+    se retiró. No debe reintroducirse sin un caller real."""
+    assert not hasattr(AsyncSQLAlchemyEngineFactory, "_build_hsqldb_connection_string")
+
+
 def test_postgresql_builder_requires_password() -> None:
     with pytest.raises(ValidationError):
         AsyncSQLAlchemyEngineFactory._build_postgresql_connection_string(
