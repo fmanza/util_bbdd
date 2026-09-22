@@ -8,7 +8,11 @@ con severity="WARNING" y se dejan sin modificar en el SQL resultante.
 Limitación conocida: las sustituciones son puramente léxicas y pueden producir
 falsos positivos si los tokens sustituidos aparecen dentro de literales string
 (por ejemplo ``'NVL is a function'``). La frecuencia real es muy baja en DDL
-de vistas.
+de vistas. MIG-07 (AUDIT_CODE 2026-09-22): toda sustitución léxica que
+efectivamente modifique la query (SYSDATE, SYSTIMESTAMP, USER, NVL, FROM DUAL,
+prefijo de schema) genera un MigrationWarning invitando a verificación manual
+— antes solo USER lo generaba, pese a que el riesgo de falso positivo es el
+mismo para las demás.
 """
 
 from __future__ import annotations
@@ -45,6 +49,30 @@ _COMPLEX_PATTERNS: list[tuple[re.Pattern[str], str]] = [
 ]
 
 
+def _lexical_substitution_warning(view: CanonicalView, oracle_token: str, target: str, count: int) -> MigrationWarning:
+    """Warning para una sustitución puramente léxica (MIG-07, ver módulo).
+
+    Args:
+        view: Vista sobre la que se aplicó la sustitución.
+        oracle_token: Token/construct Oracle sustituido (p.ej. "SYSDATE").
+        target: Texto por el que se sustituyó (o "(eliminado)" si se borra).
+        count: Número de apariciones sustituidas.
+    """
+    plural = "s" if count > 1 else ""
+    return MigrationWarning(
+        table=view.name,
+        column=None,
+        oracle_type=oracle_token,
+        target_type=target,
+        message=(
+            f"Vista '{view.name}': {count} sustitución{plural} léxica de '{oracle_token}' "
+            f"→ '{target}'; la sustitución es puramente textual (regex, sin parser SQL) y "
+            "puede afectar apariciones dentro de literales de texto. Verificar manualmente."
+        ),
+        severity="WARNING",
+    )
+
+
 def rewrite_oracle_view(
     view: CanonicalView,
     sysdate_fn: str,
@@ -72,8 +100,12 @@ def rewrite_oracle_view(
     query = _HINT_RE.sub("", query)
 
     # 2. SYSDATE / SYSTIMESTAMP
-    query = re.sub(r"\bSYSDATE\b", sysdate_fn, query, flags=re.IGNORECASE)
-    query = re.sub(r"\bSYSTIMESTAMP\b", systimestamp_fn, query, flags=re.IGNORECASE)
+    query, sysdate_count = re.subn(r"\bSYSDATE\b", sysdate_fn, query, flags=re.IGNORECASE)
+    if sysdate_count:
+        warnings.append(_lexical_substitution_warning(view, "SYSDATE", sysdate_fn, sysdate_count))
+    query, systimestamp_count = re.subn(r"\bSYSTIMESTAMP\b", systimestamp_fn, query, flags=re.IGNORECASE)
+    if systimestamp_count:
+        warnings.append(_lexical_substitution_warning(view, "SYSTIMESTAMP", systimestamp_fn, systimestamp_count))
 
     # 3. USER pseudocolumna
     if re.search(r"\bUSER\b", query, flags=re.IGNORECASE):
@@ -93,15 +125,23 @@ def rewrite_oracle_view(
         )
 
     # 4. NVL(a, b) → COALESCE(a, b)
-    query = _NVL_RE.sub("COALESCE(", query)
+    query, nvl_count = _NVL_RE.subn("COALESCE(", query)
+    if nvl_count:
+        warnings.append(_lexical_substitution_warning(view, "NVL", "COALESCE", nvl_count))
 
     # 5. FROM DUAL → eliminar (SELECT escalar no necesita tabla ficticia)
-    query = _FROM_DUAL_RE.sub("", query)
+    query, from_dual_count = _FROM_DUAL_RE.subn("", query)
+    if from_dual_count:
+        warnings.append(_lexical_substitution_warning(view, "FROM DUAL", "(eliminado)", from_dual_count))
 
     # 6. Strip prefijo de schema: SCHEMA_NAME. → vacío
     if schema:
         schema_re = re.compile(r"\b" + re.escape(schema) + r"\s*\.\s*", re.IGNORECASE)
-        query = schema_re.sub("", query)
+        query, schema_prefix_count = schema_re.subn("", query)
+        if schema_prefix_count:
+            warnings.append(
+                _lexical_substitution_warning(view, f"prefijo de schema '{schema}'", "(eliminado)", schema_prefix_count)
+            )
 
     # 7. Detectar constructs complejos → warnings (el SQL se deja sin modificar)
     for pattern, label in _COMPLEX_PATTERNS:

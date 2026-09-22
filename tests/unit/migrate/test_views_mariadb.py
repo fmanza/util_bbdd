@@ -155,6 +155,39 @@ class TestRewriteOracleViewMariaDB:
         result = self._rw("SELECT id, name FROM employees")
         assert result.warnings == []
 
+    def test_sysdate_replacement_emits_warning(self) -> None:
+        """MIG-07 (AUDIT_CODE 2026-09-22): toda sustitución léxica que modifica la
+        query debe advertir del riesgo de falso positivo en literales string, no
+        solo USER."""
+        result = self._rw("SELECT SYSDATE FROM t")
+        sysdate_warnings = [w for w in result.warnings if w.oracle_type == "SYSDATE"]
+        assert sysdate_warnings, "Debe emitirse MigrationWarning cuando SYSDATE es sustituido"
+        assert sysdate_warnings[0].severity == "WARNING"
+
+    def test_systimestamp_replacement_emits_warning(self) -> None:
+        result = self._rw("SELECT SYSTIMESTAMP FROM t")
+        warnings = [w for w in result.warnings if w.oracle_type == "SYSTIMESTAMP"]
+        assert warnings
+
+    def test_nvl_replacement_emits_warning(self) -> None:
+        result = self._rw("SELECT NVL(col, 0) FROM t")
+        warnings = [w for w in result.warnings if w.oracle_type == "NVL"]
+        assert warnings
+
+    def test_from_dual_removal_emits_warning(self) -> None:
+        result = self._rw("SELECT 1 FROM DUAL")
+        warnings = [w for w in result.warnings if w.oracle_type == "FROM DUAL"]
+        assert warnings
+
+    def test_schema_prefix_removal_emits_warning(self) -> None:
+        result = self._rw("SELECT MY_SCHEMA.t.id FROM MY_SCHEMA.t", schema="MY_SCHEMA")
+        warnings = [w for w in result.warnings if "prefijo de schema" in w.oracle_type]
+        assert warnings
+
+    def test_no_schema_prefix_no_warning(self) -> None:
+        result = self._rw("SELECT id FROM t", schema="MY_SCHEMA")
+        assert not any("prefijo de schema" in w.oracle_type for w in result.warnings)
+
     def test_original_view_not_mutated(self) -> None:
         original = _view(query="SELECT SYSDATE FROM DUAL")
         rewrite_oracle_view(original, "NOW()", "NOW()", "CURRENT_USER()", "MY_SCHEMA")
