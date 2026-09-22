@@ -70,6 +70,7 @@ def process_routine_result(
     routine_rows: list[PgRoutineDetail],
     routine_name: str,
     routine_type: str,
+    schema: str | None = None,
 ) -> str:
     """Construye el DDL completo de una rutina desde componentes decodificados.
 
@@ -77,6 +78,7 @@ def process_routine_result(
         routine_rows: Rutinas decodificadas
         routine_name: Nombre de la rutina a buscar
         routine_type: Tipo de rutina (FUNCTION, PROCEDURE, etc)
+        schema: Nombre del schema, si se conoce (se incluye en el comentario del DDL)
 
     Returns:
         str: DDL completo o comentario de fallback
@@ -87,7 +89,7 @@ def process_routine_result(
 
     if target_row and target_row.routine_definition:
         return build_postgres_routine_ddl(
-            schema=None,  # No tenemos schema en este contexto
+            schema=schema,
             routine_name=routine_name,
             routine_type=routine_type,
             routine_definition=target_row.routine_definition,

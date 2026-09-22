@@ -15,6 +15,7 @@ from ._adapter_helpers import (
     build_indexes_safe_sql,
     build_pk_constraint_sql,
     build_tables_sql,
+    process_routine_result,
     routine_entries_to_rows,
 )
 from ._manager_protocol import PostgreSQLSyncManagerProtocol
@@ -288,6 +289,20 @@ class PostgreSQLSyncAdapter:
             parameters, routine_name=routine_name, routine_type=routine_type
         )
         return build_public_postgres_routine_parameter_entry_rows(filtered)
+
+    def fetch_routine_definition_sync(self, schema: str, routine: str, routine_type: str) -> str:
+        """Obtiene el DDL completo de una rutina en modo síncrono (RoutineAdapter).
+
+        Args:
+            schema: Nombre del esquema.
+            routine: Nombre de la rutina.
+            routine_type: Tipo de rutina ('FUNCTION', 'PROCEDURE', etc).
+
+        Returns:
+            str: DDL de la rutina (p.ej. 'CREATE FUNCTION ...') o comentario de fallback.
+        """
+        routine_rows = self.get_routine_details(schema)
+        return process_routine_result(routine_rows, routine, routine_type, schema=schema)
 
     def _build_routines_query(self, schema: str) -> str:
         """Construye la consulta SQL para rutinas de PostgreSQL."""
