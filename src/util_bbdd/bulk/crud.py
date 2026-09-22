@@ -64,7 +64,7 @@ from ._support.validation import (
     normalize_identifier,
     validate_engine,
 )
-from .audit import AuditManager
+from .audit import AuditError, AuditManager
 from .normalize import normalize_records_for_sql
 
 try:
@@ -562,6 +562,9 @@ class BulkCrud:
         except SQLAlchemyError as error:
             self.logger.error(f"❌ Error en bulk {strategy_key.upper()}: {error}")
             raise
+        except (AuditError, OSError) as error:
+            self.logger.error(f"❌ Error registrando auditoría de bulk {strategy_key.upper()}: {error}")
+            raise
 
     def __prepare_insert_operation(
         self,
@@ -766,6 +769,16 @@ class BulkCrud:
         commit-as-you-go (commitea cada N lotes y al salir el resto). En ese modo
         la sesión **no** es atómica aunque ``atomic=True``: un fallo a mitad deja
         committeados los lotes anteriores.
+
+        Nota: un fallo registrando la auditoría (``AuditError``/``OSError`` al escribir
+        el CSV de auditoría) **después** de que el `execute()` de un chunk ya se haya
+        aplicado se propaga igual que un error de la propia operación bulk, y en modo
+        atómico (sin ``commit_every_n_chunks``) provoca el rollback de **toda** la
+        sesión, incluidos los chunks anteriores ya ejecutados en la misma transacción
+        compartida. El CSV de auditoría, al ser un fichero externo a la transacción de
+        BD, puede conservar entradas de esos chunks anteriores aunque sus filas se
+        deshagan en la base de datos — la auditoría y la BD pueden quedar
+        desincronizadas si esto ocurre.
         """
         if not atomic:
             yield
