@@ -93,21 +93,27 @@ class PoolConnection:
             Exception: Si la creación del pool falla.
         """
         try:
-            # Construir conninfo string para psycopg
+            from urllib.parse import quote
+
+            # Construir conninfo string para psycopg. user/password/database van URL-encoded:
+            # interpolarlos crudos permite que un valor con "/", "#", "%" o espacios reinterprete
+            # la URI y desvíe la conexión (ver AUDIT_CODE CNX-01, 2026-09-22).
             user: str | None = str(self.conn_params.get("user")) if self.conn_params.get("user") else None
             password: str | None = str(self.conn_params.get("password")) if self.conn_params.get("password") else None
             host: str = str(self.conn_params.get("host", "localhost"))
             port: str | int = self.conn_params.get("port", 5432)
             database: str | None = str(self.conn_params.get("database")) if self.conn_params.get("database") else None
 
-            conninfo: str = f"postgresql://{user}:{password}@{host}:{port}/{database}"
+            user_enc: str = quote(user, safe="") if user else ""
+            password_enc: str = quote(password, safe="") if password else ""
+            database_enc: str = quote(database, safe="") if database else ""
+
+            conninfo: str = f"postgresql://{user_enc}:{password_enc}@{host}:{port}/{database_enc}"
 
             options: str | None = (
                 str(self.conn_params.get("options")).strip() if self.conn_params.get("options") else None
             )
             if options:
-                from urllib.parse import quote
-
                 conninfo = f"{conninfo}?options={quote(options, safe='')}"
 
             self.pool = PsycopgConnectionPool(
