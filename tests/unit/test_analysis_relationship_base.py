@@ -57,6 +57,34 @@ def test_analyze_table_relations_includes_outgoing_and_incoming_non_mariadb() ->
     assert DatabaseRelationshipGraphBase.__module__ == "util_bbdd.analysis.base"
 
 
+def test_clear_cache_resets_graph_document_and_parent_index_and_visual_type_caches() -> None:
+    """MGR-04 (AUDIT_CODE 2026-09-22): las cachés internas del grafo no tenían ningún
+    método de invalidación propio y no se enteraban de manager.clear_cache()."""
+    manager = _FakeDbManager(
+        db_type="postgresql",
+        tables=["users", "orders"],
+        fk_by_table={
+            "users": [],
+            "orders": [("fk_orders_user", "user_id", "users", "id")],
+        },
+    )
+    graph = DatabaseRelationshipGraphBase(cast(SyncDatabaseManager, manager))
+
+    graph.analyze_table_relations("orders")
+    graph._find_parent_relations("users")
+    graph._classify_table_visual_type(context="test_db", table_name="orders")
+
+    assert graph._graph_document_cache_by_context
+    assert graph._parent_relations_index_by_context
+    assert graph._table_visual_type_cache_by_context
+
+    graph.clear_cache()
+
+    assert graph._graph_document_cache_by_context == {}
+    assert graph._parent_relations_index_by_context == {}
+    assert graph._table_visual_type_cache_by_context == {}
+
+
 def test_analyze_table_relations_mariadb_uses_expected_fk_indexes() -> None:
     manager = _FakeDbManager(
         db_type="mariadb",

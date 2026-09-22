@@ -137,6 +137,19 @@ class DatabaseRelationshipGraphBase:
         self._graph_document_cache_by_context: dict[tuple[str, str, int, str], GraphDocument] = {}
         self._table_visual_type_cache_by_context: dict[tuple[str, str], TableVisualType] = {}
 
+    def clear_cache(self) -> None:
+        """Invalida las cachés internas del grafo (índice de padres, documentos y tipos visuales).
+
+        MGR-04 (AUDIT_CODE 2026-09-22): estas cachés son propias de la instancia del
+        grafo y no se enteran de ``manager.clear_cache()`` porque el manager no
+        conserva ninguna referencia a los grafos construidos sobre él. Cuando la
+        metadata subyacente cambia, quien posea la instancia del grafo debe llamar
+        también a este método explícitamente.
+        """
+        self._parent_relations_index_by_context.clear()
+        self._graph_document_cache_by_context.clear()
+        self._table_visual_type_cache_by_context.clear()
+
     def analyze_table_relations(self, table_name: str) -> list[TableRelation]:
         """Devuelve relaciones visibles del primer nivel."""
         document = self.build_graph_document(table_name=table_name, max_depth=1, direction=LevelDirection.BOTH)
