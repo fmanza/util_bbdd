@@ -50,6 +50,61 @@ def test_database_metadata_cache_clear_all_resets_all_stats() -> None:
     assert stats["total_entries"] == 0
 
 
+def test_database_metadata_cache_clear_by_context_only_invalidates_target() -> None:
+    """MGR-03 (AUDIT_CODE 2026-09-22): clear_by_context es la API pública que sustituye
+    al acceso directo a 14 atributos privados desde managers/_metadata_cache.py."""
+    cache = DatabaseMetadataCache()
+    cache._tables_cache["public"] = [("users",)]  # noqa: SLF001
+    cache._tables_cache["audit"] = [("events",)]  # noqa: SLF001
+    cache.set_columns(("public", "users"), [("id", "int")])
+    cache.set_columns(("audit", "events"), [("id", "int")])
+    cache._routine_ddl_cache[("public", "proc_a", "PROCEDURE")] = "DDL A"  # noqa: SLF001
+    cache._routine_ddl_cache[("audit", "proc_b", "PROCEDURE")] = "DDL B"  # noqa: SLF001
+
+    total_removed = cache.clear_by_context("public")
+
+    assert "public" not in cache._tables_cache  # noqa: SLF001
+    assert "audit" in cache._tables_cache  # noqa: SLF001
+    assert cache.get_columns(("public", "users")) is None
+    assert cache.get_columns(("audit", "events")) == [("id", "int")]
+    assert ("public", "proc_a", "PROCEDURE") not in cache._routine_ddl_cache  # noqa: SLF001
+    assert ("audit", "proc_b", "PROCEDURE") in cache._routine_ddl_cache  # noqa: SLF001
+    assert total_removed > 0
+
+
+def test_database_metadata_cache_clear_by_routine_with_type_removes_single_key() -> None:
+    cache = DatabaseMetadataCache()
+    key_a = ("public", "proc_a", "PROCEDURE")
+    key_b = ("public", "proc_b", "PROCEDURE")
+    cache._routine_parameters_cache[key_a] = [("IN", "p_id", "INT")]  # noqa: SLF001
+    cache._routine_parameters_cache[key_b] = [("IN", "p_id", "INT")]  # noqa: SLF001
+    cache._routine_ddl_cache[key_a] = "DDL A"  # noqa: SLF001
+    cache._routine_ddl_cache[key_b] = "DDL B"  # noqa: SLF001
+
+    cache.clear_by_routine("public", "proc_a", "PROCEDURE")
+
+    assert key_a not in cache._routine_parameters_cache  # noqa: SLF001
+    assert key_b in cache._routine_parameters_cache  # noqa: SLF001
+    assert key_a not in cache._routine_ddl_cache  # noqa: SLF001
+    assert key_b in cache._routine_ddl_cache  # noqa: SLF001
+
+
+def test_database_metadata_cache_clear_by_routine_without_type_removes_all_matches() -> None:
+    cache = DatabaseMetadataCache()
+    proc_key = ("public", "proc_a", "PROCEDURE")
+    func_key = ("public", "proc_a", "FUNCTION")
+    other_key = ("public", "proc_b", "PROCEDURE")
+    cache._routine_parameters_cache[proc_key] = [("IN", "p_id", "INT")]  # noqa: SLF001
+    cache._routine_parameters_cache[func_key] = [("IN", "p_id", "INT")]  # noqa: SLF001
+    cache._routine_parameters_cache[other_key] = [("IN", "p_id", "INT")]  # noqa: SLF001
+
+    cache.clear_by_routine("public", "proc_a")
+
+    assert proc_key not in cache._routine_parameters_cache  # noqa: SLF001
+    assert func_key not in cache._routine_parameters_cache  # noqa: SLF001
+    assert other_key in cache._routine_parameters_cache  # noqa: SLF001
+
+
 def test_relationship_metadata_cache_uses_shared_database_cache() -> None:
     db_cache = DatabaseMetadataCache()
     rel_cache = RelationshipMetadataCache(db_cache=db_cache)

@@ -4,10 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from typing import Any
-
 from ..metadata import DatabaseMetadataCache, RelationshipMetadataCache
-from ._metadata_context import CacheKeyFactory
 
 
 class CacheManager:
@@ -88,34 +85,10 @@ class CacheManager:
         """
         self.logger.debug(f"Limpiando caché de rutina: {routine} ({context}, type={routine_type})")
         try:
-            self.db_cache._routine_metadata_context_cache.pop(context, None)
-            self.db_cache._routine_parameters_context_cache.pop(context, None)
-
-            if routine_type:
-                routine_key: tuple[str, str, str] = CacheKeyFactory.routine_key(context, routine, routine_type)
-                self.db_cache._routine_parameters_cache.pop(routine_key, None)
-                self.db_cache._routine_ddl_cache.pop(routine_key, None)
-                self.logger.debug(f"Removida clave específica: {routine_key}")
-            else:
-                # Limpiar todas las rutinas con mismo nombre en el contexto
-                param_keys: list[tuple[str, str, str]] = [
-                    key
-                    for key in self.db_cache._routine_parameters_cache
-                    if key and len(key) >= 2 and key[0] == context and key[1] == routine
-                ]
-                ddl_keys: list[tuple[str, str, str]] = [
-                    key
-                    for key in self.db_cache._routine_ddl_cache
-                    if key and len(key) >= 2 and key[0] == context and key[1] == routine
-                ]
-
-                for cache_key in param_keys:
-                    self.db_cache._routine_parameters_cache.pop(cache_key, None)
-                for cache_key in ddl_keys:
-                    self.db_cache._routine_ddl_cache.pop(cache_key, None)
-
-                self.logger.debug(f"Removidas {len(param_keys) + len(ddl_keys)} claves de rutina genéricas")
-
+            # MGR-03 (AUDIT_CODE 2026-09-22): delega en la API pública de
+            # DatabaseMetadataCache en vez de acceder a sus atributos privados
+            # por nombre hardcodeado.
+            self.db_cache.clear_by_routine(context, routine, routine_type)
             self.logger.info(f"✅ Caché invalidada para rutina {routine} ({context})")
         except Exception as error:
             self.logger.error(f"❌ Error limpiando caché de rutina {routine}: {error}", exc_info=True)
@@ -132,37 +105,10 @@ class CacheManager:
         """
         self.logger.debug(f"Limpiando caché de contexto: {context}")
         try:
-            # Limpiar cachés por contexto (simples)
-            context_caches: tuple[dict[str, Any], ...] = (
-                self.db_cache._tables_cache,
-                self.db_cache._views_cache,
-                self.db_cache._routines_cache,
-                self.db_cache._routine_metadata_context_cache,
-                self.db_cache._routine_parameters_context_cache,
-            )
-            for context_cache in context_caches:
-                context_cache.pop(context, None)
-
-            # Limpiar cachés por tupla (composición)
-            tuple_caches: tuple[dict[tuple[Any, ...], Any], ...] = (
-                self.db_cache._primary_keys_cache,
-                self.db_cache._indices_cache,
-                self.db_cache._foreign_keys_cache,
-                self.db_cache._unique_constraints_cache,
-                self.db_cache._columns_cache,
-                self.db_cache._ddl_cache,
-                self.db_cache._view_ddl_cache,
-                self.db_cache._routine_parameters_cache,
-                self.db_cache._routine_ddl_cache,
-            )
-
-            total_removed = 0
-            for tuple_cache in tuple_caches:
-                keys_to_remove: list[tuple[Any, ...]] = [key for key in tuple_cache if key and str(key[0]) == context]
-                for cache_key in keys_to_remove:
-                    tuple_cache.pop(cache_key, None)
-                total_removed += len(keys_to_remove)
-
+            # MGR-03 (AUDIT_CODE 2026-09-22): delega en la API pública de
+            # DatabaseMetadataCache en vez de acceder a sus atributos privados
+            # por nombre hardcodeado.
+            total_removed = self.db_cache.clear_by_context(context)
             self.logger.info(f"✅ Caché invalidada para contexto: {context} ({total_removed} tuplas removidas)")
         except Exception as error:
             self.logger.error(f"❌ Error limpiando caché de contexto {context}: {error}", exc_info=True)

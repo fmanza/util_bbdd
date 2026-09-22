@@ -9,6 +9,8 @@ Patrón: Composición Jerárquica
 
 import logging
 
+from typing import Any
+
 
 class DatabaseMetadataCache:
     """Cachés de metadatos puros de base de datos.
@@ -127,6 +129,93 @@ class DatabaseMetadataCache:
         self._ddl_cache.pop(table_key, None)
         self._view_ddl_cache.pop(table_key, None)
         self.logger.debug(f"🧹 DatabaseMetadataCache invalidado para {table}")
+
+    def clear_by_context(self, context: str) -> int:
+        """Invalida todas las entradas de caché asociadas a un contexto (schema/database).
+
+        MGR-03 (AUDIT_CODE 2026-09-22): expone como API pública la invalidación por
+        contexto que ``managers/_metadata_cache.py::CacheManager.clear_context()``
+        hacía accediendo a 9 atributos privados por nombre hardcodeado (más otros 5
+        ya cubiertos por el bucle de cachés simples). Cualquier caché nueva que se
+        añada a esta clase queda automáticamente cubierta sin tocar ``managers/``.
+
+        Args:
+            context: Contexto (schema/database) a limpiar.
+
+        Returns:
+            int: Número de entradas indexadas por tupla ``(context, ...)`` eliminadas
+                (informativo, para logging del caller).
+        """
+        context_caches: tuple[dict[str, Any], ...] = (
+            self._tables_cache,
+            self._views_cache,
+            self._routines_cache,
+            self._routine_metadata_context_cache,
+            self._routine_parameters_context_cache,
+        )
+        for context_cache in context_caches:
+            context_cache.pop(context, None)
+
+        tuple_caches: tuple[dict[tuple[Any, ...], Any], ...] = (
+            self._primary_keys_cache,
+            self._indices_cache,
+            self._foreign_keys_cache,
+            self._unique_constraints_cache,
+            self._columns_cache,
+            self._ddl_cache,
+            self._view_ddl_cache,
+            self._routine_parameters_cache,
+            self._routine_ddl_cache,
+        )
+
+        total_removed = 0
+        for tuple_cache in tuple_caches:
+            keys_to_remove: list[tuple[Any, ...]] = [key for key in tuple_cache if key and str(key[0]) == context]
+            for cache_key in keys_to_remove:
+                tuple_cache.pop(cache_key, None)
+            total_removed += len(keys_to_remove)
+
+        self.logger.debug(f"🧹 DatabaseMetadataCache invalidado para contexto: {context} ({total_removed} tuplas)")
+        return total_removed
+
+    def clear_by_routine(self, context: str, routine: str, routine_type: str | None = None) -> None:
+        """Invalida cachés para una rutina específica (o todas las homónimas en el
+        contexto, si ``routine_type`` es ``None``).
+
+        MGR-03 (AUDIT_CODE 2026-09-22): ver nota de :meth:`clear_by_context`.
+
+        Args:
+            context: Contexto (schema/database).
+            routine: Nombre de la rutina.
+            routine_type: Tipo de rutina (PROCEDURE, FUNCTION, etc.). Si se omite,
+                invalida todas las rutinas con ese nombre en el contexto,
+                independientemente del tipo.
+        """
+        self._routine_metadata_context_cache.pop(context, None)
+        self._routine_parameters_context_cache.pop(context, None)
+
+        if routine_type:
+            routine_key: tuple[str, str, str] = (context, routine, routine_type.upper())
+            self._routine_parameters_cache.pop(routine_key, None)
+            self._routine_ddl_cache.pop(routine_key, None)
+            self.logger.debug(f"🧹 DatabaseMetadataCache invalidado para rutina: {routine_key}")
+            return
+
+        param_keys: list[tuple[str, str, str]] = [
+            key
+            for key in self._routine_parameters_cache
+            if key and len(key) >= 2 and key[0] == context and key[1] == routine
+        ]
+        ddl_keys: list[tuple[str, str, str]] = [
+            key for key in self._routine_ddl_cache if key and len(key) >= 2 and key[0] == context and key[1] == routine
+        ]
+        for cache_key in param_keys:
+            self._routine_parameters_cache.pop(cache_key, None)
+        for cache_key in ddl_keys:
+            self._routine_ddl_cache.pop(cache_key, None)
+        self.logger.debug(
+            f"🧹 DatabaseMetadataCache invalidadas {len(param_keys) + len(ddl_keys)} claves de rutina '{routine}' ({context})"
+        )
 
     def get_cache_stats(self) -> dict[str, int]:
         """Retorna estadísticas de cachés de BD."""

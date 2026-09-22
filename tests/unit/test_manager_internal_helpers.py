@@ -68,6 +68,29 @@ def test_clear_context_cache_removes_only_matching_entries() -> None:
     assert routine_key_b in db_cache._routine_ddl_cache
 
 
+def test_clear_routine_cache_removes_only_matching_routine() -> None:
+    """MGR-03 (AUDIT_CODE 2026-09-22): CacheManager.clear_routine delega en la API
+    pública DatabaseMetadataCache.clear_by_routine en vez de tocar atributos privados."""
+    db_cache = DatabaseMetadataCache()
+    routine_key_a = CacheKeyFactory.routine_key("public", "proc_a", "procedure")
+    routine_key_b = CacheKeyFactory.routine_key("public", "proc_b", "procedure")
+    db_cache._routine_parameters_cache[routine_key_a] = [("IN", "p_id", "INT")]
+    db_cache._routine_parameters_cache[routine_key_b] = [("IN", "p_id", "INT")]
+    db_cache._routine_ddl_cache[routine_key_a] = "DDL A"
+    db_cache._routine_ddl_cache[routine_key_b] = "DDL B"
+
+    CacheManager(
+        db_cache=db_cache,
+        relationship_cache=RelationshipMetadataCache(),
+        logger=MagicMock(),
+    ).clear_routine(context="public", routine="proc_a", routine_type="procedure")
+
+    assert routine_key_a not in db_cache._routine_parameters_cache
+    assert routine_key_b in db_cache._routine_parameters_cache
+    assert routine_key_a not in db_cache._routine_ddl_cache
+    assert routine_key_b in db_cache._routine_ddl_cache
+
+
 @pytest.mark.asyncio
 async def test_init_async_resources_falls_back_to_direct_connection() -> None:
     async def _unsupported_pool() -> None:
