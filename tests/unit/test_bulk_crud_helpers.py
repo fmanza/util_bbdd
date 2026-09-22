@@ -82,6 +82,56 @@ class _NonBinaryFailingStmt:
         raise RuntimeError("boom")
 
 
+class _PercentSValueContainsPlaceholderCompiled:
+    def __init__(self) -> None:
+        # BLK-05: el valor del primer parámetro contiene literalmente "%s".
+        self.params = {"first": "100%s off", "second": 42}
+
+    def __str__(self) -> str:
+        return "INSERT INTO t VALUES (%s, %s)"
+
+
+class _PercentSValueContainsPlaceholderStmt:
+    def compile(self, dialect=None, compile_kwargs=None):  # noqa: ANN001, ANN201
+        if compile_kwargs and compile_kwargs.get("literal_binds"):
+            raise RuntimeError("binary literal rendering is not supported")
+        return _PercentSValueContainsPlaceholderCompiled()
+
+
+class _QmarkValueContainsPlaceholderCompiled:
+    def __init__(self) -> None:
+        # BLK-05: el valor del primer parámetro contiene literalmente "?".
+        self.params = {"first": "what?", "second": "next"}
+        self.positiontup = ["first", "second"]
+
+    def __str__(self) -> str:
+        return "INSERT INTO t VALUES (?, ?)"
+
+
+class _QmarkValueContainsPlaceholderStmt:
+    def compile(self, dialect=None, compile_kwargs=None):  # noqa: ANN001, ANN201
+        if compile_kwargs and compile_kwargs.get("literal_binds"):
+            raise RuntimeError("binary literal rendering is not supported")
+        return _QmarkValueContainsPlaceholderCompiled()
+
+
+class _NamedValueContainsPlaceholderCompiled:
+    def __init__(self) -> None:
+        # BLK-05: el valor de "a" contiene literalmente ":b", el nombre del
+        # siguiente parámetro nombrado.
+        self.params = {"a": "see :b here", "b": 99}
+
+    def __str__(self) -> str:
+        return "INSERT INTO t VALUES (:a, :b)"
+
+
+class _NamedValueContainsPlaceholderStmt:
+    def compile(self, dialect=None, compile_kwargs=None):  # noqa: ANN001, ANN201
+        if compile_kwargs and compile_kwargs.get("literal_binds"):
+            raise RuntimeError("binary literal rendering is not supported")
+        return _NamedValueContainsPlaceholderCompiled()
+
+
 @pytest.fixture
 def sqlite_bulk_manager() -> bulk_crud:
     return bulk_crud(engine=create_engine("sqlite:///:memory:"))
@@ -173,6 +223,39 @@ def test_compilar_stmt_con_binarios_fallback_qmark(sqlite_bulk_manager: bulk_cru
 def test_compilar_stmt_con_binarios_fallback_named(sqlite_bulk_manager: bulk_crud) -> None:
     compiled_sql = compile_stmt_with_binary_support(_NamedBinaryFallbackStmt(), sqlite_bulk_manager.engine.dialect)
     assert compiled_sql == "INSERT INTO t VALUES (0xAA, 'O''Reilly');"
+
+
+def test_compilar_stmt_con_binarios_percent_s_value_does_not_corrupt_next_placeholder(
+    sqlite_bulk_manager: bulk_crud,
+) -> None:
+    """BLK-05 (AUDIT_CODE 2026-09-22): un valor que contiene literalmente "%s" no debe
+    ser reescaneado como placeholder del siguiente parámetro."""
+    compiled_sql = compile_stmt_with_binary_support(
+        _PercentSValueContainsPlaceholderStmt(), sqlite_bulk_manager.engine.dialect
+    )
+    assert compiled_sql == "INSERT INTO t VALUES ('100%s off', 42);"
+
+
+def test_compilar_stmt_con_binarios_qmark_value_does_not_corrupt_next_placeholder(
+    sqlite_bulk_manager: bulk_crud,
+) -> None:
+    """BLK-05 (AUDIT_CODE 2026-09-22): un valor que contiene literalmente "?" no debe
+    ser reescaneado como placeholder del siguiente parámetro."""
+    compiled_sql = compile_stmt_with_binary_support(
+        _QmarkValueContainsPlaceholderStmt(), sqlite_bulk_manager.engine.dialect
+    )
+    assert compiled_sql == "INSERT INTO t VALUES ('what?', 'next');"
+
+
+def test_compilar_stmt_con_binarios_named_value_does_not_corrupt_later_placeholder(
+    sqlite_bulk_manager: bulk_crud,
+) -> None:
+    """BLK-05 (AUDIT_CODE 2026-09-22): un valor que contiene literalmente ":otro_param"
+    no debe ser reescaneado como placeholder de ese otro parámetro."""
+    compiled_sql = compile_stmt_with_binary_support(
+        _NamedValueContainsPlaceholderStmt(), sqlite_bulk_manager.engine.dialect
+    )
+    assert compiled_sql == "INSERT INTO t VALUES ('see :b here', 99);"
 
 
 def test_compilar_stmt_con_binarios_reraises_non_binary_errors(sqlite_bulk_manager: bulk_crud) -> None:

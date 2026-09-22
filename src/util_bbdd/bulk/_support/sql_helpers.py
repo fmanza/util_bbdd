@@ -118,28 +118,66 @@ def generate_delete_sql(
 
 
 def _substitute_ordered_params(sql_text: str, ordered_params: list[Any]) -> str:
-    """Sustituye parámetros ordenados usando placeholders %s o ?."""
+    """Sustituye parámetros ordenados usando placeholders %s o ?.
+
+    BLK-05 (AUDIT_CODE 2026-09-22): localiza las posiciones de los placeholders
+    en el ``sql_text`` original antes de sustituir, en vez de encadenar
+    ``str.replace(..., 1)`` sobre el resultado parcial. Un valor de parámetro
+    que contenga literalmente "%s" o "?" (p.ej. un BLOB/texto de usuario)
+    podía ser reescaneado por la sustitución del siguiente parámetro y
+    corromper el SQL generado.
+    """
     if "%s" in sql_text:
-        for param_value in ordered_params:
-            sql_text = sql_text.replace("%s", format_sql_param_value(param_value), 1)
+        placeholder = "%s"
+    elif "?" in sql_text:
+        placeholder = "?"
+    else:
         return sql_text
 
-    if "?" in sql_text:
-        for param_value in ordered_params:
-            sql_text = sql_text.replace("?", format_sql_param_value(param_value), 1)
+    positions: list[int] = [match.start() for match in re.finditer(re.escape(placeholder), sql_text)]
+    if not positions:
         return sql_text
 
-    return sql_text
+    placeholder_len = len(placeholder)
+    result_parts: list[str] = []
+    previous_end = 0
+    for position, param_value in zip(positions, ordered_params, strict=False):
+        result_parts.append(sql_text[previous_end:position])
+        result_parts.append(format_sql_param_value(param_value))
+        previous_end = position + placeholder_len
+    result_parts.append(sql_text[previous_end:])
+    return "".join(result_parts)
 
 
 def _substitute_named_params(sql_text: str, params: dict[str, Any]) -> str:
-    """Sustituye parámetros nombrados usando formatos %(name)s o :name."""
-    sql_result: str = sql_text
-    for param_name, param_value in params.items():
-        sql_literal: str = format_sql_param_value(param_value)
-        sql_result = re.sub(rf"%\({re.escape(param_name)}\)s", sql_literal, sql_result)
-        sql_result = re.sub(rf":{re.escape(param_name)}\b", sql_literal, sql_result)
-    return sql_result
+    """Sustituye parámetros nombrados usando formatos %(name)s o :name.
+
+    BLK-05 (AUDIT_CODE 2026-09-22): localiza todas las posiciones de
+    placeholders en el ``sql_text`` original antes de sustituir, en vez de
+    aplicar ``re.sub`` de forma incremental sobre el resultado parcial. Un
+    valor ya sustituido que contuviera literalmente ":otro_param" o
+    "%(otro_param)s" podía ser reescaneado y corromper sustituciones
+    posteriores.
+    """
+    if not params:
+        return sql_text
+
+    matches: list[tuple[int, int, str]] = []
+    for param_name in params:
+        pattern = re.compile(rf"%\({re.escape(param_name)}\)s|:{re.escape(param_name)}\b")
+        matches.extend((match.start(), match.end(), param_name) for match in pattern.finditer(sql_text))
+    matches.sort(key=lambda item: item[0])
+
+    result_parts: list[str] = []
+    previous_end = 0
+    for start, end, param_name in matches:
+        if start < previous_end:
+            continue
+        result_parts.append(sql_text[previous_end:start])
+        result_parts.append(format_sql_param_value(params[param_name]))
+        previous_end = end
+    result_parts.append(sql_text[previous_end:])
+    return "".join(result_parts)
 
 
 def _get_ordered_params(compiled: Any, params: dict[str, Any]) -> list[Any]:
