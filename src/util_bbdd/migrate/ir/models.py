@@ -159,7 +159,21 @@ class MigrationPlan:
 
         Args:
             target_connection: SyncDatabaseManager del motor destino.
+
+        Raises:
+            ValueError: Si el plan tiene uno o más warnings de severidad ``ERROR``
+                (``self.error_count > 0``). No hay flag de override: resuelve los
+                errores del plan (revisa ``self.warnings``) antes de ejecutar, o usa
+                ``emit_ddl()``/``emit_statements()`` para inspeccionar el DDL sin ejecutarlo.
         """
+        if self.error_count > 0:
+            error_messages = "; ".join(w.message for w in self.warnings if w.severity == "ERROR")
+            raise ValueError(
+                f"No se puede ejecutar el plan de migración: {self.error_count} warning(s) de "
+                f"severidad ERROR sin resolver ({error_messages}). Revisa `plan.warnings` antes de "
+                "ejecutar, o usa `emit_ddl()`/`emit_statements()` para inspeccionar el DDL generado "
+                "sin ejecutarlo."
+            )
         for stmt in self.emit_statements():
             stmt_clean = stmt.strip()
             if stmt_clean:

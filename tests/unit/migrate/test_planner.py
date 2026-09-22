@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from util_bbdd.migrate import MigrationPlan, MigrationPlanner
+from util_bbdd.migrate import MigrationPlan, MigrationPlanner, MigrationWarning
 
 
 def _make_mock_manager(tables: list[tuple] | None = None) -> MagicMock:
@@ -221,6 +221,74 @@ class TestMigrationPlanExecute:
         calls = target.execute_custom_one.call_args_list
         # Debe haberse llamado al menos una vez con SQL de CREATE TABLE
         assert any("CREATE TABLE" in str(call) for call in calls)
+
+
+class TestMigrationPlanExecuteErrorGate:
+    """MIG-01 (AUDIT_CODE 2026-09-22, decisión confirmada por el usuario): execute()
+    debe bloquear si el plan tiene warnings de severidad ERROR, sin flag de override."""
+
+    @staticmethod
+    def _error_warning() -> MigrationWarning:
+        return MigrationWarning(
+            table="USERS",
+            column="ID",
+            oracle_type="LONG",
+            target_type="UNKNOWN",
+            message="Tipo no soportado",
+            severity="ERROR",
+        )
+
+    def test_execute_raises_value_error_when_error_count_positive(self) -> None:
+        manager = _make_mock_manager()
+        plan = MigrationPlanner().plan(manager, "SCHEMA")
+        plan.warnings.append(self._error_warning())
+        assert plan.error_count == 1
+
+        target = MagicMock()
+
+        with pytest.raises(ValueError, match="ERROR"):
+            plan.execute(target_connection=target)
+
+        target.execute_custom_one.assert_not_called()
+
+    def test_execute_error_message_includes_warning_text(self) -> None:
+        manager = _make_mock_manager()
+        plan = MigrationPlanner().plan(manager, "SCHEMA")
+        plan.warnings.append(self._error_warning())
+
+        target = MagicMock()
+
+        with pytest.raises(ValueError, match="Tipo no soportado"):
+            plan.execute(target_connection=target)
+
+    def test_execute_runs_normally_when_only_warning_and_info_severities(self) -> None:
+        manager = _make_mock_manager()
+        plan = MigrationPlanner().plan(manager, "SCHEMA")
+        plan.warnings.append(
+            MigrationWarning(
+                table="USERS",
+                column="ID",
+                oracle_type="NUMBER",
+                target_type="INT",
+                message="Aviso no bloqueante",
+                severity="WARNING",
+            )
+        )
+        assert plan.error_count == 0
+
+        target = MagicMock()
+        target.execute_custom_one.return_value = None
+
+        plan.execute(target_connection=target)  # No debe lanzar
+
+        assert target.execute_custom_one.called
+
+    def test_execute_has_no_override_flag(self) -> None:
+        """No debe existir forma de saltarse el gate: execute() solo acepta target_connection."""
+        import inspect
+
+        sig = inspect.signature(MigrationPlan.execute)
+        assert list(sig.parameters) == ["self", "target_connection"]
 
 
 class TestMigrationPlannerOracleIdentityMode:
