@@ -209,7 +209,14 @@ def resolve_number_type_sqlserver(
 
     # scale == 0: tipo entero según precisión
     if precision <= 2:
-        return "TINYINT", None
+        # NUMBER(1,0)/NUMBER(2,0) Oracle es con signo (rango con signo, p. ej. -99..99);
+        # TINYINT de SQL Server es unsigned (0..255) — un valor negativo real desborda
+        # silenciosamente sin este aviso (ver AUDIT_CODE CMP-01, 2026-09-22).
+        comment = (
+            f"-- AVISO: NUMBER({precision},0) Oracle con signo → TINYINT SQL Server "
+            "unsigned (0-255); revisar valores negativos"
+        )
+        return "TINYINT", comment
     if precision <= 4:
         return "SMALLINT", None
     if precision <= 9:

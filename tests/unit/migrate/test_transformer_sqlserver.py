@@ -151,6 +151,24 @@ class TestColumnTypeMapping:
         rcol = result.columns[0]
         assert rcol.target_type == "FLOAT"
         assert any(w.severity == "WARNING" for w in rcol.warnings)
+        assert any("sin precisión" in w.message for w in rcol.warnings)
+
+    def test_number_1_0_maps_to_tinyint_with_unsigned_warning(self) -> None:
+        """CMP-01 (AUDIT_CODE 2026-09-22): NUMBER(1,0)/(2,0) Oracle es con signo, TINYINT SQL
+        Server es unsigned (0-255); debe emitirse un aviso, no quedar en silencio."""
+        col = _make_column(name="ID", oracle_type="NUMBER", precision=1, scale=0, char_length=None)
+        table = _make_table(columns=[col])
+        result = self.t.transform([table])[0]
+        rcol = result.columns[0]
+        assert rcol.target_type == "TINYINT"
+        assert rcol.ddl_comment is not None
+        assert "unsigned" in rcol.ddl_comment
+        assert any(w.severity == "WARNING" for w in rcol.warnings)
+        assert any("unsigned" in w.message for w in rcol.warnings)
+        # El mensaje no debe ser el hardcodeado de la rama "sin precisión" (bug distinto ya
+        # corregido: el texto del warning reflejaba siempre esa rama sin importar cuál disparó
+        # el ddl_comment).
+        assert not any("sin precisión" in w.message for w in rcol.warnings)
 
     def test_rowid_column_omitted(self) -> None:
         col = _make_column(oracle_type="ROWID", char_length=None)

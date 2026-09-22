@@ -131,13 +131,17 @@ class OracleToSQLServerTransformer(BaseTransformer):
             new_col.target_type = target_type
             if ddl_comment:
                 new_col.ddl_comment = ddl_comment
+                # El mensaje del warning refleja el aviso real (p. ej. "NUMBER sin precisión" o
+                # "TINYINT unsigned"), no un texto fijo que no aplicaría a todas las ramas de
+                # resolve_number_type_sqlserver() (ver AUDIT_CODE CMP-01, 2026-09-22).
+                warning_message = ddl_comment.removeprefix("-- AVISO: ").strip()
                 new_col.warnings.append(
                     MigrationWarning(
                         table=table_name,
                         column=col.name,
                         oracle_type=col.oracle_type,
                         target_type=target_type,
-                        message=f"NUMBER sin precisión → {self._number_fallback}",
+                        message=warning_message,
                         severity="WARNING",
                     )
                 )

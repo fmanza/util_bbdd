@@ -118,15 +118,21 @@ class TestResolveNumberTypeSQLServer:
         assert t == "NUMERIC(38,10)"
         assert comment is not None
 
-    def test_number_1_0_returns_tinyint(self) -> None:
+    def test_number_1_0_returns_tinyint_with_unsigned_warning(self) -> None:
+        """CMP-01 (AUDIT_CODE 2026-09-22): NUMBER(1,0) Oracle es con signo (-9..9), TINYINT
+        SQL Server es unsigned (0-255); sin aviso, un valor negativo desborda silenciosamente."""
         t, comment = resolve_number_type_sqlserver(1, 0)
         assert t == "TINYINT"
-        assert comment is None
+        assert comment is not None
+        assert "unsigned" in comment
+        assert "negativos" in comment
 
-    def test_number_2_0_returns_tinyint(self) -> None:
+    def test_number_2_0_returns_tinyint_with_unsigned_warning(self) -> None:
         t, comment = resolve_number_type_sqlserver(2, 0)
         assert t == "TINYINT"
-        assert comment is None
+        assert comment is not None
+        assert "unsigned" in comment
+        assert "negativos" in comment
 
     def test_number_3_0_returns_smallint(self) -> None:
         t, comment = resolve_number_type_sqlserver(3, 0)
