@@ -288,6 +288,63 @@ class TestSQLServer:
         assert results[0].status == "skipped"
 
 
+class TestSQLServerTableRefQuoting:
+    """BLK-06: DBCC CHECKIDENT debe citar table/schema igual que _sync_mariadb.
+
+    A diferencia del resto de tests de esta clase (que mockean
+    ``identifier_preparer.quote`` como passthrough), aquí se usa el
+    ``identifier_preparer`` real del dialecto ``mssql`` de SQLAlchemy para
+    verificar el bracket-quoting (``[nombre]``) efectivo.
+    """
+
+    @staticmethod
+    def _make_mssql_engine_real_quoting() -> MagicMock:
+        from sqlalchemy.dialects import mssql
+
+        engine = MagicMock()
+        engine.dialect.name = "mssql"
+        engine.dialect.identifier_preparer = mssql.dialect().identifier_preparer
+        conn = MagicMock()
+        conn.__enter__ = MagicMock(return_value=conn)
+        conn.__exit__ = MagicMock(return_value=False)
+        engine.connect.return_value = conn
+        return engine
+
+    def test_reserved_word_table_name_is_bracket_quoted(self):
+        engine = self._make_mssql_engine_real_quoting()
+        conn = engine.connect.return_value
+        conn.execute.return_value.scalar.return_value = 5
+
+        col = _make_col("id", identity=_make_identity())
+        table = _make_table("order", [col], schema="dbo")
+
+        syncer = PKSequenceSyncer(engine, schema="dbo")
+        results = syncer.sync_table(table)
+
+        assert results[0].status == "synced"
+        sql_calls = _text_sql_calls(conn)
+        assert any("DBCC CHECKIDENT ('dbo.[order]', RESEED, 5)" in s for s in sql_calls)
+
+    def test_embedded_single_quote_in_table_name_is_escaped(self):
+        """Un nombre de tabla con comilla simple no debe romper el literal DBCC."""
+        engine = self._make_mssql_engine_real_quoting()
+        conn = engine.connect.return_value
+        conn.execute.return_value.scalar.return_value = None
+
+        col = _make_col("id", identity=_make_identity())
+        table = _make_table("weird'table", [col])
+
+        syncer = PKSequenceSyncer(engine)
+        results = syncer.sync_table(table)
+
+        assert results[0].status == "no_rows"
+        sql_calls = _text_sql_calls(conn)
+        # [weird'table] cita la comilla simple sin escapar (los corchetes no la necesitan),
+        # pero al embeber ese identificador en el literal DBCC ('...') la comilla debe
+        # duplicarse para no romper el literal ni dejarlo sin cerrar.
+        assert any("DBCC CHECKIDENT ('[weird''table]', RESEED, 0)" in s for s in sql_calls)
+
+
 # ---------------------------------------------------------------------------
 # MariaDB / MySQL
 # ---------------------------------------------------------------------------

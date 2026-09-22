@@ -218,8 +218,10 @@ class PKSequenceSyncer:
             )
 
         schema = table.schema or self._schema
-        # DBCC CHECKIDENT requiere el nombre de tabla como literal de texto
-        table_ref = f"{schema}.{table.name}" if schema else table.name
+        # DBCC CHECKIDENT requiere el nombre de tabla como literal de texto: se cita cada
+        # parte (bracket quoting, igual que _sync_mariadb con backticks) y se escapan las
+        # comillas simples embebidas para no romper el literal ni permitir inyección.
+        table_ref = _qt(table.name, schema, self._engine).replace("'", "''")
 
         max_val_raw = conn.execute(select(func.max(col))).scalar()
 
