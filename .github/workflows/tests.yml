@@ -44,8 +44,11 @@ jobs:
     - name: Lint with ruff
       run: python -m ruff check src/ tests/
 
+    # Además de src/ se comprueba el fichero de conformidad: verifica con mypy (tipos, aridad y miembros) que las
+    # implementaciones reales cumplen los Protocols que las capas altas usan en lugar de importarlas (Regla #6).
+    # `mypy src` por sí solo no lo ve, porque los objetos se pasan desde los tests.
     - name: Type check with mypy
-      run: python -m mypy src
+      run: python -m mypy src tests/unit/test_protocol_conformance.py
 
     - name: Run tests
       run: python -m pytest tests/ -v --cov=src/util_bbdd --cov-report=xml
