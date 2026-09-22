@@ -350,3 +350,39 @@ class TestFormatDefaultSQLServer:
     def test_oracle_empty_string_default_preserved(self) -> None:
         """Literal vacío Oracle ('') se preserva tal cual."""
         assert _format_default_sqlserver("''") == "''"
+
+
+class TestSQLServerDefaultFallbackWarning:
+    """MIG-03 (AUDIT_CODE 2026-09-22): un DEFAULT con forma de llamada a función
+    (p.ej. CURDATE() de MariaDB) que el emisor no reconoce cae al fallback y se
+    entrecomilla como literal de texto; hasta ahora, sin ningún MigrationWarning."""
+
+    def setup_method(self) -> None:
+        self.e = SQLServerDDLEmitter()
+
+    def test_unrecognized_function_call_default_emits_warning(self) -> None:
+        col = _col("CREATED_AT", "DATETIME2", default="CURDATE()")
+        table = _table("T_MARIADB_SRC", [col])
+
+        ddl = self.e.emit([table])
+
+        assert "DEFAULT 'CURDATE()'" in ddl
+        assert len(col.warnings) == 1
+        assert col.warnings[0].severity == "WARNING"
+        assert "CURDATE()" in col.warnings[0].message
+
+    def test_recognized_function_default_does_not_emit_warning(self) -> None:
+        col = _col("CREATED_AT", "DATETIME2", default="SYSDATE")
+        table = _table("T_OK", [col])
+
+        self.e.emit([table])
+
+        assert col.warnings == []
+
+    def test_plain_string_default_does_not_emit_warning(self) -> None:
+        col = _col("STATUS", "NVARCHAR(10)", default="ACTIVE")
+        table = _table("T_STATUS", [col])
+
+        self.e.emit([table])
+
+        assert col.warnings == []

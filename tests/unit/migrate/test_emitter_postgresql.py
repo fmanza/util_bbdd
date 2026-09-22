@@ -342,6 +342,42 @@ class TestFormatDefaultPostgreSQL:
         assert _format_default_postgresql("NOW(3)") == "NOW(3)"
 
 
+class TestPostgreSQLDefaultFallbackWarning:
+    """MIG-03 (AUDIT_CODE 2026-09-22): un DEFAULT con forma de llamada a función
+    (p.ej. GETDATE() de SQL Server) que el emisor no reconoce cae al fallback y se
+    entrecomilla como literal de texto; hasta ahora, sin ningún MigrationWarning."""
+
+    def setup_method(self) -> None:
+        self.e = PostgreSQLDDLEmitter()
+
+    def test_unrecognized_function_call_default_emits_warning(self) -> None:
+        col = _col("CREATED_AT", "TIMESTAMP", default="GETDATE()")
+        table = _table("T_SQLSERVER_SRC", [col])
+
+        ddl = self.e.emit([table])
+
+        assert "DEFAULT 'GETDATE()'" in ddl
+        assert len(col.warnings) == 1
+        assert col.warnings[0].severity == "WARNING"
+        assert "GETDATE()" in col.warnings[0].message
+
+    def test_recognized_function_default_does_not_emit_warning(self) -> None:
+        col = _col("CREATED_AT", "TIMESTAMP", default="SYSDATE")
+        table = _table("T_OK", [col])
+
+        self.e.emit([table])
+
+        assert col.warnings == []
+
+    def test_plain_string_default_does_not_emit_warning(self) -> None:
+        col = _col("STATUS", "VARCHAR(10)", default="hola")
+        table = _table("T_STATUS", [col])
+
+        self.e.emit([table])
+
+        assert col.warnings == []
+
+
 class TestPKNameTruncation:
     """TEST-05: nombres de PK largos no deben colisionar tras truncado."""
 

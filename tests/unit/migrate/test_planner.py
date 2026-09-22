@@ -291,6 +291,82 @@ class TestMigrationPlanExecuteErrorGate:
         assert list(sig.parameters) == ["self", "target_connection"]
 
 
+class TestMigrationPlanEmitSyncsFallbackWarnings:
+    """MIG-03 (AUDIT_CODE 2026-09-22): los emisores descubren warnings de DEFAULT
+    solo durante la emisión (no en fase de transformación, cuando se construye
+    plan.warnings). emit_ddl()/emit_statements() deben resincronizar plan.warnings
+    con los nuevos warnings que aparezcan en col.warnings tras emitir."""
+
+    @staticmethod
+    def _make_plan_with_unrecognized_default() -> MigrationPlan:
+        from util_bbdd.migrate.emitters.mariadb import MariaDBDDLEmitter
+        from util_bbdd.migrate.ir.models import CanonicalColumn, CanonicalTable
+
+        col = CanonicalColumn(
+            name="CREATED_AT",
+            original_name="CREATED_AT",
+            oracle_type="TIMESTAMP",
+            target_type="DATETIME",
+            nullable=True,
+            default="GETDATE()",  # función SQL Server, no reconocida por el emisor MariaDB
+            comment="",
+            ordinal=1,
+        )
+        table = CanonicalTable(
+            name="T",
+            original_name="T",
+            schema="S",
+            columns=[col],
+            primary_key=[],
+            indexes=[],
+            foreign_keys=[],
+            comment="",
+            warnings=[],
+        )
+        return MigrationPlan(
+            tables=[table],
+            warnings=[],
+            source_schema="S",
+            source_engine="sqlserver",
+            target_engine="mariadb",
+            emitter=MariaDBDDLEmitter(charset="utf8mb4", collation="utf8mb4_unicode_ci"),
+        )
+
+    def test_emit_ddl_syncs_new_warning_into_plan_warnings(self) -> None:
+        plan = self._make_plan_with_unrecognized_default()
+        assert plan.warnings == []
+
+        plan.emit_ddl()
+
+        assert plan.warning_count == 1
+        assert "GETDATE()" in plan.warnings[0].message
+
+    def test_emit_statements_syncs_new_warning_into_plan_warnings(self) -> None:
+        plan = self._make_plan_with_unrecognized_default()
+        assert plan.warnings == []
+
+        plan.emit_statements()
+
+        assert plan.warning_count == 1
+
+    def test_calling_emit_ddl_twice_does_not_duplicate_plan_warnings(self) -> None:
+        plan = self._make_plan_with_unrecognized_default()
+
+        plan.emit_ddl()
+        plan.emit_ddl()
+
+        assert plan.warning_count == 1
+
+    def test_execute_also_syncs_warnings_via_emit_statements(self) -> None:
+        plan = self._make_plan_with_unrecognized_default()
+        target = MagicMock()
+        target.execute_custom_one.return_value = None
+
+        plan.execute(target_connection=target)
+
+        assert plan.warning_count == 1
+
+
 class TestMigrationPlannerOracleIdentityMode:
     def test_default_oracle_identity_mode_is_sequence_trigger(self) -> None:
         p = MigrationPlanner()

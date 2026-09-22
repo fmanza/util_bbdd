@@ -143,16 +143,41 @@ class MigrationPlan:
     def emit_ddl(self) -> str:
         """Genera el script DDL completo para el motor destino.
 
-        Incluye tablas (con índices y FKs), vistas y rutinas.
+        Incluye tablas (con índices y FKs), vistas y rutinas. Algunos emisores
+        descubren warnings solo durante la emisión (p.ej. un DEFAULT con forma de
+        función no reconocida, MIG-03); ``self.warnings`` se actualiza con ellos
+        tras generar el DDL.
         """
-        return self.emitter.emit(self.tables, self.views, self.routines)
+        ddl = self.emitter.emit(self.tables, self.views, self.routines)
+        self._sync_warnings_from_tables()
+        return ddl
 
     def emit_statements(self) -> list[str]:
         """Genera la lista de sentencias DDL individuales (sin ';').
 
-        Incluye tablas (con índices y FKs), vistas y rutinas.
+        Incluye tablas (con índices y FKs), vistas y rutinas. Algunos emisores
+        descubren warnings solo durante la emisión (p.ej. un DEFAULT con forma de
+        función no reconocida, MIG-03); ``self.warnings`` se actualiza con ellos
+        tras generar las sentencias.
         """
-        return self.emitter.emit_statements(self.tables, self.views, self.routines)
+        statements = self.emitter.emit_statements(self.tables, self.views, self.routines)
+        self._sync_warnings_from_tables()
+        return statements
+
+    def _sync_warnings_from_tables(self) -> None:
+        """Incorpora a ``self.warnings`` los warnings nuevos que la emisión haya
+        añadido a ``col.warnings``/``table.warnings`` (generados en fase de
+        emisión, no de transformación, por lo que no estaban en el plan original).
+        Idempotente: no duplica warnings ya presentes.
+        """
+        for table in self.tables:
+            for warning in table.warnings:
+                if warning not in self.warnings:
+                    self.warnings.append(warning)
+            for col in table.columns:
+                for warning in col.warnings:
+                    if warning not in self.warnings:
+                        self.warnings.append(warning)
 
     def execute(self, target_connection: Any) -> None:
         """Ejecuta el DDL generado contra el motor destino.

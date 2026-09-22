@@ -17,6 +17,7 @@ import re
 
 from .._compat.identifier_rules import MAX_POSTGRESQL_IDENTIFIER_LENGTH, truncate_identifier
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView
+from ._default_fallback import default_fallback_warning
 from .mariadb import _topological_sort, _topological_sort_views
 
 # Tipos PG que admiten SERIAL: mapa tipo → variante SERIAL
@@ -197,7 +198,7 @@ class PostgreSQLDDLEmitter:
         ddl_lines: list[str] = []
 
         for col in table.columns:
-            line = self._emit_column(col)
+            line = self._emit_column(col, table.name)
             if col.omit:
                 comment_lines.append(line)
             else:
@@ -229,7 +230,7 @@ class PostgreSQLDDLEmitter:
 
         return "\n".join(lines)
 
-    def _emit_column(self, col: CanonicalColumn) -> str:
+    def _emit_column(self, col: CanonicalColumn, table_name: str) -> str:
         if col.omit:
             comment = col.ddl_comment or f"-- AVISO: columna '{col.original_name}' omitida"
             return f"    {comment}"
@@ -250,6 +251,16 @@ class PostgreSQLDDLEmitter:
         if col.default is not None:
             default_val = _format_default_postgresql(col.default)
             parts.append(f"DEFAULT {default_val}")
+            fallback_warning = default_fallback_warning(
+                raw_value=col.default,
+                formatted_value=default_val,
+                table=table_name,
+                column=col.name,
+                source_type=col.oracle_type,
+                target_type=col.target_type,
+            )
+            if fallback_warning is not None and fallback_warning not in col.warnings:
+                col.warnings.append(fallback_warning)
 
         line = " ".join(parts)
 

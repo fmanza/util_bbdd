@@ -265,6 +265,54 @@ class TestMariaDBDDLEmitter:
         assert "DEFAULT ''" in ddl
 
 
+class TestMariaDBDefaultFallbackWarning:
+    """MIG-03 (AUDIT_CODE 2026-09-22): un DEFAULT con forma de llamada a función
+    (p.ej. GETDATE() de SQL Server) que el emisor no reconoce cae al fallback y se
+    entrecomilla como literal de texto; hasta ahora, sin ningún MigrationWarning."""
+
+    def setup_method(self) -> None:
+        self.emitter = MariaDBDDLEmitter(charset="utf8mb4", collation="utf8mb4_unicode_ci")
+
+    def test_unrecognized_function_call_default_emits_warning(self) -> None:
+        col = _col("CREATED_AT", "DATETIME", default="GETDATE()")
+        table = _table("T_SQLSERVER_SRC", [col])
+
+        ddl = self.emitter.emit([table])
+
+        assert "DEFAULT 'GETDATE()'" in ddl  # el fallback se activó de verdad
+        assert len(col.warnings) == 1
+        assert col.warnings[0].severity == "WARNING"
+        assert "GETDATE()" in col.warnings[0].message
+        assert col.warnings[0].table == "T_SQLSERVER_SRC"
+        assert col.warnings[0].column == "CREATED_AT"
+
+    def test_recognized_function_default_does_not_emit_warning(self) -> None:
+        col = _col("CREATED_AT", "DATETIME", default="SYSDATE")
+        table = _table("T_OK", [col])
+
+        self.emitter.emit([table])
+
+        assert col.warnings == []
+
+    def test_plain_string_default_does_not_emit_warning(self) -> None:
+        """Un literal de texto genuino (sin forma de función) no es un fallback fallido."""
+        col = _col("ESTADO", "VARCHAR(10)", default="'ACTIVO'")
+        table = _table("T_ESTADO", [col])
+
+        self.emitter.emit([table])
+
+        assert col.warnings == []
+
+    def test_emitting_twice_does_not_duplicate_warning(self) -> None:
+        col = _col("CREATED_AT", "DATETIME", default="GETDATE()")
+        table = _table("T_SQLSERVER_SRC", [col])
+
+        self.emitter.emit([table])
+        self.emitter.emit([table])
+
+        assert len(col.warnings) == 1
+
+
 class TestTopologicalSort:
     def _fk(self, name: str, ref_table: str) -> CanonicalFK:
         return CanonicalFK(
