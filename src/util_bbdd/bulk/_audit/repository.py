@@ -143,7 +143,9 @@ class AuditCsvRepository:
             raise AuditFileError(f"❌ Archivo de auditoría no encontrado: {self.audit_csv_path}")
 
         try:
-            dataframe: pd.DataFrame = pd.read_csv(str(self.audit_csv_path), delimiter="\t", parse_dates=["timestamp"])
+            dataframe: pd.DataFrame = pd.read_csv(str(self.audit_csv_path), delimiter="\t")
+            if "timestamp" in dataframe.columns:
+                dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"], format="mixed")
             if "tiempo_seg" in dataframe.columns:
                 dataframe["tiempo_seg"] = pd.to_numeric(
                     dataframe["tiempo_seg"].astype(str).str.replace(",", ".", regex=False),
