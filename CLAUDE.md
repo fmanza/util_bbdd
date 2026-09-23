@@ -27,6 +27,7 @@ Usa estos comandos para activar flujos estructurados con automatización integra
 | `/security-review` | Auditoría de seguridad | Áreas críticas | Findings by severity → Remediation |
 | `/tech-debt` | Deuda técnica priorizada | Área o módulo | Findings por severidad → Plan de remediación |
 | `/maturity-assessment` | Evaluación de madurez del repo | Área o evaluación completa | Executive summary → Findings → Maturity verdict |
+| `/performance-audit` | Auditoría de rendimiento (bulk) | Módulo + operaciones + escala | PLAN → AUDIT_PLAN → AUDIT_CODE → VERSION (con % impacto) |
 | `/version-closure` | Cierre de versión | Sesión completada | Release notes → Changelog → Rollback → Handoff |
 
 **Ejemplo de uso**:
@@ -163,6 +164,16 @@ Fase 1: Scope → Inventariar estructura, contratos, tests y docs del repo
 Fase 2: Findings → Evaluar madurez por área (arquitectura, tipado, cobertura, seguridad)
 Fase 3: Verdict → Maturity level + blockers para publicación
 Nota: Solo lectura; no edita código.
+```
+
+### `/performance-audit`
+```
+Fase 1: PLAN → Mapea flujo actual de carga + cuellos de botella teóricos + estrategia de benchmark
+Fase 2: AUDIT_PLAN → Valida viabilidad de mejoras, pruebas, orden de ejecución
+Fase 3: AUDIT_CODE → Hallazgos por severidad con impacto% estimado, evidencia, remediación
+Fase 4: VERSION → Quick wins + fases de implementación + métricas de éxito
+Nota: Audita rendimiento de carga masiva (INSERT/UPDATE/DELETE) en módulo bulk.
+Puedes consultar internet para benchmarks y best practices.
 ```
 
 ### `/version-closure`
