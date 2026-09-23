@@ -101,7 +101,17 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 - **Herramientas**: read, search
 - **Invocable**: Sí (auditoría estratégica)
 
-### 10. **Version Closer** (`version-closer.agent.md`)
+### 10. **Performance Auditor** (`performance-auditor.agent.md`) ⭐ **NUEVO**
+- **Propósito**: Auditoría de rendimiento del módulo bulk, optimización de carga masiva de datos (INSERT/UPDATE/DELETE), batching, paralelización, memory, SQL generation
+- **Entrada**: Módulo objetivo y contexto de operación (BBDD, tamaño de datos, restricciones)
+- **Salida**: PLAN (flujo actual + cuellos de botella teóricos) + AUDIT_PLAN (validación de viabilidad) + AUDIT_CODE (hallazgos con % mejora estimado) + VERSION (quick wins + fases)
+- **Herramientas**: read, search (+ consulta internet para benchmarks y best practices)
+- **Invocable**: Sí (auditoría de rendimiento especializada)
+- **Criterios**: 10 áreas clave (batching, particionamiento, normalización SQL, conexiones, auditoría, memoria, SQL generation, DB-specific, PK sync, validation)
+- **Prompt base**: `.github/prompts/performance_audit_bulk.prompt.md`
+- **Diferencia con Code Auditor**: Code Auditor revisa bugs y arquitectura; Performance Auditor audita rendimiento con métricas cuantificables
+
+### 11. **Version Closer** (`version-closer.agent.md`)
 - **Propósito**: Cierre de versión, resumir cambios, evidence, impacto, validar sincronización y handoff
 - **Entrada**: Sesión completada
 - **Salida**: Release notes, Commit messages, Changelog, Rollback strategy, Testing suggestions
@@ -112,7 +122,7 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 - **Herramientas**: read, search
 - **Invocable**: Sí (final de sesión)
 
-### 11. **Explore** (`explore.agent.md`)
+### 12. **Explore** (`explore.agent.md`)
 - **Propósito**: Exploración rápida del repositorio, Q&A sin modificaciones
 - **Entrada**: Pregunta sobre código, estructura, patrón
 - **Salida**: Context, Findings, ubicación de archivos
@@ -129,9 +139,10 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 | PLAN | Plan Architect | PLAN + AUDIT_PLAN | IMPLEMENT (si GO) o RETORNO |
 | IMPLEMENT | Feature Implementer | Cambios por archivo | AUDIT_CODE |
 | AUDIT_CODE | Code Auditor | Hallazgos, Severidad | CORRECCIÓN (si issues) o VERSION |
+| AUDITORÍA RENDIMIENTO | Performance Auditor | PLAN + AUDIT_PLAN + AUDIT_CODE + VERSION (hallazgos con % impacto) | BACKLOG / NEXT ITERATION |
 | VERSION | Version Closer | Release notes, Changelog | FIN |
 | HOTFIX DIRECTO | Hotfix Responder | PLAN + FIX + AUDIT + VERSION | FIN |
-| AUDITORÍA INDEPENDIENTE | Security/Documentation/Config/Maturity Reviewer | Executive summary + Findings | BACKLOG / NEXT ITERATION |
+| AUDITORÍA INDEPENDIENTE | Security/Documentation/Config/Maturity/Performance Reviewer | Executive summary + Findings | BACKLOG / NEXT ITERATION |
 
 ---
 
@@ -196,6 +207,7 @@ PRODUCTION_READY | NEAR_READY | BLOCKED
 | Config Reviewer | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Security Reviewer | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Maturity Assessment | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Performance Auditor | ✅ | ❌ | ✅ | ❌ | ✅ (benchmarks) |
 | Version Closer | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Explore | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Workflow Director | ✅ | ❌ | ✅ | ❌ | ❌ |
