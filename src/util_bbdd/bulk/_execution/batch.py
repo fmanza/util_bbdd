@@ -7,7 +7,7 @@ from typing import Any, Protocol
 
 import pandas as pd
 
-from sqlalchemy import Delete, Engine, Table, and_, bindparam, delete, event, text
+from sqlalchemy import Delete, Engine, Insert, Table, and_, bindparam, delete, event, text
 
 # ---------------------------------------------------------------------------
 # FA — fast_executemany para SQL Server / pyodbc
@@ -84,7 +84,8 @@ class PostgreSQLExecuteValuesStrategy:
     driver por defecto de la librería) se usa :class:`PostgresCopyStrategy`.
 
     Fallback a :class:`DefaultInsertStrategy` cuando:
-    - ``stmt`` es un ``TextClause`` (ruta ``override_identity``).
+    - ``stmt`` no es un ``Insert`` (p.ej. ``Update`` en ``bulk_update_from_df``, o
+      ``TextClause`` en la ruta ``override_identity``).
     - psycopg2 no está disponible en el entorno.
     """
 
@@ -97,8 +98,9 @@ class PostgreSQLExecuteValuesStrategy:
     ) -> None:
         if not records:
             return
-        if not hasattr(stmt, "table"):
-            # TextClause (OVERRIDING SYSTEM VALUE) u otro stmt sin .table → fallback
+        if not isinstance(stmt, Insert):
+            # Update/Delete/TextClause (OVERRIDING SYSTEM VALUE) u otro stmt que no sea
+            # un INSERT real → fallback (p.ej. Update también expone .table).
             connection.execute(stmt, list(records))
             return
         try:
@@ -129,9 +131,10 @@ class PostgresCopyStrategy:
     ``datetime``, ``bytes``, ``None`` → NULL, JSON como texto) al formato COPY, por
     lo que se reutilizan los registros ya normalizados por ``normalize_records_for_sql``.
 
-    Fallback a ejecución estándar (``connection.execute``) cuando ``stmt`` es un
-    ``TextClause`` (ruta ``override_identity`` / ``OVERRIDING SYSTEM VALUE``), que
-    no es expresable con COPY.
+    Fallback a ejecución estándar (``connection.execute``) cuando ``stmt`` no es un
+    ``Insert`` (p.ej. ``Update`` en ``bulk_update_from_df``, o ``TextClause`` en la
+    ruta ``override_identity`` / ``OVERRIDING SYSTEM VALUE``), que no es expresable
+    con COPY.
     """
 
     def execute(
@@ -143,8 +146,9 @@ class PostgresCopyStrategy:
     ) -> None:
         if not records:
             return
-        if not hasattr(stmt, "table"):
-            # TextClause (OVERRIDING SYSTEM VALUE) u otro stmt sin .table → fallback
+        if not isinstance(stmt, Insert):
+            # Update/Delete/TextClause (OVERRIDING SYSTEM VALUE) u otro stmt que no sea
+            # un INSERT real → fallback (p.ej. Update también expone .table).
             connection.execute(stmt, list(records))
             return
 
@@ -178,7 +182,8 @@ class MySQLMultiRowInsertStrategy:
     **Optimización**: Cachea templates SQL por número de filas para evitar reconstrucción
     en sub-lotes del mismo tamaño (típicamente todos excepto el último).
 
-    Fallback a ejecución estándar cuando ``stmt`` no expone ``.table`` (``TextClause``).
+    Fallback a ejecución estándar cuando ``stmt`` no es un ``Insert`` (p.ej. ``Update``
+    en ``bulk_update_from_df``, o ``TextClause`` en la ruta ``override_identity``).
     """
 
     def __init__(self, *, max_rows_per_statement: int = 1000) -> None:
@@ -273,7 +278,10 @@ class MySQLMultiRowInsertStrategy:
     ) -> None:
         if not records:
             return
-        if not hasattr(stmt, "table"):
+        if not isinstance(stmt, Insert):
+            # Update/Delete/TextClause u otro stmt que no sea un INSERT real → fallback
+            # (p.ej. Update también expone .table, y sus columnas no coinciden con las
+            # del registro: incluyen alias de bindparam como "pk_<col>" para el WHERE).
             connection.execute(stmt, list(records))
             return
 

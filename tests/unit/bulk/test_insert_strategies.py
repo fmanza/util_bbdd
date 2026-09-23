@@ -16,7 +16,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from sqlalchemy import Engine, MetaData, Table, create_engine, insert
+from sqlalchemy import Column, Engine, Integer, MetaData, String, Table, bindparam, create_engine, insert, update
 from sqlalchemy.sql.elements import TextClause
 
 from util_bbdd.bulk._execution.batch import (
@@ -92,8 +92,8 @@ def _mock_pg_connection() -> tuple[Any, Any, Any]:
 class TestPostgresCopyStrategy:
     def test_builds_copy_statement_and_writes_rows(self) -> None:
         connection, raw_cursor, copy_obj = _mock_pg_connection()
-        stmt = MagicMock()
-        stmt.table = MagicMock()
+        table = Table("items", MetaData(), Column("id", Integer), Column("name", String))
+        stmt = insert(table)
         records = [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
 
         PostgresCopyStrategy().execute(connection=connection, stmt=stmt, records=records)
@@ -119,6 +119,37 @@ class TestPostgresCopyStrategy:
 
         connection.execute.assert_called_once_with(stmt, records)
         raw_cursor.copy.assert_not_called()
+
+    def test_update_stmt_falls_back_to_execute(self) -> None:
+        # Regresión: Update también expone .table, por lo que hasattr(stmt, "table")
+        # no basta para distinguirlo de un Insert real (bulk_update_from_df en
+        # PostgreSQL generaba antes un COPY con columnas espurias, p.ej. "pk_id").
+        connection, raw_cursor, _ = _mock_pg_connection()
+        table = Table("items", MetaData(), Column("id", Integer), Column("name", String))
+        stmt = update(table).where(table.c.id == bindparam("pk_id")).values(name=bindparam("name"))
+        records = [{"name": "a", "pk_id": 1}]
+
+        PostgresCopyStrategy().execute(connection=connection, stmt=stmt, records=records)
+
+        connection.execute.assert_called_once_with(stmt, records)
+        raw_cursor.copy.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# PostgreSQLExecuteValuesStrategy (fallback path; execute_values path requiere psycopg2)
+# ---------------------------------------------------------------------------
+
+
+class TestPostgreSQLExecuteValuesStrategy:
+    def test_update_stmt_falls_back_to_execute(self) -> None:
+        connection = MagicMock(name="connection")
+        table = Table("items", MetaData(), Column("id", Integer), Column("name", String))
+        stmt = update(table).where(table.c.id == bindparam("pk_id")).values(name=bindparam("name"))
+        records = [{"name": "a", "pk_id": 1}]
+
+        PostgreSQLExecuteValuesStrategy().execute(connection=connection, stmt=stmt, records=records)
+
+        connection.execute.assert_called_once_with(stmt, records)
 
 
 # ---------------------------------------------------------------------------
@@ -182,3 +213,22 @@ class TestMySQLMultiRowInsertStrategy:
     def test_invalid_max_rows_raises(self) -> None:
         with pytest.raises(ValueError, match="max_rows_per_statement"):
             MySQLMultiRowInsertStrategy(max_rows_per_statement=0)
+
+    def test_update_stmt_executes_update_not_bogus_insert(self) -> None:
+        # Regresión: antes del fix, un Update (que también expone .table) se trataba
+        # como Insert y generaba "INSERT INTO items (name, pk_id) VALUES (...)" con
+        # "pk_id" (alias del bindparam del WHERE) como columna inexistente → el error
+        # de bulk_update_from_df en MySQL/MariaDB reportado en producción.
+        engine, table = _make_items_table_engine()
+        with engine.begin() as conn:
+            conn.execute(table.insert(), [{"id": 1, "name": "old"}])
+
+        stmt = update(table).where(table.c.id == bindparam("pk_id")).values(name=bindparam("name"))
+        records = [{"name": "new", "pk_id": 1}]
+
+        with engine.begin() as conn:
+            MySQLMultiRowInsertStrategy().execute(connection=conn, stmt=stmt, records=records)
+
+        with engine.connect() as conn:
+            name = conn.exec_driver_sql("SELECT name FROM items WHERE id = 1").scalar()
+        assert name == "new"
