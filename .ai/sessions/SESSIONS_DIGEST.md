@@ -128,6 +128,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | Fecha | Sesión | Cambio principal | Estado |
 |-------|--------|-----------------|--------|
 | 2026-09-21 | Regla #6: capas estrictas y ciclo `connection`⇄`factory` | Ciclo eliminado reescribiendo `UpdateAutoIncrement` (`Engine`, Inspector; commit `92e6c7c`); Regla #6 con 7 capas (`LAYER` como fuente única) y guarda `test_architecture_import_rules.py`; `metadata`/`analysis`/`doc` dependen de Protocols y solo el `__init__` raíz importa `managers`; capas sin commitear | IN_PROGRESS |
+| 2026-09-23 | Performance audit de `bulk/` | Solo lectura con benchmarks SQLite 1K–1M; veredicto SIGNIFICATIVO; P-05 DELETE SQL Server >2100 parámetros (hotfix pendiente), vía MySQL multi-fila 8× más lenta que PyMySQL nativo, fast_executemany inefectivo en INSERT MSSQL, normalización = 62 % del INSERT | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 
