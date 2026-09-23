@@ -46,7 +46,7 @@ class AuditExporters:
             raise AuditDataError(f"❌ El CSV no contiene las columnas requeridas: {', '.join(columnas_faltantes)}")
 
         dataframe["tiempo_seg"] = dataframe["tiempo_seg"].astype(str).str.replace(",", ".").astype(float)
-        dataframe["fecha"] = pd.to_datetime(dataframe["timestamp"]).dt.normalize()
+        dataframe["fecha"] = pd.to_datetime(dataframe["timestamp"], format="mixed").dt.normalize()
         operaciones: list[Any] = dataframe["operacion"].unique().tolist()
 
         group_cols: list[str] = self.service.determinar_group_cols(agrupar_por)
