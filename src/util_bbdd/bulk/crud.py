@@ -716,11 +716,17 @@ class BulkCrud:
             - oracle: Minúsculas (identifiers sin comillas se tratan como minúsculas)
             - postgresql: Minúsculas (identifiers sin comillas se tratan como minúsculas)
             - sqlite: Minúsculas (comportamiento nativo de SQLite)
-            - mysql/mariadb: Mayúsculas (comportamiento nativo de MySQL)
+            - mysql/mariadb: NO se normaliza (SQLAlchemy reflection preserva el case original)
             - mssql: Mayúsculas (identifiers por defecto en SQL Server)
             - hsqldb: Mayúsculas (comportamiento nativo de HSQLDB)
+
+        Nota: Para MySQL/MariaDB, no normalizamos porque SQLAlchemy reflection ya maneja
+        correctamente los nombres de columnas tal como existen en la BD, independientemente
+        de lower_case_table_names. Normalizar causaría mismatch si las columnas están en minúsculas.
         """
-        normalize_dataframe_columns(df, self.engine.dialect.name, self.logger)
+        # Skip normalization for MySQL/MariaDB; SQLAlchemy handles column name matching correctly
+        if self.engine.dialect.name not in ("mysql", "mariadb"):
+            normalize_dataframe_columns(df, self.engine.dialect.name, self.logger)
 
     def reflect_table(self, tabla_destino: str) -> Table:
         """
@@ -732,7 +738,9 @@ class BulkCrud:
 
         Args:
             tabla_destino: Nombre lógico de la tabla. Puede ser ``"schema.tabla"`` para
-                especificar un schema explícito. Se normaliza el casing según el dialecto.
+                especificar un schema explícito. Para MySQL/MariaDB, el nombre se preserva
+                tal como es (SQLAlchemy maneja la búsqueda independientemente del case).
+                Para otros dialectos, se normaliza el casing según el dialecto.
 
         Returns:
             El objeto `Table` reflejado.
@@ -740,12 +748,21 @@ class BulkCrud:
         if tabla_destino in self._table_cache:
             return self._table_cache[tabla_destino]
         metadata = MetaData()
+
+        # Para MySQL/MariaDB, no normalizar: SQLAlchemy reflection maneja correctamente
+        # la búsqueda independientemente del case usado (depende de lower_case_table_names)
+        skip_normalization: bool = self.engine.dialect.name in ("mysql", "mariadb")
+
         if "." in tabla_destino:
             schema_part, table_part = tabla_destino.split(".", 1)
-            tabla_normalizada: str = normalize_identifier(table_part, self.engine.dialect.name)
+            tabla_normalizada: str = (
+                table_part if skip_normalization else normalize_identifier(table_part, self.engine.dialect.name)
+            )
             tabla = Table(tabla_normalizada, metadata, schema=schema_part, autoload_with=self.engine)
         else:
-            tabla_normalizada = normalize_identifier(tabla_destino, self.engine.dialect.name)
+            tabla_normalizada = (
+                tabla_destino if skip_normalization else normalize_identifier(tabla_destino, self.engine.dialect.name)
+            )
             tabla = Table(tabla_normalizada, metadata, autoload_with=self.engine)
         self._table_cache[tabla_destino] = tabla
         return tabla

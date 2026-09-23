@@ -8,7 +8,7 @@ from collections.abc import Callable
 from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any, cast
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
@@ -186,6 +186,49 @@ def test_actualizar_df_normalizes_columns_nan_unchanged(sqlite_bulk_manager: bul
 
     assert "col" in df.columns  # SQLite → lowercase
     assert pd.isna(df.iloc[1, 0])  # NaN no se convierte aquí
+
+
+@pytest.mark.parametrize("dialect_name", ["mysql", "mariadb"])
+def test_actualizar_df_mysql_mariadb_preserves_column_case(dialect_name: str) -> None:
+    """MySQL/MariaDB: columnas no se normalizan (SQLAlchemy no las renormaliza en
+    reflexión y el matching de columnas en MySQL/MariaDB es case-insensitive, pero
+    Column.name reflejado preserva el case declarado). Forzar mayúsculas aquí
+    rompería el match contra tablas con columnas en minúsculas (lo habitual)."""
+    engine = MagicMock()
+    engine.dialect.name = dialect_name
+    manager = bulk_crud(engine=engine)
+    df = pd.DataFrame({"UserId": [1], "user_name": ["a"], "MixedCase": [2]})
+
+    _get_private_method(manager, "_BulkCrud__actualizar_df")(df)
+
+    assert list(df.columns) == ["UserId", "user_name", "MixedCase"]
+
+
+@pytest.mark.parametrize("dialect_name", ["mysql", "mariadb"])
+def test_reflect_table_mysql_mariadb_preserves_table_name_case(dialect_name: str) -> None:
+    """Mismo criterio que arriba, para el nombre de tabla pasado a Table(...,
+    autoload_with=...): no se fuerza a mayúsculas, se preserva tal cual llega."""
+    engine = MagicMock()
+    engine.dialect.name = dialect_name
+    manager = bulk_crud(engine=engine)
+
+    with patch("util_bbdd.bulk.crud.Table") as table_cls:
+        manager.reflect_table("MyTable")
+
+    assert table_cls.call_args.args[0] == "MyTable"
+
+
+@pytest.mark.parametrize("dialect_name", ["mysql", "mariadb"])
+def test_reflect_table_mysql_mariadb_preserves_case_with_schema(dialect_name: str) -> None:
+    engine = MagicMock()
+    engine.dialect.name = dialect_name
+    manager = bulk_crud(engine=engine)
+
+    with patch("util_bbdd.bulk.crud.Table") as table_cls:
+        manager.reflect_table("MySchema.MyTable")
+
+    assert table_cls.call_args.args[0] == "MyTable"
+    assert table_cls.call_args.kwargs["schema"] == "MySchema"
 
 
 def test_format_param_value_handles_supported_types(sqlite_bulk_manager: bulk_crud) -> None:
