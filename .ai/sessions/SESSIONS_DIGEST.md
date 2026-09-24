@@ -131,6 +131,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-23 | Performance audit de `bulk/` | Solo lectura con benchmarks SQLite 1K–1M; veredicto SIGNIFICATIVO; P-05 DELETE SQL Server >2100 parámetros (hotfix pendiente), vía MySQL multi-fila 8× más lenta que PyMySQL nativo, fast_executemany inefectivo en INSERT MSSQL, normalización = 62 % del INSERT | CLOSED |
 | 2026-09-24 | Banco de pruebas bulk (Fase 0) | `scripts/bench_bulk.py` + `docker-compose.bench.yml` + tests de integración por motor (P-05 como xfail estricto); línea base con 6 motores reales (P-02 ~2× y P-04 confirmados; nuevo P-17 SQL Server+pymssql) | CLOSED |
 | 2026-09-24 | Hotfix P-18 + P-01 (SQL Server + pyodbc) | fast_executemany vía dialecto en lugar de listener: UPDATE con DATETIME corregido e INSERT ~12× | CLOSED |
+| 2026-09-24 | Hotfix P-05 (DELETE en SQL Server) | Troceo ≤ 2000 parámetros y PK compuesta sin constructor de fila; DELETE 1M con pyodbc en 8,9 s | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 
