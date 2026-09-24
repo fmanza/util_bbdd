@@ -18,6 +18,7 @@ Variantes A/B (hallazgos de .ai/sessions/2026-09-23-performance-audit-bulk/01_PE
 
     baseline                           BulkCrud por defecto (todos los motores)
     mysql-multirow-legacy              MySQL/MariaDB con la vía multi-fila anterior a P-02 (la actual usa executemany)
+    mysql-update-executemany-legacy    MySQL/MariaDB con el UPDATE fila a fila anterior a P-04 (update_via_staging=False)
     p01-mssql-engine-fast-executemany  SQL Server + pyodbc con create_engine(fast_executemany=True)
 
 Uso:
@@ -225,6 +226,13 @@ VARIANTS: dict[str, Variant] = {
             crud_kwargs=lambda: {
                 "insert_resolver": InsertStrategyResolver(mysql_strategy=MySQLMultiRowInsertStrategy())
             },
+        ),
+        Variant(
+            name="mysql-update-executemany-legacy",
+            description="MySQL/MariaDB: UPDATE fila a fila (update_via_staging=False, el de por defecto antes de P-04)",
+            finding="P-04",
+            dialects=frozenset({"mysql", "mariadb"}),
+            crud_kwargs=lambda: {"update_via_staging": False},
         ),
         Variant(
             name="p01-mssql-engine-fast-executemany",

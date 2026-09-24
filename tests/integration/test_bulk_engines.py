@@ -13,6 +13,7 @@ Regresiones de los hallazgos de .ai/sessions/2026-09-23-performance-audit-bulk/:
 cubre P-18 (UPDATE con columna DATETIME en SQL Server + pyodbc), los dos tests de DELETE cubren P-05 (más de 2100
 parámetros y PK compuesta en SQL Server) ``test_json_column_roundtrip`` cubre P-19 (doble serialización de JSON) y
 ``test_same_bulkcrud_inserts_into_two_tables_with_same_columns`` cubre P-22 (filas en la tabla equivocada).
+``test_update_via_staging_matches_executemany`` verifica P-04 (UPDATE por tabla temporal, solo MySQL/MariaDB).
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ import uuid
 from collections.abc import Iterator
 from functools import partial
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -41,8 +43,10 @@ from sqlalchemy import (
     create_engine,
     func,
     select,
+    text,
 )
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.exc import SQLAlchemyError
 
 from util_bbdd.bulk import BulkCrud
 from util_bbdd.bulk._support.validation import normalize_identifier
@@ -245,3 +249,79 @@ def test_same_bulkcrud_inserts_into_two_tables_with_same_columns(engine: Engine)
         assert rows == [[(1, "a1"), (2, "a2")], [(3, "b3"), (4, "b4")]]
     finally:
         metadata.drop_all(engine)
+
+
+def _staging_table(engine: Engine) -> Table:
+    n = partial(_name, engine=engine)
+    return Table(
+        n(f"zz_util_bbdd_it_{uuid.uuid4().hex[:8]}"),
+        MetaData(),
+        Column(n("id"), Integer, primary_key=True, autoincrement=False),
+        Column(n("a"), Integer),
+        Column(n("f"), Float),
+        Column(n("s"), String(20)),
+        Column(n("d"), DateTime),
+        Column(n("j"), JSON),
+        Column(n("keep"), String(10), nullable=False, server_default="k"),
+    )
+
+
+def _update_state(engine: Engine, df_update: pd.DataFrame, *, staging: bool, chunk_size: int) -> list[tuple[Any, ...]]:
+    table = _staging_table(engine)
+    table.create(engine)
+    try:
+        seed = pd.DataFrame({"id": [1, 2, 3, 4], "a": [0] * 4, "f": [0.0] * 4, "s": ["s"] * 4, "j": [{"x": 0}] * 4})
+        seed["d"] = pd.Timestamp("2020-01-01")
+        BulkCrud(engine).bulk_insert_from_df(seed, table.name, False)
+        crud = BulkCrud(engine, chunk_size=chunk_size, update_via_staging=staging)
+        crud.bulk_update_from_df(df_update, table.name, False)
+        with engine.connect() as conn:
+            return [tuple(r) for r in conn.execute(select(table).order_by(table.c.id))]
+    finally:
+        table.drop(engine, checkfirst=True)
+
+
+@pytest.mark.parametrize("chunk_size", [2, 5000])
+def test_update_via_staging_matches_executemany(engine: Engine, chunk_size: int) -> None:
+    """P-04: el UPDATE por tabla temporal deja la tabla igual que el executemany (incluidas PK repetidas y NULL)."""
+    if engine.dialect.name not in ("mysql", "mariadb"):
+        pytest.skip("update_via_staging solo aplica a MySQL/MariaDB")
+    df_update = pd.DataFrame(
+        {
+            "id": [1, 3, 2, 2, 99, 1],  # 2 repetido en el mismo lote, 1 en lotes distintos, 99 no existe
+            "a": [10, 30, 20, 21, 99, 11],
+            "f": [1.5, None, 2.5, 2.75, 9.0, 1.25],
+            "s": [" x ", None, "it's", "%s ?", "no", "fin"],
+            "d": [pd.Timestamp("2026-01-01 10:00:00"), pd.NaT, pd.Timestamp("2026-02-01"), pd.NaT, pd.NaT, pd.NaT],
+            "j": [{"k": 1}, None, {"k": "first"}, {"k": "last"}, {"k": 9}, [1, "final"]],
+        }
+    )
+
+    via_executemany = _update_state(engine, df_update, staging=False, chunk_size=chunk_size)
+    via_staging = _update_state(engine, df_update, staging=True, chunk_size=chunk_size)
+
+    assert len(via_staging) == 4
+    assert via_staging == via_executemany
+    assert [r for r in via_staging if r[0] == 2][0][5] == {"k": "last"}
+
+
+def test_update_via_staging_rolls_back_inside_bulk_session(engine: Engine) -> None:
+    """P-04: las tablas temporales no provocan commit implícito; un fallo en un lote posterior deshace todo."""
+    if engine.dialect.name not in ("mysql", "mariadb"):
+        pytest.skip("update_via_staging solo aplica a MySQL/MariaDB")
+    table = _staging_table(engine)
+    table.create(engine)
+    try:
+        seed = pd.DataFrame({"id": [1, 2, 3, 4], "a": [0] * 4, "s": ["s"] * 4})
+        BulkCrud(engine).bulk_insert_from_df(seed, table.name, False)
+        crud = BulkCrud(engine, chunk_size=2, update_via_staging=True)
+        bad = pd.DataFrame({"id": [1, 2, 3, 4], "s": ["A", "B", "C", "D"], "keep": ["x", "y", None, "w"]})
+
+        with pytest.raises(SQLAlchemyError), crud.bulk_session():
+            crud.bulk_update_from_df(bad, table.name, False)
+
+        with engine.connect() as conn:
+            assert [r[0] for r in conn.execute(select(table.c.s).order_by(table.c.id))] == ["s"] * 4
+            assert conn.execute(text("SHOW TABLES LIKE 'tmp_bulkupd_%'")).all() == []
+    finally:
+        table.drop(engine, checkfirst=True)

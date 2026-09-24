@@ -41,7 +41,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import SQLAlchemyError
 
-from ._execution.batch import BatchStatementExecutor, DeleteBatchExecutor, InsertStrategyResolver
+from ._execution.batch import (
+    BatchStatementExecutor,
+    DeleteBatchExecutor,
+    InsertStrategyResolver,
+    MySQLStagingUpdateStrategy,
+)
 from ._models import PKSyncResult
 from ._support.persistence import BulkPersistenceManager
 from ._support.pk_sync import PKSequenceSyncer
@@ -117,6 +122,7 @@ class BulkCrud:
         enable_fast_executemany: bool = True,
         insert_resolver: InsertStrategyResolver | None = None,
         commit_every_n_chunks: int | None = None,
+        update_via_staging: bool = True,
     ):
         """
         Constructor de la clase bulk_crud.
@@ -156,6 +162,11 @@ class BulkCrud:
                 **Advertencia:** al activar la cadencia la sesión deja de ser atómica:
                 un fallo a mitad deja committeados los lotes anteriores.
                 **Nota:** Los valores recomendados son heurísticos; mide latencia en tu entorno.
+            update_via_staging: Solo MySQL/MariaDB. Si True, ``bulk_update_from_df`` carga cada lote en una tabla
+                temporal y aplica un único ``UPDATE ... JOIN`` en lugar de un UPDATE por fila. Medido de extremo a
+                extremo: ~12,5× más rápido (1M filas en ~28 s frente a ~330–376 s). Mismo resultado final. Requiere
+                el privilegio ``CREATE TEMPORARY TABLES``: sin él, pasar False para usar el UPDATE fila a fila.
+                Por defecto True. Ignorado en otros motores.
 
         Raises:
             ValueError: Si engine es None.
@@ -171,6 +182,7 @@ class BulkCrud:
 
         self.chunk_size: int = chunk_size
         self.audit_manager: AuditManager = AuditManager(audit_csv_path)
+        self._update_via_staging: bool = update_via_staging and self.engine.dialect.name in ("mysql", "mariadb")
 
         # Inicializar db_info
         self.db_info: str = self.engine.dialect.name.upper()
@@ -647,6 +659,16 @@ class BulkCrud:
                 .where(where_clause)
                 .values({col: json_binds.get(col, bindparam(col)) for col in update_plan.update_cols})
             )
+            if self._update_via_staging:
+                executor = self._batch_statement_executor
+                staging = MySQLStagingUpdateStrategy(
+                    table=tabla,
+                    pk_cols=update_plan.pk_cols,
+                    update_cols=update_plan.update_cols,
+                    loader=executor.insert_strategy,
+                )
+                executor.execute(records=records_sql, stmt=stmt, strategy=staging)
+                return
             self.__ejecutar_batch_stmt(records_sql, stmt, numero_registros)
 
         return _PreparedBulkOperation(

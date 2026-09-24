@@ -48,6 +48,15 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **bulk (MySQL/MariaDB)**: `BulkCrud(update_via_staging=True)`, **activo por defecto** (P-04). `bulk_update_from_df` carga cada lote en una tabla
+  temporal por la vía rápida de INSERT y aplica un único `UPDATE destino, tmp SET ... WHERE destino.pk = tmp.pk`, en
+  lugar de un UPDATE por fila: ~12,5× más rápido (1M filas: MySQL 8.4 376 s → 29,5 s; MariaDB 11.4 331 s → 27,1 s). El
+  estado final de la tabla es idéntico al del UPDATE por fila, verificado en MySQL 8.4 y
+  MariaDB 11.4 con PyMySQL y `mariadbconnector`: tipos variados, JSON, NULL y PK repetidas (gana la última). Respeta
+  `bulk_session` (sin commit implícito: DDL `TEMPORARY`) y `commit_every_n_chunks`. Ignorado en otros motores.
+  **Cambio de comportamiento:** requiere el privilegio `CREATE TEMPORARY TABLES`. Sin él, `bulk_update_from_df` falla
+  en MySQL/MariaDB al crear la tabla temporal: pasa `BulkCrud(..., update_via_staging=False)` para volver al UPDATE fila
+  a fila.
 - **scripts**: `scripts/bench_bulk.py`, banco de pruebas de rendimiento de `BulkCrud` (INSERT/UPDATE/DELETE)
   contra motores reales (SQLite, PostgreSQL, MySQL, MariaDB, SQL Server, Oracle). Las URLs se leen de
   `UTIL_BBDD_BENCH_<MOTOR>_URL` (o `UTIL_BBDD_TEST_<MOTOR>_URL`) y los motores sin URL se saltan. Verifica cada

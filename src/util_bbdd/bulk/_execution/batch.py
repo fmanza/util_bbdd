@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import contextlib
+import uuid
+
 from collections.abc import Iterator, Mapping, Sequence
 from typing import Any, Protocol
 
 import pandas as pd
 
-from sqlalchemy import Delete, Engine, Insert, Table, and_, bindparam, delete, text
+from sqlalchemy import Column, Delete, Engine, Insert, MetaData, Table, and_, bindparam, delete, insert, text, update
+
+from .._support.sql_helpers import json_passthrough_binds
 
 # ---------------------------------------------------------------------------
 # FA — fast_executemany para SQL Server / pyodbc
@@ -399,6 +404,76 @@ class InsertStrategyResolver:
         return self._default_strategy
 
 
+class MySQLStagingUpdateStrategy:
+    """UPDATE masivo para MySQL/MariaDB vía tabla temporal (P-04, performance-audit de bulk).
+
+    Por cada lote: ``CREATE TEMPORARY TABLE`` con la PK y las columnas a actualizar (tipos de la tabla destino),
+    carga de las filas con la estrategia de INSERT del motor, un único ``UPDATE destino, tmp SET ... WHERE
+    destino.pk = tmp.pk`` y ``DROP TEMPORARY TABLE``. Con ``TEMPORARY`` MySQL no hace commit implícito, así que
+    se respetan la transacción de ``bulk_session`` y ``commit_every_n_chunks``. Medido de extremo a extremo
+    (``bulk_update_from_df``): ~12,5× más rápido que el executemany fila a fila (1M filas: 29,5 s frente a 376 s en MySQL 8.4; 27,1 s frente a
+    331 s en MariaDB 11.4).
+
+    Misma semántica que el UPDATE por executemany: solo actualiza filas existentes, una PK nula no actualiza nada y,
+    si una PK se repite en el lote, gana la última aparición. Requiere el privilegio ``CREATE TEMPORARY TABLES``.
+    Es la vía por defecto de ``BulkCrud`` en MySQL/MariaDB (``update_via_staging=True``).
+    Ignora ``stmt``: la sentencia se construye a partir de ``table``, ``pk_cols`` y ``update_cols``.
+    """
+
+    def __init__(
+        self,
+        *,
+        table: Table,
+        pk_cols: Sequence[str],
+        update_cols: Sequence[str],
+        loader: InsertExecutionStrategyProtocol,
+    ) -> None:
+        self._table: Table = table
+        self._pk_cols: list[str] = list(pk_cols)
+        self._update_cols: list[str] = list(update_cols)
+        self._loader: InsertExecutionStrategyProtocol = loader
+
+    def execute(
+        self,
+        *,
+        connection: Any,
+        stmt: Any,
+        records: Sequence[Mapping[str, Any]],
+    ) -> None:
+        del stmt
+        if not records:
+            return
+        cols: list[str] = [*self._pk_cols, *self._update_cols]
+        # Última aparición por PK, como el executemany secuencial (el dict conserva el orden de primera aparición).
+        rows_by_pk: dict[tuple[Any, ...], dict[str, Any]] = {}
+        for record in records:
+            rows_by_pk[tuple(record[c] for c in self._pk_cols)] = {c: record[c] for c in cols}
+
+        staging = Table(
+            f"tmp_bulkupd_{uuid.uuid4().hex[:12]}",
+            MetaData(),
+            *(Column(c, self._table.c[c].type) for c in cols),
+            prefixes=["TEMPORARY"],
+        )
+        drop_sql = f"DROP TEMPORARY TABLE IF EXISTS {connection.dialect.identifier_preparer.format_table(staging)}"
+        staging.create(connection)
+        try:
+            json_binds = json_passthrough_binds(staging, cols)
+            load_stmt = insert(staging).values(json_binds) if json_binds else insert(staging)
+            self._loader.execute(connection=connection, stmt=load_stmt, records=list(rows_by_pk.values()))
+            connection.execute(
+                update(self._table)
+                .values({self._table.c[c]: staging.c[c] for c in self._update_cols})
+                .where(and_(*(self._table.c[c] == staging.c[c] for c in self._pk_cols)))
+            )
+        except BaseException:
+            # No ocultar el error original si la limpieza también falla.
+            with contextlib.suppress(Exception):
+                connection.execute(text(drop_sql))
+            raise
+        connection.execute(text(drop_sql))
+
+
 # ---------------------------------------------------------------------------
 # DELETE strategies (sin cambios)
 # ---------------------------------------------------------------------------
@@ -563,8 +638,22 @@ class BatchStatementExecutor:
         if enable_fast_executemany and engine.dialect.name == "mssql" and "pyodbc" in drivername:
             _register_fast_executemany(engine)
 
-    def execute(self, *, records: Sequence[Mapping[str, Any]], stmt: Any) -> None:
+    @property
+    def insert_strategy(self) -> InsertExecutionStrategyProtocol:
+        """Estrategia INSERT resuelta para el motor (la usa también el UPDATE por staging para cargar la temporal)."""
+        return self._insert_strategy
+
+    def execute(
+        self,
+        *,
+        records: Sequence[Mapping[str, Any]],
+        stmt: Any,
+        strategy: InsertExecutionStrategyProtocol | None = None,
+    ) -> None:
         """Ejecuta un statement SQLAlchemy por batches.
+
+        ``strategy`` sustituye a la estrategia INSERT resuelta para este motor (p.ej.
+        :class:`MySQLStagingUpdateStrategy` en el UPDATE por staging); ``None`` usa la resuelta.
 
         Si ``_active_connection`` está activo (inyectado via ``BulkCrud.bulk_session()``),
         reutiliza esa conexión en lugar de abrir una nueva transacción por lote.
@@ -574,20 +663,26 @@ class BatchStatementExecutor:
         para poder commitear lotes intermedios, y hace un commit final del resto.
         """
         if self._active_connection is not None:
-            self._execute_on_connection(self._active_connection, records, stmt)
+            self._execute_on_connection(self._active_connection, records, stmt, strategy)
         elif self._commit_every_n_chunks is not None:
             self._chunks_since_commit = 0
             with self._engine.connect() as connection:
-                self._execute_on_connection(connection, records, stmt)
+                self._execute_on_connection(connection, records, stmt, strategy)
                 connection.commit()
                 self._chunks_since_commit = 0
                 self.rows_committed += self._rows_pending_commit
                 self._rows_pending_commit = 0
         else:
             with self._engine.begin() as connection:
-                self._execute_on_connection(connection, records, stmt)
+                self._execute_on_connection(connection, records, stmt, strategy)
 
-    def _execute_on_connection(self, connection: Any, records: Sequence[Mapping[str, Any]], stmt: Any) -> None:
+    def _execute_on_connection(
+        self,
+        connection: Any,
+        records: Sequence[Mapping[str, Any]],
+        stmt: Any,
+        strategy: InsertExecutionStrategyProtocol | None = None,
+    ) -> None:
         """Ejecuta los batches sobre una conexión ya abierta.
 
         Si ``commit_every_n_chunks`` está activo, commitea sobre ``connection``
@@ -596,7 +691,7 @@ class BatchStatementExecutor:
         """
         for start in range(0, len(records), self._chunk_size):
             batch: Sequence[Mapping[str, Any]] = records[start : start + self._chunk_size]
-            self._insert_strategy.execute(
+            (strategy or self._insert_strategy).execute(
                 connection=connection,
                 stmt=stmt,
                 records=batch,
@@ -671,6 +766,7 @@ __all__: list[str] = [
     "InsertStrategyResolver",
     "MySQLDriverExecutemanyStrategy",
     "MySQLMultiRowInsertStrategy",
+    "MySQLStagingUpdateStrategy",
     "PostgresCopyStrategy",
     "PostgreSQLExecuteValuesStrategy",
     "SqlBasedDeleteStrategy",

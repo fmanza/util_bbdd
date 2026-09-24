@@ -25,7 +25,7 @@ flowchart TD
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `BulkCrud` | `(engine, chunk_size?, audit_csv_path?, enable_fast_executemany?, insert_resolver?, commit_every_n_chunks?)` | Crea instancia con engine SQLAlchemy | `BulkCrud` |
+| `BulkCrud` | `(engine, chunk_size?, audit_csv_path?, enable_fast_executemany?, insert_resolver?, commit_every_n_chunks?, update_via_staging?)` | Crea instancia con engine SQLAlchemy | `BulkCrud` |
 | `bulk_insert_from_df` | `(df, tabla_destino, generar_sql?, path_sql?)` | INSERT masivo desde DataFrame | `None` |
 | `bulk_insert_from_chunks` | `(chunks, tabla_destino, *, override_identity?, exclude_autoincrement_pk?)` | INSERT streaming de iterable de DataFrames; resuelve columnas/identidad una sola vez | `int` (filas insertadas) |
 | `bulk_update_from_df` | `(df, tabla_destino, generar_sql?, path_sql?)` | UPDATE masivo desde DataFrame | `None` |
@@ -42,9 +42,10 @@ flowchart TD
 | `engine` | `Engine` | Engine síncrono de SQLAlchemy | No puede ser `None`; lanza `ValueError` si es `None` |
 | `chunk_size` | `int` | Filas por lote | Default `5000` |
 | `audit_csv_path` | `Path \| None` | Ruta del CSV de auditoría | `None` desactiva la auditoría |
-| `enable_fast_executemany` | `bool` | Si `True` (default) y el engine es `mssql+pyodbc`, activa `cursor.fast_executemany = True` (5–15× más rápido). Sin efecto en otros motores | Default `True` |
+| `enable_fast_executemany` | `bool` | Si `True` (default) y el engine es `mssql+pyodbc`, activa `fast_executemany` en el dialecto, igual que `create_engine(..., fast_executemany=True)` (INSERT ~12× más rápido). Sin efecto en otros motores | Default `True` |
 | `insert_resolver` | `InsertStrategyResolver \| None` | Estrategia INSERT personalizada | Default `None` (resolución automática por motor) |
 | `commit_every_n_chunks` | `int \| None` | Commit cada N lotes en lugar de una sola transacción. La carga deja de ser atómica | Default `None` (una sola transacción) |
+| `update_via_staging` | `bool` | Solo MySQL/MariaDB: `bulk_update_from_df` carga cada lote en una tabla temporal y aplica un único `UPDATE ... JOIN` en lugar de un UPDATE por fila. Mismo resultado final; requiere el privilegio `CREATE TEMPORARY TABLES` (sin él, pasar `False`). Ignorado en otros motores | Default `True` |
 | `df` | `pd.DataFrame` | Datos fuente | No puede estar vacío; columnas deben coincidir con tabla destino |
 | `tabla_destino` | `str` | Nombre de la tabla en BD | Debe existir; se normaliza mayúsculas/minúsculas por motor |
 | `generar_sql` | `bool` | Escribir el SQL generado en fichero | Si `True`, `path_sql` es obligatorio |

@@ -34,6 +34,7 @@ el tiempo total.
 |---|---|---|---|
 | `chunk_size` | `BulkCrud` / `ParallelBulkLoader` | Filas por lote (default 5000) | Bajar a ≤500 si el destino MariaDB tiene `TEXT`/`JSON` (`max_allowed_packet`) |
 | `commit_every_n_chunks` | `BulkCrud` / `ParallelBulkLoader` | Commit cada N lotes; acota el undo log | **Crítico** en MariaDB/MySQL con millones de filas (evita degradación exponencial) |
+| `update_via_staging` | `BulkCrud` | UPDATE vía tabla temporal + un `UPDATE ... JOIN` por lote en lugar de un UPDATE por fila (~12,5×) | Activo por defecto en MySQL/MariaDB; requiere `CREATE TEMPORARY TABLES` (sin él, `update_via_staging=False`) |
 | `enable_fast_executemany` | `BulkCrud` / `ParallelBulkLoader` | Activa `fast_executemany` en el dialecto pyodbc (como `create_engine(..., fast_executemany=True)`) | SQL Server + ODBC 17/18: INSERT ~12× más rápido |
 | Vía nativa por motor | Automática | COPY / multi-row / fast_executemany (tabla abajo) | Siempre activa con `BulkCrud(insert_resolver=None)` (default) |
 | Carga paralela | `ParallelBulkLoader` | Inserta particiones disjuntas en paralelo, una `BulkCrud` por hilo | Tablas muy grandes; el pool debe tener capacidad ≥ `max_workers` |
@@ -146,6 +147,7 @@ Variantes A/B disponibles (cada una se aplica solo a los motores indicados):
 |---|---|---|
 | `baseline` | todos | `BulkCrud` por defecto |
 | `mysql-multirow-legacy` | MySQL, MariaDB | `insert_resolver` con la vía multi-fila anterior a P-02 (control) |
+| `mysql-update-executemany-legacy` | MySQL, MariaDB | `BulkCrud(update_via_staging=False)`: UPDATE fila a fila anterior a P-04 (control) |
 | `p01-mssql-engine-fast-executemany` | SQL Server + pyodbc | `create_engine(..., fast_executemany=True)` |
 
 La reflexión de la tabla queda fuera de la medición. Los nombres de tabla y columnas siguen la convención de
