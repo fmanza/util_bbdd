@@ -30,7 +30,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   número de filas; mismo tiempo. Todos los bloques van en una transacción (la de `bulk_session` si hay una), así que
   la atomicidad y `commit_every_n_chunks` no cambian. El fichero de `generar_sql` se escribe a medida que se genera, en
   un temporal que se renombra al terminar: si la generación falla, no queda un fichero a medias.
-- **docs**: `docs/guides/benchmarks.md` añade a la tabla de problemas conocidos los síntomas de P-13 y P-27.
+- **docs**: `docs/guides/benchmarks.md` añade a la tabla de problemas conocidos los síntomas de P-13 y P-27, y el
+  escalado medido de `ParallelBulkLoader` por motor (1,6–3,9× con 4 hilos; en SQLite no hay ganancia, un solo
+  escritor). P-08 (volver a leer la estructura de la tabla en cada partición) se descarta tras medirlo: menos del 2%
+  de la carga.
 
 ### Fixed
 

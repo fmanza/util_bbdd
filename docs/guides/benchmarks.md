@@ -89,6 +89,21 @@ result = loader.load("ventas", partition_readers)   # un callable por partición
 print(result.total_rows, result.partition_errors)
 ```
 
+Escalado medido con 200K filas en 4 particiones (tabla de 10 columnas, servidores en Docker local):
+
+| Motor | 1 hilo | 4 hilos | Aceleración |
+|---|---|---|---|
+| PostgreSQL 17 (psycopg 3) | 2,65 s | 1,00 s | 2,6× |
+| MySQL 8.4 (PyMySQL) | 3,60 s | 1,91 s | 1,9× |
+| MariaDB 11.4 (PyMySQL) | 2,89 s | 1,80 s | 1,6× |
+| SQL Server 2022 (pymssql) | 49,08 s | 12,68 s | 3,9× |
+| Oracle 23 Free (oracledb) | 3,06 s | 1,68 s | 1,8× |
+| SQLite | 1,24 s | 1,34 s | 0,9× |
+
+SQLite admite un solo escritor a la vez: en paralelo no gana nada, así que usa `max_workers=1` o `bulk_insert_from_df`.
+El coste de arranque de cada partición (su `BulkCrud` y la lectura de la estructura de la tabla) es de 1 a 66 ms
+según el motor, menos del 2% de la carga medida.
+
 Detalle y políticas de particionado: [Carga Masiva Paralela (funcional)](../functional/bulk-parallel-loading.md),
 [API ParallelBulkLoader](../api/bulk-parallel.md) y el ejemplo [Carga Masiva Paralela](../examples/parallel_bulk_insert.md).
 Para medir el impacto de la cadencia de commit, ver el ejemplo [Commit Cadence](../examples/benchmark_commit_cadence.md).
