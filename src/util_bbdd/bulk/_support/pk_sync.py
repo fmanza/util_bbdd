@@ -160,7 +160,9 @@ class PKSequenceSyncer:
     def _sync_postgresql(self, conn: Any, table: Table, col: Column) -> PKSyncResult:
         """PostgreSQL: setval() sobre la sequence vinculada (SERIAL / IDENTITY)."""
         schema = table.schema or self._schema
-        table_ref = f"{schema}.{table.name}" if schema else table.name
+        # pg_get_serial_sequence analiza el primer argumento como identificador SQL (sin comillas lo pasa a minúsculas):
+        # se cita como el dialecto (auditoría de bulk 2026-09-24, hallazgo 5), si no "Orders" se buscaba como orders.
+        table_ref = _qt(table.name, schema, self._engine)
 
         seq_name: str | None = conn.execute(
             text("SELECT pg_get_serial_sequence(:tbl, :col)"),
@@ -279,7 +281,7 @@ class PKSequenceSyncer:
         )
 
     def _sync_oracle(self, conn: Any, table: Table, col: Column) -> PKSyncResult:
-        """Oracle >= 12c: RESTART SEQUENCE localizada via ALL_TAB_IDENTITY_COLS."""
+        """Oracle >= 12c: ``ALTER TABLE … MODIFY (col GENERATED … AS IDENTITY (START WITH n))``."""
         if getattr(col, "identity", None) is None:
             return PKSyncResult(
                 table_name=table.name,
@@ -294,39 +296,42 @@ class PKSequenceSyncer:
             )
 
         schema = table.schema or self._schema
+        # Nombres como en el catálogo (auditoría de bulk 2026-09-24, hallazgo 5): denormalize_name pasa a mayúsculas los
+        # no sensibles a mayúsculas y deja tal cual los creados entre comillas (p.ej. "orders"), que UPPER() no encontraba.
+        denormalize = self._engine.dialect.denormalize_name
 
-        # Localizar sequence en el catálogo de Oracle
+        # Tipo de identity en el catálogo: hay que repetirlo al modificarla (ALWAYS / BY DEFAULT [ON NULL]).
         if schema:
-            seq_row = conn.execute(
+            identity_row = conn.execute(
                 text(
-                    "SELECT sequence_name FROM all_tab_identity_cols "
-                    "WHERE owner = UPPER(:owner) "
-                    "  AND table_name = UPPER(:tbl) "
-                    "  AND column_name = UPPER(:col)"
+                    "SELECT i.generation_type, c.default_on_null FROM all_tab_identity_cols i "
+                    "JOIN all_tab_columns c ON c.owner = i.owner AND c.table_name = i.table_name "
+                    "AND c.column_name = i.column_name "
+                    "WHERE i.owner = :owner AND i.table_name = :tbl AND i.column_name = :col"
                 ),
-                {"owner": schema, "tbl": table.name, "col": col.name},
+                {"owner": denormalize(schema), "tbl": denormalize(table.name), "col": denormalize(col.name)},
             ).fetchone()
         else:
-            seq_row = conn.execute(
+            identity_row = conn.execute(
                 text(
-                    "SELECT sequence_name FROM user_tab_identity_cols "
-                    "WHERE table_name = UPPER(:tbl) "
-                    "  AND column_name = UPPER(:col)"
+                    "SELECT i.generation_type, c.default_on_null FROM user_tab_identity_cols i "
+                    "JOIN user_tab_columns c ON c.table_name = i.table_name AND c.column_name = i.column_name "
+                    "WHERE i.table_name = :tbl AND i.column_name = :col"
                 ),
-                {"tbl": table.name, "col": col.name},
+                {"tbl": denormalize(table.name), "col": denormalize(col.name)},
             ).fetchone()
 
-        if seq_row is None:
+        if identity_row is None:
             return PKSyncResult(
                 table_name=table.name,
                 column_name=col.name,
                 engine_dialect="oracle",
                 max_value=None,
                 status="unsupported",
-                error_msg="Sequence name not found in ALL_TAB_IDENTITY_COLS / USER_TAB_IDENTITY_COLS.",
+                error_msg="Identity column not found in ALL_TAB_IDENTITY_COLS / USER_TAB_IDENTITY_COLS.",
             )
 
-        seq_name: str = seq_row[0]
+        generation_type, default_on_null = identity_row
         max_val_raw = conn.execute(select(func.max(col))).scalar()
 
         status: Literal["synced", "no_rows"]
@@ -339,12 +344,23 @@ class PKSequenceSyncer:
             next_val = max_val2 + 1
             status = "synced"
 
-        # Quoted sequence ref — nombres Oracle del catálogo ya están en uppercase
-        quoted_seq = _qi(seq_name, self._engine)
-        seq_ref = f"{_qi(schema, self._engine)}.{quoted_seq}" if schema else quoted_seq
-
-        # ALTER SEQUENCE RESTART START WITH n (sintaxis Oracle 12c+)
-        conn.execute(text(f"ALTER SEQUENCE {seq_ref} RESTART START WITH {next_val}"))
+        # La secuencia de una identity (ISEQ$$_n) no admite ALTER SEQUENCE: ORA-32793 "Cannot alter a system-generated
+        # sequence" (auditoría de bulk 2026-09-24, hallazgo 9: la sincronización en Oracle siempre acababa en error). Se
+        # modifica la identity de la columna conservando su tipo de generación.
+        if generation_type == "ALWAYS":
+            generated = "ALWAYS"
+        elif default_on_null == "YES":
+            generated = "BY DEFAULT ON NULL"
+        else:
+            generated = "BY DEFAULT"
+        quoted_table = _qt(table.name, schema, self._engine)
+        quoted_col = _qi(col.name, self._engine)
+        conn.execute(
+            text(
+                f"ALTER TABLE {quoted_table} MODIFY ({quoted_col} GENERATED {generated} AS IDENTITY "
+                f"(START WITH {next_val}))"
+            )
+        )
         conn.commit()
 
         return PKSyncResult(

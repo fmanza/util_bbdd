@@ -841,3 +841,72 @@ def test_parallel_loader_disable_constraints_with_differently_cased_name(engine:
 
     assert (result.total_rows, result.partition_errors) == (6, [])
     assert _count(engine, scratch_table) == 6
+
+
+def test_sync_pk_sequences_with_name_that_needs_quoting(engine: Engine) -> None:
+    """Auditoría de bulk 2026-09-24 (hallazgo 5): en PostgreSQL ``pg_get_serial_sequence`` recibía el nombre sin comillas
+    (lo analiza como identificador) y Oracle buscaba ``UPPER(nombre)`` en el catálogo: con nombres que exigen comillas
+    (aquí, un guion) la sincronización terminaba en ``error``/``unsupported`` y el contador quedaba atrasado."""
+    from sqlalchemy import Identity
+
+    n = partial(_name, engine=engine)
+    auto: list[Any] = [] if engine.dialect.name in ("sqlite", "mysql", "mariadb") else [Identity()]
+    table = Table(
+        n(f"zz_util_bbdd_it-{uuid.uuid4().hex[:8]}"),
+        MetaData(),
+        Column(n("id"), Integer, *auto, primary_key=True),
+        Column(n("v"), String(10)),
+    )
+    table.create(engine)
+    col_id, col_v = n("id"), n("v")
+    quoted = engine.dialect.identifier_preparer.format_table(table)
+    try:
+        with engine.begin() as conn:
+            if engine.dialect.name == "mssql":
+                conn.exec_driver_sql(f"SET IDENTITY_INSERT {quoted} ON")
+            conn.execute(table.insert(), [{col_id: i, col_v: "x"} for i in (1, 2, 3)])
+            if engine.dialect.name == "mssql":
+                conn.exec_driver_sql(f"SET IDENTITY_INSERT {quoted} OFF")
+
+        results = BulkCrud(engine).sync_pk_sequences([table.name])
+
+        if engine.dialect.name == "sqlite":
+            assert results == []  # SQLite: sin columna identity que sincronizar
+            return
+        (result,) = results
+        assert (result.status, result.max_value) == ("synced", 3), result.error_msg
+        with engine.begin() as conn:
+            conn.execute(table.insert(), [{col_v: "nuevo"}])
+            new_id = conn.execute(select(table.c[col_id]).where(table.c[col_v] == "nuevo")).scalar_one()
+        assert new_id == 4
+    finally:
+        table.drop(engine, checkfirst=True)
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"postgresql"})), indirect=True)
+def test_sync_pk_sequences_in_mixed_case_schema(engine: Engine) -> None:
+    """Hallazgo 5 en PostgreSQL: ``BulkCrud`` normaliza la tabla a minúsculas pero no el esquema; con un esquema con
+    mayúsculas, ``pg_get_serial_sequence('Esquema.tabla')`` sin comillas buscaba ``esquema`` y fallaba."""
+    from sqlalchemy import Identity
+    from sqlalchemy.schema import CreateSchema, DropSchema
+
+    schema = f"ZzUtilBbdd_{uuid.uuid4().hex[:6]}"
+    table = Table(
+        "t", MetaData(), Column("id", Integer, Identity(), primary_key=True), Column("v", String(5)), schema=schema
+    )
+    with engine.begin() as conn:
+        conn.execute(CreateSchema(schema))
+    try:
+        table.create(engine)
+        with engine.begin() as conn:
+            conn.execute(table.insert(), [{"id": i, "v": "x"} for i in (1, 2, 3)])
+
+        (result,) = BulkCrud(engine).sync_pk_sequences([f"{schema}.t"])
+
+        assert (result.status, result.max_value) == ("synced", 3), result.error_msg
+        with engine.begin() as conn:
+            conn.execute(table.insert(), [{"v": "nuevo"}])
+            assert conn.execute(select(table.c.id).where(table.c.v == "nuevo")).scalar_one() == 4
+    finally:
+        with engine.begin() as conn:
+            conn.execute(DropSchema(schema, cascade=True))

@@ -50,6 +50,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **bulk (`ParallelBulkLoader`, `disable_constraints=True`)**: el nombre de tabla se citaba tal cual, sin la
   normalización de `BulkCrud`. En PostgreSQL, con otras mayúsculas (p.ej. `"Usuarios"`), la comprobación de
   propietario fallaba en silencio o `ALTER TABLE "Usuarios"` daba error. Ahora usa la tabla reflejada como `BulkCrud`.
+- **bulk (`sync_pk_sequences`)**: en PostgreSQL `pg_get_serial_sequence` recibía el nombre sin comillas: con un
+  esquema con mayúsculas buscaba otro esquema y terminaba en `error`. En Oracle se buscaba `UPPER(nombre)` en el
+  catálogo, sin encontrar tablas creadas entre comillas. Ahora se usan los nombres tal como los escapa o denormaliza
+  el dialecto.
+- **bulk (`sync_pk_sequences`, Oracle)**: nunca funcionaba con columnas identity (12c+): la secuencia `ISEQ$$_n` no
+  admite `ALTER SEQUENCE` (`ORA-32793`). Ahora se usa `ALTER TABLE … MODIFY (col GENERATED … AS IDENTITY (START WITH n))`,
+  conservando el tipo (`ALWAYS`, `BY DEFAULT`, `BY DEFAULT ON NULL`) y las demás opciones, como `INCREMENT BY`.
 - **connection (Oracle)**: `PoolConnection.__del__` lanzaba `AttributeError` si el constructor había fallado antes de
   inicializar el objeto (p.ej. sin `oracledb`). Python lo emitía como excepción ignorada en el destructor y pytest como
   `PytestUnraisableExceptionWarning`, el único aviso de la suite. Ahora no hace nada en ese caso.
