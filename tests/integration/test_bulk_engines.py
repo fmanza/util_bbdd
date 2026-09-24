@@ -824,3 +824,20 @@ def test_maintenance_scope_error_keeps_original_exception_and_restores(
         assert ids == ([1] if commit_every_n_chunks is None else [1, 2])
     finally:
         metadata.drop_all(engine)
+
+
+@pytest.mark.parametrize("engine", _engine_params(exclude=MYSQL_FAMILY), indirect=True)
+def test_parallel_loader_disable_constraints_with_differently_cased_name(engine: Engine, scratch_table: Table) -> None:
+    """Auditoría de bulk 2026-09-24 (hallazgo 4): con ``disable_constraints=True`` el loader citaba el nombre recibido
+    tal cual. En PostgreSQL, con otras mayúsculas, la comprobación de propietario fallaba en silencio o el
+    ``ALTER TABLE "NOMBRE"`` daba error; ahora usa la tabla reflejada, como ``BulkCrud``. (MySQL/MariaDB no normalizan
+    nombres: su sensibilidad a mayúsculas depende de ``lower_case_table_names``.)"""
+    name = scratch_table.name
+    other_case = name.upper() if name == name.lower() else name.lower()
+    df = _frame(engine, 6)
+    readers = [lambda part=part: [part] for part in (df.iloc[:3], df.iloc[3:])]
+
+    result = ParallelBulkLoader(engine, max_workers=1, disable_constraints=True).load(other_case, readers)
+
+    assert (result.total_rows, result.partition_errors) == (6, [])
+    assert _count(engine, scratch_table) == 6

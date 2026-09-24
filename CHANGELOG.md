@@ -47,6 +47,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **bulk (`ParallelBulkLoader`, PostgreSQL)**: sin privilegios para `DISABLE TRIGGER`, la conexión usada para
   comprobarlos quedaba retenida, con una transacción abierta, durante toda la carga de los workers. Con
   `max_overflow=0` un worker podía agotar la espera del pool. Ahora se devuelve antes de arrancar los workers.
+- **bulk (`ParallelBulkLoader`, `disable_constraints=True`)**: el nombre de tabla se citaba tal cual, sin la
+  normalización de `BulkCrud`. En PostgreSQL, con otras mayúsculas (p.ej. `"Usuarios"`), la comprobación de
+  propietario fallaba en silencio o `ALTER TABLE "Usuarios"` daba error. Ahora usa la tabla reflejada como `BulkCrud`.
 - **connection (Oracle)**: `PoolConnection.__del__` lanzaba `AttributeError` si el constructor había fallado antes de
   inicializar el objeto (p.ej. sin `oracledb`). Python lo emitía como excepción ignorada en el destructor y pytest como
   `PytestUnraisableExceptionWarning`, el único aviso de la suite. Ahora no hace nada en ese caso.

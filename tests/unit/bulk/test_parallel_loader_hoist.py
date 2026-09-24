@@ -12,6 +12,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from sqlalchemy import MetaData, Table
+
 from util_bbdd.bulk import ParallelBulkLoader
 
 pytestmark = pytest.mark.unit
@@ -44,9 +46,16 @@ def _engine(can_disable: bool, events: list[str]) -> MagicMock:
     return engine
 
 
-def test_without_privileges_releases_connection_before_workers() -> None:
+def _loader(can_disable: bool, events: list[str], monkeypatch: pytest.MonkeyPatch) -> ParallelBulkLoader:
+    loader = ParallelBulkLoader(_engine(can_disable, events), max_workers=2)
+    # La tabla se refleja como en BulkCrud (hallazgo 4); aquí basta una Table fija.
+    monkeypatch.setattr(loader, "_resolve_table", lambda name: Table("orders", MetaData(), schema="public"))
+    return loader
+
+
+def test_without_privileges_releases_connection_before_workers(monkeypatch: pytest.MonkeyPatch) -> None:
     events: list[str] = []
-    loader = ParallelBulkLoader(_engine(False, events), max_workers=2)
+    loader = _loader(False, events, monkeypatch)
 
     with loader._hoist_constraints_for_workers("public.orders") as hoisted:
         events.append("workers")
@@ -55,12 +64,31 @@ def test_without_privileges_releases_connection_before_workers() -> None:
     assert events == ["begin", "SELECT", "end", "workers"]
 
 
-def test_with_privileges_disables_in_short_transaction_and_restores_after() -> None:
+def test_with_privileges_disables_in_short_transaction_and_restores_after(monkeypatch: pytest.MonkeyPatch) -> None:
     events: list[str] = []
-    loader = ParallelBulkLoader(_engine(True, events), max_workers=2)
+    loader = _loader(True, events, monkeypatch)
 
-    with loader._hoist_constraints_for_workers("orders") as hoisted:
+    with loader._hoist_constraints_for_workers("public.orders") as hoisted:
         events.append("workers")
 
     assert hoisted is True
     assert events == ["begin", "SELECT", "DISABLE", "end", "workers", "begin", "ENABLE", "end"]
+
+
+def test_privilege_check_and_ddl_use_the_reflected_table(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hallazgo 4: el nombre sale de la tabla reflejada (como en BulkCrud), no del texto recibido."""
+    from sqlalchemy.dialects import postgresql
+
+    events: list[str] = []
+    engine = _engine(True, events)
+    engine.dialect = postgresql.dialect()
+    loader = ParallelBulkLoader(engine, max_workers=2)
+    monkeypatch.setattr(loader, "_resolve_table", lambda name: Table("usuarios", MetaData(), schema="ventas"))
+    conn = engine.begin().__enter__()
+
+    with loader._hoist_constraints_for_workers("Ventas.Usuarios"):
+        pass
+
+    select_call, disable_call = conn.execute.call_args_list[:2]
+    assert select_call.args[1] == {"schema": "ventas", "tbl": "usuarios"}
+    assert str(disable_call.args[0]) == "ALTER TABLE ventas.usuarios DISABLE TRIGGER ALL"

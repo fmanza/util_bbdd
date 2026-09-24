@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from sqlalchemy import Engine, text
+from sqlalchemy import Engine, Table, text
 from sqlalchemy.exc import OperationalError as SQLAOperationalError, SQLAlchemyError
 
 from ..crud import BulkCrud
@@ -49,27 +49,6 @@ def _partition_error(index: int, exc: Exception) -> str:
     if isinstance(exc, _EXPECTED_ERRORS):
         return f"partición {index}: {exc}"
     return f"partición {index}: {type(exc).__name__}: {exc}"
-
-
-def _quote_mssql_table(tabla_destino: str) -> str:
-    """Genera nombre de tabla MSSQL con corchetes para sentencias DDL."""
-    if "." in tabla_destino:
-        schema, table = tabla_destino.split(".", 1)
-        return f"[{schema.replace(']', ']]')}].[{table.replace(']', ']]')}]"
-    return f"[{tabla_destino.replace(']', ']]')}]"
-
-
-def _quote_pg_table(tabla_destino: str) -> tuple[str | None, str, str]:
-    """Descompone y cotiza un nombre de tabla para sentencias DDL de PostgreSQL.
-
-    Returns:
-        Tupla ``(schema, table_name, quoted_full_name)``.
-        ``schema`` es ``None`` si no hay prefijo de esquema.
-    """
-    if "." in tabla_destino:
-        schema, table = tabla_destino.split(".", 1)
-        return schema, table, f'"{schema.replace(chr(34), chr(34) * 2)}"."{table.replace(chr(34), chr(34) * 2)}"'
-    return None, tabla_destino, f'"{tabla_destino.replace(chr(34), chr(34) * 2)}"'
 
 
 def _validate_partition_ranges(ranges: Sequence[tuple[int, int]], n_readers: int) -> None:
@@ -492,9 +471,17 @@ class ParallelBulkLoader:
           de sesión sin lock de tabla — el path per-worker es correcto; devuelve ``False``.
         """
         dialect = self._engine.dialect.name
+        if dialect not in ("mssql", "postgresql"):
+            yield False
+            return
+
+        # La misma tabla que usarán los workers (auditoría de bulk 2026-09-24, hallazgo 4): antes el nombre se citaba tal
+        # cual, sin la normalización de BulkCrud, y con "Usuarios" en PostgreSQL la comprobación de propietario fallaba en
+        # silencio o el ALTER TABLE "Usuarios" daba error.
+        tabla = self._resolve_table(tabla_destino)
+        quoted = self._engine.dialect.identifier_preparer.format_table(tabla)
 
         if dialect == "mssql":
-            quoted = _quote_mssql_table(tabla_destino)
             with self._engine.begin() as conn:
                 conn.execute(text(f"ALTER TABLE {quoted} NOCHECK CONSTRAINT ALL"))
             try:
@@ -503,8 +490,7 @@ class ParallelBulkLoader:
                 with self._engine.begin() as conn:
                     conn.execute(text(f"ALTER TABLE {quoted} WITH CHECK CHECK CONSTRAINT ALL"))
 
-        elif dialect == "postgresql":
-            schema, table_name, quoted_pg = _quote_pg_table(tabla_destino)
+        else:  # postgresql
             with self._engine.begin() as conn:
                 can_disable: bool = bool(
                     conn.execute(
@@ -515,11 +501,11 @@ class ParallelBulkLoader:
                             "  AND tablename = :tbl AND tableowner = current_user"
                             ")"
                         ),
-                        {"schema": schema, "tbl": table_name},
+                        {"schema": tabla.schema, "tbl": tabla.name},
                     ).scalar()
                 )
                 if can_disable:
-                    conn.execute(text(f"ALTER TABLE {quoted_pg} DISABLE TRIGGER ALL"))
+                    conn.execute(text(f"ALTER TABLE {quoted} DISABLE TRIGGER ALL"))
             if not can_disable:
                 # Fuera del `with` (auditoría de bulk 2026-09-24): antes se cedía el control dentro de él y esa conexión
                 # quedaba fuera del pool, con una transacción abierta, durante toda la carga de los workers.
@@ -534,10 +520,11 @@ class ParallelBulkLoader:
                 yield True
             finally:
                 with self._engine.begin() as conn:
-                    conn.execute(text(f"ALTER TABLE {quoted_pg} ENABLE TRIGGER ALL"))
+                    conn.execute(text(f"ALTER TABLE {quoted} ENABLE TRIGGER ALL"))
 
-        else:
-            yield False
+    def _resolve_table(self, tabla_destino: str) -> Table:
+        """``Table`` reflejada con la misma resolución de nombre que ``BulkCrud`` (mayúsculas y esquema)."""
+        return BulkCrud(self._engine, chunk_size=self._chunk_size).reflect_table(tabla_destino)
 
 
 __all__: list[str] = [
