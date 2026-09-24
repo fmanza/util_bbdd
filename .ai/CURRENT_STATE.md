@@ -1,8 +1,8 @@
 # CURRENT STATE — util_bbdd
 
-**Generado**: 2026-06-05 (cabecera, tabla de versiones y tests actualizados el 2026-09-24 en el cierre de `v0.12.0`)  
-**Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` y `v0.12.0`  
-**Versión**: `v0.12.0` (cerrada en `develop`, 2026-09-24). Tag de git: `v0.12.0`  
+**Generado**: 2026-06-05 (cabecera, tabla de versiones y tests actualizados el 2026-09-24 en el cierre de `v0.13.0`)  
+**Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.13.0`  
+**Versión**: `v0.13.0` (cerrada en `develop`, 2026-09-24). Último tag de git: `v0.12.0` (tag `v0.13.0` pendiente de decisión)  
 **Rama activa**: `develop`
 
 ---
@@ -15,12 +15,13 @@
 | `v0.10.0` | Liberado — fast paths INSERT por motor: `PostgresCopyStrategy` (psycopg3 COPY ~10×), `MySQLMultiRowInsertStrategy` (multi-fila), `InsertStrategyResolver` reescrito |
 | `v0.11.0` | Liberado 2026-09-22 (tag creado el 2026-09-24 sobre `166448a`) — auditoría completa del proyecto y remediación de 53 hallazgos P0-P2 (sesión `2026-09-22-audit-completo-remediacion`) |
 | `v0.12.0` | Liberado 2026-09-24 (tag sobre `42f6f9c`) — performance-audit de `bulk` con banco contra 6 motores reales: 10 fallos corregidos (SQL Server, JSON, binarios, tabla equivocada en MySQL/MariaDB, `generar_sql`), mejoras de INSERT/UPDATE (~2× a ~12,5×) y `update_via_staging` activo por defecto en MySQL/MariaDB (sesiones `2026-09-23-performance-audit-bulk` a `2026-09-24-version-closure-v0.12.0`) |
+| `v0.13.0` | Cerrada 2026-09-24 — resto del performance-audit de `bulk`: `generar_sql` por plantilla 17–50× (P-06), preparación por bloques con memoria constante (P-07), DELETE de PostgreSQL por arrays 2,3–27× (P-10), límite de 65.535 parámetros en MariaDB (P-13), P-09; P-08 descartado tras medir; 6 fallos corregidos (P-25 a P-29, captura de errores de `ParallelBulkLoader`), entre ellos la pérdida de todas las filas en PostgreSQL con `commit_every_n_chunks` (P-27) (sesiones `2026-09-24-refactor-p09-update-columns` a `2026-09-24-version-closure-v0.13.0`) |
 | Zenical | Pendiente, sin versión asignada — merge `migrate/zenical-pure` (+80% perf doc builds) cuando Zenical esté instalable |
 
 PR abierta: **PR #18** `feat(connection/bulk): automatización variables MySQL/MariaDB` — revisión pendiente de merge.  
 PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical v0.0.44 esté en crates.io (o instalación manual de binario).
 
-**Tests actuales**: 4558 passed / 68 skipped sin URLs de servidor (cierre de `v0.12.0`, 2026-09-24). Los tests de integración de `bulk` contra servidores reales se activan con `UTIL_BBDD_TEST_<MOTOR>_URL` (ver `docs/guides/benchmarks.md`).
+**Tests actuales**: 4727 passed / 164 skipped sin URLs de servidor (cierre de `v0.13.0`, 2026-09-24); integración de `bulk` contra los 6 motores del banco: 162 passed / 24 skipped. Los tests de integración de `bulk` contra servidores reales se activan con `UTIL_BBDD_TEST_<MOTOR>_URL` (ver `docs/guides/benchmarks.md`).
 
 ---
 
