@@ -15,7 +15,7 @@ parámetros y PK compuesta en SQL Server) ``test_json_column_roundtrip`` cubre P
 ``test_same_bulkcrud_inserts_into_two_tables_with_same_columns`` cubre P-22 (filas en la tabla equivocada).
 ``test_update_via_staging_matches_executemany`` verifica P-04 (UPDATE por tabla temporal, solo MySQL/MariaDB) y
 ``test_binary_column_roundtrip`` cubre P-21 (binarios UTF-8 válidos) y ``test_generated_sql_with_json_column`` cubre
-P-20 (``generar_sql`` con columnas JSON).
+P-20 (``generar_sql`` con columnas JSON) y ``test_generated_sql_keeps_percent_signs`` cubre P-23 (``%`` duplicados).
 """
 
 from __future__ import annotations
@@ -404,5 +404,56 @@ def test_generated_sql_with_json_column(engine: Engine, tmp_path: Path) -> None:
         with engine.connect() as conn:
             stored = list(conn.execute(select(table.c[col_j]).order_by(table.c[col_id])).scalars())
         assert stored == docs
+    finally:
+        table.drop(engine, checkfirst=True)
+
+
+def _execute_generated_sql(engine: Engine, root: Path) -> None:
+    """Ejecuta sentencia a sentencia el único ``.sql`` generado bajo ``root`` y lo elimina."""
+    (sql_file,) = sorted(root.rglob("*.sql"))
+    raw = engine.raw_connection()
+    try:
+        cursor = raw.cursor()
+        for statement in filter(None, (line.strip() for line in sql_file.read_text(encoding="utf-8").splitlines())):
+            cursor.execute(statement.rstrip(";"))
+        raw.commit()
+    finally:
+        raw.close()
+    sql_file.unlink()
+
+
+def test_generated_sql_keeps_percent_signs(engine: Engine, tmp_path: Path) -> None:
+    """P-23: al ejecutar el SQL generado, los ``%`` de los datos no se duplican (INSERT y UPDATE)."""
+    if engine.dialect.name == "oracle" and not engine.url.database:
+        pytest.skip("P-24: generar_sql no admite URLs de Oracle sin nombre de BD (p.ej. ?service_name=...)")
+    n = partial(_name, engine=engine)
+    table = Table(
+        n(f"zz_util_bbdd_it_{uuid.uuid4().hex[:8]}"),
+        MetaData(),
+        Column(n("id"), Integer, primary_key=True, autoincrement=False),
+        Column(n("s"), String(30)),
+    )
+    table.create(engine)
+    col_id, col_s = n("id"), n("s")
+    inserted = ["a%b", "100%", "it's %s", "%%x"]
+    updated = ["50% off", "%", "x%%y", "LIKE 'a%'"]
+    try:
+        crud = BulkCrud(engine)
+        crud.bulk_insert_from_df(
+            pd.DataFrame({col_id: range(1, 5), col_s: inserted}),
+            table.name,
+            generar_sql=True,
+            path_sql=tmp_path / "sql",
+        )
+        _execute_generated_sql(engine, tmp_path)
+        with engine.connect() as conn:
+            assert list(conn.execute(select(table.c[col_s]).order_by(table.c[col_id])).scalars()) == inserted
+
+        crud.bulk_update_from_df(
+            pd.DataFrame({col_id: range(1, 5), col_s: updated}), table.name, generar_sql=True, path_sql=tmp_path / "sql"
+        )
+        _execute_generated_sql(engine, tmp_path)
+        with engine.connect() as conn:
+            assert list(conn.execute(select(table.c[col_s]).order_by(table.c[col_id])).scalars()) == updated
     finally:
         table.drop(engine, checkfirst=True)

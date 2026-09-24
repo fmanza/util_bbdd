@@ -34,6 +34,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **bulk (generar_sql)**: el SQL generado con `generar_sql=True` (valor por defecto) duplicaba **todos** los `%` en
+  PostgreSQL (psycopg/psycopg2) y MySQL/MariaDB (PyMySQL/mysqlclient) (P-23). Al ejecutar el fichero, `'a%b'` se guardaba
+  como `'a%%b'`. SQLAlchemy escapa `%` con paramstyle `format`/`pyformat` porque supone que el texto pasará por el
+  driver con parámetros; el fichero se ejecuta sin ellos. Ahora se deshace esa duplicación, que es exacta con
+  `literal_binds`. Verificado ejecutando el SQL generado de INSERT y UPDATE en PostgreSQL, MySQL, MariaDB, SQLite y SQL
+  Server. SQLite, SQL Server, Oracle y `mariadbconnector` no estaban afectados.
+
 - **bulk (generar_sql + JSON)**: con `generar_sql=True`, `bulk_insert_from_df` y `bulk_update_from_df` fallaban con
   `CompileError` ("No literal value renderer ... with datatype JSON") en tablas con columnas JSON: SQLite, PostgreSQL
   `JSON`/`JSONB` y MySQL (P-20). Ahora el valor, ya serializado, se escribe como literal de cadena sin volver a

@@ -283,7 +283,13 @@ def compile_stmt_with_binary_support(stmt: Any, dialect: Any) -> str:
     """Compila un statement con fallback para binarios no renderizables."""
     try:
         compiled = stmt.compile(dialect=dialect, compile_kwargs={"literal_binds": True})
-        return f"{compiled};"
+        sql = str(compiled)
+        # P-23 (performance-audit de bulk): con paramstyle format/pyformat (psycopg, PyMySQL...) SQLAlchemy duplica cada
+        # '%' del texto (literales, identificadores) pensando en el driver; el fichero se ejecuta sin parámetros, así
+        # que 'a%b' se guardaba como 'a%%b'. Con literal_binds no quedan placeholders: deshacer la duplicación es exacto.
+        if getattr(dialect.identifier_preparer, "_double_percents", False):
+            sql = sql.replace("%%", "%")
+        return f"{sql};"
     except Exception as error:
         if "BLOB" not in str(error) and "binary" not in str(error).lower():
             raise
