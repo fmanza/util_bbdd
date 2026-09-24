@@ -78,6 +78,21 @@ Los NULL en la primera fila no influyen: con A, F y S el UPDATE funciona con y s
 
 ### P-17: SQL Server + pymssql inserta a ~2.700 filas/s
 **Severidad**: ALTA (CRÍTICA para cargas de 1M: 376 s)
+**Estado**: **DESCARTADA** (2026-09-24, decisión del usuario, opción A). `bulk_copy` de pymssql no guarda lo mismo que un INSERT normal. Verificado en SQL Server 2022:
+
+| Caso | INSERT actual | `bulk_copy` (pymssql 2.3.13) |
+|---|---|---|
+| Rollback de la transacción | se deshace | se deshace |
+| Subconjunto/orden de columnas (`column_ids`), omitida con DEFAULT | — | correcto |
+| Columna `DATE` | correcto | falla: solo acepta `datetime` |
+| `NULL` explícito en columna con DEFAULT | `NULL` | valor por defecto (sin `KEEPNULLS`) |
+| IDENTITY con id explícito 100 | 100 | 1 (sin `KEEPIDENTITY`) |
+| CHECK violado, `check_constraints=True` | error | **aceptado** |
+| FK a fila inexistente, `check_constraints=True` | error | **aceptado** |
+| Estado de CHECK/FK tras la carga | confiables | **`is_not_trusted = 1`** |
+| Triggers con `fire_triggers=True` | se disparan | se disparan |
+
+No aplicar CHECK/FK (y degradarlos) no se puede resolver desde pymssql, así que usar BCP obligaría a excluir toda tabla con restricciones. En su lugar, `BulkCrud` registra un INFO al detectar `mssql+pymssql` recomendando `mssql+pyodbc` + ODBC Driver 17/18 (tras P-01: INSERT ~49.000 filas/s, UPDATE ~33.500, frente a ~2.700 y ~1.800 con pymssql).
 **Área**: 8 (específico de motor)
 **Archivo/Función**: `_execution/batch.py` `InsertStrategyResolver.resolve` (mssql → `DefaultInsertStrategy`)
 **Descripción**: con pymssql, SQLAlchemy aplica insertmanyvalues (sentencias multi-VALUES de ≤ 2099 parámetros, ~233 filas con 9 columnas). cProfile sobre 20K filas: 6,16 s de 6,31 s en `do_execute` (driver + servidor), unos 72 ms por sentencia; SQLAlchemy es despreciable. El `executemany` crudo de pymssql es aún más lento (9,68 s).
@@ -129,5 +144,5 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 2. ~~**P-05**~~: corregido (hotfix 2026-09-24).
 3. ~~**P-04**~~: aplicado en MySQL/MariaDB, activo por defecto (`update_via_staging=True`, ~12,5×). SQL Server con pymssql queda fuera: su cuello de botella es el INSERT (P-17).
 4. ~~**P-02**~~: aplicado (refactor 2026-09-24). No era un cambio de una línea: `DefaultInsertStrategy` habría serializado dos veces las columnas JSON de MySQL, y el conector `mariadb` rechaza tipos mezclados por columna.
-5. **P-17**: `bulk_copy` para SQL Server + pymssql (INSERT 6,7×).
+5. ~~**P-17**~~: descartado (`bulk_copy` de pymssql no aplica CHECK/FK). Recomendación: pyodbc + ODBC 17/18.
 6. ~~**P-03**~~: aplicado (refactor 2026-09-24), preparación 2,9× más rápida con resultado idéntico.
