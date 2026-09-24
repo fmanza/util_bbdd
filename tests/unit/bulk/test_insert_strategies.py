@@ -7,6 +7,8 @@ Cubre:
   para ``TextClause`` (sin BD real; cursor crudo mockeado).
 - ``MySQLMultiRowInsertStrategy``: sentencia multi-fila ejecutada contra SQLite
   (SQL estándar) + sub-loteo por ``max_rows_per_statement``.
+- ``MySQLDriverExecutemanyStrategy``: executemany del driver sin procesadores de tipo
+  (SQLite con paramstyle ``qmark`` y conexión simulada con ``pyformat``).
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ from sqlalchemy.sql.elements import TextClause
 from util_bbdd.bulk._execution.batch import (
     DefaultInsertStrategy,
     InsertStrategyResolver,
+    MySQLDriverExecutemanyStrategy,
     MySQLMultiRowInsertStrategy,
     PostgresCopyStrategy,
     PostgreSQLExecuteValuesStrategy,
@@ -49,6 +52,19 @@ class TestInsertStrategyResolver:
         resolver = InsertStrategyResolver()
         strategy = resolver.resolve(dialect, f"{dialect}+mariadbconnector")
         assert isinstance(strategy, MySQLMultiRowInsertStrategy)
+
+    @pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
+    def test_mysql_family_with_pymysql_routes_to_driver_executemany(self, dialect: str) -> None:
+        # P-02: con PyMySQL el executemany del driver ya envía INSERT multi-fila (~2× más rápido).
+        resolver = InsertStrategyResolver()
+        strategy = resolver.resolve(dialect, f"{dialect}+pymysql")
+        assert isinstance(strategy, MySQLDriverExecutemanyStrategy)
+
+    @pytest.mark.parametrize("driver", ["mysql+pymysql", "mariadb+mariadbconnector"])
+    def test_explicit_mysql_strategy_wins_for_any_driver(self, driver: str) -> None:
+        legacy = MySQLMultiRowInsertStrategy()
+        resolver = InsertStrategyResolver(mysql_strategy=legacy)
+        assert resolver.resolve(driver.split("+")[0], driver) is legacy
 
     @pytest.mark.parametrize(
         ("dialect", "driver"),
@@ -232,3 +248,74 @@ class TestMySQLMultiRowInsertStrategy:
         with engine.connect() as conn:
             name = conn.exec_driver_sql("SELECT name FROM items WHERE id = 1").scalar()
         assert name == "new"
+
+
+# ---------------------------------------------------------------------------
+# MySQLDriverExecutemanyStrategy (P-02)
+# ---------------------------------------------------------------------------
+
+
+class TestMySQLDriverExecutemanyStrategy:
+    def test_inserts_all_rows_with_one_driver_executemany(self) -> None:
+        # SQLite usa paramstyle qmark: ejercita el mismo camino que el conector con "?".
+        engine, table = _make_items_table_engine()
+        records = [{"id": i, "name": f"n{i}"} for i in range(1, 6)]
+
+        with engine.begin() as conn:
+            MySQLDriverExecutemanyStrategy().execute(connection=conn, stmt=insert(table), records=records)
+
+        with engine.connect() as conn:
+            rows = conn.exec_driver_sql("SELECT id, name FROM items ORDER BY id").all()
+        assert [tuple(r) for r in rows] == [(i, f"n{i}") for i in range(1, 6)]
+
+    def test_values_bypass_type_processors(self) -> None:
+        # Como la vía multi-fila con text(): el valor llega al driver tal cual (p.ej. el JSON ya serializado por
+        # normalize_sql_literal no se vuelve a serializar).
+        from sqlalchemy import JSON
+
+        engine = create_engine("sqlite://")
+        table = Table("docs", MetaData(), Column("id", Integer, primary_key=True), Column("j", JSON))
+        table.metadata.create_all(engine)
+
+        with engine.begin() as conn:
+            MySQLDriverExecutemanyStrategy().execute(
+                connection=conn, stmt=insert(table), records=[{"id": 1, "j": '{"k": 1}'}, {"id": 2, "j": None}]
+            )
+
+        with engine.connect() as conn:
+            rows = conn.exec_driver_sql("SELECT id, j FROM docs ORDER BY id").all()
+        assert [tuple(r) for r in rows] == [(1, '{"k": 1}'), (2, None)]
+
+    def test_pyformat_uses_percent_placeholders_and_escapes_identifiers(self) -> None:
+        from sqlalchemy.dialects.mysql.pymysql import MySQLDialect_pymysql
+
+        table = Table("t%1", MetaData(), Column("id", Integer, primary_key=True), Column("a%b", String(10)))
+        connection = MagicMock()
+        connection.dialect = MySQLDialect_pymysql()
+
+        MySQLDriverExecutemanyStrategy().execute(
+            connection=connection, stmt=insert(table), records=[{"id": 1, "a%b": "x"}, {"id": 2, "a%b": "%s"}]
+        )
+
+        sql, params = connection.exec_driver_sql.call_args.args
+        assert sql == "INSERT INTO `t%%1` (id, `a%%b`) VALUES (%s, %s)"
+        assert params == [(1, "x"), (2, "%s")]
+        connection.execute.assert_not_called()
+
+    def test_empty_records_is_noop(self) -> None:
+        connection = MagicMock()
+        MySQLDriverExecutemanyStrategy().execute(connection=connection, stmt=MagicMock(), records=[])
+        connection.exec_driver_sql.assert_not_called()
+        connection.execute.assert_not_called()
+
+    def test_update_stmt_falls_back_to_execute(self) -> None:
+        engine, table = _make_items_table_engine()
+        with engine.begin() as conn:
+            conn.execute(table.insert(), [{"id": 1, "name": "old"}])
+
+        stmt = update(table).where(table.c.id == bindparam("pk_id")).values(name=bindparam("name"))
+        with engine.begin() as conn:
+            MySQLDriverExecutemanyStrategy().execute(connection=conn, stmt=stmt, records=[{"name": "new", "pk_id": 1}])
+
+        with engine.connect() as conn:
+            assert conn.exec_driver_sql("SELECT name FROM items WHERE id = 1").scalar() == "new"

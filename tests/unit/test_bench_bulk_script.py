@@ -71,8 +71,8 @@ class TestNamingAndVariants:
         ("variant", "dialect", "driver", "expected"),
         [
             ("baseline", "oracle", "oracle+oracledb", True),
-            ("p02-mysql-executemany", "mariadb", "mariadb+pymysql", True),
-            ("p02-mysql-executemany", "postgresql", "postgresql+psycopg", False),
+            ("mysql-multirow-legacy", "mariadb", "mariadb+pymysql", True),
+            ("mysql-multirow-legacy", "postgresql", "postgresql+psycopg", False),
             ("p01-mssql-engine-fast-executemany", "mssql", "mssql+pyodbc", True),
             ("p01-mssql-engine-fast-executemany", "mssql", "mssql+pymssql", False),
         ],
@@ -82,11 +82,11 @@ class TestNamingAndVariants:
     ) -> None:
         assert bench.VARIANTS[variant].applies_to(dialect, driver) is expected
 
-    def test_p02_injects_default_insert_strategy_for_mysql(self, bench: ModuleType) -> None:
-        from util_bbdd.bulk._execution.batch import DefaultInsertStrategy
+    def test_legacy_variant_injects_multirow_strategy_for_mysql(self, bench: ModuleType) -> None:
+        from util_bbdd.bulk._execution.batch import MySQLMultiRowInsertStrategy
 
-        resolver = bench.VARIANTS["p02-mysql-executemany"].crud_kwargs()["insert_resolver"]
-        assert isinstance(resolver.resolve("mysql", "mysql+pymysql"), DefaultInsertStrategy)
+        resolver = bench.VARIANTS["mysql-multirow-legacy"].crud_kwargs()["insert_resolver"]
+        assert isinstance(resolver.resolve("mysql", "mysql+pymysql"), MySQLMultiRowInsertStrategy)
 
 
 class TestMeasureStep:
@@ -183,7 +183,7 @@ class TestSummary:
             M("mysql", "pymysql", "baseline", "insert", 100, 1, 2.0, 50.0, True),
             M("mysql", "pymysql", "baseline", "insert", 100, 2, 4.0, 25.0, True),
             M("mysql", "pymysql", "baseline", "insert", 100, 3, 3.0, 33.3, True),
-            M("mysql", "pymysql", "p02-mysql-executemany", "insert", 100, 1, 1.5, 66.7, True),
+            M("mysql", "pymysql", "mysql-multirow-legacy", "insert", 100, 1, 1.5, 66.7, True),
             M("mysql", "pymysql", "baseline", "delete", 100, 1, None, None, False, "DBAPIError: boom"),
         ]
         rows = {(r["variant"], r["op"]): r for r in bench.summarize(ms)}
@@ -199,7 +199,7 @@ class TestSummary:
 class TestCli:
     def test_list_variants(self, bench: ModuleType, capsys: pytest.CaptureFixture[str]) -> None:
         assert bench.main(["--list-variants"]) == 0
-        assert "p02-mysql-executemany" in capsys.readouterr().out
+        assert "mysql-multirow-legacy" in capsys.readouterr().out
 
     def test_unknown_engine_is_rejected(self, bench: ModuleType) -> None:
         with pytest.raises(SystemExit) as exc:

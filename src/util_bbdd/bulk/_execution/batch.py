@@ -305,6 +305,50 @@ class MySQLMultiRowInsertStrategy:
             connection.execute(text(template_sql), params)
 
 
+class MySQLDriverExecutemanyStrategy:
+    """INSERT para MySQL/MariaDB con el ``executemany`` nativo de PyMySQL (``exec_driver_sql``).
+
+    PyMySQL reescribe ``executemany`` de un INSERT como sentencias multi-fila en el cliente, troceadas por debajo de
+    ``max_allowed_packet``. P-02 (performance-audit de bulk, 2026-09-23): unas 2× más rápido que
+    :class:`MySQLMultiRowInsertStrategy` en MySQL 8.4 y MariaDB 11.4, cuyo coste dominante era construir ``text()`` con
+    miles de parámetros en Python.
+
+    Solo se resuelve para PyMySQL. El conector ``mariadb`` (``mariadbconnector``) hace un envío masivo que exige el
+    mismo tipo Python por columna en todas las filas, y ``normalize_sql_literal`` puede mezclarlos (``bytes`` y
+    ``str`` en un BLOB, ``Decimal`` y ``float``): con él se mantiene la vía multi-fila.
+
+    Los valores llegan al driver sin procesadores de tipo de SQLAlchemy, igual que en la vía multi-fila con
+    ``text()``. Con ``insert(tabla)`` el tipo ``JSON`` reflejado en MySQL volvería a serializar el texto que ya produce
+    ``normalize_sql_literal`` y guardaría ``None`` como el literal JSON ``null``.
+
+    Fallback a ejecución estándar cuando ``stmt`` no es un ``Insert`` (p.ej. ``Update`` en ``bulk_update_from_df``, o
+    ``TextClause`` en la ruta ``override_identity``).
+    """
+
+    def execute(
+        self,
+        *,
+        connection: Any,
+        stmt: Any,
+        records: Sequence[Mapping[str, Any]],
+    ) -> None:
+        if not records:
+            return
+        if not isinstance(stmt, Insert):
+            connection.execute(stmt, list(records))
+            return
+
+        cols: list[str] = list(records[0].keys())
+        dialect = connection.dialect
+        preparer = dialect.identifier_preparer
+        quoted_table: str = preparer.format_table(stmt.table)
+        quoted_cols: str = ", ".join(preparer.quote(c) for c in cols)
+        # Con paramstyle format/pyformat, identifier_preparer ya duplica los '%' de los identificadores.
+        placeholder: str = "?" if dialect.paramstyle == "qmark" else "%s"
+        sql: str = f"INSERT INTO {quoted_table} ({quoted_cols}) VALUES ({', '.join([placeholder] * len(cols))})"
+        connection.exec_driver_sql(sql, [tuple(record[c] for c in cols) for record in records])
+
+
 class InsertStrategyResolver:
     """Resuelve la estrategia INSERT óptima según dialecto y driver.
 
@@ -312,7 +356,9 @@ class InsertStrategyResolver:
 
     - ``postgresql`` + ``psycopg2`` → :class:`PostgreSQLExecuteValuesStrategy`.
     - ``postgresql`` + ``psycopg`` (psycopg3, driver por defecto) → :class:`PostgresCopyStrategy`.
-    - ``mysql`` / ``mariadb`` → :class:`MySQLMultiRowInsertStrategy`.
+    - ``mysql`` / ``mariadb`` + ``pymysql`` → :class:`MySQLDriverExecutemanyStrategy`.
+    - ``mysql`` / ``mariadb`` con otro driver (p.ej. ``mariadbconnector``) → :class:`MySQLMultiRowInsertStrategy`.
+    - ``mysql_strategy`` explícito → se usa para mysql/mariadb con cualquier driver.
     - resto (Oracle, SQL Server, SQLite, HSQLDB) → :class:`DefaultInsertStrategy`
       (``executemany``; en SQL Server acelerado por ``fast_executemany``).
     """
@@ -329,7 +375,9 @@ class InsertStrategyResolver:
         self._pg_execute_values_strategy: InsertExecutionStrategyProtocol = (
             pg_execute_values_strategy or PostgreSQLExecuteValuesStrategy()
         )
-        self._mysql_strategy: InsertExecutionStrategyProtocol = mysql_strategy or MySQLMultiRowInsertStrategy()
+        self._mysql_strategy: InsertExecutionStrategyProtocol | None = mysql_strategy
+        self._mysql_pymysql_strategy: InsertExecutionStrategyProtocol = MySQLDriverExecutemanyStrategy()
+        self._mysql_multirow_strategy: InsertExecutionStrategyProtocol = MySQLMultiRowInsertStrategy()
         self._default_strategy: InsertExecutionStrategyProtocol = default_strategy or DefaultInsertStrategy()
 
     def resolve(self, dialect_name: str, drivername: str) -> InsertExecutionStrategyProtocol:
@@ -341,7 +389,11 @@ class InsertStrategyResolver:
             if "psycopg" in drivername:
                 return self._pg_copy_strategy
         if dialect_name in ("mysql", "mariadb"):
-            return self._mysql_strategy
+            if self._mysql_strategy is not None:
+                return self._mysql_strategy
+            if "pymysql" in drivername:
+                return self._mysql_pymysql_strategy
+            return self._mysql_multirow_strategy
         return self._default_strategy
 
 
@@ -615,6 +667,7 @@ __all__: list[str] = [
     "GenericDeleteStrategy",
     "InsertExecutionStrategyProtocol",
     "InsertStrategyResolver",
+    "MySQLDriverExecutemanyStrategy",
     "MySQLMultiRowInsertStrategy",
     "PostgresCopyStrategy",
     "PostgreSQLExecuteValuesStrategy",

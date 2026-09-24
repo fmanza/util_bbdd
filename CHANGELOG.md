@@ -7,6 +7,15 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **bulk (MySQL/MariaDB + PyMySQL)**: el INSERT usa el `executemany` del driver vía `exec_driver_sql`
+  (`MySQLDriverExecutemanyStrategy`) en lugar de la vía multi-fila con `text()` (P-02). Medido con 1M filas: MySQL 8.4
+  54,9 s → 26,3 s y MariaDB 11.4 50,4 s → 24,0 s (~2,1×). Los valores guardados son idénticos (verificado con JSON,
+  BIT, ENUM, DECIMAL, DATETIME(6), TIME, BLOB, NULL y Unicode). Además, ahora funcionan las tablas y columnas con `%` en
+  el nombre, que con la vía multi-fila fallaban. Con otros drivers (p.ej. `mariadbconnector`) se mantiene la vía
+  multi-fila, que sigue disponible con `InsertStrategyResolver(mysql_strategy=MySQLMultiRowInsertStrategy())`.
+
 ### Fixed
 
 - **bulk (SQL Server)**: `bulk_delete_from_df` fallaba en SQL Server (P-05). Con pyodbc, a partir de ~2100 filas daba

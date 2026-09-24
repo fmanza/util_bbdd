@@ -17,7 +17,7 @@ se salta con un aviso. Motores: sqlite, postgresql, mysql, mariadb, mssql, oracl
 Variantes A/B (hallazgos de .ai/sessions/2026-09-23-performance-audit-bulk/01_PERFORMANCE_AUDIT.md):
 
     baseline                           BulkCrud por defecto (todos los motores)
-    p02-mysql-executemany              MySQL/MariaDB con executemany del driver en lugar de la vía multi-fila
+    mysql-multirow-legacy              MySQL/MariaDB con la vía multi-fila anterior a P-02 (la actual usa executemany)
     p01-mssql-engine-fast-executemany  SQL Server + pyodbc con create_engine(fast_executemany=True)
 
 Uso:
@@ -69,7 +69,7 @@ from sqlalchemy import (
 )
 
 from util_bbdd.bulk import BulkCrud
-from util_bbdd.bulk._execution.batch import DefaultInsertStrategy, InsertStrategyResolver
+from util_bbdd.bulk._execution.batch import InsertStrategyResolver, MySQLMultiRowInsertStrategy
 from util_bbdd.bulk._support.validation import normalize_identifier
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -218,11 +218,13 @@ VARIANTS: dict[str, Variant] = {
     for variant in (
         Variant(name="baseline", description="BulkCrud por defecto"),
         Variant(
-            name="p02-mysql-executemany",
-            description="MySQL/MariaDB: executemany del driver en lugar de MySQLMultiRowInsertStrategy",
+            name="mysql-multirow-legacy",
+            description="MySQL/MariaDB: vía multi-fila con text() (la de por defecto antes de P-02)",
             finding="P-02",
             dialects=frozenset({"mysql", "mariadb"}),
-            crud_kwargs=lambda: {"insert_resolver": InsertStrategyResolver(mysql_strategy=DefaultInsertStrategy())},
+            crud_kwargs=lambda: {
+                "insert_resolver": InsertStrategyResolver(mysql_strategy=MySQLMultiRowInsertStrategy())
+            },
         ),
         Variant(
             name="p01-mssql-engine-fast-executemany",

@@ -59,15 +59,15 @@ bulk = BulkCrud(
 |---|---|---|
 | PostgreSQL + psycopg3 | `COPY ... FROM STDIN` | La más rápida |
 | PostgreSQL + psycopg2 | `execute_values` multi-row | 3–5× sobre `executemany` |
-| MySQL / MariaDB | INSERT multi-row sub-loteado | 2–4× sobre `executemany` |
+| MySQL / MariaDB + PyMySQL | `executemany` del driver (multi-fila en el cliente) | ~2× sobre la vía multi-fila anterior (medido en MySQL 8.4 y MariaDB 11.4) |
+| MySQL / MariaDB + otro driver | INSERT multi-fila sub-loteado | — |
 | SQL Server + pyodbc | `fast_executemany=True` (con ODBC Driver 17/18) | ~12× medido en SQL Server 2022 + ODBC Driver 18 |
 | Oracle, SQLite, HSQLDB | `executemany` estándar | — |
 
-!!! warning "Ganancia de MySQL/MariaDB en revisión"
-    La auditoría de rendimiento del 2026-09-23 observó que la vía multi-fila de MySQL/MariaDB añade coste en el
-    cliente frente al `executemany` nativo de PyMySQL, que ya envía INSERT multi-fila: en MySQL 8.4 y MariaDB 11.4 el
-    `executemany` del driver fue unas 2 veces más rápido. Mide tu caso con el
-    [banco de pruebas](#banco-de-pruebas-contra-motores-reales) antes de fiarte de esta cifra.
+!!! note "MySQL/MariaDB con el conector `mariadb`"
+    Con PyMySQL, `BulkCrud` usa el `executemany` del driver (P-02: unas 2 veces más rápido que la vía multi-fila
+    anterior). Con el conector `mariadb` (`mariadbconnector`) se mantiene la vía multi-fila: su envío masivo exige el
+    mismo tipo Python en cada columna para todas las filas, y un DataFrame puede mezclarlos (p.ej. `bytes` y `str`).
 
 !!! note "SQL Server + pyodbc: versiones anteriores a la corrección de P-18"
     Hasta [Unreleased], `enable_fast_executemany=True` activaba `fast_executemany` solo en el cursor, a espaldas de
@@ -145,7 +145,7 @@ Variantes A/B disponibles (cada una se aplica solo a los motores indicados):
 | Variante | Motores | Qué cambia |
 |---|---|---|
 | `baseline` | todos | `BulkCrud` por defecto |
-| `p02-mysql-executemany` | MySQL, MariaDB | `insert_resolver` con el `executemany` del driver en lugar de la vía multi-fila |
+| `mysql-multirow-legacy` | MySQL, MariaDB | `insert_resolver` con la vía multi-fila anterior a P-02 (control) |
 | `p01-mssql-engine-fast-executemany` | SQL Server + pyodbc | `create_engine(..., fast_executemany=True)` |
 
 La reflexión de la tabla queda fuera de la medición. Los nombres de tabla y columnas siguen la convención de
