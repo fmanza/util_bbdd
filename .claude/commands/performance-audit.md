@@ -1,52 +1,73 @@
-# performance-audit
+# /performance-audit
 
-Auditoría de rendimiento del módulo bulk: optimización de carga masiva de datos.
+Auditoría sistemática de rendimiento del módulo dump (volcado masivo) con análisis de 8 cuellos de botella, propuestas priorizadas y benchmarking validado.
+
+---
 
 ## Cuándo usar
-- Necesitas optimizar velocidad de INSERT/UPDATE/DELETE masivos
-- Quieres identificar cuellos de botella en carga de datos
-- Necesitas impacto cuantificable (% mejora estimado)
-- Ciclo completo: PLAN → AUDIT_PLAN → AUDIT_CODE → VERSION
+
+- **Auditoría completa**: Necesitas análisis exhaustivo del módulo dump (todas las áreas)
+- **Enfoque específico**: Quieres optimizar lectura (CB1), constraints (CB4), PK sync (CB7), indexes (CB8)
+- **Multi-dialect**: Proyecto soporta PostgreSQL + MySQL + Oracle + SQL Server + SQLite; necesitas recomendaciones por dialect
+- **Baseline capturado**: Ya ejecutaste `/quick-bench` y quieres propuestas priorizadas
+- **NO usar cuando**: Solo necesitas medir throughput actual (usa `/quick-bench`)
+- **NO usar cuando**: Necesitas propuesta acotada en UN cuello (usa `/perf-proposal CB{N}`)
+
+---
 
 ## Inputs requeridos (OBLIGATORIO completar TODOS)
 
-- [ ] **Módulo objetivo**: `src/util_bbdd/bulk/` (fijo, pero puedes especificar sub-áreas)
-- [ ] **Operaciones a auditar**: INSERT | UPDATE | DELETE | Todas (marcar)
-- [ ] **Escala de datos**: Tamaño típico de registros (1K, 10K, 100K, 1M+)
-- [ ] **Motores de BD**: Oracle | MySQL/MariaDB | PostgreSQL | SQL Server | SQLite (marcar todos los relevantes)
-- [ ] **Restricciones conocidas**: ¿auditoría integrada obligatoria? ¿validación? ¿compatibilidad?
-- [ ] **Métricas base (si disponibles)**: Tiempo actual de carga, bottleneck conocido
-- [ ] **Alcance de la auditoría**: Análisis solo | Incluir propuestas de remediación | Quick wins únicamente
+- [ ] **Objetivo de auditoría**: ¿Qué áreas optimizar? (lectura | constraints | indexes | todas)
+- [ ] **Baseline actual**: ¿Tienes benchmark baseline? Si no: ¿ejecutar /quick-bench primero? (sí/no)
+- [ ] **Dialects objetivo**: ¿Qué bases de datos? (PostgreSQL | MySQL | SQL Server | Oracle | SQLite | todas)
+- [ ] **Volumen típico**: ¿Escala esperada? (small: 85k | medium: 850k | large: 3.5M | otra)
+- [ ] **Timeline**: ¿Cuándo necesitas resultados? (ASAP | próxima semana | flexible)
+- [ ] **Validación**: ¿Ejecutar benchmark post-audit? (sí/no)
 
-**⚠️ VALIDACIÓN**: Si falta alguno, DETENTE y aclara antes de continuar. No emitas PLAN hasta tener contexto completo.
+**⚠️ VALIDACIÓN**: Si falta alguno, DETENTE y aclara antes de FASE 1. No inicies sin contexto completo.
 
-## Devuelve en este orden
+---
 
-### PLAN
-- Flujo actual de carga (INSERT → batching → auditoría → persistence)
-- Cuellos de botella teóricos identificados por área
-- Estrategia de benchmark (qué medir, cómo reproducir)
-- 10 áreas de auditoría a investigar
+## Referencia Completa
 
-### AUDIT_PLAN
-- Validación de viabilidad de cada mejora propuesta
-- Breaking changes y compatibilidad multi-BBDD
-- Pruebas requeridas por área
-- Orden de ejecución (dependencias entre mejoras)
-- **Veredicto:** GO / NO_GO / GO_CONDICIONAL
+Usa `.claude/performance-audit-guide.md` como referencia principal para:
+- Descripción de 8 cuellos (CB1–CB8)
+- Interpretación de benchmarks
+- Configuraciones disponibles (baseline/optimized/parallel)
+- Troubleshooting
 
-### AUDIT_CODE
-- Hallazgos por severidad (CRÍTICA, ALTA, MEDIA, BAJA, INFO)
-- Por cada hallazgo: Área, Archivo/Función, Descripción, Impacto% estimado, Evidencia, Remediación propuesta
-- Diferenciar CONFIRMADO (código + benchmarks) de HIPÓTESIS (requiere validación)
-- Consultar internet para best practices y versiones actuales
+Usa `.github/prompts/performance_audit_dump_agent.prompt.md` para ver el flujo 5-fase que ejecutarás.
 
-### VERSION
-- **Veredicto final**: CRÍTICO | SIGNIFICATIVO | MODERADO | LIMPIO
-- Top 5 mejoras de mayor impacto
-- Quick wins (< 1h, 5%+ mejora, sin breaking changes)
-- Fases de implementación recomendadas
-- Métricas de éxito (antes/después en benchmark)
+---
+
+## Workflow: 5 Fases Estructuradas
+
+### FASE 1: Análisis de Arquitectura (1–2 hrs)
+Lee orchestrator.py, constraints, indexes, models. Documenta arquitectura actual.
+
+### FASE 2: Validar 8 Cuellos de Botella (1–2 hrs)
+Confirma CB1–CB8 en código con grep_search + read_file. Genera tabla resumen.
+
+### FASE 3: Generar Propuestas Priorizadas (2–3 hrs)
+Para cada cuello: impacto, esfuerzo, riesgo, priority score. Ordena P1 → P2 → P3.
+
+### FASE 4: Informe + Roadmap (1–2 hrs)
+Genera audit_report_dump_*.md + improvement_roadmap_dump.md con recomendaciones por dialect.
+
+### FASE 5: Validación (opcional, 1–2 hrs)
+Ejecuta benchmark baseline/optimized con scripts/bench_dump.py. Compara y valida.
+
+---
+
+## Outputs
+
+- `audit_report_dump_YYYYMMDD.md` — Informe ejecutivo + hallazgos
+- `improvement_roadmap_dump.md` — Roadmap P1/P2/P3 con timeline
+- `validation_report_YYYYMMDD.md` — Benchmark comparison (si FASE 5 ejecutada)
+
+---
+
+*Referencia: `.claude/performance-audit-guide.md` + `.github/prompts/performance_audit_dump_agent.prompt.md`*
 
 ## Referencia
 - Base: `.github/prompts/performance_audit_bulk.prompt.md`
