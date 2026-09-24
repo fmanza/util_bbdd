@@ -157,6 +157,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-24 | Independencia de los contenedores del banco | Puertos en `127.0.0.1` y configurables; base `bench` en SQL Server; plantillas de URLs; fixtures de `localhost:5432` eliminadas; `postgres_db` intacto | CLOSED |
 | 2026-09-24 | Saltos y aviso de la suite | Aviso (`__del__` de Oracle) y test de `matplotlib` corregidos; sin saltos "no aplica"; MariaDB `bench` con permisos `zz_util_bbdd_*`; 0 avisos; con URLs 0 saltos y 0 errores | CLOSED |
 | 2026-09-24 | Avisos de `mkdocs --strict` | Referencias a `INSTALLATION.md`/`ROADMAP.md` con el nombre exacto; mkdocs y zensical estrictos limpios; test de enlaces | CLOSED |
+| 2026-09-24 | audit_code de bulk + hotfix 1–3 | `chunk_size` validado; `maintenance_scope` no oculta errores y restaura con `commit_every_n_chunks`; loader sin conexión retenida; 4–8 pendientes | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 
