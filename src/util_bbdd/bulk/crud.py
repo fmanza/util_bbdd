@@ -51,6 +51,7 @@ from ._support.sql_helpers import (
     generate_insert_sql,
     generate_insert_sql_override_identity,
     generate_update_sql,
+    json_passthrough_binds,
     should_wrap_identity_insert,
     wrap_identity_insert_sql,
 )
@@ -505,7 +506,7 @@ class BulkCrud:
         if override_identity and always_identity_cols:
             stmt: Any = build_override_identity_text_stmt(tabla, insert_cols, self.engine.dialect)
         else:
-            stmt = insert(tabla)
+            stmt = self.__insert_stmt(tabla, insert_cols)
         return stmt, insert_cols
 
     def __run_bulk_pipeline(
@@ -605,7 +606,7 @@ class BulkCrud:
                 execute=lambda: self.__ejecutar_batch_stmt(records_sql, text_stmt, numero_registros),
             )
 
-        stmt: Insert = insert(tabla)
+        stmt: Insert = self.__insert_stmt(tabla, insert_cols)
 
         if should_wrap_identity_insert(tabla, insert_cols, self.engine.dialect):
             _tabla = tabla
@@ -640,8 +641,11 @@ class BulkCrud:
             where_clause: ColumnElement[bool] = and_(
                 *(tabla.c[col] == bindparam(update_plan.pk_param_map[col]) for col in update_plan.pk_cols)
             )
+            json_binds = json_passthrough_binds(tabla, update_plan.update_cols)  # P-19: sin doble serialización
             stmt: Update = (
-                update(tabla).where(where_clause).values({col: bindparam(col) for col in update_plan.update_cols})
+                update(tabla)
+                .where(where_clause)
+                .values({col: json_binds.get(col, bindparam(col)) for col in update_plan.update_cols})
             )
             self.__ejecutar_batch_stmt(records_sql, stmt, numero_registros)
 
@@ -667,6 +671,13 @@ class BulkCrud:
             generate_sql_lines=lambda: self.__generar_sql_delete(df, tabla, pk_cols),
             execute=lambda: self.__ejecutar_delete_batch(df, tabla, pk_cols, numero_registros),
         )
+
+    @staticmethod
+    def __insert_stmt(tabla: Table, insert_cols: list[str]) -> Insert:
+        """``insert(tabla)`` con las columnas JSON enlazadas sin volver a serializar (P-19)."""
+        stmt: Insert = insert(tabla)
+        json_binds = json_passthrough_binds(tabla, insert_cols)
+        return stmt.values(json_binds) if json_binds else stmt
 
     def __ejecutar_batch_stmt(self, records: Sequence[Mapping[str, Any]], stmt: Any, numero_registros: int) -> None:
         """Ejecuta un statement de SQLAlchemy por lotes.

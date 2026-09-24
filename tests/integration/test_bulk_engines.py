@@ -10,8 +10,8 @@ saltan. La cuenta necesita CREATE TABLE y DROP TABLE::
 Cada prueba crea una tabla ``zz_util_bbdd_it_<id>`` y la elimina al terminar, incluso si falla.
 
 Regresiones de los hallazgos de .ai/sessions/2026-09-23-performance-audit-bulk/: ``test_insert_and_update_roundtrip``
-cubre P-18 (UPDATE con columna DATETIME en SQL Server + pyodbc) y los dos tests de DELETE cubren P-05 (más de 2100
-parámetros y PK compuesta en SQL Server).
+cubre P-18 (UPDATE con columna DATETIME en SQL Server + pyodbc), los dos tests de DELETE cubren P-05 (más de 2100
+parámetros y PK compuesta en SQL Server) y ``test_json_column_roundtrip`` cubre P-19 (doble serialización de JSON).
 """
 
 from __future__ import annotations
@@ -27,7 +27,21 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sqlalchemy import Column, DateTime, Engine, Float, Integer, MetaData, String, Table, create_engine, func, select
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    Engine,
+    Float,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    create_engine,
+    func,
+    select,
+)
+from sqlalchemy.dialects import postgresql
 
 from util_bbdd.bulk import BulkCrud
 from util_bbdd.bulk._support.validation import normalize_identifier
@@ -167,3 +181,37 @@ def test_delete_with_composite_primary_key(engine: Engine, composite_table: Tabl
     crud.bulk_delete_from_df(df[[k1, k2]].iloc[:20], composite_table.name, generar_sql=False)
 
     assert _count(engine, composite_table) == 30
+
+
+def test_json_column_roundtrip(engine: Engine) -> None:
+    """P-19: INSERT y UPDATE guardan el objeto JSON una sola vez y ``None`` como NULL SQL."""
+    if engine.dialect.name in ("mssql", "oracle"):
+        pytest.skip("SQL Server no tiene tipo JSON; Oracle refleja la columna como NullType (sin procesador)")
+    n = partial(_name, engine=engine)
+    table = Table(
+        n(f"zz_util_bbdd_it_{uuid.uuid4().hex[:8]}"),
+        MetaData(),
+        Column(n("id"), Integer, primary_key=True, autoincrement=False),
+        Column(n("j"), JSON().with_variant(postgresql.JSONB(), "postgresql")),
+    )
+    table.create(engine)
+    try:
+        col_id, col_j = n("id"), n("j")
+        crud = BulkCrud(engine)
+        crud.bulk_insert_from_df(
+            pd.DataFrame({col_id: [1, 2, 3], col_j: [{"k": 1, "n": "ñ"}, None, [1, "x"]]}), table.name, False
+        )
+        with engine.connect() as conn:
+            inserted = dict(conn.execute(select(table.c[col_id], table.c[col_j]).order_by(table.c[col_id])).all())
+            nulls = conn.execute(select(func.count()).where(table.c[col_j].is_(None))).scalar_one()
+        assert inserted == {1: {"k": 1, "n": "ñ"}, 2: None, 3: [1, "x"]}
+        assert nulls == 1
+
+        crud.bulk_update_from_df(pd.DataFrame({col_id: [1, 3], col_j: [None, {"k": 30}]}), table.name, False)
+        with engine.connect() as conn:
+            updated = dict(conn.execute(select(table.c[col_id], table.c[col_j]).order_by(table.c[col_id])).all())
+            nulls = conn.execute(select(func.count()).where(table.c[col_j].is_(None))).scalar_one()
+        assert updated == {1: None, 2: None, 3: {"k": 30}}
+        assert nulls == 2
+    finally:
+        table.drop(engine, checkfirst=True)

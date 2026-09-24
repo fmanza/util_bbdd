@@ -9,10 +9,47 @@ from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import Delete, Insert, Table, Update, and_, delete, text, update
-from sqlalchemy.engine import make_url
+from sqlalchemy import JSON, BindParameter, Delete, Insert, Table, Update, and_, bindparam, delete, text, update
+from sqlalchemy.engine import Dialect, make_url
+from sqlalchemy.types import TypeDecorator, TypeEngine
 
 SqlRecord = dict[str, Any]
+
+
+class PreSerializedJSON(TypeDecorator[Any]):
+    """Tipo de parámetro para columnas JSON cuyo valor ya llega serializado por ``normalize_sql_literal``.
+
+    P-19 (performance-audit de bulk, 2026-09-24): con el tipo ``JSON`` reflejado, SQLAlchemy volvía a serializar el
+    texto (se guardaba un *string* JSON) y convertía ``None`` en el literal JSON ``null`` en lugar de ``NULL`` SQL.
+    Este tipo no procesa el valor, pero conserva el tipo de la columna para el dialecto, de modo que PostgreSQL sigue
+    recibiendo el cast (``::JSONB`` / ``::JSON``).
+    """
+
+    impl = JSON
+    cache_ok = True
+
+    def __init__(self, target: TypeEngine[Any]) -> None:
+        super().__init__()
+        self.target = target
+
+    def load_dialect_impl(self, dialect: Dialect) -> TypeEngine[Any]:
+        return dialect.type_descriptor(self.target)
+
+    def bind_processor(self, dialect: Dialect) -> None:
+        return None
+
+
+def json_passthrough_binds(table: Table, columns: Sequence[str]) -> dict[str, BindParameter[Any]]:
+    """Devuelve ``{columna: bindparam}`` con :class:`PreSerializedJSON` para las columnas JSON de ``columns``.
+
+    Pensado para ``insert(tabla).values(...)`` / ``update(tabla).values(...)``: las demás columnas se enlazan como
+    siempre. Vacío si ninguna columna es de tipo JSON.
+    """
+    return {
+        name: bindparam(name, type_=PreSerializedJSON(table.c[name].type))
+        for name in columns
+        if name in table.c and isinstance(table.c[name].type, JSON)
+    }
 
 
 def generate_sql_filename(*, engine_url: str, table: str, operation: str) -> Path:
@@ -234,6 +271,7 @@ def format_sql_param_value(value: Any) -> str:
 
 
 __all__: list[str] = [
+    "PreSerializedJSON",
     "SqlRecord",
     "build_override_identity_text_stmt",
     "compile_stmt_with_binary_support",
@@ -243,6 +281,7 @@ __all__: list[str] = [
     "generate_insert_sql_override_identity",
     "generate_sql_filename",
     "generate_update_sql",
+    "json_passthrough_binds",
     "should_wrap_identity_insert",
     "wrap_identity_insert_sql",
 ]

@@ -18,6 +18,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **bulk (JSON)**: las columnas de tipo JSON se corrompían en silencio (P-19). `normalize_sql_literal` ya serializa
+  dict/list a texto JSON, y las sentencias construidas desde la tabla reflejada volvían a serializarlo con el tipo
+  `JSON` de SQLAlchemy: se guardaba un *string* JSON en lugar del objeto, y `None` como el literal JSON `null` en lugar
+  de `NULL` SQL. Afectaba a `bulk_update_from_df` en PostgreSQL (`JSON`/`JSONB`), MySQL (`JSON`) y SQLite, y además a
+  `bulk_insert_from_df` / `bulk_insert_from_chunks` en SQLite. Ahora esas columnas se enlazan con un tipo que no vuelve a
+  procesar el valor (conserva el cast `::JSONB` en PostgreSQL). MariaDB (`JSON` = `LONGTEXT`), Oracle y SQL Server no
+  estaban afectados. Los datos ya guardados con el fallo no se corrigen solos.
 - **bulk (SQL Server)**: `bulk_delete_from_df` fallaba en SQL Server (P-05). Con pyodbc, a partir de ~2100 filas daba
   `07002 COUNT field incorrect`: todas las PK del lote (`chunk_size`) iban en un único `IN (...)` y SQL Server admite
   como máximo 2100 parámetros por petición. Con PK compuesta fallaba con cualquier driver, por la sintaxis
