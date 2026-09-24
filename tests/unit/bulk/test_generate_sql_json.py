@@ -31,9 +31,7 @@ def engine(tmp_path: Path) -> Engine:
 
 
 def _run_generated_sql(engine: Engine, folder: Path) -> None:
-    # En SQLite el nombre generado incluye la ruta absoluta de la BD, que prevalece sobre path_sql: el fichero queda
-    # junto a la BD (comportamiento previo, ajeno a P-20). Se busca en todo tmp_path.
-    (sql_file,) = sorted(folder.parent.rglob("*.sql"))
+    (sql_file,) = sorted(folder.glob("*.sql"))  # desde P-24 el fichero queda siempre en path_sql
     raw = engine.raw_connection()
     try:
         raw.driver_connection.executescript(sql_file.read_text(encoding="utf-8"))  # type: ignore[union-attr]

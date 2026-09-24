@@ -86,13 +86,22 @@ def json_passthrough_binds(table: Table, columns: Sequence[str]) -> dict[str, Bi
 
 
 def generate_sql_filename(*, engine_url: str, table: str, operation: str) -> Path:
-    """Genera un nombre de fichero SQL a partir de la URL del engine."""
+    """Genera un nombre de fichero SQL a partir de la URL del engine.
+
+    El prefijo es la base de datos de la URL; si no la hay, ``service_name`` o ``sid`` (Oracle) y, en último caso, el
+    nombre del motor. P-24 (performance-audit de bulk, 2026-09-24): antes lanzaba ``ValueError`` sin base de datos (p.ej.
+    Oracle por ``?service_name=``), y como ``generar_sql=True`` es el valor por defecto rompía ``bulk_insert_from_df``.
+    Se usa solo el último componente de la ruta, con los caracteres no válidos en nombres de fichero sustituidos: en
+    SQLite una ruta absoluta sustituía a ``path_sql`` al unirlas y ``:memory:`` no era válido en Windows.
+    """
     try:
-        db_name: str = make_url(engine_url).database or ""
+        url = make_url(engine_url)
     except Exception as error:
         raise ValueError(f"No se pudo extraer nombre de BD de engine.url: {engine_url}") from error
-    if not db_name:
-        raise ValueError(f"No se pudo extraer nombre de BD de engine.url: {engine_url}")
+    raw_name = url.database or url.query.get("service_name") or url.query.get("sid") or url.get_backend_name()
+    if isinstance(raw_name, tuple):  # parámetros de query repetidos
+        raw_name = raw_name[0]
+    db_name: str = re.sub(r'[<>:"/\\|?*]', "_", Path(str(raw_name)).name) or url.get_backend_name()
 
     timestamp: str = datetime.now().strftime("%Y%m%d_%H%M%S")
     return Path(f"{db_name}-{table}-{operation.lower()}_{timestamp}.sql")

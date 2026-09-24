@@ -34,6 +34,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **bulk (generar_sql)**: el nombre del fichero SQL generado fallaba o quedaba fuera de `path_sql` (P-24). Sin base de
+  datos en la URL (p.ej. Oracle por `?service_name=...`), `generar_sql=True`, el valor por defecto, lanzaba `ValueError`,
+  así que `bulk_insert_from_df(df, tabla)` fallaba. Ahora el prefijo es la base de datos, o si falta `service_name`/`sid`,
+  o el nombre del motor. Además se usa solo el último componente de la ruta, con los caracteres no válidos sustituidos:
+  en SQLite con ruta absoluta el fichero quedaba junto a la BD en lugar de en `path_sql`, y `sqlite:///:memory:` daba un
+  nombre inválido en Windows. Con URLs normales el nombre no cambia.
+
 - **bulk (generar_sql)**: el SQL generado con `generar_sql=True` (valor por defecto) duplicaba **todos** los `%` en
   PostgreSQL (psycopg/psycopg2) y MySQL/MariaDB (PyMySQL/mysqlclient) (P-23). Al ejecutar el fichero, `'a%b'` se guardaba
   como `'a%%b'`. SQLAlchemy escapa `%` con paramstyle `format`/`pyformat` porque supone que el texto pasará por el

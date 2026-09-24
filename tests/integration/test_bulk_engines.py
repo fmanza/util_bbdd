@@ -390,7 +390,6 @@ def test_generated_sql_with_json_column(engine: Engine, tmp_path: Path) -> None:
         BulkCrud(engine).bulk_insert_from_df(
             pd.DataFrame({col_id: [1, 2, 3], col_j: docs}), table.name, generar_sql=True, path_sql=tmp_path / "sql"
         )
-        # En SQLite el fichero queda junto a la BD (el nombre incluye su ruta absoluta): se busca en todo tmp_path.
         (sql_file,) = sorted(tmp_path.rglob("*.sql"))
         raw = engine.raw_connection()
         try:
@@ -424,8 +423,6 @@ def _execute_generated_sql(engine: Engine, root: Path) -> None:
 
 def test_generated_sql_keeps_percent_signs(engine: Engine, tmp_path: Path) -> None:
     """P-23: al ejecutar el SQL generado, los ``%`` de los datos no se duplican (INSERT y UPDATE)."""
-    if engine.dialect.name == "oracle" and not engine.url.database:
-        pytest.skip("P-24: generar_sql no admite URLs de Oracle sin nombre de BD (p.ej. ?service_name=...)")
     n = partial(_name, engine=engine)
     table = Table(
         n(f"zz_util_bbdd_it_{uuid.uuid4().hex[:8]}"),
