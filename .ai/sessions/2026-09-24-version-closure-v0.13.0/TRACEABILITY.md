@@ -93,7 +93,6 @@
   - no materializar todo el DataFrame: trabajar por bloques en `__blocks_transaction`.
 
 ## Veredicto final
-Veredicto: CLOSED (pendiente del commit `release: v0.13.0 …`, a petición del usuario)
+Veredicto: CLOSED — commits `0faf1fa` (release) y `c848e7b` (docs(ai)); tag anotado `v0.13.0` sobre `0faf1fa`; push de `develop` y del tag a `origin`
 Pendientes al cierre:
-- Commit de release, tag `v0.13.0` y push (`develop` tiene 23 commits sin publicar).
 - Contenedores del banco (`docker compose -f docker-compose.bench.yml down -v`).
