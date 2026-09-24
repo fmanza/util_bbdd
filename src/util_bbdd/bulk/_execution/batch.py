@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import uuid
 
 from collections.abc import Iterator, Mapping, Sequence
@@ -11,12 +12,19 @@ from typing import Any, Protocol
 import pandas as pd
 
 from sqlalchemy import Column, Delete, Engine, Insert, MetaData, Table, and_, bindparam, delete, insert, text, update
+from sqlalchemy.exc import DBAPIError
 
 from .._support.sql_helpers import json_passthrough_binds
 
 # ---------------------------------------------------------------------------
 # FA — fast_executemany para SQL Server / pyodbc
 # ---------------------------------------------------------------------------
+
+_log = logging.getLogger(__name__)
+
+# Errores de MySQL/MariaDB por falta de privilegio al crear la tabla temporal del UPDATE por staging:
+# 1044 (acceso denegado a la base de datos), 1142 (comando denegado en la tabla), 1227 (privilegio necesario).
+_MYSQL_PRIVILEGE_DENIED_ERRNOS: frozenset[int] = frozenset({1044, 1142, 1227})
 
 _DEFAULT_SQL_BASED_DELETE_DIALECTS: frozenset[str] = frozenset({"mysql", "mariadb", "mssql", "hsqldb"})
 # SQL Server admite 2100 parámetros por petición (SQLAlchemy usa 2099 en insertmanyvalues); se deja margen.
@@ -415,9 +423,13 @@ class MySQLStagingUpdateStrategy:
     331 s en MariaDB 11.4).
 
     Misma semántica que el UPDATE por executemany: solo actualiza filas existentes, una PK nula no actualiza nada y,
-    si una PK se repite en el lote, gana la última aparición. Requiere el privilegio ``CREATE TEMPORARY TABLES``.
-    Es la vía por defecto de ``BulkCrud`` en MySQL/MariaDB (``update_via_staging=True``).
-    Ignora ``stmt``: la sentencia se construye a partir de ``table``, ``pk_cols`` y ``update_cols``.
+    si una PK se repite en el lote, gana la última aparición. Es la vía por defecto de ``BulkCrud`` en MySQL/MariaDB
+    (``update_via_staging=True``).
+
+    Requiere el privilegio ``CREATE TEMPORARY TABLES``. Si el servidor lo deniega al crear la tabla temporal
+    (errno 1044/1142/1227), registra un WARNING, marca ``staging_denied`` y ejecuta ``stmt`` (el UPDATE por fila)
+    para ese lote y los siguientes. Un fallo de CREATE no aborta la transacción en MySQL/MariaDB, así que se
+    mantiene la atomicidad. Cualquier otro error se propaga.
     """
 
     def __init__(
@@ -432,6 +444,8 @@ class MySQLStagingUpdateStrategy:
         self._pk_cols: list[str] = list(pk_cols)
         self._update_cols: list[str] = list(update_cols)
         self._loader: InsertExecutionStrategyProtocol = loader
+        #: True si el servidor denegó la tabla temporal; a partir de ahí se usa el UPDATE por fila.
+        self.staging_denied: bool = False
 
     def execute(
         self,
@@ -440,8 +454,10 @@ class MySQLStagingUpdateStrategy:
         stmt: Any,
         records: Sequence[Mapping[str, Any]],
     ) -> None:
-        del stmt
         if not records:
+            return
+        if self.staging_denied:
+            connection.execute(stmt, list(records))
             return
         cols: list[str] = [*self._pk_cols, *self._update_cols]
         # Última aparición por PK, como el executemany secuencial (el dict conserva el orden de primera aparición).
@@ -456,7 +472,21 @@ class MySQLStagingUpdateStrategy:
             prefixes=["TEMPORARY"],
         )
         drop_sql = f"DROP TEMPORARY TABLE IF EXISTS {connection.dialect.identifier_preparer.format_table(staging)}"
-        staging.create(connection)
+        try:
+            staging.create(connection)
+        except DBAPIError as exc:
+            if _mysql_errno(exc) not in _MYSQL_PRIVILEGE_DENIED_ERRNOS:
+                raise
+            self.staging_denied = True
+            _log.warning(
+                "update_via_staging: el servidor deniega CREATE TEMPORARY TABLES (%s). Se usa el UPDATE fila a fila, "
+                "mucho más lento, en '%s'. Concede el privilegio CREATE TEMPORARY TABLES o pasa "
+                "BulkCrud(..., update_via_staging=False) para no intentarlo.",
+                exc.orig,
+                self._table.name,
+            )
+            connection.execute(stmt, list(records))
+            return
         try:
             json_binds = json_passthrough_binds(staging, cols)
             load_stmt = insert(staging).values(json_binds) if json_binds else insert(staging)
@@ -472,6 +502,16 @@ class MySQLStagingUpdateStrategy:
                 connection.execute(text(drop_sql))
             raise
         connection.execute(text(drop_sql))
+
+
+def _mysql_errno(exc: DBAPIError) -> int | None:
+    """Código de error MySQL/MariaDB de ``exc`` (``orig.errno`` en mariadb; ``orig.args[0]`` en PyMySQL)."""
+    orig: Any = exc.orig
+    errno = getattr(orig, "errno", None)
+    if isinstance(errno, int):
+        return errno
+    args = getattr(orig, "args", ())
+    return args[0] if args and isinstance(args[0], int) else None
 
 
 # ---------------------------------------------------------------------------

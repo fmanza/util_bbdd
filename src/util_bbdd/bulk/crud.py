@@ -165,8 +165,9 @@ class BulkCrud:
             update_via_staging: Solo MySQL/MariaDB. Si True, ``bulk_update_from_df`` carga cada lote en una tabla
                 temporal y aplica un único ``UPDATE ... JOIN`` en lugar de un UPDATE por fila. Medido de extremo a
                 extremo: ~12,5× más rápido (1M filas en ~28 s frente a ~330–376 s). Mismo resultado final. Requiere
-                el privilegio ``CREATE TEMPORARY TABLES``: sin él, pasar False para usar el UPDATE fila a fila.
-                Por defecto True. Ignorado en otros motores.
+                el privilegio ``CREATE TEMPORARY TABLES``: si el servidor lo deniega, se registra un WARNING y se
+                usa el UPDATE fila a fila (más lento) en esa y las siguientes llamadas de la instancia. Pasar False
+                para no intentarlo. Por defecto True. Ignorado en otros motores.
 
         Raises:
             ValueError: Si engine es None.
@@ -668,6 +669,9 @@ class BulkCrud:
                     loader=executor.insert_strategy,
                 )
                 executor.execute(records=records_sql, stmt=stmt, strategy=staging)
+                if staging.staging_denied:
+                    # Sin privilegio: no volver a intentarlo en esta instancia (el aviso ya quedó en el log).
+                    self._update_via_staging = False
                 return
             self.__ejecutar_batch_stmt(records_sql, stmt, numero_registros)
 

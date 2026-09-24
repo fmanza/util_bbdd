@@ -6,6 +6,8 @@ La equivalencia de resultados con el UPDATE por executemany se verifica contra s
 
 from __future__ import annotations
 
+import logging
+
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
@@ -15,6 +17,7 @@ import pytest
 
 from sqlalchemy import Column, Integer, MetaData, String, Table, create_engine, text
 from sqlalchemy.dialects.mysql.pymysql import MySQLDialect_pymysql
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.sql.dml import Update
 from sqlalchemy.sql.elements import TextClause
 
@@ -117,3 +120,66 @@ def test_flag_is_ignored_outside_mysql_family(tmp_path: Path) -> None:
             (1, 10, "X"),
             (2, 20, "Y"),
         ]
+
+
+class _FakeDriverError(Exception):
+    """Excepción del driver con el errno en ``args[0]`` (como PyMySQL)."""
+
+
+def _denied(errno: int) -> DBAPIError:
+    return DBAPIError("CREATE TEMPORARY TABLE ...", {}, _FakeDriverError(errno, "Access denied"))
+
+
+def test_denied_temporary_table_falls_back_to_row_update_and_logs_once(caplog: pytest.LogCaptureFixture) -> None:
+    connection, loader = _connection(), MagicMock()
+    connection._run_ddl_visitor.side_effect = _denied(1044)
+    strategy = MySQLStagingUpdateStrategy(table=_table(), pk_cols=["id"], update_cols=["a"], loader=loader)
+    update_stmt = MagicMock(name="update_stmt")
+    batch_1, batch_2 = [{"id": 1, "a": 1, "pk_id": 1}], [{"id": 2, "a": 2, "pk_id": 2}]
+
+    with caplog.at_level(logging.WARNING, logger="util_bbdd.bulk._execution.batch"):
+        strategy.execute(connection=connection, stmt=update_stmt, records=batch_1)
+        strategy.execute(connection=connection, stmt=update_stmt, records=batch_2)
+
+    assert strategy.staging_denied is True
+    loader.execute.assert_not_called()
+    assert connection._run_ddl_visitor.call_count == 1  # el segundo lote no reintenta la temporal
+    assert [call.args for call in connection.execute.call_args_list] == [(update_stmt, batch_1), (update_stmt, batch_2)]
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "CREATE TEMPORARY TABLES" in warnings[0].getMessage()
+    assert "update_via_staging=False" in warnings[0].getMessage()
+
+
+@pytest.mark.parametrize("errno", [1142, 1227])
+def test_other_privilege_errnos_also_fall_back(errno: int) -> None:
+    connection = _connection()
+    connection._run_ddl_visitor.side_effect = _denied(errno)
+    strategy = MySQLStagingUpdateStrategy(table=_table(), pk_cols=["id"], update_cols=["a"], loader=MagicMock())
+
+    strategy.execute(connection=connection, stmt="update_stmt", records=[{"id": 1, "a": 1}])
+
+    assert strategy.staging_denied is True
+
+
+def test_errno_attribute_is_recognised_as_in_mariadb_connector() -> None:
+    orig = _FakeDriverError("Access denied")
+    orig.errno = 1044  # type: ignore[attr-defined]
+    connection = _connection()
+    connection._run_ddl_visitor.side_effect = DBAPIError("CREATE ...", {}, orig)
+    strategy = MySQLStagingUpdateStrategy(table=_table(), pk_cols=["id"], update_cols=["a"], loader=MagicMock())
+
+    strategy.execute(connection=connection, stmt="update_stmt", records=[{"id": 1, "a": 1}])
+
+    assert strategy.staging_denied is True
+
+
+def test_other_create_errors_are_not_hidden() -> None:
+    connection = _connection()
+    connection._run_ddl_visitor.side_effect = _denied(1064)  # error de sintaxis, no de privilegio
+    strategy = MySQLStagingUpdateStrategy(table=_table(), pk_cols=["id"], update_cols=["a"], loader=MagicMock())
+
+    with pytest.raises(DBAPIError):
+        strategy.execute(connection=connection, stmt="update_stmt", records=[{"id": 1, "a": 1}])
+    assert strategy.staging_denied is False
+    connection.execute.assert_not_called()

@@ -54,9 +54,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   estado final de la tabla es idéntico al del UPDATE por fila, verificado en MySQL 8.4 y
   MariaDB 11.4 con PyMySQL y `mariadbconnector`: tipos variados, JSON, NULL y PK repetidas (gana la última). Respeta
   `bulk_session` (sin commit implícito: DDL `TEMPORARY`) y `commit_every_n_chunks`. Ignorado en otros motores.
-  **Cambio de comportamiento:** requiere el privilegio `CREATE TEMPORARY TABLES`. Sin él, `bulk_update_from_df` falla
-  en MySQL/MariaDB al crear la tabla temporal: pasa `BulkCrud(..., update_via_staging=False)` para volver al UPDATE fila
-  a fila.
+  Requiere el privilegio `CREATE TEMPORARY TABLES`. Si el servidor lo deniega (errno 1044/1142/1227), `BulkCrud` vuelve
+  solo al UPDATE fila a fila, sin romper la transacción, y registra un único WARNING en el logger
+  `util_bbdd.bulk._execution.batch` con la causa y cómo evitarlo. Esa instancia no vuelve a intentarlo.
+  `BulkCrud(..., update_via_staging=False)` desactiva el intento.
 - **scripts**: `scripts/bench_bulk.py`, banco de pruebas de rendimiento de `BulkCrud` (INSERT/UPDATE/DELETE)
   contra motores reales (SQLite, PostgreSQL, MySQL, MariaDB, SQL Server, Oracle). Las URLs se leen de
   `UTIL_BBDD_BENCH_<MOTOR>_URL` (o `UTIL_BBDD_TEST_<MOTOR>_URL`) y los motores sin URL se saltan. Verifica cada

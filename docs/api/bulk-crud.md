@@ -45,7 +45,7 @@ flowchart TD
 | `enable_fast_executemany` | `bool` | Si `True` (default) y el engine es `mssql+pyodbc`, activa `fast_executemany` en el dialecto, igual que `create_engine(..., fast_executemany=True)` (INSERT ~12× más rápido). Sin efecto en otros motores | Default `True` |
 | `insert_resolver` | `InsertStrategyResolver \| None` | Estrategia INSERT personalizada | Default `None` (resolución automática por motor) |
 | `commit_every_n_chunks` | `int \| None` | Commit cada N lotes en lugar de una sola transacción. La carga deja de ser atómica | Default `None` (una sola transacción) |
-| `update_via_staging` | `bool` | Solo MySQL/MariaDB: `bulk_update_from_df` carga cada lote en una tabla temporal y aplica un único `UPDATE ... JOIN` en lugar de un UPDATE por fila. Mismo resultado final; requiere el privilegio `CREATE TEMPORARY TABLES` (sin él, pasar `False`). Ignorado en otros motores | Default `True` |
+| `update_via_staging` | `bool` | Solo MySQL/MariaDB: `bulk_update_from_df` carga cada lote en una tabla temporal y aplica un único `UPDATE ... JOIN` en lugar de un UPDATE por fila. Mismo resultado final; requiere el privilegio `CREATE TEMPORARY TABLES`; si el servidor lo deniega, vuelve al UPDATE fila a fila y registra un WARNING (una vez por instancia). Ignorado en otros motores | Default `True` |
 | `df` | `pd.DataFrame` | Datos fuente | No puede estar vacío; columnas deben coincidir con tabla destino |
 | `tabla_destino` | `str` | Nombre de la tabla en BD | Debe existir; se normaliza mayúsculas/minúsculas por motor |
 | `generar_sql` | `bool` | Escribir el SQL generado en fichero | Si `True`, `path_sql` es obligatorio |

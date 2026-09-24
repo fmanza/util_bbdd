@@ -34,7 +34,7 @@ el tiempo total.
 |---|---|---|---|
 | `chunk_size` | `BulkCrud` / `ParallelBulkLoader` | Filas por lote (default 5000) | Bajar a ≤500 si el destino MariaDB tiene `TEXT`/`JSON` (`max_allowed_packet`) |
 | `commit_every_n_chunks` | `BulkCrud` / `ParallelBulkLoader` | Commit cada N lotes; acota el undo log | **Crítico** en MariaDB/MySQL con millones de filas (evita degradación exponencial) |
-| `update_via_staging` | `BulkCrud` | UPDATE vía tabla temporal + un `UPDATE ... JOIN` por lote en lugar de un UPDATE por fila (~12,5×) | Activo por defecto en MySQL/MariaDB; requiere `CREATE TEMPORARY TABLES` (sin él, `update_via_staging=False`) |
+| `update_via_staging` | `BulkCrud` | UPDATE vía tabla temporal + un `UPDATE ... JOIN` por lote en lugar de un UPDATE por fila (~12,5×) | Activo por defecto en MySQL/MariaDB; requiere `CREATE TEMPORARY TABLES` (sin él, vuelve al UPDATE fila a fila con un WARNING) |
 | `enable_fast_executemany` | `BulkCrud` / `ParallelBulkLoader` | Activa `fast_executemany` en el dialecto pyodbc (como `create_engine(..., fast_executemany=True)`) | SQL Server + ODBC 17/18: INSERT ~12× más rápido |
 | Vía nativa por motor | Automática | COPY / multi-row / fast_executemany (tabla abajo) | Siempre activa con `BulkCrud(insert_resolver=None)` (default) |
 | Carga paralela | `ParallelBulkLoader` | Inserta particiones disjuntas en paralelo, una `BulkCrud` por hilo | Tablas muy grandes; el pool debe tener capacidad ≥ `max_workers` |
@@ -222,4 +222,5 @@ python -m pytest tests/integration/test_bulk_engines.py
 | `bench_bulk.py` salta un motor con `SKIP ... sin URL` | Falta `UTIL_BBDD_BENCH_<MOTOR>_URL` (y `UTIL_BBDD_TEST_<MOTOR>_URL`) | Definir la URL del servidor de pruebas |
 | `bench_bulk.py` informa `no se pudo preparar el motor` | Driver no instalado, servidor caído o sin permiso de CREATE/DROP TABLE | Revisar `environment.json`; el resto de motores se mide igualmente |
 | `bulk_update_from_df` falla en SQL Server + pyodbc con `HY104 Invalid precision value` | Versión anterior a la corrección de P-18: tabla con columna `DATETIME` y `fast_executemany` activado a espaldas de SQLAlchemy | Actualizar; en versiones anteriores, crear el engine con `create_engine(..., fast_executemany=True)` o usar `BulkCrud(..., enable_fast_executemany=False)` |
+| WARNING `update_via_staging: el servidor deniega CREATE TEMPORARY TABLES` y UPDATE lento en MySQL/MariaDB | El usuario no tiene el privilegio `CREATE TEMPORARY TABLES`; `BulkCrud` ha vuelto al UPDATE fila a fila | `GRANT CREATE TEMPORARY TABLES ON <bd>.* TO <usuario>` para recuperar el UPDATE rápido (~12,5×), o `BulkCrud(..., update_via_staging=False)` para no intentarlo |
 | DELETE falla en SQL Server con `07002 COUNT field incorrect` o error de sintaxis | Versión anterior a la corrección de P-05: más de 2100 parámetros por lote (pyodbc) o PK compuesta | Actualizar; en versiones anteriores, `BulkCrud(..., chunk_size=2000)` evita el límite de parámetros con PK simple |
