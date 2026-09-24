@@ -44,7 +44,7 @@
 
 | ID | Antes | Ahora | Evidencia |
 |---|---|---|---|
-| P-01 | ALTA · confirmada en código | **CONFIRMADA — CRÍTICA** | INSERT con `create_engine(fast_executemany=True)`: 11,55× (1K), 11,83× (10K), 11,93× (100K), **12,06× (1M: 245,5 s → 20,4 s)**. Además corrige P-18: el UPDATE pasa de fallar a 33.500 filas/s. |
+| P-01 | ALTA · confirmada en código | **CORREGIDA** (hotfix 2026-09-24; antes CONFIRMADA — CRÍTICA) | INSERT con `create_engine(fast_executemany=True)`: 11,55× (1K), 11,83× (10K), 11,93× (100K), **12,06× (1M: 245,5 s → 20,4 s)**. Además corrige P-18: el UPDATE pasa de fallar a 33.500 filas/s. |
 | P-02 | CRÍTICA · hipótesis contra servidor | **CONFIRMADA** | INSERT con executemany del driver: MySQL 1,85× (100K) y 1,90× (1M); MariaDB 1,93× (100K) y 2,05× (1M). A 1K es ruido (0,67×–1,18×). UPDATE y DELETE sin cambios (esperado: la variante solo afecta al INSERT). |
 | P-04 | ALTA · hipótesis | **CONFIRMADA** | UPDATE a ~2.600–2.950 filas/s en MySQL/MariaDB y 1.800 en SQL Server con pymssql, frente a 35.000 en Oracle, 24.700 en PostgreSQL y 33.500 en SQL Server con pyodbc + P-01. 1M filas: 339–556 s frente a 28–41 s. |
 | P-05 | CRÍTICA · confirmada en código | **CONFIRMADA (ambas partes)** | Sintaxis de PK compuesta: falla con pymssql y con pyodbc. Límite de parámetros: con pyodbc el DELETE de ≥ 10K filas falla con `07002 COUNT field incorrect or syntax error` (lotes de 5000 parámetros); con pymssql no aplica (sustitución en cliente). Tests `xfail(strict=True)` con los dos drivers. |
@@ -71,8 +71,8 @@ Los NULL en la primera fila no influyen: con A, F y S el UPDATE funciona con y s
 - Banco: UPDATE `baseline` falla en 10 de 10 ejecuciones (1K a 1M).
 - Test de integración `test_insert_and_update_roundtrip[mssql]`: falla con pyodbc (marcado `xfail(strict=True)`, P-18) y pasa con pymssql.
 
-**Confirmación**: CONFIRMADA.
-**Remediación propuesta**: la de P-01. Que `BulkCrud` no dependa del listener y use fast_executemany a través de SQLAlchemy (`create_engine(fast_executemany=True)` o una estrategia con cursor crudo y `setinputsizes`). Ambas medidas funcionan. Mientras tanto, los usuarios pueden:
+**Confirmación**: CONFIRMADA. **CORREGIDA** en la sesión `2026-09-24-hotfix-p18-mssql-fast-executemany`: `baseline` con pyodbc hace el UPDATE de 100K en 2,98 s y el INSERT en 2,03 s.
+**Remediación propuesta** (aplicada): la de P-01. Que `BulkCrud` no dependa del listener y use fast_executemany a través de SQLAlchemy (`create_engine(fast_executemany=True)` o una estrategia con cursor crudo y `setinputsizes`). Ambas medidas funcionan. Mientras tanto, los usuarios pueden:
 - crear el engine con `create_engine(..., fast_executemany=True)`, o
 - usar `BulkCrud(..., enable_fast_executemany=False)`.
 
@@ -95,7 +95,7 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 
 ## Prioridad revisada (por impacto medido)
 
-1. **P-01 + P-18**: fast_executemany a través de SQLAlchemy en `mssql+pyodbc`. Corrige un fallo funcional (UPDATE con DATETIME) y acelera el INSERT 12×. Cambio pequeño.
+1. ~~**P-01 + P-18**~~: corregidos (hotfix 2026-09-24).
 2. **P-05**: hotfix de DELETE en SQL Server (PK compuesta con ambos drivers; límite de parámetros con pyodbc).
 3. **P-04**: UPDATE vía tabla temporal en MySQL/MariaDB y SQL Server con pymssql (−300 a −500 s por millón de filas en local).
 4. **P-02**: executemany nativo en MySQL/MariaDB (INSERT ~2×, cambio de una línea). Quick win confirmado.
