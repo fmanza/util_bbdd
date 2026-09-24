@@ -1,0 +1,5 @@
+engine,driver,variant,op,rows,repeat,seconds,rows_per_second,ok,error,peak_mb
+mysql,pymysql,baseline,update,1000000,1,375.9614,2659.8,True,,
+mysql,pymysql,p04-mysql-staging-update,update,1000000,1,29.4811,33920.1,True,,
+mariadb,pymysql,baseline,update,1000000,1,331.4016,3017.5,True,,
+mariadb,pymysql,p04-mysql-staging-update,update,1000000,1,27.0893,36915.0,True,,

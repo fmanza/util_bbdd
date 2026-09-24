@@ -7,7 +7,7 @@
 - Resultado de verificación:
   - 6 motores (SQL Server con pymssql): 240/240 mediciones con verificación SQL correcta (96 combinaciones motor × operación × tamaño × variante), 0 errores.
   - SQL Server con pyodbc: 33 mediciones correctas, 17 errores esperados y reproducibles: UPDATE `baseline` por P-18; DELETE ≥ 10K por P-05.
-- Datos completos:
+- Datos completos (P-02 y P-04 aplicados: `baseline/*_p02_*`, `baseline/*_p04_*`):
   - `baseline/summary_{small,1m}.md`, `baseline/results_{small,1m}.csv`, `baseline/environment_{small,1m}.json`
   - SQL Server con pyodbc: `baseline/*_mssql_pyodbc_{small,1m}.*`
 
@@ -46,7 +46,7 @@
 |---|---|---|---|
 | P-01 | ALTA · confirmada en código | **CORREGIDA** (hotfix 2026-09-24; antes CONFIRMADA — CRÍTICA) | INSERT con `create_engine(fast_executemany=True)`: 11,55× (1K), 11,83× (10K), 11,93× (100K), **12,06× (1M: 245,5 s → 20,4 s)**. Además corrige P-18: el UPDATE pasa de fallar a 33.500 filas/s. |
 | P-02 | CRÍTICA · hipótesis contra servidor | **APLICADA** (refactor 2026-09-24, solo PyMySQL; 1M: MySQL 2,09×, MariaDB 2,09×) | INSERT con executemany del driver: MySQL 1,85× (100K) y 1,90× (1M); MariaDB 1,93× (100K) y 2,05× (1M). A 1K es ruido (0,67×–1,18×). UPDATE y DELETE sin cambios (esperado: la variante solo afecta al INSERT). |
-| P-04 | ALTA · hipótesis | **CONFIRMADA** | UPDATE a ~2.600–2.950 filas/s en MySQL/MariaDB y 1.800 en SQL Server con pymssql, frente a 35.000 en Oracle, 24.700 en PostgreSQL y 33.500 en SQL Server con pyodbc + P-01. 1M filas: 339–556 s frente a 28–41 s. |
+| P-04 | ALTA · hipótesis | **APLICADA, activa por defecto** (`update_via_staging=True`, 2026-09-24): 1M filas MySQL 376,0 s → 29,5 s (12,8×), MariaDB 331,4 s → 27,1 s (12,2×); antes CONFIRMADA | UPDATE a ~2.600–2.950 filas/s en MySQL/MariaDB y 1.800 en SQL Server con pymssql, frente a 35.000 en Oracle, 24.700 en PostgreSQL y 33.500 en SQL Server con pyodbc + P-01. 1M filas: 339–556 s frente a 28–41 s. |
 | P-05 | CRÍTICA · confirmada en código | **CORREGIDA** (hotfix 2026-09-24; DELETE 1M con pyodbc en 8,9 s; antes CONFIRMADA en ambas partes) | Sintaxis de PK compuesta: falla con pymssql y con pyodbc. Límite de parámetros: con pyodbc el DELETE de ≥ 10K filas falla con `07002 COUNT field incorrect or syntax error` (lotes de 5000 parámetros); con pymssql no aplica (sustitución en cliente). Tests `xfail(strict=True)` con los dos drivers. |
 | P-03 | ALTA | Coherente | SQLite 1M INSERT 13,7 s (13,3 s en la medición del 23-09): la preparación en Python sigue siendo el suelo del resto de motores. |
 
@@ -127,7 +127,7 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 0b. **P-20** (MEDIA, previo): `generar_sql=True` falla con `CompileError` en tablas con columnas JSON ("No literal value renderer ... with datatype JSON"). Falla con error visible, sin corromper datos. Detectado durante el hotfix de P-19.
 1. ~~**P-01 + P-18**~~: corregidos (hotfix 2026-09-24).
 2. ~~**P-05**~~: corregido (hotfix 2026-09-24).
-3. **P-04**: UPDATE vía tabla temporal en MySQL/MariaDB y SQL Server con pymssql (−300 a −500 s por millón de filas en local).
+3. ~~**P-04**~~: aplicado en MySQL/MariaDB, activo por defecto (`update_via_staging=True`, ~12,5×). SQL Server con pymssql queda fuera: su cuello de botella es el INSERT (P-17).
 4. ~~**P-02**~~: aplicado (refactor 2026-09-24). No era un cambio de una línea: `DefaultInsertStrategy` habría serializado dos veces las columnas JSON de MySQL, y el conector `mariadb` rechaza tipos mezclados por columna.
 5. **P-17**: `bulk_copy` para SQL Server + pymssql (INSERT 6,7×).
 6. **P-03**: normalización por columna (todos los motores; suelo de ~8 s por millón de filas).

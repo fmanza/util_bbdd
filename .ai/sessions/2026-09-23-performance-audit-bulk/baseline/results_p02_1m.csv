@@ -1,0 +1,5 @@
+engine,driver,variant,op,rows,repeat,seconds,rows_per_second,ok,error,peak_mb
+mysql,pymysql,baseline,insert,1000000,1,26.2891,38038.6,True,,
+mysql,pymysql,mysql-multirow-legacy,insert,1000000,1,54.8561,18229.5,True,,
+mariadb,pymysql,baseline,insert,1000000,1,24.0376,41601.5,True,,
+mariadb,pymysql,mysql-multirow-legacy,insert,1000000,1,50.3523,19860.1,True,,
