@@ -66,3 +66,23 @@ def test_generated_file_lands_in_path_sql_for_absolute_sqlite(tmp_path: Path) ->
 
     assert len(list(out.glob("*.sql"))) == 1
     assert list((tmp_path / "db").glob("*.sql")) == []
+
+
+@pytest.mark.parametrize(
+    ("table", "expected"),
+    [
+        ("users", "users"),
+        ("ventas.pedidos", "ventas.pedidos"),  # esquema.tabla, sin cambios
+        ("a/b", "a_b"),
+        (r"..\..\fuera", ".._.._fuera"),
+        ("dbo:orders*", "dbo_orders_"),
+        ("", "tabla"),
+    ],
+)
+def test_table_part_is_sanitized(table: str, expected: str, tmp_path: Path) -> None:
+    """Hallazgo 6 de la auditoría de bulk (2026-09-24): la tabla entraba sin sanear en el nombre del fichero."""
+    name = generate_sql_filename(engine_url="postgresql+psycopg://u:p@h:5432/bench", table=table, operation="INSERT")
+
+    assert re.fullmatch(rf"bench-{re.escape(expected)}-insert_\d{{8}}_\d{{6}}\.sql", str(name))
+    assert name.parent == Path(".")
+    assert (tmp_path / name).parent == tmp_path  # nunca fuera de path_sql

@@ -57,6 +57,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **bulk (`sync_pk_sequences`, Oracle)**: nunca funcionaba con columnas identity (12c+): la secuencia `ISEQ$$_n` no
   admite `ALTER SEQUENCE` (`ORA-32793`). Ahora se usa `ALTER TABLE … MODIFY (col GENERATED … AS IDENTITY (START WITH n))`,
   conservando el tipo (`ALWAYS`, `BY DEFAULT`, `BY DEFAULT ON NULL`) y las demás opciones, como `INCREMENT BY`.
+- **bulk (`generar_sql=True`)**: el nombre de la tabla entraba sin sanear en el nombre del fichero: con `/` o `\` se
+  creaba en otra carpeta (`..` incluido) y con `:` u otros caracteres no válidos fallaba en Windows. Se sanea como el
+  de la base de datos.
 - **connection (Oracle)**: `PoolConnection.__del__` lanzaba `AttributeError` si el constructor había fallado antes de
   inicializar el objeto (p.ej. sin `oracledb`). Python lo emitía como excepción ignorada en el destructor y pytest como
   `PytestUnraisableExceptionWarning`, el único aviso de la suite. Ahora no hace nada en ese caso.

@@ -96,6 +96,9 @@ def generate_sql_filename(*, engine_url: str, table: str, operation: str) -> Pat
     Oracle por ``?service_name=``), y como ``generar_sql=True`` es el valor por defecto rompía ``bulk_insert_from_df``.
     Se usa solo el último componente de la ruta, con los caracteres no válidos en nombres de fichero sustituidos: en
     SQLite una ruta absoluta sustituía a ``path_sql`` al unirlas y ``:memory:`` no era válido en Windows.
+
+    El nombre de la tabla se sanea igual (auditoría de bulk 2026-09-24, hallazgo 6): con ``/`` o ``\\`` el fichero se
+    creaba en otra carpeta (``..`` incluido) y con ``:`` u otros caracteres no válidos fallaba en Windows.
     """
     try:
         url = make_url(engine_url)
@@ -104,10 +107,16 @@ def generate_sql_filename(*, engine_url: str, table: str, operation: str) -> Pat
     raw_name = url.database or url.query.get("service_name") or url.query.get("sid") or url.get_backend_name()
     if isinstance(raw_name, tuple):  # parámetros de query repetidos
         raw_name = raw_name[0]
-    db_name: str = re.sub(r'[<>:"/\\|?*]', "_", Path(str(raw_name)).name) or url.get_backend_name()
+    db_name: str = _safe_filename_part(Path(str(raw_name)).name) or url.get_backend_name()
+    table_part: str = _safe_filename_part(table) or "tabla"
 
     timestamp: str = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return Path(f"{db_name}-{table}-{operation.lower()}_{timestamp}.sql")
+    return Path(f"{db_name}-{table_part}-{operation.lower()}_{timestamp}.sql")
+
+
+def _safe_filename_part(value: str) -> str:
+    """Sustituye por ``_`` los caracteres no válidos en nombres de fichero, incluidos los separadores de ruta."""
+    return re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", value)
 
 
 def _json_as_string_literals(table: TableClause, values: SqlRecord) -> SqlRecord:
