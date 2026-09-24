@@ -997,11 +997,11 @@ class BulkCrud:
 
         pg_disabled = False
         mssql_constraints_disabled = False
-        mssql_indexes_disabled = False
+        indexes_disabled = False
 
         def restore() -> None:
             if disable_indexes:
-                self.__maintenance_enable_indexes(conn, dialect, quoted_name, mssql_indexes_disabled)
+                self.__maintenance_enable_indexes(conn, dialect, quoted_name, indexes_disabled)
             if disable_constraints:
                 self.__maintenance_enable_constraints(
                     conn, dialect, quoted_name, pg_disabled, mssql_constraints_disabled
@@ -1013,7 +1013,7 @@ class BulkCrud:
                     conn, dialect, quoted_name, tabla, tabla_destino
                 )
             if disable_indexes:
-                mssql_indexes_disabled = self.__maintenance_disable_indexes(conn, dialect, quoted_name, tabla_destino)
+                indexes_disabled = self.__maintenance_disable_indexes(conn, dialect, quoted_name, tabla, tabla_destino)
             self.logger.info(f"🛠️ Modo mantenimiento activado: {tabla_destino} ({dialect})")
             yield
         except BaseException:
@@ -1099,15 +1099,28 @@ class BulkCrud:
         conn: Any,
         dialect: str,
         quoted_name: str,
+        tabla: Table,
         tabla_destino: str,
     ) -> bool:
-        """Deshabilita índices secundarios por motor; retorna True si SQL Server los deshabilitó."""
+        """Deshabilita índices secundarios por motor; retorna True si se deshabilitaron (hay que restaurarlos)."""
         if dialect in ("mysql", "mariadb"):
-            self.logger.warning(
-                f"⚠️ DISABLE KEYS en {tabla_destino} solo afecta a tablas MyISAM. "
-                "En InnoDB (motor por defecto) este comando es ignorado por el servidor."
+            # DISABLE KEYS solo tiene efecto en MyISAM/Aria (no transaccionales). En InnoDB el servidor lo ignora, pero
+            # como DDL provoca un commit implícito que rompía la atomicidad de la sesión (auditoría de bulk
+            # 2026-09-24, hallazgo 8): solo se ejecuta cuando sirve.
+            storage_engine = conn.execute(
+                text(
+                    "SELECT ENGINE FROM information_schema.TABLES "
+                    "WHERE TABLE_SCHEMA = COALESCE(:schema, DATABASE()) AND TABLE_NAME = :tbl"
+                ),
+                {"schema": tabla.schema, "tbl": tabla.name},
+            ).scalar()
+            if str(storage_engine or "").upper() in ("MYISAM", "ARIA"):
+                conn.execute(text(f"ALTER TABLE {quoted_name} DISABLE KEYS"))
+                return True
+            self.logger.info(
+                f"ℹ️ Se omite DISABLE KEYS en {tabla_destino}: motor {storage_engine} (solo tiene efecto en MyISAM/Aria "
+                "y en InnoDB provocaría un commit implícito)."
             )
-            conn.execute(text(f"ALTER TABLE {quoted_name} DISABLE KEYS"))
             return False
         if dialect == "mssql":
             has_clustered = conn.execute(
@@ -1128,12 +1141,14 @@ class BulkCrud:
         conn: Any,
         dialect: str,
         quoted_name: str,
-        mssql_disabled: bool,
+        disabled: bool,
     ) -> None:
-        """Restaura índices deshabilitados por motor."""
+        """Restaura los índices deshabilitados por ``__maintenance_disable_indexes``."""
+        if not disabled:
+            return
         if dialect in ("mysql", "mariadb"):
             conn.execute(text(f"ALTER TABLE {quoted_name} ENABLE KEYS"))
-        elif dialect == "mssql" and mssql_disabled:
+        elif dialect == "mssql":
             conn.execute(text(f"ALTER INDEX ALL ON {quoted_name} REBUILD"))
 
     def __maintenance_enable_constraints(

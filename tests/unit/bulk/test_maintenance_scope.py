@@ -81,9 +81,7 @@ class TestMaintenanceScopeMySQL:
             assert "SET SESSION FOREIGN_KEY_CHECKS=1" not in _sql_calls(conn)
         sqls = _sql_calls(conn)
         assert "SET SESSION FOREIGN_KEY_CHECKS=1" in sqls
-        assert sqls.index("SET SESSION FOREIGN_KEY_CHECKS=0") < sqls.index(
-            "SET SESSION FOREIGN_KEY_CHECKS=1"
-        )
+        assert sqls.index("SET SESSION FOREIGN_KEY_CHECKS=0") < sqls.index("SET SESSION FOREIGN_KEY_CHECKS=1")
 
     @pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
     def test_restore_fk_checks_on_exception(self, dialect: str) -> None:
@@ -93,21 +91,31 @@ class TestMaintenanceScopeMySQL:
                 raise ValueError("boom")
         assert "SET SESSION FOREIGN_KEY_CHECKS=1" in _sql_calls(conn)
 
+    # DISABLE KEYS solo tiene efecto en MyISAM/Aria; en InnoDB el servidor lo ignora pero, como DDL, provoca un commit
+    # implícito que rompía la atomicidad de la sesión (hallazgo 8 de la auditoría de bulk, 2026-09-24).
     @pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
-    def test_disable_indexes_issues_disable_keys_and_warns_innodb(
-        self, dialect: str, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    @pytest.mark.parametrize("storage_engine", ["MyISAM", "Aria"])
+    def test_disable_indexes_issues_disable_keys_for_myisam_and_aria(self, dialect: str, storage_engine: str) -> None:
         crud, conn = _make_crud_for_dialect(dialect)
-        with caplog.at_level(logging.WARNING):
-            with crud.maintenance_scope("t", disable_indexes=True):
-                assert 'ALTER TABLE "t" DISABLE KEYS' in _sql_calls(conn)
-                assert 'ALTER TABLE "t" ENABLE KEYS' not in _sql_calls(conn)
+        conn.execute.return_value.scalar.return_value = storage_engine
+        with crud.maintenance_scope("t", disable_indexes=True):
+            assert 'ALTER TABLE "t" DISABLE KEYS' in _sql_calls(conn)
+            assert 'ALTER TABLE "t" ENABLE KEYS' not in _sql_calls(conn)
         assert 'ALTER TABLE "t" ENABLE KEYS' in _sql_calls(conn)
-        assert any("MyISAM" in msg for msg in caplog.messages)
+
+    @pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
+    def test_disable_indexes_skips_ddl_for_innodb(self, dialect: str, caplog: pytest.LogCaptureFixture) -> None:
+        crud, conn = _make_crud_for_dialect(dialect)
+        conn.execute.return_value.scalar.return_value = "InnoDB"
+        with caplog.at_level(logging.INFO), crud.maintenance_scope("t", disable_indexes=True):
+            pass
+        assert not any("KEYS" in sql for sql in _sql_calls(conn))
+        assert any("InnoDB" in msg and "commit implícito" in msg for msg in caplog.messages)
 
     @pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
     def test_enable_keys_restored_on_exception(self, dialect: str) -> None:
         crud, conn = _make_crud_for_dialect(dialect)
+        conn.execute.return_value.scalar.return_value = "MyISAM"
         with pytest.raises(RuntimeError):
             with crud.maintenance_scope("t", disable_indexes=True):
                 raise RuntimeError("fail")
@@ -139,13 +147,9 @@ class TestMaintenanceScopePostgreSQL:
         with crud.maintenance_scope("t"):
             assert 'ALTER TABLE "t" DISABLE TRIGGER ALL' in _sql_calls(conn)
         sqls = _sql_calls(conn)
-        assert sqls.index('ALTER TABLE "t" DISABLE TRIGGER ALL') < sqls.index(
-            'ALTER TABLE "t" ENABLE TRIGGER ALL'
-        )
+        assert sqls.index('ALTER TABLE "t" DISABLE TRIGGER ALL') < sqls.index('ALTER TABLE "t" ENABLE TRIGGER ALL')
 
-    def test_warning_and_no_ddl_when_not_privileged(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_warning_and_no_ddl_when_not_privileged(self, caplog: pytest.LogCaptureFixture) -> None:
         crud, conn = _make_crud_for_dialect("postgresql")
         conn.execute.return_value.scalar.return_value = False
         with caplog.at_level(logging.WARNING):
@@ -225,13 +229,9 @@ class TestMaintenanceScopeSQLServer:
         with crud.maintenance_scope("t", disable_indexes=True):
             assert 'ALTER INDEX ALL ON "t" DISABLE' in _sql_calls(conn)
         sqls = _sql_calls(conn)
-        assert sqls.index('ALTER INDEX ALL ON "t" DISABLE') < sqls.index(
-            'ALTER INDEX ALL ON "t" REBUILD'
-        )
+        assert sqls.index('ALTER INDEX ALL ON "t" DISABLE') < sqls.index('ALTER INDEX ALL ON "t" REBUILD')
 
-    def test_skip_disable_indexes_when_clustered_exists(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_skip_disable_indexes_when_clustered_exists(self, caplog: pytest.LogCaptureFixture) -> None:
         crud, conn = _make_crud_for_dialect("mssql")
         conn.execute.return_value.scalar.return_value = 1
         with caplog.at_level(logging.WARNING):

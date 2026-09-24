@@ -910,3 +910,18 @@ def test_sync_pk_sequences_in_mixed_case_schema(engine: Engine) -> None:
     finally:
         with engine.begin() as conn:
             conn.execute(DropSchema(schema, cascade=True))
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=MYSQL_FAMILY), indirect=True)
+def test_maintenance_scope_disable_indexes_keeps_session_atomic_on_innodb(engine: Engine, scratch_table: Table) -> None:
+    """Auditoría de bulk 2026-09-24 (hallazgo 8): ``DISABLE KEYS``/``ENABLE KEYS`` no tienen efecto en InnoDB pero, como
+    DDL, provocaban un commit implícito: al fallar la sesión quedaban confirmadas las filas insertadas antes."""
+    crud = BulkCrud(engine)
+
+    with pytest.raises(RuntimeError), crud.bulk_session():
+        crud.bulk_insert_from_df(_frame(engine, 2), scratch_table.name, False)
+        with crud.maintenance_scope(scratch_table.name, disable_constraints=False, disable_indexes=True):
+            crud.bulk_insert_from_df(_frame(engine, 4).iloc[2:], scratch_table.name, False)
+            raise RuntimeError("fallo posterior")
+
+    assert _count(engine, scratch_table) == 0

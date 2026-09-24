@@ -63,6 +63,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **bulk (`bulk_delete_from_df`)**: ignoraba `commit_every_n_chunks`. Fuera de `bulk_session`, todo el borrado iba en
   una transacción. Ahora confirma cada N lotes como INSERT y UPDATE, dentro y fuera de la sesión. Si falla, quedan
   borrados los lotes ya confirmados.
+- **bulk (`maintenance_scope`, MySQL/MariaDB)**: con `disable_indexes=True`, `ALTER TABLE … DISABLE/ENABLE KEYS`
+  provocaba un commit implícito, aunque en InnoDB el servidor lo ignora. Al fallar la sesión quedaban confirmadas las
+  filas insertadas antes. Ahora solo se ejecuta en tablas MyISAM/Aria, las únicas donde tiene efecto; en el resto se
+  registra y se omite.
 - **connection (Oracle)**: `PoolConnection.__del__` lanzaba `AttributeError` si el constructor había fallado antes de
   inicializar el objeto (p.ej. sin `oracledb`). Python lo emitía como excepción ignorada en el destructor y pytest como
   `PytestUnraisableExceptionWarning`, el único aviso de la suite. Ahora no hace nada en ese caso.
