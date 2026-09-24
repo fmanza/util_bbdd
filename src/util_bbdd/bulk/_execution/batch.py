@@ -11,7 +11,22 @@ from typing import Any, Protocol
 
 import pandas as pd
 
-from sqlalchemy import Column, Delete, Engine, Insert, MetaData, Table, and_, bindparam, delete, insert, text, update
+from sqlalchemy import (
+    Column,
+    Delete,
+    Engine,
+    Insert,
+    MetaData,
+    Table,
+    and_,
+    any_,
+    bindparam,
+    delete,
+    insert,
+    text,
+    update,
+)
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.exc import DBAPIError, StatementError
 
 from .._support.sql_helpers import json_passthrough_binds
@@ -674,6 +689,50 @@ class GenericDeleteStrategy:
         connection.execute(stmt, records)
 
 
+class PostgreSQLAnyDeleteStrategy:
+    """DELETE para PostgreSQL con una sentencia por lote (P-10, performance-audit de bulk 2026-09-23).
+
+    Un parámetro array por columna de la PK, sea cual sea el tamaño del lote:
+
+    - PK simple: ``DELETE FROM t WHERE pk = ANY(:ids)``.
+    - PK compuesta: ``DELETE FROM t AS tgt USING unnest(CAST(:k0 AS tipo[]), ...) AS k(a, b) WHERE tgt.a = k.a AND ...``.
+      No se usa ``(a, b) IN ((..), ..)``: PostgreSQL lo resuelve mucho peor (100K filas en 35–47 s).
+
+    Antes era un ``executemany`` de una sentencia por fila. 100K filas (mediana de 3, PostgreSQL 17 en local):
+    PK simple 2,8 s → 1,0 s con psycopg 3 y 26,8 s → 1,0 s con psycopg2; PK compuesta 2,8 s → 1,2 s y 28,8 s → 1,2 s.
+    """
+
+    def execute(
+        self,
+        *,
+        connection: Any,
+        table: Table,
+        batch_df: pd.DataFrame,
+        pk_cols: Sequence[str],
+    ) -> None:
+        if len(pk_cols) == 1:
+            column = table.c[pk_cols[0]]
+            stmt: Any = delete(table).where(column == any_(bindparam("pk_ids", type_=ARRAY(column.type))))
+            connection.execute(stmt, {"pk_ids": batch_df[pk_cols[0]].tolist()})
+            return
+
+        dialect = connection.dialect
+        preparer = dialect.identifier_preparer
+        quoted: list[str] = [preparer.quote(column) for column in pk_cols]
+        arrays: str = ", ".join(
+            f"CAST(:pk_{i} AS {table.c[column].type.compile(dialect=dialect)}[])" for i, column in enumerate(pk_cols)
+        )
+        condition: str = " AND ".join(f"_bulk_del_t.{q} = _bulk_del_k.{q}" for q in quoted)
+        sql: str = (
+            f"DELETE FROM {preparer.format_table(table)} AS _bulk_del_t "
+            f"USING unnest({arrays}) AS _bulk_del_k({', '.join(quoted)}) WHERE {condition}"
+        )
+        stmt = text(sql).bindparams(
+            *(bindparam(f"pk_{i}", type_=ARRAY(table.c[column].type)) for i, column in enumerate(pk_cols))
+        )
+        connection.execute(stmt, {f"pk_{i}": batch_df[column].tolist() for i, column in enumerate(pk_cols)})
+
+
 class DeleteStrategyResolver:
     """Resuelve estrategia DELETE según dialecto."""
 
@@ -683,15 +742,21 @@ class DeleteStrategyResolver:
         sql_based_dialects: frozenset[str] | None = None,
         sql_based_strategy: DeleteExecutionStrategyProtocol | None = None,
         generic_strategy: DeleteExecutionStrategyProtocol | None = None,
+        postgresql_strategy: DeleteExecutionStrategyProtocol | None = None,
     ) -> None:
         self._sql_based_dialects: frozenset[str] = sql_based_dialects or _DEFAULT_SQL_BASED_DELETE_DIALECTS
         self._sql_based_strategy: DeleteExecutionStrategyProtocol = sql_based_strategy or SqlBasedDeleteStrategy()
         self._generic_strategy: DeleteExecutionStrategyProtocol = generic_strategy or GenericDeleteStrategy()
+        self._postgresql_strategy: DeleteExecutionStrategyProtocol = (
+            postgresql_strategy or PostgreSQLAnyDeleteStrategy()
+        )
 
     def resolve(self, dialect_name: str) -> DeleteExecutionStrategyProtocol:
         """Devuelve la estrategia adecuada para el dialecto indicado."""
         if dialect_name in self._sql_based_dialects:
             return self._sql_based_strategy
+        if dialect_name == "postgresql":
+            return self._postgresql_strategy
         return self._generic_strategy
 
 
@@ -873,6 +938,7 @@ __all__: list[str] = [
     "MySQLMultiRowInsertStrategy",
     "MySQLStagingUpdateStrategy",
     "PostgresCopyStrategy",
+    "PostgreSQLAnyDeleteStrategy",
     "PostgreSQLExecuteValuesStrategy",
     "SqlBasedDeleteStrategy",
 ]

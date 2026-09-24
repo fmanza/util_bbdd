@@ -14,6 +14,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `bulk_insert_from_df`, `bulk_update_from_df`, `bulk_delete_from_df` y `bulk_insert_from_chunks` trabajan sobre una
   copia superficial del DataFrame en lugar de una copia completa (P-07 parcial: una copia menos de los datos en memoria;
   el DataFrame del llamador sigue sin modificarse).
+- **bulk (PostgreSQL)**: `bulk_delete_from_df` ejecuta una sentencia por lote en lugar de una por fila (P-10): PK
+  simple con `pk = ANY(:ids)` y PK compuesta con `DELETE ... USING unnest(...)`, un parámetro array por columna.
+  100K filas: PK simple 2,8 s → 1,0 s con psycopg 3 y 27,4 s → 1,0 s con psycopg2; PK compuesta 2,7 s → 1,2 s y
+  27,9 s → 1,2 s. `DeleteStrategyResolver` admite `postgresql_strategy`.
+- **docs**: `docs/guides/benchmarks.md` añade a la tabla de problemas conocidos los síntomas de P-13 y P-27.
 
 ### Fixed
 

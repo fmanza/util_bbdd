@@ -22,6 +22,7 @@ Los dos tests de ``commit_every_n_chunks`` cubren P-27 (PostgreSQL perdía las f
 prueban psycopg 3 y psycopg2 si están instalados) y los dos siguientes cubren P-28 (errores del driver sin envolver).
 ``test_wide_table_insert_and_update`` y ``test_delete_composite_pk_over_parameter_limit`` cubren P-13 (límite de
 65.535 parámetros; en MariaDB se prueba también el conector ``mariadb`` si está instalado).
+``test_delete_with_text_and_datetime_primary_keys`` cubre P-10 (DELETE por arrays en PostgreSQL).
 """
 
 from __future__ import annotations
@@ -677,3 +678,34 @@ def test_delete_composite_pk_over_parameter_limit(engine: Engine, composite_tabl
         crud.bulk_delete_from_df(df[[k1, k2]], composite_table.name, False)
 
         assert _count(eng, composite_table) == 0, eng.dialect.driver
+
+
+@pytest.mark.parametrize("composite", [False, True])
+def test_delete_with_text_and_datetime_primary_keys(engine: Engine, composite: bool) -> None:
+    """P-10: el DELETE por arrays de PostgreSQL (``ANY`` / ``unnest``) con PK de texto y de fecha; resto de motores igual."""
+    n = partial(_name, engine=engine)
+    pk = [Column(n("code"), String(20), primary_key=True)]
+    if composite:
+        pk.append(Column(n("at"), DateTime, primary_key=True))
+    table = Table(n(f"zz_util_bbdd_it_{uuid.uuid4().hex[:8]}"), MetaData(), *pk, Column(n("v"), Integer))
+    table.create(engine)
+    rows = 3_000
+    data: dict[str, Any] = {n("code"): [f"c'{i}%" for i in range(rows)], n("v"): range(rows)}
+    if composite:
+        data[n("at")] = pd.date_range("2026-01-01", periods=rows, freq="min")
+    df = pd.DataFrame(data)
+    pk_cols = [c.name for c in pk]
+    try:
+        for eng in _pg_driver_engines(engine):
+            with eng.begin() as conn:
+                conn.execute(table.delete())
+            crud = BulkCrud(eng)
+            crud.bulk_insert_from_df(df, table.name, False)
+
+            crud.bulk_delete_from_df(df[pk_cols].iloc[::2], table.name, False)
+
+            with eng.connect() as conn:
+                left = sorted(conn.execute(select(table.c[n("v")])).scalars())
+            assert left == list(range(1, rows, 2)), eng.dialect.driver
+    finally:
+        table.drop(engine, checkfirst=True)
