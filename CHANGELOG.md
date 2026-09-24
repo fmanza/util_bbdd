@@ -34,6 +34,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **bulk (generar_sql + JSON)**: con `generar_sql=True`, `bulk_insert_from_df` y `bulk_update_from_df` fallaban con
+  `CompileError` ("No literal value renderer ... with datatype JSON") en tablas con columnas JSON: SQLite, PostgreSQL
+  `JSON`/`JSONB` y MySQL (P-20). Ahora el valor, ya serializado, se escribe como literal de cadena sin volver a
+  serializar, y `None` se escribe como `NULL`. Verificado ejecutando el SQL generado contra SQLite, PostgreSQL, MySQL y
+  MariaDB.
+
 - **bulk (columnas binarias)**: los `bytes` que son UTF-8 válido (p.ej. `b"q"`) fallaban o se perdían en columnas
   binarias (P-21). `normalize_sql_literal` los decodifica a `str`, y los parámetros tipados binarios los rechazaban:
   `TypeError` en el INSERT de SQLite y SQL Server (pymssql y pyodbc), y en el UPDATE de PostgreSQL y de MySQL/MariaDB

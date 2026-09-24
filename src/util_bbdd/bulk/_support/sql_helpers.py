@@ -9,7 +9,22 @@ from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import JSON, BindParameter, Delete, Insert, Table, Update, and_, bindparam, delete, text, update
+from sqlalchemy import (
+    JSON,
+    BindParameter,
+    Delete,
+    Insert,
+    String,
+    Table,
+    TableClause,
+    Update,
+    and_,
+    bindparam,
+    delete,
+    literal,
+    text,
+    update,
+)
 from sqlalchemy.engine import Dialect, make_url
 from sqlalchemy.sql.sqltypes import _Binary
 from sqlalchemy.types import TypeDecorator, TypeEngine
@@ -83,16 +98,35 @@ def generate_sql_filename(*, engine_url: str, table: str, operation: str) -> Pat
     return Path(f"{db_name}-{table}-{operation.lower()}_{timestamp}.sql")
 
 
+def _json_as_string_literals(table: TableClause, values: SqlRecord) -> SqlRecord:
+    """Valores de columnas JSON como literal de cadena para la generación de SQL (P-20).
+
+    ``literal_binds`` necesita un ``literal_processor`` y el tipo ``JSON`` de SQLAlchemy no tiene. El valor ya viene
+    serializado por ``normalize_sql_literal``, así que se escribe como cadena, sin volver a serializar (coherente con
+    P-19). ``None`` se mantiene para que se genere ``NULL``.
+    """
+    return {
+        name: literal(value, String())
+        if value is not None and name in table.c and isinstance(table.c[name].type, JSON)
+        else value
+        for name, value in values.items()
+    }
+
+
 def generate_insert_sql(stmt: Insert, records: Sequence[SqlRecord], dialect: Any) -> list[str]:
     """Genera SQL INSERT literal para una secuencia de registros."""
-    return [compile_stmt_with_binary_support(stmt.values(record), dialect) for record in records]
+    table = stmt.table
+    return [
+        compile_stmt_with_binary_support(stmt.values(_json_as_string_literals(table, record)), dialect)
+        for record in records
+    ]
 
 
 def generate_insert_sql_override_identity(stmt: Insert, records: Sequence[SqlRecord], dialect: Any) -> list[str]:
     """Genera SQL INSERT PostgreSQL con OVERRIDING SYSTEM VALUE para columnas identity always."""
     result: list[str] = []
     for record in records:
-        sql = compile_stmt_with_binary_support(stmt.values(record), dialect)
+        sql = compile_stmt_with_binary_support(stmt.values(_json_as_string_literals(stmt.table, record)), dialect)
         sql = re.sub(r"\)\s+VALUES\b", ") OVERRIDING SYSTEM VALUE VALUES", sql, count=1, flags=re.IGNORECASE)
         result.append(sql)
     return result
@@ -145,7 +179,9 @@ def generate_update_sql(
     """Genera SQL UPDATE literal para una secuencia de registros."""
     sql_lines: list[str] = []
     for record in records:
-        update_values: dict[str, Any] = {column: record[column] for column in update_cols}
+        update_values: dict[str, Any] = _json_as_string_literals(
+            table, {column: record[column] for column in update_cols}
+        )
         pk_conditions: dict[str, Any] = {pk_param_map[column]: record[pk_param_map[column]] for column in pk_cols}
         stmt: Update = (
             update(table)

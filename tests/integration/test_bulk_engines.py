@@ -14,7 +14,8 @@ cubre P-18 (UPDATE con columna DATETIME en SQL Server + pyodbc), los dos tests d
 parámetros y PK compuesta en SQL Server) ``test_json_column_roundtrip`` cubre P-19 (doble serialización de JSON) y
 ``test_same_bulkcrud_inserts_into_two_tables_with_same_columns`` cubre P-22 (filas en la tabla equivocada).
 ``test_update_via_staging_matches_executemany`` verifica P-04 (UPDATE por tabla temporal, solo MySQL/MariaDB) y
-``test_binary_column_roundtrip`` cubre P-21 (binarios UTF-8 válidos).
+``test_binary_column_roundtrip`` cubre P-21 (binarios UTF-8 válidos) y ``test_generated_sql_with_json_column`` cubre
+P-20 (``generar_sql`` con columnas JSON).
 """
 
 from __future__ import annotations
@@ -366,5 +367,42 @@ def test_binary_column_roundtrip(engine: Engine, update_via_staging: bool) -> No
                 for v in conn.execute(select(table.c[col_b]).order_by(table.c[col_id])).scalars()
             ]
         assert got == updated
+    finally:
+        table.drop(engine, checkfirst=True)
+
+
+def test_generated_sql_with_json_column(engine: Engine, tmp_path: Path) -> None:
+    """P-20: el SQL generado con columnas JSON se puede ejecutar y guarda los documentos (sin ``%``: ver P-23)."""
+    if engine.dialect.name in ("mssql", "oracle"):
+        pytest.skip("SQL Server no tiene tipo JSON; Oracle refleja la columna como NullType")
+    n = partial(_name, engine=engine)
+    table = Table(
+        n(f"zz_util_bbdd_it_{uuid.uuid4().hex[:8]}"),
+        MetaData(),
+        Column(n("id"), Integer, primary_key=True, autoincrement=False),
+        Column(n("j"), JSON().with_variant(postgresql.JSONB(), "postgresql")),
+    )
+    table.create(engine)
+    backslash = chr(92)
+    docs: list[object] = [{"k": 1, "q": "it's", "b": f"a{backslash}b", "dq": 'x"y', "n": "ñ€"}, None, [1, {"z": None}]]
+    try:
+        col_id, col_j = n("id"), n("j")
+        BulkCrud(engine).bulk_insert_from_df(
+            pd.DataFrame({col_id: [1, 2, 3], col_j: docs}), table.name, generar_sql=True, path_sql=tmp_path / "sql"
+        )
+        # En SQLite el fichero queda junto a la BD (el nombre incluye su ruta absoluta): se busca en todo tmp_path.
+        (sql_file,) = sorted(tmp_path.rglob("*.sql"))
+        raw = engine.raw_connection()
+        try:
+            cursor = raw.cursor()
+            for statement in filter(None, (line.strip() for line in sql_file.read_text(encoding="utf-8").splitlines())):
+                cursor.execute(statement.rstrip(";"))
+            raw.commit()
+        finally:
+            raw.close()
+
+        with engine.connect() as conn:
+            stored = list(conn.execute(select(table.c[col_j]).order_by(table.c[col_id])).scalars())
+        assert stored == docs
     finally:
         table.drop(engine, checkfirst=True)
