@@ -52,7 +52,7 @@ def setup_logging(verbose: bool = False) -> None:
 # Configuraciones de Benchmark
 # ============================================================================
 
-BENCH_CONFIGS = {
+BENCH_CONFIGS: dict[str, dict[str, Any]] = {
     "baseline": {
         "description": "Configuración default (chunk_size=5000, no paralelismo)",
         "dump_config": {
@@ -88,7 +88,8 @@ BENCH_CONFIGS = {
     },
 }
 
-BENCH_VOLUMES = {
+# "tables": {nombre de tabla: filas}. Sin anotar, mypy infería Collection[str] al mezclar texto y diccionario.
+BENCH_VOLUMES: dict[str, dict[str, Any]] = {
     "small": {
         "description": "Pequeño: 10k-50k filas",
         "tables": {
@@ -451,7 +452,7 @@ def main() -> None:
         return
 
     bench = DumpBenchmark(args.db_url, args.output)
-    result = bench.run(args.config, args.volume, args.iterations)
+    bench.run(args.config, args.volume, args.iterations)
 
     bench.print_summary()
     bench.save_results()
