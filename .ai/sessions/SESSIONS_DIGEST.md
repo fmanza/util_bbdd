@@ -159,6 +159,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-24 | Avisos de `mkdocs --strict` | Referencias a `INSTALLATION.md`/`ROADMAP.md` con el nombre exacto; mkdocs y zensical estrictos limpios; test de enlaces | CLOSED |
 | 2026-09-24 | audit_code de bulk + hotfix 1–3 | `chunk_size` validado; `maintenance_scope` no oculta errores y restaura con `commit_every_n_chunks`; loader sin conexión retenida; 4–8 pendientes | CLOSED |
 | 2026-09-24 | Hotfix hallazgos 4–8 (+9) | Loader con tabla reflejada; `pk_sync` en PostgreSQL/Oracle (Oracle nunca funcionaba); nombre de fichero saneado; DELETE con `commit_every_n_chunks`; `DISABLE KEYS` solo MyISAM/Aria | CLOSED |
+| 2026-09-25 | Cierre de versión v0.14.0 | CHANGELOG `[0.14.0]` + `pyproject.toml`; checklist verde (4783/160, con URLs 4943/0, build 0.14.0, docs estrictas sin avisos) | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 
