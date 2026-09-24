@@ -57,6 +57,7 @@ from ._support.sql_helpers import (
     generate_insert_sql_override_identity,
     generate_update_sql,
     json_passthrough_binds,
+    restore_binary_values,
     should_wrap_identity_insert,
     wrap_identity_insert_sql,
 )
@@ -473,6 +474,7 @@ class BulkCrud:
 
                 records: list[dict[Hashable, Any]] = working_df[insert_cols].to_dict(orient="records")
                 records_sql: list[dict[str, Any]] = normalize_records_for_sql(records)
+                restore_binary_values(records_sql, tabla)  # P-21
                 numero_registros: int = len(records_sql)
 
                 start: float = perf_counter()
@@ -606,6 +608,7 @@ class BulkCrud:
 
         records: list[dict[Hashable, Any]] = df[insert_cols].to_dict(orient="records")
         records_sql: list[dict[str, Any]] = normalize_records_for_sql(records)
+        restore_binary_values(records_sql, tabla)  # P-21
         numero_registros: int = len(records_sql)
 
         if override_identity and always_identity_cols:
@@ -643,6 +646,7 @@ class BulkCrud:
         update_plan = build_update_plan(tabla, list(df.columns), tabla_destino)
         records: list[dict[Hashable, Any]] = df.to_dict(orient="records")
         records_sql: list[dict[str, Any]] = normalize_records_for_sql(records)
+        restore_binary_values(records_sql, tabla)  # P-21
 
         for record in records_sql:
             for original_col, alias_col in update_plan.pk_param_map.items():

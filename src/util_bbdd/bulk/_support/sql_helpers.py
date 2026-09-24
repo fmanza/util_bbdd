@@ -11,6 +11,7 @@ from typing import Any
 
 from sqlalchemy import JSON, BindParameter, Delete, Insert, Table, Update, and_, bindparam, delete, text, update
 from sqlalchemy.engine import Dialect, make_url
+from sqlalchemy.sql.sqltypes import _Binary
 from sqlalchemy.types import TypeDecorator, TypeEngine
 
 SqlRecord = dict[str, Any]
@@ -37,6 +38,23 @@ class PreSerializedJSON(TypeDecorator[Any]):
 
     def bind_processor(self, dialect: Dialect) -> None:
         return None
+
+
+def restore_binary_values(records: Sequence[SqlRecord], table: Table) -> None:
+    """Devuelve a ``bytes`` los valores de columnas binarias que ``normalize_sql_literal`` decodificó a ``str``.
+
+    P-21 (performance-audit de bulk, 2026-09-24): ``normalize_sql_literal`` decodifica los ``bytes`` que son UTF-8 válido
+    (``b"q"`` → ``"q"``). En columnas binarias, los parámetros tipados rechazaban ese ``str`` (``TypeError``) y Oracle lo
+    guardaba como NULL. Codificar de nuevo en UTF-8 recupera exactamente los bytes originales. Modifica ``records``.
+    """
+    if not records:
+        return
+    binary_cols = [name for name in records[0] if name in table.c and isinstance(table.c[name].type, _Binary)]
+    for record in records:
+        for name in binary_cols:
+            value = record[name]
+            if isinstance(value, str):
+                record[name] = value.encode("utf-8")
 
 
 def json_passthrough_binds(table: Table, columns: Sequence[str]) -> dict[str, BindParameter[Any]]:
@@ -282,6 +300,7 @@ __all__: list[str] = [
     "generate_sql_filename",
     "generate_update_sql",
     "json_passthrough_binds",
+    "restore_binary_values",
     "should_wrap_identity_insert",
     "wrap_identity_insert_sql",
 ]

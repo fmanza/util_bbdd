@@ -18,6 +18,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **bulk (columnas binarias)**: los `bytes` que son UTF-8 válido (p.ej. `b"q"`) fallaban o se perdían en columnas
+  binarias (P-21). `normalize_sql_literal` los decodifica a `str`, y los parámetros tipados binarios los rechazaban:
+  `TypeError` en el INSERT de SQLite y SQL Server (pymssql y pyodbc), y en el UPDATE de PostgreSQL y de MySQL/MariaDB
+  sin tabla temporal. En Oracle se llegó a guardar NULL en su lugar. Ahora, en las columnas de tipo binario reflejado,
+  el valor vuelve a codificarse en UTF-8 y recupera exactamente los bytes originales. Las columnas de texto siguen
+  recibiendo `str`. Verificado en los 6 motores. Oracle guarda `b""` como NULL por diseño propio.
+
 - **bulk (MySQL/MariaDB)**: `MySQLMultiRowInsertStrategy` podía insertar filas en la tabla equivocada, sin error (P-22).
   Su caché de plantillas SQL usaba como clave `(filas, columnas)`, sin la tabla. Una misma `BulkCrud` que insertaba en
   dos tablas con las mismas columnas y el mismo tamaño de sub-lote (p.ej. el volcado secuencial de `dump`, que comparte

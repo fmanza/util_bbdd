@@ -13,7 +13,8 @@ Regresiones de los hallazgos de .ai/sessions/2026-09-23-performance-audit-bulk/:
 cubre P-18 (UPDATE con columna DATETIME en SQL Server + pyodbc), los dos tests de DELETE cubren P-05 (más de 2100
 parámetros y PK compuesta en SQL Server) ``test_json_column_roundtrip`` cubre P-19 (doble serialización de JSON) y
 ``test_same_bulkcrud_inserts_into_two_tables_with_same_columns`` cubre P-22 (filas en la tabla equivocada).
-``test_update_via_staging_matches_executemany`` verifica P-04 (UPDATE por tabla temporal, solo MySQL/MariaDB).
+``test_update_via_staging_matches_executemany`` verifica P-04 (UPDATE por tabla temporal, solo MySQL/MariaDB) y
+``test_binary_column_roundtrip`` cubre P-21 (binarios UTF-8 válidos).
 """
 
 from __future__ import annotations
@@ -37,6 +38,7 @@ from sqlalchemy import (
     Engine,
     Float,
     Integer,
+    LargeBinary,
     MetaData,
     String,
     Table,
@@ -323,5 +325,46 @@ def test_update_via_staging_rolls_back_inside_bulk_session(engine: Engine) -> No
         with engine.connect() as conn:
             assert [r[0] for r in conn.execute(select(table.c.s).order_by(table.c.id))] == ["s"] * 4
             assert conn.execute(text("SHOW TABLES LIKE 'tmp_bulkupd_%'")).all() == []
+    finally:
+        table.drop(engine, checkfirst=True)
+
+
+@pytest.mark.parametrize("update_via_staging", [True, False])
+def test_binary_column_roundtrip(engine: Engine, update_via_staging: bool) -> None:
+    """P-21: los bytes llegan intactos aunque sean UTF-8 válido (``normalize_sql_literal`` los decodifica a ``str``).
+
+    Sin valores vacíos: Oracle guarda ``b""`` como NULL por diseño.
+    """
+    if not update_via_staging and engine.dialect.name not in ("mysql", "mariadb"):
+        pytest.skip("update_via_staging solo cambia el UPDATE en MySQL/MariaDB")
+    n = partial(_name, engine=engine)
+    table = Table(
+        n(f"zz_util_bbdd_it_{uuid.uuid4().hex[:8]}"),
+        MetaData(),
+        Column(n("id"), Integer, primary_key=True, autoincrement=False),
+        Column(n("b"), LargeBinary),
+    )
+    table.create(engine)
+    try:
+        col_id, col_b = n("id"), n("b")
+        inserted: list[bytes | None] = [b"q", b"\xff\x00", b"a\x08", None, "ñ€".encode()]
+        updated: list[bytes | None] = [None, b"u", b"\xfe\x01", "é".encode(), b"z"]
+        crud = BulkCrud(engine, update_via_staging=update_via_staging)
+
+        crud.bulk_insert_from_df(pd.DataFrame({col_id: range(1, 6), col_b: inserted}), table.name, False)
+        with engine.connect() as conn:
+            got = [
+                None if v is None else bytes(v)
+                for v in conn.execute(select(table.c[col_b]).order_by(table.c[col_id])).scalars()
+            ]
+        assert got == inserted
+
+        crud.bulk_update_from_df(pd.DataFrame({col_id: range(1, 6), col_b: updated}), table.name, False)
+        with engine.connect() as conn:
+            got = [
+                None if v is None else bytes(v)
+                for v in conn.execute(select(table.c[col_b]).order_by(table.c[col_id])).scalars()
+            ]
+        assert got == updated
     finally:
         table.drop(engine, checkfirst=True)
