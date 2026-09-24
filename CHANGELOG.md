@@ -34,6 +34,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **bulk**: `chunk_size` no se validaba (auditoría de `bulk`, 2026-09-24). Con un valor negativo, `bulk_insert_from_df`
+  y `bulk_delete_from_df` no escribían nada, sin error, y la auditoría registraba las filas como procesadas. Con 0
+  fallaban al ejecutar con `range() arg 3 must not be zero`. `BulkCrud`, `ParallelBulkLoader` y los ejecutores lanzan
+  ahora `ValueError` al construirse si `chunk_size` no es un entero ≥ 1.
 - **connection (Oracle)**: `PoolConnection.__del__` lanzaba `AttributeError` si el constructor había fallado antes de
   inicializar el objeto (p.ej. sin `oracledb`). Python lo emitía como excepción ignorada en el destructor y pytest como
   `PytestUnraisableExceptionWarning`, el único aviso de la suite. Ahora no hace nada en ese caso.

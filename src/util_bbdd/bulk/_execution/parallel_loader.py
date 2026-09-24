@@ -32,6 +32,7 @@ from sqlalchemy import Engine, text
 from sqlalchemy.exc import OperationalError as SQLAOperationalError, SQLAlchemyError
 
 from ..crud import BulkCrud
+from .batch import validate_chunk_size
 
 _log = logging.getLogger(__name__)
 
@@ -199,8 +200,9 @@ class ParallelBulkLoader:
                 paralelo causa lock DDL en MSSQL (SCH-M global).
 
         Raises:
-            ValueError: Si ``max_workers < 1`` o ``max_retries < 0``.
+            ValueError: Si ``chunk_size`` no es un entero ≥ 1, ``max_workers < 1`` o ``max_retries < 0``.
         """
+        chunk_size = validate_chunk_size(chunk_size)  # antes del pool: si no, fallaría cada partición
         if max_workers < 1:
             raise ValueError(f"max_workers debe ser un entero ≥ 1, recibido: {max_workers}")
         if max_retries < 0:

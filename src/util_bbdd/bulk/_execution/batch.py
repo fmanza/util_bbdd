@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import operator
 import uuid
 
 from collections.abc import Iterator, Mapping, Sequence
@@ -53,6 +54,24 @@ _MAX_DELETE_PARAMS: dict[str, int] = {
     "mysql": _MYSQL_MAX_STATEMENT_PARAMS,
     "mariadb": _MYSQL_MAX_STATEMENT_PARAMS,
 }
+
+
+def validate_chunk_size(chunk_size: Any) -> int:
+    """Devuelve ``chunk_size`` como ``int`` si es un entero ≥ 1; si no, ``ValueError``.
+
+    Sin esta validación, un ``chunk_size`` negativo no generaba ningún lote (``range`` vacío): la carga no escribía nada,
+    sin error, y la auditoría registraba las filas como procesadas. Con 0, fallaba al ejecutar con
+    ``range() arg 3 must not be zero``. Acepta enteros de numpy; rechaza ``bool`` y decimales.
+    """
+    if isinstance(chunk_size, bool):
+        raise ValueError(f"chunk_size debe ser un entero ≥ 1, recibido: {chunk_size!r}")
+    try:
+        value = operator.index(chunk_size)
+    except TypeError:
+        raise ValueError(f"chunk_size debe ser un entero ≥ 1, recibido: {chunk_size!r}") from None
+    if value < 1:
+        raise ValueError(f"chunk_size debe ser un entero ≥ 1, recibido: {chunk_size!r}")
+    return value
 
 
 def _register_fast_executemany(engine: Engine) -> None:
@@ -778,7 +797,7 @@ class BatchStatementExecutor:
         commit_every_n_chunks: int | None = None,
     ) -> None:
         self._engine: Engine = engine
-        self._chunk_size: int = chunk_size
+        self._chunk_size: int = validate_chunk_size(chunk_size)
         self._active_connection: Any | None = None
         self._commit_every_n_chunks: int | None = commit_every_n_chunks
         self._chunks_since_commit: int = 0
@@ -879,7 +898,7 @@ class DeleteBatchExecutor:
         resolver: DeleteStrategyResolver | None = None,
     ) -> None:
         self._engine: Engine = engine
-        self._chunk_size: int = chunk_size
+        self._chunk_size: int = validate_chunk_size(chunk_size)
         self._resolver: DeleteStrategyResolver = resolver or DeleteStrategyResolver()
         # Conexión de ``BulkCrud.bulk_session()`` (P-26): el DELETE participa en la transacción de la sesión.
         self._active_connection: Any | None = None
@@ -941,4 +960,5 @@ __all__: list[str] = [
     "PostgreSQLAnyDeleteStrategy",
     "PostgreSQLExecuteValuesStrategy",
     "SqlBasedDeleteStrategy",
+    "validate_chunk_size",
 ]

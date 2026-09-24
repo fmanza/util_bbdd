@@ -46,6 +46,7 @@ from ._execution.batch import (
     DeleteBatchExecutor,
     InsertStrategyResolver,
     MySQLStagingUpdateStrategy,
+    validate_chunk_size,
 )
 from ._models import PKSyncResult
 from ._support.persistence import BulkPersistenceManager
@@ -174,6 +175,7 @@ class BulkCrud:
         Raises:
             ValueError: Si engine es None.
             ValueError: Si ``commit_every_n_chunks`` no es None ni un entero ≥ 1.
+            ValueError: Si ``chunk_size`` no es un entero ≥ 1.
         """
         self.logger: logging.Logger = logging.getLogger(__name__)
 
@@ -183,7 +185,8 @@ class BulkCrud:
         if commit_every_n_chunks is not None and commit_every_n_chunks < 1:
             raise ValueError(f"commit_every_n_chunks debe ser None o un entero ≥ 1, recibido: {commit_every_n_chunks}")
 
-        self.chunk_size: int = chunk_size
+        # Auditoría de bulk 2026-09-24: con un valor negativo no se escribía nada y la auditoría registraba las filas.
+        self.chunk_size: int = validate_chunk_size(chunk_size)
         self.audit_manager: AuditManager = AuditManager(audit_csv_path)
         self._update_via_staging: bool = update_via_staging and self.engine.dialect.name in ("mysql", "mariadb")
 
