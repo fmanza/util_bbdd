@@ -9,6 +9,10 @@
 *.json text
 *.code-workspace text
 
+# Scripts de shell siempre con LF también en la copia de trabajo: con core.autocrlf=true (Windows) se extraerían con
+# CRLF y un bash que no los ignore (p.ej. WSL) fallaría al cargarlos (scripts/bench_env.example.sh)
+*.sh text eol=lf
+
 # Asegurar que archivos binarios (imágenes, etc.) no se toquen
 *.png binary
 *.jpg binary
