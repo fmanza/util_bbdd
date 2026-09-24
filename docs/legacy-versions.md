@@ -36,7 +36,7 @@ v0.6.0 – v0.7.0  (Madurez / estable)
 v0.8.0 – v0.10.0  (Actual: sistema de tipos + rendimiento de bulk/dump)
 ```
 
-La vista panorámica de versiones está en el [Roadmap](roadmap.md); los detalles de cada hito,
+La vista panorámica de versiones está en el [Roadmap](ROADMAP.md); los detalles de cada hito,
 en el [`CHANGELOG.md`](https://github.com/fmanza/util_bbdd/blob/main/CHANGELOG.md).
 
 ## ⚠️ Notas Importantes

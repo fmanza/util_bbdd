@@ -337,7 +337,7 @@ Output esperado: `INFO - Documentation built in Xs` sin warnings.
 ### Documentación del proyecto
 
 - [Documentación online](https://fmanza.github.io/util_bbdd/) — generada con Zensical / MkDocs Material
-- [Instalación](../installation.md) — guía de instalación completa
+- [Instalación](../INSTALLATION.md) — guía de instalación completa
 - [Arquitectura del sistema](../architecture.md) — arquitectura detallada del sistema
 - [Programación asíncrona](async_guide.md) — patrones y drivers async
 - [Conexión y Drivers por Motor](connection_guide.md) — conexión por motor y troubleshooting

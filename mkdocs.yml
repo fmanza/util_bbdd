@@ -9,7 +9,7 @@ site_dir: site
 
 nav:
   - Inicio: index.md
-  - Instalación: installation.md
+  - Instalación: INSTALLATION.md
   - 📥 Descargas: downloads.md
 
   # ── Audiencia: Product Owner, QA, responsables de negocio ──────────────────
@@ -164,7 +164,7 @@ nav:
       - ADR-001 Refactoring: adr/ADR-001-STRUCTURE-REFACTORING.md
       - Plantilla ADR: adr/ADR-TEMPLATE.md
   - Historia y Planes:
-      - Roadmap: roadmap.md
+      - Roadmap: ROADMAP.md
       - Versiones Históricas: legacy-versions.md
       - "Plan v0.8.0 — Sistema de Tipos Avanzado (entregado)": v0.8.0/PLAN_v0.8.0_TYPE_SYSTEM_IMPROVEMENTS.md
 

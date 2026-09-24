@@ -241,7 +241,7 @@ Documenta **una decisión concreta con trade-offs**, no la visión global del si
 
 **Audiencia**: cualquier visitante que llega a la documentación por primera vez.
 
-**Ubicación**: `docs/index.md` (Inicio), `docs/installation.md` (Instalación), `docs/architecture.md` (Arquitectura).
+**Ubicación**: `docs/index.md` (Inicio), `docs/INSTALLATION.md` (Instalación), `docs/architecture.md` (Arquitectura).
 
 **Prompt**: `.github/prompts/landing_doc.prompt.md` (tres variantes A/B/C, 5 secciones cada una).
 

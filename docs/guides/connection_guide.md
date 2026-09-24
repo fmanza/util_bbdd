@@ -4,7 +4,7 @@
 
 Conectar `util_bbdd` a cada motor soportado: qué driver hace falta, qué claves espera el diccionario
 `conn_params` de cada motor y cómo abrir un manager **síncrono** o **asíncrono**. Es un how-to
-operativo que complementa la [Instalación](../installation.md) (centrada en instalar el paquete y los
+operativo que complementa la [Instalación](../INSTALLATION.md) (centrada en instalar el paquete y los
 drivers) y la guía profunda de [drivers PostgreSQL](postgresql_driver_guide.md).
 
 Motores conectables mediante los managers: **PostgreSQL, MariaDB/MySQL, Oracle, SQL Server, SQLite y
@@ -13,7 +13,7 @@ HSQLDB**. HSQLDB solo dispone de modo **síncrono** (sus factorías async lanzan
 ## 2. Requisitos Previos
 
 - Python 3.12+ con `util_bbdd` instalado.
-- El driver del motor instalado (ver tabla en §3.1 y [Instalación §3](../installation.md)).
+- El driver del motor instalado (ver tabla en §3.1 y [Instalación §3](../INSTALLATION.md)).
 - Datos de conexión del motor (host/puerto/servicio/fichero según el caso) y credenciales.
 - El `conn_params` se aporta **externamente**: la librería valida `db_type` y los parámetros, pero
   no persiste secretos.

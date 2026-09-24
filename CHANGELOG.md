@@ -37,6 +37,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **connection (Oracle)**: `PoolConnection.__del__` lanzaba `AttributeError` si el constructor había fallado antes de
   inicializar el objeto (p.ej. sin `oracledb`). Python lo emitía como excepción ignorada en el destructor y pytest como
   `PytestUnraisableExceptionWarning`, el único aviso de la suite. Ahora no hace nada en ese caso.
+- **docs**: `mkdocs build --strict` terminaba con 13 avisos y `zensical build --strict` (el de
+  `.github/workflows/docs-zip-release.yml`) abortaba con 12 problemas. La navegación de `mkdocs.yml` y 11 enlaces de
+  9 páginas apuntaban a `installation.md` y `roadmap.md`, pero los ficheros son `INSTALLATION.md` y `ROADMAP.md`:
+  Windows no distingue mayúsculas, y MkDocs, Zensical y Linux sí. Se corrigen las referencias al nombre en
+  mayúsculas, que es el que fijan las instrucciones de documentación, y una nota de `guides/benchmarks.md` que
+  Zensical leía como enlace roto (`[Unreleased]`). Nuevo test `tests/unit/test_docs_links.py`: comprueba con el
+  nombre exacto la navegación y los enlaces relativos entre páginas, también en Windows.
 - **tests**: el test de `MatplotlibRelationshipGraph` se saltaba siempre, porque su condición
   (`"matplotlib" not in globals()`) miraba los nombres del módulo de test en lugar de si `matplotlib` está instalado.
   Ahora se ejecuta si lo está, y pasa.

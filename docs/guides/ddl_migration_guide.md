@@ -20,7 +20,7 @@ la estructura, usa la [guía de volcado de datos](dump_guide.md).
 
 ## 2. Requisitos Previos
 
-- Python 3.12+ con `util_bbdd` y el driver del motor **origen** instalado (ver [Instalación](../installation.md)).
+- Python 3.12+ con `util_bbdd` y el driver del motor **origen** instalado (ver [Instalación](../INSTALLATION.md)).
 - Un `SyncDatabaseManager` **activo** del motor origen con permisos de lectura sobre sus catálogos de metadatos (p. ej. en Oracle: `ALL_TABLES`, `ALL_TAB_COLUMNS`, `ALL_CONSTRAINTS`, `ALL_INDEXES`, `ALL_VIEWS`).
 - El nombre del **schema/owner** a migrar (sensible a mayúsculas en Oracle; en SQL Server es el `TABLE_SCHEMA`, p. ej. `dbo`).
 - Opcional: un manager del motor **destino** si se desea ejecutar el DDL directamente.

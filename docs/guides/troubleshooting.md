@@ -6,7 +6,7 @@ Diagnosticar y resolver los errores más frecuentes de conexión, pool, drivers 
 
 ## 2. Requisitos Previos
 
-- `util_bbdd` instalado y el driver del motor configurado (ver [Guía de Instalación](../installation.md))
+- `util_bbdd` instalado y el driver del motor configurado (ver [Guía de Instalación](../INSTALLATION.md))
 - Acceso al log de Python habilitado (`logging.basicConfig(level=logging.DEBUG)`) para diagnóstico de errores de pool y conexión
 - Para errores de pool async: Python 3.10+ con `asyncio`
 

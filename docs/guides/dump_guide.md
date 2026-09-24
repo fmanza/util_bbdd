@@ -14,7 +14,7 @@ necesitas crear primero la estructura en otro motor, usa la
 
 ## 2. Requisitos Previos
 
-- Python 3.12+ con `util_bbdd` instalado y los drivers de **ambos** motores (ver [Instalación](../installation.md)).
+- Python 3.12+ con `util_bbdd` instalado y los drivers de **ambos** motores (ver [Instalación](../INSTALLATION.md)).
 - `pandas` y `openpyxl` disponibles (dependencias del módulo de volcado; `openpyxl` es necesario para el informe Excel).
 - Dos engines SQLAlchemy **conectables**:
     - Origen: permiso `SELECT` sobre las tablas a volcar.

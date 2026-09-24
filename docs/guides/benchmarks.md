@@ -72,7 +72,7 @@ bulk = BulkCrud(
     mismo tipo Python en cada columna para todas las filas, y un DataFrame puede mezclarlos (p.ej. `bytes` y `str`).
 
 !!! note "SQL Server + pyodbc: versiones anteriores a la corrección de P-18"
-    Hasta [Unreleased], `enable_fast_executemany=True` activaba `fast_executemany` solo en el cursor, a espaldas de
+    Antes de la 0.12.0, `enable_fast_executemany=True` activaba `fast_executemany` solo en el cursor, a espaldas de
     SQLAlchemy: el INSERT no se aceleraba y `bulk_update_from_df` fallaba con columnas `DATETIME`. En esas versiones,
     crea el engine con `create_engine(..., fast_executemany=True)`.
 
