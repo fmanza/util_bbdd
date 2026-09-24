@@ -26,7 +26,7 @@
   - Corregida una entrada de `docs` desfasada ("ganancias en revisión").
   - Se dejan intactos los bloques `## [Unreleased]` antiguos que hay más abajo en el fichero (de versiones 0.3–0.7), ajenos a esta versión.
 - **pyproject.toml**: `version = "0.12.0"` (`requires-python` sin cambios).
-- **`.ai/CURRENT_STATE.md`**: cabecera, tabla de versiones (0.11.0 y 0.12.0 cerradas sin tag; Zenical pendiente sin versión) y cifra de tests.
+- **`.ai/CURRENT_STATE.md`**: cabecera, tabla de versiones (0.11.0 y 0.12.0 liberadas con tag; Zenical pendiente sin versión) y cifra de tests.
 - **Sincronización** (`sync.instructions.md`): no existen `docs/CHANGELOG.md`, `COMPATIBILITY.md` ni `.ai/COMPATIBILITY.md`, así que no aplican. `mkdocs.yml` sin páginas nuevas en esta versión.
 
 ## Release notes (resumen)
@@ -80,7 +80,7 @@
 - `python scripts/bench_bulk.py --sizes 100000 --repeat 3` para comparar con `02_BASELINE_MOTORES_REALES.md`.
 
 ## Directrices para Futuras IAs
-- **[release]**: `0.11.0` y `0.12.0` se cerraron sin tag de git (el último tag es `v0.10.0`). Si se etiqueta, crear ambos tags o documentar el hueco.
+- **[release]**: los tags son anotados (`git tag -a vX.Y.Z <commit release> -m "vX.Y.Z - ..."`) y apuntan al commit `release:`. `v0.11.0` se creó a posteriori (2026-09-24) sobre `166448a` para no dejar hueco en la serie.
 - **[CHANGELOG]**: hay bloques `## [Unreleased]` antiguos más abajo del fichero (versiones 0.3–0.7). Al insertar entradas nuevas, ancla siempre en el primer `## [Unreleased]` o en la versión en curso, nunca buscando el encabezado sin más.
 - **[bulk]**: las directrices técnicas de esta versión están en las `TRACEABILITY.md` de cada sesión 2026-09-23/24; las más importantes:
   - validar la generación de SQL ejecutando el fichero;
@@ -90,8 +90,7 @@
 - **[preferencia del usuario]**: rechazó una edición del CHANGELOG hecha con un script de Python y aceptó la misma hecha con el editor. Para ficheros de documentación prefiere ediciones visibles (Edit/Write).
 
 ## Veredicto final
-Veredicto: CLOSED (pendiente del commit `release: v0.12.0 …`, a petición del usuario)
+Veredicto: CLOSED — commits `42f6f9c` (release) y `0253e13` (docs(ai)); tags anotados `v0.12.0` (`42f6f9c`) y `v0.11.0` (`166448a`); push de `develop` y tags a `origin`
 Pendientes al cierre:
-- Commit de release; push (hay commits de `develop` sin publicar); decidir etiquetas de git.
 - Retirar los contenedores del banco cuando ya no se necesiten (`docker compose -f docker-compose.bench.yml down -v`).
 - Mejoras menores abiertas del informe: P-06, P-07, P-08, P-09, P-10, P-13; observación de SQLAlchemy (Known issues).

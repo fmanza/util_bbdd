@@ -2,7 +2,7 @@
 
 **Generado**: 2026-06-05 (cabecera, tabla de versiones y tests actualizados el 2026-09-24 en el cierre de `v0.12.0`)  
 **Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` y `v0.12.0`  
-**Versión**: `v0.12.0` (cerrada en `develop`, 2026-09-24). Último tag de git: `v0.10.0`  
+**Versión**: `v0.12.0` (cerrada en `develop`, 2026-09-24). Tag de git: `v0.12.0`  
 **Rama activa**: `develop`
 
 ---
@@ -13,8 +13,8 @@
 |------|--------|
 | `v0.9.0` | Liberado — palancas perf bulk: `commit_every_n_chunks`, `IndexManager`, paralelización FK-topológica, `ParallelBulkLoader`, `bulk_insert_from_chunks` |
 | `v0.10.0` | Liberado — fast paths INSERT por motor: `PostgresCopyStrategy` (psycopg3 COPY ~10×), `MySQLMultiRowInsertStrategy` (multi-fila), `InsertStrategyResolver` reescrito |
-| `v0.11.0` | Cerrada 2026-09-22 (sin tag) — auditoría completa del proyecto y remediación de 53 hallazgos P0-P2 (sesión `2026-09-22-audit-completo-remediacion`) |
-| `v0.12.0` | Cerrada 2026-09-24 (sin tag) — performance-audit de `bulk` con banco contra 6 motores reales: 10 fallos corregidos (SQL Server, JSON, binarios, tabla equivocada en MySQL/MariaDB, `generar_sql`), mejoras de INSERT/UPDATE (~2× a ~12,5×) y `update_via_staging` activo por defecto en MySQL/MariaDB (sesiones `2026-09-23-performance-audit-bulk` a `2026-09-24-version-closure-v0.12.0`) |
+| `v0.11.0` | Liberado 2026-09-22 (tag creado el 2026-09-24 sobre `166448a`) — auditoría completa del proyecto y remediación de 53 hallazgos P0-P2 (sesión `2026-09-22-audit-completo-remediacion`) |
+| `v0.12.0` | Liberado 2026-09-24 (tag sobre `42f6f9c`) — performance-audit de `bulk` con banco contra 6 motores reales: 10 fallos corregidos (SQL Server, JSON, binarios, tabla equivocada en MySQL/MariaDB, `generar_sql`), mejoras de INSERT/UPDATE (~2× a ~12,5×) y `update_via_staging` activo por defecto en MySQL/MariaDB (sesiones `2026-09-23-performance-audit-bulk` a `2026-09-24-version-closure-v0.12.0`) |
 | Zenical | Pendiente, sin versión asignada — merge `migrate/zenical-pure` (+80% perf doc builds) cuando Zenical esté instalable |
 
 PR abierta: **PR #18** `feat(connection/bulk): automatización variables MySQL/MariaDB` — revisión pendiente de merge.  
