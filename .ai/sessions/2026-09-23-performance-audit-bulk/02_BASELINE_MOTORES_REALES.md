@@ -134,6 +134,22 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 **Evidencia**: MySQL 8.4 y MariaDB 11.4 con PyMySQL, UPDATE de una columna BLOB con `b""` y `b"q"`: `StatementError (TypeError) string argument without an encoding`.
 **Confirmación**: CONFIRMADA. **CORREGIDA** en `2026-09-24-hotfix-p21-binary-utf8`. El alcance real era mayor: INSERT en SQLite y SQL Server (ambos drivers), UPDATE en PostgreSQL y MySQL/MariaDB sin staging, y pérdida silenciosa (NULL) en Oracle con cierta mezcla de valores.
 
+### P-25: `bulk_update_from_df` sobrescribe una columna llamada `pk_<columna PK>`
+**Severidad**: ALTA (corrupción silenciosa, aunque requiere un nombre de columna concreto)
+**Área**: 3 (normalización)
+**Archivo/Función**: `_support/validation.py` `build_update_plan` (`pk_param_map = {col: f"pk_{col}"}`); `crud.py` `__prepare_update_operation` (copia de la PK al alias en cada registro)
+**Descripción**: el valor de la PK se enlaza en el WHERE con el alias `pk_<col>`, que se añade a cada registro. Si la tabla tiene además una columna real con ese nombre y se actualiza, las dos comparten clave en el registro: la columna recibe el valor de la PK.
+**Evidencia**: SQLite, tabla `(id PK, pk_id, v)`, UPDATE de `pk_id` a 111/222: queda `pk_id = 1/2` (el valor de `id`), sin error.
+**Confirmación**: CONFIRMADA (detectado en el refactor P-09, 2026-09-24). Pendiente de corregir.
+
+### P-26: `bulk_delete_from_df` no participa en `bulk_session`
+**Severidad**: MEDIA (bloqueo o falta de atomicidad dentro de una sesión)
+**Área**: 4 (conexiones)
+**Archivo/Función**: `_execution/batch.py` `DeleteBatchExecutor.execute` (siempre `engine.begin()`); `crud.py` `bulk_session` (solo inyecta la conexión en `BatchStatementExecutor`)
+**Descripción**: INSERT y UPDATE usan la conexión de la sesión; DELETE abre su propia transacción. Dentro de `bulk_session` no es atómico con el resto, y si borra filas bloqueadas por la sesión espera su propio bloqueo.
+**Evidencia**: SQLite, `with crud.bulk_session(): bulk_insert_from_df(...); bulk_delete_from_df(...)` → `OperationalError: database is locked` al agotar el timeout.
+**Confirmación**: CONFIRMADA en SQLite (detectado en el refactor P-09, 2026-09-24); en servidores, por deducción del código (no medido). Pendiente de corregir.
+
 ## Prioridad revisada (por impacto medido)
 
 0. ~~**P-19**~~: corregido (hotfix 2026-09-24).
@@ -149,3 +165,5 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 4. ~~**P-02**~~: aplicado (refactor 2026-09-24). No era un cambio de una línea: `DefaultInsertStrategy` habría serializado dos veces las columnas JSON de MySQL, y el conector `mariadb` rechaza tipos mezclados por columna.
 5. ~~**P-17**~~: descartado (`bulk_copy` de pymssql no aplica CHECK/FK). Recomendación: pyodbc + ODBC 17/18.
 6. ~~**P-03**~~: aplicado (refactor 2026-09-24), preparación 2,9× más rápida con resultado idéntico.
+7. ~~**P-09**~~ y copia superficial de P-07: aplicados (refactor 2026-09-24): el UPDATE prepara solo PK + columnas actualizables (3,1× con 7 columnas sobrantes a 100K) y sin copia completa del DataFrame.
+8. **P-25** y **P-26**: hallazgos nuevos, pendientes de corregir.

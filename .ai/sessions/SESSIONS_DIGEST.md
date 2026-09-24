@@ -143,6 +143,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-24 | Hotfix P-23 (`%` en el SQL generado) | Duplicación deshecha en PostgreSQL y MySQL/MariaDB; nuevo P-24 (generar_sql con Oracle por service_name) | CLOSED |
 | 2026-09-24 | Hotfix P-24 (nombre del fichero de generar_sql) | Oracle por service_name y SQLite con ruta absoluta corregidos | CLOSED |
 | 2026-09-24 | Cierre de versión v0.12.0 | CHANGELOG `[0.12.0]` + `pyproject.toml`; checklist verde (4558 passed / 68 skipped, build 0.12.0) | CLOSED |
+| 2026-09-24 | Refactor P-09 + copia superficial | UPDATE solo con PK + columnas actualizables (3,1×); nuevos P-25 y P-26 | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 
