@@ -144,7 +144,7 @@ def test_generate_sql_mssql_identity_wraps_with_on_off(mock_sqlserver_engine, id
 
     with patch.object(manager, "reflect_table", return_value=identity_table):
         op = manager._BulkCrud__prepare_insert_operation(df, "orders")  # type: ignore[attr-defined]
-        sql_lines = op.generate_sql_lines()
+        sql_lines = list(op.generate_sql_lines())  # generador por bloques (P-07)
 
     assert sql_lines[0] == "SET IDENTITY_INSERT [dbo].[orders] ON;"
     assert sql_lines[-1] == "SET IDENTITY_INSERT [dbo].[orders] OFF;"
@@ -158,7 +158,7 @@ def test_generate_sql_mssql_no_identity_col_no_wrap(mock_sqlserver_engine, no_id
 
     with patch.object(manager, "reflect_table", return_value=no_identity_table):
         op = manager._BulkCrud__prepare_insert_operation(df, "orders")  # type: ignore[attr-defined]
-        sql_lines = op.generate_sql_lines()
+        sql_lines = list(op.generate_sql_lines())  # generador por bloques (P-07)
 
     assert all("IDENTITY_INSERT" not in line for line in sql_lines)
 
@@ -169,7 +169,7 @@ def test_generate_sql_other_dialect_no_wrap(mock_sqlite_engine, identity_table: 
 
     with patch.object(manager, "reflect_table", return_value=identity_table):
         op = manager._BulkCrud__prepare_insert_operation(df, "orders")  # type: ignore[attr-defined]
-        sql_lines = op.generate_sql_lines()
+        sql_lines = list(op.generate_sql_lines())  # generador por bloques (P-07)
 
     assert all("IDENTITY_INSERT" not in line for line in sql_lines)
 

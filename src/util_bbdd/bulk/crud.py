@@ -56,13 +56,14 @@ from ._support.sql_helpers import (
     generate_insert_sql,
     generate_insert_sql_override_identity,
     generate_update_sql,
+    iter_identity_insert_sql,
     json_passthrough_binds,
     restore_binary_values,
     should_wrap_identity_insert,
-    wrap_identity_insert_sql,
 )
 from ._support.table_utils import get_column_case_insensitive, get_max_column_value
 from ._support.validation import (
+    UpdatePlan,
     build_update_plan,
     detect_always_identity_columns,
     get_insert_columns,
@@ -100,7 +101,7 @@ class _PreparedBulkOperation:
     """Resultado de preparar una operación bulk concreta."""
 
     rowcount: int
-    generate_sql_lines: Callable[[], list[str]]
+    generate_sql_lines: Callable[[], Iterable[str]]  # por bloques (P-07): se consume una vez, al escribir
     execute: Callable[[], None]
 
 
@@ -567,8 +568,7 @@ class BulkCrud:
 
             elapsed: float = 0.0
             if generar_sql:
-                sql_lines: list[str] = prepared_operation.generate_sql_lines()
-                self.__guardar_fichero_sql(sql_lines, path_sql)
+                self.__guardar_fichero_sql(prepared_operation.generate_sql_lines(), path_sql)
             else:
                 start: float = perf_counter()
                 prepared_operation.execute()
@@ -614,98 +614,144 @@ class BulkCrud:
                 "Usa override_identity=True para insertar valores manuales."
             )
 
-        records_sql: list[dict[str, Any]] = dataframe_to_sql_records(df[insert_cols])
-        restore_binary_values(records_sql, tabla)  # P-21
-        numero_registros: int = len(records_sql)
+        insert_df: pd.DataFrame = df[insert_cols]
+        numero_registros: int = len(insert_df)
+        dialect = self.engine.dialect
+
+        def blocks() -> Iterator[list[dict[str, Any]]]:
+            return self.__record_blocks(insert_df, tabla)
+
+        def execute_blocks(stmt_exec: Any) -> None:
+            with self.__blocks_transaction():
+                for block in blocks():
+                    self.__ejecutar_batch_stmt(block, stmt_exec, len(block))
 
         if override_identity and always_identity_cols:
             stmt_for_sql: Insert = insert(tabla)
-            text_stmt = build_override_identity_text_stmt(tabla, insert_cols, self.engine.dialect)
+            text_stmt = build_override_identity_text_stmt(tabla, insert_cols, dialect)
             return _PreparedBulkOperation(
                 rowcount=numero_registros,
-                generate_sql_lines=lambda: generate_insert_sql_override_identity(
-                    stmt_for_sql, records_sql, self.engine.dialect
+                generate_sql_lines=lambda: (
+                    line
+                    for block in blocks()
+                    for line in generate_insert_sql_override_identity(stmt_for_sql, block, dialect)
                 ),
-                execute=lambda: self.__ejecutar_batch_stmt(records_sql, text_stmt, numero_registros),
+                execute=lambda: execute_blocks(text_stmt),
             )
 
         stmt: Insert = self.__insert_stmt(tabla, insert_cols)
 
-        if should_wrap_identity_insert(tabla, insert_cols, self.engine.dialect):
-            _tabla = tabla
-            _dialect = self.engine.dialect
+        def insert_lines() -> Iterator[str]:
+            return (line for block in blocks() for line in self.__generar_sql_insert(stmt, block))
+
+        if should_wrap_identity_insert(tabla, insert_cols, dialect):
             return _PreparedBulkOperation(
                 rowcount=numero_registros,
-                generate_sql_lines=lambda: wrap_identity_insert_sql(
-                    generate_insert_sql(stmt, records_sql, _dialect), _tabla, _dialect
-                ),
-                execute=lambda: self.__ejecutar_batch_stmt(records_sql, stmt, numero_registros),
+                generate_sql_lines=lambda: iter_identity_insert_sql(insert_lines(), tabla, dialect),
+                execute=lambda: execute_blocks(stmt),
             )
 
         return _PreparedBulkOperation(
             rowcount=numero_registros,
-            generate_sql_lines=lambda: self.__generar_sql_insert(stmt, records_sql),
-            execute=lambda: self.__ejecutar_batch_stmt(records_sql, stmt, numero_registros),
+            generate_sql_lines=insert_lines,
+            execute=lambda: execute_blocks(stmt),
         )
+
+    def __record_blocks(self, df: pd.DataFrame, tabla: Table) -> Iterator[list[dict[str, Any]]]:
+        """Registros de ``chunk_size`` en ``chunk_size`` filas, el lote del ejecutor (P-07).
+
+        Antes se convertía todo el DataFrame a registros antes del primer lote: el pico de memoria era 3,8–4,7 veces
+        el DataFrame al ejecutar y 8,9–9,5 veces al generar SQL (200K filas).
+        """
+        for start in range(0, len(df), self.chunk_size):
+            records: list[dict[str, Any]] = dataframe_to_sql_records(df.iloc[start : start + self.chunk_size])
+            restore_binary_values(records, tabla)  # P-21
+            yield records
+
+    @contextmanager
+    def __blocks_transaction(self) -> Iterator[None]:
+        """Una transacción para todos los bloques (P-07): la de ``bulk_session`` si ya está abierta, o una nueva.
+
+        Equivale a lo anterior, cuando todos los lotes iban en una sola llamada al ejecutor: atómica, o
+        commit-as-you-go con ``commit_every_n_chunks``.
+        """
+        if self._batch_statement_executor._active_connection is not None:
+            yield
+            return
+        with self.bulk_session():
+            yield
 
     def __prepare_update_operation(self, df: pd.DataFrame, tabla_destino: str) -> _PreparedBulkOperation:
         tabla: Table = self.reflect_table(tabla_destino)
         update_plan = build_update_plan(tabla, list(df.columns), tabla_destino)
         # P-09: solo PK + columnas actualizables; el resto del DataFrame no se usa.
-        records_sql: list[dict[str, Any]] = dataframe_to_sql_records(df[update_plan.pk_cols + update_plan.update_cols])
-        restore_binary_values(records_sql, tabla)  # P-21
+        update_df: pd.DataFrame = df[update_plan.pk_cols + update_plan.update_cols]
+        numero_registros: int = len(update_df)
 
-        for record in records_sql:
-            for original_col, alias_col in update_plan.pk_param_map.items():
-                record[alias_col] = record[original_col]
-
-        numero_registros: int = len(records_sql)
-
-        def _execute_update() -> None:
-            where_clause: ColumnElement[bool] = and_(
-                *(tabla.c[col] == bindparam(update_plan.pk_param_map[col]) for col in update_plan.pk_cols)
-            )
-            json_binds = json_passthrough_binds(tabla, update_plan.update_cols)  # P-19: sin doble serialización
-            stmt: Update = (
-                update(tabla)
-                .where(where_clause)
-                .values({col: json_binds.get(col, bindparam(col)) for col in update_plan.update_cols})
-            )
-            if self._update_via_staging:
-                executor = self._batch_statement_executor
-                staging = MySQLStagingUpdateStrategy(
-                    table=tabla,
-                    pk_cols=update_plan.pk_cols,
-                    update_cols=update_plan.update_cols,
-                    loader=executor.insert_strategy,
-                )
-                executor.execute(records=records_sql, stmt=stmt, strategy=staging)
-                if staging.staging_denied:
-                    # Sin privilegio: no volver a intentarlo en esta instancia (el aviso ya quedó en el log).
-                    self._update_via_staging = False
-                return
-            self.__ejecutar_batch_stmt(records_sql, stmt, numero_registros)
+        def blocks() -> Iterator[list[dict[str, Any]]]:
+            for records in self.__record_blocks(update_df, tabla):
+                for record in records:
+                    for original_col, alias_col in update_plan.pk_param_map.items():
+                        record[alias_col] = record[original_col]
+                yield records
 
         return _PreparedBulkOperation(
             rowcount=numero_registros,
-            generate_sql_lines=lambda: self.__generar_sql_update(
-                tabla,
-                records_sql,
-                update_plan.update_cols,
-                update_plan.pk_param_map,
-                update_plan.pk_cols,
+            generate_sql_lines=lambda: (
+                line
+                for block in blocks()
+                for line in self.__generar_sql_update(
+                    tabla,
+                    block,
+                    update_plan.update_cols,
+                    update_plan.pk_param_map,
+                    update_plan.pk_cols,
+                )
             ),
-            execute=_execute_update,
+            execute=lambda: self.__execute_update_blocks(tabla, update_plan, blocks()),
         )
+
+    def __execute_update_blocks(
+        self, tabla: Table, update_plan: UpdatePlan, blocks: Iterator[list[dict[str, Any]]]
+    ) -> None:
+        """Ejecuta el UPDATE bloque a bloque en una sola transacción (P-07), por staging si está activo (P-04)."""
+        where_clause: ColumnElement[bool] = and_(
+            *(tabla.c[col] == bindparam(update_plan.pk_param_map[col]) for col in update_plan.pk_cols)
+        )
+        json_binds = json_passthrough_binds(tabla, update_plan.update_cols)  # P-19: sin doble serialización
+        stmt: Update = (
+            update(tabla)
+            .where(where_clause)
+            .values({col: json_binds.get(col, bindparam(col)) for col in update_plan.update_cols})
+        )
+        executor = self._batch_statement_executor
+        staging: MySQLStagingUpdateStrategy | None = None
+        if self._update_via_staging:
+            staging = MySQLStagingUpdateStrategy(
+                table=tabla,
+                pk_cols=update_plan.pk_cols,
+                update_cols=update_plan.update_cols,
+                loader=executor.insert_strategy,
+            )
+        with self.__blocks_transaction():
+            for block in blocks:
+                executor.execute(records=block, stmt=stmt, strategy=staging)
+        if staging is not None and staging.staging_denied:
+            # Sin privilegio: no volver a intentarlo en esta instancia (el aviso ya quedó en el log).
+            self._update_via_staging = False
 
     def __prepare_delete_operation(self, df: pd.DataFrame, tabla_destino: str) -> _PreparedBulkOperation:
         tabla: Table = self.reflect_table(tabla_destino)
         pk_cols: list[str] = self.__obtener_pk_cols(tabla, df.columns)
         numero_registros: int = len(df)
 
+        def delete_lines() -> Iterator[str]:
+            for start in range(0, len(df), self.chunk_size):  # P-07: por bloques
+                yield from self.__generar_sql_delete(df.iloc[start : start + self.chunk_size], tabla, pk_cols)
+
         return _PreparedBulkOperation(
             rowcount=numero_registros,
-            generate_sql_lines=lambda: self.__generar_sql_delete(df, tabla, pk_cols),
+            generate_sql_lines=delete_lines,
             execute=lambda: self.__ejecutar_delete_batch(df, tabla, pk_cols, numero_registros),
         )
 
@@ -1097,11 +1143,11 @@ class BulkCrud:
             dialect=self.engine.dialect,
         )
 
-    def __guardar_fichero_sql(self, sql_lines: list, fichero_sql: Path | None) -> None:
+    def __guardar_fichero_sql(self, sql_lines: Iterable[str], fichero_sql: Path | None) -> None:
         """Guarda las líneas SQL en un archivo o las imprime en log.
 
         Args:
-            sql_lines: lista de líneas SQL.
+            sql_lines: líneas SQL (se escriben a medida que se generan).
             fichero_sql: Ruta del archivo destino. Si es None, imprime en log.
         """
         self._persistence.persist_sql(sql_lines, fichero_sql)

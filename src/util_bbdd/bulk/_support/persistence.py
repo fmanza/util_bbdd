@@ -4,13 +4,22 @@ from __future__ import annotations
 
 import logging
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
 from ..audit import AuditManager
 from .sql_helpers import generate_sql_filename
 from .validation import resolve_sql_output_path
+
+
+def _joined_lines(lines: Iterable[str]) -> Iterator[str]:
+    """Las líneas separadas por ``\\n`` y sin salto final, como ``"\\n".join(lines)``, sin construir la cadena."""
+    separator = ""
+    for line in lines:
+        yield separator
+        yield line
+        separator = "\n"
 
 
 @dataclass(slots=True)
@@ -39,17 +48,28 @@ class BulkPersistenceManager:
         self.logger.debug(f"📄 Path SQL generado: {output_path}")
         return output_path
 
-    def persist_sql(self, sql_lines: Sequence[str], file_path: Path | None) -> None:
-        """Persiste las sentencias SQL en fichero o las emite al log."""
-        sql_output: str = "\n".join(sql_lines)
-        if file_path is not None:
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            file_path.write_text(sql_output, encoding="utf-8")
-            self.logger.info(f"💾 SQL guardada en: {file_path}")
+    def persist_sql(self, sql_lines: Iterable[str], file_path: Path | None) -> None:
+        """Persiste las sentencias SQL en fichero o las emite al log.
+
+        P-07 (performance-audit de bulk): el fichero se escribe a medida que se generan las líneas, sin unirlas antes en
+        memoria, en un temporal que se renombra al terminar: si la generación falla no queda un fichero a medias. El
+        contenido es el mismo que ``"\\n".join(sql_lines)`` escrito en modo texto.
+        """
+        if file_path is None:
+            self.logger.info("\n".join(sql_lines))
+            self.logger.info("📄 SQL generada en log.")
             return
 
-        self.logger.info(sql_output)
-        self.logger.info("📄 SQL generada en log.")
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path: Path = file_path.with_name(f"{file_path.name}.tmp")
+        try:
+            with tmp_path.open("w", encoding="utf-8") as handle:
+                handle.writelines(_joined_lines(sql_lines))
+            tmp_path.replace(file_path)
+        except BaseException:
+            tmp_path.unlink(missing_ok=True)
+            raise
+        self.logger.info(f"💾 SQL guardada en: {file_path}")
 
     def register_operation(
         self,

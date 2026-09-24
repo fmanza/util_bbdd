@@ -131,7 +131,7 @@ def test_bulk_insert_generate_sql_excludes_identity_col(mock_sqlite_engine, iden
             op = manager._BulkCrud__prepare_insert_operation(  # type: ignore[attr-defined]
                 df, "orders", exclude_autoincrement_pk=True
             )
-            sql_lines = op.generate_sql_lines()
+            sql_lines = list(op.generate_sql_lines())  # generador por bloques (P-07)
 
     records_used = mock_gen.call_args[0][1]
     assert all("id" not in record for record in records_used)
@@ -165,7 +165,7 @@ def test_bulk_insert_false_includes_identity_col(mock_sqlite_engine, identity_ta
         op = manager._BulkCrud__prepare_insert_operation(  # type: ignore[attr-defined]
             df, "orders", exclude_autoincrement_pk=False
         )
-        sql_lines = op.generate_sql_lines()
+        sql_lines = list(op.generate_sql_lines())  # generador por bloques (P-07)
 
     assert len(sql_lines) == 1
     assert "id" in sql_lines[0].lower()

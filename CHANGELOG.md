@@ -24,6 +24,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   4–5 s → 0,1 s (35–50×). La salida es idéntica, carácter a carácter, en 8 combinaciones de dialecto y driver, salvo
   las dos correcciones de abajo. Las filas que no se pueden renderizar así (algunos binarios, `None` en la PK) usan el
   camino anterior.
+- **bulk**: `bulk_insert_from_df`, `bulk_update_from_df` y `bulk_delete_from_df` preparan, ejecutan y escriben por
+  bloques de `chunk_size` filas en lugar de convertir todo el DataFrame antes del primer lote (resto de P-07). Memoria
+  adicional con 200K filas: 70–86 MB → 4–7 MB al ejecutar y 164–176 MB → 4 MB con `generar_sql`, ya sin crecer con el
+  número de filas; mismo tiempo. Todos los bloques van en una transacción (la de `bulk_session` si hay una), así que
+  la atomicidad y `commit_every_n_chunks` no cambian. El fichero de `generar_sql` se escribe a medida que se genera, en
+  un temporal que se renombra al terminar: si la generación falla, no queda un fichero a medias.
 - **docs**: `docs/guides/benchmarks.md` añade a la tabla de problemas conocidos los síntomas de P-13 y P-27.
 
 ### Fixed

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time
 from pathlib import Path
@@ -292,15 +292,17 @@ def should_wrap_identity_insert(table: Table, insert_cols: Sequence[str], dialec
     return any(col.name in col_set and getattr(col, "identity", None) is not None for col in table.columns)
 
 
+def iter_identity_insert_sql(sql_lines: Iterable[str], table: Table, dialect: Any) -> Iterator[str]:
+    """Como :func:`wrap_identity_insert_sql`, sin materializar las líneas (generación por bloques, P-07)."""
+    quoted_table: str = dialect.identifier_preparer.format_table(table)
+    yield f"SET IDENTITY_INSERT {quoted_table} ON;"
+    yield from sql_lines
+    yield f"SET IDENTITY_INSERT {quoted_table} OFF;"
+
+
 def wrap_identity_insert_sql(sql_lines: list[str], table: Table, dialect: Any) -> list[str]:
     """Envuelve una lista de INSERT con SET IDENTITY_INSERT <tabla> ON/OFF para SQL Server."""
-    preparer = dialect.identifier_preparer
-    quoted_table: str = preparer.format_table(table)
-    return [
-        f"SET IDENTITY_INSERT {quoted_table} ON;",
-        *sql_lines,
-        f"SET IDENTITY_INSERT {quoted_table} OFF;",
-    ]
+    return list(iter_identity_insert_sql(sql_lines, table, dialect))
 
 
 def generate_update_sql(
@@ -496,6 +498,7 @@ __all__: list[str] = [
     "generate_insert_sql_override_identity",
     "generate_sql_filename",
     "generate_update_sql",
+    "iter_identity_insert_sql",
     "json_passthrough_binds",
     "restore_binary_values",
     "should_wrap_identity_insert",
