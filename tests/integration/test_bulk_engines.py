@@ -23,6 +23,8 @@ prueban psycopg 3 y psycopg2 si están instalados) y los dos siguientes cubren P
 ``test_wide_table_insert_and_update`` y ``test_delete_composite_pk_over_parameter_limit`` cubren P-13 (límite de
 65.535 parámetros; en MariaDB se prueba también el conector ``mariadb`` si está instalado).
 ``test_delete_with_text_and_datetime_primary_keys`` cubre P-10 (DELETE por arrays en PostgreSQL).
+``test_generated_insert_without_pk_runs_and_keeps_pyformat_text`` cubre P-29 y el Known issue de 0.12.0 (SQL
+generado por plantilla, P-06).
 """
 
 from __future__ import annotations
@@ -707,5 +709,36 @@ def test_delete_with_text_and_datetime_primary_keys(engine: Engine, composite: b
             with eng.connect() as conn:
                 left = sorted(conn.execute(select(table.c[n("v")])).scalars())
             assert left == list(range(1, rows, 2)), eng.dialect.driver
+    finally:
+        table.drop(engine, checkfirst=True)
+
+
+def test_generated_insert_without_pk_runs_and_keeps_pyformat_text(engine: Engine, tmp_path: Path) -> None:
+    """P-29: el INSERT generado sin la PK no lleva RETURNING/OUTPUT (en Oracle no se ejecutaba: ``:ret_0``).
+    Known issue de 0.12.0: ``%(x)s`` dentro de un texto se generaba como ``?`` en SQLite y SQL Server + pyodbc."""
+    from sqlalchemy import Identity
+
+    n = partial(_name, engine=engine)
+    auto: list[Any] = [] if engine.dialect.name in ("sqlite", "mysql", "mariadb") else [Identity()]
+    table = Table(
+        n(f"zz_util_bbdd_it_{uuid.uuid4().hex[:8]}"),
+        MetaData(),
+        Column(n("id"), Integer, *auto, primary_key=True),
+        Column(n("s"), String(40)),
+    )
+    table.create(engine)
+    values = ["a %(x)s b", "it's 100%", "? :name"]
+    try:
+        BulkCrud(engine).bulk_insert_from_df(
+            pd.DataFrame({n("s"): values}), table.name, generar_sql=True, path_sql=tmp_path / "sql"
+        )
+        (sql_file,) = sorted(tmp_path.rglob("*.sql"))
+        text_sql = sql_file.read_text(encoding="utf-8").upper()
+        assert "RETURNING" not in text_sql and "OUTPUT" not in text_sql
+        _execute_generated_sql(engine, tmp_path)
+
+        with engine.connect() as conn:
+            stored = sorted(conn.execute(select(table.c[n("s")])).scalars())
+        assert stored == sorted(values)
     finally:
         table.drop(engine, checkfirst=True)

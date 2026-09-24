@@ -18,6 +18,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   simple con `pk = ANY(:ids)` y PK compuesta con `DELETE ... USING unnest(...)`, un parámetro array por columna.
   100K filas: PK simple 2,8 s → 1,0 s con psycopg 3 y 27,4 s → 1,0 s con psycopg2; PK compuesta 2,7 s → 1,2 s y
   27,9 s → 1,2 s. `DeleteStrategyResolver` admite `postgresql_strategy`.
+- **bulk (`generar_sql=True`, valor por defecto)**: el SQL se genera compilando la sentencia una sola vez y
+  renderizando los literales de cada fila con el mismo renderizador de SQLAlchemy, en lugar de compilar una sentencia
+  por fila (P-06). 100K filas: INSERT 10–11 s → 0,5–0,6 s (17–22×), UPDATE 13–14 s → 0,5–0,6 s (22–29×), DELETE
+  4–5 s → 0,1 s (35–50×). La salida es idéntica, carácter a carácter, en 8 combinaciones de dialecto y driver, salvo
+  las dos correcciones de abajo. Las filas que no se pueden renderizar así (algunos binarios, `None` en la PK) usan el
+  camino anterior.
 - **docs**: `docs/guides/benchmarks.md` añade a la tabla de problemas conocidos los síntomas de P-13 y P-27.
 
 ### Fixed
@@ -44,6 +50,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `bulk_delete_from_df` con lotes de más de 65.535 parámetros (p.ej. PK compuesta y `chunk_size` grande): "Prepared
   statement contains too many placeholders" (P-13). El INSERT multi-fila y el `DELETE ... IN` se trocean ahora para
   no superar 65.535 parámetros por sentencia. PyMySQL no se veía afectado.
+- **bulk (`generar_sql=True`)**: el INSERT generado sin la PK (p.ej. `exclude_autoincrement_pk=True` o un DataFrame
+  sin esa columna) incluía la cláusula para devolverla (P-29): `RETURNING ... INTO :ret_0` en Oracle, donde el
+  fichero no se podía ejecutar (`DPY-4010`), `RETURNING` en PostgreSQL y `OUTPUT inserted.<pk>` en SQL Server. Ya no
+  se incluye.
+- **bulk (`generar_sql=True`)**: un texto con forma `%(nombre)s` dentro de un valor se generaba como `?` en SQLite y
+  en SQL Server + pyodbc (Known issue de 0.12.0). Resuelto con P-06: los valores ya no pasan por el compilador.
 
 ## [0.12.0] - 2026-09-24
 

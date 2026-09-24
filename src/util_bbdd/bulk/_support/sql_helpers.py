@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any
@@ -22,10 +23,12 @@ from sqlalchemy import (
     bindparam,
     delete,
     literal,
+    literal_column,
     text,
     update,
 )
 from sqlalchemy.engine import Dialect, make_url
+from sqlalchemy.sql import operators
 from sqlalchemy.sql.sqltypes import _Binary
 from sqlalchemy.types import TypeDecorator, TypeEngine
 
@@ -122,23 +125,147 @@ def _json_as_string_literals(table: TableClause, values: SqlRecord) -> SqlRecord
     }
 
 
+_MARKER: str = "__util_bbdd_literal_{}__"
+
+
+@dataclass(frozen=True)
+class _Slot:
+    """Hueco de la plantilla: clave del registro, tipo de la columna y si está en el WHERE."""
+
+    key: str
+    type: TypeEngine[Any]
+    json: bool = False
+    where: bool = False
+
+
+class _LiteralTemplate:
+    """Sentencia compilada una vez con marcadores; cada fila solo renderiza sus literales (P-06).
+
+    Antes se construía y compilaba una sentencia por fila con ``literal_binds`` (~165 µs/fila). Los literales se
+    renderizan con ``render_literal_value`` del compilador del dialecto, la misma función que usa ``literal_binds``,
+    con el mismo tipo de parámetro que SQLAlchemy: el de la columna en VALUES/SET (``String`` para JSON, P-20) y
+    ``coerce_compared_value`` en el WHERE. Como los valores no pasan por el compilador, SQLAlchemy ya no convierte en
+    ``?`` un texto con forma ``%(nombre)s`` en dialectos posicionales (SQLite, SQL Server + pyodbc).
+
+    ``render`` devuelve ``None`` cuando la fila no se puede renderizar igual que antes (``None`` en el WHERE, que
+    SQLAlchemy convierte en ``IS NULL``; tipos sin renderizador de literales, como algunos binarios; en el INSERT,
+    claves distintas de las de la plantilla): el llamador genera esa fila por el camino anterior, que da el mismo
+    resultado o el mismo error.
+    """
+
+    def __init__(
+        self, stmt: Any, slots: Sequence[_Slot], dialect: Any, *, postprocess: Any = None, exact_keys: bool = False
+    ) -> None:
+        self._undouble: bool = bool(getattr(dialect.identifier_preparer, "_double_percents", False))
+        sql: str = self._undo_percents(str(stmt.compile(dialect=dialect, compile_kwargs={"literal_binds": True})))
+        if postprocess is not None:
+            sql = postprocess(sql)
+        self._parts, self._order, self._tail = self._split(sql, slots)
+        self._keys: frozenset[str] | None = frozenset(slot.key for slot in slots) if exact_keys else None
+        self._compiler: Any = dialect.statement_compiler(dialect, None)
+        self._string: TypeEngine[Any] = String()
+
+    def _undo_percents(self, sql: str) -> str:
+        return sql.replace("%%", "%") if self._undouble else sql  # P-23
+
+    @staticmethod
+    def _split(sql: str, slots: Sequence[_Slot]) -> tuple[list[str], list[_Slot], str]:
+        """Trocea la plantilla por sus marcadores, en el orden en que aparecen."""
+        found: list[tuple[int, int]] = []
+        for index in range(len(slots)):
+            marker = _MARKER.format(index)
+            if sql.count(marker) != 1:
+                raise ValueError(f"marcador {marker} no encontrado una sola vez en la plantilla")
+            found.append((sql.index(marker), index))
+        parts: list[str] = []
+        order: list[_Slot] = []
+        previous = 0
+        for position, index in sorted(found):
+            parts.append(sql[previous:position])
+            order.append(slots[index])
+            previous = position + len(_MARKER.format(index))
+        return parts, order, sql[previous:] + ";"
+
+    def _literal(self, slot: _Slot, value: Any) -> str | None:
+        if value is None:
+            return None if slot.where else "NULL"
+        if slot.where:
+            type_ = slot.type.coerce_compared_value(operators.eq, value)
+        else:
+            type_ = self._string if slot.json else slot.type
+        return self._undo_percents(self._compiler.render_literal_value(value, type_))
+
+    def render(self, record: SqlRecord) -> str | None:
+        if self._keys is not None and record.keys() != self._keys:
+            return None
+        pieces: list[str] = []
+        try:
+            for part, slot in zip(self._parts, self._order, strict=True):
+                literal_sql = self._literal(slot, record[slot.key])
+                if literal_sql is None:
+                    return None
+                pieces.append(part)
+                pieces.append(literal_sql)
+        except Exception:  # sin renderizador para el tipo o valor no admitido: camino anterior
+            return None
+        pieces.append(self._tail)
+        return "".join(pieces)
+
+
+def _markers(count: int, start: int = 0) -> list[Any]:
+    return [literal_column(_MARKER.format(index)) for index in range(start, start + count)]
+
+
+def _template_or_none(stmt: Any, slots: Sequence[_Slot], dialect: Any, **kwargs: Any) -> _LiteralTemplate | None:
+    """Plantilla, o ``None`` si no se puede construir (se usa entonces el camino anterior para todas las filas)."""
+    try:
+        return _LiteralTemplate(stmt, slots, dialect, **kwargs)
+    except Exception:
+        return None
+
+
+def _render_lines(template: _LiteralTemplate | None, records: Sequence[SqlRecord], per_row: Any) -> list[str]:
+    if template is None:
+        return [per_row(record) for record in records]
+    lines: list[str] = []
+    for record in records:
+        line = template.render(record)
+        lines.append(line if line is not None else per_row(record))
+    return lines
+
+
+def _generate_insert_lines(stmt: Insert, records: Sequence[SqlRecord], dialect: Any, postprocess: Any) -> list[str]:
+    """INSERT literales; ``inline()`` evita el RETURNING/OUTPUT de la PK cuando el registro no la trae (P-29)."""
+    table = stmt.table
+    inline_stmt: Insert = stmt.inline()
+
+    def per_row(record: SqlRecord) -> str:
+        sql = compile_stmt_with_binary_support(inline_stmt.values(_json_as_string_literals(table, record)), dialect)
+        return postprocess(sql) if postprocess is not None else sql
+
+    if not records:
+        return []
+    keys: list[str] = list(records[0])
+    template: _LiteralTemplate | None = None
+    if all(key in table.c for key in keys):
+        slots = [_Slot(key, table.c[key].type, json=isinstance(table.c[key].type, JSON)) for key in keys]
+        template_stmt = inline_stmt.values(dict(zip(keys, _markers(len(keys)), strict=True)))
+        template = _template_or_none(template_stmt, slots, dialect, postprocess=postprocess, exact_keys=True)
+    return _render_lines(template, records, per_row)
+
+
+def _override_system_value(sql: str) -> str:
+    return re.sub(r"\)\s+VALUES\b", ") OVERRIDING SYSTEM VALUE VALUES", sql, count=1, flags=re.IGNORECASE)
+
+
 def generate_insert_sql(stmt: Insert, records: Sequence[SqlRecord], dialect: Any) -> list[str]:
     """Genera SQL INSERT literal para una secuencia de registros."""
-    table = stmt.table
-    return [
-        compile_stmt_with_binary_support(stmt.values(_json_as_string_literals(table, record)), dialect)
-        for record in records
-    ]
+    return _generate_insert_lines(stmt, records, dialect, None)
 
 
 def generate_insert_sql_override_identity(stmt: Insert, records: Sequence[SqlRecord], dialect: Any) -> list[str]:
     """Genera SQL INSERT PostgreSQL con OVERRIDING SYSTEM VALUE para columnas identity always."""
-    result: list[str] = []
-    for record in records:
-        sql = compile_stmt_with_binary_support(stmt.values(_json_as_string_literals(stmt.table, record)), dialect)
-        sql = re.sub(r"\)\s+VALUES\b", ") OVERRIDING SYSTEM VALUE VALUES", sql, count=1, flags=re.IGNORECASE)
-        result.append(sql)
-    return result
+    return _generate_insert_lines(stmt, records, dialect, _override_system_value)
 
 
 def build_override_identity_text_stmt(table: Table, columns: Sequence[str], dialect: Any) -> Any:
@@ -186,8 +313,8 @@ def generate_update_sql(
     dialect: Any,
 ) -> list[str]:
     """Genera SQL UPDATE literal para una secuencia de registros."""
-    sql_lines: list[str] = []
-    for record in records:
+
+    def per_row(record: SqlRecord) -> str:
         update_values: dict[str, Any] = _json_as_string_literals(
             table, {column: record[column] for column in update_cols}
         )
@@ -197,8 +324,21 @@ def generate_update_sql(
             .where(and_(*(table.c[column] == pk_conditions[pk_param_map[column]] for column in pk_cols)))
             .values(update_values)
         )
-        sql_lines.append(compile_stmt_with_binary_support(stmt, dialect))
-    return sql_lines
+        return compile_stmt_with_binary_support(stmt, dialect)
+
+    set_markers = _markers(len(update_cols))
+    where_markers = _markers(len(pk_cols), start=len(update_cols))
+    template_stmt: Update = (
+        update(table)
+        .where(and_(*(table.c[column] == marker for column, marker in zip(pk_cols, where_markers, strict=True))))
+        .values(dict(zip(update_cols, set_markers, strict=True)))
+    )
+    slots: list[_Slot] = [
+        *(_Slot(c, table.c[c].type, json=isinstance(table.c[c].type, JSON)) for c in update_cols),
+        *(_Slot(pk_param_map[c], table.c[c].type, where=True) for c in pk_cols),
+    ]
+    # El registro lleva además las columnas PK originales junto a sus alias: solo se leen las claves de los huecos.
+    return _render_lines(_template_or_none(template_stmt, slots, dialect), records, per_row)
 
 
 def generate_delete_sql(
@@ -209,12 +349,18 @@ def generate_delete_sql(
     dialect: Any,
 ) -> list[str]:
     """Genera SQL DELETE literal para una secuencia de claves primarias."""
-    sql_lines: list[str] = []
-    for record in records:
+
+    def per_row(record: SqlRecord) -> str:
         conditions = [table.c[column] == record[column] for column in pk_cols]
         stmt: Delete = delete(table).where(and_(*conditions))
-        sql_lines.append(compile_stmt_with_binary_support(stmt, dialect))
-    return sql_lines
+        return compile_stmt_with_binary_support(stmt, dialect)
+
+    where_markers = _markers(len(pk_cols))
+    template_stmt: Delete = delete(table).where(
+        and_(*(table.c[column] == marker for column, marker in zip(pk_cols, where_markers, strict=True)))
+    )
+    slots = [_Slot(column, table.c[column].type, where=True) for column in pk_cols]
+    return _render_lines(_template_or_none(template_stmt, slots, dialect), records, per_row)
 
 
 def _substitute_ordered_params(sql_text: str, ordered_params: list[Any]) -> str:
