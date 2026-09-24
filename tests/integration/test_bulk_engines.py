@@ -70,9 +70,23 @@ SERVER_ENGINES: tuple[str, ...] = ("postgresql", "mysql", "mariadb", "mssql", "o
 ROWS_OVER_MSSQL_PARAM_LIMIT = 3_000  # > 2100 parámetros por petición de SQL Server
 
 
-def _engine_params() -> list[object]:
-    params: list[object] = [pytest.param("sqlite", id="sqlite")]
-    for key in SERVER_ENGINES:
+MYSQL_FAMILY: frozenset[str] = frozenset({"mysql", "mariadb"})  # update_via_staging, límite de 65.535 parámetros
+NO_JSON: frozenset[str] = frozenset({"mssql", "oracle"})  # SQL Server sin JSON; Oracle refleja JSON como NullType
+
+
+def _engine_params(*, only: frozenset[str] | None = None, exclude: frozenset[str] = frozenset()) -> list[Any]:
+    """Un parámetro por motor; los servidores se saltan si falta su URL.
+
+    ``only``/``exclude`` limitan los motores de un test en lugar de generarlos y saltarlos dentro (así el recuento de
+    saltados solo refleja servidores sin URL).
+    """
+    params: list[Any] = []
+    for key in ("sqlite", *SERVER_ENGINES):
+        if (only is not None and key not in only) or key in exclude:
+            continue
+        if key == "sqlite":
+            params.append(pytest.param(key, id=key))
+            continue
         env = f"UTIL_BBDD_TEST_{key.upper()}_URL"
         params.append(
             pytest.param(key, id=key, marks=pytest.mark.skipif(not os.environ.get(env), reason=f"{env} no definida"))
@@ -201,10 +215,9 @@ def test_delete_with_composite_primary_key(engine: Engine, composite_table: Tabl
     assert _count(engine, composite_table) == 30
 
 
+@pytest.mark.parametrize("engine", _engine_params(exclude=NO_JSON), indirect=True)
 def test_json_column_roundtrip(engine: Engine) -> None:
     """P-19: INSERT y UPDATE guardan el objeto JSON una sola vez y ``None`` como NULL SQL."""
-    if engine.dialect.name in ("mssql", "oracle"):
-        pytest.skip("SQL Server no tiene tipo JSON; Oracle refleja la columna como NullType (sin procesador)")
     n = partial(_name, engine=engine)
     table = Table(
         n(f"zz_util_bbdd_it_{uuid.uuid4().hex[:8]}"),
@@ -294,11 +307,10 @@ def _update_state(engine: Engine, df_update: pd.DataFrame, *, staging: bool, chu
         table.drop(engine, checkfirst=True)
 
 
+@pytest.mark.parametrize("engine", _engine_params(only=MYSQL_FAMILY), indirect=True)
 @pytest.mark.parametrize("chunk_size", [2, 5000])
 def test_update_via_staging_matches_executemany(engine: Engine, chunk_size: int) -> None:
     """P-04: el UPDATE por tabla temporal deja la tabla igual que el executemany (incluidas PK repetidas y NULL)."""
-    if engine.dialect.name not in ("mysql", "mariadb"):
-        pytest.skip("update_via_staging solo aplica a MySQL/MariaDB")
     df_update = pd.DataFrame(
         {
             "id": [1, 3, 2, 2, 99, 1],  # 2 repetido en el mismo lote, 1 en lotes distintos, 99 no existe
@@ -318,10 +330,9 @@ def test_update_via_staging_matches_executemany(engine: Engine, chunk_size: int)
     assert [r for r in via_staging if r[0] == 2][0][5] == {"k": "last"}
 
 
+@pytest.mark.parametrize("engine", _engine_params(only=MYSQL_FAMILY), indirect=True)
 def test_update_via_staging_rolls_back_inside_bulk_session(engine: Engine) -> None:
     """P-04: las tablas temporales no provocan commit implícito; un fallo en un lote posterior deshace todo."""
-    if engine.dialect.name not in ("mysql", "mariadb"):
-        pytest.skip("update_via_staging solo aplica a MySQL/MariaDB")
     table = _staging_table(engine)
     table.create(engine)
     try:
@@ -340,14 +351,22 @@ def test_update_via_staging_rolls_back_inside_bulk_session(engine: Engine) -> No
         table.drop(engine, checkfirst=True)
 
 
-@pytest.mark.parametrize("update_via_staging", [True, False])
+# update_via_staging=True (por defecto) en todos los motores; False solo cambia el UPDATE en MySQL/MariaDB.
+_BINARY_CASES: list[Any] = [
+    *(pytest.param(p.values[0], True, id=f"{p.id}-staging", marks=p.marks) for p in _engine_params()),
+    *(
+        pytest.param(p.values[0], False, id=f"{p.id}-no-staging", marks=p.marks)
+        for p in _engine_params(only=MYSQL_FAMILY)
+    ),
+]
+
+
+@pytest.mark.parametrize(("engine", "update_via_staging"), _BINARY_CASES, indirect=["engine"])
 def test_binary_column_roundtrip(engine: Engine, update_via_staging: bool) -> None:
     """P-21: los bytes llegan intactos aunque sean UTF-8 válido (``normalize_sql_literal`` los decodifica a ``str``).
 
     Sin valores vacíos: Oracle guarda ``b""`` como NULL por diseño.
     """
-    if not update_via_staging and engine.dialect.name not in ("mysql", "mariadb"):
-        pytest.skip("update_via_staging solo cambia el UPDATE en MySQL/MariaDB")
     n = partial(_name, engine=engine)
     table = Table(
         n(f"zz_util_bbdd_it_{uuid.uuid4().hex[:8]}"),
@@ -381,10 +400,9 @@ def test_binary_column_roundtrip(engine: Engine, update_via_staging: bool) -> No
         table.drop(engine, checkfirst=True)
 
 
+@pytest.mark.parametrize("engine", _engine_params(exclude=NO_JSON), indirect=True)
 def test_generated_sql_with_json_column(engine: Engine, tmp_path: Path) -> None:
     """P-20: el SQL generado con columnas JSON se puede ejecutar y guarda los documentos (sin ``%``: ver P-23)."""
-    if engine.dialect.name in ("mssql", "oracle"):
-        pytest.skip("SQL Server no tiene tipo JSON; Oracle refleja la columna como NullType")
     n = partial(_name, engine=engine)
     table = Table(
         n(f"zz_util_bbdd_it_{uuid.uuid4().hex[:8]}"),
@@ -666,10 +684,9 @@ def test_wide_table_insert_and_update(engine: Engine) -> None:
         table.drop(engine, checkfirst=True)
 
 
+@pytest.mark.parametrize("engine", _engine_params(only=MYSQL_FAMILY), indirect=True)
 def test_delete_composite_pk_over_parameter_limit(engine: Engine, composite_table: Table) -> None:
     """P-13: un lote de 34.000 PK compuestas (68.000 parámetros) supera el límite del conector ``mariadb``."""
-    if engine.dialect.name not in ("mysql", "mariadb"):
-        pytest.skip("límite de 65.535 parámetros de MySQL/MariaDB")
     k1, k2, v = (_name(c, engine) for c in ("k1", "k2", "v"))
     rows = 34_000
     df = pd.DataFrame({k1: np.arange(rows) // 10, k2: np.arange(rows) % 10, v: "x"})
@@ -734,7 +751,8 @@ def test_generated_insert_without_pk_runs_and_keeps_pyformat_text(engine: Engine
         )
         (sql_file,) = sorted(tmp_path.rglob("*.sql"))
         text_sql = sql_file.read_text(encoding="utf-8").upper()
-        assert "RETURNING" not in text_sql and "OUTPUT" not in text_sql
+        assert "RETURNING" not in text_sql
+        assert "OUTPUT" not in text_sql
         _execute_generated_sql(engine, tmp_path)
 
         with engine.connect() as conn:

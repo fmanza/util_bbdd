@@ -1,5 +1,6 @@
 """Unit tests for helper methods in HTML/Excel/Word generators."""
 
+import importlib.util
 import logging
 
 from pathlib import Path
@@ -979,7 +980,11 @@ def test_word_generator_generate_document_reuses_injected_graph_generator(
     assert captured["graph_generator"] is sentinel
 
 
-@pytest.mark.skipif("matplotlib" not in globals(), reason="matplotlib no disponible en entorno de tests")
+# Antes la condición era `"matplotlib" not in globals()`: miraba los nombres de este módulo (que no importa
+# matplotlib), no si la librería está instalada, así que el test se saltaba siempre.
+@pytest.mark.skipif(
+    importlib.util.find_spec("matplotlib") is None, reason="matplotlib no disponible en entorno de tests"
+)
 def test_matplotlib_relationship_graph_uses_multilevel_document() -> None:
     from util_bbdd.analysis.matplotlib_graph import MatplotlibRelationshipGraph
     from util_bbdd.managers import SyncDatabaseManager

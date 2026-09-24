@@ -131,7 +131,7 @@ Los servidores de `docker-compose.bench.yml` son independientes de cualquier otr
 |---|---|---|---|
 | PostgreSQL 17 | `util_bbdd_bench_postgres` | 55432 (`UTIL_BBDD_BENCH_POSTGRES_PORT`) | `bench` |
 | MySQL 8.4 | `util_bbdd_bench_mysql` | 53306 (`UTIL_BBDD_BENCH_MYSQL_PORT`) | `bench` |
-| MariaDB 11.4 | `util_bbdd_bench_mariadb` | 53307 (`UTIL_BBDD_BENCH_MARIADB_PORT`) | `bench` |
+| MariaDB 11.4 | `util_bbdd_bench_mariadb` | 53307 (`UTIL_BBDD_BENCH_MARIADB_PORT`) | `bench`; además, `bench` puede crear y borrar bases `zz_util_bbdd_*` (lo necesita `test_update_auto_increment_mariadb.py`) |
 | SQL Server 2022 | `util_bbdd_bench_mssql` | 51433 (`UTIL_BBDD_BENCH_MSSQL_PORT`) | `bench` (la crea el healthcheck) |
 | Oracle 23 Free | `util_bbdd_bench_oracle` | 51521 (`UTIL_BBDD_BENCH_ORACLE_PORT`) | PDB `FREEPDB1`, usuario `bench` |
 

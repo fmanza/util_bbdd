@@ -72,6 +72,13 @@ services:
       MARIADB_PASSWORD: *password
     ports:
       - "127.0.0.1:${UTIL_BBDD_BENCH_MARIADB_PORT:-53307}:3306"
+    # tests/integration/test_update_auto_increment_mariadb.py crea y borra bases zz_util_bbdd_autoinc_<id>: el usuario
+    # bench solo recibe permisos sobre bases con ese prefijo. Los scripts de inicio solo se ejecutan con el directorio de
+    # datos vacío: para aplicarlo a un contenedor ya creado,
+    # `docker compose -f docker-compose.bench.yml up -d --wait --force-recreate -V mariadb` (borra sus datos).
+    configs:
+      - source: mariadb_bench_grants
+        target: /docker-entrypoint-initdb.d/10-bench-grants.sql
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 5s
@@ -107,3 +114,8 @@ services:
       test: ["CMD", "healthcheck.sh"]
       interval: 10s
       retries: 60
+
+configs:
+  mariadb_bench_grants:
+    content: |
+      GRANT ALL PRIVILEGES ON `zz\_util\_bbdd\_%`.* TO 'bench'@'%';

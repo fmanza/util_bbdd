@@ -24,6 +24,23 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `bench`, contraseña en `UTIL_BBDD_BENCH_PASSWORD`). Un contenedor `postgres_db` ya creado no se modifica ni se borra;
   compose deja de verlo desde este directorio.
 
+- **banco de pruebas (MariaDB)**: el usuario `bench` puede crear y borrar bases `zz_util_bbdd_*` (script de inicio
+  en `docker-compose.bench.yml`). `test_update_auto_increment_mariadb.py` daba 3 errores (`1044 Access denied`)
+  contra el banco; ahora pasa.
+- **tests**: los tests de integración que solo aplican a algunos motores (`update_via_staging` y el límite de 65.535
+  parámetros en MySQL/MariaDB; JSON fuera de SQL Server y Oracle) ya no se generan para los demás motores en lugar de
+  saltarse: los tests saltados solo reflejan servidores sin URL (sin URLs: 139; con las del banco: 0).
+- **tests**: `pytest.ini` deja de ocultar los avisos (`--disable-warnings`), para que el resumen los muestre.
+
+### Fixed
+
+- **connection (Oracle)**: `PoolConnection.__del__` lanzaba `AttributeError` si el constructor había fallado antes de
+  inicializar el objeto (p.ej. sin `oracledb`). Python lo emitía como excepción ignorada en el destructor y pytest como
+  `PytestUnraisableExceptionWarning`, el único aviso de la suite. Ahora no hace nada en ese caso.
+- **tests**: el test de `MatplotlibRelationshipGraph` se saltaba siempre, porque su condición
+  (`"matplotlib" not in globals()`) miraba los nombres del módulo de test en lugar de si `matplotlib` está instalado.
+  Ahora se ejecuta si lo está, y pasa.
+
 ### Removed
 
 - **tests**: fixtures `postgresql_available`, `postgresql_engine`, `postgresql_engine_with_schema` y

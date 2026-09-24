@@ -7,7 +7,8 @@ Se salta si no hay servidor configurado. Para ejecutarlo apunta ``UTIL_BBDD_TEST
         python -m pytest tests/integration/test_update_auto_increment_mariadb.py
 
 Cada prueba crea una base temporal ``zz_util_bbdd_autoinc_<id>`` y la elimina al terminar, incluso si falla; no toca
-ninguna otra base de datos del servidor.
+ninguna otra base de datos del servidor. El MariaDB de ``docker-compose.bench.yml`` da al usuario ``bench`` permisos
+solo sobre bases ``zz_util_bbdd_*``, suficiente para este test (``scripts/bench_env.example.*`` define la URL).
 """
 
 from __future__ import annotations
