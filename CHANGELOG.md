@@ -15,6 +15,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   copia superficial del DataFrame en lugar de una copia completa (P-07 parcial: una copia menos de los datos en memoria;
   el DataFrame del llamador sigue sin modificarse).
 
+### Fixed
+
+- **bulk**: `bulk_update_from_df` escribía el valor de la PK en una columna llamada `pk_<PK>` (p.ej. `pk_id` con PK
+  `id`), sin error, porque ese era el nombre del parámetro de la PK en el WHERE (P-25). El nombre del parámetro lleva
+  ahora un sufijo numérico si coincide con una columna. Afectaba a todos los motores salvo SQL Server (columnas en
+  mayúsculas), también al SQL generado y al UPDATE por tabla temporal.
+- **bulk**: `bulk_delete_from_df` abría su propia transacción dentro de `bulk_session()` (P-26): no se deshacía si la
+  sesión fallaba y, en SQLite, fallaba con `database is locked` si la sesión ya había escrito. Ahora usa la conexión
+  de la sesión, como INSERT y UPDATE.
+
 ## [0.12.0] - 2026-09-24
 
 Auditoría de rendimiento del módulo `bulk` con banco de pruebas contra motores reales (SQLite 3.50, PostgreSQL 17,

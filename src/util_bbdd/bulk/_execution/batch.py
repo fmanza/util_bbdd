@@ -764,15 +764,28 @@ class DeleteBatchExecutor:
         self._engine: Engine = engine
         self._chunk_size: int = chunk_size
         self._resolver: DeleteStrategyResolver = resolver or DeleteStrategyResolver()
+        # Conexión de ``BulkCrud.bulk_session()`` (P-26): el DELETE participa en la transacción de la sesión.
+        self._active_connection: Any | None = None
 
     def execute(self, *, table: Table, df: pd.DataFrame, pk_cols: Sequence[str]) -> None:
-        """Ejecuta DELETE por lotes usando la estrategia resuelta por dialecto."""
-        strategy: DeleteExecutionStrategyProtocol = self._resolver.resolve(self._engine.dialect.name)
+        """Ejecuta DELETE por lotes usando la estrategia resuelta por dialecto.
+
+        Dentro de ``BulkCrud.bulk_session()`` usa la conexión de la sesión; fuera, una transacción propia.
+        """
+        if self._active_connection is not None:
+            self._execute_on_connection(self._active_connection, table=table, df=df, pk_cols=pk_cols)
+            return
         with self._engine.begin() as connection:
-            for batch_df in self._iter_batches(df=df, pk_cols=pk_cols):
-                self._execute_batch(
-                    strategy=strategy, connection=connection, table=table, batch_df=batch_df, pk_cols=pk_cols
-                )
+            self._execute_on_connection(connection, table=table, df=df, pk_cols=pk_cols)
+
+    def _execute_on_connection(
+        self, connection: Any, *, table: Table, df: pd.DataFrame, pk_cols: Sequence[str]
+    ) -> None:
+        strategy: DeleteExecutionStrategyProtocol = self._resolver.resolve(self._engine.dialect.name)
+        for batch_df in self._iter_batches(df=df, pk_cols=pk_cols):
+            self._execute_batch(
+                strategy=strategy, connection=connection, table=table, batch_df=batch_df, pk_cols=pk_cols
+            )
 
     def _iter_batches(self, *, df: pd.DataFrame, pk_cols: Sequence[str]) -> Iterator[pd.DataFrame]:
         """Genera batches no vacíos para la ejecución sin materializar la lista completa."""

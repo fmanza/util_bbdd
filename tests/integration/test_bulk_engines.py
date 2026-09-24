@@ -16,6 +16,8 @@ parámetros y PK compuesta en SQL Server) ``test_json_column_roundtrip`` cubre P
 ``test_update_via_staging_matches_executemany`` verifica P-04 (UPDATE por tabla temporal, solo MySQL/MariaDB) y
 ``test_binary_column_roundtrip`` cubre P-21 (binarios UTF-8 válidos) y ``test_generated_sql_with_json_column`` cubre
 P-20 (``generar_sql`` con columnas JSON) y ``test_generated_sql_keeps_percent_signs`` cubre P-23 (``%`` duplicados).
+``test_update_column_named_like_pk_alias`` cubre P-25 (columna ``pk_<PK>``) y los dos tests de DELETE dentro de
+``bulk_session`` cubren P-26 (el DELETE fuera de la transacción de la sesión).
 """
 
 from __future__ import annotations
@@ -454,3 +456,69 @@ def test_generated_sql_keeps_percent_signs(engine: Engine, tmp_path: Path) -> No
             assert list(conn.execute(select(table.c[col_s]).order_by(table.c[col_id])).scalars()) == updated
     finally:
         table.drop(engine, checkfirst=True)
+
+
+@pytest.mark.parametrize("update_via_staging", [True, False])
+@pytest.mark.parametrize("generar_sql", [False, True])
+def test_update_column_named_like_pk_alias(
+    engine: Engine, tmp_path: Path, update_via_staging: bool, generar_sql: bool
+) -> None:
+    """P-25: una columna real llamada ``pk_<PK>`` recibe su valor, no el de la PK."""
+    n = partial(_name, engine=engine)
+    table = Table(
+        n(f"zz_util_bbdd_it_{uuid.uuid4().hex[:8]}"),
+        MetaData(),
+        Column(n("id"), Integer, primary_key=True, autoincrement=False),
+        Column(n("pk_id"), Integer),
+        Column(n("v"), String(10)),
+    )
+    table.create(engine)
+    col_id, col_pk_id, col_v = n("id"), n("pk_id"), n("v")
+    try:
+        crud = BulkCrud(engine, update_via_staging=update_via_staging)
+        crud.bulk_insert_from_df(
+            pd.DataFrame({col_id: [1, 2], col_pk_id: [100, 200], col_v: ["a", "b"]}), table.name, False
+        )
+        df = pd.DataFrame({col_id: [1, 2], col_pk_id: [111, 222], col_v: ["x", "y"]})
+        if generar_sql:
+            crud.bulk_update_from_df(df, table.name, generar_sql=True, path_sql=tmp_path / "sql")
+            _execute_generated_sql(engine, tmp_path)
+        else:
+            crud.bulk_update_from_df(df, table.name, False)
+
+        with engine.connect() as conn:
+            rows = [tuple(r) for r in conn.execute(select(table).order_by(table.c[col_id]))]
+        assert rows == [(1, 111, "x"), (2, 222, "y")]
+    finally:
+        table.drop(engine, checkfirst=True)
+
+
+def test_delete_inside_bulk_session_rolls_back_with_it(engine: Engine, scratch_table: Table) -> None:
+    """P-26: el DELETE usa la transacción de ``bulk_session``; si la sesión falla, no se borra nada."""
+    crud = BulkCrud(engine)
+    col_id = _name("id", engine)
+    crud.bulk_insert_from_df(_frame(engine, 4), scratch_table.name, False)
+
+    with pytest.raises(RuntimeError), crud.bulk_session():
+        crud.bulk_delete_from_df(pd.DataFrame({col_id: [1, 2]}), scratch_table.name, False)
+        raise RuntimeError("fallo posterior al DELETE")
+
+    assert _count(engine, scratch_table) == 4
+
+
+@pytest.mark.parametrize("commit_every_n_chunks", [None, 1])
+def test_delete_inside_bulk_session_commits_with_it(
+    engine: Engine, scratch_table: Table, commit_every_n_chunks: int | None
+) -> None:
+    """P-26: INSERT y DELETE de la misma sesión quedan aplicados al salir de ella."""
+    col_id = _name("id", engine)
+    BulkCrud(engine).bulk_insert_from_df(_frame(engine, 4), scratch_table.name, False)
+    crud = BulkCrud(engine, commit_every_n_chunks=commit_every_n_chunks)
+
+    with crud.bulk_session():
+        crud.bulk_insert_from_df(_frame(engine, 6).iloc[4:], scratch_table.name, False)
+        crud.bulk_delete_from_df(pd.DataFrame({col_id: [1, 2]}), scratch_table.name, False)
+
+    with engine.connect() as conn:
+        ids = list(conn.execute(select(scratch_table.c[col_id]).order_by(scratch_table.c[col_id])).scalars())
+    assert ids == [3, 4, 5, 6]

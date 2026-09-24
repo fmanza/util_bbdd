@@ -114,8 +114,27 @@ def build_update_plan(table: Table, df_columns: Sequence[str], table_name: str) 
     return UpdatePlan(
         pk_cols=pk_cols,
         update_cols=update_cols,
-        pk_param_map={column: f"pk_{column}" for column in pk_cols},
+        pk_param_map=_pk_param_aliases(pk_cols, table_columns),
     )
+
+
+def _pk_param_aliases(pk_cols: Sequence[str], table_columns: set[str]) -> dict[str, str]:
+    """Alias del parámetro de cada PK en el WHERE: ``pk_<col>``, con sufijo si coincide con una columna (P-25).
+
+    El alias comparte registro con las columnas a actualizar; si una columna real se llamara igual, recibiría el
+    valor de la PK. El sufijo es numérico para que el nombre siga empezando por letra (Oracle).
+    """
+    reserved: set[str] = set(table_columns)
+    aliases: dict[str, str] = {}
+    for column in pk_cols:
+        alias: str = f"pk_{column}"
+        suffix: int = 1
+        while alias in reserved:
+            alias = f"pk_{column}_{suffix}"
+            suffix += 1
+        reserved.add(alias)
+        aliases[column] = alias
+    return aliases
 
 
 __all__: list[str] = [

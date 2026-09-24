@@ -834,10 +834,11 @@ class BulkCrud:
 
     @contextmanager
     def bulk_session(self, *, atomic: bool = True) -> Iterator[None]:
-        """Context manager que reutiliza una única conexión de BD para múltiples inserts.
+        """Context manager que reutiliza una única conexión de BD para múltiples operaciones bulk.
 
         Usar cuando se invoca ``bulk_insert_from_df`` repetidamente (p.ej. en un loop
         de chunks), para evitar abrir y cerrar una transacción por cada invocación.
+        ``bulk_update_from_df`` y ``bulk_delete_from_df`` participan en la misma transacción.
 
         Args:
             atomic: Si ``True`` (default), todos los inserts de la sesión se commitean
@@ -866,10 +867,11 @@ class BulkCrud:
             yield
             return
         executor = self._batch_statement_executor
+        delete_executor = self._delete_batch_executor  # P-26: el DELETE también usa la conexión de la sesión
         if executor._commit_every_n_chunks is not None:
             executor._chunks_since_commit = 0
             with executor._engine.connect() as conn:
-                executor._active_connection = conn
+                executor._active_connection = delete_executor._active_connection = conn
                 try:
                     yield
                     conn.commit()
@@ -877,14 +879,14 @@ class BulkCrud:
                     executor.rows_committed += executor._rows_pending_commit
                     executor._rows_pending_commit = 0
                 finally:
-                    executor._active_connection = None
+                    executor._active_connection = delete_executor._active_connection = None
             return
         with executor._engine.begin() as conn:
-            executor._active_connection = conn
+            executor._active_connection = delete_executor._active_connection = conn
             try:
                 yield
             finally:
-                executor._active_connection = None
+                executor._active_connection = delete_executor._active_connection = None
 
     def get_columna_may_min(self, tabla: Table, nombre_col: str) -> Column | None:
         """Devuelve una columna de una tabla SQLAlchemy ignorando mayúsculas/minúsculas."""
