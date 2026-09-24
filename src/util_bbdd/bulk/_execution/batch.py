@@ -896,20 +896,30 @@ class DeleteBatchExecutor:
         engine: Engine,
         chunk_size: int,
         resolver: DeleteStrategyResolver | None = None,
+        commit_every_n_chunks: int | None = None,
     ) -> None:
         self._engine: Engine = engine
         self._chunk_size: int = validate_chunk_size(chunk_size)
         self._resolver: DeleteStrategyResolver = resolver or DeleteStrategyResolver()
         # Conexión de ``BulkCrud.bulk_session()`` (P-26): el DELETE participa en la transacción de la sesión.
         self._active_connection: Any | None = None
+        self._commit_every_n_chunks: int | None = commit_every_n_chunks
 
     def execute(self, *, table: Table, df: pd.DataFrame, pk_cols: Sequence[str]) -> None:
         """Ejecuta DELETE por lotes usando la estrategia resuelta por dialecto.
 
-        Dentro de ``BulkCrud.bulk_session()`` usa la conexión de la sesión; fuera, una transacción propia.
+        Dentro de ``BulkCrud.bulk_session()`` usa la conexión de la sesión; fuera, una transacción propia. Con
+        ``commit_every_n_chunks`` confirma cada N lotes, como INSERT y UPDATE (auditoría de bulk 2026-09-24,
+        hallazgo 7: fuera de la sesión todo el DELETE iba en una sola transacción); si falla, quedan borrados los lotes
+        ya confirmados.
         """
         if self._active_connection is not None:
             self._execute_on_connection(self._active_connection, table=table, df=df, pk_cols=pk_cols)
+            return
+        if self._commit_every_n_chunks is not None:
+            with self._engine.connect() as connection:
+                self._execute_on_connection(connection, table=table, df=df, pk_cols=pk_cols)
+                connection.commit()
             return
         with self._engine.begin() as connection:
             self._execute_on_connection(connection, table=table, df=df, pk_cols=pk_cols)
@@ -918,10 +928,16 @@ class DeleteBatchExecutor:
         self, connection: Any, *, table: Table, df: pd.DataFrame, pk_cols: Sequence[str]
     ) -> None:
         strategy: DeleteExecutionStrategyProtocol = self._resolver.resolve(self._engine.dialect.name)
+        batches_since_commit = 0
         for batch_df in self._iter_batches(df=df, pk_cols=pk_cols):
             self._execute_batch(
                 strategy=strategy, connection=connection, table=table, batch_df=batch_df, pk_cols=pk_cols
             )
+            if self._commit_every_n_chunks is not None:
+                batches_since_commit += 1
+                if batches_since_commit >= self._commit_every_n_chunks:
+                    connection.commit()
+                    batches_since_commit = 0
 
     def _iter_batches(self, *, df: pd.DataFrame, pk_cols: Sequence[str]) -> Iterator[pd.DataFrame]:
         """Genera batches no vacíos para la ejecución sin materializar la lista completa."""

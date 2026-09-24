@@ -215,6 +215,7 @@ class BulkCrud:
         self._delete_batch_executor: DeleteBatchExecutor = DeleteBatchExecutor(
             engine=self.engine,
             chunk_size=self.chunk_size,
+            commit_every_n_chunks=commit_every_n_chunks,
         )
         # INSERT no entra en este dict porque requiere kwargs extra (override_identity,
         # exclude_autoincrement_pk) que la interfaz Callable[[df, tabla], ...] no soporta.

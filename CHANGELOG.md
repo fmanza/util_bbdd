@@ -60,6 +60,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **bulk (`generar_sql=True`)**: el nombre de la tabla entraba sin sanear en el nombre del fichero: con `/` o `\` se
   creaba en otra carpeta (`..` incluido) y con `:` u otros caracteres no válidos fallaba en Windows. Se sanea como el
   de la base de datos.
+- **bulk (`bulk_delete_from_df`)**: ignoraba `commit_every_n_chunks`. Fuera de `bulk_session`, todo el borrado iba en
+  una transacción. Ahora confirma cada N lotes como INSERT y UPDATE, dentro y fuera de la sesión. Si falla, quedan
+  borrados los lotes ya confirmados.
 - **connection (Oracle)**: `PoolConnection.__del__` lanzaba `AttributeError` si el constructor había fallado antes de
   inicializar el objeto (p.ej. sin `oracledb`). Python lo emitía como excepción ignorada en el destructor y pytest como
   `PytestUnraisableExceptionWarning`, el único aviso de la suite. Ahora no hace nada en ese caso.
