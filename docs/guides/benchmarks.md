@@ -34,7 +34,7 @@ el tiempo total.
 |---|---|---|---|
 | `chunk_size` | `BulkCrud` / `ParallelBulkLoader` | Filas por lote (default 5000) | Bajar a ≤500 si el destino MariaDB tiene `TEXT`/`JSON` (`max_allowed_packet`) |
 | `commit_every_n_chunks` | `BulkCrud` / `ParallelBulkLoader` | Commit cada N lotes; acota el undo log | **Crítico** en MariaDB/MySQL con millones de filas (evita degradación exponencial) |
-| `enable_fast_executemany` | `BulkCrud` / `ParallelBulkLoader` | Activa `fast_executemany` de pyodbc | SQL Server: 5–15× más rápido |
+| `enable_fast_executemany` | `BulkCrud` / `ParallelBulkLoader` | Activa `fast_executemany` en el dialecto pyodbc (como `create_engine(..., fast_executemany=True)`) | SQL Server + ODBC 17/18: INSERT ~12× más rápido |
 | Vía nativa por motor | Automática | COPY / multi-row / fast_executemany (tabla abajo) | Siempre activa con `BulkCrud(insert_resolver=None)` (default) |
 | Carga paralela | `ParallelBulkLoader` | Inserta particiones disjuntas en paralelo, una `BulkCrud` por hilo | Tablas muy grandes; el pool debe tener capacidad ≥ `max_workers` |
 
@@ -47,7 +47,7 @@ bulk = BulkCrud(
     engine=engine,
     chunk_size=5_000,              # filas por lote
     commit_every_n_chunks=20,      # commit cada 100K filas (MariaDB)
-    enable_fast_executemany=True,  # SQL Server: 5–15× más rápido
+    enable_fast_executemany=True,  # SQL Server + pyodbc: INSERT ~12× más rápido
 )
 ```
 
@@ -60,15 +60,19 @@ bulk = BulkCrud(
 | PostgreSQL + psycopg3 | `COPY ... FROM STDIN` | La más rápida |
 | PostgreSQL + psycopg2 | `execute_values` multi-row | 3–5× sobre `executemany` |
 | MySQL / MariaDB | INSERT multi-row sub-loteado | 2–4× sobre `executemany` |
-| SQL Server + pyodbc | `fast_executemany=True` | 5–15× sobre `executemany` |
+| SQL Server + pyodbc | `fast_executemany=True` (con ODBC Driver 17/18) | ~12× medido en SQL Server 2022 + ODBC Driver 18 |
 | Oracle, SQLite, HSQLDB | `executemany` estándar | — |
 
-!!! warning "Ganancias de MySQL/MariaDB y SQL Server en revisión"
+!!! warning "Ganancia de MySQL/MariaDB en revisión"
     La auditoría de rendimiento del 2026-09-23 observó que la vía multi-fila de MySQL/MariaDB añade coste en el
-    cliente frente al `executemany` nativo de PyMySQL, que ya envía INSERT multi-fila, y que `fast_executemany` no se
-    aplica al INSERT si el engine no se crea con `create_engine(..., fast_executemany=True)`: en SQL Server 2022 con
-    ODBC Driver 18, crear así el engine hizo el INSERT unas 12 veces más rápido. Mide tu caso con el
-    [banco de pruebas](#banco-de-pruebas-contra-motores-reales) antes de fiarte de estas cifras.
+    cliente frente al `executemany` nativo de PyMySQL, que ya envía INSERT multi-fila: en MySQL 8.4 y MariaDB 11.4 el
+    `executemany` del driver fue unas 2 veces más rápido. Mide tu caso con el
+    [banco de pruebas](#banco-de-pruebas-contra-motores-reales) antes de fiarte de esta cifra.
+
+!!! note "SQL Server + pyodbc: versiones anteriores a la corrección de P-18"
+    Hasta [Unreleased], `enable_fast_executemany=True` activaba `fast_executemany` solo en el cursor, a espaldas de
+    SQLAlchemy: el INSERT no se aceleraba y `bulk_update_from_df` fallaba con columnas `DATETIME`. En esas versiones,
+    crea el engine con `create_engine(..., fast_executemany=True)`.
 
 #### Carga paralela por particiones
 
@@ -215,5 +219,5 @@ python -m pytest tests/integration/test_bulk_engines.py
 | PostgreSQL: `COPY` más lento que esperado | psycopg3 no instalado (usa psycopg2) | `pip install psycopg[binary]` para instalar psycopg3 |
 | `bench_bulk.py` salta un motor con `SKIP ... sin URL` | Falta `UTIL_BBDD_BENCH_<MOTOR>_URL` (y `UTIL_BBDD_TEST_<MOTOR>_URL`) | Definir la URL del servidor de pruebas |
 | `bench_bulk.py` informa `no se pudo preparar el motor` | Driver no instalado, servidor caído o sin permiso de CREATE/DROP TABLE | Revisar `environment.json`; el resto de motores se mide igualmente |
-| `bulk_update_from_df` falla en SQL Server + pyodbc con `HY104 Invalid precision value` | Tabla con columna `DATETIME` y `fast_executemany` activado por `BulkCrud` a espaldas de SQLAlchemy (hallazgo P-18) | Crear el engine con `create_engine(..., fast_executemany=True)` (además acelera el INSERT ~12×) o usar `BulkCrud(..., enable_fast_executemany=False)` |
+| `bulk_update_from_df` falla en SQL Server + pyodbc con `HY104 Invalid precision value` | Versión anterior a la corrección de P-18: tabla con columna `DATETIME` y `fast_executemany` activado a espaldas de SQLAlchemy | Actualizar; en versiones anteriores, crear el engine con `create_engine(..., fast_executemany=True)` o usar `BulkCrud(..., enable_fast_executemany=False)` |
 | DELETE falla en SQL Server con `too many parameters` o error de sintaxis | Hallazgo P-05: más de 2100 parámetros por lote, o PK compuesta | Pendiente de hotfix; los tests de integración lo marcan como `xfail` |

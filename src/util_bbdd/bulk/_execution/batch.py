@@ -7,7 +7,7 @@ from typing import Any, Protocol
 
 import pandas as pd
 
-from sqlalchemy import Delete, Engine, Insert, Table, and_, bindparam, delete, event, text
+from sqlalchemy import Delete, Engine, Insert, Table, and_, bindparam, delete, text
 
 # ---------------------------------------------------------------------------
 # FA — fast_executemany para SQL Server / pyodbc
@@ -16,30 +16,25 @@ from sqlalchemy import Delete, Engine, Insert, Table, and_, bindparam, delete, e
 _DEFAULT_SQL_BASED_DELETE_DIALECTS: frozenset[str] = frozenset({"mysql", "mariadb", "mssql", "hsqldb"})
 
 
-def _fast_executemany_listener(
-    conn: Any,
-    cursor: Any,
-    statement: Any,
-    params: Any,
-    context: Any,
-    executemany: bool,
-) -> None:
-    if executemany and hasattr(cursor, "fast_executemany"):
-        cursor.fast_executemany = True
-
-
 def _register_fast_executemany(engine: Engine) -> None:
-    """Registra el listener fast_executemany en el engine si aún no está registrado.
+    """Activa fast_executemany en el dialecto mssql+pyodbc igual que ``create_engine(..., fast_executemany=True)``.
 
-    Omite el registro si ``engine`` no es un Engine SQLAlchemy real (p.ej. MagicMock
-    en tests) o si el listener ya está presente. Delega la deduplicación a
-    ``event.contains``, evitando el riesgo de falso-positivo con ``id()`` cuando un
-    engine destruido y otro nuevo comparten la misma dirección de memoria.
+    P-18/P-01 (performance-audit de bulk, 2026-09-23): activar ``cursor.fast_executemany`` con un listener, a espaldas
+    del dialecto, rompía el UPDATE con columnas DATETIME (``HY104 Invalid precision value``), porque SQLAlchemy solo
+    omite ``cursor.setinputsizes()`` en los executemany cuando ``dialect.fast_executemany`` es True. Además, con
+    insertmanyvalues activo el INSERT nunca llegaba a ``executemany``. Se fijan los mismos dos atributos que
+    ``MSDialect_pyodbc.__init__`` fija con ``fast_executemany=True``; afecta a todo el engine, como el listener.
+
+    Omite engines que no son un Engine SQLAlchemy real (p.ej. MagicMock en tests) y dialectos sin
+    ``fast_executemany`` (cualquiera distinto de mssql+pyodbc). Idempotente.
     """
     if not isinstance(engine, Engine):
         return
-    if not event.contains(engine, "before_cursor_execute", _fast_executemany_listener):
-        event.listen(engine, "before_cursor_execute", _fast_executemany_listener)
+    dialect: Any = engine.dialect
+    if not hasattr(dialect, "fast_executemany"):
+        return
+    dialect.fast_executemany = True
+    dialect.use_insertmanyvalues_wo_returning = False
 
 
 # ---------------------------------------------------------------------------

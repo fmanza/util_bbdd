@@ -7,6 +7,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **bulk (SQL Server + pyodbc)**: `bulk_update_from_df` fallaba con `HY104 Invalid precision value` en tablas con
+  columnas `DATETIME` (P-18), y el INSERT no usaba `fast_executemany` aunque `enable_fast_executemany=True` (P-01).
+  Causa: el flag se aplicaba con un listener sobre el cursor, a espaldas del dialecto. SQLAlchemy seguía llamando a
+  `setinputsizes()` y mantenía insertmanyvalues. Ahora `BulkCrud` configura el dialecto igual que
+  `create_engine(..., fast_executemany=True)`. Medido en SQL Server 2022 + ODBC Driver 18: el UPDATE vuelve a funcionar
+  (~33.500 filas/s) y el INSERT es ~12× más rápido (100K filas: 26,0 s → 2,0 s). Afecta a todo el engine, como antes
+  el listener. `enable_fast_executemany=False` sigue desactivándolo.
+
 ### Added
 
 - **scripts**: `scripts/bench_bulk.py`, banco de pruebas de rendimiento de `BulkCrud` (INSERT/UPDATE/DELETE)

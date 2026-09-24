@@ -10,8 +10,8 @@ saltan. La cuenta necesita CREATE TABLE y DROP TABLE::
 Cada prueba crea una tabla ``zz_util_bbdd_it_<id>`` y la elimina al terminar, incluso si falla.
 
 Fallos conocidos marcados ``xfail(strict=True)`` (hallazgos de .ai/sessions/2026-09-23-performance-audit-bulk/): los
-DELETE en SQL Server (P-05) y el UPDATE con columna DATETIME en SQL Server + pyodbc (P-18). Cuando se corrijan, las
-pruebas pasarán y ``strict`` obligará a retirar la marca.
+DELETE en SQL Server (P-05). Cuando se corrijan, las pruebas pasarán y ``strict`` obligará a retirar la marca.
+``test_insert_and_update_roundtrip`` es la regresión de P-18 (UPDATE con columna DATETIME en SQL Server + pyodbc).
 """
 
 from __future__ import annotations
@@ -39,10 +39,6 @@ ROWS_OVER_MSSQL_PARAM_LIMIT = 3_000  # > 2100 parámetros por petición de SQL S
 
 _P05_PARAMS = "P-05: SqlBasedDeleteStrategy supera el límite de 2100 parámetros de SQL Server (pyodbc)"
 _P05_COMPOSITE = "P-05: SQL Server no admite '(a, b) IN ((..), (..))' en SqlBasedDeleteStrategy"
-_P18_DATETIME = (
-    "P-18: UPDATE con columna DATETIME falla (HY104 Invalid precision value) con el listener de fast_executemany "
-    "en pyodbc; funciona con create_engine(fast_executemany=True)"
-)
 
 
 def _engine_params() -> list[object]:
@@ -136,10 +132,7 @@ def _xfail_if_mssql(request: pytest.FixtureRequest, engine: Engine, reason: str,
     request.applymarker(pytest.mark.xfail(strict=True, reason=reason))
 
 
-def test_insert_and_update_roundtrip(
-    request: pytest.FixtureRequest, engine: Engine, scratch_table: Table, tmp_path: Path
-) -> None:
-    _xfail_if_mssql(request, engine, _P18_DATETIME, pyodbc_only=True)
+def test_insert_and_update_roundtrip(engine: Engine, scratch_table: Table, tmp_path: Path) -> None:
     audit_csv = tmp_path / "audit.csv"
     crud = BulkCrud(engine, chunk_size=1000, audit_csv_path=audit_csv)
     df = _frame(engine, ROWS_OVER_MSSQL_PARAM_LIMIT)
