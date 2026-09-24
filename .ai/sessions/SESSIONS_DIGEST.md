@@ -141,6 +141,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-24 | P-17 descartada (pymssql `bulk_copy`) | No aplica CHECK/FK; se recomienda pyodbc + ODBC 17/18 con un INFO en el log | CLOSED |
 | 2026-09-24 | Hotfix P-20 (generar_sql con JSON) | JSON como literal de cadena; nuevo P-23 (`%` duplicados en el SQL generado) | CLOSED |
 | 2026-09-24 | Hotfix P-23 (`%` en el SQL generado) | Duplicación deshecha en PostgreSQL y MySQL/MariaDB; nuevo P-24 (generar_sql con Oracle por service_name) | CLOSED |
+| 2026-09-24 | Hotfix P-24 (nombre del fichero de generar_sql) | Oracle por service_name y SQLite con ruta absoluta corregidos | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 

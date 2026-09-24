@@ -141,7 +141,7 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 0c. ~~**P-21**~~: corregido (hotfix 2026-09-24).
 0b. ~~**P-20**~~: corregido (hotfix 2026-09-24): el SQL generado con columnas JSON se ejecuta y guarda los documentos (SQLite, PostgreSQL, MySQL, MariaDB).
 0d. ~~**P-23**~~: corregido (hotfix 2026-09-24): el SQL generado ya no duplica `%` en PostgreSQL ni MySQL/MariaDB.
-0e. **P-24** (MEDIA, previo, detectado en el hotfix de P-23): `generate_sql_filename` exige un nombre de BD en la URL; con Oracle por `?service_name=...` (sin base de datos) lanza `ValueError: No se pudo extraer nombre de BD`. Como `generar_sql=True` es el valor por defecto, `bulk_insert_from_df(df, tabla)` sin más argumentos falla en ese caso. Verificado en Oracle 23 Free.
+0e. ~~**P-24**~~: corregido (hotfix 2026-09-24): prefijo del fichero SQL desde base de datos, `service_name`/`sid` o nombre del motor; en SQLite el fichero queda siempre en `path_sql`.
 0f. Observación (SQLAlchemy, no de la librería): en dialectos posicionales (SQLite `qmark`), `compile(literal_binds=True)` convierte en `?` un texto con forma `%(nombre)s` incluso dentro de un literal (`'%(name)s'` → `'?'`). Afecta al SQL generado con datos que contengan ese patrón. Pendiente de valorar.
 1. ~~**P-01 + P-18**~~: corregidos (hotfix 2026-09-24).
 2. ~~**P-05**~~: corregido (hotfix 2026-09-24).
