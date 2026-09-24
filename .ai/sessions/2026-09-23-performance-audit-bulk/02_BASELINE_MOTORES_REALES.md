@@ -139,8 +139,8 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 **Área**: 3 (normalización)
 **Archivo/Función**: `_support/validation.py` `build_update_plan` (`pk_param_map = {col: f"pk_{col}"}`); `crud.py` `__prepare_update_operation` (copia de la PK al alias en cada registro)
 **Descripción**: el valor de la PK se enlaza en el WHERE con el alias `pk_<col>`, que se añade a cada registro. Si la tabla tiene además una columna real con ese nombre y se actualiza, las dos comparten clave en el registro: la columna recibe el valor de la PK.
-**Evidencia**: SQLite, tabla `(id PK, pk_id, v)`, UPDATE de `pk_id` a 111/222: queda `pk_id = 1/2` (el valor de `id`), sin error.
-**Confirmación**: CONFIRMADA (detectado en el refactor P-09, 2026-09-24). Pendiente de corregir.
+**Evidencia**: SQLite, tabla `(id PK, pk_id, v)`, UPDATE de `pk_id` a 111/222: queda `pk_id = 1/2` (el valor de `id`), sin error. Reproducido también en PostgreSQL, MySQL, MariaDB y Oracle (UPDATE directo, por staging y SQL generado); SQL Server no (columnas en mayúsculas: `PK_ID` ≠ `pk_ID`).
+**Confirmación**: CONFIRMADA (detectado en el refactor P-09, 2026-09-24). **CORREGIDA** en `2026-09-24-hotfix-p25-p26-pk-alias-delete-session` (sufijo numérico si el alias coincide con una columna).
 
 ### P-26: `bulk_delete_from_df` no participa en `bulk_session`
 **Severidad**: MEDIA (bloqueo o falta de atomicidad dentro de una sesión)
@@ -148,7 +148,16 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 **Archivo/Función**: `_execution/batch.py` `DeleteBatchExecutor.execute` (siempre `engine.begin()`); `crud.py` `bulk_session` (solo inyecta la conexión en `BatchStatementExecutor`)
 **Descripción**: INSERT y UPDATE usan la conexión de la sesión; DELETE abre su propia transacción. Dentro de `bulk_session` no es atómico con el resto, y si borra filas bloqueadas por la sesión espera su propio bloqueo.
 **Evidencia**: SQLite, `with crud.bulk_session(): bulk_insert_from_df(...); bulk_delete_from_df(...)` → `OperationalError: database is locked` al agotar el timeout.
-**Confirmación**: CONFIRMADA en SQLite (detectado en el refactor P-09, 2026-09-24); en servidores, por deducción del código (no medido). Pendiente de corregir.
+**Confirmación**: CONFIRMADA (detectado en el refactor P-09, 2026-09-24): falta de atomicidad en los 6 motores (el DELETE seguía aplicado tras fallar la sesión) y bloqueo en SQLite. **CORREGIDA** en `2026-09-24-hotfix-p25-p26-pk-alias-delete-session` (`bulk_session` inyecta su conexión también en `DeleteBatchExecutor`).
+
+### P-27: PostgreSQL + `commit_every_n_chunks` pierde todas las filas del INSERT
+**Severidad**: CRÍTICA (pérdida silenciosa de datos; `rows_committed` las da por confirmadas)
+**Área**: 4 (conexiones) y 8 (específico de motor)
+**Archivo/Función**: `_execution/batch.py` `PostgresCopyStrategy.execute` (y por el mismo patrón `PostgreSQLExecuteValuesStrategy`); `BatchStatementExecutor.execute` / `BulkCrud.bulk_session` en modo `commit_every_n_chunks`
+**Descripción**: con `commit_every_n_chunks` la conexión se abre con `engine.connect()` (commit-as-you-go). El INSERT de PostgreSQL escribe por un cursor del driver (`connection.connection.cursor()`), que SQLAlchemy no ve: no hay transacción iniciada, `connection.commit()` no hace nada y al devolver la conexión al pool se deshace todo. Con `engine.begin()` (sin `commit_every_n_chunks`) no pasa, porque la transacción se abre explícitamente.
+**Evidencia** (código anterior y actual): PostgreSQL 17 + psycopg 3.3, `BulkCrud(chunk_size=2, commit_every_n_chunks=1 o 2)`, `bulk_insert_from_df` + `bulk_insert_from_chunks` de 5 filas cada uno: **0 filas** guardadas (10 sin `commit_every_n_chunks`). MySQL, MariaDB, SQL Server (pymssql y pyodbc) y Oracle: 10 de 10. Dentro de `bulk_session` también se pierden, salvo que otra sentencia de SQLAlchemy (p.ej. un DELETE, tras P-26) inicie la transacción en la misma conexión.
+**Alcance**: opt-in, pero ofrecido y recomendado para cargas grandes en `BulkCrud`, `ParallelBulkLoader` y `DumpConfig.commit_every_n_chunks`. psycopg2: por deducción del código (no instalado, no medido).
+**Confirmación**: CONFIRMADA en psycopg 3 (detectado en el hotfix P-25/P-26, 2026-09-24). Pendiente de corregir: iniciar la transacción de SQLAlchemy antes de usar el cursor del driver.
 
 ## Prioridad revisada (por impacto medido)
 
@@ -166,4 +175,5 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 5. ~~**P-17**~~: descartado (`bulk_copy` de pymssql no aplica CHECK/FK). Recomendación: pyodbc + ODBC 17/18.
 6. ~~**P-03**~~: aplicado (refactor 2026-09-24), preparación 2,9× más rápida con resultado idéntico.
 7. ~~**P-09**~~ y copia superficial de P-07: aplicados (refactor 2026-09-24): el UPDATE prepara solo PK + columnas actualizables (3,1× con 7 columnas sobrantes a 100K) y sin copia completa del DataFrame.
-8. **P-25** y **P-26**: hallazgos nuevos, pendientes de corregir.
+8. ~~**P-25**~~ y ~~**P-26**~~: corregidos (hotfix 2026-09-24).
+9. **P-27**: CRÍTICA, pendiente (pérdida de filas en PostgreSQL con `commit_every_n_chunks`).
