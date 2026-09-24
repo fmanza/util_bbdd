@@ -5,6 +5,16 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- **bulk**: `bulk_update_from_df` solo prepara la PK y las columnas actualizables; las columnas del DataFrame que no
+  están en la tabla ya no se procesan (P-09: 3,1× menos preparación con 3 columnas útiles y 7 sobrantes a 100K filas).
+  `bulk_insert_from_df`, `bulk_update_from_df`, `bulk_delete_from_df` y `bulk_insert_from_chunks` trabajan sobre una
+  copia superficial del DataFrame en lugar de una copia completa (P-07 parcial: una copia menos de los datos en memoria;
+  el DataFrame del llamador sigue sin modificarse).
+
 ## [0.12.0] - 2026-09-24
 
 Auditoría de rendimiento del módulo `bulk` con banco de pruebas contra motores reales (SQLite 3.50, PostgreSQL 17,

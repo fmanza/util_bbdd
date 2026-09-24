@@ -467,7 +467,7 @@ class BulkCrud:
 
         with self.bulk_session():
             for chunk in chunks:
-                working_df: pd.DataFrame = chunk.copy()
+                working_df: pd.DataFrame = chunk.copy(deep=False)
                 self.__actualizar_df(working_df)
                 if working_df.empty:
                     continue
@@ -548,7 +548,8 @@ class BulkCrud:
         else:
             path_sql = None
 
-        working_df: pd.DataFrame = df.copy()
+        # Copia superficial: solo se renombran columnas y con Copy-on-Write no se toca el DataFrame del llamador.
+        working_df: pd.DataFrame = df.copy(deep=False)
         self.__actualizar_df(working_df)
         try:
             if strategy_key == "insert":
@@ -650,7 +651,8 @@ class BulkCrud:
     def __prepare_update_operation(self, df: pd.DataFrame, tabla_destino: str) -> _PreparedBulkOperation:
         tabla: Table = self.reflect_table(tabla_destino)
         update_plan = build_update_plan(tabla, list(df.columns), tabla_destino)
-        records_sql: list[dict[str, Any]] = dataframe_to_sql_records(df)
+        # P-09: solo PK + columnas actualizables; el resto del DataFrame no se usa.
+        records_sql: list[dict[str, Any]] = dataframe_to_sql_records(df[update_plan.pk_cols + update_plan.update_cols])
         restore_binary_values(records_sql, tabla)  # P-21
 
         for record in records_sql:
