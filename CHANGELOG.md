@@ -30,6 +30,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   transacción, el commit no hacía nada y al devolver la conexión al pool se deshacía todo. Ahora se inicia la
   transacción antes de usar el cursor. Sin `commit_every_n_chunks` no ocurría. Si usaste esa opción con PostgreSQL,
   comprueba las tablas cargadas.
+- **bulk (PostgreSQL)**: los errores del INSERT llegaban como excepción del driver (p.ej.
+  `psycopg.errors.UniqueViolation`) en lugar de `SQLAlchemyError` (P-28). `ParallelBulkLoader.load()` se abortaba
+  entero en vez de anotar el error en `partition_errors`, y `dump` y el log de `BulkCrud` no lo veían. Ahora se
+  envuelven como hace SQLAlchemy (`IntegrityError`, `OperationalError`…), con la sentencia pero sin los parámetros;
+  las desconexiones invalidan la conexión y `ParallelBulkLoader` puede reintentarlas.
 
 ## [0.12.0] - 2026-09-24
 

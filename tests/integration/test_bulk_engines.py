@@ -19,7 +19,7 @@ P-20 (``generar_sql`` con columnas JSON) y ``test_generated_sql_keeps_percent_si
 ``test_update_column_named_like_pk_alias`` cubre P-25 (columna ``pk_<PK>``) y los dos tests de DELETE dentro de
 ``bulk_session`` cubren P-26 (el DELETE fuera de la transacción de la sesión).
 Los dos tests de ``commit_every_n_chunks`` cubren P-27 (PostgreSQL perdía las filas del INSERT; en PostgreSQL se
-prueban psycopg 3 y psycopg2 si están instalados).
+prueban psycopg 3 y psycopg2 si están instalados) y los dos últimos cubren P-28 (errores del driver sin envolver).
 """
 
 from __future__ import annotations
@@ -53,9 +53,10 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from util_bbdd.bulk import BulkCrud
+from util_bbdd.bulk._execution.parallel_loader import ParallelBulkLoader
 from util_bbdd.bulk._support.validation import normalize_identifier
 
 pytestmark = [pytest.mark.integration, pytest.mark.cross_db]
@@ -576,8 +577,39 @@ def test_commit_every_n_chunks_keeps_committed_chunks_on_failure(engine: Engine,
         df = _frame(eng, 5)
         df.loc[4, col_id] = 1  # el tercer lote repite la PK 1, ya confirmada
 
-        # En PostgreSQL el INSERT va por el cursor del driver y el error llega sin envolver (P-28).
-        with pytest.raises((SQLAlchemyError, eng.dialect.loaded_dbapi.Error)):
+        with pytest.raises(SQLAlchemyError):
             crud.bulk_insert_from_df(df, scratch_table.name, False)
 
         assert (_count(eng, scratch_table), crud.rows_committed) == (4, 4), eng.dialect.driver
+
+
+def test_insert_duplicate_key_raises_sqlalchemy_integrity_error(engine: Engine, scratch_table: Table) -> None:
+    """P-28: el error del INSERT es ``sqlalchemy.exc.IntegrityError`` en todos los motores (PostgreSQL lo daba sin
+    envolver, como excepción del driver)."""
+    for eng in _pg_driver_engines(engine):
+        with eng.begin() as conn:
+            conn.execute(scratch_table.delete())
+        crud = BulkCrud(eng)
+        crud.bulk_insert_from_df(_frame(eng, 2), scratch_table.name, False)
+
+        with pytest.raises(IntegrityError):
+            crud.bulk_insert_from_df(_frame(eng, 3), scratch_table.name, False)
+
+        assert _count(eng, scratch_table) == 2, eng.dialect.driver
+
+
+def test_parallel_loader_reports_partition_error(engine: Engine, scratch_table: Table) -> None:
+    """P-28: un error de datos en una partición queda en ``partition_errors`` sin abortar la carga."""
+    col_id = _name("id", engine)
+    for eng in _pg_driver_engines(engine):
+        with eng.begin() as conn:
+            conn.execute(scratch_table.delete())
+        BulkCrud(eng).bulk_insert_from_df(_frame(eng, 1), scratch_table.name, False)
+        ok = _frame(eng, 13).iloc[10:]  # ids 11-13
+        clash = _frame(eng, 2).assign(**{col_id: [1, 20]})  # la PK 1 ya existe
+
+        readers = [lambda frame=frame: [frame] for frame in (ok, clash)]
+        result = ParallelBulkLoader(eng, max_workers=1).load(scratch_table.name, readers)
+
+        assert (result.total_rows, len(result.partition_errors)) == (3, 1), eng.dialect.driver
+        assert _count(eng, scratch_table) == 4, eng.dialect.driver

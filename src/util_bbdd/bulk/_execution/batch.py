@@ -12,7 +12,7 @@ from typing import Any, Protocol
 import pandas as pd
 
 from sqlalchemy import Column, Delete, Engine, Insert, MetaData, Table, and_, bindparam, delete, insert, text, update
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import DBAPIError, StatementError
 
 from .._support.sql_helpers import json_passthrough_binds
 
@@ -94,6 +94,22 @@ def _begin_if_needed(connection: Any) -> None:
         connection.begin()
 
 
+def _wrap_driver_error(connection: Any, statement: str, exc: Exception) -> StatementError:
+    """Error del driver como ``DBAPIError`` de SQLAlchemy (``IntegrityError``, ``OperationalError``…) (P-28).
+
+    Lo que se ejecuta por el cursor del driver no pasa por SQLAlchemy, que es quien envuelve sus errores; sin esto
+    llegarían sin envolver a quien captura ``SQLAlchemyError`` (``ParallelBulkLoader``, ``dump``). Los parámetros no se
+    incluyen (pueden ser miles de filas). Si el error es una desconexión, se invalida la conexión como haría SQLAlchemy.
+    """
+    dialect = connection.dialect
+    invalidated: bool = dialect.is_disconnect(exc, connection.connection.dbapi_connection, None)
+    if invalidated:
+        connection.invalidate(exc)
+    return DBAPIError.instance(
+        statement, None, exc, dialect.loaded_dbapi.Error, connection_invalidated=invalidated, dialect=dialect
+    )
+
+
 class PostgreSQLExecuteValuesStrategy:
     """INSERT para PostgreSQL/psycopg2 vía execute_values.
 
@@ -138,8 +154,11 @@ class PostgreSQLExecuteValuesStrategy:
         sql: str = f"INSERT INTO {quoted_table} ({quoted_cols}) VALUES %s"
         data: list[tuple[Any, ...]] = [tuple(r[c] for c in cols) for r in records]
         _begin_if_needed(connection)
-        with connection.connection.cursor() as raw_cursor:
-            _pg_execute_values(raw_cursor, sql, data, page_size=len(data))
+        try:
+            with connection.connection.cursor() as raw_cursor:
+                _pg_execute_values(raw_cursor, sql, data, page_size=len(data))
+        except connection.dialect.loaded_dbapi.Error as exc:
+            raise _wrap_driver_error(connection, sql, exc) from exc
 
 
 class PostgresCopyStrategy:
@@ -186,6 +205,8 @@ class PostgresCopyStrategy:
             with raw_cursor.copy(sql) as copy:
                 for record in records:
                     copy.write_row([record[c] for c in cols])
+        except connection.dialect.loaded_dbapi.Error as exc:
+            raise _wrap_driver_error(connection, sql, exc) from exc
         finally:
             raw_cursor.close()
 
