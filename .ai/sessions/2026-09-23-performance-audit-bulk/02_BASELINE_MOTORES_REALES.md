@@ -139,7 +139,8 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 0. ~~**P-19**~~: corregido (hotfix 2026-09-24).
 0a. ~~**P-22**~~: corregido (hotfix 2026-09-24).
 0c. ~~**P-21**~~: corregido (hotfix 2026-09-24).
-0b. **P-20** (MEDIA, previo): `generar_sql=True` falla con `CompileError` en tablas con columnas JSON ("No literal value renderer ... with datatype JSON"). Falla con error visible, sin corromper datos. Detectado durante el hotfix de P-19.
+0b. ~~**P-20**~~: corregido (hotfix 2026-09-24): el SQL generado con columnas JSON se ejecuta y guarda los documentos (SQLite, PostgreSQL, MySQL, MariaDB).
+0d. **P-23** (ALTA, previo, detectado en el hotfix de P-20): el SQL generado (`generar_sql=True`, el valor por defecto) duplica **todos** los `%` de los literales de texto en PostgreSQL (psycopg) y MySQL/MariaDB (PyMySQL). Al ejecutar el fichero, `'a%b'` se guarda como `'a%%b'`; SQLite (paramstyle `qmark`) no está afectado. Causa: `literal_binds` con paramstyle `format`/`pyformat` escapa `%` pensando en el driver, pero el fichero se ejecuta sin parámetros. Verificado ejecutando el SQL generado en los tres servidores.
 1. ~~**P-01 + P-18**~~: corregidos (hotfix 2026-09-24).
 2. ~~**P-05**~~: corregido (hotfix 2026-09-24).
 3. ~~**P-04**~~: aplicado en MySQL/MariaDB, activo por defecto (`update_via_staging=True`, ~12,5×). SQL Server con pymssql queda fuera: su cuello de botella es el INSERT (P-17).

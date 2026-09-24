@@ -139,6 +139,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-24 | Fallback `update_via_staging` + hotfix P-21 (binarios UTF-8) | Sin privilegio → UPDATE fila a fila con WARNING; bytes UTF-8 intactos en columnas binarias (6 motores) | CLOSED |
 | 2026-09-24 | Refactor P-03 (preparación por columnas) | Resultado idéntico; preparación 2,9× (~5,6 s menos por millón de filas en todos los motores) | CLOSED |
 | 2026-09-24 | P-17 descartada (pymssql `bulk_copy`) | No aplica CHECK/FK; se recomienda pyodbc + ODBC 17/18 con un INFO en el log | CLOSED |
+| 2026-09-24 | Hotfix P-20 (generar_sql con JSON) | JSON como literal de cadena; nuevo P-23 (`%` duplicados en el SQL generado) | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 
