@@ -18,6 +18,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **bulk (MySQL/MariaDB)**: `MySQLMultiRowInsertStrategy` podía insertar filas en la tabla equivocada, sin error (P-22).
+  Su caché de plantillas SQL usaba como clave `(filas, columnas)`, sin la tabla. Una misma `BulkCrud` que insertaba en
+  dos tablas con las mismas columnas y el mismo tamaño de sub-lote (p.ej. el volcado secuencial de `dump`, que comparte
+  una `BulkCrud` para todas las tablas) reutilizaba la plantilla de la primera, y las filas de la segunda acababan en
+  ella. La tabla forma parte ahora de la clave. Desde P-02 la estrategia solo se usa por defecto con drivers distintos
+  de PyMySQL (p.ej. `mariadbconnector`); antes afectaba a todos los usuarios de MySQL/MariaDB. **Si has cargado varias
+  tablas con las mismas columnas en MySQL/MariaDB con la misma `BulkCrud`, revisa sus datos.**
 - **bulk (JSON)**: las columnas de tipo JSON se corrompían en silencio (P-19). `normalize_sql_literal` ya serializa
   dict/list a texto JSON, y las sentencias construidas desde la tabla reflejada volvían a serializarlo con el tipo
   `JSON` de SQLAlchemy: se guardaba un *string* JSON en lugar del objeto, y `None` como el literal JSON `null` en lugar

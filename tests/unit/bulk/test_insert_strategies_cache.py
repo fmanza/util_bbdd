@@ -56,8 +56,8 @@ class TestMySQLMultiRowInsertStrategyCache:
         # Primera ejecución
         strategy.execute(connection=connection, stmt=stmt, records=records)
 
-        # El caché debe contener una entrada: (3 filas, ("id", "name", "value"))
-        cache_key = (3, ("id", "name", "value"))
+        # El caché debe contener una entrada: (3 filas, tabla, ("id", "name", "value"))
+        cache_key = (3, "test_table", ("id", "name", "value"))
         assert cache_key in strategy._sql_template_cache, f"Esperaba cache_key {cache_key} en caché, pero no existe"
 
         connection.close()
@@ -155,7 +155,7 @@ class TestMySQLMultiRowInsertStrategyCache:
         )
 
         # El caché debe tener una entrada
-        cache_key = (3, ("x", "y", "z"))
+        cache_key = (3, "t1", ("x", "y", "z"))
         assert cache_key in strategy._sql_template_cache
 
         # Segunda llamada con los mismos parámetros
@@ -270,3 +270,49 @@ class TestMySQLMultiRowInsertStrategyFunctionality:
         assert count == 2
 
         connection.close()
+
+
+# ============================================================================
+# P-22: la caché no debe mezclar tablas con las mismas columnas
+# ============================================================================
+
+
+class TestMySQLMultiRowInsertStrategyCachePerTable:
+    """P-22 (performance-audit de bulk, 2026-09-24): la clave de caché no incluía la tabla.
+
+    Una misma instancia (p.ej. la ``BulkCrud`` compartida del volcado secuencial) que insertaba en dos tablas con las
+    mismas columnas y el mismo tamaño de sub-lote reutilizaba la plantilla de la primera tabla: las filas de la segunda
+    acababan en la primera, sin error.
+    """
+
+    def test_same_columns_different_tables_get_distinct_templates(self) -> None:
+        strategy = MySQLMultiRowInsertStrategy()
+
+        template_a = strategy._build_sql_template(num_rows=2, cols=["id", "v"], quoted_table="a", quoted_cols="id, v")
+        template_b = strategy._build_sql_template(num_rows=2, cols=["id", "v"], quoted_table="b", quoted_cols="id, v")
+
+        assert template_a.startswith("INSERT INTO a ")
+        assert template_b.startswith("INSERT INTO b ")
+        assert len(strategy._sql_template_cache) == 2
+
+    def test_rows_land_in_their_own_table(self) -> None:
+        engine = create_engine("sqlite://")
+        metadata = MetaData()
+        table_a = Table("a", metadata, Column("id", Integer, primary_key=True), Column("v", String(10)))
+        table_b = Table("b", metadata, Column("id", Integer, primary_key=True), Column("v", String(10)))
+        metadata.create_all(engine)
+        strategy = MySQLMultiRowInsertStrategy()
+
+        with engine.begin() as conn:
+            strategy.execute(
+                connection=conn, stmt=insert(table_a), records=[{"id": 1, "v": "a1"}, {"id": 2, "v": "a2"}]
+            )
+            strategy.execute(
+                connection=conn, stmt=insert(table_b), records=[{"id": 3, "v": "b3"}, {"id": 4, "v": "b4"}]
+            )
+
+        with engine.connect() as conn:
+            rows_a = conn.execute(text("SELECT id, v FROM a ORDER BY id")).all()
+            rows_b = conn.execute(text("SELECT id, v FROM b ORDER BY id")).all()
+        assert [tuple(r) for r in rows_a] == [(1, "a1"), (2, "a2")]
+        assert [tuple(r) for r in rows_b] == [(3, "b3"), (4, "b4")]

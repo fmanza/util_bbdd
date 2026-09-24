@@ -176,8 +176,8 @@ class MySQLMultiRowInsertStrategy:
     tamaño del paquete (``max_allowed_packet``): una sentencia demasiado grande con
     columnas TEXT/BLOB puede provocar ``Lost connection to server (2013)``.
 
-    **Optimización**: Cachea templates SQL por número de filas para evitar reconstrucción
-    en sub-lotes del mismo tamaño (típicamente todos excepto el último).
+    **Optimización**: Cachea templates SQL por (número de filas, tabla, columnas) para evitar
+    reconstrucción en sub-lotes del mismo tamaño (típicamente todos excepto el último).
 
     Fallback a ejecución estándar cuando ``stmt`` no es un ``Insert`` (p.ej. ``Update``
     en ``bulk_update_from_df``, o ``TextClause`` en la ruta ``override_identity``).
@@ -187,8 +187,10 @@ class MySQLMultiRowInsertStrategy:
         if max_rows_per_statement < 1:
             raise ValueError(f"max_rows_per_statement debe ser ≥ 1, recibido: {max_rows_per_statement}")
         self._max_rows: int = max_rows_per_statement
-        # Caché: (num_rows, cols_tuple) → (template_sql_string, placeholder_pattern)
-        self._sql_template_cache: dict[tuple[int, tuple[str, ...]], tuple[str, str]] = {}
+        # Caché: (num_rows, quoted_table, cols_tuple) → (template_sql_string, placeholder_pattern). La tabla forma parte
+        # de la clave (P-22): sin ella, dos tablas con las mismas columnas compartían plantilla y las filas de la segunda
+        # se insertaban en la primera.
+        self._sql_template_cache: dict[tuple[int, str, tuple[str, ...]], tuple[str, str]] = {}
 
     def get_min_max_allowed_packet(self, avg_row_bytes: int = 2000) -> int:
         """Calcula el `max_allowed_packet` mínimo recomendado para esta estrategia.
@@ -246,7 +248,7 @@ class MySQLMultiRowInsertStrategy:
             SQL template como string (p.ej., "INSERT INTO t (a, b) VALUES (:p0_0, :p0_1), (:p1_0, :p1_1)")
         """
         cols_tuple: tuple[str, ...] = tuple(cols)
-        cache_key: tuple[int, tuple[str, ...]] = (num_rows, cols_tuple)
+        cache_key: tuple[int, str, tuple[str, ...]] = (num_rows, quoted_table, cols_tuple)
 
         if cache_key in self._sql_template_cache:
             cached_sql, _pattern = self._sql_template_cache[cache_key]

@@ -11,7 +11,8 @@ Cada prueba crea una tabla ``zz_util_bbdd_it_<id>`` y la elimina al terminar, in
 
 Regresiones de los hallazgos de .ai/sessions/2026-09-23-performance-audit-bulk/: ``test_insert_and_update_roundtrip``
 cubre P-18 (UPDATE con columna DATETIME en SQL Server + pyodbc), los dos tests de DELETE cubren P-05 (más de 2100
-parámetros y PK compuesta en SQL Server) y ``test_json_column_roundtrip`` cubre P-19 (doble serialización de JSON).
+parámetros y PK compuesta en SQL Server) ``test_json_column_roundtrip`` cubre P-19 (doble serialización de JSON) y
+``test_same_bulkcrud_inserts_into_two_tables_with_same_columns`` cubre P-22 (filas en la tabla equivocada).
 """
 
 from __future__ import annotations
@@ -215,3 +216,32 @@ def test_json_column_roundtrip(engine: Engine) -> None:
         assert nulls == 2
     finally:
         table.drop(engine, checkfirst=True)
+
+
+def test_same_bulkcrud_inserts_into_two_tables_with_same_columns(engine: Engine) -> None:
+    """P-22: una misma ``BulkCrud`` (como en el volcado secuencial) no debe mezclar tablas con las mismas columnas."""
+    n = partial(_name, engine=engine)
+    metadata = MetaData()
+    tables = [
+        Table(
+            n(f"zz_util_bbdd_it_{uuid.uuid4().hex[:8]}"),
+            metadata,
+            Column(n("id"), Integer, primary_key=True, autoincrement=False),
+            Column(n("v"), String(10)),
+        )
+        for _ in range(2)
+    ]
+    metadata.create_all(engine)
+    try:
+        crud = BulkCrud(engine)
+        col_id, col_v = n("id"), n("v")
+        crud.bulk_insert_from_df(pd.DataFrame({col_id: [1, 2], col_v: ["a1", "a2"]}), tables[0].name, False)
+        crud.bulk_insert_from_df(pd.DataFrame({col_id: [3, 4], col_v: ["b3", "b4"]}), tables[1].name, False)
+
+        with engine.connect() as conn:
+            rows = [
+                [tuple(r) for r in conn.execute(select(t.c[col_id], t.c[col_v]).order_by(t.c[col_id]))] for t in tables
+            ]
+        assert rows == [[(1, "a1"), (2, "a2")], [(3, "b3"), (4, "b4")]]
+    finally:
+        metadata.drop_all(engine)
