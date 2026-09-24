@@ -1,0 +1,6 @@
+engine,driver,variant,op,rows,repeat,seconds,rows_per_second,ok,error,peak_mb
+mssql,pyodbc,baseline,insert,1000000,1,245.5237,4072.9,True,,
+mssql,pyodbc,baseline,update,1000000,1,,,False,"DBAPIError: (pyodbc.Error) ('HY104', '[HY104] [Microsoft][ODBC Driver 18 for SQL Server]Invalid precision value (0) (SQLBindParameter)') [SQL: UPDATE [ZZ_UTIL_BBDD_BENCH] SET [ID]=?, [A]=?, [B]=?, [C]=?, [F1]=?, [F2]=?, [S1]=?, [S2]=?, [S3]=?, [D]=? WHERE [ZZ_UTIL_BBDD_BENCH].[ID] = ?] [parameters: ",
+mssql,pyodbc,p01-mssql-engine-fast-executemany,insert,1000000,1,20.3593,49117.5,True,,
+mssql,pyodbc,p01-mssql-engine-fast-executemany,update,1000000,1,29.7852,33573.7,True,,
+mssql,pyodbc,p01-mssql-engine-fast-executemany,delete,1000000,1,,,False,"DBAPIError: (pyodbc.Error) ('07002', '[07002] [Microsoft][ODBC Driver 18 for SQL Server]COUNT field incorrect or syntax error (0) (SQLExecDirectW)') [SQL: DELETE FROM [ZZ_UTIL_BBDD_BENCH] WHERE [ID] IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?",

@@ -4,6 +4,8 @@
 - Veredicto final: **SIGNIFICATIVO**
 - Veredicto AUDIT_PLAN: **GO_CONDICIONAL** (benchmark con motores reales antes de fusionar P-01, P-02 y P-04)
 
+> **Actualización 2026-09-24**: la línea base con los 6 motores reales está en [02_BASELINE_MOTORES_REALES.md](02_BASELINE_MOTORES_REALES.md). Confirma P-02 (INSERT MySQL/MariaDB ~2×) y P-04 (UPDATE fila a fila: 339–556 s por millón en MySQL/MariaDB/SQL Server), confirma la parte de sintaxis de P-05 y añade P-17 (SQL Server + pymssql: `bulk_copy` 6,7×). Con ODBC Driver 18: P-01 confirmado (INSERT 12× con `create_engine(fast_executemany=True)`) y nuevo P-18 (`bulk_update_from_df` falla en SQL Server + pyodbc con columnas DATETIME por el listener de fast_executemany; CRÍTICA).
+
 ## Scope
 
 | Aspecto | Valor |
