@@ -48,7 +48,7 @@
 | P-02 | CRÍTICA · hipótesis contra servidor | **APLICADA** (refactor 2026-09-24, solo PyMySQL; 1M: MySQL 2,09×, MariaDB 2,09×) | INSERT con executemany del driver: MySQL 1,85× (100K) y 1,90× (1M); MariaDB 1,93× (100K) y 2,05× (1M). A 1K es ruido (0,67×–1,18×). UPDATE y DELETE sin cambios (esperado: la variante solo afecta al INSERT). |
 | P-04 | ALTA · hipótesis | **APLICADA, activa por defecto** (`update_via_staging=True`, 2026-09-24): 1M filas MySQL 376,0 s → 29,5 s (12,8×), MariaDB 331,4 s → 27,1 s (12,2×); antes CONFIRMADA | UPDATE a ~2.600–2.950 filas/s en MySQL/MariaDB y 1.800 en SQL Server con pymssql, frente a 35.000 en Oracle, 24.700 en PostgreSQL y 33.500 en SQL Server con pyodbc + P-01. 1M filas: 339–556 s frente a 28–41 s. |
 | P-05 | CRÍTICA · confirmada en código | **CORREGIDA** (hotfix 2026-09-24; DELETE 1M con pyodbc en 8,9 s; antes CONFIRMADA en ambas partes) | Sintaxis de PK compuesta: falla con pymssql y con pyodbc. Límite de parámetros: con pyodbc el DELETE de ≥ 10K filas falla con `07002 COUNT field incorrect or syntax error` (lotes de 5000 parámetros); con pymssql no aplica (sustitución en cliente). Tests `xfail(strict=True)` con los dos drivers. |
-| P-03 | ALTA | Coherente | SQLite 1M INSERT 13,7 s (13,3 s en la medición del 23-09): la preparación en Python sigue siendo el suelo del resto de motores. |
+| P-03 | ALTA | **APLICADA** (refactor 2026-09-24): preparación de 1M filas 8,58 s → 2,95 s (2,9×); SQLite INSERT 1M 13,8 → 8,4 s, UPDATE 17,1 → 11,7 s; antes Coherente | SQLite 1M INSERT 13,7 s (13,3 s en la medición del 23-09): la preparación en Python sigue siendo el suelo del resto de motores. |
 
 ## Hallazgos nuevos
 
@@ -130,4 +130,4 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 3. ~~**P-04**~~: aplicado en MySQL/MariaDB, activo por defecto (`update_via_staging=True`, ~12,5×). SQL Server con pymssql queda fuera: su cuello de botella es el INSERT (P-17).
 4. ~~**P-02**~~: aplicado (refactor 2026-09-24). No era un cambio de una línea: `DefaultInsertStrategy` habría serializado dos veces las columnas JSON de MySQL, y el conector `mariadb` rechaza tipos mezclados por columna.
 5. **P-17**: `bulk_copy` para SQL Server + pymssql (INSERT 6,7×).
-6. **P-03**: normalización por columna (todos los motores; suelo de ~8 s por millón de filas).
+6. ~~**P-03**~~: aplicado (refactor 2026-09-24), preparación 2,9× más rápida con resultado idéntico.
