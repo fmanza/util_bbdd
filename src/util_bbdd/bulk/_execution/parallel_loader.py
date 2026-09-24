@@ -518,15 +518,18 @@ class ParallelBulkLoader:
                         {"schema": schema, "tbl": table_name},
                     ).scalar()
                 )
-                if not can_disable:
-                    _log.warning(
-                        "PostgreSQL: privilegios insuficientes para deshabilitar triggers "
-                        "en '%s'. Los workers usarán maintenance_scope individual.",
-                        tabla_destino,
-                    )
-                    yield False
-                    return
-                conn.execute(text(f"ALTER TABLE {quoted_pg} DISABLE TRIGGER ALL"))
+                if can_disable:
+                    conn.execute(text(f"ALTER TABLE {quoted_pg} DISABLE TRIGGER ALL"))
+            if not can_disable:
+                # Fuera del `with` (auditoría de bulk 2026-09-24): antes se cedía el control dentro de él y esa conexión
+                # quedaba fuera del pool, con una transacción abierta, durante toda la carga de los workers.
+                _log.warning(
+                    "PostgreSQL: privilegios insuficientes para deshabilitar triggers "
+                    "en '%s'. Los workers usarán maintenance_scope individual.",
+                    tabla_destino,
+                )
+                yield False
+                return
             try:
                 yield True
             finally:

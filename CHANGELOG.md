@@ -44,6 +44,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   restauraba: triggers deshabilitados en PostgreSQL, FK deshabilitada o no fiable en SQL Server. Ahora el error original
   se propaga siempre. Con `commit_every_n_chunks` se deshace lo pendiente y se restaura y confirma la restauración; en
   modo atómico, el rollback de la sesión ya deshace la desactivación.
+- **bulk (`ParallelBulkLoader`, PostgreSQL)**: sin privilegios para `DISABLE TRIGGER`, la conexión usada para
+  comprobarlos quedaba retenida, con una transacción abierta, durante toda la carga de los workers. Con
+  `max_overflow=0` un worker podía agotar la espera del pool. Ahora se devuelve antes de arrancar los workers.
 - **connection (Oracle)**: `PoolConnection.__del__` lanzaba `AttributeError` si el constructor había fallado antes de
   inicializar el objeto (p.ej. sin `oracledb`). Python lo emitía como excepción ignorada en el destructor y pytest como
   `PytestUnraisableExceptionWarning`, el único aviso de la suite. Ahora no hace nada en ese caso.
