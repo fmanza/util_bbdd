@@ -60,7 +60,7 @@ si
 
 ## AUDIT_CODE
 - Bugs potenciales:
-  - Requiere `CREATE TEMPORARY TABLES`; sin él falla al crear la temporal, por eso es opcional.
+  - Requiere `CREATE TEMPORARY TABLES`; sin él falla al crear la temporal (activo por defecto: hay que pasar `update_via_staging=False`).
   - La temporal se elimina siempre; si su `DROP` falla tras otro error, se conserva el error original.
 - Edge cases:
   - PK repetida: gana la última (igual que executemany).
@@ -81,7 +81,7 @@ si
 | Estrategia y executor | `src/util_bbdd/bulk/_execution/batch.py` | completado |
 | Parámetro `update_via_staging` | `src/util_bbdd/bulk/crud.py` | completado |
 | Tests | `tests/unit/bulk/test_staging_update.py`, `tests/integration/test_bulk_engines.py` | nuevos |
-| Banco | `scripts/bench_bulk.py` (variante `p04-mysql-staging-update`) | actualizado |
+| Banco | `scripts/bench_bulk.py` (variante de control `mysql-update-executemany-legacy`) | actualizado |
 | Resultados | `.ai/sessions/2026-09-23-performance-audit-bulk/baseline/*_p04_*` y `*_p02_*` | archivados |
 | Docs | `CHANGELOG.md`, `docs/api/bulk-crud.md`, `docs/guides/benchmarks.md` | actualizados |
 
@@ -92,4 +92,4 @@ si
 ## Veredicto final
 Veredicto: CLOSED
 Pendientes al cierre:
-- Commit (pendiente de petición del usuario).
+- Ninguno. Commits `18ceb7a` (feat) y `c0f003a` (docs(ai)).
