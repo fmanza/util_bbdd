@@ -73,7 +73,6 @@ cierre de la 0.14.0
 - [x] `mkdocs build --strict`: 0 avisos; `zensical build --strict`: sin problemas
 
 ## Pendientes fuera del código
-- Push de `develop` y tag `v0.14.0` (a petición del usuario).
 - GitHub Pages devuelve 404 (revisar `docs.yml` y Pages en Actions/Settings).
 - `docs/PERFORMANCE_AUDIT_GUIDE.md` fuera de la navegación de `mkdocs.yml`, y `scripts/bench_dump.py` con la carga simulada (`TODO`). Ambos de la otra sesión.
 - Contenedores del banco levantados; `postgres_db` sin uso por el proyecto.
@@ -83,4 +82,4 @@ cierre de la 0.14.0
 - **[repositorio compartido]**: en este repositorio puede trabajar otra sesión a la vez (commits y ficheros sin seguimiento ajenos). Mirar `git status` y `git log` antes de preparar commits y no incluir ficheros ajenos.
 
 ## Veredicto final
-Veredicto: CLOSED (pendiente del commit `release: v0.14.0 …`, a petición del usuario)
+Veredicto: CLOSED — commits `44a7b43` (release) y `c59d48b` (docs(ai)); tag anotado `v0.14.0` sobre `44a7b43`; push de `develop` y del tag a `origin`

@@ -2,7 +2,7 @@
 
 **Generado**: 2026-06-05 (cabecera, tabla de versiones y tests actualizados el 2026-09-25 en el cierre de `v0.14.0`)  
 **Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.14.0`  
-**Versión**: `v0.14.0` (cerrada en `develop`, 2026-09-25). Tag de git: `v0.13.0` (tag `v0.14.0` pendiente de decisión)  
+**Versión**: `v0.14.0` (cerrada en `develop`, 2026-09-25). Tag de git: `v0.14.0`  
 **Rama activa**: `develop`
 
 ---
@@ -16,7 +16,7 @@
 | `v0.11.0` | Liberado 2026-09-22 (tag creado el 2026-09-24 sobre `166448a`) — auditoría completa del proyecto y remediación de 53 hallazgos P0-P2 (sesión `2026-09-22-audit-completo-remediacion`) |
 | `v0.12.0` | Liberado 2026-09-24 (tag sobre `42f6f9c`) — performance-audit de `bulk` con banco contra 6 motores reales: 10 fallos corregidos (SQL Server, JSON, binarios, tabla equivocada en MySQL/MariaDB, `generar_sql`), mejoras de INSERT/UPDATE (~2× a ~12,5×) y `update_via_staging` activo por defecto en MySQL/MariaDB (sesiones `2026-09-23-performance-audit-bulk` a `2026-09-24-version-closure-v0.12.0`) |
 | `v0.13.0` | Liberado 2026-09-24 (tag sobre `0faf1fa`) — resto del performance-audit de `bulk`: `generar_sql` por plantilla 17–50× (P-06), preparación por bloques con memoria constante (P-07), DELETE de PostgreSQL por arrays 2,3–27× (P-10), límite de 65.535 parámetros en MariaDB (P-13), P-09; P-08 descartado tras medir; 6 fallos corregidos (P-25 a P-29, captura de errores de `ParallelBulkLoader`), entre ellos la pérdida de todas las filas en PostgreSQL con `commit_every_n_chunks` (P-27) (sesiones `2026-09-24-refactor-p09-update-columns` a `2026-09-24-version-closure-v0.13.0`) |
-| `v0.14.0` | Cerrada 2026-09-25 — auditoría de código de `bulk` con 9 hallazgos corregidos (`chunk_size` sin validar, `maintenance_scope` ocultaba errores y no restauraba con `commit_every_n_chunks`, `sync_pk_sequences` en Oracle nunca funcionaba, DELETE sin cadencia de commit, `DISABLE KEYS` con commit implícito en InnoDB…); contenedores de desarrollo/pruebas propios en `127.0.0.1` y puertos no estándar (`docker-compose.yml` ya no define `postgres_db`); suite sin avisos ni saltos «no aplica»; `mkdocs`/`zensical --strict` sin avisos; entorno de performance-audit de `dump` (commit `19ef481`, otra sesión) (sesiones `2026-09-24-bench-containers-independence` a `2026-09-25-version-closure-v0.14.0`) |
+| `v0.14.0` | Liberado 2026-09-25 (tag sobre `44a7b43`) — auditoría de código de `bulk` con 9 hallazgos corregidos (`chunk_size` sin validar, `maintenance_scope` ocultaba errores y no restauraba con `commit_every_n_chunks`, `sync_pk_sequences` en Oracle nunca funcionaba, DELETE sin cadencia de commit, `DISABLE KEYS` con commit implícito en InnoDB…); contenedores de desarrollo/pruebas propios en `127.0.0.1` y puertos no estándar (`docker-compose.yml` ya no define `postgres_db`); suite sin avisos ni saltos «no aplica»; `mkdocs`/`zensical --strict` sin avisos; entorno de performance-audit de `dump` (commit `19ef481`, otra sesión) (sesiones `2026-09-24-bench-containers-independence` a `2026-09-25-version-closure-v0.14.0`) |
 | Zenical | Pendiente, sin versión asignada — merge `migrate/zenical-pure` (+80% perf doc builds) cuando Zenical esté instalable |
 
 PR abierta: **PR #18** `feat(connection/bulk): automatización variables MySQL/MariaDB` — revisión pendiente de merge.  
