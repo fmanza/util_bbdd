@@ -147,6 +147,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-24 | Hotfix P-25 + P-26 | Alias de PK sin colisión; DELETE dentro de `bulk_session`; nuevo P-27 CRÍTICA (PostgreSQL + `commit_every_n_chunks`) | CLOSED |
 | 2026-09-24 | Hotfix P-27 (PostgreSQL + `commit_every_n_chunks`) | Transacción iniciada antes del cursor del driver: 0/10 → 10/10 filas (psycopg 3 y psycopg2); nuevo P-28 | CLOSED |
 | 2026-09-24 | Hotfix P-28 (errores del driver en PostgreSQL) | `IntegrityError`/`OperationalError` de SQLAlchemy; `ParallelBulkLoader` anota el error de la partición en lugar de abortar | CLOSED |
+| 2026-09-24 | Hotfix P-13 (límite de parámetros) | INSERT multi-fila y DELETE troceados a ≤ 65.535 parámetros (MariaDB + conector `mariadb`) | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 

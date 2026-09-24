@@ -191,3 +191,4 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 8. ~~**P-25**~~ y ~~**P-26**~~: corregidos (hotfix 2026-09-24).
 9. ~~**P-27**~~: corregido (hotfix 2026-09-24).
 10. ~~**P-28**~~: corregido (hotfix 2026-09-24).
+11. ~~**P-13**~~: confirmado contra MariaDB 11.4 + conector `mariadb` 1.1.14 ("Prepared statement contains too many placeholders" con INSERT de 1000 filas × 71 columnas y DELETE de 40.000 PK compuestas) y corregido (hotfix 2026-09-24): INSERT multi-fila y `DELETE ... IN` troceados a ≤ 65.535 parámetros. PyMySQL no fallaba. La otra mitad del hallazgo (un único `chunk_size` para todos los motores) no se ha tocado: no hay medición que muestre beneficio.
