@@ -5,7 +5,32 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.14.0] - 2026-09-25
+
+Auditoría de código de `bulk` (hallazgos 1–9, todos corregidos y verificados contra los 6 motores del banco), entorno de
+desarrollo y pruebas independiente (contenedores propios en `127.0.0.1` y puertos no estándar), suite de tests sin
+avisos ni saltos engañosos y documentación que compila sin avisos en modo estricto. Sesiones
+`.ai/sessions/2026-09-24-bench-containers-independence/` a `.ai/sessions/2026-09-24-hotfix-audit-bulk-4-8/`.
+
+**Cambios de comportamiento a revisar al actualizar** (detalle en cada entrada):
+- `BulkCrud`, `ParallelBulkLoader` y los ejecutores lanzan `ValueError` al construirse si `chunk_size` no es un
+  entero ≥ 1. Antes, un valor negativo no escribía nada y la auditoría registraba las filas.
+- `bulk_delete_from_df` respeta `commit_every_n_chunks`: si falla, quedan borrados los lotes ya confirmados, como en
+  INSERT y UPDATE. Antes, fuera de `bulk_session`, el DELETE era atómico aunque se pidiera la cadencia.
+- `maintenance_scope`: un error dentro del bloque llega tal cual (en PostgreSQL llegaba `InFailedSqlTransaction`). Con
+  `commit_every_n_chunks`, al fallar se deshace lo pendiente y se restauran las restricciones. Con
+  `disable_indexes=True` en MySQL/MariaDB, `DISABLE KEYS` solo se ejecuta en tablas MyISAM/Aria.
+- `sync_pk_sequences` en Oracle modifica la identity con `ALTER TABLE … MODIFY` (antes fallaba siempre con
+  `ORA-32793`). Si la usabas con Oracle, los contadores no se habían sincronizado.
+- `docker-compose.yml` ya no define `postgres_db` (5432): usa los contenedores de `docker-compose.bench.yml`
+  (`UTIL_BBDD_BENCH_PASSWORD` obligatoria). Un `postgres_db` existente no se toca.
+
+### Added
+
+- **dump (performance-audit)**: prompts `.github/prompts/performance_audit_dump.prompt.md` y
+  `performance_audit_dump_agent.prompt.md`, guía `docs/PERFORMANCE_AUDIT_GUIDE.md` y banco `scripts/bench_dump.py`
+  (commit `19ef481`, sesión aparte). El banco mide por ahora una carga simulada (`TODO`: llamar a
+  `DumpOrchestrator`), y la guía no está en la navegación de `mkdocs.yml`.
 
 ### Changed
 
@@ -17,19 +42,19 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   (`UTIL_BBDD_BENCH_*` y `UTIL_BBDD_TEST_*`, con `127.0.0.1`), sin guardar la contraseña. `scripts/bench_bulk.py`
   avisa si la URL de un motor usa su puerto estándar. `docs/guides/benchmarks.md` documenta contenedores, puertos y
   bases.
-
 - **`docker-compose.yml`**: incluye `docker-compose.bench.yml` con el mismo proyecto (`util_bbdd_bench`) en lugar de
   definir un PostgreSQL propio (`postgres_db`, puerto 5432, usuario y contraseña escritos en el repositorio). Desde la
   raíz, `docker compose up -d --wait postgres` levanta el PostgreSQL 17 del proyecto (127.0.0.1:55432, base
   `bench`, contraseña en `UTIL_BBDD_BENCH_PASSWORD`). Un contenedor `postgres_db` ya creado no se modifica ni se borra;
   compose deja de verlo desde este directorio.
-
 - **banco de pruebas (MariaDB)**: el usuario `bench` puede crear y borrar bases `zz_util_bbdd_*` (script de inicio
   en `docker-compose.bench.yml`). `test_update_auto_increment_mariadb.py` daba 3 errores (`1044 Access denied`)
   contra el banco; ahora pasa.
+- **`.gitattributes`**: `*.sh text eol=lf`. Con `core.autocrlf=true` (Windows), `scripts/bench_env.example.sh` se
+  extraía con CRLF y un bash que no los ignore (p.ej. WSL) fallaba al cargarlo.
 - **tests**: los tests de integración que solo aplican a algunos motores (`update_via_staging` y el límite de 65.535
   parámetros en MySQL/MariaDB; JSON fuera de SQL Server y Oracle) ya no se generan para los demás motores en lugar de
-  saltarse: los tests saltados solo reflejan servidores sin URL (sin URLs: 139; con las del banco: 0).
+  saltarse: los tests saltados solo reflejan servidores sin URL (con las URLs del banco no se salta ninguno).
 - **tests**: `pytest.ini` deja de ocultar los avisos (`--disable-warnings`), para que el resumen los muestre.
 
 ### Fixed
