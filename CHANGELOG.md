@@ -24,6 +24,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **bulk**: `bulk_delete_from_df` abría su propia transacción dentro de `bulk_session()` (P-26): no se deshacía si la
   sesión fallaba y, en SQLite, fallaba con `database is locked` si la sesión ya había escrito. Ahora usa la conexión
   de la sesión, como INSERT y UPDATE.
+- **bulk (PostgreSQL)**: con `commit_every_n_chunks` (en `BulkCrud`, `ParallelBulkLoader` o `DumpConfig`) se perdían
+  **todas** las filas del INSERT, sin error, y `rows_committed` las daba por confirmadas (P-27). El INSERT escribe por
+  el cursor del driver (COPY con psycopg 3, `execute_values` con psycopg2), que SQLAlchemy no ve: no se iniciaba la
+  transacción, el commit no hacía nada y al devolver la conexión al pool se deshacía todo. Ahora se inicia la
+  transacción antes de usar el cursor. Sin `commit_every_n_chunks` no ocurría. Si usaste esa opción con PostgreSQL,
+  comprueba las tablas cargadas.
 
 ## [0.12.0] - 2026-09-24
 

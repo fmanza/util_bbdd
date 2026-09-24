@@ -83,6 +83,17 @@ class DefaultInsertStrategy:
         connection.execute(stmt, list(records))
 
 
+def _begin_if_needed(connection: Any) -> None:
+    """Inicia la transacción de SQLAlchemy antes de escribir por el cursor del driver (P-27).
+
+    SQLAlchemy no ve lo que se ejecuta por ``connection.connection.cursor()``: en modo commit-as-you-go
+    (``engine.connect()``, usado con ``commit_every_n_chunks``) no habría transacción iniciada, ``commit()`` no haría
+    nada y las filas se desharían al devolver la conexión al pool.
+    """
+    if not connection.in_transaction():
+        connection.begin()
+
+
 class PostgreSQLExecuteValuesStrategy:
     """INSERT para PostgreSQL/psycopg2 vía execute_values.
 
@@ -126,6 +137,7 @@ class PostgreSQLExecuteValuesStrategy:
         quoted_cols: str = ", ".join(preparer.quote(c) for c in cols)
         sql: str = f"INSERT INTO {quoted_table} ({quoted_cols}) VALUES %s"
         data: list[tuple[Any, ...]] = [tuple(r[c] for c in cols) for r in records]
+        _begin_if_needed(connection)
         with connection.connection.cursor() as raw_cursor:
             _pg_execute_values(raw_cursor, sql, data, page_size=len(data))
 
@@ -168,6 +180,7 @@ class PostgresCopyStrategy:
         quoted_table: str = preparer.format_table(table)
         quoted_cols: str = ", ".join(preparer.quote(c) for c in cols)
         sql: str = f"COPY {quoted_table} ({quoted_cols}) FROM STDIN"
+        _begin_if_needed(connection)
         raw_cursor = connection.connection.cursor()
         try:
             with raw_cursor.copy(sql) as copy:

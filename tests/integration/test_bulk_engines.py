@@ -18,6 +18,8 @@ parámetros y PK compuesta en SQL Server) ``test_json_column_roundtrip`` cubre P
 P-20 (``generar_sql`` con columnas JSON) y ``test_generated_sql_keeps_percent_signs`` cubre P-23 (``%`` duplicados).
 ``test_update_column_named_like_pk_alias`` cubre P-25 (columna ``pk_<PK>``) y los dos tests de DELETE dentro de
 ``bulk_session`` cubren P-26 (el DELETE fuera de la transacción de la sesión).
+Los dos tests de ``commit_every_n_chunks`` cubren P-27 (PostgreSQL perdía las filas del INSERT; en PostgreSQL se
+prueban psycopg 3 y psycopg2 si están instalados).
 """
 
 from __future__ import annotations
@@ -522,3 +524,60 @@ def test_delete_inside_bulk_session_commits_with_it(
     with engine.connect() as conn:
         ids = list(conn.execute(select(scratch_table.c[col_id]).order_by(scratch_table.c[col_id])).scalars())
     assert ids == [3, 4, 5, 6]
+
+
+def _pg_driver_engines(engine: Engine) -> Iterator[Engine]:
+    """El engine de la prueba y, en PostgreSQL, el mismo servidor con el otro driver (psycopg 3 / psycopg2)."""
+    yield engine
+    if engine.dialect.name != "postgresql":
+        return
+    other = "psycopg2" if engine.dialect.driver == "psycopg" else "psycopg"
+    try:
+        __import__(other)
+    except ImportError:
+        return
+    alt = create_engine(engine.url.set(drivername=f"postgresql+{other}"))
+    try:
+        yield alt
+    finally:
+        alt.dispose()
+
+
+@pytest.mark.parametrize("in_session", [False, True])
+@pytest.mark.parametrize("commit_every_n_chunks", [1, 2])
+def test_commit_every_n_chunks_persists_inserts(
+    engine: Engine, scratch_table: Table, commit_every_n_chunks: int, in_session: bool
+) -> None:
+    """P-27: con ``commit_every_n_chunks`` las filas del INSERT quedan guardadas (en PostgreSQL se perdían todas)."""
+    col_id = _name("id", engine)
+    for eng in _pg_driver_engines(engine):
+        with eng.begin() as conn:
+            conn.execute(scratch_table.delete())
+        crud = BulkCrud(eng, chunk_size=2, commit_every_n_chunks=commit_every_n_chunks)
+        df = _frame(eng, 5)
+        if in_session:
+            with crud.bulk_session():
+                crud.bulk_insert_from_df(df, scratch_table.name, False)
+                crud.bulk_insert_from_df(df.assign(**{col_id: df[col_id] + 10}), scratch_table.name, False)
+        else:
+            crud.bulk_insert_from_df(df, scratch_table.name, False)
+            crud.bulk_insert_from_chunks([df.assign(**{col_id: df[col_id] + 10})], scratch_table.name)
+
+        assert (_count(eng, scratch_table), crud.rows_committed) == (10, 10), eng.dialect.driver
+
+
+def test_commit_every_n_chunks_keeps_committed_chunks_on_failure(engine: Engine, scratch_table: Table) -> None:
+    """P-27: si un lote falla, los lotes ya confirmados permanecen y ``rows_committed`` los cuenta."""
+    col_id = _name("id", engine)
+    for eng in _pg_driver_engines(engine):
+        with eng.begin() as conn:
+            conn.execute(scratch_table.delete())
+        crud = BulkCrud(eng, chunk_size=2, commit_every_n_chunks=1)
+        df = _frame(eng, 5)
+        df.loc[4, col_id] = 1  # el tercer lote repite la PK 1, ya confirmada
+
+        # En PostgreSQL el INSERT va por el cursor del driver y el error llega sin envolver (P-28).
+        with pytest.raises((SQLAlchemyError, eng.dialect.loaded_dbapi.Error)):
+            crud.bulk_insert_from_df(df, scratch_table.name, False)
+
+        assert (_count(eng, scratch_table), crud.rows_committed) == (4, 4), eng.dialect.driver
