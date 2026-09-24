@@ -38,6 +38,17 @@ _log = logging.getLogger(__name__)
 # Un lector de partición: invocado en su hilo worker, produce los chunks a insertar.
 PartitionReader = Callable[[], Iterable[pd.DataFrame]]
 
+# Errores de datos o de BD habituales en una carga: se anotan sin traza en el log. El resto también se anotan en
+# partition_errors, pero con traza, porque suelen indicar un fallo del lector o de programación.
+_EXPECTED_ERRORS: tuple[type[Exception], ...] = (SQLAlchemyError, ValueError, pd.errors.DatabaseError)
+
+
+def _partition_error(index: int, exc: Exception) -> str:
+    """Texto de ``partition_errors``: como antes para los errores habituales; con el tipo para el resto."""
+    if isinstance(exc, _EXPECTED_ERRORS):
+        return f"partición {index}: {exc}"
+    return f"partición {index}: {type(exc).__name__}: {exc}"
+
 
 def _quote_mssql_table(tabla_destino: str) -> str:
     """Genera nombre de tabla MSSQL con corchetes para sentencias DDL."""
@@ -323,8 +334,9 @@ class ParallelBulkLoader:
         """Tarea de hilo: carga una partición con su propia ``BulkCrud``.
 
         Reintenta hasta ``max_retries`` veces ante ``OperationalError`` o
-        ``TimeoutError`` (errores retriables). Errores permanentes (integridad,
-        sintaxis, validación) no se reintentan.
+        ``TimeoutError`` (errores retriables). Cualquier otra excepción (integridad,
+        sintaxis, validación, errores del lector de la partición…) no se reintenta y
+        queda en el ``PartitionResult`` sin abortar el resto de particiones.
 
         Args:
             skip_maintenance: Si ``True``, omite ``maintenance_scope`` aunque
@@ -332,15 +344,24 @@ class ParallelBulkLoader:
                 deshabilitaron constraints globalmente antes del pool
                 (``_hoist_constraints_for_workers``).
         """
-        crud = BulkCrud(
-            self._engine,
-            chunk_size=self._chunk_size,
-            audit_csv_path=self._audit_csv_path,
-            commit_every_n_chunks=self._commit_every_n_chunks,
-            enable_fast_executemany=self._enable_fast_executemany,
-        )
-
         t_start = time.perf_counter()
+        try:
+            crud = BulkCrud(
+                self._engine,
+                chunk_size=self._chunk_size,
+                audit_csv_path=self._audit_csv_path,
+                commit_every_n_chunks=self._commit_every_n_chunks,
+                enable_fast_executemany=self._enable_fast_executemany,
+            )
+        except Exception as exc:
+            _log.warning("No se pudo preparar la partición %d de '%s': %s", index, tabla_destino, exc, exc_info=True)
+            return PartitionResult(
+                index=index,
+                rows=0,
+                elapsed_seconds=time.perf_counter() - t_start,
+                error=_partition_error(index, exc),
+            )
+
         last_exc: Exception | None = None
 
         for attempt in range(self._max_retries + 1):
@@ -375,9 +396,18 @@ class ParallelBulkLoader:
                     )
                 # continúa al siguiente intento
 
-            except (SQLAlchemyError, ValueError, pd.errors.DatabaseError) as exc:
+            except Exception as exc:
+                # Cualquier otro error es permanente y queda en partition_errors sin abortar el resto de particiones,
+                # como documenta la API: antes solo se capturaban SQLAlchemyError, ValueError y
+                # pd.errors.DatabaseError, y un error del lector (OSError, KeyError…) abortaba load() entero.
                 elapsed = time.perf_counter() - t_start
-                _log.warning("Error permanente cargando partición %d de '%s': %s", index, tabla_destino, exc)
+                _log.warning(
+                    "Error permanente cargando partición %d de '%s': %s",
+                    index,
+                    tabla_destino,
+                    exc,
+                    exc_info=not isinstance(exc, _EXPECTED_ERRORS),  # traza solo para errores inesperados
+                )
                 return PartitionResult(
                     index=index,
                     # BLK-08: crud.rows_committed refleja filas ya comprometidas vía
@@ -385,7 +415,7 @@ class ParallelBulkLoader:
                     # un fallo revierte toda la sesión).
                     rows=crud.rows_committed,
                     elapsed_seconds=elapsed,
-                    error=f"partición {index}: {exc}",
+                    error=_partition_error(index, exc),
                     retries=attempt,
                 )
 

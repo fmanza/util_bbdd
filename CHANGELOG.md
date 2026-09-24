@@ -65,6 +65,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   se incluye.
 - **bulk (`generar_sql=True`)**: un texto con forma `%(nombre)s` dentro de un valor se generaba como `?` en SQLite y
   en SQL Server + pyodbc (Known issue de 0.12.0). Resuelto con P-06: los valores ya no pasan por el compilador.
+- **bulk (`ParallelBulkLoader`)**: un error de una partición que no fuera `SQLAlchemyError`, `ValueError` o
+  `pandas.errors.DatabaseError` abortaba `load()` entero y se perdían los resultados del resto. Pasaba con errores
+  del lector de la partición (`OSError`, `KeyError`…) o al crear su `BulkCrud`. Ahora cualquier excepción queda en
+  `partition_errors`, como ya decía la documentación, con el tipo en el mensaje y la traza en el log. Solo
+  `KeyboardInterrupt` y `SystemExit` interrumpen la carga. El formato del mensaje de los errores de BD no cambia.
+- **tests**: `tests/integration/metadata/__init__.py`. Sin él, pytest importaba `tests/integration/metadata/mariadb/`
+  como el paquete de primer nivel `mariadb` y tapaba al driver en la suite completa (13 casos del conector `mariadb`
+  saltados).
 
 ## [0.12.0] - 2026-09-24
 

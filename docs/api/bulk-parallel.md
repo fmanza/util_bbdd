@@ -81,7 +81,7 @@ Exportadas desde `util_bbdd.bulk`. Generan listas de particiones disjuntas para 
 | Error | Cuándo ocurre |
 |---|---|
 | `ValueError` | `max_workers < 1` |
-| Error capturado en `partition_errors` | Cualquier excepción dentro de un worker; el resto de workers continúan |
+| Error capturado en `partition_errors` | Cualquier excepción dentro de un worker (también al crear su `BulkCrud` o en el lector de la partición); el resto de workers continúan. `OperationalError` y `TimeoutError` se reintentan antes hasta `max_retries` veces. Solo `KeyboardInterrupt` y `SystemExit` interrumpen `load()` |
 
 ## 3. Componentes y Clases
 
