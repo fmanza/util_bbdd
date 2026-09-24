@@ -145,6 +145,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-24 | Cierre de versión v0.12.0 | CHANGELOG `[0.12.0]` + `pyproject.toml`; checklist verde (4558 passed / 68 skipped, build 0.12.0) | CLOSED |
 | 2026-09-24 | Refactor P-09 + copia superficial | UPDATE solo con PK + columnas actualizables (3,1×); nuevos P-25 y P-26 | CLOSED |
 | 2026-09-24 | Hotfix P-25 + P-26 | Alias de PK sin colisión; DELETE dentro de `bulk_session`; nuevo P-27 CRÍTICA (PostgreSQL + `commit_every_n_chunks`) | CLOSED |
+| 2026-09-24 | Hotfix P-27 (PostgreSQL + `commit_every_n_chunks`) | Transacción iniciada antes del cursor del driver: 0/10 → 10/10 filas (psycopg 3 y psycopg2); nuevo P-28 | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 

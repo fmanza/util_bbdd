@@ -156,8 +156,17 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 **Archivo/Función**: `_execution/batch.py` `PostgresCopyStrategy.execute` (y por el mismo patrón `PostgreSQLExecuteValuesStrategy`); `BatchStatementExecutor.execute` / `BulkCrud.bulk_session` en modo `commit_every_n_chunks`
 **Descripción**: con `commit_every_n_chunks` la conexión se abre con `engine.connect()` (commit-as-you-go). El INSERT de PostgreSQL escribe por un cursor del driver (`connection.connection.cursor()`), que SQLAlchemy no ve: no hay transacción iniciada, `connection.commit()` no hace nada y al devolver la conexión al pool se deshace todo. Con `engine.begin()` (sin `commit_every_n_chunks`) no pasa, porque la transacción se abre explícitamente.
 **Evidencia** (código anterior y actual): PostgreSQL 17 + psycopg 3.3, `BulkCrud(chunk_size=2, commit_every_n_chunks=1 o 2)`, `bulk_insert_from_df` + `bulk_insert_from_chunks` de 5 filas cada uno: **0 filas** guardadas (10 sin `commit_every_n_chunks`). MySQL, MariaDB, SQL Server (pymssql y pyodbc) y Oracle: 10 de 10. Dentro de `bulk_session` también se pierden, salvo que otra sentencia de SQLAlchemy (p.ej. un DELETE, tras P-26) inicie la transacción en la misma conexión.
-**Alcance**: opt-in, pero ofrecido y recomendado para cargas grandes en `BulkCrud`, `ParallelBulkLoader` y `DumpConfig.commit_every_n_chunks`. psycopg2: por deducción del código (no instalado, no medido).
-**Confirmación**: CONFIRMADA en psycopg 3 (detectado en el hotfix P-25/P-26, 2026-09-24). Pendiente de corregir: iniciar la transacción de SQLAlchemy antes de usar el cursor del driver.
+**Alcance**: opt-in, pero ofrecido y recomendado para cargas grandes en `BulkCrud`, `ParallelBulkLoader` y `DumpConfig.commit_every_n_chunks`. psycopg2 2.9.13 (`PostgreSQLExecuteValuesStrategy`): mismo resultado, 0 de 10 filas, también dentro de `bulk_session`.
+**Confirmación**: CONFIRMADA en psycopg 3 y psycopg2 (detectado en el hotfix P-25/P-26, 2026-09-24). **CORREGIDA** en `2026-09-24-hotfix-p27-pg-commit-every-n-chunks` (`_begin_if_needed` antes de usar el cursor del driver).
+
+### P-28: en PostgreSQL los errores del INSERT llegan como excepción del driver, no como `SQLAlchemyError`
+**Severidad**: MEDIA (el error no se pierde, pero se salta el manejo de errores de la librería)
+**Área**: 8 (específico de motor)
+**Archivo/Función**: `_execution/batch.py` `PostgresCopyStrategy` y `PostgreSQLExecuteValuesStrategy` (cursor del driver); consumidores que capturan `SQLAlchemyError`: `crud.py` `__run_bulk_pipeline` (log), `_execution/parallel_loader.py` (resultado de partición con error), `dump/orchestrator.py` (errores por tabla)
+**Descripción**: lo que se ejecuta por el cursor del driver no pasa por SQLAlchemy, que es quien envuelve los errores del driver en `DBAPIError`. Una clave duplicada en el COPY llega como `psycopg.errors.UniqueViolation`. Los docstrings de `BulkCrud` prometen `SQLAlchemyError`.
+**Evidencia**: `test_commit_every_n_chunks_keeps_committed_chunks_on_failure[postgresql]` con `pytest.raises(SQLAlchemyError)`: `psycopg.errors.UniqueViolation` sin envolver.
+**Consecuencias** (por deducción del código, no medidas): `ParallelBulkLoader` no la convierte en `PartitionResult(error=...)` y `dump` no la registra como error de la tabla; se propaga y aborta la carga.
+**Confirmación**: CONFIRMADA en el tipo de excepción (hotfix P-27, 2026-09-24); consecuencias por deducción. Remediación propuesta: envolver en `DBAPIError.instance(...)` los errores del driver en las dos estrategias.
 
 ## Prioridad revisada (por impacto medido)
 
@@ -176,4 +185,5 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 6. ~~**P-03**~~: aplicado (refactor 2026-09-24), preparación 2,9× más rápida con resultado idéntico.
 7. ~~**P-09**~~ y copia superficial de P-07: aplicados (refactor 2026-09-24): el UPDATE prepara solo PK + columnas actualizables (3,1× con 7 columnas sobrantes a 100K) y sin copia completa del DataFrame.
 8. ~~**P-25**~~ y ~~**P-26**~~: corregidos (hotfix 2026-09-24).
-9. **P-27**: CRÍTICA, pendiente (pérdida de filas en PostgreSQL con `commit_every_n_chunks`).
+9. ~~**P-27**~~: corregido (hotfix 2026-09-24).
+10. **P-28**: MEDIA, pendiente (errores del driver sin envolver en el INSERT de PostgreSQL).
