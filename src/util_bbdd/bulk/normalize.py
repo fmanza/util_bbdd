@@ -24,6 +24,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from pandas.api.extensions import ExtensionDtype
+
+# La misma conversión que ``DataFrame.to_dict`` aplica a las columnas object y de tipo extensión (Int64, boolean, str,
+# category, fechas con zona...). Se usa para que dataframe_to_sql_records sea idéntica a to_dict + normalizar.
+from pandas.core.dtypes.cast import maybe_box_native  # type: ignore[attr-defined]  # no está en pandas-stubs
 from sqlalchemy import JSON, Boolean, DateTime, Float, Integer, LargeBinary, String, Text
 
 
@@ -172,6 +177,44 @@ def normalize_records_for_sql(records: Sequence[dict[Any, Any]]) -> list[dict[st
         1
     """
     return list(iter_normalize_records(records))
+
+
+def dataframe_to_sql_records(df: pd.DataFrame) -> list[dict[str, Any]]:
+    """Registros normalizados para SQL a partir de un DataFrame, preparados por columnas.
+
+    Produce exactamente lo mismo que ``normalize_records_for_sql(df.to_dict(orient="records"))`` (mismas claves, orden,
+    valores y tipos Python), pero convierte en bloque las columnas numpy numéricas, booleanas y de fecha en lugar de
+    pasar celda a celda por ``normalize_sql_literal``. P-03 (performance-audit de bulk): la preparación celda a celda
+    era ~62 % del tiempo de un INSERT de 1M filas en SQLite.
+
+    Args:
+        df: DataFrame con las columnas a enviar.
+
+    Returns:
+        Lista de diccionarios ``{str(columna): valor}``, uno por fila.
+    """
+    keys: list[str] = [str(column) for column in df.columns]
+    columns: list[list[Any]] = [_normalize_column(df.iloc[:, index]) for index in range(df.shape[1])]
+    # Sin columnas, zip() no produce filas: igual que to_dict, que devuelve [] aunque haya filas.
+    return [dict(zip(keys, row, strict=True)) for row in zip(*columns, strict=True)]
+
+
+def _normalize_column(series: pd.Series) -> list[Any]:
+    """Valores normalizados de una columna, idénticos a los de ``to_dict`` + ``normalize_sql_literal``."""
+    dtype = series.dtype
+    if isinstance(dtype, np.dtype) and dtype.kind in "iub":
+        # int/uint/bool numpy: to_dict ya da int/bool nativos y normalize_sql_literal los devuelve tal cual.
+        return series.to_numpy().tolist()
+    if isinstance(dtype, np.dtype) and dtype.kind == "f":
+        # float numpy: float nativo; NaN → None (pd.isna en normalize_sql_literal).
+        return [None if value != value else value for value in series.to_numpy().tolist()]
+    if pd.api.types.is_datetime64_any_dtype(dtype):
+        # Fechas (sin y con zona): Timestamp.to_pydatetime(); NaT → None.
+        return [None if value is pd.NaT else value for value in series.array.to_pydatetime()]
+    values: list[Any] = list(series)
+    if dtype == np.dtype(object) or isinstance(dtype, ExtensionDtype):
+        values = [maybe_box_native(value) for value in values]
+    return [normalize_sql_literal(value) for value in values]
 
 
 def _decode_bytes_to_string(value: bytes | bytearray | memoryview) -> str | bytes:

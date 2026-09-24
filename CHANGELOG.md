@@ -9,6 +9,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **bulk (todos los motores)**: los registros de `bulk_insert_from_df`, `bulk_insert_from_chunks` y
+  `bulk_update_from_df` se preparan por columnas (`dataframe_to_sql_records`) en lugar de `to_dict(orient="records")`
+  más `normalize_sql_literal` celda a celda (P-03). Las columnas numpy enteras, booleanas y float y las de fecha (con y
+  sin zona) se convierten en bloque; el resto sigue el mismo camino que antes. El resultado es idéntico (mismas claves,
+  valores y tipos Python), verificado con una matriz de dtypes que incluye nullable, `str`, `category`, `Decimal`,
+  bytes, escalares numpy en columnas object, nanosegundos y zonas horarias. Medido: preparación de 1M filas 8,58 s →
+  2,95 s (2,9×); de extremo a extremo en SQLite, INSERT de 1M 13,8 s → 8,4 s y UPDATE 17,1 s → 11,7 s. El ahorro
+  (~5,6 s por millón de filas) es el mismo en todos los motores. `normalize_records_for_sql` y
+  `normalize_sql_literal` no cambian.
+
 - **bulk (MySQL/MariaDB + PyMySQL)**: el INSERT usa el `executemany` del driver vía `exec_driver_sql`
   (`MySQLDriverExecutemanyStrategy`) en lugar de la vía multi-fila con `text()` (P-02). Medido con 1M filas: MySQL 8.4
   54,9 s → 26,3 s y MariaDB 11.4 50,4 s → 24,0 s (~2,1×). Los valores guardados son idénticos (verificado con JSON,

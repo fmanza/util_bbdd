@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 
-from collections.abc import Callable, Generator, Hashable, Iterable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Generator, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -72,7 +72,7 @@ from ._support.validation import (
     validate_engine,
 )
 from .audit import AuditError, AuditManager
-from .normalize import normalize_records_for_sql
+from .normalize import dataframe_to_sql_records
 
 try:
     from util.timing.medir_tiempo import medir_tiempo
@@ -472,8 +472,7 @@ class BulkCrud:
                     )
                 stmt, insert_cols = resolved
 
-                records: list[dict[Hashable, Any]] = working_df[insert_cols].to_dict(orient="records")
-                records_sql: list[dict[str, Any]] = normalize_records_for_sql(records)
+                records_sql: list[dict[str, Any]] = dataframe_to_sql_records(working_df[insert_cols])
                 restore_binary_values(records_sql, tabla)  # P-21
                 numero_registros: int = len(records_sql)
 
@@ -606,8 +605,7 @@ class BulkCrud:
                 "Usa override_identity=True para insertar valores manuales."
             )
 
-        records: list[dict[Hashable, Any]] = df[insert_cols].to_dict(orient="records")
-        records_sql: list[dict[str, Any]] = normalize_records_for_sql(records)
+        records_sql: list[dict[str, Any]] = dataframe_to_sql_records(df[insert_cols])
         restore_binary_values(records_sql, tabla)  # P-21
         numero_registros: int = len(records_sql)
 
@@ -644,8 +642,7 @@ class BulkCrud:
     def __prepare_update_operation(self, df: pd.DataFrame, tabla_destino: str) -> _PreparedBulkOperation:
         tabla: Table = self.reflect_table(tabla_destino)
         update_plan = build_update_plan(tabla, list(df.columns), tabla_destino)
-        records: list[dict[Hashable, Any]] = df.to_dict(orient="records")
-        records_sql: list[dict[str, Any]] = normalize_records_for_sql(records)
+        records_sql: list[dict[str, Any]] = dataframe_to_sql_records(df)
         restore_binary_values(records_sql, tabla)  # P-21
 
         for record in records_sql:
