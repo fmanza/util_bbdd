@@ -152,6 +152,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-24 | P-06 (`generar_sql` por plantilla) + fix P-29 | 17–50× con salida idéntica; sin RETURNING/OUTPUT en el INSERT generado; `%(nombre)s` conservado | CLOSED |
 | 2026-09-24 | P-07 (por bloques) | Memoria adicional con 200K filas 70–176 MB → 4–7 MB, mismo tiempo | CLOSED |
 | 2026-09-24 | P-08 descartado | Coste por partición < 2%; escalado 1,6–3,9× con 4 hilos (SQLite no escala) | CLOSED |
+| 2026-09-24 | Hotfix loader + paquete de tests | `partition_errors` recoge cualquier excepción; `metadata/__init__.py` deja de tapar el driver `mariadb` | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 
