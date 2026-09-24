@@ -151,6 +151,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-24 | P-10 (DELETE de PostgreSQL por arrays) | `ANY` / `unnest`: 2,3–2,8× con psycopg 3 y 24–27× con psycopg2 | CLOSED |
 | 2026-09-24 | P-06 (`generar_sql` por plantilla) + fix P-29 | 17–50× con salida idéntica; sin RETURNING/OUTPUT en el INSERT generado; `%(nombre)s` conservado | CLOSED |
 | 2026-09-24 | P-07 (por bloques) | Memoria adicional con 200K filas 70–176 MB → 4–7 MB, mismo tiempo | CLOSED |
+| 2026-09-24 | P-08 descartado | Coste por partición < 2%; escalado 1,6–3,9× con 4 hilos (SQLite no escala) | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 
