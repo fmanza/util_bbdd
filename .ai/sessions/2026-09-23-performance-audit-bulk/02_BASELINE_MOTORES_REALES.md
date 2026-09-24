@@ -45,7 +45,7 @@
 | ID | Antes | Ahora | Evidencia |
 |---|---|---|---|
 | P-01 | ALTA · confirmada en código | **CORREGIDA** (hotfix 2026-09-24; antes CONFIRMADA — CRÍTICA) | INSERT con `create_engine(fast_executemany=True)`: 11,55× (1K), 11,83× (10K), 11,93× (100K), **12,06× (1M: 245,5 s → 20,4 s)**. Además corrige P-18: el UPDATE pasa de fallar a 33.500 filas/s. |
-| P-02 | CRÍTICA · hipótesis contra servidor | **CONFIRMADA** | INSERT con executemany del driver: MySQL 1,85× (100K) y 1,90× (1M); MariaDB 1,93× (100K) y 2,05× (1M). A 1K es ruido (0,67×–1,18×). UPDATE y DELETE sin cambios (esperado: la variante solo afecta al INSERT). |
+| P-02 | CRÍTICA · hipótesis contra servidor | **APLICADA** (refactor 2026-09-24, solo PyMySQL; 1M: MySQL 2,09×, MariaDB 2,09×) | INSERT con executemany del driver: MySQL 1,85× (100K) y 1,90× (1M); MariaDB 1,93× (100K) y 2,05× (1M). A 1K es ruido (0,67×–1,18×). UPDATE y DELETE sin cambios (esperado: la variante solo afecta al INSERT). |
 | P-04 | ALTA · hipótesis | **CONFIRMADA** | UPDATE a ~2.600–2.950 filas/s en MySQL/MariaDB y 1.800 en SQL Server con pymssql, frente a 35.000 en Oracle, 24.700 en PostgreSQL y 33.500 en SQL Server con pyodbc + P-01. 1M filas: 339–556 s frente a 28–41 s. |
 | P-05 | CRÍTICA · confirmada en código | **CORREGIDA** (hotfix 2026-09-24; DELETE 1M con pyodbc en 8,9 s; antes CONFIRMADA en ambas partes) | Sintaxis de PK compuesta: falla con pymssql y con pyodbc. Límite de parámetros: con pyodbc el DELETE de ≥ 10K filas falla con `07002 COUNT field incorrect or syntax error` (lotes de 5000 parámetros); con pymssql no aplica (sustitución en cliente). Tests `xfail(strict=True)` con los dos drivers. |
 | P-03 | ALTA | Coherente | SQLite 1M INSERT 13,7 s (13,3 s en la medición del 23-09): la preparación en Python sigue siendo el suelo del resto de motores. |
@@ -93,11 +93,21 @@ Los NULL en la primera fila no influyen: con A, F y S el UPDATE funciona con y s
 
 Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir driver, pyodbc + ODBC 18 es hoy la mejor vía en SQL Server.
 
+### P-19: `bulk_update_from_df` corrompe columnas JSON (MySQL `JSON`, PostgreSQL `JSONB`)
+**Severidad**: CRÍTICA (corrupción silenciosa de datos)
+**Área**: 3 (normalización) / 7 (generación SQL)
+**Archivo/Función**: `crud.py` `__prepare_update_operation` (`update(tabla).values({col: bindparam(col)})`) + `normalize.py` `normalize_sql_literal` (dict/list → `json.dumps`)
+**Descripción**: `normalize_sql_literal` convierte los dict/list a texto JSON. En el UPDATE, los parámetros van tipados con la columna reflejada, y el tipo `JSON` de SQLAlchemy vuelve a serializar ese texto: se guarda un *string* JSON en lugar del objeto, y `None` se guarda como el literal JSON `null` en lugar de `NULL` SQL. El INSERT no se ve afectado: COPY en PostgreSQL y `exec_driver_sql` / `text()` en MySQL no aplican procesadores de tipo.
+**Evidencia** (servidores del banco, 2026-09-24): INSERT `{"k": 1}` → `{"k": 1}` en MySQL y PostgreSQL. UPDATE `{"k": 10}` → `"{\"k\": 10}"`; UPDATE `None` → `null` (no NULL), en los dos motores.
+**Confirmación**: CONFIRMADA. Hallazgo previo a esta sesión, no introducido por P-02.
+**Remediación propuesta**: `/hotfix`: no serializar dos veces en columnas de tipo JSON (p.ej. no convertir a texto los valores destinados a columnas JSON, o enlazar esos parámetros sin tipo). Hay que revisar también el INSERT de otros motores con tipo JSON (SQLite, Oracle).
+
 ## Prioridad revisada (por impacto medido)
 
+0. **P-19**: `/hotfix` de la corrupción de columnas JSON en `bulk_update_from_df` (MySQL y PostgreSQL). Prioridad máxima: corrompe datos en silencio.
 1. ~~**P-01 + P-18**~~: corregidos (hotfix 2026-09-24).
 2. ~~**P-05**~~: corregido (hotfix 2026-09-24).
 3. **P-04**: UPDATE vía tabla temporal en MySQL/MariaDB y SQL Server con pymssql (−300 a −500 s por millón de filas en local).
-4. **P-02**: executemany nativo en MySQL/MariaDB (INSERT ~2×, cambio de una línea). Quick win confirmado.
+4. ~~**P-02**~~: aplicado (refactor 2026-09-24). No era un cambio de una línea: `DefaultInsertStrategy` habría serializado dos veces las columnas JSON de MySQL, y el conector `mariadb` rechaza tipos mezclados por columna.
 5. **P-17**: `bulk_copy` para SQL Server + pymssql (INSERT 6,7×).
 6. **P-03**: normalización por columna (todos los motores; suelo de ~8 s por millón de filas).
