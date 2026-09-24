@@ -9,9 +9,9 @@ saltan. La cuenta necesita CREATE TABLE y DROP TABLE::
 
 Cada prueba crea una tabla ``zz_util_bbdd_it_<id>`` y la elimina al terminar, incluso si falla.
 
-Fallos conocidos marcados ``xfail(strict=True)`` (hallazgos de .ai/sessions/2026-09-23-performance-audit-bulk/): los
-DELETE en SQL Server (P-05). Cuando se corrijan, las pruebas pasarán y ``strict`` obligará a retirar la marca.
-``test_insert_and_update_roundtrip`` es la regresión de P-18 (UPDATE con columna DATETIME en SQL Server + pyodbc).
+Regresiones de los hallazgos de .ai/sessions/2026-09-23-performance-audit-bulk/: ``test_insert_and_update_roundtrip``
+cubre P-18 (UPDATE con columna DATETIME en SQL Server + pyodbc) y los dos tests de DELETE cubren P-05 (más de 2100
+parámetros y PK compuesta en SQL Server).
 """
 
 from __future__ import annotations
@@ -36,9 +36,6 @@ pytestmark = [pytest.mark.integration, pytest.mark.cross_db]
 
 SERVER_ENGINES: tuple[str, ...] = ("postgresql", "mysql", "mariadb", "mssql", "oracle")
 ROWS_OVER_MSSQL_PARAM_LIMIT = 3_000  # > 2100 parámetros por petición de SQL Server
-
-_P05_PARAMS = "P-05: SqlBasedDeleteStrategy supera el límite de 2100 parámetros de SQL Server (pyodbc)"
-_P05_COMPOSITE = "P-05: SQL Server no admite '(a, b) IN ((..), (..))' en SqlBasedDeleteStrategy"
 
 
 def _engine_params() -> list[object]:
@@ -124,14 +121,6 @@ def _count(engine: Engine, table: Table) -> int:
         return int(conn.execute(select(func.count()).select_from(table)).scalar_one())
 
 
-def _xfail_if_mssql(request: pytest.FixtureRequest, engine: Engine, reason: str, *, pyodbc_only: bool) -> None:
-    if engine.dialect.name != "mssql":
-        return
-    if pyodbc_only and engine.dialect.driver != "pyodbc":
-        return
-    request.applymarker(pytest.mark.xfail(strict=True, reason=reason))
-
-
 def test_insert_and_update_roundtrip(engine: Engine, scratch_table: Table, tmp_path: Path) -> None:
     audit_csv = tmp_path / "audit.csv"
     crud = BulkCrud(engine, chunk_size=1000, audit_csv_path=audit_csv)
@@ -159,10 +148,7 @@ def test_insert_and_update_roundtrip(engine: Engine, scratch_table: Table, tmp_p
     assert len(audit_csv.read_text(encoding="utf-8").splitlines()) == 3
 
 
-def test_delete_more_rows_than_mssql_parameter_limit(
-    request: pytest.FixtureRequest, engine: Engine, scratch_table: Table
-) -> None:
-    _xfail_if_mssql(request, engine, _P05_PARAMS, pyodbc_only=True)
+def test_delete_more_rows_than_mssql_parameter_limit(engine: Engine, scratch_table: Table) -> None:
     crud = BulkCrud(engine)  # chunk_size por defecto (5000): un solo lote de 3000 PKs
     df = _frame(engine, ROWS_OVER_MSSQL_PARAM_LIMIT)
     crud.bulk_insert_from_df(df, scratch_table.name, generar_sql=False)
@@ -172,10 +158,7 @@ def test_delete_more_rows_than_mssql_parameter_limit(
     assert _count(engine, scratch_table) == 0
 
 
-def test_delete_with_composite_primary_key(
-    request: pytest.FixtureRequest, engine: Engine, composite_table: Table
-) -> None:
-    _xfail_if_mssql(request, engine, _P05_COMPOSITE, pyodbc_only=False)
+def test_delete_with_composite_primary_key(engine: Engine, composite_table: Table) -> None:
     k1, k2, v = (_name(c, engine) for c in ("k1", "k2", "v"))
     df = pd.DataFrame({k1: [i // 10 for i in range(50)], k2: [i % 10 for i in range(50)], v: ["x"] * 50})
     crud = BulkCrud(engine)

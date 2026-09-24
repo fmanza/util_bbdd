@@ -9,6 +9,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **bulk (SQL Server)**: `bulk_delete_from_df` fallaba en SQL Server (P-05). Con pyodbc, a partir de ~2100 filas daba
+  `07002 COUNT field incorrect`: todas las PK del lote (`chunk_size`) iban en un único `IN (...)` y SQL Server admite
+  como máximo 2100 parámetros por petición. Con PK compuesta fallaba con cualquier driver, por la sintaxis
+  `(a, b) IN ((..), (..))`, que SQL Server no admite. Ahora la PK simple se trocea en sentencias de 2000 parámetros como
+  máximo y la PK compuesta usa `DELETE ... WHERE a = ? AND b = ?` con executemany. Medido con pyodbc + ODBC Driver 18:
+  DELETE de 1M filas en 8,9 s. MySQL, MariaDB y HSQLDB no cambian.
 - **bulk (SQL Server + pyodbc)**: `bulk_update_from_df` fallaba con `HY104 Invalid precision value` en tablas con
   columnas `DATETIME` (P-18), y el INSERT no usaba `fast_executemany` aunque `enable_fast_executemany=True` (P-01).
   Causa: el flag se aplicaba con un listener sobre el cursor, a espaldas del dialecto. SQLAlchemy seguía llamando a

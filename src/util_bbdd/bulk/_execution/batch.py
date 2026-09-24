@@ -14,6 +14,8 @@ from sqlalchemy import Delete, Engine, Insert, Table, and_, bindparam, delete, t
 # ---------------------------------------------------------------------------
 
 _DEFAULT_SQL_BASED_DELETE_DIALECTS: frozenset[str] = frozenset({"mysql", "mariadb", "mssql", "hsqldb"})
+# SQL Server admite 2100 parámetros por petición (SQLAlchemy usa 2099 en insertmanyvalues); se deja margen.
+_MSSQL_MAX_DELETE_PARAMS: int = 2000
 
 
 def _register_fast_executemany(engine: Engine) -> None:
@@ -363,7 +365,13 @@ class DeleteExecutionStrategyProtocol(Protocol):
 
 
 class SqlBasedDeleteStrategy:
-    """Estrategia de DELETE SQL parametrizado para motores soportados."""
+    """Estrategia de DELETE SQL parametrizado para motores soportados.
+
+    SQL Server (P-05, performance-audit de bulk 2026-09-23): admite como máximo 2100 parámetros por petición y no
+    admite constructores de fila en ``IN``. La PK simple se trocea en sentencias de ``_MSSQL_MAX_DELETE_PARAMS``
+    parámetros como máximo y la PK compuesta se delega en :class:`GenericDeleteStrategy`
+    (``DELETE ... WHERE a = ? AND b = ?`` con executemany). El resto de dialectos usa una sentencia por lote.
+    """
 
     def execute(
         self,
@@ -373,6 +381,29 @@ class SqlBasedDeleteStrategy:
         batch_df: pd.DataFrame,
         pk_cols: Sequence[str],
     ) -> None:
+        if connection.dialect.name != "mssql":
+            self._execute_statement(connection=connection, table=table, batch_df=batch_df, pk_cols=pk_cols)
+            return
+        if len(pk_cols) > 1:
+            GenericDeleteStrategy().execute(connection=connection, table=table, batch_df=batch_df, pk_cols=pk_cols)
+            return
+        for start in range(0, len(batch_df), _MSSQL_MAX_DELETE_PARAMS):
+            self._execute_statement(
+                connection=connection,
+                table=table,
+                batch_df=batch_df.iloc[start : start + _MSSQL_MAX_DELETE_PARAMS],
+                pk_cols=pk_cols,
+            )
+
+    def _execute_statement(
+        self,
+        *,
+        connection: Any,
+        table: Table,
+        batch_df: pd.DataFrame,
+        pk_cols: Sequence[str],
+    ) -> None:
+        """Ejecuta un único ``DELETE ... WHERE pk IN (...)`` con todas las filas de ``batch_df``."""
         values: list[tuple[Any, ...]] = [tuple(r) for r in batch_df[pk_cols].itertuples(index=False, name=None)]
         if not values:
             return
