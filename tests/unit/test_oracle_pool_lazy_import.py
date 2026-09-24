@@ -32,6 +32,9 @@ def test_module_import_succeeds_when_oracledb_missing(monkeypatch: pytest.Monkey
     assert module.HAS_ORACLEDB is False
 
 
+# Sin la salida temprana de __del__, el objeto a medio construir emitía PytestUnraisableExceptionWarning
+# (AttributeError en el destructor): el aviso pasa a ser un fallo del test.
+@pytest.mark.filterwarnings("error::pytest.PytestUnraisableExceptionWarning")
 def test_pool_connection_raises_clear_import_error_when_oracledb_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -79,7 +79,13 @@ class PoolConnection:
 
         Durante shutdown del intérprete, se omite timeout para evitar
         errores de threading (puede haber carrera de destrucción).
+
+        Si ``__init__`` falló antes de inicializar el objeto (p.ej. ``ImportError`` sin
+        ``oracledb``), no hay nada que cerrar: sin esta salida, ``__del__`` lanzaba
+        ``AttributeError`` y Python lo emitía como excepción ignorada en el destructor.
         """
+        if "_close_timeout_seconds" not in self.__dict__:
+            return
         try:
             # Detectar si estamos en shutdown
             is_shutdown = sys.is_finalizing()
