@@ -165,8 +165,12 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 **Archivo/Función**: `_execution/batch.py` `PostgresCopyStrategy` y `PostgreSQLExecuteValuesStrategy` (cursor del driver); consumidores que capturan `SQLAlchemyError`: `crud.py` `__run_bulk_pipeline` (log), `_execution/parallel_loader.py` (resultado de partición con error), `dump/orchestrator.py` (errores por tabla)
 **Descripción**: lo que se ejecuta por el cursor del driver no pasa por SQLAlchemy, que es quien envuelve los errores del driver en `DBAPIError`. Una clave duplicada en el COPY llega como `psycopg.errors.UniqueViolation`. Los docstrings de `BulkCrud` prometen `SQLAlchemyError`.
 **Evidencia**: `test_commit_every_n_chunks_keeps_committed_chunks_on_failure[postgresql]` con `pytest.raises(SQLAlchemyError)`: `psycopg.errors.UniqueViolation` sin envolver.
-**Consecuencias** (por deducción del código, no medidas): `ParallelBulkLoader` no la convierte en `PartitionResult(error=...)` y `dump` no la registra como error de la tabla; se propaga y aborta la carga.
-**Confirmación**: CONFIRMADA en el tipo de excepción (hotfix P-27, 2026-09-24); consecuencias por deducción. Remediación propuesta: envolver en `DBAPIError.instance(...)` los errores del driver en las dos estrategias.
+**Consecuencias**:
+- `ParallelBulkLoader.load()` con una partición que repite una PK: con psycopg 3 y psycopg2 se aborta entero con `UniqueViolation`; con PyMySQL devuelve `total_rows=3` y 1 error.
+- `dump`: no registra el error como error de la tabla (por deducción del código).
+- `OperationalError` del driver: `ParallelBulkLoader` no lo reintenta (por deducción del código).
+
+**Confirmación**: CONFIRMADA (hotfix P-27 y P-28, 2026-09-24). **CORREGIDA** en `2026-09-24-hotfix-p28-pg-driver-errors` (`_wrap_driver_error` con `DBAPIError.instance`).
 
 ## Prioridad revisada (por impacto medido)
 
@@ -186,4 +190,4 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 7. ~~**P-09**~~ y copia superficial de P-07: aplicados (refactor 2026-09-24): el UPDATE prepara solo PK + columnas actualizables (3,1× con 7 columnas sobrantes a 100K) y sin copia completa del DataFrame.
 8. ~~**P-25**~~ y ~~**P-26**~~: corregidos (hotfix 2026-09-24).
 9. ~~**P-27**~~: corregido (hotfix 2026-09-24).
-10. **P-28**: MEDIA, pendiente (errores del driver sin envolver en el INSERT de PostgreSQL).
+10. ~~**P-28**~~: corregido (hotfix 2026-09-24).
