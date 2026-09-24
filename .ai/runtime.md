@@ -68,7 +68,7 @@ python scripts/gen_arquitectura_capas.py  # Regenera SVG + CSS; falla si el dibu
 ## Database Testing
 
 - **SQLite in-memory** (`":memory:"`): BD por defecto en todos los tests unitarios
-- **Docker Compose**: `docker-compose.yml` con MariaDB, PostgreSQL (tests de integración opcionales)
+- **Docker Compose**: `docker-compose.yml` incluye `docker-compose.bench.yml`, proyecto `util_bbdd_bench`: PostgreSQL 17, MySQL 8.4, MariaDB 11.4, SQL Server 2022 y Oracle 23 Free en `127.0.0.1` y puertos no estándar (55432, 53306, 53307, 51433, 51521). Contraseña en `UTIL_BBDD_BENCH_PASSWORD`; URLs con `scripts/bench_env.example.{sh,ps1}`. Los usan los tests de integración (`UTIL_BBDD_TEST_<MOTOR>_URL`) y `scripts/bench_bulk.py`. No usar ningún servidor local en puertos estándar.
 - **Test isolation**: Cada test abre su propia conexión; sin estado compartido entre tests
 - **Markers**: `@pytest.mark.asyncio` para tests async; `@pytest.mark.integration` para tests con BD reales
 

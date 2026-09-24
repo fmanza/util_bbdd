@@ -215,78 +215,9 @@ async def async_manager_with_schema(
         gc.collect()
 
 
-# =====================================================================
-# FIXTURES: PostgreSQL (OPCIONAL, SI DISPONIBLE)
-# =====================================================================
-
-
-@pytest.fixture(scope="session")
-def postgresql_available() -> bool:
-    """Detecta si PostgreSQL está disponible para tests."""
-    try:
-        from sqlalchemy import create_engine
-
-        engine = create_engine(
-            "postgresql+psycopg://postgres:postgres@localhost:5432/util_bbdd_test", connect_args={"timeout": 1}
-        )
-        engine.dispose()
-        return True
-    except Exception:
-        return False
-
-
-@pytest.fixture(scope="function")
-def postgresql_engine(postgresql_available: bool) -> Generator[Engine, None, None]:
-    """Engine PostgreSQL REAL si disponible, skip si no."""
-    if not postgresql_available:
-        pytest.skip("PostgreSQL no disponible")
-
-    engine = create_engine("postgresql+psycopg://postgres:postgres@localhost:5432/util_bbdd_test", echo=False)
-
-    # Limpiar BD anterior
-    with engine.connect() as conn:
-        conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
-        conn.execute(text("CREATE SCHEMA public"))
-        conn.commit()
-
-    yield engine
-    engine.dispose()
-
-
-@pytest.fixture(scope="function")
-def postgresql_engine_with_schema(postgresql_engine: Engine) -> Generator[Engine, None, None]:
-    """Engine PostgreSQL con schema y datos."""
-    schema_sql_pg = SCHEMA_SQL.replace("AUTOINCREMENT", "")
-
-    with postgresql_engine.connect() as conn:
-        for statement in schema_sql_pg.split(";"):
-            if statement.strip():
-                conn.execute(text(statement))
-        conn.commit()
-
-        for query, params_list in SEED_DATA:
-            for params in params_list:
-                conn.execute(text(query), params)
-        conn.commit()
-
-    yield postgresql_engine
-
-
-@pytest.fixture(scope="function")
-def postgresql_connection_config(sql_queries_json_path: str) -> dict[str, Any]:
-    """Configuración para SyncDatabaseManager con PostgreSQL real."""
-    return {
-        "db_type": "postgresql",
-        "conn_params": {
-            "host": "localhost",
-            "user": "postgres",
-            "password": "postgres",
-            "database": "util_bbdd_test",
-            "port": 5432,
-        },
-        "queries_file": Path(sql_queries_json_path),
-        "use_pool": False,
-    }
+# Las pruebas contra PostgreSQL real usan UTIL_BBDD_TEST_POSTGRESQL_URL (ver tests/integration/test_bulk_engines.py y
+# docker-compose.bench.yml). Aquí había fixtures fijas a localhost:5432 (postgres/postgres, util_bbdd_test) que nadie
+# usaba y que ejecutaban DROP SCHEMA public CASCADE: se retiraron para no tocar nunca un servidor PostgreSQL ajeno.
 
 
 # =====================================================================

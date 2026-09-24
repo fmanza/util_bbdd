@@ -68,6 +68,7 @@ from sqlalchemy import (
     func,
     select,
 )
+from sqlalchemy.engine import make_url
 
 from util_bbdd.bulk import BulkCrud
 from util_bbdd.bulk._execution.batch import InsertStrategyResolver, MySQLMultiRowInsertStrategy
@@ -112,10 +113,39 @@ def resolve_engine_url(engine_key: str, environ: dict[str, str] | None = None) -
     key = engine_key.upper()
     url = env.get(f"UTIL_BBDD_BENCH_{key}_URL") or env.get(f"UTIL_BBDD_TEST_{key}_URL")
     if url:
+        warn_if_standard_port(engine_key, url)
         return url
     if engine_key == "sqlite":
         return f"sqlite:///{Path(tempfile.mkdtemp(prefix='util_bbdd_bench_')) / 'bench.db'}"
     return None
+
+
+# Puertos estándar por motor. Los contenedores del banco (docker-compose.bench.yml) usan otros a propósito, para no
+# tocar nunca un servidor que ya use el estándar (p.ej. un PostgreSQL de desarrollo en el 5432).
+_STANDARD_PORTS: dict[str, int] = {"postgresql": 5432, "mysql": 3306, "mariadb": 3306, "mssql": 1433, "oracle": 1521}
+
+
+def warn_if_standard_port(engine_key: str, url: str) -> bool:
+    """Registra un WARNING si ``url`` usa el puerto estándar del motor (o ninguno, que equivale a él).
+
+    Solo avisa: un servidor de pruebas real puede estar en el puerto estándar. Devuelve si ha avisado.
+    """
+    standard = _STANDARD_PORTS.get(engine_key)
+    if standard is None:
+        return False
+    try:
+        port = make_url(url).port or standard
+    except Exception:  # URL no analizable: que falle después al conectar, con su propio error
+        return False
+    if port != standard:
+        return False
+    _log.warning(
+        "%s: la URL usa el puerto estándar %d; los servidores del banco (docker-compose.bench.yml) usan puertos propios. "
+        "Comprueba que no apunta a otro servidor (el banco crea y borra tablas zz_util_bbdd_*).",
+        engine_key,
+        standard,
+    )
+    return True
 
 
 def physical_name(logical: str, dialect_name: str) -> str:

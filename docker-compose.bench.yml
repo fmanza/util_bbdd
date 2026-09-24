@@ -1,6 +1,17 @@
 # Servidores desechables para el banco de pruebas de bulk (scripts/bench_bulk.py) y los tests de integración
 # (tests/integration/test_bulk_engines.py). Solo para uso local: sin volúmenes persistentes con nombre.
 #
+# docker-compose.yml incluye este fichero con el mismo proyecto: desde la raíz del repositorio, `docker compose ...`
+# (sin -f) gestiona estos mismos contenedores.
+#
+# Independientes de cualquier otro servidor de la máquina (p.ej. un PostgreSQL de desarrollo en el 5432): proyecto
+# propio, contenedores y volúmenes propios, puertos distintos de los estándar y solo accesibles desde esta máquina
+# (127.0.0.1). Puertos por defecto, cambiables con variables de entorno:
+#
+#   PostgreSQL 55432 (UTIL_BBDD_BENCH_POSTGRES_PORT)   MySQL 53306 (UTIL_BBDD_BENCH_MYSQL_PORT)
+#   MariaDB    53307 (UTIL_BBDD_BENCH_MARIADB_PORT)    SQL Server 51433 (UTIL_BBDD_BENCH_MSSQL_PORT)
+#   Oracle     51521 (UTIL_BBDD_BENCH_ORACLE_PORT)
+#
 # La contraseña NO está en el repo: se toma de UTIL_BBDD_BENCH_PASSWORD (SQL Server exige mayúscula, minúscula y
 # dígito, ≥ 8 caracteres; evita símbolos que haya que codificar en la URL).
 #
@@ -8,11 +19,13 @@
 #   docker compose -f docker-compose.bench.yml up -d --wait               # los 5 motores
 #   docker compose -f docker-compose.bench.yml up -d --wait postgres mysql   # solo algunos
 #   docker compose -f docker-compose.bench.yml down -v                    # parar y borrar datos
+#   source scripts/bench_env.example.sh                                   # URLs (PowerShell: . scripts\bench_env.example.ps1)
 #
 # URLs: ver docs/guides/benchmarks.md § "Banco de pruebas contra motores reales".
 
-# Proyecto propio: sin él, compose usaría el nombre del directorio (util_bbdd), el mismo que docker-compose.yml, y el
-# servicio `postgres` de este fichero reemplazaría al contenedor postgres_db (y montaría su volumen).
+# Proyecto propio: sin él, compose usaría el nombre del directorio (util_bbdd). Ese proyecto tiene ya un contenedor
+# `postgres_db` (del antiguo docker-compose.yml), y el servicio `postgres` de este fichero lo reemplazaría y montaría
+# su volumen. docker-compose.yml usa este mismo nombre.
 name: util_bbdd_bench
 
 x-password: &password ${UTIL_BBDD_BENCH_PASSWORD:?Define UTIL_BBDD_BENCH_PASSWORD antes de levantar los contenedores}
@@ -26,7 +39,7 @@ services:
       POSTGRES_PASSWORD: *password
       POSTGRES_DB: bench
     ports:
-      - "55432:5432"
+      - "127.0.0.1:${UTIL_BBDD_BENCH_POSTGRES_PORT:-55432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bench -d bench"]
       interval: 5s
@@ -42,7 +55,7 @@ services:
       MYSQL_USER: bench
       MYSQL_PASSWORD: *password
     ports:
-      - "53306:3306"
+      - "127.0.0.1:${UTIL_BBDD_BENCH_MYSQL_PORT:-53306}:3306"
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -ubench -p$$MYSQL_PASSWORD --silent"]
       interval: 5s
@@ -58,7 +71,7 @@ services:
       MARIADB_USER: bench
       MARIADB_PASSWORD: *password
     ports:
-      - "53307:3306"
+      - "127.0.0.1:${UTIL_BBDD_BENCH_MARIADB_PORT:-53307}:3306"
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 5s
@@ -72,9 +85,12 @@ services:
       MSSQL_PID: Developer
       MSSQL_SA_PASSWORD: *password
     ports:
-      - "51433:1433"
+      - "127.0.0.1:${UTIL_BBDD_BENCH_MSSQL_PORT:-51433}:1433"
+    # SQL Server no crea bases al arrancar: el healthcheck crea la base propia `bench` si no existe (idempotente), de
+    # modo que el contenedor solo está "healthy" (y `up --wait` termina) cuando la base ya existe. Las tablas del banco
+    # van en `bench`, no en `master`.
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" -b"]
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -b -Q \"IF DB_ID('bench') IS NULL CREATE DATABASE bench; SELECT 1\""]
       interval: 10s
       retries: 30
 
@@ -86,7 +102,7 @@ services:
       APP_USER: bench
       APP_USER_PASSWORD: *password
     ports:
-      - "51521:1521"
+      - "127.0.0.1:${UTIL_BBDD_BENCH_ORACLE_PORT:-51521}:1521"
     healthcheck:
       test: ["CMD", "healthcheck.sh"]
       interval: 10s

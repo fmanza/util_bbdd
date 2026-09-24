@@ -1,22 +1,16 @@
-services:
-  postgres:
-    image: postgres:latest
+# Servidores de desarrollo y pruebas del proyecto: los mismos contenedores que docker-compose.bench.yml (mismo proyecto,
+# mismos contenedores). Desde la raíz del repositorio basta con `docker compose ...`, sin `-f`.
+#
+#   export UTIL_BBDD_BENCH_PASSWORD=...                  # PowerShell: $env:UTIL_BBDD_BENCH_PASSWORD="..."
+#   docker compose up -d --wait postgres                 # solo PostgreSQL 17: 127.0.0.1:55432, usuario y base `bench`
+#   docker compose up -d --wait                          # los 5 motores
+#   docker compose down -v                               # parar y borrar sus datos
+#   source scripts/bench_env.example.sh                  # URLs (PowerShell: . scripts\bench_env.example.ps1)
+#
+# Antes este fichero definía un PostgreSQL propio (`postgres_db`, puerto 5432, usuario y contraseña escritos aquí). El
+# proyecto ya no lo usa. Con el nombre de proyecto `util_bbdd_bench`, compose no ve ni modifica ese contenedor ni su
+# volumen `util_bbdd_postgres_data`, que pertenecen al proyecto `util_bbdd`.
+name: util_bbdd_bench
 
-    container_name: postgres_db
-
-    restart: always
-
-    environment:
-      - PGDATA=/var/lib/postgresql/data/pgdata
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=admin123
-      - POSTGRES_DB=testdb
-
-    ports:
-      - "5432:5432"
-
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-volumes:
-  postgres_data:
+include:
+  - docker-compose.bench.yml

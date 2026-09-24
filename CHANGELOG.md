@@ -5,6 +5,33 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- **banco de pruebas (`docker-compose.bench.yml`)**: los cinco servidores solo escuchan en `127.0.0.1` (antes, en
+  todas las interfaces, accesibles desde la red local) y sus puertos se pueden cambiar con
+  `UTIL_BBDD_BENCH_<MOTOR>_PORT`. Por defecto siguen siendo 55432, 53306, 53307, 51433 y 51521, distintos de los
+  estándar. SQL Server usa una base propia `bench` (la crea el healthcheck) en lugar de `master`.
+- **banco de pruebas**: plantillas `scripts/bench_env.example.sh` y `.ps1` con las URLs de esos contenedores
+  (`UTIL_BBDD_BENCH_*` y `UTIL_BBDD_TEST_*`, con `127.0.0.1`), sin guardar la contraseña. `scripts/bench_bulk.py`
+  avisa si la URL de un motor usa su puerto estándar. `docs/guides/benchmarks.md` documenta contenedores, puertos y
+  bases.
+
+- **`docker-compose.yml`**: incluye `docker-compose.bench.yml` con el mismo proyecto (`util_bbdd_bench`) en lugar de
+  definir un PostgreSQL propio (`postgres_db`, puerto 5432, usuario y contraseña escritos en el repositorio). Desde la
+  raíz, `docker compose up -d --wait postgres` levanta el PostgreSQL 17 del proyecto (127.0.0.1:55432, base
+  `bench`, contraseña en `UTIL_BBDD_BENCH_PASSWORD`). Un contenedor `postgres_db` ya creado no se modifica ni se borra;
+  compose deja de verlo desde este directorio.
+
+### Removed
+
+- **tests**: fixtures `postgresql_available`, `postgresql_engine`, `postgresql_engine_with_schema` y
+  `postgresql_connection_config` de `tests/integration/conftest.py`. Nadie las usaba y estaban fijas a
+  `localhost:5432` (`postgres/postgres`, `util_bbdd_test`), el puerto de cualquier PostgreSQL local. La comprobación de
+  disponibilidad siempre devolvía `True` y la fixture ejecutaba `DROP SCHEMA public CASCADE`. Las pruebas contra
+  PostgreSQL real usan `UTIL_BBDD_TEST_POSTGRESQL_URL`.
+
 ## [0.13.0] - 2026-09-24
 
 Mejoras pendientes del performance-audit de `bulk` (P-06, P-07, P-09, P-10, P-13; P-08 descartado tras medirlo) y

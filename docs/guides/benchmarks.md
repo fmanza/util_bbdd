@@ -115,7 +115,28 @@ Para medir el impacto de la cadencia de commit, ver el ejemplo [Commit Cadence](
 SQL (número de filas y suma de una columna), así que una variante más rápida pero incorrecta aparece como error.
 Una operación que falla se registra y el banco continúa.
 
-**Apunta siempre a una base de datos de pruebas.** El banco solo crea y elimina la tabla `zz_util_bbdd_bench`.
+**Apunta siempre a una base de datos de pruebas.** El banco solo crea y elimina tablas `zz_util_bbdd_*`, pero lo hace
+en la base de la URL.
+
+Los servidores de `docker-compose.bench.yml` son independientes de cualquier otro de la máquina.
+`docker-compose.yml` lo incluye con el mismo proyecto, así que desde la raíz del repositorio basta con
+`docker compose up -d --wait postgres` (o sin nombre de servicio, para los 5 motores).
+
+- **Proyecto propio**: `util_bbdd_bench`. Un PostgreSQL de desarrollo que ya tengas en el 5432 (p.ej. el `postgres_db`
+  que definía el antiguo `docker-compose.yml`, en el proyecto `util_bbdd`) queda fuera: compose no lo ve ni lo toca.
+- **Contenedores y datos propios**: volúmenes anónimos, que se borran con `down -v`.
+- **Puertos no estándar**: solo accesibles desde esta máquina (`127.0.0.1`).
+
+| Motor | Contenedor | Puerto (variable para cambiarlo) | Base de datos |
+|---|---|---|---|
+| PostgreSQL 17 | `util_bbdd_bench_postgres` | 55432 (`UTIL_BBDD_BENCH_POSTGRES_PORT`) | `bench` |
+| MySQL 8.4 | `util_bbdd_bench_mysql` | 53306 (`UTIL_BBDD_BENCH_MYSQL_PORT`) | `bench` |
+| MariaDB 11.4 | `util_bbdd_bench_mariadb` | 53307 (`UTIL_BBDD_BENCH_MARIADB_PORT`) | `bench` |
+| SQL Server 2022 | `util_bbdd_bench_mssql` | 51433 (`UTIL_BBDD_BENCH_MSSQL_PORT`) | `bench` (la crea el healthcheck) |
+| Oracle 23 Free | `util_bbdd_bench_oracle` | 51521 (`UTIL_BBDD_BENCH_ORACLE_PORT`) | PDB `FREEPDB1`, usuario `bench` |
+
+`scripts/bench_bulk.py` avisa en el log si la URL de un motor usa su puerto estándar (5432, 3306, 1433, 1521), porque
+entonces suele apuntar a otro servidor.
 
 1. Levanta los motores que necesites. `docker-compose.bench.yml` no guarda ninguna contraseña: la lee de
    `UTIL_BBDD_BENCH_PASSWORD`.
@@ -126,18 +147,25 @@ Una operación que falla se registra y el banco continúa.
     ```
 
 2. Define una URL por motor en `UTIL_BBDD_BENCH_<MOTOR>_URL`. Si no existe, se usa `UTIL_BBDD_TEST_<MOTOR>_URL`,
-   la misma de los tests de integración. SQLite no necesita URL. Con los contenedores anteriores:
+   la misma de los tests de integración. SQLite no necesita URL. Las plantillas del repositorio definen las dos series
+   para los contenedores anteriores (y respetan los puertos cambiados), sin guardar la contraseña:
+
+    ```bash
+    source scripts/bench_env.example.sh          # PowerShell: . scripts\bench_env.example.ps1
+    ```
 
     | Motor | Variable | URL |
     |---|---|---|
-    | PostgreSQL | `UTIL_BBDD_BENCH_POSTGRESQL_URL` | `postgresql+psycopg://bench:<clave>@localhost:55432/bench` |
-    | MySQL | `UTIL_BBDD_BENCH_MYSQL_URL` | `mysql+pymysql://bench:<clave>@localhost:53306/bench` |
-    | MariaDB | `UTIL_BBDD_BENCH_MARIADB_URL` | `mariadb+pymysql://bench:<clave>@localhost:53307/bench` |
-    | SQL Server | `UTIL_BBDD_BENCH_MSSQL_URL` | `mssql+pyodbc://sa:<clave>@localhost:51433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes` |
-    | Oracle | `UTIL_BBDD_BENCH_ORACLE_URL` | `oracle+oracledb://bench:<clave>@localhost:51521/?service_name=FREEPDB1` |
+    | PostgreSQL | `UTIL_BBDD_BENCH_POSTGRESQL_URL` | `postgresql+psycopg://bench:<clave>@127.0.0.1:55432/bench` |
+    | MySQL | `UTIL_BBDD_BENCH_MYSQL_URL` | `mysql+pymysql://bench:<clave>@127.0.0.1:53306/bench` |
+    | MariaDB | `UTIL_BBDD_BENCH_MARIADB_URL` | `mariadb+pymysql://bench:<clave>@127.0.0.1:53307/bench` |
+    | SQL Server | `UTIL_BBDD_BENCH_MSSQL_URL` | `mssql+pymssql://sa:<clave>@127.0.0.1:51433/bench` |
+    | Oracle | `UTIL_BBDD_BENCH_ORACLE_URL` | `oracle+oracledb://bench:<clave>@127.0.0.1:51521/?service_name=FREEPDB1` |
 
-    `fast_executemany` exige el **ODBC Driver 17 o 18 de Microsoft**; con el driver antiguo `SQL Server` de Windows
-    no hay aceleración. Para SQL Server sin ODBC, usa `mssql+pymssql://sa:<clave>@localhost:51433/master`.
+    Usa `127.0.0.1` y no `localhost`: los puertos solo escuchan en IPv4 y en Windows `localhost` puede resolverse
+    primero a `::1`. Para SQL Server con pyodbc (necesario para `fast_executemany`, con el **ODBC Driver 17 o 18 de
+    Microsoft**; con el driver antiguo `SQL Server` de Windows no hay aceleración):
+    `mssql+pyodbc://sa:<clave>@127.0.0.1:51433/bench?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes`.
 
 3. Ejecuta el banco:
 

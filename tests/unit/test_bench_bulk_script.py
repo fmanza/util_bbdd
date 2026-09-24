@@ -34,6 +34,27 @@ class TestResolveEngineUrl:
         env = {"UTIL_BBDD_BENCH_MYSQL_URL": "mysql+pymysql://b", "UTIL_BBDD_TEST_MYSQL_URL": "mysql+pymysql://t"}
         assert bench.resolve_engine_url("mysql", env) == "mysql+pymysql://b"
 
+    @pytest.mark.parametrize(
+        ("engine_key", "url", "warns"),
+        [
+            ("postgresql", "postgresql+psycopg://bench:x@127.0.0.1:55432/bench", False),
+            ("postgresql", "postgresql+psycopg://admin:x@localhost:5432/testdb", True),
+            ("postgresql", "postgresql+psycopg://admin:x@localhost/testdb", True),  # sin puerto: el estándar
+            ("mysql", "mysql+pymysql://bench:x@127.0.0.1:53306/bench", False),
+            ("mariadb", "mariadb+pymysql://u:x@db:3306/app", True),
+            ("mssql", "mssql+pymssql://sa:x@127.0.0.1:1433/bench", True),
+            ("oracle", "oracle+oracledb://bench:x@127.0.0.1:51521/?service_name=FREEPDB1", False),
+            ("sqlite", "sqlite:///bench.db", False),
+        ],
+    )
+    def test_warns_when_url_uses_standard_port(
+        self, bench: ModuleType, caplog: pytest.LogCaptureFixture, engine_key: str, url: str, warns: bool
+    ) -> None:
+        with caplog.at_level("WARNING", logger="bench_bulk"):
+            assert bench.resolve_engine_url(engine_key, {f"UTIL_BBDD_BENCH_{engine_key.upper()}_URL": url}) == url
+
+        assert any("puerto estándar" in r.getMessage() for r in caplog.records) is warns
+
     def test_falls_back_to_integration_test_var(self, bench: ModuleType) -> None:
         env = {"UTIL_BBDD_TEST_MARIADB_URL": "mariadb+pymysql://t"}
         assert bench.resolve_engine_url("mariadb", env) == "mariadb+pymysql://t"
