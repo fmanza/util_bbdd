@@ -5,7 +5,51 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.12.0] - 2026-09-24
+
+Auditoría de rendimiento del módulo `bulk` con banco de pruebas contra motores reales (SQLite 3.50, PostgreSQL 17,
+MySQL 8.4, MariaDB 11.4, SQL Server 2022 con pymssql y pyodbc + ODBC Driver 18, Oracle 23 Free) y corrección de todos
+los fallos que destapó. Sesiones `.ai/sessions/2026-09-23-performance-audit-bulk/` a
+`.ai/sessions/2026-09-24-hotfix-p24-generar-sql-filename/`; línea base y evidencias en
+`.ai/sessions/2026-09-23-performance-audit-bulk/02_BASELINE_MOTORES_REALES.md`.
+
+**Cambios de comportamiento a revisar al actualizar** (detalle en cada entrada):
+- MySQL/MariaDB: `bulk_update_from_df` usa por defecto una tabla temporal (`update_via_staging=True`). Sin el privilegio
+  `CREATE TEMPORARY TABLES` vuelve al UPDATE fila a fila y registra un WARNING. `update_via_staging=False` lo desactiva.
+- SQL Server + pyodbc: `enable_fast_executemany=True` configura ahora el dialecto del engine, igual que
+  `create_engine(..., fast_executemany=True)`, en lugar de un listener de cursor.
+- `generar_sql=True`: en SQLite con ruta absoluta, el fichero queda en `path_sql`, no junto a la BD.
+- Revisa los datos cargados antes de esta versión si usabas, con la misma `BulkCrud`, varias tablas con las mismas
+  columnas en MySQL/MariaDB (P-22), columnas JSON (P-19) o binarias (P-21), o ficheros de `generar_sql` con `%` en
+  PostgreSQL o MySQL/MariaDB (P-23).
+
+### Added
+
+- **bulk (MySQL/MariaDB)**: `BulkCrud(update_via_staging=True)`, **activo por defecto** (P-04). `bulk_update_from_df` carga cada lote en una tabla
+  temporal por la vía rápida de INSERT y aplica un único `UPDATE destino, tmp SET ... WHERE destino.pk = tmp.pk`, en
+  lugar de un UPDATE por fila: ~12,5× más rápido (1M filas: MySQL 8.4 376 s → 29,5 s; MariaDB 11.4 331 s → 27,1 s). El
+  estado final de la tabla es idéntico al del UPDATE por fila, verificado en MySQL 8.4 y
+  MariaDB 11.4 con PyMySQL y `mariadbconnector`: tipos variados, JSON, NULL y PK repetidas (gana la última). Respeta
+  `bulk_session` (sin commit implícito: DDL `TEMPORARY`) y `commit_every_n_chunks`. Ignorado en otros motores.
+  Requiere el privilegio `CREATE TEMPORARY TABLES`. Si el servidor lo deniega (errno 1044/1142/1227), `BulkCrud` vuelve
+  solo al UPDATE fila a fila, sin romper la transacción, y registra un único WARNING en el logger
+  `util_bbdd.bulk._execution.batch` con la causa y cómo evitarlo. Esa instancia no vuelve a intentarlo.
+  `BulkCrud(..., update_via_staging=False)` desactiva el intento.
+- **scripts**: `scripts/bench_bulk.py`, banco de pruebas de rendimiento de `BulkCrud` (INSERT/UPDATE/DELETE)
+  contra motores reales (SQLite, PostgreSQL, MySQL, MariaDB, SQL Server, Oracle). Las URLs se leen de
+  `UTIL_BBDD_BENCH_<MOTOR>_URL` (o `UTIL_BBDD_TEST_<MOTOR>_URL`) y los motores sin URL se saltan. Verifica cada
+  operación con SQL, registra los errores sin detenerse y admite variantes A/B de los hallazgos P-01 y P-02 de la
+  auditoría de rendimiento. Escribe `summary.md`, `results.csv` y `environment.json` (sin contraseñas) en
+  `bench_results/`. Fase 0 de `.ai/sessions/2026-09-23-performance-audit-bulk/`.
+- **docker**: `docker-compose.bench.yml` con los 5 servidores para uso local; la contraseña se toma de
+  `UTIL_BBDD_BENCH_PASSWORD`, no está en el repo.
+- **tests**: `tests/integration/test_bulk_engines.py`, pruebas de ida y vuelta de `BulkCrud` por motor. El DELETE en
+  SQL Server queda como `xfail(strict=True)` por P-05 (más de 2100 parámetros y PK compuesta), y el UPDATE con
+  columna DATETIME en SQL Server + pyodbc por P-18 (el listener de `fast_executemany` provoca `HY104 Invalid precision value`).
+  `tests/unit/test_bench_bulk_script.py` cubre el banco contra SQLite.
+- **agentes IA**: comando `/performance-audit` para Claude Code (`.claude/commands/performance-audit.md`) y agente
+  **Performance Auditor** para Copilot Chat (`.github/agents/performance-auditor.agent.md`, con el marco de auditoría
+  `.github/prompts/performance_audit_bulk.prompt.md` y registro en `.github/AGENTS.md`). Son el origen de esta versión.
 
 ### Changed
 
@@ -14,7 +58,6 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   la carga nativa `bulk_copy` de pymssql (P-17): en SQL Server 2022 no aplica CHECK ni claves foráneas aunque se le pida
   (y las deja marcadas como no confiables), sustituye los `NULL` explícitos por el DEFAULT de la columna e ignora los ids
   explícitos de columnas IDENTITY.
-
 - **bulk (todos los motores)**: los registros de `bulk_insert_from_df`, `bulk_insert_from_chunks` y
   `bulk_update_from_df` se preparan por columnas (`dataframe_to_sql_records`) en lugar de `to_dict(orient="records")`
   más `normalize_sql_literal` celda a celda (P-03). Las columnas numpy enteras, booleanas y float y las de fecha (con y
@@ -24,13 +67,15 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   2,95 s (2,9×); de extremo a extremo en SQLite, INSERT de 1M 13,8 s → 8,4 s y UPDATE 17,1 s → 11,7 s. El ahorro
   (~5,6 s por millón de filas) es el mismo en todos los motores. `normalize_records_for_sql` y
   `normalize_sql_literal` no cambian.
-
 - **bulk (MySQL/MariaDB + PyMySQL)**: el INSERT usa el `executemany` del driver vía `exec_driver_sql`
   (`MySQLDriverExecutemanyStrategy`) en lugar de la vía multi-fila con `text()` (P-02). Medido con 1M filas: MySQL 8.4
   54,9 s → 26,3 s y MariaDB 11.4 50,4 s → 24,0 s (~2,1×). Los valores guardados son idénticos (verificado con JSON,
   BIT, ENUM, DECIMAL, DATETIME(6), TIME, BLOB, NULL y Unicode). Además, ahora funcionan las tablas y columnas con `%` en
   el nombre, que con la vía multi-fila fallaban. Con otros drivers (p.ej. `mariadbconnector`) se mantiene la vía
   multi-fila, que sigue disponible con `InsertStrategyResolver(mysql_strategy=MySQLMultiRowInsertStrategy())`.
+- **docs**: `docs/guides/benchmarks.md` documenta el banco de pruebas, la tabla de estrategias INSERT por motor con las
+  cifras medidas (sustituyen a las estimadas de MySQL/MariaDB y SQL Server), `update_via_staging` y nuevas entradas de
+  solución de problemas. `docs/api/bulk-crud.md` documenta `update_via_staging` y el reparto de estrategias por driver.
 
 ### Fixed
 
@@ -40,27 +85,23 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   o el nombre del motor. Además se usa solo el último componente de la ruta, con los caracteres no válidos sustituidos:
   en SQLite con ruta absoluta el fichero quedaba junto a la BD en lugar de en `path_sql`, y `sqlite:///:memory:` daba un
   nombre inválido en Windows. Con URLs normales el nombre no cambia.
-
 - **bulk (generar_sql)**: el SQL generado con `generar_sql=True` (valor por defecto) duplicaba **todos** los `%` en
   PostgreSQL (psycopg/psycopg2) y MySQL/MariaDB (PyMySQL/mysqlclient) (P-23). Al ejecutar el fichero, `'a%b'` se guardaba
   como `'a%%b'`. SQLAlchemy escapa `%` con paramstyle `format`/`pyformat` porque supone que el texto pasará por el
   driver con parámetros; el fichero se ejecuta sin ellos. Ahora se deshace esa duplicación, que es exacta con
   `literal_binds`. Verificado ejecutando el SQL generado de INSERT y UPDATE en PostgreSQL, MySQL, MariaDB, SQLite y SQL
   Server. SQLite, SQL Server, Oracle y `mariadbconnector` no estaban afectados.
-
 - **bulk (generar_sql + JSON)**: con `generar_sql=True`, `bulk_insert_from_df` y `bulk_update_from_df` fallaban con
   `CompileError` ("No literal value renderer ... with datatype JSON") en tablas con columnas JSON: SQLite, PostgreSQL
   `JSON`/`JSONB` y MySQL (P-20). Ahora el valor, ya serializado, se escribe como literal de cadena sin volver a
   serializar, y `None` se escribe como `NULL`. Verificado ejecutando el SQL generado contra SQLite, PostgreSQL, MySQL y
   MariaDB.
-
 - **bulk (columnas binarias)**: los `bytes` que son UTF-8 válido (p.ej. `b"q"`) fallaban o se perdían en columnas
   binarias (P-21). `normalize_sql_literal` los decodifica a `str`, y los parámetros tipados binarios los rechazaban:
   `TypeError` en el INSERT de SQLite y SQL Server (pymssql y pyodbc), y en el UPDATE de PostgreSQL y de MySQL/MariaDB
   sin tabla temporal. En Oracle se llegó a guardar NULL en su lugar. Ahora, en las columnas de tipo binario reflejado,
   el valor vuelve a codificarse en UTF-8 y recupera exactamente los bytes originales. Las columnas de texto siguen
   recibiendo `str`. Verificado en los 6 motores. Oracle guarda `b""` como NULL por diseño propio.
-
 - **bulk (MySQL/MariaDB)**: `MySQLMultiRowInsertStrategy` podía insertar filas en la tabla equivocada, sin error (P-22).
   Su caché de plantillas SQL usaba como clave `(filas, columnas)`, sin la tabla. Una misma `BulkCrud` que insertaba en
   dos tablas con las mismas columnas y el mismo tamaño de sub-lote (p.ej. el volcado secuencial de `dump`, que comparte
@@ -88,36 +129,21 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `create_engine(..., fast_executemany=True)`. Medido en SQL Server 2022 + ODBC Driver 18: el UPDATE vuelve a funcionar
   (~33.500 filas/s) y el INSERT es ~12× más rápido (100K filas: 26,0 s → 2,0 s). Afecta a todo el engine, como antes
   el listener. `enable_fast_executemany=False` sigue desactivándolo.
+- **bulk (MySQL/MariaDB)**: `reflect_table` y la normalización de columnas del DataFrame forzaban mayúsculas en
+  MySQL/MariaDB, como en SQL Server. Los nombres de columna reflejados conservan el case declarado, así que el INSERT
+  fallaba contra tablas con columnas en minúsculas (lo habitual). Ahora se preserva el case en MySQL/MariaDB.
+- **bulk (MySQL/MariaDB, PostgreSQL)**: las vías rápidas de INSERT distinguían el INSERT con `hasattr(stmt, "table")`,
+  y `Update` también lo expone: `bulk_update_from_df` en MySQL/MariaDB generaba un `INSERT` espurio (`Unknown column
+  'pk_ID' in 'INSERT INTO'`). Ahora se comprueba `isinstance(stmt, Insert)` y los UPDATE siguen su vía normal.
+- **bulk (auditoría)**: el CSV de auditoría con formatos de fecha mezclados dejaba la columna `timestamp` sin parsear
+  (sin error): `exportar_resumen_json` fallaba con `AttributeError` y las estadísticas y filtros operaban sobre texto.
+  Ahora se parsea con `pd.to_datetime(format="mixed")`, tanto al leer el CSV como en la exportación.
 
-### Added
+### Known issues
 
-- **bulk (MySQL/MariaDB)**: `BulkCrud(update_via_staging=True)`, **activo por defecto** (P-04). `bulk_update_from_df` carga cada lote en una tabla
-  temporal por la vía rápida de INSERT y aplica un único `UPDATE destino, tmp SET ... WHERE destino.pk = tmp.pk`, en
-  lugar de un UPDATE por fila: ~12,5× más rápido (1M filas: MySQL 8.4 376 s → 29,5 s; MariaDB 11.4 331 s → 27,1 s). El
-  estado final de la tabla es idéntico al del UPDATE por fila, verificado en MySQL 8.4 y
-  MariaDB 11.4 con PyMySQL y `mariadbconnector`: tipos variados, JSON, NULL y PK repetidas (gana la última). Respeta
-  `bulk_session` (sin commit implícito: DDL `TEMPORARY`) y `commit_every_n_chunks`. Ignorado en otros motores.
-  Requiere el privilegio `CREATE TEMPORARY TABLES`. Si el servidor lo deniega (errno 1044/1142/1227), `BulkCrud` vuelve
-  solo al UPDATE fila a fila, sin romper la transacción, y registra un único WARNING en el logger
-  `util_bbdd.bulk._execution.batch` con la causa y cómo evitarlo. Esa instancia no vuelve a intentarlo.
-  `BulkCrud(..., update_via_staging=False)` desactiva el intento.
-- **scripts**: `scripts/bench_bulk.py`, banco de pruebas de rendimiento de `BulkCrud` (INSERT/UPDATE/DELETE)
-  contra motores reales (SQLite, PostgreSQL, MySQL, MariaDB, SQL Server, Oracle). Las URLs se leen de
-  `UTIL_BBDD_BENCH_<MOTOR>_URL` (o `UTIL_BBDD_TEST_<MOTOR>_URL`) y los motores sin URL se saltan. Verifica cada
-  operación con SQL, registra los errores sin detenerse y admite variantes A/B de los hallazgos P-01 y P-02 de la
-  auditoría de rendimiento. Escribe `summary.md`, `results.csv` y `environment.json` (sin contraseñas) en
-  `bench_results/`. Fase 0 de `.ai/sessions/2026-09-23-performance-audit-bulk/`.
-- **docker**: `docker-compose.bench.yml` con los 5 servidores para uso local; la contraseña se toma de
-  `UTIL_BBDD_BENCH_PASSWORD`, no está en el repo.
-- **tests**: `tests/integration/test_bulk_engines.py`, pruebas de ida y vuelta de `BulkCrud` por motor. El DELETE en
-  SQL Server queda como `xfail(strict=True)` por P-05 (más de 2100 parámetros y PK compuesta), y el UPDATE con
-  columna DATETIME en SQL Server + pyodbc por P-18 (el listener de `fast_executemany` provoca `HY104 Invalid precision value`).
-  `tests/unit/test_bench_bulk_script.py` cubre el banco contra SQLite.
-
-### Changed
-
-- **docs**: `docs/guides/benchmarks.md` documenta el banco de pruebas y avisa de que las ganancias publicadas para
-  MySQL/MariaDB y SQL Server están en revisión.
+- **bulk (generar_sql, SQLite y otros dialectos posicionales)**: SQLAlchemy convierte en `?` un texto con forma
+  `%(nombre)s` dentro de un literal al compilar con `literal_binds`, así que el SQL generado pierde ese dato. Es
+  comportamiento de SQLAlchemy, pendiente de valorar un rodeo.
 
 ## [0.11.0] - 2026-09-22
 
