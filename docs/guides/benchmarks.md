@@ -63,6 +63,7 @@ bulk = BulkCrud(
 | MySQL / MariaDB + PyMySQL | `executemany` del driver (multi-fila en el cliente) | ~2× sobre la vía multi-fila anterior (medido en MySQL 8.4 y MariaDB 11.4) |
 | MySQL / MariaDB + otro driver | INSERT multi-fila sub-loteado | — |
 | SQL Server + pyodbc | `fast_executemany=True` (con ODBC Driver 17/18) | ~12× medido en SQL Server 2022 + ODBC Driver 18 |
+| SQL Server + pymssql | `executemany` estándar (insertmanyvalues) | — (~2.700 filas/s en INSERT; usa pyodbc para cargas masivas) |
 | Oracle, SQLite, HSQLDB | `executemany` estándar | — |
 
 !!! note "MySQL/MariaDB con el conector `mariadb`"
@@ -223,4 +224,5 @@ python -m pytest tests/integration/test_bulk_engines.py
 | `bench_bulk.py` informa `no se pudo preparar el motor` | Driver no instalado, servidor caído o sin permiso de CREATE/DROP TABLE | Revisar `environment.json`; el resto de motores se mide igualmente |
 | `bulk_update_from_df` falla en SQL Server + pyodbc con `HY104 Invalid precision value` | Versión anterior a la corrección de P-18: tabla con columna `DATETIME` y `fast_executemany` activado a espaldas de SQLAlchemy | Actualizar; en versiones anteriores, crear el engine con `create_engine(..., fast_executemany=True)` o usar `BulkCrud(..., enable_fast_executemany=False)` |
 | WARNING `update_via_staging: el servidor deniega CREATE TEMPORARY TABLES` y UPDATE lento en MySQL/MariaDB | El usuario no tiene el privilegio `CREATE TEMPORARY TABLES`; `BulkCrud` ha vuelto al UPDATE fila a fila | `GRANT CREATE TEMPORARY TABLES ON <bd>.* TO <usuario>` para recuperar el UPDATE rápido (~12,5×), o `BulkCrud(..., update_via_staging=False)` para no intentarlo |
+| INSERT/UPDATE masivos lentos en SQL Server con `mssql+pymssql` (INFO en el log al crear `BulkCrud`) | pymssql no tiene una vía masiva equivalente: ~2.700 filas/s en INSERT y ~1.800 en UPDATE | Usar `mssql+pyodbc` con ODBC Driver 17/18 (~49.000 y ~33.500 filas/s). No usar `bulk_copy` de pymssql: no aplica CHECK ni claves foráneas y las marca como no confiables |
 | DELETE falla en SQL Server con `07002 COUNT field incorrect` o error de sintaxis | Versión anterior a la corrección de P-05: más de 2100 parámetros por lote (pyodbc) o PK compuesta | Actualizar; en versiones anteriores, `BulkCrud(..., chunk_size=2000)` evita el límite de parámetros con PK simple |

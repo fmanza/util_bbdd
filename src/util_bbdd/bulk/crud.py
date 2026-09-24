@@ -239,6 +239,14 @@ class BulkCrud:
             # Actualizar db_info con el driver específico
             self.db_info = f"MSSQL ({sqlserver_driver})"
             self.logger.debug(f"🟢 Driver SQL Server detectado: {sqlserver_driver}")
+            if sqlserver_driver == "pymssql":
+                # P-17 (performance-audit de bulk): con pymssql el INSERT/UPDATE masivo va a ~2.700/~1.800 filas/s;
+                # pyodbc + ODBC Driver 17/18 con fast_executemany, a ~49.000/~33.500. La carga nativa bulk_copy de
+                # pymssql se descartó: no aplica CHECK ni claves foráneas y las marca como no confiables.
+                self.logger.info(
+                    "SQL Server con pymssql: para cargas masivas, mssql+pyodbc con ODBC Driver 17/18 es ~15× más "
+                    "rápido en INSERT/UPDATE (ver docs/guides/benchmarks.md)."
+                )
 
     def __validate_mysql_config(self) -> None:
         """Valida y loguea configuración MySQL/MariaDB para bulk operations.

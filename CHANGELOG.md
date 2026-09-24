@@ -9,6 +9,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **bulk (SQL Server + pymssql)**: `BulkCrud` registra un INFO al detectar `mssql+pymssql` recomendando
+  `mssql+pyodbc` con ODBC Driver 17/18 para cargas masivas (~15× más rápido en INSERT/UPDATE). Se evaluó y **descartó**
+  la carga nativa `bulk_copy` de pymssql (P-17): en SQL Server 2022 no aplica CHECK ni claves foráneas aunque se le pida
+  (y las deja marcadas como no confiables), sustituye los `NULL` explícitos por el DEFAULT de la columna e ignora los ids
+  explícitos de columnas IDENTITY.
+
 - **bulk (todos los motores)**: los registros de `bulk_insert_from_df`, `bulk_insert_from_chunks` y
   `bulk_update_from_df` se preparan por columnas (`dataframe_to_sql_records`) en lugar de `to_dict(orient="records")`
   más `normalize_sql_literal` celda a celda (P-03). Las columnas numpy enteras, booleanas y float y las de fecha (con y

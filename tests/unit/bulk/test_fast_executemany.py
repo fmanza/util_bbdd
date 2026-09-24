@@ -11,6 +11,8 @@ Los engines se crean con un DBAPI simulado: no hace falta pyodbc ni servidor.
 
 from __future__ import annotations
 
+import logging
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -82,3 +84,23 @@ def test_registration_is_idempotent(pyodbc_engine: Engine) -> None:
 
     assert pyodbc_engine.dialect.fast_executemany is True  # type: ignore[attr-defined]
     assert not pyodbc_engine.dispatch.before_cursor_execute
+
+
+def test_pymssql_engine_logs_pyodbc_recommendation(caplog: pytest.LogCaptureFixture) -> None:
+    # P-17: bulk_copy de pymssql se descartó (no aplica CHECK/FK); se recomienda pyodbc + ODBC 17/18.
+    from util_bbdd.bulk import BulkCrud
+
+    with caplog.at_level(logging.INFO, logger="util_bbdd.bulk.crud"):
+        BulkCrud(_engine("mssql+pymssql://u:p@servidor/db"))
+
+    messages = [r.getMessage() for r in caplog.records if r.levelno == logging.INFO]
+    assert any("pymssql" in m and "pyodbc" in m for m in messages)
+
+
+def test_pyodbc_engine_does_not_log_the_recommendation(pyodbc_engine: Engine, caplog: pytest.LogCaptureFixture) -> None:
+    from util_bbdd.bulk import BulkCrud
+
+    with caplog.at_level(logging.INFO, logger="util_bbdd.bulk.crud"):
+        BulkCrud(pyodbc_engine)
+
+    assert not any("mssql+pyodbc con ODBC" in r.getMessage() for r in caplog.records)
