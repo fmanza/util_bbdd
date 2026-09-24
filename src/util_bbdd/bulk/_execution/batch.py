@@ -29,6 +29,15 @@ _MYSQL_PRIVILEGE_DENIED_ERRNOS: frozenset[int] = frozenset({1044, 1142, 1227})
 _DEFAULT_SQL_BASED_DELETE_DIALECTS: frozenset[str] = frozenset({"mysql", "mariadb", "mssql", "hsqldb"})
 # SQL Server admite 2100 parámetros por petición (SQLAlchemy usa 2099 en insertmanyvalues); se deja margen.
 _MSSQL_MAX_DELETE_PARAMS: int = 2000
+# MySQL/MariaDB: máximo de parámetros de una sentencia preparada (P-13; lo aplica el conector ``mariadb``, que prepara
+# en el servidor; PyMySQL sustituye en el cliente y no tiene límite, pero trocear no le afecta).
+_MYSQL_MAX_STATEMENT_PARAMS: int = 65_535
+# Parámetros máximos por sentencia ``DELETE ... IN (...)`` por dialecto; sin entrada, una sentencia por lote.
+_MAX_DELETE_PARAMS: dict[str, int] = {
+    "mssql": _MSSQL_MAX_DELETE_PARAMS,
+    "mysql": _MYSQL_MAX_STATEMENT_PARAMS,
+    "mariadb": _MYSQL_MAX_STATEMENT_PARAMS,
+}
 
 
 def _register_fast_executemany(engine: Engine) -> None:
@@ -337,8 +346,11 @@ class MySQLMultiRowInsertStrategy:
         quoted_table: str = preparer.format_table(table)
         quoted_cols: str = ", ".join(preparer.quote(c) for c in cols)
 
-        for start in range(0, len(records), self._max_rows):
-            sub_batch: Sequence[Mapping[str, Any]] = records[start : start + self._max_rows]
+        # P-13: con el conector ``mariadb`` la sentencia es preparada y admite como máximo 65.535 parámetros
+        # (1000 filas fallaban a partir de 66 columnas).
+        rows_per_statement: int = max(1, min(self._max_rows, _MYSQL_MAX_STATEMENT_PARAMS // len(cols)))
+        for start in range(0, len(records), rows_per_statement):
+            sub_batch: Sequence[Mapping[str, Any]] = records[start : start + rows_per_statement]
             num_rows: int = len(sub_batch)
 
             # Obtener template (del caché si existe)
@@ -573,7 +585,10 @@ class SqlBasedDeleteStrategy:
     SQL Server (P-05, performance-audit de bulk 2026-09-23): admite como máximo 2100 parámetros por petición y no
     admite constructores de fila en ``IN``. La PK simple se trocea en sentencias de ``_MSSQL_MAX_DELETE_PARAMS``
     parámetros como máximo y la PK compuesta se delega en :class:`GenericDeleteStrategy`
-    (``DELETE ... WHERE a = ? AND b = ?`` con executemany). El resto de dialectos usa una sentencia por lote.
+    (``DELETE ... WHERE a = ? AND b = ?`` con executemany).
+
+    MySQL/MariaDB (P-13): el conector ``mariadb`` admite como máximo 65.535 parámetros por sentencia; el lote se trocea
+    en sentencias de ``65535 // columnas de la PK`` filas. El resto de dialectos usa una sentencia por lote.
     """
 
     def execute(
@@ -584,17 +599,20 @@ class SqlBasedDeleteStrategy:
         batch_df: pd.DataFrame,
         pk_cols: Sequence[str],
     ) -> None:
-        if connection.dialect.name != "mssql":
-            self._execute_statement(connection=connection, table=table, batch_df=batch_df, pk_cols=pk_cols)
-            return
-        if len(pk_cols) > 1:
+        dialect_name: str = connection.dialect.name
+        if dialect_name == "mssql" and len(pk_cols) > 1:
             GenericDeleteStrategy().execute(connection=connection, table=table, batch_df=batch_df, pk_cols=pk_cols)
             return
-        for start in range(0, len(batch_df), _MSSQL_MAX_DELETE_PARAMS):
+        max_params: int | None = _MAX_DELETE_PARAMS.get(dialect_name)
+        if max_params is None:
+            self._execute_statement(connection=connection, table=table, batch_df=batch_df, pk_cols=pk_cols)
+            return
+        rows_per_statement: int = max(1, max_params // len(pk_cols))
+        for start in range(0, len(batch_df), rows_per_statement):
             self._execute_statement(
                 connection=connection,
                 table=table,
-                batch_df=batch_df.iloc[start : start + _MSSQL_MAX_DELETE_PARAMS],
+                batch_df=batch_df.iloc[start : start + rows_per_statement],
                 pk_cols=pk_cols,
             )
 

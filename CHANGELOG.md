@@ -35,6 +35,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   entero en vez de anotar el error en `partition_errors`, y `dump` y el log de `BulkCrud` no lo veían. Ahora se
   envuelven como hace SQLAlchemy (`IntegrityError`, `OperationalError`…), con la sentencia pero sin los parámetros;
   las desconexiones invalidan la conexión y `ParallelBulkLoader` puede reintentarlas.
+- **bulk (MariaDB con el conector `mariadb`)**: `bulk_insert_from_df` fallaba con tablas de 66 columnas o más y
+  `bulk_delete_from_df` con lotes de más de 65.535 parámetros (p.ej. PK compuesta y `chunk_size` grande): "Prepared
+  statement contains too many placeholders" (P-13). El INSERT multi-fila y el `DELETE ... IN` se trocean ahora para
+  no superar 65.535 parámetros por sentencia. PyMySQL no se veía afectado.
 
 ## [0.12.0] - 2026-09-24
 
