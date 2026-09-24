@@ -58,9 +58,17 @@ si
   - Verificado: `BulkCrud` por defecto hace el UPDATE de 100K en MySQL en 3,0 s, frente a 38,2 s del control.
   - Suite 4490 passed; integración 34 passed / 14 skipped; `mariadbconnector` 8 passed.
 
+- **Fallback por privilegio** (petición posterior: "vuelva solo al UPDATE fila a fila en lugar de fallar […] informa en el LOG"):
+  - Con un usuario real sin `CREATE TEMPORARY TABLES` en MySQL 8.4 y MariaDB 11.4 (PyMySQL y `mariadbconnector`), el `CREATE TEMPORARY TABLE` falla con errno 1044 y la transacción sigue utilizable.
+  - `MySQLStagingUpdateStrategy` captura solo errno 1044/1142/1227: registra un WARNING (logger `util_bbdd.bulk._execution.batch`, con causa y remedio), marca `staging_denied` y ejecuta el UPDATE fila a fila para ese lote y los siguientes. `BulkCrud` desactiva el staging en esa instancia tras el primer rechazo.
+  - Cualquier otro error de CREATE se propaga.
+  - Verificado con el usuario sin privilegio: valores correctos, **un solo WARNING** con 2 lotes y 2 llamadas, rollback correcto dentro de `bulk_session`.
+  - 5 tests unitarios nuevos (errno en `args[0]` y en `errno`, 1142/1227, no oculta otros errores, un solo aviso). Suite 4495 passed; integración 34 passed / 14 skipped.
+  - CHANGELOG, `docs/api/bulk-crud.md` y la guía (fila de solución de problemas) actualizados: ya no es un cambio que rompa sin el privilegio.
+
 ## AUDIT_CODE
 - Bugs potenciales:
-  - Requiere `CREATE TEMPORARY TABLES`; sin él falla al crear la temporal (activo por defecto: hay que pasar `update_via_staging=False`).
+  - Requiere `CREATE TEMPORARY TABLES`; sin él, vuelve al UPDATE fila a fila con un WARNING (fallback posterior).
   - La temporal se elimina siempre; si su `DROP` falla tras otro error, se conserva el error original.
 - Edge cases:
   - PK repetida: gana la última (igual que executemany).

@@ -117,13 +117,13 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 **Archivo/Función**: `normalize.py` `_decode_bytes_to_string` + UPDATE con parámetros tipados (`LargeBinary`)
 **Descripción**: `normalize_sql_literal` convierte a `str` los `bytes` decodificables como UTF-8 (`b"q"` → `"q"`). El parámetro tipado `LargeBinary` del UPDATE hace `bytes("q")` → `TypeError: string argument without an encoding`. El INSERT por vías sin tipo no falla.
 **Evidencia**: MySQL 8.4 y MariaDB 11.4 con PyMySQL, UPDATE de una columna BLOB con `b""` y `b"q"`: `StatementError (TypeError) string argument without an encoding`.
-**Confirmación**: CONFIRMADA en MySQL/MariaDB + PyMySQL. Pendiente de comprobar en otros motores.
+**Confirmación**: CONFIRMADA. **CORREGIDA** en `2026-09-24-hotfix-p21-binary-utf8`. El alcance real era mayor: INSERT en SQLite y SQL Server (ambos drivers), UPDATE en PostgreSQL y MySQL/MariaDB sin staging, y pérdida silenciosa (NULL) en Oracle con cierta mezcla de valores.
 
 ## Prioridad revisada (por impacto medido)
 
 0. ~~**P-19**~~: corregido (hotfix 2026-09-24).
 0a. ~~**P-22**~~: corregido (hotfix 2026-09-24).
-0c. **P-21** (ALTA, previo): UPDATE con BLOB falla si el valor es UTF-8 válido.
+0c. ~~**P-21**~~: corregido (hotfix 2026-09-24).
 0b. **P-20** (MEDIA, previo): `generar_sql=True` falla con `CompileError` en tablas con columnas JSON ("No literal value renderer ... with datatype JSON"). Falla con error visible, sin corromper datos. Detectado durante el hotfix de P-19.
 1. ~~**P-01 + P-18**~~: corregidos (hotfix 2026-09-24).
 2. ~~**P-05**~~: corregido (hotfix 2026-09-24).

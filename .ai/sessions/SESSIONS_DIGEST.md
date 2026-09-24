@@ -136,6 +136,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-24 | Hotfix P-19 (JSON serializado dos veces) | Columnas JSON enlazadas sin procesador: UPDATE PG/MySQL/SQLite e INSERT SQLite corregidos; nuevo P-20 (generar_sql con JSON) | CLOSED |
 | 2026-09-24 | Hotfix P-22 (filas en la tabla equivocada, MySQL/MariaDB) | Clave de caché de plantillas con la tabla; nuevo P-21 (UPDATE BLOB UTF-8) | CLOSED |
 | 2026-09-24 | Feature P-04 (UPDATE vía tabla temporal, MySQL/MariaDB) | `update_via_staging=True` por defecto: ~12,5× con estado final idéntico | CLOSED |
+| 2026-09-24 | Fallback `update_via_staging` + hotfix P-21 (binarios UTF-8) | Sin privilegio → UPDATE fila a fila con WARNING; bytes UTF-8 intactos en columnas binarias (6 motores) | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 
