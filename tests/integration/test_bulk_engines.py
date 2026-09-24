@@ -760,3 +760,67 @@ def test_generated_insert_without_pk_runs_and_keeps_pyformat_text(engine: Engine
         assert stored == sorted(values)
     finally:
         table.drop(engine, checkfirst=True)
+
+
+def _fk_disabled_count(engine: Engine, child: Table) -> int:
+    """Restricciones de ``child`` que siguen deshabilitadas (PostgreSQL: triggers de la FK; SQL Server: FK no fiable)."""
+    with engine.connect() as conn:
+        if engine.dialect.name == "postgresql":
+            return int(
+                conn.execute(
+                    text("SELECT count(*) FROM pg_trigger WHERE tgrelid = to_regclass(:t) AND tgenabled = 'D'"),
+                    {"t": child.name},
+                ).scalar_one()
+            )
+        if engine.dialect.name == "mssql":
+            return int(
+                conn.execute(
+                    text(
+                        "SELECT count(*) FROM sys.foreign_keys WHERE parent_object_id = OBJECT_ID(:t) "
+                        "AND (is_disabled = 1 OR is_not_trusted = 1)"
+                    ),
+                    {"t": child.name},
+                ).scalar_one()
+            )
+    return 0
+
+
+@pytest.mark.parametrize("commit_every_n_chunks", [None, 1])
+def test_maintenance_scope_error_keeps_original_exception_and_restores(
+    engine: Engine, commit_every_n_chunks: int | None
+) -> None:
+    """Auditoría de bulk 2026-09-24: un error dentro de ``maintenance_scope`` llega tal cual (en PostgreSQL llegaba
+    ``InFailedSqlTransaction``) y las restricciones quedan activas, también si un commit periódico confirmó su
+    desactivación."""
+    from sqlalchemy import ForeignKey
+
+    n = partial(_name, engine=engine)
+    suffix = uuid.uuid4().hex[:8]
+    metadata = MetaData()
+    parent = Table(
+        n(f"zz_util_bbdd_it_p{suffix}"), metadata, Column(n("id"), Integer, primary_key=True, autoincrement=False)
+    )
+    child = Table(
+        n(f"zz_util_bbdd_it_c{suffix}"),
+        metadata,
+        Column(n("id"), Integer, primary_key=True, autoincrement=False),
+        Column(n("pid"), Integer, ForeignKey(parent.c[n("id")])),
+    )
+    metadata.create_all(engine)
+    col_id, col_pid = n("id"), n("pid")
+    try:
+        with engine.begin() as conn:
+            conn.execute(parent.insert(), [{col_id: 1}])
+            conn.execute(child.insert(), [{col_id: 1, col_pid: 1}])
+        crud = BulkCrud(engine, chunk_size=1, commit_every_n_chunks=commit_every_n_chunks)
+
+        with pytest.raises(IntegrityError), crud.bulk_session(), crud.maintenance_scope(child.name):
+            crud.bulk_insert_from_df(pd.DataFrame({col_id: [2], col_pid: [1]}), child.name, False)
+            crud.bulk_insert_from_df(pd.DataFrame({col_id: [1], col_pid: [1]}), child.name, False)  # PK repetida
+
+        assert _fk_disabled_count(engine, child) == 0
+        with engine.connect() as conn:
+            ids = sorted(conn.execute(select(child.c[col_id])).scalars())
+        assert ids == ([1] if commit_every_n_chunks is None else [1, 2])
+    finally:
+        metadata.drop_all(engine)

@@ -38,6 +38,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   y `bulk_delete_from_df` no escribían nada, sin error, y la auditoría registraba las filas como procesadas. Con 0
   fallaban al ejecutar con `range() arg 3 must not be zero`. `BulkCrud`, `ParallelBulkLoader` y los ejecutores lanzan
   ahora `ValueError` al construirse si `chunk_size` no es un entero ≥ 1.
+- **bulk (`maintenance_scope`)**: un error dentro del bloque quedaba oculto en PostgreSQL. La restauración se hacía en
+  un `finally` sobre la transacción ya abortada, y llegaba `InternalError (InFailedSqlTransaction)` en lugar del error
+  real (p.ej. `IntegrityError`). Con `commit_every_n_chunks`, la desactivación podía quedar confirmada y no se
+  restauraba: triggers deshabilitados en PostgreSQL, FK deshabilitada o no fiable en SQL Server. Ahora el error original
+  se propaga siempre. Con `commit_every_n_chunks` se deshace lo pendiente y se restaura y confirma la restauración; en
+  modo atómico, el rollback de la sesión ya deshace la desactivación.
 - **connection (Oracle)**: `PoolConnection.__del__` lanzaba `AttributeError` si el constructor había fallado antes de
   inicializar el objeto (p.ej. sin `oracledb`). Python lo emitía como excepción ignorada en el destructor y pytest como
   `PytestUnraisableExceptionWarning`, el único aviso de la suite. Ahora no hace nada en ese caso.

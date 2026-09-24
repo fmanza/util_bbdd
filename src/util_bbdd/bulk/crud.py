@@ -997,6 +997,15 @@ class BulkCrud:
         pg_disabled = False
         mssql_constraints_disabled = False
         mssql_indexes_disabled = False
+
+        def restore() -> None:
+            if disable_indexes:
+                self.__maintenance_enable_indexes(conn, dialect, quoted_name, mssql_indexes_disabled)
+            if disable_constraints:
+                self.__maintenance_enable_constraints(
+                    conn, dialect, quoted_name, pg_disabled, mssql_constraints_disabled
+                )
+
         try:
             if disable_constraints:
                 pg_disabled, mssql_constraints_disabled = self.__maintenance_disable_constraints(
@@ -1006,14 +1015,45 @@ class BulkCrud:
                 mssql_indexes_disabled = self.__maintenance_disable_indexes(conn, dialect, quoted_name, tabla_destino)
             self.logger.info(f"🛠️ Modo mantenimiento activado: {tabla_destino} ({dialect})")
             yield
-        finally:
-            if disable_indexes:
-                self.__maintenance_enable_indexes(conn, dialect, quoted_name, mssql_indexes_disabled)
-            if disable_constraints:
-                self.__maintenance_enable_constraints(
-                    conn, dialect, quoted_name, pg_disabled, mssql_constraints_disabled
+        except BaseException:
+            self.__maintenance_restore_after_error(conn, restore, tabla_destino)
+            raise
+        restore()
+        self.logger.debug(f"🛠️ Modo mantenimiento finalizado: {tabla_destino}")
+
+    def __maintenance_restore_after_error(self, conn: Any, restore: Callable[[], None], tabla_destino: str) -> None:
+        """Restaura constraints/índices tras un fallo dentro de ``maintenance_scope`` sin ocultar el error original.
+
+        Auditoría de bulk 2026-09-24: la restauración se hacía en un ``finally`` sobre la misma transacción. En
+        PostgreSQL, tras un error la transacción queda abortada, el ``ENABLE TRIGGER`` fallaba y el usuario recibía
+        ``InFailedSqlTransaction`` en lugar del error real.
+
+        - Sesión atómica: se intenta restaurar; si la transacción ya no lo admite, basta con el rollback de la sesión,
+          que deshace también la desactivación (DDL transaccional en PostgreSQL y SQL Server). Se registra un aviso.
+        - Con ``commit_every_n_chunks``: la desactivación pudo quedar confirmada por un commit periódico. Se deshace lo
+          pendiente (el rollback de la sesión lo descartaría igual), se restaura y se confirma solo la restauración.
+        """
+        executor = self._batch_statement_executor
+        if executor._commit_every_n_chunks is None:
+            try:
+                restore()
+            except Exception as exc:
+                self.logger.warning(
+                    f"⚠️ No se restauraron constraints/índices de {tabla_destino} tras el error: la transacción está "
+                    f"abortada y su rollback deshace también la desactivación ({type(exc).__name__})."
                 )
-            self.logger.debug(f"🛠️ Modo mantenimiento finalizado: {tabla_destino}")
+            return
+        try:
+            conn.rollback()
+            executor._chunks_since_commit = 0
+            executor._rows_pending_commit = 0
+            restore()
+            conn.commit()
+        except Exception as exc:
+            self.logger.error(
+                f"❌ No se pudieron restaurar constraints/índices de {tabla_destino} tras el error; pueden haber quedado "
+                f"deshabilitados por un commit periódico: {exc}"
+            )
 
     def __maintenance_disable_constraints(
         self,
