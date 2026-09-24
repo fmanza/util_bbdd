@@ -99,12 +99,13 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 **Archivo/Función**: `crud.py` `__prepare_update_operation` (`update(tabla).values({col: bindparam(col)})`) + `normalize.py` `normalize_sql_literal` (dict/list → `json.dumps`)
 **Descripción**: `normalize_sql_literal` convierte los dict/list a texto JSON. En el UPDATE, los parámetros van tipados con la columna reflejada, y el tipo `JSON` de SQLAlchemy vuelve a serializar ese texto: se guarda un *string* JSON en lugar del objeto, y `None` se guarda como el literal JSON `null` en lugar de `NULL` SQL. El INSERT no se ve afectado: COPY en PostgreSQL y `exec_driver_sql` / `text()` en MySQL no aplican procesadores de tipo.
 **Evidencia** (servidores del banco, 2026-09-24): INSERT `{"k": 1}` → `{"k": 1}` en MySQL y PostgreSQL. UPDATE `{"k": 10}` → `"{\"k\": 10}"`; UPDATE `None` → `null` (no NULL), en los dos motores.
-**Confirmación**: CONFIRMADA. Hallazgo previo a esta sesión, no introducido por P-02.
+**Confirmación**: CONFIRMADA. Hallazgo previo, no introducido por P-02. **CORREGIDA** en la sesión `2026-09-24-hotfix-p19-json-double-encoding`. El alcance real era mayor: también el INSERT en SQLite (tipo `JSON` reflejado y parámetros tipados). Oracle (`NullType`) y MariaDB (`LONGTEXT`) no estaban afectados.
 **Remediación propuesta**: `/hotfix`: no serializar dos veces en columnas de tipo JSON (p.ej. no convertir a texto los valores destinados a columnas JSON, o enlazar esos parámetros sin tipo). Hay que revisar también el INSERT de otros motores con tipo JSON (SQLite, Oracle).
 
 ## Prioridad revisada (por impacto medido)
 
-0. **P-19**: `/hotfix` de la corrupción de columnas JSON en `bulk_update_from_df` (MySQL y PostgreSQL). Prioridad máxima: corrompe datos en silencio.
+0. ~~**P-19**~~: corregido (hotfix 2026-09-24).
+0b. **P-20** (MEDIA, previo): `generar_sql=True` falla con `CompileError` en tablas con columnas JSON ("No literal value renderer ... with datatype JSON"). Falla con error visible, sin corromper datos. Detectado durante el hotfix de P-19.
 1. ~~**P-01 + P-18**~~: corregidos (hotfix 2026-09-24).
 2. ~~**P-05**~~: corregido (hotfix 2026-09-24).
 3. **P-04**: UPDATE vía tabla temporal en MySQL/MariaDB y SQL Server con pymssql (−300 a −500 s por millón de filas en local).
