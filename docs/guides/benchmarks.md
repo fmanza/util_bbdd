@@ -63,6 +63,13 @@ bulk = BulkCrud(
 | SQL Server + pyodbc | `fast_executemany=True` | 5–15× sobre `executemany` |
 | Oracle, SQLite, HSQLDB | `executemany` estándar | — |
 
+!!! warning "Ganancias de MySQL/MariaDB y SQL Server en revisión"
+    La auditoría de rendimiento del 2026-09-23 observó que la vía multi-fila de MySQL/MariaDB añade coste en el
+    cliente frente al `executemany` nativo de PyMySQL, que ya envía INSERT multi-fila, y que `fast_executemany` no se
+    aplica al INSERT si el engine no se crea con `create_engine(..., fast_executemany=True)`: en SQL Server 2022 con
+    ODBC Driver 18, crear así el engine hizo el INSERT unas 12 veces más rápido. Mide tu caso con el
+    [banco de pruebas](#banco-de-pruebas-contra-motores-reales) antes de fiarte de estas cifras.
+
 #### Carga paralela por particiones
 
 Cuando una sola tabla domina el tiempo, `ParallelBulkLoader` inserta particiones **disjuntas** en
@@ -79,6 +86,66 @@ print(result.total_rows, result.partition_errors)
 Detalle y políticas de particionado: [Carga Masiva Paralela (funcional)](../functional/bulk-parallel-loading.md),
 [API ParallelBulkLoader](../api/bulk-parallel.md) y el ejemplo [Carga Masiva Paralela](../examples/parallel_bulk_insert.md).
 Para medir el impacto de la cadencia de commit, ver el ejemplo [Commit Cadence](../examples/benchmark_commit_cadence.md).
+
+### Banco de pruebas contra motores reales
+
+`scripts/bench_bulk.py` mide `bulk_insert_from_df`, `bulk_update_from_df` y `bulk_delete_from_df` (con
+`generar_sql=False`) por motor × variante × tamaño × repetición. Después de cada operación comprueba el resultado con
+SQL (número de filas y suma de una columna), así que una variante más rápida pero incorrecta aparece como error.
+Una operación que falla se registra y el banco continúa.
+
+**Apunta siempre a una base de datos de pruebas.** El banco solo crea y elimina la tabla `zz_util_bbdd_bench`.
+
+1. Levanta los motores que necesites. `docker-compose.bench.yml` no guarda ninguna contraseña: la lee de
+   `UTIL_BBDD_BENCH_PASSWORD`.
+
+    ```bash
+    export UTIL_BBDD_BENCH_PASSWORD=...          # PowerShell: $env:UTIL_BBDD_BENCH_PASSWORD="..."
+    docker compose -f docker-compose.bench.yml up -d --wait postgres mysql mariadb mssql oracle
+    ```
+
+2. Define una URL por motor en `UTIL_BBDD_BENCH_<MOTOR>_URL`. Si no existe, se usa `UTIL_BBDD_TEST_<MOTOR>_URL`,
+   la misma de los tests de integración. SQLite no necesita URL. Con los contenedores anteriores:
+
+    | Motor | Variable | URL |
+    |---|---|---|
+    | PostgreSQL | `UTIL_BBDD_BENCH_POSTGRESQL_URL` | `postgresql+psycopg://bench:<clave>@localhost:55432/bench` |
+    | MySQL | `UTIL_BBDD_BENCH_MYSQL_URL` | `mysql+pymysql://bench:<clave>@localhost:53306/bench` |
+    | MariaDB | `UTIL_BBDD_BENCH_MARIADB_URL` | `mariadb+pymysql://bench:<clave>@localhost:53307/bench` |
+    | SQL Server | `UTIL_BBDD_BENCH_MSSQL_URL` | `mssql+pyodbc://sa:<clave>@localhost:51433/master?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes` |
+    | Oracle | `UTIL_BBDD_BENCH_ORACLE_URL` | `oracle+oracledb://bench:<clave>@localhost:51521/?service_name=FREEPDB1` |
+
+    `fast_executemany` exige el **ODBC Driver 17 o 18 de Microsoft**; con el driver antiguo `SQL Server` de Windows
+    no hay aceleración. Para SQL Server sin ODBC, usa `mssql+pymssql://sa:<clave>@localhost:51433/master`.
+
+3. Ejecuta el banco:
+
+    ```bash
+    python scripts/bench_bulk.py                                             # motores con URL, 1K–1M, 3 repeticiones
+    python scripts/bench_bulk.py --engines postgresql,mysql --sizes 1000,100000 --repeat 1
+    python scripts/bench_bulk.py --ops insert --memory                       # pico de memoria (tracemalloc, más lento)
+    python scripts/bench_bulk.py --list-variants
+    ```
+
+Cada ejecución escribe en `bench_results/<fecha>/` (ignorado por git):
+
+| Fichero | Contenido |
+|---|---|
+| `summary.md` | Mediana por motor × operación × filas × variante, filas/s y aceleración frente a `baseline` |
+| `results.csv` | Una fila por medición, con el error si la operación falló |
+| `environment.json` | Versiones de Python, pandas, SQLAlchemy, driver y servidor; URLs sin contraseña |
+| `audit.csv` | CSV de la auditoría integrada de `BulkCrud` |
+
+Variantes A/B disponibles (cada una se aplica solo a los motores indicados):
+
+| Variante | Motores | Qué cambia |
+|---|---|---|
+| `baseline` | todos | `BulkCrud` por defecto |
+| `p02-mysql-executemany` | MySQL, MariaDB | `insert_resolver` con el `executemany` del driver en lugar de la vía multi-fila |
+| `p01-mssql-engine-fast-executemany` | SQL Server + pyodbc | `create_engine(..., fast_executemany=True)` |
+
+La reflexión de la tabla queda fuera de la medición. Los nombres de tabla y columnas siguen la convención de
+`BulkCrud` para cada motor: mayúsculas en SQL Server y minúsculas en el resto.
 
 ### Tiempos de referencia por tipo de operación (PostgreSQL 15)
 
@@ -125,6 +192,19 @@ async def benchmark_pool():
 asyncio.run(benchmark_pool())
 ```
 
+Para el banco de pruebas de bulk, una ejecución corta solo con SQLite (no necesita servidor):
+
+```bash
+python scripts/bench_bulk.py --engines sqlite --sizes 1000 --repeat 1
+```
+
+La columna `OK/Error` del resumen debe mostrar `1/0` en `insert`, `update` y `delete`. Los tests de integración de
+`BulkCrud` usan las mismas variables `UTIL_BBDD_TEST_<MOTOR>_URL` y se saltan los motores sin URL:
+
+```bash
+python -m pytest tests/integration/test_bulk_engines.py
+```
+
 ## 5. Variantes y Solución de Problemas
 
 | Síntoma | Causa probable | Solución |
@@ -133,3 +213,7 @@ asyncio.run(benchmark_pool())
 | `fast_executemany` no acelera en SQL Server | pyodbc < 4.0.28 o columnas `NVARCHAR(MAX)` | Actualizar pyodbc o desactivar con `enable_fast_executemany=False` |
 | Pool agotado bajo carga concurrente | `pool_size` insuficiente | Aumentar `pool_size` siguiendo la tabla de recomendaciones arriba |
 | PostgreSQL: `COPY` más lento que esperado | psycopg3 no instalado (usa psycopg2) | `pip install psycopg[binary]` para instalar psycopg3 |
+| `bench_bulk.py` salta un motor con `SKIP ... sin URL` | Falta `UTIL_BBDD_BENCH_<MOTOR>_URL` (y `UTIL_BBDD_TEST_<MOTOR>_URL`) | Definir la URL del servidor de pruebas |
+| `bench_bulk.py` informa `no se pudo preparar el motor` | Driver no instalado, servidor caído o sin permiso de CREATE/DROP TABLE | Revisar `environment.json`; el resto de motores se mide igualmente |
+| `bulk_update_from_df` falla en SQL Server + pyodbc con `HY104 Invalid precision value` | Tabla con columna `DATETIME` y `fast_executemany` activado por `BulkCrud` a espaldas de SQLAlchemy (hallazgo P-18) | Crear el engine con `create_engine(..., fast_executemany=True)` (además acelera el INSERT ~12×) o usar `BulkCrud(..., enable_fast_executemany=False)` |
+| DELETE falla en SQL Server con `too many parameters` o error de sintaxis | Hallazgo P-05: más de 2100 parámetros por lote, o PK compuesta | Pendiente de hotfix; los tests de integración lo marcan como `xfail` |

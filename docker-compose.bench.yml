@@ -1,0 +1,93 @@
+# Servidores desechables para el banco de pruebas de bulk (scripts/bench_bulk.py) y los tests de integración
+# (tests/integration/test_bulk_engines.py). Solo para uso local: sin volúmenes persistentes con nombre.
+#
+# La contraseña NO está en el repo: se toma de UTIL_BBDD_BENCH_PASSWORD (SQL Server exige mayúscula, minúscula y
+# dígito, ≥ 8 caracteres; evita símbolos que haya que codificar en la URL).
+#
+#   export UTIL_BBDD_BENCH_PASSWORD=...                                   # PowerShell: $env:UTIL_BBDD_BENCH_PASSWORD="..."
+#   docker compose -f docker-compose.bench.yml up -d --wait               # los 5 motores
+#   docker compose -f docker-compose.bench.yml up -d --wait postgres mysql   # solo algunos
+#   docker compose -f docker-compose.bench.yml down -v                    # parar y borrar datos
+#
+# URLs: ver docs/guides/benchmarks.md § "Banco de pruebas contra motores reales".
+
+# Proyecto propio: sin él, compose usaría el nombre del directorio (util_bbdd), el mismo que docker-compose.yml, y el
+# servicio `postgres` de este fichero reemplazaría al contenedor postgres_db (y montaría su volumen).
+name: util_bbdd_bench
+
+x-password: &password ${UTIL_BBDD_BENCH_PASSWORD:?Define UTIL_BBDD_BENCH_PASSWORD antes de levantar los contenedores}
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: util_bbdd_bench_postgres
+    environment:
+      POSTGRES_USER: bench
+      POSTGRES_PASSWORD: *password
+      POSTGRES_DB: bench
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bench -d bench"]
+      interval: 5s
+      retries: 30
+
+  mysql:
+    image: mysql:8.4
+    container_name: util_bbdd_bench_mysql
+    command: ["--max-allowed-packet=64M", "--innodb-buffer-pool-size=512M"]
+    environment:
+      MYSQL_ROOT_PASSWORD: *password
+      MYSQL_DATABASE: bench
+      MYSQL_USER: bench
+      MYSQL_PASSWORD: *password
+    ports:
+      - "53306:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -ubench -p$$MYSQL_PASSWORD --silent"]
+      interval: 5s
+      retries: 60
+
+  mariadb:
+    image: mariadb:11.4
+    container_name: util_bbdd_bench_mariadb
+    command: ["--max-allowed-packet=64M", "--innodb-buffer-pool-size=512M"]
+    environment:
+      MARIADB_ROOT_PASSWORD: *password
+      MARIADB_DATABASE: bench
+      MARIADB_USER: bench
+      MARIADB_PASSWORD: *password
+    ports:
+      - "53307:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      retries: 60
+
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: util_bbdd_bench_mssql
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: *password
+    ports:
+      - "51433:1433"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" -b"]
+      interval: 10s
+      retries: 30
+
+  oracle:
+    image: gvenzl/oracle-free:23-slim-faststart
+    container_name: util_bbdd_bench_oracle
+    environment:
+      ORACLE_PASSWORD: *password
+      APP_USER: bench
+      APP_USER_PASSWORD: *password
+    ports:
+      - "51521:1521"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      retries: 60

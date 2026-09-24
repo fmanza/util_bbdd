@@ -46,6 +46,9 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
+# Resultados de scripts/bench_bulk.py
+bench_results/
+
 # Build artifacts
 *.whl
 *.tar.gz

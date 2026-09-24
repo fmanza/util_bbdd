@@ -5,6 +5,28 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **scripts**: `scripts/bench_bulk.py`, banco de pruebas de rendimiento de `BulkCrud` (INSERT/UPDATE/DELETE)
+  contra motores reales (SQLite, PostgreSQL, MySQL, MariaDB, SQL Server, Oracle). Las URLs se leen de
+  `UTIL_BBDD_BENCH_<MOTOR>_URL` (o `UTIL_BBDD_TEST_<MOTOR>_URL`) y los motores sin URL se saltan. Verifica cada
+  operación con SQL, registra los errores sin detenerse y admite variantes A/B de los hallazgos P-01 y P-02 de la
+  auditoría de rendimiento. Escribe `summary.md`, `results.csv` y `environment.json` (sin contraseñas) en
+  `bench_results/`. Fase 0 de `.ai/sessions/2026-09-23-performance-audit-bulk/`.
+- **docker**: `docker-compose.bench.yml` con los 5 servidores para uso local; la contraseña se toma de
+  `UTIL_BBDD_BENCH_PASSWORD`, no está en el repo.
+- **tests**: `tests/integration/test_bulk_engines.py`, pruebas de ida y vuelta de `BulkCrud` por motor. El DELETE en
+  SQL Server queda como `xfail(strict=True)` por P-05 (más de 2100 parámetros y PK compuesta), y el UPDATE con
+  columna DATETIME en SQL Server + pyodbc por P-18 (el listener de `fast_executemany` provoca `HY104 Invalid precision value`).
+  `tests/unit/test_bench_bulk_script.py` cubre el banco contra SQLite.
+
+### Changed
+
+- **docs**: `docs/guides/benchmarks.md` documenta el banco de pruebas y avisa de que las ganancias publicadas para
+  MySQL/MariaDB y SQL Server están en revisión.
+
 ## [0.11.0] - 2026-09-22
 
 Auditoría completa del proyecto (12 franjas por capa/módulo) y remediación de todo el
