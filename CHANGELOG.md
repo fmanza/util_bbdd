@@ -5,7 +5,27 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.13.0] - 2026-09-24
+
+Mejoras pendientes del performance-audit de `bulk` (P-06, P-07, P-09, P-10, P-13; P-08 descartado tras medirlo) y
+corrección de los fallos que aparecieron al hacerlas (P-25 a P-29), verificado contra los 6 motores del banco
+(SQLite, PostgreSQL 17 con psycopg 3 y psycopg2, MySQL 8.4, MariaDB 11.4 con PyMySQL y el conector `mariadb`, SQL
+Server 2022, Oracle 23 Free). Sesiones `.ai/sessions/2026-09-24-refactor-p09-update-columns/` a
+`.ai/sessions/2026-09-24-hotfix-parallel-loader-errors-test-package/`; evidencias en
+`.ai/sessions/2026-09-23-performance-audit-bulk/02_BASELINE_MOTORES_REALES.md`.
+
+**Cambios de comportamiento a revisar al actualizar** (detalle en cada entrada):
+- PostgreSQL con `commit_every_n_chunks`: las versiones anteriores **no guardaban ninguna fila** del INSERT (P-27).
+  Si usaste esa opción, comprueba las tablas cargadas.
+- PostgreSQL: los errores del INSERT llegan como `sqlalchemy.exc.*` (`IntegrityError`…), no como `psycopg.errors.*`
+  (P-28). El error original sigue en `.orig`.
+- `bulk_delete_from_df` dentro de `bulk_session()` forma parte de la transacción de la sesión y se deshace con ella
+  (P-26).
+- `ParallelBulkLoader.load()` ya no se aborta por un error de una partición: queda en `partition_errors`.
+- `generar_sql=True`: el INSERT sin la PK ya no lleva `RETURNING`/`OUTPUT` (P-29), `%(nombre)s` se conserva, y el
+  fichero se escribe por un temporal `<fichero>.tmp` que se renombra al terminar.
+- `bulk_update_from_df`: si la tabla tenía una columna `pk_<PK>`, las versiones anteriores le escribían el valor de
+  la PK (P-25). Revisa esas columnas.
 
 ### Changed
 
