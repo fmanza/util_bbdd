@@ -134,6 +134,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-24 | Hotfix P-05 (DELETE en SQL Server) | Troceo ≤ 2000 parámetros y PK compuesta sin constructor de fila; DELETE 1M con pyodbc en 8,9 s | CLOSED |
 | 2026-09-24 | Refactor P-02 (INSERT MySQL/MariaDB + PyMySQL) | executemany del driver sin tipos: ~2,1× con valores idénticos; nuevo P-19 (UPDATE corrompe JSON) | CLOSED |
 | 2026-09-24 | Hotfix P-19 (JSON serializado dos veces) | Columnas JSON enlazadas sin procesador: UPDATE PG/MySQL/SQLite e INSERT SQLite corregidos; nuevo P-20 (generar_sql con JSON) | CLOSED |
+| 2026-09-24 | Hotfix P-22 (filas en la tabla equivocada, MySQL/MariaDB) | Clave de caché de plantillas con la tabla; nuevo P-21 (UPDATE BLOB UTF-8) | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 

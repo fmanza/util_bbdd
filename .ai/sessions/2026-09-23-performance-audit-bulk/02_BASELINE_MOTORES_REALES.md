@@ -102,9 +102,28 @@ Con pyodbc + P-01 el INSERT ya alcanza 49.000 filas/s; para quien pueda elegir d
 **Confirmación**: CONFIRMADA. Hallazgo previo, no introducido por P-02. **CORREGIDA** en la sesión `2026-09-24-hotfix-p19-json-double-encoding`. El alcance real era mayor: también el INSERT en SQLite (tipo `JSON` reflejado y parámetros tipados). Oracle (`NullType`) y MariaDB (`LONGTEXT`) no estaban afectados.
 **Remediación propuesta**: `/hotfix`: no serializar dos veces en columnas de tipo JSON (p.ej. no convertir a texto los valores destinados a columnas JSON, o enlazar esos parámetros sin tipo). Hay que revisar también el INSERT de otros motores con tipo JSON (SQLite, Oracle).
 
+### P-22: `MySQLMultiRowInsertStrategy` inserta en la tabla equivocada
+**Severidad**: CRÍTICA (corrupción silenciosa: filas en otra tabla)
+**Área**: 7 (generación SQL)
+**Archivo/Función**: `_execution/batch.py` `MySQLMultiRowInsertStrategy._build_sql_template` (clave de `_sql_template_cache`)
+**Descripción**: la clave de la caché de plantillas era `(num_rows, cols)`, sin la tabla. Una misma instancia (una por `BulkCrud`) que insertaba en dos tablas con las mismas columnas y el mismo tamaño de sub-lote reutilizaba la plantilla de la primera. `dump` en modo secuencial comparte una `BulkCrud` para todas las tablas (`orchestrator.py:165`).
+**Evidencia**: MariaDB 11.4 + `mariadbconnector`: `bulk_insert_from_df` a `zz_util_bbdd_a` y después a `zz_util_bbdd_b` (mismas columnas, 2 filas): las 4 filas quedaron en `a` y `b` vacía. Detectado al verificar P-04 (la carga en tablas temporales con el mismo esquema fallaba con "Table … doesn't exist").
+**Alcance**: desde P-02 (`9bc03de`, 2026-09-24), solo MySQL/MariaDB con drivers distintos de PyMySQL. Antes, todos los usuarios de MySQL/MariaDB desde la caché introducida en la sesión `2026-06-01f`.
+**Confirmación**: CONFIRMADA. **CORREGIDA** en `2026-09-24-hotfix-p22-mysql-template-cache` (la tabla forma parte de la clave).
+
+### P-21: `bulk_update_from_df` falla con BLOB si el valor binario es UTF-8 válido
+**Severidad**: ALTA (fallo funcional con error visible)
+**Área**: 3 (normalización)
+**Archivo/Función**: `normalize.py` `_decode_bytes_to_string` + UPDATE con parámetros tipados (`LargeBinary`)
+**Descripción**: `normalize_sql_literal` convierte a `str` los `bytes` decodificables como UTF-8 (`b"q"` → `"q"`). El parámetro tipado `LargeBinary` del UPDATE hace `bytes("q")` → `TypeError: string argument without an encoding`. El INSERT por vías sin tipo no falla.
+**Evidencia**: MySQL 8.4 y MariaDB 11.4 con PyMySQL, UPDATE de una columna BLOB con `b""` y `b"q"`: `StatementError (TypeError) string argument without an encoding`.
+**Confirmación**: CONFIRMADA en MySQL/MariaDB + PyMySQL. Pendiente de comprobar en otros motores.
+
 ## Prioridad revisada (por impacto medido)
 
 0. ~~**P-19**~~: corregido (hotfix 2026-09-24).
+0a. ~~**P-22**~~: corregido (hotfix 2026-09-24).
+0c. **P-21** (ALTA, previo): UPDATE con BLOB falla si el valor es UTF-8 válido.
 0b. **P-20** (MEDIA, previo): `generar_sql=True` falla con `CompileError` en tablas con columnas JSON ("No literal value renderer ... with datatype JSON"). Falla con error visible, sin corromper datos. Detectado durante el hotfix de P-19.
 1. ~~**P-01 + P-18**~~: corregidos (hotfix 2026-09-24).
 2. ~~**P-05**~~: corregido (hotfix 2026-09-24).
