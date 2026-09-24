@@ -75,10 +75,7 @@ _URLS: list[tuple[str, str]] = [
 def dialect(request: pytest.FixtureRequest) -> Any:
     url, module = request.param
     pytest.importorskip(module)
-    try:
-        return create_engine(url).dialect  # no conecta
-    except Exception as exc:  # p.ej. el paquete de tests ``tests/integration/metadata/mariadb`` tapa al driver ``mariadb``
-        pytest.skip(f"driver {module} no utilizable en esta ejecución: {exc}")
+    return create_engine(url).dialect  # no conecta
 
 
 def _tables(with_binary: bool) -> tuple[Table, Table]:
