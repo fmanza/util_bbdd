@@ -61,6 +61,8 @@ flowchart TD
 - **`obtener_resumen`** (`AuditTransaction`) — `dict` con `nombre`, `exito`, `duracion_segundos`, `total_operaciones`, `total_filas`, `operaciones`.
 - **`filtrar_por_fecha`** — `pd.DataFrame` con columnas del CSV filtradas por rango de fechas.
 - Exportadores — `None`; crean el fichero en la ruta indicada.
+- **CSV de auditoría** — columnas `timestamp`, `tabla`, `motor`, `operacion`, `total_filas`, `tiempo_seg`, `sql`. `tiempo_seg` es la única columna de tiempo y mide la operación: con `sql=No`, la ejecución en BD; con `sql=Sí`, generar y escribir el fichero SQL (no se ejecuta nada en BD).
+- **Resumen Excel** (`exportar_resumen_excel`) — agrupa también por `sql` (Sí/No) y muestra esa columna en cada hoja y en `Resumen_global`, de modo que `tiempo_total` y `tiempo_medio` de la generación de SQL no se mezclan con los de la ejecución. Los totales de JSON y HTML suman ambos tipos de fila.
 
 ### Errores y casos especiales
 

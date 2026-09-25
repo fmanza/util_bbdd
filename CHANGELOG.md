@@ -5,6 +5,23 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **bulk (auditoría)**: con `generar_sql=True`, `tiempo_seg` salía siempre `0,000`, así que CSV, Excel, JSON y HTML
+  dejaban de mostrar el tiempo de generar el SQL. Un cambio de mayo (`2026-05-26-bulk-audit-fix`) lo puso a 0 a
+  propósito, para que `tiempo_seg` fuera solo latencia de BD. Ahora `tiempo_seg` es la única columna de tiempo y mide
+  la operación: la ejecución en BD si `sql=No`, y generar y escribir el fichero SQL si `sql=Sí`. Las filas de mayo a
+  hoy con `sql=Sí` conservan `0,000`: el tiempo real no se puede recuperar.
+
+### Changed
+
+- **bulk (auditoría, Excel)**: `exportar_resumen_excel` agrupa también por `sql` (Sí/No) y añade esa columna a cada
+  hoja y a `Resumen_global`, justo después de `operacion`. Así `tiempo_total` y `tiempo_medio` no mezclan la latencia
+  de BD con el tiempo de generar SQL. Quien lea el Excel por posición verá desplazadas las columnas siguientes. JSON y
+  HTML no cambian: sus totales siguen sumando ambos tipos de fila.
+
 ## [0.14.0] - 2026-09-25
 
 Auditoría de código de `bulk` (hallazgos 1–9, todos corregidos y verificados contra los 6 motores del banco), entorno de

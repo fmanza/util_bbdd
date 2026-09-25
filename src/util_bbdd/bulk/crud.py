@@ -570,13 +570,12 @@ class BulkCrud:
                 operation_name = strategy.operation_name
                 prepared_operation = strategy.prepare(working_df, tabla_destino)
 
-            elapsed: float = 0.0
+            start: float = perf_counter()
             if generar_sql:
                 self.__guardar_fichero_sql(prepared_operation.generate_sql_lines(), path_sql)
             else:
-                start: float = perf_counter()
                 prepared_operation.execute()
-                elapsed = perf_counter() - start
+            elapsed: float = perf_counter() - start
 
             self._persistence.register_operation(
                 table_name=tabla_destino,

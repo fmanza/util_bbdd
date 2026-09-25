@@ -123,11 +123,11 @@ class AuditAnalyticsService:
     def determinar_group_cols(self, agrupar_por: str) -> list[str]:
         """Determina columnas de agrupación para reportes."""
         if agrupar_por == "tabla":
-            return ["tabla", "operacion"]
+            return ["tabla", "operacion", "sql"]
         if agrupar_por == "fecha":
-            return ["fecha", "operacion"]
+            return ["fecha", "operacion", "sql"]
         if agrupar_por == "tabla_fecha":
-            return ["fecha", "tabla", "operacion"]
+            return ["fecha", "tabla", "operacion", "sql"]
         raise AuditValidationError(
             f"❌ 'agrupar_por' debe ser 'tabla', 'fecha' o 'tabla_fecha', se recibió '{agrupar_por}'."
         )
@@ -135,7 +135,7 @@ class AuditAnalyticsService:
     def agrupar_y_generar_resumen(self, dataframe_operacion: pd.DataFrame, group_cols: list[str]) -> pd.DataFrame:
         """Agrupa datos de auditoría y calcula métricas agregadas."""
         resumen = (
-            dataframe_operacion.groupby(group_cols)
+            dataframe_operacion.groupby(group_cols, dropna=False)
             .agg(
                 total_filas=pd.NamedAgg(column="total_filas", aggfunc="sum"),
                 tiempo_total=pd.NamedAgg(column="tiempo_seg", aggfunc="sum"),

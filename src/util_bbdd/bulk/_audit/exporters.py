@@ -72,6 +72,7 @@ class AuditExporters:
                             "fecha",
                             "tabla",
                             "operacion",
+                            "sql",
                             "total_filas",
                             "tiempo_total",
                             "lotes",

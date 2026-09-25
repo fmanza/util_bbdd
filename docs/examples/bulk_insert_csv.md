@@ -30,7 +30,7 @@ python -m py_compile docs/examples/bulk_insert_csv.py
 python docs/examples/bulk_insert_csv.py
 ```
 
-El CSV de auditoría se crea en la ruta configurada con columnas: `timestamp`, `tabla`, `motor`, `operacion`, `total_filas`, `tiempo_seg`, `sql`.
+El CSV de auditoría se crea en la ruta configurada con columnas: `timestamp`, `tabla`, `motor`, `operacion`, `total_filas`, `tiempo_seg`, `sql`. `tiempo_seg` mide la ejecución en BD (`sql=No`) o, con `generar_sql=True`, la generación del fichero SQL (`sql=Sí`).
 
 ## 5. Referencias Relacionadas
 
