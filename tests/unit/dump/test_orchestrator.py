@@ -631,6 +631,60 @@ class TestComputeRangeBounds:
         assert DumpOrchestrator._compute_range_bounds(10, 1, 3) == []
 
 
+class TestSqliteTargetSingleWriter:
+    """PD-06: SQLite admite un solo escritor; en paralelo, 'database is locked' y la tabla quedaba a medio cargar."""
+
+    def _orch(self, dialect: str) -> DumpOrchestrator:
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = DumpConfig(source_engine=_make_engine(), target_engine=_make_engine(dialect))
+        return orch
+
+    def test_sqlite_target_forces_one_range_and_one_table_with_warning(self, caplog):
+        orch = self._orch("sqlite")
+        with caplog.at_level("WARNING", logger="util_bbdd.dump.orchestrator"):
+            assert orch._resolve_range_count(4, 1) == 1
+            assert orch._resolve_max_workers(3) == 1
+        assert "parallel_pk_ranges=4" in caplog.text
+        assert "max_parallel_tables=3" in caplog.text
+
+    def test_other_targets_keep_requested_parallelism(self):
+        orch = self._orch("postgresql")
+        orch._cfg.target_engine.pool.size = "x"  # capacidad no determinable: se respeta lo pedido
+        orch._cfg.source_engine.pool.size = "x"
+        assert orch._resolve_range_count(4, 1) == 4
+        assert orch._resolve_max_workers(3) == 3
+
+    def test_sqlite_dump_with_parallel_options_loads_every_row(self, tmp_path: Path):
+        from sqlalchemy import create_engine, text
+
+        src = create_engine(f"sqlite:///{tmp_path / 'src.db'}")
+        dst = create_engine(f"sqlite:///{tmp_path / 'dst.db'}")
+        for eng in (src, dst):
+            with eng.begin() as conn:
+                conn.execute(text("CREATE TABLE a (id INTEGER PRIMARY KEY, v TEXT)"))
+                conn.execute(text("CREATE TABLE b (id INTEGER PRIMARY KEY, v TEXT)"))
+        with src.begin() as conn:
+            for t in ("a", "b"):
+                conn.execute(text(f"INSERT INTO {t} (id, v) VALUES (:i, 'x')"), [{"i": i} for i in range(1, 4001)])
+
+        result = DumpOrchestrator(
+            DumpConfig(
+                source_engine=src,
+                target_engine=dst,
+                output_dir=tmp_path,
+                chunk_size=100,
+                parallel_pk_ranges=4,
+                max_parallel_tables=2,
+            )
+        ).run()
+
+        assert {r.status for r in result.table_results} == {"success"}
+        with dst.connect() as conn:
+            assert [conn.execute(text(f"SELECT COUNT(*) FROM {t}")).scalar() for t in ("a", "b")] == [4000, 4000]
+        src.dispose()
+        dst.dispose()
+
+
 class TestResolveRangeCount:
     def _orch(self, cap: int | None) -> DumpOrchestrator:
         def _engine() -> MagicMock:

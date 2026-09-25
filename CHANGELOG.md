@@ -9,6 +9,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **dump**: con destino SQLite, `parallel_pk_ranges` o `max_parallel_tables` mayores que 1 hacían fallar la carga con
+  `database is locked` (SQLite admite un solo escritor) y la tabla quedaba a medio cargar. Ahora, con destino SQLite, se
+  carga sin paralelismo y se registra un WARNING.
 - **dump**: en MySQL/MariaDB, si la carga fallaba y SQLAlchemy invalidaba la conexión, el error que llegaba era
   `AttributeError: 'NoneType' object has no attribute 'cursor'` en lugar del original: el listener que restaura
   `FOREIGN_KEY_CHECKS` al devolver la conexión al pool no toleraba una conexión ya cerrada. Ahora la ignora.

@@ -622,8 +622,10 @@ class DumpOrchestrator:
         return None
 
     def _resolve_range_count(self, requested: int, table_workers: int) -> int:
-        """Clampa el nº de rangos para que ``table_workers * rangos`` no exceda el pool."""
+        """Clampa el nº de rangos para que ``table_workers * rangos`` no exceda el pool (1 con destino SQLite)."""
         if requested <= 1:
+            return 1
+        if self._single_writer_target("parallel_pk_ranges", requested):
             return 1
         capacities = [
             DumpOrchestrator._pool_capacity(self._cfg.source_engine),
@@ -813,9 +815,11 @@ class DumpOrchestrator:
 
         Devuelve ``min(requested, capacidad_origen, capacidad_destino)``; degrada con
         warning si el pool no alcanza ``requested``. Si la capacidad no es determinable
-        (pool sin ``size()``), respeta ``requested``.
+        (pool sin ``size()``), respeta ``requested``. Con destino SQLite devuelve siempre 1.
         """
         if requested <= 1:
+            return 1
+        if self._single_writer_target("max_parallel_tables", requested):
             return 1
         capacities = [
             DumpOrchestrator._pool_capacity(self._cfg.source_engine),
@@ -834,6 +838,21 @@ class DumpOrchestrator:
                 )
                 return cap
         return requested
+
+    def _single_writer_target(self, option: str, requested: int) -> bool:
+        """``True`` (con WARNING) si el destino admite un solo escritor a la vez (SQLite) y se pidió paralelismo.
+
+        PD-06 (performance-audit de dump 2026-09-25): con destino SQLite, las particiones o tablas en paralelo chocaban
+        con ``database is locked``; la tabla quedaba en ``error`` y a medio cargar (1,5M de 2M filas con 4 rangos).
+        """
+        if self._cfg.target_engine.dialect.name != "sqlite":
+            return False
+        _log.warning(
+            "%s=%d no se aplica con destino SQLite (admite un solo escritor a la vez); se carga sin paralelismo.",
+            option,
+            requested,
+        )
+        return True
 
     @staticmethod
     def _pool_capacity(engine: Engine) -> int | None:
