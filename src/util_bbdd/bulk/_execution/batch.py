@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import decimal
 import logging
 import operator
 import uuid
@@ -98,6 +99,25 @@ def _register_fast_executemany(engine: Engine) -> None:
 # ---------------------------------------------------------------------------
 # FB — Estrategias INSERT (execute_values para PostgreSQL/psycopg2)
 # ---------------------------------------------------------------------------
+
+
+# Precisión máxima de DECIMAL/NUMERIC en SQL Server.
+_MSSQL_MAX_DECIMAL_PRECISION = 38
+
+
+def _driver_decimal_context(engine: Engine) -> contextlib.AbstractContextManager[Any]:
+    """Contexto ``decimal`` para la llamada al driver: en SQL Server con ``fast_executemany``, precisión ≥ 38.
+
+    PD-10 (performance-audit de dump 2026-09-26): con ``fast_executemany`` pyodbc convierte cada ``Decimal`` al
+    ``NUMERIC`` del parámetro con el contexto ``decimal`` del hilo, de 28 dígitos por defecto. Un DECIMAL de más de 28
+    dígitos significativos se redondeaba sin avisar (o fallaba con el error 8023 si el redondeo desbordaba). Se mira el
+    dialecto al ejecutar: ``fast_executemany`` es de todo el engine y puede activarlo otra instancia o el usuario.
+    """
+    if engine.dialect.name != "mssql" or not getattr(engine.dialect, "fast_executemany", False):
+        return contextlib.nullcontext()
+    context = decimal.getcontext().copy()
+    context.prec = max(context.prec, _MSSQL_MAX_DECIMAL_PRECISION)
+    return decimal.localcontext(context)
 
 
 class InsertExecutionStrategyProtocol(Protocol):
@@ -881,11 +901,12 @@ class BatchStatementExecutor:
         """
         for start in range(0, len(records), self._chunk_size):
             batch: Sequence[Mapping[str, Any]] = records[start : start + self._chunk_size]
-            (strategy or self._insert_strategy).execute(
-                connection=connection,
-                stmt=stmt,
-                records=batch,
-            )
+            with _driver_decimal_context(self._engine):
+                (strategy or self._insert_strategy).execute(
+                    connection=connection,
+                    stmt=stmt,
+                    records=batch,
+                )
             if self._commit_every_n_chunks is not None:
                 self._rows_pending_commit += len(batch)
                 self._chunks_since_commit += 1
@@ -972,7 +993,8 @@ class DeleteBatchExecutor:
         pk_cols: Sequence[str],
     ) -> None:
         """Hook del template para ejecutar cada batch."""
-        strategy.execute(connection=connection, table=table, batch_df=batch_df, pk_cols=pk_cols)
+        with _driver_decimal_context(self._engine):
+            strategy.execute(connection=connection, table=table, batch_df=batch_df, pk_cols=pk_cols)
 
 
 __all__: list[str] = [

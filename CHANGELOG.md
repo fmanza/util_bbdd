@@ -9,6 +9,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **bulk**: en SQL Server con `fast_executemany` (activado por defecto en `mssql+pyodbc`), un `Decimal` de más de 28
+  dígitos significativos se redondeaba al escribir (`…678.9012345678` → `…679.0000000000`) o fallaba con el error 8023
+  si el redondeo desbordaba; un UPDATE o DELETE por una clave DECIMAL así no encontraba la fila. pyodbc convierte con el
+  contexto `decimal` del hilo (28 dígitos por defecto); ahora la llamada al driver usa precisión 38. Afecta a `BulkCrud`,
+  `ParallelBulkLoader` y `dump`.
 - **dump**: en PostgreSQL, al rehabilitar las FKs tras la carga, el informe las daba por `enabled` aunque hubiera filas
   que no las cumplían: la carga desactiva los triggers (`DISABLE TRIGGER ALL`), que no marca la FK como `NOT VALID`, y
   el `VALIDATE CONSTRAINT` posterior no comprobaba nada. Ahora se buscan filas huérfanas de cada FK y, si hay, la FK
@@ -18,8 +23,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   precisión (en SQL Server, `9223372036854775807` llegaba como `-9223372036854775808`; en PostgreSQL y MySQL la tabla
   fallaba), y además se quitaban los espacios de los extremos de las cadenas. Ahora los chunks se leen con los valores
   tal como los da el driver y `dump` no recorta cadenas. La lectura y preparación de filas no es más lenta (medido en
-  los 6 motores). Limitación conocida: en SQL Server con `fast_executemany`, un DECIMAL de 38 dígitos significativos se
-  sigue redondeando al escribir (27 dígitos llegan exactos).
+  los 6 motores).
 - **bulk**: `BulkCrud.reflect_table` reflejaba también, de forma recursiva, todas las tablas referenciadas por FK, con
   un `MetaData` nuevo en cada llamada: el coste crecía de forma cuadrática en cadenas de FK (100 tablas encadenadas en
   PostgreSQL: 45,6 s solo en reflexión) y a partir de ~150 tablas encadenadas lanzaba `RecursionError`, que abortaba el
