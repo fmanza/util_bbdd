@@ -331,6 +331,9 @@ class TestDumpOrchestratorRun:
 
         assert isinstance(result, DumpResult)
         assert len(result.table_results) >= 1
+        # El informe recibe el mismo resumen de auditoría que el resultado (None: sin bulk_audit_path).
+        assert "audit_summary" in mock_report.call_args.kwargs
+        assert mock_report.call_args.kwargs["audit_summary"] is result.audit_summary
 
     @patch("util_bbdd.dump.orchestrator.IndexManager")
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")

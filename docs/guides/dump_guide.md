@@ -86,7 +86,8 @@ for t in errores:
 
 El volcado es correcto cuando: `errores` está vacío, `result.report` apunta a un fichero
 `reports/dump_report_<timestamp>.xlsx` existente, y sus hojas **Auditoría Tablas**,
-**Tablas Faltantes** y **Columnas Inexistentes** no listan incidencias inesperadas.
+**Tablas Faltantes** y **Columnas Inexistentes** no listan incidencias inesperadas. Con `bulk_audit_path`, la hoja
+**Auditoría Bulk** no debe tener celdas resaltadas en rojo ni naranja.
 
 ## 5. Variantes y Solución de Problemas
 

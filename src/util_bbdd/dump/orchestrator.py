@@ -242,6 +242,10 @@ class DumpOrchestrator:
             effective_dst_order=effective_dst_order,
         )
 
+        # Resumen de auditoría antes del informe, que lo incluye en la hoja "Auditoría Bulk". Las cargas y sus
+        # sesiones de auditoría ya han terminado; la sincronización de PK no audita.
+        audit_summary = self._summarize_audit(cfg.bulk_audit_path, dump_inicio)
+
         # FASE 5b: Generar informe Excel (la hoja "Columnas Inexistentes" se deriva
         # de TableDumpResult.skipped_columns; no requiere comparación de esquemas)
         report_path = DumpReporter(cfg.output_dir).generate(
@@ -250,6 +254,7 @@ class DumpOrchestrator:
             constraint_results=constraint_results,
             cycles=cycles,
             index_results=index_results,
+            audit_summary=audit_summary,
         )
 
         return DumpResult(
@@ -258,7 +263,7 @@ class DumpOrchestrator:
             load_order=load_order,
             cycles_detected=cycles,
             report=report_path,
-            audit_summary=self._summarize_audit(cfg.bulk_audit_path, dump_inicio),
+            audit_summary=audit_summary,
             pk_sync_results=pk_sync_results,
             index_results=index_results,
         )

@@ -1,9 +1,11 @@
 """Generador del informe Excel de auditoría para volcados de datos.
 
-Genera un único fichero ``.xlsx`` con tres hojas:
+Genera un único fichero ``.xlsx`` con tres hojas fijas y dos opcionales, en este orden:
   - ``Auditoría Tablas``: volumetría origen vs. destino por tabla.
   - ``Tablas Faltantes``: tablas del origen sin correspondencia en destino.
   - ``Columnas Inexistentes``: columnas presentes en origen pero ausentes en destino.
+  - ``Índices`` (opcional): índices secundarios deshabilitados y reconstruidos.
+  - ``Auditoría Bulk`` (opcional): resumen del CSV de auditoría de ``bulk`` y contadores del volcado.
 """
 
 from __future__ import annotations
@@ -22,9 +24,24 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from .._core.exceptions import DumpReportError
 from ._constraints import ConstraintResult
-from ._models import IndexActionResult, TableDumpResult
+from ._models import DumpAuditSummary, IndexActionResult, TableDumpResult
 
 _log = logging.getLogger(__name__)
+
+
+def _desactivar_formulas(wb: openpyxl.Workbook) -> None:
+    """Guarda como texto las celdas que openpyxl ha tomado por fórmulas.
+
+    openpyxl interpreta como fórmula toda cadena que empieza por ``=``: un nombre de tabla del catálogo o del CSV de
+    auditoría como ``=HYPERLINK(...)`` se ejecutaría al abrir el informe. El informe nunca contiene fórmulas propias.
+    Misma defensa que H12 (audit-code de AuditManager 2026-09-25) en ``bulk/_audit/exporters.py``; se copia para no
+    importar código privado de ``bulk``.
+    """
+    for ws in wb.worksheets:
+        for row in ws.iter_rows():
+            for cell in row:
+                if cell.data_type == "f":
+                    cell.data_type = "s"
 
 
 class DumpReporter:
@@ -132,6 +149,7 @@ class DumpReporter:
         constraint_results: list[ConstraintResult],
         cycles: list[list[str]],
         index_results: list[IndexActionResult] | None = None,
+        audit_summary: DumpAuditSummary | None = None,
     ) -> Path:
         """Genera el fichero Excel y retorna su ruta.
 
@@ -144,6 +162,8 @@ class DumpReporter:
             cycles: Grupos de tablas con FK circular.
             index_results: Resultados de gestión de índices. ``None`` (default) cuando
                 ``DumpConfig.manage_indexes=False``: no se añade la hoja "Índices".
+            audit_summary: Resumen de la auditoría de ``bulk`` del volcado. ``None`` (default) cuando no hay
+                ``DumpConfig.bulk_audit_path`` o no hubo nada que resumir: no se añade la hoja "Auditoría Bulk".
 
         Raises:
             DumpReportError: Si falla la creación del directorio de salida o la
@@ -163,13 +183,65 @@ class DumpReporter:
             self._sheet_missing_columns(wb, table_results)
             if index_results is not None:
                 self._sheet_indexes(wb, index_results)
+            if audit_summary is not None:
+                self._sheet_bulk_audit(wb, audit_summary)
 
+            _desactivar_formulas(wb)
             wb.save(output_path)
         except OSError as exc:
             raise DumpReportError(f"Error generando el informe Excel de volcado: {exc}") from exc
 
         _log.info("Informe Excel guardado en '%s'.", output_path)
         return output_path
+
+    # ------------------------------------------------------------------
+    # Hoja 5: Auditoría bulk (opcional)
+    # ------------------------------------------------------------------
+
+    def _sheet_bulk_audit(self, wb: openpyxl.Workbook, summary: DumpAuditSummary) -> None:
+        """Hoja "Auditoría Bulk": métricas del CSV de auditoría y contadores del propio volcado."""
+        ws: Worksheet = wb.create_sheet("Auditoría Bulk")
+        self._header(ws, 1, 1, "Métrica")
+        self._header(ws, 1, 2, "Valor")
+        ws.freeze_panes = "A2"
+
+        discrepancia = self._COL_YELLOW if summary.total_filas != summary.audited_rows else None
+        rows: list[tuple[str, str | int | float, str | None]] = [
+            ("CSV de auditoría", str(summary.audit_path), None),
+            ("Operaciones en el CSV", summary.total_operaciones, None),
+            ("Filas en el CSV", summary.total_filas, discrepancia),
+            ("Filas escritas por el volcado", summary.audited_rows, discrepancia),
+            ("Tiempo total (s)", summary.tiempo_total_seg, None),
+            ("Tiempo medio por lote (s)", summary.tiempo_promedio_seg, None),
+            ("Tablas auditadas", summary.tablas_auditadas, None),
+            ("Tabla más activa", summary.tabla_mas_activa or "—", None),
+            ("Registros no escritos", summary.audit_failures, self._COL_RED if summary.audit_failures else None),
+            (
+                "Filas confirmadas sin auditar",
+                summary.unaudited_committed_rows,
+                self._COL_ORANGE if summary.unaudited_committed_rows else None,
+            ),
+            (
+                "Registros sin datos en destino",
+                summary.audit_uncommitted_records,
+                self._COL_RED if summary.audit_uncommitted_records else None,
+            ),
+        ]
+        for row, (metrica, valor, bg) in enumerate(rows, 2):
+            self._cell(ws, row, 1, metrica, bg=bg)
+            self._cell(ws, row, 2, valor, bg=bg)
+
+        nota = ws.cell(
+            row=len(rows) + 3,
+            column=1,
+            value=(
+                "«Filas en el CSV» suma el fichero desde el inicio del volcado (incluye otros procesos que escriban en "
+                "él); «Filas escritas por el volcado» cuenta solo este volcado."
+            ),
+        )
+        nota.font = Font(italic=True)
+        self._autowidth(ws)
+        ws.column_dimensions["A"].width = 34  # la nota no debe ensanchar la columna de métricas
 
     # ------------------------------------------------------------------
     # Hoja 4: Índices gestionados (opcional)

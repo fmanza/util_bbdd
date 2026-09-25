@@ -11,6 +11,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from unittest.mock import patch
 
+import openpyxl
 import pandas as pd
 import pytest
 
@@ -177,3 +178,23 @@ class TestDumpAudit:
         assert _count(dst) == 3  # 2 cargadas + la que ya estaba
         assert summary is not None
         assert (summary.audited_rows, summary.unaudited_committed_rows, summary.total_filas) == (2, 0, 2)
+
+    def test_report_includes_the_bulk_audit_sheet(self, tmp_path: Path) -> None:
+        cfg, _dst = self._config(tmp_path)
+        cfg.bulk_audit_path = tmp_path / "ok" / "audit.csv"
+
+        result = DumpOrchestrator(cfg).run()
+
+        ws = openpyxl.load_workbook(result.report)["Auditoría Bulk"]
+        metrics = {row[0].value: row[1].value for row in ws.iter_rows(min_row=2) if row[0].value}
+        assert metrics["Filas escritas por el volcado"] == 3
+        assert metrics["Filas en el CSV"] == 3
+        assert metrics["Registros no escritos"] == 0
+
+    def test_report_has_no_bulk_audit_sheet_without_audit(self, tmp_path: Path) -> None:
+        cfg, _dst = self._config(tmp_path)
+        cfg.bulk_audit_path = None
+
+        result = DumpOrchestrator(cfg).run()
+
+        assert "Auditoría Bulk" not in openpyxl.load_workbook(result.report).sheetnames

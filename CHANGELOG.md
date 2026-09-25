@@ -9,19 +9,20 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **dump (informe)**: hoja **Auditoría Bulk**, la última del Excel, con `DumpResult.audit_summary`: métricas del CSV,
+  filas escritas por el volcado y contadores de incidencia resaltados. Solo aparece con `bulk_audit_path` y resumen.
+  `DumpReporter.generate(..., audit_summary=None)`.
 - **dump**: `DumpAuditSummary.audited_rows`, `unaudited_committed_rows` y `audit_uncommitted_records`, sumados de todas
   las `BulkCrud` y `ParallelBulkLoader` del volcado. El resumen se devuelve aunque el CSV no tenga entradas si hubo
   cualquiera de esas incidencias (antes solo con `audit_failures`). Si `total_filas` (leído del CSV) no coincide con
   `audited_rows` (contado por el volcado), se registra un WARNING: suele indicar otros procesos escribiendo en el mismo
   CSV o registros escritos antes de un commit que falló.
-
 - **bulk (auditoría)**: contadores para cuadrar la carga con la traza sin leer el CSV: `audited_rows`,
   `unaudited_committed_rows` y `audit_uncommitted_records` en `BulkCrud`, `PartitionResult` y `ParallelLoadResult`.
   Con auditoría activa y sin incidencias, `audited_rows + unaudited_committed_rows == total_rows`.
 - **bulk (auditoría)**: `BulkCrud(warn_if_audit_disabled=True)` y `AuditManager(warn_if_disabled=True)`.
   `ParallelBulkLoader` y `dump` pasan `False` a sus instancias y avisan una sola vez por carga, con un INFO. Antes
   salía un WARNING "Auditoría deshabilitada" por partición en cada carga, aunque desactivarla es el valor por defecto.
-
 - **bulk (carga paralela)**: `ParallelBulkLoader(audit_strict=False)`, que se pasa a la `BulkCrud` de cada partición;
   `PartitionResult.audit_failures` y `ParallelLoadResult.audit_failures` (suma de las particiones). Antes el loader
   trabajaba siempre en fail-open y los fallos de auditoría de cada partición se perdían. Con `audit_strict=True`, un
@@ -48,6 +49,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **dump (informe)**: el Excel guardaba como fórmula cualquier texto que empezara por `=`, como un nombre de tabla del
+  catálogo o un mensaje de error; openpyxl lo interpreta así y la fórmula se ejecutaba al abrir el informe. Ahora se
+  guarda como texto en todas las hojas (misma defensa que H12 en el export de `AuditManager`).
 - **bulk (carga paralela)**: con `disable_constraints=True` en SQL Server + pyodbc, `ParallelBulkLoader` activaba
   `fast_executemany` en el engine compartido aunque se hubiera creado con `enable_fast_executemany=False`.
 - **bulk (carga paralela)**: con `audit_strict=True` y `max_retries > 0`, si el COMMIT fallaba con un error retriable

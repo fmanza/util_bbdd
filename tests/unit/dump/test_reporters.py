@@ -11,7 +11,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from util_bbdd._core.exceptions import DumpReportError
 from util_bbdd.dump._constraints import ConstraintResult
-from util_bbdd.dump._models import TableDumpResult
+from util_bbdd.dump._models import DumpAuditSummary, TableDumpResult
 from util_bbdd.dump.reporters import DumpReporter
 
 # ---------------------------------------------------------------------------
@@ -260,3 +260,109 @@ class TestMissingColumnsSheet:
         row2_col1 = ws.cell(2, 1).value
         assert row2_col1 != "ghost"
         assert "sin" in str(row2_col1).lower()
+
+
+# ---------------------------------------------------------------------------
+# Hoja "Auditoría Bulk" (resumen de la auditoría de bulk del volcado)
+# ---------------------------------------------------------------------------
+
+
+def _summary(**overrides: object) -> DumpAuditSummary:
+    values: dict[str, object] = {
+        "total_operaciones": 4,
+        "total_filas": 300,
+        "tiempo_total_seg": 1.5,
+        "tiempo_promedio_seg": 0.375,
+        "tablas_auditadas": 2,
+        "tabla_mas_activa": "orders",
+        "audit_path": Path("audit.csv"),
+        "audited_rows": 300,
+    }
+    values.update(overrides)
+    return DumpAuditSummary(**values)  # type: ignore[arg-type]
+
+
+def _bulk_audit_sheet(tmp_path: Path, summary: DumpAuditSummary | None) -> openpyxl.Workbook:
+    path = DumpReporter(tmp_path).generate(
+        table_results=[_table_result()], missing_tables=[], constraint_results=[], cycles=[], audit_summary=summary
+    )
+    return openpyxl.load_workbook(path)
+
+
+def _metrics(ws: Worksheet) -> dict[str, object]:
+    return {row[0].value: row[1].value for row in ws.iter_rows(min_row=2) if row[0].value and row[1].value is not None}
+
+
+def _fill(ws: Worksheet, metrica: str) -> str | None:
+    for row in ws.iter_rows(min_row=2):
+        if row[0].value == metrica:
+            color = row[1].fill.fgColor.rgb if row[1].fill.fill_type == "solid" else None
+            return str(color) if color else None
+    raise AssertionError(metrica)
+
+
+class TestBulkAuditSheet:
+    def test_sheet_is_added_last_with_the_summary_values(self, tmp_path: Path) -> None:
+        wb = _bulk_audit_sheet(tmp_path, _summary(audit_failures=1, unaudited_committed_rows=2))
+
+        assert wb.sheetnames[-1] == "Auditoría Bulk"
+        assert wb.sheetnames[:3] == ["Auditoría Tablas", "Tablas Faltantes", "Columnas Inexistentes"]
+        metrics = _metrics(wb["Auditoría Bulk"])
+        assert metrics["CSV de auditoría"] == "audit.csv"
+        assert metrics["Operaciones en el CSV"] == 4
+        assert metrics["Filas en el CSV"] == 300
+        assert metrics["Filas escritas por el volcado"] == 300
+        assert metrics["Tabla más activa"] == "orders"
+        assert metrics["Registros no escritos"] == 1
+        assert metrics["Filas confirmadas sin auditar"] == 2
+        assert metrics["Registros sin datos en destino"] == 0
+
+    def test_sheet_goes_after_the_indexes_sheet(self, tmp_path: Path) -> None:
+        # Añadir la hoja al final no cambia la posición de las existentes (quien lea wb.worksheets[i]).
+        path = DumpReporter(tmp_path).generate(
+            table_results=[],
+            missing_tables=[],
+            constraint_results=[],
+            cycles=[],
+            index_results=[],
+            audit_summary=_summary(),
+        )
+
+        assert openpyxl.load_workbook(path).sheetnames[-2:] == ["Índices", "Auditoría Bulk"]
+
+    def test_without_summary_there_is_no_sheet(self, tmp_path: Path) -> None:
+        assert "Auditoría Bulk" not in _bulk_audit_sheet(tmp_path, None).sheetnames
+
+    def test_incidents_are_highlighted_and_zero_counters_are_not(self, tmp_path: Path) -> None:
+        ws = _bulk_audit_sheet(tmp_path, _summary(audit_failures=3, audit_uncommitted_records=1))["Auditoría Bulk"]
+
+        assert _fill(ws, "Registros no escritos") == DumpReporter._COL_RED
+        assert _fill(ws, "Registros sin datos en destino") == DumpReporter._COL_RED
+        assert _fill(ws, "Filas confirmadas sin auditar") is None
+        assert _fill(ws, "Filas en el CSV") is None  # CSV y contadores coinciden
+
+    def test_csv_and_counters_mismatch_is_highlighted(self, tmp_path: Path) -> None:
+        ws = _bulk_audit_sheet(tmp_path, _summary(total_filas=500, audited_rows=300))["Auditoría Bulk"]
+
+        assert _fill(ws, "Filas en el CSV") == DumpReporter._COL_YELLOW
+        assert _fill(ws, "Filas escritas por el volcado") == DumpReporter._COL_YELLOW
+
+    def test_table_name_from_the_csv_is_stored_as_text_not_as_a_formula(self, tmp_path: Path) -> None:
+        wb = _bulk_audit_sheet(tmp_path, _summary(tabla_mas_activa='=HYPERLINK("http://x","clic")'))
+
+        cell = next(r[1] for r in wb["Auditoría Bulk"].iter_rows(min_row=2) if r[0].value == "Tabla más activa")
+        assert cell.data_type == "s"
+        assert cell.value == '=HYPERLINK("http://x","clic")'
+
+    def test_formulas_are_neutralized_in_every_sheet(self, tmp_path: Path) -> None:
+        # Nombres del catálogo de la BD y mensajes de error también llegan al informe sin control.
+        path = DumpReporter(tmp_path).generate(
+            table_results=[_table_result(name="=1+1", status="error", error_msg="=cmd|' /C calc'!A0")],
+            missing_tables=["=SUM(A1)"],
+            constraint_results=[],
+            cycles=[],
+        )
+
+        wb = openpyxl.load_workbook(path)
+        formulas = [c.coordinate for ws in wb.worksheets for row in ws.iter_rows() for c in row if c.data_type == "f"]
+        assert formulas == []
