@@ -151,3 +151,29 @@ class TestDumpAudit:
 
         disabled = [r for r in caplog.records if "deshabilitada" in r.getMessage()]
         assert [r.levelname for r in disabled] == ["INFO"]
+
+    def test_summary_counts_the_rows_written_by_the_dump(self, tmp_path: Path) -> None:
+        cfg, _dst = self._config(tmp_path)
+        cfg.bulk_audit_path = tmp_path / "ok" / "audit.csv"
+
+        result = DumpOrchestrator(cfg).run()
+
+        assert result.audit_summary is not None
+        assert result.audit_summary.audited_rows == result.audit_summary.total_filas == 3
+        assert result.audit_summary.unaudited_committed_rows == 0
+
+    def test_failed_table_with_periodic_commits_audits_exactly_the_committed_rows(self, tmp_path: Path) -> None:
+        # dump lee chunks de chunk_size filas: cada operación es un solo lote y no puede quedar confirmada a medias,
+        # así que las filas confirmadas antes del fallo constan todas en el CSV (unaudited_committed_rows == 0).
+        cfg, dst = self._config(tmp_path, chunk_size=1, commit_every_n_chunks=2)
+        cfg.bulk_audit_path = tmp_path / "ok" / "audit.csv"
+        with dst.begin() as conn:
+            conn.exec_driver_sql("INSERT INTO items (id, name) VALUES (3, 'ya estaba')")  # la 3.ª fila choca
+
+        result = DumpOrchestrator(cfg).run()
+
+        summary = result.audit_summary
+        assert [r.status for r in result.table_results] == ["error"]
+        assert _count(dst) == 3  # 2 cargadas + la que ya estaba
+        assert summary is not None
+        assert (summary.audited_rows, summary.unaudited_committed_rows, summary.total_filas) == (2, 0, 2)

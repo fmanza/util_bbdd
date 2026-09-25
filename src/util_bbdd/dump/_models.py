@@ -177,6 +177,16 @@ class DumpAuditSummary:
         audit_path: Ruta del CSV de auditoría consultado.
         audit_failures: Registros de auditoría que no se pudieron escribir en el CSV durante el volcado (con
             ``DumpConfig.bulk_audit_strict=False``). Si es mayor que 0, las métricas anteriores están incompletas.
+        audited_rows: Filas que **este volcado** escribió en el CSV, contadas por las ``BulkCrud`` y no leídas del
+            fichero. Puede diferir de ``total_filas``, que sale del CSV filtrado por hora e incluye lo que otros procesos
+            escriban en el mismo fichero durante el volcado (en ese caso se registra un WARNING).
+        unaudited_committed_rows: Filas confirmadas en destino por commits periódicos (``commit_every_n_chunks``) que
+            no constan en el CSV porque la carga de su tabla falló a mitad de una operación.
+        audit_uncommitted_records: Registros escritos en el CSV antes de un commit que falló (con
+            ``bulk_audit_strict=True``): el CSV los tiene y el destino no. ``total_filas`` los incluye.
+
+    Si alguno de ``audit_failures``, ``unaudited_committed_rows`` o ``audit_uncommitted_records`` es mayor que 0, el
+    resumen se devuelve aunque el CSV no tenga entradas del volcado.
     """
 
     total_operaciones: int
@@ -187,6 +197,9 @@ class DumpAuditSummary:
     tabla_mas_activa: str | None
     audit_path: Path
     audit_failures: int = 0
+    audited_rows: int = 0
+    unaudited_committed_rows: int = 0
+    audit_uncommitted_records: int = 0
 
 
 @dataclass

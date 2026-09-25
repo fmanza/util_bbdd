@@ -709,14 +709,35 @@ class TestLoadInPkRanges:
         with patch("util_bbdd.dump.orchestrator.ParallelBulkLoader") as loader_cls:
             loader_cls.return_value.load.return_value = ParallelLoadResult(
                 partition_results=[
-                    PartitionResult(index=0, rows=5, elapsed_seconds=0.1, audit_failures=2),
-                    PartitionResult(index=1, rows=4, elapsed_seconds=0.1, audit_failures=1),
+                    PartitionResult(
+                        index=0,
+                        rows=5,
+                        elapsed_seconds=0.1,
+                        audit_failures=2,
+                        audited_rows=3,
+                        unaudited_committed_rows=2,
+                    ),
+                    PartitionResult(
+                        index=1,
+                        rows=4,
+                        elapsed_seconds=0.1,
+                        audit_failures=1,
+                        audited_rows=4,
+                        audit_uncommitted_records=1,
+                    ),
                 ]
             )
             orch._load_in_pk_ranges("t", ["id"], {"id": "id"}, "id", "t", 2)
+            orch._load_in_pk_ranges("t", ["id"], {"id": "id"}, "id", "t", 2)  # se acumula entre tablas
 
         assert loader_cls.call_args.kwargs["audit_strict"] is True
-        assert orch._audit_failures() == 3
+        counters = orch._audit_counters()
+        assert (
+            counters.audit_failures,
+            counters.audited_rows,
+            counters.unaudited_committed_rows,
+            counters.audit_uncommitted_records,
+        ) == (6, 14, 4, 2)
 
     def test_empty_table_returns_no_errors(self):
         orch = self._orch()
@@ -1382,6 +1403,68 @@ class TestBuildAuditSummary:
 
         assert summary is not None
         assert (summary.total_operaciones, summary.audit_failures) == (1, 1)
+
+    @pytest.mark.parametrize(
+        "incidencia",
+        [{"unaudited_committed_rows": 10}, {"audit_uncommitted_records": 1}],
+        ids=["unaudited", "uncommitted"],
+    )
+    def test_new_anomaly_counters_also_return_a_summary_without_entries(
+        self, tmp_path: Path, incidencia: dict[str, int]
+    ) -> None:
+        summary = DumpOrchestrator._build_audit_summary(
+            tmp_path / "no-existe.csv", datetime(2026, 9, 25, 10, 0, 0), **incidencia
+        )
+
+        assert summary is not None
+        assert summary.total_operaciones == 0
+        for campo, valor in incidencia.items():
+            assert getattr(summary, campo) == valor
+
+    def test_audited_rows_alone_without_entries_returns_none(self, tmp_path: Path) -> None:
+        assert (
+            DumpOrchestrator._build_audit_summary(
+                tmp_path / "no-existe.csv", datetime(2026, 9, 25, 10, 0, 0), audited_rows=10
+            )
+            is None
+        )
+
+    def test_counters_are_copied_to_a_summary_with_entries(self, tmp_path: Path) -> None:
+        csv_path = self._write_csv(tmp_path / "audit.csv", "2026-09-25 10:00:01")
+
+        summary = DumpOrchestrator._build_audit_summary(
+            csv_path,
+            datetime(2026, 9, 25, 10, 0, 0),
+            audited_rows=10,
+            unaudited_committed_rows=5,
+            audit_uncommitted_records=0,
+        )
+
+        assert summary is not None
+        assert (summary.total_filas, summary.audited_rows, summary.unaudited_committed_rows) == (10, 10, 5)
+
+    def test_warns_when_the_csv_and_the_counters_disagree(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        # Otro proceso escribió en el mismo CSV durante el volcado: el CSV suma 20 y el volcado escribió 10.
+        csv_path = self._write_csv(tmp_path / "audit.csv", "2026-09-25 10:00:01", "2026-09-25 10:00:02")
+
+        with caplog.at_level("WARNING"):
+            summary = DumpOrchestrator._build_audit_summary(csv_path, datetime(2026, 9, 25, 10, 0, 0), audited_rows=10)
+
+        assert summary is not None and (summary.total_filas, summary.audited_rows) == (20, 10)
+        assert any("el CSV suma 20 filas" in r.getMessage() for r in caplog.records)
+
+    def test_no_warning_when_they_agree_or_counters_are_unknown(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        csv_path = self._write_csv(tmp_path / "audit.csv", "2026-09-25 10:00:01")
+
+        with caplog.at_level("WARNING"):
+            DumpOrchestrator._build_audit_summary(csv_path, datetime(2026, 9, 25, 10, 0, 0), audited_rows=10)
+            DumpOrchestrator._build_audit_summary(csv_path, datetime(2026, 9, 25, 10, 0, 0))
+
+        assert not any("el CSV suma" in r.getMessage() for r in caplog.records)
 
     def test_no_failures_and_no_csv_returns_none(self, tmp_path: Path) -> None:
         assert DumpOrchestrator._build_audit_summary(tmp_path / "no-existe.csv", datetime(2026, 9, 25)) is None

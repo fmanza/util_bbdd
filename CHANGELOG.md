@@ -9,6 +9,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **dump**: `DumpAuditSummary.audited_rows`, `unaudited_committed_rows` y `audit_uncommitted_records`, sumados de todas
+  las `BulkCrud` y `ParallelBulkLoader` del volcado. El resumen se devuelve aunque el CSV no tenga entradas si hubo
+  cualquiera de esas incidencias (antes solo con `audit_failures`). Si `total_filas` (leído del CSV) no coincide con
+  `audited_rows` (contado por el volcado), se registra un WARNING: suele indicar otros procesos escribiendo en el mismo
+  CSV o registros escritos antes de un commit que falló.
+
 - **bulk (auditoría)**: contadores para cuadrar la carga con la traza sin leer el CSV: `audited_rows`,
   `unaudited_committed_rows` y `audit_uncommitted_records` en `BulkCrud`, `PartitionResult` y `ParallelLoadResult`.
   Con auditoría activa y sin incidencias, `audited_rows + unaudited_committed_rows == total_rows`.

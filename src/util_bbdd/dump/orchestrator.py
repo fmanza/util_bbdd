@@ -27,6 +27,7 @@ from collections import deque
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -36,7 +37,7 @@ import pandas as pd
 from sqlalchemy import Engine, Inspector, Integer, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from util_bbdd.bulk import BulkCrud, ParallelBulkLoader
+from util_bbdd.bulk import BulkCrud, ParallelBulkLoader, ParallelLoadResult
 from util_bbdd.bulk.audit import AuditError, AuditManager
 
 from .._core.exceptions import DumpError
@@ -47,6 +48,34 @@ from ._sql_utils import quote_identifier, quote_table
 from .reporters import DumpReporter
 
 _log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _AuditCounters:
+    """Contadores de auditoría del volcado; ``BulkCrud`` y ``ParallelLoadResult`` exponen los mismos nombres."""
+
+    audit_failures: int = 0
+    audited_rows: int = 0
+    unaudited_committed_rows: int = 0
+    audit_uncommitted_records: int = 0
+
+    @classmethod
+    def of(cls, source: BulkCrud | ParallelLoadResult) -> _AuditCounters:
+        return cls(
+            audit_failures=source.audit_failures,
+            audited_rows=source.audited_rows,
+            unaudited_committed_rows=source.unaudited_committed_rows,
+            audit_uncommitted_records=source.audit_uncommitted_records,
+        )
+
+    def __add__(self, other: _AuditCounters) -> _AuditCounters:
+        return _AuditCounters(
+            audit_failures=self.audit_failures + other.audit_failures,
+            audited_rows=self.audited_rows + other.audited_rows,
+            unaudited_committed_rows=self.unaudited_committed_rows + other.unaudited_committed_rows,
+            audit_uncommitted_records=self.audit_uncommitted_records + other.audit_uncommitted_records,
+        )
+
 
 # Re-exportaciones para compatibilidad con importadores que usan orchestrator directamente
 __all__: list[str] = ["DumpConfig", "DumpOrchestrator", "DumpResult", "TableDumpResult"]
@@ -75,6 +104,9 @@ class DumpOrchestrator:
         result = DumpOrchestrator(config).run()
         print(result.report)
     """
+
+    # Contadores de auditoría de los ParallelBulkLoader del volcado (se reinician en _reset_audit_tracking).
+    _loader_audit: _AuditCounters
 
     def __init__(self, config: DumpConfig) -> None:
         self._cfg = config
@@ -226,9 +258,7 @@ class DumpOrchestrator:
             load_order=load_order,
             cycles_detected=cycles,
             report=report_path,
-            audit_summary=DumpOrchestrator._build_audit_summary(
-                cfg.bulk_audit_path, dump_inicio, audit_failures=self._audit_failures()
-            ),
+            audit_summary=self._summarize_audit(cfg.bulk_audit_path, dump_inicio),
             pk_sync_results=pk_sync_results,
             index_results=index_results,
         )
@@ -495,7 +525,7 @@ class DumpOrchestrator:
         readers = [_make_reader(lo, hi, last) for lo, hi, last in bounds]
         result = loader.load(dest_table_logical, readers)
         with self._audit_lock:
-            self._loader_audit_failures += result.audit_failures
+            self._loader_audit = self._loader_audit + _AuditCounters.of(result)
         return result.partition_errors
 
     @staticmethod
@@ -686,7 +716,7 @@ class DumpOrchestrator:
         La auditoría es concurrente-segura: ``AuditCsvRepository`` serializa las
         escrituras al mismo CSV mediante un lock por-ruta, por lo que cada worker
         puede registrar inserts en ``bulk_audit_path`` sin intercalar filas. La instancia
-        queda registrada para sumar sus ``audit_failures`` al resumen del volcado.
+        queda registrada para sumar sus contadores de auditoría al resumen del volcado.
         """
         cfg = self._cfg
         crud = BulkCrud(
@@ -702,15 +732,33 @@ class DumpOrchestrator:
         return crud
 
     def _reset_audit_tracking(self) -> None:
-        """Reinicia el recuento de fallos de auditoría del volcado (``BulkCrud`` creadas y loaders paralelos)."""
+        """Reinicia los contadores de auditoría del volcado (``BulkCrud`` creadas y loaders paralelos)."""
         self._audit_lock = threading.Lock()
         self._audit_cruds: list[BulkCrud] = []
-        self._loader_audit_failures: int = 0
+        self._loader_audit = _AuditCounters()
 
-    def _audit_failures(self) -> int:
-        """Registros de auditoría perdidos en el volcado: los de cada ``BulkCrud`` y los de los loaders paralelos."""
+    def _audit_counters(self) -> _AuditCounters:
+        """Contadores de auditoría del volcado: los de cada ``BulkCrud`` y los de los loaders paralelos.
+
+        Las ``BulkCrud`` internas de ``ParallelBulkLoader`` no están en ``_audit_cruds``: llegan solo por su resultado.
+        """
         with self._audit_lock:
-            return sum(crud.audit_failures for crud in self._audit_cruds) + self._loader_audit_failures
+            total = self._loader_audit
+            for crud in self._audit_cruds:
+                total = total + _AuditCounters.of(crud)
+            return total
+
+    def _summarize_audit(self, audit_path: Path | None, desde: datetime) -> DumpAuditSummary | None:
+        """``_build_audit_summary`` con los contadores acumulados durante el volcado."""
+        counters = self._audit_counters()
+        return DumpOrchestrator._build_audit_summary(
+            audit_path,
+            desde,
+            audit_failures=counters.audit_failures,
+            audited_rows=counters.audited_rows,
+            unaudited_committed_rows=counters.unaudited_committed_rows,
+            audit_uncommitted_records=counters.audit_uncommitted_records,
+        )
 
     def _resolve_max_workers(self, requested: int) -> int:
         """Clampa los workers a la capacidad real de pool de ambos engines.
@@ -986,22 +1034,41 @@ class DumpOrchestrator:
 
     @staticmethod
     def _build_audit_summary(
-        audit_path: Path | None, desde: datetime, audit_failures: int = 0
+        audit_path: Path | None,
+        desde: datetime,
+        audit_failures: int = 0,
+        *,
+        audited_rows: int | None = None,
+        unaudited_committed_rows: int = 0,
+        audit_uncommitted_records: int = 0,
     ) -> DumpAuditSummary | None:
         """Lee el CSV de auditoría y extrae métricas del volcado actual.
 
         Filtra por ``timestamp >= desde`` para aislar las entradas de este volcado
         frente a operaciones previas que pudieran existir en el mismo CSV.
         Devuelve ``None`` si la ruta no está configurada, o si el fichero no existe o no
-        hay entradas en el rango temporal y no hubo fallos de escritura. Con
-        ``audit_failures > 0`` devuelve siempre un resumen (con métricas a 0 si no hay
-        entradas), para que los fallos no queden ocultos.
+        hay entradas en el rango temporal y no hubo incidencias. Si ``audit_failures``,
+        ``unaudited_committed_rows`` o ``audit_uncommitted_records`` es mayor que 0 devuelve
+        siempre un resumen (con métricas del CSV a 0 si no hay entradas), para que el
+        problema no quede oculto.
+
+        ``audited_rows`` son las filas que el volcado escribió según sus contadores; ``None`` si
+        no se conocen (entonces vale 0 en el resumen y no se compara con el CSV). Si difiere de
+        ``total_filas`` se registra un WARNING.
         """
         if audit_path is None:
             return None
 
+        counters: dict[str, int] = {
+            "audit_failures": audit_failures,
+            "audited_rows": audited_rows or 0,
+            "unaudited_committed_rows": unaudited_committed_rows,
+            "audit_uncommitted_records": audit_uncommitted_records,
+        }
+        incidencias = audit_failures > 0 or unaudited_committed_rows > 0 or audit_uncommitted_records > 0
+
         def _sin_entradas() -> DumpAuditSummary | None:
-            if audit_failures == 0:
+            if not incidencias:
                 return None
             return DumpAuditSummary(
                 total_operaciones=0,
@@ -1011,7 +1078,7 @@ class DumpOrchestrator:
                 tablas_auditadas=0,
                 tabla_mas_activa=None,
                 audit_path=audit_path,
-                audit_failures=audit_failures,
+                **counters,
             )
 
         if not audit_path.is_file():
@@ -1032,15 +1099,25 @@ class DumpOrchestrator:
         if df.empty:
             return _sin_entradas()
         tabla_mas_activa: str | None = str(df["tabla"].value_counts().index[0]) if len(df) > 0 else None
+        total_filas = int(df["total_filas"].sum())
+        if audited_rows is not None and audited_rows != total_filas:
+            _log.warning(
+                "Auditoría del volcado: el CSV suma %d filas desde el inicio y el volcado escribió %d. Causas "
+                "probables: otros procesos escriben en el mismo CSV, o registros escritos antes de un commit que "
+                "falló (audit_uncommitted_records=%d).",
+                total_filas,
+                audited_rows,
+                audit_uncommitted_records,
+            )
         return DumpAuditSummary(
             total_operaciones=int(len(df)),
-            total_filas=int(df["total_filas"].sum()),
+            total_filas=total_filas,
             tiempo_total_seg=round(float(df["tiempo_seg"].sum()), 3),
             tiempo_promedio_seg=round(float(df["tiempo_seg"].mean()), 3),
             tablas_auditadas=int(df["tabla"].nunique()),
             tabla_mas_activa=tabla_mas_activa,
             audit_path=audit_path,
-            audit_failures=audit_failures,
+            **counters,
         )
 
     @staticmethod
