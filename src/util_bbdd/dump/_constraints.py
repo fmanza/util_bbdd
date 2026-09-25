@@ -133,7 +133,14 @@ class ConstraintManager:
 
     @staticmethod
     def _exec_session_var(dbapi_conn: Any, sql: str) -> None:
-        """Ejecuta una sentencia SET de sesión sobre la conexión DBAPI cruda."""
+        """Ejecuta una sentencia SET de sesión sobre la conexión DBAPI cruda.
+
+        PD-09 (performance-audit de dump 2026-09-25): una conexión invalidada (p. ej. tras un error en la carga) vuelve al
+        pool con ``dbapi_conn=None``; el ``AttributeError`` de ``None.cursor()`` sustituía a la excepción original. No hay
+        nada que restaurar: el pool descarta esa conexión y no se reutiliza con ``FOREIGN_KEY_CHECKS = 0``.
+        """
+        if dbapi_conn is None:
+            return
         cursor = dbapi_conn.cursor()
         try:
             cursor.execute(sql)

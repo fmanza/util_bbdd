@@ -17,7 +17,7 @@
 | 0.5 | PD-04 (ALTA) | **Hecho** (sesión `2026-09-26b-hotfix-dump-pg-fk-validation`) | Validación real de FKs en PostgreSQL | Con una fila huérfana, `ConstraintResult` `failed`; coste < 2 % |
 | 0.6 | PD-05 (ALTA) | **Hecho** (sesión `2026-09-26-hotfix-dump-fidelity`) | `coerce_float=False` + dtypes nullable en `read_sql`; sin `strip()` en la ruta de `dump` (también en la vía rápida P-33) | Round-trip exacto de BIGINT > 2^53 con NULL, DECIMAL(38,10) y cadenas con espacios; `read` + `prep` no empeora > 10 % |
 | 0.7 | PD-08 (ALTA) | **Hecho** (sesión `2026-09-25e-hotfix-bulk-reflect-fk-chain`) | `reflect_table` con `resolve_fks=False` | 200 tablas encadenadas sin `RecursionError`; cadena de 100 en PG < 5 s |
-| 0.8 | PD-09 (MEDIA) | Abierto | `_fk_on`/`_fk_off` ignoran `dbapi_conn is None` | El error original llega intacto en MySQL/MariaDB |
+| 0.8 | PD-09 (MEDIA) | **Hecho** (sesión `2026-09-26d-hotfix-dump-mariadb-checkin`) | `_fk_on`/`_fk_off` ignoran `dbapi_conn is None` | El error original llega intacto en MySQL/MariaDB |
 | 0.9 | PD-07 (BAJA) | Abierto | Rechazar o avisar de un origen SQLite | Error claro en `DumpOrchestrator.__init__` |
 | 0.10 | PD-10 (MEDIA, nuevo) | **Hecho** (sesión `2026-09-26c-hotfix-mssql-decimal-precision`; causa real: contexto `decimal` de 28 dígitos en pyodbc) | SQL Server + `fast_executemany`: enviar `Decimal` sin perder precisión (p. ej. como `str`, que en el microbanco cuesta lo mismo que `float`) o fijar `setinputsizes` para columnas DECIMAL | DECIMAL(38,10) con 38 dígitos exacto en `dump` y `BulkCrud` a SQL Server; escritura sin empeorar > 5 % |
 

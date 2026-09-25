@@ -173,6 +173,22 @@ class TestConstraintManagerMariaDB:
         captured["checkin"](dbapi_conn2, MagicMock())
         cursor2.execute.assert_called_with("SET SESSION FOREIGN_KEY_CHECKS = 1")
 
+    def test_listeners_ignore_invalidated_connection(self):
+        """PD-09: una conexión invalidada vuelve al pool con dbapi_conn=None; el AttributeError tapaba el error original."""
+        engine = _make_engine("mariadb")
+        captured: dict[str, Callable[..., None]] = {}
+
+        def _capture(_engine: object, event_name: str, fn: Callable[..., None]) -> None:
+            captured[event_name] = fn
+
+        with patch("util_bbdd.dump._constraints.event") as mock_event:
+            mock_event.listen.side_effect = _capture
+            mgr = ConstraintManager(engine)
+            mgr.disable_all(tables=[])
+
+        captured["checkin"](None, MagicMock())
+        captured["checkout"](None, MagicMock(), MagicMock())
+
     def test_enable_removes_both_listeners_and_returns_unverified(self):
         engine = _make_engine("mariadb")
 

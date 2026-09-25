@@ -9,6 +9,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **dump**: en MySQL/MariaDB, si la carga fallaba y SQLAlchemy invalidaba la conexión, el error que llegaba era
+  `AttributeError: 'NoneType' object has no attribute 'cursor'` en lugar del original: el listener que restaura
+  `FOREIGN_KEY_CHECKS` al devolver la conexión al pool no toleraba una conexión ya cerrada. Ahora la ignora.
 - **bulk**: en SQL Server con `fast_executemany` (activado por defecto en `mssql+pyodbc`), un `Decimal` de más de 28
   dígitos significativos se redondeaba al escribir (`…678.9012345678` → `…679.0000000000`) o fallaba con el error 8023
   si el redondeo desbordaba; un UPDATE o DELETE por una clave DECIMAL así no encontraba la fila. pyodbc convierte con el
