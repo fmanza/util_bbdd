@@ -693,10 +693,30 @@ class TestDetectPkRangeCol:
 
 
 class TestLoadInPkRanges:
-    def _orch(self) -> DumpOrchestrator:
+    def _orch(self, **cfg: object) -> DumpOrchestrator:
         orch = DumpOrchestrator.__new__(DumpOrchestrator)
-        orch._cfg = DumpConfig(source_engine=_make_engine(), target_engine=_make_engine())
+        orch._cfg = DumpConfig(source_engine=_make_engine(), target_engine=_make_engine(), **cfg)  # type: ignore[arg-type]
+        orch._reset_audit_tracking()
         return orch
+
+    def test_propagates_audit_strict_and_accumulates_loader_audit_failures(self):
+        orch = self._orch(bulk_audit_strict=True)
+        conn = orch._cfg.source_engine.connect.return_value
+        conn.execute.return_value.one.return_value = (1, 9)
+
+        from util_bbdd.bulk import ParallelLoadResult, PartitionResult
+
+        with patch("util_bbdd.dump.orchestrator.ParallelBulkLoader") as loader_cls:
+            loader_cls.return_value.load.return_value = ParallelLoadResult(
+                partition_results=[
+                    PartitionResult(index=0, rows=5, elapsed_seconds=0.1, audit_failures=2),
+                    PartitionResult(index=1, rows=4, elapsed_seconds=0.1, audit_failures=1),
+                ]
+            )
+            orch._load_in_pk_ranges("t", ["id"], {"id": "id"}, "id", "t", 2)
+
+        assert loader_cls.call_args.kwargs["audit_strict"] is True
+        assert orch._audit_failures() == 3
 
     def test_empty_table_returns_no_errors(self):
         orch = self._orch()
@@ -1344,6 +1364,27 @@ class TestBuildAuditSummary:
         assert summary is not None
         assert summary.total_operaciones == 1
         assert summary.total_filas == 10
+
+    def test_failures_without_csv_entries_still_return_a_summary(self, tmp_path: Path) -> None:
+        # Si ninguna escritura funcionó no hay filas en el CSV; devolver None ocultaría justo el problema.
+        summary = DumpOrchestrator._build_audit_summary(
+            tmp_path / "no-existe.csv", datetime(2026, 9, 25, 10, 0, 0), audit_failures=4
+        )
+
+        assert summary is not None
+        assert summary.audit_failures == 4
+        assert summary.total_operaciones == 0
+
+    def test_failures_are_added_to_a_summary_with_entries(self, tmp_path: Path) -> None:
+        csv_path = self._write_csv(tmp_path / "audit.csv", "2026-09-25 10:00:01")
+
+        summary = DumpOrchestrator._build_audit_summary(csv_path, datetime(2026, 9, 25, 10, 0, 0), audit_failures=1)
+
+        assert summary is not None
+        assert (summary.total_operaciones, summary.audit_failures) == (1, 1)
+
+    def test_no_failures_and_no_csv_returns_none(self, tmp_path: Path) -> None:
+        assert DumpOrchestrator._build_audit_summary(tmp_path / "no-existe.csv", datetime(2026, 9, 25)) is None
 
     def test_excludes_operations_from_earlier_seconds(self, tmp_path: Path) -> None:
         csv_path = self._write_csv(tmp_path / "audit.csv", "2026-09-25 09:59:59", "2026-09-25 10:00:01")

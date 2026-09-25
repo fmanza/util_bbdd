@@ -47,6 +47,8 @@ flowchart TD
 | `manage_indexes` | `bool` | `False` | Deshabilitar/reconstruir índices secundarios no únicos |
 | `max_parallel_tables` | `int` | `1` | Tablas en paralelo dentro del mismo nivel FK |
 | `parallel_pk_ranges` | `int` | `1` | Rangos de PK para particionar tablas grandes |
+| `bulk_audit_path` | `Path \| None` | `None` | CSV de auditoría de los inserts en destino; `None` = sin auditoría |
+| `bulk_audit_strict` | `bool` | `False` | Se pasa como `audit_strict` a cada `BulkCrud` y `ParallelBulkLoader`. `False`: un fallo al escribir el CSV no interrumpe la carga y se cuenta en `audit_summary.audit_failures`. `True`: el fallo deshace la carga de esa tabla (o partición) y queda como error de la tabla |
 
 #### Dataclass `DumpResult`
 
@@ -57,7 +59,7 @@ flowchart TD
 | `load_order` | `list[str]` | Orden topológico aplicado |
 | `cycles_detected` | `list[list[str]]` | Grupos de tablas con FK circular |
 | `report` | `Path` | Ruta del fichero Excel generado |
-| `audit_summary` | `DumpAuditSummary \| None` | Métricas de auditoría; `None` si no configurado |
+| `audit_summary` | `DumpAuditSummary \| None` | Métricas de auditoría del volcado y `audit_failures` (registros que no se pudieron escribir). `None` si no hay `bulk_audit_path` o si el CSV no tiene entradas del volcado y no hubo fallos |
 | `pk_sync_results` | `list[PKSyncResult] \| None` | Resultado sincronización PK; `None` si desactivado |
 | `index_results` | `list[IndexActionResult] \| None` | Resultado gestión índices; `None` si desactivado |
 

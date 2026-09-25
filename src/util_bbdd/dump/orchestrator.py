@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import math
+import threading
 
 from collections import deque
 from collections.abc import Callable, Iterator
@@ -36,7 +37,7 @@ from sqlalchemy import Engine, Inspector, Integer, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader
-from util_bbdd.bulk.audit import AuditManager
+from util_bbdd.bulk.audit import AuditError, AuditManager
 
 from .._core.exceptions import DumpError
 from ._constraints import ConstraintManager, ConstraintResult
@@ -81,6 +82,7 @@ class DumpOrchestrator:
         self._dst_insp: Inspector = inspect(config.target_engine)
         self._warn_pool_config(config.target_engine)
         self._warn_chunk_size(config.target_engine, config.chunk_size)
+        self._reset_audit_tracking()
 
     # ------------------------------------------------------------------
     # Punto de entrada
@@ -97,6 +99,7 @@ class DumpOrchestrator:
         """
         cfg = self._cfg
         dump_inicio = datetime.now()
+        self._reset_audit_tracking()
 
         # FASE 1: Análisis de carga
         try:
@@ -162,12 +165,7 @@ class DumpOrchestrator:
                 # ambos acotados a la capacidad real del pool (tablas * rangos <= capacidad).
                 table_workers = self._resolve_max_workers(cfg.max_parallel_tables)
                 self._effective_pk_ranges = self._resolve_range_count(cfg.parallel_pk_ranges, table_workers)
-                crud = BulkCrud(
-                    cfg.target_engine,
-                    chunk_size=cfg.chunk_size,
-                    audit_csv_path=cfg.bulk_audit_path,
-                    commit_every_n_chunks=cfg.commit_every_n_chunks,
-                )
+                crud = self._make_worker_crud()
                 if cfg.max_parallel_tables > 1:
                     table_results.extend(self._load_parallel(effective_src_order, src_to_dst, cycle_set, table_workers))
                     # Reflejar tablas cargadas en la crud compartida para la Fase 5a (PK sync)
@@ -225,7 +223,9 @@ class DumpOrchestrator:
             load_order=load_order,
             cycles_detected=cycles,
             report=report_path,
-            audit_summary=DumpOrchestrator._build_audit_summary(cfg.bulk_audit_path, dump_inicio),
+            audit_summary=DumpOrchestrator._build_audit_summary(
+                cfg.bulk_audit_path, dump_inicio, audit_failures=self._audit_failures()
+            ),
             pk_sync_results=pk_sync_results,
             index_results=index_results,
         )
@@ -426,7 +426,9 @@ class DumpOrchestrator:
                 renamed = (chunk[common_cols].rename(columns=col_name_map) for chunk in chunks)
                 try:
                     crud.bulk_insert_from_chunks(renamed, dest_table_logical)
-                except (SQLAlchemyError, ValueError) as exc:
+                except (SQLAlchemyError, ValueError, AuditError, OSError) as exc:
+                    # AuditError/OSError: con bulk_audit_strict un fallo al escribir la auditoría deshace la tabla;
+                    # queda como error de esa tabla, como cualquier otro fallo de carga, y el volcado sigue.
                     error_msgs.append(str(exc))
         except (SQLAlchemyError, ValueError, pd.errors.DatabaseError) as exc:
             error_msgs.append(f"Error leyendo origen: {exc}")
@@ -485,9 +487,12 @@ class DumpOrchestrator:
             max_workers=n_ranges,
             commit_every_n_chunks=cfg.commit_every_n_chunks,
             audit_csv_path=cfg.bulk_audit_path,
+            audit_strict=cfg.bulk_audit_strict,
         )
         readers = [_make_reader(lo, hi, last) for lo, hi, last in bounds]
         result = loader.load(dest_table_logical, readers)
+        with self._audit_lock:
+            self._loader_audit_failures += result.audit_failures
         return result.partition_errors
 
     @staticmethod
@@ -673,19 +678,35 @@ class DumpOrchestrator:
                 _log.debug("No se pudo reflejar '%s' para PK sync: %s", dest_logical, exc)
 
     def _make_worker_crud(self) -> BulkCrud:
-        """Crea una ``BulkCrud`` dedicada por hilo.
+        """Crea una ``BulkCrud`` del volcado (la principal o una dedicada por hilo).
 
         La auditoría es concurrente-segura: ``AuditCsvRepository`` serializa las
         escrituras al mismo CSV mediante un lock por-ruta, por lo que cada worker
-        puede registrar inserts en ``bulk_audit_path`` sin intercalar filas.
+        puede registrar inserts en ``bulk_audit_path`` sin intercalar filas. La instancia
+        queda registrada para sumar sus ``audit_failures`` al resumen del volcado.
         """
         cfg = self._cfg
-        return BulkCrud(
+        crud = BulkCrud(
             cfg.target_engine,
             chunk_size=cfg.chunk_size,
             audit_csv_path=cfg.bulk_audit_path,
             commit_every_n_chunks=cfg.commit_every_n_chunks,
+            audit_strict=cfg.bulk_audit_strict,
         )
+        with self._audit_lock:
+            self._audit_cruds.append(crud)
+        return crud
+
+    def _reset_audit_tracking(self) -> None:
+        """Reinicia el recuento de fallos de auditoría del volcado (``BulkCrud`` creadas y loaders paralelos)."""
+        self._audit_lock = threading.Lock()
+        self._audit_cruds: list[BulkCrud] = []
+        self._loader_audit_failures: int = 0
+
+    def _audit_failures(self) -> int:
+        """Registros de auditoría perdidos en el volcado: los de cada ``BulkCrud`` y los de los loaders paralelos."""
+        with self._audit_lock:
+            return sum(crud.audit_failures for crud in self._audit_cruds) + self._loader_audit_failures
 
     def _resolve_max_workers(self, requested: int) -> int:
         """Clampa los workers a la capacidad real de pool de ambos engines.
@@ -960,31 +981,52 @@ class DumpOrchestrator:
         return component
 
     @staticmethod
-    def _build_audit_summary(audit_path: Path | None, desde: datetime) -> DumpAuditSummary | None:
+    def _build_audit_summary(
+        audit_path: Path | None, desde: datetime, audit_failures: int = 0
+    ) -> DumpAuditSummary | None:
         """Lee el CSV de auditoría y extrae métricas del volcado actual.
 
         Filtra por ``timestamp >= desde`` para aislar las entradas de este volcado
         frente a operaciones previas que pudieran existir en el mismo CSV.
-        Devuelve ``None`` si la ruta no está configurada, el fichero no existe o no
-        hay entradas en el rango temporal.
+        Devuelve ``None`` si la ruta no está configurada, o si el fichero no existe o no
+        hay entradas en el rango temporal y no hubo fallos de escritura. Con
+        ``audit_failures > 0`` devuelve siempre un resumen (con métricas a 0 si no hay
+        entradas), para que los fallos no queden ocultos.
         """
-        if audit_path is None or not audit_path.exists():
+        if audit_path is None:
             return None
+
+        def _sin_entradas() -> DumpAuditSummary | None:
+            if audit_failures == 0:
+                return None
+            return DumpAuditSummary(
+                total_operaciones=0,
+                total_filas=0,
+                tiempo_total_seg=0.0,
+                tiempo_promedio_seg=0.0,
+                tablas_auditadas=0,
+                tabla_mas_activa=None,
+                audit_path=audit_path,
+                audit_failures=audit_failures,
+            )
+
+        if not audit_path.is_file():
+            return _sin_entradas()
         try:
             mgr = AuditManager(audit_path, cache_enabled=False)
             df = mgr.leer_auditoria()
         except Exception as exc:
             _log.warning("No se pudo leer el CSV de auditoría '%s': %s", audit_path, exc)
-            return None
+            return _sin_entradas()
         if df.empty:
-            return None
+            return _sin_entradas()
         df = df.copy()
         df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
         # H3 (audit-code 2026-09-25): el CSV guarda el timestamp truncado al segundo; comparar con ``desde`` y sus
         # microsegundos descartaba las operaciones terminadas en el mismo segundo en que empezó el volcado.
         df = df[df["timestamp"] >= pd.Timestamp(desde.replace(microsecond=0))]
         if df.empty:
-            return None
+            return _sin_entradas()
         tabla_mas_activa: str | None = str(df["tabla"].value_counts().index[0]) if len(df) > 0 else None
         return DumpAuditSummary(
             total_operaciones=int(len(df)),
@@ -994,6 +1036,7 @@ class DumpOrchestrator:
             tablas_auditadas=int(df["tabla"].nunique()),
             tabla_mas_activa=tabla_mas_activa,
             audit_path=audit_path,
+            audit_failures=audit_failures,
         )
 
     @staticmethod

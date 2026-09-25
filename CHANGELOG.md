@@ -9,6 +9,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **bulk (carga paralela)**: `ParallelBulkLoader(audit_strict=False)`, que se pasa a la `BulkCrud` de cada partición;
+  `PartitionResult.audit_failures` y `ParallelLoadResult.audit_failures` (suma de las particiones). Antes el loader
+  trabajaba siempre en fail-open y los fallos de auditoría de cada partición se perdían. Con `audit_strict=True`, un
+  fallo al escribir el CSV deshace esa partición y queda en `partition_errors` sin reintentarse.
+- **dump**: `DumpConfig.bulk_audit_strict=False`, que se pasa a todas las `BulkCrud` y `ParallelBulkLoader` del
+  volcado, y `DumpAuditSummary.audit_failures` con la suma. Si hubo fallos, `audit_summary` se devuelve aunque el CSV
+  no tenga entradas del volcado (métricas a 0), para que el problema no quede oculto.
 - **bulk (auditoría)**: `BulkCrud(audit_strict=False)` y la propiedad `BulkCrud.audit_failures` (ver *Changed*).
 
 ### Removed
@@ -28,6 +35,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **dump**: un fallo de auditoría con la política estricta (`AuditError`/`OSError`) escapaba de la carga de una tabla
+  y abortaba el volcado entero. Ahora queda como error de esa tabla, como cualquier otro fallo de carga. Antes de
+  este cambio esa política era la única, así que un CSV de auditoría bloqueado podía tumbar un volcado.
+- **dump (docs)**: el docstring de `DumpConfig.max_parallel_tables` decía que con paralelismo de tablas la auditoría
+  se desactivaba y `audit_summary` era `None`. No es así: las escrituras concurrentes al CSV se serializan con un lock
+  por ruta.
 - **bulk (auditoría)**: `AuditManager.leer_auditoria()` y todo lo que se apoya en ella (estadísticas, filtros, exports)
   podían devolver datos de hasta `cache_ttl_seconds` (300 s) de antigüedad cuando otra instancia escribía en el mismo
   CSV, por ejemplo otra `BulkCrud` de `ParallelBulkLoader`. La caché solo se invalidaba con las escrituras propias.

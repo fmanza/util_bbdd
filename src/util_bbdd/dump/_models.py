@@ -109,9 +109,9 @@ class DumpConfig:
             = carga secuencial. Valores > 1 usan un ``ThreadPoolExecutor`` con una instancia
             ``BulkCrud`` por hilo. Las tablas en ciclos FK se cargan siempre secuencialmente.
             Se degrada automáticamente (con warning) a la capacidad real del pool de
-            conexiones (``pool_size + max_overflow``) de origen/destino. **Bajo paralelismo
-            de tabla la auditoría por-operación se desactiva** (CSV no es seguro ante
-            escrituras concurrentes); ``DumpResult.audit_summary`` será ``None``.
+            conexiones (``pool_size + max_overflow``) de origen/destino. La auditoría sigue
+            activa bajo paralelismo: las escrituras de los hilos al mismo CSV se serializan
+            con un lock por ruta.
         parallel_pk_ranges: Número de rangos contiguos de PK en que particionar la carga de
             **cada** tabla con PK de una sola columna entera (``WHERE pk >= lo AND pk < hi``),
             cargados en paralelo con su propia ``BulkCrud``. ``1`` (default) = sin
@@ -120,6 +120,10 @@ class DumpConfig:
             (``max_parallel_tables * parallel_pk_ranges``) se degrada con warning a la
             capacidad real del pool. **Requiere** que el destino no tenga triggers per-fila
             dependientes del orden de inserción.
+        bulk_audit_strict: Se pasa como ``audit_strict`` a cada ``BulkCrud`` y ``ParallelBulkLoader`` del volcado.
+            ``False`` (default): un fallo al escribir el CSV de auditoría no interrumpe la carga; se registra como
+            ERROR y se cuenta en ``DumpResult.audit_summary.audit_failures``. ``True``: el fallo deshace la carga de
+            esa tabla (o partición) y queda como error de la tabla.
     """
 
     source_engine: Engine
@@ -137,6 +141,7 @@ class DumpConfig:
     manage_indexes: bool = False
     max_parallel_tables: int = 1
     parallel_pk_ranges: int = 1
+    bulk_audit_strict: bool = False
 
 
 @dataclass
@@ -159,7 +164,8 @@ class DumpAuditSummary:
     """Métricas de auditoría de inserts extraídas del CSV de ``bulk.audit`` al finalizar el volcado.
 
     Solo se popula cuando ``DumpConfig.bulk_audit_path`` está configurado y el CSV
-    contiene entradas del rango temporal del volcado.
+    contiene entradas del rango temporal del volcado, o cuando hubo fallos al escribirlo
+    (``audit_failures > 0``; entonces las métricas del CSV pueden ser 0).
 
     Attributes:
         total_operaciones: Número de lotes INSERT registrados en auditoría.
@@ -169,6 +175,8 @@ class DumpAuditSummary:
         tablas_auditadas: Número de tablas distintas con al menos un INSERT registrado.
         tabla_mas_activa: Tabla con mayor número de lotes INSERT (``None`` si no hay datos).
         audit_path: Ruta del CSV de auditoría consultado.
+        audit_failures: Registros de auditoría que no se pudieron escribir en el CSV durante el volcado (con
+            ``DumpConfig.bulk_audit_strict=False``). Si es mayor que 0, las métricas anteriores están incompletas.
     """
 
     total_operaciones: int
@@ -178,6 +186,7 @@ class DumpAuditSummary:
     tablas_auditadas: int
     tabla_mas_activa: str | None
     audit_path: Path
+    audit_failures: int = 0
 
 
 @dataclass

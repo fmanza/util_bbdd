@@ -112,3 +112,12 @@ Arreglan H1 y H2, las dos ALTAS. M-1 también deja el coste en streaming en ≈ 
 - `bench/repro_audit.py`: R1–R7 deben dar los valores correctos. Convertirlos en tests unitarios.
 - `scripts/bench_bulk.py --ops insert --engines postgresql,mysql,mariadb,mssql,oracle` con `chunk_size=500` y `5000`: confirmar la proyección multi-motor del informe.
 - `python -m pytest tests/unit/test_audit_subsystem.py tests/unit/bulk/test_audit_threadsafe.py tests/unit/test_audit_excel_export.py` + suite completa.
+
+---
+
+## Ampliación (2026-09-25): `ParallelBulkLoader` y `dump`
+
+Alternativa **A** elegida por el usuario, extendida a `dump`: `ParallelBulkLoader(audit_strict)` +
+`PartitionResult.audit_failures` / `ParallelLoadResult.audit_failures`; `DumpConfig.bulk_audit_strict` +
+`DumpAuditSummary.audit_failures`. ✅ implementado en `2026-09-25-new-feature-loader-dump-audit-policy`.
+

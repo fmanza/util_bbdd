@@ -86,6 +86,8 @@ class PartitionResult:
         elapsed_seconds: Tiempo de carga de la partición en segundos.
         error: Mensaje de error si la partición falló; ``None`` si tuvo éxito.
         retries: Número de reintentos realizados (0 si tuvo éxito en el primer intento).
+        audit_failures: Registros de auditoría de esta partición que no se pudieron escribir en el CSV (solo con
+            ``audit_strict=False``; ver ``BulkCrud.audit_failures``).
     """
 
     index: int
@@ -93,6 +95,7 @@ class PartitionResult:
     elapsed_seconds: float
     error: str | None = None
     retries: int = 0
+    audit_failures: int = 0
 
 
 @dataclass
@@ -107,12 +110,18 @@ class ParallelLoadResult:
 
     Properties:
         rows_per_second: Throughput global (filas/s). 0.0 si ``elapsed_seconds`` ≤ 0.
+        audit_failures: Registros de auditoría que no se pudieron escribir, sumados de todas las particiones.
     """
 
     total_rows: int = 0
     partition_errors: list[str] = field(default_factory=list)
     elapsed_seconds: float = 0.0
     partition_results: list[PartitionResult] = field(default_factory=list)
+
+    @property
+    def audit_failures(self) -> int:
+        """Registros de auditoría perdidos en toda la carga (suma de ``PartitionResult.audit_failures``)."""
+        return sum(pr.audit_failures for pr in self.partition_results)
 
     @property
     def rows_per_second(self) -> float:
@@ -160,6 +169,7 @@ class ParallelBulkLoader:
         enable_fast_executemany: bool = True,
         max_retries: int = 0,
         disable_constraints: bool = False,
+        audit_strict: bool = False,
     ) -> None:
         """
         Args:
@@ -177,6 +187,10 @@ class ParallelBulkLoader:
                 Requiere permisos DDL (propietario de tabla o superusuario).
                 Usar ``disable_indexes=False`` implícito: deshabilitar índices en
                 paralelo causa lock DDL en MSSQL (SCH-M global).
+            audit_strict: Se pasa a la ``BulkCrud`` de cada partición. Con ``False`` (default) un fallo al escribir el
+                CSV de auditoría no hace fallar la partición: se registra como ERROR y se cuenta en
+                ``PartitionResult.audit_failures`` / ``ParallelLoadResult.audit_failures``. Con ``True`` el fallo
+                deshace la partición y queda en ``partition_errors`` sin reintentarse.
 
         Raises:
             ValueError: Si ``chunk_size`` no es un entero ≥ 1, ``max_workers < 1`` o ``max_retries < 0``.
@@ -200,6 +214,7 @@ class ParallelBulkLoader:
         self._enable_fast_executemany = enable_fast_executemany
         self._max_retries = max_retries
         self._disable_constraints = disable_constraints
+        self._audit_strict = audit_strict
         self._max_workers = self._resolve_max_workers(max_workers)
 
     def _resolve_max_workers(self, requested: int) -> int:
@@ -333,6 +348,7 @@ class ParallelBulkLoader:
                 audit_csv_path=self._audit_csv_path,
                 commit_every_n_chunks=self._commit_every_n_chunks,
                 enable_fast_executemany=self._enable_fast_executemany,
+                audit_strict=self._audit_strict,
             )
         except Exception as exc:
             _log.warning("No se pudo preparar la partición %d de '%s': %s", index, tabla_destino, exc, exc_info=True)
@@ -363,7 +379,13 @@ class ParallelBulkLoader:
                         exclude_autoincrement_pk=exclude_autoincrement_pk,
                     )
                 elapsed = time.perf_counter() - t_start
-                return PartitionResult(index=index, rows=rows, elapsed_seconds=elapsed, retries=attempt)
+                return PartitionResult(
+                    index=index,
+                    rows=rows,
+                    elapsed_seconds=elapsed,
+                    retries=attempt,
+                    audit_failures=crud.audit_failures,
+                )
 
             except (SQLAOperationalError, TimeoutError) as exc:
                 last_exc = exc
@@ -398,6 +420,7 @@ class ParallelBulkLoader:
                     elapsed_seconds=elapsed,
                     error=_partition_error(index, exc),
                     retries=attempt,
+                    audit_failures=crud.audit_failures,
                 )
 
         # Reintentos agotados
@@ -409,6 +432,7 @@ class ParallelBulkLoader:
             elapsed_seconds=elapsed,
             error=f"partición {index}: {last_exc}",
             retries=self._max_retries,
+            audit_failures=crud.audit_failures,
         )
 
     def _load_with_maintenance(
