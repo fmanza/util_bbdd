@@ -17,6 +17,7 @@ Fecha: Febrero 2026
 """
 
 import json
+import math
 
 from collections.abc import Iterator, Sequence
 from typing import Any
@@ -211,10 +212,34 @@ def _normalize_column(series: pd.Series) -> list[Any]:
     if pd.api.types.is_datetime64_any_dtype(dtype):
         # Fechas (sin y con zona): Timestamp.to_pydatetime(); NaT → None.
         return [None if value is pd.NaT else value for value in series.array.to_pydatetime()]
-    values: list[Any] = list(series)
-    if dtype == np.dtype(object) or isinstance(dtype, ExtensionDtype):
+    if dtype == np.dtype(object) or isinstance(dtype, pd.StringDtype):
+        # P-33 (performance-audit de serialización SQL): ``to_numpy(dtype=object)`` da los mismos objetos que
+        # ``list(series)`` y es ~12 veces más rápido con la dtype ``str`` respaldada por pyarrow.
+        values: list[Any] = list(series.to_numpy(dtype=object))
+        text: list[Any] | None = _normalize_text_values(values)
+        return text if text is not None else _normalize_values(values, box=True)
+    return _normalize_values(list(series), box=isinstance(dtype, ExtensionDtype))
+
+
+def _normalize_values(values: list[Any], *, box: bool) -> list[Any]:
+    """Camino general, celda a celda; ``box`` aplica antes ``maybe_box_native`` (columnas object y de extensión)."""
+    if box:
         values = [maybe_box_native(value) for value in values]
     return [normalize_sql_literal(value) for value in values]
+
+
+def _normalize_text_values(values: list[Any]) -> list[Any] | None:
+    """Vía rápida (P-33) para columnas solo de ``str`` y nulos: lo mismo que ``normalize_sql_literal`` celda a celda.
+
+    ``str`` → ``strip()``; ``None``, ``pd.NA`` y ``NaN`` (``float``) → ``None``. Devuelve ``None`` si hay cualquier otro
+    valor (incluidas subclases de ``str`` como ``np.str_``) para que la columna siga el camino general.
+    """
+    for value in values:
+        if type(value) is str or value is None or value is pd.NA:
+            continue
+        if type(value) is not float or not math.isnan(value):
+            return None
+    return [value.strip() if type(value) is str else None for value in values]
 
 
 def _decode_bytes_to_string(value: bytes | bytearray | memoryview) -> str | bytes:

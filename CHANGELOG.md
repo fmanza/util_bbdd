@@ -97,6 +97,18 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **bulk (rendimiento, `generar_sql=True`)**: la generación de ficheros SQL tarda la mitad y el SQL generado es idéntico
+  byte a byte (comprobado en los 5 dialectos contra la versión anterior). Medido con `scripts/bench_sqlgen.py` (nuevo) en
+  SQLite con 1M filas: INSERT de 12,6 a 6,1 s, UPDATE de 13,0 a 6,6 s, DELETE de 2,1 a 1,9 s. Tres cambios internos
+  (`.ai/audit/audit_report_bulk_sql_serialization_20260925.md`):
+  - P-31: la plantilla de literales renderiza cada bloque por columnas y ensambla las líneas con una cadena de formato
+    precalculada. Render de −21 a −24 % en los 5 dialectos.
+  - P-32: en SQLite, SQL Server y Oracle, cuyo compilador no redefine `render_literal_value`, se llama directamente al
+    `literal_processor` del tipo, resuelto una vez por columna. Render de −39 a −41 % adicional en esos dialectos;
+    PostgreSQL y MySQL/MariaDB no cambian.
+  - P-33: `dataframe_to_sql_records` normaliza las columnas de texto (`object` o `str` con solo cadenas y nulos) sin
+    pasar celda a celda por `normalize_sql_literal`. Normalización de −61 % con la dtype `str` de pandas 3 respaldada
+    por pyarrow. También acelera la ejecución real (`generar_sql=False`) y `bulk_insert_from_chunks`.
 - **bulk (auditoría, rendimiento)**: con `commit_every_n_chunks`, lo que confirman los commits periódicos se escribe en
   el CSV por tandas (64 registros o 1 s) y siempre al cerrar la sesión, con o sin error, en lugar de hasta dos veces
   por commit. Medido en SQLite con 1M filas, chunks de 500 y 4 hilos: con N=2, de 2000 a 35 aperturas del CSV y del

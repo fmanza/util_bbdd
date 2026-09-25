@@ -1,0 +1,10 @@
+rows=1000000 chunk_size=5000 repeat=1
+dialecto    op       norm µs/f render µs/f write µs/f  total s      MB
+----------------------------------------------------------------------
+sqlite      insert        1.59        4.09       0.34     6.03   221.1
+sqlite      update        1.79        4.61       0.37     6.77   226.1
+sqlite      delete        0.89        0.89       0.24     2.01    69.9
+sqlite-e2e  insert        0.00        6.09       0.00     6.09   221.1
+sqlite-e2e  update        0.00        6.64       0.00     6.64   226.1
+sqlite-e2e  delete        0.00        1.89       0.00     1.89    69.9
+CSV: .ai\sessions\2026-09-25-performance-audit-bulk-sql\validation\e2e_1m.csv

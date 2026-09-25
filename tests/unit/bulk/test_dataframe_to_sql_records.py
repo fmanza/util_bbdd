@@ -72,7 +72,14 @@ DTYPE_MATRIX: dict[str, Any] = {
     "boolean": pd.array([True, None, False, True, False], dtype="boolean"),
     "str": pd.array([" a ", None, "", "x", "ñ"], dtype="str"),
     "string_python": pd.array([" a ", None, "", "x", "ñ"], dtype="string[python]"),
+    "string_pyarrow": pd.array([" a ", None, "", "x", "ñ"], dtype="string[pyarrow]"),
     "category": pd.Categorical(["a", None, "b", "a", "c"]),
+    # P-33: vía rápida de texto (solo str exacto y nulos) y salidas al camino general.
+    "object_str_only": [" a ", None, "", "x ", np.nan],
+    "object_str_pd_na": ["a", pd.NA, " b", "", None],
+    "object_np_str": [np.str_(" a "), "b", None, "c", ""],
+    "object_str_and_int": ["a", 1, None, " b ", ""],
+    "object_str_and_nan32": ["a", np.float32("nan"), None, " b ", ""],
     "object_mixed": [" a ", None, {"k": 1}, b"\xff", [1, "x"]],
     "object_numpy_scalars": [
         np.int64(1),

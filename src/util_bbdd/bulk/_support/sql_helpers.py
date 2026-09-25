@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time
 from pathlib import Path
@@ -29,6 +29,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.engine import Dialect, make_url
 from sqlalchemy.sql import operators
+from sqlalchemy.sql.compiler import SQLCompiler
 from sqlalchemy.sql.sqltypes import _Binary
 from sqlalchemy.types import TypeDecorator, TypeEngine
 
@@ -151,15 +152,17 @@ class _LiteralTemplate:
     """Sentencia compilada una vez con marcadores; cada fila solo renderiza sus literales (P-06).
 
     Antes se construía y compilaba una sentencia por fila con ``literal_binds`` (~165 µs/fila). Los literales se
-    renderizan con ``render_literal_value`` del compilador del dialecto, la misma función que usa ``literal_binds``,
-    con el mismo tipo de parámetro que SQLAlchemy: el de la columna en VALUES/SET (``String`` para JSON, P-20) y
-    ``coerce_compared_value`` en el WHERE. Como los valores no pasan por el compilador, SQLAlchemy ya no convierte en
-    ``?`` un texto con forma ``%(nombre)s`` en dialectos posicionales (SQLite, SQL Server + pyodbc).
+    renderizan con ``render_literal_value`` del compilador del dialecto, la misma función que usa ``literal_binds``
+    (o con el ``literal_processor`` al que esta se reduce, P-32), con el mismo tipo de parámetro que SQLAlchemy: el de
+    la columna en VALUES/SET (``String`` para JSON, P-20) y ``coerce_compared_value`` en el WHERE. Como los valores no
+    pasan por el compilador, SQLAlchemy ya no convierte en ``?`` un texto con forma ``%(nombre)s`` en dialectos
+    posicionales (SQLite, SQL Server + pyodbc).
 
-    ``render`` devuelve ``None`` cuando la fila no se puede renderizar igual que antes (``None`` en el WHERE, que
-    SQLAlchemy convierte en ``IS NULL``; tipos sin renderizador de literales, como algunos binarios; en el INSERT,
-    claves distintas de las de la plantilla): el llamador genera esa fila por el camino anterior, que da el mismo
-    resultado o el mismo error.
+    ``render_block`` renderiza el bloque por columnas (P-31, performance-audit de serialización SQL 2026-09-25): un
+    bucle por hueco con el renderizador ya resuelto, y cada línea se ensambla con una cadena de formato precalculada.
+    Las filas que no se pueden renderizar igual que antes (``None`` en el WHERE, que SQLAlchemy convierte en
+    ``IS NULL``; tipos sin renderizador de literales, como algunos binarios; en el INSERT, claves distintas de las de la
+    plantilla) se generan, en su orden, por el camino anterior, que da el mismo resultado o el mismo error.
     """
 
     def __init__(
@@ -172,7 +175,44 @@ class _LiteralTemplate:
         self._parts, self._order, self._tail = self._split(sql, slots)
         self._keys: frozenset[str] | None = frozenset(slot.key for slot in slots) if exact_keys else None
         self._compiler: Any = dialect.statement_compiler(dialect, None)
-        self._string: TypeEngine[Any] = String()
+        # Las partes fijas pueden llevar '%' (identificadores, OVERRIDING...): se escapan para el operador '%'.
+        self._format: str = "".join(part.replace("%", "%%") + "%s" for part in self._parts) + self._tail.replace(
+            "%", "%%"
+        )
+        # Tipo de render de VALUES/SET resuelto una vez: el de la columna, o ``String`` para JSON (P-20). En el WHERE
+        # (``None``) depende del valor: ``coerce_compared_value``, como SQLAlchemy.
+        self._types: list[TypeEngine[Any] | None] = [
+            None if slot.where else String() if slot.json else slot.type for slot in self._order
+        ]
+        direct: bool = type(self._compiler).render_literal_value is SQLCompiler.render_literal_value
+        self._processors: list[Callable[[Any], str] | None] = [
+            self._processor(slot, type_, dialect, direct=direct)
+            for slot, type_ in zip(self._order, self._types, strict=True)
+        ]
+
+    def _processor(
+        self, slot: _Slot, type_: TypeEngine[Any] | None, dialect: Any, *, direct: bool
+    ) -> Callable[[Any], str] | None:
+        """Función valor no nulo → literal del hueco, o ``None`` para usar ``render_literal_value(valor, type_)``.
+
+        - WHERE: el tipo depende del valor (``coerce_compared_value``, como SQLAlchemy).
+        - P-32 (performance-audit de serialización SQL 2026-09-25): si el compilador no redefine
+          ``render_literal_value`` (SQLite, SQL Server y Oracle en SQLAlchemy 2.0.50), para un valor no nulo esta se
+          reduce a llamar al ``literal_processor`` del tipo, que se resuelve aquí una vez. PostgreSQL y MySQL/MariaDB la
+          redefinen (escape de ``\\``) y siguen por ``render_literal_value``.
+        """
+        if type_ is None:
+            render: Callable[[Any, TypeEngine[Any]], str] = self._compiler.render_literal_value
+            column_type: TypeEngine[Any] = slot.type
+
+            def where_literal(value: Any) -> str:
+                return render(value, column_type.coerce_compared_value(operators.eq, value))
+
+            return where_literal
+        if direct:
+            processor: Callable[[Any], str] | None = type_.dialect_impl(dialect).literal_processor(dialect)
+            return processor
+        return None
 
     def _undo_percents(self, sql: str) -> str:
         return sql.replace("%%", "%") if self._undouble else sql  # P-23
@@ -195,30 +235,41 @@ class _LiteralTemplate:
             previous = position + len(_MARKER.format(index))
         return parts, order, sql[previous:] + ";"
 
-    def _literal(self, slot: _Slot, value: Any) -> str | None:
-        if value is None:
-            return None if slot.where else "NULL"
-        if slot.where:
-            type_ = slot.type.coerce_compared_value(operators.eq, value)
-        else:
-            type_ = self._string if slot.json else slot.type
-        return self._undo_percents(self._compiler.render_literal_value(value, type_))
+    def _render_column(self, index: int, records: Sequence[SqlRecord], fallback: bytearray) -> list[str | None]:
+        """Literales del hueco ``index`` en cada fila; marca en ``fallback`` las filas que no se pueden renderizar."""
+        slot: _Slot = self._order[index]
+        fixed_type: TypeEngine[Any] | None = self._types[index]  # None solo en el WHERE, que siempre tiene processor
+        processor: Callable[[Any], str] | None = self._processors[index]
+        render: Callable[[Any, TypeEngine[Any] | None], str] = self._compiler.render_literal_value
+        key, undouble = slot.key, self._undouble
+        # NULL en VALUES/SET; en el WHERE SQLAlchemy genera IS NULL, que la plantilla no tiene: camino anterior.
+        null_literal: str | None = None if slot.where else "NULL"
+        column: list[str | None] = [None] * len(records)
+        for row in [row for row, done in enumerate(fallback) if not done]:
+            try:
+                value = records[row][key]
+                if value is None:
+                    column[row] = null_literal
+                    fallback[row] = null_literal is None
+                    continue
+                literal_sql: str = processor(value) if processor is not None else render(value, fixed_type)
+            except Exception:  # sin renderizador para el tipo o valor no admitido: camino anterior
+                fallback[row] = 1
+                continue
+            column[row] = literal_sql.replace("%%", "%") if undouble else literal_sql  # P-23
+        return column
 
-    def render(self, record: SqlRecord) -> str | None:
-        if self._keys is not None and record.keys() != self._keys:
-            return None
-        pieces: list[str] = []
-        try:
-            for part, slot in zip(self._parts, self._order, strict=True):
-                literal_sql = self._literal(slot, record[slot.key])
-                if literal_sql is None:
-                    return None
-                pieces.append(part)
-                pieces.append(literal_sql)
-        except Exception:  # sin renderizador para el tipo o valor no admitido: camino anterior
-            return None
-        pieces.append(self._tail)
-        return "".join(pieces)
+    def render_block(self, records: Sequence[SqlRecord], per_row: Callable[[SqlRecord], str]) -> list[str]:
+        """Una línea por registro, en orden; ``per_row`` genera las filas que la plantilla no puede renderizar."""
+        fallback = bytearray(len(records))
+        if self._keys is not None:
+            for row, record in enumerate(records):
+                if record.keys() != self._keys:
+                    fallback[row] = 1
+        columns = [self._render_column(index, records, fallback) for index in range(len(self._order))]
+        rows: Iterable[tuple[str | None, ...]] = zip(*columns, strict=True) if columns else [()] * len(records)
+        template: str = self._format
+        return [per_row(records[row]) if fallback[row] else template % literals for row, literals in enumerate(rows)]
 
 
 def _markers(count: int, start: int = 0) -> list[Any]:
@@ -236,11 +287,7 @@ def _template_or_none(stmt: Any, slots: Sequence[_Slot], dialect: Any, **kwargs:
 def _render_lines(template: _LiteralTemplate | None, records: Sequence[SqlRecord], per_row: Any) -> list[str]:
     if template is None:
         return [per_row(record) for record in records]
-    lines: list[str] = []
-    for record in records:
-        line = template.render(record)
-        lines.append(line if line is not None else per_row(record))
-    return lines
+    return template.render_block(records, per_row)
 
 
 def _generate_insert_lines(stmt: Insert, records: Sequence[SqlRecord], dialect: Any, postprocess: Any) -> list[str]:

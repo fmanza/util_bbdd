@@ -317,3 +317,41 @@ def test_template_path_is_used_without_per_row_compilation(dialect: Any, monkeyp
     generate_delete_sql(records=records, table=wide, pk_cols=["id"], dialect=dialect)
 
     assert calls == []
+
+
+def test_block_mixing_template_and_per_row_rows_keeps_order(dialect: Any) -> None:
+    """P-31: con el render por columnas, las filas que caen al camino anterior salen en su sitio y con el mismo SQL."""
+    _, comp = _tables(False)
+    ts = dt.datetime(2026, 1, 1)
+    table = Table("t", MetaData(), Column("id", Integer, primary_key=True), Column("v", String(10)))
+    inserts = [{"id": 1, "v": "a"}, {"id": 2}, {"id": 3, "v": None}, {"id": 4, "v": "d%"}, {"v": "e", "id": 5}]
+    deletes = [
+        {"k1": 1, "k2": None, "k3": ts},
+        {"k1": 2, "k2": "b", "k3": ts},
+        {"k1": 3, "k2": "c", "k3": None},
+        {"k1": 4, "k2": "d", "k3": ts},
+    ]
+
+    assert generate_insert_sql(insert(table), inserts, dialect) == _ref_insert(table, inserts, dialect)
+    pk = ["k1", "k2", "k3"]
+    assert generate_delete_sql(records=deletes, table=comp, pk_cols=pk, dialect=dialect) == _ref_delete(
+        comp, deletes, dialect, pk
+    )
+
+
+def test_direct_literal_processor_only_where_compiler_does_not_override(dialect: Any) -> None:
+    """P-32: el literal_processor directo solo se usa si el compilador no redefine render_literal_value."""
+    from sqlalchemy.sql.compiler import SQLCompiler
+
+    from util_bbdd.bulk._support.sql_helpers import _LiteralTemplate, _markers, _Slot
+
+    table = Table("t", MetaData(), Column("id", Integer, primary_key=True), Column("v", String(10)))
+    slots = [_Slot("id", table.c.id.type), _Slot("v", table.c.v.type)]
+    stmt = insert(table).inline().values(dict(zip(["id", "v"], _markers(2), strict=True)))
+    template = _LiteralTemplate(stmt, slots, dialect, exact_keys=True)
+
+    overrides = (
+        type(dialect.statement_compiler(dialect, None)).render_literal_value is not SQLCompiler.render_literal_value
+    )
+    assert overrides == (dialect.name in ("postgresql", "mysql", "mariadb"))
+    assert all((processor is None) == overrides for processor in template._processors)
