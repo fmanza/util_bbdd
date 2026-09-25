@@ -315,7 +315,7 @@ class TestDumpOrchestratorRun:
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.orchestrator.BulkCrud")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("dump_report.xlsx"))
-    @patch("pandas.read_sql", return_value=iter([]))
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
     def test_run_returns_dump_result(self, mock_read_sql, mock_report, mock_bulk, mock_mgr_cls):
         mock_mgr = MagicMock()
         mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
@@ -341,7 +341,7 @@ class TestDumpOrchestratorRun:
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.orchestrator.BulkCrud")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("dump_report.xlsx"))
-    @patch("pandas.read_sql", return_value=iter([]))
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
     def test_manage_indexes_disables_and_reports(
         self, mock_read_sql, mock_report, mock_bulk, mock_mgr_cls, mock_index_cls
     ):
@@ -370,7 +370,7 @@ class TestDumpOrchestratorRun:
     @patch("util_bbdd.dump.orchestrator.IndexManager")
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("dump_report.xlsx"))
-    @patch("pandas.read_sql", return_value=iter([]))
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
     def test_manage_indexes_false_does_not_instantiate_index_manager(
         self, mock_read_sql, mock_report, mock_mgr_cls, mock_index_cls
     ):
@@ -389,7 +389,7 @@ class TestDumpOrchestratorRun:
 
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("dump_report.xlsx"))
-    @patch("pandas.read_sql", return_value=iter([]))
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
     def test_missing_table_reported(self, mock_read_sql, mock_report, mock_mgr_cls):
         mock_mgr = MagicMock()
         mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
@@ -420,7 +420,7 @@ class TestDumpOrchestratorRun:
 
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("dump_report.xlsx"))
-    @patch("pandas.read_sql", return_value=iter([]))
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
     def test_skipped_when_no_common_columns(self, mock_read_sql, mock_report, mock_mgr_cls):
         mock_mgr = MagicMock()
         mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
@@ -442,7 +442,7 @@ class TestDumpOrchestratorRun:
 
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("dump_report.xlsx"))
-    @patch("pandas.read_sql", return_value=iter([]))
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
     def test_parallel_path_used_when_max_parallel_tables_gt_1(self, mock_read_sql, mock_report, mock_mgr_cls):
         mock_mgr = MagicMock()
         mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
@@ -461,7 +461,7 @@ class TestDumpOrchestratorRun:
 
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("dump_report.xlsx"))
-    @patch("pandas.read_sql", return_value=iter([]))
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
     def test_sequential_path_when_default(self, mock_read_sql, mock_report, mock_mgr_cls):
         mock_mgr = MagicMock()
         mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
@@ -777,7 +777,7 @@ class TestLoadInPkRanges:
         assert tabla_arg == "t"
         assert len(readers) == 3
 
-    @patch("pandas.read_sql", return_value=iter([]))
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
     def test_range_readers_emit_correct_where_sql(self, mock_read_sql):
         orch = self._orch()
         conn = orch._cfg.source_engine.connect.return_value
@@ -795,10 +795,10 @@ class TestLoadInPkRanges:
             loader_cls.return_value.load.side_effect = _capture
             orch._load_in_pk_ranges("t", ["id", "name"], {"id": "id", "name": "name"}, "id", "t", 3)
 
-        # Invocar cada lector consume pandas.read_sql con el WHERE de rango parametrizado
+        # Invocar cada lector consume _read_chunks con el WHERE de rango parametrizado (args: conn, sql, chunk, params)
         for reader in captured:
             list(reader())
-        range_sqls = [str(c.args[0]) for c in mock_read_sql.call_args_list]
+        range_sqls = [str(c.args[1]) for c in mock_read_sql.call_args_list]
         assert len(range_sqls) == 3
         assert all(">= :lo" in s for s in range_sqls)
         assert any("< :hi" in s for s in range_sqls)
@@ -821,7 +821,7 @@ class TestLoadWholeTable:
         crud.bulk_insert_from_chunks.return_value = 4
         chunks = [pd.DataFrame({"id": [1, 2], "name": ["a", "b"]})]
 
-        with patch("pandas.read_sql", return_value=iter(chunks)):
+        with patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter(chunks)):
             errors = orch._load_whole_table("t", ["id", "name"], {"id": "id", "name": "name"}, "dbo.t", crud)
 
         assert errors == []
@@ -839,7 +839,7 @@ class TestLoadWholeTable:
         crud.bulk_insert_from_chunks.side_effect = lambda gen, *a, **k: (captured.extend(list(gen)), 0)[1]
         chunks = [pd.DataFrame({"UserID": [1], "Name": ["a"]})]
 
-        with patch("pandas.read_sql", return_value=iter(chunks)):
+        with patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter(chunks)):
             orch._load_whole_table("t", ["UserID", "Name"], {"UserID": "userid", "Name": "name"}, "t", crud)
 
         assert len(captured) == 1
@@ -952,7 +952,7 @@ class TestCleanup:
         with (
             patch("util_bbdd.dump.orchestrator.ConstraintManager") as mock_mgr_cls,
             patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx")),
-            patch("pandas.read_sql", return_value=iter([])),
+            patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([])),
             patch.object(orch, "_cleanup") as mock_cleanup,
         ):
             mock_mgr = MagicMock()
@@ -1045,7 +1045,7 @@ class TestSyncPkSequencesLogicalName:
 class TestTargetSchemaPropagation:
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
-    @patch("pandas.read_sql")
+    @patch("util_bbdd.dump.orchestrator._read_chunks")
     @patch("util_bbdd.dump.orchestrator.BulkCrud")
     def test_target_schema_passed_to_bulk_insert(self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls):
         import pandas as pd
@@ -1085,7 +1085,7 @@ class TestTargetSchemaPropagation:
 
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
-    @patch("pandas.read_sql")
+    @patch("util_bbdd.dump.orchestrator._read_chunks")
     @patch("util_bbdd.dump.orchestrator.BulkCrud")
     def test_dest_table_uses_logical_name_for_bulk_insert(
         self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls
@@ -1133,7 +1133,7 @@ class TestTargetSchemaPropagation:
 
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
-    @patch("pandas.read_sql")
+    @patch("util_bbdd.dump.orchestrator._read_chunks")
     @patch("util_bbdd.dump.orchestrator.BulkCrud")
     def test_chunk_error_sets_error_status_and_correct_row_count(
         self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls
@@ -1249,7 +1249,7 @@ class TestCrossEngineTableMatching:
 
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
-    @patch("pandas.read_sql", return_value=iter([]))
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
     def test_no_missing_when_same_tables_differ_only_in_case(self, mock_read_sql, mock_report, mock_mgr_cls):
         """SQL Server devuelve 'Orders','Customers'; PostgreSQL 'orders','customers'.
         Ninguna tabla debe aparecer como missing_target."""
@@ -1270,7 +1270,7 @@ class TestCrossEngineTableMatching:
 
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
-    @patch("pandas.read_sql", return_value=iter([]))
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
     def test_genuinely_missing_table_still_reported(self, mock_read_sql, mock_report, mock_mgr_cls):
         """Una tabla que realmente no existe en destino debe seguir reportándose."""
         mock_mgr = MagicMock()
@@ -1291,7 +1291,7 @@ class TestCrossEngineTableMatching:
 
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
-    @patch("pandas.read_sql", return_value=iter([]))
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
     def test_effective_dst_order_uses_canonical_dst_names(self, mock_read_sql, mock_report, mock_mgr_cls):
         """ConstraintManager.disable_all debe recibir los nombres canónicos del destino."""
         mock_mgr = MagicMock()
@@ -1314,7 +1314,7 @@ class TestCrossEngineTableMatching:
 
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
-    @patch("pandas.read_sql", return_value=iter([]))
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
     def test_same_engine_no_regression(self, mock_read_sql, mock_report, mock_mgr_cls):
         """Mismo motor (mismo case en nombres) no introduce regresiÃ³n."""
         mock_mgr = MagicMock()
@@ -1354,7 +1354,7 @@ class TestCollectRowCounts:
 
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
-    @patch("pandas.read_sql", return_value=iter([]))
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
     @patch("util_bbdd.dump.orchestrator.BulkCrud")
     def test_collect_row_counts_false_returns_minus_one(
         self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls
@@ -1391,7 +1391,7 @@ class TestCollectRowCounts:
 
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
-    @patch("pandas.read_sql", return_value=iter([]))
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
     @patch("util_bbdd.dump.orchestrator.BulkCrud")
     def test_process_table_delegates_to_bulk_insert_from_chunks(
         self, mock_bulk_cls, mock_read_sql, mock_report, mock_mgr_cls
@@ -1442,7 +1442,7 @@ class TestSchemaComparisonRemoved:
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
     @patch("util_bbdd.dump.orchestrator.BulkCrud")
     @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("r.xlsx"))
-    @patch("pandas.read_sql", return_value=iter([]))
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
     def test_report_built_from_skipped_columns_without_diff(
         self, mock_read_sql, mock_report, mock_bulk_cls, mock_mgr_cls
     ) -> None:

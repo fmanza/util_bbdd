@@ -50,6 +50,20 @@ from .reporters import DumpReporter
 _log = logging.getLogger(__name__)
 
 
+def _read_chunks(conn: Any, sql: str, chunk_size: int, params: dict[str, Any] | None = None) -> Iterator[pd.DataFrame]:
+    """Lee ``sql`` en DataFrames de hasta ``chunk_size`` filas con ``dtype=object``: cada valor tal como lo da el driver.
+
+    PD-05 (performance-audit de dump 2026-09-25): ``pd.read_sql`` alteraba datos sin avisar. Los enteros de una columna
+    con algún NULL pasaban a ``float64`` (BIGINT > 2^53 perdía precisión) y ``coerce_float=True`` (por defecto)
+    convertía ``Decimal`` en ``float`` (DECIMAL de más de 15 dígitos). Ninguna opción de ``read_sql`` lo evita del todo:
+    ``dtype_backend`` conserva los enteros pero entrega los ``Decimal`` como texto.
+    """
+    result = conn.execute(text(sql), params or {})
+    keys = list(result.keys())
+    while rows := result.fetchmany(chunk_size):
+        yield pd.DataFrame(rows, columns=keys, dtype=object)
+
+
 @dataclass(frozen=True)
 class _AuditCounters:
     """Contadores de auditoría del volcado; ``BulkCrud`` y ``ParallelLoadResult`` exponen los mismos nombres."""
@@ -487,7 +501,7 @@ class DumpOrchestrator:
         error_msgs: list[str] = []
         try:
             with cfg.source_engine.connect() as conn:
-                chunks = pd.read_sql(text(sql), conn, chunksize=cfg.chunk_size)
+                chunks = _read_chunks(conn, sql, cfg.chunk_size)
                 renamed = (chunk[common_cols].rename(columns=col_name_map) for chunk in chunks)
                 try:
                     crud.bulk_insert_from_chunks(renamed, dest_table_logical)
@@ -541,7 +555,7 @@ class DumpOrchestrator:
 
             def _reader() -> Iterator[pd.DataFrame]:
                 with cfg.source_engine.connect() as conn:
-                    for chunk in pd.read_sql(text(sql), conn, params={"lo": low, "hi": high}, chunksize=cfg.chunk_size):
+                    for chunk in _read_chunks(conn, sql, cfg.chunk_size, {"lo": low, "hi": high}):
                         yield chunk[common_cols].rename(columns=col_name_map)
 
             return _reader
@@ -553,6 +567,7 @@ class DumpOrchestrator:
             commit_every_n_chunks=cfg.commit_every_n_chunks,
             audit_csv_path=cfg.bulk_audit_path,
             audit_strict=cfg.bulk_audit_strict,
+            strip_strings=False,  # PD-05: copia fiel del origen
         )
         readers = [_make_reader(lo, hi, last) for lo, hi, last in bounds]
         result = loader.load(dest_table_logical, readers)
@@ -758,6 +773,7 @@ class DumpOrchestrator:
             commit_every_n_chunks=cfg.commit_every_n_chunks,
             audit_strict=cfg.bulk_audit_strict,
             warn_if_audit_disabled=False,  # run() avisa una vez por volcado
+            strip_strings=False,  # PD-05: copia fiel del origen
         )
         with self._audit_lock:
             self._audit_cruds.append(crud)

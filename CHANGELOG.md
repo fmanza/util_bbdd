@@ -9,6 +9,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **dump**: el volcado alteraba datos sin avisar. Al leer con `pd.read_sql`, los enteros de una columna con algún NULL
+  pasaban a `float64` y los `DECIMAL` a `float`: BIGINT por encima de 2^53 y DECIMAL de más de 15 dígitos perdían
+  precisión (en SQL Server, `9223372036854775807` llegaba como `-9223372036854775808`; en PostgreSQL y MySQL la tabla
+  fallaba), y además se quitaban los espacios de los extremos de las cadenas. Ahora los chunks se leen con los valores
+  tal como los da el driver y `dump` no recorta cadenas. La lectura y preparación de filas no es más lenta (medido en
+  los 6 motores). Limitación conocida: en SQL Server con `fast_executemany`, un DECIMAL de 38 dígitos significativos se
+  sigue redondeando al escribir (27 dígitos llegan exactos).
 - **bulk**: `BulkCrud.reflect_table` reflejaba también, de forma recursiva, todas las tablas referenciadas por FK, con
   un `MetaData` nuevo en cada llamada: el coste crecía de forma cuadrática en cadenas de FK (100 tablas encadenadas en
   PostgreSQL: 45,6 s solo en reflexión) y a partir de ~150 tablas encadenadas lanzaba `RecursionError`, que abortaba el
@@ -27,6 +34,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   truncaba tabla a tabla y PostgreSQL rechaza truncar una tabla referenciada por FK, así que el destino conservaba sus
   filas y la carga chocaba con la PK. Ahora usa un único `TRUNCATE` con todas las tablas del volcado (sin `CASCADE`; si
   falla, por ejemplo por una FK desde una tabla ajena al volcado, limpia tabla a tabla como antes).
+
+### Added
+
+- **bulk**: parámetro `strip_strings` en `BulkCrud` y `ParallelBulkLoader` (por defecto `True`, el comportamiento de
+  siempre). Con `False`, las cadenas se envían sin quitar los espacios de los extremos.
 
 ## [0.15.0] - 2026-09-25
 

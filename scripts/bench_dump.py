@@ -532,15 +532,14 @@ def install_instrumentation(*, use_prefetch: bool) -> None:
     from util_bbdd.dump import ConstraintManager, DumpOrchestrator, DumpReporter, IndexManager
     from util_bbdd.dump._sql_utils import quote_identifier, quote_table
 
-    orig_read_sql = pd.read_sql
+    # Lectura del origen: dump lee con _read_chunks (desde PD-05; antes, pd.read_sql). El tiempo de cada chunk (fetch +
+    # construcción del DataFrame) cuenta como "read".
+    orig_read_chunks = orch_mod._read_chunks
 
-    def read_sql_timed(*args: Any, **kwargs: Any) -> Any:
-        t = perf_counter()
-        result = orig_read_sql(*args, **kwargs)
-        _add("read", perf_counter() - t)
-        return _timed_iter(result) if kwargs.get("chunksize") else result
+    def read_chunks_timed(*args: Any, **kwargs: Any) -> Iterator[pd.DataFrame]:
+        return _timed_iter(orig_read_chunks(*args, **kwargs))
 
-    orch_mod.pd.read_sql = read_sql_timed
+    orch_mod._read_chunks = read_chunks_timed
 
     if use_prefetch:
 
@@ -561,7 +560,7 @@ def install_instrumentation(*, use_prefetch: bool) -> None:
             error_msgs: list[str] = []
             try:
                 with cfg.source_engine.connect() as conn:
-                    chunks = pd.read_sql(text(sql), conn, chunksize=cfg.chunk_size)
+                    chunks = orch_mod._read_chunks(conn, sql, cfg.chunk_size)
                     renamed = (chunk[common_cols].rename(columns=col_name_map) for chunk in chunks)
                     try:
                         crud.bulk_insert_from_chunks(prefetch(renamed), dest_table_logical)

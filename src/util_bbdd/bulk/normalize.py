@@ -16,6 +16,8 @@ Versión: 3.0.0
 Fecha: Febrero 2026
 """
 
+import datetime
+import decimal
 import json
 import math
 
@@ -180,7 +182,7 @@ def normalize_records_for_sql(records: Sequence[dict[Any, Any]]) -> list[dict[st
     return list(iter_normalize_records(records))
 
 
-def dataframe_to_sql_records(df: pd.DataFrame) -> list[dict[str, Any]]:
+def dataframe_to_sql_records(df: pd.DataFrame, *, strip_strings: bool = True) -> list[dict[str, Any]]:
     """Registros normalizados para SQL a partir de un DataFrame, preparados por columnas.
 
     Produce exactamente lo mismo que ``normalize_records_for_sql(df.to_dict(orient="records"))`` (mismas claves, orden,
@@ -190,16 +192,18 @@ def dataframe_to_sql_records(df: pd.DataFrame) -> list[dict[str, Any]]:
 
     Args:
         df: DataFrame con las columnas a enviar.
+        strip_strings: Si ``True`` (default), quita los espacios de los extremos de las cadenas, como
+            ``normalize_sql_literal``. ``False`` las deja intactas (``dump``: copia fiel del origen, PD-05).
 
     Returns:
         Lista de diccionarios ``{str(columna): valor}``, uno por fila.
     """
-    keys, columns = dataframe_to_sql_columns(df)
+    keys, columns = dataframe_to_sql_columns(df, strip_strings=strip_strings)
     # Sin columnas, zip() no produce filas: igual que to_dict, que devuelve [] aunque haya filas.
     return [dict(zip(keys, row, strict=True)) for row in zip(*columns, strict=True)]
 
 
-def dataframe_to_sql_columns(df: pd.DataFrame) -> tuple[list[str], list[list[Any]]]:
+def dataframe_to_sql_columns(df: pd.DataFrame, *, strip_strings: bool = True) -> tuple[list[str], list[list[Any]]]:
     """Los mismos valores que :func:`dataframe_to_sql_records`, por columnas y sin construir un diccionario por fila.
 
     P-34 (performance-audit de serialización SQL 2026-09-25): la generación de SQL renderiza por columnas, así que el
@@ -210,11 +214,14 @@ def dataframe_to_sql_columns(df: pd.DataFrame) -> tuple[list[str], list[list[Any
         orden del DataFrame (con los nombres repetidos que tenga).
     """
     keys: list[str] = [str(column) for column in df.columns]
-    return keys, [_normalize_column(df.iloc[:, index]) for index in range(df.shape[1])]
+    return keys, [_normalize_column(df.iloc[:, index], strip_strings) for index in range(df.shape[1])]
 
 
-def _normalize_column(series: pd.Series) -> list[Any]:
-    """Valores normalizados de una columna, idénticos a los de ``to_dict`` + ``normalize_sql_literal``."""
+def _normalize_column(series: pd.Series, strip_strings: bool = True) -> list[Any]:
+    """Valores normalizados de una columna, idénticos a los de ``to_dict`` + ``normalize_sql_literal``.
+
+    Con ``strip_strings=False`` las cadenas ``str`` se dejan como están en lugar de aplicarles ``strip()``.
+    """
     dtype = series.dtype
     if isinstance(dtype, np.dtype) and dtype.kind in "iub":
         # int/uint/bool numpy: to_dict ya da int/bool nativos y normalize_sql_literal los devuelve tal cual.
@@ -229,30 +236,66 @@ def _normalize_column(series: pd.Series) -> list[Any]:
         # P-33 (performance-audit de serialización SQL): ``to_numpy(dtype=object)`` da los mismos objetos que
         # ``list(series)`` y es ~12 veces más rápido con la dtype ``str`` respaldada por pyarrow.
         values: list[Any] = list(series.to_numpy(dtype=object))
-        text: list[Any] | None = _normalize_text_values(values)
-        return text if text is not None else _normalize_values(values, box=True)
-    return _normalize_values(list(series), box=isinstance(dtype, ExtensionDtype))
+        text: list[Any] | None = _normalize_text_values(values, strip_strings)
+        if text is not None:
+            return text
+        if dtype == np.dtype(object) and _is_passthrough(values):
+            return values
+        return _normalize_values(values, box=True, strip_strings=strip_strings)
+    return _normalize_values(list(series), box=isinstance(dtype, ExtensionDtype), strip_strings=strip_strings)
 
 
-def _normalize_values(values: list[Any], *, box: bool) -> list[Any]:
+def _normalize_values(values: list[Any], *, box: bool, strip_strings: bool = True) -> list[Any]:
     """Camino general, celda a celda; ``box`` aplica antes ``maybe_box_native`` (columnas object y de extensión)."""
     if box:
         values = [maybe_box_native(value) for value in values]
+    if not strip_strings:
+        return [value if type(value) is str else normalize_sql_literal(value) for value in values]
     return [normalize_sql_literal(value) for value in values]
 
 
-def _normalize_text_values(values: list[Any]) -> list[Any] | None:
+def _normalize_text_values(values: list[Any], strip_strings: bool = True) -> list[Any] | None:
     """Vía rápida (P-33) para columnas solo de ``str`` y nulos: lo mismo que ``normalize_sql_literal`` celda a celda.
 
-    ``str`` → ``strip()``; ``None``, ``pd.NA`` y ``NaN`` (``float``) → ``None``. Devuelve ``None`` si hay cualquier otro
-    valor (incluidas subclases de ``str`` como ``np.str_``) para que la columna siga el camino general.
+    ``str`` → ``strip()`` (o intacta con ``strip_strings=False``); ``None``, ``pd.NA`` y ``NaN`` (``float``) → ``None``.
+    Devuelve ``None`` si hay cualquier otro valor (incluidas subclases de ``str`` como ``np.str_``) para que la columna
+    siga el camino general.
     """
     for value in values:
         if type(value) is str or value is None or value is pd.NA:
             continue
         if type(value) is not float or not math.isnan(value):
             return None
+    if not strip_strings:
+        return [value if type(value) is str else None for value in values]
     return [value.strip() if type(value) is str else None for value in values]
+
+
+# Tipos que ``normalize_sql_literal`` (tras ``maybe_box_native``) devuelve sin cambios. Comparación por tipo exacto: una
+# subclase (p. ej. ``pd.Timestamp``, que hereda de ``datetime``) sigue el camino general.
+_PASSTHROUGH_TYPES: frozenset[type] = frozenset(
+    {int, bool, datetime.datetime, datetime.date, datetime.time, datetime.timedelta}
+)
+
+
+def _is_passthrough(values: list[Any]) -> bool:
+    """Vía rápida para columnas object cuyos valores ``normalize_sql_literal`` devuelve tal cual.
+
+    PD-05 (performance-audit de dump 2026-09-25): ``dump`` construye los chunks con ``dtype=object`` para no perder
+    precisión (enteros con NULL, ``Decimal``); sin esta vía, esas columnas pasaban celda a celda por el camino general.
+    Acepta ``None``, ``float`` y ``Decimal`` que no sean NaN y los tipos de ``_PASSTHROUGH_TYPES``. Cualquier otro valor
+    (``str``, ``bytes``, ``pd.NA``, NaN, tipos numpy…) hace que la columna siga el camino general.
+    """
+    for value in values:
+        kind = type(value)
+        if value is None or kind in _PASSTHROUGH_TYPES:
+            continue
+        if kind is float and value == value:
+            continue
+        if kind is decimal.Decimal and not value.is_nan():
+            continue
+        return False
+    return True
 
 
 def _decode_bytes_to_string(value: bytes | bytearray | memoryview) -> str | bytes:

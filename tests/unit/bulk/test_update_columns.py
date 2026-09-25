@@ -43,9 +43,9 @@ def test_update_converts_only_pk_and_updatable_columns(engine: Engine, monkeypat
     seen: list[list[str]] = []
     original = crud_module.dataframe_to_sql_records
 
-    def _spy(df: pd.DataFrame) -> list[dict[str, Any]]:
+    def _spy(df: pd.DataFrame, **kwargs: Any) -> list[dict[str, Any]]:
         seen.append(list(df.columns))
-        return original(df)
+        return original(df, **kwargs)
 
     monkeypatch.setattr(crud_module, "dataframe_to_sql_records", _spy)
     df = pd.DataFrame({"extra": [object(), object()], "name": ["x", "y"], "id": [1, 2], "otra": [1.5, 2.5]})

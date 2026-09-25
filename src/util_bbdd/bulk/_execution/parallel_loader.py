@@ -202,6 +202,7 @@ class ParallelBulkLoader:
         max_retries: int = 0,
         disable_constraints: bool = False,
         audit_strict: bool = False,
+        strip_strings: bool = True,
     ) -> None:
         """
         Args:
@@ -226,6 +227,8 @@ class ParallelBulkLoader:
                 escribe antes del commit: si es el commit el que falla, esos registros quedan en el CSV sin datos en la
                 BD, se cuentan en ``audit_uncommitted_records`` y la partición **no se reintenta** aunque el error sea
                 retriable, para no duplicarlos.
+            strip_strings: Se pasa a la ``BulkCrud`` de cada partición: con ``False`` las cadenas se envían sin quitar
+                los espacios de los extremos (``dump``, PD-05).
 
         Raises:
             ValueError: Si ``chunk_size`` no es un entero ≥ 1, ``max_workers < 1`` o ``max_retries < 0``.
@@ -255,6 +258,7 @@ class ParallelBulkLoader:
         self._max_retries = max_retries
         self._disable_constraints = disable_constraints
         self._audit_strict = audit_strict
+        self._strip_strings = strip_strings
         self._max_workers = self._resolve_max_workers(max_workers)
 
     def _resolve_max_workers(self, requested: int) -> int:
@@ -394,6 +398,7 @@ class ParallelBulkLoader:
                 enable_fast_executemany=self._enable_fast_executemany,
                 audit_strict=self._audit_strict,
                 warn_if_audit_disabled=False,  # M-4: load() avisa una vez por carga
+                strip_strings=self._strip_strings,
             )
         except Exception as exc:
             _log.warning("No se pudo preparar la partición %d de '%s': %s", index, tabla_destino, exc, exc_info=True)

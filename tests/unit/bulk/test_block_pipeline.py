@@ -45,9 +45,9 @@ def test_records_are_converted_block_by_block(engine: Engine, monkeypatch: pytes
     sizes: list[int] = []
     original = crud_module.dataframe_to_sql_records
 
-    def _spy(df: pd.DataFrame) -> list[dict[str, Any]]:
+    def _spy(df: pd.DataFrame, **kwargs: Any) -> list[dict[str, Any]]:
         sizes.append(len(df))
-        return original(df)
+        return original(df, **kwargs)
 
     crud = BulkCrud(engine, chunk_size=3)
     crud.bulk_insert_from_df(_frame(list(range(1, 9))), "items", False)

@@ -130,6 +130,7 @@ class BulkCrud:
         update_via_staging: bool = True,
         audit_strict: bool = False,
         warn_if_audit_disabled: bool = True,
+        strip_strings: bool = True,
     ):
         """
         Constructor de la clase bulk_crud.
@@ -183,6 +184,9 @@ class BulkCrud:
             warn_if_audit_disabled: Si True (default), sin ``audit_csv_path`` la instancia avisa una vez con un WARNING
                 de que la auditoría está deshabilitada. Quien crea muchas instancias (``ParallelBulkLoader``, ``dump``)
                 pasa False y avisa una sola vez por su cuenta.
+            strip_strings: Si True (default), quita los espacios de los extremos de las cadenas antes de enviarlas,
+                como :func:`normalize_sql_literal`. Con False se envían intactas; ``dump`` lo usa para copiar el
+                origen sin alterarlo (PD-05).
 
         Raises:
             ValueError: Si engine es None.
@@ -201,6 +205,7 @@ class BulkCrud:
         self.chunk_size: int = validate_chunk_size(chunk_size)
         self.audit_manager: AuditManager = AuditManager(audit_csv_path, warn_if_disabled=warn_if_audit_disabled)
         self._update_via_staging: bool = update_via_staging and self.engine.dialect.name in ("mysql", "mariadb")
+        self._strip_strings: bool = strip_strings
 
         # Inicializar db_info
         self.db_info: str = self.engine.dialect.name.upper()
@@ -498,7 +503,9 @@ class BulkCrud:
                     )
                 stmt, insert_cols = resolved
 
-                records_sql: list[dict[str, Any]] = dataframe_to_sql_records(working_df[insert_cols])
+                records_sql: list[dict[str, Any]] = dataframe_to_sql_records(
+                    working_df[insert_cols], strip_strings=self._strip_strings
+                )
                 restore_binary_values(records_sql, tabla)  # P-21
                 numero_registros: int = len(records_sql)
 
@@ -684,14 +691,18 @@ class BulkCrud:
         el DataFrame al ejecutar y 8,9–9,5 veces al generar SQL (200K filas).
         """
         for start in range(0, len(df), self.chunk_size):
-            records: list[dict[str, Any]] = dataframe_to_sql_records(df.iloc[start : start + self.chunk_size])
+            records: list[dict[str, Any]] = dataframe_to_sql_records(
+                df.iloc[start : start + self.chunk_size], strip_strings=self._strip_strings
+            )
             restore_binary_values(records, tabla)  # P-21
             yield records
 
     def __sql_blocks(self, df: pd.DataFrame, tabla: Table) -> Iterator[SqlColumns]:
         """Como :meth:`__record_blocks`, por columnas, para generar SQL sin un diccionario por fila (P-34)."""
         for start in range(0, len(df), self.chunk_size):
-            block = SqlColumns(*dataframe_to_sql_columns(df.iloc[start : start + self.chunk_size]))
+            block = SqlColumns(
+                *dataframe_to_sql_columns(df.iloc[start : start + self.chunk_size], strip_strings=self._strip_strings)
+            )
             restore_binary_values(block, tabla)  # P-21
             yield block
 
