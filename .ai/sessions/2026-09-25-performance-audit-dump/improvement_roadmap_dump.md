@@ -1,5 +1,7 @@
 # Roadmap de mejora — módulo `dump`
 
+> **Histórico.** Versión vigente: `.ai/sessions/2026-09-25b-performance-audit-dump-delta/improvement_roadmap_dump.md` (estado de cada paso y nueva línea base v0.15.0).
+
 - Origen: `audit_report_dump_20260925.md` (hallazgos PD-xx de corrección y PF-xx de rendimiento) y `validation_report_20260925.md` (mediciones).
 - Base de comparación: línea base `large` (3,5M filas) de la sesión `2026-09-25-performance-audit-dump`.
 - Cada paso se entrega con su propio flujo (`/hotfix` para PD-xx, `/refactor` o `/new-feature` para Q-xx) y con una medición antes/después con `bench/bench_dump_real.py` (a llevar a `scripts/`, Q7).
