@@ -103,6 +103,8 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `Iterator`/`AsyncIterator`, que typeshed marca como obsoleto con `@contextmanager` y `@asynccontextmanager` (aviso de
   Pylance). Afecta a `BulkCrud.bulk_session` (pública) y a tres métodos privados de `bulk` y del ejecutor async. El tipo
   que ve quien llama no cambia (`_GeneratorContextManager[None]`) y el comportamiento tampoco.
+- **tipado (mypy)**: `pyproject.toml` activa `enable_error_code = ["deprecated"]`, así que `mypy src` falla si se usa
+  una API marcada con `@deprecated` en typeshed o en las dependencias. Hoy no hay ninguna.
 
 ## [0.14.0] - 2026-09-25
 
