@@ -29,6 +29,7 @@ Usa estos comandos para activar flujos estructurados con automatización integra
 | `/maturity-assessment` | Evaluación de madurez del repo | Área o evaluación completa | Executive summary → Findings → Maturity verdict |
 | `/performance-audit-bulk` | Auditoría de rendimiento (bulk: INSERT/UPDATE/DELETE) | Módulo + operaciones + escala + BBDD | PLAN → AUDIT_PLAN → AUDIT_CODE → VERSION (con % impacto) |
 | `/performance-audit-dump` | Auditoría de rendimiento (dump: volcado masivo) | Áreas + baseline + BBDD + volumen | 5 fases → informe + roadmap + validación ([guía](./.claude/performance-audit-guide.md)) |
+| `/config-review` | Revisión de configuración IA (DRY, huérfanos, bootstrap) | Modo + foco + ficheros | ANÁLISIS → PLAN → AUDIT_PLAN (IMPLEMENT tras aprobación) |
 | `/version-closure` | Cierre de versión | Sesión completada | Release notes → Changelog → Rollback → Handoff |
 
 ### `/performance-audit-bulk` — Auditoría de Rendimiento (Módulo Bulk)
@@ -224,6 +225,14 @@ Nota: Audita rendimiento de carga masiva (INSERT/UPDATE/DELETE) en módulo bulk.
 Puedes consultar internet para benchmarks y best practices.
 ```
 
+### `/config-review`
+```
+Fase 1: ANÁLISIS → Clasificar reglas (shared, <plataforma>-only, duplicado, divergente, huérfano)
+Fase 2: PLAN → Mapa de migración origen → destino
+Fase 3: AUDIT_PLAN → GO | GO_CONDICIONAL | NO_GO; se detiene hasta aprobación
+Nota: Solo lectura; aplica Feature Implementer. Modo bootstrap para proyectos destino.
+```
+
 ### `/version-closure`
 ```
 Fase 1: Resumen → Consolidar todos los cambios de la sesión
@@ -243,7 +252,7 @@ Esta especialización es **compatible con agentes Copilot Chat**:
 |---|---|---|
 | `/new-feature` + IMPLEMENT (cambios acotados) | Code Auditor (agente) | Verificación independiente |
 | `/new-feature` + documentación en `docs/` | Documentation Reviewer (agente) | Validar ejemplos y coherencia |
-| Cambios en `.github/SHARED_INSTRUCTIONS.md` | Config Reviewer (agente) | Validar DRY y consistencia entre plataformas |
+| Cambios en `.github/SHARED_INSTRUCTIONS.md` | Config Reviewer (agente; `/config-review` en Claude Code) | Validar DRY y consistencia entre plataformas |
 
 **Flujo bidireccional recomendado**:
 

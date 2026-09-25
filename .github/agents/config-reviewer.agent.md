@@ -117,5 +117,4 @@ Revisa la configuración IA tras los últimos cambios en SHARED_INSTRUCTIONS.md.
 Foco: duplicación entre CLAUDE.md y copilot-instructions.md, y referencias huérfanas.
 Entrega ANÁLISIS + PLAN + AUDIT_PLAN; IMPLEMENT después de mi aprobación.
 ```
-En Claude Code no hay slash command: pídelo en lenguaje natural citando este fichero
-(«Lee y aplica `.github/agents/config-reviewer.agent.md` …»).
+En Claude Code: `/config-review` (`.claude/commands/config-review.md`).

@@ -82,6 +82,9 @@ Directorio con slash commands para Claude Code.
 - `security-review.md` — Revisión de seguridad (`/security-review`)
 - `tech-debt.md` — Inventario de deuda técnica (`/tech-debt`)
 - `maturity-assessment.md` — Evaluación de madurez (`/maturity-assessment`)
+- `performance-audit-bulk.md` — Auditoría de rendimiento de carga masiva (`/performance-audit-bulk`)
+- `performance-audit-dump.md` — Auditoría de rendimiento del volcado (`/performance-audit-dump`)
+- `config-review.md` — Revisión de configuración IA (`/config-review`)
 - `version-closure.md` — Cierre de versión (`/version-closure`)
 
 **Política**: Editar solo si se añaden nuevos comandos o se actualizan máquinas de estado. Para cambios en estructura, coordinar con `.github/copilot-instructions.md`.

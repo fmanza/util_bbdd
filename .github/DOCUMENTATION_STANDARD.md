@@ -655,7 +655,7 @@ nav:
 |--------|--------|---------|-------|
 | `documentation-generator` | Generar docs por primera vez o actualizar módulo completo | `/new-feature "generar doc [módulo]"` | `src/` → `docs/` |
 | `documentation-reviewer` | Auditar docs existentes (calidad, ejemplos, claridad) | `/audit-code` | `docs/functional/`, `docs/api/` |
-| `config-reviewer` | Sincronizar instrucciones IA entre archivos de configuración | Sin slash command: `@Config Reviewer` o lenguaje natural | `SHARED_INSTRUCTIONS.md`, entry points, agentes, prompts |
+| `config-reviewer` | Sincronizar instrucciones IA entre archivos de configuración | `/config-review` (Claude Code) · `@Config Reviewer` (Copilot) | `SHARED_INSTRUCTIONS.md`, entry points, agentes, prompts |
 | `Plan Architect` | Cambio estructural en `mkdocs.yml` o nuevo módulo importante | `/new-feature` o `/refactor` | `mkdocs.yml` |
 
 ---
