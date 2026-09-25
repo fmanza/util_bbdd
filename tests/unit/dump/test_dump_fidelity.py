@@ -153,3 +153,31 @@ class TestOracleArraysize:
             _execute_read(conn, "SELECT 1", 5000, None)
         ev.listen.assert_not_called()
         conn.execute.assert_called_once()
+
+
+class TestServerSideCursor:
+    """Q2: en PostgreSQL, MySQL y MariaDB la lectura usa cursor de servidor (sin descargar la tabla entera)."""
+
+    @pytest.mark.parametrize("dialect", ["postgresql", "mysql", "mariadb"])
+    def test_client_cursor_dialects_stream_results(self, dialect):
+        from unittest.mock import MagicMock
+
+        conn = MagicMock()
+        conn.dialect.name = dialect
+        _execute_read(conn, "SELECT 1", 5000, {"lo": 1})
+
+        stmt, params = conn.execute.call_args.args
+        opts = stmt.get_execution_options()
+        assert opts["stream_results"] is True
+        assert opts["max_row_buffer"] == 5000
+        assert params == {"lo": 1}
+
+    def test_other_dialects_do_not_stream(self):
+        from unittest.mock import MagicMock
+
+        conn = MagicMock()
+        conn.dialect.name = "mssql"
+        _execute_read(conn, "SELECT 1", 5000, None)
+
+        stmt = conn.execute.call_args.args[0]
+        assert "stream_results" not in stmt.get_execution_options()

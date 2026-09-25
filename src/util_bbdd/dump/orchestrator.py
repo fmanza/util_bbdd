@@ -64,14 +64,26 @@ def _read_chunks(conn: Any, sql: str, chunk_size: int, params: dict[str, Any] | 
         yield pd.DataFrame(rows, columns=keys, dtype=object)
 
 
+# Motores cuyo driver lee con cursor del cliente (todo el resultado en memoria) salvo con ``stream_results``.
+_CLIENT_CURSOR_DIALECTS = frozenset({"postgresql", "mysql", "mariadb"})
+
+
 def _execute_read(conn: Any, sql: str, chunk_size: int, params: dict[str, Any] | None) -> Any:
-    """``conn.execute(text(sql))``; en Oracle, con el cursor leyendo de ``chunk_size`` en ``chunk_size`` filas.
+    """``conn.execute(text(sql))`` con el cursor de lectura ajustado al volcado.
+
+    PostgreSQL, MySQL y MariaDB: cursor de servidor (``stream_results``) con ``max_row_buffer=chunk_size`` (Q2).
+    Oracle: ``arraysize = chunk_size`` (Q1, abajo). Resto de motores: sin cambios.
 
     Q1 (performance-audit de dump 2026-09-25): oracledb lee por defecto 100 filas por ida y vuelta (``arraysize``) y
     SQLAlchemy solo permite cambiarlo en todo el engine. El listener se registra en esta conexión (no en el engine del
     usuario) y solo mientras se crea el cursor; solo sube el valor, nunca baja uno mayor fijado en el engine.
     Medido: 2M filas en 11,7 → 2,5 s.
     """
+    if conn.dialect.name in _CLIENT_CURSOR_DIALECTS:
+        # Q2 (performance-audit de dump 2026-09-25): psycopg y PyMySQL descargan el resultado entero antes del primer
+        # fetchmany (memoria pico proporcional a la tabla mayor). Cursor de servidor solo en esta sentencia.
+        stmt = text(sql).execution_options(stream_results=True, max_row_buffer=chunk_size)
+        return conn.execute(stmt, params or {})
     if conn.dialect.name != "oracle":
         return conn.execute(text(sql), params or {})
 

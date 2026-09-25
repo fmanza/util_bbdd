@@ -57,6 +57,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **dump (memoria, PostgreSQL/MySQL/MariaDB)**: la lectura del origen usa cursor de servidor en lugar de descargar la
+  tabla entera antes del primer lote. Memoria pico con una tabla de 2M filas: PostgreSQL de 414 a 167 MB, MySQL y
+  MariaDB de 858 a 159 MB; la memoria ya no crece con el tamaño de la tabla. Tiempo: sin cambio en MySQL y MariaDB,
+  +1 s en PostgreSQL (+6,6 % a 3,5M filas; una ida y vuelta por lote). Se aplica solo a las lecturas del volcado.
 - **dump (rendimiento, Oracle)**: la lectura del origen Oracle pide `chunk_size` filas por ida y vuelta al servidor en
   lugar de las 100 del driver (`arraysize`). A 3,5M filas, el volcado pasa de 58,6 a 41,4 s (−29 %) y la lectura, de
   24,4 a 7,2 s. Se configura solo en las conexiones de lectura del volcado; el engine del usuario no cambia, y si ya
