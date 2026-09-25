@@ -93,14 +93,14 @@ Guía especializada para auditorías de rendimiento del módulo `dump` (volcado 
 
 **Contenido**:
 - Descripción de componentes (prompts + benchmarking tool)
-- Slash commands específicos: `/performance-audit`, `/quick-bench`, `/perf-proposal`, `/perf-validate`
+- Slash commands específicos: `/performance-audit-dump`, `/quick-bench`, `/perf-proposal`, `/perf-validate`
 - Workflow recomendado (Fase 0–4)
 - Interpretación de resultados y comparación baseline vs. optimized
 - Configuraciones y volúmenes de benchmark disponibles
 - Integración con GitHub roadmap
 - Troubleshooting
 
-**Referencia**: Usar cuando necesites auditar rendimiento del módulo dump o ejecutes `/performance-audit`.
+**Referencia**: Usar cuando necesites auditar rendimiento del módulo dump o ejecutes `/performance-audit-dump`.
 
 ---
 

@@ -301,7 +301,7 @@ Mejora:    +25% en throughput, -20% en tiempo
 
 1. **Ejecuta slash command** (si está configurado):
    ```
-   /performance-audit
+   /performance-audit-dump
    
    Objetivo: auditar dump/ para rendimiento
    ```

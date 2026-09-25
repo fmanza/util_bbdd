@@ -21,6 +21,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   hoja y a `Resumen_global`, justo después de `operacion`. Así `tiempo_total` y `tiempo_medio` no mezclan la latencia
   de BD con el tiempo de generar SQL. Quien lea el Excel por posición verá desplazadas las columnas siguientes. JSON y
   HTML no cambian: sus totales siguen sumando ambos tipos de fila.
+- **agentes IA (Claude Code)**: el comando `/performance-audit` (auditoría de rendimiento de `dump`) pasa a llamarse
+  `/performance-audit-dump` (`.claude/commands/performance-audit-dump.md`). La documentación que usaba
+  `/performance-audit` para `bulk` pasa a `/performance-audit-bulk`, el nombre real de ese comando. `/performance-audit`
+  deja de existir.
 
 ## [0.14.0] - 2026-09-25
 

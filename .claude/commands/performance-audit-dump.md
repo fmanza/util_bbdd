@@ -1,4 +1,4 @@
-# /performance-audit
+# /performance-audit-dump
 
 Auditoría sistemática de rendimiento del módulo dump (volcado masivo) con análisis de 8 cuellos de botella, propuestas priorizadas y benchmarking validado.
 

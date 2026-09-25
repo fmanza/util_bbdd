@@ -3,7 +3,7 @@
 **Versionado**: v0.10.0  
 **Propósito**: Guía de referencia para ejecutar auditorías de rendimiento del módulo `dump` usando Claude Code slash commands.
 
-> Usa este archivo cuando necesites auditar rendimiento del módulo volcado masivo (dump) o cuando `/performance-audit` sea invocado.
+> Usa este archivo cuando necesites auditar rendimiento del módulo volcado masivo (dump) o cuando `/performance-audit-dump` sea invocado.
 
 ---
 
@@ -22,7 +22,7 @@ El framework de auditoría de rendimiento consta de:
 
 ## Slash Commands en Claude Code
 
-### `/performance-audit` — Auditoría Completa de Rendimiento
+### `/performance-audit-dump` — Auditoría Completa de Rendimiento
 
 **Propósito**: Ejecutar análisis exhaustivo del módulo dump, identificar cuellos de botella, proponer mejoras priorizadas y generar roadmap.
 
@@ -31,7 +31,7 @@ El framework de auditoría de rendimiento consta de:
 **Invocación**:
 
 ```
-/performance-audit
+/performance-audit-dump
 
 Objective: Auditar rendimiento del módulo dump (volcado masivo de datos)
 
@@ -228,7 +228,7 @@ Database: SQLite (default)
 ### Fase 1: Ejecutar Auditoría Completa (4–6 hrs)
 
 ```
-/performance-audit
+/performance-audit-dump
 
 Objective: Auditar módulo dump completo
 Focus areas: todas (lectura, constraints, indexes)

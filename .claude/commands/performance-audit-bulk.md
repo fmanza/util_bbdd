@@ -1,4 +1,4 @@
-# /performance-audit
+# /performance-audit-bulk
 
 Auditoría sistemática de rendimiento del módulo bulk (carga masiva: INSERT/UPDATE/DELETE) con análisis de 10 áreas clave, propuestas priorizadas y benchmarking validado.
 
@@ -107,7 +107,7 @@ Completa TODOS antes de iniciar:
 ## Ejemplo de invocación
 
 ```
-/performance-audit
+/performance-audit-bulk
 
 Objetivo: Auditar rendimiento del módulo bulk (carga masiva de datos)
 

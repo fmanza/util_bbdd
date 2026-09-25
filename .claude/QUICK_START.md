@@ -41,12 +41,12 @@ Foco: [bugs, edge cases, contratos, cobertura, arquitectura]
 
 ---
 
-### 4. `/performance-audit` — Auditoría de Rendimiento (Bulk)
+### 4. `/performance-audit-bulk` — Auditoría de Rendimiento (Bulk)
 
 **👉 Este es el recomendado para auditar carga masiva (INSERT/UPDATE/DELETE)**
 
 ```
-/performance-audit
+/performance-audit-bulk
 
 Objetivo: Auditar rendimiento del módulo bulk (carga masiva de datos)
 
@@ -170,7 +170,7 @@ R: Actualiza el workspace o reinicia VS Code.
 R: Crea `.claude/settings.local.json` con hooks personalizados.
 
 **P: Quiero que el agente consulte internet**  
-R: Algunos comandos (p.ej. `/performance-audit`) permiten "consulta internet" para best practices.
+R: Algunos comandos (p.ej. `/performance-audit-bulk`) permiten "consulta internet" para best practices.
 
 ---
 

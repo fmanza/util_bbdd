@@ -27,10 +27,11 @@ Usa estos comandos para activar flujos estructurados con automatización integra
 | `/security-review` | Auditoría de seguridad | Áreas críticas | Findings by severity → Remediation |
 | `/tech-debt` | Deuda técnica priorizada | Área o módulo | Findings por severidad → Plan de remediación |
 | `/maturity-assessment` | Evaluación de madurez del repo | Área o evaluación completa | Executive summary → Findings → Maturity verdict |
-| `/performance-audit` | Auditoría de rendimiento (bulk: INSERT/UPDATE/DELETE) | Módulo + operaciones + escala + BBDD | PLAN → AUDIT_PLAN → AUDIT_CODE → VERSION (con % impacto) |
+| `/performance-audit-bulk` | Auditoría de rendimiento (bulk: INSERT/UPDATE/DELETE) | Módulo + operaciones + escala + BBDD | PLAN → AUDIT_PLAN → AUDIT_CODE → VERSION (con % impacto) |
+| `/performance-audit-dump` | Auditoría de rendimiento (dump: volcado masivo) | Áreas + baseline + BBDD + volumen | 5 fases → informe + roadmap + validación ([guía](./.claude/performance-audit-guide.md)) |
 | `/version-closure` | Cierre de versión | Sesión completada | Release notes → Changelog → Rollback → Handoff |
 
-### `/performance-audit` — Auditoría de Rendimiento (Módulo Bulk)
+### `/performance-audit-bulk` — Auditoría de Rendimiento (Módulo Bulk)
 
 Usa este comando para auditar el módulo `src/util_bbdd/bulk/` (carga masiva: INSERT/UPDATE/DELETE).
 
@@ -53,7 +54,7 @@ Usa este comando para auditar el módulo `src/util_bbdd/bulk/` (carga masiva: IN
 **Ejemplo de invocación**:
 
 ```
-/performance-audit
+/performance-audit-bulk
 
 Objetivo: Auditar rendimiento del módulo bulk (carga masiva de datos)
 
@@ -213,7 +214,7 @@ Fase 3: Verdict → Maturity level + blockers para publicación
 Nota: Solo lectura; no edita código.
 ```
 
-### `/performance-audit`
+### `/performance-audit-bulk`
 ```
 Fase 1: PLAN → Mapea flujo actual de carga + cuellos de botella teóricos + estrategia de benchmark
 Fase 2: AUDIT_PLAN → Valida viabilidad de mejoras, pruebas, orden de ejecución
