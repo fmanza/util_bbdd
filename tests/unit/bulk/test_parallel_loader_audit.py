@@ -198,3 +198,18 @@ class TestDumpAudit:
         result = DumpOrchestrator(cfg).run()
 
         assert "Auditoría Bulk" not in openpyxl.load_workbook(result.report).sheetnames
+
+    def test_report_includes_the_pk_sync_sheet(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        # SQLite no tiene contadores de PK que resincronizar: se fija el resultado de la Fase 5a.
+        from util_bbdd.bulk import PKSyncResult
+
+        pk_results = [PKSyncResult("items", "id", "sqlite", 3, "synced")]
+        monkeypatch.setattr(DumpOrchestrator, "_sync_pk_sequences", lambda _self, **_kw: pk_results)
+        cfg, _dst = self._config(tmp_path)
+        cfg.bulk_audit_path = None
+
+        result = DumpOrchestrator(cfg).run()
+
+        ws = openpyxl.load_workbook(result.report)["Secuencias PK"]
+        assert [c.value for c in next(ws.iter_rows(min_row=2))] == ["items", "id", "sqlite", 3, "SYNCED", "—"]
+        assert result.pk_sync_results is pk_results

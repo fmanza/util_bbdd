@@ -334,6 +334,8 @@ class TestDumpOrchestratorRun:
         # El informe recibe el mismo resumen de auditoría que el resultado (None: sin bulk_audit_path).
         assert "audit_summary" in mock_report.call_args.kwargs
         assert mock_report.call_args.kwargs["audit_summary"] is result.audit_summary
+        assert "pk_sync_results" in mock_report.call_args.kwargs
+        assert mock_report.call_args.kwargs["pk_sync_results"] is result.pk_sync_results
 
     @patch("util_bbdd.dump.orchestrator.IndexManager")
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")

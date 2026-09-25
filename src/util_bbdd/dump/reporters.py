@@ -1,11 +1,14 @@
 """Generador del informe Excel de auditoría para volcados de datos.
 
-Genera un único fichero ``.xlsx`` con tres hojas fijas y dos opcionales, en este orden:
+Genera un único fichero ``.xlsx`` con tres hojas fijas y tres opcionales, en este orden:
   - ``Auditoría Tablas``: volumetría origen vs. destino por tabla.
   - ``Tablas Faltantes``: tablas del origen sin correspondencia en destino.
   - ``Columnas Inexistentes``: columnas presentes en origen pero ausentes en destino.
   - ``Índices`` (opcional): índices secundarios deshabilitados y reconstruidos.
   - ``Auditoría Bulk`` (opcional): resumen del CSV de auditoría de ``bulk`` y contadores del volcado.
+  - ``Secuencias PK`` (opcional): resincronización de los contadores de PK en destino.
+
+Las hojas opcionales se añaden siempre al final, para no mover las demás.
 """
 
 from __future__ import annotations
@@ -24,7 +27,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from .._core.exceptions import DumpReportError
 from ._constraints import ConstraintResult
-from ._models import DumpAuditSummary, IndexActionResult, TableDumpResult
+from ._models import DumpAuditSummary, IndexActionResult, PKSyncResult, TableDumpResult
 
 _log = logging.getLogger(__name__)
 
@@ -70,6 +73,8 @@ class DumpReporter:
         "rebuilt": "FF92D050",
         "recreated": "FF92D050",
         "unsupported": "FFFFC000",
+        "synced": "FF92D050",
+        "no_rows": "FF92D050",
     }
 
     def __init__(self, output_dir: Path) -> None:
@@ -150,6 +155,7 @@ class DumpReporter:
         cycles: list[list[str]],
         index_results: list[IndexActionResult] | None = None,
         audit_summary: DumpAuditSummary | None = None,
+        pk_sync_results: list[PKSyncResult] | None = None,
     ) -> Path:
         """Genera el fichero Excel y retorna su ruta.
 
@@ -164,6 +170,9 @@ class DumpReporter:
                 ``DumpConfig.manage_indexes=False``: no se añade la hoja "Índices".
             audit_summary: Resumen de la auditoría de ``bulk`` del volcado. ``None`` (default) cuando no hay
                 ``DumpConfig.bulk_audit_path`` o no hubo nada que resumir: no se añade la hoja "Auditoría Bulk".
+            pk_sync_results: Resultado de resincronizar los contadores de PK (``DumpResult.pk_sync_results``).
+                ``None`` (default) cuando ``DumpConfig.sync_pk_sequences=False`` o no hubo tablas que sincronizar:
+                no se añade la hoja "Secuencias PK".
 
         Raises:
             DumpReportError: Si falla la creación del directorio de salida o la
@@ -185,6 +194,8 @@ class DumpReporter:
                 self._sheet_indexes(wb, index_results)
             if audit_summary is not None:
                 self._sheet_bulk_audit(wb, audit_summary)
+            if pk_sync_results is not None:
+                self._sheet_pk_sync(wb, pk_sync_results)
 
             _desactivar_formulas(wb)
             wb.save(output_path)
@@ -193,6 +204,33 @@ class DumpReporter:
 
         _log.info("Informe Excel guardado en '%s'.", output_path)
         return output_path
+
+    # ------------------------------------------------------------------
+    # Hoja 6: Secuencias PK (opcional)
+    # ------------------------------------------------------------------
+
+    def _sheet_pk_sync(self, wb: openpyxl.Workbook, pk_sync_results: list[PKSyncResult]) -> None:
+        """Hoja "Secuencias PK": contadores de PK resincronizados en destino tras la carga."""
+        ws: Worksheet = wb.create_sheet("Secuencias PK")
+
+        headers = ["Tabla", "Columna PK", "Dialect", "MAX(PK)", "Estado", "Mensaje"]
+        for col, h in enumerate(headers, 1):
+            self._header(ws, 1, col, h)
+        ws.freeze_panes = "A2"
+
+        if not pk_sync_results:
+            cell = ws.cell(row=2, column=1, value="Sin contadores de PK que sincronizar")
+            cell.font = Font(italic=True)
+        else:
+            for row, pr in enumerate(pk_sync_results, 2):
+                self._cell(ws, row, 1, pr.table_name)
+                self._cell(ws, row, 2, pr.column_name)
+                self._cell(ws, row, 3, pr.engine_dialect)
+                self._cell(ws, row, 4, pr.max_value if pr.max_value is not None else "—")
+                self._cell(ws, row, 5, pr.status.upper(), bg=self._STATUS_BG.get(pr.status))
+                self._cell(ws, row, 6, pr.error_msg or "—")
+
+        self._autowidth(ws)
 
     # ------------------------------------------------------------------
     # Hoja 5: Auditoría bulk (opcional)

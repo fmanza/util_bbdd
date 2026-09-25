@@ -255,6 +255,7 @@ class DumpOrchestrator:
             cycles=cycles,
             index_results=index_results,
             audit_summary=audit_summary,
+            pk_sync_results=pk_sync_results,
         )
 
         return DumpResult(

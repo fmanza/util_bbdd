@@ -11,7 +11,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from util_bbdd._core.exceptions import DumpReportError
 from util_bbdd.dump._constraints import ConstraintResult
-from util_bbdd.dump._models import DumpAuditSummary, TableDumpResult
+from util_bbdd.dump._models import DumpAuditSummary, PKSyncResult, TableDumpResult
 from util_bbdd.dump.reporters import DumpReporter
 
 # ---------------------------------------------------------------------------
@@ -366,3 +366,63 @@ class TestBulkAuditSheet:
         wb = openpyxl.load_workbook(path)
         formulas = [c.coordinate for ws in wb.worksheets for row in ws.iter_rows() for c in row if c.data_type == "f"]
         assert formulas == []
+
+
+# ---------------------------------------------------------------------------
+# Hoja "Secuencias PK" (resincronización de contadores de PK en destino)
+# ---------------------------------------------------------------------------
+
+
+def _pk(status: str = "synced", max_value: int | None = 100, error_msg: str = "") -> PKSyncResult:
+    return PKSyncResult(
+        table_name="orders",
+        column_name="id",
+        engine_dialect="postgresql",
+        max_value=max_value,
+        status=status,  # type: ignore[arg-type]
+        error_msg=error_msg,
+    )
+
+
+def _pk_workbook(tmp_path: Path, pk_sync_results: list[PKSyncResult] | None, **kwargs: object) -> openpyxl.Workbook:
+    path = DumpReporter(tmp_path).generate(
+        table_results=[],
+        missing_tables=[],
+        constraint_results=[],
+        cycles=[],
+        pk_sync_results=pk_sync_results,
+        **kwargs,  # type: ignore[arg-type]
+    )
+    return openpyxl.load_workbook(path)
+
+
+class TestPKSyncSheet:
+    def test_one_row_per_column_with_its_values(self, tmp_path: Path) -> None:
+        ws = _pk_workbook(tmp_path, [_pk(), _pk(status="no_rows", max_value=None)])["Secuencias PK"]
+
+        rows = [[c.value for c in row] for row in ws.iter_rows(min_row=2)]
+        assert rows == [
+            ["orders", "id", "postgresql", 100, "SYNCED", "—"],
+            ["orders", "id", "postgresql", "—", "NO_ROWS", "—"],
+        ]
+
+    def test_status_colors(self, tmp_path: Path) -> None:
+        results = [_pk(), _pk(status="error", error_msg="permiso denegado"), _pk(status="unsupported")]
+        ws = _pk_workbook(tmp_path, results)["Secuencias PK"]
+
+        colors = [ws.cell(row=r, column=5).fill.fgColor.rgb for r in (2, 3, 4)]
+        assert colors == [DumpReporter._COL_GREEN, DumpReporter._COL_RED, DumpReporter._COL_ORANGE]
+        assert ws.cell(row=3, column=6).value == "permiso denegado"
+
+    def test_without_results_there_is_no_sheet(self, tmp_path: Path) -> None:
+        assert "Secuencias PK" not in _pk_workbook(tmp_path, None).sheetnames
+
+    def test_empty_list_shows_a_message(self, tmp_path: Path) -> None:
+        ws = _pk_workbook(tmp_path, [])["Secuencias PK"]
+
+        assert ws.cell(row=2, column=1).value == "Sin contadores de PK que sincronizar"
+
+    def test_sheet_goes_last_after_the_other_optional_sheets(self, tmp_path: Path) -> None:
+        wb = _pk_workbook(tmp_path, [_pk()], index_results=[], audit_summary=_summary())
+
+        assert wb.sheetnames[-3:] == ["Índices", "Auditoría Bulk", "Secuencias PK"]

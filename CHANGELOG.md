@@ -9,9 +9,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- **dump (informe)**: hoja **Auditoría Bulk**, la última del Excel, con `DumpResult.audit_summary`: métricas del CSV,
-  filas escritas por el volcado y contadores de incidencia resaltados. Solo aparece con `bulk_audit_path` y resumen.
-  `DumpReporter.generate(..., audit_summary=None)`.
+- **dump (informe)**: hoja **Secuencias PK**, la última del Excel (detrás de Auditoría Bulk), con
+  `DumpResult.pk_sync_results`: tabla, columna, dialect, `MAX(PK)`, estado coloreado y mensaje. Solo aparece si hubo
+  resincronización de contadores. `DumpReporter.generate(..., pk_sync_results=None)`.
+- **dump (informe)**: hoja **Auditoría Bulk**, detrás de las hojas existentes, con `DumpResult.audit_summary`:
+  métricas del CSV, filas escritas por el volcado y contadores de incidencia resaltados. Solo aparece con
+  `bulk_audit_path` y resumen. `DumpReporter.generate(..., audit_summary=None)`.
 - **dump**: `DumpAuditSummary.audited_rows`, `unaudited_committed_rows` y `audit_uncommitted_records`, sumados de todas
   las `BulkCrud` y `ParallelBulkLoader` del volcado. El resumen se devuelve aunque el CSV no tenga entradas si hubo
   cualquiera de esas incidencias (antes solo con `audit_failures`). Si `total_filas` (leído del CSV) no coincide con

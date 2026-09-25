@@ -49,7 +49,7 @@ python -m py_compile docs/examples/dump_data_export.py
 python docs/examples/dump_data_export.py
 ```
 
-El informe Excel `reports/dump_report_<timestamp>.xlsx` contiene hojas de Auditoría Tablas, Tablas Faltantes y Columnas Inexistentes, y Auditoría Bulk si se configuró `bulk_audit_path`.
+El informe Excel `reports/dump_report_<timestamp>.xlsx` contiene hojas de Auditoría Tablas, Tablas Faltantes y Columnas Inexistentes, y, si aplican, Auditoría Bulk (con `bulk_audit_path`) y Secuencias PK (con `sync_pk_sequences=True`).
 
 ## 5. Referencias Relacionadas
 
