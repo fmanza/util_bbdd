@@ -286,8 +286,26 @@ class TestConstraintManagerPostgreSQL:
 
         assert results == []
 
+    @staticmethod
+    def _pg_conn(engine: MagicMock, *, fk_def: tuple | None, orphan: bool) -> list[str]:
+        """Conexión simulada: la consulta al catálogo devuelve ``fk_def`` y la de huérfanas, una fila si ``orphan``."""
+        executed: list[str] = []
+
+        def _execute(sql: object, *args: object, **kwargs: object) -> MagicMock:
+            executed.append(str(sql))
+            result = MagicMock()
+            if "pg_constraint" in str(sql):
+                result.first.return_value = fk_def
+            elif "NOT EXISTS" in str(sql):
+                result.first.return_value = (1,) if orphan else None
+            return result
+
+        engine.connect.return_value.__enter__.return_value.execute.side_effect = _execute
+        return executed
+
     def test_enable_validates_fk_constraints(self):
         engine = _make_engine("postgresql")
+        self._pg_conn(engine, fk_def=("customers", ["customer_id"], ["id"]), orphan=False)
         insp = MagicMock()
         insp.get_foreign_keys.return_value = [{"name": "fk_orders_cust"}]
         with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
@@ -298,6 +316,36 @@ class TestConstraintManagerPostgreSQL:
         assert len(results) == 1
         assert results[0].constraint_name == "fk_orders_cust"
         assert results[0].status == "enabled"
+
+    def test_enable_fk_with_orphan_rows_returns_failed(self):
+        """PD-04: VALIDATE CONSTRAINT no comprueba nada tras DISABLE TRIGGER ALL; la huérfana se busca aparte."""
+        engine = _make_engine("postgresql")
+        self._pg_conn(engine, fk_def=("customers", ["customer_id"], ["id"]), orphan=True)
+        insp = MagicMock()
+        insp.get_foreign_keys.return_value = [{"name": "fk_orders_cust"}]
+        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+            mgr = ConstraintManager(engine)
+            mgr._disabled_pg = ["orders"]
+            results = mgr.enable_all()
+
+        assert [r.status for r in results] == ["failed"]
+        assert "fk_orders_cust" in results[0].error_msg
+        assert "customers" in results[0].error_msg
+
+    def test_orphan_query_uses_all_fk_columns_and_skips_nulls(self):
+        engine = _make_engine("postgresql")
+        executed = self._pg_conn(engine, fk_def=('"S".parent', ['"a"', "b"], ["x", '"Y"']), orphan=False)
+        insp = MagicMock()
+        insp.get_foreign_keys.return_value = [{"name": "fk_multi"}]
+        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+            mgr = ConstraintManager(engine)
+            mgr._disabled_pg = ["child"]
+            mgr.enable_all()
+
+        orphan_sql = next(s for s in executed if "NOT EXISTS" in s)
+        assert 'c."a" IS NOT NULL AND c.b IS NOT NULL' in orphan_sql
+        assert 'FROM "S".parent p WHERE p.x = c."a" AND p."Y" = c.b' in orphan_sql
+        assert orphan_sql.endswith("LIMIT 1")
 
     def test_enable_fk_failure_returns_failed_status(self):
         from sqlalchemy.exc import SQLAlchemyError

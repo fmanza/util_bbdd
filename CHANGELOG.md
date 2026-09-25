@@ -9,6 +9,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **dump**: en PostgreSQL, al rehabilitar las FKs tras la carga, el informe las daba por `enabled` aunque hubiera filas
+  que no las cumplían: la carga desactiva los triggers (`DISABLE TRIGGER ALL`), que no marca la FK como `NOT VALID`, y
+  el `VALIDATE CONSTRAINT` posterior no comprobaba nada. Ahora se buscan filas huérfanas de cada FK y, si hay, la FK
+  sale `failed` con el motivo. Coste medido: 0,2 s con 3M filas hijas (1,7 % de un volcado de 3,5M filas).
 - **dump**: el volcado alteraba datos sin avisar. Al leer con `pd.read_sql`, los enteros de una columna con algún NULL
   pasaban a `float64` y los `DECIMAL` a `float`: BIGINT por encima de 2^53 y DECIMAL de más de 15 dígitos perdían
   precisión (en SQL Server, `9223372036854775807` llegaba como `-9223372036854775808`; en PostgreSQL y MySQL la tabla

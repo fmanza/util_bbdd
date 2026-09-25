@@ -14,7 +14,7 @@
 | 0.2 | PD-02 (ALTA) | **Hecho** (sesión `2026-09-25c-hotfix-dump-pk-sync-truncate`) | `_sync_pk_sequences` con el nombre lógico `esquema.tabla` | Identidad 3/3 en PostgreSQL y Oracle en `scripts/bench_dump.py`; `pk_sync_results` no vacío |
 | 0.3 | PD-03 (ALTA) | **Hecho** (sesión `2026-09-25c-hotfix-dump-pk-sync-truncate`) | Un único `TRUNCATE t1, t2, …` en PostgreSQL | `redump` PostgreSQL: 3/3 `success` |
 | 0.4 | PD-06 (MEDIA) | **Mitad hecha** (`cf0eafc`: limpieza con `DELETE FROM`) | Forzar `parallel_pk_ranges` y `max_parallel_tables` = 1 en SQLite con aviso | `ranges4` en SQLite: 3/3 `success` y verificación OK |
-| 0.5 | PD-04 (ALTA) | Abierto | Validación real de FKs en PostgreSQL | Con una fila huérfana, `ConstraintResult` `failed`; coste < 2 % |
+| 0.5 | PD-04 (ALTA) | **Hecho** (sesión `2026-09-26b-hotfix-dump-pg-fk-validation`) | Validación real de FKs en PostgreSQL | Con una fila huérfana, `ConstraintResult` `failed`; coste < 2 % |
 | 0.6 | PD-05 (ALTA) | **Hecho** (sesión `2026-09-26-hotfix-dump-fidelity`) | `coerce_float=False` + dtypes nullable en `read_sql`; sin `strip()` en la ruta de `dump` (también en la vía rápida P-33) | Round-trip exacto de BIGINT > 2^53 con NULL, DECIMAL(38,10) y cadenas con espacios; `read` + `prep` no empeora > 10 % |
 | 0.7 | PD-08 (ALTA) | **Hecho** (sesión `2026-09-25e-hotfix-bulk-reflect-fk-chain`) | `reflect_table` con `resolve_fks=False` | 200 tablas encadenadas sin `RecursionError`; cadena de 100 en PG < 5 s |
 | 0.8 | PD-09 (MEDIA) | Abierto | `_fk_on`/`_fk_off` ignoran `dbapi_conn is None` | El error original llega intacto en MySQL/MariaDB |

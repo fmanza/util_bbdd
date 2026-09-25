@@ -280,7 +280,19 @@ class ConstraintManager:
                 conn.execute(
                     text(f"ALTER TABLE {self._qt(table)} VALIDATE CONSTRAINT {self._qi(fk_name)}"),
                 )
+                orphan_msg = self._find_fk_orphan_pg(conn, table, fk_name)
                 conn.execute(text("RELEASE SAVEPOINT sp_validate"))
+                if orphan_msg is not None:
+                    results.append(
+                        ConstraintResult(
+                            table_name=table,
+                            constraint_name=fk_name,
+                            dialect=self._dialect,
+                            status="failed",
+                            error_msg=orphan_msg,
+                        ),
+                    )
+                    continue
                 results.append(
                     ConstraintResult(
                         table_name=table,
@@ -300,6 +312,46 @@ class ConstraintManager:
                         error_msg=str(exc),
                     ),
                 )
+
+    # Definición de una FK desde el catálogo: tabla referenciada (``regclass``, ya citada y con esquema si hace falta)
+    # y columnas de la hija y de la referenciada citadas con ``quote_ident``, en el orden de la constraint.
+    _PG_FK_DEF_SQL = """
+        SELECT c.confrelid::regclass::text,
+          (SELECT array_agg(quote_ident(a.attname) ORDER BY k.ord)
+             FROM unnest(c.conkey) WITH ORDINALITY AS k(attnum, ord)
+             JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum),
+          (SELECT array_agg(quote_ident(a.attname) ORDER BY k.ord)
+             FROM unnest(c.confkey) WITH ORDINALITY AS k(attnum, ord)
+             JOIN pg_attribute a ON a.attrelid = c.confrelid AND a.attnum = k.attnum)
+        FROM pg_constraint c
+        WHERE c.conrelid = CAST(:tbl AS regclass) AND c.conname = :name AND c.contype = 'f'
+    """
+
+    def _find_fk_orphan_pg(self, conn: Any, table: str, fk_name: str) -> str | None:
+        """Busca una fila de ``table`` que incumpla la FK ``fk_name``; devuelve el mensaje de error o ``None``.
+
+        PD-04 (performance-audit de dump 2026-09-25): ``DISABLE TRIGGER ALL`` no marca la FK como ``NOT VALID``, así que
+        ``VALIDATE CONSTRAINT`` no comprueba nada y una fila huérfana cargada con los triggers desactivados pasaba como
+        ``enabled``. Semántica ``MATCH SIMPLE`` (la de por defecto): una fila con alguna columna de la FK a NULL cumple.
+        """
+        definition = conn.execute(text(self._PG_FK_DEF_SQL), {"tbl": self._qt(table), "name": fk_name}).first()
+        if definition is None or not definition[1] or not definition[2]:
+            return None
+        parent, child_cols, parent_cols = definition
+        not_null = " AND ".join(f"c.{col} IS NOT NULL" for col in child_cols)
+        match = " AND ".join(f"p.{pcol} = c.{ccol}" for ccol, pcol in zip(child_cols, parent_cols, strict=True))
+        orphan = conn.execute(
+            text(
+                f"SELECT 1 FROM {self._qt(table)} c WHERE {not_null} "
+                f"AND NOT EXISTS (SELECT 1 FROM {parent} p WHERE {match}) LIMIT 1"
+            )
+        ).first()
+        if orphan is None:
+            return None
+        return (
+            f"Hay filas en '{table}' que no cumplen la FK '{fk_name}' (sin fila referenciada en {parent}); se "
+            "cargaron con los triggers desactivados. La FK sigue marcada como válida en el catálogo."
+        )
 
     # ------------------------------------------------------------------
     # Oracle  (DISABLE/ENABLE VALIDATE por constraint — catalog-level)
