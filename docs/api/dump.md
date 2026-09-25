@@ -42,7 +42,7 @@ flowchart TD
 | `tables` | `list[str] \| None` | `None` | Tablas a volcar; `None` = todas las del origen |
 | `chunk_size` | `int` | `5000` | Filas por chunk en lectura y bulk insert |
 | `output_dir` | `Path` | `Path()` | Directorio donde guardar el informe Excel |
-| `truncate_target` | `bool` | `True` | Vaciar destino antes de cargar: `TRUNCATE TABLE`; `DELETE FROM` en SQLite (no tiene `TRUNCATE`) y en las tablas de SQL Server referenciadas por FK |
+| `truncate_target` | `bool` | `True` | Vaciar destino antes de cargar: `TRUNCATE TABLE`; en PostgreSQL, un único `TRUNCATE` con todas las tablas del volcado (tabla a tabla si falla); `DELETE FROM` en SQLite (no tiene `TRUNCATE`) y en las tablas de SQL Server referenciadas por FK |
 | `sync_pk_sequences` | `bool` | `True` | Resincronizar contadores PK tras la carga |
 | `manage_indexes` | `bool` | `False` | Deshabilitar/reconstruir índices secundarios no únicos |
 | `max_parallel_tables` | `int` | `1` | Tablas en paralelo dentro del mismo nivel FK |

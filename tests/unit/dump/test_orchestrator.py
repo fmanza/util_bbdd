@@ -867,11 +867,36 @@ class TestCleanup:
         return [str(call[0][0]) for call in engine.connect.return_value.__enter__.return_value.execute.call_args_list]
 
     def test_truncate_used_for_non_mssql(self):
-        orch = self._make_orchestrator("postgresql")
+        orch = self._make_orchestrator("oracle")
         orch._cleanup(["customers", "orders"], skip=set())
         sql_stmts = self._executed_sql(orch)
         assert all("TRUNCATE TABLE" in s for s in sql_stmts)
         assert len(sql_stmts) == 2
+
+    def test_postgresql_truncates_all_tables_in_one_statement(self):
+        """PD-03: tabla a tabla, PostgreSQL rechaza truncar una tabla referenciada por FK (orders → customers)."""
+        orch = self._make_orchestrator("postgresql")
+        orch._cleanup(["orders", "customers"], skip=set())
+        assert self._executed_sql(orch) == ["TRUNCATE TABLE orders, customers"]
+
+    def test_postgresql_falls_back_to_table_by_table_if_joint_truncate_fails(self):
+        """Una FK desde una tabla ajena al volcado hace fallar el TRUNCATE conjunto (sin CASCADE): se limpia como antes."""
+        orch = self._make_orchestrator("postgresql")
+        conn = orch._cfg.target_engine.connect.return_value.__enter__.return_value  # type: ignore[attr-defined]
+        conn.execute.side_effect = [SQLAlchemyError("referenced by external table"), None, None]
+        orch._cleanup(["orders", "customers"], skip=set())
+        assert self._executed_sql(orch) == [
+            "TRUNCATE TABLE orders, customers",
+            "TRUNCATE TABLE orders",
+            "TRUNCATE TABLE customers",
+        ]
+        conn.rollback.assert_called_once()
+
+    def test_postgresql_joint_truncate_uses_target_schema(self):
+        orch = self._make_orchestrator("postgresql")
+        orch._cfg.target_schema = "dst"
+        orch._cleanup(["orders", "customers"], skip=set())
+        assert self._executed_sql(orch) == ["TRUNCATE TABLE dst.orders, dst.customers"]
 
     def test_delete_used_for_sqlite(self):
         """SQLite no tiene TRUNCATE TABLE: fallaba con un WARNING y el destino no se limpiaba."""
@@ -938,6 +963,78 @@ class TestCleanup:
             orch.run()
 
         mock_cleanup.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# DumpOrchestrator._sync_pk_sequences — nombre lógico con target_schema (PD-02)
+# ---------------------------------------------------------------------------
+
+
+class TestSyncPkSequencesLogicalName:
+    def _make_orchestrator(self, target_schema: str | None) -> DumpOrchestrator:
+        cfg = DumpConfig(source_engine=_make_engine(), target_engine=_make_engine(), target_schema=target_schema)
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = cfg
+        return orch
+
+    def _crud(self, cached: list[str]) -> MagicMock:
+        crud = MagicMock()
+        crud._table_cache = dict.fromkeys(cached, MagicMock())
+        crud.sync_pk_sequences.return_value = [MagicMock(status="synced")]
+        return crud
+
+    def test_target_schema_syncs_tables_cached_by_logical_name(self):
+        """Antes: se filtraba 'customers' contra la clave 'dst.customers' y no se sincronizaba nada (devolvía None)."""
+        orch = self._make_orchestrator("dst")
+        crud = self._crud(["dst.customers", "dst.orders"])
+
+        results = orch._sync_pk_sequences(crud=crud, effective_dst_order=["customers", "orders"])
+
+        crud.sync_pk_sequences.assert_called_once_with(["dst.customers", "dst.orders"])
+        assert results is not None
+
+    def test_without_target_schema_uses_bare_names(self):
+        orch = self._make_orchestrator(None)
+        crud = self._crud(["customers"])
+
+        orch._sync_pk_sequences(crud=crud, effective_dst_order=["customers", "orders"])
+
+        crud.sync_pk_sequences.assert_called_once_with(["customers"])
+
+    def test_sqlite_dump_with_target_schema_runs_pk_sync(self, tmp_path: Path):
+        """E2E: volcado real a un esquema adjunto de SQLite; la Fase 5a recibe la tabla con su nombre lógico.
+
+        SQLite no tiene contadores que sincronizar (el resultado es ``[]``), así que se comprueba la llamada. Antes del
+        arreglo, ``BulkCrud.sync_pk_sequences`` no se llamaba.
+        """
+        from sqlalchemy import create_engine, event, text
+
+        from util_bbdd.bulk import BulkCrud
+
+        src = create_engine(f"sqlite:///{tmp_path / 'src.db'}")
+        dst = create_engine(f"sqlite:///{tmp_path / 'main.db'}")
+        stg_path = (tmp_path / "stg.db").as_posix()
+
+        @event.listens_for(dst, "connect")
+        def _attach(dbapi_conn, _rec):  # type: ignore[no-untyped-def]
+            dbapi_conn.execute(f"ATTACH DATABASE '{stg_path}' AS stg")
+
+        with src.begin() as conn:
+            conn.execute(text("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)"))
+            conn.execute(text("INSERT INTO items VALUES (1, 'a'), (2, 'b')"))
+        with dst.begin() as conn:
+            conn.execute(text("CREATE TABLE stg.items (id INTEGER PRIMARY KEY, name TEXT)"))
+
+        with patch.object(BulkCrud, "sync_pk_sequences", autospec=True, return_value=[]) as spy:
+            result = DumpOrchestrator(
+                DumpConfig(source_engine=src, target_engine=dst, target_schema="stg", output_dir=tmp_path)
+            ).run()
+
+        assert [r.status for r in result.table_results] == ["success"]
+        spy.assert_called_once()
+        assert spy.call_args.args[1] == ["stg.items"]
+        src.dispose()
+        dst.dispose()
 
 
 # ---------------------------------------------------------------------------

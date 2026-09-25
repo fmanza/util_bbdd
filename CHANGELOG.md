@@ -7,6 +7,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **dump**: con `target_schema`, la resincronización de contadores PK (Fase 5a, `sync_pk_sequences=True`) no
+  sincronizaba ninguna tabla y `pk_sync_results` salía `None`: buscaba las tablas sin esquema en una caché indexada por
+  `esquema.tabla`. En PostgreSQL y Oracle, el siguiente INSERT sin PK tras el volcado chocaba por clave duplicada.
+- **dump**: en PostgreSQL, volver a volcar sobre un destino con datos fallaba: la limpieza (`truncate_target=True`)
+  truncaba tabla a tabla y PostgreSQL rechaza truncar una tabla referenciada por FK, así que el destino conservaba sus
+  filas y la carga chocaba con la PK. Ahora usa un único `TRUNCATE` con todas las tablas del volcado (sin `CASCADE`; si
+  falla, por ejemplo por una FK desde una tabla ajena al volcado, limpia tabla a tabla como antes).
+
 ## [0.15.0] - 2026-09-25
 
 Auditoría integrada de `bulk` coherente con la base de datos y tolerante a fallos del CSV (también en

@@ -280,6 +280,8 @@ class DumpOrchestrator:
         y DELETE FROM en las referenciadas. Si TRUNCATE falla (FK de esquema
         externo no detectada), reintenta con DELETE via ``_cleanup_table``.
         Para SQLite: DELETE FROM siempre (no tiene TRUNCATE; un DELETE sin WHERE es su equivalente).
+        Para PostgreSQL: un único TRUNCATE con todas las tablas (rechaza truncar una tabla referenciada por FK salvo
+        que las que la referencian vayan en la misma sentencia); si falla, tabla a tabla.
         Para otros motores: TRUNCATE TABLE siempre.
         """
         cfg = self._cfg
@@ -287,14 +289,35 @@ class DumpOrchestrator:
         mssql_referenced: frozenset[str] = (
             self._get_dst_fk_referenced_tables(cfg.target_schema) if dialect == "mssql" else frozenset()
         )
+        tables = [t for t in reversed_order if t not in skip]
         with cfg.target_engine.connect() as conn:
-            for table in reversed_order:
-                if table in skip:
-                    continue
+            if dialect == "postgresql" and len(tables) > 1 and self._truncate_together(conn, tables):
+                return
+            for table in tables:
                 # SQLite no tiene TRUNCATE TABLE: fallaba con un WARNING, el destino no se limpiaba y la carga chocaba
                 # con las PK existentes (o duplicaba filas en tablas sin PK).
                 use_delete = dialect == "sqlite" or (dialect == "mssql" and table.lower() in mssql_referenced)
                 self._cleanup_table(conn, table, cfg.target_schema, use_delete, dialect)
+
+    def _truncate_together(self, conn: Any, tables: list[str]) -> bool:
+        """PostgreSQL: ``TRUNCATE TABLE t1, t2, …`` en una sentencia. Devuelve ``False`` (con rollback) si falla.
+
+        PD-03 (performance-audit de dump 2026-09-25): tabla a tabla, PostgreSQL rechaza truncar las tablas referenciadas
+        por FK aunque la hija esté vacía y con los triggers desactivados; el destino conservaba sus filas y la carga
+        chocaba con la PK. Sin CASCADE: una FK desde una tabla ajena al volcado hace fallar la sentencia en lugar de
+        vaciar esa tabla, y entonces se vuelve a la limpieza tabla a tabla.
+        """
+        target = self._cfg.target_engine
+        quoted = ", ".join(quote_table(t, self._cfg.target_schema, target) for t in tables)
+        try:
+            conn.execute(text(f"TRUNCATE TABLE {quoted}"))
+            conn.commit()
+            _log.debug("Limpiadas %d tablas con un único TRUNCATE.", len(tables))
+            return True
+        except SQLAlchemyError as exc:
+            conn.rollback()
+            _log.warning("TRUNCATE conjunto falló (%s); se limpia tabla a tabla.", exc)
+            return False
 
     def _cleanup_table(
         self,
@@ -831,7 +854,11 @@ class DumpOrchestrator:
         if not self._cfg.sync_pk_sequences:
             return None
 
-        tables = [t for t in effective_dst_order if t in crud._table_cache]
+        # PD-02 (performance-audit de dump 2026-09-25): la caché usa el nombre lógico de la carga ("esquema.tabla" con
+        # target_schema); filtrar con el nombre sin esquema no encontraba nada y la Fase 5a no sincronizaba ninguna tabla.
+        schema = self._cfg.target_schema
+        logical_names = [f"{schema}.{t}" if schema else t for t in effective_dst_order]
+        tables = [t for t in logical_names if t in crud._table_cache]
         if not tables:
             _log.debug("PK sync: no hay tablas en caché para sincronizar (load vacío).")
             return None
