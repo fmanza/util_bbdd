@@ -27,10 +27,57 @@ Usa estos comandos para activar flujos estructurados con automatización integra
 | `/security-review` | Auditoría de seguridad | Áreas críticas | Findings by severity → Remediation |
 | `/tech-debt` | Deuda técnica priorizada | Área o módulo | Findings por severidad → Plan de remediación |
 | `/maturity-assessment` | Evaluación de madurez del repo | Área o evaluación completa | Executive summary → Findings → Maturity verdict |
-| `/performance-audit` | Auditoría de rendimiento (bulk) | Módulo + operaciones + escala | PLAN → AUDIT_PLAN → AUDIT_CODE → VERSION (con % impacto) |
+| `/performance-audit` | Auditoría de rendimiento (bulk: INSERT/UPDATE/DELETE) | Módulo + operaciones + escala + BBDD | PLAN → AUDIT_PLAN → AUDIT_CODE → VERSION (con % impacto) |
 | `/version-closure` | Cierre de versión | Sesión completada | Release notes → Changelog → Rollback → Handoff |
 
-**Ejemplo de uso**:
+### `/performance-audit` — Auditoría de Rendimiento (Módulo Bulk)
+
+Usa este comando para auditar el módulo `src/util_bbdd/bulk/` (carga masiva: INSERT/UPDATE/DELETE).
+
+**Agente especializado**: [@Performance Auditor](./.github/agents/performance-auditor.agent.md)  
+**Guía completa**: [`.claude/commands/performance-audit-bulk.md`](./.claude/commands/performance-audit-bulk.md)  
+**Prompt de referencia**: [`.github/prompts/performance_audit_bulk.prompt.md`](./.github/prompts/performance_audit_bulk.prompt.md)
+
+**10 áreas auditadas**: Batching | Paralelización | Normalización SQL | Conexiones | Auditoría integrada | Memoria | SQL generation | DB-specific | PK sync | Validation
+
+**Duración estimada**: 4–8 horas (puede dividirse en 2 sesiones de 2–4 hrs c/u)
+
+**Inputs OBLIGATORIOS** (completa TODOS):
+- Objetivo: `batching` | `paralelización` | `SQL` | `conexiones` | `auditoría` | `memoria` | `todas`
+- Baseline: ¿tienes benchmark? (sí/no)
+- Dialects: `PostgreSQL` | `MySQL` | `Oracle` | `SQL Server` | `SQLite` | `todas`
+- Volumen: `1K` | `100K` | `1M` | `otro`
+- Timeline: `ASAP` | `próxima semana` | `flexible`
+- Validación post-audit: sí/no
+
+**Ejemplo de invocación**:
+
+```
+/performance-audit
+
+Objetivo: Auditar rendimiento del módulo bulk (carga masiva de datos)
+
+Alcance: src/util_bbdd/bulk/ — todas las clases y funciones
+
+Inputs requeridos:
+  - Objetivo: paralelización + batching
+  - Baseline: no (ejecutar benchmark primero)
+  - Dialects: PostgreSQL + MySQL + SQL Server
+  - Volumen: 100K registros típicos
+  - Timeline: ASAP
+  - Validación: sí
+
+Puedes consultar internet para best practices y benchmarks.
+```
+
+**Outputs generados**:
+- `audit_report_bulk_YYYYMMDD.md` — Hallazgos detallados por severidad
+- `improvement_roadmap_bulk.md` — Roadmap P0/P1/P2 con timeline
+- `validation_report_YYYYMMDD.md` — Benchmark before/after (opcional)
+
+---
+
+**Ejemplo de uso** (otros comandos):
 
 ```
 /new-feature
