@@ -168,6 +168,29 @@ class TestRepositoryCache:
         populated_repo.registrar_operacion(tabla="new", motor="sqlite", operacion="INSERT", rowcount=1, elapsed=0.0)
         assert not populated_repo.es_cache_valido()
 
+    def test_escritura_de_otra_instancia_invalida_la_cache(self, tmp_path: Path) -> None:
+        # H6 (audit-code 2026-09-25): la caché solo se invalidaba con las escrituras propias; con varias instancias
+        # sobre el mismo CSV (ParallelBulkLoader) una lectura devolvía datos de hasta cache_ttl_seconds de antigüedad.
+        lector = AuditManager(audit_csv_path=tmp_path / "audit.csv")
+        escritor = AuditManager(audit_csv_path=tmp_path / "audit.csv")
+        lector.registrar_operacion("t", "sqlite", "INSERT", 1, 0.1)
+        assert len(lector.leer_auditoria()) == 1
+
+        escritor.registrar_operacion("t", "sqlite", "INSERT", 2, 0.1)
+
+        assert lector.leer_auditoria()["total_filas"].tolist() == [1, 2]
+
+    def test_cache_se_reutiliza_si_el_fichero_no_cambia(self, populated_repo: AuditCsvRepository) -> None:
+        populated_repo.leer_auditoria()
+        with patch("util_bbdd.bulk._audit.repository.pd.read_csv") as read_csv:
+            assert len(populated_repo.leer_auditoria()) == 3
+        read_csv.assert_not_called()
+
+    def test_fichero_borrado_invalida_la_cache(self, populated_repo: AuditCsvRepository, tmp_path: Path) -> None:
+        populated_repo.leer_auditoria()
+        (tmp_path / "audit.csv").unlink()
+        assert not populated_repo.es_cache_valido()
+
     def test_usar_cache_false_relectura_directa(self, populated_repo: AuditCsvRepository) -> None:
         populated_repo.leer_auditoria()
         df = populated_repo.leer_auditoria(usar_cache=False)

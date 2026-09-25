@@ -66,7 +66,7 @@ Arreglan H1 y H2, las dos ALTAS. M-1 también deja el coste en streaming en ≈ 
 - **Esfuerzo**: 2–3 h · **Riesgo**: **cambio de comportamiento** (hoy lanza) → `CHANGELOG` + `COMPATIBILITY.md`.
 - **Tests**: CSV bloqueado (directorio en su lugar o permiso denegado): la operación termina, los datos están, `audit_failures == 1` y hay ERROR en el log · con `audit_strict=True` la excepción se propaga (y dentro de sesión provoca el rollback).
 
-### M-4: caché de lectura validada con el fichero (H6)
+### M-4: caché de lectura validada con el fichero (H6) ✅ corregido
 
 - Guardar `(st_mtime_ns, st_size)` al cachear e invalidar si cambian (1 `stat`, ~4 µs). El TTL queda como tope.
 - Esfuerzo: 1 h · Riesgo: nulo · Test: A lee, B escribe, A ve el dato nuevo.

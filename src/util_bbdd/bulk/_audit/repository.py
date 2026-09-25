@@ -61,6 +61,8 @@ class AuditCsvRepository:
         self.cache_ttl_seconds: int = cache_ttl_seconds
         self._cache_df: pd.DataFrame | None = None
         self._cache_timestamp: datetime | None = None
+        # H6 (audit-code 2026-09-25): (st_mtime_ns, st_size) del CSV al cachear; si cambia, otra instancia escribió.
+        self._cache_firma: tuple[int, int] | None = None
         # QW-2 (audit-code de AuditManager 2026-09-25): el lock de la ruta se resuelve una vez y se reutiliza mientras
         # audit_csv_path no cambie. Path.resolve() costaba ~70 µs por escritura en Windows.
         self._lock_path: Path | None = None
@@ -189,6 +191,8 @@ class AuditCsvRepository:
         if not self.audit_csv_path.exists():
             raise AuditFileError(f"❌ Archivo de auditoría no encontrado: {self.audit_csv_path}")
 
+        # La firma se toma antes de leer: una escritura durante la lectura la cambia y fuerza releer la próxima vez.
+        firma: tuple[int, int] | None = self._firma_fichero()
         try:
             dataframe: pd.DataFrame = pd.read_csv(str(self.audit_csv_path), delimiter="\t")
             if "timestamp" in dataframe.columns:
@@ -202,6 +206,7 @@ class AuditCsvRepository:
             if self.cache_enabled:
                 self._cache_df = dataframe.copy()
                 self._cache_timestamp = datetime.now()
+                self._cache_firma = firma
                 self.logger.debug(f"💾 Caché actualizado ({len(dataframe)} filas)")
 
             return dataframe
@@ -209,16 +214,30 @@ class AuditCsvRepository:
             raise AuditDataError(f"❌ Error al leer el archivo CSV de auditoría: {error}") from error
 
     def es_cache_valido(self) -> bool:
-        """Indica si el caché actual sigue siendo válido por TTL."""
+        """Indica si el caché actual sigue siendo válido: dentro del TTL y con el CSV sin cambios desde que se leyó."""
         if self._cache_df is None or self._cache_timestamp is None:
             return False
         elapsed_seconds: float = (datetime.now() - self._cache_timestamp).total_seconds()
-        return elapsed_seconds < self.cache_ttl_seconds
+        if elapsed_seconds >= self.cache_ttl_seconds:
+            return False
+        # H6: el TTL no basta; otras instancias pueden haber escrito en el mismo CSV.
+        return self._cache_firma is not None and self._firma_fichero() == self._cache_firma
+
+    def _firma_fichero(self) -> tuple[int, int] | None:
+        """``(st_mtime_ns, st_size)`` del CSV, o ``None`` si no hay ruta o el fichero no existe."""
+        if self.audit_csv_path is None:
+            return None
+        try:
+            stat = self.audit_csv_path.stat()
+        except OSError:
+            return None
+        return stat.st_mtime_ns, stat.st_size
 
     def limpiar_cache(self) -> None:
         """Limpia el contenido del caché."""
         self._cache_df = None
         self._cache_timestamp = None
+        self._cache_firma = None
         self.logger.debug("🧹 Caché limpiado")
 
     def invalidar_cache(self) -> None:

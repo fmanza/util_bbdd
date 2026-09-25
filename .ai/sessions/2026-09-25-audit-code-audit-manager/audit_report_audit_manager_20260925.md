@@ -281,7 +281,7 @@ Dentro de una carga real cada llamada cuesta de 1,5 a 2,7 veces lo que cuesta en
 
 ---
 
-### Hallazgo H6: la caché de lectura queda obsoleta entre instancias
+### Hallazgo H6: la caché de lectura queda obsoleta entre instancias — **CORREGIDO** (`2026-09-25-hotfix-audit-cache-stale`)
 
 **Severidad**: BAJA · **Tipo**: Config
 

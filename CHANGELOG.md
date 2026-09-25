@@ -13,6 +13,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **bulk (auditoría)**: `AuditManager.leer_auditoria()` y todo lo que se apoya en ella (estadísticas, filtros, exports)
+  podían devolver datos de hasta `cache_ttl_seconds` (300 s) de antigüedad cuando otra instancia escribía en el mismo
+  CSV, por ejemplo otra `BulkCrud` de `ParallelBulkLoader`. La caché solo se invalidaba con las escrituras propias.
+  Ahora se descarta también si el fichero cambió (fecha de modificación o tamaño).
 - **bulk (auditoría)**: con `generar_sql=True`, `tiempo_seg` salía siempre `0,000`, así que CSV, Excel, JSON y HTML
   dejaban de mostrar el tiempo de generar el SQL. Un cambio de mayo (`2026-05-26-bulk-audit-fix`) lo puso a 0 a
   propósito, para que `tiempo_seg` fuera solo latencia de BD. Ahora `tiempo_seg` es la única columna de tiempo y mide
