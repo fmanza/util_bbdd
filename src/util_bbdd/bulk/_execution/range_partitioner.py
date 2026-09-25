@@ -191,11 +191,7 @@ class HashPartitioner:
 
         hash_vals = pd.util.hash_pandas_object(df[pk_col], index=False)
         assignments = hash_vals % n_partitions
-        return [
-            df[assignments == bucket].copy()
-            for bucket in range(n_partitions)
-            if (assignments == bucket).any()
-        ]
+        return [df[assignments == bucket].copy() for bucket in range(n_partitions) if (assignments == bucket).any()]
 
 
 __all__: list[str] = ["HashPartitioner", "RangePartitioner"]
