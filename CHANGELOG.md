@@ -9,6 +9,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **dump**: con `parallel_pk_ranges` > 1 (y una tabla a la vez), las tablas cargadas por rangos de PK no se
+  resincronizaban (`pk_sync_results` salía `None`) y en PostgreSQL y Oracle el siguiente INSERT sin PK chocaba por
+  clave duplicada. Ahora se sincronizan igual que con la carga de tabla entera.
 - **dump**: con origen SQLite, las fechas llegaban como texto y los DECIMAL como `float` sin ningún aviso (SQLite no
   tiene tipos de columna); con destino SQLite, las tablas con fechas fallaban con un error poco claro. Ahora
   `DumpOrchestrator` lo avisa con un WARNING al crearse. Un origen SQLite con destino servidor sigue funcionando.

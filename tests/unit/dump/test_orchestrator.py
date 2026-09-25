@@ -475,6 +475,26 @@ class TestDumpOrchestratorRun:
 
         orch._load_parallel.assert_not_called()
 
+    @patch("util_bbdd.dump.orchestrator.ConstraintManager")
+    @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("dump_report.xlsx"))
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
+    def test_sequential_path_reflects_loaded_tables_for_pk_sync(self, mock_read_sql, mock_report, mock_mgr_cls):
+        """PD-11: con parallel_pk_ranges > 1 las tablas se cargan con BulkCrud del ParallelBulkLoader; sin reflejarlas en
+        la crud principal, la Fase 5a (PK sync) no encontraba ninguna. Antes solo se reflejaban con max_parallel_tables > 1."""
+        mock_mgr = MagicMock()
+        mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
+        mock_mgr.__exit__ = MagicMock(return_value=False)
+        mock_mgr.constraint_results = []
+        mock_mgr_cls.return_value = mock_mgr
+
+        orch = self._build_orchestrator(src_tables=["customers"], dst_tables=["customers"])
+        orch._reflect_loaded_tables = MagicMock()  # type: ignore[method-assign]
+        orch.run()
+
+        orch._reflect_loaded_tables.assert_called_once()
+        reflected_results = orch._reflect_loaded_tables.call_args.args[1]
+        assert [r.table_name for r in reflected_results] == ["customers"]
+
 
 # ---------------------------------------------------------------------------
 # DumpOrchestrator — paralelización (Incremento 3a)

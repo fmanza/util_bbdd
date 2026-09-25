@@ -242,8 +242,6 @@ class DumpOrchestrator:
                 crud = self._make_worker_crud()
                 if cfg.max_parallel_tables > 1:
                     table_results.extend(self._load_parallel(effective_src_order, src_to_dst, cycle_set, table_workers))
-                    # Reflejar tablas cargadas en la crud compartida para la Fase 5a (PK sync)
-                    self._reflect_loaded_tables(crud, table_results, src_to_dst)
                 else:
                     for position, src_t in enumerate(effective_src_order):
                         dst_t = src_to_dst[src_t]
@@ -257,6 +255,10 @@ class DumpOrchestrator:
                             result.status,
                             result.target_rows_after,
                         )
+                # Reflejar en la crud compartida las tablas cargadas para la Fase 5a (PK sync): las cargadas en otros
+                # hilos o por rangos de PK (ParallelBulkLoader, con sus propias BulkCrud) no están en su caché. PD-11
+                # (2026-09-26): antes solo se hacía con max_parallel_tables > 1 y con rangos no se sincronizaba nada.
+                self._reflect_loaded_tables(crud, table_results, src_to_dst)
 
         # Añadir tablas faltantes al resultado (informativo)
         table_results.extend(
