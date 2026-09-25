@@ -99,6 +99,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `/performance-audit-dump` (`.claude/commands/performance-audit-dump.md`). La documentación que usaba
   `/performance-audit` para `bulk` pasa a `/performance-audit-bulk`, el nombre real de ese comando. `/performance-audit`
   deja de existir.
+- **tipado**: los context managers anotan su retorno con `Generator`/`AsyncGenerator` en lugar de
+  `Iterator`/`AsyncIterator`, que typeshed marca como obsoleto con `@contextmanager` y `@asynccontextmanager` (aviso de
+  Pylance). Afecta a `BulkCrud.bulk_session` (pública) y a tres métodos privados de `bulk` y del ejecutor async. El tipo
+  que ve quien llama no cambia (`_GeneratorContextManager[None]`) y el comportamiento tampoco.
 
 ## [0.14.0] - 2026-09-25
 

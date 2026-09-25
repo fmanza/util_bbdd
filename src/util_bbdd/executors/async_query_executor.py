@@ -5,7 +5,7 @@ import logging
 import re
 import time
 
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -49,7 +49,9 @@ class AsyncQueryExecutor:
         return bound_resolver
 
     @asynccontextmanager
-    async def _timeout_context(self, timeout_message: str, deadline_seconds: float | None) -> AsyncIterator[None]:
+    async def _timeout_context(
+        self, timeout_message: str, deadline_seconds: float | None
+    ) -> AsyncGenerator[None, None]:
         if deadline_seconds is None:
             yield
             return

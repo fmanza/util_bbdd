@@ -20,7 +20,7 @@ import contextlib
 import logging
 import time
 
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Generator, Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -472,7 +472,7 @@ class ParallelBulkLoader:
         return total
 
     @contextmanager
-    def _hoist_constraints_for_workers(self, tabla_destino: str) -> Iterator[bool]:
+    def _hoist_constraints_for_workers(self, tabla_destino: str) -> Generator[bool, None, None]:
         """Deshabilita constraints globalmente antes del pool; devuelve si se hizo hoist.
 
         Devuelve ``True`` si los constraints fueron deshabilitados y los workers deben

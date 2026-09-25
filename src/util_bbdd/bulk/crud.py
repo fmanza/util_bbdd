@@ -679,7 +679,7 @@ class BulkCrud:
             yield records
 
     @contextmanager
-    def __blocks_transaction(self) -> Iterator[None]:
+    def __blocks_transaction(self) -> Generator[None, None, None]:
         """Una transacción para todos los bloques (P-07): la de ``bulk_session`` si ya está abierta, o una nueva.
 
         Equivale a lo anterior, cuando todos los lotes iban en una sola llamada al ejecutor: atómica, o
@@ -897,7 +897,7 @@ class BulkCrud:
         return self._batch_statement_executor.rows_committed
 
     @contextmanager
-    def bulk_session(self, *, atomic: bool = True) -> Iterator[None]:
+    def bulk_session(self, *, atomic: bool = True) -> Generator[None, None, None]:
         """Context manager que reutiliza una única conexión de BD para múltiples operaciones bulk.
 
         Usar cuando se invoca ``bulk_insert_from_df`` repetidamente (p.ej. en un loop
