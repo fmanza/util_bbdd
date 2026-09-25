@@ -270,7 +270,7 @@ DumpConfig(...,
 **Objetivo**: Verificar que propuestas son viables.
 
 **Acciones Opcionales**:
-1. Ejecutar `scripts/bench_dump.py` → capturar baseline actual
+1. Ejecutar `python scripts/bench_dump.py run --variants baseline,<variantes> --volume large --repeat 3 --out <sesión>/…` y `summarize` → línea base y comparación (mediana de 3, verificación origen/destino)
 2. Revisar tests en `tests/` → ¿hay test coverage del dump?
 3. Sugerir casos de test para nuevas funcionalidades
 4. Validar backward compatibility en API pública
@@ -292,7 +292,7 @@ DumpConfig(...,
 
 - **Código fuente**: `src/util_bbdd/dump/`, `src/util_bbdd/bulk/`
 - **Tests**: `tests/` (si existen)
-- **Benchmarks**: `scripts/bench_dump.py` (a crear)
+- **Benchmarks**: `scripts/bench_dump.py` (banco real contra `docker-compose.bench.yml`; `python scripts/bench_dump.py list`)
 - **Documentación**: `docs/`, `README.md`
 - **Herramientas permitidas**: grep_search, read_file, internet (best practices)
 

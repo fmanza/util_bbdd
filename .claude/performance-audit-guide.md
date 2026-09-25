@@ -22,6 +22,9 @@ El framework de auditoría de rendimiento consta de:
 
 ## Slash Commands en Claude Code
 
+> Solo `/performance-audit-dump` existe como slash command. `/perf-proposal` y `/perf-validate` describen
+> pasos del flujo que se piden en lenguaje natural; la medición se hace siempre con `scripts/bench_dump.py`.
+
 ### `/performance-audit-dump` — Auditoría Completa de Rendimiento
 
 **Propósito**: Ejecutar análisis exhaustivo del módulo dump, identificar cuellos de botella, proponer mejoras priorizadas y generar roadmap.
@@ -64,49 +67,18 @@ Validation: ejecutar bench_dump.py post-audit para validar mejoras
 
 ---
 
-### `/quick-bench` — Capturar Baseline de Rendimiento Actual
+### Capturar la línea base (sin slash command)
 
-**Propósito**: Ejecutar benchmarking rápido para medir throughput actual (baseline) antes de cualquier optimización.
+`/quick-bench` no existe como comando: la línea base se captura con el banco.
 
-**Duración estimada**: 15–30 minutos (ejecución del script)
-
-**Invocación**:
-
-```
-/quick-bench
-
-Volume: small | medium | large
-  (recomendado: small para feedback rápido, large para datos realistas)
-
-Configurations to test:
-  - baseline (default actual: chunk_size=5000, parallel_pk_ranges=1)
-  - (optional) optimized (propuesta: chunk_size=dynamic, parallel=1, no counting)
-
-Database: SQLite in-memory (default) o especificar URL
-
-Output: JSON + resumen en console
+```bash
+python scripts/bench_dump.py setup --engines postgresql,mysql,mariadb,mssql,oracle --volume large
+python scripts/bench_dump.py run --engines postgresql,mysql,mariadb,mssql,oracle,sqlite --variants baseline     --volume large --repeat 3 --out .ai/sessions/<sesión>/baseline
+python scripts/bench_dump.py summarize .ai/sessions/<sesión>/baseline/results.jsonl
 ```
 
-**Qué hace Claude Code**:
-1. Ejecuta `python scripts/bench_dump.py --config baseline --volume {size} --iterations 3`
-2. Captura JSON con métricas (min/max/avg seconds, throughput rows/sec)
-3. Genera resumen con interpretación
-4. Opcional: compara baseline vs. optimized si ambas configs se especifican
-
-**Salida esperada**:
-```
-✅ Baseline Results (small):
-   Throughput: 12,500 rows/sec (avg)
-   Min: 3.2s | Max: 3.8s | Avg: 3.5s
-   Total: 85k rows
-   
-Interpretación: rendimiento actual moderado; buscar optimizaciones en
-  lectura de chunks (CB1) y sincronización de PKs (CB7)
-```
-
-**Notas**:
-- Guardar resultados en `bench_results/baseline_YYYYMMDD.json` para comparar post-mejora
-- Recomendado ejecutar 3+ iteraciones para promediar variaciones de SO
+Cada medición registra el total, las fases, la memoria pico y la verificación origen/destino (ver
+`docs/PERFORMANCE_AUDIT_GUIDE.md` § «Uso del banco de rendimiento»).
 
 ---
 
@@ -213,15 +185,11 @@ Recomendación: Integrar a main branch
 
 ### Fase 0: Preparar Baseline (30 mins)
 
-```
-/quick-bench
-
-Volume: small
-Configurations: baseline
-Database: SQLite (default)
+```bash
+python scripts/bench_dump.py run --engines <motores> --variants baseline --volume large --repeat 3     --out .ai/sessions/<sesión>/baseline
 ```
 
-→ Captura baseline actual en `bench_results/baseline_20260925.json`
+→ Deja la línea base en `.ai/sessions/<sesión>/baseline/results.jsonl` (ver «Capturar la línea base»)
 
 ---
 
@@ -275,25 +243,30 @@ Repetir Fases 2–3 para propuestas de impacto medio y largo plazo
 
 ---
 
-## Configuraciones Disponibles en `bench_dump.py`
+## Variantes disponibles en `bench_dump.py`
 
-| Config | chunk_size | parallel_pk_ranges | collect_row_counts | Use Case |
-|---|---|---|---|---|
-| **baseline** | 5000 | 1 | True | Rendimiento actual (default) |
-| **optimized** | dynamic (recomendado 20k) | 1 | False | Después de optimizaciones simples |
-| **parallel** | 10000 | CPU_COUNT | False | Máximo throughput con paralelización |
+`python scripts/bench_dump.py list` muestra todas con su configuración exacta. Las principales:
+
+| Variante | Qué cambia frente a `DumpConfig` por defecto |
+|---|---|
+| `baseline` | Nada (`chunk_size=5000`, sin paralelismo, con conteos) |
+| `audit`, `audit_history` | Auditoría de `bulk` activa (CSV nuevo / CSV con historial previo) |
+| `stream`, `arraysize`, `chunk20k`, `prefetch` | Cursor de servidor, `arraysize=5000` en Oracle, lotes de 20K, solape lectura/escritura (prototipo) |
+| `ranges4`, `ranges8`, `indexes`, `nocheck`, `redump` | Rangos de PK, `manage_indexes`, sin revalidar constraints, volcado repetido |
+| `combo*`, `best_pg`, `stream_c20k_prefetch`, `arraysize_*` | Combinaciones validadas en la auditoría de 2026-09-25 |
 
 ---
 
 ## Perfiles de Volumen
 
-| Perfil | Customers | Orders | Order_Items | Total Rows | Tiempo Est. |
+| Perfil | Customers | Orders | Order_Items | Total Rows | Línea base medida (2026-09-25) |
 |---|---|---|---|---|---|
-| **small** | 10k | 25k | 50k | 85k | 3–5s (baseline) |
-| **medium** | 100k | 250k | 500k | 850k | 30–60s |
-| **large** | 500k | 1M | 2M | 3.5M | 3–8 mins |
+| **tiny** | 1k | 2,5k | 5k | 8,5k | — (prueba de humo) |
+| **small** | 10k | 25k | 50k | 85k | — |
+| **medium** | 100k | 250k | 500k | 850k | — |
+| **large** | 500k | 1M | 2M | 3.5M | PG 25,5 s · SQLite 25,6 · MariaDB 57,2 · MySQL 61,9 · Oracle 67,0 · SQL Server 69,0 |
 
-→ Usa **small** para iteración rápida, **large** para validar en escala realista
+→ Usa **tiny** para comprobar que el banco funciona y **large** para medir (con volúmenes pequeños pesan más los costes fijos por tabla).
 
 ---
 
@@ -305,11 +278,9 @@ Repetir Fases 2–3 para propuestas de impacto medio y largo plazo
 Rows per second = Total Rows / Avg Time (seconds)
 ```
 
-**Benchmark típicos**:
-- SQLite (in-memory): 10k–20k rows/sec
-- PostgreSQL: 5k–15k rows/sec (depende de dialecto + constraints)
-- SQL Server: 3k–10k rows/sec (depende de BULK INSERT config)
-- MySQL: 5k–12k rows/sec
+**Línea base medida** (large, 3,5M filas, contenedores locales, mediana de 3; `.ai/sessions/2026-09-25-performance-audit-dump/`):
+- PostgreSQL ≈ 137k filas/s · SQLite (desde PG) ≈ 137k · MariaDB ≈ 61k · MySQL ≈ 57k · Oracle ≈ 52k · SQL Server ≈ 51k
+
 
 **Objetivos de mejora**:
 - +20%: Viable con optimizaciones simples (CB1, CB5)
@@ -365,10 +336,9 @@ Después de auditoría, crear issues con template:
 
 ### Determinismo en Benchmarks
 
-- Ejecutar múltiples iteraciones (≥3) para promediar variaciones del SO
-- Usar SQLite in-memory (default) para consistencia reproducible
+- Ejecutar ≥ 3 repeticiones (`--repeat 3`) y comparar medianas (`summarize`)
+- Los datos se generan en el servidor de forma determinista (sin aleatoriedad) y el destino se recrea antes de cada medición
 - Aislar máquina: cerrar otras apps que consuman recursos durante benchmark
-- Seed aleatorio (si aplica en generador de datos): fijar seed para reproducibilidad
 
 ### Multi-Dialect Considerations
 
@@ -390,22 +360,23 @@ Propuestas de mejora pueden aplicar diferentemente:
 ### Benchmark no ejecuta o falla
 
 ```bash
-# Verifica que DumpOrchestrator está disponible
-python -c "from util_bbdd.dump import DumpOrchestrator; print('OK')"
+# ¿Contenedores levantados y contraseña definida?
+docker compose -f docker-compose.bench.yml ps
+python -c "import os; print(bool(os.environ.get('UTIL_BBDD_BENCH_PASSWORD')))"
 
-# Verifica dependencias (pandas, sqlalchemy, psycopg2, pymysql, pyodbc, cx_Oracle)
-pip install pandas sqlalchemy psycopg2 pymysql pyodbc
-
-# Ejecuta en modo verbose para debug
-python scripts/bench_dump.py --config baseline --volume small --verbose
+# Una medición suelta, con la traza completa en la salida JSON (campos exception/traceback)
+python scripts/bench_dump.py setup --engines postgresql --volume tiny
+python scripts/bench_dump.py one --engine postgresql --variant baseline --volume tiny
 ```
+
+- `unknown database`/`schema does not exist`: falta `setup` para ese motor.
+- SQL Server: pyodbc y *ODBC Driver 18 for SQL Server*. Oracle: `oracledb` (thin).
 
 ### Resultados inconsistentes
 
-- Cierra otras aplicaciones (navegador, IDE compilando, etc.)
-- Aumenta `--iterations 5` (en lugar de default 3)
-- Usa base de datos en SSD, no en carpeta compartida
-- En Windows, desactiva antivirus durante benchmark
+- Usa `--repeat 3` y la mediana de `summarize` (el ruido de una sola repetición llegó a ±10 %).
+- No dejes tablas ajenas en `dump_src`/`dump_dst`: `DumpConfig` sin `tables` vuelca todo el esquema.
+- Cierra otras cargas pesadas del equipo (compilaciones, otros contenedores) durante la medición.
 
 ### Audit no termina o se demora mucho
 

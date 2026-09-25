@@ -55,7 +55,7 @@ Para cada cuello: impacto, esfuerzo, riesgo, priority score. Ordena P1 → P2 �
 Genera audit_report_dump_*.md + improvement_roadmap_dump.md con recomendaciones por dialect.
 
 ### FASE 5: Validación (opcional, 1–2 hrs)
-Ejecuta benchmark baseline/optimized con scripts/bench_dump.py. Compara y valida.
+Ejecuta `python scripts/bench_dump.py run --variants baseline,<variantes> --repeat 3 --out <sesión>/…` y `summarize`. Compara medianas y valida (verificación origen/destino en cada medición).
 
 ---
 

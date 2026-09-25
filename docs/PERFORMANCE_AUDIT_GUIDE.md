@@ -49,13 +49,14 @@ Prompt ejecutable por agentes (Copilot, Claude Code). Estructura por **fases**:
 ### 3. Script de Benchmarking
 **Ubicación**: `scripts/bench_dump.py`
 
-Herramienta de línea de comandos para medir rendimiento actual. Incluye:
-- **Configuraciones**: baseline, optimized, parallel
-- **Volúmenes**: small (10k-50k), medium (100k-500k), large (500k-2M)
-- **Generador de datos** sintéticos
-- **Resultados JSON** con estadísticas
+Banco real: ejecuta `DumpOrchestrator` contra los motores de `docker-compose.bench.yml` (PostgreSQL, MySQL, MariaDB,
+SQL Server, Oracle y SQLite como destino). Incluye:
+- **Variantes**: `baseline`, auditoría, cursor de servidor, `arraysize`, lotes, solape, rangos de PK, índices y combinaciones
+- **Volúmenes**: tiny (8,5K), small (85K), medium (850K), large (3,5M filas)
+- **Desglose por fase**, memoria pico y verificación origen/destino en cada medición
+- **Resumen Markdown** con la mediana por motor y variante (`summarize`)
 
-**Uso**: Capturar baseline actual y validar mejoras post-implementación.
+**Uso**: capturar la línea base y validar mejoras antes y después de implementarlas.
 
 ---
 
@@ -127,148 +128,85 @@ Herramienta de línea de comandos para medir rendimiento actual. Incluye:
 
 ### Opción C: Benchmarking Baseline (Setup Inicial)
 
-**Duración**: 30-60 minutos  
-**Entrada**: BD de prueba (o SQLite sintético)  
-**Salida**: Métricas baseline para futuras comparaciones
+**Duración**: 30–60 minutos con el volumen `large` en un motor
+**Entrada**: contenedores de `docker-compose.bench.yml`
+**Salida**: `results.jsonl` y resumen Markdown para comparar después
 
 **Pasos**:
 
-1. **Listar configuraciones disponibles**:
-   ```bash
-   python scripts/bench_dump.py --list-configs
-   ```
-   ```
-   Configuraciones disponibles:
-     baseline          — Configuración default (chunk_size=5000, no paralelismo)
-     optimized         — Optimizado: chunk dinámico, constraints batched, row_counts=False
-     parallel          — Paralelo: parallel_pk_ranges=CPU_COUNT, chunk_size=10000
-   ```
-
-2. **Capturar baseline** (configuración actual):
-   ```bash
-   python scripts/bench_dump.py \
-     --config baseline \
-     --volume small \
-     --iterations 3 \
-     --output bench_results/
-   ```
-
-3. **Registrar resultados**:
-   - Archivo generado: `bench_results/bench_results_YYYYMMDD_HHMMSS.json`
-   - Ejemplo:
-     ```json
-     {
-       "timestamp": "2026-09-24T14:30:00",
-       "config": "baseline",
-       "volume": "small",
-       "throughput_rows_per_sec": 15234,
-       "avg": 3.28
-     }
-     ```
-
-4. **Repetir con volúmenes mayores**:
-   ```bash
-   python scripts/bench_dump.py --config baseline --volume medium
-   python scripts/bench_dump.py --config baseline --volume large
-   ```
-
-5. **Guardar baseline** como referencia:
-   ```
-   # Git commit
-   git add bench_results/bench_results_*.json
-   git commit -m "docs: baseline benchmark — dump module (small/medium/large)"
-   ```
+1. Levanta los contenedores y define `UTIL_BBDD_BENCH_PASSWORD`.
+2. Prepara los datos: `python scripts/bench_dump.py setup --engines postgresql --volume large`.
+3. Mide la línea base con 3 repeticiones: `python scripts/bench_dump.py run --engines postgresql --variants baseline --volume large --repeat 3 --out <carpeta>`.
+4. Resume: `python scripts/bench_dump.py summarize <carpeta>/results.jsonl` y guarda la salida con el informe de la sesión.
 
 ---
 
-## Uso de Scripts de Benchmarking
+## Uso del banco de rendimiento
 
-### Sintaxis Básica
+### Requisitos
+
+- Contenedores de `docker-compose.bench.yml` levantados y `UTIL_BBDD_BENCH_PASSWORD` definida con la misma contraseña.
+  Puertos: los del banco o `UTIL_BBDD_BENCH_<MOTOR>_PORT`. El banco solo se conecta a `127.0.0.1`.
+- SQL Server con pyodbc y *ODBC Driver 18 for SQL Server*; Oracle con `oracledb` (modo thin).
+
+!!! warning "Solo contra los contenedores del banco"
+    `setup` borra y recrea `dump_src`/`dump_dst` (esquemas en PostgreSQL y SQL Server, bases en MySQL/MariaDB, usuarios
+    en Oracle) y cada medición recrea las tablas de `dump_dst`.
+
+### Subcomandos
+
+| Subcomando | Qué hace |
+|---|---|
+| `setup --engines E1,E2 --volume V` | Crea origen (datos generados en el servidor) y destino vacío con PK de identidad e índice en cada FK |
+| `run --engines … --variants … --volume V --repeat N --out DIR` | Una medición por subproceso (memoria pico propia); añade una línea JSON por medición a `DIR/results.jsonl` |
+| `summarize DIR/results.jsonl [...]` | Tabla Markdown: mediana por motor × variante, Δ frente a `baseline`, memoria pico, fases y verificación |
+| `list` | Variantes y volúmenes disponibles |
+
+Motores: `postgresql`, `mysql`, `mariadb`, `mssql`, `oracle`, `sqlite` (destino, con PostgreSQL de origen).
+Volúmenes: `tiny` (8,5K filas), `small` (85K), `medium` (850K), `large` (3,5M). Tres tablas encadenadas por FK
+(`customers` → `orders` → `order_items`).
+
+### Variantes principales
+
+| Variante | Qué cambia |
+|---|---|
+| `baseline` | `DumpConfig` por defecto |
+| `audit` / `audit_history` | Auditoría de `bulk` activa; con CSV nuevo o con un CSV que ya tiene `BENCH_DUMP_AUDIT_HISTORY_ROWS` registros (500.000 por defecto) |
+| `stream` | Origen con `stream_results=True` (cursor de servidor) |
+| `arraysize` | Origen Oracle con `arraysize=5000` |
+| `chunk20k` | `chunk_size=20_000` |
+| `prefetch` | Prototipo de solape lectura/escritura (un hilo lector y una cola de 2 chunks) |
+| `ranges4`, `ranges8` | `parallel_pk_ranges=4` / `8` |
+| `indexes` | `manage_indexes=True` |
+| `nocheck` | Rehabilita constraints sin revalidar datos (mide el coste de la validación) |
+| `redump` | Destino ya cargado: mide la limpieza de un volcado repetido |
+| `combo*`, `best_pg`, `stream_c20k_prefetch`, `arraysize_*` | Combinaciones validadas en la auditoría de 2026-09-25 |
+
+`python scripts/bench_dump.py list` muestra la configuración exacta de cada una.
+
+### Ejemplo: línea base y una variante, 3 repeticiones
 
 ```bash
-python scripts/bench_dump.py [options]
+python scripts/bench_dump.py setup --engines postgresql,mssql --volume large
+python scripts/bench_dump.py run --engines postgresql,mssql --variants baseline,stream --volume large --repeat 3 --out bench_results/dump
+python scripts/bench_dump.py summarize bench_results/dump/results.jsonl
 ```
 
-### Opciones
+### Interpretación de resultados
 
-| Opción | Defecto | Descripción |
-|---|---|---|
-| `--config` | baseline | Configuración: `baseline`, `optimized`, `parallel` |
-| `--volume` | small | Volumen: `small` (10k-50k), `medium` (100k-500k), `large` (500k-2M) |
-| `--iterations` | 1 | Número de iteraciones (para promediado) |
-| `--db-url` | `sqlite:///:memory:` | URL de conexión (defecto: SQLite en memoria) |
-| `--output` | `bench_results/` | Directorio de salida |
-| `--list-configs` | — | Listar configuraciones |
-| `--list-volumes` | — | Listar volúmenes |
-| `-v, --verbose` | — | Logging detallado |
+Cada línea de `results.jsonl` incluye:
 
-### Ejemplos de Uso
+- `total_s` y `rows_per_s`: tiempo total del volcado (`DumpOrchestrator(...)` + `run()`) y filas por segundo.
+- `phases`: segundos por fase (`read`, `write`, `prep_derived`, `counts`, `constraints_*`, `indexes_*`, `cleanup`,
+  `analysis`, `reflect`, `pk_sync`, `audit_summary`, `report`). En variantes con hilos las fases se suman entre hilos:
+  compara solo el total.
+- `peak_rss_mb`: memoria pico del proceso.
+- `status` y `errors` por tabla, `constraints`, `pk_sync`, `indexes` y, con auditoría, `audit`.
+- `verify`: COUNT y SUM(PK) de origen y destino por tabla (`ok`) y la sonda de identidad (`identity_ok`: un INSERT sin
+  PK tras el volcado no choca con las filas cargadas).
 
-**1. Baseline rápido (SQLite in-memory)**:
-```bash
-python scripts/bench_dump.py --config baseline --volume small
-```
-
-**2. Benchmark con BD real (PostgreSQL)**:
-```bash
-python scripts/bench_dump.py \
-  --config optimized \
-  --volume large \
-  --iterations 3 \
-  --db-url "postgresql+psycopg2://user:pass@localhost/testdb" \
-  --output bench_results/postgres/
-```
-
-**3. Comparar configuraciones**:
-```bash
-# Baseline
-python scripts/bench_dump.py --config baseline --volume medium -o results/
-
-# Optimizado
-python scripts/bench_dump.py --config optimized --volume medium -o results/
-
-# Paralelo
-python scripts/bench_dump.py --config parallel --volume medium -o results/
-
-# Comparar resultados/bench_results_*.json
-```
-
-**4. Listar opciones**:
-```bash
-python scripts/bench_dump.py --list-configs
-python scripts/bench_dump.py --list-volumes
-```
-
-### Interpretación de Resultados
-
-Archivo de salida: `bench_results/bench_results_YYYYMMDD_HHMMSS.json`
-
-```json
-{
-  "timestamp": "2026-09-24T14:30:45.123456",
-  "config": "baseline",
-  "volume": "small",
-  "iterations": 3,
-  "times_seconds": [3.28, 3.35, 3.31],
-  "min": 3.28,
-  "max": 3.35,
-  "avg": 3.31,
-  "total_rows": 85000,
-  "throughput_rows_per_sec": 25682
-}
-```
-
-**Métricas clave**:
-- **throughput_rows_per_sec**: Filas cargadas por segundo (KPI principal)
-- **avg**: Tiempo promedio de carga (segundos)
-- **total_rows**: Volumen total para esta ejecución
-
-**Comparación baseline vs. optimizado**:
-```
-Baseline:  throughput=15000 rows/sec, avg=5.66s
-Optimized: throughput=18750 rows/sec, avg=4.53s
-Mejora:    +25% en throughput, -20% en tiempo
-```
+Criterios: usa la mediana de 3 repeticiones (el ruido de una sola repetición llegó a ±10 %) y no des por buena una
+medición con `verify.ok = false` o con alguna tabla distinta de `success`.
 
 ---
 
@@ -417,14 +355,10 @@ Una vez completada la auditoría:
 
 ### ¿Con qué BD testeo si solo tengo SQLite?
 
-**Respuesta**: `scripts/bench_dump.py` usa **SQLite in-memory por defecto**. Perfecto para:
-- Baseline rápido
-- Comparar configuraciones
-- Validar lógica
-
-Para benchmarking realista con múltiples dialectos:
-- Usar Docker Compose (si dispones)
-- Probar con PostgreSQL local (o cloud trial)
+**Respuesta**: `scripts/bench_dump.py` mide SQLite solo como **destino**, con PostgreSQL de origen (el origen SQLite no
+está soportado por `dump`). Para medir necesitas al menos el contenedor PostgreSQL de `docker-compose.bench.yml`. Las
+cifras de SQLite en memoria no son representativas: la escritura y la lectura contra un servidor real dominan el tiempo
+(45–73 % y 19–42 % en la auditoría de 2026-09-25).
 
 ### ¿Cada cuánto debo re-auditar?
 
@@ -435,15 +369,9 @@ Para benchmarking realista con múltiples dialectos:
 
 ### ¿Puedo compartir resultados de benchmarking?
 
-**Respuesta**: Sí, guardá en:
-```
-bench_results/
-  YYYYMMDD_baseline_small.json
-  YYYYMMDD_baseline_medium.json
-  YYYYMMDD_optimized_medium.json
-  ...
-```
-Luego crea PR con benchmark results (documenta en RELEASE_NOTES o similar).
+**Respuesta**: Sí. Cada `run` añade una línea JSON por medición a `<out>/results.jsonl` (sin contraseñas). Guarda ese
+fichero y la salida de `summarize` en la carpeta de la sesión (`.ai/sessions/<fecha>-performance-audit-dump/`), junto al
+informe que los cita.
 
 ---
 
@@ -460,14 +388,11 @@ Luego crea PR con benchmark results (documenta en RELEASE_NOTES o similar).
 
 ## Próximos Pasos
 
-1. **Primer paso recomendado**:
+1. **Primer paso recomendado**: capturar la línea base con el banco real (ver «Uso del banco de rendimiento»).
    ```bash
-   # Capturar baseline
-   python scripts/bench_dump.py --config baseline --volume small
-   
-   # Guardar en Git
-   git add bench_results/
-   git commit -m "perf: baseline benchmark — dump (small volume)"
+   python scripts/bench_dump.py setup --engines postgresql --volume small
+   python scripts/bench_dump.py run --engines postgresql --variants baseline --volume small --repeat 3 --out bench_results/dump
+   python scripts/bench_dump.py summarize bench_results/dump/results.jsonl
    ```
 
 2. **Luego, solicitar auditoría**:
