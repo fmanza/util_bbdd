@@ -30,6 +30,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **bulk (auditoría)**: cada escritura del CSV cuesta la mitad (~290 → ~135 µs en Windows): el lock de la ruta se
+  resuelve una vez por instancia y el directorio solo se crea si falta al abrir el fichero, en lugar de repetir
+  `Path.resolve()` y `mkdir` en cada escritura. Si el directorio se borra a mitad de carga, se vuelve a crear.
+- **bulk (auditoría, logs)**: menos ruido por operación. Con `audit_csv_path=None`, el WARNING "Auditoría deshabilitada"
+  sale una vez por instancia y no en cada operación. "🟢 … registrado en auditoría" y "🧹 Caché limpiado" pasan de INFO
+  a DEBUG.
 - **bulk (auditoría)**: dentro de `bulk_session`, y por tanto en `bulk_insert_from_chunks` y `ParallelBulkLoader`, la
   fila de auditoría de cada operación se escribe cuando un commit la confirma, y no al terminar la operación. Si la
   sesión acaba en rollback, lo pendiente se descarta con un WARNING. Antes, una carga que fallaba dejaba en el CSV

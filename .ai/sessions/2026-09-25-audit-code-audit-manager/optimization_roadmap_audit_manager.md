@@ -25,8 +25,8 @@ Sin cambio de contrato. Se pueden hacer en un solo `/hotfix` o repartir en vario
 |---|---|---|---|---|---|---|
 | QW-1 | Escribir la cabecera cuando `not exists() or st_size == 0` (dentro del lock) ✅ corregido | `_audit/repository.py:114` | H4 | 15 min | Evita que el CSV se corrompa para siempre | Nulo |
 | QW-4 | `desde = dump_inicio.replace(microsecond=0)` al filtrar ✅ corregido | `dump/orchestrator.py:983` | H3 | 15 min | El resumen del volcado deja de perder operaciones | Nulo |
-| QW-2 | Calcular `resolve()` + lock y hacer `mkdir` **una vez** al fijar `audit_csv_path` (también en el setter). Si `open` da `FileNotFoundError`, `mkdir` y reintentar una vez | `_audit/repository.py:27-39, 54, 109-113` | H9 | 1 h | ~−45 % µs por llamada (~290 → ~160) | Bajo |
-| QW-3 | Un solo WARNING por instancia con `audit_csv_path=None`; `🟢 … registrado` y `Caché limpiado` a DEBUG | `audit.py:244, 256`; `_audit/repository.py:175` | H10 (P-11) | 30 min | −88 µs/llamada con INFO activo; logs más limpios | Nulo |
+| QW-2 | Calcular `resolve()` + lock y hacer `mkdir` **una vez** al fijar `audit_csv_path` (también en el setter). Si `open` da `FileNotFoundError`, `mkdir` y reintentar una vez ✅ hecho | `_audit/repository.py:27-39, 54, 109-113` | H9 | 1 h | ~−45 % µs por llamada (~290 → ~160) | Bajo |
+| QW-3 | Un solo WARNING por instancia con `audit_csv_path=None`; `🟢 … registrado` y `Caché limpiado` a DEBUG ✅ hecho | `audit.py:244, 256`; `_audit/repository.py:175` | H10 (P-11) | 30 min | −88 µs/llamada con INFO activo; logs más limpios | Nulo |
 | M-3 | Guardar como texto (`data_type='s'`) las celdas que openpyxl toma por fórmula (cadenas que empiezan por `=`) ✅ corregido | `_audit/exporters.py:36-85` | H12 | 1 h | Cierra la inyección de fórmulas | Nulo |
 
 **Tests nuevos**: CSV vacío con 1 registro da cabecera correcta · resumen del dump con la operación en el mismo segundo · la ruta se resuelve una sola vez (mock de `Path.resolve`) · directorio borrado a mitad de carga, se recrea · tabla `=HYPERLINK(...)` sale en el Excel con `data_type == 's'` · con `audit_csv_path=None`, N operaciones dan 1 WARNING.

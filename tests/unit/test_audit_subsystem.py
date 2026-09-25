@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+import shutil
 
 from datetime import datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -14,7 +16,7 @@ from util_bbdd.bulk._audit.errors import (
     AuditFileError,
     AuditValidationError,
 )
-from util_bbdd.bulk._audit.repository import AuditCsvRepository
+from util_bbdd.bulk._audit.repository import AuditCsvRepository, _get_file_lock
 from util_bbdd.bulk._audit.service import AuditAnalyticsService
 from util_bbdd.bulk.audit import AuditManager
 
@@ -111,6 +113,39 @@ class TestRepositoryWrite:
         assert list(df.columns) == _COLUMNS
         assert len(df) == 1
         assert df.iloc[0]["total_filas"] == 5
+
+    def test_directorio_borrado_a_mitad_se_recrea(self, tmp_path: Path) -> None:
+        # QW-2: ya no se hace mkdir en cada escritura; un FileNotFoundError crea el directorio y reintenta.
+        csv_path = tmp_path / "sub" / "audit.csv"
+        repo = AuditCsvRepository(
+            audit_csv_path=csv_path, columnas_auditoria=_COLUMNS, logger=logging.getLogger("test")
+        )
+        repo.registrar_operacion(tabla="t", motor="sqlite", operacion="INSERT", rowcount=1, elapsed=0.1)
+        shutil.rmtree(tmp_path / "sub")
+
+        repo.registrar_operacion(tabla="t", motor="sqlite", operacion="INSERT", rowcount=2, elapsed=0.1)
+
+        df = repo.leer_auditoria(usar_cache=False)
+        assert list(df.columns) == _COLUMNS
+        assert df["total_filas"].tolist() == [2]
+
+    def test_lock_se_resuelve_una_vez_por_ruta(self, repo: AuditCsvRepository) -> None:
+        # QW-2: Path.resolve() (en _get_file_lock) costaba ~70 µs por escritura en Windows.
+        with patch("util_bbdd.bulk._audit.repository._get_file_lock", wraps=_get_file_lock) as spy:
+            for _ in range(5):
+                repo.registrar_operacion(tabla="t", motor="sqlite", operacion="INSERT", rowcount=1, elapsed=0.1)
+        assert spy.call_count == 1
+
+    def test_cambiar_ruta_usa_el_lock_y_el_fichero_nuevos(self, tmp_path: Path) -> None:
+        manager = AuditManager(audit_csv_path=tmp_path / "a.csv")
+        manager.registrar_operacion("t", "sqlite", "INSERT", 1, 0.1)
+        manager.audit_csv_path = tmp_path / "otro" / "b.csv"
+
+        manager.registrar_operacion("t", "sqlite", "INSERT", 2, 0.1)
+
+        assert manager._repository._lock is _get_file_lock(tmp_path / "otro" / "b.csv")
+        assert len(manager.leer_auditoria(usar_cache=False)) == 1
+        assert manager.leer_auditoria(usar_cache=False)["total_filas"].tolist() == [2]
 
     def test_fichero_con_datos_no_repite_cabecera(self, populated_repo: AuditCsvRepository, tmp_path: Path) -> None:
         lines = (tmp_path / "audit.csv").read_text(encoding="utf-8").splitlines()
@@ -244,6 +279,22 @@ class TestAuditManagerFacade:
     def test_registrar_sin_path_no_lanza(self) -> None:
         manager = AuditManager(audit_csv_path=None)
         manager.registrar_operacion("t", "sqlite", "INSERT", 1, 0.1)
+
+    def test_registrar_sin_path_avisa_una_sola_vez(self, caplog: pytest.LogCaptureFixture) -> None:
+        # QW-3 (P-11): antes, un WARNING por operación.
+        manager = AuditManager(audit_csv_path=None)
+        with caplog.at_level(logging.WARNING, logger="util_bbdd.bulk.audit"):
+            for _ in range(3):
+                manager.registrar_operacion("t", "sqlite", "INSERT", 1, 0.1)
+        assert [r.getMessage() for r in caplog.records].count("⚠️ Auditoría deshabilitada: audit_csv_path es None") == 1
+
+    def test_registrar_no_emite_info_por_operacion(
+        self, manager: AuditManager, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        # QW-3 (P-11): "registrado en auditoría" y "Caché limpiado" pasan a DEBUG.
+        with caplog.at_level(logging.INFO, logger="util_bbdd.bulk.audit"):
+            manager.registrar_operacion("t", "sqlite", "INSERT", 1, 0.1)
+        assert caplog.records == []
 
     def test_obtener_estadisticas(self, populated_manager: AuditManager) -> None:
         stats = populated_manager.obtener_estadisticas()

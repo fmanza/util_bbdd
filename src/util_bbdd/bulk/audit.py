@@ -186,6 +186,7 @@ class AuditManager:
             error_audit_path_required=self.ERROR_AUDIT_PATH_REQUIRED,
         )
         self._historial_transacciones: list[dict[str, Any]] = []
+        self._aviso_deshabilitada_emitido: bool = False
 
     @property
     def audit_csv_path(self) -> Path | None:
@@ -243,7 +244,10 @@ class AuditManager:
             AuditValidationError: Si algún parámetro es inválido
         """
         if self.audit_csv_path is None:
-            self.logger.warning("⚠️ Auditoría deshabilitada: audit_csv_path es None")
+            # QW-3 (P-11): un solo aviso por instancia, no uno por operación.
+            if not self._aviso_deshabilitada_emitido:
+                self.logger.warning("⚠️ Auditoría deshabilitada: audit_csv_path es None")
+                self._aviso_deshabilitada_emitido = True
             return
 
         self._validar_parametros_operacion(tabla, motor, operacion, rowcount, elapsed)
@@ -255,7 +259,7 @@ class AuditManager:
             elapsed=elapsed,
             genero_sql=genero_sql,
         )
-        self.logger.info(f"🟢 {operacion} - filas {rowcount} - {elapsed:.3f}s registrado en auditoría")
+        self.logger.debug(f"🟢 {operacion} - filas {rowcount} - {elapsed:.3f}s registrado en auditoría")
 
     def _registrar_lote(self, registros: Sequence[AuditRecord]) -> None:
         """Registra varias operaciones con una sola escritura del CSV.
@@ -270,7 +274,7 @@ class AuditManager:
                 registro.tabla, registro.motor, registro.operacion, registro.rowcount, registro.elapsed
             )
         self._repository.registrar_operaciones(registros)
-        self.logger.info(f"🟢 {len(registros)} operaciones registradas en auditoría")
+        self.logger.debug(f"🟢 {len(registros)} operaciones registradas en auditoría")
 
     def _validar_parametros_operacion(
         self, tabla: str, motor: str, operacion: str, rowcount: int, elapsed: float

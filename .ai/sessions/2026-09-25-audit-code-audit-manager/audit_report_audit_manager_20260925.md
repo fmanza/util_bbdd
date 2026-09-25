@@ -302,7 +302,7 @@ La caché solo se invalida con las escrituras de **la propia** instancia. Con va
 `repository.py:70`. Rompe la jerarquía `AuditError`: quien captura `AuditError` no lo ve. Aflora en `BulkCrud.__init__`.
 **Propuesta**: `class AuditConfigError(AuditError, ValueError)` para seguir siendo compatible con quien captura `ValueError`, y lanzarla aquí.
 
-### Hallazgo H10: P-11 sigue abierto: ruido de log por operación
+### Hallazgo H10: P-11 sigue abierto: ruido de log por operación — **CORREGIDO** (`2026-09-25-refactor-audit-qw2-qw3`)
 
 **Severidad**: BAJA · **Tipo**: Overhead
 

@@ -9,6 +9,7 @@ import threading
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
+from typing import TextIO
 
 import pandas as pd
 
@@ -60,6 +61,10 @@ class AuditCsvRepository:
         self.cache_ttl_seconds: int = cache_ttl_seconds
         self._cache_df: pd.DataFrame | None = None
         self._cache_timestamp: datetime | None = None
+        # QW-2 (audit-code de AuditManager 2026-09-25): el lock de la ruta se resuelve una vez y se reutiliza mientras
+        # audit_csv_path no cambie. Path.resolve() costaba ~70 µs por escritura en Windows.
+        self._lock_path: Path | None = None
+        self._lock: threading.Lock | None = None
 
         if self.audit_csv_path is not None:
             self.validar_ruta(self.audit_csv_path)
@@ -130,12 +135,11 @@ class AuditCsvRepository:
             raise AuditConfigError(_ERR_NO_CSV_PATH)
         if not registros:
             return
-        self.audit_csv_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Sección crítica: existencia → cabecera → fila debe ser atómica frente a otros
         # hilos que escriban el mismo CSV (volcado paralelo con una BulkCrud por hilo).
-        with _get_file_lock(self.audit_csv_path):
-            with open(self.audit_csv_path, "a", newline="", encoding="utf-8") as file_handle:
+        with self._file_lock(self.audit_csv_path):
+            with self._open_for_append(self.audit_csv_path) as file_handle:
                 writer = csv.writer(file_handle, delimiter="\t")
                 # H4 (audit-code 2026-09-25): en modo "a" el fichero se abre al final; posición 0 = nuevo o vacío.
                 # Con exists(), un CSV de 0 bytes se quedaba sin cabecera y su primera fila de datos pasaba a serlo.
@@ -154,6 +158,25 @@ class AuditCsvRepository:
                     ]
                     for registro in registros
                 )
+
+    def _file_lock(self, path: Path) -> threading.Lock:
+        """Lock compartido de ``path``, cacheado mientras la ruta no cambie."""
+        if self._lock is None or path != self._lock_path:
+            self._lock = _get_file_lock(path)
+            self._lock_path = path
+        return self._lock
+
+    @staticmethod
+    def _open_for_append(path: Path) -> TextIO:
+        """Abre ``path`` para añadir; si su directorio no existe (p.ej. se borró a mitad de carga), lo crea y reintenta.
+
+        QW-2: sustituye al ``mkdir(parents=True, exist_ok=True)`` que se hacía en cada escritura (~60 µs en Windows).
+        """
+        try:
+            return open(path, "a", newline="", encoding="utf-8")
+        except FileNotFoundError:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            return open(path, "a", newline="", encoding="utf-8")
 
     def leer_auditoria(self, usar_cache: bool = True) -> pd.DataFrame:
         """Lee el CSV de auditoría con soporte de caché temporal."""
@@ -196,7 +219,7 @@ class AuditCsvRepository:
         """Limpia el contenido del caché."""
         self._cache_df = None
         self._cache_timestamp = None
-        self.logger.info("🧹 Caché limpiado")
+        self.logger.debug("🧹 Caché limpiado")
 
     def invalidar_cache(self) -> None:
         """Alias de limpieza de caché para mantener contrato interno."""
