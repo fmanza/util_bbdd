@@ -631,6 +631,38 @@ class TestComputeRangeBounds:
         assert DumpOrchestrator._compute_range_bounds(10, 1, 3) == []
 
 
+class TestSqliteSourceWarning:
+    """PD-07: un origen SQLite entrega fechas como texto y DECIMAL como float; se avisa en el constructor."""
+
+    @pytest.mark.parametrize(
+        ("src", "dst", "expected"),
+        [
+            ("sqlite", "sqlite", "las tablas con columnas de fecha fallarán"),
+            ("sqlite", "postgresql", "el destino las convierte"),
+            ("postgresql", "sqlite", None),
+        ],
+    )
+    def test_warning_depends_on_source_and_target(self, caplog, src, dst, expected):
+        with caplog.at_level("WARNING", logger="util_bbdd.dump.orchestrator"):
+            DumpOrchestrator._warn_sqlite_source(_make_engine(src), _make_engine(dst))
+        if expected is None:
+            assert "Origen SQLite" not in caplog.text
+        else:
+            assert "Origen SQLite" in caplog.text
+            assert expected in caplog.text
+
+    def test_constructor_warns_with_sqlite_source(self, caplog, tmp_path: Path):
+        from sqlalchemy import create_engine
+
+        src = create_engine(f"sqlite:///{tmp_path / 'a.db'}")
+        dst = create_engine(f"sqlite:///{tmp_path / 'b.db'}")
+        with caplog.at_level("WARNING", logger="util_bbdd.dump.orchestrator"):
+            DumpOrchestrator(DumpConfig(source_engine=src, target_engine=dst, output_dir=tmp_path))
+        assert "Origen SQLite" in caplog.text
+        src.dispose()
+        dst.dispose()
+
+
 class TestSqliteTargetSingleWriter:
     """PD-06: SQLite admite un solo escritor; en paralelo, 'database is locked' y la tabla quedaba a medio cargar."""
 

@@ -128,6 +128,7 @@ class DumpOrchestrator:
         self._dst_insp: Inspector = inspect(config.target_engine)
         self._warn_pool_config(config.target_engine)
         self._warn_chunk_size(config.target_engine, config.chunk_size)
+        self._warn_sqlite_source(config.source_engine, config.target_engine)
         self._reset_audit_tracking()
 
     # ------------------------------------------------------------------
@@ -1189,6 +1190,24 @@ class DumpOrchestrator:
             tabla_mas_activa=tabla_mas_activa,
             audit_path=audit_path,
             **counters,
+        )
+
+    @staticmethod
+    def _warn_sqlite_source(source: Engine, target: Engine) -> None:
+        """Advierte de un origen SQLite: sin tipos, fechas y DECIMAL no llegan como ``datetime``/``Decimal``.
+
+        PD-07 (performance-audit de dump 2026-09-25): SQLite no tiene tipos de columna, así que el driver entrega las
+        fechas como texto y los DECIMAL como ``float``. Un destino servidor convierte el texto; un destino SQLite rechaza
+        las fechas como texto (``SQLite DateTime type only accepts Python datetime…``) y los DECIMAL pierden precisión.
+        """
+        if source.dialect.name != "sqlite":
+            return
+        _log.warning(
+            "Origen SQLite: las fechas se leen como texto y los DECIMAL como float (SQLite no tiene tipos de columna). "
+            "Con destino SQLite, las tablas con columnas de fecha fallarán; los DECIMAL pueden perder precisión."
+            if target.dialect.name == "sqlite"
+            else "Origen SQLite: las fechas se leen como texto (el destino las convierte) y los DECIMAL como float "
+            "(pueden perder precisión), porque SQLite no tiene tipos de columna."
         )
 
     @staticmethod

@@ -9,6 +9,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **dump**: con origen SQLite, las fechas llegaban como texto y los DECIMAL como `float` sin ningún aviso (SQLite no
+  tiene tipos de columna); con destino SQLite, las tablas con fechas fallaban con un error poco claro. Ahora
+  `DumpOrchestrator` lo avisa con un WARNING al crearse. Un origen SQLite con destino servidor sigue funcionando.
 - **dump**: con destino SQLite, `parallel_pk_ranges` o `max_parallel_tables` mayores que 1 hacían fallar la carga con
   `database is locked` (SQLite admite un solo escritor) y la tabla quedaba a medio cargar. Ahora, con destino SQLite, se
   carga sin paralelismo y se registra un WARNING.

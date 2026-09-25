@@ -82,6 +82,8 @@ Ver tabla de `DumpConfig` arriba. Los engines deben estar conectables antes de l
 |---|---|
 | `SQLAlchemyError` | Conexión a origen o destino falla antes de comenzar |
 | Error capturado en `TableDumpResult.error` | Fallo en carga de una tabla individual; el resto continúa |
+| Origen SQLite (WARNING al crear el orquestador) | SQLite no tiene tipos de columna: las fechas se leen como texto y los DECIMAL como `float`. Un destino servidor convierte las fechas; con destino SQLite, las tablas con columnas de fecha terminan en `error`. Los DECIMAL pueden perder precisión |
+| Destino SQLite con `parallel_pk_ranges` o `max_parallel_tables` > 1 (WARNING) | SQLite admite un solo escritor: se carga sin paralelismo |
 
 ## 3. Componentes y Clases
 
