@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import re
 
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, KeysView, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time
 from pathlib import Path
-from typing import Any
+from typing import Any, overload
 
 from sqlalchemy import (
     JSON,
@@ -34,6 +34,48 @@ from sqlalchemy.sql.sqltypes import _Binary
 from sqlalchemy.types import TypeDecorator, TypeEngine
 
 SqlRecord = dict[str, Any]
+
+
+class SqlColumns(Sequence[SqlRecord]):
+    """Bloque de registros guardado por columnas (P-34, performance-audit de serialización SQL 2026-09-25).
+
+    La plantilla de literales lee cada columna directamente. Como secuencia de registros, ``bloque[i]`` construye
+    el diccionario de la fila ``i`` solo cuando se pide (filas que van por el camino anterior). Equivale a
+    ``[dict(zip(claves, fila)) for fila in zip(*columnas)]``: con claves repetidas gana la última columna.
+    """
+
+    def __init__(self, keys: Sequence[str], columns: Sequence[list[Any]]) -> None:
+        self._columns: dict[str, list[Any]] = dict(zip(keys, columns, strict=True))
+        # Sin columnas no hay filas, igual que zip(*columnas).
+        self._length: int = len(columns[0]) if columns else 0
+
+    def __len__(self) -> int:
+        return self._length
+
+    @overload
+    def __getitem__(self, index: int) -> SqlRecord: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> list[SqlRecord]: ...
+
+    def __getitem__(self, index: int | slice) -> SqlRecord | list[SqlRecord]:
+        if isinstance(index, slice):
+            return [self[row] for row in range(*index.indices(self._length))]
+        if not -self._length <= index < self._length:
+            raise IndexError(index)
+        return {key: column[index] for key, column in self._columns.items()}
+
+    def keys(self) -> KeysView[str]:
+        """Claves de todas las filas, en orden."""
+        return self._columns.keys()
+
+    def column(self, key: str) -> list[Any] | None:
+        """Valores de ``key`` en cada fila (la lista interna, sin copiar), o ``None`` si el bloque no la tiene."""
+        return self._columns.get(key)
+
+    def add_alias(self, alias: str, key: str) -> None:
+        """Añade ``alias`` al final con los mismos valores que ``key`` (``registro[alias] = registro[key]``)."""
+        self._columns[alias] = self._columns[key]
 
 
 class PreSerializedJSON(TypeDecorator[Any]):
@@ -69,11 +111,22 @@ def restore_binary_values(records: Sequence[SqlRecord], table: Table) -> None:
     if not records:
         return
     binary_cols = [name for name in records[0] if name in table.c and isinstance(table.c[name].type, _Binary)]
+    if isinstance(records, SqlColumns):  # P-34: se modifica la columna; records[i] es una copia
+        _restore_binary_columns(records, binary_cols)
+        return
     for record in records:
         for name in binary_cols:
             value = record[name]
             if isinstance(value, str):
                 record[name] = value.encode("utf-8")
+
+
+def _restore_binary_columns(block: SqlColumns, binary_cols: Sequence[str]) -> None:
+    """:func:`restore_binary_values` sobre un bloque por columnas: modifica las listas del bloque."""
+    for name in binary_cols:
+        column = block.column(name)
+        if column is not None:
+            column[:] = [value.encode("utf-8") if isinstance(value, str) else value for value in column]
 
 
 def json_passthrough_binds(table: Table, columns: Sequence[str]) -> dict[str, BindParameter[Any]]:
@@ -161,6 +214,7 @@ def _binary_or_value(column_type: TypeEngine[Any], value: Any, dialect: Any) -> 
 
 
 _MARKER: str = "__util_bbdd_literal_{}__"
+_MISSING: Any = object()  # clave ausente en un registro (esa fila va por el camino anterior)
 
 
 @dataclass(frozen=True)
@@ -279,19 +333,44 @@ class _LiteralTemplate:
             previous = position + len(_MARKER.format(index))
         return parts, order, sql[previous:] + ";"
 
-    def _render_column(self, index: int, records: Sequence[SqlRecord], fallback: bytearray) -> list[str | None]:
+    def _slot_values(self, records: Sequence[SqlRecord], fallback: bytearray) -> list[Sequence[Any]]:
+        """Valores de cada hueco, por columna; marca en ``fallback`` las filas a las que les falta alguna clave.
+
+        Con :class:`SqlColumns` son las listas del bloque, sin copiar (P-34).
+        """
+        if isinstance(records, SqlColumns):
+            return self._block_values(records, fallback)
+        if self._keys is not None:
+            for row, record in enumerate(records):
+                if record.keys() != self._keys:
+                    fallback[row] = 1
+        values: list[Sequence[Any]] = [[record.get(slot.key, _MISSING) for record in records] for slot in self._order]
+        if self._keys is None:  # con exact_keys, una fila sin alguna clave ya está marcada
+            _mark_missing(values, fallback)
+        return values
+
+    def _block_values(self, block: SqlColumns, fallback: bytearray) -> list[Sequence[Any]]:
+        """:meth:`_slot_values` de un bloque por columnas: todas sus filas tienen las mismas claves."""
+        columns = [block.column(slot.key) for slot in self._order]
+        present: list[Sequence[Any]] = [column for column in columns if column is not None]
+        if len(present) == len(columns) and (self._keys is None or block.keys() == self._keys):
+            return present
+        fallback[:] = b"\x01" * len(block)  # a todas las filas les faltan claves (o sobran, en el INSERT)
+        return [[None] * len(block) for _ in self._order]
+
+    def _render_column(self, index: int, values: Sequence[Any], fallback: bytearray) -> list[str | None]:
         """Literales del hueco ``index`` en cada fila; marca en ``fallback`` las filas que no se pueden renderizar."""
         slot: _Slot = self._order[index]
         fixed_type: TypeEngine[Any] | None = self._types[index]  # None solo en el WHERE, que siempre tiene processor
         processor: Callable[[Any], str] | None = self._processors[index]
         render: Callable[[Any, TypeEngine[Any] | None], str] = self._compiler.render_literal_value
-        key, undouble = slot.key, self._undouble
+        undouble = self._undouble
         # NULL en VALUES/SET; en el WHERE SQLAlchemy genera IS NULL, que la plantilla no tiene: camino anterior.
         null_literal: str | None = None if slot.where else "NULL"
-        column: list[str | None] = [None] * len(records)
+        column: list[str | None] = [None] * len(values)
         for row in [row for row, done in enumerate(fallback) if not done]:
+            value = values[row]
             try:
-                value = records[row][key]
                 if value is None:
                     column[row] = null_literal
                     fallback[row] = null_literal is None
@@ -306,14 +385,19 @@ class _LiteralTemplate:
     def render_block(self, records: Sequence[SqlRecord], per_row: Callable[[SqlRecord], str]) -> list[str]:
         """Una línea por registro, en orden; ``per_row`` genera las filas que la plantilla no puede renderizar."""
         fallback = bytearray(len(records))
-        if self._keys is not None:
-            for row, record in enumerate(records):
-                if record.keys() != self._keys:
-                    fallback[row] = 1
-        columns = [self._render_column(index, records, fallback) for index in range(len(self._order))]
+        values = self._slot_values(records, fallback)
+        columns = [self._render_column(index, values[index], fallback) for index in range(len(self._order))]
         rows: Iterable[tuple[str | None, ...]] = zip(*columns, strict=True) if columns else [()] * len(records)
         template: str = self._format
         return [per_row(records[row]) if fallback[row] else template % literals for row, literals in enumerate(rows)]
+
+
+def _mark_missing(values: Sequence[Sequence[Any]], fallback: bytearray) -> None:
+    """Marca en ``fallback`` las filas con alguna clave ausente (``_MISSING``)."""
+    for column in values:
+        for row, value in enumerate(column):
+            if value is _MISSING:
+                fallback[row] = 1
 
 
 def _markers(count: int, start: int = 0) -> list[Any]:
@@ -601,6 +685,7 @@ def format_sql_param_value(value: Any) -> str:
 
 __all__: list[str] = [
     "PreSerializedJSON",
+    "SqlColumns",
     "SqlRecord",
     "build_override_identity_text_stmt",
     "compile_stmt_with_binary_support",

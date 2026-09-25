@@ -194,10 +194,23 @@ def dataframe_to_sql_records(df: pd.DataFrame) -> list[dict[str, Any]]:
     Returns:
         Lista de diccionarios ``{str(columna): valor}``, uno por fila.
     """
-    keys: list[str] = [str(column) for column in df.columns]
-    columns: list[list[Any]] = [_normalize_column(df.iloc[:, index]) for index in range(df.shape[1])]
+    keys, columns = dataframe_to_sql_columns(df)
     # Sin columnas, zip() no produce filas: igual que to_dict, que devuelve [] aunque haya filas.
     return [dict(zip(keys, row, strict=True)) for row in zip(*columns, strict=True)]
+
+
+def dataframe_to_sql_columns(df: pd.DataFrame) -> tuple[list[str], list[list[Any]]]:
+    """Los mismos valores que :func:`dataframe_to_sql_records`, por columnas y sin construir un diccionario por fila.
+
+    P-34 (performance-audit de serialización SQL 2026-09-25): la generación de SQL renderiza por columnas, así que el
+    diccionario por fila solo se construía para volver a leerlo.
+
+    Returns:
+        ``(claves, columnas)``: ``str(columna)`` de cada columna y la lista de valores normalizados de cada una, en el
+        orden del DataFrame (con los nombres repetidos que tenga).
+    """
+    keys: list[str] = [str(column) for column in df.columns]
+    return keys, [_normalize_column(df.iloc[:, index]) for index in range(df.shape[1])]
 
 
 def _normalize_column(series: pd.Series) -> list[Any]:

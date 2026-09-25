@@ -30,6 +30,7 @@
 - Tests: 6 dtypes nuevos en `test_dataframe_to_sql_records.py` y 2 tests (16 casos) en `test_generate_sql_template.py`. ruff, mypy y pytest (4896 passed) en verde.
 - Equivalencia: SHA-256 de 15 ficheros (5 dialectos × 3 operaciones, 100K) idénticos entre `HEAD` (worktree temporal, ya retirado) y el código nuevo.
 - Final e2e 1M SQLite: INSERT 6,09 s (−52 %), UPDATE 6,64 s (−49 %), DELETE 1,89 s (−12 %). CHANGELOG actualizado (*Changed*).
+- Tras el hotfix (dde13b2): P-35 medido y descartado (0,45–1,06 %). P-34 implementado: `SqlColumns` y `dataframe_to_sql_columns`; `BulkCrud.__sql_blocks` para el SQL de INSERT y UPDATE; `_LiteralTemplate._slot_values` / `_block_values`. E2E 1M: INSERT 4,91 s, UPDATE 5,36 s. SHA-256 idéntico a `HEAD` en 15 ficheros. 4938 passed.
 
 ## Artefactos generados
 
@@ -51,11 +52,12 @@
 - **[bulk/sql_helpers]**: no memoizar literales por igualdad de valor: `Decimal("1.0") == Decimal("1.00")`, `0.0 == -0.0` y los `datetime` con zona iguales se renderizan distinto.
 - **[bulk/sql_helpers]**: en el bucle caliente de `_render_column`, no llamar a `render_literal_value` con `partial(..., type_=...)`: el diccionario de kwargs de cada celda se come la mitad de la mejora. Usar llamada posicional.
 - **[bulk/normalize]**: con pyarrow instalado, pandas 3 guarda la dtype `str` en pyarrow y `list(series)` cuesta ~0,56 µs/celda; `series.to_numpy(dtype=object)` cuesta ~0,04 µs/celda y da los mismos objetos. Los benchmarks antes/después deben tomarse con el mismo entorno.
+- **[bulk/sql_helpers]**: `SqlColumns` es una `Sequence[dict]` perezosa: `bloque[i]` crea un diccionario nuevo en cada acceso. Nunca modificar `bloque[i]` esperando cambiar el bloque; usar `column()` o `add_alias()` (por eso `restore_binary_values` tiene una rama propia).
 - **[bulk/persistence]**: la escritura del `.sql` es ≈ 3 % del tiempo. Pasarla a un hilo o a E/S asíncrona no compensa y rompe la atomicidad `.tmp` → `replace`.
 
 ## Veredicto final
 Veredicto: GO (AUDIT_PLAN C1–C4 cumplidas; AUDIT_CODE APROBADO)
 Pendientes al cierre:
-- Commit (no realizado: pendiente de confirmación del usuario).
-- `/hotfix` aparte para P-30 + C-1 (binarios no UTF-8: fallback ×12 y literal `0x…` inválido en PG/Oracle/SQLite).
-- Opcional: P-34 (−8 %) y P-35 (medir primero).
+- P-31/P-32/P-33: commit e1adcc2.
+- P-30 + C-1: resueltos en `/hotfix` (dde13b2, sesión `2026-09-25-hotfix-binary-sql-literals`).
+- P-34: implementado (commit pendiente de confirmación). P-35: descartado por medición. Roadmap cerrado.

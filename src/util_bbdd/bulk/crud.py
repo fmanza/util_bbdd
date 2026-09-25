@@ -52,6 +52,7 @@ from ._models import PKSyncResult
 from ._support.persistence import BulkPersistenceManager
 from ._support.pk_sync import PKSequenceSyncer
 from ._support.sql_helpers import (
+    SqlColumns,
     build_override_identity_text_stmt,
     generate_delete_sql,
     generate_insert_sql,
@@ -74,7 +75,7 @@ from ._support.validation import (
     validate_engine,
 )
 from .audit import AuditError, AuditManager
-from .normalize import dataframe_to_sql_records
+from .normalize import dataframe_to_sql_columns, dataframe_to_sql_records
 
 try:
     from util.timing.medir_tiempo import medir_tiempo
@@ -640,6 +641,9 @@ class BulkCrud:
                 for block in blocks():
                     self.__ejecutar_batch_stmt(block, stmt_exec, len(block))
 
+        def sql_blocks() -> Iterator[SqlColumns]:
+            return self.__sql_blocks(insert_df, tabla)
+
         if override_identity and always_identity_cols:
             stmt_for_sql: Insert = insert(tabla)
             text_stmt = build_override_identity_text_stmt(tabla, insert_cols, dialect)
@@ -647,7 +651,7 @@ class BulkCrud:
                 rowcount=numero_registros,
                 generate_sql_lines=lambda: (
                     line
-                    for block in blocks()
+                    for block in sql_blocks()
                     for line in generate_insert_sql_override_identity(stmt_for_sql, block, dialect)
                 ),
                 execute=lambda: execute_blocks(text_stmt),
@@ -656,7 +660,7 @@ class BulkCrud:
         stmt: Insert = self.__insert_stmt(tabla, insert_cols)
 
         def insert_lines() -> Iterator[str]:
-            return (line for block in blocks() for line in self.__generar_sql_insert(stmt, block))
+            return (line for block in sql_blocks() for line in self.__generar_sql_insert(stmt, block))
 
         if should_wrap_identity_insert(tabla, insert_cols, dialect):
             return _PreparedBulkOperation(
@@ -681,6 +685,13 @@ class BulkCrud:
             records: list[dict[str, Any]] = dataframe_to_sql_records(df.iloc[start : start + self.chunk_size])
             restore_binary_values(records, tabla)  # P-21
             yield records
+
+    def __sql_blocks(self, df: pd.DataFrame, tabla: Table) -> Iterator[SqlColumns]:
+        """Como :meth:`__record_blocks`, por columnas, para generar SQL sin un diccionario por fila (P-34)."""
+        for start in range(0, len(df), self.chunk_size):
+            block = SqlColumns(*dataframe_to_sql_columns(df.iloc[start : start + self.chunk_size]))
+            restore_binary_values(block, tabla)  # P-21
+            yield block
 
     @contextmanager
     def __blocks_transaction(self) -> Generator[None, None, None]:
@@ -709,11 +720,17 @@ class BulkCrud:
                         record[alias_col] = record[original_col]
                 yield records
 
+        def sql_blocks() -> Iterator[SqlColumns]:
+            for block in self.__sql_blocks(update_df, tabla):
+                for original_col, alias_col in update_plan.pk_param_map.items():
+                    block.add_alias(alias_col, original_col)
+                yield block
+
         return _PreparedBulkOperation(
             rowcount=numero_registros,
             generate_sql_lines=lambda: (
                 line
-                for block in blocks()
+                for block in sql_blocks()
                 for line in self.__generar_sql_update(
                     tabla,
                     block,
@@ -1232,7 +1249,7 @@ class BulkCrud:
         elif dialect == "mssql" and mssql_disabled:
             conn.execute(text(f"ALTER TABLE {quoted_name} WITH CHECK CHECK CONSTRAINT ALL"))
 
-    def __generar_sql_insert(self, stmt: Insert, records: list[dict]) -> list[str]:
+    def __generar_sql_insert(self, stmt: Insert, records: Sequence[dict[str, Any]]) -> list[str]:
         """Genera SQL INSERT desde un statement y una lista de registros.
 
         Maneja valores binarios convirtiendo a hexadecimal.
@@ -1242,7 +1259,7 @@ class BulkCrud:
     def __generar_sql_update(
         self,
         tabla: Table,
-        records: list[dict],
+        records: Sequence[dict[str, Any]],
         update_cols: list[str],
         pk_param_map: dict[str, str],
         pk_cols: list[str],

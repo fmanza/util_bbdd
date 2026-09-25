@@ -69,3 +69,37 @@ render en sqlite/oracle/mssql (en PG/MySQL no aplica, por diseño). ✅
 | Render INSERT pg / mysql | ≤ 7,5 µs | 7,01 / 7,02 ✅ |
 | Normalización de texto | ≤ 0,15 µs/celda | No medida por celda. Normalización total de la fila (10 columnas, 3 de texto): 4,13 → 1,53 µs ✅ |
 | Diferencias de salida | 0 | 0 ✅ |
+
+## Adenda — P-34 y P-35 (misma fecha, después del hotfix dde13b2)
+
+**P-35 (plantilla entre bloques)**: medida y descartada. Construir la plantilla cuesta 0,16–0,19 ms por bloque de 5000
+filas: entre el 0,45 % y el 1,06 % del render, por debajo del umbral del 2 % del PLAN.
+
+**P-34 (bloques por columnas)**: `SqlColumns` + `dataframe_to_sql_columns`. `BulkCrud` los usa al generar el SQL de
+INSERT y UPDATE; la ejecución real y DELETE no cambian. El banco (`scripts/bench_sqlgen.py`) mide ahora ese mismo camino.
+
+| 100K filas, total (s) | Paso 3 (P-32) | P-34 | Mejora |
+|---|---:|---:|---:|
+| sqlite INSERT / UPDATE | 0,59 / 0,66 | 0,50 / 0,55 | −15 % / −17 % |
+| oracle INSERT / UPDATE | 0,54 / 0,60 | 0,44 / 0,48 | −19 % / −20 % |
+| mssql INSERT / UPDATE | 0,53 / 0,58 | 0,42 / 0,48 | −21 % / −17 % |
+| postgresql INSERT / UPDATE | 0,88 / 0,93 | 0,81 / 0,84 | −8 % / −10 % |
+| mysql INSERT / UPDATE | 0,89 / 0,94 | 0,80 / 0,84 | −10 % / −11 % |
+
+Normalización: de 1,5–1,7 a 0,83–0,87 µs/fila (ya no se construye el diccionario de cada fila).
+
+**E2E, SQLite, 1M filas** (`validation/e2e_1m_p34.txt`):
+
+| Operación | Baseline de la sesión | Tras P-31/32/33 | Tras P-34 |
+|---|---:|---:|---:|
+| INSERT | 12,63 s | 6,09 s | **4,91 s** (−61 % total) |
+| UPDATE | 12,99 s | 6,64 s | **5,36 s** (−59 % total) |
+| DELETE | 2,14 s | 1,89 s | 1,89 s |
+
+**Equivalencia**: SHA-256 idéntico entre `HEAD` (dde13b2) y P-34 en 15 ficheros. Son 5 generados de extremo a extremo
+con `BulkCrud` en SQLite (INSERT, UPDATE, DELETE y una tabla con binarios UTF-8, no UTF-8 y NULL) y 10 generados con
+los helpers por dialecto (INSERT y UPDATE × 5). Tests nuevos: `SqlColumns` genera lo mismo que los registros en los 8
+drivers, con y sin binarios; clave ausente en el bloque → camino anterior; `SqlColumns` equivale a la lista de
+registros (claves repetidas, índices negativos, cortes, sin columnas).
+
+**Suite**: ruff y mypy en verde; `pytest` 4938 passed, 165 skipped (integración sin servidor).

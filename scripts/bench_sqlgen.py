@@ -3,7 +3,8 @@
 
 Mide por dialecto y operación las tres etapas del camino ``generar_sql=True`` sobre el dataset de ``bench_bulk.py``:
 
-    normalización   DataFrame → registros (``dataframe_to_sql_records``; DELETE usa ``to_dict`` como ``BulkCrud``)
+    normalización   DataFrame → bloque por columnas (``dataframe_to_sql_columns``; DELETE usa ``to_dict``, como
+                    ``BulkCrud``)
     render          registros → líneas SQL (``generate_insert_sql`` / ``generate_update_sql`` / ``generate_delete_sql``)
     escritura       líneas → fichero (``BulkPersistenceManager.persist_sql``)
 
@@ -41,12 +42,13 @@ from sqlalchemy import Table, create_engine, insert
 from util_bbdd.bulk import BulkCrud
 from util_bbdd.bulk._support.persistence import BulkPersistenceManager
 from util_bbdd.bulk._support.sql_helpers import (
+    SqlColumns,
     generate_delete_sql,
     generate_insert_sql,
     generate_update_sql,
     restore_binary_values,
 )
-from util_bbdd.bulk.normalize import dataframe_to_sql_records
+from util_bbdd.bulk.normalize import dataframe_to_sql_columns
 
 DIALECT_URLS: dict[str, str] = {
     "sqlite": "sqlite://",
@@ -82,7 +84,7 @@ def _pk_alias(pk_cols: Sequence[str]) -> dict[str, str]:
     return {column: f"{column}_pk" for column in pk_cols}
 
 
-def _generate(op: str, table: Table, records: list[dict[str, Any]], dialect: Any) -> list[str]:
+def _generate(op: str, table: Table, records: Sequence[dict[str, Any]], dialect: Any) -> list[str]:
     pk_cols = [column.name for column in table.primary_key.columns]
     if op == "insert":
         return generate_insert_sql(insert(table), records, dialect)
@@ -112,13 +114,12 @@ def measure(dialect_name: str, dialect: Any, op: str, rows: int, chunk_size: int
         t0 = perf_counter()
         if op == "delete":
             records = [{str(k): v for k, v in record.items()} for record in block[pk_cols].to_dict(orient="records")]
-        else:
-            records = dataframe_to_sql_records(block)
+        else:  # como BulkCrud al generar SQL: bloque por columnas (P-34)
+            records = SqlColumns(*dataframe_to_sql_columns(block))
             restore_binary_values(records, table)
             if op == "update":
-                for record in records:
-                    for original, pk_alias in alias.items():
-                        record[pk_alias] = record[original]
+                for original, pk_alias in alias.items():
+                    records.add_alias(pk_alias, original)
         t1 = perf_counter()
         lines.extend(_generate(op, table, records, dialect))
         normalize_s += t1 - t0

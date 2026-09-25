@@ -46,6 +46,7 @@ from sqlalchemy import (
 )
 
 from util_bbdd.bulk._support.sql_helpers import (
+    SqlColumns,
     _binary_or_value,
     _json_as_string_literals,
     _override_system_value,
@@ -56,7 +57,7 @@ from util_bbdd.bulk._support.sql_helpers import (
     generate_update_sql,
     restore_binary_values,
 )
-from util_bbdd.bulk.normalize import dataframe_to_sql_records
+from util_bbdd.bulk.normalize import dataframe_to_sql_columns, dataframe_to_sql_records
 
 pytestmark = pytest.mark.unit
 
@@ -420,3 +421,64 @@ def test_binary_primary_key_in_where_uses_hex_literal(dialect: Any) -> None:
 
     assert literal("00FF") in lines[0]
     assert lines == _ref_delete(table, [{"k": b"\x00\xff"}, {"k": None}], dialect, ["k"])
+
+
+def _block(df: pd.DataFrame, table: Table) -> SqlColumns:
+    """Bloque por columnas como lo construye ``BulkCrud`` al generar SQL (P-34)."""
+    block = SqlColumns(*dataframe_to_sql_columns(df))
+    restore_binary_values(block, table)
+    return block
+
+
+@pytest.mark.parametrize("with_binary", [False, True])
+def test_column_block_generates_the_same_sql_as_records(dialect: Any, with_binary: bool) -> None:
+    """P-34: generar desde ``SqlColumns`` da exactamente las mismas líneas que desde la lista de registros."""
+    wide, _ = _tables(with_binary)
+    df = _wide_frame(with_binary)
+    records, block = _records(df, wide), _block(df, wide)
+    cols = [c.name for c in wide.columns if c.name != "id"]
+
+    assert generate_insert_sql(insert(wide), block, dialect) == generate_insert_sql(insert(wide), records, dialect)
+    assert generate_insert_sql_override_identity(insert(wide), block, dialect) == (
+        generate_insert_sql_override_identity(insert(wide), records, dialect)
+    )
+    for record in records:
+        record["pk_id"] = record["id"]
+    block.add_alias("pk_id", "id")
+    update_args: dict[str, Any] = {
+        "table": wide,
+        "update_cols": cols,
+        "pk_param_map": {"id": "pk_id"},
+        "pk_cols": ["id"],
+        "dialect": dialect,
+    }
+    assert generate_update_sql(records=block, **update_args) == generate_update_sql(records=records, **update_args)
+
+
+def test_column_block_without_a_template_key_uses_per_row_path(dialect: Any) -> None:
+    """P-34: si al bloque le falta una clave del UPDATE, todas sus filas van por el camino anterior (mismo error)."""
+    table = Table("t", MetaData(), Column("id", Integer, primary_key=True), Column("v", String(10)))
+    block = SqlColumns(["id", "v"], [[1, 2], ["a", None]])  # sin el alias pk_id
+
+    with pytest.raises(KeyError):
+        generate_update_sql(
+            table=table, records=block, update_cols=["v"], pk_param_map={"id": "pk_id"}, pk_cols=["id"], dialect=dialect
+        )
+
+
+def test_sql_columns_behaves_like_the_list_of_records() -> None:
+    """P-34: ``SqlColumns`` equivale a ``[dict(zip(claves, fila)) ...]``, también con claves repetidas y sin columnas."""
+    keys, columns = ["a", "b", "a"], [[1, 2], ["x", "y"], [3, 4]]
+    block = SqlColumns(keys, columns)
+    expected = [dict(zip(keys, row, strict=True)) for row in zip(*columns, strict=True)]
+
+    assert list(block) == expected
+    assert len(block) == 2
+    assert block[-1] == expected[-1]
+    assert block[0:1] == expected[0:1]
+    assert list(block.keys()) == ["a", "b"]
+    with pytest.raises(IndexError):
+        block[2]
+    assert len(SqlColumns([], [])) == 0
+    block.add_alias("pk_a", "a")
+    assert block[0] == {"a": 3, "b": "x", "pk_a": 3}

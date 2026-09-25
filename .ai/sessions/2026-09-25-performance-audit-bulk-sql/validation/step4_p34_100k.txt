@@ -1,0 +1,19 @@
+rows=100000 chunk_size=5000 repeat=3
+dialecto    op       norm µs/f render µs/f write µs/f  total s      MB
+----------------------------------------------------------------------
+sqlite      insert        0.85        3.86       0.30     0.50    21.8
+sqlite      update        0.83        4.30       0.32     0.55    22.3
+sqlite      delete        0.90        0.91       0.26     0.21     6.9
+postgresql  insert        0.87        6.84       0.32     0.81    21.1
+postgresql  update        0.86        7.19       0.32     0.84    21.6
+postgresql  delete        0.90        1.04       0.24     0.22     6.9
+mysql       insert        0.87        6.79       0.30     0.80    21.1
+mysql       update        0.87        7.19       0.32     0.84    21.6
+mysql       delete        0.90        1.06       0.26     0.22     6.9
+oracle      insert        0.84        3.19       0.36     0.44    24.5
+oracle      update        0.83        3.65       0.33     0.48    25.0
+oracle      delete        0.91        0.93       0.26     0.21     6.9
+mssql       insert        0.84        3.05       0.33     0.42    23.3
+mssql       update        0.85        3.60       0.32     0.48    24.0
+mssql       delete        0.88        0.90       0.25     0.20     7.5
+CSV: .ai\sessions\2026-09-25-performance-audit-bulk-sql\validation\step4_p34_100k.csv
