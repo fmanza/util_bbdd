@@ -33,7 +33,7 @@ e = engine("r3"); p = T/"r3.csv"; crud = BulkCrud(e, audit_csv_path=p)
 chunks = [pd.DataFrame({"id":range(0,100),"v":0}), pd.DataFrame({"id":[5],"v":0})]  # duplicado de PK
 try: crud.bulk_insert_from_chunks(iter(chunks), "t")
 except Exception as ex: pass
-a = pd.read_csv(p, sep="\t")
+a = pd.read_csv(p, sep="\t") if p.exists() else pd.DataFrame({"total_filas": []})
 print(f"R3 filas en BD={count(e)} ; CSV dice INSERT total_filas={int(a['total_filas'].sum())} en {len(a)} registro(s)")
 
 # R4: CSV existente vacío (touch / truncado por rotación) -> nunca se escribe cabecera

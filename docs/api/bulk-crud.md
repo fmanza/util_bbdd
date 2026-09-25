@@ -25,7 +25,7 @@ flowchart TD
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `BulkCrud` | `(engine, chunk_size?, audit_csv_path?, enable_fast_executemany?, insert_resolver?, commit_every_n_chunks?, update_via_staging?)` | Crea instancia con engine SQLAlchemy | `BulkCrud` |
+| `BulkCrud` | `(engine, chunk_size?, audit_csv_path?, enable_fast_executemany?, insert_resolver?, commit_every_n_chunks?, update_via_staging?, audit_strict?)` | Crea instancia con engine SQLAlchemy | `BulkCrud` |
 | `bulk_insert_from_df` | `(df, tabla_destino, generar_sql?, path_sql?)` | INSERT masivo desde DataFrame | `None` |
 | `bulk_insert_from_chunks` | `(chunks, tabla_destino, *, override_identity?, exclude_autoincrement_pk?)` | INSERT streaming de iterable de DataFrames; resuelve columnas/identidad una sola vez | `int` (filas insertadas) |
 | `bulk_update_from_df` | `(df, tabla_destino, generar_sql?, path_sql?)` | UPDATE masivo desde DataFrame | `None` |
@@ -34,6 +34,7 @@ flowchart TD
 | `maintenance_scope` | `(tabla_destino, *, disable_constraints=True, disable_indexes=False)` | Context manager que deshabilita FKs/triggers e índices para cargas >1 M filas; restaura siempre al salir. Requiere `bulk_session` activo | `Generator[None, None, None]` |
 | `reflect_table` | `(tabla_destino)` | Refleja tabla SQLAlchemy (con caché interno) | `Table` |
 | `sync_pk_sequences` | `(tables=None)` | Resincroniza contadores PK al `MAX` actual | `list[PKSyncResult]` |
+| `audit_failures` | propiedad | Registros de auditoría que no se pudieron escribir en el CSV (con `audit_strict=False`) | `int` |
 
 ### Contrato de entrada
 
@@ -46,6 +47,7 @@ flowchart TD
 | `insert_resolver` | `InsertStrategyResolver \| None` | Estrategia INSERT personalizada | Default `None` (resolución automática por motor) |
 | `commit_every_n_chunks` | `int \| None` | Commit cada N lotes en lugar de una sola transacción. La carga deja de ser atómica | Default `None` (una sola transacción) |
 | `update_via_staging` | `bool` | Solo MySQL/MariaDB: `bulk_update_from_df` carga cada lote en una tabla temporal y aplica un único `UPDATE ... JOIN` en lugar de un UPDATE por fila. Mismo resultado final; requiere el privilegio `CREATE TEMPORARY TABLES`; si el servidor lo deniega, vuelve al UPDATE fila a fila y registra un WARNING (una vez por instancia). Ignorado en otros motores | Default `True` |
+| `audit_strict` | `bool` | Qué hacer si falla la escritura del CSV de auditoría (fichero abierto en Excel, disco lleno, permisos). `False`: la operación sigue, porque sus datos ya están en la BD; se registra un ERROR con los registros perdidos y se cuentan en `audit_failures`. `True`: se propaga `AuditError`/`OSError`; dentro de `bulk_session` la auditoría se escribe antes del commit y el fallo deshace la sesión | Default `False` |
 | `df` | `pd.DataFrame` | Datos fuente | No puede estar vacío; columnas deben coincidir con tabla destino |
 | `tabla_destino` | `str` | Nombre de la tabla en BD | Debe existir; se normaliza mayúsculas/minúsculas por motor |
 | `generar_sql` | `bool` | Escribir el SQL generado en fichero | Si `True`, `path_sql` es obligatorio |
@@ -57,6 +59,7 @@ flowchart TD
 - `bulk_insert_from_chunks` retorna `int` (filas insertadas).
 - `sync_pk_sequences` retorna `list[PKSyncResult]`; errores capturados en `PKSyncResult.status="error"`, nunca propagados.
 - Efectos secundarios: filas modificadas en BD, fichero `.sql` opcional, entrada en CSV de auditoría.
+- Auditoría y transacciones: fuera de `bulk_session` cada operación se anota al terminar, con sus datos ya confirmados. Dentro de `bulk_session` (y en `bulk_insert_from_chunks`, que abre la suya) se anota cuando un commit la confirma: al salir del bloque o, con `commit_every_n_chunks`, en el commit periódico. Si la sesión acaba en rollback no queda ninguna fila de auditoría de lo deshecho (se avisa con un WARNING), y reintentar la sesión no la duplica. Con `commit_every_n_chunks`, una operación que falla con parte de sus lotes ya confirmados no se anota; `rows_committed` da esas filas. Las operaciones con `generar_sql=True` no tocan la BD y se anotan al momento.
 
 ### Errores y casos especiales
 
@@ -64,6 +67,7 @@ flowchart TD
 |---|---|
 | `ValueError` | `engine=None`, DataFrame vacío, `generar_sql=True` sin `path_sql`, no hay PKs para UPDATE/DELETE |
 | `SQLAlchemyError` | Error al reflejar la tabla, timeout de BD, violación de constraint |
+| `AuditError` / `OSError` | Solo con `audit_strict=True`: no se pudo escribir el CSV de auditoría. Con el valor por defecto (`False`) no se lanza |
 
 **Estrategias INSERT por motor** (cuando `insert_resolver=None`):
 

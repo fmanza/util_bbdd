@@ -7,6 +7,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **bulk (auditoría)**: `BulkCrud(audit_strict=False)` y la propiedad `BulkCrud.audit_failures` (ver *Changed*).
+
 ### Fixed
 
 - **bulk (auditoría)**: con `generar_sql=True`, `tiempo_seg` salía siempre `0,000`, así que CSV, Excel, JSON y HTML
@@ -26,6 +30,19 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **bulk (auditoría)**: dentro de `bulk_session`, y por tanto en `bulk_insert_from_chunks` y `ParallelBulkLoader`, la
+  fila de auditoría de cada operación se escribe cuando un commit la confirma, y no al terminar la operación. Si la
+  sesión acaba en rollback, lo pendiente se descarta con un WARNING. Antes, una carga que fallaba dejaba en el CSV
+  filas de datos deshechos, y cada reintento de `ParallelBulkLoader` las repetía. El `timestamp` sigue siendo el del
+  fin de cada operación y el formato del CSV no cambia. Con `commit_every_n_chunks`, una operación que falla con parte
+  de sus lotes ya confirmados no se anota (`rows_committed` da esas filas). Además, toda la auditoría de una sesión se
+  escribe con una sola apertura del fichero: en streaming con `chunk_size=500` el coste de la auditoría baja del 16,5 %
+  al 0,4 % del tiempo total (SQLite, 1M filas).
+- **bulk (auditoría)**: **cambio de comportamiento.** Si no se puede escribir el CSV de auditoría (por ejemplo, porque
+  está abierto en Excel), la operación ya no falla: sus datos ya están en la BD, y relanzar el error llevaba a
+  reintentarla y duplicar filas o chocar con la PK. Se registra un ERROR con los registros perdidos y se suman a
+  `BulkCrud.audit_failures`. Para mantener el comportamiento anterior, `BulkCrud(audit_strict=True)`: el error se
+  propaga y, dentro de `bulk_session`, la auditoría se escribe antes del commit, así que el fallo deshace la sesión.
 - **bulk (auditoría, Excel)**: `exportar_resumen_excel` agrupa también por `sql` (Sí/No) y añade esa columna a cada
   hoja y a `Resumen_global`, justo después de `operacion`. Así `tiempo_total` y `tiempo_medio` no mezclan la latencia
   de BD con el tiempo de generar SQL. Quien lea el Excel por posición verá desplazadas las columnas siguientes. JSON y

@@ -37,7 +37,15 @@ Sin cambio de contrato. Se pueden hacer en un solo `/hotfix` o repartir en vario
 
 Arreglan H1 y H2, las dos ALTAS. M-1 también deja el coste en streaming en ≈ 0.
 
-### M-1: buffer de auditoría por sesión, volcado tras el commit (H2 + H9)
+### M-1: buffer de auditoría por sesión, volcado tras el commit (H2 + H9) ✅ implementado
+
+> **Implementado** en `2026-09-25-new-feature-audit-deferred-fail-open`. Diferencias con el diseño de abajo:
+> - El `timestamp` **no** cambia: cada `AuditRecord` guarda el fin de su operación.
+> - Una operación se escribe al momento si, al registrarla, `conn.in_transaction()` es falso. Con
+>   `commit_every_n_chunks`, su último commit periódico ya la confirmó entera. Sin esto se descartaría con un rollback
+>   posterior.
+> - Las filas con `generar_sql=True` no se difieren.
+> - Medido: streaming SQLite 1M con chunk 5000, 3,35 % → 0,12 %; con chunk 500, 16,5 % → 0,42 %.
 
 - **Diseño**:
   - `BulkPersistenceManager` pasa a tener dos modos: *directo* (fuera de sesión, como hoy) y *diferido* (dentro de `bulk_session`).
@@ -49,7 +57,7 @@ Arreglan H1 y H2, las dos ALTAS. M-1 también deja el coste en streaming en ≈ 
 - **Esfuerzo**: 4–6 h · **Riesgo**: bajo. El formato del CSV no cambia. Hay que tocar las 3 ramas de `bulk_session`: atómica, `commit_every_n_chunks` y `atomic=False`.
 - **Tests**: rollback da 0 filas CSV · `commit_every_n_chunks=2` con fallo en el chunk 5 da 4 filas CSV · sesión OK con 200 chunks da 200 filas y 1 `open` · `ParallelBulkLoader` con `OperationalError` en el primer intento da sin duplicados · DELETE dentro de la sesión (P-26) también queda diferido.
 
-### M-2: política ante fallo de la auditoría (H1)
+### M-2: política ante fallo de la auditoría (H1) ✅ implementado
 
 - **Decisión que tiene que tomar el mantenedor** (condiciona la API):
   - **Opción A (recomendada): fail-open por defecto**. Si falla la escritura: `logger.error` con los datos de la fila perdida, contador `BulkCrud.audit_failures` y sin excepción. Nuevo `BulkCrud(audit_strict: bool = False)`. Con `True` se mantiene el comportamiento actual (propagar).

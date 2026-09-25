@@ -1,14 +1,15 @@
-"""Tests de regresión para el manejo de AuditError/OSError en __run_bulk_pipeline [BLK-01].
+"""Política ante un fallo al escribir la auditoría (M-2, audit-code de AuditManager 2026-09-25).
 
-Antes de este fix, un fallo del subsistema de auditoría (`AuditError`, que hereda de
-`Exception`, no de `SQLAlchemyError`/`ValueError`) tras un `execute()` ya comprometido
-no era capturado por ningún `except` de `__run_bulk_pipeline`. Dentro de
-`bulk_session(atomic=True)`, al compartir una única transacción entre chunks, esto
-provoca el rollback de operaciones previas ya ejecutadas en la misma sesión.
+- ``audit_strict=False`` (por defecto): la operación ya está en la BD; se registra un ERROR con los registros perdidos,
+  se cuentan en ``BulkCrud.audit_failures`` y no se lanza nada. Antes se relanzaba y el llamador, al reintentar,
+  duplicaba filas o chocaba con la PK.
+- ``audit_strict=True``: se mantiene el comportamiento anterior [BLK-01]: el error se propaga y, dentro de una
+  ``bulk_session`` atómica, deshace la sesión entera.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -32,10 +33,10 @@ def _count_rows(engine: Engine) -> int:
         return conn.execute(text("SELECT COUNT(*) FROM items")).scalar_one()
 
 
-class TestAuditErrorPropagatesAndIsLogged:
+class TestStrictAuditErrorPropagatesAndIsLogged:
     def test_audit_error_is_caught_logged_and_reraised(self, caplog: pytest.LogCaptureFixture) -> None:
         engine = _make_sqlite_engine()
-        crud = BulkCrud(engine)
+        crud = BulkCrud(engine, audit_strict=True)
         crud.audit_manager.registrar_operacion = MagicMock(side_effect=AuditError("boom auditoria"))
 
         df = pd.DataFrame({"id": [1], "name": ["a"]})
@@ -48,7 +49,7 @@ class TestAuditErrorPropagatesAndIsLogged:
 
     def test_os_error_from_audit_is_caught_logged_and_reraised(self, caplog: pytest.LogCaptureFixture) -> None:
         engine = _make_sqlite_engine()
-        crud = BulkCrud(engine)
+        crud = BulkCrud(engine, audit_strict=True)
         crud.audit_manager.registrar_operacion = MagicMock(side_effect=OSError("disk full"))
 
         df = pd.DataFrame({"id": [1], "name": ["a"]})
@@ -60,30 +61,64 @@ class TestAuditErrorPropagatesAndIsLogged:
         assert any("auditoría" in record.message.lower() for record in caplog.records)
 
 
-class TestAuditErrorInAtomicBulkSessionRollsBackPreviousChunks:
-    """Documenta el riesgo residual anotado en el docstring de bulk_session(): un fallo
-    de auditoría a mitad de una sesión atómica deshace TODOS los chunks de la sesión,
-    no solo el que falló."""
+class TestStrictAuditErrorInAtomicBulkSessionRollsBackTheSession:
+    """Con ``audit_strict=True`` la auditoría de la sesión se escribe antes del commit: si falla, nada se confirma."""
 
-    def test_audit_failure_on_second_chunk_rolls_back_first_chunk_too(self) -> None:
+    def test_audit_failure_rolls_back_every_operation_of_the_session(self, tmp_path: Path) -> None:
         engine = _make_sqlite_engine()
-        crud = BulkCrud(engine)
-
-        original_registrar = crud.audit_manager.registrar_operacion
-        call_count = {"n": 0}
-
-        def _flaky_registrar(*args: object, **kwargs: object) -> None:
-            call_count["n"] += 1
-            if call_count["n"] == 2:
-                raise AuditError("boom en el segundo chunk")
-            original_registrar(*args, **kwargs)
-
-        crud.audit_manager.registrar_operacion = _flaky_registrar
+        crud = BulkCrud(engine, audit_csv_path=tmp_path / "audit.csv", audit_strict=True)
+        crud.audit_manager._registrar_lote = MagicMock(side_effect=AuditError("boom al volcar la sesión"))  # type: ignore[method-assign]
 
         with pytest.raises(AuditError):
             with crud.bulk_session(atomic=True):
                 crud.bulk_insert_from_df(pd.DataFrame({"id": [1], "name": ["a"]}), "items", generar_sql=False)
                 crud.bulk_insert_from_df(pd.DataFrame({"id": [2], "name": ["b"]}), "items", generar_sql=False)
 
-        # La sesión completa (ambos chunks) se deshace, aunque el primero se auditó bien.
         assert _count_rows(engine) == 0
+        assert crud.audit_failures == 0
+
+
+class TestFailOpenByDefault:
+    def test_audit_failure_outside_session_does_not_fail_the_committed_operation(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        engine = _make_sqlite_engine()
+        crud = BulkCrud(engine)
+        crud.audit_manager.registrar_operacion = MagicMock(side_effect=OSError("CSV bloqueado"))
+
+        with caplog.at_level("ERROR"):
+            crud.bulk_insert_from_df(pd.DataFrame({"id": [1, 2], "name": ["a", "b"]}), "items", generar_sql=False)
+
+        assert _count_rows(engine) == 2
+        assert crud.audit_failures == 1
+        errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
+        assert len(errors) == 1
+        assert "CSV bloqueado" in errors[0]
+        assert "INSERT items filas=2" in errors[0]
+
+    def test_audit_failure_inside_session_keeps_the_session_committed(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        engine = _make_sqlite_engine()
+        crud = BulkCrud(engine, audit_csv_path=tmp_path / "audit.csv")
+        crud.audit_manager._registrar_lote = MagicMock(side_effect=PermissionError("CSV abierto en Excel"))  # type: ignore[method-assign]
+
+        with caplog.at_level("ERROR"):
+            with crud.bulk_session(atomic=True):
+                crud.bulk_insert_from_df(pd.DataFrame({"id": [1], "name": ["a"]}), "items", generar_sql=False)
+                crud.bulk_insert_from_df(pd.DataFrame({"id": [2], "name": ["b"]}), "items", generar_sql=False)
+
+        assert _count_rows(engine) == 2
+        assert crud.audit_failures == 2
+        assert any("Registros perdidos (2)" in r.getMessage() for r in caplog.records if r.levelname == "ERROR")
+
+    def test_real_unwritable_csv_does_not_raise(self, tmp_path: Path) -> None:
+        engine = _make_sqlite_engine()
+        audit_path = tmp_path / "audit.csv"
+        crud = BulkCrud(engine, audit_csv_path=audit_path)
+        audit_path.mkdir()  # el destino deja de poder abrirse como fichero
+
+        crud.bulk_insert_from_df(pd.DataFrame({"id": [1], "name": ["a"]}), "items", generar_sql=False)
+
+        assert _count_rows(engine) == 1
+        assert crud.audit_failures == 1

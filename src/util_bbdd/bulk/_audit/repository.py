@@ -6,12 +6,14 @@ import csv
 import logging
 import threading
 
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 
 from .errors import AuditConfigError, AuditDataError, AuditFileError
+from .record import AuditRecord
 
 _ERR_NO_CSV_PATH = "❌ 'audit_csv_path' no está establecido."
 
@@ -104,8 +106,30 @@ class AuditCsvRepository:
         genero_sql: bool = False,
     ) -> None:
         """Escribe una fila de auditoría en el CSV configurado (self.audit_csv_path)."""
+        self.escribir_registros(
+            [
+                AuditRecord(
+                    tabla=tabla,
+                    motor=motor,
+                    operacion=operacion,
+                    rowcount=rowcount,
+                    elapsed=elapsed,
+                    genero_sql=genero_sql,
+                )
+            ]
+        )
+
+    def registrar_operaciones(self, registros: Sequence[AuditRecord]) -> None:
+        """Persiste varias operaciones con una sola apertura del CSV (auditoría diferida de ``bulk_session``)."""
+        self.escribir_registros(registros)
+        self.invalidar_cache()
+
+    def escribir_registros(self, registros: Sequence[AuditRecord]) -> None:
+        """Añade ``registros`` al CSV configurado, escribiendo antes la cabecera si el fichero está vacío."""
         if self.audit_csv_path is None:
             raise AuditConfigError(_ERR_NO_CSV_PATH)
+        if not registros:
+            return
         self.audit_csv_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Sección crítica: existencia → cabecera → fila debe ser atómica frente a otros
@@ -118,18 +142,17 @@ class AuditCsvRepository:
                 if file_handle.tell() == 0:
                     writer.writerow(self.columnas_auditoria)
 
-                tiempo_formateado: str = f"{elapsed:.3f}".replace(".", ",")
-                sql_texto: str = "Sí" if genero_sql else "No"
-                writer.writerow(
+                writer.writerows(
                     [
-                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        tabla,
-                        motor,
-                        operacion,
-                        rowcount,
-                        tiempo_formateado,
-                        sql_texto,
+                        registro.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                        registro.tabla,
+                        registro.motor,
+                        registro.operacion,
+                        registro.rowcount,
+                        f"{registro.elapsed:.3f}".replace(".", ","),
+                        "Sí" if registro.genero_sql else "No",
                     ]
+                    for registro in registros
                 )
 
     def leer_auditoria(self, usar_cache: bool = True) -> pd.DataFrame:

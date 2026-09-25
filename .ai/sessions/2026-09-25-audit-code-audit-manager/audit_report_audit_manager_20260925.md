@@ -171,7 +171,7 @@ Dentro de una carga real cada llamada cuesta de 1,5 a 2,7 veces lo que cuesta en
 
 ## FASE 3 — ANALYZE_CODE (hallazgos)
 
-### Hallazgo H1: un fallo al escribir el CSV después del commit hace fallar una operación que ya se ha persistido
+### Hallazgo H1: un fallo al escribir el CSV después del commit hace fallar una operación que ya se ha persistido — **CORREGIDO** (`2026-09-25-new-feature-audit-deferred-fail-open`)
 
 **Fase**: 3 · **Tipo**: Config / Integridad · **Severidad**: **ALTA**
 
@@ -192,7 +192,7 @@ Dentro de una carga real cada llamada cuesta de 1,5 a 2,7 veces lo que cuesta en
 
 ---
 
-### Hallazgo H2: la auditoría se escribe antes del commit y deja filas fantasma tras un rollback (y los reintentos las duplican)
+### Hallazgo H2: la auditoría se escribe antes del commit y deja filas fantasma tras un rollback (y los reintentos las duplican) — **CORREGIDO** (`2026-09-25-new-feature-audit-deferred-fail-open`)
 
 **Fase**: 3 · **Tipo**: Integridad / Async · **Severidad**: **ALTA**
 
@@ -250,7 +250,7 @@ Dentro de una carga real cada llamada cuesta de 1,5 a 2,7 veces lo que cuesta en
 
 ---
 
-### Hallazgo H9: cada fila de auditoría cuesta 0,3–0,8 ms por `resolve()` + `mkdir()` + `open/close`
+### Hallazgo H9: cada fila de auditoría cuesta 0,3–0,8 ms por `resolve()` + `mkdir()` + `open/close` — **CORREGIDO** (`2026-09-25-new-feature-audit-deferred-fail-open`)
 
 **Fase**: 3 · **Tipo**: Overhead · **Severidad**: **MEDIA** (BAJA con `chunk_size ≥ 5000`)
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 import copy
 import logging
 
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
@@ -20,6 +21,7 @@ import pandas as pd
 
 from ._audit.errors import AuditConfigError, AuditDataError, AuditError, AuditFileError, AuditValidationError
 from ._audit.exporters import AuditExporters
+from ._audit.record import AuditRecord
 from ._audit.repository import AuditCsvRepository
 from ._audit.service import AuditAnalyticsService
 
@@ -254,6 +256,21 @@ class AuditManager:
             genero_sql=genero_sql,
         )
         self.logger.info(f"🟢 {operacion} - filas {rowcount} - {elapsed:.3f}s registrado en auditoría")
+
+    def _registrar_lote(self, registros: Sequence[AuditRecord]) -> None:
+        """Registra varias operaciones con una sola escritura del CSV.
+
+        Uso interno de ``BulkCrud.bulk_session``, que acumula la auditoría hasta confirmar la transacción. Valida todos
+        los registros antes de escribir ninguno. Sin ``audit_csv_path`` no hace nada.
+        """
+        if self.audit_csv_path is None or not registros:
+            return
+        for registro in registros:
+            self._validar_parametros_operacion(
+                registro.tabla, registro.motor, registro.operacion, registro.rowcount, registro.elapsed
+            )
+        self._repository.registrar_operaciones(registros)
+        self.logger.info(f"🟢 {len(registros)} operaciones registradas en auditoría")
 
     def _validar_parametros_operacion(
         self, tabla: str, motor: str, operacion: str, rowcount: int, elapsed: float

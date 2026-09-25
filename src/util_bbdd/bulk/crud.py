@@ -126,6 +126,7 @@ class BulkCrud:
         insert_resolver: InsertStrategyResolver | None = None,
         commit_every_n_chunks: int | None = None,
         update_via_staging: bool = True,
+        audit_strict: bool = False,
     ):
         """
         Constructor de la clase bulk_crud.
@@ -171,6 +172,11 @@ class BulkCrud:
                 el privilegio ``CREATE TEMPORARY TABLES``: si el servidor lo deniega, se registra un WARNING y se
                 usa el UPDATE fila a fila (más lento) en esa y las siguientes llamadas de la instancia. Pasar False
                 para no intentarlo. Por defecto True. Ignorado en otros motores.
+            audit_strict: Qué hacer si no se puede escribir el CSV de auditoría (fichero abierto en Excel, disco lleno,
+                permisos). Con False (default) la operación sigue, porque sus datos ya están en la BD: se registra un
+                ERROR con los registros perdidos y se suman a :attr:`audit_failures`. Con True se propaga el error
+                (``AuditError``/``OSError``); dentro de :meth:`bulk_session` la auditoría se escribe entonces antes
+                del commit y el fallo deshace la sesión.
 
         Raises:
             ValueError: Si engine es None.
@@ -204,6 +210,7 @@ class BulkCrud:
             logger=self.logger,
             audit_manager=self.audit_manager,
             db_info=self.db_info,
+            audit_strict=audit_strict,
         )
         self._batch_statement_executor: BatchStatementExecutor = BatchStatementExecutor(
             engine=self.engine,
@@ -867,6 +874,14 @@ class BulkCrud:
         return tabla
 
     @property
+    def audit_failures(self) -> int:
+        """Registros de auditoría que no se pudieron escribir en el CSV (solo con ``audit_strict=False``).
+
+        Cada uno queda además en el log como ERROR, con tabla, operación, filas y tiempo.
+        """
+        return self._persistence.audit_failures
+
+    @property
     def rows_committed(self) -> int:
         """Filas durablemente comprometidas en BD por esta instancia hasta el momento.
 
@@ -902,40 +917,48 @@ class BulkCrud:
         la sesión **no** es atómica aunque ``atomic=True``: un fallo a mitad deja
         committeados los lotes anteriores.
 
-        Nota: un fallo registrando la auditoría (``AuditError``/``OSError`` al escribir
-        el CSV de auditoría) **después** de que el `execute()` de un chunk ya se haya
-        aplicado se propaga igual que un error de la propia operación bulk, y en modo
-        atómico (sin ``commit_every_n_chunks``) provoca el rollback de **toda** la
-        sesión, incluidos los chunks anteriores ya ejecutados en la misma transacción
-        compartida. El CSV de auditoría, al ser un fichero externo a la transacción de
-        BD, puede conservar entradas de esos chunks anteriores aunque sus filas se
-        deshagan en la base de datos — la auditoría y la BD pueden quedar
-        desincronizadas si esto ocurre.
+        Auditoría: dentro de la sesión cada operación se escribe en el CSV cuando un commit la confirma (al salir
+        del bloque o, con ``commit_every_n_chunks``, en el commit periódico). Si la sesión acaba en rollback, lo
+        pendiente se descarta con un WARNING. Así la traza no cuenta filas deshechas ni las repite cuando se
+        reintenta la sesión. El ``timestamp`` sigue siendo el de fin de cada operación. Con ``commit_every_n_chunks``,
+        una operación que falla con parte de sus lotes ya confirmados no se audita: :attr:`rows_committed` da esas
+        filas. Las operaciones con ``generar_sql=True`` no tocan la BD y se escriben al momento. Si falla la escritura
+        del CSV, ver ``audit_strict`` en el constructor.
         """
         if not atomic:
             yield
             return
         executor = self._batch_statement_executor
         delete_executor = self._delete_batch_executor  # P-26: el DELETE también usa la conexión de la sesión
-        if executor._commit_every_n_chunks is not None:
-            executor._chunks_since_commit = 0
-            with executor._engine.connect() as conn:
+        persistence = self._persistence
+        try:
+            if executor._commit_every_n_chunks is not None:
+                executor._chunks_since_commit = 0
+                with executor._engine.connect() as conn:
+                    executor._active_connection = delete_executor._active_connection = conn
+                    executor._commit_hook = delete_executor._commit_hook = persistence.commit
+                    persistence.start_session_audit(conn)
+                    try:
+                        yield
+                        persistence.commit(conn)
+                        executor._chunks_since_commit = 0
+                        executor.rows_committed += executor._rows_pending_commit
+                        executor._rows_pending_commit = 0
+                    finally:
+                        executor._active_connection = delete_executor._active_connection = None
+                        executor._commit_hook = delete_executor._commit_hook = None
+                return
+            with executor._engine.begin() as conn:
                 executor._active_connection = delete_executor._active_connection = conn
+                persistence.start_session_audit(conn)
                 try:
                     yield
-                    conn.commit()
-                    executor._chunks_since_commit = 0
-                    executor.rows_committed += executor._rows_pending_commit
-                    executor._rows_pending_commit = 0
+                    persistence.flush_audit_before_commit()
                 finally:
                     executor._active_connection = delete_executor._active_connection = None
-            return
-        with executor._engine.begin() as conn:
-            executor._active_connection = delete_executor._active_connection = conn
-            try:
-                yield
-            finally:
-                executor._active_connection = delete_executor._active_connection = None
+            persistence.flush_audit_after_commit()
+        finally:
+            persistence.end_session_audit()
 
     def get_columna_may_min(self, tabla: Table, nombre_col: str) -> Column | None:
         """Devuelve una columna de una tabla SQLAlchemy ignorando mayúsculas/minúsculas."""

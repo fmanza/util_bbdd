@@ -7,7 +7,7 @@ import logging
 import operator
 import uuid
 
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from typing import Any, Protocol
 
 import pandas as pd
@@ -784,6 +784,18 @@ class DeleteStrategyResolver:
 # ---------------------------------------------------------------------------
 
 
+def _commit_periodico(connection: Any, commit_hook: Callable[[Any], None] | None) -> None:
+    """Commit periódico de ``commit_every_n_chunks``.
+
+    Dentro de ``BulkCrud.bulk_session`` pasa por ``commit_hook``, que además vuelca al CSV la auditoría de las
+    operaciones que ese commit confirma (M-1, audit-code de AuditManager 2026-09-25).
+    """
+    if commit_hook is not None:
+        commit_hook(connection)
+    else:
+        connection.commit()
+
+
 class BatchStatementExecutor:
     """Ejecutor OO de statements SQLAlchemy por lotes."""
 
@@ -799,6 +811,8 @@ class BatchStatementExecutor:
         self._engine: Engine = engine
         self._chunk_size: int = validate_chunk_size(chunk_size)
         self._active_connection: Any | None = None
+        # Gancho de commit que inyecta ``BulkCrud.bulk_session()`` junto con ``_active_connection``.
+        self._commit_hook: Callable[[Any], None] | None = None
         self._commit_every_n_chunks: int | None = commit_every_n_chunks
         self._chunks_since_commit: int = 0
         # BLK-08 (AUDIT_CODE 2026-09-22): filas durablemente comprometidas (ya vía
@@ -876,7 +890,7 @@ class BatchStatementExecutor:
                 self._rows_pending_commit += len(batch)
                 self._chunks_since_commit += 1
                 if self._chunks_since_commit >= self._commit_every_n_chunks:
-                    connection.commit()
+                    _commit_periodico(connection, self._commit_hook)
                     self._chunks_since_commit = 0
                     self.rows_committed += self._rows_pending_commit
                     self._rows_pending_commit = 0
@@ -903,6 +917,7 @@ class DeleteBatchExecutor:
         self._resolver: DeleteStrategyResolver = resolver or DeleteStrategyResolver()
         # Conexión de ``BulkCrud.bulk_session()`` (P-26): el DELETE participa en la transacción de la sesión.
         self._active_connection: Any | None = None
+        self._commit_hook: Callable[[Any], None] | None = None
         self._commit_every_n_chunks: int | None = commit_every_n_chunks
 
     def execute(self, *, table: Table, df: pd.DataFrame, pk_cols: Sequence[str]) -> None:
@@ -936,7 +951,7 @@ class DeleteBatchExecutor:
             if self._commit_every_n_chunks is not None:
                 batches_since_commit += 1
                 if batches_since_commit >= self._commit_every_n_chunks:
-                    connection.commit()
+                    _commit_periodico(connection, self._commit_hook)
                     batches_since_commit = 0
 
     def _iter_batches(self, *, df: pd.DataFrame, pk_cols: Sequence[str]) -> Iterator[pd.DataFrame]:

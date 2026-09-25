@@ -70,6 +70,7 @@ flowchart TD
 |---|---|
 | `AuditValidationError` | Nombre de transacción vacío; `agregar_operacion` sobre transacción ya cerrada |
 | `AuditFileError` | Error de escritura en el CSV (permisos, ruta inválida) |
+| — | Usado desde `BulkCrud`, un fallo al escribir el CSV no interrumpe la operación salvo con `BulkCrud(audit_strict=True)`: se registra como ERROR y se cuenta en `BulkCrud.audit_failures`. Dentro de `bulk_session` las filas se escriben al confirmarse la transacción y se descartan si hay rollback. Ver [BulkCrud](bulk-crud.md) |
 | `AuditConfigError` | Configuración inválida al inicializar; exportar sin CSV configurado |
 
 ## 3. Componentes y Clases
