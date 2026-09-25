@@ -106,4 +106,4 @@ Interrumpido para terminar P-34/P-35 del roadmap de serialización SQL; después
 ## Veredicto final
 Veredicto: CLOSED
 Pendientes al cierre:
-- Push de `develop` y del tag `v0.15.0` (a decisión del usuario).
+- Ninguno. Push hecho a petición del usuario: `develop` `6768d3f..5942105` y tag `v0.15.0` publicados en `origin`.
