@@ -166,7 +166,8 @@ class TestDumpAudit:
     def test_failed_table_with_periodic_commits_audits_exactly_the_committed_rows(self, tmp_path: Path) -> None:
         # dump lee chunks de chunk_size filas: cada operación es un solo lote y no puede quedar confirmada a medias,
         # así que las filas confirmadas antes del fallo constan todas en el CSV (unaudited_committed_rows == 0).
-        cfg, dst = self._config(tmp_path, chunk_size=1, commit_every_n_chunks=2)
+        # truncate_target=False: la fila precargada debe seguir ahí para que la 3.ª fila choque con su PK.
+        cfg, dst = self._config(tmp_path, chunk_size=1, commit_every_n_chunks=2, truncate_target=False)
         cfg.bulk_audit_path = tmp_path / "ok" / "audit.csv"
         with dst.begin() as conn:
             conn.exec_driver_sql("INSERT INTO items (id, name) VALUES (3, 'ya estaba')")  # la 3.ª fila choca
@@ -213,3 +214,16 @@ class TestDumpAudit:
         ws = openpyxl.load_workbook(result.report)["Secuencias PK"]
         assert [c.value for c in next(ws.iter_rows(min_row=2))] == ["items", "id", "sqlite", 3, "SYNCED", "—"]
         assert result.pk_sync_results is pk_results
+
+    def test_non_empty_sqlite_target_is_cleaned_before_loading(self, tmp_path: Path) -> None:
+        # Antes: TRUNCATE TABLE fallaba en SQLite, el destino conservaba sus filas y la carga chocaba con la PK 1.
+        cfg, dst = self._config(tmp_path)
+        cfg.bulk_audit_path = None
+        with dst.begin() as conn:
+            conn.exec_driver_sql("INSERT INTO items (id, name) VALUES (1, 'viejo'), (9, 'solo destino')")
+
+        result = DumpOrchestrator(cfg).run()
+
+        assert [r.status for r in result.table_results] == ["success"]
+        with dst.connect() as conn:
+            assert conn.execute(text("SELECT id FROM items ORDER BY id")).scalars().all() == [1, 2, 3]

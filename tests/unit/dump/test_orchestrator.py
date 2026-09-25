@@ -873,6 +873,14 @@ class TestCleanup:
         assert all("TRUNCATE TABLE" in s for s in sql_stmts)
         assert len(sql_stmts) == 2
 
+    def test_delete_used_for_sqlite(self):
+        """SQLite no tiene TRUNCATE TABLE: fallaba con un WARNING y el destino no se limpiaba."""
+        orch = self._make_orchestrator("sqlite")
+        orch._cleanup(["customers", "orders"], skip=set())
+        sql_stmts = self._executed_sql(orch)
+        assert len(sql_stmts) == 2
+        assert all(s.startswith("DELETE FROM") for s in sql_stmts)
+
     def test_truncate_used_for_mssql_no_fk_references(self):
         """Tabla SQL Server sin FK entrantes → TRUNCATE (optimización híbrida)."""
         orch = self._make_orchestrator("mssql")

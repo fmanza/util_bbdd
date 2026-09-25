@@ -279,6 +279,7 @@ class DumpOrchestrator:
         Para SQL Server: TRUNCATE TABLE en tablas sin FK entrantes (instantáneo)
         y DELETE FROM en las referenciadas. Si TRUNCATE falla (FK de esquema
         externo no detectada), reintenta con DELETE via ``_cleanup_table``.
+        Para SQLite: DELETE FROM siempre (no tiene TRUNCATE; un DELETE sin WHERE es su equivalente).
         Para otros motores: TRUNCATE TABLE siempre.
         """
         cfg = self._cfg
@@ -290,7 +291,9 @@ class DumpOrchestrator:
             for table in reversed_order:
                 if table in skip:
                     continue
-                use_delete = dialect == "mssql" and table.lower() in mssql_referenced
+                # SQLite no tiene TRUNCATE TABLE: fallaba con un WARNING, el destino no se limpiaba y la carga chocaba
+                # con las PK existentes (o duplicaba filas en tablas sin PK).
+                use_delete = dialect == "sqlite" or (dialect == "mssql" and table.lower() in mssql_referenced)
                 self._cleanup_table(conn, table, cfg.target_schema, use_delete, dialect)
 
     def _cleanup_table(

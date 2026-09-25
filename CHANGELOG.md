@@ -52,6 +52,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **dump**: con un destino SQLite, la limpieza previa (`truncate_target=True`, el valor por defecto) usaba `TRUNCATE
+  TABLE`, que SQLite no tiene: fallaba con un WARNING, el destino conservaba sus filas y la carga chocaba con las PK
+  existentes (la tabla quedaba en `error`) o, sin PK, duplicaba filas. Ahora usa `DELETE FROM`.
 - **dump (informe)**: el Excel guardaba como fórmula cualquier texto que empezara por `=`, como un nombre de tabla del
   catálogo o un mensaje de error; openpyxl lo interpreta así y la fórmula se ejecutaba al abrir el informe. Ahora se
   guarda como texto en todas las hojas (misma defensa que H12 en el export de `AuditManager`).
