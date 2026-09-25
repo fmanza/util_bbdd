@@ -47,17 +47,3 @@ métodos de análisis y exportación del historial.
       members_order: source
       filters:
         - "!^_"
-
----
-
-## AuditTransaction
-
-Context manager que agrupa y registra operaciones bulk bajo un nombre de transacción.
-
-::: util_bbdd.bulk.audit.AuditTransaction
-    options:
-      show_source: false
-      heading_level: 3
-      members_order: source
-      filters:
-        - "!^_"

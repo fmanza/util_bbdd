@@ -309,7 +309,7 @@ La caché solo se invalida con las escrituras de **la propia** instancia. Con va
 Sin cambios desde la auditoría del 2026-09-23 (P-11): un `WARNING "Auditoría deshabilitada"` por operación cuando `audit_csv_path=None` (`audit.py:244`), más dos `INFO` por operación (`audit.py:256`, `repository.py:175`). Medido: **+88 µs/llamada** con un handler INFO a fichero. Con chunk 500 y 1M filas son 4000 líneas de log por carga.
 **Propuesta**: avisar una sola vez por instancia y bajar `Caché limpiado` y `🟢 … registrado` a DEBUG.
 
-### Hallazgo H11: `AuditTransaction` está aislado del flujo bulk
+### Hallazgo H11: `AuditTransaction` está aislado del flujo bulk — **RETIRADO** (`2026-09-25-refactor-remove-audit-transaction`)
 
 **Severidad**: INFO
 

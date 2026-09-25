@@ -11,6 +11,15 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 - **bulk (auditoría)**: `BulkCrud(audit_strict=False)` y la propiedad `BulkCrud.audit_failures` (ver *Changed*).
 
+### Removed
+
+- **bulk (auditoría)**: **cambio incompatible.** Se retiran `AuditTransaction`, `AuditManager.iniciar_transaccion()` y
+  `AuditManager.obtener_historial_transacciones()`, y `util_bbdd.bulk` deja de exportar `AuditTransaction`. Ningún
+  componente de la librería los usaba: no escribían nada en el CSV, solo un historial en memoria que crecía sin límite.
+  La documentación los presentaba por error como parte del flujo de `BulkCrud`. Para agrupar y medir cargas, usar
+  `BulkCrud.bulk_session()` (una transacción y su auditoría) y consultar el CSV con `AuditManager.filtrar_por_rango_tiempo()`
+  u `obtener_estadisticas()`.
+
 ### Deprecated
 
 - **bulk (auditoría)**: asignar `AuditManager.columnas_auditoria` emite `DeprecationWarning` y el setter se retirará en

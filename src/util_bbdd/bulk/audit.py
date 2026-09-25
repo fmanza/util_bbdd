@@ -9,14 +9,12 @@ AuditManager se mantiene como fachada pública y delega en:
 
 from __future__ import annotations
 
-import copy
 import logging
 import warnings
 
 from collections.abc import Sequence
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from types import TracebackType
 from typing import Any, Literal
 
 import pandas as pd
@@ -26,135 +24,6 @@ from ._audit.exporters import AuditExporters
 from ._audit.record import AuditRecord
 from ._audit.repository import AuditCsvRepository
 from ._audit.service import AuditAnalyticsService
-
-
-class AuditTransaction:
-    """Context manager para gestionar transacciones de auditoría."""
-
-    def __init__(self, manager: AuditManager, nombre: str) -> None:
-        if not nombre or not nombre.strip():
-            raise AuditValidationError("❌ El nombre de la transacción no puede estar vacío.")
-        if not isinstance(manager, AuditManager):
-            raise AuditValidationError("❌ El manager debe ser una instancia de AuditManager.")
-
-        self.manager: AuditManager = manager
-        self.nombre: str = nombre.strip()
-        self.inicio: datetime | None = None
-        self.fin: datetime | None = None
-        self.operaciones: list[dict[str, Any]] = []
-        self.exito: bool = False
-        self.audit_error: Exception | None = None
-        self.logger: logging.Logger = logging.getLogger(__name__)
-
-    def __enter__(self) -> AuditTransaction:
-        self.inicio = datetime.now()
-        self.logger.info(f"⏱️  Iniciando transacción: {self.nombre}")
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        self.fin = datetime.now()
-        duracion: timedelta = self.fin - self.inicio if self.inicio else timedelta(0)
-        self.exito = exc_type is None
-
-        try:
-            if exc_type is None:
-                self._registrar_transaccion_exitosa(duracion)
-            else:
-                self._registrar_transaccion_fallida(duracion, exc_type, exc_val)
-        except Exception as error:
-            self.logger.error(f"❌ Error al finalizar transacción {self.nombre}: {error}")
-            self.audit_error = error
-
-    def _registrar_transaccion_exitosa(self, duracion: timedelta) -> None:
-        tiempo_segundos: float = duracion.total_seconds()
-        total_ops: int = len(self.operaciones)
-        self.logger.info(
-            f"✅ Transacción '{self.nombre}' completada: {total_ops} operaciones en {tiempo_segundos:.3f}s"
-        )
-        self.manager._historial_transacciones.append(self.obtener_resumen())
-        if self.manager.cache_enabled:
-            self.manager.invalidar_cache()
-
-    def _registrar_transaccion_fallida(
-        self, duracion: timedelta, exc_type: type[BaseException], exc_val: BaseException | None
-    ) -> None:
-        tiempo_segundos: float = duracion.total_seconds()
-        total_ops: int = len(self.operaciones)
-        self.logger.error(
-            f"❌ Transacción '{self.nombre}' FALLIDA: {total_ops} operaciones en {tiempo_segundos:.3f}s - "
-            f"Error: {exc_type.__name__}: {exc_val}"
-        )
-        self.manager._historial_transacciones.append(self.obtener_resumen())
-        if self.manager.cache_enabled:
-            self.manager.invalidar_cache()
-
-    def agregar_operacion(
-        self,
-        tabla: str,
-        motor: str,
-        operacion: str,
-        rowcount: int,
-        elapsed: float,
-        genero_sql: bool = False,
-    ) -> None:
-        if self.inicio is None or self.fin is not None:
-            raise AuditValidationError("❌ No se puede agregar operaciones a una transacción cerrada.")
-
-        self.operaciones.append(
-            {
-                "tabla": tabla,
-                "motor": motor,
-                "operacion": operacion,
-                "rowcount": rowcount,
-                "elapsed": elapsed,
-                "genero_sql": genero_sql,
-                "timestamp": datetime.now(),
-            }
-        )
-        self.logger.debug(f"📝 Operación agregada a transacción {self.nombre}: {tabla}.{operacion}")
-
-    @property
-    def duracion_segundos(self) -> float:
-        if self.inicio and self.fin:
-            return (self.fin - self.inicio).total_seconds()
-        return 0.0
-
-    @property
-    def total_operaciones(self) -> int:
-        return len(self.operaciones)
-
-    @property
-    def total_filas(self) -> int:
-        return sum(op.get("rowcount", 0) for op in self.operaciones)
-
-    def obtener_resumen(self) -> dict[str, Any]:
-        """
-        Obtener resumen de la transacción actual.
-
-        Returns:
-            Diccionario con:
-            - nombre: Nombre de la transacción
-            - inicio: Timestamp de inicio
-            - fin: Timestamp de fin (o None si aún está en curso)
-            - duracion_segundos: Segundos transcurridos
-            - total_operaciones: Cantidad de operaciones registradas
-            - total_filas: Suma de ``rowcount`` de las operaciones (filas enviadas, no afectadas en BD)
-            - exito: Booleano indicando si completó exitosamente
-            - operaciones: Lista de operaciones registradas
-        """
-        return {
-            "nombre": self.nombre,
-            "exito": self.exito,
-            "duracion_segundos": self.duracion_segundos,
-            "total_operaciones": self.total_operaciones,
-            "total_filas": self.total_filas,
-            "operaciones": copy.deepcopy(self.operaciones),
-        }
 
 
 class AuditManager:
@@ -194,7 +63,6 @@ class AuditManager:
             logger=self.logger,
             error_audit_path_required=self.ERROR_AUDIT_PATH_REQUIRED,
         )
-        self._historial_transacciones: list[dict[str, Any]] = []
         self._aviso_deshabilitada_emitido: bool = False
 
     @property
@@ -382,14 +250,6 @@ class AuditManager:
         """Exportar resumen de auditoría a archivo HTML interactivo."""
         return self._exporters.exportar_resumen_html(output_path=output_path)
 
-    def iniciar_transaccion(self, nombre: str) -> AuditTransaction:
-        """Iniciar una transacción de auditoría (context manager)."""
-        return AuditTransaction(self, nombre)
-
-    def obtener_historial_transacciones(self) -> list[dict[str, Any]]:
-        """Obtener historial de transacciones completadas."""
-        return self._historial_transacciones.copy()
-
 
 __all__: list[str] = [
     "AuditConfigError",
@@ -397,6 +257,5 @@ __all__: list[str] = [
     "AuditError",
     "AuditFileError",
     "AuditManager",
-    "AuditTransaction",
     "AuditValidationError",
 ]

@@ -10,8 +10,8 @@ validar impacto en rendimiento, metodología de logging, persistencia, y oportun
 
 > **Mapa real del componente** (verificado 2026-09-25, sesión `2026-09-25-audit-code-audit-manager`; revísalo contra
 > el código antes de auditar):
-> - `bulk/audit.py`: fachada `AuditManager` (`registrar_operacion`, `_registrar_lote`, filtros, exports) y
->   `AuditTransaction` (contador en memoria, no persiste).
+> - `bulk/audit.py`: fachada `AuditManager` (`registrar_operacion`, `_registrar_lote`, filtros, exports).
+>   `AuditTransaction` se retiró el 2026-09-25.
 > - `bulk/_audit/repository.py`: CSV **tabulado y síncrono**, sin buffer ni modo async; lock por ruta
 >   (intra-proceso); caché de lectura con TTL + firma del fichero.
 > - `bulk/_audit/{service,exporters,record,errors}.py`: analítica, Excel/JSON/HTML, `AuditRecord`, excepciones.

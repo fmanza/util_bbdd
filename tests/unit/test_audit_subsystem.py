@@ -346,10 +346,6 @@ class TestAuditManagerFacade:
         populated_manager.invalidar_cache()
         assert not populated_manager._repository.es_cache_valido()
 
-    def test_obtener_historial_sin_csv_path_no_lanza(self) -> None:
-        manager = AuditManager(audit_csv_path=None)
-        assert manager.obtener_historial_transacciones() == []
-
     def test_filtrar_por_operacion(self, populated_manager: AuditManager) -> None:
         df = populated_manager.filtrar_por_operacion("INSERT")
         assert len(df) == 1
@@ -357,68 +353,3 @@ class TestAuditManagerFacade:
     def test_obtener_operaciones_lentas(self, populated_manager: AuditManager) -> None:
         df = populated_manager.obtener_operaciones_lentas(umbral_segundos=0.3)
         assert len(df) == 1
-
-
-# ---------------------------------------------------------------------------
-# AuditTransaction — context manager
-# ---------------------------------------------------------------------------
-
-
-class TestAuditTransaction:
-    def test_transaccion_exitosa_registra_historial(self, manager: AuditManager) -> None:
-        with manager.iniciar_transaccion("carga-inicial") as tx:
-            tx.agregar_operacion("orders", "sqlite", "INSERT", 10, 0.5)
-        historial = manager.obtener_historial_transacciones()
-        assert len(historial) == 1
-        assert historial[0]["nombre"] == "carga-inicial"
-        assert historial[0]["exito"] is True
-
-    def test_transaccion_fallida_marca_exito_false(self, manager: AuditManager) -> None:
-        with pytest.raises(ValueError):
-            with manager.iniciar_transaccion("tx-fallida") as tx:
-                tx.agregar_operacion("t", "sqlite", "INSERT", 1, 0.1)
-                raise ValueError("error simulado")
-        historial = manager.obtener_historial_transacciones()
-        assert historial[0]["exito"] is False
-
-    def test_agregar_operacion_fuera_de_contexto_lanza_error(self, manager: AuditManager) -> None:
-        tx = manager.iniciar_transaccion("tx")
-        with tx:
-            pass
-        with pytest.raises(AuditValidationError):
-            tx.agregar_operacion("t", "sqlite", "INSERT", 1, 0.1)
-
-    def test_duracion_segundos_calculada(self, manager: AuditManager) -> None:
-        with manager.iniciar_transaccion("tx") as tx:
-            pass
-        assert tx.duracion_segundos >= 0.0
-
-    def test_total_filas_suma_operaciones(self, manager: AuditManager) -> None:
-        with manager.iniciar_transaccion("tx") as tx:
-            tx.agregar_operacion("t", "sqlite", "INSERT", 5, 0.1)
-            tx.agregar_operacion("t", "sqlite", "INSERT", 3, 0.1)
-        assert tx.total_filas == 8
-
-    def test_audit_error_none_en_exito(self, manager: AuditManager) -> None:
-        with manager.iniciar_transaccion("tx") as tx:
-            pass
-        assert tx.audit_error is None
-
-    def test_nombre_vacio_lanza_error(self, manager: AuditManager) -> None:
-        with pytest.raises(AuditValidationError):
-            manager.iniciar_transaccion("   ")
-
-    def test_obtener_resumen_estructura(self, manager: AuditManager) -> None:
-        with manager.iniciar_transaccion("resumen-test") as tx:
-            tx.agregar_operacion("t", "sqlite", "INSERT", 1, 0.0)
-        resumen = tx.obtener_resumen()
-        assert set(resumen.keys()) >= {
-            "nombre",
-            "exito",
-            "duracion_segundos",
-            "total_operaciones",
-            "total_filas",
-            "operaciones",
-        }
-        assert resumen["nombre"] == "resumen-test"
-        assert resumen["exito"] is True

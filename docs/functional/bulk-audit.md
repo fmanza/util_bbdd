@@ -2,26 +2,25 @@
 
 ## 1. Descripción General
 
-Registra automáticamente cada operación de datos masiva (INSERT, UPDATE, DELETE en lote) en un fichero CSV persistente, permitiendo rastrear qué proceso tocó qué tabla, cuándo, cuántos registros afectó y si la operación fue exitosa o falló.
+Registra cada operación de datos masiva (INSERT, UPDATE o DELETE en lote) en un fichero CSV persistente: qué tabla, en qué motor, cuándo terminó, cuántas filas se enviaron, cuánto tardó y si se generó un fichero SQL en lugar de ejecutar en la base de datos. Así se puede rastrear después qué cargas se hicieron y cuánto costaron.
 
-Proporciona análisis básico del historial (estadísticas por tabla, filtrado por fecha, resumen de errores) y exportación a Excel, JSON o HTML para reportes de auditoría o revisiones de calidad de datos.
+Sobre ese historial ofrece estadísticas (totales, operaciones más lentas, tablas y motores más usados), filtros (por operación, tabla, motor, rango de fechas o tiempo) y exportación a Excel, JSON o HTML para informes.
 
 **Precondiciones:**
 
-- Directorio de salida accesible con permisos de escritura para el fichero CSV de auditoría
-- Librería `pandas` instalada (requerida para el registro y exportación)
-- Para exportación Excel: `openpyxl` instalado
-- Si se usa con operaciones bulk, el gestor de auditoría se configura antes de iniciar las operaciones
+- Indicar la ruta del CSV de auditoría (`audit_csv_path`) al crear `BulkCrud` o `ParallelBulkLoader`. Sin ruta, la auditoría está desactivada.
+- Directorio de salida con permisos de escritura. Se crea si no existe.
 
 ## 2. Reglas de Negocio
 
 | Regla | Descripción | Impacto si se viola |
 |---|---|---|
-| Context manager obligatorio | Las operaciones se registran correctamente solo dentro de un bloque `with AuditTransaction(...)` | Operaciones fuera del context manager no se escriben al CSV ni al historial |
-| Registro en caso de error | Si la operación falla, el error se captura y se registra igualmente (con `exito=False`) | El historial refleja intentos fallidos, permitiendo identificar tablas problemáticas |
-| CSV como fuente persistente | El registro se escribe en CSV al finalizar cada transacción, independientemente de lo que haga el llamador | El CSV sobrevive a reinicios del proceso; el historial en memoria no |
-| Invalidación de caché en éxito | Si el caché está activo en el manager, se invalida al completar la transacción exitosamente | Sin invalidación, consultas posteriores al bulk pueden devolver datos desactualizados |
-| Nombre de transacción obligatorio | Se rechaza un nombre de transacción vacío o compuesto solo de espacios | Facilita la trazabilidad: cada operación registrada tiene identificador legible |
+| Una fila por operación | Cada llamada a `bulk_insert_from_df`, `bulk_update_from_df` o `bulk_delete_from_df` escribe una fila; `bulk_insert_from_chunks` escribe una por chunk. No se escribe una fila por registro de datos | — |
+| Solo lo confirmado | Dentro de `bulk_session` la fila se escribe cuando la transacción se confirma. Si la carga se deshace (rollback), no queda rastro en el CSV y se avisa en el log | El CSV coincide con lo que realmente quedó en la base de datos; reintentar una carga no duplica filas de auditoría |
+| La auditoría no bloquea la carga | Si el CSV no se puede escribir (abierto en Excel, disco lleno, permisos), la operación sigue: sus datos ya están en la base de datos. Se registra un error con los datos perdidos y se cuenta en `audit_failures`. Con `audit_strict=True`, en cambio, el fallo detiene la operación y, dentro de una sesión, la deshace | Sin esta regla, un error de auditoría llevaba a reintentar una carga ya aplicada y a duplicar datos |
+| Filas enviadas, no afectadas | `total_filas` son las filas enviadas a la operación. Un DELETE o UPDATE con claves que no existen las cuenta igualmente | El CSV no sirve para saber cuántas filas cambió realmente la base de datos |
+| Generación de SQL aparte | Con `generar_sql=True` no se ejecuta nada en la base de datos; la fila se marca con `sql=Sí` y su tiempo es el de generar el fichero SQL | Los resúmenes de Excel separan ambos tipos para no mezclar tiempos |
+| Escrituras concurrentes seguras | Varias cargas en paralelo dentro del mismo proceso pueden escribir en el mismo CSV sin intercalar filas | Varios **procesos** distintos sobre el mismo CSV sí pueden intercalar filas: usar un CSV por proceso |
 
 ## 3. Casos de Uso
 
@@ -30,45 +29,45 @@ Proporciona análisis básico del historial (estadísticas por tabla, filtrado p
 ```mermaid
 sequenceDiagram
     actor ETL as Proceso ETL
-    participant AM as Gestor de Auditoría
-    participant CSV as Fichero CSV
-    participant Exp as Exportador
+    participant BC as BulkCrud
+    participant BD as Base de datos
+    participant AM as Auditoría (CSV)
 
-    ETL->>AM: Inicializar con ruta CSV
-    ETL->>AM: Iniciar transacción con nombre descriptivo
-    Note over AM: Registra inicio de transacción
+    ETL->>BC: Crear con audit_csv_path
+    ETL->>BC: bulk_insert_from_df / update / delete
+    BC->>BD: Ejecutar por lotes y confirmar
+    BC->>AM: Registrar operación (tabla, motor, filas, tiempo, sql)
 
-    ETL->>AM: Registrar operaciones (tabla, filas, tipo)
-    ETL->>AM: Finalizar transacción (éxito o error)
-    AM->>CSV: Registrar (timestamp, tabla, filas, duración, estado)
-
-    opt Auditoría periódica
-        ETL->>AM: Obtener resumen estadístico
-        AM-->>ETL: Estadísticas por tabla y motor
-        ETL->>AM: Exportar a Excel
-        AM->>Exp: Generar Excel con historial filtrado
-        Exp-->>ETL: Fichero .xlsx generado
+    opt Informe
+        ETL->>AM: AuditManager(ruta).obtener_estadisticas()
+        AM-->>ETL: Totales, más lentas, tablas y motores
+        ETL->>AM: exportar_resumen_excel() / _json() / _html()
+        AM-->>ETL: Fichero generado junto al CSV
     end
 ```
 
 ### Flujos alternativos
 
-**Operación con error:** Si la operación bulk falla, el gestor de auditoría captura la excepción y la registra con `exito=False`. El flujo continúa; no se pierde el registro del intento fallido.
+**Carga dentro de `bulk_session` que falla:** las operaciones ejecutadas en la sesión no se anotan hasta el commit. Si la sesión se deshace, se descartan y el log avisa de cuántos registros se descartaron. Con `commit_every_n_chunks`, las operaciones ya confirmadas por un commit periódico sí quedan anotadas; una operación que falla con parte de sus lotes confirmados no se anota (`rows_committed` indica esas filas).
 
-**Análisis de historial:** El usuario puede consultar estadísticas sin realizar nuevas operaciones — filtrado por fecha, por tabla, o exportación del historial completo en Excel, JSON o HTML.
+**CSV no escribible:** la carga termina, los datos quedan en la base de datos y el error aparece en el log con tabla, operación, filas y tiempo de cada registro perdido.
+
+**Análisis sin cargar datos:** se crea un `AuditManager` sobre un CSV existente para filtrar, calcular estadísticas o exportar, sin tocar ninguna base de datos.
 
 **Límites y exclusiones:**
 
-- Solo registra metadatos de la operación (tabla, tipo, filas, duración): no guarda los datos modificados
-- El CSV de auditoría puede crecer sin límite: la rotación o limpieza del fichero es responsabilidad del operador
-- No integra con sistemas de auditoría externos (Splunk, ELK, CloudWatch): solo produce ficheros locales
-- No garantiza atomicidad del registro: si el proceso se interrumpe durante la escritura al CSV, la entrada puede quedar corrupta
-- No cifra ni protege el CSV de auditoría: tratar el fichero como información sensible si los nombres de tabla son confidenciales
+- Solo registra metadatos de la operación (tabla, tipo, filas, duración), nunca los datos modificados.
+- El CSV crece sin límite: la rotación o limpieza es responsabilidad del operador.
+- No se integra con sistemas de auditoría externos (Splunk, ELK, CloudWatch): solo produce ficheros locales.
+- Si el proceso se interrumpe durante la escritura, la última fila puede quedar incompleta.
+- No cifra ni protege el CSV: tratarlo como información sensible si los nombres de tabla lo son. Abrir el CSV directamente en Excel puede interpretar como fórmula un nombre de tabla que empiece por `=`; los exports a Excel de la librería ya lo guardan como texto.
 
 ## 4. Glosario y Términos
 
 | Término | Definición |
 |---|---|
-| Transacción de auditoría | Unidad lógica de seguimiento que agrupa una o más operaciones bulk bajo un nombre descriptivo |
-| CSV de auditoría | Fichero de texto delimitado por comas donde se persiste el historial de operaciones bulk |
-| `exito=False` | Indicador en el registro que señala que la operación falló; la fila sigue existiendo en el CSV |
+| CSV de auditoría | Fichero de texto separado por tabuladores con una fila por operación bulk: `timestamp`, `tabla`, `motor`, `operacion`, `total_filas`, `tiempo_seg`, `sql` |
+| Operación | Una llamada a `bulk_insert_from_df`, `bulk_update_from_df` o `bulk_delete_from_df`, o un chunk de `bulk_insert_from_chunks` |
+| `sql=Sí` | La operación generó un fichero SQL en lugar de ejecutar en la base de datos |
+| `audit_strict` | Opción de `BulkCrud`: si es `True`, un fallo al escribir el CSV detiene la operación en vez de registrarse y seguir |
+| `audit_failures` | Número de registros de auditoría que no se pudieron escribir en el CSV (con `audit_strict=False`) |

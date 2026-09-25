@@ -12,7 +12,7 @@ Consolidación de:
 from ._execution.parallel_loader import ParallelBulkLoader, ParallelLoadResult, PartitionResult
 from ._execution.range_partitioner import HashPartitioner, RangePartitioner
 from ._models import PKSyncResult
-from .audit import AuditError, AuditManager, AuditTransaction
+from .audit import AuditError, AuditManager
 from .crud import BulkCrud, bulk_crud
 from .normalize import normalize_records_for_sql, normalize_sql_literal
 
@@ -31,7 +31,6 @@ __all__: list[str] = [
     "PKSyncResult",
     # Auditoría
     "AuditManager",
-    "AuditTransaction",
     "AuditError",
     # Normalización
     "normalize_records_for_sql",
