@@ -135,6 +135,31 @@ def _json_as_string_literals(table: TableClause, values: SqlRecord) -> SqlRecord
     }
 
 
+# C-1 / P-30 (hotfix 2026-09-25): literal hexadecimal de los valores binarios, por dialecto. SQLAlchemy los renderiza
+# como cadena ('abc'): SQLite la guarda como TEXT, SQL Server la rechaza (Msg 257) y Oracle la interpreta como hex
+# (b"abc" → 0x0ABC, sin error); con bytes no UTF-8 falla y la fila caía a format_sql_param_value, cuyo 0x... solo
+# aceptan SQL Server y MySQL. decode(..., 'hex') no depende de standard_conforming_strings en PostgreSQL.
+# Un dialecto que no está aquí conserva el comportamiento anterior.
+_HEX_STRING_LITERAL: str = "X'{}'"  # SQL estándar
+_BINARY_LITERAL_FORMATS: dict[str, str] = {
+    "sqlite": _HEX_STRING_LITERAL,
+    "postgresql": "decode('{}', 'hex')",
+    "mysql": _HEX_STRING_LITERAL,
+    "mariadb": _HEX_STRING_LITERAL,
+    "mssql": "0x{}",
+    "oracle": "HEXTORAW('{}')",
+}
+_BYTES_TYPES = (bytes, bytearray, memoryview)  # sin anotar: mypy acota el tipo en isinstance
+
+
+def _binary_or_value(column_type: TypeEngine[Any], value: Any, dialect: Any) -> Any:
+    """En el camino por fila: el valor binario como ``literal_column`` con su literal del dialecto (C-1), o el valor."""
+    literal_format: str | None = _BINARY_LITERAL_FORMATS.get(dialect.name)
+    if literal_format is None or not isinstance(column_type, _Binary) or not isinstance(value, _BYTES_TYPES):
+        return value
+    return literal_column(literal_format.format(value.hex().upper()))
+
+
 _MARKER: str = "__util_bbdd_literal_{}__"
 
 
@@ -200,7 +225,12 @@ class _LiteralTemplate:
           ``render_literal_value`` (SQLite, SQL Server y Oracle en SQLAlchemy 2.0.50), para un valor no nulo esta se
           reduce a llamar al ``literal_processor`` del tipo, que se resuelve aquí una vez. PostgreSQL y MySQL/MariaDB la
           redefinen (escape de ``\\``) y siguen por ``render_literal_value``.
+        - C-1 / P-30 (hotfix 2026-09-25): en columnas binarias, los ``bytes`` se escriben con el literal hexadecimal del
+          dialecto (``_BINARY_LITERAL_FORMATS``); cualquier otro valor sigue el camino de su tipo.
         """
+        literal_format: str | None = _BINARY_LITERAL_FORMATS.get(dialect.name)
+        if literal_format is not None and isinstance(slot.type, _Binary):
+            return self._binary_processor(slot, type_, literal_format)
         if type_ is None:
             render: Callable[[Any, TypeEngine[Any]], str] = self._compiler.render_literal_value
             column_type: TypeEngine[Any] = slot.type
@@ -213,6 +243,20 @@ class _LiteralTemplate:
             processor: Callable[[Any], str] | None = type_.dialect_impl(dialect).literal_processor(dialect)
             return processor
         return None
+
+    def _binary_processor(
+        self, slot: _Slot, type_: TypeEngine[Any] | None, literal_format: str
+    ) -> Callable[[Any], str]:
+        """Literal de un hueco binario: ``bytes`` en hexadecimal según el dialecto; el resto, como SQLAlchemy."""
+        render: Callable[[Any, TypeEngine[Any]], str] = self._compiler.render_literal_value
+        column_type: TypeEngine[Any] = slot.type
+
+        def binary_literal(value: Any) -> str:
+            if isinstance(value, _BYTES_TYPES):
+                return literal_format.format(value.hex().upper())
+            return render(value, type_ if type_ is not None else column_type.coerce_compared_value(operators.eq, value))
+
+        return binary_literal
 
     def _undo_percents(self, sql: str) -> str:
         return sql.replace("%%", "%") if self._undouble else sql  # P-23
@@ -296,7 +340,11 @@ def _generate_insert_lines(stmt: Insert, records: Sequence[SqlRecord], dialect: 
     inline_stmt: Insert = stmt.inline()
 
     def per_row(record: SqlRecord) -> str:
-        sql = compile_stmt_with_binary_support(inline_stmt.values(_json_as_string_literals(table, record)), dialect)
+        values: SqlRecord = {
+            name: _binary_or_value(table.c[name].type, value, dialect) if name in table.c else value
+            for name, value in _json_as_string_literals(table, record).items()
+        }
+        sql = compile_stmt_with_binary_support(inline_stmt.values(values), dialect)
         return postprocess(sql) if postprocess is not None else sql
 
     if not records:
@@ -373,10 +421,16 @@ def generate_update_sql(
     """Genera SQL UPDATE literal para una secuencia de registros."""
 
     def per_row(record: SqlRecord) -> str:
-        update_values: dict[str, Any] = _json_as_string_literals(
-            table, {column: record[column] for column in update_cols}
-        )
-        pk_conditions: dict[str, Any] = {pk_param_map[column]: record[pk_param_map[column]] for column in pk_cols}
+        update_values: dict[str, Any] = {
+            column: _binary_or_value(table.c[column].type, value, dialect)
+            for column, value in _json_as_string_literals(
+                table, {column: record[column] for column in update_cols}
+            ).items()
+        }
+        pk_conditions: dict[str, Any] = {
+            pk_param_map[column]: _binary_or_value(table.c[column].type, record[pk_param_map[column]], dialect)
+            for column in pk_cols
+        }
         stmt: Update = (
             update(table)
             .where(and_(*(table.c[column] == pk_conditions[pk_param_map[column]] for column in pk_cols)))
@@ -409,7 +463,9 @@ def generate_delete_sql(
     """Genera SQL DELETE literal para una secuencia de claves primarias."""
 
     def per_row(record: SqlRecord) -> str:
-        conditions = [table.c[column] == record[column] for column in pk_cols]
+        conditions = [
+            table.c[column] == _binary_or_value(table.c[column].type, record[column], dialect) for column in pk_cols
+        ]
         stmt: Delete = delete(table).where(and_(*conditions))
         return compile_stmt_with_binary_support(stmt, dialect)
 

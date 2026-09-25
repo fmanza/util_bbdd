@@ -52,6 +52,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **bulk (`generar_sql=True`)**: los valores de columnas binarias se escriben con el literal hexadecimal de cada
+  dialecto: `X'…'` en SQLite, MySQL y MariaDB, `decode('…', 'hex')` en PostgreSQL, `0x…` en SQL Server y
+  `HEXTORAW('…')` en Oracle.
+  - Antes, los bytes UTF-8 válidos salían como cadena (`'abc'`): SQLite los guardaba como TEXT, SQL Server rechazaba
+    la sentencia (Msg 257) y Oracle guardaba **otros bytes sin avisar** (`b"abc"` → `0x0ABC`).
+  - Los bytes no UTF-8 salían como `0x…`, que PostgreSQL, Oracle y SQLite no aceptan (SQLite lo tomaba como un
+    entero). Además, esas filas se compilaban una a una: unas 100 veces más lento (de 119–136 a 1,0–1,5 µs/fila).
+  - Verificado ejecutando el SQL generado en los 6 motores. MySQL y MariaDB ya guardaban bien los bytes; su SQL cambia
+    de forma pero no de datos.
+  - Límite conocido: en Oracle, un literal no admite más de 2000 bytes (ORA-01704), igual que antes.
 - **dump**: con un destino SQLite, la limpieza previa (`truncate_target=True`, el valor por defecto) usaba `TRUNCATE
   TABLE`, que SQLite no tiene: fallaba con un WARNING, el destino conservaba sus filas y la carga chocaba con las PK
   existentes (la tabla quedaba en `error`) o, sin PK, duplicaba filas. Ahora usa `DELETE FROM`.

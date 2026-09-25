@@ -1,0 +1,16 @@
+1|616263
+2|612762
+3|615C62
+4|5C783431
+5|2528782973202573203F
+6|C3B1E282AC
+9|
+psql:/tmp/r.sql:1: NOTICE:  table "zz_util_bbdd_hotfix_bin" does not exist, skipping
+psql:/tmp/r.sql:8: ERROR:  column "bin" is of type bytea but expression is of type integer
+LINE 1: ..._util_bbdd_hotfix_bin (id, bin) VALUES (7::INTEGER, 0x00FF);
+                                                               ^
+HINT:  You will need to rewrite or cast the expression.
+psql:/tmp/r.sql:9: ERROR:  column "bin" is of type bytea but expression is of type numeric
+LINE 1: ...til_bbdd_hotfix_bin (id, bin) VALUES (8::INTEGER, 0x00010203...
+                                                             ^
+HINT:  You will need to rewrite or cast the expression.

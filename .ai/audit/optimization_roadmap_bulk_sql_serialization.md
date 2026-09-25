@@ -4,7 +4,7 @@
 
 - **Origen**: [`audit_report_bulk_sql_serialization_20260925.md`](./audit_report_bulk_sql_serialization_20260925.md)
 - **Baseline (SQLite, 1M filas)**: INSERT 11,60 s · UPDATE 11,89 s · DELETE 2,16 s
-- **Estado (2026-09-25)**: P0 y P1 implementados (ver `.ai/sessions/2026-09-25-performance-audit-bulk-sql/validation_report_20260925.md`): INSERT 6,09 s, UPDATE 6,64 s con 1M filas en SQLite. Pendiente: P2.
+- **Estado (2026-09-25)**: P0 y P1 implementados (`.ai/sessions/2026-09-25-performance-audit-bulk-sql/validation_report_20260925.md`): INSERT 6,09 s, UPDATE 6,64 s con 1M filas en SQLite. P-30 + C-1 resueltos por hotfix (`.ai/sessions/2026-09-25-hotfix-binary-sql-literals/HOTFIX.md`). Pendiente: P-34, P-35.
 - **Objetivo**: INSERT/UPDATE ≤ 7,5 s en SQLite/Oracle/SQL Server y ≤ 8,5 s en PostgreSQL/MySQL, con salida byte-idéntica
   (salvo P-30, que cambia la salida a propósito)
 

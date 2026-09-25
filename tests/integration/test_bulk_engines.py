@@ -25,6 +25,8 @@ prueban psycopg 3 y psycopg2 si están instalados) y los dos siguientes cubren P
 ``test_delete_with_text_and_datetime_primary_keys`` cubre P-10 (DELETE por arrays en PostgreSQL).
 ``test_generated_insert_without_pk_runs_and_keeps_pyformat_text`` cubre P-29 y el Known issue de 0.12.0 (SQL
 generado por plantilla, P-06).
+``test_generated_sql_binary_column_roundtrip`` cubre C-1 / P-30 (hotfix 2026-09-25: literales binarios por dialecto en
+el SQL generado).
 """
 
 from __future__ import annotations
@@ -480,6 +482,49 @@ def test_generated_sql_keeps_percent_signs(engine: Engine, tmp_path: Path) -> No
         _execute_generated_sql(engine, tmp_path)
         with engine.connect() as conn:
             assert list(conn.execute(select(table.c[col_s]).order_by(table.c[col_id])).scalars()) == updated
+    finally:
+        table.drop(engine, checkfirst=True)
+
+
+def test_generated_sql_binary_column_roundtrip(engine: Engine, tmp_path: Path) -> None:
+    """C-1 / P-30: el SQL generado con columnas binarias se ejecuta y guarda los bytes exactos (INSERT y UPDATE).
+
+    Antes, los bytes UTF-8 se escribían como cadena (TEXT en SQLite, Msg 257 en SQL Server, ``b"abc"`` → ``0x0ABC`` en
+    Oracle) y los no UTF-8 como ``0x…`` (inválido en PostgreSQL, Oracle y SQLite). Sin ``b""``: Oracle lo guarda como NULL.
+    """
+    n = partial(_name, engine=engine)
+    table = Table(
+        n(f"zz_util_bbdd_it_{uuid.uuid4().hex[:8]}"),
+        MetaData(),
+        Column(n("id"), Integer, primary_key=True, autoincrement=False),
+        Column(n("b"), LargeBinary),
+    )
+    table.create(engine)
+    col_id, col_b = n("id"), n("b")
+    inserted: list[bytes | None] = [b"abc", b"a'b", b"a\\b", b"\x00\xff", "ñ€".encode(), None]
+    updated: list[bytes | None] = [b"\xfe\x01", None, b"%(x)s ?", b"z", bytes(range(256)), b"q"]
+
+    def stored() -> list[bytes | None]:
+        with engine.connect() as conn:
+            rows = conn.execute(select(table.c[col_b]).order_by(table.c[col_id])).scalars()
+            return [None if v is None else bytes(v) for v in rows]
+
+    try:
+        crud = BulkCrud(engine)
+        crud.bulk_insert_from_df(
+            pd.DataFrame({col_id: range(1, 7), col_b: inserted}),
+            table.name,
+            generar_sql=True,
+            path_sql=tmp_path / "sql",
+        )
+        _execute_generated_sql(engine, tmp_path)
+        assert stored() == inserted
+
+        crud.bulk_update_from_df(
+            pd.DataFrame({col_id: range(1, 7), col_b: updated}), table.name, generar_sql=True, path_sql=tmp_path / "sql"
+        )
+        _execute_generated_sql(engine, tmp_path)
+        assert stored() == updated
     finally:
         table.drop(engine, checkfirst=True)
 

@@ -46,6 +46,7 @@ from sqlalchemy import (
 )
 
 from util_bbdd.bulk._support.sql_helpers import (
+    _binary_or_value,
     _json_as_string_literals,
     _override_system_value,
     compile_stmt_with_binary_support,
@@ -152,13 +153,17 @@ def _records(df: pd.DataFrame, table: Table) -> list[dict[str, Any]]:
     return records
 
 
-# Camino anterior (una sentencia compilada por fila), con inline() en el INSERT (P-29).
+# Camino anterior (una sentencia compilada por fila), con inline() en el INSERT (P-29) y los binarios con el literal
+# hexadecimal del dialecto (C-1).
+def _bin(table: Table, column: str, value: Any, dialect: Any) -> Any:
+    return _binary_or_value(table.c[column].type, value, dialect) if column in table.c else value
+
+
 def _ref_insert(table: Table, records: list[dict[str, Any]], dialect: Any, override: bool = False) -> list[str]:
     lines = []
     for record in records:
-        sql = compile_stmt_with_binary_support(
-            insert(table).inline().values(_json_as_string_literals(table, record)), dialect
-        )
+        values = {k: _bin(table, k, v, dialect) for k, v in _json_as_string_literals(table, record).items()}
+        sql = compile_stmt_with_binary_support(insert(table).inline().values(values), dialect)
         lines.append(_override_system_value(sql) if override else sql)
     return lines
 
@@ -166,10 +171,14 @@ def _ref_insert(table: Table, records: list[dict[str, Any]], dialect: Any, overr
 def _ref_update(table: Table, records: list[dict[str, Any]], dialect: Any, pk: list[str], cols: list[str]) -> list[str]:
     lines = []
     for record in records:
+        values = {
+            k: _bin(table, k, v, dialect)
+            for k, v in _json_as_string_literals(table, {c: record[c] for c in cols}).items()
+        }
         stmt = (
             update(table)
-            .where(and_(*(table.c[c] == record[f"pk_{c}"] for c in pk)))
-            .values(_json_as_string_literals(table, {c: record[c] for c in cols}))
+            .where(and_(*(table.c[c] == _bin(table, c, record[f"pk_{c}"], dialect) for c in pk)))
+            .values(values)
         )
         lines.append(compile_stmt_with_binary_support(stmt, dialect))
     return lines
@@ -177,7 +186,9 @@ def _ref_update(table: Table, records: list[dict[str, Any]], dialect: Any, pk: l
 
 def _ref_delete(table: Table, records: list[dict[str, Any]], dialect: Any, pk: list[str]) -> list[str]:
     return [
-        compile_stmt_with_binary_support(delete(table).where(and_(*(table.c[c] == r[c] for c in pk))), dialect)
+        compile_stmt_with_binary_support(
+            delete(table).where(and_(*(table.c[c] == _bin(table, c, r[c], dialect) for c in pk))), dialect
+        )
         for r in records
     ]
 
@@ -355,3 +366,57 @@ def test_direct_literal_processor_only_where_compiler_does_not_override(dialect:
     )
     assert overrides == (dialect.name in ("postgresql", "mysql", "mariadb"))
     assert all((processor is None) == overrides for processor in template._processors)
+
+
+_HEX_LITERALS: dict[str, str] = {
+    "sqlite": "X'{}'",
+    "postgresql": "decode('{}', 'hex')",
+    "mysql": "X'{}'",
+    "mariadb": "X'{}'",
+    "mssql": "0x{}",
+    "oracle": "HEXTORAW('{}')",
+}
+
+
+def test_binary_values_use_the_dialect_hex_literal(dialect: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """C-1 / P-30 (hotfix 2026-09-25): los binarios se escriben con el literal hexadecimal del dialecto, sin compilar
+    la fila por el camino anterior. Antes: ``'abc'`` para bytes UTF-8 (TEXT en SQLite, Msg 257 en SQL Server,
+    ``0x0ABC`` en Oracle) y ``0x…`` por el camino anterior para los no UTF-8 (inválido en PostgreSQL, Oracle y SQLite).
+    """
+    import util_bbdd.bulk._support.sql_helpers as helpers
+
+    calls: list[object] = []
+    original = helpers.compile_stmt_with_binary_support
+    monkeypatch.setattr(
+        helpers, "compile_stmt_with_binary_support", lambda *a, **k: calls.append(a) or original(*a, **k)
+    )
+    table = Table("t", MetaData(), Column("id", Integer, primary_key=True), Column("b", LargeBinary))
+    literal = _HEX_LITERALS[dialect.name].format
+    values = [b"abc", b"\x00\xff", bytearray(b"a'b"), b"", None]
+    records = [{"id": i, "b": v} for i, v in enumerate(values, start=1)]
+    expected = [literal("616263"), literal("00FF"), literal("612762"), literal(""), "NULL"]
+
+    inserted = generate_insert_sql(insert(table), records, dialect)
+    updated = generate_update_sql(
+        table=table,
+        records=[{**r, "pk_id": r["id"]} for r in records],
+        update_cols=["b"],
+        pk_param_map={"id": "pk_id"},
+        pk_cols=["id"],
+        dialect=dialect,
+    )
+
+    assert [line.split("VALUES (", 1)[1].split(", ", 1)[1].removesuffix(");") for line in inserted] == expected
+    assert [line.split(" SET ", 1)[1].split(" WHERE ")[0].split("=", 1)[1] for line in updated] == expected
+    assert calls == []
+
+
+def test_binary_primary_key_in_where_uses_hex_literal(dialect: Any) -> None:
+    """C-1: también en el WHERE (DELETE/UPDATE por PK binaria), por plantilla y por el camino anterior (PK ``None``)."""
+    table = Table("t", MetaData(), Column("k", LargeBinary(16), primary_key=True), Column("v", String(10)))
+    literal = _HEX_LITERALS[dialect.name].format
+
+    lines = generate_delete_sql(records=[{"k": b"\x00\xff"}, {"k": None}], table=table, pk_cols=["k"], dialect=dialect)
+
+    assert literal("00FF") in lines[0]
+    assert lines == _ref_delete(table, [{"k": b"\x00\xff"}, {"k": None}], dialect, ["k"])
