@@ -7,6 +7,27 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-09-25
+
+Auditoría integrada de `bulk` coherente con la base de datos y tolerante a fallos del CSV (también en
+`ParallelBulkLoader` y `dump`, con contadores para cuadrar la carga con la traza), informe Excel de `dump` con hojas de
+auditoría y de secuencias PK, y generación de ficheros SQL (`generar_sql=True`) unas 2,5 veces más rápida con literales
+binarios correctos en todos los motores. Sesiones `.ai/sessions/2026-09-25-audit-code-audit-manager/` a
+`.ai/sessions/2026-09-25-hotfix-binary-sql-literals/`.
+
+**Cambios de comportamiento a revisar al actualizar** (detalle en cada entrada):
+- **Cambio incompatible:** se retiran `AuditTransaction`, `AuditManager.iniciar_transaccion()` y
+  `AuditManager.obtener_historial_transacciones()`. Usar `BulkCrud.bulk_session()`.
+- Si no se puede escribir el CSV de auditoría, la operación ya no falla: se registra un ERROR y se cuenta en
+  `audit_failures`. Para el comportamiento anterior, `audit_strict=True` (en `BulkCrud`, `ParallelBulkLoader` y
+  `DumpConfig.bulk_audit_strict`).
+- Dentro de `bulk_session` (y en `bulk_insert_from_chunks` y `ParallelBulkLoader`), la fila de auditoría se escribe al
+  confirmarse el commit y se descarta si hay rollback.
+- Con `generar_sql=True`, las columnas binarias se escriben como literal hexadecimal del motor. Los ficheros `.sql`
+  con binarios generados con versiones anteriores para SQLite, PostgreSQL, SQL Server u Oracle deben regenerarse.
+- Asignar `AuditManager.columnas_auditoria` emite `DeprecationWarning`.
+- `dump` con destino SQLite limpia las tablas con `DELETE FROM` (antes fallaba con `TRUNCATE`).
+
 ### Added
 
 - **dump (informe)**: hoja **Secuencias PK**, la última del Excel (detrás de Auditoría Bulk), con
