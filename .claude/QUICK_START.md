@@ -11,7 +11,7 @@ Bienvenido. Esta guía te ayuda a invocar slash commands rapidamente.
 /new-feature
 
 Objetivo: [describe el cambio]
-Alcance: [módulos: timelog/, common/, etc.]
+Alcance: [módulos: bulk/, metadata/, dump/, etc.]
 Restricciones: [compatibilidad, no refactor, docs, etc.]
 ```
 → PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION

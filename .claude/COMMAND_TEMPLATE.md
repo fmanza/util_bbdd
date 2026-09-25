@@ -232,7 +232,7 @@ Si encuentras alguno de estos síntomas durante ejecución:
 ## Referencias
 
 - CLAUDE.md → Lee primero si nuevo al proyecto
-- docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md → Equivalencia con Copilot Chat
+- docs/guides/github_copilot_guide.md → Equivalencia con Copilot Chat
 - `.claude/settings.json` → Configuración de hooks
 ```
 

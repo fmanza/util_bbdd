@@ -1,5 +1,5 @@
 ---
-description: "Usa este agente para clasificar la solicitud en new_feature, hotfix, refactor, security_review, tech_debt, maturity_assessment o version_closure, validar contexto minimo y decidir la siguiente fase o prompt."
+description: "Usa este agente para clasificar la solicitud en new_feature, hotfix, refactor, audit_code, security_review, tech_debt, maturity_assessment, performance_audit, documentation, config_review o version_closure, validar contexto minimo y decidir la siguiente fase o prompt."
 name: "Workflow Director"
 tools: [read, search]
 user-invocable: true
@@ -38,6 +38,10 @@ Lee antes de clasificar:
 | `tech_debt`           | Plan Architect        | Feature Implementer     | Code Auditor      | Version Closer   |
 | `maturity_assessment` | Explore               | Maturity Assessment     | Version Closer    | —                |
 | `version_closure`     | Version Closer        | —                       | —                 | —                |
+| `audit_code`          | Code Auditor          | —                       | —                 | —                |
+| `performance_audit`   | Performance Auditor   | Version Closer          | —                 | —                |
+| `documentation`       | Documentation Generator | Documentation Reviewer | Version Closer   | —                |
+| `config_review`       | Config Reviewer       | Feature Implementer     | Config Reviewer (AUDIT_CODE) | Version Closer |
 
 Reglas de transición:
 - `new_feature` y `refactor`: NUNCA saltar de Fase 1 a Fase 2 sin veredicto GO o GO_CONDICIONAL de Plan Architect.

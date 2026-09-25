@@ -58,11 +58,11 @@ Refactor sin cambios funcionales. API pública estable salvo justificación expl
 ```
 Objetivo: Separar construcción de payload de leyenda y renderizado HTML sin cambiar comportamiento
 
-Módulos: src/util_bbdd/doc/html_generator.py
+Módulos: src/util_bbdd/doc/infrastructure/renderers/html_generator.py
 
 Restricción API: NO cambia. Mismo input/output.
 
-Tests: Sí, existen snapshots en tests/test_html_generator.py
+Tests: Sí, existen snapshots en tests/unit/test_html_generator_diagrams.py
 ```
 
 ## Ejemplo de salida esperada (PLAN)
@@ -72,7 +72,7 @@ Tests: Sí, existen snapshots en tests/test_html_generator.py
 
 **Objetivo**: Extraer método `_build_legend_payload()` para legibilidad
 
-**Módulo**: src/util_bbdd/doc/html_generator.py (1 archivo)
+**Módulo**: src/util_bbdd/doc/infrastructure/renderers/html_generator.py (1 archivo)
 
 **Cambios**:
 - Extraer líneas 150-200 a método privado `_build_legend_payload()`

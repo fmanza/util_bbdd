@@ -79,15 +79,14 @@ Genera la guía de usuario del área indicada siguiendo las instrucciones del pr
 
 | Archivo | Tipo de guía |
 |---|---|
-| `docs/ASYNC_GUIDE.md` | Configuración de programación asíncrona |
-| `docs/POSTGRESQL_DRIVER_GUIDE.md` | Configuración de driver PostgreSQL |
-| `docs/EXCEPTIONS.md` | Referencia de excepciones y manejo de errores |
-| `docs/TROUBLESHOOTING.md` | Solución de problemas |
-| `docs/COMPARATOR.md` | Uso del comparador de esquemas |
-| `docs/MIGRATION_GUIDE.md` | Guía de migración entre versiones |
-| `docs/BENCHMARKS.md` | Benchmarks y verificación de rendimiento |
-| `docs/API_REFERENCE.md` | Referencia rápida de API |
-| Guías de herramientas IA | Configuración y uso de asistentes IA |
+| `docs/guides/async_guide.md` | Configuración de programación asíncrona |
+| `docs/guides/postgresql_driver_guide.md` | Configuración de driver PostgreSQL |
+| `docs/guides/exceptions.md` | Referencia de excepciones y manejo de errores |
+| `docs/guides/troubleshooting.md` | Solución de problemas |
+| `docs/guides/comparator.md` | Uso del comparador de esquemas |
+| `docs/guides/migration_guide.md` | Guía de migración entre versiones |
+| `docs/guides/benchmarks.md` | Benchmarks y verificación de rendimiento |
+| `docs/guides/{claude_code,github_copilot,codex}_guide.md` | Configuración y uso de asistentes IA |
 
 ## Output esperado
 

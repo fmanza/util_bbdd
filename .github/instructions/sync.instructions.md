@@ -1,10 +1,10 @@
 ---
-applyTo: "CHANGELOG.md,docs/**,COMPATIBILITY.md,.ai/**"
+applyTo: "CHANGELOG.md,docs/**,.ai/**"
 ---
-# Sincronización de versiones — CHANGELOG y COMPATIBILITY
+# Sincronización de versiones — CHANGELOG, pyproject y documentación
 
-> **TL;DR** — Antes de cerrar una versión, verifica que CHANGELOG.md, docs/ y COMPATIBILITY.md
-> estén sincronizados. Ejecuta `mkdocs build` sin errores.
+> **TL;DR** — Antes de cerrar una versión, verifica que CHANGELOG.md, `pyproject.toml` y docs/
+> estén sincronizados. Ejecuta `zensical build` (o `mkdocs build`) sin errores.
 
 ---
 
@@ -33,21 +33,20 @@ Aplica este checklist en la fase **VERSION** de cualquier flujo:
 - [ ] Contenido idéntico al CHANGELOG.md raíz
 - [ ] Si hay divergencia, prevalece el CHANGELOG.md raíz; actualiza docs/CHANGELOG.md
 
-### 3. COMPATIBILITY.md / .ai/COMPATIBILITY.md
+### 3. Matriz de compatibilidad (solo si existe)
 
-- [ ] Versión nueva añadida con columnas: `Versión | Python | Dependencias clave | Estado`
-- [ ] Marcada como `✅ Activa` si es la release más reciente
-- [ ] Versiones anteriores marcadas como `⚠️ Legacy` o `❌ EOL` según corresponda
-- [ ] Si existe `.ai/COMPATIBILITY.md`, sincronizado con `docs/COMPATIBILITY.md`
+Hoy el repo **no** tiene `COMPATIBILITY.md`; la compatibilidad se declara en `pyproject.toml` y en
+`CHANGELOG.md`. Si se crea una matriz, cada versión nueva lleva las columnas
+`Versión | Python | Dependencias clave | Estado` y se marca `✅ Activa` / `⚠️ Legacy` / `❌ EOL`.
 
 ### 4. pyproject.toml
 
 - [ ] `version = "X.Y.Z"` actualizado y coincide con el CHANGELOG.md
 - [ ] `requires-python = ">=3.12"` sin modificar (no incrementar sin decisión explícita)
 
-### 5. MkDocs
+### 5. Documentación (Zensical / MkDocs)
 
-- [ ] `mkdocs build` pasa sin errores ni warnings de links rotos
+- [ ] `zensical build` (o `mkdocs build`) pasa sin errores ni warnings de links rotos
 - [ ] Si se crearon páginas nuevas, están en `mkdocs.yml` bajo `nav:`
 - [ ] Si se eliminaron páginas, se retiraron de `mkdocs.yml`
 
@@ -92,7 +91,7 @@ Aplica este checklist en la fase **VERSION** de cualquier flujo:
 ## Comando de validación final
 
 ```bash
-mkdocs build --strict
+zensical build --strict    # o: python -m mkdocs build --strict
 ```
 
 El flag `--strict` convierte warnings en errores, garantizando que no queden links rotos
@@ -100,4 +99,4 @@ ni referencias a páginas inexistentes en `mkdocs.yml`.
 
 ---
 
-*Actualizado: 2026-05-22*
+*Actualizado: 2026-09-25*

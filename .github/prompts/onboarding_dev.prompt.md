@@ -133,7 +133,7 @@ Si no hay información verificable: omitir el subapartado.
 Lee pyproject.toml, README.md, CLAUDE.md y .github/SHARED_INSTRUCTIONS.md.
 Genera la guía de incorporación para desarrolladores usando
 .github/prompts/onboarding_dev.prompt.md.
-Guarda en docs/ONBOARDING_DEV.md.
+Guarda en docs/guides/onboarding_dev.md.
 Actualiza mkdocs.yml si la página es nueva.
 No inventes comandos ni configuraciones; verifica todo contra los ficheros reales.
 ```
@@ -141,7 +141,7 @@ No inventes comandos ni configuraciones; verifica todo contra los ficheros reale
 ### Actualización — Claude Code
 
 ```
-Lee docs/ONBOARDING_DEV.md y el estado actual de pyproject.toml y .github/SHARED_INSTRUCTIONS.md.
+Lee docs/guides/onboarding_dev.md y el estado actual de pyproject.toml y .github/SHARED_INSTRUCTIONS.md.
 Actualiza la guía de incorporación para reflejar los cambios de la versión actual.
 Mantén la estructura de 11 secciones del Arquetipo 7.
 Marca como [PENDIENTE] cualquier sección que no puedas verificar.
@@ -156,13 +156,13 @@ Marca como [PENDIENTE] cualquier sección que no puedas verificar.
 #file:.github/SHARED_INSTRUCTIONS.md
 
 Genera la guía de incorporación para desarrolladores del proyecto.
-Guarda en docs/ONBOARDING_DEV.md.
+Guarda en docs/guides/onboarding_dev.md.
 ```
 
 ### Auditoría (solo lectura)
 
 ```
-Lee docs/ONBOARDING_DEV.md y verifica cada comando de §10 contra el estado actual del proyecto.
+Lee docs/guides/onboarding_dev.md y verifica cada comando de §10 contra el estado actual del proyecto.
 Detecta secciones desactualizadas o comandos que ya no funcionan.
 Entrega un informe de gaps sin modificar el fichero.
 ```

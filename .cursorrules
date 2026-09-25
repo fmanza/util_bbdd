@@ -1,279 +1,118 @@
 # Cursor Rules — util_bbdd Documentation Standards
 
-> **Fuente canónica**: `.github/SHARED_INSTRUCTIONS.md`. Estas reglas de Cursor solo añaden
-> especialización.
+> **Fuente canónica**: `.github/SHARED_INSTRUCTIONS.md` (reglas comunes) y
+> `.github/DOCUMENTATION_STANDARD.md` (arquetipos de documentación). Estas reglas de Cursor solo añaden
+> la especialización de **ejemplos de código en la documentación**.
 >
-> **Bootstrap a otro proyecto**: para trasladar esta configuración IA (Claude / Gemini / Copilot /
-> Cursor / Codex) a otro proyecto, incluso de otro lenguaje y arquitectura, usa el prompt
-> `.github/prompts/bootstrap_ai_config.prompt.md` (modelo PULL: se invoca desde el proyecto destino).
+> **Bootstrap a otro proyecto**: `.github/prompts/bootstrap_ai_config.prompt.md` (modelo PULL).
 
 ## Estándar de Documentación y Ejemplos de Código
 
 ### 1. Principio de Única Fuente de Verdad (SSOT)
 
-* **NUNCA** escribas código Python extenso directamente dentro de los archivos Markdown de la documentación (`.md`).
-* Todo ejemplo de código funcional debe residir en un archivo `.py` real dentro del directorio `examples/` para permitir su posterior testeo automatizado.
-* En el Markdown, el código se incluirá exclusivamente mediante la sintaxis de snippets de MkDocs:
+- **NUNCA** escribas código Python extenso directamente dentro de los archivos Markdown de `docs/`.
+- Todo ejemplo funcional vive en un archivo `.py` real bajo `docs/examples/`, para poder compilarlo y testearlo.
+- En el Markdown, el código se incluye exclusivamente con snippets de `pymdownx.snippets`. Como
+  `mkdocs.yml` declara `base_path: [docs]`, la ruta se escribe **sin** el prefijo `docs/`:
+
+  ~~~markdown
   ```python
-  --8<-- "examples/categoria/nombre_ejemplo.py"
+  --8<-- "examples/nombre_ejemplo.py"
   ```
+  ~~~
 
-### 2. Organización de Ejemplos por Categoría Técnica
+### 2. Organización real de `docs/examples/`
 
-Los ejemplos deben organizarse bajo `docs/examples/` según su **área técnica**, no por módulo monolítico.
+- **Pares planos** `<tema>.md` + `<tema>.py` en `docs/examples/` (un ejemplo por tema):
+  `bulk_insert_csv`, `parallel_bulk_insert`, `schema_comparison`, `dump_data_export`,
+  `migrate-oracle-mariadb`, `query_execution_example`, etc.
+- **`docs/examples/database/`**: fragmentos `.py` reutilizables que varios `.md` incluyen por partes
+  (`pool_setup.py`, `partition_ranges.py`, `reader_factory.py`, `commit_cadence.py`,
+  `load_from_sql.py`, `error_handling.py`, `sync_pk_sequences.py`).
+- La **agrupación temática** (Metadatos, Operaciones Bulk, Queries, Comparación, Volcado, Migración,
+  Relaciones…) vive en la sección `Ejemplos:` del `nav` de `mkdocs.yml`, no en subcarpetas.
+- Los módulos de `src/util_bbdd/` que ilustran los ejemplos son, entre otros, `managers`, `bulk`,
+  `metadata`, `query`, `comparar`, `dump`, `migrate` y `analysis`. Verifica el nombre en `src/` antes de citarlo.
 
-**Árbol de directorios:**
-
-```
-docs/examples/
-├── database/                          # Conexión, introspección, volcado, carga masiva
-│   ├── partition_ranges.py            # Cálculo de rangos de partición
-│   ├── pool_setup.py                  # Configuración de pool de conexiones
-│   ├── reader_factory.py              # Factory de lectores de partición
-│   ├── commit_cadence.py              # Configuración de commit cadence
-│   ├── load_from_sql.py               # Lectura desde origen SQL
-│   ├── error_handling.py              # Manejo de errores y reintentos
-│   └── sync_pk_sequences.py           # Sincronización de secuencias PK
-├── bulk/                              # Operaciones bulk: CRUD masivo, auditoría
-│   ├── bulk_insert_from_df.py         # Inserción bulk desde DataFrame
-│   ├── bulk_update_csv.py             # Actualización bulk desde CSV
-│   └── audit_trail_example.py         # Seguimiento de auditoría
-├── migration/                         # Migración de esquemas y datos
-│   ├── oracle_to_postgresql.py        # Migración Oracle → PostgreSQL
-│   ├── schema_diff_analysis.py        # Análisis de diferencias de esquema
-│   └── constraint_mapping.py          # Mapeo de constraints entre motores
-├── async/                             # Operaciones asincrónicas
-│   ├── concurrent_queries.py          # Queries concurrentes con asyncio
-│   ├── pool_recycling.py              # Reciclado de conexiones en pool
-│   └── connection_timeout.py          # Gestión de timeouts
-└── reporting/                         # Reportes y análisis
-    ├── schema_diff_reporter.py        # Reporter: comparación de esquemas
-    └── dump_reporter_xlsx.py          # Reporter: generación de Excel
-```
-
-**Tabla: Qué va en cada categoría**
-
-| Categoría | Propósito | Módulos util_bbdd Asociados | Ejemplos |
-|---|---|---|---|
-| `database/` | Conexión, introspección, volcado, carga masiva | `managers`, `dump`, `introspect` | pool_setup.py, partition_ranges.py, sync_pk_sequences.py |
-| `bulk/` | Operaciones CRUD masivas (INSERT, UPDATE, DELETE) | `bulk` | bulk_insert_from_df.py, bulk_update_csv.py, audit_trail_example.py |
-| `migration/` | Migración de esquemas y datos entre motores | `migration`, `dump`, `comparator` | oracle_to_postgresql.py, schema_diff_analysis.py |
-| `async/` | Operaciones asincrónicas y concurrentes | `managers` (async), `bulk` (async) | concurrent_queries.py, pool_recycling.py |
-| `reporting/` | Generación de reportes (Excel, diffs) | `dump`, `comparator` | schema_diff_reporter.py, dump_reporter_xlsx.py |
-
-**Referencia desde Markdown:**
-
-Cuando documentes una funcionalidad, referencia snippets como:
-
-```markdown
-## Ejemplo: Carga paralela
-
-La carga paralela se configura especificando particiones independientes:
-
-```python
---8<-- "examples/database/partition_ranges.py"
-```
-
-El engine destino debe tener suficientes conexiones:
-
-```python
---8<-- "examples/database/pool_setup.py"
-```
-```
-
-**Correspondencia documento → ejemplos:**
+**Correspondencia documento → ejemplos (casos existentes):**
 
 | Documento `.md` | Ejemplos referenciados |
 |---|---|
-| `docs/functional/bulk-parallel-loading.md` | `examples/database/partition_ranges.py`, `examples/database/pool_setup.py`, `examples/database/reader_factory.py` |
-| `docs/api/dump-reporter.md` | `examples/reporting/dump_reporter_xlsx.py` |
-| `docs/api/normalize.md` | `examples/bulk/bulk_insert_from_df.py` (type normalization) |
-| `docs/examples/parallel_bulk_insert.md` | Todos (`database/`, `bulk/`, etc.) — ejemplo integrador |
+| `docs/examples/parallel_bulk_insert.md` | `examples/parallel_bulk_insert.py` + `examples/database/{partition_ranges,pool_setup,reader_factory,commit_cadence}.py` |
+| `docs/examples/bulk_insert_csv.md` | `examples/bulk_insert_csv.py` |
 
 ### 3. Convención de Nombres para Archivos Ejemplo
 
 Cada archivo `.py` debe:
-* Tener un nombre **descriptivo y corto** que refleje la funcionalidad específica (no nombres genéricos como `example.py`)
-* Incluir un docstring de módulo (1-2 líneas) explicando qué hace
-* Ser **ejecutable de forma standalone** (con `if __name__ == "__main__":` si es necesario)
-* Poder ser testeado con pytest si contiene lógica testeable
 
-**Bueno:**
-```
-docs/examples/database/partition_ranges.py    # Cálculo de rangos de partición
-docs/examples/bulk/bulk_insert_from_df.py     # Inserción bulk desde DataFrame
-```
+- Tener un nombre **descriptivo y corto**, en minúsculas con guiones bajos (convención de
+  `SHARED_INSTRUCTIONS.md` § «Convención de nombres en `docs/`»); no renombres los existentes con guiones
+  salvo en un cambio dedicado que actualice sus referencias.
+- Incluir un docstring de módulo (1-2 líneas) explicando qué hace.
+- Ser **ejecutable de forma standalone** (con `if __name__ == "__main__":` si es necesario).
+- Poder ser testeado con pytest si contiene lógica testeable.
 
-**Malo:**
-```
-docs/examples/example_1.py                     # Genérico, no informativo
-docs/examples/code_snippet.py                  # No refleja el propósito
-```
+**Bueno:** `docs/examples/bulk_insert_csv.py`, `docs/examples/database/partition_ranges.py`
+
+**Malo:** `docs/examples/example_1.py`, `docs/examples/code_snippet.py` (genéricos, no informativos)
 
 ### 4. Estructura del Archivo Markdown que Referencia Snippets
 
-Cuando escribas un documento `.md` que documente un ejemplo:
+Sigue el Arquetipo 4 de `.github/DOCUMENTATION_STANDARD.md` (5 secciones fijas: Contexto,
+Implementación de Referencia, Explicación, Ejecución y Pruebas, Referencias Relacionadas). En la sección
+de código, el bloque contiene **solo** la línea `--8<--`; si el ejemplo es largo, divídelo en fragmentos
+de `docs/examples/database/` y referencia cada uno en su paso:
 
-1. **Introducción clara:** Explica qué problema resuelve el ejemplo
-2. **Caso de uso:** Contexto empresarial o técnico
-3. **Bloque de referencia de snippet (principal):**
-   ```markdown
-   ## Código completo
-
-   ```python
-   --8<-- "examples/categoria/nombre_archivo.py"
-   ```
-   ```
-   (Solo el contenido del snippet; nada de código adicional en el bloque)
-
-4. **Secciones de desglose (opcional):** Si el ejemplo es complejo, extrae fragmentos específicos en archivos separados:
-   ```markdown
-   ### Paso 1: Preparar conexión
-
-   ```python
-   --8<-- "examples/database/pool_setup.py"
-   ```
-
-   ### Paso 2: Definir particiones
-
-   ```python
-   --8<-- "examples/database/partition_ranges.py"
-   ```
-   ```
-
-5. **Puntos clave / Explicación:** Lista de consideraciones o notas post-código
-
-### 5. Validación de Ejemplos Antes de Referenciar
-
-Antes de referenciar un archivo de ejemplo en Markdown:
-
-- [ ] ¿El archivo `.py` existe en la ruta correcta? (`docs/examples/categoria/nombre.py`)
-- [ ] ¿El archivo es **sintácticamente válido**?
-  ```bash
-  python -m py_compile docs/examples/categoria/nombre.py
-  ```
-- [ ] ¿El archivo tiene **docstring de módulo** (1-2 líneas)?
-- [ ] ¿Todos los **imports son resolubles** dentro del proyecto?
-  ```bash
-  cd util_bbdd && python -c "from util_bbdd.bulk import ParallelBulkLoader"
-  ```
-- [ ] ¿El archivo NO contiene **hardcoded credentials o secrets**? (Usar placeholders: `"user://..."`, `"localhost"`, etc.)
-- [ ] ¿La referencia `--8<-- "examples/..."` usa la **ruta relativa correcta**?
-  - ✅ `--8<-- "examples/database/pool_setup.py"`
-  - ❌ `--8<-- "docs/examples/database/pool_setup.py"` (ruta absoluta incorrecta)
-- [ ] ¿`mkdocs build` completa sin ERROR?
-
-**Comando de validación rápida (antes de commit):**
-```bash
-# Validar sintaxis de todos los ejemplos
-python -m compileall docs/examples/
-
-# Validar que mkdocs build no falla
-mkdocs build
-```
-
-### 6. Evitar Duplicación de Código — Principio SSOT
-
-**CRÍTICO:** Si un bloque de código aparece en **2+ documentos**, extráelo a un archivo `.py` en `examples/` y referencialo desde ambos.
-
-Usar el mismo snippet en múltiples `.md` garantiza que los cambios se sincronicen automáticamente.
-
-**Ejemplo real — util_bbdd:**
-
-Antes (❌ DUPLICADO):
-```
-docs/api/bulk-crud.md        → Contiene: for chunk in bcm.bulk_insert_from_df(df, ...)
-docs/examples/bulk_insert_csv.md → Contiene: for chunk in bcm.bulk_insert_from_df(df, ...)
-```
-
-Después (✅ SSOT):
-```
-docs/examples/bulk/bulk_insert_from_df.py    → Única fuente
-docs/api/bulk-crud.md        → ```python --8<-- "examples/bulk/bulk_insert_from_df.py" ```
-docs/examples/bulk_insert_csv.md → ```python --8<-- "examples/bulk/bulk_insert_from_df.py" ```
-```
-
-**Excepción:** Fragmentos triviales de 1-3 líneas (p.ej. imports) pueden quedar inline si no son reutilizables.
-
-**Buena práctica (SSOT aplicado):**
-```markdown
-### Pool de conexiones
-
-Configura el engine con suficientes conexiones para paralelismo:
+~~~markdown
+### Paso 1: Preparar conexión
 
 ```python
 --8<-- "examples/database/pool_setup.py"
 ```
+~~~
 
-Para 4 workers paralelos, capacidad 6 es suficiente.
-```
+### 5. Validación de Ejemplos Antes de Referenciar
 
-### 7. MkDocs Build Validation
-
-Siempre que añadas o actualices referencias `--8<--`:
-
-```bash
-mkdocs build
-```
-
-MkDocs debe completar **sin ERROR**. Warnings pre-existentes (sobre refs fuera del scope de docs/) se ignoran.
-
-### 8. Organización de mkdocs.yml — Registro de Nuevos Ejemplos
-
-Cuando crees un nuevo archivo `.md` que documenta un ejemplo, actualiza `mkdocs.yml` bajo la sección `Ejemplos`.
-
-**Estructura recomendada para util_bbdd:**
-
-```yaml
-nav:
-  - Ejemplos:
-      - Conectar e Introspeccionar: examples/example-connect-introspect.md
-      - Bulk Insert desde CSV: examples/bulk_insert_csv.md
-      - Carga Paralela Masiva: examples/parallel_bulk_insert.md
-      - Database (referencia técnica):
-          - Pool de Conexiones: examples/database_pool_setup.md
-          - Cálculo de Particiones: examples/database_partition_ranges.md
-          - Sincronizar Secuencias PK: examples/database_sync_pk_sequences.md
-      - Bulk Operations (referencia técnica):
-          - Inserción desde DataFrame: examples/bulk_bulk_insert_from_df.md
-          - Auditoría de Operaciones: examples/bulk_audit_trail_example.md
-      - Migración entre Motores:
-          - Oracle → PostgreSQL: examples/migration_oracle_to_postgresql.md
-          - Análisis de Diff: examples/migration_schema_diff_analysis.md
-```
-
-**Regla:** El nav debe reflejar las categorías técnicas de `docs/examples/`, no una lista plana.
-
-### 9. Actualización de Referencias Cruzadas
-
-Cuando un archivo de ejemplo `.py` se mueve o renombra:
-
-1. **Encontrar todas las referencias:**
-   ```bash
-   grep -r "--8<-- \"examples/.../{old_name}.py" docs/
-   ```
-2. **Actualizar cada referencia** con la nueva ruta relativa
-3. **Validar:** Correr `mkdocs build` para verificar que se resuelven
-
-**Ejemplo:**
-```
-# Si mueves: docs/examples/database/pool_setup.py
-#           → docs/examples/database/connection_pool.py
-# Actualiza: docs/api/bulk-crud.md
-#   De: --8<-- "examples/database/pool_setup.py"
-#   A:  --8<-- "examples/database/connection_pool.py"
-```
-
-### 10. Figuras Generadas desde el Código
-
-La figura «Capas e imports reales» de `docs/architecture.md` se genera desde los imports de `src/util_bbdd/`; no se edita a mano el SVG ni el CSS de `docs/assets/`.
+- [ ] El archivo `.py` existe (`docs/examples/<nombre>.py` o `docs/examples/database/<nombre>.py`)
+- [ ] Es sintácticamente válido: `python -m py_compile docs/examples/<nombre>.py`
+- [ ] Tiene docstring de módulo (1-2 líneas)
+- [ ] Sus imports se resuelven contra la API pública real (p. ej. `from util_bbdd.bulk import ParallelBulkLoader`)
+- [ ] No contiene credenciales ni secretos (usa placeholders: `"localhost"`, variables de entorno)
+- [ ] La referencia usa la ruta relativa a `docs/`: ✅ `--8<-- "examples/database/pool_setup.py"` ·
+  ❌ `--8<-- "docs/examples/database/pool_setup.py"`
+- [ ] `zensical build` (o `mkdocs build`) completa sin ERROR
 
 ```bash
-python scripts/gen_arquitectura_capas.py          # mide imports con ast, verifica el dibujo y reescribe SVG + CSS
-python scripts/gen_arquitectura_capas.py --edges  # tabla de imports medida (diagnóstico, no escribe nada)
+python -m compileall docs/examples/   # sintaxis de todos los ejemplos
+zensical build                        # o: mkdocs build
 ```
 
-**Regla:** Si el script falla, no fuerces la salida: sigue la regla común de `.github/SHARED_INSTRUCTIONS.md` § «Diagrama de capas e imports».
+### 6. Evitar Duplicación de Código
+
+**CRÍTICO:** si un bloque de código aparece en **2+ documentos**, extráelo a un `.py` en
+`docs/examples/` (o `docs/examples/database/` si es un fragmento) y referencialo desde ambos con `--8<--`.
+
+**Excepción:** fragmentos triviales de 1-3 líneas (p. ej. imports) pueden quedar inline si no son reutilizables.
+
+### 7. Registro en `mkdocs.yml`
+
+Cuando crees un `.md` de ejemplo nuevo, añádelo al `nav` de `mkdocs.yml` bajo `Ejemplos:`, dentro de su
+grupo temático existente (o de uno nuevo si ningún grupo encaja), con un título descriptivo
+(«Carga Masiva Paralela», no «Ejemplo 1»).
+
+### 8. Actualización de Referencias Cruzadas
+
+Cuando un `.py` de ejemplo se mueve o renombra:
+
+1. Encuentra todas las referencias: `grep -rn -- '--8<-- "examples/<nombre_antiguo>.py"' docs/`
+2. Actualiza cada referencia con la nueva ruta relativa a `docs/`
+3. Valida con `zensical build` (o `mkdocs build`)
+
+### 9. Figuras Generadas desde el Código
+
+La figura «Capas e imports reales» de `docs/architecture.md` se genera con
+`python scripts/gen_arquitectura_capas.py`; no edites a mano su SVG ni su CSS. Regla completa:
+`.github/SHARED_INSTRUCTIONS.md` § «Diagrama de capas e imports».
 
 ---
 
@@ -281,60 +120,29 @@ python scripts/gen_arquitectura_capas.py --edges  # tabla de imports medida (dia
 
 ### Fase 1: Preparación del Ejemplo `.py`
 
-- [ ] **Crear archivo en directorio correcto:** `docs/examples/{categoria}/{nombre_descriptivo}.py`
-- [ ] **Docstring de módulo:** Primera línea: `"""Ejemplo: {descripción breve}."""`
-- [ ] **Sintaxis válida:** `python -m py_compile docs/examples/{categoria}/{nombre}.py`
-- [ ] **Imports resolubles:** `cd util_bbdd && python -c "exec(open(...).read())"`
-- [ ] **SIN hardcoded secrets:** Usar placeholders (`"user://..."`, `"localhost"`, env vars)
-- [ ] **Reutilizable:** El código no tiene paths absolutos ni hardcoded de desarrollo local
-- [ ] **Ejecutable (si aplica):** `if __name__ == "__main__":` para scripts finales
+- [ ] Archivo en `docs/examples/` (o `docs/examples/database/` si es fragmento) con nombre descriptivo
+- [ ] Docstring de módulo: `"""Ejemplo: {descripción breve}."""`
+- [ ] `python -m py_compile docs/examples/<nombre>.py`
+- [ ] Sin secretos ni rutas absolutas de desarrollo local
+- [ ] `if __name__ == "__main__":` si es un script final
 
 ### Fase 2: Integración en Documentación `.md`
 
-- [ ] **Crear archivo `.md` en categoría correcta:** `docs/functional/`, `docs/api/`, o `docs/examples/`
-- [ ] **Estructura correcta:**
-  1. Introducción clara (problema que resuelve)
-  2. Caso de uso (contexto empresarial)
-  3. Bloque(s) de snippet (solo `--8<--` dentro de ` ```python `)
-  4. Puntos clave / explicación
-- [ ] **Referencia correcta:** `--8<-- "examples/{categoria}/{nombre}.py"` (ruta relativa)
-- [ ] **Sin código duplicado:** Si aparece en 2+ `.md`, extraer a `examples/` primero
+- [ ] `.md` en la carpeta del arquetipo correcto: `docs/functional/`, `docs/api/` o `docs/examples/`
+- [ ] Bloque(s) de código con solo la línea `--8<--` dentro de un bloque `python`
+- [ ] Sin código duplicado: si aparece en 2+ `.md`, extraerlo primero
 
-### Fase 3: Actualización de mkdocs.yml
+### Fase 3: Actualización de `mkdocs.yml`
 
-- [ ] **Registrar en navegación:** Bajo `Ejemplos` (o subcategoría técnica)
-- [ ] **Label descriptivo:** Ej. "Carga Paralela Masiva" (no "Ejemplo 1")
-- [ ] **Ruta correcta:** `examples/{nombre_archivo}.md`
+- [ ] Entrada en `nav` bajo `Ejemplos:` y su grupo temático, con título descriptivo
 
 ### Fase 4: Validación
 
-- [ ] **Sintaxis Python:** `python -m py_compile docs/examples/**/*.py`
-- [ ] **Build MkDocs:** `mkdocs build` sin ERROR
-- [ ] **Revisar HTML generado:** Abrir `site/index.html` y navegar a sección Ejemplos
-- [ ] **Comprobar refs:** Snippets se cargan (no vacíos, no errores 404)
-
-### Ejemplo Completo (aplicado a util_bbdd)
-
-```
-✅ Crear: docs/examples/database/connection_pool.py
-   └─ Contiene: Create engine con pool_size, max_overflow
-   └─ Docstring: """Ejemplo: Configuración de pool de conexiones."""
-   └─ Validar: python -m py_compile docs/examples/database/connection_pool.py
-
-✅ Crear: docs/api/connection-pooling.md
-   └─ Sección: "## Código completo"
-   └─ Contiene: --8<-- "examples/database/connection_pool.py"
-   └─ Validar: No hay código duplicado en otros .md
-
-✅ Actualizar: mkdocs.yml
-   └─ Añadir: "- Pooling de Conexiones: api/connection-pooling.md"
-
-✅ Ejecutar: mkdocs build
-   └─ Verificar: Sin ERROR
-   └─ Verificar: site/ contiene el HTML generado
-```
+- [ ] `python -m compileall docs/examples/`
+- [ ] `zensical build` (o `mkdocs build`) sin ERROR
+- [ ] Revisar el HTML generado en `site/`: los snippets se cargan (no vacíos, sin errores)
 
 ---
 
 *Estándar adoptado: 2026-06-03 — Refactorización de snippets en parallel_bulk_insert.md*
-*Última actualización: 2026-09-21 — Figuras generadas desde el código (diagrama de capas e imports)*
+*Última actualización: 2026-09-25 — Alineado con la estructura real de `docs/examples/` (config-review)*

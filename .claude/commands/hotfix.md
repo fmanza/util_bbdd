@@ -50,7 +50,7 @@ Corrección acotada de un bug. Política: **solo fix mínimo. Prohibido refactor
 ```
 Bug: Renderer HTML pierde iconos offline cuando se exporta fuera del workspace
 
-Rutas: src/util_bbdd/doc/html_generator.py, src/util_bbdd/doc/assets/
+Rutas: src/util_bbdd/doc/infrastructure/renderers/html_generator.py, src/util_bbdd/doc/data/html_assets/
 
 Síntomas: Al exportar a PDF desde ruta ajena al workspace, los iconos desaparecen. En web OK.
 

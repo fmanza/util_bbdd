@@ -12,14 +12,14 @@ Estandarizar instrucciones de documentación para asegurar:
 - **Claridad de desarrollador**: Documentación técnica orientada a "cómo funciona internamente"
 - **Mantenibilidad**: Estructura agnóstica al lenguaje, fácil de auditar y actualizar
 - **Automatización**: Generación de docs con agentes, validación con CI/CD
-- **Versionamiento**: Sincronización CHANGELOG.md y COMPATIBILITY.md con releases
+- **Versionamiento**: Sincronización de CHANGELOG.md y `pyproject.toml` con releases
 
 ---
 
 ## 2. Estado Actual
 
 ### 2.1 Estructura MkDocs
-- **Site**: `mkdocs.yml` (v1.5+, Material theme) / `zensical.toml` (alternativo, compatible)
+- **Site**: `mkdocs.yml` — fuente única para Zensical (por defecto, CI) y MkDocs Material (recíproco); no se usa `zensical.toml`
 - **Webs de referencia oficial** (consultar con `--verify-tools` para validar versiones y plugins):
   - MkDocs: `https://www.mkdocs.org/about/release-notes/`
   - Material for MkDocs: `https://squidfunk.github.io/mkdocs-material/plugins/`
@@ -259,7 +259,7 @@ Estas páginas entran directamente en `nav:` (nivel raíz), no bajo `functional/
 
 ---
 
-### 3.7 Arquetipo 7 — Guía de Incorporación para Desarrolladores (`docs/ONBOARDING_DEV.md`)
+### 3.7 Arquetipo 7 — Guía de Incorporación para Desarrolladores (`docs/guides/onboarding_dev.md`)
 
 **Propósito**: Responder "¿Cómo me incorporo al proyecto y pongo en marcha mi entorno?"
 
@@ -645,9 +645,9 @@ nav:
 | **3. Exploración** | `Explore` | Mapear módulos existentes vs faltantes | `src/`, `docs/` | Matriz de cobertura |
 | **4. Generación** | `documentation-generator` | Crear/actualizar docs funcional + técnica | Código fuente + prompts | Archivos en `docs/` + `mkdocs.yml` |
 | **5. Auditoría** | `documentation-reviewer` | Validar completitud, ejemplos, coherencia | Docs generadas | Findings + mejoras |
-| **6. Verificación de config** (opt-in `--verify-tools`) | `documentation-generator` | Fetch webs oficiales — validar plugins y versiones en `mkdocs.yml` / `zensical.toml` | Config + webs MkDocs/Zensical/PyPI | Discrepancias por severidad |
+| **6. Verificación de config** (opt-in `--verify-tools`) | `documentation-generator` | Fetch webs oficiales — validar plugins y versiones en `mkdocs.yml` | Config + webs MkDocs/Zensical/PyPI | Discrepancias por severidad |
 | **6b. Verificación de build** (opt-in `--verify-build`) | `documentation-generator` | Build + inspección HTML generado — alias bug, snippets, Mermaid, nav | `site/` (Modo A) o `localhost:8000` (Modo B `--serve`) | Hallazgos por página + acciones recomendadas |
-| **7. Cierre** | `Version Closer` | Sincronizar `CHANGELOG.md` + `COMPATIBILITY.md` | Cambios completados | Release notes |
+| **7. Cierre** | `Version Closer` | Sincronizar `CHANGELOG.md` + `pyproject.toml` | Cambios completados | Release notes |
 
 ### Cuándo Usar Cada Agente
 
@@ -691,7 +691,7 @@ nav:
 
 4. **Build CI/CD**: `mkdocs build` validado en cada PR, detecta links rotos
 
-5. **Versionamiento**: Sincronizar CHANGELOG.md + COMPATIBILITY.md según `.github/instructions/sync.instructions.md`
+5. **Versionamiento**: Sincronizar CHANGELOG.md + `pyproject.toml` según `.github/instructions/sync.instructions.md`
 
 ---
 
@@ -743,7 +743,7 @@ Ejecutar mkdocs build. Verificar links. Reportar errores de build.
 ### Paso 7: Sincronizar Versión (20 min)
 ```text
 @Version Closer
-Actualizar CHANGELOG.md, COMPATIBILITY.md.
+Actualizar CHANGELOG.md (y la matriz de compatibilidad si existe).
 Generar release notes.
 ```
 
@@ -754,7 +754,7 @@ La estandarización se considera **completa** cuando:
 - [ ] `mkdocs build --strict` finaliza sin errores ni warnings de links rotos
 - [ ] Todos los módulos en `src/` tienen doc funcional (`docs/functional/`) y técnica (`docs/api/`)
 - [ ] Todos los archivos referenciados en `docs/examples/` existen en disco
-- [ ] `CHANGELOG.md` y `COMPATIBILITY.md` reflejan la versión actual de `pyproject.toml`
+- [ ] `CHANGELOG.md` refleja la versión actual de `pyproject.toml`
 - [ ] Las instrucciones IA (`CLAUDE.md`, `copilot-instructions.md`) son coherentes con el código real
 - [ ] Todos los documentos en `nav:` (excepto `legacy-versions.md`) tienen exactamente las secciones numeradas de su arquetipo asignado (`index.md`, `INSTALLATION.md` y `ARCHITECTURE.md` se rigen por el Arquetipo 6)
 - [ ] Las secciones vacías contienen `*No aplica para este módulo.*` en lugar de estar omitidas

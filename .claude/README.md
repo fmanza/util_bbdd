@@ -234,5 +234,5 @@ Crea un issue en el repositorio con:
 ## Referencias
 
 - **CLAUDE.md**: Política general para Claude Code
-- **docs/v0.6.7/CLAUDE_COPILOT_MAPPING.md**: Mapeo Claude Code ↔ Copilot Chat
-- **docs/examples/claude_code_usage_complete_example.md**: Ejemplos completos de flujos
+- **docs/guides/claude_code_guide.md** y **docs/guides/github_copilot_guide.md**: uso de cada plataforma
+- **.github/AGENTS.md**: registro de agentes, prompts y slash commands

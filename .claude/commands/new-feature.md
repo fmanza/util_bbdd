@@ -10,7 +10,7 @@ Nueva funcionalidad para la librería. Política: **prohibido refactorizar**.
 ## Inputs requeridos (OBLIGATORIO completar TODOS)
 
 - [ ] **Objetivo**: Descripción breve de qué se implementa (1-2 líneas)
-- [ ] **Módulo(s) o clase(s)**: Rutas completas (ej. `src/util_bbdd/doc/render_markdown.py`)
+- [ ] **Módulo(s) o clase(s)**: Rutas completas (ej. `src/util_bbdd/doc/infrastructure/renderers/markdown_generator.py` (nuevo))
 - [ ] **API pública esperada**: Qué cambia en la firma (parámetros, tipos, métodos)
 - [ ] **Contrato de entrada**: Qué espera recibir (prerequisitos, tipos)
 - [ ] **Contrato de salida**: Qué garantiza producir (output, invariantes)
@@ -62,7 +62,7 @@ Nueva funcionalidad para la librería. Política: **prohibido refactorizar**.
 ```
 Objetivo: Exportar Markdown con diagramas Mermaid opcionales
 
-Módulo(s): src/util_bbdd/doc/render_markdown.py, tests/test_render_markdown.py
+Módulo(s): src/util_bbdd/doc/infrastructure/renderers/markdown_generator.py (nuevo), tests/unit/test_markdown_generator.py (nuevo)
 
 API esperada: parámetro `enable_mermaid: bool = False` en render_markdown()
 
@@ -87,8 +87,8 @@ Archivos relevantes: sí - render_markdown.py y templates/
 **Objetivo**: Exportación Markdown con Mermaid opcional
 
 **Rutas afectadas**:
-- src/util_bbdd/doc/render_markdown.py
-- tests/test_render_markdown.py
+- src/util_bbdd/doc/infrastructure/renderers/markdown_generator.py (nuevo)
+- tests/unit/test_markdown_generator.py (nuevo)
 - docs/
 
 **Componentes implicados**:

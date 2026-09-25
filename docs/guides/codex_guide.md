@@ -27,11 +27,11 @@ En los ajustes de VS Code (`Ctrl+,` → buscar "Codex"), configurar:
 
 ### Paso 2 — Entender qué archivos lee Codex automáticamente
 
-Codex puede leer en este repositorio:
+Codex carga automáticamente el `AGENTS.md` de la **raíz** del repositorio, que remite al resto:
 
 | Archivo | Propósito |
 |---|---|
-| `CLAUDE.md` | Instrucciones transversales para asistentes de código |
+| `AGENTS.md` (raíz) | Entry point de Codex: contexto obligatorio, flujo y reglas específicas |
 | `.github/SHARED_INSTRUCTIONS.md` | Arquitectura, SOLID y políticas comunes |
 | `.github/AGENTS.md` | Registro de agentes y flujos especializados |
 | `pyproject.toml` | Versión, Python soportado, herramientas reales |
@@ -67,7 +67,7 @@ Guarda en docs/api/bulk-crud.md y añade la entrada en mkdocs.yml.
 
 | Aspecto | Codex | Claude Code | Copilot Chat |
 |---|---|---|---|
-| Contexto inicial | Manual (prompt explícito) | `CLAUDE.md` automático | `copilot-instructions.md` automático |
+| Contexto inicial | `AGENTS.md` (raíz) automático | `CLAUDE.md` automático | `copilot-instructions.md` automático |
 | Slash commands | No | Sí (`/new-feature`, etc.) | Agentes (`@nombre`) |
 | Ejecución de tests | Manual | Automática (hooks) | Manual |
 | Mejor para | Módulo concreto con prompt explícito | Flujos completos | Auditorías y revisiones |

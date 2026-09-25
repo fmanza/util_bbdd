@@ -1,7 +1,7 @@
 ---
 description: "Usa este agente para crear o actualizar documentación funcional y técnica de util_bbdd, con ejemplos y Mermaid, manteniendo docs/ y mkdocs.yml alineados con el código real."
 name: "Documentation Generator"
-tools: [read, write, search]
+tools: [read, write, search, web, execute]
 user-invocable: true
 ---
 
@@ -78,7 +78,7 @@ Solo ejecutar cuando el usuario solicite verificar compatibilidad de versiones o
 - Fetch Material for MkDocs plugins: `https://squidfunk.github.io/mkdocs-material/plugins/`
 - Fetch Zensical docs: `https://zensical.org/`
 
-**Propósito**: verificar que las directivas en `mkdocs.yml` / `zensical.toml` son válidas para la versión instalada.
+**Propósito**: verificar que las directivas de `mkdocs.yml` (fuente única para Zensical y MkDocs) son válidas para la versión instalada.
 
 **Resultado**: lista de discrepancias detectadas (plugin renombrado, sintaxis cambiada, versión mínima requerida).
 No modifica ningún archivo sin confirmación explícita del usuario.
@@ -250,10 +250,8 @@ Al finalizar, reporta:
 ### En Claude Code
 
 ```
-@Documentation Generator
-
-Genera documentación funcional para src/util_bbdd/timelog/time_utils.py.
-Guarda el resultado en docs/functional/time-utils.md.
+Usa Documentation Generator: genera documentación funcional para src/util_bbdd/managers/sync_mgr.py.
+Guarda el resultado en docs/functional/sync_manager.md.
 ```
 
 ### En Copilot Chat
@@ -262,9 +260,9 @@ Guarda el resultado en docs/functional/time-utils.md.
 /runSubagent Documentation Generator
 
 Input: Genera documentación técnica con diagrama Mermaid para
-src/util_bbdd/timelog/issue_helpers.py.
-Tipo: flowchart TD (lógica de clasificación de incidentes).
-Destino: docs/api/issue-helpers.md
+src/util_bbdd/dump/orchestrator.py.
+Tipo: flowchart TD (orquestación del volcado por tablas).
+Destino: docs/api/dump_orchestrator.md
 ```
 
 ### Actualización de proyecto completo

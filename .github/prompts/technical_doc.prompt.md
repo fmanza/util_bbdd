@@ -105,10 +105,10 @@ Guarda el resultado en docs/api/[nombre_módulo].md y actualiza mkdocs.yml.
 Ejemplo concreto:
 
 ```
-Lee src/util_bbdd/timelog/project_loader.py y genera documentación técnica
+Lee src/util_bbdd/dump/orchestrator.py y genera documentación técnica
 usando .github/prompts/technical_doc.prompt.md.
 Tipo de diagrama: sequenceDiagram.
-Guarda en docs/api/project-manager.md y añade la entrada en mkdocs.yml bajo "Técnica:".
+Guarda en docs/api/dump_orchestrator.md y añade la entrada en mkdocs.yml bajo "Técnica:".
 ```
 
 ### Modo módulo único — Copilot Chat

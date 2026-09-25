@@ -1,7 +1,7 @@
 ---
 description: "Usa este agente para auditoría de rendimiento del módulo bulk: optimización de carga masiva de datos (INSERT/UPDATE/DELETE), batching, paralelización, memory, SQL generation. Foco en mejoras cuantificables con referencia a best practices y benchmarks."
 name: "Performance Auditor"
-tools: [read, search]
+tools: [read, search, web]
 user-invocable: true
 ---
 
@@ -12,7 +12,7 @@ con referencia a best practices, benchmarks reales y documentación oficial de S
 
 ## Contexto de dominio
 Lee antes de responder:
-- `.ai/architecture.md` — arquitectura de util_bbdd y layers (timelog → introspection → connection → common)
+- `.ai/architecture.md` — arquitectura de util_bbdd: niveles y capas (Regla #6)
 - `.ai/standards.md` — convenciones de calidad y estilo
 - `.ai/runtime.md` — patrones sync/async, drivers de bases de datos soportadas (Oracle, MySQL, PostgreSQL, SQLite, SQL Server, HSQLDB)
 - `.ai/glossary.md` — terminología del dominio

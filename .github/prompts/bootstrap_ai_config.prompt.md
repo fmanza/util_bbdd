@@ -10,9 +10,9 @@ regenerarse analizando el código real del destino. Cubre las cinco plataformas 
 Este prompt es **agnóstico de lenguaje**: el lenguaje y la arquitectura del destino son **parámetros
 de entrada** que confirma quien lo invoca, no constantes embebidas.
 
-> **Nota sobre Codex**: Codex (OpenAI) **no usa un fichero de instrucciones propio**; lee
-> `CLAUDE.md`, `.github/SHARED_INSTRUCTIONS.md` y `.github/AGENTS.md`, con su guía de uso en
-> `docs/codex_guide.md`. Al hacer bootstrap, replica esa guía adaptada al destino.
+> **Nota sobre Codex**: Codex (OpenAI) carga automáticamente el `AGENTS.md` de la **raíz** del repo
+> (entry point fino que remite a `.github/SHARED_INSTRUCTIONS.md` y al registro `.github/AGENTS.md`).
+> Su guía de uso está en `docs/guides/codex_guide.md`. Al hacer bootstrap, replica ambos adaptados al destino.
 
 ---
 
@@ -49,7 +49,7 @@ Fase: PLAN y AUDIT_PLAN únicamente.   # o "completa" para llegar hasta VERSION
 | `.ai/sessions/TEMPLATE/` | `.ai/sessions/TEMPLATE/` | verbatim |
 | `.github/SHARED_INSTRUCTIONS.md` | idem | copiar + reescribir dominio |
 | `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.github/AGENTS.md`, `.cursorrules` | idem | copiar + reescribir dominio |
-| `docs/codex_guide.md` (guía de uso de Codex) | idem | copiar + reescribir dominio |
+| `AGENTS.md` (raíz, entry point Codex) + `docs/guides/codex_guide.md` (guía de uso) | idem | copiar + reescribir dominio |
 | `scripts/build_docs_zip.py` + `.github/workflows/docs-release.yml` | idem | copiar + adaptar builder/secrets/prefijo ZIP |
 | `.ai/{product,architecture,runtime,glossary,standards}.md` | idem | **regenerar desde cero** |
 
@@ -150,7 +150,7 @@ Clasifica **cada** activo IA del origen en una de estas cuatro capas:
 
 1. `.github/SHARED_INSTRUCTIONS.md` — canónico, **reescrito** para el dominio del destino.
 2. Un punto de entrada **por cada plataforma activa**: `CLAUDE.md`, `GEMINI.md`,
-   `.github/copilot-instructions.md`, `.cursorrules` y `docs/codex_guide.md` (Codex).
+   `.github/copilot-instructions.md`, `.cursorrules` y `AGENTS.md` en la raíz (Codex).
 3. `.ai/architecture.md` + `.ai/product.md` — contexto que los agentes leen antes de planificar.
 4. Núcleo de método: prompts/commands `new_feature`, `hotfix`, `refactor`, `audit_code`,
    `version_closure` + agentes `plan-architect`, `code-auditor`, `version-closer`.
@@ -173,7 +173,7 @@ Clasifica **cada** activo IA del origen en una de estas cuatro capas:
 | Gemini | `GEMINI.md` | estándares de código del lenguaje destino, comandos rápidos, arquetipos doc |
 | Copilot Chat | `.github/copilot-instructions.md` | agentes VS Code, `#file:`, validación de rutas, arquetipos doc |
 | Cursor | `.cursorrules` | estándar de documentación/ejemplos y reglas de estilo del destino |
-| Codex (OpenAI) | `docs/codex_guide.md` | guía de uso; lee `CLAUDE.md` + `SHARED_INSTRUCTIONS.md` + `AGENTS.md` (sin fichero propio) |
+| Codex (OpenAI) | `AGENTS.md` (raíz) | entry point fino → `SHARED_INSTRUCTIONS.md` + `.github/AGENTS.md`; guía en `docs/guides/codex_guide.md` |
 
 Todos referencian a `.github/SHARED_INSTRUCTIONS.md` como **fuente canónica**.
 **Regla de oro**: edita primero `SHARED_INSTRUCTIONS.md`; los entry points solo añaden especialización.

@@ -14,7 +14,7 @@ Actúa como senior de ingeniería Python especializado en:
 - Programación asíncrona con `asyncio` y drivers async (`asyncpg`, `aiosqlite`, `aiomysql`).
 - Procesamiento de datos con `pandas` y SQLAlchemy.
 - Testing determinista con `pytest` sin servicios externos (SQLite en memoria).
-- Documentación de librerías Python con MkDocs Material.
+- Documentación de librerías Python con Zensical / MkDocs Material (mismo `mkdocs.yml`).
 
 ---
 
@@ -48,6 +48,8 @@ entre esquemas, migración DDL entre motores, generación de documentación y vi
 src/util_bbdd/
   managers/             # SyncDatabaseManager, AsyncDatabaseManager
   bulk/                 # bulk_crud, AuditManager
+  dump/                 # Volcado de datos entre esquemas/motores (orden FK, constraints, informe Excel)
+  migrate/              # MigrationPlanner: migración DDL entre motores (extractors, IR, emitters)
   metadata/             # SyncMetadataProvider, AsyncMetadataProvider, DatabaseMetadataCache
   comparar/             # SchemaComparator, SchemaDiff, reporters (SQL/HTML/Word/Excel/MD)
   doc/                  # Generación de documentación (Word, Excel, HTML, Jinja2)
@@ -61,6 +63,8 @@ src/util_bbdd/
   core/                 # capabilities.py (capacidades por motor)
   _core/                # exceptions.py (jerarquía centralizada de excepciones)
   _drivers/             # get_supported_db_types, detección de drivers
+  data/                 # database_types.json, sql_queries.json (datos empaquetados)
+  docs_build_plugin.py  # Plugin de build de la documentación (ZIP offline)
   models.py             # Modelos de datos compartidos
   async_utils.py        # maybe_await
   __init__.py           # API pública
@@ -72,6 +76,8 @@ src/util_bbdd/
 |---|---|
 | `managers/` | Ciclo de vida de conexión: init, pool, cierre; operaciones de BD |
 | `bulk/` | CRUD masivo desde DataFrame con auditoría y generación de SQL |
+| `dump/` | Volcado de datos entre esquemas/motores con orden por dependencias FK |
+| `migrate/` | Migración DDL entre motores (`MigrationPlanner`) |
 | `metadata/` | Introspección de esquemas: tablas, columnas, índices, DDL; caché en sesión; único punto autorizado para SQL de introspección (ver `.github/instructions/architecture.instructions.md` § Reglas de acceso a metadatos) |
 | `comparar/` | Comparación de dos esquemas; diff estructurado; reporters por formato |
 | `doc/` | Documentación de BD en Word, Excel y HTML vía Jinja2 |
@@ -169,7 +175,7 @@ mkdocs build          # equivalente recíproco con el mismo mkdocs.yml
 python scripts/build_docs_zip.py   # build + ZIP offline en dist/util_bbdd-docs-{version}.zip
 python scripts/gen_arquitectura_capas.py   # regenera el diagrama de capas e imports (falla si no coincide con el código)
 # Onboarding: generar/actualizar guía de incorporación para nuevos desarrolladores
-# → aplicar .github/prompts/onboarding_dev.prompt.md → docs/ONBOARDING_DEV.md
+# → aplicar .github/prompts/onboarding_dev.prompt.md → docs/guides/onboarding_dev.md
 ```
 
 ### Estrategia de tests
@@ -191,7 +197,7 @@ python scripts/gen_arquitectura_capas.py   # regenera el diagrama de capas e imp
 - ✅ Nuevo archivo generado o copiado → actualizar README y/o docs de uso
 - ✅ Cambio de CLI → actualizar ejemplos en README, `docs/` y `.ai/runtime.md`
 - ✅ **Nueva versión (VERSION)** → revisar `.github/instructions/sync.instructions.md`
-  para validar que CHANGELOG.md y COMPATIBILITY.md están sincronizados
+  para validar que CHANGELOG.md y `pyproject.toml` están sincronizados
 
 #### Configuración de documentación — cuándo actualizar
 
@@ -201,6 +207,9 @@ python scripts/gen_arquitectura_capas.py   # regenera el diagrama de capas e imp
 
 - ✅ Módulo o clase pública nueva → entrada en `mkdocs.yml` bajo `nav:`
 - ✅ Página nueva, movida o eliminada en `docs/` → actualizar `mkdocs.yml`
+- ✅ Reorganización funcional/técnica/ejemplos → validar que `nav:` mantiene apartados separados
+- ✅ Ejecutar `zensical serve` (o `mkdocs serve`) localmente antes de publicar
+- ✅ Verificar que `zensical build` (o `mkdocs build`) pase sin warnings
 
 #### Convención de nombres en `docs/`
 
@@ -241,9 +250,6 @@ sha256sum -c dist/*.sha256                             # Validar checksums
 - Ver `.github/prompts/bootstrap_ai_config.prompt.md`
 - Sección: "📦 Descarga de Documentación Offline (Capa B)"
 - Matriz de equivalencias: Python + MkDocs, Node.js + Docusaurus, Go + Hugo, Java + Sphinx
-- ✅ Reorganización funcional/técnica/ejemplos → validar que `nav:` mantiene apartados separados
-- ✅ Ejecutar `zensical serve` (o `mkdocs serve`) localmente antes de publicar
-- ✅ Verificar que `zensical build` (o `mkdocs build`) pase sin warnings
 
 #### Estándar de generación documental
 
@@ -381,19 +387,31 @@ Usar formato: `**[área]**: <hecho verificable>`. El template está en
 
 | Archivo | Plataforma | Propósito |
 |---|---|---|
-| `.github/SHARED_INSTRUCTIONS.md` | Copilot, Claude, Gemini, Codex, Cursor | Fuente canónica: arquitectura, calidad, comandos |
-| `GEMINI.md` | Gemini Code Assist | Especialización: estándares de código y comandos rápidos |
+| `.github/SHARED_INSTRUCTIONS.md` | Copilot, Claude, Gemini, Codex, Cursor | Fuente canónica: arquitectura, calidad, comandos, documentación |
+| `CLAUDE.md` | Claude Code | Especialización: slash commands, hooks, settings.json (importa SHARED con `@`) |
 | `.github/copilot-instructions.md` | GitHub Copilot Chat | Especialización: agentes VS Code, reglas Copilot |
-| `CLAUDE.md` | Claude Code | Especialización: slash commands, hooks, settings.json |
-| `.github/AGENTS.md` | Copilot/Claude | Registro de agentes especializados |
+| `GEMINI.md` | Gemini Code Assist | Especialización: flujo y comandos rápidos |
+| `.cursorrules` | Cursor | Especialización: estándar de ejemplos de código (snippets) |
+| `AGENTS.md` (raíz) | Codex | Especialización: entry point fino; guía en `docs/guides/codex_guide.md` |
+| `.github/AGENTS.md` | Todas | Registro de agentes, prompts y slash commands |
+| `.github/DOCUMENTATION_STANDARD.md` | Todas | Canónico documental: arquetipos y flujo de agentes de documentación |
+| `.github/instructions/*.instructions.md` | Copilot (por ruta); resto por referencia | Reglas por tipo de archivo |
 | `.github/prompts/bootstrap_ai_config.prompt.md` | Todas | Trasladar esta configuración IA a otro proyecto (modelo PULL) |
-| `.cursorrules` | Cursor | Especialización: estándar de documentación/ejemplos |
 | `.ai/*.md` | Todas | Contexto persistente: producto, arquitectura |
 | `.ai/sessions/TEMPLATE/` | Todas | Plantilla canónica de artefactos de sesión |
 
 **Regla de oro**: Edita SHARED_INSTRUCTIONS.md primero. Luego sincroniza solo las
-especializaciones afectadas (copilot-instructions.md y/o CLAUDE.md).
+especializaciones afectadas (`CLAUDE.md`, `.github/copilot-instructions.md`, `GEMINI.md`,
+`.cursorrules`, `AGENTS.md`) y, si cambian agentes, prompts o slash commands, `.github/AGENTS.md`.
+
+**Checklist de sincronización** (único; los entry points remiten aquí):
+
+- [ ] Ninguna regla común está copiada en un entry point: solo referencias de una línea a este fichero
+- [ ] Rutas relativas y existentes (enlaces resueltos desde la carpeta del fichero que los contiene)
+- [ ] Sin términos, módulos ni rutas de otros proyectos
+- [ ] Tabla de gobernanza actualizada y fechas «Actualizado» al día en los ficheros tocados
+- [ ] Revisión con Config Reviewer (`/config-review` en Claude Code)
 
 ---
 
-*Actualizado: 2026-09-22*
+*Actualizado: 2026-09-25*

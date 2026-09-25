@@ -162,10 +162,10 @@ Para cada hallazgo, reportar:
 
 ## 🔗 Contexto compartido
 
-- **Patrón de arquitectura**: Capas TIMELOG (timelog → introspection → connection → common)
+- **Patrón de arquitectura**: niveles y capas de `.ai/architecture.md` § «Capas (Regla #6)»
 - **Base de datos soportadas**: Oracle, MySQL/MariaDB, PostgreSQL, SQLite, SQL Server, HSQLDB
 - **Frameworks**: SQLAlchemy core + Pandas
-- **Python version**: 3.11+
+- **Python version**: 3.12+ (`requires-python` en `pyproject.toml`)
 - **Objetivo negocio**: Carga de datos **lo más rápido posible**
 
 ---
