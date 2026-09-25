@@ -14,6 +14,15 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   propósito, para que `tiempo_seg` fuera solo latencia de BD. Ahora `tiempo_seg` es la única columna de tiempo y mide
   la operación: la ejecución en BD si `sql=No`, y generar y escribir el fichero SQL si `sql=Sí`. Las filas de mayo a
   hoy con `sql=Sí` conservan `0,000`: el tiempo real no se puede recuperar.
+- **bulk (auditoría)**: si el CSV de auditoría existía vacío (0 bytes), nunca se escribía la cabecera. La primera fila
+  de datos pasaba a ser la cabecera y fallaban las estadísticas, los filtros y los exports. Ahora se escribe la cabecera
+  siempre que el fichero esté vacío. Un CSV ya dañado así no se repara: hay que añadirle la cabecera a mano.
+- **bulk (auditoría, Excel)**: `exportar_resumen_excel` guardaba como fórmula cualquier texto que empezara por `=`,
+  como un nombre de tabla `=HYPERLINK(...)`, y Excel lo ejecutaba al abrir el fichero. Ahora se guarda como texto.
+- **dump**: `DumpResult.audit_summary` descartaba las operaciones terminadas en el mismo segundo en que empezó el
+  volcado (el CSV guarda segundos y el filtro comparaba con microsegundos), así que en volcados cortos salía incompleto
+  o `None`. Ahora el filtro trabaja en segundos. A cambio puede contar una operación de otro volcado terminada en ese
+  mismo segundo sobre el mismo CSV.
 
 ### Changed
 

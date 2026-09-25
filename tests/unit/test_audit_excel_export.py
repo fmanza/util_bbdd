@@ -62,3 +62,18 @@ def test_row_without_sql_value_is_not_dropped_from_the_summary(manager: AuditMan
     insert = _sheets(manager.exportar_resumen_excel("tabla"))["Insert_tabla"]
 
     assert insert["total_filas"].sum() == 10 + 20 + 7
+
+
+def test_text_starting_with_equals_is_written_as_text_not_formula(tmp_path: Path) -> None:
+    # H12 (audit-code 2026-09-25): openpyxl guarda como fórmula toda cadena que empieza por "=".
+    from openpyxl import load_workbook
+
+    formula = '=HYPERLINK("http://example.invalid","clic")'
+    mgr = AuditManager(audit_csv_path=tmp_path / "audit.csv")
+    mgr.registrar_operacion(formula, "sqlite", "INSERT", 1, 0.1, False)
+
+    workbook = load_workbook(mgr.exportar_resumen_excel("tabla"))
+
+    cells = [cell for ws in workbook.worksheets for row in ws.iter_rows() for cell in row]
+    assert not [cell.coordinate for cell in cells if cell.data_type == "f"]
+    assert sum(cell.value == formula for cell in cells) == len(workbook.worksheets)

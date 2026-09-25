@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -1323,3 +1324,31 @@ class TestSchemaComparisonRemoved:
         assert "diff" not in kwargs, "El informe no debe recibir un SchemaDiff"
         orders = next(r for r in kwargs["table_results"] if r.table_name == "orders")
         assert "extra_col" in orders.skipped_columns
+
+
+class TestBuildAuditSummary:
+    """H3 (audit-code 2026-09-25): el CSV guarda segundos y ``dump_inicio`` lleva microsegundos."""
+
+    _HEADER = "timestamp\ttabla\tmotor\toperacion\ttotal_filas\ttiempo_seg\tsql\n"
+
+    def _write_csv(self, path: Path, *timestamps: str) -> Path:
+        rows = "".join(f"{ts}\torders\tPOSTGRESQL\tINSERT\t10\t0,500\tNo\n" for ts in timestamps)
+        path.write_text(self._HEADER + rows, encoding="utf-8")
+        return path
+
+    def test_counts_operation_finished_in_the_same_second_as_the_start(self, tmp_path: Path) -> None:
+        csv_path = self._write_csv(tmp_path / "audit.csv", "2026-09-25 10:00:00")
+
+        summary = DumpOrchestrator._build_audit_summary(csv_path, datetime(2026, 9, 25, 10, 0, 0, 700_000))
+
+        assert summary is not None
+        assert summary.total_operaciones == 1
+        assert summary.total_filas == 10
+
+    def test_excludes_operations_from_earlier_seconds(self, tmp_path: Path) -> None:
+        csv_path = self._write_csv(tmp_path / "audit.csv", "2026-09-25 09:59:59", "2026-09-25 10:00:01")
+
+        summary = DumpOrchestrator._build_audit_summary(csv_path, datetime(2026, 9, 25, 10, 0, 0, 700_000))
+
+        assert summary is not None
+        assert summary.total_operaciones == 1

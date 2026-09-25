@@ -980,7 +980,9 @@ class DumpOrchestrator:
             return None
         df = df.copy()
         df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-        df = df[df["timestamp"] >= pd.Timestamp(desde)]
+        # H3 (audit-code 2026-09-25): el CSV guarda el timestamp truncado al segundo; comparar con ``desde`` y sus
+        # microsegundos descartaba las operaciones terminadas en el mismo segundo en que empezó el volcado.
+        df = df[df["timestamp"] >= pd.Timestamp(desde.replace(microsecond=0))]
         if df.empty:
             return None
         tabla_mas_activa: str | None = str(df["tabla"].value_counts().index[0]) if len(df) > 0 else None

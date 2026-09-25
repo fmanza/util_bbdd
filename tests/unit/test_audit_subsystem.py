@@ -103,6 +103,20 @@ class TestRepositoryWrite:
         df = populated_repo.leer_auditoria(usar_cache=False)
         assert len(df) == 3
 
+    def test_fichero_vacio_existente_recibe_cabecera(self, repo: AuditCsvRepository, tmp_path: Path) -> None:
+        # H4 (audit-code 2026-09-25): un CSV de 0 bytes existe, y antes la primera fila de datos quedaba de cabecera.
+        (tmp_path / "audit.csv").touch()
+        repo.registrar_operacion(tabla="t", motor="sqlite", operacion="INSERT", rowcount=5, elapsed=0.1)
+        df = repo.leer_auditoria(usar_cache=False)
+        assert list(df.columns) == _COLUMNS
+        assert len(df) == 1
+        assert df.iloc[0]["total_filas"] == 5
+
+    def test_fichero_con_datos_no_repite_cabecera(self, populated_repo: AuditCsvRepository, tmp_path: Path) -> None:
+        lines = (tmp_path / "audit.csv").read_text(encoding="utf-8").splitlines()
+        assert lines.count("\t".join(_COLUMNS)) == 1
+        assert len(lines) == 4
+
 
 class TestRepositoryCache:
     def test_cache_warm_after_read(self, populated_repo: AuditCsvRepository) -> None:

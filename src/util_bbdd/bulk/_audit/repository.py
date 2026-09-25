@@ -111,10 +111,11 @@ class AuditCsvRepository:
         # Sección crítica: existencia → cabecera → fila debe ser atómica frente a otros
         # hilos que escriban el mismo CSV (volcado paralelo con una BulkCrud por hilo).
         with _get_file_lock(self.audit_csv_path):
-            file_exists: bool = self.audit_csv_path.exists()
             with open(self.audit_csv_path, "a", newline="", encoding="utf-8") as file_handle:
                 writer = csv.writer(file_handle, delimiter="\t")
-                if not file_exists:
+                # H4 (audit-code 2026-09-25): en modo "a" el fichero se abre al final; posición 0 = nuevo o vacío.
+                # Con exists(), un CSV de 0 bytes se quedaba sin cabecera y su primera fila de datos pasaba a serlo.
+                if file_handle.tell() == 0:
                     writer.writerow(self.columnas_auditoria)
 
                 tiempo_formateado: str = f"{elapsed:.3f}".replace(".", ",")

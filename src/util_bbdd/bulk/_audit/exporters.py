@@ -17,6 +17,18 @@ from .repository import AuditCsvRepository
 from .service import AuditAnalyticsService
 
 
+def _desactivar_formulas(worksheet: Any) -> None:
+    """Guarda como texto las celdas que openpyxl ha tomado por fórmulas.
+
+    H12 (audit-code 2026-09-25): openpyxl interpreta como fórmula toda cadena que empieza por ``=``, así que un nombre de
+    tabla como ``=HYPERLINK(...)`` acababa ejecutándose al abrir el Excel. El resumen nunca contiene fórmulas propias.
+    """
+    for row in worksheet.iter_rows():
+        for cell in row:
+            if cell.data_type == "f":
+                cell.data_type = "s"
+
+
 class AuditExporters:
     """Genera reportes de auditoría en formatos de salida."""
 
@@ -60,8 +72,9 @@ class AuditExporters:
                     continue
 
                 resumen_op = self.service.agrupar_y_generar_resumen(dataframe_operacion, group_cols)
-                hoja: str = f"{str(op).capitalize()}_{agrupar_por}"
-                resumen_op.to_excel(writer, sheet_name=hoja[:31], index=False)
+                hoja: str = f"{str(op).capitalize()}_{agrupar_por}"[:31]
+                resumen_op.to_excel(writer, sheet_name=hoja, index=False)
+                _desactivar_formulas(writer.sheets[hoja])
                 resumen_global.append(resumen_op)
 
             if resumen_global:
@@ -80,6 +93,7 @@ class AuditExporters:
                         ]
                     ]
                 dataframe_global.to_excel(writer, sheet_name="Resumen_global", index=False)
+                _desactivar_formulas(writer.sheets["Resumen_global"])
 
         self.logger.info(f"✅ Resumen de auditoría exportado a: {output_excel}")
         return output_excel
