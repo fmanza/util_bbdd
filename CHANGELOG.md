@@ -52,6 +52,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   filas y la carga chocaba con la PK. Ahora usa un único `TRUNCATE` con todas las tablas del volcado (sin `CASCADE`; si
   falla, por ejemplo por una FK desde una tabla ajena al volcado, limpia tabla a tabla como antes).
 
+### Changed
+
+- **dump (rendimiento, Oracle)**: la lectura del origen Oracle pide `chunk_size` filas por ida y vuelta al servidor en
+  lugar de las 100 del driver (`arraysize`). A 3,5M filas, el volcado pasa de 58,6 a 41,4 s (−29 %) y la lectura, de
+  24,4 a 7,2 s. Se configura solo en las conexiones de lectura del volcado; el engine del usuario no cambia, y si ya
+  tiene un `arraysize` mayor se respeta.
+
 ### Added
 
 - **bulk**: parámetro `strip_strings` en `BulkCrud` y `ParallelBulkLoader` (por defecto `True`, el comportamiento de

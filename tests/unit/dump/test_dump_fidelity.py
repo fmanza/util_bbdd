@@ -19,7 +19,7 @@ from sqlalchemy import create_engine, text
 
 from util_bbdd.bulk.normalize import _normalize_values, dataframe_to_sql_records
 from util_bbdd.dump import DumpConfig, DumpOrchestrator
-from util_bbdd.dump.orchestrator import _read_chunks
+from util_bbdd.dump.orchestrator import _execute_read, _read_chunks
 
 pytestmark = pytest.mark.unit
 
@@ -103,3 +103,53 @@ def test_dump_copies_values_exactly(tmp_path: Path):
     assert rows == [(1, BIG, "  padded  "), (2, None, None), (3, -BIG, " x")]
     src.dispose()
     dst.dispose()
+
+
+class TestOracleArraysize:
+    """Q1: en Oracle, el cursor de lectura del volcado pide ``chunk_size`` filas por ida y vuelta (por defecto, 100)."""
+
+    @staticmethod
+    def _conn(dialect: str):
+        from unittest.mock import MagicMock
+
+        conn = MagicMock()
+        conn.dialect.name = dialect
+        return conn
+
+    def test_oracle_raises_arraysize_only_while_executing(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        conn = self._conn("oracle")
+        captured = {}
+        with patch("util_bbdd.dump.orchestrator.event") as ev:
+            ev.listen.side_effect = lambda target, name, fn: captured.setdefault("fn", fn)
+            _execute_read(conn, "SELECT 1", 5000, None)
+            assert ev.listen.call_args.args[:2] == (conn, "before_cursor_execute")
+            ev.remove.assert_called_once_with(conn, "before_cursor_execute", captured["fn"])
+
+        low = SimpleNamespace(arraysize=100, prefetchrows=2)
+        captured["fn"](conn, low, "SELECT 1", {}, None, False)
+        assert (low.arraysize, low.prefetchrows) == (5000, 5000)
+
+        high = SimpleNamespace(arraysize=10000, prefetchrows=2)  # el engine ya pide más: no se baja
+        captured["fn"](conn, high, "SELECT 1", {}, None, False)
+        assert (high.arraysize, high.prefetchrows) == (10000, 2)
+
+    def test_listener_is_removed_if_execute_fails(self):
+        from unittest.mock import patch
+
+        conn = self._conn("oracle")
+        conn.execute.side_effect = RuntimeError("fallo")
+        with patch("util_bbdd.dump.orchestrator.event") as ev, pytest.raises(RuntimeError):
+            _execute_read(conn, "SELECT 1", 5000, None)
+        ev.remove.assert_called_once()
+
+    def test_other_dialects_do_not_register_listener(self):
+        from unittest.mock import patch
+
+        conn = self._conn("postgresql")
+        with patch("util_bbdd.dump.orchestrator.event") as ev:
+            _execute_read(conn, "SELECT 1", 5000, None)
+        ev.listen.assert_not_called()
+        conn.execute.assert_called_once()

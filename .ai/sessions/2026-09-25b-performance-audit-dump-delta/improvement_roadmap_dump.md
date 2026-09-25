@@ -25,7 +25,7 @@
 
 | Paso | Mejora | Estado | Ganancia medida en la auditoría previa | Notas |
 |---|---|---|---|---|
-| 1.1 (Q1) | `arraysize = chunk_size` en lecturas Oracle | Pendiente | −29 % | No combinar con 1.3 ni con rangos en Oracle |
+| 1.1 (Q1) | `arraysize = chunk_size` en lecturas Oracle | **Hecho** (sesión `2026-09-26g-refactor-dump-oracle-arraysize`) | −29 % medido (58,6 → 41,4 s) | Con rangos (1 rep.): 32,9 s, ya no empeora; pendiente PD-11 |
 | 1.2 (Q2) | `stream_results=True, max_row_buffer=chunk_size` en la lectura | Pendiente | Memoria −62 % (PG) / −83 % (MySQL/MariaDB); tiempo ±5 % | Requisito de 1.3 en MySQL/MariaDB. Memoria actual: 417 / 859 MB |
 | 1.3 (Q3) | Solape lectura/escritura (1 hilo lector, cola de 2 chunks) | Pendiente | PG −45 % (con lotes de 20K), MySQL −31 %, MariaDB −25 %, SQLite −16 %, SQL Server −19 % | Prototipo: variante `prefetch` de `scripts/bench_dump.py` |
 | 1.4 (Q4) | Guía por motor y aviso para `parallel_pk_ranges` | Pendiente | SQL Server −48 % (4 rangos + stream) | Perjudicial en MySQL/MariaDB |

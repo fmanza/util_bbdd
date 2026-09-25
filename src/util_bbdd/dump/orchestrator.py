@@ -34,7 +34,7 @@ from typing import Any, Literal
 
 import pandas as pd
 
-from sqlalchemy import Engine, Inspector, Integer, inspect, text
+from sqlalchemy import Engine, Inspector, Integer, event, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader, ParallelLoadResult
@@ -58,10 +58,34 @@ def _read_chunks(conn: Any, sql: str, chunk_size: int, params: dict[str, Any] | 
     convertía ``Decimal`` en ``float`` (DECIMAL de más de 15 dígitos). Ninguna opción de ``read_sql`` lo evita del todo:
     ``dtype_backend`` conserva los enteros pero entrega los ``Decimal`` como texto.
     """
-    result = conn.execute(text(sql), params or {})
+    result = _execute_read(conn, sql, chunk_size, params)
     keys = list(result.keys())
     while rows := result.fetchmany(chunk_size):
         yield pd.DataFrame(rows, columns=keys, dtype=object)
+
+
+def _execute_read(conn: Any, sql: str, chunk_size: int, params: dict[str, Any] | None) -> Any:
+    """``conn.execute(text(sql))``; en Oracle, con el cursor leyendo de ``chunk_size`` en ``chunk_size`` filas.
+
+    Q1 (performance-audit de dump 2026-09-25): oracledb lee por defecto 100 filas por ida y vuelta (``arraysize``) y
+    SQLAlchemy solo permite cambiarlo en todo el engine. El listener se registra en esta conexión (no en el engine del
+    usuario) y solo mientras se crea el cursor; solo sube el valor, nunca baja uno mayor fijado en el engine.
+    Medido: 2M filas en 11,7 → 2,5 s.
+    """
+    if conn.dialect.name != "oracle":
+        return conn.execute(text(sql), params or {})
+
+    def _set_arraysize(_conn: Any, cursor: Any, *_args: Any) -> None:
+        if cursor.arraysize < chunk_size:
+            cursor.arraysize = chunk_size
+            if hasattr(cursor, "prefetchrows"):
+                cursor.prefetchrows = chunk_size
+
+    event.listen(conn, "before_cursor_execute", _set_arraysize)
+    try:
+        return conn.execute(text(sql), params or {})
+    finally:
+        event.remove(conn, "before_cursor_execute", _set_arraysize)
 
 
 @dataclass(frozen=True)
