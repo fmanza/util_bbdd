@@ -9,6 +9,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **bulk**: `BulkCrud.reflect_table` reflejaba también, de forma recursiva, todas las tablas referenciadas por FK, con
+  un `MetaData` nuevo en cada llamada: el coste crecía de forma cuadrática en cadenas de FK (100 tablas encadenadas en
+  PostgreSQL: 45,6 s solo en reflexión) y a partir de ~150 tablas encadenadas lanzaba `RecursionError`, que abortaba el
+  volcado entero de `dump`. Ahora refleja solo la tabla pedida (`resolve_fks=False`). **A revisar al actualizar**: en la
+  `Table` devuelta, `ForeignKey.column` ya no resuelve la tabla referenciada.
 - **bulk**: en SQL Server, cargar en una tabla con columnas en minúsculas o mixtas (`customer_id`, `CustomerName`)
   fallaba siempre con `No hay columnas válidas para INSERT`: las columnas del DataFrame se pasaban a MAYÚSCULAS y se
   comparaban con las de la tabla distinguiendo mayúsculas. Afectaba a `bulk_insert_from_df`, `bulk_update_from_df`,

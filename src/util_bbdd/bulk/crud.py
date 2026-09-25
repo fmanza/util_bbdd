@@ -880,6 +880,9 @@ class BulkCrud:
         if tabla_destino in self._table_cache:
             return self._table_cache[tabla_destino]
         metadata = MetaData()
+        # PD-08 (performance-audit de dump 2026-09-25): sin resolve_fks=False SQLAlchemy reflejaba también, de forma
+        # recursiva, todas las tablas referenciadas por FK; con un MetaData nuevo por llamada el coste era cuadrático y una
+        # cadena de ~150 FK lanzaba RecursionError. bulk solo necesita las columnas, la PK y la identidad de la tabla.
 
         # Para MySQL/MariaDB, no normalizar: SQLAlchemy reflection maneja correctamente
         # la búsqueda independientemente del case usado (depende de lower_case_table_names)
@@ -890,12 +893,12 @@ class BulkCrud:
             tabla_normalizada: str = (
                 table_part if skip_normalization else normalize_identifier(table_part, self.engine.dialect.name)
             )
-            tabla = Table(tabla_normalizada, metadata, schema=schema_part, autoload_with=self.engine)
+            tabla = Table(tabla_normalizada, metadata, schema=schema_part, autoload_with=self.engine, resolve_fks=False)
         else:
             tabla_normalizada = (
                 tabla_destino if skip_normalization else normalize_identifier(tabla_destino, self.engine.dialect.name)
             )
-            tabla = Table(tabla_normalizada, metadata, autoload_with=self.engine)
+            tabla = Table(tabla_normalizada, metadata, autoload_with=self.engine, resolve_fks=False)
         self._table_cache[tabla_destino] = tabla
         return tabla
 
