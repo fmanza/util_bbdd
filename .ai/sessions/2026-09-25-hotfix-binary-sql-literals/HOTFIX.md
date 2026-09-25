@@ -13,8 +13,9 @@
 - **Supuestos verificados**: los contenedores del banco (`docker-compose.bench.yml`) sirven como referencia de cada
   motor. El SQL se ejecutó dentro de cada contenedor con su cliente nativo y sus variables de entorno, sin usar la
   contraseña fuera de él.
-- **Dato faltante**: `UTIL_BBDD_TEST_<MOTOR>_URL` no está definida en esta sesión. El test de integración nuevo solo
-  se ejecutó en SQLite; en los servidores, la verificación es la del arnés `docker exec`.
+- **Dato faltante (resuelto)**: `UTIL_BBDD_TEST_<MOTOR>_URL` no estaba definida durante la implementación, así que
+  el test de integración se ejecutó solo en SQLite y los servidores se validaron con el arnés `docker exec`. Después
+  del commit, el usuario lo ejecutó con las URLs cargadas: 14 passed, 0 skipped, con los 6 motores.
 
 ## Causa raíz (reproducida en servidores reales)
 

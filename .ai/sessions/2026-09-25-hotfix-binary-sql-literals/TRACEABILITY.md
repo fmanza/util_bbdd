@@ -38,7 +38,6 @@
 - **[Oracle]**: un literal de cadena admite como máximo 4000 caracteres (2000 bytes en hex) y `sqlplus` corta las líneas de más de 4999. Los BLOB mayores no se pueden escribir como literal SQL simple.
 
 ## Veredicto final
-Veredicto: GO
+Veredicto: CLOSED
 Pendientes al cierre:
-- Commit.
-- Ejecutar `tests/integration/test_bulk_engines.py -k binary` con `scripts/bench_env.example.*` cargado, para cubrir los servidores con el test versionado.
+- Ninguno. Commit dde13b2. El usuario ejecutó `tests/integration/test_bulk_engines.py -k binary` con `scripts/bench_env.example.ps1` cargado en la terminal de VS Code: 14 passed, 0 skipped. `test_generated_sql_binary_column_roundtrip` pasó en los 6 motores; `test_binary_column_roundtrip`, en 8 casos (6 motores, más MySQL y MariaDB con la otra vía de UPDATE).
