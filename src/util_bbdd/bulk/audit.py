@@ -11,10 +11,12 @@ from __future__ import annotations
 
 import copy
 import logging
+import warnings
 
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import TracebackType
 from typing import Any, Literal
 
 import pandas as pd
@@ -49,13 +51,18 @@ class AuditTransaction:
         self.logger.info(f"⏱️  Iniciando transacción: {self.nombre}")
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         self.fin = datetime.now()
         duracion: timedelta = self.fin - self.inicio if self.inicio else timedelta(0)
         self.exito = exc_type is None
 
         try:
-            if self.exito:
+            if exc_type is None:
                 self._registrar_transaccion_exitosa(duracion)
             else:
                 self._registrar_transaccion_fallida(duracion, exc_type, exc_val)
@@ -73,7 +80,9 @@ class AuditTransaction:
         if self.manager.cache_enabled:
             self.manager.invalidar_cache()
 
-    def _registrar_transaccion_fallida(self, duracion: timedelta, exc_type: Any, exc_val: Any) -> None:
+    def _registrar_transaccion_fallida(
+        self, duracion: timedelta, exc_type: type[BaseException], exc_val: BaseException | None
+    ) -> None:
         tiempo_segundos: float = duracion.total_seconds()
         total_ops: int = len(self.operaciones)
         self.logger.error(
@@ -134,7 +143,7 @@ class AuditTransaction:
             - fin: Timestamp de fin (o None si aún está en curso)
             - duracion_segundos: Segundos transcurridos
             - total_operaciones: Cantidad de operaciones registradas
-            - total_filas: Cantidad total de filas afectadas
+            - total_filas: Suma de ``rowcount`` de las operaciones (filas enviadas, no afectadas en BD)
             - exito: Booleano indicando si completó exitosamente
             - operaciones: Lista de operaciones registradas
         """
@@ -202,6 +211,17 @@ class AuditManager:
 
     @columnas_auditoria.setter
     def columnas_auditoria(self, value: list[str]) -> None:
+        """Obsoleto: se retirará en la próxima versión menor.
+
+        H7 (audit-code 2026-09-25): cambia la cabecera del CSV, pero cada fila se sigue escribiendo con las 7 columnas
+        fijas, así que el fichero deja de poder leerse.
+        """
+        warnings.warn(
+            "AuditManager.columnas_auditoria no debe asignarse: la cabecera dejaría de coincidir con las filas del CSV "
+            "(siempre 7 columnas). El setter se retirará en la próxima versión menor.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._repository.columnas_auditoria = value
 
     @property
@@ -236,7 +256,8 @@ class AuditManager:
             tabla: Nombre de la tabla modificada
             motor: Tipo de motor ('mariadb', 'oracle', 'postgresql', etc.)
             operacion: Tipo de operación ('INSERT', 'UPDATE', 'DELETE')
-            rowcount: Número de filas afectadas
+            rowcount: Número de filas enviadas a la operación (``BulkCrud`` pasa ``len(df)``). No es el número de filas
+                que la BD dice haber modificado: un DELETE o UPDATE con claves inexistentes cuenta todas las enviadas.
             elapsed: Tiempo en segundos que tardó la operación
             genero_sql: Si la operación generó SQL personalizado (default False)
 

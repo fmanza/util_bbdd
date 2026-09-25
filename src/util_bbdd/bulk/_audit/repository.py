@@ -76,7 +76,7 @@ class AuditCsvRepository:
         try:
             ruta.parent.mkdir(parents=True, exist_ok=True)
         except Exception as error:
-            raise ValueError(f"❌ No se puede acceder a la ruta de auditoría: {error}") from error
+            raise AuditConfigError(f"❌ No se puede acceder a la ruta de auditoría: {error}") from error
 
     def registrar_operacion(
         self,

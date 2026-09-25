@@ -238,7 +238,7 @@ Dentro de una carga real cada llamada cuesta de 1,5 a 2,7 veces lo que cuesta en
 
 ---
 
-### Hallazgo H5: `total_filas` guarda las filas **enviadas**, no las afectadas
+### Hallazgo H5: `total_filas` guarda las filas **enviadas**, no las afectadas — **DOCUMENTADO** (`2026-09-25-refactor-audit-fase3`)
 
 **Fase**: 3 · **Tipo**: Config / Contrato · **Severidad**: **MEDIA**
 
@@ -288,14 +288,14 @@ Dentro de una carga real cada llamada cuesta de 1,5 a 2,7 veces lo que cuesta en
 La caché solo se invalida con las escrituras de **la propia** instancia. Con varias `BulkCrud`/`AuditManager` sobre el mismo CSV (el caso normal en `ParallelBulkLoader`), una lectura devuelve datos de hasta `cache_ttl_seconds=300` s de antigüedad. `R6`: A ve 1 fila; B escribe; A sigue viendo 1 (real: 2). `dump` ya lo evita con `cache_enabled=False`.
 **Propuesta**: validar la caché con `(st_mtime_ns, st_size)` en lugar de, o además de, el TTL. Un `stat` cuesta ~4 µs.
 
-### Hallazgo H7: el setter público `columnas_auditoria` rompe el CSV
+### Hallazgo H7: el setter público `columnas_auditoria` rompe el CSV — **DEPRECADO** (`2026-09-25-refactor-audit-fase3`)
 
 **Severidad**: BAJA · **Tipo**: Contrato
 
 `audit.py:200-202` permite cambiar la cabecera, pero la fila se escribe siempre con 7 campos fijos (`repository.py:122-131`). `R7`: tras fijar 2 columnas, leer falla con `AuditDataError: month must be in 1..12`.
 **Propuesta**: deprecar el setter (`DeprecationWarning`) y eliminarlo en la siguiente versión menor.
 
-### Hallazgo H8: `validar_ruta` lanza `ValueError` en lugar de `AuditConfigError`
+### Hallazgo H8: `validar_ruta` lanza `ValueError` en lugar de `AuditConfigError` — **CORREGIDO** (`2026-09-25-refactor-audit-fase3`)
 
 **Severidad**: BAJA · **Tipo**: Contrato
 
@@ -322,7 +322,7 @@ Ni `BulkCrud` ni `ParallelBulkLoader` lo usan. No persiste nada; `_historial_tra
 - `timestamp` local sin zona horaria y con resolución de segundo; `tiempo_seg` con coma decimal; `sql` = `Sí/No`. Son contrato del CSV: no cambiarlo sin versionarlo.
 - Los ficheros de export tienen nombre fijo (`auditoria.xlsx|json|html` junto al CSV): dos exports concurrentes en el mismo directorio se pisan.
 
-### Hallazgo H14: el prompt de referencia y el comando describen un componente que no existe
+### Hallazgo H14: el prompt de referencia y el comando describen un componente que no existe — **CORREGIDO** (`2026-09-25-refactor-audit-fase3`)
 
 **Severidad**: INFO · **Tipo**: Configuración IA
 

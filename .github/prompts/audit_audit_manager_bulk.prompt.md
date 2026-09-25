@@ -5,10 +5,23 @@
 Auditar la funcionalidad de **auditoría integrada del módulo bulk** (Área A5 de las 10 áreas):
 validar impacto en rendimiento, metodología de logging, persistencia, y oportunidades de optimización.
 
-**Scope**: `src/util_bbdd/bulk/audit_manager.py` y su integración con `bulk_crud.py`
+**Scope**: `src/util_bbdd/bulk/audit.py` (`AuditManager`) + `src/util_bbdd/bulk/_audit/` y su integración con
+`src/util_bbdd/bulk/crud.py` a través de `src/util_bbdd/bulk/_support/persistence.py`
+
+> **Mapa real del componente** (verificado 2026-09-25, sesión `2026-09-25-audit-code-audit-manager`; revísalo contra
+> el código antes de auditar):
+> - `bulk/audit.py`: fachada `AuditManager` (`registrar_operacion`, `_registrar_lote`, filtros, exports) y
+>   `AuditTransaction` (contador en memoria, no persiste).
+> - `bulk/_audit/repository.py`: CSV **tabulado y síncrono**, sin buffer ni modo async; lock por ruta
+>   (intra-proceso); caché de lectura con TTL + firma del fichero.
+> - `bulk/_audit/{service,exporters,record,errors}.py`: analítica, Excel/JSON/HTML, `AuditRecord`, excepciones.
+> - `bulk/_support/persistence.py`: `BulkPersistenceManager`: auditoría directa fuera de `bulk_session`, diferida
+>   hasta el commit dentro; política `audit_strict` (fail-open por defecto).
+> - Granularidad: **una fila CSV por operación** (`bulk_*_from_df`) **o por chunk** (`bulk_insert_from_chunks`),
+>   nunca por fila de datos. No hay tabla de auditoría en BD.
 
 **Entregables**:
-- Hallazgos de rendimiento del audit_manager
+- Hallazgos de rendimiento de `AuditManager`
 - Propuestas de optimización de logging sync/async
 - Análisis de overhead por fila
 - Recomendaciones de persistencia
@@ -22,8 +35,8 @@ Lee antes de auditar:
 1. `.ai/architecture.md` — Arquitectura de util_bbdd y capas
 2. `.ai/standards.md` — Criterios de calidad
 3. `.github/prompts/performance_audit_bulk.prompt.md` — Guía general (Área A5)
-4. `src/util_bbdd/bulk/audit_manager.py` — Código actual
-5. `src/util_bbdd/bulk/bulk_crud.py` — Integración con bulk load
+4. `src/util_bbdd/bulk/audit.py` y `src/util_bbdd/bulk/_audit/` — Código actual
+5. `src/util_bbdd/bulk/crud.py` y `src/util_bbdd/bulk/_support/persistence.py` — Integración con bulk load
 6. `docs/PERFORMANCE_AUDIT_GUIDE.md` — Documentación usuario (si existe)
 
 ---
@@ -37,8 +50,8 @@ Lee antes de auditar:
   - Métodos privados: formato, serialización, caché
 
 - [ ] **Overhead por operación**: ¿Qué se ejecuta en hot path?
-  - log_operation() → tiempo de ejecución
-  - flush/persist → I/O sync vs. async
+  - `registrar_operacion()` / `_registrar_lote()` → tiempo de ejecución
+  - escritura del CSV (`AuditCsvRepository.escribir_registros`) → I/O síncrono
   - Formato de entrada (dict, tuple, etc.) → costo de parsing
 
 - [ ] **Memoria**: ¿Cuál es el footprint?
@@ -46,9 +59,9 @@ Lee antes de auditar:
   - Tamaño por fila (audit record)
   - Deallocación (memory leaks?)
 
-- [ ] **Integración con bulk_crud.py**: ¿Cuándo se invoca?
-  - En INSERT loop: `audit_manager.log()` por cada fila?
-  - O batch: agregado cada N filas?
+- [ ] **Integración con `crud.py`**: ¿Cuándo se invoca?
+  - `BulkPersistenceManager.register_operation()`: ¿por operación, por chunk o por fila?
+  - ¿Antes o después del commit? (dentro de `bulk_session` se difiere hasta el commit)
   - Configuración (on/off, nivel de detalle)
 
 - [ ] **Dependencias**: ¿Qué librerías usa?
@@ -80,7 +93,7 @@ Lee antes de auditar:
 ### C. Persistencia y queryabilidad
 
 - [ ] **Destino de auditoría**:
-  - ¿En BD principal (tabla audit) o BD separada?
+  - Hoy: CSV local tabulado (no hay tabla de auditoría en BD). ¿Sigue siendo así?
   - ¿Archivo local (JSON, CSV)?
   - ¿Implicación de performance (lock contention, I/O)?
 
@@ -144,18 +157,18 @@ Lee antes de auditar:
 **Responsabilidad**: Mapear arquitectura actual del AuditManager.
 
 **Checklist**:
-1. Leer `audit_manager.py`:
+1. Leer `bulk/audit.py` y `bulk/_audit/`:
    - Clase y métodos principales
    - Dependencias importadas
    - Configuración (si aplica)
 
-2. Leer integración en `bulk_crud.py`:
+2. Leer integración en `bulk/crud.py` y `bulk/_support/persistence.py`:
    - Dónde/cuándo se invoca audit
    - Frecuencia (por fila, por batch)
    - Manejo de errores
 
 3. Dibujar diagrama:
-   - INSERT → audit.log() → persist → COMMIT
+   - INSERT → `register_operation()` → (commit) → escritura CSV
    - Identificar hot paths
 
 4. Documentar supuestos:
@@ -201,14 +214,14 @@ Lee antes de auditar:
 
 **Checklist**:
 1. Audit hot path:
-   - `log_operation()` → línea por línea
+   - `registrar_operacion()` / `escribir_registros()` → línea por línea
    - ¿Hay allocations innecesarias?
    - ¿Hay conversiones de tipo caras?
 
 2. Persistencia:
-   - `flush()` / `commit()` → costo I/O
-   - ¿Batch commit vs. individual?
-   - ¿Índices en tabla audit?
+   - Escritura del CSV → coste de I/O (`open`/`close`, lock, `stat`)
+   - ¿Una escritura por operación o por commit (`_registrar_lote`)?
+   - Tip: medir el tiempo **dentro** de la auditoría durante una carga real; la resta E2E con/sin queda en el ruido
 
 3. Async (si existe):
    - ¿Thread pool bien configurado?
@@ -434,8 +447,8 @@ Un reporte de auditoría AuditManager **completo** debe:
 
 Antes de iniciar auditoría de AuditManager:
 
-- [ ] `src/util_bbdd/bulk/audit_manager.py` disponible y legible
-- [ ] `src/util_bbdd/bulk/bulk_crud.py` disponible (para integración)
+- [ ] `src/util_bbdd/bulk/audit.py` y `src/util_bbdd/bulk/_audit/` disponibles y legibles
+- [ ] `src/util_bbdd/bulk/crud.py` y `src/util_bbdd/bulk/_support/persistence.py` disponibles (para integración)
 - [ ] `scripts/bench_bulk.py` o equivalente disponible
 - [ ] Acceso a ambiente con 2+ BDD (PostgreSQL + MySQL o similar)
 - [ ] `.ai/standards.md` disponible
@@ -463,8 +476,8 @@ Para validar información sobre logging y auditoría:
 ```markdown
 Audita el componente de auditoría integrada del módulo bulk.
 
-Scope: AuditManager (src/util_bbdd/bulk/audit_manager.py)
-Integración: bulk_crud.py (dónde se invoca)
+Scope: AuditManager (src/util_bbdd/bulk/audit.py + src/util_bbdd/bulk/_audit/)
+Integración: src/util_bbdd/bulk/crud.py + src/util_bbdd/bulk/_support/persistence.py
 
 Aplica las 5 fases:
 MAP_CURRENT_STATE → MEASURE_OVERHEAD → ANALYZE_CODE →

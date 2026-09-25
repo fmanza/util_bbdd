@@ -77,12 +77,12 @@ Arreglan H1 y H2, las dos ALTAS. M-1 también deja el coste en streaming en ≈ 
 
 | ID | Cambio | Hallazgo | Tipo |
 |---|---|---|---|
-| L-1a | Docstring y docs: `total_filas` = "filas enviadas a la operación", no las afectadas | H5 | Doc |
-| L-1b | `columnas_auditoria.setter`: `DeprecationWarning` ahora y retirarlo en la siguiente versión menor | H7 | Deprecación |
-| L-1c | `class AuditConfigError(AuditError, ValueError)` y lanzarla en `validar_ruta` | H8 | Compatible |
-| L-1d | Tipar `AuditTransaction.__exit__` (`type[BaseException] \| None`, …) | Tipado | Compatible |
+| L-1a | Docstring y docs: `total_filas` = "filas enviadas a la operación", no las afectadas ✅ hecho | H5 | Doc |
+| L-1b | `columnas_auditoria.setter`: `DeprecationWarning` ahora y retirarlo en la siguiente versión menor ✅ hecho | H7 | Deprecación |
+| L-1c | `class AuditConfigError(AuditError, ValueError)` y lanzarla en `validar_ruta` ✅ hecho | H8 | Compatible |
+| L-1d | Tipar `AuditTransaction.__exit__` (`type[BaseException] \| None`, …) ✅ hecho | Tipado | Compatible |
 | L-2 | Decidir el futuro de `AuditTransaction`: documentar que es un contador en memoria **o** retirarlo en una versión mayor | H11 | Versión mayor |
-| L-3 | Corregir `.github/prompts/audit_audit_manager_bulk.prompt.md` y `.claude/commands/performance-audit-bulk.md:50` con las rutas reales (`bulk/audit.py`, `bulk/_audit/`, `bulk/_support/persistence.py`, `bulk/crud.py`) y un scope sin async/buffer/tabla | H14 | Config IA |
+| L-3 | Corregir `.github/prompts/audit_audit_manager_bulk.prompt.md` y `.claude/commands/performance-audit-bulk.md:50` con las rutas reales (`bulk/audit.py`, `bulk/_audit/`, `bulk/_support/persistence.py`, `bulk/crud.py`) y un scope sin async/buffer/tabla ✅ hecho | H14 | Config IA |
 
 ---
 

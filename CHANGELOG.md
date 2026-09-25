@@ -11,6 +11,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 - **bulk (auditoría)**: `BulkCrud(audit_strict=False)` y la propiedad `BulkCrud.audit_failures` (ver *Changed*).
 
+### Deprecated
+
+- **bulk (auditoría)**: asignar `AuditManager.columnas_auditoria` emite `DeprecationWarning` y el setter se retirará en
+  la próxima versión menor. Cambiaba la cabecera del CSV, pero las filas se siguen escribiendo con 7 columnas fijas, así
+  que el fichero dejaba de poder leerse. Leer la propiedad no cambia.
+
 ### Fixed
 
 - **bulk (auditoría)**: `AuditManager.leer_auditoria()` y todo lo que se apoya en ella (estadísticas, filtros, exports)
@@ -34,6 +40,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **bulk (auditoría)**: `AuditConfigError` hereda también de `ValueError`, y el constructor de `AuditManager` la lanza
+  si no puede crear el directorio de `audit_csv_path`. Antes lanzaba un `ValueError` fuera de la jerarquía `AuditError`.
+  Quien capturaba `ValueError` sigue funcionando.
+- **bulk (auditoría, docs)**: se aclara que `total_filas` (`rowcount`) son las filas **enviadas** a la operación
+  (`len(df)`), no las que la BD dice haber modificado. Un DELETE o UPDATE con claves inexistentes cuenta todas las
+  enviadas. El comportamiento no cambia.
+- **agentes IA**: `.claude/commands/performance-audit-bulk.md` (tabla de las 10 áreas) y
+  `.github/prompts/audit_audit_manager_bulk.prompt.md` citaban ficheros y funciones inexistentes (`audit_manager.py`,
+  `bulk_crud.py`, `builder.py`, `normalizacion_sql.py`, `log_operation()`, una tabla de auditoría en BD). Ahora apuntan
+  a las rutas reales de `bulk/`, y el prompt incluye un mapa verificado del componente.
 - **bulk (auditoría)**: cada escritura del CSV cuesta la mitad (~290 → ~135 µs en Windows): el lock de la ruta se
   resuelve una vez por instancia y el directorio solo se crea si falta al abrir el fichero, en lugar de repetir
   `Path.resolve()` y `mkdir` en cada escritura. Si el directorio se borra a mitad de carga, se vuelve a crear.

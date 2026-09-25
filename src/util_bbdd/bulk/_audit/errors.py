@@ -7,8 +7,12 @@ class AuditError(Exception):
     """Excepción base para auditoría."""
 
 
-class AuditConfigError(AuditError):
-    """Error en configuración de auditoría."""
+class AuditConfigError(AuditError, ValueError):
+    """Error en configuración de auditoría.
+
+    Hereda también de ``ValueError`` (H8, audit-code 2026-09-25): ``AuditCsvRepository.validar_ruta`` lanzaba
+    ``ValueError`` y quien lo capturaba así sigue funcionando.
+    """
 
 
 class AuditFileError(AuditError):

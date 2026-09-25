@@ -303,6 +303,19 @@ class TestAuditManagerFacade:
         manager = AuditManager(audit_csv_path=None)
         manager.registrar_operacion("t", "sqlite", "INSERT", 1, 0.1)
 
+    def test_asignar_columnas_auditoria_esta_obsoleto(self, manager: AuditManager) -> None:
+        # H7 (audit-code 2026-09-25): el setter cambia la cabecera pero las filas siguen teniendo 7 columnas.
+        with pytest.warns(DeprecationWarning, match="columnas_auditoria"):
+            manager.columnas_auditoria = _COLUMNS
+        assert manager.columnas_auditoria == _COLUMNS
+
+    def test_ruta_inaccesible_lanza_audit_config_error_compatible_con_value_error(self, tmp_path: Path) -> None:
+        # H8 (audit-code 2026-09-25): antes ValueError fuera de la jerarquía AuditError.
+        (tmp_path / "fichero").write_text("no es un directorio", encoding="utf-8")
+        with pytest.raises(AuditConfigError, match="No se puede acceder") as info:
+            AuditManager(audit_csv_path=tmp_path / "fichero" / "sub" / "audit.csv")
+        assert isinstance(info.value, ValueError)
+
     def test_registrar_sin_path_avisa_una_sola_vez(self, caplog: pytest.LogCaptureFixture) -> None:
         # QW-3 (P-11): antes, un WARNING por operación.
         manager = AuditManager(audit_csv_path=None)

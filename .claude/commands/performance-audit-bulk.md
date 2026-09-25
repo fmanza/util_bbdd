@@ -43,16 +43,16 @@ Completa TODOS antes de iniciar:
 
 | Área | Enfoque | Archivo(s) principal(es) |
 |------|---------|-------------------------|
-| **A1: Batching y lotes** | I/O bound, tamaño, bind parameters | `bulk_crud.py`, `builder.py` |
-| **A2: Paralelización** | `ParallelBulkLoader`, worker count, contención | `bulk_crud.py` (parallel_insert, etc.) |
-| **A3: Normalización SQL** | Escape, tipo inferencia, memory footprint | `normalizacion_sql.py` |
-| **A4: Conexiones** | Reuso, pool exhaustion, transacciones largas | Connection manager (common/) |
-| **A5: Auditoría integrada** | Costo por fila, logging sync/async, persistencia | `audit_manager.py` |
-| **A6: Memoria** | Copy vs. vistas, deallocación, leaks | `bulk_crud.py`, `builder.py` |
-| **A7: SQL generation** | Compilación dinámica, CASE, IDENTITY override | `normalizacion_sql.py` |
-| **A8: DB-specific** | Oracle APPEND, MySQL LOAD DATA, PostgreSQL COPY, SQL Server BULK INSERT, SQLite WAL | Dialect handlers |
-| **A9: PK sync** | Queries SELECT, cache, roundtrips | `pk_sync.py` |
-| **A10: Validation** | Introspección, validación por fila, rollback cost | `bulk_crud.py` (validation) |
+| **A1: Batching y lotes** | I/O bound, tamaño, bind parameters | `bulk/crud.py`, `bulk/_execution/batch.py` |
+| **A2: Paralelización** | `ParallelBulkLoader`, worker count, contención | `bulk/_execution/parallel_loader.py`, `bulk/_execution/range_partitioner.py` |
+| **A3: Normalización SQL** | Escape, tipo inferencia, memory footprint | `bulk/normalize.py` |
+| **A4: Conexiones** | Reuso, pool exhaustion, transacciones largas | `bulk/crud.py` (`bulk_session`), `bulk/_execution/batch.py` |
+| **A5: Auditoría integrada** | Coste por operación/chunk (no por fila), CSV síncrono, coherencia con commit/rollback | `bulk/audit.py`, `bulk/_audit/`, `bulk/_support/persistence.py` |
+| **A6: Memoria** | Copy vs. vistas, deallocación, leaks | `bulk/crud.py`, `bulk/_support/sql_helpers.py` |
+| **A7: SQL generation** | Compilación dinámica, CASE, IDENTITY override | `bulk/_support/sql_helpers.py` |
+| **A8: DB-specific** | Oracle APPEND, MySQL LOAD DATA, PostgreSQL COPY, SQL Server BULK INSERT, SQLite WAL | Estrategias por motor en `bulk/_execution/batch.py` |
+| **A9: PK sync** | Queries SELECT, cache, roundtrips | `bulk/_support/pk_sync.py` |
+| **A10: Validation** | Introspección, validación por fila, rollback cost | `bulk/_support/validation.py`, `bulk/_support/table_utils.py` |
 
 ---
 
