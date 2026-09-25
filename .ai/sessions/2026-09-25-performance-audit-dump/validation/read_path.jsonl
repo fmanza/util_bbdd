@@ -1,0 +1,15 @@
+{"engine": "postgresql", "mode": "pandas", "rows": 2000000, "total_s": 6.22, "first_chunk_s": 0.92, "rows_per_s": 321786, "peak_rss_mb": 395.1}
+{"engine": "postgresql", "mode": "raw", "rows": 2000000, "total_s": 1.92, "first_chunk_s": 0.62, "rows_per_s": 1042596, "peak_rss_mb": 391.3}
+{"engine": "postgresql", "mode": "raw_tuned", "rows": 2000000, "total_s": 2.58, "first_chunk_s": 0.03, "rows_per_s": 774688, "peak_rss_mb": 143.4}
+{"engine": "mysql", "mode": "pandas", "rows": 2000000, "total_s": 13.97, "first_chunk_s": 9.23, "rows_per_s": 143181, "peak_rss_mb": 836.0}
+{"engine": "mysql", "mode": "raw", "rows": 2000000, "total_s": 9.5, "first_chunk_s": 8.94, "rows_per_s": 210459, "peak_rss_mb": 836.6}
+{"engine": "mysql", "mode": "raw_tuned", "rows": 2000000, "total_s": 9.82, "first_chunk_s": 0.04, "rows_per_s": 203752, "peak_rss_mb": 135.3}
+{"engine": "mariadb", "mode": "pandas", "rows": 2000000, "total_s": 19.67, "first_chunk_s": 11.79, "rows_per_s": 101652, "peak_rss_mb": 837.6}
+{"engine": "mariadb", "mode": "raw", "rows": 2000000, "total_s": 12.0, "first_chunk_s": 11.43, "rows_per_s": 166605, "peak_rss_mb": 836.5}
+{"engine": "mariadb", "mode": "raw_tuned", "rows": 2000000, "total_s": 10.22, "first_chunk_s": 0.04, "rows_per_s": 195610, "peak_rss_mb": 135.1}
+{"engine": "mssql", "mode": "pandas", "rows": 2000000, "total_s": 9.53, "first_chunk_s": 0.1, "rows_per_s": 209947, "peak_rss_mb": 140.0}
+{"engine": "mssql", "mode": "raw", "rows": 2000000, "total_s": 5.34, "first_chunk_s": 0.05, "rows_per_s": 374740, "peak_rss_mb": 136.8}
+{"engine": "mssql", "mode": "raw_tuned", "rows": 2000000, "total_s": 5.33, "first_chunk_s": 0.04, "rows_per_s": 375396, "peak_rss_mb": 136.8}
+{"engine": "oracle", "mode": "pandas", "rows": 2000000, "total_s": 16.33, "first_chunk_s": 0.14, "rows_per_s": 122448, "peak_rss_mb": 147.0}
+{"engine": "oracle", "mode": "raw", "rows": 2000000, "total_s": 12.01, "first_chunk_s": 0.11, "rows_per_s": 166459, "peak_rss_mb": 144.2}
+{"engine": "oracle", "mode": "raw_tuned", "rows": 2000000, "total_s": 3.19, "first_chunk_s": 0.04, "rows_per_s": 627490, "peak_rss_mb": 145.4}
