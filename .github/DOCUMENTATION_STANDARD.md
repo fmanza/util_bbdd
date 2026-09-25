@@ -655,7 +655,7 @@ nav:
 |--------|--------|---------|-------|
 | `documentation-generator` | Generar docs por primera vez o actualizar módulo completo | `/new-feature "generar doc [módulo]"` | `src/` → `docs/` |
 | `documentation-reviewer` | Auditar docs existentes (calidad, ejemplos, claridad) | `/audit-code` | `docs/functional/`, `docs/api/` |
-| `config-reviewer` | Sincronizar instrucciones IA entre archivos de configuración | `/config-review` | `CLAUDE.md`, `copilot-instructions.md` |
+| `config-reviewer` | Sincronizar instrucciones IA entre archivos de configuración | Sin slash command: `@Config Reviewer` o lenguaje natural | `SHARED_INSTRUCTIONS.md`, entry points, agentes, prompts |
 | `Plan Architect` | Cambio estructural en `mkdocs.yml` o nuevo módulo importante | `/new-feature` o `/refactor` | `mkdocs.yml` |
 
 ---
@@ -707,9 +707,10 @@ Validar estructura docs/ vs mkdocs.yml real. Entregar PLAN + AUDIT_PLAN.
 
 ### Paso 2: Validar Configuración IA (30 min)
 ```text
-@config-reviewer
-Revisar coherencia propuesta vs código real en src/.
-Validar que estructura propuesta es implementable.
+@Config Reviewer
+Revisar que las reglas documentales de CLAUDE.md, copilot-instructions.md,
+docs.instructions.md y los prompts de documentación no estén duplicadas ni diverjan.
+Entregar ANÁLISIS + AUDIT_PLAN.
 ```
 
 ### Paso 3: Explorar Módulos (15 min)

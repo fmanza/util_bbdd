@@ -13,6 +13,8 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 /audit-code
 /tech-debt
 /maturity-assessment
+/performance-audit-bulk
+/performance-audit-dump
 /version-closure
 ```
 
@@ -85,7 +87,8 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 - **Invocable**: Sí (auditoría de configuración)
 - **Criterios**: DRY (sin duplicación), funcionalidad autosuficiente, coherencia de flujos
 - **Prompt Copilot Chat**: `.github/prompts/config_review.prompt.md`
-- **Slash command**: No disponible en `.claude/commands/` — invocar mediante `/config-review` (próx. sesión) o lenguaje natural
+- **Slash command**: No existe — en Claude Code se invoca en lenguaje natural citando el agente; en Copilot Chat con `@Config Reviewer`
+- **Modo bootstrap**: audita la configuración del proyecto destino tras `bootstrap_ai_config.prompt.md`
 
 ### 8. **Security Reviewer** (`security-reviewer.agent.md`)
 - **Propósito**: Auditoría de seguridad independiente sobre auth, validación, secretos, logging
@@ -234,7 +237,7 @@ Ver el detalle completo de rutas, contexto obligatorio/opcional y mapeo por plat
 ## Configuración
 
 Personalizaciones por contexto:
-- **Prompts**: `.github/prompts/*.prompt.md` — instrucciones por slash command (17 prompts; 8 equivalentes a `.claude/commands/` + 6 arquetipos de documentación `functional_doc`/`technical_doc`/`guide_doc`/`example_doc`/`architecture_doc`/`landing_doc` + `documentation_review` + `config_review` + `bootstrap_ai_config`)
+- **Prompts**: `.github/prompts/*.prompt.md` — instrucciones por slash command (25 prompts: 10 equivalentes a `.claude/commands/` + 7 arquetipos de documentación `functional_doc`/`technical_doc`/`guide_doc`/`example_doc`/`architecture_doc`/`landing_doc`/`onboarding_dev` + `documentation_review` + `config_review` + `bootstrap_ai_config` + 5 de apoyo: `normative_traceability`, `performance_audit_dump_agent` y las meta-auditorías de rendimiento `audit_audit_manager_bulk`/`audit_performance_audit_command`/`audit_results_bulk_audit`)
 - **Instrucciones**: `.github/instructions/*.instructions.md` — reglas por tipo de archivo
 - **Hooks**: `.claude/settings.json` — comandos pre/post tool (lint, format, type-check)
 - **Workflow IA**: `.github/workflows/doc_agents.yml` — generación automática vía Anthropic/OpenAI
@@ -246,8 +249,8 @@ Modificar un agente: editar su archivo `.agent.md` en `.github/agents/`.
 
 ## Nota: Asimetría slash commands ↔ agentes
 
-Los **slash commands** de Claude Code (`.claude/commands/`) cubren 8 flujos (new-feature, hotfix, refactor, audit-code, security-review, tech-debt, maturity-assessment, version-closure).
+Los **slash commands** de Claude Code (`.claude/commands/`) cubren 10 flujos (new-feature, hotfix, refactor, audit-code, security-review, tech-debt, maturity-assessment, performance-audit-bulk, performance-audit-dump, version-closure).
 
-Los **agentes** (`.github/agents/`) son 12: incluyen los 8 anteriores más `documentation-reviewer`, `documentation-generator`, `config-reviewer`, `explore` y `workflow-director` (este último interno, no invocable). Los de documentación y `config-reviewer` no tienen slash command pero son invocables por lenguaje natural (Claude Code) o mediante sus prompts correspondientes (Copilot Chat).
+Los **agentes** (`.github/agents/`) son 13: 8 que respaldan los slash commands (`plan-architect`, `feature-implementer`, `hotfix-responder`, `code-auditor`, `security-reviewer`, `maturity-assessment`, `performance-auditor`, `version-closer`) más `documentation-reviewer`, `documentation-generator`, `config-reviewer`, `explore` y `workflow-director` (este último interno, no invocable). Los de documentación y `config-reviewer` no tienen slash command pero son invocables por lenguaje natural (Claude Code) o mediante sus prompts correspondientes (Copilot Chat).
 
 Ver gobernanza completa en [`.github/INTEGRATION_MAP.md`](INTEGRATION_MAP.md).

@@ -4,7 +4,10 @@
 
 Revisar los ficheros de instrucciones actuales del proyecto y generar una propuesta de
 configuración nueva, mejor estructurada y sin duplicación, que funcione correctamente
-tanto para **GitHub Copilot Chat** como para **Claude Code**.
+en todas las plataformas activas (**Claude Code**, **GitHub Copilot Chat**, **Gemini**, **Codex**, **Cursor**).
+
+Agente ejecutor: `.github/agents/config-reviewer.agent.md` (categorías, comprobaciones obligatorias,
+métrica de duplicación y modo bootstrap). Este prompt define el formato de salida.
 
 ## Devuelve en este orden
 
@@ -27,8 +30,9 @@ tanto para **GitHub Copilot Chat** como para **Claude Code**.
 
 Lee los siguientes ficheros **antes** de emitir cualquier propuesta:
 
-- `.github/copilot-instructions.md` — instrucciones actuales para Copilot Chat
-- `CLAUDE.md` — instrucciones actuales para Claude Code
+- `.github/SHARED_INSTRUCTIONS.md` — fuente canónica y § «Gobernanza de plataformas IA»
+- `.github/AGENTS.md` — registro de agentes, prompts y slash commands
+- `.github/copilot-instructions.md`, `CLAUDE.md`, `GEMINI.md`, `.cursorrules` — entry points por plataforma
 - `.github/instructions/docs.instructions.md` — reglas canónicas de documentación
 - `.github/agents/documentation-generator.agent.md` — generación/actualización documental
 - `.github/agents/documentation-reviewer.agent.md` — revisión documental
@@ -39,24 +43,19 @@ Lee los siguientes ficheros **antes** de emitir cualquier propuesta:
 
 ## Análisis previo que debes hacer
 
-Antes de proponer, clasifica cada sección de ambos ficheros en una de estas categorías:
-
-| Categoría | Descripción |
-|---|---|
-| `shared` | Regla válida para ambas plataformas sin cambios |
-| `copilot-only` | Específico de Copilot Chat (agentes VS Code, `#file:`, prompts `.prompt.md`) |
-| `claude-only` | Específico de Claude Code (slash commands, hooks, settings.json, ejecución offline) |
-| `duplicado` | Presente en ambos ficheros con variaciones menores — candidato a unificar |
-| `docs-shared` | Regla documental común: MkDocs, Mermaid, no invención, ejemplos, actualización completa |
+Antes de proponer, clasifica cada sección de los ficheros auditados con las categorías del agente
+(`shared`, `<plataforma>-only`, `docs-shared`, `duplicado`, `divergente`, `huérfano`), definidas en
+`.github/agents/config-reviewer.agent.md` § «Categorías de clasificación».
 
 ## Estrategias disponibles
 
-### Opción A — Fichero compartido + especializaciones
+### Opción A — Fichero compartido + especializaciones (**vigente**)
 
 ```
-SHARED_INSTRUCTIONS.md              ← reglas comunes, referenciado desde los demás
-.github/copilot-instructions.md     ← solo overrides y especificidades Copilot Chat
-CLAUDE.md                           ← solo overrides y especificidades Claude Code
+.github/SHARED_INSTRUCTIONS.md      ← reglas comunes, referenciado desde los demás
+.github/copilot-instructions.md     ← solo especificidades Copilot Chat
+CLAUDE.md                           ← solo especificidades Claude Code
+GEMINI.md / .cursorrules            ← solo especificidades Gemini / Cursor
 ```
 
 Elige esta opción si el contenido compartido supera el 60 % del total.
@@ -69,12 +68,14 @@ CLAUDE.md                           ← autosuficiente para Claude Code
 ```
 
 Elige esta opción si cada plataforma tiene ciclo de vida o equipo de mantenimiento propio.
+Volver a esta opción desde la vigente exige justificarlo en el PLAN.
 
 ## Criterios de calidad
 
 - Sin duplicación de reglas entre ficheros (DRY)
 - Cada fichero es funcional sin necesidad de leer el otro
-- El flujo `PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION` está presente en ambos contextos
+- El flujo `PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION` está presente en todos los entry points
+- Cero referencias `huérfano` (rutas, comandos, módulos o términos de otros proyectos)
 - Las secciones específicas de cada plataforma están claramente delimitadas
 - Formato: markdown estructurado con secciones etiquetadas
 - Los prompts de documentación separan funcional, técnico, ejemplos y revisión final
@@ -85,8 +86,8 @@ Elige esta opción si cada plataforma tiene ciclo de vida o equipo de mantenimie
 ## Formato de salida esperado
 
 ### ANÁLISIS
-- Tabla categorizada (shared / copilot-only / claude-only / duplicado)
-- Porcentaje estimado de contenido compartido
+- Tabla categorizada con `fichero:línea` y LOC por categoría
+- `% duplicación` baseline (líneas `duplicado` / líneas auditadas; menor es mejor)
 - Tabla de reglas documentales comunes y dónde deben vivir
 
 ### PLAN
@@ -105,13 +106,12 @@ Elige esta opción si cada plataforma tiene ciclo de vida o equipo de mantenimie
 - Contenido completo de cada fichero propuesto
 
 ### AUDIT_CODE
-- Cobertura de reglas clave (SOLID, OOP, multibase, políticas por tarea)
+- Cambios aplicados vs PLAN aprobado (nada fuera de alcance, nada omitido)
+- Cobertura de reglas clave: las reglas canónicas (SOLID, OOP, multibase, políticas por tarea) siguen alcanzables desde cada entry point, sin copiarlas
 - Secciones ausentes o incompletas
+- Referencias: todas las rutas existen, sin ciclos de «lee primero», `% duplicación` final
 - **Verificación documental:** Confirma separación funcional/técnica/ejemplos, actualización de `mkdocs.yml`, uso de Mermaid y regla de no inventar
 - **Verificación de APIs externas:** Bloquea instrucciones o ejemplos de generación documental mediante API por estar fuera de alcance temporal
-- **Verificación de f-strings:** Bloquea PR si encuentra `.format()`, `%` formatting o concatenación en strings con parámetros (deben usar f-strings)
-- **Verificación de logging:** Confirma que todas las clases con lógica tienen `self.logger: logging.Logger` instanciado en `__init__`
-- **Verificación de variables globales:** Rechaza variables globales mutables (dicts, listas) a nivel de módulo
 - Veredicto: `APROBADO | APROBADO CON CONDICIONES | RECHAZADO`
 
 ### VERSION

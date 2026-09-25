@@ -25,7 +25,7 @@ Aplica este checklist en la fase **VERSION** de cualquier flujo:
 
 - [ ] La versión nueva tiene entrada bajo `## [X.Y.Z] — YYYY-MM-DD`
 - [ ] Secciones presentes según cambios: `Added`, `Changed`, `Fixed`, `Removed`, `Deprecated`
-- [ ] Cada ítem referencia el módulo afectado: `timelog/`, `common/`, `export_gitlab_time.py`
+- [ ] Cada ítem referencia el módulo afectado: `bulk/`, `dump/`, `metadata/`, `migrate/`
 - [ ] No hay entradas bajo `Unreleased` que deban estar en la versión cerrada
 
 ### 2. docs/CHANGELOG.md (si existe copia en docs/)
@@ -59,13 +59,13 @@ Aplica este checklist en la fase **VERSION** de cualquier flujo:
 ## [0.8.2] — 2026-05-14
 
 ### Added
-- `timelog/export_parquet.py`: exportación a formato Parquet via `pandas.DataFrame.to_parquet()`
+- `dump/`: nuevo formato de salida Parquet en el volcado masivo
 
 ### Fixed
-- `common/decimal_utils.py`: corregido redondeo incorrecto en valores negativos (`safe_decimal_round`)
+- `bulk/`: corregido el literal de columnas binarias en el SQL generado
 
 ### Changed
-- `export_gitlab_time.py`: CLI ahora acepta `--output-format parquet`
+- `metadata/`: la caché de metadatos se invalida al cambiar de esquema
 ```
 
 ---
