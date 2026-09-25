@@ -63,6 +63,30 @@ def normalize_dataframe_columns(df: pd.DataFrame, dialect_name: str, logger: log
         logger.warning(f"⚠️ Dialecto no reconocido: {dialect_name}")
 
 
+def align_dataframe_columns(df: pd.DataFrame, table: Table) -> None:
+    """Renombra a su nombre reflejado las columnas del DataFrame que solo coinciden con la tabla sin distinguir mayúsculas.
+
+    PD-01 (performance-audit de dump 2026-09-25): ``normalize_dataframe_columns`` fuerza un case por dialecto (mayúsculas
+    en SQL Server) y la validación compara con los nombres reflejados distinguiendo mayúsculas; con columnas creadas en
+    minúsculas o mixtas no coincidía ninguna. Solo se renombra si no hay coincidencia exacta y la coincidencia sin
+    mayúsculas es única; en otro caso la columna queda como estaba.
+    """
+    table_columns: list[str] = [column.name for column in table.columns]
+    exact: set[str] = set(table_columns)
+    by_lower: dict[str, list[str]] = {}
+    for name in table_columns:
+        by_lower.setdefault(name.lower(), []).append(name)
+    renames: dict[str, str] = {}
+    for column in df.columns:
+        if not isinstance(column, str) or column in exact:
+            continue
+        candidates = by_lower.get(column.lower(), [])
+        if len(candidates) == 1:
+            renames[column] = candidates[0]
+    if renames:
+        df.rename(columns=renames, inplace=True)
+
+
 def get_insert_columns(df_columns: Sequence[str], table: Table, *, exclude_autoincrement_pk: bool = False) -> list[str]:
     """Obtiene columnas del DataFrame que existen en la tabla destino."""
     table_columns: set[str] = {column.name for column in table.columns}
@@ -139,6 +163,7 @@ def _pk_param_aliases(pk_cols: Sequence[str], table_columns: set[str]) -> dict[s
 
 __all__: list[str] = [
     "UpdatePlan",
+    "align_dataframe_columns",
     "build_update_plan",
     "detect_always_identity_columns",
     "get_insert_columns",

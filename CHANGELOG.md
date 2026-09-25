@@ -9,6 +9,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **bulk**: en SQL Server, cargar en una tabla con columnas en minúsculas o mixtas (`customer_id`, `CustomerName`)
+  fallaba siempre con `No hay columnas válidas para INSERT`: las columnas del DataFrame se pasaban a MAYÚSCULAS y se
+  comparaban con las de la tabla distinguiendo mayúsculas. Afectaba a `bulk_insert_from_df`, `bulk_update_from_df`,
+  `bulk_delete_from_df`, `bulk_insert_from_chunks` y, por tanto, a `dump` con destino SQL Server. Lo mismo pasaba en
+  PostgreSQL, Oracle y SQLite con columnas mixtas citadas. Ahora, si una columna no coincide exactamente pero sí sin
+  distinguir mayúsculas (y de forma única), toma el nombre de la tabla.
 - **dump**: con `target_schema`, la resincronización de contadores PK (Fase 5a, `sync_pk_sequences=True`) no
   sincronizaba ninguna tabla y `pk_sync_results` salía `None`: buscaba las tablas sin esquema en una caché indexada por
   `esquema.tabla`. En PostgreSQL y Oracle, el siguiente INSERT sin PK tras el volcado chocaba por clave duplicada.

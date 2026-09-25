@@ -66,6 +66,7 @@ from ._support.sql_helpers import (
 from ._support.table_utils import get_column_case_insensitive, get_max_column_value
 from ._support.validation import (
     UpdatePlan,
+    align_dataframe_columns,
     build_update_plan,
     detect_always_identity_columns,
     get_insert_columns,
@@ -485,7 +486,7 @@ class BulkCrud:
         with self.bulk_session():
             for chunk in chunks:
                 working_df: pd.DataFrame = chunk.copy(deep=False)
-                self.__actualizar_df(working_df)
+                self.__actualizar_df(working_df, tabla)
                 if working_df.empty:
                     continue
                 if resolved is None:
@@ -567,8 +568,9 @@ class BulkCrud:
 
         # Copia superficial: solo se renombran columnas y con Copy-on-Write no se toca el DataFrame del llamador.
         working_df: pd.DataFrame = df.copy(deep=False)
-        self.__actualizar_df(working_df)
         try:
+            # Dentro del try: un fallo al reflejar la tabla se registra igual que cuando ocurría en prepare().
+            self.__actualizar_df(working_df, self.reflect_table(tabla_destino))
             if strategy_key == "insert":
                 operation_name = "INSERT"
                 prepared_operation = self.__prepare_insert_operation(
@@ -833,11 +835,13 @@ class BulkCrud:
             pk_cols=pk_cols,
         )
 
-    def __actualizar_df(self, df: pd.DataFrame) -> None:
-        """Normaliza nombres de columnas según el dialecto de BBDD.
+    def __actualizar_df(self, df: pd.DataFrame, tabla: Table) -> None:
+        """Normaliza nombres de columnas según el dialecto de BBDD y los alinea con los de la tabla reflejada.
 
         Args:
             df: DataFrame a normalizar. Debe ser una copia — se muta en lugar.
+            tabla: Tabla destino reflejada. Las columnas que tras normalizar solo coinciden con ella sin distinguir
+                mayúsculas toman su nombre reflejado (PD-01: SQL Server con columnas en minúsculas o mixtas).
 
         Comportamiento de dialectos:
             - oracle: Minúsculas (identifiers sin comillas se tratan como minúsculas)
@@ -854,6 +858,7 @@ class BulkCrud:
         # Skip normalization for MySQL/MariaDB; SQLAlchemy handles column name matching correctly
         if self.engine.dialect.name not in ("mysql", "mariadb"):
             normalize_dataframe_columns(df, self.engine.dialect.name, self.logger)
+        align_dataframe_columns(df, tabla)
 
     def reflect_table(self, tabla_destino: str) -> Table:
         """

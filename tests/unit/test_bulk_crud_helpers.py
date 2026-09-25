@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sqlalchemy import create_engine
+from sqlalchemy import Column, Integer, MetaData, String, Table, create_engine
 
 from util_bbdd.bulk._support.sql_helpers import compile_stmt_with_binary_support, format_sql_param_value
 from util_bbdd.bulk.crud import bulk_crud
@@ -181,8 +181,9 @@ def test_validar_y_generar_path_sql_joins_base_path_and_dynamic_name(
 def test_actualizar_df_normalizes_columns_nan_unchanged(sqlite_bulk_manager: bulk_crud) -> None:
     # __actualizar_df sólo normaliza casing; NaN→None ocurre en normalize_sql_literal.
     df = pd.DataFrame({"Col": [1, np.nan]})
+    tabla = Table("t", MetaData(), Column("col", Integer))
 
-    _get_private_method(sqlite_bulk_manager, "_BulkCrud__actualizar_df")(df)
+    _get_private_method(sqlite_bulk_manager, "_BulkCrud__actualizar_df")(df, tabla)
 
     assert "col" in df.columns  # SQLite → lowercase
     assert pd.isna(df.iloc[1, 0])  # NaN no se convierte aquí
@@ -198,10 +199,38 @@ def test_actualizar_df_mysql_mariadb_preserves_column_case(dialect_name: str) ->
     engine.dialect.name = dialect_name
     manager = bulk_crud(engine=engine)
     df = pd.DataFrame({"UserId": [1], "user_name": ["a"], "MixedCase": [2]})
+    tabla = Table("t", MetaData(), Column("UserId", Integer), Column("user_name", String), Column("MixedCase", Integer))
 
-    _get_private_method(manager, "_BulkCrud__actualizar_df")(df)
+    _get_private_method(manager, "_BulkCrud__actualizar_df")(df, tabla)
 
     assert list(df.columns) == ["UserId", "user_name", "MixedCase"]
+
+
+@pytest.mark.parametrize(
+    ("dialect_name", "table_cols", "expected"),
+    [
+        # PD-01: SQL Server pasaba las columnas a MAYÚSCULAS y no casaban con una tabla en minúsculas o mixta.
+        ("mssql", ["customer_id", "CustomerName"], ["customer_id", "CustomerName"]),
+        # Mismo caso en PostgreSQL con columnas mixtas citadas (se pasaban a minúsculas).
+        ("postgresql", ["customer_id", "CustomerName"], ["customer_id", "CustomerName"]),
+        # Sin cambios cuando ya coinciden tras normalizar.
+        ("mssql", ["CUSTOMER_ID", "CUSTOMERNAME"], ["CUSTOMER_ID", "CUSTOMERNAME"]),
+        # Ambigua (dos columnas que solo difieren en mayúsculas): se deja como la normalización.
+        ("mssql", ["customer_id", "Customer_Id", "customername"], ["CUSTOMER_ID", "customername"]),
+    ],
+)
+def test_actualizar_df_aligns_columns_with_reflected_table(
+    dialect_name: str, table_cols: list[str], expected: list[str]
+) -> None:
+    engine = MagicMock()
+    engine.dialect.name = dialect_name
+    manager = bulk_crud(engine=engine)
+    df = pd.DataFrame({"Customer_ID": [1], "customerName": ["a"]})
+    tabla = Table("t", MetaData(), *(Column(c, String) for c in table_cols))
+
+    _get_private_method(manager, "_BulkCrud__actualizar_df")(df, tabla)
+
+    assert list(df.columns) == expected
 
 
 @pytest.mark.parametrize("dialect_name", ["mysql", "mariadb"])
