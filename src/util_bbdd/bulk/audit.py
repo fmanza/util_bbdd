@@ -36,7 +36,18 @@ class AuditManager:
         audit_csv_path: Path | None = None,
         cache_enabled: bool = True,
         cache_ttl_seconds: int = 300,
+        *,
+        warn_if_disabled: bool = True,
     ) -> None:
+        """
+        Args:
+            audit_csv_path: CSV de auditoría. ``None`` deshabilita la escritura.
+            cache_enabled: Cachear las lecturas del CSV.
+            cache_ttl_seconds: Vigencia de la caché de lectura.
+            warn_if_disabled: Si ``True`` (default), sin ``audit_csv_path`` la primera operación registrada emite un
+                WARNING "Auditoría deshabilitada". ``False`` lo omite (M-4, audit-code de ``ParallelBulkLoader``: el
+                loader crea una instancia por partición y avisa él una sola vez).
+        """
         self.logger: logging.Logger = logging.getLogger(__name__)
 
         columnas_auditoria: list[str] = [
@@ -63,7 +74,7 @@ class AuditManager:
             logger=self.logger,
             error_audit_path_required=self.ERROR_AUDIT_PATH_REQUIRED,
         )
-        self._aviso_deshabilitada_emitido: bool = False
+        self._aviso_deshabilitada_emitido: bool = not warn_if_disabled
 
     @property
     def audit_csv_path(self) -> Path | None:

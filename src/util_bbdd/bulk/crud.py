@@ -127,6 +127,7 @@ class BulkCrud:
         commit_every_n_chunks: int | None = None,
         update_via_staging: bool = True,
         audit_strict: bool = False,
+        warn_if_audit_disabled: bool = True,
     ):
         """
         Constructor de la clase bulk_crud.
@@ -177,6 +178,9 @@ class BulkCrud:
                 ERROR con los registros perdidos y se suman a :attr:`audit_failures`. Con True se propaga el error
                 (``AuditError``/``OSError``); dentro de :meth:`bulk_session` la auditoría se escribe entonces antes
                 del commit y el fallo deshace la sesión.
+            warn_if_audit_disabled: Si True (default), sin ``audit_csv_path`` la instancia avisa una vez con un WARNING
+                de que la auditoría está deshabilitada. Quien crea muchas instancias (``ParallelBulkLoader``, ``dump``)
+                pasa False y avisa una sola vez por su cuenta.
 
         Raises:
             ValueError: Si engine es None.
@@ -193,7 +197,7 @@ class BulkCrud:
 
         # Auditoría de bulk 2026-09-24: con un valor negativo no se escribía nada y la auditoría registraba las filas.
         self.chunk_size: int = validate_chunk_size(chunk_size)
-        self.audit_manager: AuditManager = AuditManager(audit_csv_path)
+        self.audit_manager: AuditManager = AuditManager(audit_csv_path, warn_if_disabled=warn_if_audit_disabled)
         self._update_via_staging: bool = update_via_staging and self.engine.dialect.name in ("mysql", "mariadb")
 
         # Inicializar db_info
@@ -882,6 +886,35 @@ class BulkCrud:
         return self._persistence.audit_failures
 
     @property
+    def audited_rows(self) -> int:
+        """Filas (``rowcount``) de los registros escritos en el CSV de auditoría por esta instancia.
+
+        Con auditoría activa y sin incidencias coincide con las filas cargadas. La diferencia se explica con
+        :attr:`audit_failures`, :attr:`unaudited_committed_rows` y :attr:`audit_uncommitted_records`. Incluye las
+        operaciones con ``generar_sql=True``, que no tocan la BD.
+        """
+        return self._persistence.audited_rows
+
+    @property
+    def audit_uncommitted_records(self) -> int:
+        """Registros escritos en el CSV antes de un commit que falló (solo con ``audit_strict=True``).
+
+        En modo estricto la auditoría de :meth:`bulk_session` se escribe antes del commit; si el commit falla, esos
+        registros quedan en el CSV sin datos en la BD. Cada caso queda además en el log como ERROR.
+        """
+        return self._persistence.audit_uncommitted_records
+
+    @property
+    def unaudited_committed_rows(self) -> int:
+        """Filas confirmadas por commits periódicos que no constan en el CSV (``commit_every_n_chunks``).
+
+        Si una sesión falla, la operación que tenía parte de sus lotes confirmados no se audita. Esas filas están en la
+        BD (y en :attr:`rows_committed`) pero no en el CSV. En sesiones que mezclan DELETE es aproximado: el DELETE
+        no suma a :attr:`rows_committed`.
+        """
+        return self._persistence.unaudited_committed_rows
+
+    @property
     def rows_committed(self) -> int:
         """Filas durablemente comprometidas en BD por esta instancia hasta el momento.
 
@@ -921,9 +954,12 @@ class BulkCrud:
         del bloque o, con ``commit_every_n_chunks``, en el commit periódico). Si la sesión acaba en rollback, lo
         pendiente se descarta con un WARNING. Así la traza no cuenta filas deshechas ni las repite cuando se
         reintenta la sesión. El ``timestamp`` sigue siendo el de fin de cada operación. Con ``commit_every_n_chunks``,
-        una operación que falla con parte de sus lotes ya confirmados no se audita: :attr:`rows_committed` da esas
-        filas. Las operaciones con ``generar_sql=True`` no tocan la BD y se escriben al momento. Si falla la escritura
-        del CSV, ver ``audit_strict`` en el constructor.
+        lo que confirman los commits periódicos se escribe por tandas (64 registros o 1 s) y al cerrar la sesión; una
+        operación que no llega a confirmarse entera antes de un fallo no se audita, y sus filas ya confirmadas se
+        suman a :attr:`unaudited_committed_rows`. Las operaciones con ``generar_sql=True`` no tocan la BD y se
+        escriben al momento. Si falla la escritura del CSV, ver ``audit_strict`` en el constructor; con
+        ``audit_strict=True``, si lo que falla es el commit, lo ya escrito se cuenta en
+        :attr:`audit_uncommitted_records`.
         """
         if not atomic:
             yield
@@ -931,6 +967,8 @@ class BulkCrud:
         executor = self._batch_statement_executor
         delete_executor = self._delete_batch_executor  # P-26: el DELETE también usa la conexión de la sesión
         persistence = self._persistence
+        committed_before = executor.rows_committed
+        committed_rows: int | None = None
         try:
             if executor._commit_every_n_chunks is not None:
                 executor._chunks_since_commit = 0
@@ -944,6 +982,11 @@ class BulkCrud:
                         executor._chunks_since_commit = 0
                         executor.rows_committed += executor._rows_pending_commit
                         executor._rows_pending_commit = 0
+                    except BaseException:
+                        # PL-1 (audit-code de ParallelBulkLoader): lo confirmado por commits periódicos, para contar
+                        # las filas que no constan en el CSV.
+                        committed_rows = executor.rows_committed - committed_before
+                        raise
                     finally:
                         executor._active_connection = delete_executor._active_connection = None
                         executor._commit_hook = delete_executor._commit_hook = None
@@ -958,7 +1001,7 @@ class BulkCrud:
                     executor._active_connection = delete_executor._active_connection = None
             persistence.flush_audit_after_commit()
         finally:
-            persistence.end_session_audit()
+            persistence.end_session_audit(committed_rows=committed_rows)
 
     def get_columna_may_min(self, tabla: Table, nombre_col: str) -> Column | None:
         """Devuelve una columna de una tabla SQLAlchemy ignorando mayúsculas/minúsculas."""

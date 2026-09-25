@@ -138,3 +138,16 @@ class TestDumpAudit:
         assert _count(dst) == 0
         assert [r.status for r in result.table_results] == ["error"]
         assert result.audit_summary is None
+
+    def test_without_audit_path_the_dump_warns_once_at_info(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        # M-4 (audit-code de ParallelBulkLoader 2026-09-25): antes, un WARNING por cada BulkCrud del volcado.
+        cfg, _dst = self._config(tmp_path)
+        cfg.bulk_audit_path = None
+
+        with caplog.at_level("INFO"):
+            DumpOrchestrator(cfg).run()
+
+        disabled = [r for r in caplog.records if "deshabilitada" in r.getMessage()]
+        assert [r.levelname for r in disabled] == ["INFO"]

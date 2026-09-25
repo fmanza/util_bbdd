@@ -57,8 +57,14 @@ Exportadas desde `util_bbdd.bulk`. Generan listas de particiones disjuntas para 
 |---|---|---|
 | `total_rows` | `int` | Suma de filas insertadas en todas las particiones |
 | `partition_errors` | `list[str]` | Un mensaje por partición fallida; vacío si todo fue bien |
-| `partition_results` | `list[PartitionResult]` | Resultado de cada partición: `rows`, `elapsed_seconds`, `error`, `retries` y `audit_failures` |
+| `partition_results` | `list[PartitionResult]` | Resultado de cada partición: `rows`, `elapsed_seconds`, `error`, `retries` y los contadores de auditoría `audit_failures`, `audited_rows`, `unaudited_committed_rows` y `audit_uncommitted_records` |
 | `audit_failures` | `int` (propiedad) | Registros de auditoría que no se pudieron escribir en el CSV, sumados de todas las particiones |
+| `audited_rows` | `int` (propiedad) | Filas que constan en el CSV de auditoría, sumadas de todas las particiones |
+| `unaudited_committed_rows` | `int` (propiedad) | Con `commit_every_n_chunks`: filas confirmadas en la BD que no constan en el CSV porque su operación no llegó a confirmarse entera antes de un fallo |
+| `audit_uncommitted_records` | `int` (propiedad) | Con `audit_strict=True`: registros escritos en el CSV antes de un commit que falló (esas filas no están en la BD) |
+
+**Conciliación**: con auditoría activa, `audit_failures == 0` y `audit_uncommitted_records == 0`, se cumple
+`audited_rows + unaudited_committed_rows == total_rows`.
 
 ### Contrato de entrada
 
@@ -68,8 +74,8 @@ Exportadas desde `util_bbdd.bulk`. Generan listas de particiones disjuntas para 
 | `chunk_size` | `int` | Filas por lote en cada worker | Default `5000` |
 | `max_workers` | `int` | Hilos concurrentes | ≥ 1; `ValueError` si no. Se acota al número de particiones. El pool del engine debe tener capacidad ≥ `max_workers` |
 | `commit_every_n_chunks` | `int \| None` | Propagado a cada `BulkCrud` worker | Default `None` |
-| `audit_csv_path` | `Path \| None` | CSV de auditoría; escrituras concurrentes son seguras (lock por-ruta). Cada partición anota sus chunks al confirmarse; un intento fallido y reintentado no deja filas. Un fallo al escribir el CSV no hace fallar la partición: queda como ERROR en el log y se cuenta en `audit_failures` (salvo con `audit_strict=True`) | Default `None` |
-| `audit_strict` | `bool` | Se pasa a la `BulkCrud` de cada partición. `False`: un fallo al escribir el CSV de auditoría no hace fallar la partición y se cuenta en `PartitionResult.audit_failures` / `ParallelLoadResult.audit_failures`. `True`: el fallo deshace esa partición y queda en `partition_errors` sin reintentarse | Default `False` |
+| `audit_csv_path` | `Path \| None` | CSV de auditoría; escrituras concurrentes son seguras (lock por-ruta). Cada partición anota sus chunks al confirmarse; un intento fallido y reintentado no deja filas. Un fallo al escribir el CSV no hace fallar la partición: queda como ERROR en el log y se cuenta en `audit_failures` (salvo con `audit_strict=True`). El directorio se valida en el constructor. Sin ruta, `load()` lo avisa una vez con un INFO | Default `None`; `AuditConfigError` (subclase de `ValueError`) si no se puede crear el directorio |
+| `audit_strict` | `bool` | Se pasa a la `BulkCrud` de cada partición. `False`: un fallo al escribir el CSV de auditoría no hace fallar la partición y se cuenta en `PartitionResult.audit_failures` / `ParallelLoadResult.audit_failures`. `True`: el fallo deshace esa partición y queda en `partition_errors` sin reintentarse. En modo estricto la auditoría se escribe antes del commit: si falla el commit, la partición **no se reintenta** aunque el error sea retriable (el reintento duplicaría la traza) y lo escrito se cuenta en `audit_uncommitted_records` | Default `False` |
 | `partition_readers` | `Sequence[Callable[[], Iterable[pd.DataFrame]]]` | Un callable por partición, invocado dentro de su hilo | Las particiones deben ser disjuntas |
 | `override_identity` | `bool` | Pasar por alto la columna IDENTITY/SERIAL al insertar | Default `False` |
 

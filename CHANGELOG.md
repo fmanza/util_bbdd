@@ -9,6 +9,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **bulk (auditoría)**: contadores para cuadrar la carga con la traza sin leer el CSV: `audited_rows`,
+  `unaudited_committed_rows` y `audit_uncommitted_records` en `BulkCrud`, `PartitionResult` y `ParallelLoadResult`.
+  Con auditoría activa y sin incidencias, `audited_rows + unaudited_committed_rows == total_rows`.
+- **bulk (auditoría)**: `BulkCrud(warn_if_audit_disabled=True)` y `AuditManager(warn_if_disabled=True)`.
+  `ParallelBulkLoader` y `dump` pasan `False` a sus instancias y avisan una sola vez por carga, con un INFO. Antes
+  salía un WARNING "Auditoría deshabilitada" por partición en cada carga, aunque desactivarla es el valor por defecto.
+
 - **bulk (carga paralela)**: `ParallelBulkLoader(audit_strict=False)`, que se pasa a la `BulkCrud` de cada partición;
   `PartitionResult.audit_failures` y `ParallelLoadResult.audit_failures` (suma de las particiones). Antes el loader
   trabajaba siempre en fail-open y los fallos de auditoría de cada partición se perdían. Con `audit_strict=True`, un
@@ -35,6 +42,18 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **bulk (carga paralela)**: con `disable_constraints=True` en SQL Server + pyodbc, `ParallelBulkLoader` activaba
+  `fast_executemany` en el engine compartido aunque se hubiera creado con `enable_fast_executemany=False`.
+- **bulk (carga paralela)**: con `audit_strict=True` y `max_retries > 0`, si el COMMIT fallaba con un error retriable
+  después de escribir la auditoría, el reintento la escribía otra vez y el CSV contaba el doble de filas que la BD.
+  Ahora la partición no se reintenta, queda en `partition_errors` y lo escrito se cuenta en `audit_uncommitted_records`.
+- **bulk (carga paralela)**: `audit_csv_path` se valida en el constructor de `ParallelBulkLoader` (`AuditConfigError`,
+  subclase de `ValueError`). Antes fallaba cada partición por separado y, con `disable_constraints`, el loader
+  deshabilitaba y rehabilitaba constraints para nada.
+- **bulk (auditoría)**: con `commit_every_n_chunks`, el aviso de rollback decía "sin confirmarlos" aunque parte de las
+  filas ya estuvieran confirmadas por un commit periódico. Ahora lo distingue e indica cuántas no constan en el CSV.
+- **bulk (carga paralela)**: un fallo de auditoría estricta ya no se registra con traza en el loader (`BulkCrud` ya lo
+  registró como ERROR), y la rama de reintentos agotados usa el mismo formato de `partition_errors` que el resto.
 - **dump**: un fallo de auditoría con la política estricta (`AuditError`/`OSError`) escapaba de la carga de una tabla
   y abortaba el volcado entero. Ahora queda como error de esa tabla, como cualquier otro fallo de carga. Antes de
   este cambio esa política era la única, así que un CSV de auditoría bloqueado podía tumbar un volcado.
@@ -62,6 +81,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **bulk (auditoría, rendimiento)**: con `commit_every_n_chunks`, lo que confirman los commits periódicos se escribe en
+  el CSV por tandas (64 registros o 1 s) y siempre al cerrar la sesión, con o sin error, en lugar de hasta dos veces
+  por commit. Medido en SQLite con 1M filas, chunks de 500 y 4 hilos: con N=2, de 2000 a 35 aperturas del CSV y del
+  8-9 % al 1,6 % del tiempo en escritura; con N=10, de 400 a 35 aperturas y del 2,2 % al 0,4 %. Contrapartida: si el
+  proceso muere de golpe se pierden como mucho 64 registros ya confirmados. Con `audit_strict=True` no cambia nada.
 - **bulk (auditoría)**: `AuditConfigError` hereda también de `ValueError`, y el constructor de `AuditManager` la lanza
   si no puede crear el directorio de `audit_csv_path`. Antes lanzaba un `ValueError` fuera de la jerarquía `AuditError`.
   Quien capturaba `ValueError` sigue funcionando.

@@ -31,6 +31,8 @@ import pandas as pd
 from sqlalchemy import Engine, Table, text
 from sqlalchemy.exc import OperationalError as SQLAOperationalError, SQLAlchemyError
 
+from .._audit.errors import AuditError
+from ..audit import AuditManager
 from ..crud import BulkCrud
 from .batch import validate_chunk_size
 
@@ -39,9 +41,10 @@ _log = logging.getLogger(__name__)
 # Un lector de partición: invocado en su hilo worker, produce los chunks a insertar.
 PartitionReader = Callable[[], Iterable[pd.DataFrame]]
 
-# Errores de datos o de BD habituales en una carga: se anotan sin traza en el log. El resto también se anotan en
-# partition_errors, pero con traza, porque suelen indicar un fallo del lector o de programación.
-_EXPECTED_ERRORS: tuple[type[Exception], ...] = (SQLAlchemyError, ValueError, pd.errors.DatabaseError)
+# Errores de datos, de BD o de auditoría estricta habituales en una carga: se anotan sin traza en el log (el de
+# auditoría ya lo registró BulkCrud como ERROR). El resto también se anotan en partition_errors, pero con traza, porque
+# suelen indicar un fallo del lector o de programación.
+_EXPECTED_ERRORS: tuple[type[Exception], ...] = (SQLAlchemyError, ValueError, pd.errors.DatabaseError, AuditError)
 
 
 def _partition_error(index: int, exc: Exception) -> str:
@@ -88,6 +91,11 @@ class PartitionResult:
         retries: Número de reintentos realizados (0 si tuvo éxito en el primer intento).
         audit_failures: Registros de auditoría de esta partición que no se pudieron escribir en el CSV (solo con
             ``audit_strict=False``; ver ``BulkCrud.audit_failures``).
+        audited_rows: Filas de esta partición que constan en el CSV de auditoría (ver ``BulkCrud.audited_rows``).
+        unaudited_committed_rows: Filas confirmadas por commits periódicos que no constan en el CSV porque la partición
+            falló a mitad de una operación (``commit_every_n_chunks``; ver ``BulkCrud.unaudited_committed_rows``).
+        audit_uncommitted_records: Registros escritos en el CSV antes de un commit que falló (``audit_strict=True``;
+            ver ``BulkCrud.audit_uncommitted_records``). Si es > 0 la partición no se reintenta.
     """
 
     index: int
@@ -96,6 +104,9 @@ class PartitionResult:
     error: str | None = None
     retries: int = 0
     audit_failures: int = 0
+    audited_rows: int = 0
+    unaudited_committed_rows: int = 0
+    audit_uncommitted_records: int = 0
 
 
 @dataclass
@@ -111,6 +122,12 @@ class ParallelLoadResult:
     Properties:
         rows_per_second: Throughput global (filas/s). 0.0 si ``elapsed_seconds`` ≤ 0.
         audit_failures: Registros de auditoría que no se pudieron escribir, sumados de todas las particiones.
+        audited_rows: Filas que constan en el CSV de auditoría, sumadas de todas las particiones.
+        unaudited_committed_rows: Filas confirmadas que no constan en el CSV (``commit_every_n_chunks`` con fallo).
+        audit_uncommitted_records: Registros escritos en el CSV antes de un commit que falló (``audit_strict``).
+
+    Conciliación: con auditoría activa, ``audit_failures == 0`` y ``audit_uncommitted_records == 0``, se cumple
+    ``audited_rows + unaudited_committed_rows == total_rows``.
     """
 
     total_rows: int = 0
@@ -122,6 +139,21 @@ class ParallelLoadResult:
     def audit_failures(self) -> int:
         """Registros de auditoría perdidos en toda la carga (suma de ``PartitionResult.audit_failures``)."""
         return sum(pr.audit_failures for pr in self.partition_results)
+
+    @property
+    def audited_rows(self) -> int:
+        """Filas que constan en el CSV de auditoría (suma de ``PartitionResult.audited_rows``)."""
+        return sum(pr.audited_rows for pr in self.partition_results)
+
+    @property
+    def unaudited_committed_rows(self) -> int:
+        """Filas confirmadas que no constan en el CSV (suma de ``PartitionResult.unaudited_committed_rows``)."""
+        return sum(pr.unaudited_committed_rows for pr in self.partition_results)
+
+    @property
+    def audit_uncommitted_records(self) -> int:
+        """Registros del CSV sin datos en la BD (suma de ``PartitionResult.audit_uncommitted_records``)."""
+        return sum(pr.audit_uncommitted_records for pr in self.partition_results)
 
     @property
     def rows_per_second(self) -> float:
@@ -190,10 +222,14 @@ class ParallelBulkLoader:
             audit_strict: Se pasa a la ``BulkCrud`` de cada partición. Con ``False`` (default) un fallo al escribir el
                 CSV de auditoría no hace fallar la partición: se registra como ERROR y se cuenta en
                 ``PartitionResult.audit_failures`` / ``ParallelLoadResult.audit_failures``. Con ``True`` el fallo
-                deshace la partición y queda en ``partition_errors`` sin reintentarse.
+                deshace la partición y queda en ``partition_errors`` sin reintentarse. En modo estricto la auditoría se
+                escribe antes del commit: si es el commit el que falla, esos registros quedan en el CSV sin datos en la
+                BD, se cuentan en ``audit_uncommitted_records`` y la partición **no se reintenta** aunque el error sea
+                retriable, para no duplicarlos.
 
         Raises:
             ValueError: Si ``chunk_size`` no es un entero ≥ 1, ``max_workers < 1`` o ``max_retries < 0``.
+            AuditConfigError: Si no se puede crear el directorio de ``audit_csv_path`` (subclase de ``ValueError``).
         """
         chunk_size = validate_chunk_size(chunk_size)  # antes del pool: si no, fallaría cada partición
         if max_workers < 1:
@@ -207,6 +243,10 @@ class ParallelBulkLoader:
                 "Usa max_retries=0 con commit_every_n_chunks, o mantén "
                 "commit_every_n_chunks=None si necesitas reintentos."
             )
+        if audit_csv_path is not None:
+            # PL-4 (audit-code de ParallelBulkLoader 2026-09-25): antes del pool, como chunk_size. Si no, cada
+            # partición fallaba por separado y, con disable_constraints, el hoist se hacía para nada.
+            AuditManager(audit_csv_path)
         self._engine = engine
         self._chunk_size = chunk_size
         self._commit_every_n_chunks = commit_every_n_chunks
@@ -285,6 +325,10 @@ class ParallelBulkLoader:
         if partition_ranges is not None:
             _validate_partition_ranges(partition_ranges, len(partition_readers))
 
+        if self._audit_csv_path is None:
+            # M-4: un aviso por carga; las BulkCrud de las particiones se crean sin el suyo.
+            _log.info("Auditoría deshabilitada en la carga paralela de '%s' (audit_csv_path=None).", tabla_destino)
+
         result = ParallelLoadResult()
         t_start = time.perf_counter()
         workers = min(self._max_workers, len(partition_readers))
@@ -349,6 +393,7 @@ class ParallelBulkLoader:
                 commit_every_n_chunks=self._commit_every_n_chunks,
                 enable_fast_executemany=self._enable_fast_executemany,
                 audit_strict=self._audit_strict,
+                warn_if_audit_disabled=False,  # M-4: load() avisa una vez por carga
             )
         except Exception as exc:
             _log.warning("No se pudo preparar la partición %d de '%s': %s", index, tabla_destino, exc, exc_info=True)
@@ -363,32 +408,34 @@ class ParallelBulkLoader:
 
         for attempt in range(self._max_retries + 1):
             try:
-                if self._disable_constraints and not skip_maintenance:
-                    rows = self._load_with_maintenance(
-                        crud,
-                        tabla_destino,
-                        reader,
-                        override_identity,
-                        exclude_autoincrement_pk,
-                    )
-                else:
-                    rows = crud.bulk_insert_from_chunks(
-                        reader(),
-                        tabla_destino,
-                        override_identity=override_identity,
-                        exclude_autoincrement_pk=exclude_autoincrement_pk,
-                    )
-                elapsed = time.perf_counter() - t_start
-                return PartitionResult(
-                    index=index,
-                    rows=rows,
-                    elapsed_seconds=elapsed,
-                    retries=attempt,
-                    audit_failures=crud.audit_failures,
+                rows = self._run_attempt(
+                    crud, tabla_destino, reader, override_identity, exclude_autoincrement_pk, skip_maintenance
                 )
+                return self._partition_result(crud, index, t_start, rows=rows, retries=attempt)
 
             except (SQLAOperationalError, TimeoutError) as exc:
                 last_exc = exc
+                if crud.audit_uncommitted_records > 0:
+                    # PL-2 (audit-code de ParallelBulkLoader 2026-09-25): con audit_strict falló el commit después de
+                    # escribir la auditoría. Reintentar la escribiría otra vez: el CSV contaría el doble que la BD.
+                    _log.warning(
+                        "Partición %d de '%s': falló el commit con la auditoría estricta ya escrita; no se reintenta "
+                        "para no duplicarla: %s",
+                        index,
+                        tabla_destino,
+                        exc,
+                    )
+                    return self._partition_result(
+                        crud,
+                        index,
+                        t_start,
+                        rows=crud.rows_committed,
+                        retries=attempt,
+                        error=(
+                            f"{_partition_error(index, exc)} (el CSV de auditoría contiene "
+                            f"{crud.audit_uncommitted_records} registros de este intento sin datos en la BD)"
+                        ),
+                    )
                 if attempt < self._max_retries:
                     _log.warning(
                         "Partición %d intento %d/%d fallido (retriable): %s",
@@ -403,7 +450,6 @@ class ParallelBulkLoader:
                 # Cualquier otro error es permanente y queda en partition_errors sin abortar el resto de particiones,
                 # como documenta la API: antes solo se capturaban SQLAlchemyError, ValueError y
                 # pd.errors.DatabaseError, y un error del lector (OSError, KeyError…) abortaba load() entero.
-                elapsed = time.perf_counter() - t_start
                 _log.warning(
                     "Error permanente cargando partición %d de '%s': %s",
                     index,
@@ -411,28 +457,65 @@ class ParallelBulkLoader:
                     exc,
                     exc_info=not isinstance(exc, _EXPECTED_ERRORS),  # traza solo para errores inesperados
                 )
-                return PartitionResult(
-                    index=index,
-                    # BLK-08: crud.rows_committed refleja filas ya comprometidas vía
-                    # commit_every_n_chunks antes del fallo (0 en modo atómico, donde
-                    # un fallo revierte toda la sesión).
-                    rows=crud.rows_committed,
-                    elapsed_seconds=elapsed,
-                    error=_partition_error(index, exc),
-                    retries=attempt,
-                    audit_failures=crud.audit_failures,
+                # BLK-08: crud.rows_committed refleja filas ya comprometidas vía commit_every_n_chunks antes del fallo
+                # (0 en modo atómico, donde un fallo revierte toda la sesión).
+                return self._partition_result(
+                    crud, index, t_start, rows=crud.rows_committed, retries=attempt, error=_partition_error(index, exc)
                 )
 
-        # Reintentos agotados
-        elapsed = time.perf_counter() - t_start
+        # Reintentos agotados: el bucle hace al menos un intento y cada fallo retriable fija last_exc.
+        assert last_exc is not None
         _log.warning("Partición %d agotó %d reintentos: %s", index, self._max_retries, last_exc)
+        return self._partition_result(
+            crud,
+            index,
+            t_start,
+            rows=crud.rows_committed,
+            retries=self._max_retries,
+            error=_partition_error(index, last_exc),
+        )
+
+    def _run_attempt(
+        self,
+        crud: BulkCrud,
+        tabla_destino: str,
+        reader: PartitionReader,
+        override_identity: bool,
+        exclude_autoincrement_pk: bool,
+        skip_maintenance: bool,
+    ) -> int:
+        """Un intento de carga de la partición; devuelve las filas insertadas."""
+        if self._disable_constraints and not skip_maintenance:
+            return self._load_with_maintenance(crud, tabla_destino, reader, override_identity, exclude_autoincrement_pk)
+        rows: int = crud.bulk_insert_from_chunks(
+            reader(),
+            tabla_destino,
+            override_identity=override_identity,
+            exclude_autoincrement_pk=exclude_autoincrement_pk,
+        )
+        return rows
+
+    @staticmethod
+    def _partition_result(
+        crud: BulkCrud,
+        index: int,
+        t_start: float,
+        *,
+        rows: int,
+        retries: int,
+        error: str | None = None,
+    ) -> PartitionResult:
+        """``PartitionResult`` con los contadores de auditoría de ``crud``."""
         return PartitionResult(
             index=index,
-            rows=crud.rows_committed,
-            elapsed_seconds=elapsed,
-            error=f"partición {index}: {last_exc}",
-            retries=self._max_retries,
+            rows=rows,
+            elapsed_seconds=time.perf_counter() - t_start,
+            error=error,
+            retries=retries,
             audit_failures=crud.audit_failures,
+            audited_rows=crud.audited_rows,
+            unaudited_committed_rows=crud.unaudited_committed_rows,
+            audit_uncommitted_records=crud.audit_uncommitted_records,
         )
 
     def _load_with_maintenance(
@@ -547,8 +630,19 @@ class ParallelBulkLoader:
                     conn.execute(text(f"ALTER TABLE {quoted} ENABLE TRIGGER ALL"))
 
     def _resolve_table(self, tabla_destino: str) -> Table:
-        """``Table`` reflejada con la misma resolución de nombre que ``BulkCrud`` (mayúsculas y esquema)."""
-        return BulkCrud(self._engine, chunk_size=self._chunk_size).reflect_table(tabla_destino)
+        """``Table`` reflejada con la misma resolución de nombre que ``BulkCrud`` (mayúsculas y esquema).
+
+        PL-3 (audit-code de ``ParallelBulkLoader`` 2026-09-25): la ``BulkCrud`` recibe ``enable_fast_executemany`` del
+        loader. Con el valor por defecto activaba ``fast_executemany`` en el engine compartido (``mssql+pyodbc``)
+        aunque el loader se hubiera creado con ``False``.
+        """
+        crud = BulkCrud(
+            self._engine,
+            chunk_size=self._chunk_size,
+            enable_fast_executemany=self._enable_fast_executemany,
+            warn_if_audit_disabled=False,
+        )
+        return crud.reflect_table(tabla_destino)
 
 
 __all__: list[str] = [

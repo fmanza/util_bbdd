@@ -100,6 +100,9 @@ class DumpOrchestrator:
         cfg = self._cfg
         dump_inicio = datetime.now()
         self._reset_audit_tracking()
+        if cfg.bulk_audit_path is None:
+            # M-4 (audit-code de ParallelBulkLoader 2026-09-25): un aviso por volcado, no uno por BulkCrud creada.
+            _log.info("Auditoría bulk deshabilitada en el volcado (bulk_audit_path=None).")
 
         # FASE 1: Análisis de carga
         try:
@@ -692,6 +695,7 @@ class DumpOrchestrator:
             audit_csv_path=cfg.bulk_audit_path,
             commit_every_n_chunks=cfg.commit_every_n_chunks,
             audit_strict=cfg.bulk_audit_strict,
+            warn_if_audit_disabled=False,  # run() avisa una vez por volcado
         )
         with self._audit_lock:
             self._audit_cruds.append(crud)
