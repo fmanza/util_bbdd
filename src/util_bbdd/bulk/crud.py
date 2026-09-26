@@ -44,7 +44,6 @@ from sqlalchemy import (
 from sqlalchemy.exc import SQLAlchemyError
 
 from ..metadata.mariadb.tables import fetch_table_storage_engine_sql
-from ..metadata.postgresql.tables import fetch_can_disable_triggers_sql
 from ..metadata.sqlserver.indexes import fetch_clustered_index_count_sql
 from ._execution.batch import (
     BatchStatementExecutor,
@@ -54,7 +53,12 @@ from ._execution.batch import (
     validate_chunk_size,
 )
 from ._models import PKSyncResult
-from ._support.dialect import MYSQL_FAMILY
+from ._support.dialect import (
+    MYSQL_FAMILY,
+    can_disable_pg_triggers,
+    disable_table_integrity_sql,
+    enable_table_integrity_sql,
+)
 from ._support.persistence import BulkPersistenceManager
 from ._support.pk_sync import PKSequenceSyncer
 from ._support.sql_helpers import (
@@ -1213,12 +1217,8 @@ class BulkCrud:
             conn.execute(text("SET SESSION FOREIGN_KEY_CHECKS=0"))
             return False, False
         if dialect == "postgresql":
-            can_disable = conn.execute(
-                text(fetch_can_disable_triggers_sql()),
-                {"schema": tabla.schema, "tbl": tabla.name},
-            ).scalar()
-            if can_disable:
-                conn.execute(text(f"ALTER TABLE {quoted_name} DISABLE TRIGGER ALL"))
+            if can_disable_pg_triggers(conn, tabla):
+                conn.execute(text(disable_table_integrity_sql(dialect, quoted_name)))
                 return True, False
             self.logger.warning(
                 f"⚠️ El usuario actual no tiene privilegios suficientes en PostgreSQL "
@@ -1227,7 +1227,7 @@ class BulkCrud:
             )
             return False, False
         if dialect == "mssql":
-            conn.execute(text(f"ALTER TABLE {quoted_name} NOCHECK CONSTRAINT ALL"))
+            conn.execute(text(disable_table_integrity_sql(dialect, quoted_name)))
             return False, True
         return False, False
 
@@ -1297,9 +1297,9 @@ class BulkCrud:
         if dialect in MYSQL_FAMILY:
             conn.execute(text("SET SESSION FOREIGN_KEY_CHECKS=1"))
         elif dialect == "postgresql" and pg_disabled:
-            conn.execute(text(f"ALTER TABLE {quoted_name} ENABLE TRIGGER ALL"))
+            conn.execute(text(enable_table_integrity_sql(dialect, quoted_name)))
         elif dialect == "mssql" and mssql_disabled:
-            conn.execute(text(f"ALTER TABLE {quoted_name} WITH CHECK CHECK CONSTRAINT ALL"))
+            conn.execute(text(enable_table_integrity_sql(dialect, quoted_name)))
 
     def __generar_sql_insert(self, stmt: Insert, records: Sequence[dict[str, Any]]) -> list[str]:
         """Genera SQL INSERT desde un statement y una lista de registros.

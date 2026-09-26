@@ -13,6 +13,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   PostgreSQL, índices secundarios, índice clustered, motor de almacenamiento, definición de FK, identity de Oracle) viven
   ahora en `metadata/<motor>/` como funciones `fetch_*_sql()`, con el mismo SQL (Reglas #1 y #3). Sin cambios de
   comportamiento.
+- **bulk/dump**: la DDL que desactiva y reactiva la integridad de una tabla (SQL Server `NOCHECK CONSTRAINT ALL`, PostgreSQL
+  `DISABLE TRIGGER ALL`) y la comprobación de privilegios de PostgreSQL están en un solo sitio (`bulk/_support/dialect.py`),
+  compartido por `maintenance_scope`, `ParallelBulkLoader` y `ConstraintManager`. Mismo SQL.
 
 ## [0.17.1] - 2026-09-26
 

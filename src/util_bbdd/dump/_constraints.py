@@ -15,7 +15,7 @@ from sqlalchemy import Engine, Inspector, event, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from .._core.exceptions import DumpConstraintError
-from ..bulk._support.dialect import MYSQL_FAMILY
+from ..bulk._support.dialect import MYSQL_FAMILY, disable_table_integrity_sql, enable_table_integrity_sql
 from ..metadata.postgresql.tables import fetch_fk_definition_sql
 from ._models import ConstraintResult
 from ._sql_utils import quote_identifier, quote_table
@@ -195,14 +195,14 @@ class ConstraintManager:
             return
         with self._engine.begin() as conn:
             for table in tables:
-                conn.execute(text(f"ALTER TABLE {self._qt(table)} NOCHECK CONSTRAINT ALL"))
+                conn.execute(text(disable_table_integrity_sql("mssql", self._qt(table))))
 
     def _enable_sqlserver(self) -> list[ConstraintResult]:
         results: list[ConstraintResult] = []
         with self._engine.connect() as conn:
             for table in self._nocheck_tables:
                 try:
-                    conn.execute(text(f"ALTER TABLE {self._qt(table)} WITH CHECK CHECK CONSTRAINT ALL"))
+                    conn.execute(text(enable_table_integrity_sql("mssql", self._qt(table))))
                     conn.commit()
                     results.append(
                         ConstraintResult(
@@ -234,7 +234,7 @@ class ConstraintManager:
         with self._engine.connect() as conn:
             for table in tables:
                 try:
-                    conn.execute(text(f"ALTER TABLE {self._qt(table)} DISABLE TRIGGER ALL"))
+                    conn.execute(text(disable_table_integrity_sql("postgresql", self._qt(table))))
                     conn.commit()
                     self._disabled_pg.append(table)
                 except SQLAlchemyError as exc:
@@ -253,7 +253,7 @@ class ConstraintManager:
             # Fase A: reactivar triggers
             for table in tables:
                 try:
-                    conn.execute(text(f"ALTER TABLE {self._qt(table)} ENABLE TRIGGER ALL"))
+                    conn.execute(text(enable_table_integrity_sql("postgresql", self._qt(table))))
                     conn.commit()
                 except SQLAlchemyError as exc:
                     conn.rollback()

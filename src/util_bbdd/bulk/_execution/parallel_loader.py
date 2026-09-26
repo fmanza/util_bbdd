@@ -31,9 +31,9 @@ import pandas as pd
 from sqlalchemy import Engine, Table, text
 from sqlalchemy.exc import OperationalError as SQLAOperationalError, SQLAlchemyError
 
-from ...metadata.postgresql.tables import fetch_can_disable_triggers_sql
 from .._audit.counters import AuditCounters
 from .._audit.errors import AuditError
+from .._support.dialect import can_disable_pg_triggers, disable_table_integrity_sql, enable_table_integrity_sql
 from .._support.iterables import closing_iterable
 from ..audit import AuditManager
 from ..crud import BulkCrud
@@ -602,23 +602,18 @@ class ParallelBulkLoader:
 
         if dialect == "mssql":
             with self._engine.begin() as conn:
-                conn.execute(text(f"ALTER TABLE {quoted} NOCHECK CONSTRAINT ALL"))
+                conn.execute(text(disable_table_integrity_sql(dialect, quoted)))
             try:
                 yield True
             finally:
                 with self._engine.begin() as conn:
-                    conn.execute(text(f"ALTER TABLE {quoted} WITH CHECK CHECK CONSTRAINT ALL"))
+                    conn.execute(text(enable_table_integrity_sql(dialect, quoted)))
 
         else:  # postgresql
             with self._engine.begin() as conn:
-                can_disable: bool = bool(
-                    conn.execute(
-                        text(fetch_can_disable_triggers_sql()),
-                        {"schema": tabla.schema, "tbl": tabla.name},
-                    ).scalar()
-                )
+                can_disable: bool = can_disable_pg_triggers(conn, tabla)
                 if can_disable:
-                    conn.execute(text(f"ALTER TABLE {quoted} DISABLE TRIGGER ALL"))
+                    conn.execute(text(disable_table_integrity_sql(dialect, quoted)))
             if not can_disable:
                 # Fuera del `with` (auditoría de bulk 2026-09-24): antes se cedía el control dentro de él y esa conexión
                 # quedaba fuera del pool, con una transacción abierta, durante toda la carga de los workers.
@@ -633,7 +628,7 @@ class ParallelBulkLoader:
                 yield True
             finally:
                 with self._engine.begin() as conn:
-                    conn.execute(text(f"ALTER TABLE {quoted} ENABLE TRIGGER ALL"))
+                    conn.execute(text(enable_table_integrity_sql(dialect, quoted)))
 
     def _resolve_table(self, tabla_destino: str) -> Table:
         """``Table`` reflejada con la misma resolución de nombre que ``BulkCrud`` (mayúsculas y esquema).
