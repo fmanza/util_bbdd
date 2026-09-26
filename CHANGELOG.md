@@ -60,6 +60,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **dump (rendimiento, PostgreSQL)**: con destino PostgreSQL, el volcado escribe en lotes de 20 000 filas (una
+  sentencia `COPY` por lote) aunque lea de 5 000 en 5 000: −22 % a 3,5M filas (escritura de 11,4 a 7,2 s), +20 MB de
+  memoria. Resto de motores sin cambios. Configurable con `DumpConfig.write_batch_size` (ver *Added*).
 - **bulk (rendimiento, MariaDB Connector/Python)**: con el driver `mariadbconnector`, los INSERT usan el envío masivo
   del driver (`executemany`) cuando cada columna del lote tiene un único tipo Python (sin contar `None`), y la vía
   multi-fila en otro caso (el envío masivo falla con tipos mezclados como `bytes` y `str`). Resultado idéntico. Volcado
@@ -83,6 +86,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **dump**: `DumpConfig.write_batch_size` (por defecto `None`): filas por lote de escritura, separado de `chunk_size`
+  (lectura). `None` = 20 000 con destino PostgreSQL (salvo con `commit_every_n_chunks`) y `chunk_size` en el resto;
+  un entero fija el lote en todos los motores. En SQL Server no conviene subirlo (lotes de 20 000: +81 %).
 - **bulk**: parámetro `strip_strings` en `BulkCrud` y `ParallelBulkLoader` (por defecto `True`, el comportamiento de
   siempre). Con `False`, las cadenas se envían sin quitar los espacios de los extremos.
 

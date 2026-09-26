@@ -63,7 +63,7 @@ Detalle en las sesiones `2026-09-26g` (Q1), `2026-09-26i` (Q2), `2026-09-26j` (Q
 
 | Paso | Mejora | Motores | Ganancia medida | Riesgo |
 |---|---|---|---|---|
-| 2.1 (Q5) | Separar tamaño de lectura y lote de escritura (PG COPY 20–50K, SQL Server ≤ 5K) | PG, mssql | PG −31 % con 20K; protege a mssql de +57 % | Bajo |
+| 2.1 (Q5) | Separar tamaño de lectura y lote de escritura (PG COPY 20–50K, SQL Server ≤ 5K) | PG, mssql | PG −31 % con 20K; protege a mssql de +57 % | Bajo | **Hecho** (sesión `2026-09-26p-feature-dump-write-batch-size`: `write_batch_size`, PG −22 %) |
 | 2.2 (Q6) | `manage_indexes` recomendado u automático en PG/mssql con volumen grande | PG, mssql | PG −23 %, mssql −16 % | Medio |
 | 2.3 | Aviso de `_warn_chunk_size` solo con columnas LOB/JSON | MySQL/MariaDB | — (ruido) | Bajo |
 

@@ -40,7 +40,8 @@ flowchart TD
 | `target_engine` | `Engine` | — | Engine de destino (escritura) |
 | `source_schema` / `target_schema` | `str \| None` | `None` | Schema a volcar; `None` usa default del engine |
 | `tables` | `list[str] \| None` | `None` | Tablas a volcar; `None` = todas las del origen |
-| `chunk_size` | `int` | `5000` | Filas por chunk en lectura y bulk insert |
+| `chunk_size` | `int` | `5000` | Filas por chunk de lectura del origen; también el lote de escritura salvo lo que diga `write_batch_size` |
+| `write_batch_size` | `int \| None` | `None` | Filas por lote de escritura. `None`: 20 000 con destino PostgreSQL (`COPY`; −31 % a 3,5M filas) y `chunk_size` en el resto (en SQL Server los lotes grandes son más lentos); con `commit_every_n_chunks`, siempre `chunk_size`. Un entero fija el lote en todos los motores |
 | `output_dir` | `Path` | `Path()` | Directorio donde guardar el informe Excel |
 | `truncate_target` | `bool` | `True` | Vaciar destino antes de cargar: `TRUNCATE TABLE`; en PostgreSQL, un único `TRUNCATE` con todas las tablas del volcado (tabla a tabla si falla); `DELETE FROM` en SQLite (no tiene `TRUNCATE`) y en las tablas de SQL Server referenciadas por FK |
 | `sync_pk_sequences` | `bool` | `True` | Resincronizar contadores PK tras la carga |

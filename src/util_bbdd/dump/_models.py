@@ -68,9 +68,8 @@ class DumpConfig:
         source_schema: Nombre del schema origen; ``None`` usa el default del engine.
         target_schema: Nombre del schema destino; ``None`` usa el default del engine.
         tables: Tablas a volcar. ``None`` = todas las tablas del origen.
-        chunk_size: Filas por chunk. Se aplica en dos niveles: (1) lectura origen
-            vía ``pd.read_sql(chunksize=chunk_size)`` y (2) inserción destino en
-            ``BulkCrud(chunk_size=chunk_size)``. Ambos reciben el mismo valor.
+        chunk_size: Filas por chunk de lectura del origen. También es el lote de escritura
+            salvo que ``write_batch_size`` indique otro (ver abajo).
             **Tablas con columnas TEXT/BLOB/JSON extensas:** el tamaño del paquete INSERT
             puede superar ``max_allowed_packet`` del servidor MariaDB/MySQL (16 MB por
             defecto), produciendo ``Lost connection to server during query``. Reduce el
@@ -123,6 +122,13 @@ class DumpConfig:
             carga secuencial, que ya solapa lectura y escritura): SQL Server −37 % (recomendado);
             PostgreSQL −9 % y Oracle −2 % (poca ganancia); MySQL y MariaDB casi el doble de tiempo
             (no recomendado; se avisa en el log); SQLite se fuerza a 1 (un solo escritor).
+        write_batch_size: Filas por lote de escritura en el destino (una sentencia ``COPY`` o
+            ``executemany`` por lote). ``None`` (default): 20 000 con destino PostgreSQL (``COPY``,
+            −31 % a 3,5M filas frente a 5 000) y ``chunk_size`` en el resto de motores (en SQL Server
+            un lote de 20 000 fue un 81 % más lento). Con ``commit_every_n_chunks`` el default es
+            siempre ``chunk_size``, para no cambiar cada cuántas filas se confirma. Un entero fija el
+            lote en todos los motores. La lectura sigue siendo por ``chunk_size``; los chunks leídos
+            se agrupan hasta completar el lote (+1 lote en memoria).
         bulk_audit_strict: Se pasa como ``audit_strict`` a cada ``BulkCrud`` y ``ParallelBulkLoader`` del volcado.
             ``False`` (default): un fallo al escribir el CSV de auditoría no interrumpe la carga; se registra como
             ERROR y se cuenta en ``DumpResult.audit_summary.audit_failures``. ``True``: el fallo deshace la carga de
@@ -145,6 +151,11 @@ class DumpConfig:
     max_parallel_tables: int = 1
     parallel_pk_ranges: int = 1
     bulk_audit_strict: bool = False
+    write_batch_size: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.write_batch_size is not None and self.write_batch_size < 1:
+            raise ValueError(f"write_batch_size debe ser None o un entero ≥ 1, recibido: {self.write_batch_size}")
 
 
 @dataclass
