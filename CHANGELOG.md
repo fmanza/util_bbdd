@@ -7,6 +7,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.2] - 2026-09-26
+
+Segunda parte del refactor de reutilización de `bulk` y `dump` (R11, R12 y R14 del plan de la sesión
+`.ai/sessions/2026-09-26ze-code-reusability-bulk-dump/`), sin cambios funcionales, y un fallo de `rows_committed`
+encontrado al caracterizar la cadencia de commit.
+
 ### Changed
 
 - **bulk/dump/metadata**: las diez consultas de catálogo que `bulk` y `dump` escribían por su cuenta (privilegios de
@@ -19,6 +25,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **bulk**: `BulkCrud` ya no manipula el estado privado de sus ejecutores: la conexión de `bulk_session` y el gancho
   de commit viven en `SessionScope` y los contadores de `commit_every_n_chunks` en `CommitCadence`
   (`bulk/_execution/session.py`). Misma cadencia de commit, fijada antes con tests de caracterización.
+
+### Fixed
+
+- **bulk**: con `commit_every_n_chunks`, las filas de una `bulk_session` que fallaba se deshacían pero seguían contando
+  como pendientes: la siguiente sesión de la misma `BulkCrud` que terminaba bien las sumaba a `rows_committed` (1 fila
+  en la BD, `rows_committed == 2`). Ahora se descartan al fallar la sesión.
 
 ## [0.17.1] - 2026-09-26
 
