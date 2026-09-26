@@ -79,7 +79,7 @@ Detalle en las sesiones `2026-09-26g` (Q1), `2026-09-26i` (Q2), `2026-09-26j` (Q
 | Paso | Mejora | Ganancia estimada | Riesgo |
 |---|---|---|---|
 | 3.1 (Q8) | Ruta sin pandas: tuplas del cursor → estrategia de INSERT | Cota superior previa ≈ 7–8 s por volcado; tras P-33 algo menor (`prep` ya bajó ≈ 1,5 s) | Medio-alto |
-| 3.2 (Q9) | Introspección por lotes y una sola reflexión por tabla | ≈ 1,5 min por 1000 tablas en SQL Server | Medio |
+| 3.2 (Q9) | Introspección por lotes y una sola reflexión por tabla | ≈ 1,5 min por 1000 tablas en SQL Server | Medio | **Replanteado** (sesión `2026-09-26s-q9-medicion`: SQL Server/MySQL/SQLite no implementan `get_multi_*` en SQLAlchemy 2.0.50; hoy SQL Server 177 ms/tabla, PG 53, MySQL 67) |
 | 3.3 | Hipótesis: Oracle `/*+ APPEND_VALUES */` | Sin medir | Alto |
 | 3.4 (PF-08, nuevo) | Resumen de auditoría sin releer todo el CSV (contadores del volcado + lectura acotada) | 0,72 s con 500K registros; 2,9 s con 2M (lineal) | Bajo | **Hecho** (sesión `2026-09-26r-refactor-dump-audit-summary-tail`: 0,69 → 0,01 s) |
 
