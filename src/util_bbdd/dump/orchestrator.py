@@ -941,7 +941,7 @@ class DumpOrchestrator:
         """Avisa si ``parallel_pk_ranges > 1`` con destino MySQL/MariaDB, donde la carga por rangos es más lenta.
 
         Q4 (performance-audit de dump 2026-09-26): a 3,5M filas, 4 rangos tardan +84 % a +94 % frente a la carga
-        secuencial (que solapa lectura y escritura), también con 2 GB de redo log. No se fuerza a 1: es más lento, no
+        secuencial (que solapa lectura y escritura), también con 2 y 4 GB de redo log. No se fuerza a 1: es más lento, no
         incorrecto.
         """
         dialect = self._cfg.target_engine.dialect.name

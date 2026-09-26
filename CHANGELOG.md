@@ -59,7 +59,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 - **dump (guía de rendimiento)**: `parallel_pk_ranges` documenta su efecto medido por motor y, con destino MySQL o
   MariaDB, avisa con un WARNING de que la carga por rangos es más lenta (casi el doble de tiempo a 3,5M filas, también
-  con 2 GB de redo log) y recomienda 1. Con 4 rangos frente a la carga secuencial: SQL Server −37 %, PostgreSQL −9 %,
+  con 2 y 4 GB de redo log) y recomienda 1. Con 4 rangos frente a la carga secuencial: SQL Server −37 %, PostgreSQL −9 %,
   Oracle −2 %. El valor configurado se sigue aplicando.
 - **dump (rendimiento)**: la carga de cada tabla lee el siguiente lote del origen en un hilo mientras escribe el
   actual (cola de 2 lotes), en lugar de leer y escribir por turnos. A 3,5M filas: MySQL −29 %, MariaDB −25 %, SQL Server

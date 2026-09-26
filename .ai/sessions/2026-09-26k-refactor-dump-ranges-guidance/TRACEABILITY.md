@@ -37,6 +37,17 @@ innodb_redo_log_capacity`) y pidió **las dos cosas**: escribir la guía y medir
 
   Con más redo, `ranges4` es más estable (MySQL 67–80 s → 72–73 s: desaparecen las esperas intermitentes), pero sigue casi al doble. El redo log no es la causa principal. Hipótesis, sin medir por separado: PyMySQL es Python puro (decodificar y codificar filas es CPU bajo el GIL) y 4 lectores + 4 escritores compiten por él, mientras la carga secuencial ya solapa lectura y escritura con un solo escritor (Q3).
 
+- **Experimento con 4 GB de redo log** (a petición del usuario, para confirmar; `redo_4gb/`; mismo procedimiento, valores originales restaurados y comprobados):
+
+| Motor | `baseline` | `ranges4` |
+|---|---|---|
+| MySQL | 57,5 · 51,9 s | 69,1 · 68,9 s |
+| MariaDB | 71,9 · 46,8 s | 85,3 · 74,8 s |
+
+  - `ranges4` queda donde con 2 GB (≈ 69–85 s frente a ≈ 70 s): **confirma que el redo log no resuelve la carga por rangos** en MySQL/MariaDB.
+  - `baseline` empeoró durante el experimento (47–72 s frente a 37–38 s). Causa: E/S transitoria del redimensionado del redo log (InnoDB crea los ficheros nuevos en segundo plano) sobre el disco del contenedor (WSL2); no es un efecto del tamaño.
+  - Comprobación tras restaurar: la primera medición siguió lenta (MySQL 51,6 s, MariaDB 65,7 s) con InnoDB ya en reposo (`Innodb_redo_log_resize_status = OK`, 0 páginas sucias, history list 0, contenedores sin carga). Minutos después, control: PostgreSQL 15,7 s, **MySQL 38,4 s y MariaDB 38,4 s**, con las mismas fases que antes del experimento (`control/`, `tras_restaurar/`). Los contenedores quedan como estaban.
+
 ## Cambio de conclusiones frente a la auditoría
 - El solape de Q3 acelera la carga secuencial y no se aplica a la ruta por rangos; la ventaja de los rangos se reduce (SQL Server, PostgreSQL, Oracle) o se invierte (MySQL/MariaDB).
 
@@ -60,8 +71,8 @@ innodb_redo_log_capacity`) y pidió **las dos cosas**: escribir la guía y medir
 - Rollback: `git revert <commit>`.
 
 ## Directrices para Futuras IAs
-- **[dump]**: `parallel_pk_ranges` solo compensa claramente en SQL Server tras Q3; en MySQL/MariaDB casi duplica el tiempo, también con 2 GB de redo log.
-- **[bench mysql/mariadb]**: el contenedor usa el redo log por defecto (100/96 MB); con escritores concurrentes aparece `[MY-014084]` y las mediciones oscilan. Para experimentar, `SET GLOBAL innodb_redo_log_capacity` (MySQL) / `innodb_log_file_size` (MariaDB), no persistente, y restaurar al terminar.
+- **[dump]**: `parallel_pk_ranges` solo compensa claramente en SQL Server tras Q3; en MySQL/MariaDB casi duplica el tiempo, también con 2 y 4 GB de redo log.
+- **[bench mysql/mariadb]**: el contenedor usa el redo log por defecto (100/96 MB); con escritores concurrentes aparece `[MY-014084]` y las mediciones oscilan. Para experimentar, `SET GLOBAL innodb_redo_log_capacity` (MySQL) / `innodb_log_file_size` (MariaDB), no persistente, y restaurar al terminar. Tras redimensionar, espera unos minutos antes de medir: la E/S del redimensionado distorsiona las mediciones siguientes.
 - **[rendimiento]**: al cambiar la ruta secuencial (p. ej. Q3), vuelve a medir las rutas paralelas: la comparación relativa cambia.
 
 ## Veredicto final
