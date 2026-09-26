@@ -102,7 +102,10 @@ class DumpConfig:
             Comportamiento por motor: mssql ``ALTER INDEX DISABLE``→``REBUILD`` (solo
             NONCLUSTERED), oracle ``UNUSABLE``→``REBUILD``, postgresql ``DROP``+recreate
             desde ``pg_get_indexdef`` (DDL logueado antes del DROP), mariadb/mysql no
-            soportado (no-op). Nunca toca índices que respaldan PK/UNIQUE.
+            soportado (no-op). Nunca toca índices que respaldan PK/UNIQUE. Efecto medido a 3,5M
+            filas con 2 índices secundarios (tras solapar lectura y escritura): Oracle −14 %
+            (reconstrucción 2,7 s), SQL Server −8 %, PostgreSQL sin ganancia. Compensa más cuantos más
+            índices secundarios tenga el destino; no se activa automáticamente.
         max_parallel_tables: Número máximo de tablas a cargar concurrentemente dentro de
             un mismo nivel topológico FK (tablas mutuamente independientes). ``1`` (default)
             = carga secuencial. Valores > 1 usan un ``ThreadPoolExecutor`` con una instancia

@@ -64,8 +64,15 @@ Detalle en las sesiones `2026-09-26g` (Q1), `2026-09-26i` (Q2), `2026-09-26j` (Q
 | Paso | Mejora | Motores | Ganancia medida | Riesgo |
 |---|---|---|---|---|
 | 2.1 (Q5) | Separar tamaño de lectura y lote de escritura (PG COPY 20–50K, SQL Server ≤ 5K) | PG, mssql | PG −31 % con 20K; protege a mssql de +57 % | Bajo | **Hecho** (sesión `2026-09-26p-feature-dump-write-batch-size`: `write_batch_size`, PG −22 %) |
-| 2.2 (Q6) | `manage_indexes` recomendado u automático en PG/mssql con volumen grande | PG, mssql | PG −23 %, mssql −16 % | Medio |
+| 2.2 (Q6) | `manage_indexes` recomendado u automático en PG/mssql con volumen grande | PG, mssql | PG −23 %, mssql −16 % | Medio | **Hecho** (solo documentación: Oracle −14 %, SQL Server −8 %, PG neutro tras Q3; sin activación automática) |
 | 2.3 | Aviso de `_warn_chunk_size` solo con columnas LOB/JSON | MySQL/MariaDB | — (ruido) | Bajo | **Hecho** (sesión `2026-09-26q-refactor-dump-lob-warning`) |
+
+## Resultado de la Fase 2 (2026-09-26)
+
+- **Q5**: `DumpConfig.write_batch_size`; PostgreSQL −22 % (lotes de 20 000 por defecto), resto sin cambios.
+- **Q6**: solo documentación; tras Q3 la ganancia de `manage_indexes` es pequeña (Oracle −14 %, SQL Server −8 %, PG neutro).
+- **2.3**: el aviso de `max_allowed_packet` solo sale con columnas TEXT/BLOB/JSON.
+- Además: PF-09 (MariaDB Connector/Python con `executemany` del driver, −64 %) y PD-12 (UPDATE por staging sin BD por defecto).
 
 ## Fase 3 — Largo plazo
 

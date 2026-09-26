@@ -45,7 +45,7 @@ flowchart TD
 | `output_dir` | `Path` | `Path()` | Directorio donde guardar el informe Excel |
 | `truncate_target` | `bool` | `True` | Vaciar destino antes de cargar: `TRUNCATE TABLE`; en PostgreSQL, un único `TRUNCATE` con todas las tablas del volcado (tabla a tabla si falla); `DELETE FROM` en SQLite (no tiene `TRUNCATE`) y en las tablas de SQL Server referenciadas por FK |
 | `sync_pk_sequences` | `bool` | `True` | Resincronizar contadores PK tras la carga |
-| `manage_indexes` | `bool` | `False` | Deshabilitar/reconstruir índices secundarios no únicos |
+| `manage_indexes` | `bool` | `False` | Deshabilitar/reconstruir índices secundarios no únicos (no aplica en MySQL/MariaDB). Medido a 3,5M filas con 2 índices secundarios: Oracle −14 %, SQL Server −8 %, PostgreSQL sin ganancia; compensa más con muchos índices |
 | `max_parallel_tables` | `int` | `1` | Tablas en paralelo dentro del mismo nivel FK |
 | `parallel_pk_ranges` | `int` | `1` | Rangos de PK para particionar tablas grandes (PK de una columna entera). Medido con 4 rangos a 3,5M filas frente a la carga secuencial: SQL Server −37 % (recomendado); PostgreSQL −9 % y Oracle −2 %; MySQL/MariaDB casi el doble de tiempo (no recomendado, WARNING); SQLite se fuerza a 1. Necesita un pool con capacidad ≥ rangos × `max_parallel_tables` |
 | `bulk_audit_path` | `Path \| None` | `None` | CSV de auditoría de los inserts en destino; `None` = sin auditoría |
