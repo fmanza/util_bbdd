@@ -172,6 +172,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-26 | Tests de integración de `dump` | 28 tests contra 5 servidores (origen PostgreSQL); 17 fallan con v0.15.0; hallazgo PD-13 | CLOSED |
 | 2026-09-26 | Hotfix PD-13 + audit-code + A1–A3 | DECIMAL exacto con pymssql; auditoría independiente (APROBADO CON CONDICIONES) y sus 3 hallazgos corregidos | CLOSED |
 | 2026-09-26 | Cierre de versión v0.16.1 | CHANGELOG `[0.16.1]` + `pyproject.toml`; checklist verde (5067/193; integración 331/0; build 0.16.1); tag `v0.16.1` | CLOSED |
+| 2026-09-26 | Q8: medición de la etapa pandas | Cota de la ruta sin pandas ≈ 1,7–2,0 s por 3,5M filas (PG ≈ 15 %, resto 3–7 %); aparcado | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 
