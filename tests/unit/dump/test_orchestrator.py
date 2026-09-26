@@ -1762,3 +1762,69 @@ class TestBuildAuditSummary:
 
         assert summary is not None
         assert summary.total_operaciones == 1
+
+
+# ---------------------------------------------------------------------------
+# Q9: FK de todo el esquema en una consulta (SQL Server)
+# ---------------------------------------------------------------------------
+
+
+class TestReferredTables:
+    @staticmethod
+    def _mssql_inspector(rows: list[tuple[str, str, str]] | Exception) -> MagicMock:
+        from sqlalchemy import Engine
+
+        insp = MagicMock()
+        insp.dialect.name = "mssql"
+        insp.default_schema_name = "dbo"
+        insp.bind = MagicMock(spec=Engine)
+        conn = insp.bind.connect.return_value.__enter__.return_value
+        if isinstance(rows, Exception):
+            conn.execute.side_effect = rows
+        else:
+            conn.execute.return_value.all.return_value = rows
+        insp.get_foreign_keys.side_effect = lambda t, schema=None: [{"referred_table": f"per_table_{t}"}]
+        return insp
+
+    def test_mssql_reads_the_whole_schema_in_one_query(self):
+        insp = self._mssql_inspector(
+            [("orders", "dbo", "customers"), ("items", "dbo", "orders"), ("items", "dbo", "orders"), ("x", "o", "y")]
+        )
+        got = DumpOrchestrator._referred_tables(["customers", "ORDERS", "items"], insp, "dbo")
+        # FK repetidas (una entrada por FK), nombres de usuario con otro case y tablas sin FK
+        assert got == {"customers": [], "ORDERS": ["customers"], "items": ["orders", "orders"]}
+        insp.get_foreign_keys.assert_not_called()
+        conn = insp.bind.connect.return_value.__enter__.return_value
+        assert conn.execute.call_count == 1
+        assert conn.execute.call_args.args[1] == {"schema": "dbo"}
+
+    def test_mssql_without_schema_uses_the_default_schema(self):
+        insp = self._mssql_inspector([])
+        DumpOrchestrator._referred_tables(["t"], insp, None)
+        conn = insp.bind.connect.return_value.__enter__.return_value
+        assert conn.execute.call_args.args[1] == {"schema": "dbo"}
+
+    def test_mssql_falls_back_to_per_table_when_the_query_fails(self):
+        insp = self._mssql_inspector(SQLAlchemyError("sin permiso sobre sys.foreign_keys"))
+        got = DumpOrchestrator._referred_tables(["a", "b"], insp, "dbo")
+        assert got == {"a": ["per_table_a"], "b": ["per_table_b"]}
+
+    def test_other_dialects_use_get_foreign_keys_and_skip_failing_tables(self):
+        insp = _make_inspector(["a", "b"], fks={"b": [{"referred_table": "a"}, {"name": "sin_ref"}]})
+        insp.dialect.name = "postgresql"
+        original = insp.get_foreign_keys.side_effect
+
+        def fks(table, schema=None):
+            if table == "c":
+                raise SQLAlchemyError("tabla ilegible")
+            return original(table, schema)
+
+        insp.get_foreign_keys.side_effect = fks
+        assert DumpOrchestrator._referred_tables(["a", "b", "c"], insp, "s") == {"a": [], "b": ["a", ""]}
+
+    def test_topological_sort_uses_the_schema_query_on_mssql(self):
+        insp = self._mssql_inspector([("orders", "dbo", "customers"), ("items", "dbo", "orders")])
+        order, cycles = DumpOrchestrator._topological_sort(["items", "orders", "customers"], insp, "dbo")
+        assert order == ["customers", "orders", "items"]
+        assert cycles == []
+        insp.get_foreign_keys.assert_not_called()

@@ -7,6 +7,15 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **dump**: con SQL Server, el orden de carga por FK y la detección de tablas referenciadas en la limpieza leen las FK de
+  todo el esquema con una consulta a `sys.foreign_keys`, en lugar de `Inspector.get_foreign_keys` tabla a tabla
+  (≈ 34 ms por llamada). Volcado de 200 tablas pequeñas: 33,9 → 15,8 s (análisis 9,6 → 1,7 s, limpieza 7,7 → 0,7 s).
+  Mismo resultado; si la consulta falla (p. ej. sin permiso sobre `sys.*`), se vuelve a la introspección por tabla. El
+  SQL vive en `metadata/sqlserver/constraints.py` (`fetch_schema_fk_references_sql`).
+- **docs**: el diagrama de capas registra el nuevo import `dump → metadata`.
+
 ## [0.16.1] - 2026-09-26
 
 Correcciones de 0.16.0 halladas al llevar sus arreglos a tests de integración contra servidores reales y en una

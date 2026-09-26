@@ -103,6 +103,7 @@ Ver tabla de `DumpConfig` arriba. Los engines deben estar conectables antes de l
 | Dependencia | Propósito | Requerida | Comportamiento sin ella |
 |---|---|---|---|
 | `sqlalchemy` | Inspector, engines y ejecución SQL | Sí | Módulo no funciona |
+| `metadata/sqlserver` (interno) | SQL de las FK de todo el esquema en SQL Server (orden de carga y limpieza en una consulta) | Sí | — |
 | `BulkCrud` (interno) | Inserción de datos en destino | Sí | Módulo no funciona |
 | `openpyxl` | Generación del informe Excel | Sí | Error al intentar generar el informe |
 | `pandas` | Lectura de datos en chunks desde origen | Sí | Sin pandas no se pueden leer datos |

@@ -42,6 +42,7 @@ from sqlalchemy.sql import sqltypes
 
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader, ParallelLoadResult
 from util_bbdd.bulk.audit import AuditError, AuditManager
+from util_bbdd.metadata.sqlserver.constraints import fetch_schema_fk_references_sql
 
 from .._core.exceptions import DumpError
 from ._constraints import ConstraintManager, ConstraintResult
@@ -490,13 +491,9 @@ class DumpOrchestrator:
         retry DELETE en _cleanup actúa como safety net.
         """
         try:
-            referenced: set[str] = set()
-            for table in self._dst_insp.get_table_names(schema=schema):
-                for fk in self._dst_insp.get_foreign_keys(table, schema=schema):
-                    ref: str = fk.get("referred_table", "")
-                    if ref:
-                        referenced.add(ref.lower())
-            return frozenset(referenced)
+            tables = self._dst_insp.get_table_names(schema=schema)
+            referred = DumpOrchestrator._referred_tables(tables, self._dst_insp, schema)
+            return frozenset(ref.lower() for refs in referred.values() for ref in refs if ref)
         except SQLAlchemyError:
             _log.warning(
                 "No se pudo determinar tablas con FK entrantes en destino SQL Server; "
@@ -1140,18 +1137,55 @@ class DumpOrchestrator:
         dependents: dict[str, set[str]] = {t: set() for t in tables}
         in_degree: dict[str, int] = dict.fromkeys(tables, 0)
 
-        for table in tables:
-            try:
-                fks = inspector.get_foreign_keys(table, schema=schema)
-            except SQLAlchemyError:
-                continue
-            for fk in fks:
-                referred = fk.get("referred_table", "")
+        for table, refs in DumpOrchestrator._referred_tables(tables, inspector, schema).items():
+            for referred in refs:
                 if referred and referred != table and referred in tables_set and table not in dependents[referred]:
                     dependents[referred].add(table)
                     in_degree[table] += 1
 
         return dependents, in_degree
+
+    @staticmethod
+    def _referred_tables(tables: list[str], inspector: Inspector, schema: str | None) -> dict[str, list[str]]:
+        """Tabla → tablas referidas por sus FK (una por FK). Las tablas cuya introspección falla no aparecen.
+
+        Q9 (performance-audit de dump 2026-09-26): en SQL Server, ``get_foreign_keys`` hace una consulta por tabla de
+        ≈ 34 ms (61 % de un volcado de 200 tablas pequeñas); allí se lee todo el schema con una consulta. Si esa
+        consulta falla, se vuelve a la introspección tabla a tabla.
+        """
+        if inspector.dialect.name == "mssql":
+            by_table = DumpOrchestrator._mssql_referred_tables(inspector, schema)
+            if by_table is not None:
+                by_lower = {name.lower(): refs for name, refs in by_table.items()}
+                # Nombres dados por el usuario (DumpConfig.tables) con otro case: SQL Server suele ser case-insensitive.
+                return {t: by_table.get(t, by_lower.get(t.lower(), [])) for t in tables}
+        referred: dict[str, list[str]] = {}
+        for table in tables:
+            try:
+                fks = inspector.get_foreign_keys(table, schema=schema)
+            except SQLAlchemyError:
+                continue
+            referred[table] = [fk.get("referred_table") or "" for fk in fks]
+        return referred
+
+    @staticmethod
+    def _mssql_referred_tables(inspector: Inspector, schema: str | None) -> dict[str, list[str]] | None:
+        """SQL Server: tablas referidas por las FK de cada tabla del schema, en una consulta. ``None`` si falla."""
+        bind = inspector.bind
+        if not isinstance(bind, Engine):
+            return None
+        try:
+            with bind.connect() as conn:
+                rows = conn.execute(
+                    text(fetch_schema_fk_references_sql()), {"schema": schema or inspector.default_schema_name}
+                ).all()
+        except SQLAlchemyError as exc:
+            _log.debug("Consulta de FK por schema falló (%s); se usa get_foreign_keys tabla a tabla.", exc)
+            return None
+        by_table: dict[str, list[str]] = {}
+        for table, _ref_schema, ref_table in rows:
+            by_table.setdefault(table, []).append(ref_table)
+        return by_table
 
     @staticmethod
     def _topological_levels(

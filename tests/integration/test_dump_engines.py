@@ -17,6 +17,7 @@ Sin URL de PostgreSQL se saltan todos; sin la del destino, el suyo. Hallazgos cu
 - ``test_redump_with_foreign_keys``: PD-03 (volcado repetido con FK en PostgreSQL).
 - ``test_orphan_rows_mark_the_foreign_key_as_failed``: PD-04 (validación real de FK en PostgreSQL).
 - ``test_staging_update_with_schema_and_no_default_database``: PD-12 (UPDATE por staging sin BD por defecto).
+- ``test_mssql_fk_references_by_schema_match_the_inspector``: Q9 (FK de todo el esquema en una consulta, SQL Server).
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -41,6 +43,7 @@ from sqlalchemy import (
     Engine,
     ForeignKey,
     Identity,
+    Inspector,
     Integer,
     MetaData,
     Numeric,
@@ -307,4 +310,60 @@ def test_staging_update_with_schema_and_no_default_database(key: str) -> None:
     finally:
         table.drop(engine, checkfirst=True)
         no_default_db.dispose()
+        engine.dispose()
+
+
+@pytest.mark.parametrize("key", [p.values[0] for p in _target_params(only=frozenset({"mssql"}))])
+def test_mssql_fk_references_by_schema_match_the_inspector(key: str) -> None:
+    """Q9: en SQL Server, las FK de todo el esquema en una consulta dan lo mismo que ``get_foreign_keys`` por tabla.
+
+    Cubre dos FK a la misma tabla, una FK a sí misma, una FK hacia otro esquema, ``schema=None`` y nombres con otro case.
+    """
+    env = _url_env(key)
+    if not os.environ.get(env):
+        pytest.skip(f"{env} no definida")
+    engine = _make_target_engine(key)
+    default = inspect(engine).default_schema_name
+    other = f"zz_it_q9_{uuid.uuid4().hex[:6]}"
+    prefix = f"zzq{uuid.uuid4().hex[:6]}"
+    md = MetaData()
+    parent = Table(f"{prefix}_p", md, Column("id", Integer, primary_key=True, autoincrement=False))
+    child = Table(
+        f"{prefix}_c",
+        md,
+        Column("id", Integer, primary_key=True, autoincrement=False),
+        Column("p1", Integer, ForeignKey(parent.c.id)),
+        Column("p2", Integer, ForeignKey(parent.c.id)),
+        Column("self_id", Integer, ForeignKey(f"{prefix}_c.id")),
+    )
+    cross = Table(
+        f"{prefix}_x",
+        md,
+        Column("id", Integer, primary_key=True, autoincrement=False),
+        Column("p", Integer, ForeignKey(parent.c.id)),
+        schema=other,
+    )
+    with engine.begin() as conn:
+        conn.execute(CreateSchema(other))
+    try:
+        md.create_all(engine)
+        for schema in (None, default, other):
+            insp = inspect(engine)
+            tables = [t for t in insp.get_table_names(schema=schema) if t.startswith(prefix)]
+            expected = {
+                t: sorted(fk["referred_table"] for fk in insp.get_foreign_keys(t, schema=schema)) for t in tables
+            }
+            with patch.object(Inspector, "get_foreign_keys", side_effect=AssertionError("vía tabla a tabla")):
+                got = DumpOrchestrator._referred_tables(tables, inspect(engine), schema)
+            assert {t: sorted(refs) for t, refs in got.items()} == expected
+        assert expected == {cross.name: [parent.name]}
+
+        upper = [parent.name.upper(), child.name.upper()]
+        got_upper = DumpOrchestrator._referred_tables(upper, inspect(engine), default)
+        assert sorted(got_upper[child.name.upper()]) == sorted([parent.name, parent.name, child.name])
+        assert got_upper[parent.name.upper()] == []
+    finally:
+        md.drop_all(engine, checkfirst=True)
+        with engine.begin() as conn:
+            conn.execute(DropSchema(other))
         engine.dispose()

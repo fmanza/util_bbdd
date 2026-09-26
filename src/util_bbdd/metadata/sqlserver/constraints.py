@@ -94,3 +94,27 @@ def fetch_foreign_keys_sync(connection: Any, schema: str | None = None, table: s
         )
 
     return result
+
+
+def fetch_schema_fk_references_sql() -> str:
+    """SQL con una fila por clave foránea de las tablas de un schema: ``(tabla, schema_referido, tabla_referida)``.
+
+    Una sola consulta por schema, para quien necesita el grafo de dependencias FK de muchas tablas (``dump``: orden de
+    carga y tablas referenciadas en la limpieza). El ``get_foreign_keys`` de SQLAlchemy para SQL Server hace una
+    consulta por tabla sobre ``INFORMATION_SCHEMA`` que tarda ≈ 34 ms: 200 tablas × 3 llamadas eran 20,6 s de un
+    volcado de 33,9 s (Q9, performance-audit de dump 2026-09-26).
+
+    Parámetro: ``:schema`` (estilo de ``sqlalchemy.text``, válido con pymssql y pyodbc). Las FK deshabilitadas
+    (``NOCHECK``) también se devuelven, igual que en ``Inspector.get_foreign_keys``.
+
+    Returns:
+        str: SQL query para (TABLE_NAME, REF_SCHEMA, REF_TABLE), ordenado por tabla y nombre de FK.
+    """
+    return (
+        "SELECT t.name AS TABLE_NAME, SCHEMA_NAME(rt.schema_id) AS REF_SCHEMA, rt.name AS REF_TABLE "
+        "FROM sys.foreign_keys fk "
+        "JOIN sys.tables t ON t.object_id = fk.parent_object_id "
+        "JOIN sys.tables rt ON rt.object_id = fk.referenced_object_id "
+        "WHERE t.schema_id = SCHEMA_ID(:schema) "
+        "ORDER BY t.name, fk.name"
+    )
