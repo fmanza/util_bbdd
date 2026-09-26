@@ -724,6 +724,7 @@ class DumpOrchestrator:
             return 1
         if self._single_writer_target("parallel_pk_ranges", requested):
             return 1
+        self._warn_slow_pk_ranges(requested)
         capacities = [
             DumpOrchestrator._pool_capacity(self._cfg.source_engine),
             DumpOrchestrator._pool_capacity(self._cfg.target_engine),
@@ -935,6 +936,23 @@ class DumpOrchestrator:
                 )
                 return cap
         return requested
+
+    def _warn_slow_pk_ranges(self, requested: int) -> None:
+        """Avisa si ``parallel_pk_ranges > 1`` con destino MySQL/MariaDB, donde la carga por rangos es más lenta.
+
+        Q4 (performance-audit de dump 2026-09-26): a 3,5M filas, 4 rangos tardan +84 % a +94 % frente a la carga
+        secuencial (que solapa lectura y escritura), también con 2 GB de redo log. No se fuerza a 1: es más lento, no
+        incorrecto.
+        """
+        dialect = self._cfg.target_engine.dialect.name
+        if dialect not in ("mysql", "mariadb"):
+            return
+        _log.warning(
+            "parallel_pk_ranges=%d con destino %s: la carga por rangos de PK es más lenta que la secuencial en este "
+            "motor (medido: casi el doble de tiempo a 3,5M filas). Se recomienda parallel_pk_ranges=1.",
+            requested,
+            dialect,
+        )
 
     def _single_writer_target(self, option: str, requested: int) -> bool:
         """``True`` (con WARNING) si el destino admite un solo escritor a la vez (SQLite) y se pidió paralelismo.

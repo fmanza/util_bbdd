@@ -119,7 +119,10 @@ class DumpConfig:
             en las columnas comunes; el resto se cargan completas. La concurrencia total
             (``max_parallel_tables * parallel_pk_ranges``) se degrada con warning a la
             capacidad real del pool. **Requiere** que el destino no tenga triggers per-fila
-            dependientes del orden de inserción.
+            dependientes del orden de inserción. Efecto medido con 4 rangos a 3,5M filas (frente a la
+            carga secuencial, que ya solapa lectura y escritura): SQL Server −37 % (recomendado);
+            PostgreSQL −9 % y Oracle −2 % (poca ganancia); MySQL y MariaDB casi el doble de tiempo
+            (no recomendado; se avisa en el log); SQLite se fuerza a 1 (un solo escritor).
         bulk_audit_strict: Se pasa como ``audit_strict`` a cada ``BulkCrud`` y ``ParallelBulkLoader`` del volcado.
             ``False`` (default): un fallo al escribir el CSV de auditoría no interrumpe la carga; se registra como
             ERROR y se cuenta en ``DumpResult.audit_summary.audit_failures``. ``True``: el fallo deshace la carga de

@@ -683,6 +683,35 @@ class TestSqliteSourceWarning:
         dst.dispose()
 
 
+class TestSlowPkRangesWarning:
+    """Q4: con destino MySQL/MariaDB, parallel_pk_ranges > 1 es más lento que la carga secuencial; se avisa sin forzar."""
+
+    def _orch(self, dialect: str) -> DumpOrchestrator:
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = DumpConfig(source_engine=_make_engine(), target_engine=_make_engine(dialect))
+        orch._cfg.target_engine.pool.size = "x"  # capacidad no determinable: se respeta lo pedido
+        orch._cfg.source_engine.pool.size = "x"
+        return orch
+
+    @pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
+    def test_warns_but_keeps_requested_ranges(self, caplog, dialect):
+        with caplog.at_level("WARNING", logger="util_bbdd.dump.orchestrator"):
+            assert self._orch(dialect)._resolve_range_count(4, 1) == 4
+        assert "parallel_pk_ranges=4" in caplog.text
+        assert "más lenta" in caplog.text
+
+    @pytest.mark.parametrize("dialect", ["postgresql", "mssql", "oracle"])
+    def test_no_warning_on_other_targets(self, caplog, dialect):
+        with caplog.at_level("WARNING", logger="util_bbdd.dump.orchestrator"):
+            assert self._orch(dialect)._resolve_range_count(4, 1) == 4
+        assert "más lenta" not in caplog.text
+
+    def test_no_warning_without_ranges(self, caplog):
+        with caplog.at_level("WARNING", logger="util_bbdd.dump.orchestrator"):
+            assert self._orch("mysql")._resolve_range_count(1, 1) == 1
+        assert caplog.text == ""
+
+
 class TestSqliteTargetSingleWriter:
     """PD-06: SQLite admite un solo escritor; en paralelo, 'database is locked' y la tabla quedaba a medio cargar."""
 

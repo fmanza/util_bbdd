@@ -29,7 +29,7 @@
 | 1.1 (Q1) | `arraysize = chunk_size` en lecturas Oracle | **Hecho** (sesión `2026-09-26g-refactor-dump-oracle-arraysize`) | −29 % medido (58,6 → 41,4 s) | Con rangos (1 rep.): 32,9 s, ya no empeora; pendiente PD-11 |
 | 1.2 (Q2) | `stream_results=True, max_row_buffer=chunk_size` en la lectura | **Hecho** (sesión `2026-09-26i-refactor-dump-stream-results`) | Memoria −62 % (PG) / −83 % (MySQL/MariaDB); tiempo ±5 % | Requisito de 1.3 en MySQL/MariaDB. Memoria actual: 417 / 859 MB |
 | 1.3 (Q3) | Solape lectura/escritura (1 hilo lector, cola de 2 chunks) | **Hecho** (sesión `2026-09-26j-refactor-dump-read-write-overlap`: MySQL −29 %, MariaDB −25 %, SQL Server −17 %, PG −15 %) | PG −45 % (con lotes de 20K), MySQL −31 %, MariaDB −25 %, SQLite −16 %, SQL Server −19 % | Prototipo: variante `prefetch` de `scripts/bench_dump.py` |
-| 1.4 (Q4) | Guía por motor y aviso para `parallel_pk_ranges` | Pendiente | SQL Server −48 % (4 rangos + stream) | Perjudicial en MySQL/MariaDB |
+| 1.4 (Q4) | Guía por motor y aviso para `parallel_pk_ranges` | **Hecho** (sesión `2026-09-26k-refactor-dump-ranges-guidance`: SQL Server −37 %, PG −9 %, Oracle −2 %, MySQL/MariaDB +84–94 % con aviso) | SQL Server −48 % (4 rangos + stream) | Perjudicial en MySQL/MariaDB |
 | 1.5 (Q7) | Banco real en `scripts/` y guías | **Hecho** (2026-09-25b) | — | Pendiente menor: tabla «Multi-Dialect Considerations» de `.claude/performance-audit-guide.md` sin origen medido |
 
 **Métrica de éxito de la Fase 1** (nueva línea base; objetivo = Δ validado previamente aplicado a la nueva base, a
@@ -45,6 +45,19 @@ confirmar con la implementación real, ya que `prep` ha bajado y el peso relativ
 | SQLite (desde PG) | 21,3 s · 421 MB | ≤ 19 s y ≤ 200 MB | no aplica (se fuerza 1) |
 
 Tolerancia de regresión: ≤ 5 % en cualquier motor o variante (mediana de 3).
+
+## Resultado de la Fase 1 (2026-09-26, `large`, 3,5M filas)
+
+| Motor | Línea base v0.15.0 | Tras Fase 0 + Fase 1 | Memoria pico |
+|---|---|---|---|
+| PostgreSQL | 19,1 s | ≈ 14,8 s | 417 → 170 MB |
+| MySQL | 57,0 s | ≈ 38 s | 859 → 162 MB |
+| MariaDB | 52,9 s | ≈ 37,5 s | 859 → 162 MB |
+| SQL Server | 65,8 s | ≈ 57–63 s (ruidoso); ≈ 34–44 s con `parallel_pk_ranges=4` | 164 MB |
+| Oracle | 57,6 s | ≈ 32–38 s | 171 MB |
+| SQLite (desde PG) | 21,3 s | ≈ 19,8 s | 421 → 175 MB |
+
+Detalle en las sesiones `2026-09-26g` (Q1), `2026-09-26i` (Q2), `2026-09-26j` (Q3) y `2026-09-26k` (Q4).
 
 ## Fase 2 — Medio plazo
 

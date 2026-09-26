@@ -46,7 +46,7 @@ flowchart TD
 | `sync_pk_sequences` | `bool` | `True` | Resincronizar contadores PK tras la carga |
 | `manage_indexes` | `bool` | `False` | Deshabilitar/reconstruir índices secundarios no únicos |
 | `max_parallel_tables` | `int` | `1` | Tablas en paralelo dentro del mismo nivel FK |
-| `parallel_pk_ranges` | `int` | `1` | Rangos de PK para particionar tablas grandes |
+| `parallel_pk_ranges` | `int` | `1` | Rangos de PK para particionar tablas grandes (PK de una columna entera). Medido con 4 rangos a 3,5M filas frente a la carga secuencial: SQL Server −37 % (recomendado); PostgreSQL −9 % y Oracle −2 %; MySQL/MariaDB casi el doble de tiempo (no recomendado, WARNING); SQLite se fuerza a 1. Necesita un pool con capacidad ≥ rangos × `max_parallel_tables` |
 | `bulk_audit_path` | `Path \| None` | `None` | CSV de auditoría de los inserts en destino; `None` = sin auditoría |
 | `bulk_audit_strict` | `bool` | `False` | Se pasa como `audit_strict` a cada `BulkCrud` y `ParallelBulkLoader`. `False`: un fallo al escribir el CSV no interrumpe la carga y se cuenta en `audit_summary.audit_failures`. `True`: el fallo deshace la carga de esa tabla (o partición) y queda como error de la tabla |
 
@@ -84,6 +84,7 @@ Ver tabla de `DumpConfig` arriba. Los engines deben estar conectables antes de l
 | Error capturado en `TableDumpResult.error` | Fallo en carga de una tabla individual; el resto continúa |
 | Origen SQLite (WARNING al crear el orquestador) | SQLite no tiene tipos de columna: las fechas se leen como texto y los DECIMAL como `float`. Un destino servidor convierte las fechas; con destino SQLite, las tablas con columnas de fecha terminan en `error`. Los DECIMAL pueden perder precisión |
 | Destino SQLite con `parallel_pk_ranges` o `max_parallel_tables` > 1 (WARNING) | SQLite admite un solo escritor: se carga sin paralelismo |
+| Destino MySQL/MariaDB con `parallel_pk_ranges` > 1 (WARNING) | La carga por rangos es más lenta que la secuencial en estos motores; se aplica igualmente |
 
 ## 3. Componentes y Clases
 
