@@ -191,6 +191,33 @@ class TestRowsCommittedTracking:
             total = conn.exec_driver_sql("SELECT COUNT(*) FROM items").scalar()
         assert total == 2
 
+    def test_rows_undone_by_a_failed_session_are_not_counted_by_the_next_one(self) -> None:
+        """La fila 3 del caso anterior se deshizo con la sesión fallida; la siguiente carga que termina bien no debe
+        contarla. Antes se quedaba como pendiente y rows_committed daba 4 con 3 filas en la BD."""
+        engine = _make_sqlite_engine()
+        crud = BulkCrud(engine, chunk_size=1, commit_every_n_chunks=2)
+        original_execute = crud._batch_statement_executor._insert_strategy.execute
+        call_count = {"n": 0}
+
+        def _flaky_execute(*, connection: Any, stmt: Any, records: Any) -> None:
+            call_count["n"] += 1
+            if call_count["n"] == 4:
+                raise RuntimeError("boom on 4th sub-batch")
+            original_execute(connection=connection, stmt=stmt, records=records)
+
+        crud._batch_statement_executor._insert_strategy.execute = _flaky_execute  # type: ignore[method-assign]
+        with pytest.raises(RuntimeError, match="boom"):
+            crud.bulk_insert_from_df(
+                pd.DataFrame({"id": [1, 2, 3, 4, 5], "name": ["a", "b", "c", "d", "e"]}), "items", generar_sql=False
+            )
+
+        crud.bulk_insert_from_df(pd.DataFrame({"id": [6], "name": ["f"]}), "items", generar_sql=False)
+
+        with engine.connect() as conn:
+            total = conn.exec_driver_sql("SELECT COUNT(*) FROM items").scalar()
+        assert total == 3
+        assert crud.rows_committed == 3
+
 
 class TestCadenceEndToEnd:
     def test_all_rows_persist_with_cadence(self) -> None:

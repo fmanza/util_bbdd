@@ -1070,6 +1070,9 @@ class BulkCrud:
                         # PL-1 (audit-code de ParallelBulkLoader): lo confirmado por commits periódicos, para contar
                         # las filas que no constan en el CSV.
                         committed_rows = cadence.rows_committed - committed_before
+                        # Lo pendiente se deshace con la sesión: sin descartarlo, la siguiente que termina bien lo
+                        # sumaba a rows_committed.
+                        cadence.discard_pending()
                         raise
                 return
             with self.engine.begin() as conn, self._session.bind(conn):
