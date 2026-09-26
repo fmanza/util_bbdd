@@ -106,6 +106,13 @@ VARIANTS: dict[str, dict[str, Any]] = {
     "indexes": {"manage_indexes": True},
     "nocheck": {"skip_constraint_validation": True},
     "redump": {"keep_target": True},  # destino ya cargado: mide la limpieza (TRUNCATE/DELETE) de un volcado repetido
+    # 3.3 (hipótesis): INSERT /*+ APPEND_VALUES */ en Oracle (carga directa). Oracle no permite dos cargas directas en la
+    # misma tabla y transacción (ORA-12838): sin commit por lote debe fallar si el hint se aplica.
+    "commit1": {"commit_every_n_chunks": 1},
+    "append": {"append_values": True},
+    "append_commit1": {"append_values": True, "commit_every_n_chunks": 1},
+    "commit1_50k": {"commit_every_n_chunks": 1, "write_batch_size": 50_000},
+    "append_commit1_50k": {"append_values": True, "commit_every_n_chunks": 1, "write_batch_size": 50_000},
     "combo": {"collect_row_counts": False, "stream": True, "arraysize": 5000},
     "combo_ranges4": {"collect_row_counts": False, "stream": True, "arraysize": 5000, "parallel_pk_ranges": 4},
     # Mejores combinaciones por motor (validación, FASE 5)
@@ -523,6 +530,19 @@ def install_instrumentation() -> None:
     _wrap(BulkCrud, "__init__", "bulkcrud_init")
 
 
+def _install_append_values(engine: Engine) -> None:
+    """Variantes ``append*`` (3.3): añade ``/*+ APPEND_VALUES */`` a los INSERT por lotes (executemany) del destino Oracle."""
+    if engine.dialect.name != "oracle":
+        return
+
+    def _hint(_conn: Any, _cursor: Any, statement: str, parameters: Any, _context: Any, executemany: bool) -> Any:
+        if executemany and statement.lstrip().upper().startswith("INSERT INTO"):
+            statement = statement.replace("INSERT INTO", "INSERT /*+ APPEND_VALUES */ INTO", 1)
+        return statement, parameters
+
+    event.listen(engine, "before_cursor_execute", _hint, retval=True)
+
+
 def _skip_constraint_validation() -> None:
     """Variante ``nocheck``: rehabilita constraints sin revalidar datos (mide el coste de la validación)."""
     from sqlalchemy import text as _text
@@ -645,6 +665,7 @@ def run_one(engine_key: str, variant: str, volume: str) -> dict[str, Any]:
     keep_target = opts.pop("keep_target", False)
     use_audit = opts.pop("audit", False)
     audit_history = opts.pop("audit_history", False)
+    append_values = opts.pop("append_values", False)
     if opts.pop("skip_constraint_validation", False):
         _skip_constraint_validation()
     install_instrumentation()
@@ -660,6 +681,8 @@ def run_one(engine_key: str, variant: str, volume: str) -> dict[str, Any]:
     dst_engine = make_engine(engine_key)
     if not keep_target:
         reset_target(dst_engine, engine_key)
+    if append_values:
+        _install_append_values(dst_engine)
     source = src_engine.execution_options(stream_results=True) if use_stream else src_engine
     cfg = DumpConfig(
         source_engine=source,
