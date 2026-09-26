@@ -60,6 +60,8 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **dump (avisos)**: el WARNING de `max_allowed_packet` con destino MySQL/MariaDB (lote de más de 1000 filas) ya no
+  sale en todos los volcados: solo si alguna tabla destino tiene columnas TEXT/BLOB/JSON, y las nombra.
 - **dump (rendimiento, PostgreSQL)**: con destino PostgreSQL, el volcado escribe en lotes de 20 000 filas (una
   sentencia `COPY` por lote) aunque lea de 5 000 en 5 000: −22 % a 3,5M filas (escritura de 11,4 a 7,2 s), +20 MB de
   memoria. Resto de motores sin cambios. Configurable con `DumpConfig.write_batch_size` (ver *Added*).

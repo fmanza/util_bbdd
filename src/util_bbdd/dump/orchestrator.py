@@ -37,6 +37,7 @@ import pandas as pd
 
 from sqlalchemy import Engine, Inspector, Integer, event, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.sql import sqltypes
 
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader, ParallelLoadResult
 from util_bbdd.bulk.audit import AuditError, AuditManager
@@ -237,7 +238,6 @@ class DumpOrchestrator:
         self._src_insp: Inspector = inspect(config.source_engine)
         self._dst_insp: Inspector = inspect(config.target_engine)
         self._warn_pool_config(config.target_engine)
-        self._warn_chunk_size(config.target_engine, config.chunk_size)
         self._warn_sqlite_source(config.source_engine, config.target_engine)
         self._reset_audit_tracking()
 
@@ -289,6 +289,7 @@ class DumpOrchestrator:
         # Orden topológico filtrado a tablas presentes en destino
         effective_src_order: list[str] = [t for t in load_order if t in src_to_dst]
         effective_dst_order: list[str] = [src_to_dst[t] for t in effective_src_order]
+        self._warn_large_batch_with_lobs(effective_dst_order)
 
         _log.info(
             "Volcado: %d tablas origen, %d en destino, %d faltantes, %d ciclos FK.",
@@ -1359,24 +1360,38 @@ class DumpOrchestrator:
             "(pueden perder precisión), porque SQLite no tiene tipos de columna."
         )
 
-    @staticmethod
-    def _warn_chunk_size(engine: Engine, chunk_size: int) -> None:
-        """Advierte si chunk_size es alto para destinos MariaDB/MySQL.
+    def _warn_large_batch_with_lobs(self, dst_tables: list[str]) -> None:
+        """Advierte si el lote de escritura es alto para MariaDB/MySQL y alguna tabla destino tiene columnas LOB/JSON.
 
-        Tablas con columnas TEXT/BLOB/JSON pueden producir paquetes INSERT que superen
-        ``max_allowed_packet`` del servidor (16 MB por defecto en MariaDB antiguas),
-        resultando en ``Lost connection to server during query`` (error 2013).
+        Filas con TEXT/BLOB/JSON extensos pueden producir paquetes INSERT que superen ``max_allowed_packet`` del
+        servidor (16 MB por defecto en MariaDB antiguas), con ``Lost connection to server during query`` (error 2013).
+        Paso 2.3 del roadmap de dump (2026-09-26): antes se avisaba en todos los volcados a estos motores, aunque ninguna
+        tabla tuviera esas columnas (sin ellas, lotes de 5000 no dieron errores).
         """
+        engine = self._cfg.target_engine
         if engine.dialect.name not in ("mariadb", "mysql"):
             return
-        if chunk_size > 1000:
-            _log.warning(
-                "chunk_size=%d con destino %s puede causar 'Lost connection to server during query' "
-                "en tablas con columnas TEXT/BLOB/JSON extensas (max_allowed_packet excedido). "
-                "Considera reducir chunk_size a 500 o menos, o aumentar max_allowed_packet en el servidor.",
-                chunk_size,
-                engine.dialect.name,
-            )
+        batch = self._resolve_write_batch_size()
+        if batch <= 1000:
+            return
+        lob_tables: list[str] = []
+        for table in dst_tables:
+            try:
+                columns = self._dst_insp.get_columns(table, schema=self._cfg.target_schema)
+            except SQLAlchemyError:
+                continue
+            if any(isinstance(col["type"], (sqltypes.Text, sqltypes.LargeBinary, sqltypes.JSON)) for col in columns):
+                lob_tables.append(table)
+        if not lob_tables:
+            return
+        _log.warning(
+            "Lote de escritura de %d filas con destino %s y columnas TEXT/BLOB/JSON en %s: puede causar 'Lost "
+            "connection to server during query' (max_allowed_packet excedido). Considera write_batch_size=500 o menos, "
+            "o aumentar max_allowed_packet en el servidor.",
+            batch,
+            engine.dialect.name,
+            ", ".join(lob_tables[:5]) + (f" y {len(lob_tables) - 5} más" if len(lob_tables) > 5 else ""),
+        )
 
     @staticmethod
     def _warn_pool_config(engine: Engine) -> None:

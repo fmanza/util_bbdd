@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.sql import sqltypes
 
 from util_bbdd._core.exceptions import DumpError
 from util_bbdd.dump._models import IndexActionResult
@@ -681,6 +682,46 @@ class TestSqliteSourceWarning:
         assert "Origen SQLite" in caplog.text
         src.dispose()
         dst.dispose()
+
+
+class TestLargeBatchWithLobsWarning:
+    """Paso 2.3: el aviso de max_allowed_packet solo si alguna tabla destino tiene columnas TEXT/BLOB/JSON."""
+
+    def _orch(self, dialect: str, column_types: dict[str, list[object]], **cfg: object) -> DumpOrchestrator:
+        orch = DumpOrchestrator.__new__(DumpOrchestrator)
+        orch._cfg = DumpConfig(source_engine=_make_engine(), target_engine=_make_engine(dialect), **cfg)  # type: ignore[arg-type]
+        orch._dst_insp = MagicMock()
+        orch._dst_insp.get_columns.side_effect = lambda table, schema=None: [{"type": t} for t in column_types[table]]
+        return orch
+
+    def _warned(self, caplog, orch: DumpOrchestrator, tables: list[str]) -> bool:
+        with caplog.at_level("WARNING", logger="util_bbdd.dump.orchestrator"):
+            orch._warn_large_batch_with_lobs(tables)
+        return "max_allowed_packet" in caplog.text
+
+    @pytest.mark.parametrize("lob", [sqltypes.Text(), sqltypes.LargeBinary(), sqltypes.JSON()])
+    @pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
+    def test_warns_with_lob_columns(self, caplog, dialect, lob):
+        orch = self._orch(dialect, {"a": [sqltypes.Integer()], "docs": [sqltypes.Integer(), lob]})
+        assert self._warned(caplog, orch, ["a", "docs"])
+        assert "docs" in caplog.text and " a," not in caplog.text
+
+    def test_no_warning_without_lob_columns(self, caplog):
+        orch = self._orch("mysql", {"a": [sqltypes.Integer(), sqltypes.String(50)]})
+        assert not self._warned(caplog, orch, ["a"])
+
+    def test_no_warning_with_small_batch(self, caplog):
+        orch = self._orch("mysql", {"docs": [sqltypes.Text()]}, chunk_size=1000)
+        assert not self._warned(caplog, orch, ["docs"])
+
+    def test_no_warning_on_other_targets(self, caplog):
+        orch = self._orch("postgresql", {"docs": [sqltypes.Text()]})
+        assert not self._warned(caplog, orch, ["docs"])
+
+    def test_introspection_error_is_skipped(self, caplog):
+        orch = self._orch("mysql", {})
+        orch._dst_insp.get_columns.side_effect = SQLAlchemyError("no se puede reflejar")
+        assert not self._warned(caplog, orch, ["docs"])
 
 
 class TestSlowPkRangesWarning:

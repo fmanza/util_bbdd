@@ -205,6 +205,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-09-26n-hotfix-bulk-staging-schema | **hotfix: tabla temporal del UPDATE por staging sin esquema (PD-12)** — `No database selected` sin BD por defecto y `esquema.tabla`; la temporal se crea en el esquema de la destino; MariaDB (PyMySQL y Connector/Python) y MySQL: OK en los dos casos | develop | hotfix | CLOSED | `2026-09-26n-hotfix-bulk-staging-schema/TRACEABILITY.md` |
 | 2026-09-26o-fase2-medicion | **medición de la Fase 2** — `baseline`, `chunk20k` e `indexes` en 7 configuraciones (tras Q1–Q4 y PF-09): `chunk20k` PG −31 %, SQL Server +81 %, resto neutro; `indexes` SQL Server −8 %, Oracle −14 %, PG neutro | develop | medición | CLOSED | `2026-09-26o-fase2-medicion/results/` |
 | 2026-09-26p-feature-dump-write-batch-size | **new-feature: `DumpConfig.write_batch_size` (Q5)** — lote de escritura separado de la lectura; `None` = 20 000 en PostgreSQL (sin `commit_every_n_chunks`), `chunk_size` en el resto; PG `baseline` −22 %, resto sin cambios | develop | new-feature | CLOSED | `2026-09-26p-feature-dump-write-batch-size/TRACEABILITY.md` |
+| 2026-09-26q-refactor-dump-lob-warning | **refactor: aviso de `max_allowed_packet` solo con columnas TEXT/BLOB/JSON (2.3)** — sale en `run()` tras el análisis y con el lote de escritura efectivo; desaparece del resto de volcados a MySQL/MariaDB | develop | refactor | CLOSED | `2026-09-26q-refactor-dump-lob-warning/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 
