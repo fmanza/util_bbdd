@@ -218,6 +218,8 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-09-26zb-q9b-reflect-sin-fk | **perf(bulk,dump)** `reflect_foreign_keys` (opción aditiva de `BulkCrud`/`ParallelBulkLoader`); dump refleja sin FK; 200 tablas SQL Server 15,8 → 14,3 s | develop | performance-audit-dump | CLOSED | `2026-09-26zb-q9b-reflect-sin-fk/TRACEABILITY.md` |
 | 2026-09-26zc-oracle-append-values | 3.3: hipótesis `APPEND_VALUES` en Oracle medida y descartada; variantes `append*`/`commit1*` en `scripts/bench_dump.py` | develop | performance-audit-dump | CLOSED | `2026-09-26zc-oracle-append-values/NOTAS.md` |
 | 2026-09-26zd-version-closure-v0.17.0 | **release: v0.17.0** — Q9/Q9b (SQL Server 200 tablas 33,9 → 14,3 s), `reflect_foreign_keys`; checklist verde (5079/199; integración 338/0; build 0.17.0); tag anotado `v0.17.0` sobre `df94154` | develop | version-closure | CLOSED | `2026-09-26zd-version-closure-v0.17.0/TRACEABILITY.md` |
+| 2026-09-26ze-code-reusability-bulk-dump | **refactor(bulk,dump)** sin cambios funcionales: informe de reutilización (9 secciones), PLAN/AUDIT_PLAN, R1–R10 (`orchestrator.py` 1510 → 1083 líneas, `batch.py` → fachada de 5 módulos, helpers en `bulk/_support/`); **fix(dump)** `DumpConfig` validaba tarde y vaciaba el destino | develop | refactor + hotfix | CLOSED | `2026-09-26ze-code-reusability-bulk-dump/TRACEABILITY.md` |
+| 2026-09-26zf-version-closure-v0.17.1 | **release: v0.17.1** — fix de `DumpConfig` y refactor de reutilización; checklist verde (5089/199; integración 338/0; build 0.17.1); CHANGELOG con `[Unreleased]` único; tag anotado `v0.17.1` | develop | version-closure | CLOSED | `2026-09-26zf-version-closure-v0.17.1/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 

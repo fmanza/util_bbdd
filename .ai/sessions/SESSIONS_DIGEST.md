@@ -177,6 +177,8 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-26 | Q9b: reflexión sin FK | `BulkCrud(reflect_foreign_keys=False)` en dump (SQL Server 32 → 16 ms/tabla); 200 tablas 15,8 → 14,3 s (−58 % vs v0.16.1) | CLOSED |
 | 2026-09-26 | 3.3: Oracle APPEND_VALUES | Descartada: +20 % sin commit por lote; con commit por lote las tablas crecen 10–127× | CLOSED |
 | 2026-09-26 | Cierre de versión v0.17.0 | CHANGELOG `[0.17.0]` + `pyproject.toml`; checklist verde (5079/199; integración 338/0; build 0.17.0); enlaces de CONSTRAINTS_AUDIT_INDEX corregidos; tag `v0.17.0` | CLOSED |
+| 2026-09-26 | Refactor de reutilización bulk/dump + fix DumpConfig | R1–R10 sin cambios funcionales (código movido idéntico por AST, sabotaje por punto de uso); `DumpConfig` valida antes de vaciar el destino | CLOSED |
+| 2026-09-26 | Cierre de versión v0.17.1 | CHANGELOG `[0.17.1]` + `pyproject.toml`; checklist verde (5089/199; integración 338/0; build 0.17.1); `[Unreleased]` históricos corregidos; tag `v0.17.1` | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 
