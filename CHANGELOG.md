@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **bulk/dump/metadata**: las diez consultas de catálogo que `bulk` y `dump` escribían por su cuenta (privilegios de
+  PostgreSQL, índices secundarios, índice clustered, motor de almacenamiento, definición de FK, identity de Oracle) viven
+  ahora en `metadata/<motor>/` como funciones `fetch_*_sql()`, con el mismo SQL (Reglas #1 y #3). Sin cambios de
+  comportamiento.
+
 ## [0.17.1] - 2026-09-26
 
 Refactor de reutilización de `bulk` y `dump` sin cambios funcionales (mismo SQL, mismos resultados, misma API) y un
