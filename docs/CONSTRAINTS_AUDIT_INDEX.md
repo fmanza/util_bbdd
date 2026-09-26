@@ -22,21 +22,21 @@ Se han creado **4 documentos** especializados para analizar el rendimiento de de
 ## 🚀 Punto de Partida (Elige Uno)
 
 ### 👤 Soy usuario final (Dev, QA, Architect)
-**→ Lee primero**: [`docs/CONSTRAINTS_QUICK_REFERENCE.md`](./docs/CONSTRAINTS_QUICK_REFERENCE.md) (5 min)  
-**→ Luego**: [`docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md`](./docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md) (30 min)  
+**→ Lee primero**: [`docs/CONSTRAINTS_QUICK_REFERENCE.md`](CONSTRAINTS_QUICK_REFERENCE.md) (5 min)  
+**→ Luego**: [`docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md`](PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md) (30 min)  
 **→ Accción**: `/performance-audit-constraints` en Claude Code o copia el agent prompt a tu chat
 
 ---
 
 ### 🤖 Soy arquitecto o especialista técnico
-**→ Lee primero**: [`.github/prompts/performance_audit_constraints.prompt.md`](./.github/prompts/performance_audit_constraints.prompt.md) (2-4h)  
-**→ Luego**: [`.github/prompts/performance_audit_constraints_agent.prompt.md`](./.github/prompts/performance_audit_constraints_agent.prompt.md)  
+**→ Lee primero**: `.github/prompts/performance_audit_constraints.prompt.md` (2-4h)  
+**→ Luego**: `.github/prompts/performance_audit_constraints_agent.prompt.md`  
 **→ Aplica**: Personaliza inputs + ejecuta análisis completo
 
 ---
 
 ### 🦾 Soy un agente LLM (Claude, GPT, Gemini)
-**→ Tu prompt**: [`.github/prompts/performance_audit_constraints_agent.prompt.md`](./.github/prompts/performance_audit_constraints_agent.prompt.md)  
+**→ Tu prompt**: `.github/prompts/performance_audit_constraints_agent.prompt.md`  
 **→ Método**: Ejecuta 5 fases (PLAN → AUDIT_PLAN → AUDIT_CODE → IMPROVEMENT_PLAN → VERSION)  
 **→ Duración**: 6-10 horas
 
