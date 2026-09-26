@@ -9,6 +9,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **dump**: si fallaba la escritura de una tabla, la conexión de lectura del origen se devolvía al pool con el hilo que
+  lee por adelantado aún usándola (podía cerrarse bajo una lectura en curso o entregarse a la siguiente tabla). Ahora se
+  espera a que termine ese hilo antes de devolverla. En la carga por rangos de PK, el lector de cada partición también
+  se cierra al fallar la escritura.
+- **bulk**: con `strip_strings=False`, los valores `numpy.str_` en columnas object se seguían recortando; ahora se envían
+  intactos (como `str`).
 - **bulk**: en SQL Server con **pymssql**, un DECIMAL de más de ~15 dígitos se redondeaba sin aviso si el mismo lote
   tenía un valor en notación exponencial, incluido un cero leído de una columna `DECIMAL(p,10)` (`0E-10`):
   `12345678901234567.89` llegaba como `12345678901234568`. pymssql escribe los parámetros en el SQL y SQL Server leía

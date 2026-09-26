@@ -492,12 +492,13 @@ class ParallelBulkLoader:
         """Un intento de carga de la partición; devuelve las filas insertadas."""
         if self._disable_constraints and not skip_maintenance:
             return self._load_with_maintenance(crud, tabla_destino, reader, override_identity, exclude_autoincrement_pk)
-        rows: int = crud.bulk_insert_from_chunks(
-            reader(),
-            tabla_destino,
-            override_identity=override_identity,
-            exclude_autoincrement_pk=exclude_autoincrement_pk,
-        )
+        with _closing_iterable(reader()) as chunks:
+            rows: int = crud.bulk_insert_from_chunks(
+                chunks,
+                tabla_destino,
+                override_identity=override_identity,
+                exclude_autoincrement_pk=exclude_autoincrement_pk,
+            )
         return rows
 
     @staticmethod
@@ -546,17 +547,18 @@ class ParallelBulkLoader:
         total = 0
         with crud.bulk_session():
             with crud.maintenance_scope(tabla_destino, disable_constraints=True, disable_indexes=False):
-                for chunk in reader():
-                    if chunk.empty:
-                        continue
-                    crud.bulk_insert_from_df(
-                        chunk,
-                        tabla_destino,
-                        generar_sql=False,
-                        override_identity=override_identity,
-                        exclude_autoincrement_pk=exclude_autoincrement_pk,
-                    )
-                    total += len(chunk)
+                with _closing_iterable(reader()) as chunks:
+                    for chunk in chunks:
+                        if chunk.empty:
+                            continue
+                        crud.bulk_insert_from_df(
+                            chunk,
+                            tabla_destino,
+                            generar_sql=False,
+                            override_identity=override_identity,
+                            exclude_autoincrement_pk=exclude_autoincrement_pk,
+                        )
+                        total += len(chunk)
         return total
 
     @contextmanager
@@ -648,6 +650,21 @@ class ParallelBulkLoader:
             warn_if_audit_disabled=False,
         )
         return crud.reflect_table(tabla_destino)
+
+
+@contextmanager
+def _closing_iterable(iterable: Iterable[pd.DataFrame]) -> Generator[Iterable[pd.DataFrame], None, None]:
+    """Entrega ``iterable`` y, al salir (también por excepción), lo cierra si es un generador.
+
+    A2 (audit-code 2026-09-26): un ``for`` no cierra el generador de un lector cuando falla la escritura; su conexión de
+    origen (con cursor de servidor y transacción abierta en PostgreSQL) seguía ocupada hasta que el recolector la liberaba.
+    """
+    try:
+        yield iterable
+    finally:
+        close = getattr(iterable, "close", None)
+        if callable(close):
+            close()
 
 
 __all__: list[str] = [

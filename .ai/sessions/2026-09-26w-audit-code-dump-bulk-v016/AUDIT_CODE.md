@@ -88,3 +88,7 @@ pueden ir en el mismo cambio o registrarse en el roadmap.
 - `fix(dump): cerrar el lector en paralelo antes de devolver la conexión si falla la escritura (A1)`
 - Pruebas sugeridas: T1; volcado real con fallo de escritura comprobando 0 devoluciones con el hilo vivo (script
   `audit_prefetch_close.py` de esta sesión).
+
+## Seguimiento
+- **A1, A2, A3 corregidos** en `2026-09-26x-hotfix-audit-a1-a3` con el test T1 (`tests/unit/dump/test_failure_paths.py`).
+  PostgreSQL real: 0 de 7 devoluciones con el hilo lector vivo (antes 1 de 7).

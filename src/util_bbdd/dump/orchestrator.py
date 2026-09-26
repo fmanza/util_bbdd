@@ -631,6 +631,13 @@ class DumpOrchestrator:
                     # AuditError/OSError: con bulk_audit_strict un fallo al escribir la auditoría deshace la tabla;
                     # queda como error de esa tabla, como cualquier otro fallo de carga, y el volcado sigue.
                     error_msgs.append(str(exc))
+                finally:
+                    # A1 (audit-code 2026-09-26): si la escritura falla, el for de bulk_insert_from_chunks no cierra el
+                    # generador; sin esto, el with devolvía la conexión al pool con el hilo de _prefetch aún usándola.
+                    # Cerrarlo espera al hilo lector (join) antes de salir del with.
+                    close = getattr(renamed, "close", None)
+                    if callable(close):
+                        close()
         except (SQLAlchemyError, ValueError, pd.errors.DatabaseError) as exc:
             error_msgs.append(f"Error leyendo origen: {exc}")
         return error_msgs

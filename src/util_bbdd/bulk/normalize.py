@@ -250,7 +250,8 @@ def _normalize_values(values: list[Any], *, box: bool, strip_strings: bool = Tru
     if box:
         values = [maybe_box_native(value) for value in values]
     if not strip_strings:
-        return [value if type(value) is str else normalize_sql_literal(value) for value in values]
+        # A3 (audit-code 2026-09-26): isinstance para no recortar subclases de str (numpy.str_); se envían como str.
+        return [str(value) if isinstance(value, str) else normalize_sql_literal(value) for value in values]
     return [normalize_sql_literal(value) for value in values]
 
 
