@@ -7,9 +7,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-09-26
+
 Refactor de reutilización de `bulk` y `dump` sin cambios funcionales (mismo SQL, mismos resultados, misma API) y un
 fallo de `DumpConfig` que vaciaba el destino ante una configuración inválida. Sesión
-`.ai/sessions/2026-09-26zd-code-reusability-bulk-dump/` (informe, plan e implementación).
+`.ai/sessions/2026-09-26ze-code-reusability-bulk-dump/` (informe, plan e implementación).
 
 ### Changed
 
@@ -2371,7 +2373,7 @@ Añadidos `[[tool.mypy.overrides]]` para `pandas`/`pandas.*` y `networkx`/`netwo
 
 ---
 
-## [Unreleased]
+## Hoja de ruta histórica (v0.6.4-dev, no es una versión publicada)
 
 ### Planned (v0.7.0+)
 
@@ -2797,7 +2799,9 @@ connection/
 - Full test coverage reports available
 - Code organized for better maintainability
 
-## [Unreleased]
+## [0.4.0] - 2026-03-10
+
+<!-- Título corregido en v0.17.1: figuraba como [Unreleased] desde el commit 6f8a670 (bump a 0.4.0). -->
 
 ### Removed
 - **Breaking Change**: Removed legacy execution APIs based on `fetch_one`
