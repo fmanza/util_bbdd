@@ -41,13 +41,13 @@ Tests tocados (solo destinos de parche y un test nuevo): `tests/unit/dump/test_d
 - **Final**: `ruff check` ✅ · `ruff format --check` ✅ · `mypy src tests/unit/test_protocol_conformance.py` ✅ (355
   ficheros) · `pytest` 5080 passed / 199 skipped · `gen_arquitectura_capas.py` ✅ · `mkdocs build --strict` sin avisos ·
   cobertura de ramas 92 % (259 líneas sin cubrir frente a 266).
-- **No ejecutado**: `tests/integration` contra el banco. Los contenedores están arriba, pero
-  `UTIL_BBDD_BENCH_PASSWORD` no está en el entorno (sin ella solo corren 139 tests y se saltan 199).
+- **Integración** (tras los commits, sobre `34aee9f`): `tests/integration` contra los 5 servidores del banco
+  (PostgreSQL, MySQL, MariaDB, SQL Server, Oracle) → **338 passed, 0 skipped** en 70 s. URLs de
+  `scripts/bench_env.example.sh` con la contraseña de los contenedores (codificada para URL, sin persistirla).
 
 ## Pendiente
 
 - `/hotfix` de `DumpConfig` y después R5.
-- `tests/integration` con el banco (recomendado antes de commit, por R8 y R10b).
 - Fase 2 restante (R11–R14) en otra sesión con el banco; Fase 3 opcional.
 - Numeración de fases: `docs/api/dump.md` y `docs/functional/dump-data-export.md` usan «Fase 6/6a»; el código y su log,
   «Fase 5a». Decidir cuál es la canónica (docstring de `DumpConfig.sync_pk_sequences` incluido).
