@@ -251,9 +251,9 @@ Repetir Fases 2–3 para propuestas de impacto medio y largo plazo
 |---|---|
 | `baseline` | Nada (`chunk_size=5000`, sin paralelismo, con conteos) |
 | `audit`, `audit_history` | Auditoría de `bulk` activa (CSV nuevo / CSV con historial previo) |
-| `stream`, `arraysize`, `chunk20k`, `prefetch` | Cursor de servidor, `arraysize=5000` en Oracle, lotes de 20K, solape lectura/escritura (prototipo) |
+| `stream`, `arraysize`, `chunk20k` | Cursor de servidor y `arraysize=5000` en el engine (ya los aplica `dump` desde Q2/Q1), lotes de 20K. El solape lectura/escritura (Q3) está en `dump`, no es una variante |
 | `ranges4`, `ranges8`, `indexes`, `nocheck`, `redump` | Rangos de PK, `manage_indexes`, sin revalidar constraints, volcado repetido |
-| `combo*`, `best_pg`, `stream_c20k_prefetch`, `arraysize_*` | Combinaciones validadas en la auditoría de 2026-09-25 |
+| `combo*`, `best_pg`, `stream_c20k`, `arraysize_ranges4` | Combinaciones de la auditoría de 2026-09-25 |
 
 ---
 

@@ -53,7 +53,6 @@ import io
 import json
 import logging
 import os
-import queue
 import shutil
 import statistics
 import subprocess
@@ -64,7 +63,7 @@ import time
 import traceback
 
 from collections import defaultdict
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterator
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -88,7 +87,7 @@ VOLUMES: dict[str, dict[str, int]] = {
     "large": {"customers": 500_000, "orders": 1_000_000, "order_items": 2_000_000},
 }
 
-# Variantes: claves de DumpConfig + opciones del banco (stream, arraysize, prefetch, audit, audit_history, keep_target,
+# Variantes: claves de DumpConfig + opciones del banco (stream, arraysize, audit, audit_history, keep_target,
 # skip_constraint_validation).
 VARIANTS: dict[str, dict[str, Any]] = {
     "baseline": {},
@@ -99,18 +98,16 @@ VARIANTS: dict[str, dict[str, Any]] = {
     "stream": {"stream": True},
     "arraysize": {"arraysize": 5000},
     "chunk20k": {"chunk_size": 20_000},
-    "prefetch": {"prefetch": True},
     "ranges4": {"parallel_pk_ranges": 4},
     "ranges8": {"parallel_pk_ranges": 8},
     "indexes": {"manage_indexes": True},
     "nocheck": {"skip_constraint_validation": True},
     "redump": {"keep_target": True},  # destino ya cargado: mide la limpieza (TRUNCATE/DELETE) de un volcado repetido
-    "combo": {"collect_row_counts": False, "stream": True, "arraysize": 5000, "prefetch": True},
+    "combo": {"collect_row_counts": False, "stream": True, "arraysize": 5000},
     "combo_ranges4": {"collect_row_counts": False, "stream": True, "arraysize": 5000, "parallel_pk_ranges": 4},
     # Mejores combinaciones por motor (validación, FASE 5)
     "best_pg": {"collect_row_counts": False, "stream": True, "chunk_size": 20_000, "parallel_pk_ranges": 4},
-    "stream_c20k_prefetch": {"collect_row_counts": False, "stream": True, "chunk_size": 20_000, "prefetch": True},
-    "arraysize_prefetch": {"collect_row_counts": False, "arraysize": 5000, "prefetch": True},
+    "stream_c20k": {"collect_row_counts": False, "stream": True, "chunk_size": 20_000},
     "arraysize_ranges4": {"collect_row_counts": False, "arraysize": 5000, "parallel_pk_ranges": 4},
 }
 
@@ -482,55 +479,12 @@ def _timed_iter(it: Iterator[Any]) -> Iterator[Any]:
         yield item
 
 
-def prefetch(iterable: Iterable[Any], depth: int = 2) -> Iterator[Any]:
-    """Prototipo de la propuesta de solapar lectura y escritura: lee el siguiente chunk en un hilo mientras se escribe."""
-    q: queue.Queue[Any] = queue.Queue(maxsize=depth)
-    done = object()
-    stop = threading.Event()
-    errors: list[BaseException] = []
-
-    def _put(item: Any) -> bool:
-        while not stop.is_set():
-            try:
-                q.put(item, timeout=0.1)
-                return True
-            except queue.Full:
-                continue
-        return False
-
-    def worker() -> None:
-        try:
-            for item in iterable:
-                if not _put(item):
-                    return
-        except BaseException as exc:  # noqa: BLE001 — se relanza en el consumidor
-            errors.append(exc)
-        finally:
-            _put(done)
-
-    th = threading.Thread(target=worker, daemon=True)
-    th.start()
-    try:
-        while True:
-            item = q.get()
-            if item is done:
-                if errors:
-                    raise errors[0]
-                return
-            yield item
-    finally:
-        stop.set()
-        th.join(timeout=30)
-
-
-def install_instrumentation(*, use_prefetch: bool) -> None:
+def install_instrumentation() -> None:
     import util_bbdd.dump.orchestrator as orch_mod
 
     from util_bbdd.bulk import BulkCrud
     from util_bbdd.bulk._execution.batch import BatchStatementExecutor
-    from util_bbdd.bulk.audit import AuditError
     from util_bbdd.dump import ConstraintManager, DumpOrchestrator, DumpReporter, IndexManager
-    from util_bbdd.dump._sql_utils import quote_identifier, quote_table
 
     # Lectura del origen: dump lee con _read_chunks (desde PD-05; antes, pd.read_sql). El tiempo de cada chunk (fetch +
     # construcción del DataFrame) cuenta como "read".
@@ -540,37 +494,6 @@ def install_instrumentation(*, use_prefetch: bool) -> None:
         return _timed_iter(orig_read_chunks(*args, **kwargs))
 
     orch_mod._read_chunks = read_chunks_timed
-
-    if use_prefetch:
-
-        def _load_whole_table_prefetch(
-            self: Any,
-            src_table: str,
-            common_cols: list[str],
-            col_name_map: dict[str, str],
-            dest_table_logical: str,
-            crud: Any,
-        ) -> list[str]:
-            # Copia de DumpOrchestrator._load_whole_table con el iterador de chunks envuelto en prefetch(). Si cambia el
-            # original, actualiza esta copia (o la variante prefetch medirá otro código).
-            cfg = self._cfg
-            cols_quoted = ", ".join(quote_identifier(c, cfg.source_engine) for c in common_cols)
-            table_quoted = quote_table(src_table, cfg.source_schema, cfg.source_engine)
-            sql = f"SELECT {cols_quoted} FROM {table_quoted}"
-            error_msgs: list[str] = []
-            try:
-                with cfg.source_engine.connect() as conn:
-                    chunks = orch_mod._read_chunks(conn, sql, cfg.chunk_size)
-                    renamed = (chunk[common_cols].rename(columns=col_name_map) for chunk in chunks)
-                    try:
-                        crud.bulk_insert_from_chunks(prefetch(renamed), dest_table_logical)
-                    except (SQLAlchemyError, ValueError, AuditError, OSError) as exc:
-                        error_msgs.append(str(exc))
-            except (SQLAlchemyError, ValueError, pd.errors.DatabaseError) as exc:
-                error_msgs.append(f"Error leyendo origen: {exc}")
-            return error_msgs
-
-        DumpOrchestrator._load_whole_table = _load_whole_table_prefetch  # type: ignore[method-assign]
 
     _wrap(DumpOrchestrator, "_load_whole_table", "load")
     _wrap(DumpOrchestrator, "_load_in_pk_ranges", "load")
@@ -709,13 +632,12 @@ def run_one(engine_key: str, variant: str, volume: str) -> dict[str, Any]:
     opts = dict(VARIANTS[variant])
     use_stream = opts.pop("stream", False)
     arraysize = opts.pop("arraysize", None)
-    use_prefetch = opts.pop("prefetch", False)
     keep_target = opts.pop("keep_target", False)
     use_audit = opts.pop("audit", False)
     audit_history = opts.pop("audit_history", False)
     if opts.pop("skip_constraint_validation", False):
         _skip_constraint_validation()
-    install_instrumentation(use_prefetch=use_prefetch)
+    install_instrumentation()
 
     from util_bbdd.dump import DumpConfig, DumpOrchestrator
 
@@ -891,9 +813,7 @@ def summarize(paths: list[Path]) -> str:
                     f"| {phases} | {ok} | {ident} |"
                 )
     out.append("")
-    out.append(
-        "Mediana de las repeticiones sin excepción. En variantes con hilos (prefetch, ranges*, combo*) las fases se"
-    )
+    out.append("Mediana de las repeticiones sin excepción. Con hilos (solape de lectura, ranges*) las fases se")
     out.append(
         "suman entre hilos: compara solo el total. Verificación = COUNT y SUM(PK) iguales y todas las tablas `success`."
     )

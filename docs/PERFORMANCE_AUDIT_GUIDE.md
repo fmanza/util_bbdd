@@ -172,15 +172,14 @@ Volúmenes: `tiny` (8,5K filas), `small` (85K), `medium` (850K), `large` (3,5M).
 |---|---|
 | `baseline` | `DumpConfig` por defecto |
 | `audit` / `audit_history` | Auditoría de `bulk` activa; con CSV nuevo o con un CSV que ya tiene `BENCH_DUMP_AUDIT_HISTORY_ROWS` registros (500.000 por defecto) |
-| `stream` | Origen con `stream_results=True` (cursor de servidor) |
-| `arraysize` | Origen Oracle con `arraysize=5000` |
+| `stream` | Origen con `stream_results=True` en el engine (desde Q2, `dump` ya lee con cursor de servidor en PostgreSQL/MySQL/MariaDB: equivale a `baseline`) |
+| `arraysize` | Origen Oracle con `arraysize=5000` en el engine (desde Q1, `dump` ya lo fija en sus lecturas: equivale a `baseline`) |
 | `chunk20k` | `chunk_size=20_000` |
-| `prefetch` | Prototipo de solape lectura/escritura (un hilo lector y una cola de 2 chunks) |
 | `ranges4`, `ranges8` | `parallel_pk_ranges=4` / `8` |
 | `indexes` | `manage_indexes=True` |
 | `nocheck` | Rehabilita constraints sin revalidar datos (mide el coste de la validación) |
 | `redump` | Destino ya cargado: mide la limpieza de un volcado repetido |
-| `combo*`, `best_pg`, `stream_c20k_prefetch`, `arraysize_*` | Combinaciones validadas en la auditoría de 2026-09-25 |
+| `combo*`, `best_pg`, `stream_c20k`, `arraysize_ranges4` | Combinaciones de la auditoría de 2026-09-25 |
 
 `python scripts/bench_dump.py list` muestra la configuración exacta de cada una.
 

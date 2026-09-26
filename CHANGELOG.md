@@ -57,6 +57,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **dump (rendimiento)**: la carga de cada tabla lee el siguiente lote del origen en un hilo mientras escribe el
+  actual (cola de 2 lotes), en lugar de leer y escribir por turnos. A 3,5M filas: MySQL −29 %, MariaDB −25 %, SQL Server
+  −17 %, PostgreSQL −15 %, SQLite (destino) −7 %, Oracle −3 %; memoria +2–5 MB. Mismos datos. No se aplica con origen
+  SQLite (su conexión no admite otro hilo).
 - **dump (memoria, PostgreSQL/MySQL/MariaDB)**: la lectura del origen usa cursor de servidor en lugar de descargar la
   tabla entera antes del primer lote. Memoria pico con una tabla de 2M filas: PostgreSQL de 414 a 167 MB, MySQL y
   MariaDB de 858 a 159 MB; la memoria ya no crece con el tamaño de la tabla. Tiempo: sin cambio en MySQL y MariaDB,
