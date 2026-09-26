@@ -2,7 +2,7 @@
 
 **Generado**: 2026-06-05 (cabecera, tabla de versiones y tests actualizados el 2026-09-26 en el cierre de `v0.16.1`)  
 **Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.16.1`  
-**Versión**: `v0.16.1` (cerrada en `develop`, 2026-09-26). Tag de git: `v0.16.1`  
+**Versión**: `v0.16.1` (cerrada en `develop`, 2026-09-26; `develop` y el tag publicados en `origin`). Tag de git: `v0.16.1`  
 **Rama activa**: `develop`
 
 ---

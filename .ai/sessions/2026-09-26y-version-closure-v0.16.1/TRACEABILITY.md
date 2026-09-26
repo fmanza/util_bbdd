@@ -28,6 +28,7 @@
 ## Commits y push
 - `812a020` `release: v0.16.1 - …` y tag anotado `v0.16.1`; después, este `docs(ai)`.
 - Push de `develop` y del tag `v0.16.1` a `origin` (autorizado por el usuario; `main` no se toca). Remoto sin divergencia antes del push (`d510d1b`).
+- **Push verificado**: `origin/develop` `d510d1b..c12c219`; `git ls-remote --tags origin v0.16.1` → `b4c40d9` (objeto del tag anotado sobre `812a020`).
 
 ## Rollback
 - `git push origin :refs/tags/v0.16.1` si nadie lo ha consumido y `git revert 812a020`; cada arreglo tiene su propio commit.
