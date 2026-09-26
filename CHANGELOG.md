@@ -7,6 +7,28 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-09-26
+
+Volcado (`dump`) fiable y más rápido tras una auditoría de rendimiento con banco real en 6 motores (3,5M filas):
+12 fallos de corrección resueltos (datos alterados sin aviso, fallos con SQL Server, PK sin resincronizar, validación de
+FK que no comprobaba nada, volcados repetidos imposibles en PostgreSQL…), volcado entre un 15 % y un 64 % más rápido
+según motor y driver, y memoria acotada. Sesiones `.ai/sessions/2026-09-25b-performance-audit-dump-delta/` a
+`.ai/sessions/2026-09-26s-q9-medicion/`; roadmap en
+`.ai/sessions/2026-09-25b-performance-audit-dump-delta/improvement_roadmap_dump.md`.
+
+**Cambios de comportamiento a revisar al actualizar** (detalle en cada entrada):
+- `dump` ya no recorta los espacios de los extremos de las cadenas y copia BIGINT y DECIMAL exactos: los datos del
+  destino pueden diferir de los que dejaban versiones anteriores (que eran incorrectos).
+- `BulkCrud.reflect_table` refleja solo la tabla pedida: en la `Table` devuelta, `ForeignKey.column` ya no resuelve la
+  tabla referenciada.
+- `dump` en PostgreSQL: una FK con filas huérfanas sale `failed` en `constraint_results` (antes `enabled`), y con
+  destino PostgreSQL se escribe en lotes de 20 000 filas (`write_batch_size`).
+- `dump` con `target_schema` o `parallel_pk_ranges` > 1: `pk_sync_results` pasa de `None` a una lista (la
+  resincronización de PK se ejecuta de verdad).
+- `dump` con destino SQLite ignora `parallel_pk_ranges`/`max_parallel_tables` > 1 (WARNING).
+- Nuevos WARNING: origen SQLite; `parallel_pk_ranges` > 1 con destino MySQL/MariaDB. El de `max_allowed_packet` solo
+  sale con columnas TEXT/BLOB/JSON.
+
 ### Fixed
 
 - **bulk**: en MySQL/MariaDB, `bulk_update_from_df` fallaba con `No database selected` si la conexión no tenía base de
@@ -60,6 +82,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **scripts**: `scripts/bench_dump.py` es ahora un banco real de `dump`: ejecuta `DumpOrchestrator` contra los motores
+  de `docker-compose.bench.yml` (incluido MariaDB con Connector/Python, `mariadb_connector`), desglosa el tiempo por
+  fase, mide la memoria pico y verifica origen y destino en cada medición (`setup`, `run`, `summarize`, `list`). El
+  banco anterior no llamaba a `DumpOrchestrator`. Guías de auditoría de rendimiento actualizadas.
 - **dump (rendimiento, auditoría)**: el resumen de auditoría del volcado lee solo lo añadido al CSV durante el
   volcado, no el historial completo: con 500K registros previos, de 0,69 a 0,01 s (el coste ya no crece con el
   historial). Mismo resumen.
