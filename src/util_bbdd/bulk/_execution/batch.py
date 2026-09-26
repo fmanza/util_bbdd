@@ -464,6 +464,47 @@ class MySQLDriverExecutemanyStrategy:
         connection.exec_driver_sql(sql, [tuple(record[c] for c in cols) for record in records])
 
 
+class MariaDBConnectorInsertStrategy:
+    """INSERT para MySQL/MariaDB con MariaDB Connector/Python (``mariadbconnector``).
+
+    PF-09 (performance-audit de dump 2026-09-26): con este conector se usaba siempre :class:`MySQLMultiRowInsertStrategy`,
+    unas 3,7 veces más lenta que el ``executemany`` del driver (envío masivo; 500K filas: 10,5 s frente a 2,8 s). El envío
+    masivo exige un tipo Python compatible por columna en todas las filas: con ``bytes`` y ``str`` en un BLOB, ``int`` y
+    ``float``, ``datetime`` y ``date`` o ``str`` e ``int`` falla con ``Invalid parameter type``.
+
+    Por eso decide **por lote**: si cada columna tiene un único tipo exacto (sin contar ``None``), usa el ``executemany``
+    del driver (:class:`MySQLDriverExecutemanyStrategy`); si no, la vía multi-fila. El criterio es más estricto que el
+    del driver (``Decimal`` y ``float``, o ``int`` y ``bool``, van por la vía multi-fila aunque el driver los aceptase).
+    """
+
+    def __init__(self) -> None:
+        self._driver_strategy = MySQLDriverExecutemanyStrategy()
+        self._multirow_strategy = MySQLMultiRowInsertStrategy()
+
+    def execute(
+        self,
+        *,
+        connection: Any,
+        stmt: Any,
+        records: Sequence[Mapping[str, Any]],
+    ) -> None:
+        if records and isinstance(stmt, Insert) and _uniform_column_types(records):
+            self._driver_strategy.execute(connection=connection, stmt=stmt, records=records)
+        else:
+            self._multirow_strategy.execute(connection=connection, stmt=stmt, records=records)
+
+
+def _uniform_column_types(records: Sequence[Mapping[str, Any]]) -> bool:
+    """``True`` si cada columna tiene, sin contar ``None``, un único tipo exacto en todas las filas."""
+    none_type: type = type(None)
+    for column in records[0]:
+        kinds = {type(record[column]) for record in records}
+        kinds.discard(none_type)
+        if len(kinds) > 1:
+            return False
+    return True
+
+
 class InsertStrategyResolver:
     """Resuelve la estrategia INSERT óptima según dialecto y driver.
 
@@ -472,7 +513,9 @@ class InsertStrategyResolver:
     - ``postgresql`` + ``psycopg2`` → :class:`PostgreSQLExecuteValuesStrategy`.
     - ``postgresql`` + ``psycopg`` (psycopg3, driver por defecto) → :class:`PostgresCopyStrategy`.
     - ``mysql`` / ``mariadb`` + ``pymysql`` → :class:`MySQLDriverExecutemanyStrategy`.
-    - ``mysql`` / ``mariadb`` con otro driver (p.ej. ``mariadbconnector``) → :class:`MySQLMultiRowInsertStrategy`.
+    - ``mysql`` / ``mariadb`` + ``mariadbconnector`` → :class:`MariaDBConnectorInsertStrategy` (``executemany`` del
+      driver si los tipos del lote son uniformes; si no, multi-fila).
+    - ``mysql`` / ``mariadb`` con otro driver → :class:`MySQLMultiRowInsertStrategy`.
     - ``mysql_strategy`` explícito → se usa para mysql/mariadb con cualquier driver.
     - resto (Oracle, SQL Server, SQLite, HSQLDB) → :class:`DefaultInsertStrategy`
       (``executemany``; en SQL Server acelerado por ``fast_executemany``).
@@ -493,6 +536,7 @@ class InsertStrategyResolver:
         self._mysql_strategy: InsertExecutionStrategyProtocol | None = mysql_strategy
         self._mysql_pymysql_strategy: InsertExecutionStrategyProtocol = MySQLDriverExecutemanyStrategy()
         self._mysql_multirow_strategy: InsertExecutionStrategyProtocol = MySQLMultiRowInsertStrategy()
+        self._mariadb_connector_strategy: InsertExecutionStrategyProtocol = MariaDBConnectorInsertStrategy()
         self._default_strategy: InsertExecutionStrategyProtocol = default_strategy or DefaultInsertStrategy()
 
     def resolve(self, dialect_name: str, drivername: str) -> InsertExecutionStrategyProtocol:
@@ -508,6 +552,8 @@ class InsertStrategyResolver:
                 return self._mysql_strategy
             if "pymysql" in drivername:
                 return self._mysql_pymysql_strategy
+            if "mariadbconnector" in drivername:
+                return self._mariadb_connector_strategy
             return self._mysql_multirow_strategy
         return self._default_strategy
 

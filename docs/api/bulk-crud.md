@@ -81,7 +81,8 @@ flowchart TD
 | `postgresql` + `psycopg` (psycopg3) | `COPY ... FROM STDIN` — vía más rápida de PostgreSQL |
 | `postgresql` + `psycopg2` | `psycopg2.extras.execute_values` — un único `INSERT ... VALUES` multi-fila por chunk |
 | `mysql` / `mariadb` + `pymysql` | `executemany` del driver sin procesadores de tipo (PyMySQL lo envía como `INSERT ... VALUES` multi-fila) |
-| `mysql` / `mariadb` + otro driver (p.ej. `mariadbconnector`) | `INSERT ... VALUES` multi-fila sub-loteado en grupos de 1000 filas |
+| `mysql` / `mariadb` + `mariadbconnector` | `executemany` del driver (envío masivo) si cada columna del lote tiene un único tipo Python (sin contar `None`); si no, `INSERT ... VALUES` multi-fila |
+| `mysql` / `mariadb` + otro driver | `INSERT ... VALUES` multi-fila sub-loteado en grupos de 1000 filas |
 | `oracle`, `mssql`, `sqlite`, `hsqldb` | `executemany` estándar de SQLAlchemy |
 
 ## 3. Componentes y Clases

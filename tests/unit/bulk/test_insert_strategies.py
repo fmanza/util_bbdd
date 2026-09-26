@@ -24,6 +24,7 @@ from sqlalchemy.sql.elements import TextClause
 from util_bbdd.bulk._execution.batch import (
     DefaultInsertStrategy,
     InsertStrategyResolver,
+    MariaDBConnectorInsertStrategy,
     MySQLDriverExecutemanyStrategy,
     MySQLMultiRowInsertStrategy,
     PostgresCopyStrategy,
@@ -48,10 +49,18 @@ class TestInsertStrategyResolver:
         assert isinstance(strategy, PostgreSQLExecuteValuesStrategy)
 
     @pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
-    def test_mysql_family_routes_to_multirow(self, dialect: str) -> None:
+    @pytest.mark.parametrize("driver", ["mysqlconnector", "mysqldb"])
+    def test_mysql_family_other_drivers_route_to_multirow(self, dialect: str, driver: str) -> None:
+        resolver = InsertStrategyResolver()
+        strategy = resolver.resolve(dialect, f"{dialect}+{driver}")
+        assert isinstance(strategy, MySQLMultiRowInsertStrategy)
+
+    @pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
+    def test_mariadb_connector_routes_to_its_strategy(self, dialect: str) -> None:
+        # PF-09: executemany del driver si los tipos del lote son uniformes; si no, multi-fila.
         resolver = InsertStrategyResolver()
         strategy = resolver.resolve(dialect, f"{dialect}+mariadbconnector")
-        assert isinstance(strategy, MySQLMultiRowInsertStrategy)
+        assert isinstance(strategy, MariaDBConnectorInsertStrategy)
 
     @pytest.mark.parametrize("dialect", ["mysql", "mariadb"])
     def test_mysql_family_with_pymysql_routes_to_driver_executemany(self, dialect: str) -> None:
@@ -319,3 +328,53 @@ class TestMySQLDriverExecutemanyStrategy:
 
         with engine.connect() as conn:
             assert conn.exec_driver_sql("SELECT name FROM items WHERE id = 1").scalar() == "new"
+
+
+# ---------------------------------------------------------------------------
+# MariaDBConnectorInsertStrategy (PF-09)
+# ---------------------------------------------------------------------------
+
+
+class TestMariaDBConnectorInsertStrategy:
+    """executemany del driver solo si cada columna del lote tiene un único tipo exacto (sin contar None)."""
+
+    @staticmethod
+    def _run(records: list[dict[str, Any]], stmt: Any | None = None) -> tuple[MagicMock, MagicMock]:
+        table = Table("t", MetaData(), Column("id", Integer), Column("v", String))
+        strategy = MariaDBConnectorInsertStrategy()
+        strategy._driver_strategy = MagicMock()  # type: ignore[assignment]
+        strategy._multirow_strategy = MagicMock()  # type: ignore[assignment]
+        strategy.execute(connection=MagicMock(), stmt=insert(table) if stmt is None else stmt, records=records)
+        return strategy._driver_strategy, strategy._multirow_strategy  # type: ignore[return-value]
+
+    @pytest.mark.parametrize(
+        "records",
+        [
+            [{"id": 1, "v": "a"}, {"id": 2, "v": "b"}],
+            [{"id": 1, "v": None}, {"id": 2, "v": "b"}],  # None no rompe la uniformidad
+            [{"id": 1, "v": None}, {"id": 2, "v": None}],
+        ],
+    )
+    def test_uniform_types_use_driver_executemany(self, records: list[dict[str, Any]]) -> None:
+        driver, multirow = self._run(records)
+        driver.execute.assert_called_once()
+        multirow.execute.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "records",
+        [
+            [{"id": 1, "v": b"\x00"}, {"id": 2, "v": "texto"}],  # bytes + str: el driver falla
+            [{"id": 1, "v": 1}, {"id": 2, "v": 2.5}],  # int + float: el driver falla
+            [{"id": 1, "v": 1}, {"id": True, "v": 2}],  # int + bool: criterio estricto (tipo exacto)
+        ],
+    )
+    def test_mixed_types_use_multirow(self, records: list[dict[str, Any]]) -> None:
+        driver, multirow = self._run(records)
+        multirow.execute.assert_called_once()
+        driver.execute.assert_not_called()
+
+    def test_non_insert_statement_uses_multirow(self) -> None:
+        table = Table("t", MetaData(), Column("id", Integer), Column("v", String))
+        driver, multirow = self._run([{"id": 1, "v": "a"}], stmt=update(table))
+        multirow.execute.assert_called_once()
+        driver.execute.assert_not_called()

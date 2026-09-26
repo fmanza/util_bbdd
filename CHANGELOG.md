@@ -57,6 +57,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **bulk (rendimiento, MariaDB Connector/Python)**: con el driver `mariadbconnector`, los INSERT usan el envío masivo
+  del driver (`executemany`) cuando cada columna del lote tiene un único tipo Python (sin contar `None`), y la vía
+  multi-fila en otro caso (el envío masivo falla con tipos mezclados como `bytes` y `str`). Resultado idéntico. Volcado
+  de `dump` a 3,5M filas con este driver: de 80 a 29 s (−64 %); 500K filas con `BulkCrud`: 3,7 veces más rápido.
 - **dump (guía de rendimiento)**: `parallel_pk_ranges` documenta su efecto medido por motor y, con destino MySQL o
   MariaDB, avisa con un WARNING de que la carga por rangos es más lenta (casi el doble de tiempo a 3,5M filas, también
   con 2 y 4 GB de redo log) y recomienda 1. Con 4 rangos frente a la carga secuencial: SQL Server −37 %, PostgreSQL −9 %,

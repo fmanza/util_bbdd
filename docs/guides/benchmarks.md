@@ -61,6 +61,7 @@ bulk = BulkCrud(
 | PostgreSQL + psycopg3 | `COPY ... FROM STDIN` | La más rápida |
 | PostgreSQL + psycopg2 | `execute_values` multi-row | 3–5× sobre `executemany` |
 | MySQL / MariaDB + PyMySQL | `executemany` del driver (multi-fila en el cliente) | ~2× sobre la vía multi-fila anterior (medido en MySQL 8.4 y MariaDB 11.4) |
+| MySQL / MariaDB + `mariadbconnector` | `executemany` del driver si los tipos del lote son uniformes; si no, multi-fila | 3,7× sobre la vía multi-fila (500K filas, MariaDB 11.4) |
 | MySQL / MariaDB + otro driver | INSERT multi-fila sub-loteado | — |
 | SQL Server + pyodbc | `fast_executemany=True` (con ODBC Driver 17/18) | ~12× medido en SQL Server 2022 + ODBC Driver 18 |
 | SQL Server + pymssql | `executemany` estándar (insertmanyvalues) | — (~2.700 filas/s en INSERT; usa pyodbc para cargas masivas) |
@@ -68,8 +69,10 @@ bulk = BulkCrud(
 
 !!! note "MySQL/MariaDB con el conector `mariadb`"
     Con PyMySQL, `BulkCrud` usa el `executemany` del driver (P-02: unas 2 veces más rápido que la vía multi-fila
-    anterior). Con el conector `mariadb` (`mariadbconnector`) se mantiene la vía multi-fila: su envío masivo exige el
-    mismo tipo Python en cada columna para todas las filas, y un DataFrame puede mezclarlos (p.ej. `bytes` y `str`).
+    anterior). Con el conector `mariadb` (`mariadbconnector`), el envío masivo del driver exige un tipo Python
+    compatible en cada columna para todas las filas (falla con `bytes` y `str`, `int` y `float` o `datetime` y `date`).
+    `BulkCrud` lo usa lote a lote solo si cada columna tiene un único tipo (sin contar `None`) y, si no, la vía
+    multi-fila (PF-09: 3,7 veces más rápido con tipos uniformes).
 
 !!! note "SQL Server + pyodbc: versiones anteriores a la corrección de P-18"
     Antes de la 0.12.0, `enable_fast_executemany=True` activaba `fast_executemany` solo en el cursor, a espaldas de
