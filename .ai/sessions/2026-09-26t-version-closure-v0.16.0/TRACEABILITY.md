@@ -60,5 +60,8 @@
 ## Directrices para Futuras IAs
 - **[cierre]**: igual que v0.15.0: `release:` solo con CHANGELOG y `pyproject.toml` + tag anotado; después `docs(ai)`; push de `develop` y del tag (no de `main`).
 
+## Push
+- Hecho a petición del usuario: `develop` `cfbbf05..e3fbf1f` y tag `v0.16.0` publicados en `origin` (sin divergencia con el remoto; `main` no se toca).
+
 ## Veredicto final
 Veredicto: CLOSED
