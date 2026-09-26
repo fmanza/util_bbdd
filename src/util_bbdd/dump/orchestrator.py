@@ -19,6 +19,7 @@ y alimentan directamente el informe Excel, evitando la cascada N+1 de comparar
 
 from __future__ import annotations
 
+import io
 import logging
 import math
 import queue
@@ -257,6 +258,8 @@ class DumpOrchestrator:
         cfg = self._cfg
         dump_inicio = datetime.now()
         self._reset_audit_tracking()
+        # 3.4 (PF-08): tamaño del CSV de auditoría al empezar; el resumen solo lee lo añadido desde aquí.
+        self._audit_start_offset = DumpOrchestrator._file_size(cfg.bulk_audit_path)
         if cfg.bulk_audit_path is None:
             # M-4 (audit-code de ParallelBulkLoader 2026-09-25): un aviso por volcado, no uno por BulkCrud creada.
             _log.info("Auditoría bulk deshabilitada en el volcado (bulk_audit_path=None).")
@@ -942,6 +945,7 @@ class DumpOrchestrator:
             audited_rows=counters.audited_rows,
             unaudited_committed_rows=counters.unaudited_committed_rows,
             audit_uncommitted_records=counters.audit_uncommitted_records,
+            start_offset=getattr(self, "_audit_start_offset", None),
         )
 
     def _resolve_max_workers(self, requested: int) -> int:
@@ -1255,6 +1259,45 @@ class DumpOrchestrator:
         return component
 
     @staticmethod
+    def _file_size(path: Path | None) -> int | None:
+        """Tamaño de ``path`` en bytes, o ``None`` si no hay ruta o el fichero no existe."""
+        if path is None:
+            return None
+        try:
+            return path.stat().st_size if path.is_file() else None
+        except OSError:
+            return None
+
+    @staticmethod
+    def _read_audit_csv(audit_path: Path, start_offset: int | None) -> pd.DataFrame:
+        """CSV de auditoría con los registros añadidos desde ``start_offset`` (o entero, si no se puede acotar).
+
+        3.4 / PF-08 (performance-audit de dump 2026-09-25): el resumen leía el CSV histórico completo en cada volcado
+        (0,72 s con 500K registros, lineal). El CSV es de solo añadir: se lee la cabecera y lo escrito desde el tamaño
+        que tenía al empezar el volcado, con las mismas conversiones que ``AuditManager.leer_auditoria``. Si no hay
+        desplazamiento, o el fichero es ahora más pequeño (se truncó o rotó), se lee entero como antes.
+        """
+        size = DumpOrchestrator._file_size(audit_path) or 0
+        if not start_offset or size < start_offset:
+            return AuditManager(audit_path, cache_enabled=False).leer_auditoria()
+        with audit_path.open("rb") as fh:
+            header = fh.readline()
+            if start_offset <= len(header):
+                return AuditManager(audit_path, cache_enabled=False).leer_auditoria()
+            fh.seek(start_offset - 1)
+            if fh.read(1) != b"\n":  # empezó a mitad de una fila (escritura de otro proceso): salta a la siguiente
+                fh.readline()
+            tail = fh.read()
+        df = pd.read_csv(io.BytesIO(header + tail), delimiter="\t", encoding="utf-8")
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed")
+        if "tiempo_seg" in df.columns:
+            df["tiempo_seg"] = pd.to_numeric(
+                df["tiempo_seg"].astype(str).str.replace(",", ".", regex=False), errors="coerce"
+            )
+        return df
+
+    @staticmethod
     def _build_audit_summary(
         audit_path: Path | None,
         desde: datetime,
@@ -1263,6 +1306,7 @@ class DumpOrchestrator:
         audited_rows: int | None = None,
         unaudited_committed_rows: int = 0,
         audit_uncommitted_records: int = 0,
+        start_offset: int | None = None,
     ) -> DumpAuditSummary | None:
         """Lee el CSV de auditoría y extrae métricas del volcado actual.
 
@@ -1306,8 +1350,7 @@ class DumpOrchestrator:
         if not audit_path.is_file():
             return _sin_entradas()
         try:
-            mgr = AuditManager(audit_path, cache_enabled=False)
-            df = mgr.leer_auditoria()
+            df = DumpOrchestrator._read_audit_csv(audit_path, start_offset)
         except Exception as exc:
             _log.warning("No se pudo leer el CSV de auditoría '%s': %s", audit_path, exc)
             return _sin_entradas()

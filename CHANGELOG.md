@@ -60,6 +60,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **dump (rendimiento, auditoría)**: el resumen de auditoría del volcado lee solo lo añadido al CSV durante el
+  volcado, no el historial completo: con 500K registros previos, de 0,69 a 0,01 s (el coste ya no crece con el
+  historial). Mismo resumen.
 - **dump (guía)**: `DumpConfig.manage_indexes` documenta su efecto medido tras las mejoras de rendimiento: Oracle
   −14 %, SQL Server −8 %, PostgreSQL sin ganancia (3,5M filas, 2 índices secundarios). Sigue desactivado por defecto.
 - **dump (avisos)**: el WARNING de `max_allowed_packet` con destino MySQL/MariaDB (lote de más de 1000 filas) ya no
