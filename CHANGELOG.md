@@ -7,6 +7,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-09-26
+
+Cierre de la Fase 3 del roadmap de rendimiento de `dump`: el volcado con muchas tablas en SQL Server deja de pagar la
+consulta de FK de SQLAlchemy por tabla (200 tablas pequeñas: 33,9 → ≈ 14,3 s, −58 %). Nuevo parámetro opcional
+`reflect_foreign_keys` en `BulkCrud` y `ParallelBulkLoader`; sin él, nada cambia. Se midieron y aparcaron la ruta sin
+pandas (Q8, ganancia máxima ≈ 2 s por 3,5M filas) y el hint `APPEND_VALUES` de Oracle (3.3, descartado). Sesiones
+`.ai/sessions/2026-09-26z-q8-medicion/` a `2026-09-26zc-oracle-append-values/`.
+
 ### Added
 
 - **bulk**: `BulkCrud(reflect_foreign_keys=True)` y el mismo parámetro en `ParallelBulkLoader`. Con `False`,
@@ -23,6 +31,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **dump**: sus `BulkCrud` y `ParallelBulkLoader` reflejan las tablas destino sin FK (`reflect_foreign_keys=False`).
   Con las dos mejoras, el volcado de 200 tablas pequeñas en SQL Server pasa de 33,9 a ≈ 14,3 s (−58 %).
 - **docs**: el diagrama de capas registra el nuevo import `dump → metadata`.
+- **docs/prompts**: sistema de auditoría de rendimiento de la desactivación de constraints
+  (`.github/prompts/performance_audit_constraints*.prompt.md`, `CONSTRAINTS_AUDIT_START_HERE.md` y
+  `docs/CONSTRAINTS_*.md`, `docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md`).
+- **scripts**: `scripts/bench_dump.py` añade las variantes `append*` y `commit1*` (hipótesis 3.3, Oracle).
+
+### Fixed
+
+- **docs**: enlaces de `docs/CONSTRAINTS_AUDIT_INDEX.md` relativos a la raíz del repositorio en lugar de a `docs/`.
 
 ## [0.16.1] - 2026-09-26
 
