@@ -19,6 +19,7 @@ from typing import Any, Literal
 from sqlalchemy import Column, Engine, Table, func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 
+from ...metadata.oracle.tables import fetch_identity_generation_sql
 from .._models import PKSyncResult
 from .sql_quoting import quote_identifier as _qi, quote_table as _qt
 from .validation import is_identity_pk
@@ -288,21 +289,12 @@ class PKSequenceSyncer:
         # Tipo de identity en el catálogo: hay que repetirlo al modificarla (ALWAYS / BY DEFAULT [ON NULL]).
         if schema:
             identity_row = conn.execute(
-                text(
-                    "SELECT i.generation_type, c.default_on_null FROM all_tab_identity_cols i "
-                    "JOIN all_tab_columns c ON c.owner = i.owner AND c.table_name = i.table_name "
-                    "AND c.column_name = i.column_name "
-                    "WHERE i.owner = :owner AND i.table_name = :tbl AND i.column_name = :col"
-                ),
+                text(fetch_identity_generation_sql(with_owner=True)),
                 {"owner": denormalize(schema), "tbl": denormalize(table.name), "col": denormalize(col.name)},
             ).fetchone()
         else:
             identity_row = conn.execute(
-                text(
-                    "SELECT i.generation_type, c.default_on_null FROM user_tab_identity_cols i "
-                    "JOIN user_tab_columns c ON c.table_name = i.table_name AND c.column_name = i.column_name "
-                    "WHERE i.table_name = :tbl AND i.column_name = :col"
-                ),
+                text(fetch_identity_generation_sql(with_owner=False)),
                 {"tbl": denormalize(table.name), "col": denormalize(col.name)},
             ).fetchone()
 

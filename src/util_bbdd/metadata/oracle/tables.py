@@ -315,6 +315,35 @@ def fetch_routine_body_sql() -> str:
     )
 
 
+def fetch_identity_generation_sql(*, with_owner: bool) -> str:
+    """SQL con el tipo de generación de una columna identity (``ALWAYS`` / ``BY DEFAULT``) y su ``DEFAULT_ON_NULL``.
+
+    Lo usa ``PKSequenceSyncer`` para repetir el mismo tipo al modificar la identity (``ALTER TABLE … MODIFY … GENERATED
+    … AS IDENTITY (START WITH n)``); la secuencia de una identity no admite ``ALTER SEQUENCE`` (ORA-32793).
+
+    Args:
+        with_owner: ``True`` consulta ``ALL_TAB_IDENTITY_COLS`` filtrando por ``:owner``; ``False``, las vistas
+            ``USER_*``.
+
+    Parámetros: ``:tbl``, ``:col`` y, con ``with_owner``, ``:owner``, con los nombres como en el catálogo.
+
+    Returns:
+        str: SQL para (generation_type, default_on_null).
+    """
+    if with_owner:
+        return (
+            "SELECT i.generation_type, c.default_on_null FROM all_tab_identity_cols i "
+            "JOIN all_tab_columns c ON c.owner = i.owner AND c.table_name = i.table_name "
+            "AND c.column_name = i.column_name "
+            "WHERE i.owner = :owner AND i.table_name = :tbl AND i.column_name = :col"
+        )
+    return (
+        "SELECT i.generation_type, c.default_on_null FROM user_tab_identity_cols i "
+        "JOIN user_tab_columns c ON c.table_name = i.table_name AND c.column_name = i.column_name "
+        "WHERE i.table_name = :tbl AND i.column_name = :col"
+    )
+
+
 __all__: list[str] = [
     "fetch_schemas_sql",
     "fetch_tables_sql",
@@ -328,4 +357,5 @@ __all__: list[str] = [
     "fetch_routines_sql",
     "fetch_routine_parameters_sql",
     "fetch_routine_body_sql",
+    "fetch_identity_generation_sql",
 ]

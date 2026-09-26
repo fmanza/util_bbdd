@@ -230,3 +230,20 @@ def fetch_routines_sql() -> str:
         "WHERE ROUTINE_SCHEMA = %(schema)s "
         "ORDER BY ROUTINE_NAME"
     )
+
+
+def fetch_table_storage_engine_sql() -> str:
+    """SQL con el motor de almacenamiento (``InnoDB``, ``MyISAM``, ``Aria``…) de una tabla. Vale también para MySQL.
+
+    Lo usa ``BulkCrud.maintenance_scope``: ``DISABLE KEYS`` solo tiene efecto en MyISAM/Aria y en InnoDB provocaría un
+    commit implícito.
+
+    Parámetros: ``:schema`` (``None`` = ``DATABASE()``) y ``:tbl``.
+
+    Returns:
+        str: SQL con una fila y el nombre del motor.
+    """
+    return (
+        "SELECT ENGINE FROM information_schema.TABLES "
+        "WHERE TABLE_SCHEMA = COALESCE(:schema, DATABASE()) AND TABLE_NAME = :tbl"
+    )

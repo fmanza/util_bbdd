@@ -43,6 +43,9 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import SQLAlchemyError
 
+from ..metadata.mariadb.tables import fetch_table_storage_engine_sql
+from ..metadata.postgresql.tables import fetch_can_disable_triggers_sql
+from ..metadata.sqlserver.indexes import fetch_clustered_index_count_sql
 from ._execution.batch import (
     BatchStatementExecutor,
     DeleteBatchExecutor,
@@ -1211,14 +1214,7 @@ class BulkCrud:
             return False, False
         if dialect == "postgresql":
             can_disable = conn.execute(
-                text(
-                    "SELECT current_setting('is_superuser') = 'on' "
-                    "OR EXISTS ("
-                    "  SELECT 1 FROM pg_tables "
-                    "  WHERE schemaname = COALESCE(:schema, current_schema()) "
-                    "  AND tablename = :tbl AND tableowner = current_user"
-                    ")"
-                ),
+                text(fetch_can_disable_triggers_sql()),
                 {"schema": tabla.schema, "tbl": tabla.name},
             ).scalar()
             if can_disable:
@@ -1249,10 +1245,7 @@ class BulkCrud:
             # como DDL provoca un commit implícito que rompía la atomicidad de la sesión (auditoría de bulk
             # 2026-09-24, hallazgo 8): solo se ejecuta cuando sirve.
             storage_engine = conn.execute(
-                text(
-                    "SELECT ENGINE FROM information_schema.TABLES "
-                    "WHERE TABLE_SCHEMA = COALESCE(:schema, DATABASE()) AND TABLE_NAME = :tbl"
-                ),
+                text(fetch_table_storage_engine_sql()),
                 {"schema": tabla.schema, "tbl": tabla.name},
             ).scalar()
             if str(storage_engine or "").upper() in ("MYISAM", "ARIA"):
@@ -1265,7 +1258,7 @@ class BulkCrud:
             return False
         if dialect == "mssql":
             has_clustered = conn.execute(
-                text("SELECT COUNT(*) FROM sys.indexes WHERE object_id = OBJECT_ID(:tbl) AND type = 1"),
+                text(fetch_clustered_index_count_sql()),
                 {"tbl": tabla_destino},
             ).scalar()
             if has_clustered == 0:

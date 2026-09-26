@@ -31,6 +31,7 @@ import pandas as pd
 from sqlalchemy import Engine, Table, text
 from sqlalchemy.exc import OperationalError as SQLAOperationalError, SQLAlchemyError
 
+from ...metadata.postgresql.tables import fetch_can_disable_triggers_sql
 from .._audit.counters import AuditCounters
 from .._audit.errors import AuditError
 from .._support.iterables import closing_iterable
@@ -612,13 +613,7 @@ class ParallelBulkLoader:
             with self._engine.begin() as conn:
                 can_disable: bool = bool(
                     conn.execute(
-                        text(
-                            "SELECT current_setting('is_superuser') = 'on' OR EXISTS ("
-                            "  SELECT 1 FROM pg_tables "
-                            "  WHERE schemaname = COALESCE(:schema, current_schema()) "
-                            "  AND tablename = :tbl AND tableowner = current_user"
-                            ")"
-                        ),
+                        text(fetch_can_disable_triggers_sql()),
                         {"schema": tabla.schema, "tbl": tabla.name},
                     ).scalar()
                 )

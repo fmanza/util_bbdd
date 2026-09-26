@@ -16,6 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from .._core.exceptions import DumpConstraintError
 from ..bulk._support.dialect import MYSQL_FAMILY
+from ..metadata.postgresql.tables import fetch_fk_definition_sql
 from ._models import ConstraintResult
 from ._sql_utils import quote_identifier, quote_table
 
@@ -321,19 +322,8 @@ class ConstraintManager:
                     ),
                 )
 
-    # Definición de una FK desde el catálogo: tabla referenciada (``regclass``, ya citada y con esquema si hace falta)
-    # y columnas de la hija y de la referenciada citadas con ``quote_ident``, en el orden de la constraint.
-    _PG_FK_DEF_SQL = """
-        SELECT c.confrelid::regclass::text,
-          (SELECT array_agg(quote_ident(a.attname) ORDER BY k.ord)
-             FROM unnest(c.conkey) WITH ORDINALITY AS k(attnum, ord)
-             JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum),
-          (SELECT array_agg(quote_ident(a.attname) ORDER BY k.ord)
-             FROM unnest(c.confkey) WITH ORDINALITY AS k(attnum, ord)
-             JOIN pg_attribute a ON a.attrelid = c.confrelid AND a.attnum = k.attnum)
-        FROM pg_constraint c
-        WHERE c.conrelid = CAST(:tbl AS regclass) AND c.conname = :name AND c.contype = 'f'
-    """
+    # Definición de una FK desde el catálogo (tabla referenciada y columnas citadas); SQL en metadata/postgresql (Regla #1).
+    _PG_FK_DEF_SQL = fetch_fk_definition_sql()
 
     def _find_fk_orphan_pg(self, conn: Any, table: str, fk_name: str) -> str | None:
         """Busca una fila de ``table`` que incumpla la FK ``fk_name``; devuelve el mensaje de error o ``None``.

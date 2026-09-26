@@ -27,6 +27,15 @@ from sqlalchemy import Engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from ..bulk._support.dialect import MYSQL_FAMILY
+from ..metadata.oracle.indexes import (
+    fetch_secondary_nonunique_indexes_sql as fetch_oracle_secondary_indexes_sql,
+)
+from ..metadata.postgresql.tables import (
+    fetch_secondary_nonunique_indexes_sql as fetch_pg_secondary_indexes_sql,
+)
+from ..metadata.sqlserver.indexes import (
+    fetch_secondary_nonunique_indexes_sql as fetch_mssql_secondary_indexes_sql,
+)
 from ._models import IndexActionResult
 from ._sql_utils import quote_identifier, quote_table
 
@@ -144,19 +153,7 @@ class IndexManager:
 
     def _discover_mssql(self, conn: Any, table: str) -> list[str]:
         rows = conn.execute(
-            text(
-                "SELECT i.name FROM sys.indexes i "
-                "JOIN sys.tables t ON t.object_id = i.object_id "
-                "JOIN sys.schemas s ON s.schema_id = t.schema_id "
-                "WHERE t.name = :tbl "
-                "  AND s.name = COALESCE(:schema, SCHEMA_NAME()) "
-                "  AND i.type_desc = 'NONCLUSTERED' "
-                "  AND i.is_primary_key = 0 "
-                "  AND i.is_unique_constraint = 0 "
-                "  AND i.is_unique = 0 "
-                "  AND i.is_disabled = 0 "
-                "  AND i.name IS NOT NULL"
-            ),
+            text(fetch_mssql_secondary_indexes_sql()),
             {"tbl": table, "schema": self._schema},
         ).fetchall()
         return [r[0] for r in rows]
@@ -196,24 +193,12 @@ class IndexManager:
     def _discover_oracle(self, conn: Any, table: str) -> list[str]:
         if self._schema:
             rows = conn.execute(
-                text(
-                    "SELECT ai.index_name FROM all_indexes ai "
-                    "WHERE ai.table_name = UPPER(:tbl) AND ai.owner = UPPER(:owner) "
-                    "  AND ai.index_type = 'NORMAL' AND ai.uniqueness = 'NONUNIQUE' "
-                    "  AND NOT EXISTS (SELECT 1 FROM all_constraints ac "
-                    "                  WHERE ac.owner = ai.owner AND ac.index_name = ai.index_name)"
-                ),
+                text(fetch_oracle_secondary_indexes_sql(with_owner=True)),
                 {"tbl": table, "owner": self._schema},
             ).fetchall()
         else:
             rows = conn.execute(
-                text(
-                    "SELECT ui.index_name FROM user_indexes ui "
-                    "WHERE ui.table_name = UPPER(:tbl) "
-                    "  AND ui.index_type = 'NORMAL' AND ui.uniqueness = 'NONUNIQUE' "
-                    "  AND NOT EXISTS (SELECT 1 FROM user_constraints uc "
-                    "                  WHERE uc.index_name = ui.index_name)"
-                ),
+                text(fetch_oracle_secondary_indexes_sql(with_owner=False)),
                 {"tbl": table},
             ).fetchall()
         return [r[0] for r in rows]
@@ -251,17 +236,7 @@ class IndexManager:
 
     def _discover_postgresql(self, conn: Any, table: str) -> list[tuple[str, str]]:
         rows = conn.execute(
-            text(
-                "SELECT ic.relname AS index_name, pg_get_indexdef(i.indexrelid) AS ddl "
-                "FROM pg_index i "
-                "JOIN pg_class ic ON ic.oid = i.indexrelid "
-                "JOIN pg_class tc ON tc.oid = i.indrelid "
-                "JOIN pg_namespace n ON n.oid = tc.relnamespace "
-                "WHERE tc.relname = :tbl "
-                "  AND n.nspname = COALESCE(:schema, current_schema()) "
-                "  AND NOT i.indisprimary AND NOT i.indisunique "
-                "  AND NOT EXISTS (SELECT 1 FROM pg_constraint con WHERE con.conindid = i.indexrelid)"
-            ),
+            text(fetch_pg_secondary_indexes_sql()),
             {"tbl": table, "schema": self._schema},
         ).fetchall()
         return [(r[0], r[1]) for r in rows]
