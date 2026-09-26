@@ -169,6 +169,9 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-26 | MariaDB Connector/Python (PF-09) | `executemany` del driver con tipos uniformes: `dump` 80 → 29 s | CLOSED |
 | 2026-09-26 | Fase 2 (Q5, Q6, 2.3) + 3.4 | `write_batch_size` (PG −22 %); guía `manage_indexes`; aviso LOB; resumen de auditoría incremental; Q9 replanteado | CLOSED |
 | 2026-09-26 | Cierre de versión v0.16.0 | CHANGELOG `[0.16.0]` + `pyproject.toml`; checklist verde (5054/165; integración 303/0; build 0.16.0; docs estrictas); tag `v0.16.0` | CLOSED |
+| 2026-09-26 | Tests de integración de `dump` | 28 tests contra 5 servidores (origen PostgreSQL); 17 fallan con v0.15.0; hallazgo PD-13 | CLOSED |
+| 2026-09-26 | Hotfix PD-13 + audit-code + A1–A3 | DECIMAL exacto con pymssql; auditoría independiente (APROBADO CON CONDICIONES) y sus 3 hallazgos corregidos | CLOSED |
+| 2026-09-26 | Cierre de versión v0.16.1 | CHANGELOG `[0.16.1]` + `pyproject.toml`; checklist verde (5067/193; integración 331/0; build 0.16.1); tag `v0.16.1` | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 

@@ -1,8 +1,8 @@
 # CURRENT STATE — util_bbdd
 
-**Generado**: 2026-06-05 (cabecera, tabla de versiones y tests actualizados el 2026-09-26 en el cierre de `v0.16.0`)  
-**Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.16.0`  
-**Versión**: `v0.16.0` (cerrada en `develop`, 2026-09-26). Tag de git: `v0.16.0`  
+**Generado**: 2026-06-05 (cabecera, tabla de versiones y tests actualizados el 2026-09-26 en el cierre de `v0.16.1`)  
+**Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.16.1`  
+**Versión**: `v0.16.1` (cerrada en `develop`, 2026-09-26). Tag de git: `v0.16.1`  
 **Rama activa**: `develop`
 
 ---
@@ -19,12 +19,13 @@
 | `v0.14.0` | Liberado 2026-09-25 (tag sobre `44a7b43`) — auditoría de código de `bulk` con 9 hallazgos corregidos (`chunk_size` sin validar, `maintenance_scope` ocultaba errores y no restauraba con `commit_every_n_chunks`, `sync_pk_sequences` en Oracle nunca funcionaba, DELETE sin cadencia de commit, `DISABLE KEYS` con commit implícito en InnoDB…); contenedores de desarrollo/pruebas propios en `127.0.0.1` y puertos no estándar (`docker-compose.yml` ya no define `postgres_db`); suite sin avisos ni saltos «no aplica»; `mkdocs`/`zensical --strict` sin avisos; entorno de performance-audit de `dump` (commit `19ef481`, otra sesión) (sesiones `2026-09-24-bench-containers-independence` a `2026-09-25-version-closure-v0.14.0`) |
 | `v0.15.0` | Liberado 2026-09-25 (tag sobre `2b4391a`) — auditoría de `bulk` coherente con la BD (fila escrita al confirmarse el commit) y fail-open ante fallos del CSV con `audit_strict` y contadores (`audit_failures`, `audited_rows`…) en `BulkCrud`, `ParallelBulkLoader` y `dump`; hojas «Auditoría Bulk» y «Secuencias PK» en el Excel de `dump`; **cambio incompatible**: se retira `AuditTransaction`; `generar_sql` ~2,5× más rápido con el mismo SQL (P-31 a P-34: 1M filas INSERT 12,6 → 4,9 s) y literales binarios correctos por motor (C-1/P-30: Oracle corrompía `b"abc"` sin avisar) (sesiones `2026-09-25-audit-code-audit-manager` a `2026-09-25-version-closure-v0.15.0`) |
 | `v0.16.0` | Liberado 2026-09-26 (tag sobre `693f9c2`) — `dump` fiable y más rápido tras auditoría con banco real en 6 motores: 12 fallos de corrección (datos alterados sin aviso, SQL Server con columnas en minúsculas y DECIMAL de 38 dígitos, PK sin resincronizar, validación de FK en PG, volcado repetido en PG, reflexión recursiva por FK…); volcado −15 % a −64 % según motor y driver y memoria acotada (Oracle `arraysize`, cursor de servidor, solape lectura/escritura, lotes COPY de 20 000, `executemany` de MariaDB Connector/Python); nuevo `DumpConfig.write_batch_size` y `strip_strings` en `bulk` (sesiones `2026-09-25b-performance-audit-dump-delta` a `2026-09-26t-version-closure-v0.16.0`) |
+| `v0.16.1` | Liberado 2026-09-26 (tag sobre `812a020`) — DECIMAL exacto con pymssql (PD-13: un `0E-10` en el lote redondeaba los DECIMAL grandes), cierre de la conexión de lectura de `dump` y de los lectores de rangos al fallar la escritura (audit-code A1/A2), `strip_strings=False` con `numpy.str_` (A3); 28 tests de integración de `dump` contra servidores reales (sesiones `2026-09-26u-tests-integracion-dump` a `2026-09-26y-version-closure-v0.16.1`) |
 | Zenical | Pendiente, sin versión asignada — merge `migrate/zenical-pure` (+80% perf doc builds) cuando Zenical esté instalable |
 
 PR abierta: **PR #18** `feat(connection/bulk): automatización variables MySQL/MariaDB` — revisión pendiente de merge.  
 PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical v0.0.44 esté en crates.io (o instalación manual de binario).
 
-**Tests actuales**: 5054 passed / 165 skipped sin URLs de servidor (todos los saltos son servidores sin URL); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 303 passed, 0 skipped en 5 servidores (cierre de `v0.16.0`, 2026-09-26). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/PERFORMANCE_AUDIT_GUIDE.md`).
+**Tests actuales**: 5067 passed / 193 skipped sin URLs de servidor (todos los saltos son servidores sin URL); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 331 passed, 0 skipped en 5 servidores (incluye `tests/integration/test_dump_engines.py`; cierre de `v0.16.1`, 2026-09-26). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/PERFORMANCE_AUDIT_GUIDE.md`).
 
 ---
 
