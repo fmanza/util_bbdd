@@ -64,6 +64,23 @@ def test_creates_loads_updates_and_drops_the_staging_table() -> None:
     assert str(drop_stmt) == f"DROP TEMPORARY TABLE IF EXISTS {load_stmt.table.name}"
 
 
+def test_staging_table_uses_the_schema_of_the_target_table() -> None:
+    """PD-12: sin base de datos por defecto en la conexión, una temporal sin esquema fallaba con 'No database selected'."""
+    table = Table("t", MetaData(), Column("id", Integer, primary_key=True), Column("a", Integer), schema="dst")
+    connection, loader = _connection(), MagicMock()
+    strategy = MySQLStagingUpdateStrategy(table=table, pk_cols=["id"], update_cols=["a"], loader=loader)
+
+    strategy.execute(connection=connection, stmt=None, records=[{"id": 1, "a": 10}])
+
+    staging = loader.execute.call_args.kwargs["stmt"].table
+    assert staging.schema == "dst"
+    update_stmt, drop_stmt = _statements(connection)
+    sql = str(update_stmt.compile(dialect=MySQLDialect_pymysql()))
+    assert sql.startswith(f"UPDATE dst.t, dst.{staging.name} SET ")
+    assert f"WHERE dst.t.id = dst.{staging.name}.id" in sql
+    assert str(drop_stmt) == f"DROP TEMPORARY TABLE IF EXISTS dst.{staging.name}"
+
+
 def test_last_occurrence_of_a_repeated_pk_wins() -> None:
     loader = MagicMock()
     strategy = MySQLStagingUpdateStrategy(table=_table(), pk_cols=["id"], update_cols=["a"], loader=loader)

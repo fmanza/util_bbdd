@@ -9,6 +9,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **bulk**: en MySQL/MariaDB, `bulk_update_from_df` fallaba con `No database selected` si la conexión no tenía base de
+  datos por defecto y la tabla se indicaba como `esquema.tabla`: la tabla temporal del UPDATE por staging se creaba sin
+  esquema. Ahora se crea en el esquema de la tabla destino (PyMySQL y MariaDB Connector/Python).
 - **dump**: con `parallel_pk_ranges` > 1 (y una tabla a la vez), las tablas cargadas por rangos de PK no se
   resincronizaban (`pk_sync_results` salía `None`) y en PostgreSQL y Oracle el siguiente INSERT sin PK chocaba por
   clave duplicada. Ahora se sincronizan igual que con la carga de tabla entera.

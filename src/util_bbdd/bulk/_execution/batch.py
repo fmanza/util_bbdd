@@ -611,10 +611,13 @@ class MySQLStagingUpdateStrategy:
         for record in records:
             rows_by_pk[tuple(record[c] for c in self._pk_cols)] = {c: record[c] for c in cols}
 
+        # PD-12 (2026-09-26): en el esquema de la tabla destino. Sin esquema, con una conexión sin base de datos por
+        # defecto y la tabla destino como esquema.tabla, CREATE TEMPORARY TABLE fallaba con "No database selected".
         staging = Table(
             f"tmp_bulkupd_{uuid.uuid4().hex[:12]}",
             MetaData(),
             *(Column(c, self._table.c[c].type) for c in cols),
+            schema=self._table.schema,
             prefixes=["TEMPORARY"],
         )
         drop_sql = f"DROP TEMPORARY TABLE IF EXISTS {connection.dialect.identifier_preparer.format_table(staging)}"
