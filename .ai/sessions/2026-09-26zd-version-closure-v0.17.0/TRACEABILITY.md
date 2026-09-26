@@ -36,6 +36,8 @@
 - `df94154` `release: v0.17.0 - …` y tag anotado `v0.17.0`; después, este `docs(ai)`.
 - Push de `develop` y del tag `v0.17.0` a `origin`; `main` no se toca. El remoto no había divergido antes del push
   (`3d4e52d`).
+- **Push verificado**: `origin/develop` `3d4e52d..0441617`; `git ls-remote --tags origin v0.17.0` → `696514f` (objeto
+  del tag anotado sobre `df94154`).
 
 ## Rollback
 - Quitar el tag remoto si nadie lo ha consumido: `git push origin :refs/tags/v0.17.0`.
