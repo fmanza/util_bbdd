@@ -103,11 +103,27 @@ def test_opening_a_session_resets_the_batch_counter_after_a_failed_session(engin
     log = _record(engine)
 
     with crud.bulk_session():
-        _insert(crud, 2)  # contador 1 otra vez: sin commit periódico, solo el final
+        _insert(crud, 2)  # contador 1 otra vez (sin reiniciar serían 2: commit periódico aquí)
+        _insert(crud, 3)  # contador 2: commit periódico
 
-    assert log == ["INSERT", "COMMIT"]
+    assert log == ["INSERT", "INSERT", "COMMIT"]
     with engine.connect() as conn:
-        assert conn.execute(text("SELECT id FROM t WHERE id < 100 ORDER BY id")).scalars().all() == [2]
+        assert conn.execute(text("SELECT id FROM t WHERE id < 100 ORDER BY id")).scalars().all() == [2, 3]
+
+
+def test_error_in_maintenance_scope_discards_the_pending_rows(engine: Engine) -> None:
+    # Con cadencia, el error dentro de maintenance_scope deshace lo pendiente y restaura; las filas deshechas no deben
+    # contarse después como confirmadas.
+    crud = _crud(engine)
+    crud.reflect_table("t")
+    with pytest.raises(RuntimeError), crud.bulk_session(), crud.maintenance_scope("t"):
+        _insert(crud, 1)  # 1 fila pendiente, sin commit
+        raise RuntimeError("fallo dentro de maintenance_scope")
+
+    with crud.bulk_session():
+        _insert(crud, 2)
+
+    assert crud.rows_committed == 1
 
 
 def test_atomic_session_commits_once_at_the_end(engine: Engine) -> None:
