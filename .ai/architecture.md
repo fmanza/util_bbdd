@@ -94,6 +94,7 @@
 │    ├── _models.py                  # PKSyncResult
 │    ├── _execution/
 │    │   ├── executors.py            # BatchStatementExecutor, DeleteBatchExecutor (cadencia de commit)
+│    │   ├── session.py              # SessionScope (conexión de bulk_session) + CommitCadence (commit_every_n_chunks)
 │    │   ├── insert_strategies.py    # InsertStrategyResolver + estrategias (COPY, execute_values, multi-fila, executemany)
 │    │   ├── delete_strategies.py    # DeleteStrategyResolver + estrategias (ANY/unnest en PG, IN troceado)
 │    │   ├── staging_update.py       # MySQLStagingUpdateStrategy (UPDATE por tabla temporal)

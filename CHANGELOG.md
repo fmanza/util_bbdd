@@ -16,6 +16,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **bulk/dump**: la DDL que desactiva y reactiva la integridad de una tabla (SQL Server `NOCHECK CONSTRAINT ALL`, PostgreSQL
   `DISABLE TRIGGER ALL`) y la comprobación de privilegios de PostgreSQL están en un solo sitio (`bulk/_support/dialect.py`),
   compartido por `maintenance_scope`, `ParallelBulkLoader` y `ConstraintManager`. Mismo SQL.
+- **bulk**: `BulkCrud` ya no manipula el estado privado de sus ejecutores: la conexión de `bulk_session` y el gancho
+  de commit viven en `SessionScope` y los contadores de `commit_every_n_chunks` en `CommitCadence`
+  (`bulk/_execution/session.py`). Misma cadencia de commit, fijada antes con tests de caracterización.
 
 ## [0.17.1] - 2026-09-26
 
