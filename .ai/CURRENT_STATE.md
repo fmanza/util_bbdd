@@ -1,8 +1,8 @@
 # CURRENT STATE — util_bbdd
 
-**Generado**: 2026-06-05 (cabecera, tabla de versiones y tests actualizados el 2026-09-26 en el cierre de `v0.17.1`)  
-**Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.17.1`  
-**Versión**: `v0.17.1` (cerrada en `develop`, 2026-09-26; `develop` y el tag publicados en `origin`). Tag de git: `v0.17.1`  
+**Generado**: 2026-06-05 (cabecera, tabla de versiones y tests actualizados el 2026-09-26 en el cierre de `v0.17.2`)  
+**Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.17.2`  
+**Versión**: `v0.17.2` (cerrada en `develop`, 2026-09-26; `develop` y el tag publicados en `origin`). Tag de git: `v0.17.2`  
 **Rama activa**: `develop`
 
 ---
@@ -22,12 +22,13 @@
 | `v0.16.1` | Liberado 2026-09-26 (tag sobre `812a020`) — DECIMAL exacto con pymssql (PD-13: un `0E-10` en el lote redondeaba los DECIMAL grandes), cierre de la conexión de lectura de `dump` y de los lectores de rangos al fallar la escritura (audit-code A1/A2), `strip_strings=False` con `numpy.str_` (A3); 28 tests de integración de `dump` contra servidores reales (sesiones `2026-09-26u-tests-integracion-dump` a `2026-09-26y-version-closure-v0.16.1`) |
 | `v0.17.0` | Liberado 2026-09-26 (tag sobre `df94154`) — `dump` con SQL Server sin la consulta de FK de SQLAlchemy por tabla: FK de todo el esquema en una consulta (`metadata/sqlserver`) y reflexión sin FK (`reflect_foreign_keys`, nuevo en `BulkCrud`/`ParallelBulkLoader`); 200 tablas 33,9 → 14,3 s. Q8 aparcado y 3.3 (Oracle `APPEND_VALUES`) descartado: roadmap de rendimiento de `dump` cerrado (sesiones `2026-09-26z-q8-medicion` a `2026-09-26zd-version-closure-v0.17.0`) |
 | `v0.17.1` | Liberado 2026-09-26 (tag sobre `5113380`) — `DumpConfig` valida `chunk_size` y `commit_every_n_chunks` al construirse (antes vaciaba el destino y fallaba, o dejaba la tabla vacía con estado `success`); refactor de reutilización de `bulk`/`dump` sin cambios funcionales (`orchestrator.py` y `batch.py` divididos, helpers en `bulk/_support/`) (sesiones `2026-09-26ze-code-reusability-bulk-dump` y `2026-09-26zf-version-closure-v0.17.1`) |
+| `v0.17.2` | Liberado 2026-09-26 (tag sobre `ce1314b`) — `rows_committed` ya no cuenta las filas de una `bulk_session` fallida con `commit_every_n_chunks`; SQL de catálogo de `bulk`/`dump` en `metadata/` (R11), DDL de integridad compartida (R12) y `SessionScope`/`CommitCadence` (R14), sin cambios funcionales (sesión `2026-09-26zg-version-closure-v0.17.2`) |
 | Zenical | Pendiente, sin versión asignada — merge `migrate/zenical-pure` (+80% perf doc builds) cuando Zenical esté instalable |
 
 PR abierta: **PR #18** `feat(connection/bulk): automatización variables MySQL/MariaDB` — revisión pendiente de merge.  
 PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical v0.0.44 esté en crates.io (o instalación manual de binario).
 
-**Tests actuales**: 5089 passed / 199 skipped sin URLs de servidor (todos los saltos son servidores sin URL); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 338 passed, 0 skipped en 5 servidores (cierre de `v0.17.1`, 2026-09-26). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/PERFORMANCE_AUDIT_GUIDE.md`).
+**Tests actuales**: 5095 passed / 199 skipped sin URLs de servidor (todos los saltos son servidores sin URL); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 338 passed, 0 skipped en 5 servidores (cierre de `v0.17.2`, 2026-09-26). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/PERFORMANCE_AUDIT_GUIDE.md`).
 
 ---
 
@@ -98,8 +99,8 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 Medido el 2026-09-26 (sesión `2026-09-26ze-code-reusability-bulk-dump`):
 
 - **Lint**: `ruff check src tests` → 0 errores
-- **Tipos**: `mypy src tests/unit/test_protocol_conformance.py` → 0 errores (355 source files)
-- **Tests**: 5080 passed / 199 skipped sin URLs de servidor
+- **Tipos**: `mypy src tests/unit/test_protocol_conformance.py` → 0 errores (356 source files)
+- **Tests**: 5095 passed / 199 skipped sin URLs de servidor
 - **Cobertura de ramas `bulk/` + `dump/`**: 92 % (`coverage run --branch --source=src/util_bbdd/bulk,src/util_bbdd/dump`;
   `pytest --cov` falla con Python 3.14 + numpy al importar el paquete dos veces)
 - **Build docs**: `mkdocs build --strict` → 0 errores, 0 warnings

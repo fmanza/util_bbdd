@@ -50,7 +50,7 @@ Tests tocados (solo destinos de parche y un test nuevo): `tests/unit/dump/test_d
   `scripts/bench_env.example.sh` con la contraseña de los contenedores (codificada para URL, sin persistirla).
 
 ## Pendiente
-- **Defecto encontrado en R14 (no corregido; cambia comportamiento)**: si una `bulk_session` con `commit_every_n_chunks` falla, las filas pendientes no se descartan y la siguiente sesión que termina bien las suma a `rows_committed` (reproducido: 1 fila en BD, `rows_committed == 2`). Solo afecta a quien reutiliza la `BulkCrud` tras un fallo (`ParallelBulkLoader` prohíbe reintentar con cadencia). Arreglo: `cadence.discard_pending()` en la rama de error de `bulk_session` + test; va por `/hotfix`.
+- ~~**Defecto encontrado en R14**~~ corregido en `bb91612` (`fix(bulk)`, v0.17.2): si una `bulk_session` con `commit_every_n_chunks` falla, las filas pendientes no se descartan y la siguiente sesión que termina bien las suma a `rows_committed` (reproducido: 1 fila en BD, `rows_committed == 2`). Solo afecta a quien reutiliza la `BulkCrud` tras un fallo (`ParallelBulkLoader` prohíbe reintentar con cadencia). Arreglo: `cadence.discard_pending()` en la rama de error de `bulk_session` + test; va por `/hotfix`.
 
 - ~~`/hotfix` de `DumpConfig` y después R5~~: hechos (`9ef505e`, `f5ca1b6`); entrada en `CHANGELOG.md` § Unreleased.
 - Fase 2 restante (R11–R14) en otra sesión con el banco; Fase 3 opcional.
