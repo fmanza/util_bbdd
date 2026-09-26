@@ -7,6 +7,28 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Refactor de reutilización de `bulk` y `dump` sin cambios funcionales (mismo SQL, mismos resultados, misma API) y un
+fallo de `DumpConfig` que vaciaba el destino ante una configuración inválida. Sesión
+`.ai/sessions/2026-09-26zd-code-reusability-bulk-dump/` (informe, plan e implementación).
+
+### Changed
+
+- **dump**: `orchestrator.py` (1 510 → 1 083 líneas) se divide en `_source_reader.py` (lectura del origen),
+  `_fk_graph.py` (orden de carga por FK) y `_audit_summary.py` (resumen del CSV de auditoría). `DumpOrchestrator`
+  conserva sus métodos estáticos como delegados y `orchestrator` re-exporta los nombres que se importaban de él.
+- **bulk**: `_execution/batch.py` (1 091 líneas) se divide en `insert_strategies.py`, `delete_strategies.py`,
+  `staging_update.py`, `executors.py` y `_driver_quirks.py`; `batch.py` queda como fachada que re-exporta todo.
+- **bulk/dump**: helpers compartidos en `bulk/_support/` en lugar de copias (quoting de identificadores, defensa contra
+  fórmulas en Excel, cierre de generadores, `MYSQL_FAMILY`) y un único punto para el formato del CSV de auditoría, sus
+  contadores, el criterio de PK identity y la regla de *fallback* de las estrategias INSERT de driver.
+- **dump**: los rangos de `parallel_pk_ranges` se calculan con `RangePartitioner.partition_ranges` (mismos rangos y SQL).
+
+### Fixed
+
+- **dump**: `DumpConfig` valida `chunk_size` y `commit_every_n_chunks` al construirse. Antes los validaba la primera
+  `BulkCrud`, creada después de limpiar el destino: con `truncate_target=True`, un valor inválido vaciaba las tablas y
+  luego fallaba con `ValueError`, y `chunk_size=0` con `write_batch_size` dejaba la tabla vacía con estado `success`.
+
 ## [0.17.0] - 2026-09-26
 
 Cierre de la Fase 3 del roadmap de rendimiento de `dump`: el volcado con muchas tablas en SQL Server deja de pagar la

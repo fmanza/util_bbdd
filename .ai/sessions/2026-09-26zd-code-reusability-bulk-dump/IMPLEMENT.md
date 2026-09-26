@@ -14,7 +14,7 @@
 | R2 | ✅ | `bulk/_support/excel.py: neutralize_formulas`; `_audit/exporters.py` y `dump/reporters.py` lo usan. Test nuevo: fórmulas en las hojas opcionales (`test_reporters.py`) |
 | R3 | ✅ | `AuditCsvRepository.parse_frame`; lo usan `leer_auditoria` y la lectura de la cola del CSV en `dump` |
 | R4 | ✅ | `bulk/_audit/counters.py: AuditCounters` (privado); `dump` y `ParallelBulkLoader._partition_result` lo usan; `_AuditCounters` queda como alias |
-| R5 | ⏸ | Pendiente del `/hotfix` de `DumpConfig` (condición C-1) |
+| R5 | ✅ | Tras el hotfix (`9ef505e`): `_compute_range_bounds` delega en `RangePartitioner.partition_ranges`; mismas tuplas y SQL (equivalencia en 39 063 casos). Commit `f5ca1b6` |
 | R6 | ✅ | `MYSQL_FAMILY` (15 literales), `AUDIT_OPERATIONS` (3), `is_identity_pk` (2) |
 | R7 | ✅ | `bulk/_support/iterables.py: close_if_closable`, `closing_iterable`; `_closing_iterable` queda como alias |
 | R8 | ✅ | `_RawInsertStrategy` (Template Method) para las 4 estrategias de driver. El helper de placeholders se descartó (no compensa) |
@@ -47,7 +47,7 @@ Tests tocados (solo destinos de parche y un test nuevo): `tests/unit/dump/test_d
 
 ## Pendiente
 
-- `/hotfix` de `DumpConfig` y después R5.
+- ~~`/hotfix` de `DumpConfig` y después R5~~: hechos (`9ef505e`, `f5ca1b6`); entrada en `CHANGELOG.md` § Unreleased.
 - Fase 2 restante (R11–R14) en otra sesión con el banco; Fase 3 opcional.
 - Numeración de fases: `docs/api/dump.md` y `docs/functional/dump-data-export.md` usan «Fase 6/6a»; el código y su log,
   «Fase 5a». Decidir cuál es la canónica (docstring de `DumpConfig.sync_pk_sequences` incluido).
