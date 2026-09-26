@@ -21,7 +21,7 @@
 | 0.9 | PD-07 (BAJA) | **Hecho** (sesión `2026-09-26f-hotfix-dump-sqlite-source`: aviso, no rechazo; la premisa venía de la matriz de `migrate`) | Rechazar o avisar de un origen SQLite | Error claro en `DumpOrchestrator.__init__` |
 | 0.10 | PD-10 (MEDIA, nuevo) | **Hecho** (sesión `2026-09-26c-hotfix-mssql-decimal-precision`; causa real: contexto `decimal` de 28 dígitos en pyodbc) | SQL Server + `fast_executemany`: enviar `Decimal` sin perder precisión (p. ej. como `str`, que en el microbanco cuesta lo mismo que `float`) o fijar `setinputsizes` para columnas DECIMAL | DECIMAL(38,10) con 38 dígitos exacto en `dump` y `BulkCrud` a SQL Server; escritura sin empeorar > 5 % |
 | 0.11 | PD-11 (ALTA, nuevo) | **Hecho** (sesión `2026-09-26h-hotfix-dump-pk-sync-ranges`) | Reflejar en la `BulkCrud` principal las tablas cargadas por rangos antes de la Fase 5a | `ranges4` en Oracle y PostgreSQL: 3 × `synced` e identidad OK |
-| 0.13 | PD-13 (MEDIA, nuevo) | Abierto (sesión `2026-09-26u-tests-integracion-dump`) | Con pymssql + insertmanyvalues de SQLAlchemy, un `Decimal` en notación exponencial (`-1E-10`, `0E-10`) convierte a `float` la columna del INSERT multi-fila | DECIMAL de más de 15 dígitos exacto con pymssql en lotes con ceros/valores pequeños; quitar el `xfail` de `test_dump_copies_values_exactly[mssql]` |
+| 0.13 | PD-13 (MEDIA, nuevo) | **Hecho** (sesión `2026-09-26v-hotfix-pymssql-decimal`) | Con pymssql + insertmanyvalues de SQLAlchemy, un `Decimal` en notación exponencial (`-1E-10`, `0E-10`) convierte a `float` la columna del INSERT multi-fila | DECIMAL de más de 15 dígitos exacto con pymssql en lotes con ceros/valores pequeños; quitar el `xfail` de `test_dump_copies_values_exactly[mssql]` |
 
 ## Fase 1 — Quick wins
 

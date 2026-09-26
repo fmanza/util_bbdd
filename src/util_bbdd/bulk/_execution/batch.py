@@ -120,6 +120,31 @@ def _driver_decimal_context(engine: Engine) -> contextlib.AbstractContextManager
     return decimal.localcontext(context)
 
 
+class _PlainDecimal(decimal.Decimal):
+    """``Decimal`` cuyo ``str()`` usa notación fija (``0.0000000000`` en vez de ``0E-10``); ver ``_pymssql_plain_decimals``."""
+
+    def __str__(self) -> str:
+        return format(self, "f")
+
+    __repr__ = __str__
+
+
+def _pymssql_plain_decimals(engine: Engine, records: Sequence[Mapping[str, Any]]) -> Sequence[Mapping[str, Any]]:
+    """Con pymssql, los ``Decimal`` de ``records`` en notación fija; con otros drivers, ``records`` tal cual.
+
+    PD-13 (2026-09-26): pymssql incrusta los parámetros en el SQL con ``str()``, y ``str(Decimal("0E-10"))`` es ``0E-10``
+    (así llega un cero leído de una columna ``DECIMAL(p,10)``). SQL Server lee ese literal como ``float`` y, en el
+    ``INSERT … VALUES (…), (…)`` multi-fila de SQLAlchemy (insertmanyvalues), convierte a ``float`` toda la columna: los
+    DECIMAL de más de ~15 dígitos del lote se redondeaban sin aviso. Mismo valor, solo cambia cómo se escribe.
+    """
+    if engine.dialect.driver != "pymssql":
+        return records
+    return [
+        {key: _PlainDecimal(value) if type(value) is decimal.Decimal else value for key, value in record.items()}
+        for record in records
+    ]
+
+
 class InsertExecutionStrategyProtocol(Protocol):
     """Contrato para ejecutar INSERT de un batch."""
 
@@ -954,7 +979,7 @@ class BatchStatementExecutor:
                 (strategy or self._insert_strategy).execute(
                     connection=connection,
                     stmt=stmt,
-                    records=batch,
+                    records=_pymssql_plain_decimals(self._engine, batch),
                 )
             if self._commit_every_n_chunks is not None:
                 self._rows_pending_commit += len(batch)

@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from util_bbdd.bulk._execution.batch import BatchStatementExecutor, _driver_decimal_context
+from util_bbdd.bulk._execution.batch import BatchStatementExecutor, _driver_decimal_context, _pymssql_plain_decimals
 
 pytestmark = pytest.mark.unit
 
@@ -58,3 +58,26 @@ def test_executor_calls_the_strategy_with_raised_precision() -> None:
 
     assert seen == [38, 38, 38]
     assert decimal.getcontext().prec == 28
+
+
+class TestPymssqlPlainDecimals:
+    """PD-13: con pymssql los Decimal van en notación fija; SQL Server leía ``0E-10``/``-1E-10`` como float."""
+
+    @staticmethod
+    def _engine(driver: str) -> MagicMock:
+        engine = MagicMock()
+        engine.dialect.driver = driver
+        return engine
+
+    def test_pymssql_writes_decimals_without_exponent_and_keeps_the_value(self) -> None:
+        records = [{"k": decimal.Decimal("0E-10"), "v": "a"}, {"k": decimal.Decimal("-1E-10"), "v": None}]
+        out = _pymssql_plain_decimals(self._engine("pymssql"), records)
+        assert [str(r["k"]) for r in out] == ["0.0000000000", "-0.0000000001"]
+        assert [r["k"] for r in out] == [r["k"] for r in records]  # mismo valor
+        assert all(isinstance(r["k"], decimal.Decimal) for r in out)
+        assert [r["v"] for r in out] == ["a", None]
+
+    @pytest.mark.parametrize("driver", ["pyodbc", "psycopg", "pymysql"])
+    def test_other_drivers_get_the_same_records(self, driver: str) -> None:
+        records = [{"k": decimal.Decimal("0E-10")}]
+        assert _pymssql_plain_decimals(self._engine(driver), records) is records

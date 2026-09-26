@@ -11,7 +11,8 @@ Sin URL de PostgreSQL se saltan todos; sin la del destino, el suyo. Hallazgos cu
 (``.ai/sessions/2026-09-25b-performance-audit-dump-delta/improvement_roadmap_dump.md``):
 
 - ``test_dump_copies_values_exactly``: PD-05 (datos alterados), PD-10 (DECIMAL de 38 dígitos en SQL Server), PD-01
-  (columnas en minúsculas en SQL Server) y PF-09 (MariaDB Connector/Python). Con pymssql, ``xfail`` estricto por PD-13.
+  (columnas en minúsculas en SQL Server), PF-09 (MariaDB Connector/Python) y PD-13 (DECIMAL con pymssql: la URL de
+  pruebas de SQL Server usa pymssql).
 - ``test_identity_is_resynced_after_dump``: PD-02 (PK sync con ``target_schema``) y PD-11 (con rangos de PK).
 - ``test_redump_with_foreign_keys``: PD-03 (volcado repetido con FK en PostgreSQL).
 - ``test_orphan_rows_mark_the_foreign_key_as_failed``: PD-04 (validación real de FK en PostgreSQL).
@@ -174,10 +175,6 @@ def _values_table(name: str, *, schema: str | None = None) -> Table:
 
 @pytest.mark.parametrize("setup", _target_params(), indirect=True)
 def test_dump_copies_values_exactly(setup: Setup, request: pytest.FixtureRequest) -> None:
-    if setup.target.dialect.driver == "pymssql":
-        # PD-13: pymssql incrusta los parámetros en el SQL; con insertmanyvalues de SQLAlchemy, un Decimal en notación
-        # exponencial (-1E-10, 0E-10) se lee como float y arrastra a toda la columna del INSERT multi-fila.
-        request.applymarker(pytest.mark.xfail(strict=True, reason="PD-13: DECIMAL con pymssql + insertmanyvalues"))
     source_table = _values_table(setup.name("vals"), schema=setup.source_schema)
     source_table.create(setup.source)
     with setup.source.begin() as conn:

@@ -7,6 +7,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **bulk**: en SQL Server con **pymssql**, un DECIMAL de más de ~15 dígitos se redondeaba sin aviso si el mismo lote
+  tenía un valor en notación exponencial, incluido un cero leído de una columna `DECIMAL(p,10)` (`0E-10`):
+  `12345678901234567.89` llegaba como `12345678901234568`. pymssql escribe los parámetros en el SQL y SQL Server leía
+  `0E-10` como `float`, arrastrando a toda la columna del INSERT multi-fila. Ahora los `Decimal` se envían en notación
+  fija (mismo valor, sin coste medible). pyodbc no estaba afectado.
+
 ### Changed
 
 - **tests**: `tests/integration/test_dump_engines.py` cubre contra servidores reales las correcciones de `dump`/`bulk` de
