@@ -52,6 +52,7 @@ from ._execution.batch import (
     MySQLStagingUpdateStrategy,
     validate_chunk_size,
 )
+from ._execution.session import SessionScope
 from ._models import PKSyncResult
 from ._support.dialect import (
     MYSQL_FAMILY,
@@ -243,17 +244,21 @@ class BulkCrud:
             db_info=self.db_info,
             audit_strict=audit_strict,
         )
+        # Conexión de bulk_session() y gancho de commit, compartidos por los dos ejecutores (R14).
+        self._session: SessionScope = SessionScope()
         self._batch_statement_executor: BatchStatementExecutor = BatchStatementExecutor(
             engine=self.engine,
             chunk_size=self.chunk_size,
             enable_fast_executemany=enable_fast_executemany,
             insert_resolver=insert_resolver,
             commit_every_n_chunks=commit_every_n_chunks,
+            session=self._session,
         )
         self._delete_batch_executor: DeleteBatchExecutor = DeleteBatchExecutor(
             engine=self.engine,
             chunk_size=self.chunk_size,
             commit_every_n_chunks=commit_every_n_chunks,
+            session=self._session,
         )
         # INSERT no entra en este dict porque requiere kwargs extra (override_identity,
         # exclude_autoincrement_pk) que la interfaz Callable[[df, tabla], ...] no soporta.
@@ -741,7 +746,7 @@ class BulkCrud:
         Equivale a lo anterior, cuando todos los lotes iban en una sola llamada al ejecutor: atómica, o
         commit-as-you-go con ``commit_every_n_chunks``.
         """
-        if self._batch_statement_executor._active_connection is not None:
+        if self._session.active:
             yield
             return
         with self.bulk_session():
@@ -1047,41 +1052,30 @@ class BulkCrud:
         if not atomic:
             yield
             return
-        executor = self._batch_statement_executor
-        delete_executor = self._delete_batch_executor  # P-26: el DELETE también usa la conexión de la sesión
+        # La sesión la comparten el INSERT/UPDATE y el DELETE (P-26); la cadencia es la del INSERT/UPDATE.
+        cadence = self._batch_statement_executor.cadence
         persistence = self._persistence
-        committed_before = executor.rows_committed
+        committed_before = cadence.rows_committed
         committed_rows: int | None = None
         try:
-            if executor._commit_every_n_chunks is not None:
-                executor._chunks_since_commit = 0
-                with executor._engine.connect() as conn:
-                    executor._active_connection = delete_executor._active_connection = conn
-                    executor._commit_hook = delete_executor._commit_hook = persistence.commit
+            if cadence.every is not None:
+                cadence.restart()
+                with self.engine.connect() as conn, self._session.bind(conn, commit_hook=persistence.commit):
                     persistence.start_session_audit(conn)
                     try:
                         yield
                         persistence.commit(conn)
-                        executor._chunks_since_commit = 0
-                        executor.rows_committed += executor._rows_pending_commit
-                        executor._rows_pending_commit = 0
+                        cadence.confirm()
                     except BaseException:
                         # PL-1 (audit-code de ParallelBulkLoader): lo confirmado por commits periódicos, para contar
                         # las filas que no constan en el CSV.
-                        committed_rows = executor.rows_committed - committed_before
+                        committed_rows = cadence.rows_committed - committed_before
                         raise
-                    finally:
-                        executor._active_connection = delete_executor._active_connection = None
-                        executor._commit_hook = delete_executor._commit_hook = None
                 return
-            with executor._engine.begin() as conn:
-                executor._active_connection = delete_executor._active_connection = conn
+            with self.engine.begin() as conn, self._session.bind(conn):
                 persistence.start_session_audit(conn)
-                try:
-                    yield
-                    persistence.flush_audit_before_commit()
-                finally:
-                    executor._active_connection = delete_executor._active_connection = None
+                yield
+                persistence.flush_audit_before_commit()
             persistence.flush_audit_after_commit()
         finally:
             persistence.end_session_audit(committed_rows=committed_rows)
@@ -1131,11 +1125,10 @@ class BulkCrud:
             RuntimeError: Si se invoca fuera de un :meth:`bulk_session` activo.
         """
         dialect: str = self.engine.dialect.name
-        executor = self._batch_statement_executor
         tabla = self.reflect_table(tabla_destino)
         quoted_name = self.engine.dialect.identifier_preparer.format_table(tabla)
 
-        conn = executor._active_connection
+        conn = self._session.connection
         if conn is None:
             raise RuntimeError(
                 "maintenance_scope requiere una sesión activa. "
@@ -1182,8 +1175,8 @@ class BulkCrud:
         - Con ``commit_every_n_chunks``: la desactivación pudo quedar confirmada por un commit periódico. Se deshace lo
           pendiente (el rollback de la sesión lo descartaría igual), se restaura y se confirma solo la restauración.
         """
-        executor = self._batch_statement_executor
-        if executor._commit_every_n_chunks is None:
+        cadence = self._batch_statement_executor.cadence
+        if cadence.every is None:
             try:
                 restore()
             except Exception as exc:
@@ -1194,8 +1187,7 @@ class BulkCrud:
             return
         try:
             conn.rollback()
-            executor._chunks_since_commit = 0
-            executor._rows_pending_commit = 0
+            cadence.discard_pending()
             restore()
             conn.commit()
         except Exception as exc:

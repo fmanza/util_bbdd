@@ -77,7 +77,7 @@ class TestBulkInsertFromChunks:
 
         assert total == 5
         assert _count(engine) == 5
-        assert crud._batch_statement_executor._chunks_since_commit == 0
+        assert crud._batch_statement_executor.cadence.batches == 0
 
     def test_exclude_autoincrement_pk(self) -> None:
         # PK INTEGER autoincremental en SQLite: excluida del INSERT → la asigna el motor

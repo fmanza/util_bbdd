@@ -374,9 +374,9 @@ def test_bulk_session_resets_active_connection_on_exit() -> None:
     crud = bulk_crud(engine=engine)
 
     with crud.bulk_session():
-        assert crud._batch_statement_executor._active_connection is not None
+        assert crud._session.active
 
-    assert crud._batch_statement_executor._active_connection is None
+    assert not crud._session.active
 
 
 def test_bulk_session_atomic_false_does_not_inject_connection() -> None:
@@ -385,4 +385,4 @@ def test_bulk_session_atomic_false_does_not_inject_connection() -> None:
     crud = bulk_crud(engine=engine)
 
     with crud.bulk_session(atomic=False):
-        assert crud._batch_statement_executor._active_connection is None
+        assert not crud._session.active

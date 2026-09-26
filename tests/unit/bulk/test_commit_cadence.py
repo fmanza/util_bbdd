@@ -53,7 +53,7 @@ class TestCommitCadenceValidation:
     def test_none_is_accepted(self) -> None:
         engine = create_engine("sqlite:///:memory:")
         crud = BulkCrud(engine, commit_every_n_chunks=None)
-        assert crud._batch_statement_executor._commit_every_n_chunks is None
+        assert crud._batch_statement_executor.cadence.every is None
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +135,7 @@ class TestCadenceCommits:
 
         # 4 lotes / cadencia 2 → 2 commits periódicos; tail vacío → +1 commit final no-op
         assert connection.commit.call_count == 3
-        assert executor._chunks_since_commit == 0
+        assert executor.cadence.batches == 0
 
 
 # ---------------------------------------------------------------------------
@@ -222,4 +222,4 @@ class TestCadenceEndToEnd:
             total = conn.exec_driver_sql("SELECT COUNT(*) FROM items").scalar()
         assert total == 5
         # El contador queda limpio tras la sesión
-        assert crud._batch_statement_executor._chunks_since_commit == 0
+        assert crud._batch_statement_executor.cadence.batches == 0

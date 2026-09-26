@@ -29,7 +29,7 @@ def _make_crud_for_dialect(dialect: str) -> tuple[BulkCrud, MagicMock]:
     crud = BulkCrud(_make_sqlite_engine())
 
     conn: MagicMock = MagicMock(name="conn")
-    crud._batch_statement_executor._active_connection = conn
+    crud._session.connection = conn
 
     mock_engine: MagicMock = MagicMock(name="engine")
     mock_engine.dialect.name = dialect

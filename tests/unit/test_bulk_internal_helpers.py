@@ -333,7 +333,7 @@ def test_batch_executor_uses_injected_connection() -> None:
     executor = BatchStatementExecutor(engine=engine, chunk_size=10)
 
     conn = MagicMock()
-    executor._active_connection = conn
+    executor.session.connection = conn
 
     executor.execute(records=[{"id": 1}], stmt=MagicMock())
 
