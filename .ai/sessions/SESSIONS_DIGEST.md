@@ -176,6 +176,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-26 | Q9: FK por esquema en SQL Server | `sys.foreign_keys` en una consulta para el orden de carga y la limpieza; 200 tablas 33,9 → 15,8 s; SQL en `metadata/sqlserver` | CLOSED |
 | 2026-09-26 | Q9b: reflexión sin FK | `BulkCrud(reflect_foreign_keys=False)` en dump (SQL Server 32 → 16 ms/tabla); 200 tablas 15,8 → 14,3 s (−58 % vs v0.16.1) | CLOSED |
 | 2026-09-26 | 3.3: Oracle APPEND_VALUES | Descartada: +20 % sin commit por lote; con commit por lote las tablas crecen 10–127× | CLOSED |
+| 2026-09-26 | Cierre de versión v0.17.0 | CHANGELOG `[0.17.0]` + `pyproject.toml`; checklist verde (5079/199; integración 338/0; build 0.17.0); enlaces de CONSTRAINTS_AUDIT_INDEX corregidos; tag `v0.17.0` | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 
