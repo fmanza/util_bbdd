@@ -122,7 +122,7 @@ class TestOracleArraysize:
 
         conn = self._conn("oracle")
         captured = {}
-        with patch("util_bbdd.dump.orchestrator.event") as ev:
+        with patch("util_bbdd.dump._source_reader.event") as ev:
             ev.listen.side_effect = lambda target, name, fn: captured.setdefault("fn", fn)
             _execute_read(conn, "SELECT 1", 5000, None)
             assert ev.listen.call_args.args[:2] == (conn, "before_cursor_execute")
@@ -141,7 +141,7 @@ class TestOracleArraysize:
 
         conn = self._conn("oracle")
         conn.execute.side_effect = RuntimeError("fallo")
-        with patch("util_bbdd.dump.orchestrator.event") as ev, pytest.raises(RuntimeError):
+        with patch("util_bbdd.dump._source_reader.event") as ev, pytest.raises(RuntimeError):
             _execute_read(conn, "SELECT 1", 5000, None)
         ev.remove.assert_called_once()
 
@@ -149,7 +149,7 @@ class TestOracleArraysize:
         from unittest.mock import patch
 
         conn = self._conn("postgresql")
-        with patch("util_bbdd.dump.orchestrator.event") as ev:
+        with patch("util_bbdd.dump._source_reader.event") as ev:
             _execute_read(conn, "SELECT 1", 5000, None)
         ev.listen.assert_not_called()
         conn.execute.assert_called_once()

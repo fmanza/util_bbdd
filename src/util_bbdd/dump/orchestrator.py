@@ -19,189 +19,52 @@ y alimentan directamente el informe Excel, evitando la cascada N+1 de comparar
 
 from __future__ import annotations
 
-import io
 import logging
 import math
-import queue
 import threading
 
-from collections import deque
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
 import pandas as pd
 
-from sqlalchemy import Engine, Inspector, Integer, event, inspect, text
+from sqlalchemy import Engine, Inspector, Integer, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import sqltypes
 
-from util_bbdd.bulk import BulkCrud, ParallelBulkLoader, ParallelLoadResult
-from util_bbdd.bulk.audit import AuditError, AuditManager
-from util_bbdd.metadata.sqlserver.constraints import fetch_schema_fk_references_sql
+from util_bbdd.bulk import BulkCrud, ParallelBulkLoader
+from util_bbdd.bulk._audit.counters import AuditCounters
+from util_bbdd.bulk._support.dialect import MYSQL_FAMILY
+from util_bbdd.bulk._support.iterables import close_if_closable
+from util_bbdd.bulk.audit import AuditError
 
 from .._core.exceptions import DumpError
+from . import _audit_summary, _fk_graph
 from ._constraints import ConstraintManager, ConstraintResult
 from ._indexes import IndexManager
 from ._models import DumpAuditSummary, DumpConfig, DumpResult, IndexActionResult, PKSyncResult, TableDumpResult
+from ._source_reader import (
+    _PREFETCH_SOURCE_DIALECTS,
+    _execute_read as _execute_read,  # re-export (R10a): tests y llamadores previos
+    _prefetch,
+    _read_chunks,
+    _rebatch,
+)
 from ._sql_utils import quote_identifier, quote_table
 from .reporters import DumpReporter
 
 _log = logging.getLogger(__name__)
 
 
-def _read_chunks(conn: Any, sql: str, chunk_size: int, params: dict[str, Any] | None = None) -> Iterator[pd.DataFrame]:
-    """Lee ``sql`` en DataFrames de hasta ``chunk_size`` filas con ``dtype=object``: cada valor tal como lo da el driver.
-
-    PD-05 (performance-audit de dump 2026-09-25): ``pd.read_sql`` alteraba datos sin avisar. Los enteros de una columna
-    con algún NULL pasaban a ``float64`` (BIGINT > 2^53 perdía precisión) y ``coerce_float=True`` (por defecto)
-    convertía ``Decimal`` en ``float`` (DECIMAL de más de 15 dígitos). Ninguna opción de ``read_sql`` lo evita del todo:
-    ``dtype_backend`` conserva los enteros pero entrega los ``Decimal`` como texto.
-    """
-    result = _execute_read(conn, sql, chunk_size, params)
-    keys = list(result.keys())
-    while rows := result.fetchmany(chunk_size):
-        yield pd.DataFrame(rows, columns=keys, dtype=object)
-
-
-# Motores cuyo driver lee con cursor del cliente (todo el resultado en memoria) salvo con ``stream_results``.
-_CLIENT_CURSOR_DIALECTS = frozenset({"postgresql", "mysql", "mariadb"})
-
-
-def _execute_read(conn: Any, sql: str, chunk_size: int, params: dict[str, Any] | None) -> Any:
-    """``conn.execute(text(sql))`` con el cursor de lectura ajustado al volcado.
-
-    PostgreSQL, MySQL y MariaDB: cursor de servidor (``stream_results``) con ``max_row_buffer=chunk_size`` (Q2).
-    Oracle: ``arraysize = chunk_size`` (Q1, abajo). Resto de motores: sin cambios.
-
-    Q1 (performance-audit de dump 2026-09-25): oracledb lee por defecto 100 filas por ida y vuelta (``arraysize``) y
-    SQLAlchemy solo permite cambiarlo en todo el engine. El listener se registra en esta conexión (no en el engine del
-    usuario) y solo mientras se crea el cursor; solo sube el valor, nunca baja uno mayor fijado en el engine.
-    Medido: 2M filas en 11,7 → 2,5 s.
-    """
-    if conn.dialect.name in _CLIENT_CURSOR_DIALECTS:
-        # Q2 (performance-audit de dump 2026-09-25): psycopg y PyMySQL descargan el resultado entero antes del primer
-        # fetchmany (memoria pico proporcional a la tabla mayor). Cursor de servidor solo en esta sentencia.
-        stmt = text(sql).execution_options(stream_results=True, max_row_buffer=chunk_size)
-        return conn.execute(stmt, params or {})
-    if conn.dialect.name != "oracle":
-        return conn.execute(text(sql), params or {})
-
-    def _set_arraysize(_conn: Any, cursor: Any, *_args: Any) -> None:
-        if cursor.arraysize < chunk_size:
-            cursor.arraysize = chunk_size
-            if hasattr(cursor, "prefetchrows"):
-                cursor.prefetchrows = chunk_size
-
-    event.listen(conn, "before_cursor_execute", _set_arraysize)
-    try:
-        return conn.execute(text(sql), params or {})
-    finally:
-        event.remove(conn, "before_cursor_execute", _set_arraysize)
-
-
-# Motores de origen en los que se solapa la lectura con la escritura (Q3). SQLite no: su conexión no puede usarse desde
-# otro hilo (check_same_thread).
-_PREFETCH_SOURCE_DIALECTS = frozenset({"postgresql", "mysql", "mariadb", "mssql", "oracle"})
-_PREFETCH_DEPTH = 2
-_PREFETCH_DONE = object()
-
-
-def _prefetch[T](items: Iterator[T], depth: int = _PREFETCH_DEPTH) -> Iterator[T]:
-    """Consume ``items`` en un hilo lector con una cola de ``depth`` elementos y los entrega en el mismo orden.
-
-    Q3 (performance-audit de dump 2026-09-25): sin esto, el chunk N+1 no se leía hasta haber escrito el N. La lectura
-    (fetch y construcción del DataFrame, en Python) se solapa con la escritura, que espera al servidor sin retener el GIL.
-
-    - Una excepción del lector se relanza en quien consume, tras entregar los elementos anteriores.
-    - Si quien consume deja de iterar (fallo al escribir), el ``finally`` avisa al lector y **espera a que termine**:
-      la conexión de lectura no se cierra mientras el otro hilo la usa.
-    """
-    buffer: queue.Queue[Any] = queue.Queue(maxsize=depth)
-    stop = threading.Event()
-    errors: list[BaseException] = []
-
-    def _put(item: Any) -> bool:
-        while not stop.is_set():
-            try:
-                buffer.put(item, timeout=0.1)
-                return True
-            except queue.Full:
-                continue
-        return False
-
-    def _reader() -> None:
-        try:
-            for item in items:
-                if not _put(item):
-                    return
-        except BaseException as exc:  # noqa: BLE001 — se relanza en el hilo que consume
-            errors.append(exc)
-        finally:
-            _put(_PREFETCH_DONE)
-
-    thread = threading.Thread(target=_reader, name="dump-prefetch", daemon=True)
-    thread.start()
-    try:
-        while True:
-            item = buffer.get()
-            if item is _PREFETCH_DONE:
-                if errors:
-                    raise errors[0]
-                return
-            yield item
-    finally:
-        stop.set()
-        thread.join()
-
-
 # Lote de escritura por defecto con destino PostgreSQL (Q5): COPY de 20 000 filas frente a 5 000, −31 % a 3,5M filas.
 _PG_DEFAULT_WRITE_BATCH = 20_000
 
 
-def _rebatch(chunks: Iterator[pd.DataFrame], size: int) -> Iterator[pd.DataFrame]:
-    """Agrupa los chunks consecutivos hasta tener al menos ``size`` filas; mismas filas y en el mismo orden (Q5)."""
-    pending: list[pd.DataFrame] = []
-    rows = 0
-    for chunk in chunks:
-        pending.append(chunk)
-        rows += len(chunk)
-        if rows >= size:
-            yield pending[0] if len(pending) == 1 else pd.concat(pending, ignore_index=True)
-            pending, rows = [], 0
-    if pending:
-        yield pending[0] if len(pending) == 1 else pd.concat(pending, ignore_index=True)
-
-
-@dataclass(frozen=True)
-class _AuditCounters:
-    """Contadores de auditoría del volcado; ``BulkCrud`` y ``ParallelLoadResult`` exponen los mismos nombres."""
-
-    audit_failures: int = 0
-    audited_rows: int = 0
-    unaudited_committed_rows: int = 0
-    audit_uncommitted_records: int = 0
-
-    @classmethod
-    def of(cls, source: BulkCrud | ParallelLoadResult) -> _AuditCounters:
-        return cls(
-            audit_failures=source.audit_failures,
-            audited_rows=source.audited_rows,
-            unaudited_committed_rows=source.unaudited_committed_rows,
-            audit_uncommitted_records=source.audit_uncommitted_records,
-        )
-
-    def __add__(self, other: _AuditCounters) -> _AuditCounters:
-        return _AuditCounters(
-            audit_failures=self.audit_failures + other.audit_failures,
-            audited_rows=self.audited_rows + other.audited_rows,
-            unaudited_committed_rows=self.unaudited_committed_rows + other.unaudited_committed_rows,
-            audit_uncommitted_records=self.audit_uncommitted_records + other.audit_uncommitted_records,
-        )
+_AuditCounters = AuditCounters  # contadores de auditoría del volcado (BulkCrud + ParallelLoadResult)
 
 
 # Re-exportaciones para compatibilidad con importadores que usan orchestrator directamente
@@ -632,9 +495,7 @@ class DumpOrchestrator:
                     # A1 (audit-code 2026-09-26): si la escritura falla, el for de bulk_insert_from_chunks no cierra el
                     # generador; sin esto, el with devolvía la conexión al pool con el hilo de _prefetch aún usándola.
                     # Cerrarlo espera al hilo lector (join) antes de salir del with.
-                    close = getattr(renamed, "close", None)
-                    if callable(close):
-                        close()
+                    close_if_closable(renamed)
         except (SQLAlchemyError, ValueError, pd.errors.DatabaseError) as exc:
             error_msgs.append(f"Error leyendo origen: {exc}")
         return error_msgs
@@ -991,7 +852,7 @@ class DumpOrchestrator:
         incorrecto.
         """
         dialect = self._cfg.target_engine.dialect.name
-        if dialect not in ("mysql", "mariadb"):
+        if dialect not in MYSQL_FAMILY:
             return
         _log.warning(
             "parallel_pk_ranges=%d con destino %s: la carga por rangos de PK es más lenta que la secuencial en este "
@@ -1127,306 +988,27 @@ class DumpOrchestrator:
             val = result.scalar_one()
             return int(val) if val is not None else 0
 
-    @staticmethod
-    def _build_fk_graph(
-        tables: list[str],
-        inspector: Inspector,
-        schema: str | None,
-    ) -> tuple[dict[str, set[str]], dict[str, int]]:
-        """Construye el grafo de dependencias FK entre las tablas dadas."""
-        tables_set = set(tables)
-        # dependents[A] = {B} → B depende de A (A debe cargarse antes que B)
-        dependents: dict[str, set[str]] = {t: set() for t in tables}
-        in_degree: dict[str, int] = dict.fromkeys(tables, 0)
+    _build_fk_graph = staticmethod(_fk_graph.build_fk_graph)
 
-        for table, refs in DumpOrchestrator._referred_tables(tables, inspector, schema).items():
-            for referred in refs:
-                if referred and referred != table and referred in tables_set and table not in dependents[referred]:
-                    dependents[referred].add(table)
-                    in_degree[table] += 1
+    _referred_tables = staticmethod(_fk_graph.referred_tables)
 
-        return dependents, in_degree
+    _mssql_referred_tables = staticmethod(_fk_graph.mssql_referred_tables)
 
-    @staticmethod
-    def _referred_tables(tables: list[str], inspector: Inspector, schema: str | None) -> dict[str, list[str]]:
-        """Tabla → tablas referidas por sus FK (una por FK). Las tablas cuya introspección falla no aparecen.
+    _topological_levels = staticmethod(_fk_graph.topological_levels)
 
-        Q9 (performance-audit de dump 2026-09-26): en SQL Server, ``get_foreign_keys`` hace una consulta por tabla de
-        ≈ 34 ms (61 % de un volcado de 200 tablas pequeñas); allí se lee todo el schema con una consulta. Si esa
-        consulta falla, se vuelve a la introspección tabla a tabla.
-        """
-        if inspector.dialect.name == "mssql":
-            by_table = DumpOrchestrator._mssql_referred_tables(inspector, schema)
-            if by_table is not None:
-                by_lower = {name.lower(): refs for name, refs in by_table.items()}
-                # Nombres dados por el usuario (DumpConfig.tables) con otro case: SQL Server suele ser case-insensitive.
-                return {t: by_table.get(t, by_lower.get(t.lower(), [])) for t in tables}
-        referred: dict[str, list[str]] = {}
-        for table in tables:
-            try:
-                fks = inspector.get_foreign_keys(table, schema=schema)
-            except SQLAlchemyError:
-                continue
-            referred[table] = [fk.get("referred_table") or "" for fk in fks]
-        return referred
+    _topological_sort = staticmethod(_fk_graph.topological_sort)
 
-    @staticmethod
-    def _mssql_referred_tables(inspector: Inspector, schema: str | None) -> dict[str, list[str]] | None:
-        """SQL Server: tablas referidas por las FK de cada tabla del schema, en una consulta. ``None`` si falla."""
-        bind = inspector.bind
-        if not isinstance(bind, Engine):
-            return None
-        try:
-            with bind.connect() as conn:
-                rows = conn.execute(
-                    text(fetch_schema_fk_references_sql()), {"schema": schema or inspector.default_schema_name}
-                ).all()
-        except SQLAlchemyError as exc:
-            _log.debug("Consulta de FK por schema falló (%s); se usa get_foreign_keys tabla a tabla.", exc)
-            return None
-        by_table: dict[str, list[str]] = {}
-        for table, _ref_schema, ref_table in rows:
-            by_table.setdefault(table, []).append(ref_table)
-        return by_table
+    _find_cycle_components = staticmethod(_fk_graph.find_cycle_components)
 
-    @staticmethod
-    def _topological_levels(
-        tables: list[str],
-        inspector: Inspector,
-        schema: str | None,
-    ) -> list[list[str]]:
-        """Agrupa las tablas en niveles topológicos FK (Kahn por profundidad).
+    _build_cycle_adj = staticmethod(_fk_graph.build_cycle_adj)
 
-        Cada nivel contiene tablas mutuamente independientes (sin FK entre ellas),
-        cargables concurrentemente. Las tablas en ciclos FK se excluyen (no aparecen
-        en ningún nivel). Dentro de cada nivel el orden es alfabético (determinista).
-        """
-        dependents, in_degree = DumpOrchestrator._build_fk_graph(tables, inspector, schema)
-        levels: list[list[str]] = []
-        seen: set[str] = set()
-        current: list[str] = sorted(t for t in tables if in_degree[t] == 0)
+    _bfs_component = staticmethod(_fk_graph.bfs_component)
 
-        while current:
-            levels.append(current)
-            seen.update(current)
-            nxt: set[str] = set()
-            for node in current:
-                for dep in dependents[node]:
-                    in_degree[dep] -= 1
-                    if in_degree[dep] == 0:
-                        nxt.add(dep)
-            current = sorted(nxt)
+    _file_size = staticmethod(_audit_summary.file_size)
 
-        return levels
+    _read_audit_csv = staticmethod(_audit_summary.read_audit_csv)
 
-    @staticmethod
-    def _topological_sort(
-        tables: list[str],
-        inspector: Inspector,
-        schema: str | None,
-    ) -> tuple[list[str], list[list[str]]]:
-        """Ordena tablas respetando dependencias FK usando el algoritmo de Kahn.
-
-        Returns:
-            (ordered_tables, cycles) — las tablas en ciclos se añaden al final
-            de ``ordered_tables`` y se listan en ``cycles``.
-        """
-        dependents, in_degree = DumpOrchestrator._build_fk_graph(tables, inspector, schema)
-
-        queue: deque[str] = deque(t for t in tables if in_degree[t] == 0)
-        ordered: list[str] = []
-
-        while queue:
-            node = queue.popleft()
-            ordered.append(node)
-            for dep in sorted(dependents[node]):
-                in_degree[dep] -= 1
-                if in_degree[dep] == 0:
-                    queue.append(dep)
-
-        cycle_tables = [t for t in tables if t not in set(ordered)]
-        if not cycle_tables:
-            return ordered, []
-
-        cycles = DumpOrchestrator._find_cycle_components(cycle_tables, dependents)
-        return ordered + cycle_tables, cycles
-
-    @staticmethod
-    def _find_cycle_components(
-        cycle_tables: list[str],
-        dependents: dict[str, set[str]],
-    ) -> list[list[str]]:
-        """Agrupa nodos en ciclo FK en componentes conexas mediante BFS no dirigido."""
-        adj = DumpOrchestrator._build_cycle_adj(cycle_tables, dependents)
-        visited: set[str] = set()
-        cycles: list[list[str]] = []
-        for start in cycle_tables:
-            if start not in visited:
-                component = DumpOrchestrator._bfs_component(start, adj, visited)
-                cycles.append(component)
-        return cycles
-
-    @staticmethod
-    def _build_cycle_adj(
-        cycle_tables: list[str],
-        dependents: dict[str, set[str]],
-    ) -> dict[str, set[str]]:
-        """Construye grafo de adyacencia no dirigido restringido a los nodos en ciclo."""
-        cycle_set = set(cycle_tables)
-        adj: dict[str, set[str]] = {t: set() for t in cycle_tables}
-        for node, deps in dependents.items():
-            if node not in cycle_set:
-                continue
-            for dep in deps:
-                if dep in cycle_set:
-                    adj[node].add(dep)
-                    adj[dep].add(node)
-        return adj
-
-    @staticmethod
-    def _bfs_component(
-        start: str,
-        adj: dict[str, set[str]],
-        visited: set[str],
-    ) -> list[str]:
-        """Retorna todos los nodos alcanzables desde ``start`` mediante BFS."""
-        component: list[str] = []
-        queue: deque[str] = deque([start])
-        while queue:
-            node = queue.popleft()
-            if node in visited:
-                continue
-            visited.add(node)
-            component.append(node)
-            queue.extend(n for n in adj[node] if n not in visited)
-        return component
-
-    @staticmethod
-    def _file_size(path: Path | None) -> int | None:
-        """Tamaño de ``path`` en bytes, o ``None`` si no hay ruta o el fichero no existe."""
-        if path is None:
-            return None
-        try:
-            return path.stat().st_size if path.is_file() else None
-        except OSError:
-            return None
-
-    @staticmethod
-    def _read_audit_csv(audit_path: Path, start_offset: int | None) -> pd.DataFrame:
-        """CSV de auditoría con los registros añadidos desde ``start_offset`` (o entero, si no se puede acotar).
-
-        3.4 / PF-08 (performance-audit de dump 2026-09-25): el resumen leía el CSV histórico completo en cada volcado
-        (0,72 s con 500K registros, lineal). El CSV es de solo añadir: se lee la cabecera y lo escrito desde el tamaño
-        que tenía al empezar el volcado, con las mismas conversiones que ``AuditManager.leer_auditoria``. Si no hay
-        desplazamiento, o el fichero es ahora más pequeño (se truncó o rotó), se lee entero como antes.
-        """
-        size = DumpOrchestrator._file_size(audit_path) or 0
-        if not start_offset or size < start_offset:
-            return AuditManager(audit_path, cache_enabled=False).leer_auditoria()
-        with audit_path.open("rb") as fh:
-            header = fh.readline()
-            if start_offset <= len(header):
-                return AuditManager(audit_path, cache_enabled=False).leer_auditoria()
-            fh.seek(start_offset - 1)
-            if fh.read(1) != b"\n":  # empezó a mitad de una fila (escritura de otro proceso): salta a la siguiente
-                fh.readline()
-            tail = fh.read()
-        df = pd.read_csv(io.BytesIO(header + tail), delimiter="\t", encoding="utf-8")
-        if "timestamp" in df.columns:
-            df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed")
-        if "tiempo_seg" in df.columns:
-            df["tiempo_seg"] = pd.to_numeric(
-                df["tiempo_seg"].astype(str).str.replace(",", ".", regex=False), errors="coerce"
-            )
-        return df
-
-    @staticmethod
-    def _build_audit_summary(
-        audit_path: Path | None,
-        desde: datetime,
-        audit_failures: int = 0,
-        *,
-        audited_rows: int | None = None,
-        unaudited_committed_rows: int = 0,
-        audit_uncommitted_records: int = 0,
-        start_offset: int | None = None,
-    ) -> DumpAuditSummary | None:
-        """Lee el CSV de auditoría y extrae métricas del volcado actual.
-
-        Filtra por ``timestamp >= desde`` para aislar las entradas de este volcado
-        frente a operaciones previas que pudieran existir en el mismo CSV.
-        Devuelve ``None`` si la ruta no está configurada, o si el fichero no existe o no
-        hay entradas en el rango temporal y no hubo incidencias. Si ``audit_failures``,
-        ``unaudited_committed_rows`` o ``audit_uncommitted_records`` es mayor que 0 devuelve
-        siempre un resumen (con métricas del CSV a 0 si no hay entradas), para que el
-        problema no quede oculto.
-
-        ``audited_rows`` son las filas que el volcado escribió según sus contadores; ``None`` si
-        no se conocen (entonces vale 0 en el resumen y no se compara con el CSV). Si difiere de
-        ``total_filas`` se registra un WARNING.
-        """
-        if audit_path is None:
-            return None
-
-        counters: dict[str, int] = {
-            "audit_failures": audit_failures,
-            "audited_rows": audited_rows or 0,
-            "unaudited_committed_rows": unaudited_committed_rows,
-            "audit_uncommitted_records": audit_uncommitted_records,
-        }
-        incidencias = audit_failures > 0 or unaudited_committed_rows > 0 or audit_uncommitted_records > 0
-
-        def _sin_entradas() -> DumpAuditSummary | None:
-            if not incidencias:
-                return None
-            return DumpAuditSummary(
-                total_operaciones=0,
-                total_filas=0,
-                tiempo_total_seg=0.0,
-                tiempo_promedio_seg=0.0,
-                tablas_auditadas=0,
-                tabla_mas_activa=None,
-                audit_path=audit_path,
-                **counters,
-            )
-
-        if not audit_path.is_file():
-            return _sin_entradas()
-        try:
-            df = DumpOrchestrator._read_audit_csv(audit_path, start_offset)
-        except Exception as exc:
-            _log.warning("No se pudo leer el CSV de auditoría '%s': %s", audit_path, exc)
-            return _sin_entradas()
-        if df.empty:
-            return _sin_entradas()
-        df = df.copy()
-        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-        # H3 (audit-code 2026-09-25): el CSV guarda el timestamp truncado al segundo; comparar con ``desde`` y sus
-        # microsegundos descartaba las operaciones terminadas en el mismo segundo en que empezó el volcado.
-        df = df[df["timestamp"] >= pd.Timestamp(desde.replace(microsecond=0))]
-        if df.empty:
-            return _sin_entradas()
-        tabla_mas_activa: str | None = str(df["tabla"].value_counts().index[0]) if len(df) > 0 else None
-        total_filas = int(df["total_filas"].sum())
-        if audited_rows is not None and audited_rows != total_filas:
-            _log.warning(
-                "Auditoría del volcado: el CSV suma %d filas desde el inicio y el volcado escribió %d. Causas "
-                "probables: otros procesos escriben en el mismo CSV, o registros escritos antes de un commit que "
-                "falló (audit_uncommitted_records=%d).",
-                total_filas,
-                audited_rows,
-                audit_uncommitted_records,
-            )
-        return DumpAuditSummary(
-            total_operaciones=int(len(df)),
-            total_filas=total_filas,
-            tiempo_total_seg=round(float(df["tiempo_seg"].sum()), 3),
-            tiempo_promedio_seg=round(float(df["tiempo_seg"].mean()), 3),
-            tablas_auditadas=int(df["tabla"].nunique()),
-            tabla_mas_activa=tabla_mas_activa,
-            audit_path=audit_path,
-            **counters,
-        )
+    _build_audit_summary = staticmethod(_audit_summary.build_audit_summary)
 
     @staticmethod
     def _warn_sqlite_source(source: Engine, target: Engine) -> None:
@@ -1455,7 +1037,7 @@ class DumpOrchestrator:
         tabla tuviera esas columnas (sin ellas, lotes de 5000 no dieron errores).
         """
         engine = self._cfg.target_engine
-        if engine.dialect.name not in ("mariadb", "mysql"):
+        if engine.dialect.name not in MYSQL_FAMILY:
             return
         batch = self._resolve_write_batch_size()
         if batch <= 1000:
@@ -1490,7 +1072,7 @@ class DumpOrchestrator:
 
         Engines creados vía ``SyncDatabaseManager.get_sqlalchemy_engine()`` ya incluyen ambas.
         """
-        if engine.dialect.name not in ("mariadb", "mysql"):
+        if engine.dialect.name not in MYSQL_FAMILY:
             return
         pre_ping: bool = getattr(engine.pool, "_pre_ping", False)
         if not pre_ping:

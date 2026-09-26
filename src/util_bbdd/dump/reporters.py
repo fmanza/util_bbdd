@@ -26,6 +26,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 from .._core.exceptions import DumpReportError
+from ..bulk._support.excel import neutralize_formulas
 from ._constraints import ConstraintResult
 from ._models import DumpAuditSummary, IndexActionResult, PKSyncResult, TableDumpResult
 
@@ -33,18 +34,9 @@ _log = logging.getLogger(__name__)
 
 
 def _desactivar_formulas(wb: openpyxl.Workbook) -> None:
-    """Guarda como texto las celdas que openpyxl ha tomado por fórmulas.
-
-    openpyxl interpreta como fórmula toda cadena que empieza por ``=``: un nombre de tabla del catálogo o del CSV de
-    auditoría como ``=HYPERLINK(...)`` se ejecutaría al abrir el informe. El informe nunca contiene fórmulas propias.
-    Misma defensa que H12 (audit-code de AuditManager 2026-09-25) en ``bulk/_audit/exporters.py``; se copia para no
-    importar código privado de ``bulk``.
-    """
+    """Aplica la defensa H12 (:func:`neutralize_formulas`) a todas las hojas del informe, incluidas las opcionales."""
     for ws in wb.worksheets:
-        for row in ws.iter_rows():
-            for cell in row:
-                if cell.data_type == "f":
-                    cell.data_type = "s"
+        neutralize_formulas(ws)
 
 
 class DumpReporter:

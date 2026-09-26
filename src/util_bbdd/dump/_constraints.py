@@ -15,6 +15,7 @@ from sqlalchemy import Engine, Inspector, event, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from .._core.exceptions import DumpConstraintError
+from ..bulk._support.dialect import MYSQL_FAMILY
 from ._models import ConstraintResult
 from ._sql_utils import quote_identifier, quote_table
 
@@ -89,7 +90,7 @@ class ConstraintManager:
             return
 
         try:
-            if dialect in ("mariadb", "mysql"):
+            if dialect in MYSQL_FAMILY:
                 self._disable_mariadb()
             elif dialect == "mssql":
                 self._disable_sqlserver(tables)
@@ -115,7 +116,7 @@ class ConstraintManager:
             return []
 
         try:
-            if dialect in ("mariadb", "mysql"):
+            if dialect in MYSQL_FAMILY:
                 return self._enable_mariadb()
             if dialect == "mssql":
                 return self._enable_sqlserver()

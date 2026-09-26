@@ -21,7 +21,7 @@ import pandas as pd
 
 from ._audit.errors import AuditConfigError, AuditDataError, AuditError, AuditFileError, AuditValidationError
 from ._audit.exporters import AuditExporters
-from ._audit.record import AuditRecord
+from ._audit.record import AUDIT_OPERATIONS, AuditRecord
 from ._audit.repository import AuditCsvRepository
 from ._audit.service import AuditAnalyticsService
 
@@ -183,7 +183,7 @@ class AuditManager:
             raise AuditValidationError("❌ 'tabla' no puede estar vacío")
         if not motor or not str(motor).strip():
             raise AuditValidationError("❌ 'motor' no puede estar vacío")
-        if operacion not in ("INSERT", "UPDATE", "DELETE"):
+        if operacion not in AUDIT_OPERATIONS:
             raise AuditValidationError(f"❌ Operación inválida: '{operacion}'. Debe ser INSERT, UPDATE o DELETE")
         if not isinstance(rowcount, int) or rowcount < 0:
             raise AuditValidationError(f"❌ 'rowcount' debe ser un entero >= 0, se recibió {rowcount}")

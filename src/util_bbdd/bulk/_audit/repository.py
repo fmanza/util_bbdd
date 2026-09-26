@@ -194,14 +194,7 @@ class AuditCsvRepository:
         # La firma se toma antes de leer: una escritura durante la lectura la cambia y fuerza releer la próxima vez.
         firma: tuple[int, int] | None = self._firma_fichero()
         try:
-            dataframe: pd.DataFrame = pd.read_csv(str(self.audit_csv_path), delimiter="\t")
-            if "timestamp" in dataframe.columns:
-                dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"], format="mixed")
-            if "tiempo_seg" in dataframe.columns:
-                dataframe["tiempo_seg"] = pd.to_numeric(
-                    dataframe["tiempo_seg"].astype(str).str.replace(",", ".", regex=False),
-                    errors="coerce",
-                )
+            dataframe: pd.DataFrame = self.parse_frame(pd.read_csv(str(self.audit_csv_path), delimiter="\t"))
 
             if self.cache_enabled:
                 self._cache_df = dataframe.copy()
@@ -212,6 +205,21 @@ class AuditCsvRepository:
             return dataframe
         except Exception as error:
             raise AuditDataError(f"❌ Error al leer el archivo CSV de auditoría: {error}") from error
+
+    @staticmethod
+    def parse_frame(dataframe: pd.DataFrame) -> pd.DataFrame:
+        """Tipos de las columnas del CSV tal como se escriben: ``timestamp`` a fecha y ``tiempo_seg`` (coma decimal) a número.
+
+        Modifica y devuelve ``dataframe``. Lo usa también ``dump`` al leer solo la cola del CSV (3.4 / PF-08).
+        """
+        if "timestamp" in dataframe.columns:
+            dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"], format="mixed")
+        if "tiempo_seg" in dataframe.columns:
+            dataframe["tiempo_seg"] = pd.to_numeric(
+                dataframe["tiempo_seg"].astype(str).str.replace(",", ".", regex=False),
+                errors="coerce",
+            )
+        return dataframe
 
     def es_cache_valido(self) -> bool:
         """Indica si el caché actual sigue siendo válido: dentro del TTL y con el CSV sin cambios desde que se leyó."""

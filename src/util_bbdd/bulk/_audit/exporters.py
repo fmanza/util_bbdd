@@ -11,22 +11,11 @@ from typing import Any, Literal
 
 import pandas as pd
 
+from .._support.excel import neutralize_formulas as _desactivar_formulas
 from .errors import AuditConfigError, AuditDataError
 from .html_template import AUDIT_HTML_TEMPLATE
 from .repository import AuditCsvRepository
 from .service import AuditAnalyticsService
-
-
-def _desactivar_formulas(worksheet: Any) -> None:
-    """Guarda como texto las celdas que openpyxl ha tomado por fórmulas.
-
-    H12 (audit-code 2026-09-25): openpyxl interpreta como fórmula toda cadena que empieza por ``=``, así que un nombre de
-    tabla como ``=HYPERLINK(...)`` acababa ejecutándose al abrir el Excel. El resumen nunca contiene fórmulas propias.
-    """
-    for row in worksheet.iter_rows():
-        for cell in row:
-            if cell.data_type == "f":
-                cell.data_type = "s"
 
 
 class AuditExporters:

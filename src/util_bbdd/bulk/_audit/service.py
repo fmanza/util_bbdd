@@ -10,6 +10,7 @@ from typing import Any
 import pandas as pd
 
 from .errors import AuditConfigError, AuditDataError, AuditValidationError
+from .record import AUDIT_OPERATIONS
 from .repository import AuditCsvRepository
 
 
@@ -65,7 +66,7 @@ class AuditAnalyticsService:
 
     def filtrar_por_operacion(self, operacion: str) -> pd.DataFrame:
         """Retorna registros de una operación específica."""
-        if operacion not in ("INSERT", "UPDATE", "DELETE"):
+        if operacion not in AUDIT_OPERATIONS:
             raise AuditValidationError(f"❌ Operación inválida: '{operacion}'. Debe ser INSERT, UPDATE o DELETE")
         dataframe = self.repository.leer_auditoria()
         return dataframe[dataframe["operacion"] == operacion]
@@ -104,7 +105,7 @@ class AuditAnalyticsService:
         dataframe = self.repository.leer_auditoria()
 
         if operacion is not None:
-            if operacion not in ("INSERT", "UPDATE", "DELETE"):
+            if operacion not in AUDIT_OPERATIONS:
                 raise AuditValidationError(f"❌ Operación inválida: {operacion}")
             dataframe = dataframe[dataframe["operacion"] == operacion]
 

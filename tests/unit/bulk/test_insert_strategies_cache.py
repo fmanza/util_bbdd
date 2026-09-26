@@ -108,7 +108,7 @@ class TestMySQLMultiRowInsertStrategyCache:
             call_count += 1
             return original_text(sql_str)
 
-        with patch("util_bbdd.bulk._execution.batch.text", side_effect=mock_text):
+        with patch("util_bbdd.bulk._execution.insert_strategies.text", side_effect=mock_text):
             # Batch 1: 3 filas
             records_1 = [{"id": i, "name": f"row_{i}", "value": i * 10} for i in range(1, 4)]
             strategy.execute(connection=connection, stmt=stmt, records=records_1)

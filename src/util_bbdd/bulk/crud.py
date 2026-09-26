@@ -51,6 +51,7 @@ from ._execution.batch import (
     validate_chunk_size,
 )
 from ._models import PKSyncResult
+from ._support.dialect import MYSQL_FAMILY
 from ._support.persistence import BulkPersistenceManager
 from ._support.pk_sync import PKSequenceSyncer
 from ._support.sql_helpers import (
@@ -215,7 +216,7 @@ class BulkCrud:
         # Auditoría de bulk 2026-09-24: con un valor negativo no se escribía nada y la auditoría registraba las filas.
         self.chunk_size: int = validate_chunk_size(chunk_size)
         self.audit_manager: AuditManager = AuditManager(audit_csv_path, warn_if_disabled=warn_if_audit_disabled)
-        self._update_via_staging: bool = update_via_staging and self.engine.dialect.name in ("mysql", "mariadb")
+        self._update_via_staging: bool = update_via_staging and self.engine.dialect.name in MYSQL_FAMILY
         self._strip_strings: bool = strip_strings
         self._reflect_foreign_keys: bool = reflect_foreign_keys
 
@@ -291,7 +292,7 @@ class BulkCrud:
 
         Solo se ejecuta para motores 'mysql' o 'mariadb'; sin-op para otros.
         """
-        if self.engine.dialect.name not in ("mysql", "mariadb"):
+        if self.engine.dialect.name not in MYSQL_FAMILY:
             return
 
         try:
@@ -547,8 +548,30 @@ class BulkCrud:
     ) -> tuple[Any, list[str]]:
         """Resuelve (stmt_de_ejecución, columnas_de_inserción) para la carga en streaming.
 
-        Replica la rama de ejecución de ``__prepare_insert_operation`` (sin la rama de
-        generación de SQL, que no aplica al streaming).
+        Misma resolución que ``__prepare_insert_operation`` (``__insert_columns``), sin la rama de generación de SQL,
+        que no aplica al streaming.
+        """
+        insert_cols, override = self.__insert_columns(
+            df, tabla, override_identity=override_identity, exclude_autoincrement_pk=exclude_autoincrement_pk
+        )
+        if override:
+            stmt: Any = build_override_identity_text_stmt(tabla, insert_cols, self.engine.dialect)
+        else:
+            stmt = self.__insert_stmt(tabla, insert_cols)
+        return stmt, insert_cols
+
+    def __insert_columns(
+        self,
+        df: pd.DataFrame,
+        tabla: Table,
+        *,
+        override_identity: bool,
+        exclude_autoincrement_pk: bool,
+    ) -> tuple[list[str], bool]:
+        """Columnas de inserción y si hay que usar ``OVERRIDING SYSTEM VALUE`` (común a streaming y a ``prepare``).
+
+        Raises:
+            ValueError: Si hay columnas ``GENERATED ALWAYS AS IDENTITY`` (PostgreSQL) y ``override_identity=False``.
         """
         insert_cols: list[str] = get_insert_columns(
             list(df.columns), tabla, exclude_autoincrement_pk=exclude_autoincrement_pk
@@ -561,12 +584,7 @@ class BulkCrud:
                 f"❌ Las columnas {always_identity_cols} son GENERATED ALWAYS AS IDENTITY en PostgreSQL. "
                 "Usa override_identity=True para insertar valores manuales."
             )
-
-        if override_identity and always_identity_cols:
-            stmt: Any = build_override_identity_text_stmt(tabla, insert_cols, self.engine.dialect)
-        else:
-            stmt = self.__insert_stmt(tabla, insert_cols)
-        return stmt, insert_cols
+        return insert_cols, bool(override_identity and always_identity_cols)
 
     def __run_bulk_pipeline(
         self,
@@ -637,18 +655,9 @@ class BulkCrud:
         exclude_autoincrement_pk: bool = False,
     ) -> _PreparedBulkOperation:
         tabla: Table = self.reflect_table(tabla_destino)
-        insert_cols: list[str] = get_insert_columns(
-            list(df.columns), tabla, exclude_autoincrement_pk=exclude_autoincrement_pk
+        insert_cols, override = self.__insert_columns(
+            df, tabla, override_identity=override_identity, exclude_autoincrement_pk=exclude_autoincrement_pk
         )
-
-        is_postgres: bool = self.engine.dialect.name == "postgresql"
-        always_identity_cols: list[str] = detect_always_identity_columns(insert_cols, tabla) if is_postgres else []
-
-        if always_identity_cols and not override_identity:
-            raise ValueError(
-                f"❌ Las columnas {always_identity_cols} son GENERATED ALWAYS AS IDENTITY en PostgreSQL. "
-                "Usa override_identity=True para insertar valores manuales."
-            )
 
         insert_df: pd.DataFrame = df[insert_cols]
         numero_registros: int = len(insert_df)
@@ -665,7 +674,7 @@ class BulkCrud:
         def sql_blocks() -> Iterator[SqlColumns]:
             return self.__sql_blocks(insert_df, tabla)
 
-        if override_identity and always_identity_cols:
+        if override:
             stmt_for_sql: Insert = insert(tabla)
             text_stmt = build_override_identity_text_stmt(tabla, insert_cols, dialect)
             return _PreparedBulkOperation(
@@ -879,7 +888,7 @@ class BulkCrud:
         de lower_case_table_names. Normalizar causaría mismatch si las columnas están en minúsculas.
         """
         # Skip normalization for MySQL/MariaDB; SQLAlchemy handles column name matching correctly
-        if self.engine.dialect.name not in ("mysql", "mariadb"):
+        if self.engine.dialect.name not in MYSQL_FAMILY:
             normalize_dataframe_columns(df, self.engine.dialect.name, self.logger)
         align_dataframe_columns(df, tabla)
 
@@ -909,7 +918,7 @@ class BulkCrud:
 
         # Para MySQL/MariaDB, no normalizar: SQLAlchemy reflection maneja correctamente
         # la búsqueda independientemente del case usado (depende de lower_case_table_names)
-        skip_normalization: bool = self.engine.dialect.name in ("mysql", "mariadb")
+        skip_normalization: bool = self.engine.dialect.name in MYSQL_FAMILY
 
         if "." in tabla_destino:
             schema_part, table_part = tabla_destino.split(".", 1)
@@ -1197,7 +1206,7 @@ class BulkCrud:
         tabla_destino: str,
     ) -> tuple[bool, bool]:
         """Deshabilita constraints por motor; retorna (pg_disabled, mssql_disabled)."""
-        if dialect in ("mysql", "mariadb"):
+        if dialect in MYSQL_FAMILY:
             conn.execute(text("SET SESSION FOREIGN_KEY_CHECKS=0"))
             return False, False
         if dialect == "postgresql":
@@ -1235,7 +1244,7 @@ class BulkCrud:
         tabla_destino: str,
     ) -> bool:
         """Deshabilita índices secundarios por motor; retorna True si se deshabilitaron (hay que restaurarlos)."""
-        if dialect in ("mysql", "mariadb"):
+        if dialect in MYSQL_FAMILY:
             # DISABLE KEYS solo tiene efecto en MyISAM/Aria (no transaccionales). En InnoDB el servidor lo ignora, pero
             # como DDL provoca un commit implícito que rompía la atomicidad de la sesión (auditoría de bulk
             # 2026-09-24, hallazgo 8): solo se ejecuta cuando sirve.
@@ -1278,7 +1287,7 @@ class BulkCrud:
         """Restaura los índices deshabilitados por ``__maintenance_disable_indexes``."""
         if not disabled:
             return
-        if dialect in ("mysql", "mariadb"):
+        if dialect in MYSQL_FAMILY:
             conn.execute(text(f"ALTER TABLE {quoted_name} ENABLE KEYS"))
         elif dialect == "mssql":
             conn.execute(text(f"ALTER INDEX ALL ON {quoted_name} REBUILD"))
@@ -1292,7 +1301,7 @@ class BulkCrud:
         mssql_disabled: bool,
     ) -> None:
         """Restaura constraints deshabilitadas por motor."""
-        if dialect in ("mysql", "mariadb"):
+        if dialect in MYSQL_FAMILY:
             conn.execute(text("SET SESSION FOREIGN_KEY_CHECKS=1"))
         elif dialect == "postgresql" and pg_disabled:
             conn.execute(text(f"ALTER TABLE {quoted_name} ENABLE TRIGGER ALL"))

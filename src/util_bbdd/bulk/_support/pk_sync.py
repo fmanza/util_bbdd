@@ -20,27 +20,12 @@ from sqlalchemy import Column, Engine, Table, func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from .._models import PKSyncResult
+from .sql_quoting import quote_identifier as _qi, quote_table as _qt
+from .validation import is_identity_pk
 
 _log = logging.getLogger(__name__)
 
 _SUPPORTED_DIALECTS = frozenset({"postgresql", "mssql", "mariadb", "mysql", "oracle"})
-
-
-# ---------------------------------------------------------------------------
-# Helpers de quoting — equivalentes a dump._sql_utils, sin dependencia cruzada
-# ---------------------------------------------------------------------------
-
-
-def _qi(name: str, engine: Engine) -> str:
-    """Quoted identifier según el dialect del engine."""
-    return engine.dialect.identifier_preparer.quote(name)
-
-
-def _qt(table_name: str, schema: str | None, engine: Engine) -> str:
-    """Tabla quoted con prefijo de schema opcional."""
-    if schema:
-        return f"{_qi(schema, engine)}.{_qi(table_name, engine)}"
-    return _qi(table_name, engine)
 
 
 # ---------------------------------------------------------------------------
@@ -390,14 +375,9 @@ class PKSequenceSyncer:
 def _get_identity_pk_cols(table: Table) -> list[Column]:
     """Devuelve las columnas PK con semántica de autoincrement/identity.
 
-    Reutiliza el mismo criterio que ``get_insert_columns`` en validation.py
-    para garantizar detección consistente entre insert y sync.
+    Mismo criterio que ``get_insert_columns`` (``is_identity_pk``), para detectar igual en insert y sync.
     """
-    return [
-        col
-        for col in table.primary_key.columns
-        if col.autoincrement is True or getattr(col, "identity", None) is not None
-    ]
+    return [col for col in table.primary_key.columns if is_identity_pk(col)]
 
 
 __all__: list[str] = ["PKSequenceSyncer"]

@@ -26,13 +26,14 @@ from typing import Any, Literal
 from sqlalchemy import Engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
+from ..bulk._support.dialect import MYSQL_FAMILY
 from ._models import IndexActionResult
 from ._sql_utils import quote_identifier, quote_table
 
 _log = logging.getLogger(__name__)
 
 _SUPPORTED_DIALECTS = frozenset({"mssql", "oracle", "postgresql"})
-_UNSUPPORTED_DIALECTS = frozenset({"mariadb", "mysql"})
+_UNSUPPORTED_DIALECTS = MYSQL_FAMILY
 
 
 class IndexManager:

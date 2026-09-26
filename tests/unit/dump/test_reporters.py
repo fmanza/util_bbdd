@@ -11,7 +11,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from util_bbdd._core.exceptions import DumpReportError
 from util_bbdd.dump._constraints import ConstraintResult
-from util_bbdd.dump._models import DumpAuditSummary, PKSyncResult, TableDumpResult
+from util_bbdd.dump._models import DumpAuditSummary, IndexActionResult, PKSyncResult, TableDumpResult
 from util_bbdd.dump.reporters import DumpReporter
 
 # ---------------------------------------------------------------------------
@@ -364,6 +364,22 @@ class TestBulkAuditSheet:
         )
 
         wb = openpyxl.load_workbook(path)
+        formulas = [c.coordinate for ws in wb.worksheets for row in ws.iter_rows() for c in row if c.data_type == "f"]
+        assert formulas == []
+
+    def test_formulas_are_neutralized_in_the_optional_sheets(self, tmp_path: Path) -> None:
+        # Las hojas opcionales (Índices, Secuencias PK) se añaden al final y también reciben nombres del catálogo.
+        path = DumpReporter(tmp_path).generate(
+            table_results=[],
+            missing_tables=[],
+            constraint_results=[],
+            cycles=[],
+            index_results=[IndexActionResult("t", "=HYPERLINK(1)", "mssql", "failed", error_msg="=2+2")],
+            pk_sync_results=[PKSyncResult("=3+3", "id", "postgresql", 1, "synced")],
+        )
+
+        wb = openpyxl.load_workbook(path)
+        assert wb.sheetnames[-2:] == ["Índices", "Secuencias PK"]
         formulas = [c.coordinate for ws in wb.worksheets for row in ws.iter_rows() for c in row if c.data_type == "f"]
         assert formulas == []
 

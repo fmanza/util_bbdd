@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
+# Operaciones que admite el CSV de auditoría.
+AUDIT_OPERATIONS: tuple[str, ...] = ("INSERT", "UPDATE", "DELETE")
+
 
 @dataclass(frozen=True, slots=True)
 class AuditRecord:
@@ -23,4 +26,4 @@ class AuditRecord:
     timestamp: datetime = field(default_factory=datetime.now)
 
 
-__all__: list[str] = ["AuditRecord"]
+__all__: list[str] = ["AUDIT_OPERATIONS", "AuditRecord"]

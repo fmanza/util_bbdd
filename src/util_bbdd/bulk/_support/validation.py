@@ -7,10 +7,11 @@ import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
-from sqlalchemy import Engine, Table
+from sqlalchemy import Column, Engine, Table
 
 
 @dataclass(frozen=True)
@@ -87,16 +88,17 @@ def align_dataframe_columns(df: pd.DataFrame, table: Table) -> None:
         df.rename(columns=renames, inplace=True)
 
 
+def is_identity_pk(column: Column[Any]) -> bool:
+    """``True`` si la columna PK tiene semántica autoincremental o identity (criterio común de INSERT y sync de PK)."""
+    return column.autoincrement is True or getattr(column, "identity", None) is not None
+
+
 def get_insert_columns(df_columns: Sequence[str], table: Table, *, exclude_autoincrement_pk: bool = False) -> list[str]:
     """Obtiene columnas del DataFrame que existen en la tabla destino."""
     table_columns: set[str] = {column.name for column in table.columns}
     columns = [column for column in df_columns if column in table_columns]
     if exclude_autoincrement_pk:
-        ai_pk_names: set[str] = {
-            col.name
-            for col in table.primary_key.columns
-            if col.autoincrement is True or getattr(col, "identity", None) is not None
-        }
+        ai_pk_names: set[str] = {col.name for col in table.primary_key.columns if is_identity_pk(col)}
         columns = [col for col in columns if col not in ai_pk_names]
     if not columns:
         raise ValueError(
@@ -168,6 +170,7 @@ __all__: list[str] = [
     "detect_always_identity_columns",
     "get_insert_columns",
     "get_pk_columns",
+    "is_identity_pk",
     "normalize_dataframe_columns",
     "normalize_identifier",
     "resolve_sql_output_path",

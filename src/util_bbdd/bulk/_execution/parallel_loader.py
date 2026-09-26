@@ -31,7 +31,9 @@ import pandas as pd
 from sqlalchemy import Engine, Table, text
 from sqlalchemy.exc import OperationalError as SQLAOperationalError, SQLAlchemyError
 
+from .._audit.counters import AuditCounters
 from .._audit.errors import AuditError
+from .._support.iterables import closing_iterable
 from ..audit import AuditManager
 from ..crud import BulkCrud
 from .batch import validate_chunk_size
@@ -523,10 +525,7 @@ class ParallelBulkLoader:
             elapsed_seconds=time.perf_counter() - t_start,
             error=error,
             retries=retries,
-            audit_failures=crud.audit_failures,
-            audited_rows=crud.audited_rows,
-            unaudited_committed_rows=crud.unaudited_committed_rows,
-            audit_uncommitted_records=crud.audit_uncommitted_records,
+            **AuditCounters.of(crud).as_dict(),
         )
 
     def _load_with_maintenance(
@@ -658,20 +657,7 @@ class ParallelBulkLoader:
         return crud.reflect_table(tabla_destino)
 
 
-@contextmanager
-def _closing_iterable(iterable: Iterable[pd.DataFrame]) -> Generator[Iterable[pd.DataFrame], None, None]:
-    """Entrega ``iterable`` y, al salir (también por excepción), lo cierra si es un generador.
-
-    A2 (audit-code 2026-09-26): un ``for`` no cierra el generador de un lector cuando falla la escritura; su conexión de
-    origen (con cursor de servidor y transacción abierta en PostgreSQL) seguía ocupada hasta que el recolector la liberaba.
-    """
-    try:
-        yield iterable
-    finally:
-        close = getattr(iterable, "close", None)
-        if callable(close):
-            close()
-
+_closing_iterable = closing_iterable  # A2: cierra el generador del lector si falla la escritura
 
 __all__: list[str] = [
     "ParallelBulkLoader",
