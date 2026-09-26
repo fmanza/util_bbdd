@@ -30,12 +30,14 @@ from sqlalchemy import (
     ColumnElement,
     Engine,
     Insert,
+    Inspector,
     MetaData,
     Table,
     Update,
     and_,
     bindparam,
     insert,
+    inspect,
     text,
     update,
 )
@@ -116,6 +118,11 @@ class _BulkOperationStrategy:
     prepare: Callable[[pd.DataFrame, str], _PreparedBulkOperation]
 
 
+def _no_foreign_keys(*_args: Any, **_kwargs: Any) -> dict[Any, list[Any]]:
+    """Sustituto de ``Inspector.get_multi_foreign_keys`` que no lee nada (``reflect_foreign_keys=False``)."""
+    return {}
+
+
 class BulkCrud:
     """Realiza operaciones CRUD en lote sobre bases de datos usando SQLAlchemy."""
 
@@ -131,6 +138,7 @@ class BulkCrud:
         audit_strict: bool = False,
         warn_if_audit_disabled: bool = True,
         strip_strings: bool = True,
+        reflect_foreign_keys: bool = True,
     ):
         """
         Constructor de la clase bulk_crud.
@@ -187,6 +195,9 @@ class BulkCrud:
             strip_strings: Si True (default), quita los espacios de los extremos de las cadenas antes de enviarlas,
                 como :func:`normalize_sql_literal`. Con False se envían intactas; ``dump`` lo usa para copiar el
                 origen sin alterarlo (PD-05).
+            reflect_foreign_keys: Si True (default), la ``Table`` de :meth:`reflect_table` incluye las claves foráneas
+                de la tabla. Las operaciones de ``BulkCrud`` no las usan: con False no se leen y la reflexión es más
+                barata (SQL Server: ≈ 32 → 16 ms por tabla). ``dump`` lo usa (Q9).
 
         Raises:
             ValueError: Si engine es None.
@@ -206,6 +217,7 @@ class BulkCrud:
         self.audit_manager: AuditManager = AuditManager(audit_csv_path, warn_if_disabled=warn_if_audit_disabled)
         self._update_via_staging: bool = update_via_staging and self.engine.dialect.name in ("mysql", "mariadb")
         self._strip_strings: bool = strip_strings
+        self._reflect_foreign_keys: bool = reflect_foreign_keys
 
         # Inicializar db_info
         self.db_info: str = self.engine.dialect.name.upper()
@@ -904,14 +916,33 @@ class BulkCrud:
             tabla_normalizada: str = (
                 table_part if skip_normalization else normalize_identifier(table_part, self.engine.dialect.name)
             )
-            tabla = Table(tabla_normalizada, metadata, schema=schema_part, autoload_with=self.engine, resolve_fks=False)
+            schema: str | None = schema_part
         else:
             tabla_normalizada = (
                 tabla_destino if skip_normalization else normalize_identifier(tabla_destino, self.engine.dialect.name)
             )
-            tabla = Table(tabla_normalizada, metadata, autoload_with=self.engine, resolve_fks=False)
+            schema = None
+        if self._reflect_foreign_keys:
+            tabla = Table(tabla_normalizada, metadata, schema=schema, autoload_with=self.engine, resolve_fks=False)
+        else:
+            tabla = Table(tabla_normalizada, metadata, schema=schema)
+            self._reflect_without_foreign_keys(tabla)
         self._table_cache[tabla_destino] = tabla
         return tabla
+
+    def _reflect_without_foreign_keys(self, tabla: Table) -> None:
+        """Rellena ``tabla`` desde la BD como ``Table(..., autoload_with=engine, resolve_fks=False)``, sin leer sus FK.
+
+        Q9 (performance-audit de dump 2026-09-26): en SQL Server,
+        ``get_foreign_keys`` es la mitad de la reflexión (≈ 17 de 32 ms por tabla) y ``BulkCrud`` no usa las FK.
+        ``Table(autoload_with=...)`` crea su propio Inspector, así que se usa ``Inspector.reflect_table``, que pide las
+        FK a ``get_multi_foreign_keys`` de la misma instancia. Si una versión de SQLAlchemy dejara de hacerlo, la
+        sustitución no tendría efecto: se volverían a reflejar las FK (más lento, mismo resultado para ``BulkCrud``).
+        """
+        with self.engine.connect() as conn:
+            insp: Inspector = inspect(conn)
+            insp.get_multi_foreign_keys = _no_foreign_keys  # type: ignore[method-assign]
+            insp.reflect_table(tabla, None, resolve_fks=False)
 
     @property
     def audit_failures(self) -> int:

@@ -174,6 +174,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-26 | Cierre de versión v0.16.1 | CHANGELOG `[0.16.1]` + `pyproject.toml`; checklist verde (5067/193; integración 331/0; build 0.16.1); tag `v0.16.1` | CLOSED |
 | 2026-09-26 | Q8: medición de la etapa pandas | Cota de la ruta sin pandas ≈ 1,7–2,0 s por 3,5M filas (PG ≈ 15 %, resto 3–7 %); aparcado | CLOSED |
 | 2026-09-26 | Q9: FK por esquema en SQL Server | `sys.foreign_keys` en una consulta para el orden de carga y la limpieza; 200 tablas 33,9 → 15,8 s; SQL en `metadata/sqlserver` | CLOSED |
+| 2026-09-26 | Q9b: reflexión sin FK | `BulkCrud(reflect_foreign_keys=False)` en dump (SQL Server 32 → 16 ms/tabla); 200 tablas 15,8 → 14,3 s (−58 % vs v0.16.1) | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 

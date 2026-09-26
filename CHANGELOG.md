@@ -7,6 +7,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **bulk**: `BulkCrud(reflect_foreign_keys=True)` y el mismo parámetro en `ParallelBulkLoader`. Con `False`,
+  `reflect_table` devuelve la misma tabla (columnas, tipos, PK, identidad, defaults, índices) sin leer sus claves
+  foráneas, que `BulkCrud` no usa: en SQL Server la reflexión pasa de ≈ 32 a 16 ms por tabla. Por defecto nada cambia.
+
 ### Changed
 
 - **dump**: con SQL Server, el orden de carga por FK y la detección de tablas referenciadas en la limpieza leen las FK de
@@ -14,6 +20,8 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   (≈ 34 ms por llamada). Volcado de 200 tablas pequeñas: 33,9 → 15,8 s (análisis 9,6 → 1,7 s, limpieza 7,7 → 0,7 s).
   Mismo resultado; si la consulta falla (p. ej. sin permiso sobre `sys.*`), se vuelve a la introspección por tabla. El
   SQL vive en `metadata/sqlserver/constraints.py` (`fetch_schema_fk_references_sql`).
+- **dump**: sus `BulkCrud` y `ParallelBulkLoader` reflejan las tablas destino sin FK (`reflect_foreign_keys=False`).
+  Con las dos mejoras, el volcado de 200 tablas pequeñas en SQL Server pasa de 33,9 a ≈ 14,3 s (−58 %).
 - **docs**: el diagrama de capas registra el nuevo import `dump → metadata`.
 
 ## [0.16.1] - 2026-09-26

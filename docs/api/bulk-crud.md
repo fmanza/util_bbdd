@@ -25,7 +25,7 @@ flowchart TD
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `BulkCrud` | `(engine, chunk_size?, audit_csv_path?, enable_fast_executemany?, insert_resolver?, commit_every_n_chunks?, update_via_staging?, audit_strict?, warn_if_audit_disabled?, strip_strings?)` | Crea instancia con engine SQLAlchemy | `BulkCrud` |
+| `BulkCrud` | `(engine, chunk_size?, audit_csv_path?, enable_fast_executemany?, insert_resolver?, commit_every_n_chunks?, update_via_staging?, audit_strict?, warn_if_audit_disabled?, strip_strings?, reflect_foreign_keys?)` | Crea instancia con engine SQLAlchemy | `BulkCrud` |
 | `bulk_insert_from_df` | `(df, tabla_destino, generar_sql?, path_sql?)` | INSERT masivo desde DataFrame | `None` |
 | `bulk_insert_from_chunks` | `(chunks, tabla_destino, *, override_identity?, exclude_autoincrement_pk?)` | INSERT streaming de iterable de DataFrames; resuelve columnas/identidad una sola vez | `int` (filas insertadas) |
 | `bulk_update_from_df` | `(df, tabla_destino, generar_sql?, path_sql?)` | UPDATE masivo desde DataFrame | `None` |
@@ -53,6 +53,7 @@ flowchart TD
 | `audit_strict` | `bool` | Qué hacer si falla la escritura del CSV de auditoría (fichero abierto en Excel, disco lleno, permisos). `False`: la operación sigue, porque sus datos ya están en la BD; se registra un ERROR con los registros perdidos y se cuentan en `audit_failures`. `True`: se propaga `AuditError`/`OSError`; dentro de `bulk_session` la auditoría se escribe antes del commit y el fallo deshace la sesión. Si lo que falla es el commit, lo ya escrito se cuenta en `audit_uncommitted_records` | Default `False` |
 | `warn_if_audit_disabled` | `bool` | Sin `audit_csv_path`, avisar una vez con un WARNING de que la auditoría está deshabilitada. `ParallelBulkLoader` y `dump` pasan `False` a sus instancias y avisan una sola vez por carga | Default `True` |
 | `strip_strings` | `bool` | Si `True`, quita los espacios de los extremos de las cadenas antes de enviarlas (INSERT, UPDATE, DELETE y SQL generado). `dump` pasa `False` para copiar el origen sin alterarlo | Default `True` |
+| `reflect_foreign_keys` | `bool` | Si `True`, la `Table` de `reflect_table` incluye las claves foráneas de la tabla. `BulkCrud` no las usa: con `False` no se leen y la reflexión es más barata (SQL Server: ≈ 32 → 16 ms por tabla). `dump` pasa `False` | Default `True` |
 | `df` | `pd.DataFrame` | Datos fuente | No puede estar vacío; columnas deben coincidir con tabla destino |
 | `tabla_destino` | `str` | Nombre de la tabla en BD | Debe existir; se normaliza mayúsculas/minúsculas por motor |
 | `generar_sql` | `bool` | Escribir el SQL generado en fichero | Si `True`, `path_sql` es obligatorio |

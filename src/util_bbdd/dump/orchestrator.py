@@ -698,6 +698,7 @@ class DumpOrchestrator:
             audit_csv_path=cfg.bulk_audit_path,
             audit_strict=cfg.bulk_audit_strict,
             strip_strings=False,  # PD-05: copia fiel del origen
+            reflect_foreign_keys=False,  # Q9: bulk no usa las FK de la tabla destino
         )
         readers = [_make_reader(lo, hi, last) for lo, hi, last in bounds]
         result = loader.load(dest_table_logical, readers)
@@ -907,6 +908,7 @@ class DumpOrchestrator:
             audit_strict=cfg.bulk_audit_strict,
             warn_if_audit_disabled=False,  # run() avisa una vez por volcado
             strip_strings=False,  # PD-05: copia fiel del origen
+            reflect_foreign_keys=False,  # Q9: bulk no usa las FK de la tabla destino
         )
         with self._audit_lock:
             self._audit_cruds.append(crud)

@@ -203,6 +203,7 @@ class ParallelBulkLoader:
         disable_constraints: bool = False,
         audit_strict: bool = False,
         strip_strings: bool = True,
+        reflect_foreign_keys: bool = True,
     ) -> None:
         """
         Args:
@@ -229,6 +230,8 @@ class ParallelBulkLoader:
                 retriable, para no duplicarlos.
             strip_strings: Se pasa a la ``BulkCrud`` de cada partición: con ``False`` las cadenas se envían sin quitar
                 los espacios de los extremos (``dump``, PD-05).
+            reflect_foreign_keys: Se pasa a las ``BulkCrud`` del loader: con ``False`` la reflexión de la tabla destino
+                no lee sus claves foráneas (``dump``, Q9).
 
         Raises:
             ValueError: Si ``chunk_size`` no es un entero ≥ 1, ``max_workers < 1`` o ``max_retries < 0``.
@@ -259,6 +262,7 @@ class ParallelBulkLoader:
         self._disable_constraints = disable_constraints
         self._audit_strict = audit_strict
         self._strip_strings = strip_strings
+        self._reflect_foreign_keys = reflect_foreign_keys
         self._max_workers = self._resolve_max_workers(max_workers)
 
     def _resolve_max_workers(self, requested: int) -> int:
@@ -399,6 +403,7 @@ class ParallelBulkLoader:
                 audit_strict=self._audit_strict,
                 warn_if_audit_disabled=False,  # M-4: load() avisa una vez por carga
                 strip_strings=self._strip_strings,
+                reflect_foreign_keys=self._reflect_foreign_keys,
             )
         except Exception as exc:
             _log.warning("No se pudo preparar la partición %d de '%s': %s", index, tabla_destino, exc, exc_info=True)
@@ -648,6 +653,7 @@ class ParallelBulkLoader:
             chunk_size=self._chunk_size,
             enable_fast_executemany=self._enable_fast_executemany,
             warn_if_audit_disabled=False,
+            reflect_foreign_keys=self._reflect_foreign_keys,
         )
         return crud.reflect_table(tabla_destino)
 

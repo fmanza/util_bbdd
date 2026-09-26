@@ -970,3 +970,57 @@ def test_maintenance_scope_disable_indexes_keeps_session_atomic_on_innodb(engine
             raise RuntimeError("fallo posterior")
 
     assert _count(engine, scratch_table) == 0
+
+
+def _reflection_signature(table: Table) -> dict[str, Any]:
+    """Lo que ``BulkCrud`` usa de la ``Table`` reflejada (columnas, tipos, PK, identidad, defaults) e índices."""
+    return {
+        "columns": [
+            (
+                c.name,
+                repr(c.type),
+                c.nullable,
+                c.primary_key,
+                c.autoincrement,
+                repr(c.identity),
+                str(getattr(c.server_default, "arg", c.server_default)),
+            )
+            for c in table.columns
+        ],
+        "pk": [c.name for c in table.primary_key.columns],
+        "indexes": sorted((i.name or "", tuple(c.name for c in i.columns)) for i in table.indexes),
+    }
+
+
+def test_reflect_without_foreign_keys_matches_default_reflection(engine: Engine) -> None:
+    """Q9: ``reflect_foreign_keys=False`` da la misma tabla que la reflexión por defecto, salvo las FK."""
+    from sqlalchemy import ForeignKey, Identity, Index, Numeric
+
+    n = partial(_name, engine=engine)
+    suffix = uuid.uuid4().hex[:8]
+    md = MetaData()
+    identity: list[Any] = [] if engine.dialect.name in ("mysql", "mariadb", "sqlite") else [Identity()]
+    parent = Table(n(f"zz_util_bbdd_rp_{suffix}"), md, Column(n("id"), Integer, *identity, primary_key=True))
+    child = Table(
+        n(f"zz_util_bbdd_rc_{suffix}"),
+        md,
+        Column(n("id"), Integer, *identity, primary_key=True),
+        Column(n("parent_id"), Integer, ForeignKey(parent.c[n("id")]), nullable=False),
+        Column(n("amount"), Numeric(18, 4)),
+        Column(n("s"), String(30), server_default="x"),
+        Column(n("d"), DateTime),
+        Index(n(f"ix_rc_{suffix}"), n("d")),
+    )
+    md.create_all(engine)
+    try:
+        default = BulkCrud(engine, warn_if_audit_disabled=False).reflect_table(child.name)
+        without_fk = BulkCrud(engine, warn_if_audit_disabled=False, reflect_foreign_keys=False).reflect_table(
+            child.name
+        )
+
+        assert _reflection_signature(without_fk) == _reflection_signature(default)
+        assert len(default.foreign_keys) == 1
+        assert not without_fk.foreign_keys
+        assert set(without_fk.metadata.tables) == {without_fk.key}
+    finally:
+        md.drop_all(engine, checkfirst=True)
