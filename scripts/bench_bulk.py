@@ -155,11 +155,19 @@ def physical_name(logical: str, dialect_name: str) -> str:
     return normalize_identifier(logical, dialect_name)
 
 
+def physical_column(logical: str, dialect_name: str) -> str:
+    """Nombre físico de columna. En SQL Server, en minúsculas: desde PD-01 ``BulkCrud`` casa las columnas sin distinguir
+    mayúsculas, y crearlas en MAYÚSCULAS (como las tablas) ocultaba justo ese fallo (sesión 2026-09-25-performance-audit-dump)."""
+    if dialect_name == "mssql":
+        return logical
+    return physical_name(logical, dialect_name)
+
+
 def build_table(dialect_name: str) -> Table:
     """Tabla de benchmark con PK explícita (sin autoincremento) y nombres según el dialecto."""
     metadata = MetaData()
     columns = [
-        Column(physical_name(name, dialect_name), col_type, primary_key=(name == "id"), autoincrement=False)
+        Column(physical_column(name, dialect_name), col_type, primary_key=(name == "id"), autoincrement=False)
         for name, col_type in COLUMNS
     ]
     return Table(physical_name(TABLE_NAME, dialect_name), metadata, *columns)
@@ -216,7 +224,7 @@ def make_dataframe(rows: int, dialect_name: str) -> pd.DataFrame:
         "s3": s3,
         "d": pd.date_range("2026-01-01", periods=rows, freq="s"),
     }
-    return pd.DataFrame({physical_name(name, dialect_name): values for name, values in data.items()})
+    return pd.DataFrame({physical_column(name, dialect_name): values for name, values in data.items()})
 
 
 # ---------------------------------------------------------------------------
@@ -304,7 +312,7 @@ def _count(engine: Engine, table: Table) -> int:
 
 
 def _sum_a(engine: Engine, table: Table) -> int:
-    col = table.c[physical_name("a", engine.dialect.name)]
+    col = table.c[physical_column("a", engine.dialect.name)]
     with engine.connect() as conn:
         # CAST a BIGINT: en SQL Server SUM(INT) desborda por encima de 2^31 (tamaños > ~2M filas).
         total = func.coalesce(func.sum(cast(col, BigInteger)), 0)
@@ -352,8 +360,8 @@ def _build_steps(engine: Engine, table: Table, crud: BulkCrud, df: pd.DataFrame)
     """Acción y verificación SQL de cada operación sobre ``df`` ya cargado en memoria."""
     dialect = engine.dialect.name
     rows = len(df)
-    col_a = physical_name("a", dialect)
-    col_id = physical_name("id", dialect)
+    col_a = physical_column("a", dialect)
+    col_id = physical_column("id", dialect)
     df_update = df.copy()
     df_update[col_a] = df_update[col_a] + 1
     expected_sum_a = int(df[col_a].sum()) + rows

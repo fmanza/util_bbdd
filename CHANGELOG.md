@@ -7,6 +7,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **tests**: `tests/integration/test_dump_engines.py` cubre contra servidores reales las correcciones de `dump`/`bulk` de
+  0.16.0 (fidelidad de datos, identidad tras el volcado, volcado repetido con FK, FK huérfanas, UPDATE por staging sin
+  base de datos por defecto), con origen PostgreSQL y destino en cada motor.
+- **scripts**: `scripts/bench_bulk.py` crea las columnas en minúsculas en SQL Server (en MAYÚSCULAS ocultaba el fallo de
+  columnas no mayúsculas corregido en 0.16.0).
+
 ## [0.16.0] - 2026-09-26
 
 Volcado (`dump`) fiable y más rápido tras una auditoría de rendimiento con banco real en 6 motores (3,5M filas):

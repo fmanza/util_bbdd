@@ -76,10 +76,17 @@ class TestNamingAndVariants:
         assert bench.physical_name("zz_util_bbdd_bench", dialect) == expected
 
     def test_build_table_uses_explicit_pk_without_autoincrement(self, bench: ModuleType) -> None:
+        # Tabla en MAYÚSCULAS (convención de BulkCrud); columnas en minúsculas en SQL Server para ejercitar PD-01.
         table = bench.build_table("mssql")
         assert table.name == "ZZ_UTIL_BBDD_BENCH"
-        assert [c.name for c in table.primary_key.columns] == ["ID"]
-        assert table.c["ID"].autoincrement is False
+        assert [c.name for c in table.primary_key.columns] == ["id"]
+        assert table.c["id"].autoincrement is False
+
+    @pytest.mark.parametrize(
+        ("dialect", "expected"), [("mssql", "a"), ("postgresql", "a"), ("oracle", "a"), ("mysql", "a")]
+    )
+    def test_physical_column_is_lowercase_on_sql_server(self, bench: ModuleType, dialect: str, expected: str) -> None:
+        assert bench.physical_column("a", dialect) == expected
 
     def test_reset_table_refuses_other_tables(self, bench: ModuleType) -> None:
         from sqlalchemy import Column, Integer, MetaData, Table, create_engine
