@@ -163,6 +163,12 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-25 | Serialización SQL (P-31 a P-34) | `generar_sql` ~2,5× más rápido con el mismo SQL: 1M filas INSERT 12,6 → 4,9 s; P-35 descartado tras medir | CLOSED |
 | 2026-09-25 | Hotfix literales binarios (C-1/P-30) | Literal hexadecimal por motor; Oracle corrompía `b"abc"` sin avisar; 9/9 en los 6 motores | CLOSED |
 | 2026-09-25 | Cierre de versión v0.15.0 | CHANGELOG `[0.15.0]` + `pyproject.toml`; checklist verde (4938/165, build 0.15.0, docs estrictas sin avisos); tag `v0.15.0` | CLOSED |
+| 2026-09-25 | Auditoría delta de `dump` + banco real | `scripts/bench_dump.py` real; línea base v0.15.0 en 6 motores; PD-01…PD-09 abiertos | CLOSED |
+| 2026-09-25/26 | Hotfixes PD-01…PD-12 | 12 fallos de `dump`/`bulk` corregidos y verificados en servidores reales | CLOSED |
+| 2026-09-26 | Fase 1 de rendimiento (Q1–Q4) | Oracle `arraysize` −29 %; cursor de servidor (memoria −60/−81 %); solape lectura/escritura −15/−29 %; guía de rangos | CLOSED |
+| 2026-09-26 | MariaDB Connector/Python (PF-09) | `executemany` del driver con tipos uniformes: `dump` 80 → 29 s | CLOSED |
+| 2026-09-26 | Fase 2 (Q5, Q6, 2.3) + 3.4 | `write_batch_size` (PG −22 %); guía `manage_indexes`; aviso LOB; resumen de auditoría incremental; Q9 replanteado | CLOSED |
+| 2026-09-26 | Cierre de versión v0.16.0 | CHANGELOG `[0.16.0]` + `pyproject.toml`; checklist verde (5054/165; integración 303/0; build 0.16.0; docs estrictas); tag `v0.16.0` | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 

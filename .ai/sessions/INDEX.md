@@ -207,6 +207,7 @@ Cada sesión sigue la estructura de artefactos definida en `TEMPLATE/`.
 | 2026-09-26p-feature-dump-write-batch-size | **new-feature: `DumpConfig.write_batch_size` (Q5)** — lote de escritura separado de la lectura; `None` = 20 000 en PostgreSQL (sin `commit_every_n_chunks`), `chunk_size` en el resto; PG `baseline` −22 %, resto sin cambios | develop | new-feature | CLOSED | `2026-09-26p-feature-dump-write-batch-size/TRACEABILITY.md` |
 | 2026-09-26q-refactor-dump-lob-warning | **refactor: aviso de `max_allowed_packet` solo con columnas TEXT/BLOB/JSON (2.3)** — sale en `run()` tras el análisis y con el lote de escritura efectivo; desaparece del resto de volcados a MySQL/MariaDB | develop | refactor | CLOSED | `2026-09-26q-refactor-dump-lob-warning/TRACEABILITY.md` |
 | 2026-09-26r-refactor-dump-audit-summary-tail | **refactor: resumen de auditoría leyendo solo lo añadido al CSV (3.4 / PF-08)** — desplazamiento al inicio del volcado, fallback a lectura completa; 500K registros previos: 0,69 → 0,01 s, resumen idéntico | develop | refactor | CLOSED | `2026-09-26r-refactor-dump-audit-summary-tail/TRACEABILITY.md` |
+| 2026-09-26t-version-closure-v0.16.0 | **release: v0.16.0** — `[Unreleased]` → `[0.16.0] - 2026-09-26` con cambios de comportamiento a revisar; checklist verde (5054 passed / 165 skipped; integración 303/0 en 5 servidores; build 0.16.0; mkdocs estricto); tag anotado `v0.16.0` sobre `693f9c2` | develop | version-closure | CLOSED | `2026-09-26t-version-closure-v0.16.0/TRACEABILITY.md` |
 
 ## Crear nueva sesión
 
