@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-09-26
+
+Correcciones de 0.16.0 halladas al llevar sus arreglos a tests de integración contra servidores reales y en una
+auditoría de código independiente: DECIMAL redondeado con pymssql y cierre de la conexión de lectura cuando falla la
+escritura. Sin cambios de API. Sesiones `.ai/sessions/2026-09-26u-tests-integracion-dump/` a
+`.ai/sessions/2026-09-26x-hotfix-audit-a1-a3/`.
+
 ### Fixed
 
 - **dump**: si fallaba la escritura de una tabla, la conexión de lectura del origen se devolvía al pool con el hilo que
