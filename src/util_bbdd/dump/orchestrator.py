@@ -20,7 +20,6 @@ y alimentan directamente el informe Excel, evitando la cascada N+1 de comparar
 from __future__ import annotations
 
 import logging
-import math
 import threading
 
 from collections.abc import Callable, Iterator
@@ -36,7 +35,7 @@ from sqlalchemy import Engine, Inspector, Integer, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import sqltypes
 
-from util_bbdd.bulk import BulkCrud, ParallelBulkLoader
+from util_bbdd.bulk import BulkCrud, ParallelBulkLoader, RangePartitioner
 from util_bbdd.bulk._audit.counters import AuditCounters
 from util_bbdd.bulk._support.dialect import MYSQL_FAMILY
 from util_bbdd.bulk._support.iterables import close_if_closable
@@ -576,19 +575,11 @@ class DumpOrchestrator:
         """
         if hi < lo:
             return []
-        n = max(1, n)
-        span = hi - lo + 1
-        step = max(1, math.ceil(span / n))
-        bounds: list[tuple[int, int, bool]] = []
-        start = lo
-        while start <= hi:
-            end_excl = start + step
-            if end_excl > hi:
-                bounds.append((start, hi, True))
-            else:
-                bounds.append((start, end_excl, False))
-            start = end_excl
-        return bounds
+        # Los rangos inclusivos de RangePartitioner, con el límite superior exclusivo salvo en el último (mismo SQL).
+        return [
+            (low, high, True) if high == hi else (low, high + 1, False)
+            for low, high in RangePartitioner.partition_ranges(lo, hi, max(1, n))
+        ]
 
     def _detect_pk_range_col(self, src_table: str, common_cols: list[str]) -> str | None:
         """Devuelve el nombre de la PK si es una única columna entera presente en ``common_cols``.
