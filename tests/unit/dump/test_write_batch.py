@@ -37,6 +37,37 @@ class TestDumpConfigValidation:
     def test_default_is_none(self) -> None:
         assert DumpConfig(source_engine=_engine("x"), target_engine=_engine("y")).write_batch_size is None
 
+    @pytest.mark.parametrize("value", [0, -1, 2.5, True])
+    def test_rejects_invalid_chunk_size(self, value: object) -> None:
+        with pytest.raises(ValueError, match="chunk_size"):
+            DumpConfig(source_engine=_engine("x"), target_engine=_engine("y"), chunk_size=value)  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize("value", [0, -3])
+    def test_rejects_non_positive_commit_every_n_chunks(self, value: int) -> None:
+        with pytest.raises(ValueError, match="commit_every_n_chunks"):
+            DumpConfig(source_engine=_engine("x"), target_engine=_engine("y"), commit_every_n_chunks=value)
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [{"chunk_size": 0}, {"chunk_size": 0, "write_batch_size": 1000}, {"commit_every_n_chunks": 0}],
+    )
+    def test_invalid_config_does_not_empty_the_target(self, tmp_path: Path, kwargs: dict[str, int]) -> None:
+        # Antes: run() vaciaba el destino (truncate_target) y después fallaba al crear la BulkCrud; con
+        # chunk_size=0 y write_batch_size la tabla quedaba vacía y el volcado terminaba con estado "success".
+        src = create_engine(f"sqlite:///{tmp_path / 's.db'}")
+        dst = create_engine(f"sqlite:///{tmp_path / 't.db'}")
+        for engine, rows in ((src, 3), (dst, 2)):
+            with engine.begin() as conn:
+                conn.execute(text("CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)"))
+                for i in range(rows):
+                    conn.execute(text("INSERT INTO t VALUES (:i, 'x')"), {"i": i})
+
+        with pytest.raises(ValueError):
+            DumpOrchestrator(DumpConfig(src, dst, output_dir=tmp_path, **kwargs)).run()
+
+        with dst.connect() as conn:
+            assert conn.execute(text("SELECT COUNT(*) FROM t")).scalar() == 2
+
 
 class TestResolveWriteBatchSize:
     def test_postgresql_default_is_20000(self) -> None:

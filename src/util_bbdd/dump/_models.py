@@ -12,6 +12,7 @@ from typing import Literal
 
 from sqlalchemy import Engine
 
+from util_bbdd.bulk._execution.executors import validate_chunk_size
 from util_bbdd.bulk._models import PKSyncResult
 
 __all__: list[str] = ["PKSyncResult"]
@@ -136,6 +137,10 @@ class DumpConfig:
             ``False`` (default): un fallo al escribir el CSV de auditoría no interrumpe la carga; se registra como
             ERROR y se cuenta en ``DumpResult.audit_summary.audit_failures``. ``True``: el fallo deshace la carga de
             esa tabla (o partición) y queda como error de la tabla.
+
+    Raises:
+        ValueError: Si ``chunk_size`` no es un entero ≥ 1, o si ``commit_every_n_chunks`` o ``write_batch_size`` no son
+            ``None`` ni un entero ≥ 1. Se valida al construir, antes de tocar el destino.
     """
 
     source_engine: Engine
@@ -157,6 +162,14 @@ class DumpConfig:
     write_batch_size: int | None = None
 
     def __post_init__(self) -> None:
+        # Validar aquí y no en la primera BulkCrud: run() la crea después de vaciar el destino (truncate_target), así que
+        # un chunk_size o commit_every_n_chunks inválido vaciaba las tablas y luego fallaba; con chunk_size=0 y
+        # write_batch_size no se leía nada y la tabla quedaba vacía con estado "success".
+        validate_chunk_size(self.chunk_size)
+        if self.commit_every_n_chunks is not None and self.commit_every_n_chunks < 1:
+            raise ValueError(
+                f"commit_every_n_chunks debe ser None o un entero ≥ 1, recibido: {self.commit_every_n_chunks}"
+            )
         if self.write_batch_size is not None and self.write_batch_size < 1:
             raise ValueError(f"write_batch_size debe ser None o un entero ≥ 1, recibido: {self.write_batch_size}")
 
