@@ -88,17 +88,23 @@
 │    └── async_mgr.py                # AsyncDatabaseManager
 │
 │    bulk/                           📦 Operaciones masivas
-│    ├── crud.py                     # BulkCrud — INSERT/UPDATE/DELETE + maintenance_scope
-│    ├── audit.py                    # AuditManager, AuditTransaction (thread-safe en paralelo)
-│    ├── normalize.py                # Normalización de registros
-│    ├── parallel.py                 # ParallelBulkLoader — carga paralela por particiones
-│    ├── partition.py                # RangePartitioner (PK entera/datetime) + HashPartitioner (str/UUID)
-│    ├── strategies/                 # InsertStrategyResolver — selección automática de fast-path
-│    │   ├── postgres_copy.py        # PostgresCopyStrategy (~10× vía psycopg3 COPY)
-│    │   ├── mysql_multirow.py       # MySQLMultiRowInsertStrategy (multi-fila + SQL template cache)
-│    │   └── default.py              # Fallback executemany
-│    ├── pk_sync.py                  # PKSequenceSyncer + PKSyncResult
-│    └── mysql_variables.py          # MySQLVariableValidator + MySQLOptimalConfig
+│    ├── crud.py                     # BulkCrud — INSERT/UPDATE/DELETE, bulk_session, maintenance_scope, sync_pk_sequences
+│    ├── audit.py                    # AuditManager (fachada de _audit/)
+│    ├── normalize.py                # Normalización de registros y DataFrames para SQL
+│    ├── _models.py                  # PKSyncResult
+│    ├── _execution/
+│    │   ├── executors.py            # BatchStatementExecutor, DeleteBatchExecutor (cadencia de commit)
+│    │   ├── insert_strategies.py    # InsertStrategyResolver + estrategias (COPY, execute_values, multi-fila, executemany)
+│    │   ├── delete_strategies.py    # DeleteStrategyResolver + estrategias (ANY/unnest en PG, IN troceado)
+│    │   ├── staging_update.py       # MySQLStagingUpdateStrategy (UPDATE por tabla temporal)
+│    │   ├── _driver_quirks.py       # decimal de pyodbc/pymssql, fast_executemany, límites de parámetros
+│    │   ├── batch.py                # Fachada de compatibilidad (re-exporta los módulos anteriores)
+│    │   ├── parallel_loader.py      # ParallelBulkLoader — carga paralela por particiones
+│    │   └── range_partitioner.py    # RangePartitioner (PK entera/datetime) + HashPartitioner (str/UUID)
+│    ├── _support/                   # pk_sync (PKSequenceSyncer), sql_helpers (generar_sql), validation, persistence,
+│    │                               # sql_quoting, dialect (MYSQL_FAMILY), excel (H12), iterables, table_utils
+│    └── _audit/                     # repository (CSV), service, exporters, record, counters, errors
+│    # MySQLVariableValidator + MySQLOptimalConfig viven en connection/mariadb/
 │
 │    comparar/                       🔍 Comparación de esquemas
 │    ├── comparator.py               # SchemaComparator (cross-engine case-insensitive)
@@ -108,12 +114,15 @@
 │
 │    dump/                           📤 Volcado entre motores (v0.8.0+)
 │    ├── orchestrator.py             # DumpOrchestrator (sin SchemaComparator en hot-path)
+│    ├── _source_reader.py           # Lectura del origen: cursor por driver, prefetch (Q3), reagrupado de lotes (Q5)
+│    ├── _fk_graph.py                # Grafo FK, orden topológico, niveles y ciclos
+│    ├── _audit_summary.py           # Resumen del CSV de auditoría de bulk (DumpAuditSummary)
 │    ├── _constraints.py             # ConstraintManager (PG savepoints, Oracle batch, SS NOCHECK)
-│    ├── _models.py                  # DumpConfig, DumpResult, DumpAuditSummary, ConstraintResult
+│    ├── _indexes.py                 # IndexManager (índices secundarios no únicos)
+│    ├── _models.py                  # DumpConfig, DumpResult, DumpAuditSummary, ConstraintResult, IndexActionResult
 │    ├── _protocols.py               # BulkInserter Protocol
-│    ├── _sql_utils.py               # Quoting helpers
-│    ├── reporters.py                # DumpReporter (Excel + texto)
-│    └── (index_manager, parallel)   # IndexManager, paralelización FK-topológica
+│    ├── _sql_utils.py               # Quoting (re-exporta bulk/_support/sql_quoting)
+│    └── reporters.py                # DumpReporter (Excel)
 │
 │    migrate/                        🔄 Migración DDL (v0.8.0+, 4×3 = 12 flujos)
 │    ├── planner.py                  # MigrationPlanner

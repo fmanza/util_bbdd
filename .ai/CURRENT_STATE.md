@@ -94,8 +94,12 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Calidad actual
 
-- **Lint**: `ruff check src tests` → 0 errores (all checks passed)  
-- **Tipos**: `mypy src` → 0 errores (336 source files)  
-- **Tests**: 3826 passed / 1 skipped  
-- **Build docs**: `mkdocs build --strict` → 0 errores, 0 warnings  
-- **Complejidad cognitiva**: reporters ≤ 4, emitter `_topological_sort` → 0 (desglosado en helpers)  
+Medido el 2026-09-26 (sesión `2026-09-26zd-code-reusability-bulk-dump`):
+
+- **Lint**: `ruff check src tests` → 0 errores
+- **Tipos**: `mypy src tests/unit/test_protocol_conformance.py` → 0 errores (355 source files)
+- **Tests**: 5080 passed / 199 skipped sin URLs de servidor
+- **Cobertura de ramas `bulk/` + `dump/`**: 92 % (`coverage run --branch --source=src/util_bbdd/bulk,src/util_bbdd/dump`;
+  `pytest --cov` falla con Python 3.14 + numpy al importar el paquete dos veces)
+- **Build docs**: `mkdocs build --strict` → 0 errores, 0 warnings
+- **Complejidad cognitiva**: reporters ≤ 4, emitter `_topological_sort` → 0 (desglosado en helpers)

@@ -228,7 +228,7 @@ class DumpResult:
         constraint_results: Resultado por constraint al rehabilitar.
         load_order: Orden topológico de carga aplicado.
         cycles_detected: Grupos de tablas con FK circular (cargadas al final).
-        report: Ruta del informe Excel generado (3 hojas).
+        report: Ruta del informe Excel generado (3 hojas fijas y hasta 3 opcionales; ver ``DumpReporter``).
         audit_summary: Métricas de auditoría extraídas de ``bulk.audit`` al finalizar.
             ``None`` cuando ``DumpConfig.bulk_audit_path`` no está configurado o el CSV
             no contiene entradas del volcado actual.

@@ -217,7 +217,7 @@ Strategy, Factory, Template Method, Observer, etc.
 ## Strategy Pattern
 
 **Dónde aparece**: 
-- `bulk/_execution/batch.py`: `InsertStrategyResolver` (PostgreSQL COPY, MySQL multi-row, etc.)
+- `bulk/_execution/insert_strategies.py`: `InsertStrategyResolver` (PostgreSQL COPY, MySQL multi-row, etc.)
 - `dump/_sql_utils.py`: Quote strategies por motor
 
 **Oportunidad**: Extraer a `SQLGenerationStrategy` compartida entre bulk/ y dump/
