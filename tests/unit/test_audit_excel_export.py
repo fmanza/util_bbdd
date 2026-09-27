@@ -77,3 +77,15 @@ def test_text_starting_with_equals_is_written_as_text_not_formula(tmp_path: Path
     cells = [cell for ws in workbook.worksheets for row in ws.iter_rows() for cell in row]
     assert not [cell.coordinate for cell in cells if cell.data_type == "f"]
     assert sum(cell.value == formula for cell in cells) == len(workbook.worksheets)
+
+
+def test_control_characters_in_a_table_name_do_not_abort_the_export(tmp_path: Path) -> None:
+    # openpyxl lanza IllegalCharacterError con caracteres de control; se eliminan (safe_frame) antes de to_excel.
+    from openpyxl import load_workbook
+
+    mgr = AuditManager(audit_csv_path=tmp_path / "audit.csv")
+    mgr.registrar_operacion("tabla\x1brara", "sqlite", "INSERT", 1, 0.1, False)
+
+    workbook = load_workbook(mgr.exportar_resumen_excel("tabla"))
+
+    assert "tablarara" in [cell.value for row in workbook["Resumen_global"].iter_rows() for cell in row]

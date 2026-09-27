@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 import pandas as pd
 
-from .._support.excel import neutralize_formulas as _desactivar_formulas
+from .._support.excel import neutralize_formulas as _desactivar_formulas, safe_frame
 from .errors import AuditConfigError, AuditDataError
 from .html_template import AUDIT_HTML_TEMPLATE
 from .repository import AuditCsvRepository
@@ -62,7 +62,7 @@ class AuditExporters:
 
                 resumen_op = self.service.agrupar_y_generar_resumen(dataframe_operacion, group_cols)
                 hoja: str = f"{str(op).capitalize()}_{agrupar_por}"[:31]
-                resumen_op.to_excel(writer, sheet_name=hoja, index=False)
+                safe_frame(resumen_op).to_excel(writer, sheet_name=hoja, index=False)
                 _desactivar_formulas(writer.sheets[hoja])
                 resumen_global.append(resumen_op)
 
@@ -81,7 +81,7 @@ class AuditExporters:
                             "tiempo_medio",
                         ]
                     ]
-                dataframe_global.to_excel(writer, sheet_name="Resumen_global", index=False)
+                safe_frame(dataframe_global).to_excel(writer, sheet_name="Resumen_global", index=False)
                 _desactivar_formulas(writer.sheets["Resumen_global"])
 
         self.logger.info(f"✅ Resumen de auditoría exportado a: {output_excel}")

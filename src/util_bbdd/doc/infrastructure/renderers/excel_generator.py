@@ -14,6 +14,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.worksheet.worksheet import Worksheet
 
+from ...._core.excel_safety import SafeWorkbook
 from ...._core.exceptions import DatabaseException
 from ...application.ports import DocumentationManagerPort, HeadersConfig
 from .shared.generator_shared import (
@@ -77,7 +78,8 @@ class ExcelGenerator:
             routines = routines or []
             output_target.parent.mkdir(parents=True, exist_ok=True)
 
-            wb = Workbook()
+            # SafeWorkbook: comentarios y DDL del catálogo sin caracteres de control ni fórmulas.
+            wb = SafeWorkbook()
             ws1 = wb.active
             if not ws1:
                 return

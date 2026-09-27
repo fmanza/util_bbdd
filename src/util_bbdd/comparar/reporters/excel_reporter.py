@@ -6,13 +6,15 @@ import logging
 
 from typing import TYPE_CHECKING, ClassVar
 
-from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
+
+from util_bbdd._core.excel_safety import SafeWorkbook
 
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from openpyxl import Workbook
     from openpyxl.cell import Cell
     from openpyxl.worksheet.worksheet import Worksheet
 
@@ -67,7 +69,8 @@ class ExcelDiffReporter:
         output.parent.mkdir(parents=True, exist_ok=True)
         summary: DiffSummary = build_diff_summary(diff)
 
-        wb = Workbook()
+        # SafeWorkbook: etiquetas, comentarios y DDL del catálogo sin caracteres de control ni fórmulas.
+        wb = SafeWorkbook()
         if wb.active is not None:
             wb.remove(wb.active)
 
