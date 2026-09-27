@@ -32,10 +32,24 @@ DatabaseException
 │   ├── SchemaDiffValidationError
 │   ├── MetadataIntrospectionError
 │   └── DiffReportGenerationError
-└── DocumentationError
-    ├── DocumentationConfigError
-    └── DocumentationRenderError
+├── DocumentationError
+│   ├── DocumentationConfigError
+│   └── DocumentationRenderError
+├── DumpError
+│   ├── DumpConstraintError
+│   └── DumpReportError
+└── AuditError                      (desde v0.18.0; antes heredaba de Exception)
+    ├── AuditConfigError            (también ValueError)
+    ├── AuditFileError
+    ├── AuditDataError
+    └── AuditValidationError
 ```
+
+!!! note "Auditoría de bulk (v0.18.0)"
+    `AuditError` y sus subclases se importan igual que antes (`util_bbdd.bulk`, `util_bbdd.bulk.audit`) y también desde
+    `util_bbdd`. Como ahora heredan de `DatabaseException`, un `except DatabaseException` alrededor de operaciones bulk
+    captura también los errores de auditoría (solo se lanzan al configurar o leer el CSV y, con `audit_strict=True`, al
+    no poder escribirlo).
 
 !!! tip "Capturar errores genéricamente"
     Para capturar cualquier error de `util_bbdd`, usa `except DatabaseException`.

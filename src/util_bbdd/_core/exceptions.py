@@ -370,6 +370,40 @@ class DumpReportError(DumpError):
     pass
 
 
+# ============================================================================
+# Auditoría de operaciones bulk (bulk/)
+# ============================================================================
+
+
+class AuditError(DatabaseException):
+    """Excepción base para la auditoría de ``bulk`` (CSV de ``AuditManager``).
+
+    Hereda de ``DatabaseException`` desde v0.18.0: antes heredaba de ``Exception`` y un ``except DatabaseException`` no
+    la capturaba. Se lanza al configurar la auditoría, al leer o validar el CSV y, con ``audit_strict=True``, al no poder
+    escribirlo.
+    """
+
+
+class AuditConfigError(AuditError, ValueError):
+    """Error en configuración de auditoría.
+
+    Hereda también de ``ValueError`` (H8, audit-code 2026-09-25): ``AuditCsvRepository.validar_ruta`` lanzaba
+    ``ValueError`` y quien lo capturaba así sigue funcionando.
+    """
+
+
+class AuditFileError(AuditError):
+    """Error en archivo de auditoría."""
+
+
+class AuditDataError(AuditError):
+    """Error en datos de auditoría."""
+
+
+class AuditValidationError(AuditError):
+    """Error en validación de parámetros."""
+
+
 __all__ = [
     # Base
     "DatabaseException",
@@ -414,4 +448,10 @@ __all__ = [
     "DumpError",
     "DumpConstraintError",
     "DumpReportError",
+    # Auditoría de bulk
+    "AuditError",
+    "AuditConfigError",
+    "AuditFileError",
+    "AuditDataError",
+    "AuditValidationError",
 ]

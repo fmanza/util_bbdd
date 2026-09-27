@@ -6,6 +6,11 @@ Migración DDL: Oracle → MariaDB (migrate.MigrationPlanner).
 """
 
 from ._core.exceptions import (
+    AuditConfigError,
+    AuditDataError,
+    AuditError,
+    AuditFileError,
+    AuditValidationError,
     ConnectionError,
     DatabaseConfigurationError,
     DatabaseException,
@@ -94,6 +99,12 @@ __all__: list[str] = [
     "DumpError",
     "DumpConstraintError",
     "DumpReportError",
+    # Auditoría de bulk
+    "AuditError",
+    "AuditConfigError",
+    "AuditFileError",
+    "AuditDataError",
+    "AuditValidationError",
     # Migración DDL
     "MigrationPlanner",
     "MigrationPlan",
