@@ -7,6 +7,41 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-09-27
+
+Pendientes del refactor de `bulk`/`dump` que cambian comportamiento (sesión `.ai/sessions/2026-09-27b-pendientes-bulk-dump/`,
+decisiones D-1 a D-5). **Incluye un cambio incompatible**: se retira `util_bbdd.dump.BulkInserter`.
+
+### Changed
+
+- **bulk/dump**: una sola regla de capacidad del pool, `pool_size + max_overflow` (`bulk/_support/pool.py`), en
+  `ParallelBulkLoader` y `DumpOrchestrator`. Antes el loader recortaba `max_workers` a `pool_size`: con el engine por
+  defecto (`pool_size=5, max_overflow=10`) admite ahora hasta 15 workers. Con `max_overflow` negativo (ilimitado) no hay
+  recorte. Para que sea seguro, con `disable_constraints=True` cada worker refleja la tabla antes de abrir su sesión y
+  usa una sola conexión (antes dos: con 4 workers sobre un pool 2+2, MySQL y MariaDB agotaban el pool). Cambia el texto
+  del WARNING de recorte.
+- **bulk**: `rows_committed` cuenta también las filas del DELETE (las enviadas, como el CSV de auditoría), y
+  `unaudited_committed_rows` pasa a ser exacto en sesiones con DELETE. Con DELETE y `commit_every_n_chunks` el valor es
+  mayor que antes. `ParallelBulkLoader` y `dump` solo insertan: no les afecta.
+- **bulk**: `AuditError`, `AuditConfigError`, `AuditFileError`, `AuditDataError` y `AuditValidationError` heredan de
+  `DatabaseException` (`_core/exceptions.py`) y se exportan también desde `util_bbdd`. Se importan igual que antes y son
+  las mismas clases; `AuditConfigError` sigue siendo `ValueError`. Un `except DatabaseException` alrededor de operaciones
+  bulk captura ahora también los errores de auditoría.
+- **docs**: `docs/api/exceptions.md` con la jerarquía completa (faltaban `Dump*` y `Audit*`).
+
+### Removed
+
+- **dump** (incompatible): `BulkInserter` (`util_bbdd.dump.BulkInserter`, `dump/_protocols.py`). No lo usaba ningún código:
+  el orquestador trabaja con `BulkCrud` y necesita más métodos de los que declaraba.
+
+### Migración
+
+- `from util_bbdd.dump import BulkInserter` → declara tu propio `Protocol` con `bulk_insert_from_df` (misma firma que
+  `BulkCrud.bulk_insert_from_df`) si lo usabas para tipar.
+- Si capturabas `DatabaseException` y `AuditError` por separado, captura antes `AuditError`.
+- Si dependías de que `ParallelBulkLoader` no pasara de `pool_size` workers, pasa un `max_workers` menor o crea el
+  engine con `max_overflow=0`.
+
 ## [0.17.4] - 2026-09-27
 
 Un fallo de `rows_committed` encontrado al planificar los pendientes del refactor de `bulk`/`dump`
