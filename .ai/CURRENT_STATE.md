@@ -1,8 +1,8 @@
 # CURRENT STATE — util_bbdd
 
-**Generado**: 2026-06-05 (cabecera, tabla de versiones y tests actualizados el 2026-09-27 en el cierre de `v0.17.3`)  
-**Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.17.3`  
-**Versión**: `v0.17.3` (cerrada en `develop`, 2026-09-27; `develop` y el tag publicados en `origin`). Tag de git: `v0.17.3`  
+**Generado**: 2026-06-05 (cabecera, tabla de versiones y tests actualizados el 2026-09-27 en el cierre de `v0.18.0`)  
+**Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.18.0`  
+**Versión**: `v0.18.0` (cerrada en `develop`, 2026-09-27; `develop` y los tags publicados en `origin`). Tags de git: `v0.17.4`, `v0.18.0`  
 **Rama activa**: `develop`
 
 ---
@@ -24,12 +24,14 @@
 | `v0.17.1` | Liberado 2026-09-26 (tag sobre `5113380`) — `DumpConfig` valida `chunk_size` y `commit_every_n_chunks` al construirse (antes vaciaba el destino y fallaba, o dejaba la tabla vacía con estado `success`); refactor de reutilización de `bulk`/`dump` sin cambios funcionales (`orchestrator.py` y `batch.py` divididos, helpers en `bulk/_support/`) (sesiones `2026-09-26ze-code-reusability-bulk-dump` y `2026-09-26zf-version-closure-v0.17.1`) |
 | `v0.17.2` | Liberado 2026-09-26 (tag sobre `ce1314b`) — `rows_committed` ya no cuenta las filas de una `bulk_session` fallida con `commit_every_n_chunks`; SQL de catálogo de `bulk`/`dump` en `metadata/` (R11), DDL de integridad compartida (R12) y `SessionScope`/`CommitCadence` (R14), sin cambios funcionales (sesión `2026-09-26zg-version-closure-v0.17.2`) |
 | `v0.17.3` | Liberado 2026-09-27 (tag sobre `acf16f7`) — cierre del refactor de reutilización de `bulk`/`dump`: `self.logger` en 6 clases (R16) y opciones de carga del volcado en `DumpOrchestrator._bulk_options()` (R15), sin cambios funcionales (sesión `2026-09-27-version-closure-v0.17.3`) |
+| `v0.17.4` | Liberado 2026-09-27 (tag sobre `fb0986b`) — `rows_committed` cuenta las filas de INSERT que confirma el commit periódico de un DELETE en la misma sesión (sesión `2026-09-27b-pendientes-bulk-dump`) |
+| `v0.18.0` | Liberado 2026-09-27 (tag sobre `b3e57ac`) — capacidad del pool `pool_size + max_overflow` en `ParallelBulkLoader` y `dump` (con una conexión por worker); `rows_committed` con DELETE; `AuditError` bajo `DatabaseException`; **se retira `BulkInserter`** (incompatible) (sesión `2026-09-27b-pendientes-bulk-dump`) |
 | Zenical | Pendiente, sin versión asignada — merge `migrate/zenical-pure` (+80% perf doc builds) cuando Zenical esté instalable |
 
 PR abierta: **PR #18** `feat(connection/bulk): automatización variables MySQL/MariaDB` — revisión pendiente de merge.  
 PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical v0.0.44 esté en crates.io (o instalación manual de binario).
 
-**Tests actuales**: 5095 passed / 199 skipped sin URLs de servidor (todos los saltos son servidores sin URL); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 338 passed, 0 skipped en 5 servidores (cierre de `v0.17.3`, 2026-09-27). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/PERFORMANCE_AUDIT_GUIDE.md`).
+**Tests actuales**: 5124 passed / 199 skipped sin URLs de servidor (todos los saltos son servidores sin URL); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 338 passed, 0 skipped en 5 servidores (cierre de `v0.18.0`, 2026-09-27). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/PERFORMANCE_AUDIT_GUIDE.md`).
 
 ---
 
@@ -101,7 +103,7 @@ Medido el 2026-09-26 (sesión `2026-09-26ze-code-reusability-bulk-dump`):
 
 - **Lint**: `ruff check src tests` → 0 errores
 - **Tipos**: `mypy src tests/unit/test_protocol_conformance.py` → 0 errores (356 source files)
-- **Tests**: 5095 passed / 199 skipped sin URLs de servidor
+- **Tests**: 5124 passed / 199 skipped sin URLs de servidor
 - **Cobertura de ramas `bulk/` + `dump/`**: 92 % (`coverage run --branch --source=src/util_bbdd/bulk,src/util_bbdd/dump`;
   `pytest --cov` falla con Python 3.14 + numpy al importar el paquete dos veces)
 - **Build docs**: `mkdocs build --strict` → 0 errores, 0 warnings

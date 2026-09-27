@@ -181,6 +181,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-26 | Cierre de versión v0.17.1 | CHANGELOG `[0.17.1]` + `pyproject.toml`; checklist verde (5089/199; integración 338/0; build 0.17.1); `[Unreleased]` históricos corregidos; tag `v0.17.1` | CLOSED |
 | 2026-09-26 | Cierre de versión v0.17.2 | R11, R12, R14 sin cambios funcionales; fix de `rows_committed`; checklist verde (5095/199; integración 338/0; build 0.17.2); tag `v0.17.2` | CLOSED |
 | 2026-09-27 | Cierre de versión v0.17.3 | R15 y R16 sin cambios funcionales; plan de reutilización de bulk/dump completo; checklist verde (5095/199; integración 338/0; build 0.17.3); tag `v0.17.3` | CLOSED |
+| 2026-09-27 | Pendientes de bulk/dump → v0.17.4 y v0.18.0 | fix de `rows_committed` con DELETE en la sesión; regla de pool `size + max_overflow` con una conexión por worker; `rows_committed` con DELETE; `AuditError` bajo `DatabaseException`; `BulkInserter` retirado (incompatible) | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 
