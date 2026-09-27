@@ -234,7 +234,33 @@ class TestRowsCommittedTracking:
 
         with engine.connect() as conn:
             assert conn.exec_driver_sql("SELECT id FROM items ORDER BY id").scalars().all() == [1]
-        assert crud.rows_committed == 1
+        assert crud.rows_committed == 3  # 1 INSERT + 2 DELETE (sin 2b sería 1; sin 2a, 0)
+
+    def test_unaudited_rows_are_exact_with_delete(self, tmp_path: Any) -> None:
+        """Un DELETE que falla a mitad con lotes ya confirmados: esas filas están borradas en la BD pero su operación no
+        llega al CSV. Con los DELETE en rows_committed, unaudited_committed_rows las cuenta (hasta v0.17.x daba 0)."""
+        engine = _make_sqlite_engine()
+        with engine.begin() as conn:
+            conn.exec_driver_sql("INSERT INTO items VALUES (100, 'x'), (101, 'x'), (102, 'x')")
+        crud = BulkCrud(engine, chunk_size=1, commit_every_n_chunks=2, audit_csv_path=tmp_path / "audit.csv")
+        original_execute = crud._delete_batch_executor._execute_batch
+        calls = {"n": 0}
+
+        def _fail_on_third_batch(**kwargs: Any) -> None:
+            calls["n"] += 1
+            if calls["n"] == 3:
+                raise RuntimeError("fallo en el 3.er lote del DELETE")
+            original_execute(**kwargs)
+
+        crud._delete_batch_executor._execute_batch = _fail_on_third_batch  # type: ignore[method-assign]
+        with pytest.raises(RuntimeError, match="3.er lote"), crud.bulk_session():
+            crud.bulk_delete_from_df(pd.DataFrame({"id": [100, 101, 102]}), "items", generar_sql=False)
+
+        with engine.connect() as conn:
+            assert conn.exec_driver_sql("SELECT id FROM items").scalars().all() == [102]
+        assert crud.rows_committed == 2
+        assert crud.audited_rows == 0
+        assert crud.unaudited_committed_rows == 2
 
 
 class TestCadenceEndToEnd:

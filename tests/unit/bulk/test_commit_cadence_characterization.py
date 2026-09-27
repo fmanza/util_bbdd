@@ -75,7 +75,7 @@ def test_in_session_insert_counter_carries_over_and_delete_counter_restarts(engi
         _insert(crud, 3)  # contador INSERT 1
 
     assert log == ["INSERT", "DELETE", "INSERT", "COMMIT", "DELETE", "DELETE", "COMMIT", "INSERT", "COMMIT"]
-    assert crud.rows_committed == 3  # los DELETE no suman
+    assert crud.rows_committed == 6  # 3 INSERT + 3 DELETE (hasta v0.17.x los DELETE no sumaban: 3)
 
 
 def test_outside_session_each_executor_call_starts_at_zero_and_commits_at_the_end(engine: Engine) -> None:

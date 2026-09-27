@@ -115,7 +115,11 @@ class BatchStatementExecutor:
         elif self.cadence.every is not None:
             self.cadence.restart()
             with self._engine.connect() as connection:
-                self._execute_on_connection(connection, records, stmt, strategy)
+                try:
+                    self._execute_on_connection(connection, records, stmt, strategy)
+                except BaseException:
+                    self.cadence.discard_pending()  # lo pendiente se deshace con la conexión
+                    raise
                 connection.commit()
                 self.cadence.confirm()
         else:
@@ -180,8 +184,13 @@ class DeleteBatchExecutor:
             return
         if self._commit_every_n_chunks is not None:
             with self._engine.connect() as connection:
-                self._execute_on_connection(connection, table=table, df=df, pk_cols=pk_cols)
+                try:
+                    self._execute_on_connection(connection, table=table, df=df, pk_cols=pk_cols)
+                except BaseException:
+                    self.session.rows.discard()  # lo pendiente se deshace con la conexión
+                    raise
                 connection.commit()
+                self.session.rows.confirm()
             return
         with self._engine.begin() as connection:
             self._execute_on_connection(connection, table=table, df=df, pk_cols=pk_cols)
@@ -190,10 +199,10 @@ class DeleteBatchExecutor:
         self, connection: Any, *, table: Table, df: pd.DataFrame, pk_cols: Sequence[str]
     ) -> None:
         strategy: DeleteExecutionStrategyProtocol = self._resolver.resolve(self._engine.dialect.name)
-        # Cadencia nueva en cada llamada: el contador del DELETE no se arrastra entre llamadas (a diferencia del INSERT)
-        # y sus filas no suman a ``rows_committed``. El libro es el de la sesión: su commit periódico confirma también
-        # las filas de INSERT/UPDATE pendientes en la misma transacción (2a).
-        cadence = CommitCadence(self._commit_every_n_chunks, ledger=self.session.rows, count_rows=False)
+        # Cadencia nueva en cada llamada: el contador del DELETE no se arrastra entre llamadas (a diferencia del INSERT).
+        # El libro de filas es el de la sesión: sus filas suman a ``rows_committed`` (v0.18.0) y su commit periódico
+        # confirma también las filas de INSERT/UPDATE pendientes en la misma transacción (2a).
+        cadence = CommitCadence(self._commit_every_n_chunks, ledger=self.session.rows)
         for batch_df in self._iter_batches(df=df, pk_cols=pk_cols):
             self._execute_batch(
                 strategy=strategy, connection=connection, table=table, batch_df=batch_df, pk_cols=pk_cols

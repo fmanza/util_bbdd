@@ -8,7 +8,7 @@ ejecutores comparten un :class:`SessionScope` y cada uno lleva su :class:`Commit
   del DELETE empieza en cada llamada.
 - Las filas pendientes y confirmadas (:class:`RowLedger`) son de la sesión: un commit confirma la transacción entera,
   lo haga el ejecutor que lo haga (2a, 2026-09-27: el commit periódico del DELETE confirmaba filas de INSERT que no se
-  contaban). Las filas del DELETE no se cuentan (ver ``BulkCrud.rows_committed``).
+  contaban). Desde v0.18.0 las filas del DELETE también se cuentan (ver ``BulkCrud.rows_committed``).
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ class CommitCadence:
     Args:
         every: Lotes entre commits periódicos, o ``None``.
         ledger: Libro de filas; por defecto uno propio. Los ejecutores de una ``BulkCrud`` usan el de su sesión.
-        count_rows: Si ``False``, los lotes cuentan para la cadencia pero sus filas no se anotan (DELETE).
+        count_rows: Si ``False``, los lotes cuentan para la cadencia pero sus filas no se anotan.
     """
 
     every: int | None

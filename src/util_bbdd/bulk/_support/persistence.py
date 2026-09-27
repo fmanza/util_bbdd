@@ -294,8 +294,8 @@ def _describe(registros: Sequence[AuditRecord]) -> str:
 
 
 def _dml_rows(registros: Sequence[AuditRecord]) -> int:
-    """Filas de INSERT/UPDATE: las que cuenta ``rows_committed`` (el DELETE usa otro ejecutor y no las suma)."""
-    return sum(r.rowcount for r in registros if r.operacion != "DELETE")
+    """Filas de INSERT, UPDATE y DELETE: las mismas que cuenta ``rows_committed`` (desde v0.18.0 también el DELETE)."""
+    return sum(r.rowcount for r in registros)
 
 
 __all__: list[str] = ["BulkPersistenceManager"]

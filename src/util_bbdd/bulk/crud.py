@@ -997,14 +997,17 @@ class BulkCrud:
         """Filas confirmadas por commits periódicos que no constan en el CSV (``commit_every_n_chunks``).
 
         Si una sesión falla, la operación que tenía parte de sus lotes confirmados no se audita. Esas filas están en la
-        BD (y en :attr:`rows_committed`) pero no en el CSV. En sesiones que mezclan DELETE es aproximado: el DELETE
-        no suma a :attr:`rows_committed`.
+        BD (y en :attr:`rows_committed`) pero no en el CSV. Cuenta INSERT, UPDATE y DELETE (hasta v0.17.x era
+        aproximado en sesiones con DELETE, que no sumaba a :attr:`rows_committed`).
         """
         return self._persistence.unaudited_committed_rows
 
     @property
     def rows_committed(self) -> int:
         """Filas durablemente comprometidas en BD por esta instancia hasta el momento.
+
+        Cuenta las filas enviadas de INSERT, UPDATE y DELETE (``len(df)``, como el CSV de auditoría; no las que la BD dice
+        haber modificado). Hasta v0.17.x no contaba las del DELETE.
 
         BLK-08 (AUDIT_CODE 2026-09-22): solo avanza cuando la instancia se construyó
         con ``commit_every_n_chunks`` — cada vez que se alcanza el commit periódico
