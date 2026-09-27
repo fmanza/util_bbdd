@@ -67,6 +67,8 @@ class AuditCsvRepository:
         # audit_csv_path no cambie. Path.resolve() costaba ~70 µs por escritura en Windows.
         self._lock_path: Path | None = None
         self._lock: threading.Lock | None = None
+        # Ruta cuya cabecera ya se comprobó (una vez por instancia y ruta; ver ``_asegurar_cabecera``).
+        self._cabecera_validada: Path | None = None
 
         if self.audit_csv_path is not None:
             self.validar_ruta(self.audit_csv_path)
@@ -141,6 +143,9 @@ class AuditCsvRepository:
         # Sección crítica: existencia → cabecera → fila debe ser atómica frente a otros
         # hilos que escriban el mismo CSV (volcado paralelo con una BulkCrud por hilo).
         with self._file_lock(self.audit_csv_path):
+            if self._cabecera_validada != self.audit_csv_path:
+                self._asegurar_cabecera(self.audit_csv_path)
+                self._cabecera_validada = self.audit_csv_path
             with self._open_for_append(self.audit_csv_path) as file_handle:
                 writer = csv.writer(file_handle, delimiter="\t")
                 # H4 (audit-code 2026-09-25): en modo "a" el fichero se abre al final; posición 0 = nuevo o vacío.
@@ -160,6 +165,40 @@ class AuditCsvRepository:
                     ]
                     for registro in registros
                 )
+
+    def _asegurar_cabecera(self, path: Path) -> None:
+        """Aparta el CSV existente si su cabecera no es la esperada, para empezar uno nuevo con cabecera correcta.
+
+        Un CSV abierto y guardado con otra herramienta (p.ej. cada línea entrecomillada al re-guardarlo con coma como
+        delimitador) no se puede leer: sin esta comprobación se le seguían añadiendo filas y todos los lectores
+        (``leer_auditoria``, el resumen de ``dump``) fallaban. Se renombra a ``<nombre>.invalid-<fecha><ext>`` (no se
+        pierde nada) y se registra un WARNING. Se llama con el lock de la ruta tomado.
+        """
+        if not path.is_file():
+            return  # no existe (se creará con cabecera) o no es un fichero: la escritura fallará como siempre
+        try:
+            with open(path, encoding="utf-8", newline="") as file_handle:
+                primera = file_handle.readline()
+        except UnicodeDecodeError:
+            primera = "<no es texto UTF-8>"
+        except OSError:
+            return  # sin permisos u otro fallo de E/S: no es una cabecera inválida; la escritura informará del error
+        if not primera or primera.lstrip("\ufeff").rstrip("\r\n") == "\t".join(self.columnas_auditoria):
+            return
+        apartado = path.with_name(f"{path.stem}.invalid-{datetime.now():%Y%m%d_%H%M%S}{path.suffix}")
+        try:
+            path.rename(apartado)
+        except OSError as error:
+            raise AuditFileError(
+                f"❌ El CSV de auditoría '{path}' tiene una cabecera no válida y no se pudo apartar: {error}"
+            ) from error
+        self.logger.warning(
+            "El CSV de auditoría '%s' tenía una cabecera no válida (%r); se ha apartado como '%s' y se empieza uno "
+            "nuevo.",
+            path,
+            primera[:120],
+            apartado.name,
+        )
 
     def _file_lock(self, path: Path) -> threading.Lock:
         """Lock compartido de ``path``, cacheado mientras la ruta no cambie."""

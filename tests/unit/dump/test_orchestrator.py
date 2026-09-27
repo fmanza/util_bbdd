@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import sqltypes
 
-from util_bbdd._core.exceptions import DumpError
+from util_bbdd._core.exceptions import DumpError, DumpReportError
 from util_bbdd.dump._models import IndexActionResult
 from util_bbdd.dump._sql_utils import quote_identifier as _qi, quote_table as _qt
 from util_bbdd.dump.orchestrator import (
@@ -337,6 +337,51 @@ class TestDumpOrchestratorRun:
         assert mock_report.call_args.kwargs["audit_summary"] is result.audit_summary
         assert "pk_sync_results" in mock_report.call_args.kwargs
         assert mock_report.call_args.kwargs["pk_sync_results"] is result.pk_sync_results
+
+    @patch("util_bbdd.dump.orchestrator.ConstraintManager")
+    @patch("util_bbdd.dump.orchestrator.BulkCrud")
+    @patch("util_bbdd.dump.reporters.DumpReporter.generate")
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
+    def test_report_failure_keeps_the_result_in_the_exception(
+        self, mock_read_sql, mock_report, mock_bulk, mock_mgr_cls
+    ):
+        # Variante (a) de la auditoría de exportación: un fallo del informe no pierde el resultado de la carga.
+        mock_mgr = MagicMock()
+        mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
+        mock_mgr.__exit__ = MagicMock(return_value=False)
+        mock_mgr.constraint_results = []
+        mock_mgr_cls.return_value = mock_mgr
+        mock_report.side_effect = DumpReportError("disco lleno", output_path=Path("salida/dump_report_x.xlsx"))
+
+        orch = self._build_orchestrator(src_tables=["customers"], dst_tables=["customers"])
+        with pytest.raises(DumpReportError) as excinfo:
+            orch.run()
+
+        result = excinfo.value.result
+        assert isinstance(result, DumpResult)
+        assert [r.table_name for r in result.table_results] == ["customers"]
+        assert result.report == Path("salida/dump_report_x.xlsx")
+
+    @patch("util_bbdd.dump.orchestrator.ConstraintManager")
+    @patch("util_bbdd.dump.orchestrator.BulkCrud")
+    @patch("util_bbdd.dump.reporters.DumpReporter.generate", return_value=Path("dump_report.xlsx"))
+    @patch("util_bbdd.dump.orchestrator._read_chunks", return_value=iter([]))
+    def test_audit_summary_failure_does_not_prevent_the_report(
+        self, mock_read_sql, mock_report, mock_bulk, mock_mgr_cls
+    ):
+        mock_mgr = MagicMock()
+        mock_mgr.__enter__ = MagicMock(return_value=mock_mgr)
+        mock_mgr.__exit__ = MagicMock(return_value=False)
+        mock_mgr.constraint_results = []
+        mock_mgr_cls.return_value = mock_mgr
+
+        orch = self._build_orchestrator(src_tables=["customers"], dst_tables=["customers"])
+        with patch.object(DumpOrchestrator, "_summarize_audit", side_effect=KeyError("timestamp")):
+            result = orch.run()
+
+        assert result.report == Path("dump_report.xlsx")
+        assert result.audit_summary is None
+        assert mock_report.call_args.kwargs["audit_summary"] is None
 
     @patch("util_bbdd.dump.orchestrator.IndexManager")
     @patch("util_bbdd.dump.orchestrator.ConstraintManager")
@@ -1689,6 +1734,26 @@ class TestBuildAuditSummary:
 
         assert summary is not None
         assert (summary.total_operaciones, summary.audit_failures) == (1, 1)
+
+    @pytest.mark.parametrize("start_offset", [None, "tail"], ids=["entero", "cola"])
+    def test_quoted_header_is_skipped_with_a_warning_instead_of_raising(
+        self, tmp_path: Path, start_offset: str | None, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        # CSV re-guardado con cada línea entre comillas: una sola columna. Antes, KeyError 'timestamp' abortaba run()
+        # antes de generar el informe Excel.
+        csv_path = tmp_path / "audit.csv"
+        quoted = f'"{self._HEADER.rstrip()}"\n"2026-09-25 09:00:00\torders\tPOSTGRESQL\tINSERT\t10\t0,500\tNo"\n'
+        csv_path.write_text(quoted, encoding="utf-8")
+        offset = csv_path.stat().st_size if start_offset else None
+        with csv_path.open("a", encoding="utf-8") as fh:
+            fh.write("2026-09-25 10:00:01\torders\tPOSTGRESQL\tINSERT\t10\t0,500\tNo\n")
+
+        summary = DumpOrchestrator._build_audit_summary(
+            csv_path, datetime(2026, 9, 25, 10, 0, 0), audited_rows=10, start_offset=offset
+        )
+
+        assert summary is None
+        assert "CSV de auditoría" in caplog.text  # leído entero falla el tokenizador; solo la cola, las columnas
 
     @pytest.mark.parametrize(
         "incidencia",

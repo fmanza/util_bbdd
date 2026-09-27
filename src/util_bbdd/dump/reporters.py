@@ -25,16 +25,10 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
+from .._core.excel_safety import SafeWorkbook
 from .._core.exceptions import DumpReportError
-from ..bulk._support.excel import neutralize_formulas
 from ._constraints import ConstraintResult
 from ._models import DumpAuditSummary, IndexActionResult, PKSyncResult, TableDumpResult
-
-
-def _desactivar_formulas(wb: openpyxl.Workbook) -> None:
-    """Aplica la defensa H12 (:func:`neutralize_formulas`) a todas las hojas del informe, incluidas las opcionales."""
-    for ws in wb.worksheets:
-        neutralize_formulas(ws)
 
 
 class DumpReporter:
@@ -167,15 +161,17 @@ class DumpReporter:
                 no se añade la hoja "Secuencias PK".
 
         Raises:
-            DumpReportError: Si falla la creación del directorio de salida o la
-                escritura del fichero Excel (p.ej. disco lleno, permisos, ruta inválida).
+            DumpReportError: Ante cualquier fallo al generar el informe: directorio de salida, escritura del fichero
+                (disco lleno, permisos, fichero abierto) o un valor que openpyxl no admite. ``output_path`` lleva la
+                ruta prevista.
         """
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = self._output_dir / f"dump_report_{ts}.xlsx"
         try:
             self._output_dir.mkdir(parents=True, exist_ok=True)
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_path = self._output_dir / f"dump_report_{ts}.xlsx"
 
-            wb = openpyxl.Workbook()
+            # SafeWorkbook: quita caracteres de control y guarda como texto lo que parezca fórmula (H12).
+            wb = SafeWorkbook()
             if wb.active is not None:
                 wb.remove(wb.active)
 
@@ -189,10 +185,13 @@ class DumpReporter:
             if pk_sync_results is not None:
                 self._sheet_pk_sync(wb, pk_sync_results)
 
-            _desactivar_formulas(wb)
             wb.save(output_path)
-        except OSError as exc:
-            raise DumpReportError(f"Error generando el informe Excel de volcado: {exc}") from exc
+        except Exception as exc:
+            # No solo OSError: cualquier fallo del informe debe llegar como DumpReportError para que run() conserve el
+            # resultado de la carga (IllegalCharacterError, p.ej., no es OSError ni ValueError).
+            raise DumpReportError(
+                f"Error generando el informe Excel de volcado '{output_path}': {exc}", output_path=output_path
+            ) from exc
 
         self.logger.info("Informe Excel guardado en '%s'.", output_path)
         return output_path

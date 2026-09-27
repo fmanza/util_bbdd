@@ -75,13 +75,30 @@ Ver tabla de `DumpConfig` arriba. Los engines deben estar conectables antes de l
 ### Contrato de salida
 
 - `run()` retorna `DumpResult` siempre, incluso si algunas tablas fallaron (comportamiento best-effort).
-- El informe Excel se genera siempre en `output_dir`, independientemente de errores parciales.
+- El informe Excel se genera siempre en `output_dir`, independientemente de errores parciales. Un `output_dir`
+  relativo (el valor por defecto es `Path()`) se resuelve contra el directorio de trabajo del proceso.
+- Si falla el resumen del CSV de auditoría (CSV ilegible o sin las columnas esperadas), se registra un WARNING, el
+  informe sale sin la hoja «Auditoría Bulk» y `audit_summary` es `None`.
+- Si falla el propio informe, la carga ya ha terminado: `run()` lanza `DumpReportError` con el resultado completo en
+  `exc.result` (su `report` es la ruta prevista, `exc.output_path`, que no llegó a crearse).
+- Los textos del informe se escriben sin caracteres de control, y los que empiezan por `=` se guardan como texto, no
+  como fórmula (igual en los informes Excel de `bulk`, `comparar` y `doc`).
+
+```python
+from util_bbdd.dump import DumpOrchestrator, DumpReportError
+
+try:
+    result = DumpOrchestrator(config).run()
+except DumpReportError as exc:
+    result = exc.result  # la carga se completó; solo falta el Excel
+```
 
 ### Errores y casos especiales
 
 | Error | Cuándo ocurre |
 |---|---|
 | `SQLAlchemyError` | Conexión a origen o destino falla antes de comenzar |
+| `DumpReportError` | No se pudo generar el informe Excel (directorio, permisos, fichero abierto, disco lleno). La carga ya terminó: `exc.result` lleva el `DumpResult` |
 | Error capturado en `TableDumpResult.error` | Fallo en carga de una tabla individual; el resto continúa |
 | Origen SQLite (WARNING al crear el orquestador) | SQLite no tiene tipos de columna: las fechas se leen como texto y los DECIMAL como `float`. Un destino servidor convierte las fechas; con destino SQLite, las tablas con columnas de fecha terminan en `error`. Los DECIMAL pueden perder precisión |
 | Destino SQLite con `parallel_pk_ranges` o `max_parallel_tables` > 1 (WARNING) | SQLite admite un solo escritor: se carga sin paralelismo |

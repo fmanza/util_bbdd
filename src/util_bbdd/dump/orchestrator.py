@@ -47,7 +47,7 @@ from util_bbdd.bulk._support.iterables import close_if_closable
 from util_bbdd.bulk._support.pool import pool_capacity
 from util_bbdd.bulk.audit import AuditError
 
-from .._core.exceptions import DumpError
+from .._core.exceptions import DumpError, DumpReportError
 from . import _audit_summary, _fk_graph
 from ._constraints import ConstraintManager, ConstraintResult
 from ._indexes import IndexManager
@@ -122,12 +122,15 @@ class DumpOrchestrator:
                 de origen/destino) — un fallo no recuperable de orquestación, a
                 diferencia de los fallos por tabla individual durante la carga
                 (best-effort, reflejados en ``TableDumpResult.error_msg``).
+            DumpReportError: Si falla la generación del informe Excel, ya terminada la carga. ``exc.result`` lleva el
+                ``DumpResult`` completo (su ``report`` es la ruta prevista, sin crear).
         """
         cfg = self._cfg
         dump_inicio = datetime.now()
         self._reset_audit_tracking()
         # 3.4 (PF-08): tamaño del CSV de auditoría al empezar; el resumen solo lee lo añadido desde aquí.
         self._audit_start_offset = DumpOrchestrator._file_size(cfg.bulk_audit_path)
+        self._audit_start_identity = DumpOrchestrator._file_identity(cfg.bulk_audit_path)
         if cfg.bulk_audit_path is None:
             # M-4 (audit-code de ParallelBulkLoader 2026-09-25): un aviso por volcado, no uno por BulkCrud creada.
             self.logger.info("Auditoría bulk deshabilitada en el volcado (bulk_audit_path=None).")
@@ -243,30 +246,44 @@ class DumpOrchestrator:
 
         # Resumen de auditoría antes del informe, que lo incluye en la hoja "Auditoría Bulk". Las cargas y sus
         # sesiones de auditoría ya han terminado; la sincronización de PK no audita.
-        audit_summary = self._summarize_audit(cfg.bulk_audit_path, dump_inicio)
+        # El resumen es informativo: un fallo inesperado no debe impedir el informe (la carga ya terminó).
+        try:
+            audit_summary = self._summarize_audit(cfg.bulk_audit_path, dump_inicio)
+        except Exception as exc:
+            self.logger.warning("No se pudo resumir la auditoría del volcado: %s", exc, exc_info=True)
+            audit_summary = None
 
-        # FASE 5b: Generar informe Excel (la hoja "Columnas Inexistentes" se deriva
-        # de TableDumpResult.skipped_columns; no requiere comparación de esquemas)
-        report_path = DumpReporter(cfg.output_dir).generate(
-            table_results=table_results,
-            missing_tables=missing_in_dst,
-            constraint_results=constraint_results,
-            cycles=cycles,
-            index_results=index_results,
-            audit_summary=audit_summary,
-            pk_sync_results=pk_sync_results,
-        )
-
-        return DumpResult(
+        dump_result = DumpResult(
             table_results=table_results,
             constraint_results=constraint_results,
             load_order=load_order,
             cycles_detected=cycles,
-            report=report_path,
+            report=cfg.output_dir,  # se sustituye por la ruta del informe
             audit_summary=audit_summary,
             pk_sync_results=pk_sync_results,
             index_results=index_results,
         )
+
+        # FASE 5b: Generar informe Excel (la hoja "Columnas Inexistentes" se deriva
+        # de TableDumpResult.skipped_columns; no requiere comparación de esquemas)
+        try:
+            dump_result.report = DumpReporter(cfg.output_dir).generate(
+                table_results=table_results,
+                missing_tables=missing_in_dst,
+                constraint_results=constraint_results,
+                cycles=cycles,
+                index_results=index_results,
+                audit_summary=audit_summary,
+                pk_sync_results=pk_sync_results,
+            )
+        except DumpReportError as exc:
+            # Sin esto, un fallo del informe perdía el resultado de una carga ya completada.
+            dump_result.report = exc.output_path or cfg.output_dir
+            exc.result = dump_result
+            self.logger.error("Volcado completado, pero sin informe Excel: %s", exc, exc_info=True)
+            raise
+
+        return dump_result
 
     # ------------------------------------------------------------------
     # Fase 3: Limpieza del destino
@@ -807,8 +824,21 @@ class DumpOrchestrator:
             audited_rows=counters.audited_rows,
             unaudited_committed_rows=counters.unaudited_committed_rows,
             audit_uncommitted_records=counters.audit_uncommitted_records,
-            start_offset=getattr(self, "_audit_start_offset", None),
+            start_offset=self._audit_offset_if_same_file(audit_path),
         )
+
+    def _audit_offset_if_same_file(self, audit_path: Path | None) -> int | None:
+        """Desplazamiento de inicio del CSV, o ``None`` (leerlo entero) si ya no es el mismo fichero.
+
+        Si el CSV tenía una cabecera no válida, la primera escritura lo aparta y crea otro con la misma ruta: el tamaño
+        del inicio no sirve para el nuevo, que puede crecer más y hacer que se leyera desde mitad de sus filas.
+        """
+        offset: int | None = getattr(self, "_audit_start_offset", None)
+        if offset is None:
+            return None
+        if DumpOrchestrator._file_identity(audit_path) != getattr(self, "_audit_start_identity", None):
+            return None
+        return offset
 
     def _resolve_max_workers(self, requested: int) -> int:
         """Clampa los workers a la capacidad real de pool de ambos engines.
@@ -989,6 +1019,8 @@ class DumpOrchestrator:
     _bfs_component = staticmethod(_fk_graph.bfs_component)
 
     _file_size = staticmethod(_audit_summary.file_size)
+
+    _file_identity = staticmethod(_audit_summary.file_identity)
 
     _read_audit_csv = staticmethod(_audit_summary.read_audit_csv)
 

@@ -122,6 +122,23 @@ class TestDumpReporterDumpReportError:
         with pytest.raises(DumpReportError, match="disk full"):
             reporter.generate(table_results=[], missing_tables=[], constraint_results=[], cycles=[])
 
+    def test_any_failure_is_wrapped_with_the_intended_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        # No solo OSError: cualquier excepción del informe llega como DumpReportError para que run() conserve el
+        # resultado de la carga, con la ruta prevista del fichero.
+        def _boom(*args, **kwargs):  # noqa: ANN002, ANN003, ARG001
+            raise TypeError("valor no admitido")
+
+        monkeypatch.setattr(DumpReporter, "_sheet_audit", _boom)
+
+        with pytest.raises(DumpReportError, match="valor no admitido") as excinfo:
+            DumpReporter(tmp_path).generate(table_results=[], missing_tables=[], constraint_results=[], cycles=[])
+
+        assert excinfo.value.output_path is not None
+        assert excinfo.value.output_path.parent == tmp_path
+        assert excinfo.value.output_path.name.startswith("dump_report_")
+        assert not excinfo.value.output_path.exists()
+        assert excinfo.value.result is None
+
 
 # ---------------------------------------------------------------------------
 # Hoja 1: Auditoría Tablas
@@ -410,6 +427,21 @@ def _pk_workbook(tmp_path: Path, pk_sync_results: list[PKSyncResult] | None, **k
         **kwargs,  # type: ignore[arg-type]
     )
     return openpyxl.load_workbook(path)
+
+
+class TestIllegalCharacters:
+    def test_control_characters_in_an_error_message_do_not_abort_the_report(self, tmp_path: Path) -> None:
+        # openpyxl lanza IllegalCharacterError (no OSError) con caracteres de control: el Excel no se generaba.
+        path = DumpReporter(tmp_path).generate(
+            table_results=[_table_result(status="error", error_msg="ORA-01722\x00: invalid\x1b number")],
+            missing_tables=["tabla\x07rara"],
+            constraint_results=[],
+            cycles=[],
+        )
+
+        wb = openpyxl.load_workbook(path)
+        assert wb["Auditoría Tablas"].cell(row=2, column=9).value == "ORA-01722: invalid number"
+        assert wb["Tablas Faltantes"].cell(row=2, column=1).value == "tablarara"
 
 
 class TestPKSyncSheet:

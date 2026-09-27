@@ -78,3 +78,18 @@ def test_file_created_during_the_dump(tmp_path: Path) -> None:
     assert DumpOrchestrator._file_size(path) is None  # no existía al empezar
     _append(path, [_row("2026-09-26 10:00:01", "a", 100)], header=True)
     assert DumpOrchestrator._read_audit_csv(path, None)["tabla"].tolist() == ["a"]
+
+
+def test_replaced_file_is_read_whole_even_if_it_grew_past_the_offset(csv_path: Path) -> None:
+    # AuditCsvRepository aparta un CSV con cabecera no válida y crea otro con la misma ruta: si el nuevo crece más que el
+    # desplazamiento del inicio, leer desde él saltaría filas del volcado.
+    orch = DumpOrchestrator.__new__(DumpOrchestrator)
+    orch._audit_start_offset = csv_path.stat().st_size
+    orch._audit_start_identity = DumpOrchestrator._file_identity(csv_path)
+    assert orch._audit_offset_if_same_file(csv_path) == orch._audit_start_offset
+
+    csv_path.rename(csv_path.with_name("audit.invalid.csv"))
+    _append(csv_path, [_row("2026-09-26 10:00:01", "nuevo", 1) for _ in range(80)], header=True)
+
+    assert csv_path.stat().st_size > orch._audit_start_offset
+    assert orch._audit_offset_if_same_file(csv_path) is None

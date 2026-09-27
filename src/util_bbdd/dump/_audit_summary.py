@@ -22,6 +22,9 @@ from ._models import DumpAuditSummary
 # Mismo logger que antes de separar este código de ``orchestrator`` (R10a): los registros no cambian de nombre.
 _log = logging.getLogger("util_bbdd.dump.orchestrator")
 
+# Columnas del CSV que usa el resumen.
+_AUDIT_COLUMNS = frozenset({"timestamp", "tabla", "total_filas", "tiempo_seg"})
+
 
 def file_size(path: Path | None) -> int | None:
     """Tamaño de ``path`` en bytes, o ``None`` si no hay ruta o el fichero no existe."""
@@ -31,6 +34,21 @@ def file_size(path: Path | None) -> int | None:
         return path.stat().st_size if path.is_file() else None
     except OSError:
         return None
+
+
+def file_identity(path: Path | None) -> tuple[int, int] | None:
+    """``(st_dev, st_ino)`` de ``path``, o ``None`` si no hay ruta o el fichero no existe.
+
+    Distingue el CSV del inicio del volcado de uno nuevo con la misma ruta: ``AuditCsvRepository`` aparta el fichero si
+    su cabecera no es válida, y el desplazamiento de inicio (``file_size``) ya no corresponde al fichero nuevo.
+    """
+    if path is None:
+        return None
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return stat.st_dev, stat.st_ino
 
 
 def read_audit_csv(audit_path: Path, start_offset: int | None) -> pd.DataFrame:
@@ -111,6 +129,16 @@ def build_audit_summary(
         df = read_audit_csv(audit_path, start_offset)
     except Exception as exc:
         _log.warning("No se pudo leer el CSV de auditoría '%s': %s", audit_path, exc)
+        return _sin_entradas()
+    # Una cabecera mal formada (p.ej. la línea entera entrecomillada al re-guardar el CSV) deja una sola columna: el
+    # KeyError al usarlas abortaba run() antes de generar el informe Excel.
+    faltan = _AUDIT_COLUMNS.difference(df.columns)
+    if faltan:
+        _log.warning(
+            "El CSV de auditoría '%s' no tiene las columnas %s (¿cabecera mal formada?); se omite su resumen.",
+            audit_path,
+            sorted(faltan),
+        )
         return _sin_entradas()
     if df.empty:
         return _sin_entradas()

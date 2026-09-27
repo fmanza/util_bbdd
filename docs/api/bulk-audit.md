@@ -56,9 +56,9 @@ Propiedades: `audit_csv_path`, `cache_enabled`, `cache_ttl_seconds` (lectura y e
 
 ### Contrato de salida
 
-- **CSV de auditoría** — separado por tabuladores, con columnas `timestamp`, `tabla`, `motor`, `operacion`, `total_filas`, `tiempo_seg`, `sql`. `timestamp` tiene resolución de segundo y es el fin de la operación. `total_filas` son las filas **enviadas** a la operación (`len(df)` en `BulkCrud`), no las que la BD dice haber modificado: un DELETE o UPDATE con claves inexistentes cuenta todas las enviadas. `tiempo_seg` usa coma decimal y es la única columna de tiempo: con `sql=No` mide la ejecución en BD; con `sql=Sí`, generar y escribir el fichero SQL (no se ejecuta nada en BD). Si el fichero no existe o está vacío, se escribe antes la cabecera.
+- **CSV de auditoría** — separado por tabuladores, con columnas `timestamp`, `tabla`, `motor`, `operacion`, `total_filas`, `tiempo_seg`, `sql`. `timestamp` tiene resolución de segundo y es el fin de la operación. `total_filas` son las filas **enviadas** a la operación (`len(df)` en `BulkCrud`), no las que la BD dice haber modificado: un DELETE o UPDATE con claves inexistentes cuenta todas las enviadas. `tiempo_seg` usa coma decimal y es la única columna de tiempo: con `sql=No` mide la ejecución en BD; con `sql=Sí`, generar y escribir el fichero SQL (no se ejecuta nada en BD). Si el fichero no existe o está vacío, se escribe antes la cabecera. Si existe con una cabecera distinta (p.ej. re-guardado desde Excel con cada línea entre comillas), la primera escritura lo aparta como `<nombre>.invalid-<fecha>.csv`, registra un WARNING y empieza uno nuevo; sin esto se le seguían añadiendo filas que ningún lector podía leer.
 - **Concurrencia** — las escrituras de varias instancias sobre el mismo CSV se serializan con un lock por ruta dentro del proceso (no entre procesos).
-- **Resumen Excel** — agrupa también por `sql` (Sí/No) y muestra esa columna en cada hoja y en `Resumen_global`, de modo que la generación de SQL no se mezcla con la ejecución. Los textos que empiezan por `=` se guardan como texto, no como fórmula. Los totales de JSON y HTML suman ambos tipos de fila.
+- **Resumen Excel** — agrupa también por `sql` (Sí/No) y muestra esa columna en cada hoja y en `Resumen_global`, de modo que la generación de SQL no se mezcla con la ejecución. Los textos que empiezan por `=` se guardan como texto, no como fórmula, y se eliminan los caracteres de control. Los totales de JSON y HTML suman ambos tipos de fila.
 
 ### Errores y casos especiales
 
@@ -66,7 +66,7 @@ Propiedades: `audit_csv_path`, `cache_enabled`, `cache_ttl_seconds` (lectura y e
 |---|---|
 | `AuditValidationError` | Parámetros inválidos en `registrar_operacion` o en los filtros; rango de fechas invertido; `agrupar_por` desconocido |
 | `AuditConfigError` | No se puede crear el directorio de `audit_csv_path`; leer, estadísticas o exportar sin CSV configurado. Hereda también de `ValueError` |
-| `AuditFileError` | Leer un CSV que no existe |
+| `AuditFileError` | Leer un CSV que no existe; un CSV con cabecera no válida que no se puede apartar (renombrar) |
 | `AuditDataError` | CSV ilegible o sin filas al pedir estadísticas; fallo al exportar JSON o HTML |
 | `OSError` | No se puede escribir el CSV (permisos, fichero abierto en Excel, disco lleno) |
 | — | Usado desde `BulkCrud`, un fallo al escribir el CSV no interrumpe la operación salvo con `BulkCrud(audit_strict=True)`: se registra como ERROR y se cuenta en `BulkCrud.audit_failures`. Dentro de `bulk_session` las filas se escriben al confirmarse la transacción y se descartan si hay rollback. Ver [BulkCrud](bulk-crud.md) |

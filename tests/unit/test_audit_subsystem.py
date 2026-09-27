@@ -114,6 +114,36 @@ class TestRepositoryWrite:
         assert len(df) == 1
         assert df.iloc[0]["total_filas"] == 5
 
+    def test_cabecera_no_valida_se_aparta_y_se_empieza_otro(
+        self, repo: AuditCsvRepository, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        # CSV re-guardado con otra herramienta (cada línea entrecomillada): antes se le añadían filas y ningún lector
+        # podía leerlo (el volcado se quedaba sin informe Excel).
+        csv_path = tmp_path / "audit.csv"
+        roto = '"' + "\t".join(_COLUMNS) + '"\r\n"2026-06-02 10:10:59\tt\tMARIADB\tINSERT\t4\t0,346\tNo"\r\n'
+        csv_path.write_text(roto, encoding="utf-8", newline="")
+
+        repo.registrar_operacion(tabla="t", motor="sqlite", operacion="INSERT", rowcount=7, elapsed=0.1)
+        repo.registrar_operacion(tabla="t", motor="sqlite", operacion="INSERT", rowcount=8, elapsed=0.1)
+
+        df = repo.leer_auditoria(usar_cache=False)
+        assert list(df.columns) == _COLUMNS
+        assert df["total_filas"].tolist() == [7, 8]
+        apartados = list(tmp_path.glob("audit.invalid-*.csv"))
+        assert len(apartados) == 1
+        assert apartados[0].read_text(encoding="utf-8") == roto.replace("\r\n", "\n")  # contenido intacto
+        assert "cabecera no válida" in caplog.text
+
+    def test_cabecera_valida_no_se_aparta(self, repo: AuditCsvRepository, tmp_path: Path) -> None:
+        repo.registrar_operacion(tabla="t", motor="sqlite", operacion="INSERT", rowcount=1, elapsed=0.1)
+        otro = AuditCsvRepository(
+            audit_csv_path=tmp_path / "audit.csv", columnas_auditoria=_COLUMNS, logger=logging.getLogger("test")
+        )
+        otro.registrar_operacion(tabla="t", motor="sqlite", operacion="INSERT", rowcount=2, elapsed=0.1)
+
+        assert list(tmp_path.glob("audit.invalid-*")) == []
+        assert otro.leer_auditoria(usar_cache=False)["total_filas"].tolist() == [1, 2]
+
     def test_directorio_borrado_a_mitad_se_recrea(self, tmp_path: Path) -> None:
         # QW-2: ya no se hace mkdir en cada escritura; un FileNotFoundError crea el directorio y reintenta.
         csv_path = tmp_path / "sub" / "audit.csv"

@@ -7,6 +7,37 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Un fallo alrededor del informe Excel del volcado ya no deja sin informe (ni sin resultado) una carga terminada, y los
+cuatro informes Excel de la librería escriben de forma segura los textos que vienen de la BD o del CSV de auditoría.
+
+### Fixed
+
+- **dump**: un CSV de auditoría sin las columnas esperadas (p.ej. re-guardado con cada línea entre comillas) hacía
+  fallar `run()` con `KeyError: 'timestamp'` después de la carga y antes del informe. Ahora se registra un WARNING y
+  el informe sale sin la hoja «Auditoría Bulk». Cualquier otro fallo del resumen de auditoría se trata igual.
+- **dump**: si falla el informe, `run()` lanza `DumpReportError` con el `DumpResult` completo en `exc.result`; antes
+  se perdía el resultado de una carga ya terminada. `DumpReporter.generate` convierte cualquier excepción (no solo
+  `OSError`) en `DumpReportError`, con la ruta prevista en `exc.output_path`.
+- **dump**, **bulk**, **comparar**, **doc**: los informes Excel quitan los caracteres de control de los textos. Un
+  mensaje de error del driver, un nombre de tabla o un comentario del catálogo con uno de ellos abortaba el informe con
+  `IllegalCharacterError`.
+- **bulk**: si el CSV de auditoría existe con una cabecera distinta de la esperada, la primera escritura lo aparta
+  como `<nombre>.invalid-<fecha>.csv` (WARNING) y empieza uno nuevo; antes se le añadían filas que ningún lector podía
+  leer. Un fichero ilegible por permisos no se aparta: la escritura falla como antes.
+- **dump**: si el CSV de auditoría se sustituye durante el volcado, el resumen lo lee entero en lugar de hacerlo desde
+  el desplazamiento del fichero anterior.
+
+### Security
+
+- **comparar**, **doc**: los textos que empiezan por `=` se guardan como texto, no como fórmula (H12 ya lo aplicaba en
+  `dump` y `bulk`). Un nombre o comentario del catálogo como `=HYPERLINK(...)` se ejecutaba al abrir el Excel.
+
+### Added
+
+- **_core**: `excel_safety` con `SafeWorkbook` (hojas que sanean `cell`, `append` y `ws["A1"] = ...`, y fórmulas
+  como texto al guardar), `safe_value`, `safe_frame` y `neutralize_formulas`: punto único para los cuatro informes.
+- **dump**: `DumpReportError.output_path` y `DumpReportError.result`.
+
 ## [0.18.2] - 2026-09-27
 
 La verificación de condiciones de ejecución del motor se hace una sola vez por `Engine`. Antes se repetía en cada

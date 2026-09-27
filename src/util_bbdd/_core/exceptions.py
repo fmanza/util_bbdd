@@ -8,6 +8,11 @@ Proporciona excepciones organizadas por categoría de error:
 - DriverError: Errores de drivers
 """
 
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
 
 class DatabaseException(Exception):
     """Excepción base para todas las excepciones de util_bbdd."""
@@ -365,9 +370,28 @@ class DumpConstraintError(DumpError):
 
 
 class DumpReportError(DumpError):
-    """Error generando el informe Excel de auditoría del volcado."""
+    """Error generando el informe Excel de auditoría del volcado.
 
-    pass
+    Cuando la lanza ``DumpOrchestrator.run()``, la carga ya ha terminado: ``result`` conserva el ``DumpResult`` completo
+    (tablas, constraints, PK sync, auditoría) para que el llamador no lo pierda. Su ``report`` es la ruta prevista del
+    informe, que no llegó a crearse.
+
+    Attributes:
+        output_path: Ruta prevista del informe, o ``None`` si falló antes de calcularla.
+        result: ``DumpResult`` del volcado, o ``None`` si el error no viene de ``run()``. Tipado como ``Any`` porque
+            ``_core`` no puede importar de ``dump`` (capas de ``docs/architecture.md``).
+
+    Example:
+        >>> try:
+        ...     result = DumpOrchestrator(config).run()
+        ... except DumpReportError as exc:
+        ...     result = exc.result  # la carga se completó; solo falta el Excel
+    """
+
+    def __init__(self, message: str, *, output_path: Path | None = None) -> None:
+        super().__init__(message)
+        self.output_path: Path | None = output_path
+        self.result: Any = None
 
 
 # ============================================================================
