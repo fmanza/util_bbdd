@@ -375,6 +375,13 @@ class TestMaintenanceScopeRequireOptimization:
         with crud.maintenance_scope("t", require_optimization=False):
             pass  # must not raise
 
+    def test_raises_for_unsupported_dialect_when_required(self) -> None:
+        # A-05: dialecto no soportado (sqlite) con require_optimization=True
+        crud, conn = _make_crud_for_dialect("sqlite")
+        with pytest.raises(RuntimeError, match="sqlite"):
+            with crud.maintenance_scope("t", require_optimization=True):
+                pass
+
     def test_no_raise_for_mysql_required(self) -> None:
         crud, conn = _make_crud_for_dialect("mysql")
         with crud.maintenance_scope("t", require_optimization=True):
@@ -561,10 +568,15 @@ class TestMaintenanceScopePostgreSQLOrphanCheck:
         assert not any("violaciones" in msg for msg in caplog.messages)
 
     def test_orphan_check_silently_skipped_when_inspect_raises(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Sin inspector real (mock de test): el orphan-check se omite sin error."""
+        """Cuando inspect() lanza NoInspectionAvailable: sin WARNING, constraint_results retorna unverified (A-06)."""
+        from sqlalchemy.exc import NoInspectionAvailable
+
         crud, conn = self._make_pg_crud_with_fk()
-        # No parchear inspect → lanzará NoInspectionAvailable con el mock engine → se captura
-        with caplog.at_level(logging.WARNING):
-            with crud.maintenance_scope("t"):
-                pass
+        with patch("util_bbdd.bulk.crud.inspect", side_effect=NoInspectionAvailable("no inspector")):
+            with caplog.at_level(logging.WARNING):
+                with crud.maintenance_scope("t") as ms:
+                    pass
         assert not any("violaciones" in msg for msg in caplog.messages)
+        assert len(ms.constraint_results) == 1
+        assert ms.constraint_results[0].status == "unverified"
+        assert ms.constraint_results[0].constraint_name == "*"

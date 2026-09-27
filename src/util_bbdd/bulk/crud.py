@@ -1268,6 +1268,11 @@ class BulkCrud:
                 except SQLAlchemyError as exc:
                     self.logger.warning(f"⚠️ No se pudo deshabilitar constraint '{name}' en {tabla_destino}: {exc}")
             return False, False, disabled
+        if require_optimization:
+            raise RuntimeError(
+                f"El dialecto '{dialect}' no soporta la desactivación de constraints "
+                f"en maintenance_scope (tabla: {tabla_destino})."
+            )
         return False, False, []
 
     def __maintenance_disable_indexes(
@@ -1376,7 +1381,13 @@ class BulkCrud:
             fks = insp.get_foreign_keys(tabla.name, schema=tabla.schema)
         except Exception:  # NoInspectionAvailable en mocks de test o motores sin inspector
             self.logger.debug(f"⚠️ orphan-check omitido en '{tabla.name}': inspect() no disponible para este engine.")
-            return []
+            return [
+                MaintenanceScopeConstraintResult(
+                    constraint_name="*",
+                    status="unverified",
+                    error_msg="orphan-check omitido: inspect() no disponible para el engine actual.",
+                )
+            ]
         results: list[MaintenanceScopeConstraintResult] = []
         prep = self.engine.dialect.identifier_preparer
         for fk in fks:
