@@ -73,7 +73,7 @@ class BatchStatementExecutor:
         # BLK-08 (AUDIT_CODE 2026-09-22): la cadencia distingue las filas durablemente comprometidas (commit periódico
         # o final) de las ejecutadas aún sin commit, para saber cuántas sobreviven si una carga falla a mitad de sesión.
         #: Cadencia de ``commit_every_n_chunks``; el contador de lotes se arrastra entre llamadas dentro de una sesión.
-        self.cadence: CommitCadence = CommitCadence(commit_every_n_chunks)
+        self.cadence: CommitCadence = CommitCadence(commit_every_n_chunks, ledger=self.session.rows)
         drivername: str = str(engine.url.drivername).lower()
         self._insert_strategy: InsertExecutionStrategyProtocol = (insert_resolver or InsertStrategyResolver()).resolve(
             engine.dialect.name, drivername
@@ -191,8 +191,9 @@ class DeleteBatchExecutor:
     ) -> None:
         strategy: DeleteExecutionStrategyProtocol = self._resolver.resolve(self._engine.dialect.name)
         # Cadencia nueva en cada llamada: el contador del DELETE no se arrastra entre llamadas (a diferencia del INSERT)
-        # y sus filas no suman a ``rows_committed``.
-        cadence = CommitCadence(self._commit_every_n_chunks)
+        # y sus filas no suman a ``rows_committed``. El libro es el de la sesión: su commit periódico confirma también
+        # las filas de INSERT/UPDATE pendientes en la misma transacción (2a).
+        cadence = CommitCadence(self._commit_every_n_chunks, ledger=self.session.rows, count_rows=False)
         for batch_df in self._iter_batches(df=df, pk_cols=pk_cols):
             self._execute_batch(
                 strategy=strategy, connection=connection, table=table, batch_df=batch_df, pk_cols=pk_cols

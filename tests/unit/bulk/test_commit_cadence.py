@@ -218,6 +218,24 @@ class TestRowsCommittedTracking:
         assert total == 3
         assert crud.rows_committed == 3
 
+    def test_delete_periodic_commit_also_confirms_pending_insert_rows(self) -> None:
+        """El commit periódico del DELETE confirma la transacción entera de la sesión, incluidas las filas de INSERT
+        pendientes. Antes solo contaba el ejecutor que hacía el commit: tras un fallo, rows_committed daba 0 con la fila
+        insertada ya confirmada en la BD."""
+        engine = _make_sqlite_engine()
+        with engine.begin() as conn:
+            conn.exec_driver_sql("INSERT INTO items VALUES (100, 'x'), (101, 'x')")
+        crud = BulkCrud(engine, chunk_size=1, commit_every_n_chunks=2, warn_if_audit_disabled=False)
+
+        with pytest.raises(RuntimeError, match="después del DELETE"), crud.bulk_session():
+            crud.bulk_insert_from_df(pd.DataFrame({"id": [1], "name": ["a"]}), "items", generar_sql=False)
+            crud.bulk_delete_from_df(pd.DataFrame({"id": [100, 101]}), "items", generar_sql=False)  # commit periódico
+            raise RuntimeError("fallo después del DELETE")
+
+        with engine.connect() as conn:
+            assert conn.exec_driver_sql("SELECT id FROM items ORDER BY id").scalars().all() == [1]
+        assert crud.rows_committed == 1
+
 
 class TestCadenceEndToEnd:
     def test_all_rows_persist_with_cadence(self) -> None:
