@@ -268,7 +268,7 @@ class BulkPersistenceManager:
             self.audit_manager._registrar_lote(registros)
         except (AuditError, OSError) as error:
             if self.audit_strict:
-                self.logger.error(f"❌ Error escribiendo la auditoría de la sesión bulk: {error}")
+                self.logger.exception("❌ Error escribiendo la auditoría de la sesión bulk")
                 raise
             self._report_audit_failure(error, registros)
             return

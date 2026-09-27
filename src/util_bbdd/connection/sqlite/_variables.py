@@ -69,56 +69,79 @@ class SQLiteVariableValidator:
 
     def check_dynamic(self, connection: Any, conn_params: dict[str, Any]) -> list[AdvisoryFinding]:
         """Checks dinámicos vía PRAGMA; omite WAL/sync en :memory:."""
-        findings: list[AdvisoryFinding] = []
         database: str = str(conn_params.get("database", "") or "")
-        is_memory: bool = database.strip() in _IN_MEMORY
+        if database.strip() in _IN_MEMORY:
+            return []  # PRAGMAs de persistencia no aplican
 
-        if is_memory:
-            return findings  # PRAGMAs de persistencia no aplican
+        findings: list[AdvisoryFinding] = []
+        findings.extend(self._check_journal_mode(connection))
+        findings.extend(self._check_synchronous(connection))
+        findings.extend(self._check_cache_size(connection))
+        findings.extend(self._check_temp_store(connection))
+        return findings
 
+    def _check_journal_mode(self, connection: Any) -> list[AdvisoryFinding]:
+        findings: list[AdvisoryFinding] = []
         journal_mode = self._pragma_str(connection, "journal_mode")
-        if journal_mode is not None:
-            if journal_mode.lower() != "wal":
-                findings.append(
-                    AdvisoryFinding(
-                        level="WARNING",
-                        param="journal_mode",
-                        current=journal_mode,
-                        recommendation="PRAGMA journal_mode=WAL mejora escritura concurrente y rendimiento",
-                    )
-                )
-            else:
-                findings.append(AdvisoryFinding(level="OK", param="journal_mode", current="wal", recommendation=""))
+        if journal_mode is None:
+            return findings
 
+        if journal_mode.lower() != "wal":
+            findings.append(
+                AdvisoryFinding(
+                    level="WARNING",
+                    param="journal_mode",
+                    current=journal_mode,
+                    recommendation="PRAGMA journal_mode=WAL mejora escritura concurrente y rendimiento",
+                )
+            )
+            return findings
+
+        findings.append(AdvisoryFinding(level="OK", param="journal_mode", current="wal", recommendation=""))
+        return findings
+
+    def _check_synchronous(self, connection: Any) -> list[AdvisoryFinding]:
+        findings: list[AdvisoryFinding] = []
         sync_val = self._pragma_int(connection, "synchronous")
-        if sync_val is not None:
-            sync_name = _SYNC_NAMES.get(sync_val, str(sync_val))
-            if sync_val >= 2:  # FULL o EXTRA
-                findings.append(
-                    AdvisoryFinding(
-                        level="INFO",
-                        param="synchronous",
-                        current=sync_name,
-                        recommendation="PRAGMA synchronous=NORMAL reduce fsync en carga masiva sin riesgo de corrupción",
-                    )
-                )
-            else:
-                findings.append(AdvisoryFinding(level="OK", param="synchronous", current=sync_name, recommendation=""))
+        if sync_val is None:
+            return findings
 
+        sync_name = _SYNC_NAMES.get(sync_val, str(sync_val))
+        if sync_val >= 2:  # FULL o EXTRA
+            findings.append(
+                AdvisoryFinding(
+                    level="INFO",
+                    param="synchronous",
+                    current=sync_name,
+                    recommendation="PRAGMA synchronous=NORMAL reduce fsync en carga masiva sin riesgo de corrupción",
+                )
+            )
+            return findings
+
+        findings.append(AdvisoryFinding(level="OK", param="synchronous", current=sync_name, recommendation=""))
+        return findings
+
+    def _check_cache_size(self, connection: Any) -> list[AdvisoryFinding]:
+        findings: list[AdvisoryFinding] = []
         cache_size = self._pragma_int(connection, "cache_size")
-        if cache_size is not None:
-            # cache_size negativo = KiB; positivo = páginas (4 KB típico)
-            cache_kb = abs(cache_size) if cache_size < 0 else cache_size * 4
-            if cache_kb < 8_192:  # < 8 MB
-                findings.append(
-                    AdvisoryFinding(
-                        level="INFO",
-                        param="cache_size",
-                        current=f"{cache_size} ({cache_kb} KB)",
-                        recommendation="PRAGMA cache_size=-65536 establece 64 MB de caché de páginas",
-                    )
-                )
+        if cache_size is None:
+            return findings
 
+        # cache_size negativo = KiB; positivo = páginas (4 KB típico)
+        cache_kb = abs(cache_size) if cache_size < 0 else cache_size * 4
+        if cache_kb < 8_192:  # < 8 MB
+            findings.append(
+                AdvisoryFinding(
+                    level="INFO",
+                    param="cache_size",
+                    current=f"{cache_size} ({cache_kb} KB)",
+                    recommendation="PRAGMA cache_size=-65536 establece 64 MB de caché de páginas",
+                )
+            )
+        return findings
+
+    def _check_temp_store(self, connection: Any) -> list[AdvisoryFinding]:
+        findings: list[AdvisoryFinding] = []
         temp_store = self._pragma_int(connection, "temp_store")
         if temp_store is not None and temp_store == 1:  # FILE
             findings.append(
@@ -129,7 +152,6 @@ class SQLiteVariableValidator:
                     recommendation="PRAGMA temp_store=MEMORY acelera operaciones con tablas temporales",
                 )
             )
-
         return findings
 
     def _pragma_str(self, connection: Any, name: str) -> str | None:

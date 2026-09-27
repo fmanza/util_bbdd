@@ -237,4 +237,9 @@ class SqlServerAsyncAdapter:
         conn = self._get_conn()
         if not conn or not routine:
             return ""
+
+        normalized_type = routine_type.strip().upper() if routine_type else None
+        if normalized_type and normalized_type not in {"PROCEDURE", "FUNCTION"}:
+            return ""
+
         return await self._run_sync(fetch_routine_body_sync, conn, schema or "dbo", routine)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -16,13 +16,15 @@ _WARN_MAINT_MEM: int = 64 * 1_048_576  # 64 MB
 _INFO_MAINT_MEM: int = 256 * 1_048_576  # 256 MB
 
 # Whitelist de parámetros válidos para SHOW (F-01: prevenir inyección SQL)
-_VALID_SHOW_PARAMS: frozenset[str] = frozenset({
-    "work_mem",
-    "maintenance_work_mem",
-    "synchronous_commit",
-    "max_connections",
-    "wal_level",
-})
+_VALID_SHOW_PARAMS: frozenset[str] = frozenset(
+    {
+        "work_mem",
+        "maintenance_work_mem",
+        "synchronous_commit",
+        "max_connections",
+        "wal_level",
+    }
+)
 
 
 def _parse_pg_memory(value: str) -> int:
@@ -117,51 +119,25 @@ class PostgreSQLVariableValidator:
         """Checks dinámicos vía SHOW <param>; requiere conexión activa."""
         findings: list[AdvisoryFinding] = []
 
-        work_mem = self._show_memory(connection, "work_mem")
-        if work_mem is not None:
-            if work_mem < _WARN_WORK_MEM:
-                findings.append(
-                    AdvisoryFinding(
-                        level="WARNING",
-                        param="work_mem",
-                        current=_fmt_bytes(work_mem),
-                        recommendation="Recomendado ≥16 MB para bulk; SET work_mem = '64MB' en la sesión",
-                    )
-                )
-            elif work_mem < _INFO_WORK_MEM:
-                findings.append(
-                    AdvisoryFinding(
-                        level="INFO",
-                        param="work_mem",
-                        current=_fmt_bytes(work_mem),
-                        recommendation="Óptimo para cargas masivas: ≥64 MB (SET work_mem = '64MB')",
-                    )
-                )
-            else:
-                findings.append(
-                    AdvisoryFinding(level="OK", param="work_mem", current=_fmt_bytes(work_mem), recommendation="")
-                )
+        self._add_memory_finding(
+            findings,
+            connection,
+            param="work_mem",
+            warn_threshold=_WARN_WORK_MEM,
+            info_threshold=_INFO_WORK_MEM,
+            warn_recommendation="Recomendado ≥16 MB para bulk; SET work_mem = '64MB' en la sesión",
+            info_recommendation="Óptimo para cargas masivas: ≥64 MB (SET work_mem = '64MB')",
+        )
 
-        maint = self._show_memory(connection, "maintenance_work_mem")
-        if maint is not None:
-            if maint < _WARN_MAINT_MEM:
-                findings.append(
-                    AdvisoryFinding(
-                        level="WARNING",
-                        param="maintenance_work_mem",
-                        current=_fmt_bytes(maint),
-                        recommendation="Recomendado ≥64 MB para CREATE INDEX post-carga masiva",
-                    )
-                )
-            elif maint < _INFO_MAINT_MEM:
-                findings.append(
-                    AdvisoryFinding(
-                        level="INFO",
-                        param="maintenance_work_mem",
-                        current=_fmt_bytes(maint),
-                        recommendation="Para re-indexado masivo: ≥256 MB",
-                    )
-                )
+        self._add_memory_finding(
+            findings,
+            connection,
+            param="maintenance_work_mem",
+            warn_threshold=_WARN_MAINT_MEM,
+            info_threshold=_INFO_MAINT_MEM,
+            warn_recommendation="Recomendado ≥64 MB para CREATE INDEX post-carga masiva",
+            info_recommendation="Para re-indexado masivo: ≥256 MB",
+        )
 
         sync = self._show_str(connection, "synchronous_commit")
         if sync == "off":
@@ -174,44 +150,86 @@ class PostgreSQLVariableValidator:
                 )
             )
 
-        max_conn_str = self._show_str(connection, "max_connections")
-        if max_conn_str is not None:
-            try:
-                max_conn = int(max_conn_str)
-                pool_size = int(conn_params.get("pool_size", 5))
-                max_overflow = int(conn_params.get("max_overflow", 10))
-                total = pool_size + max_overflow
-                if total >= max_conn:
-                    findings.append(
-                        AdvisoryFinding(
-                            level="CRITICAL",
-                            param="max_connections",
-                            current=f"servidor={max_conn}, pool({pool_size})+overflow({max_overflow})={total}",
-                            recommendation="Reducir pool o aumentar max_connections en postgresql.conf",
-                        )
-                    )
-                elif total > int(max_conn * 0.8):
-                    findings.append(
-                        AdvisoryFinding(
-                            level="WARNING",
-                            param="max_connections",
-                            current=f"servidor={max_conn}, pool({pool_size})+overflow({max_overflow})={total}",
-                            recommendation="Usando >80% de max_connections; riesgo de rechazo en picos",
-                        )
-                    )
-                else:
-                    findings.append(
-                        AdvisoryFinding(
-                            level="OK",
-                            param="max_connections",
-                            current=f"servidor={max_conn}, pool_total={total}",
-                            recommendation="",
-                        )
-                    )
-            except (ValueError, TypeError):
-                pass
+        self._add_max_connections_finding(findings, connection, conn_params)
 
         return findings
+
+    def _add_memory_finding(
+        self,
+        findings: list[AdvisoryFinding],
+        connection: Any,
+        *,
+        param: str,
+        warn_threshold: int,
+        info_threshold: int,
+        warn_recommendation: str,
+        info_recommendation: str,
+    ) -> None:
+        value = self._show_memory(connection, param)
+        if value is None:
+            return
+
+        level: Literal["OK", "INFO", "WARNING", "CRITICAL"]
+        if value < warn_threshold:
+            level = "WARNING"
+            recommendation = warn_recommendation
+        elif value < info_threshold:
+            level = "INFO"
+            recommendation = info_recommendation
+        else:
+            level = "OK"
+            recommendation = ""
+
+        findings.append(
+            AdvisoryFinding(level=level, param=param, current=_fmt_bytes(value), recommendation=recommendation)
+        )
+
+    def _add_max_connections_finding(
+        self,
+        findings: list[AdvisoryFinding],
+        connection: Any,
+        conn_params: dict[str, Any],
+    ) -> None:
+        max_conn_str = self._show_str(connection, "max_connections")
+        if max_conn_str is None:
+            return
+
+        try:
+            max_conn = int(max_conn_str)
+            pool_size = int(conn_params.get("pool_size", 5))
+            max_overflow = int(conn_params.get("max_overflow", 10))
+        except (ValueError, TypeError):
+            return
+
+        total = pool_size + max_overflow
+        current = f"servidor={max_conn}, pool({pool_size})+overflow({max_overflow})={total}"
+        if total >= max_conn:
+            findings.append(
+                AdvisoryFinding(
+                    level="CRITICAL",
+                    param="max_connections",
+                    current=current,
+                    recommendation="Reducir pool o aumentar max_connections en postgresql.conf",
+                )
+            )
+        elif total > int(max_conn * 0.8):
+            findings.append(
+                AdvisoryFinding(
+                    level="WARNING",
+                    param="max_connections",
+                    current=current,
+                    recommendation="Usando >80% de max_connections; riesgo de rechazo en picos",
+                )
+            )
+        else:
+            findings.append(
+                AdvisoryFinding(
+                    level="OK",
+                    param="max_connections",
+                    current=f"servidor={max_conn}, pool_total={total}",
+                    recommendation="",
+                )
+            )
 
     def _show_memory(self, connection: Any, param: str) -> int | None:
         if param not in _VALID_SHOW_PARAMS:

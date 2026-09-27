@@ -14,7 +14,7 @@ import re
 
 from ..ir.models import MigrationWarning
 
-_FUNCTION_CALL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\s*\([^()]*\)$")
+_FUNCTION_CALL_RE = re.compile(r"^\w+\s*\([^()]*\)$")
 
 
 def default_fallback_warning(

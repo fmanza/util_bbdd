@@ -73,6 +73,7 @@ class OracleVariableValidator:
 
     def check_dynamic(self, connection: Any, conn_params: dict[str, Any]) -> list[AdvisoryFinding]:
         """Checks dinámicos vía v$parameter; requiere SELECT ANY DICTIONARY."""
+        _ = conn_params  # Se acepta por compatibilidad con la API; no se usa en el chequeo dinámico.
         findings: list[AdvisoryFinding] = []
 
         # Verificar si hay acceso a v$parameter

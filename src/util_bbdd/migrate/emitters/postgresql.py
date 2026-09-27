@@ -236,34 +236,54 @@ class PostgreSQLDDLEmitter:
             return f"    {comment}"
 
         if col.auto_increment:
-            serial = _serial_type(col.target_type) or "SERIAL"
-            line = f"    {_dq(col.name)} {serial}"
-            trailing: list[str] = []
-            if col.comment:
-                trailing.append(col.comment)
-            if trailing:
-                line += " -- " + " | ".join(trailing)
-            return line
+            return self._emit_auto_increment_column(col)
 
+        return self._emit_regular_column(col, table_name)
+
+    def _emit_auto_increment_column(self, col: CanonicalColumn) -> str:
+        serial = _serial_type(col.target_type) or "SERIAL"
+        line = f"    {_dq(col.name)} {serial}"
+        trailing: list[str] = []
+        if col.comment:
+            trailing.append(col.comment)
+        if trailing:
+            line += " -- " + " | ".join(trailing)
+        return line
+
+    def _emit_regular_column(self, col: CanonicalColumn, table_name: str) -> str:
         parts = [f"    {_dq(col.name)}", col.target_type]
         parts.append("NOT NULL" if not col.nullable else "NULL")
 
         if col.default is not None:
-            default_val = _format_default_postgresql(col.default)
-            parts.append(f"DEFAULT {default_val}")
-            fallback_warning = default_fallback_warning(
-                raw_value=col.default,
-                formatted_value=default_val,
-                table=table_name,
-                column=col.name,
-                source_type=col.oracle_type,
-                target_type=col.target_type,
-            )
-            if fallback_warning is not None and fallback_warning not in col.warnings:
-                col.warnings.append(fallback_warning)
+            self._handle_column_default(col, table_name, parts)
 
         line = " ".join(parts)
+        trailing_items = self._build_trailing_items(col)
 
+        if trailing_items:
+            line += " -- " + " | ".join(trailing_items)
+
+        return line
+
+    def _handle_column_default(self, col: CanonicalColumn, table_name: str, parts: list[str]) -> None:
+        default_value = col.default
+        if default_value is None:
+            return
+
+        default_val = _format_default_postgresql(default_value)
+        parts.append(f"DEFAULT {default_val}")
+        fallback_warning = default_fallback_warning(
+            raw_value=default_value,
+            formatted_value=default_val,
+            table=table_name,
+            column=col.name,
+            source_type=col.oracle_type,
+            target_type=col.target_type,
+        )
+        if fallback_warning is not None and fallback_warning not in col.warnings:
+            col.warnings.append(fallback_warning)
+
+    def _build_trailing_items(self, col: CanonicalColumn) -> list[str]:
         trailing_items: list[str] = []
         if col.comment:
             trailing_items.append(col.comment)
@@ -271,11 +291,7 @@ class PostgreSQLDDLEmitter:
             aviso = col.ddl_comment.lstrip("- ").strip()
             if aviso:
                 trailing_items.append(aviso)
-
-        if trailing_items:
-            line += " -- " + " | ".join(trailing_items)
-
-        return line
+        return trailing_items
 
     def _emit_fk_inline(self, fk: CanonicalFK) -> str:
         cols = ", ".join(_dq(c) for c in fk.columns)

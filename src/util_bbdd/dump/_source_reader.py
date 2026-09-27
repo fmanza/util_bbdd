@@ -79,6 +79,17 @@ _PREFETCH_DEPTH = 2
 _PREFETCH_DONE = object()
 
 
+def _enqueue_prefetch(buffer: queue.Queue[Any], item: Any, stop: threading.Event) -> bool:
+    """Intenta encolar ``item`` hasta que se aborta o se vacía el buffer."""
+    while not stop.is_set():
+        try:
+            buffer.put(item, timeout=0.1)
+            return True
+        except queue.Full:
+            continue
+    return False
+
+
 def _prefetch[T](items: Iterator[T], depth: int = _PREFETCH_DEPTH) -> Iterator[T]:
     """Consume ``items`` en un hilo lector con una cola de ``depth`` elementos y los entrega en el mismo orden.
 
@@ -93,24 +104,15 @@ def _prefetch[T](items: Iterator[T], depth: int = _PREFETCH_DEPTH) -> Iterator[T
     stop = threading.Event()
     errors: list[BaseException] = []
 
-    def _put(item: Any) -> bool:
-        while not stop.is_set():
-            try:
-                buffer.put(item, timeout=0.1)
-                return True
-            except queue.Full:
-                continue
-        return False
-
     def _reader() -> None:
         try:
             for item in items:
-                if not _put(item):
+                if not _enqueue_prefetch(buffer, item, stop):
                     return
-        except BaseException as exc:  # noqa: BLE001 — se relanza en el hilo que consume
+        except Exception as exc:  # se relanza en el hilo que consume; no capturamos SystemExit/KeyboardInterrupt
             errors.append(exc)
         finally:
-            _put(_PREFETCH_DONE)
+            _enqueue_prefetch(buffer, _PREFETCH_DONE, stop)
 
     thread = threading.Thread(target=_reader, name="dump-prefetch", daemon=True)
     thread.start()

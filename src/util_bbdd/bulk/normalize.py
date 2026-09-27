@@ -228,10 +228,13 @@ def _normalize_column(series: pd.Series, strip_strings: bool = True) -> list[Any
         return series.to_numpy().tolist()
     if isinstance(dtype, np.dtype) and dtype.kind == "f":
         # float numpy: float nativo; NaN → None (pd.isna en normalize_sql_literal).
-        return [None if value != value else value for value in series.to_numpy().tolist()]
+        return _normalize_float_values(series.to_numpy().tolist())
     if pd.api.types.is_datetime64_any_dtype(dtype):
-        # Fechas (sin y con zona): Timestamp.to_pydatetime(); NaT → None.
-        return [None if value is pd.NaT else value for value in series.array.to_pydatetime()]
+        # Fechas (sin y con zona): series.dt.to_pydatetime() devuelve datetime.datetime (o timezone-aware),
+        # y pd.NaT se normaliza a None. Usamos .dt en lugar de series.array para evitar el acceso no tipado
+        # a ExtensionArray.to_pydatetime() que reporta el analizador estático.
+        datetimes = list(series.dt.to_pydatetime())
+        return [None if value is pd.NaT else value for value in datetimes]
     if dtype == np.dtype(object) or isinstance(dtype, pd.StringDtype):
         # P-33 (performance-audit de serialización SQL): ``to_numpy(dtype=object)`` da los mismos objetos que
         # ``list(series)`` y es ~12 veces más rápido con la dtype ``str`` respaldada por pyarrow.
@@ -243,6 +246,11 @@ def _normalize_column(series: pd.Series, strip_strings: bool = True) -> list[Any
             return values
         return _normalize_values(values, box=True, strip_strings=strip_strings)
     return _normalize_values(list(series), box=isinstance(dtype, ExtensionDtype), strip_strings=strip_strings)
+
+
+def _normalize_float_values(values: list[Any]) -> list[Any]:
+    """Normaliza valores float de numpy, convirtiendo NaN en None."""
+    return [None if isinstance(value, (float, np.floating)) and math.isnan(value) else value for value in values]
 
 
 def _normalize_values(values: list[Any], *, box: bool, strip_strings: bool = True) -> list[Any]:
@@ -291,7 +299,7 @@ def _is_passthrough(values: list[Any]) -> bool:
         kind = type(value)
         if value is None or kind in _PASSTHROUGH_TYPES:
             continue
-        if kind is float and value == value:
+        if kind is float and not math.isnan(value):
             continue
         if kind is decimal.Decimal and not value.is_nan():
             continue

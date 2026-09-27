@@ -92,16 +92,15 @@ class SQLServerVariableValidator:
 
         # fill factor: 0 = 100% (óptimo para carga inicial); bajo puede ralentizar INSERT
         fill_factor = self._read_config_int(connection, "fill factor (%)")
-        if fill_factor is not None:
-            if 0 < fill_factor < 70:
-                findings.append(
-                    AdvisoryFinding(
-                        level="INFO",
-                        param="fill_factor",
-                        current=f"{fill_factor}%",
-                        recommendation="fill factor=0 (100%) es óptimo para carga inicial masiva",
-                    )
+        if fill_factor is not None and 0 < fill_factor < 70:
+            findings.append(
+                AdvisoryFinding(
+                    level="INFO",
+                    param="fill_factor",
+                    current=f"{fill_factor}%",
+                    recommendation="fill factor=0 (100%) es óptimo para carga inicial masiva",
                 )
+            )
 
         # recovery model de la base de datos activa
         database: str = str(conn_params.get("database", ""))
