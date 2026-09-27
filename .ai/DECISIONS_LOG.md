@@ -209,3 +209,18 @@ Fuente: TRACEABILITYs de sesiones + docs de análisis.
 
 **Razón**: Tres niveles no expresan la estructura real sin imports horizontales, y «acíclico dentro del nivel» solo detecta ciclos, no inversiones semánticas entre hermanos. Las capas estrictas cierran ambas cosas sin cambiar el comportamiento en ejecución.
 **Impacto actual**: 0 violaciones y 0 excepciones. `metadata/` depende de `MetadataCachePort` (`metadata/adapters/_adapter_protocol.py`), `analysis/` de `RelationshipGraphSource` (`analysis/contracts.py`) y `doc/` de `DocumentationSourcePort` (`doc/application/ports.py`): Protocols definidos por el consumidor, con parámetros posicionales porque mypy no compara los nombres al comprobar un Protocol. `tests/unit/test_protocol_conformance.py` verifica con mypy (tipos, aridad, miembros) que `CacheService`, `SyncDatabaseManager` y el adaptador de `doc` los cumplen; el paso `mypy` de CI (`.github/workflows/tests.yml`) lo ejecuta junto a `src`. `SyncMetadataProvider` no se reutilizó: cubre solo 9 lecturas y usa parámetros con nombre. Con estas capas `analysis` baja a la capa 6 y `doc` a la 7 (7 capas).
+
+---
+
+## 2026-09-27 — Verificación de condiciones del motor: una vez por Engine, en `connection/`
+
+**Decisión**: `EngineReadinessAdvisor.report_once(engine)` verifica cada `Engine` una sola vez por proceso. El registro es un `weakref.WeakSet` de clase protegido por un `threading.Lock`; el engine se registra antes de verificarlo, así que los hilos concurrentes no repiten la verificación ni esperan. La clave es el objeto `Engine`, no la URL. La lectura de URL y pool (`pool.size()`, `pool._max_overflow`, `pool._timeout`, driver de SQL Server) vive en `connection/performance_advisor.py` (`_conn_params_from_engine`); `BulkCrud.__init__` solo llama a `report_once`.
+
+**Alternativas descartadas**:
+- **Una verificación por `BulkCrud`** (v0.18.1): `ParallelBulkLoader` y `dump` crean una `BulkCrud` por partición o hilo, así que había N informes idénticos y N conexiones extra que competían con los workers.
+- **Parámetro `check_engine_readiness` en `BulkCrud`** (patrón `warn_if_audit_disabled`): obliga a cada consumidor a desactivarlo y no cubre a quien cree varias `BulkCrud` por su cuenta.
+- **Clave por URL**: dos engines a la misma URL pueden tener pool distinto (`pool_size`, `max_overflow`).
+- **Marca en el propio `Engine`** (atributo añadido): escribe en un objeto de SQLAlchemy; el `WeakSet` no lo retiene y no lo modifica.
+
+**Razón**: El resultado depende del engine, no de la instancia que lo usa. Es estado mutable a nivel de clase (excepción a SHARED § OOP), justificado porque el requisito «una vez» es de proceso; con referencias débiles no mantiene vivo ningún engine.
+**Impacto actual**: `bulk/` ya no conoce atributos privados del pool. `engine.dispose()` no provoca una nueva verificación; `report()` explícito no está limitado. Sesión `2026-09-27c-readiness-once-per-engine`.

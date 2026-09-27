@@ -3,11 +3,13 @@
 Extiende el patrón ``MySQLVariableValidator`` a todos los motores soportados
 y emite un informe consolidado en una única llamada al LOG.
 
-Uso típico (desde BulkCrud.__init__ o llamada explícita)::
+Uso típico::
 
     from util_bbdd.connection import EngineReadinessAdvisor
 
     advisor = EngineReadinessAdvisor()
+    # Una sola vez por engine en el proceso (lo que hace BulkCrud.__init__):
+    advisor.report_once(engine)
     # Solo checks estáticos (sin conexión):
     advisor.report("postgresql", conn_params)
     # Checks estáticos + dinámicos (con conexión activa):
@@ -18,10 +20,15 @@ Uso típico (desde BulkCrud.__init__ o llamada explícita)::
 from __future__ import annotations
 
 import logging
+import threading
+import weakref
 
-from typing import Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from ._advisory import AdvisoryFinding
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine import Engine
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -37,8 +44,14 @@ class EngineReadinessAdvisor:
     y añade checks estáticos de pool config.
 
     El método ``report()`` emite **una única** llamada al logger con el bloque
-    completo de hallazgos y recomendaciones.
+    completo de hallazgos y recomendaciones. ``report_once()`` lo hace una sola vez
+    por ``Engine`` en el proceso: ``BulkCrud`` se instancia muchas veces sobre el mismo
+    engine (una por partición en ``ParallelBulkLoader``, una por hilo en ``dump``).
     """
+
+    # Engines ya verificados por report_once(); referencias débiles para no retenerlos.
+    _reported_engines: ClassVar[weakref.WeakSet[Engine]] = weakref.WeakSet()
+    _reported_lock: ClassVar[threading.Lock] = threading.Lock()
 
     def check(
         self,
@@ -131,6 +144,75 @@ class EngineReadinessAdvisor:
             logger.warning(block)
         else:
             logger.info(block)
+
+    def report_once(self, engine: Engine) -> bool:
+        """Verifica ``engine`` y emite su informe solo la primera vez que se pide en el proceso.
+
+        Los parámetros se leen de ``engine.url`` y ``engine.pool``. Con conexión se ejecutan
+        los checks estáticos y dinámicos; si no se puede conectar, solo los estáticos (sin reintento).
+
+        Thread-safe: el engine se registra antes de verificarlo, de modo que los hilos
+        concurrentes ni repiten la verificación ni esperan a que termine. La clave es el
+        objeto ``Engine``, no su URL: dos engines al mismo servidor se verifican por separado
+        (pueden tener pool distinto) y ``engine.dispose()`` no provoca una nueva verificación.
+        ``report()`` explícito no está limitado.
+
+        Args:
+            engine: Engine SQLAlchemy síncrono.
+
+        Returns:
+            True si esta llamada hizo la verificación; False si el engine ya estaba verificado.
+        """
+        with self._reported_lock:
+            if engine in self._reported_engines:
+                return False
+            self._reported_engines.add(engine)
+
+        dialect = engine.dialect.name
+        conn_params = self._conn_params_from_engine(engine)
+        reported = False
+        try:
+            with engine.connect() as conn:
+                self.report(dialect, conn_params, connection=conn)
+                reported = True
+        except Exception:
+            # Sin conexión activa, solo checks estáticos; si ya se informó (falló el cierre), no se repite
+            if not reported:
+                try:
+                    self.report(dialect, conn_params)
+                except Exception as exc:
+                    logger.debug(f"Error en verificación de motor '{dialect}': {exc}")
+        return True
+
+    @staticmethod
+    def _conn_params_from_engine(engine: Engine) -> dict[str, Any]:
+        """host/port/database de ``engine.url``, pool_size/max_overflow/pool_timeout del pool y, en mssql, el driver."""
+        url = engine.url
+        conn_params: dict[str, Any] = {}
+        if url.host:
+            conn_params["host"] = url.host
+        if url.port:
+            conn_params["port"] = url.port
+        if url.database:
+            conn_params["database"] = url.database
+
+        # pool.size() es público en QueuePool pero no en la clase base Pool (sin type stub)
+        pool = engine.pool
+        try:
+            _size_fn = getattr(pool, "size", None)
+            if callable(_size_fn):
+                conn_params["pool_size"] = _size_fn()
+        except Exception:
+            pass
+        # Atributos privados de SA 2.x: si cambian, simplemente no se informan (D-05)
+        for _attr, _key in (("_max_overflow", "max_overflow"), ("_timeout", "pool_timeout")):
+            _val = getattr(pool, _attr, None)
+            if _val is not None:
+                conn_params[_key] = _val
+
+        if engine.dialect.name == "mssql":
+            conn_params["sql_server_driver"] = "pyodbc" if "pyodbc" in str(url.drivername).lower() else "pymssql"
+        return conn_params
 
     # ─── Adaptadores por motor ────────────────────────────────────────────────
 

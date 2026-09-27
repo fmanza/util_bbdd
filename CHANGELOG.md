@@ -7,6 +7,38 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.18.2] - 2026-09-27
+
+La verificación de condiciones de ejecución del motor se hace una sola vez por `Engine`. Antes se repetía en cada
+`BulkCrud`: `ParallelBulkLoader` y `dump` crean una por partición o por hilo, y cada una pedía una conexión al pool,
+lanzaba las consultas de diagnóstico y escribía el informe completo otra vez.
+
+### Fixed
+
+- **bulk**: `BulkCrud` emite el informe `ENGINE READINESS REPORT` y pide la conexión de diagnóstico solo la primera
+  vez para cada `Engine` del proceso, también con varios hilos a la vez. Una carga de 8 particiones pasa de 9 informes
+  y 9 conexiones extra a 1.
+- **connection**: si el informe ya se había emitido y falla el cierre de la conexión, ya no se emite un segundo
+  informe solo con los checks estáticos.
+
+### Added
+
+- **connection**: `EngineReadinessAdvisor.report_once(engine) -> bool`: verifica el engine (checks estáticos y, si
+  puede conectar, dinámicos) solo la primera vez que se pide en el proceso; devuelve `True` si esa llamada hizo la
+  verificación. La clave es el objeto `Engine` (no la URL) y el registro usa referencias débiles. `report()` y
+  `check()` no cambian.
+
+### Changed
+
+- **bulk/connection**: los parámetros del informe (host, puerto, base de datos, `pool_size`, `max_overflow`,
+  `pool_timeout` y driver de SQL Server) se leen del engine en `connection/` y no en `bulk/crud.py`. El driver de SQL
+  Server se deduce de `engine.url.drivername`, con el mismo resultado que antes.
+
+### Rollback
+
+Revertir el commit `fix(connection): verificación de condiciones una vez por engine` (vuelve el informe por
+instancia de `BulkCrud`). Sin cambios de datos ni de configuración.
+
 ## [0.18.1] - 2026-09-27
 
 Verificador read-only de condiciones de ejecución por motor (engine readiness advisor) que emite un informe

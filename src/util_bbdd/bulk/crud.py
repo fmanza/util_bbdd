@@ -43,6 +43,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import SQLAlchemyError
 
+from ..connection.performance_advisor import EngineReadinessAdvisor
 from ..metadata.mariadb.tables import fetch_table_storage_engine_sql
 from ..metadata.sqlserver.indexes import fetch_clustered_index_count_sql
 from ._execution.batch import (
@@ -297,50 +298,8 @@ class BulkCrud:
                 )
 
     def __validate_engine_config(self) -> None:
-        """Verifica condiciones de ejecución del motor y emite informe consolidado al LOG."""
-        try:
-            from ..connection.performance_advisor import EngineReadinessAdvisor
-        except ImportError:
-            self.logger.debug("EngineReadinessAdvisor no disponible; saltando verificación")
-            return
-
-        dialect = self.engine.dialect.name
-        url = self.engine.url
-
-        conn_params: dict[str, Any] = {}
-        if url.host:
-            conn_params["host"] = url.host
-        if url.port:
-            conn_params["port"] = url.port
-        if url.database:
-            conn_params["database"] = url.database
-
-        # pool.size() es público en QueuePool pero no en la clase base Pool (sin type stub)
-        pool = self.engine.pool
-        try:
-            _size_fn = getattr(pool, "size", None)
-            if callable(_size_fn):
-                conn_params["pool_size"] = _size_fn()
-        except Exception:
-            pass
-        for _attr, _key in (("_max_overflow", "max_overflow"), ("_timeout", "pool_timeout")):
-            _val = getattr(pool, _attr, None)
-            if _val is not None:
-                conn_params[_key] = _val
-
-        if dialect == "mssql":
-            conn_params["sql_server_driver"] = "pyodbc" if "pyodbc" in self.db_info.lower() else "pymssql"
-
-        advisor = EngineReadinessAdvisor()
-        try:
-            with self.engine.connect() as conn:
-                advisor.report(dialect, conn_params, connection=conn)
-        except Exception:
-            # Sin conexión activa, solo checks estáticos
-            try:
-                advisor.report(dialect, conn_params)
-            except Exception as exc:
-                self.logger.debug(f"Error en verificación de motor '{dialect}': {exc}")
+        """Verifica las condiciones de ejecución del motor una vez por engine (``EngineReadinessAdvisor.report_once``)."""
+        EngineReadinessAdvisor().report_once(self.engine)
 
     def __validar_y_generar_path_sql(self, path_sql: Path | None, tabla_destino: str, operacion: str) -> Path:
         """
