@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **bulk/dump**: las clases con logging (`DumpOrchestrator`, `ConstraintManager`, `IndexManager`, `DumpReporter`,
+  `ParallelBulkLoader`, `PKSequenceSyncer`) usan `self.logger` en lugar de un logger de módulo, como pide la guía del
+  proyecto; el nombre del logger no cambia. Las opciones comunes de las `BulkCrud` y `ParallelBulkLoader` del volcado
+  se definen en un solo sitio. Sin cambios de comportamiento.
+
 ## [0.17.2] - 2026-09-26
 
 Segunda parte del refactor de reutilización de `bulk` y `dump` (R11, R12 y R14 del plan de la sesión
