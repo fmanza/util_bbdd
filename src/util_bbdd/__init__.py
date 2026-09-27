@@ -41,6 +41,7 @@ from .comparar import (
     SchemaDiffValidationError,
 )
 from .connection.builder import build_conn_params
+from .connection.performance_advisor import AdvisoryFinding, EngineReadinessAdvisor
 from .dump import (
     DumpConfig,
     DumpConstraintError,
@@ -109,6 +110,9 @@ __all__: list[str] = [
     "MigrationPlanner",
     "MigrationPlan",
     "MigrationWarning",
+    # Verificador de condiciones de ejecución por motor
+    "EngineReadinessAdvisor",
+    "AdvisoryFinding",
     # Documentación
     "DocumentationError",
     "DocumentationConfigError",

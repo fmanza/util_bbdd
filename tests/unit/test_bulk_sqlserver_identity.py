@@ -15,7 +15,7 @@ from util_bbdd.bulk._support.sql_helpers import (
     should_wrap_identity_insert,
     wrap_identity_insert_sql,
 )
-from util_bbdd.bulk.crud import bulk_crud
+from util_bbdd.bulk.crud import BulkCrud as bulk_crud
 
 # ---------------------------------------------------------------------------
 # Fixtures

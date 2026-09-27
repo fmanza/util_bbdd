@@ -76,4 +76,9 @@ __all__: list[str] = [
     "SQLServerConnectionConfig",
     "SQLServerPoolConfig",
     "HSQLDBConnectionConfig",
+    # Advisor de rendimiento
+    "EngineReadinessAdvisor",
+    "AdvisoryFinding",
 ]
+
+from .performance_advisor import AdvisoryFinding, EngineReadinessAdvisor

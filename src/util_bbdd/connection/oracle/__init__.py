@@ -6,18 +6,26 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from ._variables import OracleVariableValidator
     from .async_connection_oracle import AsyncOracleConnection
     from .async_pool_connection_oracle import AsyncOraclePool
     from .connection_oracle import OracleConnection
     from .pool_connection_oracle import PoolConnection
 
-__all__: list[str] = ["OracleConnection", "PoolConnection", "AsyncOracleConnection", "AsyncOraclePool"]
+__all__: list[str] = [
+    "OracleConnection",
+    "PoolConnection",
+    "AsyncOracleConnection",
+    "AsyncOraclePool",
+    "OracleVariableValidator",
+]
 
 _SYMBOL_TO_MODULE: dict[str, str] = {
     "OracleConnection": "connection_oracle",
     "PoolConnection": "pool_connection_oracle",
     "AsyncOracleConnection": "async_connection_oracle",
     "AsyncOraclePool": "async_pool_connection_oracle",
+    "OracleVariableValidator": "_variables",
 }
 
 

@@ -6,18 +6,26 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from ._variables import PostgreSQLVariableValidator
     from .async_connection_postgresql import AsyncPostgreSQLConnection
     from .async_pool_connection_postgresql import AsyncPostgreSQLPool
     from .connection_postgresql import PostgreSQLConnection
     from .pool_connection_postgresql import PoolConnection
 
-__all__: list[str] = ["PostgreSQLConnection", "PoolConnection", "AsyncPostgreSQLConnection", "AsyncPostgreSQLPool"]
+__all__: list[str] = [
+    "PostgreSQLConnection",
+    "PoolConnection",
+    "AsyncPostgreSQLConnection",
+    "AsyncPostgreSQLPool",
+    "PostgreSQLVariableValidator",
+]
 
 _SYMBOL_TO_MODULE: dict[str, str] = {
     "PostgreSQLConnection": "connection_postgresql",
     "PoolConnection": "pool_connection_postgresql",
     "AsyncPostgreSQLConnection": "async_connection_postgresql",
     "AsyncPostgreSQLPool": "async_pool_connection_postgresql",
+    "PostgreSQLVariableValidator": "_variables",
 }
 
 
