@@ -7,6 +7,8 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.18.3] - 2026-09-28
+
 Un fallo alrededor del informe Excel del volcado ya no deja sin informe (ni sin resultado) una carga terminada, y los
 cuatro informes Excel de la librería escriben de forma segura los textos que vienen de la BD o del CSV de auditoría.
 

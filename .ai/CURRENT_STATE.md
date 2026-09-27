@@ -1,8 +1,8 @@
 # CURRENT STATE — util_bbdd
 
-**Generado**: 2026-06-05 (cabecera, tabla de versiones y tests actualizados el 2026-09-27 en los cierres de `v0.18.0`, `v0.18.1` y `v0.18.2`)  
-**Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.18.2`  
-**Versión**: `v0.18.2` (cerrada en `develop`, 2026-09-27; sin tag ni push: pendiente de decisión del usuario). Tags de git: `v0.17.4`, `v0.18.0`, `v0.18.1`  
+**Generado**: 2026-06-05 (cabecera, tabla de versiones y tests actualizados el 2026-09-27 en los cierres de `v0.18.0` a `v0.18.3`)  
+**Fuente**: Sesiones activas Mayo-31–Junio-05 + docs Zenical; `CHANGELOG.md` para `v0.11.0` a `v0.18.3`  
+**Versión**: `v0.18.3` (cerrada en `develop`, 2026-09-28; sin tag ni push: pendiente de decisión del usuario; `v0.18.2` tampoco tiene tag). Tags de git: `v0.17.4`, `v0.18.0`, `v0.18.1`  
 **Rama activa**: `develop`
 
 ---
@@ -28,12 +28,13 @@
 | `v0.18.0` | Liberado 2026-09-27 (tag sobre `b3e57ac`) — capacidad del pool `pool_size + max_overflow` en `ParallelBulkLoader` y `dump` (con una conexión por worker); `rows_committed` con DELETE; `AuditError` bajo `DatabaseException`; **se retira `BulkInserter`** (incompatible) (sesión `2026-09-27b-pendientes-bulk-dump`) |
 | `v0.18.1` | Liberado 2026-09-27 (tag sobre `61dd5f2`) — verificador read-only de condiciones de ejecución por motor (EngineReadinessAdvisor): checks estáticos/dinámicos de pool config, timeouts y parámetros críticos para PostgreSQL, SQLite, SQL Server, Oracle, MySQL/MariaDB; integración opcional en `BulkCrud.__init__()` con triple try/except; 11 hallazgos auditados, 9 corregidos (SQL injection prevention, exception logging, MySQL OK findings); 78 tests nuevos (sesión `2026-09-27-engine-readiness-advisor`) |
 | `v0.18.2` | Cerrada 2026-09-27 en `develop` (sin tag) — `EngineReadinessAdvisor.report_once(engine)`: la verificación de condiciones del motor se hace una vez por `Engine` (antes, una por `BulkCrud`: N informes y N conexiones extra en `ParallelBulkLoader`/`dump`); lectura de URL/pool movida de `bulk/crud.py` a `connection/` (sesión `2026-09-27c-readiness-once-per-engine`) |
+| `v0.18.3` | Cerrada 2026-09-28 en `develop` (sin tag) — exportación de informes robusta: el Excel de `dump` ya no se pierde por un CSV de auditoría mal formado (`KeyError 'timestamp'`) ni por su propio fallo (`DumpReportError.result` con el `DumpResult`); CSV de auditoría con cabecera no válida apartado como `.invalid-<fecha>.csv`; lock del CSV sin `resolve()` (en Windows perdía filas con varios hilos); `_core/export_safety` (caracteres de control y fórmulas) en los informes Excel y Word de `dump`, `bulk`, `comparar` y `doc`; `AuditExportError`; diagrama de capas (`bulk → connection` de módulo) (sesión `2026-09-27d-export-safety`) |
 | Zenical | Pendiente, sin versión asignada — merge `migrate/zenical-pure` (+80% perf doc builds) cuando Zenical esté instalable |
 
 PR abierta: **PR #18** `feat(connection/bulk): automatización variables MySQL/MariaDB` — revisión pendiente de merge.  
 PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical v0.0.44 esté en crates.io (o instalación manual de binario).
 
-**Tests actuales**: 5249 passed, 199 skipped sin URLs de servidor (cierre de `v0.18.2`); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: estimado 340+ passed en 5 servidores (cierre de `v0.18.1`, 2026-09-27). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/PERFORMANCE_AUDIT_GUIDE.md`).
+**Tests actuales**: 5288 passed, 199 skipped sin URLs de servidor (cierre de `v0.18.3`); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: estimado 340+ passed en 5 servidores (cierre de `v0.18.1`, 2026-09-27). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/PERFORMANCE_AUDIT_GUIDE.md`).
 
 ---
 
