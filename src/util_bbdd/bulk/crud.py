@@ -1108,12 +1108,18 @@ class BulkCrud:
 
         Soporte por motor:
         - **MariaDB/MySQL**: Deshabilita `FOREIGN_KEY_CHECKS` a nivel de sesión.
-          Aplica `DISABLE KEYS` (aunque InnoDB suele ignorarlo).
-        - **PostgreSQL**: Ejecuta `ALTER TABLE ... DISABLE TRIGGER ALL`. Requiere ser
-          propietario de la tabla o superusuario.
-        - **SQL Server**: Ejecuta `ALTER TABLE ... NOCHECK CONSTRAINT ALL`. Persiste en
+          Aplica `DISABLE KEYS` (aunque InnoDB suele ignorarlo; solo efectivo en MyISAM/Aria).
+        - **Oracle**: Deshabilita cada FK, CHECK (no SYS_C) y UNIQUE con
+          ``ALTER TABLE ... DISABLE CONSTRAINT``. Re-habilita con ``ENABLE VALIDATE``.
+        - **PostgreSQL**: Ejecuta ``ALTER TABLE ... DISABLE TRIGGER ALL``. Requiere ser
+          propietario de la tabla o superusuario; si no, opera sin optimización (se registra
+          un aviso). Al restaurar, ejecuta un orphan-check de FK para detectar violaciones
+          cargadas con los triggers desactivados (audit H-01, 2026-09-27).
+        - **SQL Server**: Ejecuta ``ALTER TABLE ... NOCHECK CONSTRAINT ALL``. Persiste en
           catálogo pero se restaura al salir del bloque.
-          Soporta `ALTER INDEX ALL ON ... DISABLE` si `disable_indexes=True`.
+          Soporta ``ALTER INDEX ALL ON ... DISABLE`` si ``disable_indexes=True``
+          (solo en tablas sin índice CLUSTERED).
+        - **SQLite**: No soportado; opera sin optimización.
 
         Args:
             tabla_destino: Nombre de la tabla destino (acepta "esquema.tabla").
@@ -1145,18 +1151,19 @@ class BulkCrud:
         pg_disabled = False
         mssql_constraints_disabled = False
         indexes_disabled = False
+        oracle_disabled: list[str] = []
 
         def restore() -> None:
             if disable_indexes:
                 self.__maintenance_enable_indexes(conn, dialect, quoted_name, indexes_disabled)
             if disable_constraints:
                 self.__maintenance_enable_constraints(
-                    conn, dialect, quoted_name, pg_disabled, mssql_constraints_disabled
+                    conn, dialect, quoted_name, tabla, pg_disabled, mssql_constraints_disabled, oracle_disabled
                 )
 
         try:
             if disable_constraints:
-                pg_disabled, mssql_constraints_disabled = self.__maintenance_disable_constraints(
+                pg_disabled, mssql_constraints_disabled, oracle_disabled = self.__maintenance_disable_constraints(
                     conn, dialect, quoted_name, tabla, tabla_destino
                 )
             if disable_indexes:
@@ -1209,25 +1216,36 @@ class BulkCrud:
         quoted_name: str,
         tabla: Table,
         tabla_destino: str,
-    ) -> tuple[bool, bool]:
-        """Deshabilita constraints por motor; retorna (pg_disabled, mssql_disabled)."""
+    ) -> tuple[bool, bool, list[str]]:
+        """Deshabilita constraints por motor; retorna (pg_disabled, mssql_disabled, oracle_names)."""
         if dialect in MYSQL_FAMILY:
             conn.execute(text("SET SESSION FOREIGN_KEY_CHECKS=0"))
-            return False, False
+            return False, False, []
         if dialect == "postgresql":
             if can_disable_pg_triggers(conn, tabla):
                 conn.execute(text(disable_table_integrity_sql(dialect, quoted_name)))
-                return True, False
+                return True, False, []
             self.logger.warning(
                 f"⚠️ El usuario actual no tiene privilegios suficientes en PostgreSQL "
                 f"(requiere SUPERUSER o ser propietario de la tabla). "
                 f"Se omite DISABLE TRIGGER en {tabla_destino}."
             )
-            return False, False
+            return False, False, []
         if dialect == "mssql":
             conn.execute(text(disable_table_integrity_sql(dialect, quoted_name)))
-            return False, True
-        return False, False
+            return False, True, []
+        if dialect == "oracle":
+            all_names = self.__oracle_fetch_constraint_names(tabla)
+            disabled: list[str] = []
+            prep = self.engine.dialect.identifier_preparer
+            for name in all_names:
+                try:
+                    conn.execute(text(f"ALTER TABLE {quoted_name} DISABLE CONSTRAINT {prep.quote_identifier(name)}"))
+                    disabled.append(name)
+                except SQLAlchemyError as exc:
+                    self.logger.warning(f"⚠️ No se pudo deshabilitar constraint '{name}' en {tabla_destino}: {exc}")
+            return False, False, disabled
+        return False, False, []
 
     def __maintenance_disable_indexes(
         self,
@@ -1288,16 +1306,88 @@ class BulkCrud:
         conn: Any,
         dialect: str,
         quoted_name: str,
+        tabla: Table,
         pg_disabled: bool,
         mssql_disabled: bool,
+        oracle_disabled: list[str],
     ) -> None:
         """Restaura constraints deshabilitadas por motor."""
         if dialect in MYSQL_FAMILY:
             conn.execute(text("SET SESSION FOREIGN_KEY_CHECKS=1"))
         elif dialect == "postgresql" and pg_disabled:
             conn.execute(text(enable_table_integrity_sql(dialect, quoted_name)))
+            self.__pg_check_fk_orphans(conn, tabla, quoted_name)
         elif dialect == "mssql" and mssql_disabled:
             conn.execute(text(enable_table_integrity_sql(dialect, quoted_name)))
+        elif dialect == "oracle" and oracle_disabled:
+            prep = self.engine.dialect.identifier_preparer
+            for name in oracle_disabled:
+                try:
+                    conn.execute(
+                        text(f"ALTER TABLE {quoted_name} ENABLE VALIDATE CONSTRAINT {prep.quote_identifier(name)}")
+                    )
+                except SQLAlchemyError as exc:
+                    self.logger.warning(f"⚠️ No se pudo rehabilitar constraint '{name}': {exc}")
+
+    def __pg_check_fk_orphans(self, conn: Any, tabla: Table, quoted_name: str) -> None:
+        """Audit H-01 (2026-09-27): DISABLE TRIGGER no marca FK como NOT VALID; verifica huérfanos explícitamente."""
+        try:
+            insp = inspect(self.engine)
+            fks = insp.get_foreign_keys(tabla.name, schema=tabla.schema)
+        except Exception:  # NoInspectionAvailable en mocks de test o motores sin inspector
+            return
+        prep = self.engine.dialect.identifier_preparer
+        for fk in fks:
+            child_cols: list[str] = fk.get("constrained_columns", [])
+            parent_table: str = fk.get("referred_table", "")
+            parent_cols: list[str] = fk.get("referred_columns", [])
+            if not child_cols or not parent_cols or not parent_table:
+                continue
+            # MATCH SIMPLE: NULL en alguna columna FK exime la fila de la comprobación
+            not_null = " AND ".join(f"c.{prep.quote(col)} IS NOT NULL" for col in child_cols)
+            match_cond = " AND ".join(
+                f"p.{prep.quote(pc)} = c.{prep.quote(cc)}" for cc, pc in zip(child_cols, parent_cols, strict=True)
+            )
+            parent_schema: str | None = fk.get("referred_schema")
+            parent_ref = (
+                f"{prep.quote_identifier(parent_schema)}.{prep.quote_identifier(parent_table)}"
+                if parent_schema
+                else prep.quote_identifier(parent_table)
+            )
+            try:
+                orphan = conn.execute(
+                    text(
+                        f"SELECT 1 FROM {quoted_name} c "
+                        f"WHERE {not_null} "
+                        f"AND NOT EXISTS (SELECT 1 FROM {parent_ref} p WHERE {match_cond}) LIMIT 1"
+                    )
+                ).first()
+            except SQLAlchemyError:
+                continue
+            if orphan is not None:
+                self.logger.warning(
+                    f"⚠️ FK '{fk.get('name', '?')}' en '{tabla.name}': hay filas sin fila referenciada "
+                    f"en '{parent_table}'. La FK está marcada como válida pero contiene violaciones. "
+                    "Verificar integridad manualmente o hacer rollback."
+                )
+
+    def __oracle_fetch_constraint_names(self, tabla: Table) -> list[str]:
+        """Retorna nombres de FK, CHECK (no SYS_C) y UNIQUE constraints de la tabla para Oracle."""
+        try:
+            insp = inspect(self.engine)
+            schema = tabla.schema
+            name = tabla.name
+            names: list[str] = []
+            names += [str(fk["name"]) for fk in insp.get_foreign_keys(name, schema=schema) if fk.get("name")]
+            names += [
+                str(c["name"])
+                for c in insp.get_check_constraints(name, schema=schema)
+                if c.get("name") and not str(c["name"]).upper().startswith("SYS_C")
+            ]
+            names += [str(u["name"]) for u in insp.get_unique_constraints(name, schema=schema) if u.get("name")]
+            return names
+        except Exception:  # NoInspectionAvailable en mocks de test o conexión sin permisos
+            return []
 
     def __generar_sql_insert(self, stmt: Insert, records: Sequence[dict[str, Any]]) -> list[str]:
         """Genera SQL INSERT desde un statement y una lista de registros.
