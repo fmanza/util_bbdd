@@ -7,6 +7,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.3] - 2026-09-27
+
+Cierre del refactor de reutilización de `bulk` y `dump` (R15 y R16 del plan de la sesión
+`.ai/sessions/2026-09-26ze-code-reusability-bulk-dump/`). Sin cambios funcionales.
+
 ### Changed
 
 - **bulk/dump**: las clases con logging (`DumpOrchestrator`, `ConstraintManager`, `IndexManager`, `DumpReporter`,
