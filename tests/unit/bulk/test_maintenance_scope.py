@@ -346,6 +346,24 @@ class TestMaintenanceScopeRequireOptimization:
             with crud.maintenance_scope("t", require_optimization=True):
                 pass
 
+    def test_raises_does_not_log_warning_when_required(self, caplog: pytest.LogCaptureFixture) -> None:
+        # A-01: solo log si NO se lanza; sin duplicado warning + exception
+        crud, conn = _make_crud_for_dialect("postgresql")
+        conn.execute.return_value.scalar.return_value = False
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(RuntimeError):
+                with crud.maintenance_scope("t", require_optimization=True):
+                    pass
+        assert not any("privilegios" in msg for msg in caplog.messages)
+
+    def test_not_required_logs_warning_instead_of_raising(self, caplog: pytest.LogCaptureFixture) -> None:
+        crud, conn = _make_crud_for_dialect("postgresql")
+        conn.execute.return_value.scalar.return_value = False
+        with caplog.at_level(logging.WARNING):
+            with crud.maintenance_scope("t", require_optimization=False):
+                pass
+        assert any("privilegios" in msg for msg in caplog.messages)
+
     def test_no_raise_when_pg_privileged_and_required(self) -> None:
         crud, conn = _make_crud_for_dialect("postgresql")
         conn.execute.return_value.scalar.return_value = True

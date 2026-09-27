@@ -1250,9 +1250,9 @@ class BulkCrud:
                 f"(requiere SUPERUSER o ser propietario de la tabla). "
                 f"Se omite DISABLE TRIGGER en {tabla_destino}."
             )
-            self.logger.warning(msg)
             if require_optimization:
                 raise RuntimeError(msg)
+            self.logger.warning(msg)
             return False, False, []
         if dialect == "mssql":
             conn.execute(text(disable_table_integrity_sql(dialect, quoted_name)))
@@ -1375,6 +1375,7 @@ class BulkCrud:
             insp = inspect(self.engine)
             fks = insp.get_foreign_keys(tabla.name, schema=tabla.schema)
         except Exception:  # NoInspectionAvailable en mocks de test o motores sin inspector
+            self.logger.debug(f"⚠️ orphan-check omitido en '{tabla.name}': inspect() no disponible para este engine.")
             return []
         results: list[MaintenanceScopeConstraintResult] = []
         prep = self.engine.dialect.identifier_preparer
@@ -1384,6 +1385,8 @@ class BulkCrud:
             parent_cols: list[str] = fk.get("referred_columns", [])
             if not child_cols or not parent_cols or not parent_table:
                 continue
+            if len(child_cols) != len(parent_cols):
+                continue  # metadata FK malformada
             # MATCH SIMPLE: NULL en alguna columna FK exime la fila de la comprobación
             not_null = " AND ".join(f"c.{prep.quote(col)} IS NOT NULL" for col in child_cols)
             match_cond = " AND ".join(
