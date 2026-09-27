@@ -12,8 +12,24 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 Pendientes del refactor de `bulk`/`dump` que cambian comportamiento (sesión `.ai/sessions/2026-09-27b-pendientes-bulk-dump/`,
 decisiones D-1 a D-5). **Incluye un cambio incompatible**: se retira `util_bbdd.dump.BulkInserter`.
 
+### Added
+
+- **bulk**: `BulkCrud.maintenance_scope` — nuevo parámetro `require_optimization: bool = False`. Si `True` y el motor
+  no puede aplicar la optimización (PostgreSQL sin privilegios, dialecto no soportado), lanza `RuntimeError` en lugar de
+  continuar en silencio.
+- **bulk**: `MaintenanceScopeResult` y `MaintenanceScopeConstraintResult` exportados desde `util_bbdd.bulk`.
+  `maintenance_scope` hace `yield MaintenanceScopeResult` con `optimization_applied: bool` y
+  `constraint_results: list[MaintenanceScopeConstraintResult]` disponibles al salir del bloque. El `as` es opcional
+  (compatible con código existente).
+
 ### Changed
 
+- **bulk**: `BulkCrud.maintenance_scope` — Oracle soportado: deshabilita FK, CHECK (no `SYS_C`) y UNIQUE con
+  `ALTER TABLE … DISABLE CONSTRAINT`; rehabilita con `ENABLE VALIDATE`. Antes no hacía nada en Oracle.
+- **bulk**: `BulkCrud.maintenance_scope` — PostgreSQL: al rehabilitar triggers ejecuta un orphan-check explícito por
+  cada FK (`DISABLE TRIGGER ALL` no marca la FK como `NOT VALID`, por lo que `VALIDATE CONSTRAINT` no detecta filas
+  huérfanas cargadas con los triggers desactivados). Equivalente al fix PD-04 de `dump._constraints`. El resultado
+  queda en `constraint_results`.
 - **bulk/dump**: una sola regla de capacidad del pool, `pool_size + max_overflow` (`bulk/_support/pool.py`), en
   `ParallelBulkLoader` y `DumpOrchestrator`. Antes el loader recortaba `max_workers` a `pool_size`: con el engine por
   defecto (`pool_size=5, max_overflow=10`) admite ahora hasta 15 workers. Con `max_overflow` negativo (ilimitado) no hay
