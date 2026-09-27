@@ -10,6 +10,7 @@ import pytest
 
 from sqlalchemy import Engine, create_engine
 
+from util_bbdd.bulk._models import MaintenanceScopeResult
 from util_bbdd.bulk.crud import BulkCrud
 
 # ---------------------------------------------------------------------------
@@ -264,6 +265,102 @@ class TestMaintenanceScopeRestoreOrder:
         rebuild_idx = sqls.index('ALTER INDEX ALL ON "t" REBUILD')
         check_idx = sqls.index('ALTER TABLE "t" WITH CHECK CHECK CONSTRAINT ALL')
         assert rebuild_idx < check_idx
+
+
+# ---------------------------------------------------------------------------
+# MaintenanceScopeResult — yield + optimization_applied + constraint_results
+# ---------------------------------------------------------------------------
+
+
+class TestMaintenanceScopeResult:
+    def test_yields_maintenance_scope_result(self) -> None:
+        crud, conn = _make_crud_for_dialect("mysql")
+        with crud.maintenance_scope("t") as ms:
+            assert isinstance(ms, MaintenanceScopeResult)
+
+    def test_optimization_applied_true_for_mysql(self) -> None:
+        crud, conn = _make_crud_for_dialect("mysql")
+        with crud.maintenance_scope("t") as ms:
+            pass
+        assert ms.optimization_applied is True
+
+    def test_optimization_applied_false_for_sqlite(self) -> None:
+        crud, conn = _make_crud_for_dialect("sqlite")
+        with crud.maintenance_scope("t") as ms:
+            pass
+        assert ms.optimization_applied is False
+
+    def test_optimization_applied_true_mssql(self) -> None:
+        crud, conn = _make_crud_for_dialect("mssql")
+        with crud.maintenance_scope("t") as ms:
+            pass
+        assert ms.optimization_applied is True
+
+    def test_optimization_applied_true_postgresql_when_privileged(self) -> None:
+        crud, conn = _make_crud_for_dialect("postgresql")
+        conn.execute.return_value.scalar.return_value = True
+        with crud.maintenance_scope("t") as ms:
+            pass
+        assert ms.optimization_applied is True
+
+    def test_optimization_applied_false_postgresql_when_not_privileged(self) -> None:
+        crud, conn = _make_crud_for_dialect("postgresql")
+        conn.execute.return_value.scalar.return_value = False
+        with crud.maintenance_scope("t") as ms:
+            pass
+        assert ms.optimization_applied is False
+
+    def test_constraint_results_populated_mysql(self) -> None:
+        crud, conn = _make_crud_for_dialect("mysql")
+        with crud.maintenance_scope("t") as ms:
+            pass
+        assert len(ms.constraint_results) == 1
+        assert ms.constraint_results[0].constraint_name == "FOREIGN_KEY_CHECKS"
+        assert ms.constraint_results[0].status == "unverified"
+
+    def test_constraint_results_populated_mssql(self) -> None:
+        crud, conn = _make_crud_for_dialect("mssql")
+        with crud.maintenance_scope("t") as ms:
+            pass
+        assert len(ms.constraint_results) == 1
+        assert ms.constraint_results[0].constraint_name == "ALL"
+        assert ms.constraint_results[0].status == "enabled"
+
+    def test_constraint_results_empty_when_no_constraints(self) -> None:
+        crud, conn = _make_crud_for_dialect("sqlite")
+        with crud.maintenance_scope("t") as ms:
+            pass
+        assert ms.constraint_results == []
+
+
+# ---------------------------------------------------------------------------
+# require_optimization
+# ---------------------------------------------------------------------------
+
+
+class TestMaintenanceScopeRequireOptimization:
+    def test_raises_when_pg_not_privileged_and_required(self) -> None:
+        crud, conn = _make_crud_for_dialect("postgresql")
+        conn.execute.return_value.scalar.return_value = False  # no privileges
+        with pytest.raises(RuntimeError, match="privilegios"):
+            with crud.maintenance_scope("t", require_optimization=True):
+                pass
+
+    def test_no_raise_when_pg_privileged_and_required(self) -> None:
+        crud, conn = _make_crud_for_dialect("postgresql")
+        conn.execute.return_value.scalar.return_value = True
+        with crud.maintenance_scope("t", require_optimization=True):
+            pass  # must not raise
+
+    def test_no_raise_for_sqlite_without_require(self) -> None:
+        crud, conn = _make_crud_for_dialect("sqlite")
+        with crud.maintenance_scope("t", require_optimization=False):
+            pass  # must not raise
+
+    def test_no_raise_for_mysql_required(self) -> None:
+        crud, conn = _make_crud_for_dialect("mysql")
+        with crud.maintenance_scope("t", require_optimization=True):
+            pass  # MySQL always applies FK_CHECKS optimization
 
 
 # ---------------------------------------------------------------------------

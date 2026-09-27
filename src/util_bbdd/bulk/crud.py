@@ -53,7 +53,7 @@ from ._execution.batch import (
     validate_chunk_size,
 )
 from ._execution.session import SessionScope
-from ._models import PKSyncResult
+from ._models import MaintenanceScopeConstraintResult, MaintenanceScopeResult, PKSyncResult
 from ._support.dialect import (
     MYSQL_FAMILY,
     can_disable_pg_triggers,
@@ -1100,7 +1100,8 @@ class BulkCrud:
         tabla_destino: str,
         disable_constraints: bool = True,
         disable_indexes: bool = False,
-    ) -> Generator[None, None, None]:
+        require_optimization: bool = False,
+    ) -> Generator[MaintenanceScopeResult, None, None]:
         """Context manager que prepara la tabla para una carga de alto volumen (>1M).
 
         Deshabilita temporalmente las comprobaciones de integridad y (opcionalmente)
@@ -1126,15 +1127,26 @@ class BulkCrud:
             disable_constraints: Deshabilita FKs y triggers. Por defecto True.
             disable_indexes: Deshabilita índices secundarios (MariaDB, MySQL y SQL Server).
                 Por defecto False.
+            require_optimization: Si True y la optimización no puede aplicarse (p.ej.
+                PostgreSQL sin privilegios suficientes), lanza :exc:`RuntimeError` en lugar
+                de continuar en silencio. Por defecto False.
 
-        Ejemplo:
-            >>> bulk = BulkCrud(engine)
-            >>> with bulk.bulk_session():
-            ...     with bulk.maintenance_scope("usuarios", disable_indexes=True):
-            ...         bulk.bulk_insert_from_df(df, "usuarios")
+        Yields:
+            :class:`MaintenanceScopeResult` con ``optimization_applied`` y
+            ``constraint_results`` (disponibles tras salir del bloque ``with``).
+
+        Ejemplo::
+
+            bulk = BulkCrud(engine)
+            with bulk.bulk_session():
+                with bulk.maintenance_scope("usuarios", disable_indexes=True) as ms:
+                    bulk.bulk_insert_from_df(df, "usuarios")
+            for r in ms.constraint_results:
+                print(r.constraint_name, r.status)
 
         Raises:
-            RuntimeError: Si se invoca fuera de un :meth:`bulk_session` activo.
+            RuntimeError: Si se invoca fuera de un :meth:`bulk_session` activo, o si
+                ``require_optimization=True`` y la optimización no puede aplicarse.
         """
         dialect: str = self.engine.dialect.name
         tabla = self.reflect_table(tabla_destino)
@@ -1152,31 +1164,38 @@ class BulkCrud:
         mssql_constraints_disabled = False
         indexes_disabled = False
         oracle_disabled: list[str] = []
+        result = MaintenanceScopeResult()
 
-        def restore() -> None:
+        def restore() -> list[MaintenanceScopeConstraintResult]:
             if disable_indexes:
                 self.__maintenance_enable_indexes(conn, dialect, quoted_name, indexes_disabled)
             if disable_constraints:
-                self.__maintenance_enable_constraints(
+                return self.__maintenance_enable_constraints(
                     conn, dialect, quoted_name, tabla, pg_disabled, mssql_constraints_disabled, oracle_disabled
                 )
+            return []
 
         try:
             if disable_constraints:
                 pg_disabled, mssql_constraints_disabled, oracle_disabled = self.__maintenance_disable_constraints(
-                    conn, dialect, quoted_name, tabla, tabla_destino
+                    conn, dialect, quoted_name, tabla, tabla_destino, require_optimization
+                )
+                result.optimization_applied = (
+                    pg_disabled or mssql_constraints_disabled or bool(oracle_disabled) or dialect in MYSQL_FAMILY
                 )
             if disable_indexes:
                 indexes_disabled = self.__maintenance_disable_indexes(conn, dialect, quoted_name, tabla, tabla_destino)
             self.logger.info(f"🛠️ Modo mantenimiento activado: {tabla_destino} ({dialect})")
-            yield
+            yield result
         except BaseException:
             self.__maintenance_restore_after_error(conn, restore, tabla_destino)
             raise
-        restore()
+        result.constraint_results = restore()
         self.logger.debug(f"🛠️ Modo mantenimiento finalizado: {tabla_destino}")
 
-    def __maintenance_restore_after_error(self, conn: Any, restore: Callable[[], None], tabla_destino: str) -> None:
+    def __maintenance_restore_after_error(
+        self, conn: Any, restore: Callable[[], list[MaintenanceScopeConstraintResult]], tabla_destino: str
+    ) -> None:
         """Restaura constraints/índices tras un fallo dentro de ``maintenance_scope`` sin ocultar el error original.
 
         Auditoría de bulk 2026-09-24: la restauración se hacía en un ``finally`` sobre la misma transacción. En
@@ -1216,6 +1235,7 @@ class BulkCrud:
         quoted_name: str,
         tabla: Table,
         tabla_destino: str,
+        require_optimization: bool = False,
     ) -> tuple[bool, bool, list[str]]:
         """Deshabilita constraints por motor; retorna (pg_disabled, mssql_disabled, oracle_names)."""
         if dialect in MYSQL_FAMILY:
@@ -1225,11 +1245,14 @@ class BulkCrud:
             if can_disable_pg_triggers(conn, tabla):
                 conn.execute(text(disable_table_integrity_sql(dialect, quoted_name)))
                 return True, False, []
-            self.logger.warning(
+            msg = (
                 f"⚠️ El usuario actual no tiene privilegios suficientes en PostgreSQL "
                 f"(requiere SUPERUSER o ser propietario de la tabla). "
                 f"Se omite DISABLE TRIGGER en {tabla_destino}."
             )
+            self.logger.warning(msg)
+            if require_optimization:
+                raise RuntimeError(msg)
             return False, False, []
         if dialect == "mssql":
             conn.execute(text(disable_table_integrity_sql(dialect, quoted_name)))
@@ -1310,32 +1333,50 @@ class BulkCrud:
         pg_disabled: bool,
         mssql_disabled: bool,
         oracle_disabled: list[str],
-    ) -> None:
-        """Restaura constraints deshabilitadas por motor."""
+    ) -> list[MaintenanceScopeConstraintResult]:
+        """Restaura constraints deshabilitadas por motor; retorna resultado por constraint."""
         if dialect in MYSQL_FAMILY:
             conn.execute(text("SET SESSION FOREIGN_KEY_CHECKS=1"))
-        elif dialect == "postgresql" and pg_disabled:
+            return [
+                MaintenanceScopeConstraintResult(
+                    constraint_name="FOREIGN_KEY_CHECKS",
+                    status="unverified",
+                    error_msg="FK_CHECKS restaurado; no hay validación retroactiva de integridad.",
+                )
+            ]
+        if dialect == "postgresql" and pg_disabled:
             conn.execute(text(enable_table_integrity_sql(dialect, quoted_name)))
-            self.__pg_check_fk_orphans(conn, tabla, quoted_name)
-        elif dialect == "mssql" and mssql_disabled:
+            return self.__pg_check_fk_orphans(conn, tabla, quoted_name)
+        if dialect == "mssql" and mssql_disabled:
             conn.execute(text(enable_table_integrity_sql(dialect, quoted_name)))
-        elif dialect == "oracle" and oracle_disabled:
+            return [MaintenanceScopeConstraintResult(constraint_name="ALL", status="enabled")]
+        if dialect == "oracle" and oracle_disabled:
             prep = self.engine.dialect.identifier_preparer
+            results: list[MaintenanceScopeConstraintResult] = []
             for name in oracle_disabled:
                 try:
                     conn.execute(
                         text(f"ALTER TABLE {quoted_name} ENABLE VALIDATE CONSTRAINT {prep.quote_identifier(name)}")
                     )
+                    results.append(MaintenanceScopeConstraintResult(constraint_name=name, status="enabled"))
                 except SQLAlchemyError as exc:
                     self.logger.warning(f"⚠️ No se pudo rehabilitar constraint '{name}': {exc}")
+                    results.append(
+                        MaintenanceScopeConstraintResult(constraint_name=name, status="failed", error_msg=str(exc))
+                    )
+            return results
+        return []
 
-    def __pg_check_fk_orphans(self, conn: Any, tabla: Table, quoted_name: str) -> None:
+    def __pg_check_fk_orphans(
+        self, conn: Any, tabla: Table, quoted_name: str
+    ) -> list[MaintenanceScopeConstraintResult]:
         """Audit H-01 (2026-09-27): DISABLE TRIGGER no marca FK como NOT VALID; verifica huérfanos explícitamente."""
         try:
             insp = inspect(self.engine)
             fks = insp.get_foreign_keys(tabla.name, schema=tabla.schema)
         except Exception:  # NoInspectionAvailable en mocks de test o motores sin inspector
-            return
+            return []
+        results: list[MaintenanceScopeConstraintResult] = []
         prep = self.engine.dialect.identifier_preparer
         for fk in fks:
             child_cols: list[str] = fk.get("constrained_columns", [])
@@ -1354,6 +1395,7 @@ class BulkCrud:
                 if parent_schema
                 else prep.quote_identifier(parent_table)
             )
+            fk_name = fk.get("name") or "?"
             try:
                 orphan = conn.execute(
                     text(
@@ -1365,11 +1407,18 @@ class BulkCrud:
             except SQLAlchemyError:
                 continue
             if orphan is not None:
-                self.logger.warning(
-                    f"⚠️ FK '{fk.get('name', '?')}' en '{tabla.name}': hay filas sin fila referenciada "
+                msg = (
+                    f"FK '{fk_name}' en '{tabla.name}': hay filas sin fila referenciada "
                     f"en '{parent_table}'. La FK está marcada como válida pero contiene violaciones. "
                     "Verificar integridad manualmente o hacer rollback."
                 )
+                self.logger.warning(f"⚠️ {msg}")
+                results.append(
+                    MaintenanceScopeConstraintResult(constraint_name=fk_name, status="failed", error_msg=msg)
+                )
+            else:
+                results.append(MaintenanceScopeConstraintResult(constraint_name=fk_name, status="enabled"))
+        return results
 
     def __oracle_fetch_constraint_names(self, tabla: Table) -> list[str]:
         """Retorna nombres de FK, CHECK (no SYS_C) y UNIQUE constraints de la tabla para Oracle."""

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 
@@ -34,4 +34,29 @@ class PKSyncResult:
     error_msg: str = ""
 
 
-__all__: list[str] = ["PKSyncResult"]
+@dataclass
+class MaintenanceScopeConstraintResult:
+    """Resultado de rehabilitar una constraint individual durante :meth:`BulkCrud.maintenance_scope`."""
+
+    constraint_name: str
+    status: Literal["enabled", "failed", "unverified"]
+    error_msg: str = ""
+
+
+@dataclass
+class MaintenanceScopeResult:
+    """Resultado acumulado del context manager :meth:`BulkCrud.maintenance_scope`.
+
+    Se obtiene mediante ``as`` en el bloque ``with``::
+
+        with bulk.maintenance_scope("orders") as ms:
+            bulk.bulk_insert_from_df(df, "orders")
+        for r in ms.constraint_results:
+            print(r.constraint_name, r.status)
+    """
+
+    optimization_applied: bool = False
+    constraint_results: list[MaintenanceScopeConstraintResult] = field(default_factory=list)
+
+
+__all__: list[str] = ["MaintenanceScopeConstraintResult", "MaintenanceScopeResult", "PKSyncResult"]
