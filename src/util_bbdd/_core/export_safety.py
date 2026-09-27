@@ -1,17 +1,22 @@
-"""Escritura segura en Excel (openpyxl) para todos los informes de la librería.
+"""Escritura segura de informes (Excel con openpyxl y Word con python-docx) para toda la librería.
 
 Dos defensas, en un único punto para los informes de ``dump``, ``bulk`` (auditoría), ``comparar`` y ``doc``:
 
 - **Caracteres de control**: openpyxl lanza ``IllegalCharacterError`` (no es ``ValueError`` ni ``OSError``) al asignar una
   cadena con caracteres de control (``\\x00``-``\\x08``, ``\\x0b``, ``\\x0c``, ``\\x0e``-``\\x1f``). Un mensaje de error del
-  driver o un comentario del catálogo con uno de ellos abortaba el informe entero. Se eliminan al escribir.
+  driver o un comentario del catálogo con uno de ellos abortaba el informe entero. Se eliminan al escribir. python-docx
+  falla igual (``ValueError: All strings must be XML compatible``): los mismos caracteres, porque XML 1.0 no los admite.
 - **Fórmulas** (H12, audit-code 2026-09-25): openpyxl toma por fórmula toda cadena que empieza por ``=``, así que un
   nombre o comentario del catálogo como ``=HYPERLINK(...)`` se ejecutaría al abrir el fichero. Los informes de la
   librería nunca contienen fórmulas propias: al guardar, toda celda de fórmula se guarda como texto.
 
-Uso: crear el libro con :class:`SafeWorkbook` en lugar de ``openpyxl.Workbook``; el resto del código no cambia. Para los
-libros que crea pandas (``DataFrame.to_excel``), sanear antes con :func:`safe_frame` y aplicar
-:func:`neutralize_formulas` a cada hoja.
+Uso:
+
+- Excel: crear el libro con :class:`SafeWorkbook` en lugar de ``openpyxl.Workbook``; el resto del código no cambia. Para
+  los libros que crea pandas (``DataFrame.to_excel``), sanear antes con :func:`safe_frame` y aplicar
+  :func:`neutralize_formulas` a cada hoja.
+- Word: python-docx no tiene un punto único por el que pase todo el texto; los generadores pasan por :func:`safe_text` el
+  texto no literal de ``add_heading``, ``add_paragraph``, ``add_run`` y ``celda.text``.
 """
 
 from __future__ import annotations
@@ -22,7 +27,7 @@ from typing import Any
 import pandas as pd
 
 from openpyxl import Workbook
-from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE, Cell, MergedCell
 from openpyxl.worksheet.worksheet import Worksheet
 
 
@@ -31,6 +36,14 @@ def safe_value(value: Any) -> Any:
     if isinstance(value, str):
         return ILLEGAL_CHARACTERS_RE.sub("", value)
     return value
+
+
+def safe_text(value: object) -> str:
+    """``str(value)`` sin los caracteres que XML 1.0 no admite (para python-docx). ``None`` pasa a ``""``."""
+    if value is None:
+        return ""
+    cleaned: str = ILLEGAL_CHARACTERS_RE.sub("", value if isinstance(value, str) else str(value))
+    return cleaned
 
 
 def safe_frame(dataframe: pd.DataFrame) -> pd.DataFrame:
@@ -58,7 +71,7 @@ class SafeWorksheet(Worksheet):
     No añade estado: :class:`SafeWorkbook` la asigna como clase de las hojas que crea openpyxl.
     """
 
-    def cell(self, row: int, column: int, value: Any = None) -> Any:
+    def cell(self, row: int, column: int, value: Any = None) -> Cell | MergedCell:
         return super().cell(row=row, column=column, value=safe_value(value))
 
     def append(self, iterable: Any) -> None:
@@ -74,16 +87,21 @@ class SafeWorksheet(Worksheet):
 
 
 class SafeWorkbook(Workbook):
-    """``openpyxl.Workbook`` cuyas hojas son :class:`SafeWorksheet` y que neutraliza las fórmulas al guardar."""
+    """``openpyxl.Workbook`` cuyas hojas son :class:`SafeWorksheet` y que neutraliza las fórmulas al guardar.
+
+    No admite ``write_only=True``: sus hojas (``WriteOnlyWorksheet``) no pasan por ``cell``/``append`` de ``Worksheet``.
+    """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        if kwargs.get("write_only") or (args and args[0]):
+            raise ValueError("SafeWorkbook no admite write_only=True")
         super().__init__(*args, **kwargs)
         for sheet in self._sheets:
             if type(sheet) is Worksheet:
                 sheet.__class__ = SafeWorksheet
 
-    def create_sheet(self, title: str | None = None, index: int | None = None) -> Any:
-        sheet = super().create_sheet(title=title, index=index)
+    def create_sheet(self, title: str | None = None, index: int | None = None) -> Worksheet:
+        sheet: Worksheet = super().create_sheet(title=title, index=index)
         if type(sheet) is Worksheet:
             sheet.__class__ = SafeWorksheet
         return sheet
@@ -95,4 +113,4 @@ class SafeWorkbook(Workbook):
         super().save(filename)
 
 
-__all__: list[str] = ["SafeWorkbook", "SafeWorksheet", "neutralize_formulas", "safe_frame", "safe_value"]
+__all__: list[str] = ["SafeWorkbook", "SafeWorksheet", "neutralize_formulas", "safe_frame", "safe_text", "safe_value"]

@@ -14,8 +14,8 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.worksheet.worksheet import Worksheet
 
-from ...._core.excel_safety import SafeWorkbook
 from ...._core.exceptions import DatabaseException
+from ...._core.export_safety import SafeWorkbook
 from ...application.ports import DocumentationManagerPort, HeadersConfig
 from .shared.generator_shared import (
     GeneratorDatabaseInfoRuntime,

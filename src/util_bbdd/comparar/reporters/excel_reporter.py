@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, ClassVar
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from util_bbdd._core.excel_safety import SafeWorkbook
+from util_bbdd._core.export_safety import SafeWorkbook
 
 if TYPE_CHECKING:
     from pathlib import Path

@@ -24,6 +24,7 @@ from docx.text.paragraph import Paragraph
 from docx.text.run import Run
 
 from ...._core.exceptions import DatabaseException
+from ...._core.export_safety import safe_text
 from ....analysis.graphviz_ext import GraphvizRelationshipGraphExt
 from ...application.ports import DocumentationManagerPort, HeadersConfig
 from .shared.diagram_legend import (
@@ -244,7 +245,7 @@ class WordGenerator:
         try:
             document: Document = self._initialize_document(config.template_path)
             self._configure_document_orientation(document, config.template_path)
-            document.add_heading(f"Documentación de la Base de Datos - {self.database}", 0)
+            document.add_heading(safe_text(f"Documentación de la Base de Datos - {self.database}"), 0)
             if idx == 1:
                 if config.include_diagrams:
                     self._add_diagram_legend_section(document=document)
@@ -356,7 +357,7 @@ class WordGenerator:
         )
 
         for note in legend_payload.get("notes", []):
-            document.add_paragraph(note)
+            document.add_paragraph(safe_text(note))
         document.add_paragraph("")
 
     def _configure_document_orientation(self, document: Document, template_path: Path | None) -> None:
@@ -507,18 +508,18 @@ class WordGenerator:
     ) -> None:
         """Agrega una sección completa para una tabla."""
         document.add_page_break()
-        document.add_heading(f"Tabla: {tabla}", level=1)
+        document.add_heading(safe_text(f"Tabla: {tabla}"), level=1)
 
         # Comentario con etiqueta en negrita
         p = document.add_paragraph()
         p.add_run("Comentario:").bold = True
-        p.add_run(f" {comentario if comentario else ''}")
+        p.add_run(safe_text(f" {comentario if comentario else ''}"))
 
         # Charset & Collation con etiqueta en negrita
         if charset_collation and str(charset_collation).strip():
             p = document.add_paragraph()
             p.add_run("Charset & Collation:").bold = True
-            p.add_run(f" {charset_collation}")
+            p.add_run(safe_text(f" {charset_collation}"))
 
         secciones = [
             (0, lambda: self._add_ddl_section(document, tabla, data_provider)),
@@ -606,8 +607,8 @@ class WordGenerator:
                 )
         except (OSError, RuntimeError) as e:
             document.add_page_break()
-            document.add_heading(f"Diagrama de relaciones: {tabla}", level=2)
-            document.add_paragraph(f"⚠️ No se pudo generar el diagrama: {e}")
+            document.add_heading(safe_text(f"Diagrama de relaciones: {tabla}"), level=2)
+            document.add_paragraph(safe_text(f"⚠️ No se pudo generar el diagrama: {e}"))
 
     def _add_single_diagram_page_pipe(
         self,
@@ -653,7 +654,9 @@ class WordGenerator:
             if png_bytes is not None:
                 self.logger.info(f"🖼️  Diagrama Word para {tabla} desde caché SVG ({len(png_bytes)} bytes PNG)")
                 document.add_page_break()
-                title_paragraph: Paragraph = document.add_heading(f"Diagrama de relaciones: {tabla}", level=2)
+                title_paragraph: Paragraph = document.add_heading(
+                    safe_text(f"Diagrama de relaciones: {tabla}"), level=2
+                )
                 self._add_picture_from_bytes(document=document, image_bytes=png_bytes, title_paragraph=title_paragraph)
                 self._add_diagram_summary_paragraph(document=document, summary_payload=diagram_summary)
                 return
@@ -671,7 +674,7 @@ class WordGenerator:
             image_bytes: bytes = graph_generator.pipe_single_table_graph_ext(**kwargs)
             self.logger.info(f"🖼️  Diagrama generado en memoria para {tabla} ({len(image_bytes)} bytes)")
             document.add_page_break()
-            title_paragraph = document.add_heading(f"Diagrama de relaciones: {tabla}", level=2)
+            title_paragraph = document.add_heading(safe_text(f"Diagrama de relaciones: {tabla}"), level=2)
             self._add_picture_from_bytes(document=document, image_bytes=image_bytes, title_paragraph=title_paragraph)
         else:
             output_dir = Path(diagram_options.get("output_dir", Path.cwd() / "_table_diagrams"))
@@ -689,7 +692,7 @@ class WordGenerator:
             generated_path = Path(graph_generator.generate_single_table_graph_ext(**disk_kwargs))
             self.logger.info(f"🖼️  Diagrama generado en disco para {tabla}: {generated_path}")
             document.add_page_break()
-            title_paragraph = document.add_heading(f"Diagrama de relaciones: {tabla}", level=2)
+            title_paragraph = document.add_heading(safe_text(f"Diagrama de relaciones: {tabla}"), level=2)
             self._add_picture_fit_to_page(document=document, image_path=generated_path, title_paragraph=title_paragraph)
 
         self.logger.info(f"🖼️  Diagrama insertado en Word para {tabla}")
@@ -764,7 +767,7 @@ class WordGenerator:
             for page_idx, page_bytes in enumerate(pages_bytes, start=1):
                 document.add_page_break()
                 title = f"Diagrama de relaciones: {tabla} (Página {page_idx})"
-                title_paragraph: Paragraph = document.add_heading(title, level=2)
+                title_paragraph: Paragraph = document.add_heading(safe_text(title), level=2)
                 self._add_picture_from_bytes(document=document, image_bytes=page_bytes, title_paragraph=title_paragraph)
                 self.logger.info(f"🖼️  Diagrama paginado insertado en Word para {tabla} ({page_idx}/{len(pages_bytes)})")
                 self._add_diagram_summary_paragraph(document=document, summary_payload=diagram_summary)
@@ -778,7 +781,7 @@ class WordGenerator:
             for page_idx, generated_path in enumerate(generated_paths, start=1):
                 document.add_page_break()
                 title = f"Diagrama de relaciones: {tabla} (Página {page_idx})"
-                title_paragraph = document.add_heading(title, level=2)
+                title_paragraph = document.add_heading(safe_text(title), level=2)
                 self._add_picture_fit_to_page(
                     document=document, image_path=generated_path, title_paragraph=title_paragraph
                 )
@@ -846,7 +849,7 @@ class WordGenerator:
         for page_idx, (title_suffix, png_bytes) in enumerate(png_pages, start=1):
             document.add_page_break()
             title = f"Diagrama de relaciones: {tabla} - {title_suffix}"
-            title_paragraph: Paragraph = document.add_heading(title, level=2)
+            title_paragraph: Paragraph = document.add_heading(safe_text(title), level=2)
             self._add_picture_from_bytes(document=document, image_bytes=png_bytes, title_paragraph=title_paragraph)
             self.logger.info(f"🖼️  Página {page_idx}/{len(png_pages)} desde caché para {tabla}")
             self._add_diagram_summary_paragraph(document=document, summary_payload=diagram_summary)
@@ -975,23 +978,23 @@ class WordGenerator:
 
         paragraph: Paragraph = document.add_paragraph()
         paragraph.add_run("Resumen de niveles: ").bold = True
-        paragraph.add_run(build_diagram_summary_line(summary_payload))
+        paragraph.add_run(safe_text(build_diagram_summary_line(summary_payload)))
 
         if bool(summary_payload.get("has_any_hidden_levels")):
             if bool(summary_payload.get("has_hidden_outgoing_levels")):
-                document.add_paragraph(str(summary_payload.get("outgoing_hidden_help", "")))
+                document.add_paragraph(safe_text(str(summary_payload.get("outgoing_hidden_help", ""))))
             if bool(summary_payload.get("has_hidden_incoming_levels")):
-                document.add_paragraph(str(summary_payload.get("incoming_hidden_help", "")))
+                document.add_paragraph(safe_text(str(summary_payload.get("incoming_hidden_help", ""))))
 
         for tip in summary_payload.get("navigation_tips", []):
-            document.add_paragraph(str(tip))
+            document.add_paragraph(safe_text(str(tip)))
 
     def _add_picture_fit_to_page(
         self, document: Document, image_path: Path, title_paragraph: Paragraph | None = None
     ) -> None:
         """Inserta imagen ajustándola proporcionalmente al área imprimible de la página."""
         if not image_path.exists():
-            document.add_paragraph(f"⚠️ No se encontró el archivo de imagen: {image_path}")
+            document.add_paragraph(safe_text(f"⚠️ No se encontró el archivo de imagen: {image_path}"))
             return
 
         max_width, max_height = self._compute_max_dimensions(document, title_paragraph)
@@ -1135,8 +1138,8 @@ class WordGenerator:
     ) -> None:
         """Agrega una sección para una vista (solo DDL y Columnas)"""
         document.add_page_break()
-        document.add_heading(f"Vista: {vista}", level=2)
-        document.add_paragraph(f"Comentario: {comentario if comentario else ''}")
+        document.add_heading(safe_text(f"Vista: {vista}"), level=2)
+        document.add_paragraph(safe_text(f"Comentario: {comentario if comentario else ''}"))
 
         # Secciones para vistas: [DDL, Columnas]
         if len(section_flags) > 0 and section_flags[0]:
@@ -1201,7 +1204,7 @@ class WordGenerator:
         include_ddl: bool,
     ) -> None:
         """Agrega rutinas de un tipo específico (Procedures o Funciones)."""
-        document.add_heading(routine_type, level=1)
+        document.add_heading(safe_text(routine_type), level=1)
         for routine in routines:
             routine_name, routine_type_normalized, routine_comment = self._normalize_routine_entry(routine)
             self._add_routine_section(
@@ -1245,9 +1248,9 @@ class WordGenerator:
     ) -> None:
         """Agrega una sección para una rutina (procedure/función)."""
         document.add_page_break()
-        document.add_heading(f"{routine_type.title()}: {routine_name}", level=2)
-        document.add_paragraph(f"Tipo: {routine_type.title()}")
-        document.add_paragraph(f"Comentario: {comentario if comentario else ''}")
+        document.add_heading(safe_text(f"{routine_type.title()}: {routine_name}"), level=2)
+        document.add_paragraph(safe_text(f"Tipo: {routine_type.title()}"))
+        document.add_paragraph(safe_text(f"Comentario: {comentario if comentario else ''}"))
 
         if include_ddl:
             try:
@@ -1255,7 +1258,7 @@ class WordGenerator:
                 text_ddl: str = ddl if ddl is not None else ""
                 document.add_heading("DDL", level=3)
                 paragraph: Paragraph = document.add_paragraph()
-                run: Run = paragraph.add_run(text_ddl)
+                run: Run = paragraph.add_run(safe_text(text_ddl))
                 run.font.name = "Courier New"
                 run.font.size = Pt(10.5)
                 paragraph.style = "No Spacing"
@@ -1316,7 +1319,7 @@ class WordGenerator:
 
         document.add_heading("DDL", level=2)
         paragraph: Paragraph = document.add_paragraph()
-        run: Run = paragraph.add_run(text_ddl)
+        run: Run = paragraph.add_run(safe_text(text_ddl))
         run.font.name = "Courier New"
         run.font.size = Pt(10.5)
         paragraph.style = "No Spacing"
@@ -1416,8 +1419,8 @@ class WordGenerator:
 
     def _add_empty_section(self, document: Document, title: str, message: str) -> None:
         """Agrega título de sección y mensaje cuando no hay resultados."""
-        document.add_heading(title, level=2)
-        document.add_paragraph(message)
+        document.add_heading(safe_text(title), level=2)
+        document.add_paragraph(safe_text(message))
         document.add_paragraph("")
 
     def _add_database_info_section(
@@ -1544,7 +1547,7 @@ class WordGenerator:
     ) -> None:
         """Agrega una tabla al documento Word"""
         align_right_set: set[int] = set(right_align_indices or [])
-        document.add_heading(title, level=2)
+        document.add_heading(safe_text(title), level=2)
         table: Table = document.add_table(rows=1, cols=len(headers))
         self._apply_table_style(table=table, document=document)
         self._repeat_header(table.rows[0])
@@ -1552,7 +1555,7 @@ class WordGenerator:
         # Agregar encabezados
         hdr_cells = table.rows[0].cells
         for i, header in enumerate(headers):
-            hdr_cells[i].text = header
+            hdr_cells[i].text = safe_text(header)
 
         # Agregar datos
         for row_data in data:
@@ -1560,7 +1563,7 @@ class WordGenerator:
             max_cols = min(len(headers), len(row_data))
             for i in range(max_cols):
                 val = row_data[i]
-                row_cells[i].text = str(val) if val is not None else ""
+                row_cells[i].text = safe_text(str(val) if val is not None else "")
                 if i in align_right_set:
                     for paragraph in row_cells[i].paragraphs:
                         paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT

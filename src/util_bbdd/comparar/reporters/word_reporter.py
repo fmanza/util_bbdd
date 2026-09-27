@@ -17,6 +17,8 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Mm, Pt, RGBColor
 
+from util_bbdd._core.export_safety import safe_text
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -166,7 +168,7 @@ class WordDiffReporter:
         row = table.rows[0]
         for idx, text in enumerate(headers):
             cell = row.cells[idx]
-            cell.text = text
+            cell.text = safe_text(text)
             self._set_cell_shading(cell, self._HEADER_HEX)
             for para in cell.paragraphs:
                 para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -183,7 +185,7 @@ class WordDiffReporter:
         hex_bg = self._STATUS_HEX.get(status or "", "") if status else ""
         for idx, val in enumerate(values):
             cell = row.cells[idx]
-            cell.text = val
+            cell.text = safe_text(val)
             if hex_bg:
                 self._set_cell_shading(cell, hex_bg)
             for para in cell.paragraphs:
@@ -202,7 +204,7 @@ class WordDiffReporter:
         p = doc.add_paragraph()
         p.paragraph_format.space_before = Pt(4)
         p.paragraph_format.space_after = Pt(1)
-        run = p.add_run(text)
+        run = p.add_run(safe_text(text))
         run.bold = True
         run.font.size = Pt(8)
         run.font.color.rgb = RGBColor(0x37, 0x41, 0x51)
@@ -213,7 +215,7 @@ class WordDiffReporter:
         p = doc.add_paragraph()
         p.paragraph_format.space_before = Pt(0)
         p.paragraph_format.space_after = Pt(3)
-        run = p.add_run(code)
+        run = p.add_run(safe_text(code))
         run.font.name = "Courier New"
         run.font.size = Pt(7)
 
@@ -318,7 +320,7 @@ class WordDiffReporter:
         sub = doc.add_paragraph()
         sub.paragraph_format.space_before = Pt(8)
         sub.paragraph_format.space_after = Pt(2)
-        sub_run = sub.add_run(f"{td.table_name}  —  {estado}")
+        sub_run = sub.add_run(safe_text(f"{td.table_name}  —  {estado}"))
         sub_run.bold = True
         sub_run.font.size = Pt(10)
         if td.status in self._STATUS_TEXT_COLOR:
@@ -347,7 +349,7 @@ class WordDiffReporter:
             subset = [td for td in table_diffs if td.status == status]
             if not subset:
                 continue
-            doc.add_heading(label, level=1)
+            doc.add_heading(safe_text(label), level=1)
             for td in subset:
                 self._add_table_details(doc, td)
 
@@ -358,7 +360,7 @@ class WordDiffReporter:
             sub = doc.add_paragraph()
             sub.paragraph_format.space_before = Pt(6)
             sub.paragraph_format.space_after = Pt(2)
-            sub.add_run(f"{vd.view_name}  —  {estado}").bold = True
+            sub.add_run(safe_text(f"{vd.view_name}  —  {estado}")).bold = True
 
             if vd.source_definition:
                 self._mini_heading(doc, "Definición origen")
@@ -374,7 +376,7 @@ class WordDiffReporter:
             sub = doc.add_paragraph()
             sub.paragraph_format.space_before = Pt(6)
             sub.paragraph_format.space_after = Pt(2)
-            sub.add_run(f"{rd.routine_name} ({rd.routine_type})  —  {estado}").bold = True
+            sub.add_run(safe_text(f"{rd.routine_name} ({rd.routine_type})  —  {estado}")).bold = True
 
             if rd.source_definition:
                 self._mini_heading(doc, "Definición origen")
