@@ -165,8 +165,7 @@ class DumpReporter:
                 (disco lleno, permisos, fichero abierto) o un valor que openpyxl no admite. ``output_path`` lleva la
                 ruta prevista.
         """
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = self._output_dir / f"dump_report_{ts}.xlsx"
+        output_path = self._free_report_path(self._output_dir, datetime.now().strftime("%Y%m%d_%H%M%S"))
         try:
             self._output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -195,6 +194,19 @@ class DumpReporter:
 
         self.logger.info("Informe Excel guardado en '%s'.", output_path)
         return output_path
+
+    @staticmethod
+    def _free_report_path(output_dir: Path, ts: str) -> Path:
+        """``dump_report_<ts>.xlsx``, o con sufijo ``_2``, ``_3``… si ya existe (dos volcados en el mismo segundo).
+
+        Sin reserva atómica: dos procesos que lo comprueben a la vez pueden elegir el mismo nombre.
+        """
+        candidate = output_dir / f"dump_report_{ts}.xlsx"
+        n = 2
+        while candidate.exists():
+            candidate = output_dir / f"dump_report_{ts}_{n}.xlsx"
+            n += 1
+        return candidate
 
     # ------------------------------------------------------------------
     # Hoja 6: Secuencias PK (opcional)

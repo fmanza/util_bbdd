@@ -26,6 +26,20 @@ cuatro informes Excel de la librería escriben de forma segura los textos que vi
   leer. Un fichero ilegible por permisos no se aparta: la escritura falla como antes.
 - **dump**: si el CSV de auditoría se sustituye durante el volcado, el resumen lo lee entero en lugar de hacerlo desde
   el desplazamiento del fichero anterior.
+- **bulk**: el lock por fichero del CSV de auditoría se calculaba con `Path.resolve()`, que en Windows devuelve
+  `\\?\C:\...` mientras el fichero se renombra y `C:\...` el resto del tiempo: dos hilos podían obtener locks distintos
+  para el mismo CSV y uno pisaba la cabecera y las filas del otro (3 de 320 filas perdidas al apartar un CSV con 8
+  hilos). Ahora la clave es una normalización de texto (`abspath` + `normcase`), sin consultar el disco.
+- **bulk**: dos CSV apartados en el mismo segundo ya no chocan de nombre (`.invalid-<fecha>_2.csv`), y la cabecera se
+  vuelve a comprobar si cambian las columnas (setter obsoleto `AuditManager.columnas_auditoria`).
+- **bulk**: `exportar_resumen_excel` lanza `AuditExportError` si no puede escribir `auditoria.xlsx` (p.ej. abierto en
+  Excel), como ya hacían JSON y HTML con `AuditDataError`. Es subclase de `AuditDataError` y también de `OSError`, así
+  que `except OSError` sigue funcionando.
+- **comparar**, **doc**: los informes Word eliminan los caracteres de control del texto del catálogo; python-docx
+  fallaba con `ValueError: All strings must be XML compatible`.
+- **dump**: un segundo volcado en el mismo segundo ya no sobrescribe el informe: se añade `_2`, `_3`… al nombre.
+- **dump**: el ERROR que registra `run()` cuando falla el informe ya no incluye la traza (viaja en la excepción que se
+  relanza; el llamador la registraba dos veces).
 
 ### Security
 
@@ -34,9 +48,17 @@ cuatro informes Excel de la librería escriben de forma segura los textos que vi
 
 ### Added
 
-- **_core**: `excel_safety` con `SafeWorkbook` (hojas que sanean `cell`, `append` y `ws["A1"] = ...`, y fórmulas
-  como texto al guardar), `safe_value`, `safe_frame` y `neutralize_formulas`: punto único para los cuatro informes.
+- **bulk**: `AuditExportError` (exportada en `util_bbdd`, `util_bbdd.bulk.audit`).
+- **_core**: `export_safety` con `SafeWorkbook` (hojas que sanean `cell`, `append` y `ws["A1"] = ...`, y fórmulas
+  como texto al guardar), `safe_value`, `safe_frame`, `neutralize_formulas` y `safe_text` (Word): punto único para
+  los informes Excel y Word.
 - **dump**: `DumpReportError.output_path` y `DumpReportError.result`.
+
+### Changed
+
+- **docs**: el diagrama de capas refleja que `bulk/` importa `connection/` a nivel de módulo desde `ad4b08e`
+  (`bulk/crud.py:46`, `EngineReadinessAdvisor.report_once`); `gen_arquitectura_capas.py` deduce ahora de la medición si
+  esa flecha es perezosa (antes lo suponía y fallaba con `KeyError: 'lazy'`).
 
 ## [0.18.2] - 2026-09-27
 

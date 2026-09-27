@@ -280,7 +280,8 @@ class DumpOrchestrator:
             # Sin esto, un fallo del informe perdía el resultado de una carga ya completada.
             dump_result.report = exc.output_path or cfg.output_dir
             exc.result = dump_result
-            self.logger.error("Volcado completado, pero sin informe Excel: %s", exc, exc_info=True)
+            # Sin traza: la excepción se relanza y la lleva; el llamador la registraría dos veces.
+            self.logger.error("Volcado completado, pero sin informe Excel: %s", exc)
             raise
 
         return dump_result

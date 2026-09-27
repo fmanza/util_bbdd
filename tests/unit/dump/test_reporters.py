@@ -139,6 +139,30 @@ class TestDumpReporterDumpReportError:
         assert not excinfo.value.output_path.exists()
         assert excinfo.value.result is None
 
+    def test_error_survives_pickle_with_path_and_result(self) -> None:
+        import pickle
+
+        exc = DumpReportError("disco lleno", output_path=Path("salida/dump_report_x.xlsx"))
+        exc.result = {"tablas": 3}
+
+        copia = pickle.loads(pickle.dumps(exc))
+
+        assert (str(copia), copia.output_path, copia.result) == (str(exc), exc.output_path, {"tablas": 3})
+
+
+class TestReportFileName:
+    def test_second_report_in_the_same_second_does_not_overwrite_the_first(self, tmp_path: Path) -> None:
+        # P4: el nombre lleva la hora al segundo; dos volcados en el mismo segundo se pisaban.
+        (tmp_path / "dump_report_20260927_120000.xlsx").write_bytes(b"primero")
+        (tmp_path / "dump_report_20260927_120000_2.xlsx").write_bytes(b"segundo")
+
+        path = DumpReporter._free_report_path(tmp_path, "20260927_120000")
+
+        assert path.name == "dump_report_20260927_120000_3.xlsx"
+
+    def test_free_name_is_the_plain_one(self, tmp_path: Path) -> None:
+        assert DumpReporter._free_report_path(tmp_path, "20260927_120000").name == "dump_report_20260927_120000.xlsx"
+
 
 # ---------------------------------------------------------------------------
 # Hoja 1: Auditoría Tablas

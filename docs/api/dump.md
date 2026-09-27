@@ -81,8 +81,11 @@ Ver tabla de `DumpConfig` arriba. Los engines deben estar conectables antes de l
   informe sale sin la hoja «Auditoría Bulk» y `audit_summary` es `None`.
 - Si falla el propio informe, la carga ya ha terminado: `run()` lanza `DumpReportError` con el resultado completo en
   `exc.result` (su `report` es la ruta prevista, `exc.output_path`, que no llegó a crearse).
+- El informe se llama `dump_report_<AAAAMMDD_HHMMSS>.xlsx`; si ya existe uno con ese nombre (dos volcados en el mismo
+  segundo), se añade `_2`, `_3`… en lugar de sobrescribirlo.
 - Los textos del informe se escriben sin caracteres de control, y los que empiezan por `=` se guardan como texto, no
-  como fórmula (igual en los informes Excel de `bulk`, `comparar` y `doc`).
+  como fórmula (igual en los informes Excel de `bulk`, `comparar` y `doc`; los informes Word de `comparar` y `doc`
+  también eliminan los caracteres de control).
 
 ```python
 from util_bbdd.dump import DumpOrchestrator, DumpReportError
