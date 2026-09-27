@@ -87,7 +87,7 @@ relacionado con exportación y una solución definitiva» → variante (a) → P
 ## Veredicto final
 Veredicto: CLOSED
 Pendientes al cierre:
-- Tag `v0.18.3` (y `v0.18.2`, que tampoco lo tiene) y push de `develop`: decisión del usuario.
+- (Resuelto 2026-09-28) Tags `v0.18.2` (`ad4b08e`) y `v0.18.3` (`02d0a0c`) creados y publicados; `develop` subido a `origin`.
 - CSV del usuario (`pruebas_util/.../bulk_audit.csv`): se apartará solo en el próximo volcado; no se ha tocado.
 - L5 (valor provisional `report=cfg.output_dir` en `run()`) aceptado como está, con comentario.
 - `detail.html.j2:416` usa `|safe` con el SVG de Graphviz: fuera del alcance de exportación, sin revisar.
