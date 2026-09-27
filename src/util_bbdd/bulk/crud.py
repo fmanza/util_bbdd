@@ -1529,7 +1529,3 @@ class BulkCrud:
 
         syncer = PKSequenceSyncer(self.engine)
         return syncer.sync_all(table_objects)
-
-
-# Alias retrocompatible — la API pública histórica usaba snake_case.
-bulk_crud = BulkCrud

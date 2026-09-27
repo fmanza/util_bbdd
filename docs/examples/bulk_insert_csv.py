@@ -29,13 +29,13 @@ mgr = SyncDatabaseManager(
 )
 engine = mgr.get_sqlalchemy_engine()
 
-# Bulk insert usando bulk_crud
-from util_bbdd.bulk import bulk_crud
+# Bulk insert usando BulkCrud
+from util_bbdd.bulk import BulkCrud
 
 audit_csv_path = Path("./audit_bulk")
 audit_csv_path.mkdir(exist_ok=True)
 
-bcm = bulk_crud(engine=engine, audit_csv_path=audit_csv_path)
+bcm = BulkCrud(engine=engine, audit_csv_path=audit_csv_path)
 df = pd.read_csv(csv_input)
 bcm.bulk_insert_from_df(df, tabla_destino="usuarios")
 

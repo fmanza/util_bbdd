@@ -17,10 +17,10 @@ import pytest
 from sqlalchemy import Column, Integer, MetaData, String, Table, create_engine
 
 from util_bbdd.bulk._support.sql_helpers import compile_stmt_with_binary_support, format_sql_param_value
-from util_bbdd.bulk.crud import bulk_crud
+from util_bbdd.bulk.crud import BulkCrud
 
 
-def _get_private_method(manager: bulk_crud, name: str) -> Callable[..., Any]:
+def _get_private_method(manager: BulkCrud, name: str) -> Callable[..., Any]:
     return cast(Callable[..., Any], getattr(manager, name))
 
 
@@ -133,27 +133,27 @@ class _NamedValueContainsPlaceholderStmt:
 
 
 @pytest.fixture
-def sqlite_bulk_manager() -> bulk_crud:
-    return bulk_crud(engine=create_engine("sqlite:///:memory:"))
+def sqlite_bulk_manager() -> BulkCrud:
+    return BulkCrud(engine=create_engine("sqlite:///:memory:"))
 
 
 def test_detect_sqlserver_driver_sets_specific_db_info(mock_sqlserver_engine) -> None:
     mock_sqlserver_engine.url.drivername = "mssql+pymssql"
 
-    manager = bulk_crud(engine=mock_sqlserver_engine)
+    manager = BulkCrud(engine=mock_sqlserver_engine)
 
     assert manager.db_info == "MSSQL (pymssql)"
 
 
 def test_generar_nombre_sql_dinamico_contains_db_table_operation_and_timestamp() -> None:
-    manager = bulk_crud(engine=create_engine("sqlite:///mydb.db"))
+    manager = BulkCrud(engine=create_engine("sqlite:///mydb.db"))
 
     sql_path = cast(Any, manager)._persistence.build_sql_filename("users", "INSERT")
 
     assert re.fullmatch(r"mydb\.db-users-insert_\d{8}_\d{6}\.sql", str(sql_path))
 
 
-def test_validar_y_generar_path_sql_validates_input_type(sqlite_bulk_manager: bulk_crud) -> None:
+def test_validar_y_generar_path_sql_validates_input_type(sqlite_bulk_manager: BulkCrud) -> None:
     with pytest.raises(ValueError, match="path_sql es obligatorio"):
         _get_private_method(sqlite_bulk_manager, "_BulkCrud__validar_y_generar_path_sql")(None, "users", "insert")
 
@@ -164,7 +164,7 @@ def test_validar_y_generar_path_sql_validates_input_type(sqlite_bulk_manager: bu
 
 
 def test_validar_y_generar_path_sql_joins_base_path_and_dynamic_name(
-    tmp_path: Path, sqlite_bulk_manager: bulk_crud
+    tmp_path: Path, sqlite_bulk_manager: BulkCrud
 ) -> None:
     persistence = MagicMock()
     persistence.resolve_sql_output_path.return_value = tmp_path / "generated.sql"
@@ -178,7 +178,7 @@ def test_validar_y_generar_path_sql_joins_base_path_and_dynamic_name(
     persistence.resolve_sql_output_path.assert_called_once_with(tmp_path, "users", "insert")
 
 
-def test_actualizar_df_normalizes_columns_nan_unchanged(sqlite_bulk_manager: bulk_crud) -> None:
+def test_actualizar_df_normalizes_columns_nan_unchanged(sqlite_bulk_manager: BulkCrud) -> None:
     # __actualizar_df sólo normaliza casing; NaN→None ocurre en normalize_sql_literal.
     df = pd.DataFrame({"Col": [1, np.nan]})
     tabla = Table("t", MetaData(), Column("col", Integer))
@@ -197,7 +197,7 @@ def test_actualizar_df_mysql_mariadb_preserves_column_case(dialect_name: str) ->
     rompería el match contra tablas con columnas en minúsculas (lo habitual)."""
     engine = MagicMock()
     engine.dialect.name = dialect_name
-    manager = bulk_crud(engine=engine)
+    manager = BulkCrud(engine=engine)
     df = pd.DataFrame({"UserId": [1], "user_name": ["a"], "MixedCase": [2]})
     tabla = Table("t", MetaData(), Column("UserId", Integer), Column("user_name", String), Column("MixedCase", Integer))
 
@@ -224,7 +224,7 @@ def test_actualizar_df_aligns_columns_with_reflected_table(
 ) -> None:
     engine = MagicMock()
     engine.dialect.name = dialect_name
-    manager = bulk_crud(engine=engine)
+    manager = BulkCrud(engine=engine)
     df = pd.DataFrame({"Customer_ID": [1], "customerName": ["a"]})
     tabla = Table("t", MetaData(), *(Column(c, String) for c in table_cols))
 
@@ -239,7 +239,7 @@ def test_reflect_table_mysql_mariadb_preserves_table_name_case(dialect_name: str
     autoload_with=...): no se fuerza a mayúsculas, se preserva tal cual llega."""
     engine = MagicMock()
     engine.dialect.name = dialect_name
-    manager = bulk_crud(engine=engine)
+    manager = BulkCrud(engine=engine)
 
     with patch("util_bbdd.bulk.crud.Table") as table_cls:
         manager.reflect_table("MyTable")
@@ -251,7 +251,7 @@ def test_reflect_table_mysql_mariadb_preserves_table_name_case(dialect_name: str
 def test_reflect_table_mysql_mariadb_preserves_case_with_schema(dialect_name: str) -> None:
     engine = MagicMock()
     engine.dialect.name = dialect_name
-    manager = bulk_crud(engine=engine)
+    manager = BulkCrud(engine=engine)
 
     with patch("util_bbdd.bulk.crud.Table") as table_cls:
         manager.reflect_table("MySchema.MyTable")
@@ -260,7 +260,7 @@ def test_reflect_table_mysql_mariadb_preserves_case_with_schema(dialect_name: st
     assert table_cls.call_args.kwargs["schema"] == "MySchema"
 
 
-def test_format_param_value_handles_supported_types(sqlite_bulk_manager: bulk_crud) -> None:
+def test_format_param_value_handles_supported_types(sqlite_bulk_manager: BulkCrud) -> None:
     class _CustomObject:
         def __str__(self) -> str:
             return "custom'value"
@@ -277,28 +277,28 @@ def test_format_param_value_handles_supported_types(sqlite_bulk_manager: bulk_cr
     assert format_sql_param_value(_CustomObject()) == "'custom''value'"
 
 
-def test_compilar_stmt_con_binarios_prefers_literal_binds(sqlite_bulk_manager: bulk_crud) -> None:
+def test_compilar_stmt_con_binarios_prefers_literal_binds(sqlite_bulk_manager: BulkCrud) -> None:
     compiled_sql = compile_stmt_with_binary_support(_LiteralStmt(), sqlite_bulk_manager.engine.dialect)
     assert compiled_sql == "SELECT 1;"
 
 
-def test_compilar_stmt_con_binarios_falls_back_when_binary_literals_fail(sqlite_bulk_manager: bulk_crud) -> None:
+def test_compilar_stmt_con_binarios_falls_back_when_binary_literals_fail(sqlite_bulk_manager: BulkCrud) -> None:
     compiled_sql = compile_stmt_with_binary_support(_BinaryFallbackStmt(), sqlite_bulk_manager.engine.dialect)
     assert compiled_sql == "INSERT INTO t VALUES (0xAA, 'O''Reilly');"
 
 
-def test_compilar_stmt_con_binarios_fallback_qmark(sqlite_bulk_manager: bulk_crud) -> None:
+def test_compilar_stmt_con_binarios_fallback_qmark(sqlite_bulk_manager: BulkCrud) -> None:
     compiled_sql = compile_stmt_with_binary_support(_QmarkBinaryFallbackStmt(), sqlite_bulk_manager.engine.dialect)
     assert compiled_sql == "INSERT INTO t VALUES (0xAA, 'O''Reilly');"
 
 
-def test_compilar_stmt_con_binarios_fallback_named(sqlite_bulk_manager: bulk_crud) -> None:
+def test_compilar_stmt_con_binarios_fallback_named(sqlite_bulk_manager: BulkCrud) -> None:
     compiled_sql = compile_stmt_with_binary_support(_NamedBinaryFallbackStmt(), sqlite_bulk_manager.engine.dialect)
     assert compiled_sql == "INSERT INTO t VALUES (0xAA, 'O''Reilly');"
 
 
 def test_compilar_stmt_con_binarios_percent_s_value_does_not_corrupt_next_placeholder(
-    sqlite_bulk_manager: bulk_crud,
+    sqlite_bulk_manager: BulkCrud,
 ) -> None:
     """BLK-05 (AUDIT_CODE 2026-09-22): un valor que contiene literalmente "%s" no debe
     ser reescaneado como placeholder del siguiente parámetro."""
@@ -309,7 +309,7 @@ def test_compilar_stmt_con_binarios_percent_s_value_does_not_corrupt_next_placeh
 
 
 def test_compilar_stmt_con_binarios_qmark_value_does_not_corrupt_next_placeholder(
-    sqlite_bulk_manager: bulk_crud,
+    sqlite_bulk_manager: BulkCrud,
 ) -> None:
     """BLK-05 (AUDIT_CODE 2026-09-22): un valor que contiene literalmente "?" no debe
     ser reescaneado como placeholder del siguiente parámetro."""
@@ -320,7 +320,7 @@ def test_compilar_stmt_con_binarios_qmark_value_does_not_corrupt_next_placeholde
 
 
 def test_compilar_stmt_con_binarios_named_value_does_not_corrupt_later_placeholder(
-    sqlite_bulk_manager: bulk_crud,
+    sqlite_bulk_manager: BulkCrud,
 ) -> None:
     """BLK-05 (AUDIT_CODE 2026-09-22): un valor que contiene literalmente ":otro_param"
     no debe ser reescaneado como placeholder de ese otro parámetro."""
@@ -330,7 +330,7 @@ def test_compilar_stmt_con_binarios_named_value_does_not_corrupt_later_placehold
     assert compiled_sql == "INSERT INTO t VALUES ('see :b here', 99);"
 
 
-def test_compilar_stmt_con_binarios_reraises_non_binary_errors(sqlite_bulk_manager: bulk_crud) -> None:
+def test_compilar_stmt_con_binarios_reraises_non_binary_errors(sqlite_bulk_manager: BulkCrud) -> None:
     with pytest.raises(RuntimeError, match="boom"):
         compile_stmt_with_binary_support(_NonBinaryFailingStmt(), sqlite_bulk_manager.engine.dialect)
 
@@ -351,7 +351,7 @@ def test_bulk_session_reuses_single_connection() -> None:
 
     import pandas as pd
 
-    crud = bulk_crud(engine=engine)
+    crud = BulkCrud(engine=engine)
 
     open_count: list[int] = [0]
     original_begin = engine.begin
@@ -371,7 +371,7 @@ def test_bulk_session_reuses_single_connection() -> None:
 def test_bulk_session_resets_active_connection_on_exit() -> None:
     """_active_connection vuelve a None al salir del bloque bulk_session."""
     engine = create_engine("sqlite:///:memory:")
-    crud = bulk_crud(engine=engine)
+    crud = BulkCrud(engine=engine)
 
     with crud.bulk_session():
         assert crud._session.active
@@ -382,7 +382,7 @@ def test_bulk_session_resets_active_connection_on_exit() -> None:
 def test_bulk_session_atomic_false_does_not_inject_connection() -> None:
     """Con atomic=False, _active_connection nunca se inyecta (comportamiento legacy)."""
     engine = create_engine("sqlite:///:memory:")
-    crud = bulk_crud(engine=engine)
+    crud = BulkCrud(engine=engine)
 
     with crud.bulk_session(atomic=False):
         assert not crud._session.active

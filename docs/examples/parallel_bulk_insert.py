@@ -175,9 +175,9 @@ with target_engine.begin() as conn:
 # Carga secuencial (referencia)
 start_time = time.time()
 
-from util_bbdd.bulk import bulk_crud
+from util_bbdd.bulk import BulkCrud
 
-bcm = bulk_crud(engine=target_engine, chunk_size=5_000)
+bcm = BulkCrud(engine=target_engine, chunk_size=5_000)
 bcm.bulk_insert_from_df(df_source, tabla_destino="sales_data")
 
 sequential_elapsed = time.time() - start_time
