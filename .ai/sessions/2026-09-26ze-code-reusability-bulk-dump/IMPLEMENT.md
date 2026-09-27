@@ -52,6 +52,7 @@ Tests tocados (solo destinos de parche y un test nuevo): `tests/unit/dump/test_d
   `scripts/bench_env.example.sh` con la contraseña de los contenedores (codificada para URL, sin persistirla).
 
 ## Pendiente
+- **Plan completo** (v0.17.1 a v0.17.3): R1–R12, R14, R15 (acotado) y R16; R13 descartado. Lo que queda es cambio de comportamiento y va por `/new-feature` (ver `2026-09-27-version-closure-v0.17.3/TRACEABILITY.md`).
 - ~~**Defecto encontrado en R14**~~ corregido en `bb91612` (`fix(bulk)`, v0.17.2): si una `bulk_session` con `commit_every_n_chunks` falla, las filas pendientes no se descartan y la siguiente sesión que termina bien las suma a `rows_committed` (reproducido: 1 fila en BD, `rows_committed == 2`). Solo afecta a quien reutiliza la `BulkCrud` tras un fallo (`ParallelBulkLoader` prohíbe reintentar con cadencia). Arreglo: `cadence.discard_pending()` en la rama de error de `bulk_session` + test; va por `/hotfix`.
 
 - ~~`/hotfix` de `DumpConfig` y después R5~~: hechos (`9ef505e`, `f5ca1b6`); entrada en `CHANGELOG.md` § Unreleased.
