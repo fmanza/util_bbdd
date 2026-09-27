@@ -37,12 +37,10 @@ from ._models import (
     PKSyncResult,
     TableDumpResult,
 )
-from ._protocols import BulkInserter
 from .orchestrator import DumpOrchestrator
 from .reporters import DumpReporter
 
 __all__: list[str] = [
-    "BulkInserter",
     "ConstraintManager",
     "ConstraintResult",
     "DumpAuditSummary",

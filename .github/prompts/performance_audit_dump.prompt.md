@@ -331,7 +331,9 @@ Definir benchmarks para validar mejoras:
     _constraints.py         (ConstraintManager: disable/enable)
     _indexes.py             (IndexManager: deshabilitar/rebuild índices)
     _sql_utils.py           (quote_identifier, quote_table)
-    _protocols.py           (BulkInserter: abstracción)
+    _source_reader.py       (lectura del origen: cursor por driver, prefetch, lotes)
+    _fk_graph.py            (orden de carga por FK)
+    _audit_summary.py       (resumen del CSV de auditoría)
     reporters.py            (DumpReporter: informe Excel)
   ```
 - **Dependencias críticas**:

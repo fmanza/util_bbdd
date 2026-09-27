@@ -147,18 +147,3 @@ Resultado de gestionar (deshabilitar/reconstruir) un índice individual.
       members_order: source
       filters:
         - "!^_"
-
----
-
-## BulkInserter
-
-Protocolo mínimo de inserción en lote requerido por `DumpOrchestrator`.
-Cualquier clase que implemente `bulk_insert_from_df` es compatible.
-
-::: util_bbdd.dump._protocols.BulkInserter
-    options:
-      show_source: false
-      heading_level: 3
-      members_order: source
-      filters:
-        - "!^_"

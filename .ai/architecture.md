@@ -121,7 +121,6 @@
 │    ├── _constraints.py             # ConstraintManager (PG savepoints, Oracle batch, SS NOCHECK)
 │    ├── _indexes.py                 # IndexManager (índices secundarios no únicos)
 │    ├── _models.py                  # DumpConfig, DumpResult, DumpAuditSummary, ConstraintResult, IndexActionResult
-│    ├── _protocols.py               # BulkInserter Protocol
 │    ├── _sql_utils.py               # Quoting (re-exporta bulk/_support/sql_quoting)
 │    └── reporters.py                # DumpReporter (Excel)
 │
