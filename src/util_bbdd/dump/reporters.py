@@ -30,8 +30,6 @@ from ..bulk._support.excel import neutralize_formulas
 from ._constraints import ConstraintResult
 from ._models import DumpAuditSummary, IndexActionResult, PKSyncResult, TableDumpResult
 
-_log = logging.getLogger(__name__)
-
 
 def _desactivar_formulas(wb: openpyxl.Workbook) -> None:
     """Aplica la defensa H12 (:func:`neutralize_formulas`) a todas las hojas del informe, incluidas las opcionales."""
@@ -41,6 +39,8 @@ def _desactivar_formulas(wb: openpyxl.Workbook) -> None:
 
 class DumpReporter:
     """Genera el informe Excel de auditoría de un volcado de datos."""
+
+    logger: ClassVar[logging.Logger] = logging.getLogger(__name__)
 
     # ------------------------------------------------------------------
     # Paleta de colores (ARGB)
@@ -194,7 +194,7 @@ class DumpReporter:
         except OSError as exc:
             raise DumpReportError(f"Error generando el informe Excel de volcado: {exc}") from exc
 
-        _log.info("Informe Excel guardado en '%s'.", output_path)
+        self.logger.info("Informe Excel guardado en '%s'.", output_path)
         return output_path
 
     # ------------------------------------------------------------------

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from sqlalchemy import Engine, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -38,8 +38,6 @@ from ..metadata.sqlserver.indexes import (
 )
 from ._models import IndexActionResult
 from ._sql_utils import quote_identifier, quote_table
-
-_log = logging.getLogger(__name__)
 
 _SUPPORTED_DIALECTS = frozenset({"mssql", "oracle", "postgresql"})
 _UNSUPPORTED_DIALECTS = MYSQL_FAMILY
@@ -64,6 +62,8 @@ class IndexManager:
     índices (postgresql ``DROP``/``CREATE INDEX``).
     """
 
+    logger: ClassVar[logging.Logger] = logging.getLogger(__name__)
+
     def __init__(self, engine: Engine, schema: str | None = None) -> None:
         self._engine = engine
         self._schema = schema
@@ -86,7 +86,7 @@ class IndexManager:
         try:
             self.index_results = self.rebuild_all()
         except Exception:  # noqa: BLE001
-            _log.exception("Error al reconstruir índices — la excepción original no se enmascara")
+            self.logger.exception("Error al reconstruir índices — la excepción original no se enmascara")
 
     # ------------------------------------------------------------------
     # API pública
@@ -96,14 +96,16 @@ class IndexManager:
         """Deshabilita los índices secundarios no únicos de las tablas indicadas."""
         dialect = self._dialect
         if dialect in _UNSUPPORTED_DIALECTS:
-            _log.warning(
+            self.logger.warning(
                 "Dialect '%s' no soporta la gestión de índices (InnoDB ignora DISABLE KEYS). "
                 "Se continúa sin tocar índices.",
                 dialect,
             )
             return
         if dialect not in _SUPPORTED_DIALECTS:
-            _log.warning("Dialect '%s' no soportado para gestión de índices. Se continúa sin tocar índices.", dialect)
+            self.logger.warning(
+                "Dialect '%s' no soportado para gestión de índices. Se continúa sin tocar índices.", dialect
+            )
             return
 
         if dialect == "mssql":
@@ -149,7 +151,7 @@ class IndexManager:
                         self._disabled.append((table, index_name))
                     except SQLAlchemyError as exc:
                         conn.rollback()
-                        _log.warning("No se pudo deshabilitar el índice '%s.%s': %s", table, index_name, exc)
+                        self.logger.warning("No se pudo deshabilitar el índice '%s.%s': %s", table, index_name, exc)
 
     def _discover_mssql(self, conn: Any, table: str) -> list[str]:
         rows = conn.execute(
@@ -188,7 +190,7 @@ class IndexManager:
                         self._disabled.append((table, index_name))
                     except SQLAlchemyError as exc:
                         conn.rollback()
-                        _log.warning("No se pudo marcar UNUSABLE el índice '%s.%s': %s", table, index_name, exc)
+                        self.logger.warning("No se pudo marcar UNUSABLE el índice '%s.%s': %s", table, index_name, exc)
 
     def _discover_oracle(self, conn: Any, table: str) -> list[str]:
         if self._schema:
@@ -225,14 +227,14 @@ class IndexManager:
                 for index_name, ddl in self._discover_postgresql(conn, table):
                     # Loguear el DDL ANTES del DROP: si el proceso cae entre DROP y CREATE,
                     # el índice es recuperable manualmente desde el log.
-                    _log.warning("PostgreSQL: DROP índice '%s.%s'. DDL para recrear: %s", table, index_name, ddl)
+                    self.logger.warning("PostgreSQL: DROP índice '%s.%s'. DDL para recrear: %s", table, index_name, ddl)
                     try:
                         conn.execute(text(f"DROP INDEX {self._qt(index_name)}"))
                         conn.commit()
                         self._dropped_pg.append((table, index_name, ddl))
                     except SQLAlchemyError as exc:
                         conn.rollback()
-                        _log.warning("No se pudo eliminar el índice '%s.%s': %s", table, index_name, exc)
+                        self.logger.warning("No se pudo eliminar el índice '%s.%s': %s", table, index_name, exc)
 
     def _discover_postgresql(self, conn: Any, table: str) -> list[tuple[str, str]]:
         rows = conn.execute(
@@ -271,7 +273,7 @@ class IndexManager:
             )
         except SQLAlchemyError as exc:
             conn.rollback()
-            _log.warning("Error reconstruyendo el índice '%s.%s': %s", table, index_name, exc)
+            self.logger.warning("Error reconstruyendo el índice '%s.%s': %s", table, index_name, exc)
             return IndexActionResult(
                 table_name=table,
                 index_name=index_name,

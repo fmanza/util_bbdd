@@ -32,7 +32,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 import pandas as pd
 
@@ -60,9 +60,6 @@ from ._source_reader import (
 )
 from ._sql_utils import quote_identifier, quote_table
 from .reporters import DumpReporter
-
-_log = logging.getLogger(__name__)
-
 
 # Lote de escritura por defecto con destino PostgreSQL (Q5): COPY de 20 000 filas frente a 5 000, −31 % a 3,5M filas.
 _PG_DEFAULT_WRITE_BATCH = 20_000
@@ -99,6 +96,8 @@ class DumpOrchestrator:
         print(result.report)
     """
 
+    logger: ClassVar[logging.Logger] = logging.getLogger(__name__)
+
     # Contadores de auditoría de los ParallelBulkLoader del volcado (se reinician en _reset_audit_tracking).
     _loader_audit: _AuditCounters
 
@@ -130,7 +129,7 @@ class DumpOrchestrator:
         self._audit_start_offset = DumpOrchestrator._file_size(cfg.bulk_audit_path)
         if cfg.bulk_audit_path is None:
             # M-4 (audit-code de ParallelBulkLoader 2026-09-25): un aviso por volcado, no uno por BulkCrud creada.
-            _log.info("Auditoría bulk deshabilitada en el volcado (bulk_audit_path=None).")
+            self.logger.info("Auditoría bulk deshabilitada en el volcado (bulk_audit_path=None).")
 
         # FASE 1: Análisis de carga
         try:
@@ -143,7 +142,7 @@ class DumpOrchestrator:
         for _t in _dst_names:
             _key = _t.lower()
             if _key in dst_lower:
-                _log.warning(
+                self.logger.warning(
                     "Colisión de nombre en destino (case): '%s' y '%s' colisionan al normalizar; se usará '%s'.",
                     dst_lower[_key],
                     _t,
@@ -162,7 +161,7 @@ class DumpOrchestrator:
         effective_dst_order: list[str] = [src_to_dst[t] for t in effective_src_order]
         self._warn_large_batch_with_lobs(effective_dst_order)
 
-        _log.info(
+        self.logger.info(
             "Volcado: %d tablas origen, %d en destino, %d faltantes, %d ciclos FK.",
             len(src_tables),
             len(effective_src_order),
@@ -205,7 +204,7 @@ class DumpOrchestrator:
                         dst_t = src_to_dst[src_t]
                         result = self._process_table(src_t, dst_t, position, src_t in cycle_set, crud)
                         table_results.append(result)
-                        _log.info(
+                        self.logger.info(
                             "  [%d/%d] %s → %s (%d filas)",
                             position + 1,
                             len(effective_src_order),
@@ -311,11 +310,11 @@ class DumpOrchestrator:
         try:
             conn.execute(text(f"TRUNCATE TABLE {quoted}"))
             conn.commit()
-            _log.debug("Limpiadas %d tablas con un único TRUNCATE.", len(tables))
+            self.logger.debug("Limpiadas %d tablas con un único TRUNCATE.", len(tables))
             return True
         except SQLAlchemyError as exc:
             conn.rollback()
-            _log.warning("TRUNCATE conjunto falló (%s); se limpia tabla a tabla.", exc)
+            self.logger.warning("TRUNCATE conjunto falló (%s); se limpia tabla a tabla.", exc)
             return False
 
     def _cleanup_table(
@@ -332,23 +331,23 @@ class DumpOrchestrator:
         try:
             conn.execute(text(sql))
             conn.commit()
-            _log.debug("Limpiada tabla '%s' (%s).", table, "DELETE" if use_delete else "TRUNCATE")
+            self.logger.debug("Limpiada tabla '%s' (%s).", table, "DELETE" if use_delete else "TRUNCATE")
         except SQLAlchemyError as exc:
             conn.rollback()
             if not use_delete and dialect == "mssql":
                 self._cleanup_table_delete_fallback(conn, table, quoted)
             else:
-                _log.warning("Error limpiando tabla '%s': %s", table, exc)
+                self.logger.warning("Error limpiando tabla '%s': %s", table, exc)
 
     def _cleanup_table_delete_fallback(self, conn: Any, table: str, quoted: str) -> None:
         """Retry DELETE tras TRUNCATE fallido en SQL Server (FK de esquema externo)."""
         try:
             conn.execute(text(f"DELETE FROM {quoted}"))
             conn.commit()
-            _log.debug("Limpiada tabla '%s' (DELETE fallback).", table)
+            self.logger.debug("Limpiada tabla '%s' (DELETE fallback).", table)
         except SQLAlchemyError as exc:
             conn.rollback()
-            _log.warning("Error limpiando tabla '%s': %s", table, exc)
+            self.logger.warning("Error limpiando tabla '%s': %s", table, exc)
 
     def _get_dst_fk_referenced_tables(self, schema: str | None) -> frozenset[str]:
         """Devuelve el conjunto (lowercase) de tablas destino con FK entrantes.
@@ -362,7 +361,7 @@ class DumpOrchestrator:
             referred = DumpOrchestrator._referred_tables(tables, self._dst_insp, schema)
             return frozenset(ref.lower() for refs in referred.values() for ref in refs if ref)
         except SQLAlchemyError:
-            _log.warning(
+            self.logger.warning(
                 "No se pudo determinar tablas con FK entrantes en destino SQL Server; "
                 "se intentará TRUNCATE y se aplicará fallback DELETE en caso de error."
             )
@@ -555,16 +554,7 @@ class DumpOrchestrator:
 
             return _reader
 
-        loader = ParallelBulkLoader(
-            cfg.target_engine,
-            chunk_size=self._resolve_write_batch_size(),
-            max_workers=n_ranges,
-            commit_every_n_chunks=cfg.commit_every_n_chunks,
-            audit_csv_path=cfg.bulk_audit_path,
-            audit_strict=cfg.bulk_audit_strict,
-            strip_strings=False,  # PD-05: copia fiel del origen
-            reflect_foreign_keys=False,  # Q9: bulk no usa las FK de la tabla destino
-        )
+        loader = ParallelBulkLoader(cfg.target_engine, max_workers=n_ranges, **self._bulk_options())
         readers = [_make_reader(lo, hi, last) for lo, hi, last in bounds]
         result = loader.load(dest_table_logical, readers)
         with self._audit_lock:
@@ -625,7 +615,7 @@ class DumpOrchestrator:
             cap = min(known)
             allowed = max(1, cap // max(table_workers, 1))
             if requested > allowed:
-                _log.warning(
+                self.logger.warning(
                     "parallel_pk_ranges=%d con %d tablas en paralelo excede la capacidad del pool (%d); "
                     "se degrada a %d rangos.",
                     requested,
@@ -682,7 +672,9 @@ class DumpOrchestrator:
                 for future in as_completed(futures):
                     result = future.result()
                     results.append(result)
-                    _log.info("  (par) %s → %s (%d filas)", futures[future], result.status, result.target_rows_after)
+                    self.logger.info(
+                        "  (par) %s → %s (%d filas)", futures[future], result.status, result.target_rows_after
+                    )
 
         # Ciclos FK: secuencial con una única crud
         if cycle_tables:
@@ -694,7 +686,7 @@ class DumpOrchestrator:
                     src_t, dst_t, position_of[src_t], True, cycle_crud, common_cols, skipped_cols, col_name_map, pk_col
                 )
                 results.append(result)
-                _log.info("  (ciclo) %s → %s (%d filas)", src_t, result.status, result.target_rows_after)
+                self.logger.info("  (ciclo) %s → %s (%d filas)", src_t, result.status, result.target_rows_after)
 
         results.sort(key=lambda r: r.load_order_position)
         return results
@@ -746,7 +738,7 @@ class DumpOrchestrator:
             try:
                 crud.reflect_table(dest_logical)
             except SQLAlchemyError as exc:
-                _log.debug("No se pudo reflejar '%s' para PK sync: %s", dest_logical, exc)
+                self.logger.debug("No se pudo reflejar '%s' para PK sync: %s", dest_logical, exc)
 
     def _make_worker_crud(self) -> BulkCrud:
         """Crea una ``BulkCrud`` del volcado (la principal o una dedicada por hilo).
@@ -756,20 +748,26 @@ class DumpOrchestrator:
         puede registrar inserts en ``bulk_audit_path`` sin intercalar filas. La instancia
         queda registrada para sumar sus contadores de auditoría al resumen del volcado.
         """
-        cfg = self._cfg
         crud = BulkCrud(
-            cfg.target_engine,
-            chunk_size=self._resolve_write_batch_size(),
-            audit_csv_path=cfg.bulk_audit_path,
-            commit_every_n_chunks=cfg.commit_every_n_chunks,
-            audit_strict=cfg.bulk_audit_strict,
+            self._cfg.target_engine,
             warn_if_audit_disabled=False,  # run() avisa una vez por volcado
-            strip_strings=False,  # PD-05: copia fiel del origen
-            reflect_foreign_keys=False,  # Q9: bulk no usa las FK de la tabla destino
+            **self._bulk_options(),
         )
         with self._audit_lock:
             self._audit_cruds.append(crud)
         return crud
+
+    def _bulk_options(self) -> dict[str, Any]:
+        """Opciones comunes de las ``BulkCrud`` y los ``ParallelBulkLoader`` del volcado (R15: antes repetidas en los dos)."""
+        cfg = self._cfg
+        return {
+            "chunk_size": self._resolve_write_batch_size(),
+            "commit_every_n_chunks": cfg.commit_every_n_chunks,
+            "audit_csv_path": cfg.bulk_audit_path,
+            "audit_strict": cfg.bulk_audit_strict,
+            "strip_strings": False,  # PD-05: copia fiel del origen
+            "reflect_foreign_keys": False,  # Q9: bulk no usa las FK de la tabla destino
+        }
 
     def _resolve_write_batch_size(self) -> int:
         """Filas por lote de escritura: ``write_batch_size`` si se fijó; si no, 20 000 con destino PostgreSQL (sin
@@ -830,7 +828,7 @@ class DumpOrchestrator:
         if known:
             cap = min(known)
             if requested > cap:
-                _log.warning(
+                self.logger.warning(
                     "max_parallel_tables=%d excede la capacidad del pool (%d); se degrada a %d. "
                     "Aumenta pool_size/max_overflow para mayor paralelismo.",
                     requested,
@@ -850,7 +848,7 @@ class DumpOrchestrator:
         dialect = self._cfg.target_engine.dialect.name
         if dialect not in MYSQL_FAMILY:
             return
-        _log.warning(
+        self.logger.warning(
             "parallel_pk_ranges=%d con destino %s: la carga por rangos de PK es más lenta que la secuencial en este "
             "motor (medido: casi el doble de tiempo a 3,5M filas). Se recomienda parallel_pk_ranges=1.",
             requested,
@@ -865,7 +863,7 @@ class DumpOrchestrator:
         """
         if self._cfg.target_engine.dialect.name != "sqlite":
             return False
-        _log.warning(
+        self.logger.warning(
             "%s=%d no se aplica con destino SQLite (admite un solo escritor a la vez); se carga sin paralelismo.",
             option,
             requested,
@@ -913,7 +911,7 @@ class DumpOrchestrator:
         logical_names = [f"{schema}.{t}" if schema else t for t in effective_dst_order]
         tables = [t for t in logical_names if t in crud._table_cache]
         if not tables:
-            _log.debug("PK sync: no hay tablas en caché para sincronizar (load vacío).")
+            self.logger.debug("PK sync: no hay tablas en caché para sincronizar (load vacío).")
             return None
 
         results = crud.sync_pk_sequences(tables)
@@ -924,7 +922,7 @@ class DumpOrchestrator:
         unsupported = sum(1 for r in results if r.status == "unsupported")
         errors = sum(1 for r in results if r.status == "error")
 
-        _log.info(
+        self.logger.info(
             "Fase 5a (PK sync): synced=%d, no_rows=%d, skipped=%d, unsupported=%d, errors=%d",
             synced,
             no_rows,
@@ -934,7 +932,7 @@ class DumpOrchestrator:
         )
         for r in results:
             if r.status == "error":
-                _log.warning("  PK sync error %s.%s: %s", r.table_name, r.column_name, r.error_msg)
+                self.logger.warning("  PK sync error %s.%s: %s", r.table_name, r.column_name, r.error_msg)
 
         return results or None
 
@@ -1016,7 +1014,7 @@ class DumpOrchestrator:
         """
         if source.dialect.name != "sqlite":
             return
-        _log.warning(
+        DumpOrchestrator.logger.warning(
             "Origen SQLite: las fechas se leen como texto y los DECIMAL como float (SQLite no tiene tipos de columna). "
             "Con destino SQLite, las tablas con columnas de fecha fallarán; los DECIMAL pueden perder precisión."
             if target.dialect.name == "sqlite"
@@ -1048,7 +1046,7 @@ class DumpOrchestrator:
                 lob_tables.append(table)
         if not lob_tables:
             return
-        _log.warning(
+        self.logger.warning(
             "Lote de escritura de %d filas con destino %s y columnas TEXT/BLOB/JSON en %s: puede causar 'Lost "
             "connection to server during query' (max_allowed_packet excedido). Considera write_batch_size=500 o menos, "
             "o aumentar max_allowed_packet en el servidor.",
@@ -1072,7 +1070,7 @@ class DumpOrchestrator:
             return
         pre_ping: bool = getattr(engine.pool, "_pre_ping", False)
         if not pre_ping:
-            _log.warning(
+            DumpOrchestrator.logger.warning(
                 "El engine destino (%s) no tiene pool_pre_ping=True. "
                 "Crea el engine con create_engine(url, pool_pre_ping=True, pool_recycle=3600) "
                 "o usa SyncDatabaseManager.get_sqlalchemy_engine().",
@@ -1080,7 +1078,7 @@ class DumpOrchestrator:
             )
         recycle: int = getattr(engine.pool, "_recycle", -1)
         if recycle < 0:
-            _log.warning(
+            DumpOrchestrator.logger.warning(
                 "El engine destino (%s) no tiene pool_recycle configurado. "
                 "Sin rotación de conexiones, 'Server has gone away' puede ocurrir en volcados largos. "
                 "Añade pool_recycle=3600 al create_engine() o usa SyncDatabaseManager.get_sqlalchemy_engine().",

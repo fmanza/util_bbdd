@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any
+from typing import Any, ClassVar
 
 from sqlalchemy import Engine, Inspector, event, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -19,8 +19,6 @@ from ..bulk._support.dialect import MYSQL_FAMILY, disable_table_integrity_sql, e
 from ..metadata.postgresql.tables import fetch_fk_definition_sql
 from ._models import ConstraintResult
 from ._sql_utils import quote_identifier, quote_table
-
-_log = logging.getLogger(__name__)
 
 _SUPPORTED_DIALECTS = frozenset({"mssql", "mariadb", "mysql", "oracle", "postgresql"})
 
@@ -40,6 +38,8 @@ class ConstraintManager:
             # ... cargar datos ...
         print(mgr.constraint_results)
     """
+
+    logger: ClassVar[logging.Logger] = logging.getLogger(__name__)
 
     def __init__(self, engine: Engine, schema: str | None = None) -> None:
         self._engine = engine
@@ -68,7 +68,7 @@ class ConstraintManager:
         try:
             self.constraint_results = self.enable_all()
         except Exception:  # noqa: BLE001
-            _log.exception("Error al rehabilitar constraints — la excepción original no se enmascara")
+            self.logger.exception("Error al rehabilitar constraints — la excepción original no se enmascara")
 
     # ------------------------------------------------------------------
     # API pública
@@ -87,7 +87,9 @@ class ConstraintManager:
         """
         dialect = self._dialect
         if dialect not in _SUPPORTED_DIALECTS:
-            _log.warning("Dialect '%s' no soportado para gestión de constraints. Se continúa sin desactivar.", dialect)
+            self.logger.warning(
+                "Dialect '%s' no soportado para gestión de constraints. Se continúa sin desactivar.", dialect
+            )
             return
 
         try:
@@ -239,7 +241,7 @@ class ConstraintManager:
                     self._disabled_pg.append(table)
                 except SQLAlchemyError as exc:
                     conn.rollback()
-                    _log.warning("No se pudo deshabilitar triggers en '%s' (¿falta permiso?): %s", table, exc)
+                    self.logger.warning("No se pudo deshabilitar triggers en '%s' (¿falta permiso?): %s", table, exc)
 
     def _enable_postgresql(self) -> list[ConstraintResult]:
         results: list[ConstraintResult] = []
@@ -258,7 +260,7 @@ class ConstraintManager:
                 except SQLAlchemyError as exc:
                     conn.rollback()
                     failed_trigger.add(table)
-                    _log.warning("Error reactivando triggers en '%s': %s", table, exc)
+                    self.logger.warning("Error reactivando triggers en '%s': %s", table, exc)
 
             # Fase B: validar FKs usando savepoints para aislar errores por constraint
             for table in tables:
@@ -381,7 +383,7 @@ class ConstraintManager:
                         conn.execute(text(f"ALTER TABLE {self._qt(table)} DISABLE CONSTRAINT {self._qi(name)}"))
                         self._disabled.append((table, name))
                     except SQLAlchemyError as exc:
-                        _log.warning("No se pudo deshabilitar '%s.%s': %s", table, name, exc)
+                        self.logger.warning("No se pudo deshabilitar '%s.%s': %s", table, name, exc)
             conn.commit()
 
     def _enable_oracle(self) -> list[ConstraintResult]:

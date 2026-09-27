@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 
 from collections.abc import Callable
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from sqlalchemy import Column, Engine, Table, func, select, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -23,8 +23,6 @@ from ...metadata.oracle.tables import fetch_identity_generation_sql
 from .._models import PKSyncResult
 from .sql_quoting import quote_identifier as _qi, quote_table as _qt
 from .validation import is_identity_pk
-
-_log = logging.getLogger(__name__)
 
 _SUPPORTED_DIALECTS = frozenset({"postgresql", "mssql", "mariadb", "mysql", "oracle"})
 
@@ -55,6 +53,8 @@ class PKSequenceSyncer:
     - **Oracle >= 12c**: ``SELECT`` en ``ALL_TAB_IDENTITY_COLS`` (disponible por
       defecto) + ``ALTER ANY SEQUENCE`` o ser propietario de la sequence.
     """
+
+    logger: ClassVar[logging.Logger] = logging.getLogger(__name__)
 
     def __init__(self, engine: Engine, schema: str | None = None) -> None:
         self._engine = engine
@@ -92,7 +92,7 @@ class PKSequenceSyncer:
                 try:
                     result = handler(conn, table, col)
                     results.append(result)
-                    _log.info(
+                    self.logger.info(
                         "PK sync [%s] %s.%s → %s (max=%s)",
                         self._dialect,
                         table.name,
@@ -115,7 +115,7 @@ class PKSequenceSyncer:
                             error_msg=str(exc),
                         )
                     )
-                    _log.warning("PK sync error en %s.%s: %s", table.name, col.name, exc)
+                    self.logger.warning("PK sync error en %s.%s: %s", table.name, col.name, exc)
 
         return results
 

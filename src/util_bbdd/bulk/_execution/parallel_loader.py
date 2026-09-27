@@ -25,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import ClassVar
 
 import pandas as pd
 
@@ -38,8 +39,6 @@ from .._support.iterables import closing_iterable
 from ..audit import AuditManager
 from ..crud import BulkCrud
 from .batch import validate_chunk_size
-
-_log = logging.getLogger(__name__)
 
 # Un lector de partición: invocado en su hilo worker, produce los chunks a insertar.
 PartitionReader = Callable[[], Iterable[pd.DataFrame]]
@@ -193,6 +192,8 @@ class ParallelBulkLoader:
         )
     """
 
+    logger: ClassVar[logging.Logger] = logging.getLogger(__name__)
+
     def __init__(
         self,
         engine: Engine,
@@ -286,7 +287,7 @@ class ParallelBulkLoader:
                 return requested
             size = size_attr()
             if isinstance(size, int) and size < requested:
-                _log.warning(
+                self.logger.warning(
                     "max_workers (%d) reducido a pool size (%d) para evitar deadlock "
                     "por agotamiento de conexiones. Crea el engine con "
                     "pool_size >= %d para usar más workers.",
@@ -338,7 +339,9 @@ class ParallelBulkLoader:
 
         if self._audit_csv_path is None:
             # M-4: un aviso por carga; las BulkCrud de las particiones se crean sin el suyo.
-            _log.info("Auditoría deshabilitada en la carga paralela de '%s' (audit_csv_path=None).", tabla_destino)
+            self.logger.info(
+                "Auditoría deshabilitada en la carga paralela de '%s' (audit_csv_path=None).", tabla_destino
+            )
 
         result = ParallelLoadResult()
         t_start = time.perf_counter()
@@ -409,7 +412,9 @@ class ParallelBulkLoader:
                 reflect_foreign_keys=self._reflect_foreign_keys,
             )
         except Exception as exc:
-            _log.warning("No se pudo preparar la partición %d de '%s': %s", index, tabla_destino, exc, exc_info=True)
+            self.logger.warning(
+                "No se pudo preparar la partición %d de '%s': %s", index, tabla_destino, exc, exc_info=True
+            )
             return PartitionResult(
                 index=index,
                 rows=0,
@@ -431,7 +436,7 @@ class ParallelBulkLoader:
                 if crud.audit_uncommitted_records > 0:
                     # PL-2 (audit-code de ParallelBulkLoader 2026-09-25): con audit_strict falló el commit después de
                     # escribir la auditoría. Reintentar la escribiría otra vez: el CSV contaría el doble que la BD.
-                    _log.warning(
+                    self.logger.warning(
                         "Partición %d de '%s': falló el commit con la auditoría estricta ya escrita; no se reintenta "
                         "para no duplicarla: %s",
                         index,
@@ -450,7 +455,7 @@ class ParallelBulkLoader:
                         ),
                     )
                 if attempt < self._max_retries:
-                    _log.warning(
+                    self.logger.warning(
                         "Partición %d intento %d/%d fallido (retriable): %s",
                         index,
                         attempt + 1,
@@ -463,7 +468,7 @@ class ParallelBulkLoader:
                 # Cualquier otro error es permanente y queda en partition_errors sin abortar el resto de particiones,
                 # como documenta la API: antes solo se capturaban SQLAlchemyError, ValueError y
                 # pd.errors.DatabaseError, y un error del lector (OSError, KeyError…) abortaba load() entero.
-                _log.warning(
+                self.logger.warning(
                     "Error permanente cargando partición %d de '%s': %s",
                     index,
                     tabla_destino,
@@ -478,7 +483,7 @@ class ParallelBulkLoader:
 
         # Reintentos agotados: el bucle hace al menos un intento y cada fallo retriable fija last_exc.
         assert last_exc is not None
-        _log.warning("Partición %d agotó %d reintentos: %s", index, self._max_retries, last_exc)
+        self.logger.warning("Partición %d agotó %d reintentos: %s", index, self._max_retries, last_exc)
         return self._partition_result(
             crud,
             index,
@@ -617,7 +622,7 @@ class ParallelBulkLoader:
             if not can_disable:
                 # Fuera del `with` (auditoría de bulk 2026-09-24): antes se cedía el control dentro de él y esa conexión
                 # quedaba fuera del pool, con una transacción abierta, durante toda la carga de los workers.
-                _log.warning(
+                self.logger.warning(
                     "PostgreSQL: privilegios insuficientes para deshabilitar triggers "
                     "en '%s'. Los workers usarán maintenance_scope individual.",
                     tabla_destino,
