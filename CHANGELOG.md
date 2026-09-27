@@ -7,6 +7,71 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-09-27
+
+Verificador read-only de condiciones de ejecución por motor (engine readiness advisor) que emite un informe
+consolidado en una sola llamada al logger sobre configuración del pool, timeouts y parámetros críticos.
+Integración completamente opcional; se invoca desde `BulkCrud.__init__()` con triple try/except.
+
+### Added
+
+- **connection**: `EngineReadinessAdvisor` — orquestador de verificación de condiciones por motor. Métodos:
+  - `check(db_type, conn_params, connection=None)` → `list[AdvisoryFinding]` ordenada por severidad.
+  - `report(db_type, conn_params, connection=None)` → emite una sola llamada al logger (WARNING si hay
+    hallazgos CRITICAL/WARNING, INFO en caso contrario) con todas las recomendaciones formateadas.
+- **connection**: `AdvisoryFinding` dataclass (frozen, slots) con campos `level` (OK|WARNING|CRITICAL),
+  `param`, `current`, `recommendation`. Exportada como API pública.
+- **connection/postgresql**: `PostgreSQLVariableValidator` — checks estáticos (pool_size, keepalives,
+  sslmode, pool_timeout) y dinámicos (SHOW work_mem, maintenance_work_mem, max_connections, synchronous_commit)
+  con umbrales recomendados para operaciones bulk.
+- **connection/sqlite**: `SQLiteVariableValidator` — checks estáticos (database, timeout) y dinámicos
+  (PRAGMA journal_mode, synchronous, cache_size) con guarda para bases `:memory:` (omite WAL).
+- **connection/sqlserver**: `SQLServerVariableValidator` — checks estáticos (MARS, pool_size, max_overflow)
+  y dinámicos (fill_factor, recovery_model) con detección automática de driver (pyodbc vs pymssql).
+- **connection/oracle**: `OracleVariableValidator` — checks estáticos (pool_size, max_lifetime) y
+  dinámicos (pga_aggregate_target, cursor_sharing, arraysize/prefetchrows) con permission check
+  `SELECT ANY DICTIONARY` en v$parameter.
+- **connection**: Whitelists SQL (`_VALID_SHOW_PARAMS`, `_VALID_PRAGMA_NAMES`) para prevenir inyección en
+  queries dinámicas de configuración.
+- **tests/unit/connection**: `test_performance_advisor.py` — 78 tests cobriendo: advisory findings,
+  checks estáticos/dinámicos por motor, exception resilience (todos los 6 motores), contract de
+  single-log-call, y permiso checks.
+
+### Changed
+
+- **bulk**: `BulkCrud.__init__()` ejecuta `__validate_engine_config()` que llama a
+  `EngineReadinessAdvisor.report()` con guards `try/except ImportError` para integración opcional.
+- **connection**: Utilidad `fmt_bytes()` centralizada en `_advisory.py` (antes duplicada en oracle y postgresql).
+
+### Fixed
+
+- **connection**: SQL injection guards en `_show_memory()`, `_show_str()`, `_pragma_str()`, `_pragma_int()`
+  mediante validación de parámetros contra frozensets whitelist.
+- **connection**: Exception logging en todos los adaptadores `_check_X()` para troubleshooting (antes
+  silenciaba bugs con `except Exception: return []`).
+- **connection/mysql**: Missing OK findings para `write_timeout`, `read_timeout`, `pool_timeout` y
+  nuevo check WARNING si `pool_timeout < 10s`.
+- **connection**: Exception handling a nivel adaptador, check y pool config (triple wrapping) para
+  garantizar que fallos en verificación nunca rompen `BulkCrud.__init__()`.
+- **tests**: Import corrections en 3 test fixtures (`test_bulk_exclude_autoincrement_pk.py`,
+  `test_bulk_override_identity.py`, `test_bulk_sqlserver_identity.py`) después de eliminar alias
+  `bulk_crud` en sesión anterior.
+
+### Security
+
+- **connection**: Validación de parámetros dinámicos (`SHOW`, `PRAGMA`, consultas v$) contra
+  frozensets para prevenir SQL injection en futuras extensiones de verificadores.
+
+### Notes
+
+- Sin breaking changes. API totalmente aditiva: `EngineReadinessAdvisor` y `AdvisoryFinding` son
+  opcionales. Si `ImportError` durante verificación (módulo no importable), `BulkCrud.__init__()`
+  continúa normalmente sin fallar.
+- Logging estructurado: `report()` emite exactamente una sola llamada al logger (testeable con caplog).
+- Compatible con Python 3.12+ y SQLAlchemy 2.x. Sin nuevas dependencias externas.
+- Triple try/except: outer en `BulkCrud.__init__()`, per-adapter en `performance_advisor`, per-check
+  en validadores. Ningún nivel re-raise; siempre log + continue.
+
 ## [0.18.0] - 2026-09-27
 
 Pendientes del refactor de `bulk`/`dump` que cambian comportamiento (sesión `.ai/sessions/2026-09-27b-pendientes-bulk-dump/`,

@@ -6,18 +6,26 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from ._variables import SQLServerVariableValidator
     from .async_connection_sqlserver import AsyncSQLServerConnection
     from .async_pool_connection_sqlserver import AsyncSQLServerPool
     from .connection_sqlserver import SQLServerConnection
     from .pool_connection_sqlserver import PoolConnection
 
-__all__: list[str] = ["SQLServerConnection", "PoolConnection", "AsyncSQLServerConnection", "AsyncSQLServerPool"]
+__all__: list[str] = [
+    "SQLServerConnection",
+    "PoolConnection",
+    "AsyncSQLServerConnection",
+    "AsyncSQLServerPool",
+    "SQLServerVariableValidator",
+]
 
 _SYMBOL_TO_MODULE: dict[str, str] = {
     "SQLServerConnection": "connection_sqlserver",
     "PoolConnection": "pool_connection_sqlserver",
     "AsyncSQLServerConnection": "async_connection_sqlserver",
     "AsyncSQLServerPool": "async_pool_connection_sqlserver",
+    "SQLServerVariableValidator": "_variables",
 }
 
 

@@ -17,7 +17,7 @@ from util_bbdd.bulk._support.sql_helpers import (
     generate_insert_sql_override_identity,
 )
 from util_bbdd.bulk._support.validation import detect_always_identity_columns
-from util_bbdd.bulk.crud import bulk_crud
+from util_bbdd.bulk.crud import BulkCrud as bulk_crud
 
 # ---------------------------------------------------------------------------
 # Fixtures

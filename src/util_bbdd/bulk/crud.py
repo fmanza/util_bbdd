@@ -234,8 +234,8 @@ class BulkCrud:
         # Detectar driver específico para SQL Server
         self.__detectar_sqlserver_driver()
 
-        # Validar y loguear configuración MySQL/MariaDB si aplica
-        self.__validate_mysql_config()
+        # Verificar condiciones de ejecución para todos los motores
+        self.__validate_engine_config()
 
         self._persistence: BulkPersistenceManager = BulkPersistenceManager(
             engine_url=str(self.engine.url),
@@ -296,56 +296,51 @@ class BulkCrud:
                     "rápido en INSERT/UPDATE (ver docs/guides/benchmarks.md)."
                 )
 
-    def __validate_mysql_config(self) -> None:
-        """Valida y loguea configuración MySQL/MariaDB para bulk operations.
-
-        Lee variables críticas (max_allowed_packet, innodb_buffer_pool_size)
-        e identifica potenciales problemas antes de cargas masivas.
-
-        Solo se ejecuta para motores 'mysql' o 'mariadb'; sin-op para otros.
-        """
-        if self.engine.dialect.name not in MYSQL_FAMILY:
-            return
-
+    def __validate_engine_config(self) -> None:
+        """Verifica condiciones de ejecución del motor y emite informe consolidado al LOG."""
         try:
-            from ..connection.mariadb import MySQLOptimalConfig, MySQLVariableValidator
+            from ..connection.performance_advisor import EngineReadinessAdvisor
         except ImportError:
-            self.logger.debug("Módulos MySQL validation no disponibles; saltando validación")
+            self.logger.debug("EngineReadinessAdvisor no disponible; saltando verificación")
             return
 
+        dialect = self.engine.dialect.name
+        url = self.engine.url
+
+        conn_params: dict[str, Any] = {}
+        if url.host:
+            conn_params["host"] = url.host
+        if url.port:
+            conn_params["port"] = url.port
+        if url.database:
+            conn_params["database"] = url.database
+
+        # pool.size() es público en QueuePool pero no en la clase base Pool (sin type stub)
+        pool = self.engine.pool
         try:
-            # Crear conexión temporal para leer variables
+            _size_fn = getattr(pool, "size", None)
+            if callable(_size_fn):
+                conn_params["pool_size"] = _size_fn()
+        except Exception:
+            pass
+        for _attr, _key in (("_max_overflow", "max_overflow"), ("_timeout", "pool_timeout")):
+            _val = getattr(pool, _attr, None)
+            if _val is not None:
+                conn_params[_key] = _val
+
+        if dialect == "mssql":
+            conn_params["sql_server_driver"] = "pyodbc" if "pyodbc" in self.db_info.lower() else "pymssql"
+
+        advisor = EngineReadinessAdvisor()
+        try:
             with self.engine.connect() as conn:
-                validator = MySQLVariableValidator(conn)
-
-                # Leer variables actuales
-                current_vars = validator.read_variables()
-                if current_vars:
-                    # Log informativo
-                    var_strs = [f"{k}={validator.format_bytes(v)}" for k, v in current_vars.items()]
-                    self.logger.info(f"MySQL/MariaDB variables: {', '.join(var_strs)}")
-
-                    # Obtener configuración recomendada
-                    recommended_config = MySQLOptimalConfig.production()
-                    required_vars = {
-                        "max_allowed_packet": recommended_config.max_allowed_packet,
-                        "innodb_buffer_pool_size": recommended_config.innodb_buffer_pool_size,
-                    }
-
-                    # Validar
-                    is_valid = validator.validate(required_vars)
-                    if not all(is_valid.values()):
-                        invalid_vars = [k for k, v in is_valid.items() if not v]
-                        self.logger.warning(
-                            f"Variables MySQL por debajo de lo recomendado: {', '.join(invalid_vars)}. "
-                            f"Para bulk operations, considera: "
-                            f"SET GLOBAL max_allowed_packet = 67108864; "
-                            f"SET GLOBAL innodb_buffer_pool_size = 1073741824; "
-                            f"(requiere privilegio SUPER o SYSTEM_VARIABLES_ADMIN)"
-                        )
-
-        except Exception as exc:
-            self.logger.debug(f"Error validando configuración MySQL: {exc}")
+                advisor.report(dialect, conn_params, connection=conn)
+        except Exception:
+            # Sin conexión activa, solo checks estáticos
+            try:
+                advisor.report(dialect, conn_params)
+            except Exception as exc:
+                self.logger.debug(f"Error en verificación de motor '{dialect}': {exc}")
 
     def __validar_y_generar_path_sql(self, path_sql: Path | None, tabla_destino: str, operacion: str) -> Path:
         """
