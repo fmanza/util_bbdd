@@ -44,6 +44,7 @@ from util_bbdd.bulk import BulkCrud, ParallelBulkLoader, RangePartitioner
 from util_bbdd.bulk._audit.counters import AuditCounters
 from util_bbdd.bulk._support.dialect import MYSQL_FAMILY
 from util_bbdd.bulk._support.iterables import close_if_closable
+from util_bbdd.bulk._support.pool import pool_capacity
 from util_bbdd.bulk.audit import AuditError
 
 from .._core.exceptions import DumpError
@@ -872,19 +873,8 @@ class DumpOrchestrator:
 
     @staticmethod
     def _pool_capacity(engine: Engine) -> int | None:
-        """Capacidad del pool (``size + max_overflow``) o ``None`` si no es determinable."""
-        pool = engine.pool
-        size_fn = getattr(pool, "size", None)
-        if not callable(size_fn):
-            return None
-        try:
-            size_result = size_fn()
-            base = int(size_result) if isinstance(size_result, (int, str, float)) else int(str(size_result))
-            overflow_raw: Any = getattr(pool, "_max_overflow", 0) or 0
-            overflow = int(overflow_raw)
-        except (TypeError, ValueError):
-            return None
-        return base + max(overflow, 0)
+        """Capacidad del pool (``size + max_overflow``) o ``None`` si no es determinable (:func:`pool_capacity`)."""
+        return pool_capacity(engine)
 
     # ------------------------------------------------------------------
     # Fase 5a: Resincronización de contadores PK

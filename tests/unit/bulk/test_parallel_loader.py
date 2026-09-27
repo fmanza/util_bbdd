@@ -146,14 +146,14 @@ class TestParallelBulkLoaderNewParameters:
         engine.pool.size.return_value = 2
         with caplog.at_level(logging.WARNING, logger="util_bbdd.bulk._execution.parallel_loader"):
             ParallelBulkLoader(engine, max_workers=4)
-        assert any("pool size" in m for m in caplog.messages)
+        assert any("capacidad del pool" in m for m in caplog.messages)
 
     def test_pool_size_no_warning_when_sufficient(self, caplog: pytest.LogCaptureFixture) -> None:
         engine = MagicMock()
         engine.pool.size.return_value = 4
         with caplog.at_level(logging.WARNING, logger="util_bbdd.bulk._execution.parallel_loader"):
             ParallelBulkLoader(engine, max_workers=4)
-        assert not any("pool size" in m for m in caplog.messages)
+        assert not any("capacidad del pool" in m for m in caplog.messages)
 
 
 class TestParallelBulkLoaderRetry:
@@ -294,7 +294,7 @@ class TestParallelBulkLoaderDisableConstraints:
 
 
 class TestParallelBulkLoaderPoolSizeCap:
-    """F-03: max_workers se acota a pool_size para evitar deadlock."""
+    """F-03: max_workers se acota a la capacidad del pool (pool_size + max_overflow desde v0.18.0; aquí sin overflow)."""
 
     def test_max_workers_capped_to_pool_size(self) -> None:
         engine = MagicMock()
@@ -313,7 +313,7 @@ class TestParallelBulkLoaderPoolSizeCap:
         engine.pool.size.return_value = 2
         with caplog.at_level(logging.WARNING, logger="util_bbdd.bulk._execution.parallel_loader"):
             ParallelBulkLoader(engine, max_workers=4)
-        assert any("pool size" in m for m in caplog.messages)
+        assert any("capacidad del pool" in m for m in caplog.messages)
 
     def test_no_cap_when_pool_size_equals_max_workers(self) -> None:
         engine = MagicMock()

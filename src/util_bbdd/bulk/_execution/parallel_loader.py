@@ -36,6 +36,7 @@ from .._audit.counters import AuditCounters
 from .._audit.errors import AuditError
 from .._support.dialect import can_disable_pg_triggers, disable_table_integrity_sql, enable_table_integrity_sql
 from .._support.iterables import closing_iterable
+from .._support.pool import pool_capacity
 from ..audit import AuditManager
 from ..crud import BulkCrud
 from .batch import validate_chunk_size
@@ -270,35 +271,25 @@ class ParallelBulkLoader:
         self._max_workers = self._resolve_max_workers(max_workers)
 
     def _resolve_max_workers(self, requested: int) -> int:
-        """Devuelve el número efectivo de workers, acotado al pool size para evitar deadlock.
+        """Devuelve el número efectivo de workers, acotado a la capacidad del pool para no agotarlo.
 
-        Con pool_size < requested todos los workers con ``bulk_session`` activo retienen
-        su conexión mientras esperan una nueva, lo que produce deadlock determinista.
-        Reducir max_workers a pool_size elimina la contención.
-
-        NullPool, StaticPool y mocks no tienen ``.size()``: se devuelve requested sin cambio.
+        Cada worker retiene una conexión durante su ``bulk_session``: con más workers que conexiones, los que esperan
+        una nueva agotan el pool. La capacidad es ``pool_size + max_overflow`` (:func:`pool_capacity`, la misma regla que
+        ``dump``); hasta v0.17.x se usaba solo ``pool_size`` porque la ruta ``disable_constraints=True`` usaba dos
+        conexiones por worker (ver :meth:`_load_with_maintenance`). Sin capacidad determinable (``NullPool``,
+        ``StaticPool``, ``max_overflow`` ilimitado, mocks) se respeta ``requested``.
         """
-        try:
-            pool = getattr(self._engine, "pool", None)
-            if pool is None:
-                return requested
-            size_attr = getattr(pool, "size", None)
-            if not callable(size_attr):
-                return requested
-            size = size_attr()
-            if isinstance(size, int) and size < requested:
-                self.logger.warning(
-                    "max_workers (%d) reducido a pool size (%d) para evitar deadlock "
-                    "por agotamiento de conexiones. Crea el engine con "
-                    "pool_size >= %d para usar más workers.",
-                    requested,
-                    size,
-                    requested,
-                )
-                return size
+        capacity = pool_capacity(self._engine)
+        if capacity is None or capacity >= requested:
             return requested
-        except Exception:  # noqa: BLE001
-            return requested  # NullPool, StaticPool, MagicMock en tests — sin cap
+        self.logger.warning(
+            "max_workers (%d) reducido a la capacidad del pool (%d = pool_size + max_overflow) para no agotar las "
+            "conexiones. Crea el engine con pool_size + max_overflow >= %d para usar más workers.",
+            requested,
+            capacity,
+            requested,
+        )
+        return capacity
 
     def load(
         self,
@@ -555,6 +546,9 @@ class ParallelBulkLoader:
         la carga y cancela el beneficio del paralelismo.
         """
         total = 0
+        # Reflejar antes de abrir la sesión: maintenance_scope y bulk_insert_from_df usan la tabla ya en caché y el worker
+        # no pide una segunda conexión mientras retiene la de la sesión (guarda de la regla size + max_overflow).
+        crud.reflect_table(tabla_destino)
         with crud.bulk_session():
             with crud.maintenance_scope(tabla_destino, disable_constraints=True, disable_indexes=False):
                 with _closing_iterable(reader()) as chunks:
