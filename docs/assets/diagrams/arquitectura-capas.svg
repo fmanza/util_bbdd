@@ -11,7 +11,7 @@
 <text class="arq-band-note" x="970" y="500" text-anchor="end" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">capas 1–2</text>
 <path class="arq-edge " d="M168 83 H142" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
 <path class="arq-edge " d="M556 83 H582" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
-<path class="arq-edge lazy" d="M86 108 V256" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
+<path class="arq-edge " d="M86 108 V256" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
 <path class="arq-edge " d="M736 108 V214" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
 <path class="arq-edge " d="M900 108 V196 H822 V256" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
 <path class="arq-edge " d="M752 306 V354" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
@@ -41,7 +41,7 @@
 <g class="arq-node"><rect x="350" y="526" width="132" height="50" rx="6" fill="none" stroke="currentColor"/><text class="arq-name" x="416" y="547" text-anchor="middle" font-family="ui-monospace,Consolas,monospace" font-size="13" fill="currentColor">core/</text><text class="arq-sub" x="416" y="564" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">capacidades</text></g>
 <g class="arq-node arq-shared"><rect x="690" y="526" width="132" height="50" rx="6" fill="none" stroke="currentColor"/><text class="arq-name" x="756" y="547" text-anchor="middle" font-family="ui-monospace,Consolas,monospace" font-size="13" fill="currentColor">models.py</text><text class="arq-sub" x="756" y="564" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">modelos compartidos</text></g>
 <g class="arq-node arq-shared"><rect x="838" y="526" width="132" height="50" rx="6" fill="none" stroke="currentColor"/><text class="arq-name" x="904" y="547" text-anchor="middle" font-family="ui-monospace,Consolas,monospace" font-size="13" fill="currentColor">async_utils.py</text><text class="arq-sub" x="904" y="564" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">maybe_await</text></g>
-<text class="arq-lbl" x="96" y="180" text-anchor="start" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">import perezoso · bulk/crud.py:311</text>
+<text class="arq-lbl" x="96" y="180" text-anchor="start" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">import de módulo · bulk/crud.py:46</text>
 <text class="arq-lbl" x="728" y="160" text-anchor="end" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">importa connection, factory, executors,</text>
 <text class="arq-lbl" x="728" y="176" text-anchor="end" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">metadata, query y results (6 de 7)</text>
 <text class="arq-lbl" x="892" y="152" text-anchor="end" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">analysis/, bulk/, doc/ y dump/</text>
@@ -53,6 +53,4 @@
 <text class="arq-lbl" x="690" y="516" text-anchor="start" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">módulos raíz compartidos</text>
 <path class="arq-edge " d="M30 620 H64" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
 <text class="arq-lbl" x="74" y="624" text-anchor="start" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">import de módulo</text>
-<path class="arq-edge lazy" d="M230 620 H264" fill="none" stroke="currentColor" stroke-width="1.4" marker-end="url(#arq-h)"/>
-<text class="arq-lbl" x="274" y="624" text-anchor="start" font-family="system-ui,sans-serif" font-size="11.5" fill="currentColor">import perezoso (dentro de una función)</text>
 </svg>

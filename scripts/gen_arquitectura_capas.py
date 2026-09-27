@@ -217,15 +217,20 @@ def print_edges(edges: dict[tuple[str, str], Edge]) -> None:
 class _Facts(NamedTuple):
     to_foundation: int  # packages of levels 2 and 3 that import from Foundation
     factory_to_connection: int
-    lazy_where: str  # bulk -> connection lazy import, "path:line"
+    bulk_connection_lazy: bool  # the bulk -> connection arrow is drawn dotted only while every such import is lazy
+    bulk_connection_where: str  # first bulk -> connection import, "path:line"
 
 
 def _facts(edges: dict[tuple[str, str], Edge]) -> _Facts:
     to_foundation = {s for (s, t) in edges if s in LEVEL and t in LEVEL and LEVEL[t] == 1 and LEVEL[s] > 1}
+    _bc = edges[("bulk", "connection")]
     return _Facts(
         to_foundation=len(to_foundation),
         factory_to_connection=edges[("factory", "connection")].total,
-        lazy_where=edges[("bulk", "connection")].first["lazy"],
+        # Measured, not assumed: since ad4b08e (EngineReadinessAdvisor.report_once) bulk/crud.py imports connection at
+        # module level, and the old hard-coded "lazy" lookup made the script fail with KeyError.
+        bulk_connection_lazy=_bc.module == 0 and _bc.lazy > 0,
+        bulk_connection_where=_bc.first.get("module") or _bc.first.get("lazy") or "?",
     )
 
 
@@ -317,7 +322,7 @@ def render_svg(f: _Facts) -> str:
     # edges (before the nodes so the node fill covers any overlap)
     s.edge(f"M{c[1]} 83 H{c[0] + NODE_W}")  # dump -> bulk
     s.edge(f"M{c[3] + NODE_W} 83 H{c[4]}")  # doc -> analysis
-    s.edge(f"M86 {Y3 + NODE_H} V{Y2A}", "lazy")  # bulk -> connection (lazy)
+    s.edge(f"M86 {Y3 + NODE_H} V{Y2A}", "lazy" if f.bulk_connection_lazy else "")  # bulk -> connection
     s.edge(f"M736 {Y3 + NODE_H} V214")  # managers -> level 2 band
     s.edge(f"M900 {Y3 + NODE_H} V196 H822 V{Y2A}")  # migrate -> metadata (analysis, bulk, doc and dump share the summary note)
     for d in ("M752 306 V354", "M796 306 L900 354", "M876 306 L812 354", "M940 306 V354"):
@@ -349,7 +354,7 @@ def render_svg(f: _Facts) -> str:
     s.node(838, Y1, "async_utils.py", "maybe_await", 132, " arq-shared")
 
     # labels, badges and counters
-    s.text(96, 180, f"import perezoso · {f.lazy_where}")
+    s.text(96, 180, f"{'import perezoso' if f.bulk_connection_lazy else 'import de módulo'} · {f.bulk_connection_where}")
     s.text(728, 160, "importa connection, factory, executors,", anchor="end")
     s.text(728, 176, "metadata, query y results (6 de 7)", anchor="end")
     s.text(892, 152, "analysis/, bulk/, doc/ y dump/", anchor="end")
@@ -361,10 +366,10 @@ def render_svg(f: _Facts) -> str:
     s.text(690, 516, "módulos raíz compartidos")
 
     # legend
-    for x, kind, head, label in (
-        (30, "", "arq-h", "import de módulo"),
-        (230, "lazy", "arq-h", "import perezoso (dentro de una función)"),
-    ):
+    legend = [(30, "", "arq-h", "import de módulo")]
+    if f.bulk_connection_lazy:  # the only arrow that can be drawn dotted
+        legend.append((230, "lazy", "arq-h", "import perezoso (dentro de una función)"))
+    for x, kind, head, label in legend:
         s.edge(f"M{x} 620 H{x + 34}", kind, head)
         s.text(x + 44, 624, label)
     s.parts.append("</svg>")
