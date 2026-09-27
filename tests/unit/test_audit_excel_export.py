@@ -79,6 +79,28 @@ def test_text_starting_with_equals_is_written_as_text_not_formula(tmp_path: Path
     assert sum(cell.value == formula for cell in cells) == len(workbook.worksheets)
 
 
+def test_unwritable_output_raises_audit_export_error_that_is_also_os_error(
+    manager: AuditManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # auditoria.xlsx abierto en Excel: antes salía un PermissionError sin envolver. AuditExportError mantiene OSError.
+    import pickle
+
+    from util_bbdd import AuditDataError, AuditExportError
+
+    def _bloqueado(*args: object, **kwargs: object) -> None:
+        raise PermissionError("abierto en Excel")
+
+    monkeypatch.setattr(pd, "ExcelWriter", _bloqueado)
+
+    with pytest.raises(AuditExportError, match="abierto en Excel") as excinfo:
+        manager.exportar_resumen_excel("tabla")
+
+    assert isinstance(excinfo.value, OSError)
+    assert isinstance(excinfo.value, AuditDataError)
+    assert isinstance(excinfo.value.__cause__, PermissionError)
+    assert str(pickle.loads(pickle.dumps(excinfo.value))) == str(excinfo.value)
+
+
 def test_control_characters_in_a_table_name_do_not_abort_the_export(tmp_path: Path) -> None:
     # openpyxl lanza IllegalCharacterError con caracteres de control; se eliminan (safe_frame) antes de to_excel.
     from openpyxl import load_workbook

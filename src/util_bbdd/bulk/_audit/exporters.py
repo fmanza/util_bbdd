@@ -12,7 +12,7 @@ from typing import Any, Literal
 import pandas as pd
 
 from .._support.excel import neutralize_formulas as _desactivar_formulas, safe_frame
-from .errors import AuditConfigError, AuditDataError
+from .errors import AuditConfigError, AuditDataError, AuditExportError
 from .html_template import AUDIT_HTML_TEMPLATE
 from .repository import AuditCsvRepository
 from .service import AuditAnalyticsService
@@ -51,7 +51,25 @@ class AuditExporters:
         operaciones: list[Any] = dataframe["operacion"].unique().tolist()
 
         group_cols: list[str] = self.service.determinar_group_cols(agrupar_por)
-        output_excel.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            output_excel.parent.mkdir(parents=True, exist_ok=True)
+            self._escribir_excel(output_excel, dataframe, operaciones, group_cols, agrupar_por)
+        except OSError as error:
+            # p.ej. auditoria.xlsx abierto en Excel (PermissionError). AuditExportError es también OSError.
+            raise AuditExportError(f"❌ Error al exportar Excel '{output_excel}': {error}") from error
+
+        self.logger.info(f"✅ Resumen de auditoría exportado a: {output_excel}")
+        return output_excel
+
+    def _escribir_excel(
+        self,
+        output_excel: Path,
+        dataframe: pd.DataFrame,
+        operaciones: list[Any],
+        group_cols: list[str],
+        agrupar_por: str,
+    ) -> None:
+        """Escribe una hoja por operación y ``Resumen_global`` en ``output_excel``."""
         resumen_global: list[pd.DataFrame] = []
 
         with pd.ExcelWriter(output_excel, engine="openpyxl") as writer:
@@ -83,9 +101,6 @@ class AuditExporters:
                     ]
                 safe_frame(dataframe_global).to_excel(writer, sheet_name="Resumen_global", index=False)
                 _desactivar_formulas(writer.sheets["Resumen_global"])
-
-        self.logger.info(f"✅ Resumen de auditoría exportado a: {output_excel}")
-        return output_excel
 
     def exportar_resumen_json(self, output_path: Path | None = None) -> Path:
         """Exporta resumen de auditoría a JSON."""

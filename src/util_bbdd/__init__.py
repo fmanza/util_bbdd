@@ -9,6 +9,7 @@ from ._core.exceptions import (
     AuditConfigError,
     AuditDataError,
     AuditError,
+    AuditExportError,
     AuditFileError,
     AuditValidationError,
     ConnectionError,
@@ -105,6 +106,7 @@ __all__: list[str] = [
     "AuditConfigError",
     "AuditFileError",
     "AuditDataError",
+    "AuditExportError",
     "AuditValidationError",
     # Migración DDL
     "MigrationPlanner",

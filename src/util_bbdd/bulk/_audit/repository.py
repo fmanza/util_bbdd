@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import logging
+import os
 import threading
 
 from collections.abc import Sequence
@@ -30,10 +31,12 @@ _FILE_LOCKS_GUARD = threading.Lock()
 def _get_file_lock(path: Path) -> threading.Lock:
     """Devuelve el lock compartido para ``path`` (creándolo si no existe).
 
-    La clave se normaliza con ``resolve()`` para que rutas relativa y absoluta al
-    mismo fichero compartan el mismo lock.
+    La clave se normaliza para que rutas relativa y absoluta (y, en Windows, con distinta capitalización) al mismo
+    fichero compartan el mismo lock. Es una normalización de texto, sin consultar el disco: ``Path.resolve()`` en
+    Windows devolvía ``\\\\?\\C:\\...`` mientras el fichero se estaba renombrando (``_asegurar_cabecera``) y ``C:\\...`` el
+    resto del tiempo, así que dos hilos obtenían locks distintos y uno pisaba la cabecera y las filas del otro.
     """
-    key = str(path.resolve())
+    key = os.path.normcase(os.path.abspath(path))
     with _FILE_LOCKS_GUARD:
         lock = _FILE_LOCKS.get(key)
         if lock is None:
@@ -67,8 +70,9 @@ class AuditCsvRepository:
         # audit_csv_path no cambie. Path.resolve() costaba ~70 µs por escritura en Windows.
         self._lock_path: Path | None = None
         self._lock: threading.Lock | None = None
-        # Ruta cuya cabecera ya se comprobó (una vez por instancia y ruta; ver ``_asegurar_cabecera``).
-        self._cabecera_validada: Path | None = None
+        # (ruta, columnas) cuya cabecera ya se comprobó: una vez por instancia, y otra si cambia la ruta o las columnas
+        # (setter obsoleto ``AuditManager.columnas_auditoria``); ver ``_asegurar_cabecera``.
+        self._cabecera_validada: tuple[Path, tuple[str, ...]] | None = None
 
         if self.audit_csv_path is not None:
             self.validar_ruta(self.audit_csv_path)
@@ -143,9 +147,10 @@ class AuditCsvRepository:
         # Sección crítica: existencia → cabecera → fila debe ser atómica frente a otros
         # hilos que escriban el mismo CSV (volcado paralelo con una BulkCrud por hilo).
         with self._file_lock(self.audit_csv_path):
-            if self._cabecera_validada != self.audit_csv_path:
+            clave = (self.audit_csv_path, tuple(self.columnas_auditoria))
+            if self._cabecera_validada != clave:
                 self._asegurar_cabecera(self.audit_csv_path)
-                self._cabecera_validada = self.audit_csv_path
+                self._cabecera_validada = clave
             with self._open_for_append(self.audit_csv_path) as file_handle:
                 writer = csv.writer(file_handle, delimiter="\t")
                 # H4 (audit-code 2026-09-25): en modo "a" el fichero se abre al final; posición 0 = nuevo o vacío.
@@ -185,7 +190,7 @@ class AuditCsvRepository:
             return  # sin permisos u otro fallo de E/S: no es una cabecera inválida; la escritura informará del error
         if not primera or primera.lstrip("\ufeff").rstrip("\r\n") == "\t".join(self.columnas_auditoria):
             return
-        apartado = path.with_name(f"{path.stem}.invalid-{datetime.now():%Y%m%d_%H%M%S}{path.suffix}")
+        apartado = self._ruta_apartado(path)
         try:
             path.rename(apartado)
         except OSError as error:
@@ -199,6 +204,17 @@ class AuditCsvRepository:
             primera[:120],
             apartado.name,
         )
+
+    @staticmethod
+    def _ruta_apartado(path: Path) -> Path:
+        """``<nombre>.invalid-<fecha><ext>``, con sufijo ``_2``, ``_3``… si ya existe (en Windows el renombrado fallaría)."""
+        base = f"{path.stem}.invalid-{datetime.now():%Y%m%d_%H%M%S}"
+        candidato = path.with_name(f"{base}{path.suffix}")
+        n = 2
+        while candidato.exists():
+            candidato = path.with_name(f"{base}_{n}{path.suffix}")
+            n += 1
+        return candidato
 
     def _file_lock(self, path: Path) -> threading.Lock:
         """Lock compartido de ``path``, cacheado mientras la ruta no cambie."""

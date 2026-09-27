@@ -424,6 +424,14 @@ class AuditDataError(AuditError):
     """Error en datos de auditoría."""
 
 
+class AuditExportError(AuditDataError, OSError):
+    """No se pudo escribir un informe de auditoría (p.ej. ``auditoria.xlsx`` abierto en Excel, disco lleno).
+
+    Hereda también de ``OSError``: ``exportar_resumen_excel`` dejaba salir el ``OSError`` sin envolver, y quien lo
+    captura así sigue funcionando; como ``AuditDataError`` da el mismo contrato que las exportaciones JSON y HTML.
+    """
+
+
 class AuditValidationError(AuditError):
     """Error en validación de parámetros."""
 
@@ -477,5 +485,6 @@ __all__ = [
     "AuditConfigError",
     "AuditFileError",
     "AuditDataError",
+    "AuditExportError",
     "AuditValidationError",
 ]

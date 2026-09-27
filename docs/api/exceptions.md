@@ -42,6 +42,7 @@ DatabaseException
     ├── AuditConfigError            (también ValueError)
     ├── AuditFileError
     ├── AuditDataError
+    │   └── AuditExportError        (también OSError)
     └── AuditValidationError
 ```
 

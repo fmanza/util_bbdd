@@ -23,6 +23,19 @@ class TestFileLockRegistry:
         p_alt = tmp_path / "." / "a.csv"
         assert _get_file_lock(p) is _get_file_lock(p_alt)
 
+    def test_relative_path_shares_lock_with_absolute(self, tmp_path: Path, monkeypatch) -> None:  # noqa: ANN001
+        monkeypatch.chdir(tmp_path)
+        assert _get_file_lock(Path("a.csv")) is _get_file_lock(tmp_path / "a.csv")
+
+    def test_lock_key_does_not_depend_on_the_file_state(self, tmp_path: Path, monkeypatch) -> None:  # noqa: ANN001
+        # En Windows, Path.resolve() devolvía "\\\\?\\C:\\..." mientras el CSV se renombraba (cabecera no válida) y
+        # "C:\\..." el resto del tiempo: dos locks para el mismo fichero y filas perdidas. La clave no consulta el disco.
+        p = tmp_path / "a.csv"
+        antes = _get_file_lock(p)
+        monkeypatch.setattr(Path, "resolve", lambda self, strict=False: Path("\\\\?\\" + str(self)))  # noqa: ARG005
+
+        assert _get_file_lock(p) is antes
+
     def test_different_paths_get_different_locks(self, tmp_path: Path) -> None:
         assert _get_file_lock(tmp_path / "a.csv") is not _get_file_lock(tmp_path / "b.csv")
 

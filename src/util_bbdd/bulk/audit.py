@@ -19,7 +19,14 @@ from typing import Any, Literal
 
 import pandas as pd
 
-from ._audit.errors import AuditConfigError, AuditDataError, AuditError, AuditFileError, AuditValidationError
+from ._audit.errors import (
+    AuditConfigError,
+    AuditDataError,
+    AuditError,
+    AuditExportError,
+    AuditFileError,
+    AuditValidationError,
+)
 from ._audit.exporters import AuditExporters
 from ._audit.record import AUDIT_OPERATIONS, AuditRecord
 from ._audit.repository import AuditCsvRepository
@@ -265,6 +272,7 @@ class AuditManager:
 __all__: list[str] = [
     "AuditConfigError",
     "AuditDataError",
+    "AuditExportError",
     "AuditError",
     "AuditFileError",
     "AuditManager",

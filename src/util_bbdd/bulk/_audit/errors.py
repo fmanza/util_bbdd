@@ -11,6 +11,7 @@ from ..._core.exceptions import (
     AuditConfigError,
     AuditDataError,
     AuditError,
+    AuditExportError,
     AuditFileError,
     AuditValidationError,
 )
@@ -19,6 +20,7 @@ __all__: list[str] = [
     "AuditConfigError",
     "AuditDataError",
     "AuditError",
+    "AuditExportError",
     "AuditFileError",
     "AuditValidationError",
 ]

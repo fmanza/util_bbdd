@@ -134,6 +134,67 @@ class TestRepositoryWrite:
         assert apartados[0].read_text(encoding="utf-8") == roto.replace("\r\n", "\n")  # contenido intacto
         assert "cabecera no válida" in caplog.text
 
+    def test_apartado_con_el_mismo_nombre_no_se_pisa(self, tmp_path: Path) -> None:
+        # L1: dos apartados en el mismo segundo; en Windows el renombrado a un nombre existente fallaría.
+        csv_path = tmp_path / "audit.csv"
+        primero = AuditCsvRepository._ruta_apartado(csv_path)
+        primero.write_text("previo", encoding="utf-8")
+
+        segundo = AuditCsvRepository._ruta_apartado(csv_path)
+
+        assert segundo != primero
+        assert segundo.name.startswith(primero.stem) and segundo.stem.endswith("_2")
+
+    def test_si_no_se_puede_apartar_lanza_audit_file_error_sin_tocar_el_fichero(
+        self, repo: AuditCsvRepository, tmp_path: Path
+    ) -> None:
+        csv_path = tmp_path / "audit.csv"
+        csv_path.write_text('"cabecera rota"\n', encoding="utf-8")
+
+        with (
+            patch.object(Path, "rename", side_effect=PermissionError("bloqueado")),
+            pytest.raises(AuditFileError, match="no se pudo apartar"),
+        ):
+            repo.registrar_operacion(tabla="t", motor="sqlite", operacion="INSERT", rowcount=1, elapsed=0.1)
+
+        assert csv_path.read_text(encoding="utf-8") == '"cabecera rota"\n'
+
+    def test_varios_hilos_con_cabecera_rota_apartan_una_sola_vez(self, tmp_path: Path) -> None:
+        import threading
+
+        csv_path = tmp_path / "audit.csv"
+        csv_path.write_text('"' + "\t".join(_COLUMNS) + '"\n', encoding="utf-8")
+        repos = [
+            AuditCsvRepository(audit_csv_path=csv_path, columnas_auditoria=_COLUMNS, logger=logging.getLogger("test"))
+            for _ in range(8)
+        ]
+        hilos = [
+            threading.Thread(
+                target=r.registrar_operacion,
+                kwargs={"tabla": "t", "motor": "sqlite", "operacion": "INSERT", "rowcount": 1, "elapsed": 0.1},
+            )
+            for r in repos
+        ]
+        for h in hilos:
+            h.start()
+        for h in hilos:
+            h.join()
+
+        assert len(list(tmp_path.glob("audit.invalid-*"))) == 1
+        assert len(repos[0].leer_auditoria(usar_cache=False)) == 8
+
+    def test_cambiar_las_columnas_vuelve_a_comprobar_la_cabecera(
+        self, repo: AuditCsvRepository, tmp_path: Path
+    ) -> None:
+        # L2: la comprobación se hace una vez por (ruta, columnas), no solo por ruta.
+        repo.registrar_operacion(tabla="t", motor="sqlite", operacion="INSERT", rowcount=1, elapsed=0.1)
+        with patch.object(repo, "_asegurar_cabecera", wraps=repo._asegurar_cabecera) as spy:
+            repo.registrar_operacion(tabla="t", motor="sqlite", operacion="INSERT", rowcount=1, elapsed=0.1)
+            assert spy.call_count == 0
+            repo.columnas_auditoria = [*_COLUMNS[:-1], "otra"]
+            repo.registrar_operacion(tabla="t", motor="sqlite", operacion="INSERT", rowcount=1, elapsed=0.1)
+            assert spy.call_count == 1
+
     def test_cabecera_valida_no_se_aparta(self, repo: AuditCsvRepository, tmp_path: Path) -> None:
         repo.registrar_operacion(tabla="t", motor="sqlite", operacion="INSERT", rowcount=1, elapsed=0.1)
         otro = AuditCsvRepository(
