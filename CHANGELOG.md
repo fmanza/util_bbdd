@@ -7,6 +7,18 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.4] - 2026-09-27
+
+Un fallo de `rows_committed` encontrado al planificar los pendientes del refactor de `bulk`/`dump`
+(`.ai/sessions/2026-09-27b-pendientes-bulk-dump/`).
+
+### Fixed
+
+- **bulk**: dentro de una `bulk_session` con `commit_every_n_chunks`, el commit periódico de un DELETE confirma también
+  las filas de INSERT/UPDATE pendientes de la misma transacción, pero `rows_committed` no las contaba: si la sesión
+  fallaba después, se quedaba corto (0 con la fila ya en la BD). Las filas pendientes y confirmadas son ahora de la
+  sesión y las confirma cualquier commit. La auditoría ya era correcta.
+
 ## [0.17.3] - 2026-09-27
 
 Cierre del refactor de reutilización de `bulk` y `dump` (R15 y R16 del plan de la sesión
