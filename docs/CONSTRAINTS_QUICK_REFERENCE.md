@@ -9,10 +9,10 @@
 
 | Archivo | Tipo | Para quién | Duración |
 |---------|------|-----------|----------|
-| [`.github/prompts/performance_audit_constraints.prompt.md`](#reference) | Reference (técnico) | Arquitectos, DBAs | 2-4h lectura + análisis |
-| [`.github/prompts/performance_audit_constraints_agent.prompt.md`](#agent) | Agent (operativo) | Agentes LLM | 6-10h ejecución |
-| [`docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md`](#guide) | User Guide | Devs, Architects | 30min lectura |
-| [`README-CONSTRAINTS.md` (este)](#) | Quick Ref | Todos | 5min |
+| `.github/prompts/performance_audit_constraints.prompt.md` (en el repositorio) | Reference (técnico) | Arquitectos, DBAs | 2-4h lectura + análisis |
+| `.github/prompts/performance_audit_constraints_agent.prompt.md` (en el repositorio) | Agent (operativo) | Agentes LLM | 6-10h ejecución |
+| [`PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md`](PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md) | User Guide | Devs, Architects | 30min lectura |
+| `CONSTRAINTS_QUICK_REFERENCE.md` (este) | Quick Ref | Todos | 5min |
 
 ---
 

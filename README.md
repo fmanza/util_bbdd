@@ -1,8 +1,8 @@
 # util_bbdd
 
-Librería Python especializada en **operaciones de base de datos** para MariaDB, Oracle, PostgreSQL, SQLite, SQL Server y HSQLDB (sync).
+Librería Python especializada en **operaciones de base de datos** para MariaDB, MySQL, Oracle, PostgreSQL, SQLite y SQL Server (sync y async), y HSQLDB, Redshift y Snowflake (sync).
 
-**Version:** 0.10.0 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 0.18.3 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -11,7 +11,7 @@ Librería Python especializada en **operaciones de base de datos** para MariaDB,
 | Feature | Sync | Async | Soporta |
 |---------|------|-------|---------|
 | **CRUD en lote** | ✅ | ✅ | Insert/Update/Delete masivo desde CSV/DataFrame |
-| **Async/Await** | ✅ | ✅ | PostgreSQL, SQLite, MariaDB, Oracle, SQL Server |
+| **Async/Await** | ✅ | ✅ | PostgreSQL, SQLite, MariaDB, MySQL, Oracle, SQL Server |
 | **Gestión de Pool** | ✅ | ✅ | Connection pooling + singleton + tuning |
 | **Análisis de Schema** | ✅ | ✅ | Comparación de tablas, vistas, rutinas, índices |
 | **Documentación BD** | ✅ | — | HTML + Word + Excel generado automáticamente |
@@ -20,7 +20,7 @@ Librería Python especializada en **operaciones de base de datos** para MariaDB,
 | **Validación SQL** | ✅ | ✅ | Typechecking por dialecto de BD |
 | **Validación MySQL** | ✅ | ✅ | Auto-lectura de variables críticas (max_allowed_packet, innodb_buffer_pool_size) + recomendaciones |
 | **Grafos** | ✅ | ✅ | Generar relaciones (Mermaid + GraphViz) |
-| **Migración DDL** | ✅ | — | Oracle → MariaDB: mapeo de tipos, FKs, secuencias, charset |
+| **Migración DDL** | ✅ | — | Entre Oracle, MariaDB, SQL Server y PostgreSQL (12 combinaciones): tipos, FKs, secuencias, charset |
 | **Volcado de Datos** | ✅ | — | Copia datos entre esquemas/motores, orden topológico FK, gestión de constraints, informe Excel |
 
 ---
@@ -57,7 +57,7 @@ Librería Python especializada en **operaciones de base de datos** para MariaDB,
 **Flujo de decisión:**
 - ¿Script/cron/offline? → Use `SyncDatabaseManager`
 - ¿API/web/async? → Use `AsyncDatabaseManager`
-- ¿Insertar 100k filas? → Use `bulk_insert_from_csv()`
+- ¿Insertar 100k filas? → Use `BulkCrud.bulk_insert_from_df()` (CSV leído con `pandas.read_csv`)
 - ¿Comparar 2 schemas? → Use `SchemaComparator`
 - ¿Documentar BD? → Use `DatabaseDocumentation`
 - ¿Migrar DDL entre motores (Oracle/MariaDB/SQL Server/PostgreSQL)? → Use `MigrationPlanner`
@@ -280,10 +280,10 @@ manager.close()
 | Tema | Descripción | Link |
 |------|-----------|------|
 | **Guías** | Programación async, drivers, troubleshooting | [Docs](docs/) |
-| **API Reference** | Clases, métodos, tipos | [API](docs/API_REFERENCE.md) |
+| **API Reference** | Clases, métodos, tipos | [API](docs/api/intro.md) |
 | **Ejemplos** | Casos de uso, snippets de código | [Examples](docs/examples/) |
-| **Migration** | Actualizar de v0.6.6 → v0.6.7 | [Migration](docs/MIGRATION_GUIDE_v0.6.7.md) |
-| **Benchmarks** | Performance, tuning, optimización | [Benchmarks](docs/BENCHMARKS.md) |
+| **Migration** | Actualizar de v0.6.6 → v0.6.7 | [Migration](docs/guides/migration_guide_v0.6.7.md) |
+| **Benchmarks** | Performance, tuning, optimización | [Benchmarks](docs/guides/benchmarks.md) |
 
 ---
 
@@ -359,7 +359,7 @@ manager = AsyncDatabaseManager(
 cache = DatabaseMetadataCache()
 ```
 
-[Benchmarks completos →](docs/BENCHMARKS.md)
+[Benchmarks completos →](docs/guides/benchmarks.md)
 
 ---
 
@@ -450,8 +450,8 @@ manager.close()
 #### 📌 Ver más
 
 - [Guía de instalación completa](docs/INSTALLATION.md)
-- [Guía de excepciones](docs/EXCEPTIONS.md)
-- [SchemaComparator — Comparación de esquemas](docs/COMPARATOR.md)
+- [Guía de excepciones](docs/guides/exceptions.md)
+- [SchemaComparator — Comparación de esquemas](docs/guides/comparator.md)
 
 ---
 
@@ -606,7 +606,7 @@ La ruta recomendada para código nuevo usa **imports canónicos** desde la raíz
 - El código nuevo debe preferir la superficie canónica expuesta desde `util_bbdd`, `util_bbdd.managers`, `util_bbdd.bulk` y `util_bbdd.analysis`.
 - Las rutas legacy se mantienen para no romper integraciones existentes, pero ya no son la referencia principal en ejemplos ni en migraciones.
 - `get_storage_inventory()` usa el contrato actual por capacidades: `primary`, `temp_tablespaces` y `sqlite_file_summary` cuando aplica.
-- La guía de detalle para migrar imports y contratos está en [docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md).
+- La guía de detalle para migrar imports y contratos está en [docs/guides/migration_guide.md](docs/guides/migration_guide.md).
 
 ## ✨ Novedades v0.10.0 (Estable Vigente)
 
@@ -711,9 +711,12 @@ show_constraint_name = false
 
 ### Ejemplo completo de imprimir_config
 
-Existe un ejemplo completo, autocomentado y alineado con el contrato actual en:
+Existía un ejemplo completo y autocomentado en `docs/examples/imprimir_config_full_example.toml`, retirado
+de `docs/` junto con la documentación histórica (commit `be8232e`). Se recupera con:
 
-- [docs/examples/imprimir_config_full_example.toml](docs/examples/imprimir_config_full_example.toml)
+```bash
+git show be8232e^:docs/examples/imprimir_config_full_example.toml
+```
 
 Ese fichero documenta todas las secciones soportadas hoy por `imprimir`:
 
@@ -1050,10 +1053,10 @@ Para el núcleo de grafos de relaciones en v0.6.0:
 
 ### 📖 Documentation (v0.6.0+)
 
-- [**docs/v0.6.0/MIGRATION_GUIDE_v0.6.0.md**](docs/v0.6.0/MIGRATION_GUIDE_v0.6.0.md) - Contrato vigente de v0.6.0 para grafos, documentación y cambios de estructura
-- [**MIGRATION_GUIDE.md**](docs/MIGRATION_GUIDE.md) - Guía viva de migración y compatibilidad para la superficie pública actual
-- [**REFACTORING_SESSION_PROGRESS.md**](docs/REFACTORING_SESSION_PROGRESS.md) - Bitácora histórica con actualización operativa de cierre de Fase 3 y arranque de Fase 4 viva
-- [**docs/v0.5.6/jinja2_refactor.md**](docs/v0.5.6/jinja2_refactor.md) - Refactorización histórica de la capa Jinja2 standalone
+- [**migration_guide.md**](docs/guides/migration_guide.md) - Guía viva de migración y compatibilidad para la superficie pública actual
+- [**legacy-versions.md**](docs/legacy-versions.md) - Versiones históricas
+- La guía de migración de v0.6.0, la bitácora de refactorización y el refactor de Jinja2 de v0.5.6 se retiraron de
+  `docs/` (commit `be8232e`); siguen en el historial de git.
 
 ### 🧪 Testing
 - Usa las tareas del workspace para validar el estado real actual: `test`, `lint`, `type-check` y `build`.
@@ -1098,7 +1101,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.10.0** (Vías rápidas de INSERT por motor en bulk; rendimiento opt-in en dump)
+**Current Version: v0.18.3** (exportación de informes robusta en dump, bulk, comparar y doc)
 
 Roadmap resumido (ver [ROADMAP completo](docs/ROADMAP.md) y
 [CHANGELOG](CHANGELOG.md) para el detalle):
@@ -1108,7 +1111,9 @@ Roadmap resumido (ver [ROADMAP completo](docs/ROADMAP.md) y
 - `v0.7.0` ✅: Timing automático de operaciones en bulk CRUD; retirada de scripts legacy
 - `v0.8.0` ✅: Cobertura completa del sistema de tipos (8 motores); hotfix de finalización del pool
 - `v0.9.0` ✅: Palancas de rendimiento opt-in en dump (commit cadence, índices, paralelización)
-- `v0.10.0` ✅ (vigente): Vías rápidas de INSERT por motor (PostgreSQL COPY, MySQL multi-fila)
+- `v0.10.0` ✅: Vías rápidas de INSERT por motor (PostgreSQL COPY, MySQL multi-fila)
+- `v0.11.0 – v0.18.3` ✅ (vigente): auditoría y rendimiento de bulk y dump contra motores reales, verificador de
+  condiciones del motor e informes robustos (detalle en el [CHANGELOG](CHANGELOG.md))
 - `v1.0.0` (futuro): API estable, cobertura 85%+
 
 ## Licencia
