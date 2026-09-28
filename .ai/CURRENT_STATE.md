@@ -34,7 +34,7 @@
 PR abierta: **PR #18** `feat(connection/bulk): automatización variables MySQL/MariaDB` — revisión pendiente de merge.  
 PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical v0.0.44 esté en crates.io (o instalación manual de binario).
 
-**Tests actuales**: 5288 passed, 199 skipped sin URLs de servidor (cierre de `v0.18.3`); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: estimado 340+ passed en 5 servidores (cierre de `v0.18.1`, 2026-09-27). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/PERFORMANCE_AUDIT_GUIDE.md`).
+**Tests actuales**: 5288 passed, 199 skipped sin URLs de servidor (cierre de `v0.18.3`); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: estimado 340+ passed en 5 servidores (cierre de `v0.18.1`, 2026-09-27). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/performance_audit_guide.md`).
 
 ---
 

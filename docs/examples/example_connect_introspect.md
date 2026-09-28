@@ -9,7 +9,7 @@ Resuelve el primer paso de cualquier trabajo con `util_bbdd`: verificar conectiv
 ## 2. Implementación de Referencia
 
 ```python
---8<-- "examples/example-connect-introspect.py"
+--8<-- "examples/example_connect_introspect.py"
 ```
 
 ## 3. Explicación del Código
@@ -41,10 +41,10 @@ manager = SyncDatabaseManager(
 
 ```bash
 # Validación sintáctica
-python -m py_compile docs/examples/example-connect-introspect.py
+python -m py_compile docs/examples/example_connect_introspect.py
 
 # Ejecución (usa SQLite en memoria; no requiere servidor externo)
-python docs/examples/example-connect-introspect.py
+python docs/examples/example_connect_introspect.py
 ```
 
 Resultado esperado:
@@ -59,6 +59,6 @@ Fila: {'id': 1, 'nombre': 'Ana', 'email': 'ana@example.com'}
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Gestión de Conexiones (Sync)](../functional/managers-sync.md) — objetivo de negocio del manager síncrono
-- **Referencia técnica**: [Manager Síncrono](../api/managers-sync.md) — API completa de `SyncDatabaseManager`
+- **Documentación funcional**: [Gestión de Conexiones (Sync)](../functional/managers_sync.md) — objetivo de negocio del manager síncrono
+- **Referencia técnica**: [Manager Síncrono](../api/managers_sync.md) — API completa de `SyncDatabaseManager`
 - **Ejemplos relacionados**: [Queries Concurrentes (Async)](async_concurrent_queries.md) — versión asíncrona equivalente

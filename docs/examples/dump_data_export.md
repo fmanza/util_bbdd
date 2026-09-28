@@ -53,7 +53,7 @@ El informe Excel `reports/dump_report_<timestamp>.xlsx` contiene hojas de Audito
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Volcado entre Esquemas](../functional/dump-data-export.md) — 7 fases del volcado y palancas de rendimiento
+- **Documentación funcional**: [Volcado entre Esquemas](../functional/dump_data_export.md) — 7 fases del volcado y palancas de rendimiento
 - **Referencia técnica**: [Orquestador de Volcado](../api/dump.md) — API de `DumpConfig`, `DumpOrchestrator` y `DumpResult`
-- **Referencia técnica**: [Generador de Reportes](../api/dump-reporter.md) — estructura del informe Excel de auditoría
+- **Referencia técnica**: [Generador de Reportes](../api/dump_reporter.md) — estructura del informe Excel de auditoría
 - **Ejemplos relacionados**: [Bulk Insert desde CSV](bulk_insert_csv.md) — inserción básica sin volcado completo

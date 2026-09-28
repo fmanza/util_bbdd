@@ -72,4 +72,4 @@ flowchart TD
 ## 5. Ejemplos Relacionados
 
 !!! info "Ejemplo en preparación"
-    Pendiente — crear ejemplo en docs/examples/connection-factory.md
+    Pendiente — crear ejemplo en docs/examples/connection_factory.md

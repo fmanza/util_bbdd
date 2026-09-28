@@ -54,6 +54,6 @@ Los ficheros se generan en `generated_docs/` bajo subdirectorios `HTML/`, `WORD/
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Generación de Documentación de BD](../functional/database-documentation.md) — objetivo de negocio y casos de uso
-- **Referencia técnica**: [Generador de Documentación](../api/database-documentation.md) — API de `DatabaseDocumentation` y parámetros de `imprimir`
+- **Documentación funcional**: [Generación de Documentación de BD](../functional/database_documentation.md) — objetivo de negocio y casos de uso
+- **Referencia técnica**: [Generador de Documentación](../api/database_documentation.md) — API de `DatabaseDocumentation` y parámetros de `imprimir`
 - **Ejemplos relacionados**: [Generación de Grafos de Relaciones](graph_generation.md) — grafos standalone sin documentación completa

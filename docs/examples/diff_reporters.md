@@ -38,6 +38,6 @@ Ver [Comparación de Esquemas](schema_comparison.md) para el ejemplo completo co
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Comparador de Esquemas](../functional/schema-comparison.md) — objetivo de negocio y casos de uso
-- **Referencia técnica**: [Comparador y Reporters](../api/schema-comparator.md) — API de `SchemaDiffReporter` y reporters individuales
+- **Documentación funcional**: [Comparador de Esquemas](../functional/schema_comparison.md) — objetivo de negocio y casos de uso
+- **Referencia técnica**: [Comparador y Reporters](../api/schema_comparator.md) — API de `SchemaDiffReporter` y reporters individuales
 - **Ejemplos relacionados**: [Comparación de Esquemas](schema_comparison.md) — ejemplo completo con introspección previa

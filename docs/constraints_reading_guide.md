@@ -9,7 +9,7 @@
 ```
 ⏱️ Tiempo disponible: 30 minutos
 
-1. Lee: CONSTRAINTS_QUICK_REFERENCE.md (5 min)
+1. Lee: constraints_quick_reference.md (5 min)
    ↓
 2. Identifica tu caso de uso (PostgreSQL INSERT, MySQL UPDATE, etc.)
    ↓
@@ -21,8 +21,8 @@
 ```
 
 **Archivos que necesitas**:
-- ✅ `docs/CONSTRAINTS_QUICK_REFERENCE.md`
-- ✅ `docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md` (si tienes 30 min más)
+- ✅ `docs/constraints_quick_reference.md`
+- ✅ `docs/performance_audit_constraints_guide.md` (si tienes 30 min más)
 
 **Salida**: Mejora de 5-10% sin riesgo en < 1 hora
 
@@ -33,9 +33,9 @@
 ```
 ⏱️ Tiempo disponible: 4 horas
 
-1. Lee: CONSTRAINTS_QUICK_REFERENCE.md (5 min)
+1. Lee: constraints_quick_reference.md (5 min)
    ↓
-2. Lee: PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md (30 min)
+2. Lee: performance_audit_constraints_guide.md (30 min)
    ↓
 3. Lee: .github/prompts/performance_audit_constraints.prompt.md (2 horas)
    ↓
@@ -48,8 +48,8 @@
 ```
 
 **Archivos que necesitas**:
-- ✅ `docs/CONSTRAINTS_QUICK_REFERENCE.md`
-- ✅ `docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md`
+- ✅ `docs/constraints_quick_reference.md`
+- ✅ `docs/performance_audit_constraints_guide.md`
 - ✅ `.github/prompts/performance_audit_constraints.prompt.md`
 
 **Salida**: Plan técnico de 2-3 fases de optimización
@@ -96,9 +96,9 @@
 ```
 ⏱️ Tiempo disponible: 4-8 horas
 
-1. Lee: CONSTRAINTS_QUICK_REFERENCE.md (5 min)
+1. Lee: constraints_quick_reference.md (5 min)
    ↓
-2. Lee: PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md (30 min)
+2. Lee: performance_audit_constraints_guide.md (30 min)
    ↓
 3. Lee: .github/prompts/performance_audit_constraints.prompt.md (2 horas)
    ↓
@@ -120,8 +120,8 @@
 ```
 
 **Archivos clave**:
-- ✅ `docs/CONSTRAINTS_QUICK_REFERENCE.md` (referencia rápida)
-- ✅ `docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md` (casos de uso)
+- ✅ `docs/constraints_quick_reference.md` (referencia rápida)
+- ✅ `docs/performance_audit_constraints_guide.md` (casos de uso)
 - ✅ `.github/prompts/performance_audit_constraints.prompt.md` (técnico detallado)
 - ✅ `.github/prompts/performance_audit_constraints_agent.prompt.md` (workflow para agentes)
 - 🧪 `scripts/bench_bulk.py` (si existe)
@@ -192,20 +192,20 @@ graph LR
 ## 📁 Estructura de Lectura Recomendada
 
 ### Para Leer Primero (Todos)
-1. `docs/CONSTRAINTS_QUICK_REFERENCE.md` — 5 min
+1. `docs/constraints_quick_reference.md` — 5 min
    - Resumen ejecutivo
    - Qué esperar
    - Quick wins
 
 ### Para Leer Segundo (Según Tu Rol)
-- **Dev**: `docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md` (casos de uso)
+- **Dev**: `docs/performance_audit_constraints_guide.md` (casos de uso)
 - **Architect**: `.github/prompts/performance_audit_constraints.prompt.md` (técnico)
 - **LLM**: `.github/prompts/performance_audit_constraints_agent.prompt.md` (workflow)
 - **DBA**: `.github/prompts/performance_audit_constraints.prompt.md` + casos de uso
 
 ### Para Referencia (Como Necesites)
-- `docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md` — User guide completa
-- `docs/CONSTRAINTS_AUDIT_INDEX.md` — Índice de navegación
+- `docs/performance_audit_constraints_guide.md` — User guide completa
+- `docs/constraints_audit_index.md` — Índice de navegación
 - `.github/prompts/performance_audit_constraints.prompt.md` — Referencia técnica
 - `.github/prompts/performance_audit_constraints_agent.prompt.md` — Workflow agente
 
@@ -239,10 +239,10 @@ graph LR
 
 ### 👤 Developer
 **P: Tengo 30 min, ¿qué implemento?**  
-A: Batch size 5000 + logging async. Ver `CONSTRAINTS_QUICK_REFERENCE.md` "Quick Wins".
+A: Batch size 5000 + logging async. Ver `constraints_quick_reference.md` "Quick Wins".
 
 **P: ¿Es seguro desactivar constraints?**  
-A: Bajo riesgo si validaciones post-carga. Ver `PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md`.
+A: Bajo riesgo si validaciones post-carga. Ver `performance_audit_constraints_guide.md`.
 
 ---
 
@@ -266,7 +266,7 @@ A: 6-10 horas. Ejecuta 5 fases secuencialmente.
 
 ### 🔬 DBA
 **P: ¿Cómo valido integridad post-carga?**  
-A: Usa checklist en `PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md` sección "Validación".
+A: Usa checklist en `performance_audit_constraints_guide.md` sección "Validación".
 
 **P: ¿Qué hay para cada BBDD?**  
 A: Reference prompt tiene sección 3 (Estrategias por BBDD).
@@ -278,8 +278,8 @@ A: Reference prompt tiene sección 3 (Estrategias por BBDD).
 **Selecciona tu rol arriba ↑ y comienza a leer.**
 
 Si no tienes claro tu rol, empieza siempre por:
-→ [`docs/CONSTRAINTS_QUICK_REFERENCE.md`](./CONSTRAINTS_QUICK_REFERENCE.md)
+→ [`docs/constraints_quick_reference.md`](./constraints_quick_reference.md)
 
 ---
 
-*Guía de lectura v1.0.0 | Actualizado 2026-09-26 | Índice completo en `CONSTRAINTS_AUDIT_INDEX.md`*
+*Guía de lectura v1.0.0 | Actualizado 2026-09-26 | Índice completo en `constraints_audit_index.md`*

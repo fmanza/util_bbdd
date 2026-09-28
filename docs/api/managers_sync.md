@@ -77,7 +77,7 @@ flowchart TD
 
 ## 3. Componentes y Clases
 
-*No aplica para este módulo.* `SyncDatabaseManager` es la única clase pública de este módulo; su descomposición interna (lifecycle, metadata, query, cache) está documentada en los módulos `managers-lifecycle`, `metadata-manager` y `query-system`.
+*No aplica para este módulo.* `SyncDatabaseManager` es la única clase pública de este módulo; su descomposición interna (lifecycle, metadata, query, cache) está documentada en los módulos `managers_lifecycle`, `metadata_manager` y `query_system`.
 
 ## 4. Dependencias y Requisitos
 
@@ -90,4 +90,4 @@ flowchart TD
 
 ## 5. Ejemplos Relacionados
 
-- [Ejemplo: Conectar e Introspeccionar Base de Datos](../examples/example-connect-introspect.md) — Conexión básica, listado de tablas y columnas con `SyncDatabaseManager`
+- [Ejemplo: Conectar e Introspeccionar Base de Datos](../examples/example_connect_introspect.md) — Conexión básica, listado de tablas y columnas con `SyncDatabaseManager`

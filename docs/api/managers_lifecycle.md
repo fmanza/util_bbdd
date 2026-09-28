@@ -1,4 +1,4 @@
-# Ciclo de Vida de Conexiones (managers-lifecycle)
+# Ciclo de Vida de Conexiones (managers_lifecycle)
 
 Centraliza la lógica de apertura, adquisición, liberación y cierre de recursos de conexión (pool y directa) para los managers sync y async, con manejo uniforme de errores y logging consistente.
 
@@ -84,5 +84,5 @@ flowchart TD
 
 ## 5. Ejemplos Relacionados
 
-- [Ejemplo: Conectar e Introspeccionar Base de Datos](../examples/example-connect-introspect.md) — Ciclo de vida de conexión con context manager
+- [Ejemplo: Conectar e Introspeccionar Base de Datos](../examples/example_connect_introspect.md) — Ciclo de vida de conexión con context manager
 

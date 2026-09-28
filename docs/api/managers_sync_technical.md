@@ -54,7 +54,7 @@ flowchart TD
 
 - **`introspect()`** — `DatabaseSchema` con `tables` (lista de objetos con `name`, `columns`, `constraints`).
 - **`execute(query)`** — `list[tuple[Any, ...]]`; lista vacía si no hay filas.
-- Comportamiento idéntico al documentado en `managers-sync.md`; este documento describe la arquitectura interna.
+- Comportamiento idéntico al documentado en `managers_sync.md`; este documento describe la arquitectura interna.
 
 ### Errores y casos especiales
 
@@ -85,4 +85,4 @@ flowchart TD
 
 ## 5. Ejemplos Relacionados
 
-- [Ejemplo: Conectar e Introspeccionar Base de Datos](../examples/example-connect-introspect.md) — Ciclo de vida completo de `SyncDatabaseManager`
+- [Ejemplo: Conectar e Introspeccionar Base de Datos](../examples/example_connect_introspect.md) — Ciclo de vida completo de `SyncDatabaseManager`

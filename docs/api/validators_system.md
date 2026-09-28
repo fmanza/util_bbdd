@@ -101,9 +101,9 @@ classDiagram
 
 | Dependencia | Propósito | Requerida | Comportamiento sin ella |
 |---|---|---|---|
-| `QueryDefinition` (de `query-system`) | Definición de la query a validar | Sí | Sin `QueryDefinition` no hay nada que validar |
+| `QueryDefinition` (de `query_system`) | Definición de la query a validar | Sí | Sin `QueryDefinition` no hay nada que validar |
 
 ## 5. Ejemplos Relacionados
 
 !!! info "Ejemplo en preparación"
-    Pendiente — crear ejemplo en docs/examples/validators-system.md
+    Pendiente — crear ejemplo en docs/examples/validators_system.md

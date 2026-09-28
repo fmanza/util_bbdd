@@ -75,4 +75,4 @@ Para reajustar los contadores directamente, sin pasar por un script, usar `BulkC
 
 ## 5. Ejemplos Relacionados
 
-- [Ejemplo: Reajuste de AUTO_INCREMENT en MariaDB](../examples/update-auto-increment-example.md) — Generar y revisar el script de reajuste de un esquema
+- [Ejemplo: Reajuste de AUTO_INCREMENT en MariaDB](../examples/update_auto_increment_example.md) — Generar y revisar el script de reajuste de un esquema

@@ -103,17 +103,17 @@ util_bbdd-docs-latest.zip
 ├── index.html                      # Página de inicio
 ├── INSTALLATION.html               # Guía de instalación
 ├── api/
-│   ├── managers-sync.html
-│   ├── managers-async.html
-│   ├── bulk-crud.html
+│   ├── managers_sync.html
+│   ├── managers_async.html
+│   ├── bulk_crud.html
 │   └── ... (30+ referencias técnicas)
 ├── functional/
-│   ├── managers-sync.html
-│   ├── bulk-operations.html
+│   ├── managers_sync.html
+│   ├── bulk_operations.html
 │   └── ... (25+ guías funcionales)
 ├── examples/
 │   ├── bulk-insert-csv.html
-│   ├── schema-comparison.html
+│   ├── schema_comparison.html
 │   └── ... (15+ ejemplos prácticos)
 ├── css/
 │   ├── material.css               # Tema Material Design 3

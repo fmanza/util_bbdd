@@ -14,16 +14,16 @@ Se han creado **4 documentos** especializados para analizar el rendimiento de de
 |---|-----------|-----------|------|-----------|--------|
 | 1️⃣ | **Reference Prompt** (técnico detallado) | `.github/prompts/performance_audit_constraints.prompt.md` | 📘 Reference | Arquitectos, DBAs | 2-4h |
 | 2️⃣ | **Agent Prompt** (workflow 5 fases) | `.github/prompts/performance_audit_constraints_agent.prompt.md` | 🤖 Agent Workflow | Agentes LLM | 6-10h |
-| 3️⃣ | **User Guide** (cómo usar) | `docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md` | 📗 User Guide | Devs, Architects | 30min |
-| 4️⃣ | **Quick Reference** (cheatsheet) | `docs/CONSTRAINTS_QUICK_REFERENCE.md` | ⚡ Cheatsheet | Todos | 5min |
+| 3️⃣ | **User Guide** (cómo usar) | `docs/performance_audit_constraints_guide.md` | 📗 User Guide | Devs, Architects | 30min |
+| 4️⃣ | **Quick Reference** (cheatsheet) | `docs/constraints_quick_reference.md` | ⚡ Cheatsheet | Todos | 5min |
 
 ---
 
 ## 🚀 Punto de Partida (Elige Uno)
 
 ### 👤 Soy usuario final (Dev, QA, Architect)
-**→ Lee primero**: [`docs/CONSTRAINTS_QUICK_REFERENCE.md`](CONSTRAINTS_QUICK_REFERENCE.md) (5 min)  
-**→ Luego**: [`docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md`](PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md) (30 min)  
+**→ Lee primero**: [`docs/constraints_quick_reference.md`](constraints_quick_reference.md) (5 min)  
+**→ Luego**: [`docs/performance_audit_constraints_guide.md`](performance_audit_constraints_guide.md) (30 min)  
 **→ Accción**: `/performance-audit-constraints` en Claude Code o copia el agent prompt a tu chat
 
 ---
@@ -50,8 +50,8 @@ util_bbdd/
 │   ├── performance_audit_constraints.prompt.md          ← 📘 Reference
 │   └── performance_audit_constraints_agent.prompt.md    ← 🤖 Agent Workflow
 ├── docs/
-│   ├── PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md          ← 📗 User Guide
-│   ├── CONSTRAINTS_QUICK_REFERENCE.md                  ← ⚡ Cheatsheet
+│   ├── performance_audit_constraints_guide.md          ← 📗 User Guide
+│   ├── constraints_quick_reference.md                  ← ⚡ Cheatsheet
 │   └── [otros documentos de proyecto]
 └── ...
 ```
@@ -247,7 +247,7 @@ A: PostgreSQL (COPY = 60% mejora). Mejor usar DB-specific directives que desacti
 
 ### Contacto
 - Consulta archivos en `.ai/sessions/` para auditorías previas
-- Revisa `docs/PERFORMANCE_AUDIT_GUIDE.md` para volcado (dump) masivo
+- Revisa `docs/performance_audit_guide.md` para volcado (dump) masivo
 - Lee `SHARED_INSTRUCTIONS.md` para arquitectura general del proyecto
 
 ---

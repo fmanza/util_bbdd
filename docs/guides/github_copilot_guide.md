@@ -56,7 +56,7 @@ Copilot Chat puede recibir contexto explícito con `#file:`:
 
 @documentation-generator
 Genera la documentación funcional del módulo indicado siguiendo las instrucciones del prompt.
-Guarda en docs/functional/managers-sync.md y actualiza mkdocs.yml.
+Guarda en docs/functional/managers_sync.md y actualiza mkdocs.yml.
 ```
 
 ### Paso 5 — Generar documentación técnica con Mermaid
@@ -66,7 +66,7 @@ Guarda en docs/functional/managers-sync.md y actualiza mkdocs.yml.
 #file:src/util_bbdd/bulk/crud.py
 
 Genera documentación técnica con diagrama Mermaid. Tipo: flowchart TD.
-Guarda en docs/api/bulk-crud.md.
+Guarda en docs/api/bulk_crud.md.
 ```
 
 ## 4. Verificación

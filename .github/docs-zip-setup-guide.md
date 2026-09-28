@@ -170,7 +170,7 @@ jobs:
 ```
 util_bbdd-docs-0.10.0-20260604.zip
 ├── index.html
-├── INSTALLATION.html
+├── installation.html
 ├── css/
 │   ├── material.css
 │   ├── mermaid.css
@@ -182,12 +182,12 @@ util_bbdd-docs-0.10.0-20260604.zip
 ├── assets/
 │   └── images/
 ├── api/
-│   ├── managers-sync.html
-│   ├── bulk-crud.html
+│   ├── managers_sync.html
+│   ├── bulk_crud.html
 │   └── ...
 ├── functional/
-│   ├── managers-sync.html
-│   ├── bulk-operations.html
+│   ├── managers_sync.html
+│   ├── bulk_operations.html
 │   └── ...
 ├── examples/
 │   ├── bulk-insert-csv.html

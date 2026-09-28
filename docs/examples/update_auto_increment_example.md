@@ -9,7 +9,7 @@ Resuelve el problema de una carga masiva con claves primarias explícitas que de
 ## 2. Implementación de Referencia
 
 ```python
---8<-- "examples/update-auto-increment-example.py"
+--8<-- "examples/update_auto_increment_example.py"
 ```
 
 ## 3. Explicación del Código
@@ -35,17 +35,17 @@ ALTER TABLE `pedidos` AUTO_INCREMENT = 1;
 
 ```bash
 # Validación sintáctica
-python -m py_compile docs/examples/update-auto-increment-example.py
+python -m py_compile docs/examples/update_auto_increment_example.py
 
 # Ejecución (requiere un servidor MariaDB/MySQL accesible)
 export UTIL_BBDD_EXAMPLE_URL="mariadb+pymysql://usuario:clave@servidor/tienda"
-python docs/examples/update-auto-increment-example.py
+python docs/examples/update_auto_increment_example.py
 ```
 
 Sin `UTIL_BBDD_EXAMPLE_URL` el ejemplo imprime cómo configurarla y termina sin error.
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Operaciones Bulk (CRUD)](../functional/bulk-operations.md) — carga masiva y contadores de clave primaria
-- **Referencia técnica**: [UpdateAutoIncrement](../api/update-auto-increment.md) — API, contratos y errores
-- **Ejemplos relacionados**: [Validación de Variables MySQL/MariaDB](mysql-variables-example.md) — otra utilidad MariaDB de `connection/mariadb/`
+- **Documentación funcional**: [Operaciones Bulk (CRUD)](../functional/bulk_operations.md) — carga masiva y contadores de clave primaria
+- **Referencia técnica**: [UpdateAutoIncrement](../api/update_auto_increment.md) — API, contratos y errores
+- **Ejemplos relacionados**: [Validación de Variables MySQL/MariaDB](mysql_variables_example.md) — otra utilidad MariaDB de `connection/mariadb/`

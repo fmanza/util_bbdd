@@ -142,7 +142,7 @@ planner = MigrationPlanner(
 El módulo también migra stored procedures y funciones (pass-through v1): el body se emite
 verbatim con cabecera identificativa y aviso de revisión manual.
 
-Consulta `docs/examples/migrate-mariadb-source.md` o `docs/examples/migrate-oracle-mariadb.md`
+Consulta `docs/examples/migrate_mariadb_source.md` o `docs/examples/migrate_oracle_mariadb.md`
 para ejemplos completos por motor.
 
 ---
@@ -449,7 +449,7 @@ manager.close()
 
 #### 📌 Ver más
 
-- [Guía de instalación completa](docs/INSTALLATION.md)
+- [Guía de instalación completa](docs/installation.md)
 - [Guía de excepciones](docs/guides/exceptions.md)
 - [SchemaComparator — Comparación de esquemas](docs/guides/comparator.md)
 
@@ -621,7 +621,7 @@ La ruta recomendada para código nuevo usa **imports canónicos** desde la raíz
 - `DumpOrchestrator` reutiliza la resolución de columnas y estrategia de identidad **una sola vez** por tabla
 - El renombrado de columnas se aplica de forma perezosa por chunk, manteniendo el streaming
 
-> Detalle completo en [CHANGELOG.md](CHANGELOG.md) y en la tabla "Estrategias INSERT por motor" de [docs/api/bulk-crud.md](docs/api/bulk-crud.md).
+> Detalle completo en [CHANGELOG.md](CHANGELOG.md) y en la tabla "Estrategias INSERT por motor" de [docs/api/bulk_crud.md](docs/api/bulk_crud.md).
 
 ---
 
@@ -1054,7 +1054,7 @@ Para el núcleo de grafos de relaciones en v0.6.0:
 ### 📖 Documentation (v0.6.0+)
 
 - [**migration_guide.md**](docs/guides/migration_guide.md) - Guía viva de migración y compatibilidad para la superficie pública actual
-- [**legacy-versions.md**](docs/legacy-versions.md) - Versiones históricas
+- [**legacy_versions.md**](docs/legacy_versions.md) - Versiones históricas
 - La guía de migración de v0.6.0, la bitácora de refactorización y el refactor de Jinja2 de v0.5.6 se retiraron de
   `docs/` (commit `be8232e`); siguen en el historial de git.
 
@@ -1103,7 +1103,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 
 **Current Version: v0.18.3** (exportación de informes robusta en dump, bulk, comparar y doc)
 
-Roadmap resumido (ver [ROADMAP completo](docs/ROADMAP.md) y
+Roadmap resumido (ver [ROADMAP completo](docs/roadmap.md) y
 [CHANGELOG](CHANGELOG.md) para el detalle):
 - `v0.1.0 – v0.4.0` ✅: CRUD base + auditoría, documentación de BD, PostgreSQL, primera estable
 - `v0.5.0` ✅: Refactorización arquitectónica (jerarquía de 3 niveles)

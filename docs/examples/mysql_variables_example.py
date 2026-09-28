@@ -9,7 +9,7 @@ una BD real durante la ejecución. Reemplaza las conexiones mock con
 conexiones reales según tu entorno.
 
 Uso:
-    python mysql-variables-example.py
+    python mysql_variables_example.py
 """
 
 from unittest.mock import MagicMock

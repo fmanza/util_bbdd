@@ -76,7 +76,7 @@ ESTRUCTURA DEL CONTENIDO
 ========================
 
   index.html              → Página principal
-  INSTALLATION.md         → Guía de instalación
+  installation.md         → Guía de instalación
   ARCHITECTURE.md         → Arquitectura del proyecto
   api/                    → Referencia técnica de API
   functional/             → Documentación funcional (usuarios)

@@ -50,6 +50,6 @@ El ejemplo imprime estadísticas del caché (`get_cache_stats()`) para verificar
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Extracción de Metadatos](../functional/metadata-extraction.md) — objetivo de negocio del sistema de caché
-- **Referencia técnica**: [Gestor de Metadatos](../api/metadata-manager.md) — API de `DatabaseMetadataCache` y `MetadataManager`
-- **Ejemplos relacionados**: [Conectar e Introspeccionar Base de Datos](example-connect-introspect.md) — uso del manager sin caché explícita
+- **Documentación funcional**: [Extracción de Metadatos](../functional/metadata_extraction.md) — objetivo de negocio del sistema de caché
+- **Referencia técnica**: [Gestor de Metadatos](../api/metadata_manager.md) — API de `DatabaseMetadataCache` y `MetadataManager`
+- **Ejemplos relacionados**: [Conectar e Introspeccionar Base de Datos](example_connect_introspect.md) — uso del manager sin caché explícita

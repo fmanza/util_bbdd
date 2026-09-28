@@ -11,8 +11,8 @@
 |---------|------|-----------|----------|
 | `.github/prompts/performance_audit_constraints.prompt.md` (en el repositorio) | Reference (técnico) | Arquitectos, DBAs | 2-4h lectura + análisis |
 | `.github/prompts/performance_audit_constraints_agent.prompt.md` (en el repositorio) | Agent (operativo) | Agentes LLM | 6-10h ejecución |
-| [`PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md`](PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md) | User Guide | Devs, Architects | 30min lectura |
-| `CONSTRAINTS_QUICK_REFERENCE.md` (este) | Quick Ref | Todos | 5min |
+| [`performance_audit_constraints_guide.md`](performance_audit_constraints_guide.md) | User Guide | Devs, Architects | 30min lectura |
+| `constraints_quick_reference.md` (este) | Quick Ref | Todos | 5min |
 
 ---
 
@@ -345,7 +345,7 @@ Baseline: 5.2s
 Copia `.github/prompts/performance_audit_constraints_agent.prompt.md` + tus inputs.
 
 ### Documentación
-Lee [`docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md`](./PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md) completa.
+Lee [`docs/performance_audit_constraints_guide.md`](./performance_audit_constraints_guide.md) completa.
 
 ---
 
@@ -353,7 +353,7 @@ Lee [`docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md`](./PERFORMANCE_AUDIT_CONSTRAI
 
 | Recurso | Tipo | Tiempo |
 |---------|------|--------|
-| `docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md` | User Guide | 30min |
+| `docs/performance_audit_constraints_guide.md` | User Guide | 30min |
 | `.github/prompts/performance_audit_constraints.prompt.md` | Reference | 2-4h |
 | `.github/prompts/performance_audit_constraints_agent.prompt.md` | Workflow | 6-10h (ejecución) |
 | Tus propios tests | Benchmark | var |

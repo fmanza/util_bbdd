@@ -202,7 +202,7 @@ garantizan consistencia y búsqueda automática por IA. Cada uno responde una pr
 | **3** | Guía de Usuario | ¿Cómo se usa/instala? | `docs/guides/` | `guide_doc.prompt.md` |
 | **4** | Ejemplos de Código | ¿Cómo se implementa? | `docs/examples/` | `example_doc.prompt.md` |
 | **5** | Decisión Arquitectónica (ADR) | ¿Por qué se decidió así? | `docs/adr/` | `architecture_doc.prompt.md` |
-| **6** | Navegación Principal *(variantes A/B/C)* | Intro + instalación + visión | `docs/index.md`, `INSTALLATION.md`, `architecture.md` | `landing_doc.prompt.md` |
+| **6** | Navegación Principal *(variantes A/B/C)* | Intro + instalación + visión | `docs/index.md`, `installation.md`, `architecture.md` | `landing_doc.prompt.md` |
 | **7** | Incorporación de desarrolladores | ¿Cómo me incorporo al proyecto? | `docs/guides/onboarding_dev.md` | `onboarding_dev.prompt.md` |
 | **8** | Trazabilidad normativa *(condicional)* | ¿Qué obligaciones cubre el sistema? | `docs/normativa/` | `normative_traceability.prompt.md` |
 

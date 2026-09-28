@@ -107,8 +107,8 @@ SQLite admite un solo escritor a la vez: en paralelo no gana nada, así que usa 
 El coste de arranque de cada partición (su `BulkCrud` y la lectura de la estructura de la tabla) es de 1 a 66 ms
 según el motor, menos del 2% de la carga medida.
 
-Detalle y políticas de particionado: [Carga Masiva Paralela (funcional)](../functional/bulk-parallel-loading.md),
-[API ParallelBulkLoader](../api/bulk-parallel.md) y el ejemplo [Carga Masiva Paralela](../examples/parallel_bulk_insert.md).
+Detalle y políticas de particionado: [Carga Masiva Paralela (funcional)](../functional/bulk_parallel_loading.md),
+[API ParallelBulkLoader](../api/bulk_parallel.md) y el ejemplo [Carga Masiva Paralela](../examples/parallel_bulk_insert.md).
 Para medir el impacto de la cadencia de commit, ver el ejemplo [Commit Cadence](../examples/benchmark_commit_cadence.md).
 
 ### Banco de pruebas contra motores reales

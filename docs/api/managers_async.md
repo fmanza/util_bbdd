@@ -76,7 +76,7 @@ flowchart TD
 
 ## 3. Componentes y Clases
 
-*No aplica para este módulo.* `AsyncDatabaseManager` es la única clase pública de este módulo; su descomposición interna está documentada en `managers-lifecycle`.
+*No aplica para este módulo.* `AsyncDatabaseManager` es la única clase pública de este módulo; su descomposición interna está documentada en `managers_lifecycle`.
 
 ## 4. Dependencias y Requisitos
 

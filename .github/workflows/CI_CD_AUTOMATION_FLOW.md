@@ -30,7 +30,7 @@ graph LR
 # Developer
 git checkout develop
 # Editar documentación
-vim docs/functional/managers-sync.md
+vim docs/functional/managers_sync.md
 
 git add docs/
 git commit -m "docs: actualizar guía de managers"

@@ -35,6 +35,6 @@ Ver [Diff Reporters](diff_reporters.md) para detalles de cada formato de reporte
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Comparador de Esquemas](../functional/schema-comparison.md) — casos de uso y reglas de negocio
-- **Referencia técnica**: [Comparador y Reporters](../api/schema-comparator.md) — API completa de `SchemaComparator` y modelos `SchemaDiff`
+- **Documentación funcional**: [Comparador de Esquemas](../functional/schema_comparison.md) — casos de uso y reglas de negocio
+- **Referencia técnica**: [Comparador y Reporters](../api/schema_comparator.md) — API completa de `SchemaComparator` y modelos `SchemaDiff`
 - **Ejemplos relacionados**: [Diff Reporters](diff_reporters.md) — todos los formatos de reporte en detalle

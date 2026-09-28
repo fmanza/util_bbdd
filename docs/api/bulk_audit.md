@@ -71,7 +71,7 @@ Propiedades: `audit_csv_path`, `cache_enabled`, `cache_ttl_seconds` (lectura y e
 | `AuditDataError` | CSV ilegible o sin filas al pedir estadísticas; fallo al exportar JSON o HTML |
 | `AuditExportError` | No se puede escribir `auditoria.xlsx` en `exportar_resumen_excel` (p.ej. abierto en Excel). Subclase de `AuditDataError` y también de `OSError` |
 | `OSError` | No se puede escribir el CSV (permisos, fichero abierto en Excel, disco lleno) |
-| — | Usado desde `BulkCrud`, un fallo al escribir el CSV no interrumpe la operación salvo con `BulkCrud(audit_strict=True)`: se registra como ERROR y se cuenta en `BulkCrud.audit_failures`. Dentro de `bulk_session` las filas se escriben al confirmarse la transacción y se descartan si hay rollback. Ver [BulkCrud](bulk-crud.md) |
+| — | Usado desde `BulkCrud`, un fallo al escribir el CSV no interrumpe la operación salvo con `BulkCrud(audit_strict=True)`: se registra como ERROR y se cuenta en `BulkCrud.audit_failures`. Dentro de `bulk_session` las filas se escriben al confirmarse la transacción y se descartan si hay rollback. Ver [BulkCrud](bulk_crud.md) |
 
 ## 3. Componentes y Clases
 

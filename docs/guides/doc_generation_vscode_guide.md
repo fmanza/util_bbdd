@@ -55,7 +55,7 @@ Instalar la extensión `Codex` de OpenAI desde el Marketplace. Configurar la API
 ```text
 Lee src/util_bbdd/managers/sync_mgr.py y genera documentación funcional
 usando el prompt en .github/prompts/functional_doc.prompt.md.
-Guarda el resultado en docs/functional/managers-sync.md.
+Guarda el resultado en docs/functional/managers_sync.md.
 ```
 
 **Con Copilot Chat:**
@@ -71,7 +71,7 @@ Genera la documentación funcional del módulo indicado siguiendo las instruccio
 
 ```text
 Usando el prompt en .github/prompts/technical_doc.prompt.md, genera documentación
-técnica para src/util_bbdd/bulk/crud.py. Guarda en docs/api/bulk-crud.md.
+técnica para src/util_bbdd/bulk/crud.py. Guarda en docs/api/bulk_crud.md.
 ```
 
 ### Paso 4 — Actualizar mkdocs.yml
@@ -81,7 +81,7 @@ Tras crear o mover una página, añadir la entrada correspondiente en `mkdocs.ym
 ```yaml
 - Referencia Técnica:
     - Bulk Operations:
-        - CRUD Masivo: api/bulk-crud.md
+        - CRUD Masivo: api/bulk_crud.md
 ```
 
 ### Paso 5 — Validar el build

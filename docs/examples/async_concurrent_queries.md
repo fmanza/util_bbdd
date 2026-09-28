@@ -35,6 +35,6 @@ Ver [Guía de Programación Asíncrona](../guides/async_guide.md) para más patr
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Gestión de Conexiones (Async)](../functional/managers-async.md) — objetivo de negocio del manager asíncrono
-- **Referencia técnica**: [Manager Asíncrono](../api/managers-async.md) — contratos y patrones de inicialización
-- **Ejemplos relacionados**: [Conectar e Introspeccionar Base de Datos](example-connect-introspect.md) — versión síncrona equivalente
+- **Documentación funcional**: [Gestión de Conexiones (Async)](../functional/managers_async.md) — objetivo de negocio del manager asíncrono
+- **Referencia técnica**: [Manager Asíncrono](../api/managers_async.md) — contratos y patrones de inicialización
+- **Ejemplos relacionados**: [Conectar e Introspeccionar Base de Datos](example_connect_introspect.md) — versión síncrona equivalente

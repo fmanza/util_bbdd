@@ -59,11 +59,11 @@ with SyncDatabaseManager(db_type="sqlite", conn_params={"database": ":memory:"})
 
 | Sección | Para qué sirve | Enlace |
 |---|---|---|
-| Instalación | Instalar el paquete, drivers y extras | [Guía de instalación](INSTALLATION.md) |
+| Instalación | Instalar el paquete, drivers y extras | [Guía de instalación](installation.md) |
 | Arquitectura | Visión global del sistema y mapa de módulos | [Arquitectura del Sistema](architecture.md) |
-| Documentación Funcional | Qué hace cada capacidad y por qué | [Operaciones Bulk](functional/bulk-operations.md) |
+| Documentación Funcional | Qué hace cada capacidad y por qué | [Operaciones Bulk](functional/bulk_operations.md) |
 | Referencia Técnica | Cómo está construido (API, contratos) | [Índice de Referencia](api/intro.md) |
-| Ejemplos | Patrones de implementación ejecutables | [Conectar e Introspeccionar](examples/example-connect-introspect.md) |
+| Ejemplos | Patrones de implementación ejecutables | [Conectar e Introspeccionar](examples/example_connect_introspect.md) |
 | Guías | Async, drivers, troubleshooting | [Programación Asíncrona](guides/async_guide.md) |
 
 ## 5. Compatibilidad y Soporte
@@ -72,11 +72,11 @@ La matriz de soporte por motor (sync/async, pool y driver) está en la tabla de 
 
 - **Todos los motores** soportan conexión síncrona vía `SyncDatabaseManager`.
 - **Todos excepto HSQLDB** soportan conexión y pool asíncronos vía `AsyncDatabaseManager`.
-- Los **drivers no se incluyen** en el paquete: se instalan por separado según el motor (ver [Instalación](INSTALLATION.md#3-drivers-por-motor)).
+- Los **drivers no se incluyen** en el paquete: se instalan por separado según el motor (ver [Instalación](installation.md#3-drivers-por-motor)).
 
 Más detalle:
 
-- [Guía de instalación completa](INSTALLATION.md)
+- [Guía de instalación completa](installation.md)
 - [Programación asíncrona](guides/async_guide.md)
 - [Comparación de esquemas](guides/comparator.md)
 - [Troubleshooting](guides/troubleshooting.md)

@@ -134,7 +134,7 @@ Detener el servidor tras la verificación o indicar al usuario que lo cierre man
 | Página | Verificación | Estado | Detalle |
 |---|---|---|---|
 | api/managers.md | Autodoc expandido | ✅ OK | 12 métodos encontrados |
-| api/bulk-crud.md | Alias bug | ❌ FALLO | Sección sin métodos — usar nombre real de clase |
+| api/bulk_crud.md | Alias bug | ❌ FALLO | Sección sin métodos — usar nombre real de clase |
 | examples/bulk_insert.md | Snippet resuelto | ✅ OK | |
 
 ### Páginas con errores de build

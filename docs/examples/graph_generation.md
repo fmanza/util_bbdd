@@ -44,6 +44,6 @@ Los ficheros SVG/PNG se generan en el directorio de salida configurado.
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Visualización de Grafos](../functional/graph-analysis.md) — casos de uso y reglas de negocio
+- **Documentación funcional**: [Visualización de Grafos](../functional/graph_analysis.md) — casos de uso y reglas de negocio
 - **Referencia técnica**: [Grafos de Relaciones](../api/analysis.md) — API de `GraphvizRelationshipGraphExt` y opciones de renderización
 - **Ejemplos relacionados**: [Generación de Documentación de Base de Datos](database_documentation_generation.md) — grafos embebidos en documentación

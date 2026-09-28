@@ -65,7 +65,7 @@ No empezar por código si el objetivo no está definido.
 ```text
 Lee src/util_bbdd/managers/sync_mgr.py y genera documentación funcional
 usando el prompt en .github/prompts/functional_doc.prompt.md.
-Guarda el resultado en docs/functional/managers-sync.md.
+Guarda el resultado en docs/functional/managers_sync.md.
 Actualiza mkdocs.yml si la página es nueva.
 ```
 

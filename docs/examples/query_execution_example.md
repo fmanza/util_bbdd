@@ -51,7 +51,7 @@ Query registrada: (1, 'Ana')
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Ejecución de Consultas](../functional/query-execution.md) — objetivo de negocio y reglas de negocio
-- **Referencia técnica**: [Ejecución de Consultas](../api/query-execution.md) — API de `SyncQueryExecutor`, `AsyncQueryExecutor` y `ResultNormalizer`
-- **Referencia técnica**: [Registry y Resolver](../api/query-system.md) — API de `QueryRegistry` y `QueryResolver`
-- **Ejemplos relacionados**: [Conectar e Introspeccionar Base de Datos](example-connect-introspect.md) — uso de `execute_custom_many` directamente desde el manager
+- **Documentación funcional**: [Ejecución de Consultas](../functional/query_execution.md) — objetivo de negocio y reglas de negocio
+- **Referencia técnica**: [Ejecución de Consultas](../api/query_execution.md) — API de `SyncQueryExecutor`, `AsyncQueryExecutor` y `ResultNormalizer`
+- **Referencia técnica**: [Registry y Resolver](../api/query_system.md) — API de `QueryRegistry` y `QueryResolver`
+- **Ejemplos relacionados**: [Conectar e Introspeccionar Base de Datos](example_connect_introspect.md) — uso de `execute_custom_many` directamente desde el manager

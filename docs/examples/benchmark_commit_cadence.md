@@ -53,6 +53,6 @@ Con MariaDB real y disco, el speedup con cadencia es típicamente 3–8× a part
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Operaciones Bulk (CRUD)](../functional/bulk-operations.md) — reglas de negocio sobre transaccionalidad y rendimiento
-- **Referencia técnica**: [CRUD Masivo (BulkCrud)](../api/bulk-crud.md) — parámetro `commit_every_n_chunks` en el contrato de entrada
+- **Documentación funcional**: [Operaciones Bulk (CRUD)](../functional/bulk_operations.md) — reglas de negocio sobre transaccionalidad y rendimiento
+- **Referencia técnica**: [CRUD Masivo (BulkCrud)](../api/bulk_crud.md) — parámetro `commit_every_n_chunks` en el contrato de entrada
 - **Ejemplos relacionados**: [Bulk Insert desde CSV](bulk_insert_csv.md) — inserción básica sin optimización de cadencia

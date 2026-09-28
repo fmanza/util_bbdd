@@ -35,5 +35,5 @@ Salida esperada (resumen): el caso válido devuelve `(True, [])`, los parámetro
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Patrón de Validadores](../functional/validators-pattern.md) — objetivo de negocio y reglas
-- **Referencia técnica**: [Sistema de Validadores](../api/validators-system.md) — API y contratos
+- **Documentación funcional**: [Patrón de Validadores](../functional/validators_pattern.md) — objetivo de negocio y reglas
+- **Referencia técnica**: [Sistema de Validadores](../api/validators_system.md) — API y contratos

@@ -33,8 +33,8 @@ from util_bbdd.analysis import GraphvizRelationshipGraphExt
 
 | Clase | Módulo | Descripción | Doc técnica |
 |---|---|---|---|
-| `SyncDatabaseManager` | `util_bbdd` | Manager síncrono multi-motor | [managers-sync](managers-sync.md) |
-| `AsyncDatabaseManager` | `util_bbdd` | Manager asíncrono multi-motor | [managers-async](managers-async.md) |
+| `SyncDatabaseManager` | `util_bbdd` | Manager síncrono multi-motor | [managers_sync](managers_sync.md) |
+| `AsyncDatabaseManager` | `util_bbdd` | Manager asíncrono multi-motor | [managers_async](managers_async.md) |
 
 **Métodos comunes** (sync / async equivalente):
 
@@ -54,22 +54,22 @@ from util_bbdd.analysis import GraphvizRelationshipGraphExt
 
 | Clase | Módulo | Descripción | Doc técnica |
 |---|---|---|---|
-| `BulkCrud` | `util_bbdd.bulk` | INSERT/UPDATE/DELETE masivo desde DataFrame | [bulk-crud](bulk-crud.md) |
-| `ParallelBulkLoader` | `util_bbdd.bulk` | Carga paralela por particiones de PK | [bulk-parallel](bulk-parallel.md) |
-| `AuditManager` | `util_bbdd.bulk.audit` | Auditoría de operaciones bulk en CSV | [bulk-audit](bulk-audit.md) |
+| `BulkCrud` | `util_bbdd.bulk` | INSERT/UPDATE/DELETE masivo desde DataFrame | [bulk_crud](bulk_crud.md) |
+| `ParallelBulkLoader` | `util_bbdd.bulk` | Carga paralela por particiones de PK | [bulk_parallel](bulk_parallel.md) |
+| `AuditManager` | `util_bbdd.bulk.audit` | Auditoría de operaciones bulk en CSV | [bulk_audit](bulk_audit.md) |
 
 ### Schema Comparison
 
 | Clase | Módulo | Descripción | Doc técnica |
 |---|---|---|---|
-| `SchemaComparator` | `util_bbdd` | Comparación de esquemas → `SchemaDiff` | [schema-comparator](schema-comparator.md) |
-| `SchemaDiffReporter` | `util_bbdd` | Generación de reportes en múltiples formatos | [schema-comparator](schema-comparator.md) |
+| `SchemaComparator` | `util_bbdd` | Comparación de esquemas → `SchemaDiff` | [schema_comparator](schema_comparator.md) |
+| `SchemaDiffReporter` | `util_bbdd` | Generación de reportes en múltiples formatos | [schema_comparator](schema_comparator.md) |
 
 ### Migration
 
 | Clase | Módulo | Descripción | Doc técnica |
 |---|---|---|---|
-| `MigrationPlanner` | `util_bbdd.migrate` | Migración DDL entre motores | [migrate-oracle-mariadb](migrate-oracle-mariadb.md) |
+| `MigrationPlanner` | `util_bbdd.migrate` | Migración DDL entre motores | [migrate_oracle_mariadb](migrate_oracle_mariadb.md) |
 
 ### Dump
 
@@ -82,7 +82,7 @@ from util_bbdd.analysis import GraphvizRelationshipGraphExt
 
 | Clase | Módulo | Descripción | Doc técnica |
 |---|---|---|---|
-| `DatabaseDocumentation` | `util_bbdd.doc` | Generación de documentación BD | [database-documentation](database-documentation.md) |
+| `DatabaseDocumentation` | `util_bbdd.doc` | Generación de documentación BD | [database_documentation](database_documentation.md) |
 | `GraphvizRelationshipGraphExt` | `util_bbdd.analysis` | Grafos de relaciones con Graphviz | [analysis](analysis.md) |
 
 ### Excepciones

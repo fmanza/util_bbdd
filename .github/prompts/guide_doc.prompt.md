@@ -74,7 +74,7 @@ Genera la guía de usuario del área indicada siguiendo las instrucciones del pr
 
 ## Arquetipos de guías en este proyecto
 
-> **Nota**: `docs/INSTALLATION.md` ya **no** se rige por este arquetipo; pasó al Arquetipo 6
+> **Nota**: `docs/installation.md` ya **no** se rige por este arquetipo; pasó al Arquetipo 6
 > (`landing_doc.prompt.md`, Variante B). Para instalación usa ese prompt, no este.
 
 | Archivo | Tipo de guía |

@@ -9,7 +9,7 @@ Resuelve el caso de migrar una aplicación MariaDB a un motor de BD corporativo 
 ## 2. Implementación de Referencia
 
 ```python
---8<-- "examples/migrate-mariadb-source.py"
+--8<-- "examples/migrate_mariadb_source.py"
 ```
 
 ## 3. Explicación del Código
@@ -40,17 +40,17 @@ planner = MigrationPlanner(
 
 ```bash
 # Validación sintáctica
-python -m py_compile docs/examples/migrate-mariadb-source.py
+python -m py_compile docs/examples/migrate_mariadb_source.py
 
 # Ejecución (requiere servidor MariaDB accesible)
 # Sustituir credenciales antes de ejecutar
-python docs/examples/migrate-mariadb-source.py
+python docs/examples/migrate_mariadb_source.py
 ```
 
 El script DDL se guarda como `ventas_schema_postgresql.sql` (o el nombre configurado).
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Migración MariaDB como Origen](../functional/migrate-mariadb-source.md) — casos de uso y reglas de negocio
-- **Referencia técnica**: [API Migración MariaDB](../api/migrate-mariadb-source.md) — API de `MigrationPlanner` con origen MariaDB
-- **Ejemplos relacionados**: [Migración Oracle](migrate-oracle-mariadb.md) — patrón equivalente con origen Oracle
+- **Documentación funcional**: [Migración MariaDB como Origen](../functional/migrate_mariadb_source.md) — casos de uso y reglas de negocio
+- **Referencia técnica**: [API Migración MariaDB](../api/migrate_mariadb_source.md) — API de `MigrationPlanner` con origen MariaDB
+- **Ejemplos relacionados**: [Migración Oracle](migrate_oracle_mariadb.md) — patrón equivalente con origen Oracle

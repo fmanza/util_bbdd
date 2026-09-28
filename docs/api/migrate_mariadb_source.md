@@ -74,4 +74,4 @@ flowchart TD
 
 ## 5. Ejemplos Relacionados
 
-- [Ejemplo: Migración DDL MariaDB → Oracle / SQL Server / PostgreSQL](../examples/migrate-mariadb-source.md) — Script completo de migración con `MigrationPlanner`
+- [Ejemplo: Migración DDL MariaDB → Oracle / SQL Server / PostgreSQL](../examples/migrate_mariadb_source.md) — Script completo de migración con `MigrationPlanner`

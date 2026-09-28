@@ -34,7 +34,7 @@ El CSV de auditoría se crea en la ruta configurada con columnas: `timestamp`, `
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Operaciones Bulk (CRUD)](../functional/bulk-operations.md) — objetivo de negocio y reglas de negocio de las operaciones bulk
-- **Referencia técnica**: [CRUD Masivo (BulkCrud)](../api/bulk-crud.md) — contratos de API y estrategias INSERT por motor
-- **Referencia técnica**: [Auditoría Bulk (AuditManager)](../api/bulk-audit.md) — API de auditoría en CSV
+- **Documentación funcional**: [Operaciones Bulk (CRUD)](../functional/bulk_operations.md) — objetivo de negocio y reglas de negocio de las operaciones bulk
+- **Referencia técnica**: [CRUD Masivo (BulkCrud)](../api/bulk_crud.md) — contratos de API y estrategias INSERT por motor
+- **Referencia técnica**: [Auditoría Bulk (AuditManager)](../api/bulk_audit.md) — API de auditoría en CSV
 - **Ejemplos relacionados**: [Carga Paralela de Millones de Filas](parallel_bulk_insert.md) — carga en paralelo con múltiples workers

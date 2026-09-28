@@ -59,4 +59,4 @@ flowchart TD
 ## 5. Ejemplos Relacionados
 
 !!! info "Ejemplo en preparación"
-    Pendiente — crear ejemplo en docs/examples/managers-metadata-factory.md
+    Pendiente — crear ejemplo en docs/examples/managers_metadata_factory.md

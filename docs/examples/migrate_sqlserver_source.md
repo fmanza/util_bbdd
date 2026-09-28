@@ -9,7 +9,7 @@ Resuelve el caso de migrar una aplicación SQL Server a un motor de BD open-sour
 ## 2. Implementación de Referencia
 
 ```python
---8<-- "examples/migrate-sqlserver-source.py"
+--8<-- "examples/migrate_sqlserver_source.py"
 ```
 
 ## 3. Explicación del Código
@@ -44,17 +44,17 @@ planner = MigrationPlanner(
 
 ```bash
 # Validación sintáctica
-python -m py_compile docs/examples/migrate-sqlserver-source.py
+python -m py_compile docs/examples/migrate_sqlserver_source.py
 
 # Ejecución (requiere servidor SQL Server accesible; driver pymssql instalado)
 # Sustituir credenciales antes de ejecutar
-python docs/examples/migrate-sqlserver-source.py
+python docs/examples/migrate_sqlserver_source.py
 ```
 
 El script DDL se guarda como `dbo_schema_postgresql.sql` (o el nombre configurado).
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Migración SQL Server como Origen](../functional/migrate-sqlserver-source.md) — casos de uso y reglas de negocio
-- **Referencia técnica**: [API Migración SQL Server](../api/migrate-sqlserver-source.md) — API de `MigrationPlanner` con origen SQL Server
-- **Ejemplos relacionados**: [Migración PostgreSQL](migrate-postgresql-source.md) — patrón equivalente con origen PostgreSQL
+- **Documentación funcional**: [Migración SQL Server como Origen](../functional/migrate_sqlserver_source.md) — casos de uso y reglas de negocio
+- **Referencia técnica**: [API Migración SQL Server](../api/migrate_sqlserver_source.md) — API de `MigrationPlanner` con origen SQL Server
+- **Ejemplos relacionados**: [Migración PostgreSQL](migrate_postgresql_source.md) — patrón equivalente con origen PostgreSQL

@@ -9,7 +9,7 @@ Resuelve el problema de descubrir en producción que la configuración del servi
 ## 2. Implementación de Referencia
 
 ```python
---8<-- "examples/mysql-variables-example.py"
+--8<-- "examples/mysql_variables_example.py"
 ```
 
 ## 3. Explicación del Código
@@ -33,16 +33,16 @@ Perfiles de configuración:
 
 ```bash
 # Validación sintáctica
-python -m py_compile docs/examples/mysql-variables-example.py
+python -m py_compile docs/examples/mysql_variables_example.py
 
 # Ejecución (requiere servidor MySQL/MariaDB accesible)
-python docs/examples/mysql-variables-example.py
+python docs/examples/mysql_variables_example.py
 ```
 
 Si el servidor no está accesible, las variables se omiten del resultado con un WARNING en el log. No se lanza excepción.
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Operaciones Bulk (CRUD)](../functional/bulk-operations.md) — sección de validación automática MySQL/MariaDB
-- **Referencia técnica**: [MySQL Variables Validator](../api/mysql-variables.md) — API de `MySQLVariableValidator` y `MySQLOptimalConfig`
+- **Documentación funcional**: [Operaciones Bulk (CRUD)](../functional/bulk_operations.md) — sección de validación automática MySQL/MariaDB
+- **Referencia técnica**: [MySQL Variables Validator](../api/mysql_variables.md) — API de `MySQLVariableValidator` y `MySQLOptimalConfig`
 - **Ejemplos relacionados**: [Bulk Insert desde CSV](bulk_insert_csv.md) — operación bulk que activa la validación automáticamente

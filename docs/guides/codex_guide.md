@@ -52,7 +52,7 @@ Nunca pedir código sin haber dado el contexto del módulo real.
 ```text
 Lee src/util_bbdd/managers/sync_mgr.py y genera documentación funcional
 siguiendo las instrucciones del archivo .github/prompts/functional_doc.prompt.md.
-Guarda el resultado en docs/functional/managers-sync.md.
+Guarda el resultado en docs/functional/managers_sync.md.
 ```
 
 ### Paso 5 — Generar documentación técnica con Mermaid
@@ -60,7 +60,7 @@ Guarda el resultado en docs/functional/managers-sync.md.
 ```text
 Usando el prompt en .github/prompts/technical_doc.prompt.md, genera documentación
 técnica para src/util_bbdd/bulk/crud.py. Tipo de diagrama: flowchart TD.
-Guarda en docs/api/bulk-crud.md y añade la entrada en mkdocs.yml.
+Guarda en docs/api/bulk_crud.md y añade la entrada en mkdocs.yml.
 ```
 
 ### Paso 6 — Diferencias con Claude Code y Copilot Chat

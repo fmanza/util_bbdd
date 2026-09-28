@@ -7,7 +7,7 @@ El Engine se crea a partir de la URL de SQLAlchemy indicada en la variable de en
 ejemplo ``mariadb+pymysql://usuario:clave@servidor/tienda``. Sin ella el ejemplo termina explicando cómo configurarla.
 
 Uso:
-    python update-auto-increment-example.py
+    python update_auto_increment_example.py
 """
 
 import os

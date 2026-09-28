@@ -54,7 +54,7 @@ Matriz por motor (Conexión sync/async, driver) + enlaces a Compatibilidad/Chang
 Nota explícita de los motores SIN async, si los hay.
 
 ═══════════════════════════════════════════════════════════════════════════════
- VARIANTE B — INSTALACIÓN  (docs/INSTALLATION.md)
+ VARIANTE B — INSTALACIÓN  (docs/installation.md)
 ═══════════════════════════════════════════════════════════════════════════════
 
 # Guía de Instalación — [Nombre del Proyecto]
@@ -176,7 +176,7 @@ Genera la página [Inicio | Instalación | Arquitectura] aplicando la variante c
 | Página | Archivo | Variante | Entrada en `nav:` |
 |---|---|---|---|
 | Inicio | `docs/index.md` | A | `Inicio` (raíz) |
-| Instalación | `docs/INSTALLATION.md` | B | `Instalación` (raíz) |
+| Instalación | `docs/installation.md` | B | `Instalación` (raíz) |
 | Arquitectura | `docs/architecture.md` | C | `Arquitectura` (raíz, junto a los ADR) |
 
 **Diferencia con el Arquetipo 5 (`architecture_doc`)**: el Arquetipo 5 documenta **una decisión

@@ -9,87 +9,87 @@ site_dir: site
 
 nav:
   - Inicio: index.md
-  - Instalación: INSTALLATION.md
+  - Instalación: installation.md
   - 📥 Descargas: downloads.md
 
   # ── Audiencia: Product Owner, QA, responsables de negocio ──────────────────
   - Documentación Funcional:
       - Managers:
-          - Gestión de Conexiones (Sync): functional/managers-sync.md
-          - Ciclo de vida de sesión sincrónica: functional/managers-sync-session-lifecycle.md
-          - Gestión de Conexiones (Async): functional/managers-async.md
+          - Gestión de Conexiones (Sync): functional/managers_sync.md
+          - Ciclo de vida de sesión sincrónica: functional/managers_sync_session_lifecycle.md
+          - Gestión de Conexiones (Async): functional/managers_async.md
       - Metadatos e Introspección:
-          - Extracción de Metadatos: functional/metadata-extraction.md
-          - Selección de Driver: functional/drivers-selection.md
+          - Extracción de Metadatos: functional/metadata_extraction.md
+          - Selección de Driver: functional/drivers_selection.md
       - Operaciones de Datos:
-          - Operaciones Bulk (CRUD): functional/bulk-operations.md
-          - Auditoría de Operaciones Bulk: functional/bulk-audit.md
-          - Carga Masiva Paralela: functional/bulk-parallel-loading.md
+          - Operaciones Bulk (CRUD): functional/bulk_operations.md
+          - Auditoría de Operaciones Bulk: functional/bulk_audit.md
+          - Carga Masiva Paralela: functional/bulk_parallel_loading.md
       - Queries y Validación:
-          - Registro de Queries: functional/query-registry.md
-          - Ejecución de Consultas: functional/query-execution.md
-          - Patrón de Validadores: functional/validators-pattern.md
+          - Registro de Queries: functional/query_registry.md
+          - Ejecución de Consultas: functional/query_execution.md
+          - Patrón de Validadores: functional/validators_pattern.md
       - Comparación de Esquemas:
-          - Comparador de Esquemas: functional/schema-comparison.md
+          - Comparador de Esquemas: functional/schema_comparison.md
       - Volcado de Datos:
-          - Volcado entre esquemas: functional/dump-data-export.md
+          - Volcado entre esquemas: functional/dump_data_export.md
       - Migración de Esquemas:
-          - Migración Oracle (origen): functional/migrate-oracle-mariadb.md
-          - Migración MariaDB (origen): functional/migrate-mariadb-source.md
-          - Migración SQL Server (origen): functional/migrate-sqlserver-source.md
-          - Migración PostgreSQL (origen): functional/migrate-postgresql-source.md
+          - Migración Oracle (origen): functional/migrate_oracle_mariadb.md
+          - Migración MariaDB (origen): functional/migrate_mariadb_source.md
+          - Migración SQL Server (origen): functional/migrate_sqlserver_source.md
+          - Migración PostgreSQL (origen): functional/migrate_postgresql_source.md
       - Análisis de Relaciones:
-          - Visualización de Grafos: functional/graph-analysis.md
+          - Visualización de Grafos: functional/graph_analysis.md
       - Documentación de BD:
-          - Generación de Documentación: functional/database-documentation.md
+          - Generación de Documentación: functional/database_documentation.md
 
   # ── Audiencia: Desarrolladores, ingenieros de datos, DBAs ──────────────────
   - Referencia Técnica:
       - Índice de Referencia: api/intro.md
       - Managers:
-          - Manager Síncrono: api/managers-sync.md
-          - Manager Síncrono (Técnico): api/managers-sync-technical.md
-          - Manager Asíncrono: api/managers-async.md
-          - Ciclo de Vida de Conexión: api/managers-lifecycle.md
-          - Factory de Estrategias de Metadata: api/managers-metadata-factory.md
+          - Manager Síncrono: api/managers_sync.md
+          - Manager Síncrono (Técnico): api/managers_sync_technical.md
+          - Manager Asíncrono: api/managers_async.md
+          - Ciclo de Vida de Conexión: api/managers_lifecycle.md
+          - Factory de Estrategias de Metadata: api/managers_metadata_factory.md
       - Metadatos e Introspección:
-          - Gestor de Metadatos: api/metadata-manager.md
+          - Gestor de Metadatos: api/metadata_manager.md
       - Conexiones:
-          - Factory de Conexiones: api/connection-factory.md
+          - Factory de Conexiones: api/connection_factory.md
       - Utilidades:
-          - Utilidades Async (maybe_await): api/async-utils.md
+          - Utilidades Async (maybe_await): api/async_utils.md
       - Operaciones Bulk:
-          - CRUD Masivo: api/bulk-crud.md
-          - MySQL Variables Validator: api/mysql-variables.md
-          - Reajuste de AUTO_INCREMENT (MariaDB): api/update-auto-increment.md
-          - Carga Masiva Paralela: api/bulk-parallel.md
-          - Auditoría Bulk: api/bulk-audit.md
+          - CRUD Masivo: api/bulk_crud.md
+          - MySQL Variables Validator: api/mysql_variables.md
+          - Reajuste de AUTO_INCREMENT (MariaDB): api/update_auto_increment.md
+          - Carga Masiva Paralela: api/bulk_parallel.md
+          - Auditoría Bulk: api/bulk_audit.md
           - Normalización de Datos: api/normalize.md
       - Sistema de Queries:
-          - Registry y Resolver: api/query-system.md
-          - Ejecución de Consultas: api/query-execution.md
-          - Sistema de Validadores: api/validators-system.md
+          - Registry y Resolver: api/query_system.md
+          - Ejecución de Consultas: api/query_execution.md
+          - Sistema de Validadores: api/validators_system.md
       - Comparación de Esquemas:
-          - Comparador y Reporters: api/schema-comparator.md
+          - Comparador y Reporters: api/schema_comparator.md
       - Volcado de Datos:
           - Orquestador: api/dump.md
-          - Generador de Reportes: api/dump-reporter.md
+          - Generador de Reportes: api/dump_reporter.md
       - Migración de Esquemas:
-          - API Oracle (origen): api/migrate-oracle-mariadb.md
-          - API MariaDB (origen): api/migrate-mariadb-source.md
-          - API SQL Server (origen): api/migrate-sqlserver-source.md
-          - API PostgreSQL (origen): api/migrate-postgresql-source.md
+          - API Oracle (origen): api/migrate_oracle_mariadb.md
+          - API MariaDB (origen): api/migrate_mariadb_source.md
+          - API SQL Server (origen): api/migrate_sqlserver_source.md
+          - API PostgreSQL (origen): api/migrate_postgresql_source.md
       - Análisis de Relaciones:
           - Grafos de Relaciones: api/analysis.md
       - Documentación de BD:
-          - Generador de Documentación: api/database-documentation.md
+          - Generador de Documentación: api/database_documentation.md
       - Autodoc (mkdocstrings):
           - Índice: api/index.md
           - Managers: api/managers.md
           - Comparador: api/comparator.md
           - Comparador Diff Reporters: api/reporters.md
           - Bulk Operations: api/bulk.md
-          - Dump: api/dump-autodoc.md
+          - Dump: api/dump_autodoc.md
           - Excepciones: api/exceptions.md
 
   # ── Guías de uso y operación ───────────────────────────────────────────────
@@ -125,14 +125,14 @@ nav:
   # ── Ejemplos de código ─────────────────────────────────────────────────────
   - Ejemplos:
       - Metadatos e Introspección:
-          - Conectar e Introspeccionar Base de Datos: examples/example-connect-introspect.md
+          - Conectar e Introspeccionar Base de Datos: examples/example_connect_introspect.md
           - Cache de Metadatos: examples/metadata_cache_usage.md
       - Operaciones Bulk:
           - Bulk Insert desde CSV: examples/bulk_insert_csv.md
           - Carga Masiva Paralela: examples/parallel_bulk_insert.md
           - "Benchmark: Commit Cadence": examples/benchmark_commit_cadence.md
-          - "Validación de Variables MySQL/MariaDB": examples/mysql-variables-example.md
-          - "Reajuste de AUTO_INCREMENT (MariaDB)": examples/update-auto-increment-example.md
+          - "Validación de Variables MySQL/MariaDB": examples/mysql_variables_example.md
+          - "Reajuste de AUTO_INCREMENT (MariaDB)": examples/update_auto_increment_example.md
       - Sistema de Queries:
           - Ejecución de Consultas: examples/query_execution_example.md
           - Queries Concurrentes (Async): examples/async_concurrent_queries.md
@@ -143,10 +143,10 @@ nav:
       - Volcado de Datos:
           - Volcado de Datos entre Motores: examples/dump_data_export.md
       - Migración de Esquemas:
-          - Migración Oracle (origen): examples/migrate-oracle-mariadb.md
-          - Migración MariaDB (origen): examples/migrate-mariadb-source.md
-          - Migración SQL Server (origen): examples/migrate-sqlserver-source.md
-          - Migración PostgreSQL (origen): examples/migrate-postgresql-source.md
+          - Migración Oracle (origen): examples/migrate_oracle_mariadb.md
+          - Migración MariaDB (origen): examples/migrate_mariadb_source.md
+          - Migración SQL Server (origen): examples/migrate_sqlserver_source.md
+          - Migración PostgreSQL (origen): examples/migrate_postgresql_source.md
       - Análisis de Relaciones:
           - Generación de Grafos: examples/graph_generation.md
       - Documentación de BD:
@@ -164,8 +164,8 @@ nav:
       - ADR-001 Refactoring: adr/ADR-001-STRUCTURE-REFACTORING.md
       - Plantilla ADR: adr/ADR-TEMPLATE.md
   - Historia y Planes:
-      - Roadmap: ROADMAP.md
-      - Versiones Históricas: legacy-versions.md
+      - Roadmap: roadmap.md
+      - Versiones Históricas: legacy_versions.md
       - "Plan v0.8.0 — Sistema de Tipos Avanzado (entregado)": v0.8.0/PLAN_v0.8.0_TYPE_SYSTEM_IMPROVEMENTS.md
 
 theme:

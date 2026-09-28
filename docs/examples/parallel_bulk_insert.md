@@ -113,11 +113,11 @@ Resultado esperado:
 ✅ Todas las particiones cargadas exitosamente
 ```
 
-Ver [API Reference: ParallelBulkLoader](../api/bulk-parallel.md) y [Benchmark: Commit Cadence](benchmark_commit_cadence.md).
+Ver [API Reference: ParallelBulkLoader](../api/bulk_parallel.md) y [Benchmark: Commit Cadence](benchmark_commit_cadence.md).
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Carga Masiva Paralela](../functional/bulk-parallel-loading.md) — reglas de negocio sobre particionado y paralelismo
-- **Referencia técnica**: [Carga Masiva Paralela](../api/bulk-parallel.md) — API de `ParallelBulkLoader` y `ParallelLoadResult`
-- **Referencia técnica**: [CRUD Masivo (BulkCrud)](../api/bulk-crud.md) — primitiva de inserción usada por cada worker
+- **Documentación funcional**: [Carga Masiva Paralela](../functional/bulk_parallel_loading.md) — reglas de negocio sobre particionado y paralelismo
+- **Referencia técnica**: [Carga Masiva Paralela](../api/bulk_parallel.md) — API de `ParallelBulkLoader` y `ParallelLoadResult`
+- **Referencia técnica**: [CRUD Masivo (BulkCrud)](../api/bulk_crud.md) — primitiva de inserción usada por cada worker
 - **Ejemplos relacionados**: [Benchmark: Commit Cadence](benchmark_commit_cadence.md) — optimización de commits en alto volumen

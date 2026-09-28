@@ -76,4 +76,4 @@ flowchart TD
 
 ## 5. Ejemplos Relacionados
 
-- [Ejemplo: Validación de Variables MySQL/MariaDB](../examples/mysql-variables-example.md) — Uso de `MySQLVariableValidator` y perfiles `MySQLOptimalConfig`
+- [Ejemplo: Validación de Variables MySQL/MariaDB](../examples/mysql_variables_example.md) — Uso de `MySQLVariableValidator` y perfiles `MySQLOptimalConfig`

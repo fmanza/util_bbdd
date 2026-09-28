@@ -77,4 +77,4 @@ Tipos sin equivalente directo (`ARRAY`, `TSVECTOR`, `USER-DEFINED`) se mapean a 
 
 ## 5. Ejemplos Relacionados
 
-- [Ejemplo: Migración DDL PostgreSQL → Oracle / MariaDB / SQL Server](../examples/migrate-postgresql-source.md) — Script completo de migración con `MigrationPlanner`
+- [Ejemplo: Migración DDL PostgreSQL → Oracle / MariaDB / SQL Server](../examples/migrate_postgresql_source.md) — Script completo de migración con `MigrationPlanner`

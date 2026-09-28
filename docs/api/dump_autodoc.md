@@ -2,7 +2,7 @@
 
 Documentación generada automáticamente desde los docstrings del módulo
 `util_bbdd.dump`. Para la referencia técnica curada con diagramas y contratos
-detallados, ver [Orquestador](dump.md) y [Generador de Reportes](dump-reporter.md).
+detallados, ver [Orquestador](dump.md) y [Generador de Reportes](dump_reporter.md).
 
 ---
 

@@ -63,7 +63,7 @@ FASE 5: VERSION
 
 ### 2️⃣ Guías de Usuario (4 archivos)
 
-#### `docs/CONSTRAINTS_QUICK_REFERENCE.md`
+#### `docs/constraints_quick_reference.md`
 - **Tipo**: ⚡ Cheatsheet (referencia rápida)
 - **Tiempo**: 5 minutos
 - **Para quién**: Todos (developers, architects, managers)
@@ -71,7 +71,7 @@ FASE 5: VERSION
 
 ---
 
-#### `docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md`
+#### `docs/performance_audit_constraints_guide.md`
 - **Tipo**: 📗 User Guide (completa)
 - **Tiempo**: 30 minutos
 - **Para quién**: Developers, architects, performance engineers
@@ -79,7 +79,7 @@ FASE 5: VERSION
 
 ---
 
-#### `docs/CONSTRAINTS_AUDIT_INDEX.md`
+#### `docs/constraints_audit_index.md`
 - **Tipo**: 📋 Índice de navegación
 - **Tiempo**: 5 minutos
 - **Para quién**: Todos (encontrar rápidamente qué leer)
@@ -87,7 +87,7 @@ FASE 5: VERSION
 
 ---
 
-#### `docs/CONSTRAINTS_READING_GUIDE.md`
+#### `docs/constraints_reading_guide.md`
 - **Tipo**: 📍 Guía de lectura por rol
 - **Tiempo**: Variable según rol
 - **Para quién**: Todos
@@ -103,10 +103,10 @@ FASE 5: VERSION
 └── performance_audit_constraints_agent.prompt.md ✨ Tu prompt si eres agente LLM
 
 docs/
-├── CONSTRAINTS_QUICK_REFERENCE.md ⭐ EMPEZAR AQUÍ (5 min)
-├── PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md ✨ Leer si quieres casos prácticos
-├── CONSTRAINTS_AUDIT_INDEX.md ✨ Índice/resumen ejecutivo
-└── CONSTRAINTS_READING_GUIDE.md ✨ Mapa de lectura por rol
+├── constraints_quick_reference.md ⭐ EMPEZAR AQUÍ (5 min)
+├── performance_audit_constraints_guide.md ✨ Leer si quieres casos prácticos
+├── constraints_audit_index.md ✨ Índice/resumen ejecutivo
+└── constraints_reading_guide.md ✨ Mapa de lectura por rol
 ```
 
 ---
@@ -115,22 +115,22 @@ docs/
 
 ### Opción A: Lectura Rápida (5 min)
 ```
-Lee: docs/CONSTRAINTS_QUICK_REFERENCE.md
+Lee: docs/constraints_quick_reference.md
 
 Resultado: Resumen ejecutivo + quick wins de bajo riesgo
 ```
 
 ### Opción B: Lectura Completa (30 min)
 ```
-1. Lee: docs/CONSTRAINTS_QUICK_REFERENCE.md (5 min)
-2. Lee: docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md (25 min)
+1. Lee: docs/constraints_quick_reference.md (5 min)
+2. Lee: docs/performance_audit_constraints_guide.md (25 min)
 
 Resultado: Entender casos prácticos + cómo usar prompts
 ```
 
 ### Opción C: Análisis Técnico Profundo (4-10 horas)
 ```
-1. Lee: docs/CONSTRAINTS_QUICK_REFERENCE.md (5 min)
+1. Lee: docs/constraints_quick_reference.md (5 min)
 2. Lee: .github/prompts/performance_audit_constraints.prompt.md (2-4 horas)
 3. Lee: .github/prompts/performance_audit_constraints_agent.prompt.md (30 min)
 4. Ejecuta análisis manual O invoca LLM (6-10 horas)
@@ -225,8 +225,8 @@ Después de leer los prompts:
 
 ## 📋 Checklist: Lo Que Necesitas Hacer
 
-- [ ] **Paso 1**: Lee `docs/CONSTRAINTS_QUICK_REFERENCE.md` (5 min)
-- [ ] **Paso 2**: Elige tu rol en `docs/CONSTRAINTS_READING_GUIDE.md`
+- [ ] **Paso 1**: Lee `docs/constraints_quick_reference.md` (5 min)
+- [ ] **Paso 2**: Elige tu rol en `docs/constraints_reading_guide.md`
 - [ ] **Paso 3**: Lee los documentos recomendados para tu rol
 - [ ] **Paso 4**: Prepara inputs (tabla DDL, volumen, BBDD)
 - [ ] **Paso 5**: Ejecuta auditoría (manual o invoca LLM)
@@ -238,36 +238,36 @@ Después de leer los prompts:
 ## 🔗 Links Rápidos
 
 **Para iniciar**:
-- 🚀 [`docs/CONSTRAINTS_QUICK_REFERENCE.md`](./docs/CONSTRAINTS_QUICK_REFERENCE.md) ← EMPEZAR AQUÍ
-- 📍 [`docs/CONSTRAINTS_READING_GUIDE.md`](./docs/CONSTRAINTS_READING_GUIDE.md) ← Elige tu rol
-- 📋 [`docs/CONSTRAINTS_AUDIT_INDEX.md`](./docs/CONSTRAINTS_AUDIT_INDEX.md) ← Índice completo
+- 🚀 [`docs/constraints_quick_reference.md`](./docs/constraints_quick_reference.md) ← EMPEZAR AQUÍ
+- 📍 [`docs/constraints_reading_guide.md`](./docs/constraints_reading_guide.md) ← Elige tu rol
+- 📋 [`docs/constraints_audit_index.md`](./docs/constraints_audit_index.md) ← Índice completo
 
 **Para análisis técnico**:
 - 📘 [`.github/prompts/performance_audit_constraints.prompt.md`](./.github/prompts/performance_audit_constraints.prompt.md) ← Técnico detallado
 - 🤖 [`.github/prompts/performance_audit_constraints_agent.prompt.md`](./.github/prompts/performance_audit_constraints_agent.prompt.md) ← Para agentes LLM
 
 **Casos prácticos**:
-- 📗 [`docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md`](./docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md) ← 3 casos reales
+- 📗 [`docs/performance_audit_constraints_guide.md`](./docs/performance_audit_constraints_guide.md) ← 3 casos reales
 
 ---
 
 ## 🎉 ¿Listo?
 
-Empieza por: **[`docs/CONSTRAINTS_QUICK_REFERENCE.md`](./docs/CONSTRAINTS_QUICK_REFERENCE.md)** (5 minutos)
+Empieza por: **[`docs/constraints_quick_reference.md`](./docs/constraints_quick_reference.md)** (5 minutos)
 
-Luego: Elige tu rol en [`docs/CONSTRAINTS_READING_GUIDE.md`](./docs/CONSTRAINTS_READING_GUIDE.md)
+Luego: Elige tu rol en [`docs/constraints_reading_guide.md`](./docs/constraints_reading_guide.md)
 
 ---
 
 ## 📞 Soporte
 
 Si tienes preguntas:
-1. Consulta `docs/CONSTRAINTS_QUICK_REFERENCE.md` (sección "Riesgos Comunes")
-2. Lee `docs/PERFORMANCE_AUDIT_CONSTRAINTS_GUIDE.md` (sección "Preguntas Frecuentes")
+1. Consulta `docs/constraints_quick_reference.md` (sección "Riesgos Comunes")
+2. Lee `docs/performance_audit_constraints_guide.md` (sección "Preguntas Frecuentes")
 3. Revisa `.ai/sessions/` para auditorías previas en el repo
 
 ---
 
 *Creado: 2026-09-26 | Versión 1.0.0 | Estado: ✅ Listo para usar*
 
-**Próximo paso**: 👉 Abre [`docs/CONSTRAINTS_QUICK_REFERENCE.md`](./docs/CONSTRAINTS_QUICK_REFERENCE.md)
+**Próximo paso**: 👉 Abre [`docs/constraints_quick_reference.md`](./docs/constraints_quick_reference.md)

@@ -9,7 +9,7 @@ Resuelve la pregunta "¿cómo paso mi estructura Oracle a otro motor sin reescri
 ## 2. Implementación de Referencia
 
 ```python
---8<-- "examples/migrate-oracle-mariadb.py"
+--8<-- "examples/migrate_oracle_mariadb.py"
 ```
 
 ## 3. Explicación del Código
@@ -43,17 +43,17 @@ planner = MigrationPlanner(
 
 ```bash
 # Validación sintáctica
-python -m py_compile docs/examples/migrate-oracle-mariadb.py
+python -m py_compile docs/examples/migrate_oracle_mariadb.py
 
 # Ejecución (requiere servidor Oracle con el schema HR u otro schema accesible)
 # Sustituir credenciales antes de ejecutar
-python docs/examples/migrate-oracle-mariadb.py
+python docs/examples/migrate_oracle_mariadb.py
 ```
 
 El script DDL se guarda con nombre sugerido por `plan.suggested_filename()` (p.ej. `hr_oracle_to_mariadb_20260603.sql`).
 
 ## 5. Referencias Relacionadas
 
-- **Documentación funcional**: [Migración Oracle como Origen](../functional/migrate-oracle-mariadb.md) — casos de uso y reglas de negocio
-- **Referencia técnica**: [API Migración Oracle](../api/migrate-oracle-mariadb.md) — API de `MigrationPlanner`, transformadores y emitters
-- **Ejemplos relacionados**: [Migración MariaDB](migrate-mariadb-source.md) — patrón equivalente con origen MariaDB
+- **Documentación funcional**: [Migración Oracle como Origen](../functional/migrate_oracle_mariadb.md) — casos de uso y reglas de negocio
+- **Referencia técnica**: [API Migración Oracle](../api/migrate_oracle_mariadb.md) — API de `MigrationPlanner`, transformadores y emitters
+- **Ejemplos relacionados**: [Migración MariaDB](migrate_mariadb_source.md) — patrón equivalente con origen MariaDB

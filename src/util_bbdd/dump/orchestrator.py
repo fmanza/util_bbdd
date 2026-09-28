@@ -9,7 +9,7 @@ Flujo (5 fases):
   4. Carga de datos (best-effort, continúa ante errores).
   5. Rehabilitación de constraints + sincronización PK + informe Excel.
 
-La documentación pública (``docs/api/dump.md``, ``docs/functional/dump-data-export.md``) y los docstrings de
+La documentación pública (``docs/api/dump.md``, ``docs/functional/dump_data_export.md``) y los docstrings de
 ``DumpConfig``/``DumpResult`` numeran las mismas etapas del 1 al 7 (introspección, análisis FK, constraints,
 limpieza, carga, rehabilitación con la sincronización de PK como «Fase 6a», informe). Los comentarios y el log de
 este módulo usan la agrupación en 5 fases de arriba: la «Fase 5a» del log es la «Fase 6a» de la documentación.
