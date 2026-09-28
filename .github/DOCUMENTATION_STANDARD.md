@@ -34,33 +34,44 @@ solo añade reglas de edición por ruta (Markdown, Mermaid, snippets, `nav`) y r
 
 **Ubicación**: `docs/functional/[módulo].md` · **Prompt**: `.github/prompts/functional_doc.prompt.md`
 
-**Estructura obligatoria** (secciones numeradas, en este orden):
+**Estructura obligatoria** (8 secciones numeradas, en este orden). La fuente es
+`.github/prompts/functional_doc.prompt.md` (núcleo compartido por bootstrap); si difieren, manda el prompt:
 
 ```
 # [Título del Módulo/Funcionalidad]
 
-## 1. Descripción General
-Contexto de negocio y objetivo (2-3 párrafos, sin jerga técnica).
-Incluir: quién usa esto y por qué aporta valor.
+## 1. Objetivo y Descripción
+2-3 párrafos sin jerga técnica: qué problema resuelve, qué valor aporta y por qué existe.
 
-## 2. Reglas de Negocio
+## 2. Precondiciones
+Lo que debe existir o estar configurado antes de usar la funcionalidad (un ítem por precondición).
+
+## 3. Flujo Principal
+Diagrama Mermaid sequenceDiagram (máximo 12 nodos) + párrafo que describe el flujo paso a paso.
+
+## 4. Postcondiciones y Efectos
+Estado observable tras la operación: registros creados/modificados, artefacto producido,
+transacciones confirmadas o revertidas, cachés afectadas.
+
+## 5. Reglas de Negocio
 Tabla: | Regla | Descripción | Impacto si se viola |
 
-## 3. Casos de Uso
-### Flujo principal
-Diagrama Mermaid sequenceDiagram (actor → módulo → salida).
-### Flujos alternativos y de error
-Variantes, condiciones de contorno y casos de error verificables.
-Si no hay: "No aplica para este módulo."
+## 6. Límites, Flujos Alternativos y Casos Especiales
+### Qué NO hace esta funcionalidad
+### Flujos alternativos
+### Casos especiales
 
-## 4. Criterios de Aceptación      ← PENDIENTE QA — solo placeholder hasta validación
-Estructura prevista: Tabla | ID | Criterio | Verificable con |
-Redacción: "Dado X, cuando Y, entonces Z."
+## 7. Criterios de Aceptación
+Tabla: | ID | Dado | Cuando | Entonces |  (derivados del código cuando sea posible)
+### Pendiente de validación QA  (solo si algún criterio no puede derivarse del código)
 
-## 5. Glosario y Términos
+## 8. Glosario de Dominio
 Tabla: | Término | Definición |
-Solo si hay términos de dominio específicos; si no, "No aplica para este módulo."
 ```
+
+> **Migración pendiente**: los 19 documentos de `docs/functional/` siguen la estructura anterior de 4
+> secciones (Descripción General · Reglas de Negocio · Casos de Uso · Glosario). Se migran por área con
+> Documentation Generator al regenerarlos; hasta entonces no se consideran incumplimiento en revisión.
 
 **Reglas de lenguaje**:
 
