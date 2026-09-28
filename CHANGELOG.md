@@ -7,6 +7,39 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Revisión de la configuración IA (`/config-review`): sin cambios en la librería publicada; afecta solo a las
+instrucciones de los asistentes (Claude Code, Copilot, Gemini, Codex, Cursor).
+
+### Added
+
+- **config IA**: slash command `/performance-audit-constraints` sobre `performance_audit_constraints.prompt.md`;
+  Performance Auditor cubre ahora `bulk/`, `dump/` y la desactivación de constraints.
+- **config IA**: tipos de commit `hotfix:`, `security:`, `perf:` y `release:` en `SHARED_INSTRUCTIONS.md`, con su
+  frontera frente a `fix:`.
+
+### Changed
+
+- **config IA**: los slash commands son envoltorios finos de su prompt gemelo en `.github/prompts/`, único contrato de
+  salida por flujo; los campos que divergían entre command y prompt se unifican.
+- **config IA**: `/version-closure` exige «Directrices para Futuras IAs» y el checklist de `sync.instructions.md`;
+  Version Closer puede editar `CHANGELOG.md` y el `TRACEABILITY.md` de la sesión.
+- **config IA**: `DOCUMENTATION_STANDARD.md` §3 es la única definición de los 8 arquetipos (el Arquetipo 2 adopta la
+  estructura de `technical_doc.prompt.md`); `docs.instructions.md` remite a él.
+- **config IA**: las instrucciones de introspección y render se aplican a `metadata/` y `doc/` (sus `applyTo`
+  apuntaban a carpetas inexistentes); `render-markdown` se fusiona en `render`.
+- **config IA**: `.claude/settings.json` se versiona con solo los hooks; los permisos personales van a
+  `settings.local.json`. El hook de pytest recoge `tests/` (antes `src/`, 0 tests).
+- **config IA**: los prompts de agente de `dump` y constraints pasan de `.github/agents/` a `.github/prompts/`.
+- **config IA**: `.ai/product.md`, `.ai/architecture.md` y `.ai/standards.md` sin versión ni métricas fijas (remiten
+  a `pyproject.toml` y `.ai/CURRENT_STATE.md`); Zensical como generador por defecto.
+
+### Removed
+
+- **config IA**: `.github/README.md`, `.github/INTEGRATION_MAP.md`, `.github/ANALYSIS_*`, `QUICK_START_ANALYSIS.md`,
+  `SUMMARY_IMPROVEMENTS.md`, `IMPROVEMENTS_COMPLETED.md`, `.claude/QUICK_START.md`, `.claude/settings.json.example`
+  y los prompts de meta-auditoría del antiguo `/performance-audit` (obsoletos o duplicados; siguen en el historial de
+  git). Sin `.github/README.md`, GitHub muestra el `README.md` raíz en la portada del repositorio.
+
 ## [0.18.3] - 2026-09-28
 
 Un fallo alrededor del informe Excel del volcado ya no deja sin informe (ni sin resultado) una carga terminada, y los
