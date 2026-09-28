@@ -14,7 +14,8 @@ usando los prompts estándar del repositorio, guardando resultados en `docs/` y 
 ## Contexto de dominio
 
 Lee antes de generar:
-- `.github/instructions/docs.instructions.md` — reglas canónicas de documentación
+- `.github/DOCUMENTATION_STANDARD.md` — estándar canónico: arquetipos (§3), `mkdocs.yml` (§4) y flujo de agentes (§5)
+- `.github/instructions/docs.instructions.md` — reglas de edición por ruta en `docs/` (Markdown, Mermaid, snippets, `nav`)
 - `.ai/product.md` — qué hace util_bbdd y para quién
 - `.ai/architecture.md` — capas, módulos y responsabilidades
 - `.ai/standards.md` — estándares de calidad y estilo

@@ -190,19 +190,21 @@ Todos referencian a `.github/SHARED_INSTRUCTIONS.md` como **fuente canónica**.
 **Aplica solo si** el destino publica documentación pública con un generador estático
 (MkDocs, Docusaurus, Hugo, Sphinx, etc.).
 
-### Estructura de arquetipos (5 tipos + 1 variante)
+### Estructura de arquetipos (8 tipos)
 
-El estándar de documentación incluye **6 arquetipos formales** que garantizan consistencia y
-búsqueda automática por IA. Cada uno responde una pregunta de usuario distinta:
+El estándar de documentación (`.github/DOCUMENTATION_STANDARD.md` §3) incluye **8 arquetipos** que
+garantizan consistencia y búsqueda automática por IA. Cada uno responde una pregunta de usuario distinta:
 
 | Arq. | Nombre | Propósito | Ubicación | Prompt |
 |---|---|---|---|---|
 | **1** | Funcional | ¿Qué hace y por qué? | `docs/functional/` | `functional_doc.prompt.md` |
 | **2** | Técnica/API | ¿Cómo funciona internamente? | `docs/api/` | `technical_doc.prompt.md` |
-| **3** | Guía de Usuario | ¿Cómo se usa/instala? | `docs/` raíz | `guide_doc.prompt.md` |
+| **3** | Guía de Usuario | ¿Cómo se usa/instala? | `docs/guides/` | `guide_doc.prompt.md` |
 | **4** | Ejemplos de Código | ¿Cómo se implementa? | `docs/examples/` | `example_doc.prompt.md` |
 | **5** | Decisión Arquitectónica (ADR) | ¿Por qué se decidió así? | `docs/adr/` | `architecture_doc.prompt.md` |
-| **6** | Navegación Principal *(variante)* | Intro + instalación + visión | `docs/index.md`, `INSTALLATION.md`, `ARCHITECTURE.md` | `landing_doc.prompt.md` |
+| **6** | Navegación Principal *(variantes A/B/C)* | Intro + instalación + visión | `docs/index.md`, `INSTALLATION.md`, `architecture.md` | `landing_doc.prompt.md` |
+| **7** | Incorporación de desarrolladores | ¿Cómo me incorporo al proyecto? | `docs/guides/onboarding_dev.md` | `onboarding_dev.prompt.md` |
+| **8** | Trazabilidad normativa *(condicional)* | ¿Qué obligaciones cubre el sistema? | `docs/normativa/` | `normative_traceability.prompt.md` |
 
 ### Adaptación de arquetipos al destino
 

@@ -16,8 +16,9 @@ Lee antes de revisar:
 - `.ai/product.md` — capacidades, motores y audiencia
 - `.ai/architecture.md` — niveles, módulos y patrones del repositorio
 - `.ai/standards.md` — convenciones de calidad y estilo
-- `.github/instructions/docs.instructions.md` — estándar documental canónico
-- `docs/` y `docs/v0.8.0/` — documentación publicada y planes de versión entregados (versión vigente: v0.10.0)
+- `.github/DOCUMENTATION_STANDARD.md` — estándar canónico: arquetipos (§3), `mkdocs.yml` (§4) y criterio de completitud (§7)
+- `.github/instructions/docs.instructions.md` — reglas de edición por ruta en `docs/` (Markdown, Mermaid, snippets, `nav`)
+- `docs/` — documentación publicada (versión vigente: `pyproject.toml`)
 - `docs/examples/` — ejemplos existentes
 - `mkdocs.yml` — navegación, tema Material, Mermaid y páginas publicadas
 - `.github/instructions/` — guías de desarrollo y patrones

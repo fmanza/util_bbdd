@@ -82,7 +82,7 @@ Tabla: | Error / Síntoma | Causa probable | Solución |
 Errores reales de drivers/conexión/pool. Si no hay casos: "*No aplica para este módulo.*"
 
 ═══════════════════════════════════════════════════════════════════════════════
- VARIANTE C — ARQUITECTURA  (docs/ARCHITECTURE.md)
+ VARIANTE C — ARQUITECTURA  (docs/architecture.md)
 ═══════════════════════════════════════════════════════════════════════════════
 
 # Arquitectura del Sistema — [Nombre del Proyecto]
@@ -177,7 +177,7 @@ Genera la página [Inicio | Instalación | Arquitectura] aplicando la variante c
 |---|---|---|---|
 | Inicio | `docs/index.md` | A | `Inicio` (raíz) |
 | Instalación | `docs/INSTALLATION.md` | B | `Instalación` (raíz) |
-| Arquitectura | `docs/ARCHITECTURE.md` | C | `Arquitectura` (raíz, junto a los ADR) |
+| Arquitectura | `docs/architecture.md` | C | `Arquitectura` (raíz, junto a los ADR) |
 
 **Diferencia con el Arquetipo 5 (`architecture_doc`)**: el Arquetipo 5 documenta **una decisión
 arquitectónica concreta (ADR)**. Esta Variante C documenta la **visión global del sistema** (mapa de

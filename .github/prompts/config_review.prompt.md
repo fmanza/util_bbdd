@@ -33,7 +33,8 @@ Lee los siguientes ficheros **antes** de emitir cualquier propuesta:
 - `.github/SHARED_INSTRUCTIONS.md` — fuente canónica y § «Gobernanza de plataformas IA»
 - `.github/AGENTS.md` — registro de agentes, prompts y slash commands
 - `.github/copilot-instructions.md`, `CLAUDE.md`, `GEMINI.md`, `.cursorrules` — entry points por plataforma
-- `.github/instructions/docs.instructions.md` — reglas canónicas de documentación
+- `.github/DOCUMENTATION_STANDARD.md` — estándar documental canónico (arquetipos)
+- `.github/instructions/docs.instructions.md` — reglas de edición por ruta en `docs/`
 - `.github/agents/documentation-generator.agent.md` — generación/actualización documental
 - `.github/agents/documentation-reviewer.agent.md` — revisión documental
 - `.github/prompts/functional_doc.prompt.md` — prompt funcional
