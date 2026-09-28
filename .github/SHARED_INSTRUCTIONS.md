@@ -213,8 +213,10 @@ python scripts/gen_arquitectura_capas.py   # regenera el diagrama de capas e imp
 
 #### Convención de nombres en `docs/`
 
-- **Guías** (`docs/guides/`) y **ficheros nuevos** en `docs/`: nombre **en minúsculas con guiones bajos** (`async_guide.md`, `migration_guide.md`).
-  Los existentes con guiones (`functional/`, `api/`, `examples/`) o en mayúsculas (`INSTALLATION.md`, `ROADMAP.md`) se mantienen: renombrarlos rompe enlaces y URLs publicadas; hazlo solo en un cambio dedicado que actualice sus referencias.
+- **Todos los ficheros `.md` y `.py`** de `docs/` usan nombre **en minúsculas con guiones bajos** (`installation.md`,
+  `async_guide.md`, `bulk_operations.md`). Excepciones: `docs/adr/` (convención `ADR-NNN-nombre.md`) y
+  `docs/v0.8.0/` (histórico). Al renombrar, actualiza todas las referencias en el mismo cambio; en Windows,
+  un cambio solo de mayúsculas se hace en dos pasos (`git mv A.md tmp && git mv tmp a.md`).
 - **Guías** → siempre en `docs/guides/`, nunca en la raíz de `docs/`.
 - **Conjunto mínimo obligatorio en `guides/`**: `onboarding_dev.md` + `troubleshooting.md`.
 - Sección `Guías:` en `mkdocs.yml`: `onboarding_dev.md` siempre primero; `troubleshooting.md` siempre en subsección "Errores y Diagnóstico".

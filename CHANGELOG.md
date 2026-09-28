@@ -30,6 +30,10 @@ instrucciones de los asistentes (Claude Code, Copilot, Gemini, Codex, Cursor).
 - **config IA**: `.claude/settings.json` se versiona con solo los hooks; los permisos personales van a
   `settings.local.json`. El hook de pytest recoge `tests/` (antes `src/`, 0 tests).
 - **config IA**: los prompts de agente de `dump` y constraints pasan de `.github/agents/` a `.github/prompts/`.
+- **docs**: los 65 ficheros de `docs/` con guiones o mayúsculas pasan a minúsculas con guion bajo
+  (`functional/bulk-operations.md` → `functional/bulk_operations.md`, `INSTALLATION.md` → `installation.md`,
+  `ROADMAP.md` → `roadmap.md`…), con sus referencias. **Cambian las rutas del sitio** (sin redirecciones:
+  Zensical 0.0.44 no las admite); `docs/adr/` y `docs/v0.8.0/` no se renombran.
 - **config IA**: `.ai/product.md`, `.ai/architecture.md` y `.ai/standards.md` sin versión ni métricas fijas (remiten
   a `pyproject.toml` y `.ai/CURRENT_STATE.md`); Zensical como generador por defecto.
 

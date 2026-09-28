@@ -25,7 +25,7 @@
 
 - **Pares planos** `<tema>.md` + `<tema>.py` en `docs/examples/` (un ejemplo por tema):
   `bulk_insert_csv`, `parallel_bulk_insert`, `schema_comparison`, `dump_data_export`,
-  `migrate-oracle-mariadb`, `query_execution_example`, etc.
+  `migrate_oracle_mariadb`, `query_execution_example`, etc.
 - **`docs/examples/database/`**: fragmentos `.py` reutilizables que varios `.md` incluyen por partes
   (`pool_setup.py`, `partition_ranges.py`, `reader_factory.py`, `commit_cadence.py`,
   `load_from_sql.py`, `error_handling.py`, `sync_pk_sequences.py`).
@@ -46,8 +46,7 @@
 Cada archivo `.py` debe:
 
 - Tener un nombre **descriptivo y corto**, en minúsculas con guiones bajos (convención de
-  `SHARED_INSTRUCTIONS.md` § «Convención de nombres en `docs/`»); no renombres los existentes con guiones
-  salvo en un cambio dedicado que actualice sus referencias.
+  `SHARED_INSTRUCTIONS.md` § «Convención de nombres en `docs/`»); el `.py` y su `.md` comparten nombre.
 - Incluir un docstring de módulo (1-2 líneas) explicando qué hace.
 - Ser **ejecutable de forma standalone** (con `if __name__ == "__main__":` si es necesario).
 - Poder ser testeado con pytest si contiene lógica testeable.

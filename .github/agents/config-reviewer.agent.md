@@ -28,7 +28,7 @@ Lee antes de responder:
 | Reglas por ruta | `.github/instructions/*.instructions.md` |
 | Contexto persistente | `.ai/{product,architecture,runtime,glossary,standards}.md`, `.ai/sessions/TEMPLATE/` |
 | Documentación | `.github/DOCUMENTATION_STANDARD.md`, `mkdocs.yml` (solo si el cambio toca docs) |
-| Hooks | `.claude/settings.json`, `.claude/settings.json.example` (nunca `settings.local.json`) |
+| Hooks | `.claude/settings.json` (versionado, solo hooks; nunca `settings.local.json`) |
 
 Excluye `.ai/sessions/<fechas>/`, `.ai/doc_old/`, `doc_old/` y `site/`: son histórico, no configuración viva.
 

@@ -261,7 +261,7 @@ Variante C del Arquetipo 6). Los documentos de planificación (roadmap, release 
 
 **Audiencia**: cualquier visitante que llega a la documentación por primera vez.
 
-**Ubicación**: `docs/index.md` (Inicio), `docs/INSTALLATION.md` (Instalación), `docs/architecture.md`
+**Ubicación**: `docs/index.md` (Inicio), `docs/installation.md` (Instalación), `docs/architecture.md`
 (Arquitectura) · **Prompt**: `.github/prompts/landing_doc.prompt.md` (variantes A/B/C)
 
 Estas páginas entran directamente en `nav:` (nivel raíz), no bajo `functional/`, `api/`, `examples/` ni `adr/`.
@@ -276,7 +276,7 @@ Estas páginas entran directamente en `nav:` (nivel raíz), no bajo `functional/
 ## 4. Mapa de la Documentación
 ## 5. Compatibilidad y Soporte
 
-# Variante B — Instalación (docs/INSTALLATION.md)
+# Variante B — Instalación (docs/installation.md)
 ## 1. Requisitos Previos
 ## 2. Instalación del Paquete
 ## 3. Drivers por Motor
@@ -303,7 +303,7 @@ real del código. La figura «Capas e imports reales» de `docs/architecture.md`
 - El Arquetipo 3 cubre guías genéricas (async, drivers, troubleshooting); la Variante B es específica de
   instalación del paquete y drivers.
 
-`docs/legacy-versions.md` permanece exento de arquetipo.
+`docs/legacy_versions.md` permanece exento de arquetipo.
 
 ---
 
@@ -434,6 +434,7 @@ Esta sección define el contrato mínimo y las reglas de nomenclatura para **tod
 | Nombre en minúsculas | `connection_guide.md` | `CONNECTION_GUIDE.md` |
 | Palabras con guión bajo | `async_guide.md` | `async-guide.md`, `asyncGuide.md` |
 | Ubicación siempre en `guides/` | `docs/guides/troubleshooting.md` | `docs/TROUBLESHOOTING.md` |
+| Aplica a todo `docs/` (salvo `adr/` y `v0.8.0/`) | `functional/bulk_operations.md` | `functional/bulk-operations.md` |
 | Sin subcarpetas dentro de `guides/` | `guides/deployment_guide.md` | `guides/ops/deployment.md` |
 
 #### Conjunto mínimo obligatorio
@@ -560,7 +561,7 @@ extra:
 # ── Navegación (Obligatoria) ─────────────────────────────────────────────────
 nav:
   - Inicio: index.md                       # Arquetipo 6, Variante A
-  - Instalación: INSTALLATION.md           # Arquetipo 6, Variante B
+  - Instalación: installation.md           # Arquetipo 6, Variante B
   - Documentación Funcional:
       - [Área]:
           - [Módulo]: functional/[modulo].md
@@ -580,8 +581,8 @@ nav:
       - Arquitectura del sistema: architecture.md   # Arquetipo 6, Variante C
       - [ADR-NNN]: adr/[ADR-NNN-nombre].md         # Arquetipo 5
   - Historia y Planes:
-      - Versiones Históricas: legacy-versions.md
-      - Roadmap: ROADMAP.md
+      - Versiones Históricas: legacy_versions.md
+      - Roadmap: roadmap.md
 ```
 
 ---
@@ -679,7 +680,7 @@ La estandarización se considera **completa** cuando:
 - [ ] Todos los archivos referenciados en `docs/examples/` existen en disco
 - [ ] `CHANGELOG.md` refleja la versión actual de `pyproject.toml`
 - [ ] Las instrucciones IA (`CLAUDE.md`, `copilot-instructions.md`) son coherentes con el código real
-- [ ] Todos los documentos en `nav:` (excepto `legacy-versions.md`) tienen exactamente las secciones numeradas de su arquetipo asignado (`index.md`, `INSTALLATION.md` y `architecture.md` se rigen por el Arquetipo 6)
+- [ ] Todos los documentos en `nav:` (excepto `legacy_versions.md`) tienen exactamente las secciones numeradas de su arquetipo asignado (`index.md`, `installation.md` y `architecture.md` se rigen por el Arquetipo 6)
 - [ ] Las secciones vacías contienen `*No aplica para este módulo.*` en lugar de estar omitidas
 - [ ] Los prompts `.github/prompts/guide_doc.prompt.md` y `example_doc.prompt.md` existen y son coherentes con Arquetipos 3 y 4
 

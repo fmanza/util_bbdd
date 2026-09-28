@@ -30,7 +30,7 @@ arquetipo están **solo** en `.github/DOCUMENTATION_STANDARD.md` §3:
 | 3 — Guías | `docs/guides/` | `guide_doc` |
 | 4 — Ejemplos de código | `docs/examples/` | `example_doc` |
 | 5 — ADR | `docs/adr/` | `architecture_doc` |
-| 6 — Navegación principal | `docs/` raíz (`index.md`, `INSTALLATION.md`, `architecture.md`) | `landing_doc` |
+| 6 — Navegación principal | `docs/` raíz (`index.md`, `installation.md`, `architecture.md`) | `landing_doc` |
 | 7 — Incorporación | `docs/guides/onboarding_dev.md` | `onboarding_dev` |
 | 8 — Normativa (condicional) | `docs/normativa/` | `normative_traceability` |
 
@@ -75,7 +75,7 @@ subsecciones** (no listas planas).
 ```yaml
 nav:
   - Inicio: index.md
-  - Instalación: INSTALLATION.md
+  - Instalación: installation.md
   - Documentación Funcional:
       - [Área]:
           - [Nombre módulo]: functional/[nombre-modulo].md
@@ -92,7 +92,7 @@ nav:
   - Arquitectura:
       - [ADR-NNN]: adr/[adr-nombre].md
   - Historia y Planes:
-      - Roadmap: ROADMAP.md
+      - Roadmap: roadmap.md
 ```
 
 ## Detección de lenguaje y autodoc
@@ -158,8 +158,8 @@ Resultado: los docstrings del código fuente nunca se renderizan en el sitio.
 ```
 docs/api/
 ├── bulk.md            ← autodoc  (sección Autodoc, directivas :::)
-├── bulk-crud.md       ← manual   (sección Referencia Técnica, Arquetipo 2)
-├── dump-autodoc.md    ← autodoc  (sección Autodoc, directivas :::)
+├── bulk_crud.md       ← manual   (sección Referencia Técnica, Arquetipo 2)
+├── dump_autodoc.md    ← autodoc  (sección Autodoc, directivas :::)
 └── dump.md            ← manual   (sección Referencia Técnica, Arquetipo 2)
 ```
 
@@ -294,7 +294,7 @@ Etiquetas en español. Solo incluye componentes presentes en el código real.
 
 Para generar o actualizar la documentación completa del proyecto:
 
-1. **Inventario**: lista todos los módulos en `src/` y clasifica qué arquetipo necesita cada documento (`docs/functional/` → Arquetipo 1, `docs/api/` → Arquetipo 2, guías raíz `docs/` → Arquetipo 3, `docs/examples/` → Arquetipo 4, ADR `docs/adr/` → Arquetipo 5, páginas raíz `index.md`/`INSTALLATION.md`/`ARCHITECTURE.md` → Arquetipo 6).
+1. **Inventario**: lista todos los módulos en `src/` y clasifica qué arquetipo necesita cada documento (`docs/functional/` → Arquetipo 1, `docs/api/` → Arquetipo 2, `docs/guides/` → Arquetipo 3, `docs/examples/` → Arquetipo 4, ADR `docs/adr/` → Arquetipo 5, páginas raíz `index.md`/`installation.md`/`architecture.md` → Arquetipo 6).
 2. **Orden de generación**: empieza por módulos base (`_base.py`, contratos) antes que servicios; los servicios antes que las CLIs y la capa web.
 3. **Generación por arquetipo**: aplica el prompt correspondiente (`functional_doc`, `technical_doc`, `guide_doc`, `example_doc`, `architecture_doc` o `landing_doc`) a cada archivo.
 4. **mkdocs.yml**: actualiza la sección `nav:` con todas las entradas nuevas o modificadas.
