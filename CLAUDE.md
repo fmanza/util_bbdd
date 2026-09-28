@@ -124,31 +124,33 @@ Lee [`.claude/README.md`](./.claude/README.md) para detalles completos sobre hoo
 
 ```
 .claude/
-  settings.json           ← Hooks PostToolUse: ruff, mypy, pytest (recogida)
-  settings.json.example   ← Plantilla de ejemplo
-  settings.local.json     ← Personalización local (no versionado, git-ignored)
+  settings.json.example   ← Plantilla VERSIONADA de hooks PostToolUse: ruff, mypy, pytest (recogida)
+  settings.json           ← Copia local de la plantilla (git-ignored)
+  settings.local.json     ← Personalización local adicional (git-ignored)
   commands/               ← Slash commands personalizados
   EDGE_CASES.md           ← Casos límite conocidos en el proyecto
   TESTING_GUIDE.md        ← Guía de testing con PostToolUse
 ```
 
-**Hooks configurados en `.claude/settings.json`** (tras cada `Edit`/`Write`):
+**Hooks de la plantilla** (tras cada `Edit`/`Write`; informativos, no bloquean):
 
-1. `ruff check src tests` — linting (obligatorio)
-2. `mypy src` — type-checking (opcional)
-3. `pytest --collect-only` — recogida de tests, sin ejecución (opcional)
+1. `ruff check src tests` — linting
+2. `mypy src` — type-checking rápido (el completo está en «Comandos de desarrollo»)
+3. `pytest --collect-only -q` — recogida de tests (`testpaths` de `pytest.ini`), sin ejecución
 
 Los hooks **no** aplican formato ni ejecutan la suite: antes de cerrar IMPLEMENT ejecuta tú
 `ruff format`, el `mypy` completo y `pytest` con los comandos de `.github/SHARED_INSTRUCTIONS.md`
 § «Comandos de desarrollo», e itera si fallan.
 
-**Configuración manual** (si es necesario):
+**Instalación en un clon nuevo** (`settings.json` no se versiona):
+
 ```bash
-# Instalar hooks locales en .claude/settings.local.json
-# (no afecta otros clones del repositorio)
-cp .claude/settings.json.example .claude/settings.local.json
-# Edita .claude/settings.local.json con configuración personal
+cp .claude/settings.json.example .claude/settings.json
 ```
+
+Si cambias los hooks, edita la plantilla `settings.json.example` y vuelve a copiarla. Los hooks de
+`settings.local.json` se **suman** a los de `settings.json`: no copies la plantilla en ambos
+(los hooks correrían dos veces).
 
 ---
 

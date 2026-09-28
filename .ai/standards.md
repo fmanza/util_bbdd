@@ -24,16 +24,16 @@
 - **No external services:** All tests must be isolated (SQLite in-memory, fixtures, mocks)
 - **Fixtures:** In `tests/conftest.py` (shared state)
 - **Naming:** `test_<module>_<scenario>.py`
-- **Total tests:** ~3800+ (3749 tras sesión 2026-06-02; crecer con cada nueva feature)
+- **Total tests:** ver `.ai/CURRENT_STATE.md` (se actualiza en cada cierre de versión)
 
 ## Documentation
 
 - **Docstrings:** Google-style (module, class, function)
-- **MkDocs Material:** generador por defecto (`mkdocs build` / `mkdocs serve`)
-- **Zensical:** generador alternativo recíprocamente compatible (mismo `mkdocs.yml`)
+- **Zensical:** generador por defecto (CI; `zensical build` / `zensical serve`)
+- **MkDocs Material:** generador recíprocamente compatible (mismo `mkdocs.yml`)
 - **CHANGELOG.md:** Semver ([major.minor.patch]) con Conventional Commits
 - **Arquitectura:** `.ai/architecture.md` actualizado con cambios estructurales
-- **Build limpio:** `mkdocs build --strict` sin errores ni warnings antes de publicar
+- **Build limpio:** `zensical build --strict` (o `mkdocs build --strict`) sin errores ni warnings antes de publicar
 
 ## Commits & Versioning
 
@@ -56,12 +56,8 @@
 - **Audit Trail:** All mutations logged with user/timestamp
 - **Thread-safety:** AuditManager usa lock por ruta en modo paralelo
 
-## Calidad Actual (2026-06-16)
+## Quality Gate
 
-| Métrica | Estado |
-|---|---|
-| `ruff check src tests` | 0 errores |
-| `mypy src` | 0 errores (336 source files) |
-| Tests | ~3826 passed / 1 skipped |
-| `mkdocs build --strict` | 0 errores, 0 warnings |
-| Complejidad cognitiva | reporters ≤4; emitters ≤15 |
+- Comandos: `.github/SHARED_INSTRUCTIONS.md` § «Comandos de desarrollo» (todos en verde antes de cerrar IMPLEMENT).
+- Estado medido (tests, versión): `.ai/CURRENT_STATE.md`.
+- Complejidad cognitiva: reporters ≤4; emitters ≤15.

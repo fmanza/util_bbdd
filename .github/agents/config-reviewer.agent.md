@@ -108,7 +108,7 @@ ANÁLISIS + PLAN + AUDIT_PLAN y espera aprobación.
 | **Plan Architect** | PLAN con impacto en código o en contratos | Contrastar el plan con el código real |
 | **Feature Implementer** | Tras AUDIT_PLAN aprobado | Aplicar los cambios propuestos |
 | **Documentation Reviewer** | Si el cambio toca `docs/`, `DOCUMENTATION_STANDARD.md` o `mkdocs.yml` | Revisar la coherencia documental |
-| **Version Closer** | Final | Commit `docs(config): …`, CHANGELOG, rollback y `.ai/sessions/<fecha>/TRACEABILITY.md` |
+| **Version Closer** | Final | Propone el commit `docs(config): …`; escribe CHANGELOG y `.ai/sessions/<fecha>/TRACEABILITY.md`; rollback |
 
 ## Ejemplo de invocación
 ```text

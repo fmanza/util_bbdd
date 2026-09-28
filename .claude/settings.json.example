@@ -6,20 +6,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python -m ruff check src tests --quiet 2>&1 | head -15",
-            "description": "Linting/formatting check. Requiere ruff. Opcional: false."
+            "command": "python -m ruff check src tests --quiet 2>&1 | head -15"
           },
           {
             "type": "command",
-            "command": "python -m mypy src --no-error-summary 2>&1 | head -10",
-            "description": "Type checking. Requiere mypy. Opcional: true (skip si mypy tarda).",
-            "optional": true
+            "command": "python -m mypy src --no-error-summary 2>&1 | head -10"
           },
           {
             "type": "command",
-            "command": "python -m pytest --collect-only -q src 2>&1 | head -10",
-            "description": "Test collection (sintaxis, no ejecución). Requiere pytest. Opcional: true.",
-            "optional": true
+            "command": "python -m pytest --collect-only -q 2>&1 | tail -1"
           }
         ]
       }

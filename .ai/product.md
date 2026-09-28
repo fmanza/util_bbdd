@@ -4,7 +4,10 @@
 
 **util_bbdd** es una librería Python especializada en operaciones de base de datos para múltiples motores (MariaDB, MySQL, PostgreSQL, Oracle, SQLite, SQL Server, HSQLDB, Redshift, Snowflake). Proporciona abstracción unificada con operaciones CRUD en lote, auditoría automática, gestión de conexiones con pool singleton, y análisis de relaciones.
 
-**Versión:** 0.10.0 | **Estado:** Estable | **Python:** ≥3.12
+**Versión:** ver `pyproject.toml` y `.ai/CURRENT_STATE.md` | **Estado:** Estable | **Python:** `requires-python` de `pyproject.toml`
+
+> Las capacidades de este fichero se revisaron por última vez con v0.10.0; las posteriores
+> (v0.11.0+) están en `.ai/CURRENT_STATE.md` y `CHANGELOG.md`.
 
 ## Motores Soportados
 

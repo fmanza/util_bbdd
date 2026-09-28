@@ -123,7 +123,7 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 - **Salida**: Release notes, Commit messages, Changelog, Rollback strategy, Testing suggestions
 - **Validación requerida**: checklist de `.github/instructions/sync.instructions.md`
   (CHANGELOG.md, `pyproject.toml`, `zensical build` sin errores, `TRACEABILITY.md` de la sesión)
-- **Herramientas**: read, search
+- **Herramientas**: read, edit, search — solo edita `CHANGELOG.md` y el `TRACEABILITY.md` de la sesión; el commit lo propone
 - **Invocable**: Sí (final de sesión)
 
 ### 12. **Explore** (`explore.agent.md`)
@@ -212,7 +212,7 @@ PRODUCTION_READY | NEAR_READY | BLOCKED
 | Security Reviewer | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Maturity Assessment | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Performance Auditor | ✅ | ❌ | ✅ | ❌ | ✅ (benchmarks) |
-| Version Closer | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Version Closer | ✅ | ✅ (`CHANGELOG.md`, `TRACEABILITY.md`) | ✅ | ❌ | ❌ |
 | Explore | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Workflow Director | ✅ | ❌ | ✅ | ❌ | ❌ |
 

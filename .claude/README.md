@@ -1,238 +1,80 @@
 # Directorio `.claude/`
 
-Configuración y comandos especializados para **Claude Code** (Anthropic, extensión en VS Code).
+Configuración y comandos especializados para **Claude Code**. Las reglas comunes viven en
+[`.github/SHARED_INSTRUCTIONS.md`](../.github/SHARED_INSTRUCTIONS.md); la especialización de Claude,
+en [`CLAUDE.md`](../CLAUDE.md).
 
 ---
 
 ## Archivos
 
-### `settings.json`
-Configuración global de hooks y comportamiento de Claude Code.
+### `settings.json.example` → `settings.json`
 
-**Hooks disponibles**:
-- `ruff check src tests` — Linting/formatting (siempre activado)
-- `mypy src` — Type checking (opcional, puede omitirse si es lento)
-- `pytest --collect-only` — Test recolección sin ejecución (opcional)
+`settings.json.example` es la plantilla **versionada** de hooks; `settings.json` está en `.gitignore`,
+así que en cada clon hay que copiarla:
 
-**Uso**: No editar directamente; usar `.claude/settings.local.json` para customizaciones locales.
-
-```json
-{
-  "hooks": {
-    "PostToolUse": [
-      { "matcher": "Edit|Write", "hooks": [...] }
-    ]
-  }
-}
+```bash
+cp .claude/settings.json.example .claude/settings.json
 ```
 
-**Referencia**: [settings.json.example](settings.json.example)
+Si cambias los hooks, edita la plantilla y vuelve a copiarla. Hooks `PostToolUse` (tras cada
+`Edit`/`Write`), informativos (su salida se pasa por `head`/`tail`, así que no bloquean):
 
----
+- `python -m ruff check src tests --quiet` — linting
+- `python -m mypy src --no-error-summary` — type-checking rápido
+- `python -m pytest --collect-only -q` — recogida de tests (`testpaths` de `pytest.ini`), sin ejecución
 
-### `settings.local.json`
-Configuración local personalizada. **No se commitea** (debe estar en `.gitignore`).
+No sustituyen a la validación de IMPLEMENT: ejecuta los comandos de
+`SHARED_INSTRUCTIONS.md` § «Comandos de desarrollo» antes de cerrar.
 
-**Usos comunes**:
+### `settings.local.json` (no versionado)
 
-1. **Desabilitar hooks lentos** (p.ej. mypy en máquina lenta):
-   ```json
-   {
-     "hooks": {
-       "PostToolUse": [
-         {
-           "matcher": "Edit|Write",
-           "hooks": [
-             { "type": "command", "command": "python -m ruff check src tests --quiet 2>&1 | head -15" }
-           ]
-         }
-       ]
-     }
-   }
-   ```
+Personalización local adicional, ignorada por git. Claude Code **suma** sus hooks a los de
+`settings.json`: no copies aquí la plantilla (los hooks correrían dos veces) ni esperes que un hook
+local sustituya a uno de `settings.json`. Úsalo para permisos o hooks **adicionales**.
 
-2. **Cambiar comando de ruff**:
-   ```json
-   {
-     "hooks": {
-       "PostToolUse": [
-         {
-           "matcher": "Edit|Write",
-           "hooks": [
-             { "type": "command", "command": "python -m ruff check . --quiet 2>&1 | head -20" }
-           ]
-         }
-       ]
-     }
-   }
-   ```
-
-**Referencia**: [settings.json.example](settings.json.example) como guía de qué cambiar
-
----
+Para desactivar temporalmente todos los hooks en tu máquina: `"disableAllHooks": true` en
+`settings.local.json`.
 
 ### `commands/`
-Directorio con slash commands para Claude Code.
 
-**Comandos disponibles**:
-- `new-feature.md` — Nueva funcionalidad (`/new-feature`)
-- `hotfix.md` — Corrección de bug (`/hotfix`)
-- `refactor.md` — Refactor sin cambios funcionales (`/refactor`)
-- `audit-code.md` — Auditoría técnica (`/audit-code`)
-- `security-review.md` — Revisión de seguridad (`/security-review`)
-- `tech-debt.md` — Inventario de deuda técnica (`/tech-debt`)
-- `maturity-assessment.md` — Evaluación de madurez (`/maturity-assessment`)
-- `performance-audit-bulk.md` — Auditoría de rendimiento de carga masiva (`/performance-audit-bulk`)
-- `performance-audit-dump.md` — Auditoría de rendimiento del volcado (`/performance-audit-dump`)
-- `config-review.md` — Revisión de configuración IA (`/config-review`)
-- `version-closure.md` — Cierre de versión (`/version-closure`)
+Slash commands de Claude Code. La tabla canónica (comando, propósito, entrada, salida) está en
+[`CLAUDE.md`](../CLAUDE.md) § «Slash commands de Claude Code»; el registro multiplataforma, en
+[`.github/AGENTS.md`](../.github/AGENTS.md). Cada command es un envoltorio fino: inputs + agente +
+prompt de `.github/prompts/` (el contrato de salida vive en el prompt).
 
-**Política**: Editar solo si se añaden nuevos comandos o se actualizan máquinas de estado. Para cambios en estructura, coordinar con `.github/copilot-instructions.md`.
-
----
+Al añadir o cambiar un command: actualiza la tabla de `CLAUDE.md`, `.github/AGENTS.md` y el prompt gemelo.
 
 ### `performance-audit-guide.md`
-Guía especializada para auditorías de rendimiento del módulo `dump` (volcado masivo de datos).
 
-**Contenido**:
-- Descripción de componentes (prompts + benchmarking tool)
-- Slash commands específicos: `/performance-audit-dump`, `/quick-bench`, `/perf-proposal`, `/perf-validate`
-- Workflow recomendado (Fase 0–4)
-- Interpretación de resultados y comparación baseline vs. optimized
-- Configuraciones y volúmenes de benchmark disponibles
-- Integración con GitHub roadmap
-- Troubleshooting
+Guía de la auditoría de rendimiento de `dump` (`/performance-audit-dump`): cuellos CB1–CB8,
+banco `scripts/bench_dump.py` e interpretación de resultados.
 
-**Referencia**: Usar cuando necesites auditar rendimiento del módulo dump o ejecutes `/performance-audit-dump`.
+### `COMMAND_TEMPLATE.md`, `EDGE_CASES.md`, `TESTING_GUIDE.md`
 
----
-
-## Flujo de trabajo
-
-### Paso 1: Usar `settings.json` global
-```bash
-# Predeterminado; sin acciones requeridas
-```
-
-### Paso 2: Customizar localmente (opcional)
-```bash
-# Crear .claude/settings.local.json con ajustes
-vim .claude/settings.local.json  # Tu editor favorito
-# Guardar (no se commitea, está en .gitignore)
-```
-
-### Paso 3: Usar slash commands
-```
-# En Claude Code, escribe:
-/new-feature
-[contexto]
-
-# O:
-/hotfix
-[bug description]
-
-# etc.
-```
-
----
-
-## Configuración de `.gitignore`
-
-Asegúrate de que `.gitignore` incluya:
-
-```gitignore
-# Claude Code local settings (no commitear)
-.claude/settings.local.json
-```
-
----
-
-## Relación con `.github/copilot-instructions.md`
-
-| Archivo | Plataforma | Rol |
-|---------|-----------|-----|
-| `.claude/settings.json` | Claude Code | Hooks + configuración |
-| `.claude/commands/*.md` | Claude Code | Slash commands |
-| `.github/copilot-instructions.md` | Copilot Chat | Política base + agentes |
-| `.github/prompts/*.md` | Copilot Chat | Prompts (Fase 2) |
-
-**Sincronización**: Si cambias un comando en `.claude/commands/`, considera si `.github/copilot-instructions.md` o `.github/prompts/` necesitan actualización.
-
-Para gobernanza completa entre plataformas, ver: [`.github/INTEGRATION_MAP.md`](../.github/INTEGRATION_MAP.md)
-
----
-
-## Ejecución Offline
-
-Claude Code funciona sin internet para tareas locales. Ver sección **"Ejecución Offline"** en [`CLAUDE.md`](../CLAUDE.md) para:
-- Qué comandos funcionan sin internet
-- Qué requiere acceso (GitHub, SonarQube, APIs)
-- Cómo configurar `settings.local.json` para modo offline
-
----
-
-## Troubleshooting
-
-Si encuentras problemas al usar Claude Code o slash commands, consulta **[EDGE_CASES.md](EDGE_CASES.md)** para:
-- Comando interrumpido a mitad de ejecución (token budget exhausted)
-- Tests fallan después de IMPLEMENT
-- Módulo nuevo no auto-importa (lazy-loading incompleto)
-- Heurística devuelve valor inesperado (p.ej. packet size calculation)
-- Y más escenarios comunes con diagnostico y soluciones
-
-**Versión**: EDGE_CASES.md v0.10.0 (9 escenarios documentados)
+Plantilla para commands nuevos, casos límite conocidos y guía de tests.
 
 ---
 
 ## FAQ
 
-### ¿Mi `settings.local.json` no afecta nada?
-Verifica que esté guardado en la ruta correcta: `.claude/settings.local.json` (mismo nivel que `settings.json`).
-
-### ¿Puedo desabilitar todos los hooks?
-Sí, en `settings.local.json`:
-```json
-{
-  "hooks": {
-    "PostToolUse": []
-  }
-}
-```
-
-### ¿Qué si ruff/mypy/pytest no están instalados?
-Hooks opcionales (`optional: true`) los ignoran silenciosamente. Hooks obligatorios (como ruff) fallarán; instala con `pip install -e ".[dev]"` (recomendado, mismas versiones que usa CI) o `pip install ruff mypy pytest`.
-
 ### ¿Los hooks necesitan el entorno virtual activo?
-Sí. Los hooks invocan `python`, `ruff`, `mypy` y `pytest` por nombre (resueltos vía `PATH`), así que la sesión de shell donde corre Claude Code debe tener el venv del proyecto activado (`.\venv\Scripts\Activate.ps1` en Windows, `source venv/bin/activate` en Linux/Mac). Si abres Claude Code desde una terminal sin activar, los hooks usarán el Python global del sistema (o fallarán si no existe).
 
-### ¿Puedo agregar más hooks?
-Sí, en `settings.local.json`. Ejemplo: agregar `pylint`:
-```json
-{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          { "type": "command", "command": "python -m ruff check src tests --quiet 2>&1 | head -15" },
-          { "type": "command", "command": "python -m pylint src --disable=all 2>&1 | head -10", "optional": true }
-        ]
-      }
-    ]
-  }
-}
-```
+Sí. Invocan `python` por nombre (resuelto vía `PATH`): abre Claude Code desde una terminal con el venv
+del proyecto activado (`.\venv\Scripts\Activate.ps1` en Windows, `source venv/bin/activate` en
+Linux/Mac). Instala las herramientas con `pip install -e ".[dev]"` (mismas versiones que CI).
 
 ### ¿Dónde reporto problemas con hooks?
-Crea un issue en el repositorio con:
-- Comando que ejecutaste (`/new-feature`, etc.)
-- Línea de error del hook (si está disponible)
-- Sistema operativo + versión Python
+
+Crea un issue con el comando que ejecutaste, la línea de error del hook, el sistema operativo y la
+versión de Python.
 
 ---
 
 ## Referencias
 
-- **CLAUDE.md**: Política general para Claude Code
-- **docs/guides/claude_code_guide.md** y **docs/guides/github_copilot_guide.md**: uso de cada plataforma
-- **.github/AGENTS.md**: registro de agentes, prompts y slash commands
+- [`CLAUDE.md`](../CLAUDE.md) — especialización para Claude Code
+- [`docs/guides/claude_code_guide.md`](../docs/guides/claude_code_guide.md) y
+  [`docs/guides/github_copilot_guide.md`](../docs/guides/github_copilot_guide.md) — uso de cada plataforma
+- [`.github/AGENTS.md`](../.github/AGENTS.md) — registro de agentes, prompts y slash commands
+- Gobernanza entre plataformas: `SHARED_INSTRUCTIONS.md` § «Gobernanza de plataformas IA»

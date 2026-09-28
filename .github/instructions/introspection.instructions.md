@@ -1,7 +1,10 @@
 ---
-applyTo: "src/**/introspect/**/*.py"
+applyTo: "src/util_bbdd/metadata/**/*.py"
 ---
 # Introspección (multibase)
+
+> `metadata/` es el único punto autorizado para SQL de introspección: ver
+> `architecture.instructions.md` § «Reglas de acceso a metadatos».
 
 > **TL;DR** — API agnóstica de motor; diferencias por dialecto encapsuladas en adaptadores aislados. Devolver modelo IR estable (dataclass puro, sin objetos del driver). Funciones puras para extraccion. Test contra al menos un motor real. Nunca inventar metadatos; si falta información, introspetar más o pedir como parámetro.
 
