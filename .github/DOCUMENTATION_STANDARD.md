@@ -1,71 +1,38 @@
-# 📚 Especificación de Estandarización de Documentación
+# 📚 Estándar de Documentación
 
-Objetivo: Unificar la estructura de documentación técnica, funcional y general en **util_bbdd**
-y definir un flujo de trabajo repetible para otros proyectos con IA.
+Estándar canónico de la documentación de **util_bbdd**: arquetipos, configuración de `mkdocs.yml`,
+roles de los agentes de documentación y criterios de completitud. Reglas de edición por ruta
+(Markdown, Mermaid, snippets, `nav`): `.github/instructions/docs.instructions.md`. Reglas comunes a
+todas las plataformas IA: `.github/SHARED_INSTRUCTIONS.md` § «Documentación obligatoria».
 
 ---
 
 ## 1. Objetivo
 
-Estandarizar instrucciones de documentación para asegurar:
-- **Claridad de usuario**: Documentación funcional orientada a "qué puedo hacer"
-- **Claridad de desarrollador**: Documentación técnica orientada a "cómo funciona internamente"
-- **Mantenibilidad**: Estructura agnóstica al lenguaje, fácil de auditar y actualizar
-- **Automatización**: Generación de docs con agentes, validación con CI/CD
-- **Versionamiento**: Sincronización de CHANGELOG.md y `pyproject.toml` con releases
+Estandarizar la documentación para asegurar:
+- **Claridad de usuario**: documentación funcional orientada a "qué puedo hacer"
+- **Claridad de desarrollador**: documentación técnica orientada a "cómo funciona internamente"
+- **Mantenibilidad**: estructura fija por arquetipo, fácil de auditar y actualizar
+- **Automatización**: generación con el agente Documentation Generator y validación con `zensical build --strict` en CI
+- **Versionamiento**: sincronización de `CHANGELOG.md` y `pyproject.toml` con cada release
 
 ---
 
-## 2. Estado Actual
+## 3. Arquetipos
 
-### 2.1 Estructura MkDocs
-- **Site**: `mkdocs.yml` — fuente única para Zensical (por defecto, CI) y MkDocs Material (recíproco); no se usa `zensical.toml`
-- **Webs de referencia oficial** (consultar con `--verify-tools` para validar versiones y plugins):
-  - MkDocs: `https://www.mkdocs.org/about/release-notes/`
-  - Material for MkDocs: `https://squidfunk.github.io/mkdocs-material/plugins/`
-  - Zensical: `https://zensical.org/`
-- **Secciones existentes**:
-  - ✅ Guías (DUPLICATE_PROJECT_GUIDE, NEXT_STEPS, README_DUPLICADOR, ARCHITECTURE_VISUAL)
-  - ✅ Funcional (`docs/functional/`) — 8 módulos
-  - ✅ Ejemplos (`docs/examples/`) — 10+ ejemplos de uso
-  - ✅ API/Referencias (`docs/api/`) — 8 módulos técnicos
-  - ✅ Compatibilidad y Changelog
+Este apartado es la **definición canónica** de los arquetipos. `.github/instructions/docs.instructions.md`
+solo añade reglas de edición por ruta (Markdown, Mermaid, snippets, `nav`) y remite aquí.
 
-### 2.2 Archivos Generados
-- Funcional: 8 archivos en `docs/functional/`
-- Técnico: 8 archivos en `docs/api/`
-- Generador: mkdocstrings integrado (Python docstrings → HTML)
-
-### 2.3 Herramientas y Agentes
-| Componente | Ubicación | Estado |
-|------------|-----------|--------|
-| **Configuración IA** | `CLAUDE.md`, `copilot-instructions.md` | ✅ Existente |
-| **Agent: config-reviewer** | `.github/agents/config-reviewer.agent.md` | ✅ Existente |
-| **Agent: documentation-generator** | `.github/agents/documentation-generator.agent.md` | ✅ Existente — soporta `--verify-tools` |
-| **Agent: documentation-reviewer** | `.github/agents/documentation-reviewer.agent.md` | ✅ Existente |
-| **Prompt: config_review** | `.github/prompts/config_review.prompt.md` | ✅ Existente |
-| **Prompt: functional_doc** | `.github/prompts/functional_doc.prompt.md` | ✅ Existente |
-| **Prompt: technical_doc** | `.github/prompts/technical_doc.prompt.md` | ✅ Existente |
-| **Prompt: landing_doc** | `.github/prompts/landing_doc.prompt.md` | ✅ Existente |
-| **Prompt: documentation_review** | `.github/prompts/documentation_review.prompt.md` | ✅ Existente |
-
-### 2.4 Gaps Actuales
-- ✅ Referencia OneDrive → reemplazada por referencias internas al repositorio (§4)
-- ✅ Estructura funcional y técnica → mapeada explícitamente en §4.2
-- ✅ Roles de agentes → documentados en orden de ejecución en §5
-- ⚠️ Seguridad y Rendimiento → cubiertos como opcionales en §3.2 y §4.3; excluidos del nav por defecto
-
----
-
-## 3. Propuesta de Cambios
+**Regla de sección vacía** (todos los arquetipos): si una sección no tiene contenido, escribe
+`*No aplica para este módulo.*` — nunca la omitas.
 
 ### 3.1 Arquetipo 1 — Documentación Funcional (`docs/functional/`)
 
 **Propósito**: Responder "¿Qué hace y por qué?"
 
-**Audiencia**: Product Owner, QA, responsables de negocio.
+**Audiencia**: Product Owner, QA, jefes de proyecto y responsables de negocio.
 
-**Ubicación**: `docs/functional/[módulo].md`
+**Ubicación**: `docs/functional/[módulo].md` · **Prompt**: `.github/prompts/functional_doc.prompt.md`
 
 **Estructura obligatoria** (secciones numeradas, en este orden):
 
@@ -74,6 +41,7 @@ Estandarizar instrucciones de documentación para asegurar:
 
 ## 1. Descripción General
 Contexto de negocio y objetivo (2-3 párrafos, sin jerga técnica).
+Incluir: quién usa esto y por qué aporta valor.
 
 ## 2. Reglas de Negocio
 Tabla: | Regla | Descripción | Impacto si se viola |
@@ -82,18 +50,23 @@ Tabla: | Regla | Descripción | Impacto si se viola |
 ### Flujo principal
 Diagrama Mermaid sequenceDiagram (actor → módulo → salida).
 ### Flujos alternativos y de error
-Variantes y casos de error verificables. Si no hay, "No aplica para este módulo."
+Variantes, condiciones de contorno y casos de error verificables.
+Si no hay: "No aplica para este módulo."
 
-## 4. Criterios de Aceptación      ← PENDIENTE QA (placeholder hasta validación)
+## 4. Criterios de Aceptación      ← PENDIENTE QA — solo placeholder hasta validación
 Estructura prevista: Tabla | ID | Criterio | Verificable con |
 Redacción: "Dado X, cuando Y, entonces Z."
 
 ## 5. Glosario y Términos
 Tabla: | Término | Definición |
-Si no hay términos específicos: "No aplica para este módulo."
+Solo si hay términos de dominio específicos; si no, "No aplica para este módulo."
 ```
 
-**Regla de sección vacía**: Si un subapartado queda vacío, escribe `*No aplica para este módulo.*` — nunca omitas la sección.
+**Reglas de lenguaje**:
+
+- Terminología de negocio, no técnica; sin jerga técnica sin explicación.
+- No menciones nombres de clases internas, variables ni rutas de implementación.
+- Legible por un responsable de proyecto sin conocimientos del lenguaje de implementación.
 
 **Diagramas recomendados**: `sequenceDiagram` (flujo principal), `flowchart TD` (decisiones).
 
@@ -103,11 +76,11 @@ Si no hay términos específicos: "No aplica para este módulo."
 
 **Propósito**: Responder "¿Cómo está construido?"
 
-**Audiencia**: desarrolladores, ingenieros de datos, DBAs.
+**Audiencia**: desarrolladores, ingenieros de datos, DBAs y equipo de mantenimiento.
 
-**Ubicación**: `docs/api/[módulo].md`
+**Ubicación**: `docs/api/[módulo].md` · **Prompt**: `.github/prompts/technical_doc.prompt.md`
 
-**Nota**: Los archivos generados automáticamente por `mkdocstrings` (`bulk.md`, `comparator.md`, `managers.md`, `reporters.md`, `exceptions.md`, `index.md`) están excluidos de este arquetipo.
+Las páginas que solo contienen directivas autodoc de `mkdocstrings` están excluidas de este arquetipo.
 
 **Estructura obligatoria** (secciones numeradas, en este orden):
 
@@ -117,22 +90,22 @@ Si no hay términos específicos: "No aplica para este módulo."
 [Párrafo introductorio de una frase: responsabilidad exacta del módulo.]
 
 ## 1. Arquitectura y Diseño
-Diagrama Mermaid (flowchart TD, classDiagram, sequenceDiagram o architecture-beta).
-Máximo 12 nodos. Ver criterios de selección en docs.instructions.md.
+Diagrama Mermaid (flowchart TD, classDiagram, sequenceDiagram o architecture-beta
+según los criterios de docs.instructions.md § Mermaid). Máximo 12 nodos.
 
-## 2. Modelo de Datos / Contratos
-### API pública
-Tabla: | Función/Clase | Firma simplificada | Descripción | Retorna |
-### Contrato de entrada
-Tabla: | Parámetro | Tipo | Descripción | Restricciones |
-### Contrato de salida
-Tipos, estructura y casos especiales.
-### Errores y casos especiales
-Excepciones propias del módulo y entradas inválidas.
+## 2. API Reference
+### Autodoc
+Directiva de generación automática (Python: ::: util_bbdd.modulo.Clase).
+Solo exportados en __all__. Nunca implementación interna.
+### Contratos
+Tabla API pública: | Función/Clase | Firma simplificada | Descripción | Retorna |
+Tabla entrada:     | Parámetro | Tipo | Descripción | Restricciones |
+Contrato de salida: tipos, estructura y casos especiales.
+Errores y casos especiales: excepciones propias del módulo.
 
 ## 3. Componentes y Clases
-Responsabilidad de cada clase exportada.
-Para módulos con una sola clase: "No aplica para este módulo."
+Responsabilidad de cada clase o función principal exportada.
+Para módulos con una sola clase/función: "No aplica para este módulo."
 
 ## 4. Dependencias y Requisitos
 Tabla: | Dependencia | Propósito | Requerida | Comportamiento sin ella |
@@ -142,19 +115,22 @@ Lista de enlaces a docs/examples/ con descripción de lo que ilustra cada uno.
 Si no existe ningún ejemplo del módulo: "Pendiente — crear ejemplo en docs/examples/[nombre].md"
 ```
 
-**Regla de sección vacía**: Si un subapartado queda vacío, escribe `*No aplica para este módulo.*`.
+**Reglas de lenguaje**:
 
-**Diagramas recomendados**: Ver tabla en `docs.instructions.md` y en `technical_doc.prompt.md`.
+- Preciso, con los tipos de Python explícitos.
+- Solo lo exportado públicamente; no documentes implementación interna.
+- Sin comentarios triviales sobre el código.
 
 ---
 
 ### 3.3 Arquetipo 3 — Guías de Usuario o Configuración (`docs/guides/`)
 
-**Propósito**: Responder "¿Cómo se usa/instala/opera?"
+**Propósito**: Responder "¿Cómo se usa/instala/opera?" (marco Diátaxis: how-to o tutorial).
 
 **Audiencia**: usuarios finales, operadores y desarrolladores que necesitan una guía how-to.
 
-**Ubicación**: `docs/guides/[nombre_guia].md` (siempre en `guides/`, nombre en minúsculas con guiones bajos)
+**Ubicación**: `docs/guides/[nombre_guia].md` (siempre en `guides/`, minúsculas con guiones bajos) ·
+**Prompt**: `.github/prompts/guide_doc.prompt.md`
 
 **Estructura obligatoria** (secciones numeradas, en este orden):
 
@@ -179,7 +155,12 @@ Incluye alternativas al flujo principal y configuraciones opcionales.
 Si no hay casos conocidos: "No aplica para este módulo."
 ```
 
-**Excepciones aceptadas**: `docs/index.md` y `docs/legacy-versions.md` están exentos de arquetipo (páginas especiales).
+**Reglas de lenguaje**:
+
+- Orientado a la acción: verbos imperativos ("instala", "ejecuta", "verifica").
+- `## 1. Objetivo` en 1 párrafo; nunca omitirlo.
+- Siempre un comando de verificación real en `## 4.`.
+- En `## 5.` solo errores o variantes conocidos y documentados.
 
 ---
 
@@ -189,7 +170,8 @@ Si no hay casos conocidos: "No aplica para este módulo."
 
 **Audiencia**: desarrolladores que quieren implementar un patrón concreto.
 
-**Ubicación**: `docs/examples/[nombre].md`
+**Ubicación**: `docs/examples/[nombre].md` (plano; el código en `docs/examples/[nombre].py` o
+`docs/examples/database/[fragmento].py`) · **Prompt**: `.github/prompts/example_doc.prompt.md`
 
 **Estructura obligatoria** (secciones numeradas, en este orden):
 
@@ -200,14 +182,16 @@ Si no hay casos conocidos: "No aplica para este módulo."
 Qué problema concreto resuelve este código (1-2 párrafos).
 
 ## 2. Implementación de Referencia
-Exclusivamente: --8<-- "examples/[ruta].py"
+Snippet con --8<-- "examples/[ruta].py" (ruta relativa a docs/).
+Para fragmentos ilustrativos cortos: código inline.
 
 ## 3. Explicación del Código
-Puntos críticos: concurrencia, rendimiento, contratos.
+Puntos críticos: concurrencia, rendimiento, contratos, decisiones no obvias.
 Para ejemplos triviales: "No aplica para este módulo."
 
 ## 4. Ejecución y Pruebas
-Comando exacto + output esperado si determinista.
+Comando exacto + output esperado si es determinista.
+Validación sintáctica: python -m py_compile docs/examples/[nombre].py
 
 ## 5. Referencias Relacionadas      ← OBLIGATORIO (enlace bidireccional con Arquetipo 2 §5)
 - Documentación funcional: [enlace a docs/functional/...]
@@ -215,7 +199,11 @@ Comando exacto + output esperado si determinista.
 - Ejemplos relacionados: [otros ejemplos del mismo área si existen]
 ```
 
-**Regla de snippet**: En `## 2.` usar siempre `--8<--`. Si el `.py` no existe, crearlo antes de referenciar.
+**Reglas de lenguaje**:
+
+- En `## 2.` usa `--8<--` para ficheros ejecutables de 30 líneas o más; código inline solo para ilustraciones.
+- Si el fichero de código no existe, créalo antes de referenciarlo.
+- `## 5.` siempre presente; enlaza al menos a la referencia técnica correspondiente.
 
 ---
 
@@ -225,13 +213,34 @@ Comando exacto + output esperado si determinista.
 
 **Audiencia**: arquitectos de software, tech leads, responsables de plataforma.
 
-**Ubicación**: `docs/adr/ADR-[NNN]-[nombre-kebab-case].md`
+**Ubicación**: `docs/adr/ADR-[NNN]-[nombre].md` (plantilla: `docs/adr/ADR-TEMPLATE.md`) ·
+**Prompt**: `.github/prompts/architecture_doc.prompt.md`
 
-**Prompt**: `.github/prompts/architecture_doc.prompt.md`.
+**Estructura obligatoria** (secciones numeradas, en este orden):
 
-**Secciones obligatorias**: Contexto y Problema → Decisión → Consecuencias → Alternativas Consideradas → Estado y Revisión.
+```
+# [ADR-NNN: Título de la Decisión]
 
-Documenta **una decisión concreta con trade-offs**, no la visión global del sistema (esa es la Variante C del Arquetipo 6). Los documentos de planificación (roadmap, release plans) se marcan con `<!-- arquetipo: informativo-libre -->` y quedan exentos.
+## 1. Contexto y Problema
+Qué situación motivó la decisión. Estado del sistema antes de la decisión.
+
+## 2. Decisión
+Qué se decidió hacer y por qué se eligió sobre las alternativas.
+
+## 3. Consecuencias
+Ventajas, compromisos (trade-offs) y deuda técnica aceptada.
+
+## 4. Alternativas Consideradas
+Tabla: | Alternativa | Pros | Contras | Motivo de rechazo |
+
+## 5. Estado y Revisión
+Estado: PROPUESTO | ACEPTADO | OBSOLETO | REEMPLAZADO POR [ADR-NNN]
+Fecha de última revisión.
+```
+
+Documenta **una decisión concreta con trade-offs**, no la visión global del sistema (esa es la
+Variante C del Arquetipo 6). Los documentos de planificación (roadmap, release plans) se marcan con
+`<!-- arquetipo: informativo-libre -->` y quedan exentos.
 
 ---
 
@@ -241,21 +250,49 @@ Documenta **una decisión concreta con trade-offs**, no la visión global del si
 
 **Audiencia**: cualquier visitante que llega a la documentación por primera vez.
 
-**Ubicación**: `docs/index.md` (Inicio), `docs/INSTALLATION.md` (Instalación), `docs/architecture.md` (Arquitectura).
+**Ubicación**: `docs/index.md` (Inicio), `docs/INSTALLATION.md` (Instalación), `docs/architecture.md`
+(Arquitectura) · **Prompt**: `.github/prompts/landing_doc.prompt.md` (variantes A/B/C)
 
-**Prompt**: `.github/prompts/landing_doc.prompt.md` (tres variantes A/B/C, 5 secciones cada una).
+Estas páginas entran directamente en `nav:` (nivel raíz), no bajo `functional/`, `api/`, `examples/` ni `adr/`.
 
-Estas páginas entran directamente en `nav:` (nivel raíz), no bajo `functional/`, `api/`, `examples/` ni `adr/`:
+**Estructura obligatoria** (según variante):
 
-- **Variante A — Inicio**: Identidad y Propósito → Capacidades → Quick Start → Mapa de la Documentación → Compatibilidad y Soporte.
-- **Variante B — Instalación**: Requisitos → Instalación del Paquete → Drivers por Motor → Verificación → Solución de Problemas.
-- **Variante C — Arquitectura** (modelo **arc42-lite + C4**): Visión General y Objetivos de Calidad (C4 nivel 1) → Mapa de Módulos / Building Blocks (C4 nivel 3) → Flujo en Ejecución (Runtime) → Conceptos Transversales y Estándares No Funcionales (checklist NFR) → Decisiones, Extensión y Límites (enlace a `docs/adr/`).
+```
+# Variante A — Inicio (docs/index.md)
+## 1. Identidad y Propósito
+## 2. Capacidades Principales
+## 3. Quick Start
+## 4. Mapa de la Documentación
+## 5. Compatibilidad y Soporte
+
+# Variante B — Instalación (docs/INSTALLATION.md)
+## 1. Requisitos Previos
+## 2. Instalación del Paquete
+## 3. Drivers por Motor
+## 4. Verificación
+## 5. Solución de Problemas
+
+# Variante C — Arquitectura del sistema (docs/architecture.md) — modelo arc42-lite + C4
+## 1. Visión General y Objetivos de Calidad   (arc42 1+3; incluye diagrama C4 nivel 1)
+## 2. Mapa de Módulos (Building Blocks)        (arc42 5; C4 nivel 3)
+## 3. Flujo en Ejecución (Runtime)             (arc42 6)
+## 4. Conceptos Transversales y Estándares No Funcionales  (arc42 8+10; checklist NFR)
+## 5. Decisiones, Extensión y Límites          (arc42 9+11; enlace a docs/adr/)
+```
+
+El checklist no funcional de la Variante C §4 cubre, como mínimo: Seguridad, Observabilidad,
+Rendimiento, Compatibilidad, Robustez/Errores y Tipado/Calidad, anclando cada ítem a un mecanismo
+real del código. La figura «Capas e imports reales» de `docs/architecture.md` se genera con
+`scripts/gen_arquitectura_capas.py` (no se edita a mano).
 
 **Distinción con otros arquetipos**:
-- El Arquetipo 5 (`architecture_doc`) documenta **un ADR concreto** (decisión con trade-offs, formato MADR-lite); la Variante C es la **vista panorámica del sistema** (arc42-lite + C4) y enlaza al log de ADR. Ambas conviven bajo la sección "Arquitectura" del nav y forman un modelo único: panorámica + decisiones.
-- El Arquetipo 3 (`guide_doc`) cubre guías genéricas (async, drivers, troubleshooting); la Variante B es específica de instalación del paquete y drivers.
 
-**Excepción**: `docs/index.md` y `docs/legacy-versions.md` seguían exentos en v1; con este arquetipo `index.md` pasa a regirse por la Variante A. `legacy-versions.md` permanece exento.
+- El Arquetipo 5 documenta **un ADR concreto**; la Variante C es la **vista panorámica** del sistema y
+  enlaza al log de ADR. Ambas conviven bajo la sección `Arquitectura` del nav.
+- El Arquetipo 3 cubre guías genéricas (async, drivers, troubleshooting); la Variante B es específica de
+  instalación del paquete y drivers.
+
+`docs/legacy-versions.md` permanece exento de arquetipo.
 
 ---
 
@@ -400,7 +437,7 @@ Esta sección define el contrato mínimo y las reglas de nomenclatura para **tod
 | Tipo de proyecto | Guías recomendadas |
 |---|---|
 | Librería Python (util_bbdd) | `connection_guide.md`, `async_guide.md`, `exceptions.md`, `migration_guide.md`, + guías de drivers y herramientas IA |
-| Aplicación con servidor (dpss) | `despliegue_docker.md` o `deployment_guide.md` |
+| Aplicación con servidor | `deployment_guide.md` |
 | Cualquier proyecto con herramientas IA | Subsección "Herramientas IA" en Guías: claude_code_guide.md, codex_guide.md, etc. |
 
 #### Estructura de la sección en `mkdocs.yml`
@@ -511,109 +548,37 @@ extra:
 
 # ── Navegación (Obligatoria) ─────────────────────────────────────────────────
 nav:
-  - Inicio: index.md
-
+  - Inicio: index.md                       # Arquetipo 6, Variante A
+  - Instalación: INSTALLATION.md           # Arquetipo 6, Variante B
+  - Documentación Funcional:
+      - [Área]:
+          - [Módulo]: functional/[modulo].md
+  - Referencia Técnica:
+      - [Área]:
+          - [Módulo]: api/[modulo].md
   - Guías:
-      - Inicio Rápido: [guia-rapida].md
-      - Próximos Pasos: NEXT_STEPS.md
-      - Arquitectura Visual: ARCHITECTURE_VISUAL.md
-
-  - Funcional:
-      - Contratos Base: functional/base.md
-      - [Módulo 1]: functional/[modulo1].md
-      - [Módulo 2]: functional/[modulo2].md
-
+      - Incorporación para Desarrolladores: guides/onboarding_dev.md
+      - [Tema]:
+          - [Guía]: guides/[nombre_guia].md
+      - Errores y Diagnóstico:
+          - Troubleshooting: guides/troubleshooting.md
   - Ejemplos:
-      - Inicio: examples/README.md
-      - API y CLI:
-          - [Ejemplo 1]: examples/[ejemplo1].md
-      - Herramientas de IA:
-          - [Guía IA]: examples/[guia-ia].md
-
-  - API & Referencias:
-      - Técnica:
-          - Contratos Base: api/base.md
-          - [Módulo 1]: api/[modulo1].md
-      - Compatibilidad: COMPATIBILITY.md
-      - Changelog: CHANGELOG.md
-      - Troubleshooting: TROUBLESHOOTING.md
+      - [Área]:
+          - [Ejemplo]: examples/[nombre].md
+  - Arquitectura:
+      - Arquitectura del sistema: architecture.md   # Arquetipo 6, Variante C
+      - [ADR-NNN]: adr/[ADR-NNN-nombre].md         # Arquetipo 5
+  - Historia y Planes:
+      - Versiones Históricas: legacy-versions.md
+      - Roadmap: ROADMAP.md
 ```
 
 ---
 
-### 4.2 Navegación de util_bbdd (Implementación Actual)
+### 4.2 Navegación de util_bbdd
 
-Mapeo concreto del proyecto sobre la estructura anterior.
-La fuente canónica de la navegación es siempre `mkdocs.yml`; este bloque refleja
-los grupos principales como referencia rápida:
-
-```yaml
-nav:
-  - Inicio: index.md
-  - Instalación: INSTALLATION.md
-
-  - Documentación Funcional:
-      - Managers:
-          - Gestión de Conexiones (Sync): functional/managers-sync.md
-          - Ciclo de vida de sesión sincrónica: functional/managers-sync-session-lifecycle.md
-          - Gestión de Conexiones (Async): functional/managers-async.md
-      - Metadatos e Introspección:
-          - Extracción de Metadatos: functional/metadata-extraction.md
-          - Selección de Driver: functional/drivers-selection.md
-      - Operaciones de Datos:
-          - Operaciones Bulk (CRUD): functional/bulk-operations.md
-          - Auditoría de Operaciones Bulk: functional/bulk-audit.md
-      - Queries y Validación:
-          - Registro de Queries: functional/query-registry.md
-          - Ejecución de Consultas: functional/query-execution.md
-          - Patrón de Validadores: functional/validators-pattern.md
-      - Comparación de Esquemas:
-          - Comparador de Esquemas: functional/schema-comparison.md
-      - Migración de Esquemas:
-          - Migración Oracle (origen): functional/migrate-oracle-mariadb.md
-          - Migración MariaDB (origen): functional/migrate-mariadb-source.md
-          - Migración SQL Server (origen): functional/migrate-sqlserver-source.md
-          - Migración PostgreSQL (origen): functional/migrate-postgresql-source.md
-      - Análisis de Relaciones:
-          - Visualización de Grafos: functional/graph-analysis.md
-      - Documentación de BD:
-          - Generación de Documentación: functional/database-documentation.md
-
-  - Referencia Técnica:
-      - Managers: api/managers-sync.md  # y otros bajo api/managers-*.md
-      - Metadatos: api/metadata-manager.md
-      - Conexiones: api/connection-factory.md
-      - Bulk: api/bulk-crud.md
-      - Queries: api/query-system.md
-      - Migración: api/migrate-oracle-mariadb.md  # y otros bajo api/migrate-*.md
-      - Análisis: api/analysis.md
-      - Documentación BD: api/database-documentation.md
-      - Excepciones: api/exceptions.md
-
-  - Ejemplos:                              # subsecciones por área, igual que Referencia Técnica
-      - Metadatos e Introspección:
-          - Conectar e Introspeccionar: examples/example-connect-introspect.md
-      - Operaciones Bulk:
-          - Bulk Insert desde CSV: examples/bulk_insert_csv.md
-      - Comparación de Esquemas:
-          - Comparación de Esquemas: examples/schema_comparison.md
-      - Migración de Esquemas:
-          - Migración Oracle (origen): examples/migrate-oracle-mariadb.md
-          - Migración MariaDB (origen): examples/migrate-mariadb-source.md
-      # ... resto de ejemplos agrupados por área en mkdocs.yml
-
-  - Guías:                                 # subsecciones temáticas (how-tos transversales)
-      - Incorporación para Desarrolladores: guides/onboarding_dev.md
-      - Conexión y Drivers:
-          - Programación Asíncrona: guides/async_guide.md
-          - Drivers PostgreSQL: guides/postgresql_driver_guide.md
-      - Errores y Diagnóstico:
-          - Excepciones: guides/exceptions.md
-          - Troubleshooting: guides/troubleshooting.md
-      - Herramientas IA:
-          - Guía completa (VS Code): guides/doc_generation_vscode_guide.md
-      # ... resto de guías agrupadas por tema en mkdocs.yml
-```
+La navegación real está **solo** en `mkdocs.yml` (no se copia aquí para que no diverja). Secciones de
+primer nivel y agrupación en subsecciones: `docs.instructions.md` § «Generador estático».
 
 ---
 
@@ -647,14 +612,14 @@ nav:
 | **5. Auditoría** | `documentation-reviewer` | Validar completitud, ejemplos, coherencia | Docs generadas | Findings + mejoras |
 | **6. Verificación de config** (opt-in `--verify-tools`) | `documentation-generator` | Fetch webs oficiales — validar plugins y versiones en `mkdocs.yml` | Config + webs MkDocs/Zensical/PyPI | Discrepancias por severidad |
 | **6b. Verificación de build** (opt-in `--verify-build`) | `documentation-generator` | Build + inspección HTML generado — alias bug, snippets, Mermaid, nav | `site/` (Modo A) o `localhost:8000` (Modo B `--serve`) | Hallazgos por página + acciones recomendadas |
-| **7. Cierre** | `Version Closer` | Sincronizar `CHANGELOG.md` + `pyproject.toml` | Cambios completados | Release notes |
+| **7. Cierre** | `Version Closer` | Escribe `CHANGELOG.md` y el `TRACEABILITY.md` de la sesión; verifica `pyproject.toml` | Cambios completados | Release notes |
 
 ### Cuándo Usar Cada Agente
 
 | Agente | Cuándo | Comando | Scope |
 |--------|--------|---------|-------|
-| `documentation-generator` | Generar docs por primera vez o actualizar módulo completo | `/new-feature "generar doc [módulo]"` | `src/` → `docs/` |
-| `documentation-reviewer` | Auditar docs existentes (calidad, ejemplos, claridad) | `/audit-code` | `docs/functional/`, `docs/api/` |
+| `documentation-generator` | Generar docs por primera vez o actualizar módulo completo | Sin slash command: lenguaje natural (Claude Code) · `@Documentation Generator` (Copilot) | `src/` → `docs/` |
+| `documentation-reviewer` | Auditar docs existentes (calidad, ejemplos, claridad) | Sin slash command: lenguaje natural (Claude Code) · `@Documentation Reviewer` (Copilot) | `docs/` |
 | `config-reviewer` | Sincronizar instrucciones IA entre archivos de configuración | `/config-review` (Claude Code) · `@Config Reviewer` (Copilot) | `SHARED_INSTRUCTIONS.md`, entry points, agentes, prompts |
 | `Plan Architect` | Cambio estructural en `mkdocs.yml` o nuevo módulo importante | `/new-feature` o `/refactor` | `mkdocs.yml` |
 
@@ -664,12 +629,11 @@ nav:
 
 ### Restricciones Generales
 
-- ✅ **MkDocs v1.5+** — No usar versiones antiguas, usar Material theme
+- ✅ **Zensical** (por defecto, CI) o **MkDocs Material** — mismo `mkdocs.yml`; no se usa `zensical.toml`
 - ✅ **Diagramas Mermaid** — Agnóstico a Graphviz, integrado en mkdocs
-- ✅ **Lenguaje agnóstico** — Ejemplos Python en carpetas separadas si hay múltiples lenguajes
 - ✅ **NO inventar código** — Todos los ejemplos deben validarse contra `src/`
 - ✅ **Encoding UTF-8** — Todos los archivos markdown
-- ❌ **NO guardar en OneDrive o Google Drive** — Usar referencias internas al repositorio
+- ❌ **Sin APIs de IA externas** para generar documentación (`SHARED_INSTRUCTIONS.md` § «Estándar de generación documental»)
 
 ### Decisiones Críticas
 
@@ -687,76 +651,24 @@ nav:
      En `nav:` **se agrupan en subsecciones temáticas** (Incorporación, Conexión y Drivers, Errores y Diagnóstico,
      Rendimiento, Migración de Versión, Herramientas IA…), no por módulo.
 
-3. **Actualización de mkdocs.yml**: Automatizada con `mkdocstrings` + agente `documentation-generator`
+3. **Actualización de mkdocs.yml**: la hace el agente `documentation-generator` al crear, mover o retirar páginas (`mkdocstrings` solo genera el contenido de las páginas autodoc, no el `nav`)
 
-4. **Build CI/CD**: `mkdocs build` validado en cada PR, detecta links rotos
+4. **Build CI/CD**: `zensical build --strict` en CI (`.github/workflows/docs-zip-release.yml`); en local, `zensical build --strict` o `mkdocs build --strict`
 
 5. **Versionamiento**: Sincronizar CHANGELOG.md + `pyproject.toml` según `.github/instructions/sync.instructions.md`
 
 ---
 
-## 7. Cómo Proceder
-
-Los pasos corresponden 1:1 con las fases de §5.
-
-### Paso 1: Planificar (20 min)
-```text
-@Plan Architect
-Validar estructura docs/ vs mkdocs.yml real. Entregar PLAN + AUDIT_PLAN.
-```
-
-### Paso 2: Validar Configuración IA (30 min)
-```text
-@Config Reviewer
-Revisar que las reglas documentales de CLAUDE.md, copilot-instructions.md,
-docs.instructions.md y los prompts de documentación no estén duplicadas ni diverjan.
-Entregar ANÁLISIS + AUDIT_PLAN.
-```
-
-### Paso 3: Explorar Módulos (15 min)
-```text
-@Explore
-Mapear módulos en src/ vs docs/. Identificar faltantes. Solo lectura.
-```
-
-### Paso 4: Generar/Actualizar Documentación (1-2 h)
-```text
-@documentation-generator
-Generar docs para módulo específico O proyecto completo.
-Actualiza mkdocs.yml automáticamente.
-```
-
-### Paso 5: Auditar Documentación (30 min)
-```text
-@documentation-reviewer
-Validar ejemplos contra código real.
-Verificar coherencia, completitud, claridad.
-Reportar mejoras.
-```
-
-### Paso 6: Integración y Build (15 min)
-```text
-@Code Auditor
-Ejecutar mkdocs build. Verificar links. Reportar errores de build.
-```
-
-### Paso 7: Sincronizar Versión (20 min)
-```text
-@Version Closer
-Actualizar CHANGELOG.md (y la matriz de compatibilidad si existe).
-Generar release notes.
-```
-
-### Criterio de Completitud
+## 7. Criterio de Completitud
 
 La estandarización se considera **completa** cuando:
 
-- [ ] `mkdocs build --strict` finaliza sin errores ni warnings de links rotos
+- [ ] `zensical build --strict` (o `mkdocs build --strict`) finaliza sin errores ni warnings de links rotos
 - [ ] Todos los módulos en `src/` tienen doc funcional (`docs/functional/`) y técnica (`docs/api/`)
 - [ ] Todos los archivos referenciados en `docs/examples/` existen en disco
 - [ ] `CHANGELOG.md` refleja la versión actual de `pyproject.toml`
 - [ ] Las instrucciones IA (`CLAUDE.md`, `copilot-instructions.md`) son coherentes con el código real
-- [ ] Todos los documentos en `nav:` (excepto `legacy-versions.md`) tienen exactamente las secciones numeradas de su arquetipo asignado (`index.md`, `INSTALLATION.md` y `ARCHITECTURE.md` se rigen por el Arquetipo 6)
+- [ ] Todos los documentos en `nav:` (excepto `legacy-versions.md`) tienen exactamente las secciones numeradas de su arquetipo asignado (`index.md`, `INSTALLATION.md` y `architecture.md` se rigen por el Arquetipo 6)
 - [ ] Las secciones vacías contienen `*No aplica para este módulo.*` en lugar de estar omitidas
 - [ ] Los prompts `.github/prompts/guide_doc.prompt.md` y `example_doc.prompt.md` existen y son coherentes con Arquetipos 3 y 4
 
@@ -764,11 +676,11 @@ La estandarización se considera **completa** cuando:
 
 ## 📎 Referencias Internas
 
-- [`.github/SHARED_INSTRUCTIONS.md`](.github/SHARED_INSTRUCTIONS.md) — Fuente canónica de arquitectura
-- [`CLAUDE.md`](CLAUDE.md) — Instrucciones para Claude Code
-- [`.github/copilot-instructions.md`](.github/copilot-instructions.md) — Instrucciones para Copilot Chat
-- [`.github/instructions/docs.instructions.md`](.github/instructions/docs.instructions.md) — Guía de estilo para documentación
-- [`pyproject.toml`](pyproject.toml) — Versión actual del proyecto
-- [`.ai/product.md`](.ai/product.md) — Contexto de producto
-- [`mkdocs.yml`](mkdocs.yml) — Configuración actual de MkDocs
-- [`.github/instructions/sync.instructions.md`](.github/instructions/sync.instructions.md) — Sincronización de versiones
+- [`SHARED_INSTRUCTIONS.md`](SHARED_INSTRUCTIONS.md) — Fuente canónica común a todas las plataformas IA
+- [`instructions/docs.instructions.md`](instructions/docs.instructions.md) — Reglas de edición por ruta en `docs/`
+- [`instructions/sync.instructions.md`](instructions/sync.instructions.md) — Sincronización de versiones
+- [`AGENTS.md`](AGENTS.md) — Registro de agentes y prompts de documentación
+- [`../CLAUDE.md`](../CLAUDE.md) y [`copilot-instructions.md`](copilot-instructions.md) — Entry points por plataforma
+- [`../mkdocs.yml`](../mkdocs.yml) — Navegación y configuración real
+- [`../pyproject.toml`](../pyproject.toml) — Versión actual del proyecto
+- [`../.ai/product.md`](../.ai/product.md) — Contexto de producto

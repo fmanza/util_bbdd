@@ -1,7 +1,7 @@
 # Prompt: onboarding_dev — Guía de incorporación para desarrolladores (Arquetipo 7)
 
 <!--
-  NÚCLEO BASE compartido con dpss/.github/prompts/onboarding_dev.prompt.md
+  NÚCLEO BASE compartido con otros proyectos vía bootstrap (capa B de bootstrap_ai_config.prompt.md)
   ÚNICA SECCIÓN EDITABLE POR PROYECTO: ## Especialización de dominio (abajo)
   Última revisión: 2026-06-08
 -->

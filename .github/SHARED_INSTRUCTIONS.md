@@ -218,38 +218,12 @@ python scripts/gen_arquitectura_capas.py   # regenera el diagrama de capas e imp
 - **Conjunto mínimo obligatorio en `guides/`**: `onboarding_dev.md` + `troubleshooting.md`.
 - Sección `Guías:` en `mkdocs.yml`: `onboarding_dev.md` siempre primero; `troubleshooting.md` siempre en subsección "Errores y Diagnóstico".
 
-### 📦 Distribución de documentación offline
+#### 📦 Distribución de documentación offline
 
-**Util_bbdd** ofrece 3 características integradas para distribución documentación:
-
-1. **Página de descargas** (`docs/downloads.md`)
-   - URL pública: https://fmanza.github.io/util_bbdd/downloads/
-   - Tabla de versiones descargables
-   - Instrucciones SHA256 por plataforma (Linux, Windows, Mac)
-   - FAQ y changelog
-
-2. **SHA256 Checksums** (`scripts/build_docs_zip.py`)
-   - Genera `.sha256` file con hash del ZIP
-   - Append histórico en `CHECKSUMS.txt`
-   - Validación: `sha256sum -c dist/*.sha256` (Linux/Mac) o PowerShell (Windows)
-
-3. **Auto-publish en GitHub Releases** (`.github/workflows/docs-zip-release.yml`)
-   - Trigger automático: push a `main`/`develop` + cambios en `docs/`
-   - Release con tag `docs-vX.X.X`
-   - Artifacts: ZIP, .sha256, CHECKSUMS.txt
-   - Body: versionado, fecha, instrucciones, SHA256
-
-**Comandos locales**:
-```bash
-zensical build && python scripts/build_docs_zip.py    # Build + ZIP
-python scripts/build_docs_zip.py --no-build           # ZIP sin build
-sha256sum -c dist/*.sha256                             # Validar checksums
-```
-
-**Bootstrap para otros proyectos**:
-- Ver `.github/prompts/bootstrap_ai_config.prompt.md`
-- Sección: "📦 Descarga de Documentación Offline (Capa B)"
-- Matriz de equivalencias: Python + MkDocs, Node.js + Docusaurus, Go + Hugo, Java + Sphinx
+ZIP offline con SHA256 (`scripts/build_docs_zip.py`, plugin `src/util_bbdd/docs_build_plugin.py`),
+página `docs/downloads.md` y publicación en GitHub Releases (`.github/workflows/docs-zip-release.yml`).
+Uso y comandos: `docs/guides/docs_offline_zip_guide.md`; mantenimiento: `.github/docs-zip-setup-guide.md`.
+Traslado a otros proyectos: `bootstrap_ai_config.prompt.md` § «Sección Especial: Descarga de Documentación Offline (Capa B)».
 
 #### Estándar de generación documental
 
@@ -302,28 +276,9 @@ class SyncDatabaseManager:
 
 #### Estándar: Validación de Markdown en documentación
 
-**Problemas comunes (registrados 2026-06-06)**:
-
-1. **Listas renderizadas como párrafos**: Usar dos espacios al final de línea EN LUGAR DE crear lista HTML real
-   - ❌ Incorrecto: `✅ **Item 1**  \n✅ **Item 2**` → Renderiza con `<br />` horizontales
-   - ✅ Correcto: `- ✅ **Item 1**\n- ✅ **Item 2**` → Renderiza como `<ul><li>`
-
-2. **Enlaces rotos a archivos estáticos generados**: Usar placeholders tipo `#` en lugar de rutas relativas
-   - ❌ Incorrecto: `[archivo.zip](#)` → No descarga nada
-   - ✅ Correcto: `[archivo.zip](../archivo.zip)` → Descarga desde `site/`
-
-3. **Archivos generados por plugins**: Entender que ZIP, PDFs y otros artefactos se crean en `site/` durante `mkdocs build`
-   - Plugin: `src/util_bbdd/docs_build_plugin.py` → genera `site/util_bbdd.zip`
-   - Links desde subpáginas (ej. `site/downloads/index.html`): usar `../util_bbdd.zip`
-
-**Validación pre-commit**:
-```bash
-# Build con --strict (sin errores de markdown)
-python -m mkdocs build --strict
-
-# Verificar visualmente que listas son verticales, no horizontales
-# Revisar site/downloads/index.html: deben haber <ul><li>, no <p><br /></p>
-```
+Reglas y errores conocidos (líneas en blanco antes de listas y tablas, viñetas reales, fences
+anidados, enlaces a artefactos generados): `.github/instructions/docs.instructions.md` § «Reglas
+Markdown (CRÍTICAS)». Validación: `zensical build --strict` (o `python -m mkdocs build --strict`).
 
 ### Formato de commits
 

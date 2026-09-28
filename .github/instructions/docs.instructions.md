@@ -3,7 +3,7 @@ applyTo: "docs/**"
 ---
 # Documentación
 
-> **TL;DR** — Seis arquetipos fijos (funcional, técnica, guía, ejemplo, arquitectura, páginas de navegación). Secciones numeradas 1–5 obligatorias. Mermaid.js para diagramas. MkDocs Material como generador estático. No inventar nada. Si una sección queda vacía, escribe `*No aplica para este módulo.*` — nunca la omitas. Enlace bidireccional obligatorio entre Arquetipo 2 §5 y Arquetipo 4 §5.
+> **TL;DR** — Ocho arquetipos definidos en `.github/DOCUMENTATION_STANDARD.md` §3 (canónico). Mermaid.js para diagramas. Zensical (por defecto) o MkDocs Material sobre el mismo `mkdocs.yml`. No inventar nada. Si una sección queda vacía, escribe `*No aplica para este módulo.*` — nunca la omitas. Enlace bidireccional obligatorio entre Arquetipo 2 §5 y Arquetipo 4 §5.
 
 ---
 
@@ -18,275 +18,33 @@ applyTo: "docs/**"
 
 ---
 
-## Arquetipo 1 — Documentación Funcional (`docs/functional/`)
+## Arquetipos
 
-**Audiencia**: jefes de proyecto, responsables de calidad, equipos de negocio.
+La estructura obligatoria, la audiencia, la ubicación, el prompt y las reglas de lenguaje de cada
+arquetipo están **solo** en `.github/DOCUMENTATION_STANDARD.md` §3:
 
-### Estructura obligatoria (en este orden)
-
-```
-# [Título del Módulo/Funcionalidad]
-
-## 1. Descripción General
-Contexto de negocio y objetivo (2-3 párrafos, sin jerga técnica).
-Incluir: quién usa esto y por qué aporta valor.
-
-## 2. Reglas de Negocio
-Tabla: | Regla | Descripción | Impacto si se viola |
-
-## 3. Casos de Uso
-### Flujo principal
-Diagrama Mermaid sequenceDiagram (actor → módulo → salida).
-### Flujos alternativos y de error
-Variantes, condiciones de contorno y casos de error verificables.
-Si no hay: "No aplica para este módulo."
-
-## 4. Criterios de Aceptación      ← PENDIENTE QA — No añadir hasta validación
-[Esta sección se completará cuando el equipo QA valide los criterios.
-Estructura prevista: Tabla | ID | Criterio | Verificable con |
-Redacción: "Dado X, cuando Y, entonces Z."]
-
-## 5. Glosario y Términos
-Tabla: | Término | Definición |
-Solo si hay términos de dominio específicos; si no, "No aplica para este módulo."
-```
-
-**Nota FASE 5 (pendiente):** La sección `## 4. Criterios de Aceptación` está definida
-en el estándar pero su contenido se completará tras validación QA. Hasta entonces
-incluir únicamente el placeholder indicado.
-
-### Reglas de lenguaje
-
-- Terminología de negocio, no técnica.
-- No menciones nombres de clases internas, variables ni rutas de implementación.
-- Legible por un responsable de proyecto sin conocimientos del lenguaje de implementación.
-- No uses jerga técnica sin explicación.
+| Arquetipo | Carpeta | Prompt |
+|---|---|---|
+| 1 — Funcional | `docs/functional/` | `functional_doc` |
+| 2 — Técnica | `docs/api/` | `technical_doc` |
+| 3 — Guías | `docs/guides/` | `guide_doc` |
+| 4 — Ejemplos de código | `docs/examples/` | `example_doc` |
+| 5 — ADR | `docs/adr/` | `architecture_doc` |
+| 6 — Navegación principal | `docs/` raíz (`index.md`, `INSTALLATION.md`, `architecture.md`) | `landing_doc` |
+| 7 — Incorporación | `docs/guides/onboarding_dev.md` | `onboarding_dev` |
+| 8 — Normativa (condicional) | `docs/normativa/` | `normative_traceability` |
 
 ---
 
-## Arquetipo 2 — Documentación Técnica (`docs/api/`)
+## Generador estático: Zensical / MkDocs Material
 
-**Audiencia**: desarrolladores y equipo de mantenimiento.
-
-Los archivos generados automáticamente por mkdocstrings/autodoc están excluidos de este
-arquetipo y se documentan mediante directivas automáticas.
-
-### Estructura obligatoria (en este orden)
-
-```
-# [Nombre del Componente/Módulo]
-
-[Párrafo introductorio de una frase: qué hace exactamente este módulo.]
-
-## 1. Arquitectura y Diseño
-Diagrama Mermaid (flowchart TD, classDiagram, sequenceDiagram o architecture-beta
-según criterio de la sección Mermaid.js de este fichero). Máximo 12 nodos.
-Para proyectos con Web API, BD o contenedores: incluir diagrama C4 nivel 2 si aplica.
-
-## 2. API Reference
-### Autodoc
-Directiva de generación automática según el lenguaje del proyecto:
-  Python:     ::: module.submodule.ClassName
-  Java:       ::: com.ejemplo.paquete.ClassName
-  TypeScript: ::: ModuleName.ClassName
-Solo exportados en __all__, public o export. Nunca implementación interna.
-### Contratos
-Tabla API pública: | Función/Clase | Firma simplificada | Descripción | Retorna |
-Tabla entrada:     | Parámetro | Tipo | Descripción | Restricciones |
-Contrato de salida: tipos, estructura y casos especiales.
-Errores y casos especiales: excepciones propias del módulo.
-
-## 3. Componentes y Clases
-Responsabilidad de cada clase o función principal exportada.
-Para módulos con una sola clase/función: "No aplica para este módulo."
-
-## 4. Dependencias y Requisitos
-Tabla: | Dependencia | Propósito | Requerida | Comportamiento sin ella |
-
-## 5. Ejemplos Relacionados                ← OBLIGATORIO (enlace bidireccional)
-Lista de enlaces a docs/examples/ con descripción de lo que ilustra cada uno.
-Si no existe ningún ejemplo del módulo:
-  "Pendiente — crear ejemplo en docs/examples/[nombre].md"
-```
-
-### Reglas de lenguaje
-
-- Preciso, con tipos del lenguaje del proyecto explícitos.
-- Solo incluye lo exportado públicamente; no documentar implementación interna.
-- Sin comentarios triviales sobre el código.
-
----
-
-## Arquetipo 3 — Guías (`docs/` raíz)
-
-**Audiencia**: usuarios finales que instalan, configuran o aprenden a usar el sistema.
-Alineado con el marco Diátaxis: orientado a tareas (How-To) o aprendizaje (Tutorial).
-
-### Estructura obligatoria (en este orden)
-
-```
-# [Guía de X / Tutorial de Y]
-
-## 1. Objetivo                             ← NUEVO
-Qué conseguirás al seguir esta guía (1 párrafo).
-Distingue: "instalar X" (how-to) vs "entender cómo funciona X" (explicación).
-
-## 2. Requisitos Previos
-Lista: herramientas, versiones, accesos o estado inicial requerido.
-
-## 3. Pasos
-Procedimiento secuencial numerado con bloques de código.
-Cada paso debe ser atómico y verificable.
-
-## 4. Verificación
-Cómo comprobar que la configuración o aprendizaje fue exitoso
-(comando + output esperado).
-
-## 5. Variantes y Solución de Problemas    ← AMPLIADO
-Tabla: | Escenario/Error | Causa probable | Solución |
-Incluye: alternativas al flujo principal, configuraciones opcionales y errores conocidos.
-Si no hay casos: "No aplica para este módulo."
-```
-
-### Reglas de lenguaje
-
-- Orientado a la acción: usa verbos imperativos ("instala", "ejecuta", "verifica").
-- `## 1. Objetivo` en 1 párrafo; nunca omitirlo.
-- Incluir siempre un comando de verificación real en `## 4.`.
-- En `## 5.` solo errores/variantes conocidos y documentados.
-
----
-
-## Arquetipo 4 — Ejemplos de Código (`docs/examples/`)
-
-**Audiencia**: desarrolladores que quieren implementar un patrón concreto.
-
-### Estructura obligatoria (en este orden)
-
-```
-# Ejemplo: [Nombre del Patrón/Funcionalidad]
-
-## 1. Contexto del Ejemplo
-Qué problema concreto resuelve este código (1-2 párrafos).
-
-## 2. Implementación de Referencia
-Exclusivamente snippet con --8<-- "examples/[ruta].[ext]"
-Para fragmentos <10 líneas ilustrativos: código inline.
-
-## 3. Explicación del Código
-Análisis de puntos críticos: concurrencia, rendimiento, contratos, decisiones no obvias.
-Para ejemplos triviales: "No aplica para este módulo."
-
-## 4. Ejecución y Pruebas
-Comando exacto + output esperado si es determinista.
-Incluir validación sintáctica según lenguaje:
-  Python:     python -m py_compile docs/examples/[nombre].py
-  Java:       javac -cp [classpath] [NombreClase].java
-  TypeScript: npx tsc --noEmit docs/examples/[nombre].ts
-
-## 5. Referencias Relacionadas             ← OBLIGATORIO (enlace bidireccional)
-- Documentación funcional: [enlace a docs/functional/...]
-- Referencia técnica: [enlace a docs/api/...]
-- Ejemplos relacionados: [otros ejemplos del mismo área si existen]
-```
-
-### Reglas de lenguaje
-
-- En `## 2.` usar `--8<--` para ficheros ejecutables ≥30 líneas; código inline para ilustraciones.
-- Si el fichero de código no existe, crearlo antes de referenciar.
-- `## 5.` siempre presente; enlaza al menos a la referencia técnica correspondiente.
-
----
-
-## Arquetipo 5 — Arquitectura (`docs/adr/`)
-
-**Audiencia**: arquitectos de software, tech leads, responsables de plataforma.
-Para documentar decisiones arquitectónicas (ADR) y evolución del sistema.
-
-### Estructura obligatoria (en este orden)
-
-```
-# [ADR-NNN: Título de la Decisión]
-
-## 1. Contexto y Problema
-Qué situación motivó la decisión. Estado del sistema antes de la decisión.
-
-## 2. Decisión
-Qué se decidió hacer y por qué se eligió sobre las alternativas.
-
-## 3. Consecuencias
-Ventajas, compromisos (trade-offs) y deuda técnica aceptada.
-
-## 4. Alternativas Consideradas
-Tabla: | Alternativa | Pros | Contras | Motivo de rechazo |
-
-## 5. Estado y Revisión
-Estado: PROPUESTO | ACEPTADO | OBSOLETO | REEMPLAZADO POR [ADR-NNN]
-Fecha de última revisión.
-```
-
-**Documentos de planificación** (roadmap, release plans): marcar con
-`<!-- arquetipo: informativo-libre -->` — no aplica estructura de Arquetipo 5.
-
----
-
-## Arquetipo 6 — Páginas de Navegación Principal (`docs/` raíz)
-
-**Audiencia**: cualquier visitante que llega a la documentación por primera vez.
-Para las páginas de entrada de nivel raíz del `nav:` — **Inicio**, **Instalación** y **Arquitectura del sistema**.
-
-**Prompt**: `.github/prompts/landing_doc.prompt.md` (tres variantes A/B/C, 5 secciones cada una).
-
-### Estructura obligatoria (según variante)
-
-```
-# Variante A — Inicio (docs/index.md)
-## 1. Identidad y Propósito
-## 2. Capacidades Principales
-## 3. Quick Start
-## 4. Mapa de la Documentación
-## 5. Compatibilidad y Soporte
-
-# Variante B — Instalación (docs/INSTALLATION.md)
-## 1. Requisitos Previos
-## 2. Instalación del Paquete
-## 3. Drivers por Motor
-## 4. Verificación
-## 5. Solución de Problemas
-
-# Variante C — Arquitectura del sistema (docs/ARCHITECTURE.md) — modelo arc42-lite + C4
-## 1. Visión General y Objetivos de Calidad   (arc42 1+3; incluye diagrama C4 nivel 1)
-## 2. Mapa de Módulos (Building Blocks)        (arc42 5; C4 nivel 3)
-## 3. Flujo en Ejecución (Runtime)             (arc42 6)
-## 4. Conceptos Transversales y Estándares No Funcionales  (arc42 8+10; checklist NFR)
-## 5. Decisiones, Extensión y Límites          (arc42 9+11; enlace a docs/adr/)
-```
-
-La Variante C es la **vista panorámica** (arc42-lite + C4); las decisiones puntuales se registran
-como ADR (Arquetipo 5, `docs/adr/`). El checklist no funcional de §4 cubre, como mínimo:
-Seguridad, Observabilidad, Rendimiento, Compatibilidad, Robustez/Errores y Tipado/Calidad,
-anclando cada ítem a un mecanismo real del código.
-
-**Distinción con el Arquetipo 5**: el Arquetipo 5 documenta **un ADR concreto** (`docs/adr/`); la
-Variante C documenta la **visión global del sistema** (`docs/ARCHITECTURE.md`). Ambas conviven bajo la
-sección `Arquitectura` del nav.
-
-**Distinción con el Arquetipo 3**: el Arquetipo 3 cubre guías genéricas (async, drivers, troubleshooting);
-la Variante B es específica de instalación del paquete y drivers.
-
-`docs/legacy-versions.md` permanece exento de arquetipo.
-
----
-
-## Generador estático: MkDocs con Material for MkDocs
-
-El proyecto usa **MkDocs** con el tema **Material for MkDocs** como generador estático.
+El proyecto genera la documentación con **Zensical** (por defecto, CI) o **MkDocs Material**, ambos sobre el mismo `mkdocs.yml`.
 
 - Toda documentación generada debe tener su entrada en `mkdocs.yml` bajo `nav:`.
-- La navegación tiene **exactamente 8 secciones top-level**:
-  `Inicio`, `Instalación`, `Documentación Funcional`, `Referencia Técnica`, `Guías`, `Ejemplos`,
-  `Arquitectura`, `Historia y Planes`.
-- No añadir secciones top-level adicionales.
+- Las secciones de primer nivel son las de `mkdocs.yml` (hoy: `Inicio`, `Instalación`, `📥 Descargas`,
+  `Documentación Funcional`, `Referencia Técnica`, `Guías`, `Ejemplos`, `Config IA`, `Arquitectura`,
+  `Historia y Planes`).
+- No añadas secciones de primer nivel sin una decisión explícita (PLAN aprobado).
 - No añadir plugins sin justificación documentada.
 
 ### Agrupación en subsecciones por área
@@ -311,7 +69,7 @@ subsecciones** (no listas planas).
 - Un documento que no encaje en ningún grupo puede agruparse bajo un rótulo propio
   (p. ej. `Manejo de Excepciones`).
 - La agrupación es **solo de navegación**: los ficheros `.md` siguen planos en sus carpetas
-  (`docs/`, `docs/examples/`, `docs/functional/`, `docs/api/`); ver Arquetipo 4 y §6 de
+  (`docs/guides/`, `docs/examples/`, `docs/functional/`, `docs/api/`); ver Arquetipo 4 y §6 de
   `DOCUMENTATION_STANDARD.md`.
 
 ```yaml
@@ -327,7 +85,7 @@ nav:
           - [Nombre módulo]: api/[nombre-modulo].md
   - Guías:
       - [Tema]:
-          - [Nombre guía]: [nombre-guia].md
+          - [Nombre guía]: guides/[nombre_guia].md
   - Ejemplos:
       - [Área]:
           - [Nombre ejemplo]: examples/[nombre-ejemplo].md
@@ -633,39 +391,38 @@ No modifica ningún fichero basándose solo en hallazgos del HTML. Propone corre
   termine en dos puntos (`:`). Sin ella, la frase introductoria y la lista se fusionan
   visualmente en MkDocs y VS Code preview. Ejemplo correcto:
   ```markdown
-  Todos heredan de `ProjectCopyError`:
+  Todas heredan de `DatabaseException`:
 
-  - `ValidationError`: entradas inválidas
-  - `DuplicationError`: fallos en copia
+  - `ConnectionError`: fallos de conexión
+  - `QueryError`: fallos al ejecutar consultas
   ```
 - **Mantén las celdas de tabla cortas** (máx. ~80 caracteres de contenido por celda).
   Si necesitas aclarar una excepción o nota, añádela como párrafo o lista debajo de
   la tabla, no dentro de la celda. Evita notaciones de pie de página inline (`No¹`,
   `*`, etc.) dentro de celdas: rompen el ancho visual y no se renderizan de forma
   consistente.
-- **Bloques de código anidados: usa 4 backticks en el fence exterior.** Cuando un bloque
-  ` ```markdown ` (o cualquier tipo) contiene a su vez bloques ` ```bash `, ` ```python `
-  u otros, el fence exterior debe abrirse y cerrarse con 4 backticks (``````) para que
-  los 3 internos no lo cierren prematuramente. Nunca uses `\`` para escapar backticks
-  dentro de un bloque fenced — no funciona: los backslashes se muestran literalmente.
+- **Bloques de código anidados: usa 4 backticks (o `~~~`) en el fence exterior.** Cuando un
+  bloque contiene a su vez bloques de 3 backticks, el fence exterior debe tener 4 backticks o usar
+  tildes para que los internos no lo cierren prematuramente. Nunca escapes backticks con `\` dentro
+  de un bloque fenced: los backslashes se muestran literalmente.
 
-  ```markdown
-  <!-- ❌ INCORRECTO: \`\`\`bash se muestra con backslashes -->
-  ```markdown
-  ### Desarrollo
-  \`\`\`bash
-  pip install -e ".[dev]"
-  \`\`\`
-  ```
-
-  <!-- ✅ CORRECTO: fence exterior con 4 backticks -->
+  ~~~~markdown
   ````markdown
   ### Desarrollo
   ```bash
   pip install -e ".[dev]"
   ```
   ````
-  ```
+  ~~~~
+
+- **Listas con viñeta real, no con saltos de línea.** Una secuencia `✅ **Item 1**␣␣` +
+  `✅ **Item 2**` se renderiza como un párrafo con `<br />`; escribe `- ✅ **Item 1**` y
+  `- ✅ **Item 2**` para obtener `<ul><li>`.
+- **Enlaces a artefactos generados con ruta relativa real**, nunca `#`: el ZIP offline lo crea
+  `src/util_bbdd/docs_build_plugin.py` en `site/util_bbdd.zip`; desde `docs/downloads.md` se
+  enlaza como `../util_bbdd.zip`.
+- **Validación**: `zensical build --strict` (o `python -m mkdocs build --strict`) y revisión visual de
+  las páginas con listas (deben verse `<ul><li>`, no `<p><br /></p>`).
 
 ## Inclusión de código en documentación (CRÍTICO)
 
@@ -715,18 +472,20 @@ Cada archivo `.py` en `docs/examples/` debe:
 
 ### Organización de ejemplos
 
+Pares planos `<tema>.md` + `<tema>.py` en `docs/examples/`; los fragmentos reutilizables que varios
+`.md` incluyen por partes viven en `docs/examples/database/`. La agrupación temática se hace en el
+`nav` (sección `Ejemplos:`), no con subcarpetas. Detalle y ejemplos: `.cursorrules` §2.
+
 ```
 docs/examples/
-├── database/            # Conexión, introspección, volcado, carga
-│   ├── partition_ranges.py
-│   ├── pool_setup.py
-│   └── ...
-├── bulk/                # CRUD masivo, auditoría
-│   ├── bulk_insert_from_df.py
-│   └── ...
-├── migration/           # Migración de esquemas
-├── async/               # Operaciones asincrónicas
-└── reporting/           # Reportes y análisis
+├── bulk_insert_csv.md
+├── bulk_insert_csv.py
+├── parallel_bulk_insert.md
+├── parallel_bulk_insert.py
+└── database/            # fragmentos compartidos
+    ├── partition_ranges.py
+    ├── pool_setup.py
+    └── ...
 ```
 
 ### Validación antes de documentar
@@ -738,8 +497,8 @@ Antes de referenciar `--8<-- "examples/..."` en un `.md`:
 - [ ] ¿No contiene hardcoded credentials/secrets?
 - [ ] ¿Se actualiza `mkdocs.yml` si es un archivo nuevo?
 
-Ejecuta `mkdocs build` para validar que la referencia se resuelve sin ERROR.
+Ejecuta `zensical build` (o `mkdocs build`) para validar que la referencia se resuelve sin ERROR.
 
 ---
 
-*Estándar actualizado: 2026-06-03 — Estándar v2.1: 6 Arquetipos × 5 secciones (Arquetipo 6: páginas de navegación), enlace bidireccional, multi-lenguaje*
+*Actualizado: 2026-09-28 — arquetipos centralizados en `DOCUMENTATION_STANDARD.md` §3 (config-review)*

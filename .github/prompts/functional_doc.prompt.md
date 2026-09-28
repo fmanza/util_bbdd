@@ -1,7 +1,7 @@
 # Prompt: functional_doc — Documentación funcional (Product Owner)
 
 <!--
-  NÚCLEO BASE compartido con dpss/.github/prompts/functional_doc.prompt.md
+  NÚCLEO BASE compartido con otros proyectos vía bootstrap (capa B de bootstrap_ai_config.prompt.md)
   ÚNICA SECCIÓN EDITABLE POR PROYECTO: ## Especialización de dominio (abajo)
   Última revisión: 2026-06-07
 -->
