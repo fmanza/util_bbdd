@@ -7,8 +7,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Revisión de la configuración IA (`/config-review`): sin cambios en la librería publicada; afecta solo a las
-instrucciones de los asistentes (Claude Code, Copilot, Gemini, Codex, Cursor).
+## [0.18.4] - 2026-09-29
+
+Sin cambios de API en la librería. La documentación vuelve a publicarse (sitio y ZIP offline completo), sus ficheros
+pasan a minúsculas con guion bajo y la configuración de los asistentes IA (Claude Code, Copilot, Gemini, Codex,
+Cursor) se consolida sin duplicados ni referencias huérfanas.
 
 ### Added
 

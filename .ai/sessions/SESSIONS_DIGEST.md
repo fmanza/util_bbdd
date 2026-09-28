@@ -183,6 +183,8 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-27 | Cierre de versión v0.17.3 | R15 y R16 sin cambios funcionales; plan de reutilización de bulk/dump completo; checklist verde (5095/199; integración 338/0; build 0.17.3); tag `v0.17.3` | CLOSED |
 | 2026-09-27 | Pendientes de bulk/dump → v0.17.4 y v0.18.0 | fix de `rows_committed` con DELETE en la sesión; regla de pool `size + max_overflow` con una conexión por worker; `rows_committed` con DELETE; `AuditError` bajo `DatabaseException`; `BulkInserter` retirado (incompatible) | CLOSED |
 | 2026-09-28 | Exportación de informes → v0.18.3 | El Excel de `dump` no se generaba: CSV de auditoría re-guardado fuera de la librería (líneas entre comillas) → `KeyError 'timestamp'` tras la carga. Resumen tolerante, `DumpReportError.result`, CSV con cabecera no válida apartado, lock del CSV sin `resolve()` (perdía filas en Windows), `_core/export_safety` en los informes Excel y Word; checklist verde (5288/199) | CLOSED |
+| 2026-09-28 | Revisión de la configuración IA | Commands finos sobre prompts gemelos, `/performance-audit-constraints`, tipos de commit ampliados, `DOCUMENTATION_STANDARD` canónico, `applyTo` sobre rutas reales, `.claude/settings.json` versionado; 12 ficheros retirados | CLOSED |
+| 2026-09-29 | Revisión de documentación y hotfixes → v0.18.4 | README al día; `docs/` a minúsculas con guion bajo; Pages roto desde `11fb9f8` (deploy sin build); ZIP offline de Releases sin `start-server.py`; `docs-zip-release.yml` nunca ejecutado por YAML inválido; checklist verde (5295/199) | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 
