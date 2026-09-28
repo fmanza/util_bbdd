@@ -24,7 +24,11 @@ instrucciones de los asistentes (Claude Code, Copilot, Gemini, Codex, Cursor).
 - **config IA**: `/version-closure` exige «Directrices para Futuras IAs» y el checklist de `sync.instructions.md`;
   Version Closer puede editar `CHANGELOG.md` y el `TRACEABILITY.md` de la sesión.
 - **config IA**: `DOCUMENTATION_STANDARD.md` §3 es la única definición de los 8 arquetipos (el Arquetipo 2 adopta la
-  estructura de `technical_doc.prompt.md`); `docs.instructions.md` remite a él.
+  estructura de `technical_doc.prompt.md`); `docs.instructions.md` remite a él, y Documentation Generator,
+  Documentation Reviewer y `config_review` lo leen como canónico.
+- **config IA**: el Arquetipo 1 (documentación funcional) adopta las 8 secciones de `functional_doc.prompt.md`
+  (Objetivo · Precondiciones · Flujo · Postcondiciones · Reglas · Límites · Criterios · Glosario); los 19 documentos
+  de `docs/functional/` (4 secciones) quedan como migración pendiente por área.
 - **config IA**: las instrucciones de introspección y render se aplican a `metadata/` y `doc/` (sus `applyTo`
   apuntaban a carpetas inexistentes); `render-markdown` se fusiona en `render`.
 - **config IA**: `.claude/settings.json` se versiona con solo los hooks; los permisos personales van a
@@ -39,6 +43,10 @@ instrucciones de los asistentes (Claude Code, Copilot, Gemini, Codex, Cursor).
 
 ### Fixed
 
+- **docs**: el README declaraba la versión 0.10.0, recomendaba `bulk_insert_from_csv()` (no existe; la API es
+  `BulkCrud.bulk_insert_from_df`), omitía MySQL, Redshift y Snowflake, y tenía 13 enlaces rotos a documentación movida o
+  retirada.
+- **docs**: `zensical build --strict` fallaba por tres anclas inexistentes en `docs/constraints_quick_reference.md`.
 - **ci/docs**: el job `deploy` de `.github/workflows/docs.yml` publicaba `./site` sin construirlo (cada job corre en una
   máquina nueva y `site/` está en `.gitignore`), así que GitHub Pages no se actualizaba desde `11fb9f8` (2026-06-04).
   Ahora ejecuta `zensical build` antes de publicar; `tests/unit/test_docs_workflow.py` lo vigila.
