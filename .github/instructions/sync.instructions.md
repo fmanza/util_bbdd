@@ -43,6 +43,8 @@ Hoy el repo **no** tiene `COMPATIBILITY.md`; la compatibilidad se declara en `py
 ### 4. pyproject.toml
 
 - [ ] `version = "X.Y.Z"` actualizado y coincide con el CHANGELOG.md
+- [ ] La misma versión en `README.md` (`**Version:**`), `docs/index.md` (`**Version:**`) y `docs/roadmap.md`
+      («Versión vigente»); `tests/unit/test_docs_version.py` lo comprueba
 - [ ] `requires-python = ">=3.12"` sin modificar (no incrementar sin decisión explícita)
 
 ### 5. Documentación (Zensical / MkDocs)

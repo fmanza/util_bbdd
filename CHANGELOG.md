@@ -50,6 +50,9 @@ Cursor) se consolida sin duplicados ni referencias huérfanas.
   `BulkCrud.bulk_insert_from_df`), omitía MySQL, Redshift y Snowflake, y tenía 13 enlaces rotos a documentación movida o
   retirada.
 - **docs**: `zensical build --strict` fallaba por tres anclas inexistentes en `docs/constraints_quick_reference.md`.
+- **docs**: la portada (`docs/index.md`) y el roadmap mostraban la versión 0.10.0; ningún paso de la release los
+  actualizaba. `tests/unit/test_docs_version.py` exige que coincidan con `pyproject.toml` (también el README), y el
+  checklist de `sync.instructions.md` los incluye.
 - **ci/docs**: el job `deploy` de `.github/workflows/docs.yml` publicaba `./site` sin construirlo (cada job corre en una
   máquina nueva y `site/` está en `.gitignore`), así que GitHub Pages no se actualizaba desde `11fb9f8` (2026-06-04).
   Ahora ejecuta `zensical build` antes de publicar; `tests/unit/test_docs_workflow.py` lo vigila.
