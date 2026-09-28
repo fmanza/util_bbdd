@@ -22,7 +22,7 @@ El framework de auditoría de rendimiento consta de:
 
 ## Slash Commands en Claude Code
 
-> Solo `/performance-audit-dump` existe como slash command. `/perf-proposal` y `/perf-validate` describen
+> Solo `/performance-audit-dump` es slash command. La línea base, la propuesta acotada y la validación son
 > pasos del flujo que se piden en lenguaje natural; la medición se hace siempre con `scripts/bench_dump.py`.
 
 ### `/performance-audit-dump` — Auditoría Completa de Rendimiento
@@ -69,7 +69,7 @@ Validation: ejecutar bench_dump.py post-audit para validar mejoras
 
 ### Capturar la línea base (sin slash command)
 
-`/quick-bench` no existe como comando: la línea base se captura con el banco.
+No hay slash command para la línea base: se captura con el banco.
 
 ```bash
 python scripts/bench_dump.py setup --engines postgresql,mysql,mariadb,mssql,oracle --volume large
@@ -82,102 +82,36 @@ Cada medición registra el total, las fases, la memoria pico y la verificación 
 
 ---
 
-### `/perf-proposal` — Generar Propuestas de Mejora Específica
+### Propuesta acotada de un cuello de botella (sin slash command)
 
-**Propósito**: Enfocarse en un cuello de botella específico (CB1–CB8) y generar propuesta de implementación acotada.
+Para centrarse en un cuello concreto (CB1–CB8) sin auditoría completa, pídelo por lenguaje natural
+apuntando al prompt de referencia; la implementación posterior va por `/refactor`, `/new-feature` o
+`/hotfix` (commit `perf:`).
 
-**Duración estimada**: 1–2 horas
-
-**Invocación**:
-
-```
-/perf-proposal
-
-Bottleneck: CB1 | CB2 | CB3 | CB4 | CB5 | CB6 | CB7 | CB8
-  
-  CB1: lectura lenta de chunks (pd.read_sql)
-  CB2: transformación overhead (dtype casting, memoria)
-  CB3: SQLAlchemy overhead (reflection, table introspection)
-  CB4: constraint sync N+1 (disable/enable one by one)
-  CB5: collect_row_counts overhead (COUNT(*) por tabla)
-  CB6: introspection cache ineficiente
-  CB7: PK sync serialización (no parallelization)
-  CB8: index rebuild bottleneck (estrategia actual)
-
-Estimated impact: P1 (quick win, <20% esfuerzo) | P2 (medium) | P3 (large, >40% esfuerzo)
+```text
+Lee .github/prompts/performance_audit_dump.prompt.md § «Cuellos de Botella Conocidos».
+Propuesta acotada para CB7 (sincronización de PK): ubicación en código (archivo:línea),
+cambio propuesto, tests que lo protegen e impacto estimado. Solo lectura.
 ```
 
-**Qué hace Claude Code**:
-1. Lee referencia de cuello específico en `.github/prompts/performance_audit_dump.prompt.md`
-2. Analiza ubicación en código (grep_search + read_file)
-3. Propone fix con:
-   - Descripción del cambio
-   - Código de ejemplo
-   - Tests para validar no rompe funcionalidad
-   - Impacto estimado en throughput
-
-**Salida esperada**:
-- `proposal_CB{N}_dump.md` — Descripción técnica
-- Código sugerido (inline en Markdown con bloques ```python)
-- PR mockup con commit message sugerido
-
-**Notas**:
-- Usar cuando hay consenso en qué optimizar
-- Útil para P1 (quick wins) antes de auditoría completa
+Cuellos: CB1 lectura de chunks · CB2 transformación y memoria · CB3 reflexión SQLAlchemy ·
+CB4 constraints N+1 · CB5 `collect_row_counts` · CB6 caché de introspección · CB7 sincronización de PK ·
+CB8 reconstrucción de índices.
 
 ---
 
-### `/perf-validate` — Validar Mejora Post-Implementación
+### Validar una mejora (sin slash command)
 
-**Propósito**: Ejecutar benchmark post-mejora, comparar vs. baseline, generar informe de validación.
+Mide la variante mejorada contra la línea base con el banco y resume:
 
-**Duración estimada**: 30–60 minutos
-
-**Invocación**:
-
-```
-/perf-validate
-
-Optimization: [describe qué se optimizó, e.g., "disable constraints in batch"]
-
-Baseline result: [ruta o resultados JSON previos]
-  (Si no especificas, busca en bench_results/baseline_YYYYMMDD.json)
-
-Configuration: optimized | custom
-  (custom: especificar chunk_size, parallel_pk_ranges, etc.)
-
-Volume: small | medium | large
+```bash
+python scripts/bench_dump.py run --engines <motores> --variants baseline,<variante> --volume <volumen> --repeat 3 --out .ai/sessions/<sesión>/validacion
+python scripts/bench_dump.py summarize .ai/sessions/<sesión>/validacion/results.jsonl
 ```
 
-**Qué hace Claude Code**:
-1. Ejecuta benchmark con configuración post-mejora
-2. Compara min/max/avg vs. baseline
-3. Calcula % de mejora (throughput gain)
-4. Genera reporte de validación con:
-   - Métricas antes/después
-   - % de mejora observada vs. estimada
-   - Riesgos o regresos detectados
-   - Recomendación: ✅ APROBADO | ⚠️ REVISAR | ❌ RECHAZAR
-
-**Salida esperada**:
-```
-📊 Validation Report: CB7 - PK Sync Parallelization
-
-Baseline (3.5s avg) → Optimized (2.8s avg)
-Improvement: +25% throughput (3,570 → 4,464 rows/sec)
-Estimated: +20% → Actual: +25% ✓ (ahead of estimate)
-
-Status: ✅ APROBADO
-  - Throughput mejora confirmada
-  - No hay regresos en constraint handling
-  - Tests pasan sin cambios
-
-Recomendación: Integrar a main branch
-```
-
-**Notas**:
-- Guardar reporte en `bench_results/validation_CB{N}_YYYYMMDD.md`
-- Usar para aprobar/rechazar propuestas antes de mergear PR
+`summarize` da la mediana por motor × variante, las fases y la diferencia frente a `baseline`; la
+verificación origen/destino de cada medición confirma que el volcado sigue siendo correcto. Guarda el
+informe como `validation_report_YYYYMMDD.md` en la carpeta de la sesión.
 
 ---
 
@@ -209,29 +143,14 @@ Validation: true
 
 ### Fase 2: Implementar Quick Wins (1–2 hrs por P1)
 
-Para cada propuesta P1 en roadmap:
-
-```
-/perf-proposal
-
-Bottleneck: CB{N}
-Estimated impact: P1
-```
-
-→ Genera propuesta acotada, implementar y testear
+Para cada propuesta P1 del roadmap: propuesta acotada (ver arriba) e implementación con `/refactor`,
+`/new-feature` o `/hotfix` (commit `perf:`).
 
 ---
 
 ### Fase 3: Validar Mejora (30–60 mins)
 
-```
-/perf-validate
-
-Optimization: "constraint batching + dynamic chunk sizing"
-Baseline result: bench_results/baseline_20260925.json
-Configuration: optimized
-Volume: small
-```
+Banco con `baseline` frente a la variante mejorada (ver «Validar una mejora»).
 
 → Confirma mejora vs. baseline, genera reporte de validación
 
@@ -381,8 +300,8 @@ python scripts/bench_dump.py one --engine postgresql --variant baseline --volume
 ### Audit no termina o se demora mucho
 
 - Reduce a `--volume small` para feedback rápido
-- Especifica solo bottlenecks críticos en `/perf-proposal`
-- Paralleliza: ejecutar múltiples `/perf-proposal` en paralelo (CB1 + CB5 simultáneamente)
+- Pide propuestas acotadas solo para los cuellos críticos
+- Las propuestas acotadas de cuellos independientes (p. ej. CB1 y CB5) pueden prepararse en paralelo
 
 ---
 

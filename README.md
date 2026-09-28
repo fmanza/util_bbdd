@@ -318,7 +318,7 @@ Tu Tarea
         └─→ Version Closer (mergear)
 ```
 
-[Ver agentes disponibles](.github/README.md)
+[Ver agentes disponibles](.github/AGENTS.md)
 
 ---
 
@@ -367,9 +367,8 @@ cache = DatabaseMetadataCache()
 
 El repositorio define una capa combinada de instrucciones, prompts y agentes para trabajar con cambios funcionales, hotfixes, auditorías y cierres.
 
-- La política base está en [.github/copilot-instructions.md](.github/copilot-instructions.md).
-- La jerarquía de decisión y los agentes disponibles están en [.github/README.md](.github/README.md).
-- El ejemplo completo de uso está en [docs/examples/github_usage_complete_example.md](docs/examples/github_usage_complete_example.md).
+- Las reglas comunes a todas las plataformas IA están en [.github/SHARED_INSTRUCTIONS.md](.github/SHARED_INSTRUCTIONS.md); cada plataforma añade su especialización ([CLAUDE.md](CLAUDE.md), [.github/copilot-instructions.md](.github/copilot-instructions.md), [GEMINI.md](GEMINI.md), [AGENTS.md](AGENTS.md), [.cursorrules](.cursorrules)).
+- Los agentes, prompts y slash commands disponibles están en [.github/AGENTS.md](.github/AGENTS.md).
 
 Cadena recomendada para tareas complejas:
 

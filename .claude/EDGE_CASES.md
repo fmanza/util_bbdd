@@ -85,7 +85,7 @@ git log --oneline -n 20 | grep -i "comando\|command"
    - Copia ambas secciones en archivo final
 
 4. **Verifica coherencia**
-   - ¿Las 10 secciones del COMMAND_TEMPLATE están presentes?
+   - ¿El command sigue el checklist de `COMMAND_TEMPLATE.md` (envoltorio fino; la salida vive en el prompt gemelo)?
    - ¿Links internos aún válidos?
 
 5. **Resuelve y commitea**

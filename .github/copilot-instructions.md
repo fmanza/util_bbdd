@@ -23,7 +23,7 @@ del flujo canónico `PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSIO
 | **Hotfix Responder** | RCA + FIX + AUDIT_CODE + VERSION | RCA mínimo, fix acotado (P1/P2 sin refactorizar) |
 | **Code Auditor** | AUDIT_CODE | Revisar bugs, edge cases, contratos, cobertura, arquitectura |
 | **Security Reviewer** | security_review | Auditoría de seguridad independiente (auth, secretos, validación) |
-| **Performance Auditor** | auditoría de rendimiento | Rendimiento de `bulk/` y `dump/` con impacto % estimado |
+| **Performance Auditor** | auditoría de rendimiento | Rendimiento de `bulk/`, `dump/` y desactivación de constraints, con impacto % estimado |
 | **Documentation Reviewer** | audit (modo lectura) | Revisar docs, ejemplos, coherencia, gaps (sin editar) |
 | **Documentation Generator** | IMPLEMENT (modo escritura) | Generar docs funcional/técnica con Mermaid en `docs/` |
 | **Config Reviewer** | auditoría de configuración IA | Revisar y consolidar instrucciones IA, eliminar duplicación |

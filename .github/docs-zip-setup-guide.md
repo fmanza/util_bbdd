@@ -241,10 +241,10 @@ Servir desde GitHub Pages con listado:
 
 ## 🔗 Enlaces Relacionados
 
-- [ZENICAL.md](../../ZENICAL.md) — Configuración de Zensical
-- [mkdocs.yml](../../mkdocs.yml) — Navegación y plugins
-- [scripts/build_docs_zip.py](../../scripts/build_docs_zip.py) — Script de generación
-- [docs_build_plugin.py](../../docs_build_plugin.py) — Plugin de mkdocs
+- [ZENICAL.md](../ZENICAL.md) — Configuración de Zensical
+- [mkdocs.yml](../mkdocs.yml) — Navegación y plugins
+- [scripts/build_docs_zip.py](../scripts/build_docs_zip.py) — Script de generación
+- [docs_build_plugin.py](../src/util_bbdd/docs_build_plugin.py) — Plugin de mkdocs
 
 ---
 

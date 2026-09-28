@@ -42,7 +42,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ### Documentación y estándares IA (2026-06-03 a 2026-06-05)
 - **Estándar documental v2** implementado: 5 arquetipos × 5 secciones, 7 secciones nav MkDocs, enlace bidireccional api↔examples, autodoc Bulk+Dump corregidos. (`2026-06-03-docs-standard-v2`)
-- **`--verify-tools`** (consulta webs oficiales) y **`--verify-build`** (build local + lectura `site/` o `localhost:8000`) incorporados como modificadores del agente Documentation Generator. Guía pública: `docs/doc_verification_guide.md`. (`2026-06-05-verify-docs`)
+- **`--verify-tools`** (consulta webs oficiales) y **`--verify-build`** (build local + lectura `site/` o `localhost:8000`) incorporados como modificadores del agente Documentation Generator. Guía pública: `docs/guides/doc_verification_guide.md`. (`2026-06-05-verify-docs`)
 - **Bootstrap IA cross-project** implementado: prompt `.github/prompts/bootstrap_ai_config.prompt.md` (modelo PULL, 5 plataformas: Claude, Gemini, Copilot, Cursor, Codex). Commit `cd22520` en develop, push/PR pendiente. (`2026-06-05-bootstrap-ai-config`)
 
 ### Hotfix crítico MariaDB (2026-06-04)

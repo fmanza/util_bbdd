@@ -15,6 +15,7 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 /maturity-assessment
 /performance-audit-bulk
 /performance-audit-dump
+/performance-audit-constraints
 /config-review
 /version-closure
 ```
@@ -108,13 +109,14 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 - **Invocable**: Sí (auditoría estratégica)
 
 ### 10. **Performance Auditor** (`performance-auditor.agent.md`)
-- **Propósito**: Auditoría de rendimiento del módulo bulk, optimización de carga masiva de datos (INSERT/UPDATE/DELETE), batching, paralelización, memory, SQL generation
-- **Entrada**: Módulo objetivo y contexto de operación (BBDD, tamaño de datos, restricciones)
+- **Propósito**: Auditoría de rendimiento de la carga masiva en tres ámbitos: `bulk/` (INSERT/UPDATE/DELETE, batching, paralelización, memoria, SQL generation), `dump/` (volcado) y desactivación de constraints durante la carga
+- **Slash commands**: `/performance-audit-bulk`, `/performance-audit-dump`, `/performance-audit-constraints`
+- **Entrada**: Ámbito, módulo objetivo y contexto de operación (BBDD, tamaño de datos, restricciones)
 - **Salida**: PLAN (flujo actual + cuellos de botella teóricos) + AUDIT_PLAN (validación de viabilidad) + AUDIT_CODE (hallazgos con % mejora estimado) + VERSION (quick wins + fases)
 - **Herramientas**: read, search, web (benchmarks y best practices)
 - **Invocable**: Sí (auditoría de rendimiento especializada)
-- **Criterios**: 10 áreas clave (batching, particionamiento, normalización SQL, conexiones, auditoría, memoria, SQL generation, DB-specific, PK sync, validation)
-- **Prompt base**: `.github/prompts/performance_audit_bulk.prompt.md`
+- **Criterios**: en `bulk/`, 10 áreas clave (batching, particionamiento, normalización SQL, conexiones, auditoría, memoria, SQL generation, DB-specific, PK sync, validation); en `dump/`, cuellos CB1–CB8
+- **Prompts base**: `performance_audit_bulk`, `performance_audit_dump` (+ `performance_audit_dump_agent`) y `performance_audit_constraints` (+ `performance_audit_constraints_agent`)
 - **Diferencia con Code Auditor**: Code Auditor revisa bugs y arquitectura; Performance Auditor audita rendimiento con métricas cuantificables
 
 ### 11. **Version Closer** (`version-closer.agent.md`)
@@ -238,7 +240,12 @@ Ver el detalle completo de rutas, contexto obligatorio/opcional y mapeo por plat
 ## Configuración
 
 Personalizaciones por contexto:
-- **Prompts**: `.github/prompts/*.prompt.md` — instrucciones por slash command (25 prompts: 11 equivalentes a `.claude/commands/` (incluido `config_review`) + 7 arquetipos de documentación `functional_doc`/`technical_doc`/`guide_doc`/`example_doc`/`architecture_doc`/`landing_doc`/`onboarding_dev` + `documentation_review` + `bootstrap_ai_config` + 5 de apoyo: `normative_traceability`, `performance_audit_dump_agent` y las meta-auditorías de rendimiento `audit_audit_manager_bulk`/`audit_performance_audit_command`/`audit_results_bulk_audit`)
+- **Prompts**: `.github/prompts/*.prompt.md` — un contrato de salida por flujo:
+  - 12 gemelos de los slash commands: `new_feature`, `hotfix`, `refactor`, `audit_code`, `security_review`, `tech_debt`, `maturity_assessment`, `performance_audit_bulk`, `performance_audit_dump`, `performance_audit_constraints`, `config_review`, `version_closure`
+  - 2 flujos operativos de agente: `performance_audit_dump_agent`, `performance_audit_constraints_agent`
+  - Documentación: arquetipos `functional_doc`, `technical_doc`, `guide_doc`, `example_doc`, `architecture_doc`, `landing_doc`, `onboarding_dev`, `normative_traceability`, y `documentation_review`
+  - Apoyo: `bootstrap_ai_config` y el análisis de reutilización `code_reusability_architecture` (+ `_quick`; guía en `docs/guides/code_reusability_analysis_guide.md`)
+  - Sin conteos fijos: el listado real es la carpeta.
 - **Instrucciones**: `.github/instructions/*.instructions.md` — reglas por tipo de archivo
 - **Hooks**: `.claude/settings.json` — hooks PostToolUse (ruff check, mypy, recogida de pytest)
 - **Entry points**: `CLAUDE.md`, `.github/copilot-instructions.md`, `GEMINI.md`, `.cursorrules`, `AGENTS.md` (raíz, Codex)
@@ -249,8 +256,8 @@ Modificar un agente: editar su archivo `.agent.md` en `.github/agents/`.
 
 ## Nota: Asimetría slash commands ↔ agentes
 
-Los **slash commands** de Claude Code (`.claude/commands/`) cubren 11 flujos (new-feature, hotfix, refactor, audit-code, security-review, tech-debt, maturity-assessment, performance-audit-bulk, performance-audit-dump, config-review, version-closure).
+Los **slash commands** de Claude Code (`.claude/commands/`) cubren 12 flujos (new-feature, hotfix, refactor, audit-code, security-review, tech-debt, maturity-assessment, performance-audit-bulk, performance-audit-dump, performance-audit-constraints, config-review, version-closure); cada uno es un envoltorio fino sobre su prompt gemelo.
 
 Los **agentes** (`.github/agents/`) son 13: 9 que respaldan los slash commands (`plan-architect`, `feature-implementer`, `hotfix-responder`, `code-auditor`, `security-reviewer`, `maturity-assessment`, `performance-auditor`, `config-reviewer`, `version-closer`) más `documentation-reviewer`, `documentation-generator`, `explore` y `workflow-director` (clasificador, primer paso del flujo en Copilot Chat). Los de documentación no tienen slash command pero son invocables por lenguaje natural (Claude Code) o mediante sus prompts correspondientes (Copilot Chat).
 
-Ver gobernanza completa en [`.github/INTEGRATION_MAP.md`](INTEGRATION_MAP.md).
+Gobernanza entre plataformas: [`SHARED_INSTRUCTIONS.md`](SHARED_INSTRUCTIONS.md) § «Gobernanza de plataformas IA».

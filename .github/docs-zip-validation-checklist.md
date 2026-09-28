@@ -95,8 +95,8 @@ Ver sección de GitHub Actions en `.github/docs-zip-setup-guide.md`
 
 ## 🔗 Documentación
 
-- [.github/docs-zip-setup-guide.md](.github/docs-zip-setup-guide.md) — Guía completa
-- [docs_build_plugin.py](../docs_build_plugin.py) — Código del plugin
+- [docs-zip-setup-guide.md](docs-zip-setup-guide.md) — Guía completa
+- [docs_build_plugin.py](../src/util_bbdd/docs_build_plugin.py) — Código del plugin
 - [scripts/build_docs_zip.py](../scripts/build_docs_zip.py) — Código del script
 - [ZENICAL.md](../ZENICAL.md) — Configuración de Zensical
 

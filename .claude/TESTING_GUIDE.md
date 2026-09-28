@@ -37,187 +37,26 @@ Test code es documentación:
 
 ---
 
-## Fixtures Comunes por Módulo
+## Estructura real de `tests/` y fixtures
 
-### Fixtures Globales (conftest.py)
+`pytest.ini` fija `testpaths = tests`. El `conftest.py` raíz asigna el marker de alcance por carpeta
+(`unit`, `integration`, `contract`) y **rechaza** en la recogida cualquier test sin marker de alcance.
 
-```python
-# tests/conftest.py
-import pytest
+| Carpeta | Alcance | `conftest.py` y fixtures |
+|---|---|---|
+| `tests/unit/` (+ `bulk/`, `connection/`, `dump/`, `migrate/`) | unit, sin servicios externos | `mock_manager_with_logger`, `mock_manager_with_connection` |
+| `tests/contract/` | contract (Protocols y contratos sync/async) | `tests/contract/conftest.py` |
+| `tests/integration/` | integration (SQLite en fichero; servidores reales si hay URLs del banco) | `sqlite_db_path`, `sqlite_engine`, `sqlite_engine_with_schema`, `sqlite_connection_config`, `async_manager_with_schema` |
+| `tests/comparar/` | unit (comparación de esquemas) | — |
 
-@pytest.fixture(scope="session")
-def temp_sqlite_db(tmp_path_factory):
-    """SQLite in-memory test database, reusable per session."""
-    import sqlite3
-    db_path = tmp_path_factory.mktemp("db") / "test.db"
-    conn = sqlite3.connect(str(db_path))
-    conn.execute("""
-        CREATE TABLE test_table (
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            value INTEGER
-        )
-    """)
-    conn.commit()
-    yield conn
-    conn.close()
-
-@pytest.fixture
-def mock_logger(mocker):
-    """Mock logger for inspecting log calls."""
-    return mocker.patch("util_bbdd.logger")
-
-@pytest.fixture
-def deterministic_timestamp():
-    """Fixed timestamp for reproducible tests."""
-    return "2026-04-10T12:00:00Z"
-```
-
-**Guía:**
-- Use `scope="session"` si BD no cambia entre tests (rapidez)
-- Use `scope="function"` si BD necesita reset (aislamiento)
-- Name must start with `test_` o usar pytest marker
-
-### Fixtures por Módulo: metadata/
-
-```python
-# tests/metadata/conftest.py
-import pytest
-from util_bbdd.metadata import SchemaIntrospector
-
-@pytest.fixture
-def postgres_introspector(mocker):
-    """Mocked PostgreSQL introspector."""
-    mock_conn = mocker.Mock()
-    mock_conn.execute.return_value = [
-        ("schema1", "table1", "id", "INTEGER", False),
-        ("schema1", "table1", "name", "VARCHAR", True),
-    ]
-    return SchemaIntrospector(mock_conn, dialect="postgres")
-
-@pytest.fixture
-def test_schema():
-    """Deterministic schema structure for tests."""
-    return {
-        "name": "test_schema",
-        "tables": [
-            {
-                "name": "users",
-                "columns": [
-                    {"name": "id", "type": "INTEGER", "pk": True},
-                    {"name": "email", "type": "VARCHAR", "pk": False},
-                ]
-            }
-        ]
-    }
-```
-
-### Fixtures por Módulo: connection/
-
-```python
-# tests/connection/conftest.py
-import pytest
-from util_bbdd.connection import PoolFactory
-
-@pytest.fixture
-def mock_pool(mocker):
-    """Mocked connection pool."""
-    pool = mocker.Mock()
-    pool.get.return_value = mocker.Mock()  # mock connection
-    pool.close.return_value = None
-    return pool
-
-@pytest.fixture
-def pool_factory(mocker):
-    """Factory for test pools."""
-    return PoolFactory(
-        engine_type="sqlite",
-        params={"path": ":memory:"}  # in-memory always deterministic
-    )
-```
-
-### Fixtures por Módulo: doc/render/
-
-```python
-# tests/doc/conftest.py
-import pytest
-from pathlib import Path
-
-@pytest.fixture
-def template_dir():
-    """Directory with Jinja2 templates for rendering."""
-    return Path(__file__).parent / "fixtures" / "templates"
-
-@pytest.fixture
-def sample_document_data():
-    """Deterministic document data for rendering tests."""
-    return {
-        "title": "Test Database Documentation",
-        "tables": [
-            {
-                "name": "employees",
-                "columns": [
-                    {"name": "id", "type": "INT"},
-                    {"name": "salary", "type": "DECIMAL"}
-                ]
-            }
-        ],
-        "generated_date": "2026-04-10T12:00:00Z"  # Fixed, not now()
-    }
-```
-
----
-
-## Patrón: Snapshot Testing
-
-Use snapshots para validar salidas complejas (Markdown, HTML, Word) sin hardcoding expected output.
-
-### Setup
-
-```bash
-# Install plugin
-pip install pytest-snapshot
-
-# Crear snapshot first time
-python -m pytest tests/doc/test_render.py::test_markdown_render --snapshot-update
-
-# Subs snapshots stored en tests/doc/__snapshots__/
-```
-
-### Ejemplo: Render Markdown
-
-```python
-# tests/doc/test_render_markdown.py
-import pytest
-from util_bbdd.doc.render import MarkdownRenderer
-
-def test_markdown_render_schema(sample_document_data, snapshot):
-    """Validate Markdown output matches snapshot."""
-    renderer = MarkdownRenderer()
-    output = renderer.render(sample_document_data)
-
-    # Snapshot auto-compares output vs __snapshots__/test_render_markdown.ambr
-    assert output == snapshot
-```
-
-** **Excepciones de Snapshot:**
-
-Snapshot NO debe incluir:
-- Timestamps (use `datetime.now()` replacement)
-- UUIDs (use fixed values)
-- Absolute paths (use relative o placeholders)
-
-```python
-# INCORRECTO
-output = f"Generated: {datetime.now()}"
-snapshot = "Generated: 2026-04-10 12:34:56.123456"
-# Cada run es distinto!
-
-# CORRECTO
-output = f"Generated: 2026-04-10T12:00:00Z"  # Fixed
-snapshot = "Generated: 2026-04-10T12:00:00Z"
-# Sempre igual
-```
+- Fixture global: `setup_logging` (session, autouse) en `tests/conftest.py`.
+- Servidores reales: solo en `tests/integration/`, con las URLs `UTIL_BBDD_TEST_<MOTOR>_URL` del banco
+  (`.ai/runtime.md`); sin URL, esos tests se saltan.
+- Documentación generada (HTML, Word, Excel): asserts sobre fragmentos clave del resultado
+  (p. ej. `tests/unit/test_database_documentation.py`, `tests/unit/test_doc_generators_helpers.py`);
+  el proyecto no usa plugins de snapshot.
+- Antes de crear un fixture, busca uno equivalente en estos `conftest.py`; si es de un solo módulo,
+  decláralo en el propio fichero de test.
 
 ---
 

@@ -14,9 +14,15 @@ Antes de ejecutar, confirma que dispones de:
 - ✅ **Contexto de operación**: entornos de prueba (SQLite, MySQL, PostgreSQL, Oracle, SQL Server)
 - ✅ **Conjuntos de datos de benchmark**: tamaños típicos (1K, 10K, 100K, 1M registros)
 - ✅ **Restricciones conocidas**: ¿hay limpieza de identidades, auditoría, validación?
-- ✅ **Métricas de partida**: tiempo base de INSERT/UPDATE/DELETE (si disponible)
+- ✅ **Métricas de partida**: tiempo base de INSERT/UPDATE/DELETE (si disponible; si no, capturarlo con `scripts/bench_bulk.py`)
+- ✅ **Objetivo**: `batching` | `paralelización` | `SQL` | `conexiones` | `auditoría` | `memoria` | `todas`
+- ✅ **Dialects**: `PostgreSQL` | `MySQL` | `Oracle` | `SQL Server` | `SQLite` | `todas`
+- ✅ **Timeline**: `ASAP` | `próxima semana` | `flexible`
+- ✅ **Validación post-audit**: ¿medir con `scripts/bench_bulk.py` tras las mejoras? (sí/no)
 
 Si falta alguno, decláralos como supuesto explícito antes de continuar.
+
+Agente: `.github/agents/performance-auditor.agent.md` (10 áreas y criterios de prioridad).
 
 ---
 
@@ -36,7 +42,7 @@ Si falta alguno, decláralos como supuesto explícito antes de continuar.
    - Overhead de creación de particiones vs. ganancia de velocidad
    - **Referencia de internet**: Buscar "Python concurrent.futures thread pool sizing", "database connection pool optimization"
 
-### 3. **Normalización SQL (_support/normalize.py)**
+### 3. **Normalización SQL (normalize.py)**
    - Escape de strings — ¿usa bind parameters o string interpolation?
    - Tipo inferencia — ¿hay conversiones redundantes (str→int→str)?
    - Memory footprint de normalización

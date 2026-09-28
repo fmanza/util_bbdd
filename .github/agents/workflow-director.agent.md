@@ -39,7 +39,7 @@ Lee antes de clasificar:
 | `maturity_assessment` | Explore               | Maturity Assessment     | Version Closer    | —                |
 | `version_closure`     | Version Closer        | —                       | —                 | —                |
 | `audit_code`          | Code Auditor          | —                       | —                 | —                |
-| `performance_audit`   | Performance Auditor   | Version Closer          | —                 | —                |
+| `performance_audit`   | Performance Auditor (`bulk` \| `dump` \| `constraints`) | Version Closer | —          | —                |
 | `documentation`       | Documentation Generator | Documentation Reviewer | Version Closer   | —                |
 | `config_review`       | Config Reviewer       | Feature Implementer     | Config Reviewer (AUDIT_CODE) | Version Closer |
 

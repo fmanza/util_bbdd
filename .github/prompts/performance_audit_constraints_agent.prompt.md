@@ -210,27 +210,30 @@ Por cada cambio propuesto, definir:
 
 ### Paso 3.1: Validar impacto real en código
 
-Buscar en `src/util_bbdd/bulk/`:
+Buscar en `src/util_bbdd/bulk/` y `src/util_bbdd/dump/`:
 - ¿Cómo se desactivan constraints actualmente? (¿hay soporte?)
 - ¿Hay validación de integridad post-carga?
 - ¿Cómo se maneja rollback si hay violaciones?
 - ¿Se ejecutan triggers de auditoría durante desactivación?
 
-**Archivos clave**:
-- `src/util_bbdd/bulk/_execution/` — Ejecución de INSERT/UPDATE/DELETE
-- `src/util_bbdd/introspect/_constraints.py` — Introspección de constraints
-- `src/util_bbdd/audit/audit_manager.py` — Auditoría durante carga
-- Tests: `tests/bulk/test_constraints_*.py`
+**Archivos clave** (verificados; comprueba que siguen existiendo antes de citarlos):
+- `src/util_bbdd/bulk/crud.py` — `maintenance_scope` (desactivación temporal de índices/constraints en `bulk`)
+- `src/util_bbdd/bulk/_support/dialect.py` — SQL de desactivación por motor
+- `src/util_bbdd/bulk/_execution/` — ejecución de INSERT/UPDATE/DELETE y `ParallelBulkLoader`
+- `src/util_bbdd/dump/_constraints.py` y `src/util_bbdd/dump/_indexes.py` — constraints e índices en el volcado
+- `src/util_bbdd/metadata/<motor>/` — introspección de constraints (único punto de SQL de catálogo)
+- `src/util_bbdd/bulk/audit.py` — auditoría durante la carga
+- Tests: `tests/unit/bulk/test_maintenance_scope.py`, `tests/unit/dump/test_constraints.py`, `tests/unit/test_<motor>_constraints.py`
 
 ### Paso 3.2: Hallazgos por severidad
 
-Ejemplo de hallazgo:
+Ejemplo **ilustrativo** de formato (código y rutas ficticios: sustitúyelos por evidencia real con `archivo:línea`):
 
 ```markdown
 ### Hallazgo H1: Foreign Key Validation en cada INSERT
 
 **Severidad**: CRÍTICA
-**Componente**: `src/util_bbdd/bulk/_execution/insert_executor.py`
+**Componente**: `<ruta real>:<línea>`
 **BBDD**: PostgreSQL, MySQL, Oracle, SQL Server
 
 #### Descripción
@@ -249,7 +252,7 @@ Esto genera N+1 queries en carga de N filas.
 
 #### Evidencia de código
 ```python
-# Línea 142 de insert_executor.py
+# <ruta real>:<línea> (ilustrativo)
 for row in batch:
     # Valida FK
     parent = session.query(ParentTable).filter(

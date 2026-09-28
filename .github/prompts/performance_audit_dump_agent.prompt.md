@@ -188,7 +188,7 @@ Priority = Impacto / (Esfuerzo × Riesgo)  → ordena desc
 
 **Estructura del Informe**:
 
-```markdown
+````markdown
 # Auditoría de Rendimiento — Módulo `dump`
 
 ## Resumen Ejecutivo
@@ -261,7 +261,7 @@ DumpConfig(...,
 - Validar con scripts en `scripts/bench_dump.py`
 - Crear issues de implementación por fase
 - Definir criterios de éxito (% throughput, tolerancia regresión)
-```
+````
 
 ---
 

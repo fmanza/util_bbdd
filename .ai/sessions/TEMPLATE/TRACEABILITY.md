@@ -4,8 +4,8 @@
 - id: YYYY-MM-DD
 - fecha: YYYY-MM-DD
 - rama: <!-- rama activa -->
-- skill: <!-- new_feature | hotfix | refactor | security_review | tech_debt | maturity_assessment | version_closure -->
-- fase: <!-- fases ejecutadas, p.ej. PLAN + AUDIT_PLAN + IMPLEMENT + CODE_AUDIT -->
+- skill: <!-- new_feature | hotfix | refactor | audit_code | security_review | tech_debt | maturity_assessment | performance_audit | documentation | config_review | version_closure -->
+- fase: <!-- fases ejecutadas, p.ej. PLAN + AUDIT_PLAN + IMPLEMENT + AUDIT_CODE -->
 
 ## Prompt issued
 <!-- Solicitud original tal como llegó al agente, sin editar. -->

@@ -4,6 +4,20 @@
 **Objetivo Principal**: Auditar el módulo `dump` (volcado de datos masivos) e identificar oportunidades de mejora de rendimiento para maximizar velocidad de carga.
 **Objetivo Secundario**: Verificar que los cambios propuestos mantengan compatibilidad con múltiples dialectos (PostgreSQL, MySQL/MariaDB, Oracle, SQL Server, SQLite).
 
+Agente: Performance Auditor. Flujo operativo en 5 fases: `.github/prompts/performance_audit_dump_agent.prompt.md`.
+Guía: `.claude/performance-audit-guide.md` (cuellos CB1–CB8) y `docs/PERFORMANCE_AUDIT_GUIDE.md`.
+
+## Inputs requeridos
+
+- **Objetivo**: áreas a optimizar (`lectura` | `constraints` | `indexes` | `todas`)
+- **Baseline**: ¿hay medición previa? Si no, capturarla primero con `scripts/bench_dump.py` (sí/no)
+- **Dialects**: `PostgreSQL` | `MySQL` | `MariaDB` | `SQL Server` | `Oracle` | `SQLite` | `todas`
+- **Volumen**: `small` (85k) | `medium` (850k) | `large` (3,5M) | otro
+- **Timeline**: `ASAP` | `próxima semana` | `flexible`
+- **Validación post-audit**: ¿medir con `scripts/bench_dump.py` tras las mejoras? (sí/no)
+
+Si falta alguno, detente y aclara antes de la fase 1.
+
 ---
 
 ## Contexto del Módulo

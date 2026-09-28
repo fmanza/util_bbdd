@@ -5,7 +5,7 @@ información verificable del código fuente y los archivos `.py` en `docs/exampl
 
 ## Instrucción al modelo
 
-```
+````
 Actúa como developer advocate especializado en ejemplos de código para librerías Python.
 
 Analiza el archivo `.py` de ejemplo proporcionado y el contexto real del repositorio.
@@ -71,7 +71,7 @@ Restricciones:
 - ## 5. siempre presente; enlaza al menos la referencia técnica correspondiente
 - Si falta información verificable, añade subsección "### Pendiente de verificación"
 - Responde SOLO con el Markdown, sin texto introductorio ni cierre
-```
+````
 
 ## Cómo usar este prompt
 
@@ -107,13 +107,12 @@ Si un `.md` existente tiene código inline ≥30 líneas que debería estar en u
 
 ```
 docs/examples/
-├── [patron].py          # Ejemplos standalone en raíz
-├── database/            # Conexión, introspección, pool
-├── bulk/                # CRUD masivo, auditoría, paralelismo
-├── migration/           # Migración DDL entre motores
-├── async/               # Operaciones asincrónicas
-└── reporting/           # Reportes y análisis
+├── [tema].md + [tema].py   # Pares planos: un ejemplo por tema
+└── database/               # Fragmentos .py reutilizables que varios .md incluyen por partes
 ```
+
+La agrupación temática se hace en el `nav` de `mkdocs.yml` (sección `Ejemplos:`), no con subcarpetas
+(`.github/DOCUMENTATION_STANDARD.md` §3.4 y `.cursorrules` §2).
 
 ## Output esperado
 

@@ -34,6 +34,7 @@ prompt discrepan, manda el prompt.
 | [`/maturity-assessment`](./.claude/commands/maturity-assessment.md) | Madurez del repo (solo lectura) | `maturity_assessment` | PLAN → AUDIT_PLAN → AUDIT_CODE → VERSION | `PRODUCTION_READY \| NEAR_READY \| BLOCKED` |
 | [`/performance-audit-bulk`](./.claude/commands/performance-audit-bulk.md) | Rendimiento de `bulk/` (INSERT/UPDATE/DELETE) | `performance_audit_bulk` | PLAN → AUDIT_PLAN → AUDIT_CODE → VERSION (impacto %) | `CRÍTICO \| SIGNIFICATIVO \| MODERADO \| LIMPIO` |
 | [`/performance-audit-dump`](./.claude/commands/performance-audit-dump.md) | Rendimiento de `dump/` (volcado) | `performance_audit_dump` + `performance_audit_dump_agent` | 5 fases → informe + roadmap (+ validación) | — |
+| [`/performance-audit-constraints`](./.claude/commands/performance-audit-constraints.md) | Rendimiento de desactivar constraints en carga masiva | `performance_audit_constraints` + `performance_audit_constraints_agent` | 5 fases: PLAN → AUDIT_PLAN → AUDIT_CODE → IMPROVEMENT_PLAN → VERSION | — |
 | [`/config-review`](./.claude/commands/config-review.md) | Configuración IA (DRY, huérfanos, bootstrap) | `config_review` | ANÁLISIS → PLAN → AUDIT_PLAN (→ IMPLEMENT → AUDIT_CODE → VERSION tras aprobación) | `GO \| GO_CONDICIONAL \| NO_GO` |
 | [`/version-closure`](./.claude/commands/version-closure.md) | Cierre de versión o sesión | `version_closure` | Commit → Changelog → API → Migraciones → Compatibilidad → Rollback → Checklist → Directrices | — |
 

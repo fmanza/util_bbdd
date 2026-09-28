@@ -45,7 +45,7 @@ Fase: PLAN y AUDIT_PLAN únicamente.   # o "completa" para llegar hasta VERSION
 |---|---|---|
 | `.github/agents/` | `.github/agents/` | verbatim (revisar comandos embebidos) |
 | `.github/prompts/` | `.github/prompts/` | verbatim (revisar comandos embebidos) |
-| `.claude/commands/` + `COMMAND_TEMPLATE.md` + `settings.json.example` | `.claude/` | verbatim (adaptar hooks) |
+| `.claude/commands/` + `COMMAND_TEMPLATE.md` + `settings.json.example` | `.claude/` | verbatim (adaptar hooks; en el destino se copia `settings.json.example` → `settings.json`) |
 | `.ai/sessions/TEMPLATE/` | `.ai/sessions/TEMPLATE/` | verbatim |
 | `.github/SHARED_INSTRUCTIONS.md` | idem | copiar + reescribir dominio |
 | `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.github/AGENTS.md`, `.cursorrules` | idem | copiar + reescribir dominio |
@@ -96,9 +96,12 @@ Clasifica **cada** activo IA del origen en una de estas cuatro capas:
 ### Capa A — Copiar verbatim (revisar comandos embebidos)
 
 - `.github/agents/*.agent.md`
-- `.github/prompts/*.prompt.md` (incluido este)
+- `.github/prompts/*.prompt.md` (incluido este), salvo los de dominio de la capa D
 - `.claude/commands/*.md`, `.claude/COMMAND_TEMPLATE.md`, `.claude/settings.json.example`
 - `.ai/sessions/TEMPLATE/`
+
+Los commands son envoltorios finos: el contrato de salida vive en el prompt gemelo, así que se copian
+siempre por pares (`.claude/commands/<x>.md` ↔ `.github/prompts/<x>.prompt.md`).
 
 > ⚠️ **No es verbatim puro**: estos ficheros contienen comandos embebidos del origen
 > (p.ej. `python -m pytest`, `mkdocs build`, rutas `src/<paquete>/...`). Revisa y sustituye
@@ -129,7 +132,6 @@ Clasifica **cada** activo IA del origen en una de estas cuatro capas:
 
 - `.ai/product.md`, `.ai/architecture.md`, `.ai/runtime.md`, `.ai/glossary.md`, `.ai/standards.md`
 - `.github/instructions/<lenguaje>.instructions.md` (reglas por tipo de archivo del destino)
-- `.github/INTEGRATION_MAP.md`
 
 > Regla absoluta: **no inventes módulos, capacidades ni APIs**. Lee el árbol real del destino
 > (`src/`, `app/`, `cmd/`, `pkg/`, lo que aplique) y describe solo lo que existe. Marca como
@@ -140,7 +142,11 @@ Clasifica **cada** activo IA del origen en una de estas cuatro capas:
 - `.ai/sessions/<fechas>/` (todo lo que no sea `TEMPLATE/`)
 - `CHANGELOG.md`, `COMPATIBILITY.md`, notas de migración específicas del origen
 - `.coverage`, `coverage.xml`, `.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/`, `site/`, `build/`, `dist/`
-- `.claude/settings.local.json` (configuración local, git-ignored)
+- `.claude/settings.local.json` y `.claude/settings.json` (configuración local, git-ignored)
+- Auditorías de dominio del origen: `performance_audit_{bulk,dump,constraints}*.prompt.md`,
+  `code_reusability_architecture*.prompt.md`, `.claude/commands/performance-audit-*.md` y
+  `.claude/performance-audit-guide.md` (salvo que el destino tenga módulos equivalentes)
+- `.ai/doc_old/` (configuración retirada del origen)
 
 ---
 
@@ -161,7 +167,6 @@ Clasifica **cada** activo IA del origen en una de estas cuatro capas:
 - Agentes de documentación (`documentation-generator`, `documentation-reviewer`) → solo si destino publica docs.
 - `security-review`, `tech-debt`, `maturity-assessment` → recomendables, no críticos al arrancar.
 - `EDGE_CASES.md`, `TESTING_GUIDE.md` → copiar como plantilla vacía; se pueblan con el tiempo.
-- `INTEGRATION_MAP.md` → si el destino es una librería con docs públicas.
 
 ---
 
