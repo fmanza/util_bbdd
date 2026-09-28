@@ -37,6 +37,12 @@ instrucciones de los asistentes (Claude Code, Copilot, Gemini, Codex, Cursor).
 - **config IA**: `.ai/product.md`, `.ai/architecture.md` y `.ai/standards.md` sin versión ni métricas fijas (remiten
   a `pyproject.toml` y `.ai/CURRENT_STATE.md`); Zensical como generador por defecto.
 
+### Fixed
+
+- **ci/docs**: el job `deploy` de `.github/workflows/docs.yml` publicaba `./site` sin construirlo (cada job corre en una
+  máquina nueva y `site/` está en `.gitignore`), así que GitHub Pages no se actualizaba desde `11fb9f8` (2026-06-04).
+  Ahora ejecuta `zensical build` antes de publicar; `tests/unit/test_docs_workflow.py` lo vigila.
+
 ### Removed
 
 - **config IA**: `.github/README.md`, `.github/INTEGRATION_MAP.md`, `.github/ANALYSIS_*`, `QUICK_START_ANALYSIS.md`,

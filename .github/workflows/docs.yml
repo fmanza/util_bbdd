@@ -72,6 +72,12 @@ jobs:
       - name: Install docs dependencies
         run: pip install -e ".[docs]"
 
+      # Cada job corre en una máquina nueva: el site/ del job build no llega aquí.
+      - name: Build docs
+        run: zensical build
+        env:
+          PYTHONPATH: src
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
