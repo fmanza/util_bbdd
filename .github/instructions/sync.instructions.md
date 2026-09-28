@@ -13,7 +13,8 @@ applyTo: "CHANGELOG.md,docs/**,.ai/**"
 Aplica este checklist en la fase **VERSION** de cualquier flujo:
 
 - `feat:` que añade API pública nueva
-- `fix:` que cambia comportamiento observable
+- `fix:`, `hotfix:` o `security:` que cambian comportamiento observable
+- `perf:` con cambio medible de rendimiento o de opciones por defecto
 - `refactor:` con renombramiento de símbolos exportados
 - Cierre de sprint o release (slash command `/version-closure`)
 

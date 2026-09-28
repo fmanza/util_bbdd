@@ -3,11 +3,11 @@ applyTo: "**/*.py"
 ---
 # Python – Estándares para esta librería
 
-> **TL;DR** — Python 3.12+, mypy strict, ruff, tipado en todo código público. Usar dataclasses para modelos de metadatos, `pathlib.Path` para rutas, composición sobre herencia, excepciones específicas nunca `Exception` genérica. Sin credenciales en ejemplos, sin SQL crudo fuera de adaptadores.
+> **TL;DR** — Python 3.12+, mypy con la configuración de `pyproject.toml` (no `--strict`), ruff, tipado en todo código público. Usar dataclasses para modelos de metadatos, `pathlib.Path` para rutas, composición sobre herencia, excepciones específicas nunca `Exception` genérica. Sin credenciales en ejemplos, sin SQL crudo fuera de adaptadores.
 
 ## Estilo
 - Python 3.12+ o la versión definida en `pyproject.toml`; mantén consistencia con la configuración real del proyecto.
-- Docstrings estilo Google o NumPy (elige uno y mantén consistencia).
+- Docstrings estilo Google (`SHARED_INSTRUCTIONS.md` § «Estándar: Docstrings Google-style»).
 - Usa `pathlib.Path` para rutas.
 - Prefiere dataclasses para estructuras de metadatos.
 

@@ -2,105 +2,31 @@
 
 Nueva funcionalidad para la librería. Política: **prohibido refactorizar**.
 
-## Cuándo usar
-- Añades comportamiento nuevo que no existía
-- Extiendes API pública con parámetros, métodos o clases nuevas
-- Necesitas ciclo completo: PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION
+## Contexto obligatorio
 
-## Inputs requeridos (OBLIGATORIO completar TODOS)
+Lee y aplica, en este orden:
+1. `.github/prompts/new_feature.prompt.md` — inputs requeridos, contrato de salida y reglas
+2. `.github/agents/plan-architect.agent.md` (PLAN + AUDIT_PLAN), `feature-implementer.agent.md` (IMPLEMENT),
+   `code-auditor.agent.md` (AUDIT_CODE) y `version-closer.agent.md` (VERSION)
 
-- [ ] **Objetivo**: Descripción breve de qué se implementa (1-2 líneas)
-- [ ] **Módulo(s) o clase(s)**: Rutas completas (ej. `src/util_bbdd/doc/infrastructure/renderers/markdown_generator.py` (nuevo))
-- [ ] **API pública esperada**: Qué cambia en la firma (parámetros, tipos, métodos)
-- [ ] **Contrato de entrada**: Qué espera recibir (prerequisitos, tipos)
-- [ ] **Contrato de salida**: Qué garantiza producir (output, invariantes)
-- [ ] **Reglas de negocio**: Restricciones funcionales (no inventar metadata, determinismo)
-- [ ] **Restricciones técnicas**: Límites (sin dependencias nuevas, sync/async, etc.)
-- [ ] **Motores o formatos afectados**: DB motors o formatos (Markdown, HTML, etc.)
-- [ ] **¿Hay archivos relevantes existentes?**: sí/no + referencias si aplica
+## Reglas de ejecución
 
-**⚠️ VALIDACIÓN**: Si falta alguno de estos campos, **DETENTE y aclara antes de continuar**. No emitas PLAN hasta que todos estén completos.
-
-## Devuelve en este orden
-
-### PLAN
-- objetivo
-- rutas afectadas
-- componentes implicados
-- tipos necesarios
-- riesgos
-
-### AUDIT_PLAN
-- riesgos funcionales
-- riesgos técnicos (incluir impacto en LSP/ISP: contratos sync/async y tamaño de interfaces)
-- riesgos de seguridad
-- simplificaciones posibles
-- **Veredicto:** GO / NO_GO / GO_CONDICIONAL (con condiciones si aplica)
-
-### IMPLEMENT (por capas: Level 1 → 2 → 3)
-- cambios por archivo
-- código
-- explicación breve
-
-### AUDIT_CODE
-- bugs potenciales
-- edge cases
-- performance
-- seguridad
-- tipado
-- deuda técnica
-
-### VERSION
-- commit message (formato: `feat: <descripción>`)
-- changelog por módulo afectado
-- impacto en API pública (cambios de firma, parámetros, tipos)
-- rollback (pasos para revertir)
-- pruebas sugeridas
+- **⚠️ VALIDACIÓN**: si falta algún input del prompt, DETENTE y aclara antes de emitir PLAN.
+- Detente tras AUDIT_PLAN y espera aprobación explícita antes de IMPLEMENT.
 
 ## Ejemplo de entrada
 
+```text
+/new-feature
+
+Objetivo: exportar el informe de comparación de esquemas a Parquet
+Módulo(s): src/util_bbdd/comparar/reporters/parquet_reporter.py (nuevo), tests/comparar/test_parquet_reporter.py (nuevo)
+API esperada: SchemaDiff.to_parquet(path: Path) -> Path
+Contrato entrada: SchemaDiff ya calculado
+Contrato salida: fichero Parquet determinista (orden estable)
+Reglas de negocio: no inventar metadatos
+Restricciones: sin dependencias nuevas (pandas.DataFrame.to_parquet)
+Motores/formatos: Parquet (agnóstico de BD)
+Migraciones: no
+Archivos relevantes: sí — comparar/reporters/
 ```
-Objetivo: Exportar Markdown con diagramas Mermaid opcionales
-
-Módulo(s): src/util_bbdd/doc/infrastructure/renderers/markdown_generator.py (nuevo), tests/unit/test_markdown_generator.py (nuevo)
-
-API esperada: parámetro `enable_mermaid: bool = False` en render_markdown()
-
-Contrato entrada: Schema ya introspectado + tablas normalizadas
-
-Contrato salida: Markdown válido, portable, determinista (orden estable)
-
-Reglas negocio: no inventar metadatos; solo Mermaid si hay datos reales
-
-Restricciones: sin dependencias nuevas (Mermaid es nativo)
-
-Motores: Markdown (agnóstico de BD)
-
-Archivos relevantes: sí - render_markdown.py y templates/
-```
-
-## Ejemplo de salida esperada (PLAN)
-
-```markdown
-## PLAN
-
-**Objetivo**: Exportación Markdown con Mermaid opcional
-
-**Rutas afectadas**:
-- src/util_bbdd/doc/infrastructure/renderers/markdown_generator.py (nuevo)
-- tests/unit/test_markdown_generator.py (nuevo)
-- docs/
-
-**Componentes implicados**:
-- `MarkdownRenderer` clase
-- Método `render_markdown(schema, enable_mermaid=False)`
-- Template `mermaid_diagram.j2`
-
-**Tipos necesarios**: `MermaidDiagram` dataclass
-
-**Riesgos**:
-- Funcional: Markdown malformado si Mermaid falla
-- Técnico: Performance si schema es muy grande (> 50 tablas)
-- Seguridad: SQL injection no aplica (datos ya normalizados)
-```
-- pruebas sugeridas

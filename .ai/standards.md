@@ -38,7 +38,7 @@
 ## Commits & Versioning
 
 - **Commits:** `<type>(<scope>): <message>` (conventional commits)
-- **Types:** `feat`, `fix`, `refactor`, `docs`, `test`, `perf`, `chore`, `hotfix`
+- **Types:** los de `.github/SHARED_INSTRUCTIONS.md` § «Formato de commits» (`feat`, `fix`, `hotfix`, `security`, `perf`, `refactor`, `test`, `docs`, `chore`, `release`)
 - **Scopes:** `managers`, `query`, `metadata`, `connection`, `async`, `bulk`, `audit`, `migrate`, `dump`, `comparar`, `analysis`, `doc`
 - **Tags:** `v0.x.y` (semver)
 - **No direct main:** Merge via PR (develop → main)

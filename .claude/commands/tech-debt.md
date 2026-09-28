@@ -2,42 +2,26 @@
 
 Inventario de deuda técnica. No mezclar con nuevas features en el mismo PLAN.
 
-## Inputs requeridos (OBLIGATORIO completar TODOS)
+## Contexto obligatorio
 
-- [ ] **Módulo/paquete objetivo**: Ruta específica (ej. `src/util_bbdd/metadata/`)
-- [ ] **Deuda conocida o síntomas**: Describe qué viste (ej. "hay `Any` sueltos", "duplicación sync/async")
-- [ ] **Scope**: ¿Solo análisis (PLAN+AUDIT_CODE) o también IMPLEMENT?
-- [ ] **Política de compatibilidad**: ¿Se autoriza romper contratos públicos?
+Lee y aplica, en este orden:
+1. `.github/prompts/tech_debt.prompt.md` — inputs, contrato de salida, criterios de prioridad y reglas
+2. `.github/agents/plan-architect.agent.md` — análisis; si el scope autoriza IMPLEMENT,
+   `feature-implementer.agent.md`, `code-auditor.agent.md` y `version-closer.agent.md`
 
-**⚠️ VALIDACIÓN**: Si falta alguno, **DETENTE y aclara como supuesto explícito** antes de continuar.
+## Reglas de ejecución
 
-## Devuelve en este orden
+- Si falta algún input, decláralo como supuesto explícito antes de continuar.
+- Sin IMPLEMENT autorizado en el scope, solo análisis: no edites archivos.
 
-### PLAN
-- módulo objetivo
-- síntomas o deuda conocida
-- scope (análisis / análisis + implement)
-- riesgos de regresión al abordarla
+## Ejemplo de entrada
 
-### AUDIT_PLAN
-- riesgos funcionales
-- riesgos técnicos
-- riesgos de seguridad
-- dependencias entre ítems de deuda
+```text
+/tech-debt
 
-### AUDIT_CODE
-- deuda detectada por módulo (`archivo:línea` cuando aplique)
-- impacto real (tipado, mantenibilidad, tests, rendimiento, seguridad)
-- prioridad clasificada:
-  - `quick_win` — < 1h, sin riesgo de regresión, PR de 1 commit
-  - `fase_media` — cambio acotado, test requerido, posible breaking change
-  - `deuda_estructural` — refactor amplio, decisión de arquitectura (requiere PLAN+AUDIT_PLAN aprobados)
-- quick wins listos para implementar (con estrategia de prueba mínima)
-- plan por fases con orden de dependencias
-- riesgos si no se aborda
-- **Veredicto:** `LIMPIO | DEUDA_MENOR | DEUDA_SIGNIFICATIVA | CRÍTICO`
-
-### VERSION
-- solo si IMPLEMENT fue autorizado en el scope
-- commit message (formato: `refactor: <descripción>`)
-- pruebas sugeridas
+Módulo: src/util_bbdd/metadata/mariadb/
+Síntomas: Any sueltos y duplicación sync/async
+Versión y rama: v0.18.3, develop
+Scope: solo análisis
+Compatibilidad: no se autoriza romper contratos públicos
+```

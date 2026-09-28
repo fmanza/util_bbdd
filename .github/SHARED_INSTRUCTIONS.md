@@ -123,7 +123,7 @@ manager.close()
 - Valida `db_type` al inicio; lanza `InvalidDatabaseType` antes de intentar conexión.
 - Parámetros de conexión via `conn_params: dict`; usa `build_conn_params()` para normalizar.
 - Cierres explícitos: llama siempre a `manager.close()` o usa el manager como context manager.
-- Pool habilitado por defecto en `AsyncDatabaseManager`; opcional en `SyncDatabaseManager`.
+- Pool habilitado por defecto en ambos managers (`use_pool=True`); desactivable con `use_pool=False`.
 
 ### Procesamiento de datos
 - Usa `pandas.DataFrame` para operaciones masivas (bulk insert, bulk update, bulk delete).
@@ -331,12 +331,18 @@ Usa [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 feat:     nueva funcionalidad (dentro de scope, no refactor)
-fix:      corrección de bug (hotfix, RCA → fix mínimo)
+fix:      corrección de bug fuera del flujo /hotfix
+hotfix:   corrección urgente P1/P2 del flujo /hotfix (RCA → fix mínimo)
+security: remediación de un hallazgo de /security-review
+perf:     mejora de rendimiento sin cambio funcional (flujos /performance-audit-*)
 refactor: cambio sin impacto funcional
 test:     solo tests, sin cambios de funcionalidad
-docs:     solo documentación (README, docstrings, guías)
+docs:     solo documentación (README, docstrings, guías, configuración IA)
 chore:    mantenimiento (deps, config, herramientas)
+release:  cierre de versión → «release: vX.Y.Z - <resumen>» (/version-closure)
 ```
+
+Scope opcional entre paréntesis con el módulo afectado: `fix(dump): …`, `perf(bulk): …`.
 
 **Ejemplo**:
 ```

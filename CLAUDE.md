@@ -19,82 +19,35 @@ slash commands, hooks de desarrollo y configuración integrada.
 
 ## Slash commands de Claude Code
 
-Usa estos comandos para activar flujos estructurados con automatización integrada:
+Cada command es un envoltorio fino: fija los inputs y remite a su agente y a su prompt de
+`.github/prompts/`, que es el **contrato de salida** (fases, secciones y veredicto). Si la tabla y un
+prompt discrepan, manda el prompt.
 
-| Comando | Propósito | Entrada | Salida |
-|---|---|---|---|
-| `/new-feature` | Nueva funcionalidad | Descripción + módulos | PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION |
-| `/hotfix` | Bug P1/P2 mínimo | Descripción + impacto | RCA → FIX → AUDIT_CODE → VERSION |
-| `/refactor` | Refactor sin cambios funcionales | Área + objetivo | PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE |
-| `/audit-code` | Auditoría técnica independiente | Rutas o cambios | Scope → Findings → Verdict |
-| `/security-review` | Auditoría de seguridad | Áreas críticas | Findings by severity → Remediation |
-| `/tech-debt` | Deuda técnica priorizada | Área o módulo | Findings por severidad → Plan de remediación |
-| `/maturity-assessment` | Evaluación de madurez del repo | Área o evaluación completa | Executive summary → Findings → Maturity verdict |
-| `/performance-audit-bulk` | Auditoría de rendimiento (bulk: INSERT/UPDATE/DELETE) | Módulo + operaciones + escala + BBDD | PLAN → AUDIT_PLAN → AUDIT_CODE → VERSION (con % impacto) |
-| `/performance-audit-dump` | Auditoría de rendimiento (dump: volcado masivo) | Áreas + baseline + BBDD + volumen | 5 fases → informe + roadmap + validación ([guía](./.claude/performance-audit-guide.md)) |
-| `/config-review` | Revisión de configuración IA (DRY, huérfanos, bootstrap) | Modo + foco + ficheros | ANÁLISIS → PLAN → AUDIT_PLAN (IMPLEMENT tras aprobación) |
-| `/version-closure` | Cierre de versión | Sesión completada | Release notes → Changelog → Rollback → Handoff |
+| Comando | Propósito | Prompt (contrato) | Salida | Veredicto |
+|---|---|---|---|---|
+| [`/new-feature`](./.claude/commands/new-feature.md) | Nueva funcionalidad | `new_feature` | PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION | `GO \| GO_CONDICIONAL \| NO_GO` |
+| [`/hotfix`](./.claude/commands/hotfix.md) | Bug P1/P2, fix mínimo | `hotfix` | PLAN → AUDIT_PLAN → IMPLEMENT (RCA + fix) → AUDIT_CODE → VERSION | — |
+| [`/refactor`](./.claude/commands/refactor.md) | Refactor sin cambios funcionales | `refactor` | PLAN → AUDIT_PLAN → IMPLEMENT → AUDIT_CODE → VERSION | `GO \| GO_CONDICIONAL \| NO_GO` |
+| [`/audit-code`](./.claude/commands/audit-code.md) | Auditoría técnica (solo lectura) | `audit_code` | PLAN → AUDIT_PLAN → AUDIT_CODE → VERSION | `APROBADO \| APROBADO CON CONDICIONES \| RECHAZADO` |
+| [`/security-review`](./.claude/commands/security-review.md) | Auditoría de seguridad (solo lectura) | `security_review` | PLAN → AUDIT_PLAN → AUDIT_CODE → VERSION | críticos bloquean el merge |
+| [`/tech-debt`](./.claude/commands/tech-debt.md) | Deuda técnica priorizada | `tech_debt` | PLAN → AUDIT_PLAN → AUDIT_CODE (→ VERSION si se autoriza IMPLEMENT) | `LIMPIO \| DEUDA_MENOR \| DEUDA_SIGNIFICATIVA \| CRÍTICO` |
+| [`/maturity-assessment`](./.claude/commands/maturity-assessment.md) | Madurez del repo (solo lectura) | `maturity_assessment` | PLAN → AUDIT_PLAN → AUDIT_CODE → VERSION | `PRODUCTION_READY \| NEAR_READY \| BLOCKED` |
+| [`/performance-audit-bulk`](./.claude/commands/performance-audit-bulk.md) | Rendimiento de `bulk/` (INSERT/UPDATE/DELETE) | `performance_audit_bulk` | PLAN → AUDIT_PLAN → AUDIT_CODE → VERSION (impacto %) | `CRÍTICO \| SIGNIFICATIVO \| MODERADO \| LIMPIO` |
+| [`/performance-audit-dump`](./.claude/commands/performance-audit-dump.md) | Rendimiento de `dump/` (volcado) | `performance_audit_dump` + `performance_audit_dump_agent` | 5 fases → informe + roadmap (+ validación) | — |
+| [`/config-review`](./.claude/commands/config-review.md) | Configuración IA (DRY, huérfanos, bootstrap) | `config_review` | ANÁLISIS → PLAN → AUDIT_PLAN (→ IMPLEMENT → AUDIT_CODE → VERSION tras aprobación) | `GO \| GO_CONDICIONAL \| NO_GO` |
+| [`/version-closure`](./.claude/commands/version-closure.md) | Cierre de versión o sesión | `version_closure` | Commit → Changelog → API → Migraciones → Compatibilidad → Rollback → Checklist → Directrices | — |
 
-### `/performance-audit-bulk` — Auditoría de Rendimiento (Módulo Bulk)
+Invocación: escribe el command y, debajo, los inputs de su prompt. Ejemplo:
 
-Usa este comando para auditar el módulo `src/util_bbdd/bulk/` (carga masiva: INSERT/UPDATE/DELETE).
-
-- **Agente especializado**: [@Performance Auditor](./.github/agents/performance-auditor.agent.md)
-- **Guía completa**: [`.claude/commands/performance-audit-bulk.md`](./.claude/commands/performance-audit-bulk.md)
-- **Prompt de referencia**: [`.github/prompts/performance_audit_bulk.prompt.md`](./.github/prompts/performance_audit_bulk.prompt.md)
-
-**10 áreas auditadas**: Batching | Paralelización | Normalización SQL | Conexiones | Auditoría integrada | Memoria | SQL generation | DB-specific | PK sync | Validation
-
-**Duración estimada**: 4–8 horas (puede dividirse en 2 sesiones de 2–4 hrs c/u)
-
-**Inputs OBLIGATORIOS** (completa TODOS):
-- Objetivo: `batching` | `paralelización` | `SQL` | `conexiones` | `auditoría` | `memoria` | `todas`
-- Baseline: ¿tienes benchmark? (sí/no)
-- Dialects: `PostgreSQL` | `MySQL` | `Oracle` | `SQL Server` | `SQLite` | `todas`
-- Volumen: `1K` | `100K` | `1M` | `otro`
-- Timeline: `ASAP` | `próxima semana` | `flexible`
-- Validación post-audit: sí/no
-
-**Ejemplo de invocación**:
-
-```
+```text
 /performance-audit-bulk
 
-Objetivo: Auditar rendimiento del módulo bulk (carga masiva de datos)
-
-Alcance: src/util_bbdd/bulk/ — todas las clases y funciones
-
-Inputs requeridos:
-  - Objetivo: paralelización + batching
-  - Baseline: no (ejecutar benchmark primero)
-  - Dialects: PostgreSQL + MySQL + SQL Server
-  - Volumen: 100K registros típicos
-  - Timeline: ASAP
-  - Validación: sí
-
-Puedes consultar internet para best practices y benchmarks.
-```
-
-**Outputs generados**:
-- `audit_report_bulk_YYYYMMDD.md` — Hallazgos detallados por severidad
-- `improvement_roadmap_bulk.md` — Roadmap P0/P1/P2 con timeline
-- `validation_report_YYYYMMDD.md` — Benchmark before/after (opcional)
-
----
-
-**Ejemplo de uso** (otros comandos):
-
-```
-/new-feature
-
-Objetivo: Añadir exportación a Parquet en el volcado masivo (dump/)
-
-Alcance: src/util_bbdd/dump/ (writer nuevo), tests/unit/dump/ (tests nuevos)
-
-Restricciones:
-  - Mantener compatibilidad con los formatos de salida existentes
-  - Usar pandas.DataFrame.to_parquet()
-  - Documentación en docstrings + ejemplo en docs/examples/
+Objetivo: paralelización + batching
+Baseline: no (ejecutar benchmark primero)
+Dialects: PostgreSQL + MySQL + SQL Server
+Volumen: 100K registros
+Timeline: ASAP
+Validación: sí
 ```
 
 ---
@@ -151,80 +104,6 @@ cp .claude/settings.json.example .claude/settings.json
 Si cambias los hooks, edita la plantilla `settings.json.example` y vuelve a copiarla. Los hooks de
 `settings.local.json` se **suman** a los de `settings.json`: no copies la plantilla en ambos
 (los hooks correrían dos veces).
-
----
-
-## Flujo estructurado de Claude Code
-
-Cada slash command activa un flujo completo con fases definidas:
-
-### `/new-feature`
-```
-Fase 1: PLAN → Analizar objetivo, alcance, riesgos, candidatos para cambio
-Fase 2: AUDIT_PLAN → Verificar plan, detectar expansion, validar viabilidad
-Fase 3: IMPLEMENT → Aplicar cambios, actualizar tests, ejecutar suite
-Fase 4: AUDIT_CODE → Revisión independiente de calidad
-Fase 5: VERSION → Changelog, commit message, rollback documentation
-```
-
-### `/hotfix`
-```
-Fase 1: RCA (Root Cause Analysis) → Identificar causa raíz del bug
-Fase 2: FIX → Aplicar fix mínimo acotado (NO refactorizar)
-Fase 3: AUDIT_CODE → Verificar fix, edge cases, pruebas
-Fase 4: VERSION → Changelog, commit, rollback steps
-Restricción: No refactorizar ni optimizar; solo fix
-```
-
-### `/audit-code`
-```
-Fase 1: Scope → Identificar archivos y responsabilidades
-Fase 2: Findings → Hallazgos verificables (bugs, edge cases, contratos rotos)
-Fase 3: Verdict → APROBADO | APROBADO CON CONDICIONES | RECHAZADO
-Nota: Modo lectura; no edita código. Entrega hallazgos y recomendaciones.
-```
-
-### `/tech-debt`
-```
-Fase 1: Scope → Identificar módulo o área con deuda acumulada
-Fase 2: Findings → Clasificar deuda por severidad (alta / media / baja)
-Fase 3: Plan → Ordenar por impacto/esfuerzo, proponer remediaciones acotadas
-Nota: No aplica cambios; entrega plan de trabajo priorizado.
-```
-
-### `/maturity-assessment`
-```
-Fase 1: Scope → Inventariar estructura, contratos, tests y docs del repo
-Fase 2: Findings → Evaluar madurez por área (arquitectura, tipado, cobertura, seguridad)
-Fase 3: Verdict → Maturity level + blockers para publicación
-Nota: Solo lectura; no edita código.
-```
-
-### `/performance-audit-bulk`
-```
-Fase 1: PLAN → Mapea flujo actual de carga + cuellos de botella teóricos + estrategia de benchmark
-Fase 2: AUDIT_PLAN → Valida viabilidad de mejoras, pruebas, orden de ejecución
-Fase 3: AUDIT_CODE → Hallazgos por severidad con impacto% estimado, evidencia, remediación
-Fase 4: VERSION → Quick wins + fases de implementación + métricas de éxito
-Nota: Audita rendimiento de carga masiva (INSERT/UPDATE/DELETE) en módulo bulk.
-Puedes consultar internet para benchmarks y best practices.
-```
-
-### `/config-review`
-```
-Fase 1: ANÁLISIS → Clasificar reglas (shared, <plataforma>-only, duplicado, divergente, huérfano)
-Fase 2: PLAN → Mapa de migración origen → destino
-Fase 3: AUDIT_PLAN → GO | GO_CONDICIONAL | NO_GO; se detiene hasta aprobación
-Nota: Solo lectura; aplica Feature Implementer. Modo bootstrap para proyectos destino.
-```
-
-### `/version-closure`
-```
-Fase 1: Resumen → Consolidar todos los cambios de la sesión
-Fase 2: Validación → Checklist de .github/instructions/sync.instructions.md (CHANGELOG, pyproject, zensical build)
-Fase 3: Handoff → Release notes, commit message, rollback strategy;
-         poblar ## Directrices para Futuras IAs en .ai/sessions/*/TRACEABILITY.md
-```
 
 ---
 

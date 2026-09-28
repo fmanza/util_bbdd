@@ -2,57 +2,21 @@
 
 Auditoría de seguridad independiente. Hallazgos verificables, ordenados por severidad.
 
-## Revisar
-- validación de inputs
-- SQL injection y parametrización
-- manejo de credenciales y secretos
-- fuga de información en logs/errores
-- superficies de ataque por configuración o documentación generada
-- contratos sync/async y manejo de recursos
+## Contexto obligatorio
 
-## Devuelve en este orden
+Lee y aplica, en este orden:
+1. `.github/prompts/security_review.prompt.md` — inputs, contrato de salida y reglas
+2. `.github/agents/security-reviewer.agent.md` — rol y restricciones
 
-### PLAN
-- alcance de la revisión
-- archivos y módulos analizados
+## Reglas de ejecución
 
-### AUDIT_PLAN
-- hipótesis de riesgo priorizadas
-
-### AUDIT_CODE
-- hallazgos por severidad (crítico / alto / medio / bajo)
-- evidencia concreta (archivo, línea)
-- remediación accionable por hallazgo
-- supuestos y datos faltantes etiquetados
-
-### VERSION
-- commit message (si hay cambios; formato: `security: <descripción>`)
-- checklist de validación post-remediación
+- Modo lectura; las remediaciones se aplican después con `/hotfix` o `/new-feature` y commit `security:`.
 
 ## Ejemplo de entrada
 
-```
+```text
+/security-review
+
 Áreas: src/util_bbdd/doc/, src/util_bbdd/analysis/
-
-Revisar: Fuga de secretos, SQL injection, exposición de datos sensibles
-```
-
-## Ejemplo de salida esperada (AUDIT_CODE)
-
-```markdown
-## AUDIT_CODE - Hallazgos por severidad
-
-### 🔴 Crítico (bloquea publicación)
-- `html_generator.py:203`: SQL query con interpolación directa (SQL injection)
-  - Remediación: Usar parámetros
-
-### 🟠 Alto
-- `render.py:145`: Logs incluyen valores de tabla (PII potencial)
-  - Remediación: Sanitizar logs
-
-### 🟡 Medio
-- Documentación generada expone nombres de credentials en ejemplos
-  - Remediación: Usar placeholders
-
-**Veredicto**: RECHAZADO hasta fijar 🔴 Crítico
+Foco: fuga de secretos, SQL injection, exposición de datos sensibles
 ```
