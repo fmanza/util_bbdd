@@ -72,6 +72,29 @@ def test_sha256_checksum_file_is_written_alongside_zip(tmp_path: Path) -> None:
     assert len(content.split()[0]) == 64  # longitud de un hash SHA256 en hexadecimal
 
 
+def test_generated_zip_includes_offline_server_and_readme(tmp_path: Path) -> None:
+    site_dir = _make_fake_site(tmp_path)
+
+    DocumentationZipPlugin().on_post_build({"site_dir": str(site_dir)})
+
+    with zipfile.ZipFile(site_dir / "util_bbdd-docs-latest.zip") as zipf:
+        names = set(zipf.namelist())
+    assert {"start-server.py", "README_OFFLINE.txt"} <= names
+
+
+def test_zip_from_a_previous_build_is_not_packaged_again(tmp_path: Path) -> None:
+    # Zensical no vacía site/ entre builds: el ZIP y el .sha256 del build anterior siguen ahí.
+    site_dir = _make_fake_site(tmp_path)
+    (site_dir / "util_bbdd-docs-latest.zip").write_bytes(b"zip anterior")
+    (site_dir / "util_bbdd-docs-latest.zip.sha256").write_text("hash anterior", encoding="utf-8")
+
+    DocumentationZipPlugin().on_post_build({"site_dir": str(site_dir)})
+
+    with zipfile.ZipFile(site_dir / "util_bbdd-docs-latest.zip") as zipf:
+        names = zipf.namelist()
+    assert not any(name.startswith("util_bbdd-docs-") for name in names)
+
+
 def test_missing_site_dir_does_not_raise(tmp_path: Path) -> None:
     plugin = DocumentationZipPlugin()
 

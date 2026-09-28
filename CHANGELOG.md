@@ -42,6 +42,14 @@ instrucciones de los asistentes (Claude Code, Copilot, Gemini, Codex, Cursor).
 - **ci/docs**: el job `deploy` de `.github/workflows/docs.yml` publicaba `./site` sin construirlo (cada job corre en una
   máquina nueva y `site/` está en `.gitignore`), así que GitHub Pages no se actualizaba desde `11fb9f8` (2026-06-04).
   Ahora ejecuta `zensical build` antes de publicar; `tests/unit/test_docs_workflow.py` lo vigila.
+- **docs (ZIP offline)**: el ZIP de GitHub Releases (`scripts/build_docs_zip.py`) no incluía `start-server.py` ni
+  `README_OFFLINE.txt`, que `docs/downloads.md` pide usar para la búsqueda offline; ahora el script y el plugin
+  `documentation_zip` empaquetan con la misma función (`docs_build_plugin.build_offline_zip`), que además no vuelve a
+  incluir el ZIP de un build anterior. El sitio publicado incluye `util_bbdd-docs-latest.zip` (Zensical no ejecuta el
+  plugin: lo añade `build_docs_zip.py --in-site` en el job `deploy`). `downloads.md` usa los nombres reales
+  (`util_bbdd-docs-<versión>.zip`) y los comandos que generan el ZIP.
+- **ci/docs**: `.github/workflows/docs-zip-release.yml` no era YAML válido desde `c14ed54` (un `name:` sin comillas
+  con «: » dentro) y GitHub no llegaba a ejecutarlo; un test valida el YAML de todos los workflows.
 
 ### Removed
 

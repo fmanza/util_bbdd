@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 """Build the documentation site and package it as a ZIP for offline distribution.
 
+The ZIP holds site/ plus the local server (start-server.py) and README_OFFLINE.txt, packaged with the same
+function as the MkDocs plugin (util_bbdd.docs_build_plugin.build_offline_zip); Zensical does not run that plugin.
+
 Usage:
     python scripts/build_docs_zip.py
     python scripts/build_docs_zip.py --builder mkdocs
     python scripts/build_docs_zip.py --no-build          # only zip an existing site/
     python scripts/build_docs_zip.py --output-dir /tmp
+    python scripts/build_docs_zip.py --no-build --in-site # site/util_bbdd-docs-latest.zip, published with the site
 """
 
 from __future__ import annotations
 
 import argparse
 import hashlib
-import shutil
 import subprocess
 import sys
 import tomllib
@@ -23,6 +26,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SITE_DIR = ROOT / "site"
 PYPROJECT = ROOT / "pyproject.toml"
+
+sys.path.insert(0, str(ROOT / "src"))
+from util_bbdd.docs_build_plugin import SITE_ZIP_NAME, build_offline_zip  # noqa: E402
 
 
 def _version() -> str:
@@ -40,11 +46,19 @@ def _build(builder: str, strict: bool) -> None:
         sys.exit(result.returncode)
 
 
-def _zip(output_dir: Path, version: str) -> Path:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    zip_stem = output_dir / f"util_bbdd-docs-{version}"
-    archive = Path(shutil.make_archive(str(zip_stem), "zip", SITE_DIR))
+def _zip(site_dir: Path, output_dir: Path, version: str) -> Path:
+    archive = output_dir / f"util_bbdd-docs-{version}.zip"
+    build_offline_zip(site_dir, archive)
     print(f"[build_docs_zip] Created: {archive}")
+    return archive
+
+
+def _zip_in_site(site_dir: Path) -> Path:
+    """ZIP + .sha256 inside site/ so the published site offers the download (no CHECKSUMS.txt history)."""
+    archive = site_dir / SITE_ZIP_NAME
+    sha256_hash = build_offline_zip(site_dir, archive)
+    archive.with_suffix(".zip.sha256").write_text(f"{sha256_hash}  {archive.name}\n", encoding="utf-8")
+    print(f"[build_docs_zip] Created inside site: {archive} (SHA256 {sha256_hash})")
     return archive
 
 
@@ -109,6 +123,12 @@ def main() -> None:
         metavar="DIR",
         help="Directory for the output ZIP (default: dist/)",
     )
+    parser.add_argument(
+        "--in-site",
+        action="store_true",
+        default=False,
+        help=f"Write site/{SITE_ZIP_NAME} (+ .sha256) instead of the versioned ZIP in --output-dir",
+    )
     args = parser.parse_args()
 
     if not args.no_build:
@@ -117,8 +137,12 @@ def main() -> None:
         print(f"[build_docs_zip] ERROR: {SITE_DIR} does not exist. Run without --no-build first.", file=sys.stderr)
         sys.exit(1)
 
+    if args.in_site:
+        _zip_in_site(SITE_DIR)
+        return
+
     output_dir = Path(args.output_dir) if Path(args.output_dir).is_absolute() else ROOT / args.output_dir
-    archive = _zip(output_dir, _version())
+    archive = _zip(SITE_DIR, output_dir, _version())
     _create_checksum_files(archive)
 
 

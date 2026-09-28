@@ -78,6 +78,10 @@ jobs:
         env:
           PYTHONPATH: src
 
+      # Zensical no ejecuta el plugin documentation_zip: el ZIP offline se añade al sitio aparte.
+      - name: Add offline ZIP to site
+        run: python scripts/build_docs_zip.py --no-build --in-site
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:

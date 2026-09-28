@@ -20,14 +20,17 @@ La documentación completa está disponible como un archivo ZIP comprimido que p
 
 ## 🔗 Descarga Actual
 
-| Versión | Tamaño | Checksum | Fecha |
-|---|---|---|---|
-| [util_bbdd-docs-latest.zip](https://github.com/fmanza/util_bbdd/releases/latest) | ~2.5 MB | [.sha256](https://github.com/fmanza/util_bbdd/releases/latest) | 2026-06-06 |
+| Origen | Fichero | Checksum |
+|---|---|---|
+| GitHub Releases (por versión) | `util_bbdd-docs-<versión>.zip` en [releases](https://github.com/fmanza/util_bbdd/releases) (tag `docs-v<versión>`) | `util_bbdd-docs-<versión>.zip.sha256` en la misma release |
+| Este sitio (última publicada) | [util_bbdd-docs-latest.zip](https://fmanza.github.io/util_bbdd/util_bbdd-docs-latest.zip) | [util_bbdd-docs-latest.zip.sha256](https://fmanza.github.io/util_bbdd/util_bbdd-docs-latest.zip.sha256) |
+
+Los dos ZIP tienen el mismo contenido (documentación, `start-server.py` y `README_OFFLINE.txt`).
 
 **Cómo usar**
 
 1. Descarga el ZIP desde el link superior
-2. Extrae los archivos: `unzip util_bbdd-docs-latest.zip`
+2. Extrae los archivos: `unzip util_bbdd-docs-<versión>.zip` (o `util_bbdd-docs-latest.zip`)
 3. Elige una opción:
 
 **Opción A (Recomendada - Búsqueda completa)**
@@ -63,35 +66,35 @@ El archivo `.sha256` adjunto contiene el hash de integridad del ZIP. Descarga am
 ### Método 1: Terminal (Linux/macOS)
 
 ```bash
-# Descargar ZIP y checksum
-wget https://github.com/fmanza/util_bbdd/releases/download/docs-vX.X.X/util_bbdd-docs-latest.zip
-wget https://github.com/fmanza/util_bbdd/releases/download/docs-vX.X.X/util_bbdd-docs-latest.zip.sha256
+# Descargar ZIP y checksum (sustituye X.Y.Z por la versión)
+wget https://github.com/fmanza/util_bbdd/releases/download/docs-vX.Y.Z/util_bbdd-docs-X.Y.Z.zip
+wget https://github.com/fmanza/util_bbdd/releases/download/docs-vX.Y.Z/util_bbdd-docs-X.Y.Z.zip.sha256
 
 # Validar con el archivo checksum
-sha256sum -c util_bbdd-docs-latest.zip.sha256
-# Salida esperada: util_bbdd-docs-latest.zip: OK ✅
+sha256sum -c util_bbdd-docs-X.Y.Z.zip.sha256
+# Salida esperada: util_bbdd-docs-X.Y.Z.zip: OK ✅
 ```
 
 ### Método 2: PowerShell (Windows)
 
 ```powershell
 # Opción A: Calcular SHA256 del ZIP y comparar manualmente
-(Get-FileHash util_bbdd-docs-latest.zip -Algorithm SHA256).Hash
+(Get-FileHash util_bbdd-docs-X.Y.Z.zip -Algorithm SHA256).Hash
 
-# Luego, abre util_bbdd-docs-latest.zip.sha256 y compara el valor
+# Luego, abre util_bbdd-docs-X.Y.Z.zip.sha256 y compara el valor
 # Si coinciden: ✅ Archivo íntegro
 
 # Opción B: Script automático
-$hash = (Get-FileHash util_bbdd-docs-latest.zip -Algorithm SHA256).Hash
-$checksum = (Get-Content util_bbdd-docs-latest.zip.sha256).Split()[0]
+$hash = (Get-FileHash util_bbdd-docs-X.Y.Z.zip -Algorithm SHA256).Hash
+$checksum = (Get-Content util_bbdd-docs-X.Y.Z.zip.sha256).Split()[0]
 if ($hash -eq $checksum) { Write-Host "✅ Integridad verificada" } else { Write-Host "❌ Checksum no coincide" }
 ```
 
 ### Método 3: macOS (con shasum)
 
 ```bash
-shasum -a 256 -c util_bbdd-docs-latest.zip.sha256
-# Salida esperada: util_bbdd-docs-latest.zip: OK ✅
+shasum -a 256 -c util_bbdd-docs-X.Y.Z.zip.sha256
+# Salida esperada: util_bbdd-docs-X.Y.Z.zip: OK ✅
 ```
 
 ---
@@ -99,22 +102,21 @@ shasum -a 256 -c util_bbdd-docs-latest.zip.sha256
 ## 📋 Contenido del ZIP
 
 ```
-util_bbdd-docs-latest.zip
+util_bbdd-docs-X.Y.Z.zip
+├── start-server.py                 # Servidor local (búsqueda offline)
+├── README_OFFLINE.txt              # Instrucciones de uso sin conexión
 ├── index.html                      # Página de inicio
-├── INSTALLATION.html               # Guía de instalación
+├── installation/index.html         # Guía de instalación
 ├── api/
-│   ├── managers_sync.html
-│   ├── managers_async.html
-│   ├── bulk_crud.html
-│   └── ... (30+ referencias técnicas)
+│   ├── managers_sync/index.html
+│   ├── bulk_crud/index.html
+│   └── ... (referencias técnicas)
 ├── functional/
-│   ├── managers_sync.html
-│   ├── bulk_operations.html
-│   └── ... (25+ guías funcionales)
+│   ├── bulk_operations/index.html
+│   └── ... (documentación funcional)
 ├── examples/
-│   ├── bulk-insert-csv.html
-│   ├── schema_comparison.html
-│   └── ... (15+ ejemplos prácticos)
+│   ├── bulk_insert_csv/index.html
+│   └── ... (ejemplos prácticos)
 ├── css/
 │   ├── material.css               # Tema Material Design 3
 │   ├── mermaid.css
@@ -133,24 +135,21 @@ util_bbdd-docs-latest.zip
 
 ### Generar ZIP Localmente
 
-El ZIP se genera **automáticamente** durante el build de documentación a través del plugin `DocumentationZipPlugin`.
+Zensical (el generador de CI) **no ejecuta plugins de MkDocs**, así que el ZIP se genera con
+`scripts/build_docs_zip.py`, que empaqueta igual que el plugin `DocumentationZipPlugin` (misma función):
 
 ```bash
-# Opción 1: Con MkDocs (recomendado)
+# ZIP versionado, como el de GitHub Releases → dist/util_bbdd-docs-<versión>.zip (+ .sha256 y CHECKSUMS.txt)
+python scripts/build_docs_zip.py
+
+# ZIP dentro del sitio, como el publicado → site/util_bbdd-docs-latest.zip (+ .sha256)
+zensical build && python scripts/build_docs_zip.py --no-build --in-site
+
+# Con MkDocs, el plugin lo genera en el propio build → site/util_bbdd-docs-latest.zip (+ .sha256)
 python -m mkdocs build
-# → Genera: site/util_bbdd-docs-latest.zip
-
-# Opción 2: Con Zensical
-zensical build
-# → Genera: site/util_bbdd-docs-latest.zip
-
-# Opción 3: VS Code Task (Ctrl+Shift+P)
-Run Task → "build"
 ```
 
-**Output**: `site/util_bbdd-docs-latest.zip` (generado automáticamente)
-
-El archivo ZIP incluye automáticamente:
+El archivo ZIP incluye:
 - Documentación HTML renderizada
 - Servidor local (`start-server.py`) para búsqueda offline
 - Instrucciones README (`README_OFFLINE.txt`)
@@ -170,7 +169,8 @@ sha256sum site/util_bbdd-docs-latest.zip
 
 ### Plugin de Documentación
 
-El ZIP se genera mediante el plugin `DocumentationZipPlugin` integrado en `mkdocs.yml`:
+Con `mkdocs build`, el ZIP lo genera el plugin `DocumentationZipPlugin` declarado en `mkdocs.yml`
+(con Zensical, `scripts/build_docs_zip.py`):
 
 ```ini
 [project.entry-points."mkdocs.plugins"]
