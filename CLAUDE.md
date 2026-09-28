@@ -78,15 +78,14 @@ Lee [`.claude/README.md`](./.claude/README.md) para detalles completos sobre hoo
 
 ```
 .claude/
-  settings.json.example   ← Plantilla VERSIONADA de hooks PostToolUse: ruff, mypy, pytest (recogida)
-  settings.json           ← Copia local de la plantilla (git-ignored)
-  settings.local.json     ← Personalización local adicional (git-ignored)
+  settings.json           ← Hooks PostToolUse compartidos (versionado): ruff, mypy, pytest (recogida)
+  settings.local.json     ← Permisos y ajustes personales (git-ignored)
   commands/               ← Slash commands personalizados
   EDGE_CASES.md           ← Casos límite conocidos en el proyecto
   TESTING_GUIDE.md        ← Guía de testing con PostToolUse
 ```
 
-**Hooks de la plantilla** (tras cada `Edit`/`Write`; informativos, no bloquean):
+**Hooks de `.claude/settings.json`** (tras cada `Edit`/`Write`; informativos, no bloquean):
 
 1. `ruff check src tests` — linting
 2. `mypy src` — type-checking rápido (el completo está en «Comandos de desarrollo»)
@@ -96,15 +95,10 @@ Los hooks **no** aplican formato ni ejecutan la suite: antes de cerrar IMPLEMENT
 `ruff format`, el `mypy` completo y `pytest` con los comandos de `.github/SHARED_INSTRUCTIONS.md`
 § «Comandos de desarrollo», e itera si fallan.
 
-**Instalación en un clon nuevo** (`settings.json` no se versiona):
-
-```bash
-cp .claude/settings.json.example .claude/settings.json
-```
-
-Si cambias los hooks, edita la plantilla `settings.json.example` y vuelve a copiarla. Los hooks de
-`settings.local.json` se **suman** a los de `settings.json`: no copies la plantilla en ambos
-(los hooks correrían dos veces).
+**Qué va en cada fichero**: `settings.json` se versiona y contiene **solo** los hooks compartidos;
+los permisos («no volver a preguntar») y cualquier ajuste personal van a `settings.local.json`, que
+Claude Code usa por defecto para las aprobaciones. No añadas permisos de sesión a `settings.json`.
+Los hooks de `settings.local.json` se **suman** a los de `settings.json` (no los copies en ambos).
 
 ---
 

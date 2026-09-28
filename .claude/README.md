@@ -8,17 +8,11 @@ en [`CLAUDE.md`](../CLAUDE.md).
 
 ## Archivos
 
-### `settings.json.example` → `settings.json`
+### `settings.json` (versionado)
 
-`settings.json.example` es la plantilla **versionada** de hooks; `settings.json` está en `.gitignore`,
-así que en cada clon hay que copiarla:
-
-```bash
-cp .claude/settings.json.example .claude/settings.json
-```
-
-Si cambias los hooks, edita la plantilla y vuelve a copiarla. Hooks `PostToolUse` (tras cada
-`Edit`/`Write`), informativos (su salida se pasa por `head`/`tail`, así que no bloquean):
+Configuración compartida del proyecto: contiene **solo** los hooks `PostToolUse` (tras cada
+`Edit`/`Write`), informativos (su salida se pasa por `head`/`tail`, así que no bloquean). No añadas
+aquí permisos de sesión ni rutas personales: van a `settings.local.json`.
 
 - `python -m ruff check src tests --quiet` — linting
 - `python -m mypy src --no-error-summary` — type-checking rápido
@@ -29,8 +23,9 @@ No sustituyen a la validación de IMPLEMENT: ejecuta los comandos de
 
 ### `settings.local.json` (no versionado)
 
-Personalización local adicional, ignorada por git. Claude Code **suma** sus hooks a los de
-`settings.json`: no copies aquí la plantilla (los hooks correrían dos veces) ni esperes que un hook
+Permisos («no volver a preguntar», que Claude Code guarda aquí por defecto) y ajustes personales,
+ignorados por git. Claude Code **suma** sus hooks a los de
+`settings.json`: no copies aquí sus hooks (correrían dos veces) ni esperes que un hook
 local sustituya a uno de `settings.json`. Úsalo para permisos o hooks **adicionales**.
 
 Para desactivar temporalmente todos los hooks en tu máquina: `"disableAllHooks": true` en

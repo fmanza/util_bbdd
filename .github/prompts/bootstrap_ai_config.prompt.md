@@ -45,7 +45,7 @@ Fase: PLAN y AUDIT_PLAN únicamente.   # o "completa" para llegar hasta VERSION
 |---|---|---|
 | `.github/agents/` | `.github/agents/` | verbatim (revisar comandos embebidos) |
 | `.github/prompts/` | `.github/prompts/` | verbatim (revisar comandos embebidos) |
-| `.claude/commands/` + `COMMAND_TEMPLATE.md` + `settings.json.example` | `.claude/` | verbatim (adaptar hooks; en el destino se copia `settings.json.example` → `settings.json`) |
+| `.claude/commands/` + `COMMAND_TEMPLATE.md` + `settings.json` (solo hooks) | `.claude/` | verbatim (adaptar los comandos de los hooks al destino) |
 | `.ai/sessions/TEMPLATE/` | `.ai/sessions/TEMPLATE/` | verbatim |
 | `.github/SHARED_INSTRUCTIONS.md` | idem | copiar + reescribir dominio |
 | `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.github/AGENTS.md`, `.cursorrules` | idem | copiar + reescribir dominio |
@@ -97,7 +97,7 @@ Clasifica **cada** activo IA del origen en una de estas cuatro capas:
 
 - `.github/agents/*.agent.md`
 - `.github/prompts/*.prompt.md` (incluido este), salvo los de dominio de la capa D
-- `.claude/commands/*.md`, `.claude/COMMAND_TEMPLATE.md`, `.claude/settings.json.example`
+- `.claude/commands/*.md`, `.claude/COMMAND_TEMPLATE.md`, `.claude/settings.json` (solo hooks; adaptar comandos)
 - `.ai/sessions/TEMPLATE/`
 
 Los commands son envoltorios finos: el contrato de salida vive en el prompt gemelo, así que se copian
@@ -142,7 +142,7 @@ siempre por pares (`.claude/commands/<x>.md` ↔ `.github/prompts/<x>.prompt.md`
 - `.ai/sessions/<fechas>/` (todo lo que no sea `TEMPLATE/`)
 - `CHANGELOG.md`, `COMPATIBILITY.md`, notas de migración específicas del origen
 - `.coverage`, `coverage.xml`, `.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/`, `site/`, `build/`, `dist/`
-- `.claude/settings.local.json` y `.claude/settings.json` (configuración local, git-ignored)
+- `.claude/settings.local.json` (permisos y ajustes personales, git-ignored)
 - Auditorías de dominio del origen: `performance_audit_{bulk,dump,constraints}*.prompt.md`,
   `code_reusability_architecture*.prompt.md`, `.claude/commands/performance-audit-*.md` y
   `.claude/performance-audit-guide.md` (salvo que el destino tenga módulos equivalentes)
@@ -293,8 +293,8 @@ Este enlace facilita navegación y retroalimentación de IA (agentes pueden vali
 
 ---
 
-Copia únicamente `.claude/settings.json.example` y adapta los comandos a las herramientas del destino.
-No copies `settings.json` del origen (apunta a herramientas Python). Sustituye según la matriz:
+Copia `.claude/settings.json` (solo contiene hooks) y **sustituye** sus comandos, que apuntan a
+herramientas Python, por los del destino según la matriz. Nunca copies `settings.local.json`:
 
 | Rol | Origen (Python) | Destino (ejemplo TS/Node) |
 |---|---|---|
