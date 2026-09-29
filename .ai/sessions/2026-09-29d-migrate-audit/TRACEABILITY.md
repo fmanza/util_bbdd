@@ -51,6 +51,14 @@
   por `_emit_indexes` de PG (reserva tablas, vistas y PK) y Oracle (reserva PK, compara en mayúsculas); el que choca
   pasa a `<tabla>_<índice>` truncado (`_2`... si aún choca) con aviso en `table.warnings` (sin mutar el IR: emitir
   dos veces da lo mismo). e2e 20/20; `tests/unit/migrate/test_index_names.py` (8).
+- **Hotfix A4**: comprobación previa en el banco (`a4_catalog_defaults.py`): MariaDB devuelve `COLUMN_DEFAULT` como
+  literal con escapes (`\\`, `\n`, `''`); MySQL devuelve el valor crudo; los comentarios, crudos en ambos. Misma causa
+  con dos caras. Test-first: columna `ruta` con DEFAULT y comentario `C:\datos\x'q` en `zzvw_autoinc` → 11 pares
+  fallan (hacia MySQL/MariaDB se pierde la barra; desde MariaDB hacia PG/SS/Oracle llega duplicada). Fix:
+  `default_normalizer._decode_mariadb_literal` (origen MariaDB → forma canónica) y `emitters/mariadb._mysql_text` /
+  `_format_default` (escapan `\` en DEFAULT y comentarios de tabla/columna). e2e 20/20;
+  `tests/unit/migrate/test_backslash_literals.py` (16). Los extractores de PostgreSQL y SQL Server no leen comentarios
+  (limitación v1 documentada): el e2e solo comprueba comentarios desde MySQL/MariaDB/Oracle.
 
 ## Artefactos generados
 | Artefacto | Ruta | Estado |
@@ -62,6 +70,8 @@
 | Tests A2 | `tests/unit/migrate/test_emitter_oracle.py`, `tests/integration/test_migrate_views_e2e.py` | completado |
 | Hotfix A3 | `src/util_bbdd/migrate/emitters/_index_names.py`, `emitters/postgresql.py`, `emitters/oracle.py` | completado |
 | Tests A3 | `tests/unit/migrate/test_index_names.py`, `tests/integration/test_migrate_views_e2e.py` | completado |
+| Hotfix A4 | `src/util_bbdd/migrate/_compat/default_normalizer.py`, `src/util_bbdd/migrate/emitters/mariadb.py` | completado |
+| Tests A4 | `tests/unit/migrate/test_backslash_literals.py`, `tests/integration/test_migrate_views_e2e.py`, `a4_catalog_defaults.py` | completado |
 | Docs A1 | `docs/guides/ddl_migration_guide.md` §3.4, `CHANGELOG.md` | completado |
 
 ## Directrices para Futuras IAs
@@ -77,8 +87,12 @@
 - **[migrate/emitters]**: espacios de nombres del destino: en PostgreSQL índices, tablas, vistas y secuencias son
   «relations» del schema; en Oracle los índices tienen su propio espacio por schema (una PK crea un índice con el nombre
   de la constraint). MySQL/MariaDB/SQL Server: nombre de índice por tabla. Lo resuelve `claim_index_name` al emitir.
-- **[migrate/emitters]**: pendientes de la auditoría: A4 (escapar `\` en MariaDB/MySQL), A6 (límite en
-  bytes), A8, A9.
+- **[migrate/literales]**: forma canónica de un DEFAULT de texto = literal SQL estándar (solo `''`). MariaDB la rompe
+  en su catálogo (escapes de barra): se decodifica en `normalize_default`; MySQL devuelve el valor crudo. Los emisores
+  de MariaDB/MySQL escapan la barra (`sql_mode` con `NO_BACKSLASH_ESCAPES` en el destino la duplicaría: no soportado).
+- **[herramientas]**: el Bash tool pierde un nivel de `\` en heredocs y scripts en línea; para código o SQL con barras
+  invertidas, escribir el fichero con Write/Edit.
+- **[migrate/emitters]**: pendientes de la auditoría (no bloqueantes): A6 (límite en bytes), A8, A9.
 
 ## Veredicto final
-Veredicto: A1, A2 y A3 corregidos (GO); auditoría de migrate/ RECHAZADO hasta corregir A4 (sesión IN_PROGRESS)
+Veredicto: A1–A4 corregidos (GO); auditoría de migrate/ → condiciones cumplidas; pendientes no bloqueantes A6, A8, A9 (sesión IN_PROGRESS)
