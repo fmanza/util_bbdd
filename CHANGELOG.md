@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **migrate**: con origen SQL Server, la definición de las vistas llegaba con su cabecera `CREATE VIEW ... AS` (se
+  emitía `CREATE OR ALTER VIEW v AS CREATE VIEW v AS ...`) y truncada a 4000 caracteres, también en SQL Server 2022
+  (`INFORMATION_SCHEMA.VIEWS`). Ahora se lee con `OBJECT_DEFINITION` y sin cabecera; el plan avisa si la cabecera
+  declaraba columnas o si la definición no está disponible (`WITH ENCRYPTION`, sin permiso) (H7).
+
 ## [0.19.0] - 2026-09-29
 
 MySQL pasa a ser un motor propio (`db_type="mysql"`) con PyMySQL (sync) y aiomysql (async); MariaDB sigue con

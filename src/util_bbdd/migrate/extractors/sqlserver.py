@@ -30,6 +30,7 @@ from ...metadata.sqlserver.tables import (
     fetch_view_columns_sql,
     fetch_views_sql,
 )
+from .._compat.sql_view_header import split_create_view_header
 from ..ir.models import (
     CanonicalColumn,
     CanonicalFK,
@@ -158,9 +159,8 @@ class SQLServerSchemaExtractor:
     def extract_views(self, schema: str) -> list[CanonicalView]:
         """Extrae todas las vistas del schema SQL Server como IR canónico.
 
-        El campo ``query`` de cada ``CanonicalView`` contiene VIEW_DEFINITION
-        de INFORMATION_SCHEMA.VIEWS (puede estar truncado a 4000 chars en versiones
-        anteriores a SQL Server 2019 si la definición supera ese límite).
+        El campo ``query`` de cada ``CanonicalView`` contiene la definición completa (``OBJECT_DEFINITION``, sin el
+        truncado a 4000 caracteres de ``INFORMATION_SCHEMA.VIEWS``) sin su cabecera ``CREATE VIEW ... AS`` (H7).
         """
         rows = self._query(fetch_views_sql(), {"schema": schema})
         views: list[CanonicalView] = []
@@ -169,22 +169,34 @@ class SQLServerSchemaExtractor:
             if not row:
                 continue
             view_name = str(row[0]).strip()
-            definition = str(row[1]).strip() if row[1] else ""
+            split = split_create_view_header(str(row[1])) if row[1] else None
+            definition = split.query if split else ""
 
             view_warnings: list[MigrationWarning] = []
-            # VIEW_DEFINITION en INFORMATION_SCHEMA.VIEWS está truncada a 4000 chars
-            # en SQL Server < 2019. Si coincide exactamente con ese límite, posible truncación.
-            if len(definition) == 4000:
+            if split is None:
                 view_warnings.append(
                     MigrationWarning(
                         table=view_name,
                         column=None,
                         oracle_type="VIEW_DEFINITION",
-                        target_type="(truncada)",
+                        target_type="(no disponible)",
                         message=(
-                            f"Vista '{view_name}': VIEW_DEFINITION tiene exactamente 4000 chars; "
-                            "posible truncación en SQL Server < 2019. "
-                            "Verificar con sys.sql_modules.definition."
+                            f"Vista '{view_name}': definición no disponible (WITH ENCRYPTION o sin permiso "
+                            "VIEW DEFINITION); no se emite."
+                        ),
+                        severity="WARNING",
+                    )
+                )
+            elif split.column_list:
+                view_warnings.append(
+                    MigrationWarning(
+                        table=view_name,
+                        column=None,
+                        oracle_type="VIEW_DEFINITION",
+                        target_type="(columnas de la cabecera)",
+                        message=(
+                            f"Vista '{view_name}': la cabecera declara las columnas ({split.column_list}); la vista "
+                            "migrada toma los nombres del SELECT. Revisar los alias."
                         ),
                         severity="WARNING",
                     )

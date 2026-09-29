@@ -224,19 +224,21 @@ def fetch_indexes_sql() -> str:
 def fetch_views_sql() -> str:
     """SQL para obtener vistas de un schema SQL Server.
 
-    ``VIEW_DEFINITION`` puede estar truncado a 4000 chars en versiones anteriores
-    a SQL Server 2019 si la definición supera ese límite.
+    Usa ``OBJECT_DEFINITION``: texto completo de la vista, **con** su cabecera ``CREATE VIEW ... AS`` (quitarla es cosa
+    del consumidor). ``INFORMATION_SCHEMA.VIEWS.VIEW_DEFINITION`` se trunca a 4000 caracteres, también en SQL Server
+    2022 (H7). Devuelve NULL para vistas ``WITH ENCRYPTION`` o sin permiso ``VIEW DEFINITION``.
 
     Parámetros: ``%(schema)s``.
 
     Returns:
-        str: SQL query para (TABLE_NAME, VIEW_DEFINITION).
+        str: SQL query para (VIEW_NAME, DEFINITION).
     """
     return (
-        "SELECT TABLE_NAME, VIEW_DEFINITION "
-        "FROM INFORMATION_SCHEMA.VIEWS "
-        "WHERE TABLE_SCHEMA = %(schema)s "
-        "ORDER BY TABLE_NAME"
+        "SELECT v.name, OBJECT_DEFINITION(v.object_id) "
+        "FROM sys.views v "
+        "JOIN sys.schemas s ON s.schema_id = v.schema_id "
+        "WHERE s.name = %(schema)s "
+        "ORDER BY v.name"
     )
 
 

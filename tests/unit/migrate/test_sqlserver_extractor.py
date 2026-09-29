@@ -24,7 +24,7 @@ def _make_manager(
     def side_effect(sql: str, params: dict) -> list:
         # Identificar la query por palabras clave
         sql_upper = sql.upper()
-        if "INFORMATION_SCHEMA.VIEWS" in sql_upper and "TABLE_NAME, VIEW_DEFINITION" in sql_upper:
+        if "OBJECT_DEFINITION" in sql_upper:
             return views or []
         if "INFORMATION_SCHEMA.VIEWS" in sql_upper:
             return view_columns or []
@@ -191,6 +191,49 @@ class TestExtractViews:
         assert len(result) == 1
         assert result[0].name == "V_ORDERS"
         assert result[0].query == "SELECT id, name FROM orders"
+
+    def test_create_view_header_is_removed(self) -> None:
+        """H7: OBJECT_DEFINITION (como VIEW_DEFINITION) incluye la cabecera CREATE VIEW ... AS."""
+        manager = _make_manager(
+            views=[
+                (
+                    "V_ORDERS",
+                    "CREATE VIEW [dbo].[V_ORDERS] WITH SCHEMABINDING"
+                    + chr(10)
+                    + "AS"
+                    + chr(10)
+                    + "SELECT id FROM dbo.orders",
+                )
+            ],
+            view_columns=[("ID",)],
+        )
+        view = SQLServerSchemaExtractor(manager).extract_views("dbo")[0]
+        assert view.query == "SELECT id FROM dbo.orders"
+        assert view.warnings == []
+
+    def test_long_definition_is_not_truncated_nor_flagged(self) -> None:
+        """Con OBJECT_DEFINITION la definición llega completa: 4000 caracteres ya no indican truncado."""
+        body = "SELECT 1 AS a" + "".join(f", {i} AS c{i}" for i in range(900))
+        manager = _make_manager(views=[("V_LONG", f"CREATE VIEW dbo.V_LONG AS {body}")], view_columns=[])
+        view = SQLServerSchemaExtractor(manager).extract_views("dbo")[0]
+        assert view.query == body
+        assert len(view.query) > 4000
+        assert view.warnings == []
+
+    def test_explicit_column_list_warns(self) -> None:
+        manager = _make_manager(
+            views=[("V_ALIAS", "CREATE VIEW V_ALIAS (x, y) AS SELECT a, b FROM t")], view_columns=[]
+        )
+        view = SQLServerSchemaExtractor(manager).extract_views("dbo")[0]
+        assert view.query == "SELECT a, b FROM t"
+        assert any("(x, y)" in w.message for w in view.warnings)
+
+    def test_unavailable_definition_warns(self) -> None:
+        """OBJECT_DEFINITION devuelve NULL para vistas WITH ENCRYPTION o sin permiso VIEW DEFINITION."""
+        manager = _make_manager(views=[("V_SECRET", None)], view_columns=[])
+        view = SQLServerSchemaExtractor(manager).extract_views("dbo")[0]
+        assert view.query == ""
+        assert any("no disponible" in w.message for w in view.warnings)
 
     def test_view_schema_stored(self) -> None:
         manager = _make_manager(
