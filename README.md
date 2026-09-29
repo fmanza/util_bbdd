@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, MySQL, Oracle, PostgreSQL, SQLite y SQL Server (sync y async), y HSQLDB, Redshift y Snowflake (sync).
 
-**Version:** 0.19.0 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 0.20.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -1103,7 +1103,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.19.0** (MySQL como motor propio con PyMySQL/aiomysql; MariaDB con MariaDB Connector/Python; migración DDL ejecutable en los 20 pares)
+**Current Version: v0.20.0** (vistas de `migrate` reescritas al dialecto destino con sqlglot y validables contra el destino; `MigrationPlan.execute()` operativo en los cinco motores tras la auditoría de `migrate/`)
 
 Roadmap resumido (ver [ROADMAP completo](docs/roadmap.md) y
 [CHANGELOG](CHANGELOG.md) para el detalle):

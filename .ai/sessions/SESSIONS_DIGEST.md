@@ -186,6 +186,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-28 | Revisión de la configuración IA | Commands finos sobre prompts gemelos, `/performance-audit-constraints`, tipos de commit ampliados, `DOCUMENTATION_STANDARD` canónico, `applyTo` sobre rutas reales, `.claude/settings.json` versionado; 12 ficheros retirados | CLOSED |
 | 2026-09-29 | Revisión de documentación y hotfixes → v0.18.4 | README al día; `docs/` a minúsculas con guion bajo; Pages roto desde `11fb9f8` (deploy sin build); ZIP offline de Releases sin `start-server.py`; `docs-zip-release.yml` nunca ejecutado por YAML inválido; checklist verde (5295/199) | CLOSED |
 | 2026-09-29 | Motor MySQL propio + hotfixes → v0.19.0 | `mysql` con PyMySQL/aiomysql (MariaDB ya usaba Connector/Python en sync); adapters por registro; `migrate` 20 pares; 6 defectos previos hallados al probar contra servidores reales (incl. pool PostgreSQL sin `sslmode`); checklist verde (5483/205, integración 344) | CLOSED |
+| 2026-09-30 | Vistas de migrate + auditoría de migrate → v0.20.0 | Vistas reescritas con sqlglot (V0 spike → V1–V4, `validate_views`, `CONNECT BY` → CTE); auditoría de `migrate/` contra el banco: `execute()` solo funcionaba hacia MySQL (A1) y 8 defectos más del DDL (A2–A9, B1), todos con test-first en el e2e de 20 pares; plan de deuda D1–D3 para 0.21.0 | `2026-09-29c-migrate-views`, `2026-09-29d-migrate-audit` |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 

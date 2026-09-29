@@ -154,7 +154,5 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
   parámetros o el cursor del driver sin parámetros.
 
 ## Veredicto final
-Veredicto: GO (V0–V3 completadas; pendiente de cierre de versión)
-Pendientes al cierre:
-- `/version-closure` (versión menor: nueva API `view_strategy`/`validate_views`).
-- Fuera de alcance (V4): `NOCYCLE`, `ORDER SIBLINGS BY`, `CONNECT BY ... AND LEVEL <= k`, `CONNECT_BY_ISLEAF`.
+Veredicto: CLOSED — liberado en v0.20.0 (2026-09-30), junto con la sesión `2026-09-29d-migrate-audit`.
+Fuera de alcance (V4): `NOCYCLE`, `ORDER SIBLINGS BY`, `CONNECT BY ... AND LEVEL <= k`, `CONNECT_BY_ISLEAF`.

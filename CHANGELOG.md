@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-09-30
+
+Las vistas de `migrate` se reescriben al dialecto destino con sqlglot (dependencia opcional) y se pueden validar contra
+el destino antes de aplicar el plan. Una auditoría de `migrate/` completo, verificada contra los cinco servidores del
+banco, corrigió que `MigrationPlan.execute()` fallaba en la primera sentencia en cuatro de los cinco destinos, además
+de otros ocho defectos del DDL generado.
+
 ### Added
 
 - **migrate**: el SQL de las vistas se reescribe al dialecto destino con sqlglot (dependencia opcional, extra
@@ -38,6 +45,18 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   a `bench` todos los privilegios sobre las bases `zz_util_bbdd_%`.
 - **docs**: `docs/functional/migrate_views.md` y `docs/api/migrate_views.md`; las páginas de migración por origen ya
   no dicen que las vistas se copian sin reescribir.
+
+### Changed
+
+- **migrate**: con sqlglot instalado, las vistas se reescriben al dialecto destino por defecto
+  (`view_strategy="auto"`); hasta 0.19.0 se copiaban sin reescribir. `view_strategy="passthrough"` recupera el
+  comportamiento anterior.
+- **migrate**: `MigrationPlan.execute()` usa `get_sqlalchemy_engine()` del manager destino (o un `Engine`) y, si una
+  sentencia falla, lanza `DatabaseOperationError` con su posición; un objeto que solo ofrezca `execute_custom_one`
+  sigue usándose sentencia a sentencia.
+- **migrate**: los nombres que solo difieren en mayúsculas se marcan con la severidad del destino; con `ERROR`
+  (columnas hacia Oracle/MySQL/MariaDB, tablas y vistas hacia Oracle) `execute()` no empieza. Los índices que chocan
+  por nombre hacia PostgreSQL/Oracle se renombran a `<tabla>_<índice>` con aviso.
 
 ### Fixed
 

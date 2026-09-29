@@ -136,9 +136,12 @@
   collation; PostgreSQL respeta el case entrecomillado. Las colisiones se detectan en el planner, no se renombran.
 - **[migrate/emitters]**: todo texto del catálogo escrito tras `--` pasa por `one_line()` (un `--` termina en `\n` o
   `\r`); los comentarios reales van como literales (`COMMENT ON ... IS '...'`, `COMMENT '...'`), que admiten saltos.
+- **[release]**: la v0.20.0 cierra dos sesiones a la vez (vistas y auditoría); el commit de release actualiza también `pyproject.toml`, `README.md`, `docs/index.md`, `docs/roadmap.md` y el pie de `docs/architecture.md` (checklist de `sync.instructions.md`, como en v0.19.0), aunque el agente Version Closer solo edite CHANGELOG y TRACEABILITY.
 - **[migrate/auditoría]**: sin pendientes de la auditoría 2026-09-29d. Deuda anotada, no corregida: N+1 consultas por
   tabla en los extractores; el campo `oracle_type` guarda el tipo del origen sea cual sea el motor; los extractores de
   PostgreSQL y SQL Server no leen comentarios.
 
 ## Veredicto final
-Veredicto: auditoría de migrate/ resuelta — A1–A9 corregidos (GO). Sesión lista para `/version-closure`.
+Veredicto: CLOSED — auditoría de `migrate/` resuelta (A1–A9, B1) y liberada en v0.20.0 (2026-09-30).
+Pendiente para 0.21.0 (una sesión por punto): D2 (`oracle_type` → `source_type` + `category`, corte directo con guía de
+migración), D3 (comentarios desde/hacia PostgreSQL y SQL Server), D1 (consultas por schema, condicionado al paso 0).
