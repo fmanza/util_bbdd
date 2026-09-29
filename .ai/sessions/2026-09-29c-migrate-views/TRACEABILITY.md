@@ -35,6 +35,14 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
 - Verificación real (SQL Server 2022 → MySQL 8.4): vista larga completa (11 506 caracteres), sin cabecera; vista
   portable creada en MySQL (antes `CREATE OR REPLACE VIEW v AS CREATE VIEW v AS ...`).
 - Calidad: `ruff`/`mypy` limpios; `pytest` 5499 passed / 205 skipped; integración 344 passed.
+- **V0** (spike, `v0/V0_SPIKE.md`, `v0/results.json`): `sqlglot` 30.20.0 con 31 construcciones comunes + 7
+  específicas, definición leída del catálogo con los extractores de util_bbdd, ejecutada y comparada en el banco.
+  Umbral (≥ 80 % se ejecuta) cumplido en 19/20 pares; PostgreSQL → Oracle 74 %. Fallos: A) artefactos del catálogo
+  corregibles en el AST (casts `::text` de PG → `CLOB`, `CHAR charset` de MySQL, `to_days` de MySQL, `YEAR` hacia
+  Oracle); B) aritmética dependiente del tipo (fechas, `+` de cadenas) con **errores silenciosos** hacia MySQL/MariaDB;
+  C) semántica de Oracle (`''` = `NULL`, concatenación con `NULL`); D) `(+)` de Oracle se crea como join interno
+  (**silencioso**), `ROWNUM`/`CONNECT BY` fallan al crear. Propuesta: V1 = base + A + salvaguardas B/D; V2 =
+  reescrituras.
 
 ## Artefactos generados
 | Artefacto | Ruta | Estado |
@@ -49,6 +57,12 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
   o falta el permiso `VIEW DEFINITION`) y `split_create_view_header` para quedarse con la query.
 - **[migrate/vistas]**: los emitters no emiten lista de columnas en `CREATE VIEW`; una vista SQL Server con
   `CREATE VIEW v (a, b) AS ...` pierde esos nombres (aviso en el plan). Tenerlo en cuenta en V1.
+- **[migrate/vistas]**: V0 demostró que «se ejecuta» no basta: `sqlglot` sin tipos convierte `fecha + 30` de
+  PG/Oracle en suma numérica en MySQL (`20240140`) y el `(+)` de Oracle en join interno, sin error. Toda activación
+  de `auto` requiere anotación de tipos con el esquema del plan y detección de `(+)`/`ROWNUM`/`CONNECT BY`.
+- **[migrate/vistas]**: el texto de catálogo no es el SQL escrito: PG añade casts (`::text`), MySQL reescribe
+  `CAST(... AS CHAR(n))` con charset y `DATEDIFF` como `to_days(a) - to_days(b)`, SQL Server incluye la cabecera.
+  El corpus de pruebas debe leerse del catálogo, no escribirse a mano.
 - **[migrate/vistas]**: plan aprobado: `sqlglot` opcional (`util_bbdd[migrate]`, `>=30,<31`), `view_strategy="auto"`
   (transpila si `sqlglot` está instalado), fallback a pass-through; V0 (spike) decide antes de V1 (umbral ≥ 80 % del
   corpus común por par).
@@ -56,5 +70,5 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
 ## Veredicto final
 Veredicto: GO (sesión IN_PROGRESS)
 Pendientes al cierre:
-- V0: spike de `sqlglot` con corpus de ~30 vistas por motor contra el banco (decide V1).
-- V1–V3 según V0.
+- V1 (base + correcciones A + salvaguardas B/D), pendiente de aprobación del usuario tras V0.
+- V2 (reescrituras `(+)`, `ROWNUM`, `ILIKE`, agregados de texto) y V3 (`validate_views`, docs).

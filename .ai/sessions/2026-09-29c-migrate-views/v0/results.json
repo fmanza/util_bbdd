@@ -1,0 +1,6196 @@
+[
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE (((zzv_clientes.saldo > 0) AND (zzv_clientes.activo = 1)) OR (zzv_clientes.ciudad = 'Madrid'))",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre AS nombre, p.importe AS importe FROM (zzv_clientes AS c JOIN zzv_pedidos AS p ON ((p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre AS nombre, p.id AS pedido FROM (zzv_clientes AS c LEFT JOIN zzv_pedidos AS p ON ((p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, COUNT(0) AS n, SUM(zzv_pedidos.importe) AS total, AVG(zzv_pedidos.importe) AS media, MIN(zzv_pedidos.fecha) AS primera, MAX(zzv_pedidos.fecha) AS ultima FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id HAVING (SUM(zzv_pedidos.importe) > 50)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, (CASE WHEN (zzv_clientes.saldo > 100) THEN 'alto' WHEN (zzv_clientes.saldo > 0) THEN 'medio' ELSE 'bajo' END) AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, COALESCE(zzv_clientes.ciudad, 'desconocida') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, COALESCE(zzv_clientes.ciudad, 'x') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, CONCAT(zzv_clientes.nombre, ' - ', zzv_clientes.ciudad) AS etiqueta FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, UPPER(zzv_clientes.nombre) AS u, LOWER(zzv_clientes.nombre) AS l, TRIM(zzv_clientes.nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, SUBSTRING(zzv_clientes.nombre, 1, 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, CHAR_LENGTH(zzv_clientes.nombre) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, YEAR(zzv_clientes.alta) AS anio FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, (zzv_clientes.alta + INTERVAL '30' DAY) AS vence FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id AS id, ((DATEDIFF(p.fecha, '0000-01-01') + 1) - (DATEDIFF(c.alta, '0000-01-01') + 1)) AS dias FROM (zzv_pedidos AS p JOIN zzv_clientes AS c ON ((c.id = p.cliente_id)))",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST(zzv_clientes.id AS CHAR CHARACTER SET utf8mb4) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, ROUND((zzv_clientes.saldo * 1.21), 2) AS con_iva, ABS(zzv_clientes.saldo) AS absoluto, (zzv_clientes.saldo / 4) AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.id IN (SELECT zzv_pedidos.cliente_id FROM zzv_pedidos)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id AS id FROM zzv_clientes AS c WHERE EXISTS(SELECT 1 FROM zzv_pedidos AS p WHERE (p.cliente_id = c.id))",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT t.cliente_id AS cliente_id, t.total AS total FROM (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) AS t WHERE (t.total > 10)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE (zzv_clientes.activo = 1) UNION ALL SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE (zzv_clientes.activo = 0)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT zzv_clientes.ciudad AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) SELECT t.cliente_id AS cliente_id, t.total AS total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.cliente_id AS cliente_id, ROW_NUMBER() OVER (PARTITION BY zzv_pedidos.cliente_id ORDER BY zzv_pedidos.fecha, zzv_pedidos.id) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.importe AS importe FROM zzv_pedidos ORDER BY zzv_pedidos.importe DESC LIMIT 3",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE (zzv_clientes.nombre LIKE 'A%')",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE (zzv_clientes.saldo BETWEEN 0 AND 200)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE (zzv_clientes.ciudad IS NULL)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.cliente_id AS cliente_id, zzv_pedidos.fecha AS fecha, zzv_pedidos.importe AS importe FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id AS id, (SELECT COUNT(0) FROM zzv_pedidos AS p WHERE (p.cliente_id = c.id)) AS n FROM zzv_clientes AS c",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "e01_condicional_dialecto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, IF((zzv_clientes.activo = 1), 'si', 'no') AS a FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "mariadb",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, GROUP_CONCAT(zzv_pedidos.id ORDER BY zzv_pedidos.id ASC SEPARATOR ',') AS ids FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE (((zzv_clientes.saldo > 0) AND (zzv_clientes.activo = 1)) OR (zzv_clientes.ciudad = 'Madrid'))",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre AS nombre, p.importe AS importe FROM (zzv_clientes AS c JOIN zzv_pedidos AS p ON ((p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre AS nombre, p.id AS pedido FROM (zzv_clientes AS c LEFT JOIN zzv_pedidos AS p ON ((p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, COUNT(0) AS n, SUM(zzv_pedidos.importe) AS total, AVG(zzv_pedidos.importe) AS media, MIN(zzv_pedidos.fecha) AS primera, MAX(zzv_pedidos.fecha) AS ultima FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id HAVING (SUM(zzv_pedidos.importe) > 50)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, (CASE WHEN (zzv_clientes.saldo > 100) THEN 'alto' WHEN (zzv_clientes.saldo > 0) THEN 'medio' ELSE 'bajo' END) AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, COALESCE(zzv_clientes.ciudad, 'desconocida') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, COALESCE(zzv_clientes.ciudad, 'x') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre || ' - ' || zzv_clientes.ciudad AS etiqueta FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, UPPER(zzv_clientes.nombre) AS u, LOWER(zzv_clientes.nombre) AS l, TRIM(zzv_clientes.nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, SUBSTRING(zzv_clientes.nombre FROM 1 FOR 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, LENGTH(zzv_clientes.nombre) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, EXTRACT(YEAR FROM CAST(zzv_clientes.alta AS DATE)) AS anio FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, (zzv_clientes.alta + INTERVAL '30 DAY') AS vence FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id AS id, ((CAST(EXTRACT(epoch FROM CAST(CAST(p.fecha AS DATE) AS TIMESTAMP) - CAST(CAST('0000-01-01' AS DATE) AS TIMESTAMP)) / 86400 AS BIGINT) + 1) - (CAST(EXTRACT(epoch FROM CAST(CAST(c.alta AS DATE) AS TIMESTAMP) - CAST(CAST('0000-01-01' AS DATE) AS TIMESTAMP)) / 86400 AS BIGINT) + 1)) AS dias FROM (zzv_pedidos AS p JOIN zzv_clientes AS c ON ((c.id = p.cliente_id)))",
+  "status": "crear_falla",
+  "detail": "(psycopg.errors.DatetimeFieldOverflow) date/time field value out of range: \"0000-01-01\""
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST(zzv_clientes.id AS CHAR CHARACTER SET utf8mb4) AS t FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(psycopg.errors.SyntaxError) syntax error at or near \"CHARACTER\""
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, ROUND((zzv_clientes.saldo * 1.21), 2) AS con_iva, ABS(zzv_clientes.saldo) AS absoluto, (CAST(zzv_clientes.saldo AS DOUBLE PRECISION) / NULLIF(4, 0)) AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.id IN (SELECT zzv_pedidos.cliente_id FROM zzv_pedidos)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id AS id FROM zzv_clientes AS c WHERE EXISTS(SELECT 1 FROM zzv_pedidos AS p WHERE (p.cliente_id = c.id))",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT t.cliente_id AS cliente_id, t.total AS total FROM (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) AS t WHERE (t.total > 10)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE (zzv_clientes.activo = 1) UNION ALL SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE (zzv_clientes.activo = 0)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT zzv_clientes.ciudad AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) SELECT t.cliente_id AS cliente_id, t.total AS total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.cliente_id AS cliente_id, ROW_NUMBER() OVER (PARTITION BY zzv_pedidos.cliente_id ORDER BY zzv_pedidos.fecha NULLS FIRST, zzv_pedidos.id NULLS FIRST) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.importe AS importe FROM zzv_pedidos ORDER BY zzv_pedidos.importe DESC NULLS LAST LIMIT 3",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE (zzv_clientes.nombre LIKE 'A%')",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE (zzv_clientes.saldo BETWEEN 0 AND 200)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE (zzv_clientes.ciudad IS NULL)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.cliente_id AS cliente_id, zzv_pedidos.fecha AS fecha, zzv_pedidos.importe AS importe FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id AS id, (SELECT COUNT(0) FROM zzv_pedidos AS p WHERE (p.cliente_id = c.id)) AS n FROM zzv_clientes AS c",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "e01_condicional_dialecto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, CASE WHEN (zzv_clientes.activo = 1) THEN 'si' ELSE 'no' END AS a FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "postgresql",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, STRING_AGG(zzv_pedidos.id, ',' ORDER BY zzv_pedidos.id ASC NULLS FIRST) AS ids FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id",
+  "status": "crear_falla",
+  "detail": "(psycopg.errors.UndefinedFunction) function string_agg(integer, unknown) does not exist"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE (((zzv_clientes.saldo > 0) AND (zzv_clientes.activo = 1)) OR (zzv_clientes.ciudad = 'Madrid'))",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre AS nombre, p.importe AS importe FROM (zzv_clientes AS c JOIN zzv_pedidos AS p ON ((p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre AS nombre, p.id AS pedido FROM (zzv_clientes AS c LEFT JOIN zzv_pedidos AS p ON ((p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, COUNT_BIG(0) AS n, SUM(zzv_pedidos.importe) AS total, AVG(zzv_pedidos.importe) AS media, MIN(zzv_pedidos.fecha) AS primera, MAX(zzv_pedidos.fecha) AS ultima FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id HAVING (SUM(zzv_pedidos.importe) > 50)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, (CASE WHEN (zzv_clientes.saldo > 100) THEN 'alto' WHEN (zzv_clientes.saldo > 0) THEN 'medio' ELSE 'bajo' END) AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, COALESCE(zzv_clientes.ciudad, 'desconocida') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, COALESCE(zzv_clientes.ciudad, 'x') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre + ' - ' + zzv_clientes.ciudad AS etiqueta FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, UPPER(zzv_clientes.nombre) AS u, LOWER(zzv_clientes.nombre) AS l, TRIM(zzv_clientes.nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, SUBSTRING(zzv_clientes.nombre, 1, 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, LEN(zzv_clientes.nombre) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, YEAR(zzv_clientes.alta) AS anio FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, (zzv_clientes.alta + INTERVAL '30' DAY) AS vence FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(pymssql.exceptions.ProgrammingError) (102, b\"Incorrect syntax near '30'.DB-Lib error message 20018, severity 15:\\nGeneral SQL Server error: Check messages from the SQL Server\\n\")"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id AS id, ((DATEDIFF(DAY, CAST('0000-01-01' AS DATE), CAST(p.fecha AS DATE)) + 1) - (DATEDIFF(DAY, CAST('0000-01-01' AS DATE), CAST(c.alta AS DATE)) + 1)) AS dias FROM (zzv_pedidos AS p JOIN zzv_clientes AS c ON ((c.id = p.cliente_id)))",
+  "status": "select_falla",
+  "detail": "(pymssql.exceptions.OperationalError) (241, b'Conversion failed when converting date and/or time from character string.DB-Lib error message 20018, severity 16:\\nGeneral SQL Server error: Check messages from the SQL Serve"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST(zzv_clientes.id AS CHAR CHARACTER SET utf8mb4) AS t FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(pymssql.exceptions.ProgrammingError) (102, b\"Incorrect syntax near 'CHARACTER'.DB-Lib error message 20018, severity 15:\\nGeneral SQL Server error: Check messages from the SQL Server\\n\")"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, ROUND((zzv_clientes.saldo * 1.21), 2) AS con_iva, ABS(zzv_clientes.saldo) AS absoluto, (CAST(zzv_clientes.saldo AS FLOAT) / NULLIF(4, 0)) AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.id IN (SELECT zzv_pedidos.cliente_id FROM zzv_pedidos)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id AS id FROM zzv_clientes AS c WHERE EXISTS(SELECT 1 FROM zzv_pedidos AS p WHERE (p.cliente_id = c.id))",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT t.cliente_id AS cliente_id, t.total AS total FROM (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) AS t WHERE (t.total > 10)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE (zzv_clientes.activo = 1) UNION ALL SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE (zzv_clientes.activo = 0)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT zzv_clientes.ciudad AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) SELECT t.cliente_id AS cliente_id, t.total AS total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.cliente_id AS cliente_id, ROW_NUMBER() OVER (PARTITION BY zzv_pedidos.cliente_id ORDER BY zzv_pedidos.fecha, zzv_pedidos.id) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT TOP 3 zzv_pedidos.id AS id, zzv_pedidos.importe AS importe FROM zzv_pedidos ORDER BY zzv_pedidos.importe DESC",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE (zzv_clientes.nombre LIKE 'A%')",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE (zzv_clientes.saldo BETWEEN 0 AND 200)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE (zzv_clientes.ciudad IS NULL)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.cliente_id AS cliente_id, zzv_pedidos.fecha AS fecha, zzv_pedidos.importe AS importe FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id AS id, (SELECT COUNT_BIG(0) FROM zzv_pedidos AS p WHERE (p.cliente_id = c.id)) AS n FROM zzv_clientes AS c",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "e01_condicional_dialecto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, IIF((zzv_clientes.activo = 1), 'si', 'no') AS a FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "sqlserver",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, STRING_AGG(zzv_pedidos.id, ',') WITHIN GROUP (ORDER BY zzv_pedidos.id ASC) AS ids FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE (((zzv_clientes.saldo > 0) AND (zzv_clientes.activo = 1)) OR (zzv_clientes.ciudad = 'Madrid'))",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre AS nombre, p.importe AS importe FROM (zzv_clientes c JOIN zzv_pedidos p ON ((p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre AS nombre, p.id AS pedido FROM (zzv_clientes c LEFT JOIN zzv_pedidos p ON ((p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, COUNT(0) AS n, SUM(zzv_pedidos.importe) AS total, AVG(zzv_pedidos.importe) AS media, MIN(zzv_pedidos.fecha) AS primera, MAX(zzv_pedidos.fecha) AS ultima FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id HAVING (SUM(zzv_pedidos.importe) > 50)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, (CASE WHEN (zzv_clientes.saldo > 100) THEN 'alto' WHEN (zzv_clientes.saldo > 0) THEN 'medio' ELSE 'bajo' END) AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, COALESCE(zzv_clientes.ciudad, 'desconocida') AS ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Madrid'), ('2.00', 'desconocida'), ('3.00', 'Sevilla')] destino=[('1.00', 'Madrid'), ('2.00', 'desconocida'), ('3.00', 'Sevilla')]"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, COALESCE(zzv_clientes.ciudad, 'x') AS ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Madrid'), ('2.00', 'x'), ('3.00', 'Sevilla')] destino=[('1.00', 'Madrid'), ('2.00', 'x'), ('3.00', 'Sevilla')]"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, CONCAT(zzv_clientes.nombre, ' - ', zzv_clientes.ciudad) AS etiqueta FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Ana - Madrid'), ('2.00', None), ('3.00', 'Eva - Sevilla')] destino=[('1.00', 'Ana - Madrid'), ('2.00', 'Luis -'), ('3.00', 'Eva - Sevilla')]"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, UPPER(zzv_clientes.nombre) AS u, LOWER(zzv_clientes.nombre) AS l, TRIM(zzv_clientes.nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, SUBSTR(zzv_clientes.nombre, 1, 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, LENGTH(zzv_clientes.nombre) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, YEAR(CAST(zzv_clientes.alta AS DATE)) AS anio FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-00904: \"YEAR\": invalid identifier"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, (zzv_clientes.alta + INTERVAL '30' DAY) AS vence FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id AS id, ((DATEDIFF(CAST(p.fecha AS DATE), CAST('0000-01-01' AS DATE), DAY) + 1) - (DATEDIFF(CAST(c.alta AS DATE), CAST('0000-01-01' AS DATE), DAY) + 1)) AS dias FROM (zzv_pedidos p JOIN zzv_clientes c ON ((c.id = p.cliente_id)))",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-00904: \"DAY\": invalid identifier"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST(zzv_clientes.id AS CHAR CHARACTER SET utf8mb4) AS t FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-00907: missing right parenthesis"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, ROUND((zzv_clientes.saldo * 1.21), 2) AS con_iva, ABS(zzv_clientes.saldo) AS absoluto, (zzv_clientes.saldo / NULLIF(4, 0)) AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.id IN (SELECT zzv_pedidos.cliente_id FROM zzv_pedidos)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id AS id FROM zzv_clientes c WHERE EXISTS(SELECT 1 FROM zzv_pedidos p WHERE (p.cliente_id = c.id))",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT t.cliente_id AS cliente_id, t.total AS total FROM (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) t WHERE (t.total > 10)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE (zzv_clientes.activo = 1) UNION ALL SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE (zzv_clientes.activo = 0)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT zzv_clientes.ciudad AS ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[(None,), ('',), ('Madrid',)] destino=[(None,), ('Madrid',), ('Sevilla',)]"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) SELECT t.cliente_id AS cliente_id, t.total AS total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.cliente_id AS cliente_id, ROW_NUMBER() OVER (PARTITION BY zzv_pedidos.cliente_id ORDER BY zzv_pedidos.fecha NULLS FIRST, zzv_pedidos.id NULLS FIRST) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.importe AS importe FROM zzv_pedidos ORDER BY zzv_pedidos.importe DESC NULLS LAST FETCH FIRST 3 ROWS ONLY",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE (zzv_clientes.nombre LIKE 'A%')",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE (zzv_clientes.saldo BETWEEN 0 AND 200)",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE (zzv_clientes.ciudad IS NULL)",
+  "status": "resultado_distinto",
+  "detail": "origen=[('2.00',)] destino=[('2.00',), ('5.00',)]"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.cliente_id AS cliente_id, zzv_pedidos.fecha AS fecha, zzv_pedidos.importe AS importe FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id AS id, (SELECT COUNT(0) FROM zzv_pedidos p WHERE (p.cliente_id = c.id)) AS n FROM zzv_clientes c",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "e01_condicional_dialecto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, CASE WHEN (zzv_clientes.activo = 1) THEN 'si' ELSE 'no' END AS a FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mysql",
+  "target": "oracle",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, LISTAGG(zzv_pedidos.id, ',') WITHIN GROUP (ORDER BY zzv_pedidos.id ASC NULLS FIRST) AS ids FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.saldo > 0 AND zzv_clientes.activo = 1 OR zzv_clientes.ciudad = 'Madrid'",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre AS nombre, p.importe AS importe FROM (zzv_clientes AS c JOIN zzv_pedidos AS p ON (p.cliente_id = c.id))",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre AS nombre, p.id AS pedido FROM (zzv_clientes AS c LEFT JOIN zzv_pedidos AS p ON (p.cliente_id = c.id))",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, COUNT(0) AS n, SUM(zzv_pedidos.importe) AS total, AVG(zzv_pedidos.importe) AS media, MIN(zzv_pedidos.fecha) AS primera, MAX(zzv_pedidos.fecha) AS ultima FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id HAVING SUM(zzv_pedidos.importe) > 50",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, CASE WHEN zzv_clientes.saldo > 100 THEN 'alto' WHEN zzv_clientes.saldo > 0 THEN 'medio' ELSE 'bajo' END AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, COALESCE(zzv_clientes.ciudad, 'desconocida') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, COALESCE(zzv_clientes.ciudad, 'x') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, CONCAT(zzv_clientes.nombre, ' - ', zzv_clientes.ciudad) AS etiqueta FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, UPPER(zzv_clientes.nombre) AS u, LOWER(zzv_clientes.nombre) AS l, TRIM(zzv_clientes.nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, SUBSTRING(zzv_clientes.nombre, 1, 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, CHAR_LENGTH(zzv_clientes.nombre) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, YEAR(zzv_clientes.alta) AS anio FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.alta + INTERVAL '30' DAY AS vence FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id AS id, (DATEDIFF(p.fecha, '0000-01-01') + 1) - (DATEDIFF(c.alta, '0000-01-01') + 1) AS dias FROM (zzv_pedidos AS p JOIN zzv_clientes AS c ON (c.id = p.cliente_id))",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST(zzv_clientes.id AS CHAR CHARACTER SET utf8mb4) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, ROUND(zzv_clientes.saldo * 1.21, 2) AS con_iva, ABS(zzv_clientes.saldo) AS absoluto, zzv_clientes.saldo / 4 AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.id IN (SELECT zzv_pedidos.cliente_id FROM zzv_pedidos)",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id AS id FROM zzv_clientes AS c WHERE EXISTS(SELECT 1 FROM zzv_pedidos AS p WHERE p.cliente_id = c.id LIMIT 1)",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT t.cliente_id AS cliente_id, t.total AS total FROM (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) AS t WHERE t.total > 10",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.activo = 1 UNION ALL SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.activo = 0",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT zzv_clientes.ciudad AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) SELECT t.cliente_id AS cliente_id, t.total AS total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.cliente_id AS cliente_id, ROW_NUMBER() OVER (PARTITION BY zzv_pedidos.cliente_id ORDER BY zzv_pedidos.fecha, zzv_pedidos.id) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.importe AS importe FROM zzv_pedidos ORDER BY zzv_pedidos.importe DESC LIMIT 3",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE zzv_clientes.nombre LIKE 'A%'",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE zzv_clientes.saldo BETWEEN 0 AND 200",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE zzv_clientes.ciudad IS NULL",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.cliente_id AS cliente_id, zzv_pedidos.fecha AS fecha, zzv_pedidos.importe AS importe FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id AS id, (SELECT COUNT(0) FROM zzv_pedidos AS p WHERE p.cliente_id = c.id) AS n FROM zzv_clientes AS c",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "e01_condicional_dialecto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, IF(zzv_clientes.activo = 1, 'si', 'no') AS a FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "mysql",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, GROUP_CONCAT(zzv_pedidos.id ORDER BY zzv_pedidos.id ASC SEPARATOR ',') AS ids FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.saldo > 0 AND zzv_clientes.activo = 1 OR zzv_clientes.ciudad = 'Madrid'",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre AS nombre, p.importe AS importe FROM (zzv_clientes AS c JOIN zzv_pedidos AS p ON (p.cliente_id = c.id))",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre AS nombre, p.id AS pedido FROM (zzv_clientes AS c LEFT JOIN zzv_pedidos AS p ON (p.cliente_id = c.id))",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, COUNT(0) AS n, SUM(zzv_pedidos.importe) AS total, AVG(zzv_pedidos.importe) AS media, MIN(zzv_pedidos.fecha) AS primera, MAX(zzv_pedidos.fecha) AS ultima FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id HAVING SUM(zzv_pedidos.importe) > 50",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, CASE WHEN zzv_clientes.saldo > 100 THEN 'alto' WHEN zzv_clientes.saldo > 0 THEN 'medio' ELSE 'bajo' END AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, COALESCE(zzv_clientes.ciudad, 'desconocida') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, COALESCE(zzv_clientes.ciudad, 'x') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre || ' - ' || zzv_clientes.ciudad AS etiqueta FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, UPPER(zzv_clientes.nombre) AS u, LOWER(zzv_clientes.nombre) AS l, TRIM(zzv_clientes.nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, SUBSTRING(zzv_clientes.nombre FROM 1 FOR 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, LENGTH(zzv_clientes.nombre) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, EXTRACT(YEAR FROM CAST(zzv_clientes.alta AS DATE)) AS anio FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.alta + INTERVAL '30 DAY' AS vence FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id AS id, (CAST(EXTRACT(epoch FROM CAST(CAST(p.fecha AS DATE) AS TIMESTAMP) - CAST(CAST('0000-01-01' AS DATE) AS TIMESTAMP)) / 86400 AS BIGINT) + 1) - (CAST(EXTRACT(epoch FROM CAST(CAST(c.alta AS DATE) AS TIMESTAMP) - CAST(CAST('0000-01-01' AS DATE) AS TIMESTAMP)) / 86400 AS BIGINT) + 1) AS dias FROM (zzv_pedidos AS p JOIN zzv_clientes AS c ON (c.id = p.cliente_id))",
+  "status": "crear_falla",
+  "detail": "(psycopg.errors.DatetimeFieldOverflow) date/time field value out of range: \"0000-01-01\""
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST(zzv_clientes.id AS CHAR CHARACTER SET utf8mb4) AS t FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(psycopg.errors.SyntaxError) syntax error at or near \"CHARACTER\""
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, ROUND(zzv_clientes.saldo * 1.21, 2) AS con_iva, ABS(zzv_clientes.saldo) AS absoluto, CAST(zzv_clientes.saldo AS DOUBLE PRECISION) / NULLIF(4, 0) AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.id IN (SELECT zzv_pedidos.cliente_id FROM zzv_pedidos)",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id AS id FROM zzv_clientes AS c WHERE EXISTS(SELECT 1 FROM zzv_pedidos AS p WHERE p.cliente_id = c.id LIMIT 1)",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT t.cliente_id AS cliente_id, t.total AS total FROM (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) AS t WHERE t.total > 10",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.activo = 1 UNION ALL SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.activo = 0",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT zzv_clientes.ciudad AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) SELECT t.cliente_id AS cliente_id, t.total AS total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.cliente_id AS cliente_id, ROW_NUMBER() OVER (PARTITION BY zzv_pedidos.cliente_id ORDER BY zzv_pedidos.fecha NULLS FIRST, zzv_pedidos.id NULLS FIRST) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.importe AS importe FROM zzv_pedidos ORDER BY zzv_pedidos.importe DESC NULLS LAST LIMIT 3",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE zzv_clientes.nombre LIKE 'A%'",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE zzv_clientes.saldo BETWEEN 0 AND 200",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE zzv_clientes.ciudad IS NULL",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.cliente_id AS cliente_id, zzv_pedidos.fecha AS fecha, zzv_pedidos.importe AS importe FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id AS id, (SELECT COUNT(0) FROM zzv_pedidos AS p WHERE p.cliente_id = c.id) AS n FROM zzv_clientes AS c",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "e01_condicional_dialecto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, CASE WHEN zzv_clientes.activo = 1 THEN 'si' ELSE 'no' END AS a FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "postgresql",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, STRING_AGG(zzv_pedidos.id, ',' ORDER BY zzv_pedidos.id ASC NULLS FIRST) AS ids FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id",
+  "status": "crear_falla",
+  "detail": "(psycopg.errors.UndefinedFunction) function string_agg(integer, unknown) does not exist"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.saldo > 0 AND zzv_clientes.activo = 1 OR zzv_clientes.ciudad = 'Madrid'",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre AS nombre, p.importe AS importe FROM (zzv_clientes AS c JOIN zzv_pedidos AS p ON (p.cliente_id = c.id))",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre AS nombre, p.id AS pedido FROM (zzv_clientes AS c LEFT JOIN zzv_pedidos AS p ON (p.cliente_id = c.id))",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, COUNT_BIG(0) AS n, SUM(zzv_pedidos.importe) AS total, AVG(zzv_pedidos.importe) AS media, MIN(zzv_pedidos.fecha) AS primera, MAX(zzv_pedidos.fecha) AS ultima FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id HAVING SUM(zzv_pedidos.importe) > 50",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, CASE WHEN zzv_clientes.saldo > 100 THEN 'alto' WHEN zzv_clientes.saldo > 0 THEN 'medio' ELSE 'bajo' END AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, COALESCE(zzv_clientes.ciudad, 'desconocida') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, COALESCE(zzv_clientes.ciudad, 'x') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre + ' - ' + zzv_clientes.ciudad AS etiqueta FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, UPPER(zzv_clientes.nombre) AS u, LOWER(zzv_clientes.nombre) AS l, TRIM(zzv_clientes.nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, SUBSTRING(zzv_clientes.nombre, 1, 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, LEN(zzv_clientes.nombre) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, YEAR(zzv_clientes.alta) AS anio FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.alta + INTERVAL '30' DAY AS vence FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(pymssql.exceptions.ProgrammingError) (102, b\"Incorrect syntax near 'DAY'.DB-Lib error message 20018, severity 15:\\nGeneral SQL Server error: Check messages from the SQL Server\\n\")"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id AS id, (DATEDIFF(DAY, CAST('0000-01-01' AS DATE), CAST(p.fecha AS DATE)) + 1) - (DATEDIFF(DAY, CAST('0000-01-01' AS DATE), CAST(c.alta AS DATE)) + 1) AS dias FROM (zzv_pedidos AS p JOIN zzv_clientes AS c ON (c.id = p.cliente_id))",
+  "status": "select_falla",
+  "detail": "(pymssql.exceptions.OperationalError) (241, b'Conversion failed when converting date and/or time from character string.DB-Lib error message 20018, severity 16:\\nGeneral SQL Server error: Check messages from the SQL Serve"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST(zzv_clientes.id AS CHAR CHARACTER SET utf8mb4) AS t FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(pymssql.exceptions.ProgrammingError) (102, b\"Incorrect syntax near 'CHARACTER'.DB-Lib error message 20018, severity 15:\\nGeneral SQL Server error: Check messages from the SQL Server\\n\")"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, ROUND(zzv_clientes.saldo * 1.21, 2) AS con_iva, ABS(zzv_clientes.saldo) AS absoluto, CAST(zzv_clientes.saldo AS FLOAT) / NULLIF(4, 0) AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.id IN (SELECT zzv_pedidos.cliente_id FROM zzv_pedidos)",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id AS id FROM zzv_clientes AS c WHERE EXISTS(SELECT TOP 1 1 FROM zzv_pedidos AS p WHERE p.cliente_id = c.id)",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT t.cliente_id AS cliente_id, t.total AS total FROM (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) AS t WHERE t.total > 10",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.activo = 1 UNION ALL SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.activo = 0",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT zzv_clientes.ciudad AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) SELECT t.cliente_id AS cliente_id, t.total AS total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.cliente_id AS cliente_id, ROW_NUMBER() OVER (PARTITION BY zzv_pedidos.cliente_id ORDER BY zzv_pedidos.fecha, zzv_pedidos.id) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT TOP 3 zzv_pedidos.id AS id, zzv_pedidos.importe AS importe FROM zzv_pedidos ORDER BY zzv_pedidos.importe DESC",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE zzv_clientes.nombre LIKE 'A%'",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE zzv_clientes.saldo BETWEEN 0 AND 200",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE zzv_clientes.ciudad IS NULL",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.cliente_id AS cliente_id, zzv_pedidos.fecha AS fecha, zzv_pedidos.importe AS importe FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id AS id, (SELECT COUNT_BIG(0) FROM zzv_pedidos AS p WHERE p.cliente_id = c.id) AS n FROM zzv_clientes AS c",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "e01_condicional_dialecto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, IIF(zzv_clientes.activo = 1, 'si', 'no') AS a FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "sqlserver",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, STRING_AGG(zzv_pedidos.id, ',') WITHIN GROUP (ORDER BY zzv_pedidos.id ASC) AS ids FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.saldo > 0 AND zzv_clientes.activo = 1 OR zzv_clientes.ciudad = 'Madrid'",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre AS nombre, p.importe AS importe FROM (zzv_clientes c JOIN zzv_pedidos p ON (p.cliente_id = c.id))",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre AS nombre, p.id AS pedido FROM (zzv_clientes c LEFT JOIN zzv_pedidos p ON (p.cliente_id = c.id))",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, COUNT(0) AS n, SUM(zzv_pedidos.importe) AS total, AVG(zzv_pedidos.importe) AS media, MIN(zzv_pedidos.fecha) AS primera, MAX(zzv_pedidos.fecha) AS ultima FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id HAVING SUM(zzv_pedidos.importe) > 50",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, CASE WHEN zzv_clientes.saldo > 100 THEN 'alto' WHEN zzv_clientes.saldo > 0 THEN 'medio' ELSE 'bajo' END AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, COALESCE(zzv_clientes.ciudad, 'desconocida') AS ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Madrid'), ('2.00', 'desconocida'), ('3.00', 'Sevilla')] destino=[('1.00', 'Madrid'), ('2.00', 'desconocida'), ('3.00', 'Sevilla')]"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, COALESCE(zzv_clientes.ciudad, 'x') AS ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Madrid'), ('2.00', 'x'), ('3.00', 'Sevilla')] destino=[('1.00', 'Madrid'), ('2.00', 'x'), ('3.00', 'Sevilla')]"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, CONCAT(zzv_clientes.nombre, ' - ', zzv_clientes.ciudad) AS etiqueta FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Ana - Madrid'), ('2.00', None), ('3.00', 'Eva - Sevilla')] destino=[('1.00', 'Ana - Madrid'), ('2.00', 'Luis -'), ('3.00', 'Eva - Sevilla')]"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, UPPER(zzv_clientes.nombre) AS u, LOWER(zzv_clientes.nombre) AS l, TRIM(zzv_clientes.nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, SUBSTR(zzv_clientes.nombre, 1, 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, LENGTH(zzv_clientes.nombre) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, YEAR(CAST(zzv_clientes.alta AS DATE)) AS anio FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-00904: \"YEAR\": invalid identifier"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.alta + INTERVAL '30' DAY AS vence FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id AS id, (DATEDIFF(CAST(p.fecha AS DATE), CAST('0000-01-01' AS DATE), DAY) + 1) - (DATEDIFF(CAST(c.alta AS DATE), CAST('0000-01-01' AS DATE), DAY) + 1) AS dias FROM (zzv_pedidos p JOIN zzv_clientes c ON (c.id = p.cliente_id))",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-00904: \"DAY\": invalid identifier"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST(zzv_clientes.id AS CHAR CHARACTER SET utf8mb4) AS t FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-00907: missing right parenthesis"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, ROUND(zzv_clientes.saldo * 1.21, 2) AS con_iva, ABS(zzv_clientes.saldo) AS absoluto, zzv_clientes.saldo / NULLIF(4, 0) AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.id IN (SELECT zzv_pedidos.cliente_id FROM zzv_pedidos)",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id AS id FROM zzv_clientes c WHERE EXISTS(SELECT 1 FROM zzv_pedidos p WHERE p.cliente_id = c.id FETCH FIRST 1 ROWS ONLY)",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT t.cliente_id AS cliente_id, t.total AS total FROM (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) t WHERE t.total > 10",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.activo = 1 UNION ALL SELECT zzv_clientes.id AS id, zzv_clientes.nombre AS nombre FROM zzv_clientes WHERE zzv_clientes.activo = 0",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT zzv_clientes.ciudad AS ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[(None,), ('',), ('Madrid',)] destino=[(None,), ('Madrid',), ('Sevilla',)]"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) SELECT t.cliente_id AS cliente_id, t.total AS total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.cliente_id AS cliente_id, ROW_NUMBER() OVER (PARTITION BY zzv_pedidos.cliente_id ORDER BY zzv_pedidos.fecha NULLS FIRST, zzv_pedidos.id NULLS FIRST) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.importe AS importe FROM zzv_pedidos ORDER BY zzv_pedidos.importe DESC NULLS LAST FETCH FIRST 3 ROWS ONLY",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE zzv_clientes.nombre LIKE 'A%'",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE zzv_clientes.saldo BETWEEN 0 AND 200",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id FROM zzv_clientes WHERE zzv_clientes.ciudad IS NULL",
+  "status": "resultado_distinto",
+  "detail": "origen=[('2.00',)] destino=[('2.00',), ('5.00',)]"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.id AS id, zzv_pedidos.cliente_id AS cliente_id, zzv_pedidos.fecha AS fecha, zzv_pedidos.importe AS importe FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id AS id, (SELECT COUNT(0) FROM zzv_pedidos p WHERE p.cliente_id = c.id) AS n FROM zzv_clientes c",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "e01_condicional_dialecto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id AS id, CASE WHEN zzv_clientes.activo = 1 THEN 'si' ELSE 'no' END AS a FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "mariadb",
+  "target": "oracle",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT zzv_pedidos.cliente_id AS cliente_id, LISTAGG(zzv_pedidos.id, ',') WITHIN GROUP (ORDER BY zzv_pedidos.id ASC NULLS FIRST) AS ids FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE (((saldo > CAST((0) AS DECIMAL)) AND (activo = 1)) OR (CAST((ciudad) AS CHAR) = CAST('Madrid' AS CHAR)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.importe FROM (zzv_clientes AS c JOIN zzv_pedidos AS p ON ((p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.id AS pedido FROM (zzv_clientes AS c LEFT JOIN zzv_pedidos AS p ON ((p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, COUNT(*) AS n, SUM(importe) AS total, AVG(importe) AS media, MIN(fecha) AS primera, MAX(fecha) AS ultima FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id HAVING (SUM(importe) > CAST((50) AS DECIMAL))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN (saldo > CAST((100) AS DECIMAL)) THEN CAST('alto' AS CHAR) WHEN (saldo > CAST((0) AS DECIMAL)) THEN CAST('medio' AS CHAR) ELSE CAST('bajo' AS CHAR) END AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, CAST('desconocida' AS CHAR)) AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, CAST('x' AS CHAR)) AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, (CONCAT(CONCAT(CAST((nombre) AS CHAR), CAST(' - ' AS CHAR)), CAST((ciudad) AS CHAR))) AS etiqueta FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, UPPER(CAST((nombre) AS CHAR)) AS u, LOWER(CAST((nombre) AS CHAR)) AS l, TRIM(nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, SUBSTRING(nombre, 1, 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CHAR_LENGTH(CAST((nombre) AS CHAR)) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, EXTRACT(YEAR FROM alta) AS anio FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, (alta + 30) AS vence FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', '2024-02-09'), ('2.00', '2024-03-21'), ('3.00', '2023-12-31')] destino=[('1.00', '20240140.00'), ('2.00', '20240250.00'), ('3.00', '20231231.00')]"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id, (p.fecha - c.alta) AS dias FROM (zzv_pedidos AS p JOIN zzv_clientes AS c ON ((c.id = p.cliente_id)))",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', '5.00'), ('2.00', '22.00'), ('3.00', '50.00')] destino=[('1.00', '5.00'), ('2.00', '91.00'), ('3.00', '8919.00')]"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST((id) AS CHAR(10)) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, ROUND((saldo * 1.21), 2) AS con_iva, ABS(saldo) AS absoluto, (saldo / CAST((4) AS DECIMAL)) AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE (id IN (SELECT zzv_pedidos.cliente_id FROM zzv_pedidos))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes AS c WHERE (EXISTS(SELECT 1 FROM zzv_pedidos AS p WHERE (p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, total FROM (SELECT zzv_pedidos.cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) AS t WHERE (total > CAST((10) AS DECIMAL))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id, zzv_clientes.nombre FROM zzv_clientes WHERE (zzv_clientes.activo = 1) UNION ALL SELECT zzv_clientes.id, zzv_clientes.nombre FROM zzv_clientes WHERE (zzv_clientes.activo = 0)",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT zzv_pedidos.cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) SELECT cliente_id, total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, ROW_NUMBER() OVER (PARTITION BY cliente_id ORDER BY CASE WHEN fecha IS NULL THEN 1 ELSE 0 END, fecha, CASE WHEN id IS NULL THEN 1 ELSE 0 END, id) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, importe FROM zzv_pedidos ORDER BY CASE WHEN importe IS NULL THEN 1 ELSE 0 END DESC, importe DESC LIMIT 3",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE (CAST((nombre) AS CHAR) LIKE CAST('A%' AS CHAR))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE ((saldo >= CAST((0) AS DECIMAL)) AND (saldo <= CAST((200) AS DECIMAL)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE (ciudad IS NULL)",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, fecha, importe FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, (SELECT COUNT(*) AS count FROM zzv_pedidos AS p WHERE (p.cliente_id = c.id)) AS n FROM zzv_clientes AS c",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "e04_ilike",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE (LOWER(CAST((nombre) AS CHAR)) LIKE LOWER(CAST('a%' AS CHAR)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, GROUP_CONCAT(CAST((CAST((id) AS CHAR)) AS CHAR) ORDER BY CASE WHEN id IS NULL THEN 1 ELSE 0 END, id SEPARATOR CAST(',' AS CHAR)) AS ids FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "crear_falla",
+  "detail": "(pymysql.err.ProgrammingError) (1064, \"You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'CAST(',' AS CHAR)) AS ids FROM zzv_pedidos GRO"
+ },
+ {
+  "source": "postgresql",
+  "target": "mysql",
+  "view": "e07_cast_pg",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT CAST((id) AS CHAR) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE (((saldo > CAST((0) AS DECIMAL)) AND (activo = 1)) OR (CAST((ciudad) AS CHAR) = CAST('Madrid' AS CHAR)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.importe FROM (zzv_clientes AS c JOIN zzv_pedidos AS p ON ((p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.id AS pedido FROM (zzv_clientes AS c LEFT JOIN zzv_pedidos AS p ON ((p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, COUNT(*) AS n, SUM(importe) AS total, AVG(importe) AS media, MIN(fecha) AS primera, MAX(fecha) AS ultima FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id HAVING (SUM(importe) > CAST((50) AS DECIMAL))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN (saldo > CAST((100) AS DECIMAL)) THEN CAST('alto' AS CHAR) WHEN (saldo > CAST((0) AS DECIMAL)) THEN CAST('medio' AS CHAR) ELSE CAST('bajo' AS CHAR) END AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, CAST('desconocida' AS CHAR)) AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, CAST('x' AS CHAR)) AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, (CONCAT(CONCAT(CAST((nombre) AS CHAR), CAST(' - ' AS CHAR)), CAST((ciudad) AS CHAR))) AS etiqueta FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, UPPER(CAST((nombre) AS CHAR)) AS u, LOWER(CAST((nombre) AS CHAR)) AS l, TRIM(nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, SUBSTRING(nombre, 1, 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CHAR_LENGTH(CAST((nombre) AS CHAR)) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, EXTRACT(YEAR FROM alta) AS anio FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, (alta + 30) AS vence FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', '2024-02-09'), ('2.00', '2024-03-21'), ('3.00', '2023-12-31')] destino=[('1.00', '20240140.00'), ('2.00', '20240250.00'), ('3.00', '20231231.00')]"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id, (p.fecha - c.alta) AS dias FROM (zzv_pedidos AS p JOIN zzv_clientes AS c ON ((c.id = p.cliente_id)))",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', '5.00'), ('2.00', '22.00'), ('3.00', '50.00')] destino=[('1.00', '5.00'), ('2.00', '91.00'), ('3.00', '8919.00')]"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST((id) AS CHAR(10)) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, ROUND((saldo * 1.21), 2) AS con_iva, ABS(saldo) AS absoluto, (saldo / CAST((4) AS DECIMAL)) AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE (id IN (SELECT zzv_pedidos.cliente_id FROM zzv_pedidos))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes AS c WHERE (EXISTS(SELECT 1 FROM zzv_pedidos AS p WHERE (p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, total FROM (SELECT zzv_pedidos.cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) AS t WHERE (total > CAST((10) AS DECIMAL))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id, zzv_clientes.nombre FROM zzv_clientes WHERE (zzv_clientes.activo = 1) UNION ALL SELECT zzv_clientes.id, zzv_clientes.nombre FROM zzv_clientes WHERE (zzv_clientes.activo = 0)",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT zzv_pedidos.cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) SELECT cliente_id, total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, ROW_NUMBER() OVER (PARTITION BY cliente_id ORDER BY CASE WHEN fecha IS NULL THEN 1 ELSE 0 END, fecha, CASE WHEN id IS NULL THEN 1 ELSE 0 END, id) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, importe FROM zzv_pedidos ORDER BY CASE WHEN importe IS NULL THEN 1 ELSE 0 END DESC, importe DESC LIMIT 3",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE (CAST((nombre) AS CHAR) LIKE CAST('A%' AS CHAR))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE ((saldo >= CAST((0) AS DECIMAL)) AND (saldo <= CAST((200) AS DECIMAL)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE (ciudad IS NULL)",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, fecha, importe FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, (SELECT COUNT(*) AS count FROM zzv_pedidos AS p WHERE (p.cliente_id = c.id)) AS n FROM zzv_clientes AS c",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "e04_ilike",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE (LOWER(CAST((nombre) AS CHAR)) LIKE LOWER(CAST('a%' AS CHAR)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, GROUP_CONCAT(CAST((CAST((id) AS CHAR)) AS CHAR) ORDER BY CASE WHEN id IS NULL THEN 1 ELSE 0 END, id SEPARATOR CAST(',' AS CHAR)) AS ids FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "crear_falla",
+  "detail": "(pymysql.err.ProgrammingError) (1064, \"You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CAST(',' AS CHAR)) AS ids FROM zzv_pedidos G"
+ },
+ {
+  "source": "postgresql",
+  "target": "mariadb",
+  "view": "e07_cast_pg",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT CAST((id) AS CHAR) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE (((saldo > CAST((0) AS NUMERIC)) AND (activo = 1)) OR (CAST((ciudad) AS VARCHAR(MAX)) = CAST('Madrid' AS VARCHAR(MAX))))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.importe FROM (zzv_clientes AS c JOIN zzv_pedidos AS p ON ((p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.id AS pedido FROM (zzv_clientes AS c LEFT JOIN zzv_pedidos AS p ON ((p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, COUNT_BIG(*) AS n, SUM(importe) AS total, AVG(importe) AS media, MIN(fecha) AS primera, MAX(fecha) AS ultima FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id HAVING (SUM(importe) > CAST((50) AS NUMERIC))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN (saldo > CAST((100) AS NUMERIC)) THEN CAST('alto' AS VARCHAR(MAX)) WHEN (saldo > CAST((0) AS NUMERIC)) THEN CAST('medio' AS VARCHAR(MAX)) ELSE CAST('bajo' AS VARCHAR(MAX)) END AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, CAST('desconocida' AS VARCHAR)) AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, CAST('x' AS VARCHAR)) AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, (CAST((nombre) AS VARCHAR(MAX)) + CAST(' - ' AS VARCHAR(MAX)) + CAST((ciudad) AS VARCHAR(MAX))) AS etiqueta FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, UPPER(CAST((nombre) AS VARCHAR(MAX))) AS u, LOWER(CAST((nombre) AS VARCHAR(MAX))) AS l, TRIM(nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, SUBSTRING(nombre, 1, 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, LEN((nombre)) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, DATEPART(YEAR, alta) AS anio FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, (alta + 30) AS vence FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(pymssql.exceptions.OperationalError) (206, b'Operand type clash: date is incompatible with intDB-Lib error message 20018, severity 16:\\nGeneral SQL Server error: Check messages from the SQL Server\\n')"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id, (p.fecha - c.alta) AS dias FROM (zzv_pedidos AS p JOIN zzv_clientes AS c ON ((c.id = p.cliente_id)))",
+  "status": "crear_falla",
+  "detail": "(pymssql.exceptions.OperationalError) (8117, b'Operand data type date is invalid for subtract operator.DB-Lib error message 20018, severity 16:\\nGeneral SQL Server error: Check messages from the SQL Server\\n')"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST((id) AS VARCHAR(10)) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, ROUND((saldo * 1.21), 2) AS con_iva, ABS(saldo) AS absoluto, (saldo / CAST((4) AS NUMERIC)) AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE (id IN (SELECT zzv_pedidos.cliente_id FROM zzv_pedidos))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes AS c WHERE (EXISTS(SELECT 1 FROM zzv_pedidos AS p WHERE (p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, total FROM (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) AS t WHERE (total > CAST((10) AS NUMERIC))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id, zzv_clientes.nombre FROM zzv_clientes WHERE (zzv_clientes.activo = 1) UNION ALL SELECT zzv_clientes.id, zzv_clientes.nombre FROM zzv_clientes WHERE (zzv_clientes.activo = 0)",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT zzv_pedidos.cliente_id AS cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) SELECT cliente_id, total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, ROW_NUMBER() OVER (PARTITION BY cliente_id ORDER BY CASE WHEN fecha IS NULL THEN 1 ELSE 0 END, fecha, CASE WHEN id IS NULL THEN 1 ELSE 0 END, id) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT TOP 3 id, importe FROM zzv_pedidos ORDER BY CASE WHEN importe IS NULL THEN 1 ELSE 0 END DESC, importe DESC",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE (CAST((nombre) AS VARCHAR(MAX)) LIKE CAST('A%' AS VARCHAR(MAX)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE ((saldo >= CAST((0) AS NUMERIC)) AND (saldo <= CAST((200) AS NUMERIC)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE (ciudad IS NULL)",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, fecha, importe FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, (SELECT COUNT_BIG(*) AS count FROM zzv_pedidos AS p WHERE (p.cliente_id = c.id)) AS n FROM zzv_clientes AS c",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "e04_ilike",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE (CAST((nombre) AS VARCHAR(MAX)) ILIKE CAST('a%' AS VARCHAR(MAX)))",
+  "status": "crear_falla",
+  "detail": "(pymssql.exceptions.ProgrammingError) (102, b\"Incorrect syntax near 'ILIKE'.DB-Lib error message 20018, severity 15:\\nGeneral SQL Server error: Check messages from the SQL Server\\n\")"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, STRING_AGG(CAST((CAST((id) AS VARCHAR)) AS VARCHAR(MAX)), CAST(',' AS VARCHAR(MAX))) WITHIN GROUP (ORDER BY CASE WHEN id IS NULL THEN 1 ELSE 0 END, id) AS ids FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "crear_falla",
+  "detail": "(pymssql.exceptions.OperationalError) (8733, b'Separator parameter for STRING_AGG must be a string literal or variable.DB-Lib error message 20018, severity 16:\\nGeneral SQL Server error: Check messages from the SQL Serve"
+ },
+ {
+  "source": "postgresql",
+  "target": "sqlserver",
+  "view": "e07_cast_pg",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT CAST((id) AS VARCHAR(MAX)) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE (((saldo > CAST((0) AS NUMBER)) AND (activo = 1)) OR (CAST((ciudad) AS CLOB) = CAST('Madrid' AS CLOB)))",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-22849: Type CLOB is not supported for this function or operator."
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.importe FROM (zzv_clientes c JOIN zzv_pedidos p ON ((p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.id AS pedido FROM (zzv_clientes c LEFT JOIN zzv_pedidos p ON ((p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, COUNT(*) AS n, SUM(importe) AS total, AVG(importe) AS media, MIN(fecha) AS primera, MAX(fecha) AS ultima FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id HAVING (SUM(importe) > CAST((50) AS NUMBER))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN (saldo > CAST((100) AS NUMBER)) THEN CAST('alto' AS CLOB) WHEN (saldo > CAST((0) AS NUMBER)) THEN CAST('medio' AS CLOB) ELSE CAST('bajo' AS CLOB) END AS nivel FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-22849: Type CLOB is not supported for this function or operator."
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, CAST('desconocida' AS VARCHAR2)) AS ciudad FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-00906: missing left parenthesis"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, CAST('x' AS VARCHAR2)) AS ciudad FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-00906: missing left parenthesis"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, ((CAST((nombre) AS CLOB) || CAST(' - ' AS CLOB)) || CAST((ciudad) AS CLOB)) AS etiqueta FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-22849: Type CLOB is not supported for this function or operator."
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, UPPER(CAST((nombre) AS CLOB)) AS u, LOWER(CAST((nombre) AS CLOB)) AS l, TRIM(nombre) AS t FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-22849: Type CLOB is not supported for this function or operator."
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, SUBSTR(nombre, 1, 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, LENGTH(CAST((nombre) AS CLOB)) AS n FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-22849: Type CLOB is not supported for this function or operator."
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, EXTRACT(YEAR FROM alta) AS anio FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, (alta + 30) AS vence FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id, (p.fecha - c.alta) AS dias FROM (zzv_pedidos p JOIN zzv_clientes c ON ((c.id = p.cliente_id)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST((id) AS VARCHAR2(10)) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, ROUND((saldo * 1.21), 2) AS con_iva, ABS(saldo) AS absoluto, (saldo / CAST((4) AS NUMBER)) AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE (id IN (SELECT zzv_pedidos.cliente_id FROM zzv_pedidos))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes c WHERE (EXISTS(SELECT 1 FROM zzv_pedidos p WHERE (p.cliente_id = c.id)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, total FROM (SELECT zzv_pedidos.cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) t WHERE (total > CAST((10) AS NUMBER))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT zzv_clientes.id, zzv_clientes.nombre FROM zzv_clientes WHERE (zzv_clientes.activo = 1) UNION ALL SELECT zzv_clientes.id, zzv_clientes.nombre FROM zzv_clientes WHERE (zzv_clientes.activo = 0)",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[(None,), ('',), ('Madrid',)] destino=[(None,), ('Madrid',), ('Sevilla',)]"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT zzv_pedidos.cliente_id, SUM(zzv_pedidos.importe) AS total FROM zzv_pedidos GROUP BY zzv_pedidos.cliente_id) SELECT cliente_id, total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, ROW_NUMBER() OVER (PARTITION BY cliente_id ORDER BY fecha, id) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, importe FROM zzv_pedidos ORDER BY importe DESC FETCH FIRST 3 ROWS ONLY",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE (CAST((nombre) AS CLOB) LIKE CAST('A%' AS CLOB))",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-22849: Type CLOB is not supported for this function or operator."
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE ((saldo >= CAST((0) AS NUMBER)) AND (saldo <= CAST((200) AS NUMBER)))",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE (ciudad IS NULL)",
+  "status": "resultado_distinto",
+  "detail": "origen=[('2.00',)] destino=[('2.00',), ('5.00',)]"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, fecha, importe FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, (SELECT COUNT(*) AS count FROM zzv_pedidos p WHERE (p.cliente_id = c.id)) AS n FROM zzv_clientes c",
+  "status": "ok"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "e04_ilike",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE (LOWER(CAST((nombre) AS CLOB)) LIKE LOWER(CAST('a%' AS CLOB)))",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-22849: Type CLOB is not supported for this function or operator."
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, LISTAGG(CAST((CAST((id) AS VARCHAR2)) AS CLOB), CAST(',' AS CLOB)) WITHIN GROUP (ORDER BY id) AS ids FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-00906: missing left parenthesis"
+ },
+ {
+  "source": "postgresql",
+  "target": "oracle",
+  "view": "e07_cast_pg",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT CAST((id) AS CLOB) AS t FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-22849: Type CLOB is not supported for this function or operator."
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE (saldo > 0 AND activo = 1) OR ciudad = 'Madrid'",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.importe FROM zzv_clientes AS c INNER JOIN zzv_pedidos AS p ON p.cliente_id = c.id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.id AS pedido FROM zzv_clientes AS c LEFT JOIN zzv_pedidos AS p ON p.cliente_id = c.id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, COUNT(*) AS n, SUM(importe) AS total, AVG(importe) AS media, MIN(fecha) AS primera, MAX(fecha) AS ultima FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id HAVING SUM(importe) > 50",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN saldo > 100 THEN 'alto' WHEN saldo > 0 THEN 'medio' ELSE 'bajo' END AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, 'desconocida') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, 'x') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre + ' - ' + ciudad AS etiqueta FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Ana - Madrid'), ('2.00', None), ('3.00', 'Eva - Sevilla')] destino=[('1.00', '0.00'), ('2.00', None), ('3.00', '0.00')]"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, UPPER(nombre) AS u, LOWER(nombre) AS l, TRIM(nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, SUBSTRING(nombre, 1, 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CHAR_LENGTH(CAST(nombre AS CHAR)) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, YEAR(alta) AS anio FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, DATE_ADD(alta, INTERVAL 30 DAY) AS vence FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id, DATEDIFF(CAST(p.fecha AS DATETIME), CAST(c.alta AS DATETIME)) AS dias FROM zzv_pedidos AS p JOIN zzv_clientes AS c ON c.id = p.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST(id AS CHAR(10)) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, ROUND(saldo * 1.21, 2) AS con_iva, ABS(saldo) AS absoluto, saldo / 4 AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE id IN (SELECT cliente_id FROM zzv_pedidos)",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id FROM zzv_clientes AS c WHERE EXISTS(SELECT 1 FROM zzv_pedidos AS p WHERE p.cliente_id = c.id)",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT t.cliente_id, t.total FROM (SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id) AS t WHERE t.total > 10",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE activo = 1 UNION ALL SELECT id, nombre FROM zzv_clientes WHERE activo = 0",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id) SELECT cliente_id, total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, ROW_NUMBER() OVER (PARTITION BY cliente_id ORDER BY fecha, id) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, importe FROM zzv_pedidos ORDER BY importe DESC LIMIT 3",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE nombre LIKE 'A%'",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE saldo BETWEEN 0 AND 200",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE ciudad IS NULL",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT * FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id, (SELECT COUNT(*) FROM zzv_pedidos AS p WHERE p.cliente_id = c.id) AS n FROM zzv_clientes AS c",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "e01_condicional_dialecto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT id, IF(activo = 1, 'si', 'no') AS a FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mysql",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, GROUP_CONCAT(CAST(id AS CHAR(10)) ORDER BY id SEPARATOR ',') AS ids FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE (saldo > 0 AND activo = 1) OR ciudad = 'Madrid'",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.importe FROM zzv_clientes AS c INNER JOIN zzv_pedidos AS p ON p.cliente_id = c.id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.id AS pedido FROM zzv_clientes AS c LEFT JOIN zzv_pedidos AS p ON p.cliente_id = c.id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, COUNT(*) AS n, SUM(importe) AS total, AVG(importe) AS media, MIN(fecha) AS primera, MAX(fecha) AS ultima FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id HAVING SUM(importe) > 50",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN saldo > 100 THEN 'alto' WHEN saldo > 0 THEN 'medio' ELSE 'bajo' END AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, 'desconocida') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, 'x') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre + ' - ' + ciudad AS etiqueta FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Ana - Madrid'), ('2.00', None), ('3.00', 'Eva - Sevilla')] destino=[('1.00', '0.00'), ('2.00', None), ('3.00', '0.00')]"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, UPPER(nombre) AS u, LOWER(nombre) AS l, TRIM(nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, SUBSTRING(nombre, 1, 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CHAR_LENGTH(CAST(nombre AS CHAR)) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, YEAR(alta) AS anio FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, DATE_ADD(alta, INTERVAL 30 DAY) AS vence FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id, DATEDIFF(CAST(p.fecha AS DATETIME), CAST(c.alta AS DATETIME)) AS dias FROM zzv_pedidos AS p JOIN zzv_clientes AS c ON c.id = p.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST(id AS CHAR(10)) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, ROUND(saldo * 1.21, 2) AS con_iva, ABS(saldo) AS absoluto, saldo / 4 AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE id IN (SELECT cliente_id FROM zzv_pedidos)",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id FROM zzv_clientes AS c WHERE EXISTS(SELECT 1 FROM zzv_pedidos AS p WHERE p.cliente_id = c.id)",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT t.cliente_id, t.total FROM (SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id) AS t WHERE t.total > 10",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE activo = 1 UNION ALL SELECT id, nombre FROM zzv_clientes WHERE activo = 0",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id) SELECT cliente_id, total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, ROW_NUMBER() OVER (PARTITION BY cliente_id ORDER BY fecha, id) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, importe FROM zzv_pedidos ORDER BY importe DESC LIMIT 3",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE nombre LIKE 'A%'",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE saldo BETWEEN 0 AND 200",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE ciudad IS NULL",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT * FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id, (SELECT COUNT(*) FROM zzv_pedidos AS p WHERE p.cliente_id = c.id) AS n FROM zzv_clientes AS c",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "e01_condicional_dialecto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT id, IF(activo = 1, 'si', 'no') AS a FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "mariadb",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, GROUP_CONCAT(CAST(id AS CHAR(10)) ORDER BY id SEPARATOR ',') AS ids FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE (saldo > 0 AND activo = 1) OR ciudad = 'Madrid'",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.importe FROM zzv_clientes AS c INNER JOIN zzv_pedidos AS p ON p.cliente_id = c.id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.id AS pedido FROM zzv_clientes AS c LEFT JOIN zzv_pedidos AS p ON p.cliente_id = c.id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, COUNT(*) AS n, SUM(importe) AS total, AVG(importe) AS media, MIN(fecha) AS primera, MAX(fecha) AS ultima FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id HAVING SUM(importe) > 50",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN saldo > 100 THEN 'alto' WHEN saldo > 0 THEN 'medio' ELSE 'bajo' END AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, 'desconocida') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, 'x') AS ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre + ' - ' + ciudad AS etiqueta FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(psycopg.errors.UndefinedFunction) operator does not exist: character varying + unknown"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, UPPER(nombre) AS u, LOWER(nombre) AS l, TRIM(nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, SUBSTRING(nombre FROM 1 FOR 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, LENGTH(CAST(nombre AS TEXT)) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, EXTRACT(YEAR FROM CAST(alta AS DATE)) AS anio FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, alta + INTERVAL '30 DAY' AS vence FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id, CAST(EXTRACT(epoch FROM CAST(CAST(p.fecha AS TIMESTAMP) AS TIMESTAMP) - CAST(CAST(c.alta AS TIMESTAMP) AS TIMESTAMP)) / 86400 AS BIGINT) AS dias FROM zzv_pedidos AS p JOIN zzv_clientes AS c ON c.id = p.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST(id AS VARCHAR(10)) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, ROUND(saldo * 1.21, 2) AS con_iva, ABS(saldo) AS absoluto, saldo / 4 AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE id IN (SELECT cliente_id FROM zzv_pedidos)",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id FROM zzv_clientes AS c WHERE EXISTS(SELECT 1 FROM zzv_pedidos AS p WHERE p.cliente_id = c.id)",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT t.cliente_id, t.total FROM (SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id) AS t WHERE t.total > 10",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE activo = 1 UNION ALL SELECT id, nombre FROM zzv_clientes WHERE activo = 0",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT ciudad FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id) SELECT cliente_id, total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, ROW_NUMBER() OVER (PARTITION BY cliente_id ORDER BY fecha NULLS FIRST, id NULLS FIRST) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, importe FROM zzv_pedidos ORDER BY importe DESC NULLS LAST LIMIT 3",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE nombre LIKE 'A%'",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE saldo BETWEEN 0 AND 200",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE ciudad IS NULL",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT * FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id, (SELECT COUNT(*) FROM zzv_pedidos AS p WHERE p.cliente_id = c.id) AS n FROM zzv_clientes AS c",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "e01_condicional_dialecto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN activo = 1 THEN 'si' ELSE 'no' END AS a FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "postgresql",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, STRING_AGG(CAST(id AS VARCHAR(10)), ',' ORDER BY id NULLS FIRST) AS ids FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE (saldo > 0 AND activo = 1) OR ciudad = 'Madrid'",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.importe FROM zzv_clientes c INNER JOIN zzv_pedidos p ON p.cliente_id = c.id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.id AS pedido FROM zzv_clientes c LEFT JOIN zzv_pedidos p ON p.cliente_id = c.id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, COUNT(*) AS n, SUM(importe) AS total, AVG(importe) AS media, MIN(fecha) AS primera, MAX(fecha) AS ultima FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id HAVING SUM(importe) > 50",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN saldo > 100 THEN 'alto' WHEN saldo > 0 THEN 'medio' ELSE 'bajo' END AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, 'desconocida') AS ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Madrid'), ('2.00', 'desconocida'), ('3.00', 'Sevilla')] destino=[('1.00', 'Madrid'), ('2.00', 'desconocida'), ('3.00', 'Sevilla')]"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, 'x') AS ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Madrid'), ('2.00', 'x'), ('3.00', 'Sevilla')] destino=[('1.00', 'Madrid'), ('2.00', 'x'), ('3.00', 'Sevilla')]"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre + ' - ' + ciudad AS etiqueta FROM zzv_clientes",
+  "status": "select_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-01722: unable to convert string value containing 'A' to a number: NOMBRE"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, UPPER(nombre) AS u, LOWER(nombre) AS l, TRIM(nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, SUBSTR(nombre, 1, 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, LENGTH(CAST(nombre AS CLOB)) AS n FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-22849: Type CLOB is not supported for this function or operator."
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, YEAR(CAST(alta AS DATE)) AS anio FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-00904: \"YEAR\": invalid identifier"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, DATE_ADD(alta, 30, 'DAY') AS vence FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-00904: \"DATE_ADD\": invalid identifier"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id, DATEDIFF(TIME_STR_TO_TIME(p.fecha), TIME_STR_TO_TIME(c.alta), DAY) AS dias FROM zzv_pedidos p JOIN zzv_clientes c ON c.id = p.cliente_id",
+  "status": "crear_falla",
+  "detail": "(oracledb.exceptions.DatabaseError) ORA-00904: \"DAY\": invalid identifier"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST(id AS VARCHAR2(10)) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, ROUND(saldo * 1.21, 2) AS con_iva, ABS(saldo) AS absoluto, saldo / 4 AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE id IN (SELECT cliente_id FROM zzv_pedidos)",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id FROM zzv_clientes c WHERE EXISTS(SELECT 1 FROM zzv_pedidos p WHERE p.cliente_id = c.id)",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT t.cliente_id, t.total FROM (SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id) t WHERE t.total > 10",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE activo = 1 UNION ALL SELECT id, nombre FROM zzv_clientes WHERE activo = 0",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[(None,), ('',), ('Madrid',)] destino=[(None,), ('Madrid',), ('Sevilla',)]"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id) SELECT cliente_id, total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, ROW_NUMBER() OVER (PARTITION BY cliente_id ORDER BY fecha NULLS FIRST, id NULLS FIRST) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, importe FROM zzv_pedidos ORDER BY importe DESC NULLS LAST FETCH FIRST 3 ROWS ONLY",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE nombre LIKE 'A%'",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE saldo BETWEEN 0 AND 200",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE ciudad IS NULL",
+  "status": "resultado_distinto",
+  "detail": "origen=[('2.00',)] destino=[('2.00',), ('5.00',)]"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT * FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id, (SELECT COUNT(*) FROM zzv_pedidos p WHERE p.cliente_id = c.id) AS n FROM zzv_clientes c",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "e01_condicional_dialecto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN activo = 1 THEN 'si' ELSE 'no' END AS a FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "sqlserver",
+  "target": "oracle",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, LISTAGG(CAST(id AS VARCHAR2(10)), ',') WITHIN GROUP (ORDER BY id NULLS FIRST) AS ids FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE (saldo > 0 AND activo = 1) OR ciudad = 'Madrid'",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.importe FROM zzv_clientes AS c INNER JOIN zzv_pedidos AS p ON p.cliente_id = c.id",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.id AS pedido FROM zzv_clientes AS c LEFT JOIN zzv_pedidos AS p ON p.cliente_id = c.id",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, COUNT(*) AS n, SUM(importe) AS total, AVG(importe) AS media, MIN(fecha) AS primera, MAX(fecha) AS ultima FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id HAVING SUM(importe) > 50",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN saldo > 100 THEN 'alto' WHEN saldo > 0 THEN 'medio' ELSE 'bajo' END AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, 'desconocida') AS ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Madrid'), ('2.00', 'desconocida'), ('3.00', 'Sevilla')] destino=[('1.00', 'Madrid'), ('2.00', 'desconocida'), ('3.00', 'Sevilla')]"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, 'x') AS ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Madrid'), ('2.00', 'x'), ('3.00', 'Sevilla')] destino=[('1.00', 'Madrid'), ('2.00', 'x'), ('3.00', 'Sevilla')]"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CONCAT(nombre, ' - ', ciudad) AS etiqueta FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Ana - Madrid'), ('2.00', 'Luis -'), ('3.00', 'Eva - Sevilla')] destino=[('1.00', 'Ana - Madrid'), ('2.00', None), ('3.00', 'Eva - Sevilla')]"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, UPPER(nombre) AS u, LOWER(nombre) AS l, TRIM(nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, SUBSTRING(nombre, 1, 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CHAR_LENGTH(nombre) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, EXTRACT(YEAR FROM alta) AS anio FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, alta + 30 AS vence FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', '2024-02-09'), ('2.00', '2024-03-21'), ('3.00', '2023-12-31')] destino=[('1.00', '20240140.00'), ('2.00', '20240250.00'), ('3.00', '20231231.00')]"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id, p.fecha - c.alta AS dias FROM zzv_pedidos AS p JOIN zzv_clientes AS c ON c.id = p.cliente_id",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', '5.00'), ('2.00', '22.00'), ('3.00', '50.00')] destino=[('1.00', '5.00'), ('2.00', '91.00'), ('3.00', '8919.00')]"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST(id AS CHAR(10)) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, ROUND(saldo * 1.21, 2) AS con_iva, ABS(saldo) AS absoluto, saldo / 4 AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE id IN (SELECT cliente_id FROM zzv_pedidos)",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id FROM zzv_clientes AS c WHERE EXISTS(SELECT 1 FROM zzv_pedidos AS p WHERE p.cliente_id = c.id)",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT t.cliente_id, t.total FROM (SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id) AS t WHERE t.total > 10",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE activo = 1 UNION ALL SELECT id, nombre FROM zzv_clientes WHERE activo = 0",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[(None,), ('Madrid',), ('Sevilla',)] destino=[(None,), ('',), ('Madrid',)]"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id) SELECT cliente_id, total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, ROW_NUMBER() OVER (PARTITION BY cliente_id ORDER BY CASE WHEN fecha IS NULL THEN 1 ELSE 0 END, fecha, CASE WHEN id IS NULL THEN 1 ELSE 0 END, id) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, importe FROM zzv_pedidos ORDER BY CASE WHEN importe IS NULL THEN 1 ELSE 0 END DESC, importe DESC LIMIT 3",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE nombre LIKE 'A%'",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE saldo BETWEEN 0 AND 200",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE ciudad IS NULL",
+  "status": "resultado_distinto",
+  "detail": "origen=[('2.00',), ('5.00',)] destino=[('2.00',)]"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, fecha, importe FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id, (SELECT COUNT(*) FROM zzv_pedidos AS p WHERE p.cliente_id = c.id) AS n FROM zzv_clientes AS c",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "e01_condicional_dialecto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN activo = 1 THEN 'si' ELSE 'no' END AS a FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "e02_rownum",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE rownum <= 3",
+  "status": "crear_falla",
+  "detail": "(pymysql.err.OperationalError) (1054, \"Unknown column 'rownum' in 'where clause'\")"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "e03_outer_join_oracle",
+  "kind": "especifica",
+  "unsupported": [
+   "Outer join syntax using the (+) operator is not supported."
+  ],
+  "sql": "SELECT c.nombre, p.id AS pedido FROM zzv_clientes AS c, zzv_pedidos AS p WHERE p.cliente_id = c.id",
+  "status": "resultado_distinto",
+  "detail": "origen=[('Ana', '1.00'), ('Ana', '2.00'), ('Ana', '6.00')] destino=[('Ana', '1.00'), ('Ana', '2.00'), ('Ana', '6.00')]"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, GROUP_CONCAT(id ORDER BY CASE WHEN id IS NULL THEN 1 ELSE 0 END, id SEPARATOR ',') AS ids FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mysql",
+  "view": "e06_connect_by",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT level AS n FROM `dual` CONNECT BY level <= 3",
+  "status": "crear_falla",
+  "detail": "(pymysql.err.ProgrammingError) (1064, \"You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'BY level <= 3' at line 1\")"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE (saldo > 0 AND activo = 1) OR ciudad = 'Madrid'",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.importe FROM zzv_clientes AS c INNER JOIN zzv_pedidos AS p ON p.cliente_id = c.id",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.id AS pedido FROM zzv_clientes AS c LEFT JOIN zzv_pedidos AS p ON p.cliente_id = c.id",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, COUNT(*) AS n, SUM(importe) AS total, AVG(importe) AS media, MIN(fecha) AS primera, MAX(fecha) AS ultima FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id HAVING SUM(importe) > 50",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN saldo > 100 THEN 'alto' WHEN saldo > 0 THEN 'medio' ELSE 'bajo' END AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, 'desconocida') AS ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Madrid'), ('2.00', 'desconocida'), ('3.00', 'Sevilla')] destino=[('1.00', 'Madrid'), ('2.00', 'desconocida'), ('3.00', 'Sevilla')]"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, 'x') AS ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Madrid'), ('2.00', 'x'), ('3.00', 'Sevilla')] destino=[('1.00', 'Madrid'), ('2.00', 'x'), ('3.00', 'Sevilla')]"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CONCAT(nombre, ' - ', ciudad) AS etiqueta FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Ana - Madrid'), ('2.00', 'Luis -'), ('3.00', 'Eva - Sevilla')] destino=[('1.00', 'Ana - Madrid'), ('2.00', None), ('3.00', 'Eva - Sevilla')]"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, UPPER(nombre) AS u, LOWER(nombre) AS l, TRIM(nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, SUBSTRING(nombre, 1, 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CHAR_LENGTH(nombre) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, EXTRACT(YEAR FROM alta) AS anio FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, alta + 30 AS vence FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', '2024-02-09'), ('2.00', '2024-03-21'), ('3.00', '2023-12-31')] destino=[('1.00', '20240140.00'), ('2.00', '20240250.00'), ('3.00', '20231231.00')]"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id, p.fecha - c.alta AS dias FROM zzv_pedidos AS p JOIN zzv_clientes AS c ON c.id = p.cliente_id",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', '5.00'), ('2.00', '22.00'), ('3.00', '50.00')] destino=[('1.00', '5.00'), ('2.00', '91.00'), ('3.00', '8919.00')]"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST(id AS CHAR(10)) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, ROUND(saldo * 1.21, 2) AS con_iva, ABS(saldo) AS absoluto, saldo / 4 AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE id IN (SELECT cliente_id FROM zzv_pedidos)",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id FROM zzv_clientes AS c WHERE EXISTS(SELECT 1 FROM zzv_pedidos AS p WHERE p.cliente_id = c.id)",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT t.cliente_id, t.total FROM (SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id) AS t WHERE t.total > 10",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE activo = 1 UNION ALL SELECT id, nombre FROM zzv_clientes WHERE activo = 0",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[(None,), ('Madrid',), ('Sevilla',)] destino=[(None,), ('',), ('Madrid',)]"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id) SELECT cliente_id, total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, ROW_NUMBER() OVER (PARTITION BY cliente_id ORDER BY CASE WHEN fecha IS NULL THEN 1 ELSE 0 END, fecha, CASE WHEN id IS NULL THEN 1 ELSE 0 END, id) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, importe FROM zzv_pedidos ORDER BY CASE WHEN importe IS NULL THEN 1 ELSE 0 END DESC, importe DESC LIMIT 3",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE nombre LIKE 'A%'",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE saldo BETWEEN 0 AND 200",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE ciudad IS NULL",
+  "status": "resultado_distinto",
+  "detail": "origen=[('2.00',), ('5.00',)] destino=[('2.00',)]"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, fecha, importe FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id, (SELECT COUNT(*) FROM zzv_pedidos AS p WHERE p.cliente_id = c.id) AS n FROM zzv_clientes AS c",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "e01_condicional_dialecto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN activo = 1 THEN 'si' ELSE 'no' END AS a FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "e02_rownum",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE rownum <= 3",
+  "status": "crear_falla",
+  "detail": "(pymysql.err.OperationalError) (1054, \"Unknown column 'rownum' in 'WHERE'\")"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "e03_outer_join_oracle",
+  "kind": "especifica",
+  "unsupported": [
+   "Outer join syntax using the (+) operator is not supported."
+  ],
+  "sql": "SELECT c.nombre, p.id AS pedido FROM zzv_clientes AS c, zzv_pedidos AS p WHERE p.cliente_id = c.id",
+  "status": "resultado_distinto",
+  "detail": "origen=[('Ana', '1.00'), ('Ana', '2.00'), ('Ana', '6.00')] destino=[('Ana', '1.00'), ('Ana', '2.00'), ('Ana', '6.00')]"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, GROUP_CONCAT(id ORDER BY CASE WHEN id IS NULL THEN 1 ELSE 0 END, id SEPARATOR ',') AS ids FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "mariadb",
+  "view": "e06_connect_by",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT level AS n FROM `dual` CONNECT BY level <= 3",
+  "status": "crear_falla",
+  "detail": "(pymysql.err.ProgrammingError) (1064, \"You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'BY level <= 3' at line 1\")"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE (saldo > 0 AND activo = 1) OR ciudad = 'Madrid'",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.importe FROM zzv_clientes AS c INNER JOIN zzv_pedidos AS p ON p.cliente_id = c.id",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.id AS pedido FROM zzv_clientes AS c LEFT JOIN zzv_pedidos AS p ON p.cliente_id = c.id",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, COUNT(*) AS n, SUM(importe) AS total, AVG(importe) AS media, MIN(fecha) AS primera, MAX(fecha) AS ultima FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id HAVING SUM(importe) > 50",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN saldo > 100 THEN 'alto' WHEN saldo > 0 THEN 'medio' ELSE 'bajo' END AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, 'desconocida') AS ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Madrid'), ('2.00', 'desconocida'), ('3.00', 'Sevilla')] destino=[('1.00', 'Madrid'), ('2.00', 'desconocida'), ('3.00', 'Sevilla')]"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, 'x') AS ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Madrid'), ('2.00', 'x'), ('3.00', 'Sevilla')] destino=[('1.00', 'Madrid'), ('2.00', 'x'), ('3.00', 'Sevilla')]"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre || ' - ' || ciudad AS etiqueta FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Ana - Madrid'), ('2.00', 'Luis -'), ('3.00', 'Eva - Sevilla')] destino=[('1.00', 'Ana - Madrid'), ('2.00', None), ('3.00', 'Eva - Sevilla')]"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, UPPER(nombre) AS u, LOWER(nombre) AS l, TRIM(nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, SUBSTRING(nombre FROM 1 FOR 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, LENGTH(nombre) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, EXTRACT(YEAR FROM alta) AS anio FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, alta + 30 AS vence FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id, p.fecha - c.alta AS dias FROM zzv_pedidos AS p JOIN zzv_clientes AS c ON c.id = p.cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST(id AS VARCHAR(10)) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, ROUND(saldo * 1.21, 2) AS con_iva, ABS(saldo) AS absoluto, CAST(saldo AS DOUBLE PRECISION) / 4 AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE id IN (SELECT cliente_id FROM zzv_pedidos)",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id FROM zzv_clientes AS c WHERE EXISTS(SELECT 1 FROM zzv_pedidos AS p WHERE p.cliente_id = c.id)",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT t.cliente_id, t.total FROM (SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id) AS t WHERE t.total > 10",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE activo = 1 UNION ALL SELECT id, nombre FROM zzv_clientes WHERE activo = 0",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[(None,), ('Madrid',), ('Sevilla',)] destino=[(None,), ('',), ('Madrid',)]"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id) SELECT cliente_id, total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, ROW_NUMBER() OVER (PARTITION BY cliente_id ORDER BY fecha, id) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, importe FROM zzv_pedidos ORDER BY importe DESC FETCH FIRST 3 ROWS ONLY",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE nombre LIKE 'A%'",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE saldo BETWEEN 0 AND 200",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE ciudad IS NULL",
+  "status": "resultado_distinto",
+  "detail": "origen=[('2.00',), ('5.00',)] destino=[('2.00',)]"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT ID, CLIENTE_ID, FECHA, IMPORTE FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id, (SELECT COUNT(*) FROM zzv_pedidos AS p WHERE p.cliente_id = c.id) AS n FROM zzv_clientes AS c",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "e01_condicional_dialecto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN activo = 1 THEN 'si' ELSE 'no' END AS a FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "e02_rownum",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE ROWNUM <= 3",
+  "status": "crear_falla",
+  "detail": "(psycopg.errors.UndefinedColumn) column \"rownum\" does not exist"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "e03_outer_join_oracle",
+  "kind": "especifica",
+  "unsupported": [
+   "Outer join syntax using the (+) operator is not supported."
+  ],
+  "sql": "SELECT c.nombre, p.id AS pedido FROM zzv_clientes AS c, zzv_pedidos AS p WHERE p.cliente_id = c.id",
+  "status": "resultado_distinto",
+  "detail": "origen=[('Ana', '1.00'), ('Ana', '2.00'), ('Ana', '6.00')] destino=[('Ana', '1.00'), ('Ana', '2.00'), ('Ana', '6.00')]"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, STRING_AGG(id, ',' ORDER BY id) AS ids FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "crear_falla",
+  "detail": "(psycopg.errors.UndefinedFunction) function string_agg(integer, unknown) does not exist"
+ },
+ {
+  "source": "oracle",
+  "target": "postgresql",
+  "view": "e06_connect_by",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT LEVEL AS n FROM DUAL CONNECT BY LEVEL <= 3",
+  "status": "crear_falla",
+  "detail": "(psycopg.errors.SyntaxError) syntax error at or near \"BY\""
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c01_proyeccion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c02_where_and_or",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE (saldo > 0 AND activo = 1) OR ciudad = 'Madrid'",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c03_inner_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.importe FROM zzv_clientes AS c INNER JOIN zzv_pedidos AS p ON p.cliente_id = c.id",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c04_left_join",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.nombre, p.id AS pedido FROM zzv_clientes AS c LEFT JOIN zzv_pedidos AS p ON p.cliente_id = c.id",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c05_group_agregados",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, COUNT_BIG(*) AS n, SUM(importe) AS total, AVG(importe) AS media, MIN(fecha) AS primera, MAX(fecha) AS ultima FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c06_having",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id HAVING SUM(importe) > 50",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c07_case",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN saldo > 100 THEN 'alto' WHEN saldo > 0 THEN 'medio' ELSE 'bajo' END AS nivel FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c08_coalesce",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, 'desconocida') AS ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Madrid'), ('2.00', 'desconocida'), ('3.00', 'Sevilla')] destino=[('1.00', 'Madrid'), ('2.00', 'desconocida'), ('3.00', 'Sevilla')]"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c09_nulos_dialecto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, COALESCE(ciudad, 'x') AS ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Madrid'), ('2.00', 'x'), ('3.00', 'Sevilla')] destino=[('1.00', 'Madrid'), ('2.00', 'x'), ('3.00', 'Sevilla')]"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c10_concatenacion",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre + ' - ' + ciudad AS etiqueta FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[('1.00', 'Ana - Madrid'), ('2.00', 'Luis -'), ('3.00', 'Eva - Sevilla')] destino=[('1.00', 'Ana - Madrid'), ('2.00', None), ('3.00', 'Eva - Sevilla')]"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c11_upper_lower_trim",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, UPPER(nombre) AS u, LOWER(nombre) AS l, TRIM(nombre) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c12_substring",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, SUBSTRING(nombre, 1, 2) AS ini FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c13_longitud",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, LEN(nombre) AS n FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c14_anio",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, DATEPART(YEAR, alta) AS anio FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c15_sumar_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, alta + 30 AS vence FROM zzv_clientes",
+  "status": "crear_falla",
+  "detail": "(pymssql.exceptions.OperationalError) (206, b'Operand type clash: date is incompatible with intDB-Lib error message 20018, severity 16:\\nGeneral SQL Server error: Check messages from the SQL Server\\n')"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c16_diferencia_dias",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT p.id, p.fecha - c.alta AS dias FROM zzv_pedidos AS p JOIN zzv_clientes AS c ON c.id = p.cliente_id",
+  "status": "crear_falla",
+  "detail": "(pymssql.exceptions.OperationalError) (8117, b'Operand data type date is invalid for subtract operator.DB-Lib error message 20018, severity 16:\\nGeneral SQL Server error: Check messages from the SQL Server\\n')"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c17_cast_texto",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT CAST(id AS VARCHAR(10)) AS t FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c18_aritmetica",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, ROUND(saldo * 1.21, 2) AS con_iva, ABS(saldo) AS absoluto, CAST(saldo AS FLOAT) / 4 AS cuarto FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c19_in_subconsulta",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE id IN (SELECT cliente_id FROM zzv_pedidos)",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c20_exists",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id FROM zzv_clientes AS c WHERE EXISTS(SELECT 1 FROM zzv_pedidos AS p WHERE p.cliente_id = c.id)",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c21_tabla_derivada",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT t.cliente_id, t.total FROM (SELECT cliente_id AS cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id) AS t WHERE t.total > 10",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c22_union_all",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, nombre FROM zzv_clientes WHERE activo = 1 UNION ALL SELECT id, nombre FROM zzv_clientes WHERE activo = 0",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c23_distinct",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT DISTINCT ciudad FROM zzv_clientes",
+  "status": "resultado_distinto",
+  "detail": "origen=[(None,), ('Madrid',), ('Sevilla',)] destino=[(None,), ('',), ('Madrid',)]"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c24_cte",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "WITH t AS (SELECT cliente_id AS cliente_id, SUM(importe) AS total FROM zzv_pedidos GROUP BY cliente_id) SELECT cliente_id, total FROM t",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c25_ventana",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, cliente_id, ROW_NUMBER() OVER (PARTITION BY cliente_id ORDER BY CASE WHEN fecha IS NULL THEN 1 ELSE 0 END, fecha, CASE WHEN id IS NULL THEN 1 ELSE 0 END, id) AS rn FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c26_top_n",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id, importe FROM zzv_pedidos ORDER BY CASE WHEN importe IS NULL THEN 1 ELSE 0 END DESC, importe DESC OFFSET 0 ROWS FETCH FIRST 3 ROWS ONLY",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c27_like",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE nombre LIKE 'A%'",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c28_between",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE saldo BETWEEN 0 AND 200",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c29_is_null",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE ciudad IS NULL",
+  "status": "resultado_distinto",
+  "detail": "origen=[('2.00',), ('5.00',)] destino=[('2.00',)]"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c30_select_star",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT ID, CLIENTE_ID, FECHA, IMPORTE FROM zzv_pedidos",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "c31_subconsulta_escalar",
+  "kind": "comun",
+  "unsupported": [],
+  "sql": "SELECT c.id, (SELECT COUNT_BIG(*) FROM zzv_pedidos AS p WHERE p.cliente_id = c.id) AS n FROM zzv_clientes AS c",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "e01_condicional_dialecto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT id, CASE WHEN activo = 1 THEN 'si' ELSE 'no' END AS a FROM zzv_clientes",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "e02_rownum",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT id FROM zzv_clientes WHERE ROWNUM <= 3",
+  "status": "crear_falla",
+  "detail": "(pymssql.exceptions.ProgrammingError) (207, b\"Invalid column name 'ROWNUM'.DB-Lib error message 20018, severity 16:\\nGeneral SQL Server error: Check messages from the SQL Server\\n\")"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "e03_outer_join_oracle",
+  "kind": "especifica",
+  "unsupported": [
+   "Outer join syntax using the (+) operator is not supported."
+  ],
+  "sql": "SELECT c.nombre, p.id AS pedido FROM zzv_clientes AS c, zzv_pedidos AS p WHERE p.cliente_id = c.id",
+  "status": "resultado_distinto",
+  "detail": "origen=[('Ana', '1.00'), ('Ana', '2.00'), ('Ana', '6.00')] destino=[('Ana', '1.00'), ('Ana', '2.00'), ('Ana', '6.00')]"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "e05_agregado_texto",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT cliente_id, STRING_AGG(id, ',') WITHIN GROUP (ORDER BY CASE WHEN id IS NULL THEN 1 ELSE 0 END, id) AS ids FROM zzv_pedidos GROUP BY cliente_id",
+  "status": "ok"
+ },
+ {
+  "source": "oracle",
+  "target": "sqlserver",
+  "view": "e06_connect_by",
+  "kind": "especifica",
+  "unsupported": [],
+  "sql": "SELECT LEVEL AS n FROM DUAL CONNECT BY LEVEL <= 3",
+  "status": "crear_falla",
+  "detail": "(pymssql.exceptions.OperationalError) (156, b\"Incorrect syntax near the keyword 'BY'.DB-Lib error message 20018, severity 15:\\nGeneral SQL Server error: Check messages from the SQL Server\\n\")"
+ }
+]
