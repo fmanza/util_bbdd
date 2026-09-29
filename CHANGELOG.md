@@ -7,6 +7,18 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **migrate**: el SQL de las vistas se reescribe al dialecto destino con sqlglot (dependencia opcional, extra
+  `util_bbdd[migrate]`): nuevo parámetro `MigrationPlanner(view_strategy="auto" | "transpile" | "passthrough")`,
+  `"auto"` por defecto (reescribe si sqlglot está instalado). Nombres del plan con las comillas del destino, sin el
+  schema origen; funciones y sintaxis del dialecto; aritmética de fechas explícita; correcciones del texto de catálogo
+  (casts de PostgreSQL, `CAST ... CHARSET` y `to_days` de MySQL, `DATEDIFF` de SQL Server hacia Oracle). Las vistas con
+  `(+)`, `ROWNUM` o `CONNECT BY` de Oracle, o que sqlglot no analiza o no genera, se copian sin reescribir con aviso.
+  Con el banco (31 construcciones comunes, 20 pares, tablas y vistas migradas por el plan y datos copiados) se crean
+  el 100 % de las vistas; las únicas diferencias de resultado son de semántica de Oracle (cadena vacía = `NULL`,
+  concatenación con `NULL`), con aviso `WARNING` en los pares con Oracle.
+
 ### Fixed
 
 - **migrate**: con origen SQL Server, la definición de las vistas llegaba con su cabecera `CREATE VIEW ... AS` (se

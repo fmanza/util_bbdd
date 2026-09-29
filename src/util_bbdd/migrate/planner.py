@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from ._compat.default_normalizer import normalize_default
-from ._compat.identifier_rules import find_case_insensitive_collisions
+from ._compat.identifier_rules import check_identifier, find_case_insensitive_collisions
 from .charset import (
     DEFAULT_CHARSET,
     DEFAULT_COLLATION,
@@ -29,7 +29,7 @@ from .extractors.mysql import MariaDBFullTypeSchemaExtractor, MySQLSchemaExtract
 from .extractors.oracle import OracleSchemaExtractor
 from .extractors.postgresql import PostgreSQLSchemaExtractor
 from .extractors.sqlserver import SQLServerSchemaExtractor
-from .ir.models import MigrationPlan, MigrationWarning
+from .ir.models import CanonicalTable, CanonicalView, MigrationPlan, MigrationWarning
 from .transformers.mariadb_to_mysql import MariaDBToMySQLTransformer
 from .transformers.mariadb_to_oracle import MariaDBToOracleTransformer
 from .transformers.mariadb_to_postgresql import MariaDBToPostgreSQLTransformer
@@ -44,6 +44,7 @@ from .transformers.postgresql_to_sqlserver import PostgreSQLToSQLServerTransform
 from .transformers.sqlserver_to_mariadb import SQLServerToMariaDBTransformer
 from .transformers.sqlserver_to_oracle import SQLServerToOracleTransformer
 from .transformers.sqlserver_to_postgresql import SQLServerToPostgreSQLTransformer
+from .views import ViewStrategy, resolve_view_strategy
 
 NumberFallback = Literal["DOUBLE", "DECIMAL(38,10)", "DECIMAL(18,4)"]
 
@@ -80,11 +81,16 @@ class MigrationPlanner:
             Si None, no se emite cláusula COLLATE (usa collation de la BD destino).
         pg_schema: Schema PostgreSQL (opcional). Si se indica, emite
             ``SET search_path = schema;`` al inicio del script DDL.
+        view_strategy: Cómo se migra el SQL de las vistas. ``"auto"`` (por defecto) lo reescribe al dialecto destino
+            con sqlglot si está instalado (extra ``util_bbdd[migrate]``) y, si no, lo copia sin reescribir;
+            ``"transpile"`` exige sqlglot; ``"passthrough"`` lo copia sin reescribir (comportamiento hasta 0.19.0).
+            Una vista que no se puede reescribir de forma fiable se copia sin reescribir, con aviso.
 
     Raises:
         ValueError: Si source_engine o target_engine no están soportados,
-                    si source_engine == target_engine, o si charset/collation
-                    no son válidos para MariaDB.
+                    si source_engine == target_engine, si charset/collation
+                    no son válidos para MariaDB o si view_strategy no es válida.
+        ImportError: Si view_strategy="transpile" y sqlglot no está instalado.
     """
 
     def __init__(
@@ -99,6 +105,7 @@ class MigrationPlanner:
         sql_server_collation: str | None = None,
         pg_schema: str | None = None,
         oracle_identity_mode: OracleIdentityMode = "sequence_trigger",
+        view_strategy: ViewStrategy = "auto",
     ) -> None:
         src = source_engine.strip().lower()
         tgt = target_engine.strip().lower()
@@ -123,6 +130,7 @@ class MigrationPlanner:
         self._sql_server_collation = sql_server_collation
         self._pg_schema = pg_schema
         self._oracle_identity_mode: OracleIdentityMode = oracle_identity_mode
+        self._view_strategy = resolve_view_strategy(view_strategy)
 
         if tgt == "mariadb":
             self._charset = validate_charset(charset)
@@ -283,6 +291,76 @@ class MigrationPlanner:
 
         return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema)
 
+    # ─── Vistas ─────────────────────────────────────────────────────────────────
+
+    def _transform_views(
+        self,
+        transformer: Any,
+        raw_views: list[CanonicalView],
+        raw_tables: list[CanonicalTable],
+        transformed: list[CanonicalTable],
+        schema: str,
+    ) -> list[CanonicalView]:
+        """Vistas del destino: reescritas con sqlglot (``view_strategy``) o sin reescribir (transformer)."""
+        if self._view_strategy == "passthrough" or not raw_views:
+            return list(transformer.transform_views(raw_views))
+
+        from .views.transpiler import ViewTranspileContext, transpile_views
+
+        max_length: int = int(getattr(transformer, "MAX_IDENTIFIER_LENGTH", 128))
+        views: list[CanonicalView] = []
+        object_names: dict[str, str] = {}
+        for raw_table, new_table in zip(raw_tables, transformed, strict=True):
+            object_names[raw_table.name.lower()] = new_table.name
+        for view in raw_views:
+            adapted, warning = check_identifier(view.name, max_length)
+            renamed = CanonicalView(
+                name=adapted,
+                original_name=view.original_name,
+                schema=view.schema,
+                query=view.query,
+                columns=list(view.columns),
+                comment=view.comment,
+                warnings=list(view.warnings),
+            )
+            if warning:
+                renamed.warnings.append(
+                    MigrationWarning(
+                        table=view.name,
+                        column=None,
+                        oracle_type="IDENTIFIER",
+                        target_type=adapted,
+                        message=warning,
+                        severity="WARNING",
+                    )
+                )
+            object_names[view.name.lower()] = adapted
+            views.append(renamed)
+
+        # Columnas: nombre origen → destino solo si es el mismo en todas las tablas (si no, se deja sin tocar).
+        column_names: dict[str, str] = {}
+        ambiguous: set[str] = set()
+        column_types: dict[str, dict[str, str]] = {}
+        for raw_table, new_table in zip(raw_tables, transformed, strict=True):
+            column_types[raw_table.name] = {col.name: col.oracle_type for col in raw_table.columns if col.oracle_type}
+            for raw_col, new_col in zip(raw_table.columns, new_table.columns, strict=True):
+                key = raw_col.name.lower()
+                if column_names.get(key, new_col.name) != new_col.name:
+                    ambiguous.add(key)
+                column_names[key] = new_col.name
+        for key in ambiguous:
+            column_names.pop(key, None)
+
+        context = ViewTranspileContext(
+            source_engine=self._source_engine,
+            target_engine=self._target_engine,
+            source_schema=schema,
+            object_names=object_names,
+            column_names=column_names,
+            column_types=column_types,
+        )
+        return transpile_views(views, context)
+
     # ─── Construcción del plan ─────────────────────────────────────────────────
 
     def _build_plan(
@@ -300,7 +378,7 @@ class MigrationPlanner:
                 column.default = normalize_default(self._source_engine, column.default)
 
         transformed = transformer.transform(raw_tables)
-        transformed_views = transformer.transform_views(raw_views)
+        transformed_views = self._transform_views(transformer, raw_views, raw_tables, transformed, schema)
         transformed_routines = transformer.transform_routines(raw_routines)
 
         all_warnings: list[MigrationWarning] = []

@@ -15,8 +15,8 @@ la estructura, usa la [guía de volcado de datos](dump_guide.md).
 
 | Rol | Motores |
 |---|---|
-| Origen | `oracle`, `mariadb`, `sqlserver`, `postgresql` |
-| Destino | `oracle`, `mariadb`, `sqlserver`, `postgresql` |
+| Origen | `oracle`, `mariadb`, `mysql`, `sqlserver`, `postgresql` |
+| Destino | `oracle`, `mariadb`, `mysql`, `sqlserver`, `postgresql` |
 
 ## 2. Requisitos Previos
 
@@ -96,6 +96,41 @@ Para aplicarlo directamente en el destino (tras revisar los avisos, ver §4):
 plan.execute(target_connection)             # ejecuta sentencia a sentencia
 ```
 
+### 3.5 Vistas: reescritura al dialecto destino
+
+El SQL de cada vista se reescribe al dialecto destino con [sqlglot](https://github.com/tobymao/sqlglot), una
+dependencia **opcional**:
+
+```bash
+pip install "util_bbdd[migrate]"
+```
+
+El parámetro `view_strategy` decide cómo se migran las vistas:
+
+| Valor | Comportamiento |
+|---|---|
+| `"auto"` (por defecto) | Reescribe con sqlglot si está instalado; si no, copia el SQL sin reescribir |
+| `"transpile"` | Reescribe siempre; `ImportError` si sqlglot no está instalado |
+| `"passthrough"` | Copia el SQL sin reescribir, con aviso de revisión (comportamiento hasta 0.19.0) |
+
+```python
+planner = MigrationPlanner(source_engine="mysql", target_engine="postgresql", view_strategy="auto")
+```
+
+Al reescribir, cada vista:
+
+- usa los nombres de tablas, vistas y columnas **del plan** (con las comillas del destino) y pierde el prefijo del
+  schema origen;
+- traduce funciones y sintaxis del dialecto (`IFNULL`/`ISNULL`/`NVL`, concatenación, `LIMIT`/`TOP`/`FETCH FIRST`,
+  funciones de fecha…) y hace explícita la aritmética de fechas (`fecha + 30` de Oracle o PostgreSQL es una suma de
+  días, no un número);
+- lleva un aviso `INFO` de revisión y, si el origen o el destino es Oracle, un `WARNING` de semántica: en Oracle la
+  cadena vacía es `NULL` y `||` ignora los `NULL`.
+
+Una vista que no se puede reescribir de forma fiable se copia **sin reescribir** con un aviso `WARNING`: construcciones
+de Oracle `(+)`, `ROWNUM` y `CONNECT BY`, SQL que sqlglot no analiza o no sabe generar. Las vistas que usan objetos
+fuera del schema migrado se reescriben con un aviso de referencia externa.
+
 ## 4. Verificación
 
 Antes de ejecutar, **revisa los avisos** y confirma que no hay errores de severidad `ERROR`:
@@ -126,7 +161,9 @@ print(format_plan_text(plan))          # resumen de avisos por severidad
 | `ValueError` al construir `MigrationPlanner` | Par origen/destino no soportado o `source == target` | Usa motores distintos de la matriz soportada (§1) |
 | `plan.error_count > 0` | Tipos sin equivalente directo en el destino | Revisa los avisos `ERROR`, ajusta `number_fallback` o edita el DDL antes de ejecutar |
 | Pérdida de exactitud en `NUMBER` (Oracle) | `NUMBER` sin precisión usa el fallback por defecto (`DOUBLE`) | Usa `number_fallback="DECIMAL(38,10)"` |
-| Stored procedures / vistas sin traducir | Las rutinas se emiten *verbatim* (pass-through) con aviso | Revisa y adapta manualmente la sintaxis al dialecto destino |
+| Stored procedures sin traducir | Las rutinas se emiten *verbatim* (pass-through) con aviso | Revisa y adapta manualmente la sintaxis al dialecto destino |
+| Vistas sin reescribir | sqlglot no instalado, `view_strategy="passthrough"` o construcción sin traducción fiable (aviso `VIEW (sin reescribir)`) | `pip install "util_bbdd[migrate]"`; si persiste, adapta esa vista a mano |
+| Vista reescrita con otro resultado | Semántica distinta entre motores (Oracle: cadena vacía = `NULL`) | Revisa los avisos `VIEW (semántica Oracle)` y los datos con cadenas vacías |
 | FKs a tablas fuera del schema migrado | Referencias externas excluidas del script | Gestiona esas FKs manualmente tras la migración |
 | Identificadores demasiado largos | Superan el límite del motor destino | Se truncan con sufijo hash determinista; cada truncado queda como aviso |
 | Columnas `ROWID`/`UROWID` (Oracle) | Sin equivalente en el destino | Se omiten con un comentario SQL explicativo en su lugar |

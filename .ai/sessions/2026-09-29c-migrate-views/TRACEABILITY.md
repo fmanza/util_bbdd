@@ -43,6 +43,22 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
   C) semántica de Oracle (`''` = `NULL`, concatenación con `NULL`); D) `(+)` de Oracle se crea como join interno
   (**silencioso**), `ROWNUM`/`CONNECT BY` fallan al crear. Propuesta: V1 = base + A + salvaguardas B/D; V2 =
   reescrituras.
+- **V1** (aprobada con el alcance ampliado): `migrate/views/` (`_dialects.py`: `view_strategy`/`resolve_view_strategy`;
+  `_rewrites.py`: correcciones A (`CHAR charset` y `to_days` de MySQL, casts `::text` de PG), B (aritmética de fechas
+  con tipos anotados, `x ± INTERVAL`, `+` de cadenas de SQL Server), destino Oracle (texto → `VARCHAR2(4000)`,
+  `DATE_ADD`/`DATEDIFF`/`YEAR` → aritmética y `EXTRACT`, sin envoltorios `TIME_STR_TO_TIME`), destino PG
+  (`fecha + INTERVAL` → `DATE`) y salvaguardas (`(+)`, `ROWNUM`, `CONNECT BY` → pass-through); `transpiler.py`:
+  `qualify` + `annotate_types` con los tipos del plan, nombres del plan con comillas del destino, alias generados
+  entrecomillados, avisos INFO/WARNING y pass-through ante cualquier fallo). `MigrationPlanner(view_strategy="auto")`
+  y `_transform_views`; extra `util_bbdd[migrate]` (`sqlglot>=30,<31`) y `sqlglot` en `dev`; guía
+  `ddl_migration_guide.md` §3.5 (y matriz de motores con MySQL).
+- Verificación V1 (`v1/v1_matrix_views.py`, `v1/results.json`): matriz de 20 pares **a través de `MigrationPlanner`**
+  (tablas y vistas del plan creadas en el destino, datos copiados, resultados comparados): **100 % de las vistas
+  comunes se crean en los 20 pares**; diferencias de resultado solo por semántica de Oracle (c08/c09/c10/c23/c29,
+  cadena vacía y concatenación con NULL). `(+)`, `ROWNUM`, `CONNECT BY` → pass-through (fallan de forma visible);
+  `ILIKE` → SQL Server y agregados de texto → PG quedan para V2. Iteración: la primera pasada reveló alias generados
+  por `qualify` (`AS 1`, `_col_0`), `alta + INTERVAL` de MySQL y `TIME_STR_TO_TIME` de SQL Server hacia Oracle; se
+  corrigieron y la segunda pasada dio 100 %.
 
 ## Artefactos generados
 | Artefacto | Ruta | Estado |
@@ -50,6 +66,10 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
 | PLAN + AUDIT_PLAN | conversación (veredicto GO) | emitido |
 | H7 | `src/util_bbdd/metadata/sqlserver/tables.py`, `src/util_bbdd/migrate/extractors/sqlserver.py`, `src/util_bbdd/migrate/_compat/sql_view_header.py` | completado |
 | Tests H7 | `tests/unit/migrate/test_sql_view_header.py`, `tests/unit/migrate/test_sqlserver_extractor.py` | completado |
+| V0 | `v0/V0_SPIKE.md`, `v0/v0_spike_views.py`, `v0/results.json` | completado |
+| V1 | `src/util_bbdd/migrate/views/`, `src/util_bbdd/migrate/planner.py`, `pyproject.toml`, `docs/guides/ddl_migration_guide.md` | completado |
+| Tests V1 | `tests/unit/migrate/test_view_strategy.py`, `tests/unit/migrate/test_view_transpiler.py` | completado |
+| Verificación V1 | `v1/v1_matrix_views.py`, `v1/results.json` | completado |
 
 ## Directrices para Futuras IAs
 - **[sqlserver/vistas]**: `INFORMATION_SCHEMA.VIEWS.VIEW_DEFINITION` trunca a 4000 caracteres también en SQL Server
@@ -63,6 +83,15 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
 - **[migrate/vistas]**: el texto de catálogo no es el SQL escrito: PG añade casts (`::text`), MySQL reescribe
   `CAST(... AS CHAR(n))` con charset y `DATEDIFF` como `to_days(a) - to_days(b)`, SQL Server incluye la cabecera.
   El corpus de pruebas debe leerse del catálogo, no escribirse a mano.
+- **[migrate/vistas]**: el transpilador vive en `migrate/views/transpiler.py` y solo se importa si `view_strategy`
+  resuelve a `transpile`; `_rewrites.py` concentra las reescrituras AST (una función por problema, documentada con su
+  caso de V0). Recorrer los nodos **de abajo arriba** (`reversed(list(find_all(...)))`) al reemplazar operaciones
+  anidadas (`a + ' - ' + b`).
+- **[migrate/vistas]**: `qualify` de sqlglot añade alias a todas las proyecciones (`SELECT 1 AS 1`, `COUNT(0) AS
+  _col_0`): los identificadores no simples se entrecomillan o MySQL/Oracle rechazan la vista.
+- **[migrate/vistas]**: nombres del plan (tablas, vistas, columnas) se emiten entrecomillados como los crean los
+  emitters (Oracle en mayúsculas); el resto de identificadores sin comillas. Verificar siempre con la matriz real
+  (`v1/v1_matrix_views.py`), no solo con la ejecución: la comparación de resultados es la que detecta lo silencioso.
 - **[migrate/vistas]**: plan aprobado: `sqlglot` opcional (`util_bbdd[migrate]`, `>=30,<31`), `view_strategy="auto"`
   (transpila si `sqlglot` está instalado), fallback a pass-through; V0 (spike) decide antes de V1 (umbral ≥ 80 % del
   corpus común por par).
@@ -70,5 +99,6 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
 ## Veredicto final
 Veredicto: GO (sesión IN_PROGRESS)
 Pendientes al cierre:
-- V1 (base + correcciones A + salvaguardas B/D), pendiente de aprobación del usuario tras V0.
-- V2 (reescrituras `(+)`, `ROWNUM`, `ILIKE`, agregados de texto) y V3 (`validate_views`, docs).
+- V2: reescrituras `(+)` → `LEFT JOIN`, `ROWNUM` → `FETCH FIRST`/`LIMIT`/`TOP`, `ILIKE` → `LOWER() LIKE`, agregados de
+  texto (`STRING_AGG` con cast); lista de columnas de la cabecera de vistas SQL Server.
+- V3: `validate_views`, test de integración de la matriz de vistas, documentación funcional/API.

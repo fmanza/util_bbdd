@@ -44,6 +44,10 @@ mysql = [
     "pymysql[rsa]>=1.1",  # sync; [rsa] = cryptography, necesario para caching_sha2_password sin TLS
     "aiomysql>=0.2",      # async
 ]
+# migrate: reescribe el SQL de las vistas al dialecto destino (MigrationPlanner(view_strategy="auto"|"transpile")).
+migrate = [
+    "sqlglot>=30,<31",
+]
 analysis = [
     "graphviz>=0.20",
 ]
@@ -63,6 +67,7 @@ dev = [
     "pandas-stubs",
     "types-networkx",
     "types-PyMySQL",
+    "sqlglot>=30,<31",
 ]
 docs = [
     # Generadores compatibles (ambos leen el mismo mkdocs.yml):
