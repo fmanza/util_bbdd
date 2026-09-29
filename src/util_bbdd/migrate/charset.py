@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 DEFAULT_CHARSET: str = "utf8mb4"
 DEFAULT_COLLATION: str = "utf8mb4_uca1400_ai_ci"
 #: Collation por defecto con destino MySQL (MySQL 8): ``utf8mb4_uca1400_ai_ci`` solo existe en MariaDB ≥ 10.10.
@@ -102,6 +104,27 @@ CHARSET_COLLATION_MAP: dict[str, frozenset[str]] = {
 }
 
 
+_STORAGE_ENGINE_RE: re.Pattern[str] = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+
+
+def validate_storage_engine(engine: str) -> str:
+    """Valida el motor de almacenamiento de MariaDB/MySQL (``ENGINE=...``) como identificador simple (A9).
+
+    Se escribe sin comillas en el DDL: cualquier otra cosa (``"InnoDB; DROP TABLE x"``) acabaría en el script. No se
+    limita a una lista: InnoDB, Aria, MyISAM, ColumnStore, RocksDB... son válidos.
+
+    Returns:
+        El nombre sin espacios alrededor.
+
+    Raises:
+        ValueError: Si no es un identificador simple (letra inicial, luego letras, dígitos o ``_``).
+    """
+    normalized = engine.strip()
+    if not _STORAGE_ENGINE_RE.match(normalized):
+        raise ValueError(f"engine '{engine}' no es un nombre de motor de almacenamiento válido (p. ej. InnoDB, Aria)")
+    return normalized
+
+
 def validate_charset(charset: str) -> str:
     """Valida y normaliza un charset MariaDB.
 
@@ -200,4 +223,5 @@ __all__: list[str] = [
     "validate_collation",
     "validate_charset_collation_pair",
     "validate_mysql_collation",
+    "validate_storage_engine",
 ]

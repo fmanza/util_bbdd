@@ -18,6 +18,7 @@ from .charset import (
     validate_charset_collation_pair,
     validate_collation,
     validate_mysql_collation,
+    validate_storage_engine,
 )
 from .emitters.mariadb import MariaDBDDLEmitter
 from .emitters.mysql import MySQLDDLEmitter
@@ -89,7 +90,8 @@ class MigrationPlanner:
     Raises:
         ValueError: Si source_engine o target_engine no están soportados,
                     si source_engine == target_engine, si charset/collation
-                    no son válidos para MariaDB o si view_strategy no es válida.
+                    no son válidos para MariaDB, si engine no es un nombre de motor de
+                    almacenamiento válido (destino MariaDB/MySQL) o si view_strategy no es válida.
         ImportError: Si view_strategy="transpile" y sqlglot no está instalado.
     """
 
@@ -125,7 +127,7 @@ class MigrationPlanner:
         self._source_engine = src
         self._target_engine = tgt
         self._number_fallback = number_fallback
-        self._engine = engine
+        self._engine = validate_storage_engine(engine) if tgt in _MYSQL_FAMILY_TARGETS else engine
         self._int_display_width = int_display_width
         self._sql_server_collation = sql_server_collation
         self._pg_schema = pg_schema

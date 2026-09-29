@@ -66,6 +66,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   así fallaban hacia Oracle aunque el aviso decía que no colisionaban. Ahora el plan lo marca con la severidad del
   destino: `ERROR` si el choque es seguro (columnas hacia Oracle/MySQL/MariaDB; tablas y vistas hacia Oracle), que
   impide `execute()`, y `WARNING` si depende de la collation o configuración del destino (A8).
+- **migrate**: `engine` (motor de almacenamiento de MariaDB/MySQL) se escribía sin validar en `ENGINE=...`; ahora
+  `MigrationPlanner` y los emisores de MariaDB/MySQL exigen un identificador simple (InnoDB, Aria, MyISAM...) y lanzan
+  `ValueError` si no lo es. Nuevo `validate_storage_engine` en `util_bbdd.migrate.charset` (A9).
 - **migrate**: con origen SQL Server, la definición de las vistas llegaba con su cabecera `CREATE VIEW ... AS` (se
   emitía `CREATE OR ALTER VIEW v AS CREATE VIEW v AS ...`) y truncada a 4000 caracteres, también en SQL Server 2022
   (`INFORMATION_SCHEMA.VIEWS`). Ahora se lee con `OBJECT_DEFINITION` y sin cabecera; el plan avisa si la cabecera

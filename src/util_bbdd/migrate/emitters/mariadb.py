@@ -14,6 +14,7 @@ import re
 
 from collections import deque
 
+from ..charset import validate_storage_engine
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView
 from ._default_fallback import default_fallback_warning
 from ._trailing_comment import join_definitions, with_trailing_comment
@@ -77,7 +78,7 @@ class MariaDBDDLEmitter:
     ) -> None:
         self._charset = charset
         self._collation = collation
-        self._engine = engine
+        self._engine = validate_storage_engine(engine)  # A9: va sin comillas en ENGINE=...
 
     # ─── API pública ──────────────────────────────────────────────────────────
 
