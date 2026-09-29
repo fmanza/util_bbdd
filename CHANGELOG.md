@@ -49,6 +49,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **migrate**: con destino Oracle y `oracle_identity_mode="sequence_trigger"` (por defecto), el trigger de las columnas
   autoincrementales terminaba en `END` sin `;` y quedaba `INVALID`: todo `INSERT` fallaba con ORA-04098. Además, el
   script de `emit()` termina ahora cada bloque PL/SQL con una línea `/` (SQL*Plus/SQLcl) (A2).
+- **migrate**: con destino PostgreSQL u Oracle, dos índices con el mismo nombre en tablas distintas (habitual desde
+  MySQL/MariaDB, que llaman a `KEY (cliente_id)` `cliente_id`, o desde SQL Server) hacían fallar el segundo
+  `CREATE INDEX`: en esos motores el nombre es único en el schema. El siguiente que choca pasa a `<tabla>_<índice>`
+  (dentro del límite del motor) con un aviso `WARNING` en la tabla (A3).
 - **migrate**: con origen SQL Server, la definición de las vistas llegaba con su cabecera `CREATE VIEW ... AS` (se
   emitía `CREATE OR ALTER VIEW v AS CREATE VIEW v AS ...`) y truncada a 4000 caracteres, también en SQL Server 2022
   (`INFORMATION_SCHEMA.VIEWS`). Ahora se lee con `OBJECT_DEFINITION` y sin cabecera; el plan avisa si la cabecera

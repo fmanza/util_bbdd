@@ -39,6 +39,7 @@ from typing import Literal
 from .._compat.identifier_rules import MAX_ORACLE_IDENTIFIER_LENGTH, truncate_identifier
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView, MigrationWarning
 from ._default_fallback import default_fallback_warning
+from ._index_names import claim_index_name
 from ._trailing_comment import join_definitions, with_trailing_comment
 from .mariadb import _topological_sort, _topological_sort_views
 
@@ -75,6 +76,10 @@ def _is_plsql_block(statement: str) -> bool:
     """True si la primera línea con SQL (tras los comentarios ``--``) crea un bloque PL/SQL."""
     code = "\n".join(line for line in statement.splitlines() if not line.strip().startswith("--"))
     return bool(_PLSQL_BLOCK_RE.match(code))
+
+
+def _pk_constraint_name(table: CanonicalTable) -> str:
+    return truncate_identifier(f"PK_{table.name.upper()}", MAX_ORACLE_IDENTIFIER_LENGTH)[0]
 
 
 def _dq(name: str) -> str:
@@ -186,9 +191,10 @@ class OracleDDLEmitter:
         for table in ordered:
             statements.extend(self._emit_comments(table))
 
-        # CREATE INDEX
+        # CREATE INDEX (A3: el nombre de índice es único en el schema; las PK crean un índice con su nombre)
+        taken_names: set[str] = {_pk_constraint_name(t) for t in ordered if t.primary_key}
         for table in ordered:
-            statements.extend(self._emit_indexes(table))
+            statements.extend(self._emit_indexes(table, taken_names))
 
         # ALTER TABLE (FKs circulares)
         for table_name, fk in circular_fk_pairs:
@@ -227,7 +233,7 @@ class OracleDDLEmitter:
                 ddl_lines.append(line)
 
         if table.primary_key:
-            pk_name = truncate_identifier(f"PK_{table.name.upper()}", MAX_ORACLE_IDENTIFIER_LENGTH)[0]
+            pk_name = _pk_constraint_name(table)
             pk_cols = ", ".join(_dq(c) for c in table.primary_key)
             ddl_lines.append(f"    CONSTRAINT {_dq(pk_name)} PRIMARY KEY ({pk_cols})")
 
@@ -375,7 +381,7 @@ class OracleDDLEmitter:
 
     # ─── Índices ──────────────────────────────────────────────────────────────
 
-    def _emit_indexes(self, table: CanonicalTable) -> list[str]:
+    def _emit_indexes(self, table: CanonicalTable, taken_names: set[str] | None = None) -> list[str]:
         pk_set = {c.upper() for c in table.primary_key}
         omitted_cols = {col.name.upper() for col in table.columns if col.omit}
         stmts: list[str] = []
@@ -389,7 +395,15 @@ class OracleDDLEmitter:
 
             unique_kw = "UNIQUE " if idx.unique else ""
             cols = ", ".join(_dq(c) for c in idx.columns)
-            stmt = f"CREATE {unique_kw}INDEX {_dq(idx.name)} ON {_dq(table.name)} ({cols})"
+            name = claim_index_name(
+                table,
+                idx,
+                taken_names if taken_names is not None else set(),
+                max_length=MAX_ORACLE_IDENTIFIER_LENGTH,
+                fold=str.upper,
+                target_label="Oracle",
+            )
+            stmt = f"CREATE {unique_kw}INDEX {_dq(name)} ON {_dq(table.name)} ({cols})"
             stmts.append(stmt)
 
         return stmts

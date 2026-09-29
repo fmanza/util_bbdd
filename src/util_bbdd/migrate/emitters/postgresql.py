@@ -18,6 +18,7 @@ import re
 from .._compat.identifier_rules import MAX_POSTGRESQL_IDENTIFIER_LENGTH, truncate_identifier
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView
 from ._default_fallback import default_fallback_warning
+from ._index_names import claim_index_name
 from ._trailing_comment import join_definitions, with_trailing_comment
 from .mariadb import _topological_sort, _topological_sort_views
 
@@ -120,8 +121,11 @@ class PostgreSQLDDLEmitter:
                 stmt = f"-- COMMENT: {table.comment}\n{stmt}"
             statements.append(stmt)
 
+        # A3: el nombre de índice es único en el schema (comparte espacio con tablas, vistas y los índices de las PK).
+        taken_names: set[str] = {t.name for t in ordered} | {v.name for v in (views or [])}
+        taken_names |= {_pk_constraint_name(t) for t in ordered if t.primary_key}
         for table in ordered:
-            for stmt in self._emit_indexes(table):
+            for stmt in self._emit_indexes(table, taken_names):
                 statements.append(stmt)
 
         for table_name, fk in circular_fk_pairs:
@@ -207,7 +211,7 @@ class PostgreSQLDDLEmitter:
 
         if table.primary_key:
             pk_cols = ", ".join(_dq(c) for c in table.primary_key)
-            pk_name_raw = truncate_identifier(f"PK_{table.name}", MAX_POSTGRESQL_IDENTIFIER_LENGTH)[0]
+            pk_name_raw = _pk_constraint_name(table)
             ddl_lines.append(f"    CONSTRAINT {_dq(pk_name_raw)} PRIMARY KEY ({pk_cols})")
 
         for fk in table.foreign_keys:
@@ -314,7 +318,7 @@ class PostgreSQLDDLEmitter:
 
     # ─── Índices ──────────────────────────────────────────────────────────────
 
-    def _emit_indexes(self, table: CanonicalTable) -> list[str]:
+    def _emit_indexes(self, table: CanonicalTable, taken_names: set[str] | None = None) -> list[str]:
         pk_set = {c.upper() for c in table.primary_key}
         omitted_cols = {col.name.upper() for col in table.columns if col.omit}
         stmts: list[str] = []
@@ -328,10 +332,22 @@ class PostgreSQLDDLEmitter:
 
             unique_kw = "UNIQUE " if idx.unique else ""
             cols = ", ".join(_dq(c) for c in idx.columns)
-            stmt = f"CREATE {unique_kw}INDEX {_dq(idx.name)} ON {_dq(table.name)} ({cols})"
+            name = claim_index_name(
+                table,
+                idx,
+                taken_names if taken_names is not None else set(),
+                max_length=MAX_POSTGRESQL_IDENTIFIER_LENGTH,
+                fold=str,
+                target_label="PostgreSQL",
+            )
+            stmt = f"CREATE {unique_kw}INDEX {_dq(name)} ON {_dq(table.name)} ({cols})"
             stmts.append(stmt)
 
         return stmts
+
+
+def _pk_constraint_name(table: CanonicalTable) -> str:
+    return truncate_identifier(f"PK_{table.name}", MAX_POSTGRESQL_IDENTIFIER_LENGTH)[0]
 
 
 def _format_default_postgresql(value: str) -> str:

@@ -268,6 +268,9 @@ def _source_objects(engine_name: str) -> list[str]:
     statements += [f"INSERT INTO {P} VALUES ({a}, {b}, {date(c)}, {e})" for a, b, c, e in PEDIDOS]
     statements.append(f"CREATE TABLE {E} (id {i} PRIMARY KEY, nombre {v} NOT NULL, jefe_id {i}, activo {i})")
     statements.append(f"CREATE TABLE {A} ({AUTOINC_ID[engine_name]}, v {i})")
+    if engine_name in ("mysql", "mariadb", "sqlserver"):
+        # A3 (hotfix): mismo nombre de índice en dos tablas (válido aquí; en PostgreSQL y Oracle es único por schema).
+        statements += [f"CREATE INDEX zzvw_idx ON {E} (activo)", f"CREATE INDEX zzvw_idx ON {A} (v)"]
     statements += [
         f"INSERT INTO {E} VALUES ({emp}, '{name}', {'NULL' if boss is None else boss}, {active})"
         for emp, name, boss, active in EMPLEADOS
