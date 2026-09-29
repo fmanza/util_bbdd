@@ -73,6 +73,6 @@ sequenceDiagram
 | Término | Definición |
 |---|---|
 | DDL | Data Definition Language: sentencias SQL que definen la estructura de la base de datos (CREATE TABLE, ALTER TABLE, etc.) |
-| Pass-through | Estrategia de migración que emite el código fuente (PL/SQL, vistas) sin modificarlo, con un aviso de revisión manual |
+| Pass-through | Estrategia de migración que emite el código fuente (PL/SQL; vistas sin sqlglot o con `view_strategy="passthrough"`) sin modificarlo, con un aviso de revisión manual |
 | Plan de migración | Objeto inmutable que contiene el DDL generado, la lista de avisos por severidad y métodos para exportar o ejecutar el script |
 | `number_fallback` | Parámetro que controla el tipo destino para columnas `NUMBER` Oracle sin precisión explícita |

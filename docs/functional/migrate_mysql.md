@@ -28,7 +28,7 @@ existen en MariaDB y el ancho de visualización de los enteros.
 | Tipos exclusivos de MariaDB | De MariaDB a MySQL: `UUID` → `CHAR(36)`, `INET4` → `VARCHAR(15)`, `INET6` → `VARCHAR(39)` | Cada sustitución queda como aviso en el plan |
 | Defaults literales | Los valores por defecto de texto y fecha se tratan como literales entrecomillados; las expresiones (`CURRENT_TIMESTAMP`) no | Un `VARCHAR` con default `'5'` no se convierte en el número `5` |
 | Nombres preservados | Tablas, columnas, índices y FKs conservan su nombre; MySQL y MariaDB admiten 64 caracteres | Solo se truncan al pasar a un motor con un límite menor, con aviso |
-| Vistas: pass-through | El SQL de la vista se copia sin reescribir | Aviso de revisión manual por cada vista |
+| Vistas reescritas al destino | El SQL de la vista se reescribe al dialecto destino con sqlglot (ver [reescritura de vistas](migrate_views.md)) | Aviso de revisión por cada vista; sin sqlglot se copia sin reescribir |
 
 ## 3. Casos de Uso
 
@@ -71,8 +71,7 @@ tabla y, de MariaDB a MySQL, los tipos que MySQL no tiene.
 **Límites y exclusiones:**
 
 - No migra filas de datos, solo la estructura (DDL); para los datos, ver el volcado entre motores (`dump`)
-- Rutinas y vistas se copian sin reescribir su SQL; revisar los avisos del plan antes de ejecutar
-- El SQL de las vistas conserva las referencias cualificadas con el schema origen
+- Las rutinas se copian sin reescribir su SQL; las vistas se reescriben al destino ([reescritura de vistas](migrate_views.md)); revisar los avisos del plan antes de ejecutar
 - Los valores por defecto se traducen al destino (literales, números, `NULL`, `CURRENT_TIMESTAMP`, `CURRENT_DATE` y
   booleanos); una función propia del motor origen sin equivalente (p. ej. `newid()`) se emite como literal con un
   aviso en el plan para revisarla
@@ -83,6 +82,6 @@ tabla y, de MariaDB a MySQL, los tipos que MySQL no tiene.
 |---|---|
 | Collation | Regla de ordenación y comparación de texto de una tabla o columna |
 | Ancho de visualización | Número entre paréntesis de los enteros (`INT(11)`); no limita el rango y MySQL 8 lo declara obsoleto |
-| Pass-through | Estrategia que copia el SQL original (vistas, rutinas) sin modificarlo, con aviso de revisión manual |
+| Pass-through | Estrategia que copia el SQL original (rutinas; vistas sin sqlglot o con `view_strategy="passthrough"`) sin modificarlo, con aviso de revisión manual |
 | Plan de migración | Objeto con el DDL generado, los avisos y métodos para exportar o ejecutar el script |
 | `TABLE_SCHEMA` | Nombre del schema en MySQL/MariaDB tal como aparece en `INFORMATION_SCHEMA.TABLES` |

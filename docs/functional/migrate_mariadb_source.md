@@ -23,7 +23,7 @@ Responde a la pregunta "¿cómo paso mi estructura MariaDB a otro motor sin rees
 | `TEXT`/`LONGTEXT` → tipos equivalentes | Tipos de texto largo se mapean al tipo más cercano del motor destino | Posible cambio de límite máximo de caracteres; aviso registrado en plan |
 | FKs que referencian tablas externas omitidas | Claves foráneas fuera del schema migrado se excluyen del script | Aviso registrado; el desarrollador gestiona esas referencias manualmente |
 | FKs circulares al final del script | Las dependencias circulares se emiten como `ALTER TABLE ADD CONSTRAINT` al final | El script completo es ejecutable en orden sin desactivar comprobaciones de FK |
-| Vistas: pass-through sin reescritura | Las vistas se incluyen con el SQL original; puede requerir ajustes manuales en destino | Aviso de revisión manual emitido por cada vista encontrada |
+| Vistas reescritas al destino | El SQL de las vistas se reescribe al dialecto destino con sqlglot (ver [reescritura de vistas](migrate_views.md)); sin sqlglot se copia sin reescribir | Aviso de revisión por cada vista |
 
 ## 3. Casos de Uso
 
@@ -58,14 +58,14 @@ sequenceDiagram
 
 ### Flujos alternativos
 
-**Vistas con SQL MariaDB-específico:** Las vistas se incluyen en el script sin reescritura del SQL. El plan emite un aviso de revisión manual para cada vista encontrada, indicando que las funciones MariaDB-específicas pueden requerir adaptación.
+**Vistas con SQL MariaDB-específico:** el SQL de las vistas se reescribe al dialecto destino (ver [reescritura de vistas](migrate_views.md)); las construcciones sin traducción fiable se copian sin reescribir con aviso de revisión manual.
 
 **Límites y exclusiones:**
 
 - Solo soporta MariaDB como motor origen (destinos: Oracle, SQL Server, PostgreSQL)
 - No migra filas de datos, solo la estructura (DDL)
 - No migra stored procedures, funciones ni triggers
-- Las vistas se incluyen como pass-through sin reescritura SQL automática
+- Las vistas se reescriben con sqlglot (extra `util_bbdd[migrate]`); sin él, se copian sin reescribir ([reescritura de vistas](migrate_views.md))
 - No modifica ni consulta la base de datos MariaDB de forma destructiva
 
 ## 4. Glosario y Términos
@@ -73,6 +73,6 @@ sequenceDiagram
 | Término | Definición |
 |---|---|
 | DDL | Data Definition Language: sentencias SQL que definen la estructura de la base de datos |
-| Pass-through | Estrategia que emite el código fuente (vistas) sin modificarlo, con un aviso de revisión manual |
+| Pass-through | Estrategia que emite el código fuente (rutinas; vistas sin sqlglot o con `view_strategy="passthrough"`) sin modificarlo, con un aviso de revisión manual |
 | Plan de migración | Objeto que contiene el DDL generado, los avisos y métodos para exportar o ejecutar el script |
 | `TABLE_SCHEMA` | Nombre del schema en MariaDB tal como aparece en `INFORMATION_SCHEMA.TABLES` |

@@ -204,6 +204,25 @@ class MigrationPlan:
             if stmt_clean:
                 target_connection.execute_custom_one(stmt_clean, {})
 
+    def validate_views(self, target_connection: Any = None, *, include_tables: bool = True) -> list[Any]:
+        """Valida las vistas del plan en el destino sin dejar cambios.
+
+        En PostgreSQL y SQL Server (DDL transaccional) crea las tablas del plan (si ``include_tables``) y cada vista en
+        una transacción que se deshace. En MySQL, MariaDB y Oracle (el DDL hace commit implícito) solo comprueba la
+        sintaxis con sqlglot; sin sqlglot no valida.
+
+        Args:
+            target_connection: ``SyncDatabaseManager`` (o Engine de SQLAlchemy) del destino; obligatorio con destino
+                PostgreSQL o SQL Server.
+            include_tables: Crear también las tablas del plan en la transacción (validar antes de ``execute``).
+
+        Returns:
+            list[ViewValidationResult]: Una entrada por vista con SQL (``view``, ``valid``, ``method``, ``error``).
+        """
+        from ..views.validation import validate_plan_views
+
+        return list(validate_plan_views(self, target_connection, include_tables=include_tables))
+
     def suggested_filename(self, suffix: str = "", ext: str = "sql") -> str:
         """Nombre de fichero canónico que incorpora schema, motor origen y motor destino.
 

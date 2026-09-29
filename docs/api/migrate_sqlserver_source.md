@@ -58,7 +58,7 @@ flowchart TD
 | `ValueError` | Motor origen/destino no soportado |
 | `SQLAlchemyError` | Error al consultar `INFORMATION_SCHEMA` o `sys.*` |
 
-`VIEW_DEFINITION` en `INFORMATION_SCHEMA.VIEWS` puede truncarse a 4000 chars en SQL Server < 2019; vistas largas tendrán DDL incompleto.
+La definición de las vistas se lee con `OBJECT_DEFINITION` (`sys.views`), sin el límite de 4000 caracteres de `INFORMATION_SCHEMA.VIEWS.VIEW_DEFINITION`.
 
 ## 3. Componentes y Clases
 

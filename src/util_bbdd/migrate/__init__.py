@@ -161,6 +161,7 @@ from .transformers.postgresql_to_sqlserver import PostgreSQLToSQLServerTransform
 from .transformers.sqlserver_to_mariadb import SQLServerToMariaDBTransformer
 from .transformers.sqlserver_to_oracle import SQLServerToOracleTransformer
 from .transformers.sqlserver_to_postgresql import SQLServerToPostgreSQLTransformer
+from .views import ViewStrategy, ViewValidationResult
 
 __all__: list[str] = [
     # Orquestador
@@ -212,6 +213,9 @@ __all__: list[str] = [
     "MySQLToMariaDBTransformer",
     "MariaDBToMySQLTransformer",
     "MariaDBFullTypeSchemaExtractor",
+    # Vistas (view_strategy, validate_views)
+    "ViewStrategy",
+    "ViewValidationResult",
     # Reporters
     "format_plan_text",
     "format_plan_markdown",

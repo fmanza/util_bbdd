@@ -137,6 +137,22 @@ de Oracle, `ROWNUM` fuera de un límite de filas (en la lista de columnas o junt
 SQL que sqlglot no analiza o no sabe generar. Las vistas que usan objetos
 fuera del schema migrado se reescriben con un aviso de referencia externa.
 
+Antes de ejecutar el plan, valida las vistas contra el destino con `plan.validate_views(destino)`:
+
+```python
+for resultado in plan.validate_views(target):   # SyncDatabaseManager (o Engine) del destino
+    if not resultado.valid:
+        print(resultado.view, resultado.method, resultado.error)
+```
+
+| Destino | Método | Qué comprueba |
+|---|---|---|
+| PostgreSQL, SQL Server | `"transaction"` | Crea las tablas del plan y cada vista en una transacción que se deshace: detecta funciones, columnas y sintaxis inválidas. No deja nada |
+| MySQL, MariaDB, Oracle | `"syntax"` | El DDL confirma solo, así que únicamente analiza la sintaxis con sqlglot (`"none"` sin sqlglot) |
+
+Con `include_tables=False` no se crean las tablas (deben existir ya en el destino). Detalle funcional y de API:
+[Migración de vistas](../functional/migrate_views.md) y [API Vistas](../api/migrate_views.md).
+
 ## 4. Verificación
 
 Antes de ejecutar, **revisa los avisos** y confirma que no hay errores de severidad `ERROR`:

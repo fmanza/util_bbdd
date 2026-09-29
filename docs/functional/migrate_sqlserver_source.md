@@ -19,7 +19,7 @@ El flujo de trabajo es idéntico al de otros motores origen: extraer metadatos d
 |---|---|---|
 | Tipos MAX (char_length = -1) | SQL Server usa `-1` como sentinel para `VARCHAR(MAX)`, `NVARCHAR(MAX)` y `VARBINARY(MAX)` | Sin detección, el tipo LOB no se genera correctamente en el destino |
 | Columnas IDENTITY detectadas via sys | La detección de columnas IDENTITY usa `COLUMNPROPERTY` del catálogo del sistema | Sin detección, la columna se genera sin autoincremento en el destino |
-| Vistas: pass-through sin reescritura | Las vistas se emiten sin traducir el SQL T-SQL-específico | Aviso de revisión manual por cada vista; el cuerpo requiere adaptación al dialecto destino |
+| Vistas reescritas al destino | El SQL de las vistas se reescribe al dialecto destino con sqlglot (ver [reescritura de vistas](migrate_views.md)); sin sqlglot se emite sin traducir | Aviso de revisión por cada vista |
 | `VIEW_DEFINITION` puede truncarse | En versiones SQL Server < 2019, las definiciones de vista largas pueden truncarse a 4000 chars | Vistas largas generarán DDL incompleto; verificar manualmente |
 | FKs circulares al final del script | Las dependencias circulares se emiten como `ALTER TABLE ADD CONSTRAINT` al final | El script completo es ejecutable en orden sin desactivar comprobaciones de FK |
 
@@ -54,7 +54,7 @@ flowchart TD
 - Solo soporta SQL Server como motor origen (destinos: Oracle, MariaDB, PostgreSQL)
 - No migra filas de datos, solo la estructura (DDL)
 - No soporta columnas computadas, UDTs, tipos alias ni tablas temporales
-- Las vistas se incluyen como pass-through sin reescritura automática del SQL T-SQL
+- Las vistas se reescriben con sqlglot (extra `util_bbdd[migrate]`); sin él, se copian sin reescribir ([reescritura de vistas](migrate_views.md))
 - Para pyodbc se necesita un wrapper que adapte el param style `%(name)s` → `?`
 
 ## 4. Glosario y Términos
@@ -63,5 +63,5 @@ flowchart TD
 |---|---|
 | IDENTITY | Mecanismo de autoincremento en SQL Server; equivale a `AUTO_INCREMENT` (MariaDB), `SERIAL` (PostgreSQL) o `SEQUENCE+TRIGGER` (Oracle) |
 | T-SQL | Dialecto SQL propietario de SQL Server con extensiones propias (`@variables`, `TOP`, `NOLOCK`, `GETDATE()`) |
-| Pass-through | Estrategia que emite el código fuente de vistas/rutinas sin modificarlo, con aviso de revisión manual |
+| Pass-through | Estrategia que emite el código fuente de rutinas (y de vistas sin sqlglot o con `view_strategy="passthrough"`) sin modificarlo, con aviso de revisión manual |
 | `sys.sql_modules` | Vista del catálogo interno de SQL Server que expone el código fuente de procedimientos, funciones y vistas |

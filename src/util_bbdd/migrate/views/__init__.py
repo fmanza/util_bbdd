@@ -8,11 +8,13 @@ comportamiento anterior. El transpilador (``transpiler.py``) solo se importa cua
 from __future__ import annotations
 
 from ._dialects import SQLGLOT_DIALECT, VALID_VIEW_STRATEGIES, ViewStrategy, resolve_view_strategy, sqlglot_available
+from .validation import ViewValidationResult
 
 __all__: list[str] = [
     "SQLGLOT_DIALECT",
     "VALID_VIEW_STRATEGIES",
     "ViewStrategy",
+    "ViewValidationResult",
     "resolve_view_strategy",
     "sqlglot_available",
 ]

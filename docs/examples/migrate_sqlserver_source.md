@@ -19,7 +19,7 @@ Aspectos críticos:
 - **`schema`**: corresponde al `TABLE_SCHEMA` en `INFORMATION_SCHEMA` de SQL Server (habitualmente `'dbo'`).
 - **Columnas `IDENTITY`**: detectadas via `COLUMNPROPERTY(OBJECT_ID(...), col, 'IsIdentity')`. El planificador activa `auto_increment=True` y genera el equivalente en el motor destino.
 - **Tipos `MAX` (`VARCHAR(MAX)`, `NVARCHAR(MAX)`)**: SQL Server usa `-1` como sentinel en `CHARACTER_MAXIMUM_LENGTH`. El extractor lo detecta y emite el tipo LOB apropiado en destino.
-- **Vistas pass-through**: las vistas se incluyen con su `VIEW_DEFINITION` original. El plan emite aviso para funciones T-SQL específicas (`GETDATE()`, `ISNULL()`, `TOP`, etc.) que requieren adaptación manual.
+- **Vistas reescritas**: el SQL de las vistas (`GETDATE()`, `ISNULL()`, `TOP`, etc.) se reescribe al dialecto destino con sqlglot (extra `util_bbdd[migrate]`; ver [reescritura de vistas](../functional/migrate_views.md)). El plan emite un aviso de revisión por cada vista.
 - **`VIEW_DEFINITION` truncada**: en SQL Server < 2019, las vistas con definición > 4000 chars pueden quedar truncadas. Verificar manualmente si el script incluye vistas largas.
 
 Para SQL Server → Oracle:

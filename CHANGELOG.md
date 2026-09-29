@@ -22,6 +22,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `LIMIT`/`TOP`/`FETCH FIRST` (top-N con subconsulta ordenada incluido), `ILIKE` hacia SQL Server y los agregados de
   texto hacia PostgreSQL, y aplica como alias las columnas declaradas en la cabecera de las vistas de SQL Server. Solo
   `CONNECT BY` (y `ROWNUM` fuera de un límite de filas) se copia sin reescribir.
+- **migrate**: `MigrationPlan.validate_views(target_connection=None, *, include_tables=True)` valida las vistas del
+  plan antes de ejecutarlo, sin dejar cambios: con destino PostgreSQL o SQL Server crea las tablas y cada vista en una
+  transacción que se deshace (`method="transaction"`); con MySQL, MariaDB u Oracle, cuyo DDL confirma solo, analiza
+  la sintaxis con sqlglot (`"syntax"`, o `"none"` sin sqlglot). Devuelve `ViewValidationResult(view, valid, method,
+  error)`; `ViewValidationResult` y `ViewStrategy` se exportan desde `util_bbdd.migrate`.
+- **tests**: `tests/integration/test_migrate_views_e2e.py`: vistas de los 20 pares migradas por el plan, creadas en el
+  destino y comparadas con el origen, y `validate_views` en los destinos transaccionales. El MySQL del banco concede
+  a `bench` todos los privilegios sobre las bases `zz_util_bbdd_%`.
+- **docs**: `docs/functional/migrate_views.md` y `docs/api/migrate_views.md`; las páginas de migración por origen ya
+  no dicen que las vistas se copian sin reescribir.
 
 ### Fixed
 

@@ -20,7 +20,7 @@ El flujo de trabajo es idéntico al de otros motores origen: extraer metadatos d
 | Detección de SERIAL como autoincremento | Columnas SERIAL/BIGSERIAL/SMALLSERIAL se detectan por su `COLUMN_DEFAULT` de tipo `nextval(...)` | Sin detección, la columna se genera sin autoincremento en el destino |
 | `CHARACTER VARYING` sin límite → LOB | `character varying` sin longitud produce tipo LOB en el destino (CLOB, LONGTEXT o NVARCHAR(MAX)) | Posible cambio de semántica de almacenamiento; aviso incluido en el plan |
 | Índices no-PK via pg_catalog | Los índices secundarios se obtienen de `pg_catalog.pg_index`, no de `INFORMATION_SCHEMA` | Sin este paso, los índices secundarios no se incluyen en el DDL generado |
-| Vistas: pass-through sin reescritura | Las vistas se emiten sin traducir el SQL PL/pgSQL-específico | Aviso de revisión manual por cada vista; el cuerpo requiere adaptación al dialecto destino |
+| Vistas reescritas al destino | El SQL de las vistas se reescribe al dialecto destino con sqlglot (ver [reescritura de vistas](migrate_views.md)); sin sqlglot se emite sin traducir | Aviso de revisión por cada vista |
 | FKs circulares al final del script | Las dependencias circulares se emiten como `ALTER TABLE ADD CONSTRAINT` al final | El script completo es ejecutable en orden sin desactivar comprobaciones de FK |
 
 ## 3. Casos de Uso
@@ -63,5 +63,5 @@ flowchart TD
 |---|---|
 | SERIAL / BIGSERIAL | Tipos PostgreSQL que definen columnas con autoincremento mediante una secuencia interna |
 | `TABLE_SCHEMA` | Nombre del schema en PostgreSQL tal como aparece en `INFORMATION_SCHEMA.TABLES` (habitualmente `'public'`) |
-| Pass-through | Estrategia que emite el código fuente de vistas/rutinas sin modificarlo, con aviso de revisión manual |
+| Pass-through | Estrategia que emite el código fuente de rutinas (y de vistas sin sqlglot o con `view_strategy="passthrough"`) sin modificarlo, con aviso de revisión manual |
 | `pg_catalog` | Catálogo interno de PostgreSQL que expone metadatos avanzados no disponibles en `INFORMATION_SCHEMA` estándar |

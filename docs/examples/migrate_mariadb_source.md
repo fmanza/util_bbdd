@@ -18,7 +18,7 @@ Aspectos críticos:
 
 - **`schema`**: corresponde al `TABLE_SCHEMA` en `INFORMATION_SCHEMA` de MariaDB (equivale al nombre de la base de datos). Para una BD llamada `ventas`, usar `schema="ventas"`.
 - **`AUTO_INCREMENT` → equivalentes**: el planificador convierte automáticamente: MariaDB `AUTO_INCREMENT` → Oracle `SEQUENCE+TRIGGER`, SQL Server `IDENTITY(1,1)`, PostgreSQL `SERIAL/BIGSERIAL`.
-- **Vistas pass-through**: las vistas se incluyen en el script sin reescritura del SQL MariaDB-específico. El plan emite un aviso de revisión manual por cada vista.
+- **Vistas reescritas**: el SQL de las vistas se reescribe al dialecto destino con sqlglot (extra `util_bbdd[migrate]`; ver [reescritura de vistas](../functional/migrate_views.md)). El plan emite un aviso de revisión por cada vista.
 - **`plan.error_count`**: verificar antes de ejecutar contra el destino. Errores indican tipos sin equivalente directo que requieren intervención manual.
 
 Para MariaDB → Oracle:
