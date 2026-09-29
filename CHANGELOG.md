@@ -42,6 +42,12 @@ tiene que cambiar nada: el conector de MariaDB también conecta con MySQL.
 - **docs**: drivers por motor corregidos (MariaDB usa Connector/Python en sync, no PyMySQL); nuevas páginas
   `functional/migrate_mysql.md` y `api/migrate_mysql.md`.
 
+### Fixed
+
+- **connection**: la conexión async directa de MariaDB (`AsyncDatabaseManager("mariadb", use_pool=False)`) fallaba
+  siempre con `TypeError`: se pasaba `database`, `read_timeout` y `write_timeout` a `aiomysql.connect`, que espera `db`
+  y no admite los dos timeouts (H1).
+
 ## [0.18.4] - 2026-09-29
 
 Sin cambios de API en la librería. La documentación vuelve a publicarse (sitio y ZIP offline completo), sus ficheros

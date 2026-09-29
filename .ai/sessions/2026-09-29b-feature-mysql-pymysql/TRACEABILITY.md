@@ -79,7 +79,7 @@ defectos previos encontrados pasan al PLAN como E5.
 Veredicto: GO (E0–E4); sesión IN_PROGRESS hasta E5
 Pendientes al cierre:
 - E5 (hotfixes de defectos previos, uno por commit):
-  - H1 (P1): conexión async directa de MariaDB (`use_pool=False`) → `TypeError` en `aiomysql.connect`.
+  - ~~H1 (P1): conexión async directa de MariaDB (`use_pool=False`) → `TypeError` en `aiomysql.connect`.~~ Corregido (`hotfix(connection)`): `_map_connect_kwargs` renombra `database`→`db` y descarta los timeouts; test de regresión contra la firma real de `aiomysql.connect` (el aiomysql falso aceptaba `**kwargs` y ocultaba el fallo); verificado contra MariaDB 11.4 con y sin pool.
   - H2 (P1): conexión sync directa de PostgreSQL → `database=` en lugar de `dbname=` en `psycopg.connect`.
   - H3 (P1): `migrate/` emite el `-- AVISO` antes de la coma que separa columnas (todos los emitters).
   - H4 (P2): `migrate/` traduce mal defaults (casts PG, paréntesis SQL Server, `SYSDATE`, orden `DEFAULT`/`NOT NULL`

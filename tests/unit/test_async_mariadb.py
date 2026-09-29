@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import sys
 
+import pytest
+
 from util_bbdd import AsyncDatabaseManager
 from util_bbdd.connection.mariadb.async_connection_mariadb import AsyncMariaDBConnection
 from util_bbdd.connection.mariadb.async_pool_connection_mariadb import AsyncMariaDBPool
@@ -196,3 +198,30 @@ def test_async_mariadb_pool_forced_close_on_timeout(monkeypatch):
         assert hanging_pool.closed is True
 
     asyncio.run(_run())
+
+
+def test_async_mariadb_connect_kwargs_match_aiomysql_signature() -> None:
+    """H1: aiomysql.connect llama ``db`` a la base de datos y no acepta read_timeout/write_timeout.
+
+    El aiomysql falso de los tests acepta ``**kwargs`` y ocultaba el TypeError de la conexión directa.
+    """
+    import inspect
+
+    aiomysql = pytest.importorskip("aiomysql")
+    kwargs = AsyncMariaDBConnection._map_connect_kwargs(
+        {
+            "host": "localhost",
+            "port": 3306,
+            "user": "root",
+            "password": "pwd",
+            "database": "db",
+            "autocommit": False,
+            "connect_timeout": 10,
+            "read_timeout": 30,
+            "write_timeout": 60,
+            "charset": "utf8mb4",
+        }
+    )
+    assert kwargs["db"] == "db"
+    assert "database" not in kwargs
+    assert set(kwargs) <= set(inspect.signature(aiomysql.connect).parameters)

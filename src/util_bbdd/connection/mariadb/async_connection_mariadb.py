@@ -18,21 +18,26 @@ class AsyncMariaDBConnection:
 
     @staticmethod
     def _map_connect_kwargs(conn_params: dict[str, Any]) -> dict[str, Any]:
-        """Mapea conn_params al contrato de aiomysql.connect."""
+        """Mapea conn_params al contrato de aiomysql.connect.
+
+        aiomysql llama ``db`` a la base de datos y no acepta ``read_timeout`` ni ``write_timeout`` (como en
+        ``AsyncMariaDBPool._split_pool_kwargs``); pasarlos lanzaba ``TypeError`` en toda conexión directa.
+        """
         allowed_keys: set[str] = {
             "host",
             "port",
             "user",
             "password",
-            "database",
+            "db",
             "unix_socket",
             "autocommit",
             "connect_timeout",
-            "read_timeout",
-            "write_timeout",
             "charset",
         }
-        return {k: v for k, v in conn_params.items() if k in allowed_keys}
+        normalized: dict[str, Any] = dict(conn_params)
+        if "database" in normalized and "db" not in normalized:
+            normalized["db"] = normalized.pop("database")
+        return {k: v for k, v in normalized.items() if k in allowed_keys}
 
     @staticmethod
     async def connect(conn_params: dict[str, Any]) -> Any:
