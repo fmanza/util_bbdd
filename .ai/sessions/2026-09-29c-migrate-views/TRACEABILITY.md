@@ -68,6 +68,15 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
   construcciones específicas con el mismo resultado** salvo `CONNECT BY` (pass-through por diseño). La primera pasada
   reveló que MariaDB ignora el `ORDER BY` de una tabla derivada sin `LIMIT` (top-N con otro resultado, sin error) y
   SQL Server lo rechaza: el límite se movió dentro de la subconsulta.
+- **V3**: `migrate/views/validation.py` (`ViewValidationResult`, `validate_plan_views`) y
+  `MigrationPlan.validate_views`: PostgreSQL/SQL Server → transacción con un *savepoint* por sentencia (tablas del plan
+  opcionales) y `ROLLBACK` final; MySQL/MariaDB/Oracle → solo sintaxis con sqlglot (su DDL confirma solo). Verificado
+  en el banco: PG detecta `SOUNDEX` como inválida y no deja objetos. Test de integración
+  `tests/integration/test_migrate_views_e2e.py` (13 vistas del corpus, 20 pares, 20 passed): bases/schemas
+  `zz_util_bbdd_vw_*` y prefijo `ZZVW_` en Oracle; en destinos PG/SS valida con `validate_views` y comprueba que no
+  queda nada. `docker-compose.bench.yml`: `GRANT ALL` a `bench` sobre `zz\_util\_bbdd\_%` en MySQL (aplicado en
+  caliente). Docs: `docs/functional/migrate_views.md`, `docs/api/migrate_views.md` (nav), guía §3.5 con
+  `validate_views`, y corrección de las páginas de migración por origen que decían «vistas pass-through».
 
 ## Artefactos generados
 | Artefacto | Ruta | Estado |
@@ -81,6 +90,9 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
 | Verificación V1 | `v1/v1_matrix_views.py`, `v1/results.json` | completado |
 | V2 | `src/util_bbdd/migrate/views/_rewrites.py`, `src/util_bbdd/migrate/views/transpiler.py`, `docs/guides/ddl_migration_guide.md` | completado |
 | Verificación V2 | `v2/results.json` (script `v1/v1_matrix_views.py` con e08/e09) | completado |
+| V3 | `src/util_bbdd/migrate/views/validation.py`, `src/util_bbdd/migrate/ir/models.py`, `src/util_bbdd/migrate/__init__.py`, `docker-compose.bench.yml` | completado |
+| Tests V3 | `tests/unit/migrate/test_view_validation.py`, `tests/integration/test_migrate_views_e2e.py` | completado |
+| Docs V3 | `docs/functional/migrate_views.md`, `docs/api/migrate_views.md`, `mkdocs.yml`, páginas `migrate_*` | completado |
 
 ## Directrices para Futuras IAs
 - **[sqlserver/vistas]**: `INFORMATION_SCHEMA.VIEWS.VIEW_DEFINITION` trunca a 4000 caracteres también en SQL Server
@@ -110,8 +122,17 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
 - **[migrate/vistas]**: plan aprobado: `sqlglot` opcional (`util_bbdd[migrate]`, `>=30,<31`), `view_strategy="auto"`
   (transpila si `sqlglot` está instalado), fallback a pass-through; V0 (spike) decide antes de V1 (umbral ≥ 80 % del
   corpus común por par).
+- **[migrate/vistas]**: validar vistas sin dejar rastro solo es posible con DDL transaccional (PostgreSQL, SQL
+  Server); en MySQL/MariaDB/Oracle cada `CREATE` hace commit, por eso `validate_views` allí solo analiza sintaxis. El
+  engine de validación no debe estar en `AUTOCOMMIT` (el de `SyncDatabaseManager.get_sqlalchemy_engine()` no lo está).
+- **[tests/sqlite]**: pysqlite no abre transacción antes de un DDL: para probar rollback de DDL en SQLite usar
+  `connect_args={"isolation_level": None}` + evento `begin` que emite `BEGIN` (receta de SQLAlchemy). SQLite tampoco
+  resuelve referencias al crear una vista: para un fallo usar un error de sintaxis.
+- **[tests/integración]**: con psycopg, `exec_driver_sql` con `%` literal falla (placeholder); usar `text()` con
+  parámetros o el cursor del driver sin parámetros.
 
 ## Veredicto final
-Veredicto: GO (sesión IN_PROGRESS)
+Veredicto: GO (V0–V3 completadas; pendiente de cierre de versión)
 Pendientes al cierre:
-- V3: `validate_views`, test de integración de la matriz de vistas, documentación funcional/API.
+- `/version-closure` (versión menor: nueva API `view_strategy`/`validate_views`).
+- Fuera de alcance: `CONNECT BY` → CTE recursiva.
