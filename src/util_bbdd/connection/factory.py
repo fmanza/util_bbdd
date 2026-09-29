@@ -91,7 +91,7 @@ class ConnectionFactory:
         """Crea una conexión sincrónica nativa según tipo de BD.
 
         Args:
-            db_type: Tipo de BD ('mariadb', 'oracle', 'postgresql',
+            db_type: Tipo de BD ('mariadb', 'mysql', 'oracle', 'postgresql',
                     'hsqldb', 'sqlserver', 'sqlite')
             conn_params: Parámetros de conexión filtrados
             db_validator: Validador de tipos de BD (opcional)
@@ -120,6 +120,13 @@ class ConnectionFactory:
 
                 connection = MariaDBConnection.connect(conn_params)
                 logger.info("🔗 MariaDB conexión creada (nativo)")
+                return connection
+
+            elif normalized_type == "mysql":
+                from .mysql.connection_mysql import MySQLConnection
+
+                connection = MySQLConnection.connect(conn_params)
+                logger.info("🔗 MySQL conexión creada (PyMySQL)")
                 return connection
 
             elif normalized_type == "oracle":
@@ -195,6 +202,11 @@ def _register_lazy_async_builders(normalized_type: str) -> None:
             from .mariadb.async_connection_mariadb import AsyncMariaDBConnection
 
             ConnectionFactory.register_async_connection("mariadb", AsyncMariaDBConnection.connect)
+
+        elif normalized_type == "mysql":
+            from .mysql.async_connection_mysql import AsyncMySQLConnection
+
+            ConnectionFactory.register_async_connection("mysql", AsyncMySQLConnection.connect)
 
         elif normalized_type == "oracle":
             from .oracle.async_connection_oracle import AsyncOracleConnection

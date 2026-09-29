@@ -75,7 +75,7 @@ class MetadataContextResolver:
         Returns:
             dict[str, Any]: Parámetros extendidos con contexto
         """
-        if not context or db_type == "mariadb":
+        if not context or db_type in {"mariadb", "mysql"}:
             return params
         if db_type in {"oracle", "sqlserver"}:
             params["esquema"] = context

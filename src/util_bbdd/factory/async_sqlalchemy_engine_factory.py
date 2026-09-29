@@ -44,6 +44,11 @@ class AsyncSQLAlchemyEngineFactory:
                     conn_params,
                     database,
                 )
+            elif normalized_type == "mysql":
+                conn_str = AsyncSQLAlchemyEngineFactory._build_mysql_connection_string(
+                    conn_params,
+                    database,
+                )
             elif normalized_type == "oracle":
                 conn_str = AsyncSQLAlchemyEngineFactory._build_oracle_connection_string(
                     conn_params,
@@ -198,6 +203,44 @@ class AsyncSQLAlchemyEngineFactory:
             raise ValidationError("Se requiere 'database' para MariaDB", db_type="mariadb")
 
         return f"mysql+aiomysql://{user}:{password}@{host}:{port}/{target_db}"
+
+    @staticmethod
+    def _build_mysql_connection_string(conn_params: dict[str, Any], database: str | None) -> str:
+        """Construye connection string async para MySQL (``mysql+aiomysql``).
+
+        Usuario y contraseña se escapan con ``URL.create`` (admiten ``@``, ``:`` o ``/``).
+
+        Args:
+            conn_params: Parámetros de conexión
+            database: Nombre de la base de datos (si es None, se usa ``conn_params["database"]``)
+
+        Returns:
+            Connection string para MySQL
+
+        Raises:
+            ValidationError: Si faltan parámetros requeridos
+        """
+        from sqlalchemy.engine import URL
+
+        password_value: Any = conn_params.get("password")
+        if password_value is None or not str(password_value):
+            AsyncSQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para MySQL")
+            raise ValidationError("Se requiere una contraseña para la conexión a MySQL", db_type="mysql")
+
+        raw_target_db: Any = database if database is not None else conn_params.get("database")
+        target_db: str = str(raw_target_db) if raw_target_db is not None else ""
+        if not target_db:
+            raise ValidationError("Se requiere 'database' para MySQL", db_type="mysql")
+
+        url = URL.create(
+            "mysql+aiomysql",
+            username=str(conn_params.get("user") or "root"),
+            password=str(password_value),
+            host=str(conn_params.get("host") or "localhost"),
+            port=int(conn_params.get("port", 3306)),
+            database=target_db,
+        )
+        return url.render_as_string(hide_password=False)
 
     @staticmethod
     def _build_oracle_connection_string(conn_params: dict[str, Any], database: str | None) -> str:

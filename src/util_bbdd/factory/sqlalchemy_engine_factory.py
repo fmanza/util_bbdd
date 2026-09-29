@@ -50,6 +50,8 @@ class SQLAlchemyEngineFactory:
             # Construir connection string según tipo de BD
             if db_type == "mariadb":
                 conn_str: str = SQLAlchemyEngineFactory._build_mariadb_connection_string(conn_params, database)
+            elif db_type == "mysql":
+                conn_str = SQLAlchemyEngineFactory._build_mysql_connection_string(conn_params, database)
             elif db_type == "oracle":
                 conn_str = SQLAlchemyEngineFactory._build_oracle_connection_string(conn_params, database)
             elif db_type == "postgresql":
@@ -165,6 +167,41 @@ class SQLAlchemyEngineFactory:
             raise ValidationError("Se requiere 'database' para MariaDB", db_type="mariadb")
 
         return f"mariadb+mariadbconnector://{user}:{password}@{host}:{port}/{database}"
+
+    @staticmethod
+    def _build_mysql_connection_string(conn_params: dict[str, Any], database: str) -> str:
+        """Construye connection string para MySQL (``mysql+pymysql``).
+
+        Usuario y contraseña se escapan con ``URL.create`` (admiten ``@``, ``:`` o ``/``).
+
+        Args:
+            conn_params: Parámetros de conexión
+            database: Nombre de la base de datos
+
+        Returns:
+            Connection string para MySQL
+
+        Raises:
+            ValidationError: Si faltan parámetros requeridos
+        """
+        from sqlalchemy.engine import URL
+
+        password: str | None = conn_params.get("password")
+        if not password:
+            SQLAlchemyEngineFactory.logger.warning("⚠️ No se proporcionó contraseña para MySQL")
+            raise ValidationError("Se requiere una contraseña para la conexión a MySQL", db_type="mysql")
+        if not database:
+            raise ValidationError("Se requiere 'database' para MySQL", db_type="mysql")
+
+        url = URL.create(
+            "mysql+pymysql",
+            username=str(conn_params.get("user", "root")),
+            password=str(password),
+            host=str(conn_params.get("host", "localhost")),
+            port=int(conn_params.get("port", 3306)),
+            database=str(database),
+        )
+        return url.render_as_string(hide_password=False)
 
     @staticmethod
     def _build_oracle_connection_string(conn_params: dict[str, Any], database: str) -> str:

@@ -13,6 +13,8 @@ from ..connection.config import (
     HSQLDBConnectionConfig,
     MariaDBConnectionConfig,
     MariaDBPoolConfig,
+    MySQLConnectionConfig,
+    MySQLPoolConfig,
     OracleConnectionConfig,
     OraclePoolConfig,
     PostgreSQLConnectionConfig,
@@ -31,6 +33,7 @@ class ConnectionParamsManager:
 
     _BUILD_SUPPORTED_TYPES: set[str] = {
         "mariadb",
+        "mysql",
         "oracle",
         "postgresql",
         "hsqldb",
@@ -74,7 +77,7 @@ class ConnectionParamsManager:
         validator: DatabaseTypeValidator = db_validator or get_database_validator()
         validator.validate_connection_params(normalized_type, input_params)
         ConnectionParamsManager.get_connection_config(normalized_type, input_params)
-        if normalized_type in {"mariadb", "oracle", "postgresql", "sqlserver", "sqlite"}:
+        if normalized_type in {"mariadb", "mysql", "oracle", "postgresql", "sqlserver", "sqlite"}:
             ConnectionParamsManager.get_pool_config(normalized_type, input_params)
         return input_params
 
@@ -126,6 +129,8 @@ class ConnectionParamsManager:
         normalized_type: str = db_type.lower().strip()
         if normalized_type == "mariadb":
             return MariaDBConnectionConfig.from_params(conn_params)
+        if normalized_type == "mysql":
+            return MySQLConnectionConfig.from_params(conn_params)
         if normalized_type == "oracle":
             return OracleConnectionConfig.from_params(conn_params)
         if normalized_type == "postgresql":
@@ -149,6 +154,8 @@ class ConnectionParamsManager:
         normalized_type: str = db_type.lower().strip()
         if normalized_type == "mariadb":
             return MariaDBPoolConfig.from_params(conn_params)
+        if normalized_type == "mysql":
+            return MySQLPoolConfig.from_params(conn_params)
         if normalized_type == "oracle":
             return OraclePoolConfig.from_params(conn_params)
         if normalized_type == "postgresql":

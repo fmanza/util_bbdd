@@ -65,7 +65,7 @@ class DatabaseQueries:
         Inicializa la clase unificada de consultas
 
         Args:
-            db_type: Tipo de base de datos ('mariadb', 'oracle', 'postgresql', 'hsqldb', 'sqlserver', 'sqlite')
+            db_type: Tipo de base de datos ('mariadb', 'mysql', 'oracle', 'postgresql', 'hsqldb', 'sqlserver', 'sqlite')
             queries_file: Ruta al archivo JSON con las consultas SQL
             config_file: Ruta al archivo de configuración de tipos de BD
 
@@ -77,6 +77,7 @@ class DatabaseQueries:
 
         supported_types: list[str] = [
             "mariadb",
+            "mysql",
             "oracle",
             "postgresql",
             "hsqldb",

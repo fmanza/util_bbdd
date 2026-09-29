@@ -60,6 +60,12 @@ class PoolFactory:
             PoolFactory.register_async_pool("mariadb", AsyncMariaDBPool.create)
             builder = PoolFactory._async_pool_builders.get(normalized_type)
 
+        if builder is None and normalized_type == "mysql":
+            from ..connection.mysql.async_pool_connection_mysql import AsyncMySQLPool
+
+            PoolFactory.register_async_pool("mysql", AsyncMySQLPool.create)
+            builder = PoolFactory._async_pool_builders.get(normalized_type)
+
         if builder is None and normalized_type == "oracle":
             from ..connection.oracle.async_pool_connection_oracle import AsyncOraclePool
 
@@ -94,7 +100,7 @@ class PoolFactory:
         """Crea pool nativo según tipo de BD.
 
         Args:
-            db_type: Tipo de BD ('mariadb', 'sqlserver', 'oracle', 'postgresql', 'sqlite').
+            db_type: Tipo de BD ('mariadb', 'mysql', 'sqlserver', 'oracle', 'postgresql', 'sqlite').
             conn_params: Parámetros de conexión incluyendo config del pool:
                 - Parámetros de conexión específicos del driver
                 - pool_size (int, default: 5): Tamaño del pool
@@ -131,6 +137,15 @@ class PoolFactory:
 
                 pool: ConnectionPoolProtocol = MariaDBPool(conn_params)
                 PoolFactory.logger.info("🔗 MariaDB pool creado (nativo)")
+                return pool
+
+            elif db_type == "mysql":
+                from ..connection.mysql.pool_connection_mysql import (
+                    PoolConnection as MySQLPool,
+                )
+
+                pool = MySQLPool(conn_params)
+                PoolFactory.logger.info("🔗 MySQL pool creado (QueuePool de SQLAlchemy sobre PyMySQL)")
                 return pool
 
             elif db_type == "sqlserver":
@@ -171,7 +186,7 @@ class PoolFactory:
 
             else:
                 raise ValueError(
-                    f"Pool no soportado para {db_type}. Use: mariadb, sqlserver, oracle, postgresql, sqlite"
+                    f"Pool no soportado para {db_type}. Use: mariadb, mysql, sqlserver, oracle, postgresql, sqlite"
                 )
 
         except Exception as e:

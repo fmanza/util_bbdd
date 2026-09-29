@@ -13,6 +13,7 @@ from functools import cache
 from .base_validator import QueryParameterValidator
 from .hsqldb_validator import HSQLDBValidator
 from .mariadb_validator import MariaDBValidator
+from .mysql_validator import MySQLValidator
 from .oracle_validator import OracleValidator
 from .postgresql_validator import PostgreSQLValidator
 from .sqlite_validator import SQLiteValidator
@@ -26,6 +27,7 @@ ValidatorFactory = Callable[[], QueryParameterValidator]
 # Mapping de tipos de BD a sus validadores
 _VALIDATOR_REGISTRY: dict[str, ValidatorFactory] = {
     "mariadb": MariaDBValidator,
+    "mysql": MySQLValidator,
     "oracle": OracleValidator,
     "postgresql": PostgreSQLValidator,
     "hsqldb": HSQLDBValidator,
@@ -47,7 +49,7 @@ def get_type_validator(db_type: str) -> QueryParameterValidator:
     """Factory para obtener el validador apropiado para un tipo de BD.
 
     Args:
-        db_type: Tipo de BD ('mariadb', 'oracle', 'postgresql', 'hsqldb',
+        db_type: Tipo de BD ('mariadb', 'mysql', 'oracle', 'postgresql', 'hsqldb',
                  'sqlserver', 'sqlite')
 
     Returns:
@@ -75,6 +77,7 @@ def get_type_validator(db_type: str) -> QueryParameterValidator:
 __all__ = [
     "QueryParameterValidator",
     "MariaDBValidator",
+    "MySQLValidator",
     "OracleValidator",
     "PostgreSQLValidator",
     "HSQLDBValidator",

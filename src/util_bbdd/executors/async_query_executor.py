@@ -20,6 +20,10 @@ from ..query.registry import QueryRegistry
 from ..query.resolver import QueryResolver
 from ..results import ResultNormalizer, RowOrNone, Rows
 
+# ``%`` literales en SQL para drivers pyformat (PyMySQL/aiomysql): todo ``%`` que no sea marcador (``%s``,
+# ``%(nombre)s``) ni esté ya escapado (``%%``) se duplica.
+_PYFORMAT_LITERAL_PERCENT: re.Pattern[str] = re.compile(r"%%|%(?!\([A-Za-z_]\w*\)s|s)")
+
 
 class AsyncQueryExecutor:
     """Ejecuta queries SQL de forma asincrónica."""
@@ -96,9 +100,12 @@ class AsyncQueryExecutor:
         return value
 
     @staticmethod
-    def _normalize_sql_for_db(sql: str, db_type: str) -> str:
+    def _normalize_sql_for_db(sql: str, db_type: str, params: dict[str, Any] | None = None) -> str:
+        """Escapa ``%`` literales para drivers pyformat (ver ``SyncQueryExecutor._normalize_sql_for_db``)."""
         if db_type == "mariadb":
             return sql.replace("%", "%%")
+        if db_type == "mysql" and params and AsyncQueryExecutor._sql_uses_bind_params(sql, params):
+            return _PYFORMAT_LITERAL_PERCENT.sub("%%", sql)
         return sql
 
     def _resolve_execute_params(self, sql: str, params: dict[str, Any]) -> dict[str, Any] | None:
@@ -159,7 +166,7 @@ class AsyncQueryExecutor:
                 deadline_seconds=deadline_seconds,
             ):
                 resolved = self._get_bound_resolver(db_type).resolve(query_name=query_name, params=params)
-                final_sql: str = self._normalize_sql_for_db(resolved.final_sql, db_type)
+                final_sql: str = self._normalize_sql_for_db(resolved.final_sql, db_type, params)
                 self.logger.debug(f"SQL final: {final_sql}")
 
                 conn = await self.connection_provider()

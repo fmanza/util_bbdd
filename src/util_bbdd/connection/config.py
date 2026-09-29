@@ -130,6 +130,112 @@ class MariaDBPoolConfig:
 
 
 @dataclass(frozen=True)
+class MySQLConnectionConfig:
+    """Parámetros de conexión MySQL para ``pymysql.connect`` (lista blanca).
+
+    ``local_infile`` y ``client_flag`` (p. ej. ``MULTI_STATEMENTS``) no se aceptan: PyMySQL los deja desactivados
+    por defecto y ``to_driver_kwargs`` no los reenvía aunque lleguen en ``conn_params``.
+    """
+
+    host: str
+    user: str
+    password: str
+    database: str
+    port: int = 3306
+    unix_socket: str | None = None
+    autocommit: bool = False
+    connect_timeout: int = 10
+    read_timeout: int = 30
+    write_timeout: int = 60
+    charset: str | None = None
+    ssl_ca: str | None = None
+    ssl_cert: str | None = None
+    ssl_key: str | None = None
+    ssl_verify_cert: bool | None = None
+    ssl_verify_identity: bool | None = None
+
+    @classmethod
+    def from_params(cls, params: dict[str, Any]) -> MySQLConnectionConfig:
+        db_type: str = "mysql"
+        ssl_verify_cert: Any = params.get("ssl_verify_cert")
+        ssl_verify_identity: Any = params.get("ssl_verify_identity")
+        return cls(
+            host=_require_str(params, "host", db_type),
+            user=_require_str(params, "user", db_type),
+            password=_require_str(params, "password", db_type),
+            database=_require_str(params, "database", db_type),
+            port=_to_int(params.get("port", 3306), "port", db_type, min_value=1),
+            unix_socket=_opt_str(params, "unix_socket"),
+            autocommit=_to_bool(params.get("autocommit", False), "autocommit", db_type),
+            connect_timeout=_to_int(params.get("connect_timeout", 10), "connect_timeout", db_type, min_value=0),
+            read_timeout=_to_int(params.get("read_timeout", 30), "read_timeout", db_type, min_value=0),
+            write_timeout=_to_int(params.get("write_timeout", 60), "write_timeout", db_type, min_value=0),
+            charset=_opt_str(params, "charset"),
+            ssl_ca=_opt_str(params, "ssl_ca"),
+            ssl_cert=_opt_str(params, "ssl_cert"),
+            ssl_key=_opt_str(params, "ssl_key"),
+            ssl_verify_cert=None if ssl_verify_cert is None else _to_bool(ssl_verify_cert, "ssl_verify_cert", db_type),
+            ssl_verify_identity=None
+            if ssl_verify_identity is None
+            else _to_bool(ssl_verify_identity, "ssl_verify_identity", db_type),
+        )
+
+    def to_driver_kwargs(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "host": self.host,
+            "user": self.user,
+            "password": self.password,
+            "database": self.database,
+            "port": self.port,
+            "autocommit": self.autocommit,
+            "connect_timeout": self.connect_timeout,
+            "read_timeout": self.read_timeout,
+            "write_timeout": self.write_timeout,
+        }
+        optional: dict[str, Any] = {
+            "unix_socket": self.unix_socket,
+            "charset": self.charset,
+            "ssl_ca": self.ssl_ca,
+            "ssl_cert": self.ssl_cert,
+            "ssl_key": self.ssl_key,
+            "ssl_verify_cert": self.ssl_verify_cert,
+            "ssl_verify_identity": self.ssl_verify_identity,
+        }
+        payload.update({key: value for key, value in optional.items() if value is not None})
+        return payload
+
+
+@dataclass(frozen=True)
+class MySQLPoolConfig:
+    """Pool MySQL: ``QueuePool`` de SQLAlchemy sobre ``pymysql.connect`` (PyMySQL no tiene pool nativo)."""
+
+    connection: MySQLConnectionConfig
+    pool_size: int = 5
+    max_overflow: int = 10
+    pool_timeout: int = 30
+    pool_recycle: int = 3600
+
+    @classmethod
+    def from_params(cls, params: dict[str, Any]) -> MySQLPoolConfig:
+        db_type: str = "mysql"
+        return cls(
+            connection=MySQLConnectionConfig.from_params(params),
+            pool_size=_to_int(params.get("pool_size", 5), "pool_size", db_type, min_value=1),
+            max_overflow=_to_int(params.get("max_overflow", 10), "max_overflow", db_type, min_value=0),
+            pool_timeout=_to_int(params.get("pool_timeout", 30), "pool_timeout", db_type, min_value=0),
+            pool_recycle=_to_int(params.get("pool_recycle", 3600), "pool_recycle", db_type, min_value=-1),
+        )
+
+    def to_driver_kwargs(self) -> dict[str, Any]:
+        payload: dict[str, Any] = self.connection.to_driver_kwargs()
+        payload["pool_size"] = self.pool_size
+        payload["max_overflow"] = self.max_overflow
+        payload["pool_timeout"] = self.pool_timeout
+        payload["pool_recycle"] = self.pool_recycle
+        return payload
+
+
+@dataclass(frozen=True)
 class PostgreSQLConnectionConfig:
     host: str
     user: str

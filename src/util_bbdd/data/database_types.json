@@ -7,7 +7,7 @@
       "default_port": 3306,
       "drivers": [
         "mariadb",
-        "mysql"
+        "aiomysql"
       ],
       "url_docs": "https://mariadb.com/kb/",
       "supported_features": [
@@ -84,6 +84,131 @@
           "mariadb-connector-c (CentOS/RHEL)",
           "MariaDB Connector/C (Windows)"
         ]
+      }
+    },
+    "mysql": {
+      "name": "MySQL",
+      "description": "Sistema de gestión de bases de datos relacional de Oracle; conexión con PyMySQL (sync) y aiomysql (async)",
+      "version_range": "8.0+",
+      "default_port": 3306,
+      "drivers": [
+        "pymysql",
+        "aiomysql"
+      ],
+      "url_docs": "https://dev.mysql.com/doc/",
+      "supported_features": [
+        "Procedimientos almacenados",
+        "Triggers",
+        "Vistas",
+        "Transacciones ACID",
+        "Replicación",
+        "Particionamiento de tablas"
+      ],
+      "connection_params": {
+        "required": [
+          "host",
+          "user",
+          "password",
+          "database"
+        ],
+        "optional": [
+          {
+            "name": "port",
+            "type": "integer",
+            "default": 3306,
+            "description": "Puerto de conexión del servidor MySQL"
+          },
+          {
+            "name": "unix_socket",
+            "type": "string",
+            "description": "Ruta al socket Unix (para conexiones locales)"
+          },
+          {
+            "name": "charset",
+            "type": "string",
+            "default": "utf8mb4",
+            "description": "Conjunto de caracteres para la conexión"
+          },
+          {
+            "name": "autocommit",
+            "type": "boolean",
+            "default": false,
+            "description": "Activar autocommit automático"
+          },
+          {
+            "name": "connect_timeout",
+            "type": "integer",
+            "default": 10,
+            "description": "Tiempo de espera para la conexión en segundos"
+          },
+          {
+            "name": "read_timeout",
+            "type": "integer",
+            "default": 30,
+            "description": "Tiempo de espera para operaciones de lectura"
+          },
+          {
+            "name": "write_timeout",
+            "type": "integer",
+            "default": 60,
+            "description": "Tiempo de espera para operaciones de escritura"
+          },
+          {
+            "name": "pool_size",
+            "type": "integer",
+            "default": 5,
+            "description": "Número de conexiones en el pool de conexiones"
+          },
+          {
+            "name": "max_overflow",
+            "type": "integer",
+            "default": 10,
+            "description": "Conexiones adicionales que el pool puede abrir sobre pool_size"
+          },
+          {
+            "name": "pool_timeout",
+            "type": "integer",
+            "default": 30,
+            "description": "Segundos de espera para obtener una conexión del pool"
+          },
+          {
+            "name": "pool_recycle",
+            "type": "integer",
+            "default": 3600,
+            "description": "Segundos tras los que el pool recicla una conexión"
+          },
+          {
+            "name": "ssl_ca",
+            "type": "string",
+            "description": "Ruta al certificado de la CA para TLS"
+          },
+          {
+            "name": "ssl_cert",
+            "type": "string",
+            "description": "Ruta al certificado de cliente para TLS"
+          },
+          {
+            "name": "ssl_key",
+            "type": "string",
+            "description": "Ruta a la clave privada del cliente para TLS"
+          },
+          {
+            "name": "ssl_verify_cert",
+            "type": "boolean",
+            "description": "Verificar el certificado del servidor"
+          },
+          {
+            "name": "ssl_verify_identity",
+            "type": "boolean",
+            "description": "Verificar que el nombre del host coincide con el certificado"
+          }
+        ]
+      },
+      "driver_info": {
+        "pip_package": "pymysql",
+        "import_name": "pymysql",
+        "install_command": "pip install pymysql[rsa] aiomysql",
+        "system_requirements": []
       }
     },
     "oracle": {
@@ -640,6 +765,7 @@
     "description": "Configuración y metadatos para tipos de bases de datos soportadas",
     "supported_db_types": [
       "mariadb",
+      "mysql",
       "oracle",
       "postgresql",
       "hsqldb",
@@ -652,6 +778,7 @@
         "type": "string",
         "enum": [
           "mariadb",
+          "mysql",
           "oracle",
           "postgresql",
           "hsqldb",
@@ -686,6 +813,28 @@
         "charset": "utf8mb4",
         "autocommit": true,
         "connect_timeout": 15
+      }
+    },
+    "mysql": {
+      "basic": {
+        "host": "localhost",
+        "port": 3306,
+        "user": "root",
+        "password": "password",
+        "database": "testdb"
+      },
+      "advanced": {
+        "host": "db.example.com",
+        "port": 3306,
+        "user": "app_user",
+        "password": "secure_password",
+        "database": "production_db",
+        "charset": "utf8mb4",
+        "autocommit": true,
+        "connect_timeout": 15,
+        "pool_size": 10,
+        "max_overflow": 5,
+        "ssl_ca": "/etc/ssl/certs/ca.pem"
       }
     },
     "oracle": {
@@ -794,9 +943,8 @@
     "validation_failed": "Validación fallida para {db_type}: {validation_errors}"
   },
   "compatibility": {
-    "mysql": "mariadb",
     "notes": {
-      "mysql_compatibility": "Los parámetros de conexión de MySQL son compatibles con MariaDB",
+      "mysql_compatibility": "MySQL es un motor propio (db_type='mysql', PyMySQL/aiomysql); db_type='mariadb' usa MariaDB Connector/Python y también conecta con servidores MySQL",
       "oracle_versions": "Soporta Oracle 11g R2 y superior",
       "postgresql_versions": "Soporta PostgreSQL 9.6 y superior",
       "hsqldb_requirements": "Requiere Java Runtime Environment y driver JDBC",

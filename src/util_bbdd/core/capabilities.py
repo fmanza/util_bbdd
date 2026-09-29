@@ -2,6 +2,7 @@
 
 DB_ASYNC_CAPABILITIES: dict[str, bool] = {
     "mariadb": True,
+    "mysql": True,
     "oracle": True,
     "postgresql": True,
     "sqlserver": True,

@@ -170,6 +170,7 @@ class CharsetCollationParser:
             "oracle": self._parse_db_charset_oracle,
             "postgresql": self._parse_db_charset_postgresql,
             "mariadb": self._parse_db_charset_mariadb,
+            "mysql": self._parse_db_charset_mariadb,
             "sqlserver": lambda row: self._parse_db_charset_single_field(row, "collation"),
             "hsqldb": lambda row: self._parse_db_charset_single_field(row, "collation"),
             "sqlite": lambda row: self._parse_db_charset_single_field(row, "encoding"),
@@ -181,6 +182,7 @@ class CharsetCollationParser:
             "hsqldb": self._parse_column_charset_collation_collation_only,
             "sqlite": self._parse_column_charset_collation_empty,
             "mariadb": self._parse_column_charset_collation_mariadb,
+            "mysql": self._parse_column_charset_collation_mariadb,
         }
 
     def parse_db_charset(self, db_type: str, result: tuple[Any, ...] | None) -> dict[str, Any]:

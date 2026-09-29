@@ -16,6 +16,10 @@ from ..query.registry import QueryRegistry
 from ..query.resolver import QueryResolver
 from ..results import ResultNormalizer, RowOrNone, Rows
 
+# ``%`` literales en SQL para drivers pyformat (PyMySQL/aiomysql): todo ``%`` que no sea marcador (``%s``,
+# ``%(nombre)s``) ni esté ya escapado (``%%``) se duplica.
+_PYFORMAT_LITERAL_PERCENT: re.Pattern[str] = re.compile(r"%%|%(?!\([A-Za-z_]\w*\)s|s)")
+
 
 class SyncQueryExecutor:
     """Ejecuta queries SQL de forma sincrónica."""
@@ -256,14 +260,19 @@ class SyncQueryExecutor:
             )
 
     @staticmethod
-    def _normalize_sql_for_db(sql: str, db_type: str) -> str:
+    def _normalize_sql_for_db(sql: str, db_type: str, params: dict[str, Any] | None = None) -> str:
         """Escapa ``%`` literales en SQL final para MariaDB (paramstyle pyformat).
 
         SVC-03 (AUDIT_CODE 2026-09-22): esta normalización ya existía en
         ``AsyncQueryExecutor`` pero faltaba aquí (asimetría sync/async).
+
+        MySQL (PyMySQL) solo formatea con ``%`` cuando recibe parámetros: sin ellos el SQL llega tal cual y escapar
+        rompería los ``%`` literales (``LIKE 'a%'``); con ellos se escapan los ``%`` que no son marcadores.
         """
         if db_type == "mariadb":
             return sql.replace("%", "%%")
+        if db_type == "mysql" and params and SyncQueryExecutor._sql_uses_bind_params(sql, params):
+            return _PYFORMAT_LITERAL_PERCENT.sub("%%", sql)
         return sql
 
     @staticmethod
@@ -311,7 +320,7 @@ class SyncQueryExecutor:
         try:
             self._raise_if_timed_out(deadline, timeout_msg)
             resolved = self._get_bound_resolver(db_type).resolve(query_name=query_name, params=params)
-            final_sql: str = self._normalize_sql_for_db(resolved.final_sql, db_type)
+            final_sql: str = self._normalize_sql_for_db(resolved.final_sql, db_type, params)
             self._raise_if_timed_out(deadline, timeout_msg)
 
             conn = self.connection_provider()

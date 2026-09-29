@@ -22,7 +22,7 @@ class DriverValidator:
         Verifica que el driver necesario esté disponible.
 
         Args:
-            db_type: Tipo de base de datos ('mariadb', 'oracle', 'postgresql', 'hsqldb', 'sqlserver')
+            db_type: Tipo de base de datos ('mariadb', 'mysql', 'oracle', 'postgresql', 'hsqldb', 'sqlserver', 'sqlite')
             conn_params: Parámetros de conexión (para SQL Server)
 
         Returns:
@@ -39,6 +39,9 @@ class DriverValidator:
             if db_type == "mariadb":
                 DriverValidator._check_mariadb_driver()
                 return "mariadb"
+            elif db_type == "mysql":
+                DriverValidator._check_mysql_driver()
+                return "pymysql"
             elif db_type == "oracle":
                 DriverValidator._check_oracle_driver()
                 return "oracledb"
@@ -82,6 +85,23 @@ class DriverValidator:
                 "mariadb",
             )
         DriverValidator.logger.debug("✅ Driver MariaDB disponible")
+
+    @staticmethod
+    def _check_mysql_driver() -> None:
+        """Verifica disponibilidad del driver MySQL (PyMySQL).
+
+        Raises:
+            DriverError: Si el driver no está disponible
+        """
+        if importlib.util.find_spec("pymysql") is None:
+            DriverValidator.logger.error("❌ Driver MySQL (pymysql) no disponible")
+            raise DriverError(
+                "MySQL driver no disponible",
+                "pymysql",
+                "pip install pymysql[rsa]",
+                "mysql",
+            )
+        DriverValidator.logger.debug("✅ Driver MySQL (pymysql) disponible")
 
     @staticmethod
     def _check_oracle_driver() -> None:

@@ -19,6 +19,7 @@ def build_conn_params(db_type: str, **kwargs: Any) -> dict[str, Any]:
     """
     builders: dict[str, Callable[[dict[str, Any], str], dict[str, Any]]] = {
         "mariadb": _build_mariadb_params,
+        "mysql": _build_mariadb_params,
         "oracle": _build_oracle_params,
         "postgresql": _build_postgresql_params,
         "hsqldb": _build_hsqldb_params,
@@ -43,7 +44,7 @@ def _validate_required(required: list[str], kwargs: dict[str, Any], db_type: str
 
 
 def _build_mariadb_params(kwargs: dict[str, Any], db_type: str) -> dict[str, Any]:
-    """Construye parámetros para MariaDB."""
+    """Construye parámetros para MariaDB y MySQL (mismos requeridos y valores por defecto)."""
     required: list[str] = ["host", "user", "password", "database"]
     _validate_required(required, kwargs, db_type)
     conn_params: dict[str, Any] = {
