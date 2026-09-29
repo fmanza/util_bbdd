@@ -59,6 +59,11 @@
   `_format_default` (escapan `\` en DEFAULT y comentarios de tabla/columna). e2e 20/20;
   `tests/unit/migrate/test_backslash_literals.py` (16). Los extractores de PostgreSQL y SQL Server no leen comentarios
   (limitación v1 documentada): el e2e solo comprueba comentarios desde MySQL/MariaDB/Oracle.
+- **Fix A6**: test-first: dos tablas de 35 caracteres / 64 bytes con `ñ` que solo difieren al final (orígenes
+  MySQL/MariaDB/SQL Server) → los 3 pares hacia PG fallan («relation already exists»); hacia Oracle 23 no falla (admite
+  128 bytes; el 30 es un mínimo conservador). Fix: `identifier_rules.ByteLimit(int)` marca los límites de PG y Oracle;
+  `truncate_identifier` mide en bytes UTF-8 y corta sin partir caracteres; el aviso dice la unidad; el planner ya no
+  hace `int()` del límite (perdía el tipo). Sin cambios en las ~40 llamadas. e2e 20/20; `test_identifier_bytes.py` (7).
 
 ## Artefactos generados
 | Artefacto | Ruta | Estado |
@@ -72,6 +77,8 @@
 | Tests A3 | `tests/unit/migrate/test_index_names.py`, `tests/integration/test_migrate_views_e2e.py` | completado |
 | Hotfix A4 | `src/util_bbdd/migrate/_compat/default_normalizer.py`, `src/util_bbdd/migrate/emitters/mariadb.py` | completado |
 | Tests A4 | `tests/unit/migrate/test_backslash_literals.py`, `tests/integration/test_migrate_views_e2e.py`, `a4_catalog_defaults.py` | completado |
+| Fix A6 | `src/util_bbdd/migrate/_compat/identifier_rules.py`, `src/util_bbdd/migrate/planner.py` | completado |
+| Tests A6 | `tests/unit/migrate/test_identifier_bytes.py`, `tests/integration/test_migrate_views_e2e.py` | completado |
 | Docs A1 | `docs/guides/ddl_migration_guide.md` §3.4, `CHANGELOG.md` | completado |
 
 ## Directrices para Futuras IAs
@@ -92,7 +99,10 @@
   de MariaDB/MySQL escapan la barra (`sql_mode` con `NO_BACKSLASH_ESCAPES` en el destino la duplicaría: no soportado).
 - **[herramientas]**: el Bash tool pierde un nivel de `\` en heredocs y scripts en línea; para código o SQL con barras
   invertidas, escribir el fichero con Write/Edit.
-- **[migrate/emitters]**: pendientes de la auditoría (no bloqueantes): A6 (límite en bytes), A8, A9.
+- **[migrate/identificadores]**: PostgreSQL y Oracle limitan identificadores en bytes, MySQL/MariaDB/SQL Server en
+  caracteres; el tipo `ByteLimit` de las constantes lo decide. No convertir los límites con `int()`. SQLAlchemy no aplica
+  su convención de nombres en minúsculas de Oracle a identificadores no ASCII (reflexión con `ñ` falla).
+- **[migrate/emitters]**: pendientes de la auditoría (no bloqueantes): A8, A9.
 
 ## Veredicto final
 Veredicto: A1–A4 corregidos (GO); auditoría de migrate/ → condiciones cumplidas; pendientes no bloqueantes A6, A8, A9 (sesión IN_PROGRESS)
