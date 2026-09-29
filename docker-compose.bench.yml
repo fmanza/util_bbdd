@@ -56,6 +56,13 @@ services:
       MYSQL_PASSWORD: *password
     ports:
       - "127.0.0.1:${UTIL_BBDD_BENCH_MYSQL_PORT:-53306}:3306"
+    # El inventario de almacenamiento (get_storage_inventory, documentación) lee information_schema.FILES, que en MySQL
+    # exige el privilegio global PROCESS. Los scripts de inicio solo se ejecutan con el directorio de datos vacío: para
+    # un contenedor ya creado, `GRANT PROCESS ON *.* TO 'bench'@'%'` como root, o
+    # `docker compose -f docker-compose.bench.yml up -d --wait --force-recreate -V mysql` (borra sus datos).
+    configs:
+      - source: mysql_bench_grants
+        target: /docker-entrypoint-initdb.d/10-bench-grants.sql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -ubench -p$$MYSQL_PASSWORD --silent"]
       interval: 5s
@@ -116,6 +123,9 @@ services:
       retries: 60
 
 configs:
+  mysql_bench_grants:
+    content: |
+      GRANT PROCESS ON *.* TO 'bench'@'%';
   mariadb_bench_grants:
     content: |
       GRANT ALL PRIVILEGES ON `zz\_util\_bbdd\_%`.* TO 'bench'@'%';
