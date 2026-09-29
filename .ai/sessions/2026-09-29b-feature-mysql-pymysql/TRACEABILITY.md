@@ -72,6 +72,7 @@ defectos previos encontrados pasan al PLAN como E5.
   `PROCESS` en MySQL.
 - **[migrate]**: con destino MySQL se reutilizan los transformers `X → MariaDB`; los avisos no deben escribirse como
   `ddl_comment` en línea hasta corregir H3 (rompen el `CREATE TABLE`).
+- **[postgresql/connection]**: `PostgreSQLConnectionConfig.to_driver_kwargs()` mantiene `database` a propósito (lo consumen el `conninfo` del pool y asyncpg); la traducción a libpq (`dbname`, booleanos a entero) se hace solo en la conexión sync directa. `psycopg.conninfo.make_conninfo` no valida tipos: `keepalives="True"` solo falla en el servidor.
 - **[bench]**: la integración ya cubre MariaDB con los dos drivers (URL base `mariadb+pymysql` y variantes
   `mariadbconnector`); no cambiar la URL base o se pierde la cobertura de PyMySQL sobre MariaDB.
 
@@ -80,7 +81,8 @@ Veredicto: GO (E0–E4); sesión IN_PROGRESS hasta E5
 Pendientes al cierre:
 - E5 (hotfixes de defectos previos, uno por commit):
   - ~~H1 (P1): conexión async directa de MariaDB (`use_pool=False`) → `TypeError` en `aiomysql.connect`.~~ Corregido (`hotfix(connection)`): `_map_connect_kwargs` renombra `database`→`db` y descarta los timeouts; test de regresión contra la firma real de `aiomysql.connect` (el aiomysql falso aceptaba `**kwargs` y ocultaba el fallo); verificado contra MariaDB 11.4 con y sin pool.
-  - H2 (P1): conexión sync directa de PostgreSQL → `database=` en lugar de `dbname=` en `psycopg.connect`.
+  - ~~H2 (P1): conexión sync directa de PostgreSQL → `database=` en lugar de `dbname=` en `psycopg.connect`.~~ Corregido (`hotfix(connection)`) en `connection_postgresql.py` (no en la config: el pool y asyncpg usan `database`): `database`→`dbname` y booleanos → `0`/`1` (segundo fallo, oculto tras el primero). Verificado contra PostgreSQL 17 con y sin pool.
+  - Nuevo hallazgo (fuera de H2): el pool sync de PostgreSQL no aplica `application_name` (su `conninfo` solo lleva `options`).
   - H3 (P1): `migrate/` emite el `-- AVISO` antes de la coma que separa columnas (todos los emitters).
   - H4 (P2): `migrate/` traduce mal defaults (casts PG, paréntesis SQL Server, `SYSDATE`, orden `DEFAULT`/`NOT NULL`
     y doble comillado en Oracle).

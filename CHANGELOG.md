@@ -47,6 +47,9 @@ tiene que cambiar nada: el conector de MariaDB también conecta con MySQL.
 - **connection**: la conexión async directa de MariaDB (`AsyncDatabaseManager("mariadb", use_pool=False)`) fallaba
   siempre con `TypeError`: se pasaba `database`, `read_timeout` y `write_timeout` a `aiomysql.connect`, que espera `db`
   y no admite los dos timeouts (H1).
+- **connection**: la conexión sync directa de PostgreSQL (`SyncDatabaseManager("postgresql", use_pool=False)`) no
+  conectaba: se pasaba `database=` a `psycopg.connect` (libpq espera `dbname`) y, tras eso, `keepalives=True` llegaba
+  como `"True"` (libpq exige `0`/`1`). Un `dbname` explícito tiene prioridad (H2).
 
 ## [0.18.4] - 2026-09-29
 
