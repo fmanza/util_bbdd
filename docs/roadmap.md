@@ -7,7 +7,7 @@ El detalle exhaustivo de cada cambio vive en el
 [Keep a Changelog](https://keepachangelog.com/) + [SemVer](https://semver.org/)); esta página
 es la vista panorámica.
 
-> **Versión vigente: v0.18.4.** Las series `0.x` siguen siendo pre-estables: la API se mantiene
+> **Versión vigente: v0.19.0.** Las series `0.x` siguen siendo pre-estables: la API se mantiene
 > mayormente compatible, pero puede haber cambios acotados entre minors. La estabilización formal
 > llega con `v1.0.0`. Las versiones posteriores a `v0.10.0` aún no están en la tabla de abajo: su
 > detalle está en el CHANGELOG.

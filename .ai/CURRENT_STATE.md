@@ -30,12 +30,13 @@
 | `v0.18.2` | Liberado 2026-09-28 (tag sobre `ad4b08e`) — `EngineReadinessAdvisor.report_once(engine)`: la verificación de condiciones del motor se hace una vez por `Engine` (antes, una por `BulkCrud`: N informes y N conexiones extra en `ParallelBulkLoader`/`dump`); lectura de URL/pool movida de `bulk/crud.py` a `connection/` (sesión `2026-09-27c-readiness-once-per-engine`) |
 | `v0.18.3` | Liberado 2026-09-28 (tag sobre `02d0a0c`) — exportación de informes robusta: el Excel de `dump` ya no se pierde por un CSV de auditoría mal formado (`KeyError 'timestamp'`) ni por su propio fallo (`DumpReportError.result` con el `DumpResult`); CSV de auditoría con cabecera no válida apartado como `.invalid-<fecha>.csv`; lock del CSV sin `resolve()` (en Windows perdía filas con varios hilos); `_core/export_safety` (caracteres de control y fórmulas) en los informes Excel y Word de `dump`, `bulk`, `comparar` y `doc`; `AuditExportError`; diagrama de capas (`bulk → connection` de módulo) (sesión `2026-09-27d-export-safety`) |
 | `v0.18.4` | Liberado 2026-09-29 — sin cambios de API: revisión de la configuración IA (commands finos sobre prompts, `/performance-audit-constraints`, tipos de commit, `DOCUMENTATION_STANDARD` canónico, `.claude/settings.json` versionado); `docs/` a minúsculas con guion bajo (65 ficheros); README al día; `docs.yml` construye antes de publicar (Pages roto desde `11fb9f8`); ZIP offline con `start-server.py` y `README_OFFLINE.txt` en Releases y en el sitio (`build_offline_zip`); `docs-zip-release.yml` con YAML válido (sesiones `2026-09-28-config-review` y `2026-09-29-docs-review-hotfixes`) |
+| `v0.19.0` | Liberado 2026-09-29 — **MySQL como motor propio** (`db_type="mysql"`: PyMySQL + `QueuePool` sync, aiomysql async; metadatos, documentación, relaciones y `migrate` origen/destino); MariaDB sigue con Connector/Python; adapters de metadatos por registro (`_get_metadata_adapter`); extras `util_bbdd[mariadb]`/`util_bbdd[mysql]`; 6 hotfixes: async directa de MariaDB, conexión directa de PostgreSQL, pool sync de PostgreSQL sin `sslmode` (seguridad), `migrate` ejecutable en los 20 pares (comentarios y defaults), DDL reconstruido de MariaDB/MySQL (sesión `2026-09-29b-feature-mysql-pymysql`) |
 | Zenical | Pendiente, sin versión asignada — merge `migrate/zenical-pure` (+80% perf doc builds) cuando Zenical esté instalable |
 
 PR abierta: **PR #18** `feat(connection/bulk): automatización variables MySQL/MariaDB` — revisión pendiente de merge.  
 PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical v0.0.44 esté en crates.io (o instalación manual de binario).
 
-**Tests actuales**: 5295 passed, 199 skipped sin URLs de servidor (cierre de `v0.18.4`); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: estimado 340+ passed en 5 servidores (cierre de `v0.18.1`, 2026-09-27). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/performance_audit_guide.md`).
+**Tests actuales**: 5483 passed, 205 skipped sin URLs de servidor (cierre de `v0.19.0`); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 344 passed en 5 servidores (cierre de `v0.19.0`, 2026-09-29). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/performance_audit_guide.md`).
 
 ---
 
@@ -78,7 +79,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-0. **Push** de la sesión `2026-09-29b-feature-mysql-pymysql` (motor `mysql` E0–E4 + 6 hotfixes E5), pendiente de decisión del usuario.
+0. **Push y tag `v0.19.0`** (sesión `2026-09-29b-feature-mysql-pymysql`), pendientes de decisión del usuario.
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
 3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.

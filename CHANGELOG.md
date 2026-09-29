@@ -7,6 +7,8 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-09-29
+
 MySQL pasa a ser un motor propio (`db_type="mysql"`) con PyMySQL (sync) y aiomysql (async); MariaDB sigue con
 MariaDB Connector/Python (sync) y aiomysql (async). Quien usa hoy `db_type="mariadb"` contra un servidor MySQL no
 tiene que cambiar nada: el conector de MariaDB también conecta con MySQL.

@@ -56,6 +56,18 @@ defectos previos encontrados pasan al PLAN como E5.
 | Test de integración MySQL | `tests/integration/test_mysql_engine_e2e.py` | completado |
 | Docs | `docs/functional/migrate_mysql.md`, `docs/api/migrate_mysql.md`, guías de drivers | completado |
 
+## VERSION (cierre v0.19.0)
+- Versión: `0.18.4` → **`0.19.0`** (MINOR: API pública nueva sin cambios incompatibles). CHANGELOG `[0.19.0] - 2026-09-29`;
+  versión sincronizada en `pyproject.toml`, `README.md`, `docs/index.md`, `docs/roadmap.md`; pie del diagrama de capas
+  (377 ficheros); `CURRENT_STATE`, `INDEX`, `SESSIONS_DIGEST`.
+- Commit propuesto: `release: v0.19.0 - motor MySQL propio (PyMySQL/aiomysql) y 6 hotfixes de conexión, migrate y metadatos`.
+- Compatibilidad: Python `>=3.12` sin cambios. Sin cambios incompatibles: `db_type="mariadb"` contra MySQL sigue
+  funcionando; `_get_mariadb_adapter` era privado. Cambio observable: `MigrationPlanner` normaliza los DEFAULT del
+  origen (el DDL generado cambia, ahora ejecutable) y el pool sync de PostgreSQL aplica `sslmode` (una conexión con
+  `sslmode="require"` a un servidor sin TLS, que antes conectaba, ahora falla).
+- Rollback: `git revert` del commit de release y, si hace falta, de los commits de la sesión en orden inverso
+  (`05c6031` … `0c7e841`); ninguno migra datos ni esquemas.
+
 ## Directrices para Futuras IAs
 - **[managers/metadata]**: el adapter de lecturas especializadas se obtiene SOLO con `_get_metadata_adapter()` (registro
   global por `db_type`); un motor nuevo con lecturas especializadas se registra en su `metadata/<motor>/__init__.py` y

@@ -185,6 +185,7 @@ Para el índice maestro detallado ver `INDEX.md`. Para decisiones tomadas ver `.
 | 2026-09-28 | Exportación de informes → v0.18.3 | El Excel de `dump` no se generaba: CSV de auditoría re-guardado fuera de la librería (líneas entre comillas) → `KeyError 'timestamp'` tras la carga. Resumen tolerante, `DumpReportError.result`, CSV con cabecera no válida apartado, lock del CSV sin `resolve()` (perdía filas en Windows), `_core/export_safety` en los informes Excel y Word; checklist verde (5288/199) | CLOSED |
 | 2026-09-28 | Revisión de la configuración IA | Commands finos sobre prompts gemelos, `/performance-audit-constraints`, tipos de commit ampliados, `DOCUMENTATION_STANDARD` canónico, `applyTo` sobre rutas reales, `.claude/settings.json` versionado; 12 ficheros retirados | CLOSED |
 | 2026-09-29 | Revisión de documentación y hotfixes → v0.18.4 | README al día; `docs/` a minúsculas con guion bajo; Pages roto desde `11fb9f8` (deploy sin build); ZIP offline de Releases sin `start-server.py`; `docs-zip-release.yml` nunca ejecutado por YAML inválido; checklist verde (5295/199) | CLOSED |
+| 2026-09-29 | Motor MySQL propio + hotfixes → v0.19.0 | `mysql` con PyMySQL/aiomysql (MariaDB ya usaba Connector/Python en sync); adapters por registro; `migrate` 20 pares; 6 defectos previos hallados al probar contra servidores reales (incl. pool PostgreSQL sin `sslmode`); checklist verde (5483/205, integración 344) | CLOSED |
 
 > Las sesiones del 2026-06-07 al 2026-06-16 (documentación) constan en `INDEX.md`; este digest no las recoge.
 

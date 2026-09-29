@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, MySQL, Oracle, PostgreSQL, SQLite y SQL Server (sync y async), y HSQLDB, Redshift y Snowflake (sync).
 
-**Version:** 0.18.4 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 0.19.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -1103,7 +1103,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.18.4** (documentación publicable con ZIP offline completo; configuración IA consolidada)
+**Current Version: v0.19.0** (MySQL como motor propio con PyMySQL/aiomysql; MariaDB con MariaDB Connector/Python; migración DDL ejecutable en los 20 pares)
 
 Roadmap resumido (ver [ROADMAP completo](docs/roadmap.md) y
 [CHANGELOG](CHANGELOG.md) para el detalle):
@@ -1114,7 +1114,7 @@ Roadmap resumido (ver [ROADMAP completo](docs/roadmap.md) y
 - `v0.8.0` ✅: Cobertura completa del sistema de tipos (8 motores); hotfix de finalización del pool
 - `v0.9.0` ✅: Palancas de rendimiento opt-in en dump (commit cadence, índices, paralelización)
 - `v0.10.0` ✅: Vías rápidas de INSERT por motor (PostgreSQL COPY, MySQL multi-fila)
-- `v0.11.0 – v0.18.4` ✅ (vigente): auditoría y rendimiento de bulk y dump contra motores reales, verificador de
+- `v0.11.0 – v0.19.0` ✅ (vigente): auditoría y rendimiento de bulk y dump contra motores reales, verificador de
   condiciones del motor e informes robustos (detalle en el [CHANGELOG](CHANGELOG.md))
 - `v1.0.0` (futuro): API estable, cobertura 85%+
 
