@@ -65,7 +65,7 @@ flowchart TD
 | Error | Cuándo ocurre |
 |---|---|
 | `ValueError` | Motor no soportado, origen igual a destino, o collation no válida en MySQL |
-| Error del driver al ejecutar | Limitación conocida común a los destinos MariaDB y MySQL: algunos defaults de Oracle, SQL Server y PostgreSQL requieren ajuste manual del DDL |
+| Aviso `DEFAULT ... tiene forma de llamada a función` | Default con una función del origen sin equivalente conocido (p. ej. `newid()`): revisar el DDL |
 
 ## 3. Componentes y Clases
 

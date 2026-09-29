@@ -73,9 +73,9 @@ tabla y, de MariaDB a MySQL, los tipos que MySQL no tiene.
 - No migra filas de datos, solo la estructura (DDL); para los datos, ver el volcado entre motores (`dump`)
 - Rutinas y vistas se copian sin reescribir su SQL; revisar los avisos del plan antes de ejecutar
 - El SQL de las vistas conserva las referencias cualificadas con el schema origen
-- Revisar el DDL antes de ejecutarlo cuando el origen es Oracle, SQL Server o PostgreSQL: algunos valores por
-  defecto (funciones y expresiones propias del motor origen) pueden requerir un ajuste manual. Es una limitación
-  común a los destinos MariaDB y MySQL, pendiente de corrección
+- Los valores por defecto se traducen al destino (literales, números, `NULL`, `CURRENT_TIMESTAMP`, `CURRENT_DATE` y
+  booleanos); una función propia del motor origen sin equivalente (p. ej. `newid()`) se emite como literal con un
+  aviso en el plan para revisarla
 
 ## 4. Glosario y Términos
 

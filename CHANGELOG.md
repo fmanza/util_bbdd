@@ -60,6 +60,13 @@ tiene que cambiar nada: el conector de MariaDB también conecta con MySQL.
   columna (aviso de migración y, en PostgreSQL/SQL Server, el comentario de la columna) se escribía antes de la coma
   que separa definiciones: la coma quedaba comentada y el `CREATE TABLE` no era válido. La coma va ahora antes del
   comentario (H3).
+- **migrate**: los valores DEFAULT llegaban al destino con la sintaxis del origen: casts de PostgreSQL
+  (`'x'::character varying`), paréntesis y `N'...'` de SQL Server (`((0))`, `(N'x')`), `SYSDATE` de Oracle o
+  `current_timestamp()` de MariaDB, y el DDL no se podía ejecutar. Ahora se normalizan según el motor origen
+  (`migrate/_compat/default_normalizer.py`) antes de transformar. Además: en Oracle, `DEFAULT` va antes de `NOT NULL`
+  (antes ORA-03076) y los literales no se entrecomillan dos veces; en MariaDB/MySQL, `CURRENT_TIMESTAMP(n)` en
+  columnas `DATETIME(n)`/`TIMESTAMP(n)`; en PostgreSQL, `TRUE`/`FALSE` en columnas `BOOLEAN`. Los 20 pares crean todas
+  las tablas en servidores reales (H4).
 
 ## [0.18.4] - 2026-09-29
 

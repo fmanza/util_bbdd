@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
+from ._compat.default_normalizer import normalize_default
 from ._compat.identifier_rules import find_case_insensitive_collisions
 from .charset import (
     DEFAULT_CHARSET,
@@ -293,6 +294,11 @@ class MigrationPlanner:
         raw_routines: list[Any],
         schema: str,
     ) -> MigrationPlan:
+        # H4: DEFAULT del origen en forma canónica (casts PG, paréntesis SQL Server, SYSDATE...) antes de transformar.
+        for table in raw_tables:
+            for column in table.columns:
+                column.default = normalize_default(self._source_engine, column.default)
+
         transformed = transformer.transform(raw_tables)
         transformed_views = transformer.transform_views(raw_views)
         transformed_routines = transformer.transform_routines(raw_routines)

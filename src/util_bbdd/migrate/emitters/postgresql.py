@@ -272,6 +272,10 @@ class PostgreSQLDDLEmitter:
             return
 
         default_val = _format_default_postgresql(default_value)
+        # Los orígenes expresan los booleanos como 1/0 (BIT de SQL Server, TINYINT(1)...); PostgreSQL no admite un
+        # entero como default de una columna BOOLEAN.
+        if col.target_type.strip().upper() in {"BOOLEAN", "BOOL"} and default_val in {"1", "0"}:
+            default_val = "TRUE" if default_val == "1" else "FALSE"
         parts.append(f"DEFAULT {default_val}")
         fallback_warning = default_fallback_warning(
             raw_value=default_value,

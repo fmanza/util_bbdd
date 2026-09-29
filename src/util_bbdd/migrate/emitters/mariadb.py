@@ -255,7 +255,7 @@ class MariaDBDDLEmitter:
         if col.auto_increment:
             parts.append("AUTO_INCREMENT")
         elif col.default is not None:
-            default_val = _format_default(col.default)
+            default_val = _with_timestamp_precision(_format_default(col.default), col_type)
             parts.append(f"DEFAULT {default_val}")
             fallback_warning = default_fallback_warning(
                 raw_value=col.default,
@@ -455,6 +455,21 @@ def _collect_circular_fk_pairs(
         for fk in table.foreign_keys
         if not fk.is_external and fk.ref_table not in visited
     ]
+
+
+_FRACTIONAL_TEMPORAL_RE: re.Pattern[str] = re.compile(r"^(DATETIME|TIMESTAMP)\s*\(\s*([1-6])\s*\)", re.IGNORECASE)
+
+
+def _with_timestamp_precision(default_val: str, column_type: str) -> str:
+    """``CURRENT_TIMESTAMP`` con la precisión de la columna (``DATETIME(6)`` → ``CURRENT_TIMESTAMP(6)``).
+
+    MySQL rechaza ``DATETIME(6) DEFAULT CURRENT_TIMESTAMP`` ("Invalid default value"): la precisión del default debe
+    coincidir con la de la columna.
+    """
+    if default_val.upper() not in {"CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP()", "NOW()"}:
+        return default_val
+    match = _FRACTIONAL_TEMPORAL_RE.match(column_type.strip())
+    return f"CURRENT_TIMESTAMP({match.group(2)})" if match else default_val
 
 
 def _format_default(value: str) -> str:
