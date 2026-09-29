@@ -1,8 +1,8 @@
 """Transpilado de vistas entre motores con sqlglot (V1, sesión 2026-09-29c-migrate-views).
 
-Para cada vista: analiza el SQL en el dialecto origen; si contiene construcciones sin traducción fiable (``(+)``,
-``ROWNUM``, ``CONNECT BY`` de Oracle) o no se puede analizar o generar, la emite sin reescribir (*pass-through*) con un
-aviso ``WARNING``. Si no, corrige los artefactos del texto de catálogo, resuelve y anota tipos con el esquema del plan,
+Para cada vista: analiza el SQL en el dialecto origen; convierte ``(+)``, ``ROWNUM`` y las jerarquías simples
+``CONNECT BY`` de Oracle (CTE recursiva, V4); si quedan construcciones sin traducción fiable o no se puede analizar o
+generar, la emite sin reescribir (*pass-through*) con un aviso ``WARNING``. Si no, corrige los artefactos del texto de catálogo, resuelve y anota tipos con el esquema del plan,
 hace explícita la aritmética que depende del tipo, recoloca nombres (tablas, vistas y columnas del plan con el nombre
 y las comillas del destino; sin el esquema origen) y genera el SQL del destino. Detalle y evidencias:
 ``.ai/sessions/2026-09-29c-migrate-views/v0/V0_SPIKE.md``.
@@ -50,6 +50,7 @@ class ViewTranspileContext:
         object_names: Nombre origen en minúsculas → nombre destino, de tablas y vistas del plan.
         column_names: Nombre de columna origen en minúsculas → nombre destino (solo los no ambiguos entre tablas).
         column_types: Tabla origen → columna → tipo origen, para resolver y anotar tipos.
+        integer_columns: Tabla origen → columnas enteras (escala 0), para aceptar ``SYS_CONNECT_BY_PATH`` sobre ellas.
     """
 
     source_engine: str
@@ -58,6 +59,7 @@ class ViewTranspileContext:
     object_names: dict[str, str] = field(default_factory=dict)
     column_names: dict[str, str] = field(default_factory=dict)
     column_types: dict[str, dict[str, str]] = field(default_factory=dict)
+    integer_columns: dict[str, frozenset[str]] = field(default_factory=dict)
 
 
 def _warning(view: CanonicalView, target_type: str, message: str, severity: str = "WARNING") -> MigrationWarning:
@@ -179,6 +181,23 @@ def _apply_header_columns(tree: exp.Expression, view: CanonicalView) -> bool:
     return True
 
 
+def _hierarchy_message(target_engine: str) -> str:
+    """Aviso de una jerarquía CONNECT BY convertida en CTE recursiva: límite de recursión, ciclos y orden."""
+    label = _ENGINE_LABEL.get(target_engine, target_engine)
+    limit = _rewrites.CONNECT_BY_RECURSION_LIMIT.get(target_engine)
+    if limit is not None:
+        depth = (
+            f"{label} corta la CTE recursiva a los {limit} niveles y una vista no puede ampliarlo; una jerarquía más "
+            "profunda o un ciclo en los datos dan error al consultar la vista"
+        )
+    else:
+        depth = (
+            f"{label} no limita la CTE recursiva: un ciclo en los datos (que Oracle rechaza con ORA-01436) hace que la "
+            "consulta no termine"
+        )
+    return f"CONNECT BY convertido en CTE recursiva; {depth}. Sin ORDER BY, el orden en profundidad de Oracle no se conserva"
+
+
 def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalView:
     """Devuelve ``view`` con el SQL en el dialecto destino, o sin reescribir con aviso si no es fiable."""
     if not view.query:
@@ -197,9 +216,20 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
         except Exception:  # noqa: BLE001 - la salvaguarda de abajo detecta el (+) que quede
             pass
         tree = _rewrites.oracle_rownum_limit(tree)
+        tree, connect_by = _rewrites.oracle_connect_by(
+            tree,
+            target_engine=ctx.target_engine,
+            column_types=ctx.column_types,
+            integer_columns=ctx.integer_columns,
+            reserved_names=set(ctx.object_names) | set(ctx.object_names.values()),
+        )
+    else:
+        connect_by = None
 
     unsupported = _rewrites.unsupported_constructs(tree, ctx.source_engine)
     if unsupported:
+        if connect_by not in (None, "hierarchy", "generator"):
+            unsupported = [f"CONNECT BY ({connect_by})" if item == "CONNECT BY" else item for item in unsupported]
         return _passthrough(view, f"contiene {', '.join(unsupported)}, sin traducción automática fiable")
 
     external = _external_tables(tree, ctx)
@@ -283,6 +313,8 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
                 "IS NULL, COALESCE, DISTINCT y las concatenaciones pueden dar otro resultado",
             )
         )
+    if connect_by == "hierarchy":
+        result.warnings.append(_warning(view, "VIEW (jerarquía)", _hierarchy_message(ctx.target_engine)))
     if external:
         result.warnings.append(
             _warning(

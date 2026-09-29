@@ -22,6 +22,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `LIMIT`/`TOP`/`FETCH FIRST` (top-N con subconsulta ordenada incluido), `ILIKE` hacia SQL Server y los agregados de
   texto hacia PostgreSQL, y aplica como alias las columnas declaradas en la cabecera de las vistas de SQL Server. Solo
   `CONNECT BY` (y `ROWNUM` fuera de un límite de filas) se copia sin reescribir.
+- **migrate**: las vistas Oracle con una jerarquía simple (`START WITH` + `CONNECT BY PRIOR a = b` sobre una sola
+  tabla, con `LEVEL`, `SYS_CONNECT_BY_PATH` sobre texto variable o enteros y `CONNECT_BY_ROOT`) y el generador
+  `FROM dual CONNECT BY LEVEL <= n` se convierten en una CTE recursiva; el `WHERE` se aplica después de la jerarquía,
+  como en Oracle. Nuevo aviso `WARNING` «VIEW (jerarquía)» con el límite de recursión del destino (SQL Server 100,
+  MySQL 1000) y el riesgo de ciclos. `NOCYCLE`, `ORDER SIBLINGS BY`, joins, condiciones `PRIOR` múltiples,
+  `CONNECT_BY_ISLEAF` y `ROWNUM` en consultas jerárquicas siguen sin reescribir, con el motivo en el aviso.
 - **migrate**: `MigrationPlan.validate_views(target_connection=None, *, include_tables=True)` valida las vistas del
   plan antes de ejecutarlo, sin dejar cambios: con destino PostgreSQL o SQL Server crea las tablas y cada vista en una
   transacción que se deshace (`method="transaction"`); con MySQL, MariaDB u Oracle, cuyo DDL confirma solo, analiza

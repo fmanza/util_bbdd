@@ -264,6 +264,10 @@ def oracle_rownum_limit(tree: exp.Expression) -> exp.Expression:
         where = select.args.get("where")
         if where is None or select.args.get("order") or select.args.get("limit"):
             continue
+        if select.args.get("connect"):
+            # En una consulta jerárquica ROWNUM numera en el orden en profundidad de Oracle, que la CTE recursiva no
+            # reproduce: se deja y la vista queda sin reescribir (V4).
+            continue
         conjuncts: list[Any] = list(where.this.flatten()) if isinstance(where.this, exp.And) else [where.this]
         limit: int | None = None
         rest: list[Any] = []
@@ -327,6 +331,327 @@ def postgres_target_text_aggregate(tree: exp.Expression) -> exp.Expression:
     return tree
 
 
+# ─── Jerarquías de Oracle: CONNECT BY → CTE recursiva (V4) ────────────────────────
+
+CONNECT_BY_CTE: str = "connect_by_tree"
+_CONNECT_BY_PARENT: str = "connect_by_parent"
+_CONNECT_BY_LEVEL: str = "cb_level"
+# Tipo de SYS_CONNECT_BY_PATH por destino: el mismo en las dos ramas de la CTE (SQL Server exige tipo y longitud
+# idénticos; MySQL toma el de la rama ancla). 4000 = límite de SYS_CONNECT_BY_PATH en Oracle.
+_CONNECT_BY_PATH_TYPE: dict[str, str] = {
+    "postgresql": "VARCHAR(4000)",
+    "sqlserver": "NVARCHAR(4000)",
+    "mysql": "CHAR(4000)",
+    "mariadb": "CHAR(4000)",
+}
+# Recursiones máximas por defecto de una CTE, que una vista no puede ampliar (SQL Server: OPTION (MAXRECURSION) no se
+# admite en vistas; MySQL: cte_max_recursion_depth es de sesión). PostgreSQL y MariaDB no tienen un límite práctico.
+CONNECT_BY_RECURSION_LIMIT: dict[str, int] = {"sqlserver": 100, "mysql": 1000}
+# CHAR/NCHAR quedan fuera: Oracle conserva el relleno en la ruta y PostgreSQL lo quita al convertir a VARCHAR.
+_CONNECT_BY_PATH_TEXT_TYPES: frozenset[str] = frozenset({"VARCHAR2", "NVARCHAR2", "VARCHAR"})
+_HIERARCHY_PSEUDOCOLUMNS: frozenset[str] = frozenset({"CONNECT_BY_ISLEAF", "CONNECT_BY_ISCYCLE", "ROWNUM"})
+
+ConnectByOutcome = str | None
+"""``"hierarchy"`` o ``"generator"`` si se convirtió; otro texto = motivo para no convertir; ``None`` = sin CONNECT BY."""
+
+
+def _is_level(node: exp.Expression) -> bool:
+    return isinstance(node, exp.Column) and not node.table and node.name.upper() == "LEVEL"
+
+
+def _is_connect_by_path(node: exp.Expression) -> bool:
+    return isinstance(node, exp.Anonymous) and str(node.this).upper() == "SYS_CONNECT_BY_PATH"
+
+
+def _free_name(base: str, taken: set[str]) -> str:
+    name, suffix = base, 2
+    while name.lower() in taken:
+        name, suffix = f"{base}_{suffix}", suffix + 1
+    return name
+
+
+def _level_bound(condition: exp.Expression) -> int | None:
+    """Número de filas de ``LEVEL <= n``, ``LEVEL < n``, ``n >= LEVEL`` o ``n > LEVEL`` con ``n`` entero literal."""
+    left, right = condition.this, condition.expression
+    if isinstance(condition, (exp.LTE, exp.LT)) and _is_level(left):
+        literal, strict = right, isinstance(condition, exp.LT)
+    elif isinstance(condition, (exp.GTE, exp.GT)) and right is not None and _is_level(right):
+        literal, strict = left, isinstance(condition, exp.GT)
+    else:
+        return None
+    if not isinstance(literal, exp.Literal) or literal.is_string or not str(literal.this).isdigit():
+        return None
+    return int(literal.this) - (1 if strict else 0)
+
+
+def _replace_level(select: exp.Select, qualifier: str | None) -> None:
+    for column in list(select.find_all(exp.Column)):
+        if _is_level(column):
+            column.replace(exp.column(_CONNECT_BY_LEVEL, table=qualifier))
+
+
+def _connect_by_generator(select: exp.Select, target_engine: str, taken: set[str]) -> exp.Expression | str:
+    """``SELECT ... LEVEL ... FROM dual CONNECT BY LEVEL <= n`` → CTE recursiva que cuenta de 1 a n."""
+    connect: Any = select.args["connect"]
+    rows = _level_bound(connect.args["connect"])
+    if rows is None:
+        return "condición CONNECT BY distinta de LEVEL <= n con n literal"
+    if connect.args.get("start") is not None:
+        return "START WITH en un generador de filas"
+    limit = CONNECT_BY_RECURSION_LIMIT.get(target_engine)
+    if limit is not None and rows - 1 > limit:
+        return f"{rows} filas superan el límite de {limit} recursiones de una CTE en {target_engine}"
+    aliases = {alias.alias.lower() for alias in select.expressions if isinstance(alias, exp.Alias)}
+    for column in select.find_all(exp.Column):
+        if not _is_level(column) and column.name.lower() not in aliases:
+            return f"columna {column.sql(dialect='oracle')} de dual en un generador de filas"
+
+    cte_name = _free_name(CONNECT_BY_CTE, taken)
+    anchor = exp.select(exp.alias_(exp.Literal.number(1), _CONNECT_BY_LEVEL))
+    recursive = (
+        exp.select(exp.alias_(exp.column(_CONNECT_BY_LEVEL, table=cte_name) + exp.Literal.number(1), _CONNECT_BY_LEVEL))
+        .from_(cte_name)
+        .where(exp.column(_CONNECT_BY_LEVEL, table=cte_name) < exp.Literal.number(rows))
+    )
+    outer = select.copy()
+    outer.set("connect", None)
+    outer.set("from_", exp.From(this=exp.to_table(cte_name)))
+    _replace_level(outer, None)
+    outer.set(
+        "with_",
+        exp.With(
+            expressions=[
+                exp.CTE(
+                    this=exp.union(anchor, recursive, distinct=False),
+                    alias=exp.TableAlias(this=exp.to_identifier(cte_name)),
+                )
+            ],
+            recursive=True,
+        ),
+    )
+    return outer
+
+
+def _prior_pair(condition: exp.Expression) -> tuple[exp.Column, exp.Column] | None:
+    """``PRIOR padre = hijo`` o ``hijo = PRIOR padre`` entre columnas simples → (padre, hijo)."""
+    if not isinstance(condition, exp.EQ):
+        return None
+    left, right = condition.this, condition.expression
+    if isinstance(left, exp.Prior) and isinstance(left.this, exp.Column) and isinstance(right, exp.Column):
+        return left.this, right
+    if isinstance(right, exp.Prior) and isinstance(right.this, exp.Column) and isinstance(left, exp.Column):
+        return right.this, left
+    return None
+
+
+def _connect_by_hierarchy(
+    select: exp.Select,
+    target_engine: str,
+    column_types: dict[str, dict[str, str]],
+    integer_columns: dict[str, frozenset[str]],
+    taken: set[str],
+) -> exp.Expression | str:
+    """Jerarquía simple (``START WITH`` + ``CONNECT BY PRIOR a = b``) → CTE recursiva; el ``WHERE`` va fuera."""
+    connect: Any = select.args["connect"]
+    if connect.args.get("nocycle"):
+        return "NOCYCLE"
+    order: Any = select.args.get("order")
+    if order is not None and order.args.get("siblings"):
+        return "ORDER SIBLINGS BY"
+    if select.args.get("joins") or select.args.get("laterals"):
+        return "joins en la consulta jerárquica"
+    source: Any = select.args["from_"].this
+    if not isinstance(source, exp.Table):
+        return "origen que no es una tabla"
+    pair = _prior_pair(connect.args["connect"])
+    if pair is None:
+        return "condición CONNECT BY distinta de PRIOR columna = columna"
+    parent_col, child_col = pair
+    start: Any = connect.args.get("start")
+    if start is not None and any(_is_level(c) for c in start.find_all(exp.Column)):
+        return "LEVEL en START WITH"
+    pseudo = sorted(
+        {
+            c.name.upper()
+            for c in select.find_all(exp.Column)
+            if c.name.upper() in _HIERARCHY_PSEUDOCOLUMNS and not c.table
+        }
+    )
+    if pseudo:
+        return ", ".join(pseudo)
+    priors = list(select.find_all(exp.Prior))
+    if len(priors) != 1:
+        return "PRIOR fuera de la condición CONNECT BY"
+
+    table_name = source.name
+    qualifier = source.alias_or_name
+    types = next((cols for name, cols in column_types.items() if name.lower() == table_name.lower()), None)
+    if types is None:
+        return f"tabla {table_name} fuera del plan"
+    table_columns = {name.lower(): name for name in types}
+    integers = next((cols for name, cols in integer_columns.items() if name.lower() == table_name.lower()), frozenset())
+    integer_names = {name.lower() for name in integers}
+    for column in select.find_all(exp.Column):
+        if column.table and column.table.lower() != qualifier.lower():
+            return f"columna {column.sql(dialect='oracle')} de otro origen"
+    if any(name.lower().startswith("cb_") for name in table_columns):
+        return "columnas cb_* en la tabla (nombres reservados para la CTE)"
+
+    # Columnas de la tabla que usa la consulta (los alias de salida, p. ej. en ORDER BY, no están en la tabla).
+    used: list[str] = []
+    for column in select.find_all(exp.Column):
+        name = column.name.lower()
+        if name in table_columns and name not in used and not _is_level(column):
+            used.append(name)
+    if parent_col.name.lower() not in table_columns or child_col.name.lower() not in table_columns:
+        return "columnas de PRIOR fuera de la tabla"
+    if parent_col.name.lower() not in used:
+        used.append(parent_col.name.lower())
+
+    path_type = exp.DataType.build(_CONNECT_BY_PATH_TYPE[target_engine])
+    cte_name = _free_name(CONNECT_BY_CTE, taken)
+    parent = _CONNECT_BY_PARENT
+    anchor_extra: list[Any] = [exp.alias_(exp.Literal.number(1), _CONNECT_BY_LEVEL)]
+    recursive_extra: list[Any] = [
+        exp.alias_(exp.column(_CONNECT_BY_LEVEL, table=parent) + exp.Literal.number(1), _CONNECT_BY_LEVEL)
+    ]
+    replacements: dict[str, str] = {}
+
+    for root_node in list(select.find_all(exp.ConnectByRoot)):
+        target = root_node.this
+        if not isinstance(target, exp.Column) or target.name.lower() not in table_columns:
+            return "CONNECT_BY_ROOT de algo que no es una columna de la tabla"
+        key = root_node.sql(dialect="oracle").lower()
+        if key not in replacements:
+            name = f"cb_root_{len([k for k in replacements if k.startswith('connect_by_root')]) + 1}"
+            replacements[key] = name
+            anchor_extra.append(exp.alias_(exp.column(target.name, table=qualifier), name))
+            recursive_extra.append(exp.alias_(exp.column(name, table=parent), name))
+
+    for path_node in list(select.find_all(exp.Anonymous)):
+        if not _is_connect_by_path(path_node):
+            continue
+        args = path_node.expressions
+        if (
+            len(args) != 2
+            or not isinstance(args[0], exp.Column)
+            or not (isinstance(args[1], exp.Literal) and args[1].is_string)
+        ):
+            return "SYS_CONNECT_BY_PATH con argumentos que no son columna y separador literal"
+        column_name = args[0].name.lower()
+        if column_name not in table_columns:
+            return "SYS_CONNECT_BY_PATH de algo que no es una columna de la tabla"
+        type_name = types[table_columns[column_name]].upper().split("(")[0].strip()
+        if type_name not in _CONNECT_BY_PATH_TEXT_TYPES and column_name not in integer_names:
+            return f"SYS_CONNECT_BY_PATH sobre una columna {type_name} (solo texto variable o enteros)"
+        key = path_node.sql(dialect="oracle").lower()
+        if key in replacements:
+            continue
+        name = f"cb_path_{len([k for k in replacements if k.startswith('sys_connect_by_path')]) + 1}"
+        replacements[key] = name
+        separator = args[1].copy()
+        value = exp.Coalesce(
+            this=exp.Cast(this=exp.column(args[0].name, table=qualifier), to=path_type.copy()),
+            expressions=[exp.Literal.string("")],
+        )
+        anchor_extra.append(
+            exp.alias_(exp.Cast(this=exp.DPipe(this=separator, expression=value), to=path_type.copy()), name)
+        )
+        recursive_extra.append(
+            exp.alias_(
+                exp.Cast(
+                    this=exp.DPipe(
+                        this=exp.DPipe(this=exp.column(name, table=parent), expression=separator.copy()),
+                        expression=value.copy(),
+                    ),
+                    to=path_type.copy(),
+                ),
+                name,
+            )
+        )
+
+    carried = [exp.column(table_columns[name], table=qualifier) for name in used]
+    # Copia completa (conserva schema/catálogo: _apply_names quita el del origen y avisa de los externos).
+    source_table = source.copy()
+    source_table.set("alias", exp.TableAlias(this=exp.to_identifier(qualifier)))
+    anchor = exp.select(*[c.copy() for c in carried], *anchor_extra).from_(source_table.copy())
+    if start is not None:
+        anchor = anchor.where(start.copy())
+    join_condition = exp.EQ(
+        this=exp.column(table_columns[child_col.name.lower()], table=qualifier),
+        expression=exp.column(table_columns[parent_col.name.lower()], table=parent),
+    )
+    recursive = (
+        exp.select(*[c.copy() for c in carried], *recursive_extra)
+        .from_(source_table.copy())
+        .join(
+            exp.Table(this=exp.to_identifier(cte_name), alias=exp.TableAlias(this=exp.to_identifier(parent))),
+            on=join_condition,
+        )
+    )
+
+    outer = select.copy()
+    outer.set("connect", None)
+    outer.set(
+        "from_",
+        exp.From(
+            this=exp.Table(this=exp.to_identifier(cte_name), alias=exp.TableAlias(this=exp.to_identifier(qualifier)))
+        ),
+    )
+    for replaced in list(outer.find_all(exp.ConnectByRoot, exp.Anonymous)):
+        column_alias = replacements.get(replaced.sql(dialect="oracle").lower())
+        if column_alias is not None:
+            replaced.replace(exp.column(column_alias, table=qualifier))
+    _replace_level(outer, qualifier)
+    cte = exp.CTE(
+        this=exp.union(anchor, recursive, distinct=False), alias=exp.TableAlias(this=exp.to_identifier(cte_name))
+    )
+    outer.set("with_", exp.With(expressions=[cte], recursive=True))
+    return outer
+
+
+def oracle_connect_by(
+    tree: exp.Expression,
+    *,
+    target_engine: str,
+    column_types: dict[str, dict[str, str]],
+    integer_columns: dict[str, frozenset[str]],
+    reserved_names: set[str],
+) -> tuple[exp.Expression, ConnectByOutcome]:
+    """``CONNECT BY`` de Oracle → CTE recursiva, solo en el subconjunto con traducción fiable.
+
+    Convierte la consulta principal de la vista si es una jerarquía simple (un solo origen, ``START WITH`` opcional,
+    ``CONNECT BY PRIOR a = b``, ``LEVEL``, ``SYS_CONNECT_BY_PATH`` sobre texto variable o enteros con separador
+    literal, ``CONNECT_BY_ROOT``) o el generador ``FROM dual CONNECT BY LEVEL <= n``. El ``WHERE`` de la consulta va
+    en la consulta exterior porque Oracle filtra **después** de recorrer la jerarquía. Cualquier otro caso devuelve el
+    árbol sin tocar y el motivo; la salvaguarda deja entonces la vista sin reescribir.
+
+    Returns:
+        (árbol, resultado): resultado ``"hierarchy"``/``"generator"`` si se convirtió, el motivo si no, ``None`` si
+        la vista no tiene ``CONNECT BY``.
+    """
+    selects = [select for select in tree.find_all(exp.Select) if select.args.get("connect")]
+    if not selects:
+        return tree, None
+    if target_engine not in _CONNECT_BY_PATH_TYPE:
+        return tree, f"destino {target_engine}"
+    if selects != [tree] or not isinstance(tree, exp.Select):
+        return tree, "CONNECT BY dentro de una subconsulta, CTE o UNION"
+    if tree.args.get("with_") is not None:
+        return tree, "vista con WITH propio"
+    taken = {name.lower() for name in reserved_names}
+    source: Any = tree.args["from_"].this if tree.args.get("from_") else None
+    if isinstance(source, exp.Table) and source.name.upper() == "DUAL" and not tree.args.get("joins"):
+        result = _connect_by_generator(tree, target_engine, taken)
+        kind = "generator"
+    else:
+        result = _connect_by_hierarchy(tree, target_engine, column_types, integer_columns, taken)
+        kind = "hierarchy"
+    if isinstance(result, str):
+        return tree, result
+    return result, kind
+
+
 # ─── Salvaguardas (construcciones sin traducción fiable) ──────────────────────────
 
 
@@ -344,8 +669,12 @@ def unsupported_constructs(tree: exp.Expression, source_engine: str) -> list[str
 
 
 __all__: list[str] = [
+    "CONNECT_BY_CTE",
+    "CONNECT_BY_RECURSION_LIMIT",
+    "ConnectByOutcome",
     "mysql_charset_casts",
     "mysql_to_days_difference",
+    "oracle_connect_by",
     "oracle_join_marks",
     "oracle_rownum_limit",
     "oracle_target_date_functions",

@@ -341,8 +341,10 @@ class MigrationPlanner:
         column_names: dict[str, str] = {}
         ambiguous: set[str] = set()
         column_types: dict[str, dict[str, str]] = {}
+        integer_columns: dict[str, frozenset[str]] = {}
         for raw_table, new_table in zip(raw_tables, transformed, strict=True):
             column_types[raw_table.name] = {col.name: col.oracle_type for col in raw_table.columns if col.oracle_type}
+            integer_columns[raw_table.name] = frozenset(col.name for col in raw_table.columns if col.scale == 0)
             for raw_col, new_col in zip(raw_table.columns, new_table.columns, strict=True):
                 key = raw_col.name.lower()
                 if column_names.get(key, new_col.name) != new_col.name:
@@ -358,6 +360,7 @@ class MigrationPlanner:
             object_names=object_names,
             column_names=column_names,
             column_types=column_types,
+            integer_columns=integer_columns,
         )
         return transpile_views(views, context)
 

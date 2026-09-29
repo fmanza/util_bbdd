@@ -134,7 +134,7 @@ class TestSafeguardsAndWarnings:
     @pytest.mark.parametrize(
         ("sql", "construct"),
         [
-            ("SELECT LEVEL AS n FROM DUAL CONNECT BY LEVEL <= 3", "CONNECT BY"),
+            ("SELECT LEVEL AS n FROM DUAL CONNECT BY LEVEL <= 5000", "CONNECT BY"),
             ("SELECT ROWNUM AS n, id FROM zzv_clientes", "ROWNUM"),
             ("SELECT id FROM zzv_clientes WHERE ROWNUM <= 3 ORDER BY id", "ROWNUM"),
         ],

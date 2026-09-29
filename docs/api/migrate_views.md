@@ -65,7 +65,8 @@ reescribir con un aviso.
 | `VIEW (reescrita)` | `INFO` | Vista reescrita al dialecto destino; revisar |
 | `VIEW (semántica Oracle)` | `WARNING` | Origen o destino Oracle: cadena vacía = `NULL`, `\|\|` ignora `NULL` |
 | `VIEW (referencia externa)` | `WARNING` | Usa objetos fuera del schema migrado |
-| `VIEW (sin reescribir)` | `WARNING` | Copiada sin reescribir (construcción sin traducción, error de sqlglot o sin sqlglot) |
+| `VIEW (jerarquía)` | `WARNING` | `CONNECT BY` convertido en CTE recursiva: límite de recursión del destino, ciclos, orden |
+| `VIEW (sin reescribir)` | `WARNING` | Copiada sin reescribir (construcción sin traducción, error de sqlglot o sin sqlglot); con `CONNECT BY`, el motivo entre paréntesis |
 
 - **`ViewValidationResult`** — `view` (nombre en el destino), `valid` (`True`/`False`, o `None` si no se validó),
   `method` (`"transaction"`, `"syntax"` o `"none"`) y `error` (primera línea del error del motor o de sqlglot, o el
@@ -84,8 +85,8 @@ reescribir con un aviso.
 | Componente | Responsabilidad |
 |---|---|
 | `views/_dialects.py` | `ViewStrategy`, `SQLGLOT_DIALECT` (MariaDB usa el dialecto `mysql`), `resolve_view_strategy`, `sqlglot_available` |
-| `views/transpiler.py` | `ViewTranspileContext` (motores, schema origen, nombres y tipos del plan) y `transpile_view(s)` |
-| `views/_rewrites.py` | Reescrituras por par: `CONVERT ... USING`, `TO_DAYS`, aritmética de fechas, `+` de T-SQL, `(+)`, `ROWNUM`, `ILIKE`, agregados de texto, tipos y funciones de fecha de Oracle, construcciones sin traducción |
+| `views/transpiler.py` | `ViewTranspileContext` (motores, schema origen, nombres, tipos y columnas enteras del plan) y `transpile_view(s)` |
+| `views/_rewrites.py` | Reescrituras por par: `CONVERT ... USING`, `TO_DAYS`, aritmética de fechas, `+` de T-SQL, `(+)`, `ROWNUM`, `ILIKE`, agregados de texto, tipos y funciones de fecha de Oracle, `CONNECT BY` → CTE recursiva (`oracle_connect_by`), construcciones sin traducción |
 | `views/validation.py` | `ViewValidationResult` y `validate_plan_views`: transacción con un *savepoint* por sentencia en PostgreSQL/SQL Server; sintaxis con sqlglot en el resto |
 | `_compat/sql_view_header.py` | Separa la cabecera `CREATE VIEW v (a, b) AS` de SQL Server del `SELECT` |
 

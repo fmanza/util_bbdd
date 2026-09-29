@@ -46,7 +46,7 @@ pytestmark = [
 ]
 
 SRC, DST = "zz_util_bbdd_vw_src", "zz_util_bbdd_vw_dst"
-C, P = "zzvw_clientes", "zzvw_pedidos"
+C, P, E = "zzvw_clientes", "zzvw_pedidos", "zzvw_empleados"
 
 CLIENTES = [
     (1, "Ana", "Madrid", "2024-01-10", "100.50"),
@@ -54,6 +54,9 @@ CLIENTES = [
     (3, "Eva", "Sevilla", "2023-12-01", "250.00"),
     (4, "Juan", "Madrid", "2024-03-05", "-20.25"),
 ]
+# Jerarquía (V4, CONNECT BY): Luis está inactivo y tiene a Eva debajo. Oracle aplica el WHERE después de recorrer la
+# jerarquía, así que Eva sale con nivel 3; un WHERE colocado dentro de la CTE podaría su rama.
+EMPLEADOS = [(1, "Ana", None, 1), (2, "Luis", 1, 0), (3, "Eva", 2, 1), (4, "Juan", 1, 1), (5, "Rosa", None, 1)]
 PEDIDOS = [
     (1, 1, "2024-01-15", "30.00"),
     (2, 1, "2024-02-01", "45.50"),
@@ -145,6 +148,21 @@ CORPUS: list[tuple[str, Any]] = [
         ),
     ),
     ("cabecera_columnas", {"sqlserver": f"(codigo, texto) AS SELECT id, nombre FROM {C}"}),
+    (
+        "jerarquia",
+        {
+            "oracle": f"SELECT e.id, e.nombre, LEVEL AS nivel FROM {E} e WHERE e.activo = 1 "
+            "START WITH e.jefe_id IS NULL CONNECT BY PRIOR e.id = e.jefe_id"
+        },
+    ),
+    (
+        "jerarquia_ruta",
+        {
+            "oracle": f"SELECT id, SYS_CONNECT_BY_PATH(nombre, '/') AS ruta, CONNECT_BY_ROOT nombre AS raiz FROM {E} "
+            "START WITH jefe_id IS NULL CONNECT BY jefe_id = PRIOR id"
+        },
+    ),
+    ("generador", {"oracle": "SELECT LEVEL AS n FROM dual CONNECT BY LEVEL <= 5"}),
 ]
 
 
@@ -240,6 +258,11 @@ def _source_objects(engine_name: str) -> list[str]:
     ]
     statements += [f"INSERT INTO {C} VALUES ({a}, '{b}', {text(c)}, {date(e)}, {f})" for a, b, c, e, f in CLIENTES]
     statements += [f"INSERT INTO {P} VALUES ({a}, {b}, {date(c)}, {e})" for a, b, c, e in PEDIDOS]
+    statements.append(f"CREATE TABLE {E} (id {i} PRIMARY KEY, nombre {v} NOT NULL, jefe_id {i}, activo {i})")
+    statements += [
+        f"INSERT INTO {E} VALUES ({emp}, '{name}', {'NULL' if boss is None else boss}, {active})"
+        for emp, name, boss, active in EMPLEADOS
+    ]
     for key, sql in CORPUS:
         native = sql if isinstance(sql, str) else sql.get(engine_name)
         if native:
