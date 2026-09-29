@@ -1,0 +1,63 @@
+# TRACEABILITY
+
+## Session metadata
+- id: 2026-09-29d-migrate-audit
+- fecha: 2026-09-29
+- rama: develop
+- skill: audit_code + hotfix
+- fase: AUDIT (PLAN + AUDIT_PLAN + AUDIT_CODE + VERSION); hotfix A1 (PLAN → VERSION)
+
+## Prompt issued
+- `/audit-code` sin archivos → alcance elegido por el usuario: «Paquete migrate/ completo».
+- `/hotfix` A1 (+A5, A7): `MigrationPlan.execute` falla en la primera sentencia DDL con destino PostgreSQL, SQL Server,
+  MariaDB y Oracle.
+
+## Context supplied
+- `.github/prompts/audit_code.prompt.md`, `.github/agents/code-auditor.agent.md`, `.github/prompts/hotfix.prompt.md`,
+  `.github/agents/hotfix-responder.agent.md`; banco Docker de 5 motores (`scripts/bench_env.example.sh`).
+
+## AI output summary
+- Auditoría de `src/util_bbdd/migrate/` (69 ficheros): núcleo leído completo, resto por patrones de riesgo; hipótesis
+  verificadas contra el banco en `zz_util_bbdd_audit`/`ZZAUD_*` (limpiado). Veredicto **RECHAZADO** para cerrar 0.20.0.
+  Hallazgos (todos anteriores a la sesión 2026-09-29c):
+  - **A1 (crítico, confirmado)**: `MigrationPlan.execute` usa `execute_custom_one` (fetch tras el DDL, sin commit): falla
+    en PG/SS (la tabla ni se crea), MariaDB/Oracle (se crea y corta); solo MySQL funcionaba.
+  - **A2 (alto, confirmado)**: trigger de identidad Oracle termina en `END` sin `;` → `INVALID`, ORA-04098 al insertar;
+    el script de `emit()` no lleva `/` tras los bloques PL/SQL.
+  - **A3 (alto, confirmado)**: nombres de índice duplicados hacia PG/Oracle (únicos por schema); MySQL/MariaDB nombran
+    los índices sin nombre como la columna → `relation "cliente_id" already exists`.
+  - **A4 (medio, confirmado)**: `\` sin escapar en comentarios y DEFAULT de texto hacia MariaDB/MySQL (`C:\datos` →
+    `C:datos`).
+  - **A5 (medio, confirmado)**: sentencias solo-comentario (rutinas sin cuerpo, miembros de PACKAGE) → ORA-00900.
+  - **A6 (medio)**: límite de identificadores en caracteres, no en bytes (PG 63 bytes, Oracle).
+  - **A7 (medio)**: `SET search_path` de `pg_schema` exige la misma conexión para todo el plan.
+  - A8 (bajo, hipótesis): `_dq` de Oracle pone todo en mayúsculas (columnas que solo difieren en case). A9 (bajo):
+    `engine` sin validar.
+- **Hotfix A1 (+A5, A7)**: test-first: el e2e de vistas pasa a aplicar el plan con `plan.execute(manager destino)` (y
+  `pg_schema` con destino PG) → 16/20 pares fallan (todos salvo destino MySQL), como predijo el RCA. Fix en
+  `ir/models.py`: con `get_sqlalchemy_engine()` (o un Engine) se aplica por una conexión DB-API (`raw_connection`),
+  cursor del driver sin parámetros, `commit` tras cada sentencia, `rollback` protegido y `DatabaseOperationError` con
+  posición y primera línea; el Engine creado se libera. Se omiten las sentencias solo-comentario (`_has_sql`). Objetos
+  con solo `execute_custom_one` conservan la vía anterior. Tras el fix: e2e 20/20.
+- Calidad: ruff/format/mypy limpios; pytest 5585 passed / 225 skipped; integración 364 passed.
+
+## Artefactos generados
+| Artefacto | Ruta | Estado |
+|---|---|---|
+| AUDIT_CODE migrate/ | conversación (veredicto RECHAZADO, A1–A9) | emitido |
+| Hotfix A1 | `src/util_bbdd/migrate/ir/models.py` | completado |
+| Tests A1 | `tests/unit/migrate/test_planner.py`, `tests/integration/test_migrate_views_e2e.py` | completado |
+| Docs A1 | `docs/guides/ddl_migration_guide.md` §3.4, `CHANGELOG.md` | completado |
+
+## Directrices para Futuras IAs
+- **[migrate/execute]**: `execute_custom_one`/`execute_custom_many` del manager son para consultas con filas: siempre
+  hacen fetch y no hacen commit. Para DDL, usar `get_sqlalchemy_engine().raw_connection()` con el cursor del driver sin
+  parámetros y `commit` explícito (patrón de `MigrationPlan.execute` y `views/validation.py`).
+- **[migrate/tests]**: los tests unitarios de `migrate` simulan el manager con `MagicMock` (que responde a cualquier
+  atributo: usar `spec=[...]` para fijar la vía). Todo lo que ejecuta DDL debe tener un e2e contra el banco; el de vistas
+  (`tests/integration/test_migrate_views_e2e.py`) ya aplica el plan con `plan.execute` en los 20 pares.
+- **[migrate/emitters]**: pendientes de la auditoría: A2 (trigger Oracle `END;` y `/` en el script), A3 (índices
+  únicos por schema en PG/Oracle), A4 (escapar `\` en MariaDB/MySQL), A6 (límite en bytes), A8, A9.
+
+## Veredicto final
+Veredicto: A1 corregido (GO); auditoría de migrate/ RECHAZADO hasta corregir A2–A4 (sesión IN_PROGRESS)
