@@ -73,6 +73,17 @@
 - **Fix A9**: `charset.validate_storage_engine` (identificador simple, sin lista cerrada) en `MigrationPlanner` (solo
   destino MariaDB/MySQL) y en `MariaDBDDLEmitter.__init__` (lo hereda `MySQLDDLEmitter`). `test_storage_engine.py` (17).
 - Auditoría de migrate/ cerrada: A1–A4, A6, A8 y A9 corregidos (A5 y A7 dentro de A1).
+- **PLAN/AUDIT_PLAN de la deuda** (2026-09-30): D1 (N+1 en extractores → `/refactor` `perf`, GO si el paso 0 mide
+  ganancia clara), D2 (`oracle_type`), D3 (comentarios desde/hacia PostgreSQL y SQL Server → `/new-feature`). Al
+  revisarla apareció **B1** (bug). Decisiones del usuario sobre D2: opción B con (c) — `CanonicalColumn.oracle_type` →
+  `source_type`; `MigrationWarning.oracle_type` se separa en `category: WarningCategory` (TYPE, DEFAULT, IDENTIFIER,
+  IDENTIFIER_CASE_COLLISION, AUTO_INCREMENT, FOREIGN_KEY, INDEX, VIEW, ROUTINE) y `source_type: str | None`; corte
+  directo con guía de migración (sin alias); `target_type` fuera; en la 0.21.0, sesión propia. Inventario:
+  `d2_warning_inventory.py` (99 avisos; ~198 usos en src, ~239 en tests; 62 usos legítimos de Oracle no se tocan).
+- **Hotfix B1**: test-first `test_comment_line_breaks.py` (tokenizador que separa SQL ejecutable de comentarios y
+  literales): fallaba en los 4 emisores (PG/SS por los comentarios; MariaDB/Oracle por nombres y `\r`). Fix:
+  `emitters/_trailing_comment.one_line` aplicado a todo valor variable tras `--` (comentarios de tabla/columna/vista/
+  rutina, nombres de FK externa, vista circular, rutina, package, columna omitida); nunca a la sentencia que sigue.
 - Diagrama de capas: 12 paquetes importan de Foundation (nuevo `migrate → _core` por A1); SVG actualizado. El pie de
   `docs/architecture.md` (v0.19.0, 377 ficheros) se actualiza en `/version-closure` (hoy 384 ficheros).
 
@@ -94,6 +105,9 @@
 | Tests A8 | `tests/unit/migrate/test_case_collisions.py`, `a8_case_collision.py` | completado |
 | Fix A9 | `src/util_bbdd/migrate/charset.py`, `emitters/mariadb.py`, `planner.py` | completado |
 | Tests A9 | `tests/unit/migrate/test_storage_engine.py` | completado |
+| Hotfix B1 | `src/util_bbdd/migrate/emitters/_trailing_comment.py`, `mariadb.py`, `oracle.py`, `postgresql.py`, `sqlserver.py` | completado |
+| Tests B1 | `tests/unit/migrate/test_comment_line_breaks.py`, `d3_comment_newline.py` | completado |
+| Inventario D2 | `d2_warning_inventory.py` | completado |
 | Docs A1 | `docs/guides/ddl_migration_guide.md` §3.4, `CHANGELOG.md` | completado |
 
 ## Directrices para Futuras IAs
@@ -120,6 +134,8 @@
 - **[migrate/identificadores]**: mayúsculas en el destino: Oracle emite todo en mayúsculas (`_dq`); MySQL/MariaDB no
   distinguen mayúsculas en columnas y en tablas dependen de `lower_case_table_names`; SQL Server depende de la
   collation; PostgreSQL respeta el case entrecomillado. Las colisiones se detectan en el planner, no se renombran.
+- **[migrate/emitters]**: todo texto del catálogo escrito tras `--` pasa por `one_line()` (un `--` termina en `\n` o
+  `\r`); los comentarios reales van como literales (`COMMENT ON ... IS '...'`, `COMMENT '...'`), que admiten saltos.
 - **[migrate/auditoría]**: sin pendientes de la auditoría 2026-09-29d. Deuda anotada, no corregida: N+1 consultas por
   tabla en los extractores; el campo `oracle_type` guarda el tipo del origen sea cual sea el motor; los extractores de
   PostgreSQL y SQL Server no leen comentarios.
