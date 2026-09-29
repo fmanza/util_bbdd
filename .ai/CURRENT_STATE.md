@@ -79,7 +79,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-0. **Vistas de `migrate`** (sesión `2026-09-29c-migrate-views`): H7 y V0–V3 hechos (reescritura con sqlglot, `validate_views`, test e2e de 20 pares, docs); pendiente `/version-closure`.
+0. **Vistas de `migrate`** (sesión `2026-09-29c-migrate-views`): H7 y V0–V4 hechos (reescritura con sqlglot, `validate_views`, `CONNECT BY` → CTE recursiva, test e2e de 20 pares, docs); pendiente `/version-closure`.
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
 3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.

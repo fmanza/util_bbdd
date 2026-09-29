@@ -77,6 +77,17 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
   queda nada. `docker-compose.bench.yml`: `GRANT ALL` a `bench` sobre `zz\_util\_bbdd\_%` en MySQL (aplicado en
   caliente). Docs: `docs/functional/migrate_views.md`, `docs/api/migrate_views.md` (nav), guía §3.5 con
   `validate_views`, y corrección de las páginas de migración por origen que decían «vistas pass-through».
+- **V4** (`/new-feature`, GO_CONDICIONAL C1–C4 → aprobado): `_rewrites.oracle_connect_by` convierte en CTE recursiva
+  la jerarquía simple (un solo origen, `START WITH` opcional, `CONNECT BY PRIOR a = b`, `LEVEL`,
+  `SYS_CONNECT_BY_PATH` sobre `VARCHAR2`/`NVARCHAR2`/`VARCHAR` o enteros con separador literal, `CONNECT_BY_ROOT`) y el
+  generador `FROM dual CONNECT BY LEVEL <= n` (sin reescribir si supera 100 recursiones en SQL Server o 1000 en MySQL).
+  `WHERE`/`GROUP BY`/`ORDER BY` en la consulta exterior; ruta con `CAST` al mismo tipo en ancla y rama recursiva
+  (`VARCHAR(4000)` PG, `NVARCHAR(4000)` SS, `CHAR(4000)` MySQL/MariaDB) y `COALESCE` (Oracle añade solo el separador
+  con NULL). Resto → pass-through con el motivo (`CONNECT BY (NOCYCLE)`…). Aviso `VIEW (jerarquía)` por destino.
+  `ViewTranspileContext.integer_columns` (escala 0) para aceptar rutas sobre enteros. `oracle_rownum_limit` ya no
+  toca consultas con `CONNECT BY` (lo destapó el test: `ROWNUM <= 3` jerárquico se convertía en `LIMIT 3`).
+  C1: `ALL_VIEWS.TEXT` conserva el texto escrito (`v4/v4_catalog_text.py`). C2/C3: 36 tests unitarios (el SQL para
+  PostgreSQL se ejecuta en SQLite y compara filas) y 3 vistas en el e2e de 20 pares (Oracle → 4 destinos, 20 passed).
 
 ## Artefactos generados
 | Artefacto | Ruta | Estado |
@@ -92,6 +103,9 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
 | Verificación V2 | `v2/results.json` (script `v1/v1_matrix_views.py` con e08/e09) | completado |
 | V3 | `src/util_bbdd/migrate/views/validation.py`, `src/util_bbdd/migrate/ir/models.py`, `src/util_bbdd/migrate/__init__.py`, `docker-compose.bench.yml` | completado |
 | Tests V3 | `tests/unit/migrate/test_view_validation.py`, `tests/integration/test_migrate_views_e2e.py` | completado |
+| V4 | `src/util_bbdd/migrate/views/_rewrites.py`, `src/util_bbdd/migrate/views/transpiler.py`, `src/util_bbdd/migrate/planner.py` | completado |
+| Tests V4 | `tests/unit/migrate/test_view_connect_by.py`, `tests/unit/migrate/test_view_transpiler.py`, `tests/integration/test_migrate_views_e2e.py` | completado |
+| Verificación V4 | `v4/v4_catalog_text.py`, `v4/v4_smoke.py` | completado |
 | Docs V3 | `docs/functional/migrate_views.md`, `docs/api/migrate_views.md`, `mkdocs.yml`, páginas `migrate_*` | completado |
 
 ## Directrices para Futuras IAs
@@ -125,6 +139,14 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
 - **[migrate/vistas]**: validar vistas sin dejar rastro solo es posible con DDL transaccional (PostgreSQL, SQL
   Server); en MySQL/MariaDB/Oracle cada `CREATE` hace commit, por eso `validate_views` allí solo analiza sintaxis. El
   engine de validación no debe estar en `AUTOCOMMIT` (el de `SyncDatabaseManager.get_sqlalchemy_engine()` no lo está).
+- **[migrate/vistas]**: `CONNECT BY` → CTE: el `WHERE` de la consulta jerárquica va SIEMPRE en la consulta exterior
+  (Oracle filtra después de recorrer la jerarquía; dentro de la CTE poda ramas sin error). Columnas de la CTE por
+  alias en el `SELECT`, nunca con lista `cte(a, b)`: `_apply_names` renombra alias y columnas, no la lista.
+- **[migrate/vistas]**: SQL Server no admite `OPTION (MAXRECURSION)` en una vista (límite fijo 100) y MySQL limita a
+  `cte_max_recursion_depth` (1000, de sesión); PostgreSQL/MariaDB no limitan: un ciclo no termina. Por eso el aviso
+  «VIEW (jerarquía)» y el pass-through del generador por encima del límite.
+- **[tests/sqlite]**: SQLite ejecuta el SQL generado para PostgreSQL con `WITH RECURSIVE`: sirve para comparar filas de
+  reescrituras en tests unitarios sin servidores.
 - **[tests/sqlite]**: pysqlite no abre transacción antes de un DDL: para probar rollback de DDL en SQLite usar
   `connect_args={"isolation_level": None}` + evento `begin` que emite `BEGIN` (receta de SQLAlchemy). SQLite tampoco
   resuelve referencias al crear una vista: para un fallo usar un error de sintaxis.
@@ -135,4 +157,4 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
 Veredicto: GO (V0–V3 completadas; pendiente de cierre de versión)
 Pendientes al cierre:
 - `/version-closure` (versión menor: nueva API `view_strategy`/`validate_views`).
-- Fuera de alcance: `CONNECT BY` → CTE recursiva.
+- Fuera de alcance (V4): `NOCYCLE`, `ORDER SIBLINGS BY`, `CONNECT BY ... AND LEVEL <= k`, `CONNECT_BY_ISLEAF`.
