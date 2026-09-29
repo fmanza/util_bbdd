@@ -24,12 +24,26 @@ import hashlib
 
 from collections.abc import Iterable
 
+
+class ByteLimit(int):
+    """Límite de identificador medido en bytes UTF-8, no en caracteres (A6, 2026-09-29).
+
+    PostgreSQL (``NAMEDATALEN - 1`` = 63) y Oracle cuentan bytes: un nombre con tildes o ``ñ`` bajo el límite de
+    caracteres puede superarlo en bytes, y el motor lo recortaría en silencio (perdiendo el sufijo hash que garantiza
+    la unicidad). Se usa como un ``int`` en todas partes; ``truncate_identifier`` lo reconoce por su tipo.
+    """
+
+
 MAX_MARIADB_IDENTIFIER_LENGTH: int = 64
 MAX_SQLSERVER_IDENTIFIER_LENGTH: int = 128
-MAX_POSTGRESQL_IDENTIFIER_LENGTH: int = 63
-# Oracle 12.1 y anteriores: 30 chars. 12.2+ permite 128; se usa 30 como mínimo seguro.
-MAX_ORACLE_IDENTIFIER_LENGTH: int = 30
+MAX_POSTGRESQL_IDENTIFIER_LENGTH: int = ByteLimit(63)
+# Oracle 12.1 y anteriores: 30 bytes. 12.2+ permite 128; se usa 30 como mínimo seguro.
+MAX_ORACLE_IDENTIFIER_LENGTH: int = ByteLimit(30)
 _HASH_SUFFIX_LENGTH: int = 4
+
+
+def _size(name: str, max_length: int) -> int:
+    return len(name.encode("utf-8")) if isinstance(max_length, ByteLimit) else len(name)
 
 
 def truncate_identifier(
@@ -43,17 +57,22 @@ def truncate_identifier(
 
     Args:
         name: Identificador original.
-        max_length: Longitud máxima permitida (default: 64 para MariaDB).
+        max_length: Longitud máxima permitida (default: 64 para MariaDB). Si es un :class:`ByteLimit` (PostgreSQL,
+            Oracle) se mide en bytes UTF-8 y el corte nunca parte un carácter.
 
     Returns:
         (new_name, was_truncated): el nuevo nombre y si fue truncado.
     """
-    if len(name) <= max_length:
+    if _size(name, max_length) <= max_length:
         return name, False
 
     truncate_at = max_length - _HASH_SUFFIX_LENGTH - 1
     hash_suffix = hashlib.md5(name.encode("utf-8")).hexdigest()[:_HASH_SUFFIX_LENGTH]
-    new_name = f"{name[:truncate_at]}_{hash_suffix}"
+    if isinstance(max_length, ByteLimit):
+        prefix = name.encode("utf-8")[:truncate_at].decode("utf-8", errors="ignore")
+    else:
+        prefix = name[:truncate_at]
+    new_name = f"{prefix}_{hash_suffix}"
     return new_name, True
 
 
@@ -72,9 +91,10 @@ def check_identifier(
     """
     adapted, truncated = truncate_identifier(name, max_length)
     if truncated:
+        unit = "bytes" if isinstance(max_length, ByteLimit) else "chars"
         msg = (
-            f"Identificador '{name}' ({len(name)} chars) truncado a '{adapted}' "
-            f"({len(adapted)} chars) para cumplir límite de {max_length}"
+            f"Identificador '{name}' ({_size(name, max_length)} {unit}) truncado a '{adapted}' "
+            f"({_size(adapted, max_length)} {unit}) para cumplir límite de {max_length}"
         )
         return adapted, msg
     return adapted, None
@@ -112,6 +132,7 @@ def find_case_insensitive_collisions(names: Iterable[str]) -> list[tuple[str, st
 
 
 __all__: list[str] = [
+    "ByteLimit",
     "MAX_MARIADB_IDENTIFIER_LENGTH",
     "MAX_SQLSERVER_IDENTIFIER_LENGTH",
     "MAX_POSTGRESQL_IDENTIFIER_LENGTH",

@@ -21,7 +21,7 @@ from typing import Any
 
 import pytest
 
-from sqlalchemy import MetaData, Table, create_engine, select, text
+from sqlalchemy import MetaData, Table, create_engine, inspect, select, text
 from sqlalchemy.engine import URL, Engine, make_url
 
 from util_bbdd import SyncDatabaseManager
@@ -56,6 +56,8 @@ AUTOINC_ID = {
     "oracle": "id NUMBER(10) PRIMARY KEY",
 }
 # A4 (hotfix): DEFAULT y comentario con barras invertidas y comilla. MySQL/MariaDB escapan la barra en el literal.
+# A6 (fix): nombres de 35 caracteres y 64 bytes que solo difieren en el último; PostgreSQL recorta a 63 bytes.
+LONG_NAMES = ("zzvw_" + "ñ" * 29 + "a", "zzvw_" + "ñ" * 29 + "b")
 RUTA = "C:\\datos\\x'q"
 RUTA_LITERAL = {
     "mysql": "'C:\\\\datos\\\\x''q'",
@@ -283,6 +285,7 @@ def _source_objects(engine_name: str) -> list[str]:
     if engine_name in ("mysql", "mariadb", "sqlserver"):
         # A3 (hotfix): mismo nombre de índice en dos tablas (válido aquí; en PostgreSQL y Oracle es único por schema).
         statements += [f"CREATE INDEX zzvw_idx ON {E} (activo)", f"CREATE INDEX zzvw_idx ON {A} (v)"]
+        statements += [f"CREATE TABLE {name} (id {i} PRIMARY KEY)" for name in LONG_NAMES]
     statements += [
         f"INSERT INTO {E} VALUES ({emp}, '{name}', {'NULL' if boss is None else boss}, {active})"
         for emp, name, boss, active in EMPLEADOS
@@ -408,6 +411,8 @@ def test_views_are_created_and_return_the_same_rows(source_target: tuple[str, st
     try:
         src_meta, dst_meta = MetaData(), MetaData()
         for table in plan.tables:
+            if table.original_name.lower() in LONG_NAMES:
+                continue  # sin filas; SQLAlchemy no aplica su convención de mayúsculas de Oracle a nombres no ASCII
             src_name = table.original_name.lower() if source == "oracle" else table.original_name
             dst_name = table.name.lower() if target == "oracle" else table.name
             src_table = Table(src_name, src_meta, autoload_with=src_engine)
@@ -419,6 +424,15 @@ def test_views_are_created_and_return_the_same_rows(source_target: tuple[str, st
                 continue
             with dst_engine.begin() as conn:
                 conn.execute(dst_table.insert(), [dict(zip(columns, row, strict=True)) for row in rows])
+
+        # A6 (fix): los nombres largos con ñ se crean como tablas distintas en el destino.
+        long_tables = [t.name for t in plan.tables if t.original_name.lower() in LONG_NAMES]
+        if long_tables:
+            assert len(long_tables) == 2 and all(
+                len(n.encode("utf-8")) <= 63 for n in long_tables if target == "postgresql"
+            )
+            dst_names = {n.lower() for n in inspect(dst_engine).get_table_names()}
+            assert {n.lower() for n in long_tables} <= dst_names, (long_tables, sorted(dst_names))
 
         # A2 (hotfix): el id autoincremental migrado se genera en el destino (Oracle: SEQUENCE + TRIGGER válido).
         autoinc = [t for t in plan.tables if t.original_name.lower() == A]

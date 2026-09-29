@@ -57,6 +57,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   MariaDB/MySQL, `'C:\datos'` llegaba como `C:datos` (en sus literales la barra escapa); desde MariaDB, cuyo catálogo
   devuelve el literal con escapes (`'C:\\datos'`, `\n`), llegaban duplicadas a PostgreSQL, SQL Server y Oracle.
   Ahora los literales de MariaDB se decodifican al leerlos y los emisores de MariaDB/MySQL escapan la barra (A4).
+- **migrate**: el límite de longitud de identificadores de PostgreSQL (63) y Oracle (30) se medía en caracteres, pero
+  esos motores cuentan bytes: un nombre con tildes o `ñ` bajo el límite de caracteres se recortaba en silencio en el
+  servidor y dos nombres que solo diferían al final colisionaban. Ahora se mide en bytes UTF-8 (`ByteLimit`) y el
+  truncado con sufijo hash nunca parte un carácter (A6).
 - **migrate**: con origen SQL Server, la definición de las vistas llegaba con su cabecera `CREATE VIEW ... AS` (se
   emitía `CREATE OR ALTER VIEW v AS CREATE VIEW v AS ...`) y truncada a 4000 caracteres, también en SQL Server 2022
   (`INFORMATION_SCHEMA.VIEWS`). Ahora se lee con `OBJECT_DEFINITION` y sin cabecera; el plan avisa si la cabecera

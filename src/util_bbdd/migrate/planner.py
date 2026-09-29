@@ -307,7 +307,7 @@ class MigrationPlanner:
 
         from .views.transpiler import ViewTranspileContext, transpile_views
 
-        max_length: int = int(getattr(transformer, "MAX_IDENTIFIER_LENGTH", 128))
+        max_length: int = getattr(transformer, "MAX_IDENTIFIER_LENGTH", 128)  # sin int(): conserva ByteLimit (A6)
         views: list[CanonicalView] = []
         object_names: dict[str, str] = {}
         for raw_table, new_table in zip(raw_tables, transformed, strict=True):
