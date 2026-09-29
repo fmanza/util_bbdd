@@ -66,6 +66,17 @@ _MARIADB_TO_ORA_DEFAULTS: dict[str, str] = {
 }
 
 
+_PLSQL_BLOCK_RE: re.Pattern[str] = re.compile(
+    r"^\s*CREATE\s+(?:OR\s+REPLACE\s+)?(?:TRIGGER|PROCEDURE|FUNCTION|PACKAGE|TYPE)\b", re.IGNORECASE
+)
+
+
+def _is_plsql_block(statement: str) -> bool:
+    """True si la primera línea con SQL (tras los comentarios ``--``) crea un bloque PL/SQL."""
+    code = "\n".join(line for line in statement.splitlines() if not line.strip().startswith("--"))
+    return bool(_PLSQL_BLOCK_RE.match(code))
+
+
 def _dq(name: str) -> str:
     """Escapa un identificador Oracle con comillas dobles (uppercase)."""
     return f'"{name.upper().replace(chr(34), chr(34) + chr(34))}"'
@@ -130,10 +141,11 @@ class OracleDDLEmitter:
         """Genera el script DDL Oracle completo listo para guardar en fichero .sql.
 
         Returns:
-            Script SQL con sentencias separadas por ';\\n\\n' y terminado en ';\\n'.
+            Script SQL para SQL*Plus/SQLcl: cada sentencia termina en ``;`` y cada bloque PL/SQL (trigger, rutina) en
+            una línea ``/`` (sin ella, las sentencias siguientes se añadirían al bloque).
         """
         stmts = self.emit_statements(tables, views, routines)
-        return ";\n\n".join(stmts) + ";\n"
+        return "\n\n".join(f"{stmt}\n/" if _is_plsql_block(stmt) else f"{stmt};" for stmt in stmts) + "\n"
 
     def emit_statements(
         self,
@@ -342,7 +354,7 @@ class OracleDDLEmitter:
                 f"  IF :NEW.{_dq(col.name)} IS NULL THEN\n"
                 f"    SELECT {_dq(seq)}.NEXTVAL INTO :NEW.{_dq(col.name)} FROM DUAL;\n"
                 f"  END IF;\n"
-                f"END"
+                f"END;"
             )
         return stmts
 

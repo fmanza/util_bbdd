@@ -543,3 +543,32 @@ class TestOracleDDLEmitterIdentityMode:
 
         with pytest.raises(ValueError, match="oracle_identity_mode"):
             OracleDDLEmitter(oracle_identity_mode="always")  # type: ignore[arg-type]
+
+
+class TestPlsqlBlockTermination:
+    """A2 (hotfix 2026-09-29): el trigger de identidad terminaba en ``END`` sin ``;`` (INVALID, ORA-04098 al insertar)
+    y el script de ``emit()`` no llevaba la ``/`` que SQL*Plus/SQLcl exige tras un bloque PL/SQL."""
+
+    e = OracleDDLEmitter()
+
+    def _table(self) -> CanonicalTable:
+        col = _col(name="ID", target_type="NUMBER(10,0)", auto_increment=True)
+        return _table(name="MY_TABLE", columns=[col, _col(name="V")], pk=["ID"])
+
+    def test_trigger_statement_ends_with_end_semicolon(self) -> None:
+        [trigger] = [s for s in self.e.emit_statements([self._table()]) if "TRIGGER" in s]
+        assert trigger.endswith("END;")
+
+    def test_script_terminates_plsql_blocks_with_slash_and_sql_with_semicolon(self) -> None:
+        script = self.e.emit([self._table()])
+        assert "END;\n/\n" in script and "END;;" not in script
+        assert "NOCYCLE;\n" in script  # CREATE SEQUENCE: sentencia SQL, termina en ';'
+        assert script.count("\n/\n") == 1
+
+    def test_plsql_block_detection_ignores_leading_comments(self) -> None:
+        from util_bbdd.migrate.emitters.oracle import _is_plsql_block
+
+        assert _is_plsql_block("-- PROCEDURE: P\n-- NOTE: revisar\nCREATE OR REPLACE PROCEDURE p AS BEGIN NULL; END;")
+        assert _is_plsql_block("create function f return number is begin return 1; end;")
+        assert not _is_plsql_block("-- NOTE\nCREATE OR REPLACE VIEW v AS SELECT 1 FROM dual")
+        assert not _is_plsql_block("-- PROCEDURE: P\n-- TODO: body not available")

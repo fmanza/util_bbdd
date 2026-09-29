@@ -47,6 +47,14 @@ pytestmark = [
 
 SRC, DST = "zz_util_bbdd_vw_src", "zz_util_bbdd_vw_dst"
 C, P, E = "zzvw_clientes", "zzvw_pedidos", "zzvw_empleados"
+A = "zzvw_autoinc"  # A2 (hotfix): id autoincremental; sin filas en el origen (IDENTITY de SQL Server no admite ids)
+AUTOINC_ID = {
+    "mysql": "id INT AUTO_INCREMENT PRIMARY KEY",
+    "mariadb": "id INT AUTO_INCREMENT PRIMARY KEY",
+    "postgresql": "id SERIAL PRIMARY KEY",
+    "sqlserver": "id INT IDENTITY(1,1) PRIMARY KEY",
+    "oracle": "id NUMBER(10) PRIMARY KEY",
+}
 
 CLIENTES = [
     (1, "Ana", "Madrid", "2024-01-10", "100.50"),
@@ -259,6 +267,7 @@ def _source_objects(engine_name: str) -> list[str]:
     statements += [f"INSERT INTO {C} VALUES ({a}, '{b}', {text(c)}, {date(e)}, {f})" for a, b, c, e, f in CLIENTES]
     statements += [f"INSERT INTO {P} VALUES ({a}, {b}, {date(c)}, {e})" for a, b, c, e in PEDIDOS]
     statements.append(f"CREATE TABLE {E} (id {i} PRIMARY KEY, nombre {v} NOT NULL, jefe_id {i}, activo {i})")
+    statements.append(f"CREATE TABLE {A} ({AUTOINC_ID[engine_name]}, v {i})")
     statements += [
         f"INSERT INTO {E} VALUES ({emp}, '{name}', {'NULL' if boss is None else boss}, {active})"
         for emp, name, boss, active in EMPLEADOS
@@ -391,8 +400,22 @@ def test_views_are_created_and_return_the_same_rows(source_target: tuple[str, st
             with src_engine.connect() as conn:
                 rows = conn.execute(select(src_table)).fetchall()
             columns = [c.name for c in dst_table.columns]
+            if not rows:
+                continue
             with dst_engine.begin() as conn:
                 conn.execute(dst_table.insert(), [dict(zip(columns, row, strict=True)) for row in rows])
+
+        # A2 (hotfix): el id autoincremental migrado se genera en el destino (Oracle: SEQUENCE + TRIGGER válido).
+        autoinc = [t for t in plan.tables if t.original_name.lower() == A]
+        auto_cols = [c for t in autoinc for c in t.columns if c.auto_increment]
+        if auto_cols:
+            table_name, value_col = autoinc[0].name, next(c.name for c in autoinc[0].columns if not c.auto_increment)
+            with dst_engine.begin() as conn:
+                conn.exec_driver_sql(f"INSERT INTO {QUOTE[target](table_name)} ({QUOTE[target](value_col)}) VALUES (7)")
+            generated = _rows(dst_engine, f"SELECT {QUOTE[target](auto_cols[0].name)} FROM {QUOTE[target](table_name)}")
+            assert generated == [("1.00",)], generated
+        else:
+            assert source == "oracle", f"{source}: la columna autoincremental no se detectó"
 
         differences: dict[str, tuple[list[tuple], list[tuple]]] = {}
         for view in plan.views:
