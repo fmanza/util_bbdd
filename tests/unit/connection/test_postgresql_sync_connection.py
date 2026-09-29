@@ -48,3 +48,13 @@ def test_boolean_options_are_sent_as_integers(keepalives: bool, expected: int) -
         kwargs = PostgreSQLConnection.connect({**BASE, "keepalives": keepalives})
     assert kwargs["keepalives"] == expected
     assert type(kwargs["keepalives"]) is int
+
+
+def test_tcp_keepalives_are_sent_with_libpq_names() -> None:
+    """``tcp_keepalives_*`` es el nombre del parámetro del servidor; libpq usa ``keepalives_*`` (H6)."""
+    with patch("psycopg.connect", side_effect=_connect_validating_conninfo):
+        kwargs = PostgreSQLConnection.connect(
+            {**BASE, "tcp_keepalives_idle": 30, "tcp_keepalives_interval": 5, "tcp_keepalives_count": 3}
+        )
+    assert (kwargs["keepalives_idle"], kwargs["keepalives_interval"], kwargs["keepalives_count"]) == (30, 5, 3)
+    assert not any(key.startswith("tcp_") for key in kwargs)

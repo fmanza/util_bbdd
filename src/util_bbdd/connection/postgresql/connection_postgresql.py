@@ -7,6 +7,7 @@ from typing import Any
 from util_bbdd._core.exceptions import ConnectionError
 
 from ..params import ConnectionParamsManager
+from ._libpq import to_libpq_params
 
 
 class PostgreSQLConnection:
@@ -35,16 +36,8 @@ class PostgreSQLConnection:
                 "postgresql",
                 conn_params,
             )
-            # libpq llama ``dbname`` a la base de datos: psycopg.connect rechaza ``database`` ("invalid connection
-            # option"). La config conserva ``database`` porque el pool (conninfo) y asyncpg lo usan con ese nombre;
-            # un ``dbname`` explícito tiene prioridad.
-            database: Any = sanitized_conn_params.pop("database", None)
-            if database is not None:
-                sanitized_conn_params.setdefault("dbname", database)
-            # libpq espera enteros en las opciones booleanas (``keepalives=1``); ``True`` llegaría como "True".
-            sanitized_conn_params = {
-                key: int(value) if isinstance(value, bool) else value for key, value in sanitized_conn_params.items()
-            }
+            # Nombres y valores de libpq (dbname, keepalives_*, booleanos 0/1): ver _libpq.to_libpq_params.
+            sanitized_conn_params = to_libpq_params(sanitized_conn_params)
 
             PostgreSQLConnection.logger.debug(
                 f"🔗 Conectando a PostgreSQL (psycopg3) con parámetros: {list(sanitized_conn_params.keys())}"

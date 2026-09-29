@@ -3,11 +3,12 @@
 import logging
 import sys
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from ..._core.exceptions import PoolConnectionError, PoolTimeoutError
 from ..close import FORCE_CLOSE_TIMEOUT_SECONDS, parse_close_timeout, run_close_operation_sync
 from ..params import ConnectionParamsManager
+from ._libpq import to_libpq_params
 
 try:
     from psycopg_pool import ConnectionPool as PsycopgConnectionPool
@@ -28,6 +29,11 @@ class PoolConnection:
     - pool_timeout (int, default: 30): Timeout de conexión en segundos
     - max_idle (int, default: 300): Tiempo máximo de inactividad
     """
+
+    #: Claves de conn_params que no van como parámetro libpq de la URI: las que ya forman la URI y las del pool.
+    _CONNINFO_URI_OR_POOL_KEYS: ClassVar[frozenset[str]] = frozenset(
+        {"user", "password", "host", "port", "dbname", "pool_size", "pool_timeout", "max_idle"}
+    )
 
     def __init__(self, conn_params: dict[str, str | int]) -> None:
         """Inicializa pool nativo de psycopg 3.
@@ -93,7 +99,7 @@ class PoolConnection:
             Exception: Si la creación del pool falla.
         """
         try:
-            from urllib.parse import quote
+            from urllib.parse import quote, urlencode
 
             # Construir conninfo string para psycopg. user/password/database van URL-encoded:
             # interpolarlos crudos permite que un valor con "/", "#", "%" o espacios reinterprete
@@ -102,7 +108,10 @@ class PoolConnection:
             password: str | None = str(self.conn_params.get("password")) if self.conn_params.get("password") else None
             host: str = str(self.conn_params.get("host", "localhost"))
             port: str | int = self.conn_params.get("port", 5432)
-            database: str | None = str(self.conn_params.get("database")) if self.conn_params.get("database") else None
+            # Nombres y valores de libpq (dbname con prioridad sobre database, keepalives_*, booleanos 0/1).
+            libpq_params: dict[str, Any] = to_libpq_params(dict(self.conn_params))
+            raw_database: Any = libpq_params.get("dbname")
+            database: str | None = str(raw_database) if raw_database else None
 
             user_enc: str = quote(user, safe="") if user else ""
             password_enc: str = quote(password, safe="") if password else ""
@@ -110,11 +119,16 @@ class PoolConnection:
 
             conninfo: str = f"postgresql://{user_enc}:{password_enc}@{host}:{port}/{database_enc}"
 
-            options: str | None = (
-                str(self.conn_params.get("options")).strip() if self.conn_params.get("options") else None
-            )
-            if options:
-                conninfo = f"{conninfo}?options={quote(options, safe='')}"
+            # H6: el resto de opciones libpq (sslmode, connect_timeout, keepalives, application_name,
+            # options...) van como parámetros de la URI; antes solo iba ``options`` y el pool ignoraba
+            # p. ej. sslmode="require".
+            query_params: dict[str, Any] = {
+                key: value
+                for key, value in libpq_params.items()
+                if key not in self._CONNINFO_URI_OR_POOL_KEYS and value is not None and str(value).strip() != ""
+            }
+            if query_params:
+                conninfo = f"{conninfo}?{urlencode(query_params, quote_via=quote)}"
 
             self.pool = PsycopgConnectionPool(
                 conninfo=conninfo,

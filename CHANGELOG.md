@@ -50,6 +50,12 @@ tiene que cambiar nada: el conector de MariaDB también conecta con MySQL.
 - **connection**: la conexión sync directa de PostgreSQL (`SyncDatabaseManager("postgresql", use_pool=False)`) no
   conectaba: se pasaba `database=` a `psycopg.connect` (libpq espera `dbname`) y, tras eso, `keepalives=True` llegaba
   como `"True"` (libpq exige `0`/`1`). Un `dbname` explícito tiene prioridad (H2).
+- **connection (seguridad)**: el pool sync de PostgreSQL (`use_pool=True`, el valor por defecto) solo pasaba a libpq
+  usuario, contraseña, host, puerto, base de datos y `options`: ignoraba `sslmode` (con `sslmode="require"` o
+  `"verify-full"` conectaba sin TLS a un servidor que no lo ofrece), `connect_timeout`, `keepalives`,
+  `application_name`, `target_session_attrs`, etc. Ahora van en el `conninfo` (H6). Además, en el pool y en la
+  conexión directa, `tcp_keepalives_idle/interval/count` se envían con su nombre libpq (`keepalives_*`); antes libpq
+  los rechazaba.
 
 ## [0.18.4] - 2026-09-29
 

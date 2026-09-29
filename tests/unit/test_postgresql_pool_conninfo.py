@@ -79,3 +79,53 @@ def test_conninfo_without_credentials_has_empty_userinfo(monkeypatch: pytest.Mon
     )
 
     assert conninfo == "postgresql://:@localhost:5432/mydb"
+
+
+# H6 (sesión 2026-09-29b): el conninfo solo llevaba user/password/host/port/database y ``options``; el pool ignoraba
+# sslmode (sslmode="require" conectaba sin TLS), connect_timeout, keepalives, application_name, etc.
+_BASE: dict[str, Any] = {"user": "u", "password": "pw", "host": "localhost", "port": 5432, "database": "mydb"}
+
+
+def _libpq_params(conninfo: str) -> dict[str, Any]:
+    """Parámetros tal como los interpreta libpq (parser real de psycopg, sin conectar)."""
+    psycopg = pytest.importorskip("psycopg")
+    return dict(psycopg.conninfo.conninfo_to_dict(conninfo))
+
+
+def test_conninfo_carries_sslmode_and_libpq_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    conninfo = _build_pool(
+        monkeypatch,
+        {
+            **_BASE,
+            "sslmode": "verify-full",
+            "connect_timeout": 7,
+            "application_name": "mi app",
+            "fallback_application_name": "util_bbdd",
+            "tcp_keepalives_idle": 30,
+            "target_session_attrs": "read-write",
+            "options": "-c search_path=ventas",
+        },
+    )
+    params = _libpq_params(conninfo)
+    assert params["sslmode"] == "verify-full"
+    assert params["connect_timeout"] == "7"
+    assert params["application_name"] == "mi app"
+    assert params["fallback_application_name"] == "util_bbdd"
+    assert params["keepalives_idle"] == "30"  # tcp_keepalives_idle es el nombre del parámetro del servidor
+    assert params["target_session_attrs"] == "read-write"
+    assert params["options"] == "-c search_path=ventas"
+    assert params["dbname"] == "mydb"
+
+
+@pytest.mark.parametrize(("keepalives", "expected"), [(True, "1"), (False, "0")])
+def test_conninfo_boolean_options_as_integers(monkeypatch: pytest.MonkeyPatch, keepalives: bool, expected: str) -> None:
+    params = _libpq_params(_build_pool(monkeypatch, {**_BASE, "keepalives": keepalives}))
+    assert params["keepalives"] == expected
+
+
+def test_conninfo_excludes_pool_settings_and_prefers_explicit_dbname(monkeypatch: pytest.MonkeyPatch) -> None:
+    params = _libpq_params(
+        _build_pool(monkeypatch, {**_BASE, "dbname": "otra", "pool_size": 5, "pool_timeout": 30, "max_idle": 300})
+    )
+    assert params["dbname"] == "otra"
+    assert not {"pool_size", "pool_timeout", "max_idle", "database"} & set(params)
