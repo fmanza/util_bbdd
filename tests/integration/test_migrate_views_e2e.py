@@ -55,6 +55,12 @@ AUTOINC_ID = {
     "sqlserver": "id INT IDENTITY(1,1) PRIMARY KEY",
     "oracle": "id NUMBER(10) PRIMARY KEY",
 }
+# A4 (hotfix): DEFAULT y comentario con barras invertidas y comilla. MySQL/MariaDB escapan la barra en el literal.
+RUTA = "C:\\datos\\x'q"
+RUTA_LITERAL = {
+    "mysql": "'C:\\\\datos\\\\x''q'",
+    "mariadb": "'C:\\\\datos\\\\x''q'",
+}
 
 CLIENTES = [
     (1, "Ana", "Madrid", "2024-01-10", "100.50"),
@@ -267,7 +273,13 @@ def _source_objects(engine_name: str) -> list[str]:
     statements += [f"INSERT INTO {C} VALUES ({a}, '{b}', {text(c)}, {date(e)}, {f})" for a, b, c, e, f in CLIENTES]
     statements += [f"INSERT INTO {P} VALUES ({a}, {b}, {date(c)}, {e})" for a, b, c, e in PEDIDOS]
     statements.append(f"CREATE TABLE {E} (id {i} PRIMARY KEY, nombre {v} NOT NULL, jefe_id {i}, activo {i})")
-    statements.append(f"CREATE TABLE {A} ({AUTOINC_ID[engine_name]}, v {i})")
+    ruta = RUTA_LITERAL.get(engine_name, "'C:\\datos\\x''q'")
+    comment = f" COMMENT {ruta}" if engine_name in ("mysql", "mariadb") else ""
+    statements.append(
+        f"CREATE TABLE {A} ({AUTOINC_ID[engine_name]}, v {i}, ruta {v.replace('50', '80')} DEFAULT {ruta}{comment})"
+    )
+    if engine_name in ("postgresql", "oracle"):
+        statements.append(f"COMMENT ON COLUMN {A}.ruta IS {ruta}")
     if engine_name in ("mysql", "mariadb", "sqlserver"):
         # A3 (hotfix): mismo nombre de índice en dos tablas (válido aquí; en PostgreSQL y Oracle es único por schema).
         statements += [f"CREATE INDEX zzvw_idx ON {E} (activo)", f"CREATE INDEX zzvw_idx ON {A} (v)"]
@@ -415,8 +427,20 @@ def test_views_are_created_and_return_the_same_rows(source_target: tuple[str, st
             table_name, value_col = autoinc[0].name, next(c.name for c in autoinc[0].columns if not c.auto_increment)
             with dst_engine.begin() as conn:
                 conn.exec_driver_sql(f"INSERT INTO {QUOTE[target](table_name)} ({QUOTE[target](value_col)}) VALUES (7)")
-            generated = _rows(dst_engine, f"SELECT {QUOTE[target](auto_cols[0].name)} FROM {QUOTE[target](table_name)}")
-            assert generated == [("1.00",)], generated
+            ruta_col = next(c.name for c in autoinc[0].columns if c.original_name.lower() == "ruta")
+            generated = _rows(
+                dst_engine,
+                f"SELECT {QUOTE[target](auto_cols[0].name)}, {QUOTE[target](ruta_col)} FROM {QUOTE[target](table_name)}",
+            )
+            assert generated == [("1.00", RUTA)], generated  # A4: el DEFAULT conserva barras y comilla
+            # Comentarios: los extractores de SQL Server y PostgreSQL no los leen (limitación documentada, v1).
+            if target in ("mysql", "mariadb") and source in ("mysql", "mariadb", "oracle"):
+                comment = _rows(
+                    dst_engine,
+                    "SELECT COLUMN_COMMENT FROM information_schema.COLUMNS "
+                    f"WHERE TABLE_SCHEMA = '{DST}' AND TABLE_NAME = '{table_name}' AND COLUMN_NAME = '{ruta_col}'",
+                )
+                assert comment == [(RUTA,)], comment
         else:
             assert source == "oracle", f"{source}: la columna autoincremental no se detectó"
 

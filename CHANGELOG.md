@@ -53,6 +53,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   MySQL/MariaDB, que llaman a `KEY (cliente_id)` `cliente_id`, o desde SQL Server) hacían fallar el segundo
   `CREATE INDEX`: en esos motores el nombre es único en el schema. El siguiente que choca pasa a `<tabla>_<índice>`
   (dentro del límite del motor) con un aviso `WARNING` en la tabla (A3).
+- **migrate**: las barras invertidas de los `DEFAULT` de texto y de los comentarios se alteraban sin error: hacia
+  MariaDB/MySQL, `'C:\datos'` llegaba como `C:datos` (en sus literales la barra escapa); desde MariaDB, cuyo catálogo
+  devuelve el literal con escapes (`'C:\\datos'`, `\n`), llegaban duplicadas a PostgreSQL, SQL Server y Oracle.
+  Ahora los literales de MariaDB se decodifican al leerlos y los emisores de MariaDB/MySQL escapan la barra (A4).
 - **migrate**: con origen SQL Server, la definición de las vistas llegaba con su cabecera `CREATE VIEW ... AS` (se
   emitía `CREATE OR ALTER VIEW v AS CREATE VIEW v AS ...`) y truncada a 4000 caracteres, también en SQL Server 2022
   (`INFORMATION_SCHEMA.VIEWS`). Ahora se lee con `OBJECT_DEFINITION` y sin cabecera; el plan avisa si la cabecera

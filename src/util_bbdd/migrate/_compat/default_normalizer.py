@@ -3,7 +3,9 @@
 Los emitters traducen defaults de un dialecto «canónico» (literales entrecomillados, números, ``NULL``,
 ``CURRENT_TIMESTAMP``, ``CURRENT_DATE``...). Sin este paso, la sintaxis propia de cada origen llegaba tal cual al
 destino y el DDL no era válido: casts de PostgreSQL (``'x'::character varying``), paréntesis de SQL Server
-(``((0))``, ``(N'x')``), ``SYSDATE`` de Oracle o ``current_timestamp()`` de MariaDB.
+(``((0))``, ``(N'x')``), ``SYSDATE`` de Oracle o ``current_timestamp()`` de MariaDB. Los literales de MariaDB llegan
+con sus escapes de barra (``'C:\\\\x'``, ``\\n``) y se decodifican (A4); los emitters de MariaDB/MySQL vuelven a escapar
+la barra.
 
 Forma canónica que produce ``normalize_default``:
 
@@ -92,6 +94,48 @@ def _normalize_sqlserver(value: str) -> str:
     return value
 
 
+#: Escapes de un literal MySQL/MariaDB (``\%`` y ``\_`` conservan la barra); cualquier otro ``\x`` es ``x``.
+_MYSQL_ESCAPES: dict[str, str] = {
+    "0": "\0",
+    "b": "\b",
+    "n": "\n",
+    "r": "\r",
+    "t": "\t",
+    "Z": "\x1a",
+    "%": "\\%",
+    "_": "\\_",
+}
+
+
+def _decode_mariadb_literal(value: str) -> str:
+    """Literal de ``COLUMN_DEFAULT`` de MariaDB (``'C:\\\\x\\n'``, con escapes de barra) → literal canónico (A4).
+
+    MariaDB devuelve los literales con su sintaxis: la barra escapada (``\\\\``), los saltos de línea como ``\\n`` y la
+    comilla duplicada. La forma canónica solo duplica la comilla. Si ``value`` no es exactamente un literal, se devuelve
+    sin cambios.
+    """
+    if len(value) < 2 or value[0] != "'" or value[-1] != "'":
+        return value
+    chars: list[str] = []
+    index, end = 1, len(value) - 1
+    while index < end:
+        char = value[index]
+        if char == "\\" and index + 1 < end:
+            escaped = value[index + 1]
+            chars.append(_MYSQL_ESCAPES.get(escaped, escaped))
+            index += 2
+        elif char == "'":
+            if index + 1 < end and value[index + 1] == "'":
+                chars.append("'")
+                index += 2
+            else:
+                return value  # comilla sin duplicar: no es un único literal (p. ej. 'a' + 'b')
+        else:
+            chars.append(char)
+            index += 1
+    return "'" + "".join(chars).replace("'", "''") + "'"
+
+
 def normalize_default(source_engine: str, value: str | None) -> str | None:
     """Devuelve ``value`` (DEFAULT tal como lo extrae el motor ``source_engine``) en forma canónica."""
     if value is None:
@@ -105,6 +149,8 @@ def normalize_default(source_engine: str, value: str | None) -> str | None:
         normalized = _normalize_postgresql(normalized)
     elif source == "sqlserver":
         normalized = _normalize_sqlserver(normalized)
+    elif source == "mariadb":
+        normalized = _decode_mariadb_literal(normalized)
 
     upper: str = normalized.upper()
     if upper == "NULL":

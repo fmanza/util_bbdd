@@ -236,8 +236,7 @@ class MariaDBDDLEmitter:
         lines.append("\n".join(body_parts))
         lines.append(f") ENGINE={self._engine} DEFAULT CHARSET={self._charset} COLLATE={self._collation}")
         if table.comment:
-            escaped = table.comment.replace("'", "''")
-            lines[-1] += f" COMMENT='{escaped}'"
+            lines[-1] += f" COMMENT='{_mysql_text(table.comment)}'"
 
         return "\n".join(lines)
 
@@ -269,8 +268,7 @@ class MariaDBDDLEmitter:
                 col.warnings.append(fallback_warning)
 
         if col.comment:
-            escaped = col.comment.replace("'", "''")
-            parts.append(f"COMMENT '{escaped}'")
+            parts.append(f"COMMENT '{_mysql_text(col.comment)}'")
 
         line = " ".join(parts)
 
@@ -510,13 +508,18 @@ def _format_default(value: str) -> str:
     except ValueError:
         pass
 
-    # String literal ya entrecomillado (Oracle almacena DATA_DEFAULT con comillas, p.ej. '6')
+    # String literal ya entrecomillado en forma canónica (comillas internas duplicadas; Oracle almacena DATA_DEFAULT
+    # con comillas, p.ej. '6'): en MariaDB/MySQL la barra también escapa (A4)
     if len(v) >= 2 and v.startswith("'") and v.endswith("'"):
-        return v
+        return "'" + v[1:-1].replace("\\", "\\\\") + "'"
 
     # String literal sin entrecomillar
-    escaped = v.replace("'", "''")
-    return f"'{escaped}'"
+    return f"'{_mysql_text(v)}'"
+
+
+def _mysql_text(text: str) -> str:
+    """Contenido de un literal de texto MariaDB/MySQL: la barra invertida escapa (A4) y la comilla se duplica."""
+    return text.replace("\\", "\\\\").replace("'", "''")
 
 
 __all__: list[str] = [
