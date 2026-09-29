@@ -40,6 +40,12 @@
   posición y primera línea; el Engine creado se libera. Se omiten las sentencias solo-comentario (`_has_sql`). Objetos
   con solo `execute_custom_one` conservan la vía anterior. Tras el fix: e2e 20/20.
 - Calidad: ruff/format/mypy limpios; pytest 5585 passed / 225 skipped; integración 364 passed.
+- **Hotfix A2**: test-first: tabla `zzvw_autoinc` (AUTO_INCREMENT / SERIAL / IDENTITY) en el e2e; tras `plan.execute`
+  se inserta sin id y se comprueba que se genera → fallan los 4 pares hacia Oracle (ORA-04098), pasan los 16 restantes.
+  Fix en `emitters/oracle.py`: el trigger termina en `END;`; `emit()` cierra los bloques PL/SQL (`_is_plsql_block`:
+  CREATE [OR REPLACE] TRIGGER/PROCEDURE/FUNCTION/PACKAGE/TYPE tras comentarios) con `
+/` y el resto con `;`.
+  Verificado además con `sqlplus` del contenedor: trigger VALID, `ID=1`, la sentencia posterior a `/` se ejecuta.
 
 ## Artefactos generados
 | Artefacto | Ruta | Estado |
@@ -47,6 +53,8 @@
 | AUDIT_CODE migrate/ | conversación (veredicto RECHAZADO, A1–A9) | emitido |
 | Hotfix A1 | `src/util_bbdd/migrate/ir/models.py` | completado |
 | Tests A1 | `tests/unit/migrate/test_planner.py`, `tests/integration/test_migrate_views_e2e.py` | completado |
+| Hotfix A2 | `src/util_bbdd/migrate/emitters/oracle.py` | completado |
+| Tests A2 | `tests/unit/migrate/test_emitter_oracle.py`, `tests/integration/test_migrate_views_e2e.py` | completado |
 | Docs A1 | `docs/guides/ddl_migration_guide.md` §3.4, `CHANGELOG.md` | completado |
 
 ## Directrices para Futuras IAs
@@ -56,8 +64,11 @@
 - **[migrate/tests]**: los tests unitarios de `migrate` simulan el manager con `MagicMock` (que responde a cualquier
   atributo: usar `spec=[...]` para fijar la vía). Todo lo que ejecuta DDL debe tener un e2e contra el banco; el de vistas
   (`tests/integration/test_migrate_views_e2e.py`) ya aplica el plan con `plan.execute` en los 20 pares.
-- **[migrate/emitters]**: pendientes de la auditoría: A2 (trigger Oracle `END;` y `/` en el script), A3 (índices
+- **[migrate/oracle]**: un bloque PL/SQL enviado por el driver debe incluir el `;` tras `END` (sin él se crea
+  `INVALID` sin error); en un script SQL*Plus va seguido de una línea `/`. El contenedor Oracle del banco trae `sqlplus`
+  (`docker exec -e PW -i util_bbdd_bench_oracle bash -c 'sqlplus -s -L "bench/$PW@//localhost:1521/FREEPDB1"'`).
+- **[migrate/emitters]**: pendientes de la auditoría: A3 (índices
   únicos por schema en PG/Oracle), A4 (escapar `\` en MariaDB/MySQL), A6 (límite en bytes), A8, A9.
 
 ## Veredicto final
-Veredicto: A1 corregido (GO); auditoría de migrate/ RECHAZADO hasta corregir A2–A4 (sesión IN_PROGRESS)
+Veredicto: A1 y A2 corregidos (GO); auditoría de migrate/ RECHAZADO hasta corregir A3–A4 (sesión IN_PROGRESS)
