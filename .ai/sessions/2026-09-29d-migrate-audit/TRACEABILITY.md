@@ -64,6 +64,12 @@
   128 bytes; el 30 es un mínimo conservador). Fix: `identifier_rules.ByteLimit(int)` marca los límites de PG y Oracle;
   `truncate_identifier` mide en bytes UTF-8 y corta sin partir caracteres; el aviso dice la unidad; el planner ya no
   hace `int()` del límite (perdía el tipo). Sin cambios en las ~40 llamadas. e2e 20/20; `test_identifier_bytes.py` (7).
+- **Fix A8**: hipótesis verificada en el banco (`a8_case_collision.py`, origen PostgreSQL): columnas `"Nombre"`/`nombre`
+  → ORA-00957, MySQL/MariaDB 1060, SQL Server 2705; tablas `"ZZAUD_T"`/`zzaud_t` → ORA-00955, SQL Server 2714; el plan
+  tenía 0 errores y el aviso de tablas decía «no colisiona». Decisión: detectar y bloquear en vez de renombrar
+  (renombrar exigiría propagar a PK, índices, FKs de otras tablas y vistas). `planner._case_collision_warnings`: columnas
+  ERROR (Oracle/MySQL/MariaDB) o WARNING (SQL Server, collation); tablas/vistas ERROR (Oracle) o WARNING (resto, con
+  mensaje correcto por destino). Verificado de nuevo en el banco. `test_case_collisions.py` (16).
 
 ## Artefactos generados
 | Artefacto | Ruta | Estado |
@@ -79,6 +85,8 @@
 | Tests A4 | `tests/unit/migrate/test_backslash_literals.py`, `tests/integration/test_migrate_views_e2e.py`, `a4_catalog_defaults.py` | completado |
 | Fix A6 | `src/util_bbdd/migrate/_compat/identifier_rules.py`, `src/util_bbdd/migrate/planner.py` | completado |
 | Tests A6 | `tests/unit/migrate/test_identifier_bytes.py`, `tests/integration/test_migrate_views_e2e.py` | completado |
+| Fix A8 | `src/util_bbdd/migrate/planner.py` | completado |
+| Tests A8 | `tests/unit/migrate/test_case_collisions.py`, `a8_case_collision.py` | completado |
 | Docs A1 | `docs/guides/ddl_migration_guide.md` §3.4, `CHANGELOG.md` | completado |
 
 ## Directrices para Futuras IAs
@@ -102,7 +110,10 @@
 - **[migrate/identificadores]**: PostgreSQL y Oracle limitan identificadores en bytes, MySQL/MariaDB/SQL Server en
   caracteres; el tipo `ByteLimit` de las constantes lo decide. No convertir los límites con `int()`. SQLAlchemy no aplica
   su convención de nombres en minúsculas de Oracle a identificadores no ASCII (reflexión con `ñ` falla).
-- **[migrate/emitters]**: pendientes de la auditoría (no bloqueantes): A8, A9.
+- **[migrate/identificadores]**: mayúsculas en el destino: Oracle emite todo en mayúsculas (`_dq`); MySQL/MariaDB no
+  distinguen mayúsculas en columnas y en tablas dependen de `lower_case_table_names`; SQL Server depende de la
+  collation; PostgreSQL respeta el case entrecomillado. Las colisiones se detectan en el planner, no se renombran.
+- **[migrate/emitters]**: pendientes de la auditoría (no bloqueantes): A9.
 
 ## Veredicto final
 Veredicto: A1–A4 corregidos (GO); auditoría de migrate/ → condiciones cumplidas; pendientes no bloqueantes A6, A8, A9 (sesión IN_PROGRESS)
