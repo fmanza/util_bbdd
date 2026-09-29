@@ -46,6 +46,11 @@
   CREATE [OR REPLACE] TRIGGER/PROCEDURE/FUNCTION/PACKAGE/TYPE tras comentarios) con `
 /` y el resto con `;`.
   Verificado además con `sqlplus` del contenedor: trigger VALID, `ID=1`, la sentencia posterior a `/` se ejecuta.
+- **Hotfix A3**: test-first: índice `zzvw_idx` en dos tablas en los orígenes MySQL/MariaDB/SQL Server → fallan los 6
+  pares hacia PG/Oracle («relation already exists», ORA-00955). Fix: `emitters/_index_names.claim_index_name`, usado
+  por `_emit_indexes` de PG (reserva tablas, vistas y PK) y Oracle (reserva PK, compara en mayúsculas); el que choca
+  pasa a `<tabla>_<índice>` truncado (`_2`... si aún choca) con aviso en `table.warnings` (sin mutar el IR: emitir
+  dos veces da lo mismo). e2e 20/20; `tests/unit/migrate/test_index_names.py` (8).
 
 ## Artefactos generados
 | Artefacto | Ruta | Estado |
@@ -55,6 +60,8 @@
 | Tests A1 | `tests/unit/migrate/test_planner.py`, `tests/integration/test_migrate_views_e2e.py` | completado |
 | Hotfix A2 | `src/util_bbdd/migrate/emitters/oracle.py` | completado |
 | Tests A2 | `tests/unit/migrate/test_emitter_oracle.py`, `tests/integration/test_migrate_views_e2e.py` | completado |
+| Hotfix A3 | `src/util_bbdd/migrate/emitters/_index_names.py`, `emitters/postgresql.py`, `emitters/oracle.py` | completado |
+| Tests A3 | `tests/unit/migrate/test_index_names.py`, `tests/integration/test_migrate_views_e2e.py` | completado |
 | Docs A1 | `docs/guides/ddl_migration_guide.md` §3.4, `CHANGELOG.md` | completado |
 
 ## Directrices para Futuras IAs
@@ -67,8 +74,11 @@
 - **[migrate/oracle]**: un bloque PL/SQL enviado por el driver debe incluir el `;` tras `END` (sin él se crea
   `INVALID` sin error); en un script SQL*Plus va seguido de una línea `/`. El contenedor Oracle del banco trae `sqlplus`
   (`docker exec -e PW -i util_bbdd_bench_oracle bash -c 'sqlplus -s -L "bench/$PW@//localhost:1521/FREEPDB1"'`).
-- **[migrate/emitters]**: pendientes de la auditoría: A3 (índices
-  únicos por schema en PG/Oracle), A4 (escapar `\` en MariaDB/MySQL), A6 (límite en bytes), A8, A9.
+- **[migrate/emitters]**: espacios de nombres del destino: en PostgreSQL índices, tablas, vistas y secuencias son
+  «relations» del schema; en Oracle los índices tienen su propio espacio por schema (una PK crea un índice con el nombre
+  de la constraint). MySQL/MariaDB/SQL Server: nombre de índice por tabla. Lo resuelve `claim_index_name` al emitir.
+- **[migrate/emitters]**: pendientes de la auditoría: A4 (escapar `\` en MariaDB/MySQL), A6 (límite en
+  bytes), A8, A9.
 
 ## Veredicto final
-Veredicto: A1 y A2 corregidos (GO); auditoría de migrate/ RECHAZADO hasta corregir A3–A4 (sesión IN_PROGRESS)
+Veredicto: A1, A2 y A3 corregidos (GO); auditoría de migrate/ RECHAZADO hasta corregir A4 (sesión IN_PROGRESS)
