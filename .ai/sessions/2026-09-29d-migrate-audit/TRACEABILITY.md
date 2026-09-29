@@ -70,6 +70,11 @@
   (renombrar exigiría propagar a PK, índices, FKs de otras tablas y vistas). `planner._case_collision_warnings`: columnas
   ERROR (Oracle/MySQL/MariaDB) o WARNING (SQL Server, collation); tablas/vistas ERROR (Oracle) o WARNING (resto, con
   mensaje correcto por destino). Verificado de nuevo en el banco. `test_case_collisions.py` (16).
+- **Fix A9**: `charset.validate_storage_engine` (identificador simple, sin lista cerrada) en `MigrationPlanner` (solo
+  destino MariaDB/MySQL) y en `MariaDBDDLEmitter.__init__` (lo hereda `MySQLDDLEmitter`). `test_storage_engine.py` (17).
+- Auditoría de migrate/ cerrada: A1–A4, A6, A8 y A9 corregidos (A5 y A7 dentro de A1).
+- Diagrama de capas: 12 paquetes importan de Foundation (nuevo `migrate → _core` por A1); SVG actualizado. El pie de
+  `docs/architecture.md` (v0.19.0, 377 ficheros) se actualiza en `/version-closure` (hoy 384 ficheros).
 
 ## Artefactos generados
 | Artefacto | Ruta | Estado |
@@ -87,6 +92,8 @@
 | Tests A6 | `tests/unit/migrate/test_identifier_bytes.py`, `tests/integration/test_migrate_views_e2e.py` | completado |
 | Fix A8 | `src/util_bbdd/migrate/planner.py` | completado |
 | Tests A8 | `tests/unit/migrate/test_case_collisions.py`, `a8_case_collision.py` | completado |
+| Fix A9 | `src/util_bbdd/migrate/charset.py`, `emitters/mariadb.py`, `planner.py` | completado |
+| Tests A9 | `tests/unit/migrate/test_storage_engine.py` | completado |
 | Docs A1 | `docs/guides/ddl_migration_guide.md` §3.4, `CHANGELOG.md` | completado |
 
 ## Directrices para Futuras IAs
@@ -113,7 +120,9 @@
 - **[migrate/identificadores]**: mayúsculas en el destino: Oracle emite todo en mayúsculas (`_dq`); MySQL/MariaDB no
   distinguen mayúsculas en columnas y en tablas dependen de `lower_case_table_names`; SQL Server depende de la
   collation; PostgreSQL respeta el case entrecomillado. Las colisiones se detectan en el planner, no se renombran.
-- **[migrate/emitters]**: pendientes de la auditoría (no bloqueantes): A9.
+- **[migrate/auditoría]**: sin pendientes de la auditoría 2026-09-29d. Deuda anotada, no corregida: N+1 consultas por
+  tabla en los extractores; el campo `oracle_type` guarda el tipo del origen sea cual sea el motor; los extractores de
+  PostgreSQL y SQL Server no leen comentarios.
 
 ## Veredicto final
-Veredicto: A1–A4 corregidos (GO); auditoría de migrate/ → condiciones cumplidas; pendientes no bloqueantes A6, A8, A9 (sesión IN_PROGRESS)
+Veredicto: auditoría de migrate/ resuelta — A1–A9 corregidos (GO). Sesión lista para `/version-closure`.
