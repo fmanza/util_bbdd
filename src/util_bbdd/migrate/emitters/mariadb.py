@@ -16,6 +16,7 @@ from collections import deque
 
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView
 from ._default_fallback import default_fallback_warning
+from ._trailing_comment import join_definitions, with_trailing_comment
 
 
 def _bt(name: str) -> str:
@@ -230,7 +231,7 @@ class MariaDBDDLEmitter:
         if comment_lines:
             body_parts.append("\n".join(comment_lines))
         if ddl_lines:
-            body_parts.append(",\n".join(ddl_lines))
+            body_parts.append(join_definitions(ddl_lines))
 
         lines.append("\n".join(body_parts))
         lines.append(f") ENGINE={self._engine} DEFAULT CHARSET={self._charset} COLLATE={self._collation}")
@@ -274,7 +275,7 @@ class MariaDBDDLEmitter:
         line = " ".join(parts)
 
         if col.ddl_comment:
-            line = f"{line} {col.ddl_comment}"
+            line = with_trailing_comment(line, col.ddl_comment)
 
         return line
 

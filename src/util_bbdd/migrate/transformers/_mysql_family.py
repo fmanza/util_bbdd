@@ -2,8 +2,7 @@
 
 Ambos motores comparten sintaxis de tipos, así que el tipo destino es el ``COLUMN_TYPE`` completo del origen
 (``oracle_type``, extraído con ``full_column_types=True``). Cada subclase declara en ``_TYPE_OVERRIDES`` los tipos
-del origen que el destino no tiene, con su sustituto; el aviso va a ``plan.warnings`` (no como comentario en línea:
-``MariaDBDDLEmitter`` lo escribe antes de la coma que separa columnas y el ``CREATE TABLE`` resultante no es válido).
+del origen que el destino no tiene, con su sustituto; el aviso va a ``plan.warnings``.
 """
 
 from __future__ import annotations

@@ -56,6 +56,10 @@ tiene que cambiar nada: el conector de MariaDB también conecta con MySQL.
   `application_name`, `target_session_attrs`, etc. Ahora van en el `conninfo` (H6). Además, en el pool y en la
   conexión directa, `tcp_keepalives_idle/interval/count` se envían con su nombre libpq (`keepalives_*`); antes libpq
   los rechazaba.
+- **migrate**: en todos los emitters (MariaDB, MySQL, PostgreSQL, SQL Server, Oracle), el comentario al final de una
+  columna (aviso de migración y, en PostgreSQL/SQL Server, el comentario de la columna) se escribía antes de la coma
+  que separa definiciones: la coma quedaba comentada y el `CREATE TABLE` no era válido. La coma va ahora antes del
+  comentario (H3).
 
 ## [0.18.4] - 2026-09-29
 

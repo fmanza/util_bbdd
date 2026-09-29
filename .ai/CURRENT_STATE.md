@@ -78,7 +78,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-0. **E5 de `2026-09-29b-feature-mysql-pymysql`**: 6 hotfixes de defectos previos (H6 P1 seguridad, pool sync de PostgreSQL sin `sslmode` — hecho; H1 async directa MariaDB — hecho, H2 conexión directa PostgreSQL — hecho, H3 avisos en línea de `migrate`, H4 defaults de `migrate`, H5 DDL de MariaDB con doble comillado). Ver su `TRACEABILITY.md`.
+0. **E5 de `2026-09-29b-feature-mysql-pymysql`**: 6 hotfixes de defectos previos (H6 P1 seguridad, pool sync de PostgreSQL sin `sslmode` — hecho; H1 async directa MariaDB — hecho, H2 conexión directa PostgreSQL — hecho, H3 avisos en línea de `migrate` — hecho, H4 defaults de `migrate`, H5 DDL de MariaDB con doble comillado). Ver su `TRACEABILITY.md`.
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
 3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.

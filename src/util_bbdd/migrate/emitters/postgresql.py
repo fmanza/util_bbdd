@@ -18,6 +18,7 @@ import re
 from .._compat.identifier_rules import MAX_POSTGRESQL_IDENTIFIER_LENGTH, truncate_identifier
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView
 from ._default_fallback import default_fallback_warning
+from ._trailing_comment import join_definitions, with_trailing_comment
 from .mariadb import _topological_sort, _topological_sort_views
 
 # Tipos PG que admiten SERIAL: mapa tipo → variante SERIAL
@@ -223,7 +224,7 @@ class PostgreSQLDDLEmitter:
         if comment_lines:
             body_parts.append("\n".join(comment_lines))
         if ddl_lines:
-            body_parts.append(",\n".join(ddl_lines))
+            body_parts.append(join_definitions(ddl_lines))
 
         lines.append("\n".join(body_parts))
         lines.append(")")
@@ -261,7 +262,7 @@ class PostgreSQLDDLEmitter:
         trailing_items = self._build_trailing_items(col)
 
         if trailing_items:
-            line += " -- " + " | ".join(trailing_items)
+            line = with_trailing_comment(line, "-- " + " | ".join(trailing_items))
 
         return line
 

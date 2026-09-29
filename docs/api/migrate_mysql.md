@@ -58,14 +58,14 @@ flowchart TD
 - **`MigrationPlan.emit_ddl()`** — `str` con el script DDL, ordenado por dependencias FK. Con destino MySQL:
   `ENGINE=InnoDB DEFAULT CHARSET=... COLLATE=utf8mb4_0900_ai_ci` (o la collation indicada).
 - **`MigrationPlan.warnings`** — incluye un aviso por cada tipo exclusivo de MariaDB sustituido (`UUID`, `INET4`,
-  `INET6`). Estos avisos no se escriben junto a la columna en el DDL.
+  `INET6`).
 
 ### Errores y casos especiales
 
 | Error | Cuándo ocurre |
 |---|---|
 | `ValueError` | Motor no soportado, origen igual a destino, o collation no válida en MySQL |
-| Error del driver al ejecutar | Limitación conocida común a los destinos MariaDB y MySQL: algunos defaults de Oracle, SQL Server y PostgreSQL y los avisos escritos junto a la columna requieren ajuste manual del DDL |
+| Error del driver al ejecutar | Limitación conocida común a los destinos MariaDB y MySQL: algunos defaults de Oracle, SQL Server y PostgreSQL requieren ajuste manual del DDL |
 
 ## 3. Componentes y Clases
 

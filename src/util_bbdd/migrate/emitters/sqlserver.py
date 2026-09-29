@@ -18,6 +18,7 @@ import re
 from .._compat.identifier_rules import MAX_SQLSERVER_IDENTIFIER_LENGTH, truncate_identifier
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView
 from ._default_fallback import default_fallback_warning
+from ._trailing_comment import join_definitions, with_trailing_comment
 from .mariadb import _topological_sort, _topological_sort_views
 
 # Tipos string en SQL Server que aceptan cláusula COLLATE a nivel columna
@@ -223,7 +224,7 @@ class SQLServerDDLEmitter:
         if comment_lines:
             body_parts.append("\n".join(comment_lines))
         if ddl_lines:
-            body_parts.append(",\n".join(ddl_lines))
+            body_parts.append(join_definitions(ddl_lines))
 
         lines.append("\n".join(body_parts))
         lines.append(")")
@@ -271,7 +272,7 @@ class SQLServerDDLEmitter:
                 trailing.append(aviso)
 
         if trailing:
-            line += " -- " + " | ".join(trailing)
+            line = with_trailing_comment(line, "-- " + " | ".join(trailing))
 
         return line
 
