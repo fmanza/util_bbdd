@@ -67,6 +67,9 @@ tiene que cambiar nada: el conector de MariaDB también conecta con MySQL.
   (antes ORA-03076) y los literales no se entrecomillan dos veces; en MariaDB/MySQL, `CURRENT_TIMESTAMP(n)` en
   columnas `DATETIME(n)`/`TIMESTAMP(n)`; en PostgreSQL, `TRUE`/`FALSE` en columnas `BOOLEAN`. Los 20 pares crean todas
   las tablas en servidores reales (H4).
+- **metadata**: el DDL de tabla reconstruido desde metadatos (MariaDB y MySQL) volvía a entrecomillar los defaults de
+  texto que MariaDB ya devuelve entrecomillados (`DEFAULT '''x'''`) y, en MySQL, copiaba la marca `DEFAULT_GENERATED`
+  de `EXTRA`, que no es SQL. El DDL reconstruido vuelve a crear la tabla con los mismos defaults en ambos motores (H5).
 
 ## [0.18.4] - 2026-09-29
 

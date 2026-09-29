@@ -75,13 +75,14 @@ defectos previos encontrados pasan al PLAN como E5.
 - **[postgresql/connection]**: `PostgreSQLConnectionConfig.to_driver_kwargs()` mantiene `database` a propósito (lo consumen el `conninfo` del pool y asyncpg); la traducción a libpq (`dbname`, booleanos a entero) se hace solo en la conexión sync directa. `psycopg.conninfo.make_conninfo` no valida tipos: `keepalives="True"` solo falla en el servidor.
 - **[postgresql/libpq]**: `tcp_keepalives_*` son nombres del parámetro del servidor; libpq usa `keepalives_*`. Toda traducción a libpq pasa por `connection/postgresql/_libpq.to_libpq_params` (pool y conexión directa). `psycopg.conninfo.conninfo_to_dict` valida nombres de parámetros de URI sin conectar; no valida tipos.
 - **[migrate/defaults]**: el DEFAULT del origen se normaliza UNA vez en `_build_plan` (forma canónica: `'x'`, números, `NULL`, `CURRENT_TIMESTAMP[(n)]`, `CURRENT_DATE`, booleanos 1/0); los emitters traducen desde esa forma. Un motor origen nuevo necesita su rama en `normalize_default`. Lo no reconocido pasa intacto (`NEXTVAL` lo usan los transformers de Oracle).
+- **[metadata/defaults]**: `COLUMN_DEFAULT` llega entrecomillado en MariaDB (`'x'`) y sin comillas en MySQL (`x`); `format_mariadb_default` acepta ambos. En MySQL, `EXTRA` puede traer `DEFAULT_GENERATED`, que no se copia al DDL.
 - **[bench]**: la integración ya cubre MariaDB con los dos drivers (URL base `mariadb+pymysql` y variantes
   `mariadbconnector`); no cambiar la URL base o se pierde la cobertura de PyMySQL sobre MariaDB.
 
 ## Veredicto final
-Veredicto: GO (E0–E4); sesión IN_PROGRESS hasta E5
+Veredicto: CLOSED (E0–E5 completadas)
 Pendientes al cierre:
-- E5 (hotfixes de defectos previos, uno por commit):
+- E5 completada (hotfixes de defectos previos, uno por commit):
   - ~~H1 (P1): conexión async directa de MariaDB (`use_pool=False`) → `TypeError` en `aiomysql.connect`.~~ Corregido (`hotfix(connection)`): `_map_connect_kwargs` renombra `database`→`db` y descarta los timeouts; test de regresión contra la firma real de `aiomysql.connect` (el aiomysql falso aceptaba `**kwargs` y ocultaba el fallo); verificado contra MariaDB 11.4 con y sin pool.
   - ~~H2 (P1): conexión sync directa de PostgreSQL → `database=` en lugar de `dbname=` en `psycopg.connect`.~~ Corregido (`hotfix(connection)`) en `connection_postgresql.py` (no en la config: el pool y asyncpg usan `database`): `database`→`dbname` y booleanos → `0`/`1` (segundo fallo, oculto tras el primero). Verificado contra PostgreSQL 17 con y sin pool.
   - ~~H6~~ Corregido (`hotfix(connection)`): el `conninfo` del pool lleva todas las opciones libpq; nuevo `connection/postgresql/_libpq.py` (`to_libpq_params`: `database`→`dbname`, `tcp_keepalives_*`→`keepalives_*`, booleanos → 0/1) usado por pool y conexión directa. Verificado contra PostgreSQL 17 (`ssl=off`): `sslmode="require"` falla ahora también con pool; `application_name`, `keepalives`, `schema` aplicados en ambas vías. Integración 344 passed. Detalle original:
@@ -90,5 +91,5 @@ Pendientes al cierre:
   - ~~H4~~ Corregido (`hotfix(migrate)`): normalizador por motor origen en `MigrationPlanner._build_plan` (`_compat/default_normalizer.py`) + Oracle `DEFAULT` antes de `NOT NULL` y sin re-entrecomillar, MariaDB/MySQL `CURRENT_TIMESTAMP(n)`, PostgreSQL `TRUE`/`FALSE` en `BOOLEAN`. Matriz real de 20 pares: todas las tablas creadas (solo fallan las vistas pass-through, limitación documentada). Detalle original:
     H4 (P2): `migrate/` traduce mal defaults (casts PG, paréntesis SQL Server, `SYSDATE`, orden `DEFAULT`/`NOT NULL`
     y doble comillado en Oracle).
-  - H5 (P2): DDL reconstruido de MariaDB con doble comillado de defaults de texto (`DEFAULT '''x'''`).
+  - ~~H5 (P2): DDL reconstruido de MariaDB con doble comillado de defaults de texto (`DEFAULT '''x'''`).~~ Corregido (`hotfix(metadata)` 338550e): `format_mariadb_default` respeta los literales ya entrecomillados; `build_mariadb_table_ddl` quita `DEFAULT_GENERATED` de `EXTRA` (MySQL, introducido por la delegación de E2). Verificado: en MariaDB 11.4 y MySQL 8.4 la tabla re-creada con el DDL reconstruido tiene los mismos defaults.
 - Push de los commits de la sesión (pendiente de decisión del usuario).
