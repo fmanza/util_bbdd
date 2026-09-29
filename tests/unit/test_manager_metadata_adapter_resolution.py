@@ -20,6 +20,7 @@ from util_bbdd.managers._manager_storage import (
     get_sync_storage_inventory_strategy,
 )
 from util_bbdd.metadata.mariadb import MariaDBAsyncAdapter, MariaDBSyncAdapter
+from util_bbdd.metadata.mysql import MysqlAsyncAdapter, MysqlSyncAdapter
 
 
 def _sync_manager(db_type: str) -> SyncDatabaseManager:
@@ -46,6 +47,14 @@ class TestGetMetadataAdapter:
         adapter: Any = manager._get_metadata_adapter()
         assert isinstance(adapter, MariaDBAsyncAdapter)
         assert adapter.manager is manager
+
+    def test_sync_resolves_registered_mysql_adapter(self) -> None:
+        adapter: Any = _sync_manager("mysql")._get_metadata_adapter()
+        assert isinstance(adapter, MysqlSyncAdapter)
+
+    def test_async_resolves_registered_mysql_adapter(self) -> None:
+        adapter: Any = _async_manager("mysql")._get_metadata_adapter()
+        assert isinstance(adapter, MysqlAsyncAdapter)
 
     def test_sync_adapter_is_cached_per_instance(self) -> None:
         manager = _sync_manager("mariadb")

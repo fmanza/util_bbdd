@@ -201,7 +201,7 @@ class DatabaseQueries:
 
     def _build_context_kwargs(self, context: str | None) -> dict[str, str]:
         """Construye kwargs de contexto para plantillas SQL."""
-        if not context or self.db_type == "mariadb":
+        if not context or self.db_type in {"mariadb", "mysql"}:
             return {}
         context_params = self._CONTEXT_PARAMS_BY_DB.get(self.db_type, ())
         return dict.fromkeys(context_params, context)
@@ -209,6 +209,7 @@ class DatabaseQueries:
     def _get_routine_ddl_strategy(self) -> Callable[[str, str, str | None], str]:
         strategies: dict[str, Callable[[str, str, str | None], str]] = {
             "mariadb": self._build_mariadb_routine_ddl_query,
+            "mysql": self._build_mariadb_routine_ddl_query,
         }
         return strategies.get(self.db_type, self._build_standard_routine_ddl_query)
 
@@ -242,6 +243,7 @@ class DatabaseQueries:
             "sqlserver": self._build_storage_inventory_queries_sqlserver,
             "oracle": self._build_storage_inventory_queries_oracle,
             "mariadb": self._build_storage_inventory_queries_mariadb,
+            "mysql": self._build_storage_inventory_queries_mariadb,
             "postgresql": self._build_storage_inventory_queries_postgresql,
             "sqlite": self._build_storage_inventory_queries_sqlite,
         }

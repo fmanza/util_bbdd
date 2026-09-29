@@ -29,6 +29,7 @@ from ..metadata import (
     RelationshipMetadataCache,
     Rows,
     mariadb as _mariadb_metadata,  # noqa: F401  (al importarse registra sus adapters en el registro global)
+    mysql as _mysql_metadata,  # noqa: F401  (ídem)
     normalize_column_rows,
     normalize_table_rows,
 )

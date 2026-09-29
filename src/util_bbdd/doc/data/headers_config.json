@@ -12,6 +12,12 @@
         "Extra",
         "Comentario"
       ],
+      "mysql": [
+        "Clave",
+        "Por defecto",
+        "Extra",
+        "Comentario"
+      ],
       "oracle": [
         "Por defecto",
         "Longitud",
@@ -58,6 +64,12 @@
         "Tabla Ref.",
         "Columna Ref."
       ],
+      "mysql": [
+        "Tabla",
+        "Columna",
+        "Tabla Ref.",
+        "Columna Ref."
+      ],
       "oracle": [
         "Columna",
         "Tabla Referenciada",
@@ -92,6 +104,9 @@
       "mariadb": [
         "Campo"
       ],
+      "mysql": [
+        "Campo"
+      ],
       "oracle": [
         "Campo"
       ],
@@ -115,6 +130,9 @@
         "Único"
       ],
       "mariadb": [
+        "Tipo de Índice"
+      ],
+      "mysql": [
         "Tipo de Índice"
       ],
       "oracle": [
@@ -142,6 +160,7 @@
         "Posición"
       ],
       "mariadb": [],
+      "mysql": [],
       "oracle": [],
       "postgresql": [],
       "hsqldb": [],
@@ -157,6 +176,7 @@
         "Parámetros"
       ],
       "mariadb": [],
+      "mysql": [],
       "oracle": [],
       "postgresql": [],
       "hsqldb": [],
@@ -172,6 +192,12 @@
         "Nulo"
       ],
       "mariadb": [
+        "Clave",
+        "Por defecto",
+        "Extra",
+        "Comentario Columna"
+      ],
+      "mysql": [
         "Clave",
         "Por defecto",
         "Extra",
@@ -230,6 +256,11 @@
         "Por defecto": "Por defecto",
         "Extra": "Extra"
       },
+      "mysql": {
+        "Clave": "Clave",
+        "Por defecto": "Por defecto",
+        "Extra": "Extra"
+      },
       "oracle": {
         "Por defecto": "Por defecto",
         "Longitud": "Longitud",
@@ -261,6 +292,13 @@
     },
     "FK": {
       "mariadb": {
+        "Nombre Restricción": "Nombre Restricción",
+        "Tabla": "Tabla",
+        "Columna": "Columna",
+        "Tabla Ref.": "Tabla Ref.",
+        "Columna Ref.": "Columna Ref."
+      },
+      "mysql": {
         "Nombre Restricción": "Nombre Restricción",
         "Tabla": "Tabla",
         "Columna": "Columna",
@@ -304,6 +342,10 @@
         "Nombre Restricción": "Nombre Restricción",
         "Campo": "Campo"
       },
+      "mysql": {
+        "Nombre Restricción": "Nombre Restricción",
+        "Campo": "Campo"
+      },
       "oracle": {
         "Nombre Restricción": "Nombre de la Restricción",
         "Campo": "Campo"
@@ -327,6 +369,12 @@
     },
     "INDICES": {
       "mariadb": {
+        "Nombre Índice": "Nombre Índice",
+        "Columna": "Columna",
+        "Único": "Único",
+        "Tipo": "Tipo"
+      },
+      "mysql": {
         "Nombre Índice": "Nombre Índice",
         "Columna": "Columna",
         "Único": "Único",
@@ -365,6 +413,17 @@
     },
     "FLAT": {
       "mariadb": {
+        "Tabla": "Tabla",
+        "Comentario Tabla": "Comentario Tabla",
+        "Campo": "Campo",
+        "Tipo": "Tipo",
+        "Nulo": "Nulo",
+        "Clave": "Clave",
+        "Por defecto": "Por defecto",
+        "Extra": "Extra",
+        "Comentario Columna": "Comentario Columna"
+      },
+      "mysql": {
         "Tabla": "Tabla",
         "Comentario Tabla": "Comentario Tabla",
         "Campo": "Campo",

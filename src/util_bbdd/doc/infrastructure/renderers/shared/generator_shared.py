@@ -215,6 +215,16 @@ class GeneratorTabularRuntime:
             (5, False),
             (6, False),
         ],
+        # MySQL comparte el catálogo de columnas de MariaDB (mismas 7 columnas).
+        "mysql": [
+            (0, False),
+            (1, False),
+            (2, False),
+            (3, False),
+            (4, False),
+            (5, False),
+            (6, False),
+        ],
         "oracle": [
             (0, False),
             (1, False),
@@ -285,7 +295,7 @@ class GeneratorTabularRuntime:
     @staticmethod
     def process_indices_data(indices: list[DbRow], db_type: str) -> list[list[Any]]:
         """Procesa datos de indices para estandarizar su salida."""
-        if db_type == "mariadb":
+        if db_type in {"mariadb", "mysql"}:
             return [[idx[0], idx[1], "No" if idx[2] else "Sí", idx[3]] for idx in indices]
 
         if db_type == "oracle":
@@ -450,7 +460,7 @@ class GeneratorTabularRuntime:
     @staticmethod
     def get_flat_column_indexes(db_type: str) -> list[int]:
         """Devuelve índices de columnas para datasets planos (paridad HTML/Excel)."""
-        if db_type == "mariadb":
+        if db_type in {"mariadb", "mysql"}:
             return list(range(7))
         if db_type == "sqlserver":
             return list(range(9))
@@ -476,7 +486,7 @@ class GeneratorTabularRuntime:
         """Mapea claves foráneas por columna conservando formato textual actual."""
         mapped: dict[str, str] = {}
         for foreign_key in foreign_keys:
-            if db_type == "mariadb":
+            if db_type in {"mariadb", "mysql"}:
                 source_column = GeneratorTabularRuntime._to_text(foreign_key[2])
                 constraint_name = GeneratorTabularRuntime._to_text(foreign_key[0])
                 target_table = GeneratorTabularRuntime._to_text(foreign_key[3])
@@ -496,7 +506,7 @@ class GeneratorTabularRuntime:
         for index_data in indices:
             column_name = (
                 GeneratorTabularRuntime._to_text(index_data[1])
-                if db_type in {"mariadb", "sqlite"}
+                if db_type in {"mariadb", "mysql", "sqlite"}
                 else GeneratorTabularRuntime._to_text(index_data[3])
             )
             index_name = GeneratorTabularRuntime._to_text(index_data[0])

@@ -194,6 +194,7 @@ class MariaDBMetadataFetchStrategy:
 _DEFAULT_METADATA_FETCH_STRATEGY = GenericMetadataFetchStrategy()
 _METADATA_FETCH_STRATEGIES: dict[str, MetadataFetchStrategy] = {
     "mariadb": MariaDBMetadataFetchStrategy(),
+    "mysql": MariaDBMetadataFetchStrategy(),
 }
 
 

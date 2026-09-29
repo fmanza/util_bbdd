@@ -54,6 +54,11 @@ class StorageInventoryRuntime:
             ("temp_tablespaces", _TEMP_TABLESPACES),
             ("temp_storage_variables", "Configuración temporales InnoDB"),
         ),
+        "mysql": (
+            ("ficheros_fisicos", _FICHEROS_FISICOS),
+            ("temp_tablespaces", _TEMP_TABLESPACES),
+            ("temp_storage_variables", "Configuración temporales InnoDB"),
+        ),
         "sqlite": (
             ("ficheros_fisicos", _FICHEROS_FISICOS),
             ("sqlite_file_summary", f"{_FICHEROS_FISICOS} - resumen SQLite"),
@@ -80,6 +85,21 @@ class StorageInventoryRuntime:
             ),
             "mariadb": StorageInventoryEngineStrategy(
                 query_specs=self._DB_STORAGE_QUERY_SPECS["mariadb"],
+                resolve_default_tablespace_fn=lambda: "",
+                query_processors={
+                    "temp_storage_variables": lambda query_name, query_title, _database_name, query_params: (
+                        self._process_mariadb_temp_storage_variables_query(query_name, query_title, query_params)
+                    ),
+                },
+                error_processors={
+                    "temp_tablespaces": lambda query_name, query_title, error_msg: (
+                        self._build_mariadb_temp_tablespaces_error_section(query_name, query_title, error_msg)
+                    ),
+                },
+            ),
+            # MySQL: mismas consultas y el mismo formato de variables InnoDB que MariaDB.
+            "mysql": StorageInventoryEngineStrategy(
+                query_specs=self._DB_STORAGE_QUERY_SPECS["mysql"],
                 resolve_default_tablespace_fn=lambda: "",
                 query_processors={
                     "temp_storage_variables": lambda query_name, query_title, _database_name, query_params: (
@@ -306,6 +326,18 @@ class StorageInventoryRuntime:
         """Devuelve cabeceras legibles por motor y consulta de almacenamiento."""
         headers_map: dict[str, dict[str, list[str]]] = {
             "mariadb": {
+                "ficheros_fisicos": ["DB", "Objeto", "Motor", "Datos (MB)", "Indices (MB)", "Total (MB)"],
+                "temp_tablespaces": ["Tablespace", "Archivo", "Extent (MB)", "Inicial (MB)", self._MAXIMO_MB],
+                "temp_storage_variables": [
+                    "Variable",
+                    "Archivo",
+                    "Inicial (MB)",
+                    "Autoextend",
+                    self._MAXIMO_MB,
+                    "Valor bruto",
+                ],
+            },
+            "mysql": {
                 "ficheros_fisicos": ["DB", "Objeto", "Motor", "Datos (MB)", "Indices (MB)", "Total (MB)"],
                 "temp_tablespaces": ["Tablespace", "Archivo", "Extent (MB)", "Inicial (MB)", self._MAXIMO_MB],
                 "temp_storage_variables": [

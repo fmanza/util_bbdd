@@ -13,6 +13,8 @@ import asyncio
 from collections.abc import Callable
 from typing import Any, TypeVar
 
+from ...results import Rows
+from ..mariadb.async_adapter import MariaDBAsyncAdapter
 from ._mysql_models import MysqlRoutineDetail
 from .constraints import fetch_foreign_keys_sync, fetch_primary_keys_sync
 from .indexes import fetch_indexes_sync
@@ -194,3 +196,46 @@ class MysqlAsyncAdapter:
         if not conn:
             return ""
         return await self._run_sync(fetch_routine_definition_sync, conn, schema, routine, routine_type)
+
+    # ==================== Lecturas especializadas (EngineMetadataAdapterAsync) ====================
+    # MySQL 8 comparte con MariaDB el information_schema que usan estas lecturas (validado contra MySQL 8.4): se
+    # delegan en MariaDBAsyncAdapter sobre el mismo manager, que las resuelve con el catálogo de queries de "mysql".
+
+    def _engine_metadata(self) -> MariaDBAsyncAdapter:
+        reader: MariaDBAsyncAdapter | None = getattr(self, "_engine_metadata_reader", None)
+        if reader is None:
+            reader = MariaDBAsyncAdapter(self.manager)
+            self._engine_metadata_reader = reader
+        return reader
+
+    async def fetch_routines(self, context_database: str) -> Rows:
+        """Rutinas del contexto (nombre, tipo, comentario)."""
+        return await self._engine_metadata().fetch_routines(context_database)
+
+    async def build_table_ddl_from_metadata(self, tabla: str) -> str:
+        """DDL de una tabla reconstruido desde columnas y PK."""
+        return await self._engine_metadata().build_table_ddl_from_metadata(tabla)
+
+    async def fetch_view_from_information_schema(self, database: str, view_name: str) -> str:
+        """DDL de una vista desde information_schema.views."""
+        return await self._engine_metadata().fetch_view_from_information_schema(database, view_name)
+
+    async def fetch_columns_safe(self, context_database: str, tabla: str) -> Rows:
+        """Columnas de una tabla leídas en HEX (seguras frente a problemas de charset)."""
+        return await self._engine_metadata().fetch_columns_safe(context_database, tabla)
+
+    async def fetch_routine_parameters_public_rows(
+        self, *, database: str, routine_name: str, routine_type: str
+    ) -> Rows:
+        """Parámetros públicos de una rutina."""
+        return await self._engine_metadata().fetch_routine_parameters_public_rows(
+            database=database, routine_name=routine_name, routine_type=routine_type
+        )
+
+    async def fetch_routine_from_information_schema(self, database: str, routine_name: str, routine_type: str) -> str:
+        """DDL de una rutina."""
+        return await self._engine_metadata().fetch_routine_from_information_schema(database, routine_name, routine_type)
+
+    async def storage_inventory(self, context_database: str) -> dict[str, Any]:
+        """Inventario de almacenamiento (ficheros por tabla y tablespaces temporales)."""
+        return await self._engine_metadata().storage_inventory(context_database)

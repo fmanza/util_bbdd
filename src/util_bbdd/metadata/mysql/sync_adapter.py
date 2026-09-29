@@ -6,7 +6,11 @@ de metadatos en MySQL.
 
 from __future__ import annotations
 
+from typing import Any
+
+from ...results import Rows
 from .._base_adapter import BaseConnectionAdapter
+from ..mariadb.sync_adapter import MariaDBSyncAdapter
 from ._mysql_models import MysqlRoutineDetail
 from .constraints import fetch_foreign_keys_sync, fetch_primary_keys_sync
 from .indexes import fetch_indexes_sync
@@ -175,3 +179,44 @@ class MysqlSyncAdapter(BaseConnectionAdapter):
         if not conn:
             return ""
         return fetch_routine_definition_sync(conn, schema, routine, routine_type)
+
+    # ==================== Lecturas especializadas (EngineMetadataAdapterSync) ====================
+    # MySQL 8 comparte con MariaDB el information_schema que usan estas lecturas (validado contra MySQL 8.4): se
+    # delegan en MariaDBSyncAdapter sobre el mismo manager, que las resuelve con el catálogo de queries de "mysql".
+
+    def _engine_metadata(self) -> MariaDBSyncAdapter:
+        reader: MariaDBSyncAdapter | None = getattr(self, "_engine_metadata_reader", None)
+        if reader is None:
+            reader = MariaDBSyncAdapter(self.manager)
+            self._engine_metadata_reader = reader
+        return reader
+
+    def fetch_routines(self, context_database: str) -> Rows:
+        """Rutinas del contexto (nombre, tipo, comentario)."""
+        return self._engine_metadata().fetch_routines(context_database)
+
+    def build_table_ddl_from_metadata(self, tabla: str) -> str:
+        """DDL de una tabla reconstruido desde columnas y PK."""
+        return self._engine_metadata().build_table_ddl_from_metadata(tabla)
+
+    def fetch_view_from_information_schema(self, database: str, view_name: str) -> str:
+        """DDL de una vista desde information_schema.views."""
+        return self._engine_metadata().fetch_view_from_information_schema(database, view_name)
+
+    def fetch_columns_safe(self, context_database: str, tabla: str) -> Rows:
+        """Columnas de una tabla leídas en HEX (seguras frente a problemas de charset)."""
+        return self._engine_metadata().fetch_columns_safe(context_database, tabla)
+
+    def fetch_routine_parameters_public_rows(self, *, database: str, routine_name: str, routine_type: str) -> Rows:
+        """Parámetros públicos de una rutina."""
+        return self._engine_metadata().fetch_routine_parameters_public_rows(
+            database=database, routine_name=routine_name, routine_type=routine_type
+        )
+
+    def fetch_routine_from_information_schema(self, database: str, routine_name: str, routine_type: str) -> str:
+        """DDL de una rutina."""
+        return self._engine_metadata().fetch_routine_from_information_schema(database, routine_name, routine_type)
+
+    def storage_inventory(self, context_database: str) -> dict[str, Any]:
+        """Inventario de almacenamiento (ficheros por tabla y tablespaces temporales)."""
+        return self._engine_metadata().storage_inventory(context_database)

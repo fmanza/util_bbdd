@@ -141,6 +141,10 @@ def _get_storage_inventory_example(db_type: str) -> dict[str, Any]:
             "description": "Tamaño por tabla en MariaDB",
             "parameters": {"database": "mi_bd"},
         },
+        "mysql": {
+            "description": "Tamaño por tabla en MySQL",
+            "parameters": {"database": "mi_bd"},
+        },
         "sqlite": {
             "description": "Listado de ficheros de bases adjuntas en SQLite",
             "parameters": {},
@@ -159,6 +163,10 @@ def _get_temp_tablespaces_example(db_type: str) -> dict[str, Any]:
             "description": "Inventario de ficheros temporales desde information_schema.FILES en MariaDB",
             "parameters": {},
         },
+        "mysql": {
+            "description": "Inventario de ficheros temporales desde information_schema.FILES en MySQL",
+            "parameters": {},
+        },
         "postgresql": {
             "description": "Ver configuración de tablespaces temporales PostgreSQL",
             "parameters": {},
@@ -172,7 +180,7 @@ def _get_temp_tablespaces_example(db_type: str) -> dict[str, Any]:
 
 def _get_temp_storage_variables_examples(db_type: str) -> list[dict[str, Any]]:
     """Devuelve ejemplos para variables de almacenamiento temporal."""
-    if db_type != "mariadb":
+    if db_type not in {"mariadb", "mysql"}:
         return []
     return [
         {

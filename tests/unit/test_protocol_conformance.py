@@ -125,6 +125,14 @@ def _mariadb_async_as_engine_metadata(adapter: MariaDBAsyncAdapter) -> EngineMet
     return adapter
 
 
+def _mysql_sync_as_engine_metadata(adapter: MysqlSyncAdapter) -> EngineMetadataAdapterSync:
+    return adapter
+
+
+def _mysql_async_as_engine_metadata(adapter: MysqlAsyncAdapter) -> EngineMetadataAdapterAsync:
+    return adapter
+
+
 def _mysql_sync_as_source(adapter: MysqlSyncAdapter) -> SourceAdapterSync:
     return adapter
 
@@ -269,8 +277,8 @@ def test_async_adapter_satisfies_routine_adapter_async(adapter_cls: type) -> Non
     assert isinstance(adapter, RoutineAdapterAsync)
 
 
-_SYNC_ENGINE_METADATA_ADAPTERS: tuple[type, ...] = (MariaDBSyncAdapter,)
-_ASYNC_ENGINE_METADATA_ADAPTERS: tuple[type, ...] = (MariaDBAsyncAdapter,)
+_SYNC_ENGINE_METADATA_ADAPTERS: tuple[type, ...] = (MariaDBSyncAdapter, MysqlSyncAdapter)
+_ASYNC_ENGINE_METADATA_ADAPTERS: tuple[type, ...] = (MariaDBAsyncAdapter, MysqlAsyncAdapter)
 
 
 @pytest.mark.parametrize("adapter_cls", _SYNC_ENGINE_METADATA_ADAPTERS, ids=lambda c: c.__name__)

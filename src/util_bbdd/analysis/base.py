@@ -493,7 +493,7 @@ class DatabaseRelationshipGraphBase:
 
     def _build_relation_from_fk(self, current_table: str, fk: tuple) -> TableRelation:
         """Normaliza una FK en el modelo TableRelation."""
-        if self.db_manager.db_type == "mariadb":
+        if self.db_manager.db_type in {"mariadb", "mysql"}:
             return TableRelation(
                 source_table=current_table,
                 target_table=fk[3],
@@ -549,13 +549,13 @@ class DatabaseRelationshipGraphBase:
 
     def _extract_target_table(self, fk_data: tuple) -> str:
         """Extrae el nombre de la tabla target de los datos de FK según el tipo de BD"""
-        if self.db_manager.db_type == "mariadb":
+        if self.db_manager.db_type in {"mariadb", "mysql"}:
             return str(fk_data[3])
         return str(fk_data[2])
 
     def _extract_source_column(self, fk_data: tuple) -> str:
         """Extrae la columna local de la FK según el tipo de BD."""
-        if self.db_manager.db_type == "mariadb":
+        if self.db_manager.db_type in {"mariadb", "mysql"}:
             return str(fk_data[2])
         return str(fk_data[1])
 
