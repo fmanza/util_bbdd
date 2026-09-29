@@ -54,7 +54,8 @@ manager = SyncDatabaseManager(
 ```bash
 # Verificar que el driver del motor está instalado
 python -c "import psycopg2; print('psycopg2 OK')"   # PostgreSQL
-python -c "import pymysql; print('pymysql OK')"      # MariaDB
+python -c "import mariadb; print('mariadb OK')"      # MariaDB (Connector/Python)
+python -c "import pymysql; print('pymysql OK')"      # MySQL
 python -c "import pyodbc; print('pyodbc OK')"        # SQL Server
 
 # Verificar conectividad básica con util_bbdd

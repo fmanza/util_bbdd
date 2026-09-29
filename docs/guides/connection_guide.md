@@ -25,7 +25,8 @@ HSQLDB**. HSQLDB solo dispone de modo **síncrono** (sus factorías async lanzan
 | Motor (`db_type`) | Driver sync | Driver async | Instalación |
 |---|---|---|---|
 | `postgresql` | `psycopg2-binary` | `asyncpg` | `pip install psycopg2-binary asyncpg` |
-| `mariadb` (MariaDB **y** MySQL) | `pymysql` | `aiomysql` | `pip install pymysql aiomysql` |
+| `mariadb` | `mariadb` (MariaDB Connector/Python) | `aiomysql` | `pip install "util_bbdd[mariadb]"` |
+| `mysql` | `pymysql` | `aiomysql` | `pip install "util_bbdd[mysql]"` |
 | `oracle` | `oracledb` (incluido) | `oracledb` (incluido) | — (dependencia base) |
 | `sqlserver` | `pyodbc` / `pymssql` | `aioodbc` | `pip install pyodbc aioodbc` + ODBC driver del SO |
 | `sqlite` | `sqlite3` (stdlib) | `aiosqlite` | `pip install aiosqlite` |
@@ -40,7 +41,9 @@ Cada motor exige un conjunto mínimo de claves (ver referencia completa en §5):
 pg = {"host": "localhost", "port": 5432, "user": "app",
       "password": "<reemplazar>", "database": "ventas"}
 
-# MariaDB / MySQL  (mismo db_type="mariadb" para ambos)
+# MariaDB (db_type="mariadb") y MySQL (db_type="mysql"): mismas claves
+maria = {"host": "localhost", "port": 3306, "user": "app",
+         "password": "<reemplazar>", "database": "ventas"}
 my = {"host": "localhost", "port": 3306, "user": "app",
       "password": "<reemplazar>", "database": "ventas"}
 
@@ -101,6 +104,7 @@ manifiesta como `SQLAlchemyError` al abrir el manager.
 |---|---|---|
 | `postgresql` | `host`, `user`, `password`, `database` | `port`=5432, `schema` (→ `search_path`), `sslmode`, `connect_timeout`, `application_name`, `pool_size` |
 | `mariadb` | `host`, `user`, `password`, `database` | `port`=3306, `charset`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size` |
+| `mysql` | `host`, `user`, `password`, `database` | `port`=3306, `charset`, `connect_timeout`, `read_timeout`, `write_timeout`, `pool_size`, `max_overflow`, `pool_timeout`, `pool_recycle`, `ssl_ca`/`ssl_cert`/`ssl_key`, `ssl_verify_cert`, `ssl_verify_identity` |
 | `oracle` | `user`, `password` + **uno de** `service_name` / `sid` / `dsn` / `database` | `host`=localhost, `port`=1521, `oracle_client_path`, `pool_size` |
 | `sqlserver` | `host`, `user`, `password`, `database` | `port`=1433, `sql_server_driver` (`pymssql`/`pyodbc`), `driver_name` (pyodbc), `encryption` (`mandatory`/`optional`/`off`), `trust_cert`, `use_mars` |
 | `sqlite` | `database` (ruta al fichero) | `timeout`, `isolation_level` (`""`/`DEFERRED`/`IMMEDIATE`/`EXCLUSIVE`), `check_same_thread` |
@@ -110,7 +114,8 @@ manifiesta como `SQLAlchemyError` al abrir el manager.
 
 | Escenario / Error | Causa probable | Solución |
 |---|---|---|
-| `No module named 'psycopg2'` / `'pymysql'` | Driver no instalado | `pip install psycopg2-binary` / `pip install pymysql` |
+| `No module named 'psycopg2'` / `'mariadb'` / `'pymysql'` | Driver no instalado | `pip install psycopg2-binary` / `pip install mariadb` / `pip install "pymysql[rsa]"` |
+| MySQL 8 contra servidor MySQL con `db_type="mariadb"` | Funciona: el conector de MariaDB también conecta con MySQL | Para usar PyMySQL y el catálogo de MySQL, `db_type="mysql"` |
 | `pyodbc.Error: ('IM002'...)` | ODBC driver de SQL Server no instalado en el SO | Instalar el [Microsoft ODBC Driver](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server); usar `pymssql` si no es posible |
 | `oracledb.DatabaseError: DPY-2014` | Oracle Instant Client no encontrado | Configurar `oracle_client_path` en `conn_params` |
 | `Para oracle debe informar 'dsn' o 'service_name' o 'sid' o 'database'` | Falta el identificador de servicio Oracle | Añadir una de esas 4 claves |

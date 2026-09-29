@@ -4,11 +4,11 @@
 
 Oculta la complejidad de seleccionar y cargar el driver correcto para cada motor de base de datos. El resto de la librería solicita una conexión indicando solo el tipo de motor y los parámetros; la factoría resuelve qué driver usar, cómo inicializarlo y si el motor soporta conexiones asíncronas.
 
-Esto permite que los gestores y otros componentes sean independientes del driver concreto: cambiar de `psycopg2` a `asyncpg` para PostgreSQL, por ejemplo, no afecta al código que usa el gestor.
+Esto permite que los gestores y otros componentes sean independientes del driver concreto: usar `psycopg` (sync) o `asyncpg` (async) para PostgreSQL, o `mariadb` para MariaDB y `pymysql` para MySQL, no afecta al código que usa el gestor.
 
 **Precondiciones:**
 
-- Driver Python instalado para el motor objetivo (`psycopg2`, `asyncpg`, `cx_Oracle`, `pyodbc`, `aiomysql`, etc.)
+- Driver Python instalado para el motor objetivo (`psycopg`, `asyncpg`, `oracledb`, `pymssql`/`pyodbc`, `mariadb` para MariaDB, `pymysql` para MySQL, `aiomysql` para ambos en async, etc.)
 - Tipo de motor reconocido: MariaDB, MySQL, PostgreSQL, Oracle, SQL Server, SQLite, Snowflake, Redshift o HSQLDB
 - Parámetros de conexión completos según el motor (host, port, database, user, password y cualquier parámetro driver-específico)
 
@@ -67,4 +67,4 @@ sequenceDiagram
 |---|---|
 | Builder | Función registrada en la factoría que sabe cómo instanciar la conexión nativa de un motor específico |
 | Lazy loading | Técnica de cargar el driver del motor solo cuando se solicita por primera vez, no al iniciar la librería |
-| Driver nativo | Librería Python que implementa el protocolo de comunicación específico del motor de base de datos (`psycopg2`, `cx_Oracle`, etc.) |
+| Driver nativo | Librería Python que implementa el protocolo de comunicación específico del motor de base de datos (`psycopg`, `oracledb`, `mariadb`, `pymysql`, etc.) |

@@ -78,6 +78,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
+0. **E5 de `2026-09-29b-feature-mysql-pymysql`**: 5 hotfixes de defectos previos (H1 async directa MariaDB, H2 conexión directa PostgreSQL, H3 avisos en línea de `migrate`, H4 defaults de `migrate`, H5 DDL de MariaDB con doble comillado). Ver su `TRACEABILITY.md`.
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
 3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.
@@ -90,14 +91,14 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 | Motor | Como fuente | Como destino | Notas |
 |-------|-------------|--------------|-------|
 | Oracle | ✅ | ✅ | SEQUENCE+TRIGGER; identity mode opcional |
-| MariaDB | ✅ | ✅ | Default collation: `utf8mb4_uca1400_ai_ci` (≥10.10) |
-| MySQL | — | ✅ | Comparte estrategia con MariaDB |
+| MariaDB | ✅ | ✅ | Default collation: `utf8mb4_uca1400_ai_ci` (≥10.10); driver sync MariaDB Connector/Python |
+| MySQL | ✅ | ✅ | `db_type="mysql"` (PyMySQL/aiomysql); collation destino `utf8mb4_0900_ai_ci` |
 | PostgreSQL | ✅ | ✅ | SERIAL/BIGSERIAL/SMALLSERIAL; `PostgresCopyStrategy` |
 | SQL Server | ✅ | ✅ | IDENTITY(1,1); `fast_executemany` |
 | SQLite | — | ✅ | |
 | HSQLDB | — | ✅ | |
 
-**Matriz migrate/** completada: 4 fuentes × 3 destinos = 12 flujos DDL validados.
+**Matriz migrate/**: 5 motores (Oracle, MariaDB, MySQL, SQL Server, PostgreSQL) → 20 flujos DDL. Pendiente E5 (H3/H4): avisos en línea y traducción de defaults impiden ejecutar parte del DDL entre motores distintos.
 
 ---
 

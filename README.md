@@ -294,6 +294,7 @@ manager.close()
 | PostgreSQL | ✅ | ✅ | `asyncpg` | ⭐⭐⭐ (Fastest) |
 | SQLite     | ✅ | ✅ | `aiosqlite` | ⭐⭐ |
 | MariaDB    | ✅ | ✅ | `aiomysql` | ⭐⭐ |
+| MySQL      | ✅ | ✅ | `aiomysql` | ⭐⭐ |
 | Oracle     | ✅ | ✅ | `oracledb` | ⭐⭐ |
 | SQL Server | ✅ | ✅ | `aioodbc` | ⭐ |
 | HSQLDB     | ❌ | ❌ | N/A | Sync only |
@@ -394,6 +395,7 @@ Mapa rápido:
 | PostgreSQL | ✅             | ✅         | `asyncpg`        |
 | SQLite     | ✅             | ✅         | `aiosqlite`      |
 | MariaDB    | ✅             | ✅         | `aiomysql`       |
+| MySQL      | ✅             | ✅         | `aiomysql`       |
 | Oracle     | ✅             | ✅         | `oracledb`       |
 | SQL Server | ✅             | ✅         | `aioodbc`        |
 | HSQLDB     | ❌             | ❌         | N/A              |

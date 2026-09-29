@@ -9,7 +9,7 @@ Configurar `AsyncDatabaseManager` y usar patrones de concurrencia async/await en
 - Python 3.10+ con soporte `asyncio`
 - Driver async instalado para el motor objetivo:
   - PostgreSQL: `asyncpg`
-  - MariaDB/MySQL: `aiomysql`
+  - MariaDB (`db_type="mariadb"`) y MySQL (`db_type="mysql"`): `aiomysql`
   - SQL Server: `aioodbc`
   - SQLite: `aiosqlite`
 - Familiaridad con `async/await` y el event loop de Python

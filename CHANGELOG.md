@@ -7,6 +7,41 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+MySQL pasa a ser un motor propio (`db_type="mysql"`) con PyMySQL (sync) y aiomysql (async); MariaDB sigue con
+MariaDB Connector/Python (sync) y aiomysql (async). Quien usa hoy `db_type="mariadb"` contra un servidor MySQL no
+tiene que cambiar nada: el conector de MariaDB también conecta con MySQL.
+
+### Added
+
+- **connection**: `db_type="mysql"`: conexión PyMySQL, pool `QueuePool` de SQLAlchemy (`pool_size`, `max_overflow`,
+  `pool_timeout`, `pool_recycle`, `pre_ping`), conexión y pool async con aiomysql, engines `mysql+pymysql` y
+  `mysql+aiomysql`. TLS con `ssl_ca`, `ssl_cert`, `ssl_key`, `ssl_verify_cert` y `ssl_verify_identity`;
+  `local_infile` y `client_flag` no se reenvían al driver.
+- **metadata / doc / analysis**: catálogo de consultas `mysql`, adaptadores `MysqlSyncAdapter`/`MysqlAsyncAdapter`
+  con las lecturas especializadas (rutinas, DDL de tabla/vista/rutina, columnas, inventario de almacenamiento) y
+  documentación Word/Excel/HTML y grafos de relaciones para MySQL.
+- **migrate**: MySQL como origen y destino de `MigrationPlanner` (20 pares). Con destino MySQL, collation por defecto
+  `utf8mb4_0900_ai_ci` y enteros sin ancho de visualización (salvo `TINYINT(1)`); entre MySQL y MariaDB se conserva
+  el tipo completo (`enum`, `unsigned`) y de MariaDB a MySQL `UUID`/`INET4`/`INET6` pasan a `CHAR(36)`/`VARCHAR(15)`/
+  `VARCHAR(39)`. Nuevos `MySQLSchemaExtractor`, `MariaDBFullTypeSchemaExtractor`, `MySQLDDLEmitter`,
+  `MariaDBToMySQLTransformer`, `MySQLToMariaDBTransformer`, `DEFAULT_COLLATION_MYSQL` y `validate_mysql_collation`.
+- **packaging**: extras opcionales `util_bbdd[mariadb]` (`mariadb`, `aiomysql`) y `util_bbdd[mysql]`
+  (`pymysql[rsa]`, `aiomysql`); `types-PyMySQL` en `dev`.
+- **tests**: `tests/integration/test_mysql_engine_e2e.py` (`UTIL_BBDD_TEST_MYSQL_URL`); el MySQL del banco concede
+  `PROCESS` a `bench` (necesario para `information_schema.FILES`).
+
+### Changed
+
+- **managers**: el adapter de lecturas especializadas se resuelve por `db_type` en el registro global
+  (`_get_metadata_adapter`, Protocols `EngineMetadataAdapter{Sync,Async}`); desaparece `_get_mariadb_adapter`, que
+  lo instanciaba a mano. Sin cambios funcionales para MariaDB.
+- **managers**: la estrategia async de inventario de almacenamiento de HSQLDB es async como el resto.
+- **executors**: con `mysql`, el `%` literal del SQL del catálogo solo se escapa cuando se pasan parámetros (PyMySQL
+  no formatea sin ellos). MariaDB sin cambios.
+- **validators**: `get_type_validator("mysql")` devuelve `MySQLValidator` (mismas reglas que MariaDB).
+- **docs**: drivers por motor corregidos (MariaDB usa Connector/Python en sync, no PyMySQL); nuevas páginas
+  `functional/migrate_mysql.md` y `api/migrate_mysql.md`.
+
 ## [0.18.4] - 2026-09-29
 
 Sin cambios de API en la librería. La documentación vuelve a publicarse (sitio y ZIP offline completo), sus ficheros

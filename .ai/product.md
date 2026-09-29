@@ -13,8 +13,8 @@
 
 | Motor      | Sync | Async | Driver            |
 |------------|------|-------|-------------------|
-| MariaDB    | ✅   | ✅    | `aiomysql`        |
-| MySQL      | ✅   | ✅    | `aiomysql`        |
+| MariaDB    | ✅   | ✅    | `mariadb` (sync), `aiomysql` (async) |
+| MySQL      | ✅   | ✅    | `pymysql` (sync), `aiomysql` (async) |
 | PostgreSQL | ✅   | ✅    | `asyncpg`         |
 | Oracle     | ✅   | ✅    | `oracledb`        |
 | SQLite     | ✅   | ✅    | `aiosqlite`       |

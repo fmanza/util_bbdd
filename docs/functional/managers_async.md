@@ -9,7 +9,7 @@ Es el punto de entrada recomendado para servicios web de alta concurrencia y pip
 **Precondiciones:**
 
 - Python 3.10+ con soporte `asyncio`
-- Driver async instalado para el motor objetivo (`asyncpg` para PostgreSQL, `aiomysql` para MariaDB/MySQL, etc.)
+- Driver async instalado para el motor objetivo (`asyncpg` para PostgreSQL, `aiomysql` para MariaDB y MySQL, etc.)
 - Parámetros de conexión válidos incluyendo `database`
 - Tipo de motor declarado: MariaDB, MySQL, PostgreSQL, Oracle, SQL Server, SQLite, Snowflake o Redshift
 - El gestor no conecta en el constructor: es obligatorio inicializarlo explícitamente o usar el context manager async antes de cualquier operación

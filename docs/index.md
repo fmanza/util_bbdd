@@ -30,7 +30,8 @@ Está dirigida a **desarrolladores, ingenieros de datos y DBAs** que necesitan m
 |------------|:-------------:|:--------------:|:----------:|------------------|
 | PostgreSQL | ✅            | ✅             | ✅         | `asyncpg`        |
 | SQLite     | ✅            | ✅             | ✅         | `aiosqlite`      |
-| MariaDB    | ✅            | ✅             | ✅         | `aiomysql`       |
+| MariaDB    | ✅            | ✅             | ✅         | `mariadb` / `aiomysql` |
+| MySQL      | ✅            | ✅             | ✅         | `pymysql` / `aiomysql` |
 | Oracle     | ✅            | ✅             | ✅         | `oracledb`       |
 | SQL Server | ✅            | ✅             | ✅         | `aioodbc`        |
 | HSQLDB     | ✅            | ❌             | ❌         | `jaydebeapi`     |

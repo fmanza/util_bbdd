@@ -70,7 +70,8 @@ Los drivers de base de datos **no se incluyen** en `util_bbdd`; instálalos por 
 | Motor | Driver sync | Driver async | Comando de instalación |
 |---|---|---|---|
 | PostgreSQL | `psycopg2-binary` | `asyncpg` | `pip install psycopg2-binary asyncpg` |
-| MariaDB / MySQL | `pymysql` | `aiomysql` | `pip install pymysql aiomysql` |
+| MariaDB (`db_type="mariadb"`) | `mariadb` (MariaDB Connector/Python) | `aiomysql` | `pip install "util_bbdd[mariadb]"` (o `pip install mariadb aiomysql`) |
+| MySQL (`db_type="mysql"`) | `pymysql` | `aiomysql` | `pip install "util_bbdd[mysql]"` (o `pip install "pymysql[rsa]" aiomysql`) |
 | SQLite | `sqlite3` (stdlib) | `aiosqlite` | `pip install aiosqlite` (sync incluido en Python) |
 | Oracle | `oracledb` (incluido) | `oracledb` (incluido) | — (incluido en las dependencias base) |
 | SQL Server | `pyodbc` | `aioodbc` | `pip install pyodbc aioodbc` + ODBC driver nativo del SO |
@@ -101,7 +102,9 @@ python -c "from util_bbdd import SyncDatabaseManager; m = SyncDatabaseManager('p
 | Error / Síntoma | Causa probable | Solución |
 |---|---|---|
 | `No module named 'psycopg2'` | Driver PostgreSQL no instalado | `pip install psycopg2-binary` |
-| `No module named 'pymysql'` | Driver MariaDB/MySQL no instalado | `pip install pymysql` |
+| `No module named 'mariadb'` | Driver MariaDB no instalado | `pip install mariadb` (requiere MariaDB Connector/C en el sistema) |
+| `No module named 'pymysql'` | Driver MySQL no instalado | `pip install "pymysql[rsa]"` |
+| `'cryptography' package is required for sha256_password or caching_sha2_password` | MySQL 8 sin TLS necesita `cryptography` para autenticar | `pip install "pymysql[rsa]"` |
 | `pyodbc.Error: ('IM002'...)` | ODBC driver de SQL Server no instalado en el SO | Instalar [Microsoft ODBC Driver for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) |
 | `oracledb.DatabaseError: DPY-2014` | Oracle Instant Client no encontrado | Descargar Oracle Instant Client y configurar `oracle_client_path` en `conn_params` |
 | `pip install util_bbdd` falla resolviendo `util @ git+...` | Sin acceso a GitHub (CI offline, red corporativa) | `pip install git+https://github.com/fmanza/util.git@develop` y luego `pip install util_bbdd --no-deps` |

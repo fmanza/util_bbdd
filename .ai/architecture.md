@@ -50,7 +50,8 @@
 │    ├── builder.py                  # build_conn_params()
 │    ├── protocols.py
 │    ├── close.py
-│    └── motors/                     # Adaptadores: mariadb, postgresql, oracle, sqlite, hsqldb, sqlserver
+│    └── <motor>/                    # mariadb (Connector/Python + aiomysql), mysql (PyMySQL + QueuePool + aiomysql),
+│                                    # postgresql, oracle, sqlite, hsqldb, sqlserver
 │
 │    query/                          ❓ Registry y ejecución
 │    ├── registry.py                 # QueryRegistry
@@ -71,6 +72,8 @@
 │    ├── contracts.py
 │    ├── mariadb/ mysql/ oracle/ postgresql/ sqlserver/ sqlite/
 │    │   └── tables.py               # ← ÚNICO punto canónico de SQL de introspección
+│    ├── adapters/                   # Registro global por db_type + Protocols (EngineMetadataAdapter{Sync,Async}:
+│    │                               #   lecturas especializadas que los managers piden con _get_metadata_adapter)
 │    └── providers/                  # SyncMetadataProvider / AsyncMetadataProvider
 │
 │    results/                        📋 Tipos de retorno
