@@ -394,28 +394,8 @@ class MigrationPlanner:
         for routine in transformed_routines:
             all_warnings.extend(routine.warnings)
 
-        # CMP-02 (AUDIT_CODE 2026-09-22): tablas y vistas comparten namespace en el
-        # motor destino; dos nombres que solo difieran en case no colisionan en el
-        # DDL migrado (siempre entrecomillado), pero sí bajo case-folding si algo
-        # los referencia sin comillas.
-        table_and_view_names = [table.name for table in transformed] + [view.name for view in transformed_views]
-        for name_a, name_b in find_case_insensitive_collisions(table_and_view_names):
-            all_warnings.append(
-                MigrationWarning(
-                    table=name_a,
-                    column=None,
-                    oracle_type="IDENTIFIER_CASE_COLLISION",
-                    target_type=name_b,
-                    message=(
-                        f"Identificadores '{name_a}' y '{name_b}' solo difieren en "
-                        "mayúsculas/minúsculas; el DDL migrado los entrecomilla y no "
-                        "colisiona, pero cualquier referencia sin comillas en un motor "
-                        "con case-folding colapsaría ambos en el mismo nombre. Revisar "
-                        "manualmente."
-                    ),
-                    severity="WARNING",
-                )
-            )
+        # CMP-02 (AUDIT_CODE 2026-09-22) + A8 (2026-09-29): nombres que solo difieren en mayúsculas.
+        all_warnings.extend(_case_collision_warnings(self._target_engine, transformed, transformed_views))
 
         return MigrationPlan(
             tables=transformed,
@@ -427,6 +407,76 @@ class MigrationPlanner:
             views=transformed_views,
             routines=transformed_routines,
         )
+
+
+#: Destinos en los que dos columnas de una tabla que solo difieren en mayúsculas chocan SIEMPRE (Oracle las emite en
+#: mayúsculas; MySQL/MariaDB no distinguen mayúsculas en nombres de columna) → ERROR. SQL Server depende de la
+#: collation (por defecto no distingue) → WARNING. PostgreSQL entrecomilla con el case exacto → sin aviso.
+_COLUMN_CASE_COLLISION_SEVERITY: dict[str, str] = {
+    "oracle": "ERROR",
+    "mariadb": "ERROR",
+    "mysql": "ERROR",
+    "sqlserver": "WARNING",
+}
+#: Tablas y vistas: Oracle las emite en mayúsculas → ERROR; SQL Server (collation) y MySQL/MariaDB
+#: (``lower_case_table_names``) dependen de la configuración → WARNING; PostgreSQL → WARNING solo por referencias
+#: sin comillas (comportamiento de CMP-02).
+_OBJECT_CASE_COLLISION_SEVERITY: dict[str, str] = {"oracle": "ERROR"}
+
+
+def _case_collision_warnings(
+    target_engine: str, tables: list[CanonicalTable], views: list[CanonicalView]
+) -> list[MigrationWarning]:
+    """Avisos de nombres que solo difieren en mayúsculas, con la severidad del destino (A8).
+
+    Antes solo se avisaba de tablas/vistas, siempre como WARNING y afirmando que el DDL no colisionaba; hacia Oracle
+    (ORA-00955, ORA-00957), MySQL/MariaDB (1060) y SQL Server (2705, 2714) el ``CREATE TABLE`` fallaba. Con ERROR,
+    ``MigrationPlan.execute`` se niega a empezar.
+    """
+    warnings: list[MigrationWarning] = []
+    object_severity = _OBJECT_CASE_COLLISION_SEVERITY.get(target_engine, "WARNING")
+    names = [table.name for table in tables] + [view.name for view in views]
+    for name_a, name_b in find_case_insensitive_collisions(names):
+        if object_severity == "ERROR":
+            detail = f"en {target_engine} ambos se crean con el mismo nombre y el segundo CREATE falla"
+        elif target_engine == "postgresql":
+            detail = "el DDL migrado los entrecomilla y no colisiona, pero una referencia sin comillas los confundiría"
+        else:
+            detail = f"en {target_engine} colisionan si el destino no distingue mayúsculas (collation o configuración)"
+        warnings.append(
+            MigrationWarning(
+                table=name_a,
+                column=None,
+                oracle_type="IDENTIFIER_CASE_COLLISION",
+                target_type=name_b,
+                message=f"Identificadores '{name_a}' y '{name_b}' solo difieren en mayúsculas/minúsculas: {detail}.",
+                severity=object_severity,  # type: ignore[arg-type]
+            )
+        )
+    column_severity = _COLUMN_CASE_COLLISION_SEVERITY.get(target_engine)
+    if column_severity is None:
+        return warnings
+    for table in tables:
+        for name_a, name_b in find_case_insensitive_collisions(c.name for c in table.columns if not c.omit):
+            warnings.append(
+                MigrationWarning(
+                    table=table.name,
+                    column=name_b,
+                    oracle_type="IDENTIFIER_CASE_COLLISION",
+                    target_type=name_a,
+                    message=(
+                        f"Tabla '{table.name}': las columnas '{name_a}' y '{name_b}' solo difieren en "
+                        f"mayúsculas/minúsculas; en {target_engine} "
+                        + (
+                            "son la misma columna y el CREATE TABLE falla. Renombrar una en el origen o en el DDL."
+                            if column_severity == "ERROR"
+                            else "chocan si la collation no distingue mayúsculas (la de por defecto no lo hace)."
+                        )
+                    ),
+                    severity=column_severity,  # type: ignore[arg-type]
+                )
+            )
+    return warnings
 
 
 __all__: list[str] = [

@@ -61,6 +61,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   esos motores cuentan bytes: un nombre con tildes o `ñ` bajo el límite de caracteres se recortaba en silencio en el
   servidor y dos nombres que solo diferían al final colisionaban. Ahora se mide en bytes UTF-8 (`ByteLimit`) y el
   truncado con sufijo hash nunca parte un carácter (A6).
+- **migrate**: dos columnas de una tabla que solo difieren en mayúsculas (posible en PostgreSQL con comillas) hacían
+  fallar el `CREATE TABLE` hacia Oracle, MySQL, MariaDB y SQL Server sin ningún aviso en el plan; y dos tablas o vistas
+  así fallaban hacia Oracle aunque el aviso decía que no colisionaban. Ahora el plan lo marca con la severidad del
+  destino: `ERROR` si el choque es seguro (columnas hacia Oracle/MySQL/MariaDB; tablas y vistas hacia Oracle), que
+  impide `execute()`, y `WARNING` si depende de la collation o configuración del destino (A8).
 - **migrate**: con origen SQL Server, la definición de las vistas llegaba con su cabecera `CREATE VIEW ... AS` (se
   emitía `CREATE OR ALTER VIEW v AS CREATE VIEW v AS ...`) y truncada a 4000 caracteres, también en SQL Server 2022
   (`INFORMATION_SCHEMA.VIEWS`). Ahora se lee con `OBJECT_DEFINITION` y sin cabecera; el plan avisa si la cabecera
