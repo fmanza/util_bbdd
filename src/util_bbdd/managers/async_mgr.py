@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 
@@ -11,7 +10,7 @@ from typing import Any, cast
 
 from util_bbdd._drivers.validator import DatabaseTypeValidator
 from util_bbdd.managers._manager_metadata_runtime import MetadataFetchStrategy
-from util_bbdd.managers._manager_storage import AsyncStorageInventoryStrategy, SyncStorageInventoryStrategy
+from util_bbdd.managers._manager_storage import AsyncStorageInventoryStrategy
 from util_bbdd.metadata.adapters._adapter_registry import AdapterRegistry
 
 from .._core.exceptions import DatabaseOperationError, QueryError
@@ -29,13 +28,11 @@ from ..metadata import (
     NormalizedTableRow,
     RelationshipMetadataCache,
     Rows,
+    mariadb as _mariadb_metadata,  # noqa: F401  (al importarse registra sus adapters en el registro global)
     normalize_column_rows,
     normalize_table_rows,
 )
-from ..metadata.adapters import get_global_adapter_registry
-from ..metadata.mariadb import (
-    MariaDBAsyncAdapter,
-)
+from ..metadata.adapters import EngineMetadataAdapterAsync, get_global_adapter_registry
 from ..results import ResultNormalizer, RowOrNone
 from ._manager_cache_service import CacheService
 from ._manager_lifecycle import (
@@ -59,18 +56,15 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
     _PARAMETER_PATTERN = r"\{(\w+)\}"
     _ERROR_EXECUTOR_NOT_INITIALIZED = "AsyncQueryExecutor no inicializado"
 
-    def _get_mariadb_adapter(self) -> MariaDBAsyncAdapter:
-        adapter: Any | None = getattr(self, "_mariadb_adapter", None)
-        if adapter is None:
-            adapter = MariaDBAsyncAdapter(self)
-            self._mariadb_adapter = adapter
-        return cast(MariaDBAsyncAdapter, adapter)
+    def _get_metadata_adapter(self) -> EngineMetadataAdapterAsync:
+        """Adapter de lecturas especializadas del motor, resuelto por ``db_type`` en el registro global."""
+        return cast(EngineMetadataAdapterAsync, self._get_adapter_async("source"))
 
     def _get_adapter_async(self, adapter_type: str) -> Any:
         """Obtiene adapter async del Registry según db_type y tipo de adapter.
 
-        Esta es la forma genérica y extensible de resolver adapters, a diferencia
-        de `_get_mariadb_adapter()` que es específica de MariaDB.
+        Es el único punto de resolución de adapters por motor; ``_get_metadata_adapter()`` lo tipa para las
+        lecturas especializadas.
 
         Args:
             adapter_type: Tipo de adapter ('source' o 'routine')
@@ -125,7 +119,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
     def _get_routines_fetcher(self, context_database: str) -> Callable[[], Awaitable[Rows]]:
         return self._metadata_fetch_strategy.build_async_rows_fetcher(
             request=MetadataRequestBuilder.routines(context_database),
-            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_routines(context_database),
+            specialized_fetcher=lambda: self._get_metadata_adapter().fetch_routines(context_database),
             execute_many=self._execute_metadata_fetch_request_many,
         )
 
@@ -136,7 +130,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
                 tabla,
                 self._add_metadata_context_params,
             ),
-            specialized_fetcher=lambda: self._get_mariadb_adapter().build_table_ddl_from_metadata(tabla),
+            specialized_fetcher=lambda: self._get_metadata_adapter().build_table_ddl_from_metadata(tabla),
             execute_one=self._execute_metadata_fetch_request_one,
             normalize_one=self._normalize_ddl_result,
         )
@@ -148,7 +142,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
                 vista,
                 self._add_metadata_context_params,
             ),
-            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_view_from_information_schema(
+            specialized_fetcher=lambda: self._get_metadata_adapter().fetch_view_from_information_schema(
                 context_database,
                 vista,
             ),
@@ -159,7 +153,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
     def _get_columns_fetcher(self, context_database: str, tabla: str) -> Callable[[], Awaitable[Rows]]:
         return self._metadata_fetch_strategy.build_async_rows_fetcher(
             request=MetadataRequestBuilder.columns(context_database, tabla),
-            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_columns_safe(context_database, tabla),
+            specialized_fetcher=lambda: self._get_metadata_adapter().fetch_columns_safe(context_database, tabla),
             execute_many=self._execute_metadata_fetch_request_many,
         )
 
@@ -170,7 +164,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         routine_type: str,
     ) -> Callable[[], Awaitable[Rows]]:
         return self._metadata_fetch_strategy.build_async_rows_fetcher(
-            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_routine_parameters_public_rows(
+            specialized_fetcher=lambda: self._get_metadata_adapter().fetch_routine_parameters_public_rows(
                 database=context_database,
                 routine_name=rutina,
                 routine_type=routine_type,
@@ -190,7 +184,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         routine_type: str,
     ) -> Callable[[], Awaitable[str]]:
         return self._metadata_fetch_strategy.build_async_text_fetcher(
-            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_routine_from_information_schema(
+            specialized_fetcher=lambda: self._get_metadata_adapter().fetch_routine_from_information_schema(
                 database=context_database,
                 routine_name=rutina,
                 routine_type=routine_type,
@@ -233,7 +227,7 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
 
         # Obtener estrategias via factory
         self._metadata_fetch_strategy: MetadataFetchStrategy = MetadataStrategyFactory.get_fetch_strategy(self.db_type)
-        self._storage_inventory_strategy: AsyncStorageInventoryStrategy | SyncStorageInventoryStrategy = (
+        self._storage_inventory_strategy: AsyncStorageInventoryStrategy = (
             MetadataStrategyFactory.get_async_storage_strategy(self.db_type)
         )
 
@@ -927,21 +921,13 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         return normalize_column_rows(rows)
 
     async def get_storage_inventory(self, tablespace: str | None = None) -> dict[str, Any]:
-        """Obtiene inventario de almacenamiento.
-
-        Para estrategias async (Oracle, PostgreSQL, etc.) awaita la coroutine.
-        Para estrategias sync (HSQLDB in-memory) retorna el dict directamente.
-        """
+        """Obtiene inventario de almacenamiento."""
         context_database: str = self._get_query_context_database()
-        result = self._storage_inventory_strategy.execute(
+        return await self._storage_inventory_strategy.execute(
             self,
             context_database,
             tablespace,
         )
-        # Manejar tanto coroutines como dicts directos (HSQLDB)
-        if asyncio.iscoroutine(result):
-            return await result
-        return result
 
     async def get_database_version(self) -> str:
         self.logger.debug(f"🔍 Obteniendo versión de la BD ({self.db_type})")

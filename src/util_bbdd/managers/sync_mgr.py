@@ -43,13 +43,11 @@ from ..metadata import (
     NormalizedTableRow,
     RelationshipMetadataCache,
     Rows,
+    mariadb as _mariadb_metadata,  # noqa: F401  (al importarse registra sus adapters en el registro global)
     normalize_column_rows,
     normalize_table_rows,
 )
-from ..metadata.adapters import get_global_adapter_registry
-from ..metadata.mariadb import (
-    MariaDBSyncAdapter,
-)
+from ..metadata.adapters import EngineMetadataAdapterSync, get_global_adapter_registry
 from ..query import DatabaseQueries
 from ..results import RowOrNone
 from ._manager_cache_service import CacheService
@@ -402,18 +400,15 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
         self.logger.info("✅ Consulta SQL personalizada ejecutada exitosamente")
         return cast(RowOrNone | Rows, result)
 
-    def _get_mariadb_adapter(self) -> MariaDBSyncAdapter:
-        adapter: Any | None = getattr(self, "_mariadb_adapter", None)
-        if adapter is None:
-            adapter = MariaDBSyncAdapter(self)
-            self._mariadb_adapter = adapter
-        return cast(MariaDBSyncAdapter, adapter)
+    def _get_metadata_adapter(self) -> EngineMetadataAdapterSync:
+        """Adapter de lecturas especializadas del motor, resuelto por ``db_type`` en el registro global."""
+        return cast(EngineMetadataAdapterSync, self._get_adapter_sync("source"))
 
     def _get_adapter_sync(self, adapter_type: str) -> Any:
         """Obtiene adapter sync del Registry según db_type y tipo de adapter.
 
-        Esta es la forma genérica y extensible de resolver adapters, a diferencia
-        de `_get_mariadb_adapter()` que es específica de MariaDB.
+        Es el único punto de resolución de adapters por motor; ``_get_metadata_adapter()`` lo tipa para las
+        lecturas especializadas.
 
         Args:
             adapter_type: Tipo de adapter ('source' o 'routine')
@@ -466,7 +461,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
     def _get_routines_fetcher(self, context_database: str) -> Callable[[], Rows]:
         return self._metadata_fetch_strategy.build_sync_rows_fetcher(
             request=MetadataRequestBuilder.routines(context_database),
-            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_routines(context_database),
+            specialized_fetcher=lambda: self._get_metadata_adapter().fetch_routines(context_database),
             execute_many=self._execute_metadata_fetch_request_many,
         )
 
@@ -477,7 +472,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
                 tabla,
                 self._add_metadata_context_params,
             ),
-            specialized_fetcher=lambda: self._get_mariadb_adapter().build_table_ddl_from_metadata(tabla),
+            specialized_fetcher=lambda: self._get_metadata_adapter().build_table_ddl_from_metadata(tabla),
             execute_one=self._execute_metadata_fetch_request_one,
             normalize_one=self._normalize_ddl_result,
         )
@@ -489,7 +484,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
                 vista,
                 self._add_metadata_context_params,
             ),
-            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_view_from_information_schema(
+            specialized_fetcher=lambda: self._get_metadata_adapter().fetch_view_from_information_schema(
                 context_database,
                 vista,
             ),
@@ -500,7 +495,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
     def _get_columns_fetcher(self, context_database: str, tabla: str) -> Callable[[], Rows]:
         return self._metadata_fetch_strategy.build_sync_rows_fetcher(
             request=MetadataRequestBuilder.columns(context_database, tabla),
-            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_columns_safe(context_database, tabla),
+            specialized_fetcher=lambda: self._get_metadata_adapter().fetch_columns_safe(context_database, tabla),
             execute_many=self._execute_metadata_fetch_request_many,
         )
 
@@ -511,7 +506,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
         routine_type: str,
     ) -> Callable[[], Rows]:
         return self._metadata_fetch_strategy.build_sync_rows_fetcher(
-            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_routine_parameters_public_rows(
+            specialized_fetcher=lambda: self._get_metadata_adapter().fetch_routine_parameters_public_rows(
                 database=context_database,
                 routine_name=rutina,
                 routine_type=routine_type,
@@ -531,7 +526,7 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
         routine_type: str,
     ) -> Callable[[], str]:
         return self._metadata_fetch_strategy.build_sync_text_fetcher(
-            specialized_fetcher=lambda: self._get_mariadb_adapter().fetch_routine_from_information_schema(
+            specialized_fetcher=lambda: self._get_metadata_adapter().fetch_routine_from_information_schema(
                 database=context_database,
                 routine_name=rutina,
                 routine_type=routine_type,

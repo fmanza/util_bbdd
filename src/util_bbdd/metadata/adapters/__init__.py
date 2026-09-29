@@ -10,10 +10,14 @@ Sin SQL específico; diferencias entre drivers encapsuladas en adaptadores concr
 from __future__ import annotations
 
 from ._adapter_protocol import (
+    EngineMetadataAdapterAsync,
+    EngineMetadataAdapterSync,
     RoutineAdapterAsync,
     RoutineAdapterSync,
     SourceAdapterAsync,
     SourceAdapterSync,
+    StorageInventoryAdapterAsync,
+    StorageInventoryAdapterSync,
 )
 from ._adapter_registry import (
     AdapterRegistry,
@@ -27,6 +31,11 @@ __all__: list[str] = [
     # Protocols (Async)
     "SourceAdapterAsync",
     "RoutineAdapterAsync",
+    # Protocols de lecturas especializadas por motor (managers)
+    "EngineMetadataAdapterSync",
+    "EngineMetadataAdapterAsync",
+    "StorageInventoryAdapterSync",
+    "StorageInventoryAdapterAsync",
     # Registry
     "AdapterRegistry",
     "get_global_adapter_registry",

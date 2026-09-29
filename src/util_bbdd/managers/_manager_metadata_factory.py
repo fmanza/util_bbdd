@@ -44,17 +44,14 @@ class MetadataStrategyFactory:
         return get_sync_storage_inventory_strategy(db_type)
 
     @staticmethod
-    def get_async_storage_strategy(db_type: str) -> AsyncStorageInventoryStrategy | SyncStorageInventoryStrategy:
+    def get_async_storage_strategy(db_type: str) -> AsyncStorageInventoryStrategy:
         """Resuelve estrategia async de inventario de almacenamiento según driver.
-
-        Para HSQLDB (in-memory), retorna una estrategia sync que no bloquea
-        incluso cuando se usa en contexto async.
 
         Args:
             db_type: Tipo de base de datos.
 
         Returns:
-            Estrategia async de inventario de almacenamiento (o sync para HSQLDB).
+            Estrategia async de inventario de almacenamiento.
         """
         return get_async_storage_inventory_strategy(db_type)
 

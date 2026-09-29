@@ -6,7 +6,7 @@ from util_bbdd.managers.async_mgr import AsyncDatabaseManager
 from util_bbdd.managers.sync_mgr import SyncDatabaseManager
 
 _SHARED_MANAGER_HELPERS = [
-    "_get_mariadb_adapter",
+    "_get_metadata_adapter",
     "_get_routines_fetcher",
     "_get_table_ddl_fetcher",
     "_get_view_ddl_fetcher",

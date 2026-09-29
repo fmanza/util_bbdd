@@ -24,6 +24,8 @@ from util_bbdd.doc.infrastructure.adapters.sync_database_manager_adapter import 
 from util_bbdd.managers import SyncDatabaseManager
 from util_bbdd.managers._manager_cache_service import CacheService
 from util_bbdd.metadata.adapters._adapter_protocol import (
+    EngineMetadataAdapterAsync,
+    EngineMetadataAdapterSync,
     MetadataCachePort,
     RoutineAdapterAsync,
     RoutineAdapterSync,
@@ -111,6 +113,15 @@ def _mariadb_sync_as_routine(adapter: MariaDBSyncAdapter) -> RoutineAdapterSync:
 
 
 def _mariadb_async_as_routine(adapter: MariaDBAsyncAdapter) -> RoutineAdapterAsync:
+    return adapter
+
+
+# Lecturas especializadas que los managers delegan en el adapter del registro (``_get_metadata_adapter``).
+def _mariadb_sync_as_engine_metadata(adapter: MariaDBSyncAdapter) -> EngineMetadataAdapterSync:
+    return adapter
+
+
+def _mariadb_async_as_engine_metadata(adapter: MariaDBAsyncAdapter) -> EngineMetadataAdapterAsync:
     return adapter
 
 
@@ -256,3 +267,19 @@ def test_sync_adapter_satisfies_routine_adapter_sync(adapter_cls: type) -> None:
 def test_async_adapter_satisfies_routine_adapter_async(adapter_cls: type) -> None:
     adapter = adapter_cls(MagicMock())
     assert isinstance(adapter, RoutineAdapterAsync)
+
+
+_SYNC_ENGINE_METADATA_ADAPTERS: tuple[type, ...] = (MariaDBSyncAdapter,)
+_ASYNC_ENGINE_METADATA_ADAPTERS: tuple[type, ...] = (MariaDBAsyncAdapter,)
+
+
+@pytest.mark.parametrize("adapter_cls", _SYNC_ENGINE_METADATA_ADAPTERS, ids=lambda c: c.__name__)
+def test_sync_adapter_satisfies_engine_metadata_adapter_sync(adapter_cls: type) -> None:
+    adapter = adapter_cls(MagicMock())
+    assert isinstance(adapter, EngineMetadataAdapterSync)
+
+
+@pytest.mark.parametrize("adapter_cls", _ASYNC_ENGINE_METADATA_ADAPTERS, ids=lambda c: c.__name__)
+def test_async_adapter_satisfies_engine_metadata_adapter_async(adapter_cls: type) -> None:
+    adapter = adapter_cls(MagicMock())
+    assert isinstance(adapter, EngineMetadataAdapterAsync)

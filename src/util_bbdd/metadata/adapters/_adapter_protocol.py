@@ -23,14 +23,20 @@ Ejemplo de uso:
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
+
+from ...results import Rows
 
 __all__: list[str] = [
+    "EngineMetadataAdapterAsync",
+    "EngineMetadataAdapterSync",
     "MetadataCachePort",
     "SourceAdapterSync",
     "SourceAdapterAsync",
     "RoutineAdapterSync",
     "RoutineAdapterAsync",
+    "StorageInventoryAdapterAsync",
+    "StorageInventoryAdapterSync",
 ]
 
 
@@ -229,4 +235,91 @@ class RoutineAdapterAsync(Protocol):
 
     async def fetch_routine_definition_async(self, schema: str, routine: str, routine_type: str) -> str:
         """Obtiene el DDL completo de una routine en modo asíncrono."""
+        ...
+
+
+@runtime_checkable
+class StorageInventoryAdapterSync(Protocol):
+    """Inventario de almacenamiento que un motor resuelve en su adapter (sync)."""
+
+    def storage_inventory(self, context_database: str, /) -> dict[str, Any]:
+        """Devuelve el inventario de almacenamiento del contexto (secciones → filas)."""
+        ...
+
+
+@runtime_checkable
+class StorageInventoryAdapterAsync(Protocol):
+    """Inventario de almacenamiento que un motor resuelve en su adapter (async)."""
+
+    async def storage_inventory(self, context_database: str, /) -> dict[str, Any]:
+        """Devuelve el inventario de almacenamiento del contexto (secciones → filas)."""
+        ...
+
+
+@runtime_checkable
+class EngineMetadataAdapterSync(StorageInventoryAdapterSync, Protocol):
+    """Lecturas de metadatos especializadas por motor que los managers delegan en su adapter (sync).
+
+    Los managers obtienen el adapter del registro global por ``db_type`` y solo lo usan con una estrategia de
+    metadatos especializada (``_manager_metadata_runtime``); el resto de motores resuelve estas lecturas con SQL del
+    catálogo. Los managers pasan por nombre los argumentos de ``fetch_routine_parameters_public_rows`` y
+    ``fetch_routine_from_information_schema``, así que el contrato fija esos nombres; el resto son posicionales.
+    """
+
+    def fetch_routines(self, context_database: str, /) -> Rows:
+        """Rutinas del contexto."""
+        ...
+
+    def build_table_ddl_from_metadata(self, table: str, /) -> str:
+        """DDL de una tabla reconstruido desde metadatos."""
+        ...
+
+    def fetch_view_from_information_schema(self, database: str, view_name: str, /) -> str:
+        """DDL de una vista."""
+        ...
+
+    def fetch_columns_safe(self, context_database: str, table: str, /) -> Rows:
+        """Columnas de una tabla, leídas de forma segura frente a problemas de charset."""
+        ...
+
+    def fetch_routine_parameters_public_rows(self, *, database: str, routine_name: str, routine_type: str) -> Rows:
+        """Parámetros públicos de una rutina."""
+        ...
+
+    def fetch_routine_from_information_schema(self, database: str, routine_name: str, routine_type: str) -> str:
+        """DDL de una rutina."""
+        ...
+
+
+@runtime_checkable
+class EngineMetadataAdapterAsync(StorageInventoryAdapterAsync, Protocol):
+    """Lecturas de metadatos especializadas por motor que los managers delegan en su adapter (async).
+
+    Mismo contrato que :class:`EngineMetadataAdapterSync` con métodos ``async``.
+    """
+
+    async def fetch_routines(self, context_database: str, /) -> Rows:
+        """Rutinas del contexto."""
+        ...
+
+    async def build_table_ddl_from_metadata(self, table: str, /) -> str:
+        """DDL de una tabla reconstruido desde metadatos."""
+        ...
+
+    async def fetch_view_from_information_schema(self, database: str, view_name: str, /) -> str:
+        """DDL de una vista."""
+        ...
+
+    async def fetch_columns_safe(self, context_database: str, table: str, /) -> Rows:
+        """Columnas de una tabla, leídas de forma segura frente a problemas de charset."""
+        ...
+
+    async def fetch_routine_parameters_public_rows(
+        self, *, database: str, routine_name: str, routine_type: str
+    ) -> Rows:
+        """Parámetros públicos de una rutina."""
+        ...
+
+    async def fetch_routine_from_information_schema(self, database: str, routine_name: str, routine_type: str) -> str:
+        """DDL de una rutina."""
         ...

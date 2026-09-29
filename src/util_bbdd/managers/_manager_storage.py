@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol, cast
+from typing import Any, Protocol
+
+from ..metadata.adapters import StorageInventoryAdapterAsync, StorageInventoryAdapterSync
 
 
 class SyncStorageInventoryManagerProtocol(Protocol):
@@ -11,7 +13,7 @@ class SyncStorageInventoryManagerProtocol(Protocol):
 
     def execute_query_many(self, query_name: str, **params: Any) -> Any: ...
 
-    def _get_mariadb_adapter(self) -> Any: ...
+    def _get_metadata_adapter(self) -> StorageInventoryAdapterSync: ...
 
 
 class AsyncStorageInventoryManagerProtocol(Protocol):
@@ -19,7 +21,7 @@ class AsyncStorageInventoryManagerProtocol(Protocol):
 
     async def execute_query_many(self, query_name: str, **params: Any) -> Any: ...
 
-    def _get_mariadb_adapter(self) -> Any: ...
+    def _get_metadata_adapter(self) -> StorageInventoryAdapterAsync: ...
 
 
 class SyncStorageInventoryStrategy(Protocol):
@@ -91,7 +93,7 @@ class _SyncMariaDBStorageStrategy:
         tablespace: str | None,
     ) -> dict[str, Any]:
         del tablespace
-        return cast(dict[str, Any], manager._get_mariadb_adapter().storage_inventory(context_database))
+        return manager._get_metadata_adapter().storage_inventory(context_database)
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,7 +180,7 @@ class _AsyncMariaDBStorageStrategy:
         tablespace: str | None,
     ) -> dict[str, Any]:
         del tablespace
-        return cast(dict[str, Any], await manager._get_mariadb_adapter().storage_inventory(context_database))
+        return await manager._get_metadata_adapter().storage_inventory(context_database)
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,15 +217,11 @@ class _AsyncSQLiteStorageStrategy:
 
 @dataclass(frozen=True, slots=True)
 class _AsyncHSQLDBStorageStrategy:
-    """HSQLDB: in-memory database, no async I/O needed.
+    """HSQLDB: sin inventario de almacenamiento (no hace I/O)."""
 
-    Execute returns synchronously because HSQLDB has no external I/O operations.
-    Compatible with both sync and async contexts.
-    """
-
-    def execute(
+    async def execute(
         self,
-        manager: SyncStorageInventoryManagerProtocol,
+        manager: AsyncStorageInventoryManagerProtocol,
         context_database: str,
         tablespace: str | None,
     ) -> dict[str, Any]:
@@ -240,13 +238,13 @@ _SYNC_STORAGE_STRATEGY_REGISTRY: dict[str, SyncStorageInventoryStrategy] = {
     "hsqldb": _SyncHSQLDBStorageStrategy(),
 }
 
-_ASYNC_STORAGE_STRATEGY_REGISTRY: dict[str, AsyncStorageInventoryStrategy | SyncStorageInventoryStrategy] = {
+_ASYNC_STORAGE_STRATEGY_REGISTRY: dict[str, AsyncStorageInventoryStrategy] = {
     "sqlserver": _AsyncSqlServerStorageStrategy(),
     "oracle": _AsyncOracleStorageStrategy(),
     "mariadb": _AsyncMariaDBStorageStrategy(),
     "postgresql": _AsyncPostgreSQLStorageStrategy(),
     "sqlite": _AsyncSQLiteStorageStrategy(),
-    "hsqldb": _AsyncHSQLDBStorageStrategy(),  # HSQLDB is in-memory, returns sync dict
+    "hsqldb": _AsyncHSQLDBStorageStrategy(),
 }
 
 
@@ -256,12 +254,8 @@ def get_sync_storage_inventory_strategy(db_type: str) -> SyncStorageInventoryStr
     return _SYNC_STORAGE_STRATEGY_REGISTRY[normalized_db_type]
 
 
-def get_async_storage_inventory_strategy(db_type: str) -> AsyncStorageInventoryStrategy | SyncStorageInventoryStrategy:
-    """Devuelve estrategia async de inventario para el motor.
-
-    Para HSQLDB (in-memory), retorna una estrategia sync que puede usarse
-    en contextos async sin bloqueos.
-    """
+def get_async_storage_inventory_strategy(db_type: str) -> AsyncStorageInventoryStrategy:
+    """Devuelve estrategia async de inventario para el motor."""
     normalized_db_type: str = str(db_type or "").lower().strip()
     return _ASYNC_STORAGE_STRATEGY_REGISTRY[normalized_db_type]
 
