@@ -57,7 +57,8 @@ services:
     ports:
       - "127.0.0.1:${UTIL_BBDD_BENCH_MYSQL_PORT:-53306}:3306"
     # El inventario de almacenamiento (get_storage_inventory, documentación) lee information_schema.FILES, que en MySQL
-    # exige el privilegio global PROCESS. Los scripts de inicio solo se ejecutan con el directorio de datos vacío: para
+    # exige el privilegio global PROCESS; los tests de integración crean y borran bases zz_util_bbdd_<...> (como en
+    # MariaDB). Los scripts de inicio solo se ejecutan con el directorio de datos vacío: para
     # un contenedor ya creado, `GRANT PROCESS ON *.* TO 'bench'@'%'` como root, o
     # `docker compose -f docker-compose.bench.yml up -d --wait --force-recreate -V mysql` (borra sus datos).
     configs:
@@ -126,6 +127,7 @@ configs:
   mysql_bench_grants:
     content: |
       GRANT PROCESS ON *.* TO 'bench'@'%';
+      GRANT ALL PRIVILEGES ON `zz\_util\_bbdd\_%`.* TO 'bench'@'%';
   mariadb_bench_grants:
     content: |
       GRANT ALL PRIVILEGES ON `zz\_util\_bbdd\_%`.* TO 'bench'@'%';
