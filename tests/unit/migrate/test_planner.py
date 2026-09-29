@@ -53,7 +53,7 @@ class TestMigrationPlannerInit:
 
     def test_invalid_source_raises(self) -> None:
         with pytest.raises(ValueError, match="origen"):
-            MigrationPlanner(source_engine="mysql")
+            MigrationPlanner(source_engine="db2")
 
     def test_invalid_target_raises(self) -> None:
         with pytest.raises(ValueError, match="destino"):

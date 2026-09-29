@@ -109,18 +109,28 @@ Flujo principal (PostgreSQL → SQL Server):
     plan = planner.plan(connection=pg_manager, schema="public")
     ddl = plan.emit_ddl()
 
-Soportado: Oracle      → MariaDB / SQL Server / PostgreSQL
-           MariaDB     → Oracle  / SQL Server / PostgreSQL
-           SQL Server  → Oracle  / MariaDB    / PostgreSQL
-           PostgreSQL  → Oracle  / MariaDB    / SQL Server
+Soportado: Oracle      → MariaDB / MySQL      / SQL Server / PostgreSQL
+           MariaDB     → Oracle  / MySQL      / SQL Server / PostgreSQL
+           MySQL       → Oracle  / MariaDB    / SQL Server / PostgreSQL
+           SQL Server  → Oracle  / MariaDB    / MySQL      / PostgreSQL
+           PostgreSQL  → Oracle  / MariaDB    / MySQL      / SQL Server
 """
 
-from .charset import DEFAULT_CHARSET, DEFAULT_COLLATION, validate_charset, validate_collation
+from .charset import (
+    DEFAULT_CHARSET,
+    DEFAULT_COLLATION,
+    DEFAULT_COLLATION_MYSQL,
+    validate_charset,
+    validate_collation,
+    validate_mysql_collation,
+)
 from .emitters.mariadb import MariaDBDDLEmitter
+from .emitters.mysql import MySQLDDLEmitter
 from .emitters.oracle import OracleDDLEmitter
 from .emitters.postgresql import PostgreSQLDDLEmitter
 from .emitters.sqlserver import SQLServerDDLEmitter
 from .extractors.mariadb import MariaDBSchemaExtractor
+from .extractors.mysql import MariaDBFullTypeSchemaExtractor, MySQLSchemaExtractor
 from .extractors.oracle import OracleSchemaExtractor
 from .extractors.postgresql import PostgreSQLSchemaExtractor
 from .extractors.sqlserver import SQLServerSchemaExtractor
@@ -137,9 +147,11 @@ from .ir.models import (
 from .planner import MigrationPlanner
 from .reporters.markdown import format_plan_markdown
 from .reporters.text import format_plan_text
+from .transformers.mariadb_to_mysql import MariaDBToMySQLTransformer
 from .transformers.mariadb_to_oracle import MariaDBToOracleTransformer
 from .transformers.mariadb_to_postgresql import MariaDBToPostgreSQLTransformer
 from .transformers.mariadb_to_sqlserver import MariaDBToSQLServerTransformer
+from .transformers.mysql_to_mariadb import MySQLToMariaDBTransformer
 from .transformers.oracle_to_mariadb import OracleToMariaDBTransformer
 from .transformers.oracle_to_postgresql import OracleToPostgreSQLTransformer
 from .transformers.oracle_to_sqlserver import OracleToSQLServerTransformer
@@ -194,12 +206,20 @@ __all__: list[str] = [
     "PostgreSQLToMariaDBTransformer",
     # Capas individuales PostgreSQL → SQL Server
     "PostgreSQLToSQLServerTransformer",
+    # Capas individuales MySQL (origen: transformers MariaDB → X; destino: transformers X → MariaDB)
+    "MySQLSchemaExtractor",
+    "MySQLDDLEmitter",
+    "MySQLToMariaDBTransformer",
+    "MariaDBToMySQLTransformer",
+    "MariaDBFullTypeSchemaExtractor",
     # Reporters
     "format_plan_text",
     "format_plan_markdown",
-    # Charset (MariaDB)
+    # Charset (MariaDB / MySQL)
     "DEFAULT_CHARSET",
     "DEFAULT_COLLATION",
+    "DEFAULT_COLLATION_MYSQL",
     "validate_charset",
     "validate_collation",
+    "validate_mysql_collation",
 ]

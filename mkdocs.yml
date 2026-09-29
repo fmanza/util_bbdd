@@ -38,6 +38,7 @@ nav:
           - Migración MariaDB (origen): functional/migrate_mariadb_source.md
           - Migración SQL Server (origen): functional/migrate_sqlserver_source.md
           - Migración PostgreSQL (origen): functional/migrate_postgresql_source.md
+          - Migración MySQL (origen y destino): functional/migrate_mysql.md
       - Análisis de Relaciones:
           - Visualización de Grafos: functional/graph_analysis.md
       - Documentación de BD:
@@ -79,6 +80,7 @@ nav:
           - API MariaDB (origen): api/migrate_mariadb_source.md
           - API SQL Server (origen): api/migrate_sqlserver_source.md
           - API PostgreSQL (origen): api/migrate_postgresql_source.md
+          - API MySQL (origen y destino): api/migrate_mysql.md
       - Análisis de Relaciones:
           - Grafos de Relaciones: api/analysis.md
       - Documentación de BD:

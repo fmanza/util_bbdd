@@ -1,9 +1,13 @@
-"""Validación y constantes de charset/collation para MariaDB."""
+"""Validación y constantes de charset/collation para MariaDB y MySQL."""
 
 from __future__ import annotations
 
 DEFAULT_CHARSET: str = "utf8mb4"
 DEFAULT_COLLATION: str = "utf8mb4_uca1400_ai_ci"
+#: Collation por defecto con destino MySQL (MySQL 8): ``utf8mb4_uca1400_ai_ci`` solo existe en MariaDB ≥ 10.10.
+DEFAULT_COLLATION_MYSQL: str = "utf8mb4_0900_ai_ci"
+#: Collations de ``VALID_COLLATIONS`` que MySQL no reconoce.
+MYSQL_UNSUPPORTED_COLLATIONS: frozenset[str] = frozenset({"utf8mb4_uca1400_ai_ci"})
 
 VALID_CHARSETS: frozenset[str] = frozenset(
     {
@@ -136,6 +140,22 @@ def validate_collation(collation: str) -> str:
     return normalized
 
 
+def validate_mysql_collation(collation: str) -> str:
+    """Valida y normaliza una collation para un destino MySQL.
+
+    Aplica ``validate_collation`` y rechaza las collations que solo existen en MariaDB.
+
+    Raises:
+        ValueError: Si la collation no está soportada o no existe en MySQL.
+    """
+    normalized = validate_collation(collation)
+    if normalized in MYSQL_UNSUPPORTED_COLLATIONS:
+        raise ValueError(
+            f"Collation '{collation}' no existe en MySQL (solo en MariaDB). Use p. ej. '{DEFAULT_COLLATION_MYSQL}'"
+        )
+    return normalized
+
+
 def validate_charset_collation_pair(charset: str, collation: str) -> None:
     """Valida que charset y collation sean compatibles en MariaDB.
 
@@ -171,10 +191,13 @@ def validate_charset_collation_pair(charset: str, collation: str) -> None:
 __all__: list[str] = [
     "DEFAULT_CHARSET",
     "DEFAULT_COLLATION",
+    "DEFAULT_COLLATION_MYSQL",
+    "MYSQL_UNSUPPORTED_COLLATIONS",
     "VALID_CHARSETS",
     "VALID_COLLATIONS",
     "CHARSET_COLLATION_MAP",
     "validate_charset",
     "validate_collation",
     "validate_charset_collation_pair",
+    "validate_mysql_collation",
 ]

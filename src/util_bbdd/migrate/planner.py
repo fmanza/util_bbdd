@@ -12,22 +12,28 @@ from ._compat.identifier_rules import find_case_insensitive_collisions
 from .charset import (
     DEFAULT_CHARSET,
     DEFAULT_COLLATION,
+    DEFAULT_COLLATION_MYSQL,
     validate_charset,
     validate_charset_collation_pair,
     validate_collation,
+    validate_mysql_collation,
 )
 from .emitters.mariadb import MariaDBDDLEmitter
+from .emitters.mysql import MySQLDDLEmitter
 from .emitters.oracle import _VALID_ORACLE_IDENTITY_MODES, OracleDDLEmitter, OracleIdentityMode
 from .emitters.postgresql import PostgreSQLDDLEmitter
 from .emitters.sqlserver import SQLServerDDLEmitter
 from .extractors.mariadb import MariaDBSchemaExtractor
+from .extractors.mysql import MariaDBFullTypeSchemaExtractor, MySQLSchemaExtractor
 from .extractors.oracle import OracleSchemaExtractor
 from .extractors.postgresql import PostgreSQLSchemaExtractor
 from .extractors.sqlserver import SQLServerSchemaExtractor
 from .ir.models import MigrationPlan, MigrationWarning
+from .transformers.mariadb_to_mysql import MariaDBToMySQLTransformer
 from .transformers.mariadb_to_oracle import MariaDBToOracleTransformer
 from .transformers.mariadb_to_postgresql import MariaDBToPostgreSQLTransformer
 from .transformers.mariadb_to_sqlserver import MariaDBToSQLServerTransformer
+from .transformers.mysql_to_mariadb import MySQLToMariaDBTransformer
 from .transformers.oracle_to_mariadb import OracleToMariaDBTransformer
 from .transformers.oracle_to_postgresql import OracleToPostgreSQLTransformer
 from .transformers.oracle_to_sqlserver import OracleToSQLServerTransformer
@@ -40,8 +46,10 @@ from .transformers.sqlserver_to_postgresql import SQLServerToPostgreSQLTransform
 
 NumberFallback = Literal["DOUBLE", "DECIMAL(38,10)", "DECIMAL(18,4)"]
 
-_SUPPORTED_SOURCE: frozenset[str] = frozenset({"oracle", "mariadb", "sqlserver", "postgresql"})
-_SUPPORTED_TARGET: frozenset[str] = frozenset({"mariadb", "sqlserver", "postgresql", "oracle"})
+_SUPPORTED_SOURCE: frozenset[str] = frozenset({"oracle", "mariadb", "mysql", "sqlserver", "postgresql"})
+_SUPPORTED_TARGET: frozenset[str] = frozenset({"mariadb", "mysql", "sqlserver", "postgresql", "oracle"})
+# Destinos de la familia MySQL/MariaDB: comparten los transformers X → MariaDB; cada uno con su emitter.
+_MYSQL_FAMILY_TARGETS: frozenset[str] = frozenset({"mariadb", "mysql"})
 
 # Remapeo de NumberFallback inválido para SQL Server
 _SS_FALLBACK_REMAP: dict[str, str] = {"DOUBLE": "FLOAT"}
@@ -54,17 +62,19 @@ class MigrationPlanner:
     """Orquestador de migración DDL entre motores.
 
     Args:
-        source_engine: Motor origen ("oracle" o "mariadb").
-        target_engine: Motor destino ("mariadb", "sqlserver", "postgresql" o "oracle").
-        charset: CHARACTER SET MariaDB (solo aplica cuando target_engine="mariadb"
-            o source_engine="mariadb" y target_engine="mariadb").
-        collation: COLLATE MariaDB (solo aplica cuando target_engine="mariadb").
+        source_engine: Motor origen ("oracle", "mariadb", "mysql", "sqlserver" o "postgresql").
+        target_engine: Motor destino ("mariadb", "mysql", "sqlserver", "postgresql" o "oracle").
+        charset: CHARACTER SET (solo aplica cuando target_engine es "mariadb" o "mysql").
+        collation: COLLATE (solo aplica cuando target_engine es "mariadb" o "mysql"). Con destino "mysql", el
+            valor por defecto (``utf8mb4_uca1400_ai_ci``, exclusivo de MariaDB) se sustituye por
+            ``utf8mb4_0900_ai_ci``; una collation que MySQL no tenga lanza ``ValueError``.
         number_fallback: Tipo destino para NUMBER Oracle sin precisión
             (solo cuando source_engine="oracle").
-        engine: Motor de almacenamiento MariaDB (solo aplica cuando target_engine="mariadb").
+        engine: Motor de almacenamiento (solo aplica cuando target_engine es "mariadb" o "mysql").
         int_display_width: Display width para INT en MariaDB (default: 11).
             Usar 0 para emitir solo ``INT`` sin paréntesis.
-            Solo aplica cuando source_engine="oracle" y target_engine="mariadb".
+            Solo aplica cuando source_engine="oracle" y target_engine="mariadb" (con destino "mysql" el
+            emitter quita el ancho de los enteros, obsoleto en MySQL 8, salvo ``TINYINT(1)``).
         sql_server_collation: COLLATE a nivel columna para SQL Server (opcional).
             Si None, no se emite cláusula COLLATE (usa collation de la BD destino).
         pg_schema: Schema PostgreSQL (opcional). Si se indica, emite
@@ -117,6 +127,12 @@ class MigrationPlanner:
             self._charset = validate_charset(charset)
             self._collation = validate_collation(collation)
             validate_charset_collation_pair(self._charset, self._collation)
+        elif tgt == "mysql":
+            self._charset = validate_charset(charset)
+            self._collation = validate_mysql_collation(
+                DEFAULT_COLLATION_MYSQL if collation == DEFAULT_COLLATION else collation
+            )
+            validate_charset_collation_pair(self._charset, self._collation)
         else:
             self._charset = charset
             self._collation = collation
@@ -136,6 +152,8 @@ class MigrationPlanner:
             return self._plan_from_oracle(connection, schema)
         elif self._source_engine == "mariadb":
             return self._plan_from_mariadb(connection, schema)
+        elif self._source_engine == "mysql":
+            return self._plan_from_mysql(connection, schema)
         elif self._source_engine == "sqlserver":
             return self._plan_from_sqlserver(connection, schema)
         else:  # postgresql
@@ -143,24 +161,25 @@ class MigrationPlanner:
 
     # ─── Pipelines por motor origen ───────────────────────────────────────────
 
+    def _mysql_family_emitter(self) -> MariaDBDDLEmitter:
+        """Emitter del destino de la familia MySQL/MariaDB (``MySQLDDLEmitter`` hereda de ``MariaDBDDLEmitter``)."""
+        emitter_cls = MySQLDDLEmitter if self._target_engine == "mysql" else MariaDBDDLEmitter
+        return emitter_cls(charset=self._charset, collation=self._collation, engine=self._engine)
+
     def _plan_from_oracle(self, connection: Any, schema: str) -> MigrationPlan:
-        """Pipeline Oracle → (MariaDB | SQL Server | PostgreSQL)."""
+        """Pipeline Oracle → (MariaDB | MySQL | SQL Server | PostgreSQL)."""
         extractor = OracleSchemaExtractor(connection)
         raw_tables = extractor.extract(schema)
         raw_views = extractor.extract_views(schema)
         raw_routines = extractor.extract_routines(schema)
 
-        if self._target_engine == "mariadb":
+        if self._target_engine in _MYSQL_FAMILY_TARGETS:
             transformer: Any = OracleToMariaDBTransformer(
                 number_fallback=self._number_fallback,
                 charset=self._charset,
                 int_display_width=self._int_display_width,
             )
-            emitter: Any = MariaDBDDLEmitter(
-                charset=self._charset,
-                collation=self._collation,
-                engine=self._engine,
-            )
+            emitter: Any = self._mysql_family_emitter()
         elif self._target_engine == "sqlserver":
             ss_fallback = _SS_FALLBACK_REMAP.get(self._number_fallback, self._number_fallback)
             transformer = OracleToSQLServerTransformer(number_fallback=ss_fallback)
@@ -173,8 +192,12 @@ class MigrationPlanner:
         return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema)
 
     def _plan_from_mariadb(self, connection: Any, schema: str) -> MigrationPlan:
-        """Pipeline MariaDB → (Oracle | SQL Server | PostgreSQL)."""
-        extractor = MariaDBSchemaExtractor(connection)
+        """Pipeline MariaDB → (Oracle | MySQL | SQL Server | PostgreSQL)."""
+        extractor = (
+            MariaDBFullTypeSchemaExtractor(connection)
+            if self._target_engine == "mysql"
+            else MariaDBSchemaExtractor(connection)
+        )
         raw_tables = extractor.extract(schema)
         raw_views = extractor.extract_views(schema)
         raw_routines = extractor.extract_routines(schema)
@@ -182,6 +205,36 @@ class MigrationPlanner:
         if self._target_engine == "oracle":
             transformer: Any = MariaDBToOracleTransformer()
             emitter: Any = OracleDDLEmitter(oracle_identity_mode=self._oracle_identity_mode)
+        elif self._target_engine == "mysql":
+            transformer = MariaDBToMySQLTransformer()
+            emitter = self._mysql_family_emitter()
+        elif self._target_engine == "sqlserver":
+            transformer = MariaDBToSQLServerTransformer()
+            emitter = SQLServerDDLEmitter(collation=self._sql_server_collation)
+        else:  # postgresql
+            transformer = MariaDBToPostgreSQLTransformer()
+            emitter = PostgreSQLDDLEmitter(pg_schema=self._pg_schema)
+
+        return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema)
+
+    def _plan_from_mysql(self, connection: Any, schema: str) -> MigrationPlan:
+        """Pipeline MySQL → (Oracle | MariaDB | SQL Server | PostgreSQL).
+
+        MySQL comparte con MariaDB los ``DATA_TYPE`` que usan los mapas ``mariadb_to_*``: hacia Oracle, SQL Server y
+        PostgreSQL se reutilizan los transformers de MariaDB. Hacia MariaDB se conserva el tipo completo
+        (``COLUMN_TYPE``).
+        """
+        extractor = MySQLSchemaExtractor(connection, full_column_types=self._target_engine == "mariadb")
+        raw_tables = extractor.extract(schema)
+        raw_views = extractor.extract_views(schema)
+        raw_routines = extractor.extract_routines(schema)
+
+        if self._target_engine == "oracle":
+            transformer: Any = MariaDBToOracleTransformer()
+            emitter: Any = OracleDDLEmitter(oracle_identity_mode=self._oracle_identity_mode)
+        elif self._target_engine == "mariadb":
+            transformer = MySQLToMariaDBTransformer()
+            emitter = self._mysql_family_emitter()
         elif self._target_engine == "sqlserver":
             transformer = MariaDBToSQLServerTransformer()
             emitter = SQLServerDDLEmitter(collation=self._sql_server_collation)
@@ -192,7 +245,7 @@ class MigrationPlanner:
         return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema)
 
     def _plan_from_sqlserver(self, connection: Any, schema: str) -> MigrationPlan:
-        """Pipeline SQL Server → (Oracle | MariaDB | PostgreSQL)."""
+        """Pipeline SQL Server → (Oracle | MariaDB | MySQL | PostgreSQL)."""
         extractor = SQLServerSchemaExtractor(connection)
         raw_tables = extractor.extract(schema)
         raw_views = extractor.extract_views(schema)
@@ -201,13 +254,9 @@ class MigrationPlanner:
         if self._target_engine == "oracle":
             transformer: Any = SQLServerToOracleTransformer()
             emitter: Any = OracleDDLEmitter(oracle_identity_mode=self._oracle_identity_mode)
-        elif self._target_engine == "mariadb":
+        elif self._target_engine in _MYSQL_FAMILY_TARGETS:
             transformer = SQLServerToMariaDBTransformer()
-            emitter = MariaDBDDLEmitter(
-                charset=self._charset,
-                collation=self._collation,
-                engine=self._engine,
-            )
+            emitter = self._mysql_family_emitter()
         else:  # postgresql
             transformer = SQLServerToPostgreSQLTransformer()
             emitter = PostgreSQLDDLEmitter(pg_schema=self._pg_schema)
@@ -215,7 +264,7 @@ class MigrationPlanner:
         return self._build_plan(transformer, emitter, raw_tables, raw_views, raw_routines, schema)
 
     def _plan_from_postgresql(self, connection: Any, schema: str) -> MigrationPlan:
-        """Pipeline PostgreSQL → (Oracle | MariaDB | SQL Server)."""
+        """Pipeline PostgreSQL → (Oracle | MariaDB | MySQL | SQL Server)."""
         extractor = PostgreSQLSchemaExtractor(connection)
         raw_tables = extractor.extract(schema)
         raw_views = extractor.extract_views(schema)
@@ -224,13 +273,9 @@ class MigrationPlanner:
         if self._target_engine == "oracle":
             transformer: Any = PostgreSQLToOracleTransformer()
             emitter: Any = OracleDDLEmitter(oracle_identity_mode=self._oracle_identity_mode)
-        elif self._target_engine == "mariadb":
+        elif self._target_engine in _MYSQL_FAMILY_TARGETS:
             transformer = PostgreSQLToMariaDBTransformer()
-            emitter = MariaDBDDLEmitter(
-                charset=self._charset,
-                collation=self._collation,
-                engine=self._engine,
-            )
+            emitter = self._mysql_family_emitter()
         else:  # sqlserver
             transformer = PostgreSQLToSQLServerTransformer()
             emitter = SQLServerDDLEmitter(collation=self._sql_server_collation)
