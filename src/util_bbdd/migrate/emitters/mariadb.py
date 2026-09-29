@@ -17,7 +17,7 @@ from collections import deque
 from ..charset import validate_storage_engine
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView
 from ._default_fallback import default_fallback_warning
-from ._trailing_comment import join_definitions, with_trailing_comment
+from ._trailing_comment import join_definitions, one_line, with_trailing_comment
 
 
 def _bt(name: str) -> str:
@@ -149,8 +149,8 @@ class MariaDBDDLEmitter:
         for table_name, fk in external_fk_pairs:
             fk_stmt = self._emit_alter_table_add_fk(table_name, fk)
             stmt = (
-                f"-- FK externa: `{fk.name}` en `{table_name}` referencia "
-                f"`{fk.ref_table}` (fuera del schema migrado) — verificar que existe\n"
+                f"-- FK externa: `{one_line(fk.name)}` en `{one_line(table_name)}` referencia "
+                f"`{one_line(fk.ref_table)}` (fuera del schema migrado) — verificar que existe\n"
                 f"{fk_stmt}"
             )
             statements.append(stmt)
@@ -171,17 +171,17 @@ class MariaDBDDLEmitter:
         if routine.is_package_member:
             pkg = routine.package_name or routine.name
             lines.append(
-                f"-- PACKAGE MEMBER: {pkg}.{routine.name} ({routine.routine_type})\n"
+                f"-- PACKAGE MEMBER: {one_line(pkg)}.{one_line(routine.name)} ({one_line(routine.routine_type)})\n"
                 f"-- No direct equivalent in MariaDB; manual migration required"
             )
-        lines.append(f"-- {routine.routine_type}: {_bt(routine.name)}")
+        lines.append(f"-- {one_line(routine.routine_type)}: {one_line(_bt(routine.name))}")
         if routine.warnings:
             lines.append("-- NOTE: requires manual review (see migration warnings)")
         if routine.comment:
-            lines.append(f"-- COMMENT: {routine.comment.replace(chr(10), ' ')}")
+            lines.append(f"-- COMMENT: {one_line(routine.comment)}")
         if not routine.body:
             lines.append(
-                f"-- TODO: {routine.routine_type} {_bt(routine.name)} — "
+                f"-- TODO: {one_line(routine.routine_type)} {one_line(_bt(routine.name))} — "
                 f"body not available; manual implementation required"
             )
             return "\n".join(lines)
@@ -194,7 +194,7 @@ class MariaDBDDLEmitter:
         stmts: list[str] = [self._emit_create_view(v) for v in ordered]
         for v in circular:
             aviso = (
-                f"-- AVISO: vista '{v.name}' participa en una dependencia circular "
+                f"-- AVISO: vista '{one_line(v.name)}' participa en una dependencia circular "
                 "— verificar orden de ejecución manualmente\n"
             )
             stmts.append(aviso + self._emit_create_view(v))
@@ -243,7 +243,7 @@ class MariaDBDDLEmitter:
 
     def _emit_column(self, col: CanonicalColumn, table_name: str) -> str:
         if col.omit:
-            comment = col.ddl_comment or f"-- AVISO: columna '{col.original_name}' omitida"
+            comment = one_line(col.ddl_comment or f"-- AVISO: columna '{col.original_name}' omitida")
             return f"  {comment}"
 
         col_type = _auto_increment_col_type(col.target_type) if col.auto_increment else col.target_type
@@ -299,7 +299,7 @@ class MariaDBDDLEmitter:
         if view.warnings:
             lines.append("-- NOTE: requires manual review (see migration warnings)")
         if view.comment:
-            lines.append(f"-- COMMENT: {view.comment.replace(chr(10), ' ')}")
+            lines.append(f"-- COMMENT: {one_line(view.comment)}")
         lines.append(f"CREATE OR REPLACE VIEW {_bt(view.name)} AS")
         lines.append(view.query)
         return "\n".join(lines)

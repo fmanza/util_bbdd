@@ -18,7 +18,7 @@ import re
 from .._compat.identifier_rules import MAX_SQLSERVER_IDENTIFIER_LENGTH, truncate_identifier
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView
 from ._default_fallback import default_fallback_warning
-from ._trailing_comment import join_definitions, with_trailing_comment
+from ._trailing_comment import join_definitions, one_line, with_trailing_comment
 from .mariadb import _topological_sort, _topological_sort_views
 
 # Tipos string en SQL Server que aceptan cláusula COLLATE a nivel columna
@@ -115,7 +115,7 @@ class SQLServerDDLEmitter:
             skip_fk_names = {fk.name for _, fk in circular_fk_pairs if _ == table.name}
             stmt = self._emit_create_table(table, skip_fk_names=skip_fk_names)
             if table.comment:
-                stmt = f"-- COMMENT: {table.comment}\n{stmt}"
+                stmt = f"-- COMMENT: {one_line(table.comment)}\n{stmt}"
             statements.append(stmt)
 
         for table in ordered:
@@ -128,8 +128,8 @@ class SQLServerDDLEmitter:
         for table_name, fk in external_fk_pairs:
             fk_stmt = self._emit_alter_table_add_fk(table_name, fk)
             stmt = (
-                f"-- FK externa: [{fk.name}] en [{table_name}] referencia "
-                f"[{fk.ref_table}] (fuera del schema migrado) — verificar que existe\n"
+                f"-- FK externa: [{one_line(fk.name)}] en [{one_line(table_name)}] referencia "
+                f"[{one_line(fk.ref_table)}] (fuera del schema migrado) — verificar que existe\n"
                 f"{fk_stmt}"
             )
             statements.append(stmt)
@@ -150,17 +150,17 @@ class SQLServerDDLEmitter:
         if routine.is_package_member:
             pkg = routine.package_name or routine.name
             lines.append(
-                f"-- PACKAGE MEMBER: {pkg}.{routine.name} ({routine.routine_type})\n"
+                f"-- PACKAGE MEMBER: {one_line(pkg)}.{one_line(routine.name)} ({one_line(routine.routine_type)})\n"
                 f"-- No direct equivalent in SQL Server; manual migration required"
             )
-        lines.append(f"-- {routine.routine_type}: {_br(routine.name)}")
+        lines.append(f"-- {one_line(routine.routine_type)}: {one_line(_br(routine.name))}")
         if routine.warnings:
             lines.append("-- NOTE: requires manual review (see migration warnings)")
         if routine.comment:
-            lines.append(f"-- COMMENT: {routine.comment.replace(chr(10), ' ')}")
+            lines.append(f"-- COMMENT: {one_line(routine.comment)}")
         if not routine.body:
             lines.append(
-                f"-- TODO: {routine.routine_type} {_br(routine.name)} — "
+                f"-- TODO: {one_line(routine.routine_type)} {one_line(_br(routine.name))} — "
                 f"body not available; manual implementation required"
             )
             return "\n".join(lines)
@@ -173,7 +173,7 @@ class SQLServerDDLEmitter:
         stmts: list[str] = [self._emit_create_view(v) for v in ordered]
         for v in circular:
             aviso = (
-                f"-- AVISO: vista '{v.name}' participa en una dependencia circular "
+                f"-- AVISO: vista '{one_line(v.name)}' participa en una dependencia circular "
                 "— verificar orden de ejecución manualmente\n"
             )
             stmts.append(aviso + self._emit_create_view(v))
@@ -186,7 +186,7 @@ class SQLServerDDLEmitter:
         if view.warnings:
             lines.append("-- NOTE: requires manual review (see migration warnings)")
         if view.comment:
-            lines.append(f"-- COMMENT: {view.comment.replace(chr(10), ' ')}")
+            lines.append(f"-- COMMENT: {one_line(view.comment)}")
         lines.append(f"CREATE OR ALTER VIEW {_br(view.name)} AS")
         lines.append(view.query)
         return "\n".join(lines)
@@ -233,7 +233,7 @@ class SQLServerDDLEmitter:
 
     def _emit_column(self, col: CanonicalColumn, table_name: str) -> str:
         if col.omit:
-            comment = col.ddl_comment or f"-- AVISO: columna '{col.original_name}' omitida"
+            comment = one_line(col.ddl_comment or f"-- AVISO: columna '{col.original_name}' omitida")
             return f"    {comment}"
 
         parts = [f"    {_br(col.name)}", col.target_type]
@@ -272,7 +272,7 @@ class SQLServerDDLEmitter:
                 trailing.append(aviso)
 
         if trailing:
-            line = with_trailing_comment(line, "-- " + " | ".join(trailing))
+            line = with_trailing_comment(line, "-- " + one_line(" | ".join(trailing)))
 
         return line
 

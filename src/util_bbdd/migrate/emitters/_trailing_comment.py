@@ -11,6 +11,15 @@ from __future__ import annotations
 TRAILING_COMMENT_MARK: str = "\x00"
 
 
+def one_line(text: str) -> str:
+    """Texto para escribir tras ``--``: sin saltos de línea (B1, hotfix 2026-09-30).
+
+    Un comentario ``--`` termina en ``\\n`` o ``\\r``: con un salto dentro del texto (comentario o nombre del catálogo
+    origen), lo que seguía quedaba fuera del comentario como SQL.
+    """
+    return text.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
+
+
 def with_trailing_comment(definition: str, comment: str) -> str:
     """Devuelve la definición con su comentario final marcado (``comment`` incluye el ``--``)."""
     return f"{definition}{TRAILING_COMMENT_MARK} {comment}"
@@ -27,4 +36,4 @@ def join_definitions(lines: list[str]) -> str:
     return "\n".join(rendered)
 
 
-__all__: list[str] = ["TRAILING_COMMENT_MARK", "join_definitions", "with_trailing_comment"]
+__all__: list[str] = ["TRAILING_COMMENT_MARK", "join_definitions", "one_line", "with_trailing_comment"]

@@ -19,7 +19,7 @@ from .._compat.identifier_rules import MAX_POSTGRESQL_IDENTIFIER_LENGTH, truncat
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView
 from ._default_fallback import default_fallback_warning
 from ._index_names import claim_index_name
-from ._trailing_comment import join_definitions, with_trailing_comment
+from ._trailing_comment import join_definitions, one_line, with_trailing_comment
 from .mariadb import _topological_sort, _topological_sort_views
 
 # Tipos PG que admiten SERIAL: mapa tipo → variante SERIAL
@@ -118,7 +118,7 @@ class PostgreSQLDDLEmitter:
             skip_fk_names = {fk.name for _, fk in circular_fk_pairs if _ == table.name}
             stmt = self._emit_create_table(table, skip_fk_names=skip_fk_names)
             if table.comment:
-                stmt = f"-- COMMENT: {table.comment}\n{stmt}"
+                stmt = f"-- COMMENT: {one_line(table.comment)}\n{stmt}"
             statements.append(stmt)
 
         # A3: el nombre de índice es único en el schema (comparte espacio con tablas, vistas y los índices de las PK).
@@ -134,8 +134,8 @@ class PostgreSQLDDLEmitter:
         for table_name, fk in external_fk_pairs:
             fk_stmt = self._emit_alter_table_add_fk(table_name, fk)
             stmt = (
-                f"-- FK externa: {_dq(fk.name)} en {_dq(table_name)} referencia "
-                f"{_dq(fk.ref_table)} (fuera del schema migrado) — verificar que existe\n"
+                f"-- FK externa: {one_line(_dq(fk.name))} en {one_line(_dq(table_name))} referencia "
+                f"{one_line(_dq(fk.ref_table))} (fuera del schema migrado) — verificar que existe\n"
                 f"{fk_stmt}"
             )
             statements.append(stmt)
@@ -156,17 +156,17 @@ class PostgreSQLDDLEmitter:
         if routine.is_package_member:
             pkg = routine.package_name or routine.name
             lines.append(
-                f"-- PACKAGE MEMBER: {pkg}.{routine.name} ({routine.routine_type})\n"
+                f"-- PACKAGE MEMBER: {one_line(pkg)}.{one_line(routine.name)} ({one_line(routine.routine_type)})\n"
                 f"-- No direct equivalent in PostgreSQL; manual migration required"
             )
-        lines.append(f"-- {routine.routine_type}: {_dq(routine.name)}")
+        lines.append(f"-- {one_line(routine.routine_type)}: {one_line(_dq(routine.name))}")
         if routine.warnings:
             lines.append("-- NOTE: requires manual review (see migration warnings)")
         if routine.comment:
-            lines.append(f"-- COMMENT: {routine.comment.replace(chr(10), ' ')}")
+            lines.append(f"-- COMMENT: {one_line(routine.comment)}")
         if not routine.body:
             lines.append(
-                f"-- TODO: {routine.routine_type} {_dq(routine.name)} — "
+                f"-- TODO: {one_line(routine.routine_type)} {one_line(_dq(routine.name))} — "
                 f"body not available; manual implementation required"
             )
             return "\n".join(lines)
@@ -179,7 +179,7 @@ class PostgreSQLDDLEmitter:
         stmts: list[str] = [self._emit_create_view(v) for v in ordered]
         for v in circular:
             aviso = (
-                f"-- AVISO: vista '{v.name}' participa en una dependencia circular "
+                f"-- AVISO: vista '{one_line(v.name)}' participa en una dependencia circular "
                 "— verificar orden de ejecución manualmente\n"
             )
             stmts.append(aviso + self._emit_create_view(v))
@@ -190,7 +190,7 @@ class PostgreSQLDDLEmitter:
         if view.warnings:
             lines.append("-- NOTE: requires manual review (see migration warnings)")
         if view.comment:
-            lines.append(f"-- COMMENT: {view.comment.replace(chr(10), ' ')}")
+            lines.append(f"-- COMMENT: {one_line(view.comment)}")
         lines.append(f"CREATE OR REPLACE VIEW {_dq(view.name)} AS")
         lines.append(view.query)
         return "\n".join(lines)
@@ -237,7 +237,7 @@ class PostgreSQLDDLEmitter:
 
     def _emit_column(self, col: CanonicalColumn, table_name: str) -> str:
         if col.omit:
-            comment = col.ddl_comment or f"-- AVISO: columna '{col.original_name}' omitida"
+            comment = one_line(col.ddl_comment or f"-- AVISO: columna '{col.original_name}' omitida")
             return f"    {comment}"
 
         if col.auto_increment:
@@ -252,7 +252,7 @@ class PostgreSQLDDLEmitter:
         if col.comment:
             trailing.append(col.comment)
         if trailing:
-            line += " -- " + " | ".join(trailing)
+            line += " -- " + one_line(" | ".join(trailing))
         return line
 
     def _emit_regular_column(self, col: CanonicalColumn, table_name: str) -> str:
@@ -266,7 +266,7 @@ class PostgreSQLDDLEmitter:
         trailing_items = self._build_trailing_items(col)
 
         if trailing_items:
-            line = with_trailing_comment(line, "-- " + " | ".join(trailing_items))
+            line = with_trailing_comment(line, "-- " + one_line(" | ".join(trailing_items)))
 
         return line
 

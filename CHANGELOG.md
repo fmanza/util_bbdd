@@ -69,6 +69,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **migrate**: `engine` (motor de almacenamiento de MariaDB/MySQL) se escribía sin validar en `ENGINE=...`; ahora
   `MigrationPlanner` y los emisores de MariaDB/MySQL exigen un identificador simple (InnoDB, Aria, MyISAM...) y lanzan
   `ValueError` si no lo es. Nuevo `validate_storage_engine` en `util_bbdd.migrate.charset` (A9).
+- **migrate**: un salto de línea en un comentario de tabla o columna (habitual en Oracle) rompía el DDL hacia
+  PostgreSQL y SQL Server, que lo escriben como `-- ...`: la segunda línea quedaba fuera del comentario, como SQL (y con
+  `execute()` era una vía para ejecutar texto del catálogo origen). Ahora todo texto variable escrito tras `--` en los
+  cuatro emisores (comentarios y nombres de FK, vistas, rutinas y columnas omitidas) va en una sola línea (B1).
 - **migrate**: con origen SQL Server, la definición de las vistas llegaba con su cabecera `CREATE VIEW ... AS` (se
   emitía `CREATE OR ALTER VIEW v AS CREATE VIEW v AS ...`) y truncada a 4000 caracteres, también en SQL Server 2022
   (`INFORMATION_SCHEMA.VIEWS`). Ahora se lee con `OBJECT_DEFINITION` y sin cabecera; el plan avisa si la cabecera
