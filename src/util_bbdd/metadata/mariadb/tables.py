@@ -66,7 +66,8 @@ def _build_column_definition(row: Any) -> str:
     if len(row) > 4 and row[4] is not None:
         parts.append(f"DEFAULT {format_mariadb_default(row[4])}")
     if len(row) > 5 and row[5]:
-        extra: str = str(row[5]).strip()
+        # MySQL marca en EXTRA los defaults de expresión con DEFAULT_GENERATED, que no es SQL (MariaDB no lo usa).
+        extra: str = " ".join(token for token in str(row[5]).split() if token.upper() != "DEFAULT_GENERATED")
         if extra:
             parts.append(extra)
     return "  " + " ".join(parts)

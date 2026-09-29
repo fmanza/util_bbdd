@@ -135,6 +135,10 @@ def format_mariadb_default(default_value: Any) -> str:
         return raw
     if upper_raw.endswith("()"):
         return raw
+    # MariaDB ≥ 10.2.7 devuelve los literales ya entrecomillados ('x', 'it''s'): volver a entrecomillarlos producía
+    # '''x'''. MySQL los devuelve sin comillas y siguen el camino de abajo.
+    if len(raw) >= 2 and raw.startswith("'") and raw.endswith("'") and "'" not in raw[1:-1].replace("''", ""):
+        return raw
     try:
         float(raw)
         return raw
