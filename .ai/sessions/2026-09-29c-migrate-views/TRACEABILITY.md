@@ -59,6 +59,15 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
   `ILIKE` → SQL Server y agregados de texto → PG quedan para V2. Iteración: la primera pasada reveló alias generados
   por `qualify` (`AS 1`, `_col_0`), `alta + INTERVAL` de MySQL y `TIME_STR_TO_TIME` de SQL Server hacia Oracle; se
   corrigieron y la segunda pasada dio 100 %.
+- **V2**: `_rewrites.py`: `oracle_join_marks` (`transforms.eliminate_join_marks` de sqlglot: `(+)` → `LEFT JOIN`),
+  `oracle_rownum_limit` (`ROWNUM <= n` sin `ORDER BY` en la misma consulta → `LIMIT`; top-N con subconsulta ordenada →
+  límite dentro de la subconsulta; con filtros exteriores adicionales → pass-through), `tsql_target_ilike`,
+  `postgres_target_text_aggregate`; `transpiler._apply_header_columns` (columnas de la cabecera de vistas SQL Server
+  como alias; el aviso de H7 desaparece si se aplican). Matriz real (`v2/results.json`, corpus + e08 top-N y e09
+  cabecera): 620/620 vistas comunes se crean, 596 con el mismo resultado (24 = semántica de Oracle); **todas las
+  construcciones específicas con el mismo resultado** salvo `CONNECT BY` (pass-through por diseño). La primera pasada
+  reveló que MariaDB ignora el `ORDER BY` de una tabla derivada sin `LIMIT` (top-N con otro resultado, sin error) y
+  SQL Server lo rechaza: el límite se movió dentro de la subconsulta.
 
 ## Artefactos generados
 | Artefacto | Ruta | Estado |
@@ -70,6 +79,8 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
 | V1 | `src/util_bbdd/migrate/views/`, `src/util_bbdd/migrate/planner.py`, `pyproject.toml`, `docs/guides/ddl_migration_guide.md` | completado |
 | Tests V1 | `tests/unit/migrate/test_view_strategy.py`, `tests/unit/migrate/test_view_transpiler.py` | completado |
 | Verificación V1 | `v1/v1_matrix_views.py`, `v1/results.json` | completado |
+| V2 | `src/util_bbdd/migrate/views/_rewrites.py`, `src/util_bbdd/migrate/views/transpiler.py`, `docs/guides/ddl_migration_guide.md` | completado |
+| Verificación V2 | `v2/results.json` (script `v1/v1_matrix_views.py` con e08/e09) | completado |
 
 ## Directrices para Futuras IAs
 - **[sqlserver/vistas]**: `INFORMATION_SCHEMA.VIEWS.VIEW_DEFINITION` trunca a 4000 caracteres también en SQL Server
@@ -92,6 +103,10 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
 - **[migrate/vistas]**: nombres del plan (tablas, vistas, columnas) se emiten entrecomillados como los crean los
   emitters (Oracle en mayúsculas); el resto de identificadores sin comillas. Verificar siempre con la matriz real
   (`v1/v1_matrix_views.py`), no solo con la ejecución: la comparación de resultados es la que detecta lo silencioso.
+- **[migrate/vistas]**: MariaDB descarta el `ORDER BY` de una tabla derivada sin `LIMIT` (y SQL Server lo rechaza):
+  cualquier traducción de «ordenar y luego limitar» debe poner el límite en la misma consulta que ordena.
+- **[migrate/vistas]**: `CONNECT BY` es lo único que queda sin reescribir; convertirlo en CTE recursiva es trabajo
+  aparte (no está en V3).
 - **[migrate/vistas]**: plan aprobado: `sqlglot` opcional (`util_bbdd[migrate]`, `>=30,<31`), `view_strategy="auto"`
   (transpila si `sqlglot` está instalado), fallback a pass-through; V0 (spike) decide antes de V1 (umbral ≥ 80 % del
   corpus común por par).
@@ -99,6 +114,4 @@ Después: «PLAN Y AUDIT_PLAN»; decisiones: «Sqlglot, auto»; «Si» a empezar
 ## Veredicto final
 Veredicto: GO (sesión IN_PROGRESS)
 Pendientes al cierre:
-- V2: reescrituras `(+)` → `LEFT JOIN`, `ROWNUM` → `FETCH FIRST`/`LIMIT`/`TOP`, `ILIKE` → `LOWER() LIKE`, agregados de
-  texto (`STRING_AGG` con cast); lista de columnas de la cabecera de vistas SQL Server.
 - V3: `validate_views`, test de integración de la matriz de vistas, documentación funcional/API.

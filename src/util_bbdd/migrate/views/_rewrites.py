@@ -7,9 +7,9 @@ Cada función recibe y devuelve un árbol de sqlglot. Las correcciones salen del
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
-from sqlglot import exp
+from sqlglot import exp, transforms
 
 _TEXT_TYPES: frozenset[Any] = frozenset(
     {
@@ -97,12 +97,12 @@ def postgres_redundant_text_casts(tree: exp.Expression) -> exp.Expression:
 
     Solo de literales de texto y de columnas ya textuales (tipos anotados): un ``id::text`` sobre un entero se conserva.
     """
-    for cast in list(tree.find_all(exp.Cast)):
-        if cast.to.this not in _TEXT_TYPES or cast.to.expressions:
+    for cast_node in list(tree.find_all(exp.Cast)):
+        if cast_node.to.this not in _TEXT_TYPES or cast_node.to.expressions:
             continue
-        inner = _unparen(cast.this)
+        inner = _unparen(cast_node.this)
         if (isinstance(inner, exp.Literal) and inner.is_string) or (isinstance(inner, exp.Column) and _is_text(inner)):
-            cast.replace(inner.copy())
+            cast_node.replace(inner.copy())
     return tree
 
 
@@ -221,7 +221,113 @@ def postgres_target_date_add(tree: exp.Expression) -> exp.Expression:
     return tree
 
 
-# ─── Salvaguardas (construcciones sin traducción fiable en V1) ───────────────────
+# ─── Oracle origen (V2) ──────────────────────────────────────────────────────────
+
+
+def oracle_join_marks(tree: exp.Expression) -> exp.Expression:
+    """Outer join ``(+)`` de Oracle → ``LEFT JOIN`` (``transforms.eliminate_join_marks`` de sqlglot).
+
+    Sin esto sqlglot emite un join interno y la vista devuelve otro resultado sin error (V0).
+    """
+    return cast(exp.Expression, transforms.eliminate_join_marks(tree))
+
+
+def _is_rownum(node: exp.Expression) -> bool:
+    return isinstance(node, exp.Column) and not node.table and node.name.upper() == "ROWNUM"
+
+
+def _rownum_bound(condition: exp.Expression) -> int | None:
+    """Límite de filas de ``ROWNUM <= n``, ``ROWNUM < n``, ``n >= ROWNUM``, ``n > ROWNUM`` o ``ROWNUM = 1``."""
+    left, right = condition.args.get("this"), condition.args.get("expression")
+    if isinstance(condition, (exp.LTE, exp.LT, exp.EQ)) and left is not None and _is_rownum(left):
+        bound, strict = right, isinstance(condition, exp.LT)
+    elif isinstance(condition, (exp.GTE, exp.GT)) and right is not None and _is_rownum(right):
+        bound, strict = left, isinstance(condition, exp.GT)
+    else:
+        return None
+    if not (isinstance(bound, exp.Literal) and not bound.is_string and bound.name.isdigit()):
+        return None
+    value = int(bound.name) - (1 if strict else 0)
+    if isinstance(condition, exp.EQ) and value != 1:
+        return None
+    return value
+
+
+def oracle_rownum_limit(tree: exp.Expression) -> exp.Expression:
+    """``WHERE ... AND ROWNUM <= n`` en una consulta **sin** ``ORDER BY`` → ``LIMIT n`` (``TOP``/``FETCH FIRST``).
+
+    En Oracle ``ROWNUM`` se aplica antes del ``ORDER BY`` de la misma consulta: solo se traduce cuando esa consulta no
+    ordena (incluido el top-N clásico ``SELECT * FROM (... ORDER BY x) WHERE ROWNUM <= n``). Cualquier otro uso se deja
+    y la salvaguarda emite la vista sin reescribir.
+    """
+    for select in list(tree.find_all(exp.Select)):
+        where = select.args.get("where")
+        if where is None or select.args.get("order") or select.args.get("limit"):
+            continue
+        conjuncts: list[Any] = list(where.this.flatten()) if isinstance(where.this, exp.And) else [where.this]
+        limit: int | None = None
+        rest: list[Any] = []
+        for condition in conjuncts:
+            bound = _rownum_bound(condition) if limit is None else None
+            if bound is not None:
+                limit = bound
+            else:
+                rest.append(condition)
+        if limit is None or any(_is_rownum(col) for cond in rest for col in cond.find_all(exp.Column)):
+            continue
+        ordered_inner = _ordered_derived_table(select)
+        if ordered_inner is not None:
+            # Top-N clásico: el límite va DENTRO de la subconsulta ordenada. Un ORDER BY en una tabla derivada sin
+            # límite lo ignora MariaDB (otras filas, sin error) y SQL Server lo rechaza. Con más condiciones fuera no
+            # es equivalente: se deja el ROWNUM y la salvaguarda emite la vista sin reescribir.
+            if rest:
+                continue
+            ordered_inner.set("limit", exp.Limit(expression=exp.Literal.number(limit)))
+            select.set("where", None)
+            continue
+        select.set("where", exp.Where(this=exp.and_(*[c.copy() for c in rest])) if rest else None)
+        select.set("limit", exp.Limit(expression=exp.Literal.number(limit)))
+    return tree
+
+
+def _ordered_derived_table(select: exp.Select) -> exp.Select | None:
+    """Subconsulta ordenada (sin límite) de ``SELECT ... FROM (SELECT ... ORDER BY ...) alias`` sin joins ni agregados.
+
+    Con otra forma (joins, GROUP BY, DISTINCT...) devuelve ``None`` y el límite se aplica a la consulta exterior.
+    """
+    if select.args.get("joins") or select.args.get("group") or select.args.get("having") or select.args.get("distinct"):
+        return None
+    source: Any = select.args.get("from_") or select.args.get("from")
+    derived = source.this if source is not None else None
+    if not isinstance(derived, exp.Subquery):
+        return None
+    inner = derived.this
+    if isinstance(inner, exp.Select) and inner.args.get("order") and not inner.args.get("limit"):
+        return inner
+    return None
+
+
+# ─── Destino SQL Server / PostgreSQL (V2) ─────────────────────────────────────────
+
+
+def tsql_target_ilike(tree: exp.Expression) -> exp.Expression:
+    """``a ILIKE b`` (PostgreSQL) → ``LOWER(a) LIKE LOWER(b)``: SQL Server no tiene ``ILIKE``."""
+    for node in reversed(list(tree.find_all(exp.ILike))):
+        node.replace(exp.Like(this=exp.Lower(this=node.this.copy()), expression=exp.Lower(this=node.expression.copy())))
+    return tree
+
+
+def postgres_target_text_aggregate(tree: exp.Expression) -> exp.Expression:
+    """``STRING_AGG`` de PostgreSQL exige texto: el valor agregado (``GROUP_CONCAT``, ``LISTAGG``...) se pasa a texto."""
+    for node in list(tree.find_all(exp.GroupConcat)):
+        holder: exp.Expression = node.this if isinstance(node.this, exp.Order) else node
+        value = holder.this
+        if value is not None and not _is_text(value) and not isinstance(value, exp.Cast):
+            holder.set("this", exp.Cast(this=value.copy(), to=exp.DataType.build("TEXT")))
+    return tree
+
+
+# ─── Salvaguardas (construcciones sin traducción fiable) ──────────────────────────
 
 
 def unsupported_constructs(tree: exp.Expression, source_engine: str) -> list[str]:
@@ -229,9 +335,9 @@ def unsupported_constructs(tree: exp.Expression, source_engine: str) -> list[str
     found: list[str] = []
     if source_engine == "oracle":
         if any(column.args.get("join_mark") for column in tree.find_all(exp.Column)):
-            found.append("outer join (+) de Oracle")
+            found.append("outer join (+) de Oracle no convertible a LEFT JOIN")
         if any(column.name.upper() == "ROWNUM" and not column.table for column in tree.find_all(exp.Column)):
-            found.append("ROWNUM")
+            found.append("ROWNUM fuera de un límite de filas sin ORDER BY")
         if any(select.args.get("connect") for select in tree.find_all(exp.Select)):
             found.append("CONNECT BY")
     return found
@@ -240,12 +346,16 @@ def unsupported_constructs(tree: exp.Expression, source_engine: str) -> list[str
 __all__: list[str] = [
     "mysql_charset_casts",
     "mysql_to_days_difference",
+    "oracle_join_marks",
+    "oracle_rownum_limit",
     "oracle_target_date_functions",
     "oracle_target_types",
     "postgres_redundant_text_casts",
+    "postgres_target_text_aggregate",
     "postgres_target_date_add",
     "interval_arithmetic",
     "tsql_string_plus",
+    "tsql_target_ilike",
     "typed_date_arithmetic",
     "unsupported_constructs",
 ]

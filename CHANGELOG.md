@@ -18,6 +18,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   Con el banco (31 construcciones comunes, 20 pares, tablas y vistas migradas por el plan y datos copiados) se crean
   el 100 % de las vistas; las únicas diferencias de resultado son de semántica de Oracle (cadena vacía = `NULL`,
   concatenación con `NULL`), con aviso `WARNING` en los pares con Oracle.
+- **migrate**: la reescritura de vistas convierte además el outer join `(+)` de Oracle en `LEFT JOIN`, `ROWNUM` en
+  `LIMIT`/`TOP`/`FETCH FIRST` (top-N con subconsulta ordenada incluido), `ILIKE` hacia SQL Server y los agregados de
+  texto hacia PostgreSQL, y aplica como alias las columnas declaradas en la cabecera de las vistas de SQL Server. Solo
+  `CONNECT BY` (y `ROWNUM` fuera de un límite de filas) se copia sin reescribir.
 
 ### Fixed
 

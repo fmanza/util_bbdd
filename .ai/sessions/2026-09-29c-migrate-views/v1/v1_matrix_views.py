@@ -20,6 +20,13 @@ spec.loader.exec_module(v0)
 
 from util_bbdd.migrate import MigrationPlanner  # noqa: E402
 
+# V2: casos adicionales (top-N de Oracle con subconsulta ordenada; cabecera con columnas en SQL Server).
+v0.CORPUS += [
+    ("e08_top_n_oracle", "especifica",
+     {"oracle": f"SELECT * FROM (SELECT id, saldo FROM {v0.C} ORDER BY saldo DESC) WHERE ROWNUM <= 2"}),
+    ("e09_cabecera_columnas", "especifica", {"sqlserver": f"(codigo, texto) AS SELECT id, nombre FROM {v0.C}"}),
+]
+
 ENGINES = v0.ENGINES
 QPW, H = v0.QPW, v0.H
 TARGET_URL = {
@@ -128,7 +135,8 @@ def main() -> None:
                 native = sql if isinstance(sql, str) else sql.get(source)
                 if native is None:
                     continue
-                v0.execute(source, [f"CREATE VIEW zzv_v_{key} AS {native}"])
+                header = native.startswith("(")  # la cabecera declara columnas: CREATE VIEW v (a, b) AS ...
+                v0.execute(source, [f"CREATE VIEW zzv_v_{key} {native}" if header else f"CREATE VIEW zzv_v_{key} AS {native}"])
                 created.append(key)
             expected = {key: v0.rows_of(source, f"zzv_v_{key}") for key in created}
             kinds = {key: k for key, k, _ in v0.CORPUS}

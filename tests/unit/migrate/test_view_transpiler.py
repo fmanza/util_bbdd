@@ -134,9 +134,9 @@ class TestSafeguardsAndWarnings:
     @pytest.mark.parametrize(
         ("sql", "construct"),
         [
-            ("SELECT c.nombre, p.id FROM zzv_clientes c, zzv_pedidos p WHERE p.cliente_id (+) = c.id", "(+)"),
-            ("SELECT id FROM zzv_clientes WHERE ROWNUM <= 3", "ROWNUM"),
             ("SELECT LEVEL AS n FROM DUAL CONNECT BY LEVEL <= 3", "CONNECT BY"),
+            ("SELECT ROWNUM AS n, id FROM zzv_clientes", "ROWNUM"),
+            ("SELECT id FROM zzv_clientes WHERE ROWNUM <= 3 ORDER BY id", "ROWNUM"),
         ],
     )
     def test_oracle_constructs_without_reliable_translation_are_passthrough(self, sql: str, construct: str) -> None:
@@ -163,3 +163,68 @@ class TestSafeguardsAndWarnings:
     def test_empty_query_is_untouched(self) -> None:
         view = _transpile("sqlserver", "mysql", "")
         assert view.query == "" and view.warnings == []
+
+
+class TestV2Rewrites:
+    def test_oracle_outer_join_becomes_left_join(self) -> None:
+        sql = "SELECT c.nombre, p.id AS pedido FROM zzv_clientes c, zzv_pedidos p WHERE p.cliente_id (+) = c.id"
+        view = _transpile("oracle", "postgresql", sql)
+        assert "LEFT JOIN" in view.query and "(+)" not in view.query
+        assert "VIEW (reescrita)" in _messages(view)
+
+    def test_oracle_rownum_becomes_limit(self) -> None:
+        view = _transpile("oracle", "mysql", "SELECT id FROM zzv_clientes WHERE activo = 1 AND ROWNUM <= 3")
+        assert view.query.endswith("LIMIT 3") and "ROWNUM" not in view.query.upper()
+        assert "activo" in view.query.lower()
+
+    def test_oracle_top_n_subquery_uses_limit_on_outer_query(self) -> None:
+        sql = "SELECT * FROM (SELECT id, saldo FROM zzv_clientes ORDER BY saldo DESC) WHERE ROWNUM <= 2"
+        query = _transpile("oracle", "sqlserver", sql).query
+        assert "TOP 2" in query and "ROWNUM" not in query.upper()
+
+    def test_top_n_limit_goes_inside_the_ordered_subquery(self) -> None:
+        """MariaDB ignora el ORDER BY de una tabla derivada sin LIMIT y SQL Server lo rechaza: el límite va dentro."""
+        sql = "SELECT * FROM (SELECT id, saldo FROM zzv_clientes ORDER BY saldo DESC) WHERE ROWNUM <= 2"
+        query = _transpile("oracle", "mariadb", sql).query
+        inner, _, outer = query.rpartition(")")
+        assert "LIMIT 2" in inner and "LIMIT" not in outer
+
+    def test_top_n_with_outer_filter_is_passthrough(self) -> None:
+        sql = "SELECT * FROM (SELECT id, saldo FROM zzv_clientes ORDER BY saldo DESC) t WHERE t.id > 1 AND ROWNUM <= 2"
+        view = _transpile("oracle", "mariadb", sql)
+        assert view.query == sql and "VIEW (sin reescribir)" in _messages(view)
+
+    def test_rownum_strict_bound(self) -> None:
+        assert _transpile("oracle", "postgresql", "SELECT id FROM zzv_clientes WHERE ROWNUM < 4").query.endswith(
+            "LIMIT 3"
+        )
+
+    def test_ilike_for_sqlserver(self) -> None:
+        query = _transpile("postgresql", "sqlserver", "SELECT id FROM zzv_clientes WHERE nombre ILIKE 'a%'").query
+        assert "LOWER(" in query and "ILIKE" not in query.upper()
+
+    def test_text_aggregate_casts_value_for_postgres(self) -> None:
+        sql = (
+            "select `zzv_pedidos`.`cliente_id` AS `cliente_id`,group_concat(`zzv_pedidos`.`id` order by "
+            "`zzv_pedidos`.`id` ASC separator ',') AS `ids` from `zzv`.`zzv_pedidos` group by `zzv_pedidos`.`cliente_id`"
+        )
+        query = _transpile("mysql", "postgresql", sql).query
+        assert "STRING_AGG(CAST(" in query and "AS TEXT)" in query
+
+    def test_sqlserver_header_columns_become_aliases(self) -> None:
+        from util_bbdd.migrate.ir.models import MigrationWarning
+
+        header_warning = MigrationWarning("zzv_v", None, "VIEW_DEFINITION", "(columnas de la cabecera)", "x", "WARNING")
+        view = CanonicalView(
+            "zzv_v", "zzv_v", "dbo", "SELECT id, nombre FROM zzv_clientes", ["codigo", "texto"], "", [header_warning]
+        )
+        result = transpile_view(view, _ctx("sqlserver", "postgresql"))
+        assert "AS codigo" in result.query and "AS texto" in result.query
+        assert "(columnas de la cabecera)" not in _messages(result)
+
+    def test_header_columns_mismatch_keeps_warning(self) -> None:
+        from util_bbdd.migrate.ir.models import MigrationWarning
+
+        header_warning = MigrationWarning("zzv_v", None, "VIEW_DEFINITION", "(columnas de la cabecera)", "x", "WARNING")
+        view = CanonicalView("zzv_v", "zzv_v", "dbo", "SELECT id FROM zzv_clientes", ["a", "b"], "", [header_warning])
+        assert "(columnas de la cabecera)" in _messages(transpile_view(view, _ctx("sqlserver", "postgresql")))

@@ -124,11 +124,17 @@ Al reescribir, cada vista:
 - traduce funciones y sintaxis del dialecto (`IFNULL`/`ISNULL`/`NVL`, concatenación, `LIMIT`/`TOP`/`FETCH FIRST`,
   funciones de fecha…) y hace explícita la aritmética de fechas (`fecha + 30` de Oracle o PostgreSQL es una suma de
   días, no un número);
+- convierte construcciones propias del origen: el outer join `(+)` de Oracle en `LEFT JOIN`; `ROWNUM <= n` en
+  `LIMIT`/`TOP`/`FETCH FIRST` (en el top-N con subconsulta ordenada, el límite va dentro de la subconsulta); `ILIKE`
+  en `LOWER(...) LIKE LOWER(...)` hacia SQL Server; los agregados de texto (`GROUP_CONCAT`, `LISTAGG`) en
+  `STRING_AGG` con el valor convertido a texto hacia PostgreSQL; los nombres de columna declarados en la cabecera de
+  una vista de SQL Server (`CREATE VIEW v (a, b) AS ...`) en alias;
 - lleva un aviso `INFO` de revisión y, si el origen o el destino es Oracle, un `WARNING` de semántica: en Oracle la
   cadena vacía es `NULL` y `||` ignora los `NULL`.
 
-Una vista que no se puede reescribir de forma fiable se copia **sin reescribir** con un aviso `WARNING`: construcciones
-de Oracle `(+)`, `ROWNUM` y `CONNECT BY`, SQL que sqlglot no analiza o no sabe generar. Las vistas que usan objetos
+Una vista que no se puede reescribir de forma fiable se copia **sin reescribir** con un aviso `WARNING`: `CONNECT BY`
+de Oracle, `ROWNUM` fuera de un límite de filas (en la lista de columnas o junto a un `ORDER BY` de la misma consulta),
+SQL que sqlglot no analiza o no sabe generar. Las vistas que usan objetos
 fuera del schema migrado se reescriben con un aviso de referencia externa.
 
 ## 4. Verificación

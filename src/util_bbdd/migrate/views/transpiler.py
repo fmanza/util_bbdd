@@ -158,6 +158,27 @@ def _apply_names(tree: exp.Expression, ctx: ViewTranspileContext) -> None:
             ident.set("quoted", not _SIMPLE_IDENTIFIER.match(ident.name))
 
 
+_HEADER_COLUMNS_TARGET_TYPE: str = "(columnas de la cabecera)"
+
+
+def _apply_header_columns(tree: exp.Expression, view: CanonicalView) -> bool:
+    """Nombres declarados en la cabecera de la vista (``CREATE VIEW v (a, b) AS ...``, SQL Server) como alias.
+
+    ``view.columns`` trae esos nombres (``INFORMATION_SCHEMA.COLUMNS`` de la vista). Solo se aplican si la consulta
+    tiene exactamente tantas columnas como nombres; en una unión, en la primera rama (la que da nombre a la vista).
+    """
+    select: Any = tree
+    while isinstance(select, exp.SetOperation):
+        select = select.this
+    if not isinstance(select, exp.Select) or len(select.expressions) != len(view.columns):
+        return False
+    for projection, name in zip(list(select.expressions), view.columns, strict=True):
+        if projection.alias_or_name != name:
+            base = projection.this if isinstance(projection, exp.Alias) else projection
+            projection.replace(exp.alias_(base.copy(), name))
+    return True
+
+
 def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalView:
     """Devuelve ``view`` con el SQL en el dialecto destino, o sin reescribir con aviso si no es fiable."""
     if not view.query:
@@ -169,6 +190,13 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
         tree: Any = sqlglot.parse_one(view.query.strip().rstrip(";"), read=source_dialect)
     except Exception as err:  # noqa: BLE001 - cualquier fallo de análisis → pass-through
         return _passthrough(view, f"sqlglot no pudo analizarlo: {str(err).splitlines()[0][:120]}")
+
+    if ctx.source_engine == "oracle":
+        try:
+            tree = _rewrites.oracle_join_marks(tree)
+        except Exception:  # noqa: BLE001 - la salvaguarda de abajo detecta el (+) que quede
+            pass
+        tree = _rewrites.oracle_rownum_limit(tree)
 
     unsupported = _rewrites.unsupported_constructs(tree, ctx.source_engine)
     if unsupported:
@@ -200,6 +228,10 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
         except Exception:  # noqa: BLE001
             pass
 
+    header_columns_applied = False
+    if view.columns and any(w.target_type == _HEADER_COLUMNS_TARGET_TYPE for w in view.warnings):
+        header_columns_applied = _apply_header_columns(tree, view)
+
     if ctx.source_engine == "postgresql":
         tree = _rewrites.postgres_redundant_text_casts(tree)
     # B. Aritmética que depende del tipo
@@ -217,6 +249,9 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
         tree = _rewrites.oracle_target_date_functions(tree)
     elif ctx.target_engine == "postgresql":
         tree = _rewrites.postgres_target_date_add(tree)
+        tree = _rewrites.postgres_target_text_aggregate(tree)
+    elif ctx.target_engine == "sqlserver":
+        tree = _rewrites.tsql_target_ilike(tree)
 
     try:
         query = tree.sql(dialect=target_dialect, unsupported_level=ErrorLevel.RAISE)
@@ -225,6 +260,9 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
 
     result = deepcopy(view)
     result.query = query
+    if header_columns_applied:
+        # Los nombres de la cabecera ya van como alias en la consulta: el aviso de pérdida de nombres ya no aplica.
+        result.warnings = [w for w in result.warnings if w.target_type != _HEADER_COLUMNS_TARGET_TYPE]
     source_label = _ENGINE_LABEL.get(ctx.source_engine, ctx.source_engine)
     target_label = _ENGINE_LABEL.get(ctx.target_engine, ctx.target_engine)
     result.warnings.append(
