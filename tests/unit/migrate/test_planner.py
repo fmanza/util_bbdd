@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -235,7 +236,7 @@ class TestMigrationPlanExecute:
         manager = _make_mock_manager()
         plan = MigrationPlanner().plan(manager, "SCHEMA")
 
-        target = MagicMock()
+        target = MagicMock(spec=["execute_custom_one"])  # solo execute_custom_one: vía sentencia a sentencia
         target.execute_custom_one.return_value = None
 
         plan.execute(target_connection=target)
@@ -245,7 +246,7 @@ class TestMigrationPlanExecute:
         manager = _make_mock_manager()
         plan = MigrationPlanner().plan(manager, "SCHEMA")
 
-        target = MagicMock()
+        target = MagicMock(spec=["execute_custom_one"])  # solo execute_custom_one: vía sentencia a sentencia
         target.execute_custom_one.return_value = None
 
         plan.execute(target_connection=target)
@@ -307,7 +308,7 @@ class TestMigrationPlanExecuteErrorGate:
         )
         assert plan.error_count == 0
 
-        target = MagicMock()
+        target = MagicMock(spec=["execute_custom_one"])  # solo execute_custom_one: vía sentencia a sentencia
         target.execute_custom_one.return_value = None
 
         plan.execute(target_connection=target)  # No debe lanzar
@@ -390,7 +391,7 @@ class TestMigrationPlanEmitSyncsFallbackWarnings:
 
     def test_execute_also_syncs_warnings_via_emit_statements(self) -> None:
         plan = self._make_plan_with_unrecognized_default()
-        target = MagicMock()
+        target = MagicMock(spec=["execute_custom_one"])  # solo execute_custom_one: vía sentencia a sentencia
         target.execute_custom_one.return_value = None
 
         plan.execute(target_connection=target)
@@ -432,3 +433,70 @@ class TestMigrationPlannerOracleIdentityMode:
 
         assert isinstance(plan.emitter, OracleDDLEmitter)
         assert plan.emitter._identity_mode == "identity_by_default_on_null"
+
+
+class TestMigrationPlanExecuteOnConnection:
+    """A1 (hotfix 2026-09-29): con un manager (``get_sqlalchemy_engine``) o un Engine, el plan se aplica por una
+    conexión DB-API con commit tras cada sentencia; antes ``execute_custom_one`` hacía fetch tras el DDL y no hacía
+    commit (fallaba en PostgreSQL, SQL Server, MariaDB y Oracle)."""
+
+    @staticmethod
+    def _plan(statements: list[str]) -> MigrationPlan:
+        emitter = MagicMock()
+        emitter.emit_statements.return_value = statements
+        return MigrationPlan(
+            tables=[], warnings=[], source_schema="S", source_engine="oracle", target_engine="sqlite", emitter=emitter
+        )
+
+    @staticmethod
+    def _tables(path: str) -> list[str]:
+        import sqlite3
+
+        conn = sqlite3.connect(path)
+        try:
+            return sorted(r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'"))
+        finally:
+            conn.close()
+
+    def test_statements_are_committed_and_comment_only_skipped(self, tmp_path: Any) -> None:
+        from sqlalchemy import create_engine
+
+        path = str(tmp_path / "destino.db")
+        manager = MagicMock()
+        manager.get_sqlalchemy_engine.return_value = create_engine(f"sqlite:///{path}")
+        plan = self._plan(
+            [
+                "CREATE TABLE a (x INT)",
+                "-- PROCEDURE: p\n-- TODO: body not available",
+                "-- NOTE: revisar\nCREATE TABLE b (y INT)",
+            ]
+        )
+        plan.execute(manager)
+        assert self._tables(path) == ["a", "b"]  # visibles desde otra conexión: hubo commit
+        manager.execute_custom_one.assert_not_called()
+
+    def test_failure_reports_position_and_keeps_previous_statements(self, tmp_path: Any) -> None:
+        from sqlalchemy import create_engine
+
+        from util_bbdd._core.exceptions import DatabaseOperationError
+
+        path = str(tmp_path / "destino.db")
+        engine = create_engine(f"sqlite:///{path}")
+        plan = self._plan(["CREATE TABLE a (x INT)", "-- nota\nCREATE TABLE a (x INT)", "CREATE TABLE c (z INT)"])
+        with pytest.raises(DatabaseOperationError, match=r"Sentencia 2/3 .*CREATE TABLE a"):
+            plan.execute(engine)
+        assert self._tables(path) == ["a"]
+        engine.dispose()
+
+    def test_engine_from_manager_is_disposed_but_received_engine_is_not(self) -> None:
+        engine = MagicMock()
+        manager = MagicMock()
+        manager.get_sqlalchemy_engine.return_value = engine
+        plan = self._plan(["CREATE TABLE a (x INT)"])
+        plan.execute(manager)
+        engine.dispose.assert_called_once()
+        engine.raw_connection.return_value.commit.assert_called_once()
+
+        received = MagicMock(spec=["raw_connection", "dispose"])
+        plan.execute(received)
+        received.dispose.assert_not_called()

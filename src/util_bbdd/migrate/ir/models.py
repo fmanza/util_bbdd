@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -182,14 +183,21 @@ class MigrationPlan:
     def execute(self, target_connection: Any) -> None:
         """Ejecuta el DDL generado contra el motor destino.
 
+        Las sentencias se aplican una a una, con ``commit`` tras cada una, por **una sola** conexión (el
+        ``SET search_path`` de ``pg_schema`` afecta a las siguientes). Las sentencias que solo contienen comentarios
+        (rutinas sin cuerpo, miembros de PACKAGE) no se envían.
+
         Args:
-            target_connection: SyncDatabaseManager del motor destino.
+            target_connection: ``SyncDatabaseManager`` del motor destino (o un ``Engine`` de SQLAlchemy). Un objeto
+                que solo ofrezca ``execute_custom_one(sql, params)`` se usa sentencia a sentencia con ese método.
 
         Raises:
             ValueError: Si el plan tiene uno o más warnings de severidad ``ERROR``
                 (``self.error_count > 0``). No hay flag de override: resuelve los
                 errores del plan (revisa ``self.warnings``) antes de ejecutar, o usa
                 ``emit_ddl()``/``emit_statements()`` para inspeccionar el DDL sin ejecutarlo.
+            DatabaseOperationError: Si una sentencia falla; indica su posición y su primera línea. Las anteriores
+                quedan aplicadas.
         """
         if self.error_count > 0:
             error_messages = "; ".join(w.message for w in self.warnings if w.severity == "ERROR")
@@ -199,10 +207,12 @@ class MigrationPlan:
                 "ejecutar, o usa `emit_ddl()`/`emit_statements()` para inspeccionar el DDL generado "
                 "sin ejecutarlo."
             )
-        for stmt in self.emit_statements():
-            stmt_clean = stmt.strip()
-            if stmt_clean:
-                target_connection.execute_custom_one(stmt_clean, {})
+        statements = [stmt.strip() for stmt in self.emit_statements() if _has_sql(stmt)]
+        if hasattr(target_connection, "get_sqlalchemy_engine") or hasattr(target_connection, "raw_connection"):
+            _execute_statements(target_connection, statements, self.target_engine)
+            return
+        for stmt in statements:
+            target_connection.execute_custom_one(stmt, {})
 
     def validate_views(self, target_connection: Any = None, *, include_tables: bool = True) -> list[Any]:
         """Valida las vistas del plan en el destino sin dejar cambios.
@@ -253,6 +263,50 @@ class MigrationPlan:
     def info_count(self) -> int:
         """Número de warnings con severidad INFO."""
         return sum(1 for w in self.warnings if w.severity == "INFO")
+
+
+def _has_sql(statement: str) -> bool:
+    """False si la sentencia solo tiene comentarios ``--`` o espacios (Oracle la rechaza con ORA-00900)."""
+    return any(line.strip() and not line.strip().startswith("--") for line in statement.splitlines())
+
+
+def _execute_statements(target: Any, statements: list[str], target_engine: str) -> None:
+    """Aplica ``statements`` por una conexión DB-API: cursor del driver sin parámetros y ``commit`` tras cada una.
+
+    Sin parámetros, los drivers *pyformat* no reinterpretan los ``%`` literales del DDL (``LIKE 'a%'``). El Engine de
+    ``get_sqlalchemy_engine()`` se crea para esta ejecución y se libera al terminar; uno recibido se deja abierto.
+    """
+    from ..._core.exceptions import DatabaseOperationError
+
+    owned = hasattr(target, "get_sqlalchemy_engine")
+    engine = target.get_sqlalchemy_engine() if owned else target
+    try:
+        connection = engine.raw_connection()
+        try:
+            cursor = connection.cursor()
+            try:
+                for position, statement in enumerate(statements, start=1):
+                    try:
+                        cursor.execute(statement)
+                        connection.commit()
+                    except Exception as err:
+                        with suppress(Exception):  # un fallo del rollback no debe tapar el error de la sentencia
+                            connection.rollback()
+                        first_line = next(
+                            ln for ln in statement.splitlines() if ln.strip() and not ln.strip().startswith("--")
+                        )
+                        raise DatabaseOperationError(
+                            f"Sentencia {position}/{len(statements)} del plan falló ({first_line[:120]}): {err}",
+                            "MIGRATE_EXECUTE",
+                            db_type=target_engine,
+                        ) from err
+            finally:
+                cursor.close()
+        finally:
+            connection.close()
+    finally:
+        if owned:
+            engine.dispose()
 
 
 __all__: list[str] = [

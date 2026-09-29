@@ -96,6 +96,11 @@ Para aplicarlo directamente en el destino (tras revisar los avisos, ver §4):
 plan.execute(target_connection)             # ejecuta sentencia a sentencia
 ```
 
+`execute()` aplica las sentencias por una sola conexión del destino, con `commit` tras cada una (con `pg_schema`, el
+`SET search_path` inicial afecta a todo el plan). Las sentencias que solo contienen comentarios (rutinas sin cuerpo,
+miembros de PACKAGE) no se envían. Si una sentencia falla, lanza `DatabaseOperationError` con su posición y su
+primera línea; las anteriores quedan aplicadas.
+
 ### 3.5 Vistas: reescritura al dialecto destino
 
 El SQL de cada vista se reescribe al dialecto destino con [sqlglot](https://github.com/tobymao/sqlglot), una

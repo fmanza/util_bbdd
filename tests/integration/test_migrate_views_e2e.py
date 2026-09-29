@@ -272,8 +272,8 @@ def _source_objects(engine_name: str) -> list[str]:
     return statements
 
 
-def _manager(engine_name: str) -> SyncDatabaseManager:
-    url = _url(engine_name, SRC)
+def _manager(engine_name: str, namespace: str = SRC) -> SyncDatabaseManager:
+    url = _url(engine_name, namespace)
     params: dict[str, Any] = {"host": url.host, "port": url.port, "user": url.username, "password": url.password}
     if engine_name == "oracle":
         params["service_name"] = url.query.get("service_name")
@@ -339,9 +339,12 @@ def test_views_are_created_and_return_the_same_rows(source_target: tuple[str, st
     source, target = source_target
     manager = _manager(source)
     try:
-        plan = MigrationPlanner(source_engine=source, target_engine=target, view_strategy="transpile").plan(
-            manager, _source_schema(source)
-        )
+        plan = MigrationPlanner(
+            source_engine=source,
+            target_engine=target,
+            view_strategy="transpile",
+            pg_schema=DST if target == "postgresql" else None,
+        ).plan(manager, _source_schema(source))
     finally:
         manager.close()
     # Solo los objetos del test (el schema del usuario Oracle puede tener otros).
@@ -370,7 +373,12 @@ def test_views_are_created_and_return_the_same_rows(source_target: tuple[str, st
         finally:
             validation_engine.dispose()
 
-    _run(target, DST, plan.emit_statements())
+    # A1 (hotfix): el plan se aplica con su propia API, por una conexión del manager destino.
+    target_manager = _manager(target, DST)
+    try:
+        plan.execute(target_manager)
+    finally:
+        target_manager.close()
 
     src_engine, dst_engine = _engine(source, SRC), _engine(target, DST)
     try:

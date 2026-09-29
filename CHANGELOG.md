@@ -41,6 +41,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **migrate**: `MigrationPlan.execute(target)` fallaba en la primera sentencia DDL con destino PostgreSQL, SQL Server,
+  MariaDB y Oracle (usaba `execute_custom_one`, que lee filas tras el DDL y no hace `commit`; en PostgreSQL y SQL
+  Server ni siquiera quedaba creada la tabla). Ahora aplica el plan por una conexión del destino con `commit` tras cada
+  sentencia, omite las sentencias que solo tienen comentarios (ORA-00900 en Oracle) y, si una falla, lanza
+  `DatabaseOperationError` con su posición (A1, auditoría 2026-09-29d).
 - **migrate**: con origen SQL Server, la definición de las vistas llegaba con su cabecera `CREATE VIEW ... AS` (se
   emitía `CREATE OR ALTER VIEW v AS CREATE VIEW v AS ...`) y truncada a 4000 caracteres, también en SQL Server 2022
   (`INFORMATION_SCHEMA.VIEWS`). Ahora se lee con `OBJECT_DEFINITION` y sin cabecera; el plan avisa si la cabecera
