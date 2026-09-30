@@ -260,6 +260,11 @@ class TestFKConstraintQuery:
         sql = fetch_fk_constraint_sql()
         assert "r_constraint_name" in sql.lower()
         assert "r_owner" in sql.lower()
+
+    def test_fetch_fk_constraint_sql_pairs_columns_by_position(self) -> None:
+        """Hotfix 2026-09-30: sin emparejar posiciones, una FK de N columnas salía con N×N (producto cartesiano)."""
+        sql = fetch_fk_constraint_sql().lower()
+        assert "rcc.position = cc.position" in sql
         assert "constraint_id" not in sql.lower()
 
 

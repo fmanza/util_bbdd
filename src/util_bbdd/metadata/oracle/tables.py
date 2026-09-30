@@ -190,6 +190,7 @@ def fetch_fk_constraint_sql() -> str:
         "JOIN all_cons_columns rcc "
         "  ON rcon.constraint_name = rcc.constraint_name "
         "  AND rcon.owner = rcc.owner "
+        "  AND rcc.position = cc.position "  # la n-ésima columna de la FK referencia la n-ésima de la clave
         "WHERE con.owner = :owner "
         "  AND con.table_name = :table_name "
         "  AND con.constraint_type = 'R' "

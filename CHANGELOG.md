@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **metadata / migrate**: las claves foráneas compuestas de Oracle se leían como producto cartesiano: la FK
+  `(a, b) → padre(a, b)` salía como `(A, A, B, B) → (A, B, A, B)`, en orden variable, y el DDL migrado no era válido.
+  `fetch_fk_constraint_sql` empareja ahora cada columna con la de la misma posición en la clave referenciada. Afecta
+  al extractor de `migrate` y a los adaptadores de metadatos de Oracle.
+
 ## [0.20.0] - 2026-09-30
 
 Las vistas de `migrate` se reescriben al dialecto destino con sqlglot (dependencia opcional) y se pueden validar contra
