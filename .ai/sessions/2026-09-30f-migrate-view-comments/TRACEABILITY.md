@@ -56,4 +56,4 @@
   `plan.warnings` por `_sync_warnings_from_tables`; deben ser idempotentes (`if warning not in ...`).
 
 ## Veredicto final
-Veredicto: CLOSED — E2 implementado y verificado; pendiente de E1 y `/version-closure` 0.22.0.
+Veredicto: CLOSED — E2 implementado y verificado; liberado en v0.22.0 (2026-09-30).

@@ -60,9 +60,10 @@
   por los NULL.
 - **[migrate/emitters]**: los avisos que un emisor añade a una vista se calculan antes de escribir la nota de revisión
   (`if view.warnings`), para que la emisión sea idempotente.
+- **[release]**: la v0.22.0 es MINOR sin cambios incompatibles: `MigrationWarning.code` es el último campo con `None` por defecto y `fetch_views_sql()` de PostgreSQL/SQL Server añade una columna al final (solo la usan los extractores de `migrate`).
 - **[auditoría]**: verificar las hipótesis ejecutándolas en el banco destapó un fallo mayor que el buscado (C1 al
   probar C2); vale la pena probar con tipos que el e2e no usa.
 
 ## Veredicto final
-Veredicto: CLOSED — condiciones de la auditoría cumplidas (C1, H1, C2) y L1, L2 corregidos. La 0.22.0 queda lista para
-`/version-closure`.
+Veredicto: CLOSED — condiciones de la auditoría cumplidas (C1, H1, C2) y L1, L2 corregidos. Liberado en v0.22.0
+(2026-09-30), junto con E3, E2 y E1.

@@ -58,4 +58,4 @@
   inventario.
 
 ## Veredicto final
-Veredicto: CLOSED — E1 implementado y verificado. Deuda E1–E3 cerrada; la 0.22.0 queda lista para `/version-closure`.
+Veredicto: CLOSED — E1 implementado y verificado. Deuda E1–E3 cerrada; liberado en v0.22.0 (2026-09-30).

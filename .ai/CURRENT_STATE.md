@@ -33,12 +33,13 @@
 | `v0.19.0` | Liberado 2026-09-29 — **MySQL como motor propio** (`db_type="mysql"`: PyMySQL + `QueuePool` sync, aiomysql async; metadatos, documentación, relaciones y `migrate` origen/destino); MariaDB sigue con Connector/Python; adapters de metadatos por registro (`_get_metadata_adapter`); extras `util_bbdd[mariadb]`/`util_bbdd[mysql]`; 6 hotfixes: async directa de MariaDB, conexión directa de PostgreSQL, pool sync de PostgreSQL sin `sslmode` (seguridad), `migrate` ejecutable en los 20 pares (comentarios y defaults), DDL reconstruido de MariaDB/MySQL (sesión `2026-09-29b-feature-mysql-pymysql`) |
 | `v0.20.0` | Liberado 2026-09-30 — **vistas de `migrate` reescritas con sqlglot** (opcional, `view_strategy`), `CONNECT BY` → CTE recursiva, `MigrationPlan.validate_views`; auditoría de `migrate/` (A1–A9, B1): `execute()` operativo en los 5 destinos, trigger de identidad Oracle, índices por schema, barras invertidas, límites en bytes, colisiones de mayúsculas, `engine`, saltos de línea en comentarios | Estable |
 | `v0.21.0` | Liberado 2026-09-30 — **extractores de `migrate` por schema** (823 → 8 consultas, `plan()` −87 % a −98 %), **comentarios** de tablas y columnas desde/hacia PostgreSQL y SQL Server (recortados al límite de cada destino), **`oracle_type` → `source_type` / `category`** (incompatible, con guía de migración), hotfix de FK compuestas de Oracle, tabla sin columnas = ERROR | Estable |
+| `v0.22.0` | Liberado 2026-09-30 — **`CONNECT BY`** con `AND LEVEL <= n`, `CONNECT_BY_ISLEAF`, `NOCYCLE` (destino PostgreSQL) y `SELECT *` → CTE recursiva; **comentarios de vistas** desde/hacia PostgreSQL, SQL Server y Oracle; **`MigrationWarning.code`** (`WarningCode`, 21 códigos); fixes de la auditoría (C1, C2, H1, L1, L2) | Estable |
 | Zenical | Pendiente, sin versión asignada — merge `migrate/zenical-pure` (+80% perf doc builds) cuando Zenical esté instalable |
 
 PR abierta: **PR #18** `feat(connection/bulk): automatización variables MySQL/MariaDB` — revisión pendiente de merge.  
 PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical v0.0.44 esté en crates.io (o instalación manual de binario).
 
-**Tests actuales**: 5685 passed, 226 skipped sin URLs de servidor (cierre de `v0.21.0`); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 365 passed en 5 servidores (cierre de `v0.21.0`, 2026-09-30). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/performance_audit_guide.md`).
+**Tests actuales**: 5725 passed, 229 skipped sin URLs de servidor (cierre de `v0.22.0`); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 368 passed en 5 servidores (cierre de `v0.22.0`, 2026-09-30). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/performance_audit_guide.md`).
 
 ---
 
@@ -81,7 +82,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-0. **0.22.0 en curso** (deuda de la 0.21.0, orden E3 → E2 → E1): E3 hecho (`CONNECT BY` con `AND LEVEL <= n`, `CONNECT_BY_ISLEAF`, `NOCYCLE` hacia PostgreSQL; sesión `2026-09-30e-migrate-connect-by-2`); E2 hecho (comentarios de vistas; sesión `2026-09-30f-migrate-view-comments`); E1 hecho (`MigrationWarning.code`; sesión `2026-09-30g-migrate-warning-codes`); auditoría de la 0.22.0 con C1, C2, H1, L1 y L2 corregidos (sesión `2026-09-30h-migrate-audit-022`). Siguiente: `/version-closure` 0.22.0. Siguen fuera de alcance: `ORDER SIBLINGS BY`, `CONNECT_BY_ISCYCLE`, comentarios de rutinas.
+0. **Push y tag `v0.22.0`** (sesiones `2026-09-30e-migrate-connect-by-2`, `2026-09-30f-migrate-view-comments`, `2026-09-30g-migrate-warning-codes`, `2026-09-30h-migrate-audit-022`), pendientes de decisión del usuario. Fuera de alcance: `ORDER SIBLINGS BY`, `CONNECT_BY_ISCYCLE`, `NOCYCLE` hacia destinos distintos de PostgreSQL, comentarios de rutinas.
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
 3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.

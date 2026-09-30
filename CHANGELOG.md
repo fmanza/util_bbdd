@@ -7,6 +7,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-09-30
+
+Cierra la deuda que dejó la 0.21.0 en `migrate/`: más jerarquías `CONNECT BY` de Oracle se convierten en CTE recursiva
+(`AND LEVEL <= n`, `CONNECT_BY_ISLEAF`, `NOCYCLE` hacia PostgreSQL, `SELECT *`), los comentarios de vistas llegan al
+destino y cada aviso con etiqueta lleva un `code` estable para filtrarlo. Sin cambios incompatibles.
+
 ### Added
 
 - **migrate (vistas)**: más jerarquías `CONNECT BY` de Oracle se convierten en CTE recursiva (E3):

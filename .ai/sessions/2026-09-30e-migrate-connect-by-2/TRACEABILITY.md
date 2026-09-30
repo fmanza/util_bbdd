@@ -65,4 +65,4 @@
   (`"hierarchy"`, `"hierarchy_nocycle"`, `"generator"`); un resultado nuevo se añade a `CONNECT_BY_CONVERTED`.
 
 ## Veredicto final
-Veredicto: CLOSED — E3 implementado y verificado; pendiente de `/version-closure` 0.22.0 con E2 y E1.
+Veredicto: CLOSED — E3 implementado y verificado; liberado en v0.22.0 (2026-09-30).
