@@ -354,6 +354,9 @@ _CONNECT_BY_ISLEAF: str = "CONNECT_BY_ISLEAF"
 # NOCYCLE (solo destino PostgreSQL): array con la columna de PRIOR de la fila y sus antepasados. La rama recursiva no
 # baja a una fila cuyo valor ya está en el array (Oracle la omite) y CONNECT_BY_ISLEAF no cuenta ese hijo (Oracle da 1).
 # La cláusula CYCLE de PostgreSQL 14+ no sirve: marca la fila del ciclo, pero ISLEAF necesita los antepasados.
+# Los valores van como TEXT (C1, auditoría 0.22.0): un ARRAY de VARCHAR(n) o NUMERIC(p,s) conserva la longitud en la
+# rama ancla y la pierde al concatenar, y PostgreSQL rechaza la CTE por tipos distintos. Los tipos que produce la
+# migración desde Oracle (VARCHAR, NUMERIC con escala fija, BIGINT, fechas) dan un texto único por valor.
 _CONNECT_BY_KEYS: str = "cb_keys"
 
 ConnectByOutcome = str | None
@@ -364,6 +367,11 @@ CONNECT_BY_CONVERTED: frozenset[str] = frozenset({"hierarchy", "hierarchy_nocycl
 
 def _is_level(node: exp.Expression) -> bool:
     return isinstance(node, exp.Column) and not node.table and node.name.upper() == "LEVEL"
+
+
+def _is_star(node: exp.Expression) -> bool:
+    """``*`` o ``alias.*`` en la lista de columnas."""
+    return isinstance(node, exp.Star) or (isinstance(node, exp.Column) and isinstance(node.this, exp.Star))
 
 
 def _is_connect_by_path(node: exp.Expression) -> bool:
@@ -405,6 +413,8 @@ def _connect_by_generator(select: exp.Select, target_engine: str, taken: set[str
         return "condición CONNECT BY distinta de LEVEL <= n con n literal"
     if connect.args.get("start") is not None:
         return "START WITH en un generador de filas"
+    if any(_is_star(projection) for projection in select.expressions):
+        return "SELECT * en un generador de filas (Oracle devuelve la columna DUMMY de dual)"
     limit = CONNECT_BY_RECURSION_LIMIT.get(target_engine)
     if limit is not None and rows - 1 > limit:
         return f"{rows} filas superan el límite de {limit} recursiones de una CTE en {target_engine}"
@@ -461,11 +471,22 @@ def _connect_condition(condition: exp.Expression) -> tuple[exp.Column, exp.Colum
     return pairs[0][0], pairs[0][1], min(bounds) if bounds else None
 
 
+def _key_text(column: exp.Column) -> exp.Expression:
+    """Valor de la columna de PRIOR como TEXT para ``cb_keys`` (C1, auditoría 0.22.0)."""
+    return exp.Cast(this=column, to=exp.DataType.build("TEXT"))
+
+
 def _not_in_keys(column: exp.Column, keys_table: str) -> exp.Expression:
-    """``NOT columna = ANY(tabla.cb_keys)``: la fila no es la actual ni un antepasado (``NOCYCLE``)."""
-    return exp.not_(
-        exp.EQ(this=column, expression=exp.Any(this=exp.Paren(this=exp.column(_CONNECT_BY_KEYS, table=keys_table))))
+    """``NOT COALESCE(CAST(columna AS TEXT) = ANY(tabla.cb_keys), FALSE)``: ni la fila actual ni un antepasado.
+
+    ``COALESCE`` (C2, auditoría 0.22.0): con NULL en la columna, o en el array, la comparación da NULL y sin él la fila
+    se perdería; Oracle la devuelve (un NULL nunca cierra un ciclo).
+    """
+    in_keys = exp.EQ(
+        this=_key_text(column),
+        expression=exp.Any(this=exp.Paren(this=exp.column(_CONNECT_BY_KEYS, table=keys_table))),
     )
+    return exp.not_(exp.Coalesce(this=in_keys, expressions=[exp.false()]))
 
 
 def _is_leaf(
@@ -550,6 +571,17 @@ def _connect_by_hierarchy(
             return f"columna {column.sql(dialect='oracle')} de otro origen"
     if any(name.lower().startswith("cb_") for name in table_columns):
         return "columnas cb_* en la tabla (nombres reservados para la CTE)"
+    if any(_is_star(projection) for projection in select.expressions):
+        # H1 (auditoría 0.22.0): la CTE solo lleva las columnas nombradas; sin expandir, SELECT * devolvería esas y
+        # las internas (cb_level, cb_keys) en lugar de las de la tabla. Se expande en el orden del plan (el de Oracle).
+        select = select.copy()
+        expanded: list[exp.Expression] = []
+        for projection in select.expressions:
+            if _is_star(projection):
+                expanded.extend(exp.column(name, table=qualifier) for name in types)
+            else:
+                expanded.append(projection)
+        select.set("expressions", expanded)
 
     # Columnas de la tabla que usa la consulta (los alias de salida, p. ej. en ORDER BY, no están en la tabla).
     used: list[str] = []
@@ -571,12 +603,12 @@ def _connect_by_hierarchy(
     ]
     if nocycle:
         prior_key = exp.column(table_columns[parent_col.name.lower()], table=qualifier)
-        anchor_extra.append(exp.alias_(exp.Array(expressions=[prior_key.copy()]), _CONNECT_BY_KEYS))
+        anchor_extra.append(exp.alias_(exp.Array(expressions=[_key_text(prior_key.copy())]), _CONNECT_BY_KEYS))
         recursive_extra.append(
             exp.alias_(
                 exp.DPipe(
                     this=exp.column(_CONNECT_BY_KEYS, table=parent),
-                    expression=exp.Array(expressions=[prior_key.copy()]),
+                    expression=exp.Array(expressions=[_key_text(prior_key.copy())]),
                 ),
                 _CONNECT_BY_KEYS,
             )

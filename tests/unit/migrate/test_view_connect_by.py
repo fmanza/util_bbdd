@@ -193,6 +193,60 @@ class TestLevelBoundAndLeaf:
         assert "VIEW (sin reescribir)" not in _types(view)
 
 
+class TestSelectStar:
+    """H1 (auditoría 0.22.0): ``SELECT *`` / ``alias.*`` se expande con las columnas de la tabla, en su orden.
+
+    Antes, la CTE solo llevaba las columnas nombradas y la vista devolvía ``jefe_id, id, cb_level``.
+    """
+
+    COLUMNS = {"ZZV_EMP": {"ID": "NUMBER", "NOMBRE": "VARCHAR2", "JEFE_ID": "NUMBER", "ACTIVO": "NUMBER"}}
+
+    def _run(self, sql: str) -> tuple[list[str], list[tuple[object, ...]]]:
+        ctx = ViewTranspileContext(
+            source_engine="oracle",
+            target_engine="postgresql",
+            source_schema="BENCH",
+            object_names={"zzv_emp": "zzv_emp"},
+            column_names={c.lower(): c.lower() for c in self.COLUMNS["ZZV_EMP"]},
+            column_types=self.COLUMNS,
+            integer_columns=INTEGERS,
+        )
+        view = transpile_view(CanonicalView("zzv_v", "zzv_v", "BENCH", sql, [], "", []), ctx)
+        assert "VIEW (sin reescribir)" not in _types(view)
+        conn = sqlite3.connect(":memory:")
+        try:
+            conn.execute('CREATE TABLE "zzv_emp" ("id" INT, "nombre" VARCHAR(50), "jefe_id" INT, "activo" INT)')
+            conn.executemany('INSERT INTO "zzv_emp" VALUES (?, ?, ?, ?)', ROWS)
+            cursor = conn.execute(view.query)
+            return [d[0].lower() for d in cursor.description], cursor.fetchall()
+        finally:
+            conn.close()
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT * FROM zzv_emp START WITH jefe_id IS NULL CONNECT BY PRIOR id = jefe_id",
+            "SELECT e.* FROM zzv_emp e START WITH e.jefe_id IS NULL CONNECT BY PRIOR e.id = e.jefe_id",
+        ],
+        ids=["star", "alias-star"],
+    )
+    def test_star_returns_the_table_columns(self, sql: str) -> None:
+        names, rows = self._run(sql)
+        assert names == ["id", "nombre", "jefe_id", "activo"]
+        assert sorted(rows, key=lambda r: r[0]) == sorted(ROWS, key=lambda r: r[0])
+
+    def test_star_with_level(self) -> None:
+        names, rows = self._run(
+            "SELECT e.*, LEVEL AS nivel FROM zzv_emp e START WITH e.jefe_id IS NULL CONNECT BY PRIOR e.id = e.jefe_id"
+        )
+        assert names == ["id", "nombre", "jefe_id", "activo", "nivel"]
+        assert (3, "Eva", 2, 1, 3) in rows
+
+    def test_star_in_a_row_generator_is_not_rewritten(self) -> None:
+        view = _transpile("SELECT * FROM dual CONNECT BY LEVEL <= 3", "mysql")
+        assert "VIEW (sin reescribir)" in _types(view) and "DUMMY" in _messages(view)
+
+
 class TestNocycle:
     """E3 (0.22.0): ``NOCYCLE`` → array de antepasados en PostgreSQL; en el resto de destinos, sin reescribir.
 
@@ -207,13 +261,19 @@ class TestNocycle:
     def test_postgresql_stops_at_ancestors(self) -> None:
         view = _transpile(self.SQL)
         query = view.query.upper()
-        assert 'ARRAY[ZZV_EMP."ID"] AS CB_KEYS' in query
-        assert 'CONNECT_BY_PARENT.CB_KEYS || ARRAY[ZZV_EMP."ID"] AS CB_KEYS' in query
+        # C1 (auditoría 0.22.0): claves como TEXT; un ARRAY de VARCHAR(n)/NUMERIC(p,s) rompía la CTE en PostgreSQL.
+        assert 'ARRAY[CAST(ZZV_EMP."ID" AS TEXT)] AS CB_KEYS' in query
+        assert 'CONNECT_BY_PARENT.CB_KEYS || ARRAY[CAST(ZZV_EMP."ID" AS TEXT)] AS CB_KEYS' in query
         tree = sqlglot.parse_one(view.query, read="postgres")
         recursive = tree.find(exp.CTE).this.expression  # type: ignore[union-attr]
-        assert 'NOT ZZV_EMP."ID" = ANY(CONNECT_BY_PARENT.CB_KEYS)' in recursive.args["where"].sql().upper()
+        # C2: COALESCE para que un NULL en la columna de PRIOR no pierda la fila.
+        assert (
+            'NOT COALESCE(CAST(ZZV_EMP."ID" AS TEXT) = ANY(CONNECT_BY_PARENT.CB_KEYS), FALSE)'
+            in recursive.args["where"].sql().upper()
+        )
         # ISLEAF no cuenta el hijo que cerraría el ciclo; la consulta exterior no filtra nada.
-        assert 'NOT CB_CHILD."ID" = ANY(ZZV_EMP.CB_KEYS)' in query and tree.args.get("where") is None
+        assert 'NOT COALESCE(CAST(CB_CHILD."ID" AS TEXT) = ANY(ZZV_EMP.CB_KEYS), FALSE)' in query
+        assert tree.args.get("where") is None
         assert "VIEW (jerarquía)" in _types(view) and "NOCYCLE" in _messages(view)
         assert "NOCYCLE" not in query and " CYCLE " not in query
 
