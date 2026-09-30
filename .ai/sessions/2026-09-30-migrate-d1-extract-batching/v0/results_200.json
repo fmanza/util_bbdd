@@ -1,0 +1,61 @@
+{
+  "tables": 200,
+  "views": 20,
+  "engines": {
+    "mysql": {
+      "tables_extracted": 200,
+      "views_extracted": 20,
+      "queries_per_table_design": 823,
+      "plan_seconds": 0.841,
+      "extract_seconds": 0.805,
+      "ms_per_query": 0.98,
+      "batched_queries": 8,
+      "batched_seconds": 0.069,
+      "unconvertible": []
+    },
+    "mariadb": {
+      "tables_extracted": 200,
+      "views_extracted": 20,
+      "queries_per_table_design": 823,
+      "plan_seconds": 1.063,
+      "extract_seconds": 1.026,
+      "ms_per_query": 1.25,
+      "batched_queries": 8,
+      "batched_seconds": 0.03,
+      "unconvertible": []
+    },
+    "postgresql": {
+      "tables_extracted": 200,
+      "views_extracted": 20,
+      "queries_per_table_design": 823,
+      "plan_seconds": 2.943,
+      "extract_seconds": 2.909,
+      "ms_per_query": 3.53,
+      "batched_queries": 8,
+      "batched_seconds": 1.56,
+      "unconvertible": []
+    },
+    "sqlserver": {
+      "tables_extracted": 200,
+      "views_extracted": 20,
+      "queries_per_table_design": 823,
+      "plan_seconds": 19.999,
+      "extract_seconds": 19.962,
+      "ms_per_query": 24.25,
+      "batched_queries": 8,
+      "batched_seconds": 0.255,
+      "unconvertible": []
+    },
+    "oracle": {
+      "tables_extracted": 200,
+      "views_extracted": 20,
+      "queries_per_table_design": 823,
+      "plan_seconds": 7.337,
+      "extract_seconds": 7.295,
+      "ms_per_query": 8.86,
+      "batched_queries": 8,
+      "batched_seconds": 0.175,
+      "unconvertible": []
+    }
+  }
+}

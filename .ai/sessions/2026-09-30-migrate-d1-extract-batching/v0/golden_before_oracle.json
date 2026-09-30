@@ -1,0 +1,942 @@
+{
+ "oracle/default": {
+  "tables": [
+   {
+    "name": "ZZD1_CHILD",
+    "original_name": "ZZD1_CHILD",
+    "schema": "BENCH",
+    "columns": [
+     {
+      "name": "ID",
+      "original_name": "ID",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": false,
+      "default": null,
+      "comment": "",
+      "ordinal": 1,
+      "auto_increment": false,
+      "is_primary_key": true,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 0,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "A",
+      "original_name": "A",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 2,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 0,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "B",
+      "original_name": "B",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 3,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 0,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "NOTE",
+      "original_name": "NOTE",
+      "oracle_type": "VARCHAR2",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 4,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 50,
+      "precision": null,
+      "scale": null,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     }
+    ],
+    "primary_key": [
+     "ID"
+    ],
+    "indexes": [
+     {
+      "name": "SYS_C#",
+      "original_name": "SYS_C#",
+      "columns": [
+       "ID"
+      ],
+      "unique": true
+     },
+     {
+      "name": "ZZD1_IX_CHILD",
+      "original_name": "ZZD1_IX_CHILD",
+      "columns": [
+       "B",
+       "A"
+      ],
+      "unique": false
+     },
+     {
+      "name": "ZZD1_UX_CHILD",
+      "original_name": "ZZD1_UX_CHILD",
+      "columns": [
+       "NOTE",
+       "ID"
+      ],
+      "unique": true
+     }
+    ],
+    "foreign_keys": [
+     {
+      "name": "ZZD1_FK_CHILD",
+      "original_name": "ZZD1_FK_CHILD",
+      "columns": [
+       "A",
+       "B"
+      ],
+      "ref_table": "ZZD1_PARENT",
+      "ref_columns": [
+       "A",
+       "B"
+      ],
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "is_external": false
+     }
+    ],
+    "comment": "",
+    "warnings": []
+   },
+   {
+    "name": "ZZD1_PARENT",
+    "original_name": "ZZD1_PARENT",
+    "schema": "BENCH",
+    "columns": [
+     {
+      "name": "A",
+      "original_name": "A",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": false,
+      "default": null,
+      "comment": "",
+      "ordinal": 1,
+      "auto_increment": false,
+      "is_primary_key": true,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 0,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "B",
+      "original_name": "B",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": false,
+      "default": null,
+      "comment": "",
+      "ordinal": 2,
+      "auto_increment": false,
+      "is_primary_key": true,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 0,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "NAME",
+      "original_name": "NAME",
+      "oracle_type": "VARCHAR2",
+      "target_type": "",
+      "nullable": false,
+      "default": "'x'",
+      "comment": "",
+      "ordinal": 3,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 50,
+      "precision": null,
+      "scale": null,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     }
+    ],
+    "primary_key": [
+     "A",
+     "B"
+    ],
+    "indexes": [
+     {
+      "name": "SYS_C#",
+      "original_name": "SYS_C#",
+      "columns": [
+       "A",
+       "B"
+      ],
+      "unique": true
+     }
+    ],
+    "foreign_keys": [],
+    "comment": "",
+    "warnings": []
+   },
+   {
+    "name": "ZZD1_T000",
+    "original_name": "ZZD1_T000",
+    "schema": "BENCH",
+    "columns": [
+     {
+      "name": "ID",
+      "original_name": "ID",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": false,
+      "default": null,
+      "comment": "",
+      "ordinal": 1,
+      "auto_increment": false,
+      "is_primary_key": true,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 0,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "PARENT_ID",
+      "original_name": "PARENT_ID",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 2,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 0,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "NAME",
+      "original_name": "NAME",
+      "oracle_type": "VARCHAR2",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 3,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 50,
+      "precision": null,
+      "scale": null,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "CREATED",
+      "original_name": "CREATED",
+      "oracle_type": "DATE",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 4,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 7,
+      "precision": null,
+      "scale": null,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "AMOUNT",
+      "original_name": "AMOUNT",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 5,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 2,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     }
+    ],
+    "primary_key": [
+     "ID"
+    ],
+    "indexes": [
+     {
+      "name": "SYS_C#",
+      "original_name": "SYS_C#",
+      "columns": [
+       "ID"
+      ],
+      "unique": true
+     },
+     {
+      "name": "ZZD1_IX_0",
+      "original_name": "ZZD1_IX_0",
+      "columns": [
+       "NAME"
+      ],
+      "unique": false
+     }
+    ],
+    "foreign_keys": [],
+    "comment": "",
+    "warnings": []
+   },
+   {
+    "name": "ZZD1_T001",
+    "original_name": "ZZD1_T001",
+    "schema": "BENCH",
+    "columns": [
+     {
+      "name": "ID",
+      "original_name": "ID",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": false,
+      "default": null,
+      "comment": "",
+      "ordinal": 1,
+      "auto_increment": false,
+      "is_primary_key": true,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 0,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "PARENT_ID",
+      "original_name": "PARENT_ID",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 2,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 0,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "NAME",
+      "original_name": "NAME",
+      "oracle_type": "VARCHAR2",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 3,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 50,
+      "precision": null,
+      "scale": null,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "CREATED",
+      "original_name": "CREATED",
+      "oracle_type": "DATE",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 4,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 7,
+      "precision": null,
+      "scale": null,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "AMOUNT",
+      "original_name": "AMOUNT",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 5,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 2,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     }
+    ],
+    "primary_key": [
+     "ID"
+    ],
+    "indexes": [
+     {
+      "name": "SYS_C#",
+      "original_name": "SYS_C#",
+      "columns": [
+       "ID"
+      ],
+      "unique": true
+     },
+     {
+      "name": "ZZD1_IX_1",
+      "original_name": "ZZD1_IX_1",
+      "columns": [
+       "NAME"
+      ],
+      "unique": false
+     }
+    ],
+    "foreign_keys": [
+     {
+      "name": "ZZD1_FK_1",
+      "original_name": "ZZD1_FK_1",
+      "columns": [
+       "PARENT_ID"
+      ],
+      "ref_table": "ZZD1_T000",
+      "ref_columns": [
+       "ID"
+      ],
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "is_external": false
+     }
+    ],
+    "comment": "",
+    "warnings": []
+   },
+   {
+    "name": "ZZD1_T002",
+    "original_name": "ZZD1_T002",
+    "schema": "BENCH",
+    "columns": [
+     {
+      "name": "ID",
+      "original_name": "ID",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": false,
+      "default": null,
+      "comment": "",
+      "ordinal": 1,
+      "auto_increment": false,
+      "is_primary_key": true,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 0,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "PARENT_ID",
+      "original_name": "PARENT_ID",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 2,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 0,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "NAME",
+      "original_name": "NAME",
+      "oracle_type": "VARCHAR2",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 3,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 50,
+      "precision": null,
+      "scale": null,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "CREATED",
+      "original_name": "CREATED",
+      "oracle_type": "DATE",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 4,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 7,
+      "precision": null,
+      "scale": null,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "AMOUNT",
+      "original_name": "AMOUNT",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 5,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 2,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     }
+    ],
+    "primary_key": [
+     "ID"
+    ],
+    "indexes": [
+     {
+      "name": "SYS_C#",
+      "original_name": "SYS_C#",
+      "columns": [
+       "ID"
+      ],
+      "unique": true
+     },
+     {
+      "name": "ZZD1_IX_2",
+      "original_name": "ZZD1_IX_2",
+      "columns": [
+       "NAME"
+      ],
+      "unique": false
+     }
+    ],
+    "foreign_keys": [
+     {
+      "name": "ZZD1_FK_2",
+      "original_name": "ZZD1_FK_2",
+      "columns": [
+       "PARENT_ID"
+      ],
+      "ref_table": "ZZD1_T001",
+      "ref_columns": [
+       "ID"
+      ],
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "is_external": false
+     }
+    ],
+    "comment": "",
+    "warnings": []
+   },
+   {
+    "name": "ZZD1_T003",
+    "original_name": "ZZD1_T003",
+    "schema": "BENCH",
+    "columns": [
+     {
+      "name": "ID",
+      "original_name": "ID",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": false,
+      "default": null,
+      "comment": "",
+      "ordinal": 1,
+      "auto_increment": false,
+      "is_primary_key": true,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 0,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "PARENT_ID",
+      "original_name": "PARENT_ID",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 2,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 0,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "NAME",
+      "original_name": "NAME",
+      "oracle_type": "VARCHAR2",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 3,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 50,
+      "precision": null,
+      "scale": null,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "CREATED",
+      "original_name": "CREATED",
+      "oracle_type": "DATE",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 4,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 7,
+      "precision": null,
+      "scale": null,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "AMOUNT",
+      "original_name": "AMOUNT",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 5,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 2,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     }
+    ],
+    "primary_key": [
+     "ID"
+    ],
+    "indexes": [
+     {
+      "name": "SYS_C#",
+      "original_name": "SYS_C#",
+      "columns": [
+       "ID"
+      ],
+      "unique": true
+     },
+     {
+      "name": "ZZD1_IX_3",
+      "original_name": "ZZD1_IX_3",
+      "columns": [
+       "NAME"
+      ],
+      "unique": false
+     }
+    ],
+    "foreign_keys": [
+     {
+      "name": "ZZD1_FK_3",
+      "original_name": "ZZD1_FK_3",
+      "columns": [
+       "PARENT_ID"
+      ],
+      "ref_table": "ZZD1_T002",
+      "ref_columns": [
+       "ID"
+      ],
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "is_external": false
+     }
+    ],
+    "comment": "",
+    "warnings": []
+   },
+   {
+    "name": "ZZD1_T004",
+    "original_name": "ZZD1_T004",
+    "schema": "BENCH",
+    "columns": [
+     {
+      "name": "ID",
+      "original_name": "ID",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": false,
+      "default": null,
+      "comment": "",
+      "ordinal": 1,
+      "auto_increment": false,
+      "is_primary_key": true,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 0,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "PARENT_ID",
+      "original_name": "PARENT_ID",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 2,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 0,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "NAME",
+      "original_name": "NAME",
+      "oracle_type": "VARCHAR2",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 3,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 50,
+      "precision": null,
+      "scale": null,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "CREATED",
+      "original_name": "CREATED",
+      "oracle_type": "DATE",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 4,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 7,
+      "precision": null,
+      "scale": null,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     },
+     {
+      "name": "AMOUNT",
+      "original_name": "AMOUNT",
+      "oracle_type": "NUMBER",
+      "target_type": "",
+      "nullable": true,
+      "default": null,
+      "comment": "",
+      "ordinal": 5,
+      "auto_increment": false,
+      "is_primary_key": false,
+      "char_length": 22,
+      "precision": 10,
+      "scale": 2,
+      "warnings": [],
+      "ddl_comment": null,
+      "omit": false
+     }
+    ],
+    "primary_key": [
+     "ID"
+    ],
+    "indexes": [
+     {
+      "name": "SYS_C#",
+      "original_name": "SYS_C#",
+      "columns": [
+       "ID"
+      ],
+      "unique": true
+     },
+     {
+      "name": "ZZD1_IX_4",
+      "original_name": "ZZD1_IX_4",
+      "columns": [
+       "NAME"
+      ],
+      "unique": false
+     }
+    ],
+    "foreign_keys": [
+     {
+      "name": "ZZD1_FK_4",
+      "original_name": "ZZD1_FK_4",
+      "columns": [
+       "PARENT_ID"
+      ],
+      "ref_table": "ZZD1_T003",
+      "ref_columns": [
+       "ID"
+      ],
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "is_external": false
+     }
+    ],
+    "comment": "",
+    "warnings": []
+   }
+  ],
+  "views": [
+   {
+    "name": "ZZD1_V000",
+    "original_name": "ZZD1_V000",
+    "schema": "BENCH",
+    "query": "SELECT id, name FROM ZZD1_t000",
+    "columns": [
+     "ID",
+     "NAME"
+    ],
+    "comment": "",
+    "warnings": []
+   },
+   {
+    "name": "ZZD1_V001",
+    "original_name": "ZZD1_V001",
+    "schema": "BENCH",
+    "query": "SELECT id, name FROM ZZD1_t001",
+    "columns": [
+     "ID",
+     "NAME"
+    ],
+    "comment": "",
+    "warnings": []
+   },
+   {
+    "name": "ZZD1_V002",
+    "original_name": "ZZD1_V002",
+    "schema": "BENCH",
+    "query": "SELECT id, name FROM ZZD1_t002",
+    "columns": [
+     "ID",
+     "NAME"
+    ],
+    "comment": "",
+    "warnings": []
+   }
+  ],
+  "routines": [
+   {
+    "name": "",
+    "original_name": "",
+    "schema": "BENCH",
+    "routine_type": "PROCEDURE",
+    "body": "",
+    "return_type": "",
+    "comment": "",
+    "warnings": [
+     {
+      "table": "",
+      "column": null,
+      "oracle_type": "PROCEDURE",
+      "target_type": "(no body)",
+      "message": "Body de '' no disponible en ALL_SOURCE; emitir stub.",
+      "severity": "WARNING",
+      "proposals": []
+     }
+    ],
+    "is_package_member": false,
+    "package_name": null
+   }
+  ]
+ }
+}

@@ -1,0 +1,17 @@
+{
+  "tables": 200,
+  "views": 20,
+  "engines": {
+    "oracle": {
+      "tables_extracted": 200,
+      "views_extracted": 20,
+      "queries_per_table_design": 8,
+      "plan_seconds": 0.13,
+      "extract_seconds": 0.098,
+      "ms_per_query": 12.27,
+      "batched_queries": 8,
+      "batched_seconds": 0.103,
+      "unconvertible": []
+    }
+  }
+}
