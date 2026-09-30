@@ -31,7 +31,7 @@ from ..ir.models import (
     CanonicalView,
     MigrationWarning,
 )
-from ._schema_rows import group_by_object
+from ._schema_rows import ObjectRows, group_by_object
 
 
 def _parse_raw_column(row: Any) -> dict[str, Any] | None:
@@ -102,10 +102,10 @@ class OracleSchemaExtractor:
             table_name = str(t_row[0]).strip()
             table_comment = str(t_row[2]).strip() if len(t_row) > 2 and t_row[2] else ""
 
-            columns = self._extract_columns(columns_by_table.get(table_name, []))
-            pk_cols = self._extract_pk(pks_by_table.get(table_name, []))
-            fk_list = self._extract_fks(schema, fks_by_table.get(table_name, []))
-            idx_list = self._extract_indexes(indexes_by_table.get(table_name, []))
+            columns = self._extract_columns(columns_by_table.for_object(table_name))
+            pk_cols = self._extract_pk(pks_by_table.for_object(table_name))
+            fk_list = self._extract_fks(schema, fks_by_table.for_object(table_name))
+            idx_list = self._extract_indexes(indexes_by_table.for_object(table_name))
 
             # Marcar columnas PK
             pk_set = {c.upper() for c in pk_cols}
@@ -138,7 +138,9 @@ class OracleSchemaExtractor:
         """
         rows = self._query(fetch_views_sql(), {"owner": schema})
         columns_by_view = (
-            group_by_object(self._query(fetch_view_columns_for_schema_sql(), {"owner": schema})) if rows else {}
+            group_by_object(self._query(fetch_view_columns_for_schema_sql(), {"owner": schema}))
+            if rows
+            else ObjectRows()
         )
         views: list[CanonicalView] = []
 
@@ -149,7 +151,7 @@ class OracleSchemaExtractor:
             text = str(row[1]).strip() if row[1] else ""
             comment = str(row[2]).strip() if len(row) > 2 and row[2] else ""
 
-            columns = [str(r[0]).strip() for r in columns_by_view.get(view_name, []) if r and r[0]]
+            columns = [str(r[0]).strip() for r in columns_by_view.for_object(view_name) if r and r[0]]
             views.append(
                 CanonicalView(
                     name=view_name,

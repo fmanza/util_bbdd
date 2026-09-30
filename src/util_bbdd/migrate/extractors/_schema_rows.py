@@ -11,10 +11,29 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
+Row = tuple[Any, ...]
 
-def group_by_object(rows: Iterable[Any]) -> dict[str, list[tuple[Any, ...]]]:
+
+class ObjectRows(dict[str, list[Row]]):
+    """``{nombre exacto: [filas]}`` con búsqueda tolerante a mayúsculas (H1, auditoría 0.21.0)."""
+
+    def for_object(self, name: str) -> list[Row]:
+        """Filas de ``name``; si no hay coincidencia exacta, las de la única que solo difiere en mayúsculas.
+
+        Las consultas por tabla anteriores filtraban con ``TABLE_NAME = …``, que en MySQL/MariaDB y SQL Server no
+        distingue mayúsculas: si una vista del catálogo devuelve el nombre con otra capitalización, la tabla no debe
+        quedarse sin filas. Con varias candidatas no se adivina.
+        """
+        if name in self:
+            return self[name]
+        folded = name.casefold()
+        candidates = [key for key in self if key.casefold() == folded]
+        return self[candidates[0]] if len(candidates) == 1 else []
+
+
+def group_by_object(rows: Iterable[Any]) -> ObjectRows:
     """``{nombre exacto: [fila sin la primera columna, ...]}`` conservando el orden de las filas."""
-    grouped: dict[str, list[tuple[Any, ...]]] = {}
+    grouped = ObjectRows()
     for row in rows:
         if not row:
             continue
@@ -22,4 +41,4 @@ def group_by_object(rows: Iterable[Any]) -> dict[str, list[tuple[Any, ...]]]:
     return grouped
 
 
-__all__: list[str] = ["group_by_object"]
+__all__: list[str] = ["ObjectRows", "group_by_object"]

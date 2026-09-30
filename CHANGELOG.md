@@ -57,6 +57,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   el `CREATE TABLE` entero (máximo 1024 caracteres por columna y 2048 por tabla), en Oracle el `COMMENT ON` (4000
   bytes) y en SQL Server la sentencia con todos los `MS_Description` (7500 bytes). Ahora se recorta al límite, sin
   partir caracteres, con un aviso de la nueva categoría `COMMENT` (C1, auditoría de la 0.21.0).
+- **migrate**: los extractores (consultas por schema de D1) buscan las filas de cada tabla por nombre exacto y, si no
+  lo hay, por la única coincidencia que solo difiere en mayúsculas, como hacían los filtros `TABLE_NAME = …` en
+  MySQL/MariaDB y SQL Server; antes, una capitalización distinta entre vistas del catálogo dejaba la tabla sin
+  columnas (H1).
 - **metadata / migrate**: las claves foráneas compuestas de Oracle se leían como producto cartesiano: la FK
   `(a, b) → padre(a, b)` salía como `(A, A, B, B) → (A, B, A, B)`, en orden variable, y el DDL migrado no era válido.
   `fetch_fk_constraint_sql` empareja ahora cada columna con la de la misma posición en la clave referenciada. Afecta
