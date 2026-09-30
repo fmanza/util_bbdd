@@ -349,8 +349,11 @@ _CONNECT_BY_PATH_TYPE: dict[str, str] = {
 CONNECT_BY_RECURSION_LIMIT: dict[str, int] = {"sqlserver": 100, "mysql": 1000}
 # CHAR/NCHAR quedan fuera: Oracle conserva el relleno en la ruta y PostgreSQL lo quita al convertir a VARCHAR.
 _CONNECT_BY_PATH_TEXT_TYPES: frozenset[str] = frozenset({"VARCHAR2", "NVARCHAR2", "VARCHAR"})
-_HIERARCHY_PSEUDOCOLUMNS: frozenset[str] = frozenset({"CONNECT_BY_ISCYCLE", "ROWNUM"})
+_HIERARCHY_PSEUDOCOLUMNS: frozenset[str] = frozenset({"ROWNUM"})
 _CONNECT_BY_ISLEAF: str = "CONNECT_BY_ISLEAF"
+# F2 (0.23.0): 1 si la fila tiene un hijo que la jerarquía visitaría (LEVEL <= n incluido) y que ya está en el camino,
+# ella misma incluida; solo existe con NOCYCLE (sin él, Oracle da ORA-30930). Comprobado contra Oracle en el banco.
+_CONNECT_BY_ISCYCLE: str = "CONNECT_BY_ISCYCLE"
 # NOCYCLE (solo destino PostgreSQL): array con la columna de PRIOR de la fila y sus antepasados. La rama recursiva no
 # baja a una fila cuyo valor ya está en el array (Oracle la omite) y CONNECT_BY_ISLEAF no cuenta ese hijo (Oracle da 1).
 # La cláusula CYCLE de PostgreSQL 14+ no sirve: marca la fila del ciclo, pero ISLEAF necesita los antepasados.
@@ -476,33 +479,38 @@ def _key_text(column: exp.Column) -> exp.Expression:
     return exp.Cast(this=column, to=exp.DataType.build("TEXT"))
 
 
-def _not_in_keys(column: exp.Column, keys_table: str) -> exp.Expression:
-    """``NOT COALESCE(CAST(columna AS TEXT) = ANY(tabla.cb_keys), FALSE)``: ni la fila actual ni un antepasado.
+def _in_keys(column: exp.Column, keys_table: str) -> exp.Expression:
+    """``COALESCE(CAST(columna AS TEXT) = ANY(tabla.cb_keys), FALSE)``: la fila actual o un antepasado.
 
-    ``COALESCE`` (C2, auditoría 0.22.0): con NULL en la columna, o en el array, la comparación da NULL y sin él la fila
-    se perdería; Oracle la devuelve (un NULL nunca cierra un ciclo).
+    ``COALESCE`` (C2, auditoría 0.22.0): con NULL en la columna, o en el array, la comparación da NULL; un NULL nunca
+    cierra un ciclo en Oracle, así que cuenta como «no está».
     """
     in_keys = exp.EQ(
         this=_key_text(column),
         expression=exp.Any(this=exp.Paren(this=exp.column(_CONNECT_BY_KEYS, table=keys_table))),
     )
-    return exp.not_(exp.Coalesce(this=in_keys, expressions=[exp.false()]))
+    return exp.Coalesce(this=in_keys, expressions=[exp.false()])
 
 
-def _is_leaf(
+def _not_in_keys(column: exp.Column, keys_table: str) -> exp.Expression:
+    """Negación de :func:`_in_keys`: ni la fila actual ni un antepasado."""
+    return exp.not_(_in_keys(column, keys_table))
+
+
+def _has_child(
     source: exp.Table,
     qualifier: str,
     parent_col: str,
     child_col: str,
     max_level: int | None,
-    nocycle: bool,
+    on_path: bool | None,
     taken: set[str],
 ) -> exp.Expression:
-    """``CONNECT_BY_ISLEAF``: 1 si ninguna fila de la tabla cuelga de esta (o si ya está en el nivel máximo).
+    """Hay una fila de la tabla que cuelga de esta y que la jerarquía podría visitar (``LEVEL <= n`` incluido).
 
-    Se evalúa contra la tabla y no contra el resultado: en Oracle el ``WHERE`` de la consulta no convierte en hoja a
-    un nodo cuyos hijos filtra. Con ``NOCYCLE`` no cuenta el hijo que cerraría un ciclo: Oracle da 1 a una fila cuyo
-    único hijo es un antepasado.
+    ``on_path``: ``None`` = cualquier hijo; ``False`` = hijos que **no** están en el camino (``NOCYCLE``); ``True`` =
+    hijos que **sí** están (cierran un ciclo). Se evalúa contra la tabla, no contra el resultado: en Oracle el ``WHERE``
+    de la consulta no cambia ``CONNECT_BY_ISLEAF`` ni ``CONNECT_BY_ISCYCLE``.
     """
     alias = _free_name("cb_child", taken | {qualifier.lower()})
     child_table = source.copy()
@@ -510,12 +518,20 @@ def _is_leaf(
     child_filter: Any = exp.EQ(
         this=exp.column(child_col, table=alias), expression=exp.column(parent_col, table=qualifier)
     )
-    if nocycle:
-        child_filter = exp.and_(child_filter, _not_in_keys(exp.column(parent_col, table=alias), qualifier))
+    if on_path is not None:
+        membership = _in_keys(exp.column(parent_col, table=alias), qualifier)
+        child_filter = exp.and_(child_filter, membership if on_path else exp.not_(membership))
     has_child: Any = exp.Exists(this=exp.select(exp.Literal.number(1)).from_(child_table).where(child_filter))
     if max_level is not None:
         has_child = exp.and_(exp.column(_CONNECT_BY_LEVEL, table=qualifier) < exp.Literal.number(max_level), has_child)
-    return exp.Case(ifs=[exp.If(this=has_child, true=exp.Literal.number(0))], default=exp.Literal.number(1))
+    return has_child
+
+
+def _flag(condition: exp.Expression, when_true: int) -> exp.Expression:
+    """``CASE WHEN condición THEN when_true ELSE 1 - when_true END``."""
+    return exp.Case(
+        ifs=[exp.If(this=condition, true=exp.Literal.number(when_true))], default=exp.Literal.number(1 - when_true)
+    )
 
 
 def _connect_by_hierarchy(
@@ -554,6 +570,8 @@ def _connect_by_hierarchy(
     )
     if pseudo:
         return ", ".join(pseudo)
+    if not nocycle and any(not c.table and c.name.upper() == _CONNECT_BY_ISCYCLE for c in select.find_all(exp.Column)):
+        return "CONNECT_BY_ISCYCLE sin NOCYCLE (Oracle da ORA-30930)"
     priors = list(select.find_all(exp.Prior))
     if len(priors) != 1:
         return "PRIOR fuera de la condición CONNECT BY"
@@ -707,18 +725,28 @@ def _connect_by_hierarchy(
         column_alias = replacements.get(replaced.sql(dialect="oracle").lower())
         if column_alias is not None:
             replaced.replace(exp.column(column_alias, table=qualifier))
-    for leaf in [c for c in outer.find_all(exp.Column) if not c.table and c.name.upper() == _CONNECT_BY_ISLEAF]:
-        leaf_value = _is_leaf(
-            source,
-            qualifier,
-            table_columns[parent_col.name.lower()],
-            table_columns[child_col.name.lower()],
-            max_level,
-            nocycle,
-            taken,
+    # CONNECT_BY_ISLEAF: 0 si hay un hijo visitable (con NOCYCLE, fuera del camino); CONNECT_BY_ISCYCLE (F2): 1 si hay
+    # un hijo visitable que ya está en el camino.
+    pseudocolumns: dict[str, tuple[bool | None, int]] = {
+        _CONNECT_BY_ISLEAF: (False if nocycle else None, 0),
+        _CONNECT_BY_ISCYCLE: (True, 1),
+    }
+    for pseudo_column in [c for c in outer.find_all(exp.Column) if not c.table and c.name.upper() in pseudocolumns]:
+        on_path, when_child = pseudocolumns[pseudo_column.name.upper()]
+        value = _flag(
+            _has_child(
+                source,
+                qualifier,
+                table_columns[parent_col.name.lower()],
+                table_columns[child_col.name.lower()],
+                max_level,
+                on_path,
+                taken,
+            ),
+            when_child,
         )
         # Proyección sin alias: conserva el nombre de columna que da Oracle.
-        leaf.replace(exp.alias_(leaf_value, _CONNECT_BY_ISLEAF.lower()) if leaf.parent is outer else leaf_value)
+        pseudo_column.replace(exp.alias_(value, pseudo_column.name.lower()) if pseudo_column.parent is outer else value)
     _replace_level(outer, qualifier)
     cte = exp.CTE(
         this=exp.union(anchor, recursive, distinct=False), alias=exp.TableAlias(this=exp.to_identifier(cte_name))

@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **migrate (vistas)**: `CONNECT_BY_ISCYCLE` en jerarquías `CONNECT BY NOCYCLE` convertidas (F2): 1 si la fila tiene
+  un hijo que la condición visitaría (con `AND LEVEL <= n`, dentro del nivel máximo) y que ya está en el camino, ella
+  misma incluida. Comprobado contra Oracle en el e2e. Sin `NOCYCLE` Oracle no lo admite (ORA-30930) y la vista sigue
+  sin reescribir.
+
 ## [0.22.0] - 2026-09-30
 
 Cierra la deuda que dejó la 0.21.0 en `migrate/`: más jerarquías `CONNECT BY` de Oracle se convierten en CTE recursiva

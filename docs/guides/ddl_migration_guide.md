@@ -142,7 +142,7 @@ Al reescribir, cada vista:
 
 Una vista que no se puede reescribir de forma fiable se copia **sin reescribir** con un aviso `WARNING` que dice el
 motivo: `CONNECT BY` fuera del subconjunto convertible (`NOCYCLE` hacia otro destino que PostgreSQL,
-`ORDER SIBLINGS BY`, joins, condiciones distintas de `PRIOR a = b [AND LEVEL <= n]`, `CONNECT_BY_ISCYCLE`…), `ROWNUM` fuera de un límite de filas (en la lista de columnas o junto a un `ORDER BY` de la misma consulta),
+`ORDER SIBLINGS BY`, joins, condiciones distintas de `PRIOR a = b [AND LEVEL <= n]`…), `ROWNUM` fuera de un límite de filas (en la lista de columnas o junto a un `ORDER BY` de la misma consulta),
 SQL que sqlglot no analiza o no sabe generar. Las vistas que usan objetos
 fuera del schema migrado se reescriben con un aviso de referencia externa.
 

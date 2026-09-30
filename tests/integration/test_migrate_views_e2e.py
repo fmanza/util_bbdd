@@ -614,54 +614,76 @@ def test_views_are_created_and_return_the_same_rows(source_target: tuple[str, st
         dst_engine.dispose()
 
 
-# E3 (0.22.0): NOCYCLE → array de antepasados en PostgreSQL. Ana → Luis → Eva → Ana es un ciclo: Oracle corta al
+# E3 (0.22.0): NOCYCLE → camino de claves (array en PostgreSQL). Ana → Luis → Eva → Ana es un ciclo: Oracle corta al
 # volver a un antepasado y da CONNECT_BY_ISLEAF = 1 a Eva (su único hijo es Ana).
 # Auditoría 0.22.0: la clave VARCHAR2 o NUMBER(20) (VARCHAR(n)/NUMERIC(20,0) en PostgreSQL) rompía la CTE (C1); una fila
 # con NULL en la columna de PRIOR se perdía (C2); SELECT * devolvía las columnas equivocadas (H1).
-CICLO, CICLO_V, CICLO_STAR_V = "zzvw_ciclo", "zzvw_ciclo_v", "zzvw_ciclo_star"
-CICLO_ROWS = [(1, "Ana", 3), (2, "Luis", 1), (3, "Eva", 2), (4, "Juan", 1), (5, "Rosa", None), (None, "Sin id", 1)]
-NOCYCLE_VIEW = (
-    f"SELECT id, LEVEL AS nivel, SYS_CONNECT_BY_PATH(nombre, '/') AS ruta, CONNECT_BY_ISLEAF AS hoja FROM {CICLO} "
-    "START WITH nombre IN ('Ana', 'Rosa') CONNECT BY NOCYCLE PRIOR id = jefe_id"
-)
-NOCYCLE_STAR_VIEW = f"SELECT * FROM {CICLO} START WITH nombre = 'Ana' CONNECT BY NOCYCLE PRIOR id = jefe_id"
+# F2 (0.23.0): CONNECT_BY_ISCYCLE; «Self» es su propio jefe (ciclo de un nodo). Con LEVEL <= 3, Oracle da 0 a Eva: su
+# hijo Ana estaría en el nivel 4 y no cuenta.
+CICLO, CICLO_V, CICLO_STAR_V, CICLO_NIVEL_V = "zzvw_ciclo", "zzvw_ciclo_v", "zzvw_ciclo_star", "zzvw_ciclo_nivel"
+CICLO_ROWS = [
+    (1, "Ana", 3),
+    (2, "Luis", 1),
+    (3, "Eva", 2),
+    (4, "Juan", 1),
+    (5, "Rosa", None),
+    (None, "Sin id", 1),
+    (6, "Self", 6),
+]
+NOCYCLE_VIEWS = {
+    CICLO_V: (
+        "SELECT id, LEVEL AS nivel, SYS_CONNECT_BY_PATH(nombre, '/') AS ruta, CONNECT_BY_ISLEAF AS hoja, "
+        f"CONNECT_BY_ISCYCLE AS ciclo FROM {CICLO} START WITH nombre IN ('Ana', 'Rosa', 'Self') "
+        "CONNECT BY NOCYCLE PRIOR id = jefe_id"
+    ),
+    CICLO_STAR_V: f"SELECT * FROM {CICLO} START WITH nombre = 'Ana' CONNECT BY NOCYCLE PRIOR id = jefe_id",
+    CICLO_NIVEL_V: (
+        f"SELECT nombre, LEVEL AS nivel, CONNECT_BY_ISCYCLE AS ciclo, CONNECT_BY_ISLEAF AS hoja FROM {CICLO} "
+        "START WITH nombre IN ('Ana', 'Self') CONNECT BY NOCYCLE PRIOR id = jefe_id AND LEVEL <= 3"
+    ),
+}
 KEY_TYPES = {"NUMBER(10)": int, "VARCHAR2(10)": str, "NUMBER(20)": int}
+NOCYCLE_TARGETS = ["postgresql"]
+NOCYCLE_CASES = [(t, k) for t in NOCYCLE_TARGETS for k in KEY_TYPES]
 
 
-@pytest.mark.parametrize("key_type", list(KEY_TYPES))
-def test_oracle_nocycle_hierarchy_to_postgresql(key_type: str) -> None:
+@pytest.mark.parametrize(("target", "key_type"), NOCYCLE_CASES, ids=[f"{t}-{k}" for t, k in NOCYCLE_CASES])
+def test_oracle_nocycle_hierarchy(target: str, key_type: str) -> None:
     to_key = KEY_TYPES[key_type]
     rows = [(None if i is None else to_key(i), n, None if j is None else to_key(j)) for i, n, j in CICLO_ROWS]
     _create_namespace("oracle", SRC)
-    _create_namespace("postgresql", DST)
+    _create_namespace(target, DST)
     try:
         statements = [f"CREATE TABLE {CICLO} (id {key_type}, nombre VARCHAR2(50) NOT NULL, jefe_id {key_type})"]
         statements += [
             f"INSERT INTO {CICLO} VALUES ({'NULL' if i is None else repr(i)}, '{n}', {'NULL' if j is None else repr(j)})"
             for i, n, j in rows
         ]
-        statements += [f"CREATE VIEW {CICLO_V} AS {NOCYCLE_VIEW}", f"CREATE VIEW {CICLO_STAR_V} AS {NOCYCLE_STAR_VIEW}"]
+        statements += [f"CREATE VIEW {name} AS {sql}" for name, sql in NOCYCLE_VIEWS.items()]
         _run("oracle", SRC, statements)
         manager = _manager("oracle")
         try:
             plan = MigrationPlanner(
-                source_engine="oracle", target_engine="postgresql", view_strategy="transpile", pg_schema=DST
+                source_engine="oracle",
+                target_engine=target,
+                view_strategy="transpile",
+                pg_schema=DST if target == "postgresql" else None,
             ).plan(manager, _source_schema("oracle"))
         finally:
             manager.close()
         plan.tables = [t for t in plan.tables if t.original_name.lower() == CICLO]
-        plan.views = [v for v in plan.views if v.original_name.lower() in (CICLO_V, CICLO_STAR_V)]
-        assert len(plan.views) == 2
+        plan.views = [v for v in plan.views if v.original_name.lower() in NOCYCLE_VIEWS]
+        assert len(plan.views) == len(NOCYCLE_VIEWS)
         for view in plan.views:
             assert any(w.code == "VIEW_REWRITTEN" for w in view.warnings), view.warnings
             assert any("NOCYCLE" in w.message for w in view.warnings if w.code == "VIEW_HIERARCHY")
 
-        target_manager = _manager("postgresql", DST)
+        target_manager = _manager(target, DST)
         try:
             plan.execute(target_manager)
         finally:
             target_manager.close()
-        src_engine, dst_engine = _engine("oracle", SRC), _engine("postgresql", DST)
+        src_engine, dst_engine = _engine("oracle", SRC), _engine(target, DST)
         try:
             [table] = plan.tables
             columns = [c.name for c in table.columns]
@@ -670,24 +692,26 @@ def test_oracle_nocycle_hierarchy_to_postgresql(key_type: str) -> None:
                     Table(table.name, MetaData(), autoload_with=dst_engine).insert(),
                     [dict(zip(columns, row, strict=True)) for row in rows],
                 )
-            results = {}
-            for view in plan.views:
-                results[view.original_name.lower()] = (
+            results = {
+                view.original_name.lower(): (
                     _rows(src_engine, f"SELECT * FROM {view.original_name}"),
-                    _rows(dst_engine, f'SELECT * FROM "{view.name}"'),
+                    _rows(dst_engine, f"SELECT * FROM {QUOTE[target](view.name)}"),
                 )
+                for view in plan.views
+            }
+            star = next(v for v in plan.views if v.original_name.lower() == CICLO_STAR_V)
             with dst_engine.connect() as conn:
-                star = next(v for v in plan.views if v.original_name.lower() == CICLO_STAR_V)
-                star_columns = [c.lower() for c in conn.exec_driver_sql(f'SELECT * FROM "{star.name}"').keys()]
+                star_columns = [
+                    c.lower() for c in conn.exec_driver_sql(f"SELECT * FROM {QUOTE[target](star.name)}").keys()
+                ]
         finally:
             src_engine.dispose()
             dst_engine.dispose()
-        source_rows, target_rows = results[CICLO_V]
-        # Ana, Luis, Juan, «Sin id» y Eva (sin volver a Ana) + Rosa
-        assert len(source_rows) == 6
-        assert target_rows == source_rows
+        # Ana, Luis, Juan, «Sin id» y Eva (sin volver a Ana) + Rosa + Self (sin volver a sí mismo)
+        assert len(results[CICLO_V][0]) == 7
         assert star_columns == ["id", "nombre", "jefe_id"]
-        assert results[CICLO_STAR_V][1] == results[CICLO_STAR_V][0]
+        differences = {name: pair for name, pair in results.items() if pair[0] != pair[1]}
+        assert not differences, differences
     finally:
         _drop_namespace("oracle", SRC)
-        _drop_namespace("postgresql", DST)
+        _drop_namespace(target, DST)

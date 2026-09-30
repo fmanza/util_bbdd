@@ -277,6 +277,18 @@ class TestNocycle:
         assert "VIEW (jerarquía)" in _types(view) and "NOCYCLE" in _messages(view)
         assert "NOCYCLE" not in query and " CYCLE " not in query
 
+    def test_is_cycle_counts_children_on_the_path(self) -> None:
+        """F2 (0.23.0): CONNECT_BY_ISCYCLE = hay un hijo visitable que ya está en el camino (espejo de ISLEAF)."""
+        sql = self.SQL.replace("CONNECT_BY_ISLEAF AS hoja", "CONNECT_BY_ISCYCLE AS ciclo") + " AND LEVEL <= 3"
+        view = _transpile(sql)
+        query = view.query.upper()
+        assert "CONNECT_BY_ISCYCLE" not in query and "VIEW (sin reescribir)" not in _types(view)
+        assert (
+            "CASE WHEN ZZV_EMP.CB_LEVEL < 3 AND EXISTS(SELECT 1 AS \"1\" FROM \"ZZV_EMP\" AS CB_CHILD WHERE "
+            'CB_CHILD."JEFE_ID" = ZZV_EMP."ID" AND COALESCE(CAST(CB_CHILD."ID" AS TEXT) = ANY(ZZV_EMP.CB_KEYS), FALSE)) '
+            "THEN 1 ELSE 0 END AS CICLO"
+        ) in query
+
     def test_where_of_the_view_stays_in_the_outer_query(self) -> None:
         sql = self.SQL.replace("FROM zzv_emp ", "FROM zzv_emp WHERE activo = 1 ")
         where = sqlglot.parse_one(_transpile(sql).query, read="postgres").args["where"].sql().lower()
@@ -322,7 +334,7 @@ class TestNotRewritten:
                 "joins",
             ),
             ("SELECT * FROM (SELECT id FROM zzv_emp CONNECT BY PRIOR id = jefe_id)", "subconsulta"),
-            ("SELECT id, CONNECT_BY_ISCYCLE AS c FROM zzv_emp CONNECT BY PRIOR id = jefe_id", "CONNECT_BY_ISCYCLE"),
+            ("SELECT id, CONNECT_BY_ISCYCLE AS c FROM zzv_emp CONNECT BY PRIOR id = jefe_id", "ISCYCLE sin NOCYCLE"),
             ("SELECT id FROM zzv_emp WHERE ROWNUM <= 3 CONNECT BY PRIOR id = jefe_id", "ROWNUM"),
             ("SELECT id, PRIOR nombre AS jefe FROM zzv_emp CONNECT BY PRIOR id = jefe_id", "PRIOR fuera"),
             ("SELECT id FROM zzv_emp START WITH LEVEL = 1 CONNECT BY PRIOR id = jefe_id", "LEVEL en START WITH"),
