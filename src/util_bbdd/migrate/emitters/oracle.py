@@ -340,6 +340,7 @@ class OracleDDLEmitter:
                         column=col.name,
                         category="AUTO_INCREMENT",
                         target_type="(sin SEQUENCE/TRIGGER)",
+                        code="AUTO_INCREMENT_NO_SEQUENCE",
                         message=(
                             f"Tabla '{table.name}': columna '{col.name}' es AUTO_INCREMENT pero "
                             "Oracle solo soporta un SEQUENCE/TRIGGER por tabla en este patrón; ya "

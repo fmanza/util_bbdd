@@ -405,6 +405,7 @@ class MigrationPlanner:
                         column=None,
                         category="TABLE",
                         target_type="(sin columnas)",
+                        code="TABLE_NO_COLUMNS",
                         message=(
                             f"Tabla '{table.name}' sin columnas activas: no se extrajo ninguna o todas se omitieron por "
                             "tipos sin equivalente; su CREATE TABLE no es válido. Revisar el origen o excluir la tabla."

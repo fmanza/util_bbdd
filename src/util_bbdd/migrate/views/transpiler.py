@@ -23,7 +23,7 @@ from sqlglot.errors import ErrorLevel
 from sqlglot.optimizer.annotate_types import annotate_types
 from sqlglot.optimizer.qualify import qualify
 
-from ..ir.models import CanonicalView, MigrationWarning
+from ..ir.models import CanonicalView, MigrationWarning, WarningCode
 from . import _rewrites
 from ._dialects import SQLGLOT_DIALECT
 
@@ -62,7 +62,9 @@ class ViewTranspileContext:
     integer_columns: dict[str, frozenset[str]] = field(default_factory=dict)
 
 
-def _warning(view: CanonicalView, target_type: str, message: str, severity: str = "WARNING") -> MigrationWarning:
+def _warning(
+    view: CanonicalView, code: WarningCode, target_type: str, message: str, severity: str = "WARNING"
+) -> MigrationWarning:
     return MigrationWarning(
         table=view.name,
         column=None,
@@ -70,6 +72,7 @@ def _warning(view: CanonicalView, target_type: str, message: str, severity: str 
         target_type=target_type,
         message=message,
         severity=severity,  # type: ignore[arg-type]
+        code=code,
     )
 
 
@@ -78,6 +81,7 @@ def _passthrough(view: CanonicalView, reason: str) -> CanonicalView:
     result.warnings.append(
         _warning(
             view,
+            "VIEW_NOT_REWRITTEN",
             "VIEW (sin reescribir)",
             f"Vista emitida sin reescribir el SQL ({reason}); revisar manualmente su compatibilidad con el destino",
         )
@@ -160,7 +164,7 @@ def _apply_names(tree: exp.Expression, ctx: ViewTranspileContext) -> None:
             ident.set("quoted", not _SIMPLE_IDENTIFIER.match(ident.name))
 
 
-_HEADER_COLUMNS_TARGET_TYPE: str = "(columnas de la cabecera)"
+_HEADER_COLUMNS_CODE: WarningCode = "VIEW_HEADER_COLUMNS"
 
 
 def _apply_header_columns(tree: exp.Expression, view: CanonicalView) -> bool:
@@ -264,7 +268,7 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
             pass
 
     header_columns_applied = False
-    if view.columns and any(w.target_type == _HEADER_COLUMNS_TARGET_TYPE for w in view.warnings):
+    if view.columns and any(w.code == _HEADER_COLUMNS_CODE for w in view.warnings):
         header_columns_applied = _apply_header_columns(tree, view)
 
     if ctx.source_engine == "postgresql":
@@ -297,12 +301,13 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
     result.query = query
     if header_columns_applied:
         # Los nombres de la cabecera ya van como alias en la consulta: el aviso de pérdida de nombres ya no aplica.
-        result.warnings = [w for w in result.warnings if w.target_type != _HEADER_COLUMNS_TARGET_TYPE]
+        result.warnings = [w for w in result.warnings if w.code != _HEADER_COLUMNS_CODE]
     source_label = _ENGINE_LABEL.get(ctx.source_engine, ctx.source_engine)
     target_label = _ENGINE_LABEL.get(ctx.target_engine, ctx.target_engine)
     result.warnings.append(
         _warning(
             view,
+            "VIEW_REWRITTEN",
             "VIEW (reescrita)",
             f"SQL de la vista reescrito de {source_label} a {target_label} (sqlglot); revisar que la semántica se "
             "conserva (NULL, collation, redondeos)",
@@ -313,6 +318,7 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
         result.warnings.append(
             _warning(
                 view,
+                "VIEW_ORACLE_SEMANTICS",
                 "VIEW (semántica Oracle)",
                 "En Oracle la cadena vacía es NULL y '||' ignora los NULL; en el resto de motores no: los filtros "
                 "IS NULL, COALESCE, DISTINCT y las concatenaciones pueden dar otro resultado",
@@ -322,6 +328,7 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
         result.warnings.append(
             _warning(
                 view,
+                "VIEW_HIERARCHY",
                 "VIEW (jerarquía)",
                 _hierarchy_message(ctx.target_engine, nocycle=connect_by == "hierarchy_nocycle"),
             )
@@ -330,6 +337,7 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
         result.warnings.append(
             _warning(
                 view,
+                "VIEW_EXTERNAL_REFERENCE",
                 "VIEW (referencia externa)",
                 f"La vista usa objetos fuera del schema migrado ({', '.join(sorted(set(external)))}); verificar que "
                 "existen en el destino",

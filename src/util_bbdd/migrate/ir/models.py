@@ -34,8 +34,58 @@ WarningCategory = Literal[
 - ``INDEX``: índices (p. ej. renombrados por colisión de nombre en el schema).
 - ``VIEW``: vistas (reescritura, construcciones sin traducción, definición no disponible).
 - ``ROUTINE``: procedimientos, funciones y packages.
-- ``COMMENT``: comentario de tabla o columna recortado al límite del destino.
+- ``COMMENT``: comentario de tabla o columna recortado al límite del destino, o de vista que el destino no admite.
 - ``TABLE``: problemas de la tabla en conjunto (p. ej. sin columnas activas).
+"""
+
+WarningCode = Literal[
+    "COLUMN_OMITTED",
+    "AUTO_INCREMENT_NO_SEQUENCE",
+    "FK_DEFERRED",
+    "FK_ON_UPDATE_IGNORED",
+    "VIEW_PASSTHROUGH",
+    "VIEW_NOT_REWRITTEN",
+    "VIEW_REWRITTEN",
+    "VIEW_ORACLE_SEMANTICS",
+    "VIEW_HIERARCHY",
+    "VIEW_EXTERNAL_REFERENCE",
+    "VIEW_HEADER_COLUMNS",
+    "VIEW_DEFINITION_UNAVAILABLE",
+    "VIEW_MANUAL_REVIEW",
+    "VIEW_LEXICAL_REWRITE",
+    "VIEW_USER_PSEUDOCOLUMN",
+    "ROUTINE_NO_BODY",
+    "ROUTINE_PACKAGE_MEMBER",
+    "COMMENT_TRUNCATED",
+    "VIEW_COMMENT_UNSUPPORTED",
+    "TABLE_NO_COLUMNS",
+]
+"""Subtipo estable de un aviso dentro de su categoría (0.22.0, E1).
+
+Para filtrar avisos en código: ``target_type`` guarda un tipo, un nombre **o** una etiqueta legible según el caso
+(``"VIEW (reescrita)"``, ``"(no body)"``…), y esas etiquetas pueden cambiar de texto. Los avisos de conversión de tipos
+e identificadores no llevan código: su ``target_type`` es el tipo o el nombre en el destino.
+
+- ``COLUMN_OMITTED`` (``TYPE``): columna sin equivalente en el destino (``ROWID``), omitida.
+- ``AUTO_INCREMENT_NO_SEQUENCE`` (``AUTO_INCREMENT``): Oracle destino sin ``SEQUENCE``/``TRIGGER`` para el autoincremental.
+- ``FK_DEFERRED`` (``FOREIGN_KEY``): FK de un ciclo, añadida con ``ALTER TABLE`` al final.
+- ``FK_ON_UPDATE_IGNORED`` (``FOREIGN_KEY``): ``ON UPDATE`` sin equivalente en Oracle.
+- ``VIEW_PASSTHROUGH``: vista copiada sin reescribir por la estrategia ``"passthrough"`` (o sin sqlglot).
+- ``VIEW_NOT_REWRITTEN``: vista sin traducción fiable, copiada sin reescribir (el motivo va en ``message``).
+- ``VIEW_REWRITTEN``: vista reescrita con sqlglot (``INFO``, revisar la semántica).
+- ``VIEW_ORACLE_SEMANTICS``: cadena vacía y ``NULL`` en Oracle.
+- ``VIEW_HIERARCHY``: ``CONNECT BY`` convertido en CTE recursiva.
+- ``VIEW_EXTERNAL_REFERENCE``: la vista usa objetos fuera del schema migrado.
+- ``VIEW_HEADER_COLUMNS``: vista de SQL Server con columnas en la cabecera.
+- ``VIEW_DEFINITION_UNAVAILABLE``: definición no disponible (``WITH ENCRYPTION`` o sin permiso).
+- ``VIEW_MANUAL_REVIEW``: construcción de Oracle que la reescritura léxica no traduce.
+- ``VIEW_LEXICAL_REWRITE``: sustitución léxica de una función de Oracle (``target_type`` = sustituta).
+- ``VIEW_USER_PSEUDOCOLUMN``: pseudocolumna ``USER`` sustituida (``target_type`` = función destino).
+- ``ROUTINE_NO_BODY``: rutina sin cuerpo disponible.
+- ``ROUTINE_PACKAGE_MEMBER``: miembro de un PACKAGE de Oracle.
+- ``COMMENT_TRUNCATED`` (``COMMENT``): comentario recortado al límite del destino.
+- ``VIEW_COMMENT_UNSUPPORTED`` (``COMMENT``): comentario de vista que MySQL/MariaDB no guardan.
+- ``TABLE_NO_COLUMNS`` (``TABLE``, ``ERROR``): tabla sin columnas activas.
 """
 
 
@@ -47,11 +97,13 @@ class MigrationWarning:
         table: Tabla, vista o rutina afectada.
         column: Columna afectada, si la hay.
         category: Clase de aviso (:data:`WarningCategory`).
-        target_type: Tipo, nombre o etiqueta en el destino (depende de la categoría).
+        target_type: Tipo, nombre o etiqueta en el destino (depende de la categoría): el tipo destino en ``TYPE``, el
+            nombre nuevo en ``IDENTIFIER``, una etiqueta legible en el resto. Para filtrar, usar ``category`` y ``code``.
         message: Explicación legible.
         severity: ``INFO``, ``WARNING`` o ``ERROR`` (un ``ERROR`` impide ``MigrationPlan.execute``).
         source_type: Tipo de datos en el origen, cuando el aviso trata de uno (``TYPE``, ``DEFAULT``, ``AUTO_INCREMENT``).
         proposals: Alternativas propuestas.
+        code: Subtipo estable del aviso (:data:`WarningCode`, 0.22.0); ``None`` en los de tipos e identificadores.
     """
 
     table: str
@@ -62,6 +114,7 @@ class MigrationWarning:
     severity: WarningSeverity = "WARNING"
     source_type: str | None = None
     proposals: tuple[str, ...] = ()
+    code: WarningCode | None = None
 
 
 @dataclass(slots=True)
@@ -359,6 +412,7 @@ def _execute_statements(target: Any, statements: list[str], target_engine: str) 
 __all__: list[str] = [
     "WarningSeverity",
     "WarningCategory",
+    "WarningCode",
     "MigrationWarning",
     "CanonicalColumn",
     "CanonicalIndex",

@@ -205,6 +205,7 @@ class MariaDBSchemaExtractor:
                     column=None,
                     category="ROUTINE",
                     target_type="(no body)",
+                    code="ROUTINE_NO_BODY",
                     message=f"Body de '{routine_name}' no disponible; emitir stub.",
                     severity="WARNING",
                 )

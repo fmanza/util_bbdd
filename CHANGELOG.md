@@ -25,6 +25,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   MySQL/MariaDB no admiten comentarios de vistas: con ese destino el comentario queda como `--` en el script y el plan
   lleva un aviso `COMMENT`. Los avisos que la emisión añade a una vista se incorporan a `plan.warnings`.
 - **metadata**: `fetch_views_sql()` de PostgreSQL y SQL Server devuelve el comentario de la vista como tercera columna.
+- **migrate**: `MigrationWarning.code` (último campo, `None` por defecto; compatible) con un subtipo estable del aviso,
+  tipado como `WarningCode` (exportado en `util_bbdd.migrate`): `VIEW_REWRITTEN`, `VIEW_NOT_REWRITTEN`,
+  `ROUTINE_NO_BODY`, `FK_ON_UPDATE_IGNORED`, `COMMENT_TRUNCATED`, `TABLE_NO_COLUMNS`… (20 códigos, lista en la guía de
+  migración DDL). Lo llevan todos los avisos cuyo `target_type` es una etiqueta; los de tipos e identificadores siguen
+  con `code=None` y el tipo o nombre destino en `target_type`. `target_type` no cambia (E1).
+
+### Changed
+
+- **migrate (vistas)**: el transpilador reconoce el aviso de columnas en la cabecera (SQL Server) por su `code` y no
+  por el texto de `target_type`.
 
 ## [0.21.0] - 2026-09-30
 

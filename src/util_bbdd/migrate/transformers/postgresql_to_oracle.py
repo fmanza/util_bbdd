@@ -161,6 +161,7 @@ class PostgreSQLToOracleTransformer(BaseTransformer):
                     column=None,
                     category="FOREIGN_KEY",
                     target_type="FK (ON UPDATE ignorado)",
+                    code="FK_ON_UPDATE_IGNORED",
                     message=(
                         f"FK '{fk.name}': ON UPDATE {fk.on_update} no soportado en Oracle; "
                         "la cláusula será omitida — Oracle solo soporta ON DELETE CASCADE/SET NULL"

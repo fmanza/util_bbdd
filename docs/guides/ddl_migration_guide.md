@@ -198,9 +198,38 @@ Cada aviso (`MigrationWarning`) indica **qué** es con `category` y, cuando trat
 | `COMMENT` | Comentario recortado al límite del destino (MySQL/MariaDB 1024/2048 caracteres, Oracle 4000 bytes, SQL Server 7500 bytes), o comentario de vista que MySQL/MariaDB no pueden guardar | — |
 | `TABLE` | Tabla sin columnas activas (`ERROR`: `execute()` no empieza) | — |
 
+`target_type` es el tipo destino en `TYPE`, el nombre nuevo en `IDENTIFIER` y una etiqueta legible en el resto
+(`"VIEW (reescrita)"`, `"(no body)"`…), cuyo texto puede cambiar. Para filtrar esos avisos en código, usa `code`
+(desde 0.22.0): un subtipo estable dentro de la categoría. Los avisos de tipos e identificadores no llevan código
+(`None`).
+
+| `code` | `category` | Qué indica |
+|---|---|---|
+| `COLUMN_OMITTED` | `TYPE` | Columna sin equivalente en el destino (`ROWID`), omitida |
+| `AUTO_INCREMENT_NO_SEQUENCE` | `AUTO_INCREMENT` | Oracle destino sin `SEQUENCE`/`TRIGGER` para el autoincremental |
+| `FK_DEFERRED` | `FOREIGN_KEY` | FK de un ciclo, añadida con `ALTER TABLE` al final |
+| `FK_ON_UPDATE_IGNORED` | `FOREIGN_KEY` | `ON UPDATE` sin equivalente en Oracle |
+| `VIEW_PASSTHROUGH` | `VIEW` | Vista copiada sin reescribir por la estrategia `"passthrough"` (o sin sqlglot) |
+| `VIEW_NOT_REWRITTEN` | `VIEW` | Vista sin traducción fiable, copiada sin reescribir (motivo en `message`) |
+| `VIEW_REWRITTEN` | `VIEW` | Vista reescrita con sqlglot (`INFO`) |
+| `VIEW_ORACLE_SEMANTICS` | `VIEW` | Cadena vacía y `NULL` en Oracle |
+| `VIEW_HIERARCHY` | `VIEW` | `CONNECT BY` convertido en CTE recursiva |
+| `VIEW_EXTERNAL_REFERENCE` | `VIEW` | La vista usa objetos fuera del schema migrado |
+| `VIEW_HEADER_COLUMNS` | `VIEW` | Vista de SQL Server con columnas en la cabecera |
+| `VIEW_DEFINITION_UNAVAILABLE` | `VIEW` | Definición no disponible (`WITH ENCRYPTION` o sin permiso) |
+| `VIEW_MANUAL_REVIEW` | `VIEW` | Construcción de Oracle que la reescritura léxica no traduce |
+| `VIEW_LEXICAL_REWRITE` | `VIEW` | Sustitución léxica de una función de Oracle |
+| `VIEW_USER_PSEUDOCOLUMN` | `VIEW` | Pseudocolumna `USER` sustituida |
+| `ROUTINE_NO_BODY` | `ROUTINE` | Rutina sin cuerpo disponible |
+| `ROUTINE_PACKAGE_MEMBER` | `ROUTINE` | Miembro de un PACKAGE de Oracle |
+| `COMMENT_TRUNCATED` | `COMMENT` | Comentario recortado al límite del destino |
+| `VIEW_COMMENT_UNSUPPORTED` | `COMMENT` | Comentario de vista que MySQL/MariaDB no guardan |
+| `TABLE_NO_COLUMNS` | `TABLE` | Tabla sin columnas activas (`ERROR`) |
+
 ```python
 tipos = [w for w in plan.warnings if w.category == "TYPE"]
 clobs = [w for w in plan.warnings if w.source_type == "CLOB"]
+sin_reescribir = [w for w in plan.warnings if w.code == "VIEW_NOT_REWRITTEN"]
 ```
 
 El plan es seguro de aplicar cuando `plan.error_count == 0`. Si hay errores, el DDL puede contener

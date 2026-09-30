@@ -94,6 +94,7 @@ class BaseTransformer:
                 column=None,
                 category="VIEW",
                 target_type="VIEW",
+                code="VIEW_PASSTHROUGH",
                 message=(
                     f"Vista emitida sin reescritura de SQL dialect-específico (v1 pass-through); "
                     f"revisar manualmente funciones del motor origen para compatibilidad {self._TARGET_DIALECT}"
@@ -194,6 +195,7 @@ class BaseTransformer:
                     column=None,
                     category="FOREIGN_KEY",
                     target_type="ALTER TABLE (al final)",
+                    code="FK_DEFERRED",
                     message=(
                         f"FK '{fk.name}' referencia tabla '{fk.ref_table}' fuera del schema migrado; "
                         "emitida como ALTER TABLE al final del script — verificar que la tabla existe"

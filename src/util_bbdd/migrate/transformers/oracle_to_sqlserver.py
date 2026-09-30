@@ -179,6 +179,7 @@ class OracleToSQLServerTransformer(BaseTransformer):
                         category="TYPE",
                         source_type=col.source_type,
                         target_type="(omitido)",
+                        code="COLUMN_OMITTED",
                         message=mapping.warning_msg,
                         severity=mapping.severity,
                         proposals=mapping.proposals,

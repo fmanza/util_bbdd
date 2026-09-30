@@ -187,6 +187,7 @@ class SQLServerSchemaExtractor:
                         column=None,
                         category="VIEW",
                         target_type="(no disponible)",
+                        code="VIEW_DEFINITION_UNAVAILABLE",
                         message=(
                             f"Vista '{view_name}': definición no disponible (WITH ENCRYPTION o sin permiso "
                             "VIEW DEFINITION); no se emite."
@@ -201,6 +202,7 @@ class SQLServerSchemaExtractor:
                         column=None,
                         category="VIEW",
                         target_type="(columnas de la cabecera)",
+                        code="VIEW_HEADER_COLUMNS",
                         message=(
                             f"Vista '{view_name}': la cabecera declara las columnas ({split.column_list}); la vista "
                             "migrada toma los nombres del SELECT. Revisar los alias."
@@ -260,6 +262,7 @@ class SQLServerSchemaExtractor:
                         column=None,
                         category="ROUTINE",
                         target_type="(no body)",
+                        code="ROUTINE_NO_BODY",
                         message=f"Body de '{routine_name}' no disponible en sys.sql_modules; emitir stub.",
                         severity="WARNING",
                     )

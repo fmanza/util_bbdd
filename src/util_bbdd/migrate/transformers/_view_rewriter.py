@@ -64,6 +64,7 @@ def _lexical_substitution_warning(view: CanonicalView, oracle_token: str, target
         column=None,
         category="VIEW",
         target_type=target,
+        code="VIEW_LEXICAL_REWRITE",
         message=(
             f"Vista '{view.name}': {count} sustitución{plural} léxica de '{oracle_token}' "
             f"→ '{target}'; la sustitución es puramente textual (regex, sin parser SQL) y "
@@ -116,6 +117,7 @@ def rewrite_oracle_view(
                 column=None,
                 category="VIEW",
                 target_type=user_fn,
+                code="VIEW_USER_PSEUDOCOLUMN",
                 message=(
                     f"Vista '{view.name}': pseudocolumna USER sustituida por {user_fn}; "
                     "verificar que 'user' no sea el nombre de una columna"
@@ -152,6 +154,7 @@ def rewrite_oracle_view(
                     column=None,
                     category="VIEW",
                     target_type="(revisión manual)",
+                    code="VIEW_MANUAL_REVIEW",
                     message=(
                         f"Vista '{view.name}': construct Oracle '{label}' "
                         "no tiene equivalente automático; revisión manual requerida"

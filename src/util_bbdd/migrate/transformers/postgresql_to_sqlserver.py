@@ -59,6 +59,7 @@ class PostgreSQLToSQLServerTransformer(BaseTransformer):
                 column=None,
                 category="VIEW",
                 target_type="VIEW",
+                code="VIEW_PASSTHROUGH",
                 message=(
                     "Vista PostgreSQL emitida sin reescritura de SQL dialect-específico (v1 pass-through); "
                     "revisar manualmente funciones PostgreSQL (NOW(), CURRENT_TIMESTAMP, "

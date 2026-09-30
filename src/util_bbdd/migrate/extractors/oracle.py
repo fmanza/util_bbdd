@@ -197,6 +197,7 @@ class OracleSchemaExtractor:
                             column=None,
                             category="ROUTINE",
                             target_type="(no body)",
+                            code="ROUTINE_NO_BODY",
                             message=f"Body de '{routine_name}' no disponible en ALL_SOURCE; emitir stub.",
                             severity="WARNING",
                         )
@@ -216,6 +217,7 @@ class OracleSchemaExtractor:
                         column=None,
                         category="ROUTINE",
                         target_type="(package member)",
+                        code="ROUTINE_PACKAGE_MEMBER",
                         message=(
                             f"'{routine_name}' es un ORACLE {raw_type}; "
                             "no tiene equivalente directo — migración manual requerida."

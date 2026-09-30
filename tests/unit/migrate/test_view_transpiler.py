@@ -214,7 +214,9 @@ class TestV2Rewrites:
     def test_sqlserver_header_columns_become_aliases(self) -> None:
         from util_bbdd.migrate.ir.models import MigrationWarning
 
-        header_warning = MigrationWarning("zzv_v", None, "VIEW_DEFINITION", "(columnas de la cabecera)", "x", "WARNING")
+        header_warning = MigrationWarning(
+            "zzv_v", None, "VIEW", "(columnas de la cabecera)", "x", "WARNING", code="VIEW_HEADER_COLUMNS"
+        )
         view = CanonicalView(
             "zzv_v", "zzv_v", "dbo", "SELECT id, nombre FROM zzv_clientes", ["codigo", "texto"], "", [header_warning]
         )
@@ -225,6 +227,8 @@ class TestV2Rewrites:
     def test_header_columns_mismatch_keeps_warning(self) -> None:
         from util_bbdd.migrate.ir.models import MigrationWarning
 
-        header_warning = MigrationWarning("zzv_v", None, "VIEW_DEFINITION", "(columnas de la cabecera)", "x", "WARNING")
+        header_warning = MigrationWarning(
+            "zzv_v", None, "VIEW", "(columnas de la cabecera)", "x", "WARNING", code="VIEW_HEADER_COLUMNS"
+        )
         view = CanonicalView("zzv_v", "zzv_v", "dbo", "SELECT id FROM zzv_clientes", ["a", "b"], "", [header_warning])
         assert "(columnas de la cabecera)" in _messages(transpile_view(view, _ctx("sqlserver", "postgresql")))

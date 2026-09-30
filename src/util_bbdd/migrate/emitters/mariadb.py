@@ -318,6 +318,7 @@ class MariaDBDDLEmitter:
                 column=None,
                 category="COMMENT",
                 target_type="(vista)",
+                code="VIEW_COMMENT_UNSUPPORTED",
                 message=(
                     f"Vista '{view.name}': MySQL/MariaDB no admiten comentarios de vistas; el comentario solo queda "
                     "como `--` en el script"

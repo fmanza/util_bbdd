@@ -62,6 +62,7 @@ def fit_comment(
         column=column,
         category="COMMENT",
         target_type=f"{len(fitted)} caracteres",
+        code="COMMENT_TRUNCATED",
         message=(
             f"Comentario de '{target}' recortado de {len(text)} a {len(fitted)} caracteres: {target_label} admite "
             f"como máximo {limit.description}"

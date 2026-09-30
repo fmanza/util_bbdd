@@ -58,15 +58,16 @@ reescribir con un aviso.
 ### Contrato de salida
 
 - **`CanonicalView.query`** — SQL del `SELECT` en el dialecto destino (sin `CREATE VIEW`); lo envuelve el emisor DDL.
-- **`CanonicalView.warnings`** — avisos por vista, con `target_type`:
+- **`CanonicalView.warnings`** — avisos por vista (`category="VIEW"`); para filtrarlos, usa `code` (estable desde
+  0.22.0), no el texto de `target_type`:
 
-| `target_type` | Severidad | Significado |
-|---|---|---|
-| `VIEW (reescrita)` | `INFO` | Vista reescrita al dialecto destino; revisar |
-| `VIEW (semántica Oracle)` | `WARNING` | Origen o destino Oracle: cadena vacía = `NULL`, `\|\|` ignora `NULL` |
-| `VIEW (referencia externa)` | `WARNING` | Usa objetos fuera del schema migrado |
-| `VIEW (jerarquía)` | `WARNING` | `CONNECT BY` convertido en CTE recursiva: límite de recursión del destino, ciclos (o `NOCYCLE` con array de antepasados hacia PostgreSQL), orden |
-| `VIEW (sin reescribir)` | `WARNING` | Copiada sin reescribir (construcción sin traducción, error de sqlglot o sin sqlglot); con `CONNECT BY`, el motivo entre paréntesis |
+| `code` | `target_type` | Severidad | Significado |
+|---|---|---|---|
+| `VIEW_REWRITTEN` | `VIEW (reescrita)` | `INFO` | Vista reescrita al dialecto destino; revisar |
+| `VIEW_ORACLE_SEMANTICS` | `VIEW (semántica Oracle)` | `WARNING` | Origen o destino Oracle: cadena vacía = `NULL`, `\|\|` ignora `NULL` |
+| `VIEW_EXTERNAL_REFERENCE` | `VIEW (referencia externa)` | `WARNING` | Usa objetos fuera del schema migrado |
+| `VIEW_HIERARCHY` | `VIEW (jerarquía)` | `WARNING` | `CONNECT BY` convertido en CTE recursiva: límite de recursión del destino, ciclos (o `NOCYCLE` con array de antepasados hacia PostgreSQL), orden |
+| `VIEW_NOT_REWRITTEN` | `VIEW (sin reescribir)` | `WARNING` | Copiada sin reescribir (construcción sin traducción, error de sqlglot o sin sqlglot); con `CONNECT BY`, el motivo entre paréntesis |
 
 - **`ViewValidationResult`** — `view` (nombre en el destino), `valid` (`True`/`False`, o `None` si no se validó),
   `method` (`"transaction"`, `"syntax"` o `"none"`) y `error` (primera línea del error del motor o de sqlglot, o el
