@@ -38,6 +38,7 @@ from typing import Literal
 
 from .._compat.identifier_rules import MAX_ORACLE_IDENTIFIER_LENGTH, truncate_identifier
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView, MigrationWarning
+from ._comment_limits import ORACLE_COMMENT, fit_comment
 from ._default_fallback import default_fallback_warning
 from ._index_names import claim_index_name
 from ._trailing_comment import join_definitions, one_line, with_trailing_comment
@@ -370,12 +371,14 @@ class OracleDDLEmitter:
         """Genera COMMENT ON TABLE y COMMENT ON COLUMN para comentarios no vacíos."""
         stmts: list[str] = []
         if table.comment:
-            escaped = table.comment.replace("'", "''")
+            comment = fit_comment(table.warnings, table.name, None, table.comment, ORACLE_COMMENT, "Oracle")
+            escaped = comment.replace("'", "''")
             stmts.append(f"COMMENT ON TABLE {_dq(table.name)} IS '{escaped}'")
         for col in table.columns:
             if col.omit or not col.comment:
                 continue
-            escaped = col.comment.replace("'", "''")
+            comment = fit_comment(col.warnings, table.name, col.name, col.comment, ORACLE_COMMENT, "Oracle")
+            escaped = comment.replace("'", "''")
             stmts.append(f"COMMENT ON COLUMN {_dq(table.name)}.{_dq(col.name)} IS '{escaped}'")
         return stmts
 

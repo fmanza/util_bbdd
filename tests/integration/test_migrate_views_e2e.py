@@ -59,6 +59,22 @@ AUTOINC_ID = {
 # A6 (fix): nombres de 35 caracteres y 64 bytes que solo difieren en el último; PostgreSQL recorta a 63 bytes.
 LONG_NAMES = ("zzvw_" + "ñ" * 29 + "a", "zzvw_" + "ñ" * 29 + "b")
 RUTA = "C:\\datos\\x'q"
+# C1 (auditoría 0.21.0): comentarios del máximo que admite cada origen; el destino los recorta a su límite con aviso.
+L = "zzvw_largo"
+LONG_COMMENT = {"postgresql": 5000, "oracle": 3900, "sqlserver": 3700}  # MySQL/MariaDB no admiten más de 1024/2048
+COMMENT_LIMIT = {  # (tabla, columna) en caracteres ASCII en el destino
+    "mysql": (2048, 1024),
+    "mariadb": (2048, 1024),
+    "oracle": (4000, 4000),
+    "sqlserver": (3750, 3750),
+    "postgresql": (None, None),
+}
+
+
+def _long_text(length: int) -> str:
+    return ("comentario-largo." * (length // 17 + 1))[:length]
+
+
 TABLE_COMMENT = "Tabla ñ 'd3'"  # D3: comentario de tabla con ñ y comilla (las barras las prueba RUTA)
 RUTA_LITERAL = {
     "mysql": "'C:\\\\datos\\\\x''q'",
@@ -287,6 +303,20 @@ def _source_objects(engine_name: str) -> list[str]:
     if engine_name in ("postgresql", "oracle"):
         statements.append(f"COMMENT ON COLUMN {A}.ruta IS {ruta}")
         statements.append(f"COMMENT ON TABLE {A} IS {table_comment}")
+    if engine_name in LONG_COMMENT:  # C1: comentarios largos de tabla y columna
+        text = "'" + _long_text(LONG_COMMENT[engine_name]) + "'"
+        statements.append(f"CREATE TABLE {L} (id {i} PRIMARY KEY, v {i})")
+        if engine_name == "sqlserver":
+            prop = (
+                "EXEC sys.sp_addextendedproperty N'MS_Description', N"
+                + text
+                + ", N'SCHEMA', N'dbo', N'TABLE', N'"
+                + L
+                + "'"
+            )
+            statements += [prop, prop + ", N'COLUMN', N'v'"]
+        else:
+            statements += [f"COMMENT ON TABLE {L} IS {text}", f"COMMENT ON COLUMN {L}.v IS {text}"]
     if engine_name == "sqlserver":  # D3: comentarios de SQL Server = propiedad extendida MS_Description
         prop = "EXEC sys.sp_addextendedproperty N'MS_Description', N{value}, N'SCHEMA', N'dbo', N'TABLE', N'" + A + "'"
         statements.append(prop.format(value=table_comment))
@@ -497,6 +527,19 @@ def test_views_are_created_and_return_the_same_rows(source_target: tuple[str, st
         [autoinc_table] = autoinc
         ruta_name = next(c.name for c in autoinc_table.columns if c.original_name.lower() == "ruta")
         assert _comments(dst_engine, target, autoinc_table.name, ruta_name) == (TABLE_COMMENT, RUTA)
+
+        # C1: un comentario largo se recorta al límite del destino (con aviso) y no rompe el DDL
+        if source in LONG_COMMENT:
+            [long_table] = [t for t in plan.tables if t.original_name.lower() == L]
+            v_name = next(c.name for c in long_table.columns if c.original_name.lower() == "v")
+            original = _long_text(LONG_COMMENT[source])
+            table_limit, column_limit = COMMENT_LIMIT[target]
+            expected = (original[:table_limit], original[:column_limit])
+            assert _comments(dst_engine, target, long_table.name, v_name) == expected
+            truncated = {w.column for w in plan.warnings if w.category == "COMMENT" and w.table == long_table.name}
+            assert truncated == {
+                c for c, lim in ((None, table_limit), (v_name, column_limit)) if lim and lim < len(original)
+            }
 
         differences: dict[str, tuple[list[tuple], list[tuple]]] = {}
         for view in plan.views:

@@ -20,6 +20,8 @@ WarningCategory = Literal[
     "INDEX",
     "VIEW",
     "ROUTINE",
+    "COMMENT",
+    "TABLE",
 ]
 """Qué clase de aviso es (0.21.0; antes iba mezclado con el tipo en ``oracle_type``).
 
@@ -32,6 +34,8 @@ WarningCategory = Literal[
 - ``INDEX``: índices (p. ej. renombrados por colisión de nombre en el schema).
 - ``VIEW``: vistas (reescritura, construcciones sin traducción, definición no disponible).
 - ``ROUTINE``: procedimientos, funciones y packages.
+- ``COMMENT``: comentario de tabla o columna recortado al límite del destino.
+- ``TABLE``: problemas de la tabla en conjunto (p. ej. sin columnas activas).
 """
 
 

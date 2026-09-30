@@ -16,6 +16,7 @@ from collections import deque
 
 from ..charset import validate_storage_engine
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView
+from ._comment_limits import MYSQL_COLUMN_COMMENT, MYSQL_TABLE_COMMENT, fit_comment
 from ._default_fallback import default_fallback_warning
 from ._trailing_comment import join_definitions, one_line, with_trailing_comment
 
@@ -237,7 +238,8 @@ class MariaDBDDLEmitter:
         lines.append("\n".join(body_parts))
         lines.append(f") ENGINE={self._engine} DEFAULT CHARSET={self._charset} COLLATE={self._collation}")
         if table.comment:
-            lines[-1] += f" COMMENT='{_mysql_text(table.comment)}'"
+            comment = fit_comment(table.warnings, table.name, None, table.comment, MYSQL_TABLE_COMMENT, "MySQL/MariaDB")
+            lines[-1] += f" COMMENT='{_mysql_text(comment)}'"
 
         return "\n".join(lines)
 
@@ -269,7 +271,10 @@ class MariaDBDDLEmitter:
                 col.warnings.append(fallback_warning)
 
         if col.comment:
-            parts.append(f"COMMENT '{_mysql_text(col.comment)}'")
+            comment = fit_comment(
+                col.warnings, table_name, col.name, col.comment, MYSQL_COLUMN_COMMENT, "MySQL/MariaDB"
+            )
+            parts.append(f"COMMENT '{_mysql_text(comment)}'")
 
         line = " ".join(parts)
 

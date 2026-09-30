@@ -17,6 +17,7 @@ import re
 
 from .._compat.identifier_rules import MAX_SQLSERVER_IDENTIFIER_LENGTH, truncate_identifier
 from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView
+from ._comment_limits import SQLSERVER_COMMENT, fit_comment
 from ._default_fallback import default_fallback_warning
 from ._trailing_comment import join_definitions, one_line, with_trailing_comment
 from .mariadb import _topological_sort, _topological_sort_views
@@ -155,13 +156,15 @@ class SQLServerDDLEmitter:
         for table in tables:
             level1 = f"@level0type = N'SCHEMA', @level0name = @schema, @level1type = N'TABLE', @level1name = {_ss_literal(table.name)}"
             if table.comment:
-                calls.append(_ss_description(table.comment, level1))
+                comment = fit_comment(table.warnings, table.name, None, table.comment, SQLSERVER_COMMENT, "SQL Server")
+                calls.append(_ss_description(comment, level1))
             for col in table.columns:
                 if col.omit or not col.comment:
                     continue
+                comment = fit_comment(col.warnings, table.name, col.name, col.comment, SQLSERVER_COMMENT, "SQL Server")
                 calls.append(
                     _ss_description(
-                        col.comment, f"{level1}, @level2type = N'COLUMN', @level2name = {_ss_literal(col.name)}"
+                        comment, f"{level1}, @level2type = N'COLUMN', @level2name = {_ss_literal(col.name)}"
                     )
                 )
         if not calls:

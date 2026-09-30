@@ -53,6 +53,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **migrate**: un comentario de tabla o columna más largo de lo que admite el destino rompía el DDL: en MySQL/MariaDB
+  el `CREATE TABLE` entero (máximo 1024 caracteres por columna y 2048 por tabla), en Oracle el `COMMENT ON` (4000
+  bytes) y en SQL Server la sentencia con todos los `MS_Description` (7500 bytes). Ahora se recorta al límite, sin
+  partir caracteres, con un aviso de la nueva categoría `COMMENT` (C1, auditoría de la 0.21.0).
 - **metadata / migrate**: las claves foráneas compuestas de Oracle se leían como producto cartesiano: la FK
   `(a, b) → padre(a, b)` salía como `(A, A, B, B) → (A, B, A, B)`, en orden variable, y el DDL migrado no era válido.
   `fetch_fk_constraint_sql` empareja ahora cada columna con la de la misma posición en la clave referenciada. Afecta
