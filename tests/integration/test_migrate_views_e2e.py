@@ -726,3 +726,92 @@ def test_oracle_nocycle_hierarchy(target: str, key_type: str) -> None:
     finally:
         _drop_namespace("oracle", SRC)
         _drop_namespace(target, DST)
+
+
+# F1 (0.23.0): ORDER SIBLINGS BY. Oracle devuelve las filas en profundidad con los hermanos ordenados; un nombre NULL
+# va el último en ASC y el primero en DESC. Se compara en el orden de llegada (PostgreSQL, MySQL, MariaDB); SQL Server no
+# admite ORDER BY en una vista, así que ahí solo se comparan las filas.
+ARBOL = "zzvw_arbol"
+ARBOL_ROWS = [
+    (1, "Ana", None),
+    (2, "Luis", 1),
+    (3, "Eva", 2),
+    (4, "Juan", 1),
+    (5, "Rosa", None),
+    (6, None, 1),
+    (7, "Bea", 5),
+]
+SIBLINGS_VIEWS = {
+    "zzvw_arbol_asc": f"SELECT id, nombre, LEVEL AS nivel FROM {ARBOL} START WITH jefe_id IS NULL "
+    "CONNECT BY PRIOR id = jefe_id ORDER SIBLINGS BY nombre",
+    "zzvw_arbol_desc": f"SELECT id, nombre, LEVEL AS nivel FROM {ARBOL} START WITH jefe_id IS NULL "
+    "CONNECT BY PRIOR id = jefe_id ORDER SIBLINGS BY nombre DESC",
+    "zzvw_arbol_id": f"SELECT id, LEVEL AS nivel FROM {ARBOL} WHERE id <> 2 START WITH jefe_id IS NULL "
+    "CONNECT BY PRIOR id = jefe_id ORDER SIBLINGS BY id DESC",
+}
+
+
+def _rows_in_order(engine: Engine, sql: str) -> list[tuple]:
+    with engine.connect() as conn:
+        return [tuple(_norm(v) for v in row) for row in conn.exec_driver_sql(sql).fetchall()]
+
+
+@pytest.mark.parametrize("target", ["postgresql", "mysql", "mariadb", "sqlserver"])
+def test_oracle_order_siblings(target: str) -> None:
+    _create_namespace("oracle", SRC)
+    _create_namespace(target, DST)
+    try:
+        statements = [f"CREATE TABLE {ARBOL} (id NUMBER(10) PRIMARY KEY, nombre VARCHAR2(20), jefe_id NUMBER(10))"]
+        statements += [
+            f"INSERT INTO {ARBOL} VALUES ({i}, {'NULL' if n is None else repr(n)}, {'NULL' if j is None else j})"
+            for i, n, j in ARBOL_ROWS
+        ]
+        statements += [f"CREATE VIEW {name} AS {sql}" for name, sql in SIBLINGS_VIEWS.items()]
+        _run("oracle", SRC, statements)
+        manager = _manager("oracle")
+        try:
+            plan = MigrationPlanner(
+                source_engine="oracle",
+                target_engine=target,
+                view_strategy="transpile",
+                pg_schema=DST if target == "postgresql" else None,
+            ).plan(manager, _source_schema("oracle"))
+        finally:
+            manager.close()
+        plan.tables = [t for t in plan.tables if t.original_name.lower() == ARBOL]
+        plan.views = [v for v in plan.views if v.original_name.lower() in SIBLINGS_VIEWS]
+        assert len(plan.views) == len(SIBLINGS_VIEWS)
+        for view in plan.views:
+            assert any(w.code == "VIEW_REWRITTEN" for w in view.warnings), view.warnings
+            hierarchy = next(w.message for w in view.warnings if w.code == "VIEW_HIERARCHY")
+            assert ("no admite ORDER BY" in hierarchy) is (target == "sqlserver"), hierarchy
+
+        target_manager = _manager(target, DST)
+        try:
+            plan.execute(target_manager)
+        finally:
+            target_manager.close()
+        src_engine, dst_engine = _engine("oracle", SRC), _engine(target, DST)
+        try:
+            [table] = plan.tables
+            columns = [c.name for c in table.columns]
+            with dst_engine.begin() as conn:
+                conn.execute(
+                    Table(table.name, MetaData(), autoload_with=dst_engine).insert(),
+                    [dict(zip(columns, row, strict=True)) for row in ARBOL_ROWS],
+                )
+            differences = {}
+            for view in plan.views:
+                source_rows = _rows_in_order(src_engine, f"SELECT * FROM {view.original_name}")
+                target_rows = _rows_in_order(dst_engine, f"SELECT * FROM {QUOTE[target](view.name)}")
+                if target == "sqlserver":
+                    source_rows, target_rows = sorted(source_rows, key=str), sorted(target_rows, key=str)
+                if source_rows != target_rows:
+                    differences[view.original_name] = (source_rows, target_rows)
+        finally:
+            src_engine.dispose()
+            dst_engine.dispose()
+        assert not differences, differences
+    finally:
+        _drop_namespace("oracle", SRC)
+        _drop_namespace(target, DST)

@@ -360,6 +360,18 @@ _CONNECT_BY_ISCYCLE: str = "CONNECT_BY_ISCYCLE"
 # ni CYCLE ... RESTRICT de MariaDB (deduplica en todo el resultado, no por camino) sirven. Los tipos que produce la
 # migración desde Oracle (VARCHAR, NUMERIC con escala fija, BIGINT, fechas) dan un texto único por valor.
 _CONNECT_BY_KEYS: str = "cb_keys"
+# ORDER SIBLINGS BY (F1, 0.23.0): una CTE previa numera los hermanos (ROW_NUMBER() OVER (PARTITION BY <columna hija>
+# ORDER BY <claves>)); MySQL y MariaDB no admiten funciones de ventana en la rama recursiva (errores 3575/4008). La CTE
+# recursiva concatena el número de cada nivel con ancho fijo (1000000000 + n, 10 dígitos: sin LPAD, que SQL Server no
+# tiene) en cb_order, y la consulta exterior ordena por cb_order: orden en profundidad con los hermanos ordenados. SQL
+# Server no admite ORDER BY en una vista (error 1033): ahí se convierte sin el orden y el aviso lo dice.
+_CONNECT_BY_RANKED: str = "connect_by_ranked"
+_CONNECT_BY_SIBLING: str = "cb_sibling"
+_CONNECT_BY_ORDER: str = "cb_order"
+_ORDER_RANK_OFFSET: int = 1_000_000_000
+# TEXT en PostgreSQL (un VARCHAR(n) recortaría sin error); CHAR(10000) = 1000 niveles (el límite de MySQL) de 10
+# caracteres; más, en MariaDB, da error 1406.
+_ORDER_PATH_TYPE: dict[str, str] = {"postgresql": "TEXT", "mysql": "CHAR(10000)", "mariadb": "CHAR(10000)"}
 
 ConnectByOutcome = str | None
 """``"hierarchy"``, ``"hierarchy_nocycle"`` o ``"generator"`` si se convirtió; otro texto = motivo para no convertir;
@@ -417,6 +429,9 @@ def _connect_by_generator(select: exp.Select, target_engine: str, taken: set[str
         return "START WITH en un generador de filas"
     if any(_is_star(projection) for projection in select.expressions):
         return "SELECT * en un generador de filas (Oracle devuelve la columna DUMMY de dual)"
+    order: Any = select.args.get("order")
+    if order is not None and order.args.get("siblings"):
+        return "ORDER SIBLINGS BY en un generador de filas"
     limit = CONNECT_BY_RECURSION_LIMIT.get(target_engine)
     if limit is not None and rows - 1 > limit:
         return f"{rows} filas superan el límite de {limit} recursiones de una CTE en {target_engine}"
@@ -610,6 +625,19 @@ def _has_child(
     return cast(exp.Expression, exp.and_(below_max, has_child))
 
 
+def _order_step(rank: exp.Expression, path_type: str, parent_path: exp.Column | None) -> exp.Expression:
+    """Tramo de ``cb_order``: ``CAST([ruta del padre ||] CAST(1000000000 + n AS TEXT) AS tipo)`` (F1, 0.23.0).
+
+    Diez dígitos por nivel: comparar las rutas como texto equivale a ordenar en profundidad por el número de hermano.
+    """
+    step: exp.Expression = exp.Cast(
+        this=exp.Add(this=exp.Literal.number(_ORDER_RANK_OFFSET), expression=rank), to=exp.DataType.build("TEXT")
+    )
+    if parent_path is not None:
+        step = exp.DPipe(this=parent_path, expression=step)
+    return exp.Cast(this=step, to=exp.DataType.build(path_type))
+
+
 def _flag(condition: exp.Expression, when_true: int) -> exp.Expression:
     """``CASE WHEN condición THEN when_true ELSE 1 - when_true END``."""
     return exp.Case(
@@ -631,8 +659,7 @@ def _connect_by_hierarchy(
     if nocycle and key_path is None:
         return f"NOCYCLE sin camino de claves para {target_engine}"
     order: Any = select.args.get("order")
-    if order is not None and order.args.get("siblings"):
-        return "ORDER SIBLINGS BY"
+    siblings: list[Any] = list(order.expressions) if order is not None and order.args.get("siblings") else []
     if select.args.get("joins") or select.args.get("laterals"):
         return "joins en la consulta jerárquica"
     source: Any = select.args["from_"].this
@@ -695,6 +722,14 @@ def _connect_by_hierarchy(
         return "columnas de PRIOR fuera de la tabla"
     if parent_col.name.lower() not in used:
         used.append(parent_col.name.lower())
+    for ordered in siblings:
+        key_column = ordered.this
+        if (
+            not isinstance(key_column, exp.Column)
+            or key_column.name.lower() not in table_columns
+            or (key_column.table and key_column.table.lower() != qualifier.lower())
+        ):
+            return "ORDER SIBLINGS BY con algo que no es una columna de la tabla"
 
     path_type = exp.DataType.build(_CONNECT_BY_PATH_TYPE[target_engine])
     cte_name = _free_name(CONNECT_BY_CTE, taken)
@@ -708,6 +743,24 @@ def _connect_by_hierarchy(
         anchor_extra.append(exp.alias_(key_path.start(prior_key.copy()), _CONNECT_BY_KEYS))
         recursive_extra.append(
             exp.alias_(key_path.extend(exp.column(_CONNECT_BY_KEYS, table=parent), prior_key.copy()), _CONNECT_BY_KEYS)
+        )
+    # F1: ORDER SIBLINGS BY → cb_order (sin él en SQL Server, que no admite ORDER BY en una vista).
+    order_path_type = _ORDER_PATH_TYPE.get(target_engine) if siblings else None
+    ranked_name: str | None = None
+    if order_path_type is not None:
+        ranked_name = _free_name(_CONNECT_BY_RANKED, taken | {cte_name.lower()})
+        # Los nodos ORDER BY vienen del análisis Oracle: sqlglot traduce su orden de NULL (NULLS LAST en ASC).
+        roots_rank = exp.Window(this=exp.RowNumber(), order=exp.Order(expressions=[o.copy() for o in siblings]))
+        anchor_extra.append(exp.alias_(_order_step(roots_rank, order_path_type, None), _CONNECT_BY_ORDER))
+        recursive_extra.append(
+            exp.alias_(
+                _order_step(
+                    exp.column(_CONNECT_BY_SIBLING, table=qualifier),
+                    order_path_type,
+                    exp.column(_CONNECT_BY_ORDER, table=parent),
+                ),
+                _CONNECT_BY_ORDER,
+            )
         )
     replacements: dict[str, str] = {}
 
@@ -775,9 +828,27 @@ def _connect_by_hierarchy(
         this=exp.column(table_columns[child_col.name.lower()], table=qualifier),
         expression=exp.column(table_columns[parent_col.name.lower()], table=parent),
     )
+    ranked_cte: exp.CTE | None = None
+    recursive_source: exp.Expression = source_table.copy()
+    if ranked_name is not None:
+        # F1: hermanos = filas con el mismo valor en la columna hija (cuelgan del mismo padre).
+        sibling_rank = exp.Window(
+            this=exp.RowNumber(),
+            partition_by=[exp.column(table_columns[child_col.name.lower()], table=qualifier)],
+            order=exp.Order(expressions=[o.copy() for o in siblings]),
+        )
+        ranked_cte = exp.CTE(
+            this=exp.select(*[c.copy() for c in carried], exp.alias_(sibling_rank, _CONNECT_BY_SIBLING)).from_(
+                source_table.copy()
+            ),
+            alias=exp.TableAlias(this=exp.to_identifier(ranked_name)),
+        )
+        recursive_source = exp.Table(
+            this=exp.to_identifier(ranked_name), alias=exp.TableAlias(this=exp.to_identifier(qualifier))
+        )
     recursive = (
         exp.select(*[c.copy() for c in carried], *recursive_extra)
-        .from_(source_table.copy())
+        .from_(recursive_source)
         .join(
             exp.Table(this=exp.to_identifier(cte_name), alias=exp.TableAlias(this=exp.to_identifier(parent))),
             on=join_condition,
@@ -831,10 +902,18 @@ def _connect_by_hierarchy(
             exp.alias_(flag_value, pseudo_column.name.lower()) if pseudo_column.parent is outer else flag_value
         )
     _replace_level(outer, qualifier)
+    if siblings:
+        # F1: el orden de Oracle es el de cb_order; en SQL Server (sin ORDER BY en vistas) se quita.
+        outer.set(
+            "order",
+            exp.Order(expressions=[exp.Ordered(this=exp.column(_CONNECT_BY_ORDER, table=qualifier))])
+            if ranked_name is not None
+            else None,
+        )
     cte = exp.CTE(
         this=exp.union(anchor, recursive, distinct=False), alias=exp.TableAlias(this=exp.to_identifier(cte_name))
     )
-    outer.set("with_", exp.With(expressions=[cte], recursive=True))
+    outer.set("with_", exp.With(expressions=[*([ranked_cte] if ranked_cte is not None else []), cte], recursive=True))
     return outer
 
 

@@ -185,7 +185,7 @@ def _apply_header_columns(tree: exp.Expression, view: CanonicalView) -> bool:
     return True
 
 
-def _hierarchy_message(target_engine: str, *, nocycle: bool = False) -> str:
+def _hierarchy_message(target_engine: str, *, nocycle: bool = False, siblings: bool = False) -> str:
     """Aviso de una jerarquía CONNECT BY convertida en CTE recursiva: límite de recursión, ciclos y orden."""
     label = _ENGINE_LABEL.get(target_engine, target_engine)
     limit = _rewrites.CONNECT_BY_RECURSION_LIMIT.get(target_engine)
@@ -207,7 +207,16 @@ def _hierarchy_message(target_engine: str, *, nocycle: bool = False) -> str:
             f"{label} no limita la CTE recursiva: un ciclo en los datos (que Oracle rechaza con ORA-01436) hace que la "
             "consulta no termine"
         )
-    return f"CONNECT BY convertido en CTE recursiva; {depth}. Sin ORDER BY, el orden en profundidad de Oracle no se conserva"
+    if not siblings:
+        order = "Sin ORDER BY, el orden en profundidad de Oracle no se conserva"
+    elif target_engine == "sqlserver":
+        order = (
+            f"{label} no admite ORDER BY en una vista: el orden de ORDER SIBLINGS BY no se conserva (las filas son las "
+            "mismas; ordenar al consultar la vista)"
+        )
+    else:
+        order = "ORDER SIBLINGS BY se conserva con una ruta de orden por niveles (cb_order)"
+    return f"CONNECT BY convertido en CTE recursiva; {depth}. {order}"
 
 
 def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalView:
@@ -228,6 +237,8 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
         except Exception:  # noqa: BLE001 - la salvaguarda de abajo detecta el (+) que quede
             pass
         tree = _rewrites.oracle_rownum_limit(tree)
+        order = tree.args.get("order") if isinstance(tree, exp.Select) else None
+        siblings = order is not None and bool(order.args.get("siblings"))
         tree, connect_by = _rewrites.oracle_connect_by(
             tree,
             target_engine=ctx.target_engine,
@@ -237,6 +248,7 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
         )
     else:
         connect_by = None
+        siblings = False
 
     unsupported = _rewrites.unsupported_constructs(tree, ctx.source_engine)
     if unsupported:
@@ -333,7 +345,7 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
                 view,
                 "VIEW_HIERARCHY",
                 "VIEW (jerarquía)",
-                _hierarchy_message(ctx.target_engine, nocycle=connect_by == "hierarchy_nocycle"),
+                _hierarchy_message(ctx.target_engine, nocycle=connect_by == "hierarchy_nocycle", siblings=siblings),
             )
         )
     if external:

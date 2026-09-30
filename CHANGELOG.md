@@ -18,6 +18,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   collation por defecto, `'abc'` y `'ABC'` darían un falso ciclo). Un solo helper por destino (`_KeyPath`) sirve a la
   rama recursiva, `CONNECT_BY_ISLEAF` y `CONNECT_BY_ISCYCLE`. En MySQL/MariaDB el camino admite unos 10 000 caracteres
   (más da error 1406). e2e contra Oracle en los 4 destinos con claves `NUMBER(10)`, `VARCHAR2(10)` y `NUMBER(20)`.
+- **migrate (vistas)**: `ORDER SIBLINGS BY` por columnas de la tabla (F1): una CTE previa numera los hermanos
+  (`ROW_NUMBER()` por padre, con el orden de `NULL` de Oracle; MySQL y MariaDB no admiten ventanas en la rama
+  recursiva), la CTE recursiva encadena los números con ancho fijo en `cb_order` y la vista ordena por él. SQL Server
+  no admite `ORDER BY` en una vista: se convierte sin el orden y el aviso «VIEW (jerarquía)» lo dice. e2e contra Oracle
+  comparando el orden de las filas en PostgreSQL, MySQL y MariaDB, con un `NULL` entre hermanos.
 
 ## [0.22.0] - 2026-09-30
 

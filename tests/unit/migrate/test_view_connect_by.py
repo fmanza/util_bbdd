@@ -247,6 +247,62 @@ class TestSelectStar:
         assert "VIEW (sin reescribir)" in _types(view) and "DUMMY" in _messages(view)
 
 
+class TestOrderSiblings:
+    """F1 (0.23.0): ``ORDER SIBLINGS BY`` → ``cb_order`` (rango de hermanos por nivel) y ``ORDER BY cb_order``.
+
+    El SQL de PostgreSQL se ejecuta en SQLite **sin ordenar** las filas: el orden es lo que se prueba. Árbol: Ana
+    (Luis → Eva, Juan) y Rosa; en profundidad y con los hermanos por nombre: Ana, Juan, Luis, Eva, Rosa.
+    """
+
+    BASE = "SELECT nombre, LEVEL AS nivel FROM zzv_emp START WITH jefe_id IS NULL CONNECT BY PRIOR id = jefe_id"
+
+    @staticmethod
+    def _ordered(query: str) -> list[tuple[object, ...]]:
+        conn = sqlite3.connect(":memory:")
+        try:
+            conn.execute('CREATE TABLE "zzv_emp" ("id" INT, "nombre" VARCHAR(50), "jefe_id" INT, "activo" INT)')
+            conn.executemany('INSERT INTO "zzv_emp" VALUES (?, ?, ?, ?)', ROWS)
+            return conn.execute(query).fetchall()
+        finally:
+            conn.close()
+
+    @pytest.mark.parametrize(
+        ("order", "expected"),
+        [
+            ("nombre", ["Ana", "Juan", "Luis", "Eva", "Rosa"]),
+            ("nombre DESC", ["Rosa", "Ana", "Luis", "Eva", "Juan"]),
+            ("id DESC", ["Rosa", "Ana", "Juan", "Luis", "Eva"]),
+        ],
+    )
+    def test_depth_first_with_sorted_siblings(self, order: str, expected: list[str]) -> None:
+        view = _transpile(f"{self.BASE} ORDER SIBLINGS BY {order}")
+        assert [row[0] for row in self._ordered(view.query)] == expected
+        assert "SIBLINGS" not in view.query.upper() and "se conserva" in _messages(view)
+
+    def test_where_filters_after_ordering(self) -> None:
+        sql = self.BASE.replace("FROM zzv_emp", "FROM zzv_emp WHERE activo = 1") + " ORDER SIBLINGS BY nombre"
+        # Luis (inactivo) no sale; su subordinada Eva conserva su sitio, detrás de Juan.
+        assert [row[0] for row in self._ordered(_transpile(sql).query)] == ["Ana", "Juan", "Eva", "Rosa"]
+
+    @pytest.mark.parametrize("target", ["mysql", "mariadb"])
+    def test_mysql_family_ranks_outside_the_recursion(self, target: str) -> None:
+        """MySQL/MariaDB no admiten ventanas en la rama recursiva (3575/4008): la numeración va en una CTE previa."""
+        query = _transpile(f"{self.BASE} ORDER SIBLINGS BY nombre", target).query.upper()
+        ranked, recursive = query.split("CONNECT_BY_TREE AS (", 1)
+        assert "ROW_NUMBER() OVER (PARTITION BY" in ranked
+        assert "OVER (PARTITION BY" not in recursive.split(" UNION ALL ", 1)[1]
+        # El orden de NULL de Oracle (NULLS LAST en ASC) se hace explícito en MySQL.
+        assert "CASE WHEN ZZV_EMP.`NOMBRE` IS NULL THEN 1 ELSE 0 END" in query
+        # sqlglot añade también aquí el CASE de NULL; cb_order nunca es NULL, así que no cambia el orden.
+        assert query.endswith("ZZV_EMP.CB_ORDER") and " ORDER BY " in query.rsplit("FROM CONNECT_BY_TREE", 1)[1]
+
+    def test_sqlserver_converts_without_order_and_warns(self) -> None:
+        view = _transpile(f"{self.BASE} ORDER SIBLINGS BY nombre", "sqlserver")
+        assert "ORDER BY" not in view.query.upper() and "CB_ORDER" not in view.query.upper()
+        assert "VIEW (sin reescribir)" not in _types(view)
+        assert "no admite ORDER BY en una vista" in _messages(view)
+
+
 class TestNocycle:
     """E3 (0.22.0): ``NOCYCLE`` → array de antepasados en PostgreSQL; en el resto de destinos, sin reescribir.
 
@@ -341,7 +397,14 @@ class TestNotRewritten:
     @pytest.mark.parametrize(
         ("sql", "reason"),
         [
-            ("SELECT id FROM zzv_emp CONNECT BY PRIOR id = jefe_id ORDER SIBLINGS BY nombre", "ORDER SIBLINGS BY"),
+            (
+                "SELECT id FROM zzv_emp CONNECT BY PRIOR id = jefe_id ORDER SIBLINGS BY UPPER(nombre)",
+                "ORDER SIBLINGS BY con algo que no es una columna",
+            ),
+            (
+                "SELECT LEVEL AS n FROM dual CONNECT BY LEVEL <= 3 ORDER SIBLINGS BY n",
+                "ORDER SIBLINGS BY en un generador",
+            ),
             ("SELECT id FROM zzv_emp CONNECT BY PRIOR id = jefe_id AND activo = 1", "PRIOR columna = columna"),
             ("SELECT id FROM zzv_emp CONNECT BY PRIOR id = jefe_id AND LEVEL <= jefe_id", "PRIOR columna = columna"),
             ("SELECT id FROM zzv_emp CONNECT BY PRIOR id + 1 = jefe_id", "PRIOR columna = columna"),

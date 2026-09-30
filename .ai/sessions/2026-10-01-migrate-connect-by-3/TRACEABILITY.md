@@ -45,11 +45,23 @@
     mayúsculas pasa a una vista propia sin ISCYCLE/ISLEAF (`zzvw_ciclo_mayus`); se comprobó que falla si se quita la
     búsqueda binaria (monkeypatch de `_binary_text`).
 
+- **F1 `ORDER SIBLINGS BY`**: R1 verificado antes de implementar: sqlglot traduce el orden de NULL de Oracle en una
+  ventana (`CASE WHEN x IS NULL THEN 1 ELSE 0 END` en MySQL/SQL Server) si los nodos `Ordered` vienen del análisis
+  Oracle, así que se copian tal cual a la ventana. CTE previa `connect_by_ranked` con `ROW_NUMBER() OVER (PARTITION BY
+  <columna hija> ORDER BY <claves>)`; ancla con `ROW_NUMBER() OVER (ORDER BY <claves>)` sobre las raíces; `cb_order` =
+  `CAST(1000000000 + n AS TEXT)` encadenado por nivel (`_order_step`), `TEXT` en PostgreSQL (VARCHAR(n) recortaría sin
+  error) y `CHAR(10000)` en MySQL/MariaDB; consulta exterior `ORDER BY cb_order`. SQL Server: sin CTE previa ni orden,
+  con aviso. Claves que no son columnas de la tabla o generador `FROM dual` → sin reescribir.
+  - Tests: `TestOrderSiblings` (SQLite **sin ordenar**: ASC, DESC, por id, con WHERE), e2e `test_oracle_order_siblings`
+    en los 4 destinos (orden de llegada en PostgreSQL/MySQL/MariaDB, NULL entre hermanos); se comprobó que falla con un
+    `cb_order` constante.
+
 ## Artefactos generados
 | Artefacto | Ruta | Estado |
 |---|---|---|
 | F2 | `src/util_bbdd/migrate/views/_rewrites.py`, tests, docs, CHANGELOG | completado |
 | F3 | `src/util_bbdd/migrate/views/{_rewrites,transpiler}.py`, tests, docs, CHANGELOG | completado |
+| F1 | `src/util_bbdd/migrate/views/{_rewrites,transpiler}.py`, tests, docs, CHANGELOG | completado |
 
 ## Directrices para Futuras IAs
 - **[migrate/views/CONNECT BY]**: `CONNECT_BY_ISLEAF` y `CONNECT_BY_ISCYCLE` son la misma pregunta («¿hay un hijo
@@ -60,6 +72,11 @@
 - **[migrate/views/CONNECT BY]**: la collation de las columnas destino decide la igualdad de claves de texto en la
   propia condición CONNECT BY: con claves que solo difieren en mayúsculas, solo una collation binaria reproduce Oracle.
   No es un defecto del camino; se documenta.
+- **[migrate/views/CONNECT BY]**: las funciones de ventana van en una CTE previa no recursiva, nunca en la rama
+  recursiva (MySQL 3575, MariaDB 4008). Para traducir el orden de NULL de Oracle, reutilizar los nodos `Ordered` del
+  análisis Oracle (llevan `nulls_first`), no construir nodos nuevos.
+- **[tests/e2e]**: para validar un orden, comparar las filas en el orden de llegada (`_rows_in_order`), no con `_rows`
+  (que ordena), y comprobar que el test falla si se rompe el orden a propósito.
 
 ## Veredicto final
-Veredicto: GO — en curso (F2 y F3 hechos; F1 pendiente).
+Veredicto: CLOSED — F2, F3 y F1 implementados y verificados contra Oracle (commits sin push).
