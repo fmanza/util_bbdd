@@ -206,7 +206,30 @@ class SQLServerDDLEmitter:
                 "— verificar orden de ejecución manualmente\n"
             )
             stmts.append(aviso + self._emit_create_view(v))
+        comments = self._emit_view_comments([*ordered, *circular])
+        if comments:
+            stmts.append(comments)
         return stmts
+
+    @staticmethod
+    def _emit_view_comments(views: list[CanonicalView]) -> str:
+        """Una sentencia con el ``MS_Description`` de las vistas, después de crearlas (E2, 0.22.0).
+
+        Variable propia (``@view_schema``): en el lote único de ``emit()`` ya puede estar declarada ``@schema``.
+        """
+        calls: list[str] = []
+        for view in views:
+            if not view.comment:
+                continue
+            comment = fit_comment(view.warnings, view.name, None, view.comment, SQLSERVER_COMMENT, "SQL Server")
+            levels = (
+                "@level0type = N'SCHEMA', @level0name = @view_schema, @level1type = N'VIEW', "
+                f"@level1name = {_ss_literal(view.name)}"
+            )
+            calls.append(_ss_description(comment, levels))
+        if not calls:
+            return ""
+        return "DECLARE @view_schema sysname = SCHEMA_NAME();\n" + ";\n".join(calls)
 
     def _emit_create_view(self, view: CanonicalView) -> str:
         lines: list[str] = []
@@ -214,8 +237,6 @@ class SQLServerDDLEmitter:
         lines.append("-- NOTE: CREATE OR ALTER VIEW requires SQL Server 2016+ (compatibility level 130+)")
         if view.warnings:
             lines.append("-- NOTE: requires manual review (see migration warnings)")
-        if view.comment:
-            lines.append(f"-- COMMENT: {one_line(view.comment)}")
         lines.append(f"CREATE OR ALTER VIEW {_br(view.name)} AS")
         lines.append(view.query)
         return "\n".join(lines)

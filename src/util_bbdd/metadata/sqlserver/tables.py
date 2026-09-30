@@ -262,12 +262,14 @@ def fetch_views_sql() -> str:
     Parámetros: ``%(schema)s``.
 
     Returns:
-        str: SQL query para (VIEW_NAME, DEFINITION).
+        str: SQL query para (VIEW_NAME, DEFINITION, VIEW_COMMENT); el comentario (``MS_Description``) desde 0.22.0.
     """
     return (
-        "SELECT v.name, OBJECT_DEFINITION(v.object_id) "
+        "SELECT v.name, OBJECT_DEFINITION(v.object_id), CAST(ep.value AS NVARCHAR(4000)) "
         "FROM sys.views v "
         "JOIN sys.schemas s ON s.schema_id = v.schema_id "
+        "LEFT JOIN sys.extended_properties ep "
+        "  ON ep.class = 1 AND ep.name = 'MS_Description' AND ep.minor_id = 0 AND ep.major_id = v.object_id "
         "WHERE s.name = %(schema)s "
         "ORDER BY v.name"
     )

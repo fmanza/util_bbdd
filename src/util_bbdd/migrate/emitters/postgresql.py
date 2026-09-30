@@ -184,14 +184,16 @@ class PostgreSQLDDLEmitter:
                 "— verificar orden de ejecución manualmente\n"
             )
             stmts.append(aviso + self._emit_create_view(v))
+        # E2 (0.22.0): comentario real de la vista, después de crearlas todas
+        stmts.extend(
+            f"COMMENT ON VIEW {_dq(v.name)} IS {_pg_literal(v.comment)}" for v in [*ordered, *circular] if v.comment
+        )
         return stmts
 
     def _emit_create_view(self, view: CanonicalView) -> str:
         lines: list[str] = []
         if view.warnings:
             lines.append("-- NOTE: requires manual review (see migration warnings)")
-        if view.comment:
-            lines.append(f"-- COMMENT: {one_line(view.comment)}")
         lines.append(f"CREATE OR REPLACE VIEW {_dq(view.name)} AS")
         lines.append(view.query)
         return "\n".join(lines)

@@ -19,6 +19,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
   Verificado fila a fila contra Oracle en el e2e de los 20 pares y en una tabla con un ciclo hacia PostgreSQL.
   `ORDER SIBLINGS BY` y `CONNECT_BY_ISCYCLE` siguen sin reescribir.
+- **migrate**: los comentarios de vistas llegan al destino (E2). Se leen de PostgreSQL (`pg_description`) y SQL Server
+  (`MS_Description`), además de Oracle, y se aplican después de crear las vistas: `COMMENT ON VIEW` en PostgreSQL,
+  `COMMENT ON TABLE` en Oracle y `MS_Description` de tipo `VIEW` en SQL Server, recortados al límite del destino.
+  MySQL/MariaDB no admiten comentarios de vistas: con ese destino el comentario queda como `--` en el script y el plan
+  lleva un aviso `COMMENT`. Los avisos que la emisión añade a una vista se incorporan a `plan.warnings`.
+- **metadata**: `fetch_views_sql()` de PostgreSQL y SQL Server devuelve el comentario de la vista como tercera columna.
 
 ## [0.21.0] - 2026-09-30
 

@@ -217,7 +217,7 @@ class SQLServerSchemaExtractor:
                     schema=schema,
                     query=definition,
                     columns=columns,
-                    comment="",
+                    comment=str(row[2]).strip() if len(row) > 2 and row[2] else "",  # MS_Description (E2, 0.22.0)
                     warnings=view_warnings,
                 )
             )

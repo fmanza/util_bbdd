@@ -342,13 +342,14 @@ def fetch_views_sql() -> str:
     Parámetros: ``%(schema)s``.
 
     Returns:
-        str: SQL query para (TABLE_NAME, VIEW_DEFINITION).
+        str: SQL query para (TABLE_NAME, VIEW_DEFINITION, VIEW_COMMENT); el comentario (``pg_description``) desde 0.22.0.
     """
     return (
-        "SELECT TABLE_NAME, VIEW_DEFINITION "
-        "FROM INFORMATION_SCHEMA.VIEWS "
-        "WHERE TABLE_SCHEMA = %(schema)s "
-        "ORDER BY TABLE_NAME"
+        "SELECT v.TABLE_NAME, v.VIEW_DEFINITION, "
+        "obj_description((quote_ident(v.TABLE_SCHEMA) || '.' || quote_ident(v.TABLE_NAME))::regclass, 'pg_class') "
+        "FROM INFORMATION_SCHEMA.VIEWS v "
+        "WHERE v.TABLE_SCHEMA = %(schema)s "
+        "ORDER BY v.TABLE_NAME"
     )
 
 

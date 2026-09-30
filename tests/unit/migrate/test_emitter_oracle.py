@@ -383,7 +383,9 @@ class TestOracleDDLEmitterViews:
     def test_view_with_comment_emitted(self) -> None:
         view = _view(name="MY_VIEW", query="SELECT 1 FROM DUAL", comment="A useful view")
         ddl = self.e.emit([], views=[view])
-        assert "-- COMMENT: A useful view" in ddl
+        # E2 (0.22.0): COMMENT ON TABLE sirve para vistas en Oracle; después del CREATE VIEW
+        assert ddl.index("""COMMENT ON TABLE "MY_VIEW" IS 'A useful view'""") > ddl.index("CREATE OR REPLACE VIEW")
+        assert "-- COMMENT" not in ddl
 
     def test_empty_views_list(self) -> None:
         col = _col()

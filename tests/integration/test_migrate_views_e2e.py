@@ -76,6 +76,10 @@ def _long_text(length: int) -> str:
 
 
 TABLE_COMMENT = "Tabla ñ 'd3'"  # D3: comentario de tabla con ñ y comilla (las barras las prueba RUTA)
+# E2 (0.22.0): comentario de vista desde/hacia PostgreSQL, SQL Server y Oracle
+VIEW_COMMENT = "Vista ñ 'e2'"
+COMMENTED_VIEW = "zzvw_inner_join"
+VIEW_COMMENT_ENGINES = ("postgresql", "sqlserver", "oracle")
 RUTA_LITERAL = {
     "mysql": "'C:\\\\datos\\\\x''q'",
     "mariadb": "'C:\\\\datos\\\\x''q'",
@@ -350,7 +354,37 @@ def _source_objects(engine_name: str) -> list[str]:
             statements.append(
                 f"CREATE VIEW zzvw_{key} {native}" if native.startswith("(") else f"CREATE VIEW zzvw_{key} AS {native}"
             )
+    # E2: comentario de vista (MySQL/MariaDB no los admiten)
+    view_comment = "'" + VIEW_COMMENT.replace("'", "''") + "'"
+    if engine_name == "postgresql":
+        statements.append(f"COMMENT ON VIEW {COMMENTED_VIEW} IS {view_comment}")
+    elif engine_name == "oracle":
+        statements.append(f"COMMENT ON TABLE {COMMENTED_VIEW} IS {view_comment}")
+    elif engine_name == "sqlserver":
+        statements.append(
+            f"EXEC sys.sp_addextendedproperty N'MS_Description', N{view_comment}, N'SCHEMA', N'dbo', N'VIEW', "
+            f"N'{COMMENTED_VIEW}'"
+        )
     return statements
+
+
+def _view_comment(engine: Engine, target: str, view: str) -> str | None:
+    """Comentario de la vista leído del catálogo del destino (PostgreSQL, SQL Server, Oracle)."""
+    if target == "postgresql":
+        sql = (
+            "SELECT obj_description(c.oid, 'pg_class') FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+            f"WHERE n.nspname = '{DST}' AND c.relname = '{view}'"
+        )
+    elif target == "sqlserver":
+        sql = (
+            "SELECT CAST(value AS NVARCHAR(4000)) FROM sys.extended_properties WHERE name = 'MS_Description' "
+            f"AND major_id = OBJECT_ID('{view}') AND minor_id = 0"
+        )
+    else:
+        sql = f"SELECT comments FROM user_tab_comments WHERE table_name = '{view.upper()}'"
+    with engine.connect() as conn:
+        row = conn.execute(text(sql)).fetchone()
+    return None if row is None else row[0]
 
 
 def _manager(engine_name: str, namespace: str = SRC) -> SyncDatabaseManager:
@@ -555,6 +589,17 @@ def test_views_are_created_and_return_the_same_rows(source_target: tuple[str, st
             assert truncated == {
                 c for c, lim in ((None, table_limit), (v_name, column_limit)) if lim and lim < len(original)
             }
+
+        # E2: comentario de vista
+        [commented] = [v for v in plan.views if v.original_name.lower() == COMMENTED_VIEW]
+        view_comment_warnings = [w for w in plan.warnings if w.category == "COMMENT" and w.table == commented.name]
+        if source not in VIEW_COMMENT_ENGINES:
+            assert commented.comment == "" and not view_comment_warnings
+        elif target in VIEW_COMMENT_ENGINES:
+            assert _view_comment(dst_engine, target, commented.name) == VIEW_COMMENT
+            assert not view_comment_warnings
+        else:
+            assert [w.target_type for w in view_comment_warnings] == ["(vista)"]
 
         differences: dict[str, tuple[list[tuple], list[tuple]]] = {}
         for view in plan.views:

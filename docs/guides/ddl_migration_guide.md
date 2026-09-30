@@ -176,7 +176,10 @@ for w in plan.warnings:
 
 Los comentarios de tablas y columnas se migran en todos los pares y llegan a la base de datos destino: `COMMENT`
 en MariaDB/MySQL, `COMMENT ON` en PostgreSQL y Oracle, y la propiedad extendida `MS_Description` en SQL Server (en el
-schema por defecto del usuario destino). Los de vistas y rutinas no se migran.
+schema por defecto del usuario destino). Los de vistas se leen de PostgreSQL, SQL Server y Oracle (MySQL/MariaDB no
+los admiten) y se aplican después de crear las vistas en PostgreSQL (`COMMENT ON VIEW`), Oracle (`COMMENT ON TABLE`)
+y SQL Server (`MS_Description` de tipo `VIEW`); con destino MySQL/MariaDB quedan como `--` en el script, con un aviso
+`COMMENT`. Los de rutinas no se migran.
 
 Cada aviso (`MigrationWarning`) indica **qué** es con `category` y, cuando trata de un tipo de datos, **cuál** con
 `source_type` (el tipo en el motor origen):
@@ -192,7 +195,7 @@ Cada aviso (`MigrationWarning`) indica **qué** es con `category` y, cuando trat
 | `INDEX` | Índices (p. ej. renombrados por colisión de nombre) | — |
 | `VIEW` | Vistas (reescritura, construcciones sin traducción) | — |
 | `ROUTINE` | Procedimientos, funciones y packages | — |
-| `COMMENT` | Comentario recortado al límite del destino (MySQL/MariaDB 1024/2048 caracteres, Oracle 4000 bytes, SQL Server 7500 bytes) | — |
+| `COMMENT` | Comentario recortado al límite del destino (MySQL/MariaDB 1024/2048 caracteres, Oracle 4000 bytes, SQL Server 7500 bytes), o comentario de vista que MySQL/MariaDB no pueden guardar | — |
 | `TABLE` | Tabla sin columnas activas (`ERROR`: `execute()` no empieza) | — |
 
 ```python

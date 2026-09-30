@@ -142,9 +142,19 @@ class TestSQLServerEmitCreateView:
         assert "[view]]name]" in ddl
 
     def test_comment_emitted(self) -> None:
-        v = _view(comment="Vista de empleados")
-        ddl = self.emitter._emit_create_view(v)
-        assert "-- COMMENT: Vista de empleados" in ddl
+        # E2 (0.22.0): MS_Description de la vista en una sentencia propia, después de crear las vistas
+        v = _view(comment="Vista d'empleados")
+        stmts = self.emitter._emit_view_statements([v])
+        assert stmts[-1].startswith("DECLARE @view_schema sysname = SCHEMA_NAME();\n")
+        assert "@value = N'Vista d''empleados'" in stmts[-1]
+        assert "@level1type = N'VIEW', @level1name = N'VW_TEST'" in stmts[-1]
+        assert "COMMENT" not in self.emitter._emit_create_view(v)
+
+    def test_long_view_comment_is_truncated_with_warning(self) -> None:
+        v = _view(comment="x" * 4000)
+        stmt = self.emitter._emit_view_statements([v])[-1]
+        assert "N'" + "x" * 3750 + "'" in stmt and "x" * 3751 not in stmt
+        assert [w.category for w in v.warnings] == ["COMMENT"]
 
     def test_manual_review_note_when_warnings(self) -> None:
         w = MigrationWarning(

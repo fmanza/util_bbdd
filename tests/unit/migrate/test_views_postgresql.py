@@ -145,9 +145,11 @@ class TestPostgreSQLEmitCreateView:
         assert '"my""view"' in ddl
 
     def test_comment_emitted(self) -> None:
-        v = _view(comment="Vista de pedidos")
-        ddl = self.emitter._emit_create_view(v)
-        assert "-- COMMENT: Vista de pedidos" in ddl
+        # E2 (0.22.0): COMMENT ON VIEW real, después de crear las vistas (antes solo `--`)
+        v = _view(comment="Vista d'pedidos")
+        stmts = self.emitter._emit_view_statements([v])
+        assert stmts[-1] == """COMMENT ON VIEW "VW_TEST" IS 'Vista d''pedidos'"""
+        assert "COMMENT" not in self.emitter._emit_create_view(v)
 
     def test_manual_review_note_when_warnings(self) -> None:
         w = MigrationWarning(

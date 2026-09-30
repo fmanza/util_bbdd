@@ -211,8 +211,13 @@ class MigrationPlan:
         """Incorpora a ``self.warnings`` los warnings nuevos que la emisión haya
         añadido a ``col.warnings``/``table.warnings`` (generados en fase de
         emisión, no de transformación, por lo que no estaban en el plan original).
+        También los de ``view.warnings`` (comentarios de vistas, E2 0.22.0).
         Idempotente: no duplica warnings ya presentes.
         """
+        for view in self.views:
+            for warning in view.warnings:
+                if warning not in self.warnings:
+                    self.warnings.append(warning)
         for table in self.tables:
             for warning in table.warnings:
                 if warning not in self.warnings:

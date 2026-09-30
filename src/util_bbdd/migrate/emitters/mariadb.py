@@ -15,7 +15,14 @@ import re
 from collections import deque
 
 from ..charset import validate_storage_engine
-from ..ir.models import CanonicalColumn, CanonicalFK, CanonicalRoutine, CanonicalTable, CanonicalView
+from ..ir.models import (
+    CanonicalColumn,
+    CanonicalFK,
+    CanonicalRoutine,
+    CanonicalTable,
+    CanonicalView,
+    MigrationWarning,
+)
 from ._comment_limits import MYSQL_COLUMN_COMMENT, MYSQL_TABLE_COMMENT, fit_comment
 from ._default_fallback import default_fallback_warning
 from ._trailing_comment import join_definitions, one_line, with_trailing_comment
@@ -305,6 +312,20 @@ class MariaDBDDLEmitter:
             lines.append("-- NOTE: requires manual review (see migration warnings)")
         if view.comment:
             lines.append(f"-- COMMENT: {one_line(view.comment)}")
+            # E2 (0.22.0): MySQL/MariaDB no guardan comentarios de vistas; solo queda en el script
+            warning = MigrationWarning(
+                table=view.name,
+                column=None,
+                category="COMMENT",
+                target_type="(vista)",
+                message=(
+                    f"Vista '{view.name}': MySQL/MariaDB no admiten comentarios de vistas; el comentario solo queda "
+                    "como `--` en el script"
+                ),
+                severity="WARNING",
+            )
+            if warning not in view.warnings:
+                view.warnings.append(warning)
         lines.append(f"CREATE OR REPLACE VIEW {_bt(view.name)} AS")
         lines.append(view.query)
         return "\n".join(lines)
