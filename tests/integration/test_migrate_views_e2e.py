@@ -59,6 +59,7 @@ AUTOINC_ID = {
 # A6 (fix): nombres de 35 caracteres y 64 bytes que solo difieren en el último; PostgreSQL recorta a 63 bytes.
 LONG_NAMES = ("zzvw_" + "ñ" * 29 + "a", "zzvw_" + "ñ" * 29 + "b")
 RUTA = "C:\\datos\\x'q"
+TABLE_COMMENT = "Tabla ñ 'd3'"  # D3: comentario de tabla con ñ y comilla (las barras las prueba RUTA)
 RUTA_LITERAL = {
     "mysql": "'C:\\\\datos\\\\x''q'",
     "mariadb": "'C:\\\\datos\\\\x''q'",
@@ -276,12 +277,20 @@ def _source_objects(engine_name: str) -> list[str]:
     statements += [f"INSERT INTO {P} VALUES ({a}, {b}, {date(c)}, {e})" for a, b, c, e in PEDIDOS]
     statements.append(f"CREATE TABLE {E} (id {i} PRIMARY KEY, nombre {v} NOT NULL, jefe_id {i}, activo {i})")
     ruta = RUTA_LITERAL.get(engine_name, "'C:\\datos\\x''q'")
+    table_comment = "'" + TABLE_COMMENT.replace("'", "''") + "'"
     comment = f" COMMENT {ruta}" if engine_name in ("mysql", "mariadb") else ""
+    table_option = f" COMMENT={table_comment}" if engine_name in ("mysql", "mariadb") else ""
     statements.append(
         f"CREATE TABLE {A} ({AUTOINC_ID[engine_name]}, v {i}, ruta {v.replace('50', '80')} DEFAULT {ruta}{comment})"
+        + table_option
     )
     if engine_name in ("postgresql", "oracle"):
         statements.append(f"COMMENT ON COLUMN {A}.ruta IS {ruta}")
+        statements.append(f"COMMENT ON TABLE {A} IS {table_comment}")
+    if engine_name == "sqlserver":  # D3: comentarios de SQL Server = propiedad extendida MS_Description
+        prop = "EXEC sys.sp_addextendedproperty N'MS_Description', N{value}, N'SCHEMA', N'dbo', N'TABLE', N'" + A + "'"
+        statements.append(prop.format(value=table_comment))
+        statements.append(prop.format(value=ruta) + ", N'COLUMN', N'ruta'")
     if engine_name in ("mysql", "mariadb", "sqlserver"):
         # A3 (hotfix): mismo nombre de índice en dos tablas (válido aquí; en PostgreSQL y Oracle es único por schema).
         statements += [f"CREATE INDEX zzvw_idx ON {E} (activo)", f"CREATE INDEX zzvw_idx ON {A} (v)"]
@@ -334,6 +343,40 @@ def _rows(engine: Engine, sql: str) -> list[tuple]:
     return sorted(
         (tuple(_norm(v) for v in r) for r in rows), key=lambda r: tuple("" if x is None else str(x) for x in r)
     )
+
+
+def _comments(engine: Engine, target: str, table: str, column: str) -> tuple[str | None, str | None]:
+    """(comentario de la tabla, comentario de la columna) leídos del catálogo del destino."""
+    if target in ("mysql", "mariadb"):
+        sql = (
+            f"SELECT (SELECT TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = '{DST}' "
+            f"AND TABLE_NAME = '{table}'), (SELECT COLUMN_COMMENT FROM information_schema.COLUMNS "
+            f"WHERE TABLE_SCHEMA = '{DST}' AND TABLE_NAME = '{table}' AND COLUMN_NAME = '{column}')"
+        )
+    elif target == "postgresql":
+        sql = (
+            "SELECT obj_description(c.oid, 'pg_class'), col_description(c.oid, a.attnum) FROM pg_class c "
+            "JOIN pg_namespace n ON n.oid = c.relnamespace JOIN pg_attribute a ON a.attrelid = c.oid "
+            f"WHERE n.nspname = '{DST}' AND c.relname = '{table}' AND a.attname = '{column}'"
+        )
+    elif target == "sqlserver":
+        sql = (
+            "SELECT (SELECT CAST(value AS NVARCHAR(4000)) FROM sys.extended_properties WHERE name = 'MS_Description' "
+            f"AND major_id = OBJECT_ID('{table}') AND minor_id = 0), (SELECT CAST(ep.value AS NVARCHAR(4000)) "
+            "FROM sys.extended_properties ep JOIN sys.columns c ON c.object_id = ep.major_id "
+            f"AND c.column_id = ep.minor_id WHERE ep.name = 'MS_Description' AND ep.major_id = OBJECT_ID('{table}') "
+            f"AND c.name = '{column}')"
+        )
+    else:
+        sql = (
+            f"SELECT (SELECT comments FROM user_tab_comments WHERE table_name = '{table.upper()}'), "
+            f"(SELECT comments FROM user_col_comments WHERE table_name = '{table.upper()}' "
+            f"AND column_name = '{column.upper()}') FROM dual"
+        )
+    with engine.connect() as conn:
+        row = conn.exec_driver_sql(sql).fetchone()
+    assert row is not None
+    return row[0], row[1]
 
 
 QUOTE = {
@@ -447,16 +490,13 @@ def test_views_are_created_and_return_the_same_rows(source_target: tuple[str, st
                 f"SELECT {QUOTE[target](auto_cols[0].name)}, {QUOTE[target](ruta_col)} FROM {QUOTE[target](table_name)}",
             )
             assert generated == [("1.00", RUTA)], generated  # A4: el DEFAULT conserva barras y comilla
-            # Comentarios: los extractores de SQL Server y PostgreSQL no los leen (limitación documentada, v1).
-            if target in ("mysql", "mariadb") and source in ("mysql", "mariadb", "oracle"):
-                comment = _rows(
-                    dst_engine,
-                    "SELECT COLUMN_COMMENT FROM information_schema.COLUMNS "
-                    f"WHERE TABLE_SCHEMA = '{DST}' AND TABLE_NAME = '{table_name}' AND COLUMN_NAME = '{ruta_col}'",
-                )
-                assert comment == [(RUTA,)], comment
         else:
             assert source == "oracle", f"{source}: la columna autoincremental no se detectó"
+
+        # D3: comentarios de tabla y de columna, desde los 5 orígenes y en los 5 destinos
+        [autoinc_table] = autoinc
+        ruta_name = next(c.name for c in autoinc_table.columns if c.original_name.lower() == "ruta")
+        assert _comments(dst_engine, target, autoinc_table.name, ruta_name) == (TABLE_COMMENT, RUTA)
 
         differences: dict[str, tuple[list[tuple], list[tuple]]] = {}
         for view in plan.views:

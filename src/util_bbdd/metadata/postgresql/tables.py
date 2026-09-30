@@ -207,19 +207,20 @@ def fetch_indexes_sql(schema: str, table: str) -> str:
 def fetch_tables_for_extract_sql() -> str:
     """SQL para obtener tablas BASE TABLE de un schema PostgreSQL (uso: migrate/extractors).
 
-    Retorna solo TABLE_NAME filtrando por TABLE_TYPE='BASE TABLE'.
+    Retorna TABLE_NAME y su comentario (``pg_description``) filtrando por TABLE_TYPE='BASE TABLE'.
     Difiere de ``fetch_tables_sql`` que incluye vistas y retorna 3 columnas.
 
     Parámetros: ``%(schema)s``.
 
     Returns:
-        str: SQL query para (TABLE_NAME,).
+        str: SQL query para (TABLE_NAME, TABLE_COMMENT).
     """
     return (
-        "SELECT TABLE_NAME "
-        "FROM INFORMATION_SCHEMA.TABLES "
-        "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_TYPE = 'BASE TABLE' "
-        "ORDER BY TABLE_NAME"
+        "SELECT t.TABLE_NAME, "
+        "obj_description((quote_ident(t.TABLE_SCHEMA) || '.' || quote_ident(t.TABLE_NAME))::regclass, 'pg_class') "
+        "FROM INFORMATION_SCHEMA.TABLES t "
+        "WHERE t.TABLE_SCHEMA = %(schema)s AND t.TABLE_TYPE = 'BASE TABLE' "
+        "ORDER BY t.TABLE_NAME"
     )
 
 
@@ -241,12 +242,15 @@ def fetch_columns_for_schema_sql() -> str:
 
     Returns:
         str: SQL query para (TABLE_NAME, COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION,
-             NUMERIC_SCALE, IS_NULLABLE, COLUMN_DEFAULT, ORDINAL_POSITION).
+             NUMERIC_SCALE, IS_NULLABLE, COLUMN_DEFAULT, ORDINAL_POSITION, COLUMN_COMMENT). ``ORDINAL_POSITION`` es
+             el ``attnum`` de PostgreSQL, que es lo que pide ``col_description``.
     """
     return (
         "SELECT c.TABLE_NAME, c.COLUMN_NAME, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, "
         "c.NUMERIC_PRECISION, c.NUMERIC_SCALE, c.IS_NULLABLE, c.COLUMN_DEFAULT, "
-        "c.ORDINAL_POSITION "
+        "c.ORDINAL_POSITION, "
+        "col_description((quote_ident(c.TABLE_SCHEMA) || '.' || quote_ident(c.TABLE_NAME))::regclass, "
+        "c.ORDINAL_POSITION::int) "
         "FROM INFORMATION_SCHEMA.COLUMNS c "
         "WHERE c.TABLE_SCHEMA = %(schema)s "
         "ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION"

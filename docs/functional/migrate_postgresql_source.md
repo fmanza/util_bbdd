@@ -53,7 +53,7 @@ flowchart TD
 
 - Solo soporta PostgreSQL como motor origen (destinos: Oracle, MariaDB, SQL Server)
 - No migra filas de datos, solo la estructura (DDL)
-- Los comentarios de columna no se incluyen en esta versión
+- Los comentarios de tabla y de columna se migran (desde 0.21.0); los de vistas y rutinas, no
 - Los tipos espaciales, arrays y enums se mapean a tipos de texto con aviso de severidad ERROR
 - `asyncpg` usa `$1, $2, ...` como param style; requiere un wrapper para usar con este módulo
 

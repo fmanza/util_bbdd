@@ -113,10 +113,12 @@ class SQLServerDDLEmitter:
 
         for table in ordered:
             skip_fk_names = {fk.name for _, fk in circular_fk_pairs if _ == table.name}
-            stmt = self._emit_create_table(table, skip_fk_names=skip_fk_names)
-            if table.comment:
-                stmt = f"-- COMMENT: {one_line(table.comment)}\n{stmt}"
-            statements.append(stmt)
+            statements.append(self._emit_create_table(table, skip_fk_names=skip_fk_names))
+
+        # D3: comentarios reales en el destino (propiedad extendida MS_Description; antes solo `--` en el script)
+        comments = self._emit_comments(ordered)
+        if comments:
+            statements.append(comments)
 
         for table in ordered:
             for stmt in self._emit_indexes(table):
@@ -141,6 +143,30 @@ class SQLServerDDLEmitter:
         statements.extend(self._emit_routine_statements(routines))
 
         return statements
+
+    @staticmethod
+    def _emit_comments(tables: list[CanonicalTable]) -> str:
+        """Una sentencia con los comentarios de tablas y columnas como ``MS_Description`` (D3).
+
+        Una sola: el script de ``emit()`` es un único lote, donde un ``DECLARE`` repetido fallaría. El schema es el
+        del usuario destino (``SCHEMA_NAME()``), el mismo donde se crean las tablas (el DDL no lleva schema).
+        """
+        calls: list[str] = []
+        for table in tables:
+            level1 = f"@level0type = N'SCHEMA', @level0name = @schema, @level1type = N'TABLE', @level1name = {_ss_literal(table.name)}"
+            if table.comment:
+                calls.append(_ss_description(table.comment, level1))
+            for col in table.columns:
+                if col.omit or not col.comment:
+                    continue
+                calls.append(
+                    _ss_description(
+                        col.comment, f"{level1}, @level2type = N'COLUMN', @level2name = {_ss_literal(col.name)}"
+                    )
+                )
+        if not calls:
+            return ""
+        return "DECLARE @schema sysname = SCHEMA_NAME();\n" + ";\n".join(calls)
 
     def _emit_routine_statements(self, routines: list[CanonicalRoutine] | None) -> list[str]:
         return [self._emit_create_routine(r) for r in (routines or [])]
@@ -262,10 +288,8 @@ class SQLServerDDLEmitter:
 
         line = " ".join(parts)
 
-        # Comentarios trailing: comment Oracle + aviso de migración
+        # Comentario trailing: aviso de migración (el comentario de la columna va como MS_Description, D3)
         trailing: list[str] = []
-        if col.comment:
-            trailing.append(col.comment)
         if col.ddl_comment:
             aviso = col.ddl_comment.lstrip("- ").strip()
             if aviso:
@@ -346,6 +370,15 @@ def _format_default_sqlserver(value: str) -> str:
     # String literal sin entrecomillar
     escaped = v.replace("'", "''")
     return f"'{escaped}'"
+
+
+def _ss_literal(text: str) -> str:
+    """Literal Unicode de SQL Server (``N'…'``, comilla duplicada)."""
+    return "N'" + text.replace("'", "''") + "'"
+
+
+def _ss_description(comment: str, levels: str) -> str:
+    return f"EXEC sys.sp_addextendedproperty @name = N'MS_Description', @value = {_ss_literal(comment)}, {levels}"
 
 
 __all__: list[str] = ["SQLServerDDLEmitter"]

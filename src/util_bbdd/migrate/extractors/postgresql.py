@@ -92,7 +92,7 @@ def _parse_raw_column(row: Any) -> dict[str, Any] | None:
         "nullable": str(row[5]).strip().upper() == "YES" if row[5] else True,
         "default": default_raw,
         "auto_increment": auto_increment,
-        "comment": "",  # PostgreSQL comments via pg_description; omitido en v1
+        "comment": str(row[8]).strip() if len(row) > 8 and row[8] else "",  # col_description (D3)
         "ordinal": int(row[7]) if row[7] is not None else 0,
     }
 
@@ -156,7 +156,7 @@ class PostgreSQLSchemaExtractor:
                     primary_key=pk_cols,
                     indexes=idx_list,
                     foreign_keys=fk_list,
-                    comment="",  # pg_description omitido en v1
+                    comment=str(t_row[1]).strip() if len(t_row) > 1 and t_row[1] else "",  # D3
                     warnings=[],
                 )
             )

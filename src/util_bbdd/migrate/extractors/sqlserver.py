@@ -92,7 +92,7 @@ def _parse_raw_column(row: Any) -> dict[str, Any] | None:
         "nullable": str(row[5]).strip().upper() == "YES" if row[5] else True,
         "default": default_raw,
         "auto_increment": is_identity,
-        "comment": "",  # SQL Server usa sys.extended_properties; se omite en v1
+        "comment": str(row[9]).strip() if len(row) > 9 and row[9] else "",  # MS_Description (D3)
         "ordinal": int(row[8]) if row[8] is not None else 0,
     }
 
@@ -153,7 +153,7 @@ class SQLServerSchemaExtractor:
                     primary_key=pk_cols,
                     indexes=idx_list,
                     foreign_keys=fk_list,
-                    comment="",  # SQL Server extended_properties omitido en v1
+                    comment=str(t_row[1]).strip() if len(t_row) > 1 and t_row[1] else "",  # D3
                     warnings=[],
                 )
             )

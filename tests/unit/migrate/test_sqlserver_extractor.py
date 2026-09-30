@@ -403,3 +403,16 @@ class TestExtractRoutines:
         ext.extract_routines("dbo")
         assert manager.execute_custom_many.called
         assert not manager.execute.called
+
+
+class TestComments:
+    """D3 (0.21.0): comentarios de tabla y columna (propiedad extendida MS_Description)."""
+
+    def test_table_and_column_comments_are_read(self) -> None:
+        manager = _make_manager(
+            tables=[("Clientes", "Tabla de clientes")],
+            columns=[(*_col_row("Id", "int"), "Identificador"), (*_col_row("Nombre", ordinal=2), None)],
+        )
+        [table] = SQLServerSchemaExtractor(manager).extract("dbo")
+        assert table.comment == "Tabla de clientes"
+        assert [c.comment for c in table.columns] == ["Identificador", ""]

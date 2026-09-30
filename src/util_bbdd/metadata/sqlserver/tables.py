@@ -113,18 +113,21 @@ def fetch_columns_sync(connection: Any, schema: str | None = None, table: str | 
 
 
 def fetch_tables_sql() -> str:
-    """SQL para obtener tablas BASE TABLE de un schema SQL Server.
+    """SQL para obtener tablas BASE TABLE de un schema SQL Server, con su comentario (``MS_Description``).
 
     Parámetros: ``%(schema)s``.
 
     Returns:
-        str: SQL query para (TABLE_NAME,).
+        str: SQL query para (TABLE_NAME, TABLE_COMMENT).
     """
     return (
-        "SELECT TABLE_NAME "
-        "FROM INFORMATION_SCHEMA.TABLES "
-        "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_TYPE = 'BASE TABLE' "
-        "ORDER BY TABLE_NAME"
+        "SELECT t.TABLE_NAME, CAST(ep.value AS NVARCHAR(4000)) "
+        "FROM INFORMATION_SCHEMA.TABLES t "
+        "LEFT JOIN sys.extended_properties ep "
+        "  ON ep.class = 1 AND ep.name = 'MS_Description' AND ep.minor_id = 0 "
+        "  AND ep.major_id = OBJECT_ID(QUOTENAME(t.TABLE_SCHEMA) + '.' + QUOTENAME(t.TABLE_NAME)) "
+        "WHERE t.TABLE_SCHEMA = %(schema)s AND t.TABLE_TYPE = 'BASE TABLE' "
+        "ORDER BY t.TABLE_NAME"
     )
 
 
@@ -143,14 +146,18 @@ def fetch_columns_for_schema_sql() -> str:
 
     Returns:
         str: SQL query para (TABLE_NAME, COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION,
-             NUMERIC_SCALE, IS_NULLABLE, COLUMN_DEFAULT, IS_IDENTITY, ORDINAL_POSITION).
+             NUMERIC_SCALE, IS_NULLABLE, COLUMN_DEFAULT, IS_IDENTITY, ORDINAL_POSITION, COLUMN_COMMENT).
     """
     return (
         "SELECT c.TABLE_NAME, c.COLUMN_NAME, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, "
         "c.NUMERIC_PRECISION, c.NUMERIC_SCALE, c.IS_NULLABLE, c.COLUMN_DEFAULT, "
         "COLUMNPROPERTY(OBJECT_ID(c.TABLE_SCHEMA + '.' + c.TABLE_NAME), c.COLUMN_NAME, 'IsIdentity') AS IS_IDENTITY, "
-        "c.ORDINAL_POSITION "
+        "c.ORDINAL_POSITION, CAST(ep.value AS NVARCHAR(4000)) "
         "FROM INFORMATION_SCHEMA.COLUMNS c "
+        "LEFT JOIN sys.extended_properties ep "
+        "  ON ep.class = 1 AND ep.name = 'MS_Description' "
+        "  AND ep.major_id = OBJECT_ID(QUOTENAME(c.TABLE_SCHEMA) + '.' + QUOTENAME(c.TABLE_NAME)) "
+        "  AND ep.minor_id = COLUMNPROPERTY(ep.major_id, c.COLUMN_NAME, 'ColumnId') "
         "WHERE c.TABLE_SCHEMA = %(schema)s "
         "ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION"
     )

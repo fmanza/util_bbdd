@@ -137,10 +137,20 @@ class TestCreateTable:
         ddl = self.e.emit([t])
         assert "AVISO" in ddl
 
-    def test_table_comment_as_sql_comment(self) -> None:
+    def test_table_comment_as_comment_on(self) -> None:
+        """D3: el comentario llega a la base de datos (antes solo `-- COMMENT:` en el script)."""
         t = _table("T", [_col("C")], comment="Una tabla de prueba")
         ddl = self.e.emit([t])
-        assert "-- COMMENT: Una tabla de prueba" in ddl
+        assert "COMMENT ON TABLE \"T\" IS 'Una tabla de prueba'" in ddl
+        assert "-- COMMENT:" not in ddl
+
+    def test_column_comment_as_comment_on_with_escaping(self) -> None:
+        """D3: literal estándar (solo se duplica la comilla); los saltos de línea y la barra se conservan."""
+        t = _table("T", [_col("C", comment="Línea 1\nC:\\ruta 'x'")])
+        statements = self.e.emit_statements([t])
+        assert "COMMENT ON COLUMN \"T\".\"C\" IS 'Línea 1\nC:\\ruta ''x'''" in statements
+        create = next(s for s in statements if s.startswith("CREATE TABLE"))
+        assert "Línea 1" not in create  # ya no va como `--` dentro del CREATE TABLE
 
     def test_ddl_comment_trailing(self) -> None:
         col = _col("C", ddl_comment="-- AVISO: DATE Oracle contiene hora; usar TIMESTAMP")

@@ -174,6 +174,10 @@ for w in plan.warnings:
         print(f"  [{w.severity}] {w.table}.{w.column}: {w.message}")
 ```
 
+Los comentarios de tablas y columnas se migran en todos los pares y llegan a la base de datos destino: `COMMENT`
+en MariaDB/MySQL, `COMMENT ON` en PostgreSQL y Oracle, y la propiedad extendida `MS_Description` en SQL Server (en el
+schema por defecto del usuario destino). Los de vistas y rutinas no se migran.
+
 Cada aviso (`MigrationWarning`) indica **qué** es con `category` y, cuando trata de un tipo de datos, **cuál** con
 `source_type` (el tipo en el motor origen):
 

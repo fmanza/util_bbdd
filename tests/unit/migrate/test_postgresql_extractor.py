@@ -347,3 +347,21 @@ class TestExtractIndexes:
         result = ext.extract("public")
         idx = result[0].indexes[0]
         assert idx.columns == ["col_a", "col_b"]
+
+
+class TestComments:
+    """D3 (0.21.0): comentarios de tabla (obj_description) y de columna (col_description)."""
+
+    def test_table_and_column_comments_are_read(self) -> None:
+        manager = _make_manager(
+            tables=[("clientes", "Tabla de clientes")],
+            columns=[(*_col_row("id"), "Identificador"), (*_col_row("nombre", "text", ordinal=2), None)],
+        )
+        [table] = PostgreSQLSchemaExtractor(manager).extract("public")
+        assert table.comment == "Tabla de clientes"
+        assert [c.comment for c in table.columns] == ["Identificador", ""]
+
+    def test_missing_comments_are_empty(self) -> None:
+        manager = _make_manager(tables=[("t", None)], columns=[_col_row("id")])
+        [table] = PostgreSQLSchemaExtractor(manager).extract("public")
+        assert table.comment == "" and table.columns[0].comment == ""

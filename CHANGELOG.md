@@ -7,6 +7,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **migrate**: los comentarios de tablas y columnas se migran también desde y hacia PostgreSQL y SQL Server. Como
+  origen, sus extractores los leían vacíos: ahora leen `obj_description`/`col_description` (PostgreSQL) y la propiedad
+  extendida `MS_Description` (SQL Server). Como destino, sus emisores solo los escribían como `--` en el script: ahora
+  generan `COMMENT ON TABLE`/`COMMENT ON COLUMN` (PostgreSQL) y una sentencia con `sp_addextendedproperty` en el
+  schema por defecto del usuario destino (SQL Server). Los 20 pares llevan ambos comentarios a la base de datos.
+
 ### Changed (incompatible)
 
 - **migrate**: el campo `oracle_type` desaparece de la API. Guardaba el tipo del **origen** sea cual fuera el motor

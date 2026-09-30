@@ -116,10 +116,11 @@ class PostgreSQLDDLEmitter:
 
         for table in ordered:
             skip_fk_names = {fk.name for _, fk in circular_fk_pairs if _ == table.name}
-            stmt = self._emit_create_table(table, skip_fk_names=skip_fk_names)
-            if table.comment:
-                stmt = f"-- COMMENT: {one_line(table.comment)}\n{stmt}"
-            statements.append(stmt)
+            statements.append(self._emit_create_table(table, skip_fk_names=skip_fk_names))
+
+        # D3: comentarios reales en el destino (antes solo como `--` en el script)
+        for table in ordered:
+            statements.extend(self._emit_comments(table))
 
         # A3: el nombre de índice es único en el schema (comparte espacio con tablas, vistas y los índices de las PK).
         taken_names: set[str] = {t.name for t in ordered} | {v.name for v in (views or [])}
@@ -247,13 +248,7 @@ class PostgreSQLDDLEmitter:
 
     def _emit_auto_increment_column(self, col: CanonicalColumn) -> str:
         serial = _serial_type(col.target_type) or "SERIAL"
-        line = f"    {_dq(col.name)} {serial}"
-        trailing: list[str] = []
-        if col.comment:
-            trailing.append(col.comment)
-        if trailing:
-            line += " -- " + one_line(" | ".join(trailing))
-        return line
+        return f"    {_dq(col.name)} {serial}"
 
     def _emit_regular_column(self, col: CanonicalColumn, table_name: str) -> str:
         parts = [f"    {_dq(col.name)}", col.target_type]
@@ -292,10 +287,19 @@ class PostgreSQLDDLEmitter:
         if fallback_warning is not None and fallback_warning not in col.warnings:
             col.warnings.append(fallback_warning)
 
+    def _emit_comments(self, table: CanonicalTable) -> list[str]:
+        """``COMMENT ON TABLE`` / ``COMMENT ON COLUMN`` para los comentarios no vacíos (D3)."""
+        stmts: list[str] = []
+        if table.comment:
+            stmts.append(f"COMMENT ON TABLE {_dq(table.name)} IS {_pg_literal(table.comment)}")
+        for col in table.columns:
+            if col.omit or not col.comment:
+                continue
+            stmts.append(f"COMMENT ON COLUMN {_dq(table.name)}.{_dq(col.name)} IS {_pg_literal(col.comment)}")
+        return stmts
+
     def _build_trailing_items(self, col: CanonicalColumn) -> list[str]:
         trailing_items: list[str] = []
-        if col.comment:
-            trailing_items.append(col.comment)
         if col.ddl_comment:
             aviso = col.ddl_comment.lstrip("- ").strip()
             if aviso:
@@ -344,6 +348,11 @@ class PostgreSQLDDLEmitter:
             stmts.append(stmt)
 
         return stmts
+
+
+def _pg_literal(text: str) -> str:
+    """Literal de texto PostgreSQL (``standard_conforming_strings``: solo se duplica la comilla)."""
+    return "'" + text.replace("'", "''") + "'"
 
 
 def _pk_constraint_name(table: CanonicalTable) -> str:

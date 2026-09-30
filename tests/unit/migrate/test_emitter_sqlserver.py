@@ -166,10 +166,22 @@ class TestSQLServerDDLEmitter:
         assert "-- AVISO: ROWID omitido" in ddl
         assert "[RID]" not in ddl
 
-    def test_table_comment_as_sql_comment_prefix(self) -> None:
-        table = _table("T", [_col("ID", "INT")], comment="Tabla de pedidos")
-        ddl = self.emitter.emit([table])
-        assert "-- COMMENT: Tabla de pedidos" in ddl
+    def test_table_and_column_comments_as_ms_description(self) -> None:
+        """D3: MS_Description en una sola sentencia (un DECLARE: el script de emit() es un único lote)."""
+        cols = [_col("ID", "INT", comment="Clave"), _col("NAME", "NVARCHAR(50)", comment="Nombre 'ñ'\nde verdad")]
+        statements = self.emitter.emit_statements([_table("T", cols, comment="Tabla de pedidos")])
+        [comments] = [s for s in statements if "sp_addextendedproperty" in s]
+        assert comments.count("DECLARE @schema sysname = SCHEMA_NAME();") == 1
+        assert comments.count("EXEC sys.sp_addextendedproperty") == 3
+        assert "@value = N'Tabla de pedidos', @level0type = N'SCHEMA', @level0name = @schema" in comments
+        assert "@level1name = N'T', @level2type = N'COLUMN', @level2name = N'NAME'" in comments
+        assert "@value = N'Nombre ''ñ''\nde verdad'" in comments
+        assert statements.index(comments) > max(i for i, s in enumerate(statements) if s.startswith("CREATE TABLE"))
+        assert "-- COMMENT:" not in "\n".join(statements)
+
+    def test_no_comments_no_statement(self) -> None:
+        statements = self.emitter.emit_statements([_table("T", [_col("ID", "INT")])])
+        assert not any("sp_addextendedproperty" in s for s in statements)
 
     def test_column_ddl_comment_appended(self) -> None:
         col = _col("CREATED", "DATETIME2", ddl_comment="-- AVISO: DATE Oracle contiene hora")
