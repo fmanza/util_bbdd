@@ -220,6 +220,7 @@ Cada aviso (`MigrationWarning`) indica **qué** es con `category` y, cuando trat
 | `VIEW_MANUAL_REVIEW` | `VIEW` | Construcción de Oracle que la reescritura léxica no traduce |
 | `VIEW_LEXICAL_REWRITE` | `VIEW` | Sustitución léxica de una función de Oracle |
 | `VIEW_USER_PSEUDOCOLUMN` | `VIEW` | Pseudocolumna `USER` sustituida |
+| `ROUTINE_PASSTHROUGH` | `ROUTINE` | Rutina copiada sin reescribir su cuerpo |
 | `ROUTINE_NO_BODY` | `ROUTINE` | Rutina sin cuerpo disponible |
 | `ROUTINE_PACKAGE_MEMBER` | `ROUTINE` | Miembro de un PACKAGE de Oracle |
 | `COMMENT_TRUNCATED` | `COMMENT` | Comentario recortado al límite del destino |

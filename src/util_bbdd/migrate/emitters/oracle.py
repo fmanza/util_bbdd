@@ -417,6 +417,15 @@ class OracleDDLEmitter:
     def _emit_view_statements(self, views: list[CanonicalView] | None) -> list[str]:
         active = [v for v in (views or []) if v.query]
         ordered, circular = _topological_sort_views(active)
+        # E2 (0.22.0): comentario real de la vista (COMMENT ON TABLE también vale para vistas), después de crearlas.
+        # Se calcula antes que los CREATE VIEW: el aviso de recorte debe estar en view.warnings cuando se escribe la
+        # nota de revisión, para que dos emisiones den el mismo script (L1, auditoría 0.22.0).
+        comments: list[str] = []
+        for v in [*ordered, *circular]:
+            if v.comment:
+                comment = fit_comment(v.warnings, v.name, None, v.comment, ORACLE_COMMENT, "Oracle")
+                escaped = comment.replace("'", "''")
+                comments.append(f"COMMENT ON TABLE {_dq(v.name)} IS '{escaped}'")
         stmts: list[str] = [self._emit_create_view(v) for v in ordered]
         for v in circular:
             aviso = (
@@ -424,13 +433,7 @@ class OracleDDLEmitter:
                 "— verificar orden de ejecución manualmente\n"
             )
             stmts.append(aviso + self._emit_create_view(v))
-        # E2 (0.22.0): comentario real de la vista (COMMENT ON TABLE también vale para vistas), después de crearlas
-        for v in [*ordered, *circular]:
-            if v.comment:
-                comment = fit_comment(v.warnings, v.name, None, v.comment, ORACLE_COMMENT, "Oracle")
-                escaped = comment.replace("'", "''")
-                stmts.append(f"COMMENT ON TABLE {_dq(v.name)} IS '{escaped}'")
-        return stmts
+        return stmts + comments
 
     def _emit_create_view(self, view: CanonicalView) -> str:
         lines: list[str] = []

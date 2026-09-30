@@ -14,6 +14,8 @@ import pytest
 
 from util_bbdd.migrate.emitters.mariadb import MariaDBDDLEmitter
 from util_bbdd.migrate.emitters.mysql import MySQLDDLEmitter
+from util_bbdd.migrate.emitters.oracle import OracleDDLEmitter
+from util_bbdd.migrate.emitters.sqlserver import SQLServerDDLEmitter
 from util_bbdd.migrate.extractors.postgresql import PostgreSQLSchemaExtractor
 from util_bbdd.migrate.extractors.sqlserver import SQLServerSchemaExtractor
 from util_bbdd.migrate.ir.models import CanonicalView, MigrationPlan
@@ -64,6 +66,25 @@ def test_mysql_targets_keep_the_script_comment_and_warn(emitter: Any) -> None:
     assert "-- COMMENT: Vista de prueba" in ddl
     assert [(w.table, w.category, w.severity) for w in plan.warnings] == [("v", "COMMENT", "WARNING")]
     assert view.warnings == plan.warnings
+
+
+@pytest.mark.parametrize(
+    ("emitter", "comment"),
+    [
+        (MariaDBDDLEmitter("utf8mb4", "utf8mb4_unicode_ci"), "Vista"),
+        (MySQLDDLEmitter("utf8mb4", "utf8mb4_unicode_ci"), "Vista"),
+        (OracleDDLEmitter(), "x" * 5000),  # recorte a 4000 bytes → aviso COMMENT durante la emisión
+        (SQLServerDDLEmitter(), "x" * 5000),  # recorte a 3750 unidades UTF-16
+    ],
+    ids=["mariadb", "mysql", "oracle", "sqlserver"],
+)
+def test_emitting_twice_gives_the_same_script(emitter: Any, comment: str) -> None:
+    """L1 (auditoría 0.22.0): el aviso de la emisión no puede añadir la nota de revisión solo en la segunda."""
+    view = CanonicalView("v", "v", "s", "SELECT 1", [], comment, [])
+    first = emitter.emit([], views=[view])
+    assert first == emitter.emit([], views=[view])
+    assert "-- NOTE: requires manual review" in first
+    assert [w.category for w in view.warnings] == ["COMMENT"]
 
 
 def test_view_without_comment_has_no_warning() -> None:

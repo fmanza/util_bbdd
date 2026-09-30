@@ -308,11 +308,9 @@ class MariaDBDDLEmitter:
 
     def _emit_create_view(self, view: CanonicalView) -> str:
         lines: list[str] = []
-        if view.warnings:
-            lines.append("-- NOTE: requires manual review (see migration warnings)")
         if view.comment:
-            lines.append(f"-- COMMENT: {one_line(view.comment)}")
-            # E2 (0.22.0): MySQL/MariaDB no guardan comentarios de vistas; solo queda en el script
+            # E2 (0.22.0): MySQL/MariaDB no guardan comentarios de vistas; solo queda en el script. El aviso se añade
+            # antes de mirar view.warnings para que dos emisiones den el mismo script (L1, auditoría 0.22.0).
             warning = MigrationWarning(
                 table=view.name,
                 column=None,
@@ -327,6 +325,10 @@ class MariaDBDDLEmitter:
             )
             if warning not in view.warnings:
                 view.warnings.append(warning)
+        if view.warnings:
+            lines.append("-- NOTE: requires manual review (see migration warnings)")
+        if view.comment:
+            lines.append(f"-- COMMENT: {one_line(view.comment)}")
         lines.append(f"CREATE OR REPLACE VIEW {_bt(view.name)} AS")
         lines.append(view.query)
         return "\n".join(lines)

@@ -27,7 +27,7 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **metadata**: `fetch_views_sql()` de PostgreSQL y SQL Server devuelve el comentario de la vista como tercera columna.
 - **migrate**: `MigrationWarning.code` (último campo, `None` por defecto; compatible) con un subtipo estable del aviso,
   tipado como `WarningCode` (exportado en `util_bbdd.migrate`): `VIEW_REWRITTEN`, `VIEW_NOT_REWRITTEN`,
-  `ROUTINE_NO_BODY`, `FK_ON_UPDATE_IGNORED`, `COMMENT_TRUNCATED`, `TABLE_NO_COLUMNS`… (20 códigos, lista en la guía de
+  `ROUTINE_NO_BODY`, `FK_ON_UPDATE_IGNORED`, `COMMENT_TRUNCATED`, `TABLE_NO_COLUMNS`… (21 códigos, lista en la guía de
   migración DDL). Lo llevan todos los avisos cuyo `target_type` es una etiqueta; los de tipos e identificadores siguen
   con `code=None` y el tipo o nombre destino en `target_type`. `target_type` no cambia (E1).
 
@@ -35,6 +35,23 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 - **migrate (vistas)**: el transpilador reconoce el aviso de columnas en la cabecera (SQL Server) por su `code` y no
   por el texto de `target_type`.
+- **migrate**: el aviso de rutina copiada sin reescribir lleva el código `ROUTINE_PASSTHROUGH` (21 códigos); fuera de
+  las categorías de tipo o nombre, todo aviso lleva código (L2).
+
+### Fixed
+
+Auditoría de la 0.22.0 (sesión `2026-09-30h-migrate-audit-022`):
+
+- **migrate (vistas)**: `NOCYCLE` hacia PostgreSQL fallaba al crear la vista con claves `VARCHAR2` o `NUMBER` de más
+  de 18 dígitos o con decimales (`VARCHAR(n)`/`NUMERIC(p,s)` en el destino: el array de la CTE cambiaba de tipo entre
+  ramas); las claves se guardan ahora como texto (C1).
+- **migrate (vistas)**: con `NOCYCLE`, una fila con `NULL` en la columna de `PRIOR` desaparecía; se conserva, como en
+  Oracle (C2).
+- **migrate (vistas)**: `SELECT *` o `alias.*` en una jerarquía `CONNECT BY` convertida devolvía solo las columnas que
+  nombraba la consulta más `cb_level` (desde 0.20.0), sin error; se expande con las columnas de la tabla. En el
+  generador `FROM dual` la vista se copia sin reescribir (H1).
+- **migrate**: emitir dos veces el mismo plan con vistas comentadas (MySQL/MariaDB, u Oracle/SQL Server con el comentario
+  recortado) daba scripts distintos: la nota de revisión solo aparecía en la segunda (L1).
 
 ## [0.21.0] - 2026-09-30
 

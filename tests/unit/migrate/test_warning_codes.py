@@ -2,7 +2,8 @@
 
 ``target_type`` guarda el tipo destino (``TYPE``), el nombre nuevo (``IDENTIFIER``) **o** una etiqueta legible
 (``"VIEW (reescrita)"``, ``"(no body)"``…). Para filtrar en código se usa ``category`` + ``code``; este test recorre el
-AST de ``migrate/`` para que un aviso nuevo con etiqueta no se quede sin código.
+AST de ``migrate/`` para que un aviso nuevo con etiqueta no se quede sin código. Desde L2 (auditoría 0.22.0) no mira
+solo las etiquetas literales: fuera de las categorías de tipo o nombre, todo aviso lleva código.
 """
 
 from __future__ import annotations
@@ -39,11 +40,20 @@ def _code(call: ast.Call) -> ast.expr | None:
     return keywords.get("code")
 
 
+# Categorías cuyo ``target_type`` puede ser el tipo o el nombre destino (entonces sin código). L2 (auditoría 0.22.0): en
+# el resto, todo aviso lleva código aunque ``target_type`` venga de una variable.
+_TYPE_OR_NAME_CATEGORIES = {"TYPE", "DEFAULT", "IDENTIFIER", "IDENTIFIER_CASE_COLLISION", "INDEX", "AUTO_INCREMENT"}
+
+
 def _is_label(call: ast.Call) -> bool:
+    """True si el aviso necesita ``code``: todo salvo tipos o nombres en las categorías de tipo/nombre."""
     keywords = {k.arg: k.value for k in call.keywords}
-    target = keywords.get("target_type")
     if getattr(call.func, "id", None) == "_warning":
         return True
+    category = keywords.get("category")
+    if not isinstance(category, ast.Constant) or category.value not in _TYPE_OR_NAME_CATEGORIES:
+        return True
+    target = keywords.get("target_type")
     if isinstance(target, ast.JoinedStr):
         return True
     return isinstance(target, ast.Constant) and (target.value == "VIEW" or not _SQL_TYPE.match(str(target.value)))

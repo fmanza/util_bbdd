@@ -54,6 +54,7 @@ WarningCode = Literal[
     "VIEW_MANUAL_REVIEW",
     "VIEW_LEXICAL_REWRITE",
     "VIEW_USER_PSEUDOCOLUMN",
+    "ROUTINE_PASSTHROUGH",
     "ROUTINE_NO_BODY",
     "ROUTINE_PACKAGE_MEMBER",
     "COMMENT_TRUNCATED",
@@ -63,8 +64,9 @@ WarningCode = Literal[
 """Subtipo estable de un aviso dentro de su categoría (0.22.0, E1).
 
 Para filtrar avisos en código: ``target_type`` guarda un tipo, un nombre **o** una etiqueta legible según el caso
-(``"VIEW (reescrita)"``, ``"(no body)"``…), y esas etiquetas pueden cambiar de texto. Los avisos de conversión de tipos
-e identificadores no llevan código: su ``target_type`` es el tipo o el nombre en el destino.
+(``"VIEW (reescrita)"``, ``"(no body)"``…), y esas etiquetas pueden cambiar de texto. Todos los avisos llevan código
+salvo los de las categorías ``TYPE``, ``DEFAULT``, ``IDENTIFIER``, ``IDENTIFIER_CASE_COLLISION``, ``INDEX`` y
+``AUTO_INCREMENT`` cuyo ``target_type`` es el tipo o el nombre en el destino (``tests/unit/migrate/test_warning_codes.py``).
 
 - ``COLUMN_OMITTED`` (``TYPE``): columna sin equivalente en el destino (``ROWID``), omitida.
 - ``AUTO_INCREMENT_NO_SEQUENCE`` (``AUTO_INCREMENT``): Oracle destino sin ``SEQUENCE``/``TRIGGER`` para el autoincremental.
@@ -81,6 +83,7 @@ e identificadores no llevan código: su ``target_type`` es el tipo o el nombre e
 - ``VIEW_MANUAL_REVIEW``: construcción de Oracle que la reescritura léxica no traduce.
 - ``VIEW_LEXICAL_REWRITE``: sustitución léxica de una función de Oracle (``target_type`` = sustituta).
 - ``VIEW_USER_PSEUDOCOLUMN``: pseudocolumna ``USER`` sustituida (``target_type`` = función destino).
+- ``ROUTINE_PASSTHROUGH``: rutina copiada sin reescribir su cuerpo (``target_type`` = tipo de rutina).
 - ``ROUTINE_NO_BODY``: rutina sin cuerpo disponible.
 - ``ROUTINE_PACKAGE_MEMBER``: miembro de un PACKAGE de Oracle.
 - ``COMMENT_TRUNCATED`` (``COMMENT``): comentario recortado al límite del destino.

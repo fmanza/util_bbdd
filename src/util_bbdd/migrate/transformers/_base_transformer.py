@@ -64,6 +64,7 @@ class BaseTransformer:
                 column=None,
                 category="ROUTINE",
                 target_type=routine.routine_type,
+                code="ROUTINE_PASSTHROUGH",
                 message=(
                     f"Rutina emitida sin reescritura de SQL dialect-específico (v1 pass-through); "
                     f"revisar manualmente el body para compatibilidad {self._TARGET_DIALECT}"

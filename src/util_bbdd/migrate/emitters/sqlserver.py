@@ -199,6 +199,9 @@ class SQLServerDDLEmitter:
     def _emit_view_statements(self, views: list[CanonicalView] | None) -> list[str]:
         active = [v for v in (views or []) if v.query]
         ordered, circular = _topological_sort_views(active)
+        # Antes que los CREATE VIEW: el aviso de recorte debe estar en view.warnings cuando se escribe la nota de
+        # revisión, para que dos emisiones den el mismo script (L1, auditoría 0.22.0).
+        comments = self._emit_view_comments([*ordered, *circular])
         stmts: list[str] = [self._emit_create_view(v) for v in ordered]
         for v in circular:
             aviso = (
@@ -206,7 +209,6 @@ class SQLServerDDLEmitter:
                 "— verificar orden de ejecución manualmente\n"
             )
             stmts.append(aviso + self._emit_create_view(v))
-        comments = self._emit_view_comments([*ordered, *circular])
         if comments:
             stmts.append(comments)
         return stmts
