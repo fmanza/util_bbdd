@@ -26,7 +26,7 @@ def _col(
     return CanonicalColumn(
         name=name,
         original_name=name,
-        oracle_type=mariadb_type,  # campo histórico = tipo fuente MariaDB
+        source_type=mariadb_type,  # campo histórico = tipo fuente MariaDB
         target_type="",
         nullable=nullable,
         default=default,
@@ -194,7 +194,7 @@ class TestIdentifierTruncationOracle:
         table = _table(name="MY_TABLE")
         result = self.t.transform([table])[0]
         assert result.name == "MY_TABLE"
-        assert not any(w.oracle_type == "IDENTIFIER" for w in result.warnings)
+        assert not any(w.category == "IDENTIFIER" for w in result.warnings)
 
     def test_long_column_name_truncated(self) -> None:
         col = _col(name="C" * 35, mariadb_type="INT", char_length=None)

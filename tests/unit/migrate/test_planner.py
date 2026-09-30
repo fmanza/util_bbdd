@@ -169,7 +169,7 @@ class TestMigrationPlannerCaseCollisionWarning:
         )
         plan = MigrationPlanner().plan(manager, "SCHEMA")
 
-        collision_warnings = [w for w in plan.warnings if w.oracle_type == "IDENTIFIER_CASE_COLLISION"]
+        collision_warnings = [w for w in plan.warnings if w.category == "IDENTIFIER_CASE_COLLISION"]
         assert len(collision_warnings) == 1
         assert {collision_warnings[0].table, collision_warnings[0].target_type} == {"USERS", "users"}
         assert collision_warnings[0].severity == "WARNING"
@@ -183,7 +183,7 @@ class TestMigrationPlannerCaseCollisionWarning:
         )
         plan = MigrationPlanner().plan(manager, "SCHEMA")
 
-        assert not any(w.oracle_type == "IDENTIFIER_CASE_COLLISION" for w in plan.warnings)
+        assert not any(w.category == "IDENTIFIER_CASE_COLLISION" for w in plan.warnings)
 
 
 class TestMigrationPlannerSQLServer:
@@ -270,7 +270,8 @@ class TestMigrationPlanExecuteErrorGate:
         return MigrationWarning(
             table="USERS",
             column="ID",
-            oracle_type="LONG",
+            category="TYPE",
+            source_type="LONG",
             target_type="UNKNOWN",
             message="Tipo no soportado",
             severity="ERROR",
@@ -306,7 +307,8 @@ class TestMigrationPlanExecuteErrorGate:
             MigrationWarning(
                 table="USERS",
                 column="ID",
-                oracle_type="NUMBER",
+                category="TYPE",
+                source_type="NUMBER",
                 target_type="INT",
                 message="Aviso no bloqueante",
                 severity="WARNING",
@@ -343,7 +345,7 @@ class TestMigrationPlanEmitSyncsFallbackWarnings:
         col = CanonicalColumn(
             name="CREATED_AT",
             original_name="CREATED_AT",
-            oracle_type="TIMESTAMP",
+            source_type="TIMESTAMP",
             target_type="DATETIME",
             nullable=True,
             default="GETDATE()",  # función SQL Server, no reconocida por el emisor MariaDB

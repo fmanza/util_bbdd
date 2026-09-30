@@ -63,7 +63,7 @@ class OracleToSQLServerTransformer(BaseTransformer):
                 MigrationWarning(
                     table=view.name,
                     column=None,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=adapted_name,
                     message=id_warn,
                     severity="WARNING",
@@ -80,7 +80,7 @@ class OracleToSQLServerTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table.name,
                     column=None,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=new_table.name,
                     message=id_warn,
                     severity="WARNING",
@@ -113,14 +113,14 @@ class OracleToSQLServerTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=col_name_adapted,
                     message=id_warn,
                     severity="WARNING",
                 )
             )
 
-        oracle_base = col.oracle_type.upper().split("(")[0].strip()
+        oracle_base = col.source_type.upper().split("(")[0].strip()
 
         if oracle_base == "NUMBER":
             target_type, ddl_comment = resolve_number_type_sqlserver(col.precision, col.scale, self._number_fallback)
@@ -139,7 +139,8 @@ class OracleToSQLServerTransformer(BaseTransformer):
                     MigrationWarning(
                         table=table_name,
                         column=col.name,
-                        oracle_type=col.oracle_type,
+                        category="TYPE",
+                        source_type=col.source_type,
                         target_type=target_type,
                         message=warning_message,
                         severity="WARNING",
@@ -151,14 +152,15 @@ class OracleToSQLServerTransformer(BaseTransformer):
 
         if mapping is None:
             new_col.target_type = "NVARCHAR(MAX)"
-            new_col.ddl_comment = f"-- AVISO: tipo Oracle '{col.oracle_type}' desconocido → NVARCHAR(MAX)"
+            new_col.ddl_comment = f"-- AVISO: tipo Oracle '{col.source_type}' desconocido → NVARCHAR(MAX)"
             new_col.warnings.append(
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type=col.oracle_type,
+                    category="TYPE",
+                    source_type=col.source_type,
                     target_type="NVARCHAR(MAX)",
-                    message=f"Tipo Oracle '{col.oracle_type}' no reconocido; mapeado a NVARCHAR(MAX)",
+                    message=f"Tipo Oracle '{col.source_type}' no reconocido; mapeado a NVARCHAR(MAX)",
                     severity="WARNING",
                 )
             )
@@ -174,7 +176,8 @@ class OracleToSQLServerTransformer(BaseTransformer):
                     MigrationWarning(
                         table=table_name,
                         column=col.name,
-                        oracle_type=col.oracle_type,
+                        category="TYPE",
+                        source_type=col.source_type,
                         target_type="(omitido)",
                         message=mapping.warning_msg,
                         severity=mapping.severity,
@@ -194,7 +197,8 @@ class OracleToSQLServerTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type=col.oracle_type,
+                    category="TYPE",
+                    source_type=col.source_type,
                     target_type=target_type,
                     message=mapping.warning_msg,
                     severity=mapping.severity,
@@ -253,7 +257,7 @@ class OracleToSQLServerTransformer(BaseTransformer):
         base_type = pk_col.target_type.split("(")[0].upper().strip()
         if base_type not in _INT_TYPES_IDENTITY:
             # NUMBER sin precisión en PK → resolve devuelve FLOAT; forzar INT
-            oracle_base = pk_col.oracle_type.upper().split("(")[0].strip()
+            oracle_base = pk_col.source_type.upper().split("(")[0].strip()
             if oracle_base != "NUMBER" or pk_col.precision is not None:
                 return
             pk_col.target_type = "INT"
@@ -266,7 +270,8 @@ class OracleToSQLServerTransformer(BaseTransformer):
             MigrationWarning(
                 table=table.name,
                 column=pk_col_name,
-                oracle_type=pk_col.oracle_type,
+                category="AUTO_INCREMENT",
+                source_type=pk_col.source_type,
                 target_type=pk_col.target_type,
                 message=f"Columna PK '{pk_col_name}' marcada como IDENTITY(1,1)",
                 severity="INFO",
@@ -290,7 +295,7 @@ class OracleToSQLServerTransformer(BaseTransformer):
                     MigrationWarning(
                         table=table.name,
                         column=col.name,
-                        oracle_type=f"SEQUENCE({seq_name})",
+                        category="AUTO_INCREMENT",
                         target_type="IDENTITY(1,1)",
                         message=(
                             f"Columna '{col.name}' usa secuencia '{seq_name}' pero no es PK; "
@@ -307,7 +312,7 @@ class OracleToSQLServerTransformer(BaseTransformer):
                     MigrationWarning(
                         table=table.name,
                         column=col.name,
-                        oracle_type=f"SEQUENCE({seq_name})",
+                        category="AUTO_INCREMENT",
                         target_type="IDENTITY(1,1)",
                         message=f"Secuencia Oracle '{seq_name}' convertida a IDENTITY(1,1)",
                         severity="INFO",

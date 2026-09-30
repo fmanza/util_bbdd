@@ -40,7 +40,8 @@ def default_fallback_warning(
     return MigrationWarning(
         table=table,
         column=column,
-        oracle_type=source_type,
+        category="DEFAULT",
+        source_type=source_type,
         target_type=target_type,
         message=(
             f"DEFAULT {raw_value} tiene forma de llamada a función pero no la reconoce este "

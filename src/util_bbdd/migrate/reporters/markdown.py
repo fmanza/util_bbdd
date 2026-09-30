@@ -31,7 +31,7 @@ def format_plan_markdown(plan: MigrationPlan) -> str:
     if plan.warnings:
         lines.extend(_warnings_section(plan.warnings))
     if plan.tables:
-        lines.extend(_tables_section(plan.tables, plan.target_engine.upper()))
+        lines.extend(_tables_section(plan.tables, plan.source_engine.upper(), plan.target_engine.upper()))
     if plan.routines:
         lines.extend(_routines_section(plan.routines, plan.source_engine))
 
@@ -53,20 +53,20 @@ def _warnings_section(warnings: list[MigrationWarning]) -> list[str]:
     return lines
 
 
-def _tables_section(tables: list[CanonicalTable], target_engine: str) -> list[str]:
+def _tables_section(tables: list[CanonicalTable], source_engine: str, target_engine: str) -> list[str]:
     lines: list[str] = ["## Tablas migradas", ""]
     for table in tables:
-        lines.extend(_table_block(table, target_engine))
+        lines.extend(_table_block(table, source_engine, target_engine))
     return lines
 
 
-def _table_block(table: CanonicalTable, target_engine: str) -> list[str]:
+def _table_block(table: CanonicalTable, source_engine: str, target_engine: str) -> list[str]:
     lines: list[str] = [f"### `{table.name}`"]
     if table.original_name != table.name:
         lines.append(f"> Nombre original: `{table.original_name}`")
     lines += [
         "",
-        f"| Columna | Tipo Oracle | Tipo {target_engine} | Nullable | AI |",
+        f"| Columna | Tipo {source_engine} | Tipo {target_engine} | Nullable | AI |",
         "|---|---|---|---|---|",
         *(_column_row(col) for col in table.columns),
         "",
@@ -76,10 +76,10 @@ def _table_block(table: CanonicalTable, target_engine: str) -> list[str]:
 
 def _column_row(column: CanonicalColumn) -> str:
     if column.omit:
-        return f"| ~~`{column.name}`~~ | `{column.oracle_type}` | *(omitida)* | — | — |"
+        return f"| ~~`{column.name}`~~ | `{column.source_type}` | *(omitida)* | — | — |"
     ai = "✓" if column.auto_increment else ""
     null = "YES" if column.nullable else "NO"
-    return f"| `{column.name}` | `{column.oracle_type}` | `{column.target_type}` | {null} | {ai} |"
+    return f"| `{column.name}` | `{column.source_type}` | `{column.target_type}` | {null} | {ai} |"
 
 
 def _routines_section(routines: list[CanonicalRoutine], source_engine: str) -> list[str]:

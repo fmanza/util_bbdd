@@ -30,7 +30,7 @@ _MARIADB_VARCHAR_MAX: int = 65535
 class PostgreSQLToMariaDBTransformer(BaseTransformer):
     """Transforma IR PostgreSQL a IR MariaDB.
 
-    El campo ``CanonicalColumn.oracle_type`` contiene el tipo fuente PostgreSQL
+    El campo ``CanonicalColumn.source_type`` contiene el tipo fuente PostgreSQL
     (DATA_TYPE de INFORMATION_SCHEMA en uppercase); el nombre del campo es histórico.
     """
 
@@ -46,7 +46,7 @@ class PostgreSQLToMariaDBTransformer(BaseTransformer):
                 MigrationWarning(
                     table=view.name,
                     column=None,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=adapted_name,
                     message=id_warn,
                     severity="WARNING",
@@ -56,7 +56,7 @@ class PostgreSQLToMariaDBTransformer(BaseTransformer):
             MigrationWarning(
                 table=view.name,
                 column=None,
-                oracle_type="VIEW",
+                category="VIEW",
                 target_type="VIEW",
                 message=(
                     "Vista PostgreSQL emitida sin reescritura de SQL dialect-específico (v1 pass-through); "
@@ -78,26 +78,27 @@ class PostgreSQLToMariaDBTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=col_name_adapted,
                     message=id_warn,
                     severity="WARNING",
                 )
             )
 
-        pg_base = col.oracle_type.upper().strip()
+        pg_base = col.source_type.upper().strip()
         mapping = resolve_postgresql_type_mariadb(pg_base)
 
         if mapping is None:
             new_col.target_type = "LONGTEXT"
-            new_col.ddl_comment = f"-- AVISO: tipo PostgreSQL '{col.oracle_type}' desconocido → LONGTEXT"
+            new_col.ddl_comment = f"-- AVISO: tipo PostgreSQL '{col.source_type}' desconocido → LONGTEXT"
             new_col.warnings.append(
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type=col.oracle_type,
+                    category="TYPE",
+                    source_type=col.source_type,
                     target_type="LONGTEXT",
-                    message=f"Tipo PostgreSQL '{col.oracle_type}' no reconocido; mapeado a LONGTEXT",
+                    message=f"Tipo PostgreSQL '{col.source_type}' no reconocido; mapeado a LONGTEXT",
                     severity="WARNING",
                 )
             )
@@ -111,7 +112,8 @@ class PostgreSQLToMariaDBTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type=col.oracle_type,
+                    category="TYPE",
+                    source_type=col.source_type,
                     target_type="LONGTEXT",
                     message=(
                         f"CHARACTER VARYING({col.char_length}) supera el límite MariaDB de "
@@ -129,7 +131,8 @@ class PostgreSQLToMariaDBTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type=col.oracle_type,
+                    category="TYPE",
+                    source_type=col.source_type,
                     target_type=target_type,
                     message=mapping.warning_msg,
                     severity=mapping.severity,

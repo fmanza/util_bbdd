@@ -25,7 +25,7 @@ def _col(
     return CanonicalColumn(
         name=name,
         original_name=name,
-        oracle_type="",
+        source_type="",
         target_type=target_type,
         nullable=nullable,
         default=default,

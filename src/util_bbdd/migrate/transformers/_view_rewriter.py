@@ -62,7 +62,7 @@ def _lexical_substitution_warning(view: CanonicalView, oracle_token: str, target
     return MigrationWarning(
         table=view.name,
         column=None,
-        oracle_type=oracle_token,
+        category="VIEW",
         target_type=target,
         message=(
             f"Vista '{view.name}': {count} sustitución{plural} léxica de '{oracle_token}' "
@@ -114,7 +114,7 @@ def rewrite_oracle_view(
             MigrationWarning(
                 table=view.name,
                 column=None,
-                oracle_type="USER",
+                category="VIEW",
                 target_type=user_fn,
                 message=(
                     f"Vista '{view.name}': pseudocolumna USER sustituida por {user_fn}; "
@@ -150,7 +150,7 @@ def rewrite_oracle_view(
                 MigrationWarning(
                     table=view.name,
                     column=None,
-                    oracle_type=label,
+                    category="VIEW",
                     target_type="(revisión manual)",
                     message=(
                         f"Vista '{view.name}': construct Oracle '{label}' "

@@ -94,7 +94,7 @@ class TestMarkdownReporterRoutines:
         w = MigrationWarning(
             table="SP_TEST",
             column=None,
-            oracle_type="PROCEDURE",
+            category="ROUTINE",
             target_type="PROCEDURE",
             message="Requires manual adaptation",
             severity="WARNING",
@@ -184,7 +184,7 @@ class TestTextReporterRoutines:
         w = MigrationWarning(
             table="SP_TEST",
             column=None,
-            oracle_type="PROCEDURE",
+            category="ROUTINE",
             target_type="PROCEDURE",
             message="Requires manual adaptation",
             severity="WARNING",

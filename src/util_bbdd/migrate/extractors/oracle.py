@@ -193,7 +193,7 @@ class OracleSchemaExtractor:
                         MigrationWarning(
                             table=routine_name,
                             column=None,
-                            oracle_type=routine_type,
+                            category="ROUTINE",
                             target_type="(no body)",
                             message=f"Body de '{routine_name}' no disponible en ALL_SOURCE; emitir stub.",
                             severity="WARNING",
@@ -212,7 +212,7 @@ class OracleSchemaExtractor:
                     MigrationWarning(
                         table=routine_name,
                         column=None,
-                        oracle_type=raw_type,
+                        category="ROUTINE",
                         target_type="(package member)",
                         message=(
                             f"'{routine_name}' es un ORACLE {raw_type}; "
@@ -265,7 +265,7 @@ class OracleSchemaExtractor:
                 CanonicalColumn(
                     name=parsed["name"],
                     original_name=parsed["name"],
-                    oracle_type=parsed["data_type"],
+                    source_type=parsed["data_type"],
                     target_type="",  # el transformer lo rellena
                     nullable=parsed["nullable"],
                     default=parsed["default"],

@@ -174,6 +174,26 @@ for w in plan.warnings:
         print(f"  [{w.severity}] {w.table}.{w.column}: {w.message}")
 ```
 
+Cada aviso (`MigrationWarning`) indica **qué** es con `category` y, cuando trata de un tipo de datos, **cuál** con
+`source_type` (el tipo en el motor origen):
+
+| `category` | Qué indica | `source_type` |
+|---|---|---|
+| `TYPE` | Conversión del tipo de una columna | Tipo en el origen |
+| `DEFAULT` | Valor por defecto sin traducción fiable | Tipo de la columna |
+| `IDENTIFIER` | Nombre truncado al límite del destino | — |
+| `IDENTIFIER_CASE_COLLISION` | Nombres que solo difieren en mayúsculas | — |
+| `AUTO_INCREMENT` | Autoincrementales, secuencias e identidades | Tipo de la PK, si aplica |
+| `FOREIGN_KEY` | Claves foráneas (acciones no soportadas, FK aplazadas) | — |
+| `INDEX` | Índices (p. ej. renombrados por colisión de nombre) | — |
+| `VIEW` | Vistas (reescritura, construcciones sin traducción) | — |
+| `ROUTINE` | Procedimientos, funciones y packages | — |
+
+```python
+tipos = [w for w in plan.warnings if w.category == "TYPE"]
+clobs = [w for w in plan.warnings if w.source_type == "CLOB"]
+```
+
 El plan es seguro de aplicar cuando `plan.error_count == 0`. Si hay errores, el DDL puede contener
 columnas comentadas o tipos que requieren revisión manual; corrige el origen o el script antes de
 `execute()`. Para un informe legible, usa los reporters:

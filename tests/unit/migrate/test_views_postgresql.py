@@ -31,7 +31,7 @@ def _table(name: str = "T") -> CanonicalTable:
     col = CanonicalColumn(
         name="ID",
         original_name="ID",
-        oracle_type="NUMBER",
+        source_type="NUMBER",
         target_type="INTEGER",
         nullable=False,
         default=None,
@@ -89,12 +89,12 @@ class TestRewriteOracleViewPostgreSQL:
 
     def test_listagg_generates_warning(self) -> None:
         result = self._rw("SELECT LISTAGG(name, ',') WITHIN GROUP (ORDER BY id) FROM t")
-        labels = [w.oracle_type for w in result.warnings]
+        labels = " | ".join(w.message for w in result.warnings)
         assert "LISTAGG" in labels
 
     def test_start_with_generates_warning(self) -> None:
         result = self._rw("SELECT id FROM t START WITH parent_id IS NULL CONNECT BY PRIOR id = parent_id")
-        labels = [w.oracle_type for w in result.warnings]
+        labels = " | ".join(w.message for w in result.warnings)
         assert "START WITH" in labels
         assert "CONNECT BY" in labels
 
@@ -120,7 +120,7 @@ class TestOracleToPostgreSQLTransformViews:
         views = [_view(name=long_name)]
         result = self.transformer.transform_views(views)
         assert len(result[0].name) <= 63
-        assert any(w.oracle_type == "IDENTIFIER" for w in result[0].warnings)
+        assert any(w.category == "IDENTIFIER" for w in result[0].warnings)
 
     def test_empty_list(self) -> None:
         assert self.transformer.transform_views([]) == []
@@ -153,7 +153,8 @@ class TestPostgreSQLEmitCreateView:
         w = MigrationWarning(
             table="VW_TEST",
             column=None,
-            oracle_type="CONNECT BY",
+            category="TYPE",
+            source_type="CONNECT BY",
             target_type="(revisión manual)",
             message="x",
             severity="WARNING",

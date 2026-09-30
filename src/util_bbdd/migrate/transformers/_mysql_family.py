@@ -1,7 +1,7 @@
 """Base de los transformers dentro de la familia MySQL/MariaDB (MariaDB → MySQL y MySQL → MariaDB).
 
 Ambos motores comparten sintaxis de tipos, así que el tipo destino es el ``COLUMN_TYPE`` completo del origen
-(``oracle_type``, extraído con ``full_column_types=True``). Cada subclase declara en ``_TYPE_OVERRIDES`` los tipos
+(``source_type``, extraído con ``full_column_types=True``). Cada subclase declara en ``_TYPE_OVERRIDES`` los tipos
 del origen que el destino no tiene, con su sustituto; el aviso va a ``plan.warnings``.
 """
 
@@ -33,14 +33,14 @@ class MySQLFamilyTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=adapted_name,
                     message=id_warn,
                     severity="WARNING",
                 )
             )
 
-        source_type: str = col.oracle_type.strip()
+        source_type: str = col.source_type.strip()
         base: str = source_type.split("(")[0].split(" ")[0].strip().upper()
         override: str | None = self._TYPE_OVERRIDES.get(base)
         if override is None:
@@ -52,7 +52,8 @@ class MySQLFamilyTransformer(BaseTransformer):
             MigrationWarning(
                 table=table_name,
                 column=col.name,
-                oracle_type=source_type,
+                category="TYPE",
+                source_type=source_type,
                 target_type=override,
                 message=(
                     f"Tipo {base} de {self._SOURCE_DIALECT} sin equivalente en {self._TARGET_DIALECT}; "

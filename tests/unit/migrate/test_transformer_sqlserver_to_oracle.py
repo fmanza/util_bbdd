@@ -25,7 +25,7 @@ def _col(
     return CanonicalColumn(
         name=name,
         original_name=name,
-        oracle_type=ss_type,  # campo histórico = tipo fuente
+        source_type=ss_type,  # campo histórico = tipo fuente
         target_type="",
         nullable=nullable,
         default=None,
@@ -219,7 +219,7 @@ class TestFKTransform:
         )
         t = _table(columns=[_col("COL_A", "INT")], fks=[fk])
         result = SQLServerToOracleTransformer().transform([t])[0]
-        fk_warnings = [w for w in result.warnings if "FOREIGN KEY" in w.oracle_type]
+        fk_warnings = [w for w in result.warnings if w.category == "FOREIGN_KEY"]
         assert len(fk_warnings) == 0
 
     def test_external_fk_gets_warning(self) -> None:

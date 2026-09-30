@@ -38,7 +38,7 @@ def claim_index_name(
     warning = MigrationWarning(
         table=table.name,
         column=None,
-        oracle_type="INDEX",
+        category="INDEX",
         target_type=candidate,
         message=(
             f"Índice '{name}' de la tabla '{table.name}' renombrado a '{candidate}': en {target_label} el nombre de "

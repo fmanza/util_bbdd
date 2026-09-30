@@ -32,7 +32,7 @@ _ORACLE_VARCHAR2_MAX: int = 4000
 class PostgreSQLToOracleTransformer(BaseTransformer):
     """Transforma IR PostgreSQL a IR Oracle.
 
-    El campo ``CanonicalColumn.oracle_type`` contiene el tipo fuente PostgreSQL
+    El campo ``CanonicalColumn.source_type`` contiene el tipo fuente PostgreSQL
     (DATA_TYPE de INFORMATION_SCHEMA en uppercase); el nombre del campo es histórico.
     """
 
@@ -49,27 +49,28 @@ class PostgreSQLToOracleTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=col_name_adapted,
                     message=id_warn,
                     severity="WARNING",
                 )
             )
 
-        # oracle_type contiene el PostgreSQL DATA_TYPE en uppercase (nombre histórico del campo)
-        pg_base = col.oracle_type.upper().strip()
+        # source_type contiene el PostgreSQL DATA_TYPE en uppercase
+        pg_base = col.source_type.upper().strip()
         mapping = resolve_postgresql_type_oracle(pg_base)
 
         if mapping is None:
             new_col.target_type = "CLOB"
-            new_col.ddl_comment = f"-- AVISO: tipo PostgreSQL '{col.oracle_type}' desconocido → CLOB"
+            new_col.ddl_comment = f"-- AVISO: tipo PostgreSQL '{col.source_type}' desconocido → CLOB"
             new_col.warnings.append(
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type=col.oracle_type,
+                    category="TYPE",
+                    source_type=col.source_type,
                     target_type="CLOB",
-                    message=f"Tipo PostgreSQL '{col.oracle_type}' no reconocido; mapeado a CLOB",
+                    message=f"Tipo PostgreSQL '{col.source_type}' no reconocido; mapeado a CLOB",
                     severity="WARNING",
                 )
             )
@@ -86,7 +87,8 @@ class PostgreSQLToOracleTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type=col.oracle_type,
+                    category="TYPE",
+                    source_type=col.source_type,
                     target_type=target_type,
                     message=mapping.warning_msg,
                     severity=mapping.severity,
@@ -117,7 +119,8 @@ class PostgreSQLToOracleTransformer(BaseTransformer):
                     MigrationWarning(
                         table=table_name,
                         column=col.original_name,
-                        oracle_type=f"CHARACTER VARYING({col.char_length})",
+                        category="TYPE",
+                        source_type=f"CHARACTER VARYING({col.char_length})",
                         target_type="CLOB",
                         message=(
                             f"CHARACTER VARYING({col.char_length}) supera límite Oracle "
@@ -156,7 +159,7 @@ class PostgreSQLToOracleTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=None,
-                    oracle_type="FOREIGN KEY",
+                    category="FOREIGN_KEY",
                     target_type="FK (ON UPDATE ignorado)",
                     message=(
                         f"FK '{fk.name}': ON UPDATE {fk.on_update} no soportado en Oracle; "

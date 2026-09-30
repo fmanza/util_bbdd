@@ -52,7 +52,7 @@ class BaseTransformer:
                 MigrationWarning(
                     table=routine.name,
                     column=None,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=adapted_name,
                     message=id_warn,
                     severity="WARNING",
@@ -62,7 +62,7 @@ class BaseTransformer:
             MigrationWarning(
                 table=routine.name,
                 column=None,
-                oracle_type=routine.routine_type,
+                category="ROUTINE",
                 target_type=routine.routine_type,
                 message=(
                     f"Rutina emitida sin reescritura de SQL dialect-específico (v1 pass-through); "
@@ -82,7 +82,7 @@ class BaseTransformer:
                 MigrationWarning(
                     table=view.name,
                     column=None,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=adapted_name,
                     message=id_warn,
                     severity="WARNING",
@@ -92,7 +92,7 @@ class BaseTransformer:
             MigrationWarning(
                 table=view.name,
                 column=None,
-                oracle_type="VIEW",
+                category="VIEW",
                 target_type="VIEW",
                 message=(
                     f"Vista emitida sin reescritura de SQL dialect-específico (v1 pass-through); "
@@ -112,7 +112,7 @@ class BaseTransformer:
                 MigrationWarning(
                     table=table.name,
                     column=None,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=new_table.name,
                     message=id_warn,
                     severity="WARNING",
@@ -143,7 +143,7 @@ class BaseTransformer:
                     MigrationWarning(
                         table=table_name,
                         column=name,
-                        oracle_type="IDENTIFIER",
+                        category="IDENTIFIER",
                         target_type=new_name,
                         message=warn,
                         severity="WARNING",
@@ -160,7 +160,7 @@ class BaseTransformer:
                 MigrationWarning(
                     table=table_name,
                     column=None,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=new_idx.name,
                     message=warn,
                     severity="WARNING",
@@ -177,7 +177,7 @@ class BaseTransformer:
                 MigrationWarning(
                     table=table_name,
                     column=None,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=new_fk.name,
                     message=warn,
                     severity="WARNING",
@@ -192,7 +192,7 @@ class BaseTransformer:
                 MigrationWarning(
                     table=table_name,
                     column=None,
-                    oracle_type="FOREIGN KEY",
+                    category="FOREIGN_KEY",
                     target_type="ALTER TABLE (al final)",
                     message=(
                         f"FK '{fk.name}' referencia tabla '{fk.ref_table}' fuera del schema migrado; "

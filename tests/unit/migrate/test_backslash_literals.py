@@ -51,7 +51,7 @@ class TestMariaDBTargetLiterals:
         column = CanonicalColumn(
             name="ruta",
             original_name="ruta",
-            oracle_type="VARCHAR2",
+            source_type="VARCHAR2",
             target_type="VARCHAR(80)",
             nullable=True,
             default=None,

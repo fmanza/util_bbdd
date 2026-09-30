@@ -262,7 +262,7 @@ class MariaDBDDLEmitter:
                 formatted_value=default_val,
                 table=table_name,
                 column=col.name,
-                source_type=col.oracle_type,
+                source_type=col.source_type,
                 target_type=col.target_type,
             )
             if fallback_warning is not None and fallback_warning not in col.warnings:

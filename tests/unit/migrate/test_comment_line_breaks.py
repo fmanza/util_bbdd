@@ -55,7 +55,7 @@ def _column(name: str, comment: str = "", omit: bool = False) -> CanonicalColumn
     return CanonicalColumn(
         name=name,
         original_name=PAYLOAD if omit else name,
-        oracle_type="NUMBER",
+        source_type="NUMBER",
         target_type="NUMERIC(10,2)",
         nullable=True,
         default=None,

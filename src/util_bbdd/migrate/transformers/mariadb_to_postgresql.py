@@ -25,7 +25,7 @@ from ._base_transformer import BaseTransformer
 class MariaDBToPostgreSQLTransformer(BaseTransformer):
     """Transforma IR MariaDB a IR PostgreSQL.
 
-    El campo ``CanonicalColumn.oracle_type`` contiene el tipo fuente MariaDB
+    El campo ``CanonicalColumn.source_type`` contiene el tipo fuente MariaDB
     (DATA_TYPE de INFORMATION_SCHEMA); el nombre del campo es histórico.
     """
 
@@ -42,26 +42,27 @@ class MariaDBToPostgreSQLTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=col_name_adapted,
                     message=id_warn,
                     severity="WARNING",
                 )
             )
 
-        mariadb_base = col.oracle_type.upper().split("(")[0].strip()
+        mariadb_base = col.source_type.upper().split("(")[0].strip()
         mapping = resolve_mariadb_type_postgresql(mariadb_base)
 
         if mapping is None:
             new_col.target_type = "TEXT"
-            new_col.ddl_comment = f"-- AVISO: tipo MariaDB '{col.oracle_type}' desconocido → TEXT"
+            new_col.ddl_comment = f"-- AVISO: tipo MariaDB '{col.source_type}' desconocido → TEXT"
             new_col.warnings.append(
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type=col.oracle_type,
+                    category="TYPE",
+                    source_type=col.source_type,
                     target_type="TEXT",
-                    message=f"Tipo MariaDB '{col.oracle_type}' no reconocido; mapeado a TEXT",
+                    message=f"Tipo MariaDB '{col.source_type}' no reconocido; mapeado a TEXT",
                     severity="WARNING",
                 )
             )
@@ -78,7 +79,8 @@ class MariaDBToPostgreSQLTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type=col.oracle_type,
+                    category="TYPE",
+                    source_type=col.source_type,
                     target_type=target_type,
                     message=mapping.warning_msg,
                     severity=mapping.severity,

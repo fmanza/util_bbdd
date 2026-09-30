@@ -22,7 +22,7 @@ def _table(name: str, *columns: str) -> CanonicalTable:
         CanonicalColumn(
             name=c,
             original_name=c,
-            oracle_type="VARCHAR",
+            source_type="VARCHAR",
             target_type="VARCHAR(20)",
             nullable=True,
             default=None,

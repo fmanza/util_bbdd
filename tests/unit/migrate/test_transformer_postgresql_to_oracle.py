@@ -26,7 +26,7 @@ def _col(
     return CanonicalColumn(
         name=name,
         original_name=name,
-        oracle_type=pg_type,  # campo histórico; almacena el tipo fuente PG
+        source_type=pg_type,  # campo histórico; almacena el tipo fuente PG
         target_type="",
         nullable=nullable,
         default=None,

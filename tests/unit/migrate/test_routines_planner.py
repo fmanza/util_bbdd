@@ -104,7 +104,7 @@ class TestPlannerRoutinesIntegration:
         w = MigrationWarning(
             table="SP_BAD",
             column=None,
-            oracle_type="PROCEDURE",
+            category="ROUTINE",
             target_type="(no body)",
             message="Body no disponible.",
             severity="WARNING",

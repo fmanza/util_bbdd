@@ -75,7 +75,7 @@ class TestCanonicalRoutineDefaults:
             MigrationWarning(
                 table="SP_TEST",
                 column=None,
-                oracle_type="PROCEDURE",
+                category="ROUTINE",
                 target_type="PROCEDURE",
                 message="test",
                 severity="INFO",

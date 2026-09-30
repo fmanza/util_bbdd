@@ -24,7 +24,7 @@ def _col(
     return CanonicalColumn(
         name=name,
         original_name=name,
-        oracle_type="VARCHAR",
+        source_type="VARCHAR",
         target_type=target_type,
         nullable=nullable,
         default=default,
@@ -269,7 +269,7 @@ class TestOracleDDLEmitterSequenceTrigger:
         table = _table(name="DUAL_AI", columns=[col1, col2], pk=["ID"])
         self.e.emit_statements([table])
 
-        ai_warnings = [w for w in table.warnings if w.oracle_type == "AUTO_INCREMENT"]
+        ai_warnings = [w for w in table.warnings if w.category == "AUTO_INCREMENT"]
         assert len(ai_warnings) == 1
         assert ai_warnings[0].column == "ALT_ID"
         assert ai_warnings[0].severity == "WARNING"
@@ -280,7 +280,7 @@ class TestOracleDDLEmitterSequenceTrigger:
         table = _table(name="MY_TABLE", columns=[col], pk=["ID"])
         self.e.emit_statements([table])
 
-        assert not any(w.oracle_type == "AUTO_INCREMENT" for w in table.warnings)
+        assert not any(w.category == "AUTO_INCREMENT" for w in table.warnings)
 
     def test_three_auto_increment_columns_emit_two_warnings(self) -> None:
         col1 = _col(name="ID", target_type="NUMBER(10,0)", auto_increment=True)
@@ -289,7 +289,7 @@ class TestOracleDDLEmitterSequenceTrigger:
         table = _table(name="TRIPLE_AI", columns=[col1, col2, col3], pk=["ID"])
         self.e.emit_statements([table])
 
-        ai_warnings = [w for w in table.warnings if w.oracle_type == "AUTO_INCREMENT"]
+        ai_warnings = [w for w in table.warnings if w.category == "AUTO_INCREMENT"]
         assert {w.column for w in ai_warnings} == {"ALT_ID", "OTHER_ID"}
 
 
@@ -371,7 +371,7 @@ class TestOracleDDLEmitterViews:
             MigrationWarning(
                 table="MY_VIEW",
                 column=None,
-                oracle_type="VIEW",
+                category="VIEW",
                 target_type="VIEW",
                 message="needs manual review",
                 severity="WARNING",

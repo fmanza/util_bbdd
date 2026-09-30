@@ -9,10 +9,12 @@ from .models import (
     CanonicalView,
     MigrationPlan,
     MigrationWarning,
+    WarningCategory,
 )
 
 __all__: list[str] = [
     "MigrationWarning",
+    "WarningCategory",
     "CanonicalColumn",
     "CanonicalIndex",
     "CanonicalFK",

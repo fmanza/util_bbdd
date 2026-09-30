@@ -203,7 +203,7 @@ class MariaDBSchemaExtractor:
                 MigrationWarning(
                     table=routine_name,
                     column=None,
-                    oracle_type=routine_type,
+                    category="ROUTINE",
                     target_type="(no body)",
                     message=f"Body de '{routine_name}' no disponible; emitir stub.",
                     severity="WARNING",
@@ -232,9 +232,7 @@ class MariaDBSchemaExtractor:
                 CanonicalColumn(
                     name=parsed["name"],
                     original_name=parsed["name"],
-                    # oracle_type almacena el tipo fuente (MariaDB DATA_TYPE);
-                    # el nombre del campo es histórico (primera implementación Oracle→MariaDB)
-                    oracle_type=parsed["data_type"],
+                    source_type=parsed["data_type"],
                     target_type="",  # el transformer lo rellena
                     nullable=parsed["nullable"],
                     default=parsed["default"],

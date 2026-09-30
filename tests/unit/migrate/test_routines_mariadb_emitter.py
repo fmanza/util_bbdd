@@ -89,7 +89,7 @@ class TestMariaDBRoutineEmitter:
         w = MigrationWarning(
             table="SP_TEST",
             column=None,
-            oracle_type="PROCEDURE",
+            category="ROUTINE",
             target_type="PROCEDURE",
             message="Revisar body manualmente.",
             severity="WARNING",

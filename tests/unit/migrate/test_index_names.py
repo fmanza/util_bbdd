@@ -19,7 +19,7 @@ def _table(name: str, *indexes: str, pk: bool = True) -> CanonicalTable:
         CanonicalColumn(
             name=col,
             original_name=col,
-            oracle_type="INT",
+            source_type="INT",
             target_type="INTEGER",
             nullable=True,
             default=None,
@@ -53,7 +53,7 @@ class TestPostgreSQL:
             "cliente_id",
             "pedidos_cliente_id",
         ]
-        renamed = [w for t in (pedidos, facturas) for w in t.warnings if w.oracle_type == "INDEX"]
+        renamed = [w for t in (pedidos, facturas) for w in t.warnings if w.category == "INDEX"]
         assert len(renamed) == 1 and "único en el schema" in renamed[0].message
 
     def test_emitting_twice_gives_same_names_and_one_warning(self) -> None:

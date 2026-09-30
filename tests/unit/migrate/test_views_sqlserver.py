@@ -31,7 +31,7 @@ def _table(name: str = "T") -> CanonicalTable:
     col = CanonicalColumn(
         name="ID",
         original_name="ID",
-        oracle_type="NUMBER",
+        source_type="NUMBER",
         target_type="INT",
         nullable=False,
         default=None,
@@ -112,7 +112,7 @@ class TestOracleToSQLServerTransformViews:
         views = [_view(name=long_name)]
         result = self.transformer.transform_views(views)
         assert len(result[0].name) <= 128
-        assert any(w.oracle_type == "IDENTIFIER" for w in result[0].warnings)
+        assert any(w.category == "IDENTIFIER" for w in result[0].warnings)
 
     def test_empty_list(self) -> None:
         assert self.transformer.transform_views([]) == []
@@ -150,7 +150,8 @@ class TestSQLServerEmitCreateView:
         w = MigrationWarning(
             table="VW_TEST",
             column=None,
-            oracle_type="ROWNUM",
+            category="TYPE",
+            source_type="ROWNUM",
             target_type="(revisión manual)",
             message="x",
             severity="WARNING",

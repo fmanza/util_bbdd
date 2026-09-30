@@ -26,7 +26,7 @@ def _col(
     return CanonicalColumn(
         name=name,
         original_name=name,
-        oracle_type=mariadb_type,
+        source_type=mariadb_type,
         target_type="",
         nullable=nullable,
         default=default,
@@ -177,7 +177,7 @@ class TestIdentifierTruncationSQLServer:
         table = _table(name="A" * 40)
         result = self.t.transform([table])[0]
         assert result.name == "A" * 40
-        assert not any(w.oracle_type == "IDENTIFIER" for w in result.warnings)
+        assert not any(w.category == "IDENTIFIER" for w in result.warnings)
 
     def test_very_long_table_name_truncated_at_128(self) -> None:
         long_name = "B" * 140

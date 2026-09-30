@@ -63,7 +63,7 @@ class OracleToPostgreSQLTransformer(BaseTransformer):
                 MigrationWarning(
                     table=view.name,
                     column=None,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=adapted_name,
                     message=id_warn,
                     severity="WARNING",
@@ -80,7 +80,7 @@ class OracleToPostgreSQLTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table.name,
                     column=None,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=new_table.name,
                     message=id_warn,
                     severity="WARNING",
@@ -113,14 +113,14 @@ class OracleToPostgreSQLTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=col_name_adapted,
                     message=id_warn,
                     severity="WARNING",
                 )
             )
 
-        oracle_base = col.oracle_type.upper().split("(")[0].strip()
+        oracle_base = col.source_type.upper().split("(")[0].strip()
 
         if oracle_base == "NUMBER":
             target_type, ddl_comment = resolve_number_type_postgresql(col.precision, col.scale, self._number_fallback)
@@ -135,7 +135,8 @@ class OracleToPostgreSQLTransformer(BaseTransformer):
                     MigrationWarning(
                         table=table_name,
                         column=col.name,
-                        oracle_type=col.oracle_type,
+                        category="TYPE",
+                        source_type=col.source_type,
                         target_type=target_type,
                         message=f"NUMBER sin precisión → {self._number_fallback}",
                         severity="WARNING",
@@ -147,14 +148,15 @@ class OracleToPostgreSQLTransformer(BaseTransformer):
 
         if mapping is None:
             new_col.target_type = "TEXT"
-            new_col.ddl_comment = f"-- AVISO: tipo Oracle '{col.oracle_type}' desconocido → TEXT"
+            new_col.ddl_comment = f"-- AVISO: tipo Oracle '{col.source_type}' desconocido → TEXT"
             new_col.warnings.append(
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type=col.oracle_type,
+                    category="TYPE",
+                    source_type=col.source_type,
                     target_type="TEXT",
-                    message=f"Tipo Oracle '{col.oracle_type}' no reconocido; mapeado a TEXT",
+                    message=f"Tipo Oracle '{col.source_type}' no reconocido; mapeado a TEXT",
                     severity="WARNING",
                 )
             )
@@ -170,7 +172,8 @@ class OracleToPostgreSQLTransformer(BaseTransformer):
                     MigrationWarning(
                         table=table_name,
                         column=col.name,
-                        oracle_type=col.oracle_type,
+                        category="TYPE",
+                        source_type=col.source_type,
                         target_type="(omitido)",
                         message=mapping.warning_msg,
                         severity=mapping.severity,
@@ -190,7 +193,8 @@ class OracleToPostgreSQLTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type=col.oracle_type,
+                    category="TYPE",
+                    source_type=col.source_type,
                     target_type=target_type,
                     message=mapping.warning_msg,
                     severity=mapping.severity,
@@ -242,7 +246,7 @@ class OracleToPostgreSQLTransformer(BaseTransformer):
         base_type = pk_col.target_type.split("(")[0].upper().strip()
         if base_type not in _INT_TYPES_SERIAL:
             # NUMBER sin precisión en PK → resolver como INTEGER
-            oracle_base = pk_col.oracle_type.upper().split("(")[0].strip()
+            oracle_base = pk_col.source_type.upper().split("(")[0].strip()
             if oracle_base != "NUMBER" or pk_col.precision is not None:
                 return
             pk_col.target_type = "INTEGER"
@@ -255,7 +259,8 @@ class OracleToPostgreSQLTransformer(BaseTransformer):
             MigrationWarning(
                 table=table.name,
                 column=pk_col_name,
-                oracle_type=pk_col.oracle_type,
+                category="AUTO_INCREMENT",
+                source_type=pk_col.source_type,
                 target_type=pk_col.target_type,
                 message=f"Columna PK '{pk_col_name}' marcada como SERIAL/BIGSERIAL",
                 severity="INFO",
@@ -279,7 +284,7 @@ class OracleToPostgreSQLTransformer(BaseTransformer):
                     MigrationWarning(
                         table=table.name,
                         column=col.name,
-                        oracle_type=f"SEQUENCE({seq_name})",
+                        category="AUTO_INCREMENT",
                         target_type="SERIAL",
                         message=(
                             f"Columna '{col.name}' usa secuencia '{seq_name}' pero no es PK; "
@@ -296,7 +301,7 @@ class OracleToPostgreSQLTransformer(BaseTransformer):
                     MigrationWarning(
                         table=table.name,
                         column=col.name,
-                        oracle_type=f"SEQUENCE({seq_name})",
+                        category="AUTO_INCREMENT",
                         target_type="SERIAL",
                         message=f"Secuencia Oracle '{seq_name}' convertida a SERIAL/BIGSERIAL",
                         severity="INFO",

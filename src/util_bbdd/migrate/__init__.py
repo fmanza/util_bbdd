@@ -143,6 +143,7 @@ from .ir.models import (
     CanonicalView,
     MigrationPlan,
     MigrationWarning,
+    WarningCategory,
 )
 from .planner import MigrationPlanner
 from .reporters.markdown import format_plan_markdown
@@ -169,6 +170,7 @@ __all__: list[str] = [
     # IR
     "MigrationPlan",
     "MigrationWarning",
+    "WarningCategory",
     "CanonicalTable",
     "CanonicalColumn",
     "CanonicalIndex",

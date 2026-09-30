@@ -86,20 +86,20 @@ class TestMySQLSchemaExtractor:
         assert cols["saldo"].default == "0.00"
         assert cols["alta"].default == "CURRENT_TIMESTAMP"
         assert cols["cita"].default == "'it''s'"
-        assert cols["estado"].oracle_type == "ENUM"
+        assert cols["estado"].source_type == "ENUM"
         assert cols["id"].auto_increment and cols["id"].is_primary_key
         assert table.comment == "clientes"
 
     def test_full_column_types(self) -> None:
         cols = {c.name: c for c in MySQLSchemaExtractor(_manager(), full_column_types=True).extract("db1")[0].columns}
-        assert cols["estado"].oracle_type == "enum('A','B')"
-        assert cols["id"].oracle_type == "int unsigned"
+        assert cols["estado"].source_type == "enum('A','B')"
+        assert cols["id"].source_type == "int unsigned"
 
     def test_mariadb_full_type_extractor_keeps_defaults(self) -> None:
         rows = [("nombre", "varchar", 50, None, None, "NO", "'x'", "", "", 1, "varchar(50)")]
         col = MariaDBFullTypeSchemaExtractor(_manager(rows)).extract("db1")[0].columns[0]
         assert col.default == "'x'"
-        assert col.oracle_type == "varchar(50)"
+        assert col.source_type == "varchar(50)"
 
 
 class TestMySQLEmitter:

@@ -10,28 +10,66 @@ if TYPE_CHECKING:
     from ..emitters.base import DDLEmitter
 
 WarningSeverity = Literal["INFO", "WARNING", "ERROR"]
+WarningCategory = Literal[
+    "TYPE",
+    "DEFAULT",
+    "IDENTIFIER",
+    "IDENTIFIER_CASE_COLLISION",
+    "AUTO_INCREMENT",
+    "FOREIGN_KEY",
+    "INDEX",
+    "VIEW",
+    "ROUTINE",
+]
+"""Qué clase de aviso es (0.21.0; antes iba mezclado con el tipo en ``oracle_type``).
+
+- ``TYPE``: conversión del tipo de una columna (``source_type`` = tipo en el origen).
+- ``DEFAULT``: valor por defecto sin traducción fiable (``source_type`` = tipo de la columna).
+- ``IDENTIFIER``: nombre truncado al límite del destino.
+- ``IDENTIFIER_CASE_COLLISION``: nombres que solo difieren en mayúsculas.
+- ``AUTO_INCREMENT``: autoincrementales, secuencias e identidades (``source_type`` = tipo de la PK si aplica).
+- ``FOREIGN_KEY``: claves foráneas (acciones no soportadas, FK aplazadas).
+- ``INDEX``: índices (p. ej. renombrados por colisión de nombre en el schema).
+- ``VIEW``: vistas (reescritura, construcciones sin traducción, definición no disponible).
+- ``ROUTINE``: procedimientos, funciones y packages.
+"""
 
 
 @dataclass(frozen=True, slots=True)
 class MigrationWarning:
-    """Aviso generado durante la transformación de tipos o identificadores."""
+    """Aviso generado durante la planificación o la emisión del DDL.
+
+    Attributes:
+        table: Tabla, vista o rutina afectada.
+        column: Columna afectada, si la hay.
+        category: Clase de aviso (:data:`WarningCategory`).
+        target_type: Tipo, nombre o etiqueta en el destino (depende de la categoría).
+        message: Explicación legible.
+        severity: ``INFO``, ``WARNING`` o ``ERROR`` (un ``ERROR`` impide ``MigrationPlan.execute``).
+        source_type: Tipo de datos en el origen, cuando el aviso trata de uno (``TYPE``, ``DEFAULT``, ``AUTO_INCREMENT``).
+        proposals: Alternativas propuestas.
+    """
 
     table: str
     column: str | None
-    oracle_type: str
+    category: WarningCategory
     target_type: str
     message: str
     severity: WarningSeverity = "WARNING"
+    source_type: str | None = None
     proposals: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)
 class CanonicalColumn:
-    """Representación canónica de una columna durante la migración."""
+    """Representación canónica de una columna durante la migración.
+
+    ``source_type`` es el tipo de la columna en el motor origen (hasta 0.20.0 se llamaba ``oracle_type``).
+    """
 
     name: str
     original_name: str
-    oracle_type: str
+    source_type: str
     target_type: str
     nullable: bool
     default: str | None
@@ -311,6 +349,7 @@ def _execute_statements(target: Any, statements: list[str], target_engine: str) 
 
 __all__: list[str] = [
     "WarningSeverity",
+    "WarningCategory",
     "MigrationWarning",
     "CanonicalColumn",
     "CanonicalIndex",

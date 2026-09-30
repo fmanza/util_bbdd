@@ -34,7 +34,7 @@ _ORACLE_RAW_MAX: int = 2000
 class MariaDBToOracleTransformer(BaseTransformer):
     """Transforma IR MariaDB a IR Oracle.
 
-    El campo ``CanonicalColumn.oracle_type`` contiene el tipo fuente MariaDB
+    El campo ``CanonicalColumn.source_type`` contiene el tipo fuente MariaDB
     (DATA_TYPE de INFORMATION_SCHEMA); el nombre del campo es histórico.
     """
 
@@ -53,27 +53,28 @@ class MariaDBToOracleTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=col_name_adapted,
                     message=id_warn,
                     severity="WARNING",
                 )
             )
 
-        # oracle_type contiene el MariaDB DATA_TYPE (nombre histórico del campo)
-        mariadb_base = col.oracle_type.upper().split("(")[0].strip()
+        # source_type contiene el MariaDB DATA_TYPE
+        mariadb_base = col.source_type.upper().split("(")[0].strip()
         mapping = resolve_mariadb_type_oracle(mariadb_base)
 
         if mapping is None:
             new_col.target_type = "CLOB"
-            new_col.ddl_comment = f"-- AVISO: tipo MariaDB '{col.oracle_type}' desconocido → CLOB"
+            new_col.ddl_comment = f"-- AVISO: tipo MariaDB '{col.source_type}' desconocido → CLOB"
             new_col.warnings.append(
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type=col.oracle_type,
+                    category="TYPE",
+                    source_type=col.source_type,
                     target_type="CLOB",
-                    message=f"Tipo MariaDB '{col.oracle_type}' no reconocido; mapeado a CLOB",
+                    message=f"Tipo MariaDB '{col.source_type}' no reconocido; mapeado a CLOB",
                     severity="WARNING",
                 )
             )
@@ -92,7 +93,8 @@ class MariaDBToOracleTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type=col.oracle_type,
+                    category="TYPE",
+                    source_type=col.source_type,
                     target_type=target_type,
                     message=mapping.warning_msg,
                     severity=mapping.severity,
@@ -140,7 +142,8 @@ class MariaDBToOracleTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.original_name,
-                    oracle_type=f"VARCHAR({length})",
+                    category="TYPE",
+                    source_type=f"VARCHAR({length})",
                     target_type="CLOB",
                     message=f"VARCHAR({length}) supera límite VARCHAR2 Oracle ({_ORACLE_VARCHAR2_MAX}); mapeado a CLOB",
                     severity="WARNING",
@@ -158,7 +161,8 @@ class MariaDBToOracleTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.original_name,
-                    oracle_type=f"VARBINARY({length})",
+                    category="TYPE",
+                    source_type=f"VARBINARY({length})",
                     target_type="BLOB",
                     message=f"VARBINARY({length}) supera límite RAW Oracle ({_ORACLE_RAW_MAX}); mapeado a BLOB",
                     severity="WARNING",
@@ -180,7 +184,7 @@ class MariaDBToOracleTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=None,
-                    oracle_type="FOREIGN KEY",
+                    category="FOREIGN_KEY",
                     target_type="FK (ON UPDATE ignorado)",
                     message=(
                         f"FK '{fk.name}': ON UPDATE {fk.on_update} no soportado en Oracle; "

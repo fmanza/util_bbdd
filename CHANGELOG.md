@@ -7,6 +7,32 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed (incompatible)
+
+- **migrate**: el campo `oracle_type` desaparece de la API. Guardaba el tipo del **origen** sea cual fuera el motor
+  (el nombre venía de la primera versión, Oracle → MariaDB) y, en los avisos, mezclaba ese tipo con la clase de aviso
+  (`IDENTIFIER`, `VIEW`, `FOREIGN KEY`…). Ahora:
+  - `CanonicalColumn.oracle_type` → **`CanonicalColumn.source_type`** (mismo contenido, misma posición).
+  - `MigrationWarning.oracle_type` se separa en **`category`** (`WarningCategory`: `TYPE`, `DEFAULT`, `IDENTIFIER`,
+    `IDENTIFIER_CASE_COLLISION`, `AUTO_INCREMENT`, `FOREIGN_KEY`, `INDEX`, `VIEW`, `ROUTINE`) y **`source_type`**
+    (`str | None`, el tipo de datos del origen cuando el aviso trata de uno). Nuevo orden de campos: `table, column,
+    category, target_type, message, severity="WARNING", source_type=None, proposals=()`.
+  - El informe Markdown titula la columna «Tipo <motor origen>» en lugar de «Tipo Oracle».
+
+  **Guía de migración** (sin alias de compatibilidad):
+
+  | Antes (≤ 0.20.0) | Ahora (0.21.0) |
+  |---|---|
+  | `col.oracle_type` | `col.source_type` |
+  | `CanonicalColumn(..., oracle_type="VARCHAR2", ...)` | `CanonicalColumn(..., source_type="VARCHAR2", ...)` |
+  | `w.oracle_type == "IDENTIFIER"` (o `"VIEW"`, `"INDEX"`, `"AUTO_INCREMENT"`) | `w.category == "IDENTIFIER"` (igual) |
+  | `w.oracle_type == "FOREIGN KEY"` | `w.category == "FOREIGN_KEY"` |
+  | `w.oracle_type == "VIEW_DEFINITION"` | `w.category == "VIEW"` |
+  | `w.oracle_type in ("PROCEDURE", "FUNCTION", "PACKAGE", "PACKAGE BODY")` | `w.category == "ROUTINE"` |
+  | `w.oracle_type == "CLOB"` (un tipo de datos) | `w.source_type == "CLOB"` (y `w.category == "TYPE"`) |
+  | `w.oracle_type == "SYSDATE"` (construcción de una vista, `view_strategy="passthrough"`) | `w.category == "VIEW"` y `"'SYSDATE'" in w.message` |
+  | `MigrationWarning(t, c, "CLOB", "TEXT", msg)` (por posición) | `MigrationWarning(t, c, "TYPE", "TEXT", msg, source_type="CLOB")` |
+
 ### Changed
 
 - **migrate**: los extractores leen cada tipo de objeto (columnas, PK, FK, índices, columnas de vistas, cuerpos de

@@ -66,7 +66,7 @@ def _warning(view: CanonicalView, target_type: str, message: str, severity: str 
     return MigrationWarning(
         table=view.name,
         column=None,
-        oracle_type="VIEW",
+        category="VIEW",
         target_type=target_type,
         message=message,
         severity=severity,  # type: ignore[arg-type]

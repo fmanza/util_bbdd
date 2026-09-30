@@ -330,7 +330,7 @@ class MigrationPlanner:
                     MigrationWarning(
                         table=view.name,
                         column=None,
-                        oracle_type="IDENTIFIER",
+                        category="IDENTIFIER",
                         target_type=adapted,
                         message=warning,
                         severity="WARNING",
@@ -345,7 +345,7 @@ class MigrationPlanner:
         column_types: dict[str, dict[str, str]] = {}
         integer_columns: dict[str, frozenset[str]] = {}
         for raw_table, new_table in zip(raw_tables, transformed, strict=True):
-            column_types[raw_table.name] = {col.name: col.oracle_type for col in raw_table.columns if col.oracle_type}
+            column_types[raw_table.name] = {col.name: col.source_type for col in raw_table.columns if col.source_type}
             integer_columns[raw_table.name] = frozenset(col.name for col in raw_table.columns if col.scale == 0)
             for raw_col, new_col in zip(raw_table.columns, new_table.columns, strict=True):
                 key = raw_col.name.lower()
@@ -449,7 +449,7 @@ def _case_collision_warnings(
             MigrationWarning(
                 table=name_a,
                 column=None,
-                oracle_type="IDENTIFIER_CASE_COLLISION",
+                category="IDENTIFIER_CASE_COLLISION",
                 target_type=name_b,
                 message=f"Identificadores '{name_a}' y '{name_b}' solo difieren en mayúsculas/minúsculas: {detail}.",
                 severity=object_severity,  # type: ignore[arg-type]
@@ -464,7 +464,7 @@ def _case_collision_warnings(
                 MigrationWarning(
                     table=table.name,
                     column=name_b,
-                    oracle_type="IDENTIFIER_CASE_COLLISION",
+                    category="IDENTIFIER_CASE_COLLISION",
                     target_type=name_a,
                     message=(
                         f"Tabla '{table.name}': las columnas '{name_a}' y '{name_b}' solo difieren en "

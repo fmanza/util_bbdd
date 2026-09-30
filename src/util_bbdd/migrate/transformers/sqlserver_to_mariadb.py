@@ -31,7 +31,7 @@ _SS_MAX_SENTINEL: int = -1
 class SQLServerToMariaDBTransformer(BaseTransformer):
     """Transforma IR SQL Server a IR MariaDB.
 
-    El campo ``CanonicalColumn.oracle_type`` contiene el tipo fuente SQL Server
+    El campo ``CanonicalColumn.source_type`` contiene el tipo fuente SQL Server
     (DATA_TYPE de INFORMATION_SCHEMA); el nombre del campo es histórico.
     """
 
@@ -48,26 +48,27 @@ class SQLServerToMariaDBTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type="IDENTIFIER",
+                    category="IDENTIFIER",
                     target_type=col_name_adapted,
                     message=id_warn,
                     severity="WARNING",
                 )
             )
 
-        ss_base = col.oracle_type.upper().split("(")[0].strip()
+        ss_base = col.source_type.upper().split("(")[0].strip()
         mapping = resolve_sqlserver_type_mariadb(ss_base)
 
         if mapping is None:
             new_col.target_type = "LONGTEXT"
-            new_col.ddl_comment = f"-- AVISO: tipo SQL Server '{col.oracle_type}' desconocido → LONGTEXT"
+            new_col.ddl_comment = f"-- AVISO: tipo SQL Server '{col.source_type}' desconocido → LONGTEXT"
             new_col.warnings.append(
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type=col.oracle_type,
+                    category="TYPE",
+                    source_type=col.source_type,
                     target_type="LONGTEXT",
-                    message=f"Tipo SQL Server '{col.oracle_type}' no reconocido; mapeado a LONGTEXT",
+                    message=f"Tipo SQL Server '{col.source_type}' no reconocido; mapeado a LONGTEXT",
                     severity="WARNING",
                 )
             )
@@ -84,7 +85,8 @@ class SQLServerToMariaDBTransformer(BaseTransformer):
                 MigrationWarning(
                     table=table_name,
                     column=col.name,
-                    oracle_type=col.oracle_type,
+                    category="TYPE",
+                    source_type=col.source_type,
                     target_type=target_type,
                     message=mapping.warning_msg,
                     severity=mapping.severity,

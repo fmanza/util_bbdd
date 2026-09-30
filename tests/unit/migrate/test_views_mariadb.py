@@ -42,7 +42,7 @@ def _table(name: str = "T") -> CanonicalTable:
     col = CanonicalColumn(
         name="ID",
         original_name="ID",
-        oracle_type="NUMBER",
+        source_type="NUMBER",
         target_type="INT(11)",
         nullable=False,
         default=None,
@@ -91,16 +91,16 @@ class TestRewriteOracleViewMariaDB:
         assert "CURRENT_USER()" in result.query
 
     def test_user_replacement_emits_warning(self) -> None:
-        """TEST-08: cuando USER es sustituido debe emitirse MigrationWarning con oracle_type='USER'."""
+        """TEST-08: cuando USER es sustituido debe emitirse MigrationWarning que cite 'USER' en el mensaje."""
         result = self._rw("SELECT USER FROM DUAL")
-        user_warnings = [w for w in result.warnings if w.oracle_type == "USER"]
+        user_warnings = [w for w in result.warnings if "pseudocolumna USER" in w.message]
         assert user_warnings, "Debe emitirse MigrationWarning cuando USER es sustituido"
         assert user_warnings[0].severity == "WARNING"
 
     def test_no_user_in_query_no_user_warning(self) -> None:
         """TEST-08: si la query no contiene USER no se emite MigrationWarning de USER."""
         result = self._rw("SELECT id, name FROM employees")
-        user_warnings = [w for w in result.warnings if w.oracle_type == "USER"]
+        user_warnings = [w for w in result.warnings if "pseudocolumna USER" in w.message]
         assert not user_warnings
 
     def test_nvl_replaced(self) -> None:
@@ -132,23 +132,23 @@ class TestRewriteOracleViewMariaDB:
 
     def test_rownum_generates_warning(self) -> None:
         result = self._rw("SELECT id FROM t WHERE ROWNUM <= 10")
-        warning_labels = [w.oracle_type for w in result.warnings]
+        warning_labels = " | ".join(w.message for w in result.warnings)
         assert "ROWNUM" in warning_labels
         assert result.warnings[0].severity == "WARNING"
 
     def test_connect_by_generates_warning(self) -> None:
         result = self._rw("SELECT id FROM t CONNECT BY PRIOR id = parent_id")
-        labels = [w.oracle_type for w in result.warnings]
+        labels = " | ".join(w.message for w in result.warnings)
         assert "CONNECT BY" in labels
 
     def test_outer_join_generates_warning(self) -> None:
         result = self._rw("SELECT a.id FROM a, b WHERE a.id = b.id(+)")
-        labels = [w.oracle_type for w in result.warnings]
+        labels = " | ".join(w.message for w in result.warnings)
         assert "outer join (+)" in labels
 
     def test_decode_generates_warning(self) -> None:
         result = self._rw("SELECT DECODE(status, 1, 'A', 'B') FROM t")
-        labels = [w.oracle_type for w in result.warnings]
+        labels = " | ".join(w.message for w in result.warnings)
         assert "DECODE" in labels
 
     def test_no_warnings_for_simple_query(self) -> None:
@@ -160,33 +160,33 @@ class TestRewriteOracleViewMariaDB:
         query debe advertir del riesgo de falso positivo en literales string, no
         solo USER."""
         result = self._rw("SELECT SYSDATE FROM t")
-        sysdate_warnings = [w for w in result.warnings if w.oracle_type == "SYSDATE"]
+        sysdate_warnings = [w for w in result.warnings if "'SYSDATE'" in w.message]
         assert sysdate_warnings, "Debe emitirse MigrationWarning cuando SYSDATE es sustituido"
         assert sysdate_warnings[0].severity == "WARNING"
 
     def test_systimestamp_replacement_emits_warning(self) -> None:
         result = self._rw("SELECT SYSTIMESTAMP FROM t")
-        warnings = [w for w in result.warnings if w.oracle_type == "SYSTIMESTAMP"]
+        warnings = [w for w in result.warnings if "'SYSTIMESTAMP'" in w.message]
         assert warnings
 
     def test_nvl_replacement_emits_warning(self) -> None:
         result = self._rw("SELECT NVL(col, 0) FROM t")
-        warnings = [w for w in result.warnings if w.oracle_type == "NVL"]
+        warnings = [w for w in result.warnings if "'NVL'" in w.message]
         assert warnings
 
     def test_from_dual_removal_emits_warning(self) -> None:
         result = self._rw("SELECT 1 FROM DUAL")
-        warnings = [w for w in result.warnings if w.oracle_type == "FROM DUAL"]
+        warnings = [w for w in result.warnings if "'FROM DUAL'" in w.message]
         assert warnings
 
     def test_schema_prefix_removal_emits_warning(self) -> None:
         result = self._rw("SELECT MY_SCHEMA.t.id FROM MY_SCHEMA.t", schema="MY_SCHEMA")
-        warnings = [w for w in result.warnings if "prefijo de schema" in w.oracle_type]
+        warnings = [w for w in result.warnings if "prefijo de schema" in w.message]
         assert warnings
 
     def test_no_schema_prefix_no_warning(self) -> None:
         result = self._rw("SELECT id FROM t", schema="MY_SCHEMA")
-        assert not any("prefijo de schema" in w.oracle_type for w in result.warnings)
+        assert not any("prefijo de schema" in w.message for w in result.warnings)
 
     def test_original_view_not_mutated(self) -> None:
         original = _view(query="SELECT SYSDATE FROM DUAL")
@@ -219,13 +219,13 @@ class TestOracleToMariaDBTransformViews:
         views = [_view(name=long_name)]
         result = self.transformer.transform_views(views)
         assert len(result[0].name) <= 64
-        assert any(w.oracle_type == "IDENTIFIER" for w in result[0].warnings)
+        assert any(w.category == "IDENTIFIER" for w in result[0].warnings)
 
     def test_short_name_unchanged(self) -> None:
         views = [_view(name="VW_SHORT")]
         result = self.transformer.transform_views(views)
         assert result[0].name == "VW_SHORT"
-        assert not any(w.oracle_type == "IDENTIFIER" for w in result[0].warnings)
+        assert not any(w.category == "IDENTIFIER" for w in result[0].warnings)
 
 
 # ─── Tests: _emit_create_view ─────────────────────────────────────────────────
@@ -260,7 +260,7 @@ class TestMariaDBEmitCreateView:
         w = MigrationWarning(
             table="VW_TEST",
             column=None,
-            oracle_type="ROWNUM",
+            category="VIEW",
             target_type="(revisión manual)",
             message="x",
             severity="WARNING",

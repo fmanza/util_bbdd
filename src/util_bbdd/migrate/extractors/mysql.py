@@ -6,7 +6,7 @@
 - **Defaults literales**: MySQL devuelve ``COLUMN_DEFAULT`` sin comillas (``x``) y MariaDB con ellas (``'x'``). En
   columnas no numéricas se entrecomilla el literal para seguir el convenio de MariaDB, que es el que esperan
   transformers y emitters; las expresiones (``EXTRA`` contiene ``DEFAULT_GENERATED``) se dejan tal cual.
-- **Tipo completo** (``full_column_types=True``): ``oracle_type`` guarda ``COLUMN_TYPE`` (``enum('a','b')``,
+- **Tipo completo** (``full_column_types=True``): ``source_type`` guarda ``COLUMN_TYPE`` (``enum('a','b')``,
   ``int unsigned``) en lugar de ``DATA_TYPE``. Solo lo usan los pares dentro de la familia (MySQL ↔ MariaDB), cuyos
   transformers emiten el tipo tal cual; hacia otros motores se mantiene ``DATA_TYPE``, que es lo que esperan los
   mapas de tipos ``mariadb_to_*``.
@@ -69,7 +69,7 @@ class MySQLSchemaExtractor(MariaDBSchemaExtractor):
 
     Args:
         manager: Manager con ``execute_custom_many(sql, params) → Rows`` (``SyncDatabaseManager`` compatible).
-        full_column_types: Si True, ``oracle_type`` guarda ``COLUMN_TYPE`` completo (pares MySQL ↔ MariaDB).
+        full_column_types: Si True, ``source_type`` guarda ``COLUMN_TYPE`` completo (pares MySQL ↔ MariaDB).
     """
 
     _QUOTE_LITERAL_DEFAULTS: ClassVar[bool] = True
@@ -99,7 +99,7 @@ class MySQLSchemaExtractor(MariaDBSchemaExtractor):
                 CanonicalColumn(
                     name=parsed["name"],
                     original_name=parsed["name"],
-                    oracle_type=source_type,
+                    source_type=source_type,
                     target_type="",  # el transformer lo rellena
                     nullable=parsed["nullable"],
                     default=default,

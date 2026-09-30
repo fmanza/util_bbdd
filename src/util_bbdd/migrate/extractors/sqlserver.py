@@ -185,7 +185,7 @@ class SQLServerSchemaExtractor:
                     MigrationWarning(
                         table=view_name,
                         column=None,
-                        oracle_type="VIEW_DEFINITION",
+                        category="VIEW",
                         target_type="(no disponible)",
                         message=(
                             f"Vista '{view_name}': definición no disponible (WITH ENCRYPTION o sin permiso "
@@ -199,7 +199,7 @@ class SQLServerSchemaExtractor:
                     MigrationWarning(
                         table=view_name,
                         column=None,
-                        oracle_type="VIEW_DEFINITION",
+                        category="VIEW",
                         target_type="(columnas de la cabecera)",
                         message=(
                             f"Vista '{view_name}': la cabecera declara las columnas ({split.column_list}); la vista "
@@ -258,7 +258,7 @@ class SQLServerSchemaExtractor:
                     MigrationWarning(
                         table=routine_name,
                         column=None,
-                        oracle_type=routine_type,
+                        category="ROUTINE",
                         target_type="(no body)",
                         message=f"Body de '{routine_name}' no disponible en sys.sql_modules; emitir stub.",
                         severity="WARNING",
@@ -292,9 +292,7 @@ class SQLServerSchemaExtractor:
                 CanonicalColumn(
                     name=parsed["name"],
                     original_name=parsed["name"],
-                    # oracle_type almacena el tipo fuente (SQL Server DATA_TYPE);
-                    # el nombre del campo es histórico (primera implementación Oracle→MariaDB)
-                    oracle_type=parsed["data_type"],
+                    source_type=parsed["data_type"],
                     target_type="",  # el transformer lo rellena
                     nullable=parsed["nullable"],
                     default=parsed["default"],
