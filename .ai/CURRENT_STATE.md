@@ -80,7 +80,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-0. **0.21.0 en curso** (una sesión por punto): D1 hecho (sesión `2026-09-30-migrate-d1-extract-batching`: consultas por schema en los extractores, más el hotfix de FK compuestas de Oracle); pendientes D2 (separar `oracle_type` en `source_type` + `category`, corte directo con guía de migración) y D3 (comentarios desde/hacia PostgreSQL y SQL Server). Detalle en el TRACEABILITY de `2026-09-29d`.
+0. **0.21.0 en curso** (una sesión por punto): D1 hecho (sesión `2026-09-30-migrate-d1-extract-batching`: consultas por schema en los extractores, más el hotfix de FK compuestas de Oracle); D2 hecho (sesión `2026-09-30b-migrate-d2-source-type`: `oracle_type` → `source_type` + `category`, corte directo con guía de migración); pendiente D3 (comentarios desde/hacia PostgreSQL y SQL Server). Detalle en el TRACEABILITY de `2026-09-29d`.
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
 3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.
