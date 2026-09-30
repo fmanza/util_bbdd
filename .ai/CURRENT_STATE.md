@@ -32,12 +32,13 @@
 | `v0.18.4` | Liberado 2026-09-29 — sin cambios de API: revisión de la configuración IA (commands finos sobre prompts, `/performance-audit-constraints`, tipos de commit, `DOCUMENTATION_STANDARD` canónico, `.claude/settings.json` versionado); `docs/` a minúsculas con guion bajo (65 ficheros); README al día; `docs.yml` construye antes de publicar (Pages roto desde `11fb9f8`); ZIP offline con `start-server.py` y `README_OFFLINE.txt` en Releases y en el sitio (`build_offline_zip`); `docs-zip-release.yml` con YAML válido (sesiones `2026-09-28-config-review` y `2026-09-29-docs-review-hotfixes`) |
 | `v0.19.0` | Liberado 2026-09-29 — **MySQL como motor propio** (`db_type="mysql"`: PyMySQL + `QueuePool` sync, aiomysql async; metadatos, documentación, relaciones y `migrate` origen/destino); MariaDB sigue con Connector/Python; adapters de metadatos por registro (`_get_metadata_adapter`); extras `util_bbdd[mariadb]`/`util_bbdd[mysql]`; 6 hotfixes: async directa de MariaDB, conexión directa de PostgreSQL, pool sync de PostgreSQL sin `sslmode` (seguridad), `migrate` ejecutable en los 20 pares (comentarios y defaults), DDL reconstruido de MariaDB/MySQL (sesión `2026-09-29b-feature-mysql-pymysql`) |
 | `v0.20.0` | Liberado 2026-09-30 — **vistas de `migrate` reescritas con sqlglot** (opcional, `view_strategy`), `CONNECT BY` → CTE recursiva, `MigrationPlan.validate_views`; auditoría de `migrate/` (A1–A9, B1): `execute()` operativo en los 5 destinos, trigger de identidad Oracle, índices por schema, barras invertidas, límites en bytes, colisiones de mayúsculas, `engine`, saltos de línea en comentarios | Estable |
+| `v0.21.0` | Liberado 2026-09-30 — **extractores de `migrate` por schema** (823 → 8 consultas, `plan()` −87 % a −98 %), **comentarios** de tablas y columnas desde/hacia PostgreSQL y SQL Server (recortados al límite de cada destino), **`oracle_type` → `source_type` / `category`** (incompatible, con guía de migración), hotfix de FK compuestas de Oracle, tabla sin columnas = ERROR | Estable |
 | Zenical | Pendiente, sin versión asignada — merge `migrate/zenical-pure` (+80% perf doc builds) cuando Zenical esté instalable |
 
 PR abierta: **PR #18** `feat(connection/bulk): automatización variables MySQL/MariaDB` — revisión pendiente de merge.  
 PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical v0.0.44 esté en crates.io (o instalación manual de binario).
 
-**Tests actuales**: 5660 passed, 225 skipped sin URLs de servidor (cierre de `v0.20.0`); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 364 passed en 5 servidores (cierre de `v0.20.0`, 2026-09-30). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/performance_audit_guide.md`).
+**Tests actuales**: 5685 passed, 226 skipped sin URLs de servidor (cierre de `v0.21.0`); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 365 passed en 5 servidores (cierre de `v0.21.0`, 2026-09-30). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/performance_audit_guide.md`).
 
 ---
 
@@ -80,7 +81,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-0. **0.21.0 en curso** (una sesión por punto): D1 hecho (sesión `2026-09-30-migrate-d1-extract-batching`: consultas por schema en los extractores, más el hotfix de FK compuestas de Oracle); D2 hecho (sesión `2026-09-30b-migrate-d2-source-type`: `oracle_type` → `source_type` + `category`, corte directo con guía de migración); D3 hecho (sesión `2026-09-30c-migrate-d3-comments`); auditoría de la 0.21.0 con C1, H1 y H2 corregidos (sesión `2026-09-30d-migrate-audit-021`). Siguiente: `/version-closure` 0.21.0. Detalle en el TRACEABILITY de `2026-09-29d`.
+0. **Push y tag `v0.21.0`** (sesiones `2026-09-30-migrate-d1-extract-batching`, `2026-09-30b-migrate-d2-source-type`, `2026-09-30c-migrate-d3-comments`, `2026-09-30d-migrate-audit-021`), pendientes de decisión del usuario. Deuda anotada fuera de alcance: `target_type` de `MigrationWarning` mezcla tipo destino, nombre y etiqueta; comentarios de vistas y rutinas no se migran; `CONNECT BY` con `NOCYCLE`/`ORDER SIBLINGS BY` sin reescribir.
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
 3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.

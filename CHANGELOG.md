@@ -7,6 +7,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-09-30
+
+Cierra la deuda que dejó la auditoría de `migrate/`: los extractores leen el schema con una consulta por tipo de objeto
+(823 → 8 consultas y entre un 87 % y un 98 % menos de tiempo en `plan()` con 200 tablas), los comentarios de tablas y
+columnas llegan a la base de datos destino en los 20 pares, y `oracle_type` se sustituye por nombres que dicen lo que
+guardan. **Incluye un cambio incompatible** (D2, ver «Changed (incompatible)» y su guía de migración); las series
+`0.x` siguen siendo pre-estables.
+
 ### Added
 
 - **migrate**: los comentarios de tablas y columnas se migran también desde y hacia PostgreSQL y SQL Server. Como

@@ -50,8 +50,9 @@
   práctico). Todo comentario nuevo que emita DDL debe pasar por `fit_comment`.
 - **[migrate/extractors]**: buscar las filas agrupadas con `ObjectRows.for_object(nombre)`, nunca con `.get()`: tolera
   diferencias de mayúsculas como los antiguos filtros por tabla.
+- **[release]**: la v0.21.0 incluye un cambio incompatible (D2) en una versión menor, amparado en que las series 0.x son pre-estables (roadmap); la tabla SemVer de `sync.instructions.md` pediría MAJOR. Decidirlo explícitamente en cada release que rompa API mientras se siga en 0.x.
 - **[migrate/plan]**: `WarningCategory` tiene 11 valores (se añadieron `COMMENT` y `TABLE`, compatible). Un `ERROR`
   del plan impide `execute()`: usarlo para todo lo que haría fallar el DDL a mitad.
 
 ## Veredicto final
-Veredicto: CLOSED — condiciones de la auditoría cumplidas (C1, H1, H2). La 0.21.0 queda lista para `/version-closure`.
+Veredicto: CLOSED — condiciones de la auditoría cumplidas (C1, H1, H2). Liberado en v0.21.0 (2026-09-30), junto con D1, D2, D3 y el hotfix de FK de Oracle.
