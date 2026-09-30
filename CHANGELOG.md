@@ -61,6 +61,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   lo hay, por la única coincidencia que solo difiere en mayúsculas, como hacían los filtros `TABLE_NAME = …` en
   MySQL/MariaDB y SQL Server; antes, una capitalización distinta entre vistas del catálogo dejaba la tabla sin
   columnas (H1).
+- **migrate**: una tabla sin columnas activas (no se extrajo ninguna o todas se omitieron por tipos sin equivalente)
+  producía un `CREATE TABLE` inválido sin ningún aviso, y `execute()` fallaba a mitad; ahora es un aviso `ERROR`
+  de la nueva categoría `TABLE` y `execute()` no empieza (H2).
 - **metadata / migrate**: las claves foráneas compuestas de Oracle se leían como producto cartesiano: la FK
   `(a, b) → padre(a, b)` salía como `(A, A, B, B) → (A, B, A, B)`, en orden variable, y el DDL migrado no era válido.
   `fetch_fk_constraint_sql` empareja ahora cada columna con la de la misma posición en la clave referenciada. Afecta

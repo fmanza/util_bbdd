@@ -192,6 +192,8 @@ Cada aviso (`MigrationWarning`) indica **qué** es con `category` y, cuando trat
 | `INDEX` | Índices (p. ej. renombrados por colisión de nombre) | — |
 | `VIEW` | Vistas (reescritura, construcciones sin traducción) | — |
 | `ROUTINE` | Procedimientos, funciones y packages | — |
+| `COMMENT` | Comentario recortado al límite del destino (MySQL/MariaDB 1024/2048 caracteres, Oracle 4000 bytes, SQL Server 7500 bytes) | — |
+| `TABLE` | Tabla sin columnas activas (`ERROR`: `execute()` no empieza) | — |
 
 ```python
 tipos = [w for w in plan.warnings if w.category == "TYPE"]

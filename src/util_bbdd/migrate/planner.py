@@ -396,6 +396,23 @@ class MigrationPlanner:
         for routine in transformed_routines:
             all_warnings.extend(routine.warnings)
 
+        # H2 (auditoría 0.21.0): una tabla sin columnas activas daría un CREATE TABLE inválido a mitad de execute().
+        for table in transformed:
+            if not any(not column.omit for column in table.columns):
+                all_warnings.append(
+                    MigrationWarning(
+                        table=table.name,
+                        column=None,
+                        category="TABLE",
+                        target_type="(sin columnas)",
+                        message=(
+                            f"Tabla '{table.name}' sin columnas activas: no se extrajo ninguna o todas se omitieron por "
+                            "tipos sin equivalente; su CREATE TABLE no es válido. Revisar el origen o excluir la tabla."
+                        ),
+                        severity="ERROR",
+                    )
+                )
+
         # CMP-02 (AUDIT_CODE 2026-09-22) + A8 (2026-09-29): nombres que solo difieren en mayúsculas.
         all_warnings.extend(_case_collision_warnings(self._target_engine, transformed, transformed_views))
 
