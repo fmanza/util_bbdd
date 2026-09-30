@@ -521,10 +521,13 @@ def _has_child(
     if on_path is not None:
         membership = _in_keys(exp.column(parent_col, table=alias), qualifier)
         child_filter = exp.and_(child_filter, membership if on_path else exp.not_(membership))
-    has_child: Any = exp.Exists(this=exp.select(exp.Literal.number(1)).from_(child_table).where(child_filter))
-    if max_level is not None:
-        has_child = exp.and_(exp.column(_CONNECT_BY_LEVEL, table=qualifier) < exp.Literal.number(max_level), has_child)
-    return has_child
+    has_child: exp.Expression = exp.Exists(
+        this=exp.select(exp.Literal.number(1)).from_(child_table).where(child_filter)
+    )
+    if max_level is None:
+        return has_child
+    below_max: Any = exp.column(_CONNECT_BY_LEVEL, table=qualifier) < exp.Literal.number(max_level)
+    return cast(exp.Expression, exp.and_(below_max, has_child))
 
 
 def _flag(condition: exp.Expression, when_true: int) -> exp.Expression:
@@ -733,7 +736,7 @@ def _connect_by_hierarchy(
     }
     for pseudo_column in [c for c in outer.find_all(exp.Column) if not c.table and c.name.upper() in pseudocolumns]:
         on_path, when_child = pseudocolumns[pseudo_column.name.upper()]
-        value = _flag(
+        flag_value = _flag(
             _has_child(
                 source,
                 qualifier,
@@ -746,7 +749,9 @@ def _connect_by_hierarchy(
             when_child,
         )
         # Proyección sin alias: conserva el nombre de columna que da Oracle.
-        pseudo_column.replace(exp.alias_(value, pseudo_column.name.lower()) if pseudo_column.parent is outer else value)
+        pseudo_column.replace(
+            exp.alias_(flag_value, pseudo_column.name.lower()) if pseudo_column.parent is outer else flag_value
+        )
     _replace_level(outer, qualifier)
     cte = exp.CTE(
         this=exp.union(anchor, recursive, distinct=False), alias=exp.TableAlias(this=exp.to_identifier(cte_name))
