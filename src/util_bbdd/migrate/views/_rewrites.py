@@ -354,11 +354,10 @@ _CONNECT_BY_ISLEAF: str = "CONNECT_BY_ISLEAF"
 # F2 (0.23.0): 1 si la fila tiene un hijo que la jerarquía visitaría (LEVEL <= n incluido) y que ya está en el camino,
 # ella misma incluida; solo existe con NOCYCLE (sin él, Oracle da ORA-30930). Comprobado contra Oracle en el banco.
 _CONNECT_BY_ISCYCLE: str = "CONNECT_BY_ISCYCLE"
-# NOCYCLE (solo destino PostgreSQL): array con la columna de PRIOR de la fila y sus antepasados. La rama recursiva no
-# baja a una fila cuyo valor ya está en el array (Oracle la omite) y CONNECT_BY_ISLEAF no cuenta ese hijo (Oracle da 1).
-# La cláusula CYCLE de PostgreSQL 14+ no sirve: marca la fila del ciclo, pero ISLEAF necesita los antepasados.
-# Los valores van como TEXT (C1, auditoría 0.22.0): un ARRAY de VARCHAR(n) o NUMERIC(p,s) conserva la longitud en la
-# rama ancla y la pierde al concatenar, y PostgreSQL rechaza la CTE por tipos distintos. Los tipos que produce la
+# NOCYCLE: camino con la columna de PRIOR de la fila y sus antepasados (:class:`_KeyPath`, uno por destino). La rama
+# recursiva no baja a una fila cuyo valor ya está en el camino (Oracle la omite) y CONNECT_BY_ISLEAF no cuenta ese hijo
+# (Oracle da 1). Ni la cláusula CYCLE de PostgreSQL 14+ (marca la fila del ciclo, pero ISLEAF necesita los antepasados)
+# ni CYCLE ... RESTRICT de MariaDB (deduplica en todo el resultado, no por camino) sirven. Los tipos que produce la
 # migración desde Oracle (VARCHAR, NUMERIC con escala fija, BIGINT, fechas) dan un texto único por valor.
 _CONNECT_BY_KEYS: str = "cb_keys"
 
@@ -474,27 +473,105 @@ def _connect_condition(condition: exp.Expression) -> tuple[exp.Column, exp.Colum
     return pairs[0][0], pairs[0][1], min(bounds) if bounds else None
 
 
-def _key_text(column: exp.Column) -> exp.Expression:
-    """Valor de la columna de PRIOR como TEXT para ``cb_keys`` (C1, auditoría 0.22.0)."""
-    return exp.Cast(this=column, to=exp.DataType.build("TEXT"))
+class _KeyPath:
+    """Camino de claves de ``NOCYCLE`` en un destino: cómo empieza, cómo crece y cómo se consulta (F3, 0.23.0).
 
-
-def _in_keys(column: exp.Column, keys_table: str) -> exp.Expression:
-    """``COALESCE(CAST(columna AS TEXT) = ANY(tabla.cb_keys), FALSE)``: la fila actual o un antepasado.
-
-    ``COALESCE`` (C2, auditoría 0.22.0): con NULL en la columna, o en el array, la comparación da NULL; un NULL nunca
-    cierra un ciclo en Oracle, así que cuenta como «no está».
+    Un único punto por destino para la rama ancla, la rama recursiva, ``CONNECT_BY_ISLEAF`` y ``CONNECT_BY_ISCYCLE``.
+    PostgreSQL usa un array (:class:`_ArrayKeyPath`); MySQL, MariaDB y SQL Server, que no tienen arrays, un texto
+    (:class:`_TextKeyPath`).
     """
-    in_keys = exp.EQ(
-        this=_key_text(column),
-        expression=exp.Any(this=exp.Paren(this=exp.column(_CONNECT_BY_KEYS, table=keys_table))),
-    )
-    return exp.Coalesce(this=in_keys, expressions=[exp.false()])
+
+    def start(self, key: exp.Column) -> exp.Expression:
+        """Camino de la raíz: solo su clave."""
+        raise NotImplementedError
+
+    def extend(self, keys: exp.Column, key: exp.Column) -> exp.Expression:
+        """Camino del padre (``keys``) más la clave de la fila."""
+        raise NotImplementedError
+
+    def contains(self, keys: exp.Column, key: exp.Column) -> exp.Expression:
+        """La clave está en el camino. Con NULL en la clave, falso: un NULL nunca cierra un ciclo en Oracle (C2)."""
+        raise NotImplementedError
 
 
-def _not_in_keys(column: exp.Column, keys_table: str) -> exp.Expression:
-    """Negación de :func:`_in_keys`: ni la fila actual ni un antepasado."""
-    return exp.not_(_in_keys(column, keys_table))
+class _ArrayKeyPath(_KeyPath):
+    """PostgreSQL: ``ARRAY[CAST(clave AS TEXT)]``, ``camino || ARRAY[...]`` y ``= ANY(camino)``.
+
+    Como TEXT (C1, auditoría 0.22.0): un ARRAY de VARCHAR(n) o NUMERIC(p,s) conserva la longitud en la rama ancla y la
+    pierde al concatenar, y PostgreSQL rechaza la CTE por tipos distintos.
+    """
+
+    @staticmethod
+    def _text(key: exp.Column) -> exp.Expression:
+        return exp.Cast(this=key, to=exp.DataType.build("TEXT"))
+
+    def start(self, key: exp.Column) -> exp.Expression:
+        return exp.Array(expressions=[self._text(key)])
+
+    def extend(self, keys: exp.Column, key: exp.Column) -> exp.Expression:
+        return exp.DPipe(this=keys, expression=exp.Array(expressions=[self._text(key)]))
+
+    def contains(self, keys: exp.Column, key: exp.Column) -> exp.Expression:
+        in_keys = exp.EQ(this=self._text(key), expression=exp.Any(this=exp.Paren(this=keys)))
+        return exp.Coalesce(this=in_keys, expressions=[exp.false()])
+
+
+class _TextKeyPath(_KeyPath):
+    """MySQL, MariaDB y SQL Server: ``<sep>k1<sep>k2<sep>`` con ``CHAR(31)`` y búsqueda de ``<sep>clave<sep>``.
+
+    ``CHAR(31)`` (separador de unidad ASCII) no aparece en claves numéricas ni de fecha y en la práctica tampoco en las
+    de texto; una clave de texto que lo contuviera podría dar un falso ciclo. La búsqueda es binaria: con la collation
+    por defecto (sin distinguir mayúsculas ni acentos), ``'abc'`` y ``'ABC'`` serían la misma clave y la fila se
+    perdería. ``COALESCE(posición, 0) > 0``: SQL Server no admite ``COALESCE`` sobre una condición.
+
+    Args:
+        key_type: Tipo de la clave como texto en el destino.
+        path_type: Tipo del camino (el de la rama ancla manda en MySQL; SQL Server exige el mismo en las dos ramas).
+        binary: Cómo hacer binaria la búsqueda: ``"cast"`` (``CAST(... AS BINARY)``) o una collation binaria.
+    """
+
+    def __init__(self, key_type: str, path_type: str, binary: str) -> None:
+        self._key_type = key_type
+        self._path_type = path_type
+        self._binary = binary
+
+    @staticmethod
+    def _separator() -> exp.Expression:
+        return exp.Chr(expressions=[exp.Literal.number(31)])
+
+    def _text(self, key: exp.Column) -> exp.Expression:
+        return exp.Cast(this=key, to=exp.DataType.build(self._key_type))
+
+    def _as_path(self, value: exp.Expression) -> exp.Expression:
+        return exp.Cast(this=value, to=exp.DataType.build(self._path_type))
+
+    def _binary_text(self, value: exp.Expression) -> exp.Expression:
+        if self._binary == "cast":
+            return exp.Cast(this=value, to=exp.DataType.build("BINARY", dialect="mysql"))
+        return exp.Collate(this=value, expression=exp.var(self._binary))
+
+    def start(self, key: exp.Column) -> exp.Expression:
+        return self._as_path(exp.Concat(expressions=[self._separator(), self._text(key), self._separator()]))
+
+    def extend(self, keys: exp.Column, key: exp.Column) -> exp.Expression:
+        return self._as_path(exp.Concat(expressions=[keys, self._text(key), self._separator()]))
+
+    def contains(self, keys: exp.Column, key: exp.Column) -> exp.Expression:
+        needle = exp.Concat(expressions=[self._separator(), self._text(key), self._separator()])
+        position = exp.StrPosition(this=self._binary_text(keys), substr=self._binary_text(needle))
+        return exp.GT(
+            this=exp.Coalesce(this=position, expressions=[exp.Literal.number(0)]), expression=exp.Literal.number(0)
+        )
+
+
+# CHAR(10000): unas 10 claves de 1000 caracteres o 1000 de 9; si el camino no cabe, MySQL/MariaDB dan error 1406 (no
+# recortan). SQL Server corta la recursión a los 100 niveles, así que NVARCHAR(MAX) no se queda corto.
+_KEY_PATHS: dict[str, _KeyPath] = {
+    "postgresql": _ArrayKeyPath(),
+    "mysql": _TextKeyPath("CHAR", "CHAR(10000)", "cast"),
+    "mariadb": _TextKeyPath("CHAR", "CHAR(10000)", "cast"),
+    "sqlserver": _TextKeyPath("NVARCHAR(MAX)", "NVARCHAR(MAX)", "Latin1_General_BIN2"),
+}
 
 
 def _has_child(
@@ -505,12 +582,13 @@ def _has_child(
     max_level: int | None,
     on_path: bool | None,
     taken: set[str],
+    key_path: _KeyPath | None = None,
 ) -> exp.Expression:
     """Hay una fila de la tabla que cuelga de esta y que la jerarquía podría visitar (``LEVEL <= n`` incluido).
 
     ``on_path``: ``None`` = cualquier hijo; ``False`` = hijos que **no** están en el camino (``NOCYCLE``); ``True`` =
-    hijos que **sí** están (cierran un ciclo). Se evalúa contra la tabla, no contra el resultado: en Oracle el ``WHERE``
-    de la consulta no cambia ``CONNECT_BY_ISLEAF`` ni ``CONNECT_BY_ISCYCLE``.
+    hijos que **sí** están (cierran un ciclo), según ``key_path``. Se evalúa contra la tabla, no contra el resultado:
+    en Oracle el ``WHERE`` de la consulta no cambia ``CONNECT_BY_ISLEAF`` ni ``CONNECT_BY_ISCYCLE``.
     """
     alias = _free_name("cb_child", taken | {qualifier.lower()})
     child_table = source.copy()
@@ -518,8 +596,10 @@ def _has_child(
     child_filter: Any = exp.EQ(
         this=exp.column(child_col, table=alias), expression=exp.column(parent_col, table=qualifier)
     )
-    if on_path is not None:
-        membership = _in_keys(exp.column(parent_col, table=alias), qualifier)
+    if on_path is not None and key_path is not None:
+        membership = key_path.contains(
+            exp.column(_CONNECT_BY_KEYS, table=qualifier), exp.column(parent_col, table=alias)
+        )
         child_filter = exp.and_(child_filter, membership if on_path else exp.not_(membership))
     has_child: exp.Expression = exp.Exists(
         this=exp.select(exp.Literal.number(1)).from_(child_table).where(child_filter)
@@ -547,8 +627,9 @@ def _connect_by_hierarchy(
     """Jerarquía simple (``START WITH`` + ``CONNECT BY PRIOR a = b``) → CTE recursiva; el ``WHERE`` va fuera."""
     connect: Any = select.args["connect"]
     nocycle = bool(connect.args.get("nocycle"))
-    if nocycle and target_engine != "postgresql":
-        return f"NOCYCLE, que solo se convierte con destino PostgreSQL (arrays), no {target_engine}"
+    key_path = _KEY_PATHS.get(target_engine) if nocycle else None
+    if nocycle and key_path is None:
+        return f"NOCYCLE sin camino de claves para {target_engine}"
     order: Any = select.args.get("order")
     if order is not None and order.args.get("siblings"):
         return "ORDER SIBLINGS BY"
@@ -622,17 +703,11 @@ def _connect_by_hierarchy(
     recursive_extra: list[Any] = [
         exp.alias_(exp.column(_CONNECT_BY_LEVEL, table=parent) + exp.Literal.number(1), _CONNECT_BY_LEVEL)
     ]
-    if nocycle:
+    if key_path is not None:
         prior_key = exp.column(table_columns[parent_col.name.lower()], table=qualifier)
-        anchor_extra.append(exp.alias_(exp.Array(expressions=[_key_text(prior_key.copy())]), _CONNECT_BY_KEYS))
+        anchor_extra.append(exp.alias_(key_path.start(prior_key.copy()), _CONNECT_BY_KEYS))
         recursive_extra.append(
-            exp.alias_(
-                exp.DPipe(
-                    this=exp.column(_CONNECT_BY_KEYS, table=parent),
-                    expression=exp.Array(expressions=[_key_text(prior_key.copy())]),
-                ),
-                _CONNECT_BY_KEYS,
-            )
+            exp.alias_(key_path.extend(exp.column(_CONNECT_BY_KEYS, table=parent), prior_key.copy()), _CONNECT_BY_KEYS)
         )
     replacements: dict[str, str] = {}
 
@@ -711,10 +786,12 @@ def _connect_by_hierarchy(
     if max_level is not None:
         # En CONNECT BY, LEVEL es el nivel del hijo: nivel del padre + 1 <= n.
         recursive = recursive.where(exp.column(_CONNECT_BY_LEVEL, table=parent) < exp.Literal.number(max_level))
-    if nocycle:
-        recursive = recursive.where(
-            _not_in_keys(exp.column(table_columns[parent_col.name.lower()], table=qualifier), parent)
+    if key_path is not None:
+        in_path = key_path.contains(
+            exp.column(_CONNECT_BY_KEYS, table=parent),
+            exp.column(table_columns[parent_col.name.lower()], table=qualifier),
         )
+        recursive = recursive.where(exp.not_(in_path))
 
     outer = select.copy()
     outer.set("connect", None)
@@ -745,6 +822,7 @@ def _connect_by_hierarchy(
                 max_level,
                 on_path,
                 taken,
+                key_path,
             ),
             when_child,
         )

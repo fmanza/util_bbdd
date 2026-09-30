@@ -13,6 +13,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   un hijo que la condición visitaría (con `AND LEVEL <= n`, dentro del nivel máximo) y que ya está en el camino, ella
   misma incluida. Comprobado contra Oracle en el e2e. Sin `NOCYCLE` Oracle no lo admite (ORA-30930) y la vista sigue
   sin reescribir.
+- **migrate (vistas)**: `NOCYCLE` (y con él `CONNECT_BY_ISCYCLE`) se convierte también hacia MySQL, MariaDB y SQL
+  Server (F3): sin arrays, el camino de claves es un texto separado por `CHAR(31)` que se busca en binario (con la
+  collation por defecto, `'abc'` y `'ABC'` darían un falso ciclo). Un solo helper por destino (`_KeyPath`) sirve a la
+  rama recursiva, `CONNECT_BY_ISLEAF` y `CONNECT_BY_ISCYCLE`. En MySQL/MariaDB el camino admite unos 10 000 caracteres
+  (más da error 1406). e2e contra Oracle en los 4 destinos con claves `NUMBER(10)`, `VARCHAR2(10)` y `NUMBER(20)`.
 
 ## [0.22.0] - 2026-09-30
 

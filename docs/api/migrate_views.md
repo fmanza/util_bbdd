@@ -66,7 +66,7 @@ reescribir con un aviso.
 | `VIEW_REWRITTEN` | `VIEW (reescrita)` | `INFO` | Vista reescrita al dialecto destino; revisar |
 | `VIEW_ORACLE_SEMANTICS` | `VIEW (semántica Oracle)` | `WARNING` | Origen o destino Oracle: cadena vacía = `NULL`, `\|\|` ignora `NULL` |
 | `VIEW_EXTERNAL_REFERENCE` | `VIEW (referencia externa)` | `WARNING` | Usa objetos fuera del schema migrado |
-| `VIEW_HIERARCHY` | `VIEW (jerarquía)` | `WARNING` | `CONNECT BY` convertido en CTE recursiva: límite de recursión del destino, ciclos (o `NOCYCLE` con array de antepasados hacia PostgreSQL), orden |
+| `VIEW_HIERARCHY` | `VIEW (jerarquía)` | `WARNING` | `CONNECT BY` convertido en CTE recursiva: límite de recursión del destino, ciclos (o `NOCYCLE` con el camino de antepasados: array en PostgreSQL, texto en el resto), orden |
 | `VIEW_NOT_REWRITTEN` | `VIEW (sin reescribir)` | `WARNING` | Copiada sin reescribir (construcción sin traducción, error de sqlglot o sin sqlglot); con `CONNECT BY`, el motivo entre paréntesis |
 
 - **`ViewValidationResult`** — `view` (nombre en el destino), `valid` (`True`/`False`, o `None` si no se validó),

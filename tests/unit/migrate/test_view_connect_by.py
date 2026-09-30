@@ -284,7 +284,7 @@ class TestNocycle:
         query = view.query.upper()
         assert "CONNECT_BY_ISCYCLE" not in query and "VIEW (sin reescribir)" not in _types(view)
         assert (
-            "CASE WHEN ZZV_EMP.CB_LEVEL < 3 AND EXISTS(SELECT 1 AS \"1\" FROM \"ZZV_EMP\" AS CB_CHILD WHERE "
+            'CASE WHEN ZZV_EMP.CB_LEVEL < 3 AND EXISTS(SELECT 1 AS "1" FROM "ZZV_EMP" AS CB_CHILD WHERE '
             'CB_CHILD."JEFE_ID" = ZZV_EMP."ID" AND COALESCE(CAST(CB_CHILD."ID" AS TEXT) = ANY(ZZV_EMP.CB_KEYS), FALSE)) '
             "THEN 1 ELSE 0 END AS CICLO"
         ) in query
@@ -294,11 +294,28 @@ class TestNocycle:
         where = sqlglot.parse_one(_transpile(sql).query, read="postgres").args["where"].sql().lower()
         assert "activo" in where and "cb_keys" not in where
 
-    @pytest.mark.parametrize("target", ["sqlserver", "mysql", "mariadb"])
-    def test_other_targets_are_not_rewritten(self, target: str) -> None:
+    @pytest.mark.parametrize(
+        ("target", "binary_search", "separator"),
+        [
+            ("sqlserver", "COLLATE LATIN1_GENERAL_BIN2", "CHAR(31)"),
+            ("mysql", "AS BINARY)", "CHAR(31)"),
+            ("mariadb", "AS BINARY)", "CHAR(31)"),
+        ],
+    )
+    def test_other_targets_use_a_text_path(self, target: str, binary_search: str, separator: str) -> None:
+        """F3 (0.23.0): sin arrays, el camino es texto separado por CHAR(31) y se busca en binario.
+
+        Binario: con la collation por defecto (sin distinguir mayúsculas), 'abc' y 'ABC' serían la misma clave y darían
+        un falso ciclo. Las filas se comparan con Oracle en el e2e.
+        """
         view = _transpile(self.SQL, target)
-        assert view.query == self.SQL
-        assert "VIEW (sin reescribir)" in _types(view) and "PostgreSQL" in _messages(view)
+        query = view.query.upper()
+        assert "VIEW (sin reescribir)" not in _types(view) and "VIEW (jerarquía)" in _types(view)
+        assert "NOCYCLE" not in query and "ANY(" not in query and "ARRAY[" not in query
+        assert separator in query and binary_search in query
+        assert "CHAR(31)" in _messages(view)
+        # La búsqueda es COALESCE(posición, 0) > 0: SQL Server no admite COALESCE sobre una condición.
+        assert ", 0) > 0" in query
 
 
 class TestGenerator:
@@ -324,7 +341,6 @@ class TestNotRewritten:
     @pytest.mark.parametrize(
         ("sql", "reason"),
         [
-            ("SELECT id FROM zzv_emp CONNECT BY NOCYCLE PRIOR id = jefe_id", "NOCYCLE, que solo se convierte con"),
             ("SELECT id FROM zzv_emp CONNECT BY PRIOR id = jefe_id ORDER SIBLINGS BY nombre", "ORDER SIBLINGS BY"),
             ("SELECT id FROM zzv_emp CONNECT BY PRIOR id = jefe_id AND activo = 1", "PRIOR columna = columna"),
             ("SELECT id FROM zzv_emp CONNECT BY PRIOR id = jefe_id AND LEVEL <= jefe_id", "PRIOR columna = columna"),

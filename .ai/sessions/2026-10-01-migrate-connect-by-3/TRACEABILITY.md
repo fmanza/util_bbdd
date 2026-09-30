@@ -31,15 +31,35 @@
   reescribir («ORA-30930»). e2e: vista con ISCYCLE, fila `Self` y vista con `LEVEL <= 3`, parametrizado por destino
   (`NOCYCLE_TARGETS`) y clave.
 
+- Error propio: el commit de F2 (`5809023`) se encadenó tras `mypy` sin mirar su resultado y quedó con 2 errores de
+  tipos; corregido en `4adadbd` (commit aparte, sin amend). Desde entonces el commit va condicionado a `mypy`.
+- **F3 `NOCYCLE` en MySQL/MariaDB/SQL Server**: `_KeyPath` con `start`/`extend`/`contains`, uno por destino
+  (`_KEY_PATHS`): `_ArrayKeyPath` (PostgreSQL, el de 0.22.0) y `_TextKeyPath` (texto `<sep>k1<sep>k2<sep>` con
+  `CHAR(31)`, búsqueda `COALESCE(posición, 0) > 0` —SQL Server no admite `COALESCE` sobre una condición— y binaria:
+  `CAST(... AS BINARY)` en MySQL/MariaDB, `COLLATE Latin1_General_BIN2` en SQL Server). Camino `CHAR(10000)` /
+  `NVARCHAR(MAX)`.
+  - e2e en los 4 destinos × 3 claves (12 casos). Con claves de texto, la primera versión fallaba en MySQL, MariaDB y
+    SQL Server: diagnóstico (`f3_diag.py`): solo `CONNECT_BY_ISCYCLE` de la fila 'a' (hija de 'A') daba 1; la fila no
+    se perdía (la búsqueda binaria funciona). Causa: la columna destino no distingue mayúsculas y `hijo.jefe_id =
+    fila.id` trata 'A' = 'a' también en la condición CONNECT BY (collation del destino, no del camino). La prueba de
+    mayúsculas pasa a una vista propia sin ISCYCLE/ISLEAF (`zzvw_ciclo_mayus`); se comprobó que falla si se quita la
+    búsqueda binaria (monkeypatch de `_binary_text`).
+
 ## Artefactos generados
 | Artefacto | Ruta | Estado |
 |---|---|---|
 | F2 | `src/util_bbdd/migrate/views/_rewrites.py`, tests, docs, CHANGELOG | completado |
+| F3 | `src/util_bbdd/migrate/views/{_rewrites,transpiler}.py`, tests, docs, CHANGELOG | completado |
 
 ## Directrices para Futuras IAs
 - **[migrate/views/CONNECT BY]**: `CONNECT_BY_ISLEAF` y `CONNECT_BY_ISCYCLE` son la misma pregunta («¿hay un hijo
   visitable?») con el filtro de camino opuesto: `_has_child(on_path=None|False|True)`; la cota `LEVEL <= n` limita a
   ambos (un hijo más allá del nivel máximo no cuenta).
+- **[migrate/views/CONNECT BY]**: todo lo que depende del camino de `NOCYCLE` pasa por `_KEY_PATHS[destino]`
+  (`start`/`extend`/`contains`); un destino nuevo solo añade una entrada.
+- **[migrate/views/CONNECT BY]**: la collation de las columnas destino decide la igualdad de claves de texto en la
+  propia condición CONNECT BY: con claves que solo difieren en mayúsculas, solo una collation binaria reproduce Oracle.
+  No es un defecto del camino; se documenta.
 
 ## Veredicto final
-Veredicto: GO — en curso (F2 hecho; F3 y F1 pendientes).
+Veredicto: GO — en curso (F2 y F3 hechos; F1 pendiente).

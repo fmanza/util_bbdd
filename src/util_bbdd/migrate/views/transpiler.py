@@ -190,10 +190,13 @@ def _hierarchy_message(target_engine: str, *, nocycle: bool = False) -> str:
     label = _ENGINE_LABEL.get(target_engine, target_engine)
     limit = _rewrites.CONNECT_BY_RECURSION_LIMIT.get(target_engine)
     if nocycle:
+        path = "un array" if target_engine == "postgresql" else "un texto separado por CHAR(31), comparado en binario,"
         depth = (
-            f"NOCYCLE se traduce con un array {label} de los valores de la columna de PRIOR en el camino: la fila que "
-            "cerraría un ciclo no sale y su padre cuenta como hoja, como en Oracle, si esa columna identifica la fila"
+            f"NOCYCLE se traduce con {path} de los valores de la columna de PRIOR en el camino: la fila que cerraría un "
+            "ciclo no sale y su padre cuenta como hoja, como en Oracle, si esa columna identifica la fila"
         )
+        if limit is not None:
+            depth += f"; {label} corta la CTE recursiva a los {limit} niveles y una vista no puede ampliarlo"
     elif limit is not None:
         depth = (
             f"{label} corta la CTE recursiva a los {limit} niveles y una vista no puede ampliarlo; una jerarquía más "

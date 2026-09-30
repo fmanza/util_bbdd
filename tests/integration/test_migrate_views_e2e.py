@@ -621,6 +621,7 @@ def test_views_are_created_and_return_the_same_rows(source_target: tuple[str, st
 # F2 (0.23.0): CONNECT_BY_ISCYCLE; «Self» es su propio jefe (ciclo de un nodo). Con LEVEL <= 3, Oracle da 0 a Eva: su
 # hijo Ana estaría en el nivel 4 y no cuenta.
 CICLO, CICLO_V, CICLO_STAR_V, CICLO_NIVEL_V = "zzvw_ciclo", "zzvw_ciclo_v", "zzvw_ciclo_star", "zzvw_ciclo_nivel"
+CICLO_CASE_V = "zzvw_ciclo_mayus"
 CICLO_ROWS = [
     (1, "Ana", 3),
     (2, "Luis", 1),
@@ -637,13 +638,19 @@ NOCYCLE_VIEWS = {
         "CONNECT BY NOCYCLE PRIOR id = jefe_id"
     ),
     CICLO_STAR_V: f"SELECT * FROM {CICLO} START WITH nombre = 'Ana' CONNECT BY NOCYCLE PRIOR id = jefe_id",
+    CICLO_CASE_V: f"SELECT id, LEVEL AS nivel FROM {CICLO} START WITH nombre = 'Mayus' CONNECT BY NOCYCLE PRIOR id = jefe_id",
     CICLO_NIVEL_V: (
         f"SELECT nombre, LEVEL AS nivel, CONNECT_BY_ISCYCLE AS ciclo, CONNECT_BY_ISLEAF AS hoja FROM {CICLO} "
         "START WITH nombre IN ('Ana', 'Self') CONNECT BY NOCYCLE PRIOR id = jefe_id AND LEVEL <= 3"
     ),
 }
 KEY_TYPES = {"NUMBER(10)": int, "VARCHAR2(10)": str, "NUMBER(20)": int}
-NOCYCLE_TARGETS = ["postgresql"]
+# F3 (0.23.0): NOCYCLE también en MySQL, MariaDB y SQL Server (camino de texto con búsqueda binaria).
+NOCYCLE_TARGETS = ["postgresql", "mysql", "mariadb", "sqlserver"]
+# Solo con clave de texto: 'a' cuelga de 'A'. Con una búsqueda que no distinga mayúsculas, 'a' parecería un ciclo y
+# se perdería. Vista sin ISCYCLE/ISLEAF: esos comparan hijo y padre con la collation de la columna destino, y en MySQL,
+# MariaDB o SQL Server con collation que no distingue mayúsculas 'A' = 'a' también en la condición CONNECT BY.
+CASE_ROWS = [("A", "Mayus", None), ("a", "minus", "A")]
 NOCYCLE_CASES = [(t, k) for t in NOCYCLE_TARGETS for k in KEY_TYPES]
 
 
@@ -651,6 +658,8 @@ NOCYCLE_CASES = [(t, k) for t in NOCYCLE_TARGETS for k in KEY_TYPES]
 def test_oracle_nocycle_hierarchy(target: str, key_type: str) -> None:
     to_key = KEY_TYPES[key_type]
     rows = [(None if i is None else to_key(i), n, None if j is None else to_key(j)) for i, n, j in CICLO_ROWS]
+    if to_key is str:
+        rows += CASE_ROWS
     _create_namespace("oracle", SRC)
     _create_namespace(target, DST)
     try:
@@ -709,6 +718,8 @@ def test_oracle_nocycle_hierarchy(target: str, key_type: str) -> None:
             dst_engine.dispose()
         # Ana, Luis, Juan, «Sin id» y Eva (sin volver a Ana) + Rosa + Self (sin volver a sí mismo)
         assert len(results[CICLO_V][0]) == 7
+        if to_key is str:  # 'a' no es un ciclo bajo 'A': la búsqueda en el camino es binaria
+            assert len(results[CICLO_CASE_V][1]) == 2
         assert star_columns == ["id", "nombre", "jefe_id"]
         differences = {name: pair for name, pair in results.items() if pair[0] != pair[1]}
         assert not differences, differences
