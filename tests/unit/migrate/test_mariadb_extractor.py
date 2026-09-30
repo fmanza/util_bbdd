@@ -18,31 +18,32 @@ def _make_manager(
     views: list[tuple] | None = None,
     view_columns: list[tuple] | None = None,
 ) -> MagicMock:
-    """Construye un manager mock que devuelve filas predefinidas por consulta."""
+    """Construye un manager mock que devuelve filas predefinidas por consulta.
+
+    Columnas (también las de vistas), PK, FK e índices se leen por schema (D1): la primera columna es el nombre de la
+    tabla o vista. Como antes con la consulta por tabla, cada tabla del mock recibe las mismas filas.
+    """
     manager = MagicMock()
+    table_names = [str(t[0]) for t in tables or [] if t]
+    view_names = [str(v[0]) for v in views or [] if v]
+
+    def per_object(names: list[str], rows: list[tuple] | None) -> list[tuple]:
+        return [(name, *row) for name in names for row in rows or []]
 
     def side_effect(sql: str, params: dict) -> list:
         sql_upper = sql.upper()
-        # Vistas: INFORMATION_SCHEMA.VIEWS vs columnas de vista (COLUMNS con view_name)
         if "INFORMATION_SCHEMA.VIEWS" in sql_upper:
             return views or []
-        if "INFORMATION_SCHEMA.COLUMNS" in sql_upper and "view_name" in sql.lower():
-            return view_columns or []
-        # Tablas
         if "INFORMATION_SCHEMA.TABLES" in sql_upper:
             return tables or []
-        # Columnas de tabla
         if "INFORMATION_SCHEMA.COLUMNS" in sql_upper:
-            return columns or []
-        # PK
+            return per_object(table_names, columns) + per_object(view_names, view_columns)
         if "CONSTRAINT_NAME = 'PRIMARY'" in sql_upper:
-            return pks or []
-        # FK
+            return per_object(table_names, pks)
         if "REFERENTIAL_CONSTRAINTS" in sql_upper:
-            return fks or []
-        # Índices
+            return per_object(table_names, fks)
         if "INFORMATION_SCHEMA.STATISTICS" in sql_upper:
-            return indexes or []
+            return per_object(table_names, indexes)
         return []
 
     manager.execute_custom_many.side_effect = side_effect

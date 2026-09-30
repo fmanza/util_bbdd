@@ -18,25 +18,32 @@ def _make_manager(
     views: list[tuple] | None = None,
     view_columns: list[tuple] | None = None,
 ) -> MagicMock:
-    """Construye un manager mock que devuelve filas predefinidas por consulta."""
+    """Construye un manager mock que devuelve filas predefinidas por consulta.
+
+    Las consultas de columnas, PK, FK e índices son por schema (D1): la primera columna es el nombre de la tabla (o
+    vista). Como antes con la consulta por tabla, cada tabla del mock recibe las mismas filas.
+    """
     manager = MagicMock()
+    table_names = [str(t[0]) for t in tables or [] if t]
+    view_names = [str(v[0]) for v in views or [] if v]
+
+    def per_object(names: list[str], rows: list[tuple] | None) -> list[tuple]:
+        return [(name, *row) for name in names for row in rows or []]
 
     def side_effect(sql: str, params: dict) -> list:
         sql_upper = sql.upper()
         if "INFORMATION_SCHEMA.VIEWS" in sql_upper and "VIEW_DEFINITION" in sql_upper:
             return views or []
-        if "INFORMATION_SCHEMA.VIEWS" in sql_upper:
-            return view_columns or []
         if "INFORMATION_SCHEMA.TABLES" in sql_upper:
             return tables or []
-        if "PG_CATALOG.PG_INDEX" in sql_upper or "PG_CATALOG" in sql_upper:
-            return indexes or []
-        if "CONSTRAINT_TYPE = 'PRIMARY KEY'" in sql_upper:
-            return pks or []
-        if "REFERENTIAL_CONSTRAINTS" in sql_upper:
-            return fks or []
+        if "CONTYPE = 'P'" in sql_upper:
+            return per_object(table_names, pks)
+        if "CONTYPE = 'F'" in sql_upper:
+            return per_object(table_names, fks)
+        if "PG_CATALOG.PG_INDEX" in sql_upper:
+            return per_object(table_names, indexes)
         if "INFORMATION_SCHEMA.COLUMNS" in sql_upper:
-            return columns or []
+            return per_object(table_names, columns) + per_object(view_names, view_columns)
         return []
 
     manager.execute_custom_many.side_effect = side_effect

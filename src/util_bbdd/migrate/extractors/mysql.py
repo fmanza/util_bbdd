@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
-from ...metadata.mysql.tables import fetch_columns_with_type_sql
+from ...metadata.mysql.tables import fetch_columns_with_type_for_schema_sql
 from ..ir.models import CanonicalColumn
 from .mariadb import MariaDBSchemaExtractor, _parse_raw_column
 
@@ -78,8 +78,10 @@ class MySQLSchemaExtractor(MariaDBSchemaExtractor):
         super().__init__(manager)
         self._full_column_types = full_column_types
 
-    def _extract_columns(self, schema: str, table: str) -> list[CanonicalColumn]:
-        rows = self._query(fetch_columns_with_type_sql(), {"schema": schema, "table_name": table})
+    def _columns_for_schema_sql(self) -> str:
+        return fetch_columns_with_type_for_schema_sql()
+
+    def _extract_columns(self, rows: list[tuple[Any, ...]]) -> list[CanonicalColumn]:
         columns: list[CanonicalColumn] = []
 
         for row in rows:

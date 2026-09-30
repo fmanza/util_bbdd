@@ -21,25 +21,28 @@ def _make_manager(
     """Construye un manager mock que devuelve filas predefinidas por consulta."""
     manager = MagicMock()
 
+    # Columnas (también las de vistas), PK, FK e índices se leen por schema (D1): la primera columna es el nombre de
+    # la tabla o vista. Como antes con la consulta por tabla, cada tabla del mock recibe las mismas filas.
+    table_names = [str(t[0]) for t in tables or [] if t]
+    view_names = [str(v[0]) for v in views or [] if v]
+
+    def per_object(names: list[str], rows: list[tuple] | None) -> list[tuple]:
+        return [(name, *row) for name in names for row in rows or []]
+
     def side_effect(sql: str, params: dict) -> list:
-        # Identificar la query por palabras clave
         sql_upper = sql.upper()
         if "OBJECT_DEFINITION" in sql_upper:
             return views or []
-        if "INFORMATION_SCHEMA.VIEWS" in sql_upper:
-            return view_columns or []
         if "INFORMATION_SCHEMA.TABLES" in sql_upper:
             return tables or []
         if "COLUMNPROPERTY" in sql_upper:
-            return columns or []
+            return per_object(table_names, columns) + per_object(view_names, view_columns)
         if "CONSTRAINT_TYPE = 'PRIMARY KEY'" in sql_upper:
-            return pks or []
+            return per_object(table_names, pks)
         if "REFERENTIAL_CONSTRAINTS" in sql_upper:
-            return fks or []
+            return per_object(table_names, fks)
         if "SYS.INDEXES" in sql_upper:
-            return indexes or []
-        if "INFORMATION_SCHEMA.COLUMNS" in sql_upper:
-            return view_columns or []
+            return per_object(table_names, indexes)
         return []
 
     manager.execute_custom_many.side_effect = side_effect
@@ -339,10 +342,8 @@ def _make_routines_manager(
     def side_effect(sql: str, params: dict) -> list:
         sql_upper = sql.upper()
         # Chequear SQL_MODULES ANTES que OBJECTS porque el body query hace JOIN a ambas
-        if "SYS.SQL_MODULES" in sql_upper:
-            name = params.get("routine_name", "")
-            body = body_map.get(name, "")
-            return [(body,)] if body else []
+        if "SYS.SQL_MODULES" in sql_upper:  # D1: el código de todas las rutinas en una consulta
+            return [(name, body) for name, body in body_map.items() if body]
         # El query de inventario ahora usa sys.objects (antes sys.procedures)
         if "SYS.OBJECTS" in sql_upper:
             return routine_rows

@@ -13,13 +13,12 @@ from collections import defaultdict
 from typing import Any
 
 from ...metadata.mariadb.tables import (
-    fetch_columns_sql,
-    fetch_fk_sql,
-    fetch_indexes_sql,
-    fetch_pk_sql,
+    fetch_columns_for_schema_sql,
+    fetch_fk_for_schema_sql,
+    fetch_indexes_for_schema_sql,
+    fetch_pk_for_schema_sql,
     fetch_routines_sql,
     fetch_tables_sql,
-    fetch_view_columns_sql,
     fetch_views_sql,
 )
 from ..ir.models import (
@@ -31,6 +30,7 @@ from ..ir.models import (
     CanonicalView,
     MigrationWarning,
 )
+from ._schema_rows import group_by_object
 
 
 def _parse_raw_column(row: Any) -> dict[str, Any] | None:
@@ -101,9 +101,19 @@ class MariaDBSchemaExtractor:
     def _query(self, sql: str, params: dict[str, Any]) -> list[Any]:
         return list(self._manager.execute_custom_many(sql, params))
 
+    def _columns_for_schema_sql(self) -> str:
+        """Consulta de columnas por schema (MySQL la sustituye por la que añade ``COLUMN_TYPE``)."""
+        return fetch_columns_for_schema_sql()
+
     def extract(self, schema: str) -> list[CanonicalTable]:
         """Extrae todas las tablas (BASE TABLE) del schema MariaDB como IR canónico."""
-        table_rows = self._query(fetch_tables_sql(), {"schema": schema})
+        params = {"schema": schema}
+        table_rows = self._query(fetch_tables_sql(), params)
+        # D1: una consulta por schema y tipo de objeto, agrupada por tabla (antes 4 consultas por tabla)
+        columns_by_table = group_by_object(self._query(self._columns_for_schema_sql(), params))
+        pks_by_table = group_by_object(self._query(fetch_pk_for_schema_sql(), params))
+        fks_by_table = group_by_object(self._query(fetch_fk_for_schema_sql(), params))
+        indexes_by_table = group_by_object(self._query(fetch_indexes_for_schema_sql(), params))
         tables: list[CanonicalTable] = []
 
         for t_row in table_rows:
@@ -112,10 +122,10 @@ class MariaDBSchemaExtractor:
             table_name = str(t_row[0]).strip()
             table_comment = str(t_row[1]).strip() if len(t_row) > 1 and t_row[1] else ""
 
-            columns = self._extract_columns(schema, table_name)
-            pk_cols = self._extract_pk(schema, table_name)
-            fk_list = self._extract_fks(schema, table_name)
-            idx_list = self._extract_indexes(schema, table_name)
+            columns = self._extract_columns(columns_by_table.get(table_name, []))
+            pk_cols = self._extract_pk(pks_by_table.get(table_name, []))
+            fk_list = self._extract_fks(schema, fks_by_table.get(table_name, []))
+            idx_list = self._extract_indexes(indexes_by_table.get(table_name, []))
 
             # Marcar columnas PK
             pk_set = {c.upper() for c in pk_cols}
@@ -146,6 +156,9 @@ class MariaDBSchemaExtractor:
         SELECT de la vista (``VIEW_DEFINITION`` de INFORMATION_SCHEMA.VIEWS).
         """
         rows = self._query(fetch_views_sql(), {"schema": schema})
+        columns_by_view = (
+            group_by_object(self._query(self._columns_for_schema_sql(), {"schema": schema})) if rows else {}
+        )
         views: list[CanonicalView] = []
 
         for row in rows:
@@ -154,7 +167,7 @@ class MariaDBSchemaExtractor:
             view_name = str(row[0]).strip()
             definition = str(row[1]).strip() if row[1] else ""
 
-            columns = self._extract_view_columns(schema, view_name)
+            columns = [str(r[0]).strip() for r in columns_by_view.get(view_name, []) if r and r[0]]
             views.append(
                 CanonicalView(
                     name=view_name,
@@ -168,10 +181,6 @@ class MariaDBSchemaExtractor:
             )
 
         return views
-
-    def _extract_view_columns(self, schema: str, view_name: str) -> list[str]:
-        rows = self._query(fetch_view_columns_sql(), {"schema": schema, "view_name": view_name})
-        return [str(r[0]).strip() for r in rows if r and r[0]]
 
     def extract_routines(self, schema: str) -> list[CanonicalRoutine]:
         """Extrae todas las rutinas del schema MariaDB como IR canónico."""
@@ -211,8 +220,7 @@ class MariaDBSchemaExtractor:
             warnings=warnings,
         )
 
-    def _extract_columns(self, schema: str, table: str) -> list[CanonicalColumn]:
-        rows = self._query(fetch_columns_sql(), {"schema": schema, "table_name": table})
+    def _extract_columns(self, rows: list[tuple[Any, ...]]) -> list[CanonicalColumn]:
         columns: list[CanonicalColumn] = []
 
         for row in rows:
@@ -241,13 +249,10 @@ class MariaDBSchemaExtractor:
 
         return columns
 
-    def _extract_pk(self, schema: str, table: str) -> list[str]:
-        rows = self._query(fetch_pk_sql(), {"schema": schema, "table_name": table})
+    def _extract_pk(self, rows: list[tuple[Any, ...]]) -> list[str]:
         return [str(r[0]).strip() for r in rows if r and r[0]]
 
-    def _extract_fks(self, schema: str, table: str) -> list[CanonicalFK]:
-        rows = self._query(fetch_fk_sql(), {"schema": schema, "table_name": table})
-
+    def _extract_fks(self, schema: str, rows: list[tuple[Any, ...]]) -> list[CanonicalFK]:
         fk_map: dict[str, dict[str, Any]] = defaultdict(
             lambda: {
                 "name": "",
@@ -288,9 +293,7 @@ class MariaDBSchemaExtractor:
 
         return result
 
-    def _extract_indexes(self, schema: str, table: str) -> list[CanonicalIndex]:
-        rows = self._query(fetch_indexes_sql(), {"schema": schema, "table_name": table})
-
+    def _extract_indexes(self, rows: list[tuple[Any, ...]]) -> list[CanonicalIndex]:
         idx_map: dict[str, dict[str, Any]] = defaultdict(lambda: {"name": "", "columns": [], "unique": False})
 
         for r in sorted(rows, key=lambda x: (str(x[0]), int(x[3]) if x[3] is not None else 0)):

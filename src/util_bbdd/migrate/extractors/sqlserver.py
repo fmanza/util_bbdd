@@ -17,17 +17,14 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-from ...metadata.sqlserver._adapter_helpers import (
-    build_sqlserver_routine_body_query,
-    build_sqlserver_routines_query,
-)
+from ...metadata.sqlserver._adapter_helpers import build_sqlserver_routines_query
 from ...metadata.sqlserver.tables import (
-    fetch_columns_sql,
-    fetch_fk_sql,
-    fetch_indexes_sql,
-    fetch_pk_sql,
+    fetch_columns_for_schema_sql,
+    fetch_fk_for_schema_sql,
+    fetch_indexes_for_schema_sql,
+    fetch_pk_for_schema_sql,
+    fetch_routine_bodies_for_schema_sql,
     fetch_tables_sql,
-    fetch_view_columns_sql,
     fetch_views_sql,
 )
 from .._compat.sql_view_header import split_create_view_header
@@ -40,6 +37,7 @@ from ..ir.models import (
     CanonicalView,
     MigrationWarning,
 )
+from ._schema_rows import group_by_object
 
 
 def _parse_raw_column(row: Any) -> dict[str, Any] | None:
@@ -121,7 +119,13 @@ class SQLServerSchemaExtractor:
 
     def extract(self, schema: str) -> list[CanonicalTable]:
         """Extrae todas las tablas (BASE TABLE) del schema SQL Server como IR canónico."""
-        table_rows = self._query(fetch_tables_sql(), {"schema": schema})
+        params = {"schema": schema}
+        table_rows = self._query(fetch_tables_sql(), params)
+        # D1: una consulta por schema y tipo de objeto, agrupada por tabla (antes 4 consultas por tabla)
+        columns_by_table = group_by_object(self._query(fetch_columns_for_schema_sql(), params))
+        pks_by_table = group_by_object(self._query(fetch_pk_for_schema_sql(), params))
+        fks_by_table = group_by_object(self._query(fetch_fk_for_schema_sql(), params))
+        indexes_by_table = group_by_object(self._query(fetch_indexes_for_schema_sql(), params))
         tables: list[CanonicalTable] = []
 
         for t_row in table_rows:
@@ -129,10 +133,10 @@ class SQLServerSchemaExtractor:
                 continue
             table_name = str(t_row[0]).strip()
 
-            columns = self._extract_columns(schema, table_name)
-            pk_cols = self._extract_pk(schema, table_name)
-            fk_list = self._extract_fks(schema, table_name)
-            idx_list = self._extract_indexes(schema, table_name)
+            columns = self._extract_columns(columns_by_table.get(table_name, []))
+            pk_cols = self._extract_pk(pks_by_table.get(table_name, []))
+            fk_list = self._extract_fks(schema, fks_by_table.get(table_name, []))
+            idx_list = self._extract_indexes(indexes_by_table.get(table_name, []))
 
             # Marcar columnas PK
             pk_set = {c.upper() for c in pk_cols}
@@ -163,6 +167,9 @@ class SQLServerSchemaExtractor:
         truncado a 4000 caracteres de ``INFORMATION_SCHEMA.VIEWS``) sin su cabecera ``CREATE VIEW ... AS`` (H7).
         """
         rows = self._query(fetch_views_sql(), {"schema": schema})
+        columns_by_view = (
+            group_by_object(self._query(fetch_columns_for_schema_sql(), {"schema": schema})) if rows else {}
+        )
         views: list[CanonicalView] = []
 
         for row in rows:
@@ -202,7 +209,7 @@ class SQLServerSchemaExtractor:
                     )
                 )
 
-            columns = self._extract_view_columns(schema, view_name)
+            columns = [str(r[0]).strip() for r in columns_by_view.get(view_name, []) if r and r[0]]
             views.append(
                 CanonicalView(
                     name=view_name,
@@ -217,10 +224,6 @@ class SQLServerSchemaExtractor:
 
         return views
 
-    def _extract_view_columns(self, schema: str, view_name: str) -> list[str]:
-        rows = self._query(fetch_view_columns_sql(), {"schema": schema, "view_name": view_name})
-        return [str(r[0]).strip() for r in rows if r and r[0]]
-
     def extract_routines(self, schema: str) -> list[CanonicalRoutine]:
         """Extrae todas las rutinas del schema SQL Server como IR canónico.
 
@@ -230,6 +233,16 @@ class SQLServerSchemaExtractor:
         """
         schema_name = schema or "dbo"
         raw_rows = self._query(build_sqlserver_routines_query(), {"schema_name": schema_name})
+        # D1: el código de todas las rutinas en una consulta (antes una por rutina)
+        bodies = (
+            {
+                str(row[0]).strip(): str(row[1]).strip()
+                for row in self._query(fetch_routine_bodies_for_schema_sql(), {"schema_name": schema_name})
+                if row and len(row) > 1 and row[1]
+            }
+            if raw_rows
+            else {}
+        )
         routines: list[CanonicalRoutine] = []
 
         for row in raw_rows:
@@ -237,11 +250,7 @@ class SQLServerSchemaExtractor:
                 continue
             routine_name = str(row[0]).strip()
             routine_type = str(row[1]).strip()  # "PROCEDURE" | "FUNCTION"
-            body_rows = self._query(
-                build_sqlserver_routine_body_query(),
-                {"schema_name": schema_name, "routine_name": routine_name},
-            )
-            body = str(body_rows[0][0]).strip() if body_rows and body_rows[0] and body_rows[0][0] else ""
+            body = bodies.get(routine_name, "")
 
             warnings: list[MigrationWarning] = []
             if not body:
@@ -271,8 +280,7 @@ class SQLServerSchemaExtractor:
 
         return routines
 
-    def _extract_columns(self, schema: str, table: str) -> list[CanonicalColumn]:
-        rows = self._query(fetch_columns_sql(), {"schema": schema, "table_name": table})
+    def _extract_columns(self, rows: list[tuple[Any, ...]]) -> list[CanonicalColumn]:
         columns: list[CanonicalColumn] = []
 
         for row in rows:
@@ -301,13 +309,10 @@ class SQLServerSchemaExtractor:
 
         return columns
 
-    def _extract_pk(self, schema: str, table: str) -> list[str]:
-        rows = self._query(fetch_pk_sql(), {"schema": schema, "table_name": table})
+    def _extract_pk(self, rows: list[tuple[Any, ...]]) -> list[str]:
         return [str(r[0]).strip() for r in rows if r and r[0]]
 
-    def _extract_fks(self, schema: str, table: str) -> list[CanonicalFK]:
-        rows = self._query(fetch_fk_sql(), {"schema": schema, "table_name": table})
-
+    def _extract_fks(self, schema: str, rows: list[tuple[Any, ...]]) -> list[CanonicalFK]:
         fk_map: dict[str, dict[str, Any]] = defaultdict(
             lambda: {
                 "name": "",
@@ -348,9 +353,7 @@ class SQLServerSchemaExtractor:
 
         return result
 
-    def _extract_indexes(self, schema: str, table: str) -> list[CanonicalIndex]:
-        rows = self._query(fetch_indexes_sql(), {"schema": schema, "table_name": table})
-
+    def _extract_indexes(self, rows: list[tuple[Any, ...]]) -> list[CanonicalIndex]:
         idx_map: dict[str, dict[str, Any]] = defaultdict(lambda: {"name": "", "columns": [], "unique": False})
 
         for r in sorted(rows, key=lambda x: (str(x[0]), int(x[3]) if x[3] is not None else 0)):

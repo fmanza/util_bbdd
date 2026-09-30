@@ -28,17 +28,23 @@ def _make_mock_manager(tables: list[tuple] | None = None) -> MagicMock:
     fk_rows: list = []
     idx_rows: list = []
 
+    # Columnas, PK, FK e índices se leen por schema (D1): cada tabla recibe las mismas filas, con su nombre delante.
+    table_names = [str(t[0]) for t in table_rows if t]
+
+    def per_table(rows: list) -> list:
+        return [(name, *row) for name in table_names for row in rows]
+
     def side_effect(sql: str, params: dict) -> list:
         if "all_tables" in sql:
             return table_rows
-        if "all_tab_columns" in sql:
-            return col_rows
+        if "all_tab_columns" in sql and "all_col_comments" in sql:
+            return per_table(col_rows)
         if "constraint_type = 'P'" in sql:
-            return pk_rows
+            return per_table(pk_rows)
         if "constraint_type = 'R'" in sql:
-            return fk_rows
+            return per_table(fk_rows)
         if "all_indexes" in sql:
-            return idx_rows
+            return per_table(idx_rows)
         return []
 
     manager.execute_custom_many.side_effect = side_effect

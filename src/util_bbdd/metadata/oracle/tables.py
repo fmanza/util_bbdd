@@ -345,6 +345,146 @@ def fetch_identity_generation_sql(*, with_owner: bool) -> str:
     )
 
 
+# ─── migrate/extractors: una consulta por schema y tipo de objeto (D1, 0.21.0) ─────────────
+# Mismo SQL que las consultas por tabla de arriba (que siguen usando los adaptadores de metadatos), sin el filtro de
+# tabla y con ``table_name`` como primera columna; filas ordenadas por tabla y después por el orden propio del objeto.
+# 200 tablas: 823 consultas (7,3 s en el banco) → 8 (0,18 s). Sesión 2026-09-30-migrate-d1-extract-batching.
+
+
+def fetch_columns_for_schema_sql() -> str:
+    """Columnas de todas las tablas de un owner (uso: migrate/extractors). Parametrizado con :owner.
+
+    Returns:
+        str: SQL query para (table_name, + las 9 columnas de :func:`fetch_columns_sql`).
+    """
+    return (
+        "SELECT "
+        "c.table_name, "
+        "c.column_name, "
+        "c.data_type, "
+        "CASE WHEN c.nullable = 'Y' THEN 'YES' ELSE 'NO' END AS is_nullable, "
+        "c.column_id AS ordinal_position, "
+        "c.data_default AS column_default, "
+        "c.data_length, "
+        "c.data_precision, "
+        "c.data_scale, "
+        "COALESCE(d.comments, '') AS column_comment "
+        "FROM all_tab_columns c "
+        "LEFT JOIN all_col_comments d "
+        "  ON d.owner = c.owner "
+        "  AND d.table_name = c.table_name "
+        "  AND d.column_name = c.column_name "
+        "WHERE c.owner = :owner "
+        "  AND c.column_name != 'ROWID' "
+        "ORDER BY c.table_name, c.column_id"
+    )
+
+
+def fetch_pk_for_schema_sql() -> str:
+    """Columnas de PK de todas las tablas de un owner (uso: migrate/extractors). Parametrizado con :owner.
+
+    Returns:
+        str: SQL query para (table_name, constraint_name, column_name, ordinal_position).
+    """
+    return (
+        "SELECT "
+        "con.table_name, "
+        "cc.constraint_name, "
+        "cc.column_name, "
+        "cc.position AS ordinal_position "
+        "FROM all_constraints con "
+        "JOIN all_cons_columns cc "
+        "  ON con.constraint_name = cc.constraint_name "
+        "  AND con.owner = cc.owner "
+        "WHERE con.owner = :owner "
+        "  AND con.constraint_type = 'P' "
+        "ORDER BY con.table_name, con.constraint_name, cc.position"
+    )
+
+
+def fetch_fk_for_schema_sql() -> str:
+    """Claves foráneas de todas las tablas de un owner (uso: migrate/extractors). Parametrizado con :owner.
+
+    Returns:
+        str: SQL query para (table_name, + las 8 columnas de :func:`fetch_fk_constraint_sql`).
+    """
+    return (
+        "SELECT "
+        "con.table_name, "
+        "con.constraint_name, "
+        "cc.column_name, "
+        "rcon.owner AS ref_owner, "
+        "rcon.table_name AS ref_table, "
+        "rcc.column_name AS ref_column, "
+        "con.delete_rule, "
+        "'' AS on_update_action, "
+        "cc.position AS ordinal_position "
+        "FROM all_constraints con "
+        "JOIN all_cons_columns cc "
+        "  ON con.constraint_name = cc.constraint_name "
+        "  AND con.owner = cc.owner "
+        "JOIN all_constraints rcon "
+        "  ON con.r_owner = rcon.owner "
+        "  AND con.r_constraint_name = rcon.constraint_name "
+        "JOIN all_cons_columns rcc "
+        "  ON rcon.constraint_name = rcc.constraint_name "
+        "  AND rcon.owner = rcc.owner "
+        "  AND rcc.position = cc.position "  # la n-ésima columna de la FK referencia la n-ésima de la clave
+        "WHERE con.owner = :owner "
+        "  AND con.constraint_type = 'R' "
+        "ORDER BY con.table_name, con.constraint_name, cc.position"
+    )
+
+
+def fetch_indexes_for_schema_sql() -> str:
+    """Índices de todas las tablas de un owner (uso: migrate/extractors). Parametrizado con :owner.
+
+    Returns:
+        str: SQL query para (table_name, + las 5 columnas de :func:`fetch_indexes_sql`).
+    """
+    return (
+        "SELECT "
+        "i.table_name, "
+        "i.index_name, "
+        "ic.column_name, "
+        "COALESCE(ic.descend, 'ASC') AS order_direction, "
+        "i.uniqueness, "
+        "ic.column_position AS ordinal_position "
+        "FROM all_indexes i "
+        "JOIN all_ind_columns ic "
+        "  ON i.index_name = ic.index_name "
+        "  AND i.owner = ic.index_owner "
+        "WHERE i.owner = :owner "
+        "ORDER BY i.table_name, i.index_name, ic.column_position"
+    )
+
+
+def fetch_view_columns_for_schema_sql() -> str:
+    """Columnas de todas las tablas y vistas de un owner (uso: migrate/extractors). Parametrizado con :owner.
+
+    Returns:
+        str: SQL query para (table_name, column_name) ordenado por tabla y column_id.
+    """
+    return "SELECT table_name, column_name FROM all_tab_columns WHERE owner = :owner ORDER BY table_name, column_id"
+
+
+def fetch_routine_bodies_for_schema_sql() -> str:
+    """Código de todas las rutinas y cuerpos de package de un owner (uso: migrate/extractors).
+
+    Parametrizado con :owner. Solo los tipos que lee el extractor: PROCEDURE, FUNCTION y PACKAGE BODY.
+
+    Returns:
+        str: SQL query para (name, type, line, text) ordenado por nombre, tipo y línea.
+    """
+    return (
+        "SELECT name, type, line, text "
+        "FROM all_source "
+        "WHERE owner = :owner "
+        "  AND type IN ('PROCEDURE', 'FUNCTION', 'PACKAGE BODY') "
+        "ORDER BY name, type, line"
+    )
+
+
 __all__: list[str] = [
     "fetch_schemas_sql",
     "fetch_tables_sql",
@@ -359,4 +499,10 @@ __all__: list[str] = [
     "fetch_routine_parameters_sql",
     "fetch_routine_body_sql",
     "fetch_identity_generation_sql",
+    "fetch_columns_for_schema_sql",
+    "fetch_pk_for_schema_sql",
+    "fetch_fk_for_schema_sql",
+    "fetch_indexes_for_schema_sql",
+    "fetch_view_columns_for_schema_sql",
+    "fetch_routine_bodies_for_schema_sql",
 ]

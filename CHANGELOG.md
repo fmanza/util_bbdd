@@ -7,6 +7,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **migrate**: los extractores leen cada tipo de objeto (columnas, PK, FK, índices, columnas de vistas, cuerpos de
+  rutinas) con una consulta por schema en lugar de una por tabla: 823 consultas → 8 para 200 tablas y 20 vistas.
+  `plan()` con 200 tablas en el banco: SQL Server 20,0 s → 0,33 s; Oracle 7,3 s → 0,13 s; PostgreSQL 2,94 s →
+  0,09 s (PK y FK sobre `pg_catalog`); MariaDB 1,06 s → 0,07 s; MySQL 0,84 s → 0,11 s. Con red, además, se ahorran
+  815 viajes de ida y vuelta. El IR extraído es idéntico (comparado en los 7 extractores contra el banco). Las
+  consultas por tabla de `metadata/` que solo usaba `migrate` se sustituyen por `*_for_schema_sql`; las de Oracle,
+  que comparten los adaptadores de metadatos, se mantienen.
+
 ### Fixed
 
 - **metadata / migrate**: las claves foráneas compuestas de Oracle se leían como producto cartesiano: la FK

@@ -1,9 +1,9 @@
 """Tests para extract_routines() del extractor SQL Server.
 
 El extractor usa ``self._query()`` internamente, que llama a
-``manager.execute_custom_many(sql, params)``.  Se hacen 1 + N llamadas:
-la primera devuelve el inventario de rutinas y las N siguientes devuelven
-el body de cada una desde ``sys.sql_modules``.
+``manager.execute_custom_many(sql, params)``.  Se hacen 2 llamadas (D1): la
+primera devuelve el inventario de rutinas y la segunda el código de todas ellas
+desde ``sys.sql_modules`` como filas ``(nombre, definición)``.
 """
 
 from __future__ import annotations
@@ -27,8 +27,9 @@ def _extractor(
     manager = MagicMock()
     responses: list = [iter(routine_rows)]
     per_routine = body_rows_per_routine if body_rows_per_routine is not None else [[] for _ in routine_rows]
-    for body_rows in per_routine:
-        responses.append(iter(body_rows))
+    if routine_rows:
+        bodies = [(row[0], body[0]) for row, rows in zip(routine_rows, per_routine, strict=True) for body in rows]
+        responses.append(iter(bodies))
     manager.execute_custom_many.side_effect = responses
     return SQLServerSchemaExtractor(manager)
 
@@ -117,3 +118,13 @@ class TestSQLServerExtractRoutines:
         result = ext.extract_routines("dbo")
         assert len(result) == 1
         assert result[0].routine_type == "UNKNOWN"
+
+
+def test_bodies_come_from_one_query() -> None:
+    """D1 (0.21.0): con N rutinas, 2 consultas en total (antes 1 + N)."""
+    manager = MagicMock()
+    routines = [("SP_A", "PROCEDURE", 1, 0), ("SP_B", "PROCEDURE", 2, 0), ("FN_C", "FUNCTION", 3, 0)]
+    manager.execute_custom_many.side_effect = [iter(routines), iter([("FN_C", "C"), ("SP_A", "A")])]
+    result = {r.name: r.body for r in SQLServerSchemaExtractor(manager).extract_routines("dbo")}
+    assert result == {"SP_A": "A", "SP_B": "", "FN_C": "C"}
+    assert manager.execute_custom_many.call_count == 2

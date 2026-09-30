@@ -42,19 +42,19 @@ class TestResolveViewStrategy:
 def _mysql_manager(view_sql: str) -> MagicMock:
     """Manager MySQL simulado: una tabla ``t(id, alta)`` y una vista ``v``."""
     manager = MagicMock()
+    # Columnas y PK se leen por schema (D1): el nombre de la tabla o vista va delante de cada fila.
     rows: dict[str, list[tuple[Any, ...]]] = {
         "TABLE_TYPE = 'BASE TABLE'": [("t", "")],
         "COLUMN_TYPE": [
-            ("id", "int", None, 10, 0, "NO", None, "", "", 1, "int"),
-            ("alta", "date", None, None, None, "YES", None, "", "", 2, "date"),
+            ("t", "id", "int", None, 10, 0, "NO", None, "", "", 1, "int"),
+            ("t", "alta", "date", None, None, None, "YES", None, "", "", 2, "date"),
+            ("v", "id", "int", None, 10, 0, "NO", None, "", "", 1, "int"),
         ],
-        "CONSTRAINT_NAME = 'PRIMARY'": [("id",)],
+        "CONSTRAINT_NAME = 'PRIMARY'": [("t", "id")],
         "INFORMATION_SCHEMA.VIEWS": [("v", view_sql)],
     }
 
     def side_effect(sql: str, params: dict[str, Any]) -> list[tuple[Any, ...]]:
-        if "INFORMATION_SCHEMA.COLUMNS" in sql and "view_name" in str(params):
-            return [("id",)]
         for marker, result in rows.items():
             if marker in sql:
                 return result

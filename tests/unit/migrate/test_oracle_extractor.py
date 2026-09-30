@@ -18,31 +18,35 @@ def _make_manager(
     views: list[tuple] | None = None,
     view_columns: list[tuple] | None = None,
 ) -> MagicMock:
-    """Construye un manager mock que devuelve filas predefinidas por consulta."""
+    """Construye un manager mock que devuelve filas predefinidas por consulta.
+
+    Columnas, PK, FK, índices y columnas de vistas se leen por schema (D1): la primera columna es el nombre de la
+    tabla (o vista). Como antes con la consulta por tabla, cada tabla del mock recibe las mismas filas.
+    """
     manager = MagicMock()
+    table_names = [str(t[0]) for t in tables or [] if t]
+    view_names = [str(v[0]) for v in views or [] if v]
+
+    def per_object(names: list[str], rows: list[tuple] | None) -> list[tuple]:
+        return [(name, *row) for name in names for row in rows or []]
 
     def side_effect(sql: str, params: dict) -> list:
         sql_upper = sql.upper()
-        # Vistas: all_views vs columnas de vista (all_tab_columns con :view_name)
         if "ALL_VIEWS" in sql_upper:
             return views or []
-        if "ALL_TAB_COLUMNS" in sql_upper and "view_name" in sql.lower():
-            return view_columns or []
-        # Tablas
         if "ALL_TABLES" in sql_upper:
             return tables or []
-        # Columnas de tabla
+        # Columnas de tabla (con comentarios) vs columnas de vista (solo nombre)
+        if "ALL_TAB_COLUMNS" in sql_upper and "ALL_COL_COMMENTS" in sql_upper:
+            return per_object(table_names, columns)
         if "ALL_TAB_COLUMNS" in sql_upper:
-            return columns or []
-        # PK
+            return per_object(view_names, view_columns)
         if "CONSTRAINT_TYPE = 'P'" in sql_upper:
-            return pks or []
-        # FK
+            return per_object(table_names, pks)
         if "CONSTRAINT_TYPE = 'R'" in sql_upper:
-            return fks or []
-        # Índices
+            return per_object(table_names, fks)
         if "ALL_INDEXES" in sql_upper:
-            return indexes or []
+            return per_object(table_names, indexes)
         return []
 
     manager.execute_custom_many.side_effect = side_effect

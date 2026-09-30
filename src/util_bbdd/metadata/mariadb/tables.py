@@ -103,55 +103,58 @@ def fetch_tables_sql() -> str:
     )
 
 
-def fetch_columns_sql() -> str:
-    """SQL para obtener columnas de una tabla MariaDB.
+# ─── migrate/extractors: una consulta por schema y tipo de objeto (D1, 0.21.0) ─────────────
+# La primera columna es siempre el nombre de la tabla (o vista); el resto, en el mismo orden que leen los
+# extractores. 200 tablas: 823 consultas (1,06 s MariaDB / 0,84 s MySQL en el banco) → 8.
 
-    Parámetros: ``%(schema)s``, ``%(table_name)s``.
+
+def fetch_columns_for_schema_sql() -> str:
+    """SQL de las columnas de todas las tablas y vistas de un schema MariaDB (uso: migrate/extractors).
+
+    Parámetros: ``%(schema)s``.
 
     Returns:
-        str: SQL query para (COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH,
-             NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE, COLUMN_DEFAULT,
-             EXTRA, COLUMN_COMMENT, ORDINAL_POSITION).
+        str: SQL query para (TABLE_NAME, COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION,
+             NUMERIC_SCALE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA, COLUMN_COMMENT, ORDINAL_POSITION).
     """
     return (
-        "SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, "
+        "SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, "
         "NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE, COLUMN_DEFAULT, "
         "EXTRA, COLUMN_COMMENT, ORDINAL_POSITION "
         "FROM INFORMATION_SCHEMA.COLUMNS "
-        "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_NAME = %(table_name)s "
-        "ORDER BY ORDINAL_POSITION"
+        "WHERE TABLE_SCHEMA = %(schema)s "
+        "ORDER BY TABLE_NAME, ORDINAL_POSITION"
     )
 
 
-def fetch_pk_sql() -> str:
-    """SQL para obtener columnas de clave primaria de una tabla MariaDB.
+def fetch_pk_for_schema_sql() -> str:
+    """SQL de las columnas de clave primaria de todas las tablas de un schema MariaDB (uso: migrate/extractors).
 
-    Parámetros: ``%(schema)s``, ``%(table_name)s``.
+    Parámetros: ``%(schema)s``.
 
     Returns:
-        str: SQL query para (COLUMN_NAME,) ordenado por ORDINAL_POSITION.
+        str: SQL query para (TABLE_NAME, COLUMN_NAME) en el orden de la clave.
     """
     return (
-        "SELECT COLUMN_NAME "
+        "SELECT TABLE_NAME, COLUMN_NAME "
         "FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE "
-        "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_NAME = %(table_name)s "
+        "WHERE TABLE_SCHEMA = %(schema)s "
         "AND CONSTRAINT_NAME = 'PRIMARY' "
-        "ORDER BY ORDINAL_POSITION"
+        "ORDER BY TABLE_NAME, ORDINAL_POSITION"
     )
 
 
-def fetch_fk_sql() -> str:
-    """SQL para obtener claves foráneas de una tabla MariaDB.
+def fetch_fk_for_schema_sql() -> str:
+    """SQL de las claves foráneas de todas las tablas de un schema MariaDB (uso: migrate/extractors).
 
-    Parámetros: ``%(schema)s``, ``%(table_name)s``.
+    Parámetros: ``%(schema)s``.
 
     Returns:
-        str: SQL query para (CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_SCHEMA,
-             REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME, ORDINAL_POSITION,
-             DELETE_RULE, UPDATE_RULE).
+        str: SQL query para (TABLE_NAME, CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_SCHEMA,
+             REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME, ORDINAL_POSITION, DELETE_RULE, UPDATE_RULE).
     """
     return (
-        "SELECT kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME, "
+        "SELECT kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME, "
         "kcu.REFERENCED_TABLE_SCHEMA, kcu.REFERENCED_TABLE_NAME, "
         "kcu.REFERENCED_COLUMN_NAME, kcu.ORDINAL_POSITION, "
         "rc.DELETE_RULE, rc.UPDATE_RULE "
@@ -159,26 +162,26 @@ def fetch_fk_sql() -> str:
         "JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc "
         "  ON rc.CONSTRAINT_SCHEMA = kcu.TABLE_SCHEMA "
         "  AND rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME "
-        "WHERE kcu.TABLE_SCHEMA = %(schema)s AND kcu.TABLE_NAME = %(table_name)s "
+        "WHERE kcu.TABLE_SCHEMA = %(schema)s "
         "AND kcu.REFERENCED_TABLE_NAME IS NOT NULL "
-        "ORDER BY kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION"
+        "ORDER BY kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION"
     )
 
 
-def fetch_indexes_sql() -> str:
-    """SQL para obtener índices no-PK de una tabla MariaDB.
+def fetch_indexes_for_schema_sql() -> str:
+    """SQL de los índices no-PK de todas las tablas de un schema MariaDB (uso: migrate/extractors).
 
-    Parámetros: ``%(schema)s``, ``%(table_name)s``.
+    Parámetros: ``%(schema)s``.
 
     Returns:
-        str: SQL query para (INDEX_NAME, COLUMN_NAME, NON_UNIQUE, SEQ_IN_INDEX).
+        str: SQL query para (TABLE_NAME, INDEX_NAME, COLUMN_NAME, NON_UNIQUE, SEQ_IN_INDEX).
     """
     return (
-        "SELECT INDEX_NAME, COLUMN_NAME, NON_UNIQUE, SEQ_IN_INDEX "
+        "SELECT TABLE_NAME, INDEX_NAME, COLUMN_NAME, NON_UNIQUE, SEQ_IN_INDEX "
         "FROM INFORMATION_SCHEMA.STATISTICS "
-        "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_NAME = %(table_name)s "
+        "WHERE TABLE_SCHEMA = %(schema)s "
         "AND INDEX_NAME <> 'PRIMARY' "
-        "ORDER BY INDEX_NAME, SEQ_IN_INDEX"
+        "ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX"
     )
 
 
@@ -195,22 +198,6 @@ def fetch_views_sql() -> str:
         "FROM INFORMATION_SCHEMA.VIEWS "
         "WHERE TABLE_SCHEMA = %(schema)s "
         "ORDER BY TABLE_NAME"
-    )
-
-
-def fetch_view_columns_sql() -> str:
-    """SQL para obtener columnas de una vista MariaDB.
-
-    Parámetros: ``%(schema)s``, ``%(view_name)s``.
-
-    Returns:
-        str: SQL query para (COLUMN_NAME,) ordenado por ORDINAL_POSITION.
-    """
-    return (
-        "SELECT COLUMN_NAME "
-        "FROM INFORMATION_SCHEMA.COLUMNS "
-        "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_NAME = %(view_name)s "
-        "ORDER BY ORDINAL_POSITION"
     )
 
 

@@ -223,43 +223,49 @@ def fetch_tables_for_extract_sql() -> str:
     )
 
 
-def fetch_columns_for_extract_sql() -> str:
-    """SQL para obtener columnas de una tabla PostgreSQL (uso: migrate/extractors).
+# ─── migrate/extractors: una consulta por schema y tipo de objeto (D1, 0.21.0) ─────────────
+# La primera columna es siempre el nombre de la tabla (o vista); el resto, en el mismo orden que leen los extractores.
+# Filas ordenadas por tabla y, dentro de cada una, por el orden propio del objeto (posición, constraint, índice).
+# PK y FK sobre pg_catalog: en INFORMATION_SCHEMA la consulta de FK de un schema de 200 tablas tarda ~1,4 s.
 
-    Retorna 8 columnas via INFORMATION_SCHEMA para construir IR canónico.
-    Difiere de ``fetch_columns_sql`` que usa pg_class y retorna 7 columnas.
+_FK_RULE_SQL: str = (
+    "CASE {col} WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT' WHEN 'c' THEN 'CASCADE' "
+    "WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT' END"
+)
 
-    Parámetros: ``%(schema)s``, ``%(table_name)s``.
+
+def fetch_columns_for_schema_sql() -> str:
+    """SQL de las columnas de todas las tablas y vistas de un schema PostgreSQL (uso: migrate/extractors).
+
+    Parámetros: ``%(schema)s``.
 
     Returns:
-        str: SQL query para (COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH,
-             NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE, COLUMN_DEFAULT,
-             ORDINAL_POSITION).
+        str: SQL query para (TABLE_NAME, COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION,
+             NUMERIC_SCALE, IS_NULLABLE, COLUMN_DEFAULT, ORDINAL_POSITION).
     """
     return (
-        "SELECT c.COLUMN_NAME, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, "
+        "SELECT c.TABLE_NAME, c.COLUMN_NAME, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, "
         "c.NUMERIC_PRECISION, c.NUMERIC_SCALE, c.IS_NULLABLE, c.COLUMN_DEFAULT, "
         "c.ORDINAL_POSITION "
         "FROM INFORMATION_SCHEMA.COLUMNS c "
-        "WHERE c.TABLE_SCHEMA = %(schema)s AND c.TABLE_NAME = %(table_name)s "
-        "ORDER BY c.ORDINAL_POSITION"
+        "WHERE c.TABLE_SCHEMA = %(schema)s "
+        "ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION"
     )
 
 
-def fetch_indexes_for_extract_sql() -> str:
-    """SQL para obtener índices no-PK de una tabla PostgreSQL via pg_catalog (uso: migrate/extractors).
+def fetch_indexes_for_schema_sql() -> str:
+    """SQL de los índices no-PK de todas las tablas de un schema PostgreSQL via pg_catalog (uso: migrate/extractors).
 
-    Usa ``generate_subscripts(ix.indkey, 1)`` para preservar el orden de columnas
-    en índices compuestos (PG 8.4+). Retorna (index_name, column_name, is_unique, seq_in_index).
-    Difiere de ``fetch_indexes_sql`` que usa pg_indexes y retorna indexdef en lugar de column_name.
+    Usa ``generate_subscripts(ix.indkey, 1)`` para preservar el orden de columnas en índices compuestos.
 
-    Parámetros: ``%(schema)s``, ``%(table_name)s``.
+    Parámetros: ``%(schema)s``.
 
     Returns:
-        str: SQL query para (index_name, column_name, is_unique, seq_in_index).
+        str: SQL query para (table_name, index_name, column_name, is_unique, seq_in_index).
     """
     return (
-        "SELECT i.relname AS index_name, "
+        "SELECT c.relname AS table_name, "
+        "       i.relname AS index_name, "
         "       a.attname AS column_name, "
         "       ix.indisunique AS is_unique, "
         "       gs AS seq_in_index "
@@ -270,57 +276,59 @@ def fetch_indexes_for_extract_sql() -> str:
         "JOIN generate_subscripts(ix.indkey, 1) AS gs ON true "
         "JOIN pg_catalog.pg_attribute a "
         "     ON a.attrelid = c.oid AND a.attnum = ix.indkey[gs] "
-        "WHERE n.nspname = %(schema)s AND c.relname = %(table_name)s "
+        "WHERE n.nspname = %(schema)s "
         "  AND ix.indisprimary = false AND ix.indisvalid = true "
         "  AND a.attnum > 0 "
-        "ORDER BY i.relname, gs"
+        "ORDER BY c.relname, i.relname, gs"
     )
 
 
-def fetch_pk_sql() -> str:
-    """SQL para obtener columnas de clave primaria de una tabla PostgreSQL (uso: migrate/extractors).
+def fetch_pk_for_schema_sql() -> str:
+    """SQL de las columnas de clave primaria de todas las tablas de un schema PostgreSQL (uso: migrate/extractors).
 
-    Parámetros: ``%(schema)s``, ``%(table_name)s``.
+    Parámetros: ``%(schema)s``.
 
     Returns:
-        str: SQL query para (COLUMN_NAME,) ordenado por ORDINAL_POSITION.
+        str: SQL query para (table_name, column_name) en el orden de la clave.
     """
     return (
-        "SELECT kcu.COLUMN_NAME "
-        "FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu "
-        "JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc "
-        "  ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME "
-        "  AND tc.TABLE_SCHEMA = kcu.TABLE_SCHEMA "
-        "WHERE kcu.TABLE_SCHEMA = %(schema)s AND kcu.TABLE_NAME = %(table_name)s "
-        "  AND tc.CONSTRAINT_TYPE = 'PRIMARY KEY' "
-        "ORDER BY kcu.ORDINAL_POSITION"
+        "SELECT c.relname AS table_name, a.attname AS column_name "
+        "FROM pg_catalog.pg_constraint con "
+        "JOIN pg_catalog.pg_class c ON c.oid = con.conrelid "
+        "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace "
+        "JOIN LATERAL unnest(con.conkey) WITH ORDINALITY AS k(attnum, ord) ON true "
+        "JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid AND a.attnum = k.attnum "
+        "WHERE n.nspname = %(schema)s AND con.contype = 'p' "
+        "ORDER BY c.relname, k.ord"
     )
 
 
-def fetch_fk_sql() -> str:
-    """SQL para obtener claves foráneas de una tabla PostgreSQL (uso: migrate/extractors).
+def fetch_fk_for_schema_sql() -> str:
+    """SQL de las claves foráneas de todas las tablas de un schema PostgreSQL (uso: migrate/extractors).
 
-    Parámetros: ``%(schema)s``, ``%(table_name)s``.
+    Las reglas ``ON DELETE``/``ON UPDATE`` se devuelven con los mismos textos que INFORMATION_SCHEMA.
+
+    Parámetros: ``%(schema)s``.
 
     Returns:
-        str: SQL query para (CONSTRAINT_NAME, COLUMN_NAME, REF_SCHEMA,
-             REF_TABLE, REF_COLUMN, ORDINAL_POSITION, DELETE_RULE, UPDATE_RULE).
+        str: SQL query para (table_name, CONSTRAINT_NAME, COLUMN_NAME, REF_SCHEMA, REF_TABLE, REF_COLUMN,
+             ORDINAL_POSITION, DELETE_RULE, UPDATE_RULE).
     """
     return (
-        "SELECT kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME, "
-        "kcu2.TABLE_SCHEMA AS REF_SCHEMA, kcu2.TABLE_NAME AS REF_TABLE, "
-        "kcu2.COLUMN_NAME AS REF_COLUMN, kcu.ORDINAL_POSITION, "
-        "rc.DELETE_RULE, rc.UPDATE_RULE "
-        "FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc "
-        "JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu "
-        "  ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME "
-        "  AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA "
-        "JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu2 "
-        "  ON kcu2.CONSTRAINT_NAME = rc.UNIQUE_CONSTRAINT_NAME "
-        "  AND kcu2.CONSTRAINT_SCHEMA = rc.UNIQUE_CONSTRAINT_SCHEMA "
-        "  AND kcu2.ORDINAL_POSITION = kcu.POSITION_IN_UNIQUE_CONSTRAINT "
-        "WHERE kcu.TABLE_SCHEMA = %(schema)s AND kcu.TABLE_NAME = %(table_name)s "
-        "ORDER BY kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION"
+        "SELECT c.relname AS table_name, con.conname AS constraint_name, a.attname AS column_name, "
+        "rn.nspname AS ref_schema, rc.relname AS ref_table, ra.attname AS ref_column, k.ord AS ordinal_position, "
+        f"{_FK_RULE_SQL.format(col='con.confdeltype')} AS delete_rule, "
+        f"{_FK_RULE_SQL.format(col='con.confupdtype')} AS update_rule "
+        "FROM pg_catalog.pg_constraint con "
+        "JOIN pg_catalog.pg_class c ON c.oid = con.conrelid "
+        "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace "
+        "JOIN pg_catalog.pg_class rc ON rc.oid = con.confrelid "
+        "JOIN pg_catalog.pg_namespace rn ON rn.oid = rc.relnamespace "
+        "JOIN LATERAL unnest(con.conkey, con.confkey) WITH ORDINALITY AS k(attnum, refattnum, ord) ON true "
+        "JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid AND a.attnum = k.attnum "
+        "JOIN pg_catalog.pg_attribute ra ON ra.attrelid = rc.oid AND ra.attnum = k.refattnum "
+        "WHERE n.nspname = %(schema)s AND con.contype = 'f' "
+        "ORDER BY c.relname, con.conname, k.ord"
     )
 
 
@@ -337,22 +345,6 @@ def fetch_views_sql() -> str:
         "FROM INFORMATION_SCHEMA.VIEWS "
         "WHERE TABLE_SCHEMA = %(schema)s "
         "ORDER BY TABLE_NAME"
-    )
-
-
-def fetch_view_columns_sql() -> str:
-    """SQL para obtener columnas de una vista PostgreSQL (uso: migrate/extractors).
-
-    Parámetros: ``%(schema)s``, ``%(view_name)s``.
-
-    Returns:
-        str: SQL query para (COLUMN_NAME,) ordenado por ORDINAL_POSITION.
-    """
-    return (
-        "SELECT COLUMN_NAME "
-        "FROM INFORMATION_SCHEMA.COLUMNS "
-        "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_NAME = %(view_name)s "
-        "ORDER BY ORDINAL_POSITION"
     )
 
 

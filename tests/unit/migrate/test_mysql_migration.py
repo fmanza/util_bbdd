@@ -40,10 +40,12 @@ MYSQL_COLUMNS: list[tuple[Any, ...]] = [
 def _manager(columns: list[tuple[Any, ...]] | None = None) -> MagicMock:
     """Manager simulado de la familia MySQL/MariaDB (INFORMATION_SCHEMA)."""
     manager = MagicMock()
+    # Columnas y PK se leen por schema (D1): el nombre de la tabla va delante de cada fila.
+    table_columns = columns if columns is not None else MYSQL_COLUMNS
     rows_by_marker: dict[str, list[tuple[Any, ...]]] = {
         "TABLE_TYPE = 'BASE TABLE'": [("zz_cliente", "clientes")],
-        "COLUMN_TYPE": columns if columns is not None else MYSQL_COLUMNS,
-        "CONSTRAINT_NAME = 'PRIMARY'": [("id",)],
+        "COLUMN_TYPE": [("zz_cliente", *row) for row in table_columns],
+        "CONSTRAINT_NAME = 'PRIMARY'": [("zz_cliente", "id")],
     }
 
     def side_effect(sql: str, params: dict[str, Any]) -> list[tuple[Any, ...]]:

@@ -150,24 +150,24 @@ def fetch_columns_sync(connection: Any, schema: str | None = None, table: str | 
     return result
 
 
-def fetch_columns_with_type_sql() -> str:
-    """SQL de columnas para migración DDL desde MySQL/MariaDB, con ``COLUMN_TYPE``.
+def fetch_columns_with_type_for_schema_sql() -> str:
+    """SQL de columnas de todo un schema para migración DDL desde MySQL/MariaDB, con ``COLUMN_TYPE`` (D1, 0.21.0).
 
-    Mismas 10 columnas que ``metadata.mariadb.tables.fetch_columns_sql`` más ``COLUMN_TYPE`` al final, que
-    conserva lo que ``DATA_TYPE`` pierde (``enum('a','b')``, ``int unsigned``, ``decimal(10,2)``).
-    Válida en MySQL 8 y en MariaDB.
+    Mismas columnas que ``metadata.mariadb.tables.fetch_columns_for_schema_sql`` (``TABLE_NAME`` primero) más
+    ``COLUMN_TYPE`` al final, que conserva lo que ``DATA_TYPE`` pierde (``enum('a','b')``, ``int unsigned``,
+    ``decimal(10,2)``). Válida en MySQL 8 y en MariaDB.
 
-    Parámetros: ``%(schema)s``, ``%(table_name)s``.
+    Parámetros: ``%(schema)s``.
 
     Returns:
-        str: SQL query para (COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE,
-             IS_NULLABLE, COLUMN_DEFAULT, EXTRA, COLUMN_COMMENT, ORDINAL_POSITION, COLUMN_TYPE).
+        str: SQL query para (TABLE_NAME, COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION,
+             NUMERIC_SCALE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA, COLUMN_COMMENT, ORDINAL_POSITION, COLUMN_TYPE).
     """
     return (
-        "SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, "
+        "SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, "
         "NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE, COLUMN_DEFAULT, "
         "EXTRA, COLUMN_COMMENT, ORDINAL_POSITION, COLUMN_TYPE "
         "FROM INFORMATION_SCHEMA.COLUMNS "
-        "WHERE TABLE_SCHEMA = %(schema)s AND TABLE_NAME = %(table_name)s "
-        "ORDER BY ORDINAL_POSITION"
+        "WHERE TABLE_SCHEMA = %(schema)s "
+        "ORDER BY TABLE_NAME, ORDINAL_POSITION"
     )

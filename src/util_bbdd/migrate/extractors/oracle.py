@@ -12,14 +12,14 @@ from typing import Any
 from ...metadata.oracle.constraints import OracleConstraintDefaults
 from ...metadata.oracle.indexes import decode_oracle_index_rows
 from ...metadata.oracle.tables import (
-    fetch_columns_sql,
-    fetch_fk_constraint_sql,
-    fetch_indexes_sql,
-    fetch_pk_constraint_sql,
-    fetch_routine_body_sql,
+    fetch_columns_for_schema_sql,
+    fetch_fk_for_schema_sql,
+    fetch_indexes_for_schema_sql,
+    fetch_pk_for_schema_sql,
+    fetch_routine_bodies_for_schema_sql,
     fetch_routines_sql,
     fetch_tables_sql,
-    fetch_view_columns_sql,
+    fetch_view_columns_for_schema_sql,
     fetch_views_sql,
 )
 from ..ir.models import (
@@ -31,6 +31,7 @@ from ..ir.models import (
     CanonicalView,
     MigrationWarning,
 )
+from ._schema_rows import group_by_object
 
 
 def _parse_raw_column(row: Any) -> dict[str, Any] | None:
@@ -79,13 +80,20 @@ class OracleSchemaExtractor:
 
     def __init__(self, manager: Any) -> None:
         self._manager = manager
+        self._bodies: dict[tuple[str, str], str] = {}
 
     def _query(self, sql: str, params: dict[str, Any]) -> list[Any]:
         return list(self._manager.execute_custom_many(sql, params))
 
     def extract(self, schema: str) -> list[CanonicalTable]:
         """Extrae todas las tablas del schema Oracle como IR canónico."""
-        table_rows = self._query(fetch_tables_sql(), {"owner": schema})
+        params = {"owner": schema}
+        table_rows = self._query(fetch_tables_sql(), params)
+        # D1: una consulta por schema y tipo de objeto, agrupada por tabla (antes 4 consultas por tabla)
+        columns_by_table = group_by_object(self._query(fetch_columns_for_schema_sql(), params))
+        pks_by_table = group_by_object(self._query(fetch_pk_for_schema_sql(), params))
+        fks_by_table = group_by_object(self._query(fetch_fk_for_schema_sql(), params))
+        indexes_by_table = group_by_object(self._query(fetch_indexes_for_schema_sql(), params))
         tables: list[CanonicalTable] = []
 
         for t_row in table_rows:
@@ -94,10 +102,10 @@ class OracleSchemaExtractor:
             table_name = str(t_row[0]).strip()
             table_comment = str(t_row[2]).strip() if len(t_row) > 2 and t_row[2] else ""
 
-            columns = self._extract_columns(schema, table_name)
-            pk_cols = self._extract_pk(schema, table_name)
-            fk_list = self._extract_fks(schema, table_name)
-            idx_list = self._extract_indexes(schema, table_name)
+            columns = self._extract_columns(columns_by_table.get(table_name, []))
+            pk_cols = self._extract_pk(pks_by_table.get(table_name, []))
+            fk_list = self._extract_fks(schema, fks_by_table.get(table_name, []))
+            idx_list = self._extract_indexes(indexes_by_table.get(table_name, []))
 
             # Marcar columnas PK
             pk_set = {c.upper() for c in pk_cols}
@@ -129,6 +137,9 @@ class OracleSchemaExtractor:
         el comportamiento depende de la configuración del driver.
         """
         rows = self._query(fetch_views_sql(), {"owner": schema})
+        columns_by_view = (
+            group_by_object(self._query(fetch_view_columns_for_schema_sql(), {"owner": schema})) if rows else {}
+        )
         views: list[CanonicalView] = []
 
         for row in rows:
@@ -138,7 +149,7 @@ class OracleSchemaExtractor:
             text = str(row[1]).strip() if row[1] else ""
             comment = str(row[2]).strip() if len(row) > 2 and row[2] else ""
 
-            columns = self._extract_view_columns(schema, view_name)
+            columns = [str(r[0]).strip() for r in columns_by_view.get(view_name, []) if r and r[0]]
             views.append(
                 CanonicalView(
                     name=view_name,
@@ -153,10 +164,6 @@ class OracleSchemaExtractor:
 
         return views
 
-    def _extract_view_columns(self, schema: str, view_name: str) -> list[str]:
-        rows = self._query(fetch_view_columns_sql(), {"owner": schema, "view_name": view_name})
-        return [str(r[0]).strip() for r in rows if r and r[0]]
-
     def extract_routines(self, schema: str) -> list[CanonicalRoutine]:
         """Extrae todas las rutinas del schema Oracle como IR canónico.
 
@@ -165,6 +172,7 @@ class OracleSchemaExtractor:
         El body se obtiene concatenando las líneas de ALL_SOURCE.
         """
         rows = self._query(fetch_routines_sql(), {"owner": schema})
+        self._bodies = self._routine_bodies(schema) if rows else {}
         routines: list[CanonicalRoutine] = []
 
         for row in rows:
@@ -233,16 +241,19 @@ class OracleSchemaExtractor:
 
         return routines
 
-    def _fetch_routine_body(self, schema: str, routine_name: str, routine_type: str) -> str:
-        """Obtiene el body verbatim de una rutina Oracle concatenando ALL_SOURCE."""
-        rows = self._query(
-            fetch_routine_body_sql(),
-            {"owner": schema, "routine_name": routine_name, "routine_type": routine_type},
-        )
-        return "".join(str(r[1]) for r in rows if r and len(r) > 1 and r[1]).strip()
+    def _routine_bodies(self, schema: str) -> dict[tuple[str, str], str]:
+        """Código de todas las rutinas del owner con una consulta a ALL_SOURCE: ``{(nombre, tipo): texto}`` (D1)."""
+        lines: dict[tuple[str, str], list[str]] = defaultdict(list)
+        for row in self._query(fetch_routine_bodies_for_schema_sql(), {"owner": schema}):
+            if row and len(row) > 3 and row[3]:
+                lines[(str(row[0]).strip(), str(row[1]).strip().upper())].append(str(row[3]))
+        return {key: "".join(parts).strip() for key, parts in lines.items()}
 
-    def _extract_columns(self, schema: str, table: str) -> list[CanonicalColumn]:
-        rows = self._query(fetch_columns_sql(), {"owner": schema, "table_name": table})
+    def _fetch_routine_body(self, schema: str, routine_name: str, routine_type: str) -> str:
+        """Body verbatim de una rutina Oracle (de las ya leídas por :meth:`_routine_bodies`)."""
+        return self._bodies.get((routine_name, routine_type.upper()), "")
+
+    def _extract_columns(self, rows: list[tuple[Any, ...]]) -> list[CanonicalColumn]:
         columns: list[CanonicalColumn] = []
 
         for row in rows:
@@ -268,15 +279,13 @@ class OracleSchemaExtractor:
 
         return columns
 
-    def _extract_pk(self, schema: str, table: str) -> list[str]:
-        rows = self._query(fetch_pk_constraint_sql(), {"owner": schema, "table_name": table})
+    def _extract_pk(self, rows: list[tuple[Any, ...]]) -> list[str]:
         decoded = OracleConstraintDefaults.decode_pk_rows(rows)
         # Ordenar por ordinal_position (índice 2)
         decoded_sorted = sorted(decoded, key=lambda r: r[2])
         return [str(r[1]).strip() for r in decoded_sorted if r[1]]
 
-    def _extract_fks(self, schema: str, table: str) -> list[CanonicalFK]:
-        rows = self._query(fetch_fk_constraint_sql(), {"owner": schema, "table_name": table})
+    def _extract_fks(self, schema: str, rows: list[tuple[Any, ...]]) -> list[CanonicalFK]:
         decoded = OracleConstraintDefaults.decode_fk_rows(rows)
 
         # Agrupar por constraint_name (puede haber FK multi-columna)
@@ -320,8 +329,7 @@ class OracleSchemaExtractor:
 
         return result
 
-    def _extract_indexes(self, schema: str, table: str) -> list[CanonicalIndex]:
-        rows = self._query(fetch_indexes_sql(), {"owner": schema, "table_name": table})
+    def _extract_indexes(self, rows: list[tuple[Any, ...]]) -> list[CanonicalIndex]:
         decoded = decode_oracle_index_rows(rows)
 
         # Agrupar por index_name

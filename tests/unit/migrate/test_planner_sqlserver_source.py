@@ -17,6 +17,12 @@ def _make_manager(
     """Manager mock con respuestas mínimas para ejecutar plan()."""
     manager = MagicMock()
 
+    # Columnas y PK se leen por schema (D1): cada tabla recibe las mismas filas, con su nombre delante.
+    table_names = [str(t[0]) for t in tables or [] if t]
+
+    def per_table(rows: list[tuple] | None) -> list[tuple]:
+        return [(name, *row) for name in table_names for row in rows or []]
+
     def side_effect(sql: str, params: dict) -> list:
         sql_upper = sql.upper()
         if "INFORMATION_SCHEMA.VIEWS" in sql_upper and "VIEW_DEFINITION" in sql_upper:
@@ -24,9 +30,9 @@ def _make_manager(
         if "INFORMATION_SCHEMA.TABLES" in sql_upper:
             return tables or []
         if "COLUMNPROPERTY" in sql_upper:
-            return columns or []
+            return per_table(columns)
         if "CONSTRAINT_TYPE = 'PRIMARY KEY'" in sql_upper:
-            return pks or []
+            return per_table(pks)
         if "REFERENTIAL_CONSTRAINTS" in sql_upper:
             return []
         if "SYS.INDEXES" in sql_upper:
