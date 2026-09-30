@@ -181,11 +181,16 @@ def _apply_header_columns(tree: exp.Expression, view: CanonicalView) -> bool:
     return True
 
 
-def _hierarchy_message(target_engine: str) -> str:
+def _hierarchy_message(target_engine: str, *, nocycle: bool = False) -> str:
     """Aviso de una jerarquía CONNECT BY convertida en CTE recursiva: límite de recursión, ciclos y orden."""
     label = _ENGINE_LABEL.get(target_engine, target_engine)
     limit = _rewrites.CONNECT_BY_RECURSION_LIMIT.get(target_engine)
-    if limit is not None:
+    if nocycle:
+        depth = (
+            f"NOCYCLE se traduce con un array {label} de los valores de la columna de PRIOR en el camino: la fila que "
+            "cerraría un ciclo no sale y su padre cuenta como hoja, como en Oracle, si esa columna identifica la fila"
+        )
+    elif limit is not None:
         depth = (
             f"{label} corta la CTE recursiva a los {limit} niveles y una vista no puede ampliarlo; una jerarquía más "
             "profunda o un ciclo en los datos dan error al consultar la vista"
@@ -228,7 +233,7 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
 
     unsupported = _rewrites.unsupported_constructs(tree, ctx.source_engine)
     if unsupported:
-        if connect_by not in (None, "hierarchy", "generator"):
+        if connect_by is not None and connect_by not in _rewrites.CONNECT_BY_CONVERTED:
             unsupported = [f"CONNECT BY ({connect_by})" if item == "CONNECT BY" else item for item in unsupported]
         return _passthrough(view, f"contiene {', '.join(unsupported)}, sin traducción automática fiable")
 
@@ -313,8 +318,14 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
                 "IS NULL, COALESCE, DISTINCT y las concatenaciones pueden dar otro resultado",
             )
         )
-    if connect_by == "hierarchy":
-        result.warnings.append(_warning(view, "VIEW (jerarquía)", _hierarchy_message(ctx.target_engine)))
+    if connect_by in ("hierarchy", "hierarchy_nocycle"):
+        result.warnings.append(
+            _warning(
+                view,
+                "VIEW (jerarquía)",
+                _hierarchy_message(ctx.target_engine, nocycle=connect_by == "hierarchy_nocycle"),
+            )
+        )
     if external:
         result.warnings.append(
             _warning(

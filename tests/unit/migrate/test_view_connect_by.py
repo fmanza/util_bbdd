@@ -143,6 +143,92 @@ class TestHierarchy:
         assert "CONNECT_BY_TREE_2" in view.query.upper()
 
 
+class TestLevelBoundAndLeaf:
+    """E3 (0.22.0): ``AND LEVEL <= n`` en la condición y ``CONNECT_BY_ISLEAF``."""
+
+    @pytest.mark.parametrize(
+        "condition",
+        ["PRIOR id = jefe_id AND LEVEL <= 2", "LEVEL < 3 AND jefe_id = PRIOR id", "2 >= LEVEL AND PRIOR id = jefe_id"],
+    )
+    def test_level_bound_in_connect_by(self, condition: str) -> None:
+        sql = f"SELECT id, LEVEL AS nivel FROM zzv_emp START WITH jefe_id IS NULL CONNECT BY {condition}"
+        view = _transpile(sql)
+        assert _run_sqlite(view.query) == [(1, 1), (2, 2), (4, 2), (5, 1)]
+        assert "VIEW (jerarquía)" in _types(view)
+
+    def test_level_bound_below_two_keeps_only_roots(self) -> None:
+        sql = "SELECT id FROM zzv_emp START WITH jefe_id IS NULL CONNECT BY PRIOR id = jefe_id AND LEVEL <= 1"
+        assert _run_sqlite(_transpile(sql).query) == [(1,), (5,)]
+
+    def test_is_leaf_ignores_the_where_filter(self) -> None:
+        sql = (
+            "SELECT e.id, CONNECT_BY_ISLEAF AS hoja FROM zzv_emp e WHERE e.activo = 1 "
+            "START WITH e.jefe_id IS NULL CONNECT BY PRIOR e.id = e.jefe_id"
+        )
+        # Luis (inactivo) no sale; Ana sigue sin ser hoja y Eva sí lo es, como en Oracle.
+        assert _run_sqlite(_transpile(sql).query) == [(1, 0), (3, 1), (4, 1), (5, 1)]
+
+    def test_is_leaf_with_level_bound(self) -> None:
+        sql = (
+            "SELECT id, CONNECT_BY_ISLEAF AS hoja FROM zzv_emp START WITH jefe_id IS NULL "
+            "CONNECT BY PRIOR id = jefe_id AND LEVEL <= 2"
+        )
+        # Luis tiene a Eva debajo, pero en el nivel máximo ya no se expande: es hoja.
+        assert _run_sqlite(_transpile(sql).query) == [(1, 0), (2, 1), (4, 1), (5, 1)]
+
+    def test_bare_is_leaf_keeps_its_column_name(self) -> None:
+        query = _transpile("SELECT id, CONNECT_BY_ISLEAF FROM zzv_emp CONNECT BY PRIOR id = jefe_id").query
+        conn = sqlite3.connect(":memory:")
+        try:
+            conn.execute('CREATE TABLE "zzv_emp" ("id" INT, "nombre" VARCHAR(50), "jefe_id" INT, "activo" INT)')
+            names = [d[0] for d in conn.execute(query).description]
+        finally:
+            conn.close()
+        assert [n.lower() for n in names] == ["id", "connect_by_isleaf"]
+
+    @pytest.mark.parametrize("target", ["postgresql", "sqlserver", "mysql", "mariadb"])
+    def test_is_leaf_per_target(self, target: str) -> None:
+        view = _transpile("SELECT id, CONNECT_BY_ISLEAF AS hoja FROM zzv_emp CONNECT BY PRIOR id = jefe_id", target)
+        assert "CONNECT_BY_ISLEAF" not in view.query.upper() and "EXISTS" in view.query
+        assert "VIEW (sin reescribir)" not in _types(view)
+
+
+class TestNocycle:
+    """E3 (0.22.0): ``NOCYCLE`` → array de antepasados en PostgreSQL; en el resto de destinos, sin reescribir.
+
+    Las filas se comparan con Oracle en ``tests/integration/test_migrate_views_e2e.py`` (SQLite no tiene arrays).
+    """
+
+    SQL = (
+        "SELECT id, LEVEL AS nivel, CONNECT_BY_ISLEAF AS hoja FROM zzv_emp START WITH id = 1 "
+        "CONNECT BY NOCYCLE PRIOR id = jefe_id"
+    )
+
+    def test_postgresql_stops_at_ancestors(self) -> None:
+        view = _transpile(self.SQL)
+        query = view.query.upper()
+        assert 'ARRAY[ZZV_EMP."ID"] AS CB_KEYS' in query
+        assert 'CONNECT_BY_PARENT.CB_KEYS || ARRAY[ZZV_EMP."ID"] AS CB_KEYS' in query
+        tree = sqlglot.parse_one(view.query, read="postgres")
+        recursive = tree.find(exp.CTE).this.expression  # type: ignore[union-attr]
+        assert 'NOT ZZV_EMP."ID" = ANY(CONNECT_BY_PARENT.CB_KEYS)' in recursive.args["where"].sql().upper()
+        # ISLEAF no cuenta el hijo que cerraría el ciclo; la consulta exterior no filtra nada.
+        assert 'NOT CB_CHILD."ID" = ANY(ZZV_EMP.CB_KEYS)' in query and tree.args.get("where") is None
+        assert "VIEW (jerarquía)" in _types(view) and "NOCYCLE" in _messages(view)
+        assert "NOCYCLE" not in query and " CYCLE " not in query
+
+    def test_where_of_the_view_stays_in_the_outer_query(self) -> None:
+        sql = self.SQL.replace("FROM zzv_emp ", "FROM zzv_emp WHERE activo = 1 ")
+        where = sqlglot.parse_one(_transpile(sql).query, read="postgres").args["where"].sql().lower()
+        assert "activo" in where and "cb_keys" not in where
+
+    @pytest.mark.parametrize("target", ["sqlserver", "mysql", "mariadb"])
+    def test_other_targets_are_not_rewritten(self, target: str) -> None:
+        view = _transpile(self.SQL, target)
+        assert view.query == self.SQL
+        assert "VIEW (sin reescribir)" in _types(view) and "PostgreSQL" in _messages(view)
+
+
 class TestGenerator:
     @pytest.mark.parametrize("condition", ["LEVEL <= 4", "LEVEL < 5", "4 >= LEVEL", "5 > LEVEL"])
     def test_rows(self, condition: str) -> None:
@@ -166,16 +252,17 @@ class TestNotRewritten:
     @pytest.mark.parametrize(
         ("sql", "reason"),
         [
-            ("SELECT id FROM zzv_emp CONNECT BY NOCYCLE PRIOR id = jefe_id", "NOCYCLE"),
+            ("SELECT id FROM zzv_emp CONNECT BY NOCYCLE PRIOR id = jefe_id", "NOCYCLE, que solo se convierte con"),
             ("SELECT id FROM zzv_emp CONNECT BY PRIOR id = jefe_id ORDER SIBLINGS BY nombre", "ORDER SIBLINGS BY"),
-            ("SELECT id FROM zzv_emp CONNECT BY PRIOR id = jefe_id AND LEVEL <= 3", "PRIOR columna = columna"),
+            ("SELECT id FROM zzv_emp CONNECT BY PRIOR id = jefe_id AND activo = 1", "PRIOR columna = columna"),
+            ("SELECT id FROM zzv_emp CONNECT BY PRIOR id = jefe_id AND LEVEL <= jefe_id", "PRIOR columna = columna"),
             ("SELECT id FROM zzv_emp CONNECT BY PRIOR id + 1 = jefe_id", "PRIOR columna = columna"),
             (
                 "SELECT e.id FROM zzv_emp e JOIN zzv_emp j ON j.id = e.jefe_id CONNECT BY PRIOR e.id = e.jefe_id",
                 "joins",
             ),
             ("SELECT * FROM (SELECT id FROM zzv_emp CONNECT BY PRIOR id = jefe_id)", "subconsulta"),
-            ("SELECT id, CONNECT_BY_ISLEAF AS hoja FROM zzv_emp CONNECT BY PRIOR id = jefe_id", "CONNECT_BY_ISLEAF"),
+            ("SELECT id, CONNECT_BY_ISCYCLE AS c FROM zzv_emp CONNECT BY PRIOR id = jefe_id", "CONNECT_BY_ISCYCLE"),
             ("SELECT id FROM zzv_emp WHERE ROWNUM <= 3 CONNECT BY PRIOR id = jefe_id", "ROWNUM"),
             ("SELECT id, PRIOR nombre AS jefe FROM zzv_emp CONNECT BY PRIOR id = jefe_id", "PRIOR fuera"),
             ("SELECT id FROM zzv_emp START WITH LEVEL = 1 CONNECT BY PRIOR id = jefe_id", "LEVEL en START WITH"),

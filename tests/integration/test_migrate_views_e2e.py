@@ -196,6 +196,21 @@ CORPUS: list[tuple[str, Any]] = [
         },
     ),
     ("generador", {"oracle": "SELECT LEVEL AS n FROM dual CONNECT BY LEVEL <= 5"}),
+    # E3 (0.22.0): LEVEL <= n dentro de CONNECT BY y CONNECT_BY_ISLEAF (Luis es hoja por el nivel máximo)
+    (
+        "jerarquia_nivel",
+        {
+            "oracle": f"SELECT id, LEVEL AS nivel, CONNECT_BY_ISLEAF AS hoja FROM {E} "
+            "START WITH jefe_id IS NULL CONNECT BY PRIOR id = jefe_id AND LEVEL <= 2"
+        },
+    ),
+    (
+        "jerarquia_hoja",
+        {
+            "oracle": f"SELECT e.id, CONNECT_BY_ISLEAF AS hoja FROM {E} e WHERE e.activo = 1 "
+            "START WITH e.jefe_id IS NULL CONNECT BY PRIOR e.id = e.jefe_id"
+        },
+    ),
 ]
 
 
@@ -552,3 +567,64 @@ def test_views_are_created_and_return_the_same_rows(source_target: tuple[str, st
     finally:
         src_engine.dispose()
         dst_engine.dispose()
+
+
+# E3 (0.22.0): NOCYCLE → array de antepasados en PostgreSQL. Ana → Luis → Eva → Ana es un ciclo: Oracle corta al
+# volver a un antepasado y da CONNECT_BY_ISLEAF = 1 a Eva (su único hijo es Ana).
+CICLO, CICLO_V = "zzvw_ciclo", "zzvw_ciclo_v"
+CICLO_ROWS = [(1, "Ana", 3), (2, "Luis", 1), (3, "Eva", 2), (4, "Juan", 1), (5, "Rosa", None)]
+NOCYCLE_VIEW = (
+    f"SELECT id, LEVEL AS nivel, SYS_CONNECT_BY_PATH(nombre, '/') AS ruta, CONNECT_BY_ISLEAF AS hoja FROM {CICLO} "
+    "START WITH id IN (1, 5) CONNECT BY NOCYCLE PRIOR id = jefe_id"
+)
+
+
+def test_oracle_nocycle_hierarchy_to_postgresql() -> None:
+    _create_namespace("oracle", SRC)
+    _create_namespace("postgresql", DST)
+    try:
+        statements = [
+            f"CREATE TABLE {CICLO} (id NUMBER(10) PRIMARY KEY, nombre VARCHAR2(50) NOT NULL, jefe_id NUMBER(10))"
+        ]
+        statements += [
+            f"INSERT INTO {CICLO} VALUES ({i}, '{n}', {'NULL' if j is None else j})" for i, n, j in CICLO_ROWS
+        ]
+        statements.append(f"CREATE VIEW {CICLO_V} AS {NOCYCLE_VIEW}")
+        _run("oracle", SRC, statements)
+        manager = _manager("oracle")
+        try:
+            plan = MigrationPlanner(
+                source_engine="oracle", target_engine="postgresql", view_strategy="transpile", pg_schema=DST
+            ).plan(manager, _source_schema("oracle"))
+        finally:
+            manager.close()
+        plan.tables = [t for t in plan.tables if t.original_name.lower() == CICLO]
+        plan.views = [v for v in plan.views if v.original_name.lower() == CICLO_V]
+        [view] = plan.views
+        assert any(w.target_type == "VIEW (reescrita)" for w in view.warnings), view.warnings
+        assert any("CYCLE" in w.message for w in view.warnings if w.target_type == "VIEW (jerarquía)")
+
+        target_manager = _manager("postgresql", DST)
+        try:
+            plan.execute(target_manager)
+        finally:
+            target_manager.close()
+        src_engine, dst_engine = _engine("oracle", SRC), _engine("postgresql", DST)
+        try:
+            [table] = plan.tables
+            columns = [c.name for c in table.columns]
+            with dst_engine.begin() as conn:
+                conn.execute(
+                    Table(table.name, MetaData(), autoload_with=dst_engine).insert(),
+                    [dict(zip(columns, row, strict=True)) for row in CICLO_ROWS],
+                )
+            source_rows = _rows(src_engine, f"SELECT * FROM {CICLO_V}")
+            target_rows = _rows(dst_engine, f'SELECT * FROM "{view.name}"')
+        finally:
+            src_engine.dispose()
+            dst_engine.dispose()
+        assert len(source_rows) == 5  # Ana, Luis, Juan y Eva (sin volver a Ana) + Rosa
+        assert target_rows == source_rows
+    finally:
+        _drop_namespace("oracle", SRC)
+        _drop_namespace("postgresql", DST)

@@ -81,7 +81,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-0. **Push y tag `v0.21.0`** (sesiones `2026-09-30-migrate-d1-extract-batching`, `2026-09-30b-migrate-d2-source-type`, `2026-09-30c-migrate-d3-comments`, `2026-09-30d-migrate-audit-021`), pendientes de decisión del usuario. Deuda anotada fuera de alcance: `target_type` de `MigrationWarning` mezcla tipo destino, nombre y etiqueta; comentarios de vistas y rutinas no se migran; `CONNECT BY` con `NOCYCLE`/`ORDER SIBLINGS BY` sin reescribir.
+0. **0.22.0 en curso** (deuda de la 0.21.0, orden E3 → E2 → E1): E3 hecho (`CONNECT BY` con `AND LEVEL <= n`, `CONNECT_BY_ISLEAF`, `NOCYCLE` hacia PostgreSQL; sesión `2026-09-30e-migrate-connect-by-2`). Pendientes: E2 comentarios de vistas; E1 `code` estable en `MigrationWarning` (`target_type` mezcla tipo destino, nombre y etiqueta). Siguen fuera de alcance: `ORDER SIBLINGS BY`, `CONNECT_BY_ISCYCLE`, comentarios de rutinas.
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
 3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.

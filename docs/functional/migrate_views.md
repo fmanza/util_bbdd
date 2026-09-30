@@ -26,8 +26,9 @@ las vistas se copian sin reescribir, como hasta la versión 0.19.0.
 | Nombres del plan | La vista usa los nombres de tablas, vistas y columnas del destino (mayúsculas en Oracle, truncados si hace falta) y pierde el prefijo del schema origen | Una vista que apunte al schema origen no existe en el destino |
 | Aviso por vista reescrita | Cada vista reescrita lleva un aviso `INFO` «VIEW (reescrita)» para revisarla | — |
 | Semántica de Oracle | Si el origen o el destino es Oracle, aviso `WARNING`: en Oracle la cadena vacía es `NULL` y `\|\|` ignora los `NULL` | La vista se crea, pero puede devolver otros datos con cadenas vacías o concatenaciones con `NULL` |
-| Jerarquías de Oracle | `START WITH` + `CONNECT BY PRIOR a = b` sobre una sola tabla (con `LEVEL`, `SYS_CONNECT_BY_PATH` sobre texto variable o enteros y `CONNECT_BY_ROOT`) se convierte en una CTE recursiva; el `WHERE` se aplica **después** de recorrer la jerarquía, como en Oracle. El generador `FROM dual CONNECT BY LEVEL <= n` también | Un filtro aplicado dentro de la jerarquía podaría las ramas bajo un nodo filtrado |
-| Límite de recursión y ciclos | Aviso `WARNING` «VIEW (jerarquía)»: SQL Server corta a 100 niveles y MySQL a 1000 (una vista no puede ampliarlo); en PostgreSQL y MariaDB un ciclo en los datos hace que la consulta no termine. El generador con más filas que ese límite se copia sin reescribir | Jerarquías profundas o datos con ciclos fallan al consultar la vista |
+| Jerarquías de Oracle | `START WITH` + `CONNECT BY PRIOR a = b` sobre una sola tabla (con `AND LEVEL <= n` opcional en la condición, `LEVEL`, `SYS_CONNECT_BY_PATH` sobre texto variable o enteros, `CONNECT_BY_ROOT` y `CONNECT_BY_ISLEAF`) se convierte en una CTE recursiva; el `WHERE` se aplica **después** de recorrer la jerarquía, como en Oracle, y no convierte en hoja a un nodo cuyos hijos filtra. El generador `FROM dual CONNECT BY LEVEL <= n` también | Un filtro aplicado dentro de la jerarquía podaría las ramas bajo un nodo filtrado |
+| `NOCYCLE` (solo destino PostgreSQL) | La CTE guarda en un array los valores de la columna de `PRIOR` del camino: no baja a una fila que ya está en él y `CONNECT_BY_ISLEAF` no cuenta ese hijo, como Oracle. Supone que esa columna identifica la fila (una clave). Con otro destino, la vista se copia sin reescribir | Sin `NOCYCLE`, un ciclo en los datos no termina o supera el límite de recursión |
+| Límite de recursión y ciclos | Aviso `WARNING` «VIEW (jerarquía)»: SQL Server corta a 100 niveles y MySQL a 1000 (una vista no puede ampliarlo); en PostgreSQL y MariaDB un ciclo en los datos hace que la consulta no termine (salvo con `NOCYCLE` hacia PostgreSQL). El generador con más filas que ese límite se copia sin reescribir | Jerarquías profundas o datos con ciclos fallan al consultar la vista |
 | Sin traducción fiable → sin reescribir | `CONNECT BY` fuera del subconjunto anterior, `ROWNUM` fuera de un límite de filas o SQL que sqlglot no entiende se copian tal cual con aviso `WARNING` «VIEW (sin reescribir)» | Hay que adaptar esa vista a mano |
 | Referencias externas | Una vista que usa objetos fuera del schema migrado se reescribe con aviso `WARNING` «VIEW (referencia externa)» | El objeto referenciado debe existir en el destino |
 | Validación sin cambios | En PostgreSQL y SQL Server se crean tablas y vistas en una transacción que se deshace; en MySQL, MariaDB y Oracle (el DDL confirma solo) se comprueba solo la sintaxis | Validar con DDL no transaccional dejaría objetos en el destino |
@@ -73,9 +74,10 @@ pasan a ser alias de las columnas del `SELECT`.
 **Límites y exclusiones:**
 
 - No reescribe rutinas (procedimientos, funciones, triggers): siguen copiándose sin reescribir
-- `CONNECT BY` solo se convierte en el subconjunto simple: `NOCYCLE`, `ORDER SIBLINGS BY`, joins en la consulta
-  jerárquica, condiciones `PRIOR` múltiples (incluido `AND LEVEL <= k`), `CONNECT_BY_ISLEAF`/`CONNECT_BY_ISCYCLE`,
-  `ROWNUM` y jerarquías dentro de subconsultas se copian sin reescribir, con el motivo en el aviso
+- `CONNECT BY` solo se convierte en el subconjunto simple: `NOCYCLE` hacia un destino que no es PostgreSQL,
+  `ORDER SIBLINGS BY`, joins en la consulta jerárquica, condiciones distintas de `PRIOR a = b` con `AND LEVEL <= n`
+  (por ejemplo `AND activo = 1`), `CONNECT_BY_ISCYCLE`, `ROWNUM` y jerarquías dentro de subconsultas se copian sin
+  reescribir, con el motivo en el aviso
 - Sin `ORDER BY`, la vista convertida no conserva el orden en profundidad de Oracle (las filas son las mismas)
 - La semántica de Oracle con cadenas vacías y `NULL` solo se avisa; no se corrige
 - En MySQL, MariaDB y Oracle la validación es solo sintáctica: no detecta funciones o columnas inexistentes

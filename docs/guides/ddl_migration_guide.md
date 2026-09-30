@@ -134,15 +134,15 @@ Al reescribir, cada vista:
   en `LOWER(...) LIKE LOWER(...)` hacia SQL Server; los agregados de texto (`GROUP_CONCAT`, `LISTAGG`) en
   `STRING_AGG` con el valor convertido a texto hacia PostgreSQL; los nombres de columna declarados en la cabecera de
   una vista de SQL Server (`CREATE VIEW v (a, b) AS ...`) en alias; las jerarquías simples de Oracle (`START WITH` +
-  `CONNECT BY PRIOR a = b`, con `LEVEL`, `SYS_CONNECT_BY_PATH` y `CONNECT_BY_ROOT`) y el generador
-  `FROM dual CONNECT BY LEVEL <= n` en una CTE recursiva, con un aviso `WARNING` «VIEW (jerarquía)» sobre el límite de
-  recursión del destino y los ciclos;
+  `CONNECT BY PRIOR a = b`, con `AND LEVEL <= n` opcional, `LEVEL`, `SYS_CONNECT_BY_PATH`, `CONNECT_BY_ROOT` y
+  `CONNECT_BY_ISLEAF`; `NOCYCLE` solo hacia PostgreSQL) y el generador `FROM dual CONNECT BY LEVEL <= n` en una CTE
+  recursiva, con un aviso `WARNING` «VIEW (jerarquía)» sobre el límite de recursión del destino y los ciclos;
 - lleva un aviso `INFO` de revisión y, si el origen o el destino es Oracle, un `WARNING` de semántica: en Oracle la
   cadena vacía es `NULL` y `||` ignora los `NULL`.
 
 Una vista que no se puede reescribir de forma fiable se copia **sin reescribir** con un aviso `WARNING` que dice el
-motivo: `CONNECT BY` fuera del subconjunto convertible (`NOCYCLE`, `ORDER SIBLINGS BY`, joins, condiciones `PRIOR`
-múltiples, `CONNECT_BY_ISLEAF`…), `ROWNUM` fuera de un límite de filas (en la lista de columnas o junto a un `ORDER BY` de la misma consulta),
+motivo: `CONNECT BY` fuera del subconjunto convertible (`NOCYCLE` hacia otro destino que PostgreSQL,
+`ORDER SIBLINGS BY`, joins, condiciones distintas de `PRIOR a = b [AND LEVEL <= n]`, `CONNECT_BY_ISCYCLE`…), `ROWNUM` fuera de un límite de filas (en la lista de columnas o junto a un `ORDER BY` de la misma consulta),
 SQL que sqlglot no analiza o no sabe generar. Las vistas que usan objetos
 fuera del schema migrado se reescriben con un aviso de referencia externa.
 

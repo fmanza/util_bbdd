@@ -7,6 +7,19 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **migrate (vistas)**: más jerarquías `CONNECT BY` de Oracle se convierten en CTE recursiva (E3):
+  - `AND LEVEL <= n` en la condición de `CONNECT BY`;
+  - `CONNECT_BY_ISLEAF`, calculado contra la tabla: el `WHERE` de la vista no convierte en hoja a un nodo cuyos hijos
+    filtra, como en Oracle;
+  - `NOCYCLE` con destino PostgreSQL, con un array de los valores de la columna de `PRIOR` en el camino: no se baja a
+    un antepasado y su padre cuenta como hoja, como en Oracle (supone que esa columna es una clave). Con otros destinos
+    la vista sigue sin reescribir, con el motivo en el aviso.
+
+  Verificado fila a fila contra Oracle en el e2e de los 20 pares y en una tabla con un ciclo hacia PostgreSQL.
+  `ORDER SIBLINGS BY` y `CONNECT_BY_ISCYCLE` siguen sin reescribir.
+
 ## [0.21.0] - 2026-09-30
 
 Cierra la deuda que dejó la auditoría de `migrate/`: los extractores leen el schema con una consulta por tipo de objeto

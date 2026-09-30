@@ -349,10 +349,17 @@ _CONNECT_BY_PATH_TYPE: dict[str, str] = {
 CONNECT_BY_RECURSION_LIMIT: dict[str, int] = {"sqlserver": 100, "mysql": 1000}
 # CHAR/NCHAR quedan fuera: Oracle conserva el relleno en la ruta y PostgreSQL lo quita al convertir a VARCHAR.
 _CONNECT_BY_PATH_TEXT_TYPES: frozenset[str] = frozenset({"VARCHAR2", "NVARCHAR2", "VARCHAR"})
-_HIERARCHY_PSEUDOCOLUMNS: frozenset[str] = frozenset({"CONNECT_BY_ISLEAF", "CONNECT_BY_ISCYCLE", "ROWNUM"})
+_HIERARCHY_PSEUDOCOLUMNS: frozenset[str] = frozenset({"CONNECT_BY_ISCYCLE", "ROWNUM"})
+_CONNECT_BY_ISLEAF: str = "CONNECT_BY_ISLEAF"
+# NOCYCLE (solo destino PostgreSQL): array con la columna de PRIOR de la fila y sus antepasados. La rama recursiva no
+# baja a una fila cuyo valor ya está en el array (Oracle la omite) y CONNECT_BY_ISLEAF no cuenta ese hijo (Oracle da 1).
+# La cláusula CYCLE de PostgreSQL 14+ no sirve: marca la fila del ciclo, pero ISLEAF necesita los antepasados.
+_CONNECT_BY_KEYS: str = "cb_keys"
 
 ConnectByOutcome = str | None
-"""``"hierarchy"`` o ``"generator"`` si se convirtió; otro texto = motivo para no convertir; ``None`` = sin CONNECT BY."""
+"""``"hierarchy"``, ``"hierarchy_nocycle"`` o ``"generator"`` si se convirtió; otro texto = motivo para no convertir;
+``None`` = sin CONNECT BY."""
+CONNECT_BY_CONVERTED: frozenset[str] = frozenset({"hierarchy", "hierarchy_nocycle", "generator"})
 
 
 def _is_level(node: exp.Expression) -> bool:
@@ -444,6 +451,52 @@ def _prior_pair(condition: exp.Expression) -> tuple[exp.Column, exp.Column] | No
     return None
 
 
+def _connect_condition(condition: exp.Expression) -> tuple[exp.Column, exp.Column, int | None] | None:
+    """``PRIOR padre = hijo`` con ``AND LEVEL <= n`` opcionales → (padre, hijo, nivel máximo o ``None``)."""
+    parts: list[Any] = list(condition.flatten()) if isinstance(condition, exp.And) else [condition]
+    pairs = [pair for pair in (_prior_pair(part) for part in parts) if pair is not None]
+    bounds = [bound for bound in (_level_bound(part) for part in parts) if bound is not None]
+    if len(pairs) != 1 or len(pairs) + len(bounds) != len(parts):
+        return None
+    return pairs[0][0], pairs[0][1], min(bounds) if bounds else None
+
+
+def _not_in_keys(column: exp.Column, keys_table: str) -> exp.Expression:
+    """``NOT columna = ANY(tabla.cb_keys)``: la fila no es la actual ni un antepasado (``NOCYCLE``)."""
+    return exp.not_(
+        exp.EQ(this=column, expression=exp.Any(this=exp.Paren(this=exp.column(_CONNECT_BY_KEYS, table=keys_table))))
+    )
+
+
+def _is_leaf(
+    source: exp.Table,
+    qualifier: str,
+    parent_col: str,
+    child_col: str,
+    max_level: int | None,
+    nocycle: bool,
+    taken: set[str],
+) -> exp.Expression:
+    """``CONNECT_BY_ISLEAF``: 1 si ninguna fila de la tabla cuelga de esta (o si ya está en el nivel máximo).
+
+    Se evalúa contra la tabla y no contra el resultado: en Oracle el ``WHERE`` de la consulta no convierte en hoja a
+    un nodo cuyos hijos filtra. Con ``NOCYCLE`` no cuenta el hijo que cerraría un ciclo: Oracle da 1 a una fila cuyo
+    único hijo es un antepasado.
+    """
+    alias = _free_name("cb_child", taken | {qualifier.lower()})
+    child_table = source.copy()
+    child_table.set("alias", exp.TableAlias(this=exp.to_identifier(alias)))
+    child_filter: Any = exp.EQ(
+        this=exp.column(child_col, table=alias), expression=exp.column(parent_col, table=qualifier)
+    )
+    if nocycle:
+        child_filter = exp.and_(child_filter, _not_in_keys(exp.column(parent_col, table=alias), qualifier))
+    has_child: Any = exp.Exists(this=exp.select(exp.Literal.number(1)).from_(child_table).where(child_filter))
+    if max_level is not None:
+        has_child = exp.and_(exp.column(_CONNECT_BY_LEVEL, table=qualifier) < exp.Literal.number(max_level), has_child)
+    return exp.Case(ifs=[exp.If(this=has_child, true=exp.Literal.number(0))], default=exp.Literal.number(1))
+
+
 def _connect_by_hierarchy(
     select: exp.Select,
     target_engine: str,
@@ -453,8 +506,9 @@ def _connect_by_hierarchy(
 ) -> exp.Expression | str:
     """Jerarquía simple (``START WITH`` + ``CONNECT BY PRIOR a = b``) → CTE recursiva; el ``WHERE`` va fuera."""
     connect: Any = select.args["connect"]
-    if connect.args.get("nocycle"):
-        return "NOCYCLE"
+    nocycle = bool(connect.args.get("nocycle"))
+    if nocycle and target_engine != "postgresql":
+        return f"NOCYCLE, que solo se convierte con destino PostgreSQL (arrays), no {target_engine}"
     order: Any = select.args.get("order")
     if order is not None and order.args.get("siblings"):
         return "ORDER SIBLINGS BY"
@@ -463,10 +517,10 @@ def _connect_by_hierarchy(
     source: Any = select.args["from_"].this
     if not isinstance(source, exp.Table):
         return "origen que no es una tabla"
-    pair = _prior_pair(connect.args["connect"])
-    if pair is None:
-        return "condición CONNECT BY distinta de PRIOR columna = columna"
-    parent_col, child_col = pair
+    parsed = _connect_condition(connect.args["connect"])
+    if parsed is None:
+        return "condición CONNECT BY distinta de PRIOR columna = columna [AND LEVEL <= n]"
+    parent_col, child_col, max_level = parsed
     start: Any = connect.args.get("start")
     if start is not None and any(_is_level(c) for c in start.find_all(exp.Column)):
         return "LEVEL en START WITH"
@@ -515,6 +569,18 @@ def _connect_by_hierarchy(
     recursive_extra: list[Any] = [
         exp.alias_(exp.column(_CONNECT_BY_LEVEL, table=parent) + exp.Literal.number(1), _CONNECT_BY_LEVEL)
     ]
+    if nocycle:
+        prior_key = exp.column(table_columns[parent_col.name.lower()], table=qualifier)
+        anchor_extra.append(exp.alias_(exp.Array(expressions=[prior_key.copy()]), _CONNECT_BY_KEYS))
+        recursive_extra.append(
+            exp.alias_(
+                exp.DPipe(
+                    this=exp.column(_CONNECT_BY_KEYS, table=parent),
+                    expression=exp.Array(expressions=[prior_key.copy()]),
+                ),
+                _CONNECT_BY_KEYS,
+            )
+        )
     replacements: dict[str, str] = {}
 
     for root_node in list(select.find_all(exp.ConnectByRoot)):
@@ -589,6 +655,13 @@ def _connect_by_hierarchy(
             on=join_condition,
         )
     )
+    if max_level is not None:
+        # En CONNECT BY, LEVEL es el nivel del hijo: nivel del padre + 1 <= n.
+        recursive = recursive.where(exp.column(_CONNECT_BY_LEVEL, table=parent) < exp.Literal.number(max_level))
+    if nocycle:
+        recursive = recursive.where(
+            _not_in_keys(exp.column(table_columns[parent_col.name.lower()], table=qualifier), parent)
+        )
 
     outer = select.copy()
     outer.set("connect", None)
@@ -602,6 +675,18 @@ def _connect_by_hierarchy(
         column_alias = replacements.get(replaced.sql(dialect="oracle").lower())
         if column_alias is not None:
             replaced.replace(exp.column(column_alias, table=qualifier))
+    for leaf in [c for c in outer.find_all(exp.Column) if not c.table and c.name.upper() == _CONNECT_BY_ISLEAF]:
+        leaf_value = _is_leaf(
+            source,
+            qualifier,
+            table_columns[parent_col.name.lower()],
+            table_columns[child_col.name.lower()],
+            max_level,
+            nocycle,
+            taken,
+        )
+        # Proyección sin alias: conserva el nombre de columna que da Oracle.
+        leaf.replace(exp.alias_(leaf_value, _CONNECT_BY_ISLEAF.lower()) if leaf.parent is outer else leaf_value)
     _replace_level(outer, qualifier)
     cte = exp.CTE(
         this=exp.union(anchor, recursive, distinct=False), alias=exp.TableAlias(this=exp.to_identifier(cte_name))
@@ -621,14 +706,15 @@ def oracle_connect_by(
     """``CONNECT BY`` de Oracle → CTE recursiva, solo en el subconjunto con traducción fiable.
 
     Convierte la consulta principal de la vista si es una jerarquía simple (un solo origen, ``START WITH`` opcional,
-    ``CONNECT BY PRIOR a = b``, ``LEVEL``, ``SYS_CONNECT_BY_PATH`` sobre texto variable o enteros con separador
-    literal, ``CONNECT_BY_ROOT``) o el generador ``FROM dual CONNECT BY LEVEL <= n``. El ``WHERE`` de la consulta va
-    en la consulta exterior porque Oracle filtra **después** de recorrer la jerarquía. Cualquier otro caso devuelve el
-    árbol sin tocar y el motivo; la salvaguarda deja entonces la vista sin reescribir.
+    ``CONNECT BY PRIOR a = b`` con ``AND LEVEL <= n`` opcional, ``LEVEL``, ``SYS_CONNECT_BY_PATH`` sobre texto variable
+    o enteros con separador literal, ``CONNECT_BY_ROOT``, ``CONNECT_BY_ISLEAF``; ``NOCYCLE`` solo con destino
+    PostgreSQL) o el generador ``FROM dual CONNECT BY LEVEL <= n``. El ``WHERE`` de la consulta va en la consulta
+    exterior porque Oracle filtra **después** de recorrer la jerarquía. Cualquier otro caso devuelve el árbol sin
+    tocar y el motivo; la salvaguarda deja entonces la vista sin reescribir.
 
     Returns:
-        (árbol, resultado): resultado ``"hierarchy"``/``"generator"`` si se convirtió, el motivo si no, ``None`` si
-        la vista no tiene ``CONNECT BY``.
+        (árbol, resultado): resultado ``"hierarchy"``/``"hierarchy_nocycle"``/``"generator"`` si se convirtió, el
+        motivo si no, ``None`` si la vista no tiene ``CONNECT BY``.
     """
     selects = [select for select in tree.find_all(exp.Select) if select.args.get("connect")]
     if not selects:
@@ -646,7 +732,7 @@ def oracle_connect_by(
         kind = "generator"
     else:
         result = _connect_by_hierarchy(tree, target_engine, column_types, integer_columns, taken)
-        kind = "hierarchy"
+        kind = "hierarchy_nocycle" if tree.args["connect"].args.get("nocycle") else "hierarchy"
     if isinstance(result, str):
         return tree, result
     return result, kind
