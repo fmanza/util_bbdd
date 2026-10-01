@@ -114,7 +114,7 @@ fallos, auditoría, rendimiento; todos los motores; 1M; línea base primero; val
   reintentos.
 
 ### Handoff
-- Siguiente: push de `develop` y del tag `v0.24.0` (decisión del usuario).
+- Hecho: push de `develop` y del tag `v0.24.0` (2026-10-01). Siguiente: B-04.
 - Roadmap pendiente: 1.5 (B-04) tras `scripts/bench_bulk.py --sizes 1000000 --chunk-size {1000,5000,20000,50000}
   --repeat 3`; Fase 3 (spikes) en `improvement_roadmap_bulk.md`.
 
@@ -122,4 +122,4 @@ fallos, auditoría, rendimiento; todos los motores; 1M; línea base primero; val
 Veredicto: CLOSED (auditoría: SIGNIFICATIVO)
 Pendientes al cierre:
 - 1.5 (B-04, tras repetir el barrido) y Fase 3 (spikes).
-- Push de `develop` y del tag `v0.24.0` (decisión del usuario). Versión cerrada: v0.24.0.
+- `v0.24.0` cerrada y publicada (push de `develop` y tag `v0.24.0`, 2026-10-01).

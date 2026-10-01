@@ -85,7 +85,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-0. **Push de `develop` y del tag `v0.24.0`**, pendientes de decisión del usuario. Roadmap de `bulk` pendiente (sesión `2026-10-01h-performance-audit-bulk-todo`): 1.5 (B-04, tamaño de envío por estrategia, tras repetir el barrido con `--repeat 3`) y Fase 3 (spikes: procesos para PostgreSQL, aislamiento de filas erróneas, causa del `ClientRead`, prefetch).
+0. `v0.24.0` publicada (push de `develop` y tag, 2026-10-01). Roadmap de `bulk` pendiente (sesión `2026-10-01h-performance-audit-bulk-todo`): 1.5 (B-04, tamaño de envío por estrategia, tras repetir el barrido con `--repeat 3`) y Fase 3 (spikes: procesos para PostgreSQL, aislamiento de filas erróneas, causa del `ClientRead`, prefetch).
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
 3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.
