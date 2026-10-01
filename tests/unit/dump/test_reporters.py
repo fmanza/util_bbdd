@@ -186,10 +186,11 @@ class TestAuditSheet:
         wb = openpyxl.load_workbook(path)
         return wb["Auditoría Tablas"]
 
-    def test_header_row_has_nine_columns(self, tmp_path: Path):
+    def test_header_row_has_ten_columns(self, tmp_path: Path):
         ws = self._get_audit_ws(tmp_path, [])
-        headers = [ws.cell(1, c).value for c in range(1, 10)]
+        headers = [ws.cell(1, c).value for c in range(1, 11)]
         assert all(h is not None for h in headers)
+        assert headers[6] == "Filas Rechazadas"  # tras «Filas Destino Después» (Fase 4, D-2)
 
     def test_table_result_appears_in_data_row(self, tmp_path: Path):
         ws = self._get_audit_ws(tmp_path, [_table_result("orders", "success", source_rows=42)])
@@ -200,7 +201,7 @@ class TestAuditSheet:
     def test_missing_target_row_present(self, tmp_path: Path):
         result = _table_result("ghost_table", "missing_target", source_rows=0)
         ws = self._get_audit_ws(tmp_path, [result])
-        statuses = [ws.cell(2, 7).value]
+        statuses = [ws.cell(2, 8).value]
         assert "MISSING_TARGET" in statuses
 
     def test_failed_constraint_appended(self, tmp_path: Path):
@@ -464,7 +465,7 @@ class TestIllegalCharacters:
         )
 
         wb = openpyxl.load_workbook(path)
-        assert wb["Auditoría Tablas"].cell(row=2, column=9).value == "ORA-01722: invalid number"
+        assert wb["Auditoría Tablas"].cell(row=2, column=10).value == "ORA-01722: invalid number"
         assert wb["Tablas Faltantes"].cell(row=2, column=1).value == "tablarara"
 
 

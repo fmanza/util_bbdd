@@ -107,9 +107,10 @@ class DumpReporter:
             DumpReporter._cell(ws, row, 4, res.source_rows if res.source_rows >= 0 else "—")
             DumpReporter._cell(ws, row, 5, res.target_rows_before if res.target_rows_before >= 0 else "—")
             DumpReporter._cell(ws, row, 6, res.target_rows_after if res.target_rows_after >= 0 else "—")
-            DumpReporter._cell(ws, row, 7, res.status.upper(), bg=bg)
-            DumpReporter._cell(ws, row, 8, ", ".join(res.skipped_columns) if res.skipped_columns else "—")
-            DumpReporter._cell(ws, row, 9, res.error_msg or "—")
+            DumpReporter._cell(ws, row, 7, res.rows_rejected)
+            DumpReporter._cell(ws, row, 8, res.status.upper(), bg=bg)
+            DumpReporter._cell(ws, row, 9, ", ".join(res.skipped_columns) if res.skipped_columns else "—")
+            DumpReporter._cell(ws, row, 10, res.error_msg or "—")
 
     @staticmethod
     def _write_constraint_section(
@@ -334,6 +335,7 @@ class DumpReporter:
             "Filas Origen",
             "Filas Destino Antes",
             "Filas Destino Después",
+            "Filas Rechazadas",
             "Estado",
             "Columnas Omitidas",
             "Error",

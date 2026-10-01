@@ -22,8 +22,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   reintenta (los duplicaría en el CSV); `max_rejects` cuenta por partición; la posición de un rechazo es la de la
   partición también tras reanudar con `commit_every_n_chunks` (Fase 3, sesión `2026-10-01t`).
 
+- **dump**: `DumpConfig(on_error="isolate", rejects_csv_path=..., max_rejects=None)`: las filas que el destino no admite
+  (PK duplicada, NOT NULL, demasiado largo o fuera de precisión entre motores) se apartan al CSV de rechazos y el resto
+  de la tabla se copia; la tabla queda `success` con `TableDumpResult.rows_rejected` (y `DumpResult.rows_rejected`).
+  Con las constraints desactivadas durante la carga, FK y CHECK no se aíslan aquí. `max_rejects` por tabla o por rango
+  (Fase 4, sesión `2026-10-01u`).
+
 ### Changed
 
+- **dump**: la hoja «Auditoría Tablas» del informe Excel gana la columna «Filas Rechazadas» tras «Filas Destino
+  Después»; Estado, Columnas Omitidas y Error se desplazan una posición.
 - **bulk**: el CSV de rechazos de `on_error="isolate"` (0.26.0) gana la columna `particion`, entre `operacion` y `fila`
   (vacía fuera de `ParallelBulkLoader`). Un CSV con la cabecera de la 0.26.0 se aparta como `<nombre>.invalid-<fecha>.csv`
   con un WARNING y se empieza uno nuevo; no se mezclan formatos.

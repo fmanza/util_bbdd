@@ -971,9 +971,9 @@ class TestLoadInPkRanges:
         conn.execute.return_value.one.return_value = (None, None)
 
         with patch("util_bbdd.dump.orchestrator.ParallelBulkLoader") as loader_cls:
-            errors = orch._load_in_pk_ranges("t", ["id"], {"id": "id"}, "id", "t", 3)
+            errors, rejected = orch._load_in_pk_ranges("t", ["id"], {"id": "id"}, "id", "t", 3)
 
-        assert errors == []
+        assert errors == [] and rejected == 0
         # Tabla vacía: no se construye el loader
         loader_cls.assert_not_called()
 
@@ -987,9 +987,9 @@ class TestLoadInPkRanges:
         with patch("util_bbdd.dump.orchestrator.ParallelBulkLoader") as loader_cls:
             loader = loader_cls.return_value
             loader.load.return_value = ParallelLoadResult(total_rows=9, partition_errors=[])
-            errors = orch._load_in_pk_ranges("t", ["id", "name"], {"id": "id", "name": "name"}, "id", "t", 3)
+            errors, rejected = orch._load_in_pk_ranges("t", ["id", "name"], {"id": "id", "name": "name"}, "id", "t", 3)
 
-        assert errors == []
+        assert errors == [] and rejected == 0
         # ParallelBulkLoader construido con el engine destino y max_workers = nº de rangos
         assert loader_cls.call_args.args[0] is orch._cfg.target_engine
         assert loader_cls.call_args.kwargs["max_workers"] == 3

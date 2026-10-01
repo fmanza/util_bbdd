@@ -453,11 +453,18 @@ class DumpOrchestrator:
 
         n_ranges: int = getattr(self, "_effective_pk_ranges", 1)
         if pk_range_col is not None and n_ranges > 1:
-            error_msgs = self._load_in_pk_ranges(
+            error_msgs, rows_rejected = self._load_in_pk_ranges(
                 src_table, common_cols, col_name_map, pk_range_col, dest_table_logical, n_ranges
             )
         else:
+            # La BulkCrud se reutiliza entre las tablas del hilo: sus rechazos de esta tabla, por diferencia.
+            rejected_before: int = crud.rows_rejected
             error_msgs = self._load_whole_table(src_table, common_cols, col_name_map, dest_table_logical, crud)
+            rows_rejected = crud.rows_rejected - rejected_before
+        if rows_rejected:
+            self.logger.warning(
+                "%s: %d filas rechazadas en %s (on_error='isolate')", src_table, rows_rejected, cfg.rejects_csv_path
+            )
 
         target_rows_after = (
             self._safe_count(cfg.target_engine, dst_table, cfg.target_schema) if cfg.collect_row_counts else -1
@@ -474,6 +481,7 @@ class DumpOrchestrator:
             load_order_position=position,
             in_cycle=in_cycle,
             error_msg="; ".join(error_msgs),
+            rows_rejected=rows_rejected,
         )
 
     def _load_whole_table(
@@ -534,8 +542,10 @@ class DumpOrchestrator:
         pk_col: str,
         dest_table_logical: str,
         n_ranges: int,
-    ) -> list[str]:
+    ) -> tuple[list[str], int]:
         """Particiona la tabla por rangos contiguos de ``pk_col`` y los carga en paralelo.
+
+        Devuelve los errores de los rangos y las filas rechazadas (``on_error="isolate"``).
 
         Responsabilidad de ``dump`` (política): calcular los rangos a partir del origen
         (MIN/MAX + bounds) y construir un *lector* por rango. El mecanismo de inserción
@@ -550,10 +560,10 @@ class DumpOrchestrator:
             with cfg.source_engine.connect() as conn:
                 row = conn.execute(text(f"SELECT MIN({pk_q}), MAX({pk_q}) FROM {table_quoted}")).one()
         except (SQLAlchemyError, ValueError) as exc:
-            return [f"Error calculando rango PK: {exc}"]
+            return [f"Error calculando rango PK: {exc}"], 0
 
         if row[0] is None or row[1] is None:
-            return []  # tabla vacía
+            return [], 0  # tabla vacía
 
         bounds = DumpOrchestrator._compute_range_bounds(int(row[0]), int(row[1]), n_ranges)
         cols_quoted = ", ".join(quote_identifier(c, cfg.source_engine) for c in common_cols)
@@ -578,7 +588,7 @@ class DumpOrchestrator:
         result = loader.load(dest_table_logical, readers)
         with self._audit_lock:
             self._loader_audit = self._loader_audit + _AuditCounters.of(result)
-        return result.partition_errors
+        return result.partition_errors, result.rows_rejected
 
     @staticmethod
     def _compute_range_bounds(lo: int, hi: int, n: int) -> list[tuple[int, int, bool]]:
@@ -786,6 +796,10 @@ class DumpOrchestrator:
             "audit_strict": cfg.bulk_audit_strict,
             "strip_strings": False,  # PD-05: copia fiel del origen
             "reflect_foreign_keys": False,  # Q9: bulk no usa las FK de la tabla destino
+            # Fase 4 (sesión 2026-10-01u): filas que el destino no admite, al CSV de rechazos.
+            "on_error": cfg.on_error,
+            "rejects_csv_path": cfg.rejects_csv_path,
+            "max_rejects": cfg.max_rejects,
         }
 
     def _resolve_write_batch_size(self) -> int:

@@ -52,6 +52,7 @@ from sqlalchemy import (
     create_engine,
     inspect,
     select,
+    text,
 )
 from sqlalchemy.schema import CreateSchema, DropSchema
 
@@ -367,3 +368,74 @@ def test_mssql_fk_references_by_schema_match_the_inspector(key: str) -> None:
         with engine.begin() as conn:
             conn.execute(DropSchema(other))
         engine.dispose()
+
+
+# ------------------------------------------------------------- Fase 4: DumpConfig(on_error="isolate") (2026-10-01u)
+
+
+def _isolate_tables(setup: Setup, request: pytest.FixtureRequest, *, s_length: int) -> None:
+    """Origen con 10 filas (``req`` nulo en 3 y 8; ``s`` de 9 caracteres en 4 y 9); destino más estricto."""
+    source = Table(
+        setup.name("iso"),
+        MetaData(),
+        Column("id", Integer, primary_key=True, autoincrement=False),
+        Column("s", String(30)),
+        Column("req", String(5)),
+        schema=setup.source_schema,
+    )
+    source.create(setup.source)
+    rows = [
+        {"id": i, "s": "largo9xyz" if i in (4, 9) else "ok", "req": None if i in (3, 8) else "r"} for i in range(1, 11)
+    ]
+    with setup.source.begin() as conn:
+        conn.execute(source.insert(), rows)
+    target = Table(
+        setup.name("iso"),
+        MetaData(),
+        Column("id", Integer, primary_key=True, autoincrement=False),
+        Column("s", String(s_length)),
+        Column("req", String(5), nullable=False),
+    )
+    _create(request, setup.target, target)
+
+
+def _ids(setup: Setup) -> list[int]:
+    with setup.target.connect() as conn:
+        return [r[0] for r in conn.execute(text(f"SELECT id FROM {setup.name('iso')} ORDER BY id"))]
+
+
+@pytest.mark.parametrize("ranges", [1, 2], ids=["tabla_entera", "rangos"])
+@pytest.mark.parametrize("setup", _target_params(), indirect=True)
+def test_dump_isolate_not_null(setup: Setup, request: pytest.FixtureRequest, ranges: int) -> None:
+    _isolate_tables(setup, request, s_length=30)
+
+    result = setup.run(
+        ["iso"], parallel_pk_ranges=ranges, on_error="isolate", rejects_csv_path=setup.tmp / "rechazos.csv"
+    )
+
+    assert [(r.status, r.rows_rejected) for r in result.table_results] == [("success", 2)], [
+        r.error_msg for r in result.table_results
+    ]
+    assert _ids(setup) == [1, 2, 4, 5, 6, 7, 9, 10]
+    rejects = pd.read_csv(setup.tmp / "rechazos.csv", sep="\t", keep_default_na=False)
+    if ranges == 1:
+        assert rejects["fila"].tolist() == [2, 7] and set(rejects["particion"]) == {""}
+    else:  # rangos 1–5 y 6–10: la posición es la del rango
+        assert sorted(zip(rejects["particion"].astype(int), rejects["fila"], strict=True)) == [(0, 2), (1, 2)]
+
+
+@pytest.mark.parametrize(
+    "setup",
+    _target_params(only=frozenset({"postgresql", "mysql", "mariadb", "mariadb_connector", "oracle"})),
+    indirect=True,
+)
+def test_dump_isolate_narrower_target_column(setup: Setup, request: pytest.FixtureRequest) -> None:
+    """Destino con ``s`` más estrecho que el origen: los valores demasiado largos se apartan (SQL Server no: R-1)."""
+    _isolate_tables(setup, request, s_length=5)
+
+    result = setup.run(["iso"], on_error="isolate", rejects_csv_path=setup.tmp / "rechazos.csv")
+
+    assert [(r.status, r.rows_rejected) for r in result.table_results] == [("success", 4)], [
+        r.error_msg for r in result.table_results
+    ]
+    assert _ids(setup) == [1, 2, 5, 6, 7, 10]

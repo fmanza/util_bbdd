@@ -14,6 +14,7 @@ from sqlalchemy import Engine
 
 from util_bbdd.bulk._execution.executors import validate_chunk_size
 from util_bbdd.bulk._models import PKSyncResult
+from util_bbdd.bulk._support.rejects import validate_isolation
 
 __all__: list[str] = ["PKSyncResult"]
 
@@ -133,6 +134,17 @@ class DumpConfig:
             siempre ``chunk_size``, para no cambiar cada cuántas filas se confirma. Un entero fija el
             lote en todos los motores. La lectura sigue siendo por ``chunk_size``; los chunks leídos
             se agrupan hasta completar el lote (+1 lote en memoria).
+        on_error: Como ``BulkCrud(on_error=...)``: con ``"isolate"`` las filas que el destino no admite (PK duplicada,
+            NOT NULL, valor demasiado largo o fuera de precisión) se apartan a ``rejects_csv_path`` y el resto de la
+            tabla se copia; la tabla queda ``success`` con ``TableDumpResult.rows_rejected``. Durante la carga las
+            constraints del destino están desactivadas: las FK y los CHECK no fallan aquí (una fila huérfana se copia y
+            falla al rehabilitar la constraint, como sin aislamiento). La posición (``fila``) es la de la lectura del
+            origen (``SELECT`` sin ``ORDER BY``: no se repite entre volcados); con ``parallel_pk_ranges`` es la del
+            rango, que va en la columna ``particion``. Fase 4, sesión 2026-10-01u.
+        rejects_csv_path: CSV de rechazos común a todas las tablas (ver ``BulkCrud``). Obligatorio con
+            ``on_error="isolate"``.
+        max_rejects: Filas que cada tabla (o cada rango, con ``parallel_pk_ranges``) puede rechazar; la siguiente deja
+            esa tabla en error y el volcado sigue. ``None`` (default): sin límite.
         bulk_audit_strict: Se pasa como ``audit_strict`` a cada ``BulkCrud`` y ``ParallelBulkLoader`` del volcado.
             ``False`` (default): un fallo al escribir el CSV de auditoría no interrumpe la carga; se registra como
             ERROR y se cuenta en ``DumpResult.audit_summary.audit_failures``. ``True``: el fallo deshace la carga de
@@ -140,7 +152,8 @@ class DumpConfig:
 
     Raises:
         ValueError: Si ``chunk_size`` no es un entero ≥ 1, o si ``commit_every_n_chunks`` o ``write_batch_size`` no son
-            ``None`` ni un entero ≥ 1. Se valida al construir, antes de tocar el destino.
+            ``None`` ni un entero ≥ 1, o si ``on_error``, ``rejects_csv_path`` y ``max_rejects`` no son una
+            combinación válida (las reglas de ``BulkCrud``). Se valida al construir, antes de tocar el destino.
     """
 
     source_engine: Engine
@@ -160,6 +173,9 @@ class DumpConfig:
     parallel_pk_ranges: int = 1
     bulk_audit_strict: bool = False
     write_batch_size: int | None = None
+    on_error: Literal["raise", "isolate"] = "raise"
+    rejects_csv_path: Path | None = None
+    max_rejects: int | None = None
 
     def __post_init__(self) -> None:
         # Validar aquí y no en la primera BulkCrud: run() la crea después de vaciar el destino (truncate_target), así que
@@ -172,11 +188,16 @@ class DumpConfig:
             )
         if self.write_batch_size is not None and self.write_batch_size < 1:
             raise ValueError(f"write_batch_size debe ser None o un entero ≥ 1, recibido: {self.write_batch_size}")
+        validate_isolation(self.on_error, self.rejects_csv_path, self.max_rejects)
 
 
 @dataclass
 class TableDumpResult:
-    """Resultado del volcado de una tabla individual."""
+    """Resultado del volcado de una tabla individual.
+
+    ``rows_rejected``: filas apartadas al CSV de rechazos con ``DumpConfig(on_error="isolate")``; la tabla puede ser
+    ``success`` con filas rechazadas.
+    """
 
     table_name: str
     source_rows: int
@@ -187,6 +208,7 @@ class TableDumpResult:
     load_order_position: int
     in_cycle: bool = False
     error_msg: str = ""
+    rows_rejected: int = 0
 
 
 @dataclass
@@ -260,3 +282,8 @@ class DumpResult:
     audit_summary: DumpAuditSummary | None = None
     pk_sync_results: list[PKSyncResult] | None = None
     index_results: list[IndexActionResult] | None = None
+
+    @property
+    def rows_rejected(self) -> int:
+        """Filas apartadas al CSV de rechazos en todo el volcado (``DumpConfig(on_error="isolate")``)."""
+        return sum(result.rows_rejected for result in self.table_results)
