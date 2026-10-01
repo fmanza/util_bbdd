@@ -78,6 +78,7 @@ flowchart TD
 | `ValueError` | `engine=None`, DataFrame vacío, `generar_sql=True` sin `path_sql`, no hay PKs para UPDATE/DELETE |
 | `SQLAlchemyError` | Error al reflejar la tabla, timeout de BD, violación de constraint |
 | `AuditError` / `OSError` | Solo con `audit_strict=True`: no se pudo escribir el CSV de auditoría. Con el valor por defecto (`False`) no se lanza |
+| `RuntimeError` | `bulk_insert_from_chunks`, `bulk_update_from_chunks` o `bulk_delete_from_chunks` dentro de un `bulk_session` abierto: gestionan su propia transacción (dentro de la sesión, usar `*_from_df` por chunk) |
 
 **Estrategias INSERT por motor** (cuando `insert_resolver=None`):
 

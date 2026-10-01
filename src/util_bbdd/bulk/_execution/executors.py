@@ -43,6 +43,10 @@ def validate_chunk_size(chunk_size: Any) -> int:
     return value
 
 
+# Nota que deja ``_commit_periodico`` cuando falla el COMMIT; ``batch_failure_note`` la reconoce (A4, audit-code 2026-10-01).
+_COMMIT_FAILURE_NOTE: str = "bulk: falló el COMMIT periódico de commit_every_n_chunks"
+
+
 @contextmanager
 def batch_failure_note(
     operation: str, table: str, index: int, first_row: int, rows: int, chunk: int | None = None
@@ -65,10 +69,14 @@ def batch_failure_note(
         yield
     except Exception as exc:
         where: str = f"lote {index}" if chunk is None else f"lote {index} del chunk {chunk}"
-        exc.add_note(
-            f"bulk {operation} en '{table}': falló el {where} "
-            f"(filas {first_row}–{first_row + rows - 1} de la entrada, base 0)"
-        )
+        span: str = f"filas {first_row}–{first_row + rows - 1} de la entrada, base 0"
+        if _COMMIT_FAILURE_NOTE in getattr(exc, "__notes__", ()):
+            # A4: el lote se había ejecutado; lo que falló fue el COMMIT periódico que lo seguía.
+            exc.add_note(
+                f"bulk {operation} en '{table}': el {where} ({span}) se ejecutó; falló el COMMIT periódico posterior"
+            )
+        else:
+            exc.add_note(f"bulk {operation} en '{table}': falló el {where} ({span})")
         raise
 
 
@@ -78,10 +86,14 @@ def _commit_periodico(connection: Any, commit_hook: Callable[[Any], None] | None
     Dentro de ``BulkCrud.bulk_session`` pasa por ``commit_hook``, que además vuelca al CSV la auditoría de las
     operaciones que ese commit confirma (M-1, audit-code de AuditManager 2026-09-25).
     """
-    if commit_hook is not None:
-        commit_hook(connection)
-    else:
-        connection.commit()
+    try:
+        if commit_hook is not None:
+            commit_hook(connection)
+        else:
+            connection.commit()
+    except Exception as exc:
+        exc.add_note(_COMMIT_FAILURE_NOTE)
+        raise
 
 
 class BatchStatementExecutor:

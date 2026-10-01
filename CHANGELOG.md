@@ -7,6 +7,15 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **bulk**: `bulk_insert_from_chunks`, `bulk_update_from_chunks` y `bulk_delete_from_chunks` dentro de un `bulk_session`
+  abierto lanzan `RuntimeError` antes de tocar nada. Antes abrían una segunda conexión (en SQLite, `database is locked`)
+  y al salir dejaban la sesión externa sin conexión: lo que viniera después dejaba de ser atómico con ella (A3 del
+  audit-code de 2026-10-01).
+- **bulk**: si falla el COMMIT periódico de `commit_every_n_chunks`, la nota del error dice que el lote se ejecutó y que
+  falló el COMMIT posterior, en lugar de «falló el lote N» (A4).
+
 ## [0.25.0] - 2026-10-01
 
 **Corrige una pérdida de datos de la 0.24.0**: en SQL Server, `bulk_delete_from_df` podía borrar filas que no se habían

@@ -492,6 +492,7 @@ class BulkCrud:
                 ``override_identity=False``.
             SQLAlchemyError: Ante errores SQL durante la inserción.
         """
+        self.__ensure_no_open_session("bulk_insert_from_chunks")
         tabla: Table = self.reflect_table(tabla_destino)
         total: int = 0
         resolved: tuple[Any, list[str]] | None = None
@@ -578,6 +579,7 @@ class BulkCrud:
         self, chunks: Iterable[pd.DataFrame], tabla_destino: str, strategy_key: Literal["update", "delete"]
     ) -> int:
         """Ejecuta ``strategy_key`` chunk a chunk en una sesión; una sola operación en el libro de filas (B-11)."""
+        self.__ensure_no_open_session(f"bulk_{strategy_key}_from_chunks")
         # Reflejar antes de abrir la sesión: un worker de ParallelBulkLoader no pide una segunda conexión mientras
         # retiene la de la sesión (regla size + max_overflow).
         self.reflect_table(tabla_destino)
@@ -604,12 +606,27 @@ class BulkCrud:
         self.logger.info(f"✅ bulk {strategy_key.upper()} (chunks) finalizado: {total} filas ({self.db_info}).")
         return total
 
-    def __batch_note(self, operation: str, tabla: Table, index: int, rows: int) -> AbstractContextManager[None]:
+    def __ensure_no_open_session(self, method: str) -> None:
+        """``RuntimeError`` si hay una ``bulk_session`` abierta (A3, audit-code 2026-10-01).
+
+        Las vías ``*_from_chunks`` abren su propia sesión: dentro de otra pedían una segunda conexión (en SQLite,
+        ``database is locked``) y al salir dejaban la sesión externa sin conexión, así que lo que viniera después dejaba de
+        ser atómico con ella.
+        """
+        if self._session.active:
+            raise RuntimeError(
+                f"{method} gestiona su propia transacción y no puede llamarse dentro de bulk_session(): ciérrala antes, "
+                "o usa bulk_insert_from_df / bulk_update_from_df / bulk_delete_from_df por chunk dentro de la sesión."
+            )
+
+    def __batch_note(
+        self, operation: BulkOperation, tabla: Table, index: int, rows: int
+    ) -> AbstractContextManager[None]:
         """Nota de error del lote ``index`` (B-15a), con la posición en la secuencia si es un ``*_from_chunks``."""
         stream = self._stream
         offset, chunk = (0, None) if stream is None else (stream.row_offset, stream.chunk)
-        size: int = self._batch_sizes[operation.lower()]  # type: ignore[index]
-        return batch_failure_note(operation, tabla.fullname, index, offset + index * size, rows, chunk)
+        size: int = self._batch_sizes[operation]
+        return batch_failure_note(operation.upper(), tabla.fullname, index, offset + index * size, rows, chunk)
 
     def __resolve_stream_insert(
         self,
@@ -747,11 +764,11 @@ class BulkCrud:
                     # B-03 (performance-audit de bulk 2026-10-01): COPY, execute_values y el executemany de PyMySQL envían
                     # tuplas; con el bloque por columnas no se construye (y deshace) un dict por fila.
                     for index, sql_block in enumerate(sql_blocks()):
-                        with self.__batch_note("INSERT", tabla, index, len(sql_block)):
+                        with self.__batch_note("insert", tabla, index, len(sql_block)):
                             self.__ejecutar_batch_stmt(sql_block, stmt_exec, len(sql_block))
                     return
                 for index, block in enumerate(blocks()):
-                    with self.__batch_note("INSERT", tabla, index, len(block)):
+                    with self.__batch_note("insert", tabla, index, len(block)):
                         self.__ejecutar_batch_stmt(block, stmt_exec, len(block))
 
         def sql_blocks() -> Iterator[SqlColumns]:
@@ -887,7 +904,7 @@ class BulkCrud:
                 self._staging_strategies[key] = staging
         with self.__blocks_transaction():
             for index, block in enumerate(blocks):
-                with self.__batch_note("UPDATE", tabla, index, len(block)):
+                with self.__batch_note("update", tabla, index, len(block)):
                     executor.execute(records=block, stmt=stmt, strategy=staging)
         if staging is not None and staging.staging_denied:
             # Sin privilegio: no volver a intentarlo en esta instancia (el aviso ya quedó en el log).
