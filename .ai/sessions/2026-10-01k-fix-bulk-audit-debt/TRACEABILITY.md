@@ -39,7 +39,18 @@
 - **[bulk/notas]**: un error con la nota `_COMMIT_FAILURE_NOTE` viene del COMMIT periódico, no de los datos del lote.
 - **[edición]**: al insertar código antes de una función decorada, comprobar que no queda entre el decorador y el `def`.
 
+## Cierre de versión (v0.25.1)
+- Commits: `3e061c9` fix(bulk) y `release: v0.25.1` con tag anotado `v0.25.1` (local; push pendiente de decisión).
+- Versión: PATCH (corrección; sin cambios de firma). CHANGELOG `[0.25.1] - 2026-10-01`; `pyproject.toml`, `README.md`,
+  `docs/index.md`, `docs/roadmap.md` y pie de `docs/architecture.md` en 0.25.1.
+- Checklist: `ruff`/`mypy` limpios; `pytest` 5880 passed (incluye `test_docs_version.py`); `tests/integration` 455
+  passed; `python -m build` 0.25.1; `zensical build --strict` sin avisos.
+- Compatibilidad: Python >= 3.12; todos los motores; ningún consumidor interno llamaba a `*_from_chunks` dentro de una
+  sesión (`dump`, `ParallelBulkLoader`).
+- Rollback: antes del push, `git tag -d v0.25.1 && git reset --hard b98a7b2`; después, `git revert` del release y de
+  `3e061c9`.
+
 ## Veredicto final
-Veredicto: CLOSED (sin commit; pendiente de decisión del usuario)
+Veredicto: CLOSED (v0.25.1)
 Pendientes al cierre:
 - Fase 3 del roadmap de `2026-10-01h` (spikes) y coste del filtro de OPENJSON (2,2 → 2,5 s/1M).

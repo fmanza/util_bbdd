@@ -7,6 +7,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-10-01
+
+Deuda del audit-code de las Fases 0–2: las vías `*_from_chunks` ya no se pueden llamar dentro de un `bulk_session`
+abierto (rompían la atomicidad de la sesión externa) y la nota del error distingue un COMMIT periódico fallido de un
+lote fallido. Sin cambios de API; ver *Fixed*.
+
 ### Fixed
 
 - **bulk**: `bulk_insert_from_chunks`, `bulk_update_from_chunks` y `bulk_delete_from_chunks` dentro de un `bulk_session`
