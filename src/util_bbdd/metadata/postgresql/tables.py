@@ -473,6 +473,18 @@ def fetch_can_disable_triggers_sql() -> str:
     )
 
 
+def fetch_can_create_temp_tables_sql() -> str:
+    """SQL que devuelve si el usuario actual puede crear tablas temporales en la base de datos actual (privilegio TEMP).
+
+    Lo usa el UPDATE por tabla temporal de ``bulk`` (``update_via_staging``) antes de intentarlo: en PostgreSQL un
+    ``CREATE`` fallido deja la transacción abortada y no se podría seguir con el UPDATE por fila.
+
+    Returns:
+        str: SQL con una fila y una columna booleana.
+    """
+    return "SELECT has_database_privilege(current_database(), 'TEMP')"
+
+
 def fetch_secondary_nonunique_indexes_sql() -> str:
     """SQL con los índices secundarios no únicos de una tabla y su DDL (``pg_get_indexdef``).
 
