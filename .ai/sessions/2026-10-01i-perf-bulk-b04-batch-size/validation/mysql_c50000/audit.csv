@@ -1,0 +1,13 @@
+timestamp	tabla	motor	operacion	total_filas	tiempo_seg	sql
+2026-10-01 11:44:28	zz_util_bbdd_bench	MYSQL	INSERT	1000000	16,491	No
+2026-10-01 11:44:35	zz_util_bbdd_bench	MYSQL	DELETE	1000000	6,932	No
+2026-10-01 11:44:51	zz_util_bbdd_bench	MYSQL	INSERT	1000000	16,181	No
+2026-10-01 11:44:58	zz_util_bbdd_bench	MYSQL	DELETE	1000000	6,780	No
+2026-10-01 11:45:15	zz_util_bbdd_bench	MYSQL	INSERT	1000000	16,515	No
+2026-10-01 11:45:22	zz_util_bbdd_bench	MYSQL	DELETE	1000000	6,820	No
+2026-10-01 11:45:37	zz_util_bbdd_bench	MARIADB	INSERT	1000000	14,373	No
+2026-10-01 11:45:44	zz_util_bbdd_bench	MARIADB	DELETE	1000000	6,641	No
+2026-10-01 11:45:59	zz_util_bbdd_bench	MARIADB	INSERT	1000000	14,476	No
+2026-10-01 11:46:05	zz_util_bbdd_bench	MARIADB	DELETE	1000000	6,515	No
+2026-10-01 11:46:21	zz_util_bbdd_bench	MARIADB	INSERT	1000000	14,695	No
+2026-10-01 11:46:27	zz_util_bbdd_bench	MARIADB	DELETE	1000000	6,566	No

@@ -1,0 +1,7 @@
+engine,driver,variant,op,rows,repeat,seconds,rows_per_second,ok,error,peak_mb
+mysql,pymysql,baseline,delete,1000000,1,6.9337,144222.4,True,,
+mysql,pymysql,baseline,delete,1000000,2,6.7818,147453.0,True,,
+mysql,pymysql,baseline,delete,1000000,3,6.8212,146601.4,True,,
+mariadb,pymysql,baseline,delete,1000000,1,6.6425,150544.7,True,,
+mariadb,pymysql,baseline,delete,1000000,2,6.5161,153465.6,True,,
+mariadb,pymysql,baseline,delete,1000000,3,6.5672,152272.7,True,,
