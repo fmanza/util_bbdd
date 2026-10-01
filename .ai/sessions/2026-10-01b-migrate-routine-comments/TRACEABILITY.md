@@ -46,7 +46,7 @@
 | F4 | `src/util_bbdd/metadata/{mariadb/tables,sqlserver/tables,postgresql/routines}.py`, `migrate/extractors/{mariadb,sqlserver,postgresql}.py` | completado |
 | Tests | `tests/unit/migrate/test_routine_comments.py`, `tests/integration/test_migrate_views_e2e.py` | completado |
 | Docs | `docs/guides/ddl_migration_guide.md`, `CHANGELOG.md` | completado |
-| Hallazgos R4 (hotfix pendiente) | esta sesión | pendiente de decisión |
+| Hallazgos R4 | esta sesión | resuelto en `65ad997` (sesión `2026-10-01d-hotfix-routines-r4`) |
 
 ## Directrices para Futuras IAs
 - **[migrate/rutinas]**: las rutinas no son ejecutables en `execute()` hoy: MySQL/MariaDB sin cabecera `CREATE`,
@@ -58,4 +58,5 @@
   aparte en lugar de añadirle columnas.
 
 ## Veredicto final
-Veredicto: CLOSED — F4 implementado y verificado; liberado en v0.23.0 (2026-10-01). R4 confirmado, pendiente de `/hotfix` (limitación conocida en el CHANGELOG de la 0.23.0).
+Veredicto: CLOSED — F4 implementado y verificado; liberado en v0.23.0 (2026-10-01). R4 confirmado y resuelto en el hotfix `65ad997` (sesión `2026-10-01d-hotfix-routines-r4`; los escenarios de esta
+sesión, revalidados el 2026-10-01 con `r4_execute.py`, terminan bien).
