@@ -217,7 +217,7 @@ class MariaDBSchemaExtractor:
             routine_type=routine_type,
             body=body,
             return_type=return_type,
-            comment="",
+            comment=str(row[5]).strip() if len(row) > 5 and row[5] else "",  # ROUTINE_COMMENT (F4, 0.23.0)
             warnings=warnings,
         )
 

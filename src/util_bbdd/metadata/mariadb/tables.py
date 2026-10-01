@@ -208,12 +208,12 @@ def fetch_routines_sql() -> str:
 
     Returns:
         str: SQL query para (ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_SCHEMA,
-        ROUTINE_DEFINITION, DTD_IDENTIFIER).
-        DTD_IDENTIFIER contiene el tipo de retorno para FUNCTION.
+        ROUTINE_DEFINITION, DTD_IDENTIFIER, ROUTINE_COMMENT).
+        DTD_IDENTIFIER contiene el tipo de retorno para FUNCTION; ROUTINE_COMMENT, desde 0.23.0.
     """
     return (
         "SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_SCHEMA, "
-        "ROUTINE_DEFINITION, DTD_IDENTIFIER "
+        "ROUTINE_DEFINITION, DTD_IDENTIFIER, ROUTINE_COMMENT "
         "FROM INFORMATION_SCHEMA.ROUTINES "
         "WHERE ROUTINE_SCHEMA = %(schema)s "
         "ORDER BY ROUTINE_NAME"

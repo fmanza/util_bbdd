@@ -43,6 +43,26 @@ def fetch_routines_sql(schema: str | None = None) -> str:
     )
 
 
+def fetch_routine_comments_for_schema_sql() -> str:
+    """SQL de los comentarios de las rutinas de un schema PostgreSQL (uso: migrate/extractors, 0.23.0).
+
+    Consulta aparte: :func:`fetch_routines_sql` la comparten los adaptadores de metadatos y no se le añaden columnas.
+    Una fila por rutina comentada; con sobrecargas, varias filas con el mismo nombre.
+
+    Parámetros: ``%(schema)s``.
+
+    Returns:
+        str: SQL query para (ROUTINE_NAME, ROUTINE_COMMENT).
+    """
+    return (
+        "SELECT p.proname, obj_description(p.oid, 'pg_proc') "
+        "FROM pg_proc p "
+        "JOIN pg_namespace ns ON p.pronamespace = ns.oid "
+        "WHERE ns.nspname = %(schema)s AND obj_description(p.oid, 'pg_proc') IS NOT NULL "
+        "ORDER BY p.proname"
+    )
+
+
 def fetch_routine_parameters_sql() -> str:
     """SQL query para obtener parámetros de una función/procedimiento en PostgreSQL.
 
@@ -273,6 +293,7 @@ def routine_entries_to_rows(routine_rows: list[PgRoutineDetail]) -> Rows:
 
 __all__: list[str] = [
     "fetch_routines_sql",
+    "fetch_routine_comments_for_schema_sql",
     "fetch_routine_parameters_sql",
     "decode_postgres_routine_rows",
     "decode_postgres_parameter_rows",

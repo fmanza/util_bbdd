@@ -235,16 +235,10 @@ class SQLServerSchemaExtractor:
         """
         schema_name = schema or "dbo"
         raw_rows = self._query(build_sqlserver_routines_query(), {"schema_name": schema_name})
-        # D1: el código de todas las rutinas en una consulta (antes una por rutina)
-        bodies = (
-            {
-                str(row[0]).strip(): str(row[1]).strip()
-                for row in self._query(fetch_routine_bodies_for_schema_sql(), {"schema_name": schema_name})
-                if row and len(row) > 1 and row[1]
-            }
-            if raw_rows
-            else {}
-        )
+        # D1: el código de todas las rutinas en una consulta (antes una por rutina); F4 (0.23.0): y su MS_Description
+        body_rows = self._query(fetch_routine_bodies_for_schema_sql(), {"schema_name": schema_name}) if raw_rows else []
+        bodies = {str(row[0]).strip(): str(row[1]).strip() for row in body_rows if row and len(row) > 1 and row[1]}
+        comments = {str(row[0]).strip(): str(row[2]).strip() for row in body_rows if row and len(row) > 2 and row[2]}
         routines: list[CanonicalRoutine] = []
 
         for row in raw_rows:
@@ -276,7 +270,7 @@ class SQLServerSchemaExtractor:
                     routine_type=routine_type,
                     body=body,
                     return_type="",
-                    comment="",
+                    comment=comments.get(routine_name, ""),
                     warnings=warnings,
                 )
             )

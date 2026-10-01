@@ -179,7 +179,9 @@ en MariaDB/MySQL, `COMMENT ON` en PostgreSQL y Oracle, y la propiedad extendida 
 schema por defecto del usuario destino). Los de vistas se leen de PostgreSQL, SQL Server y Oracle (MySQL/MariaDB no
 los admiten) y se aplican después de crear las vistas en PostgreSQL (`COMMENT ON VIEW`), Oracle (`COMMENT ON TABLE`)
 y SQL Server (`MS_Description` de tipo `VIEW`); con destino MySQL/MariaDB quedan como `--` en el script, con un aviso
-`COMMENT`. Los de rutinas no se migran.
+`COMMENT`. Los de rutinas se leen de MySQL/MariaDB (`ROUTINE_COMMENT`), SQL Server (`MS_Description`) y PostgreSQL
+(sin sobrecargas: con varias funciones del mismo nombre no se asigna) y van al script como línea `-- COMMENT:`; no se
+aplican como sentencia, porque las rutinas se copian tal cual del origen. Oracle no admite comentarios de rutinas.
 
 Cada aviso (`MigrationWarning`) indica **qué** es con `category` y, cuando trata de un tipo de datos, **cuál** con
 `source_type` (el tipo en el motor origen):

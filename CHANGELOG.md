@@ -23,6 +23,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   recursiva), la CTE recursiva encadena los números con ancho fijo en `cb_order` y la vista ordena por él. SQL Server
   no admite `ORDER BY` en una vista: se convierte sin el orden y el aviso «VIEW (jerarquía)» lo dice. e2e contra Oracle
   comparando el orden de las filas en PostgreSQL, MySQL y MariaDB, con un `NULL` entre hermanos.
+- **migrate**: los comentarios de rutinas se leen de MySQL/MariaDB (`ROUTINE_COMMENT`), SQL Server (`MS_Description`)
+  y PostgreSQL (`obj_description`; con sobrecargas no se asignan) y van al script como `-- COMMENT:` (F4). No se
+  aplican como sentencia: las rutinas se copian tal cual del origen. Oracle no admite comentarios de rutinas.
+- **metadata**: `fetch_routines_sql()` de MariaDB devuelve `ROUTINE_COMMENT` y `fetch_routine_bodies_for_schema_sql()`
+  de SQL Server el `MS_Description`, como última columna; nueva `fetch_routine_comments_for_schema_sql()` de
+  PostgreSQL (`fetch_routines_sql()`, compartida con los adaptadores, no cambia).
 
 ## [0.22.0] - 2026-09-30
 

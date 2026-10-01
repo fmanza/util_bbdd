@@ -240,13 +240,16 @@ def fetch_routine_bodies_for_schema_sql() -> str:
     Parámetros: ``%(schema_name)s``.
 
     Returns:
-        str: SQL query para (ROUTINE_NAME, DEFINITION).
+        str: SQL query para (ROUTINE_NAME, DEFINITION, ROUTINE_COMMENT); el comentario (``MS_Description``) desde
+        0.23.0.
     """
     return (
-        "SELECT o.name, sm.definition "
+        "SELECT o.name, sm.definition, CAST(ep.value AS NVARCHAR(4000)) "
         "FROM sys.sql_modules sm "
         "JOIN sys.objects o ON o.object_id = sm.object_id "
         "JOIN sys.schemas s ON s.schema_id = o.schema_id "
+        "LEFT JOIN sys.extended_properties ep "
+        "  ON ep.class = 1 AND ep.name = 'MS_Description' AND ep.minor_id = 0 AND ep.major_id = o.object_id "
         "WHERE s.name = %(schema_name)s AND o.type IN ('P', 'FN', 'IF', 'TF') "
         "ORDER BY o.name"
     )

@@ -12,15 +12,19 @@ como INTEGER/BIGINT/SMALLINT con COLUMN_DEFAULT = ``nextval('...')``
 en INFORMATION_SCHEMA. Se detecta comprobando que COLUMN_DEFAULT comienza
 con ``nextval(`` (case-insensitive).
 
-Comentarios de columna (pg_description): omitidos en v1.
+Comentarios (pg_description): de tablas y columnas desde 0.21.0 (D3), de vistas desde 0.22.0 (E2) y de rutinas sin
+sobrecargas desde 0.23.0 (F4).
 """
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from typing import Any
 
-from ...metadata.postgresql.routines import fetch_routines_sql as fetch_pg_routines_sql
+from ...metadata.postgresql.routines import (
+    fetch_routine_comments_for_schema_sql,
+    fetch_routines_sql as fetch_pg_routines_sql,
+)
 from ...metadata.postgresql.tables import (
     fetch_columns_for_schema_sql,
     fetch_fk_for_schema_sql,
@@ -199,7 +203,23 @@ class PostgreSQLSchemaExtractor:
     def extract_routines(self, schema: str) -> list[CanonicalRoutine]:
         """Extrae todas las rutinas del schema PostgreSQL como IR canónico."""
         rows = self._query(fetch_pg_routines_sql(schema), {"schema": schema})
-        return [r for row in rows if (r := self._parse_routine_row(row, schema)) is not None]
+        routines = [r for row in rows if (r := self._parse_routine_row(row, schema)) is not None]
+        if routines:
+            self._assign_routine_comments(routines, schema)
+        return routines
+
+    def _assign_routine_comments(self, routines: list[CanonicalRoutine], schema: str) -> None:
+        """Comentario (``obj_description``) de cada rutina sin sobrecargas (F4, 0.23.0).
+
+        El inventario no trae el ``oid``: con varias rutinas del mismo nombre no se sabe de cuál es cada comentario, así
+        que se dejan sin él (mejor ninguno que el de otra sobrecarga).
+        """
+        comments = group_by_object(self._query(fetch_routine_comments_for_schema_sql(), {"schema": schema}))
+        overloads = Counter(r.name for r in routines)
+        for routine in routines:
+            found = comments.get(routine.name, [])
+            if overloads[routine.name] == 1 and len(found) == 1 and found[0] and found[0][0]:
+                routine.comment = str(found[0][0]).strip()
 
     def _parse_routine_row(self, row: Any, schema: str) -> CanonicalRoutine | None:
         """Parsea una fila de pg_proc a CanonicalRoutine."""

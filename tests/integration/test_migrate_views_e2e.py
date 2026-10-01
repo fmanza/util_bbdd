@@ -815,3 +815,43 @@ def test_oracle_order_siblings(target: str) -> None:
     finally:
         _drop_namespace("oracle", SRC)
         _drop_namespace(target, DST)
+
+
+# F4 (0.23.0): comentarios de rutinas. Se leen del origen y van al script como ``-- COMMENT:``; no se ejecuta el plan
+# (las rutinas se copian tal cual del origen y en otro motor no se crean). Oracle no admite comentarios de rutinas.
+ROUTINE_COMMENT = "Rutina ñ 'f4'"
+_ROUTINE_COMMENT_SQL = ROUTINE_COMMENT.replace("'", "''")
+ROUTINE_WITH_COMMENT = {
+    "mysql": [f"CREATE PROCEDURE zzvw_proc() COMMENT '{_ROUTINE_COMMENT_SQL}' BEGIN SELECT 1; END"],
+    "mariadb": [f"CREATE PROCEDURE zzvw_proc() COMMENT '{_ROUTINE_COMMENT_SQL}' BEGIN SELECT 1; END"],
+    "postgresql": [
+        f"CREATE FUNCTION {SRC}.zzvw_proc() RETURNS integer LANGUAGE sql AS 'SELECT 1'",
+        f"COMMENT ON FUNCTION {SRC}.zzvw_proc() IS '{_ROUTINE_COMMENT_SQL}'",
+    ],
+    "sqlserver": [
+        "CREATE PROCEDURE zzvw_proc AS SELECT 1",
+        f"EXEC sys.sp_addextendedproperty N'MS_Description', N'{_ROUTINE_COMMENT_SQL}', N'SCHEMA', N'dbo', "
+        "N'PROCEDURE', N'zzvw_proc'",
+    ],
+}
+ROUTINE_TARGET = {"mysql": "postgresql", "mariadb": "postgresql", "postgresql": "mysql", "sqlserver": "postgresql"}
+
+
+@pytest.mark.parametrize("source", list(ROUTINE_WITH_COMMENT))
+def test_routine_comment_is_read_into_the_script(source: str) -> None:
+    _create_namespace(source, SRC)
+    try:
+        _run(source, SRC, ROUTINE_WITH_COMMENT[source])
+        manager = _manager(source)
+        try:
+            plan = MigrationPlanner(source_engine=source, target_engine=ROUTINE_TARGET[source]).plan(
+                manager, _source_schema(source)
+            )
+        finally:
+            manager.close()
+        [routine] = [r for r in plan.routines if r.original_name.lower() == "zzvw_proc"]
+        assert routine.comment == ROUTINE_COMMENT
+        plan.tables, plan.views, plan.routines = [], [], [routine]
+        assert any(f"-- COMMENT: {ROUTINE_COMMENT}" in s for s in plan.emit_statements())
+    finally:
+        _drop_namespace(source, SRC)

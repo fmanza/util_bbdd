@@ -82,7 +82,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-0. **Push y tag `v0.22.0`** (sesiones `2026-09-30e-migrate-connect-by-2`, `2026-09-30f-migrate-view-comments`, `2026-09-30g-migrate-warning-codes`, `2026-09-30h-migrate-audit-022`), pendientes de decisión del usuario. Fuera de alcance: `ORDER SIBLINGS BY`, `CONNECT_BY_ISCYCLE`, `NOCYCLE` hacia destinos distintos de PostgreSQL, comentarios de rutinas.
+0. **0.23.0 en curso** (commits sin push): F2 `CONNECT_BY_ISCYCLE`, F3 `NOCYCLE` en MySQL/MariaDB/SQL Server y F1 `ORDER SIBLINGS BY` (sesión `2026-10-01-migrate-connect-by-3`); F4 comentarios de rutinas (sesión `2026-10-01b-migrate-routine-comments`). **Pendiente de decisión: `/hotfix` R4** — las rutinas no son ejecutables en `execute()` (MySQL/MariaDB sin cabecera `CREATE`, Oracle con nombre vacío por `ALL_PROCEDURES.procedure_name`, PostgreSQL con el schema origen). Después, `/version-closure` 0.23.0.
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
 3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.
