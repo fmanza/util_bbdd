@@ -40,7 +40,7 @@
 - **[edición]**: al insertar código antes de una función decorada, comprobar que no queda entre el decorador y el `def`.
 
 ## Cierre de versión (v0.25.1)
-- Commits: `3e061c9` fix(bulk) y `release: v0.25.1` con tag anotado `v0.25.1` (local; push pendiente de decisión).
+- Commits: `3e061c9` fix(bulk) y `release: v0.25.1` con tag anotado `v0.25.1` (publicados: push de `develop` y del tag).
 - Versión: PATCH (corrección; sin cambios de firma). CHANGELOG `[0.25.1] - 2026-10-01`; `pyproject.toml`, `README.md`,
   `docs/index.md`, `docs/roadmap.md` y pie de `docs/architecture.md` en 0.25.1.
 - Checklist: `ruff`/`mypy` limpios; `pytest` 5880 passed (incluye `test_docs_version.py`); `tests/integration` 455
