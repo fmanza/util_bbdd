@@ -88,7 +88,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-0. **Push de `develop` y del tag `v0.26.0`**, pendientes de decisión del usuario (`v0.25.1` ya publicada). Roadmap de `bulk` pendiente: S-1 (procesos para PostgreSQL, NO_GO por ahora: lectores `lambda` no serializables y lock de auditoría solo entre hilos), S-3 (`ClientRead`: pipeline de psycopg 3 con hilos), `on_error="isolate"` en `ParallelBulkLoader`/`dump` (lock entre procesos del CSV de rechazos) y `batcherrors` de Oracle.
+0. `v0.26.0` publicada (push de `develop` y tag, 2026-10-01). Roadmap de `bulk` pendiente: S-1 (procesos para PostgreSQL, NO_GO por ahora: lectores `lambda` no serializables y lock de auditoría solo entre hilos), S-3 (`ClientRead`: pipeline de psycopg 3 con hilos), `on_error="isolate"` en `ParallelBulkLoader`/`dump` (lock entre procesos del CSV de rechazos) y `batcherrors` de Oracle.
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
 3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.
