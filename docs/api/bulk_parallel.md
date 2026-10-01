@@ -66,8 +66,10 @@ Exportadas desde `util_bbdd.bulk`. Generan listas de particiones disjuntas para 
 | `audit_uncommitted_records` | `int` (propiedad) | Con `audit_strict=True`: registros escritos en el CSV antes de un commit que falló (esas filas no están en la BD) |
 | `rows_rejected` | `int` (propiedad) | Con `on_error="isolate"`: filas apartadas al CSV de rechazos, sumadas de todas las particiones. Cuentan en `total_rows` (posiciones), no en la BD ni en la auditoría: sin fallos, `audited_rows + rows_rejected + unaudited_committed_rows == total_rows` |
 
-**Conciliación**: con auditoría activa, `audit_failures == 0` y `audit_uncommitted_records == 0`, se cumple
-`audited_rows + unaudited_committed_rows == total_rows`.
+**Conciliación**: con auditoría activa, `audit_failures == 0`, `audit_uncommitted_records == 0` y sin
+`partition_errors`, se cumple `audited_rows + rows_rejected + unaudited_committed_rows == total_rows` (`rows_rejected`
+es 0 sin `on_error="isolate"`). Una partición fallida no suma a `total_rows` lo que se deshizo, pero los rechazos que
+ya había escrito siguen en el CSV y en `rows_rejected`.
 
 ### Contrato de entrada
 

@@ -34,6 +34,7 @@ from sqlalchemy import (
     Inspector,
     LargeBinary,
     MetaData,
+    String,
     Table,
     Text,
     Update,
@@ -153,6 +154,19 @@ _REJECTS_FAILURE_NOTE: str = "bulk: no se pudo escribir el CSV de rechazos"
 
 #: Tipos LOB: el UPDATE con alguno de ellos aísla por bisección y no con ``batcherrors`` (S-5, ORA-03106).
 _LOB_TYPES: tuple[type, ...] = (Text, LargeBinary, JSON)
+
+#: Longitud a partir de la cual un ``String`` se trata como LOB en esa regla: con ``MAX_STRING_SIZE=EXTENDED`` un
+#: ``VARCHAR2(32767)`` admite valores de más de 8000 caracteres, que oracledb enlaza como cadena larga, el caso del
+#: ORA-03106 (B-2, audit-code 2026-10-01; sesión 2026-10-01y).
+_LOB_LIKE_STRING_LENGTH: int = 4000
+
+
+def _lob_like(column_type: Any) -> bool:
+    """``True`` si ``column_type`` es LOB o un ``String`` de más de 4000 caracteres (regla del ORA-03106 de S-5)."""
+    if isinstance(column_type, _LOB_TYPES):
+        return True
+    length = getattr(column_type, "length", None) if isinstance(column_type, String) else None
+    return length is not None and length > _LOB_LIKE_STRING_LENGTH
 
 
 def _no_foreign_keys(*_args: Any, **_kwargs: Any) -> dict[Any, list[Any]]:
@@ -1052,7 +1066,7 @@ class BulkCrud:
             # S-5: con un bind LOB grande y una fila mala, batcherrors da ORA-03106 en el UPDATE (oracledb thin 4.0.1,
             # 4.0.2 y 26.0.1; el INSERT no falla: sesión 2026-10-01y).
             self._isolator.batch_errors = self.__batch_errors() and not any(
-                isinstance(tabla.c[column].type, _LOB_TYPES) for column in update_plan.update_cols
+                _lob_like(tabla.c[column].type) for column in update_plan.update_cols
             )
         staging: StagingUpdateStrategy | None = None
         if self._update_via_staging:

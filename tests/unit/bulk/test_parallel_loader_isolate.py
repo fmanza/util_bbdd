@@ -126,6 +126,9 @@ def test_attempt_with_rejects_is_not_retried(tmp_path: Path) -> None:
     assert len(result.partition_errors) == 1 and "duplicaría" in result.partition_errors[0]
     assert _rejects(tmp_path / "rejects.csv") == [("INSERT", 0, 1)]
     assert _ids(engine) == []  # atómica: el fallo deshizo la partición
+    # M-1 (audit-code 2026-10-01): los rechazos escritos siguen contando aunque total_rows no cuente lo deshecho; por eso
+    # la conciliación audited + rejected + unaudited == total solo se garantiza sin partition_errors.
+    assert (result.total_rows, result.rows_rejected) == (0, 1)
 
 
 def test_attempt_without_rejects_is_retried_and_positions_skip_committed_rows(tmp_path: Path) -> None:

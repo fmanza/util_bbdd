@@ -131,8 +131,9 @@ class PartitionResult:
         audit_uncommitted_records: Registros escritos en el CSV antes de un commit que falló (``audit_strict=True``;
             ver ``BulkCrud.audit_uncommitted_records``). Si es > 0 la partición no se reintenta.
         retry_wait_seconds: Segundos esperados entre intentos (``retry_backoff``); 0.0 sin reintentos.
-        rows_rejected: Filas de esta partición apartadas al CSV de rechazos (``on_error="isolate"``). Cuentan en
-            ``rows`` (posiciones de la partición), no en la BD ni en la auditoría.
+        rows_rejected: Filas de esta partición escritas en el CSV de rechazos (``on_error="isolate"``). Cuentan en
+            ``rows`` (posiciones de la partición), no en la BD ni en la auditoría. Si la partición falló, incluye los
+            rechazos del intento que se deshizo (siguen en el CSV aunque ``rows`` no cuente esas posiciones).
     """
 
     index: int
@@ -166,8 +167,10 @@ class ParallelLoadResult:
         audit_uncommitted_records: Registros escritos en el CSV antes de un commit que falló (``audit_strict``).
         rows_rejected: Filas apartadas al CSV de rechazos, sumadas de todas las particiones (``on_error="isolate"``).
 
-    Conciliación: con auditoría activa, ``audit_failures == 0`` y ``audit_uncommitted_records == 0``, se cumple
-    ``audited_rows + rows_rejected + unaudited_committed_rows == total_rows``.
+    Conciliación: con auditoría activa, ``audit_failures == 0``, ``audit_uncommitted_records == 0`` y **sin
+    ``partition_errors``**, se cumple ``audited_rows + rows_rejected + unaudited_committed_rows == total_rows``. Una
+    partición fallida no suma a ``total_rows`` lo deshecho, pero los rechazos que ya escribió siguen en el CSV y en
+    ``rows_rejected`` (M-1, audit-code 2026-10-01).
     """
 
     total_rows: int = 0

@@ -7,6 +7,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **bulk**: la conciliación documentada de `ParallelLoadResult` (`audited_rows + rows_rejected + unaudited_committed_rows
+  == total_rows`) no se cumplía si una partición fallaba después de escribir rechazos: ahora se documenta que vale sin
+  `partition_errors`, y `docs/api/bulk_parallel.md` tenía aún la fórmula sin `rows_rejected` (M-1 del audit-code).
+- **bulk (Oracle)**: en `isolate`, el UPDATE de una columna `String` de más de 4000 caracteres (`VARCHAR2` largo con
+  `MAX_STRING_SIZE=EXTENDED`) va por bisección y no por `batcherrors`, como las columnas LOB, por el ORA-03106 (B-2).
+- **docs (dump)**: una tabla en `error` con `rows_rejected > 0` no copió nada, aunque cuente los rechazos que escribió
+  (B-1).
+
 ### Changed
 
 - **tests**: la integración de MariaDB se ejecuta también con el conector original (MariaDB Connector/Python),

@@ -196,7 +196,8 @@ class TableDumpResult:
     """Resultado del volcado de una tabla individual.
 
     ``rows_rejected``: filas apartadas al CSV de rechazos con ``DumpConfig(on_error="isolate")``; la tabla puede ser
-    ``success`` con filas rechazadas.
+    ``success`` con filas rechazadas. Con estado ``error`` (p. ej. ``max_rejects`` superado) la carga de la tabla se
+    deshizo y no se copió nada, pero los rechazos escritos siguen en el CSV y aquí (B-1, audit-code 2026-10-01).
     """
 
     table_name: str

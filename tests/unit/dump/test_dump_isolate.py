@@ -98,6 +98,7 @@ def test_max_rejects_leaves_the_table_in_error_and_the_dump_goes_on(tmp_path: Pa
     by_table = {r.table_name: r for r in result.table_results}
     assert by_table["a"].status == "error"
     assert "NOT NULL" in by_table["a"].error_msg
+    assert by_table["a"].rows_rejected == 1  # B-1: el rechazo escrito cuenta aunque no se copiara nada de la tabla
     assert (by_table["b"].status, by_table["b"].rows_rejected) == ("success", 1)
     assert _ids(dst, "a") == [] and _ids(dst, "b") == [1, 3]
     src.dispose()

@@ -585,14 +585,24 @@ def test_batch_errors_support_and_install(tmp_path: Path) -> None:
     assert len(list(listeners)) == 1
 
 
-@pytest.mark.parametrize(("column", "expected"), [("v", True), ("doc", False)], ids=["sin-lob", "con-lob"])
+@pytest.mark.parametrize(
+    ("column", "expected"),
+    [("v", True), ("doc", False), ("v4000", True), ("v5000", False)],
+    ids=["sin-lob", "con-lob", "string-4000", "string-5000"],
+)
 def test_update_uses_batch_errors_only_without_lob_columns(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, column: str, expected: bool
 ) -> None:
     """S-5: con un bind LOB grande y una fila mala, batcherrors da ORA-03106 en el UPDATE: entonces, bisección."""
     engine = create_engine(f"sqlite:///{tmp_path / 'lob.db'}")
     Table(
-        "items", MetaData(), Column("id", Integer, primary_key=True), Column("v", String(10)), Column("doc", Text)
+        "items",
+        MetaData(),
+        Column("id", Integer, primary_key=True),
+        Column("v", String(10)),
+        Column("doc", Text),
+        Column("v4000", String(4000)),
+        Column("v5000", String(5000)),  # B-2: VARCHAR2 > 4000 (MAX_STRING_SIZE=EXTENDED) como LOB
     ).create(engine)
     _seed_lob = pd.DataFrame({"id": [1, 2], "v": ["a", "b"], "doc": ["x", "y"]})
     BulkCrud(engine, warn_if_audit_disabled=False).bulk_insert_from_df(_seed_lob, "items", False)
