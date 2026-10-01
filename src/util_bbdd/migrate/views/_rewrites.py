@@ -33,24 +33,24 @@ _TEMPORAL_TYPES: frozenset[Any] = frozenset(
 )
 
 
-def _type_of(node: exp.Expression) -> Any:
+def _type_of(node: exp.Expr) -> Any:
     data_type: Any = node.type
     return data_type.this if isinstance(data_type, exp.DataType) else None
 
 
-def _is_temporal(node: exp.Expression) -> bool:
+def _is_temporal(node: exp.Expr) -> bool:
     return _type_of(node) in _TEMPORAL_TYPES
 
 
-def _is_numeric(node: exp.Expression) -> bool:
+def _is_numeric(node: exp.Expr) -> bool:
     return _type_of(node) in exp.DataType.NUMERIC_TYPES
 
 
-def _is_text(node: exp.Expression) -> bool:
+def _is_text(node: exp.Expr) -> bool:
     return _type_of(node) in _TEXT_TYPES
 
 
-def _unparen(node: exp.Expression) -> exp.Expression:
+def _unparen(node: exp.Expr) -> exp.Expr:
     while isinstance(node, exp.Paren):
         node = node.this
     return node
@@ -59,7 +59,7 @@ def _unparen(node: exp.Expression) -> exp.Expression:
 # ─── A. Artefactos del texto de catálogo ─────────────────────────────────────────
 
 
-def mysql_charset_casts(tree: exp.Expression) -> exp.Expression:
+def mysql_charset_casts(tree: exp.Expr) -> exp.Expr:
     """``CAST(x AS CHAR CHARSET utf8mb4)`` (así guarda MySQL ``CAST(x AS CHAR(n))``) → ``CAST(x AS TEXT)``."""
     for data_type in list(tree.find_all(exp.DataType)):
         if data_type.this == exp.DataType.Type.CHARACTER_SET:
@@ -67,7 +67,7 @@ def mysql_charset_casts(tree: exp.Expression) -> exp.Expression:
     return tree
 
 
-def _to_days_operand(node: exp.Expression) -> exp.Expression | None:
+def _to_days_operand(node: exp.Expr) -> exp.Expr | None:
     """Operando ``x`` de ``TO_DAYS(x)`` tal como lo parsea sqlglot: ``DATEDIFF(x, '0000-01-01') + 1``."""
     node = _unparen(node)
     if not (isinstance(node, exp.Add) and isinstance(node.expression, exp.Literal) and node.expression.name == "1"):
@@ -79,11 +79,11 @@ def _to_days_operand(node: exp.Expression) -> exp.Expression | None:
     origin = origin.this if isinstance(origin, exp.TsOrDsToDate) else origin
     if not (isinstance(origin, exp.Literal) and origin.name == "0000-01-01"):
         return None
-    operand: exp.Expression = diff.this.this if isinstance(diff.this, exp.TsOrDsToDate) else diff.this
+    operand: exp.Expr = diff.this.this if isinstance(diff.this, exp.TsOrDsToDate) else diff.this
     return operand
 
 
-def mysql_to_days_difference(tree: exp.Expression) -> exp.Expression:
+def mysql_to_days_difference(tree: exp.Expr) -> exp.Expr:
     """``TO_DAYS(a) - TO_DAYS(b)`` (así guarda MySQL ``DATEDIFF(a, b)``) → ``DATEDIFF(a, b)`` en días."""
     for sub in list(tree.find_all(exp.Sub)):
         left, right = _to_days_operand(sub.this), _to_days_operand(sub.expression)
@@ -92,7 +92,7 @@ def mysql_to_days_difference(tree: exp.Expression) -> exp.Expression:
     return tree
 
 
-def postgres_redundant_text_casts(tree: exp.Expression) -> exp.Expression:
+def postgres_redundant_text_casts(tree: exp.Expr) -> exp.Expr:
     """Quita los casts a texto que PostgreSQL añade al guardar la vista (``'x'::text``, ``col::character varying``).
 
     Solo de literales de texto y de columnas ya textuales (tipos anotados): un ``id::text`` sobre un entero se conserva.
@@ -109,7 +109,7 @@ def postgres_redundant_text_casts(tree: exp.Expression) -> exp.Expression:
 # ─── B. Aritmética que depende del tipo (requiere annotate_types) ────────────────
 
 
-def typed_date_arithmetic(tree: exp.Expression) -> exp.Expression:
+def typed_date_arithmetic(tree: exp.Expr) -> exp.Expr:
     """``fecha ± n`` → ``DATE_ADD/DATE_SUB(fecha, n, DAY)`` y ``fecha - fecha`` → ``DATEDIFF(DAY)``.
 
     En Oracle y PostgreSQL (y ``DATETIME`` de SQL Server) sumar un número a una fecha suma días; en MySQL el mismo
@@ -128,7 +128,7 @@ def typed_date_arithmetic(tree: exp.Expression) -> exp.Expression:
     return tree
 
 
-def interval_arithmetic(tree: exp.Expression) -> exp.Expression:
+def interval_arithmetic(tree: exp.Expr) -> exp.Expr:
     """``x ± INTERVAL n UNIDAD`` → ``DATE_ADD/DATE_SUB(x, n, UNIDAD)`` (así guarda MySQL su ``DATE_ADD``).
 
     SQL Server no tiene aritmética con ``INTERVAL`` y Oracle la limita; la función se genera bien en todos los destinos.
@@ -145,7 +145,7 @@ def interval_arithmetic(tree: exp.Expression) -> exp.Expression:
     return tree
 
 
-def tsql_string_plus(tree: exp.Expression) -> exp.Expression:
+def tsql_string_plus(tree: exp.Expr) -> exp.Expr:
     """``a + b`` de SQL Server con operandos de texto → concatenación (``||`` / ``CONCAT`` según el destino)."""
     # De abajo arriba: en ``a + ' - ' + b`` el ``+`` interior se convierte antes que el exterior.
     for node in reversed(list(tree.find_all(exp.Add))):
@@ -157,7 +157,7 @@ def tsql_string_plus(tree: exp.Expression) -> exp.Expression:
 # ─── Destino Oracle ──────────────────────────────────────────────────────────────
 
 
-def oracle_target_types(tree: exp.Expression) -> exp.Expression:
+def oracle_target_types(tree: exp.Expr) -> exp.Expr:
     """Texto sin longitud → ``VARCHAR2(4000)``: sqlglot lo genera como ``CLOB`` (no comparable) o ``VARCHAR2``."""
     for data_type in list(tree.find_all(exp.DataType)):
         if data_type.this in (exp.DataType.Type.TEXT, exp.DataType.Type.CHARACTER_SET) or (
@@ -172,7 +172,7 @@ def _unit_name(node: Any) -> str:
     return str(unit.name).upper() if unit is not None else "DAY"
 
 
-def _day_offset(node: Any) -> exp.Expression:
+def _day_offset(node: Any) -> exp.Expr:
     unit = _unit_name(node)
     amount = node.expression.copy()
     if isinstance(amount, exp.Interval):
@@ -189,7 +189,7 @@ def _day_offset(node: Any) -> exp.Expression:
     return exp.Paren(this=cls(this=node.this.copy(), expression=amount))
 
 
-def oracle_target_date_functions(tree: exp.Expression) -> exp.Expression:
+def oracle_target_date_functions(tree: exp.Expr) -> exp.Expr:
     """Funciones de fecha que sqlglot genera para Oracle y Oracle no tiene.
 
     ``DATE_ADD/DATE_SUB`` → ``fecha ± n`` (días) o ``ADD_MONTHS``; ``DATEDIFF(a, b)`` en días → ``(a - b)``;
@@ -213,7 +213,7 @@ def oracle_target_date_functions(tree: exp.Expression) -> exp.Expression:
 # ─── Destino PostgreSQL ──────────────────────────────────────────────────────────
 
 
-def postgres_target_date_add(tree: exp.Expression) -> exp.Expression:
+def postgres_target_date_add(tree: exp.Expr) -> exp.Expr:
     """``fecha + INTERVAL`` en PostgreSQL devuelve ``timestamp``: se devuelve a ``DATE`` si el operando era ``DATE``."""
     for node in list(tree.find_all(exp.DateAdd, exp.DateSub)):
         if _type_of(node.this) == exp.DataType.Type.DATE:
@@ -224,19 +224,19 @@ def postgres_target_date_add(tree: exp.Expression) -> exp.Expression:
 # ─── Oracle origen (V2) ──────────────────────────────────────────────────────────
 
 
-def oracle_join_marks(tree: exp.Expression) -> exp.Expression:
+def oracle_join_marks(tree: exp.Expr) -> exp.Expr:
     """Outer join ``(+)`` de Oracle → ``LEFT JOIN`` (``transforms.eliminate_join_marks`` de sqlglot).
 
     Sin esto sqlglot emite un join interno y la vista devuelve otro resultado sin error (V0).
     """
-    return cast(exp.Expression, transforms.eliminate_join_marks(tree))
+    return transforms.eliminate_join_marks(tree)
 
 
-def _is_rownum(node: exp.Expression) -> bool:
+def _is_rownum(node: exp.Expr) -> bool:
     return isinstance(node, exp.Column) and not node.table and node.name.upper() == "ROWNUM"
 
 
-def _rownum_bound(condition: exp.Expression) -> int | None:
+def _rownum_bound(condition: exp.Expr) -> int | None:
     """Límite de filas de ``ROWNUM <= n``, ``ROWNUM < n``, ``n >= ROWNUM``, ``n > ROWNUM`` o ``ROWNUM = 1``."""
     left, right = condition.args.get("this"), condition.args.get("expression")
     if isinstance(condition, (exp.LTE, exp.LT, exp.EQ)) and left is not None and _is_rownum(left):
@@ -253,7 +253,7 @@ def _rownum_bound(condition: exp.Expression) -> int | None:
     return value
 
 
-def oracle_rownum_limit(tree: exp.Expression) -> exp.Expression:
+def oracle_rownum_limit(tree: exp.Expr) -> exp.Expr:
     """``WHERE ... AND ROWNUM <= n`` en una consulta **sin** ``ORDER BY`` → ``LIMIT n`` (``TOP``/``FETCH FIRST``).
 
     En Oracle ``ROWNUM`` se aplica antes del ``ORDER BY`` de la misma consulta: solo se traduce cuando esa consulta no
@@ -314,17 +314,17 @@ def _ordered_derived_table(select: exp.Select) -> exp.Select | None:
 # ─── Destino SQL Server / PostgreSQL (V2) ─────────────────────────────────────────
 
 
-def tsql_target_ilike(tree: exp.Expression) -> exp.Expression:
+def tsql_target_ilike(tree: exp.Expr) -> exp.Expr:
     """``a ILIKE b`` (PostgreSQL) → ``LOWER(a) LIKE LOWER(b)``: SQL Server no tiene ``ILIKE``."""
     for node in reversed(list(tree.find_all(exp.ILike))):
         node.replace(exp.Like(this=exp.Lower(this=node.this.copy()), expression=exp.Lower(this=node.expression.copy())))
     return tree
 
 
-def postgres_target_text_aggregate(tree: exp.Expression) -> exp.Expression:
+def postgres_target_text_aggregate(tree: exp.Expr) -> exp.Expr:
     """``STRING_AGG`` de PostgreSQL exige texto: el valor agregado (``GROUP_CONCAT``, ``LISTAGG``...) se pasa a texto."""
     for node in list(tree.find_all(exp.GroupConcat)):
-        holder: exp.Expression = node.this if isinstance(node.this, exp.Order) else node
+        holder: exp.Expr = node.this if isinstance(node.this, exp.Order) else node
         value = holder.this
         if value is not None and not _is_text(value) and not isinstance(value, exp.Cast):
             holder.set("this", exp.Cast(this=value.copy(), to=exp.DataType.build("TEXT")))
@@ -379,16 +379,16 @@ ConnectByOutcome = str | None
 CONNECT_BY_CONVERTED: frozenset[str] = frozenset({"hierarchy", "hierarchy_nocycle", "generator"})
 
 
-def _is_level(node: exp.Expression) -> bool:
+def _is_level(node: exp.Expr) -> bool:
     return isinstance(node, exp.Column) and not node.table and node.name.upper() == "LEVEL"
 
 
-def _is_star(node: exp.Expression) -> bool:
+def _is_star(node: exp.Expr) -> bool:
     """``*`` o ``alias.*`` en la lista de columnas."""
     return isinstance(node, exp.Star) or (isinstance(node, exp.Column) and isinstance(node.this, exp.Star))
 
 
-def _is_connect_by_path(node: exp.Expression) -> bool:
+def _is_connect_by_path(node: exp.Expr) -> bool:
     return isinstance(node, exp.Anonymous) and str(node.this).upper() == "SYS_CONNECT_BY_PATH"
 
 
@@ -399,7 +399,7 @@ def _free_name(base: str, taken: set[str]) -> str:
     return name
 
 
-def _level_bound(condition: exp.Expression) -> int | None:
+def _level_bound(condition: exp.Expr) -> int | None:
     """Número de filas de ``LEVEL <= n``, ``LEVEL < n``, ``n >= LEVEL`` o ``n > LEVEL`` con ``n`` entero literal."""
     left, right = condition.this, condition.expression
     if isinstance(condition, (exp.LTE, exp.LT)) and _is_level(left):
@@ -419,7 +419,7 @@ def _replace_level(select: exp.Select, qualifier: str | None) -> None:
             column.replace(exp.column(_CONNECT_BY_LEVEL, table=qualifier))
 
 
-def _connect_by_generator(select: exp.Select, target_engine: str, taken: set[str]) -> exp.Expression | str:
+def _connect_by_generator(select: exp.Select, target_engine: str, taken: set[str]) -> exp.Expr | str:
     """``SELECT ... LEVEL ... FROM dual CONNECT BY LEVEL <= n`` → CTE recursiva que cuenta de 1 a n."""
     connect: Any = select.args["connect"]
     rows = _level_bound(connect.args["connect"])
@@ -466,7 +466,7 @@ def _connect_by_generator(select: exp.Select, target_engine: str, taken: set[str
     return outer
 
 
-def _prior_pair(condition: exp.Expression) -> tuple[exp.Column, exp.Column] | None:
+def _prior_pair(condition: exp.Expr) -> tuple[exp.Column, exp.Column] | None:
     """``PRIOR padre = hijo`` o ``hijo = PRIOR padre`` entre columnas simples → (padre, hijo)."""
     if not isinstance(condition, exp.EQ):
         return None
@@ -478,7 +478,7 @@ def _prior_pair(condition: exp.Expression) -> tuple[exp.Column, exp.Column] | No
     return None
 
 
-def _connect_condition(condition: exp.Expression) -> tuple[exp.Column, exp.Column, int | None] | None:
+def _connect_condition(condition: exp.Expr) -> tuple[exp.Column, exp.Column, int | None] | None:
     """``PRIOR padre = hijo`` con ``AND LEVEL <= n`` opcionales → (padre, hijo, nivel máximo o ``None``)."""
     parts: list[Any] = list(condition.flatten()) if isinstance(condition, exp.And) else [condition]
     pairs = [pair for pair in (_prior_pair(part) for part in parts) if pair is not None]
@@ -496,15 +496,15 @@ class _KeyPath:
     (:class:`_TextKeyPath`).
     """
 
-    def start(self, key: exp.Column) -> exp.Expression:
+    def start(self, key: exp.Column) -> exp.Expr:
         """Camino de la raíz: solo su clave."""
         raise NotImplementedError
 
-    def extend(self, keys: exp.Column, key: exp.Column) -> exp.Expression:
+    def extend(self, keys: exp.Column, key: exp.Column) -> exp.Expr:
         """Camino del padre (``keys``) más la clave de la fila."""
         raise NotImplementedError
 
-    def contains(self, keys: exp.Column, key: exp.Column) -> exp.Expression:
+    def contains(self, keys: exp.Column, key: exp.Column) -> exp.Expr:
         """La clave está en el camino. Con NULL en la clave, falso: un NULL nunca cierra un ciclo en Oracle (C2)."""
         raise NotImplementedError
 
@@ -517,16 +517,16 @@ class _ArrayKeyPath(_KeyPath):
     """
 
     @staticmethod
-    def _text(key: exp.Column) -> exp.Expression:
+    def _text(key: exp.Column) -> exp.Expr:
         return exp.Cast(this=key, to=exp.DataType.build("TEXT"))
 
-    def start(self, key: exp.Column) -> exp.Expression:
+    def start(self, key: exp.Column) -> exp.Expr:
         return exp.Array(expressions=[self._text(key)])
 
-    def extend(self, keys: exp.Column, key: exp.Column) -> exp.Expression:
+    def extend(self, keys: exp.Column, key: exp.Column) -> exp.Expr:
         return exp.DPipe(this=keys, expression=exp.Array(expressions=[self._text(key)]))
 
-    def contains(self, keys: exp.Column, key: exp.Column) -> exp.Expression:
+    def contains(self, keys: exp.Column, key: exp.Column) -> exp.Expr:
         in_keys = exp.EQ(this=self._text(key), expression=exp.Any(this=exp.Paren(this=keys)))
         return exp.Coalesce(this=in_keys, expressions=[exp.false()])
 
@@ -551,27 +551,27 @@ class _TextKeyPath(_KeyPath):
         self._binary = binary
 
     @staticmethod
-    def _separator() -> exp.Expression:
+    def _separator() -> exp.Expr:
         return exp.Chr(expressions=[exp.Literal.number(31)])
 
-    def _text(self, key: exp.Column) -> exp.Expression:
+    def _text(self, key: exp.Column) -> exp.Expr:
         return exp.Cast(this=key, to=exp.DataType.build(self._key_type))
 
-    def _as_path(self, value: exp.Expression) -> exp.Expression:
+    def _as_path(self, value: exp.Expr) -> exp.Expr:
         return exp.Cast(this=value, to=exp.DataType.build(self._path_type))
 
-    def _binary_text(self, value: exp.Expression) -> exp.Expression:
+    def _binary_text(self, value: exp.Expr) -> exp.Expr:
         if self._binary == "cast":
             return exp.Cast(this=value, to=exp.DataType.build("BINARY", dialect="mysql"))
         return exp.Collate(this=value, expression=exp.var(self._binary))
 
-    def start(self, key: exp.Column) -> exp.Expression:
+    def start(self, key: exp.Column) -> exp.Expr:
         return self._as_path(exp.Concat(expressions=[self._separator(), self._text(key), self._separator()]))
 
-    def extend(self, keys: exp.Column, key: exp.Column) -> exp.Expression:
+    def extend(self, keys: exp.Column, key: exp.Column) -> exp.Expr:
         return self._as_path(exp.Concat(expressions=[keys, self._text(key), self._separator()]))
 
-    def contains(self, keys: exp.Column, key: exp.Column) -> exp.Expression:
+    def contains(self, keys: exp.Column, key: exp.Column) -> exp.Expr:
         needle = exp.Concat(expressions=[self._separator(), self._text(key), self._separator()])
         position = exp.StrPosition(this=self._binary_text(keys), substr=self._binary_text(needle))
         return exp.GT(
@@ -598,7 +598,7 @@ def _has_child(
     on_path: bool | None,
     taken: set[str],
     key_path: _KeyPath | None = None,
-) -> exp.Expression:
+) -> exp.Expr:
     """Hay una fila de la tabla que cuelga de esta y que la jerarquía podría visitar (``LEVEL <= n`` incluido).
 
     ``on_path``: ``None`` = cualquier hijo; ``False`` = hijos que **no** están en el camino (``NOCYCLE``); ``True`` =
@@ -616,21 +616,19 @@ def _has_child(
             exp.column(_CONNECT_BY_KEYS, table=qualifier), exp.column(parent_col, table=alias)
         )
         child_filter = exp.and_(child_filter, membership if on_path else exp.not_(membership))
-    has_child: exp.Expression = exp.Exists(
-        this=exp.select(exp.Literal.number(1)).from_(child_table).where(child_filter)
-    )
+    has_child: exp.Expr = exp.Exists(this=exp.select(exp.Literal.number(1)).from_(child_table).where(child_filter))
     if max_level is None:
         return has_child
     below_max: Any = exp.column(_CONNECT_BY_LEVEL, table=qualifier) < exp.Literal.number(max_level)
-    return cast(exp.Expression, exp.and_(below_max, has_child))
+    return cast(exp.Expr, exp.and_(below_max, has_child))
 
 
-def _order_step(rank: exp.Expression, path_type: str, parent_path: exp.Column | None) -> exp.Expression:
+def _order_step(rank: exp.Expr, path_type: str, parent_path: exp.Column | None) -> exp.Expr:
     """Tramo de ``cb_order``: ``CAST([ruta del padre ||] CAST(1000000000 + n AS TEXT) AS tipo)`` (F1, 0.23.0).
 
     Diez dígitos por nivel: comparar las rutas como texto equivale a ordenar en profundidad por el número de hermano.
     """
-    step: exp.Expression = exp.Cast(
+    step: exp.Expr = exp.Cast(
         this=exp.Add(this=exp.Literal.number(_ORDER_RANK_OFFSET), expression=rank), to=exp.DataType.build("TEXT")
     )
     if parent_path is not None:
@@ -638,7 +636,7 @@ def _order_step(rank: exp.Expression, path_type: str, parent_path: exp.Column | 
     return exp.Cast(this=step, to=exp.DataType.build(path_type))
 
 
-def _flag(condition: exp.Expression, when_true: int) -> exp.Expression:
+def _flag(condition: exp.Expr, when_true: int) -> exp.Expr:
     """``CASE WHEN condición THEN when_true ELSE 1 - when_true END``."""
     return exp.Case(
         ifs=[exp.If(this=condition, true=exp.Literal.number(when_true))], default=exp.Literal.number(1 - when_true)
@@ -651,7 +649,7 @@ def _connect_by_hierarchy(
     column_types: dict[str, dict[str, str]],
     integer_columns: dict[str, frozenset[str]],
     taken: set[str],
-) -> exp.Expression | str:
+) -> exp.Expr | str:
     """Jerarquía simple (``START WITH`` + ``CONNECT BY PRIOR a = b``) → CTE recursiva; el ``WHERE`` va fuera."""
     connect: Any = select.args["connect"]
     nocycle = bool(connect.args.get("nocycle"))
@@ -704,7 +702,7 @@ def _connect_by_hierarchy(
         # H1 (auditoría 0.22.0): la CTE solo lleva las columnas nombradas; sin expandir, SELECT * devolvería esas y
         # las internas (cb_level, cb_keys) en lugar de las de la tabla. Se expande en el orden del plan (el de Oracle).
         select = select.copy()
-        expanded: list[exp.Expression] = []
+        expanded: list[exp.Expr] = []
         for projection in select.expressions:
             if _is_star(projection):
                 expanded.extend(exp.column(name, table=qualifier) for name in types)
@@ -829,7 +827,7 @@ def _connect_by_hierarchy(
         expression=exp.column(table_columns[parent_col.name.lower()], table=parent),
     )
     ranked_cte: exp.CTE | None = None
-    recursive_source: exp.Expression = source_table.copy()
+    recursive_source: exp.Expr = source_table.copy()
     if ranked_name is not None:
         # F1: hermanos = filas con el mismo valor en la columna hija (cuelgan del mismo padre).
         sibling_rank = exp.Window(
@@ -918,13 +916,13 @@ def _connect_by_hierarchy(
 
 
 def oracle_connect_by(
-    tree: exp.Expression,
+    tree: exp.Expr,
     *,
     target_engine: str,
     column_types: dict[str, dict[str, str]],
     integer_columns: dict[str, frozenset[str]],
     reserved_names: set[str],
-) -> tuple[exp.Expression, ConnectByOutcome]:
+) -> tuple[exp.Expr, ConnectByOutcome]:
     """``CONNECT BY`` de Oracle → CTE recursiva, solo en el subconjunto con traducción fiable.
 
     Convierte la consulta principal de la vista si es una jerarquía simple (un solo origen, ``START WITH`` opcional,
@@ -963,7 +961,7 @@ def oracle_connect_by(
 # ─── Salvaguardas (construcciones sin traducción fiable) ──────────────────────────
 
 
-def unsupported_constructs(tree: exp.Expression, source_engine: str) -> list[str]:
+def unsupported_constructs(tree: exp.Expr, source_engine: str) -> list[str]:
     """Construcciones del origen que V1 no traduce de forma fiable (V0: error silencioso o fallo)."""
     found: list[str] = []
     if source_engine == "oracle":

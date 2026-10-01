@@ -104,7 +104,7 @@ def _schema_for_sqlglot(ctx: ViewTranspileContext, dialect: str) -> dict[str, ob
     return schema
 
 
-def _external_tables(tree: exp.Expression, ctx: ViewTranspileContext) -> list[str]:
+def _external_tables(tree: exp.Expr, ctx: ViewTranspileContext) -> list[str]:
     """Tablas referenciadas de otro schema o que no están en el plan (se dejan como están)."""
     external: list[str] = []
     source_schema = ctx.source_schema.lower()
@@ -119,7 +119,7 @@ def _external_tables(tree: exp.Expression, ctx: ViewTranspileContext) -> list[st
     return external
 
 
-def _apply_names(tree: exp.Expression, ctx: ViewTranspileContext) -> None:
+def _apply_names(tree: exp.Expr, ctx: ViewTranspileContext) -> None:
     """Nombres del destino: objetos y columnas del plan con su nombre y comillas; el resto sin comillas.
 
     Los emitters crean tablas y columnas entrecomilladas con el nombre del plan (Oracle en mayúsculas), así que las
@@ -167,7 +167,7 @@ def _apply_names(tree: exp.Expression, ctx: ViewTranspileContext) -> None:
 _HEADER_COLUMNS_CODE: WarningCode = "VIEW_HEADER_COLUMNS"
 
 
-def _apply_header_columns(tree: exp.Expression, view: CanonicalView) -> bool:
+def _apply_header_columns(tree: exp.Expr, view: CanonicalView) -> bool:
     """Nombres declarados en la cabecera de la vista (``CREATE VIEW v (a, b) AS ...``, SQL Server) como alias.
 
     ``view.columns`` trae esos nombres (``INFORMATION_SCHEMA.COLUMNS`` de la vista). Solo se aplican si la consulta

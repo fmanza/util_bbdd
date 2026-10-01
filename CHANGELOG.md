@@ -30,6 +30,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   de SQL Server el `MS_Description`, como última columna; nueva `fetch_routine_comments_for_schema_sql()` de
   PostgreSQL (`fetch_routines_sql()`, compartida con los adaptadores, no cambia).
 
+### Fixed
+
+- **migrate (vistas)**: `views/_rewrites.py` y `views/transpiler.py` usaban `exp.Expression`, que desde sqlglot 30 es
+  una importación privada de `sqlglot.expressions` (Pylance `reportPrivateImportUsage`; una 30.x podría retirarla y los
+  `cast()` fallarían al ejecutarse). Ahora usan la base pública `exp.Expr`, presente ya en sqlglot 30.0.0.
+
 ## [0.22.0] - 2026-09-30
 
 Cierra la deuda que dejó la 0.21.0 en `migrate/`: más jerarquías `CONNECT BY` de Oracle se convierten en CTE recursiva
