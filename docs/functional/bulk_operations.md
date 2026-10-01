@@ -23,7 +23,7 @@ Cuando se usa con MySQL o MariaDB, el módulo valida automáticamente la configu
 | Claves primarias requeridas en UPDATE/DELETE | El módulo las detecta automáticamente desde la definición de tabla en BD | Sin PKs definidas en BD, UPDATE y DELETE no pueden identificar qué filas modificar |
 | Normalización de identificadores por motor | Oracle y PostgreSQL usan minúsculas; MySQL/MariaDB, SQL Server y HSQLDB usan mayúsculas | Usar identificadores en caso incorrecto provoca errores de columna no encontrada |
 | Procesamiento por lotes | Los datos se envían en lotes (configurable) para evitar saturar memoria y BD | Lotes muy grandes pueden agotar la memoria del proceso o superar límites del driver |
-| Transaccionalidad implícita | Cada lote se ejecuta en su propia transacción; un fallo a mitad deja datos parcialmente insertados | No hay rollback automático entre lotes; el llamador debe gestionar reintento o limpieza |
+| Una transacción por operación | Cada INSERT, UPDATE o DELETE se ejecuta en una sola transacción, aunque se envíe por lotes: si falla un lote, se deshace la operación entera. Con `commit_every_n_chunks` se confirma cada N lotes | Con `commit_every_n_chunks`, un fallo a mitad deja confirmados los lotes anteriores (`rows_committed`); el error indica el lote y las filas donde falló |
 
 ## 3. Casos de Uso
 
