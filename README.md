@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, MySQL, Oracle, PostgreSQL, SQLite y SQL Server (sync y async), y HSQLDB, Redshift y Snowflake (sync).
 
-**Version:** 0.24.0 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 0.25.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -1103,7 +1103,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.24.0** (`bulk`: UPDATE de PostgreSQL por tabla temporal, DELETE de SQL Server con OPENJSON, UPDATE/DELETE en streaming y en paralelo, checkpoints con reanudación y reintentos por código de error con backoff)
+**Current Version: v0.25.0** (`bulk`: corrige el DELETE de SQL Server de la 0.24.0 con claves que no caben en la PK; lote por defecto por motor y operación; reintento del lock wait timeout con el conector `mariadb`)
 
 Roadmap resumido (ver [ROADMAP completo](docs/roadmap.md) y
 [CHANGELOG](CHANGELOG.md) para el detalle):

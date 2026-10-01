@@ -7,6 +7,19 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-10-01
+
+**Corrige una pérdida de datos de la 0.24.0**: en SQL Server, `bulk_delete_from_df` podía borrar filas que no se habían
+pedido si una clave no cabía en el tipo de la PK (ver *Fixed*). Además, el lote por defecto depende del motor y de la
+operación (B-04). Sin APIs retiradas.
+
+### Migración
+
+- Quien use la 0.24.0 con SQL Server y pueda recibir claves más largas que la PK, con más decimales que su escala o con
+  caracteres fuera de ASCII en una PK `VARCHAR` debe actualizar.
+- `BulkCrud`/`ParallelBulkLoader` sin `chunk_size` usan ahora lotes de 20 000 en el INSERT y el DELETE de PostgreSQL y en
+  el DELETE de SQL Server; `chunk_size=5000` recupera el comportamiento anterior.
+
 ### Changed
 
 - **bulk**: `BulkCrud(chunk_size=None)` (nuevo default; antes `5000`) elige el lote por motor y operación: 20 000 en el
