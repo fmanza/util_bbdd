@@ -1,0 +1,3 @@
+timestamp	tabla	motor	operacion	total_filas	tiempo_seg	sql
+2026-10-01 04:05:24	zz_util_bbdd_bench	SQLITE	INSERT	1000000	6,488	No
+2026-10-01 04:05:37	zz_util_bbdd_bench	SQLITE	INSERT	1000000	6,660	No

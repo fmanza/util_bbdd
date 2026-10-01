@@ -1,0 +1,4 @@
+engine,exp,ok,rows,rows_s,seconds,variant
+cpu,prep,True,1000000,352072,2.84,records_dict(+tuplas)
+cpu,prep,True,1000000,461848,2.165,records_dict
+cpu,prep,True,1000000,719212,1.39,columnas→tuplas

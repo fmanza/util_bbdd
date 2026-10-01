@@ -1,0 +1,3 @@
+timestamp	tabla	motor	operacion	total_filas	tiempo_seg	sql
+2026-10-01 04:06:34	zz_util_bbdd_bench	MYSQL	INSERT	1000000	17,285	No
+2026-10-01 04:07:09	zz_util_bbdd_bench	MYSQL	INSERT	1000000	17,785	No

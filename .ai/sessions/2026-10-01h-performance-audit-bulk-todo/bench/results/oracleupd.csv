@@ -1,0 +1,6 @@
+chunk,engine,exp,ok,persisted,rep,rows,rows_s,seconds,variant
+,oracle,oracle_ptt_probe,True,1,,1,,0.0,filas_tras_rollback
+5000,oracle,update_staging,True,,0,1000000,64795,15.433,executemany
+5000,oracle,update_staging,True,,1,1000000,68068,14.691,executemany
+5000,oracle,update_staging,True,,0,1000000,48472,20.631,staging
+5000,oracle,update_staging,True,,1,1000000,47318,21.134,staging

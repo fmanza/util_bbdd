@@ -1,0 +1,7 @@
+chunk,engine,exp,ok,rep,rows,rows_s,seconds,variant
+5000,mssql,update_staging,True,0,1000000,46403,21.55,executemany
+5000,mssql,update_staging,True,1,1000000,45762,21.852,executemany
+5000,mssql,update_staging,True,0,1000000,34204,29.237,staging
+5000,mssql,update_staging,True,1,1000000,35026,28.55,staging
+50000,mssql,update_staging,True,0,1000000,46567,21.475,executemany
+50000,mssql,update_staging,True,0,1000000,43802,22.83,staging

@@ -1,0 +1,49 @@
+{
+  "timestamp": "2026-10-01T03:12:53",
+  "python": "3.14.2",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "pandas": "3.0.3",
+  "numpy": "2.4.6",
+  "sqlalchemy": "2.0.50",
+  "chunk_size": 5000,
+  "repeat": 3,
+  "memory": false,
+  "engines": {
+    "sqlite": {
+      "status": "ok",
+      "url": "sqlite:///C:\\Users\\manza\\AppData\\Local\\Temp\\util_bbdd_bench_z65mi0l4\\bench.db",
+      "driver": "sqlite",
+      "server_version": "3.50.4"
+    },
+    "postgresql": {
+      "status": "ok",
+      "url": "postgresql+psycopg://bench:***@127.0.0.1:55432/bench",
+      "driver": "postgresql+psycopg",
+      "server_version": "17.11"
+    },
+    "mysql": {
+      "status": "ok",
+      "url": "mysql+pymysql://bench:***@127.0.0.1:53306/bench",
+      "driver": "mysql+pymysql",
+      "server_version": "8.4.11"
+    },
+    "mariadb": {
+      "status": "ok",
+      "url": "mariadb+pymysql://bench:***@127.0.0.1:53307/bench",
+      "driver": "mariadb+pymysql",
+      "server_version": "11.4.13"
+    },
+    "mssql": {
+      "status": "ok",
+      "url": "mssql+pyodbc://sa:***@127.0.0.1:51433/bench?TrustServerCertificate=yes&driver=ODBC+Driver+18+for+SQL+Server",
+      "driver": "mssql+pyodbc",
+      "server_version": "16.0.4295.3"
+    },
+    "oracle": {
+      "status": "ok",
+      "url": "oracle+oracledb://bench:***@127.0.0.1:51521/?service_name=FREEPDB1",
+      "driver": "oracle+oracledb",
+      "server_version": "23.26.3.0.0"
+    }
+  }
+}

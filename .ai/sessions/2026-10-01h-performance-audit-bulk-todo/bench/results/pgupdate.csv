@@ -1,0 +1,7 @@
+chunk,engine,exp,ok,rep,rows,rows_s,seconds,variant
+5000,postgresql,update_staging,True,0,1000000,39950,25.031,executemany
+5000,postgresql,update_staging,True,1,1000000,40358,24.778,executemany
+5000,postgresql,update_staging,True,0,1000000,93243,10.725,staging
+5000,postgresql,update_staging,True,1,1000000,95827,10.435,staging
+50000,postgresql,update_staging,True,0,1000000,39447,25.35,executemany
+50000,postgresql,update_staging,True,0,1000000,81397,12.285,staging

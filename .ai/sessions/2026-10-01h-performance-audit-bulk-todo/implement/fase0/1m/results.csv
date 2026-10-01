@@ -1,0 +1,13 @@
+engine,driver,variant,op,rows,repeat,seconds,rows_per_second,ok,error,peak_mb
+postgresql,psycopg,baseline,insert,1000000,1,4.3485,229962.7,True,,
+postgresql,psycopg,baseline,update,1000000,1,25.713,38890.8,True,,
+postgresql,psycopg,baseline,delete,1000000,1,2.0103,497425.8,True,,
+mysql,pymysql,baseline,insert,1000000,1,15.9012,62888.4,True,,
+mysql,pymysql,baseline,update,1000000,1,22.4926,44459.1,True,,
+mysql,pymysql,baseline,delete,1000000,1,7.5922,131714.7,True,,
+mariadb,pymysql,baseline,insert,1000000,1,17.2243,58057.4,True,,
+mariadb,pymysql,baseline,update,1000000,1,20.7566,48177.5,True,,
+mariadb,pymysql,baseline,delete,1000000,1,6.75,148147.2,True,,
+mssql,pyodbc,baseline,insert,1000000,1,15.0939,66252.1,True,,
+mssql,pyodbc,baseline,update,1000000,1,22.4388,44565.8,True,,
+mssql,pyodbc,baseline,delete,1000000,1,2.7705,360948.4,True,,

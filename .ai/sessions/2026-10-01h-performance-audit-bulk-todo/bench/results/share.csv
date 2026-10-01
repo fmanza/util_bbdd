@@ -1,0 +1,7 @@
+engine,exp,ok,prep_pct,prep_s,rows,rows_s,seconds,variant
+sqlite,share,True,25.6,1.754,1000000,146189,6.84,insert_total
+postgresql,share,True,31.2,1.758,1000000,177692,5.628,insert_total
+mysql,share,True,9.9,1.733,1000000,56907,17.573,insert_total
+mariadb,share,True,11.4,1.812,1000000,62676,15.955,insert_total
+mssql,share,True,12.2,1.774,1000000,68922,14.509,insert_total
+oracle,share,True,17.7,1.705,1000000,104061,9.61,insert_total
