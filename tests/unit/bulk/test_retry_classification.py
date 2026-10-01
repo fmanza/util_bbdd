@@ -207,3 +207,28 @@ def test_custom_retry_on(engine: Any) -> None:
 def test_invalid_backoff_is_rejected(engine: Any, backoff: Any) -> None:
     with pytest.raises(ValueError, match="retry_backoff"):
         ParallelBulkLoader(engine, retry_backoff=backoff)
+
+
+# A2 (audit-code 2026-10-01): los errores reales del conector ``mariadb`` llevan ``sqlstate`` y ``errno``; el lock wait
+# timeout (1205) tiene sqlstate HY000 y no se reintentaba porque se decidía por sqlstate antes que por errno.
+
+
+class _MariaDBError(Exception):
+    def __init__(self, message: str, *, errno: int, sqlstate: str) -> None:
+        super().__init__(message)
+        self.errno = errno
+        self.sqlstate = sqlstate
+
+
+@pytest.mark.parametrize(
+    ("errno", "sqlstate", "expected"),
+    [
+        (1205, "HY000", True),  # lock wait timeout
+        (1213, "40001", True),  # deadlock
+        (2013, "HY000", True),  # conexión perdida
+        (1054, "42S22", False),  # columna desconocida
+        (1062, "23000", False),  # clave duplicada
+    ],
+)
+def test_mariadb_connector_decides_by_errno(errno: int, sqlstate: str, expected: bool) -> None:
+    assert is_retriable(_wrap(_MariaDBError("x", errno=errno, sqlstate=sqlstate))) is expected

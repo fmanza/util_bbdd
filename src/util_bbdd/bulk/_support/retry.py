@@ -49,12 +49,14 @@ def is_retriable(exc: BaseException) -> bool:
 
 def _driver_error_is_retriable(orig: Any) -> bool:
     """Decide por el código que expone el error del driver (ver el docstring del módulo)."""
+    # Primero el errno: los errores del conector ``mariadb`` llevan también ``sqlstate`` (lock wait timeout 1205 →
+    # ``HY000``) y, decididos por sqlstate, no se reintentaban (A2, audit-code 2026-10-01).
+    errno = getattr(orig, "errno", None)  # conector mariadb
+    if isinstance(errno, int) and not isinstance(errno, bool):
+        return errno in _RETRIABLE_ERRNOS
     sqlstate = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)  # psycopg 3 / psycopg2
     if isinstance(sqlstate, str):
         return sqlstate in _PG_RETRIABLE_SQLSTATES or sqlstate.startswith(_PG_RETRIABLE_CLASSES)
-    errno = getattr(orig, "errno", None)  # conector mariadb
-    if isinstance(errno, int):
-        return errno in _RETRIABLE_ERRNOS
     args: tuple[Any, ...] = tuple(getattr(orig, "args", ()))
     if not args:
         return False

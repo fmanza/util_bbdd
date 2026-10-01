@@ -382,3 +382,92 @@ def test_parallel_update_and_delete(engine: Engine) -> None:  # noqa: F811
         assert [r[0] for r in _state(engine, table)] == list(range(101, 301))
     finally:
         table.drop(engine, checkfirst=True)
+
+
+# ------------------------------------------------------------------- hotfix A1/A2 (audit-code 2026-10-01)
+
+_A1_CASES: list[Any] = [
+    pytest.param(String(5), ["abcde", "zz"], ["abcdeXYZ"], id="varchar-truncado"),
+    pytest.param(
+        Numeric(8, 2),
+        [decimal.Decimal("1.11"), decimal.Decimal("2.00")],
+        [decimal.Decimal("1.105")],
+        id="numeric-redondeo",
+    ),
+    pytest.param(String(5), ["?", "a"], ["α"], id="varchar-code-page"),
+    pytest.param(Integer, [1, 2], [2**40], id="int-fuera-de-rango"),
+]
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"mssql"})), indirect=True)
+@pytest.mark.parametrize(("pk_type", "rows", "doomed"), _A1_CASES)
+def test_mssql_delete_never_deletes_keys_that_do_not_fit_the_pk(
+    engine: Engine,  # noqa: F811
+    pk_type: Any,
+    rows: list[Any],
+    doomed: list[Any],
+) -> None:
+    """A1: OPENJSON convertía la clave al tipo de la PK (trunca/redondea/best fit) y borraba otras filas."""
+    table = Table(_table_name(), MetaData(), Column("k", pk_type, primary_key=True, autoincrement=False))
+    table.create(engine)
+    try:
+        BulkCrud(engine, strip_strings=False).bulk_insert_from_df(
+            pd.DataFrame({"k": rows}, dtype=object), table.name, False
+        )
+        BulkCrud(engine).bulk_delete_from_df(pd.DataFrame({"k": doomed}, dtype=object), table.name, False)
+        with engine.connect() as conn:
+            remaining = sorted(str(r[0]) for r in conn.execute(select(table.c.k)))
+        assert remaining == sorted(str(r) for r in rows)
+    finally:
+        table.drop(engine, checkfirst=True)
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"mssql"})), indirect=True)
+def test_mssql_composite_delete_never_deletes_keys_that_do_not_fit(engine: Engine) -> None:  # noqa: F811
+    table = Table(
+        _table_name(),
+        MetaData(),
+        Column("a", Integer, primary_key=True, autoincrement=False),
+        Column("b", String(5), primary_key=True),
+    )
+    table.create(engine)
+    try:
+        BulkCrud(engine).bulk_insert_from_df(pd.DataFrame({"a": [1, 1], "b": ["abcde", "zz"]}), table.name, False)
+        BulkCrud(engine).bulk_delete_from_df(pd.DataFrame({"a": [1], "b": ["abcdeXYZ"]}), table.name, False)
+        with engine.connect() as conn:
+            assert sorted(tuple(r) for r in conn.execute(select(table.c.a, table.c.b))) == [(1, "abcde"), (1, "zz")]
+    finally:
+        table.drop(engine, checkfirst=True)
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"mariadb"})), indirect=True)
+def test_mariadb_connector_lock_wait_timeout_is_retriable(engine: Engine) -> None:  # noqa: F811
+    """A2: con el conector ``mariadb`` el lock wait timeout (1205, sqlstate HY000) no se reintentaba."""
+    pytest.importorskip("mariadb")
+    from sqlalchemy import create_engine
+    from sqlalchemy.exc import DBAPIError
+
+    from util_bbdd.bulk._support.retry import is_retriable
+
+    url = engine.url.set(drivername="mariadb+mariadbconnector")
+    connector = create_engine(url)
+    table = Table(_table_name(), MetaData(), Column("id", Integer, primary_key=True, autoincrement=False))
+    table.create(connector)
+    first, second = connector.connect(), connector.connect()
+    try:
+        with connector.begin() as conn:
+            conn.execute(table.insert(), [{"id": 1}])
+        for conn in (first, second):
+            conn.exec_driver_sql("SET SESSION innodb_lock_wait_timeout = 1")
+        first.execute(table.update().values(id=1))
+        with pytest.raises(DBAPIError) as info:
+            second.execute(table.update().values(id=1))
+        assert info.value.orig.errno == 1205
+        assert is_retriable(info.value) is True
+    finally:
+        second.rollback()
+        first.rollback()
+        first.close()
+        second.close()
+        table.drop(connector, checkfirst=True)
+        connector.dispose()

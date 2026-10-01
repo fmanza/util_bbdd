@@ -7,6 +7,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **bulk (SQL Server)**: el DELETE con OPENJSON de la 0.24.0 borraba filas que no se habían pedido cuando una clave no
+  cabía en el tipo de la PK: SQL Server convierte la clave al tipo de la columna y trunca (`'abcdeXYZ'` en `VARCHAR(5)`
+  borraba `'abcde'`), redondea (`1.105` en `NUMERIC(8,2)` borraba `1.11`) o sustituye caracteres que el code page no
+  tiene (`'α'` borraba `'a'`); un entero fuera de rango daba error. Ahora esas claves van por la vía anterior (`IN`),
+  que no borra nada: OPENJSON solo se usa si cada valor cabe exactamente en el tipo de su columna. Coste: DELETE de 1M
+  2,2 → 2,5 s (sigue 3,4× más rápido que con `IN`).
+- **bulk (`ParallelBulkLoader`)**: con el conector `mariadb` el lock wait timeout (1205) no se reintentaba desde la
+  0.24.0, porque sus errores llevan también `sqlstate` (`HY000`) y se decidía por él antes que por el `errno`.
+
 ## [0.24.0] - 2026-10-01
 
 Fases 0, 1 y 2 del performance-audit de `bulk` (sesión `2026-10-01h-performance-audit-bulk-todo`): UPDATE de PostgreSQL

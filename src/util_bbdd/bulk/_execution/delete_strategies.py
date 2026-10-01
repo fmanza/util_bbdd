@@ -27,7 +27,20 @@ from sqlalchemy import (
     delete,
     text,
 )
+from sqlalchemy.dialects.mssql import TINYINT
 from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.types import (
+    NCHAR,
+    NVARCHAR,
+    BigInteger,
+    Float,
+    Integer,
+    Numeric,
+    SmallInteger,
+    String,
+    Unicode,
+    Uuid,
+)
 
 from ...metadata.sqlserver.common import fetch_compatibility_level_sql
 from ._driver_quirks import _MSSQL_MAX_DELETE_PARAMS, _MYSQL_MAX_STATEMENT_PARAMS
@@ -213,8 +226,9 @@ class MSSQLOpenJsonDeleteStrategy:
     sentencia, y esa compilación dominaba en lotes pequeños. Medido con PK simple (mediana de 3, SQL Server 2022, pyodbc):
     1K filas 0,156 → 0,019 s, 10K 0,816 → 0,040 s, 1M 8,45 → 2,45 s.
 
-    Usa la estrategia anterior (``fallback``) si algún valor del lote no es ``int``, ``str``, ``Decimal``, ``UUID`` o
-    ``None`` (fechas, binarios, ``float``…) o si la base de datos tiene nivel de compatibilidad < 130 (sin OPENJSON). El
+    Usa la estrategia anterior (``fallback``) si algún valor del lote no cabe exactamente en el tipo de su columna
+    (:func:`_fits`: cadenas más largas, no ASCII en ``VARCHAR``, decimales que se redondearían, enteros fuera de rango, tipos
+    Python distintos, fechas, binarios, ``float``…) o si la base de datos tiene nivel de compatibilidad < 130. El
     nivel se lee una vez por engine. El ``CAST``/``WITH`` usa el tipo de cada columna (sin su ``COLLATE``, que no es válido
     ahí): la comparación se hace sobre el tipo de la PK, sin conversión implícita de la columna, que impediría usar el
     índice, y con la intercalación de la columna.
@@ -234,7 +248,9 @@ class MSSQLOpenJsonDeleteStrategy:
         batch_df: pd.DataFrame,
         pk_cols: Sequence[str],
     ) -> None:
-        payload: str | None = _openjson_payload([batch_df[column].tolist() for column in pk_cols])
+        payload: str | None = _openjson_payload(
+            [batch_df[column].tolist() for column in pk_cols], [table.c[column].type for column in pk_cols]
+        )
         if payload is None or not self._openjson_available(connection):
             self._fallback.execute(connection=connection, table=table, batch_df=batch_df, pk_cols=pk_cols)
             return
@@ -294,25 +310,67 @@ def _sql_type(column: Any, dialect: Any) -> str:
     return str(column_type.compile(dialect=dialect))
 
 
-def _json_value(value: Any) -> tuple[bool, Any]:
-    """``(True, valor_json)`` si ``value`` tiene una representación JSON exacta para OPENJSON; si no, ``(False, None)``."""
+# Rango de los tipos enteros de SQL Server (CAST fuera de rango da error 22003; IN no borraba nada).
+_INT_RANGES: tuple[tuple[type, int, int], ...] = (
+    (TINYINT, 0, 255),
+    (SmallInteger, -(2**15), 2**15 - 1),
+    (BigInteger, -(2**63), 2**63 - 1),
+    (Integer, -(2**31), 2**31 - 1),  # el último: TINYINT, SMALLINT y BIGINT son subclases de Integer
+)
+
+
+def _fits(value: Any, column_type: Any) -> bool:
+    """``True`` si ``value`` cabe **exactamente** en ``column_type`` (A1, audit-code 2026-10-01).
+
+    OPENJSON convierte cada clave al tipo de la columna (``CAST``/``WITH``) y SQL Server trunca las cadenas, redondea los
+    decimales y sustituye por *best fit* los caracteres que el code page de un ``VARCHAR`` no tiene, sin error: con una
+    clave que no cabía se borraban otras filas (``'abcdeXYZ'`` en ``VARCHAR(5)`` borraba ``'abcde'``). Las claves que no
+    cumplen esto van por ``IN``, que compara el valor tal cual.
+    """
     kind = type(value)
-    if value is None or kind is int or kind is str:
-        return True, value
-    if kind is decimal.Decimal and value.is_finite():
+    if kind is str and isinstance(column_type, String):
+        length: int | None = column_type.length
+        if isinstance(column_type, (Unicode, NVARCHAR, NCHAR)):
+            return length is None or len(value.encode("utf-16-le")) // 2 <= length
+        return value.isascii() and (length is None or len(value) <= length)
+    if kind is int and isinstance(column_type, Integer):
+        for int_type, low, high in _INT_RANGES:
+            if isinstance(column_type, int_type):
+                return bool(low <= value <= high)
+        return False
+    if kind in (int, decimal.Decimal) and isinstance(column_type, Numeric) and not isinstance(column_type, Float):
+        precision, scale = column_type.precision, column_type.scale
+        if precision is None or scale is None:
+            return False
+        number = decimal.Decimal(value)
+        if not number.is_finite():
+            return False
+        with decimal.localcontext(prec=200):  # DECIMAL(38, s) no cabe en los 28 dígitos del contexto por defecto
+            exact: bool = number.quantize(decimal.Decimal(1).scaleb(-scale)) == number
+            return exact and abs(number) < decimal.Decimal(10) ** (precision - scale)
+    return kind is uuid.UUID and isinstance(column_type, Uuid)
+
+
+def _json_value(value: Any, column_type: Any) -> tuple[bool, Any]:
+    """``(True, valor_json)`` si ``value`` cabe en ``column_type`` y tiene representación JSON exacta; si no, ``(False, None)``."""
+    if value is None:
+        return True, None
+    if not _fits(value, column_type):
+        return False, None  # fuera del dominio de la PK, bool, float, fechas, bytes, NaN, tipos numpy…
+    if type(value) is decimal.Decimal:
         return True, format(value, "f")  # texto: CAST(... AS DECIMAL) sin pasar por float
-    if kind is uuid.UUID:
+    if type(value) is uuid.UUID:
         return True, str(value)
-    return False, None  # bool, float, fechas, bytes, NaN, tipos numpy…
+    return True, value
 
 
-def _openjson_payload(columns: list[list[Any]]) -> str | None:
+def _openjson_payload(columns: list[list[Any]], column_types: Sequence[Any]) -> str | None:
     """JSON del lote: array de valores (PK simple) o de arrays por fila (compuesta); ``None`` si algún valor no cabe."""
     converted: list[list[Any]] = []
-    for values in columns:
+    for values, column_type in zip(columns, column_types, strict=True):
         out: list[Any] = []
         for value in values:
-            ok, json_value = _json_value(value)
+            ok, json_value = _json_value(value, column_type)
             if not ok:
                 return None
             out.append(json_value)

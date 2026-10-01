@@ -130,13 +130,17 @@ def test_compatibility_is_read_once_per_engine() -> None:
 
 def test_payload_values() -> None:
     key = uuid.UUID("12345678-1234-5678-1234-567812345678")
-    payload = _openjson_payload([[1, "a'b ñ", None, decimal.Decimal("0E-10"), key]])
-    assert json.loads(payload or "") == [1, "a'b ñ", None, "0.0000000000", str(key)]
-    assert json.loads(_openjson_payload([[1, 2], ["x", None]]) or "") == [[1, "x"], [2, None]]
-    assert _openjson_payload([[True]]) is None
-    assert _openjson_payload([[decimal.Decimal("NaN")]]) is None
-    assert _openjson_payload([[b"x"]]) is None
-    assert _openjson_payload([[1], [b"x"]]) is None  # un valor no válido en cualquier columna
+    assert json.loads(_openjson_payload([[1, None]], [Integer()]) or "") == [1, None]
+    assert json.loads(_openjson_payload([["a'b ñ"]], [NVARCHAR(10)]) or "") == ["a'b ñ"]
+    assert json.loads(_openjson_payload([[decimal.Decimal("0E-10")]], [Numeric(20, 10)]) or "") == ["0.0000000000"]
+    assert json.loads(_openjson_payload([[key]], [Uuid()]) or "") == [str(key)]
+    assert json.loads(_openjson_payload([[1, 2], ["x", None]], [Integer(), String(5)]) or "") == [[1, "x"], [2, None]]
+    assert _openjson_payload([[True]], [Integer()]) is None
+    assert _openjson_payload([[decimal.Decimal("NaN")]], [Numeric(8, 2)]) is None
+    assert _openjson_payload([[b"x"]], [String(5)]) is None
+    assert _openjson_payload([[1], [b"x"]], [Integer(), String(5)]) is None  # un valor no válido en cualquier columna
+    big = decimal.Decimal("1" * 36 + ".25")  # 38 dígitos: más que el contexto decimal por defecto (28)
+    assert json.loads(_openjson_payload([[big]], [Numeric(38, 2)]) or "") == [format(big, "f")]
 
 
 def test_composite_pk_joins_openjson_with_typed_columns() -> None:
@@ -170,3 +174,89 @@ def test_cast_drops_the_collation_of_reflected_text_columns() -> None:
     assert "CAST([value] AS VARCHAR(30))" in sql
     assert "COLLATE" not in sql
     assert table.c.k.type.collation == "SQL_Latin1_General_CP1_CI_AS"  # el tipo de la tabla no se modifica
+
+
+# ------------------------------------------------------------------ A1 (audit-code 2026-10-01): dominio de la PK
+# OPENJSON convierte cada clave al tipo de la columna (CAST / WITH) y SQL Server trunca, redondea o sustituye caracteres
+# sin error: con claves que no caben, se borraban otras filas. Esas claves deben ir por la vía anterior (IN), que compara
+# el valor tal cual.
+
+from sqlalchemy import NCHAR, NVARCHAR, SmallInteger, Uuid  # noqa: E402, F811
+from sqlalchemy.dialects.mssql import TINYINT  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    ("column_type", "value"),
+    [
+        (String(5), "abcdeXYZ"),  # más largo que la columna: CAST trunca
+        (String(5), "α"),  # VARCHAR: fuera de ASCII, el code page puede sustituirlo ('α' → 'a')
+        (NVARCHAR(2), "😀😀"),  # 4 unidades UTF-16 en NVARCHAR(2)
+        (NCHAR(1), "ab"),
+        (Numeric(8, 2), decimal.Decimal("1.105")),  # más decimales que la escala: CAST redondea
+        (Numeric(4, 2), decimal.Decimal("100.5")),  # más dígitos enteros que precision - scale
+        (Numeric(4, 2), 100),
+        (Integer, 2**31),  # fuera de INT: CAST da error donde IN no borraba nada
+        (SmallInteger, -(2**15) - 1),
+        (TINYINT, 256),
+        (TINYINT, -1),
+        (Integer, "1"),  # tipo Python distinto del de la columna
+        (String(5), 1),
+        (Uuid, "12345678-1234-5678-1234-567812345678"),
+        (Numeric(8, 2), True),
+    ],
+)
+def test_values_outside_the_pk_domain_use_fallback(column_type: Any, value: Any) -> None:
+    table = Table("domain", MetaData(), Column("k", column_type, primary_key=True))
+    connection = _connection()
+    fallback = MagicMock()
+
+    MSSQLOpenJsonDeleteStrategy(fallback).execute(
+        connection=connection, table=table, batch_df=pd.DataFrame({"k": [value]}, dtype=object), pk_cols=["k"]
+    )
+
+    fallback.execute.assert_called_once()
+    assert not any("OPENJSON" in sql for sql in _executed_sql(connection))
+
+
+@pytest.mark.parametrize(
+    ("column_type", "value"),
+    [
+        (String(5), "abcde"),
+        (String(5), "a'b%"),
+        (String(None), "x" * 10_000),  # VARCHAR(MAX)
+        (NVARCHAR(5), "αβγδε"),
+        (Numeric(8, 2), decimal.Decimal("123456.78")),
+        (Numeric(8, 2), decimal.Decimal("1.100")),  # ceros a la derecha: mismo valor con escala 2
+        (Numeric(8, 2), 123),
+        (Integer, 2**31 - 1),
+        (TINYINT, 255),
+        (Uuid, uuid.UUID(int=7)),
+        (Integer, None),
+    ],
+)
+def test_values_inside_the_pk_domain_use_openjson(column_type: Any, value: Any) -> None:
+    table = Table("domain", MetaData(), Column("k", column_type, primary_key=True))
+    connection = _connection()
+    fallback = MagicMock()
+
+    MSSQLOpenJsonDeleteStrategy(fallback).execute(
+        connection=connection, table=table, batch_df=pd.DataFrame({"k": [value]}, dtype=object), pk_cols=["k"]
+    )
+
+    fallback.execute.assert_not_called()
+    assert "OPENJSON" in _executed_sql(connection)[-1]
+
+
+def test_composite_pk_falls_back_if_any_column_value_does_not_fit() -> None:
+    table = Table("pair", MetaData(), Column("a", Integer, primary_key=True), Column("b", String(5), primary_key=True))
+    connection = _connection()
+    fallback = MagicMock()
+
+    MSSQLOpenJsonDeleteStrategy(fallback).execute(
+        connection=connection,
+        table=table,
+        batch_df=pd.DataFrame({"a": [1, 2], "b": ["ok", "abcdeXYZ"]}),
+        pk_cols=["a", "b"],
+    )
+
+    fallback.execute.assert_called_once()
