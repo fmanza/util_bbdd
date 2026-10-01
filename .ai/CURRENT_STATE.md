@@ -36,12 +36,13 @@
 | `v0.22.0` | Liberado 2026-09-30 — **`CONNECT BY`** con `AND LEVEL <= n`, `CONNECT_BY_ISLEAF`, `NOCYCLE` (destino PostgreSQL) y `SELECT *` → CTE recursiva; **comentarios de vistas** desde/hacia PostgreSQL, SQL Server y Oracle; **`MigrationWarning.code`** (`WarningCode`, 21 códigos); fixes de la auditoría (C1, C2, H1, L1, L2) | Estable |
 | `v0.23.0` | Liberado 2026-10-01 — **`CONNECT_BY_ISCYCLE`**, **`NOCYCLE` hacia MySQL/MariaDB/SQL Server** (camino de claves por destino, búsqueda binaria), **`ORDER SIBLINGS BY`** (sin orden en SQL Server), comentarios de rutinas al script, hotfix `exp.Expr`; limitación conocida: rutinas no ejecutables en `execute()` (R4) | Estable |
 | `v0.23.1` | Liberado 2026-10-01 — hotfixes: **rutinas en `execute()`** (R4: `CREATE` reconstruido en MySQL/MariaDB, nombre y `CREATE OR REPLACE` en Oracle, rutinas de otro dialecto comentadas), firma de `on_post_build` del plugin ZIP, rutinas de Oracle con nombre y owner en los adaptadores de metadatos | Estable |
+| `v0.24.0` | Liberado 2026-10-01 — performance-audit de `bulk` (Fases 0–2): **UPDATE de PostgreSQL por tabla temporal** (26,4 → 10,9 s/1M), **DELETE de SQL Server con OPENJSON** (9,3 → 2,7 s/1M; 10K 20×), INSERT por tuplas (PG 6,0 → 4,4 s), `bulk_update_from_chunks`/`bulk_delete_from_chunks`, `last_operation_rows_committed`, `ParallelBulkLoader.update/delete`, reintentos por código de error con backoff y reanudación (cadencia + `max_retries`); listado de rutinas de Oracle solo con procedimientos y funciones | Estable |
 | Zenical | Pendiente, sin versión asignada — merge `migrate/zenical-pure` (+80% perf doc builds) cuando Zenical esté instalable |
 
 PR abierta: **PR #18** `feat(connection/bulk): automatización variables MySQL/MariaDB` — revisión pendiente de merge.  
 PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical v0.0.44 esté en crates.io (o instalación manual de binario).
 
-**Tests actuales**: 5746 passed, 253 skipped sin URLs de servidor (cierre de `v0.23.1`); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 392 passed en 5 servidores (cierre de `v0.23.1`, 2026-10-01). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/performance_audit_guide.md`).
+**Tests actuales**: 5833 passed, 306 skipped sin URLs de servidor (cierre de `v0.24.0`); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 449 passed en 5 servidores (cierre de `v0.24.0`, 2026-10-01; SQL Server con pyodbc; con pymssql, 67 passed en `-k mssql` de bulk/dump). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/performance_audit_guide.md`).
 
 ---
 
@@ -84,7 +85,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-0. **Push y tag `v0.23.1`** (sesiones `2026-10-01d-hotfix-routines-r4`, `2026-10-01e-hotfix-docs-plugin-signature`, `2026-10-01f-hotfix-oracle-routines-metadata`), pendientes de decisión del usuario. Anotado fuera de alcance: `fetch_routines_sync` de Oracle sigue listando también TRIGGER/TYPE de `ALL_PROCEDURES` (filtrarlos cambiaría la API).
+0. **Push de `develop` y del tag `v0.24.0`**, pendientes de decisión del usuario. Roadmap de `bulk` pendiente (sesión `2026-10-01h-performance-audit-bulk-todo`): 1.5 (B-04, tamaño de envío por estrategia, tras repetir el barrido con `--repeat 3`) y Fase 3 (spikes: procesos para PostgreSQL, aislamiento de filas erróneas, causa del `ClientRead`, prefetch).
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
 3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.

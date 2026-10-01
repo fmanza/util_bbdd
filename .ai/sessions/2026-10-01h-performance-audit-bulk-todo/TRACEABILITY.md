@@ -74,8 +74,52 @@ fallos, auditoría, rendimiento; todos los motores; 1M; línea base primero; val
 - **[bench]**: `bench/bench_parallel_api.py` ejecuta su banco a nivel de módulo: no importarlo desde otros scripts.
 - **[bench]**: en Windows, lanzar los prototipos con `PYTHONIOENCODING=utf-8` (los nombres de variante llevan «→»).
 
+## Cierre de versión (v0.24.0)
+
+### Commits
+- `b597914` docs(bulk) B-17 · `7b64aac` feat(metadata) SQL de catálogo · `874dd82` feat(bulk) Fases 0–2 ·
+  `fe64156` docs(bulk) · `a72e696` docs(sessions) · `release: v0.24.0` (este cierre) y tag anotado `v0.24.0`.
+- No fue posible un commit por punto: B-03, B-15a, B-08, B-11, B-13 y B-14 comparten funciones de `crud.py`,
+  `executors.py` y `parallel_loader.py`; el commit de código se verificó aislado (stash del resto): 5833 passed.
+
+### Impacto en API pública
+- Añadido: `BulkCrud.bulk_update_from_chunks`, `bulk_delete_from_chunks`, `last_operation_rows_committed`;
+  `ParallelBulkLoader.update`, `delete`, `retry_backoff`, `retry_on`; `PartitionResult.retry_wait_seconds`;
+  `StagingUpdateStrategy`, `MSSQLOpenJsonDeleteStrategy`, `is_retriable` (internos de `bulk._execution`/`_support`).
+- Comportamiento: staging de UPDATE en PostgreSQL por defecto; reintentos por código de error y con espera; cadencia +
+  reintentos permitidos (reanuda); `update`/`delete` paralelos reintentan al menos 2 veces; DELETE de SQL Server por
+  OPENJSON; notas en los errores de lote. Ninguna firma existente cambia; nada retirado. `MySQLStagingUpdateStrategy`
+  sigue como alias.
+- Compatibilidad: Python >= 3.12 (sin cambios). Motores: PostgreSQL (staging requiere `TEMP`), SQL Server (OPENJSON
+  requiere nivel >= 130; fallback automático), MySQL/MariaDB, Oracle y SQLite sin requisitos nuevos.
+
+### Checklist (`sync.instructions.md`)
+- [x] `ruff check`/`ruff format --check` limpios; `mypy src tests/unit/test_protocol_conformance.py` sin errores (387).
+- [x] `pytest`: 5833 passed / 306 skipped; `tests/integration` con 5 servidores: 449 passed (pyodbc), 67 passed con
+  pymssql (`-k mssql`, bulk/dump).
+- [x] `python -m build`: `util_bbdd-0.24.0` (sdist y wheel).
+- [x] CHANGELOG `[0.24.0] - 2026-10-01` (con *Migración*) y `[Unreleased]` vacío; `pyproject.toml`, `README.md`,
+  `docs/index.md`, `docs/roadmap.md` y pie de `docs/architecture.md` en 0.24.0 (`test_docs_version.py`: 3 passed).
+- [x] `zensical build --strict`: sin avisos.
+- [x] `## Directrices para Futuras IAs` poblada.
+
+### Rollback
+- Nada publicado: `develop` va por delante de `origin/develop` y el tag `v0.24.0` es local. Antes del push:
+  `git tag -d v0.24.0` y `git reset --hard e80059e` (descarta los 6 commits) o revert selectivo.
+- Tras el push: `git revert` del commit de release y de `874dd82` (código); `7b64aac` es aditivo (funciones de SQL sin
+  uso tras el revert). Desactivar sin revertir: `BulkCrud(update_via_staging=False)` (PostgreSQL) y
+  `ParallelBulkLoader(retry_backoff=(0, 0), retry_on=lambda e: isinstance(e, (OperationalError, TimeoutError)))`.
+  El DELETE por OPENJSON no tiene interruptor: se revierte con el commit.
+- Riesgo del rollback: vuelve el UPDATE fila a fila en PostgreSQL (26 s/1M) y el `ValueError` con cadencia +
+  reintentos.
+
+### Handoff
+- Siguiente: push de `develop` y del tag `v0.24.0` (decisión del usuario).
+- Roadmap pendiente: 1.5 (B-04) tras `scripts/bench_bulk.py --sizes 1000000 --chunk-size {1000,5000,20000,50000}
+  --repeat 3`; Fase 3 (spikes) en `improvement_roadmap_bulk.md`.
+
 ## Veredicto final
 Veredicto: CLOSED (auditoría: SIGNIFICATIVO)
 Pendientes al cierre:
 - 1.5 (B-04, tras repetir el barrido) y Fase 3 (spikes).
-- `/version-closure` (minor) y commits por punto cuando el usuario los pida.
+- Push de `develop` y del tag `v0.24.0` (decisión del usuario). Versión cerrada: v0.24.0.

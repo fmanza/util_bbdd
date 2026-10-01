@@ -7,8 +7,23 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Fases 0, 1 y 2 del performance-audit de `bulk` (sesión `2026-10-01h-performance-audit-bulk-todo`). Tiempos a 1M filas en
-los servidores del banco (`scripts/bench_bulk.py`).
+## [0.24.0] - 2026-10-01
+
+Fases 0, 1 y 2 del performance-audit de `bulk` (sesión `2026-10-01h-performance-audit-bulk-todo`): UPDATE de PostgreSQL
+2,4× más rápido, DELETE de SQL Server 3,4×, UPDATE/DELETE en streaming y en paralelo, checkpoints con reanudación y
+reintentos por código de error con backoff. Además, el listado de rutinas de Oracle en los metadatos solo devuelve
+procedimientos y funciones. Sin APIs retiradas; cambios de comportamiento en *Changed* (ver *Migración*). Tiempos a 1M
+filas en los servidores del banco (`scripts/bench_bulk.py`).
+
+### Migración
+
+- Quien use `bulk_update_from_df` en PostgreSQL sin el privilegio `TEMP` verá un WARNING y el UPDATE fila a fila de
+  antes; `BulkCrud(..., update_via_staging=False)` lo evita.
+- `ParallelBulkLoader(max_retries>0)` ya no reintenta los errores permanentes que PyMySQL clasifica como
+  `OperationalError` y espera entre reintentos; `retry_backoff=(0, 0)` recupera el reintento inmediato y `retry_on` un
+  criterio propio.
+- Quien listara packages, disparadores o tipos de Oracle con `fetch_routines_sync`/`fetch_routines_async` debe
+  consultarlos aparte.
 
 ### Added
 
