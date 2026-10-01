@@ -26,6 +26,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   nombre vacío y ponían el `object_id` como owner: `fetch_routines_sql()` devolvía `(procedure_name, object_type,
   object_id)` (NULL en rutinas sueltas) y el decodificador espera `(nombre, tipo, owner, object_id)`. Ahora devuelve
   `(COALESCE(procedure_name, object_name), object_type, owner, object_id)`.
+- **banco de pruebas**: el MySQL de `docker-compose.bench.yml` arranca con `--log-bin-trust-function-creators=1`
+  (sin `SUPER`, con el binlog activo no se podían crear funciones: error 1419); los tests de rutinas crean y llaman
+  funciones también entre MySQL y MariaDB. Para un contenedor existente: `docker compose -f docker-compose.bench.yml up
+  -d --wait mysql` (conserva los datos).
 - **docs (plugin ZIP offline)**: `DocumentationZipPlugin.on_post_build` declaraba `config` posicional y de tipo
   `Config`; ahora `on_post_build(self, *, config: MkDocsConfig)`, como `BasePlugin` de mkdocs (Pylance
   `reportIncompatibleMethodOverride`). Sin fallo en ejecución: mkdocs ya lo llamaba por nombre.

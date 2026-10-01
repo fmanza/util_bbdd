@@ -859,12 +859,14 @@ def test_routine_comment_is_read_into_the_script(source: str) -> None:
 
 # Hotfix R4 (0.23.1): las rutinas no se creaban con execute(). MySQL ↔ MariaDB (el único par en el que el cuerpo vale
 # tal cual) las crea y se pueden llamar; en el resto de pares van comentadas en el script y execute() termina bien.
-# Solo procedimientos en los pares con MySQL: el banco MySQL tiene el binlog activo y sin SUPER no deja crear funciones
-# (error 1419), ni en el origen ni en el destino; la reconstrucción de funciones se prueba en MariaDB (test siguiente).
-FAMILY_PROCEDURES = [
+# Funciones también en MySQL: el banco arranca con --log-bin-trust-function-creators=1 (docker-compose.bench.yml); sin
+# él, con el binlog activo y sin SUPER, MySQL no deja crear funciones (error 1419). Una función y un procedimiento con el
+# mismo nombre (MySQL/MariaDB lo permiten): sus parámetros no se mezclan.
+FAMILY_ROUTINES = [
     "CREATE PROCEDURE zzvw_suma(IN a INT, IN b INT, OUT total INT) READS SQL DATA SQL SECURITY INVOKER "
     "COMMENT 'Suma ''a+b''' BEGIN SET total = a + b; END",
-    "CREATE PROCEDURE zzvw_eco(IN texto VARCHAR(20)) BEGIN SELECT texto; END",
+    "CREATE FUNCTION zzvw_doble(n INT) RETURNS INT DETERMINISTIC NO SQL COMMENT 'Doble ''x''' RETURN n * 2",
+    "CREATE PROCEDURE zzvw_doble(IN texto VARCHAR(20)) BEGIN SELECT texto; END",
 ]
 OTHER_ROUTINES = {
     "postgresql": [f"CREATE FUNCTION {SRC}.zzvw_doble(n integer) RETURNS integer LANGUAGE sql AS 'SELECT n * 2'"],
@@ -899,10 +901,15 @@ def test_routines_in_execute(source: str, target: str) -> None:
     _create_namespace(source, SRC)
     _create_namespace(target, DST)
     try:
-        _run(source, SRC, FAMILY_PROCEDURES if family else OTHER_ROUTINES[source])
+        _run(source, SRC, FAMILY_ROUTINES if family else OTHER_ROUTINES[source])
         plan = _plan_routines(source, target)
-        names = sorted(r.name.lower() for r in plan.routines)
-        assert names == (["zzvw_eco", "zzvw_suma"] if family else ["zzvw_doble"]), names  # Oracle: antes, ''
+        names = sorted((r.name.lower(), r.routine_type) for r in plan.routines)
+        expected = (
+            [("zzvw_doble", "FUNCTION"), ("zzvw_doble", "PROCEDURE"), ("zzvw_suma", "PROCEDURE")]
+            if family
+            else [("zzvw_doble", "FUNCTION")]  # Oracle: antes salía con nombre ''
+        )
+        assert names == expected, names
         target_manager = _manager(target, DST)
         try:
             plan.execute(target_manager)  # antes: error de sintaxis (MySQL/MariaDB sin CREATE, dialecto ajeno)
@@ -918,6 +925,12 @@ def test_routines_in_execute(source: str, target: str) -> None:
                         "SELECT ROUTINE_COMMENT, SECURITY_TYPE, SQL_DATA_ACCESS FROM information_schema.ROUTINES "
                         f"WHERE ROUTINE_SCHEMA = '{DST}' AND ROUTINE_NAME = 'zzvw_suma'"
                     ).one() == ("Suma 'a+b'", "INVOKER", "READS SQL DATA")
+                    assert conn.exec_driver_sql("SELECT zzvw_doble(21)").scalar() == 42
+                    assert conn.exec_driver_sql("CALL zzvw_doble('hola')").scalar() == "hola"
+                    assert conn.exec_driver_sql(
+                        "SELECT ROUTINE_COMMENT, IS_DETERMINISTIC, SQL_DATA_ACCESS FROM information_schema.ROUTINES "
+                        f"WHERE ROUTINE_SCHEMA = '{DST}' AND ROUTINE_NAME = 'zzvw_doble' AND ROUTINE_TYPE = 'FUNCTION'"
+                    ).one() == ("Doble 'x'", "YES", "NO SQL")
             finally:
                 dst_engine.dispose()
         else:

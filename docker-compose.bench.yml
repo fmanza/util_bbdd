@@ -48,7 +48,9 @@ services:
   mysql:
     image: mysql:8.4
     container_name: util_bbdd_bench_mysql
-    command: ["--max-allowed-packet=64M", "--innodb-buffer-pool-size=512M"]
+    # --log-bin-trust-function-creators: con el binlog activo (por defecto en 8.x), crear una FUNCIÓN exige SUPER salvo
+    # con esta opción (error 1419); el usuario bench no lo tiene y migrate crea funciones (tests de rutinas, hotfix R4).
+    command: ["--max-allowed-packet=64M", "--innodb-buffer-pool-size=512M", "--log-bin-trust-function-creators=1"]
     environment:
       MYSQL_ROOT_PASSWORD: *password
       MYSQL_DATABASE: bench

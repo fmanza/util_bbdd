@@ -263,6 +263,7 @@ python -m pytest tests/integration/test_bulk_engines.py
 | Síntoma | Causa probable | Solución |
 |---|---|---|
 | Latencia crece exponencialmente en bulk insert > 1M filas | Undo log de MariaDB/MySQL saturado | Activar `commit_every_n_chunks=20` en `BulkCrud` |
+| Error 1419 (`You do not have the SUPER privilege and binary logging is enabled`) al crear funciones en el MySQL del banco | Contenedor creado antes de 0.23.1, sin `--log-bin-trust-function-creators=1` (el usuario `bench` no tiene `SUPER`) | `docker compose -f docker-compose.bench.yml up -d --wait mysql` lo recrea con la opción y conserva sus datos (sin `-V`) |
 | `fast_executemany` no acelera en SQL Server | pyodbc < 4.0.28 o columnas `NVARCHAR(MAX)` | Actualizar pyodbc o desactivar con `enable_fast_executemany=False` |
 | Pool agotado bajo carga concurrente | `pool_size` insuficiente | Aumentar `pool_size` siguiendo la tabla de recomendaciones arriba |
 | PostgreSQL: `COPY` más lento que esperado | psycopg3 no instalado (usa psycopg2) | `pip install psycopg[binary]` para instalar psycopg3 |
