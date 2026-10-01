@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, MySQL, Oracle, PostgreSQL, SQLite y SQL Server (sync y async), y HSQLDB, Redshift y Snowflake (sync).
 
-**Version:** 0.26.0 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 0.27.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -1103,7 +1103,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.26.0** (`bulk`: `BulkCrud(prefetch_blocks=True)` y `BulkCrud(on_error="isolate", rejects_csv_path=...)` para apartar las filas con errores de datos; DELETE de SQL Server por OPENJSON más rápido)
+**Current Version: v0.27.0** (`on_error="isolate"` en `ParallelBulkLoader` y `dump`; en Oracle con `batcherrors`, que aísla también el valor demasiado largo, NOT NULL y la precisión)
 
 Roadmap resumido (ver [ROADMAP completo](docs/roadmap.md) y
 [CHANGELOG](CHANGELOG.md) para el detalle):

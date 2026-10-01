@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-10-01
+
+`on_error="isolate"` llega a toda la carga masiva: Oracle aísla con `batcherrors` (un envío por lote y también
+demasiado largo, NOT NULL y precisión), `ParallelBulkLoader` y `dump` apartan las filas erróneas a un CSV de rechazos
+común. Opt-in; dos cambios de formato: columna `particion` en el CSV de rechazos y «Filas Rechazadas» en el informe
+de `dump`. Además, el escalado de `ParallelBulkLoader` documentado era de antes de la 0.25.0 y se ha vuelto a medir.
+
 ### Added
 
 - **bulk (Oracle)**: `on_error="isolate"` con oracledb usa `batcherrors`: un envío por lote, sin bisección. Aísla además

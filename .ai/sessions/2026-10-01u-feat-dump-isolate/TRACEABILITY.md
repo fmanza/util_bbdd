@@ -26,7 +26,26 @@
 `ruff`/`mypy` limpios (391); `pytest` 5978 passed, 367 skipped; `tests/integration` 513 passed (5 servidores, pyodbc) +
 `isolate and mssql` de dump con pymssql 2 passed; `zensical build --strict` sin avisos.
 
+## VERSION — v0.27.0 (`/version-closure`)
+- Alcance (`6eb9392..HEAD`): docs del escalado (`90b58e3`), spike S-5 (`2760e10`), planes (`5fefcc7`, `d065e38`),
+  `batcherrors` en Oracle (`909df1c`), `ParallelBulkLoader` (`6e7d9be`), `dump` (`5a9b774`).
+- SemVer MINOR: API nueva opt-in (`ParallelBulkLoader`/`DumpConfig`: `on_error`, `rejects_csv_path`, `max_rejects`;
+  `rows_rejected` en resultados). Cambios de formato sin API rota: columna `particion` del CSV de rechazos (los CSV de la
+  0.26.0 se apartan solos) y columna «Filas Rechazadas» del Excel de `dump` (desplaza tres columnas). Sin migraciones.
+  Python `>=3.12` sin cambios; los 6 motores.
+- Versión `0.27.0` en `pyproject.toml`, `README.md`, `docs/index.md`, `docs/roadmap.md` y pie de `docs/architecture.md`;
+  `CHANGELOG.md` `[Unreleased]` → `[0.27.0] - 2026-10-01`; `.ai/CURRENT_STATE.md` y `SESSIONS_DIGEST.md`.
+- Checklist: `ruff`/`format --check`, `mypy` (391), `pytest` 5978 passed / 367 skipped, `tests/integration` 513 passed,
+  `python -m build` → `util_bbdd-0.27.0`, `zensical build --strict` sin avisos.
+- Rollback: volver al tag `v0.26.0` o revertir los commits de la versión en orden inverso; quien use las opciones nuevas
+  recibe `TypeError`; un CSV de rechazos con `particion` escrito por la 0.27.0 sería apartado por la 0.26.0 (cabecera
+  distinta), sin mezclarse.
+- Limitaciones: SQL Server no aísla el demasiado largo; Oracle tampoco en UPDATE con LOB; `dump` no aísla FK/CHECK
+  (constraints desactivadas); sin lock entre procesos para los CSV.
+- Handoff: push de `develop` y tag `v0.27.0`; reportar el ORA-03106 a python-oracledb; S-1 sigue NO_GO.
+
 ## Directrices para Futuras IAs
+- **[release]**: en esta serie de sesiones la versión se toca en 5 sitios (`pyproject.toml`, README ×2, `docs/index.md`, `docs/roadmap.md`) más el pie de `docs/architecture.md`.
 - **[dump]**: `dump` desactiva las constraints del destino durante la carga; con `isolate` solo se apartan PK, NOT NULL
   y errores de tipo; las FK huérfanas aparecen al rehabilitar (`constraint_results`).
 - **[dump]**: la `BulkCrud` de cada hilo se reutiliza entre tablas: cualquier contador por tabla se calcula por
