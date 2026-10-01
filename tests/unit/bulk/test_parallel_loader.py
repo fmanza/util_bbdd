@@ -329,11 +329,11 @@ class TestParallelBulkLoaderPoolSizeCap:
 
 
 class TestParallelBulkLoaderCommitRetryGuard:
-    """F-04+F-07: commit_every_n_chunks y max_retries > 0 son incompatibles."""
+    """F-04+F-07 (hasta v0.23.x) eran incompatibles; desde B-11 el reintento reanuda tras las filas confirmadas."""
 
-    def test_commit_cadence_with_retries_raises(self) -> None:
-        with pytest.raises(ValueError, match="incompatibles"):
-            ParallelBulkLoader(MagicMock(), commit_every_n_chunks=10, max_retries=1)
+    def test_commit_cadence_with_retries_is_valid(self) -> None:
+        loader = ParallelBulkLoader(MagicMock(), commit_every_n_chunks=10, max_retries=1)
+        assert (loader._commit_every_n_chunks, loader._max_retries) == (10, 1)
 
     def test_commit_cadence_with_retries_zero_is_valid(self) -> None:
         loader = ParallelBulkLoader(MagicMock(), commit_every_n_chunks=10, max_retries=0)

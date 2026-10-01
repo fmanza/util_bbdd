@@ -24,6 +24,7 @@ from .delete_strategies import (
     DeleteExecutionStrategyProtocol as DeleteExecutionStrategyProtocol,
     DeleteStrategyResolver as DeleteStrategyResolver,
     GenericDeleteStrategy as GenericDeleteStrategy,
+    MSSQLOpenJsonDeleteStrategy as MSSQLOpenJsonDeleteStrategy,
     PostgreSQLAnyDeleteStrategy as PostgreSQLAnyDeleteStrategy,
     SqlBasedDeleteStrategy as SqlBasedDeleteStrategy,
 )
@@ -47,7 +48,9 @@ from .insert_strategies import (
 )
 from .staging_update import (
     _MYSQL_PRIVILEGE_DENIED_ERRNOS as _MYSQL_PRIVILEGE_DENIED_ERRNOS,
+    STAGING_UPDATE_DIALECTS as STAGING_UPDATE_DIALECTS,
     MySQLStagingUpdateStrategy as MySQLStagingUpdateStrategy,
+    StagingUpdateStrategy as StagingUpdateStrategy,
     _mysql_errno as _mysql_errno,
 )
 
@@ -60,6 +63,7 @@ __all__: list[str] = [
     "GenericDeleteStrategy",
     "InsertExecutionStrategyProtocol",
     "InsertStrategyResolver",
+    "MSSQLOpenJsonDeleteStrategy",
     "MySQLDriverExecutemanyStrategy",
     "MySQLMultiRowInsertStrategy",
     "MySQLStagingUpdateStrategy",
@@ -67,5 +71,6 @@ __all__: list[str] = [
     "PostgreSQLAnyDeleteStrategy",
     "PostgreSQLExecuteValuesStrategy",
     "SqlBasedDeleteStrategy",
+    "StagingUpdateStrategy",
     "validate_chunk_size",
 ]

@@ -7,11 +7,62 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Fases 0, 1 y 2 del performance-audit de `bulk` (sesión `2026-10-01h-performance-audit-bulk-todo`). Tiempos a 1M filas en
+los servidores del banco (`scripts/bench_bulk.py`).
+
+### Added
+
+- **bulk**: `BulkCrud.bulk_update_from_chunks` y `bulk_delete_from_chunks`: UPDATE y DELETE en streaming, como
+  `bulk_insert_from_chunks` (una sesión, iterable perezoso y cerrado al terminar; con `commit_every_n_chunks` la cadencia
+  sigue de un chunk al siguiente). Antes había que tener todo el DataFrame en memoria (B-08).
+- **bulk**: `BulkCrud.last_operation_rows_committed`: con `commit_every_n_chunks`, filas de la última operación (o de la
+  que falló) confirmadas por commits periódicos, es decir, desde dónde reanudar. A diferencia de `rows_committed`, no
+  cuenta filas de operaciones anteriores de la misma sesión que un commit de esta confirmó (B-11).
+- **bulk (`ParallelBulkLoader`)**: `update()` y `delete()` en paralelo, con el mismo modelo que `load()` (particiones
+  disjuntas por PK, `partition_ranges`, reintentos). En PostgreSQL sin privilegio `TEMP` el UPDATE usa un solo hilo
+  (fila a fila en paralelo es más lento que en serie) (B-05).
+- **bulk (`ParallelBulkLoader`)**: `retry_backoff=(base, máximo)` (default `(0.5, 30.0)`): espera aleatoria entre 0 y
+  `min(máximo, base · 2**(intento − 1))` antes de cada reintento (backoff exponencial con jitter completo); `(0, 0)`
+  recupera el reintento inmediato. `retry_on` para un criterio de reintento propio y
+  `PartitionResult.retry_wait_seconds` (B-14).
+- **bulk**: el error de un lote lleva una nota (`add_note`) con la operación, la tabla, el número de lote y las filas de
+  la entrada (`bulk INSERT en 'items': falló el lote 2 (filas 6–8 de la entrada, base 0)`). El tipo y el mensaje de la
+  excepción no cambian (B-15a).
+
 ### Changed
 
+- **bulk (PostgreSQL)**: `bulk_update_from_df` usa por defecto la tabla temporal (`update_via_staging=True`), como en
+  MySQL/MariaDB: `CREATE TEMPORARY TABLE … AS SELECT … WITH NO DATA` + COPY + `UPDATE … FROM`. 1M filas 2,4× más rápido
+  (banco: 26,4 → 10,9 s). Requiere el privilegio `TEMP`, que se comprueba antes de intentarlo; sin él, WARNING y UPDATE fila a fila.
+  `MySQLStagingUpdateStrategy` pasa a llamarse `StagingUpdateStrategy` (se conserva el nombre anterior) (B-01).
+- **bulk (SQL Server)**: `bulk_delete_from_df` envía la PK de cada lote en un parámetro JSON (`OPENJSON`) en lugar de
+  `IN` con hasta 2000 parámetros, cuyo plan compilaba SQL Server por cada forma de sentencia: 1M filas 9,3 → 2,8 s,
+  10K 0,81 → 0,04 s. La PK compuesta, que iba fila a fila, usa `OPENJSON … WITH` + JOIN: 1M 8,5 → 3,7 s. Requiere nivel
+  de compatibilidad ≥ 130; con uno menor, o con PK de tipos sin JSON exacto (fechas, binarios, `float`), se usa la vía
+  anterior (B-02).
+- **bulk (PostgreSQL, MySQL/MariaDB con PyMySQL)**: el INSERT por COPY, `execute_values` y el `executemany` de PyMySQL
+  construye las tuplas desde las columnas, sin un `dict` por fila: PostgreSQL 1M 6,0 → 4,3 s, MySQL 17,6 → 15,9 s
+  (B-03).
+- **bulk (`ParallelBulkLoader`)**: qué se reintenta se decide por el código del error y no por la clase. Se reintentan
+  desconexiones, deadlocks, lock wait timeouts, errores de serialización y timeouts. Cambia respecto a v0.23.x:
+  - PyMySQL: ya **no** se reintentan 1045 (acceso denegado), 1142, 1054 (columna desconocida) ni 1292 (valor
+    incorrecto), que PyMySQL clasifica como `OperationalError`.
+  - Oracle: **sí** se reintenta el deadlock (ORA-00060, `DatabaseError` en oracledb) y la pérdida de conexión
+    (ORA-03113/03114, DPY-4011).
+  - PostgreSQL: ya no se reintenta «disco lleno» (`53100`). SQL Server: sí la víctima de deadlock (error 1205).
+  - Por defecto se espera entre reintentos (ver *Added*); solo con `max_retries > 0` (default 0) (B-13).
+- **bulk (`ParallelBulkLoader`)**: `commit_every_n_chunks` y `max_retries > 0` ya se pueden combinar (antes,
+  `ValueError`): el reintento de una partición reanuda tras sus filas ya confirmadas en lugar de volver a enviarlas. El
+  lector de la partición debe devolver las filas en el mismo orden en cada llamada (B-11).
 - **metadata (Oracle)**: `fetch_routines_sync`/`fetch_routines_async` devuelven solo procedimientos y funciones, como
   en el resto de motores. Antes listaban todo `ALL_PROCEDURES`: también packages (y cada subprograma), disparadores y
   tipos con métodos. Quien necesite packages o disparadores debe consultarlos aparte.
+
+### Fixed
+
+- **docs**: `docs/functional/bulk_operations.md` decía que cada lote iba en su propia transacción (una operación es una
+  sola transacción salvo `commit_every_n_chunks`) y `docs/functional/bulk_parallel_loading.md`, que no había
+  reintento automático (`max_retries` existe) (B-17).
 
 ## [0.23.1] - 2026-10-01
 

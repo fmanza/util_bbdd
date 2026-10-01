@@ -78,7 +78,9 @@ def _fail_first_commit(engine: Engine) -> None:
     def _commit(_conn: object) -> None:
         if state["fail"]:
             state["fail"] = False
-            raise OperationalError("COMMIT", {}, Exception("conexión perdida en el commit"))
+            raise OperationalError(
+                "COMMIT", {}, Exception("conexión perdida en el commit"), connection_invalidated=True
+            )
 
 
 class TestStrictCommitFailure:

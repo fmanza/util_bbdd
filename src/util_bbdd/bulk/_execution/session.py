@@ -21,21 +21,43 @@ from typing import Any
 
 @dataclass
 class RowLedger:
-    """Filas ejecutadas pendientes de commit y filas ya confirmadas (BLK-08)."""
+    """Filas ejecutadas pendientes de commit y filas ya confirmadas (BLK-08), en total y de la operación en curso.
+
+    El sub-libro de operación (B-11, performance-audit de bulk 2026-10-01) da el prefijo confirmado de **una**
+    operación: un commit periódico confirma toda la transacción, también filas pendientes de operaciones anteriores de la
+    misma sesión, así que la diferencia de ``committed`` antes y después de una llamada no lo es.
+    """
 
     #: Filas confirmadas por commits desde que se creó el libro.
     committed: int = 0
     #: Filas ejecutadas desde el último commit.
     pending: int = 0
+    #: Filas de la operación en curso (o de la última) confirmadas por commits.
+    op_committed: int = 0
+    #: Filas de la operación en curso ejecutadas desde el último commit.
+    op_pending: int = 0
+
+    def add(self, rows: int) -> None:
+        """Anota ``rows`` filas ejecutadas (pendientes de commit) en el total y en la operación en curso."""
+        self.pending += rows
+        self.op_pending += rows
+
+    def start_operation(self) -> None:
+        """Empieza a contar una operación nueva (las pendientes de la anterior siguen en el total)."""
+        self.op_committed = 0
+        self.op_pending = 0
 
     def confirm(self) -> None:
         """Tras un commit: las filas pendientes pasan a confirmadas."""
         self.committed += self.pending
         self.pending = 0
+        self.op_committed += self.op_pending
+        self.op_pending = 0
 
     def discard(self) -> None:
         """Tras un rollback: se descartan las filas pendientes."""
         self.pending = 0
+        self.op_pending = 0
 
 
 @dataclass
@@ -73,7 +95,7 @@ class CommitCadence:
         if self.every is None:
             return False
         if self.count_rows:
-            self.ledger.pending += rows
+            self.ledger.add(rows)
         self.batches += 1
         return self.batches >= self.every
 

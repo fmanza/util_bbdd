@@ -110,7 +110,8 @@ def restore_binary_values(records: Sequence[SqlRecord], table: Table) -> None:
     """
     if not records:
         return
-    binary_cols = [name for name in records[0] if name in table.c and isinstance(table.c[name].type, _Binary)]
+    keys = records.keys() if isinstance(records, SqlColumns) else records[0]  # SqlColumns[0] construiría un dict
+    binary_cols = [name for name in keys if name in table.c and isinstance(table.c[name].type, _Binary)]
     if isinstance(records, SqlColumns):  # P-34: se modifica la columna; records[i] es una copia
         _restore_binary_columns(records, binary_cols)
         return

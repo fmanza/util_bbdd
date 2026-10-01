@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 
 from collections.abc import Callable, Generator, Iterable, Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
@@ -47,12 +47,14 @@ from ..connection.performance_advisor import EngineReadinessAdvisor
 from ..metadata.mariadb.tables import fetch_table_storage_engine_sql
 from ..metadata.sqlserver.indexes import fetch_clustered_index_count_sql
 from ._execution.batch import (
+    STAGING_UPDATE_DIALECTS,
     BatchStatementExecutor,
     DeleteBatchExecutor,
     InsertStrategyResolver,
-    MySQLStagingUpdateStrategy,
+    StagingUpdateStrategy,
     validate_chunk_size,
 )
+from ._execution.executors import batch_failure_note
 from ._execution.session import SessionScope
 from ._models import MaintenanceScopeConstraintResult, MaintenanceScopeResult, PKSyncResult
 from ._support.dialect import (
@@ -61,6 +63,7 @@ from ._support.dialect import (
     disable_table_integrity_sql,
     enable_table_integrity_sql,
 )
+from ._support.iterables import closing_iterable
 from ._support.persistence import BulkPersistenceManager
 from ._support.pk_sync import PKSequenceSyncer
 from ._support.sql_helpers import (
@@ -128,6 +131,15 @@ class _BulkOperationStrategy:
     prepare: Callable[[pd.DataFrame, str], _PreparedBulkOperation]
 
 
+@dataclass(frozen=True, slots=True)
+class _StreamPosition:
+    """Chunk en curso de una vía ``*_from_chunks`` (notas de error y cadencia del DELETE, B-08)."""
+
+    chunk: int
+    row_offset: int
+    first: bool
+
+
 def _no_foreign_keys(*_args: Any, **_kwargs: Any) -> dict[Any, list[Any]]:
     """Sustituto de ``Inspector.get_multi_foreign_keys`` que no lee nada (``reflect_foreign_keys=False``)."""
     return {}
@@ -188,12 +200,13 @@ class BulkCrud:
                 **Advertencia:** al activar la cadencia la sesión deja de ser atómica:
                 un fallo a mitad deja committeados los lotes anteriores.
                 **Nota:** Los valores recomendados son heurísticos; mide latencia en tu entorno.
-            update_via_staging: Solo MySQL/MariaDB. Si True, ``bulk_update_from_df`` carga cada lote en una tabla
-                temporal y aplica un único ``UPDATE ... JOIN`` en lugar de un UPDATE por fila. Medido de extremo a
-                extremo: ~12,5× más rápido (1M filas en ~28 s frente a ~330–376 s). Mismo resultado final. Requiere
-                el privilegio ``CREATE TEMPORARY TABLES``: si el servidor lo deniega, se registra un WARNING y se
-                usa el UPDATE fila a fila (más lento) en esa y las siguientes llamadas de la instancia. Pasar False
-                para no intentarlo. Por defecto True. Ignorado en otros motores.
+            update_via_staging: MySQL/MariaDB y PostgreSQL. Si True, ``bulk_update_from_df`` carga cada lote en una
+                tabla temporal y aplica un único ``UPDATE`` con join en lugar de un UPDATE por fila. Medido de extremo a
+                extremo con 1M filas: MySQL/MariaDB ~12,5× (~28 s frente a ~330–376 s); PostgreSQL 2,35× (10,6 s frente
+                a 24,9 s). Mismo resultado final. Requiere el privilegio ``CREATE TEMPORARY TABLES``
+                (MySQL/MariaDB) o ``TEMP`` (PostgreSQL): sin él, se registra un WARNING y se usa el UPDATE fila a fila
+                (más lento) en esa y las siguientes llamadas de la instancia. Pasar False para no intentarlo. Por
+                defecto True. Ignorado en otros motores (en SQL Server y Oracle la tabla temporal resultó más lenta).
             audit_strict: Qué hacer si no se puede escribir el CSV de auditoría (fichero abierto en Excel, disco lleno,
                 permisos). Con False (default) la operación sigue, porque sus datos ya están en la BD: se registra un
                 ERROR con los registros perdidos y se suman a :attr:`audit_failures`. Con True se propaga el error
@@ -225,7 +238,7 @@ class BulkCrud:
         # Auditoría de bulk 2026-09-24: con un valor negativo no se escribía nada y la auditoría registraba las filas.
         self.chunk_size: int = validate_chunk_size(chunk_size)
         self.audit_manager: AuditManager = AuditManager(audit_csv_path, warn_if_disabled=warn_if_audit_disabled)
-        self._update_via_staging: bool = update_via_staging and self.engine.dialect.name in MYSQL_FAMILY
+        self._update_via_staging: bool = update_via_staging and self.engine.dialect.name in STAGING_UPDATE_DIALECTS
         self._strip_strings: bool = strip_strings
         self._reflect_foreign_keys: bool = reflect_foreign_keys
 
@@ -261,6 +274,10 @@ class BulkCrud:
             commit_every_n_chunks=commit_every_n_chunks,
             session=self._session,
         )
+        #: Chunk en curso de bulk_update_from_chunks / bulk_delete_from_chunks (None fuera de ellas).
+        self._stream: _StreamPosition | None = None
+        #: Estrategias de UPDATE por staging reutilizadas en la instancia: PostgreSQL comprueba TEMP una sola vez.
+        self._staging_strategies: dict[tuple[int, tuple[str, ...], tuple[str, ...]], StagingUpdateStrategy] = {}
         # INSERT no entra en este dict porque requiere kwargs extra (override_identity,
         # exclude_autoincrement_pk) que la interfaz Callable[[df, tabla], ...] no soporta.
         self._operation_strategies: dict[Literal["update", "delete"], _BulkOperationStrategy] = {
@@ -466,9 +483,10 @@ class BulkCrud:
         tabla: Table = self.reflect_table(tabla_destino)
         total: int = 0
         resolved: tuple[Any, list[str]] | None = None
+        self._session.rows.start_operation()  # B-11: last_operation_rows_committed cuenta todo el stream
 
         with self.bulk_session():
-            for chunk in chunks:
+            for chunk_index, chunk in enumerate(chunks):
                 working_df: pd.DataFrame = chunk.copy(deep=False)
                 self.__actualizar_df(working_df, tabla)
                 if working_df.empty:
@@ -482,14 +500,19 @@ class BulkCrud:
                     )
                 stmt, insert_cols = resolved
 
-                records_sql: list[dict[str, Any]] = dataframe_to_sql_records(
-                    working_df[insert_cols], strip_strings=self._strip_strings
-                )
-                restore_binary_values(records_sql, tabla)  # P-21
-                numero_registros: int = len(records_sql)
-
+                numero_registros: int = len(working_df)
                 start: float = perf_counter()
-                self.__ejecutar_batch_stmt(records_sql, stmt, numero_registros)
+                with batch_failure_note("INSERT", tabla.fullname, chunk_index, total, numero_registros):
+                    if isinstance(stmt, Insert) and self._batch_statement_executor.supports_columns:
+                        # B-03: tuplas desde las columnas, sin un dict por fila; lotes de chunk_size como el ejecutor.
+                        for block in self.__sql_blocks(working_df[insert_cols], tabla):
+                            self.__ejecutar_batch_stmt(block, stmt, len(block))
+                    else:
+                        records_sql: list[dict[str, Any]] = dataframe_to_sql_records(
+                            working_df[insert_cols], strip_strings=self._strip_strings
+                        )
+                        restore_binary_values(records_sql, tabla)  # P-21
+                        self.__ejecutar_batch_stmt(records_sql, stmt, numero_registros)
                 elapsed: float = perf_counter() - start
                 total += numero_registros
 
@@ -503,6 +526,78 @@ class BulkCrud:
 
         self.logger.info(f"✅ bulk INSERT (chunks) finalizado: {total} filas ({self.db_info}).")
         return total
+
+    @medir_tiempo("bulk_update_from_chunks")
+    def bulk_update_from_chunks(self, chunks: Iterable[pd.DataFrame], tabla_destino: str) -> int:
+        """Actualiza en streaming con una secuencia de DataFrames, sin materializar todo el dataset en memoria (B-08).
+
+        Equivale a :meth:`bulk_update_from_df` con cada chunk, todos dentro de un único :meth:`bulk_session` (atómico,
+        salvo que la instancia tenga ``commit_every_n_chunks``, cuya cadencia sigue de un chunk al siguiente). Consume el
+        iterable de forma perezosa (no lee el chunk siguiente hasta escribir el actual) y lo cierra al terminar, también
+        si falla. Cada chunk se audita como una operación. Con ``commit_every_n_chunks``, si falla a mitad,
+        :attr:`last_operation_rows_committed` dice cuántas filas de la secuencia quedaron confirmadas.
+
+        No debe llamarse dentro de un ``bulk_session`` ya abierto: gestiona su propia transacción.
+
+        Args:
+            chunks: Iterable de DataFrames con la PK y las columnas a actualizar.
+            tabla_destino: Nombre de la tabla destino (``schema.tabla`` o ``tabla``).
+
+        Returns:
+            Número total de filas enviadas.
+        """
+        return self.__stream_operation(chunks, tabla_destino, "update")
+
+    @medir_tiempo("bulk_delete_from_chunks")
+    def bulk_delete_from_chunks(self, chunks: Iterable[pd.DataFrame], tabla_destino: str) -> int:
+        """Borra en streaming las filas cuyas PK llegan en una secuencia de DataFrames (B-08).
+
+        Como :meth:`bulk_update_from_chunks`, con :meth:`bulk_delete_from_df` en cada chunk.
+
+        Args:
+            chunks: Iterable de DataFrames con las columnas de la PK.
+            tabla_destino: Nombre de la tabla destino (``schema.tabla`` o ``tabla``).
+
+        Returns:
+            Número total de filas enviadas.
+        """
+        return self.__stream_operation(chunks, tabla_destino, "delete")
+
+    def __stream_operation(
+        self, chunks: Iterable[pd.DataFrame], tabla_destino: str, strategy_key: Literal["update", "delete"]
+    ) -> int:
+        """Ejecuta ``strategy_key`` chunk a chunk en una sesión; una sola operación en el libro de filas (B-11)."""
+        # Reflejar antes de abrir la sesión: un worker de ParallelBulkLoader no pide una segunda conexión mientras
+        # retiene la de la sesión (regla size + max_overflow).
+        self.reflect_table(tabla_destino)
+        self._session.rows.start_operation()
+        total: int = 0
+        first: bool = True
+        with closing_iterable(chunks) as items, self.bulk_session():
+            for chunk_index, chunk in enumerate(items):
+                if chunk.empty:
+                    continue
+                self._stream = _StreamPosition(chunk=chunk_index, row_offset=total, first=first)
+                try:
+                    self.__run_bulk_pipeline(
+                        df=chunk,
+                        tabla_destino=tabla_destino,
+                        generar_sql=False,
+                        path_sql=None,
+                        strategy_key=strategy_key,
+                    )
+                finally:
+                    self._stream = None
+                first = False
+                total += len(chunk)
+        self.logger.info(f"✅ bulk {strategy_key.upper()} (chunks) finalizado: {total} filas ({self.db_info}).")
+        return total
+
+    def __batch_note(self, operation: str, tabla: Table, index: int, rows: int) -> AbstractContextManager[None]:
+        """Nota de error del lote ``index`` (B-15a), con la posición en la secuencia si es un ``*_from_chunks``."""
+        stream = self._stream
+        offset, chunk = (0, None) if stream is None else (stream.row_offset, stream.chunk)
+        return batch_failure_note(operation, tabla.fullname, index, offset + index * self.chunk_size, rows, chunk)
 
     def __resolve_stream_insert(
         self,
@@ -569,6 +664,8 @@ class BulkCrud:
         else:
             path_sql = None
 
+        if self._stream is None:
+            self._session.rows.start_operation()  # B-11; dentro de un *_from_chunks la operación es el stream
         # Copia superficial: solo se renombran columnas y con Copy-on-Write no se toca el DataFrame del llamador.
         working_df: pd.DataFrame = df.copy(deep=False)
         try:
@@ -634,8 +731,16 @@ class BulkCrud:
 
         def execute_blocks(stmt_exec: Any) -> None:
             with self.__blocks_transaction():
-                for block in blocks():
-                    self.__ejecutar_batch_stmt(block, stmt_exec, len(block))
+                if isinstance(stmt_exec, Insert) and self._batch_statement_executor.supports_columns:
+                    # B-03 (performance-audit de bulk 2026-10-01): COPY, execute_values y el executemany de PyMySQL envían
+                    # tuplas; con el bloque por columnas no se construye (y deshace) un dict por fila.
+                    for index, sql_block in enumerate(sql_blocks()):
+                        with self.__batch_note("INSERT", tabla, index, len(sql_block)):
+                            self.__ejecutar_batch_stmt(sql_block, stmt_exec, len(sql_block))
+                    return
+                for index, block in enumerate(blocks()):
+                    with self.__batch_note("INSERT", tabla, index, len(block)):
+                        self.__ejecutar_batch_stmt(block, stmt_exec, len(block))
 
         def sql_blocks() -> Iterator[SqlColumns]:
             return self.__sql_blocks(insert_df, tabla)
@@ -756,17 +861,22 @@ class BulkCrud:
             .values({col: json_binds.get(col, bindparam(col)) for col in update_plan.update_cols})
         )
         executor = self._batch_statement_executor
-        staging: MySQLStagingUpdateStrategy | None = None
+        staging: StagingUpdateStrategy | None = None
         if self._update_via_staging:
-            staging = MySQLStagingUpdateStrategy(
-                table=tabla,
-                pk_cols=update_plan.pk_cols,
-                update_cols=update_plan.update_cols,
-                loader=executor.insert_strategy,
-            )
+            key = (id(tabla), tuple(update_plan.pk_cols), tuple(update_plan.update_cols))
+            staging = self._staging_strategies.get(key)
+            if staging is None:
+                staging = StagingUpdateStrategy(
+                    table=tabla,
+                    pk_cols=update_plan.pk_cols,
+                    update_cols=update_plan.update_cols,
+                    loader=executor.insert_strategy,
+                )
+                self._staging_strategies[key] = staging
         with self.__blocks_transaction():
-            for block in blocks:
-                executor.execute(records=block, stmt=stmt, strategy=staging)
+            for index, block in enumerate(blocks):
+                with self.__batch_note("UPDATE", tabla, index, len(block)):
+                    executor.execute(records=block, stmt=stmt, strategy=staging)
         if staging is not None and staging.staging_denied:
             # Sin privilegio: no volver a intentarlo en esta instancia (el aviso ya quedó en el log).
             self._update_via_staging = False
@@ -796,11 +906,17 @@ class BulkCrud:
     def __ejecutar_batch_stmt(self, records: Sequence[Mapping[str, Any]], stmt: Any, numero_registros: int) -> None:
         """Ejecuta un statement de SQLAlchemy por lotes.
 
+        Único punto de ejecución del INSERT: un bloque por columnas (``SqlColumns``, B-03) va por
+        ``execute_columns`` sin trocearlo (``SqlColumns[a:b]`` construiría un dict por fila).
+
         Args:
-            records: lista de diccionarios con datos a procesar.
+            records: lista de diccionarios con datos a procesar, o un bloque ``SqlColumns``.
             stmt: Statement SQLAlchemy (Insert, Update, Delete).
             numero_registros: Total de registros (para logging).
         """
+        if isinstance(records, SqlColumns):
+            self._batch_statement_executor.execute_columns(block=records, stmt=stmt)
+            return
         self._batch_statement_executor.execute(records=records[:numero_registros], stmt=stmt)
 
     def __obtener_pk_cols(self, tabla: Table, df_cols) -> list[str]:
@@ -827,10 +943,14 @@ class BulkCrud:
     ):
         """Ejecuta borrado por lotes en la base de datos."""
         del numero_registros
+        stream = self._stream
         self._delete_batch_executor.execute(
             table=tabla,
             df=df,
             pk_cols=pk_cols,
+            row_offset=0 if stream is None else stream.row_offset,
+            chunk=None if stream is None else stream.chunk,
+            continue_cadence=stream is not None and not stream.first,
         )
 
     def __actualizar_df(self, df: pd.DataFrame, tabla: Table) -> None:
@@ -955,6 +1075,18 @@ class BulkCrud:
         aproximado en sesiones con DELETE, que no sumaba a :attr:`rows_committed`).
         """
         return self._persistence.unaudited_committed_rows
+
+    @property
+    def last_operation_rows_committed(self) -> int:
+        """Filas de la última operación (o de la que falló) confirmadas por commits periódicos: su prefijo confirmado.
+
+        B-11 (performance-audit de bulk 2026-10-01). Solo con ``commit_every_n_chunks``: los lotes se confirman en
+        orden, así que tras un fallo basta con reanudar desde esa posición (``df.iloc[n:]``, o saltando ``n`` filas de
+        la secuencia en las vías ``*_from_chunks``, que cuentan como una sola operación). En modo atómico es 0: un
+        fallo deshace la operación entera. A diferencia de :attr:`rows_committed` (acumulado de la instancia), no
+        incluye filas de operaciones anteriores que un commit de esta confirmó.
+        """
+        return self._session.rows.op_committed
 
     @property
     def rows_committed(self) -> int:

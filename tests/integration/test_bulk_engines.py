@@ -13,7 +13,8 @@ Regresiones de los hallazgos de .ai/sessions/2026-09-23-performance-audit-bulk/:
 cubre P-18 (UPDATE con columna DATETIME en SQL Server + pyodbc), los dos tests de DELETE cubren P-05 (más de 2100
 parámetros y PK compuesta en SQL Server) ``test_json_column_roundtrip`` cubre P-19 (doble serialización de JSON) y
 ``test_same_bulkcrud_inserts_into_two_tables_with_same_columns`` cubre P-22 (filas en la tabla equivocada).
-``test_update_via_staging_matches_executemany`` verifica P-04 (UPDATE por tabla temporal, solo MySQL/MariaDB) y
+``test_update_via_staging_matches_executemany`` verifica P-04 y B-01 (UPDATE por tabla temporal, MySQL/MariaDB y
+PostgreSQL) y
 ``test_binary_column_roundtrip`` cubre P-21 (binarios UTF-8 válidos) y ``test_generated_sql_with_json_column`` cubre
 P-20 (``generar_sql`` con columnas JSON) y ``test_generated_sql_keeps_percent_signs`` cubre P-23 (``%`` duplicados).
 ``test_update_column_named_like_pk_alias`` cubre P-25 (columna ``pk_<PK>``) y los dos tests de DELETE dentro de
@@ -74,6 +75,7 @@ ROWS_OVER_MSSQL_PARAM_LIMIT = 3_000  # > 2100 parámetros por petición de SQL S
 
 MYSQL_FAMILY: frozenset[str] = frozenset({"mysql", "mariadb"})  # update_via_staging, límite de 65.535 parámetros
 NO_JSON: frozenset[str] = frozenset({"mssql", "oracle"})  # SQL Server sin JSON; Oracle refleja JSON como NullType
+STAGING_ENGINES: frozenset[str] = MYSQL_FAMILY | {"postgresql"}  # update_via_staging (P-04, B-01)
 
 
 def _engine_params(*, only: frozenset[str] | None = None, exclude: frozenset[str] = frozenset()) -> list[Any]:
@@ -309,10 +311,10 @@ def _update_state(engine: Engine, df_update: pd.DataFrame, *, staging: bool, chu
         table.drop(engine, checkfirst=True)
 
 
-@pytest.mark.parametrize("engine", _engine_params(only=MYSQL_FAMILY), indirect=True)
+@pytest.mark.parametrize("engine", _engine_params(only=STAGING_ENGINES), indirect=True)
 @pytest.mark.parametrize("chunk_size", [2, 5000])
 def test_update_via_staging_matches_executemany(engine: Engine, chunk_size: int) -> None:
-    """P-04: el UPDATE por tabla temporal deja la tabla igual que el executemany (incluidas PK repetidas y NULL)."""
+    """P-04/B-01: el UPDATE por tabla temporal deja la tabla igual que el executemany (incluidas PK repetidas y NULL)."""
     df_update = pd.DataFrame(
         {
             "id": [1, 3, 2, 2, 99, 1],  # 2 repetido en el mismo lote, 1 en lotes distintos, 99 no existe
@@ -332,9 +334,9 @@ def test_update_via_staging_matches_executemany(engine: Engine, chunk_size: int)
     assert [r for r in via_staging if r[0] == 2][0][5] == {"k": "last"}
 
 
-@pytest.mark.parametrize("engine", _engine_params(only=MYSQL_FAMILY), indirect=True)
+@pytest.mark.parametrize("engine", _engine_params(only=STAGING_ENGINES), indirect=True)
 def test_update_via_staging_rolls_back_inside_bulk_session(engine: Engine) -> None:
-    """P-04: las tablas temporales no provocan commit implícito; un fallo en un lote posterior deshace todo."""
+    """P-04/B-01: las tablas temporales no provocan commit implícito; un fallo en un lote posterior deshace todo."""
     table = _staging_table(engine)
     table.create(engine)
     try:
@@ -348,17 +350,18 @@ def test_update_via_staging_rolls_back_inside_bulk_session(engine: Engine) -> No
 
         with engine.connect() as conn:
             assert [r[0] for r in conn.execute(select(table.c.s).order_by(table.c.id))] == ["s"] * 4
-            assert conn.execute(text("SHOW TABLES LIKE 'tmp_bulkupd_%'")).all() == []
+            if engine.dialect.name in MYSQL_FAMILY:
+                assert conn.execute(text("SHOW TABLES LIKE 'tmp_bulkupd_%'")).all() == []
     finally:
         table.drop(engine, checkfirst=True)
 
 
-# update_via_staging=True (por defecto) en todos los motores; False solo cambia el UPDATE en MySQL/MariaDB.
+# update_via_staging=True (por defecto) en todos los motores; False solo cambia el UPDATE en MySQL/MariaDB y PostgreSQL.
 _BINARY_CASES: list[Any] = [
     *(pytest.param(p.values[0], True, id=f"{p.id}-staging", marks=p.marks) for p in _engine_params()),
     *(
         pytest.param(p.values[0], False, id=f"{p.id}-no-staging", marks=p.marks)
-        for p in _engine_params(only=MYSQL_FAMILY)
+        for p in _engine_params(only=STAGING_ENGINES)
     ),
 ]
 

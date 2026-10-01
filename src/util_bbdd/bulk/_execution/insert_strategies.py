@@ -6,7 +6,7 @@ Separado de ``batch`` (R10b del refactor de reutilización 2026-09-26) sin cambi
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any, Protocol
+from typing import Any, ClassVar, Protocol
 
 from sqlalchemy import (
     Insert,
@@ -14,6 +14,7 @@ from sqlalchemy import (
 )
 
 from .._support.dialect import MYSQL_FAMILY
+from .._support.sql_helpers import SqlColumns
 from ._driver_quirks import _MYSQL_MAX_STATEMENT_PARAMS, _begin_if_needed, _wrap_driver_error
 
 
@@ -48,8 +49,12 @@ class _RawInsertStrategy:
 
     ``execute`` resuelve lo común: lote vacío, *fallback* a ``connection.execute(stmt, records)`` cuando ``stmt`` no es
     un ``Insert`` (``Update`` en ``bulk_update_from_df``, cuyos registros llevan además alias ``pk_<col>`` para el WHERE,
-    o ``TextClause`` en la ruta ``override_identity``) y las columnas citadas. Cada subclase implementa :meth:`_insert`.
+    o ``TextClause`` en la ruta ``override_identity``) y las columnas citadas. Cada subclase implementa :meth:`_insert` o,
+    si envía tuplas al driver, :meth:`_insert_rows` (y entonces admite bloques por columnas, ``supports_columns``).
     """
+
+    #: ``True`` si la estrategia admite :meth:`execute_columns` (implementa :meth:`_insert_rows`).
+    supports_columns: ClassVar[bool] = False
 
     def execute(
         self,
@@ -74,6 +79,20 @@ class _RawInsertStrategy:
             quoted_cols=", ".join(preparer.quote(c) for c in cols),
         )
 
+    def execute_columns(self, *, connection: Any, stmt: Insert, block: SqlColumns) -> None:
+        """Inserta un bloque por columnas: las tuplas salen de ``zip(*columnas)``, sin un ``dict`` por fila (B-03)."""
+        if not len(block):
+            return
+        cols: list[str] = list(block.keys())
+        columns: list[list[Any]] = [block.column(c) or [] for c in cols]
+        preparer = connection.dialect.identifier_preparer
+        self._insert_rows(
+            connection=connection,
+            rows=list(zip(*columns, strict=True)),
+            quoted_table=preparer.format_table(stmt.table),
+            quoted_cols=", ".join(preparer.quote(c) for c in cols),
+        )
+
     def _insert(
         self,
         *,
@@ -84,7 +103,18 @@ class _RawInsertStrategy:
         quoted_table: str,
         quoted_cols: str,
     ) -> None:
-        """Inserta ``records`` (no vacío) en la tabla de ``stmt``."""
+        """Inserta ``records`` (no vacío) en la tabla de ``stmt``. Por defecto, como tuplas con :meth:`_insert_rows`."""
+        self._insert_rows(
+            connection=connection,
+            rows=[tuple(r[c] for c in cols) for r in records],
+            quoted_table=quoted_table,
+            quoted_cols=quoted_cols,
+        )
+
+    def _insert_rows(
+        self, *, connection: Any, rows: list[tuple[Any, ...]], quoted_table: str, quoted_cols: str
+    ) -> None:
+        """Inserta ``rows`` (tuplas en el orden de ``quoted_cols``; no vacío) en ``quoted_table``."""
         raise NotImplementedError
 
 
@@ -104,6 +134,8 @@ class PostgreSQLExecuteValuesStrategy(_RawInsertStrategy):
     - psycopg2 no está disponible en el entorno.
     """
 
+    supports_columns: ClassVar[bool] = True
+
     def _insert(
         self,
         *,
@@ -115,17 +147,29 @@ class PostgreSQLExecuteValuesStrategy(_RawInsertStrategy):
         quoted_cols: str,
     ) -> None:
         try:
-            from psycopg2.extras import execute_values as _pg_execute_values  # type: ignore[import-untyped]
+            import psycopg2.extras  # type: ignore[import-untyped]  # noqa: F401
         except ImportError:
             connection.execute(stmt, list(records))
             return
+        super()._insert(
+            connection=connection,
+            stmt=stmt,
+            records=records,
+            cols=cols,
+            quoted_table=quoted_table,
+            quoted_cols=quoted_cols,
+        )
+
+    def _insert_rows(
+        self, *, connection: Any, rows: list[tuple[Any, ...]], quoted_table: str, quoted_cols: str
+    ) -> None:
+        from psycopg2.extras import execute_values as _pg_execute_values
 
         sql: str = f"INSERT INTO {quoted_table} ({quoted_cols}) VALUES %s"
-        data: list[tuple[Any, ...]] = [tuple(r[c] for c in cols) for r in records]
         _begin_if_needed(connection)
         try:
             with connection.connection.cursor() as raw_cursor:
-                _pg_execute_values(raw_cursor, sql, data, page_size=len(data))
+                _pg_execute_values(raw_cursor, sql, rows, page_size=len(rows))
         except connection.dialect.loaded_dbapi.Error as exc:
             raise _wrap_driver_error(connection, sql, exc) from exc
 
@@ -147,23 +191,18 @@ class PostgresCopyStrategy(_RawInsertStrategy):
     con COPY.
     """
 
-    def _insert(
-        self,
-        *,
-        connection: Any,
-        stmt: Insert,
-        records: Sequence[Mapping[str, Any]],
-        cols: list[str],
-        quoted_table: str,
-        quoted_cols: str,
+    supports_columns: ClassVar[bool] = True
+
+    def _insert_rows(
+        self, *, connection: Any, rows: list[tuple[Any, ...]], quoted_table: str, quoted_cols: str
     ) -> None:
         sql: str = f"COPY {quoted_table} ({quoted_cols}) FROM STDIN"
         _begin_if_needed(connection)
         raw_cursor = connection.connection.cursor()
         try:
             with raw_cursor.copy(sql) as copy:
-                for record in records:
-                    copy.write_row([record[c] for c in cols])
+                for row in rows:
+                    copy.write_row(row)
         except connection.dialect.loaded_dbapi.Error as exc:
             raise _wrap_driver_error(connection, sql, exc) from exc
         finally:
@@ -324,21 +363,16 @@ class MySQLDriverExecutemanyStrategy(_RawInsertStrategy):
     ``TextClause`` en la ruta ``override_identity``).
     """
 
-    def _insert(
-        self,
-        *,
-        connection: Any,
-        stmt: Insert,
-        records: Sequence[Mapping[str, Any]],
-        cols: list[str],
-        quoted_table: str,
-        quoted_cols: str,
+    supports_columns: ClassVar[bool] = True
+
+    def _insert_rows(
+        self, *, connection: Any, rows: list[tuple[Any, ...]], quoted_table: str, quoted_cols: str
     ) -> None:
         dialect = connection.dialect
         # Con paramstyle format/pyformat, identifier_preparer ya duplica los '%' de los identificadores.
         placeholder: str = "?" if dialect.paramstyle == "qmark" else "%s"
-        sql: str = f"INSERT INTO {quoted_table} ({quoted_cols}) VALUES ({', '.join([placeholder] * len(cols))})"
-        connection.exec_driver_sql(sql, [tuple(record[c] for c in cols) for record in records])
+        sql: str = f"INSERT INTO {quoted_table} ({quoted_cols}) VALUES ({', '.join([placeholder] * len(rows[0]))})"
+        connection.exec_driver_sql(sql, rows)
 
 
 class MariaDBConnectorInsertStrategy:

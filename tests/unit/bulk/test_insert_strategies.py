@@ -125,8 +125,8 @@ class TestPostgresCopyStrategy:
 
         raw_cursor.copy.assert_called_once_with('COPY "items" ("id", "name") FROM STDIN')
         assert copy_obj.write_row.call_count == 2
-        copy_obj.write_row.assert_any_call([1, "a"])
-        copy_obj.write_row.assert_any_call([2, "b"])
+        copy_obj.write_row.assert_any_call((1, "a"))
+        copy_obj.write_row.assert_any_call((2, "b"))
         raw_cursor.close.assert_called_once()
 
     def test_empty_records_is_noop(self) -> None:

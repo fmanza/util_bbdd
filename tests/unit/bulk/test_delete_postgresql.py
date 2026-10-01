@@ -18,6 +18,7 @@ from sqlalchemy.dialects import postgresql
 from util_bbdd.bulk._execution.batch import (
     DeleteStrategyResolver,
     GenericDeleteStrategy,
+    MSSQLOpenJsonDeleteStrategy,
     PostgreSQLAnyDeleteStrategy,
     SqlBasedDeleteStrategy,
 )
@@ -81,7 +82,7 @@ def test_composite_pk_uses_unnest_with_one_array_per_column() -> None:
     [
         ("postgresql", PostgreSQLAnyDeleteStrategy),
         ("mysql", SqlBasedDeleteStrategy),
-        ("mssql", SqlBasedDeleteStrategy),
+        ("mssql", MSSQLOpenJsonDeleteStrategy),
         ("sqlite", GenericDeleteStrategy),
         ("oracle", GenericDeleteStrategy),
     ],

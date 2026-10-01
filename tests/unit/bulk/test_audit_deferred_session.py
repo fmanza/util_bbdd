@@ -205,7 +205,7 @@ class TestParallelLoaderRetries:
             attempts["n"] += 1
             yield _df(range(0, 10))
             if attempts["n"] == 1:
-                raise OperationalError("SELECT 1", {}, Exception("conexión perdida"))
+                raise OperationalError("SELECT 1", {}, Exception("conexión perdida"), connection_invalidated=True)
             yield _df(range(10, 20))
 
         loader = ParallelBulkLoader(engine, chunk_size=10, max_workers=1, max_retries=1, audit_csv_path=audit_path)
