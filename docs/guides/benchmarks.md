@@ -34,7 +34,7 @@ el tiempo total.
 |---|---|---|---|
 | `chunk_size` | `BulkCrud` / `ParallelBulkLoader` | Filas por lote (default 5000) | Bajar a ≤500 si el destino MariaDB tiene `TEXT`/`JSON` (`max_allowed_packet`) |
 | `commit_every_n_chunks` | `BulkCrud` / `ParallelBulkLoader` | Commit cada N lotes; acota el undo log | **Crítico** en MariaDB/MySQL con millones de filas (evita degradación exponencial) |
-| `update_via_staging` | `BulkCrud` | UPDATE vía tabla temporal + un `UPDATE ... JOIN` por lote en lugar de un UPDATE por fila (~12,5×) | Activo por defecto en MySQL/MariaDB; requiere `CREATE TEMPORARY TABLES` (sin él, vuelve al UPDATE fila a fila con un WARNING) |
+| `update_via_staging` | `BulkCrud` | UPDATE vía tabla temporal + un `UPDATE` con join por lote en lugar de un UPDATE por fila (MySQL/MariaDB ~12,5×, PostgreSQL 2,35×) | Activo por defecto en MySQL/MariaDB y PostgreSQL; requiere `CREATE TEMPORARY TABLES` o `TEMP` (sin él, vuelve al UPDATE fila a fila con un WARNING) |
 | `enable_fast_executemany` | `BulkCrud` / `ParallelBulkLoader` | Activa `fast_executemany` en el dialecto pyodbc (como `create_engine(..., fast_executemany=True)`) | SQL Server + ODBC 17/18: INSERT ~12× más rápido |
 | Vía nativa por motor | Automática | COPY / multi-row / fast_executemany (tabla abajo) | Siempre activa con `BulkCrud(insert_resolver=None)` (default) |
 | Carga paralela | `ParallelBulkLoader` | Inserta particiones disjuntas en paralelo, una `BulkCrud` por hilo | Tablas muy grandes; el pool debe tener capacidad ≥ `max_workers` |
@@ -106,6 +106,76 @@ Escalado medido con 200K filas en 4 particiones (tabla de 10 columnas, servidore
 SQLite admite un solo escritor a la vez: en paralelo no gana nada, así que usa `max_workers=1` o `bulk_insert_from_df`.
 El coste de arranque de cada partición (su `BulkCrud` y la lectura de la estructura de la tabla) es de 1 a 66 ms
 según el motor, menos del 2% de la carga medida.
+
+#### UPDATE y DELETE en paralelo (1M filas)
+
+`ParallelBulkLoader.update()` y `.delete()` siguen el mismo modelo que `load()`: un lector por partición (disjuntas por
+PK) y una `BulkCrud` por hilo. Media de 2 repeticiones con 1M filas, tabla de 10 columnas y lotes de 5000 (servidores en
+Docker local, 2026-10-01):
+
+| Motor | Operación | 1 hilo | 2 hilos | 4 hilos | Mejor |
+|---|---|---|---|---|---|
+| PostgreSQL 17 | INSERT | 4,3 s | 3,7 s | 3,8 s | 1,2× |
+| PostgreSQL 17 | UPDATE | 10,8 s | 7,0 s | 6,9 s | 1,6× |
+| PostgreSQL 17 | DELETE | 1,8 s | 1,0 s | 0,9 s | 2,0× |
+| MySQL 8.4 | INSERT | 17,5 s | 10,6 s | 9,7 s | 1,8× |
+| MySQL 8.4 | UPDATE | 24,1 s | 16,1 s | 12,9 s | 1,9× |
+| MySQL 8.4 | DELETE | 7,2 s | 4,3 s | 4,3 s | 1,7× |
+| MariaDB 11.4 | INSERT | 16,4 s | 10,1 s | 9,6 s | 1,7× |
+| MariaDB 11.4 | UPDATE | 22,2 s | 14,0 s | 12,6 s | 1,8× |
+| MariaDB 11.4 | DELETE | 6,9 s | 4,5 s | 4,6 s | 1,5× |
+| SQL Server 2022 (pyodbc) | INSERT | 15,4 s | 8,1 s | 5,9 s | 2,6× |
+| SQL Server 2022 (pyodbc) | UPDATE | 22,8 s | 11,5 s | 8,2 s | 2,8× |
+| SQL Server 2022 (pyodbc) | DELETE | 3,0 s | 1,8 s | 1,2 s | 2,5× |
+| Oracle 23 Free | INSERT / UPDATE / DELETE | 10,3 / 16,2 / 18,1 s | 11,6 / 15,3 / 15,8 s | 11,1 / 17,4 / 19,5 s | ~1× |
+
+- MySQL, MariaDB y PostgreSQL se saturan en 2 hilos; SQL Server, en 4. Oracle 23 Free usa como máximo 2 hilos de CPU:
+  no sirve para juzgar el paralelismo en Oracle.
+- PostgreSQL sin privilegio `TEMP`: el UPDATE paralelo iría fila a fila y **empeora** con cada hilo (1M: 25,7 s con 1,
+  56,8 s con 4), así que `update()` usa un solo hilo y avisa.
+- En `dump`, `parallel_pk_ranges` en MySQL/MariaDB casi duplicó el tiempo (cada hilo lee además del origen); aquí los
+  datos ya están en memoria.
+- InnoDB puede dar deadlock (1213) entre particiones contiguas aunque sean disjuntas (medido: DELETE de 1M con 2 hilos).
+  UPDATE y DELETE por PK son idempotentes, así que `update()` y `delete()` reintentan los errores transitorios al menos 2
+  veces aunque `max_retries` sea 0.
+
+#### Checkpoints, reanudación y reintentos
+
+Con `commit_every_n_chunks` los lotes se confirman en orden: tras un fallo, `BulkCrud.last_operation_rows_committed` dice
+cuántas filas de la entrada quedaron confirmadas, y basta con reanudar desde ahí. En `ParallelBulkLoader`, cadencia y
+`max_retries` se combinan: el reintento de una partición salta sus filas ya confirmadas (el lector debe devolver las
+filas en el mismo orden en cada llamada).
+
+```python
+crud = BulkCrud(engine, commit_every_n_chunks=20)          # commit cada 100K filas
+try:
+    crud.bulk_insert_from_df(df, "ventas", generar_sql=False)
+except SQLAlchemyError as exc:
+    print(exc.__notes__)                                   # lote y filas donde falló
+    hechas = crud.last_operation_rows_committed
+    # ...corregir la causa y reanudar sin duplicar:
+    crud.bulk_insert_from_df(df.iloc[hechas:], "ventas", generar_sql=False)
+```
+
+Medido con 1M filas y un fallo al 60 %: reanudar cuesta 0,94–1,07× la carga limpia; repetir la carga atómica, 1,6×.
+El precio del checkpoint es la cadencia:
+
+| INSERT 1M | atómico | commit cada 20 lotes | cada 5 lotes | rollback de 1M (atómico) |
+|---|---|---|---|---|
+| SQLite | 6,9 s | +14 % | +31 % | 0,06 s |
+| PostgreSQL | 5,4 s | ±5 % | ±5 % | 0,001 s |
+| MySQL | 17,4 s | ±5 % | +7 % | 2,35 s |
+| MariaDB | 16,3 s | +12 % | +22 % | 2,41 s |
+| SQL Server | 14,3 s | ±5 % | +3 % | 1,58 s |
+| Oracle | 10,0 s | ±5 % | +4 % | 0,48 s |
+
+100K filas por commit (20 lotes de 5000) es un buen punto de partida para cargas reanudables; en SQLite cada commit es un
+`fsync`, así que conviene cadencias largas. El rollback se midió con el buffer pool caliente: bajo presión, MySQL advierte
+que deshacer una transacción grande puede tardar varias veces lo que la operación original.
+
+Reintentos de `ParallelBulkLoader`: solo errores transitorios, decididos por el código del error (desconexiones,
+deadlocks, lock wait timeout, serialización, timeouts), con espera exponencial y jitter (`retry_backoff`, por defecto
+`(0.5, 30.0)`). Los errores de datos, integridad, sintaxis o permisos no se reintentan.
 
 Detalle y políticas de particionado: [Carga Masiva Paralela (funcional)](../functional/bulk_parallel_loading.md),
 [API ParallelBulkLoader](../api/bulk_parallel.md) y el ejemplo [Carga Masiva Paralela](../examples/parallel_bulk_insert.md).
@@ -270,8 +340,10 @@ python -m pytest tests/integration/test_bulk_engines.py
 | `bench_bulk.py` salta un motor con `SKIP ... sin URL` | Falta `UTIL_BBDD_BENCH_<MOTOR>_URL` (y `UTIL_BBDD_TEST_<MOTOR>_URL`) | Definir la URL del servidor de pruebas |
 | `bench_bulk.py` informa `no se pudo preparar el motor` | Driver no instalado, servidor caído o sin permiso de CREATE/DROP TABLE | Revisar `environment.json`; el resto de motores se mide igualmente |
 | `bulk_update_from_df` falla en SQL Server + pyodbc con `HY104 Invalid precision value` | Versión anterior a la corrección de P-18: tabla con columna `DATETIME` y `fast_executemany` activado a espaldas de SQLAlchemy | Actualizar; en versiones anteriores, crear el engine con `create_engine(..., fast_executemany=True)` o usar `BulkCrud(..., enable_fast_executemany=False)` |
+| WARNING `update_via_staging: el servidor deniega TEMP` y UPDATE lento en PostgreSQL | El usuario no tiene el privilegio `TEMP` sobre la base de datos; `BulkCrud` ha vuelto al UPDATE fila a fila | `GRANT TEMP ON DATABASE <bd> TO <usuario>` para recuperar el UPDATE rápido, o `BulkCrud(..., update_via_staging=False)` para no intentarlo |
 | WARNING `update_via_staging: el servidor deniega CREATE TEMPORARY TABLES` y UPDATE lento en MySQL/MariaDB | El usuario no tiene el privilegio `CREATE TEMPORARY TABLES`; `BulkCrud` ha vuelto al UPDATE fila a fila | `GRANT CREATE TEMPORARY TABLES ON <bd>.* TO <usuario>` para recuperar el UPDATE rápido (~12,5×), o `BulkCrud(..., update_via_staging=False)` para no intentarlo |
 | INSERT/UPDATE masivos lentos en SQL Server con `mssql+pymssql` (INFO en el log al crear `BulkCrud`) | pymssql no tiene una vía masiva equivalente: ~2.700 filas/s en INSERT y ~1.800 en UPDATE | Usar `mssql+pyodbc` con ODBC Driver 17/18 (~49.000 y ~33.500 filas/s). No usar `bulk_copy` de pymssql: no aplica CHECK ni claves foráneas y las marca como no confiables |
+| DELETE lento en SQL Server con lotes pequeños (1K–10K filas en décimas de segundo) | Versión anterior a B-02: `DELETE … IN` con hasta 2000 parámetros, cuyo plan compila SQL Server por cada forma de sentencia. Desde B-02 el lote viaja en un parámetro JSON (`OPENJSON`): 10K filas 0,81 → 0,04 s | Actualizar. Requiere nivel de compatibilidad ≥ 130 (SQL Server 2016); con uno menor se usa la vía anterior (INFO en el log) |
 | DELETE falla en SQL Server con `07002 COUNT field incorrect` o error de sintaxis | Versión anterior a la corrección de P-05: más de 2100 parámetros por lote (pyodbc) o PK compuesta | Actualizar; en versiones anteriores, `BulkCrud(..., chunk_size=2000)` evita el límite de parámetros con PK simple |
 | INSERT o DELETE falla en MariaDB/MySQL con `Prepared statement contains too many placeholders` | Versión anterior a la corrección de P-13: conector `mariadb` y más de 65.535 parámetros por sentencia (INSERT con 66 columnas o más, o DELETE con lotes grandes) | Actualizar; en versiones anteriores, usar `mariadb+pymysql` o reducir `chunk_size` |
 | Tabla vacía o incompleta en PostgreSQL tras una carga con `commit_every_n_chunks`, sin ningún error | Versión anterior a la corrección de P-27: el INSERT por el cursor del driver no iniciaba la transacción y el commit no hacía nada | Actualizar y repetir la carga; en versiones anteriores, no usar `commit_every_n_chunks` con PostgreSQL |

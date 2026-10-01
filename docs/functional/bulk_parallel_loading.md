@@ -69,7 +69,8 @@ sequenceDiagram
 
 - No apto para cargas < 100K filas (overhead de paralelización supera el beneficio)
 - No apto para datos con solapamiento de PK entre particiones
-- No incluye reintento automático de particiones fallidas
+- Reintento automático solo ante errores transitorios (`max_retries`, por defecto 0): desconexiones, deadlocks y timeouts; los errores de datos o de permisos no se reintentan. Con commits periódicos (`commit_every_n_chunks`) el reintento continúa tras las filas ya confirmadas, sin duplicarlas
+- `update` y `delete` siguen las mismas reglas que la carga (particiones disjuntas por PK); `disable_constraints` solo afecta a `load`
 - No garantiza atomicidad global: un volcado interrumpido deja datos parcialmente cargados
 
 ### Generación automática de particiones

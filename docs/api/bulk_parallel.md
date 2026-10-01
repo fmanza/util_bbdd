@@ -48,8 +48,10 @@ Exportadas desde `util_bbdd.bulk`. Generan listas de particiones disjuntas para 
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `ParallelBulkLoader` | `(engine, *, chunk_size?, max_workers?, commit_every_n_chunks?, audit_csv_path?, enable_fast_executemany?, max_retries?, disable_constraints?, audit_strict?, strip_strings?, reflect_foreign_keys?)` | Crea instancia con engine y configuración de paralelismo | `ParallelBulkLoader` |
+| `ParallelBulkLoader` | `(engine, *, chunk_size?, max_workers?, commit_every_n_chunks?, audit_csv_path?, enable_fast_executemany?, max_retries?, disable_constraints?, audit_strict?, strip_strings?, reflect_foreign_keys?, retry_backoff?, retry_on?)` | Crea instancia con engine y configuración de paralelismo | `ParallelBulkLoader` |
 | `load` | `(tabla_destino, partition_readers, *, override_identity?, exclude_autoincrement_pk?)` | Inserta todas las particiones en paralelo | `ParallelLoadResult` |
+| `update` | `(tabla_destino, partition_readers, *, partition_ranges?)` | Actualiza en paralelo (`bulk_update_from_chunks` por partición). Particiones disjuntas por PK. En PostgreSQL sin privilegio `TEMP` usa un solo hilo (WARNING) | `ParallelLoadResult` |
+| `delete` | `(tabla_destino, partition_readers, *, partition_ranges?)` | Borra en paralelo (`bulk_delete_from_chunks` por partición). Particiones disjuntas por PK | `ParallelLoadResult` |
 
 #### Dataclass `ParallelLoadResult`
 
@@ -57,7 +59,7 @@ Exportadas desde `util_bbdd.bulk`. Generan listas de particiones disjuntas para 
 |---|---|---|
 | `total_rows` | `int` | Suma de filas insertadas en todas las particiones |
 | `partition_errors` | `list[str]` | Un mensaje por partición fallida; vacío si todo fue bien |
-| `partition_results` | `list[PartitionResult]` | Resultado de cada partición: `rows`, `elapsed_seconds`, `error`, `retries` y los contadores de auditoría `audit_failures`, `audited_rows`, `unaudited_committed_rows` y `audit_uncommitted_records` |
+| `partition_results` | `list[PartitionResult]` | Resultado de cada partición: `rows`, `elapsed_seconds`, `error`, `retries`, `retry_wait_seconds` y los contadores de auditoría `audit_failures`, `audited_rows`, `unaudited_committed_rows` y `audit_uncommitted_records` |
 | `audit_failures` | `int` (propiedad) | Registros de auditoría que no se pudieron escribir en el CSV, sumados de todas las particiones |
 | `audited_rows` | `int` (propiedad) | Filas que constan en el CSV de auditoría, sumadas de todas las particiones |
 | `unaudited_committed_rows` | `int` (propiedad) | Con `commit_every_n_chunks`: filas confirmadas en la BD que no constan en el CSV porque su operación no llegó a confirmarse entera antes de un fallo |
@@ -78,6 +80,9 @@ Exportadas desde `util_bbdd.bulk`. Generan listas de particiones disjuntas para 
 | `audit_strict` | `bool` | Se pasa a la `BulkCrud` de cada partición. `False`: un fallo al escribir el CSV de auditoría no hace fallar la partición y se cuenta en `PartitionResult.audit_failures` / `ParallelLoadResult.audit_failures`. `True`: el fallo deshace esa partición y queda en `partition_errors` sin reintentarse. En modo estricto la auditoría se escribe antes del commit: si falla el commit, la partición **no se reintenta** aunque el error sea retriable (el reintento duplicaría la traza) y lo escrito se cuenta en `audit_uncommitted_records` | Default `False` |
 | `strip_strings` | `bool` | Se pasa a la `BulkCrud` de cada partición: con `False` las cadenas se envían sin quitar los espacios de los extremos (`dump` lo usa) | Default `True` |
 | `reflect_foreign_keys` | `bool` | Se pasa a las `BulkCrud` del loader: con `False` la reflexión de la tabla destino no lee sus claves foráneas (`dump` lo usa) | Default `True` |
+| `max_retries` | `int` | Reintentos de una partición ante errores **transitorios**, decididos por el código del error: desconexiones, deadlocks (PostgreSQL `40P01`, MySQL 1213, SQL Server 1205, Oracle ORA-00060), lock wait timeout, serialización y timeouts. Los errores de datos, integridad, sintaxis o permisos no se reintentan (hasta v0.23.x se decidía por clase `OperationalError`) | Default `0`; ≥ 0. Con `commit_every_n_chunks`, el reintento **reanuda** la partición tras sus filas ya confirmadas (el lector debe dar las filas en el mismo orden en cada llamada); en modo atómico la reintenta entera. Hasta v0.23.x la combinación lanzaba `ValueError` |
+| `retry_backoff` | `tuple[float, float]` | `(base, máximo)` en segundos: antes de cada reintento espera un valor aleatorio entre 0 y `min(máximo, base · 2**(intento − 1))` (backoff exponencial con jitter completo). `(0, 0)` reintenta sin esperar | Default `(0.5, 30.0)`; números finitos ≥ 0 |
+| `retry_on` | `Callable[[BaseException], bool] \| None` | Criterio propio de reintento | Default `None` (`is_retriable`) |
 | `partition_readers` | `Sequence[Callable[[], Iterable[pd.DataFrame]]]` | Un callable por partición, invocado dentro de su hilo | Las particiones deben ser disjuntas |
 | `override_identity` | `bool` | Pasar por alto la columna IDENTITY/SERIAL al insertar | Default `False` |
 
@@ -91,8 +96,8 @@ Exportadas desde `util_bbdd.bulk`. Generan listas de particiones disjuntas para 
 
 | Error | Cuándo ocurre |
 |---|---|
-| `ValueError` | `max_workers < 1` |
-| Error capturado en `partition_errors` | Cualquier excepción dentro de un worker (también al crear su `BulkCrud` o en el lector de la partición); el resto de workers continúan. `OperationalError` y `TimeoutError` se reintentan antes hasta `max_retries` veces. Solo `KeyboardInterrupt` y `SystemExit` interrumpen `load()` |
+| `ValueError` | `max_workers < 1`, `max_retries < 0`, `retry_backoff` no válido, o `partition_ranges` solapados o en distinto número que los lectores |
+| Error capturado en `partition_errors` | Cualquier excepción dentro de un worker (también al crear su `BulkCrud` o en el lector de la partición); el resto de workers continúan. Los errores transitorios (ver `max_retries`) se reintentan antes hasta `max_retries` veces, con la espera de `retry_backoff`. Solo `KeyboardInterrupt` y `SystemExit` interrumpen `load()` |
 
 ## 3. Componentes y Clases
 
