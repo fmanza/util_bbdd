@@ -22,6 +22,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **metadata**: `fetch_routines_sql()` de MariaDB añade `IS_DETERMINISTIC`, `SQL_DATA_ACCESS` y `SECURITY_TYPE`; nuevas
   `fetch_routine_parameters_for_schema_sql()` (MariaDB) y `fetch_routines_for_schema_sql()` (Oracle). La
   `fetch_routines_sql()` de Oracle, que comparten los adaptadores, no cambia.
+- **metadata (Oracle)**: `fetch_routines_sync`/`fetch_routines_async` listaban las rutinas sueltas y los packages con
+  nombre vacío y ponían el `object_id` como owner: `fetch_routines_sql()` devolvía `(procedure_name, object_type,
+  object_id)` (NULL en rutinas sueltas) y el decodificador espera `(nombre, tipo, owner, object_id)`. Ahora devuelve
+  `(COALESCE(procedure_name, object_name), object_type, owner, object_id)`.
 - **docs (plugin ZIP offline)**: `DocumentationZipPlugin.on_post_build` declaraba `config` posicional y de tipo
   `Config`; ahora `on_post_build(self, *, config: MkDocsConfig)`, como `BasePlugin` de mkdocs (Pylance
   `reportIncompatibleMethodOverride`). Sin fallo en ejecución: mkdocs ya lo llamaba por nombre.

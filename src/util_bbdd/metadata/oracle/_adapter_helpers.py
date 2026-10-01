@@ -105,9 +105,8 @@ def decode_oracle_routine_body(routine_type: str, routine_name: str, rows: Rows)
 
     ``ALL_SOURCE.TEXT`` no incluye la cabecera ``CREATE OR REPLACE`` (empieza directamente en
     ``PROCEDURE "NOMBRE" (...) IS``); se antepone aquí para que el resultado cumpla el contrato
-    de ``RoutineAdapterSync/Async.fetch_routine_definition_*`` (DDL ejecutable), a diferencia del
-    extractor de ``migrate/`` que deja el body verbatim porque el emisor destino añade su propia
-    cabecera.
+    de ``RoutineAdapterSync/Async.fetch_routine_definition_*`` (DDL ejecutable). El extractor de
+    ``migrate/`` hace lo mismo desde el hotfix R4 (0.23.1).
 
     Args:
         routine_type: Tipo de rutina ('PROCEDURE' o 'FUNCTION'), usado solo para el fallback.

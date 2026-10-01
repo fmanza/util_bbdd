@@ -258,15 +258,21 @@ def fetch_view_columns_sql() -> str:
 
 
 def fetch_routines_sql() -> str:
-    """SQL query parametrizada para obtener rutinas (procedures/functions) Oracle.
+    """SQL query parametrizada para obtener rutinas (procedures/functions) Oracle (uso: adaptadores de metadatos).
 
-    Parametrizado con :owner.
+    Parametrizado con :owner. Columnas en el orden de ``decode_oracle_routine_rows``.
+
+    Hotfix 0.23.1: en ``ALL_PROCEDURES`` el nombre de una rutina suelta (y el de cada package) está en ``object_name``
+    y ``procedure_name`` es NULL; ``procedure_name`` solo lo tienen los miembros de un package. Antes se devolvía
+    ``(procedure_name, object_type, object_id)``: nombre vacío y el ``object_id`` leído como owner.
 
     Returns:
-        str: SQL query para procedure_name, object_type, object_id del schema
+        str: SQL query para (routine_name, object_type, owner, object_id) del schema.
     """
     return (
-        "SELECT procedure_name, object_type, object_id FROM all_procedures WHERE owner = :owner ORDER BY procedure_name"
+        "SELECT COALESCE(procedure_name, object_name), object_type, owner, object_id "
+        "FROM all_procedures WHERE owner = :owner "
+        "ORDER BY COALESCE(procedure_name, object_name)"
     )
 
 
