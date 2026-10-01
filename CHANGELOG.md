@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **docs (bulk)**: escalado de `ParallelBulkLoader` medido otra vez con la v0.26.0 (200K y 1M filas, 6 motores): con 4
+  hilos SQL Server 2,7× y MySQL/MariaDB 1,7×, pero PostgreSQL con psycopg 3 1,05× (antes la guía decía 2,6×, medido
+  antes del INSERT por tuplas y los lotes por motor), Oracle 1,14× y SQLite sin ganancia (`docs/guides/benchmarks.md`,
+  `docs/api/bulk_parallel.md`).
+
 ## [0.26.0] - 2026-10-01
 
 Dos opciones nuevas de `BulkCrud`, opt-in y sin cambios para quien no las use: `prefetch_blocks` (prepara el lote

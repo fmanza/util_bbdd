@@ -39,7 +39,7 @@ el tiempo total.
 | `on_error="isolate"` | `BulkCrud` | No es una palanca de velocidad: aparta las filas con errores de datos a un CSV en lugar de deshacer la carga. Coste medido (INSERT de 1M filas): sin filas malas, 1,00–1,02× (Oracle: 1,00× y 1,27× en dos repeticiones); con 10 filas malas, 1,13–1,23× (PostgreSQL 1,65×: lotes de 20 000 con COPY, cada fila mala reenvía más). Para cargas con muchas filas malas en PostgreSQL, un `chunk_size` menor reduce lo reenviado | Cuando unas pocas filas malas no deben deshacer la carga; con muchas filas malas, `max_rejects` |
 | `enable_fast_executemany` | `BulkCrud` / `ParallelBulkLoader` | Activa `fast_executemany` en el dialecto pyodbc (como `create_engine(..., fast_executemany=True)`) | SQL Server + ODBC 17/18: INSERT ~12× más rápido |
 | Vía nativa por motor | Automática | COPY / multi-row / fast_executemany (tabla abajo) | Siempre activa con `BulkCrud(insert_resolver=None)` (default) |
-| Carga paralela | `ParallelBulkLoader` | Inserta particiones disjuntas en paralelo, una `BulkCrud` por hilo | Tablas muy grandes; el pool debe tener capacidad ≥ `max_workers` |
+| Carga paralela | `ParallelBulkLoader` | Inserta particiones disjuntas en paralelo, una `BulkCrud` por hilo | Tablas muy grandes en SQL Server (≈ 2,7× con 4 hilos), MySQL y MariaDB (≈ 1,7×); no en PostgreSQL con psycopg 3, Oracle ni SQLite (≤ 1,2×). El pool debe tener capacidad ≥ `max_workers` |
 
 Configuración base con `BulkCrud`:
 
@@ -94,16 +94,26 @@ result = loader.load("ventas", partition_readers)   # un callable por partición
 print(result.total_rows, result.partition_errors)
 ```
 
-Escalado medido con 200K filas en 4 particiones (tabla de 10 columnas, servidores en Docker local):
+Escalado de `load()` con 4 particiones, 1 hilo frente a 4 (tabla de 10 columnas, servidores en Docker local; v0.26.0,
+lote por motor; mediana de 2–3 repeticiones; `.ai/sessions/2026-10-01q-docs-parallel-pg/`):
 
-| Motor | 1 hilo | 4 hilos | Aceleración |
-|---|---|---|---|
-| PostgreSQL 17 (psycopg 3) | 2,65 s | 1,00 s | 2,6× |
-| MySQL 8.4 (PyMySQL) | 3,60 s | 1,91 s | 1,9× |
-| MariaDB 11.4 (PyMySQL) | 2,89 s | 1,80 s | 1,6× |
-| SQL Server 2022 (pymssql) | 49,08 s | 12,68 s | 3,9× |
-| Oracle 23 Free (oracledb) | 3,06 s | 1,68 s | 1,8× |
-| SQLite | 1,24 s | 1,34 s | 0,9× |
+| Motor (driver) | 200K: 1 hilo | 200K: 4 hilos | Aceleración | 1M: 1 hilo | 1M: 4 hilos | Aceleración |
+|---|---|---|---|---|---|---|
+| PostgreSQL 17 (psycopg 3) | 0,77 s | 0,66 s | 1,18× | 3,42 s | 3,26 s | 1,05× |
+| MySQL 8.4 (PyMySQL) | 3,39 s | 1,86 s | 1,82× | 15,74 s | 9,14 s | 1,72× |
+| MariaDB 11.4 (PyMySQL) | 3,01 s | 1,83 s | 1,64× | 14,98 s | 9,13 s | 1,64× |
+| SQL Server 2022 (pyodbc) | 3,12 s | 1,14 s | 2,76× | 14,64 s | 5,38 s | 2,72× |
+| Oracle 23 Free (oracledb) | 1,88 s | 1,62 s | 1,16× | 10,46 s | 9,18 s | 1,14× |
+| SQLite | 1,43 s | 1,65 s | 0,87× | 6,93 s | 7,08 s | 0,98× |
+
+- **PostgreSQL con psycopg 3 no gana con hilos**: el cuello de botella es el cliente (psycopg2 y PyMySQL sí escalan por la
+  misma red; en el UPDATE fila a fila, 4 hilos fueron 2,2× más lentos que 1). Mecanismo probable, sin confirmar:
+  contención del GIL en el bucle de E/S de psycopg 3 (spikes S-1 y S-3 de `.ai/sessions/2026-10-01l-plan-bulk-pending/`). Usa `max_workers=1` o `bulk_insert_from_df`. Con procesos la fase de
+  inserción sí escala (1M: 1,25 s con 4 procesos), pero a 1M filas el arranque de cada proceso (1,3–1,8 s en Windows) se
+  come la ganancia; `ParallelBulkLoader` no usa procesos.
+- **Oracle** apenas gana (≈ 1,15×); la causa no se ha medido.
+- Hasta v0.25.x esta tabla (medida el 2026-09-24, antes del INSERT por tuplas y los lotes por motor) daba 2,6× en
+  PostgreSQL: lo que escalaba era un envío más lento con un hilo (2,65 s con 200K frente a 0,77 s hoy).
 
 SQLite admite un solo escritor a la vez: en paralelo no gana nada, así que usa `max_workers=1` o `bulk_insert_from_df`.
 El coste de arranque de cada partición (su `BulkCrud` y la lectura de la estructura de la tabla) es de 1 a 66 ms
