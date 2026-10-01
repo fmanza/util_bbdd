@@ -90,7 +90,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-0. **Push de `develop` y del tag `v0.27.1`**, pendientes de decisión del usuario (`v0.27.0` ya publicada). Pendiente externo: publicar el issue del ORA-03106 (`.ai/sessions/2026-10-01y-ora03106-repro/ISSUE_DRAFT.md`). Abiertos (bajos): B-3 (`test_update_auto_increment_mariadb.py` con URL de MySQL), I-2 (`mariadb_connector` en `ENGINES` por defecto del banco). S-1 sigue NO_GO.
+0. `v0.27.1` publicada (push de `develop` y tag, 2026-10-01). Pendiente externo: publicar el issue del ORA-03106 (`.ai/sessions/2026-10-01y-ora03106-repro/ISSUE_DRAFT.md`). Abiertos (bajos): B-3 (`test_update_auto_increment_mariadb.py` con URL de MySQL), I-2 (`mariadb_connector` en `ENGINES` por defecto del banco). S-1 sigue NO_GO.
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
 3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.
