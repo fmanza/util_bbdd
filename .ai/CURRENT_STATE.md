@@ -89,7 +89,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-0. **Push de `develop` y del tag `v0.27.0`**, pendientes de decisión del usuario (`v0.26.0` ya publicada). Roadmap de `bulk`: S-1 (procesos) NO_GO hasta un caso real ≥ 10M filas por tabla; reportar a python-oracledb el ORA-03106 (UPDATE + LOB + `batcherrors`, `2026-10-01r/s5_ora03106.py`); lock entre procesos del CSV de rechazos y de la auditoría si algún día se usan procesos.
+0. `v0.27.0` publicada (push de `develop` y tag, 2026-10-01). Roadmap de `bulk`: S-1 (procesos) NO_GO hasta un caso real ≥ 10M filas por tabla; reportar a python-oracledb el ORA-03106 (UPDATE + LOB + `batcherrors`, `2026-10-01r/s5_ora03106.py`); lock entre procesos del CSV de rechazos y de la auditoría si algún día se usan procesos.
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
 3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.
