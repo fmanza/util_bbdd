@@ -143,6 +143,10 @@ class _StreamPosition:
     first: bool
 
 
+#: Nota que lleva el ``OSError`` de no poder escribir el CSV de rechazos (M-1, audit-code 2026-10-01).
+_REJECTS_FAILURE_NOTE: str = "bulk: no se pudo escribir el CSV de rechazos"
+
+
 def _no_foreign_keys(*_args: Any, **_kwargs: Any) -> dict[Any, list[Any]]:
     """Sustituto de ``Inspector.get_multi_foreign_keys`` que no lee nada (``reflect_foreign_keys=False``)."""
     return {}
@@ -714,9 +718,16 @@ class BulkCrud:
         def on_reject(position: int, values: Mapping[str, Any], error: BaseException) -> None:
             # Sin los alias de PK del UPDATE: solo las columnas de la tabla.
             row = {key: value for key, value in values.items() if key in columns}
-            writer.write(table=tabla_destino, operation=operation, position=position, error=error, values=row)
-            self.logger.warning(
-                f"⚠️ bulk {operation} en '{tabla_destino}': fila {position} rechazada ({type(error).__name__})"
+            try:
+                writer.write(table=tabla_destino, operation=operation, position=position, error=error, values=row)
+            except OSError as exc:
+                # M-1 (audit-code 2026-10-01): p. ej. el CSV abierto en Excel. La operación falla (no se pierde el
+                # rechazo en silencio); la nota distingue este fallo del de la auditoría en el log de la operación.
+                exc.add_note(f"{_REJECTS_FAILURE_NOTE} ({writer.path}; fila {position} de la entrada)")
+                raise
+            # B-2: una línea por fila solo en DEBUG; el resumen de la operación va en WARNING.
+            self.logger.debug(
+                f"bulk {operation} en '{tabla_destino}': fila {position} rechazada ({type(error).__name__})"
             )
 
         isolator = Isolator(on_reject=on_reject, max_rejects=self._max_rejects)
@@ -851,7 +862,10 @@ class BulkCrud:
             self.logger.error(f"❌ Error en bulk {strategy_key.upper()}: {error}")
             raise
         except (AuditError, OSError) as error:
-            self.logger.error(f"❌ Error registrando auditoría de bulk {strategy_key.upper()}: {error}")
+            if any(note.startswith(_REJECTS_FAILURE_NOTE) for note in getattr(error, "__notes__", ())):
+                self.logger.error(f"❌ No se pudo escribir el CSV de rechazos de bulk {strategy_key.upper()}: {error}")
+            else:
+                self.logger.error(f"❌ Error registrando auditoría de bulk {strategy_key.upper()}: {error}")
             raise
 
     def __prepare_insert_operation(
@@ -1254,6 +1268,8 @@ class BulkCrud:
         S-2 (2026-10-01). Las filas rechazadas no están en la BD ni en la auditoría, pero sí cuentan en
         :attr:`rows_committed` y :attr:`last_operation_rows_committed`, que son posiciones de la entrada para reanudar.
         Si la operación falla después por otra causa (o por ``max_rejects``), lo ya escrito en el CSV se queda.
+        Si no se puede escribir el CSV (p. ej. abierto en Excel), la operación falla con ``OSError`` (nota «no se pudo
+        escribir el CSV de rechazos») y esa fila no cuenta.
         """
         return self._rows_rejected
 

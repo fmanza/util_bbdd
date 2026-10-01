@@ -41,8 +41,20 @@
   elimina; en MySQL el `DROP TEMPORARY` se ejecuta en el `except` de la estrategia.
 - Sin hallazgos abiertos. Avisos de Sonar existentes (número de parámetros de `__init__`), no nuevos en naturaleza.
 
+## /audit-code posterior (`e2ce535..HEAD`: P-1, prefetch_blocks, isolate)
+- Veredicto: APROBADO CON CONDICIONES → condición cumplida.
+- **M-1 (MEDIA, corregido)**: CSV de rechazos no escribible (abierto en Excel) → la operación fallaba bien, pero el log
+  decía «Error registrando auditoría» y `rows_rejected` contaba la fila no escrita. Ahora nota y log propios
+  («no se pudo escribir el CSV de rechazos») y `Isolator` incrementa solo tras `on_reject` sin error.
+- **B-2 (BAJA, corregido)**: un WARNING por fila rechazada → DEBUG; el resumen por operación sigue en WARNING.
+- Abiertos (BAJA): B-1 con `XACT_ABORT ON` en SQL Server el error visible es el del rollback al SAVEPOINT (el original en
+  `__context__`); B-3 `_savepoint` con sqlite3 `autocommit=True`; B-4 `RejectsWriter` sin validar cabecera ni lock entre
+  instancias (no lo usan `ParallelBulkLoader` ni `dump`).
+- Tests añadidos (5): CSV no escribible, log por fila en DEBUG, isolate + prefetch, posiciones de
+  `bulk_delete_from_chunks`, SQLite con cadencia y fallo posterior de la sesión.
+
 ## Validación
-`ruff`/`mypy` limpios (390); `pytest` 5942 passed; integración bulk 293 passed (5 servidores) + `isolate and mssql` con
+`ruff`/`mypy` limpios (390); `pytest` 5947 passed (tras el audit-code); integración bulk 293 passed (5 servidores) + `isolate and mssql` con
 pymssql 4 passed; `zensical build --strict` sin avisos.
 
 ## Directrices para Futuras IAs

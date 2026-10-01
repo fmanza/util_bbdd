@@ -277,3 +277,67 @@ def test_isolator_bisects_down_to_single_rows() -> None:
     assert rejected == [102, 107]
     assert sent[0] == list(range(8))
     assert isolator.rejected == 2
+
+
+def test_unwritable_rejects_csv_fails_with_its_own_message(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """M-1 (audit-code 2026-10-01): la ruta no escribible (un directorio, como un CSV abierto en Excel en Windows)."""
+    engine = _engine(tmp_path)
+    (tmp_path / "rejects.csv").mkdir()
+    crud = _crud(engine, tmp_path)
+
+    with pytest.raises(OSError) as info:
+        crud.bulk_insert_from_df(_frame([1, 2, 3, 4], none_at=(2,)), "items", False)
+
+    assert any(note.startswith("bulk: no se pudo escribir el CSV de rechazos") for note in info.value.__notes__)
+    assert "No se pudo escribir el CSV de rechazos" in caplog.text
+    assert "auditoría" not in caplog.text
+    assert crud.rows_rejected == 0  # la fila no llegó al CSV
+    assert _rows(engine) == []
+
+
+def test_rejected_rows_are_logged_per_row_only_in_debug(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    engine = _engine(tmp_path)
+    crud = _crud(engine, tmp_path)
+
+    with caplog.at_level("WARNING", logger="util_bbdd.bulk.crud"):
+        crud.bulk_insert_from_df(_frame(list(range(1, 7)), none_at=(2, 5)), "items", False)
+
+    warnings = [r.getMessage() for r in caplog.records if r.name == "util_bbdd.bulk.crud"]
+    assert not any("rechazada (" in message for message in warnings)  # el mensaje por fila va en DEBUG
+    assert any("2 filas rechazadas" in message for message in warnings)
+
+
+def test_isolate_with_prefetch_blocks(tmp_path: Path) -> None:
+    engine = _engine(tmp_path)
+    crud = _crud(engine, tmp_path, prefetch_blocks=True)
+
+    crud.bulk_insert_from_df(_frame(list(range(1, 11)), none_at=(4, 9)), "items", False)
+
+    assert [r[0] for r in _rows(engine)] == [1, 2, 3, 5, 6, 7, 8, 10]
+    assert [int(r["fila"]) for r in _rejects(tmp_path / "rejects.csv")] == [3, 8]
+
+
+def test_delete_from_chunks_positions_are_in_the_sequence(tmp_path: Path) -> None:
+    engine = _engine(tmp_path, foreign_keys=True)
+    _seed(engine, list(range(1, 9)))
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO child (id, item_id) VALUES (1, 6)"))
+    crud = _crud(engine, tmp_path)
+
+    chunks = [pd.DataFrame({"id": [1, 2, 3]}), pd.DataFrame({"id": [4, 5, 6, 7]})]
+    crud.bulk_delete_from_chunks(iter(chunks), "items")
+
+    assert [r[0] for r in _rows(engine)] == [6, 8]
+    assert [(r["operacion"], int(r["fila"])) for r in _rejects(tmp_path / "rejects.csv")] == [("DELETE", 5)]
+
+
+def test_sqlite_cadence_then_session_failure(tmp_path: Path) -> None:
+    """Tras un commit periódico, el BEGIN de ``_savepoint`` vuelve a abrir una transacción real: lo no confirmado se deshace."""
+    engine = _engine(tmp_path)
+    crud = _crud(engine, tmp_path, chunk_size=2, commit_every_n_chunks=2)
+
+    with pytest.raises(RuntimeError), crud.bulk_session():
+        crud.bulk_insert_from_df(_frame([1, 2, 3, 4, 5], none_at=(2,)), "items", False)
+        raise RuntimeError("fallo posterior")
+
+    assert [r[0] for r in _rows(engine)] == [1, 3, 4]  # los 2 primeros lotes (confirmados); el 5 se deshace

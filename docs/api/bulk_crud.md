@@ -92,6 +92,7 @@ flowchart TD
 - Si casi todas las filas fallan (p. ej. recargar datos ya cargados), la bisección acaba enviando fila a fila: usar `max_rejects`.
 - La auditoría registra las filas aplicadas (enviadas − rechazadas).
 - Los rechazos se escriben al detectarse: si después la operación o la sesión se deshacen por otra causa, el CSV los conserva.
+- Si no se puede escribir el CSV de rechazos (p. ej. abierto en Excel), la operación falla con `OSError` y la nota «bulk: no se pudo escribir el CSV de rechazos»: no se pierde ningún rechazo en silencio. El detalle por fila va al log en DEBUG; el resumen de la operación, en WARNING.
 - Con la misma PK repetida en un lote, aislar puede cambiar cuál de las filas se aplica.
 - En SQLite (pysqlite), si la transacción aún no ha empezado se emite `BEGIN` antes del primer SAVEPOINT; si no, el `RELEASE` del SAVEPOINT confirmaba el lote fuera de la sesión.
 

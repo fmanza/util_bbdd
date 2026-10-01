@@ -107,7 +107,7 @@ class Isolator:
     ) -> None:
         self._on_reject = on_reject
         self._max_rejects = max_rejects
-        #: Filas rechazadas (entregadas a ``on_reject``) por esta instancia.
+        #: Filas rechazadas por esta instancia: las que ``on_reject`` procesó sin error.
         self.rejected: int = 0
 
     def run_records(
@@ -208,8 +208,8 @@ class Isolator:
                 "la operación falla como sin on_error='isolate'"
             )
             raise error
-        self.rejected += 1
         self._on_reject(position, values, error)
+        self.rejected += 1  # M-1: solo filas entregadas (escritas): si on_reject falla, no cuenta
 
 
 __all__: list[str] = ["ISOLATED_ERRORS", "REJECT_COLUMNS", "Isolator", "RejectsWriter"]
