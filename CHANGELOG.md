@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **bulk**: `BulkCrud(prefetch_blocks=False)`: con `True` prepara el lote siguiente de INSERT y UPDATE en un hilo (cola de
+  2) mientras se envía el actual; mismo resultado. 1M filas, 3 repeticiones: SQL Server INSERT −10,6 % y UPDATE −6,2 %,
+  MySQL y MariaDB −2 % a −6 %, sin cambio medible en Oracle, PostgreSQL y SQLite. El helper de prefetch pasa de
+  `dump/_source_reader.py` a `bulk/_support/prefetch.py` (`dump` lo importa de ahí; sin cambios en `dump`) (S-4).
+
 ### Changed
 
 - **bulk (SQL Server)**: el filtro que decide si un lote del DELETE puede ir por OPENJSON (hotfix A1 de la 0.25.0) se

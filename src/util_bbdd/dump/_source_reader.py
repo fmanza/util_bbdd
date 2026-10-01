@@ -7,15 +7,14 @@ tests que parchean ``util_bbdd.dump.orchestrator._read_chunks`` o ``._prefetch``
 
 from __future__ import annotations
 
-import queue
-import threading
-
 from collections.abc import Iterator
 from typing import Any
 
 import pandas as pd
 
 from sqlalchemy import event, text
+
+from ..bulk._support.prefetch import PREFETCH_DEPTH, prefetch
 
 
 def _read_chunks(conn: Any, sql: str, chunk_size: int, params: dict[str, Any] | None = None) -> Iterator[pd.DataFrame]:
@@ -73,21 +72,7 @@ def _execute_read(conn: Any, sql: str, chunk_size: int, params: dict[str, Any] |
 _PREFETCH_SOURCE_DIALECTS = frozenset({"postgresql", "mysql", "mariadb", "mssql", "oracle"})
 
 
-_PREFETCH_DEPTH = 2
-
-
-_PREFETCH_DONE = object()
-
-
-def _enqueue_prefetch(buffer: queue.Queue[Any], item: Any, stop: threading.Event) -> bool:
-    """Intenta encolar ``item`` hasta que se aborta o se vacía el buffer."""
-    while not stop.is_set():
-        try:
-            buffer.put(item, timeout=0.1)
-            return True
-        except queue.Full:
-            continue
-    return False
+_PREFETCH_DEPTH = PREFETCH_DEPTH
 
 
 def _prefetch[T](items: Iterator[T], depth: int = _PREFETCH_DEPTH) -> Iterator[T]:
@@ -95,38 +80,14 @@ def _prefetch[T](items: Iterator[T], depth: int = _PREFETCH_DEPTH) -> Iterator[T
 
     Q3 (performance-audit de dump 2026-09-25): sin esto, el chunk N+1 no se leía hasta haber escrito el N. La lectura
     (fetch y construcción del DataFrame, en Python) se solapa con la escritura, que espera al servidor sin retener el GIL.
+    Implementación en :func:`util_bbdd.bulk._support.prefetch.prefetch` (S-4 de bulk 2026-10-01); aquí el hilo se llama
+    ``dump-prefetch``.
 
     - Una excepción del lector se relanza en quien consume, tras entregar los elementos anteriores.
     - Si quien consume deja de iterar (fallo al escribir), el ``finally`` avisa al lector y **espera a que termine**:
       la conexión de lectura no se cierra mientras el otro hilo la usa.
     """
-    buffer: queue.Queue[Any] = queue.Queue(maxsize=depth)
-    stop = threading.Event()
-    errors: list[BaseException] = []
-
-    def _reader() -> None:
-        try:
-            for item in items:
-                if not _enqueue_prefetch(buffer, item, stop):
-                    return
-        except Exception as exc:  # se relanza en el hilo que consume; no capturamos SystemExit/KeyboardInterrupt
-            errors.append(exc)
-        finally:
-            _enqueue_prefetch(buffer, _PREFETCH_DONE, stop)
-
-    thread = threading.Thread(target=_reader, name="dump-prefetch", daemon=True)
-    thread.start()
-    try:
-        while True:
-            item = buffer.get()
-            if item is _PREFETCH_DONE:
-                if errors:
-                    raise errors[0]
-                return
-            yield item
-    finally:
-        stop.set()
-        thread.join()
+    return prefetch(items, depth, thread_name="dump-prefetch")
 
 
 def _rebatch(chunks: Iterator[pd.DataFrame], size: int) -> Iterator[pd.DataFrame]:

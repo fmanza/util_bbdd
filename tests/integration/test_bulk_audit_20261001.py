@@ -471,3 +471,23 @@ def test_mariadb_connector_lock_wait_timeout_is_retriable(engine: Engine) -> Non
         second.close()
         table.drop(connector, checkfirst=True)
         connector.dispose()
+
+
+# ------------------------------------------------------------------- prefetch_blocks (S-4, sesión 2026-10-01m)
+
+
+def test_prefetch_blocks_gives_the_same_result(engine: Engine) -> None:  # noqa: F811
+    n = lambda logical: _name(logical, engine)  # noqa: E731
+    states = []
+    for prefetch in (False, True):
+        table = _seed_table(engine, 0)
+        try:
+            crud = BulkCrud(engine, chunk_size=7, prefetch_blocks=prefetch)
+            crud.bulk_insert_from_df(pd.DataFrame({n("id"): range(1, 51), n("v"): ["v"] * 50}), table.name, False)
+            crud.bulk_update_from_df(pd.DataFrame({n("id"): range(1, 51, 3), n("v"): ["u"] * 17}), table.name, False)
+            crud.bulk_insert_from_chunks(iter([pd.DataFrame({n("id"): range(51, 70), n("v"): ["c"] * 19})]), table.name)
+            states.append(_state(engine, table))
+        finally:
+            table.drop(engine, checkfirst=True)
+    assert states[0] == states[1]
+    assert len(states[0]) == 69

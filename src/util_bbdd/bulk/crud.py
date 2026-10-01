@@ -67,6 +67,7 @@ from ._support.dialect import (
 from ._support.iterables import closing_iterable
 from ._support.persistence import BulkPersistenceManager
 from ._support.pk_sync import PKSequenceSyncer
+from ._support.prefetch import prefetch
 from ._support.sql_helpers import (
     SqlColumns,
     build_override_identity_text_stmt,
@@ -162,6 +163,7 @@ class BulkCrud:
         warn_if_audit_disabled: bool = True,
         strip_strings: bool = True,
         reflect_foreign_keys: bool = True,
+        prefetch_blocks: bool = False,
     ):
         """
         Constructor de la clase bulk_crud.
@@ -226,6 +228,10 @@ class BulkCrud:
             reflect_foreign_keys: Si True (default), la ``Table`` de :meth:`reflect_table` incluye las claves foráneas
                 de la tabla. Las operaciones de ``BulkCrud`` no las usan: con False no se leen y la reflexión es más
                 barata (SQL Server: ≈ 32 → 16 ms por tabla). ``dump`` lo usa (Q9).
+            prefetch_blocks: Si True, prepara el lote siguiente de INSERT y UPDATE (conversión a registros o columnas) en
+                un hilo, con una cola de 2, mientras se envía el actual. Mismo resultado. Medido con 1M filas (3
+                repeticiones): SQL Server INSERT −10,6 % y UPDATE −6,2 %; MySQL y MariaDB −2 % a −6 %; Oracle, PostgreSQL
+                y SQLite sin cambio medible. Por defecto False. No aplica a ``generar_sql`` ni al DELETE (S-4, 2026-10-01).
 
         Raises:
             ValueError: Si engine es None.
@@ -252,6 +258,7 @@ class BulkCrud:
         self._update_via_staging: bool = update_via_staging and self.engine.dialect.name in STAGING_UPDATE_DIALECTS
         self._strip_strings: bool = strip_strings
         self._reflect_foreign_keys: bool = reflect_foreign_keys
+        self._prefetch_blocks: bool = prefetch_blocks
 
         # Inicializar db_info
         self.db_info: str = self.engine.dialect.name.upper()
@@ -518,13 +525,17 @@ class BulkCrud:
                 with batch_failure_note("INSERT", tabla.fullname, chunk_index, total, numero_registros):
                     if isinstance(stmt, Insert) and self._batch_statement_executor.supports_columns:
                         # B-03: tuplas desde las columnas, sin un dict por fila; lotes de chunk_size como el ejecutor.
-                        for block in self.__sql_blocks(working_df[insert_cols], tabla, self._batch_sizes["insert"]):
-                            self.__ejecutar_batch_stmt(block, stmt, len(block))
+                        sql_source = self.__sql_blocks(working_df[insert_cols], tabla, self._batch_sizes["insert"])
+                        with closing_iterable(self.__prefetched(sql_source)) as sql_items:
+                            for block in sql_items:
+                                self.__ejecutar_batch_stmt(block, stmt, len(block))
                     else:
-                        for records_sql in self.__record_blocks(
+                        record_source = self.__record_blocks(
                             working_df[insert_cols], tabla, self._batch_sizes["insert"]
-                        ):
-                            self.__ejecutar_batch_stmt(records_sql, stmt, len(records_sql))
+                        )
+                        with closing_iterable(self.__prefetched(record_source)) as record_items:
+                            for records_sql in record_items:
+                                self.__ejecutar_batch_stmt(records_sql, stmt, len(records_sql))
                 elapsed: float = perf_counter() - start
                 total += numero_registros
 
@@ -605,6 +616,14 @@ class BulkCrud:
                 total += len(chunk)
         self.logger.info(f"✅ bulk {strategy_key.upper()} (chunks) finalizado: {total} filas ({self.db_info}).")
         return total
+
+    def __prefetched[T](self, blocks: Iterator[T]) -> Iterator[T]:
+        """``blocks`` preparados en un hilo con ``prefetch_blocks`` (S-4); si no, tal cual.
+
+        Quien consume debe recorrerlos dentro de ``closing_iterable``: si el envío falla, cerrar el generador espera al
+        hilo (``prefetch`` hace ``join`` en su ``finally``) en lugar de dejarlo preparando bloques hasta el GC.
+        """
+        return prefetch(blocks) if self._prefetch_blocks else blocks
 
     def __ensure_no_open_session(self, method: str) -> None:
         """``RuntimeError`` si hay una ``bulk_session`` abierta (A3, audit-code 2026-10-01).
@@ -763,13 +782,15 @@ class BulkCrud:
                 if isinstance(stmt_exec, Insert) and self._batch_statement_executor.supports_columns:
                     # B-03 (performance-audit de bulk 2026-10-01): COPY, execute_values y el executemany de PyMySQL envían
                     # tuplas; con el bloque por columnas no se construye (y deshace) un dict por fila.
-                    for index, sql_block in enumerate(sql_blocks()):
-                        with self.__batch_note("insert", tabla, index, len(sql_block)):
-                            self.__ejecutar_batch_stmt(sql_block, stmt_exec, len(sql_block))
+                    with closing_iterable(self.__prefetched(sql_blocks())) as sql_items:
+                        for index, sql_block in enumerate(sql_items):
+                            with self.__batch_note("insert", tabla, index, len(sql_block)):
+                                self.__ejecutar_batch_stmt(sql_block, stmt_exec, len(sql_block))
                     return
-                for index, block in enumerate(blocks()):
-                    with self.__batch_note("insert", tabla, index, len(block)):
-                        self.__ejecutar_batch_stmt(block, stmt_exec, len(block))
+                with closing_iterable(self.__prefetched(blocks())) as record_items:
+                    for index, block in enumerate(record_items):
+                        with self.__batch_note("insert", tabla, index, len(block)):
+                            self.__ejecutar_batch_stmt(block, stmt_exec, len(block))
 
         def sql_blocks() -> Iterator[SqlColumns]:
             return self.__sql_blocks(insert_df, tabla, self._batch_sizes["insert"])
@@ -902,8 +923,8 @@ class BulkCrud:
                     loader=executor.insert_strategy,
                 )
                 self._staging_strategies[key] = staging
-        with self.__blocks_transaction():
-            for index, block in enumerate(blocks):
+        with self.__blocks_transaction(), closing_iterable(self.__prefetched(blocks)) as update_items:
+            for index, block in enumerate(update_items):
                 with self.__batch_note("update", tabla, index, len(block)):
                     executor.execute(records=block, stmt=stmt, strategy=staging)
         if staging is not None and staging.staging_denied:

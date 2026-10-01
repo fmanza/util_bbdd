@@ -25,7 +25,7 @@ flowchart TD
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `BulkCrud` | `(engine, chunk_size?, audit_csv_path?, enable_fast_executemany?, insert_resolver?, commit_every_n_chunks?, update_via_staging?, audit_strict?, warn_if_audit_disabled?, strip_strings?, reflect_foreign_keys?)` | Crea instancia con engine SQLAlchemy | `BulkCrud` |
+| `BulkCrud` | `(engine, chunk_size?, audit_csv_path?, enable_fast_executemany?, insert_resolver?, commit_every_n_chunks?, update_via_staging?, audit_strict?, warn_if_audit_disabled?, strip_strings?, reflect_foreign_keys?, prefetch_blocks?)` | Crea instancia con engine SQLAlchemy | `BulkCrud` |
 | `bulk_insert_from_df` | `(df, tabla_destino, generar_sql?, path_sql?)` | INSERT masivo desde DataFrame | `None` |
 | `bulk_insert_from_chunks` | `(chunks, tabla_destino, *, override_identity?, exclude_autoincrement_pk?)` | INSERT streaming de iterable de DataFrames; resuelve columnas/identidad una sola vez | `int` (filas insertadas) |
 | `bulk_update_from_df` | `(df, tabla_destino, generar_sql?, path_sql?)` | UPDATE masivo desde DataFrame | `None` |
@@ -53,6 +53,7 @@ flowchart TD
 | `insert_resolver` | `InsertStrategyResolver \| None` | Estrategia INSERT personalizada | Default `None` (resolución automática por motor) |
 | `commit_every_n_chunks` | `int \| None` | Commit cada N lotes en lugar de una sola transacción. La carga deja de ser atómica | Default `None` (una sola transacción) |
 | `update_via_staging` | `bool` | MySQL/MariaDB y PostgreSQL: `bulk_update_from_df` carga cada lote en una tabla temporal y aplica un único `UPDATE` con join en lugar de un UPDATE por fila (1M filas: MySQL/MariaDB ~12,5×, PostgreSQL 2,35×). Mismo resultado final; requiere el privilegio `CREATE TEMPORARY TABLES` (MySQL/MariaDB) o `TEMP` (PostgreSQL, se comprueba antes de intentarlo); sin él, vuelve al UPDATE fila a fila y registra un WARNING (una vez por instancia). Ignorado en otros motores | Default `True` |
+| `prefetch_blocks` | `bool` | Prepara el lote siguiente de INSERT y UPDATE en un hilo (cola de 2) mientras se envía el actual. Mismo resultado. 1M filas: SQL Server INSERT −10,6 % / UPDATE −6,2 %, MySQL y MariaDB −2 % a −6 %, Oracle/PostgreSQL/SQLite sin cambio medible | Default `False` |
 | `audit_strict` | `bool` | Qué hacer si falla la escritura del CSV de auditoría (fichero abierto en Excel, disco lleno, permisos). `False`: la operación sigue, porque sus datos ya están en la BD; se registra un ERROR con los registros perdidos y se cuentan en `audit_failures`. `True`: se propaga `AuditError`/`OSError`; dentro de `bulk_session` la auditoría se escribe antes del commit y el fallo deshace la sesión. Si lo que falla es el commit, lo ya escrito se cuenta en `audit_uncommitted_records` | Default `False` |
 | `warn_if_audit_disabled` | `bool` | Sin `audit_csv_path`, avisar una vez con un WARNING de que la auditoría está deshabilitada. `ParallelBulkLoader` y `dump` pasan `False` a sus instancias y avisan una sola vez por carga | Default `True` |
 | `strip_strings` | `bool` | Si `True`, quita los espacios de los extremos de las cadenas antes de enviarlas (INSERT, UPDATE, DELETE y SQL generado). `dump` pasa `False` para copiar el origen sin alterarlo | Default `True` |
