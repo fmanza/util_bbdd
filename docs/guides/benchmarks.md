@@ -340,6 +340,14 @@ La columna `OK/Error` del resumen debe mostrar `1/0` en `insert`, `update` y `de
 python -m pytest tests/integration/test_bulk_engines.py
 ```
 
+**MariaDB con sus dos drivers.** La librería usa el conector original de MariaDB (MariaDB Connector/Python,
+`mariadb+mariadbconnector`) para `db_type="mariadb"`, y el banco define la URL de MariaDB con PyMySQL. Si el paquete
+`mariadb` está instalado, la integración ejecuta los tests de MariaDB con **los dos**: el motor `mariadb_connector` de
+`test_bulk_engines.py` y `test_bulk_audit_20261001.py` reutiliza `UTIL_BBDD_TEST_MARIADB_URL` cambiando el driver, y
+`test_mariadb_engine_e2e.py` (managers sync con el conector y async con aiomysql) y
+`test_update_auto_increment_mariadb.py` también lo cubren. Sin el paquete, esos casos se saltan con el motivo. No hay
+nada que configurar.
+
 ## 5. Variantes y Solución de Problemas
 
 | Síntoma | Causa probable | Solución |

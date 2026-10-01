@@ -442,17 +442,15 @@ def test_mssql_composite_delete_never_deletes_keys_that_do_not_fit(engine: Engin
         table.drop(engine, checkfirst=True)
 
 
-@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"mariadb"})), indirect=True)
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"mariadb_connector"})), indirect=True)
 def test_mariadb_connector_lock_wait_timeout_is_retriable(engine: Engine) -> None:  # noqa: F811
     """A2: con el conector ``mariadb`` el lock wait timeout (1205, sqlstate HY000) no se reintentaba."""
-    pytest.importorskip("mariadb")
-    from sqlalchemy import create_engine
     from sqlalchemy.exc import DBAPIError
 
     from util_bbdd.bulk._support.retry import is_retriable
 
-    url = engine.url.set(drivername="mariadb+mariadbconnector")
-    connector = create_engine(url)
+    assert engine.dialect.driver == "mariadbconnector"
+    connector = engine
     table = Table(_table_name(), MetaData(), Column("id", Integer, primary_key=True, autoincrement=False))
     table.create(connector)
     first, second = connector.connect(), connector.connect()
@@ -472,7 +470,6 @@ def test_mariadb_connector_lock_wait_timeout_is_retriable(engine: Engine) -> Non
         first.close()
         second.close()
         table.drop(connector, checkfirst=True)
-        connector.dispose()
 
 
 # ------------------------------------------------------------------- prefetch_blocks (S-4, sesión 2026-10-01m)
@@ -540,7 +537,9 @@ def test_isolate_insert_rejects_duplicate_keys(engine: Engine, cadence: int | No
 
 
 @pytest.mark.parametrize(
-    "engine", _engine_params(only=frozenset({"postgresql", "mysql", "mariadb", "oracle"})), indirect=True
+    "engine",
+    _engine_params(only=frozenset({"postgresql", "mysql", "mariadb", "mariadb_connector", "oracle"})),
+    indirect=True,
 )
 @pytest.mark.parametrize("staging", [True, False])
 def test_isolate_update_rejects_values_too_long(engine: Engine, staging: bool, tmp_path: Any) -> None:  # noqa: F811

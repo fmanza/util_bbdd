@@ -13,6 +13,7 @@ solo sobre bases ``zz_util_bbdd_*``, suficiente para este test (``scripts/bench_
 
 from __future__ import annotations
 
+import importlib.util
 import logging
 import os
 import uuid
@@ -63,9 +64,22 @@ class Scratch:
     created_optional: set[str] = field(default_factory=set)
 
 
-@pytest.fixture
-def scratch() -> Iterator[Scratch]:
-    base_url = make_url(os.environ[URL_ENV])
+@pytest.fixture(
+    params=[
+        pytest.param("pymysql", id="pymysql"),
+        # El conector original de MariaDB, el que usa la librería para db_type="mariadb" (sesión 2026-10-01w).
+        pytest.param(
+            "mariadbconnector",
+            id="mariadbconnector",
+            marks=pytest.mark.skipif(
+                importlib.util.find_spec("mariadb") is None, reason="paquete mariadb no instalado"
+            ),
+        ),
+    ]
+)
+def scratch(request: pytest.FixtureRequest) -> Iterator[Scratch]:
+    url = make_url(os.environ[URL_ENV])
+    base_url = url.set(drivername=f"{url.get_backend_name()}+{request.param}")
     schema = f"zz_util_bbdd_autoinc_{uuid.uuid4().hex[:8]}"
     admin = create_engine(base_url, isolation_level="AUTOCOMMIT")
     with admin.connect() as connection:
@@ -96,6 +110,9 @@ def _populate(fixture: Scratch) -> None:
         # `orders`: el contador queda en 101 aunque el máximo real sea 41.
         connection.execute(text("INSERT INTO orders (note) VALUES (:note)"), [{"note": "x"}] * 100)
         connection.execute(text("DELETE FROM orders WHERE id > 41"))
+        # Con mariadbconnector el executemany va en bloque e InnoDB reserva los AUTO_INCREMENT por bloques (el contador
+        # quedaba en 128): se fija en 101 para que la prueba no dependa del driver (sesión 2026-10-01w).
+        connection.execute(text("ALTER TABLE orders AUTO_INCREMENT = 101"))
         connection.execute(text("INSERT INTO composite (tenant, id) VALUES (1, 5), (2, 9)"))
         connection.execute(text("INSERT INTO `order` (id) VALUES (3)"))
         connection.execute(text("INSERT INTO `we``ird` (id) VALUES (7)"))
@@ -125,7 +142,10 @@ def _expected(fixture: Scratch, schema: str | None = None) -> list[str]:
 
 
 def _next_id(connection, insert: str) -> int:  # type: ignore[no-untyped-def]
-    return int(connection.execute(text(insert)).lastrowid)
+    """Id generado por ``insert``. ``LAST_INSERT_ID()`` y no ``result.lastrowid``: con ``mariadbconnector`` SQLAlchemy
+    solo rellena ``lastrowid`` en los INSERT compilados, no en ``text()`` (sesión 2026-10-01w)."""
+    connection.execute(text(insert))
+    return int(connection.execute(text("SELECT LAST_INSERT_ID()")).scalar_one())
 
 
 def test_generates_the_expected_script_and_executes_nothing(scratch: Scratch, caplog: pytest.LogCaptureFixture) -> None:

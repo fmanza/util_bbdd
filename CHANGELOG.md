@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **tests**: la integración de MariaDB se ejecuta también con el conector original (MariaDB Connector/Python),
+  el driver que usa la librería para `db_type="mariadb"`: motor `mariadb_connector` en los tests de `bulk`,
+  `test_mariadb_engine_e2e.py` (managers sync y async) y `UpdateAutoIncrement` con los dos drivers. Sin cambios en la
+  librería (sesión `2026-10-01w`).
+
 ## [0.27.0] - 2026-10-01
 
 `on_error="isolate"` llega a toda la carga masiva: Oracle aísla con `batcherrors` (un envío por lote y también

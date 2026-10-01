@@ -32,6 +32,7 @@ el SQL generado).
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import uuid
 
@@ -46,6 +47,7 @@ import pytest
 
 from sqlalchemy import (
     JSON,
+    URL,
     Column,
     DateTime,
     Engine,
@@ -61,6 +63,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from util_bbdd.bulk import BulkCrud
@@ -70,10 +73,14 @@ from util_bbdd.bulk._support.validation import normalize_identifier
 pytestmark = [pytest.mark.integration, pytest.mark.cross_db]
 
 SERVER_ENGINES: tuple[str, ...] = ("postgresql", "mysql", "mariadb", "mssql", "oracle")
+#: MariaDB con el conector original (MariaDB Connector/Python), el driver que usa la librería para ``db_type="mariadb"``:
+#: mismo servidor y URL que ``mariadb`` (PyMySQL) con ``mariadb+mariadbconnector``. Sesión 2026-10-01w.
+MARIADB_CONNECTOR: str = "mariadb_connector"
+HAS_MARIADB_CONNECTOR: bool = importlib.util.find_spec("mariadb") is not None
 ROWS_OVER_MSSQL_PARAM_LIMIT = 3_000  # > 2100 parámetros por petición de SQL Server
 
 
-MYSQL_FAMILY: frozenset[str] = frozenset({"mysql", "mariadb"})  # update_via_staging, límite de 65.535 parámetros
+MYSQL_FAMILY: frozenset[str] = frozenset({"mysql", "mariadb", MARIADB_CONNECTOR})  # staging, 65.535 parámetros
 NO_JSON: frozenset[str] = frozenset({"mssql", "oracle"})  # SQL Server sin JSON; Oracle refleja JSON como NullType
 STAGING_ENGINES: frozenset[str] = MYSQL_FAMILY | {"postgresql"}  # update_via_staging (P-04, B-01)
 
@@ -85,23 +92,35 @@ def _engine_params(*, only: frozenset[str] | None = None, exclude: frozenset[str
     saltados solo refleja servidores sin URL).
     """
     params: list[Any] = []
-    for key in ("sqlite", *SERVER_ENGINES):
+    for key in ("sqlite", *SERVER_ENGINES, MARIADB_CONNECTOR):
         if (only is not None and key not in only) or key in exclude:
             continue
         if key == "sqlite":
             params.append(pytest.param(key, id=key))
             continue
-        env = f"UTIL_BBDD_TEST_{key.upper()}_URL"
-        params.append(
-            pytest.param(key, id=key, marks=pytest.mark.skipif(not os.environ.get(env), reason=f"{env} no definida"))
-        )
+        env = _url_env(key)
+        skip_reason = f"{env} no definida" if not os.environ.get(env) else ""
+        if key == MARIADB_CONNECTOR and not HAS_MARIADB_CONNECTOR:
+            skip_reason = "paquete mariadb (MariaDB Connector/Python) no instalado"
+        params.append(pytest.param(key, id=key, marks=pytest.mark.skipif(bool(skip_reason), reason=skip_reason)))
     return params
+
+
+def _url_env(key: str) -> str:
+    """Variable de entorno con la URL del motor (el conector de MariaDB usa la de ``mariadb``)."""
+    return f"UTIL_BBDD_TEST_{('mariadb' if key == MARIADB_CONNECTOR else key).upper()}_URL"
+
+
+def _engine_url(key: str) -> URL:
+    """URL del servidor ``key``; ``mariadb_connector``: la de MariaDB con el driver ``mariadbconnector``."""
+    url = make_url(os.environ[_url_env(key)])
+    return url.set(drivername="mariadb+mariadbconnector") if key == MARIADB_CONNECTOR else url
 
 
 @pytest.fixture(params=_engine_params())
 def engine(request: pytest.FixtureRequest, tmp_path: Path) -> Iterator[Engine]:
     key: str = request.param
-    url = f"sqlite:///{tmp_path / 'bulk.db'}" if key == "sqlite" else os.environ[f"UTIL_BBDD_TEST_{key.upper()}_URL"]
+    url: str | URL = f"sqlite:///{tmp_path / 'bulk.db'}" if key == "sqlite" else _engine_url(key)
     eng = create_engine(url)
     yield eng
     eng.dispose()
@@ -686,22 +705,6 @@ def test_parallel_loader_reports_partition_error(engine: Engine, scratch_table: 
         assert _count(eng, scratch_table) == 4, eng.dialect.driver
 
 
-def _mysql_driver_engines(engine: Engine) -> Iterator[Engine]:
-    """El engine de la prueba y, en MariaDB, el mismo servidor con el conector ``mariadb`` (prepara en el servidor)."""
-    yield engine
-    if engine.dialect.name != "mariadb" or engine.dialect.driver == "mariadbconnector":
-        return
-    try:
-        __import__("mariadb")
-    except ImportError:
-        return
-    alt = create_engine(engine.url.set(drivername="mariadb+mariadbconnector"))
-    try:
-        yield alt
-    finally:
-        alt.dispose()
-
-
 def test_wide_table_insert_and_update(engine: Engine) -> None:
     """P-13: 1000 filas × 71 columnas superan los 65.535 parámetros de una sentencia preparada (conector ``mariadb``)."""
     n = partial(_name, engine=engine)
@@ -715,19 +718,18 @@ def test_wide_table_insert_and_update(engine: Engine) -> None:
     table.create(engine)
     rows = 1000
     try:
-        for eng in _mysql_driver_engines(engine):
-            with eng.begin() as conn:
-                conn.execute(table.delete())
-            data = {n("id"): np.arange(1, rows + 1), **{n(f"c{i}"): np.arange(rows) + i for i in range(ncols)}}
-            df = pd.DataFrame(data)
-            crud = BulkCrud(eng)
-            crud.bulk_insert_from_df(df, table.name, False)
-            updated = df.assign(**{n(f"c{i}"): df[n(f"c{i}")] * 2 for i in range(ncols)})
-            crud.bulk_update_from_df(updated, table.name, False)
+        with engine.begin() as conn:
+            conn.execute(table.delete())
+        data = {n("id"): np.arange(1, rows + 1), **{n(f"c{i}"): np.arange(rows) + i for i in range(ncols)}}
+        df = pd.DataFrame(data)
+        crud = BulkCrud(engine)
+        crud.bulk_insert_from_df(df, table.name, False)
+        updated = df.assign(**{n(f"c{i}"): df[n(f"c{i}")] * 2 for i in range(ncols)})
+        crud.bulk_update_from_df(updated, table.name, False)
 
-            with eng.connect() as conn:
-                stored = pd.DataFrame(conn.execute(select(table).order_by(table.c[n("id")])).all(), columns=df.columns)
-            pd.testing.assert_frame_equal(stored, updated, check_dtype=False, obj=eng.dialect.driver)
+        with engine.connect() as conn:
+            stored = pd.DataFrame(conn.execute(select(table).order_by(table.c[n("id")])).all(), columns=df.columns)
+        pd.testing.assert_frame_equal(stored, updated, check_dtype=False, obj=engine.dialect.driver)
     finally:
         table.drop(engine, checkfirst=True)
 
@@ -738,13 +740,12 @@ def test_delete_composite_pk_over_parameter_limit(engine: Engine, composite_tabl
     k1, k2, v = (_name(c, engine) for c in ("k1", "k2", "v"))
     rows = 34_000
     df = pd.DataFrame({k1: np.arange(rows) // 10, k2: np.arange(rows) % 10, v: "x"})
-    for eng in _mysql_driver_engines(engine):
-        crud = BulkCrud(eng, chunk_size=rows)
-        crud.bulk_insert_from_df(df, composite_table.name, False)
+    crud = BulkCrud(engine, chunk_size=rows)
+    crud.bulk_insert_from_df(df, composite_table.name, False)
 
-        crud.bulk_delete_from_df(df[[k1, k2]], composite_table.name, False)
+    crud.bulk_delete_from_df(df[[k1, k2]], composite_table.name, False)
 
-        assert _count(eng, composite_table) == 0, eng.dialect.driver
+    assert _count(engine, composite_table) == 0, engine.dialect.driver
 
 
 @pytest.mark.parametrize("composite", [False, True])
