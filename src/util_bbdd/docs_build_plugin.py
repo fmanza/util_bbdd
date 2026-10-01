@@ -20,7 +20,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, ClassVar
 
-from mkdocs.config import Config
+from mkdocs.config.defaults import MkDocsConfig
 from mkdocs.plugins import BasePlugin
 
 SITE_ZIP_NAME = "util_bbdd-docs-latest.zip"
@@ -85,8 +85,11 @@ class DocumentationZipPlugin(BasePlugin):
 
     config_options: ClassVar[dict[str, Any]] = {}
 
-    def on_post_build(self, config: Config) -> None:
-        """Ejecutado después del build de mkdocs."""
+    def on_post_build(self, *, config: MkDocsConfig) -> None:
+        """Ejecutado después del build de mkdocs.
+
+        Misma firma que ``BasePlugin.on_post_build`` (``config`` solo por nombre: mkdocs llama ``method(**kwargs)``).
+        """
         site_dir = Path(config.get("site_dir", "site"))
         zip_path = site_dir / SITE_ZIP_NAME
 

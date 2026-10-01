@@ -29,7 +29,7 @@ def test_generated_zip_does_not_contain_itself(tmp_path: Path) -> None:
     site_dir = _make_fake_site(tmp_path)
     plugin = DocumentationZipPlugin()
 
-    plugin.on_post_build({"site_dir": str(site_dir)})
+    plugin.on_post_build(config={"site_dir": str(site_dir)})
 
     zip_path = site_dir / "util_bbdd-docs-latest.zip"
     assert zip_path.exists()
@@ -47,7 +47,7 @@ def test_generated_zip_contains_expected_site_files(tmp_path: Path) -> None:
     site_dir = _make_fake_site(tmp_path)
     plugin = DocumentationZipPlugin()
 
-    plugin.on_post_build({"site_dir": str(site_dir)})
+    plugin.on_post_build(config={"site_dir": str(site_dir)})
 
     zip_path = site_dir / "util_bbdd-docs-latest.zip"
     with zipfile.ZipFile(zip_path) as zipf:
@@ -61,7 +61,7 @@ def test_sha256_checksum_file_is_written_alongside_zip(tmp_path: Path) -> None:
     site_dir = _make_fake_site(tmp_path)
     plugin = DocumentationZipPlugin()
 
-    plugin.on_post_build({"site_dir": str(site_dir)})
+    plugin.on_post_build(config={"site_dir": str(site_dir)})
 
     zip_path = site_dir / "util_bbdd-docs-latest.zip"
     sha256_file = zip_path.with_suffix(".zip.sha256")
@@ -75,7 +75,7 @@ def test_sha256_checksum_file_is_written_alongside_zip(tmp_path: Path) -> None:
 def test_generated_zip_includes_offline_server_and_readme(tmp_path: Path) -> None:
     site_dir = _make_fake_site(tmp_path)
 
-    DocumentationZipPlugin().on_post_build({"site_dir": str(site_dir)})
+    DocumentationZipPlugin().on_post_build(config={"site_dir": str(site_dir)})
 
     with zipfile.ZipFile(site_dir / "util_bbdd-docs-latest.zip") as zipf:
         names = set(zipf.namelist())
@@ -88,7 +88,7 @@ def test_zip_from_a_previous_build_is_not_packaged_again(tmp_path: Path) -> None
     (site_dir / "util_bbdd-docs-latest.zip").write_bytes(b"zip anterior")
     (site_dir / "util_bbdd-docs-latest.zip.sha256").write_text("hash anterior", encoding="utf-8")
 
-    DocumentationZipPlugin().on_post_build({"site_dir": str(site_dir)})
+    DocumentationZipPlugin().on_post_build(config={"site_dir": str(site_dir)})
 
     with zipfile.ZipFile(site_dir / "util_bbdd-docs-latest.zip") as zipf:
         names = zipf.namelist()
@@ -99,4 +99,33 @@ def test_missing_site_dir_does_not_raise(tmp_path: Path) -> None:
     plugin = DocumentationZipPlugin()
 
     # No debe lanzar ni crear nada si site_dir no existe (build fallido/cancelado antes).
-    plugin.on_post_build({"site_dir": str(tmp_path / "does_not_exist")})
+    plugin.on_post_build(config={"site_dir": str(tmp_path / "does_not_exist")})
+
+
+def test_on_post_build_matches_the_mkdocs_signature() -> None:
+    """Hotfix (0.23.1): ``config`` es solo por nombre y de tipo ``MkDocsConfig``, como en ``BasePlugin``.
+
+    Antes era posicional y ``Config``: Pylance lo marcaba como sobrescritura incompatible
+    (``reportIncompatibleMethodOverride``); mypy no lo veía porque ``pyproject.toml`` excluye este módulo.
+    """
+    import inspect
+
+    from mkdocs.config.defaults import MkDocsConfig
+
+    # En mkdocs, BasePlugin.on_post_build solo existe para el comprobador de tipos (bajo TYPE_CHECKING); su firma es
+    # ``on_post_build(self, *, config: MkDocsConfig) -> None`` (mkdocs/plugins.py).
+    ours = inspect.signature(DocumentationZipPlugin.on_post_build).parameters
+    assert list(ours) == ["self", "config"]
+    assert ours["config"].kind is inspect.Parameter.KEYWORD_ONLY
+    assert ours["config"].annotation in (MkDocsConfig, "MkDocsConfig")
+
+
+def test_on_post_build_runs_through_the_mkdocs_dispatcher(tmp_path: Path) -> None:
+    """mkdocs invoca los eventos con ``method(**kwargs)``: el plugin debe aceptar ``config=`` por nombre."""
+    from mkdocs.plugins import PluginCollection
+
+    site_dir = _make_fake_site(tmp_path)
+    plugins = PluginCollection()
+    plugins["documentation_zip"] = DocumentationZipPlugin()
+    plugins.run_event("post_build", config={"site_dir": str(site_dir)})
+    assert (site_dir / "util_bbdd-docs-latest.zip").exists()
