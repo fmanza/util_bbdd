@@ -30,10 +30,30 @@ from . import oracle_batch_errors
 ISOLATED_ERRORS: tuple[type[Exception], ...] = (IntegrityError, DataError)
 
 #: Columnas del CSV de rechazos (UTF-8, separado por tabuladores, como el CSV de auditoría).
-REJECT_COLUMNS: tuple[str, ...] = ("timestamp", "tabla", "operacion", "fila", "error", "valores")
+#: ``particion``: la de ``ParallelBulkLoader`` (vacía fuera de él); añadida tras la 0.26.0 (Fase 3, 2026-10-01t).
+REJECT_COLUMNS: tuple[str, ...] = ("timestamp", "tabla", "operacion", "particion", "fila", "error", "valores")
 
 # Una celda que empieza así se ejecutaría como fórmula al abrir el CSV en Excel (los valores son datos del usuario).
 _FORMULA_PREFIXES: tuple[str, ...] = ("=", "+", "-", "@", "\t", "\r")
+
+
+def validate_isolation(on_error: str, rejects_csv_path: Path | None, max_rejects: int | None) -> None:
+    """``ValueError`` si ``on_error``, ``rejects_csv_path`` y ``max_rejects`` no son una combinación válida.
+
+    Común a ``BulkCrud`` y ``ParallelBulkLoader`` (que valida antes de lanzar los hilos).
+    """
+    if on_error not in ("raise", "isolate"):
+        raise ValueError(f"on_error debe ser 'raise' o 'isolate', recibido: {on_error!r}")
+    if on_error == "raise":
+        if rejects_csv_path is not None or max_rejects is not None:
+            raise ValueError("rejects_csv_path y max_rejects solo se usan con on_error='isolate'")
+        return
+    if rejects_csv_path is None:
+        raise ValueError("on_error='isolate' necesita rejects_csv_path: las filas rechazadas se escriben ahí")
+    if max_rejects is not None and (
+        isinstance(max_rejects, bool) or not isinstance(max_rejects, int) or max_rejects < 0
+    ):
+        raise ValueError(f"max_rejects debe ser None o un entero ≥ 0, recibido: {max_rejects!r}")
 
 
 def _safe_cell(text: str) -> str:
@@ -116,17 +136,34 @@ class RejectsWriter:
         self._header_checked: bool = False
 
     def write(
-        self, *, table: str, operation: str, position: int, error: BaseException, values: Mapping[str, Any]
+        self,
+        *,
+        table: str,
+        operation: str,
+        position: int,
+        error: BaseException,
+        values: Mapping[str, Any],
+        partition: int | None = None,
     ) -> None:
-        """Añade una fila rechazada: ``position`` es su posición (base 0) en la entrada de la operación."""
+        """Añade una fila rechazada: ``position`` es su posición (base 0) en la entrada de la operación (o de la
+        partición de ``ParallelBulkLoader``, ``partition``)."""
         with self._lock:
             if not self._header_checked:
                 self._set_aside_if_foreign()
                 self._header_checked = True
-            self._append(table=table, operation=operation, position=position, error=error, values=values)
+            self._append(
+                table=table, operation=operation, position=position, error=error, values=values, partition=partition
+            )
 
     def _append(
-        self, *, table: str, operation: str, position: int, error: BaseException, values: Mapping[str, Any]
+        self,
+        *,
+        table: str,
+        operation: str,
+        position: int,
+        error: BaseException,
+        values: Mapping[str, Any],
+        partition: int | None,
     ) -> None:
         with self.path.open("a", newline="", encoding="utf-8") as handle:
             writer = csv.writer(handle, delimiter="\t")
@@ -138,6 +175,7 @@ class RejectsWriter:
                     datetime.now().isoformat(timespec="seconds"),
                     _safe_cell(table),
                     operation,
+                    "" if partition is None else partition,
                     position,
                     _safe_cell(_error_text(error)),
                     _safe_cell(json.dumps(dict(values), default=str, ensure_ascii=False)),
@@ -352,4 +390,4 @@ class Isolator:
         self.rejected += 1  # M-1: solo filas entregadas (escritas): si on_reject falla, no cuenta
 
 
-__all__: list[str] = ["ISOLATED_ERRORS", "REJECT_COLUMNS", "Isolator", "RejectsWriter"]
+__all__: list[str] = ["ISOLATED_ERRORS", "REJECT_COLUMNS", "Isolator", "RejectsWriter", "validate_isolation"]

@@ -16,8 +16,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `batcherrors`, un bind LOB grande y una fila mala). La columna `error` del CSV de rechazos es
   `DatabaseError: ORA-xxxxx: …` en Oracle (spike S-5, sesiones `2026-10-01r` y `2026-10-01s`).
 
+- **bulk**: `ParallelBulkLoader(on_error="isolate", rejects_csv_path=..., max_rejects=None)` para `load`, `update` y
+  `delete`: cada partición aparta sus filas con errores de datos a un CSV de rechazos común y aplica el resto.
+  `PartitionResult.rows_rejected` y `ParallelLoadResult.rows_rejected`. Un intento que ya escribió rechazos no se
+  reintenta (los duplicaría en el CSV); `max_rejects` cuenta por partición; la posición de un rechazo es la de la
+  partición también tras reanudar con `commit_every_n_chunks` (Fase 3, sesión `2026-10-01t`).
+
 ### Changed
 
+- **bulk**: el CSV de rechazos de `on_error="isolate"` (0.26.0) gana la columna `particion`, entre `operacion` y `fila`
+  (vacía fuera de `ParallelBulkLoader`). Un CSV con la cabecera de la 0.26.0 se aparta como `<nombre>.invalid-<fecha>.csv`
+  con un WARNING y se empieza uno nuevo; no se mezclan formatos.
 - **docs (bulk)**: escalado de `ParallelBulkLoader` medido otra vez con la v0.26.0 (200K y 1M filas, 6 motores): con 4
   hilos SQL Server 2,7× y MySQL/MariaDB 1,7×, pero PostgreSQL con psycopg 3 1,05× (antes la guía decía 2,6×, medido
   antes del INSERT por tuplas y los lotes por motor), Oracle 1,14× y SQLite sin ganancia (`docs/guides/benchmarks.md`,

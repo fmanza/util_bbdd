@@ -40,6 +40,7 @@ from .._audit.errors import AuditError
 from .._support.dialect import can_disable_pg_triggers, disable_table_integrity_sql, enable_table_integrity_sql
 from .._support.iterables import close_if_closable, closing_iterable
 from .._support.pool import pool_capacity
+from .._support.rejects import validate_isolation
 from .._support.retry import is_retriable
 from ..audit import AuditManager
 from ..crud import BulkCrud
@@ -130,6 +131,8 @@ class PartitionResult:
         audit_uncommitted_records: Registros escritos en el CSV antes de un commit que falló (``audit_strict=True``;
             ver ``BulkCrud.audit_uncommitted_records``). Si es > 0 la partición no se reintenta.
         retry_wait_seconds: Segundos esperados entre intentos (``retry_backoff``); 0.0 sin reintentos.
+        rows_rejected: Filas de esta partición apartadas al CSV de rechazos (``on_error="isolate"``). Cuentan en
+            ``rows`` (posiciones de la partición), no en la BD ni en la auditoría.
     """
 
     index: int
@@ -142,6 +145,7 @@ class PartitionResult:
     unaudited_committed_rows: int = 0
     audit_uncommitted_records: int = 0
     retry_wait_seconds: float = 0.0
+    rows_rejected: int = 0
 
 
 @dataclass
@@ -160,9 +164,10 @@ class ParallelLoadResult:
         audited_rows: Filas que constan en el CSV de auditoría, sumadas de todas las particiones.
         unaudited_committed_rows: Filas confirmadas que no constan en el CSV (``commit_every_n_chunks`` con fallo).
         audit_uncommitted_records: Registros escritos en el CSV antes de un commit que falló (``audit_strict``).
+        rows_rejected: Filas apartadas al CSV de rechazos, sumadas de todas las particiones (``on_error="isolate"``).
 
     Conciliación: con auditoría activa, ``audit_failures == 0`` y ``audit_uncommitted_records == 0``, se cumple
-    ``audited_rows + unaudited_committed_rows == total_rows``.
+    ``audited_rows + rows_rejected + unaudited_committed_rows == total_rows``.
     """
 
     total_rows: int = 0
@@ -189,6 +194,11 @@ class ParallelLoadResult:
     def audit_uncommitted_records(self) -> int:
         """Registros del CSV sin datos en la BD (suma de ``PartitionResult.audit_uncommitted_records``)."""
         return sum(pr.audit_uncommitted_records for pr in self.partition_results)
+
+    @property
+    def rows_rejected(self) -> int:
+        """Filas apartadas al CSV de rechazos (suma de ``PartitionResult.rows_rejected``)."""
+        return sum(pr.rows_rejected for pr in self.partition_results)
 
     @property
     def rows_per_second(self) -> float:
@@ -246,6 +256,9 @@ class ParallelBulkLoader:
         reflect_foreign_keys: bool = True,
         retry_backoff: tuple[float, float] = (0.5, 30.0),
         retry_on: Callable[[BaseException], bool] | None = None,
+        on_error: Literal["raise", "isolate"] = "raise",
+        rejects_csv_path: Path | None = None,
+        max_rejects: int | None = None,
     ) -> None:
         """
         Args:
@@ -285,10 +298,19 @@ class ParallelBulkLoader:
                 particiones no reintenten a la vez tras un corte. ``(0, 0)`` reintenta sin esperar (comportamiento
                 hasta v0.23.x). Solo actúa con ``max_retries > 0``. Por defecto ``(0.5, 30.0)`` (B-14).
             retry_on: Criterio propio de reintento (recibe la excepción). ``None`` usa ``is_retriable``.
+            on_error: Como en ``BulkCrud``: con ``"isolate"`` cada partición aparta las filas con errores de datos a
+                ``rejects_csv_path`` (común a todas, con su número en la columna ``particion`` y la posición dentro de
+                la partición) y aplica el resto. Si un intento que ya escribió rechazos falla después, la partición
+                **no se reintenta** aunque el error sea transitorio (reintentar los duplicaría en el CSV): queda en
+                ``partition_errors``. Ver ``PartitionResult.rows_rejected`` (Fase 3, sesión 2026-10-01t).
+            rejects_csv_path: CSV de rechazos compartido (ver ``BulkCrud``). Obligatorio con ``on_error="isolate"``.
+            max_rejects: Filas que **cada partición** puede rechazar (con N particiones, hasta N × ``max_rejects`` en
+                total); la siguiente hace fallar esa partición. ``None``: sin límite.
 
         Raises:
             ValueError: Si ``chunk_size`` no es un entero ≥ 1, ``max_workers < 1``, ``max_retries < 0`` o
-                ``retry_backoff`` no son dos números finitos ≥ 0.
+                ``retry_backoff`` no son dos números finitos ≥ 0, o ``on_error``, ``rejects_csv_path`` y
+                ``max_rejects`` no son una combinación válida (las mismas reglas que ``BulkCrud``).
             AuditConfigError: Si no se puede crear el directorio de ``audit_csv_path`` (subclase de ``ValueError``).
         """
         if chunk_size is not None:
@@ -304,6 +326,7 @@ class ParallelBulkLoader:
             raise ValueError(
                 f"retry_backoff debe ser (base, máximo) con números finitos ≥ 0, recibido: {retry_backoff!r}"
             )
+        validate_isolation(on_error, rejects_csv_path, max_rejects)  # antes del pool, como chunk_size
         if audit_csv_path is not None:
             # PL-4 (audit-code de ParallelBulkLoader 2026-09-25): antes del pool, como chunk_size. Si no, cada
             # partición fallaba por separado y, con disable_constraints, el hoist se hacía para nada.
@@ -320,6 +343,9 @@ class ParallelBulkLoader:
         self._reflect_foreign_keys = reflect_foreign_keys
         self._retry_backoff: tuple[float, float] = (float(retry_backoff[0]), float(retry_backoff[1]))
         self._retry_on: Callable[[BaseException], bool] = retry_on or is_retriable
+        self._on_error: Literal["raise", "isolate"] = on_error
+        self._rejects_csv_path: Path | None = rejects_csv_path
+        self._max_rejects: int | None = max_rejects
         # Inyectables en tests (sin esperas reales ni azar).
         self._sleep: Callable[[float], None] = time.sleep
         self._jitter: Callable[[float, float], float] = random.uniform
@@ -546,6 +572,9 @@ class ParallelBulkLoader:
                 warn_if_audit_disabled=False,  # M-4: load() avisa una vez por carga
                 strip_strings=self._strip_strings,
                 reflect_foreign_keys=self._reflect_foreign_keys,
+                on_error=self._on_error,
+                rejects_csv_path=self._rejects_csv_path,
+                max_rejects=self._max_rejects,
             )
         except Exception as exc:
             self.logger.warning(
@@ -570,6 +599,8 @@ class ParallelBulkLoader:
             resume_from: int = crud.rows_committed if attempt and self._commit_every_n_chunks is not None else 0
             if resume_from:
                 self.logger.info("Partición %d: se reanuda tras %d filas ya confirmadas", index, resume_from)
+            crud._tag_rejects(index, resume_from)
+            rejected_before: int = crud.rows_rejected
             try:
                 rows = self._run_attempt(
                     crud,
@@ -589,6 +620,28 @@ class ParallelBulkLoader:
                 if not self._retry_on(exc):
                     return self._permanent_failure(crud, index, t_start, tabla_destino, exc, attempt, waited)
                 last_exc = exc
+                rejected_now: int = crud.rows_rejected - rejected_before
+                if rejected_now > 0:
+                    # Fase 3 (D-2): los rechazos de este intento ya están en el CSV; reintentarlo los escribiría otra vez.
+                    self.logger.warning(
+                        "Partición %d de '%s': falló tras escribir %d rechazos; no se reintenta para no duplicarlos: %s",
+                        index,
+                        tabla_destino,
+                        rejected_now,
+                        exc,
+                    )
+                    return self._partition_result(
+                        crud,
+                        index,
+                        t_start,
+                        rows=crud.rows_committed,
+                        retries=attempt,
+                        retry_wait_seconds=waited,
+                        error=(
+                            f"{_partition_error(index, exc)} (el CSV de rechazos contiene {rejected_now} filas de este "
+                            "intento; reintentar la partición las duplicaría)"
+                        ),
+                    )
                 if crud.audit_uncommitted_records > 0:
                     # PL-2 (audit-code de ParallelBulkLoader 2026-09-25): con audit_strict falló el commit después de
                     # escribir la auditoría. Reintentar la escribiría otra vez: el CSV contaría el doble que la BD.
@@ -736,6 +789,7 @@ class ParallelBulkLoader:
             error=error,
             retries=retries,
             retry_wait_seconds=retry_wait_seconds,
+            rows_rejected=crud.rows_rejected,
             **AuditCounters.of(crud).as_dict(),
         )
 

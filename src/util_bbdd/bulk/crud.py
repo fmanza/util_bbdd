@@ -72,7 +72,7 @@ from ._support.iterables import closing_iterable
 from ._support.persistence import BulkPersistenceManager
 from ._support.pk_sync import PKSequenceSyncer
 from ._support.prefetch import prefetch
-from ._support.rejects import Isolator, RejectsWriter
+from ._support.rejects import Isolator, RejectsWriter, validate_isolation
 from ._support.sql_helpers import (
     SqlColumns,
     build_override_identity_text_stmt,
@@ -277,6 +277,9 @@ class BulkCrud:
         self._rows_rejected: int = 0
         #: Aislador de la operación en curso (``on_error="isolate"``); None fuera de una operación.
         self._isolator: Isolator | None = None
+        #: Partición y filas saltadas al reanudar, para el CSV de rechazos (``ParallelBulkLoader``, ``_tag_rejects``).
+        self._rejects_partition: int | None = None
+        self._rejects_offset: int = 0
 
         self.engine: Engine = validate_engine(engine)
         self._table_cache: dict[str, Table] = {}
@@ -351,19 +354,8 @@ class BulkCrud:
     @staticmethod
     def __rejects_writer(on_error: str, path: Path | None, max_rejects: int | None) -> RejectsWriter | None:
         """Valida ``on_error``, ``rejects_csv_path`` y ``max_rejects`` y devuelve el escritor de rechazos (S-2)."""
-        if on_error not in ("raise", "isolate"):
-            raise ValueError(f"on_error debe ser 'raise' o 'isolate', recibido: {on_error!r}")
-        if on_error == "raise":
-            if path is not None or max_rejects is not None:
-                raise ValueError("rejects_csv_path y max_rejects solo se usan con on_error='isolate'")
-            return None
-        if path is None:
-            raise ValueError("on_error='isolate' necesita rejects_csv_path: las filas rechazadas se escriben ahí")
-        if max_rejects is not None and (
-            isinstance(max_rejects, bool) or not isinstance(max_rejects, int) or max_rejects < 0
-        ):
-            raise ValueError(f"max_rejects debe ser None o un entero ≥ 0, recibido: {max_rejects!r}")
-        return RejectsWriter(path)
+        validate_isolation(on_error, path, max_rejects)
+        return None if path is None else RejectsWriter(path)
 
     def __detectar_sqlserver_driver(self) -> None:
         """Detecta el driver específico de SQL Server (pymssql o pyodbc) y actualiza db_info."""
@@ -726,8 +718,16 @@ class BulkCrud:
         def on_reject(position: int, values: Mapping[str, Any], error: BaseException) -> None:
             # Sin los alias de PK del UPDATE: solo las columnas de la tabla.
             row = {key: value for key, value in values.items() if key in columns}
+            position += self._rejects_offset  # filas saltadas al reanudar una partición (R-1, Fase 3)
             try:
-                writer.write(table=tabla_destino, operation=operation, position=position, error=error, values=row)
+                writer.write(
+                    table=tabla_destino,
+                    operation=operation,
+                    position=position,
+                    error=error,
+                    values=row,
+                    partition=self._rejects_partition,
+                )
             except OSError as exc:
                 # M-1 (audit-code 2026-10-01): p. ej. el CSV abierto en Excel. La operación falla (no se pierde el
                 # rechazo en silencio); la nota distingue este fallo del de la auditoría en el log de la operación.
@@ -753,6 +753,15 @@ class BulkCrud:
                 self.logger.warning(
                     f"⚠️ bulk {operation} en '{tabla_destino}': {isolator.rejected} filas rechazadas en {writer.path}"
                 )
+
+    def _tag_rejects(self, partition: int | None, offset: int = 0) -> None:
+        """Uso interno de ``ParallelBulkLoader``: partición y filas ya saltadas para el CSV de rechazos (Fase 3).
+
+        ``offset`` son las filas de la partición que un reintento salta por estar ya confirmadas (B-11): sin él, la
+        posición de un rechazo posterior sería relativa a lo que queda de la partición.
+        """
+        self._rejects_partition = partition
+        self._rejects_offset = offset
 
     def __batch_errors(self) -> bool:
         """``True`` si se aíslan filas con ``batcherrors`` (Oracle con oracledb, S-5); registra el listener una vez."""

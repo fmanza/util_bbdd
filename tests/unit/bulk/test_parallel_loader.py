@@ -170,6 +170,7 @@ class TestParallelBulkLoaderRetry:
         with patch.object(pl_mod, "BulkCrud") as crud_cls:
             crud_cls.return_value.bulk_insert_from_chunks.side_effect = _side_effect
             crud_cls.return_value.audit_uncommitted_records = 0  # sin audit_strict: se puede reintentar
+            crud_cls.return_value.rows_rejected = 0  # sin on_error="isolate"
             loader = ParallelBulkLoader(MagicMock(), max_workers=1, max_retries=2)
             result = loader.load("t", readers)
 
@@ -183,6 +184,7 @@ class TestParallelBulkLoaderRetry:
             crud_cls.return_value.bulk_insert_from_chunks.side_effect = TimeoutError("timeout")
             crud_cls.return_value.rows_committed = 0  # sin commit_every_n_chunks: nada sobrevive al fallo
             crud_cls.return_value.audit_uncommitted_records = 0
+            crud_cls.return_value.rows_rejected = 0  # sin on_error="isolate"
             loader = ParallelBulkLoader(MagicMock(), max_workers=1, max_retries=2)
             result = loader.load("t", readers)
 
@@ -242,6 +244,7 @@ class TestParallelBulkLoaderPartialRowsOnFailure:
             crud_mock.bulk_insert_from_chunks.side_effect = TimeoutError("timeout mid partition")
             crud_mock.rows_committed = 250
             crud_mock.audit_uncommitted_records = 0
+            crud_mock.rows_rejected = 0  # sin on_error="isolate"
             crud_cls.return_value = crud_mock
             # commit_every_n_chunks y max_retries>0 son incompatibles (validado en
             # __init__); max_retries=0 es el único modo compatible con cadencia.

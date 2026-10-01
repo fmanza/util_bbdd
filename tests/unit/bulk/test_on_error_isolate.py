@@ -253,7 +253,8 @@ def test_rejects_writer_neutralizes_formulas(tmp_path: Path) -> None:
     assert rows[0]["tabla"] == "'@tabla"
     assert rows[0]["error"] == "IntegrityError: =cmd|' /C calc'!A0"  # empieza por la clase: no es una fórmula
     assert json.loads(rows[1]["valores"]) == {"v": "ñ"}
-    assert list(rows[0]) == ["timestamp", "tabla", "operacion", "fila", "error", "valores"]
+    assert list(rows[0]) == ["timestamp", "tabla", "operacion", "particion", "fila", "error", "valores"]
+    assert rows[0]["particion"] == ""  # fuera de ParallelBulkLoader
 
 
 def test_isolator_bisects_down_to_single_rows() -> None:

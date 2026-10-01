@@ -364,6 +364,7 @@ class TestLoaderQuickWins:
             crud_cls.return_value.bulk_insert_from_chunks.side_effect = TimeoutError("timeout")
             crud_cls.return_value.rows_committed = 0
             crud_cls.return_value.audit_uncommitted_records = 0
+            crud_cls.return_value.rows_rejected = 0  # sin on_error="isolate"
             result = ParallelBulkLoader(create_engine("sqlite://"), max_workers=1, max_retries=1).load(
                 "t", [lambda: iter([])]
             )

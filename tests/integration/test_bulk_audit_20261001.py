@@ -40,7 +40,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import DatabaseError, DataError, IntegrityError
 
-from util_bbdd.bulk import BulkCrud
+from util_bbdd.bulk import BulkCrud, ParallelBulkLoader
 
 from .test_bulk_engines import _engine_params, _name, engine  # noqa: F401  (fixture reutilizada)
 
@@ -713,4 +713,59 @@ def test_oracle_batch_errors_over_max_rejects(engine: Engine, tmp_path: Any) -> 
         assert _state(engine, table) == []
         assert pd.read_csv(tmp_path / "r.csv", sep="	")["fila"].tolist() == [1]
     finally:
+        table.drop(engine, checkfirst=True)
+
+
+# ------------------------------------------------- Fase 3: ParallelBulkLoader(on_error="isolate") (sesión 2026-10-01t)
+
+
+@pytest.mark.parametrize("engine", _engine_params(exclude=frozenset({"sqlite"})), indirect=True)
+def test_parallel_isolate_load_update_delete(engine: Engine, tmp_path: Any) -> None:  # noqa: F811
+    """4 particiones en paralelo con PK duplicadas (load), demasiado largo (update) y FK (delete); un CSV común."""
+    n = lambda logical: _name(logical, engine)  # noqa: E731
+    table = _isolate_table(engine)  # ids 1..20 con v="v", String(5)
+    child = Table(
+        n(_table_name()),
+        MetaData(),
+        Column(n("id"), Integer, primary_key=True, autoincrement=False),
+        Column(n("parent_id"), Integer, ForeignKey(table.c[n("id")])),
+    )
+    child.create(engine)
+    try:
+        loader = ParallelBulkLoader(
+            engine, max_workers=4, chunk_size=3, on_error="isolate", rejects_csv_path=tmp_path / "r.csv"
+        )
+        parts = [list(range(start, start + 10)) for start in (15, 25, 35, 45)]  # 15..20 ya existen (partición 0)
+        loaded = loader.load(
+            table.name, [lambda ids=ids: iter([pd.DataFrame({n("id"): ids, n("v"): ["i"] * 10})]) for ids in parts]
+        )
+        assert not loaded.partition_errors and loaded.rows_rejected == 6
+        assert [row[0] for row in _state(engine, table)] == [*range(1, 25), *range(25, 55)]
+
+        if engine.dialect.name not in ("mssql",):  # SQL Server: el demasiado largo no se aísla (R-1)
+            values = [["u", "demasiado", "u"], ["u", "u", "u"]]
+            updated = loader.update(
+                table.name,
+                [
+                    lambda i=i: iter([pd.DataFrame({n("id"): [1 + 3 * i, 2 + 3 * i, 3 + 3 * i], n("v"): values[i]})])
+                    for i in range(2)
+                ],
+            )
+            assert not updated.partition_errors and updated.rows_rejected == 1
+
+        with engine.begin() as conn:
+            conn.execute(child.insert(), [{n("id"): 1, n("parent_id"): 30}])
+        deleted = loader.delete(
+            table.name, [lambda ids=ids: iter([pd.DataFrame({n("id"): ids})]) for ids in ([25, 26, 27], [30, 31])]
+        )
+        assert not deleted.partition_errors and deleted.rows_rejected == 1
+        assert {25, 26, 27, 31}.isdisjoint(row[0] for row in _state(engine, table))
+
+        frame = pd.read_csv(tmp_path / "r.csv", sep="\t")
+        inserts = frame[frame["operacion"] == "INSERT"]
+        assert sorted(zip(inserts["particion"], inserts["fila"], strict=True)) == [(0, i) for i in range(6)]
+        deletes = frame[frame["operacion"] == "DELETE"]
+        assert list(zip(deletes["particion"], deletes["fila"], strict=True)) == [(1, 0)]
+    finally:
+        child.drop(engine, checkfirst=True)
         table.drop(engine, checkfirst=True)
