@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import csv
 import json
+import sqlite3
+import threading
 
 from pathlib import Path
 from typing import Any
@@ -341,3 +343,119 @@ def test_sqlite_cadence_then_session_failure(tmp_path: Path) -> None:
         raise RuntimeError("fallo posterior")
 
     assert [r[0] for r in _rows(engine)] == [1, 3, 4]  # los 2 primeros lotes (confirmados); el 5 se deshace
+
+
+# ------------------------------------------------------------ B-1, B-3 y B-4 (audit-code 2026-10-01, sesión 2026-10-01o)
+
+
+def test_failed_savepoint_rollback_raises_the_data_error_with_a_note() -> None:
+    """B-1: con XACT_ABORT ON el SAVEPOINT ya no existe; llega el error de datos, no el del rollback."""
+    rollback_error = RuntimeError(
+        "Cannot roll back sa_savepoint_1. No transaction or savepoint of that name was found."
+    )
+
+    class _Savepoint:
+        def commit(self) -> None: ...
+
+        def rollback(self) -> None:
+            raise rollback_error
+
+    class _Connection:
+        def begin_nested(self) -> _Savepoint:
+            return _Savepoint()
+
+    def send(_items: Any) -> None:
+        raise IntegrityError("INSERT", {}, Exception("duplicate key"))
+
+    isolator = Isolator(on_reject=lambda *_args: None)
+    with pytest.raises(IntegrityError) as info:
+        isolator.run_records(_Connection(), [{"id": 1}, {"id": 2}], send, first_row=0)
+
+    assert info.value.__cause__ is rollback_error
+    assert any("XACT_ABORT ON" in note and "Cannot roll back" in note for note in info.value.__notes__)
+    assert isolator.rejected == 0
+
+
+def _sqlite_items(path: Path, **engine_kwargs: Any) -> Engine:
+    eng = create_engine(f"sqlite:///{path}", **engine_kwargs)
+    Table("items", MetaData(), Column("id", Integer, primary_key=True), Column("v", String(10), nullable=False)).create(
+        eng
+    )
+    return eng
+
+
+def _other_connection_state(path: Path) -> tuple[int, bool]:
+    """Filas que ve otra conexión y si puede escribir (sin una transacción colgada en la del engine)."""
+    other = sqlite3.connect(path, timeout=0.5)
+    try:
+        count = other.execute("SELECT COUNT(*) FROM items").fetchone()[0]
+        try:
+            other.execute("CREATE TABLE zz_lock_probe (x INTEGER)")
+            other.commit()
+            return count, True
+        except sqlite3.OperationalError:
+            return count, False
+    finally:
+        other.close()
+
+
+def test_sqlite3_autocommit_true_is_rejected_before_sending(tmp_path: Path) -> None:
+    """B-3: con sqlite3 autocommit=True las filas no se confirmaban y la BD quedaba bloqueada."""
+    db = tmp_path / "auto.db"
+    engine = _sqlite_items(db, connect_args={"autocommit": True})
+    crud = _crud(engine, tmp_path)
+
+    with pytest.raises(ValueError, match="autocommit=True"):
+        crud.bulk_insert_from_df(_frame([1, 2, 3], none_at=(2,)), "items", False)
+    engine.dispose()
+
+    assert _other_connection_state(db) == (0, True)
+    assert not (tmp_path / "rejects.csv").exists()
+
+
+@pytest.mark.parametrize("none_at", [(), (2,)], ids=["limpio", "con-rechazo"])
+def test_sqlalchemy_autocommit_still_works(tmp_path: Path, none_at: tuple[int, ...]) -> None:
+    db = tmp_path / "sa_auto.db"
+    engine = _sqlite_items(db, isolation_level="AUTOCOMMIT")
+    crud = _crud(engine, tmp_path)
+
+    crud.bulk_insert_from_df(_frame([1, 2, 3, 4], none_at=none_at), "items", False)
+
+    assert _other_connection_state(db) == (4 - len(none_at), True)
+    engine.dispose()
+
+
+def test_rejects_csv_with_another_header_is_set_aside(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """B-4: no se añaden filas a un fichero con otra cabecera (p. ej. re-guardado en Excel con comas)."""
+    path = tmp_path / "rejects.csv"
+    path.write_text('"timestamp,tabla,operacion"\n"x,y,z"\n', encoding="utf-8")
+    writer = RejectsWriter(path)
+    error = IntegrityError("x", {}, Exception("dup"))
+
+    writer.write(table="t", operation="INSERT", position=0, error=error, values={"id": 1})
+    writer.write(table="t", operation="INSERT", position=1, error=error, values={"id": 2})
+
+    assert [int(r["fila"]) for r in _rejects(path)] == [0, 1]
+    aside = list(tmp_path.glob("rejects.invalid-*.csv"))
+    assert len(aside) == 1 and aside[0].read_text(encoding="utf-8").startswith('"timestamp,tabla')
+    assert "otra cabecera" in caplog.text
+
+
+def test_rejects_writers_on_the_same_path_do_not_interleave(tmp_path: Path) -> None:
+    """B-4: dos instancias (p. ej. en hilos) sobre la misma ruta: una cabecera y todas las filas completas."""
+    path = tmp_path / "rejects.csv"
+    error = IntegrityError("x", {}, Exception("dup"))
+
+    def work(writer: RejectsWriter, base: int) -> None:
+        for i in range(200):
+            writer.write(table="t", operation="INSERT", position=base + i, error=error, values={"v": "x" * 500})
+
+    threads = [threading.Thread(target=work, args=(RejectsWriter(path), base)) for base in (0, 1000, 2000, 3000)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    rows = _rejects(path)
+    assert sorted(int(r["fila"]) for r in rows) == [b + i for b in (0, 1000, 2000, 3000) for i in range(200)]
+    assert path.read_text(encoding="utf-8").count("timestamp\ttabla") == 1

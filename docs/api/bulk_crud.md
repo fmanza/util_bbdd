@@ -95,6 +95,9 @@ flowchart TD
 - Si no se puede escribir el CSV de rechazos (p. ej. abierto en Excel), la operación falla con `OSError` y la nota «bulk: no se pudo escribir el CSV de rechazos»: no se pierde ningún rechazo en silencio. El detalle por fila va al log en DEBUG; el resumen de la operación, en WARNING.
 - Con la misma PK repetida en un lote, aislar puede cambiar cuál de las filas se aplica.
 - En SQLite (pysqlite), si la transacción aún no ha empezado se emite `BEGIN` antes del primer SAVEPOINT; si no, el `RELEASE` del SAVEPOINT confirmaba el lote fuera de la sesión.
+- SQLite con `sqlite3` en `autocommit=True` (`connect_args={"autocommit": True}`): `ValueError` antes de enviar nada, porque no hay transacción que proteja los SAVEPOINT (las filas no se confirmaban y la BD quedaba bloqueada). El modo `isolation_level="AUTOCOMMIT"` de SQLAlchemy funciona.
+- SQL Server con `XACT_ABORT ON`: el primer error de datos deshace la transacción entera y no se puede aislar; llega ese error (`IntegrityError`/`DataError`) con una nota que lo explica, y no se aplica nada. Sin filas malas la carga funciona.
+- El CSV de rechazos se escribe con el mismo lock por ruta que la auditoría (entre hilos de un proceso, no entre procesos). Si ya existe con otra cabecera, se aparta como `<nombre>.invalid-<fecha>.csv` con un WARNING y se empieza uno nuevo.
 
 **Estrategias INSERT por motor** (cuando `insert_resolver=None`):
 

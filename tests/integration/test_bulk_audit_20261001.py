@@ -600,3 +600,31 @@ def test_isolate_delete_rejects_rows_still_referenced(engine: Engine, tmp_path: 
     finally:
         child.drop(engine, checkfirst=True)
         parent.drop(engine, checkfirst=True)
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"mssql"})), indirect=True)
+def test_isolate_mssql_xact_abort_raises_the_data_error(engine: Engine, tmp_path: Any) -> None:  # noqa: F811
+    """B-1: con XACT_ABORT ON el servidor deshace la transacción con el primer error; llega el error de datos con nota."""
+
+    @event.listens_for(engine, "connect")
+    def _xact_abort(dbapi_connection: Any, _record: Any) -> None:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("SET XACT_ABORT ON")
+        cursor.close()
+
+    engine.dispose()  # conexiones nuevas, con el evento
+    n = lambda logical: _name(logical, engine)  # noqa: E731
+    table = _isolate_table(engine)
+    try:
+        crud = BulkCrud(engine, chunk_size=4, on_error="isolate", rejects_csv_path=tmp_path / "r.csv")
+        with pytest.raises(IntegrityError) as info:
+            crud.bulk_insert_from_df(pd.DataFrame({n("id"): range(19, 25), n("v"): ["i"] * 6}), table.name, False)
+
+        assert any("XACT_ABORT ON" in note for note in info.value.__notes__)
+        assert info.value.__cause__ is not None
+        assert [row[0] for row in _state(engine, table)] == list(range(1, 21))  # nada aplicado
+        assert crud.rows_rejected == 0
+    finally:
+        event.remove(engine, "connect", _xact_abort)
+        engine.dispose()
+        table.drop(engine, checkfirst=True)

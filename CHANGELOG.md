@@ -20,7 +20,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   propiedad `rows_rejected`; la auditoría registra las filas aplicadas. Por defecto `on_error="raise"` (sin cambios).
   Coste (INSERT de 1M filas): sin filas malas 1,00–1,02× (Oracle 1,00× / 1,27× en dos repeticiones); con 10 filas malas 1,13–1,23×, PostgreSQL 1,65× (lotes de 20 000). Límite: el valor demasiado largo no se aísla en Oracle (`DatabaseError`) ni en
   SQL Server (pyodbc `ProgrammingError`, pymssql `OperationalError`). No en `ParallelBulkLoader` ni `dump`. Si no se
-  puede escribir el CSV de rechazos (p. ej. abierto en Excel), la operación falla con `OSError` y una nota propia (S-2).
+  puede escribir el CSV de rechazos (p. ej. abierto en Excel), la operación falla con `OSError` y una nota propia.
+  Con SQL Server en `XACT_ABORT ON` llega el error de datos con una nota (no se puede aislar); SQLite con `sqlite3` en
+  `autocommit=True` se rechaza con `ValueError`; el CSV de rechazos usa el lock por ruta de la auditoría y aparta un
+  fichero con otra cabecera (S-2).
 
 ### Changed
 
