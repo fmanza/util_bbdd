@@ -12,6 +12,7 @@ Cada subclase debe definir:
 from __future__ import annotations
 
 from copy import deepcopy
+from typing import ClassVar
 
 from .._compat.identifier_rules import check_identifier
 from ..ir.models import (
@@ -30,6 +31,10 @@ class BaseTransformer:
 
     MAX_IDENTIFIER_LENGTH: int = 64
     _TARGET_DIALECT: str = "destino"
+    # Hotfix R4 (0.23.1): el cuerpo de una rutina del origen se puede crear tal cual en el destino. Solo en MySQL ↔
+    # MariaDB (MySQLFamilyTransformer); en el resto de pares (origen y destino son siempre motores distintos) va
+    # comentado en el script y execute() no lo envía: antes fallaba a mitad, con las tablas ya creadas.
+    _ROUTINES_EXECUTABLE: ClassVar[bool] = False
 
     def transform(self, tables: list[CanonicalTable]) -> list[CanonicalTable]:
         """Transforma todas las tablas al esquema destino."""
@@ -58,6 +63,17 @@ class BaseTransformer:
                     severity="WARNING",
                 )
             )
+        if self._ROUTINES_EXECUTABLE or not result.body:
+            message = (
+                f"Rutina emitida sin reescritura de SQL dialect-específico (v1 pass-through); "
+                f"revisar manualmente el body para compatibilidad {self._TARGET_DIALECT}"
+            )
+        else:
+            result.body = "\n".join(f"-- {line}" if line.strip() else "--" for line in result.body.splitlines())
+            message = (
+                f"Rutina en el dialecto del origen: no se crea en {self._TARGET_DIALECT} (execute() no la envía); "
+                "va comentada en el script para adaptarla manualmente"
+            )
         result.warnings.append(
             MigrationWarning(
                 table=routine.name,
@@ -65,10 +81,7 @@ class BaseTransformer:
                 category="ROUTINE",
                 target_type=routine.routine_type,
                 code="ROUTINE_PASSTHROUGH",
-                message=(
-                    f"Rutina emitida sin reescritura de SQL dialect-específico (v1 pass-through); "
-                    f"revisar manualmente el body para compatibilidad {self._TARGET_DIALECT}"
-                ),
+                message=message,
                 severity="WARNING",
             )
         )

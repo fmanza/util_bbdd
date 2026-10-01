@@ -468,6 +468,26 @@ def fetch_view_columns_for_schema_sql() -> str:
     return "SELECT table_name, column_name FROM all_tab_columns WHERE owner = :owner ORDER BY table_name, column_id"
 
 
+def fetch_routines_for_schema_sql() -> str:
+    """Rutinas sueltas y miembros de package de un owner (uso: migrate/extractors, hotfix R4 0.23.1).
+
+    En ``ALL_PROCEDURES`` el nombre de una rutina suelta está en ``object_name`` y ``procedure_name`` es NULL;
+    ``procedure_name`` solo lo tienen los miembros de un package (``object_name`` = el package). :func:`fetch_routines_sql`
+    (la de los adaptadores) lee solo ``procedure_name`` y no sirve para las rutinas sueltas.
+
+    Parametrizado con :owner.
+
+    Returns:
+        str: SQL query para (object_name, object_type, procedure_name).
+    """
+    return (
+        "SELECT object_name, object_type, procedure_name "
+        "FROM all_procedures "
+        "WHERE owner = :owner AND object_type IN ('PROCEDURE', 'FUNCTION', 'PACKAGE') "
+        "ORDER BY object_name, subprogram_id"
+    )
+
+
 def fetch_routine_bodies_for_schema_sql() -> str:
     """Código de todas las rutinas y cuerpos de package de un owner (uso: migrate/extractors).
 
@@ -505,4 +525,5 @@ __all__: list[str] = [
     "fetch_indexes_for_schema_sql",
     "fetch_view_columns_for_schema_sql",
     "fetch_routine_bodies_for_schema_sql",
+    "fetch_routines_for_schema_sql",
 ]

@@ -253,7 +253,7 @@ print(format_plan_text(plan))          # resumen de avisos por severidad
 | `ValueError` al construir `MigrationPlanner` | Par origen/destino no soportado o `source == target` | Usa motores distintos de la matriz soportada (§1) |
 | `plan.error_count > 0` | Tipos sin equivalente directo en el destino | Revisa los avisos `ERROR`, ajusta `number_fallback` o edita el DDL antes de ejecutar |
 | Pérdida de exactitud en `NUMBER` (Oracle) | `NUMBER` sin precisión usa el fallback por defecto (`DOUBLE`) | Usa `number_fallback="DECIMAL(38,10)"` |
-| Stored procedures sin traducir | Las rutinas se emiten *verbatim* (pass-through) con aviso | Revisa y adapta manualmente la sintaxis al dialecto destino |
+| Stored procedures sin traducir | El cuerpo de las rutinas no se traduce (pass-through, aviso `ROUTINE_PASSTHROUGH`). Entre MySQL y MariaDB se crean con `execute()` (el `CREATE` se reconstruye desde `INFORMATION_SCHEMA`, sin `DEFINER`); en el resto de pares van comentadas en el script y `execute()` no las envía | Adapta manualmente las rutinas comentadas al dialecto destino. Para crear **funciones** en MySQL con el binlog activo hace falta `SUPER` o `log_bin_trust_function_creators=1` (error 1419) |
 | Vistas sin reescribir | sqlglot no instalado, `view_strategy="passthrough"` o construcción sin traducción fiable (aviso `VIEW (sin reescribir)`) | `pip install "util_bbdd[migrate]"`; si persiste, adapta esa vista a mano |
 | Vista reescrita con otro resultado | Semántica distinta entre motores (Oracle: cadena vacía = `NULL`) | Revisa los avisos `VIEW (semántica Oracle)` y los datos con cadenas vacías |
 | FKs a tablas fuera del schema migrado | Referencias externas excluidas del script | Gestiona esas FKs manualmente tras la migración |

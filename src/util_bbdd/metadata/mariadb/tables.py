@@ -208,15 +208,34 @@ def fetch_routines_sql() -> str:
 
     Returns:
         str: SQL query para (ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_SCHEMA,
-        ROUTINE_DEFINITION, DTD_IDENTIFIER, ROUTINE_COMMENT).
-        DTD_IDENTIFIER contiene el tipo de retorno para FUNCTION; ROUTINE_COMMENT, desde 0.23.0.
+        ROUTINE_DEFINITION, DTD_IDENTIFIER, ROUTINE_COMMENT, IS_DETERMINISTIC, SQL_DATA_ACCESS, SECURITY_TYPE).
+        DTD_IDENTIFIER contiene el tipo de retorno para FUNCTION; ROUTINE_COMMENT, desde 0.23.0; las características,
+        desde 0.23.1 (para reconstruir el ``CREATE``: ``ROUTINE_DEFINITION`` es solo el cuerpo).
     """
     return (
         "SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_SCHEMA, "
-        "ROUTINE_DEFINITION, DTD_IDENTIFIER, ROUTINE_COMMENT "
+        "ROUTINE_DEFINITION, DTD_IDENTIFIER, ROUTINE_COMMENT, IS_DETERMINISTIC, SQL_DATA_ACCESS, SECURITY_TYPE "
         "FROM INFORMATION_SCHEMA.ROUTINES "
         "WHERE ROUTINE_SCHEMA = %(schema)s "
         "ORDER BY ROUTINE_NAME"
+    )
+
+
+def fetch_routine_parameters_for_schema_sql() -> str:
+    """SQL de los parámetros de todas las rutinas de un schema MySQL/MariaDB (uso: migrate/extractors, 0.23.1).
+
+    Sin el valor de retorno de las funciones (``ORDINAL_POSITION = 0``, que ya da ``DTD_IDENTIFIER`` de ROUTINES).
+
+    Parámetros: ``%(schema)s``.
+
+    Returns:
+        str: SQL query para (SPECIFIC_NAME, ROUTINE_TYPE, PARAMETER_MODE, PARAMETER_NAME, DTD_IDENTIFIER) en orden.
+    """
+    return (
+        "SELECT SPECIFIC_NAME, ROUTINE_TYPE, PARAMETER_MODE, PARAMETER_NAME, DTD_IDENTIFIER "
+        "FROM INFORMATION_SCHEMA.PARAMETERS "
+        "WHERE SPECIFIC_SCHEMA = %(schema)s AND ORDINAL_POSITION > 0 "
+        "ORDER BY SPECIFIC_NAME, ROUTINE_TYPE, ORDINAL_POSITION"
     )
 
 

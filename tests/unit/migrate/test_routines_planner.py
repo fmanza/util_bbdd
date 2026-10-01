@@ -152,6 +152,11 @@ class TestPlannerRoutinesIntegration:
             plan = planner.plan(MagicMock(), schema="MY_SCHEMA")
 
         ddl = plan.emit_ddl()
-        # La routine tiene body, debe aparecer verbatim
-        assert "BEGIN" in ddl
+        # La routine tiene body: aparece en el script, comentada (hotfix R4: Oracle → MariaDB no puede crearla)
+        assert "-- BEGIN" in ddl
         assert "NULL" in ddl
+        assert plan.emit_statements() and not any(
+            line.strip() and not line.strip().startswith("--")
+            for stmt in plan.emit_statements()
+            for line in stmt.splitlines()
+        ), "execute() no debe enviar la rutina"

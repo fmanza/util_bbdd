@@ -17,7 +17,7 @@ from ...metadata.oracle.tables import (
     fetch_indexes_for_schema_sql,
     fetch_pk_for_schema_sql,
     fetch_routine_bodies_for_schema_sql,
-    fetch_routines_sql,
+    fetch_routines_for_schema_sql,
     fetch_tables_sql,
     fetch_view_columns_for_schema_sql,
     fetch_views_sql,
@@ -173,15 +173,19 @@ class OracleSchemaExtractor:
         inventario con body="" y no generan DDL de emisión.
         El body se obtiene concatenando las líneas de ALL_SOURCE.
         """
-        rows = self._query(fetch_routines_sql(), {"owner": schema})
+        # Hotfix R4 (0.23.1): (object_name, object_type, procedure_name). Antes se leía procedure_name, NULL en las
+        # rutinas sueltas: salían con nombre '' y sin cuerpo.
+        rows = self._query(fetch_routines_for_schema_sql(), {"owner": schema})
         self._bodies = self._routine_bodies(schema) if rows else {}
         routines: list[CanonicalRoutine] = []
 
         for row in rows:
             if not row or len(row) < 3:
                 continue
-            routine_name = str(row[0]).strip() if row[0] else ""
+            object_name = str(row[0]).strip() if row[0] else ""
             raw_type = str(row[1]).strip().upper() if row[1] else ""
+            member_name = str(row[2]).strip() if row[2] is not None and str(row[2]).strip() else ""
+            routine_name = object_name
 
             # Tipos soportados directamente
             if raw_type in ("PROCEDURE", "FUNCTION"):
@@ -189,6 +193,9 @@ class OracleSchemaExtractor:
                 is_pkg_member = False
                 pkg_name: str | None = None
                 body = self._fetch_routine_body(schema, routine_name, routine_type)
+                if body:
+                    # ALL_SOURCE no guarda «CREATE OR REPLACE»: sin él el texto no es una sentencia (R4).
+                    body = f"CREATE OR REPLACE {body}"
                 warnings: list[MigrationWarning] = []
                 if not body:
                     warnings.append(
@@ -205,11 +212,13 @@ class OracleSchemaExtractor:
             elif raw_type in ("PACKAGE", "PACKAGE BODY"):
                 routine_type = "PROCEDURE"
                 is_pkg_member = True
-                pkg_name = routine_name
+                pkg_name = object_name
+                # Miembro: procedure_name es el subprograma (R4: antes el package tomaba el nombre del miembro).
+                routine_name = member_name or object_name
                 # PACKAGE BODY: obtener fuente completo desde ALL_SOURCE para revisión manual.
                 # PACKAGE spec: sin implementación, body vacío.
                 body = (
-                    self._fetch_routine_body(schema, routine_name, "PACKAGE BODY") if raw_type == "PACKAGE BODY" else ""
+                    self._fetch_routine_body(schema, object_name, "PACKAGE BODY") if raw_type == "PACKAGE BODY" else ""
                 )
                 warnings = [
                     MigrationWarning(

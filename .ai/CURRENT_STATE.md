@@ -83,7 +83,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-0. **Push y tag `v0.23.0`** (sesiones `2026-10-01-migrate-connect-by-3`, `2026-10-01b-migrate-routine-comments`, `2026-10-01c-hotfix-sqlglot-expr`), pendientes de decisión del usuario. **Siguiente: `/hotfix` R4** — las rutinas no se crean con `execute()` (MySQL/MariaDB sin cabecera `CREATE`, Oracle con nombre vacío por `ALL_PROCEDURES.procedure_name`, PostgreSQL con el schema origen; detalle en `2026-10-01b-migrate-routine-comments`).
+0. `v0.23.0` publicada (tag y push, 2026-10-01). **Hotfix R4 hecho** (commit sin push, sesión `2026-10-01d-hotfix-routines-r4`): rutinas creadas con `execute()` entre MySQL y MariaDB, nombre correcto en Oracle y rutinas de otro dialecto comentadas y no enviadas. Siguiente: `/version-closure` 0.23.1 cuando el usuario lo pida. Anotado fuera de alcance: la `fetch_routines_sql` de Oracle de los adaptadores de metadatos probablemente da nombre vacío a las rutinas sueltas.
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
 3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.

@@ -17,6 +17,7 @@ from ...metadata.mariadb.tables import (
     fetch_fk_for_schema_sql,
     fetch_indexes_for_schema_sql,
     fetch_pk_for_schema_sql,
+    fetch_routine_parameters_for_schema_sql,
     fetch_routines_sql,
     fetch_tables_sql,
     fetch_views_sql,
@@ -31,6 +32,47 @@ from ..ir.models import (
     MigrationWarning,
 )
 from ._schema_rows import ObjectRows, group_by_object
+
+
+def _mysql_create_routine(
+    name: str, routine_type: str, parameters: list[tuple[Any, ...]], definition: str, row: Any
+) -> str:
+    """``CREATE PROCEDURE|FUNCTION`` ejecutable desde INFORMATION_SCHEMA (hotfix R4, 0.23.1).
+
+    ``ROUTINE_DEFINITION`` es solo el cuerpo (``BEGIN ... END``): sin cabecera, ``execute()`` fallaba con un error de
+    sintaxis. Se reconstruyen los parámetros, ``RETURNS`` y las características (``DETERMINISTIC``, acceso a datos,
+    ``SQL SECURITY``, ``COMMENT``); MySQL exige las dos primeras para crear una función con el binlog activo. Sin
+    ``DEFINER``: el del origen puede no existir en el destino (y fijarlo exige privilegios); la rutina queda a nombre
+    del usuario que migra, como con ``SHOW CREATE`` sin ``DEFINER``.
+
+    Args:
+        parameters: Filas (PARAMETER_MODE, PARAMETER_NAME, DTD_IDENTIFIER) en orden.
+        row: Fila de :func:`fetch_routines_sql` (índices 4: RETURNS, 5: COMMENT, 6-8: características).
+    """
+
+    def quoted(identifier: str) -> str:
+        return "`" + identifier.replace("`", "``") + "`"
+
+    def value(index: int) -> str:
+        return str(row[index]).strip() if len(row) > index and row[index] else ""
+
+    args = []
+    for mode, param_name, data_type in parameters:
+        prefix = f"{str(mode).strip().upper()} " if routine_type == "PROCEDURE" and mode else ""
+        args.append(f"{prefix}{quoted(str(param_name))} {str(data_type).strip()}")
+    lines = [f"CREATE {routine_type} {quoted(name)}({', '.join(args)})"]
+    if routine_type == "FUNCTION" and value(4):
+        lines.append(f"RETURNS {value(4)}")
+    if value(5):
+        lines.append("COMMENT '" + value(5).replace("\\", "\\\\").replace("'", "''") + "'")
+    if value(6).upper() in ("YES", "NO"):
+        lines.append("DETERMINISTIC" if value(6).upper() == "YES" else "NOT DETERMINISTIC")
+    if value(7).upper() in ("CONTAINS SQL", "NO SQL", "READS SQL DATA", "MODIFIES SQL DATA"):
+        lines.append(value(7).upper())
+    if value(8).upper() in ("DEFINER", "INVOKER"):
+        lines.append(f"SQL SECURITY {value(8).upper()}")
+    lines.append(definition)
+    return "\n".join(lines)
 
 
 def _parse_raw_column(row: Any) -> dict[str, Any] | None:
@@ -185,17 +227,32 @@ class MariaDBSchemaExtractor:
     def extract_routines(self, schema: str) -> list[CanonicalRoutine]:
         """Extrae todas las rutinas del schema MariaDB como IR canónico."""
         rows = self._query(fetch_routines_sql(), {"schema": schema})
-        return [r for row in rows if (r := self._parse_routine_row(row, schema)) is not None]
+        # Hotfix R4: parámetros de todas las rutinas en una consulta, por (nombre, tipo): en MySQL/MariaDB un
+        # procedimiento y una función pueden llamarse igual.
+        parameters: dict[tuple[str, str], list[tuple[Any, ...]]] = defaultdict(list)
+        for p in self._query(fetch_routine_parameters_for_schema_sql(), {"schema": schema}) if rows else []:
+            if p and len(p) > 4 and p[3]:
+                parameters[(str(p[0]).strip(), str(p[1]).strip().upper())].append((p[2], p[3], p[4]))
+        return [r for row in rows if (r := self._parse_routine_row(row, schema, parameters)) is not None]
 
-    def _parse_routine_row(self, row: Any, schema: str) -> CanonicalRoutine | None:
-        """Parsea una fila de INFORMATION_SCHEMA.ROUTINES a CanonicalRoutine."""
+    def _parse_routine_row(
+        self, row: Any, schema: str, parameters: dict[tuple[str, str], list[tuple[Any, ...]]] | None = None
+    ) -> CanonicalRoutine | None:
+        """Parsea una fila de INFORMATION_SCHEMA.ROUTINES a CanonicalRoutine (cuerpo = ``CREATE`` completo)."""
         if not row or len(row) < 4:
             return None
         routine_name = str(row[0]).strip() if row[0] else ""
         routine_type = str(row[1]).strip().upper() if row[1] else ""
         if routine_type not in ("PROCEDURE", "FUNCTION"):
             return None
-        body = str(row[3]).strip() if row[3] else ""
+        definition = str(row[3]).strip() if row[3] else ""
+        body = (
+            _mysql_create_routine(
+                routine_name, routine_type, (parameters or {}).get((routine_name, routine_type), []), definition, row
+            )
+            if definition
+            else ""
+        )
         return_type = str(row[4]).strip() if len(row) > 4 and row[4] else ""
         warnings: list[MigrationWarning] = []
         if not body:

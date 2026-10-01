@@ -20,6 +20,8 @@ class MySQLFamilyTransformer(BaseTransformer):
 
     MAX_IDENTIFIER_LENGTH = MAX_MARIADB_IDENTIFIER_LENGTH  # 64 en ambos motores
     _SOURCE_DIALECT: ClassVar[str] = "origen"
+    # Hotfix R4: mismo lenguaje de rutinas en ambos motores; el CREATE reconstruido se envía en execute().
+    _ROUTINES_EXECUTABLE: ClassVar[bool] = True
     #: Tipo base del origen (en mayúsculas) → tipo destino, para tipos que el destino no tiene.
     _TYPE_OVERRIDES: ClassVar[dict[str, str]] = {}
 

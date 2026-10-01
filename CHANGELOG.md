@@ -7,6 +7,22 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **migrate (rutinas)**: las rutinas no se creaban con `execute()` (hotfix R4, la limitación conocida de la 0.23.0):
+  - MySQL/MariaDB: el cuerpo era `ROUTINE_DEFINITION` (solo `BEGIN ... END`); ahora el `CREATE PROCEDURE|FUNCTION`
+    se reconstruye desde `INFORMATION_SCHEMA.ROUTINES` y `PARAMETERS` (parámetros, `RETURNS`, `DETERMINISTIC`, acceso a
+    datos, `SQL SECURITY`, `COMMENT`; sin `DEFINER`) y MySQL ↔ MariaDB las crea.
+  - Oracle: las rutinas sueltas salían con nombre vacío y sin cuerpo (se leía `ALL_PROCEDURES.procedure_name`, NULL en
+    ellas); ahora toman `object_name`, y su cuerpo lleva `CREATE OR REPLACE`. Los miembros de package toman su nombre y
+    el del package.
+  - En los pares en que el cuerpo está en otro dialecto (todos salvo MySQL ↔ MariaDB), `execute()` fallaba a mitad
+    con las tablas ya creadas; ahora la rutina va comentada en el script, `execute()` no la envía y el aviso
+    `ROUTINE_PASSTHROUGH` lo dice.
+- **metadata**: `fetch_routines_sql()` de MariaDB añade `IS_DETERMINISTIC`, `SQL_DATA_ACCESS` y `SECURITY_TYPE`; nuevas
+  `fetch_routine_parameters_for_schema_sql()` (MariaDB) y `fetch_routines_for_schema_sql()` (Oracle). La
+  `fetch_routines_sql()` de Oracle, que comparten los adaptadores, no cambia.
+
 ## [0.23.0] - 2026-10-01
 
 Completa la conversión de jerarquías `CONNECT BY` de Oracle en `migrate/`: `CONNECT_BY_ISCYCLE`, `NOCYCLE` hacia los

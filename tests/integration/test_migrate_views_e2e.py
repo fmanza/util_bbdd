@@ -855,3 +855,122 @@ def test_routine_comment_is_read_into_the_script(source: str) -> None:
         assert any(f"-- COMMENT: {ROUTINE_COMMENT}" in s for s in plan.emit_statements())
     finally:
         _drop_namespace(source, SRC)
+
+
+# Hotfix R4 (0.23.1): las rutinas no se creaban con execute(). MySQL ↔ MariaDB (el único par en el que el cuerpo vale
+# tal cual) las crea y se pueden llamar; en el resto de pares van comentadas en el script y execute() termina bien.
+# Solo procedimientos en los pares con MySQL: el banco MySQL tiene el binlog activo y sin SUPER no deja crear funciones
+# (error 1419), ni en el origen ni en el destino; la reconstrucción de funciones se prueba en MariaDB (test siguiente).
+FAMILY_PROCEDURES = [
+    "CREATE PROCEDURE zzvw_suma(IN a INT, IN b INT, OUT total INT) READS SQL DATA SQL SECURITY INVOKER "
+    "COMMENT 'Suma ''a+b''' BEGIN SET total = a + b; END",
+    "CREATE PROCEDURE zzvw_eco(IN texto VARCHAR(20)) BEGIN SELECT texto; END",
+]
+OTHER_ROUTINES = {
+    "postgresql": [f"CREATE FUNCTION {SRC}.zzvw_doble(n integer) RETURNS integer LANGUAGE sql AS 'SELECT n * 2'"],
+    "sqlserver": ["CREATE FUNCTION zzvw_doble(@n INT) RETURNS INT AS BEGIN RETURN @n * 2 END"],
+    "oracle": ["CREATE OR REPLACE FUNCTION zzvw_doble(n NUMBER) RETURN NUMBER AS BEGIN RETURN n * 2; END;"],
+}
+ROUTINE_PAIRS = [
+    ("mysql", "mariadb"),
+    ("mariadb", "mysql"),
+    ("postgresql", "mysql"),
+    ("sqlserver", "postgresql"),
+    ("oracle", "sqlserver"),
+]
+
+
+def _plan_routines(source: str, target: str) -> Any:
+    manager = _manager(source)
+    try:
+        plan = MigrationPlanner(
+            source_engine=source, target_engine=target, pg_schema=DST if target == "postgresql" else None
+        ).plan(manager, _source_schema(source))
+    finally:
+        manager.close()
+    plan.tables, plan.views = [], []
+    plan.routines = [r for r in plan.routines if r.original_name.lower().startswith("zzvw_")]
+    return plan
+
+
+@pytest.mark.parametrize(("source", "target"), ROUTINE_PAIRS, ids=[f"{s}-{t}" for s, t in ROUTINE_PAIRS])
+def test_routines_in_execute(source: str, target: str) -> None:
+    family = source in ("mysql", "mariadb")
+    _create_namespace(source, SRC)
+    _create_namespace(target, DST)
+    try:
+        _run(source, SRC, FAMILY_PROCEDURES if family else OTHER_ROUTINES[source])
+        plan = _plan_routines(source, target)
+        names = sorted(r.name.lower() for r in plan.routines)
+        assert names == (["zzvw_eco", "zzvw_suma"] if family else ["zzvw_doble"]), names  # Oracle: antes, ''
+        target_manager = _manager(target, DST)
+        try:
+            plan.execute(target_manager)  # antes: error de sintaxis (MySQL/MariaDB sin CREATE, dialecto ajeno)
+        finally:
+            target_manager.close()
+        if family:
+            dst_engine = _engine(target, DST)
+            try:
+                with dst_engine.connect() as conn:
+                    conn.exec_driver_sql("CALL zzvw_suma(2, 3, @t)")
+                    assert conn.exec_driver_sql("SELECT @t").scalar() == 5
+                    assert conn.exec_driver_sql(
+                        "SELECT ROUTINE_COMMENT, SECURITY_TYPE, SQL_DATA_ACCESS FROM information_schema.ROUTINES "
+                        f"WHERE ROUTINE_SCHEMA = '{DST}' AND ROUTINE_NAME = 'zzvw_suma'"
+                    ).one() == ("Suma 'a+b'", "INVOKER", "READS SQL DATA")
+            finally:
+                dst_engine.dispose()
+        else:
+            [routine] = plan.routines
+            # El cuerpo del origen va comentado en el script y con aviso; execute() no lo envía.
+            assert all(line.startswith("--") for line in routine.body.splitlines() if line.strip())
+            assert any(w.code == "ROUTINE_PASSTHROUGH" and "no se crea" in w.message for w in routine.warnings)
+    finally:
+        if source == "oracle":
+            _run(
+                "oracle",
+                None,
+                ["BEGIN EXECUTE IMMEDIATE 'DROP FUNCTION zzvw_doble'; EXCEPTION WHEN OTHERS THEN NULL; END;"],
+            )
+        _drop_namespace(source, SRC)
+        _drop_namespace(target, DST)
+
+
+def test_mariadb_routines_are_recreated_from_the_catalog() -> None:
+    """R4: el CREATE reconstruido (parámetros, RETURNS, características, COMMENT) se crea en otra base y funciona.
+
+    Una función y un procedimiento con el mismo nombre (MySQL/MariaDB lo permiten): sus parámetros no se mezclan.
+    """
+    from util_bbdd.migrate.extractors.mariadb import MariaDBSchemaExtractor
+
+    _create_namespace("mariadb", SRC)
+    _create_namespace("mariadb", DST)
+    try:
+        _run(
+            "mariadb",
+            SRC,
+            [
+                "CREATE FUNCTION zzvw_doble(n INT) RETURNS INT DETERMINISTIC NO SQL COMMENT 'Doble ''x''' RETURN n * 2",
+                "CREATE PROCEDURE zzvw_doble(IN texto VARCHAR(20)) BEGIN SELECT texto; END",
+            ],
+        )
+        manager = _manager("mariadb")
+        try:
+            routines = MariaDBSchemaExtractor(manager).extract_routines(SRC)
+        finally:
+            manager.close()
+        _run("mariadb", DST, [r.body for r in routines if r.name == "zzvw_doble"])
+        dst_engine = _engine("mariadb", DST)
+        try:
+            with dst_engine.connect() as conn:
+                assert conn.exec_driver_sql("SELECT zzvw_doble(21)").scalar() == 42
+                assert conn.exec_driver_sql("CALL zzvw_doble('hola')").scalar() == "hola"
+                assert conn.exec_driver_sql(
+                    "SELECT ROUTINE_COMMENT, IS_DETERMINISTIC, SQL_DATA_ACCESS FROM information_schema.ROUTINES "
+                    f"WHERE ROUTINE_SCHEMA = '{DST}' AND ROUTINE_NAME = 'zzvw_doble' AND ROUTINE_TYPE = 'FUNCTION'"
+                ).one() == ("Doble 'x'", "YES", "NO SQL")
+        finally:
+            dst_engine.dispose()
+    finally:
+        _drop_namespace("mariadb", SRC)
+        _drop_namespace("mariadb", DST)
