@@ -7,6 +7,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **metadata (Oracle)**: `fetch_routines_sync`/`fetch_routines_async` devuelven solo procedimientos y funciones, como
+  en el resto de motores. Antes listaban todo `ALL_PROCEDURES`: también packages (y cada subprograma), disparadores y
+  tipos con métodos. Quien necesite packages o disparadores debe consultarlos aparte.
+
 ## [0.23.1] - 2026-10-01
 
 Corrige la limitación conocida de la 0.23.0: las rutinas ya no rompen `MigrationPlan.execute()` (se crean entre MySQL y MariaDB y van comentadas en el resto de pares) y las de Oracle conservan su nombre, también en los adaptadores de metadatos. Sin cambios incompatibles.

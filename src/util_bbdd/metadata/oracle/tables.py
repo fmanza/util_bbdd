@@ -266,12 +266,15 @@ def fetch_routines_sql() -> str:
     y ``procedure_name`` es NULL; ``procedure_name`` solo lo tienen los miembros de un package. Antes se devolvía
     ``(procedure_name, object_type, object_id)``: nombre vacío y el ``object_id`` leído como owner.
 
+    0.23.2: solo ``PROCEDURE`` y ``FUNCTION``, como el listado de rutinas del resto de motores. ``ALL_PROCEDURES``
+    incluye también packages (y sus subprogramas), disparadores y tipos con métodos, que no son rutinas sueltas.
+
     Returns:
         str: SQL query para (routine_name, object_type, owner, object_id) del schema.
     """
     return (
         "SELECT COALESCE(procedure_name, object_name), object_type, owner, object_id "
-        "FROM all_procedures WHERE owner = :owner "
+        "FROM all_procedures WHERE owner = :owner AND object_type IN ('PROCEDURE', 'FUNCTION') "
         "ORDER BY COALESCE(procedure_name, object_name)"
     )
 

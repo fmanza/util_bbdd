@@ -4,7 +4,10 @@
 rutina suelta (y el de cada package) está en ``object_name`` y ``procedure_name`` es NULL, así que
 ``fetch_routines_sync`` las listaba con nombre vacío; además ``decode_oracle_routine_rows`` espera
 ``(nombre, tipo, owner, object_id)`` y ponía el ``object_id`` como owner. Se salta sin ``UTIL_BBDD_TEST_ORACLE_URL``.
-Crea y borra ``ZZRT_PROC``, ``ZZRT_FN`` y ``ZZRT_PKG``.
+Crea y borra ``ZZRT_PROC``, ``ZZRT_FN``, ``ZZRT_PKG`` y ``ZZRT_T`` (con el disparador ``ZZRT_TRG``).
+
+0.23.2: el listado solo devuelve procedimientos y funciones, como en el resto de motores (``ALL_PROCEDURES`` incluye
+también packages, disparadores y tipos).
 """
 
 from __future__ import annotations
@@ -31,8 +34,16 @@ _DDL = [
     "CREATE OR REPLACE PROCEDURE zzrt_proc AS BEGIN NULL; END;",
     "CREATE OR REPLACE FUNCTION zzrt_fn RETURN NUMBER AS BEGIN RETURN 1; END;",
     "CREATE OR REPLACE PACKAGE zzrt_pkg AS PROCEDURE miembro; END zzrt_pkg;",
+    # 0.23.2: un disparador también está en ALL_PROCEDURES (object_type TRIGGER) y no es una rutina
+    "CREATE TABLE zzrt_t (id NUMBER(10))",
+    "CREATE OR REPLACE TRIGGER zzrt_trg BEFORE INSERT ON zzrt_t FOR EACH ROW BEGIN NULL; END;",
 ]
-_CLEANUP = ["DROP PROCEDURE zzrt_proc", "DROP FUNCTION zzrt_fn", "DROP PACKAGE zzrt_pkg"]
+_CLEANUP = [
+    "DROP PROCEDURE zzrt_proc",
+    "DROP FUNCTION zzrt_fn",
+    "DROP PACKAGE zzrt_pkg",
+    "DROP TABLE zzrt_t",  # borra también el disparador
+]
 
 
 def _run(statements: list[str], ignore_errors: bool) -> None:
@@ -78,11 +89,8 @@ def test_routines_are_listed_with_name_and_owner(routines: str) -> None:
     finally:
         manager.close()
     ours = sorted(row for row in rows if str(row[0]).upper().startswith("ZZRT_") or row[0] == "MIEMBRO")
-    # Rutinas sueltas y el package por object_name; el miembro, por procedure_name. Owner = el schema, no el object_id.
-    assert ours == [
-        ("MIEMBRO", "PACKAGE", routines),
-        ("ZZRT_FN", "FUNCTION", routines),
-        ("ZZRT_PKG", "PACKAGE", routines),
-        ("ZZRT_PROC", "PROCEDURE", routines),
-    ]
+    # Solo procedimientos y funciones (0.23.2), como en el resto de motores: ni el package ni su miembro ni el
+    # disparador. Nombre de object_name y owner = el schema, no el object_id (hotfix 0.23.1).
+    assert ours == [("ZZRT_FN", "FUNCTION", routines), ("ZZRT_PROC", "PROCEDURE", routines)]
     assert all(row[0] for row in rows), [row for row in rows if not row[0]]
+    assert {row[1] for row in rows} <= {"PROCEDURE", "FUNCTION"}, sorted({row[1] for row in rows})
