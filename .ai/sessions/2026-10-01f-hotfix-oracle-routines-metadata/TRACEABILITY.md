@@ -32,8 +32,9 @@
 ## Directrices para Futuras IAs
 - **[metadata/oracle]**: toda consulta sobre `ALL_PROCEDURES` debe tomar el nombre de `COALESCE(procedure_name,
   object_name)` (o `object_name` para rutinas sueltas); `procedure_name` solo existe en miembros de package.
+- **[release]**: la v0.23.1 es PATCH: solo correcciones; las funciones de metadatos nuevas (`fetch_routine_parameters_for_schema_sql`, `fetch_routines_for_schema_sql`) son consultas auxiliares de migrate y no cambia ninguna firma existente. El cuerpo de `CanonicalRoutine` cambia de contenido (R4).
 - **[tests]**: los tests de texto de SQL («contiene `all_procedures`») no detectan columnas en orden equivocado; para
   consultas de catálogo, un test de integración contra el motor real.
 
 ## Veredicto final
-Veredicto: CLOSED — hotfix aplicado y verificado en el banco (commit sin push).
+Veredicto: CLOSED — hotfix aplicado y verificado en el banco; liberado en v0.23.1 (2026-10-01).

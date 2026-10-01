@@ -68,4 +68,4 @@
   MariaDB.
 
 ## Veredicto final
-Veredicto: CLOSED — R4 corregido y verificado en el banco (commit sin push).
+Veredicto: CLOSED — R4 corregido y verificado en el banco; liberado en v0.23.1 (2026-10-01).

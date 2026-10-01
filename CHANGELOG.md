@@ -7,6 +7,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-10-01
+
+Corrige la limitación conocida de la 0.23.0: las rutinas ya no rompen `MigrationPlan.execute()` (se crean entre MySQL y MariaDB y van comentadas en el resto de pares) y las de Oracle conservan su nombre, también en los adaptadores de metadatos. Sin cambios incompatibles.
+
 ### Fixed
 
 - **migrate (rutinas)**: las rutinas no se creaban con `execute()` (hotfix R4, la limitación conocida de la 0.23.0):

@@ -36,4 +36,4 @@
   `test_docs_build_plugin.py` lo vigila.
 
 ## Veredicto final
-Veredicto: CLOSED — hotfix aplicado y verificado (commit sin push).
+Veredicto: CLOSED — hotfix aplicado y verificado; liberado en v0.23.1 (2026-10-01).
