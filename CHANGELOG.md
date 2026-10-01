@@ -13,6 +13,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   2) mientras se envía el actual; mismo resultado. 1M filas, 3 repeticiones: SQL Server INSERT −10,6 % y UPDATE −6,2 %,
   MySQL y MariaDB −2 % a −6 %, sin cambio medible en Oracle, PostgreSQL y SQLite. El helper de prefetch pasa de
   `dump/_source_reader.py` a `bulk/_support/prefetch.py` (`dump` lo importa de ahí; sin cambios en `dump`) (S-4).
+- **bulk**: `BulkCrud(on_error="isolate", rejects_csv_path=..., max_rejects=None)`: cada lote va en un SAVEPOINT; si
+  falla con `IntegrityError` o `DataError` (PK duplicada, FK, valor demasiado largo), se reenvía por mitades hasta aislar
+  las filas que fallan, que se omiten y se escriben en el CSV de rechazos (`timestamp`, `tabla`, `operacion`, `fila`,
+  `error`, `valores`; UTF-8, tabuladores, fórmulas neutralizadas); el resto se aplica. Otros errores se propagan. Nueva
+  propiedad `rows_rejected`; la auditoría registra las filas aplicadas. Por defecto `on_error="raise"` (sin cambios).
+  Coste (INSERT de 1M filas): sin filas malas 1,00–1,02× (Oracle 1,00× / 1,27× en dos repeticiones); con 10 filas malas 1,13–1,23×, PostgreSQL 1,65× (lotes de 20 000). Límite: el valor demasiado largo no se aísla en Oracle (`DatabaseError`) ni en
+  SQL Server (pyodbc `ProgrammingError`, pymssql `OperationalError`). No en `ParallelBulkLoader` ni `dump` (S-2).
 
 ### Changed
 

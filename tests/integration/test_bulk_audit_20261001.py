@@ -23,6 +23,7 @@ from sqlalchemy import (
     BigInteger,
     Column,
     Engine,
+    ForeignKey,
     Integer,
     LargeBinary,
     MetaData,
@@ -36,7 +37,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DatabaseError, DataError, IntegrityError
 
 from util_bbdd.bulk import BulkCrud
 
@@ -491,3 +492,111 @@ def test_prefetch_blocks_gives_the_same_result(engine: Engine) -> None:  # noqa:
             table.drop(engine, checkfirst=True)
     assert states[0] == states[1]
     assert len(states[0]) == 69
+
+
+# --------------------------------------------------------------------------------- S-2: BulkCrud(on_error="isolate")
+
+
+def _isolate_table(db: Engine) -> Table:
+    n = lambda logical: _name(logical, db)  # noqa: E731
+    table = Table(
+        n(_table_name()),
+        MetaData(),
+        Column(n("id"), Integer, primary_key=True, autoincrement=False),
+        Column(n("v"), String(5)),
+    )
+    table.create(db)
+    BulkCrud(db).bulk_insert_from_df(pd.DataFrame({n("id"): range(1, 21), n("v"): ["v"] * 20}), table.name, False)
+    return table
+
+
+def _rejected_rows(path: Any) -> list[tuple[str, int]]:
+    frame = pd.read_csv(path, sep="\t")
+    return list(zip(frame["operacion"], frame["fila"], strict=True))
+
+
+@pytest.mark.parametrize("cadence", [None, 2])
+def test_isolate_insert_rejects_duplicate_keys(engine: Engine, cadence: int | None, tmp_path: Any) -> None:  # noqa: F811
+    n = lambda logical: _name(logical, engine)  # noqa: E731
+    table = _isolate_table(engine)
+    try:
+        crud = BulkCrud(
+            engine,
+            chunk_size=4,
+            commit_every_n_chunks=cadence,
+            on_error="isolate",
+            rejects_csv_path=tmp_path / "rejects.csv",
+        )
+        crud.bulk_insert_from_df(pd.DataFrame({n("id"): range(15, 31), n("v"): ["i"] * 16}), table.name, False)
+
+        state = _state(engine, table)
+        assert [row[0] for row in state] == list(range(1, 31))
+        assert [row[1] for row in state] == ["v"] * 20 + ["i"] * 10
+        assert _rejected_rows(tmp_path / "rejects.csv") == [("INSERT", i) for i in range(6)]
+        assert crud.rows_rejected == 6
+    finally:
+        table.drop(engine, checkfirst=True)
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"postgresql", "mysql", "mariadb"})), indirect=True)
+@pytest.mark.parametrize("staging", [True, False])
+def test_isolate_update_rejects_values_too_long(engine: Engine, staging: bool, tmp_path: Any) -> None:  # noqa: F811
+    """Valor demasiado largo (``DataError``) en el UPDATE por staging y en el UPDATE fila a fila."""
+    n = lambda logical: _name(logical, engine)  # noqa: E731
+    table = _isolate_table(engine)
+    try:
+        crud = BulkCrud(
+            engine, chunk_size=4, update_via_staging=staging, on_error="isolate", rejects_csv_path=tmp_path / "r.csv"
+        )
+        values = ["u" if i not in (3, 11) else "demasiado" for i in range(1, 13)]
+        crud.bulk_update_from_df(pd.DataFrame({n("id"): range(1, 13), n("v"): values}), table.name, False)
+
+        state = dict(_state(engine, table))
+        assert [state[i] for i in range(1, 14)] == ["u", "u", "v"] + ["u"] * 7 + ["v", "u", "v"]
+        assert _rejected_rows(tmp_path / "r.csv") == [("UPDATE", 2), ("UPDATE", 10)]
+    finally:
+        table.drop(engine, checkfirst=True)
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"oracle", "mssql"})), indirect=True)
+def test_isolate_value_too_long_is_not_isolated(engine: Engine, tmp_path: Any) -> None:  # noqa: F811
+    """R-1: el valor demasiado largo no llega como ``DataError`` y la operación falla entera, como sin aislamiento.
+
+    oracledb: ORA-12899 como ``DatabaseError``; pyodbc con ``fast_executemany``: ``ProgrammingError`` en el cliente
+    (``String data, right truncation``); pymssql: 2628 como ``OperationalError``.
+    """
+    n = lambda logical: _name(logical, engine)  # noqa: E731
+    table = _isolate_table(engine)
+    try:
+        crud = BulkCrud(engine, chunk_size=4, on_error="isolate", rejects_csv_path=tmp_path / "r.csv")
+        with pytest.raises(DatabaseError) as info:
+            crud.bulk_update_from_df(pd.DataFrame({n("id"): [1, 2], n("v"): ["u", "demasiado"]}), table.name, False)
+        assert not isinstance(info.value, IntegrityError | DataError)
+        assert [row[1] for row in _state(engine, table)][:2] == ["v", "v"]
+    finally:
+        table.drop(engine, checkfirst=True)
+
+
+@pytest.mark.parametrize("engine", _engine_params(exclude=frozenset({"sqlite"})), indirect=True)
+def test_isolate_delete_rejects_rows_still_referenced(engine: Engine, tmp_path: Any) -> None:  # noqa: F811
+    n = lambda logical: _name(logical, engine)  # noqa: E731
+    parent = _isolate_table(engine)
+    child = Table(
+        n(_table_name()),
+        MetaData(),
+        Column(n("id"), Integer, primary_key=True, autoincrement=False),
+        Column(n("parent_id"), Integer, ForeignKey(parent.c[n("id")])),
+    )
+    child.create(engine)
+    try:
+        with engine.begin() as conn:
+            conn.execute(child.insert(), [{n("id"): 1, n("parent_id"): 4}, {n("id"): 2, n("parent_id"): 9}])
+        crud = BulkCrud(engine, chunk_size=4, on_error="isolate", rejects_csv_path=tmp_path / "r.csv")
+        with crud.bulk_session():
+            crud.bulk_delete_from_df(pd.DataFrame({n("id"): range(1, 11)}), parent.name, False)
+
+        assert [row[0] for row in _state(engine, parent)] == [4, 9, *range(11, 21)]
+        assert _rejected_rows(tmp_path / "r.csv") == [("DELETE", 3), ("DELETE", 8)]
+    finally:
+        child.drop(engine, checkfirst=True)
+        parent.drop(engine, checkfirst=True)

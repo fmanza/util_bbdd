@@ -68,6 +68,7 @@ from ._support.iterables import closing_iterable
 from ._support.persistence import BulkPersistenceManager
 from ._support.pk_sync import PKSequenceSyncer
 from ._support.prefetch import prefetch
+from ._support.rejects import Isolator, RejectsWriter
 from ._support.sql_helpers import (
     SqlColumns,
     build_override_identity_text_stmt,
@@ -164,6 +165,9 @@ class BulkCrud:
         strip_strings: bool = True,
         reflect_foreign_keys: bool = True,
         prefetch_blocks: bool = False,
+        on_error: Literal["raise", "isolate"] = "raise",
+        rejects_csv_path: Path | None = None,
+        max_rejects: int | None = None,
     ):
         """
         Constructor de la clase bulk_crud.
@@ -232,13 +236,35 @@ class BulkCrud:
                 un hilo, con una cola de 2, mientras se envía el actual. Mismo resultado. Medido con 1M filas (3
                 repeticiones): SQL Server INSERT −10,6 % y UPDATE −6,2 %; MySQL y MariaDB −2 % a −6 %; Oracle, PostgreSQL
                 y SQLite sin cambio medible. Por defecto False. No aplica a ``generar_sql`` ni al DELETE (S-4, 2026-10-01).
+            on_error: ``"raise"`` (default): un error en un lote hace fallar la operación, como siempre. ``"isolate"``:
+                cada lote se envía en un SAVEPOINT; si falla con un error de datos (``IntegrityError`` o ``DataError``:
+                PK duplicada, FK, valor demasiado largo...), se reenvía por mitades hasta aislar las filas que fallan,
+                que se omiten y se escriben en ``rejects_csv_path``; el resto se aplica. Otros errores se propagan como
+                siempre. Coste (INSERT de 1M filas): sin filas malas 1,00–1,02×; cada fila mala reenvía unas 2 veces su
+                lote (10 filas malas: 1,13–1,23×; PostgreSQL 1,65×, lotes de 20 000). Solo INSERT, UPDATE y DELETE ejecutados (no
+                ``generar_sql``). Ver :attr:`rows_rejected` (S-2, 2026-10-01).
+            rejects_csv_path: CSV de filas rechazadas (UTF-8, tabuladores; se crea con cabecera o se añade): ``timestamp``,
+                ``tabla``, ``operacion``, ``fila`` (posición base 0 en la entrada; en ``*_from_chunks``, en la secuencia),
+                ``error`` (primera línea del error del driver) y ``valores`` (JSON). Contiene datos de las filas.
+                Obligatorio con ``on_error="isolate"``.
+            max_rejects: Con ``on_error="isolate"``, filas que una operación puede rechazar; la siguiente hace fallar la
+                operación con su error, como sin aislamiento. ``None`` (default): sin límite. Útil cuando casi todas las
+                filas podrían fallar (p. ej. recargar datos ya cargados), porque entonces se acaba enviando fila a fila.
 
         Raises:
             ValueError: Si engine es None.
             ValueError: Si ``commit_every_n_chunks`` no es None ni un entero ≥ 1.
             ValueError: Si ``chunk_size`` no es un entero ≥ 1.
+            ValueError: Si ``on_error`` no es ``"raise"`` ni ``"isolate"``; si ``on_error="isolate"`` no lleva
+                ``rejects_csv_path`` o ``rejects_csv_path``/``max_rejects`` se indican sin él; si ``max_rejects`` no es
+                None ni un entero ≥ 0.
         """
         self.logger: logging.Logger = logging.getLogger(__name__)
+        self._rejects: RejectsWriter | None = self.__rejects_writer(on_error, rejects_csv_path, max_rejects)
+        self._max_rejects: int | None = max_rejects
+        self._rows_rejected: int = 0
+        #: Aislador de la operación en curso (``on_error="isolate"``); None fuera de una operación.
+        self._isolator: Isolator | None = None
 
         self.engine: Engine = validate_engine(engine)
         self._table_cache: dict[str, Table] = {}
@@ -309,6 +335,23 @@ class BulkCrud:
                 prepare=self.__prepare_delete_operation,
             ),
         }
+
+    @staticmethod
+    def __rejects_writer(on_error: str, path: Path | None, max_rejects: int | None) -> RejectsWriter | None:
+        """Valida ``on_error``, ``rejects_csv_path`` y ``max_rejects`` y devuelve el escritor de rechazos (S-2)."""
+        if on_error not in ("raise", "isolate"):
+            raise ValueError(f"on_error debe ser 'raise' o 'isolate', recibido: {on_error!r}")
+        if on_error == "raise":
+            if path is not None or max_rejects is not None:
+                raise ValueError("rejects_csv_path y max_rejects solo se usan con on_error='isolate'")
+            return None
+        if path is None:
+            raise ValueError("on_error='isolate' necesita rejects_csv_path: las filas rechazadas se escriben ahí")
+        if max_rejects is not None and (
+            isinstance(max_rejects, bool) or not isinstance(max_rejects, int) or max_rejects < 0
+        ):
+            raise ValueError(f"max_rejects debe ser None o un entero ≥ 0, recibido: {max_rejects!r}")
+        return RejectsWriter(path)
 
     def __detectar_sqlserver_driver(self) -> None:
         """Detecta el driver específico de SQL Server (pymssql o pyodbc) y actualiza db_info."""
@@ -505,7 +548,7 @@ class BulkCrud:
         resolved: tuple[Any, list[str]] | None = None
         self._session.rows.start_operation()  # B-11: last_operation_rows_committed cuenta todo el stream
 
-        with self.bulk_session():
+        with self.__isolating(tabla_destino, "INSERT"), self.bulk_session():
             for chunk_index, chunk in enumerate(chunks):
                 working_df: pd.DataFrame = chunk.copy(deep=False)
                 self.__actualizar_df(working_df, tabla)
@@ -521,28 +564,29 @@ class BulkCrud:
                 stmt, insert_cols = resolved
 
                 numero_registros: int = len(working_df)
+                rejected_before: int = self.__rejected_so_far()
+                size: int = self._batch_sizes["insert"]
                 start: float = perf_counter()
                 with batch_failure_note("INSERT", tabla.fullname, chunk_index, total, numero_registros):
                     if isinstance(stmt, Insert) and self._batch_statement_executor.supports_columns:
                         # B-03: tuplas desde las columnas, sin un dict por fila; lotes de chunk_size como el ejecutor.
-                        sql_source = self.__sql_blocks(working_df[insert_cols], tabla, self._batch_sizes["insert"])
+                        sql_source = self.__sql_blocks(working_df[insert_cols], tabla, size)
                         with closing_iterable(self.__prefetched(sql_source)) as sql_items:
-                            for block in sql_items:
-                                self.__ejecutar_batch_stmt(block, stmt, len(block))
+                            for index, block in enumerate(sql_items):
+                                self.__ejecutar_batch_stmt(block, stmt, len(block), total + index * size)
                     else:
-                        record_source = self.__record_blocks(
-                            working_df[insert_cols], tabla, self._batch_sizes["insert"]
-                        )
+                        record_source = self.__record_blocks(working_df[insert_cols], tabla, size)
                         with closing_iterable(self.__prefetched(record_source)) as record_items:
-                            for records_sql in record_items:
-                                self.__ejecutar_batch_stmt(records_sql, stmt, len(records_sql))
+                            for index, records_sql in enumerate(record_items):
+                                self.__ejecutar_batch_stmt(records_sql, stmt, len(records_sql), total + index * size)
                 elapsed: float = perf_counter() - start
                 total += numero_registros
 
                 self._persistence.register_operation(
                     table_name=tabla_destino,
                     operation="INSERT",
-                    rowcount=numero_registros,
+                    # S-2: con on_error="isolate", las filas aplicadas (las rechazadas no están en la BD).
+                    rowcount=numero_registros - (self.__rejected_so_far() - rejected_before),
                     elapsed=elapsed,
                     generated_sql=False,
                 )
@@ -597,7 +641,8 @@ class BulkCrud:
         self._session.rows.start_operation()
         total: int = 0
         first: bool = True
-        with closing_iterable(chunks) as items, self.bulk_session():
+        operation: str = strategy_key.upper()
+        with closing_iterable(chunks) as items, self.__isolating(tabla_destino, operation), self.bulk_session():
             for chunk_index, chunk in enumerate(items):
                 if chunk.empty:
                     continue
@@ -642,10 +687,57 @@ class BulkCrud:
         self, operation: BulkOperation, tabla: Table, index: int, rows: int
     ) -> AbstractContextManager[None]:
         """Nota de error del lote ``index`` (B-15a), con la posición en la secuencia si es un ``*_from_chunks``."""
-        stream = self._stream
-        offset, chunk = (0, None) if stream is None else (stream.row_offset, stream.chunk)
-        size: int = self._batch_sizes[operation]
-        return batch_failure_note(operation.upper(), tabla.fullname, index, offset + index * size, rows, chunk)
+        chunk = None if self._stream is None else self._stream.chunk
+        return batch_failure_note(
+            operation.upper(), tabla.fullname, index, self.__first_row(operation, index), rows, chunk
+        )
+
+    def __first_row(self, operation: BulkOperation, index: int) -> int:
+        """Posición en la entrada (o en la secuencia de un ``*_from_chunks``) de la primera fila del lote ``index``."""
+        offset: int = 0 if self._stream is None else self._stream.row_offset
+        return offset + index * self._batch_sizes[operation]
+
+    @contextmanager
+    def __isolating(self, tabla_destino: str, operation: str) -> Generator[None, None, None]:
+        """Con ``on_error="isolate"``, aísla las filas erróneas de la operación (S-2); si no, no hace nada.
+
+        Un ``*_from_chunks`` es una sola operación (``max_rejects`` cuenta toda la secuencia): dentro de él, el
+        aislador del stream se reutiliza.
+        """
+        if self._rejects is None or self._isolator is not None:
+            yield
+            return
+        writer: RejectsWriter = self._rejects
+        tabla: Table = self.reflect_table(tabla_destino)
+        columns: set[str] = set(tabla.c.keys())
+
+        def on_reject(position: int, values: Mapping[str, Any], error: BaseException) -> None:
+            # Sin los alias de PK del UPDATE: solo las columnas de la tabla.
+            row = {key: value for key, value in values.items() if key in columns}
+            writer.write(table=tabla_destino, operation=operation, position=position, error=error, values=row)
+            self.logger.warning(
+                f"⚠️ bulk {operation} en '{tabla_destino}': fila {position} rechazada ({type(error).__name__})"
+            )
+
+        isolator = Isolator(on_reject=on_reject, max_rejects=self._max_rejects)
+        self._isolator = isolator
+        self._batch_statement_executor.isolator = isolator
+        self._delete_batch_executor.isolator = isolator
+        try:
+            yield
+        finally:
+            self._isolator = None
+            self._batch_statement_executor.isolator = None
+            self._delete_batch_executor.isolator = None
+            self._rows_rejected += isolator.rejected
+            if isolator.rejected:
+                self.logger.warning(
+                    f"⚠️ bulk {operation} en '{tabla_destino}': {isolator.rejected} filas rechazadas en {writer.path}"
+                )
+
+    def __rejected_so_far(self) -> int:
+        """Filas rechazadas hasta ahora en la operación en curso (0 sin aislamiento)."""
+        return 0 if self._isolator is None else self._isolator.rejected
 
     def __resolve_stream_insert(
         self,
@@ -733,16 +825,21 @@ class BulkCrud:
                 prepared_operation = strategy.prepare(working_df, tabla_destino)
 
             start: float = perf_counter()
+            rejected: int = 0
             if generar_sql:
                 self.__guardar_fichero_sql(prepared_operation.generate_sql_lines(), path_sql)
             else:
-                prepared_operation.execute()
+                with self.__isolating(tabla_destino, operation_name):
+                    rejected_before: int = self.__rejected_so_far()
+                    prepared_operation.execute()
+                    rejected = self.__rejected_so_far() - rejected_before
             elapsed: float = perf_counter() - start
 
             self._persistence.register_operation(
                 table_name=tabla_destino,
                 operation=operation_name,
-                rowcount=prepared_operation.rowcount,
+                # S-2: con on_error="isolate", las filas aplicadas (las rechazadas no están en la BD).
+                rowcount=prepared_operation.rowcount - rejected,
                 elapsed=elapsed,
                 generated_sql=generar_sql,
             )
@@ -785,12 +882,14 @@ class BulkCrud:
                     with closing_iterable(self.__prefetched(sql_blocks())) as sql_items:
                         for index, sql_block in enumerate(sql_items):
                             with self.__batch_note("insert", tabla, index, len(sql_block)):
-                                self.__ejecutar_batch_stmt(sql_block, stmt_exec, len(sql_block))
+                                self.__ejecutar_batch_stmt(
+                                    sql_block, stmt_exec, len(sql_block), self.__first_row("insert", index)
+                                )
                     return
                 with closing_iterable(self.__prefetched(blocks())) as record_items:
                     for index, block in enumerate(record_items):
                         with self.__batch_note("insert", tabla, index, len(block)):
-                            self.__ejecutar_batch_stmt(block, stmt_exec, len(block))
+                            self.__ejecutar_batch_stmt(block, stmt_exec, len(block), self.__first_row("insert", index))
 
         def sql_blocks() -> Iterator[SqlColumns]:
             return self.__sql_blocks(insert_df, tabla, self._batch_sizes["insert"])
@@ -926,7 +1025,9 @@ class BulkCrud:
         with self.__blocks_transaction(), closing_iterable(self.__prefetched(blocks)) as update_items:
             for index, block in enumerate(update_items):
                 with self.__batch_note("update", tabla, index, len(block)):
-                    executor.execute(records=block, stmt=stmt, strategy=staging)
+                    executor.execute(
+                        records=block, stmt=stmt, strategy=staging, first_row=self.__first_row("update", index)
+                    )
         if staging is not None and staging.staging_denied:
             # Sin privilegio: no volver a intentarlo en esta instancia (el aviso ya quedó en el log).
             self._update_via_staging = False
@@ -953,7 +1054,9 @@ class BulkCrud:
         json_binds = json_passthrough_binds(tabla, insert_cols)
         return stmt.values(json_binds) if json_binds else stmt
 
-    def __ejecutar_batch_stmt(self, records: Sequence[Mapping[str, Any]], stmt: Any, numero_registros: int) -> None:
+    def __ejecutar_batch_stmt(
+        self, records: Sequence[Mapping[str, Any]], stmt: Any, numero_registros: int, first_row: int = 0
+    ) -> None:
         """Ejecuta un statement de SQLAlchemy por lotes.
 
         Único punto de ejecución del INSERT: un bloque por columnas (``SqlColumns``, B-03) va por
@@ -963,11 +1066,12 @@ class BulkCrud:
             records: lista de diccionarios con datos a procesar, o un bloque ``SqlColumns``.
             stmt: Statement SQLAlchemy (Insert, Update, Delete).
             numero_registros: Total de registros (para logging).
+            first_row: Posición en la entrada de la primera fila (filas rechazadas con ``on_error="isolate"``).
         """
         if isinstance(records, SqlColumns):
-            self._batch_statement_executor.execute_columns(block=records, stmt=stmt)
+            self._batch_statement_executor.execute_columns(block=records, stmt=stmt, first_row=first_row)
             return
-        self._batch_statement_executor.execute(records=records[:numero_registros], stmt=stmt)
+        self._batch_statement_executor.execute(records=records[:numero_registros], stmt=stmt, first_row=first_row)
 
     def __obtener_pk_cols(self, tabla: Table, df_cols) -> list[str]:
         """Obtiene las columnas PK presentes en el DataFrame.
@@ -1142,6 +1246,16 @@ class BulkCrud:
         incluye filas de operaciones anteriores que un commit de esta confirmó.
         """
         return self._session.rows.op_committed
+
+    @property
+    def rows_rejected(self) -> int:
+        """Filas rechazadas por esta instancia con ``on_error="isolate"`` (escritas en ``rejects_csv_path``), acumulado.
+
+        S-2 (2026-10-01). Las filas rechazadas no están en la BD ni en la auditoría, pero sí cuentan en
+        :attr:`rows_committed` y :attr:`last_operation_rows_committed`, que son posiciones de la entrada para reanudar.
+        Si la operación falla después por otra causa (o por ``max_rejects``), lo ya escrito en el CSV se queda.
+        """
+        return self._rows_rejected
 
     @property
     def rows_committed(self) -> int:

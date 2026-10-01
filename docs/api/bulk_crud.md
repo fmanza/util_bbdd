@@ -25,7 +25,7 @@ flowchart TD
 
 | Método | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
-| `BulkCrud` | `(engine, chunk_size?, audit_csv_path?, enable_fast_executemany?, insert_resolver?, commit_every_n_chunks?, update_via_staging?, audit_strict?, warn_if_audit_disabled?, strip_strings?, reflect_foreign_keys?, prefetch_blocks?)` | Crea instancia con engine SQLAlchemy | `BulkCrud` |
+| `BulkCrud` | `(engine, chunk_size?, audit_csv_path?, enable_fast_executemany?, insert_resolver?, commit_every_n_chunks?, update_via_staging?, audit_strict?, warn_if_audit_disabled?, strip_strings?, reflect_foreign_keys?, prefetch_blocks?, on_error?, rejects_csv_path?, max_rejects?)` | Crea instancia con engine SQLAlchemy | `BulkCrud` |
 | `bulk_insert_from_df` | `(df, tabla_destino, generar_sql?, path_sql?)` | INSERT masivo desde DataFrame | `None` |
 | `bulk_insert_from_chunks` | `(chunks, tabla_destino, *, override_identity?, exclude_autoincrement_pk?)` | INSERT streaming de iterable de DataFrames; resuelve columnas/identidad una sola vez | `int` (filas insertadas) |
 | `bulk_update_from_df` | `(df, tabla_destino, generar_sql?, path_sql?)` | UPDATE masivo desde DataFrame | `None` |
@@ -33,6 +33,7 @@ flowchart TD
 | `bulk_update_from_chunks` | `(chunks, tabla_destino)` | UPDATE en streaming: `bulk_update_from_df` por chunk dentro de una sola sesión; lee el iterable de forma perezosa y lo cierra al terminar | `int` (filas enviadas) |
 | `bulk_delete_from_chunks` | `(chunks, tabla_destino)` | DELETE en streaming, como `bulk_update_from_chunks` | `int` (filas enviadas) |
 | `last_operation_rows_committed` | propiedad | Con `commit_every_n_chunks`: filas de la última operación (o de la que falló) confirmadas por commits periódicos, es decir, su prefijo confirmado. Para reanudar: `df.iloc[n:]`, o saltar `n` filas de la secuencia en `*_from_chunks` (cuentan como una operación). 0 en modo atómico | `int` |
+| `rows_rejected` | propiedad | Con `on_error="isolate"`: filas rechazadas por la instancia (acumulado), escritas en `rejects_csv_path`. No están en la BD ni en la auditoría, pero sí cuentan en `rows_committed` y `last_operation_rows_committed`, que son posiciones de la entrada para reanudar | `int` |
 | `bulk_session` | `(*, atomic=True)` | Context manager para loop de inserts con 1 transacción | `Generator[None, None, None]` |
 | `maintenance_scope` | `(tabla_destino, *, disable_constraints=True, disable_indexes=False)` | Context manager que deshabilita FKs/triggers e índices para cargas >1 M filas; restaura siempre al salir. Requiere `bulk_session` activo | `Generator[None, None, None]` |
 | `reflect_table` | `(tabla_destino)` | Refleja tabla SQLAlchemy (con caché interno) | `Table` |
@@ -54,6 +55,9 @@ flowchart TD
 | `commit_every_n_chunks` | `int \| None` | Commit cada N lotes en lugar de una sola transacción. La carga deja de ser atómica | Default `None` (una sola transacción) |
 | `update_via_staging` | `bool` | MySQL/MariaDB y PostgreSQL: `bulk_update_from_df` carga cada lote en una tabla temporal y aplica un único `UPDATE` con join en lugar de un UPDATE por fila (1M filas: MySQL/MariaDB ~12,5×, PostgreSQL 2,35×). Mismo resultado final; requiere el privilegio `CREATE TEMPORARY TABLES` (MySQL/MariaDB) o `TEMP` (PostgreSQL, se comprueba antes de intentarlo); sin él, vuelve al UPDATE fila a fila y registra un WARNING (una vez por instancia). Ignorado en otros motores | Default `True` |
 | `prefetch_blocks` | `bool` | Prepara el lote siguiente de INSERT y UPDATE en un hilo (cola de 2) mientras se envía el actual. Mismo resultado. 1M filas: SQL Server INSERT −10,6 % / UPDATE −6,2 %, MySQL y MariaDB −2 % a −6 %, Oracle/PostgreSQL/SQLite sin cambio medible | Default `False` |
+| `on_error` | `"raise" \| "isolate"` | `"raise"`: un error en un lote hace fallar la operación. `"isolate"`: cada lote va en un SAVEPOINT; si falla con `IntegrityError` o `DataError` (PK duplicada, FK, valor demasiado largo...), se reenvía por mitades hasta aislar las filas que fallan, que se omiten y se escriben en `rejects_csv_path`; el resto se aplica. Otros errores se propagan. Solo INSERT, UPDATE y DELETE ejecutados (no `generar_sql`); no en `ParallelBulkLoader` ni `dump`. Coste: sin filas malas, un SAVEPOINT por lote; cada fila mala reenvía unas 2 veces su lote (ver [benchmarks](../guides/benchmarks.md#tuning-de-carga-masiva-bulk)) | Default `"raise"` |
+| `rejects_csv_path` | `Path \| None` | CSV de filas rechazadas (UTF-8, tabuladores; se crea con cabecera o se añade): `timestamp`, `tabla`, `operacion`, `fila` (posición base 0 en la entrada; en `*_from_chunks`, en la secuencia), `error` (clase y primera línea del error del driver) y `valores` (JSON con las columnas de la tabla). **Contiene datos de las filas**; las celdas que empiezan como una fórmula (`=`, `+`, `-`, `@`) llevan un `'` delante | Obligatorio con `on_error="isolate"`; `ValueError` sin él o si se pasa con `"raise"` |
+| `max_rejects` | `int \| None` | Filas que una operación (un `*_from_chunks` es una) puede rechazar; la siguiente hace fallar la operación con su error y una nota, como sin aislamiento (lo ya escrito en el CSV se queda) | Default `None` (sin límite); entero ≥ 0; solo con `on_error="isolate"` |
 | `audit_strict` | `bool` | Qué hacer si falla la escritura del CSV de auditoría (fichero abierto en Excel, disco lleno, permisos). `False`: la operación sigue, porque sus datos ya están en la BD; se registra un ERROR con los registros perdidos y se cuentan en `audit_failures`. `True`: se propaga `AuditError`/`OSError`; dentro de `bulk_session` la auditoría se escribe antes del commit y el fallo deshace la sesión. Si lo que falla es el commit, lo ya escrito se cuenta en `audit_uncommitted_records` | Default `False` |
 | `warn_if_audit_disabled` | `bool` | Sin `audit_csv_path`, avisar una vez con un WARNING de que la auditoría está deshabilitada. `ParallelBulkLoader` y `dump` pasan `False` a sus instancias y avisan una sola vez por carga | Default `True` |
 | `strip_strings` | `bool` | Si `True`, quita los espacios de los extremos de las cadenas antes de enviarlas (INSERT, UPDATE, DELETE y SQL generado). `dump` pasa `False` para copiar el origen sin alterarlo | Default `True` |
@@ -81,6 +85,16 @@ flowchart TD
 | `AuditError` / `OSError` | Solo con `audit_strict=True`: no se pudo escribir el CSV de auditoría. Con el valor por defecto (`False`) no se lanza |
 | `RuntimeError` | `bulk_insert_from_chunks`, `bulk_update_from_chunks` o `bulk_delete_from_chunks` dentro de un `bulk_session` abierto: gestionan su propia transacción (dentro de la sesión, usar `*_from_df` por chunk) |
 
+**Aislamiento de filas (`on_error="isolate"`), límites:**
+
+- Solo se aíslan `IntegrityError` y `DataError`. Un error estructural (columna inexistente, permisos, sintaxis) se propaga: aislarlo rechazaría todas las filas.
+- Algunos drivers no clasifican el valor demasiado largo como `DataError` y entonces la operación falla como sin aislamiento: Oracle (ORA-12899 llega como `DatabaseError`), SQL Server con pyodbc y `fast_executemany` (`ProgrammingError` en el cliente) y con pymssql (2628 como `OperationalError`). PK duplicada y FK sí se aíslan en los 6 motores.
+- Si casi todas las filas fallan (p. ej. recargar datos ya cargados), la bisección acaba enviando fila a fila: usar `max_rejects`.
+- La auditoría registra las filas aplicadas (enviadas − rechazadas).
+- Los rechazos se escriben al detectarse: si después la operación o la sesión se deshacen por otra causa, el CSV los conserva.
+- Con la misma PK repetida en un lote, aislar puede cambiar cuál de las filas se aplica.
+- En SQLite (pysqlite), si la transacción aún no ha empezado se emite `BEGIN` antes del primer SAVEPOINT; si no, el `RELEASE` del SAVEPOINT confirmaba el lote fuera de la sesión.
+
 **Estrategias INSERT por motor** (cuando `insert_resolver=None`):
 
 | Motor / driver | Estrategia |
@@ -98,6 +112,7 @@ flowchart TD
 |---|---|
 | `BulkCrud` | Fachada pública para operaciones bulk; gestiona normalización, lotes y auditoría |
 | `BatchStatementExecutor` | Ejecuta sentencias SQL por lotes sobre una conexión SQLAlchemy |
+| `Isolator` / `RejectsWriter` (`bulk/_support/rejects.py`, internos) | SAVEPOINT por lote y bisección de `on_error="isolate"`; escritura del CSV de rechazos |
 | `InsertStrategyResolver` | Selecciona la estrategia INSERT óptima según motor y driver |
 
 ## 4. Dependencias y Requisitos

@@ -18,6 +18,7 @@ from sqlalchemy import (
     Table,
 )
 
+from .._support.rejects import Isolator
 from .._support.sql_helpers import SqlColumns
 from ._driver_quirks import _driver_decimal_context, _pymssql_plain_decimals, _register_fast_executemany
 from .delete_strategies import DeleteExecutionStrategyProtocol, DeleteStrategyResolver
@@ -117,6 +118,8 @@ class BatchStatementExecutor:
         # o final) de las ejecutadas aún sin commit, para saber cuántas sobreviven si una carga falla a mitad de sesión.
         #: Cadencia de ``commit_every_n_chunks``; el contador de lotes se arrastra entre llamadas dentro de una sesión.
         self.cadence: CommitCadence = CommitCadence(commit_every_n_chunks, ledger=self.session.rows)
+        #: ``BulkCrud(on_error="isolate")`` lo fija durante cada operación: cada lote va en un SAVEPOINT (S-2).
+        self.isolator: Isolator | None = None
         drivername: str = str(engine.url.drivername).lower()
         self._insert_strategy: InsertExecutionStrategyProtocol = (insert_resolver or InsertStrategyResolver()).resolve(
             engine.dialect.name, drivername
@@ -140,8 +143,11 @@ class BatchStatementExecutor:
         records: Sequence[Mapping[str, Any]],
         stmt: Any,
         strategy: InsertExecutionStrategyProtocol | None = None,
+        first_row: int = 0,
     ) -> None:
         """Ejecuta un statement SQLAlchemy por batches.
+
+        ``first_row`` es la posición en la entrada de ``records[0]``: la de las filas rechazadas con :attr:`isolator`.
 
         ``strategy`` sustituye a la estrategia INSERT resuelta para este motor (p.ej.
         :class:`MySQLStagingUpdateStrategy` en el UPDATE por staging); ``None`` usa la resuelta.
@@ -153,22 +159,31 @@ class BatchStatementExecutor:
         usa ``engine.connect()`` (commit-as-you-go) en lugar de ``engine.begin()``
         para poder commitear lotes intermedios, y hace un commit final del resto.
         """
-        self._run(lambda connection: self._execute_on_connection(connection, records, stmt, strategy))
+        self._run(lambda connection: self._execute_on_connection(connection, records, stmt, strategy, first_row))
 
-    def execute_columns(self, *, block: SqlColumns, stmt: Any) -> None:
+    def execute_columns(self, *, block: SqlColumns, stmt: Any, first_row: int = 0) -> None:
         """Ejecuta un INSERT de un bloque por columnas con la estrategia resuelta, sin un ``dict`` por fila (B-03).
 
         Solo para estrategias con ``supports_columns`` (COPY de PostgreSQL, ``execute_values``, ``executemany`` de
         PyMySQL), que envían tuplas al driver. El bloque es **un** lote: no se trocea por filas, porque
         ``SqlColumns[a:b]`` construiría un ``dict`` por fila y anularía la mejora. Misma sesión y cadencia que
-        :meth:`execute`.
+        :meth:`execute`. Con :attr:`isolator`, si el bloque falla se reenvía como registros para aislar las filas.
         """
         strategy: Any = self._insert_strategy
         if not getattr(strategy, "supports_columns", False):
             raise TypeError(f"{type(strategy).__name__} no admite bloques por columnas")
 
         def run(connection: Any) -> None:
-            strategy.execute_columns(connection=connection, stmt=stmt, block=block)
+            if self.isolator is None:
+                strategy.execute_columns(connection=connection, stmt=stmt, block=block)
+            else:
+                self.isolator.run_columns(
+                    connection,
+                    block,
+                    lambda columns: strategy.execute_columns(connection=connection, stmt=stmt, block=columns),
+                    lambda records: self._send(connection, records, stmt, strategy),
+                    first_row=first_row,
+                )
             if self.cadence.on_batch(len(block)):
                 _commit_periodico(connection, self.session.commit_hook)
                 self.cadence.confirm()
@@ -204,24 +219,41 @@ class BatchStatementExecutor:
         records: Sequence[Mapping[str, Any]],
         stmt: Any,
         strategy: InsertExecutionStrategyProtocol | None = None,
+        first_row: int = 0,
     ) -> None:
         """Ejecuta los batches sobre una conexión ya abierta.
 
         Si ``commit_every_n_chunks`` está activo, commitea sobre ``connection``
         (que debe estar en modo commit-as-you-go) cada N lotes. El commit del
         resto (tail) es responsabilidad del llamador (``execute`` / ``bulk_session``).
+        Con :attr:`isolator`, cada lote va en un SAVEPOINT; el commit periódico queda fuera de él.
         """
+        chosen: InsertExecutionStrategyProtocol = strategy or self._insert_strategy
         for start in range(0, len(records), self._chunk_size):
             batch: Sequence[Mapping[str, Any]] = records[start : start + self._chunk_size]
-            with _driver_decimal_context(self._engine):
-                (strategy or self._insert_strategy).execute(
-                    connection=connection,
-                    stmt=stmt,
-                    records=_pymssql_plain_decimals(self._engine, batch),
+            if self.isolator is None:
+                self._send(connection, batch, stmt, chosen)
+            else:
+                self.isolator.run_records(
+                    connection,
+                    batch,
+                    lambda items: self._send(connection, items, stmt, chosen),
+                    first_row=first_row + start,
                 )
             if self.cadence.on_batch(len(batch)):
                 _commit_periodico(connection, self.session.commit_hook)
                 self.cadence.confirm()
+
+    def _send(
+        self,
+        connection: Any,
+        batch: Sequence[Mapping[str, Any]],
+        stmt: Any,
+        strategy: InsertExecutionStrategyProtocol,
+    ) -> None:
+        """Envía un lote de registros con ``strategy``."""
+        with _driver_decimal_context(self._engine):
+            strategy.execute(connection=connection, stmt=stmt, records=_pymssql_plain_decimals(self._engine, batch))
 
 
 class DeleteBatchExecutor:
@@ -245,6 +277,8 @@ class DeleteBatchExecutor:
         #: Lotes desde el último commit periódico. Se reinicia en cada llamada salvo entre los chunks de un mismo stream
         #: (``bulk_delete_from_chunks``): si no, con chunks de pocos lotes nunca se llegaría al commit periódico.
         self._cadence: CommitCadence = CommitCadence(commit_every_n_chunks, ledger=self.session.rows)
+        #: Como en ``BatchStatementExecutor``: cada lote en un SAVEPOINT con ``BulkCrud(on_error="isolate")`` (S-2).
+        self.isolator: Isolator | None = None
 
     def execute(
         self,
@@ -302,9 +336,19 @@ class DeleteBatchExecutor:
         for index, batch_df in enumerate(self._iter_batches(df=df, pk_cols=pk_cols)):
             first_row = row_offset + index * self._chunk_size
             with batch_failure_note("DELETE", table.fullname, index, first_row, len(batch_df), chunk):
-                self._execute_batch(
-                    strategy=strategy, connection=connection, table=table, batch_df=batch_df, pk_cols=pk_cols
-                )
+                if self.isolator is None:
+                    self._execute_batch(
+                        strategy=strategy, connection=connection, table=table, batch_df=batch_df, pk_cols=pk_cols
+                    )
+                else:
+                    self.isolator.run_frame(
+                        connection,
+                        batch_df,
+                        lambda frame: self._execute_batch(
+                            strategy=strategy, connection=connection, table=table, batch_df=frame, pk_cols=pk_cols
+                        ),
+                        first_row=first_row,
+                    )
             if cadence.on_batch(len(batch_df)):
                 _commit_periodico(connection, self.session.commit_hook)
                 cadence.confirm()
