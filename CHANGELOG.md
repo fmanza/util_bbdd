@@ -7,6 +7,15 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **bulk (Oracle)**: `on_error="isolate"` con oracledb usa `batcherrors`: un envío por lote, sin bisección. Aísla además
+  el valor demasiado largo (ORA-12899), NOT NULL (ORA-01400) y la precisión (ORA-01438), que antes hacían fallar la
+  operación entera. INSERT 1M con 10 filas malas: 1,22× → 1,08× (sin filas malas 1,04×); datos idénticos a la vía normal
+  en 8 tipos. En el UPDATE con columnas LOB se mantiene la bisección (ORA-03106 de oracledb 4.0.1 thin con
+  `batcherrors`, un bind LOB grande y una fila mala). La columna `error` del CSV de rechazos es
+  `DatabaseError: ORA-xxxxx: …` en Oracle (spike S-5, sesiones `2026-10-01r` y `2026-10-01s`).
+
 ### Changed
 
 - **docs (bulk)**: escalado de `ParallelBulkLoader` medido otra vez con la v0.26.0 (200K y 1M filas, 6 motores): con 4

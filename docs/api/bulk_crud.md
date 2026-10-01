@@ -88,7 +88,8 @@ flowchart TD
 **Aislamiento de filas (`on_error="isolate"`), límites:**
 
 - Solo se aíslan `IntegrityError` y `DataError`. Un error estructural (columna inexistente, permisos, sintaxis) se propaga: aislarlo rechazaría todas las filas.
-- Algunos drivers no clasifican el valor demasiado largo como `DataError` y entonces la operación falla como sin aislamiento: Oracle (ORA-12899 llega como `DatabaseError`), SQL Server con pyodbc y `fast_executemany` (`ProgrammingError` en el cliente) y con pymssql (2628 como `OperationalError`). PK duplicada y FK sí se aíslan en los 6 motores.
+- Algunos drivers no clasifican el valor demasiado largo como `DataError` y entonces la operación falla como sin aislamiento: SQL Server con pyodbc y `fast_executemany` (`ProgrammingError` en el cliente) y con pymssql (2628 como `OperationalError`). PK duplicada y FK sí se aíslan en los 6 motores.
+- **Oracle con oracledb** aísla con `batcherrors`: un envío por lote, sin bisección; el driver aplica las filas buenas y devuelve las erróneas con su posición. Así se aíslan también el valor demasiado largo (ORA-12899), NOT NULL (ORA-01400) y la precisión (ORA-01438). La columna `error` del CSV es `DatabaseError: ORA-xxxxx: …`. Excepción: en un UPDATE con alguna columna LOB (`Text`, `LargeBinary`, `JSON`, CLOB/BLOB) se usa la bisección, porque oracledb 4.0.1 (thin) da ORA-03106 con `batcherrors`, un bind LOB grande y una fila mala; ahí el demasiado largo sigue sin aislarse. Si `max_rejects` se supera dentro de un lote, se reenvía sin `batcherrors` y llega el error real del driver.
 - Si casi todas las filas fallan (p. ej. recargar datos ya cargados), la bisección acaba enviando fila a fila: usar `max_rejects`.
 - La auditoría registra las filas aplicadas (enviadas − rechazadas).
 - Los rechazos se escriben al detectarse: si después la operación o la sesión se deshacen por otra causa, el CSV los conserva.

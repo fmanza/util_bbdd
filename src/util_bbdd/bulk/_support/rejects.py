@@ -23,6 +23,7 @@ from typing import Any
 from sqlalchemy.exc import DataError, IntegrityError
 
 from .._audit.repository import AuditCsvRepository, _get_file_lock
+from . import oracle_batch_errors
 
 #: Errores que se aíslan. Cualquier otro (columna inexistente, permisos, sintaxis, desconexión) se propaga: no es un
 #: problema de una fila y aislarlo acabaría rechazando todas.
@@ -180,9 +181,13 @@ class Isolator:
         *,
         on_reject: Callable[[int, Mapping[str, Any], BaseException], None],
         max_rejects: int | None = None,
+        batch_errors: bool = False,
     ) -> None:
         self._on_reject = on_reject
         self._max_rejects = max_rejects
+        #: Oracle con oracledb: un envío por lote con ``batcherrors`` en lugar de bisección (S-5, sesión 2026-10-01s).
+        #: ``BulkCrud`` lo desactiva en el UPDATE con columnas LOB (ORA-03106 del driver con ``batcherrors``).
+        self.batch_errors: bool = batch_errors
         #: Filas rechazadas por esta instancia: las que ``on_reject`` procesó sin error.
         self.rejected: int = 0
 
@@ -190,6 +195,9 @@ class Isolator:
         self, connection: Any, records: Sequence[Mapping[str, Any]], send: Callable[[Any], None], *, first_row: int
     ) -> None:
         """Lote de registros (``list[dict]``)."""
+        if self.batch_errors:
+            self._run_batch_errors(connection, records, send, first_row=first_row, at=lambda items, i: items[i])
+            return
         self._run(
             connection,
             records,
@@ -201,6 +209,11 @@ class Isolator:
 
     def run_frame(self, connection: Any, frame: Any, send: Callable[[Any], None], *, first_row: int) -> None:
         """Lote como DataFrame (DELETE)."""
+        if self.batch_errors:
+            self._run_batch_errors(
+                connection, frame, send, first_row=first_row, at=lambda items, i: items.iloc[i].to_dict()
+            )
+            return
         self._run(
             connection,
             frame,
@@ -262,6 +275,57 @@ class Isolator:
                 savepoint.rollback()
             raise
         savepoint.commit()
+
+    def _run_batch_errors(
+        self,
+        connection: Any,
+        items: Any,
+        send: Callable[[Any], None],
+        *,
+        first_row: int,
+        at: Callable[[Any, int], Mapping[str, Any]],
+    ) -> None:
+        """Un envío con ``batcherrors``: las filas buenas se aplican y las erróneas se rechazan con su posición.
+
+        Si el lote tiene más filas erróneas de las que ``max_rejects`` admite, se rechazan las que caben, se vuelve al
+        SAVEPOINT y se reenvía el lote sin ``batcherrors`` para que el driver lance su error real (clase y mensaje).
+        """
+        savepoint = _savepoint(connection)
+        try:
+            with oracle_batch_errors.collect() as errors:
+                send(items)
+        except BaseException:
+            # Error de sentencia o de conexión (batcherrors solo recoge errores de fila): se propaga.
+            with contextlib.suppress(Exception):
+                savepoint.rollback()
+            raise
+        errors.sort(key=lambda batch_error: batch_error.offset)
+        budget: int | None = None if self._max_rejects is None else self._max_rejects - self.rejected
+        accepted = errors if budget is None else errors[:budget]
+        for batch_error in accepted:
+            offset: int = batch_error.offset
+            self._reject(first_row + offset, at(items, offset), oracle_batch_errors.as_exception(batch_error))
+        if len(accepted) == len(errors):
+            savepoint.commit()
+            return
+        savepoint.rollback()
+        note = (
+            f"bulk: el lote que empieza en la fila {first_row} de la entrada tiene {len(errors)} filas con error y "
+            f"max_rejects={self._max_rejects} solo admitía {len(accepted)} más; la operación falla como sin "
+            "on_error='isolate'"
+        )
+        resend = _savepoint(connection)
+        try:
+            send(items)
+        except Exception as error:
+            with contextlib.suppress(Exception):
+                resend.rollback()
+            error.add_note(note)
+            raise
+        resend.rollback()  # no debería llegar aquí: los mismos datos tienen errores de fila
+        exception = oracle_batch_errors.as_exception(errors[len(accepted)])
+        exception.add_note(note)
+        raise exception
 
     def _bisect(
         self,

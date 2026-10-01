@@ -26,13 +26,16 @@ from typing import Any, Literal
 import pandas as pd
 
 from sqlalchemy import (
+    JSON,
     Column,
     ColumnElement,
     Engine,
     Insert,
     Inspector,
+    LargeBinary,
     MetaData,
     Table,
+    Text,
     Update,
     and_,
     bindparam,
@@ -57,6 +60,7 @@ from ._execution.batch import (
 from ._execution.executors import batch_failure_note
 from ._execution.session import SessionScope
 from ._models import MaintenanceScopeConstraintResult, MaintenanceScopeResult, PKSyncResult
+from ._support import oracle_batch_errors
 from ._support.batch_sizes import DEFAULT_CHUNK_SIZE, BulkOperation, resolve_batch_sizes
 from ._support.dialect import (
     MYSQL_FAMILY,
@@ -145,6 +149,10 @@ class _StreamPosition:
 
 #: Nota que lleva el ``OSError`` de no poder escribir el CSV de rechazos (M-1, audit-code 2026-10-01).
 _REJECTS_FAILURE_NOTE: str = "bulk: no se pudo escribir el CSV de rechazos"
+
+
+#: Tipos LOB: el UPDATE con alguno de ellos aísla por bisección y no con ``batcherrors`` (S-5, ORA-03106).
+_LOB_TYPES: tuple[type, ...] = (Text, LargeBinary, JSON)
 
 
 def _no_foreign_keys(*_args: Any, **_kwargs: Any) -> dict[Any, list[Any]]:
@@ -730,7 +738,7 @@ class BulkCrud:
                 f"bulk {operation} en '{tabla_destino}': fila {position} rechazada ({type(error).__name__})"
             )
 
-        isolator = Isolator(on_reject=on_reject, max_rejects=self._max_rejects)
+        isolator = Isolator(on_reject=on_reject, max_rejects=self._max_rejects, batch_errors=self.__batch_errors())
         self._isolator = isolator
         self._batch_statement_executor.isolator = isolator
         self._delete_batch_executor.isolator = isolator
@@ -745,6 +753,13 @@ class BulkCrud:
                 self.logger.warning(
                     f"⚠️ bulk {operation} en '{tabla_destino}': {isolator.rejected} filas rechazadas en {writer.path}"
                 )
+
+    def __batch_errors(self) -> bool:
+        """``True`` si se aíslan filas con ``batcherrors`` (Oracle con oracledb, S-5); registra el listener una vez."""
+        if not oracle_batch_errors.supports(self.engine) or not isinstance(self.engine, Engine):
+            return False
+        oracle_batch_errors.install(self.engine)
+        return True
 
     def __rejected_so_far(self) -> int:
         """Filas rechazadas hasta ahora en la operación en curso (0 sin aislamiento)."""
@@ -1024,6 +1039,11 @@ class BulkCrud:
             .values({col: json_binds.get(col, bindparam(col)) for col in update_plan.update_cols})
         )
         executor = self._batch_statement_executor
+        if self._isolator is not None:
+            # S-5: con un bind LOB grande y una fila mala, batcherrors da ORA-03106 en el UPDATE (oracledb 4.0.1 thin).
+            self._isolator.batch_errors = self.__batch_errors() and not any(
+                isinstance(tabla.c[column].type, _LOB_TYPES) for column in update_plan.update_cols
+            )
         staging: StagingUpdateStrategy | None = None
         if self._update_via_staging:
             key = (id(tabla), tuple(update_plan.pk_cols), tuple(update_plan.update_cols))

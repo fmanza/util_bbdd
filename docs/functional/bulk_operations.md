@@ -63,7 +63,7 @@ sequenceDiagram
 
 **Carga streaming en chunks:** Para grandes volúmenes que se leen en streaming (por ejemplo, desde SQL con `chunksize`), existe la operación de inserción desde iterador que resuelve columnas e identidad una sola vez.
 
-**Carga con filas erróneas:** Si unas pocas filas pueden fallar (claves repetidas, referencias inexistentes, textos demasiado largos) y no deben deshacer la carga, se activa el aislamiento de filas con un fichero de rechazos. Las filas buenas se aplican; cada rechazada queda en el fichero con su posición en la entrada, el error y sus valores, para corregirla y volver a cargarla. Un límite opcional de rechazos hace fallar la operación entera si se supera. En Oracle y SQL Server, el texto demasiado largo no se aísla (falla la operación como sin aislamiento); claves repetidas y referencias sí.
+**Carga con filas erróneas:** Si unas pocas filas pueden fallar (claves repetidas, referencias inexistentes, textos demasiado largos) y no deben deshacer la carga, se activa el aislamiento de filas con un fichero de rechazos. Las filas buenas se aplican; cada rechazada queda en el fichero con su posición en la entrada, el error y sus valores, para corregirla y volver a cargarla. Un límite opcional de rechazos hace fallar la operación entera si se supera. En SQL Server el texto demasiado largo no se aísla (falla la operación como sin aislamiento), y en Oracle tampoco al actualizar columnas de texto largo o binarias; claves repetidas y referencias se aíslan en todos los motores.
 
 **Validación automática MySQL/MariaDB:** Al inicializarse con un engine MySQL o MariaDB, el módulo lee las variables críticas del servidor y registra advertencias si la configuración no es óptima para la carga prevista.
 

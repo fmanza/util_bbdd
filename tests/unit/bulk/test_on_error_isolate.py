@@ -17,11 +17,12 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from sqlalchemy import Column, Engine, ForeignKey, Integer, MetaData, String, Table, create_engine, event, text
+from sqlalchemy import Column, Engine, ForeignKey, Integer, MetaData, String, Table, Text, create_engine, event, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from util_bbdd.bulk import BulkCrud
 from util_bbdd.bulk._execution.insert_strategies import InsertStrategyResolver, MySQLDriverExecutemanyStrategy
+from util_bbdd.bulk._support import oracle_batch_errors
 from util_bbdd.bulk._support.rejects import Isolator, RejectsWriter
 
 pytestmark = pytest.mark.unit
@@ -459,3 +460,154 @@ def test_rejects_writers_on_the_same_path_do_not_interleave(tmp_path: Path) -> N
     rows = _rejects(path)
     assert sorted(int(r["fila"]) for r in rows) == [b + i for b in (0, 1000, 2000, 3000) for i in range(200)]
     assert path.read_text(encoding="utf-8").count("timestamp\ttabla") == 1
+
+
+# ----------------------------------------------------------------- batcherrors de Oracle (S-5, sesión 2026-10-01s)
+
+
+class _BatchError:
+    """Como los errores de ``cursor.getbatcherrors()`` de oracledb: ``offset``, ``full_code`` y el mensaje."""
+
+    def __init__(self, offset: int, code: str = "ORA-00001") -> None:
+        self.offset = offset
+        self.full_code = code
+
+    def __str__(self) -> str:
+        return f"{self.full_code}: unique constraint violated"
+
+
+class _Savepoints:
+    def __init__(self) -> None:
+        self.log: list[str] = []
+
+    def begin_nested(self) -> Any:
+        log = self.log
+
+        class _Savepoint:
+            def commit(self) -> None:
+                log.append("commit")
+
+            def rollback(self) -> None:
+                log.append("rollback")
+
+        log.append("savepoint")
+        return _Savepoint()
+
+
+def _batch_errors_send(bad: set[int], calls: list[int]) -> Any:
+    """``send`` falso: con colector activo devuelve los errores de fila; sin él lanza, como el driver."""
+
+    def send(items: Any) -> None:
+        calls.append(len(items))
+        sink = oracle_batch_errors._SINK.get()
+        if sink is None:
+            raise IntegrityError("INSERT", {}, Exception("ORA-00001: unique constraint violated"))
+        sink.extend(_BatchError(offset) for offset in sorted(bad, reverse=True))
+
+    return send
+
+
+def test_batch_errors_rejects_rows_with_one_send() -> None:
+    rejected: list[tuple[int, Any, str]] = []
+    isolator = Isolator(
+        on_reject=lambda position, values, error: rejected.append((position, dict(values), str(error))),
+        batch_errors=True,
+    )
+    calls: list[int] = []
+    connection = _Savepoints()
+
+    isolator.run_records(connection, [{"id": i} for i in range(8)], _batch_errors_send({1, 6}, calls), first_row=100)
+
+    assert calls == [8]  # un envío, sin bisección
+    assert [(p, v) for p, v, _ in rejected] == [(101, {"id": 1}), (106, {"id": 6})]
+    assert rejected[0][2].startswith("ORA-00001")
+    assert connection.log == ["savepoint", "commit"]
+    assert isolator.rejected == 2
+
+
+def test_batch_errors_with_frames() -> None:
+    rejected: list[tuple[int, Any]] = []
+    isolator = Isolator(on_reject=lambda p, v, _e: rejected.append((p, v)), batch_errors=True)
+
+    isolator.run_frame(_Savepoints(), pd.DataFrame({"id": [10, 11, 12]}), _batch_errors_send({2}, []), first_row=0)
+
+    assert rejected == [(2, {"id": 12})]
+
+
+def test_batch_errors_over_max_rejects_resends_to_raise_the_driver_error() -> None:
+    rejected: list[int] = []
+    isolator = Isolator(on_reject=lambda p, _v, _e: rejected.append(p), max_rejects=1, batch_errors=True)
+    calls: list[int] = []
+    connection = _Savepoints()
+
+    with pytest.raises(IntegrityError) as info:
+        isolator.run_records(connection, [{"id": i} for i in range(5)], _batch_errors_send({0, 3}, calls), first_row=0)
+
+    assert rejected == [0]  # las que caben en max_rejects se escriben (como con bisección)
+    assert calls == [5, 5]  # el reenvío sin batcherrors da el error real del driver
+    assert any("max_rejects=1" in note for note in info.value.__notes__)
+    assert connection.log == ["savepoint", "rollback", "savepoint", "rollback"]
+
+
+def test_batch_errors_statement_errors_propagate() -> None:
+    connection = _Savepoints()
+
+    def broken(_items: Any) -> None:
+        raise OperationalError("INSERT", {}, Exception("ORA-00942: table or view does not exist"))
+
+    with pytest.raises(OperationalError):
+        Isolator(on_reject=lambda *_a: None, batch_errors=True).run_records(
+            connection, [{"id": 1}], broken, first_row=0
+        )
+
+    assert connection.log == ["savepoint", "rollback"]
+
+
+def test_batch_errors_support_and_install(tmp_path: Path) -> None:
+    sqlite_engine = create_engine(f"sqlite:///{tmp_path / 'x.db'}")
+
+    class _Oracle:
+        class dialect:  # noqa: N801
+            name = "oracle"
+            driver = "oracledb"
+
+    assert oracle_batch_errors.supports(_Oracle())
+    assert not oracle_batch_errors.supports(sqlite_engine)
+
+    oracle_batch_errors.install(sqlite_engine)
+    oracle_batch_errors.install(sqlite_engine)  # idempotente: un solo listener
+    with sqlite_engine.begin() as conn:  # sin colector activo, SQLAlchemy ejecuta como siempre
+        conn.execute(text("CREATE TABLE t (x INTEGER)"))
+        conn.execute(text("INSERT INTO t VALUES (:x)"), [{"x": 1}, {"x": 2}])
+        assert conn.execute(text("SELECT COUNT(*) FROM t")).scalar() == 2
+    listeners = sqlite_engine.dialect.dispatch.do_executemany
+    assert len(list(listeners)) == 1
+
+
+@pytest.mark.parametrize(("column", "expected"), [("v", True), ("doc", False)], ids=["sin-lob", "con-lob"])
+def test_update_uses_batch_errors_only_without_lob_columns(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, column: str, expected: bool
+) -> None:
+    """S-5: con un bind LOB grande y una fila mala, batcherrors da ORA-03106 en el UPDATE: entonces, bisección."""
+    engine = create_engine(f"sqlite:///{tmp_path / 'lob.db'}")
+    Table(
+        "items", MetaData(), Column("id", Integer, primary_key=True), Column("v", String(10)), Column("doc", Text)
+    ).create(engine)
+    _seed_lob = pd.DataFrame({"id": [1, 2], "v": ["a", "b"], "doc": ["x", "y"]})
+    BulkCrud(engine, warn_if_audit_disabled=False).bulk_insert_from_df(_seed_lob, "items", False)
+    monkeypatch.setattr(oracle_batch_errors, "supports", lambda _engine: True)
+    monkeypatch.setattr(oracle_batch_errors, "install", lambda _engine: None)
+    seen: list[bool] = []
+    original = Isolator.run_records
+
+    def spy(self: Isolator, *args: Any, **kwargs: Any) -> None:
+        seen.append(self.batch_errors)
+        self.batch_errors = False  # SQLite no tiene batcherrors: se ejecuta por bisección
+        original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Isolator, "run_records", spy)
+    crud = _crud(engine, tmp_path)
+
+    crud.bulk_update_from_df(pd.DataFrame({"id": [1, 2], column: ["c", "d"]}), "items", False)
+
+    assert seen == [expected]

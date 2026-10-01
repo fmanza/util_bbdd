@@ -30,6 +30,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Table,
+    Text,
     Unicode,
     Uuid,
     event,
@@ -538,10 +539,12 @@ def test_isolate_insert_rejects_duplicate_keys(engine: Engine, cadence: int | No
         table.drop(engine, checkfirst=True)
 
 
-@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"postgresql", "mysql", "mariadb"})), indirect=True)
+@pytest.mark.parametrize(
+    "engine", _engine_params(only=frozenset({"postgresql", "mysql", "mariadb", "oracle"})), indirect=True
+)
 @pytest.mark.parametrize("staging", [True, False])
 def test_isolate_update_rejects_values_too_long(engine: Engine, staging: bool, tmp_path: Any) -> None:  # noqa: F811
-    """Valor demasiado largo (``DataError``) en el UPDATE por staging y en el UPDATE fila a fila."""
+    """Valor demasiado largo en el UPDATE por staging y fila a fila (``DataError``); en Oracle, con batcherrors (S-5)."""
     n = lambda logical: _name(logical, engine)  # noqa: E731
     table = _isolate_table(engine)
     try:
@@ -558,12 +561,12 @@ def test_isolate_update_rejects_values_too_long(engine: Engine, staging: bool, t
         table.drop(engine, checkfirst=True)
 
 
-@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"oracle", "mssql"})), indirect=True)
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"mssql"})), indirect=True)
 def test_isolate_value_too_long_is_not_isolated(engine: Engine, tmp_path: Any) -> None:  # noqa: F811
     """R-1: el valor demasiado largo no llega como ``DataError`` y la operación falla entera, como sin aislamiento.
 
-    oracledb: ORA-12899 como ``DatabaseError``; pyodbc con ``fast_executemany``: ``ProgrammingError`` en el cliente
-    (``String data, right truncation``); pymssql: 2628 como ``OperationalError``.
+    pyodbc con ``fast_executemany``: ``ProgrammingError`` en el cliente (``String data, right truncation``); pymssql:
+    2628 como ``OperationalError``. Oracle lo aísla con batcherrors desde la sesión 2026-10-01s.
     """
     n = lambda logical: _name(logical, engine)  # noqa: E731
     table = _isolate_table(engine)
@@ -627,4 +630,87 @@ def test_isolate_mssql_xact_abort_raises_the_data_error(engine: Engine, tmp_path
     finally:
         event.remove(engine, "connect", _xact_abort)
         engine.dispose()
+        table.drop(engine, checkfirst=True)
+
+
+# ------------------------------------------------------------------- S-5: batcherrors de Oracle (sesión 2026-10-01s)
+
+
+def _oracle_errors_table(db: Engine) -> Table:
+    table = Table(
+        _table_name(),
+        MetaData(),
+        Column("id", Integer, primary_key=True, autoincrement=False),
+        Column("s", String(5)),
+        Column("n", Numeric(5, 2)),
+        Column("req", String(5), nullable=False),
+        Column("doc", Text),
+    )
+    table.create(db)
+    return table
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"oracle"})), indirect=True)
+def test_oracle_batch_errors_isolate_errors_the_bisection_could_not(engine: Engine, tmp_path: Any) -> None:  # noqa: F811
+    """ORA-00001, ORA-12899, ORA-01438 y ORA-01400 se aíslan en un envío por lote (antes, solo la PK duplicada)."""
+    table = _oracle_errors_table(engine)
+    try:
+        rows = [{"id": i, "s": "ok", "n": decimal.Decimal("1.25"), "req": "r", "doc": "x" * 9000} for i in range(12)]
+        rows[2] = {**rows[2], "id": 1}  # ORA-00001
+        rows[5] = {**rows[5], "s": "demasiado"}  # ORA-12899
+        rows[7] = {**rows[7], "n": decimal.Decimal("1234.5")}  # ORA-01438
+        rows[10] = {**rows[10], "req": None}  # ORA-01400
+        crud = BulkCrud(engine, chunk_size=6, on_error="isolate", rejects_csv_path=tmp_path / "r.csv")
+        with crud.bulk_session():
+            crud.bulk_insert_from_df(pd.DataFrame(rows), table.name, False)
+
+        assert [row[0] for row in _state(engine, table)] == [0, 1, 3, 4, 6, 8, 9, 11]
+        frame = pd.read_csv(tmp_path / "r.csv", sep="	")
+        assert frame["fila"].tolist() == [2, 5, 7, 10]
+        assert [error.split(":")[1].strip() for error in frame["error"]] == [
+            "ORA-00001",
+            "ORA-12899",
+            "ORA-01438",
+            "ORA-01400",
+        ]
+        assert crud.rows_rejected == 4
+    finally:
+        table.drop(engine, checkfirst=True)
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"oracle"})), indirect=True)
+def test_oracle_update_with_lob_columns_uses_the_bisection(engine: Engine, tmp_path: Any) -> None:  # noqa: F811
+    """Con columnas LOB en el UPDATE no se usa batcherrors (ORA-03106 del driver, S-5): el demasiado largo no se aísla."""
+    table = _oracle_errors_table(engine)
+    try:
+        seed = pd.DataFrame({"id": [1, 2, 3], "s": ["a"] * 3, "n": [1] * 3, "req": ["r"] * 3, "doc": ["d"] * 3})
+        BulkCrud(engine).bulk_insert_from_df(seed, table.name, False)
+        crud = BulkCrud(engine, chunk_size=4, on_error="isolate", rejects_csv_path=tmp_path / "r.csv")
+        update = pd.DataFrame({"id": [1, 2, 3], "s": ["b", "demasiado", "b"], "doc": ["x" * 9000] * 3})
+        with pytest.raises(DatabaseError) as info:
+            crud.bulk_update_from_df(update, table.name, False)
+        assert "ORA-12899" in str(info.value)
+        assert [row[1] for row in _state(engine, table)] == ["a", "a", "a"]  # nada aplicado
+
+        crud.bulk_update_from_df(update.assign(s=["b", "b", "b"]).iloc[[0, 2]], table.name, False)
+        dup = pd.DataFrame({"id": [1, 1, 3], "s": ["c"] * 3})
+        crud.bulk_update_from_df(dup, table.name, False)  # sin LOB: batcherrors (sin errores aquí)
+        assert [row[1] for row in _state(engine, table)] == ["c", "a", "c"]
+    finally:
+        table.drop(engine, checkfirst=True)
+
+
+@pytest.mark.parametrize("engine", _engine_params(only=frozenset({"oracle"})), indirect=True)
+def test_oracle_batch_errors_over_max_rejects(engine: Engine, tmp_path: Any) -> None:  # noqa: F811
+    table = _oracle_errors_table(engine)
+    try:
+        rows = pd.DataFrame({"id": range(6), "s": ["ok", "demasiado", "ok", "demasiado", "ok", "ok"], "req": ["r"] * 6})
+        crud = BulkCrud(engine, chunk_size=10, on_error="isolate", rejects_csv_path=tmp_path / "r.csv", max_rejects=1)
+        with pytest.raises(DatabaseError) as info:
+            crud.bulk_insert_from_df(rows, table.name, False)
+        assert "ORA-12899" in str(info.value)
+        assert any("max_rejects=1" in note for note in info.value.__notes__)
+        assert _state(engine, table) == []
+        assert pd.read_csv(tmp_path / "r.csv", sep="	")["fila"].tolist() == [1]
+    finally:
         table.drop(engine, checkfirst=True)
