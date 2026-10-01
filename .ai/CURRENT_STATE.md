@@ -34,12 +34,13 @@
 | `v0.20.0` | Liberado 2026-09-30 — **vistas de `migrate` reescritas con sqlglot** (opcional, `view_strategy`), `CONNECT BY` → CTE recursiva, `MigrationPlan.validate_views`; auditoría de `migrate/` (A1–A9, B1): `execute()` operativo en los 5 destinos, trigger de identidad Oracle, índices por schema, barras invertidas, límites en bytes, colisiones de mayúsculas, `engine`, saltos de línea en comentarios | Estable |
 | `v0.21.0` | Liberado 2026-09-30 — **extractores de `migrate` por schema** (823 → 8 consultas, `plan()` −87 % a −98 %), **comentarios** de tablas y columnas desde/hacia PostgreSQL y SQL Server (recortados al límite de cada destino), **`oracle_type` → `source_type` / `category`** (incompatible, con guía de migración), hotfix de FK compuestas de Oracle, tabla sin columnas = ERROR | Estable |
 | `v0.22.0` | Liberado 2026-09-30 — **`CONNECT BY`** con `AND LEVEL <= n`, `CONNECT_BY_ISLEAF`, `NOCYCLE` (destino PostgreSQL) y `SELECT *` → CTE recursiva; **comentarios de vistas** desde/hacia PostgreSQL, SQL Server y Oracle; **`MigrationWarning.code`** (`WarningCode`, 21 códigos); fixes de la auditoría (C1, C2, H1, L1, L2) | Estable |
+| `v0.23.0` | Liberado 2026-10-01 — **`CONNECT_BY_ISCYCLE`**, **`NOCYCLE` hacia MySQL/MariaDB/SQL Server** (camino de claves por destino, búsqueda binaria), **`ORDER SIBLINGS BY`** (sin orden en SQL Server), comentarios de rutinas al script, hotfix `exp.Expr`; limitación conocida: rutinas no ejecutables en `execute()` (R4) | Estable |
 | Zenical | Pendiente, sin versión asignada — merge `migrate/zenical-pure` (+80% perf doc builds) cuando Zenical esté instalable |
 
 PR abierta: **PR #18** `feat(connection/bulk): automatización variables MySQL/MariaDB` — revisión pendiente de merge.  
 PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical v0.0.44 esté en crates.io (o instalación manual de binario).
 
-**Tests actuales**: 5725 passed, 229 skipped sin URLs de servidor (cierre de `v0.22.0`); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 368 passed en 5 servidores (cierre de `v0.22.0`, 2026-09-30). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/performance_audit_guide.md`).
+**Tests actuales**: 5742 passed, 246 skipped sin URLs de servidor (cierre de `v0.23.0`); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 385 passed en 5 servidores (cierre de `v0.23.0`, 2026-10-01). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/performance_audit_guide.md`).
 
 ---
 
@@ -82,7 +83,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-0. **0.23.0 en curso** (commits sin push): F2 `CONNECT_BY_ISCYCLE`, F3 `NOCYCLE` en MySQL/MariaDB/SQL Server y F1 `ORDER SIBLINGS BY` (sesión `2026-10-01-migrate-connect-by-3`); F4 comentarios de rutinas (sesión `2026-10-01b-migrate-routine-comments`). **Pendiente de decisión: `/hotfix` R4** — las rutinas no son ejecutables en `execute()` (MySQL/MariaDB sin cabecera `CREATE`, Oracle con nombre vacío por `ALL_PROCEDURES.procedure_name`, PostgreSQL con el schema origen). Después, `/version-closure` 0.23.0.
+0. **Push y tag `v0.23.0`** (sesiones `2026-10-01-migrate-connect-by-3`, `2026-10-01b-migrate-routine-comments`, `2026-10-01c-hotfix-sqlglot-expr`), pendientes de decisión del usuario. **Siguiente: `/hotfix` R4** — las rutinas no se crean con `execute()` (MySQL/MariaDB sin cabecera `CREATE`, Oracle con nombre vacío por `ALL_PROCEDURES.procedure_name`, PostgreSQL con el schema origen; detalle en `2026-10-01b-migrate-routine-comments`).
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
 3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.

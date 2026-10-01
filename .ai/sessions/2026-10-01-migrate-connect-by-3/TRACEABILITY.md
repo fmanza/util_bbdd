@@ -79,4 +79,4 @@
   (que ordena), y comprobar que el test falla si se rompe el orden a propósito.
 
 ## Veredicto final
-Veredicto: CLOSED — F2, F3 y F1 implementados y verificados contra Oracle (commits sin push).
+Veredicto: CLOSED — F2, F3 y F1 implementados y verificados contra Oracle; liberado en v0.23.0 (2026-10-01).

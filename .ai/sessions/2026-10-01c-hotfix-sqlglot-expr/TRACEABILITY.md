@@ -33,8 +33,9 @@
 ## Directrices para Futuras IAs
 - **[migrate/views]**: con sqlglot ≥ 30, anotar los nodos con `exp.Expr` (base pública), nunca `exp.Expression`
   (importación privada); `test_sqlglot_public_api.py` lo vigila.
+- **[release]**: la v0.23.0 se liberó con R4 (rutinas no ejecutables en `execute()`) como limitación conocida en el CHANGELOG, por decisión del usuario de cerrar antes del hotfix; R4 no es una regresión de la 0.23.0 (viene de antes; F4 solo lo destapó).
 - **[herramientas]**: `Grep` en modo `count` cuenta líneas, no apariciones; al validar una sustitución con regex,
   comparar con el número de apariciones.
 
 ## Veredicto final
-Veredicto: CLOSED — hotfix aplicado y verificado (commit sin push). Sigue pendiente el `/hotfix` R4 de rutinas.
+Veredicto: CLOSED — hotfix aplicado y verificado; liberado en v0.23.0 (2026-10-01). Sigue pendiente el `/hotfix` R4 de rutinas.

@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, MySQL, Oracle, PostgreSQL, SQLite y SQL Server (sync y async), y HSQLDB, Redshift y Snowflake (sync).
 
-**Version:** 0.22.0 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 0.23.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -1103,7 +1103,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.22.0** (más jerarquías `CONNECT BY` de Oracle convertidas en CTE recursiva, incluido `NOCYCLE` hacia PostgreSQL; comentarios de vistas en el destino; `MigrationWarning.code` estable para filtrar avisos)
+**Current Version: v0.23.0** (`CONNECT BY` de Oracle con `CONNECT_BY_ISCYCLE`, `NOCYCLE` hacia los cuatro destinos y `ORDER SIBLINGS BY`; comentarios de rutinas en el script; las rutinas aún no se crean con `execute()`, ver el CHANGELOG)
 
 Roadmap resumido (ver [ROADMAP completo](docs/roadmap.md) y
 [CHANGELOG](CHANGELOG.md) para el detalle):

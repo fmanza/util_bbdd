@@ -58,4 +58,4 @@
   aparte en lugar de añadirle columnas.
 
 ## Veredicto final
-Veredicto: CLOSED — F4 implementado y verificado; R4 confirmado, pendiente de `/hotfix` por decisión del usuario.
+Veredicto: CLOSED — F4 implementado y verificado; liberado en v0.23.0 (2026-10-01). R4 confirmado, pendiente de `/hotfix` (limitación conocida en el CHANGELOG de la 0.23.0).

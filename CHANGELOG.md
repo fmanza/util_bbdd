@@ -7,6 +7,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-10-01
+
+Completa la conversión de jerarquías `CONNECT BY` de Oracle en `migrate/`: `CONNECT_BY_ISCYCLE`, `NOCYCLE` hacia los
+cuatro destinos y `ORDER SIBLINGS BY`, comparados con Oracle en el banco; los comentarios de rutinas llegan al script.
+Sin cambios incompatibles.
+
+**Limitación conocida (pendiente de hotfix)**: las rutinas no se crean con `execute()`: desde MySQL/MariaDB el cuerpo
+llega sin cabecera `CREATE` (falla con error de sintaxis), las rutinas sueltas de Oracle salen sin nombre ni cuerpo y
+las de PostgreSQL conservan el schema origen. Revisar las rutinas a mano o excluirlas del plan.
+
 ### Added
 
 - **migrate (vistas)**: `CONNECT_BY_ISCYCLE` en jerarquías `CONNECT BY NOCYCLE` convertidas (F2): 1 si la fila tiene
