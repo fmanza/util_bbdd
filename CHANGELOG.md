@@ -13,6 +13,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   el driver que usa la librería para `db_type="mariadb"`: motor `mariadb_connector` en los tests de `bulk`,
   `test_mariadb_engine_e2e.py` (managers sync y async) y `UpdateAutoIncrement` con los dos drivers. Sin cambios en la
   librería (sesión `2026-10-01w`).
+- **docs (bulk, Oracle)**: el ORA-03106 que obliga a aislar por bisección el UPDATE con columnas LOB se reproduce
+  también con oracledb 4.0.2 y 26.0.1 (en 26.0.1, incluso con el bind declarado `DB_TYPE_CLOB`); el INSERT no falla
+  en ninguna (sesión `2026-10-01y`).
 
 ## [0.27.0] - 2026-10-01
 

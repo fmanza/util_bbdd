@@ -1049,7 +1049,8 @@ class BulkCrud:
         )
         executor = self._batch_statement_executor
         if self._isolator is not None:
-            # S-5: con un bind LOB grande y una fila mala, batcherrors da ORA-03106 en el UPDATE (oracledb 4.0.1 thin).
+            # S-5: con un bind LOB grande y una fila mala, batcherrors da ORA-03106 en el UPDATE (oracledb thin 4.0.1,
+            # 4.0.2 y 26.0.1; el INSERT no falla: sesión 2026-10-01y).
             self._isolator.batch_errors = self.__batch_errors() and not any(
                 isinstance(tabla.c[column].type, _LOB_TYPES) for column in update_plan.update_cols
             )
