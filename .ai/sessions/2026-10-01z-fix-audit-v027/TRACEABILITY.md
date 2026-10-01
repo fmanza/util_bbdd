@@ -30,6 +30,19 @@
 `ruff`/`mypy` limpios (391); `pytest` 5981 passed, 426 skipped; `tests/integration` 572 passed; `zensical build --strict`
 sin avisos.
 
+## VERSION — v0.27.1 (`/version-closure`)
+- Alcance (`36eb9c4..HEAD`): plan (`2ac4ee4`), tests con el conector de MariaDB (`9a00ee8`), ORA-03106 (`c4d7017`), banco
+  (`c79f8de`), correcciones del audit-code (`8521b32`).
+- SemVer PATCH: sin API nueva; B-2 cambia el camino interno (bisección en vez de `batcherrors`) solo para el UPDATE de
+  `String` > 4000 en Oracle con `isolate`; M-1 y B-1 son documentación de contratos. Sin migraciones; Python `>=3.12`.
+- Versión `0.27.1` en `pyproject.toml`, `README.md`, `docs/index.md`, `docs/roadmap.md` y pie de `docs/architecture.md`;
+  `CHANGELOG.md` `[Unreleased]` → `[0.27.1] - 2026-10-01`; `.ai/CURRENT_STATE.md` y `SESSIONS_DIGEST.md`.
+- Checklist: `ruff`/`format --check` y `mypy` (391) limpios; `pytest` 5981 passed / 426 skipped; `tests/integration`
+  572 passed; `python -m build` → `util_bbdd-0.27.1`; `zensical build --strict` sin avisos.
+- Rollback: tag `v0.27.0` o `git revert` de `8521b32` (único cambio en `src/` de la versión además de comentarios).
+- Limitaciones: B-3 e I-2 abiertos (bajos); issue del ORA-03106 sin publicar; S-1 NO_GO.
+- Handoff: push de `develop` y tag `v0.27.1`; publicar el issue si se quiere.
+
 ## Directrices para Futuras IAs
 - **[bulk/paralelo]**: cualquier contador de efectos fuera de la BD (rechazos, auditoría estricta) puede incluir intentos
   deshechos; las conciliaciones con `total_rows` solo valen sin `partition_errors`.

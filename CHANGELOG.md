@@ -7,6 +7,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.27.1] - 2026-10-01
+
+Correcciones del audit-code de la 0.27.0 y pruebas con el driver que la librería usa para MariaDB (MariaDB
+Connector/Python), que hasta ahora solo se probaba con PyMySQL. Sin cambios de API.
+
 ### Fixed
 
 - **bulk**: la conciliación documentada de `ParallelLoadResult` (`audited_rows + rows_rejected + unaudited_committed_rows
