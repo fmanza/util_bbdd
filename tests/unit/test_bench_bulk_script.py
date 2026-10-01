@@ -59,6 +59,16 @@ class TestResolveEngineUrl:
         env = {"UTIL_BBDD_TEST_MARIADB_URL": "mariadb+pymysql://t"}
         assert bench.resolve_engine_url("mariadb", env) == "mariadb+pymysql://t"
 
+    def test_mariadb_connector_reuses_the_mariadb_url_with_the_original_driver(self, bench: ModuleType) -> None:
+        env = {"UTIL_BBDD_TEST_MARIADB_URL": "mariadb+pymysql://bench:x@127.0.0.1:53307/bench"}
+        assert (
+            bench.resolve_engine_url("mariadb_connector", env)
+            == "mariadb+mariadbconnector://bench:x@127.0.0.1:53307/bench"
+        )
+        own = {**env, "UTIL_BBDD_BENCH_MARIADB_CONNECTOR_URL": "mariadb+mariadbconnector://o:x@127.0.0.1:53307/b"}
+        assert bench.resolve_engine_url("mariadb_connector", own) == "mariadb+mariadbconnector://o:x@127.0.0.1:53307/b"
+        assert bench.resolve_engine_url("mariadb_connector", {}) is None
+
     def test_missing_server_engine_returns_none(self, bench: ModuleType) -> None:
         assert bench.resolve_engine_url("oracle", {}) is None
 

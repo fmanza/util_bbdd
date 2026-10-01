@@ -16,6 +16,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **docs (bulk, Oracle)**: el ORA-03106 que obliga a aislar por bisección el UPDATE con columnas LOB se reproduce
   también con oracledb 4.0.2 y 26.0.1 (en 26.0.1, incluso con el bind declarado `DB_TYPE_CLOB`); el INSERT no falla
   en ninguna (sesión `2026-10-01y`).
+- **scripts**: `bench_bulk.py` admite el motor `mariadb_connector` (MariaDB con el conector original; misma URL que
+  `mariadb` con el driver cambiado). 1M filas: INSERT 1,9× y UPDATE 1,67× más rápidos que con PyMySQL, DELETE igual
+  (`docs/guides/benchmarks.md`, sesión `2026-10-01x`).
 
 ## [0.27.0] - 2026-10-01
 

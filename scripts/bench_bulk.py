@@ -10,7 +10,10 @@ para cada motor × variante × tamaño × repetición, verifica el resultado con
 
 Motores: se activan con una URL SQLAlchemy en ``UTIL_BBDD_BENCH_<MOTOR>_URL`` (o, si no existe, en la convención de los
 tests de integración ``UTIL_BBDD_TEST_<MOTOR>_URL``). SQLite no necesita URL: usa un fichero temporal. Un motor sin URL
-se salta con un aviso. Motores: sqlite, postgresql, mysql, mariadb, mssql, oracle.
+se salta con un aviso. Motores: sqlite, postgresql, mysql, mariadb, mariadb_connector, mssql, oracle.
+``mariadb_connector`` es MariaDB con el conector original (MariaDB Connector/Python, el driver que usa la librería para
+``db_type="mariadb"``): usa ``UTIL_BBDD_BENCH_MARIADB_CONNECTOR_URL`` si existe y, si no, la URL de ``mariadb`` con
+el driver ``mariadb+mariadbconnector`` (sesión 2026-10-01x).
 
 **Apunta siempre a una base de datos de pruebas.** El banco solo crea y elimina la tabla ``zz_util_bbdd_bench``.
 
@@ -76,7 +79,7 @@ from util_bbdd.bulk._support.validation import normalize_identifier
 
 ROOT = Path(__file__).resolve().parent.parent
 
-ENGINES: tuple[str, ...] = ("sqlite", "postgresql", "mysql", "mariadb", "mssql", "oracle")
+ENGINES: tuple[str, ...] = ("sqlite", "postgresql", "mysql", "mariadb", "mariadb_connector", "mssql", "oracle")
 OPS: tuple[str, ...] = ("insert", "update", "delete")
 DEFAULT_SIZES: tuple[int, ...] = (1_000, 10_000, 100_000, 1_000_000)
 TABLE_NAME = "zz_util_bbdd_bench"
@@ -112,6 +115,10 @@ def resolve_engine_url(engine_key: str, environ: dict[str, str] | None = None) -
     env = os.environ if environ is None else environ
     key = engine_key.upper()
     url = env.get(f"UTIL_BBDD_BENCH_{key}_URL") or env.get(f"UTIL_BBDD_TEST_{key}_URL")
+    if not url and engine_key == "mariadb_connector":
+        mariadb_url = resolve_engine_url("mariadb", env)
+        if mariadb_url:
+            url = make_url(mariadb_url).set(drivername="mariadb+mariadbconnector").render_as_string(hide_password=False)
     if url:
         warn_if_standard_port(engine_key, url)
         return url
@@ -122,7 +129,14 @@ def resolve_engine_url(engine_key: str, environ: dict[str, str] | None = None) -
 
 # Puertos estándar por motor. Los contenedores del banco (docker-compose.bench.yml) usan otros a propósito, para no
 # tocar nunca un servidor que ya use el estándar (p.ej. un PostgreSQL de desarrollo en el 5432).
-_STANDARD_PORTS: dict[str, int] = {"postgresql": 5432, "mysql": 3306, "mariadb": 3306, "mssql": 1433, "oracle": 1521}
+_STANDARD_PORTS: dict[str, int] = {
+    "postgresql": 5432,
+    "mysql": 3306,
+    "mariadb": 3306,
+    "mariadb_connector": 3306,
+    "mssql": 1433,
+    "oracle": 1521,
+}
 
 
 def warn_if_standard_port(engine_key: str, url: str) -> bool:

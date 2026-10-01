@@ -348,6 +348,18 @@ python -m pytest tests/integration/test_bulk_engines.py
 `test_update_auto_increment_mariadb.py` también lo cubren. Sin el paquete, esos casos se saltan con el motivo. No hay
 nada que configurar.
 
+`bench_bulk.py` admite el motor `mariadb_connector` con la misma regla (o `UTIL_BBDD_BENCH_MARIADB_CONNECTOR_URL`).
+Medido con 1M filas (MariaDB 11.4.13, 3 repeticiones, `chunk_size` automático; sesión `2026-10-01x`):
+
+| Operación | PyMySQL | MariaDB Connector/Python | Diferencia |
+|---|---|---|---|
+| INSERT | 15,18 s | 7,97 s | 1,9× más rápido |
+| UPDATE (staging) | 21,49 s | 12,89 s | 1,67× más rápido |
+| DELETE | 6,76 s | 6,85 s | igual |
+
+Para cargas masivas en MariaDB, el conector original es la opción más rápida (y el que usa la librería para
+`db_type="mariadb"`).
+
 ## 5. Variantes y Solución de Problemas
 
 | Síntoma | Causa probable | Solución |
