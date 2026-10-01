@@ -1,0 +1,13 @@
+engine,driver,variant,op,rows,repeat,seconds,rows_per_second,ok,error,peak_mb
+mssql,pyodbc,baseline,insert,10000,1,0.1594,62750.5,True,,
+mssql,pyodbc,baseline,delete,10000,1,0.0347,288324.9,True,,
+mssql,pyodbc,baseline,insert,10000,2,0.1455,68743.5,True,,
+mssql,pyodbc,baseline,delete,10000,2,0.0333,300310.2,True,,
+mssql,pyodbc,baseline,insert,10000,3,0.1464,68302.6,True,,
+mssql,pyodbc,baseline,delete,10000,3,0.0336,297971.1,True,,
+mssql,pyodbc,baseline,insert,1000000,1,13.7673,72635.8,True,,
+mssql,pyodbc,baseline,delete,1000000,1,2.152,464673.7,True,,
+mssql,pyodbc,baseline,insert,1000000,2,13.83,72306.3,True,,
+mssql,pyodbc,baseline,delete,1000000,2,2.1683,461198.0,True,,
+mssql,pyodbc,baseline,insert,1000000,3,13.9604,71631.3,True,,
+mssql,pyodbc,baseline,delete,1000000,3,2.2016,454223.6,True,,

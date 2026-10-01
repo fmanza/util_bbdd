@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **bulk (SQL Server)**: el filtro que decide si un lote del DELETE puede ir por OPENJSON (hotfix A1 de la 0.25.0) se
+  evalúa por columna en lugar de valor a valor, con el mismo resultado (equivalencia exacta comprobada contra el filtro
+  anterior en miles de listas aleatorias): CPU por millón de claves INT 0,40 → 0,08 s, VARCHAR 0,31 → 0,09 s, DECIMAL
+  2,06 → 0,40 s. DELETE de 1M en SQL Server con PK entera 2,47 → 2,17 s (P-1, sesión `2026-10-01l-plan-bulk-pending`).
+
 ## [0.25.1] - 2026-10-01
 
 Deuda del audit-code de las Fases 0–2: las vías `*_from_chunks` ya no se pueden llamar dentro de un `bulk_session`

@@ -8,6 +8,7 @@ from __future__ import annotations
 import decimal
 import json
 import logging
+import operator
 import threading
 import uuid
 import weakref
@@ -358,30 +359,82 @@ def _fits(value: Any, column_type: Any) -> bool:
     return kind is uuid.UUID and isinstance(column_type, Uuid)
 
 
-def _json_value(value: Any, column_type: Any) -> tuple[bool, Any]:
-    """``(True, valor_json)`` si ``value`` cabe en ``column_type`` y tiene representación JSON exacta; si no, ``(False, None)``."""
-    if value is None:
-        return True, None
-    if not _fits(value, column_type):
-        return False, None  # fuera del dominio de la PK, bool, float, fechas, bytes, NaN, tipos numpy…
-    if type(value) is decimal.Decimal:
-        return True, format(value, "f")  # texto: CAST(... AS DECIMAL) sin pasar por float
-    if type(value) is uuid.UUID:
-        return True, str(value)
-    return True, value
+_NONE_TYPE: type = type(None)
+_EXPONENT = operator.attrgetter("exponent")
+
+
+def _column_fits(values: list[Any], column_type: Any) -> bool:
+    """``True`` si todos los valores no nulos de ``values`` caben en ``column_type``: lo mismo que ``all(_fits(v))``.
+
+    P-1 (sesión 2026-10-01l): ``_fits`` valor a valor costaba 0,40 s por millón de claves enteras y 2,06 s con PK
+    ``DECIMAL``. En una columna de PK los valores son casi siempre de un solo tipo, y entonces se decide con operaciones
+    agregadas (``min``/``max``, ``max(map(len))``…). Con tipos mezclados, o con decimales con más decimales que la escala
+    (``1.100`` en escala 2, que caben), se usa ``_fits`` en esos valores. La equivalencia con ``_fits`` está cubierta por
+    ``tests/unit/bulk/test_openjson_column_fits.py``.
+    """
+    kinds: set[type] = set(map(type, values))
+    present: list[Any] = values
+    if _NONE_TYPE in kinds:
+        kinds.discard(_NONE_TYPE)
+        present = [value for value in values if value is not None]
+    if not present:
+        return True
+    if len(kinds) != 1:
+        return all(_fits(value, column_type) for value in present)
+    kind = kinds.pop()
+    if kind is str and isinstance(column_type, String):
+        length: int | None = column_type.length
+        if isinstance(column_type, (Unicode, NVARCHAR, NCHAR)):
+            if length is None:
+                return True
+            if all(map(str.isascii, present)):
+                return max(map(len, present)) <= length
+            return max(len(value.encode("utf-16-le")) // 2 for value in present) <= length
+        return all(map(str.isascii, present)) and (length is None or max(map(len, present)) <= length)
+    if kind is int and isinstance(column_type, Integer):
+        for int_type, low, high in _INT_RANGES:
+            if isinstance(column_type, int_type):
+                return bool(low <= min(present) and max(present) <= high)
+        return False
+    if kind in (int, decimal.Decimal) and isinstance(column_type, Numeric) and not isinstance(column_type, Float):
+        precision, scale = column_type.precision, column_type.scale
+        if precision is None or scale is None:
+            return False
+        if kind is int:
+            return bool(max(map(abs, present)) < 10 ** (precision - scale))
+        if not all(map(decimal.Decimal.is_finite, present)):
+            return False
+        # Comparaciones exactas (sin el redondeo de contexto de abs() ni de **): copy_abs y potencia entera de 10.
+        if max(map(decimal.Decimal.copy_abs, present)) >= decimal.Decimal(10 ** (precision - scale)):
+            return False
+        # Más decimales que la escala: puede caber (1.100 en escala 2) o no (1.105): comprobación exacta solo en esos.
+        if min(map(_EXPONENT, map(decimal.Decimal.as_tuple, present))) >= -scale:  # finitos: exponente entero
+            return True
+        return all(
+            _fits(value, column_type)
+            for value in present
+            if isinstance(exponent := value.as_tuple().exponent, int) and exponent < -scale
+        )
+    return kind is uuid.UUID and isinstance(column_type, Uuid)
+
+
+def _to_json(values: list[Any]) -> list[Any]:
+    """Valores ya validados en su forma JSON: ``Decimal`` como texto (sin pasar por ``float``) y ``UUID`` como texto."""
+    if any(type(value) in (decimal.Decimal, uuid.UUID) for value in values):
+        return [
+            format(value, "f") if type(value) is decimal.Decimal else str(value) if type(value) is uuid.UUID else value
+            for value in values
+        ]
+    return values
 
 
 def _openjson_payload(columns: list[list[Any]], column_types: Sequence[Any]) -> str | None:
     """JSON del lote: array de valores (PK simple) o de arrays por fila (compuesta); ``None`` si algún valor no cabe."""
     converted: list[list[Any]] = []
     for values, column_type in zip(columns, column_types, strict=True):
-        out: list[Any] = []
-        for value in values:
-            ok, json_value = _json_value(value, column_type)
-            if not ok:
-                return None
-            out.append(json_value)
-        converted.append(out)
+        if not _column_fits(values, column_type):
+            return None  # fuera del dominio de la PK, bool, float, fechas, bytes, NaN, tipos numpy…
+        converted.append(_to_json(values))
     items: list[Any] = converted[0] if len(converted) == 1 else [list(row) for row in zip(*converted, strict=True)]
     return json.dumps(items, ensure_ascii=False)
 
