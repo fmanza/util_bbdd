@@ -7,6 +7,18 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **bulk**: `BulkCrud(chunk_size=None)` (nuevo default; antes `5000`) elige el lote por motor y operación: 20 000 en el
+  INSERT y el DELETE de PostgreSQL y en el DELETE de SQL Server, 5000 en el resto. 1M filas, mediana de 3: PostgreSQL
+  INSERT 4,04 → 3,45 s (−15 %) y DELETE 1,86 → 1,66 s (−11 %); SQL Server DELETE 2,74 → 2,20 s (−20 %); el resto sin
+  cambio. Con `commit_every_n_chunks` el default sigue siendo 5000 en todas las operaciones (no cambia cada cuántas filas
+  se confirma) y un `chunk_size` explícito se usa en todas, como antes. `BulkCrud.batch_sizes` devuelve los lotes
+  resueltos; `ParallelBulkLoader(chunk_size=None)` los delega en cada `BulkCrud`. `scripts/bench_bulk.py
+  --chunk-size auto` (default) mide este comportamiento (B-04).
+- **bulk (MySQL/MariaDB)**: el `DELETE … IN` envía como mucho 5000 filas por sentencia aunque el lote sea mayor: con
+  `chunk_size=50000`, 1M filas 11,8 → 6,8 s (MySQL) y 9,5 → 6,6 s (MariaDB) (B-04).
+
 ### Fixed
 
 - **bulk (SQL Server)**: el DELETE con OPENJSON de la 0.24.0 borraba filas que no se habían pedido cuando una clave no

@@ -73,7 +73,7 @@ Exportadas desde `util_bbdd.bulk`. Generan listas de particiones disjuntas para 
 | Parámetro | Tipo | Descripción | Restricciones |
 |---|---|---|---|
 | `engine` | `Engine` | Engine SQLAlchemy de destino (thread-safe por diseño del pool) | Requerido |
-| `chunk_size` | `int` | Filas por lote en cada worker | Default `5000` |
+| `chunk_size` | `int \| None` | Filas por lote en cada worker; `None` usa el lote por motor y operación de `BulkCrud` | Default `None` (hasta v0.24.x, `5000`) |
 | `max_workers` | `int` | Hilos concurrentes | ≥ 1; `ValueError` si no. Se acota al número de particiones. Si supera la capacidad del pool (`pool_size + max_overflow`), se reduce a ella con un WARNING |
 | `commit_every_n_chunks` | `int \| None` | Propagado a cada `BulkCrud` worker | Default `None` |
 | `audit_csv_path` | `Path \| None` | CSV de auditoría; escrituras concurrentes son seguras (lock por-ruta). Cada partición anota sus chunks al confirmarse; un intento fallido y reintentado no deja filas. Un fallo al escribir el CSV no hace fallar la partición: queda como ERROR en el log y se cuenta en `audit_failures` (salvo con `audit_strict=True`). El directorio se valida en el constructor. Sin ruta, `load()` lo avisa una vez con un INFO | Default `None`; `AuditConfigError` (subclase de `ValueError`) si no se puede crear el directorio |

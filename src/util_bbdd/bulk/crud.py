@@ -57,6 +57,7 @@ from ._execution.batch import (
 from ._execution.executors import batch_failure_note
 from ._execution.session import SessionScope
 from ._models import MaintenanceScopeConstraintResult, MaintenanceScopeResult, PKSyncResult
+from ._support.batch_sizes import DEFAULT_CHUNK_SIZE, BulkOperation, resolve_batch_sizes
 from ._support.dialect import (
     MYSQL_FAMILY,
     can_disable_pg_triggers,
@@ -151,7 +152,7 @@ class BulkCrud:
     def __init__(
         self,
         engine: Engine | None,
-        chunk_size: int = 5000,
+        chunk_size: int | None = None,
         audit_csv_path: Path | None = None,
         enable_fast_executemany: bool = True,
         insert_resolver: InsertStrategyResolver | None = None,
@@ -167,7 +168,11 @@ class BulkCrud:
 
         Args:
             engine: Engine de SQLAlchemy para las operaciones. Obligatorio.
-            chunk_size: Tamaño del lote para procesar. Por defecto es 5000.
+            chunk_size: Filas por lote. ``None`` (default) elige el lote por motor y operación: 20 000 en el INSERT y el
+                DELETE de PostgreSQL y en el DELETE de SQL Server, 5000 en el resto (B-04: −10 % a −20 % en esas
+                operaciones; el UPDATE de PostgreSQL empeora con lotes mayores). Con ``commit_every_n_chunks`` el
+                default es 5000 en todas las operaciones, para no cambiar cada cuántas filas se confirma. Un entero se
+                usa en todas las operaciones. Hasta v0.24.x el default era 5000 siempre.
             audit_csv_path: Ruta del archivo CSV para auditoría. Por defecto es None.
             enable_fast_executemany: Si True (default) y el engine es mssql+pyodbc,
                 activa fast_executemany en el dialecto del engine, igual que
@@ -236,7 +241,13 @@ class BulkCrud:
             raise ValueError(f"commit_every_n_chunks debe ser None o un entero ≥ 1, recibido: {commit_every_n_chunks}")
 
         # Auditoría de bulk 2026-09-24: con un valor negativo no se escribía nada y la auditoría registraba las filas.
-        self.chunk_size: int = validate_chunk_size(chunk_size)
+        explicit_chunk_size: int | None = None if chunk_size is None else validate_chunk_size(chunk_size)
+        #: Lote base: el ``chunk_size`` explícito o 5000. Lo usa la generación de SQL (``generar_sql=True``).
+        self.chunk_size: int = DEFAULT_CHUNK_SIZE if explicit_chunk_size is None else explicit_chunk_size
+        # B-04: filas por lote de cada operación (por motor si no se fijó chunk_size).
+        self._batch_sizes: dict[BulkOperation, int] = resolve_batch_sizes(
+            self.engine.dialect.name, explicit_chunk_size, commit_every_n_chunks
+        )
         self.audit_manager: AuditManager = AuditManager(audit_csv_path, warn_if_disabled=warn_if_audit_disabled)
         self._update_via_staging: bool = update_via_staging and self.engine.dialect.name in STAGING_UPDATE_DIALECTS
         self._strip_strings: bool = strip_strings
@@ -262,7 +273,8 @@ class BulkCrud:
         self._session: SessionScope = SessionScope()
         self._batch_statement_executor: BatchStatementExecutor = BatchStatementExecutor(
             engine=self.engine,
-            chunk_size=self.chunk_size,
+            # INSERT y UPDATE le llegan ya en bloques de su tamaño; el ejecutor no debe trocearlos más.
+            chunk_size=max(self._batch_sizes["insert"], self._batch_sizes["update"]),
             enable_fast_executemany=enable_fast_executemany,
             insert_resolver=insert_resolver,
             commit_every_n_chunks=commit_every_n_chunks,
@@ -270,7 +282,7 @@ class BulkCrud:
         )
         self._delete_batch_executor: DeleteBatchExecutor = DeleteBatchExecutor(
             engine=self.engine,
-            chunk_size=self.chunk_size,
+            chunk_size=self._batch_sizes["delete"],
             commit_every_n_chunks=commit_every_n_chunks,
             session=self._session,
         )
@@ -505,14 +517,13 @@ class BulkCrud:
                 with batch_failure_note("INSERT", tabla.fullname, chunk_index, total, numero_registros):
                     if isinstance(stmt, Insert) and self._batch_statement_executor.supports_columns:
                         # B-03: tuplas desde las columnas, sin un dict por fila; lotes de chunk_size como el ejecutor.
-                        for block in self.__sql_blocks(working_df[insert_cols], tabla):
+                        for block in self.__sql_blocks(working_df[insert_cols], tabla, self._batch_sizes["insert"]):
                             self.__ejecutar_batch_stmt(block, stmt, len(block))
                     else:
-                        records_sql: list[dict[str, Any]] = dataframe_to_sql_records(
-                            working_df[insert_cols], strip_strings=self._strip_strings
-                        )
-                        restore_binary_values(records_sql, tabla)  # P-21
-                        self.__ejecutar_batch_stmt(records_sql, stmt, numero_registros)
+                        for records_sql in self.__record_blocks(
+                            working_df[insert_cols], tabla, self._batch_sizes["insert"]
+                        ):
+                            self.__ejecutar_batch_stmt(records_sql, stmt, len(records_sql))
                 elapsed: float = perf_counter() - start
                 total += numero_registros
 
@@ -597,7 +608,8 @@ class BulkCrud:
         """Nota de error del lote ``index`` (B-15a), con la posición en la secuencia si es un ``*_from_chunks``."""
         stream = self._stream
         offset, chunk = (0, None) if stream is None else (stream.row_offset, stream.chunk)
-        return batch_failure_note(operation, tabla.fullname, index, offset + index * self.chunk_size, rows, chunk)
+        size: int = self._batch_sizes[operation.lower()]  # type: ignore[index]
+        return batch_failure_note(operation, tabla.fullname, index, offset + index * size, rows, chunk)
 
     def __resolve_stream_insert(
         self,
@@ -727,7 +739,7 @@ class BulkCrud:
         dialect = self.engine.dialect
 
         def blocks() -> Iterator[list[dict[str, Any]]]:
-            return self.__record_blocks(insert_df, tabla)
+            return self.__record_blocks(insert_df, tabla, self._batch_sizes["insert"])
 
         def execute_blocks(stmt_exec: Any) -> None:
             with self.__blocks_transaction():
@@ -743,7 +755,7 @@ class BulkCrud:
                         self.__ejecutar_batch_stmt(block, stmt_exec, len(block))
 
         def sql_blocks() -> Iterator[SqlColumns]:
-            return self.__sql_blocks(insert_df, tabla)
+            return self.__sql_blocks(insert_df, tabla, self._batch_sizes["insert"])
 
         if override:
             stmt_for_sql: Insert = insert(tabla)
@@ -776,24 +788,24 @@ class BulkCrud:
             execute=lambda: execute_blocks(stmt),
         )
 
-    def __record_blocks(self, df: pd.DataFrame, tabla: Table) -> Iterator[list[dict[str, Any]]]:
+    def __record_blocks(self, df: pd.DataFrame, tabla: Table, size: int) -> Iterator[list[dict[str, Any]]]:
         """Registros de ``chunk_size`` en ``chunk_size`` filas, el lote del ejecutor (P-07).
 
         Antes se convertía todo el DataFrame a registros antes del primer lote: el pico de memoria era 3,8–4,7 veces
         el DataFrame al ejecutar y 8,9–9,5 veces al generar SQL (200K filas).
         """
-        for start in range(0, len(df), self.chunk_size):
+        for start in range(0, len(df), size):
             records: list[dict[str, Any]] = dataframe_to_sql_records(
-                df.iloc[start : start + self.chunk_size], strip_strings=self._strip_strings
+                df.iloc[start : start + size], strip_strings=self._strip_strings
             )
             restore_binary_values(records, tabla)  # P-21
             yield records
 
-    def __sql_blocks(self, df: pd.DataFrame, tabla: Table) -> Iterator[SqlColumns]:
+    def __sql_blocks(self, df: pd.DataFrame, tabla: Table, size: int) -> Iterator[SqlColumns]:
         """Como :meth:`__record_blocks`, por columnas, para generar SQL sin un diccionario por fila (P-34)."""
-        for start in range(0, len(df), self.chunk_size):
+        for start in range(0, len(df), size):
             block = SqlColumns(
-                *dataframe_to_sql_columns(df.iloc[start : start + self.chunk_size], strip_strings=self._strip_strings)
+                *dataframe_to_sql_columns(df.iloc[start : start + size], strip_strings=self._strip_strings)
             )
             restore_binary_values(block, tabla)  # P-21
             yield block
@@ -819,14 +831,14 @@ class BulkCrud:
         numero_registros: int = len(update_df)
 
         def blocks() -> Iterator[list[dict[str, Any]]]:
-            for records in self.__record_blocks(update_df, tabla):
+            for records in self.__record_blocks(update_df, tabla, self._batch_sizes["update"]):
                 for record in records:
                     for original_col, alias_col in update_plan.pk_param_map.items():
                         record[alias_col] = record[original_col]
                 yield records
 
         def sql_blocks() -> Iterator[SqlColumns]:
-            for block in self.__sql_blocks(update_df, tabla):
+            for block in self.__sql_blocks(update_df, tabla, self._batch_sizes["update"]):
                 for original_col, alias_col in update_plan.pk_param_map.items():
                     block.add_alias(alias_col, original_col)
                 yield block
@@ -1075,6 +1087,11 @@ class BulkCrud:
         aproximado en sesiones con DELETE, que no sumaba a :attr:`rows_committed`).
         """
         return self._persistence.unaudited_committed_rows
+
+    @property
+    def batch_sizes(self) -> dict[BulkOperation, int]:
+        """Filas por lote de cada operación (``insert``, ``update``, ``delete``), resueltas en el constructor (B-04)."""
+        return dict(self._batch_sizes)
 
     @property
     def last_operation_rows_committed(self) -> int:

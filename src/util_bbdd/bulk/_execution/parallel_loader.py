@@ -234,7 +234,7 @@ class ParallelBulkLoader:
         self,
         engine: Engine,
         *,
-        chunk_size: int = 5000,
+        chunk_size: int | None = None,
         max_workers: int = 4,
         commit_every_n_chunks: int | None = None,
         audit_csv_path: Path | None = None,
@@ -250,7 +250,8 @@ class ParallelBulkLoader:
         """
         Args:
             engine: Engine SQLAlchemy compartido entre workers (thread-safe).
-            chunk_size: Filas por lote dentro de cada worker.
+            chunk_size: Filas por lote dentro de cada worker. ``None`` (default): el lote por motor y operación de
+                ``BulkCrud`` (B-04).
             max_workers: Número máximo de hilos paralelos.
             commit_every_n_chunks: Commitea cada N lotes para evitar undo log en
                 MariaDB/MySQL. Ignorado si ``None``. Con ``max_retries > 0``, un reintento **reanuda** la partición
@@ -290,7 +291,8 @@ class ParallelBulkLoader:
                 ``retry_backoff`` no son dos números finitos ≥ 0.
             AuditConfigError: Si no se puede crear el directorio de ``audit_csv_path`` (subclase de ``ValueError``).
         """
-        chunk_size = validate_chunk_size(chunk_size)  # antes del pool: si no, fallaría cada partición
+        if chunk_size is not None:
+            chunk_size = validate_chunk_size(chunk_size)  # antes del pool: si no, fallaría cada partición
         if max_workers < 1:
             raise ValueError(f"max_workers debe ser un entero ≥ 1, recibido: {max_workers}")
         if max_retries < 0:

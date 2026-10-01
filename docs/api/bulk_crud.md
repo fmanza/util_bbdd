@@ -47,7 +47,7 @@ flowchart TD
 | Parámetro | Tipo | Descripción | Restricciones |
 |---|---|---|---|
 | `engine` | `Engine` | Engine síncrono de SQLAlchemy | No puede ser `None`; lanza `ValueError` si es `None` |
-| `chunk_size` | `int` | Filas por lote | Default `5000` |
+| `chunk_size` | `int \| None` | Filas por lote. `None` elige el lote por motor y operación: 20 000 en el INSERT y el DELETE de PostgreSQL y en el DELETE de SQL Server, 5000 en el resto; con `commit_every_n_chunks`, 5000 en todas. Un entero se usa en todas las operaciones. `batch_sizes` devuelve los lotes resueltos | Default `None` (hasta v0.24.x, `5000`) |
 | `audit_csv_path` | `Path \| None` | Ruta del CSV de auditoría | `None` desactiva la auditoría |
 | `enable_fast_executemany` | `bool` | Si `True` (default) y el engine es `mssql+pyodbc`, activa `fast_executemany` en el dialecto, igual que `create_engine(..., fast_executemany=True)` (INSERT ~12× más rápido). Sin efecto en otros motores | Default `True` |
 | `insert_resolver` | `InsertStrategyResolver \| None` | Estrategia INSERT personalizada | Default `None` (resolución automática por motor) |

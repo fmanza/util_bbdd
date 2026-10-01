@@ -32,7 +32,7 @@ el tiempo total.
 
 | Palanca | Dónde | Efecto | Cuándo usarla |
 |---|---|---|---|
-| `chunk_size` | `BulkCrud` / `ParallelBulkLoader` | Filas por lote (default 5000) | Bajar a ≤500 si el destino MariaDB tiene `TEXT`/`JSON` (`max_allowed_packet`) |
+| `chunk_size` | `BulkCrud` / `ParallelBulkLoader` | Filas por lote. Por defecto, por motor y operación: 20 000 en INSERT/DELETE de PostgreSQL y DELETE de SQL Server (−10 % a −20 % con 1M filas), 5000 en el resto; con `commit_every_n_chunks`, 5000 | Fijarlo solo si hace falta: bajar a ≤500 si el destino MariaDB tiene `TEXT`/`JSON` (`max_allowed_packet`); lotes de 1000 son más lentos en todos los motores. El `DELETE … IN` de MySQL/MariaDB envía como mucho 5000 filas por sentencia aunque el lote sea mayor |
 | `commit_every_n_chunks` | `BulkCrud` / `ParallelBulkLoader` | Commit cada N lotes; acota el undo log | **Crítico** en MariaDB/MySQL con millones de filas (evita degradación exponencial) |
 | `update_via_staging` | `BulkCrud` | UPDATE vía tabla temporal + un `UPDATE` con join por lote en lugar de un UPDATE por fila (MySQL/MariaDB ~12,5×, PostgreSQL 2,35×) | Activo por defecto en MySQL/MariaDB y PostgreSQL; requiere `CREATE TEMPORARY TABLES` o `TEMP` (sin él, vuelve al UPDATE fila a fila con un WARNING) |
 | `enable_fast_executemany` | `BulkCrud` / `ParallelBulkLoader` | Activa `fast_executemany` en el dialecto pyodbc (como `create_engine(..., fast_executemany=True)`) | SQL Server + ODBC 17/18: INSERT ~12× más rápido |
@@ -46,7 +46,7 @@ from util_bbdd.bulk import BulkCrud
 
 bulk = BulkCrud(
     engine=engine,
-    chunk_size=5_000,              # filas por lote
+    # chunk_size: por defecto, el lote por motor y operación
     commit_every_n_chunks=20,      # commit cada 100K filas (MariaDB)
     enable_fast_executemany=True,  # SQL Server + pyodbc: INSERT ~12× más rápido
 )

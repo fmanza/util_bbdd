@@ -46,7 +46,7 @@ def test_invalid_values_raise_value_error(value: Any) -> None:
         validate_chunk_size(value)
 
 
-@pytest.mark.parametrize("value", INVALID)
+@pytest.mark.parametrize("value", [v for v in INVALID if v is not None])  # None = lote por motor (B-04)
 def test_bulkcrud_rejects_invalid_chunk_size(engine: Engine, value: Any) -> None:
     with pytest.raises(ValueError, match="chunk_size"):
         BulkCrud(engine, chunk_size=value)

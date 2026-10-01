@@ -64,6 +64,8 @@ def test_delete_composite_pk_respects_parameter_limit(dialect_name: str) -> None
     SqlBasedDeleteStrategy().execute(connection=connection, table=table, batch_df=batch_df, pk_cols=["k1", "k2"])
 
     calls = connection.execute.call_args_list
-    assert [_placeholders(call.args[0]) for call in calls] == [65_534, 14_466]
+    placeholders = [_placeholders(call.args[0]) for call in calls]
+    assert all(n <= 65_535 for n in placeholders)  # P-13
+    assert placeholders == [10_000] * 8  # B-04: como mucho 5000 filas por DELETE ... IN en MySQL/MariaDB
     deleted = sorted(v for call in calls for k, v in call.args[1].items() if k.endswith("_0"))
     assert deleted == list(range(rows))

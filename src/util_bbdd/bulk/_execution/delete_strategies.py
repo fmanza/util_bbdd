@@ -50,6 +50,10 @@ _log = logging.getLogger(__name__)
 _DEFAULT_SQL_BASED_DELETE_DIALECTS: frozenset[str] = frozenset({"mysql", "mariadb", "mssql", "hsqldb"})
 
 
+# Filas máximas por sentencia ``DELETE ... IN (...)`` en MySQL/MariaDB, sea cual sea el lote (B-04, performance-audit de
+# bulk 2026-10-01): con lotes de 50 000 el DELETE de 1M filas tardaba +65 % (MySQL) y +42 % (MariaDB) que con 5000.
+_MYSQL_MAX_DELETE_ROWS: int = 5000
+
 # Parámetros máximos por sentencia ``DELETE ... IN (...)`` por dialecto; sin entrada, una sentencia por lote.
 _MAX_DELETE_PARAMS: dict[str, int] = {
     "mssql": _MSSQL_MAX_DELETE_PARAMS,
@@ -81,7 +85,8 @@ class SqlBasedDeleteStrategy:
     (``DELETE ... WHERE a = ? AND b = ?`` con executemany).
 
     MySQL/MariaDB (P-13): el conector ``mariadb`` admite como máximo 65.535 parámetros por sentencia; el lote se trocea
-    en sentencias de ``65535 // columnas de la PK`` filas. El resto de dialectos usa una sentencia por lote.
+    en sentencias de ``65535 // columnas de la PK`` filas y, como mucho, 5000 (B-04: listas ``IN`` más largas son más
+    lentas). El resto de dialectos usa una sentencia por lote.
     """
 
     def execute(
@@ -101,6 +106,8 @@ class SqlBasedDeleteStrategy:
             self._execute_statement(connection=connection, table=table, batch_df=batch_df, pk_cols=pk_cols)
             return
         rows_per_statement: int = max(1, max_params // len(pk_cols))
+        if dialect_name in ("mysql", "mariadb"):
+            rows_per_statement = min(rows_per_statement, _MYSQL_MAX_DELETE_ROWS)
         for start in range(0, len(batch_df), rows_per_statement):
             self._execute_statement(
                 connection=connection,

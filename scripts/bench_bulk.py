@@ -348,7 +348,7 @@ class BenchConfig:
     sizes: Sequence[int]
     ops: Sequence[str]
     repeat: int
-    chunk_size: int
+    chunk_size: int | None  # None = lote por motor y operación de BulkCrud (B-04)
     audit_csv: Path | None
     memory: bool = False
 
@@ -470,7 +470,7 @@ def run_benchmark(
     ops: Sequence[str],
     variants: Sequence[str],
     repeat: int,
-    chunk_size: int,
+    chunk_size: int | None,
     out_dir: Path,
     memory: bool = False,
     environ: dict[str, str] | None = None,
@@ -488,7 +488,7 @@ def run_benchmark(
         "pandas": pd.__version__,
         "numpy": np.__version__,
         "sqlalchemy": sa.__version__,
-        "chunk_size": chunk_size,
+        "chunk_size": "auto" if chunk_size is None else chunk_size,
         "repeat": repeat,
         "memory": memory,
         "engines": {},
@@ -606,6 +606,11 @@ def _csv_list(value: str, allowed: Sequence[str], label: str) -> list[str]:
     return items
 
 
+def _chunk_size_arg(value: str) -> int | None:
+    """``--chunk-size``: un entero o ``auto`` (``None``: el default de ``BulkCrud``)."""
+    return None if value == "auto" else int(value)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--engines", default=",".join(ENGINES), type=lambda v: _csv_list(v, ENGINES, "motor"))
@@ -619,7 +624,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--variants", default=",".join(VARIANTS), type=lambda v: _csv_list(v, list(VARIANTS), "variante")
     )
     parser.add_argument("--repeat", type=int, default=3)
-    parser.add_argument("--chunk-size", type=int, default=5000)
+    parser.add_argument(
+        "--chunk-size",
+        type=_chunk_size_arg,
+        default=None,
+        help="Filas por lote, o 'auto' (default): el lote por motor y operación de BulkCrud (B-04)",
+    )
     parser.add_argument("--out", type=Path, default=None, help="Directorio de salida (default: bench_results/<fecha>)")
     parser.add_argument("--memory", action="store_true", help="Mide el pico de memoria con tracemalloc (más lento)")
     parser.add_argument("--list-variants", action="store_true", help="Lista las variantes y termina")
@@ -636,7 +646,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             scope = ", ".join(sorted(variant.dialects)) if variant.dialects else "todos"
             print(f"{variant.name:36} [{variant.finding or '—'}] ({scope}) {variant.description}")
         return 0
-    if args.repeat < 1 or args.chunk_size < 1 or any(size < 1 for size in args.sizes):
+    if args.repeat < 1 or (args.chunk_size is not None and args.chunk_size < 1) or any(size < 1 for size in args.sizes):
         print("--repeat, --chunk-size y --sizes deben ser ≥ 1", file=sys.stderr)
         return 2
 
