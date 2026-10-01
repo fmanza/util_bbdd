@@ -38,13 +38,14 @@
 | `v0.23.1` | Liberado 2026-10-01 — hotfixes: **rutinas en `execute()`** (R4: `CREATE` reconstruido en MySQL/MariaDB, nombre y `CREATE OR REPLACE` en Oracle, rutinas de otro dialecto comentadas), firma de `on_post_build` del plugin ZIP, rutinas de Oracle con nombre y owner en los adaptadores de metadatos | Estable |
 | `v0.24.0` | Liberado 2026-10-01 — performance-audit de `bulk` (Fases 0–2): **UPDATE de PostgreSQL por tabla temporal** (26,4 → 10,9 s/1M), **DELETE de SQL Server con OPENJSON** (9,3 → 2,7 s/1M; 10K 20×), INSERT por tuplas (PG 6,0 → 4,4 s), `bulk_update_from_chunks`/`bulk_delete_from_chunks`, `last_operation_rows_committed`, `ParallelBulkLoader.update/delete`, reintentos por código de error con backoff y reanudación (cadencia + `max_retries`); listado de rutinas de Oracle solo con procedimientos y funciones | Estable |
 | `v0.25.0` | Liberado 2026-10-01 — **hotfix de la 0.24.0**: el DELETE de SQL Server con OPENJSON borraba filas no pedidas si la clave no cabía en el tipo de la PK (ahora solo OPENJSON si cada valor cabe; si no, `IN`); reintento del lock wait timeout (1205) con el conector `mariadb`; **lote por motor y operación** cuando no se fija `chunk_size` (PG INSERT −15 %, DELETE −11 %, SQL Server DELETE −20 %) y tope de 5000 filas por `DELETE … IN` en MySQL/MariaDB | Estable |
+| `v0.26.0` | Liberado 2026-10-01 — `BulkCrud(prefetch_blocks)` (SQL Server INSERT −10,6 %, MySQL/MariaDB −2 % a −6 %) y `BulkCrud(on_error="isolate", rejects_csv_path, max_rejects)` (SAVEPOINT + bisección; 1M limpio 1,00–1,02×, 10 malas 1,13–1,23×, PG 1,65×) con su audit-code (M-1, B-1, B-3, B-4); P-1: filtro de OPENJSON por columna (DELETE 1M SQL Server 2,47 → 2,17 s) | Estable |
 | `v0.25.1` | Liberado 2026-10-01 — deuda A3–A5 del audit-code: `*_from_chunks` dentro de un `bulk_session` abierto → `RuntimeError` (antes `database is locked` en SQLite o sesión externa sin conexión); nota «se ejecutó; falló el COMMIT periódico posterior»; `__batch_note` tipado | Estable |
 | Zenical | Pendiente, sin versión asignada — merge `migrate/zenical-pure` (+80% perf doc builds) cuando Zenical esté instalable |
 
 PR abierta: **PR #18** `feat(connection/bulk): automatización variables MySQL/MariaDB` — revisión pendiente de merge.  
 PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical v0.0.44 esté en crates.io (o instalación manual de binario).
 
-**Tests actuales**: 5880 passed, 312 skipped sin URLs de servidor (cierre de `v0.25.1`); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 455 passed en 5 servidores (cierre de `v0.25.1`, 2026-10-01; SQL Server con pyodbc). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/performance_audit_guide.md`).
+**Tests actuales**: 5953 passed, 341 skipped sin URLs de servidor (cierre de `v0.26.0`); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 487 passed en 5 servidores (cierre de `v0.26.0`, 2026-10-01; SQL Server con pyodbc; `isolate and mssql` también con pymssql). Banco de rendimiento de `dump`: `scripts/bench_dump.py` (ver `docs/performance_audit_guide.md`).
 
 ---
 
@@ -87,7 +88,7 @@ PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical 
 
 ## Próximos pasos
 
-0. `v0.25.1` publicada (push de `develop` y tag, 2026-10-01). Roadmap de `bulk` pendiente: Fase 3 (spikes: procesos para PostgreSQL, aislamiento de filas erróneas, causa del `ClientRead`, prefetch) y coste del filtro de OPENJSON (DELETE 1M en SQL Server 2,2 → 2,5 s).
+0. **Push de `develop` y del tag `v0.26.0`**, pendientes de decisión del usuario (`v0.25.1` ya publicada). Roadmap de `bulk` pendiente: S-1 (procesos para PostgreSQL, NO_GO por ahora: lectores `lambda` no serializables y lock de auditoría solo entre hilos), S-3 (`ClientRead`: pipeline de psycopg 3 con hilos), `on_error="isolate"` en `ParallelBulkLoader`/`dump` (lock entre procesos del CSV de rechazos) y `batcherrors` de Oracle.
 1. **Merge PR #18** (`MySQLVariableValidator`) tras review. Potencial tag `v0.10.1`.
 2. **Zenical opción A** (decisión del usuario): descargar binario, validar `zensical build`, merge `migrate/zenical-pure`, tag `v0.11.0`.
 3. **FASE 5 doc estándar** (criterios de aceptación): pendiente validación QA — no rellenar `## 4. Criterios de Aceptación` en `docs/functional/*.md` hasta esa sesión.

@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-01
+
+Dos opciones nuevas de `BulkCrud`, opt-in y sin cambios para quien no las use: `prefetch_blocks` (prepara el lote
+siguiente en un hilo) y `on_error="isolate"` (aparta las filas con errores de datos a un CSV y aplica el resto),
+con las correcciones de su audit-code. El DELETE de SQL Server por OPENJSON decide más rápido si un lote cabe en la
+PK. Sin cambios incompatibles.
+
 ### Added
 
 - **bulk**: `BulkCrud(prefetch_blocks=False)`: con `True` prepara el lote siguiente de INSERT y UPDATE en un hilo (cola de
@@ -18,12 +25,15 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   las filas que fallan, que se omiten y se escriben en el CSV de rechazos (`timestamp`, `tabla`, `operacion`, `fila`,
   `error`, `valores`; UTF-8, tabuladores, fórmulas neutralizadas); el resto se aplica. Otros errores se propagan. Nueva
   propiedad `rows_rejected`; la auditoría registra las filas aplicadas. Por defecto `on_error="raise"` (sin cambios).
-  Coste (INSERT de 1M filas): sin filas malas 1,00–1,02× (Oracle 1,00× / 1,27× en dos repeticiones); con 10 filas malas 1,13–1,23×, PostgreSQL 1,65× (lotes de 20 000). Límite: el valor demasiado largo no se aísla en Oracle (`DatabaseError`) ni en
-  SQL Server (pyodbc `ProgrammingError`, pymssql `OperationalError`). No en `ParallelBulkLoader` ni `dump`. Si no se
-  puede escribir el CSV de rechazos (p. ej. abierto en Excel), la operación falla con `OSError` y una nota propia.
-  Con SQL Server en `XACT_ABORT ON` llega el error de datos con una nota (no se puede aislar); SQLite con `sqlite3` en
-  `autocommit=True` se rechaza con `ValueError`; el CSV de rechazos usa el lock por ruta de la auditoría y aparta un
-  fichero con otra cabecera (S-2).
+  Coste (INSERT de 1M filas): sin filas malas 1,00–1,02× (Oracle 1,00× / 1,27× en dos repeticiones); con 10 filas
+  malas 1,13–1,23×, PostgreSQL 1,65× (lotes de 20 000). Límites:
+  - el valor demasiado largo no se aísla en Oracle (`DatabaseError`) ni en SQL Server (pyodbc `ProgrammingError`,
+    pymssql `OperationalError`); con SQL Server en `XACT_ABORT ON` no se puede aislar nada: llega el error de datos con
+    una nota;
+  - SQLite con `sqlite3` en `autocommit=True` se rechaza con `ValueError` (no hay transacción que proteja los SAVEPOINT);
+  - si no se puede escribir el CSV de rechazos (p. ej. abierto en Excel), la operación falla con `OSError` y una nota
+    propia; el CSV usa el lock por ruta de la auditoría (entre hilos) y aparta un fichero con otra cabecera;
+  - no disponible en `ParallelBulkLoader` ni en `dump` (S-2; sesiones `2026-10-01n` y `2026-10-01o`).
 
 ### Changed
 
