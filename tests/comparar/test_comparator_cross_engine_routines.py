@@ -340,3 +340,53 @@ class TestForeignKeyNoneAttributes:
             "",
             "",
         )
+
+
+# ---------------------------------------------------------------------------
+# FKs con nombre generado por el motor: se emparejan por estructura
+# ---------------------------------------------------------------------------
+
+
+def _fk(name: str | None, cols: list[str], ref: str = "p", ref_cols: list[str] | None = None) -> dict[str, Any]:
+    return {"name": name, "constrained_columns": cols, "referred_table": ref, "referred_columns": ref_cols or ["id"]}
+
+
+class TestGeneratedForeignKeyNames:
+    def _fk_diffs(self, comparator: SchemaComparator, source: list[Any], target: list[Any]) -> list[tuple[str, str]]:
+        diff = comparator.compare(
+            _FakeInspector(tables=["t"], fks=source), _FakeInspector(tables=["t"], fks=target), include_views=False
+        )
+        return [(fk.fk_name, fk.status) for td in diff.table_diffs for fk in td.fk_diffs]
+
+    @pytest.mark.parametrize(
+        ("source_name", "target_name"),
+        [
+            ("SYS_C008123", "SYS_C009456"),  # Oracle
+            ("FK__t__ref__39D3E0C8", "FK__t__ref__5B1A2C3D"),  # SQL Server
+            ("t_ref_fkey", "t_ref_fkey1"),  # PostgreSQL
+            ("t_ibfk_1", "t_ibfk_2"),  # MySQL/MariaDB
+            ("FK__t__ref__39D3E0C8", "t_ref_fkey"),  # SQL Server frente a PostgreSQL
+            (None, "SYS_C000001"),  # SQLite (anónima) frente a Oracle
+        ],
+    )
+    def test_same_fk_with_generated_names_is_not_a_difference(
+        self, comparator: SchemaComparator, source_name: str | None, target_name: str
+    ) -> None:
+        assert self._fk_diffs(comparator, [_fk(source_name, ["REF"])], [_fk(target_name, ["ref"])]) == []
+
+    def test_generated_names_with_different_structure_still_differ(self, comparator: SchemaComparator) -> None:
+        diffs = self._fk_diffs(comparator, [_fk("SYS_C1", ["a"])], [_fk("SYS_C2", ["b"])])
+
+        assert diffs == [("SYS_C1", "added"), ("SYS_C2", "removed")]
+
+    def test_user_named_fk_is_not_matched_by_structure(self, comparator: SchemaComparator) -> None:
+        """Un nombre puesto por el usuario que cambia es una diferencia real (renombrado)."""
+        diffs = self._fk_diffs(comparator, [_fk("fk_pedido_cliente", ["a"])], [_fk("SYS_C2", ["a"])])
+
+        assert diffs == [("fk_pedido_cliente", "added"), ("SYS_C2", "removed")]
+
+    def test_duplicate_structures_are_matched_one_to_one(self, comparator: SchemaComparator) -> None:
+        source = [_fk("SYS_C1", ["a"]), _fk("SYS_C2", ["a"])]
+        target = [_fk("SYS_C7", ["a"])]
+
+        assert self._fk_diffs(comparator, source, target) == [("SYS_C2", "added")]

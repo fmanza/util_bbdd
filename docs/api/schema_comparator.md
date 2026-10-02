@@ -68,6 +68,10 @@ flowchart TD
 - Los nombres de tablas, columnas, índices, FKs, vistas y routines (y las columnas de índices y FKs) se comparan sin
   distinguir mayúsculas, para poder comparar motores con convenciones distintas (Oracle `EMP` frente a PostgreSQL
   `emp`). Los diffs conservan el nombre real de cada motor.
+- Las FKs cuyo nombre genera el motor (Oracle `SYS_C…`, SQL Server `FK__…__XXXXXXXX`, PostgreSQL `…_fkey`, MySQL/MariaDB
+  `…_ibfk_N`, o sin nombre) se emparejan por estructura (columnas, tabla y columnas referenciadas) si no casan por
+  nombre: la misma FK no sale como eliminada + añadida. Si alguno de los dos nombres lo puso el usuario, un nombre
+  distinto sí es una diferencia.
 - Las sobrecargas de PostgreSQL se emparejan por firma (tipos de los argumentos); `routine_name` lleva la firma solo
   si hay sobrecargas en ese lado.
 

@@ -29,6 +29,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **comparar**: las FKs con nombre generado por el motor (Oracle `SYS_C…`, SQL Server `FK__…__XXXXXXXX`, PostgreSQL
+  `…_fkey`, MySQL/MariaDB `…_ibfk_N`, o sin nombre) se emparejan por estructura cuando no casan por nombre. Entre dos
+  schemas de SQL Server u Oracle, todas las tablas con FKs sin nombre explícito salían como modificadas (FK eliminada +
+  añadida); con 200 tablas, 200 → 20 tablas con diferencias reales. Un nombre puesto por el usuario que cambia sigue
+  siendo una diferencia.
 - **metadata** (hotfix): `postgresql.routines.fetch_routines_sql` fallaba entera en cualquier schema con un agregado
   (`pg_get_functiondef` no los admite): sin routines en los adaptadores de metadatos PostgreSQL ni en
   `migrate`. Los agregados siguen en el listado (`AGGREGATE`, `is_aggregate=1`) con la definición `NULL`.

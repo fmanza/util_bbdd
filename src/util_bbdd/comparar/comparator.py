@@ -504,9 +504,18 @@ class SchemaComparator:
             target_fks, SchemaComparator._fk_key, kind="foreign keys destino"
         )
 
+        # FKs con nombre generado por el motor (SYS_C…, FK__…__XXXXXXXX) cambian de nombre entre schemas: las que
+        # no casan por nombre se emparejan por estructura (y, al ser igual, no hay diferencia).
+        only_source: list[str] = sorted(source_map.keys() - target_map.keys())
+        only_target: list[str] = sorted(target_map.keys() - source_map.keys())
+        by_structure: dict[str, str] = self._match_generated_fks(source_map, target_map, only_source, only_target)
+        matched_target: set[str] = set(by_structure.values())
+
         diffs: list[ForeignKeyDiff] = []
 
-        for key in sorted(source_map.keys() - target_map.keys()):
+        for key in only_source:
+            if key in by_structure:
+                continue
             fk = source_map[key]
             diffs.append(
                 ForeignKeyDiff(
@@ -519,7 +528,9 @@ class SchemaComparator:
                 ),
             )
 
-        for key in sorted(target_map.keys() - source_map.keys()):
+        for key in only_target:
+            if key in matched_target:
+                continue
             fk = target_map[key]
             diffs.append(
                 ForeignKeyDiff(
@@ -783,6 +794,15 @@ class SchemaComparator:
             return f"{url} [{schema}]"
         return url
 
+    #: Nombres de FK que genera el motor cuando la FK no se nombra; cambian entre schemas con la misma FK.
+    #: Ampliable: ``SchemaComparator._GENERATED_FK_NAME_PATTERNS += (re.compile(...),)``.
+    _GENERATED_FK_NAME_PATTERNS: ClassVar[tuple[re.Pattern[str], ...]] = (
+        re.compile(r"^SYS_C\d+$", re.IGNORECASE),  # Oracle
+        re.compile(r"^FK__.+__[0-9A-F]{8}$", re.IGNORECASE),  # SQL Server: FK__<tabla>__<col>__<hex>
+        re.compile(r"_fkey\d*$", re.IGNORECASE),  # PostgreSQL: <tabla>_<cols>_fkey[N]
+        re.compile(r"_ibfk_\d+$", re.IGNORECASE),  # MySQL/MariaDB: <tabla>_ibfk_<N>
+    )
+
     #: Abreviaturas de dialect SQLAlchemy para nombres de fichero de reporte.
     _DIALECT_ABBREV: ClassVar[dict[str, str]] = {
         "postgresql": "pg",
@@ -856,6 +876,50 @@ class SchemaComparator:
             DdlNormalizer._COMPARISON_EXTRA_PATTERNS.append((r"MY_PATTERN", ""))
         """
         return DdlNormalizer.normalize_for_comparison(definition)
+
+    @classmethod
+    def _match_generated_fks(
+        cls,
+        source_map: Mapping[str, ReflectedForeignKeyConstraint],
+        target_map: Mapping[str, ReflectedForeignKeyConstraint],
+        only_source: list[str],
+        only_target: list[str],
+    ) -> dict[str, str]:
+        """Empareja por estructura las FKs sin pareja por nombre cuyo nombre generó el motor en ambos lados.
+
+        Solo si los dos nombres son generados (o no hay nombre): una FK con nombre puesto por el usuario sigue
+        saliendo como añadida/eliminada, porque el nombre distinto es una diferencia real. Emparejamiento uno a uno,
+        en el orden de las claves.
+
+        Returns:
+            Clave de la FK origen → clave de la FK destino emparejada.
+        """
+        free_target: list[str] = [k for k in only_target if cls._is_generated_fk_name(target_map[k].get("name"))]
+        matches: dict[str, str] = {}
+        for s_key in only_source:
+            s_fk = source_map[s_key]
+            if not cls._is_generated_fk_name(s_fk.get("name")):
+                continue
+            structure = cls._fk_structure(s_fk)
+            t_key = next((k for k in free_target if cls._fk_structure(target_map[k]) == structure), None)
+            if t_key is not None:
+                matches[s_key] = t_key
+                free_target.remove(t_key)
+        return matches
+
+    @classmethod
+    def _is_generated_fk_name(cls, name: str | None) -> bool:
+        """Si el nombre de una FK lo generó el motor (o no tiene nombre)."""
+        return not name or any(pattern.search(name) for pattern in cls._GENERATED_FK_NAME_PATTERNS)
+
+    @classmethod
+    def _fk_structure(cls, fk: ReflectedForeignKeyConstraint) -> tuple[str, str, str]:
+        """Columnas, tabla referenciada y columnas referenciadas de una FK, en minúsculas."""
+        return (
+            cls._join_columns(fk.get("constrained_columns")).lower(),
+            (fk.get("referred_table") or "").lower(),
+            cls._join_columns(fk.get("referred_columns")).lower(),
+        )
 
     @staticmethod
     def _fk_key(fk: ReflectedForeignKeyConstraint) -> str:
