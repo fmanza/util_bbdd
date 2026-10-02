@@ -43,7 +43,7 @@ PKG = "util_bbdd"
 LAYER = {
     "_core": 1, "core": 1, "models": 1, "async_utils": 1,
     "_drivers": 2,
-    "results": 3, "validators": 3,
+    "results": 3, "validators": 3, "audit": 3,
     "connection": 4, "query": 4,
     "executors": 5, "factory": 5, "metadata": 5,
     "bulk": 6, "comparar": 6, "migrate": 6, "managers": 6, "analysis": 6,
@@ -61,6 +61,7 @@ DRAWN = {
     ("bulk", "connection"), ("bulk", "metadata"), ("migrate", "metadata"),
     ("metadata", "query"), ("metadata", "results"), ("executors", "query"), ("executors", "results"),
     ("query", "validators"), ("factory", "connection"), ("_drivers", "_core"),
+    ("bulk", "audit"), ("dump", "audit"), ("migrate", "audit"),
 } | {("managers", t) for t in ("connection", "factory", "executors", "metadata", "query", "results")}  # fmt: skip
 
 # Top-level modules deliberately left out of the figure.
@@ -331,6 +332,9 @@ def render_svg(f: _Facts) -> str:
     s.edge("M210 281 H142")  # factory -> connection
     s.edge("M500 424 V476")  # levels 2 and 3 -> Foundation
     s.edge("M190 551 H162")  # _drivers -> _core
+    audit_users = sorted(src for src, dst in DRAWN if dst == "audit")
+    if audit_users:  # level 3 band -> audit (one arrow, the importers are named in the label)
+        s.edge(f"M362 138 V{Y2B}")
 
     # nodes
     s.node(c[0], Y3, "bulk/", "recibe Engine")
@@ -344,6 +348,7 @@ def render_svg(f: _Facts) -> str:
     s.node(210, Y2A, "factory/", "Engine y pools")
     s.node(c[5], Y2A, "metadata/", "introspección")
     s.node(c[6], Y2A, "executors/", "sync / async")
+    s.node(c[2], Y2B, "audit/", "eventos y CSV")
     s.node(c[4], Y2B, "validators/", "params de query")
     s.node(c[5], Y2B, "query/", "registry")
     s.node(c[6], Y2B, "results/", "Row / Rows")
@@ -364,6 +369,11 @@ def render_svg(f: _Facts) -> str:
     s.text(512, 447, f"{f.to_foundation} paquetes importan de Foundation")
     s.text(512, 463, "Foundation no importa hacia arriba (0 imports)")
     s.text(690, 516, "módulos raíz compartidos")
+    if audit_users:
+        names = [f"{name}/" for name in audit_users]
+        joined = names[0] if len(names) == 1 else f"{', '.join(names[:-1])} y {names[-1]}"
+        s.text(372, 324, joined)
+        s.text(372, 340, "importan de audit/" if len(names) > 1 else "importa de audit/")
 
     # legend
     legend = [(30, "", "arq-h", "import de módulo")]

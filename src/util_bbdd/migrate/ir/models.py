@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+import time
+
+from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
+    from ...audit.contracts import AuditSink
+    from ...audit.events import AuditEvent
     from ..emitters.base import DDLEmitter
+
+#: ``on_statement(posición, total, sentencia, segundos, error)`` tras cada sentencia de ``execute``.
+StatementCallback = Callable[[int, int, str, float, BaseException | None], None]
 
 WarningSeverity = Literal["INFO", "WARNING", "ERROR"]
 WarningCategory = Literal[
@@ -283,7 +291,7 @@ class MigrationPlan:
                     if warning not in self.warnings:
                         self.warnings.append(warning)
 
-    def execute(self, target_connection: Any) -> None:
+    def execute(self, target_connection: Any, *, audit_sink: AuditSink | None = None) -> None:
         """Ejecuta el DDL generado contra el motor destino.
 
         Las sentencias se aplican una a una, con ``commit`` tras cada una, por **una sola** conexión (el
@@ -293,6 +301,11 @@ class MigrationPlan:
         Args:
             target_connection: ``SyncDatabaseManager`` del motor destino (o un ``Engine`` de SQLAlchemy). Un objeto
                 que solo ofrezca ``execute_custom_one(sql, params)`` se usa sentencia a sentencia con ese método.
+            audit_sink: Destino opcional del rastro de auditoría (:mod:`util_bbdd.audit`): los avisos del plan, un
+                evento ``statement`` por sentencia (posición, primera línea, duración, error) y un evento ``run`` de
+                cierre, todos con el mismo ``run_id``. Si el plan está bloqueado por avisos ``ERROR`` se registran los
+                avisos y el ``run`` fallido. Un fallo al escribir en el destino no interrumpe la ejecución (se
+                registra como ERROR). ``None`` (por defecto): sin rastro, como siempre.
 
         Raises:
             ValueError: Si el plan tiene uno o más warnings de severidad ``ERROR``
@@ -301,23 +314,62 @@ class MigrationPlan:
                 ``emit_ddl()``/``emit_statements()`` para inspeccionar el DDL sin ejecutarlo.
             DatabaseOperationError: Si una sentencia falla; indica su posición y su primera línea. Las anteriores
                 quedan aplicadas.
+
+        Example:
+            >>> from util_bbdd.audit import MemoryAuditSink
+            >>> sink = MemoryAuditSink()
+            >>> plan.execute(target_manager, audit_sink=sink)  # doctest: +SKIP
+            >>> [e.status for e in sink.events() if e.kind == "run"]  # doctest: +SKIP
+            ['ok']
         """
+        recorder = None
+        if audit_sink is not None:
+            from .._audit_events import MigrationAuditRecorder
+
+            recorder = MigrationAuditRecorder(audit_sink, self)
         if self.error_count > 0:
             error_messages = "; ".join(w.message for w in self.warnings if w.severity == "ERROR")
-            raise ValueError(
+            blocked = ValueError(
                 f"No se puede ejecutar el plan de migración: {self.error_count} warning(s) de "
                 f"severidad ERROR sin resolver ({error_messages}). Revisa `plan.warnings` antes de "
                 "ejecutar, o usa `emit_ddl()`/`emit_statements()` para inspeccionar el DDL generado "
                 "sin ejecutarlo."
             )
-        statements = [stmt.strip() for stmt in self.emit_statements() if _has_sql(stmt)]
-        if hasattr(target_connection, "get_sqlalchemy_engine") or hasattr(target_connection, "raw_connection"):
-            _execute_statements(target_connection, statements, self.target_engine)
-            return
-        for stmt in statements:
-            target_connection.execute_custom_one(stmt, {})
+            if recorder is not None:
+                recorder.warnings()
+                recorder.finish(total=0, error=blocked)
+            raise blocked
+        on_statement = None if recorder is None else recorder.statement
+        statements: list[str] = []
+        # La emisión va dentro del try: si un emisor falla, también queda el run de cierre (audit-code 2026-10-02c, 2).
+        try:
+            statements = [stmt.strip() for stmt in self.emit_statements() if _has_sql(stmt)]
+            if recorder is not None:
+                recorder.warnings()  # después de emitir: incluye los avisos que descubre la emisión
+            if hasattr(target_connection, "get_sqlalchemy_engine") or hasattr(target_connection, "raw_connection"):
+                _execute_statements(target_connection, statements, self.target_engine, on_statement)
+            else:
+                _execute_with_custom_one(target_connection, statements, on_statement)
+        except Exception as error:
+            if recorder is not None:
+                recorder.finish(total=len(statements), error=error)
+            raise
+        if recorder is not None:
+            recorder.finish(total=len(statements), error=None)
 
-    def validate_views(self, target_connection: Any = None, *, include_tables: bool = True) -> list[Any]:
+    def audit_events(self) -> list[AuditEvent]:
+        """Los avisos del plan como eventos de auditoría (``plan_warning``), para escribirlos en un ``AuditSink``.
+
+        Example:
+            >>> sink.write(plan.audit_events())  # doctest: +SKIP
+        """
+        from .._audit_events import MigrationAuditEvents
+
+        return MigrationAuditEvents.plan_warnings(self)
+
+    def validate_views(
+        self, target_connection: Any = None, *, include_tables: bool = True, audit_sink: AuditSink | None = None
+    ) -> list[Any]:
         """Valida las vistas del plan en el destino sin dejar cambios.
 
         En PostgreSQL y SQL Server (DDL transaccional) crea las tablas del plan (si ``include_tables``) y cada vista en
@@ -328,13 +380,23 @@ class MigrationPlan:
             target_connection: ``SyncDatabaseManager`` (o Engine de SQLAlchemy) del destino; obligatorio con destino
                 PostgreSQL o SQL Server.
             include_tables: Crear también las tablas del plan en la transacción (validar antes de ``execute``).
+            audit_sink: Destino opcional de auditoría: un evento ``view_validation`` por vista (``ok``, ``failed`` o
+                ``skipped``). Un fallo al escribir en el destino se registra como ERROR y no cambia el resultado.
 
         Returns:
             list[ViewValidationResult]: Una entrada por vista con SQL (``view``, ``valid``, ``method``, ``error``).
         """
         from ..views.validation import validate_plan_views
 
-        return list(validate_plan_views(self, target_connection, include_tables=include_tables))
+        results = list(validate_plan_views(self, target_connection, include_tables=include_tables))
+        if audit_sink is not None:
+            from .._audit_events import MigrationAuditEvents, MigrationAuditRecorder
+
+            recorder = MigrationAuditRecorder(audit_sink, self)
+            recorder.write(
+                MigrationAuditEvents.view_validation(results, engine=self.target_engine, run_id=recorder.run_id)
+            )
+        return results
 
     def suggested_filename(self, suffix: str = "", ext: str = "sql") -> str:
         """Nombre de fichero canónico que incorpora schema, motor origen y motor destino.
@@ -373,28 +435,50 @@ def _has_sql(statement: str) -> bool:
     return any(line.strip() and not line.strip().startswith("--") for line in statement.splitlines())
 
 
-def _execute_statements(target: Any, statements: list[str], target_engine: str) -> None:
+def _execute_with_custom_one(target: Any, statements: list[str], on_statement: StatementCallback | None = None) -> None:
+    """Aplica ``statements`` con ``target.execute_custom_one(sql, {})`` (objetos sin Engine ni ``raw_connection``)."""
+    total = len(statements)
+    for position, statement in enumerate(statements, start=1):
+        started = time.perf_counter()
+        try:
+            target.execute_custom_one(statement, {})
+        except Exception as err:
+            if on_statement is not None:
+                on_statement(position, total, statement, time.perf_counter() - started, err)
+            raise
+        if on_statement is not None:
+            on_statement(position, total, statement, time.perf_counter() - started, None)
+
+
+def _execute_statements(
+    target: Any, statements: list[str], target_engine: str, on_statement: StatementCallback | None = None
+) -> None:
     """Aplica ``statements`` por una conexión DB-API: cursor del driver sin parámetros y ``commit`` tras cada una.
 
     Sin parámetros, los drivers *pyformat* no reinterpretan los ``%`` literales del DDL (``LIKE 'a%'``). El Engine de
     ``get_sqlalchemy_engine()`` se crea para esta ejecución y se libera al terminar; uno recibido se deja abierto.
+    ``on_statement`` (auditoría, opcional) se llama tras el ``commit`` de cada sentencia o al fallar, antes de relanzar.
     """
     from ..._core.exceptions import DatabaseOperationError
 
     owned = hasattr(target, "get_sqlalchemy_engine")
     engine = target.get_sqlalchemy_engine() if owned else target
+    total = len(statements)
     try:
         connection = engine.raw_connection()
         try:
             cursor = connection.cursor()
             try:
                 for position, statement in enumerate(statements, start=1):
+                    started = time.perf_counter()
                     try:
                         cursor.execute(statement)
                         connection.commit()
                     except Exception as err:
                         with suppress(Exception):  # un fallo del rollback no debe tapar el error de la sentencia
                             connection.rollback()
+                        if on_statement is not None:
+                            on_statement(position, total, statement, time.perf_counter() - started, err)
                         first_line = next(
                             ln for ln in statement.splitlines() if ln.strip() and not ln.strip().startswith("--")
                         )
@@ -403,6 +487,8 @@ def _execute_statements(target: Any, statements: list[str], target_engine: str) 
                             "MIGRATE_EXECUTE",
                             db_type=target_engine,
                         ) from err
+                    if on_statement is not None:
+                        on_statement(position, total, statement, time.perf_counter() - started, None)
             finally:
                 cursor.close()
         finally:

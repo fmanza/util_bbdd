@@ -2,6 +2,8 @@
 
 `AuditManager` es la fachada del subsistema de auditoría de operaciones bulk: escribe una fila por operación en un CSV tabulado, lo relee con caché y ofrece estadísticas, filtros y exportación a Excel, JSON y HTML. `BulkCrud` lo usa internamente a través de `audit_csv_path`; también se puede usar directamente para consultar o exportar un CSV existente.
 
+Desde la sesión 2026-10-02c, el repositorio, la analítica y los exportadores viven en [`util_bbdd.audit`](audit.md) y `AuditManager` es su fachada en `bulk` (mismo formato, misma API, mismo logger `util_bbdd.bulk.audit`). Los eventos opcionales (`audit_sink`) se documentan allí.
+
 ## 1. Arquitectura y Diseño
 
 ```mermaid
@@ -77,11 +79,11 @@ Propiedades: `audit_csv_path`, `cache_enabled`, `cache_ttl_seconds` (lectura y e
 
 | Clase | Responsabilidad |
 |---|---|
-| `AuditManager` | Fachada pública; valida y delega en repositorio, analítica y exportadores |
-| `AuditCsvRepository` | Escritura del CSV (lock por ruta, cabecera) y lectura con caché validada por TTL y firma del fichero |
-| `AuditAnalyticsService` | Estadísticas, filtros y agrupaciones sobre el CSV |
-| `AuditExporters` | Exportación a Excel, JSON y HTML |
-| `AuditRecord` | Una fila del CSV (interno; lo usa la auditoría diferida de `bulk_session`) |
+| `AuditManager` (`bulk/audit.py`) | Fachada pública; valida y delega en repositorio, analítica y exportadores |
+| `AuditCsvRepository` (`audit/legacy_csv.py`) | Escritura del CSV (lock por ruta, cabecera) y lectura con caché validada por TTL y firma del fichero |
+| `AuditAnalyticsService` (`audit/analytics.py`) | Estadísticas, filtros y agrupaciones sobre el CSV |
+| `AuditExporters` (`audit/exporters.py`) | Exportación a Excel, JSON y HTML |
+| `AuditRecord` (`audit/legacy_csv.py`) | Una fila del CSV (interno; lo usa la auditoría diferida de `bulk_session`) |
 
 ## 4. Dependencias y Requisitos
 

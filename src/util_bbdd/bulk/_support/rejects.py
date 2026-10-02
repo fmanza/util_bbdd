@@ -10,32 +10,24 @@ filas malas 1,13–1,23× (PostgreSQL 1,65×, lotes de 20 000): cada fila mala r
 from __future__ import annotations
 
 import contextlib
-import csv
-import json
-import logging
 import operator
 import sqlite3
 
 from collections.abc import Callable, Mapping, Sequence
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy.exc import DataError, IntegrityError
 
-from .._audit.repository import AuditCsvRepository, _get_file_lock
+from ...audit.rejects import REJECT_COLUMNS, RejectsWriter
 from . import oracle_batch_errors
+
+# El CSV de rechazos (``RejectsWriter``, ``REJECT_COLUMNS``) vive en ``util_bbdd.audit.rejects`` desde la sesión
+# 2026-10-02c y se re-exporta aquí para los imports existentes. Este módulo conserva el aislamiento por SAVEPOINT.
 
 #: Errores que se aíslan. Cualquier otro (columna inexistente, permisos, sintaxis, desconexión) se propaga: no es un
 #: problema de una fila y aislarlo acabaría rechazando todas.
 ISOLATED_ERRORS: tuple[type[Exception], ...] = (IntegrityError, DataError)
-
-#: Columnas del CSV de rechazos (UTF-8, separado por tabuladores, como el CSV de auditoría).
-#: ``particion``: la de ``ParallelBulkLoader`` (vacía fuera de él); añadida tras la 0.26.0 (Fase 3, 2026-10-01t).
-REJECT_COLUMNS: tuple[str, ...] = ("timestamp", "tabla", "operacion", "particion", "fila", "error", "valores")
-
-# Una celda que empieza así se ejecutaría como fórmula al abrir el CSV en Excel (los valores son datos del usuario).
-_FORMULA_PREFIXES: tuple[str, ...] = ("=", "+", "-", "@", "\t", "\r")
 
 
 def optional_non_negative_int(value: Any, name: str) -> int | None:
@@ -70,18 +62,6 @@ def validate_isolation(on_error: str, rejects_csv_path: Path | None, max_rejects
     if rejects_csv_path is None:
         raise ValueError("on_error='isolate' necesita rejects_csv_path: las filas rechazadas se escriben ahí")
     optional_non_negative_int(max_rejects, "max_rejects")
-
-
-def _safe_cell(text: str) -> str:
-    """``text`` con un apóstrofo delante si empieza como una fórmula de hoja de cálculo."""
-    return f"'{text}" if text.startswith(_FORMULA_PREFIXES) else text
-
-
-def _error_text(error: BaseException) -> str:
-    """Clase y primera línea del error del driver (sin la sentencia ni los parámetros que añade SQLAlchemy)."""
-    origin: BaseException = getattr(error, "orig", None) or error
-    lines = str(origin).strip().splitlines()
-    return f"{type(error).__name__}: {lines[0] if lines else ''}"
 
 
 def _savepoint(connection: Any) -> Any:
@@ -132,93 +112,6 @@ def _rollback_after_data_error(savepoint: Any, error: BaseException) -> None:
             "entera con el primer error: on_error='isolate' no puede aislar filas así"
         )
         raise error from rollback_error
-
-
-class RejectsWriter:
-    """Escribe las filas rechazadas en ``path`` (lo crea con cabecera si no existe; añade si ya existe).
-
-    El fichero contiene datos de las filas: solo se escribe cuando el usuario indica la ruta (``rejects_csv_path``).
-
-    B-4 (audit-code 2026-10-01): las escrituras a una misma ruta se serializan con el lock por ruta de la auditoría
-    (entre hilos de un proceso; entre procesos no hay lock, como en la auditoría), y antes de la primera escritura de la
-    instancia un fichero con otra cabecera se aparta como ``<nombre>.invalid-<fecha><ext>`` con un WARNING.
-    """
-
-    def __init__(self, path: Path) -> None:
-        self.path: Path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.logger: logging.Logger = logging.getLogger(__name__)
-        self._lock = _get_file_lock(self.path)
-        self._header_checked: bool = False
-
-    def write(
-        self,
-        *,
-        table: str,
-        operation: str,
-        position: int,
-        error: BaseException,
-        values: Mapping[str, Any],
-        partition: int | None = None,
-    ) -> None:
-        """Añade una fila rechazada: ``position`` es su posición (base 0) en la entrada de la operación (o de la
-        partición de ``ParallelBulkLoader``, ``partition``)."""
-        with self._lock:
-            if not self._header_checked:
-                self._set_aside_if_foreign()
-                self._header_checked = True
-            self._append(
-                table=table, operation=operation, position=position, error=error, values=values, partition=partition
-            )
-
-    def _append(
-        self,
-        *,
-        table: str,
-        operation: str,
-        position: int,
-        error: BaseException,
-        values: Mapping[str, Any],
-        partition: int | None,
-    ) -> None:
-        with self.path.open("a", newline="", encoding="utf-8") as handle:
-            writer = csv.writer(handle, delimiter="\t")
-            # En modo "a" el fichero se abre al final: posición 0 = nuevo o vacío (como la auditoría, H4).
-            if handle.tell() == 0:
-                writer.writerow(REJECT_COLUMNS)
-            writer.writerow(
-                [
-                    datetime.now().isoformat(timespec="seconds"),
-                    _safe_cell(table),
-                    operation,
-                    "" if partition is None else partition,
-                    position,
-                    _safe_cell(_error_text(error)),
-                    _safe_cell(json.dumps(dict(values), default=str, ensure_ascii=False)),
-                ]
-            )
-
-    def _set_aside_if_foreign(self) -> None:
-        """Aparta el fichero existente si su primera línea no es la cabecera de rechazos (se llama con el lock tomado).
-
-        Si no se puede renombrar (p. ej. abierto en Excel), el ``OSError`` se propaga: la operación falla con la nota
-        «no se pudo escribir el CSV de rechazos», como cualquier fallo de escritura (M-1).
-        """
-        if not self.path.is_file():
-            return
-        try:
-            with self.path.open(encoding="utf-8", newline="") as handle:
-                first: str = handle.readline()
-        except UnicodeDecodeError:
-            first = "<no es texto UTF-8>"
-        if not first or first.lstrip("\ufeff").rstrip("\r\n") == "\t".join(REJECT_COLUMNS):
-            return
-        aside: Path = AuditCsvRepository._ruta_apartado(self.path)
-        self.path.rename(aside)
-        self.logger.warning(
-            f"El CSV de rechazos '{self.path}' tenía otra cabecera ({first[:120]!r}); se ha apartado como "
-            f"'{aside.name}' y se empieza uno nuevo."
-        )
 
 
 class Isolator:

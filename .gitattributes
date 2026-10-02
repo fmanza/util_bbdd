@@ -13,6 +13,9 @@
 # CRLF y un bash que no los ignore (p.ej. WSL) fallaría al cargarlos (scripts/bench_env.example.sh)
 *.sh text eol=lf
 
+# Ficheros de referencia del formato CSV de auditoría (CRLF del módulo csv): se comparan byte a byte, no se normalizan
+tests/fixtures/audit/*.csv -text
+
 # Asegurar que archivos binarios (imágenes, etc.) no se toquen
 *.png binary
 *.jpg binary

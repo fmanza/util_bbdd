@@ -21,6 +21,7 @@ import logging
 import math
 import random
 import time
+import uuid
 
 from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -34,9 +35,11 @@ import pandas as pd
 from sqlalchemy import Engine, Table, text
 from sqlalchemy.exc import SQLAlchemyError
 
+from ...audit.contracts import AuditSink
 from ...metadata.postgresql.tables import fetch_can_create_temp_tables_sql
 from .._audit.counters import AuditCounters
 from .._audit.errors import AuditError
+from .._audit.events import BulkAuditEvents
 from .._support.dialect import can_disable_pg_triggers, disable_table_integrity_sql, enable_table_integrity_sql
 from .._support.iterables import close_if_closable, closing_iterable
 from .._support.pool import pool_capacity
@@ -171,12 +174,15 @@ class ParallelLoadResult:
     ``partition_errors``**, se cumple ``audited_rows + rows_rejected + unaudited_committed_rows == total_rows``. Una
     partición fallida no suma a ``total_rows`` lo deshecho, pero los rechazos que ya escribió siguen en el CSV y en
     ``rows_rejected`` (M-1, audit-code 2026-10-01).
+
+    ``audit_run_id``: ``run_id`` de los eventos de ``audit_sink`` de la carga (``None`` sin destino).
     """
 
     total_rows: int = 0
     partition_errors: list[str] = field(default_factory=list)
     elapsed_seconds: float = 0.0
     partition_results: list[PartitionResult] = field(default_factory=list)
+    audit_run_id: str | None = None
 
     @property
     def audit_failures(self) -> int:
@@ -262,6 +268,8 @@ class ParallelBulkLoader:
         on_error: Literal["raise", "isolate"] = "raise",
         rejects_csv_path: Path | None = None,
         max_rejects: int | None = None,
+        audit_sink: AuditSink | None = None,
+        audit_run_id: str | None = None,
     ) -> None:
         """
         Args:
@@ -309,6 +317,12 @@ class ParallelBulkLoader:
             rejects_csv_path: CSV de rechazos compartido (ver ``BulkCrud``). Obligatorio con ``on_error="isolate"``.
             max_rejects: Filas que **cada partición** puede rechazar (con N particiones, hasta N × ``max_rejects`` en
                 total); la siguiente hace fallar esa partición. ``None``: sin límite.
+            audit_sink: Destino opcional de eventos (:mod:`util_bbdd.audit`), compartido por las ``BulkCrud`` de las
+                particiones (eventos ``operation``). Al terminar cada carga se añaden un evento ``partition`` por
+                partición y un ``run`` de cierre. Un fallo al escribir estos dos últimos se registra como ERROR y no
+                cambia el resultado. ``None`` (default): sin eventos.
+            audit_run_id: ``run_id`` común de todos los eventos (p. ej. el de un volcado). ``None``: uno nuevo por
+                carga (:meth:`load`, :meth:`update` o :meth:`delete`) si hay ``audit_sink``.
 
         Raises:
             ValueError: Si ``chunk_size`` no es un entero ≥ 1, ``max_workers < 1``, ``max_retries < 0`` o
@@ -349,6 +363,8 @@ class ParallelBulkLoader:
         self._on_error: Literal["raise", "isolate"] = on_error
         self._rejects_csv_path: Path | None = rejects_csv_path
         self._max_rejects: int | None = max_rejects
+        self._audit_sink: AuditSink | None = audit_sink
+        self._audit_run_id: str | None = audit_run_id
         # Inyectables en tests (sin esperas reales ni azar).
         self._sleep: Callable[[float], None] = time.sleep
         self._jitter: Callable[[float, float], float] = random.uniform
@@ -478,13 +494,15 @@ class ParallelBulkLoader:
         if partition_ranges is not None:
             _validate_partition_ranges(partition_ranges, len(partition_readers))
 
-        if self._audit_csv_path is None:
+        if self._audit_csv_path is None and self._audit_sink is None:
             # M-4: un aviso por carga; las BulkCrud de las particiones se crean sin el suyo.
             self.logger.info(
                 "Auditoría deshabilitada en la carga paralela de '%s' (audit_csv_path=None).", tabla_destino
             )
+        # Un run_id por carga (o el recibido); se pasa a cada partición, sin estado compartido entre cargas.
+        run_id: str | None = None if self._audit_sink is None else (self._audit_run_id or uuid.uuid4().hex)
 
-        result = ParallelLoadResult()
+        result = ParallelLoadResult(audit_run_id=run_id)
         t_start = time.perf_counter()
         workers = min(self._max_workers, len(partition_readers))
         if operation == "update" and workers > 1 and not self._staging_update_available():
@@ -510,6 +528,7 @@ class ParallelBulkLoader:
                         max_retries=self._max_retries
                         if operation == "insert"
                         else max(self._max_retries, _IDEMPOTENT_MIN_RETRIES),
+                        audit_run_id=run_id,
                     )
                     for index, reader in enumerate(partition_readers)
                 ]
@@ -521,7 +540,35 @@ class ParallelBulkLoader:
                         result.partition_errors.append(pr.error)
 
         result.elapsed_seconds = time.perf_counter() - t_start
+        self._write_load_events(result, tabla_destino, operation)
         return result
+
+    def _write_load_events(self, result: ParallelLoadResult, tabla_destino: str, operation: str) -> None:
+        """Eventos ``partition`` (en orden de partición) y ``run`` de la carga en ``audit_sink``; fallo = ERROR."""
+        if self._audit_sink is None:
+            return
+        engine = self._engine.dialect.name
+        events = [
+            BulkAuditEvents.partition(
+                pr, table=tabla_destino, operation=operation, engine=engine, run_id=result.audit_run_id
+            )
+            for pr in sorted(result.partition_results, key=lambda pr: pr.index)
+        ]
+        events.append(
+            BulkAuditEvents.load(
+                result, table=tabla_destino, operation=operation, engine=engine, run_id=result.audit_run_id
+            )
+        )
+        try:
+            self._audit_sink.write(events)
+        except Exception as exc:
+            self.logger.error(
+                "❌ No se pudo escribir la auditoría de la carga paralela de '%s' en audit_sink (%d eventos): %s",
+                tabla_destino,
+                len(events),
+                exc,
+                exc_info=True,
+            )
 
     def _staging_update_available(self) -> bool:
         """En PostgreSQL, ``False`` si falta el privilegio ``TEMP`` (el UPDATE paralelo sería fila a fila); WARNING."""
@@ -547,6 +594,7 @@ class ParallelBulkLoader:
         *,
         operation: _Operation = "insert",
         max_retries: int | None = None,
+        audit_run_id: str | None = None,
     ) -> PartitionResult:
         """Tarea de hilo: carga (o actualiza o borra, ``operation``) una partición con su propia ``BulkCrud``.
 
@@ -578,6 +626,8 @@ class ParallelBulkLoader:
                 on_error=self._on_error,
                 rejects_csv_path=self._rejects_csv_path,
                 max_rejects=self._max_rejects,
+                audit_sink=self._audit_sink,
+                audit_run_id=audit_run_id,
             )
         except Exception as exc:
             self.logger.warning(

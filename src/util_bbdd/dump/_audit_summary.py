@@ -6,7 +6,6 @@ Separado de ``orchestrator`` (R10a del refactor de reutilización 2026-09-26) si
 
 from __future__ import annotations
 
-import io
 import logging
 
 from datetime import datetime
@@ -14,8 +13,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from util_bbdd.bulk._audit.repository import AuditCsvRepository
-from util_bbdd.bulk.audit import AuditManager
+from util_bbdd.audit.files import AuditFiles
+from util_bbdd.audit.legacy_csv import AuditCsvRepository
 
 from ._models import DumpAuditSummary
 
@@ -26,14 +25,13 @@ _log = logging.getLogger("util_bbdd.dump.orchestrator")
 _AUDIT_COLUMNS = frozenset({"timestamp", "tabla", "total_filas", "tiempo_seg"})
 
 
+# F3 (sesión 2026-10-02c): la lectura del CSV y las utilidades de fichero viven en ``util_bbdd.audit``; ``dump`` ya no
+# importa partes privadas de ``bulk``. Estos nombres se conservan como delegados (los usa ``DumpOrchestrator``).
+
+
 def file_size(path: Path | None) -> int | None:
-    """Tamaño de ``path`` en bytes, o ``None`` si no hay ruta o el fichero no existe."""
-    if path is None:
-        return None
-    try:
-        return path.stat().st_size if path.is_file() else None
-    except OSError:
-        return None
+    """Tamaño de ``path`` en bytes, o ``None`` si no hay ruta o el fichero no existe (:meth:`AuditFiles.file_size`)."""
+    return AuditFiles.file_size(path)
 
 
 def file_identity(path: Path | None) -> tuple[int, int] | None:
@@ -42,36 +40,12 @@ def file_identity(path: Path | None) -> tuple[int, int] | None:
     Distingue el CSV del inicio del volcado de uno nuevo con la misma ruta: ``AuditCsvRepository`` aparta el fichero si
     su cabecera no es válida, y el desplazamiento de inicio (``file_size``) ya no corresponde al fichero nuevo.
     """
-    if path is None:
-        return None
-    try:
-        stat = path.stat()
-    except OSError:
-        return None
-    return stat.st_dev, stat.st_ino
+    return AuditFiles.file_identity(path)
 
 
 def read_audit_csv(audit_path: Path, start_offset: int | None) -> pd.DataFrame:
-    """CSV de auditoría con los registros añadidos desde ``start_offset`` (o entero, si no se puede acotar).
-
-    3.4 / PF-08 (performance-audit de dump 2026-09-25): el resumen leía el CSV histórico completo en cada volcado
-    (0,72 s con 500K registros, lineal). El CSV es de solo añadir: se lee la cabecera y lo escrito desde el tamaño
-    que tenía al empezar el volcado, con las mismas conversiones que ``AuditManager.leer_auditoria``. Si no hay
-    desplazamiento, o el fichero es ahora más pequeño (se truncó o rotó), se lee entero como antes.
-    """
-    size = file_size(audit_path) or 0
-    if not start_offset or size < start_offset:
-        return AuditManager(audit_path, cache_enabled=False).leer_auditoria()
-    with audit_path.open("rb") as fh:
-        header = fh.readline()
-        if start_offset <= len(header):
-            return AuditManager(audit_path, cache_enabled=False).leer_auditoria()
-        fh.seek(start_offset - 1)
-        if fh.read(1) != b"\n":  # empezó a mitad de una fila (escritura de otro proceso): salta a la siguiente
-            fh.readline()
-        tail = fh.read()
-    df = pd.read_csv(io.BytesIO(header + tail), delimiter="\t", encoding="utf-8")
-    return AuditCsvRepository.parse_frame(df)
+    """CSV de auditoría con los registros añadidos desde ``start_offset`` (:meth:`AuditCsvRepository.read_since`)."""
+    return AuditCsvRepository.read_since(audit_path, start_offset)
 
 
 def build_audit_summary(

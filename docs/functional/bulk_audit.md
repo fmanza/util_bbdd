@@ -1,5 +1,10 @@
 # Auditoría de Operaciones Bulk
 
+!!! note "Auditoría centralizada (sesión 2026-10-02c)"
+    El CSV de auditoría vive desde esta versión en el módulo común [`util_bbdd.audit`](audit.md), con el mismo formato y
+    el mismo comportamiento. Ese módulo añade, de forma opcional, eventos de auditoría comunes a `bulk`, `dump` y
+    `migrate` (parámetro `audit_sink`).
+
 ## 1. Descripción General
 
 Registra cada operación de datos masiva (INSERT, UPDATE o DELETE en lote) en un fichero CSV persistente: qué tabla, en qué motor, cuándo terminó, cuántas filas se enviaron, cuánto tardó y si se generó un fichero SQL en lugar de ejecutar en la base de datos. Así se puede rastrear después qué cargas se hicieron y cuánto costaron.

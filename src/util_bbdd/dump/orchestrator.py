@@ -26,6 +26,8 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
+import uuid
 
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -40,15 +42,15 @@ from sqlalchemy import Engine, Inspector, Integer, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import sqltypes
 
+from util_bbdd.audit.counters import AuditCounters
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader, RangePartitioner
-from util_bbdd.bulk._audit.counters import AuditCounters
 from util_bbdd.bulk._support.dialect import MYSQL_FAMILY
 from util_bbdd.bulk._support.iterables import close_if_closable
 from util_bbdd.bulk._support.pool import pool_capacity
-from util_bbdd.bulk.audit import AuditError
 
-from .._core.exceptions import DumpError, DumpReportError
+from .._core.exceptions import AuditError, DumpError, DumpReportError
 from . import _audit_summary, _fk_graph
+from ._audit_events import DumpAuditEvents, DumpAuditWriter
 from ._constraints import ConstraintManager, ConstraintResult
 from ._indexes import IndexManager
 from ._models import DumpAuditSummary, DumpConfig, DumpResult, IndexActionResult, PKSyncResult, TableDumpResult
@@ -109,6 +111,8 @@ class DumpOrchestrator:
         self._warn_pool_config(config.target_engine)
         self._warn_sqlite_source(config.source_engine, config.target_engine)
         self._reset_audit_tracking()
+        #: run_id de los eventos de ``audit_sink`` del volcado en curso (None sin destino).
+        self._audit_run_id: str | None = None
 
     # ------------------------------------------------------------------
     # Punto de entrada
@@ -116,6 +120,9 @@ class DumpOrchestrator:
 
     def run(self) -> DumpResult:
         """Ejecuta el volcado completo y retorna el resultado con el informe.
+
+        Con ``DumpConfig.audit_sink``, al terminar (también si falla) escribe en él un evento por tabla, constraint,
+        índice y contador PK y un ``run`` de cierre, con el ``run_id`` del volcado (``DumpResult.audit_run_id``).
 
         Raises:
             DumpError: Si falla el análisis inicial de carga (introspección de tablas
@@ -125,13 +132,58 @@ class DumpOrchestrator:
             DumpReportError: Si falla la generación del informe Excel, ya terminada la carga. ``exc.result`` lleva el
                 ``DumpResult`` completo (su ``report`` es la ruta prevista, sin crear).
         """
+        sink = self._cfg.audit_sink
+        if sink is None:
+            self._audit_run_id = None
+            return self._run_dump()
+        self._audit_run_id = uuid.uuid4().hex
+        writer = DumpAuditWriter(sink)
+        started = time.perf_counter()
+        try:
+            result = self._run_dump()
+        except DumpReportError as exc:
+            self._write_dump_events(writer, exc.result, exc, time.perf_counter() - started)
+            raise
+        except Exception as exc:
+            self._write_dump_events(writer, None, exc, time.perf_counter() - started)
+            raise
+        self._write_dump_events(writer, result, None, time.perf_counter() - started)
+        return result
+
+    def _write_dump_events(
+        self, writer: DumpAuditWriter, result: DumpResult | None, error: BaseException | None, elapsed_s: float
+    ) -> None:
+        """Eventos finales del volcado (elementos de ``result`` y ``run`` de cierre) en ``audit_sink``."""
+        cfg = self._cfg
+        engine = cfg.target_engine.dialect.name
+        events = (
+            []
+            if result is None
+            else DumpAuditEvents.result_events(
+                result, engine=engine, namespace=cfg.target_schema, run_id=self._audit_run_id
+            )
+        )
+        events.append(
+            DumpAuditEvents.run(
+                engine=engine,
+                namespace=cfg.target_schema,
+                run_id=self._audit_run_id,
+                elapsed_s=elapsed_s,
+                result=result,
+                error=error,
+            )
+        )
+        writer.write(events)
+
+    def _run_dump(self) -> DumpResult:
+        """Cuerpo de :meth:`run` (mismas excepciones)."""
         cfg = self._cfg
         dump_inicio = datetime.now()
         self._reset_audit_tracking()
         # 3.4 (PF-08): tamaño del CSV de auditoría al empezar; el resumen solo lee lo añadido desde aquí.
         self._audit_start_offset = DumpOrchestrator._file_size(cfg.bulk_audit_path)
         self._audit_start_identity = DumpOrchestrator._file_identity(cfg.bulk_audit_path)
-        if cfg.bulk_audit_path is None:
+        if cfg.bulk_audit_path is None and cfg.audit_sink is None:
             # M-4 (audit-code de ParallelBulkLoader 2026-09-25): un aviso por volcado, no uno por BulkCrud creada.
             self.logger.info("Auditoría bulk deshabilitada en el volcado (bulk_audit_path=None).")
 
@@ -262,6 +314,7 @@ class DumpOrchestrator:
             audit_summary=audit_summary,
             pk_sync_results=pk_sync_results,
             index_results=index_results,
+            audit_run_id=self._audit_run_id,
         )
 
         # FASE 5b: Generar informe Excel (la hoja "Columnas Inexistentes" se deriva
@@ -800,6 +853,9 @@ class DumpOrchestrator:
             "on_error": cfg.on_error,
             "rejects_csv_path": cfg.rejects_csv_path,
             "max_rejects": cfg.max_rejects,
+            # F5 (sesión 2026-10-02c): eventos de auditoría con el run_id del volcado.
+            "audit_sink": cfg.audit_sink,
+            "audit_run_id": getattr(self, "_audit_run_id", None),  # tests que crean la instancia sin __init__
         }
 
     def _resolve_write_batch_size(self) -> int:

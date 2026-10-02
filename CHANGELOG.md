@@ -7,6 +7,44 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Módulo de auditoría centralizado `util_bbdd.audit` (ADR-002, sesión `2026-10-02c-audit-module`). La auditoría de
+`bulk`, `dump` y `migrate` tiene un punto canónico y un modelo de evento común, y `migrate` pasa a ser auditable. Sin
+cambios incompatibles: el formato del CSV de auditoría y del de rechazos es idéntico byte a byte al de v0.28.0, y las
+capacidades nuevas son opcionales.
+
+### Added
+
+- **audit** (paquete nuevo, capa 3): `AuditEvent` (modelo de evento inmutable, con zona horaria, equivalente a las
+  convenciones semánticas de OpenTelemetry para bases de datos), `AuditSink`/`AuditEventSource` (`Protocol`) y los
+  destinos `JsonLinesAuditSink` (H-04: ISO 8601 con zona, punto decimal, todos los campos), `MemoryAuditSink` y
+  `NullAuditSink`. Exportados también desde `util_bbdd`.
+- **bulk**: `BulkCrud(audit_sink=None, audit_run_id=None)` y `BulkCrud.audit_run_id`: un evento `operation` por
+  operación, escrito en el mismo momento que la fila del CSV (al confirmarse la transacción) y con la misma política
+  `audit_strict`. Funciona también sin `audit_csv_path`.
+- **bulk**: `ParallelBulkLoader(audit_sink=None, audit_run_id=None)` y `ParallelLoadResult.audit_run_id`: además, un
+  evento `partition` por partición y un `run` de cierre por carga.
+- **dump**: `DumpConfig(audit_sink=None)` y `DumpResult.audit_run_id`: todos los eventos del volcado (también los de sus
+  cargas) comparten su `run_id`; al terminar, un evento por tabla, constraint, índice y contador PK y un `run` de
+  cierre (también si el volcado falla).
+- **migrate**: `MigrationPlan.execute(target, *, audit_sink=None)` registra los avisos del plan, un evento por
+  sentencia (posición, primera línea, duración, tipo de error) y un `run` de cierre (H-03: antes no quedaba rastro);
+  `MigrationPlan.validate_views(..., audit_sink=None)` y `MigrationPlan.audit_events()`.
+
+### Changed
+
+- **bulk**: el CSV de auditoría (`AuditCsvRepository`, `AuditRecord`), la analítica, los exportadores, `AuditCounters`
+  y el CSV de rechazos (`RejectsWriter`) viven en `util_bbdd.audit`. `AuditManager` sigue en `bulk/audit.py` como
+  fachada (mismo logger) y `bulk/_audit/*` y `bulk/_support/rejects.py` re-exportan: los imports siguen funcionando.
+  Se elimina `bulk/_support/excel.py` (re-exportación privada sin otros usos; los exportadores usan
+  `_core/export_safety.py`).
+- **dump**: el resumen de auditoría y los contadores se leen de `util_bbdd.audit`; `dump` ya no importa partes privadas
+  de la auditoría de `bulk` (H-06).
+- **bulk**: `audit_failures` cuenta también los registros que no se pudieron escribir en `audit_sink`. Con
+  `audit_strict=True`, un fallo del destino que no sea `OSError`/`AuditError` se relanza como `AuditError` (así `dump`
+  lo trata como error de la tabla y el volcado sigue; audit-code 2026-10-02c).
+- **tests**: `test_audit_subsystem.py` espía `util_bbdd.audit.legacy_csv` (2 `patch` a rutas movidas) y
+  `test_planner.py::test_execute_has_no_override_flag` admite `audit_sink` (keyword-only) en la firma de `execute`.
+
 ## [0.28.0] - 2026-10-02
 
 `BulkCrud.rejects_scope` agrupa varias operaciones en una sola secuencia para los rechazos de

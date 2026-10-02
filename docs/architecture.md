@@ -56,6 +56,7 @@ src/util_bbdd/
   migrate/       # MigrationPlanner, MigrationPlan (migración DDL)
   query/         # QueryRegistry, QueryResolver, ejecución de queries nombradas
   validators/    # validación de parámetros de queries
+  audit/         # auditoría común de bulk, dump y migrate (AuditEvent, AuditSink)
   analysis/      # grafos de relaciones entre tablas (Graphviz)
   doc/           # documentación de BD (Word, Excel, HTML/Jinja2)
   results/       # Row, Rows, RowOrNone, QueryResult
@@ -80,6 +81,7 @@ src/util_bbdd/
 | `migrate/` | Planificación de migración DDL entre motores |
 | `query/` | Registry de queries nombradas, resolver y parámetros |
 | `validators/` | Validación de parámetros de queries antes de ejecutar |
+| `audit/` | Punto canónico de la auditoría de `bulk`, `dump` y `migrate`: modelo de evento y destinos |
 | `analysis/` | Grafos de relaciones entre tablas (Graphviz) |
 | `doc/` | Documentación de BD en Word, Excel y HTML vía Jinja2 |
 | `results/` | Tipos de retorno: `Row`, `Rows`, `RowOrNone`, `QueryResult` |
@@ -93,7 +95,7 @@ Los tres niveles de la arquitectura (Foundation → Servicios → Especializaci�
 <div class="arq-scroll">
 --8<-- "assets/diagrams/arquitectura-capas.svg"
 </div>
-<figcaption>Instantánea de <code>develop</code> en v0.28.0 (2026-10-02) medida con <code>ast</code> sobre 391 ficheros. Capas y niveles según <code>.ai/architecture.md</code>; <code>models.py</code> y <code>async_utils.py</code> son módulos raíz de Foundation: no importan nada de la librería. El <code>__init__.py</code> raíz (re-exports) no aparece.</figcaption>
+<figcaption>Instantánea de <code>develop</code> en v0.28.0 (2026-10-02) medida con <code>ast</code> sobre 406 ficheros. Capas y niveles según <code>.ai/architecture.md</code>; <code>models.py</code> y <code>async_utils.py</code> son módulos raíz de Foundation: no importan nada de la librería. El <code>__init__.py</code> raíz (re-exports) no aparece.</figcaption>
 </figure>
 
 Capas, de mayor a menor dependencia (tabla generada por el mismo script que la figura):

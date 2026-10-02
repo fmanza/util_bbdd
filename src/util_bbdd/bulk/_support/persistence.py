@@ -8,11 +8,15 @@ import time
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .._audit.errors import AuditError
+from .._audit.events import BulkAuditEvents
 from .._audit.record import AuditRecord
 from ..audit import AuditManager
+
+if TYPE_CHECKING:
+    from ...audit.contracts import AuditSink
 from .sql_helpers import generate_sql_filename
 from .validation import resolve_sql_output_path
 
@@ -50,12 +54,18 @@ class BulkPersistenceManager:
       deshaga. Si lo que falla es ese commit, lo escrito queda en el CSV sin datos en la BD: se registra un ERROR y se
       cuenta en ``audit_uncommitted_records``.
 
+    Destino de eventos (``audit_sink``, F5 de la sesión 2026-10-02c, opcional): cada registro que se escribe en el CSV
+    se escribe también, en el mismo momento, como evento ``operation`` (:class:`BulkAuditEvents`). Con destino y sin
+    CSV, la auditoría funciona igual (sesión diferida, ``audit_strict``) solo con el destino. Un fallo del destino sigue
+    la misma política que uno del CSV.
+
     Contadores (acumulan durante toda la vida de la instancia):
 
-    - ``audit_failures``: registros que no se pudieron escribir en el CSV.
+    - ``audit_failures``: registros que no se pudieron escribir en el CSV, más los que no se pudieron escribir en
+      ``audit_sink`` (si fallan los dos, el registro cuenta dos veces).
     - ``audited_rows``: filas (``rowcount``) de los registros escritos en el CSV.
     - ``audit_uncommitted_records``: registros escritos antes de un commit que falló (solo con ``audit_strict``).
-    - ``unaudited_committed_rows``: filas que un commit periódico confirmó pero que no constan en el CSV porque su
+    - ``unaudited_committed_rows``: filas que un commit periódico confirmó pero que no constan en la auditoría porque su
       operación falló o no llegó a confirmarse entera antes del fallo de la sesión.
     """
 
@@ -64,6 +74,10 @@ class BulkPersistenceManager:
     audit_manager: AuditManager
     db_info: str
     audit_strict: bool = False
+    audit_sink: AuditSink | None = None
+    audit_run_id: str | None = None
+    #: Motor (``engine.dialect.name``) de los eventos; ``db_info`` puede llevar el driver (``MSSQL (pyodbc)``).
+    engine_name: str = ""
     audit_failures: int = field(default=0, init=False)
     audited_rows: int = field(default=0, init=False)
     audit_uncommitted_records: int = field(default=0, init=False)
@@ -78,6 +92,8 @@ class BulkPersistenceManager:
     _written_uncommitted: list[AuditRecord] = field(default_factory=list, init=False, repr=False)
     # Filas de INSERT/UPDATE confirmadas en la sesión; se comparan con rows_committed del ejecutor.
     _session_confirmed_rows: int = field(default=0, init=False, repr=False)
+    # Si la última llamada a _write llegó a escribir el CSV (para contar lo escrito si después falla audit_sink).
+    _csv_written: bool = field(default=False, init=False, repr=False)
 
     def build_sql_filename(self, table: str, operation: str) -> Path:
         """Genera el nombre dinámico del fichero SQL para una operación bulk."""
@@ -129,7 +145,8 @@ class BulkPersistenceManager:
         generated_sql: bool,
     ) -> None:
         """Registra el resultado de una operación bulk en el subsistema de auditoría."""
-        if self._session_connection is None or generated_sql or self.audit_manager.audit_csv_path is None:
+        record = AuditRecord(table_name, self.db_info, operation, rowcount, elapsed, generated_sql)
+        if self._session_connection is None or generated_sql or not self.audit_enabled:
             try:
                 self.audit_manager.registrar_operacion(
                     table_name,
@@ -142,16 +159,13 @@ class BulkPersistenceManager:
             except (AuditError, OSError) as error:
                 if self.audit_strict:
                     raise
-                self._report_audit_failure(
-                    error,
-                    [AuditRecord(table_name, self.db_info, operation, rowcount, elapsed, generated_sql)],
-                )
-                return
-            if self.audit_manager.audit_csv_path is not None:
-                self.audited_rows += rowcount
+                self._report_audit_failure(error, [record])
+            else:
+                if self.audit_manager.audit_csv_path is not None:
+                    self.audited_rows += rowcount
+            self._emit([record])
             return
 
-        record = AuditRecord(table_name, self.db_info, operation, rowcount, elapsed, generated_sql)
         if self._session_connection.in_transaction():
             self._pending.append(record)
             return
@@ -183,7 +197,13 @@ class BulkPersistenceManager:
         if not self.audit_strict or not self._pending:
             return
         pending, self._pending = self._pending, []
-        self._write(pending)
+        try:
+            self._write(pending)
+        except Exception:
+            # El CSV se escribió y falló audit_sink: la sesión se deshará con esas filas ya en el CSV.
+            if self._csv_written:
+                self._report_written_uncommitted(pending)
+            raise
         self._written_uncommitted.extend(pending)
 
     def flush_audit_after_commit(self, *, final: bool = True) -> None:
@@ -217,7 +237,7 @@ class BulkPersistenceManager:
             self._session_connection = None
             self._report_written_uncommitted(written_uncommitted)
             unaudited = 0
-            if committed_rows is not None and self.audit_manager.audit_csv_path is not None:
+            if committed_rows is not None and self.audit_enabled:
                 unaudited = max(0, committed_rows - confirmed_rows)
                 self.unaudited_committed_rows += unaudited
             self._report_discarded(pending, unaudited)
@@ -229,7 +249,8 @@ class BulkPersistenceManager:
         self.audit_uncommitted_records += len(registros)
         self.logger.error(
             f"❌ Auditoría: {len(registros)} registros ({sum(r.rowcount for r in registros)} filas) se escribieron en "
-            f"el CSV antes de un commit que falló; esas filas no están en la BD: {_describe(registros)}"
+            f"{self._audit_destination} antes de un commit que falló; esas filas no están en la BD: "
+            f"{_describe(registros)}"
         )
 
     def _report_discarded(self, pending: Sequence[AuditRecord], unaudited: int) -> None:
@@ -242,8 +263,9 @@ class BulkPersistenceManager:
             )
         if unaudited:
             self.logger.warning(
-                f"⚠️ Auditoría: {unaudited} filas confirmadas por commits periódicos no constan en el CSV: su "
-                "operación falló o no llegó a confirmarse entera. Ver rows_committed y unaudited_committed_rows."
+                f"⚠️ Auditoría: {unaudited} filas confirmadas por commits periódicos no constan en "
+                f"{self._audit_destination}: su operación falló o no llegó a confirmarse entera. Ver rows_committed y "
+                "unaudited_committed_rows."
             )
 
     def _write_confirmed(self, *, force: bool) -> None:
@@ -260,8 +282,21 @@ class BulkPersistenceManager:
         self._last_confirmed_write = time.monotonic()
         self._write(confirmed)
 
+    @property
+    def audit_enabled(self) -> bool:
+        """``True`` si hay CSV de auditoría o ``audit_sink``."""
+        return self.audit_manager.audit_csv_path is not None or self.audit_sink is not None
+
+    @property
+    def _audit_destination(self) -> str:
+        """Dónde se escribe la auditoría, para los mensajes del log (audit-code 2026-10-02c, 4)."""
+        if self.audit_manager.audit_csv_path is None:
+            return "audit_sink" if self.audit_sink is not None else "la auditoría"
+        return "el CSV" if self.audit_sink is None else "el CSV y audit_sink"
+
     def _write(self, registros: list[AuditRecord]) -> None:
-        """Escribe ``registros`` con una sola apertura del CSV y aplica la política de fallo."""
+        """Escribe ``registros`` con una sola apertura del CSV (y en ``audit_sink``) y aplica la política de fallo."""
+        self._csv_written = False
         if not registros:
             return
         try:
@@ -271,9 +306,33 @@ class BulkPersistenceManager:
                 self.logger.exception("❌ Error escribiendo la auditoría de la sesión bulk")
                 raise
             self._report_audit_failure(error, registros)
+        else:
+            if self.audit_manager.audit_csv_path is not None:
+                self.audited_rows += sum(r.rowcount for r in registros)
+                self._csv_written = True
+        self._emit(registros)
+
+    def _emit(self, registros: Sequence[AuditRecord]) -> None:
+        """Escribe ``registros`` como eventos en ``audit_sink`` (si lo hay), con la misma política de fallo que el CSV."""
+        if self.audit_sink is None or not registros:
             return
-        if self.audit_manager.audit_csv_path is not None:
-            self.audited_rows += sum(r.rowcount for r in registros)
+        events = [
+            BulkAuditEvents.operation(registro, engine=self.engine_name, run_id=self.audit_run_id)
+            for registro in registros
+        ]
+        try:
+            self.audit_sink.write(events)
+        except Exception as error:
+            if self.audit_strict:
+                self.logger.exception("❌ Error escribiendo la auditoría bulk en audit_sink")
+                if isinstance(error, (AuditError, OSError)):
+                    raise
+                # audit-code 2026-10-02c (1): un destino propio puede lanzar cualquier excepción; audit_strict promete
+                # AuditError/OSError, y dump solo trata esas como error de la tabla (si no, abortaba el volcado).
+                raise AuditError(
+                    f"❌ No se pudo escribir la auditoría en audit_sink ({type(error).__name__}: {error})"
+                ) from error
+            self._report_audit_failure(error, registros)
 
     def _report_audit_failure(self, error: Exception, registros: Sequence[AuditRecord]) -> None:
         """Fail-open: deja en el log lo que no pudo escribirse y lo cuenta en ``audit_failures``."""

@@ -57,6 +57,7 @@ src/util_bbdd/
   factory/              # ConnectionFactory, PoolFactory
   query/                # QueryRegistry, QueryResolver, query execution
   validators/           # Validadores de parámetros de queries
+  audit/                # Auditoría común de bulk/dump/migrate: AuditEvent, AuditSink, CSV heredado (ADR-002)
   analysis/             # GraphvizRelationshipGraphExt, grafos de relaciones
   executors/            # Ejecutores de queries (sync/async)
   results/              # Row, Rows, RowOrNone, QueryResult
@@ -85,6 +86,7 @@ src/util_bbdd/
 | `factory/` | Factory de conexiones y pools; abstracción de engine SQLAlchemy |
 | `query/` | Registry de queries nombradas, resolver, parámetros |
 | `validators/` | Validación de parámetros de queries antes de ejecución |
+| `audit/` | Punto canónico de la auditoría de `bulk`, `dump` y `migrate` (capa 3; no importa a sus consumidores: cada uno tiene su adaptador a `AuditEvent`) |
 | `analysis/` | Grafos de relaciones entre tablas (Graphviz) |
 | `results/` | Tipos de retorno: `Row`, `Rows`, `RowOrNone`, `QueryResult` |
 | `_core/` | Jerarquía de excepciones canónica |
@@ -378,4 +380,4 @@ especializaciones afectadas (`CLAUDE.md`, `.github/copilot-instructions.md`, `GE
 
 ---
 
-*Actualizado: 2026-09-25*
+*Actualizado: 2026-10-02*

@@ -24,6 +24,7 @@ nav:
       - Operaciones de Datos:
           - Operaciones Bulk (CRUD): functional/bulk_operations.md
           - Auditoría de Operaciones Bulk: functional/bulk_audit.md
+          - Auditoría centralizada: functional/audit.md
           - Carga Masiva Paralela: functional/bulk_parallel_loading.md
       - Queries y Validación:
           - Registro de Queries: functional/query_registry.md
@@ -66,6 +67,7 @@ nav:
           - Reajuste de AUTO_INCREMENT (MariaDB): api/update_auto_increment.md
           - Carga Masiva Paralela: api/bulk_parallel.md
           - Auditoría Bulk: api/bulk_audit.md
+          - Auditoría centralizada: api/audit.md
           - Normalización de Datos: api/normalize.md
       - Sistema de Queries:
           - Registry y Resolver: api/query_system.md
@@ -166,6 +168,7 @@ nav:
   - Arquitectura:
       - Arquitectura del Sistema: architecture.md
       - ADR-001 Refactoring: adr/ADR-001-STRUCTURE-REFACTORING.md
+      - ADR-002 Módulo de auditoría: adr/ADR-002-modulo-auditoria.md
       - Plantilla ADR: adr/ADR-TEMPLATE.md
   - Historia y Planes:
       - Roadmap: roadmap.md

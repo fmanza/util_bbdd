@@ -1,0 +1,3 @@
+timestamp	tabla	operacion	particion	fila	error	valores
+TS	t	INSERT		3	IntegrityError: UNIQUE constraint failed: t.id	"{""id"": 1, ""txt"": ""=1+1"", ""n"": null}"
+TS	'+tabla	UPDATE	1	0	IntegrityError: UNIQUE constraint failed: t.id	"{""id"": 2}"

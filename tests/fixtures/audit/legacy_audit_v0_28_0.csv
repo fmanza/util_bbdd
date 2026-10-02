@@ -1,0 +1,4 @@
+timestamp	tabla	motor	operacion	total_filas	tiempo_seg	sql
+2026-10-02 09:30:01	clientes	postgresql	INSERT	1000	0,420	No
+2026-10-02 09:30:02	pedidos_línea	oracle	UPDATE	0	0,000	No
+2026-10-02 23:59:59	=HYPERLINK(x)	sqlite	DELETE	7	12,346	Sí

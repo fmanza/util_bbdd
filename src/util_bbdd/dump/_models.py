@@ -12,6 +12,7 @@ from typing import Literal
 
 from sqlalchemy import Engine
 
+from util_bbdd.audit.contracts import AuditSink
 from util_bbdd.bulk._execution.executors import validate_chunk_size
 from util_bbdd.bulk._models import PKSyncResult
 from util_bbdd.bulk._support.rejects import validate_isolation
@@ -149,6 +150,12 @@ class DumpConfig:
             ``False`` (default): un fallo al escribir el CSV de auditoría no interrumpe la carga; se registra como
             ERROR y se cuenta en ``DumpResult.audit_summary.audit_failures``. ``True``: el fallo deshace la carga de
             esa tabla (o partición) y queda como error de la tabla.
+        audit_sink: Destino opcional de eventos de auditoría (:mod:`util_bbdd.audit`, p. ej. ``JsonLinesAuditSink``).
+            Recibe los eventos ``operation`` de las ``BulkCrud`` del volcado y los ``partition``/``run`` de las cargas
+            por rangos (con ``bulk_audit_strict`` como política de fallo de los ``operation``) y, al terminar, un
+            evento por tabla, constraint, índice y contador PK, y un ``run`` de cierre. Todos llevan el mismo
+            ``run_id`` (``DumpResult.audit_run_id``). Se puede usar sin ``bulk_audit_path``. Un fallo al escribir los
+            eventos del final se registra como ERROR y no cambia el resultado. ``None`` (default): sin eventos.
 
     Raises:
         ValueError: Si ``chunk_size`` no es un entero ≥ 1, o si ``commit_every_n_chunks`` o ``write_batch_size`` no son
@@ -176,6 +183,7 @@ class DumpConfig:
     on_error: Literal["raise", "isolate"] = "raise"
     rejects_csv_path: Path | None = None
     max_rejects: int | None = None
+    audit_sink: AuditSink | None = None
 
     def __post_init__(self) -> None:
         # Validar aquí y no en la primera BulkCrud: run() la crea después de vaciar el destino (truncate_target), así que
@@ -273,6 +281,7 @@ class DumpResult:
             no tiene tablas con contadores PK.
         index_results: Resultado por índice gestionado (deshabilitado y reconstruido).
             ``None`` cuando ``DumpConfig.manage_indexes=False``.
+        audit_run_id: ``run_id`` de todos los eventos del volcado en ``DumpConfig.audit_sink``; ``None`` sin destino.
     """
 
     table_results: list[TableDumpResult]
@@ -283,6 +292,7 @@ class DumpResult:
     audit_summary: DumpAuditSummary | None = None
     pk_sync_results: list[PKSyncResult] | None = None
     index_results: list[IndexActionResult] | None = None
+    audit_run_id: str | None = None
 
     @property
     def rows_rejected(self) -> int:

@@ -33,6 +33,7 @@ from ._core.exceptions import (
     ValidationError,
 )
 from .async_utils import maybe_await
+from .audit import AuditEvent, AuditSink, JsonLinesAuditSink, MemoryAuditSink, NullAuditSink
 from .comparar import (
     ComparerError,
     DiffReportGenerationError,
@@ -101,6 +102,12 @@ __all__: list[str] = [
     "DumpError",
     "DumpConstraintError",
     "DumpReportError",
+    # Auditoría centralizada (util_bbdd.audit, sesión 2026-10-02c)
+    "AuditEvent",
+    "AuditSink",
+    "JsonLinesAuditSink",
+    "MemoryAuditSink",
+    "NullAuditSink",
     # Auditoría de bulk
     "AuditError",
     "AuditConfigError",

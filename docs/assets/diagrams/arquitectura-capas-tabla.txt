@@ -4,6 +4,6 @@
 | 6 | N3 · Especialización | `analysis/`, `bulk/`, `comparar/`, `managers/`, `migrate/` |
 | 5 | N2 · Servicios | `executors/`, `factory/`, `metadata/` |
 | 4 | N2 · Servicios | `connection/`, `query/` |
-| 3 | N2 · Servicios | `results/`, `validators/` |
+| 3 | N2 · Servicios | `audit/`, `results/`, `validators/` |
 | 2 | N1 · Foundation | `_drivers/` |
 | 1 | N1 · Foundation | `_core/`, `async_utils.py`, `core/`, `models.py` |

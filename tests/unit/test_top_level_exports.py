@@ -43,3 +43,12 @@ def test_new_exception_names_present_in_dunder_all() -> None:
         "DumpReportError",
     }
     assert expected.issubset(set(util_bbdd.__all__))
+
+
+def test_audit_module_exported() -> None:
+    """Sesión 2026-10-02c: los destinos de auditoría se usan desde la raíz (BulkCrud/DumpConfig(audit_sink=...))."""
+    from util_bbdd import audit
+
+    for name in ("AuditEvent", "AuditSink", "JsonLinesAuditSink", "MemoryAuditSink", "NullAuditSink"):
+        assert getattr(util_bbdd, name) is getattr(audit, name)
+        assert name in util_bbdd.__all__

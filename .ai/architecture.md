@@ -84,6 +84,18 @@
 │
 │    validators/                     ✓ Validadores de queries
 │
+│    audit/                          🧾 Auditoría de bulk, dump y migrate (capa 3; solo importa _core)
+│    ├── events.py                   # AuditEvent: modelo de evento común
+│    ├── contracts.py                # AuditSink (escritura) y AuditEventSource (lectura)
+│    ├── sinks.py                    # NullAuditSink, MemoryAuditSink, JsonLinesAuditSink
+│    ├── legacy_csv.py               # CSV de auditoría de bulk (formato congelado) + read_since para dump
+│    ├── rejects.py                  # CSV de filas rechazadas (formato congelado)
+│    ├── analytics.py, exporters.py  # estadísticas y Excel/JSON/HTML del CSV
+│    ├── counters.py                 # AuditCounters (4 contadores sumables)
+│    └── locks.py, files.py, text.py # lock por ruta (registro único), ficheros, saneado de texto
+│                                    # Adaptadores a AuditEvent en cada consumidor: bulk/_audit/events.py,
+│                                    #   dump/_audit_events.py, migrate/_audit_events.py (ADR-002)
+│
 ├─── LEVEL 3: ESPECIALIZACIÓN (Specialization Layer)
 │
 │    managers/                       🎛️ API pública principal
@@ -164,7 +176,7 @@ una misma capa son independientes entre sí. La fuente ejecutable de esta tabla 
 | 6 | Level 3 · Especialización | `analysis/`, `bulk/`, `comparar/`, `managers/`, `migrate/` |
 | 5 | Level 2 · Servicios | `executors/`, `factory/`, `metadata/` |
 | 4 | Level 2 · Servicios | `connection/`, `query/` |
-| 3 | Level 2 · Servicios | `results/`, `validators/` |
+| 3 | Level 2 · Servicios | `audit/`, `results/`, `validators/` |
 | 2 | Level 1 · Foundation | `_drivers/` |
 | 1 | Level 1 · Foundation | `_core/`, `core/`, `models.py`, `async_utils.py` |
 

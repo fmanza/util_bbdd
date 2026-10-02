@@ -15,6 +15,7 @@ Compatible con SyncDatabaseManager para integración simplificada.
 from __future__ import annotations
 
 import logging
+import uuid
 
 from collections.abc import Callable, Generator, Iterable, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager, contextmanager
@@ -47,6 +48,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import SQLAlchemyError
 
+from ..audit.contracts import AuditSink
 from ..connection.performance_advisor import EngineReadinessAdvisor
 from ..metadata.mariadb.tables import fetch_table_storage_engine_sql
 from ..metadata.sqlserver.indexes import fetch_clustered_index_count_sql
@@ -212,6 +214,8 @@ class BulkCrud:
         on_error: Literal["raise", "isolate"] = "raise",
         rejects_csv_path: Path | None = None,
         max_rejects: int | None = None,
+        audit_sink: AuditSink | None = None,
+        audit_run_id: str | None = None,
     ):
         """
         Constructor de la clase bulk_crud.
@@ -295,6 +299,12 @@ class BulkCrud:
                 puede rechazar; la siguiente hace fallar la
                 operación con su error, como sin aislamiento. ``None`` (default): sin límite. Útil cuando casi todas las
                 filas podrían fallar (p. ej. recargar datos ya cargados), porque entonces se acaba enviando fila a fila.
+            audit_sink: Destino opcional de eventos de auditoría (:mod:`util_bbdd.audit`, p. ej.
+                ``JsonLinesAuditSink``): cada operación se escribe también como evento ``operation`` en el mismo momento
+                que en el CSV (al confirmarse la transacción) y con la misma política de fallo (``audit_strict``). Se
+                puede usar sin ``audit_csv_path``. ``None`` (default): sin eventos, como siempre.
+            audit_run_id: ``run_id`` de los eventos (para relacionarlos con los de otra ejecución, p. ej. un volcado).
+                ``None``: uno nuevo por instancia si hay ``audit_sink``. Ver :attr:`audit_run_id`.
 
         Raises:
             ValueError: Si engine es None.
@@ -327,7 +337,12 @@ class BulkCrud:
         self._batch_sizes: dict[BulkOperation, int] = resolve_batch_sizes(
             self.engine.dialect.name, explicit_chunk_size, commit_every_n_chunks
         )
-        self.audit_manager: AuditManager = AuditManager(audit_csv_path, warn_if_disabled=warn_if_audit_disabled)
+        # Con audit_sink la auditoría no está deshabilitada aunque no haya CSV: no se avisa.
+        self.audit_manager: AuditManager = AuditManager(
+            audit_csv_path, warn_if_disabled=warn_if_audit_disabled and audit_sink is None
+        )
+        # Sin destino no hay eventos ni run_id, como en ParallelBulkLoader (audit-code 2026-10-02c, 3).
+        self._audit_run_id: str | None = None if audit_sink is None else (audit_run_id or uuid.uuid4().hex)
         self._update_via_staging: bool = update_via_staging and self.engine.dialect.name in STAGING_UPDATE_DIALECTS
         self._strip_strings: bool = strip_strings
         self._reflect_foreign_keys: bool = reflect_foreign_keys
@@ -348,6 +363,9 @@ class BulkCrud:
             audit_manager=self.audit_manager,
             db_info=self.db_info,
             audit_strict=audit_strict,
+            audit_sink=audit_sink,
+            audit_run_id=self._audit_run_id,
+            engine_name=self.engine.dialect.name,
         )
         # Conexión de bulk_session() y gancho de commit, compartidos por los dos ejecutores (R14).
         self._session: SessionScope = SessionScope()
@@ -1373,6 +1391,11 @@ class BulkCrud:
         incluye filas de operaciones anteriores que un commit de esta confirmó.
         """
         return self._session.rows.op_committed
+
+    @property
+    def audit_run_id(self) -> str | None:
+        """``run_id`` de los eventos de ``audit_sink`` (el recibido o uno nuevo por instancia); ``None`` sin destino."""
+        return self._audit_run_id
 
     @property
     def rows_rejected(self) -> int:

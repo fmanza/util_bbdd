@@ -52,6 +52,9 @@ DatabaseException
     captura también los errores de auditoría (solo se lanzan al configurar o leer el CSV y, con `audit_strict=True`, al
     no poder escribirlo).
 
+    Desde la sesión 2026-10-02c los lanza el módulo común [`util_bbdd.audit`](audit.md); la jerarquía y los imports no
+    cambian. Con `audit_strict=True`, un fallo de un `audit_sink` llega como `OSError` o `AuditError`; cualquier otra excepción del destino se envuelve en `AuditError`.
+
 !!! tip "Capturar errores genéricamente"
     Para capturar cualquier error de `util_bbdd`, usa `except DatabaseException`.
     Para errores específicos, captura la subclase correspondiente antes.

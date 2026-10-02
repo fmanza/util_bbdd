@@ -14,11 +14,13 @@ from __future__ import annotations
 
 import logging
 
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
 from util_bbdd.analysis.contracts import RelationshipGraphSource
+from util_bbdd.audit import AuditEventSource, AuditSink, JsonLinesAuditSink, MemoryAuditSink, NullAuditSink
 from util_bbdd.doc.application.ports import DocumentationManagerPort, DocumentationSourcePort
 from util_bbdd.doc.infrastructure.adapters.sync_database_manager_adapter import SyncDatabaseManagerAdapter
 from util_bbdd.managers import SyncDatabaseManager
@@ -291,3 +293,38 @@ def test_sync_adapter_satisfies_engine_metadata_adapter_sync(adapter_cls: type) 
 def test_async_adapter_satisfies_engine_metadata_adapter_async(adapter_cls: type) -> None:
     adapter = adapter_cls(MagicMock())
     assert isinstance(adapter, EngineMetadataAdapterAsync)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# util_bbdd.audit (sesión 2026-10-02c): destinos de eventos. El contrato de comportamiento (atomicidad, hilos, close)
+# está en tests/unit/audit/test_sinks_contract.py; aquí, la conformidad de firmas con mypy y en ejecución.
+# ---------------------------------------------------------------------------------------------------------------
+
+
+def _null_as_audit_sink(sink: NullAuditSink) -> AuditSink:
+    return sink
+
+
+def _memory_as_audit_sink(sink: MemoryAuditSink) -> AuditSink:
+    return sink
+
+
+def _memory_as_audit_event_source(sink: MemoryAuditSink) -> AuditEventSource:
+    return sink
+
+
+def _jsonl_as_audit_sink(sink: JsonLinesAuditSink) -> AuditSink:
+    return sink
+
+
+@pytest.mark.parametrize("sink_cls", (NullAuditSink, MemoryAuditSink), ids=lambda c: c.__name__)
+def test_audit_sinks_satisfy_audit_sink(sink_cls: type) -> None:
+    assert isinstance(sink_cls(), AuditSink)
+
+
+def test_jsonl_audit_sink_satisfies_audit_sink(tmp_path: Path) -> None:
+    assert isinstance(JsonLinesAuditSink(tmp_path / "a.jsonl"), AuditSink)
+
+
+def test_memory_audit_sink_satisfies_audit_event_source() -> None:
+    assert isinstance(MemoryAuditSink(), AuditEventSource)

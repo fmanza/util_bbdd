@@ -1,10 +1,13 @@
 """
 Módulo para gestionar auditoría de operaciones CRUD en base de datos.
 
-AuditManager se mantiene como fachada pública y delega en:
-- repository: persistencia CSV + caché
-- service: estadísticas y filtros
+AuditManager se mantiene como fachada pública de ``bulk`` y delega en el módulo de auditoría centralizado
+(``util_bbdd.audit``, sesión 2026-10-02c):
+- legacy_csv: persistencia CSV (formato congelado) + caché y validación de registros
+- analytics: estadísticas y filtros
 - exporters: Excel, JSON y HTML
+
+Su logger sigue siendo ``util_bbdd.bulk.audit``.
 """
 
 from __future__ import annotations
@@ -19,6 +22,9 @@ from typing import Any, Literal
 
 import pandas as pd
 
+from ..audit.analytics import AuditAnalyticsService
+from ..audit.exporters import AuditExporters
+from ..audit.legacy_csv import AUDIT_COLUMNS, AuditCsvRepository, AuditRecord, AuditRecordValidator
 from ._audit.errors import (
     AuditConfigError,
     AuditDataError,
@@ -27,10 +33,6 @@ from ._audit.errors import (
     AuditFileError,
     AuditValidationError,
 )
-from ._audit.exporters import AuditExporters
-from ._audit.record import AUDIT_OPERATIONS, AuditRecord
-from ._audit.repository import AuditCsvRepository
-from ._audit.service import AuditAnalyticsService
 
 
 class AuditManager:
@@ -57,15 +59,7 @@ class AuditManager:
         """
         self.logger: logging.Logger = logging.getLogger(__name__)
 
-        columnas_auditoria: list[str] = [
-            "timestamp",
-            "tabla",
-            "motor",
-            "operacion",
-            "total_filas",
-            "tiempo_seg",
-            "sql",
-        ]
+        columnas_auditoria: list[str] = list(AUDIT_COLUMNS)
 
         self._repository: AuditCsvRepository = AuditCsvRepository(
             audit_csv_path=audit_csv_path,
@@ -186,16 +180,7 @@ class AuditManager:
     def _validar_parametros_operacion(
         self, tabla: str, motor: str, operacion: str, rowcount: int, elapsed: float
     ) -> None:
-        if not tabla or not str(tabla).strip():
-            raise AuditValidationError("❌ 'tabla' no puede estar vacío")
-        if not motor or not str(motor).strip():
-            raise AuditValidationError("❌ 'motor' no puede estar vacío")
-        if operacion not in AUDIT_OPERATIONS:
-            raise AuditValidationError(f"❌ Operación inválida: '{operacion}'. Debe ser INSERT, UPDATE o DELETE")
-        if not isinstance(rowcount, int) or rowcount < 0:
-            raise AuditValidationError(f"❌ 'rowcount' debe ser un entero >= 0, se recibió {rowcount}")
-        if not isinstance(elapsed, (int, float)) or elapsed < 0:
-            raise AuditValidationError(f"❌ 'elapsed' debe ser un número >= 0, se recibió {elapsed}")
+        AuditRecordValidator.validate(tabla, motor, operacion, rowcount, elapsed)
 
     def leer_auditoria(self, usar_cache: bool = True) -> pd.DataFrame:
         """Leer el registro de auditoría desde CSV."""

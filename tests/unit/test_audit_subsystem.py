@@ -222,7 +222,8 @@ class TestRepositoryWrite:
 
     def test_lock_se_resuelve_una_vez_por_ruta(self, repo: AuditCsvRepository) -> None:
         # QW-2: Path.resolve() (en _get_file_lock) costaba ~70 µs por escritura en Windows.
-        with patch("util_bbdd.bulk._audit.repository._get_file_lock", wraps=_get_file_lock) as spy:
+        # El código vive en util_bbdd.audit.legacy_csv desde la sesión 2026-10-02c: se espía allí.
+        with patch("util_bbdd.audit.legacy_csv.path_lock", wraps=_get_file_lock) as spy:
             for _ in range(5):
                 repo.registrar_operacion(tabla="t", motor="sqlite", operacion="INSERT", rowcount=1, elapsed=0.1)
         assert spy.call_count == 1
@@ -273,7 +274,7 @@ class TestRepositoryCache:
 
     def test_cache_se_reutiliza_si_el_fichero_no_cambia(self, populated_repo: AuditCsvRepository) -> None:
         populated_repo.leer_auditoria()
-        with patch("util_bbdd.bulk._audit.repository.pd.read_csv") as read_csv:
+        with patch("util_bbdd.audit.legacy_csv.pd.read_csv") as read_csv:
             assert len(populated_repo.leer_auditoria()) == 3
         read_csv.assert_not_called()
 
