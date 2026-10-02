@@ -16,6 +16,7 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 /performance-audit-bulk
 /performance-audit-dump
 /performance-audit-constraints
+/metadata-centralization
 /config-review
 /version-closure
 ```
@@ -40,7 +41,7 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 - **Entrada**: Solicitud con contexto (objetivo, módulos, API, restricciones)
 - **Salida**: PLAN (rutas, componentes, tipos, riesgos) + AUDIT_PLAN (veredicto)
 - **Herramientas**: read, search
-- **Invocable**: Sí (fases new_feature, refactor)
+- **Invocable**: Sí (fases new_feature, refactor, metadata-centralization)
 
 ### 3. **Feature Implementer** (`feature-implementer.agent.md`)
 - **Propósito**: Ejecutar IMPLEMENT con alcance aprobado, aplicar cambios, validar tests
@@ -117,6 +118,7 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 - **Invocable**: Sí (auditoría de rendimiento especializada)
 - **Criterios**: en `bulk/`, 10 áreas clave (batching, particionamiento, normalización SQL, conexiones, auditoría, memoria, SQL generation, DB-specific, PK sync, validation); en `dump/`, cuellos CB1–CB8
 - **Prompts base**: `performance_audit_bulk`, `performance_audit_dump` (+ `performance_audit_dump_agent`) y `performance_audit_constraints` (+ `performance_audit_constraints_agent`)
+- **Apoyo en `/metadata-centralization`**: eje de rendimiento de la introspección (consultas por schema, caché, vista de catálogo por motor); el flujo lo dirige Plan Architect
 - **Diferencia con Code Auditor**: Code Auditor revisa bugs y arquitectura; Performance Auditor audita rendimiento con métricas cuantificables
 
 ### 11. **Version Closer** (`version-closer.agent.md`)
@@ -241,7 +243,7 @@ Ver el detalle completo de rutas, contexto obligatorio/opcional y mapeo por plat
 
 Personalizaciones por contexto:
 - **Prompts**: `.github/prompts/*.prompt.md` — un contrato de salida por flujo:
-  - 12 gemelos de los slash commands: `new_feature`, `hotfix`, `refactor`, `audit_code`, `security_review`, `tech_debt`, `maturity_assessment`, `performance_audit_bulk`, `performance_audit_dump`, `performance_audit_constraints`, `config_review`, `version_closure`
+  - 13 gemelos de los slash commands: `new_feature`, `hotfix`, `refactor`, `audit_code`, `security_review`, `tech_debt`, `maturity_assessment`, `performance_audit_bulk`, `performance_audit_dump`, `performance_audit_constraints`, `metadata_centralization_audit_and_refactor` (`/metadata-centralization`), `config_review`, `version_closure`
   - 2 flujos operativos de agente: `performance_audit_dump_agent`, `performance_audit_constraints_agent`
   - Documentación: arquetipos `functional_doc`, `technical_doc`, `guide_doc`, `example_doc`, `architecture_doc`, `landing_doc`, `onboarding_dev`, `normative_traceability`, y `documentation_review`
   - Apoyo: `bootstrap_ai_config` y el análisis de reutilización `code_reusability_architecture` (+ `_quick`; guía en `docs/guides/code_reusability_analysis_guide.md`)
@@ -257,7 +259,7 @@ Modificar un agente: editar su archivo `.agent.md` en `.github/agents/`.
 
 ## Nota: Asimetría slash commands ↔ agentes
 
-Los **slash commands** de Claude Code (`.claude/commands/`) cubren 12 flujos (new-feature, hotfix, refactor, audit-code, security-review, tech-debt, maturity-assessment, performance-audit-bulk, performance-audit-dump, performance-audit-constraints, config-review, version-closure); cada uno es un envoltorio fino sobre su prompt gemelo.
+Los **slash commands** de Claude Code (`.claude/commands/`) cubren 13 flujos (new-feature, hotfix, refactor, audit-code, security-review, tech-debt, maturity-assessment, performance-audit-bulk, performance-audit-dump, performance-audit-constraints, metadata-centralization, config-review, version-closure); cada uno es un envoltorio fino sobre su prompt gemelo.
 
 Los **agentes** (`.github/agents/`) son 13: 9 que respaldan los slash commands (`plan-architect`, `feature-implementer`, `hotfix-responder`, `code-auditor`, `security-reviewer`, `maturity-assessment`, `performance-auditor`, `config-reviewer`, `version-closer`) más `documentation-reviewer`, `documentation-generator`, `explore` y `workflow-director` (clasificador, primer paso del flujo en Copilot Chat). Los de documentación no tienen slash command pero son invocables por lenguaje natural (Claude Code) o mediante sus prompts correspondientes (Copilot Chat).
 
