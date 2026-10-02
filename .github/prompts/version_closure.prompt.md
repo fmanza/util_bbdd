@@ -30,4 +30,5 @@ Si falta alguno, decláralo como supuesto explícito antes de continuar.
 
 ## Reglas
 - No inventes pruebas ejecutadas ni archivos modificados.
-- El agente solo escribe `CHANGELOG.md` y el `TRACEABILITY.md` de la sesión; el commit se propone, no se ejecuta.
+- El agente solo escribe `CHANGELOG.md`, el `TRACEABILITY.md` de la sesión y los campos de versión de
+  `.github/instructions/sync.instructions.md` § 4; el commit se propone, no se ejecuta.

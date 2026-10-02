@@ -1,7 +1,9 @@
-"""La versión que muestran la portada de la documentación y el roadmap es la de ``pyproject.toml``.
+"""La versión que muestran el CHANGELOG, el README y la documentación es la de ``pyproject.toml``.
 
 Son textos fijos en Markdown: ``docs/index.md`` mostró «0.10.0» hasta la 0.18.4 porque ningún paso de la release lo
-actualizaba. Este test convierte el olvido en un fallo de CI.
+actualizaba. Este test convierte el olvido en un fallo de CI. Los campos son los de
+``.github/instructions/sync.instructions.md`` § 4 salvo los de ``.ai/`` (config-review 2026-10-02: el test no miraba el
+CHANGELOG, ni la segunda línea de versión del README, ni el pie de figura de ``docs/architecture.md``).
 """
 
 from __future__ import annotations
@@ -23,7 +25,12 @@ VERSION_MARKERS = [
     (ROOT / "docs" / "index.md", r"\*\*Version:\*\* (\d+\.\d+\.\d+)"),
     (ROOT / "docs" / "roadmap.md", r"\*\*Versión vigente: v(\d+\.\d+\.\d+)\.\*\*"),
     (ROOT / "README.md", r"\*\*Version:\*\* (\d+\.\d+\.\d+)"),
+    (ROOT / "README.md", r"\*\*Current Version: v(\d+\.\d+\.\d+)\*\*"),
+    (ROOT / "docs" / "architecture.md", r"Instantánea de <code>develop</code> en v(\d+\.\d+\.\d+) "),
+    # Primera sección con número (salta «## [Unreleased]»): la última versión publicada.
+    (ROOT / "CHANGELOG.md", r"(?m)^## \[(\d+\.\d+\.\d+)\]"),
 ]
+MARKER_IDS = ["index", "roadmap", "readme-header", "readme-current", "architecture-figcaption", "changelog"]
 
 
 def _project_version() -> str:
@@ -31,7 +38,7 @@ def _project_version() -> str:
         return str(tomllib.load(fh)["project"]["version"])
 
 
-@pytest.mark.parametrize(("path", "pattern"), VERSION_MARKERS, ids=[path.name for path, _ in VERSION_MARKERS])
+@pytest.mark.parametrize(("path", "pattern"), VERSION_MARKERS, ids=MARKER_IDS)
 def test_published_version_matches_pyproject(path: Path, pattern: str) -> None:
     if not path.is_file():
         pytest.skip(f"{path.name} no está en el árbol")

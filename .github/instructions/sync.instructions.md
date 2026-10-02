@@ -40,12 +40,24 @@ Hoy el repo **no** tiene `COMPATIBILITY.md`; la compatibilidad se declara en `py
 `CHANGELOG.md`. Si se crea una matriz, cada versión nueva lleva las columnas
 `Versión | Python | Dependencias clave | Estado` y se marca `✅ Activa` / `⚠️ Legacy` / `❌ EOL`.
 
-### 4. pyproject.toml
+### 4. Campos de versión (pyproject.toml y textos que la muestran)
 
-- [ ] `version = "X.Y.Z"` actualizado y coincide con el CHANGELOG.md
-- [ ] La misma versión en `README.md` (`**Version:**`), `docs/index.md` (`**Version:**`) y `docs/roadmap.md`
-      («Versión vigente»); `tests/unit/test_docs_version.py` lo comprueba
+Lista cerrada de lo que cambia con el número de versión; es lo único fuera de `CHANGELOG.md` y del `TRACEABILITY.md`
+que puede editar **Version Closer** (`.github/agents/version-closer.agent.md`):
+
+- [ ] `pyproject.toml`: `version = "X.Y.Z"`, igual que la última versión del CHANGELOG.md
+- [ ] `README.md`: `**Version:** X.Y.Z` (cabecera) y `**Current Version: vX.Y.Z** (<resumen>)`
+- [ ] `docs/index.md`: `**Version:** X.Y.Z`
+- [ ] `docs/roadmap.md`: `**Versión vigente: vX.Y.Z.**`
+- [ ] `docs/architecture.md`: pie de figura «Instantánea de `develop` en vX.Y.Z (fecha) … sobre N ficheros»
+      (N lo da `python scripts/gen_arquitectura_capas.py`)
+- [ ] `.ai/CURRENT_STATE.md`: fila de la versión, «Tests actuales» y «Próximos pasos»
+- [ ] `.ai/sessions/SESSIONS_DIGEST.md`: fila de las sesiones de la versión
 - [ ] `requires-python = ">=3.12"` sin modificar (no incrementar sin decisión explícita)
+
+`tests/unit/test_docs_version.py` comprueba que coinciden con `pyproject.toml` el CHANGELOG (última versión publicada),
+`README.md` (los dos), `docs/index.md`, `docs/roadmap.md` y el pie de figura de `docs/architecture.md`. Los dos
+ficheros de `.ai/` no los comprueba: revísalos a mano.
 
 ### 5. Documentación (Zensical / MkDocs)
 
@@ -102,4 +114,4 @@ ni referencias a páginas inexistentes en `mkdocs.yml`.
 
 ---
 
-*Actualizado: 2026-09-25*
+*Actualizado: 2026-10-02*

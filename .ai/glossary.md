@@ -2,26 +2,13 @@
 
 ## Core Concepts
 
-### Level 1: Foundation
-- **_core/**: Tipos básicos, excepciones, contratos (no dependencias de otra parte de la librería)
-- **_drivers/**: Registro de drivers, validación, capacidades por motor
-- **Types**: Aliases unificados (RowOrNone, Rows, QueryParams)
-- **Protocols**: Contratos (ConnectionLike, PoolLike, QueryResultLike)
-
-### Level 2: Core Services
-- **connection/**: Pool singleton, lifecycle, parámetros de conexión
-- **metadata/**: Caché de esquema, introspection, relaciones
-- **query/**: Registro centralizado, versionado, ejecución
-- **results/**: Normalización, mapeo, conversión de resultados
-
-### Level 3: Domain Logic
-- **managers/**: APIs sync/async (SyncDatabaseManager, AsyncDatabaseManager)
-- **bulk/**: CRUD masivo (insert, update, delete desde DataFrame)
-- **audit/**: Registro de auditoría en CSV
-- **analysis/**: Grafos relacionales multinivel, cardinalidad y renderizado documental
+Paquetes, capas y niveles (Foundation, Servicios, Especialización): `.ai/architecture.md` § Capas; la fuente
+ejecutable es `LAYER` en `scripts/gen_arquitectura_capas.py`. No se repiten aquí para que no diverjan.
 
 ## Key Terms
 
+- **Types**: Aliases unificados (RowOrNone, Rows, QueryParams)
+- **Protocols**: Contratos (ConnectionLike, PoolLike, QueryResultLike)
 - **Motor**: Engine/dialect de BD (MariaDB, PostgreSQL, Oracle, etc.)
 - **Pool**: Conjunto de conexiones reutilizables
 - **Manager**: API pública sync o async para operaciones

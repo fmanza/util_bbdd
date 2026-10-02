@@ -1,5 +1,8 @@
 # Inventario de partida — auditoría en `bulk/`, `dump/` y `migrate/`
 
+> **Histórico (estado de v0.28.0).** Ejecutado en v0.29.0: el código vive ahora en `src/util_bbdd/audit/` y muchas
+> rutas de abajo son re-exportadores. Destino de cada `INV-*`: `.ai/sessions/2026-10-02c-audit-module/01_PLAN_AUDIT_PLAN.md` § 2.
+
 Línea base **mínima** que el nuevo módulo de auditoría centralizado debe cubrir (o justificar
 por qué un elemento se queda en su módulo de origen). Lo consume
 [`.github/prompts/audit_module.prompt.md`](../../.github/prompts/audit_module.prompt.md).

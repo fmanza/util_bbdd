@@ -1,5 +1,10 @@
 # Prompt: audit_module — módulo de auditoría centralizado
 
+> **Ejecutado en v0.29.0** (ADR-002; sesiones `.ai/sessions/2026-10-02c-audit-module/` y
+> `2026-10-02d-audit-hardening/`). Se conserva como referencia del método: el inventario de partida describe el estado
+> de v0.28.0 (rutas anteriores al traslado a `util_bbdd.audit`). No lo reejecutes tal cual; para evolucionar la
+> auditoría usa `/new-feature` sobre `src/util_bbdd/audit/` y `docs/api/audit.md`.
+
 Diseñar e implementar, por fases, un paquete nuevo de auditoría que centralice la que hoy está
 repartida entre `bulk/`, `dump/` y `migrate/`. Es un `new_feature` con extracción controlada de
 código existente: aplica el contrato de [`new_feature.prompt.md`](new_feature.prompt.md) más las

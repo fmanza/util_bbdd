@@ -125,7 +125,7 @@ Registro de agentes especializados en `.github/agents/` para orquestación del f
 - **Salida**: Release notes, Commit messages, Changelog, Rollback strategy, Testing suggestions
 - **Validación requerida**: checklist de `.github/instructions/sync.instructions.md`
   (CHANGELOG.md, `pyproject.toml`, `zensical build` sin errores, `TRACEABILITY.md` de la sesión)
-- **Herramientas**: read, edit, search — solo edita `CHANGELOG.md` y el `TRACEABILITY.md` de la sesión; el commit lo propone
+- **Herramientas**: read, edit, search — solo edita `CHANGELOG.md`, el `TRACEABILITY.md` de la sesión y los campos de versión de `.github/instructions/sync.instructions.md` § 4; el commit lo propone
 - **Invocable**: Sí (final de sesión)
 
 ### 12. **Explore** (`explore.agent.md`)
@@ -214,7 +214,7 @@ PRODUCTION_READY | NEAR_READY | BLOCKED
 | Security Reviewer | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Maturity Assessment | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Performance Auditor | ✅ | ❌ | ✅ | ❌ | ✅ (benchmarks) |
-| Version Closer | ✅ | ✅ (`CHANGELOG.md`, `TRACEABILITY.md`) | ✅ | ❌ | ❌ |
+| Version Closer | ✅ | ✅ (`CHANGELOG.md`, `TRACEABILITY.md`, campos de versión de `sync.instructions.md` § 4) | ✅ | ❌ | ❌ |
 | Explore | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Workflow Director | ✅ | ❌ | ✅ | ❌ | ❌ |
 
@@ -245,7 +245,7 @@ Personalizaciones por contexto:
   - 2 flujos operativos de agente: `performance_audit_dump_agent`, `performance_audit_constraints_agent`
   - Documentación: arquetipos `functional_doc`, `technical_doc`, `guide_doc`, `example_doc`, `architecture_doc`, `landing_doc`, `onboarding_dev`, `normative_traceability`, y `documentation_review`
   - Apoyo: `bootstrap_ai_config` y el análisis de reutilización `code_reusability_architecture` (+ `_quick`; guía en `docs/guides/code_reusability_analysis_guide.md`)
-  - Diseño acotado: `audit_module` (módulo de auditoría centralizado para `bulk`/`dump`/`migrate`; se usa con `/new-feature` y manda sobre `new_feature`; línea base en `.ai/audit/audit_module_baseline_inventory.md`)
+  - Diseño acotado (**ejecutado en v0.29.0**, se conserva como referencia): `audit_module` (módulo de auditoría centralizado para `bulk`/`dump`/`migrate`; ADR-002; línea base en `.ai/audit/audit_module_baseline_inventory.md`, con las rutas anteriores al traslado)
   - Sin conteos fijos: el listado real es la carpeta.
 - **Instrucciones**: `.github/instructions/*.instructions.md` — reglas por tipo de archivo
 - **Hooks**: `.claude/settings.json` — hooks PostToolUse (ruff check, mypy, recogida de pytest)
@@ -262,3 +262,7 @@ Los **slash commands** de Claude Code (`.claude/commands/`) cubren 12 flujos (ne
 Los **agentes** (`.github/agents/`) son 13: 9 que respaldan los slash commands (`plan-architect`, `feature-implementer`, `hotfix-responder`, `code-auditor`, `security-reviewer`, `maturity-assessment`, `performance-auditor`, `config-reviewer`, `version-closer`) más `documentation-reviewer`, `documentation-generator`, `explore` y `workflow-director` (clasificador, primer paso del flujo en Copilot Chat). Los de documentación no tienen slash command pero son invocables por lenguaje natural (Claude Code) o mediante sus prompts correspondientes (Copilot Chat).
 
 Gobernanza entre plataformas: [`SHARED_INSTRUCTIONS.md`](SHARED_INSTRUCTIONS.md) § «Gobernanza de plataformas IA».
+
+---
+
+*Actualizado: 2026-10-02*

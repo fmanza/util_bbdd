@@ -16,7 +16,9 @@ Lee antes de cerrar:
 - `.github/instructions/sync.instructions.md` — checklist de sincronización de VERSION
 
 ## Restricciones
-- SOLO edita `CHANGELOG.md` y `.ai/sessions/<sesión>/TRACEABILITY.md`; nunca `src/`, `tests/`, `docs/` ni `pyproject.toml`.
+- SOLO edita `CHANGELOG.md`, `.ai/sessions/<sesión>/TRACEABILITY.md` y los **campos de versión** que enumera
+  `.github/instructions/sync.instructions.md` § 4 (el número de versión y su línea de resumen, nada más). Nunca `src/`, `tests/`, el resto de
+  `pyproject.toml` ni el contenido de `docs/`.
 - NO ejecutes commits: propón el commit message.
 - NO inventes pruebas ejecutadas ni archivos modificados.
 - NO cierres la sesion sin limitaciones y handoff.

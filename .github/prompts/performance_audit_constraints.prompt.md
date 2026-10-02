@@ -349,4 +349,4 @@ python scripts/bench_bulk.py summarize \
 *Versión*: 1.0.0
 *Actualizado*: 2026-09-26
 *Aplicable a*: PostgreSQL, MySQL, MariaDB, Oracle, SQL Server, SQLite
-*Módulos relacionados*: `src/util_bbdd/bulk/`, `src/util_bbdd/introspect/`, `src/util_bbdd/audit/`
+*Módulos relacionados*: `src/util_bbdd/bulk/`, `src/util_bbdd/metadata/`, `src/util_bbdd/audit/`

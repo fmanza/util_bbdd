@@ -20,7 +20,8 @@ Lee y aplica, en este orden:
 
 ## Reglas de ejecución
 
-- Edita solo `CHANGELOG.md` y el `TRACEABILITY.md` de la sesión; el commit se propone.
+- Edita solo `CHANGELOG.md`, el `TRACEABILITY.md` de la sesión y los campos de versión de
+  `.github/instructions/sync.instructions.md` § 4; el commit se propone.
 - No cierres sin poblar `## Directrices para Futuras IAs`.
 
 ## Ejemplo de entrada

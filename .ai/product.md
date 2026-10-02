@@ -28,7 +28,7 @@
 - **CRUD en lote**: Insert/Update/Delete masivo desde DataFrames con path optimizados por motor
 - **Fast paths INSERT**: `PostgresCopyStrategy` (psycopg3 COPY ~10×), `MySQLMultiRowInsertStrategy` (multi-fila), `InsertStrategyResolver` (selección automática)
 - **Carga masiva paralela**: `ParallelBulkLoader` con `RangePartitioner` (PK entera/datetime) y `HashPartitioner` (string/UUID)
-- **Auditoría**: Registro automático en CSV con timestamps y user context; thread-safe en modo paralelo
+- **Auditoría**: CSV de operaciones `bulk` (formato fijo) y eventos opcionales comunes a `bulk`, `dump` y `migrate` (`util_bbdd.audit`, `audit_sink`); thread-safe en modo paralelo
 - **Managers**: APIs sync (`SyncDatabaseManager`) y async (`AsyncDatabaseManager`)
 - **Metadata**: Caché de esquema, introspection, relaciones; único punto canónico en `metadata/*/tables.py`
 - **Query Registry**: Registro centralizado y versionado de consultas
