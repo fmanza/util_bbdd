@@ -7,10 +7,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Módulo de auditoría centralizado `util_bbdd.audit` (ADR-002, sesión `2026-10-02c-audit-module`). La auditoría de
-`bulk`, `dump` y `migrate` tiene un punto canónico y un modelo de evento común, y `migrate` pasa a ser auditable. Sin
-cambios incompatibles: el formato del CSV de auditoría y del de rechazos es idéntico byte a byte al de v0.28.0, y las
-capacidades nuevas son opcionales.
+## [0.29.0] - 2026-10-02
+
+Módulo de auditoría centralizado `util_bbdd.audit` (ADR-002; sesiones `2026-10-02c-audit-module` y
+`2026-10-02d-audit-hardening`). La auditoría de `bulk`, `dump` y `migrate` tiene un punto canónico y un modelo de evento
+común, y `migrate` pasa a ser auditable. Sin cambios incompatibles: el formato del CSV de auditoría y del de rechazos es
+idéntico byte a byte al de v0.28.0, y las capacidades nuevas son opcionales (`audit_sink=None` por defecto).
 
 ### Added
 
@@ -35,8 +37,6 @@ capacidades nuevas son opcionales.
 - **bulk**: el CSV de auditoría (`AuditCsvRepository`, `AuditRecord`), la analítica, los exportadores, `AuditCounters`
   y el CSV de rechazos (`RejectsWriter`) viven en `util_bbdd.audit`. `AuditManager` sigue en `bulk/audit.py` como
   fachada (mismo logger) y `bulk/_audit/*` y `bulk/_support/rejects.py` re-exportan: los imports siguen funcionando.
-  Se elimina `bulk/_support/excel.py` (re-exportación privada sin otros usos; los exportadores usan
-  `_core/export_safety.py`).
 - **dump**: el resumen de auditoría y los contadores se leen de `util_bbdd.audit`; `dump` ya no importa partes privadas
   de la auditoría de `bulk` (H-06).
 - **bulk**: `audit_failures` cuenta también los registros que no se pudieron escribir en `audit_sink`. Con
@@ -47,6 +47,11 @@ capacidades nuevas son opcionales.
   fallar una operación terminada ni tapa su excepción original (sesión `2026-10-02d`).
 - **tests**: `test_audit_subsystem.py` espía `util_bbdd.audit.legacy_csv` (2 `patch` a rutas movidas) y
   `test_planner.py::test_execute_has_no_override_flag` admite `audit_sink` (keyword-only) en la firma de `execute`.
+
+### Removed
+
+- **bulk**: `bulk/_support/excel.py`, re-exportación **privada** de `_core/export_safety.py` sin otros usos (los
+  exportadores de auditoría importan `_core/export_safety.py` directamente). Sin impacto en la API pública.
 
 ## [0.28.0] - 2026-10-02
 

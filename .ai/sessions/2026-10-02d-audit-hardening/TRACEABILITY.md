@@ -44,8 +44,35 @@ destino) y tests de los eventos de update/delete en paralelo.» Después: «si»
   patrón: un fallo de auditoría no puede hacer fallar una operación terminada ni tapar su excepción.
 - **[tests]**: Para probar fallos de construcción, `monkeypatch.setattr(<Adaptador>, "<método>", staticmethod(f))` sobre
   `BulkAuditEvents`, `DumpAuditEvents` o `MigrationAuditEvents`.
+- **[release]**: El agente Version Closer solo puede editar `CHANGELOG.md` y el `TRACEABILITY.md`, pero el checklist de
+  `sync.instructions.md` exige la versión en `pyproject.toml`, `README.md` (2 sitios), `docs/index.md`,
+  `docs/roadmap.md` y el pie de figura de `docs/architecture.md`; el commit `release: v0.28.0` (`f04d87f`) los tocó
+  todos, más `.ai/CURRENT_STATE.md` y `.ai/sessions/SESSIONS_DIGEST.md`. Pedir autorización al usuario para esas
+  ediciones en cada cierre (o corregir el contrato del agente).
+- **[release]**: `tests/unit/test_docs_version.py` compara `pyproject.toml` con README/docs, **no** con el CHANGELOG: un
+  CHANGELOG cerrado con `pyproject.toml` sin subir no rompe ningún test.
+- **[tests]**: La integración completa con las URLs de `scripts/bench_env.example.sh` (contraseña de los contenedores
+  con `docker inspect`) da 537 tests en `tests/integration` (= los marcados `integration`). El cierre de v0.28.0 anotó
+  «582 passed»; `tests/integration` no cambió desde v0.28.0 (`git diff 12d055c HEAD -- tests/integration` vacío): la
+  diferencia no está explicada.
+- **[build]**: Fuera de pytest, `import util_bbdd` carga la copia de site-packages; `python -m build` sí empaqueta
+  `src/` (comprobado: `util_bbdd/audit/*` y los tres `_audit_events.py` están en el wheel).
+
+## Cierre de versión v0.29.0 (`/version-closure`)
+
+- Versión: **v0.29.0** (MINOR: API pública nueva sin cambios incompatibles). Commits incluidos: `8467053`
+  (feat(audit)), `fb0bf80` (docs(ai)), `032c4e3` (fix(audit)).
+- CHANGELOG: `[Unreleased]` → `## [0.29.0] - 2026-10-02` (Added / Changed / Removed); `[Unreleased]` vacío.
+- Evidencia ejecutada en el cierre: `pytest` completo sin URLs de servidor **5973 passed, 422 skipped**; integración
+  contra los 5 servidores del banco **536 passed, 1 skipped**; `python -m build` correcto (wheel y sdist, aún con
+  número 0.28.0 porque `pyproject.toml` no se ha subido); antes en la sesión: ruff limpio, mypy sin errores nuevos (12
+  previos), `mkdocs build --strict` sin avisos.
+- Con autorización del usuario: versión 0.29.0 en `pyproject.toml`, `README.md` (2), `docs/index.md`, `docs/roadmap.md`,
+  pie de figura de `docs/architecture.md`, `.ai/CURRENT_STATE.md` (fila, tests, próximos pasos) y
+  `.ai/sessions/SESSIONS_DIGEST.md`. Verificado: `test_docs_version.py` y `test_docs_links.py` en verde,
+  `mkdocs build --strict` sin avisos, `python -m build` → `util_bbdd-0.29.0` (wheel y sdist). Commit `release: v0.29.0`.
 
 ## Veredicto final
-Veredicto: GO
+Veredicto: CLOSED
 Pendientes al cierre:
-- Ninguno de esta sesión (commit hecho a petición del usuario, sin push). `/version-closure` sigue pendiente para numerar la versión.
+- Push de `develop` y tag `v0.29.0` (decisión del usuario).
