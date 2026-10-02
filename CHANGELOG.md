@@ -15,6 +15,31 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   `types-openpyxl`; `SafeWorkbook` recorre `worksheets` (API pública) en lugar de `_sheets`. Sin cambio de comportamiento.
 - **tests**: `tests/conftest.py` avisa (cabecera y resumen final) si faltan dependencias del extra `dev`, porque sin
   ellas los recuentos de `pytest` no son comparables.
+- **comparar**: con `include_routines=True`, si un lado no permite listar sus routines (conexión, permisos u Oracle sin
+  `schema`) se omite la comparación de routines con un warning, en lugar de comparar contra una lista vacía o parcial.
+  Los fetchers de `RoutineFetcherRegistry` lanzan `MetadataIntrospectionError` en ese caso (antes devolvían `[]`).
+- **comparar**: MySQL tiene comparación de routines (mismo fetcher que MariaDB).
+- **metadata**: `postgresql.routines.fetch_routines_with_definition_for_schema_sql()` (nueva), que usa `comparar`; el
+  diagrama de capas incluye la arista `comparar → metadata`.
+
+### Fixed
+
+- **comparar** (auditoría de `comparar/` 2026-10-02, entrega 1):
+  - PostgreSQL: las routines se leen en una consulta sin agregados. Antes, un agregado del schema (p.ej. de PostGIS en
+    `public`) hacía fallar `pg_get_functiondef`, abortaba la transacción y todas las definiciones siguientes llegaban
+    vacías, de modo que sus diferencias no se detectaban. Las sobrecargas se emparejan por los tipos de sus
+    argumentos aunque solo un lado las tenga; las funciones de ventana salen como `FUNCTION` (antes `WINDOW`).
+  - MariaDB/MySQL: `SHOW CREATE PROCEDURE/FUNCTION` va calificado con el schema; antes buscaba en la base de datos de
+    la conexión y, si fallaba, la lista de routines quedaba cortada (falsos «añadida/eliminada»).
+  - Vistas, routines y columnas de índices y FKs se comparan sin distinguir mayúsculas, como tablas y columnas: entre
+    motores (Oracle `V_EMP` frente a PostgreSQL `v_emp`) ya no salen como añadida + eliminada o modificada.
+  - `SqlDiffReporter`: SQLite emite como comentario aparte los cambios que su `ALTER TABLE` no admite (tipo, nulabilidad,
+    DEFAULT, FKs); antes `ALTER TABLE t -- ⚠ …;` se comía el `;` y el script fallaba. SQL Server usa
+    `ALTER COLUMN c <tipo> [NOT] NULL` y gestiona el DEFAULT como constraint (antes `SET/DROP NOT NULL` y
+    `SET/DROP DEFAULT`, que T-SQL no tiene); validado en SQL Server 2022.
+  - `SqlDiffReporter` (seguridad): en MariaDB/MySQL los comentarios duplican también `\`; un comentario terminado en
+    `\` dejaba el literal abierto y un comentario manipulado podía inyectar SQL en el script.
+  - Markdown: el diagrama Mermaid muestra el número de columnas con diferencias (antes siempre «1 cols»).
 
 ## [0.29.0] - 2026-10-02
 

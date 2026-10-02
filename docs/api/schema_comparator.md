@@ -55,9 +55,9 @@ flowchart TD
 |---|---|---|---|
 | `source` / `target` | `Inspector` | Inspectors SQLAlchemy de las dos BDs | Ambos activos y con permisos de lectura |
 | `source_schema` / `target_schema` | `str \| None` | Schema a comparar | `None` usa el schema por defecto; Oracle requiere valor explícito para rutinas |
-| `include_routines` | `bool` | Comparar procedures y funciones | Default `False`; no soportado en HSQLDB |
+| `include_routines` | `bool` | Comparar procedures y funciones | Default `False`; MariaDB, MySQL, Oracle, PostgreSQL (sin agregados) y SQL Server; no soportado en HSQLDB |
 | `format` en `render` | `str` | Formato de salida | `"html"`, `"excel"`, `"word"`, `"markdown"`, `"sql"` |
-| `sql_dialect` en `SqlDiffReporter` | `str` | Dialecto para script SQL | `"generic"`, `"mariadb"`, `"postgresql"`, `"sqlserver"`, `"oracle"`, `"sqlite"` |
+| `sql_dialect` en `SqlDiffReporter` | `str` | Dialecto para script SQL | `"generic"`, `"mariadb"`, `"mysql"`, `"postgresql"`, `"sqlserver"`, `"oracle"`, `"sqlite"` |
 
 ### Contrato de salida
 
@@ -65,6 +65,11 @@ flowchart TD
 - **`render()`** / **`render_all()`** — `Path` o `list[Path]` de ficheros generados en `output_dir`.
 - `TableDiff.status` / `ViewDiff.status` — `"added"`, `"removed"` o `"modified"`.
 - `ColumnDiff.attribute` — `"type"`, `"nullable"`, `"primary_key"`, `"default"` o `"existence"`.
+- Los nombres de tablas, columnas, índices, FKs, vistas y routines (y las columnas de índices y FKs) se comparan sin
+  distinguir mayúsculas, para poder comparar motores con convenciones distintas (Oracle `EMP` frente a PostgreSQL
+  `emp`). Los diffs conservan el nombre real de cada motor.
+- Las sobrecargas de PostgreSQL se emparejan por firma (tipos de los argumentos); `routine_name` lleva la firma solo
+  si hay sobrecargas en ese lado.
 
 ### Errores y casos especiales
 
@@ -73,6 +78,7 @@ flowchart TD
 | `SchemaDiffValidationError` | `render()` con `format` no soportado |
 | `DiffReportGenerationError` | Error interno al generar un reporter específico |
 | `FileNotFoundError` | `WordDiffReporter` con `template_path` inexistente |
+| Warning `Se omite la comparación de routines` | Con `include_routines=True`, un lado no permite listar sus routines (conexión, permisos u Oracle sin `schema`): `routine_diffs` queda vacío en lugar de dar falsos «añadida/eliminada» |
 
 ## 3. Componentes y Clases
 

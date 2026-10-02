@@ -27,9 +27,13 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from sqlalchemy import text
 from sqlalchemy.exc import DatabaseError, OperationalError, ProgrammingError
 
+from util_bbdd._core.exceptions import MetadataIntrospectionError
+from util_bbdd.metadata.mariadb.common import quote_mariadb_identifier
+from util_bbdd.metadata.postgresql.routines import fetch_routines_with_definition_for_schema_sql
+
 if TYPE_CHECKING:
     from sqlalchemy import CursorResult, Row, RowMapping
-    from sqlalchemy.engine import Inspector
+    from sqlalchemy.engine import Connection, Inspector
     from sqlalchemy.engine.base import Engine
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -54,12 +58,53 @@ def _mariadb_ddl_from_row(row_or_none: RowMapping | None, col: str) -> str:
     return str(row_or_none[col] or "")
 
 
+def _listing_error(engine_label: str, schema: str | None, exc: Exception | None = None) -> MetadataIntrospectionError:
+    """Error de un fetcher que no ha podido listar las routines del schema.
+
+    ``SchemaComparator`` lo captura y omite la comparación de routines: una lista vacía o parcial produciría falsos
+    "added"/"removed" con las routines del otro lado.
+    """
+    cause: str = f": {exc}" if exc is not None else ""
+    return MetadataIntrospectionError(
+        f"No se pudieron listar las routines {engine_label}",
+        operation="get_routines",
+        details=f"schema={schema}{cause}",
+    )
+
+
+def _mariadb_show_create(conn: Connection, kind: str, db_name: str, name: str) -> str:
+    """DDL de una routine MariaDB/MySQL vía ``SHOW CREATE``; ``""`` (con warning) si falla solo esa routine.
+
+    El nombre va calificado con el schema: sin él, ``SHOW CREATE`` busca en la base de datos de la conexión, que no
+    tiene por qué ser ``db_name``. Los ``:`` se escapan para que ``text()`` no los tome por parámetros.
+
+    Si la conexión se ha perdido (``connection_invalidated``) el error se propaga: el fetcher lo convierte en error
+    de listado, en lugar de devolver ``""`` para esta y todas las routines restantes.
+    """
+    qualified: str = quote_mariadb_identifier(name)
+    if db_name:
+        qualified = f"{quote_mariadb_identifier(db_name)}.{qualified}"
+    sql: str = f"SHOW CREATE {kind} {qualified}".replace(":", r"\:")
+    try:
+        result: CursorResult[Any] = conn.execute(text(sql))
+    except DatabaseError as exc:  # sin permisos sobre la routine, o eliminada entre el listado y el SHOW CREATE
+        if exc.connection_invalidated:
+            raise
+        logger.warning("No se pudo obtener el DDL de %s %s.%s: %s", kind, db_name, name, exc)
+        return ""
+    return _mariadb_ddl_from_row(result.mappings().first(), f"Create {kind.capitalize()}")
+
+
 class RoutineFetcherRegistry:
     """Implementaciones estáticas de fetching de DDL de routines por dialect SQLAlchemy.
 
     Esta clase solo agrupa métodos estáticos — no tiene estado de instancia.
     Los métodos son registrados en ``SchemaComparator._ROUTINE_FETCHERS`` al
     cargar el módulo ``comparator``, siguiendo el patrón OCP.
+
+    Si un fetcher no puede listar las routines del schema lanza ``MetadataIntrospectionError`` (el comparador
+    omite entonces la comparación de routines); si solo falla el DDL de una routine, la devuelve con
+    ``definition=""``.
 
     Attributes:
         _PROCEDURE_KIND_MAP: Mapa de códigos ``prokind`` de PostgreSQL a labels DDL.
@@ -73,7 +118,7 @@ class RoutineFetcherRegistry:
     _PROCEDURE_KIND_MAP: ClassVar[dict[str, str]] = {
         "f": "FUNCTION",
         "p": "PROCEDURE",
-        "w": "WINDOW",
+        "w": "FUNCTION",  # función de ventana: se crea y se borra como FUNCTION
     }
 
     @staticmethod
@@ -93,43 +138,17 @@ class RoutineFetcherRegistry:
 
         try:
             with engine.connect() as conn:
-                # Procedures
-                proc_result: CursorResult[Any] = conn.execute(
-                    text("SHOW PROCEDURE STATUS WHERE Db=:db"),
-                    {"db": db_name},
-                )
-                for row in proc_result.mappings():
-                    proc_name = str(row["Name"])
-                    if not _is_safe_identifier(proc_name):
-                        logger.warning("Nombre de procedure no seguro, se omite: %r", proc_name)
-                        continue
-                    proc_safe_name = proc_name.replace("`", "``")
-                    proc_create_result = conn.execute(text(f"SHOW CREATE PROCEDURE `{proc_safe_name}`"))
-                    proc_definition = _mariadb_ddl_from_row(proc_create_result.mappings().first(), "Create Procedure")
-                    routines.append({"name": proc_name, "type": "PROCEDURE", "definition": proc_definition})
-                # Functions
-                func_result: CursorResult[Any] = conn.execute(
-                    text("SHOW FUNCTION STATUS WHERE Db=:db"),
-                    {"db": db_name},
-                )
-                for row in func_result.mappings():
-                    func_name = str(row["Name"])
-                    if not _is_safe_identifier(func_name):
-                        logger.warning("Nombre de function no seguro, se omite: %r", func_name)
-                        continue
-                    func_safe_name: str = func_name.replace("`", "``")
-                    func_create_result: CursorResult[Any] = conn.execute(
-                        text(f"SHOW CREATE FUNCTION `{func_safe_name}`"),
-                    )
-                    func_definition: str = _mariadb_ddl_from_row(
-                        func_create_result.mappings().first(), "Create Function"
-                    )
-                    routines.append({"name": func_name, "type": "FUNCTION", "definition": func_definition})
-        except (
-            OperationalError,
-            DatabaseError,
-        ) as exc:  # M1: Fallback si MariaDB rechaza conexión o permisos insuficientes
-            logger.warning("No se pudieron obtener routines MariaDB para schema=%s: %s", schema, exc)
+                for kind in ("PROCEDURE", "FUNCTION"):
+                    status: CursorResult[Any] = conn.execute(text(f"SHOW {kind} STATUS WHERE Db=:db"), {"db": db_name})
+                    names: list[str] = [str(row["Name"]) for row in status.mappings()]
+                    for name in names:
+                        if not _is_safe_identifier(name):
+                            logger.warning("Nombre de %s no seguro, se omite: %r", kind.lower(), name)
+                            continue
+                        definition: str = _mariadb_show_create(conn, kind, db_name, name)
+                        routines.append({"name": name, "type": kind, "definition": definition})
+        except (OperationalError, DatabaseError) as exc:  # conexión rechazada o sin permisos para listar
+            raise _listing_error("MariaDB/MySQL", schema, exc) from exc
 
         return routines
 
@@ -146,8 +165,7 @@ class RoutineFetcherRegistry:
         if engine is None:
             return routines
         if not schema:
-            logger.warning("get_routines_oracle requiere 'schema'; se omite la comparación de routines Oracle.")
-            return routines
+            raise _listing_error("Oracle", schema, ValueError("get_routines_oracle requiere 'schema'"))
 
         try:
             with engine.connect() as conn:
@@ -178,8 +196,8 @@ class RoutineFetcherRegistry:
         except (
             OperationalError,
             DatabaseError,
-        ) as exc:  # M1: Fallback si Oracle rechaza conexión o query a all_procedures falla
-            logger.warning("No se pudieron obtener routines Oracle para schema=%s: %s", schema, exc)
+        ) as exc:  # Oracle rechaza la conexión o falla la consulta a all_procedures
+            raise _listing_error("Oracle", schema, exc) from exc
 
         return routines
 
@@ -253,18 +271,20 @@ class RoutineFetcherRegistry:
         except (
             OperationalError,
             DatabaseError,
-        ) as exc:  # M1: Fallback si SQL Server rechaza conexión o query a sys.procedures falla
-            logger.warning("No se pudieron obtener routines SQL Server para schema=%s: %s", schema, exc)
+        ) as exc:  # SQL Server rechaza la conexión o falla la consulta a sys.procedures
+            raise _listing_error("SQL Server", schema, exc) from exc
 
         return routines
 
     @staticmethod
     def get_routines_postgresql(inspector: Inspector, schema: str | None) -> list[dict[str, str]]:
-        """Obtiene routines de PostgreSQL via pg_proc + pg_get_functiondef.
+        """Obtiene functions y procedures de PostgreSQL con su DDL en una sola consulta.
 
-        **Performance note**: Uses pg_get_functiondef() which materializes full DDL.
-        On schemas with 10k+ functions, this may consume significant memory.
-        Consider caching results or disabling routine introspection for large catalogs.
+        La consulta (``metadata.postgresql.routines.fetch_routines_with_definition_for_schema_sql``) excluye los
+        agregados, con los que ``pg_get_functiondef`` falla y deja abortada la transacción.
+
+        Cada routine lleva ``signature`` = ``nombre(argumentos)``, que el comparador usa para emparejar sobrecargas
+        aunque solo un lado las tenga. ``name`` incluye los argumentos solo si hay sobrecargas en este lado.
         """
         routines: list[dict[str, str]] = []
         engine: Engine = inspector.engine
@@ -276,49 +296,24 @@ class RoutineFetcherRegistry:
         try:
             with engine.connect() as conn:
                 result: CursorResult[Any] = conn.execute(
-                    text(
-                        "SELECT p.oid, p.proname, p.prokind, "
-                        "pg_catalog.pg_get_function_arguments(p.oid) AS proargs "
-                        "FROM pg_proc p "
-                        "JOIN pg_namespace n ON p.pronamespace = n.oid "
-                        "WHERE n.nspname = :schema "
-                        "ORDER BY p.proname, proargs",
-                    ),
-                    {"schema": schema_name},
+                    text(fetch_routines_with_definition_for_schema_sql()), {"schema": schema_name}
                 )
-                rows_list = list(result.mappings())
-                # Detectar nombres con overloads para asignar clave única solo cuando es necesario
-                name_counts = Counter(str(row["proname"]) for row in rows_list)
+                rows_list: list[RowMapping] = list(result.mappings())
+        except (OperationalError, DatabaseError) as exc:  # PostgreSQL rechaza la conexión o falla la consulta
+            raise _listing_error("PostgreSQL", schema, exc) from exc
 
-                for row in rows_list:
-                    func_oid = row["oid"]
-                    func_name = str(row["proname"])
-                    proc_kind = str(row["prokind"])  # M1: 'f' = function, 'p' = procedure, 'w' = window
-                    kind_label: str = RoutineFetcherRegistry._PROCEDURE_KIND_MAP.get(proc_kind, "PROCEDURE")
-                    proargs: str = str(row.get("proargs") or "")
-                    # Nombre único: incluye firma de argumentos solo si hay overloads con el mismo nombre
-                    unique_name: str = f"{func_name}({proargs})" if name_counts[func_name] > 1 else func_name
-
-                    try:
-                        # Usar OID directamente evita el fallo de ::regprocedure con overloads
-                        ddl_result: CursorResult[Any] = conn.execute(
-                            text("SELECT pg_get_functiondef(:oid) AS definition"),
-                            {"oid": func_oid},
-                        )
-                        ddl_row: Row[Any] | None = ddl_result.first()
-                        definition: str = str(ddl_row[0]) if ddl_row and ddl_row[0] else ""
-                    except (
-                        ProgrammingError,
-                        DatabaseError,
-                    ):  # M1: pg_get_functiondef() falla en C, trigger o lenguaje no soportado
-                        definition = ""
-                    routines.append({"name": unique_name, "type": kind_label, "definition": definition})
-        except (
-            OperationalError,
-            DatabaseError,
-        ) as exc:  # M1: Fallback si PostgreSQL rechaza conexión o query a pg_proc falla
-            logger.warning("No se pudieron obtener routines PostgreSQL para schema=%s: %s", schema, exc)
-
+        name_counts: Counter[str] = Counter(str(row["proname"]) for row in rows_list)
+        for row in rows_list:
+            func_name: str = str(row["proname"])
+            signature: str = f"{func_name}({row.get('identity_args') or ''})"
+            routines.append(
+                {
+                    "name": signature if name_counts[func_name] > 1 else func_name,
+                    "type": RoutineFetcherRegistry._PROCEDURE_KIND_MAP.get(str(row["prokind"]), "FUNCTION"),
+                    "definition": str(row.get("definition") or ""),
+                    "signature": signature,
+                },
+            )
         return routines
 
     @staticmethod

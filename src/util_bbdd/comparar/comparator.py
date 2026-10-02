@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError, DatabaseError, OperationalError
 
+from util_bbdd._core.exceptions import MetadataIntrospectionError
+
 from ._routine_fetchers import RoutineFetcherRegistry
 from .models import (
     ColumnDiff,
@@ -63,6 +65,7 @@ class SchemaComparator:
     #: Las claves de ``_ROUTINE_FETCHERS`` y ``_DDL_STRIP_RULES`` deben usar los valores de este mapa.
     _DB_TYPE_TO_DIALECT: ClassVar[dict[str, str]] = {
         "mariadb": "mariadb",
+        "mysql": "mysql",
         "oracle": "oracle",
         "postgresql": "postgresql",
         "sqlserver": "mssql",  # SQL Server reporta dialect "mssql" en SQLAlchemy
@@ -530,7 +533,8 @@ class SchemaComparator:
             t_cols: str = self._join_columns(t_idx.get("column_names"))
             s_unique = bool(s_idx.get("unique", False))
             t_unique = bool(t_idx.get("unique", False))
-            if s_cols != t_cols or s_unique != t_unique:
+            # Columnas case-insensitive (Oracle "ID" frente a PostgreSQL "id"); el diff conserva los nombres reales.
+            if s_cols.lower() != t_cols.lower() or s_unique != t_unique:
                 diffs.append(
                     IndexDiff(
                         index_name=s_idx["name"],
@@ -579,9 +583,9 @@ class SchemaComparator:
                     fk_name=SchemaComparator._fk_key(fk),
                     table_name=src_table,
                     status="added",
-                    source_columns=",".join(fk.get("constrained_columns", [])),
-                    source_referred_table=fk.get("referred_table", ""),
-                    source_referred_columns=",".join(fk.get("referred_columns", [])),
+                    source_columns=self._join_columns(fk.get("constrained_columns")),
+                    source_referred_table=fk.get("referred_table") or "",
+                    source_referred_columns=self._join_columns(fk.get("referred_columns")),
                 ),
             )
 
@@ -592,23 +596,28 @@ class SchemaComparator:
                     fk_name=SchemaComparator._fk_key(fk),
                     table_name=src_table,
                     status="removed",
-                    target_columns=",".join(fk.get("constrained_columns", [])),
-                    target_referred_table=fk.get("referred_table", ""),
-                    target_referred_columns=",".join(fk.get("referred_columns", [])),
+                    target_columns=self._join_columns(fk.get("constrained_columns")),
+                    target_referred_table=fk.get("referred_table") or "",
+                    target_referred_columns=self._join_columns(fk.get("referred_columns")),
                 ),
             )
 
         for key in sorted(source_map.keys() & target_map.keys()):
             s_fk = source_map[key]
             t_fk = target_map[key]
-            s_cols: str = ",".join(s_fk.get("constrained_columns", []))
-            t_cols: str = ",".join(t_fk.get("constrained_columns", []))
-            s_ref = s_fk.get("referred_table", "")
-            t_ref = t_fk.get("referred_table", "")
-            s_ref_cols: str = ",".join(s_fk.get("referred_columns", []))
-            t_ref_cols: str = ",".join(t_fk.get("referred_columns", []))
+            s_cols: str = self._join_columns(s_fk.get("constrained_columns"))
+            t_cols: str = self._join_columns(t_fk.get("constrained_columns"))
+            s_ref = s_fk.get("referred_table") or ""
+            t_ref = t_fk.get("referred_table") or ""
+            s_ref_cols: str = self._join_columns(s_fk.get("referred_columns"))
+            t_ref_cols: str = self._join_columns(t_fk.get("referred_columns"))
 
-            if s_cols != t_cols or s_ref != t_ref or s_ref_cols != t_ref_cols:
+            # Case-insensitive como el resto de nombres; el diff conserva los nombres reales de cada motor.
+            if (s_cols.lower(), s_ref.lower(), s_ref_cols.lower()) != (
+                t_cols.lower(),
+                t_ref.lower(),
+                t_ref_cols.lower(),
+            ):
                 diffs.append(
                     ForeignKeyDiff(
                         fk_name=SchemaComparator._fk_key(s_fk),
@@ -681,22 +690,31 @@ class SchemaComparator:
         source_schema: str | None,
         target_schema: str | None,
     ) -> tuple[ViewDiff, ...]:
-        source_views: set[str] = set(source.get_view_names(schema=source_schema))
-        target_views: set[str] = set(target.get_view_names(schema=target_schema))
+        # Case-insensitive como las tablas (Oracle "V_EMP" frente a PostgreSQL "v_emp"); cada lado consulta su
+        # definición con su nombre real.
+        source_views: dict[str, str] = self._case_insensitive_key_map(
+            source.get_view_names(schema=source_schema), str, kind="vistas origen"
+        )
+        target_views: dict[str, str] = self._case_insensitive_key_map(
+            target.get_view_names(schema=target_schema), str, kind="vistas destino"
+        )
 
         diffs: list[ViewDiff] = []
 
-        for view_name in sorted(source_views - target_views):
+        for key in sorted(source_views.keys() - target_views.keys()):
+            view_name = source_views[key]
             source_def = self._get_view_definition_safe(source, view_name, source_schema)
             diffs.append(ViewDiff(view_name=view_name, status="added", source_definition=source_def))
 
-        for view_name in sorted(target_views - source_views):
+        for key in sorted(target_views.keys() - source_views.keys()):
+            view_name = target_views[key]
             target_def = self._get_view_definition_safe(target, view_name, target_schema)
             diffs.append(ViewDiff(view_name=view_name, status="removed", target_definition=target_def))
 
-        for view_name in sorted(source_views & target_views):
+        for key in sorted(source_views.keys() & target_views.keys()):
+            view_name = source_views[key]
             source_def_cmp: str = self._get_view_definition_safe(source, view_name, source_schema)
-            target_def_cmp: str = self._get_view_definition_safe(target, view_name, target_schema)
+            target_def_cmp: str = self._get_view_definition_safe(target, target_views[key], target_schema)
             s_norm: str = self._normalize_ddl(source_def_cmp)
             t_norm: str = self._normalize_ddl(target_def_cmp)
             if s_norm != t_norm:
@@ -722,24 +740,35 @@ class SchemaComparator:
         source_schema: str | None,
         target_schema: str | None,
     ) -> tuple[RoutineDiff, ...]:
-        """Compara procedures/functions si el dialect lo soporta.
+        """Compara procedures/functions si el dialect tiene fetcher registrado en ``_ROUTINE_FETCHERS``.
 
-        Utiliza ``Inspector.get_multi_indexes`` como indicador de capacidad.
-        Si el dialect no soporta listado de routines, devuelve tupla vacía.
+        Si ningún lado tiene fetcher, devuelve tupla vacía. Si un fetcher no puede listar las routines
+        (``MetadataIntrospectionError``), también: una lista vacía o parcial daría falsos "added"/"removed".
+        El emparejamiento es case-insensitive y usa ``signature`` (sobrecargas PostgreSQL) solo si todas las routines
+        de ambos lados la traen: entre motores distintos (PostgreSQL frente a MariaDB) se empareja por nombre.
         """
-        source_routines: list[dict[str, str]] | None = self._get_routines_safe(source, source_schema)
-        target_routines: list[dict[str, str]] | None = self._get_routines_safe(target, target_schema)
+        try:
+            source_routines: list[dict[str, str]] | None = self._get_routines_safe(source, source_schema)
+            target_routines: list[dict[str, str]] | None = self._get_routines_safe(target, target_schema)
+        except MetadataIntrospectionError as exc:
+            self.logger.warning("Se omite la comparación de routines: %s", exc)
+            return ()
 
         if source_routines is None and target_routines is None:
             self.logger.debug("El dialect no soporta listado de routines; se omite la comparación.")
             return ()
 
-        source_map: dict[str, dict[str, str]] = {
-            f"{r['name']}\x00{r.get('type', 'PROCEDURE')}": r for r in (source_routines or [])
-        }
-        target_map: dict[str, dict[str, str]] = {
-            f"{r['name']}\x00{r.get('type', 'PROCEDURE')}": r for r in (target_routines or [])
-        }
+        by_signature: bool = all("signature" in r for r in [*(source_routines or []), *(target_routines or [])])
+
+        def key_fn(routine: Mapping[str, str]) -> str:
+            return self._routine_key(routine, by_signature=by_signature)
+
+        source_map: dict[str, dict[str, str]] = self._case_insensitive_key_map(
+            source_routines or [], key_fn, kind="routines origen"
+        )
+        target_map: dict[str, dict[str, str]] = self._case_insensitive_key_map(
+            target_routines or [], key_fn, kind="routines destino"
+        )
 
         diffs: list[RoutineDiff] = []
 
@@ -913,6 +942,12 @@ class SchemaComparator:
         return f"__anon__{cols}__{ref_table}__{ref_cols}"
 
     @staticmethod
+    def _routine_key(routine: Mapping[str, str], *, by_signature: bool) -> str:
+        """Clave de emparejamiento de una routine: firma (si ``by_signature``) o nombre, y tipo."""
+        ident: str = routine["signature"] if by_signature else routine["name"]
+        return f"{ident}\x00{routine.get('type', 'PROCEDURE')}"
+
+    @staticmethod
     def _case_insensitive_key_map(
         items: Iterable[Any],
         key_fn: Callable[[Any], str],
@@ -998,7 +1033,7 @@ class SchemaComparator:
                 SchemaComparator._DB_TYPE_TO_DIALECT["sqlserver"]  # → "mssql"
             ] = my_mssql_fetcher
         """
-        # inspector.engine es canónico en SA 2.x; fallback a bind para SA 1.4.
+        # inspector.engine es canónico en SA 2.x (el proyecto exige sqlalchemy>=2.0).
         engine: Any | None = getattr(inspector, "engine", None)
         dialect_name: str = getattr(getattr(engine, "dialect", None), "name", "")
 
@@ -1038,6 +1073,7 @@ class SchemaComparator:
 # ---------------------------------------------------------------------------
 SchemaComparator._ROUTINE_FETCHERS = {  # noqa: SLF001  # OCP registration pattern — ver docstring del módulo
     "mariadb": RoutineFetcherRegistry.get_routines_mariadb,
+    "mysql": RoutineFetcherRegistry.get_routines_mariadb,  # mismo SHOW … STATUS / SHOW CREATE que MariaDB
     "oracle": RoutineFetcherRegistry.get_routines_oracle,
     "mssql": RoutineFetcherRegistry.get_routines_mssql,
     "postgresql": RoutineFetcherRegistry.get_routines_postgresql,

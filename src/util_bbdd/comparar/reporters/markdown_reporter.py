@@ -103,7 +103,7 @@ class MarkdownDiffReporter:
         """Genera el bloque Mermaid con las tablas agrupadas por estado."""
         added_tables: list[str] = [t.table_name for t in diff.table_diffs if t.status == "added"]
         removed_tables: list[str] = [t.table_name for t in diff.table_diffs if t.status == "removed"]
-        modified_tables: list[str] = [t.table_name for t in diff.table_diffs if t.status == "modified"]
+        modified_tables: list[TableDiff] = [t for t in diff.table_diffs if t.status == "modified"]
 
         if not diff.table_diffs:
             return []
@@ -126,10 +126,10 @@ class MarkdownDiffReporter:
 
         if modified_tables:
             lines.append('    subgraph modified["⚠️ Modificadas"]')
-            for name in modified_tables:
-                safe_id = f"M_{escape_mermaid_label(name).replace(' ', '_')}"
-                col_count: int = len([t for t in diff.table_diffs if t.table_name == name and t.column_diffs])
-                label: str = escape_mermaid_label(name)
+            for td in modified_tables:
+                safe_id = f"M_{escape_mermaid_label(td.table_name).replace(' ', '_')}"
+                col_count: int = len(td.column_diffs)
+                label: str = escape_mermaid_label(td.table_name)
                 if col_count:
                     label = f"{label}\\n({col_count} cols)"
                 lines.append(f'        {safe_id}["{label}"]')

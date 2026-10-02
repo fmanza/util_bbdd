@@ -13,6 +13,7 @@ pytest.importorskip("sqlalchemy")
 
 from sqlalchemy import Column, ForeignKey, Index, Integer, MetaData, String, Table, create_engine, inspect, text
 
+from util_bbdd._core.exceptions import MetadataIntrospectionError
 from util_bbdd.comparar._routine_fetchers import RoutineFetcherRegistry
 from util_bbdd.comparar.comparator import SchemaComparator
 from util_bbdd.comparar.contracts import SchemaComparatorProtocol
@@ -1076,8 +1077,8 @@ class TestGetRoutinesMariaDB:
             "access denied",
         ],
     )
-    def test_returns_empty_on_connection_errors(self, error_message: str) -> None:
-        """Test graceful degradation with different connection failure scenarios."""
+    def test_raises_on_connection_errors(self, error_message: str) -> None:
+        """Si no puede listar las routines, el fetcher lanza MetadataIntrospectionError (no devuelve lista vacía)."""
         from sqlalchemy.exc import OperationalError
 
         inspector = MagicMock()
@@ -1086,9 +1087,8 @@ class TestGetRoutinesMariaDB:
         inspector.engine = engine
         engine.connect.side_effect = OperationalError("", {}, OSError(error_message))
 
-        routines = RoutineFetcherRegistry.get_routines_mariadb(inspector, "mydb")
-
-        assert routines == []
+        with pytest.raises(MetadataIntrospectionError, match="No se pudieron listar"):
+            RoutineFetcherRegistry.get_routines_mariadb(inspector, "mydb")
 
     def test_returns_empty_when_engine_is_none(self) -> None:
         inspector = MagicMock()
@@ -1173,19 +1173,14 @@ class TestGetRoutinesMariaDB:
 
 
 class TestGetRoutinesOracle:
-    def test_returns_empty_when_schema_is_none(self, caplog: Any) -> None:
-        import logging
-
+    def test_raises_when_schema_is_none(self) -> None:
         inspector = MagicMock()
         engine = _make_engine_mock("oracle")
         inspector.engine = engine
         inspector.bind = engine
 
-        with caplog.at_level(logging.WARNING):
-            routines = RoutineFetcherRegistry.get_routines_oracle(inspector, None)
-
-        assert routines == []
-        assert any("requiere" in r.message for r in caplog.records)
+        with pytest.raises(MetadataIntrospectionError, match="requiere 'schema'"):
+            RoutineFetcherRegistry.get_routines_oracle(inspector, None)
 
     def test_returns_empty_when_engine_is_none(self) -> None:
         inspector = MagicMock()
@@ -1241,8 +1236,8 @@ class TestGetRoutinesOracle:
             "access denied",
         ],
     )
-    def test_returns_empty_on_connection_errors(self, error_message: str) -> None:
-        """Test graceful degradation with different connection failure scenarios."""
+    def test_raises_on_connection_errors(self, error_message: str) -> None:
+        """Si no puede listar las routines, el fetcher lanza MetadataIntrospectionError (no devuelve lista vacía)."""
         from sqlalchemy.exc import OperationalError
 
         inspector = MagicMock()
@@ -1251,9 +1246,8 @@ class TestGetRoutinesOracle:
         inspector.engine = engine
         engine.connect.side_effect = OperationalError("", {}, OSError(error_message))
 
-        routines = RoutineFetcherRegistry.get_routines_oracle(inspector, "MYSCHEMA")
-
-        assert routines == []
+        with pytest.raises(MetadataIntrospectionError, match="No se pudieron listar"):
+            RoutineFetcherRegistry.get_routines_oracle(inspector, "MYSCHEMA")
 
 
 class TestGetRoutinesMSSQL:
@@ -1357,8 +1351,8 @@ class TestGetRoutinesMSSQL:
             "access denied",
         ],
     )
-    def test_returns_empty_on_connection_errors(self, error_message: str) -> None:
-        """Test graceful degradation with different connection failure scenarios."""
+    def test_raises_on_connection_errors(self, error_message: str) -> None:
+        """Si no puede listar las routines, el fetcher lanza MetadataIntrospectionError (no devuelve lista vacía)."""
         from sqlalchemy.exc import OperationalError
 
         inspector = MagicMock()
@@ -1367,84 +1361,80 @@ class TestGetRoutinesMSSQL:
         inspector.bind = engine
         engine.connect.side_effect = OperationalError("", {}, OSError(error_message))
 
-        routines = RoutineFetcherRegistry.get_routines_mssql(inspector, "dbo")
-
-        assert routines == []
+        with pytest.raises(MetadataIntrospectionError, match="No se pudieron listar"):
+            RoutineFetcherRegistry.get_routines_mssql(inspector, "dbo")
 
 
 class TestGetRoutinesPostgreSQL:
-    """Tests para _get_routines_postgresql (PostgreSQL)."""
+    """Tests para get_routines_postgresql (una consulta con pg_get_functiondef, sin agregados)."""
+
+    @staticmethod
+    def _inspector_with_rows(rows: list[dict[str, Any]]) -> tuple[MagicMock, MagicMock]:
+        inspector = MagicMock()
+        engine = _make_engine_mock("postgresql")
+        inspector.engine = engine
+        inspector.bind = engine
+        conn = MagicMock()
+        engine.connect.return_value.__enter__.return_value = conn
+        engine.connect.return_value.__exit__.return_value = False
+        conn.execute.return_value.mappings.return_value = rows
+        return inspector, conn
 
     def test_returns_functions(self) -> None:
-        inspector = MagicMock()
-        engine = _make_engine_mock("postgresql")
-        inspector.engine = engine
-        inspector.bind = engine
-
-        conn = MagicMock()
-        engine.connect.return_value.__enter__.return_value = conn
-        engine.connect.return_value.__exit__.return_value = False
-
-        # pg_proc query result
-        func_row = {"oid": 12345, "proname": "my_func", "prokind": "f", "proargs": ""}  # M1 'f' = function
-        func_rows = MagicMock()
-        func_rows.mappings.return_value = [func_row]
-
-        # pg_get_functiondef query result
-        def_result = MagicMock()
-        def_result.first.return_value = ("CREATE FUNCTION my_func() RETURNS int AS $$BEGIN END$$",)
-
-        def execute_side_effect(stmt: Any, params: Any = None) -> Any:
-            sql = str(stmt)
-            if "pg_proc" in sql or "pg_namespace" in sql:
-                return func_rows
-            if "pg_get_functiondef" in sql:
-                return def_result
-            return MagicMock()
-
-        conn.execute.side_effect = execute_side_effect
+        inspector, _ = self._inspector_with_rows(
+            [{"proname": "my_func", "prokind": "f", "identity_args": "", "definition": "CREATE FUNCTION my_func()"}]
+        )
 
         routines = RoutineFetcherRegistry.get_routines_postgresql(inspector, "public")
 
-        assert len(routines) == 1
-        assert routines[0]["name"] == "my_func"
-        assert routines[0]["type"] == "FUNCTION"
-        assert "CREATE FUNCTION" in routines[0]["definition"]
+        assert routines == [
+            {"name": "my_func", "type": "FUNCTION", "definition": "CREATE FUNCTION my_func()", "signature": "my_func()"}
+        ]
 
     def test_returns_procedures(self) -> None:
-        inspector = MagicMock()
-        engine = _make_engine_mock("postgresql")
-        inspector.engine = engine
-        inspector.bind = engine
-
-        conn = MagicMock()
-        engine.connect.return_value.__enter__.return_value = conn
-        engine.connect.return_value.__exit__.return_value = False
-
-        # pg_proc query result with procedure
-        proc_row = {"oid": 67890, "proname": "my_proc", "prokind": "p", "proargs": ""}  # 'p' = procedure
-        proc_rows = MagicMock()
-        proc_rows.mappings.return_value = [proc_row]
-
-        # pg_get_functiondef query result
-        def_result = MagicMock()
-        def_result.first.return_value = ("CREATE PROCEDURE my_proc() LANGUAGE sql AS ...",)
-
-        def execute_side_effect(stmt: Any, params: Any = None) -> Any:
-            sql = str(stmt)
-            if "pg_proc" in sql or "pg_namespace" in sql:
-                return proc_rows
-            if "pg_get_functiondef" in sql:
-                return def_result
-            return MagicMock()
-
-        conn.execute.side_effect = execute_side_effect
+        inspector, _ = self._inspector_with_rows(
+            [{"proname": "my_proc", "prokind": "p", "identity_args": "", "definition": "CREATE PROCEDURE my_proc()"}]
+        )
 
         routines = RoutineFetcherRegistry.get_routines_postgresql(inspector, "public")
 
-        assert len(routines) == 1
         assert routines[0]["name"] == "my_proc"
         assert routines[0]["type"] == "PROCEDURE"
+
+    def test_single_query_excludes_aggregates(self) -> None:
+        """B1: pg_get_functiondef falla con agregados y aborta la transacción; la consulta no los pide."""
+        inspector, conn = self._inspector_with_rows([])
+
+        RoutineFetcherRegistry.get_routines_postgresql(inspector, "public")
+
+        assert conn.execute.call_count == 1
+        sql = str(conn.execute.call_args.args[0])
+        assert "pg_get_functiondef" in sql
+        assert "prokind IN ('f', 'p', 'w')" in sql
+        assert conn.execute.call_args.args[1] == {"schema": "public"}
+
+    def test_window_function_is_reported_as_function(self) -> None:
+        inspector, _ = self._inspector_with_rows(
+            [{"proname": "w", "prokind": "w", "identity_args": "integer", "definition": "CREATE FUNCTION w(integer)"}]
+        )
+
+        routines = RoutineFetcherRegistry.get_routines_postgresql(inspector, "public")
+
+        assert routines[0]["type"] == "FUNCTION"
+
+    def test_overloads_get_signature_in_name_and_key(self) -> None:
+        inspector, _ = self._inspector_with_rows(
+            [
+                {"proname": "f", "prokind": "f", "identity_args": "integer", "definition": "d1"},
+                {"proname": "f", "prokind": "f", "identity_args": "text", "definition": "d2"},
+                {"proname": "g", "prokind": "f", "identity_args": "integer", "definition": "d3"},
+            ]
+        )
+
+        routines = RoutineFetcherRegistry.get_routines_postgresql(inspector, "public")
+
+        assert [r["name"] for r in routines] == ["f(integer)", "f(text)", "g"]
+        assert [r["signature"] for r in routines] == ["f(integer)", "f(text)", "g(integer)"]
 
     def test_returns_empty_when_engine_is_none(self) -> None:
         inspector = MagicMock()
@@ -1463,8 +1453,8 @@ class TestGetRoutinesPostgreSQL:
             "access denied",
         ],
     )
-    def test_returns_empty_on_connection_errors(self, error_message: str) -> None:
-        """Test graceful degradation with different connection failure scenarios."""
+    def test_raises_on_connection_errors(self, error_message: str) -> None:
+        """Si no puede listar las routines, el fetcher lanza MetadataIntrospectionError (no devuelve lista vacía)."""
         from sqlalchemy.exc import OperationalError
 
         inspector = MagicMock()
@@ -1473,9 +1463,8 @@ class TestGetRoutinesPostgreSQL:
         inspector.bind = engine
         engine.connect.side_effect = OperationalError("", {}, OSError(error_message))
 
-        routines = RoutineFetcherRegistry.get_routines_postgresql(inspector, "public")
-
-        assert routines == []
+        with pytest.raises(MetadataIntrospectionError, match="No se pudieron listar"):
+            RoutineFetcherRegistry.get_routines_postgresql(inspector, "public")
 
 
 class TestGetRoutinesHSQLDB:
@@ -1567,9 +1556,9 @@ class TestRoutineFetchersRegistry:
         assert "mariadb" in SchemaComparator._ROUTINE_FETCHERS
         assert SchemaComparator._ROUTINE_FETCHERS["mariadb"] is RoutineFetcherRegistry.get_routines_mariadb
 
-    def test_registry_does_not_contain_mysql_alias(self) -> None:
-        # mysql no es un motor soportado oficialmente en la librería; no debe tener fetcher registrado
-        assert "mysql" not in SchemaComparator._ROUTINE_FETCHERS
+    def test_registry_maps_mysql_to_mariadb_fetcher(self) -> None:
+        # MySQL usa los mismos SHOW … STATUS / SHOW CREATE que MariaDB
+        assert SchemaComparator._ROUTINE_FETCHERS["mysql"] is RoutineFetcherRegistry.get_routines_mariadb
 
     def test_registry_contains_oracle(self) -> None:
         assert "oracle" in SchemaComparator._ROUTINE_FETCHERS
@@ -1664,19 +1653,15 @@ class TestRoutineFetchersRegistry:
 
 class TestDbTypeToDialectMap:
     def test_all_supported_motors_present(self) -> None:
-        expected = {"mariadb", "oracle", "postgresql", "sqlserver", "sqlite", "hsqldb"}
+        expected = {"mariadb", "mysql", "oracle", "postgresql", "sqlserver", "sqlite", "hsqldb"}
         assert expected == set(SchemaComparator._DB_TYPE_TO_DIALECT.keys())
 
     def test_sqlserver_maps_to_mssql(self) -> None:
         assert SchemaComparator._DB_TYPE_TO_DIALECT["sqlserver"] == "mssql"
 
     def test_identity_motors_map_to_same_name(self) -> None:
-        for motor in ("mariadb", "oracle", "postgresql", "sqlite", "hsqldb"):
+        for motor in ("mariadb", "mysql", "oracle", "postgresql", "sqlite", "hsqldb"):
             assert SchemaComparator._DB_TYPE_TO_DIALECT[motor] == motor
-
-    def test_mysql_not_in_map(self) -> None:
-        # mysql no es motor soportado oficialmente; no debe aparecer en el mapa
-        assert "mysql" not in SchemaComparator._DB_TYPE_TO_DIALECT
 
 
 # ---------------------------------------------------------------------------

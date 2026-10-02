@@ -247,6 +247,12 @@ class SqlDiffReporter:
     #: Literal "NOT NULL" para constraints de columna.
     _NOT_NULL: ClassVar[str] = "NOT NULL"
 
+    #: Placeholder del tipo de columna cuando no hay Inspector origen o la columna no aparece en él.
+    _TYPE_PLACEHOLDER: ClassVar[str] = "<TIPO>"
+
+    #: Aviso para los cambios que ``ALTER TABLE`` de SQLite no admite (solo RENAME, ADD COLUMN y DROP COLUMN).
+    _SQLITE_REBUILD_NOTE: ClassVar[str] = "-- ⚠ SQLite: ALTER TABLE no admite este cambio; recrear la tabla manualmente"
+
     #: Factoría de ``Dialect`` de SQLAlchemy por dialecto, usada solo para obtener su
     #: ``identifier_preparer`` (citado de identificadores dialect-aware). No se usa para
     #: compilar ni ejecutar SQL.
@@ -289,6 +295,8 @@ class SqlDiffReporter:
         #: Mensaje de error por tabla cuando get_columns() falla.  Permite
         #: incluir la causa exacta del fallback en el placeholder ``-- ⚠``.
         self._col_error_cache: dict[str, str] = {}
+        #: Contador de variables T-SQL ``@df_N`` (una por DEFAULT a eliminar en SQL Server) dentro de un render.
+        self._mssql_default_seq: int = 0
 
     # ------------------------------------------------------------------
     # Contrato público
@@ -308,6 +316,7 @@ class SqlDiffReporter:
         self._fk_cache = {}
         self._idx_cache = {}
         self._col_error_cache = {}
+        self._mssql_default_seq = 0
         output.parent.mkdir(parents=True, exist_ok=True)
         script: str = self._build_script(diff)
         output.write_text(script, encoding="utf-8")
@@ -364,7 +373,9 @@ class SqlDiffReporter:
             # Eliminar primero las FKs propias que puedan causar violaciones de integridad
             if td.fk_diffs:
                 lines.append(f"-- FK constraints en {td.table_name}:")
-                lines.extend(f"ALTER TABLE {table} {self._drop_fk_clause(fk.fk_name)};" for fk in td.fk_diffs)
+                lines.extend(
+                    self._alter_table_sql(td.table_name, self._drop_fk_clause(fk.fk_name)) for fk in td.fk_diffs
+                )
             tpl: str = self._DROP_TABLE.get(self._dialect, self._DROP_TABLE["generic"])
             lines.append(tpl.format(table=table))
             lines.append("")
@@ -550,7 +561,7 @@ class SqlDiffReporter:
             col_info = next((c for c in cols if c["name"] == col), None)
             if col_info is not None:
                 return self._format_col_type(col_info)
-        return "<TIPO>"
+        return self._TYPE_PLACEHOLDER
 
     def _render_create_table_from_inspector(self, table_name: str) -> list[str]:
         """Genera un ``CREATE TABLE`` completo para *table_name* usando el Inspector.
@@ -729,7 +740,10 @@ class SqlDiffReporter:
 
         if cd.attribute == "type":
             clause: str = self._modify_col_type_clause(col, cd.source_value)
-            return [f"ALTER TABLE {self._quote(table)} {clause};  -- tipo: {cd.target_value!r} → {cd.source_value!r}"]
+            change: str = f"tipo de {col}: {cd.target_value!r} → {cd.source_value!r}"
+            if clause.startswith("--"):
+                return [f"{clause} — {table}, {change}"]
+            return [f"ALTER TABLE {self._quote(table)} {clause};  -- {change}"]
 
         if cd.attribute == "nullable":
             return self._render_nullable_diff(table, col, cd)
@@ -790,11 +804,23 @@ class SqlDiffReporter:
 
         if self._dialect == "oracle":
             col_type = self._get_col_type_for_modify(table, col)
-            if col_type != "<TIPO>":
+            if col_type != self._TYPE_PLACEHOLDER:
                 return [f"ALTER TABLE {table_q} MODIFY ({col_q} {col_type} {null_kw});"]
             return [f"ALTER TABLE {table_q} MODIFY ({col_q} {null_kw});"]
 
-        # Standard SQL / PostgreSQL / SQLite / SQL Server
+        if self._dialect == "sqlserver":
+            # T-SQL no tiene SET/DROP NOT NULL: ALTER COLUMN exige el tipo completo.
+            col_type = self._get_col_type_for_modify(table, col)
+            lines: list[str] = []
+            if col_type == self._TYPE_PLACEHOLDER:
+                lines.append(f"-- ⚠ SQL Server: ALTER COLUMN exige el tipo; sustituir <TIPO> por el de {table}.{col}.")
+            lines.append(f"ALTER TABLE {table_q} ALTER COLUMN {col_q} {col_type} {null_kw};")
+            return lines
+
+        if self._dialect == "sqlite":
+            return [f"{self._SQLITE_REBUILD_NOTE} — {table}.{col}: {null_kw}"]
+
+        # Standard SQL / PostgreSQL
         if target_null:
             return [f"ALTER TABLE {table_q} ALTER COLUMN {col_q} DROP NOT NULL;"]
         return [f"ALTER TABLE {table_q} ALTER COLUMN {col_q} SET NOT NULL;"]
@@ -824,7 +850,20 @@ class SqlDiffReporter:
                 return [f"ALTER TABLE {table_q} MODIFY ({col_q} DEFAULT NULL);"]
             return [f"ALTER TABLE {table_q} MODIFY ({col_q} DEFAULT {src_default});"]
 
-        # Generic / PostgreSQL / SQLite / SQL Server
+        if self._dialect == "sqlserver":
+            # En T-SQL el DEFAULT es un constraint con nombre (a menudo generado por el sistema): se elimina el
+            # actual y, si el origen tiene DEFAULT, se crea uno nuevo.
+            lines: list[str] = self._mssql_drop_default_sql(table, col)
+            if not is_drop:
+                df_name: str = self._quote(f"DF_{table}_{col}")
+                lines.append(f"ALTER TABLE {table_q} ADD CONSTRAINT {df_name} DEFAULT {src_default} FOR {col_q};")
+            return lines
+
+        if self._dialect == "sqlite":
+            change: str = "DROP DEFAULT" if is_drop else f"DEFAULT {src_default}"
+            return [f"{self._SQLITE_REBUILD_NOTE} — {table}.{col}: {change}"]
+
+        # Generic / PostgreSQL
         if is_drop:
             return [f"ALTER TABLE {table_q} ALTER COLUMN {col_q} DROP DEFAULT;"]
         return [f"ALTER TABLE {table_q} ALTER COLUMN {col_q} SET DEFAULT {src_default};"]
@@ -871,10 +910,9 @@ class SqlDiffReporter:
         return lines
 
     def _render_single_fk_diff(self, table: str, fk: ForeignKeyDiff) -> list[str]:
-        table_q = self._quote(table)
         if fk.status == "removed":
             # FK existe en target, no en source → DROP en target
-            return [f"ALTER TABLE {table_q} {self._drop_fk_clause(fk.fk_name)};"]
+            return [self._alter_table_sql(table, self._drop_fk_clause(fk.fk_name))]
 
         if fk.status == "added":
             # FK existe en source, no en target → ADD en target
@@ -882,11 +920,13 @@ class SqlDiffReporter:
 
         # modified → DROP + ADD con nueva definición
         return [
-            f"ALTER TABLE {table_q} {self._drop_fk_clause(fk.fk_name)};",
+            self._alter_table_sql(table, self._drop_fk_clause(fk.fk_name)),
             self._add_fk_sql(table, fk),
         ]
 
     def _add_fk_sql(self, table: str, fk: ForeignKeyDiff) -> str:
+        if self._dialect == "sqlite":
+            return f"{self._SQLITE_REBUILD_NOTE} — {table}: ADD CONSTRAINT {fk.fk_name} FOREIGN KEY"
         cols: str = self._quote_columns(fk.source_columns) if fk.source_columns else "<columnas_origen>"
         ref_table: str = self._quote(fk.source_referred_table) if fk.source_referred_table else "<tabla_referenciada>"
         ref_cols: str = self._quote_columns(fk.source_referred_columns)
@@ -923,7 +963,7 @@ class SqlDiffReporter:
 
     def _render_single_comment_diff(self, table: str, cd: CommentDiff) -> list[str]:
         """Genera el SQL para un único ``CommentDiff``, dispatch por dialecto."""
-        comment: str = self._escape_sql_string(cd.source_comment)
+        comment: str = self._escape_sql_string(cd.source_comment, self._dialect)
 
         if self._dialect == "sqlite":
             target: str = f"{table}.{cd.column_name}" if cd.column_name else table
@@ -953,12 +993,43 @@ class SqlDiffReporter:
         return [f"COMMENT ON COLUMN {table_q}.{self._quote(cd.column_name)} IS '{comment}';"]
 
     @staticmethod
-    def _escape_sql_string(value: str) -> str:
-        """Escapa comillas simples en un string para embeber en SQL como literal.
+    def _escape_sql_string(value: str, dialect: str = "generic") -> str:
+        """Escapa un string para embeberlo en SQL como literal entre comillas simples.
 
-        Sigue la convención SQL estándar: ``'`` → ``''``.
+        Convención estándar ``'`` → ``''``. En MariaDB/MySQL la barra invertida también escapa (salvo con
+        ``NO_BACKSLASH_ESCAPES``): sin duplicarla, un comentario del catálogo terminado en ``\\`` dejaría el literal
+        abierto y el SQL siguiente quedaría dentro o, con un comentario manipulado, se ejecutaría como SQL propio.
         """
+        if dialect in ("mariadb", "mysql"):
+            value = value.replace("\\", "\\\\")
         return value.replace("'", "''")
+
+    def _alter_table_sql(self, table: str, clause: str) -> str:
+        """``ALTER TABLE <tabla> <cláusula>;``, o la cláusula sola si es un aviso ``-- ⚠``.
+
+        Un comentario ``--`` dentro de ``ALTER TABLE … ;`` se come el ``;`` y la sentencia se uniría a la siguiente.
+        """
+        if clause.startswith("--"):
+            return f"{clause} — tabla {table}"
+        return f"ALTER TABLE {self._quote(table)} {clause};"
+
+    def _mssql_drop_default_sql(self, table: str, col: str) -> list[str]:
+        """T-SQL que elimina el DEFAULT actual de ``table.col`` buscando su constraint en ``sys.default_constraints``.
+
+        Cada bloque usa su propia variable ``@df_N`` para poder ir varios en el mismo lote. La sentencia se compone
+        entera en la variable: ``EXEC(...)`` no admite llamadas a funciones (``QUOTENAME``) en su argumento.
+        """
+        self._mssql_default_seq += 1
+        var: str = f"@df_{self._mssql_default_seq}"
+        table_lit: str = self._escape_sql_string(self._quote(table))
+        col_lit: str = self._escape_sql_string(col)
+        return [
+            f"DECLARE {var} nvarchar(max) = (SELECT N'ALTER TABLE {table_lit} DROP CONSTRAINT ' + QUOTENAME(dc.name) "
+            f"FROM sys.default_constraints dc "
+            f"WHERE dc.parent_object_id = OBJECT_ID(N'{table_lit}') "
+            f"AND dc.parent_column_id = COLUMNPROPERTY(OBJECT_ID(N'{table_lit}'), N'{col_lit}', 'ColumnId'));",
+            f"IF {var} IS NOT NULL EXEC({var});",
+        ]
 
     def _quote(self, identifier: str) -> str:
         """Cita un identificador (tabla, columna, índice, constraint) dialect-aware.

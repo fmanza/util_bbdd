@@ -63,6 +63,32 @@ def fetch_routine_comments_for_schema_sql() -> str:
     )
 
 
+def fetch_routines_with_definition_for_schema_sql() -> str:
+    """SQL de las funciones y procedimientos de un schema PostgreSQL con su DDL, en una consulta (uso: comparar).
+
+    Excluye los agregados (``prokind = 'a'``): ``pg_get_functiondef`` falla con ellos y, dentro de una transacción,
+    el error la deja abortada, de modo que las consultas siguientes de la misma conexión también fallan. Las
+    funciones de ventana (``'w'``) sí admiten ``pg_get_functiondef``.
+
+    ``identity_args`` son solo los tipos de los argumentos de entrada (``oidvectortypes``), sin sus nombres: lo que
+    identifica una sobrecarga, de modo que ``f(i int)`` y ``f(x int)`` se reconocen como la misma función.
+
+    Parámetros: ``:schema`` (estilo de ``sqlalchemy.text``).
+
+    Returns:
+        str: SQL query para (proname, prokind, identity_args, definition), ordenado por nombre y firma.
+    """
+    return (
+        "SELECT p.proname, p.prokind, "
+        "pg_catalog.oidvectortypes(p.proargtypes) AS identity_args, "
+        "pg_catalog.pg_get_functiondef(p.oid) AS definition "
+        "FROM pg_catalog.pg_proc p "
+        "JOIN pg_catalog.pg_namespace ns ON p.pronamespace = ns.oid "
+        "WHERE ns.nspname = :schema AND p.prokind IN ('f', 'p', 'w') "
+        "ORDER BY p.proname, identity_args"
+    )
+
+
 def fetch_routine_parameters_sql() -> str:
     """SQL query para obtener parámetros de una función/procedimiento en PostgreSQL.
 
@@ -294,6 +320,7 @@ def routine_entries_to_rows(routine_rows: list[PgRoutineDetail]) -> Rows:
 __all__: list[str] = [
     "fetch_routines_sql",
     "fetch_routine_comments_for_schema_sql",
+    "fetch_routines_with_definition_for_schema_sql",
     "fetch_routine_parameters_sql",
     "decode_postgres_routine_rows",
     "decode_postgres_parameter_rows",
