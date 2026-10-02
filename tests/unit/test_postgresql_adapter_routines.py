@@ -37,6 +37,15 @@ class TestRoutinesSql:
         assert "prokind" in sql
         assert "FUNCTION" in sql or "function" in sql.lower()
 
+    def test_fetch_routines_sql_skips_functiondef_for_aggregates(self) -> None:
+        """Hotfix 2026-10-02: pg_get_functiondef falla con agregados y hacía fallar la consulta entera.
+
+        Reproducción contra PostgreSQL real: tests/integration/test_postgresql_routines_aggregates.py.
+        """
+        sql = fetch_routines_sql()
+        assert "CASE WHEN p.prokind = 'a' THEN NULL ELSE pg_get_functiondef(p.oid) END" in sql
+        assert sql.count("pg_get_functiondef") == 1  # ninguna llamada sin proteger
+
     def test_fetch_routine_parameters_sql_valid(self) -> None:
         sql = fetch_routine_parameters_sql()
         assert isinstance(sql, str)

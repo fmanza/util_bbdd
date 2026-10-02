@@ -29,6 +29,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **metadata** (hotfix): `postgresql.routines.fetch_routines_sql` fallaba entera en cualquier schema con un agregado
+  (`pg_get_functiondef` no los admite): sin routines en los adaptadores de metadatos PostgreSQL ni en
+  `migrate`. Los agregados siguen en el listado (`AGGREGATE`, `is_aggregate=1`) con la definición `NULL`.
 - **comparar** (auditoría de `comparar/` 2026-10-02, entrega 1):
   - PostgreSQL: las routines se leen en una consulta sin agregados. Antes, un agregado del schema (p.ej. de PostGIS en
     `public`) hacía fallar `pg_get_functiondef`, abortaba la transacción y todas las definiciones siguientes llegaban

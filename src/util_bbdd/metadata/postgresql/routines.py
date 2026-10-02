@@ -17,6 +17,9 @@ def fetch_routines_sql(schema: str | None = None) -> str:
 
     Returns:
         str: SQL query para (routine_name, routine_type, routine_owner, routine_definition, return_type)
+
+    Los agregados salen con ``routine_definition`` ``NULL``: ``pg_get_functiondef`` falla con ellos ("... is an
+    aggregate function") y, llamado sobre todas las filas, un solo agregado hacía fallar la consulta entera.
     """
     _schema = schema or "public"
     return (
@@ -28,7 +31,7 @@ def fetch_routines_sql(schema: str | None = None) -> str:
         "     WHEN p.prokind = 'w' THEN 'WINDOW' "
         "     ELSE 'FUNCTION' END AS routine_type, "
         "u.usename AS routine_owner, "
-        "pg_get_functiondef(p.oid) AS routine_definition, "
+        "CASE WHEN p.prokind = 'a' THEN NULL ELSE pg_get_functiondef(p.oid) END AS routine_definition, "
         "CASE WHEN p.proretset THEN 'TABLE(' || t.typname || ')' "
         "     ELSE t.typname END AS return_type, "
         "CASE WHEN p.prokind = 'a' THEN 1 ELSE 0 END AS is_aggregate, "
