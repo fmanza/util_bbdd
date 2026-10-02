@@ -69,6 +69,17 @@ class TestResolveEngineUrl:
         assert bench.resolve_engine_url("mariadb_connector", own) == "mariadb+mariadbconnector://o:x@127.0.0.1:53307/b"
         assert bench.resolve_engine_url("mariadb_connector", {}) is None
 
+    def test_mariadb_connector_is_not_in_the_default_engines_and_warns_once(
+        self, bench: ModuleType, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """I-2 (audit-code 2026-10-01): sin --engines no se mide MariaDB dos veces; el aviso de puerto sale una vez."""
+        assert "mariadb_connector" in bench.ENGINES and "mariadb_connector" not in bench.DEFAULT_ENGINES
+        with caplog.at_level("WARNING", logger="bench_bulk"):
+            bench.resolve_engine_url(
+                "mariadb_connector", {"UTIL_BBDD_TEST_MARIADB_URL": "mariadb+pymysql://u:x@db:3306/a"}
+            )
+        assert sum("puerto estándar" in r.getMessage() for r in caplog.records) == 1
+
     def test_missing_server_engine_returns_none(self, bench: ModuleType) -> None:
         assert bench.resolve_engine_url("oracle", {}) is None
 

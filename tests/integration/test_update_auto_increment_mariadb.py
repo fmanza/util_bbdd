@@ -79,6 +79,9 @@ class Scratch:
 )
 def scratch(request: pytest.FixtureRequest) -> Iterator[Scratch]:
     url = make_url(os.environ[URL_ENV])
+    if request.param == "mariadbconnector" and url.get_backend_name() != "mariadb":
+        # B-3 (audit-code 2026-10-01): con una URL de MySQL, el conector de MariaDB conectaría contra MySQL.
+        pytest.skip("el conector de MariaDB solo se prueba contra un servidor MariaDB (URL mariadb+...)")
     base_url = url.set(drivername=f"{url.get_backend_name()}+{request.param}")
     schema = f"zz_util_bbdd_autoinc_{uuid.uuid4().hex[:8]}"
     admin = create_engine(base_url, isolation_level="AUTOCOMMIT")

@@ -690,3 +690,71 @@ def test_rejects_scope_without_isolate_does_nothing(tmp_path: Path) -> None:
         crud.bulk_insert_from_df(_frame([1, 2]), "items", False)
 
     assert [r[0] for r in _rows(engine)] == [1, 2]
+
+
+# ------------------------------------------------------------------ audit-code de rejects_scope (sesión 2026-10-02)
+
+
+def test_rejects_scope_partition_must_be_an_integer(tmp_path: Path) -> None:
+    """B-1: la partición va al CSV sin neutralizar; un texto con prefijo de fórmula no puede llegar."""
+    crud = _crud(_engine(tmp_path), tmp_path)
+
+    with pytest.raises(ValueError, match="partition"):
+        with crud.rejects_scope(partition='=HYPERLINK("x")'):  # type: ignore[arg-type]
+            pass
+
+
+def test_numpy_integers_are_accepted(tmp_path: Path) -> None:
+    """B-2: row_offset, partition y max_rejects aceptan enteros de numpy (como chunk_size)."""
+    import numpy as np
+
+    engine = _engine(tmp_path)
+    crud = _crud(engine, tmp_path, max_rejects=np.int64(5))
+
+    with crud.rejects_scope(partition=np.int64(2), row_offset=np.int64(10)):
+        crud.bulk_insert_from_df(_frame([1, 2], none_at=(2,)), "items", False)
+
+    assert _rejects_with_partition(tmp_path / "rejects.csv") == [("2", 11)]
+
+
+def test_rejects_scope_counts_every_row_an_operation_received_even_if_it_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """B-4: tras un fallo capturado dentro del ámbito, la posición sigue contando las filas recibidas por la operación
+    fallida (el DataFrame entero o los chunks leídos, incluido el que falló), igual en *_from_df y en *_from_chunks."""
+    engine = _engine(tmp_path)
+    crud = _crud(engine, tmp_path)
+    executor = crud._batch_statement_executor
+    original_send = type(executor)._send
+
+    def flaky_send(self: Any, connection: Any, batch: Any, stmt: Any, strategy: Any) -> None:
+        if any(record.get("id") == 99 for record in batch):  # error no aislable: la operación falla
+            raise OperationalError("INSERT", {}, Exception("corte simulado"))
+        original_send(self, connection, batch, stmt, strategy)
+
+    monkeypatch.setattr(type(executor), "_send", flaky_send)
+    with crud.rejects_scope():
+        with pytest.raises(OperationalError):
+            crud.bulk_insert_from_df(_frame([1, 99, 3]), "items", False)  # recibe 3: posiciones 0–2
+        with pytest.raises(OperationalError):  # lee [4, 5] y [99, 6] y falla: posiciones 3–6
+            crud.bulk_insert_from_chunks(iter([_frame([4, 5]), _frame([99, 6]), _frame([7])]), "items")
+        crud.bulk_insert_from_df(_frame([8, 9], none_at=(9,)), "items", False)  # posiciones 7–8
+
+    assert _rejects_with_partition(tmp_path / "rejects.csv") == [("", 8)]
+
+
+def test_batch_errors_budget_is_shared_with_previous_operations() -> None:
+    """Presupuesto común de rejects_scope en el modo batcherrors: con 1 rechazo previo y max_rejects=2 cabe 1 más."""
+    rejected: list[int] = []
+    isolator = Isolator(
+        on_reject=lambda p, _v, _e: rejected.append(p), max_rejects=2, batch_errors=True, already_rejected=1
+    )
+    calls: list[int] = []
+
+    with pytest.raises(IntegrityError) as info:
+        isolator.run_records(
+            _Savepoints(), [{"id": i} for i in range(4)], _batch_errors_send({0, 2}, calls), first_row=0
+        )
+
+    assert rejected == [0] and calls == [4, 4]
+    assert any("max_rejects=2 solo admitía 1" in note for note in info.value.__notes__)

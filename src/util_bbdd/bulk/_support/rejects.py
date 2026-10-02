@@ -13,6 +13,7 @@ import contextlib
 import csv
 import json
 import logging
+import operator
 import sqlite3
 
 from collections.abc import Callable, Mapping, Sequence
@@ -37,6 +38,24 @@ REJECT_COLUMNS: tuple[str, ...] = ("timestamp", "tabla", "operacion", "particion
 _FORMULA_PREFIXES: tuple[str, ...] = ("=", "+", "-", "@", "\t", "\r")
 
 
+def optional_non_negative_int(value: Any, name: str) -> int | None:
+    """``value`` como ``int`` si es ``None`` o un entero ≥ 0 (también de numpy, como ``chunk_size``); si no, ``ValueError``.
+
+    B-2 (audit-code 2026-10-02): ``isinstance(x, int)`` rechazaba ``numpy.int64``, lo habitual si el valor sale de pandas.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise ValueError(f"{name} debe ser None o un entero ≥ 0, recibido: {value!r}")
+    try:
+        number = operator.index(value)
+    except TypeError:
+        raise ValueError(f"{name} debe ser None o un entero ≥ 0, recibido: {value!r}") from None
+    if number < 0:
+        raise ValueError(f"{name} debe ser None o un entero ≥ 0, recibido: {value!r}")
+    return number
+
+
 def validate_isolation(on_error: str, rejects_csv_path: Path | None, max_rejects: int | None) -> None:
     """``ValueError`` si ``on_error``, ``rejects_csv_path`` y ``max_rejects`` no son una combinación válida.
 
@@ -50,10 +69,7 @@ def validate_isolation(on_error: str, rejects_csv_path: Path | None, max_rejects
         return
     if rejects_csv_path is None:
         raise ValueError("on_error='isolate' necesita rejects_csv_path: las filas rechazadas se escriben ahí")
-    if max_rejects is not None and (
-        isinstance(max_rejects, bool) or not isinstance(max_rejects, int) or max_rejects < 0
-    ):
-        raise ValueError(f"max_rejects debe ser None o un entero ≥ 0, recibido: {max_rejects!r}")
+    optional_non_negative_int(max_rejects, "max_rejects")
 
 
 def _safe_cell(text: str) -> str:
@@ -396,4 +412,11 @@ class Isolator:
         self.rejected += 1  # M-1: solo filas entregadas (escritas): si on_reject falla, no cuenta
 
 
-__all__: list[str] = ["ISOLATED_ERRORS", "REJECT_COLUMNS", "Isolator", "RejectsWriter", "validate_isolation"]
+__all__: list[str] = [
+    "ISOLATED_ERRORS",
+    "REJECT_COLUMNS",
+    "Isolator",
+    "RejectsWriter",
+    "optional_non_negative_int",
+    "validate_isolation",
+]

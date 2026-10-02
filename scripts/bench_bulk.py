@@ -80,6 +80,9 @@ from util_bbdd.bulk._support.validation import normalize_identifier
 ROOT = Path(__file__).resolve().parent.parent
 
 ENGINES: tuple[str, ...] = ("sqlite", "postgresql", "mysql", "mariadb", "mariadb_connector", "mssql", "oracle")
+#: Motores de una ejecución sin ``--engines``: sin ``mariadb_connector``, que mediría otra vez el mismo servidor de
+#: MariaDB (I-2, audit-code 2026-10-01); se pide con ``--engines mariadb,mariadb_connector``.
+DEFAULT_ENGINES: tuple[str, ...] = tuple(engine for engine in ENGINES if engine != "mariadb_connector")
 OPS: tuple[str, ...] = ("insert", "update", "delete")
 DEFAULT_SIZES: tuple[int, ...] = (1_000, 10_000, 100_000, 1_000_000)
 TABLE_NAME = "zz_util_bbdd_bench"
@@ -116,7 +119,8 @@ def resolve_engine_url(engine_key: str, environ: dict[str, str] | None = None) -
     key = engine_key.upper()
     url = env.get(f"UTIL_BBDD_BENCH_{key}_URL") or env.get(f"UTIL_BBDD_TEST_{key}_URL")
     if not url and engine_key == "mariadb_connector":
-        mariadb_url = resolve_engine_url("mariadb", env)
+        # Directo de las variables, sin resolve_engine_url("mariadb"): si no, el aviso de puerto salía dos veces (I-2).
+        mariadb_url = env.get("UTIL_BBDD_BENCH_MARIADB_URL") or env.get("UTIL_BBDD_TEST_MARIADB_URL")
         if mariadb_url:
             url = make_url(mariadb_url).set(drivername="mariadb+mariadbconnector").render_as_string(hide_password=False)
     if url:
@@ -627,7 +631,7 @@ def _chunk_size_arg(value: str) -> int | None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--engines", default=",".join(ENGINES), type=lambda v: _csv_list(v, ENGINES, "motor"))
+    parser.add_argument("--engines", default=",".join(DEFAULT_ENGINES), type=lambda v: _csv_list(v, ENGINES, "motor"))
     parser.add_argument(
         "--sizes",
         default=",".join(str(s) for s in DEFAULT_SIZES),

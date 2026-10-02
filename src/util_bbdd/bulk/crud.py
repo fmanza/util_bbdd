@@ -73,7 +73,7 @@ from ._support.iterables import closing_iterable
 from ._support.persistence import BulkPersistenceManager
 from ._support.pk_sync import PKSequenceSyncer
 from ._support.prefetch import prefetch
-from ._support.rejects import Isolator, RejectsWriter, validate_isolation
+from ._support.rejects import Isolator, RejectsWriter, optional_non_negative_int, validate_isolation
 from ._support.sql_helpers import (
     SqlColumns,
     build_override_identity_text_stmt,
@@ -291,7 +291,8 @@ class BulkCrud:
                 ``tabla``, ``operacion``, ``fila`` (posición base 0 en la entrada; en ``*_from_chunks``, en la secuencia),
                 ``error`` (primera línea del error del driver) y ``valores`` (JSON). Contiene datos de las filas.
                 Obligatorio con ``on_error="isolate"``.
-            max_rejects: Con ``on_error="isolate"``, filas que una operación puede rechazar; la siguiente hace fallar la
+            max_rejects: Con ``on_error="isolate"``, filas que una operación (o todas las de un :meth:`rejects_scope`)
+                puede rechazar; la siguiente hace fallar la
                 operación con su error, como sin aislamiento. ``None`` (default): sin límite. Útil cuando casi todas las
                 filas podrían fallar (p. ej. recargar datos ya cargados), porque entonces se acaba enviando fila a fila.
 
@@ -305,7 +306,7 @@ class BulkCrud:
         """
         self.logger: logging.Logger = logging.getLogger(__name__)
         self._rejects: RejectsWriter | None = self.__rejects_writer(on_error, rejects_csv_path, max_rejects)
-        self._max_rejects: int | None = max_rejects
+        self._max_rejects: int | None = optional_non_negative_int(max_rejects, "max_rejects")
         self._rows_rejected: int = 0
         #: Aislador de la operación en curso (``on_error="isolate"``); None fuera de una operación.
         self._isolator: Isolator | None = None
@@ -599,6 +600,7 @@ class BulkCrud:
                 stmt, insert_cols = resolved
 
                 numero_registros: int = len(working_df)
+                isolated.rows = total + numero_registros  # B-4: filas recibidas, también si este chunk falla
                 rejected_before: int = self.__rejected_so_far()
                 size: int = self._batch_sizes["insert"]
                 start: float = perf_counter()
@@ -616,7 +618,6 @@ class BulkCrud:
                                 self.__ejecutar_batch_stmt(records_sql, stmt, len(records_sql), total + index * size)
                 elapsed: float = perf_counter() - start
                 total += numero_registros
-                isolated.rows = total  # posiciones de la secuencia, para rejects_scope
 
                 self._persistence.register_operation(
                     table_name=tabla_destino,
@@ -687,6 +688,7 @@ class BulkCrud:
                 if chunk.empty:
                     continue
                 self._stream = _StreamPosition(chunk=chunk_index, row_offset=total, first=first)
+                isolated.rows = total + len(chunk)  # B-4: filas recibidas, también si este chunk falla
                 try:
                     self.__run_bulk_pipeline(
                         df=chunk,
@@ -699,7 +701,6 @@ class BulkCrud:
                     self._stream = None
                 first = False
                 total += len(chunk)
-                isolated.rows = total  # posiciones de la secuencia, para rejects_scope
         self.logger.info(f"✅ bulk {strategy_key.upper()} (chunks) finalizado: {total} filas ({self.db_info}).")
         return total
 
@@ -747,14 +748,17 @@ class BulkCrud:
         posición dentro de la operación. ``partition`` va a la columna ``particion``. Pensado para cargar por chunks
         dentro de :meth:`bulk_session` (cada ``bulk_*_from_df`` es una operación) o para reanudar una secuencia
         (``row_offset`` = filas ya confirmadas). ``ParallelBulkLoader`` envuelve así cada intento de cada partición.
-        Sin ``on_error="isolate"`` no hace nada.
+        Sin ``on_error="isolate"`` no hace nada. Cada operación avanza la posición con todas las filas que recibió,
+        también si falla: el DataFrame entero de un ``*_from_df``, o los chunks leídos (incluido el que falló) de un
+        ``*_from_chunks`` (B-4, audit-code 2026-10-02).
 
         Args:
             partition: Valor de la columna ``particion`` del CSV de rechazos (``None``: vacía).
             row_offset: Posición (base 0) de la primera fila de la primera operación del bloque.
 
         Raises:
-            ValueError: Si ``row_offset`` no es un entero ≥ 0.
+            ValueError: Si ``row_offset`` no es un entero ≥ 0 o ``partition`` no es ``None`` ni un entero ≥ 0 (también
+                de numpy).
             RuntimeError: Si ya hay un ``rejects_scope`` abierto en la instancia.
 
         Example:
@@ -762,11 +766,14 @@ class BulkCrud:
             ...     for chunk in pd.read_csv("datos.csv", chunksize=50_000):
             ...         crud.bulk_insert_from_df(chunk, "items", generar_sql=False)
         """
-        if isinstance(row_offset, bool) or not isinstance(row_offset, int) or row_offset < 0:
+        # B-1 (audit-code 2026-10-02): partition va sin neutralizar al CSV (se abre en Excel); solo enteros.
+        checked_partition = optional_non_negative_int(partition, "partition")
+        checked_offset = optional_non_negative_int(row_offset, "row_offset")
+        if checked_offset is None:
             raise ValueError(f"row_offset debe ser un entero ≥ 0, recibido: {row_offset!r}")
         if self._rejects_scope is not None:
             raise RuntimeError("rejects_scope ya está abierto en esta instancia de BulkCrud")
-        self._rejects_scope = _RejectsScope(partition=partition, row_offset=row_offset)
+        self._rejects_scope = _RejectsScope(partition=checked_partition, row_offset=checked_offset)
         try:
             yield
         finally:

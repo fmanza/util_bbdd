@@ -20,6 +20,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **bulk**: `ParallelBulkLoader(on_error="isolate", disable_constraints=True)` en los motores sin hoist (todos salvo
   PostgreSQL y SQL Server) cargaba la partición chunk a chunk y la posición del rechazo era la del chunk (`[1, 1]` en
   lugar de `[1, 4]`) y `max_rejects` contaba por chunk, no por partición (desde la 0.27.0).
+- **bulk**: `rejects_scope` solo admite una `partition` entera (iba sin neutralizar al CSV de rechazos, que se abre en
+  Excel); `row_offset`, `partition` y `max_rejects` aceptan enteros de numpy, como `chunk_size`; tras un fallo capturado
+  dentro del ámbito, `*_from_chunks` avanza la posición con los chunks leídos, incluido el que falló, como `*_from_df`
+  con su DataFrame (audit-code 2026-10-02).
+- **scripts**: `bench_bulk.py` ya no mide MariaDB dos veces sin `--engines` (`mariadb_connector` se pide aparte) ni avisa
+  dos veces del puerto estándar.
+- **tests**: `test_update_auto_increment_mariadb.py` no prueba el conector de MariaDB contra una URL de MySQL.
 
 ## [0.27.1] - 2026-10-01
 
