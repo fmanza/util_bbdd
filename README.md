@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, MySQL, Oracle, PostgreSQL, SQLite y SQL Server (sync y async), y HSQLDB, Redshift y Snowflake (sync).
 
-**Version:** 0.27.1 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 0.28.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -1103,7 +1103,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.27.1** (correcciones de `on_error="isolate"`: conciliación de `ParallelLoadResult` y `VARCHAR2` largo en Oracle; MariaDB probado también con su conector original, 1,9× más rápido en INSERT masivo que PyMySQL)
+**Current Version: v0.28.0** (`BulkCrud.rejects_scope`: varias operaciones como una sola secuencia para los rechazos de `on_error="isolate"`; corrige la posición y `max_rejects` de `ParallelBulkLoader` con `disable_constraints=True`)
 
 Roadmap resumido (ver [ROADMAP completo](docs/roadmap.md) y
 [CHANGELOG](CHANGELOG.md) para el detalle):

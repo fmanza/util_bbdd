@@ -7,6 +7,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-10-02
+
+`BulkCrud.rejects_scope` agrupa varias operaciones en una sola secuencia para los rechazos de
+`on_error="isolate"`. Con él, `ParallelBulkLoader` deja de usar miembros privados de `BulkCrud`, y se corrige que,
+con `disable_constraints=True`, la posición del rechazo y `max_rejects` contaran por chunk y no por partición. Incluye
+las correcciones del audit-code de `isolate` de extremo a extremo. Sin cambios incompatibles.
+
 ### Added
 
 - **bulk**: `BulkCrud.rejects_scope(*, partition=None, row_offset=0)`: con `on_error="isolate"`, las operaciones del

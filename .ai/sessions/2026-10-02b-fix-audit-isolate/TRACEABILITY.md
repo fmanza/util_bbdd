@@ -32,6 +32,20 @@
 `ruff`/`mypy` limpios (391); `pytest` 5993 passed, 436 skipped; `tests/integration` 582 passed; `zensical build
 --strict` sin avisos.
 
+## VERSION — v0.28.0 (`/version-closure`)
+- Alcance (`97b595d..HEAD`): plan (`8761ea6`), `rejects_scope` y corrección de `disable_constraints` (`349d212`,
+  `8c5796e`), correcciones del audit-code (`83f58fe`).
+- SemVer MINOR: API nueva (`BulkCrud.rejects_scope`); cambios observables solo con `on_error="isolate"` (posiciones y
+  `max_rejects` correctos con `disable_constraints`; `partition` solo entera; enteros de numpy aceptados; avance del ámbito
+  tras fallo) y en el banco (`--engines` por defecto). Sin incompatibilidades ni migraciones; Python `>=3.12`.
+- Versión `0.28.0` en `pyproject.toml`, `README.md`, `docs/index.md`, `docs/roadmap.md` y pie de `docs/architecture.md`;
+  `CHANGELOG.md` `[Unreleased]` → `[0.28.0] - 2026-10-02`; `.ai/CURRENT_STATE.md` y `SESSIONS_DIGEST.md`.
+- Checklist: `ruff`/`format --check` y `mypy` (391) limpios; `pytest` 5993 passed / 436 skipped;
+  `tests/integration` 582 passed; `python -m build` → `util_bbdd-0.28.0`; `zensical build --strict` sin avisos.
+- Rollback: tag `v0.27.1` o `git revert` de `83f58fe` y `349d212`; quien use `rejects_scope` recibe `AttributeError`.
+- Limitaciones: issue del ORA-03106 sin publicar; S-1 NO_GO; sin lock entre procesos para los CSV.
+- Handoff: push de `develop` y tag `v0.28.0`.
+
 ## Directrices para Futuras IAs
 - **[bulk/validación]**: los parámetros enteros públicos se validan con `operator.index` (aceptan numpy), no con
   `isinstance(x, int)`: `validate_chunk_size`, `optional_non_negative_int`.
