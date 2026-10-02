@@ -245,6 +245,7 @@ Personalizaciones por contexto:
   - 2 flujos operativos de agente: `performance_audit_dump_agent`, `performance_audit_constraints_agent`
   - Documentación: arquetipos `functional_doc`, `technical_doc`, `guide_doc`, `example_doc`, `architecture_doc`, `landing_doc`, `onboarding_dev`, `normative_traceability`, y `documentation_review`
   - Apoyo: `bootstrap_ai_config` y el análisis de reutilización `code_reusability_architecture` (+ `_quick`; guía en `docs/guides/code_reusability_analysis_guide.md`)
+  - Diseño acotado: `audit_module` (módulo de auditoría centralizado para `bulk`/`dump`/`migrate`; se usa con `/new-feature` y manda sobre `new_feature`; línea base en `.ai/audit/audit_module_baseline_inventory.md`)
   - Sin conteos fijos: el listado real es la carpeta.
 - **Instrucciones**: `.github/instructions/*.instructions.md` — reglas por tipo de archivo
 - **Hooks**: `.claude/settings.json` — hooks PostToolUse (ruff check, mypy, recogida de pytest)
