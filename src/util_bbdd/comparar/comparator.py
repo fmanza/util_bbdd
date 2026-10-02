@@ -436,9 +436,24 @@ class SchemaComparator:
             (idx for idx in target_idx if idx.get("name")), self._index_name, kind="índices destino"
         )
 
+        # Índices con nombre generado (UQ__…, SYS_C… de un UNIQUE sin nombre): emparejados por estructura.
+        only_source: list[str] = sorted(source_map.keys() - target_map.keys())
+        only_target: list[str] = sorted(target_map.keys() - source_map.keys())
+        by_structure: dict[str, str] = self._match_by_structure(
+            source_map,
+            target_map,
+            only_source,
+            only_target,
+            patterns=self._GENERATED_INDEX_NAME_PATTERNS,
+            structure=self._index_structure,
+        )
+        matched_target: set[str] = set(by_structure.values())
+
         diffs: list[IndexDiff] = []
 
-        for key in sorted(source_map.keys() - target_map.keys()):
+        for key in only_source:
+            if key in by_structure:
+                continue
             source_index_dict = source_map[key]
             diffs.append(
                 IndexDiff(
@@ -450,7 +465,9 @@ class SchemaComparator:
                 ),
             )
 
-        for key in sorted(target_map.keys() - source_map.keys()):
+        for key in only_target:
+            if key in matched_target:
+                continue
             target_index_dict = target_map[key]
             diffs.append(
                 IndexDiff(
@@ -508,7 +525,14 @@ class SchemaComparator:
         # no casan por nombre se emparejan por estructura (y, al ser igual, no hay diferencia).
         only_source: list[str] = sorted(source_map.keys() - target_map.keys())
         only_target: list[str] = sorted(target_map.keys() - source_map.keys())
-        by_structure: dict[str, str] = self._match_generated_fks(source_map, target_map, only_source, only_target)
+        by_structure: dict[str, str] = self._match_by_structure(
+            source_map,
+            target_map,
+            only_source,
+            only_target,
+            patterns=self._GENERATED_FK_NAME_PATTERNS,
+            structure=self._fk_structure,
+        )
         matched_target: set[str] = set(by_structure.values())
 
         diffs: list[ForeignKeyDiff] = []
@@ -803,6 +827,15 @@ class SchemaComparator:
         re.compile(r"_ibfk_\d+$", re.IGNORECASE),  # MySQL/MariaDB: <tabla>_ibfk_<N>
     )
 
+    #: Nombres de índice que genera el motor (sobre todo para un ``UNIQUE`` sin nombre); verificados en el banco.
+    #: MySQL/MariaDB no figuran: nombran el índice como su primera columna (``a``, ``a_2``), indistinguible de un
+    #: nombre puesto a mano y estable entre schemas.
+    _GENERATED_INDEX_NAME_PATTERNS: ClassVar[tuple[re.Pattern[str], ...]] = (
+        re.compile(r"^SYS_C\d+$", re.IGNORECASE),  # Oracle
+        re.compile(r"^UQ__.+__[0-9A-F]{16}$", re.IGNORECASE),  # SQL Server: UQ__<tabla>__<hex16>
+        re.compile(r"_(key|idx)\d*$", re.IGNORECASE),  # PostgreSQL: <tabla>_<cols>_key / _idx [N]
+    )
+
     #: Abreviaturas de dialect SQLAlchemy para nombres de fichero de reporte.
     _DIALECT_ABBREV: ClassVar[dict[str, str]] = {
         "postgresql": "pg",
@@ -878,39 +911,48 @@ class SchemaComparator:
         return DdlNormalizer.normalize_for_comparison(definition)
 
     @classmethod
-    def _match_generated_fks(
+    def _match_by_structure[T: (ReflectedForeignKeyConstraint, ReflectedIndex)](
         cls,
-        source_map: Mapping[str, ReflectedForeignKeyConstraint],
-        target_map: Mapping[str, ReflectedForeignKeyConstraint],
+        source_map: Mapping[str, T],
+        target_map: Mapping[str, T],
         only_source: list[str],
         only_target: list[str],
+        *,
+        patterns: tuple[re.Pattern[str], ...],
+        structure: Callable[[T], tuple[str | bool, ...]],
     ) -> dict[str, str]:
-        """Empareja por estructura las FKs sin pareja por nombre cuyo nombre generó el motor en ambos lados.
+        """Empareja por estructura las FKs o índices sin pareja por nombre cuyo nombre generó el motor en ambos lados.
 
-        Solo si los dos nombres son generados (o no hay nombre): una FK con nombre puesto por el usuario sigue
-        saliendo como añadida/eliminada, porque el nombre distinto es una diferencia real. Emparejamiento uno a uno,
-        en el orden de las claves.
+        Los nombres que genera el motor cuando no se da uno (Oracle ``SYS_C…``, SQL Server ``FK__…``/``UQ__…``)
+        cambian entre schemas con el mismo objeto. Solo se emparejan si los dos nombres son generados (o no hay
+        nombre): un nombre puesto por el usuario que cambia es una diferencia real. Uno a uno, en el orden de las
+        claves.
 
         Returns:
-            Clave de la FK origen → clave de la FK destino emparejada.
+            Clave del objeto origen → clave del objeto destino emparejado.
         """
-        free_target: list[str] = [k for k in only_target if cls._is_generated_fk_name(target_map[k].get("name"))]
+        free_target: list[str] = [k for k in only_target if cls._is_generated_name(target_map[k].get("name"), patterns)]
         matches: dict[str, str] = {}
         for s_key in only_source:
-            s_fk = source_map[s_key]
-            if not cls._is_generated_fk_name(s_fk.get("name")):
+            s_obj = source_map[s_key]
+            if not cls._is_generated_name(s_obj.get("name"), patterns):
                 continue
-            structure = cls._fk_structure(s_fk)
-            t_key = next((k for k in free_target if cls._fk_structure(target_map[k]) == structure), None)
+            wanted = structure(s_obj)
+            t_key = next((k for k in free_target if structure(target_map[k]) == wanted), None)
             if t_key is not None:
                 matches[s_key] = t_key
                 free_target.remove(t_key)
         return matches
 
+    @staticmethod
+    def _is_generated_name(name: str | None, patterns: tuple[re.Pattern[str], ...]) -> bool:
+        """Si el nombre de una FK o índice lo generó el motor (o no tiene nombre)."""
+        return not name or any(pattern.search(name) for pattern in patterns)
+
     @classmethod
-    def _is_generated_fk_name(cls, name: str | None) -> bool:
-        """Si el nombre de una FK lo generó el motor (o no tiene nombre)."""
-        return not name or any(pattern.search(name) for pattern in cls._GENERATED_FK_NAME_PATTERNS)
+    def _index_structure(cls, index: ReflectedIndex) -> tuple[str, bool]:
+        """Columnas (en minúsculas) y unicidad de un índice."""
+        return cls._join_columns(index.get("column_names")).lower(), bool(index.get("unique", False))
 
     @classmethod
     def _fk_structure(cls, fk: ReflectedForeignKeyConstraint) -> tuple[str, str, str]:

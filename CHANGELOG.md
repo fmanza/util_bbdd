@@ -29,6 +29,9 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **comparar**: los índices con nombre generado por el motor (un `UNIQUE` sin nombre: Oracle `SYS_C…`, SQL Server
+  `UQ__…__XXXXXXXXXXXXXXXX`, PostgreSQL `…_key`/`…_idx`) se emparejan por columnas y unicidad cuando no casan por
+  nombre, como las FKs; antes salían como eliminado + añadido entre dos schemas de SQL Server u Oracle.
 - **comparar**: las FKs con nombre generado por el motor (Oracle `SYS_C…`, SQL Server `FK__…__XXXXXXXX`, PostgreSQL
   `…_fkey`, MySQL/MariaDB `…_ibfk_N`, o sin nombre) se emparejan por estructura cuando no casan por nombre. Entre dos
   schemas de SQL Server u Oracle, todas las tablas con FKs sin nombre explícito salían como modificadas (FK eliminada +

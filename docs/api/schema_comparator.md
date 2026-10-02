@@ -71,7 +71,9 @@ flowchart TD
 - Las FKs cuyo nombre genera el motor (Oracle `SYS_C…`, SQL Server `FK__…__XXXXXXXX`, PostgreSQL `…_fkey`, MySQL/MariaDB
   `…_ibfk_N`, o sin nombre) se emparejan por estructura (columnas, tabla y columnas referenciadas) si no casan por
   nombre: la misma FK no sale como eliminada + añadida. Si alguno de los dos nombres lo puso el usuario, un nombre
-  distinto sí es una diferencia.
+  distinto sí es una diferencia. Igual con los índices (columnas y unicidad) de un `UNIQUE` sin nombre: Oracle
+  `SYS_C…`, SQL Server `UQ__…__XXXXXXXXXXXXXXXX`, PostgreSQL `…_key`/`…_idx`. MySQL/MariaDB nombran el índice como su
+  columna, así que no se reconoce como generado.
 - Las sobrecargas de PostgreSQL se emparejan por firma (tipos de los argumentos); `routine_name` lleva la firma solo
   si hay sobrecargas en ese lado.
 

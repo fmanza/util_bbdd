@@ -390,3 +390,48 @@ class TestGeneratedForeignKeyNames:
         target = [_fk("SYS_C7", ["a"])]
 
         assert self._fk_diffs(comparator, source, target) == [("SYS_C2", "added")]
+
+
+def _ix(name: str, cols: list[str], *, unique: bool = True) -> dict[str, Any]:
+    return {"name": name, "column_names": cols, "unique": unique}
+
+
+class TestGeneratedIndexNames:
+    """Nombres reales de un UNIQUE sin nombre, tomados del banco (SQL Server 2022, Oracle 23ai, PostgreSQL 17)."""
+
+    def _idx_diffs(self, comparator: SchemaComparator, source: list[Any], target: list[Any]) -> list[tuple[str, str]]:
+        diff = comparator.compare(
+            _FakeInspector(tables=["t"], indexes=source),
+            _FakeInspector(tables=["t"], indexes=target),
+            include_views=False,
+        )
+        return [(i.index_name, i.status) for td in diff.table_diffs for i in td.index_diffs]
+
+    @pytest.mark.parametrize(
+        ("source_name", "target_name"),
+        [
+            ("UQ__zzix6f6b__3BD0198F43553E7D", "UQ__zzix6f6b__D86D1817E4458CE6"),  # SQL Server
+            ("sys_c0021957", "sys_c0034001"),  # Oracle (SQLAlchemy normaliza a minúsculas)
+            ("UQ__zzix6f6b__3BD0198F43553E7D", "t_a_key"),  # SQL Server frente a PostgreSQL
+        ],
+    )
+    def test_same_unique_index_with_generated_names_is_not_a_difference(
+        self, comparator: SchemaComparator, source_name: str, target_name: str
+    ) -> None:
+        assert self._idx_diffs(comparator, [_ix(source_name, ["A"])], [_ix(target_name, ["a"])]) == []
+
+    def test_uniqueness_is_part_of_the_structure(self, comparator: SchemaComparator) -> None:
+        diffs = self._idx_diffs(comparator, [_ix("SYS_C1", ["a"], unique=True)], [_ix("SYS_C2", ["a"], unique=False)])
+
+        assert diffs == [("SYS_C1", "added"), ("SYS_C2", "removed")]
+
+    def test_user_named_index_is_not_matched_by_structure(self, comparator: SchemaComparator) -> None:
+        diffs = self._idx_diffs(comparator, [_ix("uq_cliente_email", ["a"])], [_ix("SYS_C2", ["a"])])
+
+        assert diffs == [("uq_cliente_email", "added"), ("SYS_C2", "removed")]
+
+    def test_mysql_column_named_indexes_are_not_treated_as_generated(self, comparator: SchemaComparator) -> None:
+        """MySQL/MariaDB nombran el índice como su columna: indistinguible de un nombre puesto a mano."""
+        diffs = self._idx_diffs(comparator, [_ix("a", ["a"])], [_ix("a_2", ["a"])])
+
+        assert diffs == [("a", "added"), ("a_2", "removed")]
