@@ -622,3 +622,71 @@ def test_update_uses_batch_errors_only_without_lob_columns(
     crud.bulk_update_from_df(pd.DataFrame({"id": [1, 2], column: ["c", "d"]}), "items", False)
 
     assert seen == [expected]
+
+
+# ------------------------------------------------------------------------------- rejects_scope (sesión 2026-10-02)
+
+
+def _rejects_with_partition(path: Path) -> list[tuple[str, int]]:
+    with path.open(encoding="utf-8", newline="") as handle:
+        return [(r["particion"], int(r["fila"])) for r in csv.DictReader(handle, delimiter="\t")]
+
+
+def test_rejects_scope_makes_one_sequence_of_several_operations(tmp_path: Path) -> None:
+    """Chunks dentro de bulk_session: la posición continúa entre operaciones y desde row_offset; partición en el CSV."""
+    engine = _engine(tmp_path)
+    crud = _crud(engine, tmp_path)
+
+    with crud.bulk_session(), crud.rejects_scope(partition=7, row_offset=100):
+        crud.bulk_insert_from_df(_frame([1, 2, 3], none_at=(2,)), "items", False)  # posiciones 100–102
+        crud.bulk_insert_from_df(_frame([4, 5], none_at=(5,)), "items", False)  # posiciones 103–104
+
+    assert _rejects_with_partition(tmp_path / "rejects.csv") == [("7", 101), ("7", 104)]
+    assert [r[0] for r in _rows(engine)] == [1, 3, 4]
+
+
+def test_rejects_scope_shares_the_max_rejects_budget(tmp_path: Path) -> None:
+    engine = _engine(tmp_path)
+    crud = _crud(engine, tmp_path, max_rejects=1)
+
+    with crud.rejects_scope():
+        crud.bulk_insert_from_df(_frame([1, 2], none_at=(2,)), "items", False)
+        with pytest.raises(IntegrityError) as info:  # el segundo rechazo supera el presupuesto común
+            crud.bulk_insert_from_df(_frame([3, 4], none_at=(4,)), "items", False)
+
+    assert any("max_rejects=1" in note for note in info.value.__notes__)
+    assert _rejects_with_partition(tmp_path / "rejects.csv") == [("", 1)]
+
+
+def test_rejects_scope_with_streams_continues_the_sequence(tmp_path: Path) -> None:
+    engine = _engine(tmp_path)
+    crud = _crud(engine, tmp_path)
+
+    with crud.rejects_scope(row_offset=10):
+        crud.bulk_insert_from_chunks(iter([_frame([1, 2]), _frame([3, 4], none_at=(4,))]), "items")  # 10–13
+        crud.bulk_update_from_chunks(iter([_frame([1, 3], "u", none_at=(3,))]), "items")  # 14–15
+
+    assert _rejects_with_partition(tmp_path / "rejects.csv") == [("", 13), ("", 15)]
+
+
+def test_rejects_scope_cannot_be_nested_and_validates_row_offset(tmp_path: Path) -> None:
+    crud = _crud(_engine(tmp_path), tmp_path)
+
+    with pytest.raises(ValueError, match="row_offset"):
+        with crud.rejects_scope(row_offset=-1):
+            pass
+    with crud.rejects_scope(), pytest.raises(RuntimeError, match="ya está abierto"):
+        with crud.rejects_scope():
+            pass
+    with crud.rejects_scope():  # el anterior se cerró aunque fallara el anidado
+        pass
+
+
+def test_rejects_scope_without_isolate_does_nothing(tmp_path: Path) -> None:
+    engine = _engine(tmp_path)
+    crud = BulkCrud(engine, warn_if_audit_disabled=False)
+
+    with crud.rejects_scope(partition=1, row_offset=5):
+        crud.bulk_insert_from_df(_frame([1, 2]), "items", False)
+
+    assert [r[0] for r in _rows(engine)] == [1, 2]

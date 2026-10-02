@@ -768,3 +768,38 @@ def test_parallel_isolate_load_update_delete(engine: Engine, tmp_path: Any) -> N
     finally:
         child.drop(engine, checkfirst=True)
         table.drop(engine, checkfirst=True)
+
+
+@pytest.mark.parametrize("engine", _engine_params(exclude=frozenset({"sqlite", "mssql"})), indirect=True)
+@pytest.mark.parametrize("disable_constraints", [False, True], ids=["streams", "constraints_desactivadas"])
+def test_parallel_isolate_positions_with_disable_constraints(
+    engine: Engine,  # noqa: F811
+    disable_constraints: bool,
+    tmp_path: Any,
+) -> None:
+    """Sesión 2026-10-02: sin hoist (MySQL, MariaDB, Oracle) la partición se carga chunk a chunk; con rejects_scope la
+    posición es la de la partición y max_rejects cuenta por partición (antes, por chunk)."""
+    n = lambda logical: _name(logical, engine)  # noqa: E731
+    table = _isolate_table(engine)  # ids 1..20, v String(5)
+    try:
+        chunks = [
+            pd.DataFrame({n("id"): [101, 102, 103], n("v"): ["a", "demasiado", "c"]}),
+            pd.DataFrame({n("id"): [104, 105, 106], n("v"): ["d", "demasiado", "f"]}),
+        ]
+        loader = ParallelBulkLoader(
+            engine,
+            max_workers=1,
+            chunk_size=10,
+            disable_constraints=disable_constraints,
+            on_error="isolate",
+            rejects_csv_path=tmp_path / "r.csv",
+            max_rejects=1,
+        )
+        result = loader.load(table.name, [lambda: iter(chunks)])
+
+        assert len(result.partition_errors) == 1  # el 2.º rechazo de la partición supera max_rejects=1
+        rejects = pd.read_csv(tmp_path / "r.csv", sep="\t")
+        assert list(zip(rejects["particion"], rejects["fila"], strict=True)) == [(0, 1)]
+        assert [row[0] for row in _state(engine, table)] == list(range(1, 21))  # la partición se deshizo
+    finally:
+        table.drop(engine, checkfirst=True)

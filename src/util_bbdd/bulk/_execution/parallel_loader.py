@@ -602,19 +602,21 @@ class ParallelBulkLoader:
             resume_from: int = crud.rows_committed if attempt and self._commit_every_n_chunks is not None else 0
             if resume_from:
                 self.logger.info("Partición %d: se reanuda tras %d filas ya confirmadas", index, resume_from)
-            crud._tag_rejects(index, resume_from)
             rejected_before: int = crud.rows_rejected
             try:
-                rows = self._run_attempt(
-                    crud,
-                    tabla_destino,
-                    reader,
-                    override_identity,
-                    exclude_autoincrement_pk,
-                    skip_maintenance,
-                    operation=operation,
-                    skip_rows=resume_from,
-                )
+                # Rechazos con la partición y su posición en ella (también tras saltar lo confirmado y en la vía de
+                # maintenance_scope, que carga chunk a chunk), con un presupuesto de max_rejects por intento.
+                with crud.rejects_scope(partition=index, row_offset=resume_from):
+                    rows = self._run_attempt(
+                        crud,
+                        tabla_destino,
+                        reader,
+                        override_identity,
+                        exclude_autoincrement_pk,
+                        skip_maintenance,
+                        operation=operation,
+                        skip_rows=resume_from,
+                    )
                 return self._partition_result(
                     crud, index, t_start, rows=resume_from + rows, retries=attempt, retry_wait_seconds=waited
                 )

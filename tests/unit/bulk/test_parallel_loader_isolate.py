@@ -181,3 +181,25 @@ def test_raise_is_unchanged(tmp_path: Path) -> None:
     assert len(result.partition_errors) == 1
     assert result.rows_rejected == 0
     assert _ids(engine) == []
+
+
+@pytest.mark.parametrize("disable_constraints", [False, True], ids=["streams", "maintenance_scope"])
+def test_positions_and_max_rejects_are_per_partition_on_both_paths(tmp_path: Path, disable_constraints: bool) -> None:
+    """Sesión 2026-10-02: con disable_constraints (sin hoist) la partición se carga chunk a chunk con bulk_insert_from_df;
+    la posición era la del chunk ([1, 1]) y max_rejects contaba por chunk. Con rejects_scope, igual que por streams."""
+    engine = _engine(tmp_path)
+    chunks = [_frame([1, 2, 3], none_at=(2,)), _frame([4, 5, 6], none_at=(5,))]
+
+    result = _loader(engine, tmp_path, chunk_size=10, disable_constraints=disable_constraints).load(
+        "items", [_reader(*chunks)]
+    )
+    assert not result.partition_errors
+    assert _rejects(tmp_path / "rejects.csv") == [("INSERT", 0, 1), ("INSERT", 0, 4)]
+
+    (tmp_path / "rejects.csv").unlink()
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM items"))
+    limited = _loader(engine, tmp_path, chunk_size=10, disable_constraints=disable_constraints, max_rejects=1)
+    result = limited.load("items", [_reader(*chunks)])
+    assert len(result.partition_errors) == 1  # el segundo rechazo de la partición supera max_rejects=1
+    assert _rejects(tmp_path / "rejects.csv") == [("INSERT", 0, 1)]

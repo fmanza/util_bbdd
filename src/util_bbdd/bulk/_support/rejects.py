@@ -220,9 +220,13 @@ class Isolator:
         on_reject: Callable[[int, Mapping[str, Any], BaseException], None],
         max_rejects: int | None = None,
         batch_errors: bool = False,
+        already_rejected: int = 0,
     ) -> None:
         self._on_reject = on_reject
         self._max_rejects = max_rejects
+        #: Rechazos de operaciones anteriores del mismo ``BulkCrud.rejects_scope``: comparten el presupuesto de
+        #: ``max_rejects`` (sesión 2026-10-02).
+        self._already_rejected: int = already_rejected
         #: Oracle con oracledb: un envío por lote con ``batcherrors`` en lugar de bisección (S-5, sesión 2026-10-01s).
         #: ``BulkCrud`` lo desactiva en el UPDATE con columnas LOB (ORA-03106 del driver con ``batcherrors``).
         self.batch_errors: bool = batch_errors
@@ -338,7 +342,9 @@ class Isolator:
                 savepoint.rollback()
             raise
         errors.sort(key=lambda batch_error: batch_error.offset)
-        budget: int | None = None if self._max_rejects is None else self._max_rejects - self.rejected
+        budget: int | None = (
+            None if self._max_rejects is None else self._max_rejects - self._already_rejected - self.rejected
+        )
         accepted = errors if budget is None else errors[:budget]
         for batch_error in accepted:
             offset: int = batch_error.offset
@@ -380,7 +386,7 @@ class Isolator:
         self._run(connection, cut(items, half, size), send, first_row=first_row + half, cut=cut, row=row)
 
     def _reject(self, position: int, values: Mapping[str, Any], error: BaseException) -> None:
-        if self._max_rejects is not None and self.rejected >= self._max_rejects:
+        if self._max_rejects is not None and self._already_rejected + self.rejected >= self._max_rejects:
             error.add_note(
                 f"bulk: la fila {position} de la entrada habría superado max_rejects={self._max_rejects}; "
                 "la operación falla como sin on_error='isolate'"
