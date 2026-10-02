@@ -21,7 +21,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import ClassVar, TextIO
+from typing import TextIO
 
 import pandas as pd
 
@@ -75,9 +75,6 @@ class AuditRecordValidator:
 
 class AuditCsvRepository:
     """Gestiona almacenamiento CSV de auditoría y caché de lecturas."""
-
-    #: Columnas que usa :meth:`read_since` para decidir si un fragmento es legible.
-    COLUMNS: ClassVar[tuple[str, ...]] = AUDIT_COLUMNS
 
     def __init__(
         self,

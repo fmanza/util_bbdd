@@ -45,8 +45,8 @@ class NullAuditSink(_ClosableSink):
         >>> sink.write([])
     """
 
-    def write(self, events: Sequence[AuditEvent], /) -> None:
-        """Descarta ``events``."""
+    def write(self, _events: Sequence[AuditEvent], /) -> None:
+        """Descarta los eventos (posicional, como exige :class:`~util_bbdd.audit.contracts.AuditSink`)."""
         with self._lock:
             self._check_open()
 

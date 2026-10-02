@@ -513,31 +513,30 @@ class ParallelBulkLoader:
             if self._disable_constraints and operation == "insert"
             else contextlib.nullcontext(False)
         )
-        with constraint_ctx as skip_maintenance:
-            with ThreadPoolExecutor(max_workers=workers) as pool:
-                futures = [
-                    pool.submit(
-                        self._load_partition,
-                        tabla_destino,
-                        reader,
-                        override_identity,
-                        exclude_autoincrement_pk,
-                        index,
-                        skip_maintenance,
-                        operation=operation,
-                        max_retries=self._max_retries
-                        if operation == "insert"
-                        else max(self._max_retries, _IDEMPOTENT_MIN_RETRIES),
-                        audit_run_id=run_id,
-                    )
-                    for index, reader in enumerate(partition_readers)
-                ]
-                for future in as_completed(futures):
-                    pr: PartitionResult = future.result()
-                    result.total_rows += pr.rows
-                    result.partition_results.append(pr)
-                    if pr.error is not None:
-                        result.partition_errors.append(pr.error)
+        with constraint_ctx as skip_maintenance, ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [
+                pool.submit(
+                    self._load_partition,
+                    tabla_destino,
+                    reader,
+                    override_identity,
+                    exclude_autoincrement_pk,
+                    index,
+                    skip_maintenance,
+                    operation=operation,
+                    max_retries=self._max_retries
+                    if operation == "insert"
+                    else max(self._max_retries, _IDEMPOTENT_MIN_RETRIES),
+                    audit_run_id=run_id,
+                )
+                for index, reader in enumerate(partition_readers)
+            ]
+            for future in as_completed(futures):
+                pr: PartitionResult = future.result()
+                result.total_rows += pr.rows
+                result.partition_results.append(pr)
+                if pr.error is not None:
+                    result.partition_errors.append(pr.error)
 
         result.elapsed_seconds = time.perf_counter() - t_start
         self._write_load_events(result, tabla_destino, operation)
@@ -647,11 +646,7 @@ class ParallelBulkLoader:
         for attempt in range(retries + 1):
             if attempt:
                 waited += self._wait_before_retry(index, attempt)
-            # B-11: las filas confirmadas por intentos anteriores (prefijo de la partición) no se vuelven a enviar.
-            # Solo con cadencia: en modo atómico un fallo deshace la partición entera y se reintenta desde el principio.
-            resume_from: int = crud.rows_committed if attempt and self._commit_every_n_chunks is not None else 0
-            if resume_from:
-                self.logger.info("Partición %d: se reanuda tras %d filas ya confirmadas", index, resume_from)
+            resume_from: int = self._resume_offset(crud, index, attempt)
             rejected_before: int = crud.rows_rejected
             try:
                 # Rechazos con la partición y su posición en ella (también tras saltar lo confirmado y en la vía de
@@ -672,53 +667,19 @@ class ParallelBulkLoader:
                 )
 
             except Exception as exc:
-                if not self._retry_on(exc):
-                    return self._permanent_failure(crud, index, t_start, tabla_destino, exc, attempt, waited)
+                stop = self._stop_retrying(
+                    crud,
+                    index,
+                    t_start,
+                    tabla_destino,
+                    exc,
+                    attempt=attempt,
+                    waited=waited,
+                    rejected_now=crud.rows_rejected - rejected_before,
+                )
+                if stop is not None:
+                    return stop
                 last_exc = exc
-                rejected_now: int = crud.rows_rejected - rejected_before
-                if rejected_now > 0:
-                    # Fase 3 (D-2): los rechazos de este intento ya están en el CSV; reintentarlo los escribiría otra vez.
-                    self.logger.warning(
-                        "Partición %d de '%s': falló tras escribir %d rechazos; no se reintenta para no duplicarlos: %s",
-                        index,
-                        tabla_destino,
-                        rejected_now,
-                        exc,
-                    )
-                    return self._partition_result(
-                        crud,
-                        index,
-                        t_start,
-                        rows=crud.rows_committed,
-                        retries=attempt,
-                        retry_wait_seconds=waited,
-                        error=(
-                            f"{_partition_error(index, exc)} (el CSV de rechazos contiene {rejected_now} filas de este "
-                            "intento; reintentar la partición las duplicaría)"
-                        ),
-                    )
-                if crud.audit_uncommitted_records > 0:
-                    # PL-2 (audit-code de ParallelBulkLoader 2026-09-25): con audit_strict falló el commit después de
-                    # escribir la auditoría. Reintentar la escribiría otra vez: el CSV contaría el doble que la BD.
-                    self.logger.warning(
-                        "Partición %d de '%s': falló el commit con la auditoría estricta ya escrita; no se reintenta "
-                        "para no duplicarla: %s",
-                        index,
-                        tabla_destino,
-                        exc,
-                    )
-                    return self._partition_result(
-                        crud,
-                        index,
-                        t_start,
-                        rows=crud.rows_committed,
-                        retries=attempt,
-                        retry_wait_seconds=waited,
-                        error=(
-                            f"{_partition_error(index, exc)} (el CSV de auditoría contiene "
-                            f"{crud.audit_uncommitted_records} registros de este intento sin datos en la BD)"
-                        ),
-                    )
                 if attempt < retries:
                     self.logger.warning(
                         "Partición %d intento %d/%d fallido (transitorio): %s",
@@ -740,6 +701,76 @@ class ParallelBulkLoader:
             retries=retries,
             retry_wait_seconds=waited,
             error=_partition_error(index, last_exc),
+        )
+
+    def _resume_offset(self, crud: BulkCrud, index: int, attempt: int) -> int:
+        """Filas iniciales de la partición que el intento ``attempt`` no vuelve a enviar.
+
+        B-11: las filas confirmadas por intentos anteriores (prefijo de la partición) no se vuelven a enviar. Solo con
+        cadencia: en modo atómico un fallo deshace la partición entera y se reintenta desde el principio.
+        """
+        resume_from: int = crud.rows_committed if attempt and self._commit_every_n_chunks is not None else 0
+        if resume_from:
+            self.logger.info("Partición %d: se reanuda tras %d filas ya confirmadas", index, resume_from)
+        return resume_from
+
+    def _stop_retrying(
+        self,
+        crud: BulkCrud,
+        index: int,
+        t_start: float,
+        tabla_destino: str,
+        exc: Exception,
+        *,
+        attempt: int,
+        waited: float,
+        rejected_now: int,
+    ) -> PartitionResult | None:
+        """Resultado final si el fallo ``exc`` del intento ``attempt`` no se reintenta; ``None`` si se puede reintentar.
+
+        No se reintenta un error permanente (``retry_on``) ni un intento que ya dejó efectos fuera de la transacción
+        (rechazos o auditoría estricta escritos), porque reintentarlo los duplicaría.
+        """
+        if not self._retry_on(exc):
+            return self._permanent_failure(crud, index, t_start, tabla_destino, exc, attempt, waited)
+        detail: str | None = None
+        if rejected_now > 0:
+            # Fase 3 (D-2): los rechazos de este intento ya están en el CSV; reintentarlo los escribiría otra vez.
+            self.logger.warning(
+                "Partición %d de '%s': falló tras escribir %d rechazos; no se reintenta para no duplicarlos: %s",
+                index,
+                tabla_destino,
+                rejected_now,
+                exc,
+            )
+            detail = (
+                f"el CSV de rechazos contiene {rejected_now} filas de este intento; reintentar la partición las "
+                "duplicaría"
+            )
+        elif crud.audit_uncommitted_records > 0:
+            # PL-2 (audit-code de ParallelBulkLoader 2026-09-25): con audit_strict falló el commit después de
+            # escribir la auditoría. Reintentar la escribiría otra vez: el CSV contaría el doble que la BD.
+            self.logger.warning(
+                "Partición %d de '%s': falló el commit con la auditoría estricta ya escrita; no se reintenta "
+                "para no duplicarla: %s",
+                index,
+                tabla_destino,
+                exc,
+            )
+            detail = (
+                f"el CSV de auditoría contiene {crud.audit_uncommitted_records} registros de este intento sin datos "
+                "en la BD"
+            )
+        if detail is None:
+            return None
+        return self._partition_result(
+            crud,
+            index,
+            t_start,
+            rows=crud.rows_committed,
+            retries=attempt,
+            retry_wait_seconds=waited,
+            error=f"{_partition_error(index, exc)} ({detail})",
         )
 
     def _wait_before_retry(self, index: int, attempt: int) -> float:
@@ -872,20 +903,22 @@ class ParallelBulkLoader:
         # Reflejar antes de abrir la sesión: maintenance_scope y bulk_insert_from_df usan la tabla ya en caché y el worker
         # no pide una segunda conexión mientras retiene la de la sesión (guarda de la regla size + max_overflow).
         crud.reflect_table(tabla_destino)
-        with crud.bulk_session():
-            with crud.maintenance_scope(tabla_destino, disable_constraints=True, disable_indexes=False):
-                with _closing_iterable(reader()) as chunks:
-                    for chunk in chunks:
-                        if chunk.empty:
-                            continue
-                        crud.bulk_insert_from_df(
-                            chunk,
-                            tabla_destino,
-                            generar_sql=False,
-                            override_identity=override_identity,
-                            exclude_autoincrement_pk=exclude_autoincrement_pk,
-                        )
-                        total += len(chunk)
+        with (
+            crud.bulk_session(),
+            crud.maintenance_scope(tabla_destino, disable_constraints=True, disable_indexes=False),
+            _closing_iterable(reader()) as chunks,
+        ):
+            for chunk in chunks:
+                if chunk.empty:
+                    continue
+                crud.bulk_insert_from_df(
+                    chunk,
+                    tabla_destino,
+                    generar_sql=False,
+                    override_identity=override_identity,
+                    exclude_autoincrement_pk=exclude_autoincrement_pk,
+                )
+                total += len(chunk)
         return total
 
     @contextmanager

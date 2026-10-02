@@ -97,7 +97,8 @@ class _RawInsertStrategy:
         self,
         *,
         connection: Any,
-        stmt: Insert,
+        # S1172: el hook por defecto no usa ``stmt``, pero es contrato del hook (lo usa el fallback de PostgreSQL).
+        stmt: Insert,  # NOSONAR
         records: Sequence[Mapping[str, Any]],
         cols: list[str],
         quoted_table: str,
