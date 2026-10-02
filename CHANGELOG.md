@@ -7,6 +7,20 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **bulk**: `BulkCrud.rejects_scope(*, partition=None, row_offset=0)`: con `on_error="isolate"`, las operaciones del
+  bloque forman una sola secuencia de entrada para los rechazos (un presupuesto de `max_rejects`, posición continua
+  desde `row_offset`, `particion` en el CSV). Para cargar por chunks dentro de `bulk_session` o reanudar una secuencia.
+  `ParallelBulkLoader` lo usa en cada intento y ya no accede a miembros privados de `BulkCrud` (se elimina
+  `_tag_rejects`; sesión `2026-10-02`).
+
+### Fixed
+
+- **bulk**: `ParallelBulkLoader(on_error="isolate", disable_constraints=True)` en los motores sin hoist (todos salvo
+  PostgreSQL y SQL Server) cargaba la partición chunk a chunk y la posición del rechazo era la del chunk (`[1, 1]` en
+  lugar de `[1, 4]`) y `max_rejects` contaba por chunk, no por partición (desde la 0.27.0).
+
 ## [0.27.1] - 2026-10-01
 
 Correcciones del audit-code de la 0.27.0 y pruebas con el driver que la librería usa para MariaDB (MariaDB
