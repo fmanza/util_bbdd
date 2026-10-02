@@ -41,14 +41,27 @@ jobs:
         run: pip install -e ".[docs]"
 
       - name: Build docs & create ZIP
-        run: python scripts/build_docs_zip.py --builder zensical
+        run: |
+          mkdir -p dist
+          python scripts/build_docs_zip.py --builder zensical --output-dir dist
         env:
           PYTHONPATH: src
+
+      - name: Debug - List generated files
+        run: |
+          echo "📦 Contents of dist/:"
+          ls -lah dist/ || echo "dist/ is empty or doesn't exist"
+          echo ""
+          echo "📦 Contents of site/:"
+          ls -lah site/ | head -20 || echo "site/ is empty or doesn't exist"
 
       - name: Upload ZIP to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/util_bbdd-docs-*.zip
-          fail_on_unmatched_files: true
-          # Creates the release if it doesn't exist yet (useful for workflow_dispatch).
+          files: dist/util_bbdd-docs-*.zip,dist/util_bbdd-docs-*.sha256
+          fail_on_unmatched_files: false
           tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

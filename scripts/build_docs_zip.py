@@ -88,10 +88,10 @@ def _create_checksum_files(archive: Path) -> str:
 
     # Display checksums
     file_size_mb = archive.stat().st_size / (1024 * 1024)
-    print(f"\n[build_docs_zip] ✅ ZIP created: {archive.name} ({file_size_mb:.2f} MB)")
-    print(f"[build_docs_zip] 🔐 SHA256: {sha256_hash}")
-    print(f"[build_docs_zip] 📄 Checksum saved to: {sha256_file.name}")
-    print(f"[build_docs_zip] 📋 All checksums in: {checksums_file.name}")
+    print(f"\n[build_docs_zip] [OK] ZIP created: {archive.name} ({file_size_mb:.2f} MB)")
+    print(f"[build_docs_zip] [HASH] SHA256: {sha256_hash}")
+    print(f"[build_docs_zip] [FILE] Checksum saved to: {sha256_file.name}")
+    print(f"[build_docs_zip] [LIST] All checksums in: {checksums_file.name}")
 
     return sha256_hash
 

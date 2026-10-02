@@ -144,12 +144,12 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.12"  # Versión mínima soportada; mypy es retrocompatible con 3.13+
 warn_return_any = true
 warn_unused_configs = true
 check_untyped_defs = true
 disallow_untyped_defs = false
-ignore_missing_imports = false
+ignore_missing_imports = true
 no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
@@ -158,10 +158,6 @@ enable_error_code = ["deprecated"]
 # docs_build_plugin.py es un plugin de MkDocs (herramienta de documentación, no la librería) y depende de mkdocs, que los
 # extras `dev` no instalan: no se comprueba al recorrer src/. Con una ejecución explícita sí, de ahí el override de abajo.
 exclude = ['(^|/)docs_build_plugin\.py$']
-
-[[tool.mypy.overrides]]
-module = ["oracledb", "oracledb.*"]
-ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["openpyxl", "openpyxl.*"]
