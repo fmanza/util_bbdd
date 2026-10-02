@@ -255,6 +255,27 @@ def fetch_routine_bodies_for_schema_sql() -> str:
     )
 
 
+def fetch_routines_with_definition_for_schema_sql() -> str:
+    """SQL de los procedimientos y funciones de un schema SQL Server con su código, en una consulta (uso: comparar).
+
+    Mismos objetos que listaba ``comparar`` con ``sys.procedures`` (``P``, ``X``, ``RF``, ``PC``) y las funciones
+    T-SQL (``FN``, ``IF``, ``TF``). ``DEFINITION`` es ``NULL`` si el módulo está cifrado o no es T-SQL (CLR,
+    extendido).
+
+    Parámetro: ``:schema`` (estilo de ``sqlalchemy.text``, válido con pymssql y pyodbc).
+
+    Returns:
+        str: SQL query para (ROUTINE_NAME, OBJECT_TYPE, DEFINITION), ordenado por nombre.
+    """
+    return (
+        "SELECT o.name AS ROUTINE_NAME, RTRIM(o.type) AS OBJECT_TYPE, sm.definition AS DEFINITION "
+        "FROM sys.objects o "
+        "LEFT JOIN sys.sql_modules sm ON sm.object_id = o.object_id "
+        "WHERE o.schema_id = SCHEMA_ID(:schema) AND o.type IN ('P', 'X', 'RF', 'PC', 'FN', 'IF', 'TF') "
+        "ORDER BY o.name"
+    )
+
+
 def fetch_views_sql() -> str:
     """SQL para obtener vistas de un schema SQL Server.
 

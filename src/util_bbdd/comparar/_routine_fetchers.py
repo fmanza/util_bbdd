@@ -25,20 +25,27 @@ from collections import Counter
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from sqlalchemy import text
-from sqlalchemy.exc import DatabaseError, OperationalError, ProgrammingError
+from sqlalchemy.exc import DatabaseError, OperationalError
 
 from util_bbdd._core.exceptions import MetadataIntrospectionError
 from util_bbdd.metadata.mariadb.common import quote_mariadb_identifier
+from util_bbdd.metadata.oracle.tables import fetch_standalone_routine_sources_for_schema_sql
 from util_bbdd.metadata.postgresql.routines import fetch_routines_with_definition_for_schema_sql
+from util_bbdd.metadata.sqlserver.tables import (
+    fetch_routines_with_definition_for_schema_sql as fetch_sqlserver_routines_with_definition_sql,
+)
 
 if TYPE_CHECKING:
-    from sqlalchemy import CursorResult, Row, RowMapping
+    from sqlalchemy import CursorResult, RowMapping
     from sqlalchemy.engine import Connection, Inspector
     from sqlalchemy.engine.base import Engine
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 _MIN_PRINTABLE_ORD: int = 0x20  # primer carácter ASCII imprimible (espacio)
+
+#: Tipos de ``sys.objects`` que son funciones T-SQL (escalar, inline y multi-statement); el resto, procedures.
+_MSSQL_FUNCTION_TYPES: frozenset[str] = frozenset({"FN", "IF", "TF"})
 
 
 def _is_safe_identifier(name: str) -> bool:
@@ -154,127 +161,61 @@ class RoutineFetcherRegistry:
 
     @staticmethod
     def get_routines_oracle(inspector: Inspector, schema: str | None) -> list[dict[str, str]]:
-        """Obtiene routines de Oracle via ALL_PROCEDURES + DBMS_METADATA.
+        """Procedures y functions sueltas de Oracle con su código, en una consulta sobre ``ALL_SOURCE``.
 
-        **Performance note**: DBMS_METADATA.GET_DDL() can be slow on large catalogs (5k+ procedures).
-        For performance-critical workloads, disable routine introspection:
-        ``SchemaComparator.compare(..., include_routines=False)``.
+        ``definition`` es ``CREATE OR REPLACE`` + el código de ``ALL_SOURCE``: sin el owner delante, dos schemas con
+        el mismo código se comparan iguales. Antes se usaba ``DBMS_METADATA.GET_DDL``, una consulta por routine con el
+        nombre calificado (``"OWNER"."NOMBRE"``), que marcaba como modificadas todas las routines de dos schemas.
         """
-        routines: list[dict[str, str]] = []
         engine: Engine = inspector.engine
         if engine is None:
-            return routines
+            return []
         if not schema:
             raise _listing_error("Oracle", schema, ValueError("get_routines_oracle requiere 'schema'"))
 
         try:
             with engine.connect() as conn:
-                result: CursorResult[Any] = conn.execute(
-                    text(
-                        "SELECT object_name, object_type FROM all_procedures "
-                        "WHERE owner=:schema AND object_type IN ('PROCEDURE','FUNCTION')",
-                    ),
-                    {"schema": schema.upper()},
-                )
-                for row in result.mappings():
-                    obj_name = str(row["object_name"])
-                    obj_type = str(row["object_type"])
-                    try:
-                        ddl_result: CursorResult[Any] = conn.execute(
-                            text("SELECT DBMS_METADATA.GET_DDL(:obj_type, :obj_name, :schema) AS ddl FROM dual"),
-                            {"obj_type": obj_type, "obj_name": obj_name, "schema": schema.upper()},
-                        )
-                        ddl_row: Row[Any] | None = ddl_result.first()
-                        ddl_val: Any = ddl_row[0] if ddl_row else ""
-                        definition: Any | str = ddl_val.read() if hasattr(ddl_val, "read") else str(ddl_val)
-                    except (
-                        ProgrammingError,
-                        DatabaseError,
-                    ):  # M1: DBMS_METADATA falla por permisos o objeto corrompido
-                        definition = ""
-                    routines.append({"name": obj_name, "type": obj_type, "definition": definition})
-        except (
-            OperationalError,
-            DatabaseError,
-        ) as exc:  # Oracle rechaza la conexión o falla la consulta a all_procedures
+                rows = conn.execute(
+                    text(fetch_standalone_routine_sources_for_schema_sql()), {"owner": schema.upper()}
+                ).all()
+        except (OperationalError, DatabaseError) as exc:  # Oracle rechaza la conexión o falla la consulta
             raise _listing_error("Oracle", schema, exc) from exc
 
-        return routines
+        # Filas (name, type, line, text) ordenadas por nombre, tipo y línea: se concatenan por routine.
+        sources: dict[tuple[str, str], list[str]] = {}
+        for name, obj_type, _line, line_text in rows:
+            sources.setdefault((str(name), str(obj_type)), []).append(str(line_text or ""))
+        return [
+            {"name": name, "type": obj_type, "definition": f"CREATE OR REPLACE {''.join(lines).rstrip()}"}
+            for (name, obj_type), lines in sources.items()
+        ]
 
     @staticmethod
     def get_routines_mssql(inspector: Inspector, schema: str | None) -> list[dict[str, str]]:
-        """Obtiene routines de SQL Server via sys.procedures + sys.sql_modules.
+        """Procedures y functions de SQL Server con su código, en una consulta (``sys.objects`` + ``sys.sql_modules``).
 
-        **Performance note**: On large schemas (10k+ procedures), this may be slow.
-        Consider disabling routine introspection for performance-critical scenarios:
-        ``SchemaComparator.compare(..., include_routines=False)``.
+        ``definition`` vacía si el módulo está cifrado o no es T-SQL (CLR, procedimiento extendido).
         """
-        routines: list[dict[str, str]] = []
         engine: Engine = inspector.engine
         if engine is None:
-            return routines
-
-        schema_name: str = schema or "dbo"
+            return []
 
         try:
             with engine.connect() as conn:
-                result: CursorResult[Any] = conn.execute(
-                    text("SELECT name FROM sys.procedures WHERE schema_id = SCHEMA_ID(:schema) ORDER BY name"),
-                    {"schema": schema_name},
-                )
-                for row in result.mappings():
-                    proc_name = str(row["name"])
-                    try:
-                        ddl_result: CursorResult[Any] = conn.execute(
-                            text(
-                                "SELECT definition FROM sys.sql_modules "
-                                "WHERE object_id = OBJECT_ID(CONCAT(:schema_name, '.', :proc_name))",
-                            ),
-                            {"schema_name": schema_name, "proc_name": proc_name},
-                        )
-                        ddl_row: Row[Any] | None = ddl_result.first()
-                        definition: str = str(ddl_row[0]) if ddl_row else ""
-                    except (
-                        ProgrammingError,
-                        DatabaseError,
-                    ):  # M1: sys.sql_modules falla por permisos o procedure encriptada
-                        definition = ""
-                    routines.append({"name": proc_name, "type": "PROCEDURE", "definition": definition})
-                # Funciones escalares, inline y multi-statement (FN, IF, TF)
-                func_result: CursorResult[Any] = conn.execute(
-                    text(
-                        "SELECT o.name FROM sys.objects o "
-                        "WHERE o.schema_id = SCHEMA_ID(:schema) "
-                        "AND o.type IN ('FN', 'IF', 'TF') "
-                        "ORDER BY o.name",
-                    ),
-                    {"schema": schema_name},
-                )
-                for row in func_result.mappings():
-                    func_name = str(row["name"])
-                    try:
-                        func_ddl_result: CursorResult[Any] = conn.execute(
-                            text(
-                                "SELECT definition FROM sys.sql_modules "
-                                "WHERE object_id = OBJECT_ID(CONCAT(:schema_name, '.', :func_name))",
-                            ),
-                            {"schema_name": schema_name, "func_name": func_name},
-                        )
-                        func_ddl_row: Row[Any] | None = func_ddl_result.first()
-                        func_definition: str = str(func_ddl_row[0]) if func_ddl_row else ""
-                    except (
-                        ProgrammingError,
-                        DatabaseError,
-                    ):  # M1: sys.sql_modules falla por permisos o función encriptada
-                        func_definition = ""
-                    routines.append({"name": func_name, "type": "FUNCTION", "definition": func_definition})
-        except (
-            OperationalError,
-            DatabaseError,
-        ) as exc:  # SQL Server rechaza la conexión o falla la consulta a sys.procedures
+                rows = conn.execute(
+                    text(fetch_sqlserver_routines_with_definition_sql()), {"schema": schema or "dbo"}
+                ).all()
+        except (OperationalError, DatabaseError) as exc:  # SQL Server rechaza la conexión o falla la consulta
             raise _listing_error("SQL Server", schema, exc) from exc
 
-        return routines
+        return [
+            {
+                "name": str(name),
+                "type": "FUNCTION" if str(obj_type) in _MSSQL_FUNCTION_TYPES else "PROCEDURE",
+                "definition": str(definition or ""),
+            }
+            for name, obj_type, definition in rows
+        ]
 
     @staticmethod
     def get_routines_postgresql(inspector: Inspector, schema: str | None) -> list[dict[str, str]]:

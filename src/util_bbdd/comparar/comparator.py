@@ -12,6 +12,7 @@ from sqlalchemy.exc import ArgumentError, DatabaseError, OperationalError
 
 from util_bbdd._core.exceptions import MetadataIntrospectionError
 
+from ._prefetch import prefetch_table_metadata
 from ._routine_fetchers import RoutineFetcherRegistry
 from .models import (
     ColumnDiff,
@@ -36,7 +37,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
 
     from sqlalchemy.engine import URL, Inspector
-    from sqlalchemy.engine.interfaces import ReflectedTableComment
+
+    from ._prefetch import MetadataKind
 
 
 class SchemaComparator:
@@ -114,103 +116,24 @@ class SchemaComparator:
                 **Nota**: Solo efectivo cuando ``include_tables=True``.
             include_routines: Comparar procedures/functions vía catálogo del motor.
                 **Nota**: No todos los motores soportan introspección de routines.
-                - MariaDB, Oracle, SQL Server, PostgreSQL: ✓ Soportado
+                - MariaDB, MySQL, Oracle, SQL Server, PostgreSQL: ✓ Soportado
                 - HSQLDB: ✗ No soportado (DDL no portable); ``include_routines=True`` será ignorado con warning.
                 - SQLite: N/A (sin routines)
 
         Returns:
             ``SchemaDiff`` con todas las diferencias encontradas.
 
-        Performance Considerations:
-            **N+1 Query Cascade Warnings:**
-                - Each ``include_*`` flag triggers Inspector queries per schema:
+        Rendimiento:
+            Los metadatos de las tablas comunes (columnas, PK, índices, FKs y comentarios) se leen con
+            ``Inspector.get_multi_*``: una consulta por schema y tipo en PostgreSQL y Oracle; en SQL Server las FKs con
+            una consulta por schema (``metadata.sqlserver``) y el resto tabla a tabla; en MariaDB/MySQL tabla a tabla
+            (un ``SHOW CREATE TABLE`` por tabla), pero sin una conexión del pool por llamada. Las routines se leen con
+            una consulta por schema, salvo MariaDB/MySQL (un ``SHOW CREATE`` por routine).
 
-                  * ``include_tables=True``: 1 query per table (columns, constraints, indexes)
-                  * ``include_foreign_keys=True``: +1 per table for FK relationships
-                  * ``include_indices=True``: +1 per table for index details
-                  * ``include_comments=True``: +1 per table+column for comment metadata
-                  * ``include_routines=True``: +1-2 per routine for DDL materialization (driver-dependent)
-
-                - **Total queries for 100-table schema with all flags enabled**: ~500+ queries per Inspector
-                  This is **expected behavior** but can exceed timeout thresholds for large catalogs.
-
-            **Optimization Guide for Large Schemas (100+ tables):**
-
-                1. **Disable unnecessary flags:**
-
-                   .. code-block:: python
-
-                       # Fast comparison (minimal queries)
-                       diff = comparator.compare(
-                           source, target,
-                           include_tables=True,
-                           include_views=False,
-                           include_indices=False,
-                           include_foreign_keys=False,
-                           include_comments=False,
-                           include_routines=False
-                       )
-
-                2. **Filter by schema where possible:**
-
-                   .. code-block:: python
-
-                       # Only compare 'public' schema, not catalog
-                       diff = comparator.compare(
-                           source, target,
-                           source_schema="public",
-                           target_schema="public"
-                       )
-
-                3. **Increase Inspector timeout:**
-
-                   .. code-block:: python
-
-                       # Set longer timeout at connection level
-                       engine = create_engine(
-                           "postgresql://user:pass@host/db",
-                           connect_args={"connect_timeout": 30}
-                       )
-                       inspector = inspect(engine)
-                       diff = comparator.compare(source, target)
-
-                4. **Cache Inspector results across comparisons:**
-
-                   .. code-block:: python
-
-                       # Reuse inspectors if comparing same source/target multiple times
-                       source_inspector = inspect(source_engine)
-                       target_inspector = inspect(target_engine)
-
-                       diff1 = comparator.compare(source_inspector, target_inspector, ...)
-                       diff2 = comparator.compare(source_inspector, target_inspector, ...)
-                       # No extra Inspector queries; SQLAlchemy caches internally
-
-            **Driver-Specific Overhead:**
-
-                - **PostgreSQL/Oracle/SQL Server**: ``include_routines=True`` materializes full DDL;
-                  can be slow if many routines exist. Consider disabling for first pass.
-                - **MariaDB**: Uses ``information_schema`` which is fast but locks during ``SHOW CREATE`` fallback.
-                - **SQLite**: No significant overhead (single file, no remote I/O).
-                - **HSQLDB**: Introspection is synchronous and slower; avoid large schemas.
-
-            **Cost Analysis by Flag Combinations:**
-
-                +-------+-------+-------+---------+----------+----------+
-                | Table | Index | FK    | Comment | Routine  | Estimate |
-                +=======+=======+=======+=========+==========+==========+
-                | ✓     | ✗     | ✗     | ✗       | ✗        | ~200 q   |
-                +-------+-------+-------+---------+----------+----------+
-                | ✓     | ✓     | ✗     | ✗       | ✗        | ~300 q   |
-                +-------+-------+-------+---------+----------+----------+
-                | ✓     | ✓     | ✓     | ✗       | ✗        | ~400 q   |
-                +-------+-------+-------+---------+----------+----------+
-                | ✓     | ✓     | ✓     | ✓       | ✗        | ~500 q   |
-                +-------+-------+-------+---------+----------+----------+
-                | ✓     | ✓     | ✓     | ✓       | ✓        | ~600+ q  |
-                +-------+-------+-------+---------+----------+----------+
-
-                (Estimates for 100-table PostgreSQL schema; actual varies by catalog size and driver)
+            Medido con dos schemas de 200 tablas, 20 vistas y 20 routines, todas las opciones activas (auditoría de
+            ``comparar`` 2026-10-02): PostgreSQL 0,15 s (62 consultas), Oracle 0,26 s (58), MariaDB 0,35 s,
+            MySQL 0,43 s, SQL Server 3,1 s (≈ 2.450 consultas). Las vistas siguen siendo una consulta por vista.
+            ``include_*=False`` evita las consultas de lo que no se compara.
         """
         source_label: str = self._build_label(source, source_schema)
         target_label: str = self._build_label(target, target_schema)
@@ -284,38 +207,51 @@ class SchemaComparator:
         # Tablas solo en target (nombre canónico del destino)
         diffs.extend(TableDiff(table_name=target_tables_lower[k], status="removed") for k in sorted(only_target))
 
-        # Tablas comunes: usar nombres canónicos de cada motor para consultas
-        for key in sorted(common_keys):
+        # Tablas comunes: metadatos precargados por schema (get_multi_*); lo no precargado, tabla a tabla.
+        common: list[str] = sorted(common_keys)
+        kinds: list[MetadataKind] = ["columns", "pk"]
+        if include_indices:
+            kinds.append("indexes")
+        if include_foreign_keys:
+            kinds.append("fks")
+        if include_comments:
+            kinds.append("comments")
+        src_meta = prefetch_table_metadata(source, source_schema, [source_tables_lower[k] for k in common], kinds=kinds)
+        tgt_meta = prefetch_table_metadata(target, target_schema, [target_tables_lower[k] for k in common], kinds=kinds)
+
+        for key in common:
             src_table = source_tables_lower[key]
             tgt_table = target_tables_lower[key]
 
-            # Pre-fetch columnas una sola vez para reutilizar en _compare_columns y _compare_comments
-            source_cols_raw: list[Any] = source.get_columns(src_table, schema=source_schema)
-            target_cols_raw: list[Any] = target.get_columns(tgt_table, schema=target_schema)
+            # Columnas una sola vez, para _compare_columns_from_raw y _compare_comments_from_raw
+            source_cols_raw: list[Any] = src_meta.get("columns", src_table)
+            target_cols_raw: list[Any] = tgt_meta.get("columns", tgt_table)
 
             col_diffs = self._compare_columns_from_raw(
                 source_cols_raw,
                 target_cols_raw,
-                source.get_pk_constraint(src_table, schema=source_schema),
-                target.get_pk_constraint(tgt_table, schema=target_schema),
+                src_meta.get("pk", src_table),
+                tgt_meta.get("pk", tgt_table),
             )
             idx_diffs: tuple[IndexDiff, ...] = ()
             fk_diffs: tuple[ForeignKeyDiff, ...] = ()
             comment_diffs: tuple[CommentDiff, ...] = ()
 
             if include_indices:
-                idx_diffs = self._compare_indices(source, target, src_table, tgt_table, source_schema, target_schema)
+                idx_diffs = self._compare_indices(
+                    src_meta.get("indexes", src_table), tgt_meta.get("indexes", tgt_table), src_table
+                )
             if include_foreign_keys:
                 fk_diffs = self._compare_foreign_keys(
-                    source, target, src_table, tgt_table, source_schema, target_schema
+                    src_meta.get("fks", src_table), tgt_meta.get("fks", tgt_table), src_table
                 )
             if include_comments:
                 comment_diffs = self._compare_comments_from_raw(
                     source_cols_raw,
                     target_cols_raw,
                     src_table,
-                    self._get_table_comment_safe(source, src_table, source_schema),
-                    self._get_table_comment_safe(target, tgt_table, target_schema),
+                    src_meta.get("comments", src_table),
+                    tgt_meta.get("comments", tgt_table),
                 )
 
             if col_diffs or idx_diffs or fk_diffs or comment_diffs:
@@ -481,16 +417,10 @@ class SchemaComparator:
 
     def _compare_indices(
         self,
-        source: Inspector,
-        target: Inspector,
+        source_idx: Iterable[Any],
+        target_idx: Iterable[Any],
         src_table: str,
-        tgt_table: str,
-        source_schema: str | None,
-        target_schema: str | None,
     ) -> tuple[IndexDiff, ...]:
-        source_idx: list[Any] = self._get_indexes_safe(source, src_table, source_schema)
-        target_idx: list[Any] = self._get_indexes_safe(target, tgt_table, target_schema)
-
         # Comparación case-insensitive del nombre del índice (igual que tablas/columnas)
         # para soportar motores con convenciones de case distintas.
         source_map: dict[str, dict[str, Any]] = self._case_insensitive_key_map(
@@ -555,16 +485,10 @@ class SchemaComparator:
 
     def _compare_foreign_keys(
         self,
-        source: Inspector,
-        target: Inspector,
+        source_fks: Iterable[Any],
+        target_fks: Iterable[Any],
         src_table: str,
-        tgt_table: str,
-        source_schema: str | None,
-        target_schema: str | None,
     ) -> tuple[ForeignKeyDiff, ...]:
-        source_fks = list(source.get_foreign_keys(src_table, schema=source_schema))
-        target_fks = list(target.get_foreign_keys(tgt_table, schema=target_schema))
-
         # Comparación case-insensitive del nombre/clave de la FK (igual que tablas/columnas)
         # para soportar motores con convenciones de case distintas.
         source_map: dict[str, Any] = self._case_insensitive_key_map(
@@ -985,23 +909,6 @@ class SchemaComparator:
         if not column_names:
             return ""
         return ",".join(c for c in column_names if c is not None)
-
-    @staticmethod
-    def _get_indexes_safe(inspector: Inspector, table: str, schema: str | None) -> list[Any]:
-        """Obtiene índices ignorando NotImplementedError de algunos dialects."""
-        try:
-            return list(inspector.get_indexes(table, schema=schema))
-        except NotImplementedError:
-            return []
-
-    @staticmethod
-    def _get_table_comment_safe(inspector: Inspector, table: str, schema: str | None) -> str:
-        """Obtiene comentario de tabla; devuelve cadena vacía si no está soportado."""
-        try:
-            result: ReflectedTableComment = inspector.get_table_comment(table, schema=schema)
-            return str(result.get("text") or "") if result else ""
-        except NotImplementedError:
-            return ""
 
     @staticmethod
     def _get_view_definition_safe(inspector: Inspector, view_name: str, schema: str | None) -> str:

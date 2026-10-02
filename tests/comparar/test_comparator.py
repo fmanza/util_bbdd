@@ -1191,42 +1191,48 @@ class TestGetRoutinesOracle:
 
         assert routines == []
 
-    def test_returns_procedures_and_functions(self) -> None:
+    @staticmethod
+    def _inspector_with_rows(dialect: str, rows: list[tuple[Any, ...]]) -> tuple[MagicMock, MagicMock]:
         inspector = MagicMock()
-        engine = _make_engine_mock("oracle")
-        inspector.bind = engine
+        engine = _make_engine_mock(dialect)
         inspector.engine = engine
-
+        inspector.bind = engine
         conn = MagicMock()
         engine.connect.return_value.__enter__.return_value = conn
         engine.connect.return_value.__exit__.return_value = False
+        conn.execute.return_value.all.return_value = rows
+        return inspector, conn
 
-        all_proc_rows = [
-            {"object_name": "MY_PROC", "object_type": "PROCEDURE"},
-            {"object_name": "MY_FUNC", "object_type": "FUNCTION"},
+    def test_returns_procedures_and_functions(self) -> None:
+        """Una consulta sobre ALL_SOURCE; el código de cada routine se concatena por líneas."""
+        inspector, conn = self._inspector_with_rows(
+            "oracle",
+            [
+                ("MY_FUNC", "FUNCTION", 1, "FUNCTION my_func RETURN NUMBER AS\n"),
+                ("MY_FUNC", "FUNCTION", 2, "BEGIN RETURN 1; END;\n"),
+                ("MY_PROC", "PROCEDURE", 1, "PROCEDURE my_proc AS BEGIN NULL; END;\n"),
+            ],
+        )
+
+        routines = RoutineFetcherRegistry.get_routines_oracle(inspector, "myschema")
+
+        assert routines == [
+            {
+                "name": "MY_FUNC",
+                "type": "FUNCTION",
+                "definition": "CREATE OR REPLACE FUNCTION my_func RETURN NUMBER AS\nBEGIN RETURN 1; END;",
+            },
+            {
+                "name": "MY_PROC",
+                "type": "PROCEDURE",
+                "definition": "CREATE OR REPLACE PROCEDURE my_proc AS BEGIN NULL; END;",
+            },
         ]
-        all_proc_result = MagicMock()
-        all_proc_result.mappings.return_value = all_proc_rows
-
-        ddl_result = MagicMock()
-        ddl_result.first.return_value = ("CREATE OR REPLACE PROCEDURE ...",)
-
-        def execute_side_effect(stmt: Any, params: Any = None) -> Any:
-            sql = str(stmt)
-            if "all_procedures" in sql:
-                return all_proc_result
-            if "DBMS_METADATA" in sql:
-                return ddl_result
-            return MagicMock()
-
-        conn.execute.side_effect = execute_side_effect
-
-        routines = RoutineFetcherRegistry.get_routines_oracle(inspector, "MYSCHEMA")
-
-        assert len(routines) == 2
-        names = {r["name"] for r in routines}
-        assert "MY_PROC" in names
-        assert "MY_FUNC" in names
+        assert conn.execute.call_count == 1
+        sql = str(conn.execute.call_args.args[0])
+        assert "all_source" in sql
+        assert "PACKAGE BODY" not in sql
+        assert conn.execute.call_args.args[1] == {"owner": "MYSCHEMA"}
 
     @pytest.mark.parametrize(
         "error_message",
@@ -1253,86 +1259,44 @@ class TestGetRoutinesOracle:
 class TestGetRoutinesMSSQL:
     """Tests para _get_routines_mssql (SQL Server)."""
 
-    def test_returns_procedures(self) -> None:
+    @staticmethod
+    def _inspector_with_rows(dialect: str, rows: list[tuple[Any, ...]]) -> tuple[MagicMock, MagicMock]:
         inspector = MagicMock()
-        engine = _make_engine_mock("mssql")
+        engine = _make_engine_mock(dialect)
         inspector.engine = engine
         inspector.bind = engine
-
         conn = MagicMock()
         engine.connect.return_value.__enter__.return_value = conn
         engine.connect.return_value.__exit__.return_value = False
+        conn.execute.return_value.all.return_value = rows
+        return inspector, conn
 
-        # sys.procedures query result
-        proc_rows = MagicMock()
-        proc_rows.mappings.return_value = [{"name": "my_proc"}]
-
-        # sys.sql_modules query result (returns a tuple-like result)
-        sql_module_result = MagicMock()
-        sql_module_result.first.return_value = ("CREATE PROCEDURE my_proc AS BEGIN SELECT 1 END",)
-
-        def execute_side_effect(stmt: Any, params: Any = None) -> Any:
-            sql = str(stmt)
-            if "sys.procedures" in sql:
-                return proc_rows
-            if "sys.sql_modules" in sql:
-                return sql_module_result
-            if "sys.objects" in sql:
-                empty_rows = MagicMock()
-                empty_rows.mappings.return_value = []
-                return empty_rows
-            return MagicMock()
-
-        conn.execute.side_effect = execute_side_effect
+    def test_returns_procedures(self) -> None:
+        inspector, conn = self._inspector_with_rows(
+            "mssql", [("my_proc", "P", "CREATE PROCEDURE my_proc AS SELECT 1"), ("clr_proc", "PC", None)]
+        )
 
         routines = RoutineFetcherRegistry.get_routines_mssql(inspector, "dbo")
 
-        assert len(routines) == 1
-        assert routines[0]["name"] == "my_proc"
-        assert routines[0]["type"] == "PROCEDURE"
-        assert "CREATE PROCEDURE" in routines[0]["definition"]
+        assert routines == [
+            {"name": "my_proc", "type": "PROCEDURE", "definition": "CREATE PROCEDURE my_proc AS SELECT 1"},
+            {"name": "clr_proc", "type": "PROCEDURE", "definition": ""},  # CLR o cifrada: sin código
+        ]
+        assert conn.execute.call_count == 1
+        assert conn.execute.call_args.args[1] == {"schema": "dbo"}
 
     def test_returns_functions(self) -> None:
-        """B2: get_routines_mssql debe incluir funciones escalares e inline (FN, IF, TF)."""
-        inspector = MagicMock()
-        engine = _make_engine_mock("mssql")
-        inspector.engine = engine
-        inspector.bind = engine
+        inspector, _ = self._inspector_with_rows(
+            "mssql", [("f_scalar", "FN", "def1"), ("f_inline", "IF", "def2"), ("f_table", "TF", "def3")]
+        )
 
-        conn = MagicMock()
-        engine.connect.return_value.__enter__.return_value = conn
-        engine.connect.return_value.__exit__.return_value = False
+        routines = RoutineFetcherRegistry.get_routines_mssql(inspector, None)
 
-        # sys.procedures → vac\u00edo
-        proc_rows = MagicMock()
-        proc_rows.mappings.return_value = []
-
-        # sys.objects (functions) → una funci\u00f3n
-        func_rows = MagicMock()
-        func_rows.mappings.return_value = [{"name": "my_func"}]
-
-        # sys.sql_modules para la funci\u00f3n
-        func_module_result = MagicMock()
-        func_module_result.first.return_value = ("CREATE FUNCTION my_func() RETURNS INT AS BEGIN RETURN 1 END",)
-
-        def execute_side_effect(stmt: Any, params: Any = None) -> Any:
-            sql = str(stmt)
-            if "sys.procedures" in sql:
-                return proc_rows
-            if "sys.objects" in sql:
-                return func_rows
-            if "sys.sql_modules" in sql:
-                return func_module_result
-            return MagicMock()
-
-        conn.execute.side_effect = execute_side_effect
-
-        routines = RoutineFetcherRegistry.get_routines_mssql(inspector, "dbo")
-
-        assert len(routines) == 1
-        assert routines[0]["name"] == "my_func"
-        assert routines[0]["type"] == "FUNCTION"
-        assert "CREATE FUNCTION" in routines[0]["definition"]
+        assert [(r["name"], r["type"]) for r in routines] == [
+            ("f_scalar", "FUNCTION"),
+            ("f_inline", "FUNCTION"),
+            ("f_table", "FUNCTION"),
+        ]
 
     def test_returns_empty_when_engine_is_none(self) -> None:
         inspector = MagicMock()

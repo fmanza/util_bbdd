@@ -40,6 +40,22 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   - `SqlDiffReporter` (seguridad): en MariaDB/MySQL los comentarios duplican también `\`; un comentario terminado en
     `\` dejaba el literal abierto y un comentario manipulado podía inyectar SQL en el script.
   - Markdown: el diagrama Mermaid muestra el número de columnas con diferencias (antes siempre «1 cols»).
+- **comparar** (entrega 2):
+  - SQL Server: solo se comparaba la primera routine del schema. El código del bucle ejecutaba otra consulta sobre
+    la misma conexión mientras recorría el listado y, con pymssql (sin varios resultados abiertos), el resto del
+    listado se descartaba. Ahora una consulta trae el listado y el código.
+  - Oracle: las routines se leen de `ALL_SOURCE` con `CREATE OR REPLACE` delante, sin el owner en el nombre; con
+    `DBMS_METADATA.GET_DDL` (`"OWNER"."NOMBRE"`) todas las routines de dos schemas salían como modificadas.
+
+### Performance
+
+- **comparar**: los metadatos de las tablas comunes (columnas, PK, índices, FKs y comentarios) se leen con
+  `Inspector.get_multi_*` (módulo `comparar/_prefetch.py`); en SQL Server las FKs, con una consulta por schema
+  (`metadata.sqlserver.constraints.fetch_schema_fk_details_sql`, mismo formato que `get_foreign_keys`). Las routines
+  de SQL Server y Oracle, con una consulta por schema. Dos schemas de 200 tablas, 20 vistas y 20 routines, todas las
+  opciones: PostgreSQL 4,23 s → 0,15 s (2.450 → 62 consultas), Oracle 5,18 s → 0,26 s (2.086 → 58), SQL Server
+  12,23 s → 3,14 s, MariaDB 1,24 s → 0,35 s, MySQL 1,37 s → 0,43 s. La paridad con la reflexión tabla a tabla se
+  verifica contra los cinco motores en `tests/integration/test_comparar_prefetch_engines.py`.
 
 ## [0.29.0] - 2026-10-02
 

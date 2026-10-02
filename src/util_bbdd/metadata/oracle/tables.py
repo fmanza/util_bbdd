@@ -514,6 +514,26 @@ def fetch_routine_bodies_for_schema_sql() -> str:
     )
 
 
+def fetch_standalone_routine_sources_for_schema_sql() -> str:
+    """Código de las procedures y functions sueltas de un owner, en una consulta (uso: comparar).
+
+    Como :func:`fetch_routine_bodies_for_schema_sql` pero sin ``PACKAGE BODY``: quien solo compara rutinas sueltas
+    no transfiere el código de los packages, que puede ser de miles de líneas.
+
+    Parametrizado con :owner.
+
+    Returns:
+        str: SQL query para (name, type, line, text) ordenado por nombre, tipo y línea.
+    """
+    return (
+        "SELECT name, type, line, text "
+        "FROM all_source "
+        "WHERE owner = :owner "
+        "  AND type IN ('PROCEDURE', 'FUNCTION') "
+        "ORDER BY name, type, line"
+    )
+
+
 __all__: list[str] = [
     "fetch_schemas_sql",
     "fetch_tables_sql",
@@ -534,5 +554,6 @@ __all__: list[str] = [
     "fetch_indexes_for_schema_sql",
     "fetch_view_columns_for_schema_sql",
     "fetch_routine_bodies_for_schema_sql",
+    "fetch_standalone_routine_sources_for_schema_sql",
     "fetch_routines_for_schema_sql",
 ]
