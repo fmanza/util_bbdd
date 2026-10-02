@@ -21,6 +21,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 - **comparar**: MySQL tiene comparación de routines (mismo fetcher que MariaDB).
 - **metadata**: `postgresql.routines.fetch_routines_with_definition_for_schema_sql()` (nueva), que usa `comparar`; el
   diagrama de capas incluye la arista `comparar → metadata`.
+- **comparar** (refactor, sin cambios de comportamiento): `DdlNormalizer` pasa a `comparar/_ddl.py` para que el
+  núcleo no dependa de `reporters/` (`reporters/_base.py` lo reexporta); el SQL de routines MariaDB/MySQL que quedaba
+  en `comparar` pasa a `metadata/mariadb/tables.py` (`fetch_routine_status_sql`, `fetch_show_create_routine_sql`,
+  REGLA #1); `SchemaComparator` y `SqlDiffReporter` usan los tipos de reflexión de SQLAlchemy (`ReflectedColumn`,
+  `ReflectedIndex`…) en lugar de `Any`.
 
 ### Fixed
 

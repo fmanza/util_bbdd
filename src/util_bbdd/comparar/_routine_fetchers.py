@@ -28,7 +28,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DatabaseError, OperationalError
 
 from util_bbdd._core.exceptions import MetadataIntrospectionError
-from util_bbdd.metadata.mariadb.common import quote_mariadb_identifier
+from util_bbdd.metadata.mariadb.tables import fetch_routine_status_sql, fetch_show_create_routine_sql
 from util_bbdd.metadata.oracle.tables import fetch_standalone_routine_sources_for_schema_sql
 from util_bbdd.metadata.postgresql.routines import fetch_routines_with_definition_for_schema_sql
 from util_bbdd.metadata.sqlserver.tables import (
@@ -88,10 +88,7 @@ def _mariadb_show_create(conn: Connection, kind: str, db_name: str, name: str) -
     Si la conexión se ha perdido (``connection_invalidated``) el error se propaga: el fetcher lo convierte en error
     de listado, en lugar de devolver ``""`` para esta y todas las routines restantes.
     """
-    qualified: str = quote_mariadb_identifier(name)
-    if db_name:
-        qualified = f"{quote_mariadb_identifier(db_name)}.{qualified}"
-    sql: str = f"SHOW CREATE {kind} {qualified}".replace(":", r"\:")
+    sql: str = fetch_show_create_routine_sql(kind, db_name, name).replace(":", r"\:")
     try:
         result: CursorResult[Any] = conn.execute(text(sql))
     except DatabaseError as exc:  # sin permisos sobre la routine, o eliminada entre el listado y el SHOW CREATE
@@ -146,7 +143,7 @@ class RoutineFetcherRegistry:
         try:
             with engine.connect() as conn:
                 for kind in ("PROCEDURE", "FUNCTION"):
-                    status: CursorResult[Any] = conn.execute(text(f"SHOW {kind} STATUS WHERE Db=:db"), {"db": db_name})
+                    status: CursorResult[Any] = conn.execute(text(fetch_routine_status_sql(kind)), {"db": db_name})
                     names: list[str] = [str(row["Name"]) for row in status.mappings()]
                     for name in names:
                         if not _is_safe_identifier(name):

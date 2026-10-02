@@ -35,12 +35,20 @@ from __future__ import annotations
 
 import logging
 
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, LiteralString
+from typing import TYPE_CHECKING, ClassVar, Literal, LiteralString
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
-    from sqlalchemy.engine import Inspector
+    from sqlalchemy.engine import Dialect, Inspector
+    from sqlalchemy.engine.interfaces import (
+        ReflectedColumn,
+        ReflectedForeignKeyConstraint,
+        ReflectedIndex,
+        ReflectedPrimaryKeyConstraint,
+    )
+    from sqlalchemy.sql.compiler import IdentifierPreparer
 
     from util_bbdd.comparar.models import (
         ColumnDiff,
@@ -256,7 +264,7 @@ class SqlDiffReporter:
     #: Factoría de ``Dialect`` de SQLAlchemy por dialecto, usada solo para obtener su
     #: ``identifier_preparer`` (citado de identificadores dialect-aware). No se usa para
     #: compilar ni ejecutar SQL.
-    _DIALECT_FACTORY: ClassVar[dict[str, Any]] = {
+    _DIALECT_FACTORY: ClassVar[dict[str, Callable[[], Dialect]]] = {
         "generic": DefaultDialect,
         "mariadb": mysql.dialect,
         "mysql": mysql.dialect,
@@ -282,16 +290,16 @@ class SqlDiffReporter:
             )
         self.logger: logging.Logger = logging.getLogger(__name__)
         self._dialect: str = normalized
-        self._identifier_preparer: Any = self._DIALECT_FACTORY[normalized]().identifier_preparer
-        self._source_inspector: Any = source_inspector
+        self._identifier_preparer: IdentifierPreparer = self._DIALECT_FACTORY[normalized]().identifier_preparer
+        self._source_inspector: Inspector | None = source_inspector
         self._source_schema: str | None = source_schema
         #: Caché de columnas SA por nombre de tabla.  Evita consultas repetidas
         #: al Inspector para la misma tabla en un mismo render.
-        self._col_cache: dict[str, list[dict[str, Any]]] = {}
+        self._col_cache: dict[str, list[ReflectedColumn]] = {}
         #: Caché de foreign keys SA por nombre de tabla.
-        self._fk_cache: dict[str, list[dict[str, Any]]] = {}
+        self._fk_cache: dict[str, list[ReflectedForeignKeyConstraint]] = {}
         #: Caché de índices SA por nombre de tabla.
-        self._idx_cache: dict[str, list[dict[str, Any]]] = {}
+        self._idx_cache: dict[str, list[ReflectedIndex]] = {}
         #: Mensaje de error por tabla cuando get_columns() falla.  Permite
         #: incluir la causa exacta del fallback en el placeholder ``-- ⚠``.
         self._col_error_cache: dict[str, str] = {}
@@ -433,7 +441,7 @@ class SqlDiffReporter:
     # Acceso al Inspector origen
     # ------------------------------------------------------------------
 
-    def _fetch_source_columns(self, table_name: str) -> list[dict[str, Any]]:
+    def _fetch_source_columns(self, table_name: str) -> list[ReflectedColumn]:
         """Obtiene la lista de columnas SA del esquema origen para *table_name*.
 
         Usa caché interna por nombre de tabla para evitar consultas repetidas
@@ -465,7 +473,9 @@ class SqlDiffReporter:
         if self._source_inspector is None:
             return []
         try:
-            pk: dict[str, Any] = self._source_inspector.get_pk_constraint(table_name, schema=self._source_schema)
+            pk: ReflectedPrimaryKeyConstraint = self._source_inspector.get_pk_constraint(
+                table_name, schema=self._source_schema
+            )
             return list(pk.get("constrained_columns", []))
         except (OperationalError, DatabaseError, NotImplementedError):
             self.logger.warning(
@@ -474,7 +484,7 @@ class SqlDiffReporter:
             )
             return []
 
-    def _fetch_source_foreign_keys(self, table_name: str) -> list[dict[str, Any]]:
+    def _fetch_source_foreign_keys(self, table_name: str) -> list[ReflectedForeignKeyConstraint]:
         """Obtiene la lista de foreign keys SA del esquema origen para *table_name*.
 
         Usa caché interna ``_fk_cache`` para evitar consultas repetidas al Inspector
@@ -496,7 +506,7 @@ class SqlDiffReporter:
                 self._fk_cache[table_name] = []
         return self._fk_cache[table_name]
 
-    def _fetch_source_indexes(self, table_name: str) -> list[dict[str, Any]]:
+    def _fetch_source_indexes(self, table_name: str) -> list[ReflectedIndex]:
         """Obtiene la lista de índices SA del esquema origen para *table_name*.
 
         Usa caché interna ``_idx_cache``.  Devuelve lista vacía si el Inspector
@@ -518,7 +528,7 @@ class SqlDiffReporter:
         return self._idx_cache[table_name]
 
     @staticmethod
-    def _format_col_type(col: dict[str, Any]) -> str:
+    def _format_col_type(col: ReflectedColumn) -> str:
         """Devuelve la representación de cadena del tipo SQLAlchemy de *col*.
 
         Usa ``str(col["type"])`` que produce p.ej. ``"VARCHAR(100)"``,
@@ -528,7 +538,7 @@ class SqlDiffReporter:
         """
         return str(col.get("type", "TEXT"))
 
-    def _render_col_definition(self, col: dict[str, Any]) -> str:
+    def _render_col_definition(self, col: ReflectedColumn) -> str:
         """Genera la línea de definición de columna para un ``CREATE TABLE``.
 
         Formato: ``  nombre TIPO [NOT NULL] [DEFAULT valor]``
@@ -536,7 +546,7 @@ class SqlDiffReporter:
         name: str = self._quote(col["name"])
         col_type: str = self._format_col_type(col)
         nullable: bool = col.get("nullable", True)
-        default: Any = col.get("default")
+        default: str | None = col.get("default")
 
         parts: list[str] = [f"  {name} {col_type}"]
         if not nullable:
@@ -580,7 +590,7 @@ class SqlDiffReporter:
         ejecución.  Si la tabla referenciada es también nueva, reordenar las
         sentencias manualmente o usar ``-- ⚠ verificar orden de ejecución``.
         """
-        cols: list[dict[str, Any]] = self._fetch_source_columns(table_name)
+        cols: list[ReflectedColumn] = self._fetch_source_columns(table_name)
         if not cols:
             reason = self._col_error_cache.get(
                 table_name,
@@ -590,8 +600,8 @@ class SqlDiffReporter:
             return self._render_added_table_placeholder(table_name, reason=reason)
 
         pk_cols: list[str] = self._fetch_pk_columns(table_name)
-        fks: list[dict[str, Any]] = self._fetch_source_foreign_keys(table_name)
-        indexes: list[dict[str, Any]] = self._fetch_source_indexes(table_name)
+        fks: list[ReflectedForeignKeyConstraint] = self._fetch_source_foreign_keys(table_name)
+        indexes: list[ReflectedIndex] = self._fetch_source_indexes(table_name)
         prefix: str = self._CREATE_TABLE_PREFIX.get(self._dialect, self._CREATE_TABLE_PREFIX["generic"])
 
         lines: list[str] = [f"{prefix.format(table=self._quote(table_name))} ("]
@@ -608,7 +618,7 @@ class SqlDiffReporter:
 
         return lines
 
-    def _build_fk_definitions(self, fks: list[dict[str, Any]]) -> list[str]:
+    def _build_fk_definitions(self, fks: list[ReflectedForeignKeyConstraint]) -> list[str]:
         """Construye las definiciones de FOREIGN KEY para la tabla.
 
         Normaliza cada FK extraído del Inspector: valida que tenga columnas
@@ -651,7 +661,7 @@ class SqlDiffReporter:
             lines.append(f"{col_def}{sep}")
         return lines
 
-    def _build_secondary_indexes_lines(self, indexes: list[dict[str, Any]], table_name: str) -> list[str]:
+    def _build_secondary_indexes_lines(self, indexes: list[ReflectedIndex], table_name: str) -> list[str]:
         """Genera las sentencias ``CREATE INDEX`` para índices secundarios.
 
         Excluye índices sin nombre o sin columnas (típicamente FK implícitos o PK).
@@ -693,7 +703,7 @@ class SqlDiffReporter:
         ]
         return lines
 
-    def _render_add_column_with_type(self, table: str, col_name: str, col_info: dict[str, Any]) -> list[str]:
+    def _render_add_column_with_type(self, table: str, col_name: str, col_info: ReflectedColumn) -> list[str]:
         """Genera ``ALTER TABLE … ADD COLUMN`` con tipo y constraints reales.
 
         Emite un comentario ``-- ⚠`` de advertencia cuando la columna es
@@ -702,7 +712,7 @@ class SqlDiffReporter:
         """
         col_type: str = self._format_col_type(col_info)
         nullable: bool = col_info.get("nullable", True)
-        default: Any = col_info.get("default")
+        default: str | None = col_info.get("default")
         has_default: bool = default is not None and str(default).strip().upper() not in ("", "NONE")
 
         definition_parts: list[str] = [col_type]
@@ -773,8 +783,8 @@ class SqlDiffReporter:
         if src_present:
             # Columna existe en source, falta en target → ADD
             if self._source_inspector is not None:
-                cols: list[dict[str, Any]] = self._fetch_source_columns(table)
-                col_info: dict[str, Any] | None = next((c for c in cols if c["name"] == col), None)
+                cols: list[ReflectedColumn] = self._fetch_source_columns(table)
+                col_info: ReflectedColumn | None = next((c for c in cols if c["name"] == col), None)
                 if col_info is not None:
                     return self._render_add_column_with_type(table, col, col_info)
             return [

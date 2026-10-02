@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
@@ -30,6 +30,12 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Sequence
 
     from sqlalchemy.engine import Inspector
+    from sqlalchemy.engine.interfaces import (
+        ReflectedColumn,
+        ReflectedForeignKeyConstraint,
+        ReflectedIndex,
+        ReflectedPrimaryKeyConstraint,
+    )
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -51,6 +57,17 @@ class TableMetadata:
     inspector: Inspector
     schema: str | None
     prefetched: dict[MetadataKind, dict[str, Any]] = field(default_factory=dict)
+
+    @overload
+    def get(self, kind: Literal["columns"], table: str) -> list[ReflectedColumn]: ...
+    @overload
+    def get(self, kind: Literal["pk"], table: str) -> ReflectedPrimaryKeyConstraint: ...
+    @overload
+    def get(self, kind: Literal["indexes"], table: str) -> list[ReflectedIndex]: ...
+    @overload
+    def get(self, kind: Literal["fks"], table: str) -> list[ReflectedForeignKeyConstraint]: ...
+    @overload
+    def get(self, kind: Literal["comments"], table: str) -> str: ...
 
     def get(self, kind: MetadataKind, table: str) -> Any:
         """Metadatos ``kind`` de ``table`` (nombre real del motor); el comentario de tabla, como texto."""

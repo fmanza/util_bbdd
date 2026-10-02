@@ -12,6 +12,7 @@ from sqlalchemy.exc import ArgumentError, DatabaseError, OperationalError
 
 from util_bbdd._core.exceptions import MetadataIntrospectionError
 
+from ._ddl import DdlNormalizer
 from ._prefetch import prefetch_table_metadata
 from ._routine_fetchers import RoutineFetcherRegistry
 from .models import (
@@ -24,7 +25,6 @@ from .models import (
     TableDiff,
     ViewDiff,
 )
-from .reporters._base import DdlNormalizer
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -34,9 +34,15 @@ _URL_CREDENTIALS_RE: str = r"://[^@]+@"
 _URL_CREDENTIALS_MASK: str = "://***@"
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping
+    from collections.abc import Callable, Iterable, Mapping, Sequence
 
     from sqlalchemy.engine import URL, Inspector
+    from sqlalchemy.engine.interfaces import (
+        ReflectedColumn,
+        ReflectedForeignKeyConstraint,
+        ReflectedIndex,
+        ReflectedPrimaryKeyConstraint,
+    )
 
     from ._prefetch import MetadataKind
 
@@ -64,7 +70,7 @@ class SchemaComparator:
     #: Mapa canónico de nombre de motor interno → nombre de dialect SQLAlchemy.
     #: Necesario porque ``Inspector.dialect.name`` reporta el nombre de dialect de SA,
     #: que puede diferir del nombre interno de la librería (p.ej. ``sqlserver`` → ``mssql``).
-    #: Las claves de ``_ROUTINE_FETCHERS`` y ``_DDL_STRIP_RULES`` deben usar los valores de este mapa.
+    #: Las claves de ``_ROUTINE_FETCHERS`` deben usar los valores de este mapa.
     _DB_TYPE_TO_DIALECT: ClassVar[dict[str, str]] = {
         "mariadb": "mariadb",
         "mysql": "mysql",
@@ -224,8 +230,8 @@ class SchemaComparator:
             tgt_table = target_tables_lower[key]
 
             # Columnas una sola vez, para _compare_columns_from_raw y _compare_comments_from_raw
-            source_cols_raw: list[Any] = src_meta.get("columns", src_table)
-            target_cols_raw: list[Any] = tgt_meta.get("columns", tgt_table)
+            source_cols_raw: list[ReflectedColumn] = src_meta.get("columns", src_table)
+            target_cols_raw: list[ReflectedColumn] = tgt_meta.get("columns", tgt_table)
 
             col_diffs = self._compare_columns_from_raw(
                 source_cols_raw,
@@ -274,10 +280,10 @@ class SchemaComparator:
 
     @staticmethod
     def _compare_columns_from_raw(
-        source_cols_raw: list[Any],
-        target_cols_raw: list[Any],
-        source_pk: Any,
-        target_pk: Any,
+        source_cols_raw: list[ReflectedColumn],
+        target_cols_raw: list[ReflectedColumn],
+        source_pk: ReflectedPrimaryKeyConstraint | None,
+        target_pk: ReflectedPrimaryKeyConstraint | None,
     ) -> tuple[ColumnDiff, ...]:
         """Compara columnas a partir de listas ya cargadas (evita doble consulta).
 
@@ -286,7 +292,7 @@ class SchemaComparator:
         Los nombres canónicos de cada motor se preservan en los ColumnDiff.
         """
         # Mapas lower→col para comparación case-insensitive entre motores distintos
-        source_by_lower: dict[str, Any] = {}
+        source_by_lower: dict[str, ReflectedColumn] = {}
         for col in source_cols_raw:
             key = col["name"].lower()
             if key in source_by_lower:
@@ -299,7 +305,7 @@ class SchemaComparator:
             else:
                 source_by_lower[key] = col
 
-        target_by_lower: dict[str, Any] = {}
+        target_by_lower: dict[str, ReflectedColumn] = {}
         for col in target_cols_raw:
             key = col["name"].lower()
             if key in target_by_lower:
@@ -312,8 +318,8 @@ class SchemaComparator:
             else:
                 target_by_lower[key] = col
 
-        source_pks: list[str] = (source_pk or {}).get("constrained_columns") or []
-        target_pks: list[str] = (target_pk or {}).get("constrained_columns") or []
+        source_pks: list[str] = (source_pk.get("constrained_columns") if source_pk else None) or []
+        target_pks: list[str] = (target_pk.get("constrained_columns") if target_pk else None) or []
 
         diffs: list[ColumnDiff] = []
 
@@ -360,8 +366,8 @@ class SchemaComparator:
     def _diff_common_column(
         col_name: str,
         tgt_col_name: str,
-        s_col: dict[str, Any],
-        t_col: dict[str, Any],
+        s_col: ReflectedColumn,
+        t_col: ReflectedColumn,
         source_pks: list[str],
         target_pks: list[str],
     ) -> list[ColumnDiff]:
@@ -417,17 +423,17 @@ class SchemaComparator:
 
     def _compare_indices(
         self,
-        source_idx: Iterable[Any],
-        target_idx: Iterable[Any],
+        source_idx: Iterable[ReflectedIndex],
+        target_idx: Iterable[ReflectedIndex],
         src_table: str,
     ) -> tuple[IndexDiff, ...]:
         # Comparación case-insensitive del nombre del índice (igual que tablas/columnas)
         # para soportar motores con convenciones de case distintas.
-        source_map: dict[str, dict[str, Any]] = self._case_insensitive_key_map(
-            (idx for idx in source_idx if idx.get("name")), lambda idx: idx["name"], kind="índices origen"
+        source_map: dict[str, ReflectedIndex] = self._case_insensitive_key_map(
+            (idx for idx in source_idx if idx.get("name")), self._index_name, kind="índices origen"
         )
-        target_map: dict[str, dict[str, Any]] = self._case_insensitive_key_map(
-            (idx for idx in target_idx if idx.get("name")), lambda idx: idx["name"], kind="índices destino"
+        target_map: dict[str, ReflectedIndex] = self._case_insensitive_key_map(
+            (idx for idx in target_idx if idx.get("name")), self._index_name, kind="índices destino"
         )
 
         diffs: list[IndexDiff] = []
@@ -436,7 +442,7 @@ class SchemaComparator:
             source_index_dict = source_map[key]
             diffs.append(
                 IndexDiff(
-                    index_name=source_index_dict["name"],
+                    index_name=self._index_name(source_index_dict),
                     table_name=src_table,
                     status="added",
                     source_columns=self._join_columns(source_index_dict.get("column_names")),
@@ -448,7 +454,7 @@ class SchemaComparator:
             target_index_dict = target_map[key]
             diffs.append(
                 IndexDiff(
-                    index_name=target_index_dict["name"],
+                    index_name=self._index_name(target_index_dict),
                     table_name=src_table,
                     status="removed",
                     target_columns=self._join_columns(target_index_dict.get("column_names")),
@@ -457,8 +463,8 @@ class SchemaComparator:
             )
 
         for key in sorted(source_map.keys() & target_map.keys()):
-            s_idx: dict[str, Any] = source_map[key]
-            t_idx: dict[str, Any] = target_map[key]
+            s_idx: ReflectedIndex = source_map[key]
+            t_idx: ReflectedIndex = target_map[key]
             s_cols: str = self._join_columns(s_idx.get("column_names"))
             t_cols: str = self._join_columns(t_idx.get("column_names"))
             s_unique = bool(s_idx.get("unique", False))
@@ -467,7 +473,7 @@ class SchemaComparator:
             if s_cols.lower() != t_cols.lower() or s_unique != t_unique:
                 diffs.append(
                     IndexDiff(
-                        index_name=s_idx["name"],
+                        index_name=self._index_name(s_idx),
                         table_name=src_table,
                         status="modified",
                         source_columns=s_cols,
@@ -485,16 +491,16 @@ class SchemaComparator:
 
     def _compare_foreign_keys(
         self,
-        source_fks: Iterable[Any],
-        target_fks: Iterable[Any],
+        source_fks: Iterable[ReflectedForeignKeyConstraint],
+        target_fks: Iterable[ReflectedForeignKeyConstraint],
         src_table: str,
     ) -> tuple[ForeignKeyDiff, ...]:
         # Comparación case-insensitive del nombre/clave de la FK (igual que tablas/columnas)
         # para soportar motores con convenciones de case distintas.
-        source_map: dict[str, Any] = self._case_insensitive_key_map(
+        source_map: dict[str, ReflectedForeignKeyConstraint] = self._case_insensitive_key_map(
             source_fks, SchemaComparator._fk_key, kind="foreign keys origen"
         )
-        target_map: dict[str, Any] = self._case_insensitive_key_map(
+        target_map: dict[str, ReflectedForeignKeyConstraint] = self._case_insensitive_key_map(
             target_fks, SchemaComparator._fk_key, kind="foreign keys destino"
         )
 
@@ -564,8 +570,8 @@ class SchemaComparator:
 
     @staticmethod
     def _compare_comments_from_raw(
-        source_cols_raw: list[Any],
-        target_cols_raw: list[Any],
+        source_cols_raw: list[ReflectedColumn],
+        target_cols_raw: list[ReflectedColumn],
         table: str,
         s_table_comment: str,
         t_table_comment: str,
@@ -585,13 +591,15 @@ class SchemaComparator:
 
         # Mapas lower→col para comparación case-insensitive entre motores distintos.
         # El nombre canónico en ColumnDiff usa source si existe, target en caso contrario.
-        source_cols_lower: dict[str, Any] = {col["name"].lower(): col for col in source_cols_raw}
-        target_cols_lower: dict[str, Any] = {col["name"].lower(): col for col in target_cols_raw}
+        source_cols_lower: dict[str, ReflectedColumn] = {col["name"].lower(): col for col in source_cols_raw}
+        target_cols_lower: dict[str, ReflectedColumn] = {col["name"].lower(): col for col in target_cols_raw}
         for lower_key in sorted(source_cols_lower.keys() | target_cols_lower.keys()):
-            s_col_comment = str((source_cols_lower.get(lower_key) or {}).get("comment") or "")
-            t_col_comment = str((target_cols_lower.get(lower_key) or {}).get("comment") or "")
+            s_col: ReflectedColumn | None = source_cols_lower.get(lower_key)
+            t_col: ReflectedColumn | None = target_cols_lower.get(lower_key)
+            s_col_comment = str((s_col.get("comment") if s_col else None) or "")
+            t_col_comment = str((t_col.get("comment") if t_col else None) or "")
             if s_col_comment != t_col_comment:
-                canonical = (source_cols_lower.get(lower_key) or target_cols_lower[lower_key])["name"]
+                canonical = (s_col or target_cols_lower[lower_key])["name"]
                 diffs.append(
                     CommentDiff(
                         object_name=table,
@@ -850,7 +858,7 @@ class SchemaComparator:
         return DdlNormalizer.normalize_for_comparison(definition)
 
     @staticmethod
-    def _fk_key(fk: Mapping[str, Any]) -> str:
+    def _fk_key(fk: ReflectedForeignKeyConstraint) -> str:
         """Genera una clave única para una FK, incluyendo FKs anónimas (name=None).
 
         Para FKs con nombre usa el nombre como clave.
@@ -866,18 +874,23 @@ class SchemaComparator:
         return f"__anon__{cols}__{ref_table}__{ref_cols}"
 
     @staticmethod
+    def _index_name(index: ReflectedIndex) -> str:
+        """Nombre de un índice con nombre (los anónimos se filtran antes de llamar)."""
+        return index["name"] or ""
+
+    @staticmethod
     def _routine_key(routine: Mapping[str, str], *, by_signature: bool) -> str:
         """Clave de emparejamiento de una routine: firma (si ``by_signature``) o nombre, y tipo."""
         ident: str = routine["signature"] if by_signature else routine["name"]
         return f"{ident}\x00{routine.get('type', 'PROCEDURE')}"
 
     @staticmethod
-    def _case_insensitive_key_map(
-        items: Iterable[Any],
-        key_fn: Callable[[Any], str],
+    def _case_insensitive_key_map[T](
+        items: Iterable[T],
+        key_fn: Callable[[T], str],
         *,
         kind: str,
-    ) -> dict[str, Any]:
+    ) -> dict[str, T]:
         """Agrupa items en un dict indexado por ``key_fn(item).lower()``.
 
         Soporta motores con convenciones de case distintas (p.ej. índices/FKs
@@ -887,7 +900,7 @@ class SchemaComparator:
         el item almacenado. Advierte (no falla) si dos items colisionan al
         normalizar el case.
         """
-        result: dict[str, Any] = {}
+        result: dict[str, T] = {}
         for item in items:
             raw_key = key_fn(item)
             lowered_key = raw_key.lower()
@@ -904,8 +917,8 @@ class SchemaComparator:
         return result
 
     @staticmethod
-    def _join_columns(column_names: list[str] | None) -> str:
-        """Une nombres de columnas filtrando Nones."""
+    def _join_columns(column_names: Sequence[str | None] | None) -> str:
+        """Une nombres de columnas filtrando Nones (columnas de índices por expresión)."""
         if not column_names:
             return ""
         return ",".join(c for c in column_names if c is not None)

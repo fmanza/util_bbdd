@@ -221,6 +221,49 @@ def fetch_routines_sql() -> str:
     )
 
 
+_ROUTINE_KINDS: frozenset[str] = frozenset({"PROCEDURE", "FUNCTION"})
+
+
+def fetch_routine_status_sql(kind: str) -> str:
+    """SQL ``SHOW PROCEDURE STATUS`` / ``SHOW FUNCTION STATUS`` de un schema MariaDB/MySQL (uso: comparar).
+
+    Parámetros: ``:db`` (estilo de ``sqlalchemy.text``).
+
+    Args:
+        kind: ``"PROCEDURE"`` o ``"FUNCTION"``.
+
+    Returns:
+        str: SQL con una fila por routine (columna ``Name``, entre otras).
+    """
+    if kind not in _ROUTINE_KINDS:
+        msg = f"kind debe ser PROCEDURE o FUNCTION, no {kind!r}"
+        raise ValueError(msg)
+    return f"SHOW {kind} STATUS WHERE Db=:db"
+
+
+def fetch_show_create_routine_sql(kind: str, database: str, routine_name: str) -> str:
+    """SQL ``SHOW CREATE PROCEDURE/FUNCTION`` de una routine MariaDB/MySQL (uso: comparar).
+
+    El nombre va calificado con ``database`` (si no está vacío): sin él, ``SHOW CREATE`` busca en la base de datos de
+    la conexión. ``SHOW CREATE`` no admite bind params para el identificador: se cita con backticks.
+
+    Args:
+        kind: ``"PROCEDURE"`` o ``"FUNCTION"``.
+        database: Schema de la routine; vacío para el de la conexión.
+        routine_name: Nombre de la routine.
+
+    Returns:
+        str: SQL con una fila (columna ``Create Procedure`` o ``Create Function``).
+    """
+    if kind not in _ROUTINE_KINDS:
+        msg = f"kind debe ser PROCEDURE o FUNCTION, no {kind!r}"
+        raise ValueError(msg)
+    qualified: str = quote_mariadb_identifier(routine_name)
+    if database:
+        qualified = f"{quote_mariadb_identifier(database)}.{qualified}"
+    return f"SHOW CREATE {kind} {qualified}"
+
+
 def fetch_routine_parameters_for_schema_sql() -> str:
     """SQL de los parámetros de todas las rutinas de un schema MySQL/MariaDB (uso: migrate/extractors, 0.23.1).
 
