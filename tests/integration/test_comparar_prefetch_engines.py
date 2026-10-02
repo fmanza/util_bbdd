@@ -110,6 +110,11 @@ def engine_and_tables(request: pytest.FixtureRequest) -> Any:
     prefix = f"zzc{uuid.uuid4().hex[:6]}"
     md = _tables(prefix)
     md.create_all(engine)
+    if key == "mssql":
+        # Índices con columnas INCLUDE y filtrado: las reglas de MSDialect.get_indexes que hay que reproducir
+        with engine.begin() as conn:
+            conn.exec_driver_sql(f"CREATE INDEX {prefix}_ix_inc ON {prefix}_c (a) INCLUDE (b, self_id)")
+            conn.exec_driver_sql(f"CREATE INDEX {prefix}_ix_filt ON {prefix}_c (p_id) WHERE p_id IS NOT NULL")
     try:
         yield key, engine, [t.name for t in md.sorted_tables]
     finally:
@@ -153,7 +158,12 @@ def test_prefetch_matches_per_table_reflection(engine_and_tables: Any) -> None:
                     )
 
         if key == "mssql":
-            # Las FKs de SQL Server salen de la consulta por schema: mismo dict que get_foreign_keys (options incl.)
+            # PK, índices, FKs y comentarios de SQL Server salen de consultas por schema: mismo dict que MSDialect
+            # tabla a tabla (dialect_options, include_columns, options y referred_schema incluidos).
+            insp = inspect(engine)
             for table in names:
-                got = sorted(meta.get("fks", table), key=lambda fk: fk["name"])
-                assert got == sorted(expected["fks"][table], key=lambda fk: fk["name"]), table
+                got_fks = sorted(meta.get("fks", table), key=lambda fk: fk["name"])
+                assert got_fks == sorted(expected["fks"][table], key=lambda fk: fk["name"]), table
+                assert meta.get("pk", table) == insp.get_pk_constraint(table, schema=schema), table
+                assert meta.get("indexes", table) == insp.get_indexes(table, schema=schema), table
+                assert meta.prefetched["comments"][table] == expected["comments"][table], table

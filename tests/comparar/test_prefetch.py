@@ -185,6 +185,84 @@ class TestSqlServerForeignKeys:
         assert meta.get("fks", "c") == ["fk"]
 
 
+class TestSqlServerPkIndexesComments:
+    """Formato de MSDialect para PK, índices y comentarios precargados (paridad real en tests/integration)."""
+
+    @staticmethod
+    def _inspector(*results: list[tuple[Any, ...]]) -> MagicMock:
+        engine = MagicMock(spec=Engine)
+        conn = MagicMock()
+        engine.connect.return_value.__enter__.return_value = conn
+        engine.connect.return_value.__exit__.return_value = False
+        conn.execute.return_value.all.side_effect = list(results)
+        insp = MagicMock()
+        insp.dialect.name = "mssql"
+        insp.bind = engine
+        insp.default_schema_name = "dbo"
+        for method in ("get_multi_pk_constraint", "get_multi_indexes", "get_multi_table_comment"):
+            getattr(insp, method).side_effect = AssertionError(f"no debe usarse {method}")
+        return insp
+
+    def test_pk_columns_in_key_order_and_default_without_pk(self) -> None:
+        insp = self._inspector([("t", "PK_t", "b", 1), ("t", "PK_t", "a", 1)])
+
+        meta = prefetch_table_metadata(insp, None, ["t", "sin_pk"], kinds=["pk"])
+
+        assert meta.get("pk", "t") == {
+            "constrained_columns": ["b", "a"],
+            "name": "PK_t",
+            "dialect_options": {"mssql_clustered": 1},
+        }
+        assert meta.get("pk", "sin_pk") == {"constrained_columns": [], "name": None}
+
+    def test_indexes_follow_msdialect_rules(self) -> None:
+        index_rows = [
+            ("t", 2, "ix_inc", False, 2, None),
+            ("t", 3, "ix_filt", True, 2, "([a] IS NOT NULL)"),
+            ("t", 4, "ccs", False, 5, None),  # columnstore clustered
+            ("t", 5, "ncs", False, 6, None),  # columnstore no clustered
+        ]
+        column_rows = [
+            ("t", 2, "a", False),
+            ("t", 2, "b", True),  # INCLUDE
+            ("t", 3, "a", False),
+            ("t", 4, "a", False),
+            ("t", 5, "a", False),
+            ("t", 5, "b", True),  # columnstore no clustered: las incluidas cuentan como columnas
+        ]
+        insp = self._inspector(index_rows, column_rows)
+
+        indexes = prefetch_table_metadata(insp, None, ["t", "sin_ix"], kinds=["indexes"]).get("indexes", "t")
+
+        assert [(i["name"], i["unique"], i["column_names"], i["include_columns"]) for i in indexes] == [
+            ("ix_inc", False, ["a"], ["b"]),
+            ("ix_filt", True, ["a"], []),
+            ("ccs", False, [], []),
+            ("ncs", False, ["a", "b"], []),
+        ]
+        options = {i["name"]: i["dialect_options"] for i in indexes}
+        assert options["ix_inc"] == {"mssql_clustered": False, "mssql_include": ["b"]}
+        assert options["ix_filt"]["mssql_where"] == "([a] IS NOT NULL)"
+        assert options["ccs"] == {"mssql_clustered": True, "mssql_columnstore": True, "mssql_include": []}
+
+    def test_comments_as_text_and_empty_without_comment(self) -> None:
+        insp = self._inspector([("t", "tabla t"), ("vacia", "")])
+
+        meta = prefetch_table_metadata(insp, None, ["t", "vacia", "sin"], kinds=["comments"])
+
+        assert [meta.get("comments", n) for n in ("t", "vacia", "sin")] == ["tabla t", "", ""]
+
+    def test_columns_are_not_read_with_own_sql(self) -> None:
+        """Los tipos de columna de SQLAlchemy no se reconstruyen: columnas siempre por get_multi_columns."""
+        insp = self._inspector()
+        insp.get_multi_columns.return_value = {(None, "t"): ["col"]}
+
+        meta = prefetch_table_metadata(insp, None, ["t"], kinds=["columns"])
+
+        assert meta.get("columns", "t") == ["col"]
+        insp.bind.connect.assert_not_called()
+
+
 def test_compare_on_sqlite_gives_same_result_and_query_count_with_prefetch() -> None:
     """SQLite no tiene get_multi_* nativos: la precarga no debe añadir consultas ni cambiar el resultado."""
     engines = [create_engine("sqlite://"), create_engine("sqlite://")]

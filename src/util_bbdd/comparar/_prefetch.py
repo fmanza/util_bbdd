@@ -5,8 +5,10 @@ una consulta por tabla. Los ``get_multi_*`` de SQLAlchemy 2.0 leen todas las tab
 Oracle con una consulta por schema (≈ 2,1-2,4 s → 0,06-0,09 s por lado con 200 tablas, auditoría de ``comparar``
 2026-10-02); en el resto de dialects SQLAlchemy los resuelve tabla a tabla, con el mismo coste que antes.
 
-SQL Server no tiene ``get_multi_foreign_keys`` nativo y su ``get_foreign_keys`` es la llamada más cara (≈ 17 ms por
-tabla): las FKs se leen con una consulta por schema de ``metadata.sqlserver.constraints``.
+SQL Server no tiene ``get_multi_*`` nativos: PK, índices, FKs y comentarios se leen con una consulta por schema de
+``metadata.sqlserver`` y se construyen con el mismo formato que ``MSDialect`` tabla a tabla (verificado en
+``tests/integration/test_comparar_prefetch_engines.py``). Las columnas siguen con ``get_multi_columns`` (tabla a tabla):
+el comparador compara sus tipos de SQLAlchemy, que no se reconstruyen desde SQL propio.
 
 Lo que no se pueda precargar (método inexistente o no soportado, error, tabla ausente del resultado) se queda fuera
 del :class:`TableMetadata` y el comparador lo consulta tabla a tabla, como antes: los errores de introspección se
@@ -22,9 +24,16 @@ from typing import TYPE_CHECKING, Any, Literal, overload
 
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
+from sqlalchemy.engine.reflection import ReflectionDefaults
 from sqlalchemy.exc import SQLAlchemyError
 
 from util_bbdd.metadata.sqlserver.constraints import fetch_schema_fk_details_sql
+from util_bbdd.metadata.sqlserver.tables import (
+    fetch_index_columns_for_schema_sql,
+    fetch_index_details_for_schema_sql,
+    fetch_pk_details_for_schema_sql,
+    fetch_table_comments_for_schema_sql,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Sequence
@@ -40,6 +49,7 @@ if TYPE_CHECKING:
 logger: logging.Logger = logging.getLogger(__name__)
 
 type MetadataKind = Literal["columns", "pk", "indexes", "fks", "comments"]
+type _MssqlBuilder = Callable[[list[Sequence[Any]], str | None, str, Sequence[str]], dict[str, Any]]
 
 _MULTI_METHODS: dict[MetadataKind, str] = {
     "columns": "get_multi_columns",
@@ -90,8 +100,8 @@ def prefetch_table_metadata(
         return meta
     for kind in kinds:
         prefetched: dict[str, Any] | None = None
-        if kind == "fks" and _dialect_name(inspector) == "mssql":
-            prefetched = _mssql_foreign_keys(inspector, schema, names)
+        if _dialect_name(inspector) == "mssql":
+            prefetched = _mssql_prefetch(inspector, kind, schema, names)
         if prefetched is None:
             prefetched = _multi(inspector, _MULTI_METHODS[kind], schema, names)
         if kind == "comments":
@@ -163,23 +173,33 @@ def _multi(inspector: Inspector, method: str, schema: str | None, names: Sequenc
     return {key[1]: value for key, value in raw.items() if isinstance(key, tuple) and len(key) == 2}
 
 
-def _mssql_foreign_keys(inspector: Inspector, schema: str | None, names: Sequence[str]) -> dict[str, Any] | None:
-    """FKs de las tablas ``names`` con el formato de ``Inspector.get_foreign_keys``; ``None`` si no se pueden leer."""
+def _mssql_prefetch(
+    inspector: Inspector, kind: MetadataKind, schema: str | None, names: Sequence[str]
+) -> dict[str, Any] | None:
+    """Metadatos ``kind`` de las tablas ``names`` con consultas por schema; ``None`` si no se pueden leer así."""
+    spec = _MSSQL_QUERIES.get(kind)
     bind = getattr(inspector, "bind", None)
-    if not isinstance(bind, Engine) or (schema is not None and "." in schema):
-        # Un schema de varias partes ("bd.owner") no lo resuelve SCHEMA_ID: daría cero FKs sin error.
+    if spec is None or not isinstance(bind, Engine) or (schema is not None and "." in schema):
+        # Un schema de varias partes ("bd.owner") no lo resuelve SCHEMA_ID: daría cero filas sin error.
         return None
     owner: str = schema or inspector.default_schema_name or "dbo"
+    sql_builders, build = spec
     try:
         with bind.connect() as conn:
-            rows = conn.execute(text(fetch_schema_fk_details_sql()), {"schema": owner}).all()
+            results = [conn.execute(text(sql()), {"schema": owner}).all() for sql in sql_builders]
     except SQLAlchemyError as exc:
-        logger.debug("Consulta de FKs por schema falló (%s); se usa get_foreign_keys tabla a tabla.", exc)
+        logger.debug("Consulta de %s por schema falló (%s); se consulta tabla a tabla.", kind, exc)
         return None
+    return build(results, schema, owner, names)
 
+
+def _mssql_build_fks(
+    results: list[Sequence[Any]], schema: str | None, owner: str, names: Sequence[str]
+) -> dict[str, Any]:
+    """FKs con el formato de ``MSDialect.get_foreign_keys``."""
     result: dict[str, list[dict[str, Any]]] = {name: [] for name in names}
     by_name: dict[tuple[str, str], dict[str, Any]] = {}
-    for table, fk_name, column, ref_schema, ref_table, ref_column, on_delete, on_update in rows:
+    for table, fk_name, column, ref_schema, ref_table, ref_column, on_delete, on_update in results[0]:
         if table not in result:
             continue
         fk = by_name.get((table, fk_name))
@@ -198,6 +218,91 @@ def _mssql_foreign_keys(inspector: Inspector, schema: str | None, names: Sequenc
         fk["constrained_columns"].append(column)
         fk["referred_columns"].append(ref_column)
     return result
+
+
+def _mssql_build_pks(
+    results: list[Sequence[Any]], _schema: str | None, _owner: str, names: Sequence[str]
+) -> dict[str, Any]:
+    """PK con el formato de ``MSDialect.get_pk_constraint`` (sin PK: el valor por defecto de SQLAlchemy)."""
+    result: dict[str, Any] = {name: ReflectionDefaults.pk_constraint() for name in names}
+    with_pk: set[str] = set()
+    for table, pk_name, column, is_clustered in results[0]:
+        if table not in result:
+            continue
+        if table not in with_pk:
+            with_pk.add(table)
+            result[table] = {
+                "constrained_columns": [],
+                "name": pk_name,
+                "dialect_options": {"mssql_clustered": is_clustered},
+            }
+        result[table]["constrained_columns"].append(column)
+    return result
+
+
+def _mssql_build_indexes(
+    results: list[Sequence[Any]], _schema: str | None, _owner: str, names: Sequence[str]
+) -> dict[str, Any]:
+    """Índices con el formato de ``MSDialect.get_indexes`` (mismas reglas de columnas incluidas y columnstore)."""
+    index_rows, column_rows = results
+    result: dict[str, list[dict[str, Any]]] = {name: [] for name in names}
+    by_id: dict[tuple[str, int], dict[str, Any]] = {}
+    for table, index_id, index_name, is_unique, index_type, filter_definition in index_rows:
+        if table not in result:
+            continue
+        options: dict[str, Any] = {}
+        if index_type in {1, 2}:
+            options["mssql_clustered"] = index_type == 1
+        if index_type in {5, 6}:
+            options["mssql_clustered"] = index_type == 5
+            options["mssql_columnstore"] = True
+        if filter_definition is not None:
+            options["mssql_where"] = filter_definition
+        index: dict[str, Any] = {
+            "name": index_name,
+            "unique": is_unique == 1,
+            "column_names": [],
+            "include_columns": [],
+            "dialect_options": options,
+        }
+        by_id[(table, index_id)] = index
+        result[table].append(index)
+    for table, index_id, column, is_included in column_rows:
+        found = by_id.get((table, index_id))
+        if found is None:
+            continue
+        is_columnstore = found["dialect_options"].get("mssql_columnstore")
+        if is_columnstore and found["dialect_options"].get("mssql_clustered"):
+            continue  # un columnstore clustered incluye todas las columnas, pero no se listan en su definición
+        if is_included and not is_columnstore:
+            found["include_columns"].append(column)
+        else:
+            found["column_names"].append(column)
+    for indexes in result.values():
+        for index in indexes:
+            index["dialect_options"]["mssql_include"] = index["include_columns"]
+    return result
+
+
+def _mssql_build_comments(
+    results: list[Sequence[Any]], _schema: str | None, _owner: str, names: Sequence[str]
+) -> dict[str, Any]:
+    """Comentarios de tabla con el formato de ``MSDialect.get_table_comment``."""
+    result: dict[str, Any] = {name: ReflectionDefaults.table_comment() for name in names}
+    for table, comment in results[0]:
+        if table in result and comment:
+            result[table] = {"text": comment}
+    return result
+
+
+#: Consultas por schema de ``metadata.sqlserver`` y constructor del formato de ``MSDialect`` para cada metadato.
+#: Las columnas no figuran: se leen con ``get_multi_columns`` (sus tipos de SQLAlchemy no se reconstruyen).
+_MSSQL_QUERIES: dict[MetadataKind, tuple[tuple[Callable[[], str], ...], _MssqlBuilder]] = {
+    "pk": ((fetch_pk_details_for_schema_sql,), _mssql_build_pks),
+    "indexes": ((fetch_index_details_for_schema_sql, fetch_index_columns_for_schema_sql), _mssql_build_indexes),
+    "fks": ((fetch_schema_fk_details_sql,), _mssql_build_fks),
+    "comments": ((fetch_table_comments_for_schema_sql,), _mssql_build_comments),
+}
 
 
 def _mssql_fk_options(on_delete: str | None, on_update: str | None) -> dict[str, str]:

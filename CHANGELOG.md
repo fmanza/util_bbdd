@@ -76,6 +76,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
   opciones: PostgreSQL 4,23 s → 0,15 s (2.450 → 62 consultas), Oracle 5,18 s → 0,26 s (2.086 → 58), SQL Server
   12,23 s → 3,14 s, MariaDB 1,24 s → 0,35 s, MySQL 1,37 s → 0,43 s. La paridad con la reflexión tabla a tabla se
   verifica contra los cinco motores en `tests/integration/test_comparar_prefetch_engines.py`.
+- **comparar**: en SQL Server, también PK, índices y comentarios de tabla con consultas por schema
+  (`metadata.sqlserver.tables`: `fetch_pk_details_for_schema_sql`, `fetch_index_details_for_schema_sql`,
+  `fetch_index_columns_for_schema_sql`, `fetch_table_comments_for_schema_sql`), con el formato exacto de `MSDialect`
+  (columnas `INCLUDE`, índices filtrados y columnstore incluidos). Mismo banco: 3,27 s → 0,86 s (2.448 → 456 consultas).
+  Las columnas siguen tabla a tabla: el comparador compara sus tipos de SQLAlchemy.
 
 ## [0.29.0] - 2026-10-02
 

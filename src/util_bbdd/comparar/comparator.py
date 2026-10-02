@@ -131,14 +131,14 @@ class SchemaComparator:
 
         Rendimiento:
             Los metadatos de las tablas comunes (columnas, PK, índices, FKs y comentarios) se leen con
-            ``Inspector.get_multi_*``: una consulta por schema y tipo en PostgreSQL y Oracle; en SQL Server las FKs con
-            una consulta por schema (``metadata.sqlserver``) y el resto tabla a tabla; en MariaDB/MySQL tabla a tabla
-            (un ``SHOW CREATE TABLE`` por tabla), pero sin una conexión del pool por llamada. Las routines se leen con
-            una consulta por schema, salvo MariaDB/MySQL (un ``SHOW CREATE`` por routine).
+            ``Inspector.get_multi_*``: una consulta por schema y tipo en PostgreSQL y Oracle; en SQL Server PK, índices,
+            FKs y comentarios con consultas por schema (``metadata.sqlserver``) y las columnas tabla a tabla; en
+            MariaDB/MySQL tabla a tabla (un ``SHOW CREATE TABLE`` por tabla), pero sin una conexión del pool por llamada.
+            Las routines se leen con una consulta por schema, salvo MariaDB/MySQL (un ``SHOW CREATE`` por routine).
 
             Medido con dos schemas de 200 tablas, 20 vistas y 20 routines, todas las opciones activas (auditoría de
             ``comparar`` 2026-10-02): PostgreSQL 0,15 s (62 consultas), Oracle 0,26 s (58), MariaDB 0,35 s,
-            MySQL 0,43 s, SQL Server 3,1 s (≈ 2.450 consultas). Las vistas siguen siendo una consulta por vista.
+            MySQL 0,43 s, SQL Server 0,86 s (456 consultas). Las vistas siguen siendo una consulta por vista.
             ``include_*=False`` evita las consultas de lo que no se compara.
         """
         source_label: str = self._build_label(source, source_schema)
