@@ -7,6 +7,15 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-10-03
+
+Auditoría de `comparar/` (sesión `2026-10-02g-comparar-audit`): comparación fiable entre motores y schemas, script SQL
+de nivelación ejecutable y `compare()` entre 5 y 20 veces más rápido. Corrige la comparación de routines (PostgreSQL con
+agregados, MariaDB/MySQL en otro schema, SQL Server solo la primera, Oracle siempre «modificadas»), las FKs e índices con
+nombre generado por el motor, y `fetch_routines_sql` de PostgreSQL con agregados (también en `metadata`/`migrate`). Sin
+cambios incompatibles en la API pública; los fetchers de routines lanzan `MetadataIntrospectionError` en vez de devolver
+`[]` cuando no pueden listar (ver *Changed*).
+
 ### Added
 
 - **scripts**: `bench_compare.py`, banco de `SchemaComparator.compare()` contra los contenedores de
