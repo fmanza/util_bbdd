@@ -34,12 +34,13 @@ jobs:
         cache: pip
 
     - name: Configure git credentials for private deps
-      if: secrets.GH_PAT != ''
-      run: git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
-
-    - name: Configure git credentials with GITHUB_TOKEN fallback
-      if: secrets.GH_PAT == ''
-      run: git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+      run: |
+        if [ -n "${{ secrets.GH_PAT }}" ]; then
+          git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+        else
+          git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+        fi
+      shell: bash
 
     - name: Install dependencies
       run: |
@@ -83,12 +84,13 @@ jobs:
         cache: pip
 
     - name: Configure git credentials for private deps
-      if: secrets.GH_PAT != ''
-      run: git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
-
-    - name: Configure git credentials with GITHUB_TOKEN fallback
-      if: secrets.GH_PAT == ''
-      run: git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+      run: |
+        if [ -n "${{ secrets.GH_PAT }}" ]; then
+          git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+        else
+          git config --global url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+        fi
+      shell: bash
 
     - name: Install dependencies
       run: |
