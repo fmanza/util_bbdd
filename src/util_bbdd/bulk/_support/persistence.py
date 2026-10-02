@@ -316,11 +316,13 @@ class BulkPersistenceManager:
         """Escribe ``registros`` como eventos en ``audit_sink`` (si lo hay), con la misma política de fallo que el CSV."""
         if self.audit_sink is None or not registros:
             return
-        events = [
-            BulkAuditEvents.operation(registro, engine=self.engine_name, run_id=self.audit_run_id)
-            for registro in registros
-        ]
+        # Construir dentro del try (hipótesis 5 del audit-code 2026-10-02c): un fallo al construir sigue la misma
+        # política que uno del destino (audit_strict → AuditError; si no, audit_failures y la operación sigue).
         try:
+            events = [
+                BulkAuditEvents.operation(registro, engine=self.engine_name, run_id=self.audit_run_id)
+                for registro in registros
+            ]
             self.audit_sink.write(events)
         except Exception as error:
             if self.audit_strict:

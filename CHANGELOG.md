@@ -42,6 +42,9 @@ capacidades nuevas son opcionales.
 - **bulk**: `audit_failures` cuenta también los registros que no se pudieron escribir en `audit_sink`. Con
   `audit_strict=True`, un fallo del destino que no sea `OSError`/`AuditError` se relanza como `AuditError` (así `dump`
   lo trata como error de la tabla y el volcado sigue; audit-code 2026-10-02c).
+- **audit**: los eventos se construyen dentro del mismo `try` que los escribe en los cuatro emisores (`dump`, cierre de
+  `ParallelBulkLoader`, `MigrationPlan.execute`/`validate_views` y `BulkCrud`): un fallo al construirlos ya no hace
+  fallar una operación terminada ni tapa su excepción original (sesión `2026-10-02d`).
 - **tests**: `test_audit_subsystem.py` espía `util_bbdd.audit.legacy_csv` (2 `patch` a rutas movidas) y
   `test_planner.py::test_execute_has_no_override_flag` admite `audit_sink` (keyword-only) en la firma de `execute`.
 

@@ -394,7 +394,7 @@ class MigrationPlan:
 
             recorder = MigrationAuditRecorder(audit_sink, self)
             recorder.write(
-                MigrationAuditEvents.view_validation(results, engine=self.target_engine, run_id=recorder.run_id)
+                lambda: MigrationAuditEvents.view_validation(results, engine=self.target_engine, run_id=recorder.run_id)
             )
         return results
 

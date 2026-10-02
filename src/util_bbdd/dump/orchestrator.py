@@ -43,6 +43,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import sqltypes
 
 from util_bbdd.audit.counters import AuditCounters
+from util_bbdd.audit.events import AuditEvent
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader, RangePartitioner
 from util_bbdd.bulk._support.dialect import MYSQL_FAMILY
 from util_bbdd.bulk._support.iterables import close_if_closable
@@ -153,27 +154,33 @@ class DumpOrchestrator:
     def _write_dump_events(
         self, writer: DumpAuditWriter, result: DumpResult | None, error: BaseException | None, elapsed_s: float
     ) -> None:
-        """Eventos finales del volcado (elementos de ``result`` y ``run`` de cierre) en ``audit_sink``."""
+        """Eventos finales del volcado (elementos de ``result`` y ``run`` de cierre) en ``audit_sink``.
+
+        Nunca lanza: ``DumpAuditWriter.write`` construye y escribe dentro de su ``try`` (fallo = ERROR en el log).
+        """
         cfg = self._cfg
-        engine = cfg.target_engine.dialect.name
-        events = (
-            []
-            if result is None
-            else DumpAuditEvents.result_events(
-                result, engine=engine, namespace=cfg.target_schema, run_id=self._audit_run_id
+        run_id = self._audit_run_id
+
+        def build() -> list[AuditEvent]:
+            engine = cfg.target_engine.dialect.name
+            events = (
+                []
+                if result is None
+                else DumpAuditEvents.result_events(result, engine=engine, namespace=cfg.target_schema, run_id=run_id)
             )
-        )
-        events.append(
-            DumpAuditEvents.run(
-                engine=engine,
-                namespace=cfg.target_schema,
-                run_id=self._audit_run_id,
-                elapsed_s=elapsed_s,
-                result=result,
-                error=error,
+            events.append(
+                DumpAuditEvents.run(
+                    engine=engine,
+                    namespace=cfg.target_schema,
+                    run_id=run_id,
+                    elapsed_s=elapsed_s,
+                    result=result,
+                    error=error,
+                )
             )
-        )
-        writer.write(events)
+            return events
+
+        writer.write(build)
 
     def _run_dump(self) -> DumpResult:
         """Cuerpo de :meth:`run` (mismas excepciones)."""

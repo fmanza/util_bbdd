@@ -18,7 +18,7 @@ import logging
 import time
 import uuid
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from typing import TYPE_CHECKING, ClassVar
 
 from ..audit.events import AuditEvent, AuditStatus
@@ -133,14 +133,14 @@ class MigrationAuditRecorder:
         self.sink: AuditSink = sink
         self.plan: MigrationPlan = plan
         self.run_id: str = uuid.uuid4().hex
-        #: Escrituras en el destino que fallaron (se registraron como ERROR).
+        #: Escrituras en el destino (llamadas a :meth:`write`) que fallaron; cada una se registró como ERROR.
         self.failures: int = 0
         self._ok: int = 0
         self._started: float = time.perf_counter()
 
     def warnings(self) -> None:
         """Avisos del plan en el momento de ejecutar."""
-        self.write(MigrationAuditEvents.plan_warnings(self.plan, run_id=self.run_id))
+        self.write(lambda: MigrationAuditEvents.plan_warnings(self.plan, run_id=self.run_id))
 
     def statement(
         self, position: int, total: int, statement: str, elapsed_s: float, error: BaseException | None
@@ -149,7 +149,7 @@ class MigrationAuditRecorder:
         if error is None:
             self._ok += 1
         self.write(
-            [
+            lambda: [
                 MigrationAuditEvents.statement(
                     engine=self.plan.target_engine,
                     position=position,
@@ -164,15 +164,16 @@ class MigrationAuditRecorder:
 
     def finish(self, *, total: int, error: BaseException | None) -> None:
         """Evento ``run`` de cierre: ``ok`` si se aplicaron todas las sentencias, ``failed`` si no."""
+        elapsed_s = time.perf_counter() - self._started
         self.write(
-            [
+            lambda: [
                 AuditEvent.now(
                     source="migrate",
                     kind="run",
                     status="ok" if error is None else "failed",
                     engine=self.plan.target_engine,
                     operation="EXECUTE",
-                    elapsed_s=time.perf_counter() - self._started,
+                    elapsed_s=elapsed_s,
                     error_type=None if error is None else type(error).__name__,
                     message=None if error is None else str(error),
                     run_id=self.run_id,
@@ -188,16 +189,18 @@ class MigrationAuditRecorder:
             ]
         )
 
-    def write(self, events: Sequence[AuditEvent]) -> None:
-        """Escribe ``events``; si el destino falla, lo registra como ERROR y suma a :attr:`failures` (no relanza)."""
+    def write(self, build: Callable[[], Sequence[AuditEvent]]) -> None:
+        """Construye los eventos con ``build`` y los escribe; si algo falla, ERROR y +1 en :attr:`failures`.
+
+        No relanza nunca. La construcción va dentro del ``try`` (hipótesis 5 del audit-code 2026-10-02c): un fallo al
+        construir un evento no debe hacer fallar ``execute`` tras aplicar el DDL ni tapar su ``DatabaseOperationError``.
+        """
         try:
-            self.sink.write(events)
+            self.sink.write(build())
         except Exception as exc:
-            self.failures += len(events)
+            self.failures += 1
             self.logger.error(
-                f"❌ No se pudo escribir la auditoría de la migración (run_id={self.run_id}, {len(events)} eventos): "
-                f"{exc}",
-                exc_info=True,
+                f"❌ No se pudo escribir la auditoría de la migración (run_id={self.run_id}): {exc}", exc_info=True
             )
 
 

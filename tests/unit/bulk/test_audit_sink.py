@@ -220,3 +220,79 @@ def test_log_sin_csv_no_menciona_el_csv(engine: Engine, caplog: pytest.LogCaptur
     assert crud.audit_uncommitted_records == 1
     (message,) = [r.getMessage() for r in caplog.records if "antes de un commit" in r.getMessage()]
     assert "audit_sink" in message and "CSV" not in message
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Eventos de ParallelBulkLoader.update() y .delete() (pendiente del audit-code 2026-10-02c)
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+def _chunked(start: int, value: str) -> Callable[[], Iterator[pd.DataFrame]]:
+    """Partición de 10 filas (ids ``start``..``start+9``) en 2 chunks de 5."""
+
+    def read() -> Iterator[pd.DataFrame]:
+        for offset in (0, 5):
+            ids = list(range(start + offset, start + offset + 5))
+            yield pd.DataFrame({"id": ids, "name": [value] * 5})
+
+    return read
+
+
+def _seed(engine: Engine, n: int = 40) -> None:
+    BulkCrud(engine).bulk_insert_from_df(_df(1, n), "items", generar_sql=False)
+
+
+@pytest.mark.parametrize(("method", "operation"), [("update", "UPDATE"), ("delete", "DELETE")])
+def test_update_y_delete_paralelos_emiten_sus_eventos(engine: Engine, method: str, operation: str) -> None:
+    _seed(engine)
+    sink = MemoryAuditSink()
+    loader = ParallelBulkLoader(engine, chunk_size=5, max_workers=1, audit_sink=sink)
+
+    result = getattr(loader, method)("items", [_chunked(1, "u"), _chunked(11, "u")])
+
+    events = sink.events()
+    operations = [e for e in events if e.kind == "operation"]
+    partitions = [e for e in events if e.kind == "partition"]
+    (run,) = [e for e in events if e.kind == "run"]
+    assert [e.operation for e in operations] == [operation] * 4  # un registro por chunk, al confirmar la sesión
+    assert sum(e.rows or 0 for e in operations) == result.total_rows == 20
+    assert [(e.operation, e.attribute("partition"), e.status) for e in partitions] == [
+        (operation, 0, "ok"),
+        (operation, 1, "ok"),
+    ]
+    assert (run.operation, run.status, run.rows) == (operation, "ok", 20)
+    assert {e.run_id for e in events} == {result.audit_run_id}
+    expected = 40 if method == "update" else 20
+    assert _count(engine) == expected
+
+
+def test_reintento_de_update_no_duplica_eventos(engine: Engine) -> None:
+    """El intento que falla se deshace entero: sus registros no llegan al destino; solo los del intento confirmado."""
+    _seed(engine)
+    sink = MemoryAuditSink()
+    calls: list[int] = []
+
+    def flaky() -> Iterator[pd.DataFrame]:
+        calls.append(1)
+        yield pd.DataFrame({"id": [1, 2, 3, 4, 5], "name": ["r"] * 5})
+        if len(calls) == 1:
+            raise RuntimeError("corte transitorio")
+        yield pd.DataFrame({"id": [6, 7, 8, 9, 10], "name": ["r"] * 5})
+
+    loader = ParallelBulkLoader(
+        engine,
+        chunk_size=5,
+        max_workers=1,
+        audit_sink=sink,
+        retry_backoff=(0, 0),
+        retry_on=lambda exc: isinstance(exc, RuntimeError),
+    )
+
+    result = loader.update("items", [flaky])
+
+    operations = [e for e in sink.events() if e.kind == "operation"]
+    (partition,) = [e for e in sink.events() if e.kind == "partition"]
+    assert len(calls) == 2
+    assert [e.rows for e in operations] == [5, 5]  # sin los 5 del intento deshecho
+    assert (partition.status, partition.attribute("retries"), partition.rows) == ("ok", 1, 10)
+    assert result.total_rows == 10

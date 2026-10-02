@@ -548,24 +548,24 @@ class ParallelBulkLoader:
         if self._audit_sink is None:
             return
         engine = self._engine.dialect.name
-        events = [
-            BulkAuditEvents.partition(
-                pr, table=tabla_destino, operation=operation, engine=engine, run_id=result.audit_run_id
-            )
-            for pr in sorted(result.partition_results, key=lambda pr: pr.index)
-        ]
-        events.append(
-            BulkAuditEvents.load(
-                result, table=tabla_destino, operation=operation, engine=engine, run_id=result.audit_run_id
-            )
-        )
+        # Construir dentro del try (hipótesis 5 del audit-code 2026-10-02c): un fallo aquí no debe perder el resultado.
         try:
+            events = [
+                BulkAuditEvents.partition(
+                    pr, table=tabla_destino, operation=operation, engine=engine, run_id=result.audit_run_id
+                )
+                for pr in sorted(result.partition_results, key=lambda pr: pr.index)
+            ]
+            events.append(
+                BulkAuditEvents.load(
+                    result, table=tabla_destino, operation=operation, engine=engine, run_id=result.audit_run_id
+                )
+            )
             self._audit_sink.write(events)
         except Exception as exc:
             self.logger.error(
-                "❌ No se pudo escribir la auditoría de la carga paralela de '%s' en audit_sink (%d eventos): %s",
+                "❌ No se pudo escribir la auditoría de la carga paralela de '%s' en audit_sink: %s",
                 tabla_destino,
-                len(events),
                 exc,
                 exc_info=True,
             )

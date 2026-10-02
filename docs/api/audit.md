@@ -84,6 +84,7 @@ flowchart LR
 |---|---|
 | Destino que falla en una operación de `bulk` | `audit_strict=False`: ERROR en el log y `+N` en `audit_failures` (un registro que falla en el CSV y en el destino cuenta dos veces); `audit_strict=True`: se propaga y la sesión se deshace. Un `OSError` o `AuditError` del destino llega tal cual; cualquier otra excepción (p. ej. de un destino propio) llega como `AuditError` con la original en `__cause__`, para que `dump` la trate como error de la tabla |
 | Destino que falla en eventos de cierre (`partition`/`run` de carga, `dump`, `migrate`) | ERROR en el log; el resultado y la excepción original no cambian |
+| Fallo al **construir** un evento (no al escribirlo) | Misma política que un fallo del destino: en `bulk`, `audit_failures` o `AuditError` con `audit_strict`; en los eventos de cierre, ERROR en el log. Nunca hace fallar una operación ya hecha ni tapa su excepción original |
 | Fichero JSON Lines cuya primera línea no es un evento | Se aparta como `<nombre>.invalid-<fecha><ext>` con un WARNING |
 | `AuditEvent` con `timestamp` sin zona, `rows` o `elapsed_s` negativos, atributos repetidos | `ValueError` al construirlo |
 

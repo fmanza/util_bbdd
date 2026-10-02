@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, ClassVar
 
 from util_bbdd.audit.events import AuditEvent, AuditStatus
@@ -172,15 +172,17 @@ class DumpAuditWriter:
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.sink: AuditSink = sink
 
-    def write(self, events: Sequence[AuditEvent]) -> None:
-        """Escribe ``events``; si el destino falla, ERROR en el log."""
+    def write(self, build: Callable[[], Sequence[AuditEvent]]) -> None:
+        """Construye los eventos con ``build`` y los escribe; si algo falla (construir o escribir), ERROR en el log.
+
+        La construcción va dentro del ``try`` (hipótesis 5 del audit-code 2026-10-02c): un fallo al construir un evento
+        no debe hacer que ``run()`` falle tras un volcado correcto ni tapar la excepción original del volcado.
+        """
         try:
+            events = build()
             self.sink.write(events)
         except Exception as exc:
-            self.logger.error(
-                f"❌ No se pudo escribir la auditoría del volcado en audit_sink ({len(events)} eventos): {exc}",
-                exc_info=True,
-            )
+            self.logger.error(f"❌ No se pudo escribir la auditoría del volcado en audit_sink: {exc}", exc_info=True)
 
 
 __all__: list[str] = ["DumpAuditEvents", "DumpAuditWriter"]
