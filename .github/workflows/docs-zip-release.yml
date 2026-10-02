@@ -91,7 +91,7 @@ jobs:
         with:
           tag: "docs-v${{ steps.release_info.outputs.version }}"
           name: "📚 Documentation Offline v${{ steps.release_info.outputs.version }}"
-          artifacts: "dist/util_bbdd-docs-*.zip,dist/util_bbdd-docs-*.zip.sha256"
+          artifacts: "dist/util_bbdd-docs-*.zip,dist/util_bbdd-docs-*.zip.sha256,dist/CHECKSUMS.txt"
           artifactErrorsFailBuild: false
           allowUpdates: true
           replacesArtifacts: true
@@ -132,14 +132,9 @@ jobs:
             - 🌐 [Online Documentation](https://fmanza.github.io/util_bbdd/)
             - 📦 [PyPI Package](https://pypi.org/project/util-bbdd/)
             - 💻 [Source Code](https://github.com/fmanza/util_bbdd)
+            - 📋 [Downloads Page](https://fmanza.github.io/util_bbdd/downloads)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            - 📋 [Downloads Page](https://fmanza.github.io/util_bbdd/downloads)
-          artifacts: dist/util_bbdd-docs-*.zip,dist/*.sha256,dist/CHECKSUMS.txt
-          draft: false
-          prerelease: false
-          allowUpdates: true
-          replacesArtifacts: true
 
       - name: ✅ Release published successfully
         run: |
