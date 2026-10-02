@@ -166,6 +166,10 @@ manager.close()
 
 ### Comandos de desarrollo
 
+Entorno de referencia: `pip install -e ".[dev,docs]"`. Sin él, módulos de tests se saltan enteros al importarse y
+los recuentos de `pytest` y los errores de `mypy` no son comparables entre equipos; `tests/conftest.py` lo avisa en la
+cabecera y junto a los recuentos.
+
 ```bash
 python -m ruff check src tests
 python -m ruff format src tests

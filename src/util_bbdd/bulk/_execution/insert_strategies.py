@@ -147,7 +147,8 @@ class PostgreSQLExecuteValuesStrategy(_RawInsertStrategy):
         quoted_cols: str,
     ) -> None:
         try:
-            import psycopg2.extras  # type: ignore[import-untyped]  # noqa: F401
+            # unused-ignore: el ignore solo se usa si psycopg2 está instalado (sin stubs); si no, mypy lo da por sobrante.
+            import psycopg2.extras  # type: ignore[import-untyped, unused-ignore]  # noqa: F401
         except ImportError:
             connection.execute(stmt, list(records))
             return

@@ -27,7 +27,7 @@ from typing import Any
 import pandas as pd
 
 from openpyxl import Workbook
-from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE, Cell, MergedCell
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 from openpyxl.worksheet.worksheet import Worksheet
 
 
@@ -71,7 +71,9 @@ class SafeWorksheet(Worksheet):
     No añade estado: :class:`SafeWorkbook` la asigna como clase de las hojas que crea openpyxl.
     """
 
-    def cell(self, row: int, column: int, value: Any = None) -> Cell | MergedCell:
+    # types-openpyxl declara ``cell`` con sobrecargas (``value=None`` → Cell | MergedCell; con valor → Cell): una sola
+    # firma con ``Any`` es compatible con todas (config-review 2026-10-02e).
+    def cell(self, row: int, column: int, value: Any = None) -> Any:
         return super().cell(row=row, column=column, value=safe_value(value))
 
     def append(self, iterable: Any) -> None:
@@ -96,11 +98,14 @@ class SafeWorkbook(Workbook):
         if kwargs.get("write_only") or (args and args[0]):
             raise ValueError("SafeWorkbook no admite write_only=True")
         super().__init__(*args, **kwargs)
-        for sheet in self._sheets:
-            if type(sheet) is Worksheet:
+        for candidate in self.worksheets:  # API pública (``_sheets`` no está en types-openpyxl)
+            # ``type(...) is`` excluye las subclases; la variable tipada permite reasignar ``__class__`` (mypy).
+            if type(candidate) is Worksheet:
+                sheet: Worksheet = candidate
                 sheet.__class__ = SafeWorksheet
 
-    def create_sheet(self, title: str | None = None, index: int | None = None) -> Worksheet:
+    # ``title: Any``: types-openpyxl admite ``str | _Decodable | None`` (``_Decodable`` solo existe en los stubs).
+    def create_sheet(self, title: Any = None, index: int | None = None) -> Worksheet:
         sheet: Worksheet = super().create_sheet(title=title, index=index)
         if type(sheet) is Worksheet:
             sheet.__class__ = SafeWorksheet

@@ -1,11 +1,15 @@
 """Configuracion central de pytest para util_bbdd."""
 
+import importlib.metadata
 import logging
 import sys
+import tomllib
 
 from pathlib import Path
 
 import pytest
+
+from packaging.requirements import Requirement
 
 pytest_plugins = [
     "fixtures.database_fixtures",
@@ -60,3 +64,44 @@ def pytest_collection_modifyitems(config, items):
         node_path = str(item.fspath).replace("\\", "/")
         _apply_scope_marker(item, node_path)
         _validate_scope_marker(item, node_path)
+
+
+def _missing_dev_dependencies() -> list[str]:
+    """Distribuciones del extra ``dev`` de ``pyproject.toml`` que no están instaladas.
+
+    Config-review 2026-10-02e: sin ``sqlglot`` (extra ``dev``) nueve módulos de tests se saltan enteros al importarse y
+    cuentan como un salto cada uno; los recuentos de ``pytest`` (y los errores de mypy) dejaban de ser comparables entre
+    entornos sin que nada lo indicara. Se lee el extra del propio ``pyproject.toml`` para no mantener otra lista.
+    """
+    try:
+        with (PROJECT_ROOT / "pyproject.toml").open("rb") as fh:
+            dev = tomllib.load(fh)["project"]["optional-dependencies"]["dev"]
+    except (OSError, KeyError, tomllib.TOMLDecodeError):
+        return []
+    missing: list[str] = []
+    for spec in dev:
+        name = Requirement(spec).name
+        try:
+            importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:
+            missing.append(name)
+    return missing
+
+
+def pytest_report_header(config: pytest.Config) -> str | None:
+    """Cabecera de pytest: aviso si faltan dependencias del extra ``dev``."""
+    missing = _missing_dev_dependencies()
+    if not missing:
+        return None
+    return f'AVISO: faltan dependencias del extra dev ({", ".join(missing)}); instala con pip install -e ".[dev]"'
+
+
+def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
+    """Junto a los recuentos: si faltan dependencias de ``dev``, los recuentos no son los de referencia."""
+    missing = _missing_dev_dependencies()
+    if missing:
+        terminalreporter.write_line(
+            f"AVISO: faltan dependencias del extra dev ({', '.join(missing)}): hay módulos de tests que se saltan "
+            'enteros y estos recuentos no son comparables con los de referencia. pip install -e ".[dev]"',
+            yellow=True,
+        )

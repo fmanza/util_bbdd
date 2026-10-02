@@ -30,6 +30,8 @@ destino) y tests de los eventos de update/delete en paralelo.» Después: «si»
   `update` sin eventos duplicados (C2 no fue necesario: determinista con SQLite).
 - Docs: `docs/api/audit.md` (fila de errores), CHANGELOG `[Unreleased]`.
 - Verificación: 5827 passed, 32 skipped; ruff limpio; mypy sin errores nuevos (12 previos); `mkdocs build --strict` OK.
+  **Corrección 2026-10-02f**: medido en un entorno sin `sqlglot`/`psycopg2`/`types-PyMySQL`/`zensical` y con
+  `types-openpyxl`; ver `.ai/sessions/2026-10-02f-test-count-drift/TRACEABILITY.md`.
 
 ## Artefactos generados
 
@@ -54,7 +56,8 @@ destino) y tests de los eventos de update/delete en paralelo.» Después: «si»
 - **[tests]**: La integración completa con las URLs de `scripts/bench_env.example.sh` (contraseña de los contenedores
   con `docker inspect`) da 537 tests en `tests/integration` (= los marcados `integration`). El cierre de v0.28.0 anotó
   «582 passed»; `tests/integration` no cambió desde v0.28.0 (`git diff 12d055c HEAD -- tests/integration` vacío): la
-  diferencia no está explicada.
+  diferencia no está explicada. **Explicada en 2026-10-02f**: el entorno no tenía `sqlglot` ni `psycopg2`, y 9 + 3
+  módulos de tests se saltaban enteros al importarse (un salto por módulo); ver `.ai/sessions/2026-10-02f-test-count-drift/TRACEABILITY.md`.
 - **[build]**: Fuera de pytest, `import util_bbdd` carga la copia de site-packages; `python -m build` sí empaqueta
   `src/` (comprobado: `util_bbdd/audit/*` y los tres `_audit_events.py` están en el wheel).
 
@@ -63,7 +66,8 @@ destino) y tests de los eventos de update/delete en paralelo.» Después: «si»
 - Versión: **v0.29.0** (MINOR: API pública nueva sin cambios incompatibles). Commits incluidos: `8467053`
   (feat(audit)), `fb0bf80` (docs(ai)), `032c4e3` (fix(audit)).
 - CHANGELOG: `[Unreleased]` → `## [0.29.0] - 2026-10-02` (Added / Changed / Removed); `[Unreleased]` vacío.
-- Evidencia ejecutada en el cierre: `pytest` completo sin URLs de servidor **5973 passed, 422 skipped**; integración
+- Evidencia ejecutada en el cierre (**infravalorada**; con el entorno del extra `dev` completo: 6101 passed, 436
+  skipped y 582 de integración — ver `.ai/sessions/2026-10-02f-test-count-drift/TRACEABILITY.md`): `pytest` completo sin URLs de servidor **5973 passed, 422 skipped**; integración
   contra los 5 servidores del banco **536 passed, 1 skipped**; `python -m build` correcto (wheel y sdist, aún con
   número 0.28.0 porque `pyproject.toml` no se ha subido); antes en la sesión: ruff limpio, mypy sin errores nuevos (12
   previos), `mkdocs build --strict` sin avisos.

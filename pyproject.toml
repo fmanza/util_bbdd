@@ -67,7 +67,10 @@ dev = [
     "pandas-stubs",
     "types-networkx",
     "types-PyMySQL",
+    "types-openpyxl",
     "sqlglot>=30,<31",
+    # Tests de la estrategia execute_values (postgresql+psycopg2): sin él se saltan 3 módulos y 20 tests.
+    "psycopg2-binary",
 ]
 docs = [
     # Generadores compatibles (ambos leen el mismo mkdocs.yml):
@@ -158,10 +161,6 @@ enable_error_code = ["deprecated"]
 # docs_build_plugin.py es un plugin de MkDocs (herramienta de documentación, no la librería) y depende de mkdocs, que los
 # extras `dev` no instalan: no se comprueba al recorrer src/. Con una ejecución explícita sí, de ahí el override de abajo.
 exclude = ['(^|/)docs_build_plugin\.py$']
-
-[[tool.mypy.overrides]]
-module = ["openpyxl", "openpyxl.*"]
-ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = [

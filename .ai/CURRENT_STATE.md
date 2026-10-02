@@ -49,7 +49,7 @@
 PR abierta: **PR #18** `feat(connection/bulk): automatización variables MySQL/MariaDB` — revisión pendiente de merge.  
 PR en espera: **PR #19** `migrate/zenical-pure` — bloqueada hasta que Zenical v0.0.44 esté en crates.io (o instalación manual de binario).
 
-**Tests actuales**: 5973 passed, 422 skipped con `pytest` completo sin URLs de servidor (cierre de `v0.29.0`); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 536 passed, 1 skipped en 5 servidores (cierre de `v0.29.0`, 2026-10-02). El cierre de `v0.28.0` anotó 5993/436 y 582: los recuentos no son comparables tal cual (los tests de integración no cambiaron; ver `.ai/sessions/2026-10-02d-audit-hardening/TRACEABILITY.md`).
+**Tests actuales**: 6101 passed, 436 skipped con `pytest` completo sin URLs de servidor y el entorno de referencia `pip install -e ".[dev,docs]"` (v0.29.0 + config-review, 2026-10-02); con las URLs del banco (`scripts/bench_env.example.*`), `tests/integration`: 582 passed en 5 servidores. mypy sin errores (406 ficheros). Sin las dependencias del extra `dev` los recuentos bajan (módulos que se saltan enteros) y `tests/conftest.py` lo avisa: ver `.ai/sessions/2026-10-02f-test-count-drift/TRACEABILITY.md`.
 
 ---
 

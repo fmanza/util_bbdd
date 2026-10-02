@@ -39,7 +39,9 @@ Rendimiento tras F1 y tras F5 (sin destino): `registrar_operacion` 119–124 µs
 `MemoryAuditSink` ≈ 2,7 µs/evento.
 
 Calidad: `ruff check` y `ruff format` limpios en `src tests`; `mypy src tests/unit/test_protocol_conformance.py` con
-los **mismos 12 errores previos** (`_core/export_safety.py`, `connection/mysql/*`, `migrate/views/*`), ninguno nuevo;
+los **mismos 12 errores previos** (`_core/export_safety.py`, `connection/mysql/*`, `migrate/views/*`), ninguno nuevo
+(**corrección 2026-10-02f**: no eran del código sino del entorno —faltaban `sqlglot` y `types-PyMySQL` del extra
+`dev` y sobraba `types-openpyxl`; ver `.ai/sessions/2026-10-02f-test-count-drift/TRACEABILITY.md`—);
 `gen_arquitectura_capas.py` pasa (406 ficheros); `mkdocs build --strict` sin avisos (Zensical no está instalado en
 este equipo).
 
@@ -147,7 +149,8 @@ sesión.
 Tests añadidos además: propagación de `run_id` a `ParallelBulkLoader` por rangos (engine simulado: SQLite fuerza 1
 rango), `max_parallel_tables=2` con un `run_id` común, y sentencia fallida por `execute_custom_one`.
 
-Resultado: suite unitaria **5817 passed, 32 skipped**; ruff limpio; mypy sin errores nuevos (los 12 previos).
+Resultado: suite unitaria **5817 passed, 32 skipped**; ruff limpio; mypy sin errores nuevos (los 12 previos;
+**corrección 2026-10-02f**: del entorno, no del código — ver `.ai/sessions/2026-10-02f-test-count-drift/TRACEABILITY.md`).
 
 Pendientes (no pedidos): hipótesis 5 (construcción de eventos fuera del `try` en `_write_dump_events`), tests 4–6 de la
 lista del audit-code salvo el de `execute_custom_one` (eventos de `update`/`delete` paralelos; solo destino con

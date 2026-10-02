@@ -7,6 +7,15 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **dev** (extra): añade `types-openpyxl` y `psycopg2-binary`; mypy ya no trata `openpyxl` como paquete sin tipos (se
+  retira su `ignore_missing_imports`). Sesión `2026-10-02f-test-count-drift`.
+- **_core**: `export_safety.SafeWorksheet.cell` y `SafeWorkbook.create_sheet` con firmas compatibles con
+  `types-openpyxl`; `SafeWorkbook` recorre `worksheets` (API pública) en lugar de `_sheets`. Sin cambio de comportamiento.
+- **tests**: `tests/conftest.py` avisa (cabecera y resumen final) si faltan dependencias del extra `dev`, porque sin
+  ellas los recuentos de `pytest` no son comparables.
+
 ## [0.29.0] - 2026-10-02
 
 Módulo de auditoría centralizado `util_bbdd.audit` (ADR-002; sesiones `2026-10-02c-audit-module` y
