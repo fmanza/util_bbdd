@@ -396,8 +396,18 @@ class SqlDiffReporter:
         (columnas, PK, FK inline, e índices secundarios post-tabla).
         Sin inspector emite un bloque de comentario ``-- ⚠`` con instrucciones
         y la causa del fallback para facilitar el diagnóstico.
+
+        Con inspector, las tablas se crean después de las tablas nuevas a las que referencian sus FKs
+        (:meth:`_order_by_foreign_keys`); las que forman un ciclo van al final con un aviso.
         """
         lines: list[str] = []
+        if self._source_inspector is not None:
+            tables, cyclic = self._order_by_foreign_keys(tables)
+            if cyclic:
+                lines.append(
+                    f"-- ⚠ Ciclo de FKs entre tablas nuevas: {', '.join(cyclic)}. Crearlas sin esas FKs y "
+                    "añadirlas después con ALTER TABLE … ADD CONSTRAINT.",
+                )
         for td in tables:
             if self._source_inspector is not None:
                 lines.extend(self._render_create_table_from_inspector(td.table_name))
@@ -413,6 +423,47 @@ class SqlDiffReporter:
                 )
             lines.append("")
         return lines
+
+    def _order_by_foreign_keys(self, tables: list[TableDiff]) -> tuple[list[TableDiff], list[str]]:
+        """Ordena las tablas nuevas para que cada una se cree después de las tablas nuevas que referencia.
+
+        Kahn por niveles sobre las FKs del Inspector origen: dentro de cada nivel se conserva el orden recibido
+        (alfabético, el del comparador). Solo cuentan las FKs hacia otra tabla nueva del mismo schema; las
+        autorreferencias no imponen orden. Las tablas que forman un ciclo (o dependen de uno) no tienen orden
+        posible y se devuelven al final, en el orden recibido.
+
+        Returns:
+            (tablas ordenadas, nombres de las tablas sin orden posible por un ciclo de FKs).
+        """
+        by_lower: dict[str, str] = {td.table_name.lower(): td.table_name for td in tables}
+        deps: dict[str, set[str]] = {}
+        for td in tables:
+            deps[td.table_name] = {
+                by_lower[ref.lower()]
+                for fk in self._fetch_source_foreign_keys(td.table_name)
+                if (ref := fk.get("referred_table"))
+                and ref.lower() in by_lower
+                and by_lower[ref.lower()] != td.table_name
+                and self._same_source_schema(fk.get("referred_schema"))
+            }
+
+        done: set[str] = set()
+        ordered: list[TableDiff] = []
+        pending: list[TableDiff] = list(tables)
+        while pending:
+            ready: list[TableDiff] = [td for td in pending if deps[td.table_name] <= done]
+            if not ready:
+                break
+            ordered.extend(ready)
+            done.update(td.table_name for td in ready)
+            pending = [td for td in pending if td.table_name not in done]
+        return ordered + pending, [td.table_name for td in pending]
+
+    def _same_source_schema(self, referred_schema: str | None) -> bool:
+        """Si una FK con ``referred_schema`` apunta al schema origen comparado (``None``: el mismo)."""
+        if referred_schema is None:
+            return True
+        return self._source_schema is not None and referred_schema.lower() == self._source_schema.lower()
 
     def _render_modified_tables(self, tables: list[TableDiff]) -> list[str]:
         lines: list[str] = []
@@ -587,8 +638,8 @@ class SqlDiffReporter:
         ``_render_added_table_placeholder``.
 
         Nota: las FKs referencian tablas que deben existir en el momento de
-        ejecución.  Si la tabla referenciada es también nueva, reordenar las
-        sentencias manualmente o usar ``-- ⚠ verificar orden de ejecución``.
+        ejecución. ``_render_added_tables`` ordena las tablas nuevas por sus FKs;
+        con un ciclo de FKs entre tablas nuevas emite un aviso ``-- ⚠``.
         """
         cols: list[ReflectedColumn] = self._fetch_source_columns(table_name)
         if not cols:

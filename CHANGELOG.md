@@ -51,6 +51,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
     listado se descartaba. Ahora una consulta trae el listado y el código.
   - Oracle: las routines se leen de `ALL_SOURCE` con `CREATE OR REPLACE` delante, sin el owner en el nombre; con
     `DBMS_METADATA.GET_DDL` (`"OWNER"."NOMBRE"`) todas las routines de dos schemas salían como modificadas.
+- **comparar** (entrega 3): `SqlDiffReporter` con `source_inspector` crea las tablas nuevas después de las tablas
+  nuevas que referencian sus FKs (antes, en orden alfabético: un `CREATE TABLE` con FK hacia una tabla nueva posterior
+  fallaba en los motores que validan la FK al crearla). Con un ciclo de FKs entre tablas nuevas, esas tablas van al
+  final con un aviso `-- ⚠`.
 
 ### Performance
 
