@@ -282,6 +282,35 @@ Variantes A/B disponibles (cada una se aplica solo a los motores indicados):
 La reflexión de la tabla queda fuera de la medición. Los nombres de tabla y columnas siguen la convención de
 `BulkCrud` para cada motor: mayúsculas en SQL Server y minúsculas en el resto.
 
+### Banco de comparación de esquemas
+
+`scripts/bench_compare.py` mide `SchemaComparator.compare()` entre dos esquemas del mismo servidor (`cmp_src` y
+`cmp_tgt`), con todas las opciones, sin y con `include_routines`. Para cada motor da el mejor tiempo de `--repeat`
+ejecuciones, el número de sentencias que llegan al driver y el número de diferencias encontradas: una optimización que
+cambie el resultado se ve en la misma tabla. Usa los contenedores de arriba y `UTIL_BBDD_BENCH_PASSWORD`, sin URLs.
+
+**`setup` y `teardown` borran `cmp_src`/`cmp_tgt` con todo su contenido** (esquemas en PostgreSQL y SQL Server, bases en
+MySQL/MariaDB, usuarios en Oracle).
+
+```bash
+python scripts/bench_compare.py setup --tables 200                     # los 5 motores; --engines para elegir
+python scripts/bench_compare.py run --repeat 3 --out bench_results/compare
+python scripts/bench_compare.py run --engines mssql --mssql-driver pyodbc
+python scripts/bench_compare.py teardown
+```
+
+Con 200 tablas, 20 vistas y 20 funciones por esquema, el resultado esperado es 20 tablas con diferencias (columna
+`extra` en el 10 %), 20 vistas y, con routines, las funciones cambiadas. Referencia (auditoría de `comparar`,
+2026-10-02, con routines):
+
+| Motor | Antes | Después | Sentencias |
+|---|---|---|---|
+| PostgreSQL 17 | 4,23 s | 0,18 s | 2.450 → 62 |
+| Oracle 23 Free | 5,18 s | 0,26 s | 2.086 → 58 |
+| SQL Server 2022 (pymssql) | 12,23 s | 0,88 s | 2.852 → 456 |
+| MariaDB 11.4 | 1,24 s | 0,35 s | 488 |
+| MySQL 8.4 | 1,37 s | 0,43 s | 488 |
+
 ### Tiempos de referencia por tipo de operación (PostgreSQL 15)
 
 | Operación | Tiempo promedio | Notas |

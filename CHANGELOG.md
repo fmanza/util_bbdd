@@ -7,6 +7,12 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **scripts**: `bench_compare.py`, banco de `SchemaComparator.compare()` contra los contenedores de
+  `docker-compose.bench.yml` (`setup` / `run` / `teardown`): mejor tiempo, sentencias al driver y diferencias
+  encontradas por motor, sin y con routines. Guía: `docs/guides/benchmarks.md` § «Banco de comparación de esquemas».
+
 ### Changed
 
 - **dev** (extra): añade `types-openpyxl` y `psycopg2-binary`; mypy ya no trata `openpyxl` como paquete sin tipos (se
