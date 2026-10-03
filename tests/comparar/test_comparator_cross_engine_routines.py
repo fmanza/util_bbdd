@@ -14,10 +14,8 @@ import pytest
 
 pytest.importorskip("sqlalchemy")
 
-from sqlalchemy.exc import OperationalError
 
 from util_bbdd._core.exceptions import MetadataIntrospectionError
-from util_bbdd.comparar._routine_fetchers import RoutineFetcherRegistry
 from util_bbdd.comparar.comparator import SchemaComparator
 
 
@@ -215,96 +213,6 @@ class TestRoutineComparison:
         )
 
         assert diff.routine_diffs == ()
-
-    def test_mysql_dialect_uses_mariadb_fetcher(self) -> None:
-        inspector = _FakeInspector(dialect="mysql")
-        fetcher = SchemaComparator._ROUTINE_FETCHERS[inspector.engine.dialect.name]
-
-        assert fetcher is RoutineFetcherRegistry.get_routines_mariadb
-
-
-class TestMariaDbShowCreate:
-    @staticmethod
-    def _inspector(conn: MagicMock) -> MagicMock:
-        inspector = MagicMock()
-        engine = MagicMock()
-        engine.dialect.name = "mariadb"
-        engine.connect.return_value.__enter__.return_value = conn
-        engine.connect.return_value.__exit__.return_value = False
-        inspector.engine = engine
-        return inspector
-
-    def test_show_create_is_qualified_with_schema(self) -> None:
-        """B5: sin el schema, SHOW CREATE busca en la base de datos de la conexión."""
-        executed: list[str] = []
-        conn = MagicMock()
-
-        def execute(stmt: Any, params: Any = None) -> Any:
-            sql = str(stmt)
-            executed.append(sql)
-            result = MagicMock()
-            if "PROCEDURE STATUS" in sql:
-                result.mappings.return_value = [{"Name": "p:1"}]
-            elif "FUNCTION STATUS" in sql:
-                result.mappings.return_value = []
-            else:
-                result.mappings.return_value.first.return_value = {"Create Procedure": "CREATE PROCEDURE p"}
-            return result
-
-        conn.execute.side_effect = execute
-
-        routines = RoutineFetcherRegistry.get_routines_mariadb(self._inspector(conn), "otra_bd")
-
-        show_create = next(s for s in executed if s.startswith("SHOW CREATE"))
-        # El ":" del nombre va escapado para text() y se compila como literal
-        assert show_create == "SHOW CREATE PROCEDURE `otra_bd`.`p:1`"
-        assert routines == [{"name": "p:1", "type": "PROCEDURE", "definition": "CREATE PROCEDURE p"}]
-
-    def test_failure_of_one_show_create_keeps_the_rest(self, caplog: pytest.LogCaptureFixture) -> None:
-        conn = MagicMock()
-
-        def execute(stmt: Any, params: Any = None) -> Any:
-            sql = str(stmt)
-            result = MagicMock()
-            if "PROCEDURE STATUS" in sql:
-                result.mappings.return_value = [{"Name": "rota"}, {"Name": "buena"}]
-            elif "FUNCTION STATUS" in sql:
-                result.mappings.return_value = []
-            elif "`rota`" in sql:
-                raise OperationalError(sql, {}, OSError("PROCEDURE rota does not exist"))
-            else:
-                result.mappings.return_value.first.return_value = {"Create Procedure": "CREATE PROCEDURE buena"}
-            return result
-
-        conn.execute.side_effect = execute
-
-        with caplog.at_level(logging.WARNING):
-            routines = RoutineFetcherRegistry.get_routines_mariadb(self._inspector(conn), "bd")
-
-        assert [(r["name"], r["definition"]) for r in routines] == [("rota", ""), ("buena", "CREATE PROCEDURE buena")]
-        assert any("rota" in r.message for r in caplog.records)
-
-    def test_lost_connection_during_show_create_is_a_listing_error(self) -> None:
-        """A2: con la conexión invalidada no se devuelven definiciones vacías para el resto de routines."""
-        conn = MagicMock()
-
-        def execute(stmt: Any, params: Any = None) -> Any:
-            sql = str(stmt)
-            result = MagicMock()
-            if "PROCEDURE STATUS" in sql:
-                result.mappings.return_value = [{"Name": "a"}, {"Name": "b"}]
-                return result
-            raise OperationalError(sql, {}, OSError("Lost connection to server"), connection_invalidated=True)
-
-        conn.execute.side_effect = execute
-
-        with pytest.raises(MetadataIntrospectionError, match="No se pudieron listar las routines MariaDB/MySQL"):
-            RoutineFetcherRegistry.get_routines_mariadb(self._inspector(conn), "bd")
-
-
-# ---------------------------------------------------------------------------
-# A3 — FKs con atributos None (dialects que no rellenan referred_table/columnas)
-# ---------------------------------------------------------------------------
 
 
 class TestForeignKeyNoneAttributes:

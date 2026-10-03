@@ -134,6 +134,19 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   Trinquete: los 5 extractores fuera de `PENDING_ENGINE_IMPORTS`.
 - Verificación C3: `ruff`, `mypy` (421), unitarios 6180 + 4 xfailed, integración 629 + 4 skipped, capas sin cambios,
   `mkdocs build --strict`.
+- IMPLEMENT · C4 (`comparar`): `metadata/reflection.py` gana `catalog_source(inspector)`, `view_definitions()` (una
+  consulta por lado; vista a vista con el `Inspector` si el motor no tiene `CatalogDialect` o falla el lote) y
+  `schema_routines()` (Oracle sin packages; error de listado → `MetadataIntrospectionError`). `comparator.py` sin
+  `Inspector.get_view_definition` ni fetchers propios; `_routine_fetchers.py` retirado; `_ROUTINE_FETCHERS` queda
+  como registro de extensión. H-30 (prefijo del propio schema) corregido con `_unqualify` solo para comparar.
+  Decisión: `compare()` sigue recibiendo `Inspector` (la reflexión de tipos SQLAlchemy lo necesita); no se rompe su
+  firma. Nuevo `tests/integration/test_comparar_views_routines_engines.py` (5 motores), pasado también contra el código
+  previo en un worktree para separar regresión de defecto previo. Trinquete: `comparar/comparator.py` y
+  `comparar/_routine_fetchers.py` fuera. `test_query_counts`: `comparar` sigue en xfail por H-29.
+- Verificación C4: `ruff`, `mypy` (420), unitarios 6146 + 4 xfailed, integración 634 + 4 skipped, capas (420
+  ficheros, pie de figura actualizado), `mkdocs build --strict`. Banco `comparar` 5000: SQL Server 11 016 → 20
+  consultas / 261 → 4,8 s; PostgreSQL 1026 → 28; Oracle 1072 → 74 (la primera ejecución de Oracle paga el *hard parse*:
+  500 tablas 5,5 s con 1 repetición, 1,2 s de mediana con 3).
 
 ## Artefactos generados
 

@@ -60,6 +60,13 @@ cambios siguientes.
 
 ### Changed
 
+- **comparar (ruptura)**: las definiciones de vistas y routines salen del catálogo de `metadata/` por lotes
+  (`metadata.reflection.view_definitions` / `schema_routines`, grupo C4 de ADR-003). Desaparece
+  `comparar/_routine_fetchers.py` (`RoutineFetcherRegistry`) y los fetchers por defecto de
+  `SchemaComparator._ROUTINE_FETCHERS`, que queda como registro para motores sin catálogo (tiene prioridad si se
+  registra uno). En MySQL/MariaDB la definición de una vista es su `SELECT` (`VIEW_DEFINITION`, antes `SHOW CREATE
+  VIEW`) y la de una routine el `CREATE` reconstruido sin `DEFINER` (antes `SHOW CREATE`): un `DEFINER` distinto ya no
+  es una diferencia. Las funciones ventana de PostgreSQL ya no se comparan.
 - **migrate (ruptura)**: los extractores (`OracleSchemaExtractor`, `MariaDBSchemaExtractor`, `MySQLSchemaExtractor`,
   `MariaDBFullTypeSchemaExtractor`, `SQLServerSchemaExtractor`, `PostgreSQLSchemaExtractor`) ya no tienen SQL propio:
   leen el snapshot de `metadata/` (grupo C3 de ADR-003). Reciben un `SyncDatabaseManager` (usan su `metadata_source`)
@@ -76,6 +83,10 @@ cambios siguientes.
 
 ### Performance
 
+- **comparar**: una consulta por lado para las definiciones de las vistas (antes una por vista y lado) y otra para
+  las routines (antes un `SHOW CREATE` por routine en MariaDB/MySQL). `compare()` con 5000 tablas y 500 vistas:
+  SQL Server 11 016 → 20 consultas y 261 → 4,8 s (con B1), PostgreSQL 1026 → 28 consultas y 12,2 → 9,0 s,
+  Oracle 1072 → 74 consultas y 18,5 → 14,6 s. MySQL/MariaDB siguen reflejando las tablas una a una (H-29).
 - **migrate**: la extracción lee el snapshot por lotes (7 consultas de catálogo en PostgreSQL, SQL Server y Oracle,
   antes 9; 9 en MySQL/MariaDB). Extracción con 5000 tablas: PostgreSQL 4,3 → 1,5 s, SQL Server 5,9 → 2,3 s, Oracle
   7,3 → 2,4 s, MySQL 20,6 → 2,7 s y MariaDB 8,1 → 2,0 s (incluye H-16).
@@ -99,6 +110,10 @@ cambios siguientes.
 
 ### Fixed
 
+- **comparar**: la misma vista o routine en dos schemas salía como modificada en PostgreSQL y SQL Server (y en
+  MySQL/MariaDB por `SHOW CREATE`) porque su definición lleva el nombre calificado con el schema; al comparar se
+  ignora el prefijo del propio schema (H-30). Verificado en los cinco motores
+  (`tests/integration/test_comparar_views_routines_engines.py`).
 - **migrate** (C3, ADR-003; caracterizado en `test_migrate_ir_types.py` con el DDL hacia cada destino):
   - Oracle: `VARCHAR2(n CHAR)`, `NVARCHAR2` y `NCHAR` se migraban con su longitud en bytes (`VARCHAR2(30 CHAR)` →
     `VARCHAR(120)` con AL32UTF8); ahora en caracteres (H-21).

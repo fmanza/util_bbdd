@@ -12,9 +12,9 @@ flowchart TD
     C -->|removed| E[TableDiff status=removed]
     C -->|common| F[Comparar columnas, índices, FKs]
     C --> G{include_views}
-    G -->|Sí| H[Comparar vistas + DdlNormalizer]
+    G -->|Sí| H[Definiciones por lotes de metadata/ + DdlNormalizer]
     C --> I{include_routines}
-    I -->|Sí| J[RoutineFetcherRegistry por dialecto]
+    I -->|Sí| J[Routines por lotes de metadata/]
     D & E & F & H & J --> K[SchemaDiff frozen]
     K --> L[SchemaDiffReporter.render_all]
     L --> M[HTML / Excel / Word / Markdown / SQL]
@@ -55,7 +55,7 @@ flowchart TD
 |---|---|---|---|
 | `source` / `target` | `Inspector` | Inspectors SQLAlchemy de las dos BDs | Ambos activos y con permisos de lectura |
 | `source_schema` / `target_schema` | `str \| None` | Schema a comparar | `None` usa el schema por defecto; Oracle requiere valor explícito para rutinas |
-| `include_routines` | `bool` | Comparar procedures y funciones | Default `False`; MariaDB, MySQL, Oracle, PostgreSQL (sin agregados) y SQL Server; no soportado en HSQLDB |
+| `include_routines` | `bool` | Comparar procedures y funciones | Default `False`; MariaDB, MySQL, Oracle (sueltas, sin packages), PostgreSQL (sin agregados ni funciones ventana) y SQL Server; motores sin catálogo en `metadata/` (HSQLDB): se omite salvo un fetcher registrado en `SchemaComparator._ROUTINE_FETCHERS` |
 | `format` en `render` | `str` | Formato de salida | `"html"`, `"excel"`, `"word"`, `"markdown"`, `"sql"` |
 | `sql_dialect` en `SqlDiffReporter` | `str` | Dialecto para script SQL | `"generic"`, `"mariadb"`, `"mysql"`, `"postgresql"`, `"sqlserver"`, `"oracle"`, `"sqlite"` |
 
@@ -76,6 +76,11 @@ flowchart TD
   columna, así que no se reconoce como generado.
 - Las sobrecargas de PostgreSQL se emparejan por firma (tipos de los argumentos); `routine_name` lleva la firma solo
   si hay sobrecargas en ese lado.
+- Definiciones de vistas y routines: las del catálogo, leídas con una consulta por lado y tipo de objeto
+  (`metadata.reflection.view_definitions` / `schema_routines`, ADR-003). En MySQL/MariaDB son el `SELECT` de la vista
+  (`VIEW_DEFINITION`) y el `CREATE` reconstruido de la routine, sin `DEFINER`; en SQL Server y SQLite, la sentencia
+  `CREATE VIEW` completa. Al comparar se ignora el prefijo del propio schema (`app.v`, `[app].[v]`): la misma vista o
+  routine en dos schemas no es una diferencia.
 
 ### Errores y casos especiales
 

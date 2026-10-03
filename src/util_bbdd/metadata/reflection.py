@@ -32,6 +32,10 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.engine.reflection import ReflectionDefaults
 from sqlalchemy.exc import SQLAlchemyError
 
+from util_bbdd._core.exceptions import MetadataIntrospectionError
+from util_bbdd.metadata.catalog_registry import CatalogDialectNotFoundError, get_catalog_dialect
+from util_bbdd.metadata.model import Kind, RoutineMeta
+from util_bbdd.metadata.source import CatalogSource, SqlAlchemyCatalogExecutor
 from util_bbdd.metadata.sqlserver.constraints import fetch_schema_fk_details_sql
 from util_bbdd.metadata.sqlserver.tables import (
     fetch_index_columns_for_schema_sql,
@@ -405,3 +409,81 @@ def _mssql_fk_options(on_delete: str | None, on_update: str | None) -> dict[str,
         if rule != "NO ACTION":
             options[key] = rule
     return options
+
+
+# ─── vistas y routines de un Inspector, por lotes (comparar, grupo C4) ────────
+
+
+def catalog_source(inspector: Inspector) -> CatalogSource | None:
+    """``CatalogSource`` sobre la conexión del ``Inspector`` (caché propia: datos frescos); ``None`` sin dialecto."""
+    try:
+        dialect = get_catalog_dialect(_dialect_name(inspector))
+    except CatalogDialectNotFoundError:
+        return None
+    bind = inspector.bind
+    engine = bind if isinstance(bind, Engine) else bind.engine
+    return CatalogSource(
+        dialect, SqlAlchemyCatalogExecutor(bind), source_id=engine.url.render_as_string(hide_password=True)
+    )
+
+
+def _view_definition(inspector: Inspector, view: str, schema: str | None) -> str:
+    """Definición de una vista con el ``Inspector``; ``""`` si el dialect no la da o falla (sin permisos…)."""
+    try:
+        return str(inspector.get_view_definition(view, schema=schema) or "")
+    except NotImplementedError:
+        return ""
+    except SQLAlchemyError as exc:
+        logger.warning("No se pudo obtener definición de vista '%s': %s", view, exc)
+        return ""
+
+
+def view_definitions(
+    inspector: Inspector, schema: str | None, names: Sequence[str], source: CatalogSource | None = None
+) -> dict[str, str]:
+    """``{nombre: definición}`` de las vistas ``names`` con una consulta por schema (``Kind.VIEWS``).
+
+    La definición es la que guarda el motor (:class:`~util_bbdd.metadata.model.ViewMeta`): ``SELECT`` en PostgreSQL,
+    Oracle y MySQL/MariaDB; ``CREATE VIEW`` completo en SQL Server y SQLite. Sin ``CatalogDialect`` para el motor, o si
+    la lectura por lotes falla, se consulta vista a vista con el ``Inspector``. ``""`` si no está disponible.
+    """
+    if not names:
+        return {}
+    source = source if source is not None else catalog_source(inspector)
+    if source is not None:
+        try:
+            views = source.snapshot(schema, kinds={Kind.VIEWS}).views()
+        except SQLAlchemyError as exc:
+            logger.warning("Lectura por lotes de las vistas fallida (%s); se leen una a una.", exc)
+        else:
+            by_name = {v.name.casefold(): v.definition or "" for v in views}
+            return {name: by_name.get(name.casefold(), "") for name in names}
+    return {name: _view_definition(inspector, name, schema) for name in names}
+
+
+def schema_routines(
+    inspector: Inspector, schema: str | None, source: CatalogSource | None = None
+) -> tuple[RoutineMeta, ...] | None:
+    """Functions y procedures del schema con su definición (``Kind.ROUTINES``); ``None`` si el motor no tiene catálogo.
+
+    En Oracle solo las sueltas: los packages y sus miembros (``PKG.MIEMBRO``) no tienen definición propia.
+
+    Raises:
+        MetadataIntrospectionError: Si el catálogo no se puede leer (conexión, permisos): una lista vacía o parcial
+            daría falsos "added"/"removed".
+    """
+    source = source if source is not None else catalog_source(inspector)
+    if source is None:
+        return None
+    try:
+        routines = source.snapshot(schema, kinds={Kind.ROUTINES}).routines()
+    except SQLAlchemyError as exc:
+        raise MetadataIntrospectionError(
+            f"No se pudieron listar las routines ({source.dialect.name})",
+            operation="get_routines",
+            details=f"schema={schema}: {exc}",
+        ) from exc
+    package_members = source.dialect.name == "oracle"
+    return tuple(
+        r for r in routines if r.routine_type in ("FUNCTION", "PROCEDURE") and not (package_members and "." in r.name)
+    )

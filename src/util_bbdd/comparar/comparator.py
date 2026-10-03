@@ -5,16 +5,16 @@ from __future__ import annotations
 import logging
 import re
 
+from collections import Counter
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 
 from sqlalchemy.engine import make_url
-from sqlalchemy.exc import ArgumentError, DatabaseError, OperationalError
+from sqlalchemy.exc import ArgumentError
 
 from util_bbdd._core.exceptions import MetadataIntrospectionError
 
-from ..metadata.reflection import prefetch_table_metadata
+from ..metadata.reflection import prefetch_table_metadata, schema_routines, view_definitions
 from ._ddl import DdlNormalizer
-from ._routine_fetchers import RoutineFetcherRegistry
 from .models import (
     ColumnDiff,
     CommentDiff,
@@ -132,14 +132,12 @@ class SchemaComparator:
         Rendimiento:
             Los metadatos de las tablas comunes (columnas, PK, índices, FKs y comentarios) se leen con
             ``Inspector.get_multi_*``: una consulta por schema y tipo en PostgreSQL y Oracle; en SQL Server PK, índices,
-            FKs y comentarios con consultas por schema (``metadata.sqlserver``) y las columnas tabla a tabla; en
+            FKs, comentarios y columnas con consultas por schema (``metadata.reflection``); en
             MariaDB/MySQL tabla a tabla (un ``SHOW CREATE TABLE`` por tabla), pero sin una conexión del pool por llamada.
-            Las routines se leen con una consulta por schema, salvo MariaDB/MySQL (un ``SHOW CREATE`` por routine).
 
-            Medido con dos schemas de 200 tablas, 20 vistas y 20 routines, todas las opciones activas (auditoría de
-            ``comparar`` 2026-10-02): PostgreSQL 0,15 s (62 consultas), Oracle 0,26 s (58), MariaDB 0,35 s,
-            MySQL 0,43 s, SQL Server 0,86 s (456 consultas). Las vistas siguen siendo una consulta por vista.
-            ``include_*=False`` evita las consultas de lo que no se compara.
+            Vistas y routines: definiciones con una consulta por lado y tipo de objeto desde el catálogo de
+            ``metadata/`` (ADR-003, C4); antes una consulta por vista y lado, y un ``SHOW CREATE`` por routine en
+            MariaDB/MySQL. ``include_*=False`` evita las consultas de lo que no se compara.
         """
         source_label: str = self._build_label(source, source_schema)
         target_label: str = self._build_label(target, target_schema)
@@ -666,24 +664,25 @@ class SchemaComparator:
             target.get_view_names(schema=target_schema), str, kind="vistas destino"
         )
 
+        # Definiciones con una consulta por lado (ADR-003, C4); antes una por vista y lado
+        source_defs = view_definitions(source, source_schema, list(source_views.values()))
+        target_defs = view_definitions(target, target_schema, list(target_views.values()))
         diffs: list[ViewDiff] = []
 
         for key in sorted(source_views.keys() - target_views.keys()):
             view_name = source_views[key]
-            source_def = self._get_view_definition_safe(source, view_name, source_schema)
-            diffs.append(ViewDiff(view_name=view_name, status="added", source_definition=source_def))
+            diffs.append(ViewDiff(view_name=view_name, status="added", source_definition=source_defs[view_name]))
 
         for key in sorted(target_views.keys() - source_views.keys()):
             view_name = target_views[key]
-            target_def = self._get_view_definition_safe(target, view_name, target_schema)
-            diffs.append(ViewDiff(view_name=view_name, status="removed", target_definition=target_def))
+            diffs.append(ViewDiff(view_name=view_name, status="removed", target_definition=target_defs[view_name]))
 
         for key in sorted(source_views.keys() & target_views.keys()):
             view_name = source_views[key]
-            source_def_cmp: str = self._get_view_definition_safe(source, view_name, source_schema)
-            target_def_cmp: str = self._get_view_definition_safe(target, target_views[key], target_schema)
-            s_norm: str = self._normalize_ddl(source_def_cmp)
-            t_norm: str = self._normalize_ddl(target_def_cmp)
+            source_def_cmp: str = source_defs[view_name]
+            target_def_cmp: str = target_defs[target_views[key]]
+            s_norm: str = self._normalize_ddl(self._unqualify(source_def_cmp, source_schema))
+            t_norm: str = self._normalize_ddl(self._unqualify(target_def_cmp, target_schema))
             if s_norm != t_norm:
                 diffs.append(
                     ViewDiff(
@@ -764,8 +763,8 @@ class SchemaComparator:
         for key in sorted(set(source_map) & set(target_map)):
             s_r: dict[str, str] = source_map[key]
             t_r: dict[str, str] = target_map[key]
-            s_norm: str = self._normalize_ddl(s_r.get("definition", ""))
-            t_norm: str = self._normalize_ddl(t_r.get("definition", ""))
+            s_norm: str = self._normalize_ddl(self._unqualify(s_r.get("definition", ""), source_schema))
+            t_norm: str = self._normalize_ddl(self._unqualify(t_r.get("definition", ""), target_schema))
             if s_norm != t_norm:
                 diffs.append(
                     RoutineDiff(
@@ -899,6 +898,20 @@ class SchemaComparator:
         return schema or db_short or username
 
     @staticmethod
+    def _unqualify(definition: str, schema: str | None) -> str:
+        """Quita el prefijo del propio schema (``s.``, ``"s".``, ``[s].``, `` `s`. ``) para comparar definiciones.
+
+        ``pg_get_functiondef``, ``OBJECT_DEFINITION`` y otros guardan el nombre calificado del objeto: sin esto, la misma
+        vista o routine en dos schemas distintos salía como modificada (H-30). Solo para comparar; el informe muestra
+        la definición tal cual.
+        """
+        if not schema or not definition:
+            return definition
+        name = re.escape(schema)
+        pattern = rf'(?:"{name}"|\[{name}\]|`{name}`|(?<![\w$#"\]`]){name})\s*\.\s*(?=["\[`\w])'
+        return re.sub(pattern, "", definition, flags=re.IGNORECASE)
+
+    @staticmethod
     def _normalize_ddl(definition: str) -> str:
         """Normalización universal de DDL delegada a ``DdlNormalizer.normalize_for_comparison``.
 
@@ -1030,43 +1043,44 @@ class SchemaComparator:
         return ",".join(c for c in column_names if c is not None)
 
     @staticmethod
-    def _get_view_definition_safe(inspector: Inspector, view_name: str, schema: str | None) -> str:
-        """Obtiene definición de vista; devuelve cadena vacía si falla."""
-        try:
-            definition: str = inspector.get_view_definition(view_name, schema=schema)
-            return str(definition) if definition else ""
-        except NotImplementedError:
-            return ""
-        except (
-            OperationalError,
-            DatabaseError,
-        ) as exc:  # M1: Fallback para dialects sin soporte de vista DDL o permisos insuficientes
-            logger.warning("No se pudo obtener definición de vista '%s': %s", view_name, exc)
-            return ""
-
-    @staticmethod
     def _get_routines_safe(inspector: Inspector, schema: str | None) -> list[dict[str, str]] | None:
-        """Intenta listar routines via reflect/dialect; devuelve None si no es posible.
+        """Routines del schema como ``{"name", "type", "definition"[, "signature"]}``; ``None`` si no hay catálogo.
 
-        Nota: ``Inspector`` de SQLAlchemy no tiene API estándar para routines.
-        Esta implementación delega al registro ``_ROUTINE_FETCHERS`` usando el nombre de
-        **dialect SQLAlchemy** (p.ej. ``"mssql"`` para SQL Server, no ``"sqlserver"``).
-        Consultar ``_DB_TYPE_TO_DIALECT`` para la correspondencia completa motor → dialect.
+        Se leen del catálogo de ``metadata/`` con una consulta por schema (``Kind.ROUTINES``, ADR-003 C4). Un fetcher
+        registrado en ``_ROUTINE_FETCHERS`` para el **dialect SQLAlchemy** (``"mssql"`` para SQL Server; ver
+        ``_DB_TYPE_TO_DIALECT``) tiene prioridad, para motores sin ``CatalogDialect`` o lecturas propias::
 
-        Para soportar un nuevo motor sin modificar este método::
+            SchemaComparator._ROUTINE_FETCHERS["midialecto"] = mi_fetcher  # (inspector, schema) -> list[dict]
 
-            SchemaComparator._ROUTINE_FETCHERS[
-                SchemaComparator._DB_TYPE_TO_DIALECT["sqlserver"]  # → "mssql"
-            ] = my_mssql_fetcher
+        En PostgreSQL cada routine lleva ``signature`` = ``nombre(argumentos)``, que el comparador usa para emparejar
+        sobrecargas aunque solo un lado las tenga; ``name`` incluye los argumentos solo si hay sobrecargas en ese lado.
         """
-        # inspector.engine es canónico en SA 2.x (el proyecto exige sqlalchemy>=2.0).
+        # inspector.engine es canónico en SA 2.x (el proyecto exige sqlalchemy>=2.0)
         engine: Any | None = getattr(inspector, "engine", None)
-        dialect_name: str = getattr(getattr(engine, "dialect", None), "name", "")
-
+        dialect_name: str = str(getattr(getattr(engine, "dialect", None), "name", ""))
         fetcher: Callable[[Inspector, str | None], list[dict[str, str]]] | None = (
             SchemaComparator._ROUTINE_FETCHERS.get(dialect_name)
         )
-        return fetcher(inspector, schema) if fetcher is not None else None
+        if fetcher is not None:
+            return fetcher(inspector, schema)
+        routines = schema_routines(inspector, schema)
+        if routines is None:
+            return None
+        if dialect_name != "postgresql":
+            return [{"name": r.name, "type": r.routine_type, "definition": r.definition or ""} for r in routines]
+        overloads = Counter(r.name for r in routines)
+        result: list[dict[str, str]] = []
+        for r in routines:
+            signature = f"{r.name}({r.signature})"
+            result.append(
+                {
+                    "name": signature if overloads[r.name] > 1 else r.name,
+                    "type": r.routine_type,
+                    "definition": r.definition or "",
+                    "signature": signature,
+                }
+            )
+        return result
 
     # ------------------------------------------------------------------
     # Resumen
@@ -1090,18 +1104,3 @@ class SchemaComparator:
         if routine_diffs:
             parts.append(f"Routines: {len(routine_diffs)} diferencias")
         return " | ".join(parts) if parts else "Sin diferencias"
-
-
-# ---------------------------------------------------------------------------
-# Registro de fetchers de routines por defecto (OCP — extensible sin editar la clase).
-# La asignación directa evita mutar el dict vacío; mantiene la semántica de
-# "fuente de verdad inicial" y permite sobrescritura posterior por motor externo.
-# ---------------------------------------------------------------------------
-SchemaComparator._ROUTINE_FETCHERS = {  # noqa: SLF001  # OCP registration pattern — ver docstring del módulo
-    "mariadb": RoutineFetcherRegistry.get_routines_mariadb,
-    "mysql": RoutineFetcherRegistry.get_routines_mariadb,  # mismo SHOW … STATUS / SHOW CREATE que MariaDB
-    "oracle": RoutineFetcherRegistry.get_routines_oracle,
-    "mssql": RoutineFetcherRegistry.get_routines_mssql,
-    "postgresql": RoutineFetcherRegistry.get_routines_postgresql,
-    "hsqldb": RoutineFetcherRegistry.get_routines_hsqldb,
-}

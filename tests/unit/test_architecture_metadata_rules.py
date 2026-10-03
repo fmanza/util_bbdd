@@ -63,7 +63,6 @@ PENDING_CATALOG: frozenset[str] = frozenset(
     {
         "bulk/_support/pk_sync.py",
         "bulk/crud.py",
-        "comparar/comparator.py",
         "comparar/reporters/sql_reporter.py",
         "connection/mariadb/update_auto_increment.py",
         "doc/infrastructure/storage/runtime.py",
@@ -82,7 +81,6 @@ PENDING_ENGINE_IMPORTS: frozenset[str] = frozenset(
         "bulk/_support/dialect.py",
         "bulk/_support/pk_sync.py",
         "bulk/crud.py",
-        "comparar/_routine_fetchers.py",
         "dump/_constraints.py",
         "dump/_fk_graph.py",
         "dump/_indexes.py",
