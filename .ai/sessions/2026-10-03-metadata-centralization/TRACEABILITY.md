@@ -78,6 +78,13 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   `MS_Description`; identidad `by default`; OUTPUT → `INOUT`), registro `mssql`/`sqlserver`. `ViewMeta.definition`
   documentada como «tal como la guarda el motor» (`CREATE VIEW` completo en SQL Server/SQLite). 24 tests unitarios;
   dorado `sqlserver_snapshot.json` = IR de `migrate`. Medido: 12 consultas con 50/500/5000 tablas, 5000 tablas 2,75 s.
+- IMPLEMENT · A4: `metadata/mariadb/catalog.py` (`MariaDBCatalog`, `MySQLCatalog`: `information_schema` con
+  `TABLE_SCHEMA` constante y sin joins entre vistas; UK desde `STATISTICS`; CHECK con `TABLE_NAME` en MariaDB y
+  `TABLE_CONSTRAINTS` aparte en MySQL; índices funcionales con `EXPRESSION` solo en MySQL), `CatalogQuery.extra`
+  (consultas adicionales del mismo tipo; `parse` recibe la lista de resultados), `build_create_routine` movido desde
+  `migrate/extractors/mariadb.py` (que ahora delega). 33 tests unitarios; dorados `mysql_snapshot.json`,
+  `mariadb_snapshot.json` = IR de `migrate`; el test de integración comprueba el nº exacto de consultas declarado por
+  el dialecto (MySQL 15, MariaDB 14). Medido: 5000 tablas MySQL 2,38 s, MariaDB 2,60 s. Integración completa: 606.
 - Verificación: `ruff check`/`format`, `mypy` (408 ficheros), unitarios 6066 passed + 5 xfailed, integración 590 (tras
   HF/QW) y 101 de `tests/integration/metadata` (tras A0), `gen_arquitectura_capas.py` sin cambios, `mkdocs build --strict`.
 

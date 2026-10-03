@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
+from ...metadata.mariadb.catalog import build_create_routine
 from ...metadata.mariadb.tables import (
     fetch_columns_for_schema_sql,
     fetch_fk_for_schema_sql,
@@ -40,40 +41,27 @@ def _mysql_create_routine(
 ) -> str:
     """``CREATE PROCEDURE|FUNCTION`` ejecutable desde INFORMATION_SCHEMA (hotfix R4, 0.23.1).
 
-    ``ROUTINE_DEFINITION`` es solo el cuerpo (``BEGIN ... END``): sin cabecera, ``execute()`` fallaba con un error de
-    sintaxis. Se reconstruyen los parámetros, ``RETURNS`` y las características (``DETERMINISTIC``, acceso a datos,
-    ``SQL SECURITY``, ``COMMENT``); MySQL exige las dos primeras para crear una función con el binlog activo. Sin
-    ``DEFINER``: el del origen puede no existir en el destino (y fijarlo exige privilegios); la rutina queda a nombre
-    del usuario que migra, como con ``SHOW CREATE`` sin ``DEFINER``.
+    Delega en :func:`util_bbdd.metadata.mariadb.catalog.build_create_routine` (punto único desde ADR-003, A4).
 
     Args:
         parameters: Filas (PARAMETER_MODE, PARAMETER_NAME, DTD_IDENTIFIER) en orden.
         row: Fila de :func:`fetch_routines_sql` (índices 4: RETURNS, 5: COMMENT, 6-8: características).
     """
 
-    def quoted(identifier: str) -> str:
-        return "`" + identifier.replace("`", "``") + "`"
-
     def value(index: int) -> str:
         return str(row[index]).strip() if len(row) > index and row[index] else ""
 
-    args = []
-    for mode, param_name, data_type in parameters:
-        prefix = f"{str(mode).strip().upper()} " if routine_type == "PROCEDURE" and mode else ""
-        args.append(f"{prefix}{quoted(str(param_name))} {str(data_type).strip()}")
-    lines = [f"CREATE {routine_type} {quoted(name)}({', '.join(args)})"]
-    if routine_type == "FUNCTION" and value(4):
-        lines.append(f"RETURNS {value(4)}")
-    if value(5):
-        lines.append("COMMENT '" + value(5).replace("\\", "\\\\").replace("'", "''") + "'")
-    if value(6).upper() in ("YES", "NO"):
-        lines.append("DETERMINISTIC" if value(6).upper() == "YES" else "NOT DETERMINISTIC")
-    if value(7).upper() in ("CONTAINS SQL", "NO SQL", "READS SQL DATA", "MODIFIES SQL DATA"):
-        lines.append(value(7).upper())
-    if value(8).upper() in ("DEFINER", "INVOKER"):
-        lines.append(f"SQL SECURITY {value(8).upper()}")
-    lines.append(definition)
-    return "\n".join(lines)
+    return build_create_routine(
+        name,
+        routine_type,
+        parameters,
+        definition,
+        returns=value(4),
+        comment=value(5),
+        deterministic=value(6),
+        data_access=value(7),
+        security=value(8),
+    )
 
 
 def _parse_raw_column(row: Any) -> dict[str, Any] | None:

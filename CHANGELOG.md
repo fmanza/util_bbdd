@@ -30,6 +30,10 @@ cambios siguientes.
   (`INFORMATION_SCHEMA` trunca definiciones y su coste por consulta crece con el catálogo), definiciones con
   `OBJECT_DEFINITION`, comentarios `MS_Description`, columnas calculadas e identidad. Snapshot completo en 12 consultas
   con 50, 500 o 5000 tablas (5000: 2,8 s) frente a 121 s para recorrer 500 tablas con los managers.
+- **metadata**: `CatalogDialect` de MariaDB 10.2+ y MySQL 8.0.16+ (`metadata.mariadb.catalog`, grupo A4):
+  `information_schema` con `TABLE_SCHEMA` constante y sin joins entre vistas (FK y routines en dos consultas,
+  `CatalogQuery.extra`); routines con el `CREATE` reconstruido (`build_create_routine`, que `migrate` reutiliza en lugar
+  de su copia). Snapshot completo en 14 (MariaDB) o 15 (MySQL) consultas con 50, 500 o 5000 tablas (5000: ≈ 2,5 s).
 - **scripts**: `bench_metadata.py`, banco de la extracción de metadatos contra los contenedores de
   `docker-compose.bench.yml` (`setup` / `run` / `report` / `teardown`): consultas de catálogo, tiempos y memoria de cada
   flujo (managers, `doc`, `comparar`, `migrate`, `dump`, `bulk`) con 50, 500 y 5000 tablas. Guía:

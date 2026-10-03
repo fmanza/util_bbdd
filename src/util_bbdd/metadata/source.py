@@ -81,17 +81,22 @@ class _SourceBase:
             return None
         return tuple(item for item in full if _table_of(item) in tables)
 
-    def _request(self, kind: Kind, schema: str, tables: frozenset[str] | None) -> tuple[str, dict[str, Any]] | None:
-        """SQL y parámetros para leer ``kind``; ``None`` si el motor no lo tiene."""
+    def _request(
+        self, kind: Kind, schema: str, tables: frozenset[str] | None
+    ) -> tuple[tuple[str, ...], dict[str, Any]] | None:
+        """Consultas (la principal y las de ``extra``) y parámetros para leer ``kind``; ``None`` si el motor no lo tiene."""
         query = self.dialect.query(kind, filtered=tables is not None)
         if query is None:
             return None
         params: dict[str, Any] = {"schema": schema}
         if tables is not None and query.filterable:
             params["tables"] = sorted(tables)
-        return query.sql, params
+        return (query.sql, *query.extra), params
 
-    def _finish(self, kind: Kind, rows: list[tuple[Any, ...]], schema: str, tables: frozenset[str] | None) -> tuple:
+    def _finish(
+        self, kind: Kind, results: list[list[tuple[Any, ...]]], schema: str, tables: frozenset[str] | None
+    ) -> tuple:
+        rows: Any = results[0] if len(results) == 1 else results  # con ``extra``, parse recibe todas las listas
         items = self.dialect.parse(kind, rows, schema)
         query = self.dialect.query(kind, filtered=tables is not None)
         if tables is not None and query is not None and not query.filterable:
@@ -149,7 +154,8 @@ class CatalogSource(_SourceBase):
         request = self._request(kind, schema, tables)
         if request is None:
             return ()
-        return self._finish(kind, self.executor.fetch_all(*request), schema, tables)
+        sqls, params = request
+        return self._finish(kind, [self.executor.fetch_all(sql, params) for sql in sqls], schema, tables)
 
     def snapshot(
         self,
@@ -200,7 +206,8 @@ class AsyncCatalogSource(_SourceBase):
         request = self._request(kind, schema, tables)
         if request is None:
             return ()
-        return self._finish(kind, await self.executor.fetch_all(*request), schema, tables)
+        sqls, params = request
+        return self._finish(kind, [await self.executor.fetch_all(sql, params) for sql in sqls], schema, tables)
 
     async def snapshot(
         self,

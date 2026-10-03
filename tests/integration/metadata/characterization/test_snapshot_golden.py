@@ -141,7 +141,9 @@ def test_snapshot_matches_golden_and_migrate(target: GoldenTarget) -> None:
         first_read = len(statements)
         source.snapshot(target.schema)
         assert len(statements) == first_read, "la segunda lectura debe salir de la caché"
-        assert first_read <= len(ALL_KINDS), f"{first_read} consultas para {len(ALL_KINDS)} tipos de objeto"
+        queries = [source.dialect.query(kind) for kind in ALL_KINDS]
+        declared = sum(1 + len(q.extra) for q in queries if q is not None)  # una por tipo + las de ``extra``
+        assert first_read == declared, f"{first_read} consultas; el dialecto declara {declared}"
     finally:
         event.remove(engine, "before_cursor_execute", count)
         engine.dispose()

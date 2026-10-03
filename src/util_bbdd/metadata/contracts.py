@@ -38,10 +38,14 @@ class CatalogQuery:
     Attributes:
         sql: SQL con ``:schema`` (y ``:tables`` dentro de ``IN (...)`` si ``filterable``).
         filterable: Si admite limitar la lectura a unas tablas con ``:tables``.
+        extra: Consultas adicionales del mismo tipo de objeto, con los mismos parámetros. Con ``extra``,
+            ``CatalogDialect.parse`` recibe una lista con las filas de ``sql`` y de cada consulta de ``extra``, en ese
+            orden. Para motores en los que unir vistas del catálogo en SQL es caro (MySQL/MariaDB, H-16).
     """
 
     sql: str
     filterable: bool = False
+    extra: tuple[str, ...] = ()
 
 
 @runtime_checkable
