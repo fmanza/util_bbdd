@@ -38,6 +38,11 @@ cambios siguientes.
   `pragma_index_list`/`pragma_index_xinfo` y `pragma_foreign_key_list` como funciones tabla unidas a `sqlite_master`
   (una consulta por tipo en vez de un PRAGMA por tabla). Solo el schema `main`; sin CHECK, nombres de constraint ni
   expresiones de columnas calculadas o índices funcionales (los PRAGMA no los exponen). 5000 tablas: 9 consultas, 0,9 s.
+- **metadata**: `CatalogDialect` de HSQLDB 2.x (`metadata.hsqldb.catalog`, grupo A6), verificado contra HSQLDB 2.7.4
+  por JDBC, y `DbapiCatalogExecutor` (SQL de catálogo sobre cualquier conexión DB-API, con el `paramstyle` del driver).
+  El registry JSON falla con HSQLDB 2.7.4 en 9 de sus 16 consultas (`obtener_tablas`, `columnas_tabla`, `indices`…:
+  columnas y vistas que HSQLDB no tiene; H-19); los managers dejarán de usarlo en el grupo C1. Test de integración con
+  `UTIL_BBDD_TEST_HSQLDB_JAR` (ruta al `hsqldb-2.x.jar`).
 - **scripts**: `bench_metadata.py`, banco de la extracción de metadatos contra los contenedores de
   `docker-compose.bench.yml` (`setup` / `run` / `report` / `teardown`): consultas de catálogo, tiempos y memoria de cada
   flujo (managers, `doc`, `comparar`, `migrate`, `dump`, `bulk`) con 50, 500 y 5000 tablas. Guía:

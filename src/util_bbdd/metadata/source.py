@@ -20,7 +20,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Connection, Engine
 
-from ._paramstyle import expand_lists
+from ._paramstyle import ParamStyle, expand_lists, to_driver
 from .catalog_registry import get_catalog_dialect
 from .contracts import AsyncCatalogExecutor, CatalogDialect, CatalogExecutor
 from .model import ALL_KINDS, TABLE_SCOPED_KINDS, Kind, SchemaSnapshot
@@ -47,6 +47,33 @@ class SqlAlchemyCatalogExecutor:
             return [tuple(row) for row in self.bind.execute(statement, flat).all()]
         with self.bind.connect() as conn:
             return [tuple(row) for row in conn.execute(statement, flat).all()]
+
+
+class DbapiCatalogExecutor:
+    """:class:`CatalogExecutor` sobre una conexión DB-API 2.0 (driver nativo: managers, JDBC de HSQLDB…).
+
+    Traduce el SQL de catálogo (``:nombre``) al ``paramstyle`` del driver con :func:`_paramstyle.to_driver`.
+
+    Args:
+        connection: Conexión DB-API abierta (no se cierra aquí).
+        paramstyle: ``paramstyle`` del módulo del driver (``named``, ``pyformat``, ``format``, ``qmark``, ``numeric``).
+    """
+
+    def __init__(self, connection: Any, paramstyle: ParamStyle) -> None:
+        self.connection = connection
+        self.paramstyle = paramstyle
+
+    def fetch_all(self, sql: str, params: Mapping[str, Any]) -> list[tuple[Any, ...]]:
+        driver_sql, args = to_driver(sql, params, self.paramstyle)
+        cursor = self.connection.cursor()
+        try:
+            if args is None:
+                cursor.execute(driver_sql)
+            else:
+                cursor.execute(driver_sql, args)
+            return [tuple(row) for row in cursor.fetchall()]
+        finally:
+            cursor.close()
 
 
 class _SourceBase:
@@ -232,4 +259,10 @@ class AsyncCatalogSource(_SourceBase):
         return SchemaSnapshot(engine=self.dialect.name, schema=schema, data=data, tables_filter=selected)
 
 
-__all__: list[str] = ["FILTER_MAX_TABLES", "AsyncCatalogSource", "CatalogSource", "SqlAlchemyCatalogExecutor"]
+__all__: list[str] = [
+    "FILTER_MAX_TABLES",
+    "AsyncCatalogSource",
+    "CatalogSource",
+    "DbapiCatalogExecutor",
+    "SqlAlchemyCatalogExecutor",
+]

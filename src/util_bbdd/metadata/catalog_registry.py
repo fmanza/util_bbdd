@@ -22,6 +22,7 @@ _BUILTIN: dict[str, tuple[str, frozenset[str]]] = {
     "mariadb": ("util_bbdd.metadata.mariadb.catalog:MariaDBCatalog", frozenset({"mariadb"})),
     "mysql": ("util_bbdd.metadata.mariadb.catalog:MySQLCatalog", frozenset({"mysql"})),
     "sqlite": ("util_bbdd.metadata.sqlite.catalog:SQLiteCatalog", frozenset({"sqlite"})),
+    "hsqldb": ("util_bbdd.metadata.hsqldb.catalog:HSQLDBCatalog", frozenset()),  # JDBC, sin SQLAlchemy
 }
 
 _lock = threading.Lock()

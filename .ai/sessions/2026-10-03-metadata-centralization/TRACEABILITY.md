@@ -89,6 +89,12 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   sin CHECK/nombres de constraint/expresiones: marcador `<expresión>`); `test_sqlite_catalog.py` con SQLite real en
   memoria; flujo `snapshot` en `test_query_counts.py` (sin `xfail`: constante con 10 y 100 tablas); dorado
   `sqlite_snapshot.json`. Medido: 9 consultas con 50/500/5000 tablas, 5000 tablas 0,86 s.
+- IMPLEMENT · A6: `metadata/hsqldb/catalog.py` (INFORMATION_SCHEMA estándar + `SYSTEM_TABLES`/`SYSTEM_COLUMNS`/
+  `SYSTEM_INDEXINFO`; sin CHECK `SYS_CT_*` de NOT NULL; firma = `SPECIFIC_NAME`), `DbapiCatalogExecutor` en
+  `metadata/source.py`. Verificado contra HSQLDB 2.7.4 descargado de Maven Central al scratchpad (SHA1 comprobado) con
+  `jaydebeapi` + JDK 25 (`JAVA_HOME`). Encontrado H-19 (9/16 consultas del registry fallan en HSQLDB). Tests: 19
+  unitarios (`test_hsqldb_catalog.py`, incl. `DbapiCatalogExecutor` con `sqlite3` en `qmark` y `named`) e integración
+  `tests/integration/metadata/test_hsqldb_catalog.py` (con `UTIL_BBDD_TEST_HSQLDB_JAR`).
 - Verificación: `ruff check`/`format`, `mypy` (408 ficheros), unitarios 6066 passed + 5 xfailed, integración 590 (tras
   HF/QW) y 101 de `tests/integration/metadata` (tras A0), `gen_arquitectura_capas.py` sin cambios, `mkdocs build --strict`.
 
