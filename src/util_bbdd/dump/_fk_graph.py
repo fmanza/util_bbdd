@@ -10,10 +10,10 @@ import logging
 
 from collections import deque
 
-from sqlalchemy import Engine, Inspector, text
+from sqlalchemy import Inspector
 from sqlalchemy.exc import SQLAlchemyError
 
-from util_bbdd.metadata.sqlserver.constraints import fetch_schema_fk_references_sql
+from util_bbdd.metadata.reflection import prefetch_table_metadata
 
 # Mismo logger que antes de separar este código de ``orchestrator`` (R10a): los registros no cambian de nombre.
 _log = logging.getLogger("util_bbdd.dump.orchestrator")
@@ -42,43 +42,20 @@ def build_fk_graph(
 def referred_tables(tables: list[str], inspector: Inspector, schema: str | None) -> dict[str, list[str]]:
     """Tabla → tablas referidas por sus FK (una por FK). Las tablas cuya introspección falla no aparecen.
 
-    Q9 (performance-audit de dump 2026-09-26): en SQL Server, ``get_foreign_keys`` hace una consulta por tabla de
-    ≈ 34 ms (61 % de un volcado de 200 tablas pequeñas); allí se lee todo el schema con una consulta. Si esa
-    consulta falla, se vuelve a la introspección tabla a tabla.
+    Las FK se leen por lotes con ``metadata.reflection`` (ADR-003, D2): una consulta por schema en PostgreSQL, Oracle,
+    SQL Server y MySQL/MariaDB (Q9 de la performance-audit de dump 2026-09-26: en SQL Server ``get_foreign_keys`` era
+    el 61 % de un volcado de 200 tablas pequeñas). Lo que no se precargue (p. ej. un nombre dado con otro case) se lee
+    tabla a tabla.
     """
-    if inspector.dialect.name == "mssql":
-        by_table = mssql_referred_tables(inspector, schema)
-        if by_table is not None:
-            by_lower = {name.lower(): refs for name, refs in by_table.items()}
-            # Nombres dados por el usuario (DumpConfig.tables) con otro case: SQL Server suele ser case-insensitive.
-            return {t: by_table.get(t, by_lower.get(t.lower(), [])) for t in tables}
+    meta = prefetch_table_metadata(inspector, schema, tables, kinds=["fks"])
     referred: dict[str, list[str]] = {}
     for table in tables:
         try:
-            fks = inspector.get_foreign_keys(table, schema=schema)
+            fks = meta.get("fks", table)
         except SQLAlchemyError:
             continue
         referred[table] = [fk.get("referred_table") or "" for fk in fks]
     return referred
-
-
-def mssql_referred_tables(inspector: Inspector, schema: str | None) -> dict[str, list[str]] | None:
-    """SQL Server: tablas referidas por las FK de cada tabla del schema, en una consulta. ``None`` si falla."""
-    bind = inspector.bind
-    if not isinstance(bind, Engine):
-        return None
-    try:
-        with bind.connect() as conn:
-            rows = conn.execute(
-                text(fetch_schema_fk_references_sql()), {"schema": schema or inspector.default_schema_name}
-            ).all()
-    except SQLAlchemyError as exc:
-        _log.debug("Consulta de FK por schema falló (%s); se usa get_foreign_keys tabla a tabla.", exc)
-        return None
-    by_table: dict[str, list[str]] = {}
-    for table, _ref_schema, ref_table in rows:
-        by_table.setdefault(table, []).append(ref_table)
-    return by_table
 
 
 def topological_levels(

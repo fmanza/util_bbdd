@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,6 +23,7 @@ def _make_engine(dialect_name: str) -> MagicMock:
     engine = MagicMock()
     engine.dialect.name = dialect_name
     engine.dialect.identifier_preparer.quote.side_effect = lambda name: name
+    engine.dialect.normalize_name.side_effect = lambda name: name
     conn_ctx = MagicMock()
     conn_ctx.__enter__ = MagicMock(return_value=conn_ctx)
     conn_ctx.__exit__ = MagicMock(return_value=False)
@@ -32,6 +35,31 @@ def _make_engine(dialect_name: str) -> MagicMock:
 # ---------------------------------------------------------------------------
 # ConstraintResult
 # ---------------------------------------------------------------------------
+
+
+class _LazySnapshot:
+    """Snapshot simulado de ``ConstraintManager._snapshot`` que lee de un Inspector simulado tabla a tabla al pedirlo."""
+
+    def __init__(self, insp: MagicMock) -> None:
+        self._insp = insp
+
+    @staticmethod
+    def _named(items: list[dict]) -> list[SimpleNamespace]:
+        return [SimpleNamespace(name=item.get("name")) for item in items]
+
+    def foreign_keys(self, table: str) -> list[SimpleNamespace]:
+        return self._named(self._insp.get_foreign_keys(table, schema=None))
+
+    def checks(self, table: str) -> list[SimpleNamespace]:
+        return self._named(self._insp.get_check_constraints(table, schema=None))
+
+    def uniques(self, table: str) -> list[SimpleNamespace]:
+        return self._named(self._insp.get_unique_constraints(table, schema=None))
+
+
+def _catalog(insp: MagicMock) -> Any:
+    """Sustituye la lectura del catálogo del destino (snapshot de metadata/, D2) por ``insp``."""
+    return patch.object(ConstraintManager, "_snapshot", lambda self, kinds, tables: _LazySnapshot(insp))
 
 
 class TestConstraintResult:
@@ -234,7 +262,7 @@ class TestConstraintManagerOracle:
         insp.get_foreign_keys.return_value = [{"name": "FK_ORDERS_CUST"}]
         insp.get_check_constraints.return_value = [{"name": "SYS_C0012345"}, {"name": "CK_STATUS"}]
         insp.get_unique_constraints.return_value = []
-        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+        with _catalog(insp):
             mgr = ConstraintManager(engine)
             mgr._disable_oracle(tables=["orders"])
 
@@ -250,7 +278,7 @@ class TestConstraintManagerOracle:
                 {"name": "FK_B"},
             ],
         )
-        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+        with _catalog(insp):
             mgr = ConstraintManager(engine)
             mgr._disable_oracle(tables=["t1"])
 
@@ -285,7 +313,7 @@ class TestConstraintManagerPostgreSQL:
         engine = _make_engine("postgresql")
         insp = MagicMock()
         insp.get_foreign_keys.return_value = []
-        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+        with _catalog(insp):
             mgr = ConstraintManager(engine)
             mgr._disabled_pg = ["orders"]
             results = mgr.enable_all()
@@ -296,7 +324,7 @@ class TestConstraintManagerPostgreSQL:
         engine = _make_engine("postgresql")
         insp = MagicMock()
         insp.get_foreign_keys.return_value = []
-        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+        with _catalog(insp):
             mgr = ConstraintManager(engine)
             results = mgr.enable_all()
 
@@ -324,7 +352,7 @@ class TestConstraintManagerPostgreSQL:
         self._pg_conn(engine, fk_def=("customers", ["customer_id"], ["id"]), orphan=False)
         insp = MagicMock()
         insp.get_foreign_keys.return_value = [{"name": "fk_orders_cust"}]
-        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+        with _catalog(insp):
             mgr = ConstraintManager(engine)
             mgr._disabled_pg = ["orders"]
             results = mgr.enable_all()
@@ -339,7 +367,7 @@ class TestConstraintManagerPostgreSQL:
         self._pg_conn(engine, fk_def=("customers", ["customer_id"], ["id"]), orphan=True)
         insp = MagicMock()
         insp.get_foreign_keys.return_value = [{"name": "fk_orders_cust"}]
-        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+        with _catalog(insp):
             mgr = ConstraintManager(engine)
             mgr._disabled_pg = ["orders"]
             results = mgr.enable_all()
@@ -353,7 +381,7 @@ class TestConstraintManagerPostgreSQL:
         executed = self._pg_conn(engine, fk_def=('"S".parent', ['"a"', "b"], ["x", '"Y"']), orphan=False)
         insp = MagicMock()
         insp.get_foreign_keys.return_value = [{"name": "fk_multi"}]
-        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+        with _catalog(insp):
             mgr = ConstraintManager(engine)
             mgr._disabled_pg = ["child"]
             mgr.enable_all()
@@ -377,7 +405,7 @@ class TestConstraintManagerPostgreSQL:
         conn_mock.execute.side_effect = _selective_fail
         insp = MagicMock()
         insp.get_foreign_keys.return_value = [{"name": "fk_orders_cust"}]
-        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+        with _catalog(insp):
             mgr = ConstraintManager(engine)
             mgr._disabled_pg = ["orders"]
             results = mgr.enable_all()
@@ -400,7 +428,7 @@ class TestConstraintManagerPostgreSQL:
         conn_mock.execute.side_effect = _trigger_fail
         insp = MagicMock()
         insp.get_foreign_keys.return_value = [{"name": "fk_orders_cust"}]
-        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+        with _catalog(insp):
             mgr = ConstraintManager(engine)
             mgr._disabled_pg = ["orders"]
             results = mgr.enable_all()
@@ -414,7 +442,7 @@ class TestConstraintManagerPostgreSQL:
         engine = _make_engine("postgresql")
         insp = MagicMock()
         insp.get_foreign_keys.return_value = []
-        with patch("util_bbdd.dump._constraints.inspect", return_value=insp):
+        with _catalog(insp):
             mgr = ConstraintManager(engine)
             results = mgr.enable_all()
 

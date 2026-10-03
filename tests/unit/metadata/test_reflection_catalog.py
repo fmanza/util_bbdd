@@ -131,3 +131,16 @@ def test_registered_fetcher_takes_precedence(monkeypatch: pytest.MonkeyPatch) ->
         SchemaComparator._ROUTINE_FETCHERS, "mydialect", lambda i, s: [{"name": "x", "type": "FUNCTION"}]
     )
     assert SchemaComparator._get_routines_safe(_inspector("mydialect"), "s") == [{"name": "x", "type": "FUNCTION"}]
+
+
+def test_mssql_rows_are_matched_to_requested_names_ignoring_case() -> None:
+    """D2: ``dump`` recibe nombres del usuario; una fila de ``Orders`` sirve para ``ORDERS`` si no hay ambigüedad."""
+    from util_bbdd.metadata.reflection import _as_requested
+
+    rows = [("Orders", 1), ("items", 2), ("Dup", 3), ("other", 4)]
+    assert _as_requested(rows, ["ORDERS", "items", "dup", "DUP"]) == [
+        ("ORDERS", 1),
+        ("items", 2),
+        ("Dup", 3),
+        ("other", 4),
+    ]

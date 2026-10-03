@@ -11,12 +11,14 @@ import logging
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, ClassVar
 
-from sqlalchemy import Engine, Inspector, event, inspect, text
+from sqlalchemy import Engine, event, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from .._core.exceptions import DumpConstraintError
 from ..bulk._support.dialect import MYSQL_FAMILY, disable_table_integrity_sql, enable_table_integrity_sql
-from ..metadata.postgresql.tables import fetch_fk_definition_sql
+from ..metadata import facts
+from ..metadata.model import Kind, SchemaSnapshot
+from ..metadata.source import CatalogSource
 from ._models import ConstraintResult
 from ._sql_utils import quote_identifier, quote_table
 
@@ -247,7 +249,7 @@ class ConstraintManager:
         results: list[ConstraintResult] = []
         # Usar solo las tablas que fueron desactivadas (no todas las del schema)
         tables = list(self._disabled_pg)
-        insp: Inspector = inspect(self._engine)
+        snapshot = self._snapshot({Kind.FOREIGN_KEYS}, tables)
         # Tablas donde ENABLE TRIGGER falló — no intentar VALIDATE CONSTRAINT en ellas (C3)
         failed_trigger: set[str] = set()
 
@@ -266,10 +268,9 @@ class ConstraintManager:
             for table in tables:
                 if table in failed_trigger:
                     continue
-                try:
-                    fks = insp.get_foreign_keys(table, schema=self._schema)
-                except SQLAlchemyError:
+                if snapshot is None:
                     continue
+                fks = [{"name": fk.name} for fk in snapshot.foreign_keys(table)]
                 self._validate_fks_pg(conn, table, fks, results)
             conn.commit()
         return results
@@ -325,8 +326,6 @@ class ConstraintManager:
                 )
 
     # Definición de una FK desde el catálogo (tabla referenciada y columnas citadas); SQL en metadata/postgresql (Regla #1).
-    _PG_FK_DEF_SQL = fetch_fk_definition_sql()
-
     def _find_fk_orphan_pg(self, conn: Any, table: str, fk_name: str) -> str | None:
         """Busca una fila de ``table`` que incumpla la FK ``fk_name``; devuelve el mensaje de error o ``None``.
 
@@ -334,7 +333,7 @@ class ConstraintManager:
         ``VALIDATE CONSTRAINT`` no comprueba nada y una fila huérfana cargada con los triggers desactivados pasaba como
         ``enabled``. Semántica ``MATCH SIMPLE`` (la de por defecto): una fila con alguna columna de la FK a NULL cumple.
         """
-        definition = conn.execute(text(self._PG_FK_DEF_SQL), {"tbl": self._qt(table), "name": fk_name}).first()
+        definition = facts.foreign_key_definition(conn, self._qt(table), fk_name)
         if definition is None or not definition[1] or not definition[2]:
             return None
         parent, child_cols, parent_cols = definition
@@ -359,26 +358,23 @@ class ConstraintManager:
 
     def _disable_oracle(self, tables: list[str]) -> None:
         self._disabled = []
-        insp: Inspector = inspect(self._engine)
-
-        def _fetch_names(getter_fn: Callable[..., Any], table: str) -> list[str]:
-            try:
-                items = getter_fn(table, schema=self._schema)
-                return [c.get("name", "") for c in items if c.get("name")]
-            except SQLAlchemyError:
-                return []
+        snapshot = self._snapshot({Kind.FOREIGN_KEYS, Kind.CHECKS, Kind.UNIQUES}, tables)
+        # Nombres como los da la reflexión de SQLAlchemy (Oracle: minúsculas si no se crearon entre comillas), para que
+        # quote_identifier los cite igual que antes.
+        normalize = self._engine.dialect.normalize_name
 
         with self._engine.connect() as conn:
             for table in tables:
-                names: list[str] = []
-                names.extend(_fetch_names(insp.get_foreign_keys, table))
+                if snapshot is None:
+                    break
+                names: list[str] = [fk.name for fk in snapshot.foreign_keys(table) if fk.name]
                 names.extend(
-                    n
-                    for n in _fetch_names(insp.get_check_constraints, table)
-                    if not n.upper().startswith("SYS_C")  # filtrar constraints de sistema Oracle
+                    c.name
+                    for c in snapshot.checks(table)
+                    if c.name and not c.name.upper().startswith("SYS_C")  # filtrar constraints de sistema Oracle
                 )
-                names.extend(_fetch_names(insp.get_unique_constraints, table))
-                for name in names:
+                names.extend(u.name for u in snapshot.uniques(table) if u.name)
+                for name in (str(normalize(n)) for n in names):
                     try:
                         conn.execute(text(f"ALTER TABLE {self._qt(table)} DISABLE CONSTRAINT {self._qi(name)}"))
                         self._disabled.append((table, name))
@@ -419,6 +415,14 @@ class ConstraintManager:
     # ------------------------------------------------------------------
     # Helpers de quoting
     # ------------------------------------------------------------------
+
+    def _snapshot(self, kinds: set[Kind], tables: list[str]) -> SchemaSnapshot | None:
+        """Metadatos ``kinds`` de ``tables`` del destino, una consulta por tipo (ADR-003, D2); ``None`` si no se puede."""
+        try:
+            return CatalogSource.from_engine(self._engine).snapshot(self._schema, kinds=kinds, tables=tables)
+        except Exception as exc:  # motor sin catálogo, engine simulado o sin permisos
+            self.logger.warning("No se pudieron leer las constraints del destino: %s", exc)
+            return None
 
     def _qi(self, name: str) -> str:
         """Quoted identifier según el dialect del engine destino."""

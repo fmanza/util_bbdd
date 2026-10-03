@@ -217,7 +217,22 @@ def _mssql_prefetch(
     except SQLAlchemyError as exc:
         logger.debug("Consulta de %s por schema falló (%s); se consulta tabla a tabla.", kind, exc)
         return None
-    return build(results, schema, owner, names, inspector.dialect)
+    return build([_as_requested(rows, names) for rows in results], schema, owner, names, inspector.dialect)
+
+
+def _as_requested(rows: Sequence[Sequence[Any]], names: Sequence[str]) -> list[Sequence[Any]]:
+    """Filas con la tabla (primera columna) escrita como se pidió si solo difiere en mayúsculas (SQL Server suele no
+    distinguirlas; ``dump`` recibe nombres del usuario). Con varias candidatas no se adivina."""
+    requested = set(names)
+    folded: dict[str, str | None] = {}
+    for name in names:
+        folded[name.casefold()] = None if name.casefold() in folded else name
+    out: list[Sequence[Any]] = []
+    for row in rows:
+        table = str(row[0])
+        alias = folded.get(table.casefold()) if table not in requested else None
+        out.append((alias, *row[1:]) if alias else row)
+    return out
 
 
 def _mssql_build_fks(
@@ -623,3 +638,13 @@ def reflect_table(engine: Engine, table: Table, *, foreign_keys: bool = True) ->
         if not foreign_keys:
             insp.get_multi_foreign_keys = _no_foreign_keys  # type: ignore[method-assign]
         insp.reflect_table(table, None, resolve_fks=False)
+
+
+def table_names(inspector: Inspector, schema: str | None) -> list[str]:
+    """Tablas del schema con los nombres de SQLAlchemy (los que espera la reflexión de ``Table``/``get_multi_*``)."""
+    return list(inspector.get_table_names(schema=schema))
+
+
+def inspector_for(bind: Engine) -> Inspector:
+    """``Inspector`` de SQLAlchemy sobre ``bind`` para la reflexión por lotes de este módulo (``dump``, ``comparar``)."""
+    return inspect(bind)

@@ -27,15 +27,7 @@ from sqlalchemy import Engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from ..bulk._support.dialect import MYSQL_FAMILY
-from ..metadata.oracle.indexes import (
-    fetch_secondary_nonunique_indexes_sql as fetch_oracle_secondary_indexes_sql,
-)
-from ..metadata.postgresql.tables import (
-    fetch_secondary_nonunique_indexes_sql as fetch_pg_secondary_indexes_sql,
-)
-from ..metadata.sqlserver.indexes import (
-    fetch_secondary_nonunique_indexes_sql as fetch_mssql_secondary_indexes_sql,
-)
+from ..metadata import facts
 from ._models import IndexActionResult
 from ._sql_utils import quote_identifier, quote_table
 
@@ -154,11 +146,7 @@ class IndexManager:
                         self.logger.warning("No se pudo deshabilitar el índice '%s.%s': %s", table, index_name, exc)
 
     def _discover_mssql(self, conn: Any, table: str) -> list[str]:
-        rows = conn.execute(
-            text(fetch_mssql_secondary_indexes_sql()),
-            {"tbl": table, "schema": self._schema},
-        ).fetchall()
-        return [r[0] for r in rows]
+        return [name for name, _ in facts.secondary_nonunique_indexes(conn, self._schema, table, "mssql")]
 
     def _rebuild_mssql(self) -> list[IndexActionResult]:
         results: list[IndexActionResult] = []
@@ -193,17 +181,7 @@ class IndexManager:
                         self.logger.warning("No se pudo marcar UNUSABLE el índice '%s.%s': %s", table, index_name, exc)
 
     def _discover_oracle(self, conn: Any, table: str) -> list[str]:
-        if self._schema:
-            rows = conn.execute(
-                text(fetch_oracle_secondary_indexes_sql(with_owner=True)),
-                {"tbl": table, "owner": self._schema},
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                text(fetch_oracle_secondary_indexes_sql(with_owner=False)),
-                {"tbl": table},
-            ).fetchall()
-        return [r[0] for r in rows]
+        return [name for name, _ in facts.secondary_nonunique_indexes(conn, self._schema, table, "oracle")]
 
     def _rebuild_oracle(self) -> list[IndexActionResult]:
         results: list[IndexActionResult] = []
@@ -237,11 +215,10 @@ class IndexManager:
                         self.logger.warning("No se pudo eliminar el índice '%s.%s': %s", table, index_name, exc)
 
     def _discover_postgresql(self, conn: Any, table: str) -> list[tuple[str, str]]:
-        rows = conn.execute(
-            text(fetch_pg_secondary_indexes_sql()),
-            {"tbl": table, "schema": self._schema},
-        ).fetchall()
-        return [(r[0], r[1]) for r in rows]
+        return [
+            (name, ddl or "")
+            for name, ddl in facts.secondary_nonunique_indexes(conn, self._schema, table, "postgresql")
+        ]
 
     def _recreate_postgresql(self) -> list[IndexActionResult]:
         results: list[IndexActionResult] = []

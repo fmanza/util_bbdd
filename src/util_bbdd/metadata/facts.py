@@ -16,10 +16,19 @@ from typing import Any
 from sqlalchemy import text
 
 from .mariadb.tables import fetch_table_storage_engine_sql
+from .oracle.indexes import fetch_secondary_nonunique_indexes_sql as _oracle_secondary_indexes_sql
 from .oracle.tables import fetch_identity_generation_sql
-from .postgresql.tables import fetch_can_create_temp_tables_sql, fetch_can_disable_triggers_sql
+from .postgresql.tables import (
+    fetch_can_create_temp_tables_sql,
+    fetch_can_disable_triggers_sql,
+    fetch_fk_definition_sql,
+    fetch_secondary_nonunique_indexes_sql as _pg_secondary_indexes_sql,
+)
 from .sqlserver.common import fetch_compatibility_level_sql
-from .sqlserver.indexes import fetch_clustered_index_count_sql
+from .sqlserver.indexes import (
+    fetch_clustered_index_count_sql,
+    fetch_secondary_nonunique_indexes_sql as _mssql_secondary_indexes_sql,
+)
 
 
 def serial_sequence(conn: Any, table_ref: str, column: str) -> str | None:
@@ -73,12 +82,49 @@ def can_disable_triggers(conn: Any, schema: str | None, table: str) -> bool:
     return bool(conn.execute(text(fetch_can_disable_triggers_sql()), {"schema": schema, "tbl": table}).scalar())
 
 
+def secondary_nonunique_indexes(
+    conn: Any, schema: str | None, table: str, dialect: str | None = None
+) -> list[tuple[str, str | None]]:
+    """Índices secundarios no únicos de una tabla que ``dump`` puede desactivar: ``[(nombre, DDL o None)]``.
+
+    - SQL Server: ``NONCLUSTERED`` no únicos, sin PK ni constraint y habilitados (DDL ``None``).
+    - Oracle: ``NORMAL`` no únicos que no respaldan una constraint (DDL ``None``).
+    - PostgreSQL: no únicos, sin PK ni constraint, con su ``pg_get_indexdef`` para recrearlos.
+    - Resto: ``[]``.
+
+    ``dialect`` (nombre de SQLAlchemy) evita leerlo de la conexión.
+    """
+    dialect = dialect or conn.dialect.name
+    if dialect == "mssql":
+        rows = conn.execute(text(_mssql_secondary_indexes_sql()), {"tbl": table, "schema": schema}).fetchall()
+        return [(str(r[0]), None) for r in rows]
+    if dialect == "oracle":
+        params = {"tbl": table, "owner": schema} if schema else {"tbl": table}
+        rows = conn.execute(text(_oracle_secondary_indexes_sql(with_owner=bool(schema))), params).fetchall()
+        return [(str(r[0]), None) for r in rows]
+    if dialect == "postgresql":
+        rows = conn.execute(text(_pg_secondary_indexes_sql()), {"tbl": table, "schema": schema}).fetchall()
+        return [(str(r[0]), str(r[1])) for r in rows]
+    return []
+
+
+def foreign_key_definition(conn: Any, table_ref: str, name: str) -> Any:
+    """PostgreSQL: ``(tabla referenciada, [columnas], [columnas referenciadas])`` de una FK, citados; o ``None``.
+
+    Args:
+        table_ref: Tabla citada (convertible a ``regclass``).
+    """
+    return conn.execute(text(fetch_fk_definition_sql()), {"tbl": table_ref, "name": name}).first()
+
+
 __all__: list[str] = [
     "can_create_temp_tables",
     "can_disable_triggers",
     "clustered_index_count",
     "compatibility_level",
+    "foreign_key_definition",
     "identity_generation",
+    "secondary_nonunique_indexes",
     "serial_sequence",
     "storage_engine",
 ]

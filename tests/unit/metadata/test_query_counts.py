@@ -188,7 +188,9 @@ FLOWS: list[Any] = [
     # con PRAGMA tabla a tabla (en proceso, sin red): se acepta; la paridad por lotes de los servidores la cubre
     # tests/integration/test_comparar_prefetch_engines.py
     pytest.param(_comparar, id="comparar", marks=_xfail("— no aplica: SQLite refleja con PRAGMA tabla a tabla")),
-    pytest.param(_dump, id="dump", marks=_xfail("D2")),
+    # D2: FK, columnas y PK por lotes; queda reflejar cada Table que se carga (BulkCrud, inherente a la carga) y SQLite
+    # refleja con PRAGMA tabla a tabla
+    pytest.param(_dump, id="dump", marks=_xfail("— no aplica: la carga refleja cada Table; SQLite con PRAGMA")),
     pytest.param(_bulk, id="bulk"),
     pytest.param(_snapshot, id="snapshot"),  # lectura por lotes (ADR-003): la referencia
 ]

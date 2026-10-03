@@ -183,6 +183,18 @@ Fases autorizadas: PLAN + AUDIT_PLAN
 - Verificación D1: `ruff`, `mypy` (423), unitarios 6178 + 3 xfailed, integración 635 + 10 skipped, capas (423),
   `mkdocs build --strict`. Banco `doc_html` 500: PostgreSQL 2063 → 8 consultas / 57 → 2,1 s, Oracle 2073 → 8 /
   368 → 3,2 s, SQL Server 583 → 8, MySQL/MariaDB 554 → 10.
+- IMPLEMENT · D2 (`dump`): `_fk_graph.referred_tables` sobre `prefetch_table_metadata(kinds=["fks"])` (se retira la
+  consulta propia de SQL Server de Q9: la cubre B1); el orquestador precarga una vez por volcado columnas y PK de origen
+  y columnas de destino (`_side_meta`; sin precarga, `TableMetadata` consulta tabla a tabla) para columnas comunes, PK
+  de rangos y aviso LOB; `ConstraintManager` lee FK/CHECK/UNIQUE del destino con un snapshot (nombres pasados por
+  `dialect.normalize_name` para citar igual que antes); `IndexManager` y la definición de FK de PostgreSQL vía
+  `metadata.facts` (`secondary_nonunique_indexes`, `foreign_key_definition`); `metadata.reflection.table_names` e
+  `inspector_for`. Trinquete: los 4 ficheros de `dump/` fuera. Hallazgo en integración: la precarga de SQL Server (B1)
+  descartaba filas de tablas pedidas con otro case → `_as_requested` (coincidencia única). Banco `dump` 500: SQL Server
+  con 1 repetición dio 93 s (contenedor en frío; con 3 repeticiones, 18,7 s frente a 44,5 s del baseline).
+- Verificación D2: `ruff`, `mypy` (423), unitarios 6179 + 3 xfailed, integración 635 + 10 skipped, capas (423),
+  `mkdocs build --strict`. `test_query_counts`: `dump` sigue en `xfail` documentado (reflexión de cada `Table` cargada y
+  SQLite con `PRAGMA`).
 
 ## Artefactos generados
 

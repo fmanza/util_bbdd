@@ -38,7 +38,7 @@ from typing import Any, ClassVar, Literal
 
 import pandas as pd
 
-from sqlalchemy import Engine, Inspector, Integer, inspect, text
+from sqlalchemy import Engine, Inspector, Integer, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import sqltypes
 
@@ -50,6 +50,13 @@ from util_bbdd.bulk._support.iterables import close_if_closable
 from util_bbdd.bulk._support.pool import pool_capacity
 
 from .._core.exceptions import AuditError, DumpError, DumpReportError
+from ..metadata.reflection import (
+    MetadataKind,
+    TableMetadata,
+    inspector_for,
+    prefetch_table_metadata,
+    table_names,
+)
 from . import _audit_summary, _fk_graph
 from ._audit_events import DumpAuditEvents, DumpAuditWriter
 from ._constraints import ConstraintManager, ConstraintResult
@@ -104,11 +111,15 @@ class DumpOrchestrator:
 
     # Contadores de auditoría de los ParallelBulkLoader del volcado (se reinician en _reset_audit_tracking).
     _loader_audit: _AuditCounters
+    #: Metadatos de las tablas del volcado leídos por lotes al empezar (D2, ADR-003); sin ellos, tabla a tabla.
+    _src_meta: TableMetadata | None = None
+    _dst_meta: TableMetadata | None = None
 
     def __init__(self, config: DumpConfig) -> None:
         self._cfg = config
-        self._src_insp: Inspector = inspect(config.source_engine)
-        self._dst_insp: Inspector = inspect(config.target_engine)
+        self._src_insp: Inspector = inspector_for(config.source_engine)
+        self._dst_insp: Inspector = inspector_for(config.target_engine)
+        self._src_meta = self._dst_meta = None
         self._warn_pool_config(config.target_engine)
         self._warn_sqlite_source(config.source_engine, config.target_engine)
         self._reset_audit_tracking()
@@ -197,7 +208,7 @@ class DumpOrchestrator:
         # FASE 1: Análisis de carga
         try:
             src_tables = self._get_source_tables()
-            _dst_names = self._dst_insp.get_table_names(schema=cfg.target_schema)
+            _dst_names = table_names(self._dst_insp, cfg.target_schema)
         except SQLAlchemyError as exc:
             raise DumpError(f"Error analizando tablas de origen/destino para el volcado: {exc}") from exc
         # Comparación case-insensitive: motores distintos pueden devolver distinto case
@@ -222,6 +233,7 @@ class DumpOrchestrator:
         # Orden topológico filtrado a tablas presentes en destino
         effective_src_order: list[str] = [t for t in load_order if t in src_to_dst]
         effective_dst_order: list[str] = [src_to_dst[t] for t in effective_src_order]
+        self._prefetch_metadata(effective_src_order, effective_dst_order)
         self._warn_large_batch_with_lobs(effective_dst_order)
 
         self.logger.info(
@@ -436,7 +448,7 @@ class DumpOrchestrator:
         retry DELETE en _cleanup actúa como safety net.
         """
         try:
-            tables = self._dst_insp.get_table_names(schema=schema)
+            tables = table_names(self._dst_insp, schema)
             referred = DumpOrchestrator._referred_tables(tables, self._dst_insp, schema)
             return frozenset(ref.lower() for refs in referred.values() for ref in refs if ref)
         except SQLAlchemyError:
@@ -671,9 +683,9 @@ class DumpOrchestrator:
         Usa el Inspector de origen (no thread-safe): debe invocarse en serie, nunca en hilos.
         ``None`` si no hay PK de columna única entera o no está en las columnas comunes.
         """
-        schema = self._cfg.source_schema
+        source = self._side_meta("src")
         try:
-            pk = self._src_insp.get_pk_constraint(src_table, schema=schema)
+            pk = source.get("pk", src_table)
         except SQLAlchemyError:
             return None
         cols = pk.get("constrained_columns") or []
@@ -681,7 +693,7 @@ class DumpOrchestrator:
             return None
         pk_col = cols[0]
         try:
-            for column in self._src_insp.get_columns(src_table, schema=schema):
+            for column in source.get("columns", src_table):
                 if column["name"] == pk_col:
                     return pk_col if isinstance(column.get("type"), Integer) else None
         except SQLAlchemyError:
@@ -1041,7 +1053,30 @@ class DumpOrchestrator:
     def _get_source_tables(self) -> list[str]:
         if self._cfg.tables is not None:
             return sorted(self._cfg.tables)
-        return self._src_insp.get_table_names(schema=self._cfg.source_schema)
+        return table_names(self._src_insp, self._cfg.source_schema)
+
+    def _side_meta(self, side: str) -> TableMetadata:
+        """Metadatos precargados de un lado (``"src"``/``"dst"``) o, sin precarga, consulta tabla a tabla."""
+        meta = self._src_meta if side == "src" else self._dst_meta
+        if meta is not None:
+            return meta
+        if side == "src":
+            return TableMetadata(self._src_insp, self._cfg.source_schema)
+        return TableMetadata(self._dst_insp, self._cfg.target_schema)
+
+    def _prefetch_metadata(self, src_tables: list[str], dst_tables: list[str]) -> None:
+        """Columnas y PK de origen y columnas de destino de todas las tablas del volcado, por lotes (D2).
+
+        Antes, cada tabla consultaba sus columnas en origen y destino (y su PK con ``parallel_pk_ranges``). Lo que
+        no se pueda precargar se consulta tabla a tabla al pedirlo, con el mismo error que antes.
+        """
+        cfg = self._cfg
+        src_kinds: list[MetadataKind] = ["columns", "pk"] if cfg.parallel_pk_ranges > 1 else ["columns"]
+        try:
+            self._src_meta = prefetch_table_metadata(self._src_insp, cfg.source_schema, src_tables, kinds=src_kinds)
+            self._dst_meta = prefetch_table_metadata(self._dst_insp, cfg.target_schema, dst_tables, kinds=["columns"])
+        except SQLAlchemyError as exc:
+            self.logger.debug("Precarga de metadatos fallida (%s); se consultan tabla a tabla.", exc)
 
     def _common_columns(self, src_table: str, dst_table: str) -> tuple[list[str], list[str], dict[str, str]]:
         """Retorna (columnas_comunes_origen, columnas_omitidas, mapa_origen→destino).
@@ -1052,10 +1087,8 @@ class DumpOrchestrator:
         Acepta nombres distintos para origen (``src_table``) y destino (``dst_table``)
         para soportar motores con diferente sensibilidad a mayúsculas.
         """
-        src = [c["name"] for c in self._src_insp.get_columns(src_table, schema=self._cfg.source_schema)]
-        dst_by_lower = {
-            c["name"].lower(): c["name"] for c in self._dst_insp.get_columns(dst_table, schema=self._cfg.target_schema)
-        }
+        src = [c["name"] for c in self._side_meta("src").get("columns", src_table)]
+        dst_by_lower = {c["name"].lower(): c["name"] for c in self._side_meta("dst").get("columns", dst_table)}
         common = [name for name in src if name.lower() in dst_by_lower]
         skipped = [name for name in src if name.lower() not in dst_by_lower]
         name_map = {name: dst_by_lower[name.lower()] for name in common}
@@ -1083,8 +1116,6 @@ class DumpOrchestrator:
     _build_fk_graph = staticmethod(_fk_graph.build_fk_graph)
 
     _referred_tables = staticmethod(_fk_graph.referred_tables)
-
-    _mssql_referred_tables = staticmethod(_fk_graph.mssql_referred_tables)
 
     _topological_levels = staticmethod(_fk_graph.topological_levels)
 
@@ -1139,7 +1170,7 @@ class DumpOrchestrator:
         lob_tables: list[str] = []
         for table in dst_tables:
             try:
-                columns = self._dst_insp.get_columns(table, schema=self._cfg.target_schema)
+                columns = self._side_meta("dst").get("columns", table)
             except SQLAlchemyError:
                 continue
             if any(isinstance(col["type"], (sqltypes.Text, sqltypes.LargeBinary, sqltypes.JSON)) for col in columns):

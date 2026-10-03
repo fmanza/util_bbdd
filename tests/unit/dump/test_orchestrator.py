@@ -1851,17 +1851,23 @@ class TestReferredTables:
         insp.get_foreign_keys.side_effect = lambda t, schema=None: [{"referred_table": f"per_table_{t}"}]
         return insp
 
-    def test_mssql_reads_the_whole_schema_in_one_query(self):
-        insp = self._mssql_inspector(
-            [("orders", "dbo", "customers"), ("items", "dbo", "orders"), ("items", "dbo", "orders"), ("x", "o", "y")]
-        )
-        got = DumpOrchestrator._referred_tables(["customers", "ORDERS", "items"], insp, "dbo")
-        # FK repetidas (una entrada por FK), nombres de usuario con otro case y tablas sin FK
-        assert got == {"customers": [], "ORDERS": ["customers"], "items": ["orders", "orders"]}
-        insp.get_foreign_keys.assert_not_called()
-        conn = insp.bind.connect.return_value.__enter__.return_value
-        assert conn.execute.call_count == 1
-        assert conn.execute.call_args.args[1] == {"schema": "dbo"}
+    def test_foreign_keys_come_from_the_batched_prefetch(self):
+        """D2 (ADR-003): las FK de todas las tablas por lotes (``metadata.reflection``); un nombre con otro case que el
+        del motor no está en la precarga y se lee tabla a tabla."""
+        from util_bbdd.metadata.reflection import TableMetadata
+
+        insp = self._mssql_inspector([])
+        prefetched = {
+            "customers": [],
+            "orders": [{"referred_table": "customers"}],
+            "items": [{"referred_table": "orders"}, {"referred_table": "orders"}],
+        }
+        meta = TableMetadata(insp, "dbo", {"fks": prefetched})
+        with patch("util_bbdd.dump._fk_graph.prefetch_table_metadata", return_value=meta) as prefetch:
+            got = DumpOrchestrator._referred_tables(["customers", "ORDERS", "items"], insp, "dbo")
+        prefetch.assert_called_once_with(insp, "dbo", ["customers", "ORDERS", "items"], kinds=["fks"])
+        assert got == {"customers": [], "ORDERS": ["per_table_ORDERS"], "items": ["orders", "orders"]}
+        insp.get_foreign_keys.assert_called_once_with("ORDERS", schema="dbo")
 
     def test_mssql_without_schema_uses_the_default_schema(self):
         insp = self._mssql_inspector([])
@@ -1887,9 +1893,18 @@ class TestReferredTables:
         insp.get_foreign_keys.side_effect = fks
         assert DumpOrchestrator._referred_tables(["a", "b", "c"], insp, "s") == {"a": [], "b": ["a", ""]}
 
-    def test_topological_sort_uses_the_schema_query_on_mssql(self):
-        insp = self._mssql_inspector([("orders", "dbo", "customers"), ("items", "dbo", "orders")])
-        order, cycles = DumpOrchestrator._topological_sort(["items", "orders", "customers"], insp, "dbo")
+    def test_topological_sort_uses_the_batched_foreign_keys(self):
+        from util_bbdd.metadata.reflection import TableMetadata
+
+        insp = self._mssql_inspector([])
+        prefetched = {
+            "items": [{"referred_table": "orders"}],
+            "orders": [{"referred_table": "customers"}],
+            "customers": [],
+        }
+        meta = TableMetadata(insp, "dbo", {"fks": prefetched})
+        with patch("util_bbdd.dump._fk_graph.prefetch_table_metadata", return_value=meta):
+            order, cycles = DumpOrchestrator._topological_sort(["items", "orders", "customers"], insp, "dbo")
         assert order == ["customers", "orders", "items"]
         assert cycles == []
         insp.get_foreign_keys.assert_not_called()

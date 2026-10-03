@@ -98,6 +98,11 @@ cambios siguientes.
 
 ### Performance
 
+- **dump**: el orden por FK, las columnas comunes, la PK de los rangos paralelos y el aviso de columnas LOB leen el
+  catálogo por lotes al empezar (`metadata.reflection.prefetch_table_metadata`, grupo D2 de ADR-003) en lugar de tabla a
+  tabla y lado a lado; las constraints del destino (orphan-check de PostgreSQL, nombres en Oracle) con un snapshot.
+  Volcado de 500 tablas: consultas de catálogo PostgreSQL 7009 → 5013, Oracle 7002 → 3513, MySQL/MariaDB 1504 → 519,
+  SQL Server 3506 → 2508 (44,5 → 18,7 s). Lo que queda por tabla es reflejar cada `Table` que se carga.
 - **doc**: la documentación de un schema hace 8–10 consultas de catálogo en lugar de varias por tabla. HTML con
   500 tablas: PostgreSQL 2063 → 8 consultas y 57 → 2,1 s, Oracle 2073 → 8 y 368 → 3,2 s, SQL Server 583 → 8 y
   4,3 → 1,8 s, MySQL/MariaDB 554 → 10. El DDL de cada tabla, si se imprime, sigue leyéndose tabla a tabla.
@@ -134,6 +139,9 @@ cambios siguientes.
 
 ### Fixed
 
+- **metadata / dump**: la precarga por schema de SQL Server descartaba en silencio las filas de una tabla pedida con
+  otro case (`ORDERS` frente a `Orders`), que quedaba sin FK, columnas ni índices; ahora se emparejan si la coincidencia
+  es única (afectaba a `dump` con nombres de `DumpConfig.tables`).
 - **doc**: con el formato común desaparecen defectos de la presentación por motor (H-32): la columna «Índices» de la
   tabla plana salía siempre vacía en PostgreSQL, Oracle y HSQLDB (se buscaba la columna en la posición del método); en
   SQL Server las cabeceras de FK tenían una columna más que los datos (todo desplazado) y «Es Identity» salía vacío en

@@ -64,18 +64,12 @@ PENDING_CATALOG: frozenset[str] = frozenset(
         "comparar/reporters/sql_reporter.py",
         "connection/mariadb/update_auto_increment.py",
         "doc/infrastructure/storage/runtime.py",
-        "dump/_constraints.py",
-        "dump/_fk_graph.py",
-        "dump/orchestrator.py",
     }
 )
 
 # Trinquete (2026-10-03): consumidores que importan metadata.<motor>. Solo puede bajar.
 PENDING_ENGINE_IMPORTS: frozenset[str] = frozenset(
     {
-        "dump/_constraints.py",
-        "dump/_fk_graph.py",
-        "dump/_indexes.py",
         "managers/_manager_shared_mixin.py",
         "managers/_metadata_parser.py",
         "managers/async_mgr.py",  # importa metadata.mariadb/mysql para registrar sus adaptadores
