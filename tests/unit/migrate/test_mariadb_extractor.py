@@ -40,8 +40,10 @@ def _make_manager(
             return per_object(table_names, columns) + per_object(view_names, view_columns)
         if "CONSTRAINT_NAME = 'PRIMARY'" in sql_upper:
             return per_object(table_names, pks)
-        if "REFERENTIAL_CONSTRAINTS" in sql_upper:
-            return per_object(table_names, fks)
+        if "REFERENTIAL_CONSTRAINTS" in sql_upper:  # reglas ON DELETE/ON UPDATE (H-16: consulta aparte)
+            return [(name, fk[0], fk[6], fk[7]) for name in table_names for fk in fks or []]
+        if "REFERENCED_TABLE_NAME IS NOT NULL" in sql_upper:  # columnas de las FK
+            return per_object(table_names, [fk[:6] for fk in fks or []])
         if "INFORMATION_SCHEMA.STATISTICS" in sql_upper:
             return per_object(table_names, indexes)
         return []

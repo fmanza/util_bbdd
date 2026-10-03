@@ -145,26 +145,41 @@ def fetch_pk_for_schema_sql() -> str:
 
 
 def fetch_fk_for_schema_sql() -> str:
-    """SQL de las claves foráneas de todas las tablas de un schema MariaDB (uso: migrate/extractors).
+    """SQL de las columnas de las claves foráneas de todas las tablas de un schema MariaDB (uso: migrate/extractors).
+
+    Sin las reglas ``ON DELETE``/``ON UPDATE``: se leen aparte con :func:`fetch_fk_rules_for_schema_sql` y se unen en
+    Python. Unir ``KEY_COLUMN_USAGE`` con ``REFERENTIAL_CONSTRAINTS`` en SQL es cuadrático en el nº de FK
+    (H-16, sesión 2026-10-03-metadata-centralization: 5000 tablas, MySQL 15,7 s y MariaDB 4,5 s; las dos consultas por
+    separado, 52 ms y 183 ms).
 
     Parámetros: ``%(schema)s``.
 
     Returns:
         str: SQL query para (TABLE_NAME, CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_SCHEMA,
-             REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME, ORDINAL_POSITION, DELETE_RULE, UPDATE_RULE).
+             REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME, ORDINAL_POSITION).
     """
     return (
-        "SELECT kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME, "
-        "kcu.REFERENCED_TABLE_SCHEMA, kcu.REFERENCED_TABLE_NAME, "
-        "kcu.REFERENCED_COLUMN_NAME, kcu.ORDINAL_POSITION, "
-        "rc.DELETE_RULE, rc.UPDATE_RULE "
-        "FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu "
-        "JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc "
-        "  ON rc.CONSTRAINT_SCHEMA = kcu.TABLE_SCHEMA "
-        "  AND rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME "
-        "WHERE kcu.TABLE_SCHEMA = %(schema)s "
-        "AND kcu.REFERENCED_TABLE_NAME IS NOT NULL "
-        "ORDER BY kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION"
+        "SELECT TABLE_NAME, CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_SCHEMA, REFERENCED_TABLE_NAME, "
+        "REFERENCED_COLUMN_NAME, ORDINAL_POSITION "
+        "FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE "
+        "WHERE TABLE_SCHEMA = %(schema)s "
+        "AND REFERENCED_TABLE_NAME IS NOT NULL "
+        "ORDER BY TABLE_NAME, CONSTRAINT_NAME, ORDINAL_POSITION"
+    )
+
+
+def fetch_fk_rules_for_schema_sql() -> str:
+    """SQL de las reglas ``ON DELETE``/``ON UPDATE`` de todas las FK de un schema MariaDB (uso: migrate/extractors).
+
+    Complementa :func:`fetch_fk_for_schema_sql` (ver H-16 allí). Parámetros: ``%(schema)s``.
+
+    Returns:
+        str: SQL query para (TABLE_NAME, CONSTRAINT_NAME, DELETE_RULE, UPDATE_RULE).
+    """
+    return (
+        "SELECT TABLE_NAME, CONSTRAINT_NAME, DELETE_RULE, UPDATE_RULE "
+        "FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS "
+        "WHERE CONSTRAINT_SCHEMA = %(schema)s"
     )
 
 

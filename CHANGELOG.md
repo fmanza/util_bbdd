@@ -7,6 +7,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Performance
+
+- **metadata / migrate**: las FK por schema de MariaDB/MySQL se leen con dos consultas (`KEY_COLUMN_USAGE` y la nueva
+  `fetch_fk_rules_for_schema_sql()` sobre `REFERENTIAL_CONSTRAINTS`) unidas en Python, en vez de un join entre vistas de
+  `information_schema` que era cuadrático en el nº de FK. Extracción de `migrate` con 5000 tablas: MySQL 20,6 → 5,1 s,
+  MariaDB 8,2 → 3,7 s; mismas FK (H-16). `fetch_fk_for_schema_sql()` de `metadata.mariadb.tables` ya no devuelve
+  `DELETE_RULE`/`UPDATE_RULE`.
+- **migrate**: la transpilación de vistas construye el esquema de tipos de sqlglot una vez por plan y no una vez por
+  vista. `MigrationPlanner.plan()` con 500 tablas y 50 vistas: ≈ 6 s → ≈ 1 s (PostgreSQL, SQL Server y MySQL como
+  origen); DDL idéntico (H-14).
+
 ### Fixed
 
 - **managers**: `get_view_ddl()` y `get_routine_ddl()` fallaban siempre en PostgreSQL (y `get_routine_ddl()` en

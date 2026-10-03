@@ -221,6 +221,13 @@ def _hierarchy_message(target_engine: str, *, nocycle: bool = False, siblings: b
 
 def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalView:
     """Devuelve ``view`` con el SQL en el dialecto destino, o sin reescribir con aviso si no es fiable."""
+    return _transpile_view(view, ctx, {})
+
+
+def _transpile_view(
+    view: CanonicalView, ctx: ViewTranspileContext, schemas: dict[str, dict[str, object]]
+) -> CanonicalView:
+    """Cuerpo de :func:`transpile_view`; ``schemas`` guarda el esquema de sqlglot por dialecto entre vistas (H-14)."""
     if not view.query:
         return deepcopy(view)
     source_dialect = SQLGLOT_DIALECT[ctx.source_engine]
@@ -264,7 +271,9 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
         tree = _rewrites.mysql_to_days_difference(tree)
 
     # Resolución de columnas y tipos con el esquema del plan (si falla, se sigue sin tipos)
-    schema = _schema_for_sqlglot(ctx, source_dialect)
+    if source_dialect not in schemas:
+        schemas[source_dialect] = _schema_for_sqlglot(ctx, source_dialect)
+    schema = schemas[source_dialect]
     if schema:
         try:
             tree = qualify(
@@ -362,8 +371,14 @@ def transpile_view(view: CanonicalView, ctx: ViewTranspileContext) -> CanonicalV
 
 
 def transpile_views(views: list[CanonicalView], ctx: ViewTranspileContext) -> list[CanonicalView]:
-    """Transpila todas las vistas (ver :func:`transpile_view`)."""
-    return [transpile_view(view, ctx) for view in views]
+    """Transpila todas las vistas (ver :func:`transpile_view`).
+
+    El esquema de tipos de sqlglot se construye una vez para todas las vistas: antes se rehacía por vista, con coste
+    O(vistas × columnas del plan) (H-14, sesión 2026-10-03-metadata-centralization: 500 tablas y 50 vistas, 17,7 de
+    20,4 s de ``MigrationPlanner.plan()``).
+    """
+    schemas: dict[str, dict[str, object]] = {}
+    return [_transpile_view(view, ctx, schemas) for view in views]
 
 
 __all__: list[str] = ["ViewTranspileContext", "transpile_view", "transpile_views"]

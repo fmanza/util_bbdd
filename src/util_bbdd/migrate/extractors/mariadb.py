@@ -15,6 +15,7 @@ from typing import Any
 from ...metadata.mariadb.tables import (
     fetch_columns_for_schema_sql,
     fetch_fk_for_schema_sql,
+    fetch_fk_rules_for_schema_sql,
     fetch_indexes_for_schema_sql,
     fetch_pk_for_schema_sql,
     fetch_routine_parameters_for_schema_sql,
@@ -147,6 +148,23 @@ class MariaDBSchemaExtractor:
         """Consulta de columnas por schema (MySQL la sustituye por la que añade ``COLUMN_TYPE``)."""
         return fetch_columns_for_schema_sql()
 
+    def _fk_rows(self, params: dict[str, Any]) -> list[tuple[Any, ...]]:
+        """Columnas de las FK del schema con sus reglas ``ON DELETE``/``ON UPDATE`` al final de cada fila.
+
+        Dos consultas unidas aquí, no en SQL (H-16): ``(TABLE_NAME, CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_SCHEMA,
+        REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME, ORDINAL_POSITION, DELETE_RULE, UPDATE_RULE)``.
+        """
+        rules: dict[tuple[str, str], tuple[Any, Any]] = {
+            (str(r[0]).strip(), str(r[1]).strip()): (r[2], r[3])
+            for r in self._query(fetch_fk_rules_for_schema_sql(), params)
+            if r
+        }
+        return [
+            (*r, *rules.get((str(r[0]).strip(), str(r[1]).strip()), (None, None)))
+            for r in self._query(fetch_fk_for_schema_sql(), params)
+            if r
+        ]
+
     def extract(self, schema: str) -> list[CanonicalTable]:
         """Extrae todas las tablas (BASE TABLE) del schema MariaDB como IR canónico."""
         params = {"schema": schema}
@@ -154,7 +172,7 @@ class MariaDBSchemaExtractor:
         # D1: una consulta por schema y tipo de objeto, agrupada por tabla (antes 4 consultas por tabla)
         columns_by_table = group_by_object(self._query(self._columns_for_schema_sql(), params))
         pks_by_table = group_by_object(self._query(fetch_pk_for_schema_sql(), params))
-        fks_by_table = group_by_object(self._query(fetch_fk_for_schema_sql(), params))
+        fks_by_table = group_by_object(self._fk_rows(params))
         indexes_by_table = group_by_object(self._query(fetch_indexes_for_schema_sql(), params))
         tables: list[CanonicalTable] = []
 
