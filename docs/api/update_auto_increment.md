@@ -14,7 +14,7 @@ flowchart TD
     B -->|salida_sql| E["list[str]<br/>ALTER TABLE ... AUTO_INCREMENT = n;"]
 ```
 
-Vive en `connection/mariadb/` y solo depende de SQLAlchemy y de `_core`: recibe el `Engine` por parámetro y no importa `factory/` ni `managers/` (Regla #6). Descubre las columnas `AUTO_INCREMENT` con el Inspector de SQLAlchemy, una excepción a la Regla #2 documentada en el propio módulo (igual que `comparar/`); no contiene SQL de introspección propio.
+Se importa como `from util_bbdd.bulk import UpdateAutoIncrement` (desde la sesión de centralización de metadatos; antes `util_bbdd.connection.mariadb`). Recibe el `Engine` por parámetro y lee tablas y columnas `AUTO_INCREMENT` del catálogo de `metadata/` con una consulta por tipo de objeto para todo el schema (ADR-003); solo el `MAX` de cada tabla se consulta tabla a tabla. Incluye las tablas MariaDB con `SYSTEM VERSIONING`.
 
 ## 2. Modelo de Datos / Contratos
 
@@ -63,7 +63,7 @@ Vive en `connection/mariadb/` y solo depende de SQLAlchemy y de `_core`: recibe 
 
 | Dependencia | Propósito | Requerida | Comportamiento sin ella |
 |---|---|---|---|
-| `sqlalchemy` | `Engine`, Inspector y `SELECT MAX` | Sí | Módulo no funciona |
+| `sqlalchemy` | `Engine` y `SELECT MAX` | Sí | Módulo no funciona |
 | Permiso `SELECT` sobre las tablas | Leer el máximo de cada columna | Sí | `DatabaseOperationError` |
 | Lectura del catálogo | Reflexión de tablas y columnas | Sí | `DatabaseOperationError` |
 

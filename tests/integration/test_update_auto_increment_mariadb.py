@@ -27,7 +27,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import SQLAlchemyError
 
-from util_bbdd.connection.mariadb import UpdateAutoIncrement
+from util_bbdd.bulk import UpdateAutoIncrement
 
 URL_ENV = "UTIL_BBDD_TEST_MARIADB_URL"
 
@@ -152,7 +152,7 @@ def _next_id(connection, insert: str) -> int:  # type: ignore[no-untyped-def]
 
 
 def test_generates_the_expected_script_and_executes_nothing(scratch: Scratch, caplog: pytest.LogCaptureFixture) -> None:
-    with caplog.at_level(logging.WARNING, logger="util_bbdd.connection.mariadb.update_auto_increment"):
+    with caplog.at_level(logging.WARNING, logger="util_bbdd.bulk._support.auto_increment"):
         statements = UpdateAutoIncrement(scratch.engine).salida_sql()
 
     assert statements == _expected(scratch)

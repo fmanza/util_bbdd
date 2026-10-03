@@ -1,7 +1,7 @@
 """Unit tests para UpdateAutoIncrement (sin servidor MariaDB).
 
 El Engine falso lleva el dialecto MySQL real: el citado de identificadores y el ``SELECT MAX`` compilado se prueban de
-verdad. La reflexión (Inspector) se sustituye por un fake; su comportamiento real contra MariaDB se comprueba aparte.
+verdad. El catálogo (snapshot de ``metadata/``, E1) se sustituye por uno en memoria; contra MariaDB se comprueba aparte.
 """
 
 from __future__ import annotations
@@ -19,26 +19,40 @@ from sqlalchemy.dialects import mysql
 from sqlalchemy.exc import OperationalError
 
 from util_bbdd._core.exceptions import DatabaseOperationError, InvalidDatabaseType
+from util_bbdd.metadata.model import ColumnMeta, Kind, SchemaSnapshot, TableMeta
 
-module = importlib.import_module("util_bbdd.connection.mariadb.update_auto_increment")
+module = importlib.import_module("util_bbdd.bulk._support.auto_increment")
 UpdateAutoIncrement = module.UpdateAutoIncrement
 
 
 def _int_id(name: str = "id", *, autoincrement: bool = True) -> dict[str, Any]:
-    return {"name": name, "type": mysql.INTEGER(), "autoincrement": autoincrement}
+    return {"name": name, "type": "int", "autoincrement": autoincrement}
 
 
 class _FakeInspector:
+    """Catálogo en memoria con la forma del snapshot de ``metadata/`` (tablas + columnas con ``identity``)."""
+
     def __init__(self, columns_by_table: dict[str, list[dict[str, Any]]]) -> None:
         self._columns_by_table = columns_by_table
         self.schemas_seen: list[str | None] = []
 
-    def get_table_names(self, schema: str | None = None) -> list[str]:
+    def __call__(self, engine: Any, connection: Any, schema: str | None) -> SchemaSnapshot:
         self.schemas_seen.append(schema)
-        return list(self._columns_by_table)
-
-    def get_columns(self, table_name: str, schema: str | None = None) -> list[dict[str, Any]]:
-        return self._columns_by_table[table_name]
+        columns = [
+            ColumnMeta(
+                table,
+                c["name"],
+                i,
+                c["type"],
+                c["type"].split("(")[0].split()[0],
+                True,
+                identity="by default" if c["autoincrement"] else None,
+            )  # fmt: skip
+            for table, cols in self._columns_by_table.items()
+            for i, c in enumerate(cols, 1)
+        ]
+        tables = tuple(TableMeta(t) for t in self._columns_by_table)
+        return SchemaSnapshot("mariadb", schema or "tienda", {Kind.TABLES: tables, Kind.COLUMNS: tuple(columns)})
 
 
 class _FakeConnection:
@@ -80,7 +94,7 @@ def _generate(
 ) -> tuple[list[str], _FakeConnection, _FakeInspector]:
     connection = _FakeConnection(max_by_table)
     inspector = _FakeInspector(columns_by_table)
-    with patch.object(module, "inspect", return_value=inspector):
+    with patch.object(module, "_snapshot", inspector):
         statements = UpdateAutoIncrement(_FakeEngine(connection=connection), schema=schema).salida_sql()
     return statements, connection, inspector
 
@@ -99,10 +113,13 @@ class TestConstruction:
         with pytest.raises(InvalidDatabaseType, match=dialect_name):
             UpdateAutoIncrement(_FakeEngine(dialect_name))
 
-    def test_is_exported_lazily_from_the_package(self) -> None:
+    def test_is_exported_from_bulk_and_no_longer_from_connection(self) -> None:
+        """E1 (ADR-003): ``util_bbdd.bulk.UpdateAutoIncrement``; ``connection.mariadb`` ya no lo expone."""
+        assert importlib.import_module("util_bbdd.bulk").UpdateAutoIncrement is UpdateAutoIncrement
         package = importlib.import_module("util_bbdd.connection.mariadb")
-        assert package.UpdateAutoIncrement is UpdateAutoIncrement
-        assert "UpdateAutoIncrement" in package.__all__
+        assert "UpdateAutoIncrement" not in package.__all__
+        with pytest.raises(AttributeError):
+            package.UpdateAutoIncrement  # noqa: B018
 
 
 class TestGeneration:
@@ -120,7 +137,7 @@ class TestGeneration:
         assert statements == ["ALTER TABLE `orders` AUTO_INCREMENT = 1;"]
 
     def test_supports_unsigned_bigint_beyond_signed_range(self) -> None:
-        column = {"name": "id", "type": mysql.BIGINT(unsigned=True), "autoincrement": True}
+        column = {"name": "id", "type": "bigint unsigned", "autoincrement": True}
         big = 2**63 + 10
         statements, _, _ = _generate({"events": [column]}, {"events": big})
         assert statements == [f"ALTER TABLE `events` AUTO_INCREMENT = {big + 1};"]
@@ -138,7 +155,7 @@ class TestGeneration:
         assert connection.executed == []
 
     def test_non_integer_auto_increment_is_skipped_with_warning(self, caplog: pytest.LogCaptureFixture) -> None:
-        column = {"name": "id", "type": mysql.DOUBLE(), "autoincrement": True}
+        column = {"name": "id", "type": "double", "autoincrement": True}
         with caplog.at_level(logging.WARNING, logger=module.__name__):
             statements, connection, _ = _generate({"legacy": [column]}, {})
         assert statements == []
@@ -175,14 +192,14 @@ class TestFailureAndLifecycle:
         original = OperationalError("SELECT max(id)", {}, Exception("servidor caído"))
         connection = _FakeConnection({}, error=original)
         inspector = _FakeInspector({"orders": [_int_id()]})
-        with patch.object(module, "inspect", return_value=inspector):
+        with patch.object(module, "_snapshot", inspector):
             with pytest.raises(DatabaseOperationError, match="AUTO_INCREMENT") as excinfo:
                 UpdateAutoIncrement(_FakeEngine(connection=connection)).salida_sql()
         assert excinfo.value.__cause__ is original
 
     def test_failure_does_not_terminate_the_process(self) -> None:
         connection = _FakeConnection({}, error=OperationalError("x", {}, Exception("boom")))
-        with patch.object(module, "inspect", return_value=_FakeInspector({"t": [_int_id()]})):
+        with patch.object(module, "_snapshot", _FakeInspector({"t": [_int_id()]})):
             try:
                 UpdateAutoIncrement(_FakeEngine(connection=connection)).salida_sql()
             except SystemExit:  # pragma: no cover - lo que hacía la versión anterior
@@ -192,6 +209,6 @@ class TestFailureAndLifecycle:
 
     def test_engine_is_not_disposed(self) -> None:
         engine = _FakeEngine(connection=_FakeConnection({"orders": 3}))
-        with patch.object(module, "inspect", return_value=_FakeInspector({"orders": [_int_id()]})):
+        with patch.object(module, "_snapshot", _FakeInspector({"orders": [_int_id()]})):
             UpdateAutoIncrement(engine).salida_sql()
         engine.dispose.assert_not_called()

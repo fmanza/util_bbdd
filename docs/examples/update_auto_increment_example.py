@@ -15,7 +15,7 @@ import sys
 
 from sqlalchemy import create_engine
 
-from util_bbdd.connection.mariadb import UpdateAutoIncrement
+from util_bbdd.bulk import UpdateAutoIncrement
 
 
 def generate_script(url: str) -> list[str]:

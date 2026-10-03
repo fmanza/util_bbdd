@@ -30,7 +30,7 @@ from typing import Any
 #: Consultas por schema (bind ``:schema``); el orden de columnas es el que espera :func:`build_show_create`.
 TABLES_SQL = (
     "SELECT TABLE_NAME, ENGINE, TABLE_COLLATION, TABLE_COMMENT FROM information_schema.TABLES "
-    "WHERE TABLE_SCHEMA = :schema AND TABLE_TYPE = 'BASE TABLE'"
+    "WHERE TABLE_SCHEMA = :schema AND TABLE_TYPE IN ('BASE TABLE', 'SYSTEM VERSIONED')"
 )
 COLUMNS_SQL = (
     "SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA, COLUMN_COMMENT, "

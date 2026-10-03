@@ -65,6 +65,9 @@ cambios siguientes.
 
 ### Changed
 
+- **bulk (ruptura de import)**: `UpdateAutoIncrement` pasa de `util_bbdd.connection.mariadb` a `util_bbdd.bulk`
+  (`from util_bbdd.bulk import UpdateAutoIncrement`; grupo E1 de ADR-003) y lee tablas y columnas `AUTO_INCREMENT` del
+  catálogo de `metadata/` con una consulta por tipo de objeto en lugar de una por tabla. Misma salida.
 - **doc (ruptura de formato)**: la documentación lee el catálogo por lotes (`get_schema_metadata()`, grupo D1 de
   ADR-003) y presenta lo mismo en todos los motores (decisión de la sesión). Columnas: campo, tipo declarado
   (`varchar(20)`, `NUMBER(10)`), nulo, por defecto, generación (`IDENTITY (ALWAYS|BY DEFAULT)` o `CALCULADA: …`) y
@@ -139,6 +142,9 @@ cambios siguientes.
 
 ### Fixed
 
+- **metadata (MariaDB)**: las tablas con `SYSTEM VERSIONING` (`TABLE_TYPE = 'SYSTEM VERSIONED'`) no aparecían en el
+  snapshot ni en la reflexión por lotes (H-33): faltaban en la documentación, `migrate`, `comparar` y
+  `UpdateAutoIncrement`.
 - **metadata / dump**: la precarga por schema de SQL Server descartaba en silencio las filas de una tabla pedida con
   otro case (`ORDERS` frente a `Orders`), que quedaba sin FK, columnas ni índices; ahora se emparejan si la coincidencia
   es única (afectaba a `dump` con nombres de `DumpConfig.tables`).

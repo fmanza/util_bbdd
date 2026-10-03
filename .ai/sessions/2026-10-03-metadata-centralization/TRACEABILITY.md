@@ -195,6 +195,12 @@ Fases autorizadas: PLAN + AUDIT_PLAN
 - Verificación D2: `ruff`, `mypy` (423), unitarios 6179 + 3 xfailed, integración 635 + 10 skipped, capas (423),
   `mkdocs build --strict`. `test_query_counts`: `dump` sigue en `xfail` documentado (reflexión de cada `Table` cargada y
   SQLite con `PRAGMA`).
+- IMPLEMENT · E1: `connection/mariadb/update_auto_increment.py` → `bulk/_support/auto_increment.py` (exportado en
+  `util_bbdd.bulk`; fuera de `connection.mariadb`), sobre el snapshot (`TABLES` + `COLUMNS`, `identity` y `base_type`
+  entero) con la conexión del propio `salida_sql()`. Hallazgo H-33 (tablas `SYSTEM VERSIONED` de MariaDB fuera del
+  snapshot) corregido en el catálogo y en `_show_create`. Trinquete: `connection/mariadb/update_auto_increment.py`
+  fuera de `PENDING_CATALOG`. Verificación: `ruff`, `mypy` (423), unitarios 6180 + 3 xfailed, integración 635 + 10
+  skipped, `mkdocs build --strict`.
 
 ## Artefactos generados
 

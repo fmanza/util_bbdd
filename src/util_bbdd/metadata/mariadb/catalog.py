@@ -115,9 +115,10 @@ _PARAMETERS_SQL = (
 
 # kind → (SQL con {filter}, columna por la que se filtra con :tables o None, consultas extra)
 _COMMON: dict[Kind, tuple[str, str | None, tuple[str, ...]]] = {
+    # MariaDB: las tablas con SYSTEM VERSIONING tienen TABLE_TYPE = 'SYSTEM VERSIONED' (E1)
     Kind.TABLES: (
         "SELECT TABLE_NAME, TABLE_COMMENT, TABLE_COLLATION FROM information_schema.TABLES "
-        "WHERE TABLE_SCHEMA = :schema AND TABLE_TYPE = 'BASE TABLE'{filter} ORDER BY TABLE_NAME",
+        "WHERE TABLE_SCHEMA = :schema AND TABLE_TYPE IN ('BASE TABLE', 'SYSTEM VERSIONED'){filter} ORDER BY TABLE_NAME",
         "TABLE_NAME",
         (),
     ),

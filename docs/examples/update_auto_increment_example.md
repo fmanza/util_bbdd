@@ -48,4 +48,4 @@ Sin `UTIL_BBDD_EXAMPLE_URL` el ejemplo imprime cómo configurarla y termina sin 
 
 - **Documentación funcional**: [Operaciones Bulk (CRUD)](../functional/bulk_operations.md) — carga masiva y contadores de clave primaria
 - **Referencia técnica**: [UpdateAutoIncrement](../api/update_auto_increment.md) — API, contratos y errores
-- **Ejemplos relacionados**: [Validación de Variables MySQL/MariaDB](mysql_variables_example.md) — otra utilidad MariaDB de `connection/mariadb/`
+- **Ejemplos relacionados**: [Validación de Variables MySQL/MariaDB](mysql_variables_example.md) — utilidad MariaDB/MySQL de `connection/mariadb/`

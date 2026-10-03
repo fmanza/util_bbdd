@@ -6,12 +6,9 @@ devuelve las sentencias que reajustan cada contador **sin ejecutarlas**, para re
 
 Para reajustar los contadores directamente existe ``BulkCrud.sync_pk_sequences()``, que sí ejecuta el cambio.
 
-Regla #6: este módulo vive en ``connection/`` y solo depende de SQLAlchemy y de ``_core``. Recibe el ``Engine`` por
-parámetro; no importa ``factory/`` (capa superior) ni ``managers/``.
-
-Excepción documentada a la Regla #2 (``architecture.instructions.md``): las columnas ``AUTO_INCREMENT`` se descubren con
-el Inspector de SQLAlchemy, como hace ``comparar/``, porque el módulo opera sobre un ``Engine`` recibido por parámetro y
-no sobre un ``SyncMetadataProvider``. No contiene SQL de introspección propio (Reglas #1 y #3).
+Desde E1 (ADR-003) vive en ``bulk`` (antes ``connection.mariadb``) y lee tablas y columnas ``AUTO_INCREMENT`` del
+snapshot de ``metadata/`` (una consulta por tipo de objeto para todo el schema, no una por tabla); solo el ``MAX`` de
+cada tabla se consulta tabla a tabla.
 """
 
 from __future__ import annotations
@@ -20,17 +17,30 @@ import logging
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Integer, column, func, inspect, select, table
+from sqlalchemy import column, func, select, table
 from sqlalchemy.exc import SQLAlchemyError
 
 from ..._core.exceptions import DatabaseOperationError, InvalidDatabaseType
+from ...metadata.catalog_registry import get_catalog_dialect
+from ...metadata.model import ColumnMeta, Kind, SchemaSnapshot
+from ...metadata.source import CatalogSource, SqlAlchemyCatalogExecutor
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Connection, Engine
-    from sqlalchemy.engine.interfaces import ReflectedColumn
-    from sqlalchemy.engine.reflection import Inspector
 
 _SUPPORTED_DIALECTS: frozenset[str] = frozenset({"mysql", "mariadb"})
+#: ``DATA_TYPE`` enteros de MySQL/MariaDB (los únicos con contador ``AUTO_INCREMENT`` utilizable).
+_INTEGER_TYPES: frozenset[str] = frozenset({"tinyint", "smallint", "mediumint", "int", "integer", "bigint"})
+
+
+def _snapshot(engine: Engine, connection: Connection, schema: str | None) -> SchemaSnapshot:
+    """Tablas y columnas del schema con una consulta por tipo, sobre la conexión dada (sin caché: datos frescos)."""
+    source = CatalogSource(
+        get_catalog_dialect(engine.dialect.name),
+        SqlAlchemyCatalogExecutor(connection),
+        source_id=engine.url.render_as_string(hide_password=True),
+    )
+    return source.snapshot(schema, kinds={Kind.TABLES, Kind.COLUMNS})
 
 
 class UpdateAutoIncrement:
@@ -41,6 +51,8 @@ class UpdateAutoIncrement:
     su ciclo de vida es de quien lo crea.
 
     Ejemplo::
+
+        from util_bbdd.bulk import UpdateAutoIncrement
 
         engine = SQLAlchemyEngineFactory.create_engine("mariadb", conn_params, "tienda")
         for sentencia in UpdateAutoIncrement(engine).salida_sql():
@@ -87,10 +99,10 @@ class UpdateAutoIncrement:
         self.logger.info("ℹ️ Update Auto Increment: %s", self._schema or self._engine.url.database)
         try:
             with self._engine.connect() as connection:
-                inspector: Inspector = inspect(connection)
+                snapshot = _snapshot(self._engine, connection, self._schema)
                 statements: list[str] = []
-                for table_name in sorted(inspector.get_table_names(schema=self._schema)):
-                    statement = self._statement_for(connection, inspector, table_name)
+                for table_name in sorted(t.name for t in snapshot.tables()):
+                    statement = self._statement_for(connection, snapshot, table_name)
                     if statement is not None:
                         statements.append(statement)
         except SQLAlchemyError as exc:
@@ -102,33 +114,30 @@ class UpdateAutoIncrement:
             ) from exc
         return statements
 
-    def _statement_for(self, connection: Connection, inspector: Inspector, table_name: str) -> str | None:
+    def _statement_for(self, connection: Connection, snapshot: SchemaSnapshot, table_name: str) -> str | None:
         """Sentencia de una tabla, o ``None`` si no tiene columna ``AUTO_INCREMENT`` utilizable."""
-        auto_increment = self._auto_increment_column(inspector, table_name)
+        auto_increment = self._auto_increment_column(snapshot, table_name)
         if auto_increment is None:
             return None
-        column_name: str = auto_increment["name"]
-        if not isinstance(auto_increment["type"], Integer):
+        if auto_increment.base_type.lower() not in _INTEGER_TYPES:
             self.logger.warning(
                 "⚠️ %s.%s omitida: AUTO_INCREMENT sobre un tipo no entero (%s)",
                 table_name,
-                column_name,
-                auto_increment["type"],
+                auto_increment.name,
+                auto_increment.data_type,
             )
             return None
 
         max_value = connection.execute(
-            select(func.max(column(column_name))).select_from(table(table_name, schema=self._schema))
+            select(func.max(column(auto_increment.name))).select_from(table(table_name, schema=self._schema))
         ).scalar()
         next_value: int = 1 if max_value is None else max(1, int(max_value) + 1)
         return f"ALTER TABLE {self._qualified(table_name)} AUTO_INCREMENT = {next_value};"
 
-    def _auto_increment_column(self, inspector: Inspector, table_name: str) -> ReflectedColumn | None:
+    @staticmethod
+    def _auto_increment_column(snapshot: SchemaSnapshot, table_name: str) -> ColumnMeta | None:
         """Columna ``AUTO_INCREMENT`` de la tabla (MariaDB/MySQL admiten una por tabla), o ``None``."""
-        for column_info in inspector.get_columns(table_name, schema=self._schema):
-            if column_info.get("autoincrement") is True:
-                return column_info
-        return None
+        return next((c for c in snapshot.columns(table_name) if c.identity), None)
 
     def _qualified(self, table_name: str) -> str:
         """Nombre de tabla entrecomillado con backticks (los backticks internos se duplican)."""
@@ -137,3 +146,6 @@ class UpdateAutoIncrement:
         if self._schema:
             return f"{preparer.quote_identifier(self._schema)}.{quoted}"
         return quoted
+
+
+__all__: list[str] = ["UpdateAutoIncrement"]

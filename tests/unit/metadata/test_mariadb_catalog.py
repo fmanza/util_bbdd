@@ -109,3 +109,12 @@ def test_build_create_routine_escapes_comment_and_identifiers() -> None:
     sql = build_create_routine("we`ird", "PROCEDURE", [], "BEGIN END", comment="it's \\ ok")
     assert sql.splitlines()[0] == "CREATE PROCEDURE `we``ird`()"
     assert "COMMENT 'it''s \\\\ ok'" in sql
+
+
+def test_system_versioned_tables_are_tables() -> None:
+    """E1: en MariaDB las tablas con SYSTEM VERSIONING tienen TABLE_TYPE = 'SYSTEM VERSIONED' (antes no salían)."""
+    from util_bbdd.metadata.mariadb._show_create import TABLES_SQL
+    from util_bbdd.metadata.mariadb.catalog import MariaDBCatalog
+
+    assert "'SYSTEM VERSIONED'" in MariaDBCatalog().query(Kind.TABLES).sql  # type: ignore[union-attr]
+    assert "'SYSTEM VERSIONED'" in TABLES_SQL

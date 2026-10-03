@@ -12,11 +12,13 @@ Consolidación de:
 from ._execution.parallel_loader import ParallelBulkLoader, ParallelLoadResult, PartitionResult
 from ._execution.range_partitioner import HashPartitioner, RangePartitioner
 from ._models import MaintenanceScopeConstraintResult, MaintenanceScopeResult, PKSyncResult
+from ._support.auto_increment import UpdateAutoIncrement
 from .audit import AuditError, AuditManager
 from .crud import BulkCrud
 from .normalize import normalize_records_for_sql, normalize_sql_literal
 
 __all__: list[str] = [
+    "UpdateAutoIncrement",
     # Clase CRUD principal
     "BulkCrud",
     # Carga masiva paralela por particiones
