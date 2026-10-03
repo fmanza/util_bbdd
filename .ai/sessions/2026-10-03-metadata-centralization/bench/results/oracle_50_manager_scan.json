@@ -1,0 +1,51 @@
+{
+ "flow": "manager_scan",
+ "engine": "oracle",
+ "volume": 50,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 24.596,
+ "median_catalog_seconds": 23.64,
+ "peak_mb": 6.2,
+ "queries_total": 253,
+ "queries_catalog": 253,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT c.column_name, c.data_type, CASE WHEN c.nullable = '?' THEN '?' ELSE '?' END AS nullable_flag, c.data_default, c.data_length, c.data_precision, c.data_sc",
+   50
+  ],
+  [
+   "SELECT idx.index_name, idx.uniqueness, idx.index_type, col.column_name, col.column_position FROM all_indexes idx JOIN all_ind_columns col ON idx.index_name = co",
+   50
+  ],
+  [
+   "SELECT cols.column_name FROM all_constraints cons, all_cons_columns cols WHERE cons.constraint_type = '?' AND cons.constraint_name = cols.constraint_name AND co",
+   50
+  ],
+  [
+   "SELECT fk.constraint_name AS foreign_key_name, fk.column_name AS child_column_name, pk.table_name AS parent_table_name, pk.column_name AS parent_column_name FRO",
+   50
+  ],
+  [
+   "SELECT a.constraint_name, a.column_name FROM all_cons_columns a JOIN all_constraints c ON a.owner = c.owner AND a.constraint_name = c.constraint_name WHERE c.co",
+   50
+  ],
+  [
+   "SELECT t.table_name, c.comments AS table_comment FROM all_tables t LEFT JOIN all_tab_comments c ON t.owner = c.owner AND t.table_name = c.table_name WHERE t.own",
+   1
+  ],
+  [
+   "SELECT v.view_name AS table_name, c.comments AS table_comment FROM all_views v LEFT JOIN all_mview_comments c ON v.owner = c.owner AND v.view_name = c.mview_nam",
+   1
+  ],
+  [
+   "SELECT CASE WHEN p.object_type = '?' AND p.procedure_name IS NOT NULL THEN p.object_name || '?' || p.procedure_name || CASE WHEN p.overload IS NOT NULL THEN '?'",
+   1
+  ]
+ ],
+ "info": {
+  "tables_listed": 50,
+  "tables_scanned": 50
+ },
+ "error": null
+}

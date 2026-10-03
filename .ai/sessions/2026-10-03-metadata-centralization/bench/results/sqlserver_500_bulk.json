@@ -1,0 +1,48 @@
+{
+ "flow": "bulk",
+ "engine": "sqlserver",
+ "volume": 500,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 0.207,
+ "median_catalog_seconds": 0.082,
+ "peak_mb": 0.4,
+ "queries_total": 13,
+ "queries_catalog": 9,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT CAST(value_in_use AS INT) FROM sys.configurations WHERE name = %(n)s",
+   1
+  ],
+  [
+   "SELECT recovery_model FROM sys.databases WHERE name = %(db)s",
+   1
+  ],
+  [
+   "SELECT sys.columns.name, sys.types.name AS name_1, base_types.name AS base_type, sys.columns.is_nullable, sys.columns.max_length, sys.columns.[precision], sys.c",
+   1
+  ],
+  [
+   "SELECT [C].[COLUMN_NAME], [INFORMATION_SCHEMA].[TABLE_CONSTRAINTS].[CONSTRAINT_TYPE], [C].[CONSTRAINT_NAME], objectproperty(object_id([C].[TABLE_SCHEMA] + CAST(",
+   1
+  ],
+  [
+   "WITH fk_info AS ( SELECT ischema_ref_con.constraint_schema, ischema_ref_con.constraint_name, ischema_key_col.ordinal_position, ischema_key_col.table_schema, isc",
+   1
+  ],
+  [
+   "select ind.index_id, ind.is_unique, ind.name, ind.type, ind.filter_definition from sys.indexes as ind join sys.tables as tab on ind.object_id = tab.object_id jo",
+   1
+  ],
+  [
+   "select ind_col.index_id, col.name, ind_col.is_included_column from sys.columns as col join sys.tables as tab on tab.object_id = col.object_id join sys.index_col",
+   1
+  ],
+  [
+   "SELECT [INFORMATION_SCHEMA].[TABLES].[TABLE_NAME] FROM [INFORMATION_SCHEMA].[TABLES] WHERE ([INFORMATION_SCHEMA].[TABLES].[TABLE_TYPE] = CAST(%(table_type_1)s A",
+   1
+  ]
+ ],
+ "info": {},
+ "error": null
+}

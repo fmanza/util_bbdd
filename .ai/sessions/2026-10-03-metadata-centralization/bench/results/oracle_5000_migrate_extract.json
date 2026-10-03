@@ -1,0 +1,79 @@
+{
+ "flow": "migrate_extract",
+ "engine": "oracle",
+ "volume": 5000,
+ "limit": null,
+ "repeat": 1,
+ "median_seconds": 7.327,
+ "median_catalog_seconds": 3.979,
+ "peak_mb": 30.0,
+ "queries_total": 9,
+ "queries_catalog": 9,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT t.table_name, '?' AS table_type, COALESCE(c.comments, '?') AS table_comment FROM all_tables t LEFT JOIN all_tab_comments c ON c.owner = t.owner AND c.tab",
+   1
+  ],
+  [
+   "SELECT c.table_name, c.column_name, c.data_type, CASE WHEN c.nullable = '?' THEN '?' ELSE '?' END AS is_nullable, c.column_id AS ordinal_position, c.data_defaul",
+   1
+  ],
+  [
+   "SELECT con.table_name, cc.constraint_name, cc.column_name, cc.position AS ordinal_position FROM all_constraints con JOIN all_cons_columns cc ON con.constraint_n",
+   1
+  ],
+  [
+   "SELECT con.table_name, con.constraint_name, cc.column_name, rcon.owner AS ref_owner, rcon.table_name AS ref_table, rcc.column_name AS ref_column, con.delete_rul",
+   1
+  ],
+  [
+   "SELECT i.table_name, i.index_name, ic.column_name, COALESCE(ic.descend, '?') AS order_direction, i.uniqueness, ic.column_position AS ordinal_position FROM all_i",
+   1
+  ],
+  [
+   "SELECT v.view_name, v.text, c.comments FROM all_views v LEFT JOIN all_tab_comments c ON c.owner = v.owner AND c.table_name = v.view_name AND c.table_type = '?' ",
+   1
+  ],
+  [
+   "SELECT table_name, column_name FROM all_tab_columns WHERE owner = :owner ORDER BY table_name, column_id",
+   1
+  ],
+  [
+   "SELECT object_name, object_type, procedure_name FROM all_procedures WHERE owner = :owner AND object_type IN ('?', '?', '?') ORDER BY object_name, subprogram_id",
+   1
+  ]
+ ],
+ "slowest_catalog_fingerprints": [
+  [
+   "SELECT con.table_name, con.constraint_name, cc.column_name, rcon.owner AS ref_owner, rcon.table_name AS ref_table, rcc.column_name AS ref_column, con.delete_rul",
+   1.756,
+   1
+  ],
+  [
+   "SELECT con.table_name, cc.constraint_name, cc.column_name, cc.position AS ordinal_position FROM all_constraints con JOIN all_cons_columns cc ON con.constraint_n",
+   0.779,
+   1
+  ],
+  [
+   "SELECT t.table_name, '?' AS table_type, COALESCE(c.comments, '?') AS table_comment FROM all_tables t LEFT JOIN all_tab_comments c ON c.owner = t.owner AND c.tab",
+   0.561,
+   1
+  ],
+  [
+   "SELECT table_name, column_name FROM all_tab_columns WHERE owner = :owner ORDER BY table_name, column_id",
+   0.292,
+   1
+  ],
+  [
+   "SELECT object_name, object_type, procedure_name FROM all_procedures WHERE owner = :owner AND object_type IN ('?', '?', '?') ORDER BY object_name, subprogram_id",
+   0.18,
+   1
+  ]
+ ],
+ "info": {
+  "tables": 5000,
+  "views": 500,
+  "routines": 200
+ },
+ "error": null
+}

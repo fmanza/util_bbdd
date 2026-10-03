@@ -1,0 +1,79 @@
+{
+ "flow": "migrate_extract",
+ "engine": "postgresql",
+ "volume": 500,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 0.451,
+ "median_catalog_seconds": 0.163,
+ "peak_mb": 3.9,
+ "queries_total": 9,
+ "queries_catalog": 9,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT c.TABLE_NAME, c.COLUMN_NAME, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, c.NUMERIC_PRECISION, c.NUMERIC_SCALE, c.IS_NULLABLE, c.COLUMN_DEFAULT, c.ORDINAL_PO",
+   2
+  ],
+  [
+   "SELECT t.TABLE_NAME, obj_description((quote_ident(t.TABLE_SCHEMA) || '?' || quote_ident(t.TABLE_NAME))::regclass, '?') FROM INFORMATION_SCHEMA.TABLES t WHERE t.",
+   1
+  ],
+  [
+   "SELECT c.relname AS table_name, a.attname AS column_name FROM pg_catalog.pg_constraint con JOIN pg_catalog.pg_class c ON c.oid = con.conrelid JOIN pg_catalog.pg",
+   1
+  ],
+  [
+   "SELECT c.relname AS table_name, con.conname AS constraint_name, a.attname AS column_name, rn.nspname AS ref_schema, rc.relname AS ref_table, ra.attname AS ref_c",
+   1
+  ],
+  [
+   "SELECT c.relname AS table_name, i.relname AS index_name, a.attname AS column_name, ix.indisunique AS is_unique, gs AS seq_in_index FROM pg_catalog.pg_class c JO",
+   1
+  ],
+  [
+   "SELECT v.TABLE_NAME, v.VIEW_DEFINITION, obj_description((quote_ident(v.TABLE_SCHEMA) || '?' || quote_ident(v.TABLE_NAME))::regclass, '?') FROM INFORMATION_SCHEM",
+   1
+  ],
+  [
+   "SELECT p.proname AS routine_name, CASE WHEN p.prokind = '?' THEN '?' WHEN p.prokind = '?' THEN '?' WHEN p.prokind = '?' THEN '?' WHEN p.prokind = '?' THEN '?' E",
+   1
+  ],
+  [
+   "SELECT p.proname, obj_description(p.oid, '?') FROM pg_proc p JOIN pg_namespace ns ON p.pronamespace = ns.oid WHERE ns.nspname = %(schema)s AND obj_description(p",
+   1
+  ]
+ ],
+ "slowest_catalog_fingerprints": [
+  [
+   "SELECT c.TABLE_NAME, c.COLUMN_NAME, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, c.NUMERIC_PRECISION, c.NUMERIC_SCALE, c.IS_NULLABLE, c.COLUMN_DEFAULT, c.ORDINAL_PO",
+   0.115,
+   2
+  ],
+  [
+   "SELECT c.relname AS table_name, con.conname AS constraint_name, a.attname AS column_name, rn.nspname AS ref_schema, rc.relname AS ref_table, ra.attname AS ref_c",
+   0.013,
+   1
+  ],
+  [
+   "SELECT t.TABLE_NAME, obj_description((quote_ident(t.TABLE_SCHEMA) || '?' || quote_ident(t.TABLE_NAME))::regclass, '?') FROM INFORMATION_SCHEMA.TABLES t WHERE t.",
+   0.011,
+   1
+  ],
+  [
+   "SELECT c.relname AS table_name, i.relname AS index_name, a.attname AS column_name, ix.indisunique AS is_unique, gs AS seq_in_index FROM pg_catalog.pg_class c JO",
+   0.009,
+   1
+  ],
+  [
+   "SELECT c.relname AS table_name, a.attname AS column_name FROM pg_catalog.pg_constraint con JOIN pg_catalog.pg_class c ON c.oid = con.conrelid JOIN pg_catalog.pg",
+   0.007,
+   1
+  ]
+ ],
+ "info": {
+  "tables": 500,
+  "views": 50,
+  "routines": 20
+ },
+ "error": null
+}

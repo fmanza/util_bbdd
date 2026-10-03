@@ -1,0 +1,32 @@
+{
+ "flow": "doc_html",
+ "engine": "sqlite",
+ "volume": 500,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 1.714,
+ "median_catalog_seconds": 0.041,
+ "peak_mb": 10.3,
+ "queries_total": 553,
+ "queries_catalog": 552,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT name AS column_name, type AS data_type, CASE WHEN \"notnull\" = N THEN '?' ELSE '?' END AS nullable_flag, dflt_value AS column_default, '?' AS character_ma",
+   550
+  ],
+  [
+   "SELECT name AS table_name, '?' AS table_comment FROM sqlite_master WHERE type='?' AND name NOT LIKE '?' ORDER BY name",
+   1
+  ],
+  [
+   "SELECT name AS table_name, '?' AS table_comment FROM sqlite_master WHERE type='?' ORDER BY name",
+   1
+  ]
+ ],
+ "info": {
+  "tables": 500,
+  "views": 50,
+  "routines": 0
+ },
+ "error": null
+}

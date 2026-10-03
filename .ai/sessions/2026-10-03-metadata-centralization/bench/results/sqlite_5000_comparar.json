@@ -1,0 +1,77 @@
+{
+ "flow": "comparar",
+ "engine": "sqlite",
+ "volume": 5000,
+ "limit": null,
+ "repeat": 1,
+ "median_seconds": 55.867,
+ "median_catalog_seconds": 24.659,
+ "peak_mb": 70.0,
+ "queries_total": 61006,
+ "queries_catalog": 61006,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT sql FROM (SELECT * FROM sqlite_master UNION ALL SELECT * FROM sqlite_temp_master) WHERE name = ? AND type in ('?', '?')",
+   20000
+  ],
+  [
+   "SELECT sql FROM (SELECT * FROM sqlite_master UNION ALL SELECT * FROM sqlite_temp_master) WHERE name = ? AND type='?'",
+   1000
+  ],
+  [
+   "SELECT name FROM sqlite_master WHERE type='?' AND name NOT LIKE '?' ESCAPE '?' ORDER BY name",
+   4
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00000\")",
+   2
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00001\")",
+   2
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00002\")",
+   2
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00003\")",
+   2
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00004\")",
+   2
+  ]
+ ],
+ "slowest_catalog_fingerprints": [
+  [
+   "SELECT sql FROM (SELECT * FROM sqlite_master UNION ALL SELECT * FROM sqlite_temp_master) WHERE name = ? AND type in ('?', '?')",
+   20.594,
+   20000
+  ],
+  [
+   "SELECT sql FROM (SELECT * FROM sqlite_master UNION ALL SELECT * FROM sqlite_temp_master) WHERE name = ? AND type='?'",
+   2.068,
+   1000
+  ],
+  [
+   "SELECT name FROM sqlite_master WHERE type='?' AND name NOT LIKE '?' ESCAPE '?' ORDER BY name",
+   0.05,
+   4
+  ],
+  [
+   "PRAGMA main.index_list(\"t02620\")",
+   0.001,
+   2
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00678\")",
+   0.001,
+   2
+  ]
+ ],
+ "info": {
+  "has_differences": false
+ },
+ "error": null
+}

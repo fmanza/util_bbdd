@@ -1,0 +1,47 @@
+{
+ "flow": "manager_scan",
+ "engine": "sqlite",
+ "volume": 500,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 0.737,
+ "median_catalog_seconds": 0.16,
+ "peak_mb": 2.0,
+ "queries_total": 2503,
+ "queries_catalog": 2502,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT name AS column_name, type AS data_type, CASE WHEN \"notnull\" = N THEN '?' ELSE '?' END AS nullable_flag, dflt_value AS column_default, '?' AS character_ma",
+   500
+  ],
+  [
+   "SELECT il.name AS index_name, ii.name AS column_name, CASE WHEN il.\"unique\" = N THEN N ELSE N END AS is_unique, CASE il.origin WHEN '?' THEN '?' WHEN '?' THEN '",
+   500
+  ],
+  [
+   "SELECT name AS column_name FROM pragma_table_info('?') WHERE pk > N ORDER BY pk",
+   500
+  ],
+  [
+   "SELECT ('?' || '?' || '?' || id) AS constraint_name, \"from\" AS child_column_name, \"table\" AS parent_table_name, \"to\" AS parent_column_name FROM pragma_foreign_k",
+   500
+  ],
+  [
+   "SELECT il.name AS constraint_name, ii.name AS column_name FROM pragma_index_list('?') il JOIN pragma_index_info(il.name) ii ON N=N WHERE il.\"unique\" = N AND il.",
+   500
+  ],
+  [
+   "SELECT name AS table_name, '?' AS table_comment FROM sqlite_master WHERE type='?' AND name NOT LIKE '?' ORDER BY name",
+   1
+  ],
+  [
+   "SELECT name AS table_name, '?' AS table_comment FROM sqlite_master WHERE type='?' ORDER BY name",
+   1
+  ]
+ ],
+ "info": {
+  "tables_listed": 500,
+  "tables_scanned": 500
+ },
+ "error": null
+}

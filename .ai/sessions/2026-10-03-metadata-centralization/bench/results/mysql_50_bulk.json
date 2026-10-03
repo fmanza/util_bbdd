@@ -1,0 +1,24 @@
+{
+ "flow": "bulk",
+ "engine": "mysql",
+ "volume": 50,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 0.061,
+ "median_catalog_seconds": 0.015,
+ "peak_mb": 0.4,
+ "queries_total": 6,
+ "queries_catalog": 3,
+ "top_catalog_fingerprints": [
+  [
+   "SHOW VARIABLES LIKE '?'",
+   2
+  ],
+  [
+   "SHOW CREATE TABLE `t00001`",
+   1
+  ]
+ ],
+ "info": {},
+ "error": null
+}

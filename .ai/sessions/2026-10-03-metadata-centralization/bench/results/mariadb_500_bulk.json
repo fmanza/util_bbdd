@@ -1,0 +1,24 @@
+{
+ "flow": "bulk",
+ "engine": "mariadb",
+ "volume": 500,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 0.043,
+ "median_catalog_seconds": 0.003,
+ "peak_mb": 0.2,
+ "queries_total": 6,
+ "queries_catalog": 3,
+ "top_catalog_fingerprints": [
+  [
+   "SHOW VARIABLES LIKE '?'",
+   2
+  ],
+  [
+   "SHOW CREATE TABLE `t00001`",
+   1
+  ]
+ ],
+ "info": {},
+ "error": null
+}

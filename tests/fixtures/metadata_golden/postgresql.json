@@ -1,0 +1,828 @@
+{
+ "ir": {
+  "routines": [
+   {
+    "body": "CREATE OR REPLACE FUNCTION zz_util_bbdd_gold.zz_gold_f(x integer)\n RETURNS integer\n LANGUAGE sql\nAS $function$SELECT x + 1$function$",
+    "comment": "",
+    "is_package_member": false,
+    "name": "zz_gold_f",
+    "original_name": "zz_gold_f",
+    "package_name": null,
+    "return_type": "int4",
+    "routine_type": "FUNCTION",
+    "schema": "zz_util_bbdd_gold",
+    "warnings": []
+   },
+   {
+    "body": "CREATE OR REPLACE PROCEDURE zz_util_bbdd_gold.zz_gold_p(IN x integer)\n LANGUAGE plpgsql\nAS $procedure$ BEGIN PERFORM x; END $procedure$",
+    "comment": "",
+    "is_package_member": false,
+    "name": "zz_gold_p",
+    "original_name": "zz_gold_p",
+    "package_name": null,
+    "return_type": "void",
+    "routine_type": "PROCEDURE",
+    "schema": "zz_util_bbdd_gold",
+    "warnings": []
+   }
+  ],
+  "tables": [
+   {
+    "columns": [
+     {
+      "auto_increment": false,
+      "char_length": null,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": true,
+      "name": "id",
+      "nullable": false,
+      "omit": false,
+      "ordinal": 1,
+      "original_name": "id",
+      "precision": 32,
+      "scale": 0,
+      "source_type": "INTEGER",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": null,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "parent_id",
+      "nullable": false,
+      "omit": false,
+      "ordinal": 2,
+      "original_name": "parent_id",
+      "precision": 32,
+      "scale": 0,
+      "source_type": "INTEGER",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": 50,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "label",
+      "nullable": true,
+      "omit": false,
+      "ordinal": 3,
+      "original_name": "label",
+      "precision": null,
+      "scale": null,
+      "source_type": "CHARACTER VARYING",
+      "target_type": "",
+      "warnings": []
+     }
+    ],
+    "comment": "",
+    "foreign_keys": [
+     {
+      "columns": [
+       "parent_id"
+      ],
+      "is_external": false,
+      "name": "fk_zz_gold_child_parent",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "original_name": "fk_zz_gold_child_parent",
+      "ref_columns": [
+       "id"
+      ],
+      "ref_table": "zz_gold_parent"
+     }
+    ],
+    "indexes": [
+     {
+      "columns": [
+       "label"
+      ],
+      "name": "ix_zz_gold_child_label",
+      "original_name": "ix_zz_gold_child_label",
+      "unique": false
+     }
+    ],
+    "name": "zz_gold_child",
+    "original_name": "zz_gold_child",
+    "primary_key": [
+     "id"
+    ],
+    "schema": "zz_util_bbdd_gold",
+    "warnings": []
+   },
+   {
+    "columns": [
+     {
+      "auto_increment": false,
+      "char_length": null,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": true,
+      "name": "a",
+      "nullable": false,
+      "omit": false,
+      "ordinal": 1,
+      "original_name": "a",
+      "precision": 32,
+      "scale": 0,
+      "source_type": "INTEGER",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": null,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": true,
+      "name": "b",
+      "nullable": false,
+      "omit": false,
+      "ordinal": 2,
+      "original_name": "b",
+      "precision": 32,
+      "scale": 0,
+      "source_type": "INTEGER",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": 30,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "note",
+      "nullable": true,
+      "omit": false,
+      "ordinal": 3,
+      "original_name": "note",
+      "precision": null,
+      "scale": null,
+      "source_type": "CHARACTER VARYING",
+      "target_type": "",
+      "warnings": []
+     }
+    ],
+    "comment": "",
+    "foreign_keys": [],
+    "indexes": [],
+    "name": "zz_gold_composite",
+    "original_name": "zz_gold_composite",
+    "primary_key": [
+     "a",
+     "b"
+    ],
+    "schema": "zz_util_bbdd_gold",
+    "warnings": []
+   },
+   {
+    "columns": [
+     {
+      "auto_increment": false,
+      "char_length": null,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": true,
+      "name": "id",
+      "nullable": false,
+      "omit": false,
+      "ordinal": 1,
+      "original_name": "id",
+      "precision": 32,
+      "scale": 0,
+      "source_type": "INTEGER",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": 10,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "val",
+      "nullable": true,
+      "omit": false,
+      "ordinal": 2,
+      "original_name": "val",
+      "precision": null,
+      "scale": null,
+      "source_type": "CHARACTER VARYING",
+      "target_type": "",
+      "warnings": []
+     }
+    ],
+    "comment": "",
+    "foreign_keys": [],
+    "indexes": [],
+    "name": "zz_gold_identity",
+    "original_name": "zz_gold_identity",
+    "primary_key": [
+     "id"
+    ],
+    "schema": "zz_util_bbdd_gold",
+    "warnings": []
+   },
+   {
+    "columns": [
+     {
+      "auto_increment": false,
+      "char_length": null,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": true,
+      "name": "id",
+      "nullable": false,
+      "omit": false,
+      "ordinal": 1,
+      "original_name": "id",
+      "precision": 32,
+      "scale": 0,
+      "source_type": "INTEGER",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": 20,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "code",
+      "nullable": false,
+      "omit": false,
+      "ordinal": 2,
+      "original_name": "code",
+      "precision": null,
+      "scale": null,
+      "source_type": "CHARACTER VARYING",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": 100,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "name",
+      "nullable": true,
+      "omit": false,
+      "ordinal": 3,
+      "original_name": "name",
+      "precision": null,
+      "scale": null,
+      "source_type": "CHARACTER VARYING",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": null,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "amount",
+      "nullable": true,
+      "omit": false,
+      "ordinal": 4,
+      "original_name": "amount",
+      "precision": 12,
+      "scale": 2,
+      "source_type": "NUMERIC",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": null,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "created",
+      "nullable": true,
+      "omit": false,
+      "ordinal": 5,
+      "original_name": "created",
+      "precision": null,
+      "scale": null,
+      "source_type": "DATE",
+      "target_type": "",
+      "warnings": []
+     }
+    ],
+    "comment": "tabla padre",
+    "foreign_keys": [],
+    "indexes": [
+     {
+      "columns": [
+       "code"
+      ],
+      "name": "uk_zz_gold_parent_code",
+      "original_name": "uk_zz_gold_parent_code",
+      "unique": true
+     }
+    ],
+    "name": "zz_gold_parent",
+    "original_name": "zz_gold_parent",
+    "primary_key": [
+     "id"
+    ],
+    "schema": "zz_util_bbdd_gold",
+    "warnings": []
+   },
+   {
+    "columns": [
+     {
+      "auto_increment": false,
+      "char_length": null,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": true,
+      "name": "id",
+      "nullable": false,
+      "omit": false,
+      "ordinal": 1,
+      "original_name": "id",
+      "precision": 32,
+      "scale": 0,
+      "source_type": "INTEGER",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": null,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "a",
+      "nullable": true,
+      "omit": false,
+      "ordinal": 2,
+      "original_name": "a",
+      "precision": 32,
+      "scale": 0,
+      "source_type": "INTEGER",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": null,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "b",
+      "nullable": true,
+      "omit": false,
+      "ordinal": 3,
+      "original_name": "b",
+      "precision": 32,
+      "scale": 0,
+      "source_type": "INTEGER",
+      "target_type": "",
+      "warnings": []
+     }
+    ],
+    "comment": "",
+    "foreign_keys": [
+     {
+      "columns": [
+       "a",
+       "b"
+      ],
+      "is_external": false,
+      "name": "fk_zz_gold_ref_composite",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "original_name": "fk_zz_gold_ref_composite",
+      "ref_columns": [
+       "a",
+       "b"
+      ],
+      "ref_table": "zz_gold_composite"
+     }
+    ],
+    "indexes": [],
+    "name": "zz_gold_ref_composite",
+    "original_name": "zz_gold_ref_composite",
+    "primary_key": [
+     "id"
+    ],
+    "schema": "zz_util_bbdd_gold",
+    "warnings": []
+   }
+  ],
+  "views": [
+   {
+    "columns": [
+     "id",
+     "code"
+    ],
+    "comment": "",
+    "name": "zz_gold_v_parent",
+    "original_name": "zz_gold_v_parent",
+    "query": "SELECT id,\n    code\n   FROM zz_gold_parent;",
+    "schema": "zz_util_bbdd_gold",
+    "warnings": []
+   }
+  ]
+ },
+ "manager": {
+  "per_routine": {
+   "zz_gold_f:FUNCTION": {
+    "ddl": "CREATE OR REPLACE FUNCTION zz_util_bbdd_gold.zz_gold_f(x integer)\n RETURNS integer\n LANGUAGE sql\nAS $function$SELECT x + 1$function$\n",
+    "parameters": [
+     [
+      "IN",
+      "x",
+      "integer",
+      "",
+      1
+     ]
+    ]
+   },
+   "zz_gold_p:PROCEDURE": {
+    "ddl": "CREATE OR REPLACE PROCEDURE zz_util_bbdd_gold.zz_gold_p(IN x integer)\n LANGUAGE plpgsql\nAS $procedure$ BEGIN PERFORM x; END $procedure$\n",
+    "parameters": [
+     [
+      "IN",
+      "x",
+      "integer",
+      "",
+      1
+     ]
+    ]
+   }
+  },
+  "per_table": {
+   "zz_gold_child": {
+    "columns": [
+     [
+      "id",
+      "integer",
+      "NO",
+      null,
+      null,
+      32,
+      0,
+      ""
+     ],
+     [
+      "parent_id",
+      "integer",
+      "NO",
+      null,
+      null,
+      32,
+      0,
+      ""
+     ],
+     [
+      "label",
+      "character varying",
+      "YES",
+      null,
+      50,
+      null,
+      null,
+      ""
+     ]
+    ],
+    "ddl": "CREATE TABLE zz_util_bbdd_gold.zz_gold_child (\n    id integer NOT NULL,\n    parent_id integer NOT NULL,\n    label character varying(50)\n);",
+    "fk": [
+     [
+      "fk_zz_gold_child_parent",
+      "parent_id",
+      "zz_gold_parent",
+      "id"
+     ]
+    ],
+    "indices": [
+     [
+      "ix_zz_gold_child_label",
+      "label",
+      "NONUNIQUE",
+      "btree"
+     ],
+     [
+      "pk_zz_gold_child",
+      "id",
+      "UNIQUE",
+      "btree"
+     ]
+    ],
+    "pk": [
+     [
+      "id"
+     ]
+    ],
+    "uk": []
+   },
+   "zz_gold_composite": {
+    "columns": [
+     [
+      "a",
+      "integer",
+      "NO",
+      null,
+      null,
+      32,
+      0,
+      ""
+     ],
+     [
+      "b",
+      "integer",
+      "NO",
+      null,
+      null,
+      32,
+      0,
+      ""
+     ],
+     [
+      "note",
+      "character varying",
+      "YES",
+      null,
+      30,
+      null,
+      null,
+      ""
+     ]
+    ],
+    "ddl": "CREATE TABLE zz_util_bbdd_gold.zz_gold_composite (\n    a integer NOT NULL,\n    b integer NOT NULL,\n    note character varying(30)\n);",
+    "fk": [],
+    "indices": [
+     [
+      "pk_zz_gold_composite",
+      "a",
+      "UNIQUE",
+      "btree"
+     ],
+     [
+      "pk_zz_gold_composite",
+      "b",
+      "UNIQUE",
+      "btree"
+     ]
+    ],
+    "pk": [
+     [
+      "a"
+     ],
+     [
+      "b"
+     ]
+    ],
+    "uk": []
+   },
+   "zz_gold_identity": {
+    "columns": [
+     [
+      "id",
+      "integer",
+      "NO",
+      null,
+      null,
+      32,
+      0,
+      ""
+     ],
+     [
+      "val",
+      "character varying",
+      "YES",
+      null,
+      10,
+      null,
+      null,
+      ""
+     ]
+    ],
+    "ddl": "CREATE TABLE zz_util_bbdd_gold.zz_gold_identity (\n    id integer NOT NULL,\n    val character varying(10)\n);",
+    "fk": [],
+    "indices": [
+     [
+      "pk_zz_gold_identity",
+      "id",
+      "UNIQUE",
+      "btree"
+     ]
+    ],
+    "pk": [
+     [
+      "id"
+     ]
+    ],
+    "uk": []
+   },
+   "zz_gold_parent": {
+    "columns": [
+     [
+      "id",
+      "integer",
+      "NO",
+      null,
+      null,
+      32,
+      0,
+      ""
+     ],
+     [
+      "code",
+      "character varying",
+      "NO",
+      null,
+      20,
+      null,
+      null,
+      ""
+     ],
+     [
+      "name",
+      "character varying",
+      "YES",
+      null,
+      100,
+      null,
+      null,
+      ""
+     ],
+     [
+      "amount",
+      "numeric",
+      "YES",
+      null,
+      null,
+      12,
+      2,
+      ""
+     ],
+     [
+      "created",
+      "date",
+      "YES",
+      null,
+      null,
+      null,
+      null,
+      ""
+     ]
+    ],
+    "ddl": "CREATE TABLE zz_util_bbdd_gold.zz_gold_parent (\n    id integer NOT NULL,\n    code character varying(20) NOT NULL,\n    name character varying(100),\n    amount numeric(12,2),\n    created date\n);",
+    "fk": [],
+    "indices": [
+     [
+      "pk_zz_gold_parent",
+      "id",
+      "UNIQUE",
+      "btree"
+     ],
+     [
+      "uk_zz_gold_parent_code",
+      "code",
+      "UNIQUE",
+      "btree"
+     ]
+    ],
+    "pk": [
+     [
+      "id"
+     ]
+    ],
+    "uk": [
+     [
+      "uk_zz_gold_parent_code",
+      "code"
+     ]
+    ]
+   },
+   "zz_gold_ref_composite": {
+    "columns": [
+     [
+      "id",
+      "integer",
+      "NO",
+      null,
+      null,
+      32,
+      0,
+      ""
+     ],
+     [
+      "a",
+      "integer",
+      "YES",
+      null,
+      null,
+      32,
+      0,
+      ""
+     ],
+     [
+      "b",
+      "integer",
+      "YES",
+      null,
+      null,
+      32,
+      0,
+      ""
+     ]
+    ],
+    "ddl": "CREATE TABLE zz_util_bbdd_gold.zz_gold_ref_composite (\n    id integer NOT NULL,\n    a integer,\n    b integer\n);",
+    "fk": [
+     [
+      "fk_zz_gold_ref_composite",
+      "a",
+      "zz_gold_composite",
+      "a"
+     ],
+     [
+      "fk_zz_gold_ref_composite",
+      "a",
+      "zz_gold_composite",
+      "b"
+     ],
+     [
+      "fk_zz_gold_ref_composite",
+      "b",
+      "zz_gold_composite",
+      "a"
+     ],
+     [
+      "fk_zz_gold_ref_composite",
+      "b",
+      "zz_gold_composite",
+      "b"
+     ]
+    ],
+    "indices": [
+     [
+      "pk_zz_gold_ref_composite",
+      "id",
+      "UNIQUE",
+      "btree"
+     ]
+    ],
+    "pk": [
+     [
+      "id"
+     ]
+    ],
+    "uk": []
+   }
+  },
+  "per_view": {
+   "zz_gold_v_parent": {
+    "ddl": " SELECT id,\n    code\n   FROM zz_gold_parent;"
+   }
+  },
+  "routines": [
+   [
+    "zz_gold_f",
+    "FUNCTION"
+   ],
+   [
+    "zz_gold_p",
+    "PROCEDURE"
+   ]
+  ],
+  "tables": [
+   "zz_gold_child",
+   "zz_gold_composite",
+   "zz_gold_identity",
+   "zz_gold_parent",
+   "zz_gold_ref_composite"
+  ],
+  "views": [
+   "zz_gold_v_parent"
+  ]
+ }
+}

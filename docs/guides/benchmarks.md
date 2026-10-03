@@ -311,6 +311,29 @@ Con 200 tablas, 20 vistas y 20 funciones por esquema, el resultado esperado es 2
 | MariaDB 11.4 | 1,24 s | 0,35 s | 488 |
 | MySQL 8.4 | 1,37 s | 0,43 s | 488 |
 
+### Banco de extracción de metadatos
+
+`scripts/bench_metadata.py` mide cuánto le cuesta a cada flujo leer el catálogo (managers, `doc`, `comparar`,
+`migrate`, `dump`, `bulk`) con schemas de 50, 500 y 5000 tablas. Cuenta las sentencias de catálogo en los dos caminos
+de ejecución de la librería (el driver nativo de los managers y SQLAlchemy) y guarda, por medición, tiempos, memoria y
+las consultas más frecuentes y más lentas. Usa los contenedores de arriba y `UTIL_BBDD_BENCH_PASSWORD`, sin URLs.
+
+**`setup` y `teardown` crean y borran `zz_md_<N>` (PostgreSQL), las bases `zz_util_bbdd_md_<N>` (MySQL, MariaDB, SQL
+Server) y los usuarios `ZZ_MD_<N>` (Oracle).**
+
+```bash
+python scripts/bench_metadata.py setup --engines all --volumes 50,500
+python scripts/bench_metadata.py run --engines postgresql,sqlserver --volumes 50,500 --repeat 3
+python scripts/bench_metadata.py run --engines oracle --volumes 5000 --flows manager_scan --limit 20 --repeat 1
+python scripts/bench_metadata.py report        # tablas Markdown desde bench_results/metadata/*.json
+python scripts/bench_metadata.py teardown --engines all --volumes 50,500
+```
+
+Referencia (baseline de v0.30.0, 2026-10-03, 500 tablas, tiempo de catálogo): leer columnas, índices, PK, FK y UK
+tabla a tabla con los managers cuesta 70 s en PostgreSQL 17, 121 s en SQL Server 2022 y 365 s en Oracle 23 Free; la
+lectura por schema de `migrate` (9 consultas, incluye vistas y routines), 0,16 s, 0,22 s y 0,27 s. Detalle y causas en
+la sesión `2026-10-03-metadata-centralization` (ADR-003).
+
 ### Tiempos de referencia por tipo de operación (PostgreSQL 15)
 
 | Operación | Tiempo promedio | Notas |

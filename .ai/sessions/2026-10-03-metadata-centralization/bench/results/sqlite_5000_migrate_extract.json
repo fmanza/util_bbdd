@@ -1,0 +1,18 @@
+{
+ "flow": "migrate_extract",
+ "engine": "sqlite",
+ "volume": 5000,
+ "limit": null,
+ "repeat": 1,
+ "median_seconds": 0.0,
+ "median_catalog_seconds": 0.0,
+ "peak_mb": 0.0,
+ "queries_total": 0,
+ "queries_catalog": 0,
+ "top_catalog_fingerprints": [],
+ "slowest_catalog_fingerprints": [],
+ "info": {
+  "skipped": "sqlite no es motor origen de migrate"
+ },
+ "error": null
+}

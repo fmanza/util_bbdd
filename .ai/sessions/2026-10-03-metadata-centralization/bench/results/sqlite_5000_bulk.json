@@ -1,0 +1,75 @@
+{
+ "flow": "bulk",
+ "engine": "sqlite",
+ "volume": 5000,
+ "limit": null,
+ "repeat": 1,
+ "median_seconds": 0.102,
+ "median_catalog_seconds": 0.043,
+ "peak_mb": 0.5,
+ "queries_total": 17,
+ "queries_catalog": 14,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT sql FROM (SELECT * FROM sqlite_master UNION ALL SELECT * FROM sqlite_temp_master) WHERE name = ? AND type in ('?', '?')",
+   3
+  ],
+  [
+   "PRAGMA main.index_list(\"t00001\")",
+   2
+  ],
+  [
+   "PRAGMA main.index_info(\"ix_t00001_name\")",
+   2
+  ],
+  [
+   "PRAGMA journal_mode",
+   1
+  ],
+  [
+   "PRAGMA synchronous",
+   1
+  ],
+  [
+   "PRAGMA cache_size",
+   1
+  ],
+  [
+   "PRAGMA temp_store",
+   1
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00001\")",
+   1
+  ]
+ ],
+ "slowest_catalog_fingerprints": [
+  [
+   "PRAGMA journal_mode",
+   0.042,
+   1
+  ],
+  [
+   "SELECT sql FROM (SELECT * FROM sqlite_master UNION ALL SELECT * FROM sqlite_temp_master) WHERE name = ? AND type in ('?', '?')",
+   0.0,
+   3
+  ],
+  [
+   "PRAGMA main.index_list(\"t00001\")",
+   0.0,
+   2
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00001\")",
+   0.0,
+   1
+  ],
+  [
+   "PRAGMA main.index_info(\"ix_t00001_name\")",
+   0.0,
+   2
+  ]
+ ],
+ "info": {},
+ "error": null
+}

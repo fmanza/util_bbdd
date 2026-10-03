@@ -1,0 +1,690 @@
+Todas las funciones - zz_util_bbdd_gold
+Todas las funciones
+Base de datos: zz_util_bbdd_gold · Generado: <fecha> · Registros: 2
+Anterior
+Página 1/1
+Siguiente
+0 resultados
+Pulsa la cabecera de cada columna para ordenar. La exportación usa los resultados filtrados.
+Filas por página
+10
+25
+50
+100
+Todas
+CSV
+TSV
+XLSX
+PDF
+Rutina
+Tipo rutina
+Comentario
+Modo
+Parámetro
+Tipo
+Valor por defecto
+Posición
+Detalle
+zz_gold_f
+FUNCTION
+RETURN
+RETURN_VALUE
+int
+0
+Abrir detalle
+zz_gold_f
+FUNCTION
+IN
+x
+int
+1
+Abrir detalle
+Todos los procedures - zz_util_bbdd_gold
+Todos los procedures
+Base de datos: zz_util_bbdd_gold · Generado: <fecha> · Registros: 1
+Anterior
+Página 1/1
+Siguiente
+0 resultados
+Pulsa la cabecera de cada columna para ordenar. La exportación usa los resultados filtrados.
+Filas por página
+10
+25
+50
+100
+Todas
+CSV
+TSV
+XLSX
+PDF
+Rutina
+Tipo rutina
+Comentario
+Modo
+Parámetro
+Tipo
+Valor por defecto
+Posición
+Detalle
+zz_gold_p
+PROCEDURE
+IN
+x
+int
+1
+Abrir detalle
+Todo el almacenamiento - zz_util_bbdd_gold
+Todo el almacenamiento
+Base de datos: zz_util_bbdd_gold · Generado: <fecha> · Registros: 0
+Anterior
+Página 1/1
+Siguiente
+0 resultados
+Pulsa la cabecera de cada columna para ordenar. La exportación usa los resultados filtrados.
+Filas por página
+10
+25
+50
+100
+Todas
+CSV
+TSV
+XLSX
+PDF
+Sección
+Estado
+Mensaje
+Detalle
+Todas las tablas y columnas - zz_util_bbdd_gold
+Todas las tablas y columnas
+Base de datos: zz_util_bbdd_gold · Generado: <fecha> · Registros: 16
+Anterior
+Página 1/1
+Siguiente
+0 resultados
+Pulsa la cabecera de cada columna para ordenar. La exportación usa los resultados filtrados.
+Filas por página
+10
+25
+50
+100
+Todas
+CSV
+TSV
+XLSX
+PDF
+Tabla
+Comentario Tabla
+Campo
+Tipo
+Nulo
+Clave
+Por defecto
+Extra
+Comentario Columna
+Detalle
+zz_gold_child
+id
+int
+NO
+PRI
+Abrir detalle
+zz_gold_child
+parent_id
+int
+NO
+MUL
+Abrir detalle
+zz_gold_child
+label
+varchar(50)
+YES
+MUL
+Abrir detalle
+zz_gold_composite
+a
+int
+NO
+PRI
+Abrir detalle
+zz_gold_composite
+b
+int
+NO
+PRI
+Abrir detalle
+zz_gold_composite
+note
+varchar(30)
+YES
+Abrir detalle
+zz_gold_identity
+id
+int
+NO
+PRI
+auto_increment
+Abrir detalle
+zz_gold_identity
+val
+varchar(10)
+YES
+Abrir detalle
+zz_gold_parent
+tabla padre
+id
+int
+NO
+PRI
+Abrir detalle
+zz_gold_parent
+tabla padre
+code
+varchar(20)
+NO
+UNI
+Abrir detalle
+zz_gold_parent
+tabla padre
+name
+varchar(100)
+YES
+Abrir detalle
+zz_gold_parent
+tabla padre
+amount
+decimal(12,2)
+YES
+Abrir detalle
+zz_gold_parent
+tabla padre
+created
+date
+YES
+Abrir detalle
+zz_gold_ref_composite
+id
+int
+NO
+PRI
+Abrir detalle
+zz_gold_ref_composite
+a
+int
+YES
+MUL
+Abrir detalle
+zz_gold_ref_composite
+b
+int
+YES
+Abrir detalle
+Todas las vistas y columnas - zz_util_bbdd_gold
+Todas las vistas y columnas
+Base de datos: zz_util_bbdd_gold · Generado: <fecha> · Registros: 2
+Anterior
+Página 1/1
+Siguiente
+0 resultados
+Pulsa la cabecera de cada columna para ordenar. La exportación usa los resultados filtrados.
+Filas por página
+10
+25
+50
+100
+Todas
+CSV
+TSV
+XLSX
+PDF
+Vista
+Comentario
+Campo
+Tipo
+Nulo
+Clave
+Por defecto
+Extra
+Comentario
+Detalle
+zz_gold_v_parent
+VIEW
+id
+int
+NO
+Abrir detalle
+zz_gold_v_parent
+VIEW
+code
+varchar(20)
+NO
+Abrir detalle
+Índice documentación BD - zz_util_bbdd_gold
+Índice de documentación - zz_util_bbdd_gold
+Generado: <fecha>
+Buscar en
+TABLA
+VISTA
+PROCEDURE
+FUNCTION
+ALMACENAMIENTO
+INFORMACIÓN BD
+Contraer panel lateral
+Tablas
+5
+Vistas
+1
+Procedures
+1
+Funciones
+1
+Almacenamiento
+0
+Tablas (5)
+Ver todo
+zz_gold_child
+zz_gold_composite
+zz_gold_identity
+zz_gold_parent
+tabla padre
+zz_gold_ref_composite
+Anterior
+Página 1/1
+Siguiente
+Vistas (1)
+Ver todo
+zz_gold_v_parent
+VIEW
+Anterior
+Página 1/1
+Siguiente
+Procedures (1)
+Ver todo
+zz_gold_p
+Anterior
+Página 1/1
+Siguiente
+Funciones (1)
+Ver todo
+zz_gold_f
+Anterior
+Página 1/1
+Siguiente
+Almacenamiento (0)
+Ver todo
+No hay inventario de almacenamiento.
+Anterior
+Página 1/1
+Siguiente
+Información BD (0)
+No hay información de base de datos.
+Anterior
+Página 1/1
+Siguiente
+Rutina - zz_gold_f | zz_util_bbdd_gold
+Rutina: zz_gold_f
+Generado: <fecha>
+Base de datos: zz_util_bbdd_gold
+Comentario:
+DDL
+Copiar DDL
+CREATE DEFINER=`bench`@`%` FUNCTION `zz_util_bbdd_gold`.`zz_gold_f`(x int) RETURNS int
+DETERMINISTIC
+RETURN x + 1
+Tipo
+Función
+Parámetros
+Modo
+Parámetro
+Tipo
+Valor por defecto
+Posición
+RETURN
+RETURN_VALUE
+int
+0
+IN
+x
+int
+1
+Rutina - zz_gold_p | zz_util_bbdd_gold
+Rutina: zz_gold_p
+Generado: <fecha>
+Base de datos: zz_util_bbdd_gold
+Comentario:
+DDL
+Copiar DDL
+CREATE DEFINER=`bench`@`%` PROCEDURE `zz_util_bbdd_gold`.`zz_gold_p`(
+IN x int
+)
+BEGIN DECLARE y INT; SET y = x; END
+Tipo
+Procedure
+Parámetros
+Modo
+Parámetro
+Tipo
+Valor por defecto
+Posición
+IN
+x
+int
+1
+Tabla - zz_gold_child | zz_util_bbdd_gold
+Tabla: zz_gold_child
+Generado: <fecha>
+Base de datos: zz_util_bbdd_gold
+Comentario:
+Charset & Collation: utf8mb4 utf8mb4_0900_ai_ci
+DDL
+Copiar DDL
+CREATE TABLE `zz_gold_child` (
+`id` int NOT NULL,
+`parent_id` int NOT NULL,
+`label` varchar(50) NULL,
+PRIMARY KEY (`id`)
+)
+Columnas
+Campo
+Tipo
+Nulo
+Clave
+Por defecto
+Extra
+Comentario
+id
+int
+NO
+PRI
+parent_id
+int
+NO
+MUL
+label
+varchar(50)
+YES
+MUL
+Claves Primarias
+('id',)
+Relaciones (Claves Foráneas)
+Nombre Restricción
+Tabla
+Columna
+Tabla Ref.
+Columna Ref.
+fk_zz_gold_child_parent
+zz_gold_child
+parent_id
+zz_gold_parent
+id
+Restricciones Únicas
+No se encontraron claves únicas.
+Índices
+Nombre Índice
+Columna
+Único
+Tipo de Índice
+fk_zz_gold_child_parent
+parent_id
+No
+BTREE
+ix_zz_gold_child_label
+label
+No
+BTREE
+PRIMARY
+id
+Sí
+BTREE
+Tabla - zz_gold_composite | zz_util_bbdd_gold
+Tabla: zz_gold_composite
+Generado: <fecha>
+Base de datos: zz_util_bbdd_gold
+Comentario:
+Charset & Collation: utf8mb4 utf8mb4_0900_ai_ci
+DDL
+Copiar DDL
+CREATE TABLE `zz_gold_composite` (
+`a` int NOT NULL,
+`b` int NOT NULL,
+`note` varchar(30) NULL,
+PRIMARY KEY (`a`, `b`)
+)
+Columnas
+Campo
+Tipo
+Nulo
+Clave
+Por defecto
+Extra
+Comentario
+a
+int
+NO
+PRI
+b
+int
+NO
+PRI
+note
+varchar(30)
+YES
+Claves Primarias
+('a',) ('b',)
+Relaciones (Claves Foráneas)
+No se encontraron claves foráneas.
+Restricciones Únicas
+No se encontraron claves únicas.
+Índices
+Nombre Índice
+Columna
+Único
+Tipo de Índice
+PRIMARY
+a
+Sí
+BTREE
+PRIMARY
+b
+Sí
+BTREE
+Tabla - zz_gold_identity | zz_util_bbdd_gold
+Tabla: zz_gold_identity
+Generado: <fecha>
+Base de datos: zz_util_bbdd_gold
+Comentario:
+Charset & Collation: utf8mb4 utf8mb4_0900_ai_ci
+DDL
+Copiar DDL
+CREATE TABLE `zz_gold_identity` (
+`id` int NOT NULL auto_increment,
+`val` varchar(10) NULL,
+PRIMARY KEY (`id`)
+)
+Columnas
+Campo
+Tipo
+Nulo
+Clave
+Por defecto
+Extra
+Comentario
+id
+int
+NO
+PRI
+auto_increment
+val
+varchar(10)
+YES
+Claves Primarias
+('id',)
+Relaciones (Claves Foráneas)
+No se encontraron claves foráneas.
+Restricciones Únicas
+No se encontraron claves únicas.
+Índices
+Nombre Índice
+Columna
+Único
+Tipo de Índice
+PRIMARY
+id
+Sí
+BTREE
+Tabla - zz_gold_parent | zz_util_bbdd_gold
+Tabla: zz_gold_parent
+Generado: <fecha>
+Base de datos: zz_util_bbdd_gold
+Comentario: tabla padre
+Charset & Collation: utf8mb4 utf8mb4_0900_ai_ci
+DDL
+Copiar DDL
+CREATE TABLE `zz_gold_parent` (
+`id` int NOT NULL,
+`code` varchar(20) NOT NULL,
+`name` varchar(100) NULL,
+`amount` decimal(12,2) NULL,
+`created` date NULL,
+PRIMARY KEY (`id`)
+)
+Columnas
+Campo
+Tipo
+Nulo
+Clave
+Por defecto
+Extra
+Comentario
+id
+int
+NO
+PRI
+code
+varchar(20)
+NO
+UNI
+name
+varchar(100)
+YES
+amount
+decimal(12,2)
+YES
+created
+date
+YES
+Claves Primarias
+('id',)
+Relaciones (Claves Foráneas)
+No se encontraron claves foráneas.
+Restricciones Únicas
+Nombre Restricción
+Campo
+uk_zz_gold_parent_code
+code
+Índices
+Nombre Índice
+Columna
+Único
+Tipo de Índice
+PRIMARY
+id
+Sí
+BTREE
+uk_zz_gold_parent_code
+code
+Sí
+BTREE
+Tabla - zz_gold_ref_composite | zz_util_bbdd_gold
+Tabla: zz_gold_ref_composite
+Generado: <fecha>
+Base de datos: zz_util_bbdd_gold
+Comentario:
+Charset & Collation: utf8mb4 utf8mb4_0900_ai_ci
+DDL
+Copiar DDL
+CREATE TABLE `zz_gold_ref_composite` (
+`id` int NOT NULL,
+`a` int NULL,
+`b` int NULL,
+PRIMARY KEY (`id`)
+)
+Columnas
+Campo
+Tipo
+Nulo
+Clave
+Por defecto
+Extra
+Comentario
+id
+int
+NO
+PRI
+a
+int
+YES
+MUL
+b
+int
+YES
+Claves Primarias
+('id',)
+Relaciones (Claves Foráneas)
+Nombre Restricción
+Tabla
+Columna
+Tabla Ref.
+Columna Ref.
+fk_zz_gold_ref_composite
+zz_gold_ref_composite
+a
+zz_gold_composite
+a
+fk_zz_gold_ref_composite
+zz_gold_ref_composite
+b
+zz_gold_composite
+b
+Restricciones Únicas
+No se encontraron claves únicas.
+Índices
+Nombre Índice
+Columna
+Único
+Tipo de Índice
+fk_zz_gold_ref_composite
+a
+No
+BTREE
+fk_zz_gold_ref_composite
+b
+No
+BTREE
+PRIMARY
+id
+Sí
+BTREE
+Vista - zz_gold_v_parent | zz_util_bbdd_gold
+Vista: zz_gold_v_parent
+Generado: <fecha>
+Base de datos: zz_util_bbdd_gold
+Comentario: VIEW
+DDL
+Copiar DDL
+CREATE OR REPLACE VIEW `zz_gold_v_parent` AS
+select `zz_util_bbdd_gold`.`zz_gold_parent`.`id` AS `id`,`zz_util_bbdd_gold`.`zz_gold_parent`.`code` AS `code` from `zz_util_bbdd_gold`.`zz_gold_parent`
+Columnas
+Campo
+Tipo
+Nulo
+Clave
+Por defecto
+Extra
+Comentario
+id
+int
+NO
+code
+varchar(20)
+NO

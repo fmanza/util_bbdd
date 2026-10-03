@@ -1,0 +1,50 @@
+{
+ "flow": "comparar",
+ "engine": "sqlserver",
+ "volume": 500,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 4.243,
+ "median_catalog_seconds": 1.45,
+ "peak_mb": 43.0,
+ "queries_total": 1116,
+ "queries_catalog": 1116,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT sys.columns.name, sys.types.name AS name_1, base_types.name AS base_type, sys.columns.is_nullable, sys.columns.max_length, sys.columns.[precision], sys.c",
+   1000
+  ],
+  [
+   "select mod.definition from sys.sql_modules as mod join sys.views as views on mod.object_id = views.object_id join sys.schemas as sch on views.schema_id = sch.sc",
+   100
+  ],
+  [
+   "SELECT [INFORMATION_SCHEMA].[TABLES].[TABLE_NAME] FROM [INFORMATION_SCHEMA].[TABLES] WHERE [INFORMATION_SCHEMA].[TABLES].[TABLE_SCHEMA] = CAST(%(table_schema_1)",
+   4
+  ],
+  [
+   "SELECT t.name AS TABLE_NAME, kc.name AS PK_NAME, c.name AS COLUMN_NAME, CASE WHEN i.type = N THEN N ELSE N END AS IS_CLUSTERED FROM sys.key_constraints kc JOIN ",
+   2
+  ],
+  [
+   "SELECT tab.name AS TABLE_NAME, ind.index_id AS INDEX_ID, ind.name AS INDEX_NAME, ind.is_unique AS IS_UNIQUE, ind.type AS INDEX_TYPE, ind.filter_definition AS FI",
+   2
+  ],
+  [
+   "SELECT tab.name AS TABLE_NAME, ic.index_id AS INDEX_ID, col.name AS COLUMN_NAME, ic.is_included_column AS IS_INCLUDED_COLUMN FROM sys.index_columns ic JOIN sys.",
+   2
+  ],
+  [
+   "SELECT t.name AS TABLE_NAME, fk.name AS FK_NAME, pc.name AS COLUMN_NAME, SCHEMA_NAME(rt.schema_id) AS REF_SCHEMA, rt.name AS REF_TABLE, rc.name AS REF_COLUMN, f",
+   2
+  ],
+  [
+   "SELECT t.name AS TABLE_NAME, CAST(ep.value AS NVARCHAR(MAX)) AS TABLE_COMMENT FROM sys.tables t JOIN sys.extended_properties ep ON ep.class = N AND ep.major_id ",
+   2
+  ]
+ ],
+ "info": {
+  "has_differences": false
+ },
+ "error": null
+}

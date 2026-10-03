@@ -1,0 +1,518 @@
+Todas las funciones - C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Todas las funciones
+Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db · Generado: <fecha> · Registros: 0
+Anterior
+Página 1/1
+Siguiente
+0 resultados
+Pulsa la cabecera de cada columna para ordenar. La exportación usa los resultados filtrados.
+Filas por página
+10
+25
+50
+100
+Todas
+CSV
+TSV
+XLSX
+PDF
+Rutina
+Tipo rutina
+Comentario
+Modo
+Parámetro
+Tipo
+Valor por defecto
+Posición
+Detalle
+Todos los procedures - C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Todos los procedures
+Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db · Generado: <fecha> · Registros: 0
+Anterior
+Página 1/1
+Siguiente
+0 resultados
+Pulsa la cabecera de cada columna para ordenar. La exportación usa los resultados filtrados.
+Filas por página
+10
+25
+50
+100
+Todas
+CSV
+TSV
+XLSX
+PDF
+Rutina
+Tipo rutina
+Comentario
+Modo
+Parámetro
+Tipo
+Valor por defecto
+Posición
+Detalle
+Todo el almacenamiento - C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Todo el almacenamiento
+Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db · Generado: <fecha> · Registros: 0
+Anterior
+Página 1/1
+Siguiente
+0 resultados
+Pulsa la cabecera de cada columna para ordenar. La exportación usa los resultados filtrados.
+Filas por página
+10
+25
+50
+100
+Todas
+CSV
+TSV
+XLSX
+PDF
+Sección
+Estado
+Mensaje
+Detalle
+Todas las tablas y columnas - C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Todas las tablas y columnas
+Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db · Generado: <fecha> · Registros: 16
+Anterior
+Página 1/1
+Siguiente
+0 resultados
+Pulsa la cabecera de cada columna para ordenar. La exportación usa los resultados filtrados.
+Filas por página
+10
+25
+50
+100
+Todas
+CSV
+TSV
+XLSX
+PDF
+Tabla
+Comentario Tabla
+Campo
+Tipo
+Nulo
+Por defecto
+Longitud
+Precisión
+Comentario Columna
+Detalle
+zz_gold_child
+id
+INTEGER
+NO
+tables/zz-gold-child.html
+zz_gold_child
+parent_id
+INTEGER
+NO
+tables/zz-gold-child.html
+zz_gold_child
+label
+VARCHAR(50)
+YES
+tables/zz-gold-child.html
+zz_gold_composite
+a
+INTEGER
+NO
+tables/zz-gold-composite.html
+zz_gold_composite
+b
+INTEGER
+NO
+tables/zz-gold-composite.html
+zz_gold_composite
+note
+VARCHAR(30)
+YES
+tables/zz-gold-composite.html
+zz_gold_identity
+id
+INTEGER
+YES
+tables/zz-gold-identity.html
+zz_gold_identity
+val
+VARCHAR(10)
+YES
+tables/zz-gold-identity.html
+zz_gold_parent
+id
+INTEGER
+NO
+tables/zz-gold-parent.html
+zz_gold_parent
+code
+VARCHAR(20)
+NO
+tables/zz-gold-parent.html
+zz_gold_parent
+name
+VARCHAR(100)
+YES
+tables/zz-gold-parent.html
+zz_gold_parent
+amount
+NUMERIC(12,2)
+YES
+tables/zz-gold-parent.html
+zz_gold_parent
+created
+DATE
+YES
+tables/zz-gold-parent.html
+zz_gold_ref_composite
+id
+INTEGER
+NO
+tables/zz-gold-ref-composite.html
+zz_gold_ref_composite
+a
+INTEGER
+YES
+tables/zz-gold-ref-composite.html
+zz_gold_ref_composite
+b
+INTEGER
+YES
+tables/zz-gold-ref-composite.html
+Todas las vistas y columnas - C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Todas las vistas y columnas
+Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db · Generado: <fecha> · Registros: 2
+Anterior
+Página 1/1
+Siguiente
+0 resultados
+Pulsa la cabecera de cada columna para ordenar. La exportación usa los resultados filtrados.
+Filas por página
+10
+25
+50
+100
+Todas
+CSV
+TSV
+XLSX
+PDF
+Vista
+Comentario
+Campo
+Tipo
+Nulo
+Por defecto
+Longitud
+Precisión
+Comentario
+Detalle
+zz_gold_v_parent
+id
+INTEGER
+YES
+views/zz-gold-v-parent.html
+zz_gold_v_parent
+code
+VARCHAR(20)
+YES
+views/zz-gold-v-parent.html
+Índice documentación BD - C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Índice de documentación - C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Generado: <fecha>
+Buscar en
+TABLA
+VISTA
+PROCEDURE
+FUNCTION
+ALMACENAMIENTO
+INFORMACIÓN BD
+Contraer panel lateral
+Tablas
+5
+Vistas
+1
+Procedures
+0
+Funciones
+0
+Almacenamiento
+0
+Tablas (5)
+Ver todo
+zz_gold_child
+zz_gold_composite
+zz_gold_identity
+zz_gold_parent
+zz_gold_ref_composite
+Anterior
+Página 1/1
+Siguiente
+Vistas (1)
+Ver todo
+zz_gold_v_parent
+Anterior
+Página 1/1
+Siguiente
+Procedures (0)
+Ver todo
+No hay procedures.
+Anterior
+Página 1/1
+Siguiente
+Funciones (0)
+Ver todo
+No hay funciones.
+Anterior
+Página 1/1
+Siguiente
+Almacenamiento (0)
+Ver todo
+No hay inventario de almacenamiento.
+Anterior
+Página 1/1
+Siguiente
+Información BD (0)
+No hay información de base de datos.
+Anterior
+Página 1/1
+Siguiente
+Tabla - zz_gold_child | C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Tabla: zz_gold_child
+Generado: <fecha>
+Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Comentario:
+DDL
+Copiar DDL
+CREATE TABLE zz_gold_child (id INTEGER NOT NULL, parent_id INTEGER NOT NULL, label VARCHAR(50), CONSTRAINT pk_zz_gold_child PRIMARY KEY (id), CONSTRAINT fk_zz_gold_child_parent FOREIGN KEY (parent_id) REFERENCES zz_gold_parent (id) ON DELETE CASCADE)
+Columnas
+Campo
+Tipo
+Nulo
+Por defecto
+Longitud
+Precisión
+Comentario
+id
+INTEGER
+NO
+parent_id
+INTEGER
+NO
+label
+VARCHAR(50)
+YES
+Claves Primarias
+('id',)
+Relaciones (Claves Foráneas)
+Nombre de la Restricción
+Columna
+Tabla Referenciada
+Columna Referenciada
+FK_zz_gold_child_0
+parent_id
+zz_gold_parent
+id
+Restricciones Únicas
+No se encontraron claves únicas.
+Índices
+Nombre del Índice
+Columna
+Único
+Tipo de Índice
+ix_zz_gold_child_label
+label
+No
+INDEX
+Tabla - zz_gold_composite | C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Tabla: zz_gold_composite
+Generado: <fecha>
+Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Comentario:
+DDL
+Copiar DDL
+CREATE TABLE zz_gold_composite (a INTEGER NOT NULL, b INTEGER NOT NULL, note VARCHAR(30), CONSTRAINT pk_zz_gold_composite PRIMARY KEY (a, b))
+Columnas
+Campo
+Tipo
+Nulo
+Por defecto
+Longitud
+Precisión
+Comentario
+a
+INTEGER
+NO
+b
+INTEGER
+NO
+note
+VARCHAR(30)
+YES
+Claves Primarias
+('a',) ('b',)
+Relaciones (Claves Foráneas)
+No se encontraron claves foráneas.
+Restricciones Únicas
+No se encontraron claves únicas.
+Índices
+Nombre del Índice
+Columna
+Único
+Tipo de Índice
+sqlite_autoindex_zz_gold_composite_1
+a
+Sí
+PRIMARY KEY
+sqlite_autoindex_zz_gold_composite_1
+b
+Sí
+PRIMARY KEY
+Tabla - zz_gold_identity | C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Tabla: zz_gold_identity
+Generado: <fecha>
+Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Comentario:
+DDL
+Copiar DDL
+CREATE TABLE zz_gold_identity (id INTEGER PRIMARY KEY AUTOINCREMENT, val VARCHAR(10))
+Columnas
+Campo
+Tipo
+Nulo
+Por defecto
+Longitud
+Precisión
+Comentario
+id
+INTEGER
+YES
+val
+VARCHAR(10)
+YES
+Claves Primarias
+('id',)
+Relaciones (Claves Foráneas)
+No se encontraron claves foráneas.
+Restricciones Únicas
+No se encontraron claves únicas.
+Índices
+No se encontraron índices.
+Tabla - zz_gold_parent | C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Tabla: zz_gold_parent
+Generado: <fecha>
+Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Comentario:
+DDL
+Copiar DDL
+CREATE TABLE zz_gold_parent (id INTEGER NOT NULL, code VARCHAR(20) NOT NULL, name VARCHAR(100), amount NUMERIC(12,2), created DATE, CONSTRAINT pk_zz_gold_parent PRIMARY KEY (id), CONSTRAINT uk_zz_gold_parent_code UNIQUE (code))
+Columnas
+Campo
+Tipo
+Nulo
+Por defecto
+Longitud
+Precisión
+Comentario
+id
+INTEGER
+NO
+code
+VARCHAR(20)
+NO
+name
+VARCHAR(100)
+YES
+amount
+NUMERIC(12,2)
+YES
+created
+DATE
+YES
+Claves Primarias
+('id',)
+Relaciones (Claves Foráneas)
+No se encontraron claves foráneas.
+Restricciones Únicas
+Nombre de la Restricción
+Campo
+sqlite_autoindex_zz_gold_parent_1
+code
+Índices
+Nombre del Índice
+Columna
+Único
+Tipo de Índice
+sqlite_autoindex_zz_gold_parent_1
+code
+Sí
+UNIQUE
+Tabla - zz_gold_ref_composite | C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Tabla: zz_gold_ref_composite
+Generado: <fecha>
+Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Comentario:
+DDL
+Copiar DDL
+CREATE TABLE zz_gold_ref_composite (id INTEGER NOT NULL, a INTEGER, b INTEGER, CONSTRAINT pk_zz_gold_ref_composite PRIMARY KEY (id), CONSTRAINT fk_zz_gold_ref_composite FOREIGN KEY (a, b) REFERENCES zz_gold_composite (a, b))
+Columnas
+Campo
+Tipo
+Nulo
+Por defecto
+Longitud
+Precisión
+Comentario
+id
+INTEGER
+NO
+a
+INTEGER
+YES
+b
+INTEGER
+YES
+Claves Primarias
+('id',)
+Relaciones (Claves Foráneas)
+Nombre de la Restricción
+Columna
+Tabla Referenciada
+Columna Referenciada
+FK_zz_gold_ref_composite_0
+a
+zz_gold_composite
+a
+FK_zz_gold_ref_composite_0
+b
+zz_gold_composite
+b
+Restricciones Únicas
+No se encontraron claves únicas.
+Índices
+No se encontraron índices.
+Vista - zz_gold_v_parent | C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Vista: zz_gold_v_parent
+Generado: <fecha>
+Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
+Comentario:
+DDL
+Copiar DDL
+CREATE VIEW zz_gold_v_parent AS SELECT id, code FROM zz_gold_parent
+Columnas
+Campo
+Tipo
+Nulo
+Por defecto
+Longitud
+Precisión
+Comentario
+id
+INTEGER
+YES
+code
+VARCHAR(20)
+YES

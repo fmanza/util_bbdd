@@ -1,0 +1,78 @@
+{
+ "flow": "dump",
+ "engine": "mariadb",
+ "volume": 5000,
+ "limit": null,
+ "repeat": 1,
+ "median_seconds": 164.425,
+ "median_catalog_seconds": 10.525,
+ "peak_mb": 193.7,
+ "queries_total": 40004,
+ "queries_catalog": 15004,
+ "top_catalog_fingerprints": [
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_5000`.`t00000`",
+   3
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_5000`.`t00001`",
+   3
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_5000`.`t00002`",
+   3
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_5000`.`t00003`",
+   3
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_5000`.`t00004`",
+   3
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_5000`.`t00005`",
+   3
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_5000`.`t00006`",
+   3
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_5000`.`t00007`",
+   3
+  ]
+ ],
+ "slowest_catalog_fingerprints": [
+  [
+   "SHOW FULL TABLES FROM `zz_util_bbdd_md_5000`",
+   0.151,
+   2
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_5000`.`t00945`",
+   0.015,
+   3
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_5000`.`t03454`",
+   0.014,
+   3
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_5000`.`t00675`",
+   0.012,
+   3
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_5000`.`t00588`",
+   0.011,
+   3
+  ]
+ ],
+ "info": {
+  "tables": 5000,
+  "constraints": 1
+ },
+ "error": null
+}

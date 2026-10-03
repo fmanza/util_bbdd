@@ -1,0 +1,74 @@
+{
+ "flow": "manager_scan",
+ "engine": "postgresql",
+ "volume": 5000,
+ "limit": 100,
+ "repeat": 1,
+ "median_seconds": 17.131,
+ "median_catalog_seconds": 16.689,
+ "peak_mb": 7.2,
+ "queries_total": 503,
+ "queries_catalog": 503,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT c.column_name, c.data_type, CASE WHEN c.is_nullable = '?' THEN '?' ELSE '?' END AS is_nullable, CASE WHEN c.column_default LIKE '?' THEN NULL ELSE c.colu",
+   100
+  ],
+  [
+   "SELECT i.relname AS index_name, a.attname AS column_name, CASE WHEN idx.indisunique THEN '?' ELSE '?' END AS uniqueness, am.amname AS index_type FROM pg_index i",
+   100
+  ],
+  [
+   "SELECT kcu.column_name FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name AND",
+   100
+  ],
+  [
+   "SELECT tc.constraint_name, kcu.column_name, ccu.table_name AS referenced_table, ccu.column_name AS referenced_column FROM information_schema.table_constraints t",
+   100
+  ],
+  [
+   "SELECT tc.constraint_name, kcu.column_name FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu",
+   100
+  ],
+  [
+   "SELECT c.relname AS table_name, COALESCE(obj_description(c.oid), '?') AS table_comment FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nsp",
+   2
+  ],
+  [
+   "SELECT p.proname AS routine_name, CASE WHEN p.prokind = '?' THEN '?' ELSE '?' END AS routine_type, COALESCE(obj_description(p.oid), '?') AS routine_comment FROM",
+   1
+  ]
+ ],
+ "slowest_catalog_fingerprints": [
+  [
+   "SELECT tc.constraint_name, kcu.column_name, ccu.table_name AS referenced_table, ccu.column_name AS referenced_column FROM information_schema.table_constraints t",
+   9.353,
+   100
+  ],
+  [
+   "SELECT kcu.column_name FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name AND",
+   3.452,
+   100
+  ],
+  [
+   "SELECT tc.constraint_name, kcu.column_name FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu",
+   3.316,
+   100
+  ],
+  [
+   "SELECT c.column_name, c.data_type, CASE WHEN c.is_nullable = '?' THEN '?' ELSE '?' END AS is_nullable, CASE WHEN c.column_default LIKE '?' THEN NULL ELSE c.colu",
+   0.339,
+   100
+  ],
+  [
+   "SELECT i.relname AS index_name, a.attname AS column_name, CASE WHEN idx.indisunique THEN '?' ELSE '?' END AS uniqueness, am.amname AS index_type FROM pg_index i",
+   0.205,
+   100
+  ]
+ ],
+ "info": {
+  "tables_listed": 5000,
+  "tables_scanned": 100
+ },
+ "error": null
+}

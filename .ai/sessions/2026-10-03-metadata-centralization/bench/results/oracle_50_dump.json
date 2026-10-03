@@ -1,0 +1,51 @@
+{
+ "flow": "dump",
+ "engine": "oracle",
+ "volume": 50,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 4.648,
+ "median_catalog_seconds": 1.447,
+ "peak_mb": 6.9,
+ "queries_total": 1150,
+ "queries_catalog": 702,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT a_objects.object_name FROM all_objects a_objects WHERE a_objects.owner = :owner_1 AND a_objects.object_type IN (:object_type_1_1, :object_type_1_2) AND a",
+   150
+  ],
+  [
+   "SELECT a_constraints.table_name, a_constraints.constraint_type, a_constraints.constraint_name, local.column_name AS local_column, remote.table_name AS remote_ta",
+   150
+  ],
+  [
+   "SELECT a_tab_cols.table_name, a_tab_cols.column_name, a_tab_cols.data_type, a_tab_cols.char_length, a_tab_cols.data_length, a_tab_cols.data_precision, a_tab_col",
+   150
+  ],
+  [
+   "SELECT a_ind_columns.table_name, a_ind_columns.index_name, a_ind_columns.column_name, a_indexes.index_type, a_indexes.uniqueness, a_indexes.compression, a_index",
+   100
+  ],
+  [
+   "SELECT tables_and_views.table_name, tables_and_views.comments FROM (SELECT a_tab_comments.table_name AS table_name, a_tab_comments.comments AS comments FROM all",
+   50
+  ],
+  [
+   "SELECT a_tables.table_name, a_tables.compression, a_tables.compress_for, a_tables.tablespace_name FROM all_tables a_tables WHERE a_tables.owner = :owner_1 AND a",
+   50
+  ],
+  [
+   "SELECT a_views.view_name FROM all_views a_views WHERE a_views.owner = :owner_1",
+   50
+  ],
+  [
+   "SELECT a_tables.table_name FROM all_tables a_tables WHERE (coalesce(a_tables.tablespace_name, :coalesce_1) NOT IN (:coalesce_2_1, :coalesce_2_2)) AND a_tables.o",
+   2
+  ]
+ ],
+ "info": {
+  "tables": 50,
+  "constraints": 99
+ },
+ "error": null
+}

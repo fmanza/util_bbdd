@@ -1,0 +1,507 @@
+{
+ "ir": {
+  "routines": [
+   {
+    "body": "CREATE OR REPLACE FUNCTION zz_gold_f(x NUMBER) RETURN NUMBER IS BEGIN RETURN x + 1; END;",
+    "comment": "",
+    "is_package_member": false,
+    "name": "ZZ_GOLD_F",
+    "original_name": "ZZ_GOLD_F",
+    "package_name": null,
+    "return_type": "",
+    "routine_type": "FUNCTION",
+    "schema": "BENCH",
+    "warnings": []
+   },
+   {
+    "body": "CREATE OR REPLACE PROCEDURE zz_gold_p(x NUMBER) IS y NUMBER; BEGIN y := x; END;",
+    "comment": "",
+    "is_package_member": false,
+    "name": "ZZ_GOLD_P",
+    "original_name": "ZZ_GOLD_P",
+    "package_name": null,
+    "return_type": "",
+    "routine_type": "PROCEDURE",
+    "schema": "BENCH",
+    "warnings": []
+   }
+  ],
+  "tables": [
+   {
+    "columns": [
+     {
+      "auto_increment": false,
+      "char_length": 22,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": true,
+      "name": "ID",
+      "nullable": false,
+      "omit": false,
+      "ordinal": 1,
+      "original_name": "ID",
+      "precision": 10,
+      "scale": 0,
+      "source_type": "NUMBER",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": 22,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "PARENT_ID",
+      "nullable": false,
+      "omit": false,
+      "ordinal": 2,
+      "original_name": "PARENT_ID",
+      "precision": 10,
+      "scale": 0,
+      "source_type": "NUMBER",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": 50,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "LABEL",
+      "nullable": true,
+      "omit": false,
+      "ordinal": 3,
+      "original_name": "LABEL",
+      "precision": null,
+      "scale": null,
+      "source_type": "VARCHAR2",
+      "target_type": "",
+      "warnings": []
+     }
+    ],
+    "comment": "",
+    "foreign_keys": [
+     {
+      "columns": [
+       "PARENT_ID"
+      ],
+      "is_external": false,
+      "name": "FK_ZZ_GOLD_CHILD_PARENT",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "original_name": "FK_ZZ_GOLD_CHILD_PARENT",
+      "ref_columns": [
+       "ID"
+      ],
+      "ref_table": "ZZ_GOLD_PARENT"
+     }
+    ],
+    "indexes": [
+     {
+      "columns": [
+       "LABEL"
+      ],
+      "name": "IX_ZZ_GOLD_CHILD_LABEL",
+      "original_name": "IX_ZZ_GOLD_CHILD_LABEL",
+      "unique": false
+     },
+     {
+      "columns": [
+       "ID"
+      ],
+      "name": "PK_ZZ_GOLD_CHILD",
+      "original_name": "PK_ZZ_GOLD_CHILD",
+      "unique": true
+     }
+    ],
+    "name": "ZZ_GOLD_CHILD",
+    "original_name": "ZZ_GOLD_CHILD",
+    "primary_key": [
+     "ID"
+    ],
+    "schema": "BENCH",
+    "warnings": []
+   },
+   {
+    "columns": [
+     {
+      "auto_increment": false,
+      "char_length": 22,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": true,
+      "name": "A",
+      "nullable": false,
+      "omit": false,
+      "ordinal": 1,
+      "original_name": "A",
+      "precision": 10,
+      "scale": 0,
+      "source_type": "NUMBER",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": 22,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": true,
+      "name": "B",
+      "nullable": false,
+      "omit": false,
+      "ordinal": 2,
+      "original_name": "B",
+      "precision": 10,
+      "scale": 0,
+      "source_type": "NUMBER",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": 30,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "NOTE",
+      "nullable": true,
+      "omit": false,
+      "ordinal": 3,
+      "original_name": "NOTE",
+      "precision": null,
+      "scale": null,
+      "source_type": "VARCHAR2",
+      "target_type": "",
+      "warnings": []
+     }
+    ],
+    "comment": "",
+    "foreign_keys": [],
+    "indexes": [
+     {
+      "columns": [
+       "A",
+       "B"
+      ],
+      "name": "PK_ZZ_GOLD_COMPOSITE",
+      "original_name": "PK_ZZ_GOLD_COMPOSITE",
+      "unique": true
+     }
+    ],
+    "name": "ZZ_GOLD_COMPOSITE",
+    "original_name": "ZZ_GOLD_COMPOSITE",
+    "primary_key": [
+     "A",
+     "B"
+    ],
+    "schema": "BENCH",
+    "warnings": []
+   },
+   {
+    "columns": [
+     {
+      "auto_increment": false,
+      "char_length": 22,
+      "comment": "",
+      "ddl_comment": null,
+      "default": "\"BENCH\".\"ISEQ$$_<n>\".nextval",
+      "is_primary_key": true,
+      "name": "ID",
+      "nullable": false,
+      "omit": false,
+      "ordinal": 1,
+      "original_name": "ID",
+      "precision": 10,
+      "scale": 0,
+      "source_type": "NUMBER",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": 10,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "VAL",
+      "nullable": true,
+      "omit": false,
+      "ordinal": 2,
+      "original_name": "VAL",
+      "precision": null,
+      "scale": null,
+      "source_type": "VARCHAR2",
+      "target_type": "",
+      "warnings": []
+     }
+    ],
+    "comment": "",
+    "foreign_keys": [],
+    "indexes": [
+     {
+      "columns": [
+       "ID"
+      ],
+      "name": "PK_ZZ_GOLD_IDENTITY",
+      "original_name": "PK_ZZ_GOLD_IDENTITY",
+      "unique": true
+     }
+    ],
+    "name": "ZZ_GOLD_IDENTITY",
+    "original_name": "ZZ_GOLD_IDENTITY",
+    "primary_key": [
+     "ID"
+    ],
+    "schema": "BENCH",
+    "warnings": []
+   },
+   {
+    "columns": [
+     {
+      "auto_increment": false,
+      "char_length": 22,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": true,
+      "name": "ID",
+      "nullable": false,
+      "omit": false,
+      "ordinal": 1,
+      "original_name": "ID",
+      "precision": 10,
+      "scale": 0,
+      "source_type": "NUMBER",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": 20,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "CODE",
+      "nullable": false,
+      "omit": false,
+      "ordinal": 2,
+      "original_name": "CODE",
+      "precision": null,
+      "scale": null,
+      "source_type": "VARCHAR2",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": 100,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "NAME",
+      "nullable": true,
+      "omit": false,
+      "ordinal": 3,
+      "original_name": "NAME",
+      "precision": null,
+      "scale": null,
+      "source_type": "VARCHAR2",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": 22,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "AMOUNT",
+      "nullable": true,
+      "omit": false,
+      "ordinal": 4,
+      "original_name": "AMOUNT",
+      "precision": 12,
+      "scale": 2,
+      "source_type": "NUMBER",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": 7,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "CREATED",
+      "nullable": true,
+      "omit": false,
+      "ordinal": 5,
+      "original_name": "CREATED",
+      "precision": null,
+      "scale": null,
+      "source_type": "DATE",
+      "target_type": "",
+      "warnings": []
+     }
+    ],
+    "comment": "tabla padre",
+    "foreign_keys": [],
+    "indexes": [
+     {
+      "columns": [
+       "ID"
+      ],
+      "name": "PK_ZZ_GOLD_PARENT",
+      "original_name": "PK_ZZ_GOLD_PARENT",
+      "unique": true
+     },
+     {
+      "columns": [
+       "CODE"
+      ],
+      "name": "UK_ZZ_GOLD_PARENT_CODE",
+      "original_name": "UK_ZZ_GOLD_PARENT_CODE",
+      "unique": true
+     }
+    ],
+    "name": "ZZ_GOLD_PARENT",
+    "original_name": "ZZ_GOLD_PARENT",
+    "primary_key": [
+     "ID"
+    ],
+    "schema": "BENCH",
+    "warnings": []
+   },
+   {
+    "columns": [
+     {
+      "auto_increment": false,
+      "char_length": 22,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": true,
+      "name": "ID",
+      "nullable": false,
+      "omit": false,
+      "ordinal": 1,
+      "original_name": "ID",
+      "precision": 10,
+      "scale": 0,
+      "source_type": "NUMBER",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": 22,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "A",
+      "nullable": true,
+      "omit": false,
+      "ordinal": 2,
+      "original_name": "A",
+      "precision": 10,
+      "scale": 0,
+      "source_type": "NUMBER",
+      "target_type": "",
+      "warnings": []
+     },
+     {
+      "auto_increment": false,
+      "char_length": 22,
+      "comment": "",
+      "ddl_comment": null,
+      "default": null,
+      "is_primary_key": false,
+      "name": "B",
+      "nullable": true,
+      "omit": false,
+      "ordinal": 3,
+      "original_name": "B",
+      "precision": 10,
+      "scale": 0,
+      "source_type": "NUMBER",
+      "target_type": "",
+      "warnings": []
+     }
+    ],
+    "comment": "",
+    "foreign_keys": [
+     {
+      "columns": [
+       "A",
+       "B"
+      ],
+      "is_external": false,
+      "name": "FK_ZZ_GOLD_REF_COMPOSITE",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "original_name": "FK_ZZ_GOLD_REF_COMPOSITE",
+      "ref_columns": [
+       "A",
+       "B"
+      ],
+      "ref_table": "ZZ_GOLD_COMPOSITE"
+     }
+    ],
+    "indexes": [
+     {
+      "columns": [
+       "ID"
+      ],
+      "name": "PK_ZZ_GOLD_REF_COMPOSITE",
+      "original_name": "PK_ZZ_GOLD_REF_COMPOSITE",
+      "unique": true
+     }
+    ],
+    "name": "ZZ_GOLD_REF_COMPOSITE",
+    "original_name": "ZZ_GOLD_REF_COMPOSITE",
+    "primary_key": [
+     "ID"
+    ],
+    "schema": "BENCH",
+    "warnings": []
+   }
+  ],
+  "views": [
+   {
+    "columns": [
+     "ID",
+     "CODE"
+    ],
+    "comment": "",
+    "name": "ZZ_GOLD_V_PARENT",
+    "original_name": "ZZ_GOLD_V_PARENT",
+    "query": "SELECT id, code FROM zz_gold_parent",
+    "schema": "BENCH",
+    "warnings": []
+   }
+  ]
+ },
+ "manager": {
+  "per_routine": {},
+  "per_table": {},
+  "per_view": {},
+  "routines": [],
+  "tables": [],
+  "views": []
+ }
+}

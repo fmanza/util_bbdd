@@ -1,0 +1,77 @@
+{
+ "flow": "comparar",
+ "engine": "oracle",
+ "volume": 5000,
+ "limit": null,
+ "repeat": 1,
+ "median_seconds": 18.479,
+ "median_catalog_seconds": 9.431,
+ "peak_mb": 96.0,
+ "queries_total": 1072,
+ "queries_catalog": 1072,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT a_views.text FROM all_views a_views WHERE a_views.view_name = :view_name_1 AND a_views.owner = :owner_1 UNION ALL SELECT a_mviews.query FROM all_mviews a",
+   1000
+  ],
+  [
+   "SELECT a_tab_cols.table_name, a_tab_cols.column_name, a_tab_cols.data_type, a_tab_cols.char_length, a_tab_cols.data_length, a_tab_cols.data_precision, a_tab_col",
+   20
+  ],
+  [
+   "SELECT a_constraints.table_name, a_constraints.constraint_type, a_constraints.constraint_name, local.column_name AS local_column, remote.table_name AS remote_ta",
+   20
+  ],
+  [
+   "SELECT a_ind_columns.table_name, a_ind_columns.index_name, a_ind_columns.column_name, a_indexes.index_type, a_indexes.uniqueness, a_indexes.compression, a_index",
+   20
+  ],
+  [
+   "SELECT a_tables.table_name FROM all_tables a_tables WHERE (coalesce(a_tables.tablespace_name, :coalesce_1) NOT IN (:coalesce_2_1, :coalesce_2_2)) AND a_tables.o",
+   2
+  ],
+  [
+   "SELECT a_mviews.mview_name FROM all_mviews a_mviews WHERE a_mviews.owner = :owner_1",
+   2
+  ],
+  [
+   "SELECT a_objects.object_name FROM all_objects a_objects WHERE a_objects.owner = :owner_1 AND a_objects.object_type IN (:object_type_1_1) AND a_objects.temporary",
+   2
+  ],
+  [
+   "SELECT DISTINCT a_tab_comments.table_name, a_tab_comments.comments FROM all_tab_comments a_tab_comments JOIN all_objects a_objects ON a_objects.owner = :owner_1",
+   2
+  ]
+ ],
+ "slowest_catalog_fingerprints": [
+  [
+   "SELECT DISTINCT a_tab_comments.table_name, a_tab_comments.comments FROM all_tab_comments a_tab_comments JOIN all_objects a_objects ON a_objects.owner = :owner_1",
+   3.155,
+   2
+  ],
+  [
+   "SELECT a_constraints.table_name, a_constraints.constraint_type, a_constraints.constraint_name, local.column_name AS local_column, remote.table_name AS remote_ta",
+   2.598,
+   20
+  ],
+  [
+   "SELECT a_views.text FROM all_views a_views WHERE a_views.view_name = :view_name_1 AND a_views.owner = :owner_1 UNION ALL SELECT a_mviews.query FROM all_mviews a",
+   1.138,
+   1000
+  ],
+  [
+   "SELECT a_ind_columns.table_name, a_ind_columns.index_name, a_ind_columns.column_name, a_indexes.index_type, a_indexes.uniqueness, a_indexes.compression, a_index",
+   0.991,
+   20
+  ],
+  [
+   "SELECT a_objects.object_name FROM all_objects a_objects WHERE a_objects.owner = :owner_1 AND a_objects.object_type IN (:object_type_1_1) AND a_objects.temporary",
+   0.737,
+   2
+  ]
+ ],
+ "info": {
+  "has_differences": false
+ },
+ "error": null
+}

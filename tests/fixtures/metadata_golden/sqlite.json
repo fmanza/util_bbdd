@@ -1,0 +1,335 @@
+{
+ "manager": {
+  "per_routine": {},
+  "per_table": {
+   "zz_gold_child": {
+    "columns": [
+     [
+      "id",
+      "INTEGER",
+      "NO",
+      null,
+      "",
+      "",
+      "",
+      "",
+      0,
+      1
+     ],
+     [
+      "parent_id",
+      "INTEGER",
+      "NO",
+      null,
+      "",
+      "",
+      "",
+      "",
+      1,
+      0
+     ],
+     [
+      "label",
+      "VARCHAR(50)",
+      "YES",
+      null,
+      "",
+      "",
+      "",
+      "",
+      2,
+      0
+     ]
+    ],
+    "ddl": "CREATE TABLE zz_gold_child (id INTEGER NOT NULL, parent_id INTEGER NOT NULL, label VARCHAR(50), CONSTRAINT pk_zz_gold_child PRIMARY KEY (id), CONSTRAINT fk_zz_gold_child_parent FOREIGN KEY (parent_id) REFERENCES zz_gold_parent (id) ON DELETE CASCADE)",
+    "fk": [
+     [
+      "FK_zz_gold_child_0",
+      "parent_id",
+      "zz_gold_parent",
+      "id"
+     ]
+    ],
+    "indices": [
+     [
+      "ix_zz_gold_child_label",
+      "label",
+      0,
+      "INDEX"
+     ]
+    ],
+    "pk": [
+     [
+      "id"
+     ]
+    ],
+    "uk": []
+   },
+   "zz_gold_composite": {
+    "columns": [
+     [
+      "a",
+      "INTEGER",
+      "NO",
+      null,
+      "",
+      "",
+      "",
+      "",
+      0,
+      1
+     ],
+     [
+      "b",
+      "INTEGER",
+      "NO",
+      null,
+      "",
+      "",
+      "",
+      "",
+      1,
+      2
+     ],
+     [
+      "note",
+      "VARCHAR(30)",
+      "YES",
+      null,
+      "",
+      "",
+      "",
+      "",
+      2,
+      0
+     ]
+    ],
+    "ddl": "CREATE TABLE zz_gold_composite (a INTEGER NOT NULL, b INTEGER NOT NULL, note VARCHAR(30), CONSTRAINT pk_zz_gold_composite PRIMARY KEY (a, b))",
+    "fk": [],
+    "indices": [
+     [
+      "sqlite_autoindex_zz_gold_composite_1",
+      "a",
+      1,
+      "PRIMARY KEY"
+     ],
+     [
+      "sqlite_autoindex_zz_gold_composite_1",
+      "b",
+      1,
+      "PRIMARY KEY"
+     ]
+    ],
+    "pk": [
+     [
+      "a"
+     ],
+     [
+      "b"
+     ]
+    ],
+    "uk": []
+   },
+   "zz_gold_identity": {
+    "columns": [
+     [
+      "id",
+      "INTEGER",
+      "YES",
+      null,
+      "",
+      "",
+      "",
+      "",
+      0,
+      1
+     ],
+     [
+      "val",
+      "VARCHAR(10)",
+      "YES",
+      null,
+      "",
+      "",
+      "",
+      "",
+      1,
+      0
+     ]
+    ],
+    "ddl": "CREATE TABLE zz_gold_identity (id INTEGER PRIMARY KEY AUTOINCREMENT, val VARCHAR(10))",
+    "fk": [],
+    "indices": [],
+    "pk": [
+     [
+      "id"
+     ]
+    ],
+    "uk": []
+   },
+   "zz_gold_parent": {
+    "columns": [
+     [
+      "id",
+      "INTEGER",
+      "NO",
+      null,
+      "",
+      "",
+      "",
+      "",
+      0,
+      1
+     ],
+     [
+      "code",
+      "VARCHAR(20)",
+      "NO",
+      null,
+      "",
+      "",
+      "",
+      "",
+      1,
+      0
+     ],
+     [
+      "name",
+      "VARCHAR(100)",
+      "YES",
+      null,
+      "",
+      "",
+      "",
+      "",
+      2,
+      0
+     ],
+     [
+      "amount",
+      "NUMERIC(12,2)",
+      "YES",
+      null,
+      "",
+      "",
+      "",
+      "",
+      3,
+      0
+     ],
+     [
+      "created",
+      "DATE",
+      "YES",
+      null,
+      "",
+      "",
+      "",
+      "",
+      4,
+      0
+     ]
+    ],
+    "ddl": "CREATE TABLE zz_gold_parent (id INTEGER NOT NULL, code VARCHAR(20) NOT NULL, name VARCHAR(100), amount NUMERIC(12,2), created DATE, CONSTRAINT pk_zz_gold_parent PRIMARY KEY (id), CONSTRAINT uk_zz_gold_parent_code UNIQUE (code))",
+    "fk": [],
+    "indices": [
+     [
+      "sqlite_autoindex_zz_gold_parent_1",
+      "code",
+      1,
+      "UNIQUE"
+     ]
+    ],
+    "pk": [
+     [
+      "id"
+     ]
+    ],
+    "uk": [
+     [
+      "sqlite_autoindex_zz_gold_parent_1",
+      "code"
+     ]
+    ]
+   },
+   "zz_gold_ref_composite": {
+    "columns": [
+     [
+      "id",
+      "INTEGER",
+      "NO",
+      null,
+      "",
+      "",
+      "",
+      "",
+      0,
+      1
+     ],
+     [
+      "a",
+      "INTEGER",
+      "YES",
+      null,
+      "",
+      "",
+      "",
+      "",
+      1,
+      0
+     ],
+     [
+      "b",
+      "INTEGER",
+      "YES",
+      null,
+      "",
+      "",
+      "",
+      "",
+      2,
+      0
+     ]
+    ],
+    "ddl": "CREATE TABLE zz_gold_ref_composite (id INTEGER NOT NULL, a INTEGER, b INTEGER, CONSTRAINT pk_zz_gold_ref_composite PRIMARY KEY (id), CONSTRAINT fk_zz_gold_ref_composite FOREIGN KEY (a, b) REFERENCES zz_gold_composite (a, b))",
+    "fk": [
+     [
+      "FK_zz_gold_ref_composite_0",
+      "a",
+      "zz_gold_composite",
+      "a"
+     ],
+     [
+      "FK_zz_gold_ref_composite_0",
+      "b",
+      "zz_gold_composite",
+      "b"
+     ]
+    ],
+    "indices": [],
+    "pk": [
+     [
+      "id"
+     ]
+    ],
+    "uk": []
+   }
+  },
+  "per_view": {
+   "zz_gold_v_parent": {
+    "ddl": "CREATE VIEW zz_gold_v_parent AS SELECT id, code FROM zz_gold_parent"
+   }
+  },
+  "routines": [],
+  "tables": [
+   "zz_gold_child",
+   "zz_gold_composite",
+   "zz_gold_identity",
+   "zz_gold_parent",
+   "zz_gold_ref_composite"
+  ],
+  "views": [
+   "zz_gold_v_parent"
+  ]
+ }
+}

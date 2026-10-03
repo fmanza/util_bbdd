@@ -1,0 +1,50 @@
+{
+ "flow": "comparar",
+ "engine": "mariadb",
+ "volume": 500,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 1.669,
+ "median_catalog_seconds": 0.764,
+ "peak_mb": 12.4,
+ "queries_total": 1148,
+ "queries_catalog": 1148,
+ "top_catalog_fingerprints": [
+  [
+   "SHOW FULL TABLES FROM `zz_util_bbdd_md_500`",
+   4
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_500`.`t00000`",
+   2
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_500`.`t00001`",
+   2
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_500`.`t00002`",
+   2
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_500`.`t00003`",
+   2
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_500`.`t00004`",
+   2
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_500`.`t00005`",
+   2
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_500`.`t00006`",
+   2
+  ]
+ ],
+ "info": {
+  "has_differences": false
+ },
+ "error": null
+}

@@ -1,0 +1,78 @@
+{
+ "flow": "dump",
+ "engine": "postgresql",
+ "volume": 5000,
+ "limit": null,
+ "repeat": 1,
+ "median_seconds": 288.687,
+ "median_catalog_seconds": 105.218,
+ "peak_mb": 214.2,
+ "queries_total": 114369,
+ "queries_catalog": 68130,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT pg_catalog.pg_class.relname, pg_catalog.pg_constraint.conname, CASE WHEN (pg_catalog.pg_constraint.oid IS NOT NULL) THEN pg_catalog.pg_get_constraintdef(",
+   15000
+  ],
+  [
+   "SELECT pg_catalog.pg_attribute.attname AS name, pg_catalog.format_type(pg_catalog.pg_attribute.atttypid, pg_catalog.pg_attribute.atttypmod) AS format_type, (SEL",
+   15000
+  ],
+  [
+   "SELECT attr.conrelid, array_agg(CAST(attr.attname AS TEXT) ORDER BY attr.ord) AS cols, attr.conname, min(attr.description) AS description, min(attr.indnkeyatts)",
+   10000
+  ],
+  [
+   "SELECT pg_catalog.pg_type.typname AS name, pg_catalog.format_type(pg_catalog.pg_type.typbasetype, pg_catalog.pg_type.typtypmod) AS attype, NOT pg_catalog.pg_typ",
+   5002
+  ],
+  [
+   "SELECT pg_catalog.pg_type.typname AS name, pg_catalog.pg_type_is_visible(pg_catalog.pg_type.oid) AS visible, pg_catalog.pg_namespace.nspname AS schema, lbl_agg.",
+   5002
+  ],
+  [
+   "SELECT pg_catalog.pg_class.oid, pg_catalog.pg_class.relname FROM pg_catalog.pg_class JOIN pg_catalog.pg_namespace ON pg_catalog.pg_namespace.oid = pg_catalog.pg",
+   5000
+  ],
+  [
+   "SELECT pg_catalog.pg_index.indrelid, pg_catalog.pg_class.relname, pg_catalog.pg_index.indisunique, pg_catalog.pg_constraint.conrelid IS NOT NULL AS has_constrai",
+   5000
+  ],
+  [
+   "SELECT pg_catalog.pg_class.relname, pg_catalog.pg_description.description FROM pg_catalog.pg_class LEFT OUTER JOIN pg_catalog.pg_description ON pg_catalog.pg_cl",
+   5000
+  ]
+ ],
+ "slowest_catalog_fingerprints": [
+  [
+   "SELECT pg_catalog.pg_attribute.attname AS name, pg_catalog.format_type(pg_catalog.pg_attribute.atttypid, pg_catalog.pg_attribute.atttypmod) AS format_type, (SEL",
+   28.357,
+   15000
+  ],
+  [
+   "SELECT pg_catalog.pg_class.relname, pg_catalog.pg_constraint.conname, CASE WHEN (pg_catalog.pg_constraint.oid IS NOT NULL) THEN pg_catalog.pg_get_constraintdef(",
+   21.93,
+   15000
+  ],
+  [
+   "SELECT pg_catalog.pg_type.typname AS name, pg_catalog.format_type(pg_catalog.pg_type.typbasetype, pg_catalog.pg_type.typtypmod) AS attype, NOT pg_catalog.pg_typ",
+   14.793,
+   5002
+  ],
+  [
+   "SELECT attr.conrelid, array_agg(CAST(attr.attname AS TEXT) ORDER BY attr.ord) AS cols, attr.conname, min(attr.description) AS description, min(attr.indnkeyatts)",
+   11.122,
+   10000
+  ],
+  [
+   "SELECT pg_catalog.pg_type.typname AS name, pg_catalog.pg_type_is_visible(pg_catalog.pg_type.oid) AS visible, pg_catalog.pg_namespace.nspname AS schema, lbl_agg.",
+   9.214,
+   5002
+  ]
+ ],
+ "info": {
+  "tables": 5000,
+  "constraints": 4999
+ },
+ "error": null
+}

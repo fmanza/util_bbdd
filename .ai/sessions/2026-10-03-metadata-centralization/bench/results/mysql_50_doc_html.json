@@ -1,0 +1,40 @@
+{
+ "flow": "doc_html",
+ "engine": "mysql",
+ "volume": 50,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 0.544,
+ "median_catalog_seconds": 0.084,
+ "peak_mb": 6.4,
+ "queries_total": 59,
+ "queries_catalog": 59,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT HEX(COLUMN_NAME) AS column_name_hex, HEX(COLUMN_TYPE) AS column_type_hex, IS_NULLABLE, COLUMN_KEY, CASE WHEN COLUMN_DEFAULT IS NULL THEN N ELSE N END AS ",
+   55
+  ],
+  [
+   "SELECT CONVERT(table_name USING utf8mb4) AS table_name, CONVERT(table_comment USING utf8mb4) AS table_comment, SUBSTRING_INDEX(TABLE_COLLATION, '?', N) AS chars",
+   1
+  ],
+  [
+   "SELECT CONVERT(table_name USING utf8mb4) AS table_name, CONVERT(table_comment USING utf8mb4) AS table_comment FROM information_schema.tables WHERE table_schema ",
+   1
+  ],
+  [
+   "SELECT HEX(COALESCE(ROUTINE_NAME, '?')) AS routine_name_hex, UPPER(COALESCE(ROUTINE_TYPE, '?')) AS routine_type, HEX(COALESCE(ROUTINE_COMMENT, '?')) AS routine_",
+   1
+  ],
+  [
+   "SELECT CASE WHEN UPPER(p.ROUTINE_TYPE) = '?' AND p.ORDINAL_POSITION = N THEN '?' ELSE COALESCE(HEX(COALESCE(p.PARAMETER_MODE, '?')), '?') END AS parameter_mode_",
+   1
+  ]
+ ],
+ "info": {
+  "tables": 50,
+  "views": 5,
+  "routines": 2
+ },
+ "error": null
+}

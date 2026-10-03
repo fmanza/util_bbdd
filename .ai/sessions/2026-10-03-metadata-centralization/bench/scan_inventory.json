@@ -1,0 +1,1544 @@
+{
+ "catalog_sql": [
+  {
+   "file": "util_bbdd/bulk/_support/pk_sync.py",
+   "line": 154,
+   "in_metadata": false,
+   "match": "pg_get_serial_sequence",
+   "sql": "SELECT pg_get_serial_sequence(:tbl, :col)"
+  },
+  {
+   "file": "util_bbdd/comparar/reporters/sql_reporter.py",
+   "line": 1088,
+   "in_metadata": false,
+   "match": "sys.default_constraints",
+   "sql": "DECLARE {…} nvarchar(max) = (SELECT N'ALTER TABLE {…} DROP CONSTRAINT ' + QUOTENAME(dc.name) FROM sys.default_constraints dc WHERE dc.parent"
+  },
+  {
+   "file": "util_bbdd/connection/mariadb/_variables.py",
+   "line": 69,
+   "in_metadata": false,
+   "match": "SHOW VARIABLES",
+   "sql": "SHOW VARIABLES LIKE '{…}'"
+  },
+  {
+   "file": "util_bbdd/connection/sqlite/_variables.py",
+   "line": 95,
+   "in_metadata": false,
+   "match": "PRAGMA",
+   "sql": "PRAGMA journal_mode=WAL mejora escritura concurrente y rendimiento"
+  },
+  {
+   "file": "util_bbdd/connection/sqlite/_variables.py",
+   "line": 116,
+   "in_metadata": false,
+   "match": "PRAGMA",
+   "sql": "PRAGMA synchronous=NORMAL reduce fsync en carga masiva sin riesgo de corrupción"
+  },
+  {
+   "file": "util_bbdd/connection/sqlite/_variables.py",
+   "line": 138,
+   "in_metadata": false,
+   "match": "PRAGMA",
+   "sql": "PRAGMA cache_size=-65536 establece 64 MB de caché de páginas"
+  },
+  {
+   "file": "util_bbdd/connection/sqlite/_variables.py",
+   "line": 152,
+   "in_metadata": false,
+   "match": "PRAGMA",
+   "sql": "PRAGMA temp_store=MEMORY acelera operaciones con tablas temporales"
+  },
+  {
+   "file": "util_bbdd/connection/sqlite/_variables.py",
+   "line": 161,
+   "in_metadata": false,
+   "match": "PRAGMA",
+   "sql": "PRAGMA {…}"
+  },
+  {
+   "file": "util_bbdd/connection/sqlite/_variables.py",
+   "line": 172,
+   "in_metadata": false,
+   "match": "PRAGMA",
+   "sql": "PRAGMA {…}"
+  },
+  {
+   "file": "util_bbdd/connection/sqlite/async_connection_sqlite.py",
+   "line": 48,
+   "in_metadata": false,
+   "match": "PRAGMA",
+   "sql": "PRAGMA foreign_keys = ON"
+  },
+  {
+   "file": "util_bbdd/connection/sqlite/connection_sqlite.py",
+   "line": 79,
+   "in_metadata": false,
+   "match": "PRAGMA",
+   "sql": "PRAGMA foreign_keys = ON"
+  },
+  {
+   "file": "util_bbdd/connection/sqlite/pool_connection_sqlite.py",
+   "line": 103,
+   "in_metadata": false,
+   "match": "PRAGMA",
+   "sql": "PRAGMA foreign_keys = ON"
+  },
+  {
+   "file": "util_bbdd/connection/sqlserver/_variables.py",
+   "line": 135,
+   "in_metadata": false,
+   "match": "sys.configurations",
+   "sql": "SELECT CAST(value_in_use AS INT) FROM sys.configurations WHERE name = :n"
+  },
+  {
+   "file": "util_bbdd/connection/sqlserver/_variables.py",
+   "line": 145,
+   "in_metadata": false,
+   "match": "sys.databases",
+   "sql": "SELECT recovery_model FROM sys.databases WHERE name = :db"
+  },
+  {
+   "file": "util_bbdd/doc/infrastructure/storage/runtime.py",
+   "line": 46,
+   "in_metadata": false,
+   "match": "user_users",
+   "sql": "SELECT default_tablespace, temporary_tablespace FROM user_users"
+  },
+  {
+   "file": "util_bbdd/metadata/mariadb/_adapter_helpers.py",
+   "line": 26,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT HEX(COLUMN_NAME) AS column_name_hex, HEX(COLUMN_TYPE) AS column_type_hex, IS_NULLABLE, COLUMN_KEY, CASE WHEN COLUMN_DEFAULT IS NULL T"
+  },
+  {
+   "file": "util_bbdd/metadata/mariadb/_adapter_helpers.py",
+   "line": 49,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT VIEW_DEFINITION FROM information_schema.views WHERE TABLE_SCHEMA = {…} AND TABLE_NAME = %(view)s LIMIT 1"
+  },
+  {
+   "file": "util_bbdd/metadata/mariadb/tables.py",
+   "line": 99,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT TABLE_NAME, TABLE_COMMENT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = %(schema)s AND TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE"
+  },
+  {
+   "file": "util_bbdd/metadata/mariadb/tables.py",
+   "line": 121,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA, C"
+  },
+  {
+   "file": "util_bbdd/metadata/mariadb/tables.py",
+   "line": 139,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = %(schema)s AND CONSTRAINT_NAME = 'PRIMARY' ORDE"
+  },
+  {
+   "file": "util_bbdd/metadata/mariadb/tables.py",
+   "line": 157,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME, kcu.REFERENCED_TABLE_SCHEMA, kcu.REFERENCED_TABLE_NAME, kcu.REFERENCED_COLUMN_N"
+  },
+  {
+   "file": "util_bbdd/metadata/mariadb/tables.py",
+   "line": 180,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT TABLE_NAME, INDEX_NAME, COLUMN_NAME, NON_UNIQUE, SEQ_IN_INDEX FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = %(schema)s AND "
+  },
+  {
+   "file": "util_bbdd/metadata/mariadb/tables.py",
+   "line": 197,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT TABLE_NAME, VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA = %(schema)s ORDER BY TABLE_NAME"
+  },
+  {
+   "file": "util_bbdd/metadata/mariadb/tables.py",
+   "line": 216,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT ROUTINE_NAME, ROUTINE_TYPE, ROUTINE_SCHEMA, ROUTINE_DEFINITION, DTD_IDENTIFIER, ROUTINE_COMMENT, IS_DETERMINISTIC, SQL_DATA_ACCESS, S"
+  },
+  {
+   "file": "util_bbdd/metadata/mariadb/tables.py",
+   "line": 264,
+   "in_metadata": true,
+   "match": "SHOW CREATE",
+   "sql": "SHOW CREATE {…} {…}"
+  },
+  {
+   "file": "util_bbdd/metadata/mariadb/tables.py",
+   "line": 278,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT SPECIFIC_NAME, ROUTINE_TYPE, PARAMETER_MODE, PARAMETER_NAME, DTD_IDENTIFIER FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_SCHEMA "
+  },
+  {
+   "file": "util_bbdd/metadata/mariadb/tables.py",
+   "line": 297,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = COALESCE(:schema, DATABASE()) AND TABLE_NAME = :tbl"
+  },
+  {
+   "file": "util_bbdd/metadata/mysql/_adapter_helpers.py",
+   "line": 17,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME NOT IN ('mysql', 'information_schema', 'performance_schema', 'sys') OR"
+  },
+  {
+   "file": "util_bbdd/metadata/mysql/_adapter_helpers.py",
+   "line": 31,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT TABLE_NAME, TABLE_TYPE, TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = %(schema_name)s ORDER BY TABLE_NAME"
+  },
+  {
+   "file": "util_bbdd/metadata/mysql/_adapter_helpers.py",
+   "line": 47,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, ORDINAL_POSITION, COLUMN_DEFAULT, COLUMN_COMMENT, EXTRA FROM information_schema.COLUMNS WHERE "
+  },
+  {
+   "file": "util_bbdd/metadata/mysql/_adapter_helpers.py",
+   "line": 71,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT CONSTRAINT_NAME, COLUMN_NAME, ORDINAL_POSITION FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = %(schema_name)s AND TABL"
+  },
+  {
+   "file": "util_bbdd/metadata/mysql/_adapter_helpers.py",
+   "line": 93,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT k.CONSTRAINT_NAME, k.COLUMN_NAME, k.REFERENCED_TABLE_NAME, k.REFERENCED_COLUMN_NAME, r.UPDATE_RULE, r.DELETE_RULE, k.ORDINAL_POSITION"
+  },
+  {
+   "file": "util_bbdd/metadata/mysql/_adapter_helpers.py",
+   "line": 121,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX, NON_UNIQUE FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = %(schema_name)s AND TABLE_N"
+  },
+  {
+   "file": "util_bbdd/metadata/mysql/_adapter_helpers.py",
+   "line": 141,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT ROUTINE_NAME, ROUTINE_TYPE, CREATED FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA = %(schema_name)s ORDER BY ROUTINE_NAME"
+  },
+  {
+   "file": "util_bbdd/metadata/mysql/_adapter_helpers.py",
+   "line": 158,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT PARAMETER_NAME, PARAMETER_MODE, DATA_TYPE, ORDINAL_POSITION FROM information_schema.PARAMETERS WHERE SPECIFIC_SCHEMA = %(schema_name)"
+  },
+  {
+   "file": "util_bbdd/metadata/mysql/routines.py",
+   "line": 122,
+   "in_metadata": true,
+   "match": "SHOW CREATE",
+   "sql": "SHOW CREATE {…} {…}"
+  },
+  {
+   "file": "util_bbdd/metadata/mysql/tables.py",
+   "line": 167,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA, C"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/indexes.py",
+   "line": 60,
+   "in_metadata": true,
+   "match": "user_indexes",
+   "sql": "SELECT ui.index_name FROM user_indexes ui WHERE ui.table_name = UPPER(:tbl) AND ui.index_type = 'NORMAL' AND ui.uniqueness = 'NONUNIQUE' AND"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/indexes.py",
+   "line": 53,
+   "in_metadata": true,
+   "match": "all_indexes",
+   "sql": "SELECT ai.index_name FROM all_indexes ai WHERE ai.table_name = UPPER(:tbl) AND ai.owner = UPPER(:owner) AND ai.index_type = 'NORMAL' AND ai."
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 24,
+   "in_metadata": true,
+   "match": "all_tables",
+   "sql": "SELECT DISTINCT owner FROM all_tables WHERE owner NOT IN ('SYS', 'SYSTEM', 'XDB', 'MDSYS', 'ORDDATA', 'SI_INFORMTN_SCHEMA', 'CTXSYS', 'TXNSY"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 43,
+   "in_metadata": true,
+   "match": "all_tables",
+   "sql": "SELECT t.table_name, 'TABLE' AS table_type, COALESCE(c.comments, '') AS table_comment FROM all_tables t LEFT JOIN all_tab_comments c ON c.ow"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 66,
+   "in_metadata": true,
+   "match": "all_tab_columns",
+   "sql": "SELECT c.column_name, c.data_type, CASE WHEN c.nullable = 'Y' THEN 'YES' ELSE 'NO' END AS is_nullable, c.column_id AS ordinal_position, c.da"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 148,
+   "in_metadata": true,
+   "match": "all_constraints",
+   "sql": "SELECT cc.constraint_name, cc.column_name, cc.position AS ordinal_position FROM all_constraints con JOIN all_cons_columns cc ON con.constrai"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 174,
+   "in_metadata": true,
+   "match": "all_constraints",
+   "sql": "SELECT con.constraint_name, cc.column_name, rcon.owner AS ref_owner, rcon.table_name AS ref_table, rcc.column_name AS ref_column, con.delete"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 210,
+   "in_metadata": true,
+   "match": "all_indexes",
+   "sql": "SELECT i.index_name, ic.column_name, COALESCE(ic.descend, 'ASC') AS order_direction, i.uniqueness, ic.column_position AS ordinal_position FR"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 238,
+   "in_metadata": true,
+   "match": "all_views",
+   "sql": "SELECT v.view_name, v.text, c.comments FROM all_views v LEFT JOIN all_tab_comments c ON c.owner = v.owner AND c.table_name = v.view_name AND"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 257,
+   "in_metadata": true,
+   "match": "all_tab_columns",
+   "sql": "SELECT column_name FROM all_tab_columns WHERE owner = :owner AND table_name = :view_name ORDER BY column_id"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 276,
+   "in_metadata": true,
+   "match": "all_procedures",
+   "sql": "SELECT COALESCE(procedure_name, object_name), object_type, owner, object_id FROM all_procedures WHERE owner = :owner AND object_type IN ('PR"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 291,
+   "in_metadata": true,
+   "match": "all_arguments",
+   "sql": "SELECT argument_name, position, in_out, data_type, data_length, data_precision, data_scale, object_id, argument_id FROM all_arguments WHERE "
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 319,
+   "in_metadata": true,
+   "match": "all_source",
+   "sql": "SELECT line, text FROM all_source WHERE owner = :owner AND name = :routine_name AND type = :routine_type ORDER BY line"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 351,
+   "in_metadata": true,
+   "match": "user_tab_identity_cols",
+   "sql": "SELECT i.generation_type, c.default_on_null FROM user_tab_identity_cols i JOIN user_tab_columns c ON c.table_name = i.table_name AND c.colum"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 370,
+   "in_metadata": true,
+   "match": "all_tab_columns",
+   "sql": "SELECT c.table_name, c.column_name, c.data_type, CASE WHEN c.nullable = 'Y' THEN 'YES' ELSE 'NO' END AS is_nullable, c.column_id AS ordinal_"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 399,
+   "in_metadata": true,
+   "match": "all_constraints",
+   "sql": "SELECT con.table_name, cc.constraint_name, cc.column_name, cc.position AS ordinal_position FROM all_constraints con JOIN all_cons_columns cc"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 421,
+   "in_metadata": true,
+   "match": "all_constraints",
+   "sql": "SELECT con.table_name, con.constraint_name, cc.column_name, rcon.owner AS ref_owner, rcon.table_name AS ref_table, rcc.column_name AS ref_co"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 455,
+   "in_metadata": true,
+   "match": "all_indexes",
+   "sql": "SELECT i.table_name, i.index_name, ic.column_name, COALESCE(ic.descend, 'ASC') AS order_direction, i.uniqueness, ic.column_position AS ordin"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 477,
+   "in_metadata": true,
+   "match": "all_tab_columns",
+   "sql": "SELECT table_name, column_name FROM all_tab_columns WHERE owner = :owner ORDER BY table_name, column_id"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 493,
+   "in_metadata": true,
+   "match": "all_procedures",
+   "sql": "SELECT object_name, object_type, procedure_name FROM all_procedures WHERE owner = :owner AND object_type IN ('PROCEDURE', 'FUNCTION', 'PACKA"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 509,
+   "in_metadata": true,
+   "match": "all_source",
+   "sql": "SELECT name, type, line, text FROM all_source WHERE owner = :owner AND type IN ('PROCEDURE', 'FUNCTION', 'PACKAGE BODY') ORDER BY name, type"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 529,
+   "in_metadata": true,
+   "match": "all_source",
+   "sql": "SELECT name, type, line, text FROM all_source WHERE owner = :owner AND type IN ('PROCEDURE', 'FUNCTION') ORDER BY name, type, line"
+  },
+  {
+   "file": "util_bbdd/metadata/oracle/tables.py",
+   "line": 345,
+   "in_metadata": true,
+   "match": "all_tab_identity_cols",
+   "sql": "SELECT i.generation_type, c.default_on_null FROM all_tab_identity_cols i JOIN all_tab_columns c ON c.owner = i.owner AND c.table_name = i.ta"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/async_adapter.py",
+   "line": 322,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT p.ordinal_position, p.parameter_mode, p.parameter_name, p.data_type, NULL AS default_value, p.routine_name, r.routine_type FROM infor"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/routines.py",
+   "line": 26,
+   "in_metadata": true,
+   "match": "pg_get_functiondef",
+   "sql": "SELECT p.proname AS routine_name, CASE WHEN p.prokind = 'f' THEN 'FUNCTION' WHEN p.prokind = 'p' THEN 'PROCEDURE' WHEN p.prokind = 'a' THEN "
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/routines.py",
+   "line": 61,
+   "in_metadata": true,
+   "match": "pg_proc",
+   "sql": "SELECT p.proname, obj_description(p.oid, 'pg_proc') FROM pg_proc p JOIN pg_namespace ns ON p.pronamespace = ns.oid WHERE ns.nspname = %(sche"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/routines.py",
+   "line": 85,
+   "in_metadata": true,
+   "match": "pg_catalog",
+   "sql": "SELECT p.proname, p.prokind, pg_catalog.oidvectortypes(p.proargtypes) AS identity_args, pg_catalog.pg_get_functiondef(p.oid) AS definition F"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/routines.py",
+   "line": 102,
+   "in_metadata": true,
+   "match": "pg_get_pardef",
+   "sql": "SELECT ia.ordinal_position, ia.parameter_mode, ia.parameter_name, ia.data_type, pg_get_pardef(p.oid, ia.ordinal_position - 1) AS default_val"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/sync_adapter.py",
+   "line": 317,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT p.ordinal_position, p.parameter_mode, p.parameter_name, p.data_type, NULL AS default_value, p.routine_name, r.routine_type FROM infor"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/tables.py",
+   "line": 14,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('pg_catalog', 'information_schema', 'pg_toast', 'pg_temp_1') O"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/tables.py",
+   "line": 31,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT t.table_name, t.table_type, COALESCE(d.description, '') AS table_comment FROM information_schema.tables t LEFT JOIN pg_description d "
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/tables.py",
+   "line": 55,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT c.column_name, c.data_type, CASE WHEN c.is_nullable = 'YES' THEN 'YES' ELSE 'NO' END AS is_nullable, CASE WHEN tc.constraint_type = '"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/tables.py",
+   "line": 129,
+   "in_metadata": true,
+   "match": "pg_class",
+   "sql": "SELECT c.conname AS constraint_name, a.attname AS column_name, a.attnum AS ordinal_position FROM pg_class t JOIN pg_namespace n ON t.relname"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/tables.py",
+   "line": 145,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT rc.constraint_name, kcu.column_name, ccu.table_schema AS referenced_table_schema, ccu.table_name AS referenced_table_name, ccu.column"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/tables.py",
+   "line": 169,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT tc.constraint_name, kcu.column_name, kcu.ordinal_position FROM information_schema.table_constraints tc JOIN information_schema.key_co"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/tables.py",
+   "line": 186,
+   "in_metadata": true,
+   "match": "pg_class",
+   "sql": "SELECT indexname, indexdef, CASE WHEN ix.indisunique THEN 1 ELSE 0 END AS is_unique, CASE WHEN ix.indisprimary THEN 1 ELSE 0 END AS is_prima"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/tables.py",
+   "line": 219,
+   "in_metadata": true,
+   "match": "pg_class",
+   "sql": "SELECT t.TABLE_NAME, obj_description((quote_ident(t.TABLE_SCHEMA) || '.' || quote_ident(t.TABLE_NAME))::regclass, 'pg_class') FROM INFORMATI"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/tables.py",
+   "line": 249,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT c.TABLE_NAME, c.COLUMN_NAME, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, c.NUMERIC_PRECISION, c.NUMERIC_SCALE, c.IS_NULLABLE, c.COLUMN_D"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/tables.py",
+   "line": 271,
+   "in_metadata": true,
+   "match": "pg_catalog",
+   "sql": "SELECT c.relname AS table_name, i.relname AS index_name, a.attname AS column_name, ix.indisunique AS is_unique, gs AS seq_in_index FROM pg_c"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/tables.py",
+   "line": 299,
+   "in_metadata": true,
+   "match": "pg_catalog",
+   "sql": "SELECT c.relname AS table_name, a.attname AS column_name FROM pg_catalog.pg_constraint con JOIN pg_catalog.pg_class c ON c.oid = con.conreli"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/tables.py",
+   "line": 322,
+   "in_metadata": true,
+   "match": "pg_catalog",
+   "sql": "SELECT c.relname AS table_name, con.conname AS constraint_name, a.attname AS column_name, rn.nspname AS ref_schema, rc.relname AS ref_table,"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/tables.py",
+   "line": 348,
+   "in_metadata": true,
+   "match": "pg_class",
+   "sql": "SELECT v.TABLE_NAME, v.VIEW_DEFINITION, obj_description((quote_ident(v.TABLE_SCHEMA) || '.' || quote_ident(v.TABLE_NAME))::regclass, 'pg_cla"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/tables.py",
+   "line": 467,
+   "in_metadata": true,
+   "match": "pg_tables",
+   "sql": "SELECT current_setting('is_superuser') = 'on' OR EXISTS ( SELECT 1 FROM pg_tables WHERE schemaname = COALESCE(:schema, current_schema()) AND"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/tables.py",
+   "line": 500,
+   "in_metadata": true,
+   "match": "pg_get_indexdef",
+   "sql": "SELECT ic.relname AS index_name, pg_get_indexdef(i.indexrelid) AS ddl FROM pg_index i JOIN pg_class ic ON ic.oid = i.indexrelid JOIN pg_clas"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/tables.py",
+   "line": 524,
+   "in_metadata": true,
+   "match": "pg_attribute",
+   "sql": "SELECT c.confrelid::regclass::text, (SELECT array_agg(quote_ident(a.attname) ORDER BY k.ord) FROM unnest(c.conkey) WITH ORDINALITY AS k(attn"
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/tables.py",
+   "line": 325,
+   "in_metadata": true,
+   "match": "pg_catalog",
+   "sql": "AS update_rule FROM pg_catalog.pg_constraint con JOIN pg_catalog.pg_class c ON c.oid = con.conrelid JOIN pg_catalog.pg_namespace n ON n.oid "
+  },
+  {
+   "file": "util_bbdd/metadata/postgresql/types_advanced.py",
+   "line": 377,
+   "in_metadata": true,
+   "match": "pg_attribute",
+   "sql": "SELECT pg_attribute.attname AS field_name, pg_attribute.atttypid AS field_type_oid, (SELECT typname FROM pg_type WHERE oid = pg_attribute.at"
+  },
+  {
+   "file": "util_bbdd/metadata/redshift/_adapter_helpers.py",
+   "line": 22,
+   "in_metadata": true,
+   "match": "pg_catalog",
+   "sql": "SELECT n.nspname FROM pg_catalog.pg_namespace n WHERE n.nspname NOT LIKE 'pg\\_%%' AND n.nspname != 'information_schema' ORDER BY n.nspname"
+  },
+  {
+   "file": "util_bbdd/metadata/redshift/_adapter_helpers.py",
+   "line": 37,
+   "in_metadata": true,
+   "match": "pg_catalog",
+   "sql": "SELECT tablename, 'TABLE' AS table_type, '' FROM pg_catalog.pg_tables WHERE schemaname = :schema_name ORDER BY tablename"
+  },
+  {
+   "file": "util_bbdd/metadata/redshift/_adapter_helpers.py",
+   "line": 53,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT column_name, udt_name, is_nullable, ordinal_position, column_default, '' FROM information_schema.columns WHERE table_schema = :schema"
+  },
+  {
+   "file": "util_bbdd/metadata/redshift/_adapter_helpers.py",
+   "line": 76,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT constraint_name, column_name, ordinal_position FROM information_schema.key_column_usage WHERE table_schema = :schema_name AND table_n"
+  },
+  {
+   "file": "util_bbdd/metadata/redshift/_adapter_helpers.py",
+   "line": 99,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT k.constraint_name, k.column_name, k.referenced_table_name, k.referenced_column_name, r.update_rule, r.delete_rule, k.ordinal_position"
+  },
+  {
+   "file": "util_bbdd/metadata/redshift/_adapter_helpers.py",
+   "line": 127,
+   "in_metadata": true,
+   "match": "pg_catalog",
+   "sql": "SELECT indexname, 'INDEX' AS index_type, '' FROM pg_catalog.pg_indexes WHERE schemaname = :schema_name AND tablename = :table_name ORDER BY "
+  },
+  {
+   "file": "util_bbdd/metadata/redshift/_adapter_helpers.py",
+   "line": 147,
+   "in_metadata": true,
+   "match": "information_schema",
+   "sql": "SELECT routine_name, routine_type, created, routine_schema FROM information_schema.routines WHERE routine_schema = :schema_name ORDER BY rou"
+  },
+  {
+   "file": "util_bbdd/metadata/snowflake/_adapter_helpers.py",
+   "line": 26,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT DATABASE_NAME FROM INFORMATION_SCHEMA.DATABASES WHERE DATABASE_NAME NOT IN ('SNOWFLAKE_SAMPLE_DATA') ORDER BY DATABASE_NAME"
+  },
+  {
+   "file": "util_bbdd/metadata/snowflake/_adapter_helpers.py",
+   "line": 42,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE CATALOG_NAME = :database_name AND SCHEMA_NAME NOT IN ('INFORMATION_SCHEMA', 'SNOWF"
+  },
+  {
+   "file": "util_bbdd/metadata/snowflake/_adapter_helpers.py",
+   "line": 57,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT TABLE_NAME, TABLE_TYPE, COALESCE(COMMENT, '') AS table_comment FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_CATALOG = :database_name AN"
+  },
+  {
+   "file": "util_bbdd/metadata/snowflake/_adapter_helpers.py",
+   "line": 78,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, ORDINAL_POSITION, COLUMN_DEFAULT, COALESCE(COMMENT, '') AS column_comment FROM INFORMATION_SCHEM"
+  },
+  {
+   "file": "util_bbdd/metadata/snowflake/_adapter_helpers.py",
+   "line": 102,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT tc.CONSTRAINT_NAME, kcu.COLUMN_NAME, kcu.ORDINAL_POSITION FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc LEFT JOIN INFORMATION_SCHEMA.K"
+  },
+  {
+   "file": "util_bbdd/metadata/snowflake/_adapter_helpers.py",
+   "line": 129,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT rc.CONSTRAINT_NAME, kcu.COLUMN_NAME, kcu.REFERENCED_TABLE_NAME, kcu.REFERENCED_COLUMN_NAME, rc.UPDATE_RULE, rc.DELETE_RULE, kcu.ORDIN"
+  },
+  {
+   "file": "util_bbdd/metadata/snowflake/_adapter_helpers.py",
+   "line": 178,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT ROUTINE_NAME, ROUTINE_TYPE, CREATED, ROUTINE_DEFINITION, LANGUAGE FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_CATALOG = :database_"
+  },
+  {
+   "file": "util_bbdd/metadata/snowflake/_adapter_helpers.py",
+   "line": 201,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT PARAMETER_NAME, PARAMETER_MODE, DATA_TYPE, ORDINAL_POSITION FROM INFORMATION_SCHEMA.PARAMETERS WHERE ROUTINE_CATALOG = :database_name"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlite/_adapter_helpers.py",
+   "line": 24,
+   "in_metadata": true,
+   "match": "PRAGMA",
+   "sql": "PRAGMA index_info({…});"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlite/constraints.py",
+   "line": 30,
+   "in_metadata": true,
+   "match": "PRAGMA",
+   "sql": "PRAGMA {…}.table_info({…})"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlite/constraints.py",
+   "line": 72,
+   "in_metadata": true,
+   "match": "PRAGMA",
+   "sql": "PRAGMA {…}.foreign_key_list({…})"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlite/indexes.py",
+   "line": 53,
+   "in_metadata": true,
+   "match": "PRAGMA",
+   "sql": "PRAGMA {…}.index_list({…})"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlite/routines.py",
+   "line": 30,
+   "in_metadata": true,
+   "match": "sqlite_master",
+   "sql": "SELECT name, tbl_name, 'TRIGGER', '' FROM {…}.sqlite_master WHERE type='trigger' AND tbl_name = :table_name ORDER BY name"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlite/routines.py",
+   "line": 39,
+   "in_metadata": true,
+   "match": "sqlite_master",
+   "sql": "SELECT name, tbl_name, 'TRIGGER', '' FROM {…}.sqlite_master WHERE type='trigger' ORDER BY name"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlite/tables.py",
+   "line": 64,
+   "in_metadata": true,
+   "match": "sqlite_master",
+   "sql": "SELECT name, 'TABLE', '' as comments FROM {…}.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlite/tables.py",
+   "line": 97,
+   "in_metadata": true,
+   "match": "PRAGMA",
+   "sql": "PRAGMA {…}.table_info({…})"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/_adapter_helpers.py",
+   "line": 19,
+   "in_metadata": true,
+   "match": "sys.schemas",
+   "sql": "SELECT s.name FROM sys.schemas s WHERE s.name NOT IN ('sys', 'INFORMATION_SCHEMA', 'msdb_repl', 'msdb') AND s.principal_id IN (1, 2, 16384) "
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/_adapter_helpers.py",
+   "line": 37,
+   "in_metadata": true,
+   "match": "sys.tables",
+   "sql": "SELECT t.name, 'TABLE', ISNULL(p.value, '') FROM sys.tables t INNER JOIN sys.schemas s ON t.schema_id = s.schema_id LEFT JOIN sys.extended_p"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/_adapter_helpers.py",
+   "line": 60,
+   "in_metadata": true,
+   "match": "sys.columns",
+   "sql": "SELECT c.name, t.name, CASE WHEN c.is_nullable = 1 THEN 1 ELSE 0 END, c.column_id, ISNULL(dc.definition, ''), ISNULL(p.value, ''), CASE WHEN"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/_adapter_helpers.py",
+   "line": 93,
+   "in_metadata": true,
+   "match": "sys.key_constraints",
+   "sql": "SELECT kc.name, c.name, ic.key_ordinal FROM sys.key_constraints kc INNER JOIN sys.tables t ON kc.parent_object_id = t.object_id INNER JOIN s"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/_adapter_helpers.py",
+   "line": 121,
+   "in_metadata": true,
+   "match": "sys.foreign_keys",
+   "sql": "SELECT fk.name, c.name, rt.name, rc.name, fk.delete_referential_action, fk.update_referential_action, fkc.constraint_column_id FROM sys.fore"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/_adapter_helpers.py",
+   "line": 157,
+   "in_metadata": true,
+   "match": "sys.indexes",
+   "sql": "SELECT i.name, c.name, i.is_unique, i.type, ic.key_ordinal FROM sys.indexes i INNER JOIN sys.tables t ON i.object_id = t.object_id INNER JOI"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/_adapter_helpers.py",
+   "line": 193,
+   "in_metadata": true,
+   "match": "sys.parameters",
+   "sql": "SELECT o.name, CASE o.type WHEN 'P' THEN 'PROCEDURE' WHEN 'FN' THEN 'FUNCTION' WHEN 'IF' THEN 'FUNCTION' WHEN 'TF' THEN 'FUNCTION' ELSE 'UNK"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/_adapter_helpers.py",
+   "line": 223,
+   "in_metadata": true,
+   "match": "sys.parameters",
+   "sql": "SELECT p.name, p.object_id, p.parameter_id, t.name, CASE WHEN p.is_output = 1 THEN 1 ELSE 0 END, ISNULL(p.precision, 0), ISNULL(p.scale, 0) "
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/_adapter_helpers.py",
+   "line": 250,
+   "in_metadata": true,
+   "match": "sys.sql_modules",
+   "sql": "SELECT sm.definition FROM sys.sql_modules sm INNER JOIN sys.objects o ON o.object_id = sm.object_id INNER JOIN sys.schemas s ON o.schema_id "
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/common.py",
+   "line": 206,
+   "in_metadata": true,
+   "match": "sys.databases",
+   "sql": "SELECT compatibility_level FROM sys.databases WHERE name = DB_NAME()"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/constraints.py",
+   "line": 114,
+   "in_metadata": true,
+   "match": "sys.foreign_keys",
+   "sql": "SELECT t.name AS TABLE_NAME, SCHEMA_NAME(rt.schema_id) AS REF_SCHEMA, rt.name AS REF_TABLE FROM sys.foreign_keys fk JOIN sys.tables t ON t.o"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/constraints.py",
+   "line": 138,
+   "in_metadata": true,
+   "match": "sys.foreign_keys",
+   "sql": "SELECT t.name AS TABLE_NAME, fk.name AS FK_NAME, pc.name AS COLUMN_NAME, SCHEMA_NAME(rt.schema_id) AS REF_SCHEMA, rt.name AS REF_TABLE, rc.n"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/indexes.py",
+   "line": 60,
+   "in_metadata": true,
+   "match": "sys.indexes",
+   "sql": "SELECT i.name FROM sys.indexes i JOIN sys.tables t ON t.object_id = i.object_id JOIN sys.schemas s ON s.schema_id = t.schema_id WHERE t.name"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/indexes.py",
+   "line": 84,
+   "in_metadata": true,
+   "match": "sys.indexes",
+   "sql": "SELECT COUNT(*) FROM sys.indexes WHERE object_id = OBJECT_ID(:tbl) AND type = 1"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/tables.py",
+   "line": 124,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT t.TABLE_NAME, CAST(ep.value AS NVARCHAR(4000)) FROM INFORMATION_SCHEMA.TABLES t LEFT JOIN sys.extended_properties ep ON ep.class = 1 "
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/tables.py",
+   "line": 152,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT c.TABLE_NAME, c.COLUMN_NAME, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, c.NUMERIC_PRECISION, c.NUMERIC_SCALE, c.IS_NULLABLE, c.COLUMN_D"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/tables.py",
+   "line": 175,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT kcu.TABLE_NAME, kcu.COLUMN_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc ON tc.CONST"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/tables.py",
+   "line": 196,
+   "in_metadata": true,
+   "match": "INFORMATION_SCHEMA",
+   "sql": "SELECT kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME, kcu2.TABLE_SCHEMA AS REF_SCHEMA, kcu2.TABLE_NAME AS REF_TABLE, kcu2.COLUMN_NAME"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/tables.py",
+   "line": 222,
+   "in_metadata": true,
+   "match": "sys.indexes",
+   "sql": "SELECT t.name AS TABLE_NAME, i.name AS INDEX_NAME, c.name AS COLUMN_NAME, i.is_unique, ic.key_ordinal AS SEQ_IN_INDEX FROM sys.indexes i JOI"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/tables.py",
+   "line": 247,
+   "in_metadata": true,
+   "match": "sys.sql_modules",
+   "sql": "SELECT o.name, sm.definition, CAST(ep.value AS NVARCHAR(4000)) FROM sys.sql_modules sm JOIN sys.objects o ON o.object_id = sm.object_id JOIN"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/tables.py",
+   "line": 270,
+   "in_metadata": true,
+   "match": "sys.key_constraints",
+   "sql": "SELECT t.name AS TABLE_NAME, kc.name AS PK_NAME, c.name AS COLUMN_NAME, CASE WHEN i.type = 1 THEN 1 ELSE 0 END AS IS_CLUSTERED FROM sys.key_"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/tables.py",
+   "line": 295,
+   "in_metadata": true,
+   "match": "sys.indexes",
+   "sql": "SELECT tab.name AS TABLE_NAME, ind.index_id AS INDEX_ID, ind.name AS INDEX_NAME, ind.is_unique AS IS_UNIQUE, ind.type AS INDEX_TYPE, ind.fil"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/tables.py",
+   "line": 314,
+   "in_metadata": true,
+   "match": "sys.index_columns",
+   "sql": "SELECT tab.name AS TABLE_NAME, ic.index_id AS INDEX_ID, col.name AS COLUMN_NAME, ic.is_included_column AS IS_INCLUDED_COLUMN FROM sys.index_"
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/tables.py",
+   "line": 333,
+   "in_metadata": true,
+   "match": "sys.tables",
+   "sql": "SELECT t.name AS TABLE_NAME, CAST(ep.value AS NVARCHAR(MAX)) AS TABLE_COMMENT FROM sys.tables t JOIN sys.extended_properties ep ON ep.class "
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/tables.py",
+   "line": 354,
+   "in_metadata": true,
+   "match": "sys.objects",
+   "sql": "SELECT o.name AS ROUTINE_NAME, RTRIM(o.type) AS OBJECT_TYPE, sm.definition AS DEFINITION FROM sys.objects o LEFT JOIN sys.sql_modules sm ON "
+  },
+  {
+   "file": "util_bbdd/metadata/sqlserver/tables.py",
+   "line": 375,
+   "in_metadata": true,
+   "match": "OBJECT_DEFINITION",
+   "sql": "SELECT v.name, OBJECT_DEFINITION(v.object_id), CAST(ep.value AS NVARCHAR(4000)) FROM sys.views v JOIN sys.schemas s ON s.schema_id = v.schem"
+  },
+  {
+   "file": "util_bbdd/migrate/emitters/sqlserver.py",
+   "line": 407,
+   "in_metadata": false,
+   "match": "sys.sp_addextendedproperty",
+   "sql": "EXEC sys.sp_addextendedproperty @name = N'MS_Description', @value = {…}, {…}"
+  }
+ ],
+ "inspector": [
+  {
+   "file": "util_bbdd/bulk/crud.py",
+   "line": 1337,
+   "in_metadata": false,
+   "call": "inspect(conn)"
+  },
+  {
+   "file": "util_bbdd/bulk/crud.py",
+   "line": 1787,
+   "in_metadata": false,
+   "call": "inspect(self.engine)"
+  },
+  {
+   "file": "util_bbdd/bulk/crud.py",
+   "line": 1788,
+   "in_metadata": false,
+   "call": "insp.get_foreign_keys(tabla.name, schema=tabla.schema)"
+  },
+  {
+   "file": "util_bbdd/bulk/crud.py",
+   "line": 1847,
+   "in_metadata": false,
+   "call": "inspect(self.engine)"
+  },
+  {
+   "file": "util_bbdd/bulk/crud.py",
+   "line": 1851,
+   "in_metadata": false,
+   "call": "insp.get_foreign_keys(name, schema=schema)"
+  },
+  {
+   "file": "util_bbdd/bulk/crud.py",
+   "line": 1854,
+   "in_metadata": false,
+   "call": "insp.get_check_constraints(name, schema=schema)"
+  },
+  {
+   "file": "util_bbdd/bulk/crud.py",
+   "line": 1857,
+   "in_metadata": false,
+   "call": "insp.get_unique_constraints(name, schema=schema)"
+  },
+  {
+   "file": "util_bbdd/comparar/_prefetch.py",
+   "line": 139,
+   "in_metadata": false,
+   "call": "inspector.get_pk_constraint(table, schema=schema)"
+  },
+  {
+   "file": "util_bbdd/comparar/_prefetch.py",
+   "line": 135,
+   "in_metadata": false,
+   "call": "inspector.get_columns(table, schema=schema)"
+  },
+  {
+   "file": "util_bbdd/comparar/_prefetch.py",
+   "line": 143,
+   "in_metadata": false,
+   "call": "inspector.get_foreign_keys(table, schema=schema)"
+  },
+  {
+   "file": "util_bbdd/comparar/_prefetch.py",
+   "line": 116,
+   "in_metadata": false,
+   "call": "inspector.get_indexes(table, schema=schema)"
+  },
+  {
+   "file": "util_bbdd/comparar/_prefetch.py",
+   "line": 129,
+   "in_metadata": false,
+   "call": "inspector.get_table_comment(table, schema=schema)"
+  },
+  {
+   "file": "util_bbdd/comparar/comparator.py",
+   "line": 1036,
+   "in_metadata": false,
+   "call": "inspector.get_view_definition(view_name, schema=schema)"
+  },
+  {
+   "file": "util_bbdd/comparar/reporters/sql_reporter.py",
+   "line": 527,
+   "in_metadata": false,
+   "call": "self._source_inspector.get_pk_constraint(table_name, schema=self._source_schema)"
+  },
+  {
+   "file": "util_bbdd/comparar/reporters/sql_reporter.py",
+   "line": 507,
+   "in_metadata": false,
+   "call": "self._source_inspector.get_columns(table_name, schema=self._source_schema)"
+  },
+  {
+   "file": "util_bbdd/comparar/reporters/sql_reporter.py",
+   "line": 550,
+   "in_metadata": false,
+   "call": "self._source_inspector.get_foreign_keys(table_name, schema=self._source_schema)"
+  },
+  {
+   "file": "util_bbdd/comparar/reporters/sql_reporter.py",
+   "line": 571,
+   "in_metadata": false,
+   "call": "self._source_inspector.get_indexes(table_name, schema=self._source_schema)"
+  },
+  {
+   "file": "util_bbdd/connection/mariadb/update_auto_increment.py",
+   "line": 128,
+   "in_metadata": false,
+   "call": "inspector.get_columns(table_name, schema=self._schema)"
+  },
+  {
+   "file": "util_bbdd/connection/mariadb/update_auto_increment.py",
+   "line": 90,
+   "in_metadata": false,
+   "call": "inspect(connection)"
+  },
+  {
+   "file": "util_bbdd/connection/mariadb/update_auto_increment.py",
+   "line": 92,
+   "in_metadata": false,
+   "call": "inspector.get_table_names(schema=self._schema)"
+  },
+  {
+   "file": "util_bbdd/dump/_constraints.py",
+   "line": 250,
+   "in_metadata": false,
+   "call": "inspect(self._engine)"
+  },
+  {
+   "file": "util_bbdd/dump/_constraints.py",
+   "line": 362,
+   "in_metadata": false,
+   "call": "inspect(self._engine)"
+  },
+  {
+   "file": "util_bbdd/dump/_constraints.py",
+   "line": 270,
+   "in_metadata": false,
+   "call": "insp.get_foreign_keys(table, schema=self._schema)"
+  },
+  {
+   "file": "util_bbdd/dump/_fk_graph.py",
+   "line": 58,
+   "in_metadata": false,
+   "call": "inspector.get_foreign_keys(table, schema=schema)"
+  },
+  {
+   "file": "util_bbdd/dump/orchestrator.py",
+   "line": 110,
+   "in_metadata": false,
+   "call": "inspect(config.source_engine)"
+  },
+  {
+   "file": "util_bbdd/dump/orchestrator.py",
+   "line": 111,
+   "in_metadata": false,
+   "call": "inspect(config.target_engine)"
+  },
+  {
+   "file": "util_bbdd/dump/orchestrator.py",
+   "line": 1044,
+   "in_metadata": false,
+   "call": "self._src_insp.get_table_names(schema=self._cfg.source_schema)"
+  },
+  {
+   "file": "util_bbdd/dump/orchestrator.py",
+   "line": 200,
+   "in_metadata": false,
+   "call": "self._dst_insp.get_table_names(schema=cfg.target_schema)"
+  },
+  {
+   "file": "util_bbdd/dump/orchestrator.py",
+   "line": 439,
+   "in_metadata": false,
+   "call": "self._dst_insp.get_table_names(schema=schema)"
+  },
+  {
+   "file": "util_bbdd/dump/orchestrator.py",
+   "line": 676,
+   "in_metadata": false,
+   "call": "self._src_insp.get_pk_constraint(src_table, schema=schema)"
+  },
+  {
+   "file": "util_bbdd/dump/orchestrator.py",
+   "line": 684,
+   "in_metadata": false,
+   "call": "self._src_insp.get_columns(src_table, schema=schema)"
+  },
+  {
+   "file": "util_bbdd/dump/orchestrator.py",
+   "line": 1055,
+   "in_metadata": false,
+   "call": "self._src_insp.get_columns(src_table, schema=self._cfg.source_schema)"
+  },
+  {
+   "file": "util_bbdd/dump/orchestrator.py",
+   "line": 1057,
+   "in_metadata": false,
+   "call": "self._dst_insp.get_columns(dst_table, schema=self._cfg.target_schema)"
+  },
+  {
+   "file": "util_bbdd/dump/orchestrator.py",
+   "line": 1142,
+   "in_metadata": false,
+   "call": "self._dst_insp.get_columns(table, schema=self._cfg.target_schema)"
+  }
+ ],
+ "metadata_imports": [
+  {
+   "file": "util_bbdd/__init__.py",
+   "line": 59,
+   "module": "metadata",
+   "names": [
+    "AsyncMetadataProvider",
+    "DatabaseMetadataCache",
+    "RelationshipMetadataCache",
+    "SyncMetadataProvider"
+   ]
+  },
+  {
+   "file": "util_bbdd/analysis/contracts.py",
+   "line": 13,
+   "module": "metadata.cache",
+   "names": [
+    "RelationshipMetadataCache"
+   ]
+  },
+  {
+   "file": "util_bbdd/bulk/_execution/delete_strategies.py",
+   "line": 46,
+   "module": "metadata.sqlserver.common",
+   "names": [
+    "fetch_compatibility_level_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/bulk/_execution/parallel_loader.py",
+   "line": 39,
+   "module": "metadata.postgresql.tables",
+   "names": [
+    "fetch_can_create_temp_tables_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/bulk/_execution/staging_update.py",
+   "line": 27,
+   "module": "metadata.postgresql.tables",
+   "names": [
+    "fetch_can_create_temp_tables_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/bulk/_support/dialect.py",
+   "line": 9,
+   "module": "metadata.postgresql.tables",
+   "names": [
+    "fetch_can_disable_triggers_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/bulk/_support/pk_sync.py",
+   "line": 22,
+   "module": "metadata.oracle.tables",
+   "names": [
+    "fetch_identity_generation_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/bulk/crud.py",
+   "line": 53,
+   "module": "metadata.mariadb.tables",
+   "names": [
+    "fetch_table_storage_engine_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/bulk/crud.py",
+   "line": 54,
+   "module": "metadata.sqlserver.indexes",
+   "names": [
+    "fetch_clustered_index_count_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/comparar/_prefetch.py",
+   "line": 30,
+   "module": "util_bbdd.metadata.sqlserver.constraints",
+   "names": [
+    "fetch_schema_fk_details_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/comparar/_prefetch.py",
+   "line": 31,
+   "module": "util_bbdd.metadata.sqlserver.tables",
+   "names": [
+    "fetch_index_columns_for_schema_sql",
+    "fetch_index_details_for_schema_sql",
+    "fetch_pk_details_for_schema_sql",
+    "fetch_table_comments_for_schema_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/comparar/_routine_fetchers.py",
+   "line": 31,
+   "module": "util_bbdd.metadata.mariadb.tables",
+   "names": [
+    "fetch_routine_status_sql",
+    "fetch_show_create_routine_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/comparar/_routine_fetchers.py",
+   "line": 32,
+   "module": "util_bbdd.metadata.oracle.tables",
+   "names": [
+    "fetch_standalone_routine_sources_for_schema_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/comparar/_routine_fetchers.py",
+   "line": 33,
+   "module": "util_bbdd.metadata.postgresql.routines",
+   "names": [
+    "fetch_routines_with_definition_for_schema_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/comparar/_routine_fetchers.py",
+   "line": 34,
+   "module": "util_bbdd.metadata.sqlserver.tables",
+   "names": [
+    "fetch_routines_with_definition_for_schema_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/doc/application/ports.py",
+   "line": 9,
+   "module": "metadata.cache",
+   "names": [
+    "RelationshipMetadataCache"
+   ]
+  },
+  {
+   "file": "util_bbdd/doc/application/use_cases/documentation_orchestrator.py",
+   "line": 12,
+   "module": "metadata.cache",
+   "names": [
+    "RelationshipMetadataCache"
+   ]
+  },
+  {
+   "file": "util_bbdd/dump/_constraints.py",
+   "line": 19,
+   "module": "metadata.postgresql.tables",
+   "names": [
+    "fetch_fk_definition_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/dump/_fk_graph.py",
+   "line": 16,
+   "module": "util_bbdd.metadata.sqlserver.constraints",
+   "names": [
+    "fetch_schema_fk_references_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/dump/_indexes.py",
+   "line": 30,
+   "module": "metadata.oracle.indexes",
+   "names": [
+    "fetch_secondary_nonunique_indexes_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/dump/_indexes.py",
+   "line": 33,
+   "module": "metadata.postgresql.tables",
+   "names": [
+    "fetch_secondary_nonunique_indexes_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/dump/_indexes.py",
+   "line": 36,
+   "module": "metadata.sqlserver.indexes",
+   "names": [
+    "fetch_secondary_nonunique_indexes_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/managers/_manager_cache_service.py",
+   "line": 9,
+   "module": "metadata.cache",
+   "names": [
+    "DatabaseMetadataCache",
+    "RelationshipMetadataCache"
+   ]
+  },
+  {
+   "file": "util_bbdd/managers/_manager_shared_mixin.py",
+   "line": 23,
+   "module": "metadata.cache",
+   "names": [
+    "DatabaseMetadataCache",
+    "RelationshipMetadataCache"
+   ]
+  },
+  {
+   "file": "util_bbdd/managers/_manager_shared_mixin.py",
+   "line": 24,
+   "module": "metadata.mariadb",
+   "names": [
+    "escape_mariadb_sql_literal"
+   ]
+  },
+  {
+   "file": "util_bbdd/managers/_manager_storage.py",
+   "line": 8,
+   "module": "metadata.adapters",
+   "names": [
+    "StorageInventoryAdapterAsync",
+    "StorageInventoryAdapterSync"
+   ]
+  },
+  {
+   "file": "util_bbdd/managers/_metadata_cache.py",
+   "line": 7,
+   "module": "metadata",
+   "names": [
+    "DatabaseMetadataCache",
+    "RelationshipMetadataCache"
+   ]
+  },
+  {
+   "file": "util_bbdd/managers/_metadata_parser.py",
+   "line": 286,
+   "module": "metadata.mariadb",
+   "names": [
+    "parse_mariadb_db_charset"
+   ]
+  },
+  {
+   "file": "util_bbdd/managers/async_mgr.py",
+   "line": 14,
+   "module": "util_bbdd.metadata.adapters._adapter_registry",
+   "names": [
+    "AdapterRegistry"
+   ]
+  },
+  {
+   "file": "util_bbdd/managers/async_mgr.py",
+   "line": 24,
+   "module": "metadata",
+   "names": [
+    "AsyncMetadataManager",
+    "DatabaseMetadataCache",
+    "NormalizedColumnRow",
+    "NormalizedTableRow",
+    "RelationshipMetadataCache",
+    "Rows",
+    "mariadb",
+    "mysql",
+    "normalize_column_rows",
+    "normalize_table_rows"
+   ]
+  },
+  {
+   "file": "util_bbdd/managers/async_mgr.py",
+   "line": 36,
+   "module": "metadata.adapters",
+   "names": [
+    "EngineMetadataAdapterAsync",
+    "get_global_adapter_registry"
+   ]
+  },
+  {
+   "file": "util_bbdd/managers/sync_mgr.py",
+   "line": 39,
+   "module": "metadata",
+   "names": [
+    "DatabaseMetadataCache",
+    "MetadataManager",
+    "NormalizedColumnRow",
+    "NormalizedTableRow",
+    "RelationshipMetadataCache",
+    "Rows",
+    "mariadb",
+    "mysql",
+    "normalize_column_rows",
+    "normalize_table_rows"
+   ]
+  },
+  {
+   "file": "util_bbdd/managers/sync_mgr.py",
+   "line": 51,
+   "module": "metadata.adapters",
+   "names": [
+    "EngineMetadataAdapterSync",
+    "get_global_adapter_registry"
+   ]
+  },
+  {
+   "file": "util_bbdd/migrate/extractors/mariadb.py",
+   "line": 15,
+   "module": "metadata.mariadb.tables",
+   "names": [
+    "fetch_columns_for_schema_sql",
+    "fetch_fk_for_schema_sql",
+    "fetch_indexes_for_schema_sql",
+    "fetch_pk_for_schema_sql",
+    "fetch_routine_parameters_for_schema_sql",
+    "fetch_routines_sql",
+    "fetch_tables_sql",
+    "fetch_views_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/migrate/extractors/mysql.py",
+   "line": 21,
+   "module": "metadata.mysql.tables",
+   "names": [
+    "fetch_columns_with_type_for_schema_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/migrate/extractors/oracle.py",
+   "line": 12,
+   "module": "metadata.oracle.constraints",
+   "names": [
+    "OracleConstraintDefaults"
+   ]
+  },
+  {
+   "file": "util_bbdd/migrate/extractors/oracle.py",
+   "line": 13,
+   "module": "metadata.oracle.indexes",
+   "names": [
+    "decode_oracle_index_rows"
+   ]
+  },
+  {
+   "file": "util_bbdd/migrate/extractors/oracle.py",
+   "line": 14,
+   "module": "metadata.oracle.tables",
+   "names": [
+    "fetch_columns_for_schema_sql",
+    "fetch_fk_for_schema_sql",
+    "fetch_indexes_for_schema_sql",
+    "fetch_pk_for_schema_sql",
+    "fetch_routine_bodies_for_schema_sql",
+    "fetch_routines_for_schema_sql",
+    "fetch_tables_sql",
+    "fetch_view_columns_for_schema_sql",
+    "fetch_views_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/migrate/extractors/postgresql.py",
+   "line": 24,
+   "module": "metadata.postgresql.routines",
+   "names": [
+    "fetch_routine_comments_for_schema_sql",
+    "fetch_routines_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/migrate/extractors/postgresql.py",
+   "line": 28,
+   "module": "metadata.postgresql.tables",
+   "names": [
+    "fetch_columns_for_schema_sql",
+    "fetch_fk_for_schema_sql",
+    "fetch_indexes_for_schema_sql",
+    "fetch_pk_for_schema_sql",
+    "fetch_tables_for_extract_sql",
+    "fetch_views_sql"
+   ]
+  },
+  {
+   "file": "util_bbdd/migrate/extractors/sqlserver.py",
+   "line": 20,
+   "module": "metadata.sqlserver._adapter_helpers",
+   "names": [
+    "build_sqlserver_routines_query"
+   ]
+  },
+  {
+   "file": "util_bbdd/migrate/extractors/sqlserver.py",
+   "line": 21,
+   "module": "metadata.sqlserver.tables",
+   "names": [
+    "fetch_columns_for_schema_sql",
+    "fetch_fk_for_schema_sql",
+    "fetch_indexes_for_schema_sql",
+    "fetch_pk_for_schema_sql",
+    "fetch_routine_bodies_for_schema_sql",
+    "fetch_tables_sql",
+    "fetch_views_sql"
+   ]
+  }
+ ]
+}

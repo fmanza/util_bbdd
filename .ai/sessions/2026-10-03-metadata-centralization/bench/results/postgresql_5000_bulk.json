@@ -1,0 +1,75 @@
+{
+ "flow": "bulk",
+ "engine": "postgresql",
+ "volume": 5000,
+ "limit": null,
+ "repeat": 1,
+ "median_seconds": 0.112,
+ "median_catalog_seconds": 0.022,
+ "peak_mb": 0.8,
+ "queries_total": 16,
+ "queries_catalog": 14,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT attr.conrelid, array_agg(CAST(attr.attname AS TEXT) ORDER BY attr.ord) AS cols, attr.conname, min(attr.description) AS description, min(attr.indnkeyatts)",
+   2
+  ],
+  [
+   "SELECT pg_catalog.pg_class.relname, pg_catalog.pg_constraint.conname, CASE WHEN (pg_catalog.pg_constraint.oid IS NOT NULL) THEN pg_catalog.pg_get_constraintdef(",
+   2
+  ],
+  [
+   "SHOW work_mem",
+   1
+  ],
+  [
+   "SHOW maintenance_work_mem",
+   1
+  ],
+  [
+   "SHOW synchronous_commit",
+   1
+  ],
+  [
+   "SHOW max_connections",
+   1
+  ],
+  [
+   "SELECT pg_catalog.pg_attribute.attname AS name, pg_catalog.format_type(pg_catalog.pg_attribute.atttypid, pg_catalog.pg_attribute.atttypmod) AS format_type, (SEL",
+   1
+  ],
+  [
+   "SELECT pg_catalog.pg_type.typname AS name, pg_catalog.format_type(pg_catalog.pg_type.typbasetype, pg_catalog.pg_type.typtypmod) AS attype, NOT pg_catalog.pg_typ",
+   1
+  ]
+ ],
+ "slowest_catalog_fingerprints": [
+  [
+   "SELECT pg_catalog.pg_type.typname AS name, pg_catalog.format_type(pg_catalog.pg_type.typbasetype, pg_catalog.pg_type.typtypmod) AS attype, NOT pg_catalog.pg_typ",
+   0.004,
+   1
+  ],
+  [
+   "SELECT pg_catalog.pg_attribute.attname AS name, pg_catalog.format_type(pg_catalog.pg_attribute.atttypid, pg_catalog.pg_attribute.atttypmod) AS format_type, (SEL",
+   0.004,
+   1
+  ],
+  [
+   "SELECT pg_catalog.pg_class.relname, pg_catalog.pg_constraint.conname, CASE WHEN (pg_catalog.pg_constraint.oid IS NOT NULL) THEN pg_catalog.pg_get_constraintdef(",
+   0.003,
+   2
+  ],
+  [
+   "SELECT attr.conrelid, array_agg(CAST(attr.attname AS TEXT) ORDER BY attr.ord) AS cols, attr.conname, min(attr.description) AS description, min(attr.indnkeyatts)",
+   0.003,
+   2
+  ],
+  [
+   "SELECT pg_catalog.pg_index.indrelid, pg_catalog.pg_class.relname, pg_catalog.pg_index.indisunique, pg_catalog.pg_constraint.conrelid IS NOT NULL AS has_constrai",
+   0.002,
+   1
+  ]
+ ],
+ "info": {},
+ "error": null
+}

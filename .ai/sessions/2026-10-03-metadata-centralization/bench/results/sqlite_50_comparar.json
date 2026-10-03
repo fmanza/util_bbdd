@@ -1,0 +1,50 @@
+{
+ "flow": "comparar",
+ "engine": "sqlite",
+ "volume": 50,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 0.116,
+ "median_catalog_seconds": 0.025,
+ "peak_mb": 0.9,
+ "queries_total": 616,
+ "queries_catalog": 616,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT sql FROM (SELECT * FROM sqlite_master UNION ALL SELECT * FROM sqlite_temp_master) WHERE name = ? AND type in ('?', '?')",
+   200
+  ],
+  [
+   "SELECT sql FROM (SELECT * FROM sqlite_master UNION ALL SELECT * FROM sqlite_temp_master) WHERE name = ? AND type='?'",
+   10
+  ],
+  [
+   "SELECT name FROM sqlite_master WHERE type='?' AND name NOT LIKE '?' ESCAPE '?' ORDER BY name",
+   4
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00000\")",
+   2
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00001\")",
+   2
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00002\")",
+   2
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00003\")",
+   2
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00004\")",
+   2
+  ]
+ ],
+ "info": {
+  "has_differences": false
+ },
+ "error": null
+}

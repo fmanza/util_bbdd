@@ -1,0 +1,74 @@
+{
+ "flow": "manager_scan",
+ "engine": "sqlite",
+ "volume": 5000,
+ "limit": 100,
+ "repeat": 1,
+ "median_seconds": 0.278,
+ "median_catalog_seconds": 0.105,
+ "peak_mb": 1.4,
+ "queries_total": 503,
+ "queries_catalog": 502,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT name AS column_name, type AS data_type, CASE WHEN \"notnull\" = N THEN '?' ELSE '?' END AS nullable_flag, dflt_value AS column_default, '?' AS character_ma",
+   100
+  ],
+  [
+   "SELECT il.name AS index_name, ii.name AS column_name, CASE WHEN il.\"unique\" = N THEN N ELSE N END AS is_unique, CASE il.origin WHEN '?' THEN '?' WHEN '?' THEN '",
+   100
+  ],
+  [
+   "SELECT name AS column_name FROM pragma_table_info('?') WHERE pk > N ORDER BY pk",
+   100
+  ],
+  [
+   "SELECT ('?' || '?' || '?' || id) AS constraint_name, \"from\" AS child_column_name, \"table\" AS parent_table_name, \"to\" AS parent_column_name FROM pragma_foreign_k",
+   100
+  ],
+  [
+   "SELECT il.name AS constraint_name, ii.name AS column_name FROM pragma_index_list('?') il JOIN pragma_index_info(il.name) ii ON N=N WHERE il.\"unique\" = N AND il.",
+   100
+  ],
+  [
+   "SELECT name AS table_name, '?' AS table_comment FROM sqlite_master WHERE type='?' AND name NOT LIKE '?' ORDER BY name",
+   1
+  ],
+  [
+   "SELECT name AS table_name, '?' AS table_comment FROM sqlite_master WHERE type='?' ORDER BY name",
+   1
+  ]
+ ],
+ "slowest_catalog_fingerprints": [
+  [
+   "SELECT name AS table_name, '?' AS table_comment FROM sqlite_master WHERE type='?' AND name NOT LIKE '?' ORDER BY name",
+   0.071,
+   1
+  ],
+  [
+   "SELECT il.name AS index_name, ii.name AS column_name, CASE WHEN il.\"unique\" = N THEN N ELSE N END AS is_unique, CASE il.origin WHEN '?' THEN '?' WHEN '?' THEN '",
+   0.008,
+   100
+  ],
+  [
+   "SELECT name AS column_name, type AS data_type, CASE WHEN \"notnull\" = N THEN '?' ELSE '?' END AS nullable_flag, dflt_value AS column_default, '?' AS character_ma",
+   0.007,
+   100
+  ],
+  [
+   "SELECT il.name AS constraint_name, ii.name AS column_name FROM pragma_index_list('?') il JOIN pragma_index_info(il.name) ii ON N=N WHERE il.\"unique\" = N AND il.",
+   0.006,
+   100
+  ],
+  [
+   "SELECT ('?' || '?' || '?' || id) AS constraint_name, \"from\" AS child_column_name, \"table\" AS parent_table_name, \"to\" AS parent_column_name FROM pragma_foreign_k",
+   0.005,
+   100
+  ]
+ ],
+ "info": {
+  "tables_listed": 5000,
+  "tables_scanned": 100
+ },
+ "error": null
+}

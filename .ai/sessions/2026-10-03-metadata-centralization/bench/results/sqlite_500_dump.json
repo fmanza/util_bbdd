@@ -1,0 +1,51 @@
+{
+ "flow": "dump",
+ "engine": "sqlite",
+ "volume": 500,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 6.869,
+ "median_catalog_seconds": 0.375,
+ "peak_mb": 17.8,
+ "queries_total": 8507,
+ "queries_catalog": 6007,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT sql FROM (SELECT * FROM sqlite_master UNION ALL SELECT * FROM sqlite_temp_master) WHERE name = ? AND type in ('?', '?')",
+   1500
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00000\")",
+   3
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00001\")",
+   3
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00002\")",
+   3
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00003\")",
+   3
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00004\")",
+   3
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00005\")",
+   3
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00006\")",
+   3
+  ]
+ ],
+ "info": {
+  "tables": 500,
+  "constraints": 0
+ },
+ "error": null
+}

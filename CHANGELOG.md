@@ -7,6 +7,22 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Inicio de la centralización de la extracción de metadatos en `metadata/` (ADR-003, sesión
+`2026-10-03-metadata-centralization`): correcciones y mejoras independientes, y la red de seguridad (grupo A0) para los
+cambios siguientes.
+
+### Added
+
+- **scripts**: `bench_metadata.py`, banco de la extracción de metadatos contra los contenedores de
+  `docker-compose.bench.yml` (`setup` / `run` / `report` / `teardown`): consultas de catálogo, tiempos y memoria de cada
+  flujo (managers, `doc`, `comparar`, `migrate`, `dump`, `bulk`) con 50, 500 y 5000 tablas. Guía:
+  `docs/guides/benchmarks.md` § «Banco de extracción de metadatos».
+- **tests**: caracterización por motor de la lectura de metadatos (`tests/integration/metadata/characterization/`,
+  dorados en `tests/fixtures/metadata_golden/`: `get_*` de los managers, IR de `migrate` y texto de `doc`); guarda de la
+  Regla #1 con trinquete (`tests/unit/test_architecture_metadata_rules.py`: SQL de catálogo, `Inspector` e imports de
+  `metadata.<motor>` fuera de `metadata/`); conteo de consultas de catálogo por flujo con 10 y 100 tablas
+  (`tests/unit/metadata/test_query_counts.py`, `xfail` estricto en los flujos que aún leen tabla a tabla).
+
 ### Performance
 
 - **metadata / migrate**: las FK por schema de MariaDB/MySQL se leen con dos consultas (`KEY_COLUMN_USAGE` y la nueva

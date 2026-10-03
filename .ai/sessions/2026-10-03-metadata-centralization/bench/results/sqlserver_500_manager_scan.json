@@ -1,0 +1,51 @@
+{
+ "flow": "manager_scan",
+ "engine": "sqlserver",
+ "volume": 500,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 122.495,
+ "median_catalog_seconds": 121.387,
+ "peak_mb": 2.0,
+ "queries_total": 2503,
+ "queries_catalog": 2503,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT c.COLUMN_NAME, c.DATA_TYPE, CASE WHEN c.IS_NULLABLE = '?' THEN '?' ELSE '?' END AS IS_NULLABLE, COLUMNPROPERTY(OBJECT_ID(CONCAT('?','?')), c.COLUMN_NAME,",
+   500
+  ],
+  [
+   "SELECT i.name AS INDEX_NAME, c.name AS COLUMN_NAME, CASE WHEN i.is_unique = N THEN '?' ELSE '?' END AS uniqueness, i.type_desc AS index_type FROM sys.tables t J",
+   500
+  ],
+  [
+   "SELECT kcu.COLUMN_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME AND",
+   500
+  ],
+  [
+   "SELECT fk.name AS constraint_name, kcu.COLUMN_NAME AS child_column_name, pt.name AS parent_table_name, pc.name AS parent_column_name FROM INFORMATION_SCHEMA.REF",
+   500
+  ],
+  [
+   "SELECT tc.CONSTRAINT_NAME, kcu.COLUMN_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu ON tc.CONSTRAINT_NAME = kcu",
+   500
+  ],
+  [
+   "SELECT t.TABLE_NAME, ISNULL(CAST(p.value AS VARCHAR(N)), '?') AS table_comment FROM INFORMATION_SCHEMA.TABLES t LEFT JOIN sys.tables st ON st.name = t.TABLE_NAM",
+   1
+  ],
+  [
+   "SELECT v.name AS TABLE_NAME, ISNULL(CAST(ep.value AS VARCHAR(N)), '?') AS table_comment FROM sys.views v JOIN sys.schemas s ON s.schema_id = v.schema_id LEFT JO",
+   1
+  ],
+  [
+   "SELECT ROUTINE_NAME AS routine_name, UPPER(ROUTINE_TYPE) AS routine_type, ISNULL(CAST(OBJECTPROPERTYEX(OBJECT_ID(CONCAT('?', ROUTINE_SCHEMA, '?', ROUTINE_NAME, ",
+   1
+  ]
+ ],
+ "info": {
+  "tables_listed": 500,
+  "tables_scanned": 500
+ },
+ "error": null
+}

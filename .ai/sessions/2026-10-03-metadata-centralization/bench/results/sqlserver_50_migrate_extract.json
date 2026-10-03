@@ -1,0 +1,79 @@
+{
+ "flow": "migrate_extract",
+ "engine": "sqlserver",
+ "volume": 50,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 0.169,
+ "median_catalog_seconds": 0.07,
+ "peak_mb": 0.6,
+ "queries_total": 9,
+ "queries_catalog": 9,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT c.TABLE_NAME, c.COLUMN_NAME, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, c.NUMERIC_PRECISION, c.NUMERIC_SCALE, c.IS_NULLABLE, c.COLUMN_DEFAULT, COLUMNPROPER",
+   2
+  ],
+  [
+   "SELECT t.TABLE_NAME, CAST(ep.value AS NVARCHAR(N)) FROM INFORMATION_SCHEMA.TABLES t LEFT JOIN sys.extended_properties ep ON ep.class = N AND ep.name = '?' AND e",
+   1
+  ],
+  [
+   "SELECT kcu.TABLE_NAME, kcu.COLUMN_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc ON tc.CONSTRAINT_NAME = kcu.CON",
+   1
+  ],
+  [
+   "SELECT kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME, kcu2.TABLE_SCHEMA AS REF_SCHEMA, kcu2.TABLE_NAME AS REF_TABLE, kcu2.COLUMN_NAME AS REF_COLUMN, kcu.",
+   1
+  ],
+  [
+   "SELECT t.name AS TABLE_NAME, i.name AS INDEX_NAME, c.name AS COLUMN_NAME, i.is_unique, ic.key_ordinal AS SEQ_IN_INDEX FROM sys.indexes i JOIN sys.index_columns ",
+   1
+  ],
+  [
+   "SELECT v.name, OBJECT_DEFINITION(v.object_id), CAST(ep.value AS NVARCHAR(N)) FROM sys.views v JOIN sys.schemas s ON s.schema_id = v.schema_id LEFT JOIN sys.exte",
+   1
+  ],
+  [
+   "SELECT o.name, CASE o.type WHEN '?' THEN '?' WHEN '?' THEN '?' WHEN '?' THEN '?' WHEN '?' THEN '?' ELSE '?' END, o.object_id, (SELECT COUNT(*) FROM sys.paramete",
+   1
+  ],
+  [
+   "SELECT o.name, sm.definition, CAST(ep.value AS NVARCHAR(N)) FROM sys.sql_modules sm JOIN sys.objects o ON o.object_id = sm.object_id JOIN sys.schemas s ON s.sch",
+   1
+  ]
+ ],
+ "slowest_catalog_fingerprints": [
+  [
+   "SELECT c.TABLE_NAME, c.COLUMN_NAME, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, c.NUMERIC_PRECISION, c.NUMERIC_SCALE, c.IS_NULLABLE, c.COLUMN_DEFAULT, COLUMNPROPER",
+   0.015,
+   2
+  ],
+  [
+   "SELECT kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME, kcu2.TABLE_SCHEMA AS REF_SCHEMA, kcu2.TABLE_NAME AS REF_TABLE, kcu2.COLUMN_NAME AS REF_COLUMN, kcu.",
+   0.01,
+   1
+  ],
+  [
+   "SELECT o.name, sm.definition, CAST(ep.value AS NVARCHAR(N)) FROM sys.sql_modules sm JOIN sys.objects o ON o.object_id = sm.object_id JOIN sys.schemas s ON s.sch",
+   0.009,
+   1
+  ],
+  [
+   "SELECT t.name AS TABLE_NAME, i.name AS INDEX_NAME, c.name AS COLUMN_NAME, i.is_unique, ic.key_ordinal AS SEQ_IN_INDEX FROM sys.indexes i JOIN sys.index_columns ",
+   0.007,
+   1
+  ],
+  [
+   "SELECT kcu.TABLE_NAME, kcu.COLUMN_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc ON tc.CONSTRAINT_NAME = kcu.CON",
+   0.004,
+   1
+  ]
+ ],
+ "info": {
+  "tables": 50,
+  "views": 5,
+  "routines": 2
+ },
+ "error": null
+}

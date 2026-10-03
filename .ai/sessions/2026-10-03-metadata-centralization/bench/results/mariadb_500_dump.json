@@ -1,0 +1,51 @@
+{
+ "flow": "dump",
+ "engine": "mariadb",
+ "volume": 500,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 17.057,
+ "median_catalog_seconds": 1.053,
+ "peak_mb": 22.3,
+ "queries_total": 4004,
+ "queries_catalog": 1504,
+ "top_catalog_fingerprints": [
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_500`.`t00000`",
+   3
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_500`.`t00001`",
+   3
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_500`.`t00002`",
+   3
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_500`.`t00003`",
+   3
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_500`.`t00004`",
+   3
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_500`.`t00005`",
+   3
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_500`.`t00006`",
+   3
+  ],
+  [
+   "SHOW CREATE TABLE `zz_util_bbdd_md_500`.`t00007`",
+   3
+  ]
+ ],
+ "info": {
+  "tables": 500,
+  "constraints": 1
+ },
+ "error": null
+}

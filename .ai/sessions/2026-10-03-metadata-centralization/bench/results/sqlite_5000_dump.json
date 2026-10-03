@@ -1,0 +1,78 @@
+{
+ "flow": "dump",
+ "engine": "sqlite",
+ "volume": 5000,
+ "limit": null,
+ "repeat": 1,
+ "median_seconds": 81.644,
+ "median_catalog_seconds": 18.664,
+ "peak_mb": 137.8,
+ "queries_total": 85007,
+ "queries_catalog": 60007,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT sql FROM (SELECT * FROM sqlite_master UNION ALL SELECT * FROM sqlite_temp_master) WHERE name = ? AND type in ('?', '?')",
+   15000
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00000\")",
+   3
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00001\")",
+   3
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00002\")",
+   3
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00003\")",
+   3
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00004\")",
+   3
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00005\")",
+   3
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t00006\")",
+   3
+  ]
+ ],
+ "slowest_catalog_fingerprints": [
+  [
+   "SELECT sql FROM (SELECT * FROM sqlite_master UNION ALL SELECT * FROM sqlite_temp_master) WHERE name = ? AND type in ('?', '?')",
+   15.641,
+   15000
+  ],
+  [
+   "SELECT name FROM sqlite_master WHERE type='?' AND name NOT LIKE '?' ESCAPE '?' ORDER BY name",
+   0.113,
+   2
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t04137\")",
+   0.023,
+   3
+  ],
+  [
+   "PRAGMA main.index_info(\"sqlite_autoindex_t00834_1\")",
+   0.002,
+   1
+  ],
+  [
+   "PRAGMA main.table_xinfo(\"t02852\")",
+   0.001,
+   3
+  ]
+ ],
+ "info": {
+  "tables": 5000,
+  "constraints": 0
+ },
+ "error": null
+}

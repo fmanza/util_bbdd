@@ -1,0 +1,51 @@
+{
+ "flow": "manager_scan",
+ "engine": "mariadb",
+ "volume": 500,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 2.395,
+ "median_catalog_seconds": 1.681,
+ "peak_mb": 2.4,
+ "queries_total": 2503,
+ "queries_catalog": 2503,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT HEX(COLUMN_NAME) AS column_name_hex, HEX(COLUMN_TYPE) AS column_type_hex, IS_NULLABLE, COLUMN_KEY, CASE WHEN COLUMN_DEFAULT IS NULL THEN N ELSE N END AS ",
+   500
+  ],
+  [
+   "SELECT CONVERT(INDEX_NAME USING utf8mb4) AS INDEX_NAME, CONVERT(COLUMN_NAME USING utf8mb4) AS COLUMN_NAME, NON_UNIQUE, CONVERT(INDEX_TYPE USING utf8mb4) AS INDE",
+   500
+  ],
+  [
+   "SELECT CONVERT(COLUMN_NAME USING utf8mb4) AS COLUMN_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '?' AND CONST",
+   500
+  ],
+  [
+   "SELECT CONVERT(CONSTRAINT_NAME USING utf8mb4) AS CONSTRAINT_NAME, CONVERT(TABLE_NAME USING utf8mb4) AS TABLE_NAME, CONVERT(COLUMN_NAME USING utf8mb4) AS COLUMN_",
+   500
+  ],
+  [
+   "SELECT CONVERT(CONSTRAINT_NAME USING utf8mb4) AS CONSTRAINT_NAME, CONVERT(COLUMN_NAME USING utf8mb4) AS COLUMN_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHE",
+   500
+  ],
+  [
+   "SELECT CONVERT(table_name USING utf8mb4) AS table_name, CONVERT(table_comment USING utf8mb4) AS table_comment, SUBSTRING_INDEX(TABLE_COLLATION, '?', N) AS chars",
+   1
+  ],
+  [
+   "SELECT CONVERT(table_name USING utf8mb4) AS table_name, CONVERT(table_comment USING utf8mb4) AS table_comment FROM information_schema.tables WHERE table_schema ",
+   1
+  ],
+  [
+   "SELECT HEX(COALESCE(ROUTINE_NAME, '?')) AS routine_name_hex, UPPER(COALESCE(ROUTINE_TYPE, '?')) AS routine_type, HEX(COALESCE(ROUTINE_COMMENT, '?')) AS routine_",
+   1
+  ]
+ ],
+ "info": {
+  "tables_listed": 500,
+  "tables_scanned": 500
+ },
+ "error": null
+}

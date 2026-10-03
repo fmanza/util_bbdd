@@ -1,0 +1,48 @@
+{
+ "flow": "doc_html",
+ "engine": "postgresql",
+ "volume": 50,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 5.847,
+ "median_catalog_seconds": 5.12,
+ "peak_mb": 4.8,
+ "queries_total": 209,
+ "queries_catalog": 209,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT c.column_name, c.data_type, CASE WHEN c.is_nullable = '?' THEN '?' ELSE '?' END AS is_nullable, CASE WHEN c.column_default LIKE '?' THEN NULL ELSE c.colu",
+   55
+  ],
+  [
+   "SELECT kcu.column_name FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name AND",
+   50
+  ],
+  [
+   "SELECT tc.constraint_name, kcu.column_name, ccu.table_name AS referenced_table, ccu.column_name AS referenced_column FROM information_schema.table_constraints t",
+   50
+  ],
+  [
+   "SELECT i.relname AS index_name, a.attname AS column_name, CASE WHEN idx.indisunique THEN '?' ELSE '?' END AS uniqueness, am.amname AS index_type FROM pg_index i",
+   50
+  ],
+  [
+   "SELECT c.relname AS table_name, COALESCE(obj_description(c.oid), '?') AS table_comment FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nsp",
+   2
+  ],
+  [
+   "SELECT p.proname AS routine_name, CASE WHEN p.prokind = '?' THEN '?' ELSE '?' END AS routine_type, COALESCE(obj_description(p.oid), '?') AS routine_comment FROM",
+   1
+  ],
+  [
+   "SELECT COALESCE(p.parameter_mode, '?') AS parameter_mode, COALESCE(p.parameter_name, '?') AS parameter_name, COALESCE(p.data_type, '?') AS data_type, COALESCE(p",
+   1
+  ]
+ ],
+ "info": {
+  "tables": 50,
+  "views": 5,
+  "routines": 2
+ },
+ "error": null
+}
