@@ -38,6 +38,7 @@ flowchart TD
 | `get_indices` | `async (tabla)` | Índices de una tabla | `Rows` |
 | `get_primary_keys` | `async (tabla)` | Claves primarias | `Rows` |
 | `get_foreign_keys` | `async (tabla)` | Claves foráneas | `Rows` |
+| `get_schema_metadata` | `async (schema=None, *, kinds=ALL_KINDS, tables=None)` | Metadatos del schema con una consulta por tipo de objeto (tablas, columnas, claves, índices, routines…); sustituye a recorrer las tablas con los `get_*` ([lectura por lotes](metadata_manager.md)) | `SchemaSnapshot` |
 | `get_database_version` | `async ()` | Versión del motor | `str` |
 | `execute_query_many` | `async (query_name, **params)` | Query registrada → varias filas | `Rows` |
 | `execute_custom_many` | `async (sql, params?)` | SQL libre → varias filas | `Rows` |

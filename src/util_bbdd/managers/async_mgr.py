@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Collection
 from typing import Any, cast
 
 from util_bbdd._drivers.validator import DatabaseTypeValidator
@@ -34,7 +34,11 @@ from ..metadata import (
     normalize_table_rows,
 )
 from ..metadata.adapters import EngineMetadataAdapterAsync, get_global_adapter_registry
+from ..metadata.catalog_registry import get_catalog_dialect
+from ..metadata.model import ALL_KINDS, Kind, SchemaSnapshot
+from ..metadata.source import AsyncCatalogSource
 from ..results import ResultNormalizer, RowOrNone
+from ._catalog_executor import AsyncManagerCatalogExecutor
 from ._manager_cache_service import CacheService
 from ._manager_lifecycle import (
     close_async_resources,
@@ -1086,6 +1090,38 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
     def get_relationship_cache(self) -> RelationshipMetadataCache:
         """Retorna caché centralizada de metadatos de relaciones."""
         return self.relationship_cache
+
+    @property
+    def metadata_source(self) -> AsyncCatalogSource:
+        """Lectura async del catálogo por lotes sobre las conexiones de este manager (ADR-003).
+
+        Ver :meth:`get_schema_metadata`; ``clear_cache()`` invalida su caché.
+        """
+        source: AsyncCatalogSource | None = self.__dict__.get("_catalog_source")
+        if source is None:
+            source = AsyncCatalogSource(
+                get_catalog_dialect(self.db_type),
+                AsyncManagerCatalogExecutor(self.get_connection, self.release_connection),
+                source_id=self._catalog_source_id(),
+                cache=self._catalog_cache(),
+                default_schema=self._catalog_default_schema(),
+            )
+            self.__dict__["_catalog_source"] = source
+        return source
+
+    async def get_schema_metadata(
+        self,
+        schema: str | None = None,
+        *,
+        kinds: Collection[Kind] = ALL_KINDS,
+        tables: Collection[str] | None = None,
+    ) -> SchemaSnapshot:
+        """Metadatos de un schema con una consulta por tipo de objeto (ver ``SyncDatabaseManager.get_schema_metadata``).
+
+        Example:
+            >>> snapshot = await manager.get_schema_metadata(kinds={Kind.TABLES, Kind.COLUMNS})
+        """
+        return await self.metadata_source.snapshot(schema, kinds=kinds, tables=tables)
 
     def get_metadata_manager(self) -> AsyncMetadataManager:
         """Expone `DDLBuilder` (construcción de DDL desde columnas) sobre esta conexión.

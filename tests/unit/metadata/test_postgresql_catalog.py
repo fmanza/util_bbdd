@@ -96,3 +96,15 @@ def test_parse_indexes_identity_routines_and_parameters() -> None:
     assert routine.key == RoutineKey("f", "x integer")
     params = PG.parse(Kind.ROUTINE_PARAMETERS, [("f", "x integer", 1, "x", None, "integer", "1")], "s")
     assert (params[0].mode, params[0].default) == ("IN", "1")
+
+
+def test_char_columns_as_bytes_like_asyncpg() -> None:
+    """asyncpg devuelve el tipo ``"char"`` de pg_catalog como bytes: identidad, reglas de FK y prokind deben leerse igual."""
+    cols = PG.parse(Kind.COLUMNS, [("t", "id", 1, "integer", "int4", True, 23, -1, None, None, None, b"d", b"")], "s")
+    assert cols[0].identity == "by default"
+    fk = PG.parse(Kind.FOREIGN_KEYS, [("c", "fk", ["p_id"], "s", "p", ["id"], b"c", b"a")], "s")[0]
+    assert (fk.on_delete, fk.on_update) == ("CASCADE", "NO ACTION")
+    routine = PG.parse(Kind.ROUTINES, [("p", b"p", "", None, "CREATE …", None, "plpgsql")], "s")[0]
+    assert routine.routine_type == "PROCEDURE"
+    param = PG.parse(Kind.ROUTINE_PARAMETERS, [("p", "", 1, "x", b"o", "integer", None)], "s")[0]
+    assert param.mode == "OUT"

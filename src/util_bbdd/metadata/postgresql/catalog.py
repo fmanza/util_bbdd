@@ -177,6 +177,15 @@ def _text(value: Any) -> str | None:
     return text if text != "" else None
 
 
+def _char(value: Any) -> str:
+    """Columna ``"char"`` de ``pg_catalog`` como texto (``asyncpg`` la devuelve como ``bytes``); ``""`` si es nula."""
+    if value is None:
+        return ""
+    if isinstance(value, (bytes, bytearray)):
+        return value.decode("ascii", errors="replace")
+    return str(value)
+
+
 def _names(value: Any) -> tuple[str, ...]:
     """Array de PostgreSQL (lista en psycopg; texto ``{a,b}`` en drivers que no lo convierten)."""
     if value is None:
@@ -248,11 +257,11 @@ class PostgreSQLCatalog:
                     length=length,
                     precision=precision,
                     scale=scale,
-                    default=None if str(r[12] or "") == "s" else _text(r[8]),
+                    default=None if _char(r[12]) == "s" else _text(r[8]),
                     comment=_text(r[9]),
                     collation=_text(r[10]),
-                    identity=_IDENTITY.get(str(r[11] or "")),
-                    generated=_text(r[8]) if str(r[12] or "") == "s" else None,
+                    identity=_IDENTITY.get(_char(r[11])),
+                    generated=_text(r[8]) if _char(r[12]) == "s" else None,
                 )
             )
         return out
@@ -279,8 +288,8 @@ class PostgreSQLCatalog:
                 ref_schema=str(r[3]),
                 ref_table=str(r[4]),
                 ref_columns=_names(r[5]),
-                on_delete=_FK_RULES.get(str(r[6]), "NO ACTION"),
-                on_update=_FK_RULES.get(str(r[7]), "NO ACTION"),
+                on_delete=_FK_RULES.get(_char(r[6]), "NO ACTION"),
+                on_update=_FK_RULES.get(_char(r[7]), "NO ACTION"),
             )
             for r in rows
         ]
@@ -306,7 +315,7 @@ class PostgreSQLCatalog:
             IdentityMeta(
                 table=str(r[0]),
                 column=str(r[1]),
-                kind="identity" if str(r[2] or "") in _IDENTITY else "sequence",
+                kind="identity" if _char(r[2]) in _IDENTITY else "sequence",
                 sequence=str(r[4]),
                 sequence_schema=str(r[3]),
             )
@@ -318,7 +327,7 @@ class PostgreSQLCatalog:
         return [
             RoutineMeta(
                 name=str(r[0]),
-                routine_type="PROCEDURE" if str(r[1]) == "p" else "FUNCTION",
+                routine_type="PROCEDURE" if _char(r[1]) == "p" else "FUNCTION",
                 signature=str(r[2] or ""),
                 return_type=_text(r[3]),
                 definition=_text(r[4]),
@@ -335,7 +344,7 @@ class PostgreSQLCatalog:
                 routine=RoutineKey(str(r[0]), str(r[1] or "")),
                 ordinal=int(r[2]),
                 name=_text(r[3]),
-                mode=_PARAM_MODES.get(str(r[4] or "i"), "IN"),
+                mode=_PARAM_MODES.get(_char(r[4]) or "i", "IN"),
                 data_type=str(r[5]),
                 default=_text(r[6]),
             )

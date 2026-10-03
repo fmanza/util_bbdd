@@ -29,6 +29,7 @@ def test_expand_empty_list_matches_nothing() -> None:
         ("format", "x = %s AND y IN (%s, %s)", [1, "p", "q"]),
         ("qmark", "x = ? AND y IN (?, ?)", [1, "p", "q"]),
         ("numeric", "x = :1 AND y IN (:2, :3)", [1, "p", "q"]),
+        ("dollar", "x = $1 AND y IN ($2, $3)", [1, "p", "q"]),
     ],
 )
 def test_to_driver_styles(style: str, expected_sql: str, expected_args: object) -> None:

@@ -38,6 +38,7 @@ flowchart TD
 | `get_indices` | `(tabla)` | Índices de una tabla | `Rows` |
 | `get_primary_keys` | `(tabla)` | Claves primarias | `Rows` |
 | `get_foreign_keys` | `(tabla)` | Claves foráneas | `Rows` |
+| `get_schema_metadata` | `(schema=None, *, kinds=ALL_KINDS, tables=None)` | Metadatos del schema con una consulta por tipo de objeto (tablas, columnas, claves, índices, routines…); sustituye a recorrer las tablas con los `get_*` ([lectura por lotes](metadata_manager.md)) | `SchemaSnapshot` |
 | `get_routine_ddl` | `(rutina, tipo_rutina)` | DDL de una rutina | `str` |
 | `get_database_version` | `()` | Versión del motor | `str` |
 | `get_storage_inventory` | `(tablespace?)` | Inventario de almacenamiento | `dict[str, Any]` |

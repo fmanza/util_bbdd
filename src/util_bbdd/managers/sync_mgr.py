@@ -5,7 +5,7 @@ Soporta MariaDB, Oracle, PostgreSQL, SQLite, HSQLDB y SQL Server.
 
 import logging
 
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -49,8 +49,12 @@ from ..metadata import (
     normalize_table_rows,
 )
 from ..metadata.adapters import EngineMetadataAdapterSync, get_global_adapter_registry
+from ..metadata.catalog_registry import get_catalog_dialect
+from ..metadata.model import ALL_KINDS, Kind, SchemaSnapshot
+from ..metadata.source import CatalogSource
 from ..query import DatabaseQueries
 from ..results import RowOrNone
+from ._catalog_executor import ManagerCatalogExecutor
 from ._manager_cache_service import CacheService
 from ._manager_lifecycle import SyncConnectionLifecycleManager
 from ._manager_lifecycle_sync import SyncLifecycleManager
@@ -1479,6 +1483,54 @@ class SyncDatabaseManager(DatabaseManagerSharedMixin):
     def get_relationship_cache(self) -> "RelationshipMetadataCache":
         """Return centralized relationship metadata cache."""
         return self.relationship_cache
+
+    @property
+    def metadata_source(self) -> CatalogSource:
+        """Lectura del catálogo por lotes sobre las conexiones de este manager (ADR-003).
+
+        Una consulta por schema y tipo de objeto con el driver nativo, en la caché del manager (``clear_cache()`` la
+        invalida). Ver :meth:`get_schema_metadata`.
+        """
+        source: CatalogSource | None = self.__dict__.get("_catalog_source")
+        if source is None:
+            source = CatalogSource(
+                get_catalog_dialect(self.db_type),
+                ManagerCatalogExecutor(
+                    lambda: self._get_sync_query_executor().connection_provider(),
+                    lambda conn: self._get_sync_query_executor().connection_releaser(conn),
+                ),
+                source_id=self._catalog_source_id(),
+                cache=self._catalog_cache(),
+                default_schema=self._catalog_default_schema(),
+            )
+            self.__dict__["_catalog_source"] = source
+        return source
+
+    def get_schema_metadata(
+        self,
+        schema: str | None = None,
+        *,
+        kinds: Collection[Kind] = ALL_KINDS,
+        tables: Collection[str] | None = None,
+    ) -> SchemaSnapshot:
+        """Metadatos de un schema con una consulta por tipo de objeto (tablas, columnas, claves, índices, routines…).
+
+        Sustituye a recorrer el schema con ``get_columns(t)``, ``get_indices(t)``…: con 500 tablas en PostgreSQL,
+        12 consultas en lugar de 2503 (ADR-003).
+
+        Args:
+            schema: Schema, owner o base de datos; por defecto el contexto de metadatos del manager (``main`` en SQLite).
+            kinds: Tipos de objeto a leer; pedir después uno no leído lanza ``KindNotLoadedError``.
+            tables: Limita la lectura a estas tablas (hasta 50; con más, se lee el schema completo).
+
+        Returns:
+            ``SchemaSnapshot`` inmutable con modelos neutros (``TableMeta``, ``ColumnMeta``, ``ForeignKeyMeta``…).
+
+        Example:
+            >>> snapshot = manager.get_schema_metadata(kinds={Kind.TABLES, Kind.FOREIGN_KEYS})
+            >>> [(fk.table, fk.ref_table) for fk in snapshot.all_foreign_keys()]
+        """
+        return self.metadata_source.snapshot(schema, kinds=kinds, tables=tables)
 
     def get_metadata_manager(self) -> "MetadataManager":
         """Expone `DDLBuilder` (construcción de DDL desde columnas) sobre esta conexión.

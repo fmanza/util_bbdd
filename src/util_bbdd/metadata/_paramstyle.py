@@ -20,7 +20,8 @@ import re
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal
 
-ParamStyle = Literal["named", "pyformat", "format", "qmark", "numeric"]
+#: ``dollar`` (``$1``) no es un ``paramstyle`` DB-API: es el de ``asyncpg``.
+ParamStyle = Literal["named", "pyformat", "format", "qmark", "numeric", "dollar"]
 
 _TOKEN = re.compile(
     r"(?P<literal>'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\")"
@@ -89,6 +90,8 @@ def to_driver(
             return "%s"
         if paramstyle == "qmark":
             return "?"
+        if paramstyle == "dollar":
+            return f"${len(positional)}"
         return f":{len(positional)}"  # numeric
 
     translated = _TOKEN.sub(replace, sql)

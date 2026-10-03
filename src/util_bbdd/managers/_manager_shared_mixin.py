@@ -21,7 +21,9 @@ import logging
 from typing import Any
 
 from ..metadata.cache import DatabaseMetadataCache, RelationshipMetadataCache
+from ..metadata.catalog_registry import get_catalog_dialect
 from ..metadata.mariadb import escape_mariadb_sql_literal
+from ..metadata.snapshot_cache import SnapshotCache
 from ._metadata_cache import CacheManager
 from ._metadata_context import CacheKeyFactory, MetadataContextResolver
 from ._metadata_parser import CharsetCollationParser, DDLNormalizer
@@ -48,6 +50,40 @@ class DatabaseManagerSharedMixin:
     def _clear_all_caches(self) -> None:
         """Limpia completamente todas las cachés de metadatos."""
         self._cache_manager().clear_all()
+        self._invalidate_catalog()
+
+    # ------------------------------------------------------------------
+    # Lectura por lotes del catálogo (ADR-003, C1)
+    # ------------------------------------------------------------------
+
+    def _catalog_cache(self) -> SnapshotCache:
+        """Caché de snapshots del manager (una por instancia, compartida por la fuente sync o async)."""
+        cache: SnapshotCache | None = self.__dict__.get("_catalog_snapshot_cache")
+        if cache is None:
+            cache = SnapshotCache()
+            self.__dict__["_catalog_snapshot_cache"] = cache
+        return cache
+
+    def _catalog_default_schema(self) -> str:
+        """Schema que lee ``get_schema_metadata()`` sin argumento: el contexto de metadatos (``main`` en SQLite)."""
+        return "main" if self.db_type == "sqlite" else self._get_query_context_database()
+
+    def _catalog_source_id(self) -> str:
+        """Identifica la base de datos en la caché, sin credenciales."""
+        params = self.conn_params
+        location = params.get("dsn") or f"{params.get('host', '')}:{params.get('port', '')}"
+        return f"{self.db_type}://{location}/{self.database}"
+
+    def _invalidate_catalog(self, context: str | None = None) -> None:
+        """Descarta los snapshots leídos (todos, o los del schema del contexto)."""
+        cache: SnapshotCache | None = self.__dict__.get("_catalog_snapshot_cache")
+        if cache is None:
+            return
+        if context is None:
+            cache.invalidate(self._catalog_source_id())
+            return
+        schema = "main" if self.db_type == "sqlite" else context
+        cache.invalidate(self._catalog_source_id(), get_catalog_dialect(self.db_type).normalize_name(schema))
 
     def _clear_table_cache(self, context: str, table: str) -> None:
         """Limpia caché para una tabla/vista específica."""
@@ -95,6 +131,9 @@ class DatabaseManagerSharedMixin:
 
         if not table and not routine:
             self._clear_context_cache(resolved_context)
+
+        # El snapshot es por schema: cualquier limpieza selectiva descarta el del schema afectado
+        self._invalidate_catalog(resolved_context)
 
     # ------------------------------------------------------------------
     # Query context helpers

@@ -13,6 +13,11 @@ cambios siguientes.
 
 ### Added
 
+- **managers**: `SyncDatabaseManager.get_schema_metadata()` / `AsyncDatabaseManager.get_schema_metadata()` y
+  `metadata_source` (grupo C1 de ADR-003): los metadatos de un schema con una consulta por tipo de objeto, sobre las
+  conexiones del manager (driver nativo; `asyncpg` incluido) y en su caché, que `clear_cache()` invalida. Devuelve un
+  `SchemaSnapshot`; los `get_*` actuales no cambian. En HSQLDB es la vía que funciona mientras los `get_*` sigan sobre
+  el registry (H-19).
 - **metadata**: lectura del catálogo por lotes (grupo A1 de ADR-003). `CatalogSource` / `AsyncCatalogSource`
   (`MetadataSource`) leen cada tipo de objeto (`Kind`) con una consulta por schema y devuelven un `SchemaSnapshot`
   inmutable con modelos neutros (`TableMeta`, `ColumnMeta`, `ForeignKeyMeta`, `IndexMeta`, `RoutineMeta`…);

@@ -70,7 +70,9 @@ class ViewMeta:
     """Vista del schema con su definición tal como la guarda el motor.
 
     ``definition`` es el ``SELECT`` en PostgreSQL, Oracle y MySQL/MariaDB, y la sentencia ``CREATE VIEW`` completa en
-    SQL Server y SQLite; ``None`` si el motor no la expone (permisos, vistas cifradas).
+    SQL Server y SQLite; ``None`` si el motor no la expone (permisos, vistas cifradas). En PostgreSQL,
+    ``pg_get_viewdef`` omite el schema de las tablas que están en el ``search_path`` de la sesión: la misma vista puede
+    leerse con o sin nombres calificados según la conexión.
     """
 
     name: str
