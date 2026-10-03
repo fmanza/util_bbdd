@@ -174,8 +174,10 @@ FLOWS: list[Any] = [
     pytest.param(_manager_scan, id="manager_scan", marks=_xfail("C1")),
     pytest.param(_analysis, id="analysis"),  # C2: índice de relaciones desde el snapshot
     pytest.param(_doc, id="doc", marks=_xfail("D1")),
-    # C4: vistas y routines por lotes; queda la reflexión de SQLAlchemy, tabla a tabla en SQLite y MySQL/MariaDB (H-29)
-    pytest.param(_comparar, id="comparar", marks=_xfail("H-29 (reflexión por lotes en SQLite/MySQL/MariaDB)")),
+    # C4 + H-29: vistas, routines y reflexión de MySQL/MariaDB por lotes. Este test usa SQLite, que SQLAlchemy refleja
+    # con PRAGMA tabla a tabla (en proceso, sin red): se acepta; la paridad por lotes de los servidores la cubre
+    # tests/integration/test_comparar_prefetch_engines.py
+    pytest.param(_comparar, id="comparar", marks=_xfail("— no aplica: SQLite refleja con PRAGMA tabla a tabla")),
     pytest.param(_dump, id="dump", marks=_xfail("D2")),
     pytest.param(_bulk, id="bulk"),
     pytest.param(_snapshot, id="snapshot"),  # lectura por lotes (ADR-003): la referencia

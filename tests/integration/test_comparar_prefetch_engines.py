@@ -30,6 +30,7 @@ from sqlalchemy import (
     Table,
     UniqueConstraint,
     create_engine,
+    event,
     inspect,
 )
 
@@ -127,11 +128,36 @@ def engine_and_tables(request: pytest.FixtureRequest) -> Any:
                 "n NVARCHAR(30) COLLATE Latin1_General_BIN DEFAULT N'x', d DECIMAL(12,2), f FLOAT, vb VARBINARY(MAX), "
                 "v VARCHAR(MAX), dt DATETIME2(3), comp AS (d * 2) PERSISTED, m MONEY, flag BIT, u UNIQUEIDENTIFIER)"
             )
-    names = [t.name for t in md.sorted_tables] + ([f"{prefix}_t"] if key == "mssql" else [])
+    if key in ("mysql", "mariadb"):
+        # H-29: SHOW CREATE TABLE reconstruido desde information_schema; tipos, defaults, collations, columnas
+        # generadas, índices de prefijo/DESC/FULLTEXT y reglas de FK deben dar lo mismo que la reflexión tabla a tabla
+        stored_not_null = "STORED NOT NULL" if key == "mysql" else "STORED"
+        with engine.begin() as conn:
+            conn.exec_driver_sql(
+                f"CREATE TABLE {prefix}_t (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, i INT DEFAULT 0, "
+                "d DECIMAL(12,2) DEFAULT 1.50, f FLOAT DEFAULT 1.5, b BIT(3) DEFAULT b'101', bo BOOLEAN DEFAULT TRUE, "
+                "z INT(5) UNSIGNED ZEROFILL, v1 VARCHAR(30) DEFAULT 'it''s', v2 VARCHAR(30) COLLATE utf8mb4_bin, "
+                "v3 VARCHAR(30) CHARACTER SET latin1, v4 VARCHAR(30) CHARACTER SET latin1 COLLATE latin1_bin, "
+                "v5 VARCHAR(10) NOT NULL DEFAULT '', tx TEXT, js JSON, e ENUM('a','b''c') DEFAULT 'a', "
+                "s SET('x','y') DEFAULT 'x,y', dt DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3), "
+                "ts TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
+                "tn TIMESTAMP NULL DEFAULT NULL, dd DATE DEFAULT '2020-01-01', u CHAR(36) DEFAULT (uuid()), "
+                f"gv INT AS (i * 2) VIRTUAL, gs INT AS (i + 1) {stored_not_null}, "
+                "c VARCHAR(5) COMMENT 'com''ent \\\\ x', p_id INT, a INT, "
+                f"PRIMARY KEY (id), UNIQUE KEY {prefix}_uk (v5), KEY {prefix}_ix (i DESC, v1(10)), "
+                f"FULLTEXT KEY {prefix}_ft (tx), "
+                f"CONSTRAINT {prefix}_fk1 FOREIGN KEY (p_id) REFERENCES {prefix}_p (id) "
+                "ON DELETE SET NULL ON UPDATE CASCADE, "
+                f"CONSTRAINT {prefix}_fk2 FOREIGN KEY (p_id) REFERENCES {prefix}_p (id) ON DELETE RESTRICT, "
+                f"CONSTRAINT {prefix}_fk3 FOREIGN KEY (a) REFERENCES {prefix}_p (id) ON DELETE NO ACTION"
+                ") ENGINE=InnoDB COMMENT='tabla ''t'''"
+            )
+    extra = [f"{prefix}_t"] if key in ("mssql", "mysql", "mariadb") else []
+    names = [t.name for t in md.sorted_tables] + extra
     try:
         yield key, engine, names
     finally:
-        if key == "mssql":
+        if extra:
             with engine.begin() as conn:
                 conn.exec_driver_sql(f"DROP TABLE IF EXISTS {prefix}_t")
         md.drop_all(engine, checkfirst=True)
@@ -155,7 +181,20 @@ def test_prefetch_matches_per_table_reflection(engine_and_tables: Any) -> None:
             "comments": {t: insp.get_table_comment(t, schema=schema).get("text") or "" for t in names},
         }
 
-        meta = prefetch_table_metadata(inspect(engine), schema, names, kinds=KINDS)
+        statements: list[str] = []
+
+        def record(_conn: Any, _cursor: Any, statement: str, *_args: Any, sink: list[str] = statements) -> None:
+            sink.append(statement)
+
+        event.listen(engine, "before_cursor_execute", record)
+        try:
+            meta = prefetch_table_metadata(inspect(engine), schema, names, kinds=KINDS)
+        finally:
+            event.remove(engine, "before_cursor_execute", record)
+        if key in ("mysql", "mariadb"):
+            # H-29: todo por lotes (5 consultas por schema), ni un SHOW CREATE TABLE ni la corrección de FKs por tabla
+            assert not [s for s in statements if s.upper().startswith("SHOW CREATE")], statements
+            assert len(statements) <= 6, statements
         per_table = AssertionError("consulta tabla a tabla: la precarga no cubrió la tabla")
         with (
             patch.object(Inspector, "get_columns", side_effect=per_table),
@@ -173,9 +212,9 @@ def test_prefetch_matches_per_table_reflection(engine_and_tables: Any) -> None:
                         table,
                     )
 
-        if key == "mssql":
-            # PK, índices, FKs y comentarios de SQL Server salen de consultas por schema: mismo dict que MSDialect
-            # tabla a tabla (dialect_options, include_columns, options y referred_schema incluidos).
+        if key in ("mssql", "mysql", "mariadb"):
+            # PK, índices, FKs, comentarios y columnas salen de consultas por schema: mismo dict que el dialecto tabla a
+            # tabla (dialect_options, include_columns, options, referred_schema, computed y tipos incluidos).
             insp = inspect(engine)
             for table in names:
                 assert table in meta.prefetched["columns"], table  # precargada, no tabla a tabla

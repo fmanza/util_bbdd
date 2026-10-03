@@ -132,8 +132,9 @@ class SchemaComparator:
         Rendimiento:
             Los metadatos de las tablas comunes (columnas, PK, índices, FKs y comentarios) se leen con
             ``Inspector.get_multi_*``: una consulta por schema y tipo en PostgreSQL y Oracle; en SQL Server PK, índices,
-            FKs, comentarios y columnas con consultas por schema (``metadata.reflection``); en
-            MariaDB/MySQL tabla a tabla (un ``SHOW CREATE TABLE`` por tabla), pero sin una conexión del pool por llamada.
+            FKs, comentarios y columnas con consultas por schema (``metadata.reflection``); en MariaDB/MySQL, cinco
+            consultas por schema en lugar de un ``SHOW CREATE TABLE`` por tabla (H-29); en SQLite, ``PRAGMA`` tabla a
+            tabla (en proceso, sin red).
 
             Vistas y routines: definiciones con una consulta por lado y tipo de objeto desde el catálogo de
             ``metadata/`` (ADR-003, C4); antes una consulta por vista y lado, y un ``SHOW CREATE`` por routine en

@@ -147,6 +147,18 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   ficheros, pie de figura actualizado), `mkdocs build --strict`. Banco `comparar` 5000: SQL Server 11 016 → 20
   consultas / 261 → 4,8 s; PostgreSQL 1026 → 28; Oracle 1072 → 74 (la primera ejecución de Oracle paga el *hard parse*:
   500 tablas 5,5 s con 1 repetición, 1,2 s de mediana con 3).
+- Usuario: «H-29 y luego C5».
+- IMPLEMENT · H-29: `metadata/mariadb/_show_create.py` reconstruye `SHOW CREATE TABLE` de todo el schema con cinco
+  consultas a `information_schema` (reglas de formato medidas en el banco: defaults entrecomillados en MySQL y en forma
+  SQL en MariaDB, `CHARACTER SET … COLLATE …` si difiere de la tabla, expresión generada entre paréntesis, FK sin
+  `NO ACTION` en MySQL y sin `RESTRICT` en MariaDB); `metadata/reflection.py` lo interpreta con
+  `dialect._tabledef_parser` y llama a `get_columns`/`get_pk_constraint`/`get_indexes`/`get_table_comment` del dialecto
+  sobre una caché privada sembrada con la clave de `_setup_parser` (el decorador `reflection.cache` pasa `schema` como
+  argumento con nombre: `("_setup_parser", (tabla,), (("schema", schema),))`). Las FKs replican `get_foreign_keys` sin
+  la consulta de corrección de MySQL 8 (los nombres ya salen de `information_schema`). Paridad completa (`repr` de los
+  tipos, `computed`, `dialect_options`, `options`) en `test_comparar_prefetch_engines.py` con una tabla de 27 columnas,
+  y ≤ 6 sentencias sin `SHOW CREATE`. Banco `comparar` 5000: MySQL 10 010 → 20 consultas / 19,9 → 9,3 s, MariaDB
+  16,3 → 10,4 s (el resto es CPU: parseo y comparación de 2 × 5000 tablas).
 
 ## Artefactos generados
 

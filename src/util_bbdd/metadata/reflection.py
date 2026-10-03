@@ -7,7 +7,13 @@ usa ``CatalogSource`` (modelo neutro).
 ``Inspector.get_columns``/``get_pk_constraint``/``get_indexes``/``get_foreign_keys``/``get_table_comment`` hacen
 una consulta por tabla. Los ``get_multi_*`` de SQLAlchemy 2.0 leen todas las tablas pedidas a la vez: en PostgreSQL y
 Oracle con una consulta por schema (≈ 2,1-2,4 s → 0,06-0,09 s por lado con 200 tablas, auditoría de ``comparar``
-2026-10-02); en el resto de dialects SQLAlchemy los resuelve tabla a tabla, con el mismo coste que antes.
+2026-10-02); en el resto de dialects SQLAlchemy los resuelve tabla a tabla.
+
+MySQL/MariaDB (H-29): SQLAlchemy lee un ``SHOW CREATE TABLE`` por tabla (y en MySQL 8 otra consulta por tabla para
+corregir las mayúsculas de las FKs). Aquí ese texto se reconstruye para todo el schema con cinco consultas a
+``information_schema`` (``metadata.mariadb._show_create``) y lo interpreta el parser del dialecto con una caché de
+reflexión privada: mismos tipos, defaults, ``computed``, índices y FKs que tabla a tabla (comparar con 5000 tablas:
+10 010 → 20 consultas).
 
 SQL Server no tiene ``get_multi_*`` nativos: PK, índices, FKs y comentarios se leen con una consulta por schema de
 ``metadata.sqlserver`` y se construyen con el mismo formato que ``MSDialect`` tabla a tabla (verificado en
@@ -34,6 +40,15 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from util_bbdd._core.exceptions import MetadataIntrospectionError
 from util_bbdd.metadata.catalog_registry import CatalogDialectNotFoundError, get_catalog_dialect
+from util_bbdd.metadata.mariadb._show_create import (
+    COLUMNS_SQL as _MY_COLUMNS_SQL,
+    FK_COLUMNS_SQL as _MY_FK_COLUMNS_SQL,
+    FK_RULES_SQL as _MY_FK_RULES_SQL,
+    TABLES_SQL as _MY_TABLES_SQL,
+    SchemaRows,
+    build_show_create,
+    statistics_sql,
+)
 from util_bbdd.metadata.model import Kind, RoutineMeta
 from util_bbdd.metadata.source import CatalogSource, SqlAlchemyCatalogExecutor
 from util_bbdd.metadata.sqlserver.constraints import fetch_schema_fk_details_sql
@@ -107,9 +122,12 @@ def prefetch_table_metadata(
     meta = TableMetadata(inspector, schema)
     if not names:
         return meta
+    mysql = _mysql_states(inspector, schema, names) if _dialect_name(inspector) in ("mysql", "mariadb") else None
     for kind in kinds:
         prefetched: dict[str, Any] | None = None
-        if _dialect_name(inspector) == "mssql":
+        if mysql is not None:
+            prefetched = _mysql_build(kind, inspector, schema, *mysql)
+        elif _dialect_name(inspector) == "mssql":
             prefetched = _mssql_prefetch(inspector, kind, schema, names)
         if prefetched is None:
             prefetched = _multi(inspector, _MULTI_METHODS[kind], schema, names)
@@ -409,6 +427,101 @@ def _mssql_fk_options(on_delete: str | None, on_update: str | None) -> dict[str,
         if rule != "NO ACTION":
             options[key] = rule
     return options
+
+
+# ─── MySQL/MariaDB: SHOW CREATE TABLE reconstruido por schema (H-29) ──────────
+
+
+def _mysql_states(
+    inspector: Inspector, schema: str | None, names: Sequence[str]
+) -> tuple[dict[str, Any], dict[Any, Any]] | None:
+    """``({tabla: ReflectedState}, caché privada de reflexión)`` con cinco consultas por schema; ``None`` si falla.
+
+    El texto de ``SHOW CREATE TABLE`` se reconstruye desde ``information_schema`` (``metadata.mariadb._show_create``)
+    y lo interpreta el parser del dialecto; la caché privada (no la del ``Inspector`` del llamador) lleva el estado de
+    cada tabla con la clave de ``_setup_parser``, de modo que ``get_columns``/``get_pk_constraint``/``get_indexes``/
+    ``get_table_comment`` del dialecto devuelven lo mismo que tabla a tabla sin consultar nada.
+    """
+    bind = getattr(inspector, "bind", None)
+    dialect: Any = inspector.dialect
+    if not isinstance(bind, Engine) or schema is not None and "." in schema:
+        return None
+    server = "mariadb" if getattr(dialect, "is_mariadb", False) else "mysql"
+    if server == "mysql" and (getattr(dialect, "server_version_info", None) or (0,)) < (8, 0, 13):
+        return None  # sin STATISTICS.EXPRESSION ni el formato de defaults medido
+    owner: str = schema or inspector.default_schema_name or ""
+    try:
+        with bind.connect() as conn:
+            results = [
+                conn.execute(text(sql), {"schema": owner}).all()
+                for sql in (
+                    _MY_TABLES_SQL,
+                    _MY_COLUMNS_SQL,
+                    statistics_sql(server),
+                    _MY_FK_COLUMNS_SQL,
+                    _MY_FK_RULES_SQL,
+                )
+            ]
+    except SQLAlchemyError as exc:
+        logger.debug("Lectura por schema de MySQL/MariaDB fallida (%s); se refleja tabla a tabla.", exc)
+        return None
+    rows = SchemaRows.from_results(*results)
+    quote = dialect.identifier_preparer.quote_identifier
+    parser = dialect._tabledef_parser  # noqa: SLF001 - el mismo parser que usa la reflexión tabla a tabla
+    charset = getattr(dialect, "_connection_charset", None)
+    states: dict[str, Any] = {}
+    cache: dict[Any, Any] = {}
+    for name in names:
+        if name not in rows.tables:
+            continue  # vista, tabla creada después o distinta capitalización: tabla a tabla
+        state = parser.parse(build_show_create(server, owner, name, rows, quote), charset)
+        states[name] = state
+        # Clave de sqlalchemy.engine.reflection.cache: el decorador pasa ``schema`` como argumento con nombre
+        cache[("_setup_parser", (name,), (("schema", schema),))] = state
+    return states, cache
+
+
+def _mysql_build(
+    kind: MetadataKind, inspector: Inspector, schema: str | None, states: dict[str, Any], cache: dict[Any, Any]
+) -> dict[str, Any]:
+    """Metadato ``kind`` de cada tabla con los métodos del dialecto sobre la caché privada (sin consultas)."""
+    dialect: Any = inspector.dialect
+    if kind == "fks":
+        return {table: _mysql_foreign_keys(dialect, state, schema) for table, state in states.items()}
+    method = {
+        "columns": dialect.get_columns,
+        "pk": dialect.get_pk_constraint,
+        "indexes": dialect.get_indexes,
+        "comments": dialect.get_table_comment,
+    }[kind]
+    return {table: method(None, table, schema, info_cache=cache) for table in states}
+
+
+def _mysql_foreign_keys(dialect: Any, state: Any, schema: str | None) -> list[Any]:
+    """``MySQLDialect.get_foreign_keys`` sin la consulta de corrección de mayúsculas de MySQL 8 (bugs 88718/96365).
+
+    Esa consulta lleva tabla, schema y columnas referenciadas a como los guarda ``information_schema``, que es de donde
+    ya salen aquí.
+    """
+    fkeys: list[Any] = []
+    for spec in state.fk_constraints:
+        ref_schema = len(spec["table"]) > 1 and spec["table"][-2] or schema
+        if not ref_schema and schema == dialect.default_schema_name:
+            ref_schema = schema
+        options = {
+            opt: spec[opt] for opt in ("onupdate", "ondelete") if spec.get(opt, False) not in ("NO ACTION", None)
+        }
+        fkeys.append(
+            {
+                "name": spec["name"],
+                "constrained_columns": spec["local"],
+                "referred_schema": ref_schema,
+                "referred_table": spec["table"][-1],
+                "referred_columns": spec["foreign"],
+                "options": options,
+            }
+        )
+    return fkeys
 
 
 # ─── vistas y routines de un Inspector, por lotes (comparar, grupo C4) ────────

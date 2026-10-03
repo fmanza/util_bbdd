@@ -83,6 +83,12 @@ cambios siguientes.
 
 ### Performance
 
+- **comparar / metadata (MySQL, MariaDB)**: la reflexión de columnas, PK, índices, FKs y comentarios se lee con
+  cinco consultas por schema en lugar de un `SHOW CREATE TABLE` por tabla (más la corrección de FKs de MySQL 8 por
+  tabla): `metadata.reflection` reconstruye ese texto desde `information_schema` y lo interpreta el parser del dialecto,
+  con el mismo resultado que tabla a tabla (tipos, collations, defaults, columnas generadas, índices de prefijo/`DESC`/
+  `FULLTEXT`, reglas de FK; verificado contra MySQL 8.4 y MariaDB 11). `compare()` con 5000 tablas: 10 010 → 20
+  consultas; MySQL 19,9 → 9,3 s, MariaDB 16,3 → 10,4 s (H-29).
 - **comparar**: una consulta por lado para las definiciones de las vistas (antes una por vista y lado) y otra para
   las routines (antes un `SHOW CREATE` por routine en MariaDB/MySQL). `compare()` con 5000 tablas y 500 vistas:
   SQL Server 11 016 → 20 consultas y 261 → 4,8 s (con B1), PostgreSQL 1026 → 28 consultas y 12,2 → 9,0 s,
