@@ -120,6 +120,11 @@ source.invalidate("ventas")  # tras cambiar el esquema con DDL propio
 | `SqlAlchemyCatalogExecutor` / `DbapiCatalogExecutor` | Ejecutan el SQL de catálogo sobre un `Engine`/`Connection` de SQLAlchemy o sobre una conexión DB-API (traduce `:nombre` al `paramstyle` del driver) |
 | `get_catalog_dialect(nombre)` | `CatalogDialect` por `db_type` o nombre de dialecto de SQLAlchemy |
 
+**Vista de reflexión.** Quien necesita tipos u objetos de SQLAlchemy (hoy `comparar`) usa
+`metadata.reflection.prefetch_table_metadata(inspector, schema, tablas, kinds=...)`: `Inspector.get_multi_*` y, en SQL
+Server (que no los agrupa), consultas por schema con el mismo resultado que `MSDialect` tabla a tabla, columnas
+incluidas.
+
 Referencia medida (banco del proyecto): el snapshot completo cuesta 12 consultas con 50, 500 o 5000 tablas; con 5000
 tablas, 1,2 s y 26 MB en PostgreSQL 17, 2,2 s en Oracle 23 Free y 2,8 s en SQL Server 2022 (MySQL 8.4 y MariaDB
 11.4: 15 y 14 consultas, 2,4 y 2,6 s). Recorrer 500 tablas tabla a tabla con los managers

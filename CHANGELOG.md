@@ -55,6 +55,11 @@ cambios siguientes.
 
 ### Performance
 
+- **comparar / metadata**: en SQL Server las columnas también se precargan por schema (la consulta `sys.*` de
+  `MSDialect.get_columns` para todo el schema y la misma conversión a tipos de SQLAlchemy), en vez de una consulta por
+  tabla y lado: `compare()` con 5000 tablas 261 → 8,9 s (catálogo 229 → 3,8 s); mismos tipos que la reflexión tabla a
+  tabla (verificado contra SQL Server 2022 con identidad, collation, `MAX`, `DECIMAL`, calculadas…). La precarga se
+  mueve de `comparar/_prefetch.py` (privado) a `metadata/reflection.py` (grupo B1 de ADR-003).
 - **metadata / migrate**: las FK por schema de MariaDB/MySQL se leen con dos consultas (`KEY_COLUMN_USAGE` y la nueva
   `fetch_fk_rules_for_schema_sql()` sobre `REFERENTIAL_CONSTRAINTS`) unidas en Python, en vez de un join entre vistas de
   `information_schema` que era cuadrático en el nº de FK. Extracción de `migrate` con 5000 tablas: MySQL 20,6 → 5,1 s,

@@ -16,8 +16,8 @@ from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
 
-from util_bbdd.comparar._prefetch import prefetch_table_metadata
 from util_bbdd.comparar.comparator import SchemaComparator
+from util_bbdd.metadata.reflection import prefetch_table_metadata
 
 
 class _MultiInspector:
@@ -252,15 +252,54 @@ class TestSqlServerPkIndexesComments:
 
         assert [meta.get("comments", n) for n in ("t", "vacia", "sin")] == ["tabla t", "", ""]
 
-    def test_columns_are_not_read_with_own_sql(self) -> None:
-        """Los tipos de columna de SQLAlchemy no se reconstruyen: columnas siempre por get_multi_columns."""
-        insp = self._inspector()
-        insp.get_multi_columns.return_value = {(None, "t"): ["col"]}
+    def test_columns_are_read_by_schema_with_msdialect_types(self) -> None:
+        """B1: columnas de todo el schema en una consulta, con los tipos de MSDialect.get_columns."""
+        from decimal import Decimal
+
+        from sqlalchemy.dialects import mssql
+
+        rows = [
+            ("t", "id", "int", "int", 0, 4, 10, 0, None, None, None, None, 1, Decimal(1), Decimal(1), "clave"),
+            ("t", "name", "nvarchar", "nvarchar", 1, 100, 0, 0, "(N'x')", "Latin1_General_CI_AS", None, None, None,
+             None, None, None),
+            ("t", "amount", "decimal", "decimal", 1, 9, 12, 2, None, None, None, None, None, None, None, None),
+            ("t", "total", "int", "int", 1, 4, 10, 0, None, None, "([amount]*(2))", True, None, None, None, None),
+            ("otra", "x", "int", "int", 1, 4, 10, 0, None, None, None, None, None, None, None, None),
+        ]  # fmt: skip
+        insp = self._inspector(rows)
+        insp.dialect = mssql.dialect()
+        insp.get_multi_columns.side_effect = AssertionError("no debe usarse get_multi_columns")
 
         meta = prefetch_table_metadata(insp, None, ["t"], kinds=["columns"])
 
-        assert meta.get("columns", "t") == ["col"]
-        insp.bind.connect.assert_not_called()
+        ident, name, amount, total = meta.get("columns", "t")
+        assert (str(ident["type"]), ident["autoincrement"], ident["identity"], ident["comment"]) == (
+            "INTEGER",
+            True,
+            {"start": 1, "increment": 1},
+            "clave",
+        )
+        assert (str(name["type"]), name["type"].collation, name["default"]) == (
+            'NVARCHAR(50) COLLATE "Latin1_General_CI_AS"',
+            "Latin1_General_CI_AS",
+            "(N'x')",
+        )
+        assert str(amount["type"]) == "DECIMAL(12, 2)"
+        assert total["computed"] == {"sqltext": "([amount]*(2))", "persisted": True}
+        assert "otra" not in meta.prefetched["columns"]  # no pedida
+
+    def test_unknown_column_type_falls_back_to_per_table(self) -> None:
+        from sqlalchemy.dialects import mssql
+
+        rows = [("t", "g", "geography", None, 1, -1, 0, 0, None, None, None, None, None, None, None, None)]
+        insp = self._inspector(rows)
+        insp.dialect = mssql.dialect()
+        insp.get_columns.return_value = ["por tabla"]
+
+        meta = prefetch_table_metadata(insp, None, ["t"], kinds=["columns"])
+
+        assert "t" not in meta.prefetched["columns"]
+        assert meta.get("columns", "t") == ["por tabla"]
 
 
 def test_compare_on_sqlite_gives_same_result_and_query_count_with_prefetch() -> None:

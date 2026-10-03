@@ -33,7 +33,7 @@ from sqlalchemy import (
     inspect,
 )
 
-from util_bbdd.comparar._prefetch import prefetch_table_metadata
+from util_bbdd.metadata.reflection import prefetch_table_metadata
 
 pytestmark = [pytest.mark.integration, pytest.mark.cross_db]
 
@@ -82,6 +82,11 @@ def _tables(prefix: str) -> MetaData:
     return md
 
 
+def _full_column(column: Any) -> dict[str, Any]:
+    """Columna reflejada con el tipo como ``repr`` (longitud, precisión, collation…) para compararla entera."""
+    return {**column, "type": repr(column["type"])}
+
+
 def _normalize(kind: str, value: Any) -> Any:
     """Lo que usa el comparador de cada metadato, en un orden estable."""
     if kind == "columns":
@@ -115,9 +120,20 @@ def engine_and_tables(request: pytest.FixtureRequest) -> Any:
         with engine.begin() as conn:
             conn.exec_driver_sql(f"CREATE INDEX {prefix}_ix_inc ON {prefix}_c (a) INCLUDE (b, self_id)")
             conn.exec_driver_sql(f"CREATE INDEX {prefix}_ix_filt ON {prefix}_c (p_id) WHERE p_id IS NOT NULL")
+            # Tipos variados: las columnas de SQL Server también se precargan por schema (B1) y deben dar los mismos
+            # tipos de SQLAlchemy que MSDialect.get_columns tabla a tabla
+            conn.exec_driver_sql(
+                f"CREATE TABLE {prefix}_t (id INT IDENTITY(10,5) PRIMARY KEY, "
+                "n NVARCHAR(30) COLLATE Latin1_General_BIN DEFAULT N'x', d DECIMAL(12,2), f FLOAT, vb VARBINARY(MAX), "
+                "v VARCHAR(MAX), dt DATETIME2(3), comp AS (d * 2) PERSISTED, m MONEY, flag BIT, u UNIQUEIDENTIFIER)"
+            )
+    names = [t.name for t in md.sorted_tables] + ([f"{prefix}_t"] if key == "mssql" else [])
     try:
-        yield key, engine, [t.name for t in md.sorted_tables]
+        yield key, engine, names
     finally:
+        if key == "mssql":
+            with engine.begin() as conn:
+                conn.exec_driver_sql(f"DROP TABLE IF EXISTS {prefix}_t")
         md.drop_all(engine, checkfirst=True)
         engine.dispose()
 
@@ -162,6 +178,11 @@ def test_prefetch_matches_per_table_reflection(engine_and_tables: Any) -> None:
             # tabla a tabla (dialect_options, include_columns, options y referred_schema incluidos).
             insp = inspect(engine)
             for table in names:
+                assert table in meta.prefetched["columns"], table  # precargada, no tabla a tabla
+                expected_columns = insp.get_columns(table, schema=schema)
+                assert [_full_column(c) for c in meta.get("columns", table)] == [
+                    _full_column(c) for c in expected_columns
+                ], table
                 got_fks = sorted(meta.get("fks", table), key=lambda fk: fk["name"])
                 assert got_fks == sorted(expected["fks"][table], key=lambda fk: fk["name"]), table
                 assert meta.get("pk", table) == insp.get_pk_constraint(table, schema=schema), table

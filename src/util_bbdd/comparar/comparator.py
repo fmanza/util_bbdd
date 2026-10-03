@@ -12,8 +12,8 @@ from sqlalchemy.exc import ArgumentError, DatabaseError, OperationalError
 
 from util_bbdd._core.exceptions import MetadataIntrospectionError
 
+from ..metadata.reflection import prefetch_table_metadata
 from ._ddl import DdlNormalizer
-from ._prefetch import prefetch_table_metadata
 from ._routine_fetchers import RoutineFetcherRegistry
 from .models import (
     ColumnDiff,
@@ -44,7 +44,7 @@ if TYPE_CHECKING:
         ReflectedPrimaryKeyConstraint,
     )
 
-    from ._prefetch import MetadataKind
+    from ..metadata.reflection import MetadataKind
 
 
 class SchemaComparator:

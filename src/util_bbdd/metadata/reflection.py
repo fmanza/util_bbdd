@@ -1,4 +1,8 @@
-"""Precarga de metadatos de tablas para ``SchemaComparator``: una consulta por schema y tipo de objeto.
+"""Reflexión SQLAlchemy por lotes (vista «reflexión» de ADR-003): una consulta por schema y tipo de objeto.
+
+Movido desde ``comparar/_prefetch.py`` (grupo B1): la reflexión con ``Inspector`` vive en ``metadata/`` y la usan
+quienes necesitan tipos u objetos de SQLAlchemy (``comparar``; ``bulk`` y ``dump`` en C5/D2). Quien solo lee metadatos
+usa ``CatalogSource`` (modelo neutro).
 
 ``Inspector.get_columns``/``get_pk_constraint``/``get_indexes``/``get_foreign_keys``/``get_table_comment`` hacen
 una consulta por tabla. Los ``get_multi_*`` de SQLAlchemy 2.0 leen todas las tablas pedidas a la vez: en PostgreSQL y
@@ -7,8 +11,9 @@ Oracle con una consulta por schema (≈ 2,1-2,4 s → 0,06-0,09 s por lado con 2
 
 SQL Server no tiene ``get_multi_*`` nativos: PK, índices, FKs y comentarios se leen con una consulta por schema de
 ``metadata.sqlserver`` y se construyen con el mismo formato que ``MSDialect`` tabla a tabla (verificado en
-``tests/integration/test_comparar_prefetch_engines.py``). Las columnas siguen con ``get_multi_columns`` (tabla a tabla):
-el comparador compara sus tipos de SQLAlchemy, que no se reconstruyen desde SQL propio.
+``tests/integration/test_comparar_prefetch_engines.py``). Las columnas también (B1): la misma consulta ``sys.*`` que
+``MSDialect.get_columns`` para todo el schema y la misma conversión a tipos de SQLAlchemy (``ischema_names`` del
+dialecto); con 5000 tablas, ``get_multi_columns`` tabla a tabla eran 224 de los 229 s de catálogo de ``comparar``.
 
 Lo que no se pueda precargar (método inexistente o no soportado, error, tabla ausente del resultado) se queda fuera
 del :class:`TableMetadata` y el comparador lo consulta tabla a tabla, como antes: los errores de introspección se
@@ -22,7 +27,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, overload
 
-from sqlalchemy import text
+from sqlalchemy import text, types as sqltypes
 from sqlalchemy.engine import Engine
 from sqlalchemy.engine.reflection import ReflectionDefaults
 from sqlalchemy.exc import SQLAlchemyError
@@ -49,7 +54,7 @@ if TYPE_CHECKING:
 logger: logging.Logger = logging.getLogger(__name__)
 
 type MetadataKind = Literal["columns", "pk", "indexes", "fks", "comments"]
-type _MssqlBuilder = Callable[[list[Sequence[Any]], str | None, str, Sequence[str]], dict[str, Any]]
+type _MssqlBuilder = Callable[[list[Sequence[Any]], str | None, str, Sequence[str], Any], dict[str, Any]]
 
 _MULTI_METHODS: dict[MetadataKind, str] = {
     "columns": "get_multi_columns",
@@ -190,11 +195,11 @@ def _mssql_prefetch(
     except SQLAlchemyError as exc:
         logger.debug("Consulta de %s por schema falló (%s); se consulta tabla a tabla.", kind, exc)
         return None
-    return build(results, schema, owner, names)
+    return build(results, schema, owner, names, inspector.dialect)
 
 
 def _mssql_build_fks(
-    results: list[Sequence[Any]], schema: str | None, owner: str, names: Sequence[str]
+    results: list[Sequence[Any]], schema: str | None, owner: str, names: Sequence[str], _dialect: Any
 ) -> dict[str, Any]:
     """FKs con el formato de ``MSDialect.get_foreign_keys``."""
     result: dict[str, list[dict[str, Any]]] = {name: [] for name in names}
@@ -221,7 +226,7 @@ def _mssql_build_fks(
 
 
 def _mssql_build_pks(
-    results: list[Sequence[Any]], _schema: str | None, _owner: str, names: Sequence[str]
+    results: list[Sequence[Any]], _schema: str | None, _owner: str, names: Sequence[str], _dialect: Any
 ) -> dict[str, Any]:
     """PK con el formato de ``MSDialect.get_pk_constraint`` (sin PK: el valor por defecto de SQLAlchemy)."""
     result: dict[str, Any] = {name: ReflectionDefaults.pk_constraint() for name in names}
@@ -241,7 +246,7 @@ def _mssql_build_pks(
 
 
 def _mssql_build_indexes(
-    results: list[Sequence[Any]], _schema: str | None, _owner: str, names: Sequence[str]
+    results: list[Sequence[Any]], _schema: str | None, _owner: str, names: Sequence[str], _dialect: Any
 ) -> dict[str, Any]:
     """Índices con el formato de ``MSDialect.get_indexes`` (mismas reglas de columnas incluidas y columnstore)."""
     index_rows, column_rows = results
@@ -285,7 +290,7 @@ def _mssql_build_indexes(
 
 
 def _mssql_build_comments(
-    results: list[Sequence[Any]], _schema: str | None, _owner: str, names: Sequence[str]
+    results: list[Sequence[Any]], _schema: str | None, _owner: str, names: Sequence[str], _dialect: Any
 ) -> dict[str, Any]:
     """Comentarios de tabla con el formato de ``MSDialect.get_table_comment``."""
     result: dict[str, Any] = {name: ReflectionDefaults.table_comment() for name in names}
@@ -295,9 +300,96 @@ def _mssql_build_comments(
     return result
 
 
+#: Columnas de todas las tablas y vistas de un schema: la consulta de ``MSDialect.get_columns`` con el nombre de la tabla.
+_MSSQL_COLUMNS_SQL = (
+    "SELECT o.name, c.name, t.name, bt.name, c.is_nullable, c.max_length, c.precision, c.scale, dc.definition, "
+    "c.collation_name, cc.definition, cc.is_persisted, ic.is_identity, CAST(ic.seed_value AS NUMERIC(38, 0)), "
+    "CAST(ic.increment_value AS NUMERIC(38, 0)), CAST(ep.value AS NVARCHAR(MAX)) "  # sql_variant: pymssql da bytes
+    "FROM sys.columns c "
+    "JOIN sys.objects o ON o.object_id = c.object_id AND o.type IN ('U', 'V') "
+    "JOIN sys.types t ON t.user_type_id = c.user_type_id "
+    "LEFT JOIN sys.types bt ON bt.system_type_id = t.system_type_id AND bt.user_type_id = bt.system_type_id "
+    "LEFT JOIN sys.default_constraints dc ON dc.object_id = c.default_object_id AND dc.parent_column_id = c.column_id "
+    "LEFT JOIN sys.computed_columns cc ON cc.object_id = c.object_id AND cc.column_id = c.column_id "
+    "LEFT JOIN sys.identity_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id "
+    "LEFT JOIN sys.extended_properties ep ON ep.class = 1 AND ep.name = 'MS_Description' "
+    "AND ep.major_id = c.object_id AND ep.minor_id = c.column_id "
+    "WHERE o.schema_id = SCHEMA_ID(:schema) ORDER BY o.name, c.column_id"
+)
+
+
+def _mssql_columns_sql() -> str:
+    return _MSSQL_COLUMNS_SQL
+
+
+def _mssql_column_type(dialect: Any, type_name: str, base_type: str | None, maxlen: Any, prec: Any, scale: Any,
+                       collation: Any) -> Any:  # fmt: skip
+    """Tipo de SQLAlchemy de una columna con las reglas de ``MSDialect.get_columns`` (SQLAlchemy 2.0)."""
+    from sqlalchemy.dialects.mssql import base as mssql
+
+    coltype = dialect.ischema_names.get(type_name)
+    if coltype is None and base_type is not None and base_type != type_name:
+        coltype = dialect.ischema_names.get(base_type)
+    if coltype is None:
+        return None  # tipo no reconocido: lo resuelve la reflexión tabla a tabla (con su aviso)
+    kwargs: dict[str, Any] = {}
+    if coltype in (mssql.MSBinary, mssql.MSVarBinary, sqltypes.LargeBinary):
+        kwargs["length"] = maxlen if maxlen != -1 else None
+    elif coltype in (mssql.MSString, mssql.MSChar, mssql.MSText):
+        kwargs["length"] = maxlen if maxlen != -1 else None
+        if collation:
+            kwargs["collation"] = collation
+    elif coltype in (mssql.MSNVarchar, mssql.MSNChar, mssql.MSNText):
+        kwargs["length"] = maxlen // 2 if maxlen != -1 else None
+        if collation:
+            kwargs["collation"] = collation
+    if issubclass(coltype, sqltypes.Numeric):
+        kwargs["precision"] = prec
+        if not issubclass(coltype, sqltypes.Float):
+            kwargs["scale"] = scale
+    return coltype(**kwargs)
+
+
+def _mssql_build_columns(
+    results: list[Sequence[Any]], _schema: str | None, _owner: str, names: Sequence[str], dialect: Any
+) -> dict[str, Any]:
+    """Columnas con el formato de ``MSDialect.get_columns``; sin la tabla si alguna columna tiene un tipo desconocido."""
+    result: dict[str, list[dict[str, Any]]] = {name: [] for name in names}
+    unknown: set[str] = set()
+    for row in results[0]:
+        (table, name, type_name, base_type, is_nullable, maxlen, prec, scale, default, collation, definition,
+         is_persisted, is_identity, seed, increment, comment) = row  # fmt: skip
+        if table not in result:
+            continue
+        coltype = _mssql_column_type(dialect, type_name, base_type, maxlen, prec, scale, collation)
+        if coltype is None:
+            unknown.add(table)
+            continue
+        column: dict[str, Any] = {
+            "name": name,
+            "type": coltype,
+            "nullable": is_nullable == 1,
+            "default": default,
+            "autoincrement": is_identity is not None,
+            "comment": comment,
+        }
+        if definition is not None and is_persisted is not None:
+            column["computed"] = {"sqltext": definition, "persisted": is_persisted}
+        if is_identity is not None:
+            if seed is None or increment is None:
+                column["identity"] = {}
+            elif isinstance(coltype, sqltypes.Integer):
+                column["identity"] = {"start": int(seed), "increment": int(increment)}
+            else:
+                column["identity"] = {"start": seed, "increment": increment}
+        result[table].append(column)
+    # Sin filas (tabla inexistente) o con un tipo desconocido: fuera de la precarga, se consulta tabla a tabla
+    return {table: columns for table, columns in result.items() if columns and table not in unknown}
+
+
 #: Consultas por schema de ``metadata.sqlserver`` y constructor del formato de ``MSDialect`` para cada metadato.
-#: Las columnas no figuran: se leen con ``get_multi_columns`` (sus tipos de SQLAlchemy no se reconstruyen).
 _MSSQL_QUERIES: dict[MetadataKind, tuple[tuple[Callable[[], str], ...], _MssqlBuilder]] = {
+    "columns": ((_mssql_columns_sql,), _mssql_build_columns),
     "pk": ((fetch_pk_details_for_schema_sql,), _mssql_build_pks),
     "indexes": ((fetch_index_details_for_schema_sql, fetch_index_columns_for_schema_sql), _mssql_build_indexes),
     "fks": ((fetch_schema_fk_details_sql,), _mssql_build_fks),

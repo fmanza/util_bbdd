@@ -95,6 +95,13 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   `jaydebeapi` + JDK 25 (`JAVA_HOME`). Encontrado H-19 (9/16 consultas del registry fallan en HSQLDB). Tests: 19
   unitarios (`test_hsqldb_catalog.py`, incl. `DbapiCatalogExecutor` con `sqlite3` en `qmark` y `named`) e integración
   `tests/integration/metadata/test_hsqldb_catalog.py` (con `UTIL_BBDD_TEST_HSQLDB_JAR`).
+- IMPLEMENT · B1: `comparar/_prefetch.py` → `metadata/reflection.py` (`git mv`); columnas de SQL Server por schema
+  (`_MSSQL_COLUMNS_SQL` + `_mssql_column_type`, mismas reglas que `MSDialect.get_columns`; `sql_variant` con `CAST`
+  porque pymssql lo da en bytes; tipo desconocido → la tabla queda fuera y se lee tabla a tabla). Tests: 2 unitarios
+  nuevos con `MSDialect` real (sustituyen al que fijaba «columnas nunca por SQL propio»); paridad de integración con
+  tabla de tipos variados exigiendo igualdad completa (`repr` del tipo). `comparar` SQL Server 5000 tablas: 261 →
+  8,9 s. Pendiente para C4: definiciones de vistas una a una (1000 de las 1018 consultas restantes). La reflexión de
+  `Table` para `bulk`/`dump` se hace en C5/D2. Trinquete: `comparar/_prefetch.py` fuera de las dos listas.
 - Verificación: `ruff check`/`format`, `mypy` (408 ficheros), unitarios 6066 passed + 5 xfailed, integración 590 (tras
   HF/QW) y 101 de `tests/integration/metadata` (tras A0), `gen_arquitectura_capas.py` sin cambios, `mkdocs build --strict`.
 
