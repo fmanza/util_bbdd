@@ -7,7 +7,7 @@ Orquesta la migración DDL desde PostgreSQL hacia Oracle, MariaDB o SQL Server e
 ```mermaid
 flowchart TD
     PL["MigrationPlanner\n(source='postgresql')"]
-    EX["PostgreSQLSchemaExtractor\n(INFORMATION_SCHEMA\npg_catalog.pg_index)"]
+    EX["PostgreSQLSchemaExtractor\n(snapshot de metadata/:\npg_catalog)"]
     TR_OR["PostgreSQLToOracleTransformer"]
     TR_MB["PostgreSQLToMariaDBTransformer"]
     TR_SS["PostgreSQLToSQLServerTransformer"]
@@ -43,7 +43,7 @@ flowchart TD
 | `charset` | `str` | CHARACTER SET MariaDB | Solo si `target_engine="mariadb"` |
 | `sql_server_collation` | `str \| None` | COLLATE para SQL Server | Solo si `target_engine="sqlserver"` |
 | `oracle_identity_mode` | `Literal["sequence_trigger","identity_by_default_on_null"]` | Modo columnas SERIAL en Oracle destino | Solo si `target_engine="oracle"` |
-| `connection` | `SyncDatabaseManager` | Manager PostgreSQL activo | Param style `%(name)s`; `psycopg2` o `psycopg3` |
+| `connection` | `SyncDatabaseManager` o `MetadataSource` | Manager PostgreSQL activo | Lee el catálogo con `metadata_source` (snapshot de `metadata/`, una consulta por tipo de objeto; ADR-003) |
 | `schema` | `str` | Nombre del schema (`TABLE_SCHEMA`) | Habitualmente `'public'` |
 
 ### Contrato de salida
@@ -65,7 +65,7 @@ Tipos sin equivalente directo (`ARRAY`, `TSVECTOR`, `USER-DEFINED`) se mapean a 
 | Clase | Responsabilidad |
 |---|---|
 | `MigrationPlanner` | Orquestación del flujo completo |
-| `PostgreSQLSchemaExtractor` | Extracción desde `INFORMATION_SCHEMA` y `pg_catalog.pg_index` |
+| `PostgreSQLSchemaExtractor` | Snapshot de `metadata/` (`pg_catalog`) → IR con las convenciones de `INFORMATION_SCHEMA` |
 | `PostgreSQLToOracleTransformer` / `PostgreSQLToMariaDBTransformer` / `PostgreSQLToSQLServerTransformer` | Mapeo de tipos al dialecto destino |
 
 ## 4. Dependencias y Requisitos

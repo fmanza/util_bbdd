@@ -8,38 +8,41 @@ import pytest
 
 from util_bbdd.migrate.planner import MigrationPlanner
 
+from ._snapshot_source import col, fake_manager, pk, table
+
 
 def _make_manager(
     tables: list[tuple] | None = None,
     columns: list[tuple] | None = None,
     pks: list[tuple] | None = None,
 ) -> MagicMock:
-    """Manager mock con respuestas mínimas para ejecutar plan().
+    """Manager simulado (snapshot de metadata/) con las mismas columnas y PK en cada tabla.
 
-    Columnas y PK se leen por schema (D1): cada tabla del mock recibe las mismas filas, con su nombre delante.
+    ``columns``: ``(nombre, tipo, longitud, precisión, escala, nulable 'YES'/'NO', default, ordinal)``.
     """
-    manager = MagicMock()
-    table_names = [str(t[0]) for t in tables or []]
-
-    def per_table(rows: list[tuple] | None) -> list[tuple]:
-        return [(name, *row) for name in table_names for row in rows or []]
-
-    def side_effect(sql: str, params: dict) -> list:
-        sql_upper = sql.upper()
-        if "INFORMATION_SCHEMA.VIEWS" in sql_upper and "VIEW_DEFINITION" in sql_upper:
-            return []
-        if "INFORMATION_SCHEMA.TABLES" in sql_upper:
-            return tables or []
-        if "CONTYPE = 'P'" in sql_upper:
-            return per_table(pks)
-        if "PG_CATALOG" in sql_upper:
-            return []
-        if "INFORMATION_SCHEMA.COLUMNS" in sql_upper:
-            return per_table(columns)
-        return []
-
-    manager.execute_custom_many.side_effect = side_effect
-    return manager
+    objects: list[object] = []
+    for name, *_rest in tables or []:
+        objects.append(table(name))
+        for c_name, data_type, length, precision, scale, nullable, default, ordinal in columns or []:
+            declared = f"{data_type}({length})" if length else data_type
+            numeric = data_type == "numeric"
+            objects.append(
+                col(
+                    name,
+                    c_name,
+                    ordinal,
+                    declared,
+                    data_type,
+                    nullable=nullable == "YES",
+                    length=length,
+                    precision=precision if numeric else None,
+                    scale=scale if numeric else None,
+                    default=default,
+                )
+            )
+        if pks:
+            objects.append(pk(name, *(r[0] for r in pks)))
+    return fake_manager("postgresql", *objects)
 
 
 def _col_row(

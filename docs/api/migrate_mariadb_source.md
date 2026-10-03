@@ -7,7 +7,7 @@ Orquesta la migración DDL desde MariaDB hacia Oracle, SQL Server o PostgreSQL e
 ```mermaid
 flowchart TD
     PL["MigrationPlanner\n(source='mariadb')"]
-    EX["MariaDBSchemaExtractor\n(INFORMATION_SCHEMA)"]
+    EX["MariaDBSchemaExtractor\n(snapshot de metadata/)"]
     TR_OR["MariaDBToOracleTransformer"]
     TR_SS["MariaDBToSQLServerTransformer"]
     TR_PG["MariaDBToPostgreSQLTransformer"]
@@ -42,7 +42,7 @@ flowchart TD
 | `target_engine` | `str` | Motor destino | `"oracle"`, `"sqlserver"` o `"postgresql"` |
 | `sql_server_collation` | `str \| None` | COLLATE para SQL Server | Solo si `target_engine="sqlserver"` |
 | `pg_schema` | `str \| None` | Schema PostgreSQL | Solo si `target_engine="postgresql"` |
-| `connection` | `SyncDatabaseManager` | Manager MariaDB activo | Requiere `execute_custom_many(sql, params)` |
+| `connection` | `SyncDatabaseManager` o `MetadataSource` | Manager MariaDB activo | Lee el catálogo con `metadata_source` (snapshot de `metadata/`, una consulta por tipo de objeto; ADR-003) |
 | `schema` | `str` | Nombre del schema MariaDB (`TABLE_SCHEMA`) | Sensible a mayúsculas |
 
 ### Contrato de salida
@@ -62,7 +62,7 @@ flowchart TD
 | Clase | Responsabilidad |
 |---|---|
 | `MigrationPlanner` | Orquestación del flujo completo |
-| `MariaDBSchemaExtractor` | Extracción desde `INFORMATION_SCHEMA` |
+| `MariaDBSchemaExtractor` | Snapshot de `metadata/` → IR con las convenciones de `INFORMATION_SCHEMA` |
 | `MariaDBToOracleTransformer` / `MariaDBToSQLServerTransformer` / `MariaDBToPostgreSQLTransformer` | Mapeo de tipos al dialecto destino |
 
 ## 4. Dependencias y Requisitos

@@ -10,6 +10,8 @@ from util_bbdd.migrate.extractors.oracle import OracleSchemaExtractor
 from util_bbdd.migrate.extractors.postgresql import PostgreSQLSchemaExtractor
 from util_bbdd.migrate.extractors.sqlserver import SQLServerSchemaExtractor
 
+from ._snapshot_source import FakeSource
+
 
 class TestSchemaExtractorProtocolConformance:
     """MIG-04 (AUDIT_CODE 2026-09-22): las 4 implementaciones reales exponen
@@ -24,7 +26,7 @@ class TestSchemaExtractorProtocolConformance:
             PostgreSQLSchemaExtractor,
             SQLServerSchemaExtractor,
         ):
-            extractor = extractor_cls(manager=None)
+            extractor = extractor_cls(FakeSource("postgresql"))
             assert isinstance(extractor, SchemaExtractor)
 
     def test_incomplete_implementation_without_extract_views_is_rejected(self) -> None:

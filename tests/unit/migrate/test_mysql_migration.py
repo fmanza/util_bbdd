@@ -7,6 +7,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from util_bbdd.metadata.mariadb.catalog import MySQLCatalog, quote_literal_default
+from util_bbdd.metadata.model import ColumnMeta, Kind
 from util_bbdd.migrate import (
     DEFAULT_COLLATION_MYSQL,
     MariaDBDDLEmitter,
@@ -22,40 +24,51 @@ from util_bbdd.migrate import (
     validate_mysql_collation,
 )
 from util_bbdd.migrate.emitters.mysql import strip_int_display_width
-from util_bbdd.migrate.extractors.mysql import quote_literal_default
 from util_bbdd.migrate.ir.models import CanonicalColumn, CanonicalTable
 
-# (COLUMN_NAME, DATA_TYPE, CHAR_LEN, PRECISION, SCALE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA, COMMENT, ORDINAL, COLUMN_TYPE)
-MYSQL_COLUMNS: list[tuple[Any, ...]] = [
-    ("id", "int", None, 10, 0, "NO", None, "auto_increment", "", 1, "int unsigned"),
-    ("nombre", "varchar", 80, None, None, "NO", "sin nombre", "", "", 2, "varchar(80)"),
-    ("codigo", "varchar", 10, None, None, "YES", "5", "", "", 3, "varchar(10)"),
-    ("estado", "enum", 1, None, None, "NO", "A", "", "", 4, "enum('A','B')"),
-    ("saldo", "decimal", None, 12, 2, "NO", "0.00", "", "", 5, "decimal(12,2)"),
-    ("alta", "datetime", None, None, None, "NO", "CURRENT_TIMESTAMP", "DEFAULT_GENERATED", "", 6, "datetime"),
-    ("cita", "varchar", 20, None, None, "YES", "it's", "", "", 7, "varchar(20)"),
+from ._snapshot_source import col, fake_manager, pk, table
+
+# Columnas como las da MySQLCatalog (literales ya entre comillas; ver TestMySQLCatalogDefaults)
+MYSQL_COLUMNS: list[ColumnMeta] = [
+    col("zz_cliente", "id", 1, "int unsigned", "int", nullable=False, identity="by default"),
+    col("zz_cliente", "nombre", 2, "varchar(80)", "varchar", length=80, nullable=False, default="'sin nombre'"),
+    col("zz_cliente", "codigo", 3, "varchar(10)", "varchar", length=10, default="'5'"),
+    col("zz_cliente", "estado", 4, "enum('A','B')", "enum", nullable=False, default="'A'"),
+    col("zz_cliente", "saldo", 5, "decimal(12,2)", "decimal", precision=12, scale=2, nullable=False, default="0.00"),
+    col("zz_cliente", "alta", 6, "datetime", "datetime", nullable=False, default="CURRENT_TIMESTAMP"),
+    col("zz_cliente", "cita", 7, "varchar(20)", "varchar", length=20, default="'it''s'"),
 ]
 
 
-def _manager(columns: list[tuple[Any, ...]] | None = None) -> MagicMock:
-    """Manager simulado de la familia MySQL/MariaDB (INFORMATION_SCHEMA)."""
-    manager = MagicMock()
-    # Columnas y PK se leen por schema (D1): el nombre de la tabla va delante de cada fila.
-    table_columns = columns if columns is not None else MYSQL_COLUMNS
-    rows_by_marker: dict[str, list[tuple[Any, ...]]] = {
-        "TABLE_TYPE = 'BASE TABLE'": [("zz_cliente", "clientes")],
-        "COLUMN_TYPE": [("zz_cliente", *row) for row in table_columns],
-        "CONSTRAINT_NAME = 'PRIMARY'": [("zz_cliente", "id")],
-    }
+def _manager(columns: list[ColumnMeta] | None = None, engine: str = "mysql") -> MagicMock:
+    """Manager simulado de la familia MySQL/MariaDB (snapshot de metadata/)."""
+    return fake_manager(
+        engine,
+        table("zz_cliente", "clientes"),
+        *(columns if columns is not None else MYSQL_COLUMNS),
+        pk("zz_cliente", "id"),
+    )
 
-    def side_effect(sql: str, params: dict[str, Any]) -> list[tuple[Any, ...]]:
-        for marker, rows in rows_by_marker.items():
-            if marker in sql:
-                return rows
-        return []
 
-    manager.execute_custom_many.side_effect = side_effect
-    return manager
+class TestMySQLCatalogDefaults:
+    """``MySQLCatalog`` entrecomilla los literales (MySQL los devuelve sin comillas); las expresiones, no."""
+
+    def test_literal_defaults_are_quoted_like_mariadb(self) -> None:
+        def row(name: str, data_type: str, default: str | None, extra: str = "") -> tuple[Any, ...]:
+            return ("t", name, 1, data_type, data_type, "YES", None, None, None, default, "", None, extra, None)
+
+        cols = MySQLCatalog().parse(
+            Kind.COLUMNS,
+            [
+                row("nombre", "varchar", "sin nombre"),
+                row("saldo", "decimal", "0.00"),
+                row("alta", "datetime", "CURRENT_TIMESTAMP", "DEFAULT_GENERATED"),
+                row("cita", "varchar", "it's"),
+                row("nada", "varchar", None),
+            ],
+            "db1",
+        )
+        assert [c.default for c in cols] == ["'sin nombre'", "0.00", "CURRENT_TIMESTAMP", "'it''s'", None]
 
 
 class TestQuoteLiteralDefault:
@@ -96,10 +109,10 @@ class TestMySQLSchemaExtractor:
         assert cols["id"].source_type == "int unsigned"
 
     def test_mariadb_full_type_extractor_keeps_defaults(self) -> None:
-        rows = [("nombre", "varchar", 50, None, None, "NO", "'x'", "", "", 1, "varchar(50)")]
-        col = MariaDBFullTypeSchemaExtractor(_manager(rows)).extract("db1")[0].columns[0]
-        assert col.default == "'x'"
-        assert col.source_type == "varchar(50)"
+        rows = [col("zz_cliente", "nombre", 1, "varchar(50)", "varchar", length=50, nullable=False, default="'x'")]
+        column = MariaDBFullTypeSchemaExtractor(_manager(rows, "mariadb")).extract("db1")[0].columns[0]
+        assert column.default == "'x'"
+        assert column.source_type == "varchar(50)"
 
 
 class TestMySQLEmitter:
@@ -207,7 +220,7 @@ class TestPlannerWithMySQL:
         assert plan.emit_ddl()
 
     def test_mariadb_to_mysql_uses_full_types_and_mysql_emitter(self) -> None:
-        plan = MigrationPlanner(source_engine="mariadb", target_engine="mysql").plan(_manager(), "db1")
+        plan = MigrationPlanner(source_engine="mariadb", target_engine="mysql").plan(_manager(engine="mariadb"), "db1")
         assert type(plan.emitter) is MySQLDDLEmitter
         estado = next(c for c in plan.tables[0].columns if c.name == "estado")
         assert estado.target_type == "enum('A','B')"
@@ -216,7 +229,7 @@ class TestPlannerWithMySQL:
     @pytest.mark.parametrize("source", ["oracle", "sqlserver", "postgresql"])
     def test_other_sources_to_mysql_use_mysql_emitter(self, source: str) -> None:
         planner = MigrationPlanner(source_engine=source, target_engine="mysql")
-        plan = planner.plan(MagicMock(execute_custom_many=MagicMock(return_value=[])), "s")
+        plan = planner.plan(fake_manager(source), "s")
         assert type(plan.emitter) is MySQLDDLEmitter
         assert plan.target_engine == "mysql"
 

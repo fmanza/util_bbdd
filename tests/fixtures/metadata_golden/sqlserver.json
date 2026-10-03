@@ -8,7 +8,7 @@
     "name": "zz_gold_f",
     "original_name": "zz_gold_f",
     "package_name": null,
-    "return_type": "",
+    "return_type": "int",
     "routine_type": "FUNCTION",
     "schema": "zz_gold",
     "warnings": []

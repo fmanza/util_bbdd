@@ -9,46 +9,22 @@ import pytest
 
 from util_bbdd.migrate import MigrationPlan, MigrationPlanner, MigrationWarning
 
+from ._snapshot_source import col, fake_manager, pk, table
+
 
 def _make_mock_manager(tables: list[tuple] | None = None) -> MagicMock:
-    """Crea un mock de SyncDatabaseManager que devuelve datos Oracle simulados."""
-    manager = MagicMock()
-
-    # Filas de tablas: (table_name, table_type, table_comment)
+    """Manager simulado con metadatos Oracle (snapshot de metadata/): ``tables`` = ``(nombre, tipo, comentario)``."""
     table_rows = tables or [("USERS", "TABLE", "Tabla de usuarios")]
-
-    # Filas de columnas: 9 elementos (name, type, nullable, ordinal, default,
-    #                                  data_length, precision, scale, comment)
-    col_rows = [
-        ("ID", "NUMBER", "NO", 1, None, None, 10, 0, "PK"),
-        ("NAME", "VARCHAR2", "YES", 2, None, 100, None, None, "Nombre"),
-    ]
-
-    pk_rows = [("PK_USERS", "ID", 1)]
-    fk_rows: list = []
-    idx_rows: list = []
-
-    # Columnas, PK, FK e índices se leen por schema (D1): cada tabla recibe las mismas filas, con su nombre delante.
-    table_names = [str(t[0]) for t in table_rows if t]
-
-    def per_table(rows: list) -> list:
-        return [(name, *row) for name in table_names for row in rows]
-
-    def side_effect(sql: str, params: dict) -> list:
-        if "all_tables" in sql:
-            return table_rows
-        if "all_tab_columns" in sql and "all_col_comments" in sql:
-            return per_table(col_rows)
-        if "constraint_type = 'P'" in sql:
-            return per_table(pk_rows)
-        if "constraint_type = 'R'" in sql:
-            return per_table(fk_rows)
-        if "all_indexes" in sql:
-            return per_table(idx_rows)
-        return []
-
-    manager.execute_custom_many.side_effect = side_effect
-    return manager
+    objects: list[Any] = []
+    for row in table_rows:
+        name = str(row[0])
+        objects += [
+            table(name, row[2] or None),
+            col(name, "ID", 1, "NUMBER(10)", "NUMBER", precision=10, scale=0, nullable=False, comment="PK"),
+            col(name, "NAME", 2, "VARCHAR2(100)", "VARCHAR2", length=100, comment="Nombre"),
+            pk(name, "ID", name="PK_USERS"),
+        ]
+    return fake_manager("oracle", *objects)
 
 
 class TestMigrationPlannerInit:

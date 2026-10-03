@@ -2,7 +2,7 @@
  "checks": [],
  "columns": [
   {
-   "base_type": "int4",
+   "base_type": "integer",
    "collation": null,
    "comment": null,
    "data_type": "integer",
@@ -18,7 +18,7 @@
    "table": "zz_gold_child"
   },
   {
-   "base_type": "int4",
+   "base_type": "integer",
    "collation": null,
    "comment": null,
    "data_type": "integer",
@@ -34,7 +34,7 @@
    "table": "zz_gold_child"
   },
   {
-   "base_type": "varchar",
+   "base_type": "character varying",
    "collation": null,
    "comment": null,
    "data_type": "character varying(50)",
@@ -50,7 +50,7 @@
    "table": "zz_gold_child"
   },
   {
-   "base_type": "int4",
+   "base_type": "integer",
    "collation": null,
    "comment": null,
    "data_type": "integer",
@@ -66,7 +66,7 @@
    "table": "zz_gold_composite"
   },
   {
-   "base_type": "int4",
+   "base_type": "integer",
    "collation": null,
    "comment": null,
    "data_type": "integer",
@@ -82,7 +82,7 @@
    "table": "zz_gold_composite"
   },
   {
-   "base_type": "varchar",
+   "base_type": "character varying",
    "collation": null,
    "comment": null,
    "data_type": "character varying(30)",
@@ -98,7 +98,7 @@
    "table": "zz_gold_composite"
   },
   {
-   "base_type": "int4",
+   "base_type": "integer",
    "collation": null,
    "comment": null,
    "data_type": "integer",
@@ -114,7 +114,7 @@
    "table": "zz_gold_identity"
   },
   {
-   "base_type": "varchar",
+   "base_type": "character varying",
    "collation": null,
    "comment": null,
    "data_type": "character varying(10)",
@@ -130,7 +130,7 @@
    "table": "zz_gold_identity"
   },
   {
-   "base_type": "int4",
+   "base_type": "integer",
    "collation": null,
    "comment": null,
    "data_type": "integer",
@@ -146,7 +146,7 @@
    "table": "zz_gold_parent"
   },
   {
-   "base_type": "varchar",
+   "base_type": "character varying",
    "collation": null,
    "comment": null,
    "data_type": "character varying(20)",
@@ -162,7 +162,7 @@
    "table": "zz_gold_parent"
   },
   {
-   "base_type": "varchar",
+   "base_type": "character varying",
    "collation": null,
    "comment": null,
    "data_type": "character varying(100)",
@@ -210,7 +210,7 @@
    "table": "zz_gold_parent"
   },
   {
-   "base_type": "int4",
+   "base_type": "integer",
    "collation": null,
    "comment": null,
    "data_type": "integer",
@@ -226,7 +226,7 @@
    "table": "zz_gold_ref_composite"
   },
   {
-   "base_type": "int4",
+   "base_type": "integer",
    "collation": null,
    "comment": null,
    "data_type": "integer",
@@ -242,7 +242,7 @@
    "table": "zz_gold_ref_composite"
   },
   {
-   "base_type": "int4",
+   "base_type": "integer",
    "collation": null,
    "comment": null,
    "data_type": "integer",
@@ -258,7 +258,7 @@
    "table": "zz_gold_ref_composite"
   },
   {
-   "base_type": "int4",
+   "base_type": "integer",
    "collation": null,
    "comment": null,
    "data_type": "integer",
@@ -274,7 +274,7 @@
    "table": "zz_gold_v_parent"
   },
   {
-   "base_type": "varchar",
+   "base_type": "character varying",
    "collation": null,
    "comment": null,
    "data_type": "character varying(20)",

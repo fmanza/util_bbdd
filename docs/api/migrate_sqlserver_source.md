@@ -7,7 +7,7 @@ Orquesta la migración DDL desde SQL Server hacia Oracle, MariaDB o PostgreSQL e
 ```mermaid
 flowchart TD
     PL["MigrationPlanner\n(source='sqlserver')"]
-    EX["SQLServerSchemaExtractor\n(INFORMATION_SCHEMA\nsys.objects / sys.indexes)"]
+    EX["SQLServerSchemaExtractor\n(snapshot de metadata/:\nsys.*)"]
     TR_OR["SQLServerToOracleTransformer"]
     TR_MB["SQLServerToMariaDBTransformer"]
     TR_PG["SQLServerToPostgreSQLTransformer"]
@@ -43,7 +43,7 @@ flowchart TD
 | `charset` | `str` | CHARACTER SET MariaDB | Solo si `target_engine="mariadb"` |
 | `sql_server_collation` | `str \| None` | COLLATE SQL Server | N/A como origen; aplica solo a destino SQL Server |
 | `oracle_identity_mode` | `Literal["sequence_trigger","identity_by_default_on_null"]` | Modo columnas IDENTITY en Oracle destino | Solo si `target_engine="oracle"` |
-| `connection` | `SyncDatabaseManager` | Manager SQL Server activo | Param style `%(name)s` (pymssql) |
+| `connection` | `SyncDatabaseManager` o `MetadataSource` | Manager SQL Server activo | Lee el catálogo con `metadata_source` (snapshot de `metadata/`, una consulta por tipo de objeto; ADR-003) |
 | `schema` | `str` | Nombre del schema (`TABLE_SCHEMA`) | Habitualmente `'dbo'` |
 
 ### Contrato de salida
@@ -65,7 +65,7 @@ La definición de las vistas se lee con `OBJECT_DEFINITION` (`sys.views`), sin e
 | Clase | Responsabilidad |
 |---|---|
 | `MigrationPlanner` | Orquestación del flujo completo |
-| `SQLServerSchemaExtractor` | Extracción desde `INFORMATION_SCHEMA` y `sys.sql_modules` |
+| `SQLServerSchemaExtractor` | Snapshot de `metadata/` (`sys.*`) → IR con las convenciones de `INFORMATION_SCHEMA` |
 | `SQLServerToOracleTransformer` / `SQLServerToMariaDBTransformer` / `SQLServerToPostgreSQLTransformer` | Mapeo de tipos al dialecto destino |
 
 ## 4. Dependencias y Requisitos

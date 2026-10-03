@@ -88,11 +88,15 @@ class ColumnMeta:
     Attributes:
         table: Tabla o vista a la que pertenece.
         data_type: Tipo completo como lo escribe el motor (``character varying(50)``, ``numeric(12,2)``).
-        base_type: Tipo sin modificadores (``varchar``, ``numeric``).
-        length: Longitud en caracteres de los tipos de texto con longitud declarada.
+        base_type: Tipo sin modificadores con el nombre de ``information_schema.columns.data_type`` donde el motor
+            lo tiene (``character varying``, ``numeric``; en PostgreSQL ``ARRAY``/``USER-DEFINED`` y el tipo base de
+            los dominios; en SQL Server el tipo de sistema de los tipos alias; en Oracle ``TIMESTAMP WITH TIME ZONE``).
+        length: Longitud en caracteres de los tipos de texto con longitud declarada (en bits en ``bit(n)`` de
+            PostgreSQL).
         precision: Precisión declarada de los tipos numéricos exactos.
         scale: Escala declarada de los tipos numéricos exactos.
-        default: Expresión por defecto tal como la devuelve el catálogo.
+        default: Expresión SQL por defecto tal como la devuelve el catálogo (en MySQL, los literales entre comillas
+            como en el resto de motores).
         identity: ``"always"``/``"by default"`` en columnas identidad; ``None`` en el resto.
         generated: Expresión de las columnas calculadas; ``None`` en el resto.
     """
@@ -191,7 +195,7 @@ class RoutineMeta:
     """Función o procedure del schema con su definición completa (``CREATE …``) si el motor la expone."""
 
     name: str
-    routine_type: str  # "FUNCTION" | "PROCEDURE"
+    routine_type: str  # "FUNCTION" | "PROCEDURE" | "PACKAGE" (Oracle, sin definición)
     signature: str = ""
     return_type: str | None = None
     definition: str | None = None

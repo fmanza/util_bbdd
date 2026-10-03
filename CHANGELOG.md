@@ -58,8 +58,27 @@ cambios siguientes.
   `metadata.<motor>` fuera de `metadata/`); conteo de consultas de catálogo por flujo con 10 y 100 tablas
   (`tests/unit/metadata/test_query_counts.py`, `xfail` estricto en los flujos que aún leen tabla a tabla).
 
+### Changed
+
+- **migrate (ruptura)**: los extractores (`OracleSchemaExtractor`, `MariaDBSchemaExtractor`, `MySQLSchemaExtractor`,
+  `MariaDBFullTypeSchemaExtractor`, `SQLServerSchemaExtractor`, `PostgreSQLSchemaExtractor`) ya no tienen SQL propio:
+  leen el snapshot de `metadata/` (grupo C3 de ADR-003). Reciben un `SyncDatabaseManager` (usan su `metadata_source`)
+  o una `MetadataSource` (`CatalogSource.from_engine(engine)`); un objeto que solo tenga `execute_custom_many` ya no
+  sirve (`TypeError`). `MigrationPlanner.plan(connection, schema)` acepta lo mismo y descarta la caché del schema antes
+  de leerlo. Desaparecen `migrate/extractors/_schema_rows.py` y los `_parse_raw_column` de cada extractor.
+  `quote_literal_default` pasa de `migrate.extractors.mysql` a `metadata.mariadb.catalog` (lo aplica `MySQLCatalog`).
+- **metadata**: `ColumnMeta.base_type` es el nombre de `information_schema.columns.data_type`: en PostgreSQL
+  `character varying`/`integer` (antes `varchar`/`int4`), `ARRAY`, `USER-DEFINED` y el tipo base de los dominios; en
+  Oracle sin modificadores pero con el resto del nombre (`TIMESTAMP WITH TIME ZONE`, antes `TIMESTAMP`). En MySQL los
+  defaults literales llegan entre comillas, como en MariaDB y el resto de motores. `ColumnMeta.length` también en
+  `bit(n)`/`varbit(n)` de PostgreSQL (bits), en los dominios y en los tipos alias de SQL Server. En Oracle,
+  `Kind.ROUTINES` incluye los packages (`routine_type="PACKAGE"`, sin definición).
+
 ### Performance
 
+- **migrate**: la extracción lee el snapshot por lotes (7 consultas de catálogo en PostgreSQL, SQL Server y Oracle,
+  antes 9; 9 en MySQL/MariaDB). Extracción con 5000 tablas: PostgreSQL 4,3 → 1,5 s, SQL Server 5,9 → 2,3 s, Oracle
+  7,3 → 2,4 s, MySQL 20,6 → 2,7 s y MariaDB 8,1 → 2,0 s (incluye H-16).
 - **analysis**: los grafos de relaciones leen las FK de todo el schema con una consulta (`get_schema_metadata()` con
   `Kind.FOREIGN_KEYS`, cacheada en el manager) en vez de `get_tables()` + `get_foreign_keys()` por tabla, tanto para el
   índice de relaciones entrantes como para las salientes (grupo C2 de ADR-003). Con fuentes sin `get_schema_metadata()`
@@ -80,6 +99,16 @@ cambios siguientes.
 
 ### Fixed
 
+- **migrate** (C3, ADR-003; caracterizado en `test_migrate_ir_types.py` con el DDL hacia cada destino):
+  - Oracle: `VARCHAR2(n CHAR)`, `NVARCHAR2` y `NCHAR` se migraban con su longitud en bytes (`VARCHAR2(30 CHAR)` →
+    `VARCHAR(120)` con AL32UTF8); ahora en caracteres (H-21).
+  - Oracle: las columnas virtuales salían como `DEFAULT <expresión>` en el destino (H-22); los índices `DESC` y de
+    expresiones, con columnas ocultas `SYS_NC…$` que no existen en el destino: las `DESC` se leen por su nombre y los de
+    expresiones no se migran (aviso `INDEX_EXPRESSION_SKIPPED`, también en PostgreSQL y MySQL) (H-23); los miembros de
+    package eran todos `PROCEDURE` (H-24).
+  - SQL Server: las columnas `INCLUDE` de un índice se emitían como sus primeras columnas clave (H-25).
+  - PostgreSQL: las columnas `GENERATED … AS IDENTITY` no se migraban como autoincrementales (solo `serial`) (H-26).
+  - PostgreSQL: cada sobrecarga de una función lleva su comentario (antes ninguna, por no poder distinguirlas).
 - **analysis**: en PostgreSQL y SQL Server, las FK compuestas generaban aristas cruzadas entre columnas (`a→b`, `b→a`)
   porque `get_foreign_keys()` devuelve el producto cartesiano de sus columnas (H-20); ahora se emparejan por posición.
   `get_foreign_keys()` conserva el defecto hasta la migración de los `get_*` a modelos tipados.

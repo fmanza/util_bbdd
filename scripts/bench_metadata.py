@@ -5,7 +5,8 @@ Crea, por motor y volumen, un schema aislado con N tablas (PK, UK, FK a la tabla
 vistas y N/50 funciones + N/50 procedures, y mide cada flujo que lee el catálogo contando las sentencias en los dos
 caminos de ejecución de la librería:
 
-- ``SyncQueryExecutor`` (managers y adaptadores de ``metadata/``, ``migrate/``, ``doc/``, ``analysis/``; driver nativo).
+- ``SyncQueryExecutor`` (managers y adaptadores de ``metadata/``, ``doc/``; driver nativo) y ``DbapiCatalogExecutor``
+  (lectura por lotes de ``metadata/`` desde los managers: ``get_schema_metadata()``, ``migrate/``, ``analysis/``).
 - Eventos ``before/after_cursor_execute`` de SQLAlchemy (``Inspector``, ``comparar/``, ``dump/``, ``bulk/``).
 
 Cada sentencia se clasifica como de catálogo por su texto y se agrupa por huella (literales y números sustituidos) para
@@ -59,6 +60,7 @@ from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import URL, Engine, make_url
 
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
+from util_bbdd.metadata.source import DbapiCatalogExecutor
 
 ENGINES = ("sqlite", "postgresql", "mysql", "mariadb", "sqlserver", "oracle")
 HOST = "127.0.0.1"
@@ -339,6 +341,18 @@ class QueryCounter:
                 counter._record(str(sql), time.perf_counter() - t0)
 
         SyncQueryExecutor._execute_sql_with_optional_params = staticmethod(wrapped)  # type: ignore[method-assign]
+
+        # Lectura por lotes de metadata/ con el driver nativo (managers: ManagerCatalogExecutor → DbapiCatalogExecutor)
+        original_fetch = DbapiCatalogExecutor.fetch_all
+
+        def fetch_all(executor: Any, sql: str, params: Any) -> list[tuple[Any, ...]]:
+            t0 = time.perf_counter()
+            try:
+                return original_fetch(executor, sql, params)
+            finally:
+                counter._record(sql, time.perf_counter() - t0)
+
+        DbapiCatalogExecutor.fetch_all = fetch_all  # type: ignore[method-assign]
 
         @event.listens_for(Engine, "before_cursor_execute")
         def _before(conn, cursor, statement, parameters, context, executemany):  # noqa: ANN001

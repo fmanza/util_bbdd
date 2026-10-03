@@ -68,6 +68,7 @@ WarningCode = Literal[
     "COMMENT_TRUNCATED",
     "VIEW_COMMENT_UNSUPPORTED",
     "TABLE_NO_COLUMNS",
+    "INDEX_EXPRESSION_SKIPPED",
 ]
 """Subtipo estable de un aviso dentro de su categoría (0.22.0, E1).
 
@@ -97,6 +98,7 @@ salvo los de las categorías ``TYPE``, ``DEFAULT``, ``IDENTIFIER``, ``IDENTIFIER
 - ``COMMENT_TRUNCATED`` (``COMMENT``): comentario recortado al límite del destino.
 - ``VIEW_COMMENT_UNSUPPORTED`` (``COMMENT``): comentario de vista que MySQL/MariaDB no guardan.
 - ``TABLE_NO_COLUMNS`` (``TABLE``, ``ERROR``): tabla sin columnas activas.
+- ``INDEX_EXPRESSION_SKIPPED`` (``INDEX``): índice sobre expresiones que no se migra (crearlo a mano).
 """
 
 

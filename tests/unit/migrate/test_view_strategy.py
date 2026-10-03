@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -10,6 +9,8 @@ import pytest
 from util_bbdd.migrate import MigrationPlanner
 from util_bbdd.migrate.views import _dialects
 from util_bbdd.migrate.views._dialects import resolve_view_strategy
+
+from ._snapshot_source import col, fake_manager, pk, table, view
 
 
 class TestResolveViewStrategy:
@@ -41,27 +42,15 @@ class TestResolveViewStrategy:
 
 def _mysql_manager(view_sql: str) -> MagicMock:
     """Manager MySQL simulado: una tabla ``t(id, alta)`` y una vista ``v``."""
-    manager = MagicMock()
-    # Columnas y PK se leen por schema (D1): el nombre de la tabla o vista va delante de cada fila.
-    rows: dict[str, list[tuple[Any, ...]]] = {
-        "TABLE_TYPE = 'BASE TABLE'": [("t", "")],
-        "COLUMN_TYPE": [
-            ("t", "id", "int", None, 10, 0, "NO", None, "", "", 1, "int"),
-            ("t", "alta", "date", None, None, None, "YES", None, "", "", 2, "date"),
-            ("v", "id", "int", None, 10, 0, "NO", None, "", "", 1, "int"),
-        ],
-        "CONSTRAINT_NAME = 'PRIMARY'": [("t", "id")],
-        "INFORMATION_SCHEMA.VIEWS": [("v", view_sql)],
-    }
-
-    def side_effect(sql: str, params: dict[str, Any]) -> list[tuple[Any, ...]]:
-        for marker, result in rows.items():
-            if marker in sql:
-                return result
-        return []
-
-    manager.execute_custom_many.side_effect = side_effect
-    return manager
+    return fake_manager(
+        "mysql",
+        table("t"),
+        col("t", "id", 1, "int", nullable=False),
+        col("t", "alta", 2, "date"),
+        col("v", "id", 1, "int", nullable=False),
+        pk("t", "id"),
+        view("v", view_sql),
+    )
 
 
 class TestPlannerViewStrategy:

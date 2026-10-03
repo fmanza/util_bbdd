@@ -7,7 +7,7 @@ Orquesta la migración DDL desde Oracle hacia MariaDB, SQL Server o PostgreSQL e
 ```mermaid
 flowchart TD
     PL["MigrationPlanner\n(source='oracle')"]
-    EX["OracleSchemaExtractor\n(ALL_TABLES / ALL_COLUMNS\nALL_CONSTRAINTS / ALL_INDEXES\nALL_VIEWS / ALL_SOURCE)"]
+    EX["OracleSchemaExtractor\n(snapshot de metadata/:\nALL_TAB_COLS, ALL_CONSTRAINTS,\nALL_INDEXES, ALL_VIEWS, ALL_SOURCE)"]
     TR_MB["OracleToMariaDBTransformer"]
     TR_SS["OracleToSQLServerTransformer"]
     TR_PG["OracleToPostgreSQLTransformer"]
@@ -45,7 +45,7 @@ flowchart TD
 | `number_fallback` | `Literal["DOUBLE","DECIMAL(38,10)","DECIMAL(18,4)"]` | Tipo para `NUMBER` Oracle sin precisión | Mapeado al equivalente del motor destino |
 | `sql_server_collation` | `str \| None` | COLLATE para SQL Server | Solo si `target_engine="sqlserver"` |
 | `pg_schema` | `str \| None` | Schema PostgreSQL | Solo si `target_engine="postgresql"`; emite `SET search_path` |
-| `connection` | `SyncDatabaseManager` | Manager Oracle activo | Requiere `execute_custom_many(sql, params)` |
+| `connection` | `SyncDatabaseManager` o `MetadataSource` | Manager Oracle activo | Lee el catálogo con `metadata_source` (snapshot de `metadata/`, una consulta por tipo de objeto; ADR-003) |
 | `schema` | `str` | Schema/owner Oracle | Sensible a mayúsculas en Oracle |
 
 ### Contrato de salida
@@ -66,7 +66,7 @@ flowchart TD
 | Clase | Responsabilidad |
 |---|---|
 | `MigrationPlanner` | Orquestación del flujo extracción → transformación → emisión |
-| `OracleSchemaExtractor` | Extracción de metadatos desde catálogos Oracle (`ALL_*`) |
+| `OracleSchemaExtractor` | Snapshot de `metadata/` (catálogos `ALL_*`) → IR |
 | `OracleToMariaDBTransformer` / `OracleToSQLServerTransformer` / `OracleToPostgreSQLTransformer` | Mapeo de tipos Oracle al dialecto destino |
 | `MariaDBDDLEmitter` / `SQLServerDDLEmitter` / `PostgreSQLDDLEmitter` | Generación del DDL final por motor |
 

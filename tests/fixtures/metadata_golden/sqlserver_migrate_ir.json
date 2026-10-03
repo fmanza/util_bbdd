@@ -64,7 +64,7 @@
     "",
     "CREATE INDEX `ix_mt_filtered` ON `zz_mt_types` (`d`);",
     "",
-    "CREATE INDEX `ix_mt_multi` ON `zz_mt_types` (`ty`, `si`, `bi`);",
+    "CREATE INDEX `ix_mt_multi` ON `zz_mt_types` (`si`, `bi`);",
     "",
     "CREATE UNIQUE INDEX `ux_mt_vc` ON `zz_mt_types` (`vc`);",
     "",
@@ -192,7 +192,7 @@
     "",
     "CREATE INDEX `ix_mt_filtered` ON `zz_mt_types` (`d`);",
     "",
-    "CREATE INDEX `ix_mt_multi` ON `zz_mt_types` (`ty`, `si`, `bi`);",
+    "CREATE INDEX `ix_mt_multi` ON `zz_mt_types` (`si`, `bi`);",
     "",
     "CREATE UNIQUE INDEX `ux_mt_vc` ON `zz_mt_types` (`vc`);",
     "",
@@ -340,7 +340,7 @@
     "",
     "CREATE INDEX \"IX_MT_FILTERED\" ON \"ZZ_MT_TYPES\" (\"D\");",
     "",
-    "CREATE INDEX \"IX_MT_MULTI\" ON \"ZZ_MT_TYPES\" (\"TY\", \"SI\", \"BI\");",
+    "CREATE INDEX \"IX_MT_MULTI\" ON \"ZZ_MT_TYPES\" (\"SI\", \"BI\");",
     "",
     "CREATE UNIQUE INDEX \"UX_MT_VC\" ON \"ZZ_MT_TYPES\" (\"VC\");",
     "",
@@ -480,7 +480,7 @@
     "",
     "CREATE INDEX \"ix_mt_filtered\" ON \"zz_mt_types\" (\"d\");",
     "",
-    "CREATE INDEX \"ix_mt_multi\" ON \"zz_mt_types\" (\"ty\", \"si\", \"bi\");",
+    "CREATE INDEX \"ix_mt_multi\" ON \"zz_mt_types\" (\"si\", \"bi\");",
     "",
     "CREATE UNIQUE INDEX \"ux_mt_vc\" ON \"zz_mt_types\" (\"vc\");",
     "",
@@ -556,7 +556,7 @@
     "name": "zz_mt_f",
     "original_name": "zz_mt_f",
     "package_name": null,
-    "return_type": "",
+    "return_type": "varchar(20)",
     "routine_type": "FUNCTION",
     "schema": "zz_mt",
     "warnings": []
@@ -568,7 +568,7 @@
     "name": "zz_mt_itvf",
     "original_name": "zz_mt_itvf",
     "package_name": null,
-    "return_type": "",
+    "return_type": "TABLE",
     "routine_type": "FUNCTION",
     "schema": "zz_mt",
     "warnings": []
@@ -580,7 +580,7 @@
     "name": "zz_mt_mtvf",
     "original_name": "zz_mt_mtvf",
     "package_name": null,
-    "return_type": "",
+    "return_type": "TABLE",
     "routine_type": "FUNCTION",
     "schema": "zz_mt",
     "warnings": []
@@ -1529,7 +1529,6 @@
      },
      {
       "columns": [
-       "ty",
        "si",
        "bi"
       ],

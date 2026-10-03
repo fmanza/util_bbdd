@@ -36,8 +36,8 @@ flowchart TD
 |---|---|---|---|
 | `MigrationPlanner` | `(source_engine, target_engine, charset, collation, engine, ...)` | Admite `"mysql"` como origen y destino (20 pares) | instancia |
 | `MigrationPlanner.plan` | `(connection, schema: str)` | Extrae, transforma y consolida el plan | `MigrationPlan` |
-| `MySQLSchemaExtractor` | `(manager, *, full_column_types=False)` | Extractor de MySQL; `full_column_types=True` guarda `COLUMN_TYPE` | instancia |
-| `MariaDBFullTypeSchemaExtractor` | `(manager)` | Extractor de MariaDB con `COLUMN_TYPE` (par MariaDB → MySQL) | instancia |
+| `MySQLSchemaExtractor` | `(source, *, full_column_types=False)` | Extractor de MySQL; `full_column_types=True` guarda `COLUMN_TYPE` | instancia |
+| `MariaDBFullTypeSchemaExtractor` | `(source)` | Extractor de MariaDB con `COLUMN_TYPE` (par MariaDB → MySQL) | instancia |
 | `MySQLDDLEmitter` | `(charset, collation, engine="InnoDB")` | DDL MySQL; enteros sin ancho salvo `TINYINT(1)` | instancia |
 | `MariaDBToMySQLTransformer` / `MySQLToMariaDBTransformer` | `()` | Pares de la familia: tipo completo del origen | instancia |
 | `validate_mysql_collation` | `(collation: str)` | Valida la collation para MySQL | `str` |
@@ -50,7 +50,7 @@ flowchart TD
 | `source_engine` | `str` | Motor origen | `"oracle"`, `"mariadb"`, `"mysql"`, `"sqlserver"` o `"postgresql"` |
 | `target_engine` | `str` | Motor destino | Los mismos; distinto del origen |
 | `collation` | `str` | COLLATE de las tablas (destinos MariaDB y MySQL) | Con destino `"mysql"`, el valor por defecto se sustituye por `DEFAULT_COLLATION_MYSQL`; `utf8mb4_uca1400_ai_ci` explícita lanza `ValueError` |
-| `connection` | `SyncDatabaseManager` | Manager del origen (`db_type="mysql"` si el origen es MySQL) | Requiere `execute_custom_many(sql, params)` |
+| `connection` | `SyncDatabaseManager` o `MetadataSource` | Manager del origen (`db_type="mysql"` si el origen es MySQL) | Lee el catálogo con `metadata_source` (snapshot de `metadata/`, una consulta por tipo de objeto; ADR-003) |
 | `schema` | `str` | Schema origen; en MySQL, el nombre de la base de datos | — |
 
 ### Contrato de salida
@@ -71,8 +71,8 @@ flowchart TD
 
 | Clase | Responsabilidad |
 |---|---|
-| `MySQLSchemaExtractor` | Lee columnas con `COLUMN_TYPE` y `EXTRA`; entrecomilla defaults literales de columnas no numéricas (convenio de MariaDB) |
-| `MariaDBFullTypeSchemaExtractor` | Igual, sin normalizar defaults (MariaDB ya los devuelve entrecomillados) |
+| `MySQLSchemaExtractor` | Snapshot de `metadata/` → IR; los defaults literales llegan entrecomillados desde `MySQLCatalog` (convenio de MariaDB; `metadata.mariadb.catalog.quote_literal_default`) |
+| `MariaDBFullTypeSchemaExtractor` | Igual, con `COLUMN_TYPE` completo y los defaults de MariaDB |
 | `MySQLDDLEmitter` | Emisor de MariaDB con enteros sin ancho de visualización |
 | `MySQLFamilyTransformer` | Base de los pares MySQL ↔ MariaDB: tipo completo del origen salvo `_TYPE_OVERRIDES` |
 | `MariaDBToMySQLTransformer` | `UUID` → `CHAR(36)`, `INET4` → `VARCHAR(15)`, `INET6` → `VARCHAR(39)` |

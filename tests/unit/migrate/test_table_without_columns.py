@@ -7,28 +7,25 @@ desajuste de nombres en el catálogo) o si todas se omiten por tipos incompatibl
 
 from __future__ import annotations
 
+from dataclasses import replace
 from unittest.mock import MagicMock
 
 import pytest
 
+from util_bbdd.metadata.model import ColumnMeta
 from util_bbdd.migrate import MigrationPlanner
 
-_ID = ("ID", "NUMBER", "NO", 1, None, None, 10, 0, "")
-_RID = ("RID", "ROWID", "YES", 1, None, None, None, None, "")
+from ._snapshot_source import col, fake_manager, table
+
+_ID = col("", "ID", 1, "NUMBER(10)", "NUMBER", precision=10, scale=0, nullable=False)
+_RID = col("", "RID", 1, "ROWID")
 
 
-def _oracle_manager(columns_by_table: dict[str, list[tuple]]) -> MagicMock:
-    manager = MagicMock()
-
-    def side_effect(sql: str, params: dict) -> list:
-        if "all_tables" in sql:
-            return [(name, "TABLE", "") for name in columns_by_table]
-        if "all_tab_columns" in sql and "all_col_comments" in sql:
-            return [(name, *row) for name, rows in columns_by_table.items() for row in rows]
-        return []
-
-    manager.execute_custom_many.side_effect = side_effect
-    return manager
+def _oracle_manager(columns_by_table: dict[str, list[ColumnMeta]]) -> MagicMock:
+    objects: list[object] = []
+    for name, columns in columns_by_table.items():
+        objects += [table(name), *(replace(c, table=name) for c in columns)]
+    return fake_manager("oracle", *objects)
 
 
 @pytest.mark.parametrize(
@@ -36,7 +33,7 @@ def _oracle_manager(columns_by_table: dict[str, list[tuple]]) -> MagicMock:
     [([], "sin columnas extraídas"), ([_RID], "todas omitidas (ROWID)")],
     ids=["sin-columnas", "todas-omitidas"],
 )
-def test_table_without_active_columns_is_an_error(columns: list[tuple], reason: str) -> None:
+def test_table_without_active_columns_is_an_error(columns: list[ColumnMeta], reason: str) -> None:
     plan = MigrationPlanner(source_engine="oracle", target_engine="postgresql").plan(
         _oracle_manager({"OK": [_ID], "VACIA": columns}), "S"
     )

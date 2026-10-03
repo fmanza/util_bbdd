@@ -117,6 +117,23 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   `get_schema_metadata`. Flujo `analysis` de `test_query_counts.py` sin `xfail`. Nuevo
   `characterization/test_analysis_relations.py` (6 motores): destapa H-20 (FK compuestas en producto cartesiano en el
   SQL heredado de PG y SQL Server), corregido en `analysis` y pendiente en `get_foreign_keys` hasta E2.
+- Caracterización previa a C3 (commit propio): `test_migrate_ir_types.py` con un catálogo de tipos amplio por motor y
+  dorado `<motor>_migrate_ir.json` = IR (más variantes de tipo completo MySQL/MariaDB) + DDL emitido hacia cada destino,
+  generado con los extractores de SQL propio. Destapa H-21…H-26 y H-28.
+- IMPLEMENT · C3 (`migrate`): `migrate/extractors/_snapshot.py` (`SnapshotSchemaExtractor`: snapshot → IR; invalida el
+  schema en la primera lectura de cada extractor; índices sin el de la PK salvo Oracle y sin los de expresiones, con
+  aviso) y un extractor fino por motor que solo traduce `ColumnMeta` a las convenciones de `information_schema` que
+  esperan los transformers. Catálogos: PostgreSQL `base_type` estilo `information_schema` y longitudes de `bit` y
+  dominios; Oracle `base_type` sin modificadores y packages en ROUTINES; SQL Server longitud de tipos alias; MySQL
+  defaults literales entre comillas (`quote_literal_default` se muda a `metadata/`). Dorados: MySQL/MariaDB idénticos;
+  PostgreSQL/SQL Server/Oracle con los cambios de H-21…H-26 revisados línea a línea (DDL); `postgresql_snapshot.json`
+  re-baselineado (`base_type`). Tests: 4 ficheros de extractores reescritos sobre `_snapshot_source.FakeSource`,
+  `test_snapshot_extractors.py` nuevo, 4 `test_routines_*_extractor.py` retirados (su parseo vive en los catálogos y
+  sus tests). Banco: `DbapiCatalogExecutor` contado; `migrate_extract` 5000 tablas: PG 9 → 7 consultas y 4,3 → 1,5 s,
+  SQL Server 5,9 → 2,3 s, Oracle 7,3 → 2,4 s, MySQL 20,6 → 2,7 s, MariaDB 8,1 → 2,0 s (antes = baseline previo a QW).
+  Trinquete: los 5 extractores fuera de `PENDING_ENGINE_IMPORTS`.
+- Verificación C3: `ruff`, `mypy` (421), unitarios 6180 + 4 xfailed, integración 629 + 4 skipped, capas sin cambios,
+  `mkdocs build --strict`.
 
 ## Artefactos generados
 

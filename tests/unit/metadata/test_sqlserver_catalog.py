@@ -93,3 +93,10 @@ def test_parse_routines_and_parameters() -> None:
     assert (clr.language, clr.definition) == ("CLR", None)
     params = SS.parse(Kind.ROUTINE_PARAMETERS, [("p", 1, "@x", True, "varchar", 10, 0, 0)], "dbo")
     assert (params[0].routine, params[0].mode, params[0].data_type) == (RoutineKey("p"), "INOUT", "varchar(10)")
+
+
+def test_alias_type_is_sized_by_its_system_type() -> None:
+    """C3: ``CREATE TYPE code FROM varchar(10)`` → ``data_type`` = ``code``, longitud 10 (antes sin longitud)."""
+    row = ("t", "c", 1, "code", "varchar", 10, 0, 0, False, None, None, None, False, None)
+    col = SS.parse(Kind.COLUMNS, [row], "dbo")[0]
+    assert (col.data_type, col.base_type, col.length) == ("code", "varchar", 10)

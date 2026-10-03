@@ -8,7 +8,6 @@ y ``test_emitter_oracle.py``; el recorrido completo, en ``tests/integration/test
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -20,17 +19,7 @@ from util_bbdd.migrate.extractors.postgresql import PostgreSQLSchemaExtractor
 from util_bbdd.migrate.extractors.sqlserver import SQLServerSchemaExtractor
 from util_bbdd.migrate.ir.models import CanonicalView, MigrationPlan
 
-
-def _manager(view_rows: list[tuple[Any, ...]]) -> MagicMock:
-    manager = MagicMock()
-
-    def side_effect(sql: str, params: dict[str, Any]) -> list[tuple[Any, ...]]:
-        if "VIEW_DEFINITION" in sql or "OBJECT_DEFINITION" in sql:
-            return view_rows
-        return []
-
-    manager.execute_custom_many.side_effect = side_effect
-    return manager
+from ._snapshot_source import fake_manager, view
 
 
 @pytest.mark.parametrize(
@@ -40,13 +29,12 @@ def _manager(view_rows: list[tuple[Any, ...]]) -> MagicMock:
 )
 class TestExtractors:
     def test_comment_is_read(self, extractor: Any, definition: str) -> None:
-        [view] = extractor(_manager([("v", definition, " Vista ñ ")])).extract_views("s")
-        assert view.comment == "Vista ñ"
+        [v] = extractor(fake_manager("postgresql", view("v", definition, "Vista ñ"))).extract_views("s")
+        assert v.comment == "Vista ñ"
 
-    @pytest.mark.parametrize("row_tail", [(None,), ()], ids=["null", "sin-columna"])
-    def test_no_comment(self, extractor: Any, definition: str, row_tail: tuple[Any, ...]) -> None:
-        [view] = extractor(_manager([("v", definition, *row_tail)])).extract_views("s")
-        assert view.comment == ""
+    def test_no_comment(self, extractor: Any, definition: str) -> None:
+        [v] = extractor(fake_manager("postgresql", view("v", definition))).extract_views("s")
+        assert v.comment == ""
 
 
 @pytest.mark.parametrize("emitter", [MariaDBDDLEmitter, MySQLDDLEmitter], ids=["mariadb", "mysql"])

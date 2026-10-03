@@ -108,3 +108,12 @@ def test_char_columns_as_bytes_like_asyncpg() -> None:
     assert routine.routine_type == "PROCEDURE"
     param = PG.parse(Kind.ROUTINE_PARAMETERS, [("p", "", 1, "x", b"o", "integer", None)], "s")[0]
     assert param.mode == "OUT"
+
+
+def test_bit_length_and_standard_base_type() -> None:
+    """C3: ``bit(n)`` lleva su longitud en bits y ``base_type`` es el de ``information_schema`` (lo da el SQL)."""
+    rows = [("t", "b", 1, "bit(3)", "bit", False, 1560, 3, None, None, None, "", "")]
+    col = PG.parse(Kind.COLUMNS, rows, "s")[0]
+    assert (col.data_type, col.base_type, col.length) == ("bit(3)", "bit", 3)
+    sql = PG.query(Kind.COLUMNS).sql  # type: ignore[union-attr]
+    assert "'USER-DEFINED'" in sql and "'ARRAY'" in sql and "typtypmod" in sql

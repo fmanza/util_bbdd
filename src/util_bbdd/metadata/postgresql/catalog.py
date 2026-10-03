@@ -70,15 +70,23 @@ _SQL: dict[Kind, tuple[str, bool]] = {
         True,
     ),
     Kind.COLUMNS: (
+        # Tipo base como information_schema.columns.data_type (dominios por su tipo base, ARRAY, USER-DEFINED) y
+        # modificadores del dominio cuando la columna no tiene los suyos
         "SELECT c.relname, a.attname, a.attnum, pg_catalog.format_type(a.atttypid, a.atttypmod), "
-        "COALESCE(bt.typname, t.typname), a.attnotnull, a.atttypid, a.atttypmod, "
+        "CASE WHEN COALESCE(bt.typelem, t.typelem) <> 0 AND COALESCE(bt.typlen, t.typlen) = -1 THEN 'ARRAY' "
+        "WHEN COALESCE(btn.nspname, tn.nspname) = 'pg_catalog' "
+        "THEN pg_catalog.format_type(COALESCE(bt.oid, t.oid), NULL) ELSE 'USER-DEFINED' END, "
+        "a.attnotnull, COALESCE(bt.oid, a.atttypid), "
+        "CASE WHEN bt.oid IS NOT NULL AND a.atttypmod < 0 THEN t.typtypmod ELSE a.atttypmod END, "
         "pg_catalog.pg_get_expr(ad.adbin, ad.adrelid), cd.description, "
         "CASE WHEN a.attcollation <> t.typcollation THEN co.collname END, a.attidentity, a.attgenerated "
         "FROM pg_catalog.pg_attribute a "
         "JOIN pg_catalog.pg_class c ON c.oid = a.attrelid "
         "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace "
         "JOIN pg_catalog.pg_type t ON t.oid = a.atttypid "
+        "JOIN pg_catalog.pg_namespace tn ON tn.oid = t.typnamespace "
         "LEFT JOIN pg_catalog.pg_type bt ON t.typtype = 'd' AND bt.oid = t.typbasetype "
+        "LEFT JOIN pg_catalog.pg_namespace btn ON btn.oid = bt.typnamespace "
         "LEFT JOIN pg_catalog.pg_attrdef ad ON ad.adrelid = a.attrelid AND ad.adnum = a.attnum "
         "LEFT JOIN pg_catalog.pg_collation co ON co.oid = a.attcollation "
         "LEFT JOIN pg_catalog.pg_description cd ON cd.objoid = c.oid "
@@ -202,6 +210,8 @@ def _type_modifiers(type_oid: int, typmod: int) -> tuple[int | None, int | None,
         return None, None, None
     if type_oid in (1042, 1043):  # bpchar, varchar
         return typmod - 4, None, None
+    if type_oid in (1560, 1562):  # bit, varbit: longitud en bits
+        return typmod, None, None
     if type_oid == 1700:  # numeric
         mod = typmod - 4
         return None, (mod >> 16) & 0xFFFF, mod & 0xFFFF

@@ -8,7 +8,7 @@
     "name": "zz_gold_f",
     "original_name": "zz_gold_f",
     "package_name": null,
-    "return_type": "int4",
+    "return_type": "integer",
     "routine_type": "FUNCTION",
     "schema": "zz_util_bbdd_gold",
     "warnings": []
@@ -20,7 +20,7 @@
     "name": "zz_gold_p",
     "original_name": "zz_gold_p",
     "package_name": null,
-    "return_type": "void",
+    "return_type": "",
     "routine_type": "PROCEDURE",
     "schema": "zz_util_bbdd_gold",
     "warnings": []
@@ -191,7 +191,7 @@
    {
     "columns": [
      {
-      "auto_increment": false,
+      "auto_increment": true,
       "char_length": null,
       "comment": "",
       "ddl_comment": null,

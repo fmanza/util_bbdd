@@ -90,11 +90,6 @@ PENDING_ENGINE_IMPORTS: frozenset[str] = frozenset(
         "managers/_metadata_parser.py",
         "managers/async_mgr.py",  # importa metadata.mariadb/mysql para registrar sus adaptadores
         "managers/sync_mgr.py",  # ídem
-        "migrate/extractors/mariadb.py",
-        "migrate/extractors/mysql.py",
-        "migrate/extractors/oracle.py",
-        "migrate/extractors/postgresql.py",
-        "migrate/extractors/sqlserver.py",
     }
 )
 

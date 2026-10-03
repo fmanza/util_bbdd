@@ -137,3 +137,27 @@ def test_routine_parameters_keyed_by_package_and_overload() -> None:
     a, b = ORA.parse(Kind.ROUTINE_PARAMETERS, rows, "S")
     assert (a.routine, a.mode) == (RoutineKey("PKG.P", "2"), "INOUT")
     assert (b.routine, b.mode) == (RoutineKey("F", ""), "IN")
+
+
+@pytest.mark.parametrize(
+    ("data_type", "base_type"),
+    [
+        ("TIMESTAMP(6) WITH TIME ZONE", "TIMESTAMP WITH TIME ZONE"),
+        ("TIMESTAMP(3)", "TIMESTAMP"),
+        ("INTERVAL DAY(2) TO SECOND(6)", "INTERVAL DAY TO SECOND"),
+        ("VARCHAR2", "VARCHAR2"),
+    ],
+)
+def test_base_type_drops_modifiers_but_keeps_the_type(data_type: str, base_type: str) -> None:
+    """C3: ``TIMESTAMP(6) WITH TIME ZONE`` → ``TIMESTAMP WITH TIME ZONE`` (antes ``TIMESTAMP``, sin la zona)."""
+    rows = [("T", "C", 1, data_type, 13, None, None, None, None, "Y", None, None, "NO", None)]
+    assert ORA.parse(Kind.COLUMNS, rows, "S")[0].base_type == base_type
+
+
+def test_packages_are_listed_without_definition() -> None:
+    """C3: los packages entran en ROUTINES (tipo ``PACKAGE``) como inventario para ``migrate``."""
+    rows = [("PKG", "PACKAGE", None, None, None, None), ("PKG.F", "FUNCTION", None, None, "NUMBER", "1")]
+    package, member = ORA.parse(Kind.ROUTINES, rows, "S")
+    assert (package.name, package.routine_type, package.definition) == ("PKG", "PACKAGE", None)
+    assert (member.name, member.routine_type) == ("PKG.F", "FUNCTION")
+    assert "'PACKAGE'" in ORA.query(Kind.ROUTINES).sql  # type: ignore[union-attr]

@@ -8,41 +8,42 @@ import pytest
 
 from util_bbdd.migrate.planner import MigrationPlanner
 
+from ._snapshot_source import col, fake_manager, pk, table
+
 
 def _make_manager(
     tables: list[tuple] | None = None,
     columns: list[tuple] | None = None,
     pks: list[tuple] | None = None,
 ) -> MagicMock:
-    """Manager mock con respuestas mínimas para ejecutar plan()."""
-    manager = MagicMock()
+    """Manager simulado (snapshot de metadata/) con las mismas columnas y PK en cada tabla.
 
-    # Columnas y PK se leen por schema (D1): cada tabla recibe las mismas filas, con su nombre delante.
-    table_names = [str(t[0]) for t in tables or [] if t]
-
-    def per_table(rows: list[tuple] | None) -> list[tuple]:
-        return [(name, *row) for name in table_names for row in rows or []]
-
-    def side_effect(sql: str, params: dict) -> list:
-        sql_upper = sql.upper()
-        if "INFORMATION_SCHEMA.VIEWS" in sql_upper and "VIEW_DEFINITION" in sql_upper:
-            return []
-        if "INFORMATION_SCHEMA.TABLES" in sql_upper:
-            return tables or []
-        if "COLUMNPROPERTY" in sql_upper:
-            return per_table(columns)
-        if "CONSTRAINT_TYPE = 'PRIMARY KEY'" in sql_upper:
-            return per_table(pks)
-        if "REFERENTIAL_CONSTRAINTS" in sql_upper:
-            return []
-        if "SYS.INDEXES" in sql_upper:
-            return []
-        if "INFORMATION_SCHEMA.COLUMNS" in sql_upper:
-            return []
-        return []
-
-    manager.execute_custom_many.side_effect = side_effect
-    return manager
+    ``columns``: ``(nombre, tipo, longitud, precisión, escala, nulable, default, identidad, ordinal)``.
+    """
+    objects: list[object] = []
+    for name, *_rest in tables or []:
+        objects.append(table(name))
+        for c_name, data_type, length, precision, scale, nullable, default, identity, ordinal in columns or []:
+            declared = f"{data_type}(max)" if length == -1 else f"{data_type}({length})" if length else data_type
+            exact = data_type in ("decimal", "numeric")
+            objects.append(
+                col(
+                    name,
+                    c_name,
+                    ordinal,
+                    declared,
+                    data_type,
+                    nullable=nullable == "YES",
+                    length=length if length and length > 0 else None,
+                    precision=precision if exact else None,
+                    scale=scale if exact else None,
+                    default=default,
+                    identity="by default" if identity else None,
+                )
+            )
+        if pks:
+            objects.append(pk(name, *(r[0] for r in pks)))
+    return fake_manager("sqlserver", *objects)
 
 
 # ── Validación de motores ─────────────────────────────────────────────────────

@@ -1,385 +1,100 @@
-"""Extractor de metadatos MariaDB hacia IR canónico.
+"""Extractor de metadatos MariaDB hacia IR canónico (desde el snapshot de ``metadata/``, C3 de ADR-003).
 
-Consulta INFORMATION_SCHEMA para extraer tablas, columnas, PKs, FKs,
-índices y vistas. Usa duck-typing sobre el manager (SyncDatabaseManager
-compatible): requiere ``execute_custom_many(sql, params) → Rows``.
+El IR conserva las convenciones de ``INFORMATION_SCHEMA.COLUMNS`` que esperan los transformers ``mariadb_to_*``:
+``source_type`` es ``DATA_TYPE`` en mayúsculas, ``char_length`` = ``CHARACTER_MAXIMUM_LENGTH`` (también en BLOB,
+``ENUM`` y ``SET``) y ``NUMERIC_PRECISION``/``NUMERIC_SCALE`` también en enteros, coma flotante y ``BIT``.
+MariaDB escribe ``'NULL'`` como default de las columnas nulables sin otro; el IR lo conserva.
 
-Parámetros SQL: estilo ``%(name)s`` (Python DB-API 2.0 para MySQL/MariaDB).
+El cuerpo de las routines es el ``CREATE`` completo que reconstruye
+:func:`util_bbdd.metadata.mariadb.catalog.build_create_routine`.
 """
 
 from __future__ import annotations
 
-from collections import defaultdict
-from typing import Any
+import re
 
-from ...metadata.mariadb.catalog import build_create_routine
-from ...metadata.mariadb.tables import (
-    fetch_columns_for_schema_sql,
-    fetch_fk_for_schema_sql,
-    fetch_fk_rules_for_schema_sql,
-    fetch_indexes_for_schema_sql,
-    fetch_pk_for_schema_sql,
-    fetch_routine_parameters_for_schema_sql,
-    fetch_routines_sql,
-    fetch_tables_sql,
-    fetch_views_sql,
-)
-from ..ir.models import (
-    CanonicalColumn,
-    CanonicalFK,
-    CanonicalIndex,
-    CanonicalRoutine,
-    CanonicalTable,
-    CanonicalView,
-    MigrationWarning,
-)
-from ._schema_rows import ObjectRows, group_by_object
+from typing import ClassVar
+
+from ...metadata.model import ColumnMeta
+from ..ir.models import CanonicalColumn
+from ._snapshot import SnapshotSchemaExtractor
+
+#: NUMERIC_PRECISION / NUMERIC_SCALE de los tipos numéricos sin modificadores (``bigint unsigned``: 20).
+_NUMERIC_PS: dict[str, tuple[int, int | None]] = {
+    "tinyint": (3, 0),
+    "smallint": (5, 0),
+    "mediumint": (7, 0),
+    "int": (10, 0),
+    "bigint": (19, 0),
+    "float": (12, None),
+    "double": (22, None),
+}
+#: CHARACTER_MAXIMUM_LENGTH de los BLOB (los TEXT ya la traen del catálogo).
+_BLOB_LENGTH: dict[str, int] = {
+    "tinyblob": 255,
+    "blob": 65535,
+    "mediumblob": 16777215,
+    "longblob": 4294967295,
+}
+_PARENS = re.compile(r"\(([^)]*)\)")
+_VALUES = re.compile(r"'((?:[^']|'')*)'")
 
 
-def _mysql_create_routine(
-    name: str, routine_type: str, parameters: list[tuple[Any, ...]], definition: str, row: Any
-) -> str:
-    """``CREATE PROCEDURE|FUNCTION`` ejecutable desde INFORMATION_SCHEMA (hotfix R4, 0.23.1).
+def _members(column_type: str) -> list[str]:
+    """Valores de un ``enum(...)``/``set(...)`` tal como se declararon."""
+    return [value.replace("''", "'") for value in _VALUES.findall(column_type)]
 
-    Delega en :func:`util_bbdd.metadata.mariadb.catalog.build_create_routine` (punto único desde ADR-003, A4).
+
+def information_schema_sizes(col: ColumnMeta) -> tuple[int | None, int | None, int | None]:
+    """``(CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE)`` de una columna MySQL/MariaDB."""
+    base, column_type = col.base_type.lower(), col.data_type.lower()
+    length, precision, scale = col.length, col.precision, col.scale
+    if base in _BLOB_LENGTH:
+        length = _BLOB_LENGTH[base]
+    elif base == "enum":
+        length = max((len(v) for v in _members(col.data_type)), default=0)
+    elif base == "set":
+        members = _members(col.data_type)
+        length = sum(len(v) for v in members) + max(len(members) - 1, 0)
+    if base in _NUMERIC_PS:
+        precision, scale = _NUMERIC_PS[base]
+        if base == "bigint" and "unsigned" in column_type:
+            precision = 20
+        if base in ("float", "double") and (match := _PARENS.search(column_type)) and "," in match.group(1):
+            p, s = match.group(1).split(",")
+            precision, scale = int(p), int(s)
+    elif base == "bit":
+        match = _PARENS.search(column_type)
+        precision = int(match.group(1)) if match else 1
+    return length, precision, scale
+
+
+class MariaDBSchemaExtractor(SnapshotSchemaExtractor):
+    """Extrae el esquema MariaDB hacia el IR canónico.
 
     Args:
-        parameters: Filas (PARAMETER_MODE, PARAMETER_NAME, DTD_IDENTIFIER) en orden.
-        row: Fila de :func:`fetch_routines_sql` (índices 4: RETURNS, 5: COMMENT, 6-8: características).
+        source: Manager de util_bbdd o ``MetadataSource`` de MariaDB. ``schema`` es la base de datos.
     """
 
-    def value(index: int) -> str:
-        return str(row[index]).strip() if len(row) > index and row[index] else ""
+    engine: ClassVar[str] = "mariadb"
+    #: ``source_type`` = ``COLUMN_TYPE`` completo (pares MySQL ↔ MariaDB) en vez de ``DATA_TYPE``.
+    _full_types: bool = False
+    #: MariaDB devuelve ``'NULL'`` como default de las columnas nulables; MySQL, ``NULL``.
+    _NULL_DEFAULT_TEXT: ClassVar[bool] = True
 
-    return build_create_routine(
-        name,
-        routine_type,
-        parameters,
-        definition,
-        returns=value(4),
-        comment=value(5),
-        deterministic=value(6),
-        data_access=value(7),
-        security=value(8),
-    )
-
-
-def _parse_raw_column(row: Any) -> dict[str, Any] | None:
-    """Parsea una fila de INFORMATION_SCHEMA.COLUMNS (10 elementos).
-
-    Columnas esperadas (en orden):
-        0: COLUMN_NAME
-        1: DATA_TYPE
-        2: CHARACTER_MAXIMUM_LENGTH
-        3: NUMERIC_PRECISION
-        4: NUMERIC_SCALE
-        5: IS_NULLABLE
-        6: COLUMN_DEFAULT
-        7: EXTRA
-        8: COLUMN_COMMENT
-        9: ORDINAL_POSITION
-    """
-    if not isinstance(row, (tuple, list)) or len(row) < 10:
-        return None
-
-    data_type = str(row[1]).strip().upper() if row[1] else "VARCHAR"
-
-    try:
-        char_length = int(row[2]) if row[2] is not None else None
-    except (ValueError, TypeError):
-        char_length = None
-
-    try:
-        precision = int(row[3]) if row[3] is not None else None
-    except (ValueError, TypeError):
-        precision = None
-
-    try:
-        scale = int(row[4]) if row[4] is not None else None
-    except (ValueError, TypeError):
-        scale = None
-
-    extra = str(row[7]).strip().lower() if row[7] else ""
-    default_raw = str(row[6]).strip() if row[6] is not None else None
-
-    return {
-        "name": str(row[0]).strip() if row[0] else "",
-        "data_type": data_type,
-        "char_length": char_length,
-        "precision": precision,
-        "scale": scale,
-        "nullable": str(row[5]).strip().upper() == "YES" if row[5] else True,
-        "default": default_raw,
-        "auto_increment": "auto_increment" in extra,
-        "comment": str(row[8]).strip() if row[8] else "",
-        "ordinal": int(row[9]) if row[9] is not None else 0,
-    }
-
-
-class MariaDBSchemaExtractor:
-    """Extrae el esquema MariaDB hacia CanonicalTable usando INFORMATION_SCHEMA.
-
-    Usa duck-typing sobre el manager (SyncDatabaseManager compatible):
-    requiere ``execute_custom_many(sql, params) → Rows``.
-
-    Los parámetros SQL siguen el estilo ``%(name)s`` (Python DB-API 2.0 para
-    drivers MySQL/MariaDB: PyMySQL, mariadb-connector, mysql-connector-python).
-    """
-
-    def __init__(self, manager: Any) -> None:
-        self._manager = manager
-
-    def _query(self, sql: str, params: dict[str, Any]) -> list[Any]:
-        return list(self._manager.execute_custom_many(sql, params))
-
-    def _columns_for_schema_sql(self) -> str:
-        """Consulta de columnas por schema (MySQL la sustituye por la que añade ``COLUMN_TYPE``)."""
-        return fetch_columns_for_schema_sql()
-
-    def _fk_rows(self, params: dict[str, Any]) -> list[tuple[Any, ...]]:
-        """Columnas de las FK del schema con sus reglas ``ON DELETE``/``ON UPDATE`` al final de cada fila.
-
-        Dos consultas unidas aquí, no en SQL (H-16): ``(TABLE_NAME, CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_SCHEMA,
-        REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME, ORDINAL_POSITION, DELETE_RULE, UPDATE_RULE)``.
-        """
-        rules: dict[tuple[str, str], tuple[Any, Any]] = {
-            (str(r[0]).strip(), str(r[1]).strip()): (r[2], r[3])
-            for r in self._query(fetch_fk_rules_for_schema_sql(), params)
-            if r
-        }
-        return [
-            (*r, *rules.get((str(r[0]).strip(), str(r[1]).strip()), (None, None)))
-            for r in self._query(fetch_fk_for_schema_sql(), params)
-            if r
-        ]
-
-    def extract(self, schema: str) -> list[CanonicalTable]:
-        """Extrae todas las tablas (BASE TABLE) del schema MariaDB como IR canónico."""
-        params = {"schema": schema}
-        table_rows = self._query(fetch_tables_sql(), params)
-        # D1: una consulta por schema y tipo de objeto, agrupada por tabla (antes 4 consultas por tabla)
-        columns_by_table = group_by_object(self._query(self._columns_for_schema_sql(), params))
-        pks_by_table = group_by_object(self._query(fetch_pk_for_schema_sql(), params))
-        fks_by_table = group_by_object(self._fk_rows(params))
-        indexes_by_table = group_by_object(self._query(fetch_indexes_for_schema_sql(), params))
-        tables: list[CanonicalTable] = []
-
-        for t_row in table_rows:
-            if not t_row:
-                continue
-            table_name = str(t_row[0]).strip()
-            table_comment = str(t_row[1]).strip() if len(t_row) > 1 and t_row[1] else ""
-
-            columns = self._extract_columns(columns_by_table.for_object(table_name))
-            pk_cols = self._extract_pk(pks_by_table.for_object(table_name))
-            fk_list = self._extract_fks(schema, fks_by_table.for_object(table_name))
-            idx_list = self._extract_indexes(indexes_by_table.for_object(table_name))
-
-            # Marcar columnas PK
-            pk_set = {c.upper() for c in pk_cols}
-            for col in columns:
-                if col.name.upper() in pk_set:
-                    col.is_primary_key = True
-
-            tables.append(
-                CanonicalTable(
-                    name=table_name,
-                    original_name=table_name,
-                    schema=schema,
-                    columns=columns,
-                    primary_key=pk_cols,
-                    indexes=idx_list,
-                    foreign_keys=fk_list,
-                    comment=table_comment,
-                    warnings=[],
-                )
-            )
-
-        return tables
-
-    def extract_views(self, schema: str) -> list[CanonicalView]:
-        """Extrae todas las vistas del schema MariaDB como IR canónico.
-
-        El campo ``query`` de cada ``CanonicalView`` contiene la definición
-        SELECT de la vista (``VIEW_DEFINITION`` de INFORMATION_SCHEMA.VIEWS).
-        """
-        rows = self._query(fetch_views_sql(), {"schema": schema})
-        columns_by_view = (
-            group_by_object(self._query(self._columns_for_schema_sql(), {"schema": schema})) if rows else ObjectRows()
-        )
-        views: list[CanonicalView] = []
-
-        for row in rows:
-            if not row:
-                continue
-            view_name = str(row[0]).strip()
-            definition = str(row[1]).strip() if row[1] else ""
-
-            columns = [str(r[0]).strip() for r in columns_by_view.for_object(view_name) if r and r[0]]
-            views.append(
-                CanonicalView(
-                    name=view_name,
-                    original_name=view_name,
-                    schema=schema,
-                    query=definition,
-                    columns=columns,
-                    comment="",
-                    warnings=[],
-                )
-            )
-
-        return views
-
-    def extract_routines(self, schema: str) -> list[CanonicalRoutine]:
-        """Extrae todas las rutinas del schema MariaDB como IR canónico."""
-        rows = self._query(fetch_routines_sql(), {"schema": schema})
-        # Hotfix R4: parámetros de todas las rutinas en una consulta, por (nombre, tipo): en MySQL/MariaDB un
-        # procedimiento y una función pueden llamarse igual.
-        parameters: dict[tuple[str, str], list[tuple[Any, ...]]] = defaultdict(list)
-        for p in self._query(fetch_routine_parameters_for_schema_sql(), {"schema": schema}) if rows else []:
-            if p and len(p) > 4 and p[3]:
-                parameters[(str(p[0]).strip(), str(p[1]).strip().upper())].append((p[2], p[3], p[4]))
-        return [r for row in rows if (r := self._parse_routine_row(row, schema, parameters)) is not None]
-
-    def _parse_routine_row(
-        self, row: Any, schema: str, parameters: dict[tuple[str, str], list[tuple[Any, ...]]] | None = None
-    ) -> CanonicalRoutine | None:
-        """Parsea una fila de INFORMATION_SCHEMA.ROUTINES a CanonicalRoutine (cuerpo = ``CREATE`` completo)."""
-        if not row or len(row) < 4:
-            return None
-        routine_name = str(row[0]).strip() if row[0] else ""
-        routine_type = str(row[1]).strip().upper() if row[1] else ""
-        if routine_type not in ("PROCEDURE", "FUNCTION"):
-            return None
-        definition = str(row[3]).strip() if row[3] else ""
-        body = (
-            _mysql_create_routine(
-                routine_name, routine_type, (parameters or {}).get((routine_name, routine_type), []), definition, row
-            )
-            if definition
-            else ""
-        )
-        return_type = str(row[4]).strip() if len(row) > 4 and row[4] else ""
-        warnings: list[MigrationWarning] = []
-        if not body:
-            warnings.append(
-                MigrationWarning(
-                    table=routine_name,
-                    column=None,
-                    category="ROUTINE",
-                    target_type="(no body)",
-                    code="ROUTINE_NO_BODY",
-                    message=f"Body de '{routine_name}' no disponible; emitir stub.",
-                    severity="WARNING",
-                )
-            )
-        return CanonicalRoutine(
-            name=routine_name,
-            original_name=routine_name,
-            schema=schema,
-            routine_type=routine_type,
-            body=body,
-            return_type=return_type,
-            comment=str(row[5]).strip() if len(row) > 5 and row[5] else "",  # ROUTINE_COMMENT (F4, 0.23.0)
-            warnings=warnings,
+    def _column(self, col: ColumnMeta) -> CanonicalColumn:
+        length, precision, scale = information_schema_sizes(col)
+        default = col.default
+        if default is None and col.nullable and self._NULL_DEFAULT_TEXT:
+            default = "NULL"
+        return self._canonical_column(
+            col,
+            col.data_type if self._full_types else col.base_type.upper(),
+            char_length=length,
+            precision=precision,
+            scale=scale,
+            default=default,
         )
 
-    def _extract_columns(self, rows: list[tuple[Any, ...]]) -> list[CanonicalColumn]:
-        columns: list[CanonicalColumn] = []
 
-        for row in rows:
-            parsed = _parse_raw_column(row)
-            if parsed is None:
-                continue
-
-            columns.append(
-                CanonicalColumn(
-                    name=parsed["name"],
-                    original_name=parsed["name"],
-                    source_type=parsed["data_type"],
-                    target_type="",  # el transformer lo rellena
-                    nullable=parsed["nullable"],
-                    default=parsed["default"],
-                    comment=parsed["comment"],
-                    ordinal=parsed["ordinal"],
-                    char_length=parsed["char_length"],
-                    precision=parsed["precision"],
-                    scale=parsed["scale"],
-                    auto_increment=parsed["auto_increment"],
-                )
-            )
-
-        return columns
-
-    def _extract_pk(self, rows: list[tuple[Any, ...]]) -> list[str]:
-        return [str(r[0]).strip() for r in rows if r and r[0]]
-
-    def _extract_fks(self, schema: str, rows: list[tuple[Any, ...]]) -> list[CanonicalFK]:
-        fk_map: dict[str, dict[str, Any]] = defaultdict(
-            lambda: {
-                "name": "",
-                "columns": [],
-                "ref_schema": "",
-                "ref_table": "",
-                "ref_columns": [],
-                "on_delete": "NO ACTION",
-                "on_update": "NO ACTION",
-            }
-        )
-
-        for r in sorted(rows, key=lambda x: (str(x[0]), int(x[5]) if x[5] is not None else 0)):
-            fk_name = str(r[0]).strip()
-            entry = fk_map[fk_name]
-            entry["name"] = fk_name
-            entry["columns"].append(str(r[1]).strip())
-            entry["ref_schema"] = str(r[2]).strip() if r[2] else schema
-            entry["ref_table"] = str(r[3]).strip()
-            entry["ref_columns"].append(str(r[4]).strip())
-            entry["on_delete"] = str(r[6]).strip() if r[6] else "NO ACTION"
-            entry["on_update"] = str(r[7]).strip() if r[7] else "NO ACTION"
-
-        result: list[CanonicalFK] = []
-        for fk_name, entry in fk_map.items():
-            result.append(
-                CanonicalFK(
-                    name=fk_name,
-                    original_name=fk_name,
-                    columns=entry["columns"],
-                    ref_table=entry["ref_table"],
-                    ref_columns=entry["ref_columns"],
-                    on_delete=entry["on_delete"],
-                    on_update=entry["on_update"],
-                    is_external=entry["ref_schema"].upper() != schema.upper(),
-                )
-            )
-
-        return result
-
-    def _extract_indexes(self, rows: list[tuple[Any, ...]]) -> list[CanonicalIndex]:
-        idx_map: dict[str, dict[str, Any]] = defaultdict(lambda: {"name": "", "columns": [], "unique": False})
-
-        for r in sorted(rows, key=lambda x: (str(x[0]), int(x[3]) if x[3] is not None else 0)):
-            idx_name = str(r[0]).strip()
-            entry = idx_map[idx_name]
-            entry["name"] = idx_name
-            entry["columns"].append(str(r[1]).strip())
-            # NON_UNIQUE=0 → unique; NON_UNIQUE=1 → no unique
-            entry["unique"] = str(r[2]).strip() == "0"
-
-        result: list[CanonicalIndex] = []
-        for idx_name, entry in idx_map.items():
-            result.append(
-                CanonicalIndex(
-                    name=idx_name,
-                    original_name=idx_name,
-                    columns=entry["columns"],
-                    unique=entry["unique"],
-                )
-            )
-
-        return result
-
-
-__all__: list[str] = [
-    "MariaDBSchemaExtractor",
-]
+__all__: list[str] = ["MariaDBSchemaExtractor", "information_schema_sizes"]

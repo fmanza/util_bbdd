@@ -18,6 +18,7 @@ la tabla de las ``CHECK`` (``CHECK_CONSTRAINTS.TABLE_NAME`` solo en MariaDB).
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
 from typing import Any
 
 from ..contracts import CatalogQuery
@@ -39,6 +40,26 @@ from ..model import (
 )
 
 _EXACT = frozenset({"decimal", "numeric"})
+#: DATA_TYPE numéricos: sus defaults literales van sin comillas en MySQL y en MariaDB.
+_NUMERIC_DATA_TYPES: frozenset[str] = frozenset(
+    {
+        "TINYINT",
+        "SMALLINT",
+        "MEDIUMINT",
+        "INT",
+        "INTEGER",
+        "BIGINT",
+        "DECIMAL",
+        "NUMERIC",
+        "FLOAT",
+        "DOUBLE",
+        "REAL",
+        "BIT",
+        "BOOLEAN",
+        "BOOL",
+        "YEAR",
+    }
+)
 _TEXT = frozenset({"char", "varchar", "binary", "varbinary"})
 
 
@@ -218,6 +239,29 @@ def _default(value: Any) -> str | None:
     """MariaDB devuelve ``'NULL'`` (texto) para «sin valor por defecto»; MySQL devuelve ``NULL``."""
     text = _text(value)
     return None if text is None or text == "NULL" else text
+
+
+def quote_literal_default(default: str | None, data_type: str, extra: str) -> str | None:
+    """Entrecomilla un default literal de MySQL (convenio de MariaDB y del resto de motores: ``'x'``).
+
+    MySQL devuelve ``COLUMN_DEFAULT`` sin comillas (``x``) y MariaDB con ellas (``'x'``); las expresiones (``EXTRA``
+    contiene ``DEFAULT_GENERATED``) y los defaults de columnas numéricas se dejan tal cual.
+
+    Args:
+        default: ``COLUMN_DEFAULT`` tal cual lo devuelve MySQL.
+        data_type: ``DATA_TYPE`` de la columna.
+        extra: ``EXTRA`` de la columna.
+
+    Returns:
+        El default entrecomillado si es un literal de una columna no numérica; si no, sin cambios.
+    """
+    if default is None or "DEFAULT_GENERATED" in extra.upper():
+        return default
+    if data_type.strip().upper() in _NUMERIC_DATA_TYPES:
+        return default
+    if len(default) >= 2 and default.startswith("'") and default.endswith("'"):
+        return default
+    return "'" + default.replace("'", "''") + "'"
 
 
 class MariaDBCatalog:
@@ -400,10 +444,18 @@ class MySQLCatalog(MariaDBCatalog):
     _specific = _MYSQL
 
     @staticmethod
+    def _parse_columns(rows: Sequence[Sequence[Any]], schema: str) -> list[ColumnMeta]:
+        """Como MariaDB, pero con los defaults literales entre comillas (MySQL los devuelve sin ellas)."""
+        return [
+            replace(column, default=quote_literal_default(column.default, column.base_type, str(row[12] or "")))
+            for column, row in zip(MariaDBCatalog._parse_columns(rows, schema), rows, strict=True)
+        ]
+
+    @staticmethod
     def _parse_checks(results: Sequence[Any], schema: str) -> list[CheckMeta]:
         checks, tables = results
         table_of = {str(r[1]): str(r[0]) for r in tables}
         return [CheckMeta(table_of[str(r[0])], str(r[0]), str(_text(r[1]))) for r in checks if str(r[0]) in table_of]
 
 
-__all__: list[str] = ["MariaDBCatalog", "MySQLCatalog", "build_create_routine"]
+__all__: list[str] = ["MariaDBCatalog", "MySQLCatalog", "build_create_routine", "quote_literal_default"]

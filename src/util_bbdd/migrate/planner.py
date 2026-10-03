@@ -151,8 +151,12 @@ class MigrationPlanner:
     def plan(self, connection: Any, schema: str) -> MigrationPlan:
         """Extrae y transforma el esquema origen, produciendo un MigrationPlan.
 
+        El catálogo se lee con la ``MetadataSource`` del origen (una consulta por tipo de objeto, ADR-003), descartando
+        lo que tuviera en caché para ``schema``: el plan refleja siempre el catálogo actual.
+
         Args:
-            connection: SyncDatabaseManager del motor origen (duck-typed).
+            connection: ``SyncDatabaseManager`` del motor origen (se usa su ``metadata_source``) o una
+                ``MetadataSource`` (p. ej. ``CatalogSource.from_engine(engine)``).
             schema: Nombre del schema/owner/database a migrar.
                 Para SQL Server corresponde a TABLE_SCHEMA (ej. ``'dbo'``).
 

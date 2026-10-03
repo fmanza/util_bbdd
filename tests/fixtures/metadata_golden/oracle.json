@@ -8,7 +8,7 @@
     "name": "ZZ_GOLD_F",
     "original_name": "ZZ_GOLD_F",
     "package_name": null,
-    "return_type": "",
+    "return_type": "NUMBER",
     "routine_type": "FUNCTION",
     "schema": "BENCH",
     "warnings": []
@@ -31,7 +31,7 @@
     "columns": [
      {
       "auto_increment": false,
-      "char_length": 22,
+      "char_length": null,
       "comment": "",
       "ddl_comment": null,
       "default": null,
@@ -49,7 +49,7 @@
      },
      {
       "auto_increment": false,
-      "char_length": 22,
+      "char_length": null,
       "comment": "",
       "ddl_comment": null,
       "default": null,
@@ -131,7 +131,7 @@
     "columns": [
      {
       "auto_increment": false,
-      "char_length": 22,
+      "char_length": null,
       "comment": "",
       "ddl_comment": null,
       "default": null,
@@ -149,7 +149,7 @@
      },
      {
       "auto_increment": false,
-      "char_length": 22,
+      "char_length": null,
       "comment": "",
       "ddl_comment": null,
       "default": null,
@@ -209,11 +209,11 @@
    {
     "columns": [
      {
-      "auto_increment": false,
-      "char_length": 22,
+      "auto_increment": true,
+      "char_length": null,
       "comment": "",
       "ddl_comment": null,
-      "default": "\"BENCH\".\"ISEQ$$_<n>\".nextval",
+      "default": null,
       "is_primary_key": true,
       "name": "ID",
       "nullable": false,
@@ -269,7 +269,7 @@
     "columns": [
      {
       "auto_increment": false,
-      "char_length": 22,
+      "char_length": null,
       "comment": "",
       "ddl_comment": null,
       "default": null,
@@ -323,7 +323,7 @@
      },
      {
       "auto_increment": false,
-      "char_length": 22,
+      "char_length": null,
       "comment": "",
       "ddl_comment": null,
       "default": null,
@@ -341,7 +341,7 @@
      },
      {
       "auto_increment": false,
-      "char_length": 7,
+      "char_length": null,
       "comment": "",
       "ddl_comment": null,
       "default": null,
@@ -390,7 +390,7 @@
     "columns": [
      {
       "auto_increment": false,
-      "char_length": 22,
+      "char_length": null,
       "comment": "",
       "ddl_comment": null,
       "default": null,
@@ -408,7 +408,7 @@
      },
      {
       "auto_increment": false,
-      "char_length": 22,
+      "char_length": null,
       "comment": "",
       "ddl_comment": null,
       "default": null,
@@ -426,7 +426,7 @@
      },
      {
       "auto_increment": false,
-      "char_length": 22,
+      "char_length": null,
       "comment": "",
       "ddl_comment": null,
       "default": null,

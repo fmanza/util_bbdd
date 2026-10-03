@@ -42,6 +42,7 @@ _PARAM_MODES = {"IN": "IN", "OUT": "OUT", "IN/OUT": "INOUT"}
 _IDENTITY = {"ALWAYS": "always", "BY DEFAULT": "by default"}
 _NOT_NULL_CHECK = re.compile(r'^\s*"[^"]+"\s+IS\s+NOT\s+NULL\s*$', re.IGNORECASE)
 _TEXT_TYPES = frozenset({"VARCHAR2", "NVARCHAR2", "CHAR", "NCHAR"})
+_MODIFIERS = re.compile(r"\(\d+\)")  # TIMESTAMP(6) WITH TIME ZONE → TIMESTAMP WITH TIME ZONE
 
 # kind → (SQL con {filter}, columna por la que se filtra con :tables, o None si no admite filtro)
 _SQL: dict[Kind, tuple[str, str | None]] = {
@@ -139,6 +140,10 @@ _SQL: dict[Kind, tuple[str, str | None]] = {
         "AND r.object_name = p.procedure_name AND NVL(r.overload, '0') = NVL(p.overload, '0') "
         "AND r.position = 0 AND r.data_level = 0 "
         "WHERE p.owner = :schema AND p.object_type = 'PACKAGE' AND p.procedure_name IS NOT NULL "
+        "UNION ALL "
+        # Los packages también, sin código: inventario para migrate (sus miembros no tienen equivalente directo)
+        "SELECT o.object_name, 'PACKAGE', NULL, NULL, NULL, NULL FROM all_objects o "
+        "WHERE o.owner = :schema AND o.object_type = 'PACKAGE' "
         "ORDER BY 1, 6, 3",
         None,
     ),
@@ -245,7 +250,7 @@ class OracleCatalog:
                     name=str(r[1]),
                     ordinal=int(r[2]),
                     data_type=_data_type(data_type, _int(r[4]), _int(r[5]), _text(r[6]), precision, scale),
-                    base_type=data_type.split("(")[0],
+                    base_type=_MODIFIERS.sub("", data_type),
                     nullable=str(r[9]) == "Y",
                     length=_int(r[5]) if data_type in _TEXT_TYPES else None,
                     precision=precision if data_type in ("NUMBER", "FLOAT") else None,

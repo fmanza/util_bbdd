@@ -231,7 +231,11 @@ class SQLServerCatalog:
     def _parse_columns(rows: Sequence[Sequence[Any]], schema: str) -> list[ColumnMeta]:
         out = []
         for r in rows:
-            data_type, length, precision, scale = _type(str(r[3]), r[5], r[6], r[7])
+            # Longitud, precisión y escala según el tipo de sistema: un tipo alias (CREATE TYPE … FROM varchar(10))
+            # tiene la del tipo en que se basa, y se declara por su nombre
+            data_type, length, precision, scale = _type(str(r[4]), r[5], r[6], r[7])
+            if str(r[3]) != str(r[4]):
+                data_type = str(r[3])
             computed = _text(r[13])
             out.append(
                 ColumnMeta(
