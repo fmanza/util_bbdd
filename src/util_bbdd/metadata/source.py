@@ -67,7 +67,7 @@ class _SourceBase:
         self, kinds: Collection[Kind], tables: Collection[str] | None
     ) -> tuple[list[Kind], frozenset[str] | None]:
         wanted = sorted(frozenset(kinds), key=lambda k: k.value)
-        selected = frozenset(tables) if tables is not None else None
+        selected = frozenset(self.dialect.normalize_name(t) for t in tables) if tables is not None else None
         if selected is not None and len(selected) > FILTER_MAX_TABLES:
             selected = None
         return wanted, selected
@@ -100,7 +100,7 @@ class _SourceBase:
 
     def invalidate(self, schema: str | None = None, *, kinds: Collection[Kind] | None = None) -> None:
         """Descarta lo leído (tras DDL propio: ``migrate``, ``dump``, ``bulk.maintenance_scope``)."""
-        self.cache.invalidate(self.source_id, schema, kinds)
+        self.cache.invalidate(self.source_id, self.dialect.normalize_name(schema) if schema else None, kinds)
 
 
 class CatalogSource(_SourceBase):
@@ -159,7 +159,7 @@ class CatalogSource(_SourceBase):
         tables: Collection[str] | None = None,
     ) -> SchemaSnapshot:
         """Metadatos de ``schema`` para ``kinds``: una consulta por tipo de objeto no cacheado."""
-        schema = schema or self.current_schema()
+        schema = self.dialect.normalize_name(schema) if schema else self.current_schema()
         wanted, selected = self._plan(kinds, tables)
         data: dict[Kind, tuple[Any, ...]] = {}
         for kind in wanted:
@@ -209,7 +209,7 @@ class AsyncCatalogSource(_SourceBase):
         kinds: Collection[Kind] = ALL_KINDS,
         tables: Collection[str] | None = None,
     ) -> SchemaSnapshot:
-        schema = schema or await self.current_schema()
+        schema = self.dialect.normalize_name(schema) if schema else await self.current_schema()
         wanted, selected = self._plan(kinds, tables)
         data: dict[Kind, tuple[Any, ...]] = {}
         for kind in wanted:

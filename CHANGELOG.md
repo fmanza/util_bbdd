@@ -21,6 +21,11 @@ cambios siguientes.
   `:nombre` (traducidos al `paramstyle` del driver). Primer motor: PostgreSQL (`metadata.postgresql.catalog`, solo
   `pg_catalog`): snapshot completo en 12 consultas con 50, 500 o 5000 tablas (5000 tablas: 1,2 s, 26 MB). Aún no lo
   usa ningún consumidor (grupos C/D). Documentación: `docs/api/metadata_manager.md` § 5.
+- **metadata**: `CatalogDialect` de Oracle 12c+ (`metadata.oracle.catalog`, grupo A2): `ALL_*` filtrado por owner con
+  bind variables (con literales, Oracle hacía un *hard parse* por tabla: 749 → 113 ms por tabla solo con binds), routines
+  sueltas con su código y miembros de package (`PKG.PROC`, `overload` como firma), sin los CHECK `NOT NULL` que genera
+  Oracle. Snapshot completo en 12 consultas con 50, 500 o 5000 tablas (5000: 2,2 s) frente a 365 s para recorrer 500
+  tablas con los managers. `CatalogDialect.normalize_name()`: nombres sin comillas como los guarda el motor.
 - **scripts**: `bench_metadata.py`, banco de la extracción de metadatos contra los contenedores de
   `docker-compose.bench.yml` (`setup` / `run` / `report` / `teardown`): consultas de catálogo, tiempos y memoria de cada
   flujo (managers, `doc`, `comparar`, `migrate`, `dump`, `bulk`) con 50, 500 y 5000 tablas. Guía:

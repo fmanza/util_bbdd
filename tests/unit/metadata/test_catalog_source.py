@@ -33,6 +33,9 @@ class FakeDialect:
     def current_schema_sql(self) -> str:
         return "CURRENT"
 
+    def normalize_name(self, name: str) -> str:
+        return name
+
     def query(self, kind: Kind, *, filtered: bool = False) -> CatalogQuery | None:
         if kind == Kind.CHECKS:
             return None

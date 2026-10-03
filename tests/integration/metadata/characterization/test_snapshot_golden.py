@@ -55,7 +55,8 @@ def target(request: pytest.FixtureRequest) -> Iterator[GoldenTarget]:
 
 
 def _ours(item: Any) -> bool:
-    name = getattr(item, "table", None) or getattr(item, "name", None) or getattr(item, "routine", None).name
+    routine = getattr(item, "routine", None)  # parámetros: cuenta su routine, no su nombre
+    name = routine.name if routine is not None else getattr(item, "table", None) or item.name
     return str(name).lower().startswith(PREFIX)
 
 
@@ -89,13 +90,17 @@ def _comparable_from_snapshot(snapshot: SchemaSnapshot) -> dict[str, Any]:
                 )
                 for fk in snapshot.foreign_keys(name)
             ),  # fmt: skip
-            "indexes": sorted(
-                (ix.name.lower(), [c.lower() for c in ix.columns], ix.unique)
-                for ix in snapshot.indexes(name)
-                if not ix.primary
+            "indexes": _without_pk_index(
+                [(ix.name.lower(), [c.lower() for c in ix.columns], ix.unique) for ix in snapshot.indexes(name)],
+                [c.lower() for c in pk.columns] if pk else [],
             ),
         }
     return out
+
+
+def _without_pk_index(indexes: list[tuple[str, list[str], bool]], pk: list[str]) -> list[tuple[str, list[str], bool]]:
+    """Índices sin el que respalda la PK: el IR de Oracle lo incluye y el de PostgreSQL no."""
+    return sorted(ix for ix in indexes if not (ix[2] and ix[1] == pk))
 
 
 def _comparable_from_ir(ir: dict[str, Any]) -> dict[str, Any]:
@@ -114,8 +119,9 @@ def _comparable_from_ir(ir: dict[str, Any]) -> dict[str, Any]:
                 )
                 for f in t["foreign_keys"]
             ),  # fmt: skip
-            "indexes": sorted(
-                (i["name"].lower(), [c.lower() for c in i["columns"]], i["unique"]) for i in t["indexes"]
+            "indexes": _without_pk_index(
+                [(i["name"].lower(), [c.lower() for c in i["columns"]], i["unique"]) for i in t["indexes"]],
+                [c.lower() for c in t["primary_key"]],
             ),
         }
     return out

@@ -17,6 +17,7 @@ from .contracts import CatalogDialect
 # db_type → ("módulo:Clase", nombres de dialecto de SQLAlchemy)
 _BUILTIN: dict[str, tuple[str, frozenset[str]]] = {
     "postgresql": ("util_bbdd.metadata.postgresql.catalog:PostgreSQLCatalog", frozenset({"postgresql"})),
+    "oracle": ("util_bbdd.metadata.oracle.catalog:OracleCatalog", frozenset({"oracle"})),
 }
 
 _lock = threading.Lock()

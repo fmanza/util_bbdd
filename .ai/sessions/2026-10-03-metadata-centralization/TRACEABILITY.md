@@ -63,6 +63,17 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   coinciden). Medido con `bench_metadata.py --flows snapshot`: PostgreSQL 12 consultas con 50/500/5000 tablas, 5000
   tablas 1,18 s y 26 MB. Diagrama de capas regenerado (`metadata → _core`, 414 ficheros). Desviación del plan: el tipo
   `STORAGE` (almacenamiento/tablespaces) se deja para D1, que es su único consumidor (`doc`).
+- IMPLEMENT · hotfix H-18 (encontrado en A2 al ver vacío el dorado de managers de Oracle): contexto Oracle = usuario
+  en mayúsculas salvo entre comillas (`managers/_metadata_context.py`); test parametrizado en
+  `tests/unit/test_manager_internal_helpers.py`; dorado `oracle.json` regenerado (ahora 5 tablas, 1 vista, 2 routines).
+- IMPLEMENT · A2: `metadata/oracle/catalog.py` (12 consultas `ALL_*` por owner con binds; routines sueltas + miembros de
+  package; sin CHECK `NOT NULL` generados; Oracle 12c+), registro en `catalog_registry.py`,
+  `CatalogDialect.normalize_name()` (Oracle: minúsculas → mayúsculas) aplicado por `CatalogSource` a schema, tablas e
+  invalidación. 31 tests unitarios (`test_oracle_catalog.py`); `test_snapshot_golden.py` activo para Oracle (dorado
+  `oracle_snapshot.json` + igualdad con el IR; el contraste excluye en ambos lados el índice de la PK, que el IR de Oracle
+  incluye y el de PostgreSQL no) y corregido para incluir los parámetros de routines en los dorados de snapshot. Medido:
+  12 consultas con 50/500/5000 tablas, 5000 tablas 2,2 s (el primer snapshot paga el *hard parse* de las 12 consultas,
+  ≈ 6 s; después se reutiliza el plan). Integración completa: 603 passed.
 - Verificación: `ruff check`/`format`, `mypy` (408 ficheros), unitarios 6066 passed + 5 xfailed, integración 590 (tras
   HF/QW) y 101 de `tests/integration/metadata` (tras A0), `gen_arquitectura_capas.py` sin cambios, `mkdocs build --strict`.
 
@@ -92,6 +103,9 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   aporta `metadata/<motor>/catalog.py` (`CatalogDialect`) y se registra en `metadata/catalog_registry.py` (`_BUILTIN`).
   El SQL de catálogo nuevo usa siempre `:nombre`; el ejecutor lo traduce (`_paramstyle.to_driver` con DB-API,
   `expand_lists` con SQLAlchemy).
+- **[metadata · Oracle]**: el contexto de metadatos de los managers en Oracle es el usuario de la conexión en mayúsculas
+  (H-18); `OracleCatalog.normalize_name` aplica la misma regla. La primera lectura de cada consulta de catálogo cuesta el
+  *hard parse* (segundos en el contenedor de Oracle Free); no medir el primer snapshot como coste estable.
 - **[metadata · pruebas]**: un motor nuevo se valida con `tests/integration/metadata/characterization/test_snapshot_golden.py`
   (se activa solo al registrar su dialecto): dorado del snapshot + igualdad con el IR de `migrate`.
 - **[banco]**: los schemas `zz_md_*` / `zz_util_bbdd_md_*` / usuarios `ZZ_MD_*` siguen creados en el banco para medir el «después»; `md_bench.py teardown` los borra. Oracle necesita `system` (`ORACLE_PASSWORD` del contenedor) para crear usuarios.

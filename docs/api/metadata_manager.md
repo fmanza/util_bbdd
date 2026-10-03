@@ -97,7 +97,7 @@ Si `db_cache` se comparte entre varios `MetadataManager`, los resultados de uno 
 objeto (`Kind`: tablas, vistas, columnas, PK, UK, CHECK, FK, índices, identidad, routines, parámetros, base de datos)
 con **una consulta por schema**, guarda el resultado en una `SnapshotCache` y devuelve un `SchemaSnapshot` inmutable.
 Es el camino que irán usando managers, `doc`, `analysis`, `migrate`, `dump`, `bulk` y `comparar` (centralización de
-metadatos en curso); de momento lo implementa PostgreSQL (`metadata.postgresql.catalog`).
+metadatos en curso); de momento lo implementan PostgreSQL (`metadata.postgresql.catalog`, solo `pg_catalog`) y Oracle 12c+ (`metadata.oracle.catalog`, `ALL_*` por owner con bind variables). En Oracle, los nombres sin comillas en minúsculas se buscan en mayúsculas (`snapshot("scott")` lee `SCOTT`).
 
 ```python
 from sqlalchemy import create_engine
@@ -119,8 +119,9 @@ source.invalidate("ventas")  # tras cambiar el esquema con DDL propio
 | `AsyncCatalogSource` | Misma API con `await snapshot(...)` sobre un `AsyncCatalogExecutor` |
 | `get_catalog_dialect(nombre)` | `CatalogDialect` por `db_type` o nombre de dialecto de SQLAlchemy |
 
-Referencia medida (PostgreSQL 17, banco del proyecto): el snapshot completo cuesta 12 consultas con 50, 500 o 5000
-tablas (5000 tablas: 1,2 s y 26 MB); recorrer 500 tablas tabla a tabla con los managers cuesta 2503 consultas y 70 s.
+Referencia medida (banco del proyecto): el snapshot completo cuesta 12 consultas con 50, 500 o 5000 tablas; con 5000
+tablas, 1,2 s y 26 MB en PostgreSQL 17 y 2,2 s en Oracle 23 Free. Recorrer 500 tablas tabla a tabla con los managers
+cuesta 2503 consultas: 70 s en PostgreSQL y 365 s en Oracle.
 
 ## 6. Ejemplos Relacionados
 

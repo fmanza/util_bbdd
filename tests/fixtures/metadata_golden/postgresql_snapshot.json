@@ -449,7 +449,30 @@
    "table": "zz_gold_ref_composite"
   }
  ],
- "routine_parameters": [],
+ "routine_parameters": [
+  {
+   "data_type": "integer",
+   "default": null,
+   "mode": "IN",
+   "name": "x",
+   "ordinal": 1,
+   "routine": {
+    "name": "zz_gold_f",
+    "signature": "x integer"
+   }
+  },
+  {
+   "data_type": "integer",
+   "default": null,
+   "mode": "IN",
+   "name": "x",
+   "ordinal": 1,
+   "routine": {
+    "name": "zz_gold_p",
+    "signature": "IN x integer"
+   }
+  }
+ ],
  "routines": [
   {
    "comment": null,

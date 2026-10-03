@@ -208,6 +208,10 @@ class PostgreSQLCatalog:
     def current_schema_sql(self) -> str:
         return "SELECT pg_catalog.current_schema()"
 
+    def normalize_name(self, name: str) -> str:
+        """PostgreSQL guarda en minúsculas los nombres sin comillas, pero el catálogo se consulta con el nombre exacto."""
+        return name[1:-1] if len(name) > 1 and name[0] == name[-1] == '"' else name
+
     def query(self, kind: Kind, *, filtered: bool = False) -> CatalogQuery | None:
         entry = _SQL.get(kind)
         if entry is None:

@@ -55,6 +55,10 @@ class CatalogDialect(Protocol):
         """SQL sin parámetros que devuelve el schema por defecto de la conexión."""
         ...
 
+    def normalize_name(self, name: str) -> str:
+        """Nombre de schema o tabla como lo guarda el catálogo (Oracle: ``scott`` → ``SCOTT``; entre comillas, literal)."""
+        ...
+
     def query(self, kind: Kind, *, filtered: bool = False) -> CatalogQuery | None:
         """Consulta de ``kind``; ``None`` si el motor no tiene ese tipo de objeto."""
         ...

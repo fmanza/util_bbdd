@@ -1,0 +1,79 @@
+{
+ "flow": "snapshot",
+ "engine": "oracle",
+ "volume": 500,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 1.337,
+ "median_catalog_seconds": 0.947,
+ "peak_mb": 3.0,
+ "queries_total": 12,
+ "queries_catalog": 12,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT con.table_name, con.constraint_name, cc.column_name, cc.position FROM all_constraints con JOIN all_cons_columns cc ON cc.owner = con.owner AND cc.constra",
+   2
+  ],
+  [
+   "SELECT con.table_name, con.constraint_name, con.search_condition, con.generated FROM all_constraints con WHERE con.owner = :schema AND con.constraint_type = '?'",
+   1
+  ],
+  [
+   "SELECT c.table_name, c.column_name, c.column_id, c.data_type, c.data_length, c.char_length, c.char_used, c.data_precision, c.data_scale, c.nullable, c.data_defa",
+   1
+  ],
+  [
+   "SELECT (SELECT banner FROM v$version WHERE ROWNUM = N), (SELECT value FROM nls_database_parameters WHERE parameter = '?'), (SELECT value FROM nls_database_param",
+   1
+  ],
+  [
+   "SELECT con.table_name, con.constraint_name, cc.column_name, rcon.owner, rcon.table_name, rcc.column_name, con.delete_rule, cc.position FROM all_constraints con ",
+   1
+  ],
+  [
+   "SELECT table_name, column_name, generation_type, sequence_name FROM all_tab_identity_cols WHERE owner = :schema ORDER BY table_name, column_name",
+   1
+  ],
+  [
+   "SELECT i.table_name, i.index_name, i.uniqueness, i.index_type, ic.column_name, ie.column_expression, ic.column_position, CASE WHEN pk.constraint_name IS NULL TH",
+   1
+  ],
+  [
+   "SELECT a.object_name, a.package_name, a.overload, a.position, a.argument_name, a.in_out, a.data_type FROM all_arguments a WHERE a.owner = :schema AND a.data_lev",
+   1
+  ]
+ ],
+ "slowest_catalog_fingerprints": [
+  [
+   "SELECT i.table_name, i.index_name, i.uniqueness, i.index_type, ic.column_name, ie.column_expression, ic.column_position, CASE WHEN pk.constraint_name IS NULL TH",
+   0.309,
+   1
+  ],
+  [
+   "SELECT t.table_name, c.comments FROM all_tables t LEFT JOIN all_tab_comments c ON c.owner = t.owner AND c.table_name = t.table_name WHERE t.owner = :schema AND ",
+   0.194,
+   1
+  ],
+  [
+   "SELECT con.table_name, con.constraint_name, cc.column_name, rcon.owner, rcon.table_name, rcc.column_name, con.delete_rule, cc.position FROM all_constraints con ",
+   0.09,
+   1
+  ],
+  [
+   "SELECT con.table_name, con.constraint_name, cc.column_name, cc.position FROM all_constraints con JOIN all_cons_columns cc ON cc.owner = con.owner AND cc.constra",
+   0.076,
+   2
+  ],
+  [
+   "SELECT o.object_name, o.object_type, s.line, s.text, r.data_type, NULL AS overload FROM all_objects o LEFT JOIN all_source s ON s.owner = o.owner AND s.name = o",
+   0.012,
+   1
+  ]
+ ],
+ "info": {
+  "tables": 500,
+  "views": 50,
+  "routines": 20
+ },
+ "error": null
+}
