@@ -172,7 +172,7 @@ def _xfail(group: str) -> pytest.MarkDecorator:
 
 FLOWS: list[Any] = [
     pytest.param(_manager_scan, id="manager_scan", marks=_xfail("C1")),
-    pytest.param(_analysis, id="analysis", marks=_xfail("C2")),
+    pytest.param(_analysis, id="analysis"),  # C2: índice de relaciones desde el snapshot
     pytest.param(_doc, id="doc", marks=_xfail("D1")),
     pytest.param(_comparar, id="comparar", marks=_xfail("C4")),
     pytest.param(_dump, id="dump", marks=_xfail("D2")),

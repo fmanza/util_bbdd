@@ -112,6 +112,11 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   dorado en 6 motores; async en 5, SQL Server async omitido por la cadena ODBC de `aioodbc` en este entorno).
 - Verificación: `ruff check`/`format`, `mypy` (408 ficheros), unitarios 6066 passed + 5 xfailed, integración 590 (tras
   HF/QW) y 101 de `tests/integration/metadata` (tras A0), `gen_arquitectura_capas.py` sin cambios, `mkdocs build --strict`.
+- IMPLEMENT · C2 (`analysis`): relaciones entrantes y salientes desde `get_schema_metadata(kinds={FOREIGN_KEYS})`
+  (índice por tabla del snapshot; sin él, camino tabla a tabla); el adaptador síncrono de `doc` expone
+  `get_schema_metadata`. Flujo `analysis` de `test_query_counts.py` sin `xfail`. Nuevo
+  `characterization/test_analysis_relations.py` (6 motores): destapa H-20 (FK compuestas en producto cartesiano en el
+  SQL heredado de PG y SQL Server), corregido en `analysis` y pendiente en `get_foreign_keys` hasta E2.
 
 ## Artefactos generados
 

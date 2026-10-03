@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import math
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from logging import Logger
@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any
 
 from .._core.exceptions import DatabaseException
+from ..metadata.catalog_registry import CatalogDialectNotFoundError
+from ..metadata.model import ForeignKeyMeta, Kind, SchemaSnapshot
 from .contracts import RelationshipGraphSource
 
 
@@ -473,6 +475,10 @@ class DatabaseRelationshipGraphBase:
 
     def _find_child_relations(self, table_name: str) -> list[TableRelation]:
         """Obtiene relaciones salientes de una tabla."""
+        snapshot = self._relations_snapshot()
+        if snapshot is not None:
+            # ADR-003 (C2): mismo snapshot (cacheado en el manager) que el índice de relaciones entrantes
+            return self._relations_from_fks(snapshot.foreign_keys(table_name))
         foreign_keys = self.db_manager.get_foreign_keys(table_name)
         self.logger.debug("Encontradas %s claves foráneas salientes en %s", len(foreign_keys), table_name)
         return [self._build_relation_from_fk(table_name, fk) for fk in foreign_keys]
@@ -527,19 +533,52 @@ class DatabaseRelationshipGraphBase:
 
         return f"{self.db_manager.db_type}:default"
 
+    def _relations_snapshot(self) -> SchemaSnapshot | None:
+        """Las FK del schema por lotes si la fuente ofrece ``get_schema_metadata()``; ``None`` si no."""
+        get_schema_metadata = getattr(self.db_manager, "get_schema_metadata", None)
+        if not callable(get_schema_metadata):
+            return None
+        try:
+            snapshot = get_schema_metadata(kinds={Kind.FOREIGN_KEYS})
+        except (AttributeError, NotImplementedError, CatalogDialectNotFoundError):
+            return None  # fuente sin lectura por lotes (motor sin CatalogDialect, adaptador sin manager real)
+        return snapshot if isinstance(snapshot, SchemaSnapshot) else None
+
+    @staticmethod
+    def _relations_from_fks(foreign_keys: Iterable[ForeignKeyMeta]) -> list[TableRelation]:
+        """Una ``TableRelation`` por par de columnas de cada FK, emparejadas por posición."""
+        return [
+            TableRelation(
+                source_table=fk.table,
+                target_table=fk.ref_table,
+                constraint_name=fk.name,
+                source_column=source_column,
+                target_column=target_column,
+                relation_type="FK",
+            )
+            for fk in foreign_keys
+            for source_column, target_column in zip(fk.columns, fk.ref_columns, strict=False)
+        ]
+
     def _build_parent_relations_index(self, context: str) -> dict[str, list[TableRelation]]:
         """Construye un índice target_table -> relaciones entrantes para el contexto actual."""
         self.logger.info(f"🧭 Construyendo índice de relaciones entrantes para contexto: {context}")
         parent_relations_by_target: dict[str, list[TableRelation]] = {}
 
-        all_tables = self.db_manager.get_tables()
-        for table_info in all_tables:
-            current_table = table_info[0]
-            foreign_keys = self.db_manager.get_foreign_keys(current_table)
-            for fk in foreign_keys:
-                relation = self._build_relation_from_fk(current_table, fk)
-                target_table: str = relation.target_table
-                parent_relations_by_target.setdefault(target_table, []).append(relation)
+        snapshot = self._relations_snapshot()
+        if snapshot is not None:
+            # ADR-003 (C2): las FK de todo el schema en una consulta, no una por tabla
+            for relation in self._relations_from_fks(snapshot.data[Kind.FOREIGN_KEYS]):
+                parent_relations_by_target.setdefault(relation.target_table, []).append(relation)
+        else:
+            all_tables = self.db_manager.get_tables()
+            for table_info in all_tables:
+                current_table = table_info[0]
+                foreign_keys = self.db_manager.get_foreign_keys(current_table)
+                for fk in foreign_keys:
+                    relation = self._build_relation_from_fk(current_table, fk)
+                    target_table: str = relation.target_table
+                    parent_relations_by_target.setdefault(target_table, []).append(relation)
 
         self.logger.debug(
             f"🧭 Índice de relaciones entrantes construido para {context}: "

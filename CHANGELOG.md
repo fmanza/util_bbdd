@@ -60,6 +60,10 @@ cambios siguientes.
 
 ### Performance
 
+- **analysis**: los grafos de relaciones leen las FK de todo el schema con una consulta (`get_schema_metadata()` con
+  `Kind.FOREIGN_KEYS`, cacheada en el manager) en vez de `get_tables()` + `get_foreign_keys()` por tabla, tanto para el
+  índice de relaciones entrantes como para las salientes (grupo C2 de ADR-003). Con fuentes sin `get_schema_metadata()`
+  o motores sin `CatalogDialect` se mantiene la lectura tabla a tabla.
 - **comparar / metadata**: en SQL Server las columnas también se precargan por schema (la consulta `sys.*` de
   `MSDialect.get_columns` para todo el schema y la misma conversión a tipos de SQLAlchemy), en vez de una consulta por
   tabla y lado: `compare()` con 5000 tablas 261 → 8,9 s (catálogo 229 → 3,8 s); mismos tipos que la reflexión tabla a
@@ -76,6 +80,9 @@ cambios siguientes.
 
 ### Fixed
 
+- **analysis**: en PostgreSQL y SQL Server, las FK compuestas generaban aristas cruzadas entre columnas (`a→b`, `b→a`)
+  porque `get_foreign_keys()` devuelve el producto cartesiano de sus columnas (H-20); ahora se emparejan por posición.
+  `get_foreign_keys()` conserva el defecto hasta la migración de los `get_*` a modelos tipados.
 - **managers**: en Oracle, con el usuario escrito en minúsculas (`user="scott"`), `get_tables()`, `get_views()`,
   `get_columns()`, `get_routines()` y el resto de lecturas de metadatos no devolvían nada: el contexto era el usuario tal
   cual y casi todas las consultas comparan `owner = '<usuario>'`, mientras Oracle guarda en mayúsculas los nombres sin

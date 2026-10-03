@@ -71,6 +71,13 @@ class SyncDatabaseManagerAdapter:
     def get_indices(self, table_name: str, /) -> list[Any]:
         return self._db_manager.get_indices(table_name)
 
+    def get_schema_metadata(self, schema: str | None = None, **kwargs: Any) -> Any:
+        """Lectura por lotes del manager (ADR-003); ``AttributeError`` si el manager no la tiene."""
+        get_schema_metadata = getattr(self._db_manager, "get_schema_metadata", None)
+        if get_schema_metadata is None:
+            raise AttributeError("el manager no ofrece get_schema_metadata()")
+        return get_schema_metadata(schema, **kwargs)
+
     # --- Métodos de metadata opcional delegados --------------------------------
 
     def get_database_version(self) -> Any:
