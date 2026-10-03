@@ -1,0 +1,79 @@
+{
+ "flow": "snapshot",
+ "engine": "sqlserver",
+ "volume": 50,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 0.089,
+ "median_catalog_seconds": 0.027,
+ "peak_mb": 0.8,
+ "queries_total": 12,
+ "queries_catalog": 12,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT t.name, kc.name, c.name, ic.key_ordinal FROM sys.key_constraints kc JOIN sys.tables t ON t.object_id = kc.parent_object_id JOIN sys.schemas s ON s.schema",
+   2
+  ],
+  [
+   "SELECT t.name, ck.name, ck.definition FROM sys.check_constraints ck JOIN sys.tables t ON t.object_id = ck.parent_object_id JOIN sys.schemas s ON s.schema_id = t",
+   1
+  ],
+  [
+   "SELECT o.name, c.name, c.column_id, TYPE_NAME(c.user_type_id), TYPE_NAME(c.system_type_id), c.max_length, c.precision, c.scale, c.is_nullable, dc.definition, CA",
+   1
+  ],
+  [
+   "SELECT @@VERSION, CAST(COLLATIONPROPERTY(CAST(DATABASEPROPERTYEX(DB_NAME(), '?') AS sysname), '?') AS NVARCHAR(N)), CAST(DATABASEPROPERTYEX(DB_NAME(), '?') AS N",
+   1
+  ],
+  [
+   "SELECT t.name, fk.name, pc.name, rs.name, rt.name, rc.name, fk.delete_referential_action_desc, fk.update_referential_action_desc, fkc.constraint_column_id FROM ",
+   1
+  ],
+  [
+   "SELECT t.name, c.name FROM sys.identity_columns c JOIN sys.tables t ON t.object_id = c.object_id JOIN sys.schemas s ON s.schema_id = t.schema_id WHERE s.name = ",
+   1
+  ],
+  [
+   "SELECT t.name, i.name, i.is_unique, i.is_primary_key, i.type_desc, i.filter_definition, c.name, ic.key_ordinal FROM sys.indexes i JOIN sys.tables t ON t.object_",
+   1
+  ],
+  [
+   "SELECT o.name, p.parameter_id, p.name, p.is_output, TYPE_NAME(p.user_type_id), p.max_length, p.precision, p.scale FROM sys.parameters p JOIN sys.objects o ON o.",
+   1
+  ]
+ ],
+ "slowest_catalog_fingerprints": [
+  [
+   "SELECT t.name, kc.name, c.name, ic.key_ordinal FROM sys.key_constraints kc JOIN sys.tables t ON t.object_id = kc.parent_object_id JOIN sys.schemas s ON s.schema",
+   0.004,
+   2
+  ],
+  [
+   "SELECT t.name, i.name, i.is_unique, i.is_primary_key, i.type_desc, i.filter_definition, c.name, ic.key_ordinal FROM sys.indexes i JOIN sys.tables t ON t.object_",
+   0.003,
+   1
+  ],
+  [
+   "SELECT o.name, c.name, c.column_id, TYPE_NAME(c.user_type_id), TYPE_NAME(c.system_type_id), c.max_length, c.precision, c.scale, c.is_nullable, dc.definition, CA",
+   0.003,
+   1
+  ],
+  [
+   "SELECT o.name, o.type, OBJECT_DEFINITION(o.object_id), TYPE_NAME(r.user_type_id), r.max_length, r.precision, r.scale, CAST(ep.value AS NVARCHAR(N)) FROM sys.obj",
+   0.003,
+   1
+  ],
+  [
+   "SELECT v.name, OBJECT_DEFINITION(v.object_id), CAST(ep.value AS NVARCHAR(N)) FROM sys.views v JOIN sys.schemas s ON s.schema_id = v.schema_id LEFT JOIN sys.exte",
+   0.002,
+   1
+  ]
+ ],
+ "info": {
+  "tables": 50,
+  "views": 5,
+  "routines": 2
+ },
+ "error": null
+}

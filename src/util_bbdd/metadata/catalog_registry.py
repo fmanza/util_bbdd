@@ -18,6 +18,7 @@ from .contracts import CatalogDialect
 _BUILTIN: dict[str, tuple[str, frozenset[str]]] = {
     "postgresql": ("util_bbdd.metadata.postgresql.catalog:PostgreSQLCatalog", frozenset({"postgresql"})),
     "oracle": ("util_bbdd.metadata.oracle.catalog:OracleCatalog", frozenset({"oracle"})),
+    "sqlserver": ("util_bbdd.metadata.sqlserver.catalog:SQLServerCatalog", frozenset({"mssql"})),
 }
 
 _lock = threading.Lock()

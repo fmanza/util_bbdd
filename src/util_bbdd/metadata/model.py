@@ -67,7 +67,11 @@ class TableMeta:
 
 @dataclass(frozen=True, slots=True)
 class ViewMeta:
-    """Vista del schema con su definición (``SELECT``), si el motor la expone."""
+    """Vista del schema con su definición tal como la guarda el motor.
+
+    ``definition`` es el ``SELECT`` en PostgreSQL, Oracle y MySQL/MariaDB, y la sentencia ``CREATE VIEW`` completa en
+    SQL Server y SQLite; ``None`` si el motor no la expone (permisos, vistas cifradas).
+    """
 
     name: str
     definition: str | None = None

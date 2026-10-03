@@ -1,0 +1,535 @@
+{
+ "checks": [],
+ "columns": [
+  {
+   "base_type": "int",
+   "collation": null,
+   "comment": null,
+   "data_type": "int",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "id",
+   "nullable": false,
+   "ordinal": 1,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_child"
+  },
+  {
+   "base_type": "int",
+   "collation": null,
+   "comment": null,
+   "data_type": "int",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "parent_id",
+   "nullable": false,
+   "ordinal": 2,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_child"
+  },
+  {
+   "base_type": "varchar",
+   "collation": null,
+   "comment": null,
+   "data_type": "varchar(50)",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": 50,
+   "name": "label",
+   "nullable": true,
+   "ordinal": 3,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_child"
+  },
+  {
+   "base_type": "int",
+   "collation": null,
+   "comment": null,
+   "data_type": "int",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "a",
+   "nullable": false,
+   "ordinal": 1,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_composite"
+  },
+  {
+   "base_type": "int",
+   "collation": null,
+   "comment": null,
+   "data_type": "int",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "b",
+   "nullable": false,
+   "ordinal": 2,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_composite"
+  },
+  {
+   "base_type": "varchar",
+   "collation": null,
+   "comment": null,
+   "data_type": "varchar(30)",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": 30,
+   "name": "note",
+   "nullable": true,
+   "ordinal": 3,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_composite"
+  },
+  {
+   "base_type": "int",
+   "collation": null,
+   "comment": null,
+   "data_type": "int",
+   "default": null,
+   "generated": null,
+   "identity": "by default",
+   "length": null,
+   "name": "id",
+   "nullable": false,
+   "ordinal": 1,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_identity"
+  },
+  {
+   "base_type": "varchar",
+   "collation": null,
+   "comment": null,
+   "data_type": "varchar(10)",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": 10,
+   "name": "val",
+   "nullable": true,
+   "ordinal": 2,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_identity"
+  },
+  {
+   "base_type": "int",
+   "collation": null,
+   "comment": null,
+   "data_type": "int",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "id",
+   "nullable": false,
+   "ordinal": 1,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_parent"
+  },
+  {
+   "base_type": "varchar",
+   "collation": null,
+   "comment": null,
+   "data_type": "varchar(20)",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": 20,
+   "name": "code",
+   "nullable": false,
+   "ordinal": 2,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_parent"
+  },
+  {
+   "base_type": "varchar",
+   "collation": null,
+   "comment": null,
+   "data_type": "varchar(100)",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": 100,
+   "name": "name",
+   "nullable": true,
+   "ordinal": 3,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_parent"
+  },
+  {
+   "base_type": "decimal",
+   "collation": null,
+   "comment": null,
+   "data_type": "decimal(12,2)",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "amount",
+   "nullable": true,
+   "ordinal": 4,
+   "precision": 12,
+   "scale": 2,
+   "table": "zz_gold_parent"
+  },
+  {
+   "base_type": "date",
+   "collation": null,
+   "comment": null,
+   "data_type": "date",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "created",
+   "nullable": true,
+   "ordinal": 5,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_parent"
+  },
+  {
+   "base_type": "int",
+   "collation": null,
+   "comment": null,
+   "data_type": "int",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "id",
+   "nullable": false,
+   "ordinal": 1,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_ref_composite"
+  },
+  {
+   "base_type": "int",
+   "collation": null,
+   "comment": null,
+   "data_type": "int",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "a",
+   "nullable": true,
+   "ordinal": 2,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_ref_composite"
+  },
+  {
+   "base_type": "int",
+   "collation": null,
+   "comment": null,
+   "data_type": "int",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "b",
+   "nullable": true,
+   "ordinal": 3,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_ref_composite"
+  },
+  {
+   "base_type": "int",
+   "collation": null,
+   "comment": null,
+   "data_type": "int",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "id",
+   "nullable": false,
+   "ordinal": 1,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_v_parent"
+  },
+  {
+   "base_type": "varchar",
+   "collation": null,
+   "comment": null,
+   "data_type": "varchar(20)",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": 20,
+   "name": "code",
+   "nullable": false,
+   "ordinal": 2,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_v_parent"
+  }
+ ],
+ "foreign_keys": [
+  {
+   "columns": [
+    "parent_id"
+   ],
+   "name": "fk_zz_gold_child_parent",
+   "on_delete": "CASCADE",
+   "on_update": "NO ACTION",
+   "ref_columns": [
+    "id"
+   ],
+   "ref_schema": "zz_gold",
+   "ref_table": "zz_gold_parent",
+   "table": "zz_gold_child"
+  },
+  {
+   "columns": [
+    "a",
+    "b"
+   ],
+   "name": "fk_zz_gold_ref_composite",
+   "on_delete": "NO ACTION",
+   "on_update": "NO ACTION",
+   "ref_columns": [
+    "a",
+    "b"
+   ],
+   "ref_schema": "zz_gold",
+   "ref_table": "zz_gold_composite",
+   "table": "zz_gold_ref_composite"
+  }
+ ],
+ "identity": [
+  {
+   "column": "id",
+   "kind": "identity",
+   "sequence": null,
+   "sequence_schema": null,
+   "table": "zz_gold_identity"
+  }
+ ],
+ "indexes": [
+  {
+   "columns": [
+    "label"
+   ],
+   "method": "NONCLUSTERED",
+   "name": "ix_zz_gold_child_label",
+   "predicate": null,
+   "primary": false,
+   "table": "zz_gold_child",
+   "unique": false
+  },
+  {
+   "columns": [
+    "id"
+   ],
+   "method": "CLUSTERED",
+   "name": "pk_zz_gold_child",
+   "predicate": null,
+   "primary": true,
+   "table": "zz_gold_child",
+   "unique": true
+  },
+  {
+   "columns": [
+    "a",
+    "b"
+   ],
+   "method": "CLUSTERED",
+   "name": "pk_zz_gold_composite",
+   "predicate": null,
+   "primary": true,
+   "table": "zz_gold_composite",
+   "unique": true
+  },
+  {
+   "columns": [
+    "id"
+   ],
+   "method": "CLUSTERED",
+   "name": "pk_zz_gold_identity",
+   "predicate": null,
+   "primary": true,
+   "table": "zz_gold_identity",
+   "unique": true
+  },
+  {
+   "columns": [
+    "id"
+   ],
+   "method": "CLUSTERED",
+   "name": "pk_zz_gold_parent",
+   "predicate": null,
+   "primary": true,
+   "table": "zz_gold_parent",
+   "unique": true
+  },
+  {
+   "columns": [
+    "code"
+   ],
+   "method": "NONCLUSTERED",
+   "name": "uk_zz_gold_parent_code",
+   "predicate": null,
+   "primary": false,
+   "table": "zz_gold_parent",
+   "unique": true
+  },
+  {
+   "columns": [
+    "id"
+   ],
+   "method": "CLUSTERED",
+   "name": "pk_zz_gold_ref_composite",
+   "predicate": null,
+   "primary": true,
+   "table": "zz_gold_ref_composite",
+   "unique": true
+  }
+ ],
+ "primary_keys": [
+  {
+   "columns": [
+    "id"
+   ],
+   "name": "pk_zz_gold_child",
+   "table": "zz_gold_child"
+  },
+  {
+   "columns": [
+    "a",
+    "b"
+   ],
+   "name": "pk_zz_gold_composite",
+   "table": "zz_gold_composite"
+  },
+  {
+   "columns": [
+    "id"
+   ],
+   "name": "pk_zz_gold_identity",
+   "table": "zz_gold_identity"
+  },
+  {
+   "columns": [
+    "id"
+   ],
+   "name": "pk_zz_gold_parent",
+   "table": "zz_gold_parent"
+  },
+  {
+   "columns": [
+    "id"
+   ],
+   "name": "pk_zz_gold_ref_composite",
+   "table": "zz_gold_ref_composite"
+  }
+ ],
+ "routine_parameters": [
+  {
+   "data_type": "int",
+   "default": null,
+   "mode": "IN",
+   "name": "@x",
+   "ordinal": 1,
+   "routine": {
+    "name": "zz_gold_f",
+    "signature": ""
+   }
+  },
+  {
+   "data_type": "int",
+   "default": null,
+   "mode": "IN",
+   "name": "@x",
+   "ordinal": 1,
+   "routine": {
+    "name": "zz_gold_p",
+    "signature": ""
+   }
+  }
+ ],
+ "routines": [
+  {
+   "comment": null,
+   "definition": "CREATE FUNCTION zz_gold.zz_gold_f(@x INT) RETURNS INT AS BEGIN RETURN @x + 1 END",
+   "language": "TSQL",
+   "name": "zz_gold_f",
+   "return_type": "int",
+   "routine_type": "FUNCTION",
+   "signature": ""
+  },
+  {
+   "comment": null,
+   "definition": "CREATE PROCEDURE zz_gold.zz_gold_p @x INT AS BEGIN SET NOCOUNT ON; SELECT @x END",
+   "language": "TSQL",
+   "name": "zz_gold_p",
+   "return_type": null,
+   "routine_type": "PROCEDURE",
+   "signature": ""
+  }
+ ],
+ "tables": [
+  {
+   "comment": null,
+   "name": "zz_gold_child"
+  },
+  {
+   "comment": null,
+   "name": "zz_gold_composite"
+  },
+  {
+   "comment": null,
+   "name": "zz_gold_identity"
+  },
+  {
+   "comment": "tabla padre",
+   "name": "zz_gold_parent"
+  },
+  {
+   "comment": null,
+   "name": "zz_gold_ref_composite"
+  }
+ ],
+ "uniques": [
+  {
+   "columns": [
+    "code"
+   ],
+   "name": "uk_zz_gold_parent_code",
+   "table": "zz_gold_parent"
+  }
+ ],
+ "views": [
+  {
+   "comment": null,
+   "definition": "CREATE VIEW zz_gold.zz_gold_v_parent AS SELECT id, code FROM zz_gold.zz_gold_parent",
+   "materialized": false,
+   "name": "zz_gold_v_parent"
+  }
+ ]
+}

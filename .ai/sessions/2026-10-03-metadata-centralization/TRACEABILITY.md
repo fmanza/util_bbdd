@@ -74,6 +74,10 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   incluye y el de PostgreSQL no) y corregido para incluir los parámetros de routines en los dorados de snapshot. Medido:
   12 consultas con 50/500/5000 tablas, 5000 tablas 2,2 s (el primer snapshot paga el *hard parse* de las 12 consultas,
   ≈ 6 s; después se reutiliza el plan). Integración completa: 603 passed.
+- IMPLEMENT · A3: `metadata/sqlserver/catalog.py` (12 consultas `sys.*` por schema; `OBJECT_DEFINITION`; comentarios
+  `MS_Description`; identidad `by default`; OUTPUT → `INOUT`), registro `mssql`/`sqlserver`. `ViewMeta.definition`
+  documentada como «tal como la guarda el motor» (`CREATE VIEW` completo en SQL Server/SQLite). 24 tests unitarios;
+  dorado `sqlserver_snapshot.json` = IR de `migrate`. Medido: 12 consultas con 50/500/5000 tablas, 5000 tablas 2,75 s.
 - Verificación: `ruff check`/`format`, `mypy` (408 ficheros), unitarios 6066 passed + 5 xfailed, integración 590 (tras
   HF/QW) y 101 de `tests/integration/metadata` (tras A0), `gen_arquitectura_capas.py` sin cambios, `mkdocs build --strict`.
 

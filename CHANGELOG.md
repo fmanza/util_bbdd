@@ -26,6 +26,10 @@ cambios siguientes.
   sueltas con su código y miembros de package (`PKG.PROC`, `overload` como firma), sin los CHECK `NOT NULL` que genera
   Oracle. Snapshot completo en 12 consultas con 50, 500 o 5000 tablas (5000: 2,2 s) frente a 365 s para recorrer 500
   tablas con los managers. `CatalogDialect.normalize_name()`: nombres sin comillas como los guarda el motor.
+- **metadata**: `CatalogDialect` de SQL Server 2012+ (`metadata.sqlserver.catalog`, grupo A3): solo vistas `sys.*`
+  (`INFORMATION_SCHEMA` trunca definiciones y su coste por consulta crece con el catálogo), definiciones con
+  `OBJECT_DEFINITION`, comentarios `MS_Description`, columnas calculadas e identidad. Snapshot completo en 12 consultas
+  con 50, 500 o 5000 tablas (5000: 2,8 s) frente a 121 s para recorrer 500 tablas con los managers.
 - **scripts**: `bench_metadata.py`, banco de la extracción de metadatos contra los contenedores de
   `docker-compose.bench.yml` (`setup` / `run` / `report` / `teardown`): consultas de catálogo, tiempos y memoria de cada
   flujo (managers, `doc`, `comparar`, `migrate`, `dump`, `bulk`) con 50, 500 y 5000 tablas. Guía:
