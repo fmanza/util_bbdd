@@ -76,6 +76,9 @@ class DbapiCatalogExecutor:
             cursor.close()
 
 
+_MAX_ASSEMBLED = 32
+
+
 class _SourceBase:
     def __init__(
         self,
@@ -89,6 +92,22 @@ class _SourceBase:
         self.source_id = source_id
         self.cache = cache if cache is not None else SnapshotCache()
         self._default_schema = default_schema
+        # Último SchemaSnapshot armado por (schema, kinds, tablas): se reutiliza mientras la caché devuelva los mismos
+        # datos, para no reconstruir su índice por tabla en cada llamada (``get_columns(t)`` en bucle sería O(n²))
+        self._assembled: dict[tuple[str, frozenset[Kind], frozenset[str] | None], SchemaSnapshot] = {}
+
+    def _assemble(
+        self, schema: str, data: dict[Kind, tuple[Any, ...]], selected: frozenset[str] | None
+    ) -> SchemaSnapshot:
+        key = (schema, frozenset(data), selected)
+        previous = self._assembled.get(key)
+        if previous is not None and all(previous.data[kind] is items for kind, items in data.items()):
+            return previous
+        snapshot = SchemaSnapshot(engine=self.dialect.name, schema=schema, data=data, tables_filter=selected)
+        if len(self._assembled) >= _MAX_ASSEMBLED:
+            self._assembled.clear()
+        self._assembled[key] = snapshot
+        return snapshot
 
     def _plan(
         self, kinds: Collection[Kind], tables: Collection[str] | None
@@ -133,6 +152,7 @@ class _SourceBase:
     def invalidate(self, schema: str | None = None, *, kinds: Collection[Kind] | None = None) -> None:
         """Descarta lo leído (tras DDL propio: ``migrate``, ``dump``, ``bulk.maintenance_scope``)."""
         self.cache.invalidate(self.source_id, self.dialect.normalize_name(schema) if schema else None, kinds)
+        self._assembled.clear()
 
 
 class CatalogSource(_SourceBase):
@@ -205,7 +225,7 @@ class CatalogSource(_SourceBase):
             data[kind] = self.cache.get_or_load(
                 self._key(schema, kind, scoped), partial(self._load, kind, schema, scoped)
             )
-        return SchemaSnapshot(engine=self.dialect.name, schema=schema, data=data, tables_filter=selected)
+        return self._assemble(schema, data, selected)
 
 
 class AsyncCatalogSource(_SourceBase):
@@ -256,7 +276,7 @@ class AsyncCatalogSource(_SourceBase):
             data[kind] = await self.cache.aget_or_load(
                 self._key(schema, kind, scoped), partial(self._load, kind, schema, scoped)
             )
-        return SchemaSnapshot(engine=self.dialect.name, schema=schema, data=data, tables_filter=selected)
+        return self._assemble(schema, data, selected)
 
 
 __all__: list[str] = [

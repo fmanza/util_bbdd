@@ -7,12 +7,7 @@ from util_bbdd.managers.sync_mgr import SyncDatabaseManager
 
 _SHARED_MANAGER_HELPERS = [
     "_get_metadata_adapter",
-    "_get_routines_fetcher",
     "_get_table_ddl_fetcher",
-    "_get_view_ddl_fetcher",
-    "_get_columns_fetcher",
-    "_get_routine_parameters_fetcher",
-    "_get_routine_ddl_fetcher",
 ]
 
 _SHARED_CORE_HELPERS = [
@@ -22,11 +17,9 @@ _SHARED_CORE_HELPERS = [
     "_clear_all_caches",
     "_clear_table_cache",
     "_clear_routine_cache",
-    "_clear_tuple_cache_by_context",
     "_clear_context_cache",
     "_cache_context_key",
     "_cache_table_key",
-    "_cache_routine_key",
     "_execute_metadata_many",
     "_execute_metadata_one",
 ]
@@ -50,10 +43,10 @@ def test_sync_and_async_managers_expose_same_core_helper_surface() -> None:
         assert hasattr(AsyncDatabaseManager, helper_name)
 
 
-def test_sync_exposes_explicit_aliases_for_async_only_helper_patterns() -> None:
+def test_sync_and_async_managers_expose_cached_read_helpers() -> None:
     assert hasattr(SyncDatabaseManager, "_get_query_executor")
-    assert hasattr(SyncDatabaseManager, "_get_cached_rows_sync")
-    assert hasattr(SyncDatabaseManager, "_get_cached_text_sync")
+    assert hasattr(SyncDatabaseManager, "_get_cached_rows")
+    assert hasattr(SyncDatabaseManager, "_get_cached_text")
     assert hasattr(AsyncDatabaseManager, "_get_query_executor")
     assert hasattr(AsyncDatabaseManager, "_get_cached_rows_async")
     assert hasattr(AsyncDatabaseManager, "_get_cached_text_async")

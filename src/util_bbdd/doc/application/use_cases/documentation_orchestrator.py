@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, Protocol, cast
 
 if TYPE_CHECKING:
     from ....analysis.graphviz_ext import GraphvizRelationshipGraphExt
-    from ....metadata.cache import RelationshipMetadataCache
 
 from ...domain.models import DocumentationBootstrapState, DocumentationFormatPlan
 from ...domain.services import DocumentationGraphDomainService
@@ -22,7 +21,7 @@ from .._internal_ports import (
     StorageReportServicePort,
 )
 from ..ports import (
-    DocumentationManagerPort,
+    DocumentationBackendPort,
     LoggerProtocol,
     OutputCache,
     OutputPolicyPort,
@@ -38,7 +37,7 @@ class DocumentationBootstrap:
     def __init__(
         self,
         *,
-        db_manager: DocumentationManagerPort,
+        db_manager: DocumentationBackendPort,
         directorio_salida: Path,
         fichero_salida: Path | None,
         imprimir: dict[str, Any] | None,
@@ -96,7 +95,7 @@ class DocumentationFacade(Protocol):
     """Contrato mínimo de la fachada pública consumido por la orquestación interna."""
 
     logger: LoggerProtocol
-    db_manager: DocumentationManagerPort
+    db_manager: DocumentationBackendPort
     imprimir_config: dict[str, Any]
     formatos: list[str]
     directorio_salida: Path
@@ -115,7 +114,7 @@ class DocumentationSession:
 
     data_provider: DocumentationFacade
     logger: LoggerProtocol
-    db_manager: DocumentationManagerPort
+    db_manager: DocumentationBackendPort
     database: str
     print_config: dict[str, Any]
     imprimir_config: dict[str, Any]
@@ -192,11 +191,6 @@ class DocumentationSession:
     def conn_params(self) -> dict[str, Any]:
         """Expone parámetros de conexión requeridos por puertos de naming."""
         return self.db_manager.conn_params
-
-    @property
-    def relationship_cache(self) -> RelationshipMetadataCache:
-        """Caché de relaciones del manager real; la consumen los generadores de grafos."""
-        return self.db_manager.relationship_cache
 
     def get_query_context_database(self) -> str:
         """Delega la resolución del contexto de consulta al manager real."""

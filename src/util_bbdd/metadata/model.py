@@ -100,6 +100,7 @@ class ColumnMeta:
             como en el resto de motores).
         identity: ``"always"``/``"by default"`` en columnas identidad; ``None`` en el resto.
         generated: Expresión de las columnas calculadas; ``None`` en el resto.
+        on_update: Expresión ``ON UPDATE`` de la columna (solo MySQL/MariaDB, p.ej. ``current_timestamp()``).
     """
 
     table: str
@@ -116,6 +117,7 @@ class ColumnMeta:
     collation: str | None = None
     identity: str | None = None
     generated: str | None = None
+    on_update: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

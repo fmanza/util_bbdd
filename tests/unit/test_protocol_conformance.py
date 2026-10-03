@@ -21,7 +21,11 @@ import pytest
 
 from util_bbdd.analysis.contracts import RelationshipGraphSource
 from util_bbdd.audit import AuditEventSource, AuditSink, JsonLinesAuditSink, MemoryAuditSink, NullAuditSink
-from util_bbdd.doc.application.ports import DocumentationManagerPort, DocumentationSourcePort
+from util_bbdd.doc.application.ports import (
+    DocumentationBackendPort,
+    DocumentationManagerPort,
+    DocumentationSourcePort,
+)
 from util_bbdd.doc.infrastructure.adapters.sync_database_manager_adapter import SyncDatabaseManagerAdapter
 from util_bbdd.managers import SyncDatabaseManager
 from util_bbdd.managers._manager_cache_service import CacheService
@@ -34,7 +38,7 @@ from util_bbdd.metadata.adapters._adapter_protocol import (
     SourceAdapterAsync,
     SourceAdapterSync,
 )
-from util_bbdd.metadata.cache import DatabaseMetadataCache, RelationshipMetadataCache
+from util_bbdd.metadata.cache import DatabaseMetadataCache
 from util_bbdd.metadata.mariadb import MariaDBAsyncAdapter, MariaDBSyncAdapter
 from util_bbdd.metadata.mysql import MysqlAsyncAdapter, MysqlSyncAdapter
 from util_bbdd.metadata.oracle import OracleAsyncAdapter, OracleSyncAdapter
@@ -68,13 +72,13 @@ def _manager_as_documentation_source(manager: SyncDatabaseManager) -> Documentat
     return manager
 
 
-def _adapter_as_documentation_port(adapter: SyncDatabaseManagerAdapter) -> DocumentationManagerPort:
+def _adapter_as_documentation_port(adapter: SyncDatabaseManagerAdapter) -> DocumentationBackendPort:
     return adapter
 
 
 def test_cache_service_satisfies_metadata_cache_port() -> None:
     db_cache = DatabaseMetadataCache()
-    service = CacheService(db_cache, RelationshipMetadataCache(db_cache=db_cache), logging.getLogger(__name__))
+    service = CacheService(db_cache, logging.getLogger(__name__))
 
     assert isinstance(service, MetadataCachePort)
     assert _as_metadata_cache_port(service) is service
@@ -85,7 +89,9 @@ def test_cache_service_satisfies_metadata_cache_port() -> None:
 # de conformidad, ni en tiempo de ejecución ni con mypy. Esto permitió que 3 adaptadores divergieran del Protocol
 # sin que ningún test lo detectara (OracleAsyncAdapter con métodos fetch_*_sync dentro de la clase async — MEO-01;
 # SqlServerSyncAdapter.fetch_routine_parameters_sync con firma (object_id) en vez de (schema, routine, routine_type)
-# — MSS-01; MariaDBSync/AsyncAdapter sin parámetro schema — MEO-03). Los 8 motores implementan SourceAdapter.
+# — MSS-01; MariaDBSync/AsyncAdapter sin parámetro schema — MEO-03). Todos los motores salvo MariaDB implementan
+# SourceAdapter: MariaDB lo perdió en E2 de ADR-003 (sus fetch_* leían los get_* del manager, que ahora devuelven
+# modelos tipados del snapshot; nadie los consumía).
 #
 # RoutineAdapter completo (Fase 3/4 de la remediación, 2026-09-22): mariadb y oracle lo tenían desde el
 # AUDIT_CODE original; postgresql (MPG-01) y sqlserver (MSS-02) expusieron fetch_routine_definition_*
@@ -100,14 +106,6 @@ def test_cache_service_satisfies_metadata_cache_port() -> None:
 # bien resuelta"). Sí participa en el test de `isinstance` (runtime): ese chequeo solo verifica que los métodos
 # existan por nombre, no su firma exacta, así que sigue detectando un método renombrado o eliminado por error.
 # ---------------------------------------------------------------------------------------------------------------
-
-
-def _mariadb_sync_as_source(adapter: MariaDBSyncAdapter) -> SourceAdapterSync:
-    return adapter
-
-
-def _mariadb_async_as_source(adapter: MariaDBAsyncAdapter) -> SourceAdapterAsync:
-    return adapter
 
 
 def _mariadb_sync_as_routine(adapter: MariaDBSyncAdapter) -> RoutineAdapterSync:
@@ -216,7 +214,6 @@ def _sqlserver_async_as_routine(adapter: SqlServerAsyncAdapter) -> RoutineAdapte
 
 
 _SYNC_SOURCE_ADAPTERS: tuple[type, ...] = (
-    MariaDBSyncAdapter,
     MysqlSyncAdapter,
     OracleSyncAdapter,
     PostgreSQLSyncAdapter,
@@ -227,7 +224,6 @@ _SYNC_SOURCE_ADAPTERS: tuple[type, ...] = (
 )
 
 _ASYNC_SOURCE_ADAPTERS: tuple[type, ...] = (
-    MariaDBAsyncAdapter,
     MysqlAsyncAdapter,
     OracleAsyncAdapter,
     PostgreSQLAsyncAdapter,

@@ -168,6 +168,26 @@ def test_invalidate_forces_a_new_read() -> None:
     assert [c[0] for c in executor.calls] == ["TABLES", "TABLES"]
 
 
+def test_same_cached_data_reuses_the_snapshot() -> None:
+    """Sin esto, ``get_columns(t)`` en bucle reconstruía el índice por tabla del snapshot en cada llamada (O(n²))."""
+    source, _ = _source()
+    first = source.snapshot("s", kinds={Kind.COLUMNS})
+    assert source.snapshot("s", kinds={Kind.COLUMNS}) is first
+    assert source.snapshot("s", kinds={Kind.COLUMNS, Kind.TABLES}) is not first
+
+    source.invalidate("s", kinds={Kind.COLUMNS})
+    assert source.snapshot("s", kinds={Kind.COLUMNS}) is not first
+
+
+def test_snapshot_is_rebuilt_when_a_shared_cache_is_invalidated_elsewhere() -> None:
+    cache = SnapshotCache()
+    a = CatalogSource(FakeDialect(), FakeExecutor(), source_id="x", cache=cache)
+    b = CatalogSource(FakeDialect(), FakeExecutor(), source_id="x", cache=cache)
+    first = a.snapshot("s", kinds={Kind.TABLES})
+    b.invalidate("s")
+    assert a.snapshot("s", kinds={Kind.TABLES}) is not first
+
+
 def test_sources_can_share_a_cache_without_mixing_databases() -> None:
     cache = SnapshotCache()
     a = CatalogSource(FakeDialect(), FakeExecutor(), source_id="a", cache=cache)

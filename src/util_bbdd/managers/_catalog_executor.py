@@ -44,6 +44,11 @@ def driver_paramstyle(connection: Any) -> ParamStyle:
         MetadataError: Si el driver es desconocido y su módulo no declara ``paramstyle``.
     """
     root = type(connection).__module__.split(".")[0]
+    if root == "sqlalchemy":
+        # Conexión de un pool de SQLAlchemy (``_ConnectionFairy``, p.ej. MySQL con pool): el estilo es el del driver
+        wrapped = getattr(connection, "dbapi_connection", None)
+        if wrapped is not None and wrapped is not connection:
+            return driver_paramstyle(wrapped)
     known = _KNOWN_STYLES.get(root)
     if known is not None:
         return known

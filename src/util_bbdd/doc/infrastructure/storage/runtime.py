@@ -9,7 +9,7 @@ from typing import Any, ClassVar, cast
 
 from ...._core.exceptions import DatabaseException, QueryNotFoundError
 from ...application._internal_ports import StorageReportServicePort
-from ...application.ports import DocumentationManagerPort, LoggerProtocol
+from ...application.ports import DocumentationBackendPort, LoggerProtocol
 from .contracts import StorageInventoryManagerProtocol, StorageInventoryStrategyPort
 from .mariadb_strategy import MariadbStorageInventoryStrategy
 from .oracle_strategy import OracleStorageInventoryStrategy
@@ -675,7 +675,7 @@ class StorageInventoryReportService(StorageReportServicePort):
     def get_storage_inventory_report(
         self,
         *,
-        db_manager: DocumentationManagerPort,
+        db_manager: DocumentationBackendPort,
         logger: LoggerProtocol,
         print_config: dict[str, Any],
     ) -> dict[str, Any]:

@@ -6,18 +6,17 @@ import logging
 
 from typing import Any
 
-from ..metadata.cache import DatabaseMetadataCache, RelationshipMetadataCache
+from ..metadata.cache import DatabaseMetadataCache
 from ._metadata_cache import CacheManager
 from ._metadata_context import CacheKeyFactory
 
 
 class CacheService:
-    """Gestiona cachés de metadatos y relaciones para managers."""
+    """Gestiona la caché de metadatos de los managers."""
 
     def __init__(
         self,
         db_cache: DatabaseMetadataCache,
-        relationship_cache: RelationshipMetadataCache,
         logger: logging.Logger,
     ) -> None:
         """
@@ -25,15 +24,13 @@ class CacheService:
 
         Args:
             db_cache: Caché de metadatos de base de datos.
-            relationship_cache: Caché de relaciones.
             logger: Logger para mensajes de debug/info.
         """
         self.db_cache: DatabaseMetadataCache = db_cache
-        self.relationship_cache: RelationshipMetadataCache = relationship_cache
         self.logger: logging.Logger = logger
 
     def _cache_manager(self) -> CacheManager:
-        return CacheManager(db_cache=self.db_cache, relationship_cache=self.relationship_cache, logger=self.logger)
+        return CacheManager(db_cache=self.db_cache, logger=self.logger)
 
     def clear_all(self) -> None:
         """Limpia completamente todas las cachés."""

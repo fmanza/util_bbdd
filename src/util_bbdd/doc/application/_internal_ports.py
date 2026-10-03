@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .ports import (
-    DocumentationManagerPort,
+    DocumentationBackendPort,
     DocumentRendererPort,
     HeadersConfig,
     LoggerProtocol,
@@ -60,7 +60,7 @@ class StorageReportServicePort(Protocol):
     def get_storage_inventory_report(
         self,
         *,
-        db_manager: DocumentationManagerPort,
+        db_manager: DocumentationBackendPort,
         logger: LoggerProtocol,
         print_config: dict[str, Any],
     ) -> dict[str, Any]: ...

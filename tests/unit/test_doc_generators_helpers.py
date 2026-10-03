@@ -936,29 +936,22 @@ def test_word_generator_generate_document_reuses_injected_graph_generator(
     importlib.util.find_spec("matplotlib") is None, reason="matplotlib no disponible en entorno de tests"
 )
 def test_matplotlib_relationship_graph_uses_multilevel_document() -> None:
+    from _catalog_fakes import FakeCatalogManager, build_catalog
+
     from util_bbdd.analysis.matplotlib_graph import MatplotlibRelationshipGraph
     from util_bbdd.managers import SyncDatabaseManager
 
-    class _FakeDbManager:
-        def __init__(self) -> None:
-            self.db_type = "postgresql"
-            self.database = "db"
-
-        def get_tables(self) -> list[tuple[str]]:
-            return [("users",), ("orders",), ("payments",)]
-
-        def get_foreign_keys(self, table_name: str) -> list[tuple[str, str, str, str]]:
-            mapping = {
-                "users": [],
+    manager = FakeCatalogManager(
+        data=build_catalog(
+            tables=["users", "orders", "payments"],
+            fk_by_table={
                 "orders": [("fk_orders_user", "user_id", "users", "id")],
                 "payments": [("fk_payments_order", "order_id", "orders", "id")],
-            }
-            return mapping.get(table_name, [])
+            },
+        )
+    )
 
-        def get_query_context_database(self) -> str:
-            return self.database
-
-    graph = MatplotlibRelationshipGraph(cast(SyncDatabaseManager, _FakeDbManager()), max_depth=2, direction="incoming")
+    graph = MatplotlibRelationshipGraph(cast(SyncDatabaseManager, manager), max_depth=2, direction="incoming")
     document = graph.build_graph_document("users", max_depth=2, direction="incoming")
 
     assert document.total_incoming_levels == 2

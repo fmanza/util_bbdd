@@ -67,9 +67,8 @@ def test_sync_manager_matches_sqlalchemy_source_and_golden(target: GoldenTarget)
         snapshot = mgr.get_schema_metadata()  # schema por defecto = contexto de metadatos del manager
         assert snapshot.schema.lower() == ("main" if target.engine == "sqlite" else target.schema.lower())
         serialized = _serialize(snapshot)
-        # Segunda lectura desde la caché; clear_cache() la invalida
-        assert mgr.get_schema_metadata() is not snapshot
-        assert mgr.get_schema_metadata().data[Kind.TABLES] is snapshot.data[Kind.TABLES]
+        # Segunda lectura desde la caché (el mismo snapshot, sin reconstruir su índice); clear_cache() la invalida
+        assert mgr.get_schema_metadata() is snapshot
         mgr.clear_cache()
         assert mgr.get_schema_metadata().data[Kind.TABLES] is not snapshot.data[Kind.TABLES]
     serialized = _comparable(serialized, target)

@@ -17,6 +17,8 @@ la tabla de las ``CHECK`` (``CHECK_CONSTRAINTS.TABLE_NAME`` solo en MariaDB).
 
 from __future__ import annotations
 
+import re
+
 from collections.abc import Sequence
 from dataclasses import replace
 from typing import Any
@@ -112,6 +114,9 @@ _PARAMETERS_SQL = (
     "FROM information_schema.PARAMETERS WHERE SPECIFIC_SCHEMA = :schema AND ORDINAL_POSITION > 0 "
     "ORDER BY SPECIFIC_NAME, ROUTINE_TYPE, ORDINAL_POSITION"
 )
+
+# EXTRA de las columnas con ON UPDATE: "on update current_timestamp()" / "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+_ON_UPDATE = re.compile(r"\bon update (\S+)", re.IGNORECASE)
 
 # kind → (SQL con {filter}, columna por la que se filtra con :tables o None, consultas extra)
 _COMMON: dict[Kind, tuple[str, str | None, tuple[str, ...]]] = {
@@ -308,7 +313,9 @@ class MariaDBCatalog:
         out = []
         for r in rows:
             base = str(r[4]).lower()
-            extra = str(r[12] or "").lower()
+            raw_extra = str(r[12] or "")
+            extra = raw_extra.lower()
+            on_update = _ON_UPDATE.search(raw_extra)
             generated = _text(r[13]) if "generated" in extra else None
             out.append(
                 ColumnMeta(
@@ -326,6 +333,7 @@ class MariaDBCatalog:
                     collation=_text(r[11]),
                     identity="by default" if "auto_increment" in extra else None,
                     generated=generated,
+                    on_update=on_update.group(1) if on_update else None,
                 )
             )
         return out

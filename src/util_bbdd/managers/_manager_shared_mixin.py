@@ -7,7 +7,6 @@ sigue viviendo en un único lugar.
 
 Requisitos de la clase consumidora (atributos de instancia):
     db_cache:            DatabaseMetadataCache
-    relationship_cache:  RelationshipMetadataCache
     logger:              logging.Logger
     db_type:             str
     database:            str
@@ -20,9 +19,8 @@ import logging
 
 from typing import Any
 
-from ..metadata.cache import DatabaseMetadataCache, RelationshipMetadataCache
+from ..metadata.cache import DatabaseMetadataCache
 from ..metadata.catalog_registry import get_catalog_dialect
-from ..metadata.mariadb import escape_mariadb_sql_literal
 from ..metadata.snapshot_cache import SnapshotCache
 from ._metadata_cache import CacheManager
 from ._metadata_context import CacheKeyFactory, MetadataContextResolver
@@ -34,7 +32,6 @@ class DatabaseManagerSharedMixin:
 
     # Declarados para satisfacer mypy; las clases consumidoras los proporcionan.
     db_cache: DatabaseMetadataCache
-    relationship_cache: RelationshipMetadataCache
     logger: logging.Logger
     db_type: str
     database: str
@@ -45,7 +42,7 @@ class DatabaseManagerSharedMixin:
     # ------------------------------------------------------------------
 
     def _cache_manager(self) -> CacheManager:
-        return CacheManager(db_cache=self.db_cache, relationship_cache=self.relationship_cache, logger=self.logger)
+        return CacheManager(db_cache=self.db_cache, logger=self.logger)
 
     def _clear_all_caches(self) -> None:
         """Limpia completamente todas las cachés de metadatos."""
@@ -92,12 +89,6 @@ class DatabaseManagerSharedMixin:
     def _clear_routine_cache(self, context: str, routine: str, routine_type: str | None = None) -> None:
         """Limpia caché para una rutina específica."""
         self._cache_manager().clear_routine(context=context, routine=routine, routine_type=routine_type)
-
-    @staticmethod
-    def _clear_tuple_cache_by_context(cache: dict[tuple[Any, ...], Any], context: str) -> None:
-        keys_to_remove: list[tuple[Any, ...]] = [key for key in cache if key and str(key[0]) == context]
-        for cache_key in keys_to_remove:
-            cache.pop(cache_key, None)
 
     def _clear_context_cache(self, context: str) -> None:
         """Limpia caché para un contexto/schema específico."""
@@ -170,23 +161,12 @@ class DatabaseManagerSharedMixin:
     def _cache_table_key(self, context_database: str, table_name: str) -> tuple[str, str]:
         return CacheKeyFactory.table_key(context_database, table_name)
 
-    def _cache_routine_key(self, context_database: str, routine_name: str, routine_type: str) -> tuple[str, str, str]:
-        return CacheKeyFactory.routine_key(context_database, routine_name, routine_type)
-
     # ------------------------------------------------------------------
     # Result parsing helpers
     # ------------------------------------------------------------------
 
     def _normalize_ddl_result(self, ddl: Any) -> str:
         return DDLNormalizer.normalize_result(ddl)
-
-    @staticmethod
-    def _escape_sql_literal(value: str) -> str:
-        return escape_mariadb_sql_literal(value)
-
-    def _parse_charset_collation_result(self, result: tuple[Any, ...] | None) -> dict[str, Any]:
-        """Parsea resultado de database charset/collation según tipo de BD."""
-        return CharsetCollationParser(self.logger).parse_db_charset(self.db_type, result)
 
     def _parse_column_charset_collation_row(self, row: tuple[Any, ...]) -> tuple[str, str | None, str | None]:
         """Parsea una fila de resultado de charset/collation de columna según el tipo de BD."""

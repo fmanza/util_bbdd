@@ -11,13 +11,7 @@ fallback "object").
 
 from __future__ import annotations
 
-import asyncio
-
-from unittest.mock import MagicMock
-
-from util_bbdd.metadata.mariadb.async_adapter import MariaDBAsyncAdapter
 from util_bbdd.metadata.mariadb.common import mariadb_type_mapping, normalize_mariadb_type
-from util_bbdd.metadata.mariadb.sync_adapter import MariaDBSyncAdapter
 
 
 class TestMariaDBTypeMapping:
@@ -55,56 +49,3 @@ class TestNormalizeMariaDBType:
 
     def test_normalize_empty_returns_object(self) -> None:
         assert normalize_mariadb_type("") == "object"
-
-
-class TestMariaDBSyncAdapterNormalizesColumnType:
-    def test_fetch_columns_sync_returns_generic_type_not_raw(self) -> None:
-        manager = MagicMock()
-        manager.get_columns.return_value = [
-            ("id", "int(11)", "NO", "PRI", None, "auto_increment", ""),
-            ("name", "varchar(255)", "YES", "", None, "", "Nombre"),
-        ]
-        adapter = MariaDBSyncAdapter(manager)
-
-        result = adapter.fetch_columns_sync("ignored_schema", "users")
-
-        assert result[0][0] == "id"
-        assert result[0][1] == "integer"
-        assert result[1][0] == "name"
-        assert result[1][1] == "varchar"
-
-    def test_fetch_columns_sync_preserves_rest_of_row(self) -> None:
-        manager = MagicMock()
-        manager.get_columns.return_value = [
-            ("id", "int(11)", "NO", "PRI", None, "auto_increment", ""),
-        ]
-        adapter = MariaDBSyncAdapter(manager)
-
-        result = adapter.fetch_columns_sync("ignored_schema", "users")
-
-        assert result[0] == ("id", "integer", "NO", "PRI", None, "auto_increment", "")
-
-    def test_fetch_columns_sync_handles_short_rows_gracefully(self) -> None:
-        """Filas con un solo elemento (sin tipo) no deben romper la normalización."""
-        manager = MagicMock()
-        manager.get_columns.return_value = [("COL1",)]
-        adapter = MariaDBSyncAdapter(manager)
-
-        result = adapter.fetch_columns_sync("ignored_schema", "users")
-
-        assert result == [("COL1",)]
-
-
-class TestMariaDBAsyncAdapterNormalizesColumnType:
-    def test_fetch_columns_async_returns_generic_type_not_raw(self) -> None:
-        async def _get_columns(table: str) -> list[tuple]:
-            await asyncio.sleep(0)
-            return [("id", "int(11)", "NO", "PRI", None, "auto_increment", "")]
-
-        manager = MagicMock()
-        manager.get_columns = _get_columns
-        adapter = MariaDBAsyncAdapter(manager)
-
-        result = asyncio.run(adapter.fetch_columns_async("ignored_schema", "users"))
-
-        assert result[0][1] == "integer"

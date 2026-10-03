@@ -201,6 +201,27 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   snapshot) corregido en el catálogo y en `_show_create`. Trinquete: `connection/mariadb/update_auto_increment.py`
   fuera de `PENDING_CATALOG`. Verificación: `ruff`, `mypy` (423), unitarios 6180 + 3 xfailed, integración 635 + 10
   skipped, `mkdocs build --strict`.
+- Usuario: E2 en 4 commits (E2a `get_*` tipados; E2b DDL de tabla y almacenamiento a `metadata/`; E2c registry JSON,
+  adaptadores y cachés fuera; E2d Redshift/Snowflake fuera).
+- IMPLEMENT · E2a: `managers/_catalog_facade.py` (`SyncCatalogFacade`/`AsyncCatalogFacade`, bases de los managers):
+  `get_*` → modelos de `metadata.model` desde `get_schema_metadata(kinds={…})`, búsqueda sin mayúsculas, sobrecargas de
+  routines con todos sus parámetros; `metadata/ddl.py` (`view_ddl`, `routine_ddl`, `mysql_table_ddl`). Fuera de los
+  managers: los 16 `get_*`/`_normalized`/`get_metadata_manager` antiguos, sus fetchers y helpers privados muertos,
+  `relationship_cache` (también de `CacheService`/`CacheManager`, `doc` y `analysis`) y `MetadataManager`/
+  `AsyncMetadataManager`. `SyncMetadataProvider`/`AsyncMetadataProvider` con los tipos nuevos. `analysis` solo con
+  `get_schema_metadata` (`RelationshipGraphSource` reducido; `graphviz_ext` sin cachés propias). `doc`: puertos
+  `DocumentationCatalogPort`/`DocumentationBackendPort`; el adaptador ya no delega lecturas por objeto. MariaDB:
+  `build_table_ddl_from_metadata` sobre modelos (`ColumnMeta.on_update` nuevo para no perder `ON UPDATE`) y sin los
+  `fetch_*` de `SourceAdapter` (leían los `get_*` en tuplas; sin consumidores). Hallazgos: `_get_unique_columns` de
+  `graphviz_ext` leía el nombre de la restricción como columna (1:1 nunca detectado); MySQL con pool fallaba en
+  `get_schema_metadata` (`_ConnectionFairy` de SQLAlchemy → `driver_paramstyle` lo desenvuelve); la caché local de
+  cardinalidad que introduje al principio repetía MDC-02 (sin contexto) → eliminada; cada `get_*` reconstruía el
+  índice por tabla del snapshot (O(n²) en bucle) → `CatalogSource._assemble` lo reutiliza. Dorados `<motor>.json`
+  re-baselineados a modelos (D9-2; FK compuestas por posición), `*_snapshot.json` (`on_update`) y `mariadb_doc.txt`
+  (sin `DEFAULT NULL` redundante). Guarda de consultas: `manager_scan` sin `xfail`. Trinquete:
+  `managers/_manager_shared_mixin.py` fuera de `PENDING_ENGINE_IMPORTS`.
+- Verificación E2a: `ruff`, `mypy` (423), unitarios 6141 + 2 xfailed, integración 641 + 10 skipped, capas (423, sin
+  cambios), `mkdocs build --strict`.
 
 ## Artefactos generados
 
@@ -233,6 +254,15 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   *hard parse* (segundos en el contenedor de Oracle Free); no medir el primer snapshot como coste estable.
 - **[metadata · pruebas]**: un motor nuevo se valida con `tests/integration/metadata/characterization/test_snapshot_golden.py`
   (se activa solo al registrar su dialecto): dorado del snapshot + igualdad con el IR de `migrate`.
+- **[managers · metadatos]**: los `get_*` de metadatos viven en `managers/_catalog_facade.py` (fachada sobre
+  `get_schema_metadata`); el manager solo aporta la fuente. `CatalogSource._assemble` reutiliza el `SchemaSnapshot`
+  mientras la caché devuelva los mismos datos: sin ello, `get_columns(t)` en bucle reconstruía el índice por tabla en
+  cada llamada (O(n²); 5000 tablas → 0,08 s con la reutilización). Para recorrer el schema, mejor un
+  `get_schema_metadata(kinds=…)` y el snapshot.
+- **[tests · fakes]**: `tests/unit/_catalog_fakes.py` (`FakeCatalogManager`, `build_catalog`) da un manager con
+  snapshot en memoria; `tests/unit` no es paquete: se importa como `from _catalog_fakes import …`.
+- **[herramientas · heredocs]**: en Bash, `\b`, `\n` y `\|` dentro de heredocs con Python se degradan (un `\b` acabó
+  como carácter de retroceso en una regex); para código con barras, Write/Edit.
 - **[banco]**: los schemas `zz_md_*` / `zz_util_bbdd_md_*` / usuarios `ZZ_MD_*` siguen creados en el banco para medir el «después»; `md_bench.py teardown` los borra. Oracle necesita `system` (`ORACLE_PASSWORD` del contenedor) para crear usuarios.
 
 ## Veredicto final

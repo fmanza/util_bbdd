@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from sqlalchemy.pool import QueuePool
+
 from util_bbdd import AsyncDatabaseManager, SyncDatabaseManager
 from util_bbdd._core.exceptions import MetadataError
 from util_bbdd.managers._catalog_executor import driver_paramstyle
@@ -87,3 +89,15 @@ def test_driver_paramstyle_by_connection_module() -> None:
     Fake.__module__ = "desconocido.driver"
     with pytest.raises(MetadataError):
         driver_paramstyle(Fake())
+
+
+def test_driver_paramstyle_unwraps_sqlalchemy_pool_connections() -> None:
+    """MySQL con pool entrega un ``_ConnectionFairy`` de SQLAlchemy: cuenta el estilo del driver que envuelve."""
+    pool = QueuePool(lambda: sqlite3.connect(":memory:"))
+    connection = pool.connect()
+    try:
+        assert type(connection).__module__.startswith("sqlalchemy")
+        assert driver_paramstyle(connection) == "qmark"
+    finally:
+        connection.close()
+        pool.dispose()

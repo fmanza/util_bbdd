@@ -22,16 +22,10 @@ from ..executors.async_query_executor import AsyncQueryExecutor
 from ..factory.async_sqlalchemy_engine_factory import AsyncSQLAlchemyEngineFactory
 from ..factory.pool_factory import PoolFactory
 from ..metadata import (
-    AsyncMetadataManager,
     DatabaseMetadataCache,
-    NormalizedColumnRow,
-    NormalizedTableRow,
-    RelationshipMetadataCache,
     Rows,
     mariadb as _mariadb_metadata,  # noqa: F401  (al importarse registra sus adapters en el registro global)
     mysql as _mysql_metadata,  # noqa: F401  (ídem)
-    normalize_column_rows,
-    normalize_table_rows,
 )
 from ..metadata.adapters import EngineMetadataAdapterAsync, get_global_adapter_registry
 from ..metadata.catalog_registry import get_catalog_dialect
@@ -39,6 +33,7 @@ from ..metadata.model import ALL_KINDS, Kind, SchemaSnapshot
 from ..metadata.source import AsyncCatalogSource
 from ..results import ResultNormalizer, RowOrNone
 from ._catalog_executor import AsyncManagerCatalogExecutor
+from ._catalog_facade import AsyncCatalogFacade
 from ._manager_cache_service import CacheService
 from ._manager_lifecycle import (
     close_async_resources,
@@ -55,7 +50,7 @@ from ._manager_shared_mixin import DatabaseManagerSharedMixin
 from ._metadata_parser import CharsetCollationParser
 
 
-class AsyncDatabaseManager(DatabaseManagerSharedMixin):
+class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
     """Manager async-first para conexiones directas o con pool."""
 
     _PARAMETER_PATTERN = r"\{(\w+)\}"
@@ -105,27 +100,12 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
         setattr(self, cache_key, adapter)
         return adapter
 
-    async def _execute_metadata_fetch_request_many(self, request: MetadataFetchRequest) -> Rows:
-        return await self._execute_metadata_many(
-            request.query_name,
-            params=request.params,
-            error_message=request.error_message,
-            table_name=request.table_name,
-        )
-
     async def _execute_metadata_fetch_request_one(self, request: MetadataFetchRequest) -> RowOrNone:
         return await self._execute_metadata_one(
             request.query_name,
             params=request.params,
             error_message=request.error_message,
             table_name=request.table_name,
-        )
-
-    def _get_routines_fetcher(self, context_database: str) -> Callable[[], Awaitable[Rows]]:
-        return self._metadata_fetch_strategy.build_async_rows_fetcher(
-            request=MetadataRequestBuilder.routines(context_database),
-            specialized_fetcher=lambda: self._get_metadata_adapter().fetch_routines(context_database),
-            execute_many=self._execute_metadata_fetch_request_many,
         )
 
     def _get_table_ddl_fetcher(self, context_database: str, tabla: str) -> Callable[[], Awaitable[str]]:
@@ -136,70 +116,6 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
                 self._add_metadata_context_params,
             ),
             specialized_fetcher=lambda: self._get_metadata_adapter().build_table_ddl_from_metadata(tabla),
-            execute_one=self._execute_metadata_fetch_request_one,
-            normalize_one=self._normalize_ddl_result,
-        )
-
-    def _get_view_ddl_fetcher(self, context_database: str, vista: str) -> Callable[[], Awaitable[str]]:
-        return self._metadata_fetch_strategy.build_async_text_fetcher(
-            request=MetadataRequestBuilder.view_ddl(
-                context_database,
-                vista,
-                self._add_metadata_context_params,
-            ),
-            specialized_fetcher=lambda: self._get_metadata_adapter().fetch_view_from_information_schema(
-                context_database,
-                vista,
-            ),
-            execute_one=self._execute_metadata_fetch_request_one,
-            normalize_one=self._normalize_ddl_result,
-        )
-
-    def _get_columns_fetcher(self, context_database: str, tabla: str) -> Callable[[], Awaitable[Rows]]:
-        return self._metadata_fetch_strategy.build_async_rows_fetcher(
-            request=MetadataRequestBuilder.columns(context_database, tabla),
-            specialized_fetcher=lambda: self._get_metadata_adapter().fetch_columns_safe(context_database, tabla),
-            execute_many=self._execute_metadata_fetch_request_many,
-        )
-
-    def _get_routine_parameters_fetcher(
-        self,
-        context_database: str,
-        rutina: str,
-        routine_type: str,
-    ) -> Callable[[], Awaitable[Rows]]:
-        return self._metadata_fetch_strategy.build_async_rows_fetcher(
-            specialized_fetcher=lambda: self._get_metadata_adapter().fetch_routine_parameters_public_rows(
-                database=context_database,
-                routine_name=rutina,
-                routine_type=routine_type,
-            ),
-            request=MetadataRequestBuilder.routine_parameters(
-                context_database,
-                rutina,
-                routine_type,
-            ),
-            execute_many=self._execute_metadata_fetch_request_many,
-        )
-
-    def _get_routine_ddl_fetcher(
-        self,
-        context_database: str,
-        rutina: str,
-        routine_type: str,
-    ) -> Callable[[], Awaitable[str]]:
-        return self._metadata_fetch_strategy.build_async_text_fetcher(
-            specialized_fetcher=lambda: self._get_metadata_adapter().fetch_routine_from_information_schema(
-                database=context_database,
-                routine_name=rutina,
-                routine_type=routine_type,
-            ),
-            request=MetadataRequestBuilder.routine_ddl(
-                context_database,
-                rutina,
-                routine_type,
-                self._add_metadata_context_params,
-            ),
             execute_one=self._execute_metadata_fetch_request_one,
             normalize_one=self._normalize_ddl_result,
         )
@@ -238,15 +154,10 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
 
         # Inicializar cachés centralizados
         self.db_cache: DatabaseMetadataCache = DatabaseMetadataCache()
-        self.relationship_cache: RelationshipMetadataCache = RelationshipMetadataCache(db_cache=self.db_cache)
         self.logger.debug("✅ Cachés centralizados inicializados")
 
         # Inicializar servicio de caché
-        self.cache_service = CacheService(self.db_cache, self.relationship_cache, self.logger)
-
-        # AsyncMetadataManager (DDLBuilder + cache compartido) — construcción diferida,
-        # ver get_metadata_manager()
-        self._metadata_manager: AsyncMetadataManager | None = None
+        self.cache_service = CacheService(self.db_cache, self.logger)
 
         # Factories para conexión
         self._connection_factory: Callable[..., Awaitable[Any]] = (
@@ -639,89 +550,6 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
 
         return self.db_type != "sqlite"
 
-    async def get_tables(self) -> Rows:
-        """
-        Obtiene la lista de tablas de la base de datos.
-
-        Returns:
-            Lista de tablas (cada fila es una tupla con metadatos de tabla).
-
-        Raises:
-            DatabaseOperationError: Si hay error en la operación.
-
-        Example:
-            Listar todas las tablas de una Base de Datos (async):
-
-            >>> import asyncio
-            >>> from util_bbdd import AsyncDatabaseManager
-            >>> async def main():
-            ...     manager = AsyncDatabaseManager(
-            ...         db_type="postgresql",
-            ...         conn_params={
-            ...             "host": "localhost",
-            ...             "port": 5432,
-            ...             "user": "postgres",
-            ...             "password": "secret",
-            ...             "database": "mydb"
-            ...         }
-            ...     )
-            ...     await manager.init()
-            ...     tables = await manager.get_tables()
-            ...     for table in tables:
-            ...         print(table[0])  # Nombre de la tabla
-            ...     await manager.close()
-            >>> asyncio.run(main())
-        """
-        context_database: str = self._get_query_context_database()
-        cache_key: str = self._cache_context_key(context_database)
-        context_label: str = self._get_query_context_label()
-        rows: list[Any] = await self._get_cached_rows_async(
-            cache_lookup=lambda: self.db_cache._tables_cache.get(cache_key),
-            cache_store=lambda items: self.db_cache._tables_cache.__setitem__(cache_key, list(items)),
-            fetch_rows=lambda: self._execute_metadata_many(
-                "obtener_tablas",
-                params={"database": context_database},
-                error_message="Error obteniendo tablas",
-            ),
-            cache_hit_message=f"♻️  Usando tablas en caché para contexto: {context_database}",
-            success_message=f"✅ {{count}} tablas obtenidas para {context_label}: {context_database}",
-            fetch_debug_message=f"🔍 Obteniendo lista de tablas para {context_label}: {context_database}",
-        )
-        return cast(Rows, rows)
-
-    async def get_views(self) -> Rows:
-        context_database: str = self._get_query_context_database()
-        cache_key: str = self._cache_context_key(context_database)
-        context_label: str = self._get_query_context_label()
-        rows: list[Any] = await self._get_cached_rows_async(
-            cache_lookup=lambda: self.db_cache._views_cache.get(cache_key),
-            cache_store=lambda items: self.db_cache._views_cache.__setitem__(cache_key, list(items)),
-            fetch_rows=lambda: self._execute_metadata_many(
-                "obtener_vistas",
-                params={"database": context_database},
-                error_message="Error obteniendo vistas",
-            ),
-            cache_hit_message=f"♻️  Usando vistas en caché para contexto: {context_database}",
-            success_message=f"✅ {{count}} vistas obtenidas para {context_label}: {context_database}",
-            fetch_debug_message=f"🔍 Obteniendo lista de vistas para {context_label}: {context_database}",
-        )
-        return cast(Rows, rows)
-
-    async def get_routines(self) -> Rows:
-        context_database: str = self._get_query_context_database()
-        cache_key: str = self._cache_context_key(context_database)
-        context_label: str = self._get_query_context_label()
-
-        rows: list[Any] = await self._get_cached_rows_async(
-            cache_lookup=lambda: self.db_cache._routines_cache.get(cache_key),
-            cache_store=lambda items: self.db_cache._routines_cache.__setitem__(cache_key, list(items)),
-            fetch_rows=self._get_routines_fetcher(context_database),
-            cache_hit_message=f"♻️  Usando rutinas en caché para contexto: {context_database}",
-            success_message=f"✅ {{count}} rutinas obtenidas para {context_label}: {context_database}",
-            fetch_debug_message=f"🔍 Obteniendo lista de rutinas para {context_label}: {context_database}",
-        )
-        return cast(Rows, rows)
-
     async def get_ddl(self, tabla: str) -> str:
         context_database: str = self._get_query_context_database()
         context_label: str = self._get_query_context_label()
@@ -739,192 +567,6 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
             success_message=f"✅ DDL obtenido para tabla {tabla}",
         )
 
-    async def get_view_ddl(self, vista: str) -> str:
-        context_database: str = self._get_query_context_database()
-        context_label: str = self._get_query_context_label()
-        cache_key: tuple[str, str] = self._cache_table_key(context_database, vista)
-        fetch_ddl: Callable[[], Awaitable[str]] = self._get_view_ddl_fetcher(context_database, vista)
-
-        return await self._get_cached_text_async(
-            cache_lookup=lambda: self.db_cache._view_ddl_cache.get(cache_key),
-            cache_store=lambda ddl: self.db_cache._view_ddl_cache.__setitem__(cache_key, ddl),
-            fetch_text=lambda: self._log_and_call_async(
-                f"🔍 Obteniendo DDL para vista {vista} ({context_label}: {context_database})",
-                fetch_ddl,
-            ),
-            cache_hit_message=f"♻️  Usando DDL de vista en caché para {vista}",
-            success_message=f"✅ DDL obtenido para vista {vista}",
-        )
-
-    async def get_columns(self, tabla: str) -> Rows:
-        """
-        Obtiene las columnas de una tabla.
-
-        Args:
-            tabla: Nombre de la tabla.
-
-        Returns:
-            Lista de columnas de la tabla (cada fila contiene metadatos de columna).
-
-        Raises:
-            DatabaseOperationError: Si hay error en la operación.
-
-        Example:
-            Obtener columnas de una tabla específica (async):
-
-            >>> import asyncio
-            >>> from util_bbdd import AsyncDatabaseManager
-            >>> async def main():
-            ...     manager = AsyncDatabaseManager(
-            ...         db_type="postgresql",
-            ...         conn_params={
-            ...             "host": "localhost",
-            ...             "port": 5432,
-            ...             "user": "postgres",
-            ...             "password": "secret",
-            ...             "database": "mydb"
-            ...         }
-            ...     )
-            ...     await manager.init()
-            ...     columns = await manager.get_columns("users")
-            ...     for col in columns:
-            ...         print(f"Columna: {col[0]}, Tipo: {col[1]}")
-            ...     await manager.close()
-            >>> asyncio.run(main())
-        """
-        context_database: str = self._get_query_context_database()
-        context_label: str = self._get_query_context_label()
-        cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
-        rows: list[Any] = await self._get_cached_rows_async(
-            cache_lookup=lambda: self.db_cache.get_columns(cache_key),
-            cache_store=lambda items: self.db_cache.set_columns(cache_key, items),
-            fetch_rows=self._get_columns_fetcher(context_database, tabla),
-            cache_hit_message=f"♻️  Usando columnas en caché para tabla {tabla}",
-            success_message=f"✅ {{count}} columnas obtenidas de {tabla} ({context_label}: {context_database})",
-            fetch_debug_message=f"🔍 Obteniendo columnas de {tabla} ({context_label}: {context_database})",
-        )
-        return cast(Rows, rows)
-
-    async def get_routine_parameters(self, rutina: str, tipo_rutina: str) -> Rows:
-        context_database: str = self._get_query_context_database()
-        context_label: str = self._get_query_context_label()
-        routine_type: str = str(tipo_rutina or "").upper()
-        cache_key: tuple[str, str, str] = self._cache_routine_key(context_database, rutina, routine_type)
-        rows: list[Any] = await self._get_cached_rows_async(
-            cache_lookup=lambda: self.db_cache._routine_parameters_cache.get(cache_key),
-            cache_store=lambda items: self.db_cache._routine_parameters_cache.__setitem__(cache_key, list(items)),
-            fetch_rows=self._get_routine_parameters_fetcher(context_database, rutina, routine_type),
-            cache_hit_message=f"♻️  Usando parámetros de rutina en caché para {routine_type} {rutina}",
-            success_message=f"✅ {{count}} parámetros obtenidos de rutina {rutina} ({context_label}: {context_database})",
-            fetch_debug_message=(
-                f"🔍 Obteniendo parámetros de rutina {routine_type} {rutina} ({context_label}: {context_database})"
-            ),
-        )
-        return cast(Rows, rows)
-
-    async def get_routine_ddl(self, rutina: str, tipo_rutina: str) -> str:
-        context_database: str = self._get_query_context_database()
-        context_label: str = self._get_query_context_label()
-        routine_type: str = str(tipo_rutina or "").upper()
-        cache_key: tuple[str, str, str] = self._cache_routine_key(context_database, rutina, routine_type)
-        fetch_ddl: Callable[[], Awaitable[str]] = self._get_routine_ddl_fetcher(context_database, rutina, routine_type)
-
-        return await self._get_cached_text_async(
-            cache_lookup=lambda: self.db_cache._routine_ddl_cache.get(cache_key),
-            cache_store=lambda ddl: self.db_cache._routine_ddl_cache.__setitem__(cache_key, ddl),
-            fetch_text=lambda: self._log_and_call_async(
-                f"🔍 Obteniendo DDL para rutina {routine_type} {rutina} ({context_label}: {context_database})",
-                fetch_ddl,
-            ),
-            cache_hit_message=f"♻️  Usando DDL de rutina en caché para {routine_type} {rutina}",
-            success_message=f"✅ DDL obtenido para rutina {rutina}",
-        )
-
-    async def _get_table_metadata_rows_async(
-        self,
-        *,
-        tabla: str,
-        query_name: str,
-        error_message: str,
-        cache_lookup: Callable[[tuple[str, str]], Rows | None],
-        cache_store: Callable[[tuple[str, str], Rows], None],
-        cache_label: str,
-        success_label: str,
-    ) -> Rows:
-        """Template method interno para obtener metadatos tabulares cacheados (async)."""
-        context_database: str = self._get_query_context_database()
-        context_label: str = self._get_query_context_label()
-        cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
-
-        rows: list[Any] = await self._get_cached_rows_async(
-            cache_lookup=lambda: cache_lookup(cache_key),
-            cache_store=lambda items: cache_store(cache_key, cast(Rows, items)),
-            fetch_rows=lambda: self._execute_metadata_many(
-                query_name,
-                params=self._add_metadata_context_params({"tabla": tabla}, context_database),
-                error_message=error_message,
-                table_name=tabla,
-            ),
-            cache_hit_message=f"♻️  Usando {cache_label} en caché para {tabla}",
-            success_message=f"✅ {{count}} {success_label} obtenidas de {tabla} ({context_label}: {context_database})",
-            fetch_debug_message=f"🔍 Obteniendo {success_label} de {tabla} ({context_label}: {context_database})",
-        )
-        return cast(Rows, rows)
-
-    async def get_indices(self, tabla: str) -> Rows:
-        return await self._get_table_metadata_rows_async(
-            tabla=tabla,
-            query_name="indices",
-            error_message="Error obteniendo índices",
-            cache_lookup=self.db_cache.get_indices,
-            cache_store=self.db_cache.set_indices,
-            cache_label="índices",
-            success_label="índices",
-        )
-
-    async def get_primary_keys(self, tabla: str) -> Rows:
-        return await self._get_table_metadata_rows_async(
-            tabla=tabla,
-            query_name="claves_primarias",
-            error_message="Error obteniendo claves primarias",
-            cache_lookup=self.db_cache.get_primary_keys,
-            cache_store=self.db_cache.set_primary_keys,
-            cache_label="claves primarias",
-            success_label="claves primarias",
-        )
-
-    async def get_foreign_keys(self, tabla: str) -> Rows:
-        return await self._get_table_metadata_rows_async(
-            tabla=tabla,
-            query_name="claves_foraneas",
-            error_message="Error obteniendo claves foráneas",
-            cache_lookup=self.db_cache.get_foreign_keys,
-            cache_store=self.db_cache.set_foreign_keys,
-            cache_label="claves foráneas",
-            success_label="claves foráneas",
-        )
-
-    async def get_unique_constraints(self, tabla: str) -> Rows:
-        return await self._get_table_metadata_rows_async(
-            tabla=tabla,
-            query_name="claves_unicas",
-            error_message="Error obteniendo restricciones únicas",
-            cache_lookup=self.db_cache.get_unique_constraints,
-            cache_store=self.db_cache.set_unique_constraints,
-            cache_label="restricciones únicas",
-            success_label="restricciones únicas",
-        )
-
-    async def get_tables_normalized(self) -> list[NormalizedTableRow]:
-        """Obtiene tablas en formato normalizado homogéneo."""
-        rows: Rows = await self.get_tables()
-        return normalize_table_rows(rows)
-
-    async def get_columns_normalized(self, tabla: str) -> list[NormalizedColumnRow]:
-        """Obtiene columnas en formato normalizado homogéneo."""
-        rows: Rows = await self.get_columns(tabla)
-        return normalize_column_rows(rows)
-
     async def get_storage_inventory(self, tablespace: str | None = None) -> dict[str, Any]:
         """Obtiene inventario de almacenamiento."""
         context_database: str = self._get_query_context_database()
@@ -933,31 +575,6 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
             context_database,
             tablespace,
         )
-
-    async def get_database_version(self) -> str:
-        self.logger.debug(f"🔍 Obteniendo versión de la BD ({self.db_type})")
-        row = self.result_normalizer.normalize_one(
-            await self._execute_metadata_one(
-                "database_version",
-                params={},
-                error_message="Error obteniendo versión",
-                table_name="database_version",
-            )
-        )
-        return str(row[0]) if row else "Unknown"
-
-    async def get_database_charset_collation(self) -> dict[str, Any]:
-        context_database: str = self._get_query_context_database()
-        self.logger.debug(f"🔍 Obteniendo charset/collation de la BD ({self.db_type})")
-        row = self.result_normalizer.normalize_one(
-            await self._execute_metadata_one(
-                "database_charset_collation",
-                params={"database": context_database},
-                error_message="Error obteniendo charset/collation",
-                table_name="database_charset_collation",
-            )
-        )
-        return self._parse_charset_collation_result(row)
 
     async def get_columns_charset_collation(self, tabla: str) -> list[tuple[str, str | None, str | None]]:
         context_database: str = self._get_query_context_database()
@@ -1087,10 +704,6 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
             else "disconnected",
         }
 
-    def get_relationship_cache(self) -> RelationshipMetadataCache:
-        """Retorna caché centralizada de metadatos de relaciones."""
-        return self.relationship_cache
-
     @property
     def metadata_source(self) -> AsyncCatalogSource:
         """Lectura async del catálogo por lotes sobre las conexiones de este manager (ADR-003).
@@ -1122,27 +735,6 @@ class AsyncDatabaseManager(DatabaseManagerSharedMixin):
             >>> snapshot = await manager.get_schema_metadata(kinds={Kind.TABLES, Kind.COLUMNS})
         """
         return await self.metadata_source.snapshot(schema, kinds=kinds, tables=tables)
-
-    def get_metadata_manager(self) -> AsyncMetadataManager:
-        """Expone `DDLBuilder` (construcción de DDL desde columnas) sobre esta conexión.
-
-        Reutiliza `self` como `AsyncMetadataProvider` (ya implementa get_tables/get_columns/
-        get_primary_keys/etc. contra la ruta real de producción) y comparte db_cache/
-        relationship_cache con el resto de este manager, sin duplicar cacheo.
-
-        Returns:
-            AsyncMetadataManager listo para usar (p.ej.
-            `await get_metadata_manager().get_ddl(tabla)` para construir un CREATE TABLE
-            portable desde metadatos, distinto del DDL nativo de `await self.get_ddl(tabla)`).
-        """
-        if self._metadata_manager is None:
-            self._metadata_manager = AsyncMetadataManager(
-                metadata_provider=self,
-                db_cache=self.db_cache,
-                relationship_cache=self.relationship_cache,
-                db_type=self.db_type,
-            )
-        return self._metadata_manager
 
     async def get_sqlalchemy_engine(self) -> Any:
         """Obtiene un AsyncEngine de SQLAlchemy basado en la configuración actual."""

@@ -14,6 +14,7 @@ from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
 from util_bbdd.managers import AsyncDatabaseManager, SyncDatabaseManager
 from util_bbdd.metadata import AsyncMetadataProvider, SyncMetadataProvider
+from util_bbdd.metadata.model import ColumnMeta, TableMeta
 from util_bbdd.results import QueryResult, Row, RowOrNone, Rows
 
 
@@ -54,12 +55,13 @@ def test_managers_use_split_contract_annotations() -> None:
     assert async_one_hints["return"] == RowOrNone
 
 
-def test_metadata_protocols_use_rows_contract() -> None:
+def test_metadata_protocols_return_typed_models() -> None:
+    """E2 de ADR-003: los ``get_*`` de metadatos devuelven modelos neutros, no filas."""
     sync_hints = get_type_hints(SyncMetadataProvider.get_tables)
-    async_hints = get_type_hints(AsyncMetadataProvider.get_tables)
+    async_hints = get_type_hints(AsyncMetadataProvider.get_columns)
 
-    assert sync_hints["return"] == Rows
-    assert async_hints["return"] == Rows
+    assert sync_hints["return"] == list[TableMeta]
+    assert async_hints["return"] == list[ColumnMeta]
 
 
 def test_domain_aliases_map_to_existing_hierarchy() -> None:

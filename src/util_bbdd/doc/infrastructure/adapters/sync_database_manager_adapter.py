@@ -14,12 +14,12 @@ from ..storage.runtime import (
 
 
 class SyncDatabaseManagerAdapter:
-    """Adapta ``SyncDatabaseManager`` al contrato ``DocumentationRuntimeManagerProtocol``.
+    """Adapta ``SyncDatabaseManager`` al contrato ``DocumentationBackendPort``.
 
-    Delega todos los métodos de introspección al manager subyacente y añade
-    ``imprimir_config`` y ``get_storage_inventory_report``, que no forman
-    parte de la API pública del manager pero son requeridos por el runtime
-    documental.
+    Delega en el manager la lectura del catálogo (snapshot por lotes y DDL de tabla), la metadata opcional y las
+    consultas del inventario, y añade ``imprimir_config`` y ``get_storage_inventory_report``, que no forman parte de
+    la API pública del manager pero son requeridos por el runtime documental. Las lecturas por objeto (columnas,
+    claves, índices…) no pasan por aquí: ``DocumentationSession`` las sirve desde el snapshot.
     """
 
     def __init__(self, db_manager: DocumentationSourcePort, imprimir_config: dict[str, Any]) -> None:
@@ -28,55 +28,18 @@ class SyncDatabaseManagerAdapter:
         self.db_type: str = db_manager.db_type
         self.database: str = db_manager.database
         self.conn_params: dict[str, Any] = db_manager.conn_params
-        self.relationship_cache = db_manager.relationship_cache
 
-    # --- Métodos de introspección delegados ------------------------------------
+    # --- Catálogo -----------------------------------------------------------------
 
     def get_query_context_database(self) -> str:
         return self._db_manager.get_query_context_database()
 
-    def get_tables(self) -> list[Any]:
-        return self._db_manager.get_tables()
-
-    def get_views(self) -> list[Any]:
-        return self._db_manager.get_views()
-
-    def get_routines(self) -> list[Any]:
-        return self._db_manager.get_routines()
-
     def get_ddl(self, table_name: str, /) -> str:
         return self._db_manager.get_ddl(table_name)
 
-    def get_view_ddl(self, view_name: str, /) -> str:
-        return self._db_manager.get_view_ddl(view_name)
-
-    def get_columns(self, table_name: str, /) -> list[Any]:
-        return self._db_manager.get_columns(table_name)
-
-    def get_routine_ddl(self, routine_name: str, routine_type: str, /) -> str:
-        return self._db_manager.get_routine_ddl(routine_name, routine_type)
-
-    def get_routine_parameters(self, routine_name: str, routine_type: str, /) -> list[Any]:
-        return self._db_manager.get_routine_parameters(routine_name, routine_type)
-
-    def get_primary_keys(self, table_name: str, /) -> list[Any]:
-        return self._db_manager.get_primary_keys(table_name)
-
-    def get_foreign_keys(self, table_name: str, /) -> list[Any]:
-        return self._db_manager.get_foreign_keys(table_name)
-
-    def get_unique_constraints(self, table_name: str, /) -> list[Any]:
-        return self._db_manager.get_unique_constraints(table_name)
-
-    def get_indices(self, table_name: str, /) -> list[Any]:
-        return self._db_manager.get_indices(table_name)
-
     def get_schema_metadata(self, schema: str | None = None, **kwargs: Any) -> Any:
-        """Lectura por lotes del manager (ADR-003); ``AttributeError`` si el manager no la tiene."""
-        get_schema_metadata = getattr(self._db_manager, "get_schema_metadata", None)
-        if get_schema_metadata is None:
-            raise AttributeError("el manager no ofrece get_schema_metadata()")
-        return get_schema_metadata(schema, **kwargs)
+        """Lectura por lotes del manager (ADR-003); de ella salen todas las lecturas por objeto de la sesión."""
+        return self._db_manager.get_schema_metadata(schema, **kwargs)
 
     # --- Métodos de metadata opcional delegados --------------------------------
 

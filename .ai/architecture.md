@@ -68,7 +68,8 @@
 │    ├── normalizer.py
 │    ├── builder.py
 │    ├── fetcher.py
-│    ├── manager.py                  # MetadataManager
+│    ├── source.py                   # CatalogSource: lectura por lotes → SchemaSnapshot (ADR-003)
+│    ├── ddl.py                      # Texto DDL desde los modelos neutros
 │    ├── contracts.py
 │    ├── mariadb/ mysql/ oracle/ postgresql/ sqlserver/ sqlite/
 │    │   └── tables.py               # ← ÚNICO punto canónico de SQL de introspección

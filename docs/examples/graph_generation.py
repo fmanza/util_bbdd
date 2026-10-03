@@ -54,7 +54,7 @@ def demonstrate_graph_generation():
 
     # 2. Obtener metadatos
     tables = manager.get_tables()
-    table_names = [t[0] for t in tables]
+    table_names = [t.name for t in tables]
     print(f"Tablas encontradas: {table_names}\n")
 
     # 3. Generar grafo paginado por tabla

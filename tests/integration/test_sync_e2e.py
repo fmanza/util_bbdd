@@ -20,7 +20,7 @@ class TestSyncDatabaseManagerE2E:
         try:
             tables = manager.get_tables()
 
-            table_names = [t[0] if isinstance(t, tuple) else t for t in tables]
+            table_names = [t.name for t in tables]
             assert "users" in table_names
             assert "orders" in table_names
             assert len(table_names) >= 2
@@ -34,7 +34,7 @@ class TestSyncDatabaseManagerE2E:
             columns = manager.get_columns("users")
 
             assert len(columns) > 0
-            col_names = [col[1] for col in columns]
+            col_names = [col.name for col in columns]
             assert "id" in col_names
             assert "nombre" in col_names
             assert "email" in col_names

@@ -1,4 +1,9 @@
-"""``analysis``: el índice de relaciones entrantes desde el snapshot (C2) = el de ``get_foreign_keys`` tabla a tabla."""
+"""``analysis`` y ``get_foreign_keys``: relaciones del schema de prueba desde el snapshot (C2, E2).
+
+Hasta E2 se comparaba con el camino tabla a tabla de ``get_foreign_keys``, cuyo SQL de PostgreSQL y SQL Server cruzaba
+las columnas de las FK compuestas (H-20). Desde E2 ``get_foreign_keys`` también sale del snapshot: ambos se fijan contra
+las relaciones que declara el schema.
+"""
 
 from __future__ import annotations
 
@@ -38,19 +43,28 @@ def _relations(index: dict, *, with_names: bool) -> set[tuple[str, ...]]:
     }
 
 
-def test_parent_index_from_snapshot_matches_per_table(target: GoldenTarget) -> None:
+EXPECTED: set[tuple[str, ...]] = {
+    (f"{PREFIX}child", f"{PREFIX}parent", "parent_id", "id", f"fk_{PREFIX}child_parent"),
+    (f"{PREFIX}ref_composite", f"{PREFIX}composite", "a", "a", f"fk_{PREFIX}ref_composite"),
+    (f"{PREFIX}ref_composite", f"{PREFIX}composite", "b", "b", f"fk_{PREFIX}ref_composite"),
+}
+
+
+def test_parent_index_from_snapshot(target: GoldenTarget) -> None:
     db_type, params = target.manager_args()
     with SyncDatabaseManager(db_type, params, use_pool=False) as mgr:
-        graph = DatabaseRelationshipGraphBase(mgr)
-        batched = graph._build_parent_relations_index("ctx")
-        graph._relations_snapshot = lambda: None  # type: ignore[method-assign]  # fuerza el camino tabla a tabla
-        legacy = graph._build_parent_relations_index("ctx")
+        index = DatabaseRelationshipGraphBase(mgr)._build_parent_relations_index("ctx")
     # SQLite no da nombres de FK por PRAGMA (vacíos en el snapshot): allí solo se comparan tablas y columnas
     with_names = target.engine != "sqlite"
-    new, old = _relations(batched, with_names=with_names), _relations(legacy, with_names=with_names)
-    assert new, "el schema de prueba tiene FK"
-    assert new <= old
-    # H-20: el SQL heredado de PostgreSQL y SQL Server no empareja columnas por posición en FK compuestas
-    # (producto cartesiano); el snapshot sí. Lo sobrante del camino tabla a tabla son solo esos cruces.
-    assert all(r[0] == "zz_gold_ref_composite" and r[2] != r[3] for r in old - new)
-    assert bool(old - new) == (target.engine in {"postgresql", "sqlserver"})
+    expected = EXPECTED if with_names else {r[:4] for r in EXPECTED}
+    assert _relations(index, with_names=with_names) == expected
+
+
+def test_get_foreign_keys_pairs_composite_columns(target: GoldenTarget) -> None:
+    """H-20: las columnas de una FK compuesta se emparejan por posición (antes, producto cartesiano en PG/SQL Server)."""
+    db_type, params = target.manager_args()
+    with SyncDatabaseManager(db_type, params, use_pool=False) as mgr:
+        (fk,) = mgr.get_foreign_keys(f"{PREFIX}ref_composite")
+    assert fk.ref_table.lower() == f"{PREFIX}composite"
+    assert [c.lower() for c in fk.columns] == ["a", "b"]
+    assert [c.lower() for c in fk.ref_columns] == ["a", "b"]

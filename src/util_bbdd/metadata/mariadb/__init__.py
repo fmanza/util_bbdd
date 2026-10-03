@@ -22,7 +22,7 @@ from .routines import (
     filter_mariadb_routine_parameter_entries,
 )
 from .sync_adapter import MariaDBSyncAdapter
-from .tables import build_mariadb_table_ddl, decode_mariadb_safe_column_rows
+from .tables import decode_mariadb_safe_column_rows
 
 __all__: list[str] = [
     "MariaDBAsyncAdapter",
@@ -31,7 +31,6 @@ __all__: list[str] = [
     "MariaDBSyncAdapter",
     "build_mariadb_routine_ddl",
     "build_public_mariadb_routine_parameter_entry_rows",
-    "build_mariadb_table_ddl",
     "decode_mariadb_hex_text",
     "decode_mariadb_routine_detail_entries",
     "decode_mariadb_routine_parameter_detail_entries",

@@ -2,14 +2,13 @@
 
 import asyncio
 
-from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from util_bbdd import DatabaseOperationError, QueryNotFoundError
 from util_bbdd.managers import AsyncDatabaseManager
-from util_bbdd.metadata import DatabaseMetadataCache, RelationshipMetadataCache
+from util_bbdd.metadata.model import ColumnMeta, PrimaryKeyMeta
 
 
 class TestAsyncDatabaseManagerInit:
@@ -387,47 +386,6 @@ class TestAsyncDatabaseManagerConvenienceMethods:
     """Paridad de métodos de conveniencia async."""
 
     @pytest.mark.asyncio
-    async def test_get_tables_uses_context_database(self):
-        mock_executor = AsyncMock()
-        mock_executor.execute_query_many = AsyncMock(return_value=[("users",)])
-
-        manager = AsyncDatabaseManager(
-            db_type="postgresql",
-            conn_params={"schema": "public"},
-            use_pool=False,
-        )
-        manager.query_executor = mock_executor
-        manager._initialized = True
-
-        result = await manager.get_tables()
-        result_cached = await manager.get_tables()
-
-        assert result == [("users",)]
-        assert result_cached == [("users",)]
-        mock_executor.execute_query_many.assert_called_once_with(
-            query_name="obtener_tablas",
-            db_type="postgresql",
-            params={"database": "public"},
-        )
-
-    @pytest.mark.asyncio
-    async def test_get_database_version_returns_first_column(self):
-        mock_executor = AsyncMock()
-        mock_executor.execute_query_one = AsyncMock(return_value=("15.0",))
-
-        manager = AsyncDatabaseManager(
-            db_type="sqlserver",
-            conn_params={"database": "master"},
-            use_pool=False,
-        )
-        manager.query_executor = mock_executor
-        manager._initialized = True
-
-        result = await manager.get_database_version()
-
-        assert result == "15.0"
-
-    @pytest.mark.asyncio
     async def test_get_ddl_mariadb_uses_metadata_builder_as_primary_path(self):
         manager = AsyncDatabaseManager(
             db_type="mariadb",
@@ -436,82 +394,25 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         )
         manager.get_columns = AsyncMock(
             return_value=[
-                ("id", "int", "NO", "PRI", None, "auto_increment", ""),
-                ("name", "varchar(50)", "YES", "", "Óscar", "", ""),
+                ColumnMeta("users", "id", 1, "int", "int", False, identity="by default"),
+                ColumnMeta("users", "name", 2, "varchar(50)", "varchar", True, default="'Óscar'"),
             ]
         )
-        manager.get_primary_keys = AsyncMock(return_value=[("id",)])
+        manager.get_primary_keys = AsyncMock(return_value=PrimaryKeyMeta("users", "PRIMARY", ("id",)))
         manager._execute_metadata_one = AsyncMock()
 
         result = await manager.get_ddl("users")
 
-        assert result.startswith("CREATE TABLE")
+        assert result == (
+            "CREATE TABLE `users` (\n"
+            "  `id` int NOT NULL auto_increment,\n"
+            "  `name` varchar(50) NULL DEFAULT 'Óscar',\n"
+            "  PRIMARY KEY (`id`)\n"
+            ")"
+        )
         manager._execute_metadata_one.assert_not_awaited()
         manager.get_columns.assert_awaited_once_with("users")
         manager.get_primary_keys.assert_awaited_once_with("users")
-
-    @pytest.mark.asyncio
-    async def test_get_view_ddl_mariadb_uses_information_schema_as_primary_path(self):
-        manager = AsyncDatabaseManager(
-            db_type="mariadb",
-            conn_params={"database": "db"},
-            use_pool=False,
-        )
-        manager.execute_custom_one = AsyncMock(return_value=("SELECT 1",))
-        manager._execute_metadata_one = AsyncMock()
-
-        result = await manager.get_view_ddl("v_users")
-
-        assert result.startswith("CREATE OR REPLACE VIEW `v_users` AS")
-        manager.execute_custom_one.assert_awaited_once()
-        manager._execute_metadata_one.assert_not_awaited()
-        await_args = cast(Any, manager.execute_custom_one.await_args)
-        assert await_args is not None
-        assert "information_schema.views" in await_args.args[0]
-
-    @pytest.mark.asyncio
-    async def test_get_routine_ddl_mariadb_uses_information_schema_as_primary_path(self):
-        manager = AsyncDatabaseManager(
-            db_type="mariadb",
-            conn_params={"database": "db"},
-            use_pool=False,
-        )
-        manager._execute_metadata_many = AsyncMock(
-            side_effect=[
-                [
-                    (
-                        "6d795f70726f63",
-                        "PROCEDURE",
-                        "50726f63656475726120646520707275656261",
-                        "726f6f74406c6f63616c686f7374",
-                        "444546494e4552",
-                        "4d4f4449464945532053514c2044415441",
-                        "NO",
-                        "",
-                        "",
-                        "424547494e20454e44",
-                    )
-                ],
-                [
-                    ("494e", "505f4944434f4e5441444f52", "PROCEDURE", "6d795f70726f63", "494e5445474552", "", "", 1),
-                    ("4f5554", "505f434f4e5441444f52", "PROCEDURE", "6d795f70726f63", "494e5445474552", "", "", 2),
-                ],
-            ]
-        )
-        manager._execute_metadata_one = AsyncMock()
-
-        result = await manager.get_routine_ddl("my_proc", "procedure")
-
-        assert result.startswith("CREATE DEFINER=`root`@`localhost` PROCEDURE `db`.`my_proc`(\n")
-        assert "IN P_IDCONTADOR INTEGER" in result
-        assert "OUT P_CONTADOR INTEGER" in result
-        assert "MODIFIES SQL DATA" not in result
-        assert "SQL SECURITY DEFINER" not in result
-        assert "COMMENT 'Procedura de prueba'" in result
-        assert manager._execute_metadata_many.await_count == 2
-        manager._execute_metadata_one.assert_not_awaited()
-        assert manager._execute_metadata_many.await_args_list[0].args[0] == "rutinas_mariadb_detalle"
-        assert manager._execute_metadata_many.await_args_list[1].args[0] == "parametros_rutinas_mariadb_detalle"
 
     @pytest.mark.asyncio
     async def test_get_available_queries_reads_registry(self):
@@ -529,28 +430,6 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         result = await manager.get_available_queries()
 
         assert result == ["obtener_tablas", "columnas_tabla"]
-
-    @pytest.mark.asyncio
-    async def test_get_database_charset_collation_parses_mariadb(self):
-        mock_executor = AsyncMock()
-        mock_executor.execute_query_one = AsyncMock(return_value=("utf8mb4", "utf8mb4_general_ci"))
-
-        manager = AsyncDatabaseManager(
-            db_type="mariadb",
-            conn_params={"database": "db"},
-            use_pool=False,
-        )
-        manager.query_executor = mock_executor
-        manager._initialized = True
-
-        result = await manager.get_database_charset_collation()
-
-        assert result == {"charset": "utf8mb4", "collation": "utf8mb4_general_ci"}
-        mock_executor.execute_query_one.assert_called_once_with(
-            query_name="database_charset_collation",
-            db_type="mariadb",
-            params={"database": "db"},
-        )
 
     @pytest.mark.asyncio
     async def test_get_columns_charset_collation_parses_postgresql(self):
@@ -596,6 +475,7 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         )
         manager.query_executor = mock_executor
         manager._initialized = True
+        manager.get_database_version = AsyncMock(return_value="Oracle Database 11g Release 11.2.0.4.0")
 
         result = await manager.get_columns_charset_collation("V_SAAD_VALORACIONEVE")
 
@@ -630,29 +510,6 @@ class TestAsyncDatabaseManagerConvenienceMethods:
             error_message="Error obteniendo charset/collation de columnas",
             table_name="V_SAAD_VALORACIONEVE",
         )
-
-    @pytest.mark.asyncio
-    async def test_clear_cache_context_invalidates_metadata_cache(self):
-        mock_executor = AsyncMock()
-        mock_executor.execute_query_many = AsyncMock(side_effect=[[("users",)], [("orders",)]])
-
-        manager = AsyncDatabaseManager(
-            db_type="postgresql",
-            conn_params={"schema": "public"},
-            use_pool=False,
-        )
-        manager.query_executor = mock_executor
-        manager._initialized = True
-
-        first = await manager.get_tables()
-        second = await manager.get_tables()
-        manager.clear_cache(context_database="public")
-        third = await manager.get_tables()
-
-        assert first == [("users",)]
-        assert second == [("users",)]
-        assert third == [("orders",)]
-        assert mock_executor.execute_query_many.call_count == 2
 
     @pytest.mark.asyncio
     async def test_get_query_info_reads_queries_from_registry(self):
@@ -779,52 +636,6 @@ class TestAsyncDatabaseManagerConvenienceMethods:
             )
 
         assert "no soportado" in str(exc_info.value).lower()
-
-    @pytest.mark.asyncio
-    async def test_get_routines_mariadb_without_metadata_returns_empty(self):
-        manager = AsyncDatabaseManager(
-            db_type="mariadb",
-            conn_params={"database": "db"},
-            use_pool=False,
-        )
-        manager._execute_metadata_many = AsyncMock(return_value=[])
-
-        result = await manager.get_routines()
-
-        assert result == []
-        manager._execute_metadata_many.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_get_tables_normalized_maps_raw_rows(self):
-        manager = AsyncDatabaseManager(
-            db_type="sqlite",
-            conn_params={"database": ":memory:"},
-            use_pool=False,
-        )
-        manager.get_tables = AsyncMock(return_value=[("users",), ("orders",)])
-
-        result = await manager.get_tables_normalized()
-
-        assert result == [
-            {"name": "users", "raw": ("users",)},
-            {"name": "orders", "raw": ("orders",)},
-        ]
-
-    @pytest.mark.asyncio
-    async def test_get_columns_normalized_maps_raw_rows(self):
-        manager = AsyncDatabaseManager(
-            db_type="sqlite",
-            conn_params={"database": ":memory:"},
-            use_pool=False,
-        )
-        manager.get_columns = AsyncMock(return_value=[(0, "id", "INTEGER"), (1, "name", "TEXT")])
-
-        result = await manager.get_columns_normalized("users")
-
-        assert result == [
-            {"name": "id", "data_type": "INTEGER", "raw": (0, "id", "INTEGER")},
-            {"name": "name", "data_type": "TEXT", "raw": (1, "name", "TEXT")},
-        ]
 
     def test_get_database_type_description_uses_validator(self):
         manager = AsyncDatabaseManager(
@@ -957,53 +768,6 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         result = AsyncDatabaseManager.get_db_type_info_static("mariadb")
         assert isinstance(result, dict)
         assert result
-
-    def test_get_relationship_cache_returns_cache_instance(self):
-        manager = AsyncDatabaseManager(
-            db_type="mariadb",
-            conn_params={"database": "db"},
-            use_pool=False,
-        )
-
-        cache = manager.get_relationship_cache()
-
-        assert isinstance(cache, RelationshipMetadataCache)
-        assert cache is manager.relationship_cache
-        assert isinstance(manager.db_cache, DatabaseMetadataCache)
-        assert manager.relationship_cache.db_cache is manager.db_cache
-
-    def test_clear_cache_global_clears_db_and_relationship_caches(self):
-        manager = AsyncDatabaseManager(
-            db_type="mariadb",
-            conn_params={"database": "db"},
-            use_pool=False,
-        )
-        manager.db_cache._tables_cache["db"] = [("users",)]
-        manager.db_cache._columns_cache[("db", "users")] = [("id", "int")]
-        manager.relationship_cache._is_pk_cache[("users", "id")] = True
-
-        manager.clear_cache()
-
-        assert manager.db_cache.get_cache_stats()["total_entries"] == 0
-        assert manager.relationship_cache.get_cache_stats()["total_entries"] == 0
-
-    def test_clear_cache_by_table_invalidates_table_and_relationship_entries(self):
-        manager = AsyncDatabaseManager(
-            db_type="mariadb",
-            conn_params={"database": "db"},
-            use_pool=False,
-        )
-        manager.db_cache._columns_cache[("db", "users")] = [("id", "int")]
-        manager.db_cache._ddl_cache[("db", "users")] = "CREATE TABLE users (id INT)"
-        manager.relationship_cache._is_pk_cache[("db", "users", "id")] = True
-        manager.relationship_cache._table_columns_typed_cache[("db", "users")] = [("id", "int")]
-
-        manager.clear_cache(context_database="db", table="users")
-
-        assert ("db", "users") not in manager.db_cache._columns_cache
-        assert ("db", "users") not in manager.db_cache._ddl_cache
-        assert ("db", "users", "id") not in manager.relationship_cache._is_pk_cache
-        assert ("db", "users") not in manager.relationship_cache._table_columns_typed_cache
 
     def test_clear_cache_by_routine_supports_typed_and_untyped_invalidation(self):
         manager = AsyncDatabaseManager(

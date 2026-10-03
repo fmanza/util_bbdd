@@ -87,7 +87,7 @@ from util_bbdd import SyncDatabaseManager
 with SyncDatabaseManager(db_type="sqlite", conn_params={"database": ":memory:"}) as mgr:
     mgr.execute_custom_many("CREATE TABLE test (id INTEGER PRIMARY KEY, val TEXT)")
     tablas = mgr.get_tables()
-    print("Instalación correcta. Tablas:", [t["table_name"] for t in tablas])
+    print("Instalación correcta. Tablas:", [t.name for t in tablas])
     # → Instalación correcta. Tablas: ['test']
 ```
 

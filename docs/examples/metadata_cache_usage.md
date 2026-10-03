@@ -19,7 +19,7 @@ Aspectos críticos:
 - **Clave de tabla `(context, nombre)`**: identifica unívocamente una tabla en un contexto de BD. En SQLite es `("main", "tabla")`; en PostgreSQL `("public", "tabla")`; en Oracle `("HR", "tabla")`.
 - **Patrón get-or-cache**: el patrón recomendado es intentar `cache.get_*()` primero (retorna `None` en cache miss), y solo si es `None` consultar la BD y llamar `cache.set_*()`.
 - **Invalidación selectiva vs total**: `clear_by_table(context, tabla)` invalida solo una tabla; `clear_all()` invalida todo el caché. Usar la invalidación más acotada posible.
-- **Caché compartida**: si `db_cache` se pasa a varios `MetadataManager`, los resultados de uno son visibles al otro en el mismo proceso. Comportamiento intencional para pipelines multi-tabla.
+- **Caché compartida**: una misma instancia de `DatabaseMetadataCache` puede pasarse a varios componentes; lo que guarda uno lo ve el otro en el mismo proceso. Los `get_*` de los managers ya no la usan: leen el snapshot del schema, cacheado aparte ([lectura de metadatos](../api/metadata_manager.md)).
 
 ```python
 # Patrón get-or-cache
@@ -51,5 +51,5 @@ El ejemplo imprime estadísticas del caché (`get_cache_stats()`) para verificar
 ## 5. Referencias Relacionadas
 
 - **Documentación funcional**: [Extracción de Metadatos](../functional/metadata_extraction.md) — objetivo de negocio del sistema de caché
-- **Referencia técnica**: [Gestor de Metadatos](../api/metadata_manager.md) — API de `DatabaseMetadataCache` y `MetadataManager`
+- **Referencia técnica**: [Lectura de Metadatos](../api/metadata_manager.md) — `get_schema_metadata`, `get_*` tipados y `CatalogSource`
 - **Ejemplos relacionados**: [Conectar e Introspeccionar Base de Datos](example_connect_introspect.md) — uso del manager sin caché explícita

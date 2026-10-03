@@ -17,13 +17,13 @@ manager.execute_custom_many(
 
 # Listar tablas
 tablas = manager.get_tables()
-print("Tablas:", [t["table_name"] for t in tablas])
+print("Tablas:", [t.name for t in tablas])
 # → Tablas: ['usuarios']
 
 # Obtener columnas
 columnas = manager.get_columns("usuarios")
 for col in columnas:
-    print(f"  {col['column_name']}: {col['data_type']}")
+    print(f"  {col.name}: {col.data_type}")
 # → id: INTEGER
 # → nombre: TEXT
 # → email: TEXT
@@ -33,7 +33,7 @@ filas = manager.execute_custom_many(
     "SELECT * FROM usuarios WHERE id = :id",
     params={"id": 1},
 )
-print("Fila:", dict(filas[0]) if filas else "sin resultado")
-# → Fila: {'id': 1, 'nombre': 'Ana', 'email': 'ana@example.com'}
+print("Fila:", filas[0] if filas else "sin resultado")
+# → Fila: (1, 'Ana', 'ana@example.com')
 
 manager.close()

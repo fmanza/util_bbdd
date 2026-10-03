@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from ..metadata import DatabaseMetadataCache, RelationshipMetadataCache
+from ..metadata import DatabaseMetadataCache
 
 
 class CacheManager:
@@ -18,18 +18,15 @@ class CacheManager:
         self,
         *,
         db_cache: DatabaseMetadataCache,
-        relationship_cache: RelationshipMetadataCache,
         logger: logging.Logger,
     ):
         """Inicializa el manager de cachés.
 
         Args:
             db_cache: Caché de metadata de BD
-            relationship_cache: Caché de relaciones
             logger: Logger para auditoría de operaciones de caché
         """
         self.db_cache: DatabaseMetadataCache = db_cache
-        self.relationship_cache: RelationshipMetadataCache = relationship_cache
         self.logger: logging.Logger = logger
 
     def clear_all(self) -> None:
@@ -41,7 +38,6 @@ class CacheManager:
         self.logger.info("🧹 Iniciando limpieza completa de todas las cachés de metadatos")
         try:
             self.db_cache.clear_all()
-            self.relationship_cache.clear_all()
             self.logger.info("✅ Todas las cachés de metadatos limpiadas completamente")
         except Exception as error:
             self.logger.error(f"❌ Error limpiando cachés: {error}", exc_info=True)
@@ -60,7 +56,6 @@ class CacheManager:
         self.logger.debug(f"Limpiando caché de tabla: {table} ({context})")
         try:
             self.db_cache.clear_by_table(context, table)
-            self.relationship_cache.clear_by_table(table, context=context)
             self.logger.info(f"✅ Caché invalidada para tabla/vista {table} ({context})")
         except Exception as error:
             self.logger.error(f"❌ Error limpiando caché de tabla {table}: {error}", exc_info=True)

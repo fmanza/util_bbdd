@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from ..._core.types import Rows
-from ...metadata.cache import RelationshipMetadataCache
 from ...metadata.model import ALL_KINDS, Kind, SchemaSnapshot
 
 HeadersConfig = dict[str, Any]
@@ -85,8 +84,8 @@ class StorageInventoryPort(Protocol):
     def get_storage_inventory_report(self) -> dict[str, Any]: ...
 
 
-class DocumentationIntrospectionPort(Protocol):
-    """Lecturas de introspección de metadatos y DDL que consume la documentación."""
+class DocumentationCatalogPort(Protocol):
+    """Lectura del catálogo del origen: contexto, metadatos por lotes (ADR-003) y DDL de tabla."""
 
     def get_query_context_database(self) -> str: ...
 
@@ -94,13 +93,21 @@ class DocumentationIntrospectionPort(Protocol):
         self, schema: str | None = None, *, kinds: Collection[Kind] = ALL_KINDS
     ) -> SchemaSnapshot: ...
 
+    def get_ddl(self, table_name: str, /) -> str: ...
+
+
+class DocumentationIntrospectionPort(DocumentationCatalogPort, Protocol):
+    """Lecturas por objeto que consumen los renderers.
+
+    Las sirve ``DocumentationSession`` desde el snapshot del origen, en filas con el formato neutro de
+    ``catalog_rows`` (iguales en todos los motores); el origen solo aporta ``DocumentationCatalogPort``.
+    """
+
     def get_tables(self) -> Rows: ...
 
     def get_views(self) -> Rows: ...
 
     def get_routines(self) -> Rows: ...
-
-    def get_ddl(self, table_name: str, /) -> str: ...
 
     def get_view_ddl(self, view_name: str, /) -> str: ...
 
@@ -138,18 +145,28 @@ class DocumentationManagerPort(
     DocumentationIntrospectionPort,
     Protocol,
 ):
-    """Puerto compuesto interno del manager documental (uso en orquestación)."""
+    """Lo que ven los renderers como ``data_provider`` (lo cumple ``DocumentationSession``)."""
 
     imprimir_config: dict[str, Any]
 
-    @property
-    def relationship_cache(self) -> RelationshipMetadataCache: ...
+
+class DocumentationBackendPort(
+    OutputNamingContextPort,
+    MetadataReaderPort,
+    StorageInventoryPort,
+    DocumentationCatalogPort,
+    DocumentationQueryPort,
+    Protocol,
+):
+    """Origen de la documentación ya adaptado (``SyncDatabaseManagerAdapter``): lo que la sesión pide al manager."""
+
+    imprimir_config: dict[str, Any]
 
 
 class DocumentationSourcePort(
     OutputNamingContextPort,
     MetadataReaderPort,
-    DocumentationIntrospectionPort,
+    DocumentationCatalogPort,
     DocumentationQueryPort,
     Protocol,
 ):
@@ -157,9 +174,6 @@ class DocumentationSourcePort(
 
     La cumple estructuralmente ``SyncDatabaseManager``; ``doc/`` depende de este contrato y no del manager (Regla #6).
     """
-
-    @property
-    def relationship_cache(self) -> RelationshipMetadataCache: ...
 
 
 class DocumentationDataProviderPort(Protocol):

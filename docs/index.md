@@ -52,7 +52,7 @@ from util_bbdd import SyncDatabaseManager
 with SyncDatabaseManager(db_type="sqlite", conn_params={"database": ":memory:"}) as manager:
     manager.execute_custom_many("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
     tablas = manager.get_tables()
-    print("Tablas:", [t["table_name"] for t in tablas])
+    print("Tablas:", [t.name for t in tablas])
     # → Tablas: ['users']
 ```
 

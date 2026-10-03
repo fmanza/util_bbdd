@@ -10,6 +10,7 @@ from collections.abc import Callable
 from typing import Any
 
 from ...results import Rows
+from ..ddl import mysql_table_ddl
 from ._adapter_helpers import (
     build_columns_safe_sql,
     build_routine_ddl_from_detail,
@@ -19,14 +20,13 @@ from ._adapter_helpers import (
 )
 from ._manager_protocol import MariaDBSyncManagerProtocol
 from ._routine_models import MariaDBRoutineDetail, MariaDBRoutineParameterDetail
-from .common import normalize_mariadb_type
 from .routines import (
     build_public_mariadb_routine_parameter_entry_rows,
     decode_mariadb_routine_detail_entries,
     decode_mariadb_routine_parameter_detail_entries,
     filter_mariadb_routine_parameter_entries,
 )
-from .tables import build_mariadb_table_ddl, decode_mariadb_safe_column_rows
+from .tables import decode_mariadb_safe_column_rows
 
 
 class MariaDBSyncAdapter:
@@ -161,9 +161,7 @@ class MariaDBSyncAdapter:
         return routine_entries_to_rows(self.get_routine_details(context_database))
 
     def build_table_ddl_from_metadata(self, tabla: str) -> str:
-        rows: list[Any] = list(self.manager.get_columns(tabla))
-        pk_rows: list[Any] = list(self.manager.get_primary_keys(tabla))
-        return build_mariadb_table_ddl(tabla, rows, pk_rows)
+        return mysql_table_ddl(tabla, self.manager.get_columns(tabla), self.manager.get_primary_keys(tabla))
 
     def storage_inventory(self, context_database: str) -> dict[str, Any]:
         if not context_database:
@@ -176,77 +174,6 @@ class MariaDBSyncAdapter:
             "primary": primary_rows,
             "temp_tablespaces": temp_tablespaces_rows,
         }
-
-    # ==================== SourceAdapter Protocol ====================
-    # MEO-03 (AUDIT_CODE 2026-09-22): firma alineada con SourceAdapterSync (los otros 8 motores
-    # aceptan schema/table explícitos). El manager de MariaDB está ligado a una única database
-    # por instancia (sin parámetro de schema en get_tables()/get_columns()/...), así que aquí
-    # `schema` se acepta por conformidad de contrato pero se ignora: se usa siempre el contexto
-    # ya vinculado al manager, igual que ya documentaban los métodos de RoutineAdapter de abajo.
-
-    def fetch_tables_sync(self, schema: str | None = None) -> list[tuple]:
-        """Obtiene lista de tablas en modo síncrono (SourceAdapter).
-
-        Args:
-            schema: Ignorado; MariaDB usa la database ya vinculada al manager.
-
-        Returns:
-            list[tuple]: Filas (table_name, table_type, table_comment, ...)
-        """
-        return list(self.manager.get_tables())
-
-    def fetch_columns_sync(self, schema: str, table: str) -> list[tuple]:
-        """Obtiene columnas de una tabla en modo síncrono (SourceAdapter).
-
-        Normaliza el tipo nativo (``column_type``, p.ej. "varchar(255)") a un tipo
-        genérico (p.ej. "varchar"), igual que el resto de motores (MEO-07,
-        AUDIT_CODE 2026-09-22: antes exponía el tipo crudo sin normalizar).
-
-        Args:
-            schema: Ignorado; MariaDB usa la database ya vinculada al manager.
-            table: Nombre de la tabla.
-
-        Returns:
-            list[tuple]: Filas (column_name, generic_type, is_nullable, ...)
-        """
-        rows = self.manager.get_columns(table)
-        return [(row[0], normalize_mariadb_type(str(row[1])), *row[2:]) if len(row) > 1 else tuple(row) for row in rows]
-
-    def fetch_primary_keys_sync(self, schema: str, table: str) -> list[tuple]:
-        """Obtiene claves primarias en modo síncrono (SourceAdapter).
-
-        Args:
-            schema: Ignorado; MariaDB usa la database ya vinculada al manager.
-            table: Nombre de la tabla.
-
-        Returns:
-            list[tuple]: Filas (column_name, ordinal_position, ...)
-        """
-        return list(self.manager.get_primary_keys(table))
-
-    def fetch_foreign_keys_sync(self, schema: str, table: str) -> list[tuple]:
-        """Obtiene claves foráneas en modo síncrono (SourceAdapter).
-
-        Args:
-            schema: Ignorado; MariaDB usa la database ya vinculada al manager.
-            table: Nombre de la tabla.
-
-        Returns:
-            list[tuple]: Filas (constraint_name, column_name, ...)
-        """
-        return list(self.manager.get_foreign_keys(table))
-
-    def fetch_indexes_sync(self, schema: str, table: str) -> list[tuple]:
-        """Obtiene índices de una tabla en modo síncrono (SourceAdapter).
-
-        Args:
-            schema: Ignorado; MariaDB usa la database ya vinculada al manager.
-            table: Nombre de la tabla.
-
-        Returns:
-            list[tuple]: Filas (index_name, column_name, seq_in_index, ...)
-        """
-        return list(self.manager.get_indices(table))
 
     # ==================== RoutineAdapter Protocol ====================
 

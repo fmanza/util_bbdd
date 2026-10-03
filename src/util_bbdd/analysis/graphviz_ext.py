@@ -20,6 +20,7 @@ except ImportError:
     GRAPHVIZ_AVAILABLE = False
 
 from .._core.exceptions import DatabaseException
+from ..metadata.model import Kind
 from .base import (
     CardinalityEndMarker,
     ColumnVisualizationMode,
@@ -92,11 +93,8 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
         self.orthogonal_ranksep: float = orthogonal_ranksep
         self.render_dpi: int = render_dpi
 
-        # Cache para columnas de tablas (evitar múltiples consultas)
-        self._columns_cache: dict[str, list[tuple[str, str]]] = {}
-
-        # Usar cachés centralizadas desde SyncDatabaseManager para relaciones
-        # No necesitamos cachés locales para PKs, UKs ni cardinalidades
+        # Sin cachés locales: columnas, PK y UNIQUE salen del snapshot del manager, que ya está cacheado por schema
+        # (una caché por nombre de tabla mezclaría tablas homónimas de schemas distintos, MDC-02).
 
     def _normalize_column_mode(self, mode: ColumnVisualizationMode | str) -> ColumnVisualizationMode:
         """Normaliza el modo de visualización de columnas."""
@@ -109,241 +107,60 @@ class GraphvizRelationshipGraphExt(DatabaseRelationshipGraphBase):
             raise ValueError(f"Modo de columnas no soportado: {mode}") from exc
 
     def _get_table_columns_with_types(self, table_name: str) -> list[tuple[str, str]]:
-        """
-        Obtiene las columnas de una tabla con sus tipos de datos (cacheado)
-
-        Args:
-            table_name: Nombre de la tabla
-
-        Returns:
-            Lista de tuplas (nombre_columna, tipo_dato)
-        """
-        if table_name in self._columns_cache:
-            return self._columns_cache[table_name]
-
-        try:
-            columns = self.db_manager.get_columns(table_name)
-            self.logger.debug(f"Obtenidas {len(columns)} columnas para tabla {table_name}")
-            # Asumiendo que get_columns devuelve lista de tuplas (nombre, tipo, ...)
-            # Normalizamos a (nombre, tipo)
-            result = []
-            for col in columns:
-                if isinstance(col, (tuple, list)):
-                    col_name = str(col[0])
-                    col_type: str = str(col[1]) if len(col) > 1 else "VARCHAR"
-                    result.append((col_name, col_type))
-                else:
-                    result.append((str(col), "VARCHAR"))
-
-            self._columns_cache[table_name] = result
-            return result
-        except DatabaseException as e:
-            self.logger.warning(f"Error obteniendo columnas de {table_name}: {e}")
-            return []
+        """Columnas de la tabla con su tipo declarado ``(nombre, tipo)``, del schema leído por lotes."""
+        return [(c.name, c.data_type) for c in self._snapshot({Kind.COLUMNS}).columns(table_name)]
 
     def _get_primary_keys(self, table_name: str) -> list[str]:
-        """
-        Obtiene las claves primarias de una tabla (cacheado centralizado)
-
-        Args:
-            table_name: Nombre de la tabla
-
-        Returns:
-            Lista de nombres de columnas que son claves primarias
-        """
-        # Construir clave de tabla con contexto
-        context: str = self.db_manager.get_query_context_database()
-        table_key: tuple[str, str] = (context, table_name)
-
-        # Verificar caché centralizada primero
-        cached_result: list[str] | None = self.db_manager.relationship_cache.get_primary_keys_list(table_key)
-        if cached_result is not None:
-            self.logger.debug(f"♻️  PKs cacheadas: {table_name} = {len(cached_result)} columnas")
-            return cached_result
-
-        try:
-            pks = self.db_manager.get_primary_keys(table_name)
-            # Normalizar formato: si son tuplas, extraer nombre de columna
-            pk_list = []
-            for pk in pks:
-                if isinstance(pk, (tuple, list)):
-                    pk_list.append(str(pk[0]).lower())
-                else:
-                    pk_list.append(str(pk).lower())
-
-            # Guardar en caché centralizada
-            self.db_manager.relationship_cache.set_primary_keys_list(table_key, pk_list)
-            self.logger.debug(f"💾 PKs calculadas: {table_name} = {pk_list}")
-            return pk_list
-        except DatabaseException as e:
-            self.logger.warning(f"Error obteniendo claves primarias de {table_name}: {e}")
-            return []
+        """Columnas de la clave primaria de la tabla, en minúsculas."""
+        primary_key = self._snapshot({Kind.PRIMARY_KEYS}).primary_key(table_name)
+        return [column.lower() for column in primary_key.columns] if primary_key else []
 
     def _get_unique_columns(self, table_name: str) -> list[str]:
+        """Columnas con restricción ``UNIQUE`` de un solo campo, en minúsculas.
+
+        Antes se leía la primera posición de cada fila de ``get_unique_constraints`` (el nombre de la restricción en la
+        mayoría de motores), así que ninguna columna salía como única y no se detectaban relaciones 1:1.
         """
-        Obtiene las columnas con restricciones UNIQUE (cacheado centralizado)
-
-        Args:
-            table_name: Nombre de la tabla
-
-        Returns:
-            Lista de nombres de columnas con restricción única
-        """
-        # Construir clave de tabla con contexto
-        context: str = self.db_manager.get_query_context_database()
-        table_key: tuple[str, str] = (context, table_name)
-
-        # Verificar caché centralizada primero
-        cached_result: list[str] | None = self.db_manager.relationship_cache.get_unique_constraints_list(table_key)
-        if cached_result is not None:
-            self.logger.debug(f"♻️  UCs cacheadas: {table_name} = {len(cached_result)} columnas")
-            return cached_result
-
-        try:
-            ucs = self.db_manager.get_unique_constraints(table_name)
-            # Normalizar formato: si son tuplas, extraer nombre de columna
-            unique_list = []
-            for uc in ucs:
-                if isinstance(uc, (tuple, list)):
-                    unique_list.append(str(uc[0]).lower())
-                else:
-                    unique_list.append(str(uc).lower())
-
-            # Guardar en caché centralizada
-            self.db_manager.relationship_cache.set_unique_constraints_list(table_key, unique_list)
-            self.logger.debug(f"💾 UCs calculadas: {table_name} = {unique_list}")
-            return unique_list
-        except DatabaseException as e:
-            self.logger.warning(f"Error obteniendo restricciones únicas de {table_name}: {e}")
-            return []
+        uniques = self._snapshot({Kind.UNIQUES}).uniques(table_name)
+        return [u.columns[0].lower() for u in uniques if len(u.columns) == 1]
 
     def _is_primary_key(self, table_name: str, column_name: str) -> bool:
-        """Verifica si una columna es clave primaria (cacheado compartido)
-
-        Args:
-            table_name: Nombre de la tabla
-            column_name: Nombre de la columna
-
-        Returns:
-            True si es clave primaria
-        """
-        # Verificar caché centralizada primero
-        context: str = self.db_manager.get_query_context_database()
-        cached_result: bool | None = self.db_manager.relationship_cache.get_is_primary_key(
-            table_name, column_name, context=context
-        )
-        if cached_result is not None:
-            self.logger.debug(f"♻️  PK cacheado: {table_name}.{column_name} = {cached_result}")
-            return cached_result
-
-        pks: list[str] = self._get_primary_keys(table_name)
-        result: bool = column_name.lower() in pks
-        self.db_manager.relationship_cache.set_is_primary_key(table_name, column_name, result, context=context)
-        self.logger.debug(f"💾 PK calculado: {table_name}.{column_name} = {result}")
-        return result
+        """Si la columna es (parte de) la clave primaria."""
+        return column_name.lower() in self._get_primary_keys(table_name)
 
     def _is_unique_column(self, table_name: str, column_name: str) -> bool:
-        """Verifica si una columna tiene restricción UNIQUE (cacheado compartido)
-
-        Args:
-            table_name: Nombre de la tabla
-            column_name: Nombre de la columna
-
-        Returns:
-            True si tiene restricción única
-        """
-        # Verificar caché centralizada primero
-        context: str = self.db_manager.get_query_context_database()
-        cached_result: bool | None = self.db_manager.relationship_cache.get_is_unique_column(
-            table_name, column_name, context=context
-        )
-        if cached_result is not None:
-            self.logger.debug(f"♻️  UK cacheado: {table_name}.{column_name} = {cached_result}")
-            return cached_result
-
-        ucs: list[str] = self._get_unique_columns(table_name)
-        result: bool = column_name.lower() in ucs
-        self.db_manager.relationship_cache.set_is_unique_column(table_name, column_name, result, context=context)
-        self.logger.debug(f"💾 UK calculado: {table_name}.{column_name} = {result}")
-        return result
+        """Si la columna tiene una restricción ``UNIQUE`` propia."""
+        return column_name.lower() in self._get_unique_columns(table_name)
 
     def _determine_cardinality(self, source_col: str, target_col: str, source_table: str, target_table: str) -> str:
-        """Determina la cardinalidad de una relación usando caché compartida
+        """Determina la cardinalidad de una relación.
 
         Lógica de detección:
-        - Si target_col es PK y source_col NO es PK/UK: 1:N (uno a muchos)
-        - Si target_col es PK y source_col es UK: 1:1 (uno a uno)
-        - Si ambos son PK: M:N (muchos a muchos en tabla junction)
-        - En otros casos: N:1 (muchos a uno)
-
-        Args:
-            source_col: Columna de origen
-            target_col: Columna de destino
-            source_table: Tabla origen
-            target_table: Tabla destino
+        - Si ambos son PK: M:N (tabla de unión)
+        - Si target_col es PK y source_col es UNIQUE: 1:1
+        - Si target_col es PK: 1:N
+        - En otros casos: N:1
 
         Returns:
-            String con cardinalidad (ej: "1:N", "N:1", "1:1", "M:N")
+            String con cardinalidad (``"1:N"``, ``"N:1"``, ``"1:1"``, ``"M:N"``).
         """
-        # Verificar caché centralizada primero
-        context: str = self.db_manager.get_query_context_database()
-        cached_result: str | None = self.db_manager.relationship_cache.get_cardinality(
-            source_col, target_col, source_table, target_table, context=context
-        )
-        if cached_result is not None:
-            self.logger.debug(
-                f"♻️  Cardinalidad cacheada para {source_table}.{source_col} → {target_table}.{target_col}: {cached_result}"
-            )
-            return cached_result
-
         try:
             target_is_pk: bool = self._is_primary_key(target_table, target_col)
             source_is_pk: bool = self._is_primary_key(source_table, source_col)
             source_is_uk: bool = self._is_unique_column(source_table, source_col)
-
-            self.logger.debug(
-                f"🔍 Analizando cardinalidad: {source_table}.{source_col} → {target_table}.{target_col} "
-                f"| source_PK={source_is_pk}, source_UK={source_is_uk}, target_PK={target_is_pk}"
-            )
-
-            # Caso 1: M:N (tabla many-to-many - ambos son PK)
-            if source_is_pk and target_is_pk:
-                result = "M:N"
-                self.logger.debug("📊 Detectada relación M:N (ambos son PK)")
-                self.db_manager.relationship_cache.set_cardinality(
-                    source_col, target_col, source_table, target_table, result, context=context
-                )
-                return result
-
-            # Caso 2: 1:1 (source tiene restricción única)
-            if target_is_pk and source_is_uk:
-                result = "1:1"
-                self.logger.debug("📊 Detectada relación 1:1 (target es PK y source es UK)")
-                self.db_manager.relationship_cache.set_cardinality(
-                    source_col, target_col, source_table, target_table, result, context=context
-                )
-                return result
-
-            # Caso 3: 1:N (target es PK, source es FK)
-            if target_is_pk:
-                result = "1:N"
-                self.logger.debug("📊 Detectada relación 1:N (target es PK)")
-                self.db_manager.relationship_cache.set_cardinality(
-                    source_col, target_col, source_table, target_table, result, context=context
-                )
-                return result
-
-            # Caso 4: N:1 (source es PK, target es FK) - por defecto
-            result = "N:1"
-            self.logger.debug("📊 Detectada relación N:1 (por defecto)")
-            self.db_manager.relationship_cache.set_cardinality(
-                source_col, target_col, source_table, target_table, result
-            )
-            return result
-
         except DatabaseException as e:
             self.logger.warning(f"⚠️ Error determinando cardinalidad: {e}, usando 1:N por defecto")
             return "1:N"
+        if source_is_pk and target_is_pk:
+            result = "M:N"
+        elif target_is_pk and source_is_uk:
+            result = "1:1"
+        elif target_is_pk:
+            result = "1:N"
+        else:
+            result = "N:1"
+        self.logger.debug(f"📊 Cardinalidad {source_table}.{source_col} → {target_table}.{target_col}: {result}")
+        return result
 
     def _build_cardinality_markers(self, cardinality: str) -> CardinalityEndMarker:
         """Convierte la cardinalidad textual a marcadores por extremo."""

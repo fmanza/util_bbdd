@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Any
 
 from .._core.exceptions import DatabaseException
-from ..metadata.catalog_registry import CatalogDialectNotFoundError
 from ..metadata.model import ForeignKeyMeta, Kind, SchemaSnapshot
 from .contracts import RelationshipGraphSource
 
@@ -360,15 +359,16 @@ class DatabaseRelationshipGraphBase:
         if cached is not None:
             return cached
 
-        foreign_keys: list[tuple] = list(self.db_manager.get_foreign_keys(table_name))
-        if any(self._extract_target_table(fk) == table_name for fk in foreign_keys):
+        snapshot = self._snapshot({Kind.COLUMNS, Kind.PRIMARY_KEYS, Kind.FOREIGN_KEYS})
+        foreign_keys = snapshot.foreign_keys(table_name)
+        if any(fk.ref_table.casefold() == table_name.casefold() for fk in foreign_keys):
             self._table_visual_type_cache_by_context[cache_key] = TableVisualType.HIERARCHY
             return TableVisualType.HIERARCHY
 
-        foreign_key_columns: set[str] = {self._extract_source_column(fk).lower() for fk in foreign_keys}
-        primary_key_columns: set[str] = set(self._get_primary_key_column_names(table_name))
-        column_names: list[str] = self._get_table_column_names(table_name)
-        business_columns_count: int = max(0, len(column_names) - len(foreign_key_columns))
+        foreign_key_columns: set[str] = {column.lower() for fk in foreign_keys for column in fk.columns}
+        primary_key = snapshot.primary_key(table_name)
+        primary_key_columns: set[str] = {column.lower() for column in primary_key.columns} if primary_key else set()
+        business_columns_count: int = max(0, len(snapshot.columns(table_name)) - len(foreign_key_columns))
         has_composite_fk_primary_key: bool = bool(primary_key_columns) and primary_key_columns.issubset(
             foreign_key_columns
         )
@@ -379,36 +379,6 @@ class DatabaseRelationshipGraphBase:
 
         self._table_visual_type_cache_by_context[cache_key] = TableVisualType.ENTITY
         return TableVisualType.ENTITY
-
-    def _get_table_column_names(self, table_name: str) -> list[str]:
-        """Obtiene nombres de columnas normalizados para heurísticas visuales."""
-        try:
-            columns: list[Any] = list(self.db_manager.get_columns(table_name))
-        except (DatabaseException, AttributeError):
-            return []
-
-        result: list[str] = []
-        for column in columns:
-            if isinstance(column, (tuple, list)) and column:
-                result.append(str(column[0]).strip().lower())
-                continue
-            result.append(str(column).strip().lower())
-        return [name for name in result if name]
-
-    def _get_primary_key_column_names(self, table_name: str) -> list[str]:
-        """Obtiene nombres de PK normalizados para heurísticas visuales."""
-        try:
-            primary_keys: list[Any] = list(self.db_manager.get_primary_keys(table_name))
-        except (DatabaseException, AttributeError):
-            return []
-
-        result: list[str] = []
-        for primary_key in primary_keys:
-            if isinstance(primary_key, (tuple, list)) and primary_key:
-                result.append(str(primary_key[0]).strip().lower())
-                continue
-            result.append(str(primary_key).strip().lower())
-        return [name for name in result if name]
 
     def _compute_total_levels(self, table_name: str, direction: LevelDirection) -> int:
         """Calcula los niveles totales alcanzables en una dirección."""
@@ -474,14 +444,8 @@ class DatabaseRelationshipGraphBase:
         return self._find_child_relations(table_name) + self._find_parent_relations(table_name)
 
     def _find_child_relations(self, table_name: str) -> list[TableRelation]:
-        """Obtiene relaciones salientes de una tabla."""
-        snapshot = self._relations_snapshot()
-        if snapshot is not None:
-            # ADR-003 (C2): mismo snapshot (cacheado en el manager) que el índice de relaciones entrantes
-            return self._relations_from_fks(snapshot.foreign_keys(table_name))
-        foreign_keys = self.db_manager.get_foreign_keys(table_name)
-        self.logger.debug("Encontradas %s claves foráneas salientes en %s", len(foreign_keys), table_name)
-        return [self._build_relation_from_fk(table_name, fk) for fk in foreign_keys]
+        """Obtiene relaciones salientes de una tabla (FK del schema leídas por lotes, ADR-003)."""
+        return self._relations_from_fks(self._snapshot({Kind.FOREIGN_KEYS}).foreign_keys(table_name))
 
     def _find_parent_relations(self, table_name: str) -> list[TableRelation]:
         """
@@ -496,27 +460,6 @@ class DatabaseRelationshipGraphBase:
             self._parent_relations_index_by_context[context] = index
 
         return list(index.get(table_name, []))
-
-    def _build_relation_from_fk(self, current_table: str, fk: tuple) -> TableRelation:
-        """Normaliza una FK en el modelo TableRelation."""
-        if self.db_manager.db_type in {"mariadb", "mysql"}:
-            return TableRelation(
-                source_table=current_table,
-                target_table=fk[3],
-                constraint_name=fk[0],
-                source_column=fk[2],
-                target_column=fk[4],
-                relation_type="FK",
-            )
-
-        return TableRelation(
-            source_table=current_table,
-            target_table=fk[2],
-            constraint_name=fk[0],
-            source_column=fk[1],
-            target_column=fk[3],
-            relation_type="FK",
-        )
 
     def _get_relationship_context(self) -> str:
         """Obtiene una clave de contexto estable para cachear relaciones entrantes."""
@@ -533,16 +476,10 @@ class DatabaseRelationshipGraphBase:
 
         return f"{self.db_manager.db_type}:default"
 
-    def _relations_snapshot(self) -> SchemaSnapshot | None:
-        """Las FK del schema por lotes si la fuente ofrece ``get_schema_metadata()``; ``None`` si no."""
-        get_schema_metadata = getattr(self.db_manager, "get_schema_metadata", None)
-        if not callable(get_schema_metadata):
-            return None
-        try:
-            snapshot = get_schema_metadata(kinds={Kind.FOREIGN_KEYS})
-        except (AttributeError, NotImplementedError, CatalogDialectNotFoundError):
-            return None  # fuente sin lectura por lotes (motor sin CatalogDialect, adaptador sin manager real)
-        return snapshot if isinstance(snapshot, SchemaSnapshot) else None
+    def _snapshot(self, kinds: set[Kind]) -> SchemaSnapshot:
+        """Metadatos del schema por lotes (una consulta por tipo; la fuente los cachea, ADR-003)."""
+        snapshot: SchemaSnapshot = self.db_manager.get_schema_metadata(kinds=frozenset(kinds))
+        return snapshot
 
     @staticmethod
     def _relations_from_fks(foreign_keys: Iterable[ForeignKeyMeta]) -> list[TableRelation]:
@@ -564,39 +501,14 @@ class DatabaseRelationshipGraphBase:
         """Construye un índice target_table -> relaciones entrantes para el contexto actual."""
         self.logger.info(f"🧭 Construyendo índice de relaciones entrantes para contexto: {context}")
         parent_relations_by_target: dict[str, list[TableRelation]] = {}
-
-        snapshot = self._relations_snapshot()
-        if snapshot is not None:
-            # ADR-003 (C2): las FK de todo el schema en una consulta, no una por tabla
-            for relation in self._relations_from_fks(snapshot.data[Kind.FOREIGN_KEYS]):
-                parent_relations_by_target.setdefault(relation.target_table, []).append(relation)
-        else:
-            all_tables = self.db_manager.get_tables()
-            for table_info in all_tables:
-                current_table = table_info[0]
-                foreign_keys = self.db_manager.get_foreign_keys(current_table)
-                for fk in foreign_keys:
-                    relation = self._build_relation_from_fk(current_table, fk)
-                    target_table: str = relation.target_table
-                    parent_relations_by_target.setdefault(target_table, []).append(relation)
-
+        # ADR-003: las FK de todo el schema en una consulta, no una por tabla
+        for relation in self._relations_from_fks(self._snapshot({Kind.FOREIGN_KEYS}).data[Kind.FOREIGN_KEYS]):
+            parent_relations_by_target.setdefault(relation.target_table, []).append(relation)
         self.logger.debug(
             f"🧭 Índice de relaciones entrantes construido para {context}: "
             f"{len(parent_relations_by_target)} tablas destino"
         )
         return parent_relations_by_target
-
-    def _extract_target_table(self, fk_data: tuple) -> str:
-        """Extrae el nombre de la tabla target de los datos de FK según el tipo de BD"""
-        if self.db_manager.db_type in {"mariadb", "mysql"}:
-            return str(fk_data[3])
-        return str(fk_data[2])
-
-    def _extract_source_column(self, fk_data: tuple) -> str:
-        """Extrae la columna local de la FK según el tipo de BD."""
-        if self.db_manager.db_type in {"mariadb", "mysql"}:
-            return str(fk_data[2])
-        return str(fk_data[1])
 
     def _build_relation_key(self, relation: TableRelation) -> tuple[str, str, str, str, str]:
         """Clave estable para deduplicar relaciones."""
@@ -702,8 +614,8 @@ class DatabaseRelationshipGraphBase:
         return resolved_output_dir
 
     def _get_all_table_names(self) -> list[str]:
-        """Obtiene la lista de nombres de tabla desde el manager."""
-        return [table[0] for table in self.db_manager.get_tables()]
+        """Obtiene la lista de nombres de tabla del schema."""
+        return [table.name for table in self._snapshot({Kind.TABLES}).tables()]
 
     def _select_tables_to_process(
         self,

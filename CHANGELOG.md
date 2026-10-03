@@ -65,6 +65,28 @@ cambios siguientes.
 
 ### Changed
 
+- **managers (ruptura de API)**: los `get_*` de metadatos de `SyncDatabaseManager` y `AsyncDatabaseManager`
+  devuelven los modelos neutros de `util_bbdd.metadata.model`, iguales en todos los motores, leídos del snapshot del
+  schema (`get_schema_metadata()`; una consulta por tipo de objeto, cacheada hasta `clear_cache()`) en lugar de tuplas
+  con forma distinta por motor leídas tabla a tabla (grupo E2 de ADR-003, decisión D9-2). `get_tables()` →
+  `list[TableMeta]`, `get_views()` → `list[ViewMeta]`, `get_routines()` → `list[RoutineMeta]`, `get_columns(t)` →
+  `list[ColumnMeta]`, `get_primary_keys(t)` → `PrimaryKeyMeta | None`, `get_foreign_keys(t)` →
+  `list[ForeignKeyMeta]`, `get_unique_constraints(t)` → `list[UniqueMeta]`, `get_indices(t)` → `list[IndexMeta]`,
+  `get_routine_parameters(r, tipo)` → `list[RoutineParameterMeta]`; nuevo `get_database_metadata()` →
+  `DatabaseMeta | None`. Los nombres se buscan sin distinguir mayúsculas. `get_view_ddl()` devuelve
+  `CREATE VIEW <vista> AS` + la definición que guarda el motor (como la documentación desde D1; en MySQL/MariaDB antes
+  `CREATE OR REPLACE VIEW` con comillas). `SyncMetadataProvider` / `AsyncMetadataProvider` declaran los mismos tipos.
+  **Migración**: `row[0]` → `table.name` / `column.name`; `get_primary_keys(t)` → `pk.columns if pk else ()`;
+  FK: `fk.columns`, `fk.ref_table`, `fk.ref_columns`. Tabla completa en `docs/api/metadata_manager.md` § 5.
+- **doc**: el adaptador del manager (`SyncDatabaseManagerAdapter`) solo delega el catálogo (`get_schema_metadata`,
+  `get_ddl`), la metadata opcional y las consultas del inventario; las lecturas por objeto las sirve
+  `DocumentationSession` desde el snapshot. Puertos: `DocumentationCatalogPort` (origen), `DocumentationBackendPort`
+  (lo que la sesión pide al adaptador) y `DocumentationManagerPort` (lo que ven los renderers).
+- **analysis**: `RelationshipGraphSource` se reduce a `db_type`, `get_query_context_database()` y
+  `get_schema_metadata()`; columnas, PK y UNIQUE de los grafos salen del snapshot (sin cachés propias por tabla).
+- **metadata**: `ColumnMeta.on_update` (expresión `ON UPDATE` de MySQL/MariaDB). El `CREATE TABLE` de MySQL/MariaDB
+  de `get_ddl()` se construye desde los modelos (`metadata.ddl.mysql_table_ddl`) y conserva `ON UPDATE`; deja de
+  escribir `DEFAULT NULL` en las columnas nulables sin default (equivalente).
 - **bulk (ruptura de import)**: `UpdateAutoIncrement` pasa de `util_bbdd.connection.mariadb` a `util_bbdd.bulk`
   (`from util_bbdd.bulk import UpdateAutoIncrement`; grupo E1 de ADR-003) y lee tablas y columnas `AUTO_INCREMENT` del
   catálogo de `metadata/` con una consulta por tipo de objeto en lugar de una por tabla. Misma salida.
@@ -140,6 +162,15 @@ cambios siguientes.
   vista. `MigrationPlanner.plan()` con 500 tablas y 50 vistas: ≈ 6 s → ≈ 1 s (PostgreSQL, SQL Server y MySQL como
   origen); DDL idéntico (H-14).
 
+### Removed
+
+- **managers (ruptura de API)**: `get_tables_normalized()` y `get_columns_normalized()` (los `get_*` ya son
+  homogéneos), `get_metadata_manager()`, `relationship_cache` y `get_relationship_cache()` (grupo E2 de ADR-003).
+- **metadata (ruptura de API)**: `MetadataManager` y `AsyncMetadataManager` (`metadata/manager.py`,
+  `metadata/async_manager.py`): usar `get_schema_metadata()` o los `get_*` del manager. `build_mariadb_table_ddl`
+  (sustituido por `metadata.ddl.mysql_table_ddl`, sobre modelos) y los `fetch_*` de `SourceAdapter` de
+  `MariaDBSyncAdapter`/`MariaDBAsyncAdapter`, que leían los `get_*` en tuplas y nadie consumía.
+
 ### Fixed
 
 - **metadata (MariaDB)**: las tablas con `SYSTEM VERSIONING` (`TABLE_TYPE = 'SYSTEM VERSIONED'`) no aparecían en el
@@ -174,7 +205,13 @@ cambios siguientes.
   - PostgreSQL: cada sobrecarga de una función lleva su comentario (antes ninguna, por no poder distinguirlas).
 - **analysis**: en PostgreSQL y SQL Server, las FK compuestas generaban aristas cruzadas entre columnas (`a→b`, `b→a`)
   porque `get_foreign_keys()` devuelve el producto cartesiano de sus columnas (H-20); ahora se emparejan por posición.
-  `get_foreign_keys()` conserva el defecto hasta la migración de los `get_*` a modelos tipados.
+- **managers**: `get_foreign_keys()` emparejaba mal las columnas de las FK compuestas en PostgreSQL y SQL Server
+  (producto cartesiano, H-20); al leer del snapshot (E2) cada `ForeignKeyMeta` las trae por posición.
+- **analysis**: el grafo de Graphviz no detectaba relaciones 1:1: leía como columna única la primera posición de cada
+  fila de `get_unique_constraints()`, que en casi todos los motores es el nombre de la restricción. Ahora usa las
+  restricciones `UNIQUE` de una sola columna del snapshot.
+- **managers (MySQL con pool)**: `get_schema_metadata()` fallaba con `MetadataError` («paramstyle del driver
+  'sqlalchemy'») porque la conexión del pool es un proxy de SQLAlchemy; se usa el estilo del driver que envuelve.
 - **managers**: en Oracle, con el usuario escrito en minúsculas (`user="scott"`), `get_tables()`, `get_views()`,
   `get_columns()`, `get_routines()` y el resto de lecturas de metadatos no devolvían nada: el contexto era el usuario tal
   cual y casi todas las consultas comparan `owner = '<usuario>'`, mientras Oracle guarda en mayúsculas los nombres sin

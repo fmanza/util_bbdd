@@ -405,7 +405,7 @@ Copiar DDL
 CREATE TABLE `zz_gold_child` (
 `id` int(11) NOT NULL,
 `parent_id` int(11) NOT NULL,
-`label` varchar(50) NULL DEFAULT NULL,
+`label` varchar(50) NULL,
 PRIMARY KEY (`id`)
 )
 Columnas
@@ -469,7 +469,7 @@ Copiar DDL
 CREATE TABLE `zz_gold_composite` (
 `a` int(11) NOT NULL,
 `b` int(11) NOT NULL,
-`note` varchar(30) NULL DEFAULT NULL,
+`note` varchar(30) NULL,
 PRIMARY KEY (`a`, `b`)
 )
 Columnas
@@ -517,7 +517,7 @@ DDL
 Copiar DDL
 CREATE TABLE `zz_gold_identity` (
 `id` int(11) NOT NULL auto_increment,
-`val` varchar(10) NULL DEFAULT NULL,
+`val` varchar(10) NULL,
 PRIMARY KEY (`id`)
 )
 Columnas
@@ -560,9 +560,9 @@ Copiar DDL
 CREATE TABLE `zz_gold_parent` (
 `id` int(11) NOT NULL,
 `code` varchar(20) NOT NULL,
-`name` varchar(100) NULL DEFAULT NULL,
-`amount` decimal(12,2) NULL DEFAULT NULL,
-`created` date NULL DEFAULT NULL,
+`name` varchar(100) NULL,
+`amount` decimal(12,2) NULL,
+`created` date NULL,
 PRIMARY KEY (`id`)
 )
 Columnas
@@ -619,8 +619,8 @@ DDL
 Copiar DDL
 CREATE TABLE `zz_gold_ref_composite` (
 `id` int(11) NOT NULL,
-`a` int(11) NULL DEFAULT NULL,
-`b` int(11) NULL DEFAULT NULL,
+`a` int(11) NULL,
+`b` int(11) NULL,
 PRIMARY KEY (`id`)
 )
 Columnas

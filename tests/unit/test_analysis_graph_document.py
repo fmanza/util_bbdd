@@ -4,38 +4,26 @@ from __future__ import annotations
 
 from typing import cast
 
+from _catalog_fakes import FakeCatalogManager, FkRow, build_catalog
+
 from util_bbdd.analysis.base import DatabaseRelationshipGraphBase, LevelDirection, TableVisualType
 from util_bbdd.managers import SyncDatabaseManager
 
 
-class _FakeDbManager:
+class _FakeDbManager(FakeCatalogManager):
     def __init__(
         self,
         db_type: str,
         tables: list[str],
-        fk_by_table: dict[str, list[tuple]],
+        fk_by_table: dict[str, list[FkRow]],
         columns_by_table: dict[str, list[tuple[str, str]]] | None = None,
+        pk_by_table: dict[str, tuple[str, ...]] | None = None,
     ) -> None:
-        self.db_type = db_type
-        self._tables = tables
-        self._fk_by_table = fk_by_table
-        self._columns_by_table = columns_by_table or {}
-        self.database = "test_db"
-
-    def get_tables(self) -> list[tuple[str]]:
-        return [(table_name,) for table_name in self._tables]
-
-    def get_foreign_keys(self, table_name: str) -> list[tuple]:
-        return self._fk_by_table.get(table_name, [])
-
-    def get_columns(self, table_name: str) -> list[tuple[str, str]]:
-        return self._columns_by_table.get(table_name, [])
-
-    def get_query_context_database(self) -> str:
-        return self.database
-
-    def get_primary_keys(self, table_name: str) -> list[tuple[str, ...]]:
-        return [("id",)]
+        pks = dict.fromkeys(tables, ("id",)) | (pk_by_table or {})
+        catalog = build_catalog(
+            tables=tables, fk_by_table=fk_by_table, columns_by_table=columns_by_table, pk_by_table=pks
+        )
+        super().__init__(db_type, data=catalog)
 
 
 def test_build_graph_document_tracks_incoming_and_outgoing_levels() -> None:
@@ -196,10 +184,8 @@ def test_build_graph_document_classifies_association_with_composite_pk_and_extra
                 ("assigned_by", "integer"),
             ],
         },
+        pk_by_table={"user_roles": ("user_id", "role_id")},
     )
-    manager.get_primary_keys = lambda table_name: (
-        [("user_id",), ("role_id",)] if table_name == "user_roles" else [("id",)]
-    )  # type: ignore[attr-defined]
     graph = DatabaseRelationshipGraphBase(cast(SyncDatabaseManager, manager))
 
     document = graph.build_graph_document("user_roles", max_depth=1, direction=LevelDirection.BOTH)

@@ -8,7 +8,6 @@ Consolidación de:
 
 # Imports desde cache
 # Imports desde builder
-from .async_manager import AsyncMetadataManager
 from .builder import DDLBuilder
 from .cache import (
     DatabaseMetadataCache,
@@ -41,7 +40,6 @@ from .contracts import (
 from .fetcher import MetadataFetcher
 
 # Imports desde manager
-from .manager import MetadataManager
 from .model import (
     ALL_KINDS,
     CheckMeta,
@@ -93,8 +91,6 @@ __all__: list[str] = [
     # Fetcher
     "MetadataFetcher",
     # Manager
-    "MetadataManager",
-    "AsyncMetadataManager",
     # Lectura por lotes (ADR-003)
     "ALL_KINDS",
     "AsyncCatalogExecutor",

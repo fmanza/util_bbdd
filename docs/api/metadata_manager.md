@@ -1,104 +1,91 @@
-# Gestor de Metadatos (MetadataManager)
+# Lectura de metadatos
 
-`MetadataManager` orquesta el acceso a metadatos de base de datos coordinando fetcher, caché, DDL builder y normalizadores, evitando que los managers gestionen directamente la caché y la normalización.
+Toda la lectura de metadatos de la librería sale de `metadata/` (ADR-003): cada tipo de objeto (tablas, columnas,
+claves, índices, routines…) se lee **con una consulta para todo el schema** y se devuelve en un `SchemaSnapshot`
+inmutable de modelos neutros, iguales en todos los motores. Los managers lo exponen con `get_schema_metadata()` y, para
+consultas puntuales, con `get_*` que devuelven esos mismos modelos.
 
 ## 1. Arquitectura y Diseño
 
 ```mermaid
 flowchart TD
-    A[MetadataManager] --> B{¿use_cache?}
-    B -->|True| C[DatabaseMetadataCache]
-    C -->|Hit| D[Retornar cacheado]
-    C -->|Miss| E[MetadataFetcher]
-    B -->|False| E
-    E --> F[SyncMetadataProvider]
+    A["SyncDatabaseManager / AsyncDatabaseManager"] -->|"get_* (tabla)"| B["get_schema_metadata(kinds)"]
+    B --> C{"¿En SnapshotCache?"}
+    C -->|Sí| D[SchemaSnapshot cacheado]
+    C -->|No| E["CatalogSource: una consulta por Kind"]
+    E --> F["CatalogDialect del motor"]
     F --> G[Base de datos]
-    G --> F
-    F --> E
     E --> C
-    C --> H[Retornar resultado]
-    D --> H
-    A --> I[DDLBuilder]
-    I --> J[DDL construido por motor]
+    D --> H["Modelos neutros: TableMeta, ColumnMeta, ForeignKeyMeta…"]
 ```
 
 ## 2. Modelo de Datos / Contratos
 
-### API pública
+### `get_*` de los managers
 
-#### Clase `MetadataManager`
+Leen el snapshot del schema del contexto (el mismo para todas las tablas) y buscan el objeto sin distinguir mayúsculas.
+La primera llamada de cada tipo cuesta una consulta; el resto sale de la caché del manager hasta `clear_cache()`. En
+`AsyncDatabaseManager` son corrutinas con la misma firma.
 
-| Método | Firma simplificada | Descripción | Retorna |
-|---|---|---|---|
-| `MetadataManager` | `(metadata_provider, db_cache?, relationship_cache?, db_type?)` | Inicializa con proveedor de metadatos | `MetadataManager` |
-| `get_tables` | `(use_cache?)` | Lista de tablas con caché opcional | `Rows` |
-| `get_columns` | `(table_name, use_cache?)` | Columnas de una tabla | `Rows` |
-| `get_primary_keys` | `(table_name, use_cache?)` | Claves primarias | `Rows` |
-| `get_foreign_keys` | `(table_name, use_cache?)` | Claves foráneas | `Rows` |
-| `get_indices` | `(table_name, use_cache?)` | Índices | `Rows` |
-| `get_tables_normalized` | `(use_cache?)` | Tablas en formato normalizado | `list[NormalizedTableRow]` |
-| `get_columns_normalized` | `(table_name, use_cache?)` | Columnas en formato normalizado | `list[NormalizedColumnRow]` |
-| `get_ddl` | `(table_name)` | DDL de una tabla | `str` |
-| `get_view_ddl` | `(view_name)` | DDL de una vista | `str` |
+| Método | Retorna |
+|---|---|
+| `get_tables()` | `list[TableMeta]` (nombre, comentario y, en MySQL/MariaDB, collation) |
+| `get_views()` | `list[ViewMeta]` (nombre y definición) |
+| `get_routines()` | `list[RoutineMeta]` (en Oracle, también packages y sus miembros `PKG.MIEMBRO`) |
+| `get_columns(tabla)` | `list[ColumnMeta]` en orden |
+| `get_primary_keys(tabla)` | `PrimaryKeyMeta \| None` |
+| `get_foreign_keys(tabla)` | `list[ForeignKeyMeta]` (columnas emparejadas por posición) |
+| `get_unique_constraints(tabla)` | `list[UniqueMeta]` |
+| `get_indices(tabla)` | `list[IndexMeta]` (incluido el de la PK, con `primary=True`) |
+| `get_view_ddl(vista)` | `str`: `CREATE VIEW … AS` + definición (`""` si no existe o no es legible) |
+| `get_routine_ddl(rutina, tipo)` | `str`: definición completa (con sobrecargas, la primera) |
+| `get_routine_parameters(rutina, tipo)` | `list[RoutineParameterMeta]` (de todas las sobrecargas) |
+| `get_database_metadata()` | `DatabaseMeta \| None` (versión, charset, collation) |
+| `get_database_version()` | `str` (`"Unknown"` si no se puede leer) |
+| `get_database_charset_collation()` | `dict` con `charset`/`collation` cuando el motor los da |
+| `get_schema_metadata(schema=None, *, kinds=ALL_KINDS, tables=None)` | `SchemaSnapshot` |
 
-#### Clase `DatabaseMetadataCache`
+```python
+from util_bbdd import SyncDatabaseManager
 
-| Método | Firma simplificada | Descripción | Retorna |
-|---|---|---|---|
-| `get_columns` | `(table_key)` | Columnas cacheadas | `list \| None` |
-| `set_columns` | `(table_key, columns)` | Guarda columnas en caché | `None` |
-| `get_primary_keys` | `(table_key)` | PKs cacheadas | `list \| None` |
-| `set_primary_keys` | `(table_key, pks)` | Guarda PKs | `None` |
-| `get_foreign_keys` | `(table_key)` | FKs cacheadas | `list \| None` |
-| `set_foreign_keys` | `(table_key, fks)` | Guarda FKs | `None` |
+with SyncDatabaseManager("postgresql", conn_params) as manager:
+    for table in manager.get_tables():
+        columns = manager.get_columns(table.name)  # sin consulta nueva: mismo snapshot
+        pk = manager.get_primary_keys(table.name)
+        print(table.name, [c.name for c in columns], pk.columns if pk else ())
+```
 
-### Contrato de entrada
-
-| Parámetro | Tipo | Descripción | Restricciones |
-|---|---|---|---|
-| `metadata_provider` | `SyncMetadataProvider` | Objeto que implementa `get_tables()`, `get_columns()`, etc. | Normalmente una instancia de `SyncDatabaseManager` |
-| `db_cache` | `DatabaseMetadataCache \| None` | Caché a reutilizar entre managers | `None` crea caché vacía nueva |
-| `db_type` | `str` | Tipo de motor | Default `"mariadb"`; afecta la construcción DDL |
-| `table_key` | `tuple[str, str]` | Clave de tabla para la caché | `(context, nombre_tabla)` |
-| `use_cache` | `bool` | Usar caché en la consulta | Default `True` |
-
-### Contrato de salida
-
-- **`Rows`** — `list[tuple[Any, ...]]`; estructura dependiente del motor.
-- **`NormalizedTableRow`** / **`NormalizedColumnRow`** — dataclasses con campos homogéneos entre motores.
-- Métodos `get_*` de `DatabaseMetadataCache` retornan `None` en cache miss (no lanzan excepción).
+Los modelos están en `util_bbdd.metadata.model` (dataclasses inmutables). Los campos de `ColumnMeta`: `name`,
+`ordinal`, `data_type` (tipo completo, `varchar(50)`), `base_type`, `nullable`, `length`, `precision`, `scale`,
+`default` (expresión SQL, literales entre comillas en todos los motores), `comment`, `collation`, `identity`,
+`generated` y `on_update` (MySQL/MariaDB).
 
 ### Errores y casos especiales
 
-| Error | Cuándo ocurre |
+| Caso | Comportamiento |
 |---|---|
-| Propagado desde `metadata_provider` | Si el proveedor lanza error en BD (conexión caída, permisos) |
-
-Si `db_cache` se comparte entre varios `MetadataManager`, los resultados de uno son visibles al otro en el mismo proceso.
+| Tabla, vista o routine inexistente | Lista vacía, `None` o `""` según el método (no lanza) |
+| Fallo de conexión o de permisos al leer el catálogo | `MetadataError` (o el error del driver) desde `get_schema_metadata` |
+| Snapshot sin un `Kind` pedido | `KindNotLoadedError` (solo si se usa `SchemaSnapshot` a mano con `kinds=` parciales) |
 
 ## 3. Componentes y Clases
 
 | Clase | Responsabilidad |
 |---|---|
-| `MetadataManager` | Coordinación entre fetcher, caché, DDL builder y normalizadores |
-| `DatabaseMetadataCache` | 12 cachés independientes para metadatos puros |
-| `RelationshipMetadataCache` | 4 cachés adicionales para análisis derivados de relaciones |
+| `CatalogSource` / `AsyncCatalogSource` | Leen el catálogo por tipo de objeto y cachean el snapshot |
+| `CatalogDialect` (por motor) | SQL de catálogo y parseo a modelos neutros |
+| `SnapshotCache` | Caché LRU de snapshots por schema |
+| `SchemaSnapshot` | Vista inmutable del schema, con búsqueda por tabla |
+| `metadata.ddl` | Texto DDL desde los modelos (`view_ddl`, `routine_ddl`, `mysql_table_ddl`) |
 
-## 4. Dependencias y Requisitos
+## 4. Lectura por lotes fuera de un manager: `CatalogSource`
 
-| Dependencia | Propósito | Requerida | Comportamiento sin ella |
-|---|---|---|---|
-| `SyncMetadataProvider` (protocolo interno) | Proveedor de metadatos desde BD | Sí | Sin proveedor no hay datos que cachear |
-| `DDLBuilder` (interno) | Construcción del DDL por motor | Sí | `get_ddl()` no funciona |
-
-## 5. Lectura por lotes: `CatalogSource` (ADR-003)
-
-`MetadataManager` y los `get_*` de los managers leen el catálogo **tabla a tabla**. `CatalogSource` lee cada tipo de
+`CatalogSource` lee cada tipo de
 objeto (`Kind`: tablas, vistas, columnas, PK, UK, CHECK, FK, índices, identidad, routines, parámetros, base de datos)
 con **una consulta por schema**, guarda el resultado en una `SnapshotCache` y devuelve un `SchemaSnapshot` inmutable.
 Los managers lo exponen con `get_schema_metadata()` (y `metadata_source`), sobre sus propias conexiones y con su
-caché, que `clear_cache()` invalida. Es el camino que irán usando `doc`, `analysis`, `migrate`, `dump`, `bulk` y
-`comparar` (centralización de metadatos en curso); de momento lo implementan PostgreSQL (`metadata.postgresql.catalog`, solo `pg_catalog`) y Oracle 12c+ (`metadata.oracle.catalog`, `ALL_*` por owner con bind variables) SQL Server 2012+ (`metadata.sqlserver.catalog`, `sys.*`) y MariaDB 10.2+ / MySQL 8.0.16+ (`metadata.mariadb.catalog`, `information_schema` sin joins entre vistas: FK y routines con dos consultas) y SQLite 3.16+ (`metadata.sqlite.catalog`, PRAGMA como funciones tabla; solo el schema `main`, sin CHECK ni nombres de constraint, que los PRAGMA no exponen) y HSQLDB 2.x (`metadata.hsqldb.catalog`, por JDBC con `DbapiCatalogExecutor`; sin dialecto de SQLAlchemy). En Oracle, los nombres sin comillas en minúsculas se buscan en mayúsculas (`snapshot("scott")` lee `SCOTT`).
+caché, que `clear_cache()` invalida; lo usan `doc`, `analysis`, `migrate`, `dump`, `bulk` y `comparar`. Lo
+implementan PostgreSQL (`metadata.postgresql.catalog`, solo `pg_catalog`) y Oracle 12c+ (`metadata.oracle.catalog`, `ALL_*` por owner con bind variables) SQL Server 2012+ (`metadata.sqlserver.catalog`, `sys.*`) y MariaDB 10.2+ / MySQL 8.0.16+ (`metadata.mariadb.catalog`, `information_schema` sin joins entre vistas: FK y routines con dos consultas) y SQLite 3.16+ (`metadata.sqlite.catalog`, PRAGMA como funciones tabla; solo el schema `main`, sin CHECK ni nombres de constraint, que los PRAGMA no exponen) y HSQLDB 2.x (`metadata.hsqldb.catalog`, por JDBC con `DbapiCatalogExecutor`; sin dialecto de SQLAlchemy). En Oracle, los nombres sin comillas en minúsculas se buscan en mayúsculas (`snapshot("scott")` lee `SCOTT`).
 
 ```python
 from sqlalchemy import create_engine
@@ -128,8 +115,20 @@ incluidas.
 
 Referencia medida (banco del proyecto): el snapshot completo cuesta 12 consultas con 50, 500 o 5000 tablas; con 5000
 tablas, 1,2 s y 26 MB en PostgreSQL 17, 2,2 s en Oracle 23 Free y 2,8 s en SQL Server 2022 (MySQL 8.4 y MariaDB
-11.4: 15 y 14 consultas, 2,4 y 2,6 s). Recorrer 500 tablas tabla a tabla con los managers
-cuesta 2503 consultas: 70 s en PostgreSQL, 121 s en SQL Server y 365 s en Oracle.
+11.4: 15 y 14 consultas, 2,4 y 2,6 s). Antes de E2, recorrer 500 tablas con los `get_*` de
+los managers costaba 2503 consultas: 70 s en PostgreSQL, 121 s en SQL Server y 365 s en Oracle.
+
+## 5. Migración desde la API anterior (E2 de ADR-003)
+
+| Antes | Ahora |
+|---|---|
+| `get_tables()` → tuplas por motor (`row[0]`) | `list[TableMeta]` (`table.name`) |
+| `get_columns(t)` → tuplas con forma distinta por motor | `list[ColumnMeta]` (`c.name`, `c.data_type`, `c.nullable`…) |
+| `get_primary_keys(t)` → `[(columna,), …]` | `PrimaryKeyMeta \| None` (`pk.columns`) |
+| `get_foreign_keys(t)` → tuplas (en PostgreSQL y SQL Server, FK compuestas con columnas cruzadas, H-20) | `list[ForeignKeyMeta]` (`fk.columns`, `fk.ref_table`, `fk.ref_columns`) |
+| `get_tables_normalized()` / `get_columns_normalized(t)` | `get_tables()` / `get_columns(t)` (ya son homogéneos) |
+| `get_metadata_manager()`, `MetadataManager`, `AsyncMetadataManager` | `get_schema_metadata()` o los `get_*` del manager |
+| `manager.relationship_cache` / `get_relationship_cache()` | Sin sustituto: `analysis` lee del snapshot |
 
 ## 6. Ejemplos Relacionados
 

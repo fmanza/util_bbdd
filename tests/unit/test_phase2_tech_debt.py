@@ -64,10 +64,6 @@ class TestDatabaseManagerSharedMixin:
         result = DatabaseManagerSharedMixin._cache_context_key("my_db")
         assert result == "my_db"
 
-    def test_mixin_escape_sql_literal(self) -> None:
-        result = DatabaseManagerSharedMixin._escape_sql_literal("O'Brien")
-        assert "'" not in result or result == "O''Brien"
-
     def test_mixin_normalize_ddl_result_with_tuple(self) -> None:
         mixin = DatabaseManagerSharedMixin.__new__(DatabaseManagerSharedMixin)
         result = mixin._normalize_ddl_result(("CREATE TABLE t1;",))

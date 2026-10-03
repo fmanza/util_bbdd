@@ -9,6 +9,7 @@ from ._internal_ports import (
     StorageReportServicePort,
 )
 from .ports import (
+    DocumentationBackendPort,
     DocumentationDataProviderPort,
     DocumentationManagerPort,
     DocumentRendererPort,
@@ -17,6 +18,7 @@ from .ports import (
 
 __all__: list[str] = [
     "DocumentationDataProviderPort",
+    "DocumentationBackendPort",
     "DocumentationManagerPort",
     "DocumentRendererPort",
     "HeadersRuntimePort",

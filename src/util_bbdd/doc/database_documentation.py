@@ -10,7 +10,11 @@ from typing import Any, ClassVar
 
 # Importar módulos modulares
 from ..analysis.graphviz_ext import GraphvizRelationshipGraphExt
-from .application.ports import DocumentationManagerPort, DocumentationSourcePort, LoggerProtocol
+from .application.ports import (
+    DocumentationBackendPort,
+    DocumentationSourcePort,
+    LoggerProtocol,
+)
 from .application.use_cases.documentation_orchestrator import (
     DocumentationBootstrap,
     DocumentationFacade,
@@ -58,7 +62,7 @@ class DatabaseDocumentation:
     """
 
     logger: LoggerProtocol
-    db_manager: DocumentationManagerPort
+    db_manager: DocumentationBackendPort
     imprimir_config: dict[str, Any]
     formatos: list[str]
     directorio_salida: Path

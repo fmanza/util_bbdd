@@ -94,8 +94,8 @@ def _manager(db: Path) -> Any:
 
 def _manager_scan(db: Path) -> None:
     with _manager(db) as mgr:
-        for row in mgr.get_tables():
-            table = str(row[0])
+        for table_meta in mgr.get_tables():
+            table = table_meta.name
             mgr.get_columns(table)
             mgr.get_indices(table)
             mgr.get_primary_keys(table)
@@ -181,7 +181,7 @@ def _xfail(group: str) -> pytest.MarkDecorator:
 
 
 FLOWS: list[Any] = [
-    pytest.param(_manager_scan, id="manager_scan", marks=_xfail("C1")),
+    pytest.param(_manager_scan, id="manager_scan"),  # E2: get_* tipados sobre el snapshot
     pytest.param(_analysis, id="analysis"),  # C2: índice de relaciones desde el snapshot
     pytest.param(_doc, id="doc"),  # D1: catálogo por lotes (CatalogRows)
     # C4 + H-29: vistas, routines y reflexión de MySQL/MariaDB por lotes. Este test usa SQLite, que SQLAlchemy refleja

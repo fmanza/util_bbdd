@@ -186,7 +186,7 @@ print(f"Tablas: {len(tables)}")
 
 # Obtener columnas
 columns = manager.get_columns("users")
-print(f"Columnas: {columns}")
+print(f"Columnas: {[(c.name, c.data_type) for c in columns]}")
 
 # Ejecutar query
 users = manager.execute_custom_many("SELECT * FROM users LIMIT 5")
@@ -512,7 +512,8 @@ metadata/            # Lectura y cache de schema
   ├── normalizer.py  # Normaliza respuestas de metadata
   ├── builder.py     # DDLBuilder - construye queries DDL
   ├── fetcher.py     # MetadataFetcher - obtiene schema
-  ├── manager.py     # MetadataManager - orquesta operaciones
+  ├── source.py      # CatalogSource: lectura por lotes → SchemaSnapshot (ADR-003)
+  ├── ddl.py         # Texto DDL desde los modelos (vistas, routines, tablas MySQL/MariaDB)
   ├── contracts.py   # Interfaces y tipos de metadata
   ├── adapters/      # Adaptadores base + helpers compartidos
   └── {mariadb,mysql,oracle,postgresql,redshift,snowflake,sqlite,sqlserver}/ # Introspección por motor

@@ -93,5 +93,5 @@ def test_sqlserver_routine_parameters(sqlserver_schema: tuple[str, dict[str, Any
     with SyncDatabaseManager("sqlserver", params, use_pool=False) as mgr:
         function_params = mgr.get_routine_parameters("f", "FUNCTION")
         procedure_params = mgr.get_routine_parameters("p", "PROCEDURE")
-    assert any(row[1] == "@x" for row in function_params)
-    assert [row[1] for row in procedure_params] == ["@x"]
+    assert any(p.name == "@x" for p in function_params)
+    assert [p.name for p in procedure_params] == ["@x"]

@@ -69,7 +69,6 @@ PENDING_CATALOG: frozenset[str] = frozenset(
 # Trinquete (2026-10-03): consumidores que importan metadata.<motor>. Solo puede bajar.
 PENDING_ENGINE_IMPORTS: frozenset[str] = frozenset(
     {
-        "managers/_manager_shared_mixin.py",
         "managers/_metadata_parser.py",
         "managers/async_mgr.py",  # importa metadata.mariadb/mysql para registrar sus adaptadores
         "managers/sync_mgr.py",  # ídem

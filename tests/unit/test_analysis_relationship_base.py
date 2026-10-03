@@ -3,6 +3,8 @@
 from pathlib import Path
 from typing import cast
 
+from _catalog_fakes import FakeCatalogManager, FkRow, build_catalog
+
 from util_bbdd.analysis.base import (
     DatabaseRelationshipGraphBase,
     GraphDocument,
@@ -16,21 +18,9 @@ from util_bbdd.analysis.base import (
 from util_bbdd.managers import SyncDatabaseManager
 
 
-class _FakeDbManager:
-    def __init__(self, db_type: str, tables: list[str], fk_by_table: dict[str, list[tuple]]) -> None:
-        self.db_type = db_type
-        self._tables = tables
-        self._fk_by_table = fk_by_table
-        self.database = "test_db"
-
-    def get_tables(self) -> list[tuple[str]]:
-        return [(table_name,) for table_name in self._tables]
-
-    def get_foreign_keys(self, table_name: str) -> list[tuple]:
-        return self._fk_by_table.get(table_name, [])
-
-    def get_query_context_database(self) -> str:
-        return self.database
+class _FakeDbManager(FakeCatalogManager):
+    def __init__(self, db_type: str, tables: list[str], fk_by_table: dict[str, list[FkRow]]) -> None:
+        super().__init__(db_type, data=build_catalog(tables=tables, fk_by_table=fk_by_table))
 
 
 def test_analyze_table_relations_includes_outgoing_and_incoming_non_mariadb() -> None:
@@ -83,35 +73,6 @@ def test_clear_cache_resets_graph_document_and_parent_index_and_visual_type_cach
     assert graph._graph_document_cache_by_context == {}
     assert graph._parent_relations_index_by_context == {}
     assert graph._table_visual_type_cache_by_context == {}
-
-
-def test_analyze_table_relations_mariadb_uses_expected_fk_indexes() -> None:
-    manager = _FakeDbManager(
-        db_type="mariadb",
-        tables=["orders", "order_items"],
-        fk_by_table={
-            "orders": [],
-            "order_items": [("fk_items_orders", "order_items", "order_id", "orders", "id")],
-        },
-    )
-    graph = DatabaseRelationshipGraphBase(cast(SyncDatabaseManager, manager))
-
-    relations = graph.analyze_table_relations("orders")
-
-    assert len(relations) == 1
-    relation = relations[0]
-    assert relation.source_table == "order_items"
-    assert relation.target_table == "orders"
-    assert relation.source_column == "order_id"
-    assert relation.target_column == "id"
-
-
-def test_extract_target_table_depends_on_database_type() -> None:
-    pg_graph = DatabaseRelationshipGraphBase(cast(SyncDatabaseManager, _FakeDbManager("postgresql", [], {})))
-    mariadb_graph = DatabaseRelationshipGraphBase(cast(SyncDatabaseManager, _FakeDbManager("mariadb", [], {})))
-
-    assert pg_graph._extract_target_table(("fk_any", "col", "users", "id")) == "users"
-    assert mariadb_graph._extract_target_table(("fk_any", "orders", "user_id", "users", "id")) == "users"
 
 
 def test_split_relations_for_visualization_keeps_order_and_balances_chunks() -> None:

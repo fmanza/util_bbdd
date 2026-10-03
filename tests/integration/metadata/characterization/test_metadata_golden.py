@@ -3,8 +3,8 @@
 Congelan, contra servidores reales, lo que hoy devuelven los caminos que la centralización de ``metadata/`` va a
 sustituir, para que cada grupo del plan demuestre que no cambia el resultado:
 
-- ``manager``: salida de los ``get_*`` de ``SyncDatabaseManager`` (tuplas tal cual). Se re-baselinea a propósito en C1,
-  cuando los ``get_*`` pasan a devolver modelos (D9-2).
+- ``manager``: salida de los ``get_*`` de ``SyncDatabaseManager``: modelos neutros del snapshot desde E2 (D9-2), cuando
+  se re-baselineó a propósito (antes, tuplas con forma distinta por motor).
 - ``ir``: IR de ``migrate`` (tablas, vistas y routines extraídas): neutro entre motores; debe quedar idéntico.
 - ``doc``: texto del HTML de ``DatabaseDocumentation`` (sin etiquetas ni fechas); no en Oracle, cuyo schema de
   pruebas no está aislado.
@@ -47,7 +47,9 @@ def _ours(name: Any) -> bool:
 
 
 def _plain(value: Any) -> Any:
-    """Valor serializable y estable (tuplas → listas, LOBs/Decimal/fechas → str)."""
+    """Valor serializable y estable (modelos → dicts, tuplas → listas, LOBs/Decimal/fechas → str)."""
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return {f.name: _plain(getattr(value, f.name)) for f in dataclasses.fields(value)}
     if isinstance(value, dict):
         return {str(k): _plain(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
@@ -65,14 +67,10 @@ def _call(fn: Callable[[], Any]) -> Any:
         return {"error": type(exc).__name__}
 
 
-def _first(row: Any) -> str:
-    return str(row[0] if isinstance(row, (list, tuple)) else next(iter(row.values())))
-
-
 def _manager_snapshot(mgr: SyncDatabaseManager) -> dict[str, Any]:
-    tables = sorted(_first(r) for r in mgr.get_tables() if _ours(_first(r)))
-    views = sorted(_first(r) for r in mgr.get_views() if _ours(_first(r)))
-    routines = sorted((_first(r), str(r[1]).upper()) for r in mgr.get_routines() if _ours(_first(r)))
+    tables = sorted(t.name for t in mgr.get_tables() if _ours(t.name))
+    views = sorted(v.name for v in mgr.get_views() if _ours(v.name))
+    routines = sorted({(r.name, r.routine_type) for r in mgr.get_routines() if _ours(r.name)})
     return {
         "tables": tables,
         "views": views,

@@ -26,7 +26,6 @@ from util_bbdd.managers._metadata_context import CacheKeyFactory, MetadataContex
 from util_bbdd.managers._metadata_parser import CharsetCollationParser, DDLNormalizer
 from util_bbdd.managers._metadata_request import MetadataRequestBuilder
 from util_bbdd.metadata import DatabaseMetadataCache
-from util_bbdd.metadata.cache import RelationshipMetadataCache
 
 
 def test_get_query_context_database_uses_schema_defaults() -> None:
@@ -68,7 +67,6 @@ def test_clear_context_cache_removes_only_matching_entries() -> None:
 
     CacheManager(
         db_cache=db_cache,
-        relationship_cache=RelationshipMetadataCache(),
         logger=MagicMock(),
     ).clear_context(context="public")
 
@@ -93,7 +91,6 @@ def test_clear_routine_cache_removes_only_matching_routine() -> None:
 
     CacheManager(
         db_cache=db_cache,
-        relationship_cache=RelationshipMetadataCache(),
         logger=MagicMock(),
     ).clear_routine(context="public", routine="proc_a", routine_type="procedure")
 

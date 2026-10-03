@@ -65,10 +65,8 @@ Lo que `analysis/` exige de `db_manager`; se importa de `util_bbdd.analysis`. `a
 | Miembro | Firma | Descripción |
 |---|---|---|
 | `db_type` | `str` (propiedad) | Motor de la conexión |
-| `relationship_cache` | `RelationshipMetadataCache` (propiedad) | Caché de relaciones y claves |
 | `get_query_context_database` | `() -> str` | Base de datos de contexto de las consultas |
-| `get_tables` | `() -> Rows` | Tablas del esquema |
-| `get_columns`, `get_primary_keys`, `get_foreign_keys`, `get_unique_constraints` | `(table_name, /) -> Rows` | Metadatos de una tabla |
+| `get_schema_metadata` | `(schema=None, *, kinds=ALL_KINDS) -> SchemaSnapshot` | Tablas, columnas, claves e índices del schema, por lotes (ADR-003); las relaciones, la cardinalidad y el tipo visual de cada tabla salen de aquí |
 
 ### Contrato de salida
 

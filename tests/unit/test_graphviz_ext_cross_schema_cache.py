@@ -1,44 +1,40 @@
-"""Tests de regresión: GraphvizRelationshipGraphExt no colisiona el caché de
-relaciones entre esquemas con tabla homónima [MDC-02].
+"""Tests de regresión: GraphvizRelationshipGraphExt no mezcla PK/UK/cardinalidad entre schemas con tabla
+homónima [MDC-02].
 
-Antes de este fix, RelationshipMetadataCache indexaba _is_pk_cache/_is_uk_cache/
-_cardinality_cache/_table_columns_typed_cache solo por nombre de tabla; dos
-esquemas ("sales"/"archive") con una tabla "orders" homónima compartían la misma
-entrada de caché, devolviendo resultados de PK/UK/cardinalidad del esquema
-incorrecto.
+Antes, la caché de relaciones se indexaba solo por nombre de tabla y dos schemas ("sales"/"archive") con una tabla
+"orders" homónima compartían entrada. Desde E2 de ADR-003 todo sale del snapshot del manager (cacheado por schema) y
+el generador no guarda cachés propias; estos tests fijan que no vuelva a aparecer la fuga.
 """
 
 from __future__ import annotations
 
 import logging
 
+from _catalog_fakes import FakeCatalogManager, build_catalog
+
 from util_bbdd.analysis.graphviz_ext import GraphvizRelationshipGraphExt
-from util_bbdd.metadata import RelationshipMetadataCache
 
 
-class _FakeDbManager:
-    """db_manager con PKs/UKs distintas por schema para la misma tabla 'orders'."""
+class _FakeDbManager(FakeCatalogManager):
+    """Manager con PK/UK distintas por schema para la misma tabla 'orders'."""
 
     def __init__(self) -> None:
-        self.relationship_cache = RelationshipMetadataCache()
-        self._context = "sales"
-        self._pks_by_context: dict[str, list] = {
-            "sales": [("id",)],
-            "archive": [],  # 'orders' en archive no tiene PK 'id' (p.ej. tabla histórica)
-        }
-        self._ucs_by_context: dict[str, list] = {
-            "sales": [("code",)],
-            "archive": [],
-        }
+        super().__init__(
+            data_by_context={
+                "sales": build_catalog(pk_by_table={"orders": ("id",)}, uniques_by_table={"orders": [("code",)]}),
+                # 'orders' en archive no tiene PK 'id' (p.ej. tabla histórica)
+                "archive": build_catalog(),
+            },
+            context="sales",
+        )
 
-    def get_query_context_database(self) -> str:
-        return self._context
+    @property
+    def _context(self) -> str:
+        return self.context
 
-    def get_primary_keys(self, table_name: str) -> list:
-        return self._pks_by_context[self._context]
-
-    def get_unique_constraints(self, table_name: str) -> list:
-        return self._ucs_by_context[self._context]
+    @_context.setter
+    def _context(self, value: str) -> None:
+        self.context = value
 
 
 def _build_graph(db_manager: _FakeDbManager) -> GraphvizRelationshipGraphExt:

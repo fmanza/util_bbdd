@@ -27,20 +27,16 @@ flowchart TD
 | Función/Clase | Firma simplificada | Descripción | Retorna |
 |---|---|---|---|
 | `SyncDatabaseManager` | `(db_type, conn_params, queries_file?, use_pool?)` | Crea el gestor y abre la conexión | `SyncDatabaseManager` |
-| `get_tables` | `()` | Lista de tablas | `Rows` |
-| `get_views` | `()` | Lista de vistas | `Rows` |
-| `get_routines` | `()` | Lista de rutinas | `Rows` |
-| `get_columns` | `(tabla)` | Columnas de una tabla | `Rows` |
-| `get_tables_normalized` | `()` | Tablas en formato normalizado homogéneo | `list[NormalizedTableRow]` |
-| `get_columns_normalized` | `(tabla)` | Columnas en formato normalizado | `list[NormalizedColumnRow]` |
+| `get_schema_metadata` | `(schema=None, *, kinds=ALL_KINDS, tables=None)` | Metadatos del schema con una consulta por tipo de objeto (tablas, columnas, claves, índices, routines…) ([lectura de metadatos](metadata_manager.md)) | `SchemaSnapshot` |
+| `get_tables` / `get_views` / `get_routines` | `()` | Objetos del schema, del snapshot | `list[TableMeta]` / `list[ViewMeta]` / `list[RoutineMeta]` |
+| `get_columns` | `(tabla)` | Columnas de una tabla o vista | `list[ColumnMeta]` |
+| `get_primary_keys` | `(tabla)` | Clave primaria | `PrimaryKeyMeta \| None` |
+| `get_foreign_keys` / `get_unique_constraints` / `get_indices` | `(tabla)` | Claves foráneas, UNIQUE e índices | `list[ForeignKeyMeta]` / `list[UniqueMeta]` / `list[IndexMeta]` |
 | `get_ddl` | `(tabla)` | DDL de una tabla | `str` |
-| `get_view_ddl` | `(vista)` | DDL de una vista | `str` |
-| `get_indices` | `(tabla)` | Índices de una tabla | `Rows` |
-| `get_primary_keys` | `(tabla)` | Claves primarias | `Rows` |
-| `get_foreign_keys` | `(tabla)` | Claves foráneas | `Rows` |
-| `get_schema_metadata` | `(schema=None, *, kinds=ALL_KINDS, tables=None)` | Metadatos del schema con una consulta por tipo de objeto (tablas, columnas, claves, índices, routines…); sustituye a recorrer las tablas con los `get_*` ([lectura por lotes](metadata_manager.md)) | `SchemaSnapshot` |
-| `get_routine_ddl` | `(rutina, tipo_rutina)` | DDL de una rutina | `str` |
-| `get_database_version` | `()` | Versión del motor | `str` |
+| `get_view_ddl` | `(vista)` | `CREATE VIEW … AS` + definición | `str` |
+| `get_routine_ddl` | `(rutina, tipo_rutina)` | Definición de una rutina | `str` |
+| `get_routine_parameters` | `(rutina, tipo_rutina)` | Parámetros de una rutina | `list[RoutineParameterMeta]` |
+| `get_database_version` | `()` | Versión del motor (`"Unknown"` si no se puede leer) | `str` |
 | `get_storage_inventory` | `(tablespace?)` | Inventario de almacenamiento | `dict[str, Any]` |
 | `execute_query_many` | `(query_name, timeout?, **kwargs)` | Query registrada → varias filas | `Rows` |
 | `execute_custom_many` | `(sql, params?, timeout?)` | SQL libre → varias filas | `Rows` |
@@ -61,11 +57,11 @@ flowchart TD
 
 ### Contrato de salida
 
-- **`Rows`** — `list[tuple[Any, ...]]`; orden y tipos dependientes del motor.
-- **`NormalizedTableRow`** / **`NormalizedColumnRow`** — dataclasses tipados con campos homogéneos entre motores.
+- **Modelos de metadatos** (`TableMeta`, `ColumnMeta`, `ForeignKeyMeta`…) — dataclasses inmutables de `util_bbdd.metadata.model`, iguales en todos los motores.
+- **`Rows`** — `list[tuple[Any, ...]]` de `execute_*`; orden y tipos dependientes de la consulta.
 - **`RowOrNone`** — una sola tupla si hay resultado, `None` si no hay filas.
 - **`Engine`** — instancia SQLAlchemy lista para `BulkCrud` u otras operaciones.
-- Todos los métodos de metadatos devuelven resultados cacheados en la segunda llamada.
+- Los métodos de metadatos leen cada tipo de objeto una vez para todo el schema y lo sirven de caché hasta `clear_cache()`.
 
 ### Errores y casos especiales
 

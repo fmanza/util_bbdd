@@ -56,7 +56,7 @@ nav:
           - Ciclo de Vida de Conexión: api/managers_lifecycle.md
           - Factory de Estrategias de Metadata: api/managers_metadata_factory.md
       - Metadatos e Introspección:
-          - Gestor de Metadatos: api/metadata_manager.md
+          - Lectura de Metadatos: api/metadata_manager.md
       - Conexiones:
           - Factory de Conexiones: api/connection_factory.md
       - Utilidades:

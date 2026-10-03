@@ -80,12 +80,6 @@ class TestMethodSignaturesParity:
         assert hasattr(MariaDBSyncAdapter, "get_routine_parameters_details")
         assert hasattr(MariaDBAsyncAdapter, "get_routine_parameters_details")
 
-    def test_fetch_methods_return_list_of_tuples(self) -> None:
-        pg_sync_sig = inspect.signature(PostgreSQLSyncAdapter.fetch_tables_sync)
-        mdb_sync_sig = inspect.signature(MariaDBSyncAdapter.fetch_tables_sync)
-        assert "list" in str(pg_sync_sig.return_annotation).lower()
-        assert "list" in str(mdb_sync_sig.return_annotation).lower()
-
 
 class TestAdapterInstantiation:
     def test_postgresql_sync_adapter_instantiation(self) -> None:

@@ -499,356 +499,514 @@
  "manager": {
   "per_routine": {
    "ZZ_GOLD_F:FUNCTION": {
-    "ddl": "\n  CREATE OR REPLACE EDITIONABLE FUNCTION \"BENCH\".\"ZZ_GOLD_F\" (x NUMBER) RETURN NUMBER IS BEGIN RETURN x + 1; END;",
+    "ddl": "CREATE OR REPLACE FUNCTION zz_gold_f(x NUMBER) RETURN NUMBER IS BEGIN RETURN x + 1; END;",
     "parameters": [
-     [
-      "OUT",
-      null,
-      "NUMBER",
-      null,
-      0
-     ],
-     [
-      "IN",
-      "X",
-      "NUMBER",
-      null,
-      1
-     ]
+     {
+      "data_type": "NUMBER",
+      "default": null,
+      "mode": "IN",
+      "name": "X",
+      "ordinal": 1,
+      "routine": {
+       "name": "ZZ_GOLD_F",
+       "signature": ""
+      }
+     }
     ]
    },
    "ZZ_GOLD_P:PROCEDURE": {
-    "ddl": "\n  CREATE OR REPLACE EDITIONABLE PROCEDURE \"BENCH\".\"ZZ_GOLD_P\" (x NUMBER) IS y NUMBER; BEGIN y := x; END;",
+    "ddl": "CREATE OR REPLACE PROCEDURE zz_gold_p(x NUMBER) IS y NUMBER; BEGIN y := x; END;",
     "parameters": [
-     [
-      "IN",
-      "X",
-      "NUMBER",
-      null,
-      1
-     ]
+     {
+      "data_type": "NUMBER",
+      "default": null,
+      "mode": "IN",
+      "name": "X",
+      "ordinal": 1,
+      "routine": {
+       "name": "ZZ_GOLD_P",
+       "signature": ""
+      }
+     }
     ]
    }
   },
   "per_table": {
    "ZZ_GOLD_CHILD": {
     "columns": [
-     [
-      "ID",
-      "NUMBER",
-      "NO",
-      null,
-      22,
-      10,
-      0,
-      null
-     ],
-     [
-      "PARENT_ID",
-      "NUMBER",
-      "NO",
-      null,
-      22,
-      10,
-      0,
-      null
-     ],
-     [
-      "LABEL",
-      "VARCHAR2",
-      "YES",
-      null,
-      50,
-      null,
-      null,
-      null
-     ]
+     {
+      "base_type": "NUMBER",
+      "collation": null,
+      "comment": null,
+      "data_type": "NUMBER(10)",
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "length": null,
+      "name": "ID",
+      "nullable": false,
+      "on_update": null,
+      "ordinal": 1,
+      "precision": 10,
+      "scale": 0,
+      "table": "ZZ_GOLD_CHILD"
+     },
+     {
+      "base_type": "NUMBER",
+      "collation": null,
+      "comment": null,
+      "data_type": "NUMBER(10)",
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "length": null,
+      "name": "PARENT_ID",
+      "nullable": false,
+      "on_update": null,
+      "ordinal": 2,
+      "precision": 10,
+      "scale": 0,
+      "table": "ZZ_GOLD_CHILD"
+     },
+     {
+      "base_type": "VARCHAR2",
+      "collation": null,
+      "comment": null,
+      "data_type": "VARCHAR2(50)",
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "length": 50,
+      "name": "LABEL",
+      "nullable": true,
+      "on_update": null,
+      "ordinal": 3,
+      "precision": null,
+      "scale": null,
+      "table": "ZZ_GOLD_CHILD"
+     }
     ],
     "ddl": "\n  CREATE TABLE \"BENCH\".\"ZZ_GOLD_CHILD\" \n   (\t\"ID\" NUMBER(10,0) NOT NULL ENABLE, \n\t\"PARENT_ID\" NUMBER(10,0) NOT NULL ENABLE, \n\t\"LABEL\" VARCHAR2(50), \n\t CONSTRAINT \"PK_ZZ_GOLD_CHILD\" PRIMARY KEY (\"ID\")\n  USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255 \n  TABLESPACE \"USERS\"  ENABLE, \n\t CONSTRAINT \"FK_ZZ_GOLD_CHILD_PARENT\" FOREIGN KEY (\"PARENT_ID\")\n\t  REFERENCES \"BENCH\".\"ZZ_GOLD_PARENT\" (\"ID\") ON DELETE CASCADE ENABLE\n   ) SEGMENT CREATION DEFERRED \n  PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255 \n NOCOMPRESS LOGGING\n  TABLESPACE \"USERS\" ",
     "fk": [
-     [
-      "FK_ZZ_GOLD_CHILD_PARENT",
-      "PARENT_ID",
-      "ZZ_GOLD_PARENT",
-      "ID"
-     ]
+     {
+      "columns": [
+       "PARENT_ID"
+      ],
+      "name": "FK_ZZ_GOLD_CHILD_PARENT",
+      "on_delete": "CASCADE",
+      "on_update": "NO ACTION",
+      "ref_columns": [
+       "ID"
+      ],
+      "ref_schema": "BENCH",
+      "ref_table": "ZZ_GOLD_PARENT",
+      "table": "ZZ_GOLD_CHILD"
+     }
     ],
     "indices": [
-     [
-      "IX_ZZ_GOLD_CHILD_LABEL",
-      "NONUNIQUE",
-      "NORMAL",
-      "LABEL",
-      1
-     ],
-     [
-      "PK_ZZ_GOLD_CHILD",
-      "UNIQUE",
-      "NORMAL",
-      "ID",
-      1
-     ]
+     {
+      "columns": [
+       "LABEL"
+      ],
+      "method": "NORMAL",
+      "name": "IX_ZZ_GOLD_CHILD_LABEL",
+      "predicate": null,
+      "primary": false,
+      "table": "ZZ_GOLD_CHILD",
+      "unique": false
+     },
+     {
+      "columns": [
+       "ID"
+      ],
+      "method": "NORMAL",
+      "name": "PK_ZZ_GOLD_CHILD",
+      "predicate": null,
+      "primary": true,
+      "table": "ZZ_GOLD_CHILD",
+      "unique": true
+     }
     ],
-    "pk": [
-     [
+    "pk": {
+     "columns": [
       "ID"
-     ]
-    ],
+     ],
+     "name": "PK_ZZ_GOLD_CHILD",
+     "table": "ZZ_GOLD_CHILD"
+    },
     "uk": []
    },
    "ZZ_GOLD_COMPOSITE": {
     "columns": [
-     [
-      "A",
-      "NUMBER",
-      "NO",
-      null,
-      22,
-      10,
-      0,
-      null
-     ],
-     [
-      "B",
-      "NUMBER",
-      "NO",
-      null,
-      22,
-      10,
-      0,
-      null
-     ],
-     [
-      "NOTE",
-      "VARCHAR2",
-      "YES",
-      null,
-      30,
-      null,
-      null,
-      null
-     ]
+     {
+      "base_type": "NUMBER",
+      "collation": null,
+      "comment": null,
+      "data_type": "NUMBER(10)",
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "length": null,
+      "name": "A",
+      "nullable": false,
+      "on_update": null,
+      "ordinal": 1,
+      "precision": 10,
+      "scale": 0,
+      "table": "ZZ_GOLD_COMPOSITE"
+     },
+     {
+      "base_type": "NUMBER",
+      "collation": null,
+      "comment": null,
+      "data_type": "NUMBER(10)",
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "length": null,
+      "name": "B",
+      "nullable": false,
+      "on_update": null,
+      "ordinal": 2,
+      "precision": 10,
+      "scale": 0,
+      "table": "ZZ_GOLD_COMPOSITE"
+     },
+     {
+      "base_type": "VARCHAR2",
+      "collation": null,
+      "comment": null,
+      "data_type": "VARCHAR2(30)",
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "length": 30,
+      "name": "NOTE",
+      "nullable": true,
+      "on_update": null,
+      "ordinal": 3,
+      "precision": null,
+      "scale": null,
+      "table": "ZZ_GOLD_COMPOSITE"
+     }
     ],
     "ddl": "\n  CREATE TABLE \"BENCH\".\"ZZ_GOLD_COMPOSITE\" \n   (\t\"A\" NUMBER(10,0) NOT NULL ENABLE, \n\t\"B\" NUMBER(10,0) NOT NULL ENABLE, \n\t\"NOTE\" VARCHAR2(30), \n\t CONSTRAINT \"PK_ZZ_GOLD_COMPOSITE\" PRIMARY KEY (\"A\", \"B\")\n  USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255 \n  TABLESPACE \"USERS\"  ENABLE\n   ) SEGMENT CREATION DEFERRED \n  PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255 \n NOCOMPRESS LOGGING\n  TABLESPACE \"USERS\" ",
     "fk": [],
     "indices": [
-     [
-      "PK_ZZ_GOLD_COMPOSITE",
-      "UNIQUE",
-      "NORMAL",
+     {
+      "columns": [
+       "A",
+       "B"
+      ],
+      "method": "NORMAL",
+      "name": "PK_ZZ_GOLD_COMPOSITE",
+      "predicate": null,
+      "primary": true,
+      "table": "ZZ_GOLD_COMPOSITE",
+      "unique": true
+     }
+    ],
+    "pk": {
+     "columns": [
       "A",
-      1
-     ],
-     [
-      "PK_ZZ_GOLD_COMPOSITE",
-      "UNIQUE",
-      "NORMAL",
-      "B",
-      2
-     ]
-    ],
-    "pk": [
-     [
-      "A"
-     ],
-     [
       "B"
-     ]
-    ],
+     ],
+     "name": "PK_ZZ_GOLD_COMPOSITE",
+     "table": "ZZ_GOLD_COMPOSITE"
+    },
     "uk": []
    },
    "ZZ_GOLD_IDENTITY": {
     "columns": [
-     [
-      "ID",
-      "NUMBER",
-      "NO",
-      "\"BENCH\".\"ISEQ$$_<n>\".nextval",
-      22,
-      10,
-      0,
-      null
-     ],
-     [
-      "VAL",
-      "VARCHAR2",
-      "YES",
-      null,
-      10,
-      null,
-      null,
-      null
-     ]
+     {
+      "base_type": "NUMBER",
+      "collation": null,
+      "comment": null,
+      "data_type": "NUMBER(10)",
+      "default": "\"BENCH\".\"ISEQ$$_<n>\".nextval",
+      "generated": null,
+      "identity": "by default",
+      "length": null,
+      "name": "ID",
+      "nullable": false,
+      "on_update": null,
+      "ordinal": 1,
+      "precision": 10,
+      "scale": 0,
+      "table": "ZZ_GOLD_IDENTITY"
+     },
+     {
+      "base_type": "VARCHAR2",
+      "collation": null,
+      "comment": null,
+      "data_type": "VARCHAR2(10)",
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "length": 10,
+      "name": "VAL",
+      "nullable": true,
+      "on_update": null,
+      "ordinal": 2,
+      "precision": null,
+      "scale": null,
+      "table": "ZZ_GOLD_IDENTITY"
+     }
     ],
     "ddl": "\n  CREATE TABLE \"BENCH\".\"ZZ_GOLD_IDENTITY\" \n   (\t\"ID\" NUMBER(10,0) GENERATED BY DEFAULT AS IDENTITY MINVALUE 1 MAXVALUE 9999999999999999999999999999 INCREMENT BY 1 START WITH 1 CACHE 20 NOORDER  NOCYCLE  NOKEEP  NOSCALE  NOT NULL ENABLE, \n\t\"VAL\" VARCHAR2(10), \n\t CONSTRAINT \"PK_ZZ_GOLD_IDENTITY\" PRIMARY KEY (\"ID\")\n  USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255 \n  TABLESPACE \"USERS\"  ENABLE\n   ) SEGMENT CREATION DEFERRED \n  PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255 \n NOCOMPRESS LOGGING\n  TABLESPACE \"USERS\" ",
     "fk": [],
     "indices": [
-     [
-      "PK_ZZ_GOLD_IDENTITY",
-      "UNIQUE",
-      "NORMAL",
-      "ID",
-      1
-     ]
+     {
+      "columns": [
+       "ID"
+      ],
+      "method": "NORMAL",
+      "name": "PK_ZZ_GOLD_IDENTITY",
+      "predicate": null,
+      "primary": true,
+      "table": "ZZ_GOLD_IDENTITY",
+      "unique": true
+     }
     ],
-    "pk": [
-     [
+    "pk": {
+     "columns": [
       "ID"
-     ]
-    ],
+     ],
+     "name": "PK_ZZ_GOLD_IDENTITY",
+     "table": "ZZ_GOLD_IDENTITY"
+    },
     "uk": []
    },
    "ZZ_GOLD_PARENT": {
     "columns": [
-     [
-      "ID",
-      "NUMBER",
-      "NO",
-      null,
-      22,
-      10,
-      0,
-      null
-     ],
-     [
-      "CODE",
-      "VARCHAR2",
-      "NO",
-      null,
-      20,
-      null,
-      null,
-      null
-     ],
-     [
-      "NAME",
-      "VARCHAR2",
-      "YES",
-      null,
-      100,
-      null,
-      null,
-      null
-     ],
-     [
-      "AMOUNT",
-      "NUMBER",
-      "YES",
-      null,
-      22,
-      12,
-      2,
-      null
-     ],
-     [
-      "CREATED",
-      "DATE",
-      "YES",
-      null,
-      7,
-      null,
-      null,
-      null
-     ]
+     {
+      "base_type": "NUMBER",
+      "collation": null,
+      "comment": null,
+      "data_type": "NUMBER(10)",
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "length": null,
+      "name": "ID",
+      "nullable": false,
+      "on_update": null,
+      "ordinal": 1,
+      "precision": 10,
+      "scale": 0,
+      "table": "ZZ_GOLD_PARENT"
+     },
+     {
+      "base_type": "VARCHAR2",
+      "collation": null,
+      "comment": null,
+      "data_type": "VARCHAR2(20)",
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "length": 20,
+      "name": "CODE",
+      "nullable": false,
+      "on_update": null,
+      "ordinal": 2,
+      "precision": null,
+      "scale": null,
+      "table": "ZZ_GOLD_PARENT"
+     },
+     {
+      "base_type": "VARCHAR2",
+      "collation": null,
+      "comment": null,
+      "data_type": "VARCHAR2(100)",
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "length": 100,
+      "name": "NAME",
+      "nullable": true,
+      "on_update": null,
+      "ordinal": 3,
+      "precision": null,
+      "scale": null,
+      "table": "ZZ_GOLD_PARENT"
+     },
+     {
+      "base_type": "NUMBER",
+      "collation": null,
+      "comment": null,
+      "data_type": "NUMBER(12,2)",
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "length": null,
+      "name": "AMOUNT",
+      "nullable": true,
+      "on_update": null,
+      "ordinal": 4,
+      "precision": 12,
+      "scale": 2,
+      "table": "ZZ_GOLD_PARENT"
+     },
+     {
+      "base_type": "DATE",
+      "collation": null,
+      "comment": null,
+      "data_type": "DATE",
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "length": null,
+      "name": "CREATED",
+      "nullable": true,
+      "on_update": null,
+      "ordinal": 5,
+      "precision": null,
+      "scale": null,
+      "table": "ZZ_GOLD_PARENT"
+     }
     ],
     "ddl": "\n  CREATE TABLE \"BENCH\".\"ZZ_GOLD_PARENT\" \n   (\t\"ID\" NUMBER(10,0) NOT NULL ENABLE, \n\t\"CODE\" VARCHAR2(20) NOT NULL ENABLE, \n\t\"NAME\" VARCHAR2(100), \n\t\"AMOUNT\" NUMBER(12,2), \n\t\"CREATED\" DATE, \n\t CONSTRAINT \"PK_ZZ_GOLD_PARENT\" PRIMARY KEY (\"ID\")\n  USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255 \n  TABLESPACE \"USERS\"  ENABLE, \n\t CONSTRAINT \"UK_ZZ_GOLD_PARENT_CODE\" UNIQUE (\"CODE\")\n  USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255 \n  TABLESPACE \"USERS\"  ENABLE\n   ) SEGMENT CREATION DEFERRED \n  PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255 \n NOCOMPRESS LOGGING\n  TABLESPACE \"USERS\" ",
     "fk": [],
     "indices": [
-     [
-      "PK_ZZ_GOLD_PARENT",
-      "UNIQUE",
-      "NORMAL",
-      "ID",
-      1
-     ],
-     [
-      "UK_ZZ_GOLD_PARENT_CODE",
-      "UNIQUE",
-      "NORMAL",
-      "CODE",
-      1
-     ]
+     {
+      "columns": [
+       "ID"
+      ],
+      "method": "NORMAL",
+      "name": "PK_ZZ_GOLD_PARENT",
+      "predicate": null,
+      "primary": true,
+      "table": "ZZ_GOLD_PARENT",
+      "unique": true
+     },
+     {
+      "columns": [
+       "CODE"
+      ],
+      "method": "NORMAL",
+      "name": "UK_ZZ_GOLD_PARENT_CODE",
+      "predicate": null,
+      "primary": false,
+      "table": "ZZ_GOLD_PARENT",
+      "unique": true
+     }
     ],
-    "pk": [
-     [
+    "pk": {
+     "columns": [
       "ID"
-     ]
-    ],
+     ],
+     "name": "PK_ZZ_GOLD_PARENT",
+     "table": "ZZ_GOLD_PARENT"
+    },
     "uk": [
-     [
-      "UK_ZZ_GOLD_PARENT_CODE",
-      "CODE"
-     ]
+     {
+      "columns": [
+       "CODE"
+      ],
+      "name": "UK_ZZ_GOLD_PARENT_CODE",
+      "table": "ZZ_GOLD_PARENT"
+     }
     ]
    },
    "ZZ_GOLD_REF_COMPOSITE": {
     "columns": [
-     [
-      "ID",
-      "NUMBER",
-      "NO",
-      null,
-      22,
-      10,
-      0,
-      null
-     ],
-     [
-      "A",
-      "NUMBER",
-      "YES",
-      null,
-      22,
-      10,
-      0,
-      null
-     ],
-     [
-      "B",
-      "NUMBER",
-      "YES",
-      null,
-      22,
-      10,
-      0,
-      null
-     ]
+     {
+      "base_type": "NUMBER",
+      "collation": null,
+      "comment": null,
+      "data_type": "NUMBER(10)",
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "length": null,
+      "name": "ID",
+      "nullable": false,
+      "on_update": null,
+      "ordinal": 1,
+      "precision": 10,
+      "scale": 0,
+      "table": "ZZ_GOLD_REF_COMPOSITE"
+     },
+     {
+      "base_type": "NUMBER",
+      "collation": null,
+      "comment": null,
+      "data_type": "NUMBER(10)",
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "length": null,
+      "name": "A",
+      "nullable": true,
+      "on_update": null,
+      "ordinal": 2,
+      "precision": 10,
+      "scale": 0,
+      "table": "ZZ_GOLD_REF_COMPOSITE"
+     },
+     {
+      "base_type": "NUMBER",
+      "collation": null,
+      "comment": null,
+      "data_type": "NUMBER(10)",
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "length": null,
+      "name": "B",
+      "nullable": true,
+      "on_update": null,
+      "ordinal": 3,
+      "precision": 10,
+      "scale": 0,
+      "table": "ZZ_GOLD_REF_COMPOSITE"
+     }
     ],
     "ddl": "\n  CREATE TABLE \"BENCH\".\"ZZ_GOLD_REF_COMPOSITE\" \n   (\t\"ID\" NUMBER(10,0) NOT NULL ENABLE, \n\t\"A\" NUMBER(10,0), \n\t\"B\" NUMBER(10,0), \n\t CONSTRAINT \"PK_ZZ_GOLD_REF_COMPOSITE\" PRIMARY KEY (\"ID\")\n  USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255 \n  TABLESPACE \"USERS\"  ENABLE, \n\t CONSTRAINT \"FK_ZZ_GOLD_REF_COMPOSITE\" FOREIGN KEY (\"A\", \"B\")\n\t  REFERENCES \"BENCH\".\"ZZ_GOLD_COMPOSITE\" (\"A\", \"B\") ENABLE\n   ) SEGMENT CREATION DEFERRED \n  PCTFREE 10 PCTUSED 40 INITRANS 1 MAXTRANS 255 \n NOCOMPRESS LOGGING\n  TABLESPACE \"USERS\" ",
     "fk": [
-     [
-      "FK_ZZ_GOLD_REF_COMPOSITE",
-      "A",
-      "ZZ_GOLD_COMPOSITE",
-      "A"
-     ],
-     [
-      "FK_ZZ_GOLD_REF_COMPOSITE",
-      "B",
-      "ZZ_GOLD_COMPOSITE",
-      "B"
-     ]
+     {
+      "columns": [
+       "A",
+       "B"
+      ],
+      "name": "FK_ZZ_GOLD_REF_COMPOSITE",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION",
+      "ref_columns": [
+       "A",
+       "B"
+      ],
+      "ref_schema": "BENCH",
+      "ref_table": "ZZ_GOLD_COMPOSITE",
+      "table": "ZZ_GOLD_REF_COMPOSITE"
+     }
     ],
     "indices": [
-     [
-      "PK_ZZ_GOLD_REF_COMPOSITE",
-      "UNIQUE",
-      "NORMAL",
-      "ID",
-      1
-     ]
+     {
+      "columns": [
+       "ID"
+      ],
+      "method": "NORMAL",
+      "name": "PK_ZZ_GOLD_REF_COMPOSITE",
+      "predicate": null,
+      "primary": true,
+      "table": "ZZ_GOLD_REF_COMPOSITE",
+      "unique": true
+     }
     ],
-    "pk": [
-     [
+    "pk": {
+     "columns": [
       "ID"
-     ]
-    ],
+     ],
+     "name": "PK_ZZ_GOLD_REF_COMPOSITE",
+     "table": "ZZ_GOLD_REF_COMPOSITE"
+    },
     "uk": []
    }
   },
   "per_view": {
    "ZZ_GOLD_V_PARENT": {
-    "ddl": "\n  CREATE OR REPLACE FORCE EDITIONABLE VIEW \"BENCH\".\"ZZ_GOLD_V_PARENT\" (\"ID\", \"CODE\") AS \n  SELECT id, code FROM zz_gold_parent"
+    "ddl": "CREATE VIEW ZZ_GOLD_V_PARENT AS\nSELECT id, code FROM zz_gold_parent"
    }
   },
   "routines": [

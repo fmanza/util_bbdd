@@ -84,21 +84,22 @@ def test_sync_manager_catalog_and_metadata(objects: dict[str, str], use_pool: bo
     manager = SyncDatabaseManager("mysql", _conn_params(), use_pool=use_pool)
     try:
         assert manager.get_database_version()
-        table_names = {row[0] for row in manager.get_tables()}
+        table_names = {t.name for t in manager.get_tables()}
         assert {objects["parent"], objects["child"]} <= table_names
 
-        columns = {row[0]: row for row in manager.get_columns(objects["parent"])}
-        assert columns["nombre"][1] == "varchar(50)"
-        assert columns["nombre"][4] == "x"
-        assert manager.get_primary_keys(objects["parent"]) == [("id",)]
+        columns = {c.name: c for c in manager.get_columns(objects["parent"])}
+        assert columns["nombre"].data_type == "varchar(50)"
+        assert columns["nombre"].default == "'x'"  # el catálogo entrecomilla los literales de MySQL
+        pk = manager.get_primary_keys(objects["parent"])
+        assert pk is not None and pk.columns == ("id",)
         assert [row[0] for row in manager.execute_query_many("claves_unicas", tabla=objects["parent"])] == [
             f"uq_{objects['parent'].rsplit('_', 1)[1]}"
         ]
         fk = manager.get_foreign_keys(objects["child"])
-        assert fk and fk[0][3] == objects["parent"]
+        assert fk and fk[0].ref_table == objects["parent"]
 
         view_ddl = manager.get_view_ddl(objects["view"])
-        assert view_ddl.startswith(f"CREATE OR REPLACE VIEW `{objects['view']}`")
+        assert view_ddl.startswith(f"CREATE VIEW {objects['view']} AS")
         assert "CREATE TABLE" in manager.get_ddl(objects["parent"])
     finally:
         manager.close()
@@ -136,10 +137,10 @@ def test_async_manager(objects: dict[str, str], use_pool: bool) -> None:
         manager = AsyncDatabaseManager("mysql", _conn_params(), use_pool=use_pool)
         await manager.init()
         try:
-            assert objects["parent"] in {row[0] for row in await manager.get_tables()}
-            columns = {row[0] for row in await manager.get_columns(objects["parent"])}
+            assert objects["parent"] in {t.name for t in await manager.get_tables()}
+            columns = {c.name for c in await manager.get_columns(objects["parent"])}
             assert {"id", "nombre", "total"} <= columns
-            assert (await manager.get_view_ddl(objects["view"])).startswith("CREATE OR REPLACE VIEW")
+            assert (await manager.get_view_ddl(objects["view"])).startswith("CREATE VIEW")
         finally:
             await manager.close()
 
