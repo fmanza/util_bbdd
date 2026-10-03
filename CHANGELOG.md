@@ -7,6 +7,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **managers**: `get_view_ddl()` y `get_routine_ddl()` fallaban siempre en PostgreSQL (y `get_routine_ddl()` en
+  HSQLDB) con `QueryValidationError`: sus plantillas usan `{esquema}` y el contexto solo se añadía en Oracle y SQL
+  Server. `doc` absorbía el error y documentaba vistas y routines sin DDL. Sync y async (H-10, sesión
+  `2026-10-03-metadata-centralization`).
+- **managers**: `get_routine_parameters()` fallaba siempre en SQL Server (`Invalid column name 'PARAMETER_DEFAULT'`):
+  la consulta leía una columna que `INFORMATION_SCHEMA.PARAMETERS` de SQL Server no tiene. `parameter_default` se
+  devuelve vacío, como ya ocurría en la práctica (SQL Server no guarda en catálogo los valores por defecto de los
+  parámetros T-SQL). `doc` documentaba las routines sin parámetros (H-17).
+
 ## [0.30.0] - 2026-10-03
 
 Auditoría de `comparar/` (sesión `2026-10-02g-comparar-audit`): comparación fiable entre motores y schemas, script SQL

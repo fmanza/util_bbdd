@@ -77,7 +77,8 @@ class MetadataContextResolver:
         """
         if not context or db_type in {"mariadb", "mysql"}:
             return params
-        if db_type in {"oracle", "sqlserver"}:
+        # PostgreSQL y HSQLDB también: sus plantillas create_view/create_rutina usan {esquema} (H-10).
+        if db_type in {"oracle", "sqlserver", "postgresql", "hsqldb"}:
             params["esquema"] = context
         if db_type in {"postgresql", "hsqldb", "sqlserver"}:
             params["database"] = context
