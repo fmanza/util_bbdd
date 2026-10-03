@@ -21,6 +21,7 @@ _BUILTIN: dict[str, tuple[str, frozenset[str]]] = {
     "sqlserver": ("util_bbdd.metadata.sqlserver.catalog:SQLServerCatalog", frozenset({"mssql"})),
     "mariadb": ("util_bbdd.metadata.mariadb.catalog:MariaDBCatalog", frozenset({"mariadb"})),
     "mysql": ("util_bbdd.metadata.mariadb.catalog:MySQLCatalog", frozenset({"mysql"})),
+    "sqlite": ("util_bbdd.metadata.sqlite.catalog:SQLiteCatalog", frozenset({"sqlite"})),
 }
 
 _lock = threading.Lock()

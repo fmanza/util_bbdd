@@ -1,0 +1,470 @@
+{
+ "checks": [],
+ "columns": [
+  {
+   "base_type": "integer",
+   "collation": null,
+   "comment": null,
+   "data_type": "INTEGER",
+   "default": null,
+   "generated": null,
+   "identity": "by default",
+   "length": null,
+   "name": "id",
+   "nullable": false,
+   "ordinal": 1,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_child"
+  },
+  {
+   "base_type": "integer",
+   "collation": null,
+   "comment": null,
+   "data_type": "INTEGER",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "parent_id",
+   "nullable": false,
+   "ordinal": 2,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_child"
+  },
+  {
+   "base_type": "varchar",
+   "collation": null,
+   "comment": null,
+   "data_type": "VARCHAR(50)",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": 50,
+   "name": "label",
+   "nullable": true,
+   "ordinal": 3,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_child"
+  },
+  {
+   "base_type": "integer",
+   "collation": null,
+   "comment": null,
+   "data_type": "INTEGER",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "a",
+   "nullable": false,
+   "ordinal": 1,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_composite"
+  },
+  {
+   "base_type": "integer",
+   "collation": null,
+   "comment": null,
+   "data_type": "INTEGER",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "b",
+   "nullable": false,
+   "ordinal": 2,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_composite"
+  },
+  {
+   "base_type": "varchar",
+   "collation": null,
+   "comment": null,
+   "data_type": "VARCHAR(30)",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": 30,
+   "name": "note",
+   "nullable": true,
+   "ordinal": 3,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_composite"
+  },
+  {
+   "base_type": "integer",
+   "collation": null,
+   "comment": null,
+   "data_type": "INTEGER",
+   "default": null,
+   "generated": null,
+   "identity": "by default",
+   "length": null,
+   "name": "id",
+   "nullable": true,
+   "ordinal": 1,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_identity"
+  },
+  {
+   "base_type": "varchar",
+   "collation": null,
+   "comment": null,
+   "data_type": "VARCHAR(10)",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": 10,
+   "name": "val",
+   "nullable": true,
+   "ordinal": 2,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_identity"
+  },
+  {
+   "base_type": "integer",
+   "collation": null,
+   "comment": null,
+   "data_type": "INTEGER",
+   "default": null,
+   "generated": null,
+   "identity": "by default",
+   "length": null,
+   "name": "id",
+   "nullable": false,
+   "ordinal": 1,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_parent"
+  },
+  {
+   "base_type": "varchar",
+   "collation": null,
+   "comment": null,
+   "data_type": "VARCHAR(20)",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": 20,
+   "name": "code",
+   "nullable": false,
+   "ordinal": 2,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_parent"
+  },
+  {
+   "base_type": "varchar",
+   "collation": null,
+   "comment": null,
+   "data_type": "VARCHAR(100)",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": 100,
+   "name": "name",
+   "nullable": true,
+   "ordinal": 3,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_parent"
+  },
+  {
+   "base_type": "numeric",
+   "collation": null,
+   "comment": null,
+   "data_type": "NUMERIC(12,2)",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "amount",
+   "nullable": true,
+   "ordinal": 4,
+   "precision": 12,
+   "scale": 2,
+   "table": "zz_gold_parent"
+  },
+  {
+   "base_type": "date",
+   "collation": null,
+   "comment": null,
+   "data_type": "DATE",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "created",
+   "nullable": true,
+   "ordinal": 5,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_parent"
+  },
+  {
+   "base_type": "integer",
+   "collation": null,
+   "comment": null,
+   "data_type": "INTEGER",
+   "default": null,
+   "generated": null,
+   "identity": "by default",
+   "length": null,
+   "name": "id",
+   "nullable": false,
+   "ordinal": 1,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_ref_composite"
+  },
+  {
+   "base_type": "integer",
+   "collation": null,
+   "comment": null,
+   "data_type": "INTEGER",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "a",
+   "nullable": true,
+   "ordinal": 2,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_ref_composite"
+  },
+  {
+   "base_type": "integer",
+   "collation": null,
+   "comment": null,
+   "data_type": "INTEGER",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "b",
+   "nullable": true,
+   "ordinal": 3,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_ref_composite"
+  },
+  {
+   "base_type": "integer",
+   "collation": null,
+   "comment": null,
+   "data_type": "INTEGER",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": null,
+   "name": "id",
+   "nullable": true,
+   "ordinal": 1,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_v_parent"
+  },
+  {
+   "base_type": "varchar",
+   "collation": null,
+   "comment": null,
+   "data_type": "VARCHAR(20)",
+   "default": null,
+   "generated": null,
+   "identity": null,
+   "length": 20,
+   "name": "code",
+   "nullable": true,
+   "ordinal": 2,
+   "precision": null,
+   "scale": null,
+   "table": "zz_gold_v_parent"
+  }
+ ],
+ "foreign_keys": [
+  {
+   "columns": [
+    "parent_id"
+   ],
+   "name": "",
+   "on_delete": "CASCADE",
+   "on_update": "NO ACTION",
+   "ref_columns": [
+    "id"
+   ],
+   "ref_schema": "main",
+   "ref_table": "zz_gold_parent",
+   "table": "zz_gold_child"
+  },
+  {
+   "columns": [
+    "a",
+    "b"
+   ],
+   "name": "",
+   "on_delete": "NO ACTION",
+   "on_update": "NO ACTION",
+   "ref_columns": [
+    "a",
+    "b"
+   ],
+   "ref_schema": "main",
+   "ref_table": "zz_gold_composite",
+   "table": "zz_gold_ref_composite"
+  }
+ ],
+ "identity": [
+  {
+   "column": "id",
+   "kind": "identity",
+   "sequence": null,
+   "sequence_schema": null,
+   "table": "zz_gold_child"
+  },
+  {
+   "column": "id",
+   "kind": "identity",
+   "sequence": null,
+   "sequence_schema": null,
+   "table": "zz_gold_identity"
+  },
+  {
+   "column": "id",
+   "kind": "identity",
+   "sequence": null,
+   "sequence_schema": null,
+   "table": "zz_gold_parent"
+  },
+  {
+   "column": "id",
+   "kind": "identity",
+   "sequence": null,
+   "sequence_schema": null,
+   "table": "zz_gold_ref_composite"
+  }
+ ],
+ "indexes": [
+  {
+   "columns": [
+    "label"
+   ],
+   "method": null,
+   "name": "ix_zz_gold_child_label",
+   "predicate": null,
+   "primary": false,
+   "table": "zz_gold_child",
+   "unique": false
+  },
+  {
+   "columns": [
+    "a",
+    "b"
+   ],
+   "method": null,
+   "name": "sqlite_autoindex_zz_gold_composite_1",
+   "predicate": null,
+   "primary": true,
+   "table": "zz_gold_composite",
+   "unique": true
+  },
+  {
+   "columns": [
+    "code"
+   ],
+   "method": null,
+   "name": "sqlite_autoindex_zz_gold_parent_1",
+   "predicate": null,
+   "primary": false,
+   "table": "zz_gold_parent",
+   "unique": true
+  }
+ ],
+ "primary_keys": [
+  {
+   "columns": [
+    "id"
+   ],
+   "name": "",
+   "table": "zz_gold_child"
+  },
+  {
+   "columns": [
+    "a",
+    "b"
+   ],
+   "name": "",
+   "table": "zz_gold_composite"
+  },
+  {
+   "columns": [
+    "id"
+   ],
+   "name": "",
+   "table": "zz_gold_identity"
+  },
+  {
+   "columns": [
+    "id"
+   ],
+   "name": "",
+   "table": "zz_gold_parent"
+  },
+  {
+   "columns": [
+    "id"
+   ],
+   "name": "",
+   "table": "zz_gold_ref_composite"
+  }
+ ],
+ "routine_parameters": [],
+ "routines": [],
+ "tables": [
+  {
+   "comment": null,
+   "name": "zz_gold_child"
+  },
+  {
+   "comment": null,
+   "name": "zz_gold_composite"
+  },
+  {
+   "comment": null,
+   "name": "zz_gold_identity"
+  },
+  {
+   "comment": null,
+   "name": "zz_gold_parent"
+  },
+  {
+   "comment": null,
+   "name": "zz_gold_ref_composite"
+  }
+ ],
+ "uniques": [
+  {
+   "columns": [
+    "code"
+   ],
+   "name": "sqlite_autoindex_zz_gold_parent_1",
+   "table": "zz_gold_parent"
+  }
+ ],
+ "views": [
+  {
+   "comment": null,
+   "definition": "CREATE VIEW zz_gold_v_parent AS SELECT id, code FROM zz_gold_parent",
+   "materialized": false,
+   "name": "zz_gold_v_parent"
+  }
+ ]
+}

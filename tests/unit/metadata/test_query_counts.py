@@ -156,6 +156,16 @@ def _bulk(db: Path) -> None:
         eng.dispose()
 
 
+def _snapshot(db: Path) -> None:
+    from util_bbdd.metadata import CatalogSource
+
+    eng = create_engine(f"sqlite:///{db.as_posix()}")
+    try:
+        CatalogSource.from_engine(eng).snapshot()
+    finally:
+        eng.dispose()
+
+
 def _xfail(group: str) -> pytest.MarkDecorator:
     return pytest.mark.xfail(strict=True, reason=f"lee el catálogo tabla a tabla; lo migra el grupo {group}")
 
@@ -167,6 +177,7 @@ FLOWS: list[Any] = [
     pytest.param(_comparar, id="comparar", marks=_xfail("C4")),
     pytest.param(_dump, id="dump", marks=_xfail("D2")),
     pytest.param(_bulk, id="bulk"),
+    pytest.param(_snapshot, id="snapshot"),  # lectura por lotes (ADR-003): la referencia
 ]
 
 

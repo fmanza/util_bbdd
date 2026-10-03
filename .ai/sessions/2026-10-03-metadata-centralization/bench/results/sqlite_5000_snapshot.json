@@ -1,0 +1,79 @@
+{
+ "flow": "snapshot",
+ "engine": "sqlite",
+ "volume": 5000,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 0.859,
+ "median_catalog_seconds": 0.194,
+ "peak_mb": 24.7,
+ "queries_total": 9,
+ "queries_catalog": 9,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT m.name, c.name, c.cid, c.type, c.\"notnull\", c.dflt_value, c.hidden, CASE WHEN c.pk = N AND upper(c.type) = '?' AND (SELECT count(*) FROM pragma_table_inf",
+   1
+  ],
+  [
+   "SELECT sqlite_version(), (SELECT encoding FROM pragma_encoding)",
+   1
+  ],
+  [
+   "SELECT m.name, f.id, f.seq, f.\"table\", f.\"from\", f.\"to\", f.on_delete, f.on_update FROM sqlite_master m JOIN pragma_foreign_key_list(m.name) f WHERE m.type = '?'",
+   1
+  ],
+  [
+   "SELECT m.name, c.name FROM sqlite_master m JOIN pragma_table_info(m.name) c WHERE m.type = '?' AND c.pk = N AND upper(c.type) = '?' AND (SELECT count(*) FROM pr",
+   1
+  ],
+  [
+   "SELECT m.name, il.name, il.\"unique\", il.origin, il.partial, ii.seqno, ii.name FROM sqlite_master m JOIN pragma_index_list(m.name) il JOIN pragma_index_xinfo(il.",
+   1
+  ],
+  [
+   "SELECT m.name, c.name, c.pk FROM sqlite_master m JOIN pragma_table_info(m.name) c WHERE m.type = '?' AND c.pk > N AND m.name NOT LIKE '?' ESCAPE '?' AND ? = '?'",
+   1
+  ],
+  [
+   "SELECT m.name FROM sqlite_master m WHERE m.type = '?' AND m.name NOT LIKE '?' ESCAPE '?' AND ? = '?' ORDER BY m.name",
+   1
+  ],
+  [
+   "SELECT m.name, il.name, ii.name, ii.seqno FROM sqlite_master m JOIN pragma_index_list(m.name) il JOIN pragma_index_info(il.name) ii WHERE m.type = '?' AND il.or",
+   1
+  ]
+ ],
+ "slowest_catalog_fingerprints": [
+  [
+   "SELECT m.name, c.name, c.cid, c.type, c.\"notnull\", c.dflt_value, c.hidden, CASE WHEN c.pk = N AND upper(c.type) = '?' AND (SELECT count(*) FROM pragma_table_inf",
+   0.072,
+   1
+  ],
+  [
+   "SELECT m.name, il.name, il.\"unique\", il.origin, il.partial, ii.seqno, ii.name FROM sqlite_master m JOIN pragma_index_list(m.name) il JOIN pragma_index_xinfo(il.",
+   0.033,
+   1
+  ],
+  [
+   "SELECT m.name, il.name, ii.name, ii.seqno FROM sqlite_master m JOIN pragma_index_list(m.name) il JOIN pragma_index_info(il.name) ii WHERE m.type = '?' AND il.or",
+   0.026,
+   1
+  ],
+  [
+   "SELECT m.name, c.name FROM sqlite_master m JOIN pragma_table_info(m.name) c WHERE m.type = '?' AND c.pk = N AND upper(c.type) = '?' AND (SELECT count(*) FROM pr",
+   0.023,
+   1
+  ],
+  [
+   "SELECT m.name, c.name, c.pk FROM sqlite_master m JOIN pragma_table_info(m.name) c WHERE m.type = '?' AND c.pk > N AND m.name NOT LIKE '?' ESCAPE '?' AND ? = '?'",
+   0.017,
+   1
+  ]
+ ],
+ "info": {
+  "tables": 5000,
+  "views": 500,
+  "routines": 0
+ },
+ "error": null
+}

@@ -34,6 +34,10 @@ cambios siguientes.
   `information_schema` con `TABLE_SCHEMA` constante y sin joins entre vistas (FK y routines en dos consultas,
   `CatalogQuery.extra`); routines con el `CREATE` reconstruido (`build_create_routine`, que `migrate` reutiliza en lugar
   de su copia). Snapshot completo en 14 (MariaDB) o 15 (MySQL) consultas con 50, 500 o 5000 tablas (5000: ≈ 2,5 s).
+- **metadata**: `CatalogDialect` de SQLite 3.16+ (`metadata.sqlite.catalog`, grupo A5): `pragma_table_xinfo`,
+  `pragma_index_list`/`pragma_index_xinfo` y `pragma_foreign_key_list` como funciones tabla unidas a `sqlite_master`
+  (una consulta por tipo en vez de un PRAGMA por tabla). Solo el schema `main`; sin CHECK, nombres de constraint ni
+  expresiones de columnas calculadas o índices funcionales (los PRAGMA no los exponen). 5000 tablas: 9 consultas, 0,9 s.
 - **scripts**: `bench_metadata.py`, banco de la extracción de metadatos contra los contenedores de
   `docker-compose.bench.yml` (`setup` / `run` / `report` / `teardown`): consultas de catálogo, tiempos y memoria de cada
   flujo (managers, `doc`, `comparar`, `migrate`, `dump`, `bulk`) con 50, 500 y 5000 tablas. Guía:

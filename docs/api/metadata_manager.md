@@ -97,7 +97,7 @@ Si `db_cache` se comparte entre varios `MetadataManager`, los resultados de uno 
 objeto (`Kind`: tablas, vistas, columnas, PK, UK, CHECK, FK, índices, identidad, routines, parámetros, base de datos)
 con **una consulta por schema**, guarda el resultado en una `SnapshotCache` y devuelve un `SchemaSnapshot` inmutable.
 Es el camino que irán usando managers, `doc`, `analysis`, `migrate`, `dump`, `bulk` y `comparar` (centralización de
-metadatos en curso); de momento lo implementan PostgreSQL (`metadata.postgresql.catalog`, solo `pg_catalog`) y Oracle 12c+ (`metadata.oracle.catalog`, `ALL_*` por owner con bind variables) SQL Server 2012+ (`metadata.sqlserver.catalog`, `sys.*`) y MariaDB 10.2+ / MySQL 8.0.16+ (`metadata.mariadb.catalog`, `information_schema` sin joins entre vistas: FK y routines con dos consultas). En Oracle, los nombres sin comillas en minúsculas se buscan en mayúsculas (`snapshot("scott")` lee `SCOTT`).
+metadatos en curso); de momento lo implementan PostgreSQL (`metadata.postgresql.catalog`, solo `pg_catalog`) y Oracle 12c+ (`metadata.oracle.catalog`, `ALL_*` por owner con bind variables) SQL Server 2012+ (`metadata.sqlserver.catalog`, `sys.*`) y MariaDB 10.2+ / MySQL 8.0.16+ (`metadata.mariadb.catalog`, `information_schema` sin joins entre vistas: FK y routines con dos consultas) y SQLite 3.16+ (`metadata.sqlite.catalog`, PRAGMA como funciones tabla; solo el schema `main`, sin CHECK ni nombres de constraint, que los PRAGMA no exponen). En Oracle, los nombres sin comillas en minúsculas se buscan en mayúsculas (`snapshot("scott")` lee `SCOTT`).
 
 ```python
 from sqlalchemy import create_engine

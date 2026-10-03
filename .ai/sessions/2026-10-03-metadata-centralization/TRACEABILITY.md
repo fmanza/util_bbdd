@@ -85,6 +85,10 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   `migrate/extractors/mariadb.py` (que ahora delega). 33 tests unitarios; dorados `mysql_snapshot.json`,
   `mariadb_snapshot.json` = IR de `migrate`; el test de integración comprueba el nº exacto de consultas declarado por
   el dialecto (MySQL 15, MariaDB 14). Medido: 5000 tablas MySQL 2,38 s, MariaDB 2,60 s. Integración completa: 606.
+- IMPLEMENT · A5: `metadata/sqlite/catalog.py` (PRAGMA como funciones tabla unidas a `sqlite_master`; solo `main`;
+  sin CHECK/nombres de constraint/expresiones: marcador `<expresión>`); `test_sqlite_catalog.py` con SQLite real en
+  memoria; flujo `snapshot` en `test_query_counts.py` (sin `xfail`: constante con 10 y 100 tablas); dorado
+  `sqlite_snapshot.json`. Medido: 9 consultas con 50/500/5000 tablas, 5000 tablas 0,86 s.
 - Verificación: `ruff check`/`format`, `mypy` (408 ficheros), unitarios 6066 passed + 5 xfailed, integración 590 (tras
   HF/QW) y 101 de `tests/integration/metadata` (tras A0), `gen_arquitectura_capas.py` sin cambios, `mkdocs build --strict`.
 
