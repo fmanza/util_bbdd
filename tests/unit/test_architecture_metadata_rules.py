@@ -61,8 +61,6 @@ EXCEPTIONS: dict[str, str] = {
 # Trinquete (2026-10-03): fuera de metadata/ con SQL de catálogo o Inspector. Solo puede bajar.
 PENDING_CATALOG: frozenset[str] = frozenset(
     {
-        "bulk/_support/pk_sync.py",
-        "bulk/crud.py",
         "comparar/reporters/sql_reporter.py",
         "connection/mariadb/update_auto_increment.py",
         "doc/infrastructure/storage/runtime.py",
@@ -75,12 +73,6 @@ PENDING_CATALOG: frozenset[str] = frozenset(
 # Trinquete (2026-10-03): consumidores que importan metadata.<motor>. Solo puede bajar.
 PENDING_ENGINE_IMPORTS: frozenset[str] = frozenset(
     {
-        "bulk/_execution/delete_strategies.py",
-        "bulk/_execution/parallel_loader.py",
-        "bulk/_execution/staging_update.py",
-        "bulk/_support/dialect.py",
-        "bulk/_support/pk_sync.py",
-        "bulk/crud.py",
         "dump/_constraints.py",
         "dump/_fk_graph.py",
         "dump/_indexes.py",

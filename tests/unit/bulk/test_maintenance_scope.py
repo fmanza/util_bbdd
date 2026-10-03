@@ -12,6 +12,7 @@ from sqlalchemy import Engine, create_engine
 
 from util_bbdd.bulk._models import MaintenanceScopeResult
 from util_bbdd.bulk.crud import BulkCrud
+from util_bbdd.metadata.model import CheckMeta, ForeignKeyMeta, Kind, SchemaSnapshot, UniqueMeta
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -393,38 +394,58 @@ class TestMaintenanceScopeRequireOptimization:
 # ---------------------------------------------------------------------------
 
 
+def _snapshot(fks: list[dict] | None = None, checks: list[str] = (), uniques: list[str] = ()) -> SchemaSnapshot:  # type: ignore[assignment]
+    """Snapshot de la tabla ``t`` como lo devuelve ``BulkCrud._table_snapshot`` (catálogo de metadata/, C5)."""
+    return SchemaSnapshot(
+        "test",
+        "s",
+        {
+            Kind.FOREIGN_KEYS: tuple(
+                ForeignKeyMeta(
+                    "t",
+                    fk["name"],
+                    tuple(fk.get("constrained_columns", ["c"])),
+                    fk.get("referred_schema") or "s",
+                    fk.get("referred_table", "p"),
+                    tuple(fk.get("referred_columns", ["id"])),
+                )
+                for fk in fks or []
+            ),
+            Kind.CHECKS: tuple(CheckMeta("t", n, "x > 0") for n in checks),
+            Kind.UNIQUES: tuple(UniqueMeta("t", n, ("c",)) for n in uniques),
+        },
+    )
+
+
 def _make_oracle_crud(
     fk_names: list[str] | None = None,
     check_names: list[str] | None = None,
     unique_names: list[str] | None = None,
-) -> tuple[BulkCrud, MagicMock, MagicMock]:
-    """Construye un BulkCrud para Oracle con un inspector mockeado."""
+) -> tuple[BulkCrud, MagicMock, SchemaSnapshot]:
+    """Construye un BulkCrud para Oracle con el snapshot de la tabla simulado."""
     crud, conn = _make_crud_for_dialect("oracle")
-    mock_insp = MagicMock(name="inspector")
-    mock_insp.get_foreign_keys.return_value = [{"name": n} for n in (fk_names or [])]
-    mock_insp.get_check_constraints.return_value = [{"name": n} for n in (check_names or [])]
-    mock_insp.get_unique_constraints.return_value = [{"name": n} for n in (unique_names or [])]
+    snapshot = _snapshot([{"name": n} for n in fk_names or []], check_names or [], unique_names or [])
     crud.engine.dialect.identifier_preparer.quote_identifier.side_effect = lambda x: f'"{x}"'
-    return crud, conn, mock_insp
+    return crud, conn, snapshot
 
 
 class TestMaintenanceScopeOracle:
     def test_disable_fk_constraint(self) -> None:
         crud, conn, mock_insp = _make_oracle_crud(fk_names=["fk_user"])
-        with patch("util_bbdd.bulk.crud.inspect", return_value=mock_insp):
+        with patch.object(BulkCrud, "_table_snapshot", return_value=mock_insp):
             with crud.maintenance_scope("t"):
                 assert 'ALTER TABLE "t" DISABLE CONSTRAINT "fk_user"' in _sql_calls(conn)
 
     def test_enable_validate_constraint_on_exit(self) -> None:
         crud, conn, mock_insp = _make_oracle_crud(fk_names=["fk_user"])
-        with patch("util_bbdd.bulk.crud.inspect", return_value=mock_insp):
+        with patch.object(BulkCrud, "_table_snapshot", return_value=mock_insp):
             with crud.maintenance_scope("t"):
                 pass
         assert 'ALTER TABLE "t" ENABLE VALIDATE CONSTRAINT "fk_user"' in _sql_calls(conn)
 
     def test_disable_before_enable_order(self) -> None:
         crud, conn, mock_insp = _make_oracle_crud(fk_names=["fk_user"])
-        with patch("util_bbdd.bulk.crud.inspect", return_value=mock_insp):
+        with patch.object(BulkCrud, "_table_snapshot", return_value=mock_insp):
             with crud.maintenance_scope("t"):
                 pass
         sqls = _sql_calls(conn)
@@ -438,7 +459,7 @@ class TestMaintenanceScopeOracle:
             check_names=["chk_status"],
             unique_names=["uk_email"],
         )
-        with patch("util_bbdd.bulk.crud.inspect", return_value=mock_insp):
+        with patch.object(BulkCrud, "_table_snapshot", return_value=mock_insp):
             with crud.maintenance_scope("t"):
                 pass
         sqls = _sql_calls(conn)
@@ -448,7 +469,7 @@ class TestMaintenanceScopeOracle:
 
     def test_sys_c_check_constraints_skipped(self) -> None:
         crud, conn, mock_insp = _make_oracle_crud(check_names=["SYS_C0012345", "chk_visible"])
-        with patch("util_bbdd.bulk.crud.inspect", return_value=mock_insp):
+        with patch.object(BulkCrud, "_table_snapshot", return_value=mock_insp):
             with crud.maintenance_scope("t"):
                 pass
         sqls = _sql_calls(conn)
@@ -457,27 +478,34 @@ class TestMaintenanceScopeOracle:
 
     def test_no_oracle_sql_when_no_constraints(self) -> None:
         crud, conn, mock_insp = _make_oracle_crud()
-        with patch("util_bbdd.bulk.crud.inspect", return_value=mock_insp):
+        with patch.object(BulkCrud, "_table_snapshot", return_value=mock_insp):
             with crud.maintenance_scope("t"):
                 pass
         sqls = _sql_calls(conn)
         assert not any("DISABLE CONSTRAINT" in s for s in sqls)
         assert not any("ENABLE VALIDATE" in s for s in sqls)
 
-    def test_enable_constraint_on_exception(self) -> None:
+    def test_enable_constraint_on_exception_after_the_session_rollback(self) -> None:
+        """H-31: el DDL de Oracle confirmaría lo pendiente; se reactiva al terminar la sesión, en otra conexión."""
         crud, conn, mock_insp = _make_oracle_crud(fk_names=["fk_user"])
-        with patch("util_bbdd.bulk.crud.inspect", return_value=mock_insp):
+        with patch.object(BulkCrud, "_table_snapshot", return_value=mock_insp):
             with pytest.raises(RuntimeError):
                 with crud.maintenance_scope("t"):
                     raise RuntimeError("fail")
-        assert 'ALTER TABLE "t" ENABLE VALIDATE CONSTRAINT "fk_user"' in _sql_calls(conn)
+        enable = 'ALTER TABLE "t" ENABLE VALIDATE CONSTRAINT "fk_user"'
+        assert enable not in _sql_calls(conn)  # no en la transacción de la sesión
+        assert len(crud._session.after_end) == 1
+        assert crud._session.run_after_end() == []
+        fresh = crud.engine.connect.return_value.__enter__.return_value
+        assert enable in _sql_calls(fresh)
+        fresh.commit.assert_called_once()
 
     def test_warning_on_disable_failure(self, caplog: pytest.LogCaptureFixture) -> None:
         from sqlalchemy.exc import SQLAlchemyError
 
         crud, conn, mock_insp = _make_oracle_crud(fk_names=["fk_bad"])
         conn.execute.side_effect = SQLAlchemyError("permission denied")
-        with patch("util_bbdd.bulk.crud.inspect", return_value=mock_insp):
+        with patch.object(BulkCrud, "_table_snapshot", return_value=mock_insp):
             with caplog.at_level(logging.WARNING):
                 with crud.maintenance_scope("t"):
                     pass
@@ -492,10 +520,8 @@ class TestMaintenanceScopeOracle:
 def _make_pg_inspector_mock(
     fks: list[dict] | None = None,
     orphan_found: bool = False,
-) -> MagicMock:
-    mock_insp = MagicMock(name="pg_inspector")
-    mock_insp.get_foreign_keys.return_value = fks or []
-    return mock_insp
+) -> SchemaSnapshot:
+    return _snapshot(fks)
 
 
 class TestMaintenanceScopePostgreSQLOrphanCheck:
@@ -520,7 +546,7 @@ class TestMaintenanceScopePostgreSQLOrphanCheck:
             ]
         )
         conn.execute.return_value.first.return_value = MagicMock(name="orphan_row")
-        with patch("util_bbdd.bulk.crud.inspect", return_value=mock_insp):
+        with patch.object(BulkCrud, "_table_snapshot", return_value=mock_insp):
             with caplog.at_level(logging.WARNING):
                 with crud.maintenance_scope("t"):
                     pass
@@ -540,7 +566,7 @@ class TestMaintenanceScopePostgreSQLOrphanCheck:
             ]
         )
         conn.execute.return_value.first.return_value = None
-        with patch("util_bbdd.bulk.crud.inspect", return_value=mock_insp):
+        with patch.object(BulkCrud, "_table_snapshot", return_value=mock_insp):
             with caplog.at_level(logging.WARNING):
                 with crud.maintenance_scope("t"):
                     pass
@@ -561,18 +587,16 @@ class TestMaintenanceScopePostgreSQLOrphanCheck:
             ]
         )
         conn.execute.return_value.first.return_value = MagicMock(name="orphan")
-        with patch("util_bbdd.bulk.crud.inspect", return_value=mock_insp):
+        with patch.object(BulkCrud, "_table_snapshot", return_value=mock_insp):
             with caplog.at_level(logging.WARNING):
                 with crud.maintenance_scope("t"):
                     pass
         assert not any("violaciones" in msg for msg in caplog.messages)
 
     def test_orphan_check_silently_skipped_when_inspect_raises(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Cuando inspect() lanza NoInspectionAvailable: sin WARNING, constraint_results retorna unverified (A-06)."""
-        from sqlalchemy.exc import NoInspectionAvailable
-
+        """Sin catálogo para el engine: sin WARNING, constraint_results retorna unverified (A-06)."""
         crud, conn = self._make_pg_crud_with_fk()
-        with patch("util_bbdd.bulk.crud.inspect", side_effect=NoInspectionAvailable("no inspector")):
+        with patch.object(BulkCrud, "_table_snapshot", side_effect=LookupError("sin catálogo")):
             with caplog.at_level(logging.WARNING):
                 with crud.maintenance_scope("t") as ms:
                     pass

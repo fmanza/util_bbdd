@@ -13,6 +13,11 @@ cambios siguientes.
 
 ### Added
 
+- **metadata**: `metadata.facts` (consultas puntuales de catálogo y servidor que necesita `bulk`: secuencia de una
+  columna `serial`, tipo de identity de Oracle, motor de almacenamiento MySQL/MariaDB, índice clustered y nivel de
+  compatibilidad de SQL Server, privilegio `TEMP` y permiso de desactivar triggers en PostgreSQL) y
+  `metadata.reflection.reflect_table()` (Table de SQLAlchemy con o sin FKs). Grupo C5 de ADR-003: `bulk/` ya no lee el
+  catálogo con SQL propio ni con `Inspector`, ni importa `metadata.<motor>`.
 - **managers**: `SyncDatabaseManager.get_schema_metadata()` / `AsyncDatabaseManager.get_schema_metadata()` y
   `metadata_source` (grupo C1 de ADR-003): los metadatos de un schema con una consulta por tipo de objeto, sobre las
   conexiones del manager (driver nativo; `asyncpg` incluido) y en su caché, que `clear_cache()` invalida. Devuelve un
@@ -116,6 +121,10 @@ cambios siguientes.
 
 ### Fixed
 
+- **bulk**: en Oracle, `maintenance_scope()` no desactivaba ninguna constraint: los nombres llegaban normalizados
+  en minúsculas por SQLAlchemy y `ALTER TABLE … DISABLE CONSTRAINT "fk_x"` fallaba con un aviso (H-31). Ahora salen
+  del catálogo como los guarda Oracle. Como su DDL confirma la transacción, si el bloque falla las constraints se
+  reactivan cuando la sesión ha hecho rollback (en otra conexión): antes de él confirmarían las filas pendientes.
 - **comparar**: la misma vista o routine en dos schemas salía como modificada en PostgreSQL y SQL Server (y en
   MySQL/MariaDB por `SHOW CREATE`) porque su definición lleva el nombre calificado con el schema; al comparar se
   ignora el prefijo del propio schema (H-30). Verificado en los cinco motores

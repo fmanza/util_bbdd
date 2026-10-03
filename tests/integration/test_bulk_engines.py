@@ -831,7 +831,46 @@ def _fk_disabled_count(engine: Engine, child: Table) -> int:
                     {"t": child.name},
                 ).scalar_one()
             )
+        if engine.dialect.name == "oracle":
+            return int(
+                conn.execute(
+                    text(
+                        "SELECT count(*) FROM user_constraints WHERE table_name = :t AND constraint_type = 'R' "
+                        "AND status = 'DISABLED'"
+                    ),
+                    {"t": child.name.upper()},
+                ).scalar_one()
+            )
     return 0
+
+
+def test_oracle_maintenance_scope_really_disables_foreign_keys(engine: Engine) -> None:
+    """H-31 (C5): en Oracle los nombres de constraint llegaban en minúsculas (normalizados por SQLAlchemy) y
+    ``ALTER TABLE … DISABLE CONSTRAINT "fk_x"`` fallaba en silencio: la optimización no se aplicaba nunca. Ahora salen
+    del catálogo como los guarda Oracle."""
+    if engine.dialect.name != "oracle":
+        pytest.skip("solo Oracle")
+    from sqlalchemy import ForeignKey
+
+    suffix = uuid.uuid4().hex[:8]
+    metadata = MetaData()
+    parent = Table(f"zz_util_bbdd_op{suffix}", metadata, Column("id", Integer, primary_key=True, autoincrement=False))
+    child = Table(
+        f"zz_util_bbdd_oc{suffix}",
+        metadata,
+        Column("id", Integer, primary_key=True, autoincrement=False),
+        Column("pid", Integer, ForeignKey(parent.c.id)),
+    )
+    metadata.create_all(engine)
+    try:
+        crud = BulkCrud(engine, warn_if_audit_disabled=False)
+        with crud.bulk_session(), crud.maintenance_scope(child.name) as ms:
+            assert _fk_disabled_count(engine, child) == 1
+        assert ms.optimization_applied
+        assert _fk_disabled_count(engine, child) == 0
+        assert {r.status for r in ms.constraint_results} == {"enabled"}
+    finally:
+        metadata.drop_all(engine)
 
 
 @pytest.mark.parametrize("commit_every_n_chunks", [None, 1])

@@ -32,7 +32,6 @@ from sqlalchemy import (
     ColumnElement,
     Engine,
     Insert,
-    Inspector,
     LargeBinary,
     MetaData,
     String,
@@ -42,7 +41,6 @@ from sqlalchemy import (
     and_,
     bindparam,
     insert,
-    inspect,
     text,
     update,
 )
@@ -50,8 +48,11 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from ..audit.contracts import AuditSink
 from ..connection.performance_advisor import EngineReadinessAdvisor
-from ..metadata.mariadb.tables import fetch_table_storage_engine_sql
-from ..metadata.sqlserver.indexes import fetch_clustered_index_count_sql
+from ..metadata import facts
+from ..metadata.catalog_registry import CatalogDialectNotFoundError
+from ..metadata.model import Kind
+from ..metadata.reflection import reflect_table
+from ..metadata.source import CatalogSource
 from ._execution.batch import (
     STAGING_UPDATE_DIALECTS,
     BatchStatementExecutor,
@@ -187,11 +188,6 @@ class _IsolatedOperation:
     """Lo que ``__isolating`` necesita saber de la operación: sus filas de entrada, para avanzar el ámbito."""
 
     rows: int = 0
-
-
-def _no_foreign_keys(*_args: Any, **_kwargs: Any) -> dict[Any, list[Any]]:
-    """Sustituto de ``Inspector.get_multi_foreign_keys`` que no lee nada (``reflect_foreign_keys=False``)."""
-    return {}
 
 
 class BulkCrud:
@@ -1316,27 +1312,11 @@ class BulkCrud:
                 tabla_destino if skip_normalization else normalize_identifier(tabla_destino, self.engine.dialect.name)
             )
             schema = None
-        if self._reflect_foreign_keys:
-            tabla = Table(tabla_normalizada, metadata, schema=schema, autoload_with=self.engine, resolve_fks=False)
-        else:
-            tabla = Table(tabla_normalizada, metadata, schema=schema)
-            self._reflect_without_foreign_keys(tabla)
+        tabla = Table(tabla_normalizada, metadata, schema=schema)
+        # Q9: sin leer las FK salvo reflect_foreign_keys=True (metadata.reflection, ADR-003 C5)
+        reflect_table(self.engine, tabla, foreign_keys=self._reflect_foreign_keys)
         self._table_cache[tabla_destino] = tabla
         return tabla
-
-    def _reflect_without_foreign_keys(self, tabla: Table) -> None:
-        """Rellena ``tabla`` desde la BD como ``Table(..., autoload_with=engine, resolve_fks=False)``, sin leer sus FK.
-
-        Q9 (performance-audit de dump 2026-09-26): en SQL Server,
-        ``get_foreign_keys`` es la mitad de la reflexión (≈ 17 de 32 ms por tabla) y ``BulkCrud`` no usa las FK.
-        ``Table(autoload_with=...)`` crea su propio Inspector, así que se usa ``Inspector.reflect_table``, que pide las
-        FK a ``get_multi_foreign_keys`` de la misma instancia. Si una versión de SQLAlchemy dejara de hacerlo, la
-        sustitución no tendría efecto: se volverían a reflejar las FK (más lento, mismo resultado para ``BulkCrud``).
-        """
-        with self.engine.connect() as conn:
-            insp: Inspector = inspect(conn)
-            insp.get_multi_foreign_keys = _no_foreign_keys  # type: ignore[method-assign]
-            insp.reflect_table(tabla, None, resolve_fks=False)
 
     @property
     def audit_failures(self) -> int:
@@ -1491,6 +1471,8 @@ class BulkCrud:
                 persistence.flush_audit_before_commit()
             persistence.flush_audit_after_commit()
         finally:
+            for exc in self._session.run_after_end():
+                self.logger.error(f"❌ Acción posterior a la sesión fallida: {exc}")
             persistence.end_session_audit(committed_rows=committed_rows)
 
     def get_columna_may_min(self, tabla: Table, nombre_col: str) -> Column | None:
@@ -1518,7 +1500,9 @@ class BulkCrud:
         - **MariaDB/MySQL**: Deshabilita `FOREIGN_KEY_CHECKS` a nivel de sesión.
           Aplica `DISABLE KEYS` (aunque InnoDB suele ignorarlo; solo efectivo en MyISAM/Aria).
         - **Oracle**: Deshabilita cada FK, CHECK (no SYS_C) y UNIQUE con
-          ``ALTER TABLE ... DISABLE CONSTRAINT``. Re-habilita con ``ENABLE VALIDATE``.
+          ``ALTER TABLE ... DISABLE CONSTRAINT``. Re-habilita con ``ENABLE VALIDATE``. En Oracle el DDL confirma la
+          transacción: lo cargado en la sesión antes de entrar y lo cargado dentro del bloque queda confirmado al
+          desactivar y al reactivar; si el bloque falla, se deshace lo pendiente antes de reactivar.
         - **PostgreSQL**: Ejecuta ``ALTER TABLE ... DISABLE TRIGGER ALL``. Requiere ser
           propietario de la tabla o superusuario; si no, opera sin optimización (se registra
           un aviso). Al restaurar, ejecuta un orphan-check de FK para detectar violaciones
@@ -1573,12 +1557,12 @@ class BulkCrud:
         oracle_disabled: list[str] = []
         result = MaintenanceScopeResult()
 
-        def restore() -> list[MaintenanceScopeConstraintResult]:
+        def restore(on: Any = conn) -> list[MaintenanceScopeConstraintResult]:
             if disable_indexes:
-                self.__maintenance_enable_indexes(conn, dialect, quoted_name, indexes_disabled)
+                self.__maintenance_enable_indexes(on, dialect, quoted_name, indexes_disabled)
             if disable_constraints:
                 return self.__maintenance_enable_constraints(
-                    conn, dialect, quoted_name, tabla, pg_disabled, mssql_constraints_disabled, oracle_disabled
+                    on, dialect, quoted_name, tabla, pg_disabled, mssql_constraints_disabled, oracle_disabled
                 )
             return []
 
@@ -1601,7 +1585,7 @@ class BulkCrud:
         self.logger.debug(f"🛠️ Modo mantenimiento finalizado: {tabla_destino}")
 
     def __maintenance_restore_after_error(
-        self, conn: Any, restore: Callable[[], list[MaintenanceScopeConstraintResult]], tabla_destino: str
+        self, conn: Any, restore: Callable[..., list[MaintenanceScopeConstraintResult]], tabla_destino: str
     ) -> None:
         """Restaura constraints/índices tras un fallo dentro de ``maintenance_scope`` sin ocultar el error original.
 
@@ -1615,6 +1599,16 @@ class BulkCrud:
           pendiente (el rollback de la sesión lo descartaría igual), se restaura y se confirma solo la restauración.
         """
         cadence = self._batch_statement_executor.cadence
+        if cadence.every is None and self.engine.dialect.name == "oracle":
+            # Oracle: el DDL no es transaccional y ENABLE CONSTRAINT confirmaría lo pendiente de la sesión (H-31). Se
+            # reactivan cuando la sesión haya hecho rollback, en otra conexión (las filas pendientes bloquean la tabla).
+            def restore_after_rollback() -> None:
+                with self.engine.connect() as fresh:
+                    restore(fresh)
+                    fresh.commit()
+
+            self._session.after_end.append(restore_after_rollback)
+            return
         if cadence.every is None:
             try:
                 restore()
@@ -1695,10 +1689,7 @@ class BulkCrud:
             # DISABLE KEYS solo tiene efecto en MyISAM/Aria (no transaccionales). En InnoDB el servidor lo ignora, pero
             # como DDL provoca un commit implícito que rompía la atomicidad de la sesión (auditoría de bulk
             # 2026-09-24, hallazgo 8): solo se ejecuta cuando sirve.
-            storage_engine = conn.execute(
-                text(fetch_table_storage_engine_sql()),
-                {"schema": tabla.schema, "tbl": tabla.name},
-            ).scalar()
+            storage_engine = facts.storage_engine(conn, tabla.schema, tabla.name)
             if str(storage_engine or "").upper() in ("MYISAM", "ARIA"):
                 conn.execute(text(f"ALTER TABLE {quoted_name} DISABLE KEYS"))
                 return True
@@ -1708,10 +1699,7 @@ class BulkCrud:
             )
             return False
         if dialect == "mssql":
-            has_clustered = conn.execute(
-                text(fetch_clustered_index_count_sql()),
-                {"tbl": tabla_destino},
-            ).scalar()
+            has_clustered = facts.clustered_index_count(conn, tabla_destino)
             if has_clustered == 0:
                 conn.execute(text(f"ALTER INDEX ALL ON {quoted_name} DISABLE"))
                 return True
@@ -1784,10 +1772,18 @@ class BulkCrud:
     ) -> list[MaintenanceScopeConstraintResult]:
         """Audit H-01 (2026-09-27): DISABLE TRIGGER no marca FK como NOT VALID; verifica huérfanos explícitamente."""
         try:
-            insp = inspect(self.engine)
-            fks = insp.get_foreign_keys(tabla.name, schema=tabla.schema)
-        except Exception:  # NoInspectionAvailable en mocks de test o motores sin inspector
-            self.logger.debug(f"⚠️ orphan-check omitido en '{tabla.name}': inspect() no disponible para este engine.")
+            fks = [
+                {
+                    "name": fk.name,
+                    "constrained_columns": list(fk.columns),
+                    "referred_schema": fk.ref_schema,
+                    "referred_table": fk.ref_table,
+                    "referred_columns": list(fk.ref_columns),
+                }
+                for fk in self._table_snapshot(tabla, {Kind.FOREIGN_KEYS}).foreign_keys(tabla.name)
+            ]
+        except Exception:  # engine simulado en tests, motor sin catálogo o sin permisos
+            self.logger.debug(f"⚠️ orphan-check omitido en '{tabla.name}': catálogo no disponible para este engine.")
             return [
                 MaintenanceScopeConstraintResult(
                     constraint_name="*",
@@ -1844,20 +1840,24 @@ class BulkCrud:
     def __oracle_fetch_constraint_names(self, tabla: Table) -> list[str]:
         """Retorna nombres de FK, CHECK (no SYS_C) y UNIQUE constraints de la tabla para Oracle."""
         try:
-            insp = inspect(self.engine)
-            schema = tabla.schema
-            name = tabla.name
-            names: list[str] = []
-            names += [str(fk["name"]) for fk in insp.get_foreign_keys(name, schema=schema) if fk.get("name")]
-            names += [
-                str(c["name"])
-                for c in insp.get_check_constraints(name, schema=schema)
-                if c.get("name") and not str(c["name"]).upper().startswith("SYS_C")
-            ]
-            names += [str(u["name"]) for u in insp.get_unique_constraints(name, schema=schema) if u.get("name")]
-            return names
-        except Exception:  # NoInspectionAvailable en mocks de test o conexión sin permisos
+            snapshot = self._table_snapshot(tabla, {Kind.FOREIGN_KEYS, Kind.CHECKS, Kind.UNIQUES})
+        except Exception:  # engine simulado en tests, conexión sin permisos
             return []
+        # Nombres como los guarda Oracle (los cita quote_identifier): FK, CHECK con nombre propio y UNIQUE
+        name = tabla.name
+        return (
+            [fk.name for fk in snapshot.foreign_keys(name) if fk.name]
+            + [c.name for c in snapshot.checks(name) if c.name and not c.name.upper().startswith("SYS_C")]
+            + [u.name for u in snapshot.uniques(name) if u.name]
+        )
+
+    def _table_snapshot(self, tabla: Table, kinds: set[Kind]) -> Any:
+        """Metadatos ``kinds`` de una tabla con una consulta por tipo (``metadata``, ADR-003 C5); sin caché."""
+        try:
+            source = CatalogSource.from_engine(self.engine)
+        except CatalogDialectNotFoundError as exc:
+            raise LookupError(f"sin catálogo para '{self.engine.dialect.name}'") from exc
+        return source.snapshot(tabla.schema, kinds=kinds, tables=[tabla.name])
 
     def __generar_sql_insert(self, stmt: Insert, records: Sequence[dict[str, Any]]) -> list[str]:
         """Genera SQL INSERT desde un statement y una lista de registros.

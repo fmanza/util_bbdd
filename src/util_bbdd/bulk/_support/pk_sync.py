@@ -19,7 +19,7 @@ from typing import Any, ClassVar, Literal
 from sqlalchemy import Column, Engine, Table, func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from ...metadata.oracle.tables import fetch_identity_generation_sql
+from ...metadata import facts
 from .._models import PKSyncResult
 from .sql_quoting import quote_identifier as _qi, quote_table as _qt
 from .validation import is_identity_pk
@@ -150,10 +150,7 @@ class PKSequenceSyncer:
         # se cita como el dialecto (auditoría de bulk 2026-09-24, hallazgo 5), si no "Orders" se buscaba como orders.
         table_ref = _qt(table.name, schema, self._engine)
 
-        seq_name: str | None = conn.execute(
-            text("SELECT pg_get_serial_sequence(:tbl, :col)"),
-            {"tbl": table_ref, "col": col.name},
-        ).scalar()
+        seq_name: str | None = facts.serial_sequence(conn, table_ref, col.name)
 
         if seq_name is None:
             return PKSyncResult(
@@ -287,16 +284,9 @@ class PKSequenceSyncer:
         denormalize = self._engine.dialect.denormalize_name
 
         # Tipo de identity en el catálogo: hay que repetirlo al modificarla (ALWAYS / BY DEFAULT [ON NULL]).
-        if schema:
-            identity_row = conn.execute(
-                text(fetch_identity_generation_sql(with_owner=True)),
-                {"owner": denormalize(schema), "tbl": denormalize(table.name), "col": denormalize(col.name)},
-            ).fetchone()
-        else:
-            identity_row = conn.execute(
-                text(fetch_identity_generation_sql(with_owner=False)),
-                {"tbl": denormalize(table.name), "col": denormalize(col.name)},
-            ).fetchone()
+        identity_row = facts.identity_generation(
+            conn, denormalize(table.name), denormalize(col.name), denormalize(schema) if schema else None
+        )
 
         if identity_row is None:
             return PKSyncResult(

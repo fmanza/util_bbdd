@@ -120,6 +120,20 @@ class SessionScope:
     commit_hook: Callable[[Any], None] | None = None
     #: Filas pendientes y confirmadas de todos los ejecutores que comparten la sesión.
     rows: RowLedger = field(default_factory=RowLedger)
+    #: Acciones para cuando la sesión haya terminado (tras su commit o rollback), p. ej. reactivar constraints de Oracle
+    #: tras un error: su DDL confirmaría lo pendiente si se ejecutara antes del rollback (H-31).
+    after_end: list[Callable[[], None]] = field(default_factory=list)
+
+    def run_after_end(self) -> list[Exception]:
+        """Ejecuta y vacía :attr:`after_end`; devuelve los errores (no se propagan: la sesión ya terminó)."""
+        actions, self.after_end = self.after_end, []
+        errors: list[Exception] = []
+        for action in actions:
+            try:
+                action()
+            except Exception as exc:  # noqa: BLE001 - se informan al llamador; no deben ocultar el error de la sesión
+                errors.append(exc)
+        return errors
 
     @property
     def active(self) -> bool:

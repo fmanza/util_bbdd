@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import Table, text
+from sqlalchemy import Table
 
-from ...metadata.postgresql.tables import fetch_can_disable_triggers_sql
+from ...metadata import facts
 
 # Dialectos de SQLAlchemy de la familia MySQL: comparten SQL de sesión (FOREIGN_KEY_CHECKS), casing de identificadores
 # y estrategias de carga.
@@ -34,9 +34,7 @@ def enable_table_integrity_sql(dialect: str, quoted_table: str) -> str:
 
 def can_disable_pg_triggers(conn: Any, table: Table) -> bool:
     """PostgreSQL: ``True`` si el usuario actual puede desactivar los triggers de ``table`` (superusuario o propietario)."""
-    return bool(
-        conn.execute(text(fetch_can_disable_triggers_sql()), {"schema": table.schema, "tbl": table.name}).scalar()
-    )
+    return facts.can_disable_triggers(conn, table.schema, table.name)
 
 
 __all__: list[str] = [

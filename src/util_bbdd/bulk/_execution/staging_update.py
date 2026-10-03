@@ -24,7 +24,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import DBAPIError
 
-from ...metadata.postgresql.tables import fetch_can_create_temp_tables_sql
+from ...metadata import facts
 from .._support.dialect import MYSQL_FAMILY
 from .._support.sql_helpers import json_passthrough_binds
 from .insert_strategies import InsertExecutionStrategyProtocol
@@ -96,7 +96,7 @@ class StagingUpdateStrategy:
         postgresql: bool = connection.dialect.name == "postgresql"
         if postgresql and not self._temp_privilege_checked:
             self._temp_privilege_checked = True
-            if not connection.execute(text(fetch_can_create_temp_tables_sql())).scalar():
+            if not facts.can_create_temp_tables(connection):
                 self._deny(privilege="TEMP", detail="has_database_privilege(current_database(), 'TEMP') = false")
         if self.staging_denied:
             connection.execute(stmt, list(records))

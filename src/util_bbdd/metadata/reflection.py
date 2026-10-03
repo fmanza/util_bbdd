@@ -33,7 +33,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, overload
 
-from sqlalchemy import text, types as sqltypes
+from sqlalchemy import Table, inspect, text, types as sqltypes
 from sqlalchemy.engine import Engine
 from sqlalchemy.engine.reflection import ReflectionDefaults
 from sqlalchemy.exc import SQLAlchemyError
@@ -600,3 +600,26 @@ def schema_routines(
     return tuple(
         r for r in routines if r.routine_type in ("FUNCTION", "PROCEDURE") and not (package_members and "." in r.name)
     )
+
+
+# ─── Table de SQLAlchemy reflejada (bulk, grupo C5) ───────────────────────────
+
+
+def _no_foreign_keys(*_args: Any, **_kwargs: Any) -> dict[Any, list[Any]]:
+    """Sustituto de ``Inspector.get_multi_foreign_keys`` que no lee nada."""
+    return {}
+
+
+def reflect_table(engine: Engine, table: Table, *, foreign_keys: bool = True) -> None:
+    """Rellena ``table`` (``Table`` sin columnas) desde la BD, como ``Table(..., autoload_with=engine, resolve_fks=False)``.
+
+    Con ``foreign_keys=False`` no lee las FK (Q9, performance-audit de dump 2026-09-26: en SQL Server son la mitad de la
+    reflexión, ≈ 17 de 32 ms por tabla, y ``BulkCrud`` no las usa). ``Inspector.reflect_table`` pide las FK a
+    ``get_multi_foreign_keys`` de la misma instancia; si una versión de SQLAlchemy dejara de hacerlo, se volverían a
+    reflejar (más lento, mismo resultado para ``bulk``).
+    """
+    with engine.connect() as conn:
+        insp = inspect(conn)
+        if not foreign_keys:
+            insp.get_multi_foreign_keys = _no_foreign_keys  # type: ignore[method-assign]
+        insp.reflect_table(table, None, resolve_fks=False)

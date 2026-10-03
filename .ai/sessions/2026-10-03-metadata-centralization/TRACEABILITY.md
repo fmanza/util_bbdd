@@ -159,6 +159,16 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   tipos, `computed`, `dialect_options`, `options`) en `test_comparar_prefetch_engines.py` con una tabla de 27 columnas,
   y ≤ 6 sentencias sin `SHOW CREATE`. Banco `comparar` 5000: MySQL 10 010 → 20 consultas / 19,9 → 9,3 s, MariaDB
   16,3 → 10,4 s (el resto es CPU: parseo y comparación de 2 × 5000 tablas).
+- IMPLEMENT · C5 (`bulk`): `metadata/facts.py` (consultas puntuales sobre la `Connection` del llamador, con la
+  misma forma de llamada que antes: los mocks de los tests siguen valiendo) y `metadata.reflection.reflect_table()`;
+  `maintenance_scope` lee FKs (orphan-check de PostgreSQL) y FK/CHECK/UNIQUE (Oracle) con
+  `CatalogSource.from_engine(engine).snapshot(schema, kinds, tables=[tabla])`. Trinquete: los 6 ficheros de `bulk/`
+  fuera de las dos listas. Hallazgo H-31 (Oracle nunca desactivaba constraints) corregido: `SessionScope.after_end`
+  ejecuta la reactivación tras el rollback de la sesión atómica (el DDL de Oracle confirmaría lo pendiente y en otra
+  conexión antes del rollback chocaría con los bloqueos de las filas). Nuevo test de integración Oracle que exige la FK
+  desactivada dentro del bloque; `_fk_disabled_count` cubre Oracle.
+- Verificación C5: `ruff`, `mypy` (422), unitarios 6171 + 4 xfailed, integración 635 + 10 skipped, capas (422,
+  pie actualizado), `mkdocs build --strict`. Banco `bulk` 500: mismas consultas puntuales por operación.
 
 ## Artefactos generados
 

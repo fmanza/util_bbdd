@@ -36,7 +36,7 @@ from sqlalchemy import Engine, Table, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from ...audit.contracts import AuditSink
-from ...metadata.postgresql.tables import fetch_can_create_temp_tables_sql
+from ...metadata import facts
 from .._audit.counters import AuditCounters
 from .._audit.errors import AuditError
 from .._audit.events import BulkAuditEvents
@@ -574,7 +574,7 @@ class ParallelBulkLoader:
         if self._engine.dialect.name != "postgresql":
             return True
         with self._engine.connect() as conn:
-            available = bool(conn.execute(text(fetch_can_create_temp_tables_sql())).scalar())
+            available = facts.can_create_temp_tables(conn)
         if not available:
             self.logger.warning(
                 "PostgreSQL sin privilegio TEMP: el UPDATE paralelo se hace con un solo hilo, porque fila a fila en "

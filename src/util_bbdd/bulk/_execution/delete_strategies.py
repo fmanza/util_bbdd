@@ -43,7 +43,7 @@ from sqlalchemy.types import (
     Uuid,
 )
 
-from ...metadata.sqlserver.common import fetch_compatibility_level_sql
+from ...metadata import facts
 from ._driver_quirks import _MSSQL_MAX_DELETE_PARAMS, _MYSQL_MAX_STATEMENT_PARAMS
 
 _log = logging.getLogger(__name__)
@@ -294,7 +294,7 @@ class MSSQLOpenJsonDeleteStrategy:
             if known is not None:
                 return known
         try:
-            level: Any = connection.execute(text(fetch_compatibility_level_sql())).scalar()
+            level: Any = facts.compatibility_level(connection)
             available: bool = isinstance(level, int) and level >= _MSSQL_OPENJSON_MIN_COMPATIBILITY
         except Exception as exc:  # sin permiso sobre sys.databases, conexión simulada…: se usa la vía anterior
             _log.debug("DELETE SQL Server: no se pudo leer el nivel de compatibilidad (%s); se usa IN (...)", exc)
