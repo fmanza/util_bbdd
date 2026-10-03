@@ -1,0 +1,79 @@
+{
+ "flow": "snapshot",
+ "engine": "postgresql",
+ "volume": 50,
+ "limit": null,
+ "repeat": 3,
+ "median_seconds": 0.109,
+ "median_catalog_seconds": 0.041,
+ "peak_mb": 6.2,
+ "queries_total": 12,
+ "queries_catalog": 12,
+ "top_catalog_fingerprints": [
+  [
+   "SELECT c.relname, con.conname, ARRAY(SELECT a.attname FROM unnest(con.conkey) WITH ORDINALITY AS k(attnum, ord) JOIN pg_catalog.pg_attribute a ON a.attrelid = c",
+   3
+  ],
+  [
+   "SELECT c.relname, con.conname, pg_catalog.pg_get_constraintdef(con.oid) FROM pg_catalog.pg_constraint con JOIN pg_catalog.pg_class c ON c.oid = con.conrelid JOI",
+   1
+  ],
+  [
+   "SELECT c.relname, a.attname, a.attnum, pg_catalog.format_type(a.atttypid, a.atttypmod), COALESCE(bt.typname, t.typname), a.attnotnull, a.atttypid, a.atttypmod, ",
+   1
+  ],
+  [
+   "SELECT pg_catalog.version(), pg_catalog.pg_encoding_to_char(db.encoding), db.datcollate FROM pg_catalog.pg_database db WHERE db.datname = pg_catalog.current_dat",
+   1
+  ],
+  [
+   "SELECT c.relname, a.attname, a.attidentity, sn.nspname, s.relname FROM pg_catalog.pg_depend dep JOIN pg_catalog.pg_class s ON s.oid = dep.objid AND s.relkind = ",
+   1
+  ],
+  [
+   "SELECT c.relname, ic.relname, i.indisunique, i.indisprimary, am.amname, pg_catalog.pg_get_expr(i.indpred, i.indrelid), ARRAY(SELECT pg_catalog.pg_get_indexdef(i",
+   1
+  ],
+  [
+   "SELECT p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid), arg.ord, arg.name, arg.mode, pg_catalog.format_type(arg.typ, NULL), CASE WHEN COALESCE(a",
+   1
+  ],
+  [
+   "SELECT p.proname, p.prokind, pg_catalog.pg_get_function_identity_arguments(p.oid), CASE WHEN p.prokind = '?' THEN pg_catalog.pg_get_function_result(p.oid) END, ",
+   1
+  ]
+ ],
+ "slowest_catalog_fingerprints": [
+  [
+   "SELECT c.relname, con.conname, ARRAY(SELECT a.attname FROM unnest(con.conkey) WITH ORDINALITY AS k(attnum, ord) JOIN pg_catalog.pg_attribute a ON a.attrelid = c",
+   0.018,
+   3
+  ],
+  [
+   "SELECT c.relname, d.description FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace LEFT JOIN pg_catalog.pg_description d ON d.o",
+   0.016,
+   1
+  ],
+  [
+   "SELECT c.relname, a.attname, a.attnum, pg_catalog.format_type(a.atttypid, a.atttypmod), COALESCE(bt.typname, t.typname), a.attnotnull, a.atttypid, a.atttypmod, ",
+   0.009,
+   1
+  ],
+  [
+   "SELECT c.relname, a.attname, a.attidentity, sn.nspname, s.relname FROM pg_catalog.pg_depend dep JOIN pg_catalog.pg_class s ON s.oid = dep.objid AND s.relkind = ",
+   0.006,
+   1
+  ],
+  [
+   "SELECT c.relname, ic.relname, i.indisunique, i.indisprimary, am.amname, pg_catalog.pg_get_expr(i.indpred, i.indrelid), ARRAY(SELECT pg_catalog.pg_get_indexdef(i",
+   0.005,
+   1
+  ]
+ ],
+ "info": {
+  "tables": 50,
+  "views": 5,
+  "routines": 2
+ },
+ "error": null
+}

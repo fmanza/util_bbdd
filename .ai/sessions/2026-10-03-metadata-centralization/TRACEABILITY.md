@@ -5,7 +5,7 @@
 - fecha: 2026-10-03
 - rama: develop
 - skill: metadata_centralization_audit_and_refactor (`/metadata-centralization`) — Plan Architect + Performance Auditor
-- fase: PLAN + AUDIT_PLAN + IMPLEMENT (HF, QW, A0; A1 en adelante pendiente)
+- fase: PLAN + AUDIT_PLAN + IMPLEMENT (HF, QW, A0 → commits af0976a, eba1d70, 2afc849; A1; A2 en adelante pendiente)
 
 ## Prompt issued
 
@@ -51,6 +51,18 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   5 `xfail` estrictos verificados con `--runxfail`: p. ej. `manager_scan` 51 → 501, `dump` 127 → 1207 consultas con
   10 → 100 tablas), F0 `scripts/bench_metadata.py` (+ `tests/unit/test_bench_metadata_script.py`, sección en
   `docs/guides/benchmarks.md`).
+- IMPLEMENT · A1: `metadata/model.py` (`Kind`, modelos `*Meta`, `SchemaSnapshot`, `KindNotLoadedError`),
+  `metadata/contracts.py` (`CatalogQuery`, `CatalogDialect`, `CatalogExecutor`/`Async…`, `MetadataSource`/`Async…`),
+  `metadata/_paramstyle.py` (`:nombre` → `named`/`pyformat`/`format`/`qmark`/`numeric`, listas en `IN`, `::` y
+  literales intactos), `metadata/snapshot_cache.py` (LRU por schema, single-flight hilos/asyncio),
+  `metadata/catalog_registry.py` (importación perezosa por `db_type`/dialecto SQLAlchemy), `metadata/source.py`
+  (`CatalogSource`, `AsyncCatalogSource`, `SqlAlchemyCatalogExecutor`, `FILTER_MAX_TABLES = 50`),
+  `metadata/postgresql/catalog.py` (12 consultas `pg_catalog`, comentarios por `pg_description`, identidad por
+  `pg_depend`). Tests: 52 unitarios de `tests/unit/metadata/` y `test_snapshot_golden.py` (dorado
+  `postgresql_snapshot.json` + contraste con el IR de `migrate`: columnas, nulabilidad, PK, FK con reglas e índices
+  coinciden). Medido con `bench_metadata.py --flows snapshot`: PostgreSQL 12 consultas con 50/500/5000 tablas, 5000
+  tablas 1,18 s y 26 MB. Diagrama de capas regenerado (`metadata → _core`, 414 ficheros). Desviación del plan: el tipo
+  `STORAGE` (almacenamiento/tablespaces) se deja para D1, que es su único consumidor (`doc`).
 - Verificación: `ruff check`/`format`, `mypy` (408 ficheros), unitarios 6066 passed + 5 xfailed, integración 590 (tras
   HF/QW) y 101 de `tests/integration/metadata` (tras A0), `gen_arquitectura_capas.py` sin cambios, `mkdocs build --strict`.
 
@@ -76,6 +88,12 @@ Fases autorizadas: PLAN + AUDIT_PLAN
 - **[rendimiento · MySQL/MariaDB]**: no unir vistas de `information_schema` entre sí (`KEY_COLUMN_USAGE` ⋈ `REFERENTIAL_CONSTRAINTS` es cuadrático: 15,7 s con 5000 tablas); dos consultas unidas en Python.
 - **[rendimiento · SQLAlchemy]**: `get_multi_*` solo agrupa en PostgreSQL y Oracle; en SQL Server `get_multi_columns` va tabla a tabla (224 s en `comparar` con 5000 tablas).
 - **[medición]**: para contar consultas de los managers hay que parchear `SyncQueryExecutor._execute_sql_with_optional_params` (driver nativo, no pasa por SQLAlchemy) además de escuchar `before_cursor_execute`; lo hace `bench/md_bench.py`.
+- **[metadata · lote]**: el punto canónico de lectura del catálogo es `metadata/source.py` (`CatalogSource`); cada motor
+  aporta `metadata/<motor>/catalog.py` (`CatalogDialect`) y se registra en `metadata/catalog_registry.py` (`_BUILTIN`).
+  El SQL de catálogo nuevo usa siempre `:nombre`; el ejecutor lo traduce (`_paramstyle.to_driver` con DB-API,
+  `expand_lists` con SQLAlchemy).
+- **[metadata · pruebas]**: un motor nuevo se valida con `tests/integration/metadata/characterization/test_snapshot_golden.py`
+  (se activa solo al registrar su dialecto): dorado del snapshot + igualdad con el IR de `migrate`.
 - **[banco]**: los schemas `zz_md_*` / `zz_util_bbdd_md_*` / usuarios `ZZ_MD_*` siguen creados en el banco para medir el «después»; `md_bench.py teardown` los borra. Oracle necesita `system` (`ORACLE_PASSWORD` del contenedor) para crear usuarios.
 
 ## Veredicto final

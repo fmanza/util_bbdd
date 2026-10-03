@@ -514,15 +514,26 @@ def flow_bulk(engine: str, volume: int, limit: int | None) -> dict[str, Any]:
                 "created_at": [pd.Timestamp("2026-01-01").date()] * 10,
             }
         )
-        crud = BulkCrud(eng, warn_if_audit_disabled=False)
-        crud.bulk_insert_from_df(df, "t00001", generar_sql=False)
-        crud.bulk_delete_from_df(df[["id"]], "t00001", generar_sql=False) if hasattr(
-            crud, "bulk_delete_from_df"
-        ) else None
+        BulkCrud(eng, warn_if_audit_disabled=False).bulk_insert_from_df(df, "t00001", generar_sql=False)
         return {}
     finally:
         with eng.begin() as conn:
             conn.execute(text("DELETE FROM t00001"))
+        eng.dispose()
+
+
+def flow_snapshot(engine: str, volume: int, limit: int | None) -> dict[str, Any]:
+    """``CatalogSource.snapshot()`` del schema completo (todos los tipos de objeto): la lectura por lotes de ADR-003."""
+    from util_bbdd.metadata import CatalogSource, supported_catalog_engines
+
+    if engine not in supported_catalog_engines():
+        return {"skipped": f"{engine} aún sin CatalogDialect"}
+    schema = {"sqlserver": "dbo", "sqlite": "main"}.get(engine, schema_name(engine, volume))
+    eng = sa_engine(engine, volume)
+    try:
+        snapshot = CatalogSource.from_engine(eng).snapshot(schema)
+        return {"tables": len(snapshot.tables()), "views": len(snapshot.views()), "routines": len(snapshot.routines())}
+    finally:
         eng.dispose()
 
 
@@ -534,6 +545,7 @@ FLOWS = {
     "migrate_extract": flow_migrate_extract,
     "dump": flow_dump,
     "bulk": flow_bulk,
+    "snapshot": flow_snapshot,
 }
 
 
@@ -589,7 +601,7 @@ def run_flow(name: str, engine: str, volume: int, repeat: int, limit: int | None
 
 
 VOLUMES = (50, 500, 5000)
-REPORT_FLOWS = ("manager_scan", "doc_html", "comparar", "migrate", "migrate_extract", "dump", "bulk")
+REPORT_FLOWS = ("manager_scan", "doc_html", "comparar", "migrate", "migrate_extract", "dump", "bulk", "snapshot")
 
 
 def _cell(d: dict | None) -> str:

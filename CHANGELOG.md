@@ -13,6 +13,14 @@ cambios siguientes.
 
 ### Added
 
+- **metadata**: lectura del catálogo por lotes (grupo A1 de ADR-003). `CatalogSource` / `AsyncCatalogSource`
+  (`MetadataSource`) leen cada tipo de objeto (`Kind`) con una consulta por schema y devuelven un `SchemaSnapshot`
+  inmutable con modelos neutros (`TableMeta`, `ColumnMeta`, `ForeignKeyMeta`, `IndexMeta`, `RoutineMeta`…);
+  `SnapshotCache` (LRU por schema, una sola carga por clave en hilos y `asyncio`, invalidación por schema y tipo);
+  `CatalogDialect` por motor con registro (`get_catalog_dialect`) y SQL de catálogo siempre con bind parameters
+  `:nombre` (traducidos al `paramstyle` del driver). Primer motor: PostgreSQL (`metadata.postgresql.catalog`, solo
+  `pg_catalog`): snapshot completo en 12 consultas con 50, 500 o 5000 tablas (5000 tablas: 1,2 s, 26 MB). Aún no lo
+  usa ningún consumidor (grupos C/D). Documentación: `docs/api/metadata_manager.md` § 5.
 - **scripts**: `bench_metadata.py`, banco de la extracción de metadatos contra los contenedores de
   `docker-compose.bench.yml` (`setup` / `run` / `report` / `teardown`): consultas de catálogo, tiempos y memoria de cada
   flujo (managers, `doc`, `comparar`, `migrate`, `dump`, `bulk`) con 50, 500 y 5000 tablas. Guía:

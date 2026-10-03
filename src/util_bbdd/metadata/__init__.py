@@ -15,9 +15,23 @@ from .cache import (
     RelationshipMetadataCache,
 )
 
+# Lectura por lotes (ADR-003)
+from .catalog_registry import (
+    CatalogDialectNotFoundError,
+    get_catalog_dialect,
+    register_catalog_dialect,
+    supported_catalog_engines,
+)
+
 # Imports desde contracts
 from .contracts import (
+    AsyncCatalogExecutor,
     AsyncMetadataProvider,
+    AsyncMetadataSource,
+    CatalogDialect,
+    CatalogExecutor,
+    CatalogQuery,
+    MetadataSource,
     Row,
     Rows,
     SyncMetadataProvider,
@@ -28,6 +42,25 @@ from .fetcher import MetadataFetcher
 
 # Imports desde manager
 from .manager import MetadataManager
+from .model import (
+    ALL_KINDS,
+    CheckMeta,
+    ColumnMeta,
+    DatabaseMeta,
+    ForeignKeyMeta,
+    IdentityMeta,
+    IndexMeta,
+    Kind,
+    KindNotLoadedError,
+    PrimaryKeyMeta,
+    RoutineKey,
+    RoutineMeta,
+    RoutineParameterMeta,
+    SchemaSnapshot,
+    TableMeta,
+    UniqueMeta,
+    ViewMeta,
+)
 
 # Imports desde normalizer
 from .normalizer import (
@@ -37,6 +70,8 @@ from .normalizer import (
     normalize_rows_as_dicts,
     normalize_table_rows,
 )
+from .snapshot_cache import SnapshotCache
+from .source import AsyncCatalogSource, CatalogSource, SqlAlchemyCatalogExecutor
 
 __all__: list[str] = [
     # Cache
@@ -60,4 +95,36 @@ __all__: list[str] = [
     # Manager
     "MetadataManager",
     "AsyncMetadataManager",
+    # Lectura por lotes (ADR-003)
+    "ALL_KINDS",
+    "AsyncCatalogExecutor",
+    "AsyncCatalogSource",
+    "AsyncMetadataSource",
+    "CatalogDialect",
+    "CatalogDialectNotFoundError",
+    "CatalogExecutor",
+    "CatalogQuery",
+    "CatalogSource",
+    "CheckMeta",
+    "ColumnMeta",
+    "DatabaseMeta",
+    "ForeignKeyMeta",
+    "IdentityMeta",
+    "IndexMeta",
+    "Kind",
+    "KindNotLoadedError",
+    "MetadataSource",
+    "PrimaryKeyMeta",
+    "RoutineKey",
+    "RoutineMeta",
+    "RoutineParameterMeta",
+    "SchemaSnapshot",
+    "SnapshotCache",
+    "SqlAlchemyCatalogExecutor",
+    "TableMeta",
+    "UniqueMeta",
+    "ViewMeta",
+    "get_catalog_dialect",
+    "register_catalog_dialect",
+    "supported_catalog_engines",
 ]

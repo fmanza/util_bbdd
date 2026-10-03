@@ -91,6 +91,37 @@ Si `db_cache` se comparte entre varios `MetadataManager`, los resultados de uno 
 | `SyncMetadataProvider` (protocolo interno) | Proveedor de metadatos desde BD | Sí | Sin proveedor no hay datos que cachear |
 | `DDLBuilder` (interno) | Construcción del DDL por motor | Sí | `get_ddl()` no funciona |
 
-## 5. Ejemplos Relacionados
+## 5. Lectura por lotes: `CatalogSource` (ADR-003)
+
+`MetadataManager` y los `get_*` de los managers leen el catálogo **tabla a tabla**. `CatalogSource` lee cada tipo de
+objeto (`Kind`: tablas, vistas, columnas, PK, UK, CHECK, FK, índices, identidad, routines, parámetros, base de datos)
+con **una consulta por schema**, guarda el resultado en una `SnapshotCache` y devuelve un `SchemaSnapshot` inmutable.
+Es el camino que irán usando managers, `doc`, `analysis`, `migrate`, `dump`, `bulk` y `comparar` (centralización de
+metadatos en curso); de momento lo implementa PostgreSQL (`metadata.postgresql.catalog`).
+
+```python
+from sqlalchemy import create_engine
+from util_bbdd.metadata import CatalogSource, Kind
+
+source = CatalogSource.from_engine(create_engine("postgresql+psycopg://usr:pwd@host/db"))
+snapshot = source.snapshot("ventas", kinds={Kind.TABLES, Kind.COLUMNS, Kind.FOREIGN_KEYS})
+for table in snapshot.tables():
+    print(table.name, [c.name for c in snapshot.columns(table.name)])
+print({fk.ref_table for fk in snapshot.all_foreign_keys()})
+source.invalidate("ventas")  # tras cambiar el esquema con DDL propio
+```
+
+| Elemento | Descripción |
+|---|---|
+| `snapshot(schema=None, *, kinds=ALL_KINDS, tables=None)` | Una consulta por tipo no cacheado; `tables=` limita la lectura a unas tablas (hasta 50; por encima, schema completo) |
+| `SchemaSnapshot` | `tables()`, `views()`, `routines()`, `columns(t)`, `primary_key(t)`, `uniques(t)`, `checks(t)`, `foreign_keys(t)`, `indexes(t)`, `identity(t)`, `routine_parameters(key)`, `database()`; pedir un `Kind` no cargado lanza `KindNotLoadedError` |
+| `SnapshotCache(max_schemas=8)` | Caché LRU por schema, compartible entre fuentes; una sola carga por clave en hilos y en `asyncio` |
+| `AsyncCatalogSource` | Misma API con `await snapshot(...)` sobre un `AsyncCatalogExecutor` |
+| `get_catalog_dialect(nombre)` | `CatalogDialect` por `db_type` o nombre de dialecto de SQLAlchemy |
+
+Referencia medida (PostgreSQL 17, banco del proyecto): el snapshot completo cuesta 12 consultas con 50, 500 o 5000
+tablas (5000 tablas: 1,2 s y 26 MB); recorrer 500 tablas tabla a tabla con los managers cuesta 2503 consultas y 70 s.
+
+## 6. Ejemplos Relacionados
 
 - [Ejemplo: Caché de Metadatos](../examples/metadata_cache_usage.md) — Uso de `DatabaseMetadataCache` y patrón get-or-cache
