@@ -21,6 +21,7 @@ class DocumentationBootstrapState:
     tablas: list[Any]
     vistas: list[Any]
     rutinas: list[Any]
+    catalog: Any  # CatalogRows: filas neutras de la documentación desde el snapshot (D1)
 
 
 @dataclass(slots=True, frozen=True)

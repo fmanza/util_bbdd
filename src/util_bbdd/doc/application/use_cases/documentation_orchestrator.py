@@ -27,6 +27,7 @@ from ..ports import (
     OutputCache,
     OutputPolicyPort,
 )
+from .catalog_rows import CatalogRows
 
 _UNSET_DATABASE_CHARSET_COLLATION: object = object()
 
@@ -73,6 +74,8 @@ class DocumentationBootstrap:
             batch_window_seconds=self._batch_window_seconds,
         )
         headers_config = self._headers_runtime.load_headers_config(self._headers_file)
+        # D1 (ADR-003): el catálogo se lee por lotes, una consulta por tipo de objeto y no por tabla
+        catalog = CatalogRows(lambda kinds: self._db_manager.get_schema_metadata(kinds=kinds))
 
         return DocumentationBootstrapState(
             print_config=print_config,
@@ -82,9 +85,10 @@ class DocumentationBootstrap:
             table_style=str(print_config.get("table_style", "Table Grid")),
             headers_config=headers_config,
             headers=self._headers_runtime.build_headers(headers_config, self._db_manager.db_type),
-            tablas=list(self._db_manager.get_tables()),
-            vistas=list(self._db_manager.get_views()),
-            rutinas=list(self._db_manager.get_routines()),
+            tablas=catalog.tables(),
+            vistas=catalog.views(),
+            rutinas=catalog.routines(),
+            catalog=catalog,
         )
 
 
@@ -102,6 +106,7 @@ class DocumentationFacade(Protocol):
     tablas: list[Any]
     vistas: list[Any]
     rutinas: list[Any]
+    catalog: CatalogRows
 
 
 @dataclass(slots=True)
@@ -125,6 +130,7 @@ class DocumentationSession:
     output_policy: OutputPolicyPort
     metadata_runtime: MetadataRuntimePort
     storage_report_service: StorageReportServicePort
+    catalog: CatalogRows | None = None
     _ddl_cache: dict[tuple[str, str, str], str] | None = None
     _list_cache: dict[tuple[str, str, str], list[Any]] | None = None
     _database_version_cache: str | None = ""
@@ -169,6 +175,7 @@ class DocumentationSession:
             output_policy=output_policy,
             metadata_runtime=metadata_runtime_factory.create(logger=documentation.logger),
             storage_report_service=storage_report_service,
+            catalog=getattr(documentation, "catalog", None),
             _ddl_cache={},
             _list_cache={},
             _columns_charset_collation_cache={},
@@ -211,48 +218,46 @@ class DocumentationSession:
         """Obtiene y cachea el DDL de una tabla."""
         return self._get_cached_scalar(("ddl", "table", tabla), lambda: self.db_manager.get_ddl(tabla))
 
+    def _catalog(self) -> CatalogRows:
+        if self.catalog is None:
+            self.catalog = CatalogRows(lambda kinds: self.db_manager.get_schema_metadata(kinds=kinds))
+        return self.catalog
+
+    def get_schema_metadata(self, schema: str | None = None, **kwargs: Any) -> Any:
+        """Lectura por lotes del origen (la usa también ``analysis`` para el índice de relaciones)."""
+        return self.db_manager.get_schema_metadata(schema, **kwargs)
+
     def get_view_ddl(self, vista: str) -> str:
-        """Obtiene y cachea el DDL de una vista."""
-        return self._get_cached_scalar(("ddl", "view", vista), lambda: self.db_manager.get_view_ddl(vista))
+        """DDL de una vista (``CREATE VIEW … AS`` + la definición que guarda el motor)."""
+        return self._catalog().view_ddl(vista)
 
     def get_columns(self, tabla: str) -> list[Any]:
-        """Obtiene y cachea las columnas de una tabla o vista."""
-        return self._get_cached_list(("columns", "entity", tabla), lambda: list(self.db_manager.get_columns(tabla)))
+        """Columnas neutras de una tabla o vista (ver ``catalog_rows``)."""
+        return self._catalog().columns(tabla)
 
     def get_routine_ddl(self, rutina: str, tipo_rutina: str) -> str:
-        """Obtiene y cachea el DDL de una rutina."""
-        cache_key = ("ddl", tipo_rutina, rutina)
-        return self._get_cached_scalar(cache_key, lambda: self.db_manager.get_routine_ddl(rutina, tipo_rutina))
+        """Definición completa de una rutina."""
+        return self._catalog().routine_ddl(rutina, tipo_rutina)
 
     def get_routine_parameters(self, rutina: str, tipo_rutina: str) -> list[Any]:
-        """Obtiene y cachea los parámetros de una rutina."""
-        cache_key = ("routine_parameters", tipo_rutina, rutina)
-        return self._get_cached_list(
-            cache_key, lambda: list(self.db_manager.get_routine_parameters(rutina, tipo_rutina))
-        )
+        """Parámetros ``(modo, nombre, tipo, por defecto, posición)`` de una rutina."""
+        return self._catalog().routine_parameters(rutina, tipo_rutina)
 
     def get_primary_keys(self, tabla: str) -> list[Any]:
-        """Obtiene y cachea las claves primarias de una tabla."""
-        return self._get_cached_list(
-            ("primary_keys", "table", tabla), lambda: list(self.db_manager.get_primary_keys(tabla))
-        )
+        """Columnas de la clave primaria ``[(columna,), …]``."""
+        return self._catalog().primary_keys(tabla)
 
     def get_foreign_keys(self, tabla: str) -> list[Any]:
-        """Obtiene y cachea las claves foráneas de una tabla."""
-        return self._get_cached_list(
-            ("foreign_keys", "table", tabla), lambda: list(self.db_manager.get_foreign_keys(tabla))
-        )
+        """Claves foráneas por par de columnas."""
+        return self._catalog().foreign_keys(tabla)
 
     def get_unique_constraints(self, tabla: str) -> list[Any]:
-        """Obtiene y cachea las restricciones únicas de una tabla."""
-        return self._get_cached_list(
-            ("unique_constraints", "table", tabla),
-            lambda: list(self.db_manager.get_unique_constraints(tabla)),
-        )
+        """Restricciones únicas ``(restricción, columna)``."""
+        return self._catalog().unique_constraints(tabla)
 
     def get_indices(self, tabla: str) -> list[Any]:
-        """Obtiene y cachea los índices de una tabla."""
-        return self._get_cached_list(("indices", "table", tabla), lambda: list(self.db_manager.get_indices(tabla)))
+        """Índices ``(índice, columna, Sí/No, método)``."""
+        return self._catalog().indices(tabla)
 
     def get_database_version(self) -> str | None:
         """Obtiene y cachea la versión de la base de datos."""

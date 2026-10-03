@@ -495,22 +495,27 @@
  ],
  "tables": [
   {
+   "collation": null,
    "comment": null,
    "name": "ZZ_GOLD_CHILD"
   },
   {
+   "collation": null,
    "comment": null,
    "name": "ZZ_GOLD_COMPOSITE"
   },
   {
+   "collation": null,
    "comment": null,
    "name": "ZZ_GOLD_IDENTITY"
   },
   {
+   "collation": null,
    "comment": "tabla padre",
    "name": "ZZ_GOLD_PARENT"
   },
   {
+   "collation": null,
    "comment": null,
    "name": "ZZ_GOLD_REF_COMPOSITE"
   }

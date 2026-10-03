@@ -98,90 +98,132 @@ Campo
 Tipo
 Nulo
 Por defecto
-Longitud
-Precisión
+Generación
+Es PK
+Es FK
+Índices
 Comentario Columna
 Detalle
 zz_gold_child
 id
 INTEGER
 NO
-tables/zz-gold-child.html
+IDENTITY (BY DEFAULT)
+Sí
+No
+Abrir detalle
 zz_gold_child
 parent_id
 INTEGER
 NO
-tables/zz-gold-child.html
+No
+-> zz_gold_parent(id)
+Abrir detalle
 zz_gold_child
 label
 VARCHAR(50)
 YES
-tables/zz-gold-child.html
+No
+No
+ix_zz_gold_child_label
+Abrir detalle
 zz_gold_composite
 a
 INTEGER
 NO
-tables/zz-gold-composite.html
+Sí
+No
+sqlite_autoindex_zz_gold_composite_1
+Abrir detalle
 zz_gold_composite
 b
 INTEGER
 NO
-tables/zz-gold-composite.html
+Sí
+No
+sqlite_autoindex_zz_gold_composite_1
+Abrir detalle
 zz_gold_composite
 note
 VARCHAR(30)
 YES
-tables/zz-gold-composite.html
+No
+No
+Abrir detalle
 zz_gold_identity
 id
 INTEGER
 YES
-tables/zz-gold-identity.html
+IDENTITY (BY DEFAULT)
+Sí
+No
+Abrir detalle
 zz_gold_identity
 val
 VARCHAR(10)
 YES
-tables/zz-gold-identity.html
+No
+No
+Abrir detalle
 zz_gold_parent
 id
 INTEGER
 NO
-tables/zz-gold-parent.html
+IDENTITY (BY DEFAULT)
+Sí
+No
+Abrir detalle
 zz_gold_parent
 code
 VARCHAR(20)
 NO
-tables/zz-gold-parent.html
+No
+No
+sqlite_autoindex_zz_gold_parent_1
+Abrir detalle
 zz_gold_parent
 name
 VARCHAR(100)
 YES
-tables/zz-gold-parent.html
+No
+No
+Abrir detalle
 zz_gold_parent
 amount
 NUMERIC(12,2)
 YES
-tables/zz-gold-parent.html
+No
+No
+Abrir detalle
 zz_gold_parent
 created
 DATE
 YES
-tables/zz-gold-parent.html
+No
+No
+Abrir detalle
 zz_gold_ref_composite
 id
 INTEGER
 NO
-tables/zz-gold-ref-composite.html
+IDENTITY (BY DEFAULT)
+Sí
+No
+Abrir detalle
 zz_gold_ref_composite
 a
 INTEGER
 YES
-tables/zz-gold-ref-composite.html
+No
+-> zz_gold_composite(a)
+Abrir detalle
 zz_gold_ref_composite
 b
 INTEGER
 YES
-tables/zz-gold-ref-composite.html
+No
+-> zz_gold_composite(b)
+Abrir detalle
 Todas las vistas y columnas - C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
 Todas las vistas y columnas
 Base de datos: C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db · Generado: <fecha> · Registros: 2
@@ -206,20 +248,19 @@ Campo
 Tipo
 Nulo
 Por defecto
-Longitud
-Precisión
+Generación
 Comentario
 Detalle
 zz_gold_v_parent
 id
 INTEGER
 YES
-views/zz-gold-v-parent.html
+Abrir detalle
 zz_gold_v_parent
 code
 VARCHAR(20)
 YES
-views/zz-gold-v-parent.html
+Abrir detalle
 Índice documentación BD - C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
 Índice de documentación - C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
 Generado: <fecha>
@@ -293,12 +334,12 @@ Campo
 Tipo
 Nulo
 Por defecto
-Longitud
-Precisión
+Generación
 Comentario
 id
 INTEGER
 NO
+IDENTITY (BY DEFAULT)
 parent_id
 INTEGER
 NO
@@ -308,25 +349,27 @@ YES
 Claves Primarias
 ('id',)
 Relaciones (Claves Foráneas)
-Nombre de la Restricción
+Nombre Restricción
 Columna
 Tabla Referenciada
 Columna Referenciada
-FK_zz_gold_child_0
+ON DELETE
+ON UPDATE
 parent_id
 zz_gold_parent
 id
+CASCADE
+NO ACTION
 Restricciones Únicas
 No se encontraron claves únicas.
 Índices
-Nombre del Índice
+Nombre Índice
 Columna
 Único
 Tipo de Índice
 ix_zz_gold_child_label
 label
 No
-INDEX
 Tabla - zz_gold_composite | C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
 Tabla: zz_gold_composite
 Generado: <fecha>
@@ -340,8 +383,7 @@ Campo
 Tipo
 Nulo
 Por defecto
-Longitud
-Precisión
+Generación
 Comentario
 a
 INTEGER
@@ -359,18 +401,16 @@ No se encontraron claves foráneas.
 Restricciones Únicas
 No se encontraron claves únicas.
 Índices
-Nombre del Índice
+Nombre Índice
 Columna
 Único
 Tipo de Índice
 sqlite_autoindex_zz_gold_composite_1
 a
 Sí
-PRIMARY KEY
 sqlite_autoindex_zz_gold_composite_1
 b
 Sí
-PRIMARY KEY
 Tabla - zz_gold_identity | C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
 Tabla: zz_gold_identity
 Generado: <fecha>
@@ -384,12 +424,12 @@ Campo
 Tipo
 Nulo
 Por defecto
-Longitud
-Precisión
+Generación
 Comentario
 id
 INTEGER
 YES
+IDENTITY (BY DEFAULT)
 val
 VARCHAR(10)
 YES
@@ -414,12 +454,12 @@ Campo
 Tipo
 Nulo
 Por defecto
-Longitud
-Precisión
+Generación
 Comentario
 id
 INTEGER
 NO
+IDENTITY (BY DEFAULT)
 code
 VARCHAR(20)
 NO
@@ -437,19 +477,18 @@ Claves Primarias
 Relaciones (Claves Foráneas)
 No se encontraron claves foráneas.
 Restricciones Únicas
-Nombre de la Restricción
+Nombre Restricción
 Campo
 sqlite_autoindex_zz_gold_parent_1
 code
 Índices
-Nombre del Índice
+Nombre Índice
 Columna
 Único
 Tipo de Índice
 sqlite_autoindex_zz_gold_parent_1
 code
 Sí
-UNIQUE
 Tabla - zz_gold_ref_composite | C:\Users\manza\AppData\Local\Temp\util_bbdd_golden.db
 Tabla: zz_gold_ref_composite
 Generado: <fecha>
@@ -463,12 +502,12 @@ Campo
 Tipo
 Nulo
 Por defecto
-Longitud
-Precisión
+Generación
 Comentario
 id
 INTEGER
 NO
+IDENTITY (BY DEFAULT)
 a
 INTEGER
 YES
@@ -478,18 +517,22 @@ YES
 Claves Primarias
 ('id',)
 Relaciones (Claves Foráneas)
-Nombre de la Restricción
+Nombre Restricción
 Columna
 Tabla Referenciada
 Columna Referenciada
-FK_zz_gold_ref_composite_0
+ON DELETE
+ON UPDATE
 a
 zz_gold_composite
 a
-FK_zz_gold_ref_composite_0
+NO ACTION
+NO ACTION
 b
 zz_gold_composite
 b
+NO ACTION
+NO ACTION
 Restricciones Únicas
 No se encontraron claves únicas.
 Índices
@@ -507,8 +550,7 @@ Campo
 Tipo
 Nulo
 Por defecto
-Longitud
-Precisión
+Generación
 Comentario
 id
 INTEGER

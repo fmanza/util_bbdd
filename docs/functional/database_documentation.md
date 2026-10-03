@@ -39,15 +39,13 @@ sequenceDiagram
     participant FS as Sistema de ficheros
 
     Dev->>Doc: Configurar (gestor, directorio, formatos)
-    Doc->>Mgr: Obtener tablas, vistas, rutinas
-    Mgr->>BD: Consultar metadatos
+    Doc->>Mgr: Leer el catálogo del schema (tablas, vistas, rutinas)
+    Mgr->>BD: Una consulta por tipo de objeto
     BD-->>Mgr: Tablas, vistas, rutinas
     Dev->>Doc: Generar documentación
-
-    loop Por cada tabla
-        Doc->>Mgr: Obtener columnas, índices, claves foráneas
-        Mgr-->>Doc: Estructura de la tabla
-    end
+    Doc->>Mgr: Columnas, claves, índices y parámetros de todo el schema
+    Mgr->>BD: Una consulta por tipo de objeto (no por tabla)
+    Mgr-->>Doc: Estructura de todas las tablas
 
     Doc->>Doc: Renderizar en formato(s) solicitado(s)
     Doc->>FS: Escribir Word / Excel / HTML
@@ -59,6 +57,11 @@ sequenceDiagram
 **Esquema grande con Word:** Cuando el número de tablas supera el límite configurado, se generan automáticamente múltiples ficheros Word numerados.
 
 **Generación con grafos:** Si Graphviz está disponible y se habilita la opción de diagramas de relaciones, el módulo genera un grafo por tabla y los embebe en la salida Word o HTML.
+
+**Mismo formato en todos los motores:** columnas (campo, tipo declarado, nulo, por defecto, generación —identidad o
+columna calculada—, comentario), claves foráneas (con `ON DELETE`/`ON UPDATE`), restricciones únicas e índices se
+presentan con las mismas cabeceras sea cual sea el motor; la hoja y la página «Todas las tablas y columnas» marcan en
+todos ellos si cada columna es PK, FK y en qué índices está.
 
 **Límites y exclusiones:**
 

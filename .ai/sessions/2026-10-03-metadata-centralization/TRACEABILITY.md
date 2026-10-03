@@ -169,6 +169,20 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   desactivada dentro del bloque; `_fk_disabled_count` cubre Oracle.
 - Verificación C5: `ruff`, `mypy` (422), unitarios 6171 + 4 xfailed, integración 635 + 10 skipped, capas (422,
   pie actualizado), `mkdocs build --strict`. Banco `bulk` 500: mismas consultas puntuales por operación.
+- Usuario: formato de `doc` **unificado neutro** (frente a emular el formato por motor; riesgo R1 aceptado con
+  diferencias listadas).
+- IMPLEMENT · D1 (`doc`): `doc/application/use_cases/catalog_rows.py` (`CatalogRows`: filas neutras desde el snapshot,
+  un tipo de objeto por lectura y una vez por sesión); `DocumentationBootstrap`/`DocumentationSession` sirven a los
+  renderers esas filas (sus métodos `get_*` se conservan, sin tocar los bucles de los renderers); los helpers de
+  `generator_shared` dejan de recibir el motor (`_COLUMN_SPECS_BY_DB`, `is_unique`, `get_flat_column_indexes` y las
+  posiciones de FK/índices por motor fuera); hoja/página plana enriquecida en todos los motores; cabeceras comunes en
+  `headers_config.json`. `TableMeta.collation` (MySQL/MariaDB). Dorados `*_doc.txt` re-baselineados y revisados
+  (H-32, H-15, H-20 en doc) y `*_snapshot.json` (`collation`). Word/Excel/HTML generados en los 6 motores sin errores y
+  con cabeceras alineadas. Guarda de consultas: cuenta también `DbapiCatalogExecutor`; `doc` sin `xfail`. Queda tabla a
+  tabla: el DDL de tabla (`get_ddl`, registry) y el inventario de almacenamiento (`storage/runtime.py`) → E2.
+- Verificación D1: `ruff`, `mypy` (423), unitarios 6178 + 3 xfailed, integración 635 + 10 skipped, capas (423),
+  `mkdocs build --strict`. Banco `doc_html` 500: PostgreSQL 2063 → 8 consultas / 57 → 2,1 s, Oracle 2073 → 8 /
+  368 → 3,2 s, SQL Server 583 → 8, MySQL/MariaDB 554 → 10.
 
 ## Artefactos generados
 

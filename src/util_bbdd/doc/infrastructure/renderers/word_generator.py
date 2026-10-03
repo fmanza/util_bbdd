@@ -1346,12 +1346,7 @@ class WordGenerator:
 
         headers = self.headers["COLUMNAS"]
 
-        # Procesar datos según tipo de BD para reordenarlos correctamente
-        columnas_procesadas = GeneratorTabularRuntime.process_columns_data(
-            columnas,
-            data_provider.db_type,
-            include_sqlite_short_shape=True,
-        )
+        columnas_procesadas = GeneratorTabularRuntime.process_columns_data(columnas)
 
         self._add_table(document, "Columnas", headers, columnas_procesadas)
 
@@ -1412,7 +1407,7 @@ class WordGenerator:
         """Agrega la sección de índices"""
         indices = data_provider.get_indices(tabla)
         if indices:
-            datos_procesados = GeneratorTabularRuntime.process_indices_data(indices, data_provider.db_type)
+            datos_procesados = GeneratorTabularRuntime.process_indices_data(indices)
             self._add_table(document, "Índices", self.headers["INDICES"], datos_procesados)
         else:
             self._add_empty_section(document, "Índices", "No se encontraron índices.")

@@ -194,120 +194,12 @@ class GeneratorInventoryRuntime:
 class GeneratorTabularRuntime:
     """Utilidades compartidas para normalizacion de columnas e indices."""
 
-    _DEFAULT_COLUMN_SPECS: list[tuple[int, bool]] = [
-        (0, False),
-        (1, False),
-        (2, False),
-        (3, True),
-        (4, True),
-        (5, True),
-        (6, True),
-        (7, True),
-    ]
-
-    _COLUMN_SPECS_BY_DB: dict[str, list[tuple[int, bool]]] = {
-        "mariadb": [
-            (0, False),
-            (1, False),
-            (2, False),
-            (3, False),
-            (4, False),
-            (5, False),
-            (6, False),
-        ],
-        # MySQL comparte el catálogo de columnas de MariaDB (mismas 7 columnas).
-        "mysql": [
-            (0, False),
-            (1, False),
-            (2, False),
-            (3, False),
-            (4, False),
-            (5, False),
-            (6, False),
-        ],
-        "oracle": [
-            (0, False),
-            (1, False),
-            (2, False),
-            (3, True),
-            (4, True),
-            (5, True),
-            (6, True),
-            (7, True),
-        ],
-        "postgresql": [
-            (0, False),
-            (1, False),
-            (2, False),
-            (3, True),
-            (4, True),
-            (5, True),
-            (6, True),
-            (7, True),
-        ],
-        "hsqldb": [
-            (0, False),
-            (1, False),
-            (2, False),
-            (3, True),
-            (4, True),
-            (5, True),
-            (6, True),
-            (7, True),
-        ],
-        "sqlserver": [
-            (0, False),
-            (1, False),
-            (2, False),
-            (3, True),
-            (4, True),
-            (5, True),
-            (6, True),
-            (7, True),
-            (8, True),
-        ],
-    }
-
-    _SQLITE_SHORT_COLUMN_SPECS: list[tuple[int, bool]] = [
-        (0, False),
-        (1, False),
-        (2, False),
-        (3, True),
-        (4, True),
-        (5, True),
-        (7, True),
-    ]
     _DEFAULT_UNIQUE_HEADERS: tuple[str, str] = ("Nombre Restricción", "Campo")
 
     @staticmethod
-    def is_unique(index_data: tuple[Any, ...], db_type: str) -> bool:
-        """Determina si un indice es unico segun el tipo de BD."""
-        if db_type == "oracle":
-            return bool(index_data[1] == "UNIQUE")
-        if db_type == "postgresql":
-            return bool(index_data[2] is True)
-        if db_type == "hsqldb":
-            return bool(index_data[2] == "UNIQUE")
-        if db_type == "sqlite":
-            return str(index_data[2]).strip().lower() in ("1", "true", "yes", "unique")
-        return False
-
-    @staticmethod
-    def process_indices_data(indices: list[DbRow], db_type: str) -> list[list[Any]]:
-        """Procesa datos de indices para estandarizar su salida."""
-        if db_type in {"mariadb", "mysql"}:
-            return [[idx[0], idx[1], "No" if idx[2] else "Sí", idx[3]] for idx in indices]
-
-        if db_type == "oracle":
-            return [
-                [idx[0], idx[3], "Sí" if GeneratorTabularRuntime.is_unique(idx, db_type) else "No", idx[2]]
-                for idx in indices
-            ]
-
-        return [
-            [idx[0], idx[1], "Sí" if GeneratorTabularRuntime.is_unique(idx, db_type) else "No", idx[3]]
-            for idx in indices
-        ]
+    def process_indices_data(indices: list[DbRow]) -> list[list[Any]]:
+        """Filas de índices ``[índice, columna, Sí/No, método]`` (formato neutro de ``catalog_rows``)."""
+        return [[GeneratorTabularRuntime._to_text(value) for value in index] for index in indices]
 
     @staticmethod
     def normalize_unique_headers(headers: list[Any] | tuple[Any, ...] | None) -> list[str]:
@@ -438,79 +330,34 @@ class GeneratorTabularRuntime:
         return value if value is not None else ""
 
     @staticmethod
-    def format_column_row(col: DbRow, specs: list[tuple[int, bool]]) -> list[Any]:
-        """Formatea una fila de columnas segun especificacion."""
-        return [GeneratorTabularRuntime.get_safe_value(col, idx, as_str=as_str) for idx, as_str in specs]
+    def process_columns_data(columnas: list[DbRow]) -> list[list[Any]]:
+        """Filas de columnas ``[campo, tipo, nulo, por defecto, generación, comentario]``, iguales en todos los motores."""
+        return [[GeneratorTabularRuntime._to_text(value) for value in column] for column in columnas]
 
     @staticmethod
-    def process_columns_data(
-        columnas: list[DbRow],
-        db_type: str,
-        *,
-        include_sqlite_short_shape: bool,
-    ) -> list[list[Any]]:
-        """Procesa columnas segun el tipo de motor."""
-        specs_by_db = dict(GeneratorTabularRuntime._COLUMN_SPECS_BY_DB)
-        if include_sqlite_short_shape:
-            specs_by_db["sqlite"] = GeneratorTabularRuntime._SQLITE_SHORT_COLUMN_SPECS
-
-        specs: list[tuple[int, bool]] = specs_by_db.get(db_type, GeneratorTabularRuntime._DEFAULT_COLUMN_SPECS)
-        return [GeneratorTabularRuntime.format_column_row(col, specs) for col in columnas]
+    def build_flat_base_data(column: Any) -> list[str]:
+        """Fila base plana de una columna (la de ``process_columns_data``; el comentario va al final)."""
+        return [GeneratorTabularRuntime._to_text(value) for value in column]
 
     @staticmethod
-    def get_flat_column_indexes(db_type: str) -> list[int]:
-        """Devuelve índices de columnas para datasets planos (paridad HTML/Excel)."""
-        if db_type in {"mariadb", "mysql"}:
-            return list(range(7))
-        if db_type == "sqlserver":
-            return list(range(9))
-        return list(range(8))
-
-    @staticmethod
-    def get_flat_column_value(column: Any, index: int) -> str:
-        """Devuelve un valor de columna en formato texto o cadena vacía."""
-        if len(column) <= index or column[index] is None:
-            return ""
-        return str(column[index])
-
-    @staticmethod
-    def build_flat_base_data(column: Any, db_type: str) -> list[str]:
-        """Construye la fila base plana de una columna según motor."""
-        return [
-            GeneratorTabularRuntime.get_flat_column_value(column, index)
-            for index in GeneratorTabularRuntime.get_flat_column_indexes(db_type)
-        ]
-
-    @staticmethod
-    def map_foreign_keys_by_column(*, foreign_keys: list[DbRow], db_type: str, arrow: str) -> dict[str, str]:
-        """Mapea claves foráneas por columna conservando formato textual actual."""
+    def map_foreign_keys_by_column(*, foreign_keys: list[DbRow], arrow: str) -> dict[str, str]:
+        """``{columna: "restricción -> tabla(columna)"}`` desde filas ``(restricción, columna, tabla ref., col. ref., …)``."""
         mapped: dict[str, str] = {}
         for foreign_key in foreign_keys:
-            if db_type in {"mariadb", "mysql"}:
-                source_column = GeneratorTabularRuntime._to_text(foreign_key[2])
-                constraint_name = GeneratorTabularRuntime._to_text(foreign_key[0])
-                target_table = GeneratorTabularRuntime._to_text(foreign_key[3])
-                target_column = GeneratorTabularRuntime._to_text(foreign_key[4])
-            else:
-                source_column = GeneratorTabularRuntime._to_text(foreign_key[1])
-                constraint_name = GeneratorTabularRuntime._to_text(foreign_key[0])
-                target_table = GeneratorTabularRuntime._to_text(foreign_key[2])
-                target_column = GeneratorTabularRuntime._to_text(foreign_key[3])
+            constraint_name, source_column, target_table, target_column = (
+                GeneratorTabularRuntime._to_text(value) for value in foreign_key[:4]
+            )
             mapped[source_column] = f"{constraint_name} {arrow} {target_table}({target_column})"
         return mapped
 
     @staticmethod
-    def map_indices_by_column(*, indices: list[DbRow], db_type: str) -> dict[str, list[str]]:
-        """Mapea índices por columna usando el criterio histórico por motor."""
+    def map_indices_by_column(*, indices: list[DbRow]) -> dict[str, list[str]]:
+        """``{columna: [índices]}`` desde filas ``(índice, columna, …)``."""
         mapped: dict[str, list[str]] = {}
         for index_data in indices:
-            column_name = (
-                GeneratorTabularRuntime._to_text(index_data[1])
-                if db_type in {"mariadb", "mysql", "sqlite"}
-                else GeneratorTabularRuntime._to_text(index_data[3])
+            mapped.setdefault(GeneratorTabularRuntime._to_text(index_data[1]), []).append(
+                GeneratorTabularRuntime._to_text(index_data[0])
             )
-            index_name = GeneratorTabularRuntime._to_text(index_data[0])
-            mapped.setdefault(column_name, []).append(index_name)
         return mapped
 
     @staticmethod
@@ -529,7 +376,7 @@ class GeneratorTabularRuntime:
         rows: list[list[str]] = []
         for column in columns:
             column_name: str = GeneratorTabularRuntime._to_text(column[0]) if len(column) > 0 else ""
-            base_data: list[str] = GeneratorTabularRuntime.build_flat_base_data(column, db_type)
+            base_data: list[str] = GeneratorTabularRuntime.build_flat_base_data(column)
             base_without_comment: list[str] = base_data[:-1]
             column_comment: str = base_data[-1] if base_data else ""
             enriched_attributes: list[str] = [
@@ -562,12 +409,10 @@ class GeneratorTabularRuntime:
         }
         foreign_keys_by_column: dict[str, str] = GeneratorTabularRuntime.map_foreign_keys_by_column(
             foreign_keys=list(data_provider.get_foreign_keys(table_name)),
-            db_type=db_type,
             arrow=fk_arrow,
         )
         indices_by_column: dict[str, list[str]] = GeneratorTabularRuntime.map_indices_by_column(
             indices=list(data_provider.get_indices(table_name)),
-            db_type=db_type,
         )
         return GeneratorTabularRuntime.build_enriched_flat_rows(
             table_name=table_name,

@@ -2,7 +2,7 @@
 
 Cada test ejecuta un flujo sobre un schema SQLite con 10 y con 100 tablas (PK, UK, FK a la tabla anterior, índice) y
 cuenta las sentencias de catálogo en los dos caminos de ejecución de la librería: ``SyncQueryExecutor`` (managers,
-driver nativo) y los eventos de SQLAlchemy (``Inspector``, ``comparar``, ``dump``, ``bulk``).
+driver nativo), ``DbapiCatalogExecutor`` (lectura por lotes de los managers) y los eventos de SQLAlchemy (``Inspector``, ``comparar``, ``dump``, ``bulk``).
 
 Los flujos que hoy leen tabla a tabla están marcados ``xfail(strict=True)`` con el grupo del plan que los migra
 (sesión ``2026-10-03-metadata-centralization``): al migrarlo, el test pasa, ``strict`` lo convierte en fallo y hay que
@@ -25,6 +25,7 @@ from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Engine
 
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
+from util_bbdd.metadata.source import DbapiCatalogExecutor
 
 CATALOG_RE = re.compile(
     r"information_schema|sqlite_(master|schema|temp_master)|\bpragma|\bpg_|\bsys\.|\ball_[a-z_]+\b",
@@ -51,6 +52,15 @@ def counter(monkeypatch: pytest.MonkeyPatch) -> Iterator[_Counter]:
         return original(cursor, sql, params)
 
     monkeypatch.setattr(SyncQueryExecutor, "_execute_sql_with_optional_params", staticmethod(wrapped))
+
+    # Lectura por lotes de los managers (get_schema_metadata → ManagerCatalogExecutor → DbapiCatalogExecutor)
+    original_fetch = DbapiCatalogExecutor.fetch_all
+
+    def fetch_all(executor: Any, sql: str, params: Any) -> Any:
+        c.record(sql)
+        return original_fetch(executor, sql, params)
+
+    monkeypatch.setattr(DbapiCatalogExecutor, "fetch_all", fetch_all)
 
     def on_execute(conn: Any, cursor: Any, statement: str, *args: Any) -> None:
         c.record(statement)
@@ -173,7 +183,7 @@ def _xfail(group: str) -> pytest.MarkDecorator:
 FLOWS: list[Any] = [
     pytest.param(_manager_scan, id="manager_scan", marks=_xfail("C1")),
     pytest.param(_analysis, id="analysis"),  # C2: índice de relaciones desde el snapshot
-    pytest.param(_doc, id="doc", marks=_xfail("D1")),
+    pytest.param(_doc, id="doc"),  # D1: catálogo por lotes (CatalogRows)
     # C4 + H-29: vistas, routines y reflexión de MySQL/MariaDB por lotes. Este test usa SQLite, que SQLAlchemy refleja
     # con PRAGMA tabla a tabla (en proceso, sin red): se acepta; la paridad por lotes de los servidores la cubre
     # tests/integration/test_comparar_prefetch_engines.py

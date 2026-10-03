@@ -69,6 +69,7 @@ class DatabaseDocumentation:
     tablas: list[Any]
     vistas: list[Any]
     rutinas: list[Any]
+    catalog: Any
     _documentation_session: DocumentationSession
     _output_policy: DocumentationOutputRuntime
     _headers_runtime: DocumentationHeadersRuntime
@@ -126,6 +127,7 @@ class DatabaseDocumentation:
         self.tablas = bootstrap_state.tablas
         self.vistas = bootstrap_state.vistas
         self.rutinas = bootstrap_state.rutinas
+        self.catalog = bootstrap_state.catalog
         documentation_facade: DocumentationFacade = self
         self._bind_documentation_session(
             DocumentationSession.from_documentation(

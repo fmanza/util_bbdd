@@ -193,10 +193,8 @@ class ExcelGenerator:
     ) -> None:
         """Crea las hojas suplementarias (columnas, rutinas, almacenamiento, información BD)."""
         if config["include_tables"]:
-            if data_provider.db_type in ["oracle", "postgresql", "hsqldb"]:
-                self._create_enriched_sheet(wb, data_provider, tables)
-            else:
-                self._create_flat_sheet(wb, data_flat)
+            # D1: hoja enriquecida (PK, FK, índices) en todos los motores
+            self._create_enriched_sheet(wb, data_provider, tables)
 
         if config["include_procedures"] or config["include_functions"]:
             self._create_routines_sheets(
@@ -775,7 +773,7 @@ class ExcelGenerator:
         columnas = data_provider.get_columns(tabla)
 
         for col in columnas:
-            row = GeneratorTabularRuntime.build_flat_base_data(col, data_provider.db_type)
+            row = GeneratorTabularRuntime.build_flat_base_data(col)
             ws.append(row)
             data_flat.append([tabla, comentario if comentario else ""] + row)
 

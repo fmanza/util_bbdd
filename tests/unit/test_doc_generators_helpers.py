@@ -171,133 +171,83 @@ def test_html_generator_inventory_summary_and_storage_collection_rows() -> None:
     ]
 
 
-def test_html_generator_builds_table_collection_dataset_like_excel_flat_sheet() -> None:
-    generator = HtmlGenerator(
-        database="db",
-        headers={
-            "FLAT": [
-                "Tabla",
-                "Comentario",
-                "Campo",
-                "Tipo",
-                "Nulo",
-                "Clave",
-                "Por defecto",
-                "Extra",
-                "Comentario columna",
-            ]
-        },
-    )
+FLAT_HEADERS = [
+    "Tabla",
+    "Comentario Tabla",
+    "Campo",
+    "Tipo",
+    "Nulo",
+    "Por defecto",
+    "Generación",
+    "Es PK",
+    "Es FK",
+    "Índices",
+    "Comentario Columna",
+]
 
-    class _Provider:
-        db_type = "mariadb"
 
-        def get_columns(self, table_name: str) -> list[tuple[Any, ...]]:
-            assert table_name == "users"
-            return [
-                ("id", "INT", "NO", "PRI", "", "auto_increment", "Identificador"),
-                ("name", "VARCHAR(100)", "YES", "", None, "", "Nombre"),
-            ]
+class _NeutralProvider:
+    """Proveedor con las filas neutras de ``catalog_rows`` (iguales en todos los motores, D1)."""
 
+    def __init__(self, db_type: str) -> None:
+        self.db_type = db_type
+
+    def get_columns(self, table_name: str) -> list[tuple[Any, ...]]:
+        assert table_name == "users"
+        return [
+            ("id", "int", "NO", "", "IDENTITY (BY DEFAULT)", "Identificador"),
+            ("role_id", "int", "YES", "", "", "Rol"),
+        ]
+
+    def get_primary_keys(self, table_name: str) -> list[tuple[Any, ...]]:
+        return [("id",)]
+
+    def get_foreign_keys(self, table_name: str) -> list[tuple[Any, ...]]:
+        return [("fk_users_role", "role_id", "roles", "id", "NO ACTION", "NO ACTION")]
+
+    def get_indices(self, table_name: str) -> list[tuple[Any, ...]]:
+        return [("pk_users", "id", "Sí", "btree"), ("ix_users_role", "role_id", "No", "btree")]
+
+
+EXPECTED_FLAT_ROWS = [
+    ["users", "Usuarios", "id", "int", "NO", "", "IDENTITY (BY DEFAULT)", "Sí", "No", "pk_users", "Identificador"],
+    ["users", "Usuarios", "role_id", "int", "YES", "", "", "No", "fk_users_role -> roles(id)", "ix_users_role", "Rol"],
+]
+
+
+@pytest.mark.parametrize("db_type", ["mariadb", "postgresql", "sqlserver", "sqlite"])
+def test_html_table_collection_dataset_is_enriched_in_every_engine(db_type: str) -> None:
+    """D1: mismas columnas en todos los motores, con PK/FK/índices por columna (antes solo Oracle/PostgreSQL/HSQLDB)."""
+    generator = HtmlGenerator(database="db", headers={"FLAT": list(FLAT_HEADERS)})
     headers, rows = generator._build_table_collection_dataset(
         tables_index=[{"name": "users", "comment": "Usuarios", "path": "tables/users.html"}],
-        data_provider=cast(Any, _Provider()),
+        data_provider=cast(Any, _NeutralProvider(db_type)),
     )
+    assert headers == [*FLAT_HEADERS, "Detalle"]
+    assert rows == [[*row, "tables/users.html"] for row in EXPECTED_FLAT_ROWS]
 
-    assert headers == [
-        "Tabla",
-        "Comentario",
-        "Campo",
-        "Tipo",
-        "Nulo",
-        "Clave",
-        "Por defecto",
-        "Extra",
-        "Comentario columna",
-        "Detalle",
-    ]
-    assert rows == [
-        ["users", "Usuarios", "id", "INT", "NO", "PRI", "", "auto_increment", "Identificador", "tables/users.html"],
-        ["users", "Usuarios", "name", "VARCHAR(100)", "YES", "", "", "", "Nombre", "tables/users.html"],
+
+def test_generator_tabular_runtime_build_flat_base_data_is_the_neutral_row_as_text() -> None:
+    assert GeneratorTabularRuntime.build_flat_base_data(("id", "int", "NO", None, "", "Identificador")) == [
+        "id",
+        "int",
+        "NO",
+        "",
+        "",
+        "Identificador",
     ]
 
 
-def test_generator_tabular_runtime_build_flat_base_data_uses_expected_shape_per_db_type() -> None:
-    assert GeneratorTabularRuntime.build_flat_base_data(
-        ("id", "INT", "NO", "PRI", None, "auto_increment", "Identificador", "ignored"),
-        "mariadb",
-    ) == ["id", "INT", "NO", "PRI", "", "auto_increment", "Identificador"]
-
-    assert GeneratorTabularRuntime.build_flat_base_data(
-        ("id", "INT", "NO", "PRI", None, "", "100", "0", "Identificador", "ignored"),
-        "sqlserver",
-    ) == ["id", "INT", "NO", "PRI", "", "", "100", "0", "Identificador"]
-
-    assert GeneratorTabularRuntime.build_flat_base_data(
-        ("ID", "NUMBER", "N", None, 22, 0, 0, "Comentario", "ignored"),
-        "oracle",
-    ) == ["ID", "NUMBER", "N", "", "22", "0", "0", "Comentario"]
-
-
-def test_generator_tabular_runtime_build_enriched_rows_for_table_oracle() -> None:
-    class _Provider:
-        db_type = "oracle"
-
-        def get_primary_keys(self, table_name: str) -> list[tuple[Any, ...]]:
-            return [("ID",)]
-
-        def get_foreign_keys(self, table_name: str) -> list[tuple[Any, ...]]:
-            return [("FK_USERS_ROLE", "ROLE_ID", "ROLES", "ID")]
-
-        def get_indices(self, table_name: str) -> list[tuple[Any, ...]]:
-            return [("IDX_USERS_ROLE", "TABLE", "NONUNIQUE", "ROLE_ID")]
-
+def test_generator_tabular_runtime_build_enriched_rows_for_table() -> None:
     rows = GeneratorTabularRuntime.build_enriched_flat_rows_for_table(
-        table_name="USERS",
+        table_name="users",
         table_comment="Usuarios",
-        columns=[
-            ("ID", "NUMBER", "N", None, 22, 0, 0, "Identificador"),
-            ("ROLE_ID", "NUMBER", "N", None, 22, 0, 0, "Rol"),
-        ],
-        data_provider=cast(Any, _Provider()),
-        detail_path="tables/users.html",
+        columns=_NeutralProvider("oracle").get_columns("users"),
+        data_provider=cast(Any, _NeutralProvider("oracle")),
+        detail_path=None,
         fk_arrow="->",
     )
-
-    assert rows == [
-        [
-            "USERS",
-            "Usuarios",
-            "ID",
-            "NUMBER",
-            "N",
-            "",
-            "22",
-            "0",
-            "0",
-            "Sí",
-            "No",
-            "",
-            "Identificador",
-            "tables/users.html",
-        ],
-        [
-            "USERS",
-            "Usuarios",
-            "ROLE_ID",
-            "NUMBER",
-            "N",
-            "",
-            "22",
-            "0",
-            "0",
-            "No",
-            "FK_USERS_ROLE -> ROLES(ID)",
-            "IDX_USERS_ROLE",
-            "Rol",
-            "tables/users.html",
-        ],
-    ]
+    assert rows == EXPECTED_FLAT_ROWS
 
 
 def test_excel_generator_prepare_enriched_data_keeps_arrow_for_excel() -> None:

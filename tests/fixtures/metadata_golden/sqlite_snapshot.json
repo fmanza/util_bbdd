@@ -430,22 +430,27 @@
  "routines": [],
  "tables": [
   {
+   "collation": null,
    "comment": null,
    "name": "zz_gold_child"
   },
   {
+   "collation": null,
    "comment": null,
    "name": "zz_gold_composite"
   },
   {
+   "collation": null,
    "comment": null,
    "name": "zz_gold_identity"
   },
   {
+   "collation": null,
    "comment": null,
    "name": "zz_gold_parent"
   },
   {
+   "collation": null,
    "comment": null,
    "name": "zz_gold_ref_composite"
   }

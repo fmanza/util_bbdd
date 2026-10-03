@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from pathlib import Path
 from typing import Any, Protocol
 
 from ..._core.types import Rows
 from ...metadata.cache import RelationshipMetadataCache
+from ...metadata.model import ALL_KINDS, Kind, SchemaSnapshot
 
 HeadersConfig = dict[str, Any]
 ConnectionParams = dict[str, Any]
@@ -87,6 +89,10 @@ class DocumentationIntrospectionPort(Protocol):
     """Lecturas de introspección de metadatos y DDL que consume la documentación."""
 
     def get_query_context_database(self) -> str: ...
+
+    def get_schema_metadata(
+        self, schema: str | None = None, *, kinds: Collection[Kind] = ALL_KINDS
+    ) -> SchemaSnapshot: ...
 
     def get_tables(self) -> Rows: ...
 

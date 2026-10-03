@@ -921,11 +921,7 @@ class HtmlGenerator:
             detail_path: str = str(item.get("path", ""))
             try:
                 columns = data_provider.get_columns(view_name)
-                processed_columns = GeneratorTabularRuntime.process_columns_data(
-                    columns,
-                    str(getattr(data_provider, "db_type", "")),
-                    include_sqlite_short_shape=False,
-                )
+                processed_columns = GeneratorTabularRuntime.process_columns_data(columns)
                 for column in processed_columns:
                     rows.append([view_name, view_comment] + [str(value) for value in column] + [detail_path])
             except DatabaseException as error:
@@ -985,24 +981,15 @@ class HtmlGenerator:
         data_provider: DocumentationManagerPort,
     ) -> list[list[str]]:
         """Construye filas planas de una tabla para la página global HTML."""
-        db_type: str = str(getattr(data_provider, "db_type", "") or "").lower()
-        columns: list[Any] = list(data_provider.get_columns(table_name))
-
-        if db_type in {"oracle", "postgresql", "hsqldb"}:
-            return GeneratorTabularRuntime.build_enriched_flat_rows_for_table(
-                table_name=table_name,
-                table_comment=table_comment,
-                columns=columns,
-                data_provider=data_provider,
-                detail_path=detail_path,
-                fk_arrow="->",
-            )
-
-        rows: list[list[str]] = []
-        for column in columns:
-            base_row: list[str] = GeneratorTabularRuntime.build_flat_base_data(column, db_type)
-            rows.append([table_name, table_comment] + base_row + [detail_path])
-        return rows
+        # D1: PK, FK e índices por columna en todos los motores (antes solo Oracle, PostgreSQL y HSQLDB; H-15)
+        return GeneratorTabularRuntime.build_enriched_flat_rows_for_table(
+            table_name=table_name,
+            table_comment=table_comment,
+            columns=list(data_provider.get_columns(table_name)),
+            data_provider=data_provider,
+            detail_path=detail_path,
+            fk_arrow="->",
+        )
 
     def _get_default_content_path(
         self,
@@ -1296,11 +1283,7 @@ class HtmlGenerator:
 
         try:
             columnas = data_provider.get_columns(table_name)
-            payload["columnas"]["rows"] = GeneratorTabularRuntime.process_columns_data(
-                columnas,
-                data_provider.db_type,
-                include_sqlite_short_shape=False,
-            )
+            payload["columnas"]["rows"] = GeneratorTabularRuntime.process_columns_data(columnas)
             self._populate_columns_charset(payload, data_provider, table_name, include_columns_charset)
         except DatabaseException:
             payload["columnas"]["rows"] = []
@@ -1343,7 +1326,7 @@ class HtmlGenerator:
 
         if section_flags[5]:
             indices = data_provider.get_indices(table_name)
-            payload["indices"] = GeneratorTabularRuntime.process_indices_data(indices, data_provider.db_type)
+            payload["indices"] = GeneratorTabularRuntime.process_indices_data(indices)
 
     def _build_view_payload(
         self,
@@ -1437,11 +1420,7 @@ class HtmlGenerator:
 
         try:
             columnas = data_provider.get_columns(view_name)
-            payload["columnas"]["rows"] = GeneratorTabularRuntime.process_columns_data(
-                columnas,
-                data_provider.db_type,
-                include_sqlite_short_shape=False,
-            )
+            payload["columnas"]["rows"] = GeneratorTabularRuntime.process_columns_data(columnas)
             self._populate_view_columns_charset(payload, data_provider, view_name, include_columns_charset)
         except DatabaseException:
             payload["columnas"]["rows"] = []

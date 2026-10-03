@@ -59,10 +59,11 @@ class KindNotLoadedError(MetadataError):
 
 @dataclass(frozen=True, slots=True)
 class TableMeta:
-    """Tabla del schema."""
+    """Tabla del schema; ``collation`` es la de la tabla donde el motor la tiene por tabla (MySQL/MariaDB)."""
 
     name: str
     comment: str | None = None
+    collation: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

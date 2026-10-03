@@ -518,22 +518,27 @@
  ],
  "tables": [
   {
+   "collation": "utf8mb4_uca1400_ai_ci",
    "comment": null,
    "name": "zz_gold_child"
   },
   {
+   "collation": "utf8mb4_uca1400_ai_ci",
    "comment": null,
    "name": "zz_gold_composite"
   },
   {
+   "collation": "utf8mb4_uca1400_ai_ci",
    "comment": null,
    "name": "zz_gold_identity"
   },
   {
+   "collation": "utf8mb4_uca1400_ai_ci",
    "comment": "tabla padre",
    "name": "zz_gold_parent"
   },
   {
+   "collation": "utf8mb4_uca1400_ai_ci",
    "comment": null,
    "name": "zz_gold_ref_composite"
   }

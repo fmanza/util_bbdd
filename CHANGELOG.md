@@ -65,6 +65,16 @@ cambios siguientes.
 
 ### Changed
 
+- **doc (ruptura de formato)**: la documentación lee el catálogo por lotes (`get_schema_metadata()`, grupo D1 de
+  ADR-003) y presenta lo mismo en todos los motores (decisión de la sesión). Columnas: campo, tipo declarado
+  (`varchar(20)`, `NUMBER(10)`), nulo, por defecto, generación (`IDENTITY (ALWAYS|BY DEFAULT)` o `CALCULADA: …`) y
+  comentario; FK con `ON DELETE`/`ON UPDATE`; índices con columnas o expresiones, único y método; la tabla «Todas las
+  tablas y columnas» (HTML y hoja *Columnas* de Excel) marca PK, FK e índices en todos los motores. Desaparecen las
+  columnas propias de cada motor (MySQL/MariaDB `Clave`/`Extra`, `Longitud`/`Precisión`/`Escala`, SQL Server
+  `Es Identity`) y el valor de retorno como parámetro ficticio (`RETURN_VALUE`, `OUT`). `headers_config.json` ya no
+  tiene cabeceras por motor para columnas, FK, UNIQUE, índices ni la tabla plana. Las sobrecargas de routines se nombran
+  con su firma (`f(a integer)`). `DocumentationSourcePort` exige `get_schema_metadata()`.
+- **metadata**: `TableMeta.collation` (collation de la tabla en MySQL/MariaDB).
 - **comparar (ruptura)**: las definiciones de vistas y routines salen del catálogo de `metadata/` por lotes
   (`metadata.reflection.view_definitions` / `schema_routines`, grupo C4 de ADR-003). Desaparece
   `comparar/_routine_fetchers.py` (`RoutineFetcherRegistry`) y los fetchers por defecto de
@@ -88,6 +98,9 @@ cambios siguientes.
 
 ### Performance
 
+- **doc**: la documentación de un schema hace 8–10 consultas de catálogo en lugar de varias por tabla. HTML con
+  500 tablas: PostgreSQL 2063 → 8 consultas y 57 → 2,1 s, Oracle 2073 → 8 y 368 → 3,2 s, SQL Server 583 → 8 y
+  4,3 → 1,8 s, MySQL/MariaDB 554 → 10. El DDL de cada tabla, si se imprime, sigue leyéndose tabla a tabla.
 - **comparar / metadata (MySQL, MariaDB)**: la reflexión de columnas, PK, índices, FKs y comentarios se lee con
   cinco consultas por schema en lugar de un `SHOW CREATE TABLE` por tabla (más la corrección de FKs de MySQL 8 por
   tabla): `metadata.reflection` reconstruye ese texto desde `information_schema` y lo interpreta el parser del dialecto,
@@ -121,6 +134,12 @@ cambios siguientes.
 
 ### Fixed
 
+- **doc**: con el formato común desaparecen defectos de la presentación por motor (H-32): la columna «Índices» de la
+  tabla plana salía siempre vacía en PostgreSQL, Oracle y HSQLDB (se buscaba la columna en la posición del método); en
+  SQL Server las cabeceras de FK tenían una columna más que los datos (todo desplazado) y «Es Identity» salía vacío en
+  las columnas identidad; en SQLite la ruta de detalle aparecía como dato de columna; las FK compuestas de PostgreSQL y
+  SQL Server mostraban columnas cruzadas (H-20). MySQL, MariaDB, SQL Server y SQLite no marcaban PK/FK/índices en la
+  tabla plana (H-15).
 - **bulk**: en Oracle, `maintenance_scope()` no desactivaba ninguna constraint: los nombres llegaban normalizados
   en minúsculas por SQLAlchemy y `ALTER TABLE … DISABLE CONSTRAINT "fk_x"` fallaba con un aviso (H-31). Ahora salen
   del catálogo como los guarda Oracle. Como su DDL confirma la transacción, si el bloque falla las constraints se

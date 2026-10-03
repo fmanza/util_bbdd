@@ -112,9 +112,7 @@ Campo
 Tipo
 Nulo
 Por defecto
-Longitud
-Precisión
-Escala
+Generación
 Es PK
 Es FK
 Índices
@@ -124,51 +122,45 @@ zz_gold_child
 id
 integer
 NO
-32
-0
 Sí
 No
+pk_zz_gold_child
 Abrir detalle
 zz_gold_child
 parent_id
 integer
 NO
-32
-0
 No
 fk_zz_gold_child_parent -> zz_gold_parent(id)
 Abrir detalle
 zz_gold_child
 label
-character varying
+character varying(50)
 YES
-50
 No
 No
+ix_zz_gold_child_label
 Abrir detalle
 zz_gold_composite
 a
 integer
 NO
-32
-0
 Sí
 No
+pk_zz_gold_composite
 Abrir detalle
 zz_gold_composite
 b
 integer
 NO
-32
-0
 Sí
 No
+pk_zz_gold_composite
 Abrir detalle
 zz_gold_composite
 note
-character varying
+character varying(30)
 YES
-30
 No
 No
 Abrir detalle
@@ -176,16 +168,15 @@ zz_gold_identity
 id
 integer
 NO
-32
-0
+IDENTITY (BY DEFAULT)
 Sí
 No
+pk_zz_gold_identity
 Abrir detalle
 zz_gold_identity
 val
-character varying
+character varying(10)
 YES
-10
 No
 No
 Abrir detalle
@@ -194,36 +185,32 @@ tabla padre
 id
 integer
 NO
-32
-0
 Sí
 No
+pk_zz_gold_parent
 Abrir detalle
 zz_gold_parent
 tabla padre
 code
-character varying
+character varying(20)
 NO
-20
 No
 No
+uk_zz_gold_parent_code
 Abrir detalle
 zz_gold_parent
 tabla padre
 name
-character varying
+character varying(100)
 YES
-100
 No
 No
 Abrir detalle
 zz_gold_parent
 tabla padre
 amount
-numeric
+numeric(12,2)
 YES
-12
-2
 No
 No
 Abrir detalle
@@ -239,26 +226,21 @@ zz_gold_ref_composite
 id
 integer
 NO
-32
-0
 Sí
 No
+pk_zz_gold_ref_composite
 Abrir detalle
 zz_gold_ref_composite
 a
 integer
 YES
-32
-0
 No
-fk_zz_gold_ref_composite -> zz_gold_composite(b)
+fk_zz_gold_ref_composite -> zz_gold_composite(a)
 Abrir detalle
 zz_gold_ref_composite
 b
 integer
 YES
-32
-0
 No
 fk_zz_gold_ref_composite -> zz_gold_composite(b)
 Abrir detalle
@@ -286,23 +268,18 @@ Campo
 Tipo
 Nulo
 Por defecto
-Longitud
-Precisión
-Escala
+Generación
 Comentario
 Detalle
 zz_gold_v_parent
 id
 integer
 YES
-32
-0
 Abrir detalle
 zz_gold_v_parent
 code
-character varying
+character varying(20)
 YES
-20
 Abrir detalle
 Índice documentación BD - zz_util_bbdd_gold
 Índice de documentación - zz_util_bbdd_gold
@@ -427,39 +404,36 @@ Campo
 Tipo
 Nulo
 Por defecto
-Longitud
-Precisión
-Escala
+Generación
 Comentario
 id
 integer
 NO
-32
-0
 parent_id
 integer
 NO
-32
-0
 label
-character varying
+character varying(50)
 YES
-50
 Claves Primarias
 ('id',)
 Relaciones (Claves Foráneas)
-Nombre de la Restricción
+Nombre Restricción
 Columna
 Tabla Referenciada
 Columna Referenciada
+ON DELETE
+ON UPDATE
 fk_zz_gold_child_parent
 parent_id
 zz_gold_parent
 id
+CASCADE
+NO ACTION
 Restricciones Únicas
 No se encontraron claves únicas.
 Índices
-Nombre del Índice
+Nombre Índice
 Columna
 Único
 Tipo de Índice
@@ -469,7 +443,7 @@ No
 btree
 pk_zz_gold_child
 id
-No
+Sí
 btree
 Tabla - zz_gold_composite | zz_util_bbdd_gold
 Tabla: zz_gold_composite
@@ -488,24 +462,17 @@ Campo
 Tipo
 Nulo
 Por defecto
-Longitud
-Precisión
-Escala
+Generación
 Comentario
 a
 integer
 NO
-32
-0
 b
 integer
 NO
-32
-0
 note
-character varying
+character varying(30)
 YES
-30
 Claves Primarias
 ('a',) ('b',)
 Relaciones (Claves Foráneas)
@@ -513,17 +480,17 @@ No se encontraron claves foráneas.
 Restricciones Únicas
 No se encontraron claves únicas.
 Índices
-Nombre del Índice
+Nombre Índice
 Columna
 Único
 Tipo de Índice
 pk_zz_gold_composite
 a
-No
+Sí
 btree
 pk_zz_gold_composite
 b
-No
+Sí
 btree
 Tabla - zz_gold_identity | zz_util_bbdd_gold
 Tabla: zz_gold_identity
@@ -541,19 +508,15 @@ Campo
 Tipo
 Nulo
 Por defecto
-Longitud
-Precisión
-Escala
+Generación
 Comentario
 id
 integer
 NO
-32
-0
+IDENTITY (BY DEFAULT)
 val
-character varying
+character varying(10)
 YES
-10
 Claves Primarias
 ('id',)
 Relaciones (Claves Foráneas)
@@ -561,13 +524,13 @@ No se encontraron claves foráneas.
 Restricciones Únicas
 No se encontraron claves únicas.
 Índices
-Nombre del Índice
+Nombre Índice
 Columna
 Único
 Tipo de Índice
 pk_zz_gold_identity
 id
-No
+Sí
 btree
 Tabla - zz_gold_parent | zz_util_bbdd_gold
 Tabla: zz_gold_parent
@@ -588,28 +551,20 @@ Campo
 Tipo
 Nulo
 Por defecto
-Longitud
-Precisión
-Escala
+Generación
 Comentario
 id
 integer
 NO
-32
-0
 code
-character varying
+character varying(20)
 NO
-20
 name
-character varying
+character varying(100)
 YES
-100
 amount
-numeric
+numeric(12,2)
 YES
-12
-2
 created
 date
 YES
@@ -618,22 +573,22 @@ Claves Primarias
 Relaciones (Claves Foráneas)
 No se encontraron claves foráneas.
 Restricciones Únicas
-Nombre de la Restricción
+Nombre Restricción
 Campo
 uk_zz_gold_parent_code
 code
 Índices
-Nombre del Índice
+Nombre Índice
 Columna
 Único
 Tipo de Índice
 pk_zz_gold_parent
 id
-No
+Sí
 btree
 uk_zz_gold_parent_code
 code
-No
+Sí
 btree
 Tabla - zz_gold_ref_composite | zz_util_bbdd_gold
 Tabla: zz_gold_ref_composite
@@ -652,58 +607,48 @@ Campo
 Tipo
 Nulo
 Por defecto
-Longitud
-Precisión
-Escala
+Generación
 Comentario
 id
 integer
 NO
-32
-0
 a
 integer
 YES
-32
-0
 b
 integer
 YES
-32
-0
 Claves Primarias
 ('id',)
 Relaciones (Claves Foráneas)
-Nombre de la Restricción
+Nombre Restricción
 Columna
 Tabla Referenciada
 Columna Referenciada
+ON DELETE
+ON UPDATE
 fk_zz_gold_ref_composite
 a
 zz_gold_composite
 a
-fk_zz_gold_ref_composite
-a
-zz_gold_composite
-b
-fk_zz_gold_ref_composite
-b
-zz_gold_composite
-a
+NO ACTION
+NO ACTION
 fk_zz_gold_ref_composite
 b
 zz_gold_composite
 b
+NO ACTION
+NO ACTION
 Restricciones Únicas
 No se encontraron claves únicas.
 Índices
-Nombre del Índice
+Nombre Índice
 Columna
 Único
 Tipo de Índice
 pk_zz_gold_ref_composite
 id
-No
+Sí
 btree
 Vista - zz_gold_v_parent | zz_util_bbdd_gold
 Vista: zz_gold_v_parent
@@ -712,6 +657,7 @@ Base de datos: zz_util_bbdd_gold
 Comentario:
 DDL
 Copiar DDL
+CREATE VIEW zz_gold_v_parent AS
 SELECT id,
 code
 FROM zz_gold_parent;
@@ -720,16 +666,11 @@ Campo
 Tipo
 Nulo
 Por defecto
-Longitud
-Precisión
-Escala
+Generación
 Comentario
 id
 integer
 YES
-32
-0
 code
-character varying
+character varying(20)
 YES
-20

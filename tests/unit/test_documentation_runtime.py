@@ -23,6 +23,7 @@ from util_bbdd.doc.infrastructure.runtime.headers_runtime import DocumentationHe
 from util_bbdd.doc.infrastructure.runtime.metadata_runtime import DocumentationMetadataRuntimeFactory
 from util_bbdd.doc.infrastructure.runtime.output_runtime import DocumentationOutputRuntime
 from util_bbdd.doc.infrastructure.storage.runtime import StorageInventoryReportService, StorageInventoryRuntime
+from util_bbdd.metadata.model import ColumnMeta, Kind, PrimaryKeyMeta, RoutineMeta, SchemaSnapshot, TableMeta, ViewMeta
 
 
 def test_normalize_output_formats_without_duplicates() -> None:
@@ -150,14 +151,13 @@ def test_documentation_bootstrap_builds_initial_state(tmp_path: Path) -> None:
         database = "demo"
         conn_params: dict[str, Any] = {}
 
-        def get_tables(self) -> list[str]:
-            return ["users"]
-
-        def get_views(self) -> list[str]:
-            return ["active_users"]
-
-        def get_routines(self) -> list[str]:
-            return ["refresh_users"]
+        def get_schema_metadata(self, schema: str | None = None, *, kinds: Any = ()) -> SchemaSnapshot:
+            data = {
+                Kind.TABLES: (TableMeta("users", "usuarios"),),
+                Kind.VIEWS: (ViewMeta("active_users", "SELECT 1"),),
+                Kind.ROUTINES: (RoutineMeta("refresh_users", "PROCEDURE"),),
+            }
+            return SchemaSnapshot("postgresql", "demo", {k: data.get(k, ()) for k in kinds})
 
     headers_file = tmp_path / "headers.json"
     headers_file.write_text(
@@ -200,9 +200,10 @@ def test_documentation_bootstrap_builds_initial_state(tmp_path: Path) -> None:
     assert state.table_style == "Light Grid"
     assert state.headers_config["headers"]["tables"]["base"] == ["name"]
     assert state.headers == {"tables": ["Nombre", "Propietario"]}
-    assert state.tablas == ["users"]
-    assert state.vistas == ["active_users"]
-    assert state.rutinas == ["refresh_users"]
+    # D1: filas neutras desde el snapshot (nombre, comentario[, collation | tipo])
+    assert state.tablas == [("users", "usuarios", "")]
+    assert state.vistas == [("active_users", "")]
+    assert state.rutinas == [("refresh_users", "PROCEDURE", "")]
 
 
 def test_documentation_session_caches_manager_metadata_calls(tmp_path: Path) -> None:
@@ -212,12 +213,8 @@ def test_documentation_session_caches_manager_metadata_calls(tmp_path: Path) -> 
         conn_params: dict[str, Any] = {}
 
         def __init__(self) -> None:
-            self.calls: dict[str, int] = {
-                "get_query_context_database": 0,
-                "get_ddl": 0,
-                "get_columns": 0,
-                "get_primary_keys": 0,
-            }
+            self.calls: dict[str, int] = {"get_query_context_database": 0, "get_ddl": 0}
+            self.loaded: list[frozenset[Kind]] = []
 
         def get_query_context_database(self) -> str:
             self.calls["get_query_context_database"] += 1
@@ -227,13 +224,13 @@ def test_documentation_session_caches_manager_metadata_calls(tmp_path: Path) -> 
             self.calls["get_ddl"] += 1
             return f"DDL {tabla}"
 
-        def get_columns(self, tabla: str) -> list[tuple[str]]:
-            self.calls["get_columns"] += 1
-            return [(f"{tabla}_id",)]
-
-        def get_primary_keys(self, tabla: str) -> list[tuple[str]]:
-            self.calls["get_primary_keys"] += 1
-            return [(f"pk_{tabla}",)]
+        def get_schema_metadata(self, schema: str | None = None, *, kinds: Any = ()) -> SchemaSnapshot:
+            self.loaded.append(frozenset(kinds))
+            data = {
+                Kind.COLUMNS: (ColumnMeta("users", "users_id", 1, "integer", "integer", False, identity="always"),),
+                Kind.PRIMARY_KEYS: (PrimaryKeyMeta("users", "pk_users", ("users_id",)),),
+            }
+            return SchemaSnapshot("postgresql", "demo", {k: data.get(k, ()) for k in kinds})
 
     manager = _DbManager()
 
@@ -264,16 +261,14 @@ def test_documentation_session_caches_manager_metadata_calls(tmp_path: Path) -> 
     assert session.database == "demo"
     assert session.get_ddl("users") == "DDL users"
     assert session.get_ddl("users") == "DDL users"
-    assert session.get_columns("users") == [("users_id",)]
-    assert session.get_columns("users") == [("users_id",)]
-    assert session.get_primary_keys("users") == [("pk_users",)]
-    assert session.get_primary_keys("users") == [("pk_users",)]
-    assert manager.calls == {
-        "get_query_context_database": 1,
-        "get_ddl": 1,
-        "get_columns": 1,
-        "get_primary_keys": 1,
-    }
+    expected_column = ("users_id", "integer", "NO", "", "IDENTITY (ALWAYS)", "")
+    assert session.get_columns("users") == [expected_column]
+    assert session.get_columns("users") == [expected_column]
+    assert session.get_primary_keys("users") == [("users_id",)]
+    assert session.get_primary_keys("users") == [("users_id",)]
+    assert manager.calls == {"get_query_context_database": 1, "get_ddl": 1}
+    # D1: cada tipo de objeto se lee una vez para todo el schema, no por tabla
+    assert manager.loaded == [frozenset({Kind.COLUMNS}), frozenset({Kind.PRIMARY_KEYS})]
 
 
 def test_documentation_session_metadata_helpers_delegate_successfully(tmp_path: Path) -> None:

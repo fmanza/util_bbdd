@@ -13,8 +13,6 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from util_bbdd.doc.infrastructure.renderers.shared.generator_shared import GeneratorTabularRuntime
 from util_bbdd.doc.infrastructure.runtime.headers_runtime import DocumentationHeadersRuntime
 from util_bbdd.doc.infrastructure.storage.runtime import StorageInventoryRuntime
@@ -82,16 +80,15 @@ class TestMysqlFollowsMariaDBInConsumers:
         config: Any = json.loads(HEADERS_FILE.read_text(encoding="utf-8"))
         assert runtime.build_headers(config, "mysql") == runtime.build_headers(config, "mariadb")
 
-    @pytest.mark.parametrize("db_type", ["mysql", "mariadb"])
-    def test_tabular_runtime_treats_mysql_like_mariadb(self, db_type: str) -> None:
-        indices = [("ix", "col", 1, "BTREE")]
-        fks = [("fk", "t", "col", "parent", "id")]
-        assert GeneratorTabularRuntime.process_indices_data(indices, db_type) == [["ix", "col", "No", "BTREE"]]
-        assert GeneratorTabularRuntime.get_flat_column_indexes(db_type) == list(range(7))
-        assert GeneratorTabularRuntime.map_foreign_keys_by_column(foreign_keys=fks, db_type=db_type, arrow="->") == {
+    def test_tabular_runtime_does_not_depend_on_the_engine(self) -> None:
+        """D1: las filas de la documentación son neutras (``catalog_rows``); los helpers ya no reciben el motor."""
+        indices = [("ix", "col", "No", "BTREE")]
+        fks = [("fk", "col", "parent", "id", "NO ACTION", "NO ACTION")]
+        assert GeneratorTabularRuntime.process_indices_data(indices) == [["ix", "col", "No", "BTREE"]]
+        assert GeneratorTabularRuntime.map_foreign_keys_by_column(foreign_keys=fks, arrow="->") == {
             "col": "fk -> parent(id)"
         }
-        assert GeneratorTabularRuntime.map_indices_by_column(indices=indices, db_type=db_type) == {"col": ["ix"]}
+        assert GeneratorTabularRuntime.map_indices_by_column(indices=indices) == {"col": ["ix"]}
 
     def test_storage_runtime_has_dedicated_mysql_strategy(self) -> None:
         manager = MagicMock()

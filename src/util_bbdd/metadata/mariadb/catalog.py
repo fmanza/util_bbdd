@@ -116,7 +116,7 @@ _PARAMETERS_SQL = (
 # kind → (SQL con {filter}, columna por la que se filtra con :tables o None, consultas extra)
 _COMMON: dict[Kind, tuple[str, str | None, tuple[str, ...]]] = {
     Kind.TABLES: (
-        "SELECT TABLE_NAME, TABLE_COMMENT FROM information_schema.TABLES "
+        "SELECT TABLE_NAME, TABLE_COMMENT, TABLE_COLLATION FROM information_schema.TABLES "
         "WHERE TABLE_SCHEMA = :schema AND TABLE_TYPE = 'BASE TABLE'{filter} ORDER BY TABLE_NAME",
         "TABLE_NAME",
         (),
@@ -296,7 +296,7 @@ class MariaDBCatalog:
     # ── parseo por tipo ──────────────────────────────────────────────────────
     @staticmethod
     def _parse_tables(rows: Sequence[Sequence[Any]], schema: str) -> list[TableMeta]:
-        return [TableMeta(str(r[0]), _text(r[1])) for r in rows]
+        return [TableMeta(str(r[0]), _text(r[1]), _text(r[2]) if len(r) > 2 else None) for r in rows]
 
     @staticmethod
     def _parse_views(rows: Sequence[Sequence[Any]], schema: str) -> list[ViewMeta]:

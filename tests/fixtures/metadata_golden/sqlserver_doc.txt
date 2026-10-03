@@ -1,6 +1,6 @@
 Todas las funciones - zz_gold
 Todas las funciones
-Base de datos: zz_gold · Generado: <fecha> · Registros: 2
+Base de datos: zz_gold · Generado: <fecha> · Registros: 1
 Anterior
 Página 1/1
 Siguiente
@@ -25,12 +25,6 @@ Tipo
 Valor por defecto
 Posición
 Detalle
-zz_gold_f
-FUNCTION
-OUT
-int
-0
-Abrir detalle
 zz_gold_f
 FUNCTION
 IN
@@ -117,122 +111,138 @@ Comentario Tabla
 Campo
 Tipo
 Nulo
-Es Identity
 Por defecto
-Longitud
-Precisión
-Escala
+Generación
+Es PK
+Es FK
+Índices
 Comentario Columna
 Detalle
 zz_gold_child
 id
 int
 NO
-10
-0
+Sí
+No
+pk_zz_gold_child
 Abrir detalle
 zz_gold_child
 parent_id
 int
 NO
-10
-0
+No
+fk_zz_gold_child_parent -> zz_gold_parent(id)
 Abrir detalle
 zz_gold_child
 label
-varchar
+varchar(50)
 YES
-50
+No
+No
+ix_zz_gold_child_label
 Abrir detalle
 zz_gold_composite
 a
 int
 NO
-10
-0
+Sí
+No
+pk_zz_gold_composite
 Abrir detalle
 zz_gold_composite
 b
 int
 NO
-10
-0
+Sí
+No
+pk_zz_gold_composite
 Abrir detalle
 zz_gold_composite
 note
-varchar
+varchar(30)
 YES
-30
+No
+No
 Abrir detalle
 zz_gold_identity
 id
 int
 NO
-10
-0
+IDENTITY (BY DEFAULT)
+Sí
+No
+pk_zz_gold_identity
 Abrir detalle
 zz_gold_identity
 val
-varchar
+varchar(10)
 YES
-10
+No
+No
 Abrir detalle
 zz_gold_parent
 tabla padre
 id
 int
 NO
-10
-0
+Sí
+No
+pk_zz_gold_parent
 Abrir detalle
 zz_gold_parent
 tabla padre
 code
-varchar
+varchar(20)
 NO
-20
+No
+No
+uk_zz_gold_parent_code
 Abrir detalle
 zz_gold_parent
 tabla padre
 name
-varchar
+varchar(100)
 YES
-100
+No
+No
 Abrir detalle
 zz_gold_parent
 tabla padre
 amount
-decimal
+decimal(12,2)
 YES
-12
-2
+No
+No
 Abrir detalle
 zz_gold_parent
 tabla padre
 created
 date
 YES
+No
+No
 Abrir detalle
 zz_gold_ref_composite
 id
 int
 NO
-10
-0
+Sí
+No
+pk_zz_gold_ref_composite
 Abrir detalle
 zz_gold_ref_composite
 a
 int
 YES
-10
-0
+No
+fk_zz_gold_ref_composite -> zz_gold_composite(a)
 Abrir detalle
 zz_gold_ref_composite
 b
 int
 YES
-10
-0
+No
+fk_zz_gold_ref_composite -> zz_gold_composite(b)
 Abrir detalle
 Todas las vistas y columnas - zz_gold
 Todas las vistas y columnas
@@ -257,25 +267,19 @@ Comentario
 Campo
 Tipo
 Nulo
-Es Identity
 Por defecto
-Longitud
-Precisión
-Escala
+Generación
 Comentario
 Detalle
 zz_gold_v_parent
 id
 int
 NO
-10
-0
 Abrir detalle
 zz_gold_v_parent
 code
-varchar
+varchar(20)
 NO
-20
 Abrir detalle
 Índice documentación BD - zz_gold
 Índice de documentación - zz_gold
@@ -354,9 +358,6 @@ Parámetro
 Tipo
 Valor por defecto
 Posición
-OUT
-int
-0
 IN
 @x
 int
@@ -393,38 +394,33 @@ Columnas
 Campo
 Tipo
 Nulo
-Es Identity
 Por defecto
-Longitud
-Precisión
-Escala
+Generación
 Comentario
 id
 int
 NO
-10
-0
 parent_id
 int
 NO
-10
-0
 label
-varchar
+varchar(50)
 YES
-50
 Claves Primarias
 ('id',)
 Relaciones (Claves Foráneas)
 Nombre Restricción
-Tabla
 Columna
-Tabla Ref.
-Columna Ref.
+Tabla Referenciada
+Columna Referenciada
+ON DELETE
+ON UPDATE
 fk_zz_gold_child_parent
 parent_id
 zz_gold_parent
 id
+CASCADE
+NO ACTION
 Restricciones Únicas
 No se encontraron claves únicas.
 Índices
@@ -438,7 +434,7 @@ No
 NONCLUSTERED
 pk_zz_gold_child
 id
-No
+Sí
 CLUSTERED
 Tabla - zz_gold_composite | zz_gold
 Tabla: zz_gold_composite
@@ -452,26 +448,18 @@ Columnas
 Campo
 Tipo
 Nulo
-Es Identity
 Por defecto
-Longitud
-Precisión
-Escala
+Generación
 Comentario
 a
 int
 NO
-10
-0
 b
 int
 NO
-10
-0
 note
-varchar
+varchar(30)
 YES
-30
 Claves Primarias
 ('a',) ('b',)
 Relaciones (Claves Foráneas)
@@ -485,11 +473,11 @@ Columna
 Tipo de Índice
 pk_zz_gold_composite
 a
-No
+Sí
 CLUSTERED
 pk_zz_gold_composite
 b
-No
+Sí
 CLUSTERED
 Tabla - zz_gold_identity | zz_gold
 Tabla: zz_gold_identity
@@ -503,21 +491,16 @@ Columnas
 Campo
 Tipo
 Nulo
-Es Identity
 Por defecto
-Longitud
-Precisión
-Escala
+Generación
 Comentario
 id
 int
 NO
-10
-0
+IDENTITY (BY DEFAULT)
 val
-varchar
+varchar(10)
 YES
-10
 Claves Primarias
 ('id',)
 Relaciones (Claves Foráneas)
@@ -531,7 +514,7 @@ Columna
 Tipo de Índice
 pk_zz_gold_identity
 id
-No
+Sí
 CLUSTERED
 Tabla - zz_gold_parent | zz_gold
 Tabla: zz_gold_parent
@@ -545,30 +528,21 @@ Columnas
 Campo
 Tipo
 Nulo
-Es Identity
 Por defecto
-Longitud
-Precisión
-Escala
+Generación
 Comentario
 id
 int
 NO
-10
-0
 code
-varchar
+varchar(20)
 NO
-20
 name
-varchar
+varchar(100)
 YES
-100
 amount
-decimal
+decimal(12,2)
 YES
-12
-2
 created
 date
 YES
@@ -588,11 +562,11 @@ Columna
 Tipo de Índice
 pk_zz_gold_parent
 id
-No
+Sí
 CLUSTERED
 uk_zz_gold_parent_code
 code
-No
+Sí
 NONCLUSTERED
 Tabla - zz_gold_ref_composite | zz_gold
 Tabla: zz_gold_ref_composite
@@ -606,51 +580,39 @@ Columnas
 Campo
 Tipo
 Nulo
-Es Identity
 Por defecto
-Longitud
-Precisión
-Escala
+Generación
 Comentario
 id
 int
 NO
-10
-0
 a
 int
 YES
-10
-0
 b
 int
 YES
-10
-0
 Claves Primarias
 ('id',)
 Relaciones (Claves Foráneas)
 Nombre Restricción
-Tabla
 Columna
-Tabla Ref.
-Columna Ref.
+Tabla Referenciada
+Columna Referenciada
+ON DELETE
+ON UPDATE
 fk_zz_gold_ref_composite
 a
 zz_gold_composite
 a
-fk_zz_gold_ref_composite
-a
-zz_gold_composite
-b
-fk_zz_gold_ref_composite
-b
-zz_gold_composite
-a
+NO ACTION
+NO ACTION
 fk_zz_gold_ref_composite
 b
 zz_gold_composite
 b
+NO ACTION
+NO ACTION
 Restricciones Únicas
 No se encontraron claves únicas.
 Índices
@@ -660,7 +622,7 @@ Columna
 Tipo de Índice
 pk_zz_gold_ref_composite
 id
-No
+Sí
 CLUSTERED
 Vista - zz_gold_v_parent | zz_gold
 Vista: zz_gold_v_parent
@@ -674,18 +636,12 @@ Columnas
 Campo
 Tipo
 Nulo
-Es Identity
 Por defecto
-Longitud
-Precisión
-Escala
+Generación
 Comentario
 id
 int
 NO
-10
-0
 code
-varchar
+varchar(20)
 NO
-20

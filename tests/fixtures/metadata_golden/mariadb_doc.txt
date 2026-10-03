@@ -1,6 +1,6 @@
 Todas las funciones - zz_util_bbdd_gold
 Todas las funciones
-Base de datos: zz_util_bbdd_gold · Generado: <fecha> · Registros: 2
+Base de datos: zz_util_bbdd_gold · Generado: <fecha> · Registros: 1
 Anterior
 Página 1/1
 Siguiente
@@ -25,13 +25,6 @@ Tipo
 Valor por defecto
 Posición
 Detalle
-zz_gold_f
-FUNCTION
-RETURN
-RETURN_VALUE
-int(11)
-0
-Abrir detalle
 zz_gold_f
 FUNCTION
 IN
@@ -118,114 +111,141 @@ Comentario Tabla
 Campo
 Tipo
 Nulo
-Clave
 Por defecto
-Extra
+Generación
+Es PK
+Es FK
+Índices
 Comentario Columna
 Detalle
 zz_gold_child
 id
 int(11)
 NO
-PRI
+Sí
+No
+PRIMARY
 Abrir detalle
 zz_gold_child
 parent_id
 int(11)
 NO
-MUL
+No
+fk_zz_gold_child_parent -> zz_gold_parent(id)
+fk_zz_gold_child_parent
 Abrir detalle
 zz_gold_child
 label
 varchar(50)
 YES
-MUL
-NULL
+No
+No
+ix_zz_gold_child_label
 Abrir detalle
 zz_gold_composite
 a
 int(11)
 NO
-PRI
+Sí
+No
+PRIMARY
 Abrir detalle
 zz_gold_composite
 b
 int(11)
 NO
-PRI
+Sí
+No
+PRIMARY
 Abrir detalle
 zz_gold_composite
 note
 varchar(30)
 YES
-NULL
+No
+No
 Abrir detalle
 zz_gold_identity
 id
 int(11)
 NO
-PRI
-auto_increment
+IDENTITY (BY DEFAULT)
+Sí
+No
+PRIMARY
 Abrir detalle
 zz_gold_identity
 val
 varchar(10)
 YES
-NULL
+No
+No
 Abrir detalle
 zz_gold_parent
 tabla padre
 id
 int(11)
 NO
-PRI
+Sí
+No
+PRIMARY
 Abrir detalle
 zz_gold_parent
 tabla padre
 code
 varchar(20)
 NO
-UNI
+No
+No
+uk_zz_gold_parent_code
 Abrir detalle
 zz_gold_parent
 tabla padre
 name
 varchar(100)
 YES
-NULL
+No
+No
 Abrir detalle
 zz_gold_parent
 tabla padre
 amount
 decimal(12,2)
 YES
-NULL
+No
+No
 Abrir detalle
 zz_gold_parent
 tabla padre
 created
 date
 YES
-NULL
+No
+No
 Abrir detalle
 zz_gold_ref_composite
 id
 int(11)
 NO
-PRI
+Sí
+No
+PRIMARY
 Abrir detalle
 zz_gold_ref_composite
 a
 int(11)
 YES
-MUL
-NULL
+No
+fk_zz_gold_ref_composite -> zz_gold_composite(a)
+fk_zz_gold_ref_composite
 Abrir detalle
 zz_gold_ref_composite
 b
 int(11)
 YES
-NULL
+No
+fk_zz_gold_ref_composite -> zz_gold_composite(b)
+fk_zz_gold_ref_composite
 Abrir detalle
 Todas las vistas y columnas - zz_util_bbdd_gold
 Todas las vistas y columnas
@@ -250,19 +270,16 @@ Comentario
 Campo
 Tipo
 Nulo
-Clave
 Por defecto
-Extra
+Generación
 Comentario
 Detalle
 zz_gold_v_parent
-VIEW
 id
 int(11)
 NO
 Abrir detalle
 zz_gold_v_parent
-VIEW
 code
 varchar(20)
 NO
@@ -302,7 +319,6 @@ Siguiente
 Vistas (1)
 Ver todo
 zz_gold_v_parent
-VIEW
 Anterior
 Página 1/1
 Siguiente
@@ -336,8 +352,11 @@ Base de datos: zz_util_bbdd_gold
 Comentario:
 DDL
 Copiar DDL
-CREATE DEFINER=`bench`@`%` FUNCTION `zz_util_bbdd_gold`.`zz_gold_f`(x int(11)) RETURNS int(11)
+CREATE FUNCTION `zz_gold_f`(`x` int(11))
+RETURNS int(11)
 DETERMINISTIC
+NO SQL
+SQL SECURITY DEFINER
 RETURN x + 1
 Tipo
 Función
@@ -347,10 +366,6 @@ Parámetro
 Tipo
 Valor por defecto
 Posición
-RETURN
-RETURN_VALUE
-int(11)
-0
 IN
 x
 int(11)
@@ -362,9 +377,10 @@ Base de datos: zz_util_bbdd_gold
 Comentario:
 DDL
 Copiar DDL
-CREATE DEFINER=`bench`@`%` PROCEDURE `zz_util_bbdd_gold`.`zz_gold_p`(
-IN x int(11)
-)
+CREATE PROCEDURE `zz_gold_p`(IN `x` int(11))
+NOT DETERMINISTIC
+NO SQL
+SQL SECURITY DEFINER
 BEGIN DECLARE y INT; SET y = x; END
 Tipo
 Procedure
@@ -383,7 +399,7 @@ Tabla: zz_gold_child
 Generado: <fecha>
 Base de datos: zz_util_bbdd_gold
 Comentario:
-Charset & Collation: utf8mb4 utf8mb4_uca1400_ai_ci
+Charset & Collation: utf8mb4_uca1400_ai_ci
 DDL
 Copiar DDL
 CREATE TABLE `zz_gold_child` (
@@ -396,36 +412,33 @@ Columnas
 Campo
 Tipo
 Nulo
-Clave
 Por defecto
-Extra
+Generación
 Comentario
 id
 int(11)
 NO
-PRI
 parent_id
 int(11)
 NO
-MUL
 label
 varchar(50)
 YES
-MUL
-NULL
 Claves Primarias
 ('id',)
 Relaciones (Claves Foráneas)
 Nombre Restricción
-Tabla
 Columna
-Tabla Ref.
-Columna Ref.
+Tabla Referenciada
+Columna Referenciada
+ON DELETE
+ON UPDATE
 fk_zz_gold_child_parent
-zz_gold_child
 parent_id
 zz_gold_parent
 id
+CASCADE
+RESTRICT
 Restricciones Únicas
 No se encontraron claves únicas.
 Índices
@@ -450,7 +463,7 @@ Tabla: zz_gold_composite
 Generado: <fecha>
 Base de datos: zz_util_bbdd_gold
 Comentario:
-Charset & Collation: utf8mb4 utf8mb4_uca1400_ai_ci
+Charset & Collation: utf8mb4_uca1400_ai_ci
 DDL
 Copiar DDL
 CREATE TABLE `zz_gold_composite` (
@@ -463,22 +476,18 @@ Columnas
 Campo
 Tipo
 Nulo
-Clave
 Por defecto
-Extra
+Generación
 Comentario
 a
 int(11)
 NO
-PRI
 b
 int(11)
 NO
-PRI
 note
 varchar(30)
 YES
-NULL
 Claves Primarias
 ('a',) ('b',)
 Relaciones (Claves Foráneas)
@@ -503,7 +512,7 @@ Tabla: zz_gold_identity
 Generado: <fecha>
 Base de datos: zz_util_bbdd_gold
 Comentario:
-Charset & Collation: utf8mb4 utf8mb4_uca1400_ai_ci
+Charset & Collation: utf8mb4_uca1400_ai_ci
 DDL
 Copiar DDL
 CREATE TABLE `zz_gold_identity` (
@@ -515,19 +524,16 @@ Columnas
 Campo
 Tipo
 Nulo
-Clave
 Por defecto
-Extra
+Generación
 Comentario
 id
 int(11)
 NO
-PRI
-auto_increment
+IDENTITY (BY DEFAULT)
 val
 varchar(10)
 YES
-NULL
 Claves Primarias
 ('id',)
 Relaciones (Claves Foráneas)
@@ -548,7 +554,7 @@ Tabla: zz_gold_parent
 Generado: <fecha>
 Base de datos: zz_util_bbdd_gold
 Comentario: tabla padre
-Charset & Collation: utf8mb4 utf8mb4_uca1400_ai_ci
+Charset & Collation: utf8mb4_uca1400_ai_ci
 DDL
 Copiar DDL
 CREATE TABLE `zz_gold_parent` (
@@ -563,30 +569,24 @@ Columnas
 Campo
 Tipo
 Nulo
-Clave
 Por defecto
-Extra
+Generación
 Comentario
 id
 int(11)
 NO
-PRI
 code
 varchar(20)
 NO
-UNI
 name
 varchar(100)
 YES
-NULL
 amount
 decimal(12,2)
 YES
-NULL
 created
 date
 YES
-NULL
 Claves Primarias
 ('id',)
 Relaciones (Claves Foráneas)
@@ -614,7 +614,7 @@ Tabla: zz_gold_ref_composite
 Generado: <fecha>
 Base de datos: zz_util_bbdd_gold
 Comentario:
-Charset & Collation: utf8mb4 utf8mb4_uca1400_ai_ci
+Charset & Collation: utf8mb4_uca1400_ai_ci
 DDL
 Copiar DDL
 CREATE TABLE `zz_gold_ref_composite` (
@@ -627,41 +627,39 @@ Columnas
 Campo
 Tipo
 Nulo
-Clave
 Por defecto
-Extra
+Generación
 Comentario
 id
 int(11)
 NO
-PRI
 a
 int(11)
 YES
-MUL
-NULL
 b
 int(11)
 YES
-NULL
 Claves Primarias
 ('id',)
 Relaciones (Claves Foráneas)
 Nombre Restricción
-Tabla
 Columna
-Tabla Ref.
-Columna Ref.
+Tabla Referenciada
+Columna Referenciada
+ON DELETE
+ON UPDATE
 fk_zz_gold_ref_composite
-zz_gold_ref_composite
 a
 zz_gold_composite
 a
+RESTRICT
+RESTRICT
 fk_zz_gold_ref_composite
-zz_gold_ref_composite
 b
 zz_gold_composite
 b
+RESTRICT
+RESTRICT
 Restricciones Únicas
 No se encontraron claves únicas.
 Índices
@@ -685,18 +683,17 @@ Vista - zz_gold_v_parent | zz_util_bbdd_gold
 Vista: zz_gold_v_parent
 Generado: <fecha>
 Base de datos: zz_util_bbdd_gold
-Comentario: VIEW
+Comentario:
 DDL
 Copiar DDL
-CREATE OR REPLACE VIEW `zz_gold_v_parent` AS
+CREATE VIEW zz_gold_v_parent AS
 select `zz_util_bbdd_gold`.`zz_gold_parent`.`id` AS `id`,`zz_util_bbdd_gold`.`zz_gold_parent`.`code` AS `code` from `zz_util_bbdd_gold`.`zz_gold_parent`
 Columnas
 Campo
 Tipo
 Nulo
-Clave
 Por defecto
-Extra
+Generación
 Comentario
 id
 int(11)

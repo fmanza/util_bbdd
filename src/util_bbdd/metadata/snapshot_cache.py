@@ -32,7 +32,7 @@ class SnapshotCache:
     Example:
         >>> cache = SnapshotCache(max_schemas=4)
         >>> cache.get_or_load(("pg", "ventas", Kind.TABLES, None), lambda: (TableMeta("t"),))
-        (TableMeta(name='t', comment=None),)
+        (TableMeta(name='t', comment=None, collation=None),)
     """
 
     def __init__(self, max_schemas: int = 8) -> None:
