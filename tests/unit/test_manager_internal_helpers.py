@@ -43,6 +43,18 @@ def test_get_query_context_database_uses_schema_defaults() -> None:
     assert MetadataContextResolver.get_context_database(db_type="sqlserver", database="", conn_params={}) == "dbo"
 
 
+@pytest.mark.parametrize(
+    ("user", "expected"),
+    [("scott", "SCOTT"), ("Scott", "SCOTT"), ("SCOTT", "SCOTT"), ('"MixedCase"', "MixedCase")],
+)
+def test_oracle_context_is_the_user_as_oracle_stores_it(user: str, expected: str) -> None:
+    """H-18: Oracle guarda en mayúsculas los nombres sin comillas; con ``user="bench"`` los metadatos salían vacíos."""
+    assert (
+        MetadataContextResolver.get_context_database(db_type="oracle", database="XE", conn_params={"user": user})
+        == expected
+    )
+
+
 def test_clear_context_cache_removes_only_matching_entries() -> None:
     db_cache = DatabaseMetadataCache()
     db_cache._tables_cache["public"] = [("users",)]

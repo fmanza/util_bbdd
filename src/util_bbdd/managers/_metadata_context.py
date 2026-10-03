@@ -33,6 +33,11 @@ class MetadataContextResolver:
 
         if db_type == "oracle":
             oracle_user: str = str(conn_params.get("user", "")).strip()
+            # Oracle guarda en mayúsculas los nombres sin comillas: «bench» y «BENCH» son el mismo owner (H-18)
+            if len(oracle_user) > 1 and oracle_user.startswith('"') and oracle_user.endswith('"'):
+                oracle_user = oracle_user[1:-1]
+            else:
+                oracle_user = oracle_user.upper()
             context_database = oracle_user or context_database
         elif db_type == "postgresql":
             explicit_context: str = str(conn_params.get("schema", "")).strip()

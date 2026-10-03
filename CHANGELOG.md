@@ -44,6 +44,11 @@ cambios siguientes.
 
 ### Fixed
 
+- **managers**: en Oracle, con el usuario escrito en minúsculas (`user="scott"`), `get_tables()`, `get_views()`,
+  `get_columns()`, `get_routines()` y el resto de lecturas de metadatos no devolvían nada: el contexto era el usuario tal
+  cual y casi todas las consultas comparan `owner = '<usuario>'`, mientras Oracle guarda en mayúsculas los nombres sin
+  comillas. El contexto pasa a ser el usuario como lo guarda Oracle (`SCOTT`; entre comillas, literal). Sync y async;
+  `doc` documentaba la base vacía (H-18, sesión `2026-10-03-metadata-centralization`).
 - **managers**: `get_view_ddl()` y `get_routine_ddl()` fallaban siempre en PostgreSQL (y `get_routine_ddl()` en
   HSQLDB) con `QueryValidationError`: sus plantillas usan `{esquema}` y el contexto solo se añadía en Oracle y SQL
   Server. `doc` absorbía el error y documentaba vistas y routines sin DDL. Sync y async (H-10, sesión
