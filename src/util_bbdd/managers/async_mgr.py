@@ -19,7 +19,6 @@ from ..executors.async_query_executor import AsyncQueryExecutor
 from ..factory.async_sqlalchemy_engine_factory import AsyncSQLAlchemyEngineFactory
 from ..factory.pool_factory import PoolFactory
 from ..metadata import (
-    DatabaseMetadataCache,
     Rows,
 )
 from ..metadata.catalog_registry import get_catalog_dialect
@@ -28,7 +27,6 @@ from ..metadata.source import AsyncCatalogSource
 from ..results import ResultNormalizer, RowOrNone
 from ._catalog_executor import AsyncManagerCatalogExecutor
 from ._catalog_facade import AsyncCatalogFacade
-from ._manager_cache_service import CacheService
 from ._manager_lifecycle import (
     close_async_resources,
     get_async_connection,
@@ -67,11 +65,6 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         self.use_pool: bool = use_pool
 
         # Inicializar cachés centralizados
-        self.db_cache: DatabaseMetadataCache = DatabaseMetadataCache()
-        self.logger.debug("✅ Cachés centralizados inicializados")
-
-        # Inicializar servicio de caché
-        self.cache_service = CacheService(self.db_cache, self.logger)
 
         # Factories para conexión
         self._connection_factory: Callable[..., Awaitable[Any]] = (
@@ -368,50 +361,6 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
             self.pool_connection = None
             self._connection = None
             self._initialized = False
-
-    async def _execute_metadata_many(
-        self,
-        query_name: str,
-        *,
-        params: dict[str, Any],
-        error_message: str,
-        table_name: str | None = None,
-    ) -> Rows:
-        executor: AsyncQueryExecutor = await self._get_query_executor()
-        result = await self._run_manager_operation_async(
-            action=lambda: executor.execute_query_many(
-                query_name=query_name,
-                db_type=self.db_type,
-                params=params,
-            ),
-            error_message=error_message,
-            operation="SELECT",
-            table_name=table_name,
-        )
-        return cast(Rows, result)
-
-    async def _get_cached_rows_async(
-        self,
-        *,
-        cache_lookup: Callable[[], list[Any] | None],
-        cache_store: Callable[[list[Any]], None],
-        fetch_rows: Callable[[], Awaitable[list[Any]]],
-        cache_hit_message: str | None = None,
-        success_message: str | None = None,
-        fetch_debug_message: str | None = None,
-    ) -> list[Any]:
-        cached_rows: list[Any] | None = cache_lookup()
-        if cached_rows is not None:
-            if cache_hit_message:
-                self.logger.debug(cache_hit_message)
-            return list(cached_rows)
-        if fetch_debug_message:
-            self.logger.debug(fetch_debug_message)
-        rows = list(await fetch_rows())
-        cache_store(rows)
-        if success_message:
-            self.logger.info(f"Success: {len(rows)} rows")
-        return rows
 
     async def get_query_info(self) -> dict[str, Any]:
         executor: AsyncQueryExecutor = await self._get_query_executor()

@@ -9,7 +9,6 @@ from util_bbdd.core.capabilities import is_async_supported
 from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
 from util_bbdd.managers._metadata_context import MetadataContextResolver
-from util_bbdd.query import DatabaseQueries
 from util_bbdd.validators import get_type_validator
 
 EXECUTORS = [SyncQueryExecutor, AsyncQueryExecutor]
@@ -47,13 +46,6 @@ class TestMySQLRegistration:
         validator = get_type_validator("mysql")
         assert validator.db_type == "mysql"
         assert type(validator).__name__ == "MySQLValidator"
-
-    def test_query_catalog_loads_for_mysql(self) -> None:
-        queries = DatabaseQueries("mysql")
-        assert set(queries.registry.get_available_queries("mysql")) == set(
-            queries.registry.get_available_queries("mariadb")
-        )
-        assert "INFORMATION_SCHEMA" in queries.get_query("claves_primarias", tabla="t").upper()
 
     def test_metadata_context_does_not_add_schema_params(self) -> None:
         assert MetadataContextResolver.add_context_params(db_type="mysql", params={"tabla": "t"}, context="db1") == {

@@ -127,11 +127,9 @@ class DocumentationIntrospectionPort(DocumentationCatalogPort, Protocol):
 
 
 class DocumentationQueryPort(Protocol):
-    """Consultas de almacenamiento (`metadata.storage`) e información del registry de consultas."""
+    """Consultas de almacenamiento (`metadata.storage`)."""
 
     def get_storage_rows(self, query_name: str, **params: Any) -> Any: ...
-
-    def get_query_info(self) -> dict[str, Any]: ...
 
 
 class DocumentationManagerPort(

@@ -1,5 +1,4 @@
-"""Catálogo de HSQLDB para ``MetadataSource`` (ADR-003): ver :mod:`util_bbdd.metadata.hsqldb.catalog`."""
+"""Metadatos de HSQLDB (ADR-003): ``catalog`` (``CatalogDialect`` para la lectura por lotes) y SQL puntual.
 
-from __future__ import annotations
-
-__all__: list[str] = []
+No re-exporta nada: se importa cada submódulo (``util_bbdd.metadata.hsqldb.catalog``…).
+"""

@@ -37,7 +37,6 @@ from ..executors.sync_query_executor import SyncQueryExecutor
 from ..factory.pool_factory import PoolFactory
 from ..factory.sqlalchemy_engine_factory import SQLAlchemyEngineFactory
 from ..metadata import (
-    DatabaseMetadataCache,
     Rows,
 )
 from ..metadata.catalog_registry import get_catalog_dialect
@@ -47,7 +46,6 @@ from ..query import DatabaseQueries
 from ..results import RowOrNone
 from ._catalog_executor import ManagerCatalogExecutor
 from ._catalog_facade import SyncCatalogFacade
-from ._manager_cache_service import CacheService
 from ._manager_lifecycle import SyncConnectionLifecycleManager
 from ._manager_lifecycle_sync import SyncLifecycleManager
 from ._manager_session import SyncSessionManager
@@ -94,11 +92,6 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         self.logger.info(f"🔧 Inicializando SyncDatabaseManager para {db_type.upper()}")
 
         # Inicializar cachés centralizados (composición jerárquica)
-        self.db_cache: DatabaseMetadataCache = DatabaseMetadataCache()
-        self.logger.debug("✅ Caché de metadatos inicializada")
-
-        # Inicializar servicio de caché
-        self.cache_service = CacheService(self.db_cache, self.logger)
 
         # Inicializar validador de tipos (lazy loading)
         self._db_validator: DatabaseTypeValidator | None = None
@@ -383,61 +376,6 @@ class SyncDatabaseManager(SyncCatalogFacade, DatabaseManagerSharedMixin):
         )
         self.logger.info("✅ Consulta SQL personalizada ejecutada exitosamente")
         return cast(RowOrNone | Rows, result)
-
-    def _run_metadata_operation(
-        self,
-        action: Callable[[], Any],
-        *,
-        error_message: str,
-        table_name: str | None = None,
-    ) -> Any:
-        return self._run_manager_operation(
-            action=action,
-            error_message=error_message,
-            operation="SELECT",
-            table_name=table_name,
-        )
-
-    def _execute_metadata_many(
-        self,
-        query_name: str,
-        *,
-        params: dict[str, Any],
-        error_message: str,
-        table_name: str | None = None,
-    ) -> Rows:
-        executor: SyncQueryExecutor = self._get_sync_query_executor()
-        result = self._run_metadata_operation(
-            action=lambda: executor.execute_query_many(
-                query_name=query_name,
-                db_type=self.db_type,
-                params=params,
-            ),
-            error_message=error_message,
-            table_name=table_name,
-        )
-        return cast(Rows, result)
-
-    def _get_cached_rows(
-        self,
-        *,
-        cache_lookup: Callable[[], list[Any] | None],
-        cache_store: Callable[[list[Any]], None],
-        fetch_rows: Callable[[], list[Any]],
-        cache_hit_message: str,
-        success_message: str,
-        fetch_debug_message: str | None = None,
-    ) -> list[Any]:
-        cached_rows = cache_lookup()
-        if cached_rows is not None:
-            self.logger.debug(cache_hit_message)
-            return list(cached_rows)
-        if fetch_debug_message:
-            self.logger.debug(fetch_debug_message)
-        rows = list(fetch_rows())
-        cache_store(rows)
-        self.logger.info(f"Success: {len(rows)} rows")
-        return rows
 
     # ==================== MÉTODOS ADICIONALES ====================
 

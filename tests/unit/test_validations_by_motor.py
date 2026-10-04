@@ -1,12 +1,17 @@
-"""Validaciones por motor con placeholders reales de sql_queries.json."""
+"""Validaciones por motor con placeholders reales (las consultas de catálogo que tenía sql_queries.json hasta E2c,
+conservadas como fichero de consultas de usuario en ``tests/fixtures/sql_queries_sample.json``)."""
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import pytest
 
 from util_bbdd.models import QueryDefinition
 from util_bbdd.query import QueryRegistry
 from util_bbdd.validators import get_type_validator
+
+SAMPLE_QUERIES = Path(__file__).resolve().parents[1] / "fixtures" / "sql_queries_sample.json"
 
 
 @pytest.mark.parametrize(
@@ -21,7 +26,7 @@ from util_bbdd.validators import get_type_validator
     ],
 )
 def test_validator_accepts_real_placeholder_params(db_type: str, query_name: str, params: dict[str, str]) -> None:
-    registry = QueryRegistry()
+    registry = QueryRegistry(SAMPLE_QUERIES)
     query_def = registry.get_query_definition(db_type, query_name)
     validator = get_type_validator(db_type)
 
@@ -43,7 +48,7 @@ def test_validator_accepts_real_placeholder_params(db_type: str, query_name: str
     ],
 )
 def test_validator_rejects_missing_required_params(db_type: str, query_name: str, valid_params: dict[str, str]) -> None:
-    registry = QueryRegistry()
+    registry = QueryRegistry(SAMPLE_QUERIES)
     query_def = registry.get_query_definition(db_type, query_name)
     validator = get_type_validator(db_type)
 
@@ -103,7 +108,7 @@ def test_sqlserver_validator_accepts_schema_alias() -> None:
 
 
 def test_postgresql_columns_charset_collation_requires_database_and_tabla() -> None:
-    registry = QueryRegistry()
+    registry = QueryRegistry(SAMPLE_QUERIES)
     query_def = registry.get_query_definition("postgresql", "columns_charset_collation")
 
     assert {"database", "tabla"}.issubset(set(query_def.required_params))

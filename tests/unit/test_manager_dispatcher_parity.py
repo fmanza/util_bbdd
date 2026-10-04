@@ -7,13 +7,8 @@ from util_bbdd.managers.sync_mgr import SyncDatabaseManager
 
 _SHARED_CORE_HELPERS = [
     "_get_query_context_database",
-    "_get_query_context_label",
-    "_clear_all_caches",
-    "_clear_table_cache",
-    "_clear_routine_cache",
-    "_clear_context_cache",
-    "_cache_context_key",
-    "_execute_metadata_many",
+    "_invalidate_catalog",
+    "clear_cache",
     "_get_query_executor",
 ]
 

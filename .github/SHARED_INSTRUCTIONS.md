@@ -50,7 +50,7 @@ src/util_bbdd/
   bulk/                 # bulk_crud, AuditManager
   dump/                 # Volcado de datos entre esquemas/motores (orden FK, constraints, informe Excel)
   migrate/              # MigrationPlanner: migración DDL entre motores (extractors, IR, emitters)
-  metadata/             # SyncMetadataProvider, AsyncMetadataProvider, DatabaseMetadataCache
+  metadata/             # CatalogSource/SchemaSnapshot (lectura por lotes), CatalogDialect por motor, reflection
   comparar/             # SchemaComparator, SchemaDiff, reporters (SQL/HTML/Word/Excel/MD)
   doc/                  # Generación de documentación (Word, Excel, HTML, Jinja2)
   connection/           # build_conn_params, params builder, configs por motor
@@ -102,7 +102,6 @@ from util_bbdd import (
     SchemaComparator,
     ConnectionFactory,
     PoolFactory,
-    DatabaseMetadataCache,
     maybe_await,
     build_conn_params,
 )

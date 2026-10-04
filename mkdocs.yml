@@ -132,7 +132,6 @@ nav:
   - Ejemplos:
       - Metadatos e Introspección:
           - Conectar e Introspeccionar Base de Datos: examples/example_connect_introspect.md
-          - Cache de Metadatos: examples/metadata_cache_usage.md
       - Operaciones Bulk:
           - Bulk Insert desde CSV: examples/bulk_insert_csv.md
           - Carga Masiva Paralela: examples/parallel_bulk_insert.md

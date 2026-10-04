@@ -243,6 +243,16 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   `docs/functional/*`, `.ai/architecture.md` y `SHARED_INSTRUCTIONS.md` dejan de listarlos. Verificación: `mypy`
   (395), unitarios 5831 + 2 xfailed, capas (395).
 
+- IMPLEMENT · E2c: alcance de `metadata/` por grafo de imports (raíces: código fuera de `metadata/` + núcleo nuevo +
+  `<motor>/catalog.py`) → 66 módulos fuera (adaptadores, registro, `mysql/`, builder, fetcher, normalizer,
+  `types_advanced`, routines…); poda por símbolo con uso calificado por módulo (el nombre suelto engaña:
+  `fetch_tables_sql` existe en 4 motores) → 70 definiciones fuera. Cachés retiradas (`metadata/cache.py`,
+  `CacheService`, `CacheManager`, `CacheKeyFactory`); `clear_cache()` sobre `_invalidate_catalog`. JSON de catálogo
+  vacío; `DatabaseQueries` sin conveniencia de catálogo; `doc` muestra el SQL de `Kind.DATABASE`. Tests: triage
+  automático (tests de código retirado fuera; imports re-apuntados al submódulo cuando el nombre sigue existiendo);
+  los del registry/validadores usan `tests/fixtures/sql_queries_sample.json` (las consultas antiguas como fichero de
+  usuario). Integración 551 + 10 skipped (menos tests: los de módulos retirados).
+
 ## Artefactos generados
 
 | Artefacto | Ruta | Estado |

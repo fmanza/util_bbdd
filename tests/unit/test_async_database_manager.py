@@ -582,29 +582,6 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         assert isinstance(result, dict)
         assert result
 
-    def test_clear_cache_by_routine_supports_typed_and_untyped_invalidation(self):
-        manager = AsyncDatabaseManager(
-            db_type="mariadb",
-            conn_params={"database": "db"},
-            use_pool=False,
-        )
-        procedure_key = ("db", "my_routine", "PROCEDURE")
-        function_key = ("db", "my_routine", "FUNCTION")
-        manager.db_cache._routine_parameters_cache[procedure_key] = [("p_id", "INT")]
-        manager.db_cache._routine_parameters_cache[function_key] = [("f_id", "INT")]
-        manager.db_cache._routine_ddl_cache[procedure_key] = "CREATE PROCEDURE my_routine()"
-        manager.db_cache._routine_ddl_cache[function_key] = "CREATE FUNCTION my_routine()"
-
-        manager.clear_cache(context_database="db", routine="my_routine", routine_type="procedure")
-        assert procedure_key not in manager.db_cache._routine_parameters_cache
-        assert procedure_key not in manager.db_cache._routine_ddl_cache
-        assert function_key in manager.db_cache._routine_parameters_cache
-        assert function_key in manager.db_cache._routine_ddl_cache
-
-        manager.clear_cache(context_database="db", routine="my_routine")
-        assert function_key not in manager.db_cache._routine_parameters_cache
-        assert function_key not in manager.db_cache._routine_ddl_cache
-
     @pytest.mark.asyncio
     async def test_get_sqlalchemy_engine_delegates_async_factory(self):
         fake_engine = object()

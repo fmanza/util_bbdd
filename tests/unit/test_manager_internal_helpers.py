@@ -13,9 +13,7 @@ from util_bbdd.managers._manager_lifecycle import (
     SyncConnectionLifecycleManager,
     init_async_resources,
 )
-from util_bbdd.managers._metadata_cache import CacheManager
-from util_bbdd.managers._metadata_context import CacheKeyFactory, MetadataContextResolver
-from util_bbdd.metadata import DatabaseMetadataCache
+from util_bbdd.managers._metadata_context import MetadataContextResolver
 
 
 def test_get_query_context_database_uses_schema_defaults() -> None:
@@ -42,52 +40,6 @@ def test_oracle_context_is_the_user_as_oracle_stores_it(user: str, expected: str
         MetadataContextResolver.get_context_database(db_type="oracle", database="XE", conn_params={"user": user})
         == expected
     )
-
-
-def test_clear_context_cache_removes_only_matching_entries() -> None:
-    db_cache = DatabaseMetadataCache()
-    db_cache._tables_cache["public"] = [("users",)]
-    db_cache._tables_cache["audit"] = [("events",)]
-    db_cache._columns_cache[("public", "users")] = [("id",)]
-    db_cache._columns_cache[("audit", "events")] = [("id",)]
-    routine_key_a = CacheKeyFactory.routine_key("public", "proc_a", "procedure")
-    routine_key_b = CacheKeyFactory.routine_key("audit", "proc_b", "procedure")
-    db_cache._routine_ddl_cache[routine_key_a] = "DDL"
-    db_cache._routine_ddl_cache[routine_key_b] = "DDL"
-
-    CacheManager(
-        db_cache=db_cache,
-        logger=MagicMock(),
-    ).clear_context(context="public")
-
-    assert "public" not in db_cache._tables_cache
-    assert "audit" in db_cache._tables_cache
-    assert ("public", "users") not in db_cache._columns_cache
-    assert ("audit", "events") in db_cache._columns_cache
-    assert routine_key_a not in db_cache._routine_ddl_cache
-    assert routine_key_b in db_cache._routine_ddl_cache
-
-
-def test_clear_routine_cache_removes_only_matching_routine() -> None:
-    """MGR-03 (AUDIT_CODE 2026-09-22): CacheManager.clear_routine delega en la API
-    pública DatabaseMetadataCache.clear_by_routine en vez de tocar atributos privados."""
-    db_cache = DatabaseMetadataCache()
-    routine_key_a = CacheKeyFactory.routine_key("public", "proc_a", "procedure")
-    routine_key_b = CacheKeyFactory.routine_key("public", "proc_b", "procedure")
-    db_cache._routine_parameters_cache[routine_key_a] = [("IN", "p_id", "INT")]
-    db_cache._routine_parameters_cache[routine_key_b] = [("IN", "p_id", "INT")]
-    db_cache._routine_ddl_cache[routine_key_a] = "DDL A"
-    db_cache._routine_ddl_cache[routine_key_b] = "DDL B"
-
-    CacheManager(
-        db_cache=db_cache,
-        logger=MagicMock(),
-    ).clear_routine(context="public", routine="proc_a", routine_type="procedure")
-
-    assert routine_key_a not in db_cache._routine_parameters_cache
-    assert routine_key_b in db_cache._routine_parameters_cache
-    assert routine_key_a not in db_cache._routine_ddl_cache
-    assert routine_key_b in db_cache._routine_ddl_cache
 
 
 @pytest.mark.asyncio

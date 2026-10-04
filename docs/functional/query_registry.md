@@ -2,13 +2,13 @@
 
 ## 1. Descripción General
 
-Centraliza todas las consultas SQL predefinidas de la librería en un único fichero JSON (`sql_queries.json`), organizadas por motor de base de datos. Cualquier componente que necesite ejecutar una query específica del motor la solicita por nombre; el sistema valida los parámetros y devuelve el SQL final listo para ejecutar, sin exponer el texto SQL en el código de aplicación.
+Permite registrar consultas SQL propias en un fichero JSON organizado por motor de base de datos y ejecutarlas por nombre (`execute_query_many` / `execute_query_one`); el sistema valida los parámetros y devuelve el SQL final listo para ejecutar, sin exponer el texto SQL en el código de aplicación. Desde E2 de ADR-003 la librería no trae consultas propias (`data/sql_queries.json` está vacío por motor): los metadatos se leen con `get_schema_metadata()` y los `get_*` del manager.
 
 Esto facilita el mantenimiento de queries multi-motor: cambiar la query de PostgreSQL para listar tablas no afecta al código que la invoca, solo al fichero JSON.
 
 **Precondiciones:**
 
-- Fichero `sql_queries.json` accesible en la ruta por defecto del paquete (`data/sql_queries.json`) o en una ruta personalizada
+- Fichero de consultas propio pasado como `queries_file` al manager (el del paquete, `data/sql_queries.json`, no tiene consultas)
 - Tipo de motor declarado y reconocido por la librería
 - Parámetros necesarios para la query conocidos por el llamador
 
@@ -66,4 +66,4 @@ sequenceDiagram
 |---|---|
 | Template SQL | Texto SQL almacenado en `sql_queries.json` con placeholders para parámetros, por ejemplo `{database}` |
 | Interpolación | Proceso de sustituir los placeholders del template por los valores reales de los parámetros |
-| Query por nombre | Consulta SQL identificada por una clave string (`"obtener_tablas"`) en lugar de por su texto SQL literal |
+| Query por nombre | Consulta SQL identificada por una clave string (`"clientes_activos"`) en lugar de por su texto SQL literal |

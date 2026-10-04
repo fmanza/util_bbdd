@@ -174,6 +174,22 @@ cambios siguientes.
 
 ### Removed
 
+- **metadata / managers (ruptura de API, grupo E2c de ADR-003)**: la lectura de metadatos antigua.
+  - Cachés: `DatabaseMetadataCache` y `RelationshipMetadataCache` (también de `util_bbdd`), el atributo `db_cache` y
+    `cache_service` de los managers. `clear_cache()` mantiene su firma: sin argumentos descarta todo lo leído; con
+    contexto, tabla o routine, lo del schema afectado (los metadatos se leen por schema).
+  - Adaptadores por motor (`metadata.<motor>.sync_adapter`/`async_adapter`, `metadata.adapters`, registro global),
+    `metadata.mysql` (MySQL usa el catálogo de MariaDB), `DDLBuilder`, `MetadataFetcher`, el normalizador
+    (`normalize_table_rows`, `NormalizedTableRow`…), los tipos avanzados (`types_advanced`) y el SQL tabla a tabla de
+    `metadata.<motor>.tables`/`common`/`routines` sin uso. Los paquetes de motor ya no re-exportan: se importa cada
+    submódulo (`util_bbdd.metadata.mariadb.common`…).
+  - `data/sql_queries.json` queda sin consultas (un diccionario vacío por motor): todas eran de catálogo o de
+    almacenamiento y salen de `metadata/`. `execute_query_many()`/`execute_query_one()` siguen para consultas propias
+    con `queries_file`. `DatabaseQueries` pierde los métodos de conveniencia del catálogo (`get_tables_query`,
+    `get_columns_query`… `get_storage_inventory_queries`) y la documentación de consultas ya no trae descripciones ni
+    ejemplos propios.
+  - La información de base de datos de `doc` muestra la consulta del catálogo (`Kind.DATABASE`) en vez de las del
+    registry; `DocumentationQueryPort` pierde `get_query_info`.
 - **metadata (ruptura de import)**: `util_bbdd.metadata.redshift` y `util_bbdd.metadata.snowflake` (decisión D9-1
   de ADR-003, grupo E2d). No eran alcanzables: ningún manager ni conexión soporta Redshift ni Snowflake
   (`get_supported_db_types()` no los incluye). La documentación ya no los lista como motores soportados.

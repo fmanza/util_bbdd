@@ -11,8 +11,6 @@ import pytest
 from util_bbdd import DatabaseOperationError
 from util_bbdd.managers import SyncDatabaseManager
 from util_bbdd.managers._manager_shared_mixin import DatabaseManagerSharedMixin
-from util_bbdd.metadata import DatabaseMetadataCache
-from util_bbdd.metadata.cache import RelationshipMetadataCache
 
 # ---------------------------------------------------------------------------
 # TD-12: TemplateEngine auto_reload=False
@@ -49,21 +47,6 @@ class TestDatabaseManagerSharedMixin:
 
         assert issubclass(AsyncDatabaseManager, DatabaseManagerSharedMixin)
 
-    def test_mixin_clear_all_caches_delegates(self) -> None:
-        manager = SyncDatabaseManager.__new__(SyncDatabaseManager)
-        manager.db_cache = DatabaseMetadataCache()
-        manager.relationship_cache = RelationshipMetadataCache()
-        manager.logger = logging.getLogger("test.mixin")
-
-        manager.db_cache._tables_cache["ctx"] = [("t",)]
-        manager._clear_all_caches()
-
-        assert manager.db_cache._tables_cache == {}
-
-    def test_mixin_cache_context_key_is_static(self) -> None:
-        result = DatabaseManagerSharedMixin._cache_context_key("my_db")
-        assert result == "my_db"
-
     def test_mixin_get_query_context_database(self) -> None:
         manager = SyncDatabaseManager.__new__(SyncDatabaseManager)
         manager.db_type = "postgresql"
@@ -72,22 +55,6 @@ class TestDatabaseManagerSharedMixin:
         result = manager._get_query_context_database()
         assert isinstance(result, str)
         assert len(result) > 0
-
-    def test_clear_cache_selective_table(self) -> None:
-        manager = SyncDatabaseManager.__new__(SyncDatabaseManager)
-        manager.db_type = "postgresql"
-        manager.database = "testdb"
-        manager.conn_params = {"database": "testdb"}
-        manager.db_cache = DatabaseMetadataCache()
-        manager.relationship_cache = RelationshipMetadataCache()
-        manager.logger = logging.getLogger("test.mixin")
-
-        manager.db_cache._tables_cache["testdb"] = [("users",), ("orders",)]
-        manager.db_cache._columns_cache[("testdb", "users")] = [("id", "int")]
-
-        manager.clear_cache(context_database="testdb", table="users")
-
-        assert ("testdb", "users") not in manager.db_cache._columns_cache
 
 
 # ---------------------------------------------------------------------------

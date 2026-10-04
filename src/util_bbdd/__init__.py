@@ -56,7 +56,7 @@ from .dump import (
 from .factory import ConnectionFactory, PoolFactory
 from .managers.async_mgr import AsyncDatabaseManager
 from .managers.sync_mgr import SyncDatabaseManager
-from .metadata import AsyncMetadataProvider, DatabaseMetadataCache, RelationshipMetadataCache, SyncMetadataProvider
+from .metadata import AsyncMetadataProvider, SyncMetadataProvider
 from .migrate import MigrationPlan, MigrationPlanner, MigrationWarning
 
 __all__: list[str] = [
@@ -68,8 +68,6 @@ __all__: list[str] = [
     "build_conn_params",
     "ConnectionFactory",
     "PoolFactory",
-    "DatabaseMetadataCache",
-    "RelationshipMetadataCache",
     "SchemaComparator",
     "SchemaDiff",
     # Excepciones de comparar/

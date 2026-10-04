@@ -52,18 +52,6 @@ class MetadataContextResolver:
         return context_database
 
     @staticmethod
-    def get_context_label(db_type: str) -> str:
-        """Devuelve la etiqueta descriptiva del contexto metadata.
-
-        Args:
-            db_type: Tipo de base de datos
-
-        Returns:
-            str: Etiqueta ("owner/schema" para Oracle, "database" para el resto)
-        """
-        return "owner/schema" if db_type == "oracle" else "database"
-
-    @staticmethod
     def add_context_params(
         *,
         db_type: str,
@@ -90,58 +78,6 @@ class MetadataContextResolver:
         return params
 
 
-class CacheKeyFactory:
-    """Generador de claves normalizadas para caché de metadata (patrón: Factory).
-
-    Proporciona claves coherentes y normalizadas para todas las cachés,
-    facilitando mantenimiento y búsqueda de bugs.
-    """
-
-    @staticmethod
-    def context_key(context_database: str) -> str:
-        """Normaliza la clave de contexto para cachés.
-
-        Args:
-            context_database: Contexto a normalizar
-
-        Returns:
-            str: Clave normalizada
-        """
-        return str(context_database or "")
-
-    @staticmethod
-    def table_key(context_database: str, table_name: str) -> tuple[str, str]:
-        """Construye clave de caché por tabla.
-
-        Args:
-            context_database: Contexto (schema/database)
-            table_name: Nombre de tabla
-
-        Returns:
-            tuple[str, str]: (contexto, tabla)
-        """
-        return (CacheKeyFactory.context_key(context_database), str(table_name or ""))
-
-    @staticmethod
-    def routine_key(context_database: str, routine_name: str, routine_type: str) -> tuple[str, str, str]:
-        """Construye clave de caché por rutina.
-
-        Args:
-            context_database: Contexto (schema/database)
-            routine_name: Nombre de rutina
-            routine_type: Tipo de rutina (PROCEDURE, FUNCTION, etc.)
-
-        Returns:
-            tuple[str, str, str]: (contexto, rutina, tipo)
-        """
-        return (
-            CacheKeyFactory.context_key(context_database),
-            str(routine_name or ""),
-            str(routine_type or "").upper(),
-        )
-
-
 __all__: list[str] = [
     "MetadataContextResolver",
-    "CacheKeyFactory",
 ]

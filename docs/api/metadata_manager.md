@@ -135,4 +135,4 @@ los managers costaba 2503 consultas: 70 s en PostgreSQL, 121 s en SQL Server y 3
 
 ## 6. Ejemplos Relacionados
 
-- [Ejemplo: Caché de Metadatos](../examples/metadata_cache_usage.md) — Uso de `DatabaseMetadataCache` y patrón get-or-cache
+- [ADR-003: centralización de metadatos](../architecture.md) — capas y reglas de acceso a metadatos

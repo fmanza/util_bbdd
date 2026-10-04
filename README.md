@@ -354,10 +354,10 @@ manager = AsyncDatabaseManager(
 )
 ```
 
-**Metadata caching:**
+**Metadatos por lotes:**
 ```python
-# ✅ 50 consultas de schema → 8x más rápido
-cache = DatabaseMetadataCache()
+# ✅ Una consulta por tipo de objeto para todo el schema, cacheada hasta clear_cache()
+snapshot = manager.get_schema_metadata()
 ```
 
 [Benchmarks completos →](docs/guides/benchmarks.md)
@@ -507,16 +507,17 @@ query/               # Registry y resolución de queries
   ├── resolver.py    # QueryResolver: resuelve placeholders en queries
   └── queries.py     # DatabaseQueries: wrapper de conveniencia
 
-metadata/            # Lectura y cache de schema
-  ├── cache.py       # DatabaseMetadataCache + RelationshipMetadataCache
-  ├── normalizer.py  # Normaliza respuestas de metadata
-  ├── builder.py     # DDLBuilder - construye queries DDL
-  ├── fetcher.py     # MetadataFetcher - obtiene schema
-  ├── source.py      # CatalogSource: lectura por lotes → SchemaSnapshot (ADR-003)
-  ├── ddl.py         # Texto DDL desde los modelos (vistas, routines, tablas MySQL/MariaDB)
-  ├── contracts.py   # Interfaces y tipos de metadata
-  ├── adapters/      # Adaptadores base + helpers compartidos
-  └── {hsqldb,mariadb,oracle,postgresql,sqlite,sqlserver}/ # Introspección por motor
+metadata/            # Lectura del catálogo (ADR-003): único punto de SQL de introspección
+  ├── source.py      # CatalogSource: una consulta por tipo de objeto → SchemaSnapshot
+  ├── model.py       # SchemaSnapshot y modelos neutros (TableMeta, ColumnMeta, ForeignKeyMeta…)
+  ├── snapshot_cache.py  # Caché LRU de snapshots por schema
+  ├── catalog_registry.py  # CatalogDialect por motor
+  ├── reflection.py  # Tipos y objetos de SQLAlchemy por lotes (comparar, dump, bulk)
+  ├── facts.py       # Consultas puntuales (secuencias, identidad, permisos…)
+  ├── ddl.py         # DDL de tablas, vistas y routines
+  ├── storage.py     # Inventario de almacenamiento
+  ├── contracts.py   # Protocols (MetadataSource, CatalogDialect, Sync/AsyncMetadataProvider)
+  └── {hsqldb,mariadb,oracle,postgresql,sqlite,sqlserver}/ # catalog.py (CatalogDialect) y SQL puntual por motor
 
 results/             # Normalización de resultados
   ├── types.py       # RowOrNone, Rows, tipos de resultado
@@ -855,9 +856,9 @@ print(f"📊 Tablas: {tables}")
 columns = dm.get_columns('users')
 print(f"📋 Columnas: {columns}")
 
-# Ejecutar query registrada (many / one)
-result = dm.execute_query_many('obtener_tablas', database='mydb')
-first_row = dm.execute_query_one('database_version')
+# Ejecutar query registrada en tu fichero de consultas (SyncDatabaseManager(..., queries_file=Path("consultas.json")))
+result = dm.execute_query_many('clientes_activos', pais='ES')
+first_row = dm.execute_query_one('total_pedidos')
 print(f"🔍 Resultado: {result} | Primera fila: {first_row}")
 
 # Ejecutar SQL custom (many / one)
@@ -897,9 +898,9 @@ async def main():
     columns = await adm.get_columns('users')
     print(f"📋 Columnas: {columns}")
 
-    # Ejecutar query registrada (many / one)
-    result = await adm.execute_query_many('obtener_tablas', database='mydb')
-    first_row = await adm.execute_query_one('database_version')
+    # Ejecutar query registrada en tu fichero de consultas (many / one)
+    result = await adm.execute_query_many('clientes_activos', pais='ES')
+    first_row = await adm.execute_query_one('total_pedidos')
     print(f"🔍 Resultado: {result} | Primera fila: {first_row}")
 
     await adm.close()

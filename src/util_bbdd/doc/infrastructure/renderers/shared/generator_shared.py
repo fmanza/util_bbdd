@@ -8,6 +8,8 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from ....._core.exceptions import DatabaseException
+from .....metadata.catalog_registry import get_catalog_dialect
+from .....metadata.model import Kind
 
 if TYPE_CHECKING:
     from .....analysis.graphviz_ext import GraphvizRelationshipGraphExt
@@ -515,29 +517,17 @@ class GeneratorDatabaseInfoRuntime:
         database_info_flags: list[bool],
         logger: logging.Logger,
     ) -> list[str]:
-        """Obtiene las plantillas SQL usadas para informacion de base de datos."""
-        sql_queries: list[str] = []
+        """SQL con el que se leen versión y charset/collation de la base de datos (``Kind.DATABASE`` del catálogo)."""
+        include_version: bool = bool(database_info_flags[0]) if len(database_info_flags) > 0 else False
+        include_charset: bool = bool(database_info_flags[1]) if len(database_info_flags) > 1 else False
+        if not (include_version or include_charset):
+            return []
         try:
-            query_info: dict[str, Any] = data_provider.db_manager.get_query_info()
-            queries_map: dict[str, Any] = query_info.get("queries", {})
-
-            include_version: bool = bool(database_info_flags[0]) if len(database_info_flags) > 0 else False
-            include_charset: bool = bool(database_info_flags[1]) if len(database_info_flags) > 1 else False
-
-            if include_version:
-                version_sql: str = str(queries_map.get("database_version", {}).get("template", "") or "")
-                if version_sql.strip():
-                    sql_queries.append(version_sql)
-                    logger.debug("Query de version agregada")
-
-            if include_charset:
-                charset_sql: str = str(queries_map.get("database_charset_collation", {}).get("template", "") or "")
-                if charset_sql.strip():
-                    sql_queries.append(charset_sql)
-                    logger.debug("Query de charset agregada")
+            query = get_catalog_dialect(str(data_provider.db_manager.db_type)).query(Kind.DATABASE)
         except DatabaseException as error:
-            logger.warning(f"Error obteniendo queries SQL: {error}")
-        return sql_queries
+            logger.warning(f"Error obteniendo la consulta de base de datos: {error}")
+            return []
+        return [query.sql] if query is not None else []
 
 
 def build_graph_generator_from_options(

@@ -1,18 +1,11 @@
-"""Módulo metadata: Gestión centralizada de metadatos de BD.
+"""Metadatos de base de datos: único punto de lectura del catálogo (ADR-003).
 
-Consolidación de:
-- cache.py - Cachés de metadatos y análisis de relaciones
-- contracts.py - Protocolos para proveedores de metadatos
-- normalizer.py - Normalización de resultados de metadatos
+- ``source`` / ``model``: ``CatalogSource`` lee cada tipo de objeto con una consulta por schema y devuelve un
+  ``SchemaSnapshot`` inmutable de modelos neutros.
+- ``catalog_registry`` y ``<motor>/catalog.py``: SQL de catálogo por motor (``CatalogDialect``).
+- ``reflection``: tipos y objetos de SQLAlchemy por lotes (``comparar``, ``dump``, ``bulk``).
+- ``facts``, ``ddl``, ``storage``: consultas puntuales, DDL e inventario de almacenamiento.
 """
-
-# Imports desde cache
-# Imports desde builder
-from .builder import DDLBuilder
-from .cache import (
-    DatabaseMetadataCache,
-    RelationshipMetadataCache,
-)
 
 # Lectura por lotes (ADR-003)
 from .catalog_registry import (
@@ -35,11 +28,6 @@ from .contracts import (
     Rows,
     SyncMetadataProvider,
 )
-
-# Imports desde fetcher
-from .fetcher import MetadataFetcher
-
-# Imports desde manager
 from .model import (
     ALL_KINDS,
     CheckMeta,
@@ -59,38 +47,15 @@ from .model import (
     UniqueMeta,
     ViewMeta,
 )
-
-# Imports desde normalizer
-from .normalizer import (
-    NormalizedColumnRow,
-    NormalizedTableRow,
-    normalize_column_rows,
-    normalize_rows_as_dicts,
-    normalize_table_rows,
-)
 from .snapshot_cache import SnapshotCache
 from .source import AsyncCatalogSource, CatalogSource, SqlAlchemyCatalogExecutor
 
 __all__: list[str] = [
-    # Cache
-    "DatabaseMetadataCache",
-    "RelationshipMetadataCache",
     # Contracts
     "Row",
     "Rows",
     "SyncMetadataProvider",
     "AsyncMetadataProvider",
-    # Normalizer
-    "NormalizedTableRow",
-    "NormalizedColumnRow",
-    "normalize_table_rows",
-    "normalize_column_rows",
-    "normalize_rows_as_dicts",
-    # Builder
-    "DDLBuilder",
-    # Fetcher
-    "MetadataFetcher",
-    # Manager
     # Lectura por lotes (ADR-003)
     "ALL_KINDS",
     "AsyncCatalogExecutor",

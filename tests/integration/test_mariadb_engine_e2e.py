@@ -110,7 +110,7 @@ def test_sync_manager_catalog_and_metadata(objects: dict[str, str], use_pool: bo
         assert columns["nombre"].default == "'x'"
         pk = manager.get_primary_keys(objects["parent"])
         assert pk is not None and pk.columns == ("id",)
-        assert [row[0] for row in manager.execute_query_many("claves_unicas", tabla=objects["parent"])] == [
+        assert [u.name for u in manager.get_unique_constraints(objects["parent"])] == [
             f"uq_{objects['parent'].rsplit('_', 1)[1]}"
         ]
         fk = manager.get_foreign_keys(objects["child"])

@@ -1,6 +1,6 @@
 # Registry y Resolver de Queries
 
-`QueryRegistry` carga `sql_queries.json` en memoria y proporciona definiciones de query por par `(db_type, query_name)`; `QueryResolver` orquesta la validación de parámetros, la interpolación y devuelve el SQL final listo para ejecutar.
+`QueryRegistry` carga un fichero JSON de consultas (`queries_file`; el del paquete, `data/sql_queries.json`, está vacío desde E2 de ADR-003) en memoria y proporciona definiciones de query por par `(db_type, query_name)`; `QueryResolver` orquesta la validación de parámetros, la interpolación y devuelve el SQL final listo para ejecutar.
 
 ## 1. Arquitectura y Diseño
 
@@ -48,7 +48,7 @@ flowchart TD
 
 | Parámetro | Tipo | Descripción | Restricciones |
 |---|---|---|---|
-| `queries_file` | `Path \| None` | Ruta al JSON de queries | `None` usa `data/sql_queries.json` interno del paquete |
+| `queries_file` | `Path \| None` | Ruta al JSON de queries | `None` usa `data/sql_queries.json` del paquete (sin consultas) |
 | `db_type` | `str` | Motor para resolver queries | Se normaliza a minúsculas |
 | `query_name` | `str` | Nombre de la query en el JSON | Snake_case; sensible al casing del JSON |
 | `params` | `dict[str, Any] \| None` | Parámetros a interpolar en el template | `None` equivale a `{}`; son identificadores, no valores de datos |

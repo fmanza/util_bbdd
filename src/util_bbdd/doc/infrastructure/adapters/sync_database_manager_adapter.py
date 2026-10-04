@@ -57,9 +57,6 @@ class SyncDatabaseManagerAdapter:
     def get_storage_rows(self, query_name: str, **params: Any) -> Any:
         return self._db_manager.get_storage_rows(query_name, **params)
 
-    def get_query_info(self) -> dict[str, Any]:
-        return self._db_manager.get_query_info()
-
     # --- Métodos añadidos por el adaptador -------------------------------------
 
     def get_storage_inventory_report(self) -> dict[str, Any]:

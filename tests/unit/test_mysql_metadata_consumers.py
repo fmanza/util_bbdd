@@ -6,65 +6,20 @@ MySQL comparte con MariaDB el catálogo de queries y la forma de sus filas, así
 
 from __future__ import annotations
 
-import asyncio
 import json
 
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 from util_bbdd.doc.infrastructure.renderers.shared.generator_shared import GeneratorTabularRuntime
 from util_bbdd.doc.infrastructure.runtime.headers_runtime import DocumentationHeadersRuntime
 from util_bbdd.doc.infrastructure.storage.runtime import StorageInventoryRuntime
-from util_bbdd.metadata.mysql import MysqlAsyncAdapter, MysqlSyncAdapter
-from util_bbdd.query import DatabaseQueries
-from util_bbdd.query._documentation import (
-    _get_temp_storage_variables_examples,
-    _get_temp_tablespaces_example,
-)
 
 HEADERS_FILE = Path(__file__).resolve().parents[2] / "src/util_bbdd/doc/data/headers_config.json"
 
 
-class TestMysqlAdapterDelegation:
-    def test_columns_safe_uses_hex_query_through_manager(self) -> None:
-        manager = MagicMock()
-        manager.execute_custom_many.return_value = []
-        assert MysqlSyncAdapter(manager).fetch_columns_safe("db1", "t1") == []
-        sql, params = manager.execute_custom_many.call_args.args
-        assert "HEX(COLUMN_NAME)" in sql
-        assert params == {"schema": "db1", "table": "t1"}
-
-    def test_view_ddl_is_built_from_information_schema(self) -> None:
-        manager = MagicMock()
-        manager.execute_custom_one.return_value = ("select 1 AS `a`",)
-        ddl = MysqlSyncAdapter(manager).fetch_view_from_information_schema("db1", "v1")
-        assert ddl == "CREATE OR REPLACE VIEW `v1` AS\nselect 1 AS `a`"
-
-    def test_reader_is_reused(self) -> None:
-        adapter = MysqlSyncAdapter(MagicMock())
-        assert adapter._engine_metadata() is adapter._engine_metadata()
-
-    def test_async_columns_safe_delegates(self) -> None:
-        manager = MagicMock()
-        manager.execute_custom_many = AsyncMock(return_value=[])
-        assert asyncio.run(MysqlAsyncAdapter(manager).fetch_columns_safe("db1", "t1")) == []
-        manager.execute_custom_many.assert_awaited_once()
-
-
 class TestMysqlFollowsMariaDBInConsumers:
-    def test_query_catalog_context_and_strategies(self) -> None:
-        mysql, mariadb = DatabaseQueries("mysql"), DatabaseQueries("mariadb")
-        assert mysql._build_context_kwargs("db1") == {}
-        assert mysql.get_storage_inventory_queries("db1", None) == mariadb.get_storage_inventory_queries("db1", None)
-        assert mysql._get_routine_ddl_strategy()("r", "PROCEDURE", "db1") == mariadb._get_routine_ddl_strategy()(
-            "r", "PROCEDURE", "db1"
-        )
-
-    def test_query_documentation_examples(self) -> None:
-        assert _get_temp_storage_variables_examples("mysql")
-        assert "MySQL" in _get_temp_tablespaces_example("mysql")["description"]
-
     def test_headers_match_mariadb(self) -> None:
         runtime = DocumentationHeadersRuntime()
         config: Any = json.loads(HEADERS_FILE.read_text(encoding="utf-8"))

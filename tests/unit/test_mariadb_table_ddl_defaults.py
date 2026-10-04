@@ -9,8 +9,8 @@ from __future__ import annotations
 import pytest
 
 from util_bbdd.metadata.ddl import mysql_table_ddl
-from util_bbdd.metadata.mariadb import format_mariadb_default
 from util_bbdd.metadata.mariadb.catalog import MariaDBCatalog
+from util_bbdd.metadata.mariadb.common import format_mariadb_default
 from util_bbdd.metadata.model import ColumnMeta, PrimaryKeyMeta
 
 

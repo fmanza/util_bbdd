@@ -63,19 +63,16 @@
 │    ├── sync_query_executor.py
 │    └── async_query_executor.py
 │
-│    metadata/                       🔍 Esquemas y caché
-│    ├── cache.py                    # DatabaseMetadataCache + RelationshipMetadataCache
-│    ├── normalizer.py
-│    ├── builder.py
-│    ├── fetcher.py
-│    ├── source.py                   # CatalogSource: lectura por lotes → SchemaSnapshot (ADR-003)
-│    ├── ddl.py                      # Texto DDL desde los modelos neutros
-│    ├── contracts.py
-│    ├── mariadb/ mysql/ oracle/ postgresql/ sqlserver/ sqlite/
-│    │   └── tables.py               # ← ÚNICO punto canónico de SQL de introspección
-│    ├── adapters/                   # Registro global por db_type + Protocols (EngineMetadataAdapter{Sync,Async}:
-│    │                               #   lecturas especializadas que los managers piden con _get_metadata_adapter)
-│    └── providers/                  # SyncMetadataProvider / AsyncMetadataProvider
+│    metadata/                       🔍 Lectura del catálogo (ADR-003)
+│    ├── source.py                   # CatalogSource: una consulta por tipo de objeto → SchemaSnapshot
+│    ├── model.py                    # SchemaSnapshot y modelos neutros
+│    ├── snapshot_cache.py           # Caché LRU por schema
+│    ├── catalog_registry.py         # CatalogDialect por motor
+│    ├── reflection.py               # SQLAlchemy por lotes (comparar, dump, bulk)
+│    ├── facts.py / ddl.py / storage.py  # consultas puntuales, DDL, inventario de almacenamiento
+│    ├── contracts.py                # MetadataSource, CatalogDialect, Sync/AsyncMetadataProvider
+│    └── hsqldb/ mariadb/ oracle/ postgresql/ sqlite/ sqlserver/
+│        └── catalog.py              # ← SQL de catálogo del motor (único punto canónico de introspección)
 │
 │    results/                        📋 Tipos de retorno
 │    └── types.py, normalizer.py
@@ -204,7 +201,6 @@ importa nada de la librería, pero es Especialización.
 ```python
 from util_bbdd import (
     SyncDatabaseManager, AsyncDatabaseManager,
-    DatabaseMetadataCache, RelationshipMetadataCache,
     SyncMetadataProvider, AsyncMetadataProvider,
     SchemaComparator, SchemaDiff,
     ConnectionFactory, PoolFactory, build_conn_params,

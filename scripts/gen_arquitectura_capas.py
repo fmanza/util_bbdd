@@ -59,7 +59,7 @@ LEVEL = {name: LEVEL_OF_LAYER[layer] for name, layer in LAYER.items()}
 DRAWN = {
     ("dump", "bulk"), ("doc", "analysis"), ("analysis", "metadata"), ("doc", "metadata"), ("dump", "metadata"),
     ("bulk", "connection"), ("bulk", "metadata"), ("comparar", "metadata"), ("migrate", "metadata"),
-    ("metadata", "query"), ("metadata", "results"), ("executors", "query"), ("executors", "results"),
+    ("metadata", "results"), ("executors", "query"), ("executors", "results"),
     ("query", "validators"), ("factory", "connection"), ("_drivers", "_core"),
     ("bulk", "audit"), ("dump", "audit"), ("migrate", "audit"),
 } | {("managers", t) for t in ("connection", "factory", "executors", "metadata", "query", "results")}  # fmt: skip
@@ -326,8 +326,8 @@ def render_svg(f: _Facts) -> str:
     s.edge(f"M86 {Y3 + NODE_H} V{Y2A}", "lazy" if f.bulk_connection_lazy else "")  # bulk -> connection
     s.edge(f"M736 {Y3 + NODE_H} V214")  # managers -> level 2 band
     s.edge(f"M900 {Y3 + NODE_H} V196 H822 V{Y2A}")  # migrate -> metadata (the other importers share the summary note)
-    for d in ("M752 306 V354", "M796 306 L900 354", "M876 306 L812 354", "M940 306 V354"):
-        s.edge(d)  # {metadata, executors} -> {query, results}
+    for d in ("M796 306 L900 354", "M876 306 L812 354", "M940 306 V354"):
+        s.edge(d)  # metadata -> results, executors -> {query, results}
     s.edge("M720 379 H694")  # query -> validators
     s.edge("M210 281 H142")  # factory -> connection
     s.edge("M500 424 V476")  # levels 2 and 3 -> Foundation
