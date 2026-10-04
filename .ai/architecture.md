@@ -15,7 +15,7 @@
 - **API moderna**: Managers sync/async con soporte nativo para async/await
 - **Type-safe**: Full type hints con validación en tiempo de desarrollo
 - **Modular**: Cada componente tiene responsabilidad única y clara
-- **Metadata canónica**: `metadata/*/tables.py` es el único punto autorizado para SQL de introspección (Regla #1–#6, `architecture.instructions.md`)
+- **Metadata canónica**: `metadata/` es el único punto con SQL de catálogo e `Inspector`; se lee por lotes con `CatalogSource`/`SchemaSnapshot` y el SQL de cada motor vive en `metadata/<motor>/catalog.py` (ADR-003; Reglas #1–#6, `architecture.instructions.md`)
 
 ---
 
@@ -191,7 +191,7 @@ importa nada de la librería, pero es Especialización.
 | Level 1 → no importa Level 2/3 | Foundation nunca depende de servicios |
 | Level 2 → no importa Level 3 | Services no importa managers ni bulk |
 | Level 3 → importa Level 1+2 y capas inferiores de Level 3 | Specialization construye sobre la base |
-| `metadata/*/tables.py` = único punto canónico SQL | Ningún módulo duplica SQL de introspección |
+| `metadata/` = único punto con SQL de catálogo e `Inspector` (ADR-003) | Ningún módulo duplica SQL de introspección; guarda `test_architecture_metadata_rules.py` |
 | Sin ciclos de importación | Consecuencia de las capas; los imports perezosos cuentan. Guarda: `tests/unit/test_architecture_import_rules.py` |
 
 ---
@@ -228,7 +228,7 @@ from util_bbdd import DatabaseException, ConnectionError, QueryError, Validation
 | ID | Decisión | Motivo |
 |---|---|---|
 | D1 | 3 niveles en lugar de 1/2 | Separación de concerns; Foundation estable, Specialization evoluciona |
-| D2 | `metadata/*/tables.py` punto canónico | Evitar duplicación de SQL de introspección entre migrate/ y metadata/ |
+| D2 | `metadata/` punto canónico, lectura por lotes (ADR-003) | Evitar SQL de introspección duplicado y lecturas O(tablas) |
 | D3 | Managers en Level 3 | Dependen de TODOS los servicios Level 2; ponerlos en Level 2 causaría ciclos |
 | D4 | InsertStrategyResolver | Elegir fast-path (COPY/multi-fila/executemany) sin modificar la API de BulkCrud |
 | D5 | DumpOrchestrator sin SchemaComparator en hot-path | Eliminar cascada N+1 queries; skipped_columns se calcula en _common_columns |

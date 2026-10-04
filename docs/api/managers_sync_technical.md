@@ -9,14 +9,14 @@ flowchart TD
     A["SyncDatabaseManager\n(orquestador)"]
 
     A -->|lifecycle| B["SyncConnectionLifecycleManager\n(crear/cerrar conexión)"]
-    A -->|metadata| C["MetadataStrategyFactory\n(seleccionar adaptador)"]
-    A -->|cache| D["CacheService\n(cachear esquema)"]
+    A -->|metadata| C["CatalogSource\n(lectura por lotes, ADR-003)"]
     A -->|query| E["SyncQueryExecutor\n(ejecutar consultas)"]
 
     B -->|valida tipo BD| F["DatabaseTypeValidator"]
     B -->|crea pool| G["ConnectionPoolProtocol"]
 
-    C -->|devuelve| H["SyncMetadataAdapter\n(por motor)"]
+    C -->|SQL del motor| H["CatalogDialect\n(metadata/motor/catalog.py)"]
+    C -->|cachea| D["SnapshotCache\n(por schema)"]
 
     E -->|usa| G
     E -->|ejecuta| I["DatabaseQueries\n(builder SQL)"]
@@ -69,17 +69,17 @@ flowchart TD
 | Componente | Responsabilidad |
 |---|---|
 | `SyncConnectionLifecycleManager` | Apertura, cierre y gestión del pool |
-| `MetadataStrategyFactory` | Selección del adaptador de metadatos por motor |
-| `CacheService` | Caché en memoria de metadatos por sesión |
+| `CatalogSource` (`metadata_source`) | Lectura del catálogo por lotes sobre las conexiones del manager (`get_schema_metadata()`) |
+| `SnapshotCache` | Caché en memoria de los snapshots por schema; `clear_cache()` la vacía |
+| `SyncCatalogFacade` | `get_*` de metadatos sobre el snapshot (modelos neutros) |
 | `SyncQueryExecutor` | Ejecución de consultas SQL sobre la conexión activa |
-| `SyncMetadataAdapter` | Implementación de introspección específica por motor |
 
 ## 4. Dependencias y Requisitos
 
 | Dependencia | Propósito | Requerida | Comportamiento sin ella |
 |---|---|---|---|
 | `SyncConnectionLifecycleManager` (interno) | Gestión del ciclo de vida | Sí | Módulo no funciona |
-| `MetadataStrategyFactory` (interno) | Estrategia de metadatos | Sí | Módulo no funciona |
+| `metadata/` (`CatalogSource`, `CatalogDialect`) | Lectura de metadatos por lotes (ADR-003) | Sí | Sin metadatos |
 | `SyncQueryExecutor` (interno) | Ejecución de queries | Sí | Módulo no funciona |
 | Driver Python del motor | Conexión nativa con la BD | Sí (motor-específico) | `DriverError` al inicializar |
 

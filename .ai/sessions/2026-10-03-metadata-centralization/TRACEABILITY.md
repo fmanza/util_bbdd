@@ -253,6 +253,17 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   los del registry/validadores usan `tests/fixtures/sql_queries_sample.json` (las consultas antiguas como fichero de
   usuario). Integración 551 + 10 skipped (menos tests: los de módulos retirados).
 
+- IMPLEMENT · G2: `comparar/reporters/sql_reporter.py` lee el origen con `metadata.reflection` (prefetch por lotes de
+  las tablas nuevas; `TableMetadata` para el resto) → sus `Inspector` fuera; queda solo SQL emitido (excepción).
+  `PENDING_CATALOG` y `PENDING_ENGINE_IMPORTS` vacíos. `test_query_counts`: sin `xfail`; `comparar` y `dump` descuentan
+  la reflexión de SQLAlchemy de SQLite (`PRAGMA` y `sqlite_master` por tabla, en proceso; excepción de ADR-003) y el
+  resto no puede crecer. Medido: todo lo que crecía era esa reflexión.
+- IMPLEMENT · H: `docs/adr/ADR-003-metadata-centralizada.md` (ACEPTADO, con excepciones registradas y cifras),
+  Reglas #1–#3 y #5 de `architecture.instructions.md` reescritas (catálogo por lotes, sin excepción de `comparar`),
+  `SHARED_INSTRUCTIONS.md`, `.ai/architecture.md`, `.ai/product.md`, `.ai/DECISIONS_LOG.md` (sustituye a la decisión de
+  2026-05-19), `docs/functional/metadata_extraction.md`, `docs/api/managers_sync*.md`; fuera
+  `docs/api/managers_metadata_factory.md` (documentaba un módulo retirado en E2b). CHANGELOG con resumen y guía.
+
 ## Artefactos generados
 
 | Artefacto | Ruta | Estado |
@@ -296,8 +307,9 @@ Fases autorizadas: PLAN + AUDIT_PLAN
 - **[banco]**: los schemas `zz_md_*` / `zz_util_bbdd_md_*` / usuarios `ZZ_MD_*` siguen creados en el banco para medir el «después»; `md_bench.py teardown` los borra. Oracle necesita `system` (`ORACLE_PASSWORD` del contenedor) para crear usuarios.
 
 ## Veredicto final
-Veredicto: GO_CONDICIONAL
+Veredicto: GO (implementación completa: grupos HF, QW, A0–A6, B1, C1–C5, D1–D2, E1, E2a–E2d, F0, G1–G2, H)
 Pendientes al cierre:
-- Decisiones del usuario D9-1 (Redshift/Snowflake) y D9-2 (forma pública de `get_*`).
-- `/hotfix` de H-10 + H-17 y PRs `perf:` de H-16 + H-14 antes de A0.
-- IMPLEMENT por grupos, empezando por A0 → A1, cada uno con aprobación explícita.
+- VERSION (`/version-closure`): versión con rupturas (`pyproject.toml` + CHANGELOG `[Unreleased]` → versión), push.
+- Banco: los schemas `zz_*` siguen creados (`python scripts/bench_metadata.py teardown --engines all --volumes 50,500,5000`).
+- Fuera de alcance, registrado en ADR-003: DDL de tabla por tabla fuera de MySQL/MariaDB y reflexión por tabla de
+  SQLite en `comparar`/`dump`.

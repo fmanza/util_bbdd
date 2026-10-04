@@ -83,7 +83,7 @@ flowchart TD
 | Dependencia | Propósito | Requerida | Comportamiento sin ella |
 |---|---|---|---|
 | `SyncConnectionLifecycleManager` (interno) | Gestión del ciclo de vida de la conexión | Sí | Módulo no funciona |
-| `MetadataStrategyFactory` (interno) | Selección de estrategia de metadatos por motor | Sí | Módulo no funciona |
+| `metadata/` (`CatalogSource`, `CatalogDialect`) | Lectura de metadatos por lotes (ADR-003) | Sí | Sin metadatos |
 | `SyncQueryExecutor` (interno) | Ejecución de consultas | Sí | Módulo no funciona |
 | Driver Python del motor | Conexión nativa con la BD | Sí (motor-específico) | `DriverError` al inicializar |
 

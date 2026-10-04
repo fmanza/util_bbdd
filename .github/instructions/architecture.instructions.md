@@ -106,36 +106,35 @@ class SchemaComparator:
 
 > Aplican a cualquier módulo de `src/util_bbdd/` que necesite metadatos de esquema.
 
-### REGLA #1 — PUNTO Único DE ACCESO A METADATOS
-`metadata/` es el único módulo autorizado para contener SQL de introspección de
-esquemas y sus funciones `fetch_*_sql()`. NINGÚN otro módulo (`migrate`, `doc`,
-`comparar`, `bulk`, etc.) puede definir sus propias queries SQL para obtener
-tablas, columnas, índices, PKs, FKs o vistas.
+### REGLA #1 — PUNTO ÚNICO DE ACCESO A METADATOS (ADR-003)
+`metadata/` es el único módulo con SQL de catálogo (`information_schema`, `ALL_*`, `pg_catalog`, `sys.*`,
+`sqlite_master`, `PRAGMA` de esquema, `SHOW CREATE`…) y con reflexión de SQLAlchemy (`inspect()`, `Inspector`).
 
-- Si necesitas SQL de introspección, importa desde `metadata/<motor>/tables.py`.
-- Si la query que necesitas no existe en `metadata/`, AÑÁDELA AHÍ primero y luego
-  impórtala desde el módulo consumidor.
-- El extractor de Oracle en `migrate/extractors/oracle.py` es el patrón canónico
-  a seguir.
+- SQL de catálogo por tipo de objeto → `metadata/<motor>/catalog.py` (`CatalogDialect`, registrado en
+  `metadata/catalog_registry.py`), siempre con bind parameters `:nombre`.
+- Consultas puntuales → `metadata/facts.py`; DDL → `metadata/ddl.py`; inventario de almacenamiento →
+  `metadata/storage.py`; tipos y objetos de SQLAlchemy por lotes → `metadata/reflection.py`.
+- Excepciones registradas (ADR-003 § Excepciones): configuración de servidor o sesión y SQL **emitido** (el que ejecuta
+  el destino, p. ej. el script de nivelación de `comparar`).
+- Guarda: `tests/unit/test_architecture_metadata_rules.py` (falla con SQL de catálogo o `Inspector` fuera de
+  `metadata/`).
 
-### REGLA #2 — CONSUMIR `SyncMetadataProvider`, NO EL MANAGER DIRECTAMENTE
-Cuando un módulo de alto nivel (`doc`, `migrate`, `análisis`) necesite metadatos:
-1. Recibe un objeto que satisface `SyncMetadataProvider` (o `AsyncMetadataProvider`).
-2. Llama sus métodos (`get_tables()`, `get_columns(tabla)`, etc.).
-3. NUNCA instancia un `SyncDatabaseManager` internamente ni ejecuta SQL propio.
-
-Excepción explícita: `comparar/` usa SQLAlchemy Inspector porque su caso de uso
-(comparar dos engines externos vía `sqlalchemy.engine`) es estructuralmente diferente
-al acceso via manager. Esta excepción debe estar documentada en el módulo.
+### REGLA #2 — LEER POR LOTES, NO TABLA A TABLA, Y SIN RAMIFICAR POR MOTOR
+Cuando un módulo necesite metadatos:
+1. Neutros (tablas, columnas, claves, índices, routines…) → `get_schema_metadata(kinds=…)` del manager o
+   `MetadataSource.snapshot()` (`CatalogSource.from_engine(engine)` si solo hay un `Engine`), y recorrer el
+   `SchemaSnapshot`. Los `get_*` por tabla de los managers son una fachada sobre el mismo snapshot.
+2. Tipos u objetos de SQLAlchemy → `metadata.reflection` (`prefetch_table_metadata`, `reflect_table`…).
+3. NUNCA importar `metadata.<motor>` desde fuera de `metadata/`: el motor lo resuelve `catalog_registry`. Guarda:
+   `test_consumers_do_not_import_engine_packages`.
+4. Las consultas de catálogo de un flujo no crecen con el número de tablas: `tests/unit/metadata/test_query_counts.py`.
 
 ### REGLA #3 — PROHIBIDO DUPLICAR SQL DE INTROSPECCIÓN
-Antes de escribir una query SQL que obtenga tablas, columnas, índices, FKs o PKs:
-1. Busca en `metadata/<motor>/tables.py` y `metadata/<motor>/indexes.py`.
-2. Si existe → impórtala. NO la copies.
-3. Si no existe → créala en `metadata/<motor>/`, no en el módulo consumidor.
-4. En auditoría (AUDIT_CODE): falla la revisión si `INFORMATION_SCHEMA`,
-   `all_tables` o `all_tab_columns` aparecen en `migrate/`, `doc/` o `comparar/`
-   fuera de `metadata/`.
+Antes de escribir una consulta que obtenga tablas, columnas, índices, FKs o PKs:
+1. Comprueba si el dato ya está en `SchemaSnapshot` (`Kind` y modelos de `metadata/model.py`) o en `metadata.facts`.
+2. Si falta un dato de un tipo existente → añádelo al modelo y a los `CatalogDialect` de todos los motores.
+3. Si es un tipo de objeto nuevo → nuevo `Kind`, su modelo y su consulta en cada `catalog.py`.
+4. En auditoría (AUDIT_CODE): falla la revisión si aparece SQL de catálogo o `Inspector` fuera de `metadata/`.
 
 ### REGLA #4 — CONTRATOS ANTES QUE IMPLEMENTACIONES
 Si un módulo nuevo necesita metadatos de BD:
@@ -148,7 +147,7 @@ Si un módulo nuevo necesita metadatos de BD:
 Ante cualquier nueva clase, función o módulo que maneje metadatos de BD:
 - Ejecuta `grep_search` en `src/util_bbdd/metadata/` buscando funcionalidad similar.
 - Si existe → reutiliza. Si hay gap menor → extiende en `metadata/`. Si la lógica
-  es nueva → crea en `metadata/` y expón en `metadata/__init__.py`.
+  es nueva → crea en `metadata/` y expón en `metadata/__init__.py` (los paquetes de motor no re-exportan).
 
 ### REGLA #6 — JERARQUÍA DE DEPENDENCIAS (capas estrictas)
 La base de código se organiza en 3 niveles (Foundation, Core Services, Domain Logic), cada uno

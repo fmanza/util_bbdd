@@ -78,7 +78,7 @@ Fuente: TRACEABILITYs de sesiones + docs de análisis.
 
 ---
 
-## 2026-05-19 — `metadata/*/tables.py` como punto canónico del SQL de introspección
+## 2026-05-19 — `metadata/*/tables.py` como punto canónico del SQL de introspección (sustituida el 2026-10-04 por ADR-003)
 
 **Decisión**: Todo SQL de introspección (fetch tablas, vistas, rutinas, índices) vive exclusivamente en `metadata/<motor>/tables.py`. Prohibido duplicar en `migrate/`, `comparar/` u otras capas.
 
@@ -224,3 +224,22 @@ Fuente: TRACEABILITYs de sesiones + docs de análisis.
 
 **Razón**: El resultado depende del engine, no de la instancia que lo usa. Es estado mutable a nivel de clase (excepción a SHARED § OOP), justificado porque el requisito «una vez» es de proceso; con referencias débiles no mantiene vivo ningún engine.
 **Impacto actual**: `bulk/` ya no conoce atributos privados del pool. `engine.dispose()` no provoca una nueva verificación; `report()` explícito no está limitado. Sesión `2026-09-27c-readiness-once-per-engine`.
+
+---
+
+## 2026-10-04 — Metadatos por lotes en `metadata/` (ADR-003); sustituye a la decisión de 2026-05-19
+
+**Decisión**: `metadata/` es el único lugar con SQL de catálogo y reflexión `Inspector`. Se lee por lotes:
+`CatalogSource.snapshot()` (o `get_schema_metadata()` de los managers) devuelve un `SchemaSnapshot` de modelos neutros
+con una consulta por tipo de objeto y schema; el SQL de cada motor vive en `metadata/<motor>/catalog.py`
+(`CatalogDialect`). Los `get_*` de los managers devuelven esos modelos. Fuera: registry de catálogo
+(`data/sql_queries.json` sin consultas), adaptadores por motor, `MetadataManager`, cachés paralelas y
+`metadata.redshift`/`metadata.snowflake`. Detalle y excepciones en `docs/adr/ADR-003-metadata-centralizada.md`.
+
+**Alternativas descartadas**: paquete nuevo `catalog/`; solo `Inspector`; derivar tipos SQLAlchemy del snapshot;
+conservar el registry añadiendo consultas por schema (ver ADR-003 § 4).
+**Razón**: el patrón tabla a tabla costaba hasta 365 s de catálogo con 500 tablas (Oracle) frente a 0,27 s por tipo de
+objeto, y había cuatro caminos de lectura para el mismo dato.
+**Impacto actual**: guardas `tests/unit/test_architecture_metadata_rules.py` (pendientes en cero) y
+`tests/unit/metadata/test_query_counts.py` (sin `xfail`). La `MetadataCachePort` de la decisión de capas ya no existe.
+Sesión `2026-10-03-metadata-centralization`.

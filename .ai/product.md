@@ -30,7 +30,7 @@
 - **Carga masiva paralela**: `ParallelBulkLoader` con `RangePartitioner` (PK entera/datetime) y `HashPartitioner` (string/UUID)
 - **Auditoría**: CSV de operaciones `bulk` (formato fijo) y eventos opcionales comunes a `bulk`, `dump` y `migrate` (`util_bbdd.audit`, `audit_sink`); thread-safe en modo paralelo
 - **Managers**: APIs sync (`SyncDatabaseManager`) y async (`AsyncDatabaseManager`)
-- **Metadata**: Caché de esquema, introspection, relaciones; único punto canónico en `metadata/*/tables.py`
+- **Metadata**: lectura del catálogo por lotes (`CatalogSource` → `SchemaSnapshot`, ADR-003), DDL e inventario de almacenamiento; único punto con SQL de catálogo
 - **Query Registry**: Registro centralizado y versionado de consultas
 - **Visualización**: Grafos de relaciones multinivel (graphviz, matplotlib)
 - **Documentación de BD**: Generación automática de esquema en HTML, Word y Excel

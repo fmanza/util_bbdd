@@ -7,9 +7,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Inicio de la centralización de la extracción de metadatos en `metadata/` (ADR-003, sesión
-`2026-10-03-metadata-centralization`): correcciones y mejoras independientes, y la red de seguridad (grupo A0) para los
-cambios siguientes.
+Centralización de la extracción de metadatos en `metadata/` (ADR-003, publicado en
+`docs/adr/ADR-003-metadata-centralizada.md`; sesión `2026-10-03-metadata-centralization`): lectura del catálogo por
+lotes, `get_*` tipados y retirada de los caminos antiguos. **Incluye rupturas de API**: guía de migración en
+`docs/api/metadata_manager.md` § 5 y en las entradas *Changed* y *Removed*.
 
 ### Added
 
@@ -133,6 +134,9 @@ cambios siguientes.
 
 ### Performance
 
+- **comparar**: el script de nivelación (`SqlDiffReporter` con `source_inspector`) lee columnas, PK, FKs e índices de
+  las tablas nuevas por lotes (`metadata.reflection.prefetch_table_metadata`, grupo G2 de ADR-003) en lugar de cuatro
+  lecturas del `Inspector` por tabla. Mismo SQL generado.
 - **dump**: el orden por FK, las columnas comunes, la PK de los rangos paralelos y el aviso de columnas LOB leen el
   catálogo por lotes al empezar (`metadata.reflection.prefetch_table_metadata`, grupo D2 de ADR-003) en lugar de tabla a
   tabla y lado a lado; las constraints del destino (orphan-check de PostgreSQL, nombres en Oracle) con un snapshot.

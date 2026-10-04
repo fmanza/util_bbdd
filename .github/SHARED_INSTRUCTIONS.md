@@ -79,7 +79,7 @@ src/util_bbdd/
 | `bulk/` | CRUD masivo desde DataFrame con auditoría y generación de SQL |
 | `dump/` | Volcado de datos entre esquemas/motores con orden por dependencias FK |
 | `migrate/` | Migración DDL entre motores (`MigrationPlanner`) |
-| `metadata/` | Introspección de esquemas: tablas, columnas, índices, DDL; caché en sesión; único punto autorizado para SQL de introspección (ver `.github/instructions/architecture.instructions.md` § Reglas de acceso a metadatos) |
+| `metadata/` | Introspección de esquemas por lotes (`CatalogSource` → `SchemaSnapshot`, una consulta por tipo de objeto y schema), DDL e inventario; único punto con SQL de catálogo e `Inspector` (ADR-003; `.github/instructions/architecture.instructions.md` § Reglas de acceso a metadatos) |
 | `comparar/` | Comparación de dos esquemas; diff estructurado; reporters por formato |
 | `doc/` | Documentación de BD en Word, Excel y HTML vía Jinja2 |
 | `connection/` | Construcción de parámetros y configuración de conexión por motor |
@@ -129,7 +129,7 @@ manager.close()
 ### Procesamiento de datos
 - Usa `pandas.DataFrame` para operaciones masivas (bulk insert, bulk update, bulk delete).
 - Retorna `Rows` (lista de dicts), `Row` (dict) o `RowOrNone` según la cardinalidad esperada.
-- Para metadatos, usa `SyncMetadataProvider` / `AsyncMetadataProvider`; no hagas raw SQL de introspección en managers.
+- Para metadatos, lee por lotes con `get_schema_metadata()` / `MetadataSource` (ADR-003); no hagas SQL de introspección fuera de `metadata/`.
 
 ### SOLID operativo
 - **SRP**: cada servicio tiene una razón de cambio principal.

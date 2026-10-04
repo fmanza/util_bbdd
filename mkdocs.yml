@@ -54,7 +54,6 @@ nav:
           - Manager Síncrono (Técnico): api/managers_sync_technical.md
           - Manager Asíncrono: api/managers_async.md
           - Ciclo de Vida de Conexión: api/managers_lifecycle.md
-          - Factory de Estrategias de Metadata: api/managers_metadata_factory.md
       - Metadatos e Introspección:
           - Lectura de Metadatos: api/metadata_manager.md
       - Conexiones:
@@ -168,6 +167,7 @@ nav:
       - Arquitectura del Sistema: architecture.md
       - ADR-001 Refactoring: adr/ADR-001-STRUCTURE-REFACTORING.md
       - ADR-002 Módulo de auditoría: adr/ADR-002-modulo-auditoria.md
+      - ADR-003 Metadatos centralizados: adr/ADR-003-metadata-centralizada.md
       - Plantilla ADR: adr/ADR-TEMPLATE.md
   - Historia y Planes:
       - Roadmap: roadmap.md
