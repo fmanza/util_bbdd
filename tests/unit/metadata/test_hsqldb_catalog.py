@@ -66,9 +66,9 @@ def test_parse_indexes_and_routines() -> None:
     ix = HS.parse(Kind.INDEXES, [("T", "PK_T", False, "PRIMARY KEY", "ID", 1), ("T", "IX", True, None, "A", 1)], "S")
     assert [(i.primary, i.unique) for i in ix] == [(True, True), (False, False)]
     (routine,) = HS.parse(Kind.ROUTINES, [("F", "F_1", "FUNCTION", "INTEGER", "CREATE FUNCTION …", None)], "S")
-    assert (routine.key, routine.return_type, routine.language) == (RoutineKey("F", "F_1"), "INTEGER", "SQL")
+    assert (routine.key, routine.return_type, routine.language) == (RoutineKey("F", "F_1", "FUNCTION"), "INTEGER", "SQL")
     (param,) = HS.parse(Kind.ROUTINE_PARAMETERS, [("F", "F_1", 1, "X", "IN", "INTEGER")], "S")
-    assert param.routine == routine.key
+    assert param.routine.matches(routine.key)
 
 
 def test_normalize_name_like_oracle() -> None:

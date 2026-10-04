@@ -128,8 +128,8 @@ def test_routines_join_source_lines_and_list_package_members() -> None:
     f, p1, p2 = ORA.parse(Kind.ROUTINES, rows, "S")
     assert f.definition == "CREATE OR REPLACE FUNCTION f(x NUMBER) RETURN NUMBER IS\nBEGIN RETURN x; END;"
     assert (f.return_type, f.signature) == ("NUMBER", "")
-    assert (p1.key, p1.definition) == (RoutineKey("PKG.P", "1"), None)
-    assert (p2.routine_type, p2.key) == ("FUNCTION", RoutineKey("PKG.P", "2"))
+    assert (p1.key, p1.definition) == (RoutineKey("PKG.P", "1", "PROCEDURE"), None)
+    assert (p2.routine_type, p2.key) == ("FUNCTION", RoutineKey("PKG.P", "2", "FUNCTION"))
 
 
 def test_routine_parameters_keyed_by_package_and_overload() -> None:

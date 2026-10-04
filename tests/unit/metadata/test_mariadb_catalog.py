@@ -8,7 +8,7 @@ from util_bbdd.metadata._paramstyle import placeholders, to_driver
 from util_bbdd.metadata.catalog_registry import get_catalog_dialect
 from util_bbdd.metadata.contracts import CatalogDialect
 from util_bbdd.metadata.mariadb.catalog import MariaDBCatalog, MySQLCatalog, build_create_routine
-from util_bbdd.metadata.model import ALL_KINDS, Kind, RoutineKey
+from util_bbdd.metadata.model import ALL_KINDS, Kind, RoutineKey, SchemaSnapshot
 
 MARIA = MariaDBCatalog()
 MY = MySQLCatalog()
@@ -102,7 +102,29 @@ def test_parse_routines_rebuilds_create_with_parameters() -> None:
 
 def test_parse_routine_parameters() -> None:
     (param,) = MARIA.parse(Kind.ROUTINE_PARAMETERS, [("p", "PROCEDURE", 1, "y", "INOUT", "int")], "s")
-    assert (param.routine, param.mode, param.data_type) == (RoutineKey("p"), "INOUT", "int")
+    assert (param.routine, param.mode, param.data_type) == (RoutineKey("p", routine_type="PROCEDURE"), "INOUT", "int")
+
+
+def test_homonymous_function_and_procedure_keep_their_own_parameters() -> None:
+    """MySQL/MariaDB admiten una FUNCTION y una PROCEDURE con el mismo nombre: sus parámetros no se mezclan."""
+    routines = [
+        ("x", "FUNCTION", "RETURN a", "int", "", "YES", "NO SQL", "DEFINER"),
+        ("x", "PROCEDURE", "BEGIN END", "", "", "NO", "CONTAINS SQL", "DEFINER"),
+    ]
+    parameters = [("x", "FUNCTION", 1, "a", None, "int"), ("x", "PROCEDURE", 1, "b", "OUT", "date")]
+    snapshot = SchemaSnapshot(
+        "mariadb",
+        "s",
+        {
+            Kind.ROUTINES: MARIA.parse(Kind.ROUTINES, [routines, parameters], "s"),
+            Kind.ROUTINE_PARAMETERS: MARIA.parse(Kind.ROUTINE_PARAMETERS, parameters, "s"),
+        },
+    )
+    function, procedure = snapshot.routines()
+    assert [p.name for p in snapshot.routine_parameters(function.key)] == ["a"]
+    assert [p.name for p in snapshot.routine_parameters(procedure.key)] == ["b"]
+    # Sin tipo en la clave (lo que piden otros motores) valen los dos
+    assert [p.name for p in snapshot.routine_parameters(RoutineKey("x"))] == ["a", "b"]
 
 
 def test_build_create_routine_escapes_comment_and_identifiers() -> None:

@@ -465,6 +465,7 @@
       "ordinal": 1,
       "routine": {
        "name": "zz_gold_f",
+       "routine_type": "",
        "signature": ""
       }
      }
@@ -481,6 +482,7 @@
       "ordinal": 1,
       "routine": {
        "name": "zz_gold_p",
+       "routine_type": "",
        "signature": ""
       }
      }

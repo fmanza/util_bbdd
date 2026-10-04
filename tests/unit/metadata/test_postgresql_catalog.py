@@ -93,7 +93,8 @@ def test_parse_indexes_identity_routines_and_parameters() -> None:
     ident = PG.parse(Kind.IDENTITY, [("t", "id", "", "s", "t_id_seq"), ("u", "id", "a", "s", "u_id_seq")], "s")
     assert [i.kind for i in ident] == ["sequence", "identity"]
     routine = PG.parse(Kind.ROUTINES, [("f", "f", "x integer", "integer", "CREATE …", None, "sql")], "s")[0]
-    assert routine.key == RoutineKey("f", "x integer")
+    assert routine.key == RoutineKey("f", "x integer", "FUNCTION")
+    assert routine.key.matches(RoutineKey("f", "x integer"))  # los parámetros de PostgreSQL no llevan tipo
     params = PG.parse(Kind.ROUTINE_PARAMETERS, [("f", "x integer", 1, "x", None, "integer", "1")], "s")
     assert (params[0].mode, params[0].default) == ("IN", "1")
 

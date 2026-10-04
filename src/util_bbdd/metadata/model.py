@@ -187,10 +187,23 @@ class IdentityMeta:
 
 @dataclass(frozen=True, slots=True)
 class RoutineKey:
-    """Identifica una routine aunque haya sobrecargas: nombre + firma de argumentos (vacía si el motor no tiene)."""
+    """Identifica una routine aunque haya sobrecargas: nombre + firma de argumentos (vacía si el motor no tiene).
+
+    ``routine_type`` vacío vale para cualquier tipo: solo lo rellenan los motores en los que una ``FUNCTION`` y una
+    ``PROCEDURE`` pueden llamarse igual (MySQL/MariaDB). Para emparejar claves usa :meth:`matches`, no ``==``.
+    """
 
     name: str
     signature: str = ""
+    routine_type: str = ""
+
+    def matches(self, other: RoutineKey) -> bool:
+        """Misma routine: nombre y firma iguales y tipo igual si las dos claves lo tienen."""
+        return (
+            self.name == other.name
+            and self.signature == other.signature
+            and (not self.routine_type or not other.routine_type or self.routine_type == other.routine_type)
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,7 +220,7 @@ class RoutineMeta:
 
     @property
     def key(self) -> RoutineKey:
-        return RoutineKey(self.name, self.signature)
+        return RoutineKey(self.name, self.signature, self.routine_type)
 
 
 @dataclass(frozen=True, slots=True)
@@ -333,7 +346,7 @@ class SchemaSnapshot:
         return self._for_table(Kind.IDENTITY, table)
 
     def routine_parameters(self, routine: RoutineKey) -> tuple[RoutineParameterMeta, ...]:
-        return tuple(p for p in self._all(Kind.ROUTINE_PARAMETERS) if p.routine == routine)
+        return tuple(p for p in self._all(Kind.ROUTINE_PARAMETERS) if p.routine.matches(routine))
 
 
 __all__: list[str] = [

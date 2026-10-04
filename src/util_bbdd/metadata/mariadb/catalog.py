@@ -431,7 +431,8 @@ class MariaDBCatalog:
     def _parse_routine_parameters(rows: Sequence[Sequence[Any]], schema: str) -> list[RoutineParameterMeta]:
         return [
             RoutineParameterMeta(
-                routine=RoutineKey(str(r[0])),
+                # MySQL/MariaDB admiten una FUNCTION y una PROCEDURE con el mismo nombre: la clave lleva el tipo
+                routine=RoutineKey(str(r[0]), routine_type=str(r[1]).upper()),
                 ordinal=int(r[2]),
                 name=_text(r[3]),
                 mode=(_text(r[4]) or "IN").upper(),

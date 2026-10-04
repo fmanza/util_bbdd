@@ -264,6 +264,15 @@ Fases autorizadas: PLAN + AUDIT_PLAN
   2026-05-19), `docs/functional/metadata_extraction.md`, `docs/api/managers_sync*.md`; fuera
   `docs/api/managers_metadata_factory.md` (documentaba un módulo retirado en E2b). CHANGELOG con resumen y guía.
 
+- AUDIT_CODE (`/audit-code`, núcleo de `metadata/` + managers): APROBADO CON CONDICIONES. Corregidos F1 (carga en
+  curso guardada tras invalidar → época por fuente en `SnapshotCache`), F6 (locks por clave sin liberar) y F2
+  (parámetros de `FUNCTION`/`PROCEDURE` homónimas en MySQL/MariaDB → `RoutineKey.routine_type` + `matches()`), con
+  tests; dorados con el campo nuevo. Pendientes (no bloquean): F3 (precarga de SQL Server da PK/FK vacías a tablas
+  inexistentes), F4 (`_as_requested` no detecta filas ambiguas con collation sensible a mayúsculas), F5 (schema por
+  defecto sin `normalize_name` frente a la invalidación: usuarios Oracle/HSQLDB entrecomillados en minúsculas), F7
+  (`routine_parameters`/`_routines`/`_view` lineales), H1 (lecturas de catálogo sin fin de transacción con
+  `autocommit=False`; verificar en banco), H2 (`asyncio.Lock` reutilizado entre bucles).
+
 ## Artefactos generados
 
 | Artefacto | Ruta | Estado |
@@ -311,5 +320,6 @@ Veredicto: GO (implementación completa: grupos HF, QW, A0–A6, B1, C1–C5, D1
 Pendientes al cierre:
 - VERSION (`/version-closure`): versión con rupturas (`pyproject.toml` + CHANGELOG `[Unreleased]` → versión), push.
 - Banco: los schemas `zz_*` siguen creados (`python scripts/bench_metadata.py teardown --engines all --volumes 50,500,5000`).
+- Hallazgos F3, F4, F5, F7, H1 y H2 de la auditoría (ver arriba).
 - Fuera de alcance, registrado en ADR-003: DDL de tabla por tabla fuera de MySQL/MariaDB y reflexión por tabla de
   SQLite en `comparar`/`dump`.

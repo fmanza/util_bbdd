@@ -211,6 +211,15 @@ lotes, `get_*` tipados y retirada de los caminos antiguos. **Incluye rupturas de
 
 ### Fixed
 
+- **metadata**: una lectura del catálogo empezada antes de invalidar la caché (`clear_cache()`, DDL de
+  `maintenance_scope`/`migrate`) guardaba lo leído al terminar, y los siguientes lectores veían el catálogo anterior al
+  DDL hasta la próxima invalidación (hilos de `bulk`/`dump`, tareas `asyncio`). Ahora se devuelve a quien la pidió pero
+  no se guarda. Los locks por clave de la caché se liberan al terminar cada carga (antes se acumulaban, uno por lectura
+  filtrada distinta). Hallazgos F1 y F6 de la auditoría post-ADR-003.
+- **metadata / managers (MySQL, MariaDB)**: con una `FUNCTION` y una `PROCEDURE` del mismo nombre,
+  `get_routine_parameters()` y la documentación devolvían los parámetros de las dos. `RoutineKey` tiene `routine_type`
+  (vacío = cualquiera; solo lo rellenan MySQL/MariaDB) y se empareja con `RoutineKey.matches()`; `RoutineMeta.key`
+  lleva el tipo. Hallazgo F2.
 - **metadata (MariaDB)**: las tablas con `SYSTEM VERSIONING` (`TABLE_TYPE = 'SYSTEM VERSIONED'`) no aparecían en el
   snapshot ni en la reflexión por lotes (H-33): faltaban en la documentación, `migrate`, `comparar` y
   `UpdateAutoIncrement`.
