@@ -7,12 +7,13 @@ la consulta con el ``paramstyle`` del driver y la devuelve.
 
 from __future__ import annotations
 
+import contextlib
 import sys
 
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
-from .._core.exceptions import MetadataError
+from .._core.exceptions import DatabaseException, MetadataError
 from ..async_utils import maybe_await
 from ..metadata._paramstyle import ParamStyle, to_driver
 from ..metadata.source import DbapiCatalogExecutor
@@ -65,6 +66,21 @@ def _materialize(value: Any) -> Any:
     return value
 
 
+def _rollback(connection: Any) -> None:
+    """Deja usable la conexión tras un error (PostgreSQL aborta la transacción en curso)."""
+    rollback = getattr(connection, "rollback", None)
+    if callable(rollback):
+        with contextlib.suppress(Exception):
+            rollback()
+
+
+async def _arollback(connection: Any) -> None:
+    rollback = getattr(connection, "rollback", None)
+    if callable(rollback):
+        with contextlib.suppress(Exception):
+            await maybe_await(rollback())
+
+
 class ManagerCatalogExecutor:
     """:class:`~util_bbdd.metadata.contracts.CatalogExecutor` sobre las conexiones de un manager síncrono.
 
@@ -82,6 +98,11 @@ class ManagerCatalogExecutor:
         try:
             rows = DbapiCatalogExecutor(connection, driver_paramstyle(connection)).fetch_all(sql, params)
             return [tuple(_materialize(v) for v in row) for row in rows]
+        except DatabaseException:
+            raise
+        except Exception as exc:  # noqa: BLE001 - error del driver (cada uno tiene su jerarquía) → excepción de la librería
+            _rollback(connection)
+            raise MetadataError(f"Error leyendo el catálogo: {exc}") from exc
         finally:
             self._releaser(connection)
 
@@ -114,6 +135,11 @@ class AsyncManagerCatalogExecutor:
             finally:
                 await maybe_await(cursor.close())
             return [tuple(_materialize(v) for v in row) for row in rows]
+        except DatabaseException:
+            raise
+        except Exception as exc:  # noqa: BLE001 - ver ManagerCatalogExecutor.fetch_all
+            await _arollback(connection)
+            raise MetadataError(f"Error leyendo el catálogo: {exc}") from exc
         finally:
             await self._releaser(connection)
 

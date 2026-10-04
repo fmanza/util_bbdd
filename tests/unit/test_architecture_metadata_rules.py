@@ -62,18 +62,11 @@ EXCEPTIONS: dict[str, str] = {
 PENDING_CATALOG: frozenset[str] = frozenset(
     {
         "comparar/reporters/sql_reporter.py",
-        "doc/infrastructure/storage/runtime.py",
     }
 )
 
 # Trinquete (2026-10-03): consumidores que importan metadata.<motor>. Solo puede bajar.
-PENDING_ENGINE_IMPORTS: frozenset[str] = frozenset(
-    {
-        "managers/_metadata_parser.py",
-        "managers/async_mgr.py",  # importa metadata.mariadb/mysql para registrar sus adaptadores
-        "managers/sync_mgr.py",  # ídem
-    }
-)
+PENDING_ENGINE_IMPORTS: frozenset[str] = frozenset()
 
 
 def _docstring_ids(tree: ast.AST) -> set[int]:

@@ -223,6 +223,21 @@ Fases autorizadas: PLAN + AUDIT_PLAN
 - Verificación E2a: `ruff`, `mypy` (423), unitarios 6141 + 2 xfailed, integración 641 + 10 skipped, capas (423, sin
   cambios), `mkdocs build --strict`.
 
+- IMPLEMENT · E2b: `metadata/ddl.py` con el SQL del DDL nativo de tabla (`native_table_ddl_sql`, generado desde
+  `data/sql_queries.json` con binds `:schema`/`:table_name`) y `metadata/storage.py` (consultas de inventario,
+  `read_storage_inventory`, `storage_query_params`). Fachada: `get_ddl` (MySQL/MariaDB desde el snapshot; resto con el
+  ejecutor de catálogo del manager, caché `_table_ddl_cache` que vacía `_invalidate_catalog`),
+  `get_columns_charset_collation` (snapshot), `get_storage_inventory`, `get_storage_rows`. Fuera de los managers: los 5
+  módulos de estrategias/parseo y la resolución de adaptadores (los managers ya no importan `metadata.<motor>`:
+  `PENDING_ENGINE_IMPORTS` vacío). `doc`: `storage/runtime.py` sin SQL (fuera de `PENDING_CATALOG`; queda solo
+  `comparar/reporters/sql_reporter.py`, excepción registrada). `ManagerCatalogExecutor` envuelve los errores del driver
+  en `MetadataError` y hace rollback. Hallazgos: `:table` no es un bind válido en Oracle (ORA-01745) → `:table_name`;
+  ciclo de import `metadata.ddl` → `mariadb.common` → adaptador → `ddl` (resuelto quitando del adaptador los métodos
+  muertos). Dorados sin cambios. Inventario comprobado a mano en los 6 motores del banco (Oracle: el usuario del banco
+  no ve `DBA_DATA_FILES`; error por sección como antes).
+- Verificación E2b: `ruff`, `mypy` (419), unitarios 6124 + 2 xfailed, integración 641 + 10 skipped, capas,
+  `mkdocs build --strict`.
+
 ## Artefactos generados
 
 | Artefacto | Ruta | Estado |

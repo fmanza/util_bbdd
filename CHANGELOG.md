@@ -78,6 +78,16 @@ cambios siguientes.
   `CREATE OR REPLACE VIEW` con comillas). `SyncMetadataProvider` / `AsyncMetadataProvider` declaran los mismos tipos.
   **Migración**: `row[0]` → `table.name` / `column.name`; `get_primary_keys(t)` → `pk.columns if pk else ()`;
   FK: `fk.columns`, `fk.ref_table`, `fk.ref_columns`. Tabla completa en `docs/api/metadata_manager.md` § 5.
+- **managers / metadata**: el DDL de tabla, las collations de columnas y el inventario de almacenamiento salen de
+  `metadata/` (grupo E2 de ADR-003), ya no de `data/sql_queries.json`. `get_ddl()` ejecuta el SQL de
+  `metadata.ddl.native_table_ddl_sql()` (mismo texto que antes; en MySQL/MariaDB, desde el snapshot) y lo cachea hasta
+  `clear_cache()`. `get_columns_charset_collation()` lee el snapshot: solo las columnas con collation **distinta de la
+  de la base de datos** (antes, todas las de texto; en PostgreSQL, también `default`), con el charset en MySQL/MariaDB;
+  en Oracle ya no lista collations (antes, solo con 12.2+). `get_storage_inventory()` usa `metadata.storage` (mismas
+  claves) y nuevo `get_storage_rows(query_name, **params)`; los errores del driver al leer el catálogo llegan como
+  `MetadataError` (antes, el error del driver sin envolver en `get_schema_metadata()`). `doc`: el inventario de
+  almacenamiento muestra el SQL con parámetros (`:tablespace`) y `DocumentationQueryPort` pasa de `resolve_query` /
+  `execute_query_many` / `execute_custom_one` a `get_storage_rows`.
 - **doc**: el adaptador del manager (`SyncDatabaseManagerAdapter`) solo delega el catálogo (`get_schema_metadata`,
   `get_ddl`), la metadata opcional y las consultas del inventario; las lecturas por objeto las sirve
   `DocumentationSession` desde el snapshot. Puertos: `DocumentationCatalogPort` (origen), `DocumentationBackendPort`
@@ -166,6 +176,11 @@ cambios siguientes.
 
 - **managers (ruptura de API)**: `get_tables_normalized()` y `get_columns_normalized()` (los `get_*` ya son
   homogéneos), `get_metadata_manager()`, `relationship_cache` y `get_relationship_cache()` (grupo E2 de ADR-003).
+- **managers**: los módulos internos de estrategias de metadatos (`_manager_metadata_factory`,
+  `_manager_metadata_runtime`, `_manager_storage`, `_metadata_request`, `_metadata_parser`) y la resolución de
+  adaptadores (`_get_metadata_adapter`); los managers ya no importan `metadata.mariadb`/`metadata.mysql`.
+  `StorageInventoryAdapterSync`/`Async` y los `build_table_ddl_from_metadata`/`storage_inventory` de los adaptadores de
+  MariaDB y MySQL (sin consumidores).
 - **metadata (ruptura de API)**: `MetadataManager` y `AsyncMetadataManager` (`metadata/manager.py`,
   `metadata/async_manager.py`): usar `get_schema_metadata()` o los `get_*` del manager. `build_mariadb_table_ddl`
   (sustituido por `metadata.ddl.mysql_table_ddl`, sobre modelos) y los `fetch_*` de `SourceAdapter` de

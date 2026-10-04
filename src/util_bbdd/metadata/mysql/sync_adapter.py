@@ -6,8 +6,6 @@ de metadatos en MySQL.
 
 from __future__ import annotations
 
-from typing import Any
-
 from ...results import Rows
 from .._base_adapter import BaseConnectionAdapter
 from ..mariadb.sync_adapter import MariaDBSyncAdapter
@@ -195,10 +193,6 @@ class MysqlSyncAdapter(BaseConnectionAdapter):
         """Rutinas del contexto (nombre, tipo, comentario)."""
         return self._engine_metadata().fetch_routines(context_database)
 
-    def build_table_ddl_from_metadata(self, tabla: str) -> str:
-        """DDL de una tabla reconstruido desde columnas y PK."""
-        return self._engine_metadata().build_table_ddl_from_metadata(tabla)
-
     def fetch_view_from_information_schema(self, database: str, view_name: str) -> str:
         """DDL de una vista desde information_schema.views."""
         return self._engine_metadata().fetch_view_from_information_schema(database, view_name)
@@ -216,7 +210,3 @@ class MysqlSyncAdapter(BaseConnectionAdapter):
     def fetch_routine_from_information_schema(self, database: str, routine_name: str, routine_type: str) -> str:
         """DDL de una rutina."""
         return self._engine_metadata().fetch_routine_from_information_schema(database, routine_name, routine_type)
-
-    def storage_inventory(self, context_database: str) -> dict[str, Any]:
-        """Inventario de almacenamiento (ficheros por tabla y tablespaces temporales)."""
-        return self._engine_metadata().storage_inventory(context_database)

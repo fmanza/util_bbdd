@@ -10,7 +10,6 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from ...results import Rows
-from ..ddl import mysql_table_ddl
 from ._adapter_helpers import (
     build_columns_safe_sql,
     build_routine_ddl_from_detail,
@@ -165,21 +164,6 @@ class MariaDBAsyncAdapter:
 
     async def fetch_routines(self, context_database: str) -> Rows:
         return routine_entries_to_rows(await self.get_routine_details(context_database))
-
-    async def build_table_ddl_from_metadata(self, tabla: str) -> str:
-        return mysql_table_ddl(tabla, await self.manager.get_columns(tabla), await self.manager.get_primary_keys(tabla))
-
-    async def storage_inventory(self, context_database: str) -> dict[str, Any]:
-        if not context_database:
-            raise ValueError("Para MariaDB debe proporcionar 'database'")
-
-        primary_rows: Rows = await self.manager.execute_query_many("ficheros_fisicos", database=context_database)
-        temp_tablespaces_rows: Rows = await self.manager.execute_query_many("temp_tablespaces")
-
-        return {
-            "primary": primary_rows,
-            "temp_tablespaces": temp_tablespaces_rows,
-        }
 
     # ==================== RoutineAdapter Protocol ====================
 

@@ -16,8 +16,6 @@ from ._adapter_protocol import (
     RoutineAdapterSync,
     SourceAdapterAsync,
     SourceAdapterSync,
-    StorageInventoryAdapterAsync,
-    StorageInventoryAdapterSync,
 )
 from ._adapter_registry import (
     AdapterRegistry,
@@ -34,8 +32,6 @@ __all__: list[str] = [
     # Protocols de lecturas especializadas por motor (managers)
     "EngineMetadataAdapterSync",
     "EngineMetadataAdapterAsync",
-    "StorageInventoryAdapterSync",
-    "StorageInventoryAdapterAsync",
     # Registry
     "AdapterRegistry",
     "get_global_adapter_registry",

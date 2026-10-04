@@ -16,7 +16,6 @@ from unittest.mock import AsyncMock, MagicMock
 from util_bbdd.doc.infrastructure.renderers.shared.generator_shared import GeneratorTabularRuntime
 from util_bbdd.doc.infrastructure.runtime.headers_runtime import DocumentationHeadersRuntime
 from util_bbdd.doc.infrastructure.storage.runtime import StorageInventoryRuntime
-from util_bbdd.managers._manager_metadata_runtime import MariaDBMetadataFetchStrategy, get_metadata_fetch_strategy
 from util_bbdd.metadata.mysql import MysqlAsyncAdapter, MysqlSyncAdapter
 from util_bbdd.query import DatabaseQueries
 from util_bbdd.query._documentation import (
@@ -36,12 +35,6 @@ class TestMysqlAdapterDelegation:
         assert "HEX(COLUMN_NAME)" in sql
         assert params == {"schema": "db1", "table": "t1"}
 
-    def test_storage_inventory_uses_catalog_queries(self) -> None:
-        manager = MagicMock()
-        manager.execute_query_many.side_effect = lambda name, **_: [(name,)]
-        result = MysqlSyncAdapter(manager).storage_inventory("db1")
-        assert result == {"primary": [("ficheros_fisicos",)], "temp_tablespaces": [("temp_tablespaces",)]}
-
     def test_view_ddl_is_built_from_information_schema(self) -> None:
         manager = MagicMock()
         manager.execute_custom_one.return_value = ("select 1 AS `a`",)
@@ -60,9 +53,6 @@ class TestMysqlAdapterDelegation:
 
 
 class TestMysqlFollowsMariaDBInConsumers:
-    def test_metadata_fetch_strategy_is_specialized(self) -> None:
-        assert isinstance(get_metadata_fetch_strategy("mysql"), MariaDBMetadataFetchStrategy)
-
     def test_query_catalog_context_and_strategies(self) -> None:
         mysql, mariadb = DatabaseQueries("mysql"), DatabaseQueries("mariadb")
         assert mysql._build_context_kwargs("db1") == {}

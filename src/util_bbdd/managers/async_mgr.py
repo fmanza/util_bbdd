@@ -9,9 +9,6 @@ from collections.abc import Awaitable, Callable, Collection
 from typing import Any, cast
 
 from util_bbdd._drivers.validator import DatabaseTypeValidator
-from util_bbdd.managers._manager_metadata_runtime import MetadataFetchStrategy
-from util_bbdd.managers._manager_storage import AsyncStorageInventoryStrategy
-from util_bbdd.metadata.adapters._adapter_registry import AdapterRegistry
 
 from .._core.exceptions import DatabaseOperationError, QueryError
 from .._drivers import get_database_validator, get_db_type_info, get_supported_db_types
@@ -24,10 +21,7 @@ from ..factory.pool_factory import PoolFactory
 from ..metadata import (
     DatabaseMetadataCache,
     Rows,
-    mariadb as _mariadb_metadata,  # noqa: F401  (al importarse registra sus adapters en el registro global)
-    mysql as _mysql_metadata,  # noqa: F401  (ídem)
 )
-from ..metadata.adapters import EngineMetadataAdapterAsync, get_global_adapter_registry
 from ..metadata.catalog_registry import get_catalog_dialect
 from ..metadata.model import ALL_KINDS, Kind, SchemaSnapshot
 from ..metadata.source import AsyncCatalogSource
@@ -41,13 +35,7 @@ from ._manager_lifecycle import (
     init_async_resources,
     release_async_connection,
 )
-from ._manager_metadata_factory import MetadataStrategyFactory
-from ._manager_metadata_runtime import (
-    MetadataFetchRequest,
-    MetadataRequestBuilder,
-)
 from ._manager_shared_mixin import DatabaseManagerSharedMixin
-from ._metadata_parser import CharsetCollationParser
 
 
 class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
@@ -55,74 +43,6 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
 
     _PARAMETER_PATTERN = r"\{(\w+)\}"
     _ERROR_EXECUTOR_NOT_INITIALIZED = "AsyncQueryExecutor no inicializado"
-
-    def _get_metadata_adapter(self) -> EngineMetadataAdapterAsync:
-        """Adapter de lecturas especializadas del motor, resuelto por ``db_type`` en el registro global."""
-        return cast(EngineMetadataAdapterAsync, self._get_adapter_async("source"))
-
-    def _get_adapter_async(self, adapter_type: str) -> Any:
-        """Obtiene adapter async del Registry según db_type y tipo de adapter.
-
-        Es el único punto de resolución de adapters por motor; ``_get_metadata_adapter()`` lo tipa para las
-        lecturas especializadas.
-
-        Args:
-            adapter_type: Tipo de adapter ('source' o 'routine')
-
-        Returns:
-            Instancia del adapter (SourceAdapter o RoutineAdapter)
-
-        Raises:
-            DatabaseConfigurationError: Si no hay adapter registrado para el driver
-        """
-        from .._core.exceptions import DatabaseConfigurationError
-
-        cache_key: str = f"_adapter_async_{adapter_type}"
-        cached_adapter: Any | None = getattr(self, cache_key, None)
-        if cached_adapter is not None:
-            return cached_adapter
-
-        registry: AdapterRegistry = get_global_adapter_registry()
-        if adapter_type == "source":
-            adapter_class = registry.get_source_adapter_async(self.db_type)
-        elif adapter_type == "routine":
-            adapter_class = registry.get_routine_adapter_async(self.db_type)
-        else:
-            msg: str = f"Tipo de adapter inválido: {adapter_type}. Use 'source' o 'routine'."
-            raise ValueError(msg)
-
-        if adapter_class is None:
-            msg = f"No hay adapter async registrado para {self.db_type} (tipo: {adapter_type})"
-            raise DatabaseConfigurationError(msg)
-
-        # Crear instancia y cachear
-        adapter = adapter_class(self)
-        setattr(self, cache_key, adapter)
-        return adapter
-
-    async def _execute_metadata_fetch_request_one(self, request: MetadataFetchRequest) -> RowOrNone:
-        return await self._execute_metadata_one(
-            request.query_name,
-            params=request.params,
-            error_message=request.error_message,
-            table_name=request.table_name,
-        )
-
-    def _get_table_ddl_fetcher(self, context_database: str, tabla: str) -> Callable[[], Awaitable[str]]:
-        return self._metadata_fetch_strategy.build_async_text_fetcher(
-            request=MetadataRequestBuilder.table_ddl(
-                context_database,
-                tabla,
-                self._add_metadata_context_params,
-            ),
-            specialized_fetcher=lambda: self._get_metadata_adapter().build_table_ddl_from_metadata(tabla),
-            execute_one=self._execute_metadata_fetch_request_one,
-            normalize_one=self._normalize_ddl_result,
-        )
-
-    async def _log_and_call_async(self, message: str, action: Callable[[], Awaitable[Any]]) -> Any:
-        self.logger.debug(message)
-        return await action()
 
     def __init__(
         self,
@@ -145,12 +65,6 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         self.conn_params: dict[str, Any] = conn_params
         self.database: str = str(conn_params.get("database", "") or "").strip()
         self.use_pool: bool = use_pool
-
-        # Obtener estrategias via factory
-        self._metadata_fetch_strategy: MetadataFetchStrategy = MetadataStrategyFactory.get_fetch_strategy(self.db_type)
-        self._storage_inventory_strategy: AsyncStorageInventoryStrategy = (
-            MetadataStrategyFactory.get_async_storage_strategy(self.db_type)
-        )
 
         # Inicializar cachés centralizados
         self.db_cache: DatabaseMetadataCache = DatabaseMetadataCache()
@@ -476,27 +390,6 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         )
         return cast(Rows, result)
 
-    async def _execute_metadata_one(
-        self,
-        query_name: str,
-        *,
-        params: dict[str, Any],
-        error_message: str,
-        table_name: str | None = None,
-    ) -> RowOrNone:
-        executor: AsyncQueryExecutor = await self._get_query_executor()
-        result = await self._run_manager_operation_async(
-            action=lambda: executor.execute_query_one(
-                query_name=query_name,
-                db_type=self.db_type,
-                params=params,
-            ),
-            error_message=error_message,
-            operation="SELECT",
-            table_name=table_name,
-        )
-        return cast(RowOrNone, result)
-
     async def _get_cached_rows_async(
         self,
         *,
@@ -519,108 +412,6 @@ class AsyncDatabaseManager(AsyncCatalogFacade, DatabaseManagerSharedMixin):
         if success_message:
             self.logger.info(f"Success: {len(rows)} rows")
         return rows
-
-    async def _get_cached_text_async(
-        self,
-        *,
-        cache_lookup: Callable[[], str | None],
-        cache_store: Callable[[str], None],
-        fetch_text: Callable[[], Awaitable[str]],
-        cache_hit_message: str | None = None,
-        success_message: str | None = None,
-    ) -> str:
-        cached_text: str | None = cache_lookup()
-        if cached_text is not None:
-            if cache_hit_message:
-                self.logger.debug(cache_hit_message)
-            return cached_text
-        text = await fetch_text()
-        cache_store(text)
-        if success_message:
-            self.logger.info(success_message)
-        return text
-
-    def _supports_columns_charset_collation(self) -> bool:
-        """Indica si el motor expone metadata fiable de charset/collation por columna."""
-        if self.db_type == "oracle":
-            cached_support = getattr(self, "_oracle_column_collation_supported", None)
-            if cached_support is not None:
-                return bool(cached_support)
-            return False
-
-        return self.db_type != "sqlite"
-
-    async def get_ddl(self, tabla: str) -> str:
-        context_database: str = self._get_query_context_database()
-        context_label: str = self._get_query_context_label()
-        cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
-        fetch_ddl: Callable[[], Awaitable[str]] = self._get_table_ddl_fetcher(context_database, tabla)
-
-        return await self._get_cached_text_async(
-            cache_lookup=lambda: self.db_cache._ddl_cache.get(cache_key),
-            cache_store=lambda ddl: self.db_cache._ddl_cache.__setitem__(cache_key, ddl),
-            fetch_text=lambda: self._log_and_call_async(
-                f"🔍 Obteniendo DDL para tabla {tabla} ({context_label}: {context_database})",
-                fetch_ddl,
-            ),
-            cache_hit_message=f"♻️  Usando DDL en caché para tabla {tabla}",
-            success_message=f"✅ DDL obtenido para tabla {tabla}",
-        )
-
-    async def get_storage_inventory(self, tablespace: str | None = None) -> dict[str, Any]:
-        """Obtiene inventario de almacenamiento."""
-        context_database: str = self._get_query_context_database()
-        return await self._storage_inventory_strategy.execute(
-            self,
-            context_database,
-            tablespace,
-        )
-
-    async def get_columns_charset_collation(self, tabla: str) -> list[tuple[str, str | None, str | None]]:
-        context_database: str = self._get_query_context_database()
-        context_label: str = self._get_query_context_label()
-        cache_key: tuple[str, str] = self._cache_table_key(context_database, tabla)
-
-        supports_columns_charset: bool = self._supports_columns_charset_collation()
-        if self.db_type == "oracle":
-            cached_support: Any | None = getattr(self, "_oracle_column_collation_supported", None)
-            if cached_support is None:
-                version_text: str = await self.get_database_version()
-                supports_columns_charset = CharsetCollationParser._oracle_supports_columns_charset_collation(
-                    version_text
-                )
-                self._oracle_column_collation_supported: bool = supports_columns_charset
-            else:
-                supports_columns_charset = bool(cached_support)
-
-        if not supports_columns_charset:
-            self.logger.debug(
-                "ℹ️ Charset/collation por columna no soportado para %s; devolviendo lista vacía para %s",
-                self.db_type,
-                tabla,
-            )
-            empty_rows: list[tuple[str, str | None, str | None]] = []
-            self.db_cache.set_columns_charset_collation(cache_key, empty_rows)
-            return empty_rows
-
-        async def _fetch_charset_collation() -> list[Any]:
-            rows = await self._execute_metadata_many(
-                "columns_charset_collation",
-                params={"tabla": tabla, "database": context_database},
-                error_message="Error obteniendo charset/collation de columnas",
-                table_name=tabla,
-            )
-            return [self._parse_column_charset_collation_row(row) for row in rows]
-
-        rows: list[Any] = await self._get_cached_rows_async(
-            cache_lookup=lambda: self.db_cache.get_columns_charset_collation(cache_key),
-            cache_store=lambda items: self.db_cache.set_columns_charset_collation(cache_key, items),
-            fetch_rows=_fetch_charset_collation,
-            cache_hit_message=f"♻️  Usando charset/collation en caché para tabla {tabla}",
-            success_message=f"✅ Charset/Collation de {{count}} columnas obtenido ({context_label}: {context_database})",
-            fetch_debug_message=f"🔍 Obteniendo charset/collation de columnas de {tabla} ({context_label}: {context_database})",
-        )
-        return cast(list[tuple[str, str | None, str | None]], rows)
 
     async def get_query_info(self) -> dict[str, Any]:
         executor: AsyncQueryExecutor = await self._get_query_executor()

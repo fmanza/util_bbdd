@@ -23,7 +23,7 @@ Ejemplo de uso:
 
 from __future__ import annotations
 
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from ...results import Rows
 
@@ -35,8 +35,6 @@ __all__: list[str] = [
     "SourceAdapterAsync",
     "RoutineAdapterSync",
     "RoutineAdapterAsync",
-    "StorageInventoryAdapterAsync",
-    "StorageInventoryAdapterSync",
 ]
 
 
@@ -239,39 +237,14 @@ class RoutineAdapterAsync(Protocol):
 
 
 @runtime_checkable
-class StorageInventoryAdapterSync(Protocol):
-    """Inventario de almacenamiento que un motor resuelve en su adapter (sync)."""
-
-    def storage_inventory(self, context_database: str, /) -> dict[str, Any]:
-        """Devuelve el inventario de almacenamiento del contexto (secciones → filas)."""
-        ...
-
-
-@runtime_checkable
-class StorageInventoryAdapterAsync(Protocol):
-    """Inventario de almacenamiento que un motor resuelve en su adapter (async)."""
-
-    async def storage_inventory(self, context_database: str, /) -> dict[str, Any]:
-        """Devuelve el inventario de almacenamiento del contexto (secciones → filas)."""
-        ...
-
-
-@runtime_checkable
-class EngineMetadataAdapterSync(StorageInventoryAdapterSync, Protocol):
+class EngineMetadataAdapterSync(Protocol):
     """Lecturas de metadatos especializadas por motor que los managers delegan en su adapter (sync).
 
-    Los managers obtienen el adapter del registro global por ``db_type`` y solo lo usan con una estrategia de
-    metadatos especializada (``_manager_metadata_runtime``); el resto de motores resuelve estas lecturas con SQL del
-    catálogo. Los managers pasan por nombre los argumentos de ``fetch_routine_parameters_public_rows`` y
-    ``fetch_routine_from_information_schema``, así que el contrato fija esos nombres; el resto son posicionales.
+    Desde E2 de ADR-003 los managers ya no los usan (leen el snapshot de ``metadata/``); se retiran en E2c.
     """
 
     def fetch_routines(self, context_database: str, /) -> Rows:
         """Rutinas del contexto."""
-        ...
-
-    def build_table_ddl_from_metadata(self, table: str, /) -> str:
-        """DDL de una tabla reconstruido desde metadatos."""
         ...
 
     def fetch_view_from_information_schema(self, database: str, view_name: str, /) -> str:
@@ -292,7 +265,7 @@ class EngineMetadataAdapterSync(StorageInventoryAdapterSync, Protocol):
 
 
 @runtime_checkable
-class EngineMetadataAdapterAsync(StorageInventoryAdapterAsync, Protocol):
+class EngineMetadataAdapterAsync(Protocol):
     """Lecturas de metadatos especializadas por motor que los managers delegan en su adapter (async).
 
     Mismo contrato que :class:`EngineMetadataAdapterSync` con métodos ``async``.
@@ -300,10 +273,6 @@ class EngineMetadataAdapterAsync(StorageInventoryAdapterAsync, Protocol):
 
     async def fetch_routines(self, context_database: str, /) -> Rows:
         """Rutinas del contexto."""
-        ...
-
-    async def build_table_ddl_from_metadata(self, table: str, /) -> str:
-        """DDL de una tabla reconstruido desde metadatos."""
         ...
 
     async def fetch_view_from_information_schema(self, database: str, view_name: str, /) -> str:

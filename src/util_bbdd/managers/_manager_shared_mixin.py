@@ -1,9 +1,8 @@
 """Mixin con helpers compartidos entre SyncDatabaseManager y AsyncDatabaseManager.
 
 Contiene únicamente métodos cuya lógica es idéntica en ambos managers y que no
-requieren ``async``/``await``.  Cada método delega en las funciones puras de
-``_manager_metadata`` y ``_manager_metadata_runtime``, por lo que la lógica real
-sigue viviendo en un único lugar.
+requieren ``async``/``await``: cachés, contexto de metadatos y fuente de catálogo
+por lotes (ADR-003).
 
 Requisitos de la clase consumidora (atributos de instancia):
     db_cache:            DatabaseMetadataCache
@@ -24,7 +23,6 @@ from ..metadata.catalog_registry import get_catalog_dialect
 from ..metadata.snapshot_cache import SnapshotCache
 from ._metadata_cache import CacheManager
 from ._metadata_context import CacheKeyFactory, MetadataContextResolver
-from ._metadata_parser import CharsetCollationParser, DDLNormalizer
 
 
 class DatabaseManagerSharedMixin:
@@ -72,7 +70,8 @@ class DatabaseManagerSharedMixin:
         return f"{self.db_type}://{location}/{self.database}"
 
     def _invalidate_catalog(self, context: str | None = None) -> None:
-        """Descarta los snapshots leídos (todos, o los del schema del contexto)."""
+        """Descarta los snapshots leídos (todos, o los del schema del contexto) y el DDL de tablas leído."""
+        self.__dict__.pop("_table_ddl_cache", None)
         cache: SnapshotCache | None = self.__dict__.get("_catalog_snapshot_cache")
         if cache is None:
             return
@@ -142,10 +141,6 @@ class DatabaseManagerSharedMixin:
         """Obtiene etiqueta descriptiva del contexto de consultas de metadatos."""
         return MetadataContextResolver.get_context_label(self.db_type)
 
-    def _add_metadata_context_params(self, params: dict[str, Any], context: str | None) -> dict[str, Any]:
-        """Añade parámetros de contexto metadata según motor."""
-        return MetadataContextResolver.add_context_params(db_type=self.db_type, params=params, context=context)
-
     def get_query_context_database(self) -> str:
         """Expone el contexto de metadatos (schema/database) para consumidores externos."""
         return self._get_query_context_database()
@@ -158,16 +153,6 @@ class DatabaseManagerSharedMixin:
     def _cache_context_key(context: str) -> str:
         return CacheKeyFactory.context_key(context)
 
-    def _cache_table_key(self, context_database: str, table_name: str) -> tuple[str, str]:
-        return CacheKeyFactory.table_key(context_database, table_name)
-
     # ------------------------------------------------------------------
     # Result parsing helpers
     # ------------------------------------------------------------------
-
-    def _normalize_ddl_result(self, ddl: Any) -> str:
-        return DDLNormalizer.normalize_result(ddl)
-
-    def _parse_column_charset_collation_row(self, row: tuple[Any, ...]) -> tuple[str, str | None, str | None]:
-        """Parsea una fila de resultado de charset/collation de columna según el tipo de BD."""
-        return CharsetCollationParser(self.logger).parse_column_charset_collation(self.db_type, row)

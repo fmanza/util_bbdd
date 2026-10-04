@@ -7,7 +7,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, cast
 
-from ...._core.exceptions import DatabaseException, QueryNotFoundError
+from ...._core.exceptions import DatabaseException, QueryNotFoundError, QueryParameterError
+from ....metadata.storage import storage_query, storage_query_params
 from ...application._internal_ports import StorageReportServicePort
 from ...application.ports import DocumentationBackendPort, LoggerProtocol
 from .contracts import StorageInventoryManagerProtocol, StorageInventoryStrategyPort
@@ -43,7 +44,6 @@ class StorageInventoryRuntime:
         "impreciso o no aplicable."
     )
     _SIZE_HEADER_HINTS: tuple[str, ...] = ("mb", "tamano", "tamaño", "size")
-    _ORACLE_USER_TABLESPACES_QUERY: str = "SELECT default_tablespace, temporary_tablespace FROM user_users"
     _DEFAULT_STORAGE_QUERY_SPECS: ClassVar[tuple[tuple[str, str], ...]] = (
         ("ficheros_fisicos", _FICHEROS_FISICOS),
         ("temp_tablespaces", _TEMP_TABLESPACES),
@@ -184,7 +184,7 @@ class StorageInventoryRuntime:
     def _get_oracle_default_tablespace(self) -> str:
         """Intenta obtener tablespace del usuario Oracle conectado."""
         try:
-            user_tablespaces: object = self.db_manager.execute_custom_one(self._ORACLE_USER_TABLESPACES_QUERY)
+            user_tablespaces: object = self.db_manager.get_storage_rows("user_tablespaces")
             return self._extract_tablespace_from_row(user_tablespaces)
         except DatabaseException:
             return ""
@@ -456,15 +456,6 @@ class StorageInventoryRuntime:
         """Devuelve índices de columnas numéricas de almacenamiento."""
         return [idx for idx, header in enumerate(headers) if self._is_size_header(header)]
 
-    def _is_placeholder_storage_query(self, query_name: str, query_params: dict[str, Any]) -> bool:
-        """Indica si la query de almacenamiento es un placeholder de no soporte."""
-        try:
-            sql_text: str = str(self.db_manager.resolve_query(query_name, **query_params).final_sql or "")
-        except DatabaseException:
-            return False
-        normalized_sql: str = " ".join(sql_text.strip().lower().split())
-        return "where 1=0" in normalized_sql
-
     def _process_storage_query(
         self,
         query_name: str,
@@ -536,6 +527,28 @@ class StorageInventoryRuntime:
             sql_list=sql_list,
         )
 
+    def _run_storage_query(self, query_name: str, query_params: dict[str, Any]) -> tuple[str, list[list[object]]]:
+        """SQL (de ``metadata.storage``, con ``:nombre``) y filas de una consulta de almacenamiento.
+
+        Raises:
+            QueryNotFoundError: El motor no tiene la consulta.
+            QueryParameterError: Falta un parámetro que la consulta necesita (``tablespace``).
+        """
+        sql = storage_query(self.db_type, query_name)
+        if sql is None:
+            raise QueryNotFoundError(f"'{query_name}' no existe para {self.db_type}")
+        params: dict[str, Any] = {
+            "schema": query_params.get("database") or None,
+            "tablespace": query_params.get("tablespace") or None,
+        }
+        missing = [
+            name for name in storage_query_params(self.db_type, query_name) if name != "schema" and not params[name]
+        ]
+        if missing:
+            raise QueryParameterError(f"falta {', '.join(missing)}")
+        rows = self.db_manager.get_storage_rows(query_name, **{k: v for k, v in params.items() if v is not None})
+        return sql, self._normalize_storage_rows(rows)
+
     def _process_standard_storage_query(
         self,
         query_name: str,
@@ -544,38 +557,25 @@ class StorageInventoryRuntime:
     ) -> dict[str, Any]:
         """Procesa consulta de almacenamiento estándar."""
         try:
-            resolved = self.db_manager.resolve_query(query_name, **query_params)
+            sql_text, rows = self._run_storage_query(query_name, query_params)
         except QueryNotFoundError:
             return self._build_section_not_supported(query_name, query_title)
+        except QueryParameterError as error:
+            return self._build_section_missing_params(query_name, query_title, f"Parámetros inválidos: {error}")
         except DatabaseException as error:
-            return self._build_section_missing_params(
-                query_name,
-                query_title,
-                f"Parámetros inválidos: {error}",
-            )
-
-        if self._is_placeholder_storage_query(query_name, query_params):
-            return self._build_section_not_supported(query_name, query_title)
-
-        try:
-            sql_text: str = str(resolved.final_sql or "")
-            result_rows: object = self.db_manager.execute_query_many(query_name, **query_params)
-            rows: list[list[object]] = self._normalize_storage_rows(result_rows)
-            headers: list[str] = self._build_storage_headers(query_name, rows)
-            rows = self._format_storage_rows(headers, rows)
-            return {
-                "query": query_name,
-                "title": query_title,
-                "status": "ok",
-                "message": "OK" if rows else "Sin datos",
-                "sql": sql_text,
-                "headers": headers,
-                "rows": rows,
-                "numeric_columns": self._get_numeric_storage_indices(headers),
-            }
-        except DatabaseException as error:
-            flattened_error_msg: str = self._flatten_exception_messages(error)
-            return self._build_storage_error_section(query_name, query_title, flattened_error_msg)
+            return self._build_storage_error_section(query_name, query_title, self._flatten_exception_messages(error))
+        headers: list[str] = self._build_storage_headers(query_name, rows)
+        rows = self._format_storage_rows(headers, rows)
+        return {
+            "query": query_name,
+            "title": query_title,
+            "status": "ok",
+            "message": "OK" if rows else "Sin datos",
+            "sql": sql_text,
+            "headers": headers,
+            "rows": rows,
+            "numeric_columns": self._get_numeric_storage_indices(headers),
+        }
 
     def _build_storage_error_section(self, query_name: str, query_title: str, error_msg: str) -> dict[str, Any]:
         """Construye sección de error usando transformadores por motor."""

@@ -43,6 +43,8 @@ La primera llamada de cada tipo cuesta una consulta; el resto sale de la caché 
 | `get_database_metadata()` | `DatabaseMeta \| None` (versión, charset, collation) |
 | `get_database_version()` | `str` (`"Unknown"` si no se puede leer) |
 | `get_database_charset_collation()` | `dict` con `charset`/`collation` cuando el motor los da |
+| `get_columns_charset_collation(tabla)` | `list[tuple]`: `(columna, charset, collation)` de las columnas con collation distinta de la de la base (charset solo en MySQL/MariaDB, prefijo de la collation) |
+| `get_ddl(tabla)` | `str`: en MySQL/MariaDB, `CREATE TABLE` desde columnas y PK del snapshot; en el resto, el del motor (`DBMS_METADATA` en Oracle, el guardado en SQLite, reconstruido en el catálogo en PostgreSQL, SQL Server y HSQLDB), una consulta por tabla cacheada hasta `clear_cache()` |
 | `get_schema_metadata(schema=None, *, kinds=ALL_KINDS, tables=None)` | `SchemaSnapshot` |
 
 ```python
@@ -76,7 +78,8 @@ Los modelos están en `util_bbdd.metadata.model` (dataclasses inmutables). Los c
 | `CatalogDialect` (por motor) | SQL de catálogo y parseo a modelos neutros |
 | `SnapshotCache` | Caché LRU de snapshots por schema |
 | `SchemaSnapshot` | Vista inmutable del schema, con búsqueda por tabla |
-| `metadata.ddl` | Texto DDL desde los modelos (`view_ddl`, `routine_ddl`, `mysql_table_ddl`) |
+| `metadata.ddl` | DDL: desde los modelos (`view_ddl`, `routine_ddl`, `mysql_table_ddl`) y SQL del DDL nativo de tabla (`native_table_ddl_sql`) |
+| `metadata.storage` | SQL del inventario de almacenamiento por motor (`storage_query`, `read_storage_inventory`) |
 
 ## 4. Lectura por lotes fuera de un manager: `CatalogSource`
 

@@ -441,10 +441,6 @@ def test_documentation_session_caches_database_version_calls(tmp_path: Path) -> 
 
 
 def test_documentation_session_storage_inventory_report_returns_runtime_output(tmp_path: Path) -> None:
-    class _ResolvedQuery:
-        def __init__(self, final_sql: str) -> None:
-            self.final_sql = final_sql
-
     class _MariadbStorageManager:
         db_type = "mariadb"
         database = "demo"
@@ -453,19 +449,11 @@ def test_documentation_session_storage_inventory_report_returns_runtime_output(t
         def get_query_context_database(self) -> str:
             return "demo"
 
-        def resolve_query(self, query_name: str, **kwargs: Any) -> _ResolvedQuery:
-            if query_name == "temp_storage_variables":
-                assert kwargs["database"] == "demo"
-                return _ResolvedQuery("SHOW VARIABLES LIKE 'innodb_temp_data_file_path'")
-            raise QueryNotFoundError(query_name)
-
-        def execute_query_many(self, query_name: str, **kwargs: Any) -> list[tuple[str, str]]:
-            assert query_name == "temp_storage_variables"
-            assert kwargs["database"] == "demo"
+        def get_storage_rows(self, query_name: str, **kwargs: Any) -> list[tuple[str, str]]:
+            if query_name != "temp_storage_variables":
+                raise QueryNotFoundError(query_name)
+            assert kwargs["schema"] == "demo"
             return [("innodb_temp_data_file_path", "ibtmp1:12M:autoextend:max:5G")]
-
-        def execute_custom_one(self, _query: str) -> None:
-            return None
 
     class _DocumentationStub:
         logger = logging.getLogger(__name__)
@@ -505,27 +493,15 @@ def test_documentation_session_storage_inventory_report_returns_runtime_output(t
 
 
 def test_storage_inventory_runtime_parses_mariadb_temp_storage_variables() -> None:
-    class _ResolvedQuery:
-        def __init__(self, final_sql: str) -> None:
-            self.final_sql = final_sql
-
     class _MariadbStorageManager:
         db_type = "mariadb"
         conn_params: dict[str, Any] = {}
 
-        def resolve_query(self, query_name: str, **kwargs: Any) -> _ResolvedQuery:
-            if query_name == "temp_storage_variables":
-                assert kwargs["database"] == "demo"
-                return _ResolvedQuery("SHOW VARIABLES LIKE 'innodb_temp_data_file_path'")
-            raise QueryNotFoundError(query_name)
-
-        def execute_query_many(self, query_name: str, **kwargs: Any) -> list[tuple[str, str]]:
-            assert query_name == "temp_storage_variables"
-            assert kwargs["database"] == "demo"
+        def get_storage_rows(self, query_name: str, **kwargs: Any) -> list[tuple[str, str]]:
+            if query_name != "temp_storage_variables":
+                raise QueryNotFoundError(query_name)
+            assert kwargs["schema"] == "demo"
             return [("innodb_temp_data_file_path", "ibtmp1:12M:autoextend:max:5G")]
-
-        def execute_custom_one(self, _query: str) -> None:
-            return None
 
     runtime = StorageInventoryRuntime(
         db_manager=cast(Any, _MariadbStorageManager()),
@@ -575,14 +551,8 @@ def test_storage_inventory_runtime_unregistered_engine_adds_fallback_notice(
         db_type = "sqlserver"
         conn_params: dict[str, Any] = {}
 
-        def resolve_query(self, query_name: str, **kwargs: Any) -> Any:
+        def get_storage_rows(self, query_name: str, **kwargs: Any) -> list[tuple[str, str]]:
             raise QueryNotFoundError(query_name)
-
-        def execute_query_many(self, query_name: str, **kwargs: Any) -> list[tuple[str, str]]:
-            return []
-
-        def execute_custom_one(self, _query: str) -> None:
-            return None
 
     runtime = StorageInventoryRuntime(
         db_manager=cast(Any, _UnregisteredEngineManager()),
@@ -610,14 +580,8 @@ def test_storage_inventory_runtime_registered_engine_has_no_fallback_notice() ->
         db_type = "mariadb"
         conn_params: dict[str, Any] = {}
 
-        def resolve_query(self, query_name: str, **kwargs: Any) -> Any:
+        def get_storage_rows(self, query_name: str, **kwargs: Any) -> list[tuple[str, str]]:
             raise QueryNotFoundError(query_name)
-
-        def execute_query_many(self, query_name: str, **kwargs: Any) -> list[tuple[str, str]]:
-            return []
-
-        def execute_custom_one(self, _query: str) -> None:
-            return None
 
     runtime = StorageInventoryRuntime(
         db_manager=cast(Any, _MariadbStorageManager()),

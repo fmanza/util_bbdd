@@ -32,12 +32,14 @@ flowchart TD
 | `get_columns` | `(tabla)` | Columnas de una tabla o vista | `list[ColumnMeta]` |
 | `get_primary_keys` | `(tabla)` | Clave primaria | `PrimaryKeyMeta \| None` |
 | `get_foreign_keys` / `get_unique_constraints` / `get_indices` | `(tabla)` | Claves foráneas, UNIQUE e índices | `list[ForeignKeyMeta]` / `list[UniqueMeta]` / `list[IndexMeta]` |
-| `get_ddl` | `(tabla)` | DDL de una tabla | `str` |
+| `get_ddl` | `(tabla)` | `CREATE TABLE` de una tabla: en MySQL/MariaDB desde el snapshot; en el resto, el del motor (una consulta por tabla, cacheada) | `str` |
+| `get_columns_charset_collation` | `(tabla)` | Columnas con collation propia: `(columna, charset, collation)` (charset solo en MySQL/MariaDB) | `list[tuple]` |
 | `get_view_ddl` | `(vista)` | `CREATE VIEW … AS` + definición | `str` |
 | `get_routine_ddl` | `(rutina, tipo_rutina)` | Definición de una rutina | `str` |
 | `get_routine_parameters` | `(rutina, tipo_rutina)` | Parámetros de una rutina | `list[RoutineParameterMeta]` |
 | `get_database_version` | `()` | Versión del motor (`"Unknown"` si no se puede leer) | `str` |
-| `get_storage_inventory` | `(tablespace?)` | Inventario de almacenamiento | `dict[str, Any]` |
+| `get_storage_inventory` | `(tablespace?)` | Inventario de almacenamiento (`primary`, `temp_tablespaces`, `sqlite_file_summary`) | `dict[str, Any]` |
+| `get_storage_rows` | `(query_name, **params)` | Filas de una consulta de `metadata.storage` (`QueryNotFoundError` si el motor no la tiene) | `list[tuple]` |
 | `execute_query_many` | `(query_name, timeout?, **kwargs)` | Query registrada → varias filas | `Rows` |
 | `execute_custom_many` | `(sql, params?, timeout?)` | SQL libre → varias filas | `Rows` |
 | `execute_custom_one` | `(sql, params?, timeout?)` | SQL libre → una fila | `RowOrNone` |

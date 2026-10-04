@@ -7,11 +7,12 @@ la lectura real del catálogo la cubren los tests de ``metadata/`` y la caracter
 
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from typing import Any
 
 import pytest
 
+from util_bbdd._core.exceptions import QueryNotFoundError
 from util_bbdd.managers._catalog_facade import AsyncCatalogFacade, SyncCatalogFacade
 from util_bbdd.metadata.model import (
     ColumnMeta,
@@ -62,9 +63,44 @@ def _snapshot(kinds: Collection[Kind], data: dict[Kind, tuple[Any, ...]]) -> Sch
     return SchemaSnapshot("postgresql", "public", {k: data.get(k, ()) for k in kinds})
 
 
+class _Executor:
+    def __init__(self, rows: list[tuple[Any, ...]]) -> None:
+        self.rows = rows
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    def fetch_all(self, sql: str, params: Mapping[str, Any]) -> list[tuple[Any, ...]]:
+        self.calls.append((sql, dict(params)))
+        return self.rows
+
+
+class _Source:
+    def __init__(self, rows: list[tuple[Any, ...]]) -> None:
+        self.executor = _Executor(rows)
+
+    def current_schema(self) -> str:
+        return "public"
+
+
+class _AsyncExecutor(_Executor):
+    async def fetch_all(self, sql: str, params: Mapping[str, Any]) -> list[tuple[Any, ...]]:  # type: ignore[override]
+        return super().fetch_all(sql, params)
+
+
+class _AsyncSource:
+    def __init__(self, rows: list[tuple[Any, ...]]) -> None:
+        self.executor = _AsyncExecutor(rows)
+
+    async def current_schema(self) -> str:
+        return "public"
+
+
 class _SyncManager(SyncCatalogFacade):
-    def __init__(self, data: dict[Kind, tuple[Any, ...]] = DATA) -> None:
+    def __init__(
+        self, data: dict[Kind, tuple[Any, ...]] = DATA, db_type: str = "postgresql", rows: list[Any] | None = None
+    ) -> None:
         self.data = data
+        self.db_type = db_type
+        self.metadata_source = _Source(rows or [])
         self.calls: list[frozenset[Kind]] = []
 
     def get_schema_metadata(self, schema: str | None = None, *, kinds: Collection[Kind]) -> SchemaSnapshot:
@@ -73,8 +109,12 @@ class _SyncManager(SyncCatalogFacade):
 
 
 class _AsyncManager(AsyncCatalogFacade):
-    def __init__(self, data: dict[Kind, tuple[Any, ...]] = DATA) -> None:
+    def __init__(
+        self, data: dict[Kind, tuple[Any, ...]] = DATA, db_type: str = "postgresql", rows: list[Any] | None = None
+    ) -> None:
         self.data = data
+        self.db_type = db_type
+        self.metadata_source = _AsyncSource(rows or [])
 
     async def get_schema_metadata(self, schema: str | None = None, *, kinds: Collection[Kind]) -> SchemaSnapshot:
         return _snapshot(kinds, self.data)
@@ -163,3 +203,61 @@ async def test_async_facade_mirrors_sync() -> None:
     assert await manager.get_routine_parameters("calc", "FUNCTION") == sync.get_routine_parameters("calc", "FUNCTION")
     assert await manager.get_database_version() == "PostgreSQL 16.4"
     assert await manager.get_database_charset_collation() == {"charset": "UTF8"}
+
+
+def test_native_table_ddl_is_read_once_per_table_and_cleared_with_the_catalog() -> None:
+    manager = _SyncManager(rows=[("CREATE TABLE public.emp (id integer);",)])
+    assert manager.get_ddl("emp") == "CREATE TABLE public.emp (id integer);"
+    assert manager.get_ddl("emp") == "CREATE TABLE public.emp (id integer);"
+    ((sql, params),) = manager.metadata_source.executor.calls
+    assert "quote_ident" in sql and params == {"schema": "public", "table_name": "emp"}
+    manager.__dict__.pop("_table_ddl_cache")  # lo que hace _invalidate_catalog() con clear_cache()
+    manager.get_ddl("emp")
+    assert len(manager.metadata_source.executor.calls) == 2
+
+
+def test_native_table_ddl_of_missing_table_is_empty() -> None:
+    assert _SyncManager(rows=[]).get_ddl("nope") == ""
+
+
+def test_mysql_table_ddl_comes_from_the_snapshot() -> None:
+    manager = _SyncManager(db_type="mariadb")
+    assert manager.get_ddl("emp").startswith("CREATE TABLE `emp` (\n  `ID` integer NOT NULL")
+    assert manager.metadata_source.executor.calls == []
+
+
+def test_columns_charset_collation_lists_columns_with_their_own_collation() -> None:
+    data = DATA | {
+        Kind.COLUMNS: (
+            ColumnMeta("t", "a", 1, "varchar(5)", "varchar", True, collation="utf8mb4_bin"),
+            ColumnMeta("t", "b", 2, "int", "int", True),
+        )
+    }
+    assert _SyncManager(data, db_type="mysql").get_columns_charset_collation("t") == [("a", "utf8mb4", "utf8mb4_bin")]
+    assert _SyncManager(data).get_columns_charset_collation("t") == [("a", None, "utf8mb4_bin")]
+
+
+def test_storage_rows_and_inventory() -> None:
+    manager = _SyncManager(db_type="mariadb", rows=[("db", "emp", "InnoDB", 1.0, 0.5, 1.5)])
+    assert manager.get_storage_rows("ficheros_fisicos") == [("db", "emp", "InnoDB", 1.0, 0.5, 1.5)]
+    assert manager.metadata_source.executor.calls[-1][1]["schema"] == "public"
+    inventory = manager.get_storage_inventory()
+    assert set(inventory) == {"primary", "temp_tablespaces"}
+    with pytest.raises(QueryNotFoundError):
+        manager.get_storage_rows("sqlite_file_summary")
+
+
+def test_storage_inventory_requires_tablespace_where_needed() -> None:
+    with pytest.raises(ValueError, match="tablespace"):
+        _SyncManager().get_storage_inventory()
+    assert _SyncManager(db_type="hsqldb").get_storage_inventory() == {"primary": []}
+
+
+@pytest.mark.asyncio
+async def test_async_ddl_charset_and_storage() -> None:
+    manager = _AsyncManager(rows=[("CREATE TABLE x ();",)])
+    assert await manager.get_ddl("x") == "CREATE TABLE x ();"
+    assert await manager.get_columns_charset_collation("emp") == []
+    assert await manager.get_storage_rows("temp_tablespaces") == [("CREATE TABLE x ();",)]
+    assert set(await manager.get_storage_inventory("pg_default")) == {"primary", "temp_tablespaces"}
+    assert (await _AsyncManager(db_type="mysql").get_ddl("emp")).startswith("CREATE TABLE `emp`")

@@ -54,14 +54,8 @@ class SyncDatabaseManagerAdapter:
 
     # --- Métodos de ejecución delegados (requeridos por StorageInventoryManagerProtocol) ---
 
-    def resolve_query(self, query_name: str, **params: Any) -> Any:
-        return self._db_manager.resolve_query(query_name, **params)
-
-    def execute_query_many(self, query_name: str, **params: Any) -> Any:
-        return self._db_manager.execute_query_many(query_name, **params)
-
-    def execute_custom_one(self, query: str) -> Any:
-        return self._db_manager.execute_custom_one(query)
+    def get_storage_rows(self, query_name: str, **params: Any) -> Any:
+        return self._db_manager.get_storage_rows(query_name, **params)
 
     def get_query_info(self) -> dict[str, Any]:
         return self._db_manager.get_query_info()

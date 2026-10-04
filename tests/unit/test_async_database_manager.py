@@ -8,7 +8,6 @@ import pytest
 
 from util_bbdd import DatabaseOperationError, QueryNotFoundError
 from util_bbdd.managers import AsyncDatabaseManager
-from util_bbdd.metadata.model import ColumnMeta, PrimaryKeyMeta
 
 
 class TestAsyncDatabaseManagerInit:
@@ -386,35 +385,6 @@ class TestAsyncDatabaseManagerConvenienceMethods:
     """Paridad de métodos de conveniencia async."""
 
     @pytest.mark.asyncio
-    async def test_get_ddl_mariadb_uses_metadata_builder_as_primary_path(self):
-        manager = AsyncDatabaseManager(
-            db_type="mariadb",
-            conn_params={"database": "db"},
-            use_pool=False,
-        )
-        manager.get_columns = AsyncMock(
-            return_value=[
-                ColumnMeta("users", "id", 1, "int", "int", False, identity="by default"),
-                ColumnMeta("users", "name", 2, "varchar(50)", "varchar", True, default="'Óscar'"),
-            ]
-        )
-        manager.get_primary_keys = AsyncMock(return_value=PrimaryKeyMeta("users", "PRIMARY", ("id",)))
-        manager._execute_metadata_one = AsyncMock()
-
-        result = await manager.get_ddl("users")
-
-        assert result == (
-            "CREATE TABLE `users` (\n"
-            "  `id` int NOT NULL auto_increment,\n"
-            "  `name` varchar(50) NULL DEFAULT 'Óscar',\n"
-            "  PRIMARY KEY (`id`)\n"
-            ")"
-        )
-        manager._execute_metadata_one.assert_not_awaited()
-        manager.get_columns.assert_awaited_once_with("users")
-        manager.get_primary_keys.assert_awaited_once_with("users")
-
-    @pytest.mark.asyncio
     async def test_get_available_queries_reads_registry(self):
         mock_executor = MagicMock()
         mock_executor.registry.get_available_queries.return_value = ["obtener_tablas", "columnas_tabla"]
@@ -430,86 +400,6 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         result = await manager.get_available_queries()
 
         assert result == ["obtener_tablas", "columnas_tabla"]
-
-    @pytest.mark.asyncio
-    async def test_get_columns_charset_collation_parses_postgresql(self):
-        mock_executor = AsyncMock()
-        mock_executor.execute_query_many = AsyncMock(
-            return_value=[("id", "integer", "en_US"), ("name", "text", "es_ES")]
-        )
-
-        manager = AsyncDatabaseManager(
-            db_type="postgresql",
-            conn_params={"schema": "public"},
-            use_pool=False,
-        )
-        manager.query_executor = mock_executor
-        manager._initialized = True
-
-        result = await manager.get_columns_charset_collation("users")
-        result_cached = await manager.get_columns_charset_collation("users")
-
-        assert result == [("id", None, "en_US"), ("name", None, "es_ES")]
-        assert result_cached == [("id", None, "en_US"), ("name", None, "es_ES")]
-        mock_executor.execute_query_many.assert_called_once_with(
-            query_name="columns_charset_collation",
-            db_type="postgresql",
-            params={"tabla": "users", "database": "public"},
-        )
-
-    @pytest.mark.asyncio
-    async def test_get_columns_charset_collation_returns_empty_for_oracle_without_query(self):
-        mock_executor = AsyncMock()
-        mock_executor.execute_query_many = AsyncMock()
-
-        manager = AsyncDatabaseManager(
-            db_type="oracle",
-            conn_params={
-                "user": "DA_DPSS",
-                "password": "secret",  # noqa: S105
-                "host": "localhost",
-                "port": 1521,
-                "service_name": "XE",
-            },
-            use_pool=False,
-        )
-        manager.query_executor = mock_executor
-        manager._initialized = True
-        manager.get_database_version = AsyncMock(return_value="Oracle Database 11g Release 11.2.0.4.0")
-
-        result = await manager.get_columns_charset_collation("V_SAAD_VALORACIONEVE")
-
-        assert result == []
-        mock_executor.execute_query_many.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_get_columns_charset_collation_uses_oracle_collation_query_for_12_2_plus(self):
-        manager = AsyncDatabaseManager(
-            db_type="oracle",
-            conn_params={
-                "user": "DA_DPSS",
-                "password": "secret",  # noqa: S105
-                "host": "localhost",
-                "port": 1521,
-                "service_name": "XE",
-            },
-            use_pool=False,
-        )
-        manager._initialized = True
-        manager.get_database_version = AsyncMock(
-            return_value="Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production"
-        )
-        manager._execute_metadata_many = AsyncMock(return_value=[("COL1", None, "BINARY_CI")])
-
-        result = await manager.get_columns_charset_collation("V_SAAD_VALORACIONEVE")
-
-        assert result == [("COL1", None, "BINARY_CI")]
-        manager._execute_metadata_many.assert_awaited_once_with(
-            "columns_charset_collation",
-            params={"tabla": "V_SAAD_VALORACIONEVE", "database": "DA_DPSS"},
-            error_message="Error obteniendo charset/collation de columnas",
-            table_name="V_SAAD_VALORACIONEVE",
-        )
 
     @pytest.mark.asyncio
     async def test_get_query_info_reads_queries_from_registry(self):
@@ -537,83 +427,6 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         assert result["queries"]["obtener_tablas"]["template"]
         assert set(result["queries"]["obtener_tablas"]["required_parameters"]) == {"database"}
         assert result["queries"]["database_version"]["required_parameters"] == []
-
-    @pytest.mark.asyncio
-    async def test_get_storage_inventory_mariadb_returns_explicit_temp_tablespaces_key(self):
-        mock_executor = AsyncMock()
-        mock_executor.execute_query_many = AsyncMock(
-            side_effect=[
-                [("db", "users", "InnoDB", 12.5, 1.5, 14.0)],
-                [("ibtmp1", "ibtmp1", 1.0, 12.0, 512.0)],
-            ]
-        )
-
-        manager = AsyncDatabaseManager(
-            db_type="mariadb",
-            conn_params={"database": "db"},
-            use_pool=False,
-        )
-        manager.query_executor = mock_executor
-        manager._initialized = True
-
-        result = await manager.get_storage_inventory()
-
-        assert result == {
-            "primary": [("db", "users", "InnoDB", 12.5, 1.5, 14.0)],
-            "temp_tablespaces": [("ibtmp1", "ibtmp1", 1.0, 12.0, 512.0)],
-        }
-        assert mock_executor.execute_query_many.await_count == 2
-        assert mock_executor.execute_query_many.await_args_list[0].kwargs == {
-            "query_name": "ficheros_fisicos",
-            "db_type": "mariadb",
-            "params": {"database": "db"},
-        }
-        assert mock_executor.execute_query_many.await_args_list[1].kwargs == {
-            "query_name": "temp_tablespaces",
-            "db_type": "mariadb",
-            "params": {},
-        }
-
-    @pytest.mark.asyncio
-    async def test_get_storage_inventory_mariadb_raises_on_temp_tablespaces_error(self):
-        mock_executor = AsyncMock()
-        mock_executor.execute_query_many = AsyncMock(
-            side_effect=[
-                [("db", "users", "InnoDB", 12.5, 1.5, 14.0)],
-                DatabaseOperationError(
-                    "sin acceso a information_schema.FILES",
-                    operation="SELECT",
-                    db_type="mariadb",
-                ),
-            ]
-        )
-
-        manager = AsyncDatabaseManager(
-            db_type="mariadb",
-            conn_params={"database": "db"},
-            use_pool=False,
-        )
-        manager.query_executor = mock_executor
-        manager._initialized = True
-
-        with pytest.raises(DatabaseOperationError):
-            await manager.get_storage_inventory()
-
-    @pytest.mark.asyncio
-    async def test_get_storage_inventory_sqlite_raises_when_temp_tablespaces_query_fails(self):
-        mock_executor = AsyncMock()
-        mock_executor.execute_query_many = AsyncMock(side_effect=[[("main.db",)], [("wal.db",)], RuntimeError("boom")])
-
-        manager = AsyncDatabaseManager(
-            db_type="sqlite",
-            conn_params={"database": ":memory:"},
-            use_pool=False,
-        )
-        manager.query_executor = mock_executor
-        manager._initialized = True
-
-        with pytest.raises(DatabaseOperationError, match="temp_tablespaces"):
-            await manager.get_storage_inventory()
 
     @pytest.mark.asyncio
     async def test_get_storage_inventory_oracle_requires_tablespace(self):

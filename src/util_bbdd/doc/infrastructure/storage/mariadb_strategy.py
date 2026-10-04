@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from ...._core.exceptions import DatabaseException, QueryNotFoundError
+from ...._core.exceptions import DatabaseException, QueryNotFoundError, QueryParameterError
 from .contracts import StorageInventoryManagerProtocol
 
 
@@ -20,6 +20,8 @@ class MariadbStorageRuntimeProtocol(Protocol):
     def _flatten_exception_messages(error: Exception) -> str: ...
 
     def _normalize_storage_rows(self, rows: object) -> list[list[object]]: ...
+
+    def _run_storage_query(self, query_name: str, query_params: dict[str, Any]) -> tuple[str, list[list[object]]]: ...
 
     def _build_storage_headers(self, query_name: str, rows: list[list[object]]) -> list[str]: ...
 
@@ -49,16 +51,15 @@ class MariadbStorageInventoryStrategy:
     ) -> dict[str, Any]:
         """Procesa configuración temporal MariaDB basada en ``SHOW VARIABLES``."""
         try:
-            resolved = runtime.db_manager.resolve_query(query_name, **query_params)
+            sql_text, normalized_rows = runtime._run_storage_query(query_name, query_params)
         except QueryNotFoundError:
             return runtime._build_section_not_supported(query_name, query_title)
-        except DatabaseException as error:
+        except QueryParameterError as error:
             return runtime._build_section_missing_params(query_name, query_title, f"Parámetros inválidos: {error}")
+        except DatabaseException as error:
+            return runtime._build_section_error(query_name, query_title, runtime._flatten_exception_messages(error))
 
         try:
-            sql_text: str = str(resolved.final_sql or "")
-            result_rows: object = runtime.db_manager.execute_query_many(query_name, **query_params)
-            normalized_rows: list[list[object]] = runtime._normalize_storage_rows(result_rows)
             parsed_rows: list[list[object]] = []
             for row in normalized_rows:
                 variable_name: str = str(row[0]) if len(row) > 0 else self._DEFAULT_VARIABLE_NAME

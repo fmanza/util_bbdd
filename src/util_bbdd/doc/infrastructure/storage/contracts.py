@@ -5,12 +5,6 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 
-class ResolvedStorageQueryProtocol(Protocol):
-    """Resultado mínimo de una query resuelta por nombre."""
-
-    final_sql: str | None
-
-
 class StorageInventoryManagerProtocol(Protocol):
     """Contrato mínimo del manager requerido por el runtime de inventario."""
 
@@ -18,11 +12,9 @@ class StorageInventoryManagerProtocol(Protocol):
     database: str
     conn_params: dict[str, Any]
 
-    def resolve_query(self, query_name: str, **params: Any) -> ResolvedStorageQueryProtocol: ...
-
-    def execute_query_many(self, query_name: str, **params: Any) -> Any: ...
-
-    def execute_custom_one(self, query: str) -> Any: ...
+    def get_storage_rows(self, query_name: str, **params: Any) -> Any:
+        """Filas de una consulta de ``metadata.storage`` (``QueryNotFoundError`` si el motor no la tiene)."""
+        ...
 
 
 class StorageInventoryStrategyPort(Protocol):

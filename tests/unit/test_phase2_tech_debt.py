@@ -64,11 +64,6 @@ class TestDatabaseManagerSharedMixin:
         result = DatabaseManagerSharedMixin._cache_context_key("my_db")
         assert result == "my_db"
 
-    def test_mixin_normalize_ddl_result_with_tuple(self) -> None:
-        mixin = DatabaseManagerSharedMixin.__new__(DatabaseManagerSharedMixin)
-        result = mixin._normalize_ddl_result(("CREATE TABLE t1;",))
-        assert result == "CREATE TABLE t1;"
-
     def test_mixin_get_query_context_database(self) -> None:
         manager = SyncDatabaseManager.__new__(SyncDatabaseManager)
         manager.db_type = "postgresql"

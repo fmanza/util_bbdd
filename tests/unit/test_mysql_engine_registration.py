@@ -8,10 +8,6 @@ from util_bbdd._drivers import get_supported_db_types
 from util_bbdd.core.capabilities import is_async_supported
 from util_bbdd.executors.async_query_executor import AsyncQueryExecutor
 from util_bbdd.executors.sync_query_executor import SyncQueryExecutor
-from util_bbdd.managers._manager_storage import (
-    get_async_storage_inventory_strategy,
-    get_sync_storage_inventory_strategy,
-)
 from util_bbdd.managers._metadata_context import MetadataContextResolver
 from util_bbdd.query import DatabaseQueries
 from util_bbdd.validators import get_type_validator
@@ -58,14 +54,6 @@ class TestMySQLRegistration:
             queries.registry.get_available_queries("mariadb")
         )
         assert "INFORMATION_SCHEMA" in queries.get_query("claves_primarias", tabla="t").upper()
-
-    def test_storage_strategies_registered(self) -> None:
-        assert type(get_sync_storage_inventory_strategy("mysql")) is type(
-            get_sync_storage_inventory_strategy("mariadb")
-        )
-        assert type(get_async_storage_inventory_strategy("mysql")) is type(
-            get_async_storage_inventory_strategy("mariadb")
-        )
 
     def test_metadata_context_does_not_add_schema_params(self) -> None:
         assert MetadataContextResolver.add_context_params(db_type="mysql", params={"tabla": "t"}, context="db1") == {

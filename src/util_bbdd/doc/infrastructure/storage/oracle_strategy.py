@@ -14,9 +14,10 @@ class OracleStorageRuntimeProtocol(Protocol):
 
     db_manager: StorageInventoryManagerProtocol
     print_config: dict[str, Any]
-    _ORACLE_USER_TABLESPACES_QUERY: str
 
     def _normalize_storage_rows(self, rows: object) -> list[list[object]]: ...
+
+    def _run_storage_query(self, query_name: str, query_params: dict[str, Any]) -> tuple[str, list[list[object]]]: ...
 
     def _build_storage_headers(self, query_name: str, rows: list[list[object]]) -> list[str]: ...
 
@@ -53,7 +54,7 @@ class OracleStorageInventoryStrategy:
             data_candidates.append(conn_tablespace)
 
         try:
-            user_tablespaces: object = runtime.db_manager.execute_custom_one(runtime._ORACLE_USER_TABLESPACES_QUERY)
+            user_tablespaces: object = runtime.db_manager.get_storage_rows("user_tablespaces")
             normalized_user_rows = runtime._normalize_storage_rows(user_tablespaces)
             if normalized_user_rows and len(normalized_user_rows[0]) > 0:
                 default_ts: str = str(normalized_user_rows[0][0] or "").strip()
@@ -69,7 +70,7 @@ class OracleStorageInventoryStrategy:
         temp_candidates: list[str] = []
 
         try:
-            user_tablespaces: object = runtime.db_manager.execute_custom_one(runtime._ORACLE_USER_TABLESPACES_QUERY)
+            user_tablespaces: object = runtime.db_manager.get_storage_rows("user_tablespaces")
             normalized_user_rows = runtime._normalize_storage_rows(user_tablespaces)
             if normalized_user_rows and len(normalized_user_rows[0]) > 1:
                 temp_ts: str = str(normalized_user_rows[0][1] or "").strip()
@@ -150,9 +151,7 @@ class OracleStorageInventoryStrategy:
         for tablespace_name in oracle_tablespaces:
             local_params: dict[str, Any] = {"database": database_name, "tablespace": tablespace_name}
             try:
-                sql_text: str = str(runtime.db_manager.resolve_query(query_name, **local_params).final_sql or "")
-                result_rows: object = runtime.db_manager.execute_query_many(query_name, **local_params)
-                rows: list[list[object]] = runtime._normalize_storage_rows(result_rows)
+                sql_text, rows = runtime._run_storage_query(query_name, local_params)
                 collected_rows.extend(rows)
                 collected_sql.append(sql_text)
             except DatabaseException as error:

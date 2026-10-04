@@ -33,7 +33,7 @@ flowchart TD
 | `__aenter__` / `__aexit__` | `async` | Context manager async | `AsyncDatabaseManager` / `None` |
 | `get_schema_metadata` | `async (schema=None, *, kinds=ALL_KINDS, tables=None)` | Metadatos del schema con una consulta por tipo de objeto (tablas, columnas, claves, índices, routines…) ([lectura de metadatos](metadata_manager.md)) | `SchemaSnapshot` |
 | `get_tables`, `get_columns`, `get_primary_keys`, `get_foreign_keys`, `get_indices`… | `async`, mismas firmas que en `SyncDatabaseManager` | Lecturas del snapshot | Modelos de `util_bbdd.metadata.model` |
-| `get_ddl` | `async (tabla)` | DDL de una tabla | `str` |
+| `get_ddl`, `get_columns_charset_collation`, `get_storage_inventory`, `get_storage_rows` | `async`, mismas firmas que en `SyncDatabaseManager` | DDL de tabla, collations de columnas e inventario de almacenamiento | Ver `SyncDatabaseManager` |
 | `get_database_version` | `async ()` | Versión del motor | `str` |
 | `execute_query_many` | `async (query_name, **params)` | Query registrada → varias filas | `Rows` |
 | `execute_custom_many` | `async (sql, params?)` | SQL libre → varias filas | `Rows` |

@@ -212,10 +212,6 @@ class MysqlAsyncAdapter:
         """Rutinas del contexto (nombre, tipo, comentario)."""
         return await self._engine_metadata().fetch_routines(context_database)
 
-    async def build_table_ddl_from_metadata(self, tabla: str) -> str:
-        """DDL de una tabla reconstruido desde columnas y PK."""
-        return await self._engine_metadata().build_table_ddl_from_metadata(tabla)
-
     async def fetch_view_from_information_schema(self, database: str, view_name: str) -> str:
         """DDL de una vista desde information_schema.views."""
         return await self._engine_metadata().fetch_view_from_information_schema(database, view_name)
@@ -235,7 +231,3 @@ class MysqlAsyncAdapter:
     async def fetch_routine_from_information_schema(self, database: str, routine_name: str, routine_type: str) -> str:
         """DDL de una rutina."""
         return await self._engine_metadata().fetch_routine_from_information_schema(database, routine_name, routine_type)
-
-    async def storage_inventory(self, context_database: str) -> dict[str, Any]:
-        """Inventario de almacenamiento (ficheros por tabla y tablespaces temporales)."""
-        return await self._engine_metadata().storage_inventory(context_database)
