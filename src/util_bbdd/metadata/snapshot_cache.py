@@ -6,6 +6,9 @@ una lectura filtrada. Las entradas se agrupan por ``(fuente, schema)`` y se desc
 
 Una sola carga a la vez por clave (*single-flight*): si varios hilos (``bulk``, ``dump``) o tareas ``asyncio`` piden lo
 mismo, uno consulta el catálogo y el resto espera su resultado. Los valores son tuplas inmutables y se comparten.
+
+Una invalidación cambia la *época* de la fuente: lo que cargaba una lectura empezada antes se devuelve a quien lo pidió
+pero no se guarda (leyó el catálogo anterior al DDL que motivó la invalidación).
 """
 
 from __future__ import annotations
@@ -43,6 +46,9 @@ class SnapshotCache:
         self._lock = threading.RLock()
         self._key_locks: dict[CacheKey, threading.Lock] = {}
         self._async_key_locks: dict[CacheKey, asyncio.Lock] = {}
+        #: Época por fuente (y global para ``clear``): sube con cada invalidación
+        self._epochs: dict[str, int] = {}
+        self._clears = 0
         self.hits = 0
         self.misses = 0
 
@@ -64,6 +70,22 @@ class SnapshotCache:
             while len(self._groups) > self.max_schemas:
                 self._groups.popitem(last=False)
 
+    def _epoch(self, source: str) -> tuple[int, int]:
+        return self._clears, self._epochs.get(source, 0)
+
+    def _start_load(self, key: CacheKey) -> tuple[int, int]:
+        """Cuenta el fallo y devuelve la época en que empieza la carga (bajo ``_lock``)."""
+        with self._lock:
+            self.misses += 1
+            return self._epoch(key[0])
+
+    def _finish_load(self, key: CacheKey, value: Value, epoch: tuple[int, int], locks: dict[CacheKey, Any]) -> None:
+        """Guarda ``value`` si nadie invalidó la fuente durante la carga y libera el lock de la clave."""
+        with self._lock:
+            if self._epoch(key[0]) == epoch:
+                self.put(key, value)
+            locks.pop(key, None)  # quien ya lo tenga lo sigue usando; los siguientes leen la caché o crean otro
+
     def get_or_load(self, key: CacheKey, loader: Callable[[], Value]) -> Value:
         """Valor de ``key``; si no está, lo carga una sola vez aunque lo pidan varios hilos a la vez."""
         cached = self.get(key)
@@ -75,10 +97,14 @@ class SnapshotCache:
             cached = self.get(key)
             if cached is not None:
                 return cached
-            with self._lock:
-                self.misses += 1
-            value = loader()
-            self.put(key, value)
+            epoch = self._start_load(key)
+            try:
+                value = loader()
+            except BaseException:
+                with self._lock:
+                    self._key_locks.pop(key, None)
+                raise
+            self._finish_load(key, value, epoch, self._key_locks)
             return value
 
     async def aget_or_load(self, key: CacheKey, loader: Callable[[], Awaitable[Value]]) -> Value:
@@ -92,10 +118,14 @@ class SnapshotCache:
             cached = self.get(key)
             if cached is not None:
                 return cached
-            with self._lock:
-                self.misses += 1
-            value = await loader()
-            self.put(key, value)
+            epoch = self._start_load(key)
+            try:
+                value = await loader()
+            except BaseException:
+                with self._lock:
+                    self._async_key_locks.pop(key, None)
+                raise
+            self._finish_load(key, value, epoch, self._async_key_locks)
             return value
 
     # ── invalidación ─────────────────────────────────────────────────────────
@@ -104,6 +134,7 @@ class SnapshotCache:
         removed = 0
         kind_set = frozenset(kinds) if kinds is not None else None
         with self._lock:
+            self._epochs[source] = self._epochs.get(source, 0) + 1
             for group_key in [g for g in self._groups if g[0] == source and (schema is None or g[1] == schema)]:
                 group = self._groups[group_key]
                 if kind_set is None:
@@ -120,6 +151,7 @@ class SnapshotCache:
     def clear(self) -> None:
         with self._lock:
             self._groups.clear()
+            self._clears += 1
 
     def stats(self) -> dict[str, int]:
         with self._lock:

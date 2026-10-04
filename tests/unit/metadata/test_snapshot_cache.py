@@ -93,6 +93,68 @@ def test_single_flight_across_tasks() -> None:
     assert all(r is results[0] for r in results)
 
 
+def test_load_started_before_an_invalidation_is_not_cached() -> None:
+    """Una lectura del catálogo anterior al DDL que motivó la invalidación no debe quedar en la caché (F1)."""
+    cache = SnapshotCache()
+    loading, invalidated = threading.Event(), threading.Event()
+
+    def slow_loader() -> tuple:
+        loading.set()
+        invalidated.wait(5)
+        return (TableMeta("antes_del_ddl"),)
+
+    result: list[tuple] = []
+    worker = threading.Thread(target=lambda: result.append(cache.get_or_load(_key("s"), slow_loader)))
+    worker.start()
+    loading.wait(5)
+    cache.invalidate("pg", "s")
+    invalidated.set()
+    worker.join()
+
+    assert result == [(TableMeta("antes_del_ddl"),)]  # quien la pidió la recibe…
+    assert cache.get(_key("s")) is None  # …pero no se guarda
+    assert cache.get_or_load(_key("s"), lambda: (TableMeta("despues"),)) == (TableMeta("despues"),)
+
+
+def test_task_load_started_before_clear_is_not_cached() -> None:
+    cache = SnapshotCache()
+
+    async def main() -> None:
+        started = asyncio.Event()
+
+        async def loader() -> tuple:
+            started.set()
+            await asyncio.sleep(0.02)
+            return (TableMeta("antes"),)
+
+        task = asyncio.create_task(cache.aget_or_load(_key("s"), loader))
+        await started.wait()
+        cache.clear()
+        assert await task == (TableMeta("antes"),)
+
+    asyncio.run(main())
+    assert cache.get(_key("s")) is None
+
+
+def test_key_locks_are_released_after_loading() -> None:
+    """Sin esto, cada lectura filtrada distinta dejaba su lock para siempre (F6)."""
+    cache = SnapshotCache()
+    for i in range(20):
+        cache.get_or_load(("pg", "s", Kind.COLUMNS, frozenset({f"t{i}"})), lambda: ())
+    with pytest.raises(RuntimeError):
+        cache.get_or_load(_key("s"), _fail)
+    asyncio.run(cache.aget_or_load(_key("a"), _async_empty))
+    assert cache._key_locks == {} and cache._async_key_locks == {}  # noqa: SLF001
+
+
+def _fail() -> tuple:
+    raise RuntimeError("catálogo caído")
+
+
+async def _async_empty() -> tuple:
+    return ()
+
+
 def test_max_schemas_must_be_positive() -> None:
     with pytest.raises(ValueError):
         SnapshotCache(max_schemas=0)
