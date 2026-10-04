@@ -2,14 +2,14 @@
 
 ## 1. Descripción General
 
-El gestor sincrónico de base de datos resuelve el problema crítico de gestionar conexiones a múltiples tipos de bases de datos de forma segura y consistente, sin que el usuario final tenga que conocer los detalles técnicos de cada motor específico (PostgreSQL, MySQL, Oracle, Snowflake, etc.).
+El gestor sincrónico de base de datos resuelve el problema crítico de gestionar conexiones a múltiples tipos de bases de datos de forma segura y consistente, sin que el usuario final tenga que conocer los detalles técnicos de cada motor específico (PostgreSQL, MySQL, Oracle, SQL Server, etc.).
 
 Su valor principal es abstraer la complejidad de autenticación, configuración, reconexión y limpieza de recursos, permitiendo que aplicaciones y pipelines de análisis se enfoquen en la lógica de negocio.
 
 **Precondiciones:**
 
 - Credenciales de base de datos válidas (usuario, contraseña, host, puerto, base de datos)
-- Tipo de base de datos identificado (PostgreSQL, MySQL, Oracle, SQLite, SQL Server, Redshift, Snowflake, MariaDB, HSQLDB)
+- Tipo de base de datos identificado (PostgreSQL, MySQL, Oracle, SQLite, SQL Server, MariaDB, HSQLDB)
 - Conectividad de red hacia el servidor de base de datos (si es remoto)
 - Configuración de pool de conexiones (opcional; se usan valores por defecto seguros)
 - Permisos de base de datos mínimos: SELECT sobre los catálogos del sistema para introspección

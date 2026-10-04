@@ -1,5 +1,5 @@
 site_name: util_bbdd
-site_description: "Librería Python para operaciones con múltiples motores de BD (sync/async): CRUD en lote, migración DDL, comparación de esquemas, documentación automática — MariaDB, MySQL, Oracle, PostgreSQL, Redshift, Snowflake, SQLite, SQL Server, HSQLDB"
+site_description: "Librería Python para operaciones con múltiples motores de BD (sync/async): CRUD en lote, migración DDL, comparación de esquemas, documentación automática — MariaDB, MySQL, Oracle, PostgreSQL, SQLite, SQL Server, HSQLDB"
 site_author: Paco Manzano
 site_url: https://fmanza.github.io/util_bbdd/
 repo_url: https://github.com/fmanza/util_bbdd

@@ -43,8 +43,6 @@ from util_bbdd.metadata.mariadb import MariaDBAsyncAdapter, MariaDBSyncAdapter
 from util_bbdd.metadata.mysql import MysqlAsyncAdapter, MysqlSyncAdapter
 from util_bbdd.metadata.oracle import OracleAsyncAdapter, OracleSyncAdapter
 from util_bbdd.metadata.postgresql import PostgreSQLAsyncAdapter, PostgreSQLSyncAdapter
-from util_bbdd.metadata.redshift import RedshiftAsyncAdapter, RedshiftSyncAdapter
-from util_bbdd.metadata.snowflake import SnowflakeAsyncAdapter, SnowflakeSyncAdapter
 from util_bbdd.metadata.sqlite import SqliteAsyncAdapter, SqliteSyncAdapter
 from util_bbdd.metadata.sqlserver import SqlServerAsyncAdapter, SqlServerSyncAdapter
 
@@ -99,12 +97,6 @@ def test_cache_service_satisfies_metadata_cache_port() -> None:
 # fetch_routine_definition_* desde cero (SHOW CREATE PROCEDURE/FUNCTION, no existía ningún mecanismo) y
 # ampliar fetch_routine_parameters_sync/async con el parámetro routine_type que exige el Protocol (antes
 # solo aceptaba schema/routine_name — mismo patrón de firma reducida que MEO-03 detectó en mariadb).
-#
-# Snowflake queda fuera de las funciones `_as_*` (comprobación estática con mypy) porque su jerarquía de 3
-# niveles (database.schema.table) le exige un parámetro `database` adicional en fetch_columns_sync/etc. — una
-# divergencia de diseño legítima, no un bug (confirmado en el AUDIT_CODE: "Snowflake — jerarquía de 3 niveles...
-# bien resuelta"). Sí participa en el test de `isinstance` (runtime): ese chequeo solo verifica que los métodos
-# existan por nombre, no su firma exacta, así que sigue detectando un método renombrado o eliminado por error.
 # ---------------------------------------------------------------------------------------------------------------
 
 
@@ -181,14 +173,6 @@ def _postgresql_async_as_routine(adapter: PostgreSQLAsyncAdapter) -> RoutineAdap
     return adapter
 
 
-def _redshift_sync_as_source(adapter: RedshiftSyncAdapter) -> SourceAdapterSync:
-    return adapter
-
-
-def _redshift_async_as_source(adapter: RedshiftAsyncAdapter) -> SourceAdapterAsync:
-    return adapter
-
-
 def _sqlite_sync_as_source(adapter: SqliteSyncAdapter) -> SourceAdapterSync:
     return adapter
 
@@ -217,8 +201,6 @@ _SYNC_SOURCE_ADAPTERS: tuple[type, ...] = (
     MysqlSyncAdapter,
     OracleSyncAdapter,
     PostgreSQLSyncAdapter,
-    RedshiftSyncAdapter,
-    SnowflakeSyncAdapter,
     SqliteSyncAdapter,
     SqlServerSyncAdapter,
 )
@@ -227,14 +209,11 @@ _ASYNC_SOURCE_ADAPTERS: tuple[type, ...] = (
     MysqlAsyncAdapter,
     OracleAsyncAdapter,
     PostgreSQLAsyncAdapter,
-    RedshiftAsyncAdapter,
-    SnowflakeAsyncAdapter,
     SqliteAsyncAdapter,
     SqlServerAsyncAdapter,
 )
 
-# Redshift/snowflake/sqlite quedan fuera: excluidos de esta ronda de remediación (redshift/snowflake) o
-# sin concepto de rutina almacenada aplicable (sqlite). Ver nota arriba para el resto.
+# SQLite queda fuera: sin concepto de rutina almacenada. Ver nota arriba para el resto.
 _SYNC_ROUTINE_ADAPTERS: tuple[type, ...] = (
     MariaDBSyncAdapter,
     MysqlSyncAdapter,

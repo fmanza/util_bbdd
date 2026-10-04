@@ -3,7 +3,7 @@
 **Versión:** ver `pyproject.toml` y `.ai/CURRENT_STATE.md` (estructura revisada por última vez con v0.10.0)
 **Última Actualización:** Junio 2026 · capas e imports vigentes: `docs/architecture.md` (generado por `scripts/gen_arquitectura_capas.py`)
 **Estado:** Estable | Completamente Refactorizado
-**Motores Soportados:** MariaDB • MySQL • PostgreSQL • Oracle • SQLite • HSQLDB • SQL Server • Redshift • Snowflake
+**Motores Soportados:** MariaDB • MySQL • PostgreSQL • Oracle • SQLite • HSQLDB • SQL Server
 
 ---
 

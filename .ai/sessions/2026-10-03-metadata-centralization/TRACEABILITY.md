@@ -238,6 +238,11 @@ Fases autorizadas: PLAN + AUDIT_PLAN
 - Verificación E2b: `ruff`, `mypy` (419), unitarios 6124 + 2 xfailed, integración 641 + 10 skipped, capas,
   `mkdocs build --strict`.
 
+- IMPLEMENT · E2d (antes que E2c: Redshift/Snowflake dependían de la infraestructura de adaptadores que E2c retira):
+  fuera `metadata/redshift`, `metadata/snowflake` y sus tests (unitarios e integración); README, `mkdocs.yml`,
+  `docs/functional/*`, `.ai/architecture.md` y `SHARED_INSTRUCTIONS.md` dejan de listarlos. Verificación: `mypy`
+  (395), unitarios 5831 + 2 xfailed, capas (395).
+
 ## Artefactos generados
 
 | Artefacto | Ruta | Estado |

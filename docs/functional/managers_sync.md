@@ -68,7 +68,7 @@ sequenceDiagram
 - No realiza inserción, actualización ni borrado masivo de datos: esas operaciones corresponden al módulo de operaciones bulk
 - No genera documentación de esquemas en ningún formato
 - No compara esquemas entre dos bases de datos distintas
-- No soporta Snowflake ni Redshift en la modalidad síncrona: solo los seis motores declarados
+- Solo los motores declarados (MariaDB, MySQL, Oracle, PostgreSQL, SQL Server, SQLite y HSQLDB)
 
 ## 4. Glosario y Términos
 

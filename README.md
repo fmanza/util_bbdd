@@ -1,6 +1,6 @@
 # util_bbdd
 
-Librería Python especializada en **operaciones de base de datos** para MariaDB, MySQL, Oracle, PostgreSQL, SQLite y SQL Server (sync y async), y HSQLDB, Redshift y Snowflake (sync).
+Librería Python especializada en **operaciones de base de datos** para MariaDB, MySQL, Oracle, PostgreSQL, SQLite y SQL Server (sync y async), y HSQLDB (sync).
 
 **Version:** 0.30.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
@@ -516,7 +516,7 @@ metadata/            # Lectura y cache de schema
   ├── ddl.py         # Texto DDL desde los modelos (vistas, routines, tablas MySQL/MariaDB)
   ├── contracts.py   # Interfaces y tipos de metadata
   ├── adapters/      # Adaptadores base + helpers compartidos
-  └── {mariadb,mysql,oracle,postgresql,redshift,snowflake,sqlite,sqlserver}/ # Introspección por motor
+  └── {hsqldb,mariadb,oracle,postgresql,sqlite,sqlserver}/ # Introspección por motor
 
 results/             # Normalización de resultados
   ├── types.py       # RowOrNone, Rows, tipos de resultado

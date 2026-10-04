@@ -9,7 +9,7 @@ Esto permite que los gestores y otros componentes sean independientes del driver
 **Precondiciones:**
 
 - Driver Python instalado para el motor objetivo (`psycopg`, `asyncpg`, `oracledb`, `pymssql`/`pyodbc`, `mariadb` para MariaDB, `pymysql` para MySQL, `aiomysql` para ambos en async, etc.)
-- Tipo de motor reconocido: MariaDB, MySQL, PostgreSQL, Oracle, SQL Server, SQLite, Snowflake, Redshift o HSQLDB
+- Tipo de motor reconocido: MariaDB, MySQL, PostgreSQL, Oracle, SQL Server, SQLite o HSQLDB
 - Parámetros de conexión completos según el motor (host, port, database, user, password y cualquier parámetro driver-específico)
 
 ## 2. Reglas de Negocio

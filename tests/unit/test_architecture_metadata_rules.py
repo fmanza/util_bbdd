@@ -44,7 +44,7 @@ INSPECTOR_METHODS = frozenset(
         "get_multi_table_comment", "get_multi_check_constraints", "get_sorted_table_and_fkc_names", "reflect_table",
     }
 )  # fmt: skip
-ENGINE_PACKAGES = ("mariadb", "mysql", "oracle", "postgresql", "sqlite", "sqlserver", "redshift", "snowflake")
+ENGINE_PACKAGES = ("mariadb", "mysql", "oracle", "postgresql", "sqlite", "sqlserver")
 
 # Permanentes: no leen el diccionario de datos.
 EXCEPTIONS: dict[str, str] = {

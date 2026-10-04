@@ -174,6 +174,9 @@ cambios siguientes.
 
 ### Removed
 
+- **metadata (ruptura de import)**: `util_bbdd.metadata.redshift` y `util_bbdd.metadata.snowflake` (decisión D9-1
+  de ADR-003, grupo E2d). No eran alcanzables: ningún manager ni conexión soporta Redshift ni Snowflake
+  (`get_supported_db_types()` no los incluye). La documentación ya no los lista como motores soportados.
 - **managers (ruptura de API)**: `get_tables_normalized()` y `get_columns_normalized()` (los `get_*` ya son
   homogéneos), `get_metadata_manager()`, `relationship_cache` y `get_relationship_cache()` (grupo E2 de ADR-003).
 - **managers**: los módulos internos de estrategias de metadatos (`_manager_metadata_factory`,

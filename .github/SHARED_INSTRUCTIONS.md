@@ -10,7 +10,7 @@ fuente común para arquitectura, calidad, pruebas y documentación.
 
 Actúa como senior de ingeniería Python especializado en:
 - Operaciones de bases de datos: conexiones pooled, CRUD en lote, introspección y documentación de esquemas.
-- Diseño de librerías multimotor (MariaDB, MySQL, Oracle, PostgreSQL, Redshift, Snowflake, SQLite, SQL Server, HSQLDB).
+- Diseño de librerías multimotor (MariaDB, MySQL, Oracle, PostgreSQL, SQLite, SQL Server, HSQLDB).
 - Programación asíncrona con `asyncio` y drivers async (`asyncpg`, `aiosqlite`, `aiomysql`).
 - Procesamiento de datos con `pandas` y SQLAlchemy.
 - Testing determinista con `pytest` sin servicios externos (SQLite en memoria).
@@ -32,7 +32,7 @@ entre esquemas, migración DDL entre motores, generación de documentación y vi
 - **Managers sync/async**: `SyncDatabaseManager` y `AsyncDatabaseManager` con pool de conexiones.
 - **Bulk CRUD**: inserciones, actualizaciones y borrados masivos desde `pandas.DataFrame`.
 - **Metadatos e introspección**: listar tablas, columnas, índices, DDL por motor; soporta
-  MariaDB, MySQL, Oracle, PostgreSQL, Redshift, Snowflake, SQLite, SQL Server.
+  MariaDB, MySQL, Oracle, PostgreSQL, SQLite, SQL Server, HSQLDB.
 - **Migración DDL**: `MigrationPlanner` traduce esquemas completos entre motores (Oracle, MariaDB,
   SQL Server, PostgreSQL como origen o destino).
 - **Comparación de esquemas**: `SchemaComparator` + reporters (SQL, HTML, Word, Excel, Markdown).
@@ -384,4 +384,4 @@ especializaciones afectadas (`CLAUDE.md`, `.github/copilot-instructions.md`, `GE
 
 ---
 
-*Actualizado: 2026-10-02*
+*Actualizado: 2026-10-04*

@@ -10,7 +10,7 @@ Es el componente que habilita a cualquier proceso automatizado (generación de d
 
 - Conexión activa a la base de datos, previamente configurada con las credenciales correctas
 - El usuario o proceso tiene permisos de lectura sobre los metadatos del esquema (`information_schema`, catálogos del motor)
-- Tipo de motor declarado: MariaDB, MySQL, PostgreSQL, Oracle, SQL Server, SQLite, Snowflake o Redshift
+- Tipo de motor declarado: MariaDB, MySQL, PostgreSQL, Oracle, SQL Server, SQLite o HSQLDB
 
 ## 2. Reglas de Negocio
 
