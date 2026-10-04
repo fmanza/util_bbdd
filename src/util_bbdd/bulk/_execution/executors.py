@@ -1,11 +1,11 @@
 """Ejecutores por lotes con la cadencia de commit (``BatchStatementExecutor``, ``DeleteBatchExecutor``).
 
 Separado de ``batch`` (R10b del refactor de reutilización 2026-09-26) sin cambios de comportamiento.
+
+Refactor v0.30.1: validate_chunk_size se ha centralizado en _core.validation (ver abajo para re-export).
 """
 
 from __future__ import annotations
-
-import operator
 
 from collections.abc import Callable, Generator, Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -18,31 +18,14 @@ from sqlalchemy import (
     Table,
 )
 
+from util_bbdd._core.validation import validate_chunk_size
+
 from .._support.rejects import Isolator
 from .._support.sql_helpers import SqlColumns
 from ._driver_quirks import _driver_decimal_context, _pymssql_plain_decimals, _register_fast_executemany
 from .delete_strategies import DeleteExecutionStrategyProtocol, DeleteStrategyResolver
 from .insert_strategies import InsertExecutionStrategyProtocol, InsertStrategyResolver
 from .session import CommitCadence, SessionScope
-
-
-def validate_chunk_size(chunk_size: Any) -> int:
-    """Devuelve ``chunk_size`` como ``int`` si es un entero ≥ 1; si no, ``ValueError``.
-
-    Sin esta validación, un ``chunk_size`` negativo no generaba ningún lote (``range`` vacío): la carga no escribía nada,
-    sin error, y la auditoría registraba las filas como procesadas. Con 0, fallaba al ejecutar con
-    ``range() arg 3 must not be zero``. Acepta enteros de numpy; rechaza ``bool`` y decimales.
-    """
-    if isinstance(chunk_size, bool):
-        raise ValueError(f"chunk_size debe ser un entero ≥ 1, recibido: {chunk_size!r}")
-    try:
-        value = operator.index(chunk_size)
-    except TypeError:
-        raise ValueError(f"chunk_size debe ser un entero ≥ 1, recibido: {chunk_size!r}") from None
-    if value < 1:
-        raise ValueError(f"chunk_size debe ser un entero ≥ 1, recibido: {chunk_size!r}")
-    return value
-
 
 # Nota que deja ``_commit_periodico`` cuando falla el COMMIT; ``batch_failure_note`` la reconoce (A4, audit-code 2026-10-01).
 _COMMIT_FAILURE_NOTE: str = "bulk: falló el COMMIT periódico de commit_every_n_chunks"

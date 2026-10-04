@@ -12,8 +12,8 @@ from typing import Literal
 
 from sqlalchemy import Engine
 
+from util_bbdd._core.validation import validate_batch_config
 from util_bbdd.audit.contracts import AuditSink
-from util_bbdd.bulk._execution.executors import validate_chunk_size
 from util_bbdd.bulk._models import PKSyncResult
 from util_bbdd.bulk._support.rejects import validate_isolation
 
@@ -189,13 +189,8 @@ class DumpConfig:
         # Validar aquí y no en la primera BulkCrud: run() la crea después de vaciar el destino (truncate_target), así que
         # un chunk_size o commit_every_n_chunks inválido vaciaba las tablas y luego fallaba; con chunk_size=0 y
         # write_batch_size no se leía nada y la tabla quedaba vacía con estado "success".
-        validate_chunk_size(self.chunk_size)
-        if self.commit_every_n_chunks is not None and self.commit_every_n_chunks < 1:
-            raise ValueError(
-                f"commit_every_n_chunks debe ser None o un entero ≥ 1, recibido: {self.commit_every_n_chunks}"
-            )
-        if self.write_batch_size is not None and self.write_batch_size < 1:
-            raise ValueError(f"write_batch_size debe ser None o un entero ≥ 1, recibido: {self.write_batch_size}")
+        # Refactor v0.30.1: usa validador centralizado validate_batch_config().
+        validate_batch_config(self.chunk_size, self.commit_every_n_chunks, self.write_batch_size)
         validate_isolation(self.on_error, self.rejects_csv_path, self.max_rejects)
 
 

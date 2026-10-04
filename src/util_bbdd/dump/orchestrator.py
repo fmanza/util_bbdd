@@ -42,6 +42,7 @@ from sqlalchemy import Engine, Inspector, Integer, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import sqltypes
 
+from util_bbdd._core.batching import resolve_write_batch_size
 from util_bbdd.audit.counters import AuditCounters
 from util_bbdd.audit.events import AuditEvent
 from util_bbdd.bulk import BulkCrud, ParallelBulkLoader, RangePartitioner
@@ -71,10 +72,6 @@ from ._source_reader import (
 )
 from ._sql_utils import quote_identifier, quote_table
 from .reporters import DumpReporter
-
-# Lote de escritura por defecto con destino PostgreSQL (Q5): COPY de 20 000 filas frente a 5 000, −31 % a 3,5M filas.
-_PG_DEFAULT_WRITE_BATCH = 20_000
-
 
 _AuditCounters = AuditCounters  # contadores de auditoría del volcado (BulkCrud + ParallelLoadResult)
 
@@ -879,13 +876,19 @@ class DumpOrchestrator:
 
     def _resolve_write_batch_size(self) -> int:
         """Filas por lote de escritura: ``write_batch_size`` si se fijó; si no, 20 000 con destino PostgreSQL (sin
-        ``commit_every_n_chunks``, para no cambiar cada cuántas filas se confirma) y ``chunk_size`` en el resto (Q5)."""
+        ``commit_every_n_chunks``, para no cambiar cada cuántas filas se confirma) y ``chunk_size`` en el resto (Q5).
+
+        Refactor v0.30.1: lógica centralizada en _core.batching.resolve_write_batch_size() (motor-específico).
+        """
         cfg = self._cfg
         if cfg.write_batch_size is not None:
             return cfg.write_batch_size
-        if cfg.target_engine.dialect.name == "postgresql" and cfg.commit_every_n_chunks is None:
-            return max(cfg.chunk_size, _PG_DEFAULT_WRITE_BATCH)
-        return cfg.chunk_size
+        return resolve_write_batch_size(
+            db_type=None,
+            chunk_size=cfg.chunk_size,
+            commit_every_n_chunks=cfg.commit_every_n_chunks,
+            target_engine=cfg.target_engine,
+        )
 
     def _reset_audit_tracking(self) -> None:
         """Reinicia los contadores de auditoría del volcado (``BulkCrud`` creadas y loaders paralelos)."""
