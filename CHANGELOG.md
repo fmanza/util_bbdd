@@ -7,6 +7,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-10-04
+
+### Fixed
+
+- **managers**: Retry automático en `ManagerCatalogExecutor` y `AsyncManagerCatalogExecutor` para `SystemError` del
+  driver mariadb (cursor corrupto intermitente). Tres intentos con backoff exponencial (100ms, 200ms, 400ms); nueva
+  conexión por intento. Afecta solo a MariaDB; otros motores (PostgreSQL, Oracle, SQL Server, SQLite) sin cambios.
+
 ## [0.31.0] - 2026-10-04
 
 Centralización de la extracción de metadatos en `metadata/` (ADR-003, publicado en
