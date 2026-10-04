@@ -7,6 +7,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.31.2] - 2026-10-04
+
+### Fixed
+
+- **metadata**: `ManagerCatalogExecutor.fetch_all()` y `AsyncManagerCatalogExecutor.fetch_all()` ahora capturan
+  `ORA-00942` (table or view does not exist) cuando Oracle pre-12c intenta consultar `all_tab_identity_cols` (solo
+  disponible en Oracle 12c+). Retorna lista vacía en lugar de lanzar excepción, permitiendo que la snapshot continúe
+  con metadatos parciales. Usuarios de Oracle 11g/10g: IDENTITY metadata no disponible, pero documentación y
+  operaciones normales funcionan correctamente. Recomendación: actualizar a Oracle 12c+ para soporte IDENTITY
+  completo.
+
 ## [0.31.1] - 2026-10-04
 
 ### Fixed

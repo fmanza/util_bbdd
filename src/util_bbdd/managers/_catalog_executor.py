@@ -135,6 +135,18 @@ class ManagerCatalogExecutor:
                     f"Error leyendo el catálogo (SystemError del driver mariadb, retentado {self._max_retries} veces): {exc}"
                 ) from exc
             except Exception as exc:  # noqa: BLE001 - error del driver
+                exc_str = str(exc)
+                # Oracle pre-12c: all_tab_identity_cols doesn't exist → ORA-00942
+                # Gracefully skip IDENTITY metadata instead of failing entire snapshot
+                if "ORA-00942" in exc_str:
+                    _rollback(connection)
+                    logger.warning(
+                        "ORA-00942 (table or view does not exist) reading catalog metadata. "
+                        "Oracle version pre-12c does not support IDENTITY metadata (all_tab_identity_cols view). "
+                        "Continuing with empty identity data. "
+                        "Consider upgrading to Oracle 12c+ or retry without requesting Identity metadata."
+                    )
+                    return []  # Return empty list; snapshot will contain no identity info
                 _rollback(connection)
                 raise MetadataError(f"Error leyendo el catálogo: {exc}") from exc
             finally:
@@ -203,6 +215,18 @@ class AsyncManagerCatalogExecutor:
                     f"Error leyendo el catálogo (SystemError del driver mariadb, retentado {self._max_retries} veces): {exc}"
                 ) from exc
             except Exception as exc:  # noqa: BLE001 - ver ManagerCatalogExecutor.fetch_all
+                exc_str = str(exc)
+                # Oracle pre-12c: all_tab_identity_cols doesn't exist → ORA-00942
+                # Gracefully skip IDENTITY metadata instead of failing entire snapshot
+                if "ORA-00942" in exc_str:
+                    await _arollback(connection)
+                    logger.warning(
+                        "ORA-00942 (table or view does not exist) reading catalog metadata. "
+                        "Oracle version pre-12c does not support IDENTITY metadata (all_tab_identity_cols view). "
+                        "Continuing with empty identity data. "
+                        "Consider upgrading to Oracle 12c+ or retry without requesting Identity metadata."
+                    )
+                    return []  # Return empty list; snapshot will contain no identity info
                 await _arollback(connection)
                 raise MetadataError(f"Error leyendo el catálogo: {exc}") from exc
             finally:
