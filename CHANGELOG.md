@@ -7,6 +7,8 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-10-04
+
 Centralización de la extracción de metadatos en `metadata/` (ADR-003, publicado en
 `docs/adr/ADR-003-metadata-centralizada.md`; sesión `2026-10-03-metadata-centralization`): lectura del catálogo por
 lotes, `get_*` tipados y retirada de los caminos antiguos. **Incluye rupturas de API**: guía de migración en

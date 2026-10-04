@@ -287,9 +287,29 @@ Fases autorizadas: PLAN + AUDIT_PLAN
 | Resultados crudos | `bench/results/*.json`, `bench/scan_inventory.json` | 110 mediciones |
 
 ## Directrices para Futuras IAs
-- **[metadata · caminos]**: los managers leen el catálogo con `data/sql_queries.json` (registry, capa 4) en todos los motores salvo MariaDB/MySQL (`managers/_manager_metadata_runtime.py:195-198`); `metadata/<motor>/*_for_schema_sql` solo lo usan `migrate`, `comparar`, `dump` y `bulk`; los adaptadores `fetch_*_sync`/`_async` de `metadata/<motor>/` no tienen ninguna llamada en `src/`.
-- **[metadata · motores]**: `metadata/redshift` y `metadata/snowflake` no son alcanzables: `get_supported_db_types()` no los incluye.
-- **[metadata · parámetros]**: el SQL de `metadata/` está escrito en el `paramstyle` del driver nativo (`%(schema)s` en psycopg/pymysql, `:owner` en oracledb) porque los managers lo pasan tal cual a `cursor.execute`; para ejecutarlo con SQLAlchemy `text()` hay que traducirlo (o usar `exec_driver_sql`).
+- **[metadata · caminos]** (estado final, v0.31.0): no queda más camino de lectura que `metadata/`. `data/sql_queries.json`
+  está vacío por motor (solo consultas del usuario con `queries_file`); no hay adaptadores por motor, registro global,
+  `MetadataManager` ni cachés `DatabaseMetadataCache`/`RelationshipMetadataCache`; Redshift/Snowflake retirados (D9-1).
+- **[metadata · parámetros]**: todo el SQL de `metadata/` usa `:nombre`; `_paramstyle.to_driver` lo traduce al estilo del
+  driver y solo pasa los parámetros que el SQL usa (Oracle rechaza binds de más). `:table` no es un bind válido en
+  Oracle (ORA-01745): usar `:table_name`. El tokenizador no admite `'` ni comentarios SQL.
+- **[metadata · caché]**: `SnapshotCache` invalida por época de fuente: una carga empezada antes de `invalidate()`/`clear()`
+  se devuelve pero no se guarda (F1); los locks por clave se liberan al terminar cada carga (F6).
+- **[metadata · routines]**: `RoutineKey` se empareja con `matches()`, no con `==`: `routine_type` vacío vale para
+  cualquiera y solo MySQL/MariaDB lo rellenan en los parámetros (`FUNCTION`/`PROCEDURE` homónimas, F2).
+- **[managers · ejecutor]**: `ManagerCatalogExecutor` envuelve los errores del driver en `MetadataError` y hace rollback;
+  `driver_paramstyle` desenvuelve el `_ConnectionFairy` del pool de SQLAlchemy (MySQL con pool). Las lecturas de
+  catálogo no cierran transacción con `autocommit=False` (H1, pendiente de verificar en banco).
+- **[guardas]**: `test_architecture_metadata_rules.py` (pendientes a cero; excepciones permanentes en `EXCEPTIONS`) y
+  `test_query_counts.py` (sin `xfail`; en `comparar`/`dump` descuenta la reflexión por tabla de SQLAlchemy con SQLite,
+  excepción de ADR-003).
+- **[técnica · retirada de código]**: para saber qué módulos sobran, grafo de imports desde fuera de `metadata/` + núcleo
+  (+ `catalog.py`, que se cargan por nombre en `catalog_registry`); para funciones, uso calificado por módulo (el nombre
+  suelto engaña: `fetch_tables_sql` existía en 4 motores). Los tests rotos se triaron quitando solo los que usan nombres
+  retirados y re-apuntando imports al submódulo cuando el nombre sigue existiendo (los paquetes de motor ya no
+  re-exportan).
+- **[pruebas · dorados]**: con `UTIL_BBDD_UPDATE_GOLDEN=1`, `test_manager_snapshot` falla en la misma pasada porque compara
+  con el `*_snapshot.json` que aún no se ha regenerado: volver a ejecutar sin la variable.
 - **[rendimiento · catálogo]**: el coste está en el patrón tabla a tabla, no en el motor: con 500 tablas, 70/121/365 s (PG/SQL Server/Oracle) frente a 0,16/0,22/0,27 s leyendo por schema. En PostgreSQL las vistas de constraints de `information_schema` cuestan ≈ 95 ms por consulta según el catálogo **entero** de la base.
 - **[rendimiento · Oracle]**: el SQL con literales fuerza hard parse por tabla (FK 540 ms → 21 ms con binds); `USER_*` no mejora a `ALL_*` filtrado por `OWNER` (medido).
 - **[rendimiento · MySQL/MariaDB]**: no unir vistas de `information_schema` entre sí (`KEY_COLUMN_USAGE` ⋈ `REFERENTIAL_CONSTRAINTS` es cuadrático: 15,7 s con 5000 tablas); dos consultas unidas en Python.
@@ -316,9 +336,9 @@ Fases autorizadas: PLAN + AUDIT_PLAN
 - **[banco]**: los schemas `zz_md_*` / `zz_util_bbdd_md_*` / usuarios `ZZ_MD_*` siguen creados en el banco para medir el «después»; `md_bench.py teardown` los borra. Oracle necesita `system` (`ORACLE_PASSWORD` del contenedor) para crear usuarios.
 
 ## Veredicto final
-Veredicto: GO (implementación completa: grupos HF, QW, A0–A6, B1, C1–C5, D1–D2, E1, E2a–E2d, F0, G1–G2, H)
+Veredicto: CLOSED (v0.31.0, 2026-10-04; implementación completa: grupos HF, QW, A0–A6, B1, C1–C5, D1–D2, E1, E2a–E2d, F0, G1–G2, H y audit-code con F1/F2 corregidos)
 Pendientes al cierre:
-- VERSION (`/version-closure`): versión con rupturas (`pyproject.toml` + CHANGELOG `[Unreleased]` → versión), push.
+- Push de `develop` y tag `v0.31.0` (decisión del usuario).
 - Banco: los schemas `zz_*` siguen creados (`python scripts/bench_metadata.py teardown --engines all --volumes 50,500,5000`).
 - Hallazgos F3, F4, F5, F7, H1 y H2 de la auditoría (ver arriba).
 - Fuera de alcance, registrado en ADR-003: DDL de tabla por tabla fuera de MySQL/MariaDB y reflexión por tabla de
