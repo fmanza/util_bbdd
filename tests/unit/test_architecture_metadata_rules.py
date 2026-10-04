@@ -59,11 +59,7 @@ EXCEPTIONS: dict[str, str] = {
 }
 
 # Trinquete (2026-10-03): fuera de metadata/ con SQL de catálogo o Inspector. Solo puede bajar.
-PENDING_CATALOG: frozenset[str] = frozenset(
-    {
-        "comparar/reporters/sql_reporter.py",
-    }
-)
+PENDING_CATALOG: frozenset[str] = frozenset()
 
 # Trinquete (2026-10-03): consumidores que importan metadata.<motor>. Solo puede bajar.
 PENDING_ENGINE_IMPORTS: frozenset[str] = frozenset()

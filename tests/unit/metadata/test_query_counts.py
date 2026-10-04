@@ -4,9 +4,10 @@ Cada test ejecuta un flujo sobre un schema SQLite con 10 y con 100 tablas (PK, U
 cuenta las sentencias de catálogo en los dos caminos de ejecución de la librería: ``SyncQueryExecutor`` (managers,
 driver nativo), ``DbapiCatalogExecutor`` (lectura por lotes de los managers) y los eventos de SQLAlchemy (``Inspector``, ``comparar``, ``dump``, ``bulk``).
 
-Los flujos que hoy leen tabla a tabla están marcados ``xfail(strict=True)`` con el grupo del plan que los migra
-(sesión ``2026-10-03-metadata-centralization``): al migrarlo, el test pasa, ``strict`` lo convierte en fallo y hay que
-quitar la marca. Así el número de flujos O(tablas) solo puede bajar.
+Excepción registrada en ADR-003: con SQLite, SQLAlchemy refleja cada tabla con ``PRAGMA`` y ``sqlite_master`` por
+nombre (en proceso, sin red). ``comparar`` (``Inspector``) y ``dump`` (cada ``Table`` que carga) la usan; en esos flujos
+se descuenta esa reflexión y el resto no puede crecer. La lectura por lotes de los servidores la cubren
+``tests/integration/test_comparar_prefetch_engines.py`` y el banco (``scripts/bench_metadata.py``).
 """
 
 from __future__ import annotations
@@ -33,13 +34,24 @@ CATALOG_RE = re.compile(
 )
 
 
+# Reflexión de SQLAlchemy de una tabla SQLite (``SQLiteDialect.get_columns``/``get_indexes``/``get_foreign_keys``…)
+SQLITE_TABLE_REFLECTION_RE = re.compile(
+    r"\bpragma\s+(main\.)?\"?(table_x?info|index_list|index_info|index_xinfo|foreign_key_list)\b|"
+    r"\bfrom\s+\(?\s*select\b.*\bsqlite_(master|temp_master|schema)\b|\bsqlite_(master|temp_master|schema)\b.*\bname\s*=",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
 class _Counter:
     def __init__(self) -> None:
         self.catalog = 0
+        self.sqlite_reflection = 0
 
     def record(self, sql: str) -> None:
         if CATALOG_RE.search(sql or ""):
             self.catalog += 1
+            if SQLITE_TABLE_REFLECTION_RE.search(sql):
+                self.sqlite_reflection += 1
 
 
 @pytest.fixture
@@ -176,29 +188,25 @@ def _snapshot(db: Path) -> None:
         eng.dispose()
 
 
-def _xfail(group: str) -> pytest.MarkDecorator:
-    return pytest.mark.xfail(strict=True, reason=f"lee el catálogo tabla a tabla; lo migra el grupo {group}")
-
-
 FLOWS: list[Any] = [
-    pytest.param(_manager_scan, id="manager_scan"),  # E2: get_* tipados sobre el snapshot
-    pytest.param(_analysis, id="analysis"),  # C2: índice de relaciones desde el snapshot
-    pytest.param(_doc, id="doc"),  # D1: catálogo por lotes (CatalogRows)
-    # C4 + H-29: vistas, routines y reflexión de MySQL/MariaDB por lotes. Este test usa SQLite, que SQLAlchemy refleja
-    # con PRAGMA tabla a tabla (en proceso, sin red): se acepta; la paridad por lotes de los servidores la cubre
-    # tests/integration/test_comparar_prefetch_engines.py
-    pytest.param(_comparar, id="comparar", marks=_xfail("— no aplica: SQLite refleja con PRAGMA tabla a tabla")),
-    # D2: FK, columnas y PK por lotes; queda reflejar cada Table que se carga (BulkCrud, inherente a la carga) y SQLite
-    # refleja con PRAGMA tabla a tabla
-    pytest.param(_dump, id="dump", marks=_xfail("— no aplica: la carga refleja cada Table; SQLite con PRAGMA")),
-    pytest.param(_bulk, id="bulk"),
-    pytest.param(_snapshot, id="snapshot"),  # lectura por lotes (ADR-003): la referencia
+    pytest.param(_manager_scan, False, id="manager_scan"),  # E2: get_* tipados sobre el snapshot
+    pytest.param(_analysis, False, id="analysis"),  # C2: índice de relaciones desde el snapshot
+    pytest.param(_doc, False, id="doc"),  # D1: catálogo por lotes (CatalogRows)
+    # C4 + H-29 / D2: por lotes en los servidores; con SQLite, SQLAlchemy refleja cada tabla (excepción de ADR-003)
+    pytest.param(_comparar, True, id="comparar"),
+    pytest.param(_dump, True, id="dump"),
+    pytest.param(_bulk, False, id="bulk"),
+    pytest.param(_snapshot, False, id="snapshot"),  # lectura por lotes (ADR-003): la referencia
 ]
 
 
-@pytest.mark.parametrize("flow", FLOWS)
+@pytest.mark.parametrize(("flow", "sqlite_reflection"), FLOWS)
 def test_catalog_queries_do_not_grow_with_tables(
-    flow: Callable[[Path], None], counter: _Counter, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    flow: Callable[[Path], None],
+    sqlite_reflection: bool,
+    counter: _Counter,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     caplog.set_level(logging.ERROR)
     (tmp_path / "small").mkdir()
@@ -206,12 +214,12 @@ def test_catalog_queries_do_not_grow_with_tables(
     small = _build(tmp_path / "small" / "db.sqlite", 10)
     large = _build(tmp_path / "large" / "db.sqlite", 100)
 
-    counter.catalog = 0
+    counter.catalog = counter.sqlite_reflection = 0
     flow(small)
-    with_10 = counter.catalog
-    counter.catalog = 0
+    with_10 = counter.catalog - (counter.sqlite_reflection if sqlite_reflection else 0)
+    counter.catalog = counter.sqlite_reflection = 0
     flow(large)
-    with_100 = counter.catalog
+    with_100 = counter.catalog - (counter.sqlite_reflection if sqlite_reflection else 0)
 
     assert with_10 > 0, "el flujo no leyó el catálogo: el contador no está viendo sus consultas"
     assert with_100 <= with_10, f"consultas de catálogo: {with_10} con 10 tablas, {with_100} con 100"

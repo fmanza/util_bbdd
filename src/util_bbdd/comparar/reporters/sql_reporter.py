@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import logging
 
-from typing import TYPE_CHECKING, ClassVar, Literal, LiteralString
+from typing import TYPE_CHECKING, ClassVar, Literal, LiteralString, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -66,6 +66,7 @@ from sqlalchemy.engine.default import DefaultDialect
 from sqlalchemy.exc import DatabaseError, OperationalError
 
 from util_bbdd._core.exceptions import SchemaDiffValidationError
+from util_bbdd.metadata.reflection import TableMetadata, prefetch_table_metadata
 
 from ._base import DdlNormalizer
 
@@ -305,6 +306,9 @@ class SqlDiffReporter:
         self._col_error_cache: dict[str, str] = {}
         #: Contador de variables T-SQL ``@df_N`` (una por DEFAULT a eliminar en SQL Server) dentro de un render.
         self._mssql_default_seq: int = 0
+        #: Lecturas del origen vía ``metadata.reflection`` (ADR-003): precargadas por lotes para las tablas nuevas y,
+        #: para el resto, tabla a tabla.
+        self._source_tables: TableMetadata | None = None
 
     # ------------------------------------------------------------------
     # Contrato público
@@ -402,6 +406,7 @@ class SqlDiffReporter:
         """
         lines: list[str] = []
         if self._source_inspector is not None:
+            self._prefetch_source([td.table_name for td in tables])
             tables, cyclic = self._order_by_foreign_keys(tables)
             if cyclic:
                 lines.append(
@@ -492,6 +497,24 @@ class SqlDiffReporter:
     # Acceso al Inspector origen
     # ------------------------------------------------------------------
 
+    def _source_meta(self) -> TableMetadata:
+        """Lecturas del origen (``metadata.reflection``); requiere ``source_inspector``."""
+        if self._source_tables is None:
+            self._source_tables = TableMetadata(cast("Inspector", self._source_inspector), self._source_schema)
+        return self._source_tables
+
+    def _prefetch_source(self, names: list[str]) -> None:
+        """Precarga columnas, PK, FKs e índices de las tablas nuevas con una consulta por tipo (no una por tabla)."""
+        try:
+            self._source_tables = prefetch_table_metadata(
+                cast("Inspector", self._source_inspector),
+                self._source_schema,
+                names,
+                kinds=("columns", "pk", "fks", "indexes"),
+            )
+        except (OperationalError, DatabaseError, NotImplementedError) as exc:
+            self.logger.warning("Inspector: no se pudo precargar el origen (se lee tabla a tabla): %s", exc)
+
     def _fetch_source_columns(self, table_name: str) -> list[ReflectedColumn]:
         """Obtiene la lista de columnas SA del esquema origen para *table_name*.
 
@@ -504,7 +527,7 @@ class SqlDiffReporter:
             return []
         if table_name not in self._col_cache:
             try:
-                self._col_cache[table_name] = self._source_inspector.get_columns(table_name, schema=self._source_schema)
+                self._col_cache[table_name] = self._source_meta().get("columns", table_name)
             except (OperationalError, DatabaseError, NotImplementedError) as exc:
                 error_msg = (
                     f"Inspector.get_columns() falló — {exc}. "
@@ -524,9 +547,7 @@ class SqlDiffReporter:
         if self._source_inspector is None:
             return []
         try:
-            pk: ReflectedPrimaryKeyConstraint = self._source_inspector.get_pk_constraint(
-                table_name, schema=self._source_schema
-            )
+            pk: ReflectedPrimaryKeyConstraint = self._source_meta().get("pk", table_name)
             return list(pk.get("constrained_columns", []))
         except (OperationalError, DatabaseError, NotImplementedError):
             self.logger.warning(
@@ -547,7 +568,7 @@ class SqlDiffReporter:
         if table_name not in self._fk_cache:
             try:
                 self._fk_cache[table_name] = list(
-                    self._source_inspector.get_foreign_keys(table_name, schema=self._source_schema),
+                    self._source_meta().get("fks", table_name),
                 )
             except (OperationalError, DatabaseError, NotImplementedError):
                 self.logger.warning(
@@ -568,7 +589,7 @@ class SqlDiffReporter:
         if table_name not in self._idx_cache:
             try:
                 self._idx_cache[table_name] = list(
-                    self._source_inspector.get_indexes(table_name, schema=self._source_schema),
+                    self._source_meta().get("indexes", table_name),
                 )
             except (OperationalError, DatabaseError, NotImplementedError):
                 self.logger.warning(
