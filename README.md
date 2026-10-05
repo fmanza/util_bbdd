@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, MySQL, Oracle, PostgreSQL, SQLite y SQL Server (sync y async), y HSQLDB (sync).
 
-**Version:** 0.31.2 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 0.32.0 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -1105,7 +1105,7 @@ Usamos [Semantic Versioning](https://semver.org/):
 - `0.x.y` (alpha/beta): APIs experimentales, cambios frecuentes
 - `1.0.0` (stable): API estable, cambios siguiendo SemVer
 
-**Current Version: v0.31.2** (extracción de metadatos centralizada y por lotes en `metadata/` (ADR-003): `get_*` tipados sobre el snapshot del schema, una consulta por tipo de objeto en lugar de una por tabla —documentación de 500 tablas en Oracle 368 → 3,2 s— y retirada del registry de catálogo, adaptadores y cachés antiguos; incluye rupturas de API con guía de migración)
+**Current Version: v0.32.0** (soporte Oracle 11g con resolución perezosa de versión, inicialización segura de Thick Mode, hotfix P1 con 3 tests de regresión para snapshot y async guard; documentación en drivers.md y ADR-004)
 
 Roadmap resumido (ver [ROADMAP completo](docs/roadmap.md) y
 [CHANGELOG](CHANGELOG.md) para el detalle):
