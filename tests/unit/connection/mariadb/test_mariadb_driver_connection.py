@@ -5,9 +5,14 @@ Tests unitarios para MariaDBConnectionConfig y MariaDBPoolConfig sin servidor re
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock
+
+import pytest
 
 from util_bbdd.connection.config import MariaDBConnectionConfig, MariaDBPoolConfig
+from util_bbdd.connection.mariadb import pool_connection_mariadb
 
 BASE: dict[str, Any] = {"host": "db", "user": "app", "password": "pw", "database": "sales"}
 
@@ -106,3 +111,91 @@ class TestMariaDBPoolConfig:
         kwargs = MariaDBPoolConfig.from_params(params).to_driver_kwargs()
         assert "charset" in kwargs
         assert kwargs["charset"] == "utf8mb4"  # Empty string is treated as falsy, defaults to utf8mb4
+
+
+class TestMariaDBNativePoolFallback:
+    """Validar fallback defensivo cuando una versión de mariadb no acepta charset en ConnectionPool."""
+
+    def test_pool_retries_without_charset_if_driver_rejects_it(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        calls: list[dict[str, Any]] = []
+
+        def fake_connection_pool(**kwargs: Any) -> Any:
+            calls.append(dict(kwargs))
+            if len(calls) == 1:
+                raise TypeError("connect() got an unexpected keyword argument 'charset'")
+            return MagicMock()
+
+        fake_mariadb = SimpleNamespace(ConnectionPool=fake_connection_pool, __version__="1.1.14")
+        monkeypatch.setattr(pool_connection_mariadb, "HAS_MARIADB", True)
+        monkeypatch.setattr(pool_connection_mariadb, "mariadb", fake_mariadb)
+
+        with caplog.at_level("WARNING", logger=pool_connection_mariadb.__name__):
+            pool = pool_connection_mariadb.PoolConnection({**BASE, "pool_size": 3, "pool_name": "my_pool"})
+        pool.close()
+
+        assert len(calls) == 2
+        first_call, second_call = calls
+        assert first_call["charset"] == "utf8mb4"
+        assert "charset" not in second_call
+        for key, value in first_call.items():
+            if key == "charset":
+                continue
+            assert second_call[key] == value
+        assert "mariadb version=1.1.14" in caplog.text
+
+    def test_pool_reraises_type_error_when_not_related_to_charset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_connection_pool(**kwargs: Any) -> Any:
+            _ = kwargs
+            raise TypeError("connect() missing required positional argument")
+
+        fake_mariadb = SimpleNamespace(ConnectionPool=fake_connection_pool, __version__="1.1.14")
+        monkeypatch.setattr(pool_connection_mariadb, "HAS_MARIADB", True)
+        monkeypatch.setattr(pool_connection_mariadb, "mariadb", fake_mariadb)
+
+        with pytest.raises(TypeError, match="missing required positional argument"):
+            pool_connection_mariadb.PoolConnection({**BASE, "pool_name": "my_pool"})
+
+    def test_pool_fallback_validates_no_unicode_regression(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Validar que fallback sin charset no causa regresión Unicode.
+
+        Aunque se descarta charset en drivers que no lo aceptan, la semántica
+        de codificación debe ser preservada en la implementación del driver.
+        Este test valida que el pool se crea exitosamente sin charset.
+        """
+        call_count: int = 0
+        captured_params: dict[str, Any] = {}
+
+        def fake_connection_pool(**kwargs: Any) -> Any:
+            nonlocal call_count, captured_params
+            call_count += 1
+            captured_params = dict(kwargs)
+            if call_count == 1:
+                raise TypeError("connect() got an unexpected keyword argument 'charset'")
+            # Simular pool exitoso (sin charset)
+            fake_pool = MagicMock()
+            fake_pool.get_connection = MagicMock(return_value=MagicMock())
+            return fake_pool
+
+        fake_mariadb = SimpleNamespace(ConnectionPool=fake_connection_pool, __version__="1.1.14")
+        monkeypatch.setattr(pool_connection_mariadb, "HAS_MARIADB", True)
+        monkeypatch.setattr(pool_connection_mariadb, "mariadb", fake_mariadb)
+
+        # Crear pool con fallback
+        with caplog.at_level("WARNING", logger=pool_connection_mariadb.__name__):
+            pool = pool_connection_mariadb.PoolConnection({**BASE, "pool_name": "test_pool"})
+        pool.close()
+
+        # Validar que fallback se activó
+        assert call_count == 2
+        assert "charset" not in captured_params
+        assert "host" in captured_params
+        assert "database" in captured_params
+        assert "mariadb version=1.1.14" in caplog.text

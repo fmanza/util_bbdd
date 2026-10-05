@@ -100,9 +100,28 @@ class PoolConnection:
                 sanitized_conn_params["pool_name"] = pool_name
 
             # Crear pool con parámetros
-            self.pool = mariadb.ConnectionPool(
-                **sanitized_conn_params,
-            )
+            try:
+                self.pool = mariadb.ConnectionPool(
+                    **sanitized_conn_params,
+                )
+            except TypeError as err:
+                error_message: str = str(err)
+                # Detectar si el TypeError es específicamente por charset no soportado
+                # Patrón: "unexpected keyword argument 'charset'" o similar
+                if not ("charset" in error_message and "unexpected keyword argument" in error_message):
+                    raise
+
+                fallback_conn_params: dict[str, str | int] = {
+                    key: value for key, value in sanitized_conn_params.items() if key != "charset"
+                }
+                mariadb_version: str = str(getattr(mariadb, "__version__", "desconocida"))
+                self.logger.warning(
+                    "⚠️ mariadb.ConnectionPool() rechazó 'charset'; reintentando sin charset "
+                    f"(mariadb version={mariadb_version})"
+                )
+                self.pool = mariadb.ConnectionPool(
+                    **fallback_conn_params,
+                )
 
             self.logger.info(
                 f"✅ Pool MariaDB creado: {sanitized_conn_params.get('pool_size', 5)} conexiones (pool {pool_name})"

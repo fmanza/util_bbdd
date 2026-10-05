@@ -123,6 +123,15 @@ def test_sync_manager_catalog_and_metadata(objects: dict[str, str], use_pool: bo
         manager.close()
 
 
+def test_sync_manager_pool_smoke_with_explicit_charset() -> None:
+    """Smoke test de pool con charset explícito para validar fallback/success según versión del driver."""
+    manager = SyncDatabaseManager("mariadb", {**_conn_params(), "charset": "utf8mb4"}, use_pool=True)
+    try:
+        assert manager.execute_custom_many("SELECT 1") == [(1,)]
+    finally:
+        manager.close()
+
+
 def test_storage_inventory(objects: dict[str, str]) -> None:
     manager = SyncDatabaseManager("mariadb", _conn_params(), use_pool=False)
     try:
