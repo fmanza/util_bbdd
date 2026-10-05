@@ -115,6 +115,14 @@ nav:
           - Migración DDL entre Motores: guides/ddl_migration_guide.md
       - Rendimiento:
           - Performance & Benchmarks: guides/benchmarks.md
+          - Performance Audit (General): performance_audit_guide.md
+          - Performance Audit (Constraints): performance_audit_constraints_guide.md
+      - Auditoría:
+          - Auditoría de Constraints (Quick Ref): constraints_quick_reference.md
+          - Auditoría de Constraints (Index): constraints_audit_index.md
+          - Auditoría de Constraints (Lectura): constraints_reading_guide.md
+      - Reutilización de Código: guides/code_reusability_analysis_guide.md
+      - Drivers por Motor: guides/drivers.md
       - Migración de Versión:
           - Guía de Migración (v0.6.3): guides/migration_guide.md
           - Migración v0.6.6→v0.6.7: guides/migration_guide_v0.6.7.md
@@ -165,10 +173,13 @@ nav:
   # ── Contexto del proyecto ──────────────────────────────────────────────────
   - Arquitectura:
       - Arquitectura del Sistema: architecture.md
-      - ADR-001 Refactoring: adr/ADR-001-STRUCTURE-REFACTORING.md
-      - ADR-002 Módulo de auditoría: adr/ADR-002-modulo-auditoria.md
-      - ADR-003 Metadatos centralizados: adr/ADR-003-metadata-centralizada.md
-      - Plantilla ADR: adr/ADR-TEMPLATE.md
+      - Decisiones Arquitectónicas (ADRs):
+          - ADR-001 Refactoring: adr/ADR-001-STRUCTURE-REFACTORING.md
+          - ADR-002 Módulo de auditoría: adr/ADR-002-modulo-auditoria.md
+          - ADR-003 Metadatos centralizados: adr/ADR-003-metadata-centralizada.md
+          - ADR-004 (Lazy Oracle Version): adr/ADR-004-lazy-oracle-version-resolution.md
+          - ADR-004 (Lazy Oracle Version — ES): adr/ADR-004-lazy-oracle-version-resolution.es.md
+          - Plantilla ADR: adr/ADR-TEMPLATE.md
   - Historia y Planes:
       - Roadmap: roadmap.md
       - Versiones Históricas: legacy_versions.md

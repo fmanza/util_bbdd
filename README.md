@@ -2,7 +2,7 @@
 
 Librería Python especializada en **operaciones de base de datos** para MariaDB, MySQL, Oracle, PostgreSQL, SQLite y SQL Server (sync y async), y HSQLDB (sync).
 
-**Version:** 0.32.0 | **Status:** ✅ Estable | **Python:** 3.12+
+**Version:** 0.32.1 | **Status:** ✅ Estable | **Python:** 3.12+
 
 ---
 
@@ -629,48 +629,71 @@ La ruta recomendada para código nuevo usa **imports canónicos** desde la raíz
 
 ---
 
-## 📚 Resumen de Evolución (v0.6.0 → v0.10.0)
+## 📚 Resumen de Evolución (v0.6.0 → v0.32.1)
 
 ### v0.6.2 - Cierre Documental Offline
-- Relaciones de n niveles mediante `max_depth`
-- Dirección configurable: `incoming`, `outgoing` o `both`
-- Modos de visualización: `compact`, `relations`, `all`
-- Cardinalidad en Graphviz (extremos)
-- HTML con pestañas por nivel/sentido
-- Payloads compartidos entre HTML y Word
-- SVG inline con zoom/paneo offline
+- Relaciones de n niveles mediante `max_depth`; dirección `incoming`, `outgoing` o `both`
+- Cardinalidad en Graphviz; HTML multinivel con pestañas; SVG inline con zoom/paneo
 
-### v0.6.3 - Agentes de Copilot
+### v0.6.3 - Agentes de Copilot & Flujo Prompt
 - Capa de agentes y flujo prompt-agente documentado
-- Instrucciones por archivo (.instructions.md)
-- Mapeo Copilot Chat → Claude Code
+- Instrucciones especializadas por archivo (`.instructions.md`)
+- Mapeo Copilot Chat ↔ Claude Code
 
-### v0.6.4 → v0.6.6 - Consolidación
-- Capa de managers estabilizada
-- Testeo multinivel
-- Documentación evolucionada
+### v0.6.4 → v0.6.6 - Consolidación & API Pública
+- Capa de managers estabilizada (`SyncDatabaseManager`, `AsyncDatabaseManager`)
+- Testeo multinivel; arquitectura 3 niveles como standard
 
 ### v0.6.7 - Comparador de Esquemas
-- Comparador de esquemas integrado (SchemaDiff)
-- Imports canónicos desde raíz
-- Instrucción.md por área especializada
-- Esta estructura (3 niveles) como standard de evolución
+- `SchemaComparator` integrado: difr entre esquemas source/target
+- Imports canónicos desde `util_bbdd`, instrucciones especializadas por módulo
 
 ### v0.7.0 - Monitorización de Rendimiento
-- Medición automática de duración en operaciones bulk CRUD (`tiempo_seg`)
-- CSV de auditoría extendido a 7 columnas
+- Medición automática en bulk CRUD (`tiempo_seg` en auditoría)
 
-### v0.8.0 - Cobertura Completa del Sistema de Tipos
-- Introspección de tipos avanzados en los 8 motores (Oracle OBJECT types, etc.)
-- Hotfix de finalización de pool durante el cierre del intérprete
+### v0.8.0 - Tipos Avanzados (Oracle, SQL Server, etc.)
+- Introspección completa de tipos en los 8 motores
+- Soporte OBJECT types, hierarchical, etc.
 
-### v0.9.0 - Palancas de Rendimiento en dump (opt-in)
-- Cadencia de commit, gestión de índices, paralelización por tablas y por rangos de PK
-- Todas desactivadas por defecto (comportamiento secuencial/atómico preservado)
+### v0.9.0 - Optimizaciones de Rendimiento (Dump)
+- Cadencia de commit configurable
+- Paralelización por tablas y rangos de PK
+- Todas las optimizaciones opt-in (desactivadas por defecto)
 
-### v0.10.0 - Vías Rápidas de INSERT (Estable Vigente)
-- PostgreSQL `COPY` y MySQL/MariaDB multi-fila automáticos por motor
-- `dump` reutiliza la resolución única por tabla
+### v0.10.0 - Vías Rápidas de INSERT
+- PostgreSQL `COPY ... FROM STDIN` automático (streaming sin staging a disco)
+- MySQL/MariaDB multi-fila sub-loteada por motor
+- Degradación automática a `executemany` cuando no aplica
+
+### v0.11.0 → v0.27.0 - Consolidación & Auditoría Centralizada
+- Refactoring de managers y conexiones por motor
+- Módulo de auditoría centralizado (`audit/`)
+- Optimizaciones de metadata y cache
+
+### v0.28.0 → v0.29.0 - Soporte Mejorado de Motores
+- Driver validation y diagnostics mejorados
+- Soporte PostgreSQL driver alternativo, MySQL async improvements
+- Manejo robusto de timezones y charset
+
+### v0.30.0 - Metadata Refactor & Rendimiento
+- Búfer de metadatos optimizado, cache LRU mejorado
+- Conversión de tipos avanzada (Oracle LOB duck-typing robusto)
+
+### v0.31.0 → v0.31.2 - Oracle 11g Preliminary Support
+- Detección de versión Oracle (11g vs 12c+)
+- Captura silenciosa de ORA-00942 en queries identidad (11g pre-fix)
+
+### v0.32.0 - Soporte Completo Oracle 11g (Lazy Version Resolution)
+- **Resolución perezosa de versión Oracle**: primera consulta detecta versión y carga `Oracle11Catalog` (11g) u `OracleCatalog` (12c+)
+- **Thick Mode seguro**: inicialización thread-safe en `connection/oracle/_thick_mode.py`; async lanza guard error
+- **21 nuevas pruebas de integración** para Oracle 11g/12c+
+- [docs/adr/ADR-004](docs/adr/ADR-004-lazy-oracle-version-resolution.md) — decisión arquitectónica
+
+### v0.32.1 - Hotfix P2: MariaDB Unicode Decode & Deuda Técnica
+- **MariaDB charset fix**: fuerza `utf8mb4` en `MariaDBConnectionConfig` (resuelve `UnicodeDecodeError` en documentación)
+- **Deuda técnica (5 items)**: exception chain inspection centralizado, retry logic configurable, rollback logging, driver paramstyle extensible, Oracle LOB robust detection
+- **Convención de salida**: test results ahora en `build/logs/` (no en raíz)
+- **100% backward compatible**: sin cambios en API pública
 
 ---
 

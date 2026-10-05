@@ -71,7 +71,25 @@ Estructura mínima:
 
 ## Flujo de trabajo
 
-### Paso 0 — Verificación de herramientas (opcional, activar con `--verify-tools`)
+### Paso 0 — Actualización de Navegación (automático tras generar)
+
+**IMPORTANTE**: Después de generar o crear cualquier página nueva, **debes actualizar `mkdocs.yml`**
+para publicar la página en la navegación del sitio. Sin este paso, la página es "huérfana" (no accesible vía menú).
+
+Lee y aplica: `.github/prompts/mkdocs_nav_update.prompt.md`
+
+**Proceso**:
+1. Genera la página nueva en `docs/[tipo]/[nombre].md`
+2. Identifica la categoría (funcional/técnica/ejemplo/guía/adr)
+3. Invoca `mkdocs_nav_update.prompt.md` pasando:
+   - Ruta nueva (relativa desde `docs/`)
+   - Tipo de documento y módulo relacionado
+4. Aplica cambios a `mkdocs.yml`
+5. Valida YAML y confirma cambios
+
+---
+
+### Paso 0b — Verificación de herramientas (opcional, activar con `--verify-tools`)
 
 Solo ejecutar cuando el usuario solicite verificar compatibilidad de versiones o plugins:
 
