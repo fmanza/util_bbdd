@@ -41,6 +41,7 @@ __all__: list[str] = [
     "CatalogExecutor",
     "CatalogQuery",
     "MetadataSource",
+    "VersionedCatalogDialect",
 ]
 
 
@@ -82,6 +83,23 @@ class CatalogDialect(Protocol):
 
     def parse(self, kind: Kind, rows: Sequence[Sequence[Any]], schema: str) -> tuple[Any, ...]:
         """Filas de :meth:`query` → objetos del modelo (``metadata.model``)."""
+        ...
+
+
+@runtime_checkable
+class VersionedCatalogDialect(CatalogDialect, Protocol):
+    """``CatalogDialect`` cuyo SQL depende de la versión del servidor (Oracle 11g sin ``ALL_TAB_IDENTITY_COLS``).
+
+    Opcional: ``CatalogSource`` pregunta la versión una vez por fuente con :meth:`server_version_sql` y usa el dialecto
+    que devuelva :meth:`for_server_version`. Los dialectos que no lo implementan se usan tal cual.
+    """
+
+    def server_version_sql(self) -> str:
+        """SQL sin parámetros que devuelve la versión del servidor como texto (``11.2.0.4.0``)."""
+        ...
+
+    def for_server_version(self, version: tuple[int, ...]) -> CatalogDialect:
+        """Dialecto para esa versión (``self`` si no hay variante)."""
         ...
 
 

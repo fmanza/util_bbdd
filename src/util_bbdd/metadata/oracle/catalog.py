@@ -9,7 +9,9 @@ Oracle no tiene arrays: constraints e índices devuelven una fila por columna y 
 sueltas (``CREATE OR REPLACE`` + su código de ``ALL_SOURCE``, como ``comparar``) y los miembros de package
 (``PKG.PROC``, ``overload`` como firma, sin definición propia), igual que la consulta ``obtener_rutinas`` del registry.
 
-Requiere Oracle 12c+ (``ALL_TAB_IDENTITY_COLS``).
+Oracle 12c+ usa ``ALL_TAB_IDENTITY_COLS`` (columnas identity). Oracle 11g (11.2) no tiene esa vista ni columnas
+identity (se usaban secuencia + trigger): :class:`Oracle11Catalog` lee las columnas sin ella y no tiene
+``Kind.IDENTITY``. ``CatalogSource`` elige la variante por la versión del servidor (``for_server_version``).
 """
 
 from __future__ import annotations
@@ -163,6 +165,21 @@ _SQL: dict[Kind, tuple[str, str | None]] = {
 }
 
 
+# Oracle 11g: sin ALL_TAB_IDENTITY_COLS (columnas sin identity) ni Kind.IDENTITY
+_SQL_11G: dict[Kind, tuple[str, str | None]] = {kind: entry for kind, entry in _SQL.items() if kind != Kind.IDENTITY}
+_SQL_11G[Kind.COLUMNS] = (
+    "SELECT c.table_name, c.column_name, c.column_id, c.data_type, c.data_length, c.char_length, c.char_used, "
+    "c.data_precision, c.data_scale, c.nullable, c.data_default, cc.comments, c.virtual_column, "
+    "NULL AS generation_type "
+    "FROM all_tab_cols c "
+    "LEFT JOIN all_col_comments cc "
+    "ON cc.owner = c.owner AND cc.table_name = c.table_name AND cc.column_name = c.column_name "
+    "WHERE c.owner = :schema AND c.hidden_column = 'NO' AND c.table_name NOT LIKE 'BIN$%'{filter} "
+    "ORDER BY c.table_name, c.column_id",
+    "c.table_name",
+)
+
+
 def _text(value: Any) -> str | None:
     if value is None:
         return None
@@ -202,10 +219,19 @@ def _grouped(rows: Sequence[Sequence[Any]]) -> dict[tuple[str, str], list[Sequen
 
 
 class OracleCatalog:
-    """:class:`~util_bbdd.metadata.contracts.CatalogDialect` de Oracle (12c+)."""
+    """:class:`~util_bbdd.metadata.contracts.VersionedCatalogDialect` de Oracle (12c+; 11g con :class:`Oracle11Catalog`)."""
 
     name = "oracle"
     sqlalchemy_names = frozenset({"oracle"})
+    _sql: dict[Kind, tuple[str, str | None]] = _SQL
+
+    def server_version_sql(self) -> str:
+        """Versión de la base de datos (``11.2.0.4.0``, ``19.0.0.0.0``); ``PRODUCT_COMPONENT_VERSION`` es pública."""
+        return "SELECT version FROM product_component_version WHERE product LIKE 'Oracle Database%' AND ROWNUM = 1"
+
+    def for_server_version(self, version: tuple[int, ...]) -> OracleCatalog:
+        """:class:`Oracle11Catalog` antes de la 12 (sin ``ALL_TAB_IDENTITY_COLS``); si no, ``self``."""
+        return Oracle11Catalog() if version and version < (12,) else self
 
     def current_schema_sql(self) -> str:
         return "SELECT SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') FROM dual"
@@ -217,7 +243,7 @@ class OracleCatalog:
         return name.upper() if name == name.lower() else name
 
     def query(self, kind: Kind, *, filtered: bool = False) -> CatalogQuery | None:
-        entry = _SQL.get(kind)
+        entry = self._sql.get(kind)
         if entry is None:
             return None
         sql, column = entry
@@ -356,4 +382,13 @@ class OracleCatalog:
         return [DatabaseMeta(str(r[0]), _text(r[1]), _text(r[2])) for r in rows]
 
 
-__all__: list[str] = ["OracleCatalog"]
+class Oracle11Catalog(OracleCatalog):
+    """Oracle 11g (11.2): mismas consultas sin ``ALL_TAB_IDENTITY_COLS`` (12c+); ``identity`` de las columnas vacía."""
+
+    _sql = _SQL_11G
+
+    def for_server_version(self, version: tuple[int, ...]) -> OracleCatalog:
+        return self if version and version < (12,) else OracleCatalog()
+
+
+__all__: list[str] = ["Oracle11Catalog", "OracleCatalog"]
