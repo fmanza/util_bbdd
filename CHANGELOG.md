@@ -5,6 +5,23 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.32.2] - 2026-10-06
+
+### Fixed
+
+- **connection (Hotfix P1, MariaDB pool charset)**: `MariaDBPoolConnection` ahora implementa
+  fallback defensivo para compatibilidad con mariadb driver 1.1.14 que rechaza parámetro
+  'charset' en `ConnectionPool()` (línea 106-127).
+  - Problema raíz: mariadb 1.1.14 no acepta charset en pool creation time (vs. conexión individual)
+  - Síntomas: `TypeError: connect() got an unexpected keyword argument 'charset'` al usar
+    `use_pool=True` en sync mode
+  - Remediación: Try/except con detección dual ("unexpected keyword argument" + "charset")
+    → retry sin charset, preservando todos los demás parámetros (host, user, database, pool_size, pool_name)
+  - Logging: Warning incluye versión detectada de driver para RCA en producción
+  - Cobertura: 3 nuevos tests unitarios (fallback exitoso, no-charset TypeError re-raise,
+    no-regresión Unicode)
+  - Impacto: Hotfix transparente, zero API changes, backward compatible
+
 ## [0.32.1] - 2026-10-05
 
 ### Fixed
