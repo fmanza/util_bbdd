@@ -71,6 +71,9 @@ class MariaDBConnectionConfig:
     @classmethod
     def from_params(cls, params: dict[str, Any]) -> MariaDBConnectionConfig:
         db_type: str = "mariadb"
+        # Use utf8mb4 as default charset to handle UnicodeDecodeError from mariadb driver
+        # when reading information_schema with non-ASCII characters (H-32, P2 hotfix 2026-10-05)
+        charset = _opt_str(params, "charset") or "utf8mb4"
         return cls(
             host=_require_str(params, "host", db_type),
             user=_require_str(params, "user", db_type),
@@ -82,7 +85,7 @@ class MariaDBConnectionConfig:
             connect_timeout=_to_int(params.get("connect_timeout", 10), "connect_timeout", db_type, min_value=0),
             read_timeout=_to_int(params.get("read_timeout", 30), "read_timeout", db_type, min_value=0),
             write_timeout=_to_int(params.get("write_timeout", 60), "write_timeout", db_type, min_value=0),
-            charset=_opt_str(params, "charset"),
+            charset=charset,
         )
 
     def to_driver_kwargs(self) -> dict[str, Any]:
@@ -96,11 +99,10 @@ class MariaDBConnectionConfig:
             "connect_timeout": self.connect_timeout,
             "read_timeout": self.read_timeout,
             "write_timeout": self.write_timeout,
+            "charset": self.charset,  # Always include charset (default: utf8mb4)
         }
         if self.unix_socket:
             payload["unix_socket"] = self.unix_socket
-        if self.charset:
-            payload["charset"] = self.charset
         return payload
 
 

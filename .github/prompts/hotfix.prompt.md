@@ -45,3 +45,5 @@ Si no puedes emitir un PLAN con diagnóstico de causa raíz claro, detente.
 - Limítate a corregir la causa raíz con el menor alcance posible.
 - Incluye un test que reproduzca el fallo cuando sea viable (test-first).
 - Antes de cerrar, los comandos de `SHARED_INSTRUCTIONS.md` § «Comandos de desarrollo» deben pasar.
+- Si ejecutas `python -m pytest` y deseas guardar los resultados en un archivo `.txt`, redirígelos a `build/logs/[test_type_results].txt`
+  (p.ej. `build/logs/mariadb_test_results.txt` para tests de MariaDB) en lugar de guardarlos en la raíz.

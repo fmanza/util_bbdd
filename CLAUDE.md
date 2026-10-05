@@ -96,6 +96,11 @@ Los hooks **no** aplican formato ni ejecutan la suite: antes de cerrar IMPLEMENT
 `ruff format`, el `mypy` completo y `pytest` con los comandos de `.github/SHARED_INSTRUCTIONS.md`
 § «Comandos de desarrollo», e itera si fallan.
 
+**Convención: Archivos de salida de pruebas**. Cuando ejecutes `python -m pytest` o generes
+archivos de resultados de validación durante slash commands, guarda los archivos `.txt` en `build/logs/`
+en lugar de la raíz. Ejemplos: `build/logs/mariadb_test_results.txt`, `build/logs/refactor_validation.txt`.
+Ver **Comandos de desarrollo** en `.github/SHARED_INSTRUCTIONS.md` para más detalles.
+
 **Qué va en cada fichero**: `settings.json` se versiona y contiene **solo** los hooks compartidos;
 los permisos («no volver a preguntar») y cualquier ajuste personal van a `settings.local.json`, que
 Claude Code usa por defecto para las aprobaciones. No añadas permisos de sesión a `settings.json`.

@@ -5,6 +5,66 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
+## [0.32.1] - 2026-10-05
+
+### Fixed
+
+- **connection (Hotfix P2, MariaDB charset)**: `MariaDBConnectionConfig.from_params()` ahora fuerza
+  `charset='utf8mb4'` como default (línea 78) si no se especifica explícitamente. Resuelve
+  `UnicodeDecodeError: 'latin1' codec can't decode...` al generar documentación con caracteres
+  no-ASCII en `information_schema` de MariaDB. El driver mariadb no heredaba charset de la sesión;
+  la fuerza al conectar. Afecta solo a MariaDB; otros motores sin cambios.
+  - Error raíz: mariadb driver (1.1+) ignora charset de servidor; requiere bind explícito
+  - Síntomas: UnicodeDecodeError en pipeline de documentación al leer `information_schema`
+  - Remediación: Force `utf8mb4` por defecto (compatible con UTF-8 internacional)
+  - Impacto: Ninguno (fix transparente); backward compatible
+
+- **managers (Deuda técnica, items A-E)**:
+  - A. Exception chain inspection: Helper `_has_unicode_error_in_chain()` centraliza inspección
+    de cadena de excepciones (reemplaza hardcoding manual en `fetch_all()` sync/async).
+    Facilita monitoreo si mariadb >= 1.2 cambia estructura interna.
+  - B. Retry logic configurable: `ManagerCatalogExecutor.__init__()` y
+    `AsyncManagerCatalogExecutor.__init__()` aceptan parámetro `max_retries: int = 3`
+    (configurable en lugar de hardcodeado en `self._max_retries = 3`).
+  - C. Rollback logging mejorado: `_rollback()` y `_arollback()` loguean errores en DEBUG
+    (con `logger.debug()`) en lugar de silenciarlos con `contextlib.suppress()`.
+    Facilita debugging en producción.
+  - D. Driver paramstyle extensible: Nueva función pública `register_driver_paramstyle(root_module, style)`
+    para registrar drivers nuevos sin editar `_catalog_executor.py`. Exportada en `__all__`.
+    Patrón: dict mutable `_KNOWN_STYLES` + helper de registro dinámico.
+  - E. Oracle LOB duck-typing robusto: Helper `_is_oracle_lob()` para detección robusta
+    (soporta oracledb y cx_Oracle; no falla si estructura interna del driver cambia).
+    Reemplaza `.startswith("oracledb")` frágil por module check + `hasattr(value, "read")`.
+
+### Changed
+
+- **managers**: Docstrings de `ManagerCatalogExecutor` y `AsyncManagerCatalogExecutor` actualizados
+  para documentar parámetro `max_retries` configurable y backoff exponencial.
+- **instructions (Convención)**: Archivos de output de pruebas (*.txt) se guardan en `build/logs/`
+  en lugar de la raíz (mariadb_test_results.txt, refactor_validation.txt, etc.). Actualizado:
+  - `.github/SHARED_INSTRUCTIONS.md` § «Comandos de desarrollo»
+  - `.github/prompts/hotfix.prompt.md` § «Reglas»
+  - `.github/prompts/new_feature.prompt.md` § «Reglas»
+  - `.github/prompts/refactor.prompt.md` § «Reglas»
+  - `CLAUDE.md` § «Convención: Archivos de salida de pruebas»
+  - `.claude/TESTING_GUIDE.md` § «Ejemplo: Redirigir pytest output»
+  - Creado: `build/logs/.gitkeep` para versionado del directorio
+
+### Removed
+
+- **managers**: `import contextlib` ya no necesario (eliminado de `_catalog_executor.py`
+  tras refactor de `_rollback()` y `_arollback()`).
+
+### Compatibilidad
+
+- ✅ **Backward compatible**: Parámetro `max_retries` es opcional (default 3).
+- ✅ **Sin cambios en API pública**: `BulkCrud`, `SyncDatabaseManager`, `AsyncDatabaseManager` sin cambios.
+- ✅ **MariaDB**: charset force beneficia a todas las aplicaciones; ningún breakage.
+- ✅ **Python**: 3.12-3.14 (todas las versiones soportadas).
+- ✅ **Motores**: MariaDB (principal), todos (logging mejorado).
+
+---
+
 ## [0.32.0] - 2026-10-05
 
 ### Agregado

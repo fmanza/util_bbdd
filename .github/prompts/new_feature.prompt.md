@@ -56,4 +56,5 @@ Si falta alguno, detente y aclara antes de emitir PLAN.
 
 ## Reglas
 - Antes de cerrar IMPLEMENT, los comandos de `SHARED_INSTRUCTIONS.md` § «Comandos de desarrollo» deben pasar.
+  Si generas archivos `.txt` de resultados de pruebas, guárdalos en `build/logs/` (p.ej. `build/logs/test_new_feature_results.txt`).
 - Documentación obligatoria según `SHARED_INSTRUCTIONS.md` § «Documentación obligatoria».

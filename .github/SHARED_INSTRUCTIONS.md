@@ -183,6 +183,10 @@ python scripts/gen_arquitectura_capas.py   # regenera el diagrama de capas e imp
 # → aplicar .github/prompts/onboarding_dev.prompt.md → docs/guides/onboarding_dev.md
 ```
 
+**Archivos de salida de pruebas y validación**: Todos los archivos `.txt` generados por tests de validación 
+(p.ej. `mariadb_test_results.txt`), benchmarks o logs deben guardarse en `build/logs/` en lugar de la raíz. 
+Actualizar los prompts de agentes y comandos de Claude Code para redirigir la salida en estos casos.
+
 ### Estrategia de tests
 - Managers y bulk: tests unitarios con SQLite en memoria (`":memory:"`); sin BD externas en CI.
 - Metadata, comparar, doc: tests con fixtures de esquemas mock o SQLite.

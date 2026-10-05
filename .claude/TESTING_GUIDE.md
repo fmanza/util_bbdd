@@ -451,6 +451,26 @@ python -m pytest tests/ --cov=src --cov-report=json-summary
 
 ---
 
+## Convención: Archivos de salida de pruebas
+
+Cuando generes archivos de resultados de pruebas (p.ej. durante `/hotfix`, `/new-feature`, `/audit-code` 
+o validación manual), guárdalos en `build/logs/` en lugar de la raíz del repositorio:
+
+```bash
+# Redireccionar salida de pytest a archivo en build/logs/
+python -m pytest tests/ -v > build/logs/mariadb_test_results.txt 2>&1
+
+# Ejemplo con motor específico
+python -m pytest tests/ -k mariadb > build/logs/mariadb_specific_tests.txt
+```
+
+Formato de nombres: `build/logs/[contexto]_[tipo]_results.txt`
+- Ejemplos: `mariadb_test_results.txt`, `refactor_validation.txt`, `performance_audit_baseline.txt`
+
+Esto mantiene la raíz limpia y agrupa todos los artefactos de validación en un único directorio.
+
+---
+
 ## Versión
 
 | Versión | Fecha | Cambios |

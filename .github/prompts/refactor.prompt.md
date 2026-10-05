@@ -56,3 +56,5 @@ Si hay cambio de API sin justificación, detente y aclara.
 - Priorizar separación de responsabilidades, eliminación de duplicación y legibilidad.
 - Antes de aplicar compatibilidad hacia atrás, confirmar explícitamente si se mantiene el enfoque
   «solo OO» o se habilitan funciones wrapper, y si se autoriza romper contratos públicos o snapshots.
+- Cuando ejecutes `python -m pytest` para validar regresiones, guarda cualquier archivo de resultados en `build/logs/`
+  en lugar de la raíz (p.ej. `build/logs/refactor_test_results.txt`).
