@@ -377,6 +377,7 @@ class OracleConnectionConfig:
     sid: str | None = None
     database: str | None = None
     oracle_client_path: str | None = None
+    oracle_thick_mode: bool = False
 
     @classmethod
     def from_params(cls, params: dict[str, Any]) -> OracleConnectionConfig:
@@ -397,6 +398,7 @@ class OracleConnectionConfig:
             sid=sid,
             database=database,
             oracle_client_path=_opt_str(params, "oracle_client_path"),
+            oracle_thick_mode=_to_bool(params.get("oracle_thick_mode", False), "oracle_thick_mode", db_type),
         )
 
     def to_driver_kwargs(self) -> dict[str, Any]:

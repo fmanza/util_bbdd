@@ -50,6 +50,7 @@ htmlcov/
 bench_results/
 
 # Build artifacts
+.build/
 *.whl
 *.tar.gz
 dist_verify/

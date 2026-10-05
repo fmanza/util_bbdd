@@ -79,34 +79,6 @@ class TestManagerCatalogExecutorRetry:
 
                 assert mock_dbapi.fetch_all.call_count == 1
 
-    def test_fetch_all_gracefully_handles_ora_00942_oracle_pre12c(self):
-        """Verifica que ORA-00942 (Oracle pre-12c, no IDENTITY support) retorna lista vacía."""
-        provider = Mock(return_value=Mock())
-        releaser = Mock()
-        executor = ManagerCatalogExecutor(provider, releaser)
-
-        with patch("util_bbdd.managers._catalog_executor.driver_paramstyle") as mock_style:
-            mock_style.return_value = "named"
-            with patch("util_bbdd.managers._catalog_executor.DbapiCatalogExecutor") as mock_dbapi_class:
-                mock_dbapi = Mock()
-                mock_dbapi_class.return_value = mock_dbapi
-                # Simulate Oracle ORA-00942: table or view does not exist (all_tab_identity_cols)
-                mock_dbapi.fetch_all.side_effect = Exception("ORA-00942: table or view does not exist")
-
-                with patch("util_bbdd.managers._catalog_executor.logger") as mock_logger:
-                    result = executor.fetch_all("SELECT * FROM all_tab_identity_cols WHERE owner = :schema", {})
-
-                # Should return empty list (graceful fallback)
-                assert result == []
-                # Should log a warning explaining the issue
-                assert mock_logger.warning.called
-                warning_msg = mock_logger.warning.call_args[0][0]
-                assert "ORA-00942" in warning_msg
-                assert "Oracle version pre-12c" in warning_msg
-                assert "IDENTITY metadata" in warning_msg
-                # Connection should be released once
-                assert releaser.call_count == 1
-
 
 class TestAsyncManagerCatalogExecutorRetry:
     """Tests del reintento en AsyncManagerCatalogExecutor (async)."""

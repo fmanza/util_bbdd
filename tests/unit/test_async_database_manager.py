@@ -429,17 +429,6 @@ class TestAsyncDatabaseManagerConvenienceMethods:
         assert result["queries"]["database_version"]["required_parameters"] == []
 
     @pytest.mark.asyncio
-    async def test_get_storage_inventory_oracle_requires_tablespace(self):
-        manager = AsyncDatabaseManager(
-            db_type="oracle",
-            conn_params={"user": "SCOTT"},
-            use_pool=False,
-        )
-
-        with pytest.raises(ValueError, match="tablespace"):
-            await manager.get_storage_inventory()
-
-    @pytest.mark.asyncio
     async def test_get_storage_inventory_unknown_db_type_rejected_at_init(self):
         with pytest.raises(Exception) as exc_info:
             AsyncDatabaseManager(

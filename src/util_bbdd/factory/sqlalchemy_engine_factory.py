@@ -39,10 +39,21 @@ class SQLAlchemyEngineFactory:
             DatabaseConnectionError: Si hay error creando la Engine
 
         Note:
-            oracle_client_path no es necesario. SQLAlchemy con oracledb
-            maneja automáticamente la ubicación del cliente Oracle.
+            oracle_thick_mode: Si es True para Oracle, inicializa el cliente en modo thick antes del Engine.
         """
         SQLAlchemyEngineFactory.logger.debug(f"🔧 Creando Engine de SQLAlchemy para {db_type}")
+
+        # Para Oracle: inicializar thick mode ANTES de crear el Engine si está activo
+        if db_type == "oracle" and conn_params.get("oracle_thick_mode"):
+            from ..connection.oracle._thick_mode import init_oracle_thick_mode
+
+            oracle_client_path: str | None = conn_params.get("oracle_client_path")
+            if not oracle_client_path:
+                raise ConnectionError(
+                    "Para usar oracle_thick_mode=True es obligatorio especificar oracle_client_path",
+                    db_type="oracle",
+                )
+            init_oracle_thick_mode(oracle_client_path)
 
         try:
             from sqlalchemy import create_engine, text

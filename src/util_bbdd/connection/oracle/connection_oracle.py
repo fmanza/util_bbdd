@@ -7,6 +7,7 @@ from typing import Any
 from util_bbdd._core.exceptions import ConnectionError
 
 from ..params import ConnectionParamsManager
+from ._thick_mode import init_oracle_thick_mode
 
 
 class OracleConnection:
@@ -40,8 +41,19 @@ class OracleConnection:
                 conn_params,
             )
 
+            oracle_thick_mode: bool = sanitized_conn_params.get("oracle_thick_mode", False)
             oracle_client_path: str | None = sanitized_conn_params.get("oracle_client_path")
-            if oracle_client_path and db_validator:
+
+            if oracle_thick_mode:
+                if not oracle_client_path:
+                    raise ValueError(
+                        "Para usar oracle_thick_mode=True es obligatorio especificar oracle_client_path "
+                        "(ruta del Oracle Instant Client 19+, p.ej. C:\\oracle\\instantclient_19_32)"
+                    )
+                init_oracle_thick_mode(oracle_client_path)
+            elif oracle_client_path and db_validator:
+                # Modo legacy: solo inicializar si se pasa oracle_client_path sin oracle_thick_mode=True
+                # (backwards compatibility)
                 driver_info = db_validator.get_db_type_driver_info("oracle")
                 if driver_info.get("client_path_support"):
                     if hasattr(oracledb, "init_oracle_client"):

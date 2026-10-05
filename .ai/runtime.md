@@ -114,3 +114,79 @@ pip install -e ".[doc-svg]"    # cairosvg≥2.7 (SVG→PNG en doc/)
 pip install -e ".[docs]"       # zensical + mkdocs-material + mkdocstrings[python]
 pip install -e ".[dev]"        # pytest + ruff + mypy + build + tipos
 ```
+
+## Flujo de Detección de Versión de Oracle
+
+Util_bbdd detecta y se adapta automáticamente a versiones de servidor Oracle (11g vs 12c+) mediante resolución perezosa de versión:
+
+### Diagrama de Flujo
+
+```mermaid
+graph TD
+    A["ConnectionFactory / DatabaseManager<br/>(crear conexión)"] -->|"oracle_thick_mode=True"| B["init_oracle_thick_mode<br/>(thread-safe, llamada única)"]
+    B -->|"si oracle_thick_mode"| C["oracledb.init_oracle_client<br/>(lib_dir=ruta_cliente)"]
+    C --> D["Crear SQLAlchemy Engine<br/>(modo thin o thick)"]
+    
+    A -->|"oracle_thick_mode=False"| D
+    
+    D --> E["CatalogSource.current_schema<br/>(primera llamada de metadatos)"]
+    E --> F["_resolve_dialect<br/>(perezoso, una vez por conexión)"]
+    F --> G["hasattr dialect<br/>server_version_sql?"]
+    G -->|"No (no versionado)"| H["Usar dialect tal cual<br/>(por defecto: OracleCatalog)"]
+    G -->|"Sí (Oracle)"| I["Ejecutar consulta de versión<br/>SELECT version FROM product_component_version"]
+    I --> J["Analizar versión<br/>11.2.0.4.0 → 11, 2, 0, 4, 0"]
+    J --> K["dialect.for_server_version<br/>(version_tuple)"]
+    K --> L{{"versión < 12?"}}
+    L -->|"Sí"| M["Oracle11Catalog<br/>(omite IDENTITY)"]
+    L -->|"No"| N["OracleCatalog<br/>(soporte completo 12c+)"]
+    M --> O["Caché: _version_resolved=True<br/>(sin re-consulta)"]
+    N --> O
+    O --> P["Usar dialect resuelto<br/>para todas las consultas de metadatos"]
+```
+
+### Propiedades Clave
+
+| Propiedad | Comportamiento |
+|---|---|
+| **Activador** | Primera llamada a `current_schema()` o `_load(kind, schema, tables)` |
+| **Consulta** | Consulta de versión única por conexión (caché mediante flag `_version_resolved`) |
+| **Latencia** | Un viaje de ida y vuelta adicional a la base de datos en la primera consulta de metadatos |
+| **Caché** | `_version_resolved=True` previene consultas de versión repetidas |
+| **Seguridad en Threads** | Inicialización de modo thick protegida por `threading.Lock`; sin condiciones de carrera |
+| **Segura para Async** | Conexiones async se protegen contra modo thick; genera `ConnectionError` si se intenta |
+
+### Configuración
+
+**Modo thin (por defecto, capaz de async, solo 12c+):**
+```python
+manager = AsyncDatabaseManager(
+    db_type="oracle",
+    conn_params={
+        "user": "scott",
+        "dsn": "oracle-host:1521/ORCL",
+        "oracle_thick_mode": False,  # Por defecto
+    },
+)
+```
+
+**Modo thick (solo sync, soporte 11g+, requiere Instant Client 19):**
+```python
+manager = DatabaseManager(
+    db_type="oracle",
+    conn_params={
+        "user": "scott",
+        "service_name": "ORCL",
+        "oracle_thick_mode": True,
+        "oracle_client_path": "/ruta/a/instantclient_19_x",
+    },
+)
+```
+
+### Detalles de Implementación
+
+- **Módulo de Detección de Versión**: `src/util_bbdd/metadata/source.py` (método _resolve_dialect)
+- **Módulo de Modo Thick**: `src/util_bbdd/connection/oracle/_thick_mode.py` (función init_oracle_thick_mode)
+- **Variantes de Dialect**: `src/util_bbdd/metadata/oracle/catalog.py` (clases OracleCatalog y Oracle11Catalog)
+- **ADR-004**: [docs/adr/ADR-004-lazy-oracle-version-resolution.md](../docs/adr/ADR-004-lazy-oracle-version-resolution.md)
+- **Guía de Drivers**: [docs/guides/drivers.md](../docs/guides/drivers.md)
+

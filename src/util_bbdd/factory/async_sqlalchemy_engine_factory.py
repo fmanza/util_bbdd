@@ -34,6 +34,15 @@ class AsyncSQLAlchemyEngineFactory:
         normalized_type: str = db_type.lower().strip()
         AsyncSQLAlchemyEngineFactory.logger.debug(f"🔧 Creando AsyncEngine de SQLAlchemy para {normalized_type}")
 
+        # Para Oracle: validar que no se intente usar thick mode con async
+        if normalized_type == "oracle" and conn_params.get("oracle_thick_mode"):
+            raise ConnectionError(
+                "El modo asincrónico de Oracle no es compatible con thick mode. "
+                "Thick mode siempre usa thin, que solo conecta con Oracle 12.1+. "
+                "Para Oracle 11g, use conexiones sincrónicas con oracle_thick_mode=True.",
+                db_type="oracle",
+            )
+
         try:
             from sqlalchemy import text
             from sqlalchemy.ext.asyncio import create_async_engine

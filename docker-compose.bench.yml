@@ -10,13 +10,13 @@
 #
 #   PostgreSQL 55432 (UTIL_BBDD_BENCH_POSTGRES_PORT)   MySQL 53306 (UTIL_BBDD_BENCH_MYSQL_PORT)
 #   MariaDB    53307 (UTIL_BBDD_BENCH_MARIADB_PORT)    SQL Server 51433 (UTIL_BBDD_BENCH_MSSQL_PORT)
-#   Oracle     51521 (UTIL_BBDD_BENCH_ORACLE_PORT)
+#   Oracle     51521 (UTIL_BBDD_BENCH_ORACLE_PORT)      Oracle 11g 51522 (UTIL_BBDD_BENCH_ORACLE11_PORT)
 #
 # La contraseña NO está en el repo: se toma de UTIL_BBDD_BENCH_PASSWORD (SQL Server exige mayúscula, minúscula y
 # dígito, ≥ 8 caracteres; evita símbolos que haya que codificar en la URL).
 #
 #   export UTIL_BBDD_BENCH_PASSWORD=...                                   # PowerShell: $env:UTIL_BBDD_BENCH_PASSWORD="..."
-#   docker compose -f docker-compose.bench.yml up -d --wait               # los 5 motores
+#   docker compose -f docker-compose.bench.yml up -d --wait               # los 6 motores (incluye Oracle 11g)
 #   docker compose -f docker-compose.bench.yml up -d --wait postgres mysql   # solo algunos
 #   docker compose -f docker-compose.bench.yml down -v                    # parar y borrar datos
 #   source scripts/bench_env.example.sh                                   # URLs (PowerShell: . scripts\bench_env.example.ps1)
@@ -124,6 +124,21 @@ services:
       test: ["CMD", "healthcheck.sh"]
       interval: 10s
       retries: 60
+
+  oracle11:
+    image: gvenzl/oracle-xe:11.2.0.2-slim-faststart
+    container_name: util_bbdd_bench_oracle11
+    environment:
+      ORACLE_ALLOW_REMOTE: "true"
+      ORACLE_PASSWORD: *password
+    ports:
+      - "127.0.0.1:${UTIL_BBDD_BENCH_ORACLE11_PORT:-51522}:1521"
+    healthcheck:
+      test: ["CMD", "sqlplus", "-v"]
+      interval: 30s
+      retries: 30
+    # Oracle 11g XE: 2 GB RAM, 1 CPU, 11 GB de espacio. Se para automáticamente en RAM si excede límite.
+    # Ver: https://docs.oracle.com/cd/E28280_01/admin.111/e10595/toc.htm
 
 configs:
   mysql_bench_grants:
