@@ -5,7 +5,23 @@ Todos los cambios notables en este proyecto se documentan en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [Sin liberar]
+
+### Agregado
+
+- **metadata / connection (Soporte Oracle 11g)**: Resolucion perezosa de version para la seleccion del dialecto de Oracle. En la primera consulta de metadatos, detecta la version del servidor Oracle y carga automaticamente `Oracle11Catalog` (11g, omite consultas IDENTITY) u `OracleCatalog` (12c+, soporte completo). Consulta de version unica por conexion, almacenada en cache a traves de la bandera `_version_resolved`. Sin cambios en la API publica; automatico y transparente.
+  - Nuevo modulo: `src/util_bbdd/connection/oracle/_thick_mode.py` para la inicializacion segura de Instant Client en subprocesos
+  - Configuracion: `oracle_thick_mode=True, oracle_client_path="/path/to/instantclient_19_x"` para soporte sincrono 11g
+  - Proteccion asincronica: Lanza `ConnectionError` si se intenta modo grueso con asincronica (asincronica usa solo modo delgado, 12c+)
+  - Documentacion: [docs/guides/drivers.md](docs/guides/drivers.md), [docs/adr/ADR-004](docs/adr/ADR-004-lazy-oracle-version-resolution.md)
+  - Pruebas: 22 nuevas pruebas de integracion para deteccion de version y resolucion perezosa (test_oracle_11_catalog_detection.py,
+    test_catalog_source_oracle_version.py)
+
+### Corregido
+
+- **metadata**: Revertir captura silenciosa de ORA-00942 desde v0.31.2. Los errores ahora se propagan como `MetadataError` en lugar de ser ignorados silenciosamente. La deteccion de version ahora asegura que se use el dialecto correcto (Oracle11Catalog para 11g), por lo que las consultas de ALL_TAB_IDENTITY_COLS no se ejecutan en 11g y ORA-00942 se previene en la raiz. Los usuarios que actualicen desde v0.31.2 a la version actual veran un mejor informe de errores y la seleccion correcta del dialecto 11g.
+- **metadata (Hotfix P1, Oracle 11g)**: `CatalogSource.snapshot(kind, schema)` y `AsyncCatalogSource.snapshot()` con schema explícito no resolvían la versión de Oracle al server, lo que causaba que la selección de dialecto permaneciera como `OracleCatalog` (default) en lugar de cambiar a `Oracle11Catalog` para Oracle 11g. Esto resultaba en intentos de consultar `ALL_TAB_IDENTITY_COLS` que no existe en 11g, causando `ORA-00942`. **Remediación**: Agregado llamada a `_resolve_dialect()` en ambos métodos `_load()` (sync y async) de `metadata/source.py` para garantizar que la versión se resuelva antes de cualquier consulta de metadatos, sin importar el punto de entrada (current_schema, snapshot, etc.).
+- **connection (Hotfix P1, Oracle async guard)**: `AsyncConnectionFactory` aún permitía la inicialización de thick mode después de que ya se había realizado en el mismo proceso, violando la restricción de que async + thick mode es incompatible. El guard leía un valor import stale de `ORACLE_THICK_MODE_INITIALIZED` que no se actualizaba cuando `init_oracle_thick_mode()` cambiaba el valor global. **Remediación**: Cambio a acceso dinámico de módulo (`from util_bbdd.connection.oracle import _thick_mode` + `_thick_mode.ORACLE_THICK_MODE_INITIALIZED` en tiempo de comprobación) en lugar de import estática del valor, garantizando que el guard siempre lee el estado actual.
 
 ## [0.31.2] - 2026-10-04
 

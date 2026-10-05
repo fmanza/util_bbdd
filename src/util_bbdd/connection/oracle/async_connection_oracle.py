@@ -9,6 +9,7 @@ from typing import Any
 from util_bbdd._core.exceptions import ConnectionError
 
 from ..params import ConnectionParamsManager
+from . import _thick_mode
 
 
 class AsyncOracleConnection:
@@ -48,7 +49,11 @@ class AsyncOracleConnection:
 
     @staticmethod
     async def connect(conn_params: dict[str, Any]) -> Any:
-        """Establece conexión async a Oracle."""
+        """Establece conexión async a Oracle.
+
+        Nota: Las conexiones asincrónicas siempre usan el modo thin de oracledb, que solo conecta
+        con Oracle 12.1+. Para Oracle 11g, use sincrónicas con oracle_thick_mode=True.
+        """
         try:
             import oracledb
 
@@ -56,6 +61,15 @@ class AsyncOracleConnection:
                 "oracle",
                 conn_params,
             )
+
+            # Validar que no se intente usar thick mode con async
+            if _thick_mode.ORACLE_THICK_MODE_INITIALIZED:
+                raise ConnectionError(
+                    "El modo asincrónico de Oracle no es compatible con thick mode en el mismo proceso. "
+                    "Thick mode siempre usa thin, que no soporta Oracle 11g. "
+                    "Use conexiones sincrónicas para Oracle 11g.",
+                    db_type="oracle",
+                )
 
             connect_params: dict[str, Any] = AsyncOracleConnection._build_connect_params(
                 oracledb,

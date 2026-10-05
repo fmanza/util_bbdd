@@ -177,6 +177,7 @@ class CatalogSource(_SourceBase):
     ) -> None:
         super().__init__(dialect, source_id=source_id, cache=cache, default_schema=default_schema)
         self.executor = executor
+        self._version_resolved = False
 
     @classmethod
     def from_engine(
@@ -191,13 +192,46 @@ class CatalogSource(_SourceBase):
             default_schema=default_schema,
         )
 
+    def _resolve_dialect(self) -> None:
+        """Resuelve la variante del dialecto según la versión del servidor (p.ej. Oracle 11g vs 12c+).
+
+        Ejecutado una sola vez al acceder al dialecto por primera vez. Si el dialecto implementa
+        ``VersionedCatalogDialect``, consulta la versión del servidor y usa ``for_server_version()``
+        para obtener la variante correcta. Si no implementa el protocolo, se usa tal cual.
+        """
+        if self._version_resolved:
+            return
+        self._version_resolved = True
+
+        # Verificar si el dialecto implementa VersionedCatalogDialect (protocolo opcional)
+        if not hasattr(self.dialect, "server_version_sql") or not hasattr(self.dialect, "for_server_version"):
+            return  # Dialecto no versioned; usar tal cual
+
+        version_sql = self.dialect.server_version_sql()
+        rows = self.executor.fetch_all(version_sql, {})
+        if not rows or not rows[0] or not rows[0][0]:
+            return  # No se pudo leer versión; usar variante por defecto (12c+)
+
+        # Parsear versión: "11.2.0.4.0" → (11, 2, 0, 4, 0)
+        version_str = str(rows[0][0]).strip()
+        try:
+            version_tuple = tuple(int(x) for x in version_str.split("."))
+        except (ValueError, AttributeError):
+            return  # Formato inesperado; usar variante por defecto
+
+        # Obtener la variante correcta según la versión
+        resolved_dialect = self.dialect.for_server_version(version_tuple)
+        self.dialect = resolved_dialect
+
     def current_schema(self) -> str:
+        self._resolve_dialect()  # Lazy resolution
         if self._default_schema is None:
             rows = self.executor.fetch_all(self.dialect.current_schema_sql(), {})
             self._default_schema = str(rows[0][0])
         return self._default_schema
 
     def _load(self, kind: Kind, schema: str, tables: frozenset[str] | None) -> tuple[Any, ...]:
+        self._resolve_dialect()
         request = self._request(kind, schema, tables)
         if request is None:
             return ()
@@ -242,14 +276,48 @@ class AsyncCatalogSource(_SourceBase):
     ) -> None:
         super().__init__(dialect, source_id=source_id, cache=cache, default_schema=default_schema)
         self.executor = executor
+        self._version_resolved = False
 
     async def current_schema(self) -> str:
+        await self._resolve_dialect()  # Lazy resolution
         if self._default_schema is None:
             rows = await self.executor.fetch_all(self.dialect.current_schema_sql(), {})
             self._default_schema = str(rows[0][0])
         return self._default_schema
 
+    async def _resolve_dialect(self) -> None:
+        """Resuelve la variante del dialecto según la versión del servidor (p.ej. Oracle 11g vs 12c+).
+
+        Ejecutado una sola vez al acceder al dialecto por primera vez. Si el dialecto implementa
+        ``VersionedCatalogDialect``, consulta la versión del servidor y usa ``for_server_version()``
+        para obtener la variante correcta. Si no implementa el protocolo, se usa tal cual.
+        """
+        if self._version_resolved:
+            return
+        self._version_resolved = True
+
+        # Verificar si el dialecto implementa VersionedCatalogDialect (protocolo opcional)
+        if not hasattr(self.dialect, "server_version_sql") or not hasattr(self.dialect, "for_server_version"):
+            return  # Dialecto no versioned; usar tal cual
+
+        version_sql = self.dialect.server_version_sql()
+        rows = await self.executor.fetch_all(version_sql, {})
+        if not rows or not rows[0] or not rows[0][0]:
+            return  # No se pudo leer versión; usar variante por defecto (12c+)
+
+        # Parsear versión: "11.2.0.4.0" → (11, 2, 0, 4, 0)
+        version_str = str(rows[0][0]).strip()
+        try:
+            version_tuple = tuple(int(x) for x in version_str.split("."))
+        except (ValueError, AttributeError):
+            return  # Formato inesperado; usar variante por defecto
+
+        # Obtener la variante correcta según la versión
+        resolved_dialect = self.dialect.for_server_version(version_tuple)
+        self.dialect = resolved_dialect
+
     async def _load(self, kind: Kind, schema: str, tables: frozenset[str] | None) -> tuple[Any, ...]:
+        await self._resolve_dialect()
         request = self._request(kind, schema, tables)
         if request is None:
             return ()
